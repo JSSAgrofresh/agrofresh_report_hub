@@ -1,0 +1,55 @@
+.link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.deshabilitado {
+  opacity: 0.65;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100%;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.link:hover .card {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.cabecera h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.descripcion {
+  font-size: 13.5px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  flex: 1;
+}
+
+.accion {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+}
+
+.deshabilitado .accion {
+  color: var(--color-text-faint);
+}

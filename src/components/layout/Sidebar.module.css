@@ -1,34 +1,47 @@
+.overlay {
+  display: none;
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
   width: 240px;
   flex-shrink: 0;
   background-color: var(--color-surface);
   border-right: 1px solid var(--color-border);
   padding: var(--space-5) var(--space-4);
+  transition: transform 0.2s ease;
 }
 
 .brand {
-  font-weight: 700;
-  font-size: 1rem;
-  color: var(--color-primary-hover);
+  margin-bottom: var(--space-5);
+}
+
+.logo {
+  height: 34px;
+  width: auto;
+  display: block;
 }
 
 .nav {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  flex: 1;
 }
 
 .navLink {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
   font-size: 0.9rem;
   font-weight: 500;
   text-decoration: none;
+  transition: background-color 0.12s ease;
 }
 
 .navLink:hover {
@@ -37,6 +50,109 @@
 }
 
 .navLinkActive {
-  background-color: #e3f3e8;
+  background-color: #eef6e5;
   color: var(--color-primary-hover);
+  font-weight: 600;
+}
+
+.navLinkDeshabilitado {
+  color: var(--color-text-faint);
+  cursor: default;
+}
+
+.navLinkDeshabilitado:hover {
+  background-color: transparent;
+  color: var(--color-text-faint);
+}
+
+.pie {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.estadoBd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-faint);
+  font-family: var(--font-mono);
+}
+
+.puntoBd {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.usuario {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.usuarioInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.usuarioNombre {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usuarioRol {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.salir {
+  border: none;
+  background: none;
+  color: var(--color-text-faint);
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.salir:hover {
+  color: var(--color-danger);
+  background: #fbe8e5;
+}
+
+@media (max-width: 880px) {
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    transform: translateX(-100%);
+    box-shadow: var(--shadow-md);
+  }
+
+  .abierto {
+    transform: translateX(0);
+  }
+
+  .overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(22, 32, 27, 0.35);
+    z-index: 20;
+  }
 }
