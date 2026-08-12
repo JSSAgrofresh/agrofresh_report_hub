@@ -1,28 +1,101 @@
 .pantalla {
   min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.marca {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-6) clamp(var(--space-6), 8vw, 96px);
+  background: linear-gradient(155deg, #24391a 0%, #345424 46%, #4f7a26 100%);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.marca::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 82% 12%, rgba(232, 195, 46, 0.22), transparent 42%),
+    radial-gradient(circle at 10% 90%, rgba(255, 255, 255, 0.08), transparent 45%);
+  pointer-events: none;
+}
+
+.logoMarca {
+  height: 34px;
+  width: fit-content;
+  filter: brightness(0) invert(1);
+  opacity: 0.95;
+  position: relative;
+}
+
+.marcaTexto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 420px;
+  position: relative;
+}
+
+.marcaTexto h1 {
+  font-size: clamp(1.9rem, 3vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.marcaTexto p {
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.marcaLista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  position: relative;
+}
+
+.marcaLista li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.marcaLista li::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.panelForm {
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--color-bg);
-  background-image:
-    radial-gradient(circle at 15% 20%, rgba(109, 173, 60, 0.08), transparent 40%),
-    radial-gradient(circle at 85% 80%, rgba(232, 195, 46, 0.1), transparent 40%);
-  padding: var(--space-4);
+  padding: var(--space-5);
 }
 
 .tarjeta {
   width: 100%;
-  max-width: 380px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  padding: var(--space-6) var(--space-5);
+  max-width: 360px;
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: var(--space-5);
-  animation: entrar 0.3s ease;
+  animation: entrar 0.35s ease;
 }
 
 @keyframes entrar {
@@ -36,24 +109,53 @@
   }
 }
 
-.logo {
-  height: 42px;
-  width: auto;
+.logoTarjeta {
+  display: none;
+  height: 30px;
+  width: fit-content;
 }
 
 .encabezado {
-  text-align: center;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.encabezado h1 {
-  font-size: 1.25rem;
+.encabezado h2 {
+  font-size: 1.35rem;
   font-weight: 700;
 }
 
 .encabezado p {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--color-text-muted);
+}
+
+@media (max-width: 900px) {
+  .pantalla {
+    grid-template-columns: 1fr;
+  }
+
+  .marca {
+    padding: var(--space-6) var(--space-5);
+    gap: var(--space-4);
+  }
+
+  .marcaLista {
+    display: none;
+  }
+
+  .marcaTexto p {
+    font-size: 13.5px;
+  }
+}
+
+@media (max-width: 620px) {
+  .marca {
+    display: none;
+  }
+
+  .logoTarjeta {
+    display: block;
+  }
 }

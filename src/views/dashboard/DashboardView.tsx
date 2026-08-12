@@ -1,27 +1,33 @@
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { IconAlerta, IconClock, IconUpload } from '@/components/ui/icons'
 import { MODULOS } from '@/constants/modules'
 import { ModuloCard, useDashboardSummary } from '@/features/dashboard'
 import styles from './DashboardView.module.css'
 
 export function DashboardView() {
   const { resumen, status } = useDashboardSummary()
+  const cargando = status === 'loading'
 
   return (
     <div>
       <Header title="Panel general" description="Punto de entrada a los módulos de AgroFresh Report Hub." />
 
       <div className={styles.grid}>
-        {MODULOS.map((m) => (
-          <ModuloCard key={m.id} modulo={m} />
+        {MODULOS.map((m, i) => (
+          <ModuloCard key={m.id} modulo={m} indice={i} />
         ))}
       </div>
 
       <div className={styles.filas}>
         <Card className={styles.bloque}>
-          <h3 className={styles.tituloBloque}>Pendiente de revisar</h3>
-          {status === 'loading' ? (
-            <p className={styles.cargando}>Cargando…</p>
+          <h3 className={styles.tituloBloque}>
+            <IconClock className={styles.tituloIcono} />
+            Pendiente de revisar
+          </h3>
+          {cargando ? (
+            <Skeleton style={{ width: '48px', height: '2.2rem' }} />
           ) : (
             <p className={styles.metricaGrande}>{resumen?.pendientesRevision ?? 0}</p>
           )}
@@ -29,9 +35,16 @@ export function DashboardView() {
         </Card>
 
         <Card className={styles.bloque}>
-          <h3 className={styles.tituloBloque}>Últimas cargas</h3>
-          {status === 'loading' ? (
-            <p className={styles.cargando}>Cargando…</p>
+          <h3 className={styles.tituloBloque}>
+            <IconUpload className={styles.tituloIcono} />
+            Últimas cargas
+          </h3>
+          {cargando ? (
+            <div className={styles.skeletonLista}>
+              <Skeleton style={{ height: '38px' }} />
+              <Skeleton style={{ height: '38px' }} />
+              <Skeleton style={{ height: '38px' }} />
+            </div>
           ) : resumen && resumen.ultimasCargas.length > 0 ? (
             <ul className={styles.lista}>
               {resumen.ultimasCargas.map((c) => (
@@ -48,9 +61,12 @@ export function DashboardView() {
         </Card>
 
         <Card className={styles.bloque}>
-          <h3 className={styles.tituloBloque}>Alertas</h3>
-          {status === 'loading' ? (
-            <p className={styles.cargando}>Cargando…</p>
+          <h3 className={styles.tituloBloque}>
+            <IconAlerta className={styles.tituloIcono} />
+            Alertas
+          </h3>
+          {cargando ? (
+            <Skeleton style={{ height: '38px' }} />
           ) : resumen && resumen.alertas.length > 0 ? (
             <ul className={styles.alertas}>
               {resumen.alertas.map((a) => (
