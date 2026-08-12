@@ -20,7 +20,11 @@ export function IframeModule({ src, titulo }: IframeModuleProps) {
     const doc = ref.current?.contentDocument
     if (doc) {
       const style = doc.createElement('style')
-      style.textContent = '.top.noprint, header.top { display: none !important; }'
+      style.textContent = [
+        '.top.noprint, header.top { display: none !important; }',
+        // el foco por defecto del navegador queda negro; se alinea al verde de marca
+        ':focus-visible { outline-color: #6DAD3C !important; }',
+      ].join('\n')
       doc.head.appendChild(style)
     }
     setCargando(false)
@@ -28,6 +32,7 @@ export function IframeModule({ src, titulo }: IframeModuleProps) {
 
   return (
     <div className={styles.wrap}>
+      <div className={styles.franja} />
       {cargando && <div className={styles.cargando}>Cargando {titulo}…</div>}
       <iframe
         ref={ref}

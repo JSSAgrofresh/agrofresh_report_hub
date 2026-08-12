@@ -27,10 +27,10 @@
 }
 
 .logoMarca {
-  height: 34px;
+  height: 46px;
   width: fit-content;
   filter: brightness(0) invert(1);
-  opacity: 0.95;
+  opacity: 0.96;
   position: relative;
 }
 
@@ -111,7 +111,7 @@
 
 .logoTarjeta {
   display: none;
-  height: 30px;
+  height: 38px;
   width: fit-content;
 }
 

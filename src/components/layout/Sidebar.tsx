@@ -5,7 +5,6 @@ import { useAuth } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
 import { MODULOS } from '@/constants/modules'
 import { cn } from '@/lib/cn'
-import { Badge } from '@/components/ui/Badge'
 import {
   IconAudit,
   IconConverter,
@@ -72,7 +71,7 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
               <span key={m.id} className={cn(styles.navLink, styles.navLinkDeshabilitado)}>
                 <Icono className={styles.navIcono} />
                 {m.nombre}
-                <Badge tone="neutral">{ESTADO_LABEL[m.estado]}</Badge>
+                <span className={styles.estadoPill}>{ESTADO_LABEL[m.estado]}</span>
               </span>
             )
           })}

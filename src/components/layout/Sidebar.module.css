@@ -5,10 +5,9 @@
 .sidebar {
   display: flex;
   flex-direction: column;
-  width: 240px;
+  width: 252px;
   flex-shrink: 0;
-  background-color: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+  background: linear-gradient(165deg, #24391a 0%, #345424 50%, #45681f 100%);
   padding: var(--space-5) var(--space-4);
   transition: transform 0.2s ease;
 }
@@ -19,9 +18,11 @@
 }
 
 .logo {
-  height: 32px;
+  height: 42px;
   width: auto;
   display: block;
+  filter: brightness(0) invert(1);
+  opacity: 0.96;
 }
 
 .nav {
@@ -35,9 +36,9 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 9px var(--space-3);
+  padding: 10px var(--space-3);
   border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
+  color: rgba(255, 255, 255, 0.72);
   font-size: 0.89rem;
   font-weight: 500;
   text-decoration: none;
@@ -52,13 +53,13 @@
   width: 17px;
   height: 17px;
   flex-shrink: 0;
-  opacity: 0.75;
+  opacity: 0.85;
   transition: opacity 0.15s ease;
 }
 
 .navLink:hover {
-  background-color: var(--color-bg);
-  color: var(--color-text);
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 
 .navLink:hover .navIcono {
@@ -66,28 +67,42 @@
 }
 
 .navLinkActive {
-  background-color: #f1f8ea;
-  color: var(--color-primary-hover);
+  background-color: rgba(255, 255, 255, 0.13);
+  color: #fff;
   font-weight: 600;
-  border-left-color: var(--color-primary);
+  border-left-color: var(--color-accent);
 }
 
 .navLinkActive .navIcono {
   opacity: 1;
+  color: var(--color-accent);
 }
 
 .navLinkDeshabilitado {
-  color: var(--color-text-faint);
+  color: rgba(255, 255, 255, 0.4);
   cursor: default;
 }
 
 .navLinkDeshabilitado .navIcono {
-  opacity: 0.45;
+  opacity: 0.5;
 }
 
 .navLinkDeshabilitado:hover {
   background-color: transparent;
-  color: var(--color-text-faint);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.estadoPill {
+  margin-left: auto;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
 }
 
 .pie {
@@ -95,7 +110,7 @@
   flex-direction: column;
   gap: var(--space-3);
   padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .estadoBd {
@@ -103,7 +118,7 @@
   align-items: center;
   gap: var(--space-2);
   font-size: 11.5px;
-  color: var(--color-text-faint);
+  color: rgba(255, 255, 255, 0.55);
   font-family: var(--font-mono);
   padding-left: 2px;
 }
@@ -122,10 +137,10 @@
 }
 
 .usuarioAvatar {
-  width: 30px;
-  height: 30px;
+  width: 31px;
+  height: 31px;
   border-radius: 50%;
-  background: #eef6e5;
+  background: rgba(255, 255, 255, 0.94);
   color: var(--color-primary-hover);
   display: flex;
   align-items: center;
@@ -148,7 +163,7 @@
 .usuarioNombre {
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--color-text);
+  color: #fff;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -156,7 +171,7 @@
 
 .usuarioRol {
   font-size: 10.5px;
-  color: var(--color-text-faint);
+  color: rgba(255, 255, 255, 0.55);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -167,7 +182,7 @@
   justify-content: center;
   border: none;
   background: none;
-  color: var(--color-text-faint);
+  color: rgba(255, 255, 255, 0.55);
   cursor: pointer;
   width: 28px;
   height: 28px;
@@ -184,8 +199,8 @@
 }
 
 .salir:hover {
-  color: var(--color-danger);
-  background: #fbe8e5;
+  color: #ffb199;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 @media (max-width: 880px) {
@@ -205,7 +220,7 @@
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(22, 32, 27, 0.35);
+    background: rgba(22, 32, 27, 0.45);
     z-index: 20;
     animation: aparecerOverlay 0.15s ease;
   }
