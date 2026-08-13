@@ -32,7 +32,7 @@
 }
 
 .link:hover .card {
-  border-color: var(--color-primary);
+  border-color: var(--acento-tarjeta, var(--color-primary));
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }

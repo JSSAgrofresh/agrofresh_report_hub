@@ -5,4 +5,5 @@ export const ROUTES = {
   trace: '/modulos/trace',
   converter: '/modulos/convertidor',
   reports: '/modulos/reportes',
+  adminUsuarios: '/admin/usuarios',
 } as const

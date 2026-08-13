@@ -19,3 +19,15 @@ export interface ResumenDashboard {
   ultimasCargas: CargaReciente[]
   alertas: AlertaProceso[]
 }
+
+export interface ReporteEnviado {
+  id: string
+  detalle: string
+  fecha: string
+}
+
+export interface ResumenArea {
+  totalRegistros2026: number
+  registrosUltimaSemana: number
+  reportesEnviados: ReporteEnviado[]
+}

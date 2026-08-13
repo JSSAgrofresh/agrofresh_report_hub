@@ -1,4 +1,4 @@
-import type { ComponentType, SVGProps } from 'react'
+import type { ComponentType, CSSProperties, SVGProps } from 'react'
 import { Link } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -19,22 +19,39 @@ const ICONO_MODULO: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   reports: IconReports,
 }
 
-export function ModuloCard({ modulo, indice = 0 }: { modulo: ModuloInfo; indice?: number }) {
+interface ModuloCardProps {
+  modulo: ModuloInfo
+  indice?: number
+  /** color de acento del área (icono); si no se pasa usa el verde por defecto */
+  acento?: string
+}
+
+export function ModuloCard({ modulo, indice = 0, acento }: ModuloCardProps) {
   const estado = ESTADO[modulo.estado]
   const disponible = modulo.estado === 'disponible'
   const Icono = ICONO_MODULO[modulo.id]
 
+  const estiloCard: CSSProperties = {
+    animationDelay: `${indice * 45}ms`,
+    ...(acento ? ({ '--acento-tarjeta': acento } as CSSProperties) : {}),
+  }
+
   const contenido = (
-    <Card className={styles.card} style={{ animationDelay: `${indice * 45}ms` }}>
+    <Card className={styles.card} style={estiloCard}>
       <div className={styles.cabecera}>
-        <div className={styles.icono}>
+        <div
+          className={styles.icono}
+          style={acento ? { background: `${acento}1f`, color: acento } : undefined}
+        >
           <Icono />
         </div>
         <Badge tone={estado.tono}>{estado.texto}</Badge>
       </div>
       <h3 className={styles.nombre}>{modulo.nombre}</h3>
       <p className={styles.descripcion}>{modulo.descripcion}</p>
-      <span className={styles.accion}>{disponible ? 'Abrir módulo' : 'No disponible todavía'}</span>
+      <span className={styles.accion} style={acento && disponible ? { color: acento } : undefined}>
+        {disponible ? 'Abrir módulo' : 'No disponible todavía'}
+      </span>
     </Card>
   )
 

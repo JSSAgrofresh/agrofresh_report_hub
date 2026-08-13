@@ -6,7 +6,8 @@ import type { AuthUser } from '../types'
 import { AuthContext } from './AuthContext'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useLocalStorage<AuthUser | null>('agrofresh.sesion', null)
+  // v2: la sesión ahora guarda tipoAcceso/área en vez del rol anterior (consulta/carga/aprobación)
+  const [user, setUser] = useLocalStorage<AuthUser | null>('agrofresh.sesion.v2', null)
 
   const login = useCallback(
     async (email: string, password: string) => {

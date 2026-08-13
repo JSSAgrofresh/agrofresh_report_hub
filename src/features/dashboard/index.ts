@@ -1,3 +1,5 @@
 export { useDashboardSummary } from './hooks/useDashboardSummary'
+export { useAreaDashboardSummary } from './hooks/useAreaDashboardSummary'
 export { ModuloCard } from './components/ModuloCard'
-export type { ResumenDashboard, CargaReciente, AlertaProceso } from './types'
+export { AreaHero } from './components/AreaHero'
+export type { ResumenDashboard, CargaReciente, AlertaProceso, ResumenArea, ReporteEnviado } from './types'

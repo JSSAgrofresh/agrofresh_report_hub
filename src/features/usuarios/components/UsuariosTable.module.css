@@ -1,0 +1,90 @@
+.tablaCaja {
+  overflow-x: auto;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.tabla th {
+  text-align: left;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-strong);
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: 10px var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tabla tbody tr:hover {
+  background: var(--color-bg);
+}
+
+.nombre {
+  font-weight: 600;
+}
+
+.correo {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.cliente {
+  color: var(--color-text-muted);
+}
+
+.acciones {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.boton,
+.botonEliminar {
+  font-size: 12.5px;
+  font-weight: 600;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  color: var(--color-primary-hover);
+}
+
+.boton:hover {
+  background: #eef6e5;
+}
+
+.botonEliminar {
+  color: var(--color-danger);
+}
+
+.botonEliminar:hover:not(:disabled) {
+  background: #fbe8e5;
+}
+
+.botonEliminar:disabled {
+  color: var(--color-text-faint);
+  cursor: not-allowed;
+}
+
+.vacio {
+  color: var(--color-text-muted);
+  font-size: 13.5px;
+  padding: var(--space-4) 0;
+}

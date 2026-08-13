@@ -1,7 +1,1 @@
-export type UserRole = 'consulta' | 'carga' | 'aprobacion'
-
-export interface AuthUser {
-  email: string
-  nombre: string
-  rol: UserRole
-}
+export type { Usuario as AuthUser, TipoAcceso } from '@/features/usuarios/types'

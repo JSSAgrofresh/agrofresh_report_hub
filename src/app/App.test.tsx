@@ -16,8 +16,13 @@ describe('App', () => {
 
   it('muestra el panel general cuando hay una sesión guardada', async () => {
     window.localStorage.setItem(
-      'agrofresh.sesion',
-      JSON.stringify({ email: 'jorge.sandoval@agrofresh.com', nombre: 'Jorge Sandoval', rol: 'aprobacion' }),
+      'agrofresh.sesion.v2',
+      JSON.stringify({
+        id: 'u-1',
+        email: 'jorge.sandoval@agrofresh.com',
+        nombre: 'Jorge Sandoval',
+        tipoAcceso: 'admin_general',
+      }),
     )
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Panel general' })).toBeInTheDocument()

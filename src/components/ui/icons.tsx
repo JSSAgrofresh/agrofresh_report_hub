@@ -123,3 +123,23 @@ export function IconUpload(props: IconProps) {
     </svg>
   )
 }
+
+export function IconTrendingUp(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="m3.5 15.5 6-6 4 4 7-7" />
+      <path d="M15.5 6h5v5" />
+    </svg>
+  )
+}
+
+export function IconUsers(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="9" cy="8.3" r="3" />
+      <path d="M3.5 19c.8-2.9 3-4.5 5.5-4.5s4.7 1.6 5.5 4.5" />
+      <path d="M15.5 5.3a3 3 0 0 1 0 5.8" />
+      <path d="M17.5 14.7c2 .5 3.4 1.9 4 4.3" />
+    </svg>
+  )
+}
