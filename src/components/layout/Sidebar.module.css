@@ -7,6 +7,11 @@
   flex-direction: column;
   width: 252px;
   flex-shrink: 0;
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
   background: linear-gradient(165deg, #24391a 0%, #345424 50%, #45681f 100%);
   padding: var(--space-5) var(--space-4);
   transition: transform 0.2s ease;
