@@ -1,0 +1,61 @@
+.hero {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  padding: var(--space-6);
+  min-height: 168px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  color: #fff;
+  margin-bottom: var(--space-5);
+  background-size: cover;
+  background-position: center;
+  box-shadow: var(--shadow-md);
+  animation: entrar 0.35s ease;
+}
+
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.etiqueta {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.titulo {
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  max-width: 520px;
+}
+
+.descripcion {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 480px;
+  line-height: 1.5;
+}
+
+@media (max-width: 620px) {
+  .hero {
+    min-height: 140px;
+    padding: var(--space-5);
+  }
+
+  .titulo {
+    font-size: 1.4rem;
+  }
+}

@@ -1,16 +1,22 @@
 :root {
   color-scheme: light;
 
-  --color-bg: #f4f7f5;
+  /* Identidad AgroFresh — mismos tokens que Trace.html y Converter.html,
+     para que los módulos embebidos se sientan parte de la misma app. */
+  --color-bg: #f6f7f3;
   --color-surface: #ffffff;
-  --color-border: #dde3df;
-  --color-text: #1c2621;
-  --color-text-muted: #5c6b62;
-  --color-primary: #2f7d4f;
-  --color-primary-hover: #26663f;
+  --color-border: #e1e5dc;
+  --color-border-strong: #c9d0c4;
+  --color-text: #16201b;
+  --color-text-muted: #3d4a43;
+  --color-text-faint: #77837b;
+  --color-primary: #6dad3c;
+  --color-primary-hover: #4f8a26;
   --color-primary-contrast: #ffffff;
-  --color-danger: #c0392b;
-  --color-warning: #b9862a;
+  --color-accent: #e8c32e;
+  --color-danger: #b0271f;
+  --color-warning: #b4531f;
+  --color-ok: #2f7d32;
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -23,10 +29,13 @@
   --space-5: 24px;
   --space-6: 32px;
 
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Cascadia Mono', 'Consolas', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  --shadow-sm: 0 1px 2px rgba(16, 24, 20, 0.06);
-  --shadow-md: 0 4px 12px rgba(16, 24, 20, 0.08);
+  --shadow-sm: 0 1px 2px rgba(22, 32, 27, 0.06);
+  --shadow-md: 0 4px 12px rgba(22, 32, 27, 0.08);
+
+  --topbar-height: 4px;
 }
 
 * {

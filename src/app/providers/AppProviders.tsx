@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
+import { AuthProvider } from '@/features/auth'
 
-/** Single composition point for app-wide context providers as they're introduced. */
 export function AppProviders({ children }: { children: ReactNode }) {
-  return children
+  return <AuthProvider>{children}</AuthProvider>
 }

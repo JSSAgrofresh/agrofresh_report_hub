@@ -1,5 +1,10 @@
 export const ROUTES = {
+  login: '/login',
   dashboard: '/',
-  reports: '/reports',
-  samples: '/samples',
+  audit: '/modulos/audit',
+  trace: '/modulos/trace',
+  converter: '/modulos/convertidor',
+  ingest: '/modulos/ingest',
+  reports: '/modulos/reportes',
+  adminUsuarios: '/admin/usuarios',
 } as const

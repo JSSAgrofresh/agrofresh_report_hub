@@ -1,0 +1,7 @@
+export { SQL_MAP } from './lib/sqlMap'
+export type { MapaSQLEntry } from './lib/sqlMap'
+export { homogenize } from './lib/homogenizar'
+export type { FilaIngest, CambioHomogenizacion } from './lib/homogenizar'
+export { auditarParaCarga, CAMPO_REQUERIDO } from './lib/auditoria'
+export type { Auditoria, Duplicado, AlertaCampo } from './lib/auditoria'
+export { leerExcel, descargarExcel } from './lib/leerExcel'

@@ -1,40 +1,15 @@
-import { Header } from '@/components/layout/Header'
-import { Card } from '@/components/ui/Card'
-import { useReports } from '@/features/reports'
-import { useSamples } from '@/features/samples'
-import styles from './DashboardView.module.css'
+import { useAuth } from '@/features/auth'
+import { AdminGeneralDashboardView } from './AdminGeneralDashboardView'
+import { AreaDashboardView } from './AreaDashboardView'
+import { ClienteDashboardView } from './ClienteDashboardView'
 
 export function DashboardView() {
-  const { reports } = useReports()
-  const { samples } = useSamples()
+  const { user } = useAuth()
+  if (!user) return null
 
-  const pendingReports = reports.filter((report) => report.status === 'pending').length
-  const samplesInAnalysis = samples.filter((sample) => sample.stage === 'in_analysis').length
+  if (user.tipoAcceso === 'admin_general') return <AdminGeneralDashboardView />
+  if (user.tipoAcceso === 'admin_area' && user.area) return <AreaDashboardView area={user.area} usuario={user} />
+  if (user.tipoAcceso === 'cliente' && user.area) return <ClienteDashboardView area={user.area} usuario={user} />
 
-  return (
-    <div>
-      <Header
-        title="Panel general"
-        description="Resumen del estado de reportes y muestras de residuos de pesticidas."
-      />
-      <div className={styles.grid}>
-        <Card>
-          <p className={styles.metricLabel}>Reportes totales</p>
-          <p className={styles.metricValue}>{reports.length}</p>
-        </Card>
-        <Card>
-          <p className={styles.metricLabel}>Reportes pendientes</p>
-          <p className={styles.metricValue}>{pendingReports}</p>
-        </Card>
-        <Card>
-          <p className={styles.metricLabel}>Muestras totales</p>
-          <p className={styles.metricValue}>{samples.length}</p>
-        </Card>
-        <Card>
-          <p className={styles.metricLabel}>Muestras en análisis</p>
-          <p className={styles.metricValue}>{samplesInAnalysis}</p>
-        </Card>
-      </div>
-    </div>
-  )
+  return null
 }
