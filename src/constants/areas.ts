@@ -33,3 +33,8 @@ export const AREAS: Record<AreaId, AreaConfig> = {
 }
 
 export const LISTA_AREAS = Object.values(AREAS)
+
+/** Área dueña de un módulo (para heredar su color de marca), si tiene una. */
+export function areaDeModulo(moduloId: string): AreaConfig | undefined {
+  return LISTA_AREAS.find((a) => a.modulos.includes(moduloId))
+}
