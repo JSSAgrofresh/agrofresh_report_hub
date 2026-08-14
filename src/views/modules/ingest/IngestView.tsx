@@ -7,12 +7,15 @@ import { Badge } from '@/components/ui/Badge'
 import { areaDeModulo } from '@/constants/areas'
 import {
   auditarParaCarga,
+  confirmarCarga,
   descargarExcel,
   homogenize,
   leerExcel,
+  previsualizarCarga,
   SQL_MAP,
 } from '@/features/ingest'
-import type { Auditoria, CambioHomogenizacion, FilaIngest } from '@/features/ingest'
+import type { Auditoria, CambioHomogenizacion, FilaIngest, RespuestaCarga } from '@/features/ingest'
+import { HttpError } from '@/services/http/client'
 import styles from './IngestView.module.css'
 
 const PREVIEW_COLS = [
@@ -65,7 +68,16 @@ export function IngestView() {
   const [auditoria, setAuditoria] = useState<Auditoria | null>(null)
   const [edits, setEdits] = useState<Record<string, string>>({})
   const [toast, setToast] = useState<string | null>(null)
+  const [previewBackend, setPreviewBackend] = useState<RespuestaCarga | null>(null)
+  const [cargando, setCargando] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  function mensajeErrorBackend(err: unknown): string {
+    if (err instanceof HttpError) {
+      return `⚠ El backend respondió con un error (${err.status}). Revisa los datos e inténtalo de nuevo.`
+    }
+    return '⚠ No se pudo conectar con el backend. Revisa que esté corriendo (ver backend/README.md).'
+  }
 
   function mostrarToast(msg: string) {
     setToast(msg)
@@ -132,20 +144,42 @@ export function IngestView() {
       })
   }, [changes])
 
-  function abrirCarga() {
+  async function abrirCarga() {
     if (!filas) return
     const aud = auditarParaCarga(filas)
     setAuditoria(aud)
-    if (aud.duplicados.length === 0 && aud.alertas.length === 0) {
-      setModal('confirmar-carga')
-    } else {
-      setModal('alertas')
+    setCargando(true)
+    try {
+      // Vista previa real contra la base: nunca escribe nada (rollback siempre en el backend),
+      // pero muestra con certeza qué se crearía y qué solicitudes ya existen.
+      const preview = await previsualizarCarga(filas)
+      setPreviewBackend(preview)
+      const hayProblemas = aud.duplicados.length > 0 || aud.alertas.length > 0 || preview.advertencias.length > 0
+      setModal(hayProblemas ? 'alertas' : 'confirmar-carga')
+    } catch (err) {
+      setPreviewBackend(null)
+      mostrarToast(mensajeErrorBackend(err))
+    } finally {
+      setCargando(false)
     }
   }
 
-  function cargarABaseDeDatos() {
-    // PENDIENTE: conectar con el backend/Postgres. Por ahora es una simulación.
-    mostrarToast('🚧 Conexión a la base de datos pendiente — esta carga fue simulada, no se guardó nada todavía.')
+  async function cargarABaseDeDatos() {
+    if (!filas) return
+    setCargando(true)
+    try {
+      const resultado = await confirmarCarga(filas)
+      setPreviewBackend(resultado)
+      const r = resultado.resumen
+      const omitidas = r.solicitudes_existentes > 0 ? ` · ${r.solicitudes_existentes} ya existían y se omitieron` : ''
+      mostrarToast(
+        `✅ Carga completada: ${r.solicitudes_nuevas} solicitud(es) nueva(s) · ${r.clientes_nuevos} cliente(s) nuevo(s) · ${r.plantas_nuevas} planta(s) nueva(s)${omitidas}.`,
+      )
+    } catch (err) {
+      mostrarToast(mensajeErrorBackend(err))
+    } finally {
+      setCargando(false)
+    }
   }
 
   function abrirEdicion() {
@@ -230,7 +264,9 @@ export function IngestView() {
             </div>
             <div className={styles.accionesBotones}>
               <Button variant="secondary" onClick={() => descargarExcel(filas, headers)}>⬇ Descargar Excel homogenizado</Button>
-              <button className={styles.btnCargar} onClick={abrirCarga}>📤 Cargar a la base de datos</button>
+              <button className={styles.btnCargar} onClick={() => void abrirCarga()} disabled={cargando}>
+                {cargando ? 'Verificando…' : '📤 Cargar a la base de datos'}
+              </button>
             </div>
           </Card>
 
@@ -329,7 +365,9 @@ export function IngestView() {
       {modal === 'alertas' && auditoria && (
         <div className={styles.overlay} onClick={() => setModal('ninguno')}>
           <div className={styles.modalBox} onClick={(e) => e.stopPropagation()}>
-            <h3>{auditoria.duplicados.length + auditoria.alertas.length} cosa(s) para revisar antes de cargar</h3>
+            <h3>
+              {auditoria.duplicados.length + auditoria.alertas.length + (previewBackend?.advertencias.length ?? 0)} cosa(s) para revisar antes de cargar
+            </h3>
             <p className={styles.modalSub}>Puedes editar los datos para corregirlas, o continuar de todas formas.</p>
             <ul className={styles.modalLista}>
               {auditoria.duplicados.map((d) => (
@@ -337,6 +375,9 @@ export function IngestView() {
               ))}
               {auditoria.alertas.map((a, i) => (
                 <li key={i}><b>Fila {a.fila}:</b> {a.mensaje}</li>
+              ))}
+              {previewBackend?.advertencias.map((msg, i) => (
+                <li key={`backend-${i}`} className={styles.itemDup}><b>Base de datos:</b> {msg}</li>
               ))}
             </ul>
             <div className={styles.modalAcciones}>
@@ -353,11 +394,15 @@ export function IngestView() {
           <div className={styles.modalBoxChica} onClick={(e) => e.stopPropagation()}>
             <h3>¿Seguro que quieres continuar?</h3>
             <p className={styles.modalSub}>
-              Vas a cargar los datos con <b>{auditoria.duplicados.length + auditoria.alertas.length}</b> advertencia(s) sin resolver. Esta acción no se puede deshacer.
+              Vas a cargar los datos con{' '}
+              <b>{auditoria.duplicados.length + auditoria.alertas.length + (previewBackend?.advertencias.length ?? 0)}</b>{' '}
+              advertencia(s) sin resolver. Las filas con advertencias de la base (duplicadas o inválidas) se omitirán automáticamente; el resto se cargará. Esta acción no se puede deshacer.
             </p>
             <div className={styles.modalAcciones}>
               <Button variant="secondary" onClick={() => setModal('ninguno')}>Cancelar</Button>
-              <button className={styles.btnAdvertencia} onClick={() => { setModal('ninguno'); cargarABaseDeDatos() }}>Sí, continuar de todas formas</button>
+              <button className={styles.btnAdvertencia} onClick={() => { setModal('ninguno'); void cargarABaseDeDatos() }} disabled={cargando}>
+                {cargando ? 'Cargando…' : 'Sí, continuar de todas formas'}
+              </button>
             </div>
           </div>
         </div>
@@ -367,10 +412,21 @@ export function IngestView() {
         <div className={styles.overlay} onClick={() => setModal('ninguno')}>
           <div className={styles.modalBoxChica} onClick={(e) => e.stopPropagation()}>
             <h3>Confirmar carga a la base de datos</h3>
-            <p className={styles.modalSub}>Se van a cargar <b>{filas.length.toLocaleString()}</b> fila(s) validada(s), sin inconsistencias detectadas.</p>
+            {previewBackend ? (
+              <p className={styles.modalSub}>
+                Se van a crear <b>{previewBackend.resumen.solicitudes_nuevas}</b> solicitud(es) nueva(s)
+                {previewBackend.resumen.clientes_nuevos > 0 && <> · <b>{previewBackend.resumen.clientes_nuevos}</b> cliente(s) nuevo(s)</>}
+                {previewBackend.resumen.plantas_nuevas > 0 && <> · <b>{previewBackend.resumen.plantas_nuevas}</b> planta(s) nueva(s)</>}
+                , sin inconsistencias detectadas.
+              </p>
+            ) : (
+              <p className={styles.modalSub}>Se van a cargar <b>{filas.length.toLocaleString()}</b> fila(s) validada(s), sin inconsistencias detectadas.</p>
+            )}
             <div className={styles.modalAcciones}>
               <Button variant="secondary" onClick={() => setModal('ninguno')}>Cancelar</Button>
-              <button className={styles.btnCargar} onClick={() => { setModal('ninguno'); cargarABaseDeDatos() }}>Confirmar carga</button>
+              <button className={styles.btnCargar} onClick={() => { setModal('ninguno'); void cargarABaseDeDatos() }} disabled={cargando}>
+                {cargando ? 'Cargando…' : 'Confirmar carga'}
+              </button>
             </div>
           </div>
         </div>
