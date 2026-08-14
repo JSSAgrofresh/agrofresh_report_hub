@@ -6,6 +6,7 @@ import { LoginView } from '@/views/login/LoginView'
 import { DashboardView } from '@/views/dashboard/DashboardView'
 import { TraceView } from '@/views/modules/trace/TraceView'
 import { ConverterView } from '@/views/modules/converter/ConverterView'
+import { IngestView } from '@/views/modules/ingest/IngestView'
 import { ReportsComingSoonView } from '@/views/modules/reports/ReportsComingSoonView'
 import { UsuariosView } from '@/views/admin/UsuariosView'
 import { NotFoundView } from '@/views/not-found/NotFoundView'
@@ -27,6 +28,10 @@ export const router = createBrowserRouter([
           {
             element: <RequireModulo moduloId="converter" />,
             children: [{ path: ROUTES.converter, element: <ConverterView /> }],
+          },
+          {
+            element: <RequireModulo moduloId="ingest" />,
+            children: [{ path: ROUTES.ingest, element: <IngestView /> }],
           },
           {
             element: <RequireAdminGeneral />,

@@ -124,6 +124,18 @@ export function IconUpload(props: IconProps) {
   )
 }
 
+export function IconIngest(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <ellipse cx="12" cy="6" rx="7" ry="2.5" />
+      <path d="M5 6v6c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6" />
+      <path d="M5 12v6c0 1.4 3.1 2.5 7 2.5 1.2 0 2.3-.13 3.2-.36" />
+      <path d="M17.5 14.5v6" />
+      <path d="m14.7 17.2 2.8 2.8 2.8-2.8" />
+    </svg>
+  )
+}
+
 export function IconTrendingUp(props: IconProps) {
   return (
     <svg {...base} {...props}>

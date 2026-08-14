@@ -10,6 +10,7 @@ import {
   IconAudit,
   IconConverter,
   IconDatabase,
+  IconIngest,
   IconLogout,
   IconPanel,
   IconReports,
@@ -28,6 +29,7 @@ const ICONO_MODULO: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   audit: IconAudit,
   trace: IconTrace,
   converter: IconConverter,
+  ingest: IconIngest,
   reports: IconReports,
 }
 

@@ -33,6 +33,13 @@ export const MODULOS: ModuloInfo[] = [
     estado: 'disponible',
   },
   {
+    id: 'ingest',
+    nombre: 'Ingest',
+    descripcion: 'Homogenización y validación de la base de datos antes de cargarla a producción.',
+    ruta: ROUTES.ingest,
+    estado: 'disponible',
+  },
+  {
     id: 'reports',
     nombre: 'Report',
     descripcion: 'Reportes consolidados de la operación.',
