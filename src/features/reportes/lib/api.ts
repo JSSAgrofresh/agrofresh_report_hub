@@ -12,6 +12,11 @@ export function obtenerResumenReporte() {
   return httpClient.get<{ total_solicitudes: number; registros_ultima_semana: number }>('/reportes/resumen')
 }
 
+/** Nombres de cliente que ya tienen datos cargados — para el selector al crear un usuario tipo Cliente. */
+export function obtenerClientesReporte() {
+  return httpClient.get<string[]>('/reportes/clientes')
+}
+
 export function listarAnalitos() {
   return httpClient.get<Analito[]>('/reportes/analitos')
 }

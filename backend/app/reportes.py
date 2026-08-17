@@ -25,6 +25,7 @@ DATOS_QUERY = """
         s.semana_muestreo,
         s.mes,
         s.temporada,
+        s.tipo_servicio,
         COALESCE(c.nombre, s.sold_to_raw) AS cliente,
         COALESCE(p.nombre, s.ship_to_raw) AS planta,
         pa.tipo_aplicacion,
@@ -89,6 +90,26 @@ def datos(
             )
             total_solicitudes = cur.fetchone()["total"]
     return {"filas": filas, "total": len(filas), "total_solicitudes": total_solicitudes}
+
+
+@router.get("/clientes")
+def clientes() -> list[str]:
+    """Nombres de cliente que ya tienen datos cargados — mismo criterio (COALESCE)
+    que /datos, para que la lista calce exacto con lo que aparece en el filtro de
+    Report. Se usa para el selector de cliente al crear un usuario tipo Cliente."""
+    with conexion(escribir=False) as conn:
+        with cursor_dict(conn) as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT COALESCE(c.nombre, s.sold_to_raw) AS cliente
+                FROM solicitud s
+                LEFT JOIN planta p ON p.id = s.planta_id
+                LEFT JOIN cliente c ON c.id = p.cliente_id
+                WHERE s.vigente AND COALESCE(c.nombre, s.sold_to_raw) IS NOT NULL
+                ORDER BY 1
+                """
+            )
+            return [fila["cliente"] for fila in cur.fetchall()]
 
 
 # ---------------------------------------------------------------------------

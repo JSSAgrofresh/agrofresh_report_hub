@@ -1,0 +1,156 @@
+.contenedor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.etiqueta {
+  font-size: 10.5px;
+  color: var(--color-text-faint);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.boton {
+  height: 34px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 8px;
+  background: #fff;
+  font-size: 12.5px;
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.boton:hover {
+  border-color: var(--acento, var(--color-primary));
+}
+
+.botonTexto {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.botonTextoVacio {
+  color: var(--color-text-faint);
+}
+
+.flecha {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 264px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: 91;
+  padding: var(--space-3);
+  user-select: none;
+}
+
+.navegacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.navegacion button {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.navegacion button:hover {
+  background: var(--color-bg);
+}
+
+.grilla {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.diaSemana {
+  text-align: center;
+  font-size: 10px;
+  color: var(--color-text-faint);
+  font-weight: 600;
+  padding-bottom: 4px;
+}
+
+.dia {
+  height: 28px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.dia:hover {
+  background: var(--color-bg);
+}
+
+.diaEnRango {
+  background: color-mix(in srgb, var(--acento, var(--color-primary)) 18%, transparent);
+}
+
+.diaBorde {
+  background: var(--acento, var(--color-primary));
+  color: #fff;
+  font-weight: 700;
+}
+
+.ayuda {
+  margin-top: var(--space-2);
+  font-size: 10.5px;
+  color: var(--color-text-faint);
+  line-height: 1.4;
+}
+
+.limpiar {
+  margin-top: var(--space-2);
+  width: 100%;
+  background: none;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-danger);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.limpiar:hover {
+  background: var(--color-bg);
+}

@@ -255,6 +255,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.statSub {
+  font-size: 10.5px;
+  color: var(--color-text-faint);
+}
+
 /* ── gráficos ── */
 .grid2 {
   display: grid;
@@ -267,11 +272,28 @@
   font-weight: 700;
   margin-bottom: var(--space-3);
   color: var(--color-text-muted);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.hintClic {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: none;
+  color: var(--color-text-faint);
+  font-style: italic;
 }
 
 .chartbox {
   height: 320px;
   position: relative;
+}
+
+.chartbox canvas {
+  cursor: pointer;
 }
 
 .indicadores {

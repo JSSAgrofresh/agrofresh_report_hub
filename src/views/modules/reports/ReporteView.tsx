@@ -21,12 +21,13 @@ import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
+import { CalendarioRango } from '@/components/ui/CalendarioRango'
+import type { RangoFechas } from '@/components/ui/CalendarioRango'
 import { areaDeModulo } from '@/constants/areas'
 import { useAuth } from '@/features/auth'
 import { HttpError } from '@/services/http/client'
 import { formatDateCL, formatDecimalCL } from '@/lib/locale'
 import {
-  calcularCumplimiento,
   calcularEstadisticas,
   calcularLimitesControl,
   colorDeIngrediente,
@@ -38,6 +39,7 @@ import {
 } from '@/features/reportes'
 import type { Analito, FilaReporte, Observacion } from '@/features/reportes'
 import { AnalitosAdminModal } from './AnalitosAdminModal'
+import { DetalleObservacionesModal } from './DetalleObservacionesModal'
 import styles from './ReporteView.module.css'
 
 Chart.register(
@@ -73,10 +75,12 @@ interface Filtros {
   cliente: string
   planta: string
   tipoAplicacion: string
+  tipoServicio: string
   laboratorio: string
   crop: string
   semana: string
   mes: string
+  rango: RangoFechas | null
 }
 
 const FILTROS_VACIOS: Filtros = {
@@ -84,14 +88,28 @@ const FILTROS_VACIOS: Filtros = {
   cliente: '',
   planta: '',
   tipoAplicacion: '',
+  tipoServicio: '',
   laboratorio: '',
   crop: '',
   semana: '',
   mes: '',
+  rango: null,
 }
 
 function filtrosActivos(f: Filtros): boolean {
-  return f.ingredientes.length > 0 || Boolean(f.cliente || f.planta || f.tipoAplicacion || f.laboratorio || f.crop || f.semana || f.mes)
+  return (
+    f.ingredientes.length > 0 ||
+    Boolean(f.cliente || f.planta || f.tipoAplicacion || f.tipoServicio || f.laboratorio || f.crop || f.semana || f.mes || f.rango)
+  )
+}
+
+/** Observaciones dentro (o fuera) del intervalo [inferior, superior]; sin ambos
+ * límites definidos, todo cuenta como "dentro" (no hay con qué comparar). */
+function filtrarPorRango(lista: Observacion[], inferior: number | null, superior: number | null, dentro: boolean) {
+  return lista.filter((o) => {
+    const estaDentro = inferior == null || superior == null ? true : o.ppm >= inferior && o.ppm <= superior
+    return dentro ? estaDentro : !estaDentro
+  })
 }
 
 const FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit' })
@@ -115,6 +133,7 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
   const [sigma, setSigma] = useState(2)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
   const [modalAnalitos, setModalAnalitos] = useState(false)
+  const [detalle, setDetalle] = useState<{ titulo: string; filas: Observacion[] } | null>(null)
 
   const obtenerTodo = useCallback(async () => {
     const [datos, catalogo] = await Promise.all([obtenerDatosReporte(clienteFijo), listarAnalitos()])
@@ -173,12 +192,15 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
       const ppm = f.valor_num == null ? null : Number(f.valor_num)
       if (ppm == null || Number.isNaN(ppm)) return
       out.push({
+        solicitudId: f.solicitud_id,
+        nroSolicitud: f.nro_solicitud,
         ingrediente: f.ingrediente,
         ppm,
         fecha: f.fecha_muestreo ?? f.fecha_entrada,
         cliente: f.cliente,
         planta: f.planta,
         tipoAplicacion: f.tipo_aplicacion,
+        tipoServicio: f.tipo_servicio,
         laboratorio: f.laboratorio,
         crop: f.especie,
         semana: f.semana_muestreo,
@@ -197,6 +219,7 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
         (filas ?? []).filter((f) => !filtros.cliente || f.cliente === filtros.cliente).map((f) => f.planta),
       ),
       tiposAplicacion: unique((filas ?? []).map((f) => f.tipo_aplicacion)),
+      tiposServicio: unique((filas ?? []).map((f) => f.tipo_servicio)),
       laboratorios: unique((filas ?? []).map((f) => f.laboratorio)),
       crops: unique((filas ?? []).map((f) => f.especie)),
       semanas: unique((filas ?? []).map((f) => f.semana_muestreo)),
@@ -213,13 +236,19 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
           (!filtros.cliente || o.cliente === filtros.cliente) &&
           (!filtros.planta || o.planta === filtros.planta) &&
           (!filtros.tipoAplicacion || o.tipoAplicacion === filtros.tipoAplicacion) &&
+          (!filtros.tipoServicio || o.tipoServicio === filtros.tipoServicio) &&
           (!filtros.laboratorio || o.laboratorio === filtros.laboratorio) &&
           (!filtros.crop || o.crop === filtros.crop) &&
+          // Semana/Mes y el calendario son mutuamente excluyentes (ver actualizarSemana/
+          // actualizarMes/aplicarRango): solo uno de los dos grupos tiene valor a la vez.
           (!filtros.semana || String(o.semana ?? '') === filtros.semana) &&
-          (!filtros.mes || String(o.mes ?? '') === filtros.mes),
+          (!filtros.mes || String(o.mes ?? '') === filtros.mes) &&
+          (!filtros.rango || (o.fecha != null && o.fecha >= filtros.rango.desde && o.fecha <= filtros.rango.hasta)),
       ),
     [observaciones, filtros],
   )
+
+  const registrosFiltrados = useMemo(() => new Set(filtradas.map((o) => o.solicitudId)).size, [filtradas])
 
   const valores = useMemo(() => filtradas.map((o) => o.ppm), [filtradas])
   const stats = useMemo(() => calcularEstadisticas(valores), [valores])
@@ -246,10 +275,24 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
   )
 
   const limitesActivos = vista === 'residual' ? limiteResidual : limitesControl
-  const cumplimiento = useMemo(
-    () => calcularCumplimiento(valores, limitesActivos.superior),
-    [valores, limitesActivos.superior],
+  // Una sola definición de "cumplimiento" para el KPI, la dona y la barra: dentro
+  // del intervalo [límite inferior, límite superior] cuando ambos están definidos.
+  const distribucionRango = useMemo(
+    () => contarFueraDeIntervalo(valores, limitesActivos.inferior, limitesActivos.superior),
+    [valores, limitesActivos.inferior, limitesActivos.superior],
   )
+  const cumplimiento = useMemo(() => {
+    const total = valores.length
+    if (limitesActivos.superior == null || total === 0) {
+      return { ok: distribucionRango.dentro, fuera: distribucionRango.fuera, total, porcentaje: null }
+    }
+    return {
+      ok: distribucionRango.dentro,
+      fuera: distribucionRango.fuera,
+      total,
+      porcentaje: (distribucionRango.dentro / total) * 100,
+    }
+  }, [distribucionRango, valores.length, limitesActivos.superior])
   const unidad = analitoSeleccionado?.unidad ?? 'ppm'
 
   const nota =
@@ -276,6 +319,10 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
   const colorBorder = cssVar('--color-border', '#e1e5dc')
 
   const comparandoVarios = filtros.ingredientes.length > 1
+  // Con un solo ingrediente activo seleccionado, la línea/puntos usan su color fijo
+  // (el mismo de la leyenda del multi-selector); con "todos" mezclados no hay un
+  // único color que tenga sentido, así que se usa el color del área.
+  const colorLineaUnica = filtros.ingredientes.length === 1 ? colorDeIngrediente(filtros.ingredientes[0]) : acento
 
   useEffect(() => {
     if (!mainRef.current) return
@@ -331,8 +378,8 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
         {
           label: `Promedio ${unidad}`,
           data: promedios,
-          borderColor: acento,
-          backgroundColor: acento,
+          borderColor: colorLineaUnica,
+          backgroundColor: colorLineaUnica,
           borderWidth: 2,
           pointRadius: 3,
           pointHoverRadius: 5,
@@ -378,6 +425,20 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
           x: { ticks: { maxTicksLimit: 10, font: { size: 10 } }, grid: { display: false } },
           y: { beginAtZero: true, grid: { color: colorBorder } },
         },
+        onClick: (_evt, elements) => {
+          if (!elements.length) return
+          const { datasetIndex, index } = elements[0]
+          const fechaClave = claves[index]
+          if (comparandoVarios) {
+            const ingrediente = filtros.ingredientes[datasetIndex]
+            const obs = filtradas.filter((o) => o.ingrediente === ingrediente && (o.fecha ?? 'Sin fecha') === fechaClave)
+            if (obs.length) setDetalle({ titulo: `${ingrediente} · ${etiquetas[index]}`, filas: obs })
+          } else {
+            if (datasetIndex !== 0) return // clic en una línea de límite: no hay detalle que mostrar
+            const obs = filtradas.filter((o) => (o.fecha ?? 'Sin fecha') === fechaClave)
+            if (obs.length) setDetalle({ titulo: etiquetas[index], filas: obs })
+          }
+        },
       },
     })
     return () => mainChart.current?.destroy()
@@ -388,7 +449,7 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
     limitesActivos.superior,
     limitesActivos.central,
     limitesActivos.inferior,
-    acento,
+    colorLineaUnica,
     colorWarning,
     colorMuted,
     colorBorder,
@@ -397,12 +458,14 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
 
   useEffect(() => {
     if (!donutRef.current) return
-    const sinLimite = limitesActivos.superior == null
-    const datos = sinLimite ? [valores.length, 0] : [cumplimiento.ok, cumplimiento.fuera]
+    const datos = [cumplimiento.ok, cumplimiento.fuera]
     donutChart.current?.destroy()
     donutChart.current = new Chart(donutRef.current, {
       type: 'doughnut',
-      data: { labels: ['Cumple', 'No cumple'], datasets: [{ data: datos, backgroundColor: [colorOk, colorDanger], borderWidth: 0 }] },
+      data: {
+        labels: ['Dentro de rango', 'Fuera de rango'],
+        datasets: [{ data: datos, backgroundColor: [colorOk, colorDanger], borderWidth: 0 }],
+      },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -411,10 +474,16 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
           legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } },
           tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw} muestra(s)` } },
         },
+        onClick: (_evt, elements) => {
+          if (!elements.length) return
+          const dentro = elements[0].index === 0
+          const obs = filtrarPorRango(filtradas, limitesActivos.inferior, limitesActivos.superior, dentro)
+          if (obs.length) setDetalle({ titulo: dentro ? 'Dentro de rango' : 'Fuera de rango', filas: obs })
+        },
       },
     })
     return () => donutChart.current?.destroy()
-  }, [valores, cumplimiento, limitesActivos.superior, colorOk, colorDanger])
+  }, [filtradas, cumplimiento, limitesActivos.inferior, limitesActivos.superior, colorOk, colorDanger])
 
   useEffect(() => {
     if (!barRef.current) return
@@ -434,15 +503,34 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
           y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: colorBorder } },
           x: { grid: { display: false } },
         },
+        onClick: (_evt, elements) => {
+          if (!elements.length) return
+          const dentroSel = elements[0].index === 0
+          const obs = filtrarPorRango(filtradas, limitesActivos.inferior, limitesActivos.superior, dentroSel)
+          if (obs.length) setDetalle({ titulo: dentroSel ? 'Dentro del intervalo' : 'Fuera del intervalo', filas: obs })
+        },
       },
     })
     return () => barChart.current?.destroy()
-  }, [valores, limitesActivos.inferior, limitesActivos.superior, colorOk, colorDanger, colorBorder])
+  }, [filtradas, valores, limitesActivos.inferior, limitesActivos.superior, colorOk, colorDanger, colorBorder])
 
   if (!user) return null
 
   function actualizarFiltro<K extends keyof Filtros>(clave: K, valor: string) {
     setFiltros((prev) => ({ ...prev, [clave]: valor }))
+  }
+
+  // Semana/Mes y el calendario son excluyentes: usar uno limpia el otro.
+  function actualizarSemana(valor: string) {
+    setFiltros((prev) => ({ ...prev, semana: valor, rango: valor ? null : prev.rango }))
+  }
+
+  function actualizarMes(valor: string) {
+    setFiltros((prev) => ({ ...prev, mes: valor, rango: valor ? null : prev.rango }))
+  }
+
+  function aplicarRango(rango: RangoFechas | null) {
+    setFiltros((prev) => ({ ...prev, rango, semana: rango ? '' : prev.semana, mes: rango ? '' : prev.mes }))
   }
 
   function cambiarCliente(valor: string) {
@@ -568,6 +656,15 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
               </select>
             </label>
             <label className={styles.filtro}>
+              <span>Tipo de servicio</span>
+              <select value={filtros.tipoServicio} onChange={(e) => actualizarFiltro('tipoServicio', e.target.value)}>
+                <option value="">Todos</option>
+                {opciones.tiposServicio.map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.filtro}>
               <span>Laboratorio</span>
               <select value={filtros.laboratorio} onChange={(e) => actualizarFiltro('laboratorio', e.target.value)}>
                 <option value="">Todos</option>
@@ -587,7 +684,7 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
             </label>
             <label className={styles.filtro}>
               <span>Semana</span>
-              <select value={filtros.semana} onChange={(e) => actualizarFiltro('semana', e.target.value)}>
+              <select value={filtros.semana} onChange={(e) => actualizarSemana(e.target.value)} disabled={Boolean(filtros.rango)}>
                 <option value="">Todas</option>
                 {opciones.semanas.map((v) => (
                   <option key={v}>{v}</option>
@@ -596,13 +693,14 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
             </label>
             <label className={styles.filtro}>
               <span>Mes</span>
-              <select value={filtros.mes} onChange={(e) => actualizarFiltro('mes', e.target.value)}>
+              <select value={filtros.mes} onChange={(e) => actualizarMes(e.target.value)} disabled={Boolean(filtros.rango)}>
                 <option value="">Todos</option>
                 {opciones.meses.map((v) => (
                   <option key={v}>{v}</option>
                 ))}
               </select>
             </label>
+            <CalendarioRango etiqueta="Rango de fechas" valor={filtros.rango} onChange={aplicarRango} />
             {filtrosActivos(filtros) && (
               <button className={styles.limpiar} onClick={() => setFiltros(FILTROS_VACIOS)}>
                 Limpiar filtros
@@ -615,11 +713,13 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
           <div className={styles.stats}>
             <Card className={`${styles.statCard} ${styles.destacado}`}>
               <span className={styles.statLbl}>Total de registros (solicitudes)</span>
-              <span className={styles.statNum}>{totalSolicitudes.toLocaleString('es-CL')}</span>
-            </Card>
-            <Card className={styles.statCard}>
-              <span className={styles.statLbl}>Observaciones (filtradas)</span>
-              <span className={styles.statNum}>{valores.length.toLocaleString('es-CL')}</span>
+              <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
+              {registrosFiltrados !== totalSolicitudes && (
+                <span className={styles.statSub}>
+                  de {totalSolicitudes.toLocaleString('es-CL')} en total
+                  {!filtrosActivos(filtros) && ' (algunas solicitudes aún no tienen ningún resultado medido)'}
+                </span>
+              )}
             </Card>
             <Card className={styles.statCard}>
               <span className={styles.statLbl}>Promedio ({unidad})</span>
@@ -649,13 +749,19 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
 
           <div className={styles.grid2}>
             <Card className={styles.panel}>
-              <h3>{vista === 'residual' ? `Promedio de ${unidad} por fecha` : `${unidad} por fecha · límites de control`}</h3>
+              <h3>
+                {vista === 'residual' ? `Promedio de ${unidad} por fecha` : `${unidad} por fecha · límites de control`}
+                <span className={styles.hintClic}>clic en un punto para ver el detalle</span>
+              </h3>
               <div className={styles.chartbox}>
                 <canvas ref={mainRef} />
               </div>
             </Card>
             <Card className={styles.panel}>
-              <h3>Porcentaje de cumplimiento</h3>
+              <h3>
+                Porcentaje de cumplimiento
+                <span className={styles.hintClic}>clic para ver el detalle</span>
+              </h3>
               <div className={styles.chartbox}>
                 <canvas ref={donutRef} />
               </div>
@@ -664,7 +770,10 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
 
           <div className={styles.grid2}>
             <Card className={styles.panel}>
-              <h3>Distribución de cumplimiento</h3>
+              <h3>
+                Distribución de cumplimiento
+                <span className={styles.hintClic}>clic para ver el detalle</span>
+              </h3>
               <div className={styles.chartbox}>
                 <canvas ref={barRef} />
               </div>
@@ -689,6 +798,10 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
 
       {modalAnalitos && (
         <AnalitosAdminModal analitos={analitos} onCambio={setAnalitos} onCerrar={() => setModalAnalitos(false)} />
+      )}
+
+      {detalle && (
+        <DetalleObservacionesModal titulo={detalle.titulo} filas={detalle.filas} onCerrar={() => setDetalle(null)} />
       )}
     </div>
   )

@@ -10,6 +10,7 @@ export interface FilaReporte {
   semana_muestreo: number | null
   mes: number | null
   temporada: number | null
+  tipo_servicio: string | null
   cliente: string | null
   planta: string | null
   tipo_aplicacion: string | null
@@ -49,12 +50,15 @@ export interface AnalitoInput {
 
 /** Una observación numérica lista para graficar: una fila con ppm real. */
 export interface Observacion {
+  solicitudId: number
+  nroSolicitud: string
   ingrediente: string
   ppm: number
   fecha: string | null
   cliente: string | null
   planta: string | null
   tipoAplicacion: string | null
+  tipoServicio: string | null
   laboratorio: string | null
   crop: string | null
   semana: number | null

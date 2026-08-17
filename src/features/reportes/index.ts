@@ -1,6 +1,7 @@
 export {
   obtenerDatosReporte,
   obtenerResumenReporte,
+  obtenerClientesReporte,
   listarAnalitos,
   crearAnalito,
   actualizarAnalito,
