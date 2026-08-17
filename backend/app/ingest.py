@@ -63,6 +63,14 @@ def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[st
     detalle: list[dict[str, Any]] = []
     advertencias: list[str] = []
 
+    # En preview (escribir=False) nada se inserta de verdad — cada fila del lote
+    # "ve" la base tal como estaba antes de empezar, así que sin esta caché, un
+    # mismo cliente/planta repetido 50 veces en el Excel se contaría como 50
+    # clientes nuevos en vez de 1. La caché recuerda, dentro de este mismo lote,
+    # qué cliente/planta ya se resolvió antes (nuevo o existente).
+    clientes_cache: dict[str, int | None] = {}
+    plantas_cache: dict[tuple[str, str], int | None] = {}
+
     for i, fila in enumerate(filas):
         n_fila = i + 2  # misma numeración que usa Ingest en el frontend (fila 1 = encabezado)
         sol = mapeo.mapear_solicitud(fila)
@@ -73,39 +81,40 @@ def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[st
             detalle.append({"fila": n_fila, "omitida": True, "motivos": ["Sin N° de solicitud (Informe)"]})
             continue
         if not sol["laboratorio"]:
-            # laboratorio es NOT NULL en la tabla solicitud: si se intentara insertar
-            # igual, revienta la transacción completa y se pierden también las filas
-            # válidas del mismo lote. Se omite esta fila en vez de arriesgar eso.
-            resumen["filas_omitidas"] += 1
-            detalle.append(
-                {
-                    "fila": n_fila,
-                    "nro_solicitud": sol["nro_solicitud"],
-                    "omitida": True,
-                    "motivos": ["Sin Laboratorio (columna obligatoria en la base, no se puede cargar sin este dato)"],
-                }
-            )
-            advertencias.append(f"Fila {n_fila}: Sin Laboratorio (columna obligatoria en la base, no se puede cargar sin este dato)")
-            continue
+            # laboratorio es NOT NULL en la tabla solicitud: en vez de perder la fila
+            # completa por este dato faltante, se guarda con un valor de relleno para
+            # no perder el resto (kg, fechas, resultados, etc.) — homogenización
+            # pendiente se encarga después de decidir el laboratorio real.
+            sol["laboratorio"] = "Sin definir"
+            motivos.append("Sin Laboratorio: se guardó como 'Sin definir', revisar y corregir después")
 
         cliente_id = None
-        cliente_es_nuevo = False
-        if sol["sold_to_raw"]:
-            cliente_id, cliente_es_nuevo = _cliente_id(cur, sol["sold_to_raw"], escribir)
-            if cliente_es_nuevo:
-                resumen["clientes_nuevos"] += 1
+        nombre_cliente = sol["sold_to_raw"]
+        if nombre_cliente:
+            if nombre_cliente in clientes_cache:
+                cliente_id = clientes_cache[nombre_cliente]
+            else:
+                cliente_id, cliente_es_nuevo = _cliente_id(cur, nombre_cliente, escribir)
+                clientes_cache[nombre_cliente] = cliente_id
+                if cliente_es_nuevo:
+                    resumen["clientes_nuevos"] += 1
 
         planta_id = None
-        if sol["ship_to_raw"] and sol["sold_to_raw"]:
-            if cliente_id is not None:
-                planta_id, nueva_planta = _planta_id(cur, cliente_id, sol["ship_to_raw"], escribir)
+        if sol["ship_to_raw"] and nombre_cliente:
+            clave_planta = (nombre_cliente, sol["ship_to_raw"])
+            if clave_planta in plantas_cache:
+                planta_id = plantas_cache[clave_planta]
+            else:
+                if cliente_id is not None:
+                    planta_id, nueva_planta = _planta_id(cur, cliente_id, sol["ship_to_raw"], escribir)
+                else:
+                    # Solo puede pasar en preview: el cliente todavía no existe en la base
+                    # (nunca se inserta de verdad), así que tampoco hay id para buscar la
+                    # planta — pero como el cliente es nuevo, esta combinación también lo es.
+                    nueva_planta = True
+                plantas_cache[clave_planta] = planta_id
                 if nueva_planta:
                     resumen["plantas_nuevas"] += 1
-            elif cliente_es_nuevo:
-                # En preview el cliente nuevo no se inserta de verdad (rollback),
-                # así que no hay cliente_id para buscar la planta. Pero si el
-                # cliente es nuevo, la planta también sería nueva sí o sí.
-                resumen["plantas_nuevas"] += 1
 
         cur.execute("SELECT id FROM solicitud WHERE nro_solicitud = %s", (sol["nro_solicitud"],))
         ya_existe = cur.fetchone() is not None

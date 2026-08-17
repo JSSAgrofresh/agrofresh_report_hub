@@ -235,6 +235,15 @@
   border-left-color: #1d5fa8;
 }
 
+.statCard.destacado {
+  background: color-mix(in srgb, var(--acento) 7%, var(--color-surface));
+  border-left-width: 4px;
+}
+
+.statCard.destacado .statNum {
+  color: var(--acento);
+}
+
 .statLbl {
   font-size: 11.5px;
   color: var(--color-text-faint);

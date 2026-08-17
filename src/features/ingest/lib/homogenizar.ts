@@ -94,46 +94,21 @@ export function canonicoFinal(v: unknown): string | number | null {
   return null // <L.C, NA, resto → null
 }
 
+/**
+ * ⚙ PENDIENTE HOMOGENIZADOR: por ahora esta función solo hace el parseo de
+ * fechas (obligatorio: Postgres necesita un DATE válido). El resto de los
+ * datos (CROP, Tipo de servicio, TIPO APP, Cliente/SOLD TO, Sucursal/SHIP TO,
+ * columnas FINAL) pasan tal cual vienen del Excel, sin normalizar — a
+ * propósito, para poder ver la base real en Report mientras se termina de
+ * definir cómo debe quedar la homogenización de esos campos.
+ * Las funciones canónicas (canonicoCrop, canonicoTipoServicio, etc.) se
+ * dejan más abajo, listas para reactivarse cuando corresponda.
+ */
 export function homogenize(rows: FilaIngest[]): { out: FilaIngest[]; changes: CambioHomogenizacion[] } {
   const changes: CambioHomogenizacion[] = []
 
   const out = rows.map((row, ri) => {
     const r = { ...row }
-
-    const cropOrig = r['CROP']
-    const cropCan = canonicoCrop(cropOrig)
-    if (String(cropOrig || '').trim() !== String(cropCan || '')) {
-      changes.push({ fila: ri + 2, col: 'CROP', orig: cropOrig, can: cropCan })
-      r['CROP'] = cropCan
-    }
-
-    const tsOrig = r['Tipo de servicio']
-    const tsCan = canonicoTipoServicio(tsOrig)
-    if (String(tsOrig || '').trim() !== String(tsCan || '')) {
-      changes.push({ fila: ri + 2, col: 'Tipo de servicio', orig: tsOrig, can: tsCan })
-      r['Tipo de servicio'] = tsCan
-    }
-
-    const taOrig = r['TIPO APP']
-    const taCan = canonicoTipoApp(taOrig)
-    if (String(taOrig || '').trim() !== String(taCan || '')) {
-      changes.push({ fila: ri + 2, col: 'TIPO APP', orig: taOrig, can: taCan })
-      r['TIPO APP'] = taCan
-    }
-
-    const clOrig = r['Cliente']
-    const clCan = canonicoCliente(clOrig)
-    if (String(clOrig || '') !== String(clCan || '')) {
-      changes.push({ fila: ri + 2, col: 'Cliente', orig: clOrig, can: clCan })
-      r['Cliente'] = clCan
-    }
-
-    const suOrig = r['Sucursal']
-    const suCan = canonicoSucursal(suOrig)
-    if (String(suOrig || '').trim().toUpperCase().replace(/\s+/g, ' ') !== String(suCan || '')) {
-      changes.push({ fila: ri + 2, col: 'Sucursal', orig: suOrig, can: suCan })
-      r['Sucursal'] = suCan
-    }
 
     DATE_COLS.forEach((dc) => {
       const dOrig = r[dc]
@@ -141,16 +116,6 @@ export function homogenize(rows: FilaIngest[]): { out: FilaIngest[]; changes: Ca
       if (dOrig !== dCan) {
         if (dOrig !== null && dOrig !== undefined) changes.push({ fila: ri + 2, col: dc, orig: dOrig, can: dCan })
         r[dc] = dCan
-      }
-    })
-
-    FINAL_COLS.forEach((fc) => {
-      if (!(fc in r)) return
-      const fOrig = r[fc]
-      const fCan = canonicoFinal(fOrig)
-      if (String(fOrig || '') !== String(fCan || '') && !(fOrig === null && fCan === null)) {
-        changes.push({ fila: ri + 2, col: fc, orig: fOrig, can: fCan })
-        r[fc] = fCan
       }
     })
 

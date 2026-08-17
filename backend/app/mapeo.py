@@ -117,8 +117,10 @@ def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
         "fecha_muestreo": parse_fecha(fila.get("Fecha de muestreo")),
         "fecha_entrada": parse_fecha(fila.get("Fecha entrada")),
         "fecha_analisis": parse_fecha(fila.get("Fecha análisis")),
-        "sold_to_raw": texto(fila, "Cliente"),
-        "ship_to_raw": texto(fila, "Sucursal"),
+        # La base real exporta "SOLD TO" / "SHIP TO"; "Cliente" / "Sucursal" se
+        # dejan como alias por si algún Excel viene con esos encabezados en vez.
+        "sold_to_raw": elegir(texto(fila, "SOLD TO"), texto(fila, "Cliente")),
+        "ship_to_raw": elegir(texto(fila, "SHIP TO"), texto(fila, "Sucursal")),
         "especie": texto(fila, "CROP"),
         "variedad": texto(fila, "Variedad"),
         "tipo_servicio": texto(fila, "Tipo de servicio"),

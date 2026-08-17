@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { areaDeModulo } from '@/constants/areas'
 import {
-  auditarParaCarga,
   confirmarCarga,
   descargarExcel,
   homogenize,
@@ -14,18 +13,18 @@ import {
   previsualizarCarga,
   SQL_MAP,
 } from '@/features/ingest'
-import type { Auditoria, CambioHomogenizacion, FilaIngest, RespuestaCarga } from '@/features/ingest'
+import type { CambioHomogenizacion, FilaIngest, RespuestaCarga } from '@/features/ingest'
 import { HttpError } from '@/services/http/client'
 import styles from './IngestView.module.css'
 
 const PREVIEW_COLS = [
-  'Informe', 'Cliente', 'Sucursal', 'Fecha de muestreo', 'Fecha entrada',
+  'Informe', 'SOLD TO', 'SHIP TO', 'Fecha de muestreo', 'Fecha entrada',
   'CROP', 'TIPO APP', 'Tipo de servicio', 'FDL FINAL', 'IMZ FINAL', 'TEBU FINAL', 'DPA FINAL',
 ]
 const PREVIEW_SQL: Record<string, string> = {
   Informe: 'solicitud.nro_solicitud',
-  Cliente: 'cliente.nombre',
-  Sucursal: 'planta.nombre',
+  'SOLD TO': 'cliente.nombre',
+  'SHIP TO': 'planta.nombre',
   'Fecha de muestreo': 'solicitud.fecha_muestreo',
   'Fecha entrada': 'solicitud.fecha_entrada',
   CROP: 'solicitud.especie',
@@ -36,12 +35,6 @@ const PREVIEW_SQL: Record<string, string> = {
   'TEBU FINAL': 'resultado.valor (TEBU)',
   'DPA FINAL': 'resultado.valor (DPA)',
 }
-const CAMPO_REQUERIDO = [
-  { col: 'Informe', etiqueta: 'N° de solicitud' },
-  { col: 'Cliente', etiqueta: 'Cliente' },
-  { col: 'Fecha de muestreo', etiqueta: 'Fecha de muestreo' },
-  { col: 'CROP', etiqueta: 'Especie (CROP)' },
-]
 const TIPO_BADGE: Record<string, { texto: string; tono: 'success' | 'warning' | 'danger' | 'neutral' }> = {
   sol: { texto: 'solicitud', tono: 'neutral' },
   prod: { texto: 'producto_aplicado', tono: 'success' },
@@ -49,9 +42,13 @@ const TIPO_BADGE: Record<string, { texto: string; tono: 'success' | 'warning' | 
   skip: { texto: 'ignorar', tono: 'neutral' },
   warn: { texto: 'resultado*', tono: 'danger' },
 }
+const PENDIENTES = [
+  'Homogenizador: los datos se cargan tal cual vienen del Excel (sin normalizar cliente, sucursal, crop, tipo de aplicación, etc.)',
+  'Secuencia de confirmación: no se filtran duplicados ni campos vacíos antes de cargar — la base es la que decide qué ya existe.',
+]
 
 type Tab = 'cambios' | 'preview' | 'mapa'
-type Modal = 'ninguno' | 'alertas' | 'confirmar-continuar' | 'confirmar-carga' | 'editar'
+type Modal = 'ninguno' | 'confirmar-carga'
 
 export function IngestView() {
   const acento = areaDeModulo('ingest')?.colorPrimario ?? 'var(--color-primary)'
@@ -65,11 +62,10 @@ export function IngestView() {
   const [arrastrando, setArrastrando] = useState(false)
   const [tab, setTab] = useState<Tab>('cambios')
   const [modal, setModal] = useState<Modal>('ninguno')
-  const [auditoria, setAuditoria] = useState<Auditoria | null>(null)
-  const [edits, setEdits] = useState<Record<string, string>>({})
   const [toast, setToast] = useState<string | null>(null)
   const [previewBackend, setPreviewBackend] = useState<RespuestaCarga | null>(null)
   const [cargando, setCargando] = useState(false)
+  const [pendientesAbierto, setPendientesAbierto] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   function mensajeErrorBackend(err: unknown): string {
@@ -146,16 +142,15 @@ export function IngestView() {
 
   async function abrirCarga() {
     if (!filas) return
-    const aud = auditarParaCarga(filas)
-    setAuditoria(aud)
     setCargando(true)
     try {
       // Vista previa real contra la base: nunca escribe nada (rollback siempre en el backend),
       // pero muestra con certeza qué se crearía y qué solicitudes ya existen.
+      // ⚙ Pendiente secuencia de confirmación: no hay filtro local de duplicados/alertas
+      // antes de esto — se muestra directo lo que dice la base.
       const preview = await previsualizarCarga(filas)
       setPreviewBackend(preview)
-      const hayProblemas = aud.duplicados.length > 0 || aud.alertas.length > 0 || preview.advertencias.length > 0
-      setModal(hayProblemas ? 'alertas' : 'confirmar-carga')
+      setModal('confirmar-carga')
     } catch (err) {
       setPreviewBackend(null)
       mostrarToast(mensajeErrorBackend(err))
@@ -182,47 +177,34 @@ export function IngestView() {
     }
   }
 
-  function abrirEdicion() {
-    if (!filas || !auditoria) return
-    const filasProblema = new Set([
-      ...auditoria.duplicados.flatMap((d) => d.filas),
-      ...auditoria.alertas.map((a) => a.fila),
-    ])
-    const iniciales: Record<string, string> = {}
-    filasProblema.forEach((filaExcel) => {
-      const idx = filaExcel - 2
-      CAMPO_REQUERIDO.forEach(({ col }) => {
-        iniciales[`${idx}|${col}`] = String(filas[idx]?.[col] ?? '')
-      })
-    })
-    setEdits(iniciales)
-    setModal('editar')
-  }
-
-  function guardarEdicion() {
-    if (!filas) return
-    const copia = filas.map((f) => ({ ...f }))
-    Object.entries(edits).forEach(([clave, valor]) => {
-      const [idxStr, col] = clave.split('|')
-      copia[Number(idxStr)][col] = valor.trim() || null
-    })
-    const { out, changes: ch } = homogenize(copia)
-    setFilas(out)
-    setChanges(ch)
-    const aud = auditarParaCarga(out)
-    setAuditoria(aud)
-    setModal('ninguno')
-    const total = aud.duplicados.length + aud.alertas.length
-    mostrarToast(total === 0 ? '✅ Todo corregido. Ya puedes cargar los datos a la base.' : `Quedan ${total} cosa(s) por revisar.`)
-  }
-
-  const filasProblema = auditoria
-    ? [...new Set([...auditoria.duplicados.flatMap((d) => d.filas), ...auditoria.alertas.map((a) => a.fila)])].sort((a, b) => a - b)
-    : []
-
   return (
     <div className={styles.wrap} style={wrapStyle}>
-      <Header title="Ingest" description="Homogenización y validación de la base de datos antes de cargarla a producción." />
+      <div className={styles.cabeceraConEngranaje}>
+        <Header title="Ingest" description="Carga de la base de datos, con homogenización y confirmación pendientes de terminar." />
+        <div className={styles.engranajeBloque}>
+          <button
+            className={styles.engranaje}
+            onClick={() => setPendientesAbierto((v) => !v)}
+            aria-label="Ver funciones pendientes"
+            title="Funciones pendientes"
+          >
+            ⚙
+          </button>
+          {pendientesAbierto && (
+            <>
+              <div className={styles.engranajeFondo} onClick={() => setPendientesAbierto(false)} />
+              <div className={styles.engranajePanel}>
+                <p className={styles.engranajeTitulo}>Pendiente</p>
+                <ul>
+                  {PENDIENTES.map((p, i) => (
+                    <li key={i}>{p}</li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
 
       <div
         className={`${styles.zona} ${arrastrando ? styles.zonaActiva : ''}`}
@@ -257,9 +239,9 @@ export function IngestView() {
 
           <Card className={styles.accionesCard}>
             <div>
-              <p className={styles.accionesTitulo}>✅ Homogenización completada</p>
+              <p className={styles.accionesTitulo}>📂 Archivo leído, listo para cargar</p>
               <small className={styles.accionesSub}>
-                {filas.length.toLocaleString()} filas · {changes.length.toLocaleString()} cambios aplicados · {headers.length} columnas
+                {filas.length.toLocaleString()} filas · {headers.length} columnas · homogenización pendiente (⚙)
               </small>
             </div>
             <div className={styles.accionesBotones}>
@@ -362,105 +344,36 @@ export function IngestView() {
         </>
       )}
 
-      {modal === 'alertas' && auditoria && (
-        <div className={styles.overlay} onClick={() => setModal('ninguno')}>
-          <div className={styles.modalBox} onClick={(e) => e.stopPropagation()}>
-            <h3>
-              {auditoria.duplicados.length + auditoria.alertas.length + (previewBackend?.advertencias.length ?? 0)} cosa(s) para revisar antes de cargar
-            </h3>
-            <p className={styles.modalSub}>Puedes editar los datos para corregirlas, o continuar de todas formas.</p>
-            <ul className={styles.modalLista}>
-              {auditoria.duplicados.map((d) => (
-                <li key={d.informe} className={styles.itemDup}><b>Solicitud duplicada:</b> N° {d.informe} en las filas {d.filas.join(', ')}</li>
-              ))}
-              {auditoria.alertas.map((a, i) => (
-                <li key={i}><b>Fila {a.fila}:</b> {a.mensaje}</li>
-              ))}
-              {previewBackend?.advertencias.map((msg, i) => (
-                <li key={`backend-${i}`} className={styles.itemDup}><b>Base de datos:</b> {msg}</li>
-              ))}
-            </ul>
-            <div className={styles.modalAcciones}>
-              <Button variant="secondary" onClick={() => setModal('ninguno')}>Cancelar</Button>
-              <Button variant="secondary" onClick={abrirEdicion}>Editar datos</Button>
-              <button className={styles.btnAdvertencia} onClick={() => setModal('confirmar-continuar')}>Continuar de todas formas</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modal === 'confirmar-continuar' && auditoria && (
-        <div className={styles.overlay} onClick={() => setModal('ninguno')}>
-          <div className={styles.modalBoxChica} onClick={(e) => e.stopPropagation()}>
-            <h3>¿Seguro que quieres continuar?</h3>
-            <p className={styles.modalSub}>
-              Vas a cargar los datos con{' '}
-              <b>{auditoria.duplicados.length + auditoria.alertas.length + (previewBackend?.advertencias.length ?? 0)}</b>{' '}
-              advertencia(s) sin resolver. Las filas con advertencias de la base (duplicadas o inválidas) se omitirán automáticamente; el resto se cargará. Esta acción no se puede deshacer.
-            </p>
-            <div className={styles.modalAcciones}>
-              <Button variant="secondary" onClick={() => setModal('ninguno')}>Cancelar</Button>
-              <button className={styles.btnAdvertencia} onClick={() => { setModal('ninguno'); void cargarABaseDeDatos() }} disabled={cargando}>
-                {cargando ? 'Cargando…' : 'Sí, continuar de todas formas'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {modal === 'confirmar-carga' && filas && (
         <div className={styles.overlay} onClick={() => setModal('ninguno')}>
           <div className={styles.modalBoxChica} onClick={(e) => e.stopPropagation()}>
             <h3>Confirmar carga a la base de datos</h3>
             {previewBackend ? (
-              <p className={styles.modalSub}>
-                Se van a crear <b>{previewBackend.resumen.solicitudes_nuevas}</b> solicitud(es) nueva(s)
-                {previewBackend.resumen.clientes_nuevos > 0 && <> · <b>{previewBackend.resumen.clientes_nuevos}</b> cliente(s) nuevo(s)</>}
-                {previewBackend.resumen.plantas_nuevas > 0 && <> · <b>{previewBackend.resumen.plantas_nuevas}</b> planta(s) nueva(s)</>}
-                , sin inconsistencias detectadas.
-              </p>
+              <>
+                <p className={styles.modalSub}>
+                  Se van a crear <b>{previewBackend.resumen.solicitudes_nuevas}</b> solicitud(es) nueva(s)
+                  {previewBackend.resumen.clientes_nuevos > 0 && <> · <b>{previewBackend.resumen.clientes_nuevos}</b> cliente(s) nuevo(s)</>}
+                  {previewBackend.resumen.plantas_nuevas > 0 && <> · <b>{previewBackend.resumen.plantas_nuevas}</b> planta(s) nueva(s)</>}.
+                </p>
+                {previewBackend.resumen.solicitudes_existentes > 0 && (
+                  <p className={styles.modalSub}>
+                    <b>{previewBackend.resumen.solicitudes_existentes}</b> solicitud(es) ya existen en la base y se omitirán (no se sobreescriben).
+                  </p>
+                )}
+                {previewBackend.advertencias.length > 0 && (
+                  <p className={styles.modalSub}>
+                    ⚠ {previewBackend.advertencias.length} advertencia(s) — igual se cargan tal cual, quedan pendientes de homogenización.
+                  </p>
+                )}
+              </>
             ) : (
-              <p className={styles.modalSub}>Se van a cargar <b>{filas.length.toLocaleString()}</b> fila(s) validada(s), sin inconsistencias detectadas.</p>
+              <p className={styles.modalSub}>Se van a cargar <b>{filas.length.toLocaleString()}</b> fila(s).</p>
             )}
             <div className={styles.modalAcciones}>
               <Button variant="secondary" onClick={() => setModal('ninguno')}>Cancelar</Button>
               <button className={styles.btnCargar} onClick={() => { setModal('ninguno'); void cargarABaseDeDatos() }} disabled={cargando}>
                 {cargando ? 'Cargando…' : 'Confirmar carga'}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modal === 'editar' && filas && (
-        <div className={styles.overlay} onClick={() => setModal('ninguno')}>
-          <div className={styles.modalBox} onClick={(e) => e.stopPropagation()}>
-            <h3>Corregir inconsistencias</h3>
-            <p className={styles.modalSub}>Ajusta los valores marcados y vuelve a validar antes de cargar.</p>
-            {filasProblema.map((filaExcel) => {
-              const idx = filaExcel - 2
-              const motivos = [
-                ...(auditoria?.duplicados.filter((d) => d.filas.includes(filaExcel)).map((d) => `Solicitud duplicada (N° ${d.informe})`) ?? []),
-                ...(auditoria?.alertas.filter((a) => a.fila === filaExcel).map((a) => a.mensaje) ?? []),
-              ]
-              return (
-                <div key={filaExcel} className={styles.editBloque}>
-                  <div className={styles.editFilaTag}>Fila {filaExcel} — {motivos.join(' · ')}</div>
-                  {CAMPO_REQUERIDO.map(({ col, etiqueta }) => (
-                    <label key={col} className={styles.editRow}>
-                      <span>{etiqueta}</span>
-                      <input
-                        value={edits[`${idx}|${col}`] ?? ''}
-                        onChange={(e) => setEdits((prev) => ({ ...prev, [`${idx}|${col}`]: e.target.value }))}
-                      />
-                    </label>
-                  ))}
-                </div>
-              )
-            })}
-            <div className={styles.modalAcciones}>
-              <Button variant="secondary" onClick={() => setModal('ninguno')}>Cerrar</Button>
-              <button className={styles.btnCargar} onClick={guardarEdicion}>Guardar y volver a validar</button>
             </div>
           </div>
         </div>

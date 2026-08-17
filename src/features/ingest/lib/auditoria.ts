@@ -2,7 +2,7 @@ import type { FilaIngest } from './homogenizar'
 
 export const CAMPO_REQUERIDO: { col: string; etiqueta: string }[] = [
   { col: 'Informe', etiqueta: 'N° de solicitud' },
-  { col: 'Cliente', etiqueta: 'Cliente' },
+  { col: 'SOLD TO', etiqueta: 'Cliente (SOLD TO)' },
   { col: 'Fecha de muestreo', etiqueta: 'Fecha de muestreo' },
   { col: 'CROP', etiqueta: 'Especie (CROP)' },
 ]

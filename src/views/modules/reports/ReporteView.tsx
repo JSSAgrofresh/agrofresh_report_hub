@@ -405,7 +405,7 @@ export function ReporteView() {
 
       {estado === 'cargando' && !filas ? (
         <div className={styles.stats}>
-          {Array.from({ length: 7 }).map((_, i) => (
+          {Array.from({ length: 8 }).map((_, i) => (
             <Card key={i} className={styles.statCard}>
               <Skeleton style={{ width: '60%', height: '11px', marginBottom: '8px' }} />
               <Skeleton style={{ width: '40%', height: '22px' }} />
@@ -525,8 +525,12 @@ export function ReporteView() {
           <p className={styles.nota}>{nota}</p>
 
           <div className={styles.stats}>
+            <Card className={`${styles.statCard} ${styles.destacado}`}>
+              <span className={styles.statLbl}>Total de registros</span>
+              <span className={styles.statNum}>{filas.length.toLocaleString('es-CL')}</span>
+            </Card>
             <Card className={styles.statCard}>
-              <span className={styles.statLbl}>Observaciones</span>
+              <span className={styles.statLbl}>Observaciones (filtradas)</span>
               <span className={styles.statNum}>{valores.length.toLocaleString('es-CL')}</span>
             </Card>
             <Card className={styles.statCard}>
