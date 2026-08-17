@@ -166,9 +166,9 @@ export function IngestView() {
       const resultado = await confirmarCarga(filas)
       setPreviewBackend(resultado)
       const r = resultado.resumen
-      const omitidas = r.solicitudes_existentes > 0 ? ` · ${r.solicitudes_existentes} ya existían y se omitieron` : ''
+      const existentes = r.solicitudes_existentes > 0 ? ` · ${r.solicitudes_existentes} ya existían (se completó lo que les faltaba)` : ''
       mostrarToast(
-        `✅ Carga completada: ${r.solicitudes_nuevas} solicitud(es) nueva(s) · ${r.clientes_nuevos} cliente(s) nuevo(s) · ${r.plantas_nuevas} planta(s) nueva(s)${omitidas}.`,
+        `✅ Carga completada: ${r.solicitudes_nuevas} solicitud(es) nueva(s) · ${r.clientes_nuevos} cliente(s) nuevo(s) · ${r.plantas_nuevas} planta(s) nueva(s)${existentes}.`,
       )
     } catch (err) {
       mostrarToast(mensajeErrorBackend(err))
@@ -357,7 +357,8 @@ export function IngestView() {
                 </p>
                 {previewBackend.resumen.solicitudes_existentes > 0 && (
                   <p className={styles.modalSub}>
-                    <b>{previewBackend.resumen.solicitudes_existentes}</b> solicitud(es) ya existen en la base y se omitirán (no se sobreescriben).
+                    <b>{previewBackend.resumen.solicitudes_existentes}</b> solicitud(es) ya existen en la base — no se crean de nuevo ni se
+                    sobreescribe nada, pero si les falta algún analito (ej. porque antes no se pudo leer) se completa ahora.
                   </p>
                 )}
                 {previewBackend.advertencias.length > 0 && (

@@ -71,8 +71,12 @@ def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[st
     clientes_cache: dict[str, int | None] = {}
     plantas_cache: dict[tuple[str, str], int | None] = {}
 
-    for i, fila in enumerate(filas):
+    for i, fila_cruda in enumerate(filas):
         n_fila = i + 2  # misma numeración que usa Ingest en el frontend (fila 1 = encabezado)
+        # Encabezados del Excel con espacios de más (ej. " FDL FINAL ") no calzan con
+        # los nombres exactos que espera el mapeo — se normalizan acá, una sola vez,
+        # antes de que cualquier función de mapeo los use.
+        fila = {str(k).strip(): v for k, v in fila_cruda.items()}
         sol = mapeo.mapear_solicitud(fila)
         motivos: list[str] = []
 
@@ -117,14 +121,14 @@ def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[st
                     resumen["plantas_nuevas"] += 1
 
         cur.execute("SELECT id FROM solicitud WHERE nro_solicitud = %s", (sol["nro_solicitud"],))
-        ya_existe = cur.fetchone() is not None
+        existente = cur.fetchone()
+        ya_existe = existente is not None
         if ya_existe:
             resumen["solicitudes_existentes"] += 1
-            resumen["filas_omitidas"] += 1
-            motivos.append(f"La solicitud {sol['nro_solicitud']} ya existe en la base: se omite (no se sobreescribe)")
-            detalle.append({"fila": n_fila, "nro_solicitud": sol["nro_solicitud"], "omitida": True, "motivos": motivos})
-            advertencias.extend(f"Fila {n_fila}: {m}" for m in motivos)
-            continue
+            motivos.append(
+                f"La solicitud {sol['nro_solicitud']} ya existe: no se crea de nuevo, "
+                "solo se completan analitos que le falten (nunca se sobreescribe lo que ya tiene)"
+            )
 
         productos = mapeo.mapear_productos_aplicados(fila)
         resultados = mapeo.mapear_resultados(fila)
@@ -143,17 +147,20 @@ def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[st
                 motivos.append(adv)
             resultados_resueltos.append({**r, "analito_id": analito_id})
 
-        solicitud_id = None
+        solicitud_id = existente["id"] if ya_existe else None
         if escribir:
-            datos = {**sol, "planta_id": planta_id}
-            columnas = list(datos.keys())
-            placeholders = ", ".join(["%s"] * len(columnas))
-            cur.execute(
-                f"INSERT INTO solicitud ({', '.join(columnas)}) VALUES ({placeholders}) RETURNING id",
-                [datos[c] for c in columnas],
-            )
-            solicitud_id = cur.fetchone()["id"]
+            if not ya_existe:
+                datos = {**sol, "planta_id": planta_id}
+                columnas = list(datos.keys())
+                placeholders = ", ".join(["%s"] * len(columnas))
+                cur.execute(
+                    f"INSERT INTO solicitud ({', '.join(columnas)}) VALUES ({placeholders}) RETURNING id",
+                    [datos[c] for c in columnas],
+                )
+                solicitud_id = cur.fetchone()["id"]
 
+            # Si la solicitud ya existía, esto solo agrega lo que le faltaba
+            # (ON CONFLICT DO NOTHING protege cualquier analito que ya tuviera).
             for p in productos_resueltos:
                 cur.execute(
                     """INSERT INTO producto_aplicado
@@ -185,7 +192,8 @@ def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[st
                     ),
                 )
 
-        resumen["solicitudes_nuevas"] += 1
+        if not ya_existe:
+            resumen["solicitudes_nuevas"] += 1
         resumen["productos_aplicados"] += len(productos_resueltos)
         resumen["resultados"] += len(resultados_resueltos)
 
@@ -199,6 +207,7 @@ def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[st
                 "planta": sol["ship_to_raw"],
                 "productos_aplicados": len(productos_resueltos),
                 "resultados": len(resultados_resueltos),
+                "ya_existia": ya_existe,
                 "motivos": motivos,
             }
         )
