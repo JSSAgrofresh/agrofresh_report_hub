@@ -94,6 +94,7 @@ export function ReporteView() {
   const wrapStyle = { '--acento': acento } as CSSProperties
 
   const [filas, setFilas] = useState<FilaReporte[] | null>(null)
+  const [totalSolicitudes, setTotalSolicitudes] = useState(0)
   const [analitos, setAnalitos] = useState<Analito[]>([])
   const [estado, setEstado] = useState<Estado>('cargando')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -106,11 +107,12 @@ export function ReporteView() {
 
   async function obtenerTodo() {
     const [datos, catalogo] = await Promise.all([obtenerDatosReporte(), listarAnalitos()])
-    return { filas: datos.filas, analitos: catalogo }
+    return { filas: datos.filas, totalSolicitudes: datos.total_solicitudes, analitos: catalogo }
   }
 
-  function aplicarExito(r: { filas: FilaReporte[]; analitos: Analito[] }) {
+  function aplicarExito(r: { filas: FilaReporte[]; totalSolicitudes: number; analitos: Analito[] }) {
     setFilas(r.filas)
+    setTotalSolicitudes(r.totalSolicitudes)
     setAnalitos(r.analitos)
     setEstado('ok')
     setUltimaActualizacion(new Date())
@@ -526,8 +528,8 @@ export function ReporteView() {
 
           <div className={styles.stats}>
             <Card className={`${styles.statCard} ${styles.destacado}`}>
-              <span className={styles.statLbl}>Total de registros</span>
-              <span className={styles.statNum}>{filas.length.toLocaleString('es-CL')}</span>
+              <span className={styles.statLbl}>Total de registros (solicitudes)</span>
+              <span className={styles.statNum}>{totalSolicitudes.toLocaleString('es-CL')}</span>
             </Card>
             <Card className={styles.statCard}>
               <span className={styles.statLbl}>Observaciones (filtradas)</span>

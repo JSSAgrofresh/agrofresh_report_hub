@@ -48,7 +48,12 @@ def datos() -> dict[str, Any]:
         with cursor_dict(conn) as cur:
             cur.execute(DATOS_QUERY)
             filas = cur.fetchall()
-    return {"filas": filas, "total": len(filas)}
+            # Aparte del join con resultado (que solo trae solicitudes con al menos un
+            # analito medido), se cuenta el total real de solicitudes cargadas: esto es
+            # lo que se muestra como "Total de registros" en el KPI inicial de Report.
+            cur.execute("SELECT count(*) AS total FROM solicitud WHERE vigente")
+            total_solicitudes = cur.fetchone()["total"]
+    return {"filas": filas, "total": len(filas), "total_solicitudes": total_solicitudes}
 
 
 # ---------------------------------------------------------------------------
