@@ -102,6 +102,28 @@
   background: var(--color-bg);
 }
 
+/* Editar/Eliminar siempre visibles: fija a la derecha del contenedor con scroll,
+   así no dependen de que el admin sepa que hay que desplazarse para verlas. */
+.colAcciones {
+  position: sticky;
+  right: 0;
+  box-shadow: -6px 0 6px -6px rgba(22, 32, 27, 0.18);
+}
+
+.tabla tr:nth-child(odd) td.colAcciones {
+  background: var(--color-surface);
+}
+
+.tabla tr:nth-child(even) td.colAcciones {
+  background: var(--color-bg);
+}
+
+th.colAcciones {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+}
+
 .codigo {
   font-family: var(--font-mono);
   font-weight: 700;

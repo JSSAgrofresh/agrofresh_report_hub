@@ -189,7 +189,7 @@ export function AnalitosAdminModal({ analitos, onCambio, onCerrar }: Props) {
                     <th>Límite central</th>
                     <th>Límite máx.</th>
                     <th>Estado</th>
-                    <th></th>
+                    <th className={styles.colAcciones}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -205,7 +205,7 @@ export function AnalitosAdminModal({ analitos, onCambio, onCerrar }: Props) {
                       <td>
                         <Badge tone={a.activo ? 'success' : 'neutral'}>{a.activo ? 'Activo' : 'Inactivo'}</Badge>
                       </td>
-                      <td className={styles.accionesFila}>
+                      <td className={`${styles.accionesFila} ${styles.colAcciones}`}>
                         <button className={styles.boton} onClick={() => setPanel({ modo: 'editar', analito: a })}>
                           Editar
                         </button>
