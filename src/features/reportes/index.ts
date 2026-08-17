@@ -15,3 +15,4 @@ export {
 } from './lib/estadisticas'
 export type { Estadisticas, Limites, Cumplimiento } from './lib/estadisticas'
 export { proximaHoraProgramada, useActualizacionProgramada, HORAS_PROGRAMADAS } from './lib/programacion'
+export { colorDeIngrediente } from './lib/colores'

@@ -49,6 +49,16 @@ psql -U postgres -d tu_base -f migrations\0002_recalcular_semana.sql
 
 También es segura de repetir — puedes correrla cuantas veces quieras.
 
+Por último, para tener el catálogo completo de clientes y sus sucursales
+(incluye clientes que todavía no tienen muestras cargadas), corre:
+
+```powershell
+psql -U postgres -d tu_base -f migrations\0003_clientes_sucursales.sql
+```
+
+Es un upsert por nombre — no toca ni duplica lo que ya exista, así que
+también es segura de repetir.
+
 ## Arrancar
 
 ```powershell

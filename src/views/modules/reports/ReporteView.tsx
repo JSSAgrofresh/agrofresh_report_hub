@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   ArcElement,
@@ -14,10 +14,13 @@ import {
   PointElement,
   Tooltip,
 } from 'chart.js'
+import type { ChartDataset } from 'chart.js'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { BuscableSelect } from '@/components/ui/BuscableSelect'
+import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { areaDeModulo } from '@/constants/areas'
 import { useAuth } from '@/features/auth'
 import { HttpError } from '@/services/http/client'
@@ -26,6 +29,7 @@ import {
   calcularCumplimiento,
   calcularEstadisticas,
   calcularLimitesControl,
+  colorDeIngrediente,
   contarFueraDeIntervalo,
   listarAnalitos,
   obtenerDatosReporte,
@@ -65,7 +69,7 @@ type Vista = 'residual' | 'control'
 type Estado = 'cargando' | 'ok' | 'error'
 
 interface Filtros {
-  ingrediente: string
+  ingredientes: string[]
   cliente: string
   planta: string
   tipoAplicacion: string
@@ -76,7 +80,7 @@ interface Filtros {
 }
 
 const FILTROS_VACIOS: Filtros = {
-  ingrediente: '',
+  ingredientes: [],
   cliente: '',
   planta: '',
   tipoAplicacion: '',
@@ -86,9 +90,16 @@ const FILTROS_VACIOS: Filtros = {
   mes: '',
 }
 
+function filtrosActivos(f: Filtros): boolean {
+  return f.ingredientes.length > 0 || Boolean(f.cliente || f.planta || f.tipoAplicacion || f.laboratorio || f.crop || f.semana || f.mes)
+}
+
 const FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit' })
 
-export function ReporteView() {
+/** `clienteFijo`: usado por el portal de cliente — cuando viene seteado, los
+ * datos ya llegan filtrados por el backend (nunca se filtran solo en el
+ * navegador) y el filtro de Cliente ni siquiera se muestra. */
+export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
   const { user } = useAuth()
   const acento = areaDeModulo('reports')?.colorPrimario ?? '#6dad3c'
   const wrapStyle = { '--acento': acento } as CSSProperties
@@ -105,10 +116,10 @@ export function ReporteView() {
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
   const [modalAnalitos, setModalAnalitos] = useState(false)
 
-  async function obtenerTodo() {
-    const [datos, catalogo] = await Promise.all([obtenerDatosReporte(), listarAnalitos()])
+  const obtenerTodo = useCallback(async () => {
+    const [datos, catalogo] = await Promise.all([obtenerDatosReporte(clienteFijo), listarAnalitos()])
     return { filas: datos.filas, totalSolicitudes: datos.total_solicitudes, analitos: catalogo }
-  }
+  }, [clienteFijo])
 
   function aplicarExito(r: { filas: FilaReporte[]; totalSolicitudes: number; analitos: Analito[] }) {
     setFilas(r.filas)
@@ -150,7 +161,7 @@ export function ReporteView() {
     return () => {
       cancelado = true
     }
-  }, [])
+  }, [obtenerTodo])
   useActualizacionProgramada(() => void cargar())
 
   const esGestor = user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area'
@@ -181,21 +192,24 @@ export function ReporteView() {
     () => ({
       ingredientes: unique((filas ?? []).map((f) => f.ingrediente)),
       clientes: unique((filas ?? []).map((f) => f.cliente)),
-      plantas: unique((filas ?? []).map((f) => f.planta)),
+      // Sucursales en cascada: si hay un cliente elegido, solo se muestran las suyas.
+      plantas: unique(
+        (filas ?? []).filter((f) => !filtros.cliente || f.cliente === filtros.cliente).map((f) => f.planta),
+      ),
       tiposAplicacion: unique((filas ?? []).map((f) => f.tipo_aplicacion)),
       laboratorios: unique((filas ?? []).map((f) => f.laboratorio)),
       crops: unique((filas ?? []).map((f) => f.especie)),
       semanas: unique((filas ?? []).map((f) => f.semana_muestreo)),
       meses: unique((filas ?? []).map((f) => f.mes)),
     }),
-    [filas],
+    [filas, filtros.cliente],
   )
 
   const filtradas = useMemo(
     () =>
       observaciones.filter(
         (o) =>
-          (!filtros.ingrediente || o.ingrediente === filtros.ingrediente) &&
+          (filtros.ingredientes.length === 0 || filtros.ingredientes.includes(o.ingrediente)) &&
           (!filtros.cliente || o.cliente === filtros.cliente) &&
           (!filtros.planta || o.planta === filtros.planta) &&
           (!filtros.tipoAplicacion || o.tipoAplicacion === filtros.tipoAplicacion) &&
@@ -211,12 +225,16 @@ export function ReporteView() {
   const stats = useMemo(() => calcularEstadisticas(valores), [valores])
   const limitesControl = useMemo(() => calcularLimitesControl(valores, sigma), [valores, sigma])
 
+  // Los límites residuales son por analito: solo tienen sentido con exactamente
+  // uno seleccionado. Con 0 o 2+, el gráfico principal sigue funcionando (ver
+  // más abajo), pero los KPIs/límite no tienen un único analito al que referirse.
   const analitoSeleccionado = useMemo(() => {
-    if (!filtros.ingrediente) return null
-    const candidatos = analitos.filter((a) => a.codigo === filtros.ingrediente)
+    if (filtros.ingredientes.length !== 1) return null
+    const codigo = filtros.ingredientes[0]
+    const candidatos = analitos.filter((a) => a.codigo === codigo)
     if (candidatos.length <= 1) return candidatos[0] ?? null
     return candidatos.find((a) => a.laboratorio === filtros.laboratorio) ?? candidatos[0]
-  }, [analitos, filtros.ingrediente, filtros.laboratorio])
+  }, [analitos, filtros.ingredientes, filtros.laboratorio])
 
   const limiteResidual = useMemo(
     () => ({
@@ -235,11 +253,13 @@ export function ReporteView() {
   const unidad = analitoSeleccionado?.unidad ?? 'ppm'
 
   const nota =
-    vista === 'residual'
-      ? filtros.ingrediente
-        ? `Ingrediente seleccionado: ${filtros.ingrediente}. Las líneas de límite residual vienen de los valores configurados para este analito.`
-        : 'Selecciona un ingrediente activo para ver sus límites residuales.'
-      : `Límites dinámicos: promedio ± ${sigma} × desviación estándar de las ${valores.length.toLocaleString('es-CL')} observación(es) filtradas.`
+    filtros.ingredientes.length > 1
+      ? `Comparando ${filtros.ingredientes.length} ingredientes (colores en la leyenda del gráfico). Los límites y el % de cumplimiento solo se muestran con un ingrediente a la vez — selecciona uno solo para verlos.`
+      : vista === 'residual'
+        ? filtros.ingredientes.length === 1
+          ? `Ingrediente seleccionado: ${filtros.ingredientes[0]}. Las líneas de límite residual vienen de los valores configurados para este analito.`
+          : 'Selecciona un ingrediente activo para ver sus límites residuales.'
+        : `Límites dinámicos: promedio ± ${sigma} × desviación estándar de las ${valores.length.toLocaleString('es-CL')} observación(es) filtradas.`
 
   // ── gráficos ──
   const mainRef = useRef<HTMLCanvasElement>(null)
@@ -255,64 +275,100 @@ export function ReporteView() {
   const colorMuted = cssVar('--color-text-faint', '#77837b')
   const colorBorder = cssVar('--color-border', '#e1e5dc')
 
+  const comparandoVarios = filtros.ingredientes.length > 1
+
   useEffect(() => {
     if (!mainRef.current) return
-    const porFecha = new Map<string, number[]>()
-    filtradas.forEach((o) => {
-      const clave = o.fecha ?? 'Sin fecha'
-      const arr = porFecha.get(clave) ?? []
-      arr.push(o.ppm)
-      porFecha.set(clave, arr)
-    })
-    const claves = [...porFecha.keys()].sort()
-    const promedios = claves.map((k) => {
-      const arr = porFecha.get(k) ?? []
-      return arr.reduce((a, b) => a + b, 0) / arr.length
-    })
+
+    // Todas las fechas que aparecen en los datos filtrados (comunes a todas las líneas).
+    const claves = unique(filtradas.map((o) => o.fecha ?? 'Sin fecha')).sort()
     const etiquetas = claves.map((k) => (k === 'Sin fecha' ? k : formatDateCL(k)))
+
+    let datasets: ChartDataset<'line', (number | null)[]>[]
+
+    if (comparandoVarios) {
+      // Una línea de color fijo por ingrediente — sin líneas de límite (son por analito único).
+      datasets = filtros.ingredientes.map((ingrediente) => {
+        const porFecha = new Map<string, number[]>()
+        filtradas
+          .filter((o) => o.ingrediente === ingrediente)
+          .forEach((o) => {
+            const clave = o.fecha ?? 'Sin fecha'
+            const arr = porFecha.get(clave) ?? []
+            arr.push(o.ppm)
+            porFecha.set(clave, arr)
+          })
+        const color = colorDeIngrediente(ingrediente)
+        return {
+          label: ingrediente,
+          data: claves.map((k) => {
+            const arr = porFecha.get(k)
+            if (!arr || arr.length === 0) return null
+            return arr.reduce((a, b) => a + b, 0) / arr.length
+          }),
+          borderColor: color,
+          backgroundColor: color,
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          tension: 0.25,
+          spanGaps: true,
+        }
+      })
+    } else {
+      const porFecha = new Map<string, number[]>()
+      filtradas.forEach((o) => {
+        const clave = o.fecha ?? 'Sin fecha'
+        const arr = porFecha.get(clave) ?? []
+        arr.push(o.ppm)
+        porFecha.set(clave, arr)
+      })
+      const promedios = claves.map((k) => {
+        const arr = porFecha.get(k) ?? []
+        return arr.reduce((a, b) => a + b, 0) / arr.length
+      })
+      datasets = [
+        {
+          label: `Promedio ${unidad}`,
+          data: promedios,
+          borderColor: acento,
+          backgroundColor: acento,
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          tension: 0.25,
+        },
+        {
+          label: 'Límite superior',
+          data: claves.map(() => limitesActivos.superior),
+          borderColor: colorWarning,
+          borderDash: [6, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+        },
+        {
+          label: 'Límite central',
+          data: claves.map(() => limitesActivos.central),
+          borderColor: colorMuted,
+          borderDash: [2, 3],
+          borderWidth: 1.5,
+          pointRadius: 0,
+        },
+        {
+          label: 'Límite inferior',
+          data: claves.map(() => limitesActivos.inferior),
+          borderColor: colorWarning,
+          borderDash: [6, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+        },
+      ]
+    }
 
     mainChart.current?.destroy()
     mainChart.current = new Chart(mainRef.current, {
       type: 'line',
-      data: {
-        labels: etiquetas,
-        datasets: [
-          {
-            label: `Promedio ${unidad}`,
-            data: promedios,
-            borderColor: acento,
-            backgroundColor: acento,
-            borderWidth: 2,
-            pointRadius: 3,
-            pointHoverRadius: 5,
-            tension: 0.25,
-          },
-          {
-            label: 'Límite superior',
-            data: claves.map(() => limitesActivos.superior),
-            borderColor: colorWarning,
-            borderDash: [6, 4],
-            borderWidth: 1.5,
-            pointRadius: 0,
-          },
-          {
-            label: 'Límite central',
-            data: claves.map(() => limitesActivos.central),
-            borderColor: colorMuted,
-            borderDash: [2, 3],
-            borderWidth: 1.5,
-            pointRadius: 0,
-          },
-          {
-            label: 'Límite inferior',
-            data: claves.map(() => limitesActivos.inferior),
-            borderColor: colorWarning,
-            borderDash: [6, 4],
-            borderWidth: 1.5,
-            pointRadius: 0,
-          },
-        ],
-      },
+      data: { labels: etiquetas, datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -325,7 +381,19 @@ export function ReporteView() {
       },
     })
     return () => mainChart.current?.destroy()
-  }, [filtradas, limitesActivos.superior, limitesActivos.central, limitesActivos.inferior, acento, colorWarning, colorMuted, colorBorder, unidad])
+  }, [
+    filtradas,
+    comparandoVarios,
+    filtros.ingredientes,
+    limitesActivos.superior,
+    limitesActivos.central,
+    limitesActivos.inferior,
+    acento,
+    colorWarning,
+    colorMuted,
+    colorBorder,
+    unidad,
+  ])
 
   useEffect(() => {
     if (!donutRef.current) return
@@ -377,10 +445,34 @@ export function ReporteView() {
     setFiltros((prev) => ({ ...prev, [clave]: valor }))
   }
 
+  function cambiarCliente(valor: string) {
+    setFiltros((prev) => ({
+      ...prev,
+      cliente: valor,
+      // Si la sucursal actual no es de este cliente, se limpia (evita filtros imposibles).
+      planta:
+        prev.planta && !valor
+          ? prev.planta
+          : prev.planta &&
+              unique(
+                (filas ?? []).filter((f) => !valor || f.cliente === valor).map((f) => f.planta),
+              ).includes(prev.planta)
+            ? prev.planta
+            : '',
+    }))
+  }
+
   return (
     <div className={styles.wrap} style={wrapStyle}>
       <div className={styles.cabecera}>
-        <Header title="Report" description="Control de residuos: límites residuales y de control desde la base de datos." />
+        <Header
+          title={clienteFijo ? `Report · ${clienteFijo}` : 'Report'}
+          description={
+            clienteFijo
+              ? `Control de residuos de ${clienteFijo}: límites residuales y de control desde la base de datos.`
+              : 'Control de residuos: límites residuales y de control desde la base de datos.'
+          }
+        />
         <div className={styles.accionesCabecera}>
           {esGestor && (
             <Button variant="secondary" onClick={() => setModalAnalitos(true)}>
@@ -445,33 +537,27 @@ export function ReporteView() {
           </div>
 
           <div className={styles.filtros}>
-            <label className={styles.filtro}>
-              <span>Ingrediente Activo</span>
-              <select value={filtros.ingrediente} onChange={(e) => actualizarFiltro('ingrediente', e.target.value)}>
-                <option value="">Todos</option>
-                {opciones.ingredientes.map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.filtro}>
-              <span>Cliente</span>
-              <select value={filtros.cliente} onChange={(e) => actualizarFiltro('cliente', e.target.value)}>
-                <option value="">Todos</option>
-                {opciones.clientes.map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.filtro}>
-              <span>Planta</span>
-              <select value={filtros.planta} onChange={(e) => actualizarFiltro('planta', e.target.value)}>
-                <option value="">Todas</option>
-                {opciones.plantas.map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
+            <MultiSelectFiltro
+              etiqueta="Ingrediente Activo"
+              opciones={opciones.ingredientes}
+              valores={filtros.ingredientes}
+              onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v }))}
+              colorDe={colorDeIngrediente}
+            />
+            {!clienteFijo && (
+              <BuscableSelect
+                etiqueta="Cliente"
+                opciones={opciones.clientes}
+                valor={filtros.cliente}
+                onChange={cambiarCliente}
+              />
+            )}
+            <BuscableSelect
+              etiqueta="Sucursal"
+              opciones={opciones.plantas}
+              valor={filtros.planta}
+              onChange={(v) => actualizarFiltro('planta', v)}
+            />
             <label className={styles.filtro}>
               <span>Tipo aplicación</span>
               <select value={filtros.tipoAplicacion} onChange={(e) => actualizarFiltro('tipoAplicacion', e.target.value)}>
@@ -517,7 +603,7 @@ export function ReporteView() {
                 ))}
               </select>
             </label>
-            {(Object.values(filtros).some(Boolean)) && (
+            {filtrosActivos(filtros) && (
               <button className={styles.limpiar} onClick={() => setFiltros(FILTROS_VACIOS)}>
                 Limpiar filtros
               </button>

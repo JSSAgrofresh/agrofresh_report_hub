@@ -1,7 +1,7 @@
 from typing import Any
 
 import psycopg2.errors
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from .db import conexion, cursor_dict
@@ -38,6 +38,7 @@ DATOS_QUERY = """
     LEFT JOIN analito a ON a.id = r.analito_id
     LEFT JOIN producto_aplicado pa ON pa.solicitud_id = r.solicitud_id AND pa.analito_id = r.analito_id
     WHERE s.vigente
+    {filtro_cliente}
     ORDER BY s.fecha_muestreo DESC NULLS LAST, r.solicitud_id DESC
 """
 
@@ -61,15 +62,31 @@ def resumen() -> dict[str, Any]:
 
 
 @router.get("/datos")
-def datos() -> dict[str, Any]:
+def datos(
+    cliente: str | None = Query(
+        None, description="Si se pasa, solo trae los datos de este cliente (portal de cliente)."
+    ),
+) -> dict[str, Any]:
+    # El filtro por cliente se aplica siempre en el SQL, nunca en el navegador: para el
+    # portal de cliente, los datos de otros clientes no deben salir jamás del servidor.
+    filtro_cliente = "AND COALESCE(c.nombre, s.sold_to_raw) = %(cliente)s" if cliente else ""
+    params = {"cliente": cliente} if cliente else {}
     with conexion(escribir=False) as conn:
         with cursor_dict(conn) as cur:
-            cur.execute(DATOS_QUERY)
+            cur.execute(DATOS_QUERY.format(filtro_cliente=filtro_cliente), params)
             filas = cur.fetchall()
             # Aparte del join con resultado (que solo trae solicitudes con al menos un
             # analito medido), se cuenta el total real de solicitudes cargadas: esto es
             # lo que se muestra como "Total de registros" en el KPI inicial de Report.
-            cur.execute("SELECT count(*) AS total FROM solicitud WHERE vigente")
+            cur.execute(
+                f"""
+                SELECT count(*) AS total FROM solicitud s
+                LEFT JOIN planta p ON p.id = s.planta_id
+                LEFT JOIN cliente c ON c.id = p.cliente_id
+                WHERE s.vigente {filtro_cliente}
+                """,
+                params,
+            )
             total_solicitudes = cur.fetchone()["total"]
     return {"filas": filas, "total": len(filas), "total_solicitudes": total_solicitudes}
 

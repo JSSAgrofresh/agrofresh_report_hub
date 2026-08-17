@@ -1,0 +1,128 @@
+.contenedor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.etiqueta {
+  font-size: 10.5px;
+  color: var(--color-text-faint);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.boton {
+  height: 34px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 8px;
+  background: #fff;
+  font-size: 12.5px;
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.boton:hover {
+  border-color: var(--acento, var(--color-primary));
+}
+
+.botonTexto {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.botonTextoVacio {
+  color: var(--color-text-faint);
+}
+
+.flecha {
+  font-size: 9px;
+  color: var(--color-text-faint);
+  flex-shrink: 0;
+}
+
+.fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+
+.lista {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  min-width: 220px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: 91;
+  padding: 4px;
+}
+
+.listaCabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 9px;
+  font-size: 10.5px;
+  color: var(--color-text-faint);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 2px;
+}
+
+.limpiar {
+  background: none;
+  border: none;
+  color: var(--color-danger);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.opcion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  font-size: 12.5px;
+  color: var(--color-text);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.opcion:hover {
+  background: var(--color-bg);
+}
+
+.opcion input {
+  accent-color: var(--acento, var(--color-primary));
+}
+
+.puntoColor {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sinResultados {
+  padding: 10px 9px;
+  font-size: 12px;
+  color: var(--color-text-faint);
+  font-style: italic;
+}
