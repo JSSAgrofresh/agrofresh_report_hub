@@ -1,4 +1,11 @@
-export { obtenerDatosReporte, listarAnalitos, crearAnalito, actualizarAnalito, eliminarAnalito } from './lib/api'
+export {
+  obtenerDatosReporte,
+  obtenerResumenReporte,
+  listarAnalitos,
+  crearAnalito,
+  actualizarAnalito,
+  eliminarAnalito,
+} from './lib/api'
 export type { FilaReporte, Analito, AnalitoInput, Observacion } from './lib/tipos'
 export {
   calcularEstadisticas,

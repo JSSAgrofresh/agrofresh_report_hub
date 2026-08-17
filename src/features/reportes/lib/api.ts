@@ -5,6 +5,10 @@ export function obtenerDatosReporte() {
   return httpClient.get<{ filas: FilaReporte[]; total: number; total_solicitudes: number }>('/reportes/datos')
 }
 
+export function obtenerResumenReporte() {
+  return httpClient.get<{ total_solicitudes: number; registros_ultima_semana: number }>('/reportes/resumen')
+}
+
 export function listarAnalitos() {
   return httpClient.get<Analito[]>('/reportes/analitos')
 }

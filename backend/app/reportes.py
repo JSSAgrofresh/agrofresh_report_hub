@@ -42,6 +42,24 @@ DATOS_QUERY = """
 """
 
 
+@router.get("/resumen")
+def resumen() -> dict[str, Any]:
+    """Versión liviana para tarjetas de panel (no trae el detalle largo de /datos)."""
+    with conexion(escribir=False) as conn:
+        with cursor_dict(conn) as cur:
+            cur.execute("SELECT count(*) AS total FROM solicitud WHERE vigente")
+            total_solicitudes = cur.fetchone()["total"]
+            # "Fecha de ingreso" = fecha_entrada (cuándo entró la muestra al laboratorio),
+            # ventana móvil de los últimos 7 días contra la fecha real del servidor —
+            # nunca un valor fijo, así siempre refleja la semana en la que se está.
+            cur.execute(
+                "SELECT count(*) AS total FROM solicitud "
+                "WHERE vigente AND fecha_entrada >= CURRENT_DATE - INTERVAL '7 days'"
+            )
+            registros_ultima_semana = cur.fetchone()["total"]
+    return {"total_solicitudes": total_solicitudes, "registros_ultima_semana": registros_ultima_semana}
+
+
 @router.get("/datos")
 def datos() -> dict[str, Any]:
     with conexion(escribir=False) as conn:
