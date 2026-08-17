@@ -42,8 +42,8 @@ export const MODULOS: ModuloInfo[] = [
   {
     id: 'reports',
     nombre: 'Report',
-    descripcion: 'Reportes consolidados de la operación.',
+    descripcion: 'Control de residuos: límites residuales y de control en tiempo real desde la base de datos.',
     ruta: ROUTES.reports,
-    estado: 'proximamente',
+    estado: 'disponible',
   },
 ]

@@ -1,8 +1,7 @@
 # Backend — AgroFresh Report Hub
 
-API local en FastAPI que conecta el módulo Ingest a Postgres. Hoy solo
-expone lo necesario para probar la carga de datos; el resto (dashboards,
-Audit, etc.) se agrega después.
+API local en FastAPI que conecta los módulos Ingest y Report a Postgres.
+Audit todavía no está integrado.
 
 ## Instalación (Windows, PowerShell)
 
@@ -28,6 +27,16 @@ la instalación por defecto, probablemente solo tengas que completar
 
 Asegúrate de haber corrido `schema_agrofresh.sql` contra esa base antes
 (crea el schema `lab` con todas las tablas).
+
+Además, para que el módulo Report pueda guardar límites residuales por
+analito, corre una vez la migración:
+
+```powershell
+psql -U postgres -d tu_base -f migrations\0001_analito_limites.sql
+```
+
+Es segura de repetir (usa `ADD COLUMN IF NOT EXISTS`), así que si no estás
+seguro de si ya la corriste, córrela de nuevo sin problema.
 
 ## Arrancar
 
@@ -66,3 +75,20 @@ variable.
   se sobreescriben. Si necesitas actualizar una solicitud existente, por
   ahora hay que hacerlo a mano en la base — lo dejamos así a propósito
   para no pisar datos sin querer.
+
+## Cómo funciona Report
+
+- `GET /api/reportes/datos`: trae todos los resultados de la base en
+  formato largo (una fila por analito medido), para que el frontend arme
+  los gráficos y filtros. Es de solo lectura.
+- `GET/POST/PUT/DELETE /api/reportes/analitos`: catálogo de analitos,
+  incluidos los límites residuales editables (mínimo/central/máximo). Los
+  límites de *control* no se guardan en ninguna parte — se calculan al
+  vuelo como promedio ± N desviaciones estándar sobre lo que esté
+  filtrado en pantalla.
+- Borrar un analito que ya tiene resultados o aplicaciones cargadas
+  devuelve un error 409 explicando que hay que desactivarlo en vez de
+  eliminarlo (el catálogo tiene una columna `activo` para eso).
+- El frontend refresca esta data solo, 4 veces al día (08:00, 12:00,
+  16:00 y 20:00), además del botón manual "Actualizar" que refresca al
+  tiro sin esperar la hora programada.
