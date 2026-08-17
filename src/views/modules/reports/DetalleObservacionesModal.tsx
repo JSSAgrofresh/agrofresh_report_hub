@@ -11,7 +11,8 @@ interface DetalleObservacionesModalProps {
 }
 
 export function DetalleObservacionesModal({ titulo, filas, onCerrar }: DetalleObservacionesModalProps) {
-  const promedio = filas.length ? filas.reduce((a, o) => a + o.ppm, 0) / filas.length : null
+  const conPpm = filas.filter((o): o is Observacion & { ppm: number } => o.ppm != null)
+  const promedio = conPpm.length ? conPpm.reduce((a, o) => a + o.ppm, 0) / conPpm.length : null
   const ordenadas = [...filas].sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''))
   const visibles = ordenadas.slice(0, MAX_FILAS)
 
@@ -23,7 +24,7 @@ export function DetalleObservacionesModal({ titulo, filas, onCerrar }: DetalleOb
             <h3>{titulo}</h3>
             <p className={styles.resumen}>
               {filas.length.toLocaleString('es-CL')} observación(es)
-              {promedio != null && ` · promedio ${formatDecimalCL(promedio, 4)} ppm`}
+              {promedio != null && ` · promedio ${formatDecimalCL(promedio, 4)} ppm (${conPpm.length} con valor numérico)`}
             </p>
           </div>
           <button className={styles.cerrar} onClick={onCerrar} aria-label="Cerrar">
@@ -54,8 +55,10 @@ export function DetalleObservacionesModal({ titulo, filas, onCerrar }: DetalleOb
                     <td>{o.nroSolicitud || '—'}</td>
                     <td>{o.fecha ? formatDateCL(o.fecha) : '—'}</td>
                     <td>{o.semana ?? '—'}</td>
-                    <td className={styles.codigo}>{o.ingrediente}</td>
-                    <td>{formatDecimalCL(o.ppm, 4)}</td>
+                    <td className={styles.codigo}>{o.ingrediente ?? 'Sin resultado'}</td>
+                    <td className={o.ppm == null ? styles.sinValor : undefined}>
+                      {o.ppm != null ? formatDecimalCL(o.ppm, 4) : (o.valorTexto ?? '—')}
+                    </td>
                     <td className={styles.truncada}>{o.cliente ?? '—'}</td>
                     <td className={styles.truncada}>{o.planta ?? '—'}</td>
                     <td className={styles.truncada}>{o.tipoServicio ?? '—'}</td>

@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/reportes", tags=["reportes"])
 
 DATOS_QUERY = """
     SELECT
-        r.solicitud_id,
+        s.id AS solicitud_id,
         s.nro_solicitud,
         s.laboratorio,
         s.fecha_muestreo,
@@ -32,15 +32,15 @@ DATOS_QUERY = """
         COALESCE(a.codigo, r.analito_raw) AS ingrediente,
         r.valor_num,
         r.valor_texto
-    FROM resultado r
-    JOIN solicitud s ON s.id = r.solicitud_id
+    FROM solicitud s
+    LEFT JOIN resultado r ON r.solicitud_id = s.id
     LEFT JOIN planta p ON p.id = s.planta_id
     LEFT JOIN cliente c ON c.id = p.cliente_id
     LEFT JOIN analito a ON a.id = r.analito_id
     LEFT JOIN producto_aplicado pa ON pa.solicitud_id = r.solicitud_id AND pa.analito_id = r.analito_id
     WHERE s.vigente
     {filtro_cliente}
-    ORDER BY s.fecha_muestreo DESC NULLS LAST, r.solicitud_id DESC
+    ORDER BY s.fecha_muestreo DESC NULLS LAST, s.id DESC
 """
 
 

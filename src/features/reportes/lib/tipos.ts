@@ -14,7 +14,8 @@ export interface FilaReporte {
   cliente: string | null
   planta: string | null
   tipo_aplicacion: string | null
-  ingrediente: string
+  // Null cuando la solicitud todavía no tiene ningún resultado cargado.
+  ingrediente: string | null
   valor_num: number | string | null
   valor_texto: string | null
 }
@@ -48,12 +49,16 @@ export interface AnalitoInput {
   limite_max?: number | null
 }
 
-/** Una observación numérica lista para graficar: una fila con ppm real. */
+/** Una fila lista para filtrar/mostrar: toda solicitud de la base tiene una,
+ * tenga o no un resultado numérico. `ppm` es null cuando no hay valor numérico
+ * (sin resultado todavía, o un resultado cualitativo como "ND"); en ese caso
+ * `valorTexto` puede traer el valor real reportado por el laboratorio. */
 export interface Observacion {
   solicitudId: number
   nroSolicitud: string
-  ingrediente: string
-  ppm: number
+  ingrediente: string | null
+  ppm: number | null
+  valorTexto: string | null
   fecha: string | null
   cliente: string | null
   planta: string | null

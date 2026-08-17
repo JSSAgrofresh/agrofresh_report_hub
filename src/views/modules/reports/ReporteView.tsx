@@ -104,9 +104,12 @@ function filtrosActivos(f: Filtros): boolean {
 }
 
 /** Observaciones dentro (o fuera) del intervalo [inferior, superior]; sin ambos
- * límites definidos, todo cuenta como "dentro" (no hay con qué comparar). */
+ * límites definidos, todo cuenta como "dentro" (no hay con qué comparar). Las
+ * filas sin ppm numérico no entran a ninguno de los dos grupos (no hay valor
+ * que comparar), igual que en los conteos de la dona/barra. */
 function filtrarPorRango(lista: Observacion[], inferior: number | null, superior: number | null, dentro: boolean) {
   return lista.filter((o) => {
+    if (o.ppm == null) return false
     const estaDentro = inferior == null || superior == null ? true : o.ppm >= inferior && o.ppm <= superior
     return dentro ? estaDentro : !estaDentro
   })
@@ -185,17 +188,21 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
 
   const esGestor = user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area'
 
+  // Una fila por cada solicitud filtrada (LEFT JOIN con resultado en el backend):
+  // toda solicitud de la base aparece acá, tenga o no un resultado numérico —
+  // "ppm" queda en null cuando no hay valor numérico (sin resultado todavía, o
+  // un resultado cualitativo como "ND"), pero la solicitud igual se cuenta y
+  // se puede ver en el detalle.
   const observaciones = useMemo<Observacion[]>(() => {
     if (!filas) return []
-    const out: Observacion[] = []
-    filas.forEach((f) => {
-      const ppm = f.valor_num == null ? null : Number(f.valor_num)
-      if (ppm == null || Number.isNaN(ppm)) return
-      out.push({
+    return filas.map((f) => {
+      const num = f.valor_num == null ? null : Number(f.valor_num)
+      return {
         solicitudId: f.solicitud_id,
         nroSolicitud: f.nro_solicitud,
         ingrediente: f.ingrediente,
-        ppm,
+        ppm: num == null || Number.isNaN(num) ? null : num,
+        valorTexto: f.valor_texto,
         fecha: f.fecha_muestreo ?? f.fecha_entrada,
         cliente: f.cliente,
         planta: f.planta,
@@ -205,9 +212,8 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
         crop: f.especie,
         semana: f.semana_muestreo,
         mes: f.mes,
-      })
+      }
     })
-    return out
   }, [filas])
 
   const opciones = useMemo(
@@ -232,7 +238,8 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
     () =>
       observaciones.filter(
         (o) =>
-          (filtros.ingredientes.length === 0 || filtros.ingredientes.includes(o.ingrediente)) &&
+          (filtros.ingredientes.length === 0 ||
+            (o.ingrediente != null && filtros.ingredientes.includes(o.ingrediente))) &&
           (!filtros.cliente || o.cliente === filtros.cliente) &&
           (!filtros.planta || o.planta === filtros.planta) &&
           (!filtros.tipoAplicacion || o.tipoAplicacion === filtros.tipoAplicacion) &&
@@ -250,7 +257,13 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
 
   const registrosFiltrados = useMemo(() => new Set(filtradas.map((o) => o.solicitudId)).size, [filtradas])
 
-  const valores = useMemo(() => filtradas.map((o) => o.ppm), [filtradas])
+  // Solo las filas con un ppm numérico entran a las estadísticas y los gráficos
+  // de valores; las que no tienen resultado (o vienen como texto tipo "ND") ya
+  // se cuentan en registrosFiltrados, pero no hay ppm que promediar/graficar.
+  const valores = useMemo(
+    () => filtradas.map((o) => o.ppm).filter((v): v is number => v != null),
+    [filtradas],
+  )
   const stats = useMemo(() => calcularEstadisticas(valores), [valores])
   const limitesControl = useMemo(() => calcularLimitesControl(valores, sigma), [valores, sigma])
 
@@ -338,11 +351,11 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
       datasets = filtros.ingredientes.map((ingrediente) => {
         const porFecha = new Map<string, number[]>()
         filtradas
-          .filter((o) => o.ingrediente === ingrediente)
+          .filter((o) => o.ingrediente === ingrediente && o.ppm != null)
           .forEach((o) => {
             const clave = o.fecha ?? 'Sin fecha'
             const arr = porFecha.get(clave) ?? []
-            arr.push(o.ppm)
+            arr.push(o.ppm as number)
             porFecha.set(clave, arr)
           })
         const color = colorDeIngrediente(ingrediente)
@@ -365,6 +378,7 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
     } else {
       const porFecha = new Map<string, number[]>()
       filtradas.forEach((o) => {
+        if (o.ppm == null) return
         const clave = o.fecha ?? 'Sin fecha'
         const arr = porFecha.get(clave) ?? []
         arr.push(o.ppm)
@@ -714,11 +728,8 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
             <Card className={`${styles.statCard} ${styles.destacado}`}>
               <span className={styles.statLbl}>Total de registros (solicitudes)</span>
               <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
-              {registrosFiltrados !== totalSolicitudes && (
-                <span className={styles.statSub}>
-                  de {totalSolicitudes.toLocaleString('es-CL')} en total
-                  {!filtrosActivos(filtros) && ' (algunas solicitudes aún no tienen ningún resultado medido)'}
-                </span>
+              {filtrosActivos(filtros) && (
+                <span className={styles.statSub}>de {totalSolicitudes.toLocaleString('es-CL')} en total</span>
               )}
             </Card>
             <Card className={styles.statCard}>
