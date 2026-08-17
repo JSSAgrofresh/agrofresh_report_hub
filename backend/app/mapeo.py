@@ -5,6 +5,7 @@ Sin acceso a base de datos aquí (eso vive en ingest.py).
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Any
 
 # Columnas de dosis por analito (ver src/features/ingest/lib/sqlMap.ts en el frontend)
@@ -78,6 +79,21 @@ def parse_fecha(valor: Any) -> str | None:
     return None
 
 
+def calcular_semana(fecha_iso: str | None) -> int | None:
+    """Replica NUM.DE.SEMANA de Excel (sistema 1, el que usa por defecto sin
+    segundo argumento): semanas de domingo a sábado, semana 1 = la que
+    contiene el 1 de enero. La columna 'SEMANA' del Excel no es confiable
+    (viene con valores fijos tipo '2' para filas de meses distintos), así que
+    la semana se calcula siempre a partir de la fecha de entrada real."""
+    if not fecha_iso:
+        return None
+    fecha = date.fromisoformat(fecha_iso)
+    enero1 = date(fecha.year, 1, 1)
+    dow_enero1 = (enero1.weekday() + 1) % 7 + 1  # Python lun=0..dom=6 -> Excel dom=1..sáb=7
+    offset = (fecha - enero1).days
+    return (offset + dow_enero1) // 7 + 1
+
+
 def valor_resultado(valor: Any) -> tuple[float | None, str | None]:
     """Un resultado final puede ser número, 'ND', o texto libre (<L.C, etc.)."""
     if valor is None:
@@ -110,12 +126,13 @@ def concatenar(*valores: str | None, separador: str = " / ") -> str | None:
 
 def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
     """Construye el dict de la fila `solicitud`, sin resolver aún cliente_id/planta_id."""
+    fecha_entrada = parse_fecha(fila.get("Fecha entrada"))
     return {
         "nro_solicitud": texto(fila, "Informe"),
         "laboratorio": texto(fila, "Laboratorio"),
         "fecha_solicitud": parse_fecha(fila.get("Fecha \nSolicitud")),
         "fecha_muestreo": parse_fecha(fila.get("Fecha de muestreo")),
-        "fecha_entrada": parse_fecha(fila.get("Fecha entrada")),
+        "fecha_entrada": fecha_entrada,
         "fecha_analisis": parse_fecha(fila.get("Fecha análisis")),
         # La base real exporta "SOLD TO" / "SHIP TO"; "Cliente" / "Sucursal" se
         # dejan como alias por si algún Excel viene con esos encabezados en vez.
@@ -139,7 +156,9 @@ def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
         "observacion_2": concatenar(texto(fila, "Dosis"), texto(fila, "Observación adicional")),
         "temporada": parse_entero_corto(fila.get("Temporada ")),
         "semana_entrada": parse_entero_corto(fila.get("Semana entrada")),
-        "semana_muestreo": parse_entero_corto(fila.get("SEMANA")),
+        # No se usa la columna "SEMANA" del Excel (no es confiable): se calcula
+        # a partir de la fecha de entrada, igual que =NUM.DE.SEMANA([Fecha entrada]).
+        "semana_muestreo": calcular_semana(fecha_entrada),
         "mes": parse_entero_corto(fila.get("MES")),
     }
 

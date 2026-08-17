@@ -38,6 +38,17 @@ psql -U postgres -d tu_base -f migrations\0001_analito_limites.sql
 Es segura de repetir (usa `ADD COLUMN IF NOT EXISTS`), así que si no estás
 seguro de si ya la corriste, córrela de nuevo sin problema.
 
+Si ya habías cargado datos con una versión anterior del backend, la
+columna `semana_muestreo` puede tener el valor crudo (y poco confiable)
+de la columna "SEMANA" del Excel en vez de calcularse desde la fecha de
+entrada. Para recalcularla en lo que ya cargaste:
+
+```powershell
+psql -U postgres -d tu_base -f migrations\0002_recalcular_semana.sql
+```
+
+También es segura de repetir — puedes correrla cuantas veces quieras.
+
 ## Arrancar
 
 ```powershell

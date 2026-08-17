@@ -67,6 +67,6 @@ export const SQL_MAP: MapaSQLEntry[] = [
   { col: 'Informe QUITECA2', tabla: '—', campo: '(ignorar)', tipo: 'skip', nota: '' },
   { col: 'Informe AGF', tabla: '—', campo: '(ignorar)', tipo: 'skip', nota: '' },
   { col: 'Laboratorio', tabla: 'solicitud', campo: 'laboratorio', tipo: 'sol', nota: '' },
-  { col: 'SEMANA', tabla: 'solicitud', campo: 'semana_muestreo', tipo: 'sol', nota: '' },
+  { col: 'SEMANA', tabla: 'solicitud', campo: 'semana_muestreo', tipo: 'warn', nota: 'No confiable: se ignora y se calcula desde Fecha entrada (=NUM.DE.SEMANA)' },
   { col: 'MES', tabla: 'solicitud', campo: 'mes', tipo: 'sol', nota: '' },
 ]
