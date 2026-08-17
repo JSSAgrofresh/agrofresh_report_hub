@@ -19,6 +19,15 @@ function numOrNull(s: string): number | null {
   return s.trim() === '' ? null : parseDecimalCL(s)
 }
 
+function fmtLimite(v: number | string | null): string {
+  return v != null ? formatDecimalCL(Number(v), 4) : '—'
+}
+
+function resumenLimites(a: Analito): string {
+  if (a.limite_min == null && a.limite_central == null && a.limite_max == null) return 'Sin definir'
+  return `${fmtLimite(a.limite_min)} / ${fmtLimite(a.limite_central)} / ${fmtLimite(a.limite_max)}`
+}
+
 function AnalitoForm({
   analito,
   onGuardado,
@@ -177,6 +186,8 @@ export function AnalitosAdminModal({ analitos, onCambio, onCerrar }: Props) {
               <Button onClick={() => setPanel({ modo: 'nuevo' })}>+ Nuevo analito</Button>
             </div>
             {error && <p className={styles.error}>⚠ {error}</p>}
+
+            {/* Desktop: tabla compacta (una sola columna de límites, sin scroll horizontal). */}
             <div className={styles.tablaScroll}>
               <table className={styles.tabla}>
                 <thead>
@@ -185,27 +196,23 @@ export function AnalitosAdminModal({ analitos, onCambio, onCerrar }: Props) {
                     <th>Nombre</th>
                     <th>Laboratorio</th>
                     <th>Unidad</th>
-                    <th>Límite mín.</th>
-                    <th>Límite central</th>
-                    <th>Límite máx.</th>
+                    <th>Límites (mín / central / máx)</th>
                     <th>Estado</th>
-                    <th className={styles.colAcciones}></th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {analitos.map((a) => (
                     <tr key={a.id}>
                       <td className={styles.codigo}>{a.codigo}</td>
-                      <td>{a.nombre}</td>
-                      <td className={styles.faint}>{a.laboratorio}</td>
-                      <td className={styles.faint}>{a.unidad}</td>
-                      <td>{a.limite_min != null ? formatDecimalCL(Number(a.limite_min), 4) : '—'}</td>
-                      <td>{a.limite_central != null ? formatDecimalCL(Number(a.limite_central), 4) : '—'}</td>
-                      <td>{a.limite_max != null ? formatDecimalCL(Number(a.limite_max), 4) : '—'}</td>
+                      <td className={styles.nombreCelda} title={a.nombre}>{a.nombre}</td>
+                      <td className={`${styles.faint} ${styles.labCelda}`} title={a.laboratorio}>{a.laboratorio}</td>
+                      <td className={`${styles.faint} ${styles.unidadCelda}`} title={a.unidad}>{a.unidad}</td>
+                      <td className={`${styles.faint} ${styles.limitesCelda}`}>{resumenLimites(a)}</td>
                       <td>
                         <Badge tone={a.activo ? 'success' : 'neutral'}>{a.activo ? 'Activo' : 'Inactivo'}</Badge>
                       </td>
-                      <td className={`${styles.accionesFila} ${styles.colAcciones}`}>
+                      <td className={styles.accionesFila}>
                         <button className={styles.boton} onClick={() => setPanel({ modo: 'editar', analito: a })}>
                           Editar
                         </button>
@@ -221,6 +228,36 @@ export function AnalitosAdminModal({ analitos, onCambio, onCerrar }: Props) {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Móvil: tarjetas apiladas, sin scroll horizontal. */}
+            <div className={styles.tarjetas}>
+              {analitos.map((a) => (
+                <div key={a.id} className={styles.tarjeta}>
+                  <div className={styles.tarjetaCabecera}>
+                    <span className={styles.codigo}>{a.codigo}</span>
+                    <Badge tone={a.activo ? 'success' : 'neutral'}>{a.activo ? 'Activo' : 'Inactivo'}</Badge>
+                  </div>
+                  <p className={styles.tarjetaNombre}>{a.nombre}</p>
+                  <div className={styles.tarjetaDatos}>
+                    <span>{a.laboratorio}</span>
+                    <span>{a.unidad}</span>
+                  </div>
+                  <p className={styles.tarjetaLimites}>Límites: {resumenLimites(a)}</p>
+                  <div className={styles.tarjetaAcciones}>
+                    <button className={styles.boton} onClick={() => setPanel({ modo: 'editar', analito: a })}>
+                      Editar
+                    </button>
+                    <button
+                      className={styles.botonEliminar}
+                      onClick={() => void onEliminar(a)}
+                      disabled={borrando === a.id}
+                    >
+                      {borrando === a.id ? '…' : 'Eliminar'}
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         ) : (
