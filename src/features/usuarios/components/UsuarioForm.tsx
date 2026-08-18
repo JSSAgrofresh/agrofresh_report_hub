@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Button } from '@/components/ui/Button'
+import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { LISTA_AREAS } from '@/constants/areas'
 import type { AreaId } from '@/constants/areas'
+import { obtenerClientesReporte } from '@/features/reportes'
 import { CORREO_MAESTRO } from '../api/usuariosStore'
 import type { TipoAcceso, Usuario } from '../types'
 import styles from './UsuarioForm.module.css'
@@ -27,9 +29,17 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [area, setArea] = useState<AreaId | ''>(usuario?.area ?? '')
   const [clienteNombre, setClienteNombre] = useState(usuario?.clienteNombre ?? '')
   const [error, setError] = useState<string | null>(null)
+  const [clientesDisponibles, setClientesDisponibles] = useState<string[]>([])
 
   const requiereArea = tipoAcceso === 'admin_area' || tipoAcceso === 'cliente'
   const requiereCliente = tipoAcceso === 'cliente'
+
+  useEffect(() => {
+    if (!requiereCliente) return
+    obtenerClientesReporte()
+      .then(setClientesDisponibles)
+      .catch(() => setClientesDisponibles([]))
+  }, [requiereCliente])
 
   function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -104,14 +114,22 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       )}
 
       {requiereCliente && !esMaestro && (
-        <label className={styles.campo}>
-          <span>Nombre del cliente</span>
-          <input
-            value={clienteNombre}
-            onChange={(e) => setClienteNombre(e.target.value)}
-            placeholder="Empresa o cuenta que verá sus datos"
+        <div className={styles.campo}>
+          <BuscableSelect
+            etiqueta="Nombre del cliente"
+            opciones={
+              clienteNombre && !clientesDisponibles.includes(clienteNombre)
+                ? [clienteNombre, ...clientesDisponibles]
+                : clientesDisponibles
+            }
+            valor={clienteNombre}
+            onChange={setClienteNombre}
+            placeholderTodos="— elegir cliente —"
           />
-        </label>
+          <p className={styles.notaChica}>
+            Se elige de la lista de clientes que ya tienen datos cargados, para que el nombre calce exacto con Report.
+          </p>
+        </div>
       )}
 
       {error && <p className={styles.error}>{error}</p>}

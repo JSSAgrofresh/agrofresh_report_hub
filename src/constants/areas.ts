@@ -20,7 +20,7 @@ export const AREAS: Record<AreaId, AreaConfig> = {
     colorPrimario: '#B3394A',
     colorOscuro: '#6E2029',
     fondo: backgroundLab,
-    modulos: ['converter', 'ingest'],
+    modulos: ['converter', 'ingest', 'reports'],
   },
   postcosecha: {
     id: 'postcosecha',

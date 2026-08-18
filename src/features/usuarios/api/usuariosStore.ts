@@ -31,7 +31,7 @@ const SEED: Usuario[] = [
     nombre: 'Cliente Demo',
     tipoAcceso: 'cliente',
     area: 'cromatografia',
-    clienteNombre: 'Empresa Demo Ltda.',
+    clienteNombre: 'DOLE CHILE S.A.',
   },
 ]
 

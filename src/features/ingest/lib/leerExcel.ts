@@ -2,13 +2,23 @@ import * as XLSX from 'xlsx'
 import type { FilaIngest } from './homogenizar'
 import { DATE_COLS } from './homogenizar'
 
+/** Algunos encabezados reales vienen con espacios de más (ej. " FDL FINAL ")
+ * y no calzan con los nombres exactos que usa el resto del sistema. */
+function normalizarClaves(fila: FilaIngest): FilaIngest {
+  const out: FilaIngest = {}
+  for (const [clave, valor] of Object.entries(fila)) {
+    out[clave.trim()] = valor
+  }
+  return out
+}
+
 export async function leerExcel(file: File): Promise<{ rows: FilaIngest[]; headers: string[] }> {
   const buffer = await file.arrayBuffer()
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
   const ws = wb.Sheets[wb.SheetNames[0]]
 
-  const raw = XLSX.utils.sheet_to_json<FilaIngest>(ws, { defval: null, raw: false })
-  const rawDates = XLSX.utils.sheet_to_json<FilaIngest>(ws, { defval: null, raw: true })
+  const raw = XLSX.utils.sheet_to_json<FilaIngest>(ws, { defval: null, raw: false }).map(normalizarClaves)
+  const rawDates = XLSX.utils.sheet_to_json<FilaIngest>(ws, { defval: null, raw: true }).map(normalizarClaves)
 
   const rows = raw.map((r, i) => {
     const rd = rawDates[i] || {}

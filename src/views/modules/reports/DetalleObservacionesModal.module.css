@@ -1,0 +1,118 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(22, 32, 27, 0.55);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+}
+
+.modalBox {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+  width: 100%;
+  max-width: 900px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.cabecera h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.resumen {
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+  margin-top: 2px;
+}
+
+.cerrar {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.cerrar:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.vacio {
+  padding: var(--space-5) 0;
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 13px;
+}
+
+.tablaScroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.tabla {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+}
+
+.tabla th {
+  background: var(--color-bg);
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.tabla td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.tabla tr:nth-child(even) td {
+  background: var(--color-bg);
+}
+
+.codigo {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.sinValor {
+  color: var(--color-text-faint);
+  font-style: italic;
+}
+
+.truncada {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.masNota {
+  margin-top: var(--space-2);
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+  text-align: center;
+}

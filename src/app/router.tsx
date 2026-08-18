@@ -7,7 +7,7 @@ import { DashboardView } from '@/views/dashboard/DashboardView'
 import { TraceView } from '@/views/modules/trace/TraceView'
 import { ConverterView } from '@/views/modules/converter/ConverterView'
 import { IngestView } from '@/views/modules/ingest/IngestView'
-import { ReportsComingSoonView } from '@/views/modules/reports/ReportsComingSoonView'
+import { ReporteView } from '@/views/modules/reports/ReporteView'
 import { UsuariosView } from '@/views/admin/UsuariosView'
 import { NotFoundView } from '@/views/not-found/NotFoundView'
 
@@ -20,7 +20,6 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: ROUTES.dashboard, element: <DashboardView /> },
-          { path: ROUTES.reports, element: <ReportsComingSoonView /> },
           {
             element: <RequireModulo moduloId="trace" />,
             children: [{ path: ROUTES.trace, element: <TraceView /> }],
@@ -32,6 +31,10 @@ export const router = createBrowserRouter([
           {
             element: <RequireModulo moduloId="ingest" />,
             children: [{ path: ROUTES.ingest, element: <IngestView /> }],
+          },
+          {
+            element: <RequireModulo moduloId="reports" />,
+            children: [{ path: ROUTES.reports, element: <ReporteView /> }],
           },
           {
             element: <RequireAdminGeneral />,
