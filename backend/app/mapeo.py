@@ -123,6 +123,12 @@ def calcular_semana(fecha_iso: str | None) -> int | None:
     return (offset + dow_enero1) // 7 + 1
 
 
+def calcular_mes(fecha_iso: str | None) -> int | None:
+    if not fecha_iso:
+        return None
+    return date.fromisoformat(fecha_iso).month
+
+
 def valor_resultado(valor: Any) -> tuple[float | None, str | None]:
     """Un resultado final puede ser número, 'ND', o texto libre (<L.C, etc.)."""
     if valor is None:
@@ -190,7 +196,10 @@ def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
         # No se usa la columna "SEMANA" del Excel (no es confiable): se calcula
         # a partir de la fecha de entrada, igual que =NUM.DE.SEMANA([Fecha entrada]).
         "semana_muestreo": calcular_semana(fecha_entrada),
-        "mes": parse_entero_corto(fila.get("MES")),
+        # La columna "MES" del Excel nativo se respeta si viene; Converter (Quiteca,
+        # Diagnofruit, ALS) no la entrega, así que ahí se calcula desde fecha_entrada
+        # igual que semana_muestreo.
+        "mes": parse_entero_corto(fila.get("MES")) or calcular_mes(fecha_entrada),
     }
 
 
@@ -214,6 +223,22 @@ def mapear_productos_aplicados(fila: dict[str, Any]) -> list[dict[str, Any]]:
                 "linea_proceso": linea_proceso,
             }
         )
+
+    # Converter (Quiteca) no trae dosis por analito, solo un tratamiento general
+    # para todo el informe (ej. "FOGGER"): sin esto, tipo_aplicacion se perdía
+    # siempre en los datos que suben desde Converter. Se replica para cada
+    # analito que sí tenga resultado, igual que hace mapear_resultados().
+    if not productos and (tipo_aplicacion or linea_proceso):
+        for r in mapear_resultados(fila):
+            productos.append(
+                {
+                    "analito_codigo": r["analito_codigo"],
+                    "dosis": None,
+                    "tipo_aplicacion": tipo_aplicacion,
+                    "producto_raw": producto_raw,
+                    "linea_proceso": linea_proceso,
+                }
+            )
     return productos
 
 
