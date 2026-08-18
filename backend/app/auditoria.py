@@ -33,7 +33,7 @@ TABLAS: dict[str, list[str]] = {
     "solicitud": [
         "id", "nro_solicitud", "laboratorio", "fecha_muestreo", "fecha_entrada",
         "especie", "variedad", "tipo_servicio", "sold_to_raw", "ship_to_raw",
-        "planta_id", "semana_muestreo", "mes", "temporada", "vigente",
+        "planta_id", "semana_muestreo", "mes", "temporada", "origen", "vigente",
     ],
     "resultado": ["id", "solicitud_id", "analito_id", "analito_raw", "valor_num", "valor_texto"],
     "producto_aplicado": [

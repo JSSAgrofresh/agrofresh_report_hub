@@ -1,16 +1,26 @@
+import json
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from . import mapeo
+from .auditoria import CAMPOS_HOMOGENIZAR
 from .db import conexion, cursor_dict
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
+# Campos de solicitud que se comparan contra el catálogo real (valores ya
+# cargados, comparación exacta) antes de insertar una solicitud nueva. Un
+# valor que no calza EXACTO -mayúsculas distintas, typo, o simplemente nunca
+# visto antes- manda la fila entera a pendiente_revision en vez de crearla
+# directo. Reutiliza la misma lista de campos que audita DataCore.
+CAMPOS_CATALOGO = [(campo, etiqueta) for _tabla, campo, etiqueta in CAMPOS_HOMOGENIZAR]
+
 
 class CargaRequest(BaseModel):
     filas: list[dict[str, Any]]
+    origen: str = "ingest"
 
 
 def _cliente_id(cur, nombre: str, escribir: bool) -> tuple[int | None, bool]:
@@ -50,7 +60,33 @@ def _analito_id(cur, codigo: str, laboratorio: str | None) -> tuple[int | None, 
     return None, f"Analito {codigo} no está en el catálogo todavía, se guardó en analito_raw"
 
 
-def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[str, Any]:
+def _cargar_catalogos(cur) -> dict[str, set[str]]:
+    """Valores ya existentes en solicitud para cada campo auditado -el
+    "catálogo real" contra el que se compara cada fila nueva-."""
+    catalogos: dict[str, set[str]] = {}
+    for campo, _etiqueta in CAMPOS_CATALOGO:
+        cur.execute(f"SELECT DISTINCT {campo} FROM solicitud WHERE {campo} IS NOT NULL")
+        catalogos[campo] = {r[campo] for r in cur.fetchall()}
+    return catalogos
+
+
+def _fuera_de_catalogo(sol: dict[str, Any], catalogos: dict[str, set[str]]) -> list[dict[str, str]]:
+    motivos = []
+    for campo, etiqueta in CAMPOS_CATALOGO:
+        valor = sol.get(campo)
+        if valor and valor not in catalogos[campo]:
+            motivos.append({"campo": campo, "etiqueta": etiqueta, "valor": valor})
+    return motivos
+
+
+def _procesar_filas(
+    cur,
+    filas: list[dict[str, Any]],
+    escribir: bool,
+    origen: str = "ingest",
+    saltar_catalogo: bool = False,
+    overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     resumen = {
         "solicitudes_nuevas": 0,
         "solicitudes_existentes": 0,
@@ -59,7 +95,9 @@ def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[st
         "productos_aplicados": 0,
         "resultados": 0,
         "filas_omitidas": 0,
+        "pendientes_revision": 0,
     }
+    catalogos = _cargar_catalogos(cur)
     detalle: list[dict[str, Any]] = []
     advertencias: list[str] = []
 
@@ -78,6 +116,8 @@ def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[st
         # antes de que cualquier función de mapeo los use.
         fila = {str(k).strip(): v for k, v in fila_cruda.items()}
         sol = mapeo.mapear_solicitud(fila)
+        if overrides:
+            sol.update(overrides)
         motivos: list[str] = []
 
         if not sol["nro_solicitud"]:
@@ -91,6 +131,34 @@ def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[st
             # pendiente se encarga después de decidir el laboratorio real.
             sol["laboratorio"] = "Sin definir"
             motivos.append("Sin Laboratorio: se guardó como 'Sin definir', revisar y corregir después")
+
+        cur.execute("SELECT id FROM solicitud WHERE nro_solicitud = %s", (sol["nro_solicitud"],))
+        existente = cur.fetchone()
+        ya_existe = existente is not None
+
+        # Antes de tocar nada más -y sobre todo antes de que _cliente_id/_planta_id
+        # autocreen un cliente o sucursal nuevo sin avisar-: si esta es una solicitud
+        # nueva y trae algún valor que no calza EXACTO con el catálogo real (ya
+        # cargado en la base), no se inserta directo. Se guarda entera en
+        # pendiente_revision para aprobar, corregir o descartar desde DataCore.
+        if not ya_existe and not saltar_catalogo:
+            fuera_de_catalogo = _fuera_de_catalogo(sol, catalogos)
+            if fuera_de_catalogo:
+                resumen["pendientes_revision"] += 1
+                if escribir:
+                    cur.execute(
+                        "INSERT INTO pendiente_revision (origen, fila, motivos) VALUES (%s, %s::jsonb, %s::jsonb)",
+                        (origen, json.dumps(fila), json.dumps(fuera_de_catalogo)),
+                    )
+                detalle.append(
+                    {
+                        "fila": n_fila,
+                        "nro_solicitud": sol["nro_solicitud"],
+                        "pendiente_revision": True,
+                        "motivos": [f"{m['etiqueta']}: '{m['valor']}' no está en el catálogo" for m in fuera_de_catalogo],
+                    }
+                )
+                continue
 
         cliente_id = None
         nombre_cliente = sol["sold_to_raw"]
@@ -120,9 +188,6 @@ def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[st
                 if nueva_planta:
                     resumen["plantas_nuevas"] += 1
 
-        cur.execute("SELECT id FROM solicitud WHERE nro_solicitud = %s", (sol["nro_solicitud"],))
-        existente = cur.fetchone()
-        ya_existe = existente is not None
         if ya_existe:
             resumen["solicitudes_existentes"] += 1
             motivos.append(
@@ -150,7 +215,7 @@ def _procesar_filas(cur, filas: list[dict[str, Any]], escribir: bool) -> dict[st
         solicitud_id = existente["id"] if ya_existe else None
         if escribir:
             if not ya_existe:
-                datos = {**sol, "planta_id": planta_id}
+                datos = {**sol, "planta_id": planta_id, "origen": origen}
                 columnas = list(datos.keys())
                 placeholders = ", ".join(["%s"] * len(columnas))
                 cur.execute(
@@ -221,7 +286,7 @@ def preview(payload: CargaRequest) -> dict[str, Any]:
     """Solo lecturas: nunca escribe en la base, sin importar lo que pase."""
     with conexion(escribir=False) as conn:
         with cursor_dict(conn) as cur:
-            resultado = _procesar_filas(cur, payload.filas, escribir=False)
+            resultado = _procesar_filas(cur, payload.filas, escribir=False, origen=payload.origen)
     resultado["modo"] = "preview"
     return resultado
 
@@ -231,6 +296,60 @@ def confirmar(payload: CargaRequest) -> dict[str, Any]:
     """Escritura real, en una sola transacción: si algo falla, no queda nada a medias."""
     with conexion(escribir=True) as conn:
         with cursor_dict(conn) as cur:
-            resultado = _procesar_filas(cur, payload.filas, escribir=True)
+            resultado = _procesar_filas(cur, payload.filas, escribir=True, origen=payload.origen)
     resultado["modo"] = "confirmado"
     return resultado
+
+
+# ---------------------------------------------------------------------------
+# Pendientes de revisión: filas de Ingest/Converter que trajeron algo fuera
+# del catálogo real y no se insertaron directo (ver _fuera_de_catalogo).
+# Vive en DataCore, pero acá está la lógica porque reutiliza _procesar_filas.
+# ---------------------------------------------------------------------------
+
+
+class AprobarPendienteIn(BaseModel):
+    # Correcciones por campo YA MAPEADO de solicitud (ej. "especie", "sold_to_raw"),
+    # no por columna cruda del Excel/Converter -evita tener que saber de qué
+    # columna original venía cada uno, que varía según el origen-.
+    correcciones: dict[str, str] | None = None
+
+
+@router.get("/pendientes")
+def listar_pendientes() -> list[dict[str, Any]]:
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT id, origen, fila, motivos, creado_en FROM pendiente_revision ORDER BY id DESC")
+        return cur.fetchall()
+
+
+@router.post("/pendientes/{pendiente_id}/aprobar")
+def aprobar_pendiente(pendiente_id: int, payload: AprobarPendienteIn) -> dict[str, Any]:
+    """Inserta la fila ya revisada -tal cual quedó guardada, o con las
+    correcciones que mande el frontend-. Se salta el chequeo de catálogo:
+    un humano ya la miró, así que si el valor sigue siendo "nuevo" es porque
+    de verdad es nuevo (cliente recién onboarded, etc.), no un error."""
+    with conexion(escribir=True) as conn:
+        with cursor_dict(conn) as cur:
+            cur.execute("SELECT origen, fila FROM pendiente_revision WHERE id = %s", (pendiente_id,))
+            pendiente = cur.fetchone()
+            if not pendiente:
+                raise HTTPException(status_code=404, detail="Ese pendiente ya no existe")
+            resultado = _procesar_filas(
+                cur,
+                [pendiente["fila"]],
+                escribir=True,
+                origen=pendiente["origen"],
+                saltar_catalogo=True,
+                overrides=payload.correcciones,
+            )
+            cur.execute("DELETE FROM pendiente_revision WHERE id = %s", (pendiente_id,))
+    return resultado
+
+
+@router.post("/pendientes/{pendiente_id}/descartar")
+def descartar_pendiente(pendiente_id: int) -> dict[str, Any]:
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        cur.execute("DELETE FROM pendiente_revision WHERE id = %s RETURNING id", (pendiente_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Ese pendiente ya no existe")
+    return {"ok": True}

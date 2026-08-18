@@ -28,6 +28,8 @@ import type {
   ResultadoAuditoria,
   ValoresColumna,
 } from '@/features/auditoria'
+import { aprobarPendiente, descartarPendiente, listarPendientes } from '@/features/ingest'
+import type { Pendiente } from '@/features/ingest'
 import { HttpError } from '@/services/http/client'
 import { ErDiagrama } from './ErDiagrama'
 import styles from './DataCoreView.module.css'
@@ -75,6 +77,10 @@ export function DataCoreView() {
   const [error, setError] = useState<string | null>(null)
   const [promoviendo, setPromoviendo] = useState(false)
 
+  const [pendientes, setPendientes] = useState<Pendiente[]>([])
+  const [pendienteAbierto, setPendienteAbierto] = useState<number | null>(null)
+  const [procesandoPendiente, setProcesandoPendiente] = useState<number | null>(null)
+
   const [columna, setColumna] = useState<{ tabla: string; campo: string } | null>(null)
   const [datosColumna, setDatosColumna] = useState<ValoresColumna | null>(null)
   const [cargandoColumna, setCargandoColumna] = useState(false)
@@ -92,7 +98,44 @@ export function DataCoreView() {
         if (r.activo) void cargarHistorial()
       })
       .catch(() => undefined)
+    void cargarPendientes()
   }, [])
+
+  async function cargarPendientes() {
+    listarPendientes()
+      .then(setPendientes)
+      .catch(() => undefined)
+  }
+
+  async function aprobar(id: number, correcciones?: Record<string, string>) {
+    setProcesandoPendiente(id)
+    setError(null)
+    try {
+      await aprobarPendiente(id, correcciones)
+      setPendientes((prev) => prev.filter((p) => p.id !== id))
+      setPendienteAbierto(null)
+      await refrescarTablas()
+    } catch (err) {
+      setError(err instanceof HttpError ? err.message : 'No se pudo aprobar ese pendiente.')
+    } finally {
+      setProcesandoPendiente(null)
+    }
+  }
+
+  async function descartar(id: number) {
+    if (!confirm('¿Descartar esta fila? No se va a cargar a la base de datos.')) return
+    setProcesandoPendiente(id)
+    setError(null)
+    try {
+      await descartarPendiente(id)
+      setPendientes((prev) => prev.filter((p) => p.id !== id))
+      setPendienteAbierto(null)
+    } catch (err) {
+      setError(err instanceof HttpError ? err.message : 'No se pudo descartar ese pendiente.')
+    } finally {
+      setProcesandoPendiente(null)
+    }
+  }
 
   useEffect(() => {
     if (vista !== 'tabla') return
@@ -313,6 +356,33 @@ export function DataCoreView() {
           </>
         )}
       </Card>
+
+      {pendientes.length > 0 && (
+        <Card className={styles.panelAudit}>
+          <div className={styles.panelAuditCabecera}>
+            <div>
+              <h3>Pendientes de revisión ({pendientes.length})</h3>
+              <p className={styles.panelAuditNota}>
+                Ingest y Converter no cargan directo una fila que traiga un valor fuera del catálogo real (cliente,
+                sucursal, especie, etc. nunca visto antes). Apruébalas tal cual, corrígelas antes, o descártalas.
+              </p>
+            </div>
+          </div>
+          <div className={styles.listaGrupos}>
+            {pendientes.map((p) => (
+              <PendienteFila
+                key={p.id}
+                p={p}
+                abierto={pendienteAbierto === p.id}
+                onAbrir={() => setPendienteAbierto(pendienteAbierto === p.id ? null : p.id)}
+                procesando={procesandoPendiente === p.id}
+                onAprobar={(correcciones) => void aprobar(p.id, correcciones)}
+                onDescartar={() => void descartar(p.id)}
+              />
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card className={styles.panelAudit}>
         <div className={styles.panelAuditCabecera}>
@@ -629,6 +699,62 @@ function GrupoFila({
           ) : (
             <p className={styles.panelAuditNota}>Crea una copia de trabajo para poder corregir este grupo.</p>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PendienteFila({
+  p,
+  abierto,
+  onAbrir,
+  procesando,
+  onAprobar,
+  onDescartar,
+}: {
+  p: Pendiente
+  abierto: boolean
+  onAbrir: () => void
+  procesando: boolean
+  onAprobar: (correcciones?: Record<string, string>) => void
+  onDescartar: () => void
+}) {
+  const [ediciones, setEdiciones] = useState<Record<string, string>>(() =>
+    Object.fromEntries(p.motivos.map((m) => [m.campo, m.valor])),
+  )
+  const informe = (p.fila['Informe'] as string | undefined) ?? '—'
+
+  return (
+    <div className={styles.filaGrupo}>
+      <button className={styles.filaGrupoCabecera} onClick={onAbrir}>
+        <span className={styles.filaGrupoEtiqueta}>{p.origen}</span>
+        <span className={styles.filaGrupoVariantes}>
+          {informe} — {p.motivos.map((m) => `${m.etiqueta}: "${m.valor}"`).join(', ')}
+        </span>
+        <span className={styles.filaGrupoFilas}>{new Date(p.creado_en).toLocaleDateString('es-CL')}</span>
+      </button>
+      {abierto && (
+        <div className={styles.filaGrupoDetalle}>
+          <p>Corrige el valor si es un error, o déjalo tal cual si es un dato nuevo y legítimo:</p>
+          {p.motivos.map((m) => (
+            <div key={m.campo} className={styles.corregirBloque}>
+              <span>{m.etiqueta}:</span>
+              <input
+                type="text"
+                value={ediciones[m.campo] ?? ''}
+                onChange={(e) => setEdiciones((prev) => ({ ...prev, [m.campo]: e.target.value }))}
+              />
+            </div>
+          ))}
+          <div className={styles.corregirBloque}>
+            <Button onClick={() => onAprobar(ediciones)} disabled={procesando}>
+              {procesando ? 'Aprobando…' : 'Aprobar y cargar'}
+            </Button>
+            <Button variant="secondary" onClick={onDescartar} disabled={procesando}>
+              Descartar
+            </Button>
+          </div>
         </div>
       )}
     </div>

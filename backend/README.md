@@ -72,6 +72,20 @@ Crea la tabla `analito_limite`, agrega `limite_cuantificacion` a `analito`, y
 siembra (upsert) los límites reales de "Línea de Proceso" y "Actimist". También
 es segura de repetir.
 
+Para que Ingest/Converter dejen de auto-crear cliente/sucursal silenciosos
+cuando traen un valor que no está en el catálogo real (y en vez de eso la
+fila quede en "Pendientes de revisión" dentro de DataCore), corre:
+
+```powershell
+psql -U postgres -d tu_base -f migrations\0006_pendientes_revision.sql
+```
+
+Crea la tabla `pendiente_revision` y agrega la columna `origen` a `solicitud`
+(de dónde vino cada una: `ingest` o `converter`, nulo para lo cargado antes).
+Sin esta migración, Ingest y Converter dejan de poder crear solicitudes
+nuevas -el INSERT ahora siempre incluye `origen`-, así que hay que correrla
+antes de usarlos.
+
 ### ⚠ `0004_reset_datos_transaccionales.sql` — script destructivo, no es una migración de rutina
 
 A diferencia de las demás, esta NO se corre como parte de la instalación

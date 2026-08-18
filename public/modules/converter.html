@@ -988,7 +988,7 @@ async function llamarIngest(ruta, filas){
   const resp = await fetch(API_BASE + "/ingest/" + ruta, {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({filas}),
+    body: JSON.stringify({filas, origen: "converter"}),
   });
   if(!resp.ok) throw new Error("El backend respondió " + resp.status + " — revisa que esté corriendo.");
   return resp.json();
@@ -1010,6 +1010,9 @@ $("btnSubir").onclick = async () => {
       r.solicitudes_existentes + " ya existente(s) (se completan analitos que le falten), " +
       r.resultados + " resultado(s), " + r.clientes_nuevos + " cliente(s) nuevo(s), " +
       r.plantas_nuevas + " sucursal(es) nueva(s)." +
+      (r.pendientes_revision ? "\n\n⛔ " + r.pendientes_revision + " fila(s) traen un valor fuera del catálogo " +
+       "(cliente, sucursal, especie, etc. nunca visto antes) y no se van a crear directo: quedan en " +
+       "\"Pendientes de revisión\" dentro de DataCore para aprobarlas o corregirlas a mano." : "") +
       (prev.advertencias.length ? "\n\nAdvertencias:\n" + prev.advertencias.slice(0,8).join("\n") +
        (prev.advertencias.length > 8 ? "\n… y " + (prev.advertencias.length - 8) + " más." : "") : "") +
       "\n\n¿Confirmar la carga a la base de datos?";
@@ -1018,7 +1021,8 @@ $("btnSubir").onclick = async () => {
     const conf = await llamarIngest("confirmar", filas);
     const c = conf.resumen;
     pie.textContent = "✔ Cargado: " + c.solicitudes_nuevas + " solicitud(es) nueva(s), " +
-      c.solicitudes_existentes + " completada(s), " + c.resultados + " resultado(s) en total.";
+      c.solicitudes_existentes + " completada(s), " + c.resultados + " resultado(s) en total." +
+      (c.pendientes_revision ? " ⛔ " + c.pendientes_revision + " quedaron pendientes de revisión en DataCore." : "");
   }catch(err){
     pie.textContent = "⚠ No se pudo subir: " + err.message;
   }finally{
