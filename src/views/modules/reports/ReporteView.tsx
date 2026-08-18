@@ -33,11 +33,12 @@ import {
   colorDeIngrediente,
   contarFueraDeIntervalo,
   listarAnalitos,
+  listarLimites,
   obtenerDatosReporte,
   proximaHoraProgramada,
   useActualizacionProgramada,
 } from '@/features/reportes'
-import type { Analito, FilaReporte, Observacion } from '@/features/reportes'
+import type { Analito, FilaReporte, LimiteAnalito, Observacion } from '@/features/reportes'
 import { AnalitosAdminModal } from './AnalitosAdminModal'
 import { DetalleObservacionesModal } from './DetalleObservacionesModal'
 import styles from './ReporteView.module.css'
@@ -65,6 +66,49 @@ function unique(valores: (string | number | null | undefined)[]): string[] {
   return [...new Set(valores.filter((v) => v !== null && v !== undefined && v !== '').map(String))].sort((a, b) =>
     a.localeCompare(b, 'es', { numeric: true }),
   )
+}
+
+/** Igual que unique(), pero agrupa sin importar mayúsculas/minúsculas y elige
+ * como etiqueta la variante que más se repite en los datos reales — así
+ * "cromatografía" y "Cromatografía" no aparecen duplicados en el filtro,
+ * mientras la homogenización de fondo (fuera de esta pantalla) sigue pendiente. */
+function uniqueCanonico(valores: (string | number | null | undefined)[]): string[] {
+  const porClave = new Map<string, Map<string, number>>()
+  valores.forEach((v) => {
+    if (v === null || v === undefined) return
+    const s = String(v).trim()
+    if (!s) return
+    const clave = s.toLowerCase()
+    const variantes = porClave.get(clave) ?? new Map<string, number>()
+    variantes.set(s, (variantes.get(s) ?? 0) + 1)
+    porClave.set(clave, variantes)
+  })
+  const canonicos: string[] = []
+  porClave.forEach((variantes) => {
+    let mejor = ''
+    let mejorConteo = -1
+    variantes.forEach((n, variante) => {
+      if (n > mejorConteo) {
+        mejor = variante
+        mejorConteo = n
+      }
+    })
+    canonicos.push(mejor)
+  })
+  return canonicos.sort((a, b) => a.localeCompare(b, 'es', { numeric: true }))
+}
+
+/** Especie es casi siempre una sola palabra: si la variante más frecuente vino
+ * toda en minúscula o toda en mayúscula (dato tal cual, sin homogenizar), se
+ * pareja a "Primera letra mayúscula" para que la lista se vea consistente. No
+ * se usa para tipo de servicio porque ahí sí importan las mayúsculas internas
+ * (ej. "Linea de Proceso"). */
+function capitalizarPrimeraLetra(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
+}
+
+function igual(a: string | null | undefined, b: string): boolean {
+  return (a ?? '').trim().toLowerCase() === b.trim().toLowerCase()
 }
 
 type Vista = 'residual' | 'control'
@@ -128,6 +172,7 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
   const [filas, setFilas] = useState<FilaReporte[] | null>(null)
   const [totalSolicitudes, setTotalSolicitudes] = useState(0)
   const [analitos, setAnalitos] = useState<Analito[]>([])
+  const [limites, setLimites] = useState<LimiteAnalito[]>([])
   const [estado, setEstado] = useState<Estado>('cargando')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [ultimaActualizacion, setUltimaActualizacion] = useState<Date | null>(null)
@@ -139,14 +184,19 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
   const [detalle, setDetalle] = useState<{ titulo: string; filas: Observacion[] } | null>(null)
 
   const obtenerTodo = useCallback(async () => {
-    const [datos, catalogo] = await Promise.all([obtenerDatosReporte(clienteFijo), listarAnalitos()])
-    return { filas: datos.filas, totalSolicitudes: datos.total_solicitudes, analitos: catalogo }
+    const [datos, catalogo, limitesCatalogo] = await Promise.all([
+      obtenerDatosReporte(clienteFijo),
+      listarAnalitos(),
+      listarLimites(),
+    ])
+    return { filas: datos.filas, totalSolicitudes: datos.total_solicitudes, analitos: catalogo, limites: limitesCatalogo }
   }, [clienteFijo])
 
-  function aplicarExito(r: { filas: FilaReporte[]; totalSolicitudes: number; analitos: Analito[] }) {
+  function aplicarExito(r: { filas: FilaReporte[]; totalSolicitudes: number; analitos: Analito[]; limites: LimiteAnalito[] }) {
     setFilas(r.filas)
     setTotalSolicitudes(r.totalSolicitudes)
     setAnalitos(r.analitos)
+    setLimites(r.limites)
     setEstado('ok')
     setUltimaActualizacion(new Date())
     setProximaAuto(proximaHoraProgramada(new Date()))
@@ -225,9 +275,12 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
         (filas ?? []).filter((f) => !filtros.cliente || f.cliente === filtros.cliente).map((f) => f.planta),
       ),
       tiposAplicacion: unique((filas ?? []).map((f) => f.tipo_aplicacion)),
-      tiposServicio: unique((filas ?? []).map((f) => f.tipo_servicio)),
+      // Homogenización pendiente en la carga (dato pasa tal cual del Excel): acá se
+      // agrupa sin importar mayúsculas/minúsculas para que el filtro no repita el
+      // mismo valor dos veces por un tema de casing (ej. "cromatografía" y "Cromatografía").
+      tiposServicio: uniqueCanonico((filas ?? []).map((f) => f.tipo_servicio)),
       laboratorios: unique((filas ?? []).map((f) => f.laboratorio)),
-      crops: unique((filas ?? []).map((f) => f.especie)),
+      crops: uniqueCanonico((filas ?? []).map((f) => f.especie)).map(capitalizarPrimeraLetra),
       semanas: unique((filas ?? []).map((f) => f.semana_muestreo)),
       meses: unique((filas ?? []).map((f) => f.mes)),
     }),
@@ -243,9 +296,9 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
           (!filtros.cliente || o.cliente === filtros.cliente) &&
           (!filtros.planta || o.planta === filtros.planta) &&
           (!filtros.tipoAplicacion || o.tipoAplicacion === filtros.tipoAplicacion) &&
-          (!filtros.tipoServicio || o.tipoServicio === filtros.tipoServicio) &&
+          (!filtros.tipoServicio || igual(o.tipoServicio, filtros.tipoServicio)) &&
           (!filtros.laboratorio || o.laboratorio === filtros.laboratorio) &&
-          (!filtros.crop || o.crop === filtros.crop) &&
+          (!filtros.crop || igual(o.crop, filtros.crop)) &&
           // Semana/Mes y el calendario son mutuamente excluyentes (ver actualizarSemana/
           // actualizarMes/aplicarRango): solo uno de los dos grupos tiene valor a la vez.
           (!filtros.semana || String(o.semana ?? '') === filtros.semana) &&
@@ -278,14 +331,27 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
     return candidatos.find((a) => a.laboratorio === filtros.laboratorio) ?? candidatos[0]
   }, [analitos, filtros.ingredientes, filtros.laboratorio])
 
-  const limiteResidual = useMemo(
-    () => ({
-      inferior: analitoSeleccionado?.limite_min != null ? Number(analitoSeleccionado.limite_min) : null,
-      central: analitoSeleccionado?.limite_central != null ? Number(analitoSeleccionado.limite_central) : null,
-      superior: analitoSeleccionado?.limite_max != null ? Number(analitoSeleccionado.limite_max) : null,
-    }),
-    [analitoSeleccionado],
-  )
+  // El límite correcto depende de especie y tipo de servicio, no solo del analito:
+  // se busca primero la combinación exacta, y si no existe se va relajando hacia
+  // los comodines ('' = "aplica a todas/todos") hasta encontrar algo definido.
+  const limiteResidual = useMemo(() => {
+    if (!analitoSeleccionado) return { inferior: null, central: null, superior: null }
+    const propios = limites.filter((l) => l.analito_id === analitoSeleccionado.id)
+    const especie = filtros.crop
+    const servicio = filtros.tipoServicio
+    const candidatos = [
+      propios.find((l) => igual(l.especie, especie) && igual(l.tipo_servicio, servicio)),
+      especie ? propios.find((l) => igual(l.especie, especie) && l.tipo_servicio === '') : undefined,
+      servicio ? propios.find((l) => l.especie === '' && igual(l.tipo_servicio, servicio)) : undefined,
+      propios.find((l) => l.especie === '' && l.tipo_servicio === ''),
+    ]
+    const encontrado = candidatos.find((l) => l !== undefined)
+    return {
+      inferior: encontrado?.limite_min != null ? Number(encontrado.limite_min) : null,
+      central: encontrado?.limite_central != null ? Number(encontrado.limite_central) : null,
+      superior: encontrado?.limite_max != null ? Number(encontrado.limite_max) : null,
+    }
+  }, [analitoSeleccionado, limites, filtros.crop, filtros.tipoServicio])
 
   const limitesActivos = vista === 'residual' ? limiteResidual : limitesControl
   // Una sola definición de "cumplimiento" para el KPI, la dona y la barra: dentro
