@@ -2,7 +2,7 @@ import type { ComponentType, CSSProperties, SVGProps } from 'react'
 import { Link } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { IconAudit, IconConverter, IconIngest, IconReports, IconTrace } from '@/components/ui/icons'
+import { IconConverter, IconDataCore, IconIngest, IconReports, IconTrace } from '@/components/ui/icons'
 import type { ModuloInfo } from '@/constants/modules'
 import styles from './ModuloCard.module.css'
 
@@ -13,7 +13,7 @@ const ESTADO: Record<ModuloInfo['estado'], { texto: string; tono: 'success' | 'w
 }
 
 const ICONO_MODULO: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
-  audit: IconAudit,
+  datacore: IconDataCore,
   trace: IconTrace,
   converter: IconConverter,
   ingest: IconIngest,

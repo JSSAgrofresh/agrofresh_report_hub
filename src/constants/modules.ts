@@ -12,11 +12,11 @@ export interface ModuloInfo {
 
 export const MODULOS: ModuloInfo[] = [
   {
-    id: 'audit',
-    nombre: 'Audit',
-    descripcion: 'Carga de solicitudes de laboratorio con cola de aprobación manual.',
-    ruta: ROUTES.audit,
-    estado: 'en_preparacion',
+    id: 'datacore',
+    nombre: 'DataCore',
+    descripcion: 'La base de datos completa: modelo entidad-relación, exploración por tabla y auditoría de homogenización.',
+    ruta: ROUTES.datacore,
+    estado: 'disponible',
   },
   {
     id: 'trace',

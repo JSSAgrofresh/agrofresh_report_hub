@@ -27,12 +27,16 @@ export function IconPanel(props: IconProps) {
   )
 }
 
-export function IconAudit(props: IconProps) {
+/** Tabla de datos (estilo "vista de modelo" de Power BI): grilla de filas y
+ * columnas, para el módulo que muestra la base de datos completa. */
+export function IconDataCore(props: IconProps) {
   return (
     <svg {...base} {...props}>
-      <path d="M8 4h8a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" />
-      <path d="M9.5 3.5h5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-5A.5.5 0 0 1 9 5V4a.5.5 0 0 1 .5-.5Z" />
-      <path d="m9.5 12.5 1.7 1.7L14.5 11" />
+      <rect x="3.5" y="4" width="17" height="16" rx="1.5" />
+      <path d="M3.5 9.5h17" />
+      <path d="M3.5 14.5h17" />
+      <path d="M9.5 4v16" />
+      <path d="M15 4v16" />
     </svg>
   )
 }

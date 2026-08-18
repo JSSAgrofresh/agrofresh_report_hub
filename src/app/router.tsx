@@ -8,6 +8,7 @@ import { TraceView } from '@/views/modules/trace/TraceView'
 import { ConverterView } from '@/views/modules/converter/ConverterView'
 import { IngestView } from '@/views/modules/ingest/IngestView'
 import { ReporteView } from '@/views/modules/reports/ReporteView'
+import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { UsuariosView } from '@/views/admin/UsuariosView'
 import { NotFoundView } from '@/views/not-found/NotFoundView'
 
@@ -35,6 +36,10 @@ export const router = createBrowserRouter([
           {
             element: <RequireModulo moduloId="reports" />,
             children: [{ path: ROUTES.reports, element: <ReporteView /> }],
+          },
+          {
+            element: <RequireModulo moduloId="datacore" />,
+            children: [{ path: ROUTES.datacore, element: <DataCoreView /> }],
           },
           {
             element: <RequireAdminGeneral />,

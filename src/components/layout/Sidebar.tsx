@@ -7,9 +7,9 @@ import { ROUTES } from '@/constants/routes'
 import { cn } from '@/lib/cn'
 import { etiquetaAcceso, modulosPermitidos, puedeAdministrarUsuarios } from '@/features/usuarios'
 import {
-  IconAudit,
   IconConverter,
   IconDatabase,
+  IconDataCore,
   IconIngest,
   IconLogout,
   IconPanel,
@@ -26,7 +26,7 @@ const ESTADO_LABEL: Record<string, string> = {
 }
 
 const ICONO_MODULO: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
-  audit: IconAudit,
+  datacore: IconDataCore,
   trace: IconTrace,
   converter: IconConverter,
   ingest: IconIngest,

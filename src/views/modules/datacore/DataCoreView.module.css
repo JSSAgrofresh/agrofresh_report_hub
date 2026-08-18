@@ -1,0 +1,314 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.error {
+  color: var(--color-danger);
+  background: #fbe8e5;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-size: 13.5px;
+}
+
+/* ── panel de auditoría ── */
+.panelAudit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.panelAuditCabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.panelAuditCabecera h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.panelAuditNota {
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+  margin-top: 4px;
+  max-width: 640px;
+}
+
+.statsAudit {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border-left: 4px solid var(--color-border-strong);
+  background: var(--color-bg);
+}
+
+.statCard.warn {
+  border-left-color: var(--color-warning);
+}
+
+.statCard.ok {
+  border-left-color: var(--color-success, #2e8b57);
+}
+
+.statNum {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.statLbl {
+  font-size: 11px;
+  color: var(--color-text-faint);
+}
+
+/* ── lista de grupos de inconsistencias ── */
+.listaGrupos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.filaGrupo {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.filaGrupoCabecera {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-sans);
+}
+
+.filaGrupoCabecera:hover {
+  background: var(--color-bg);
+}
+
+.filaGrupoEtiqueta {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  width: 130px;
+}
+
+.filaGrupoVariantes {
+  flex: 1;
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filaGrupoFilas {
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+  flex-shrink: 0;
+}
+
+.filaGrupoDetalle {
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--color-border);
+  font-size: 12.5px;
+}
+
+.filaGrupoDetalle code {
+  font-family: var(--font-mono);
+  background: var(--color-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.filaGrupoDetalle ul {
+  margin-top: 6px;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* ── toolbar / tabs (mismo patrón que Report) ── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tab,
+.tabActivo {
+  background: #eef2ec;
+  color: var(--color-text-muted);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tabActivo {
+  background: var(--acento);
+  color: #fff;
+}
+
+/* ── vista de tabla ── */
+.selectorTabla {
+  margin-bottom: var(--space-3);
+}
+
+.selectorTabla select {
+  height: 34px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 10px;
+  font-size: 12.5px;
+  min-width: 220px;
+}
+
+.tablaScroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.tablaDatos {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+
+.tablaDatos th {
+  background: var(--color-bg);
+  padding: 7px 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-border-strong);
+  position: sticky;
+  top: 0;
+}
+
+.tablaDatos td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.tablaDatos tr:nth-child(even) td {
+  background: var(--color-bg);
+}
+
+.paginacion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  font-size: 12px;
+  color: var(--color-text-faint);
+}
+
+.paginacion button {
+  border: 1px solid var(--color-border-strong);
+  background: #fff;
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.paginacion button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── diagrama ER ── */
+.erWrap {
+  overflow-x: auto;
+}
+
+.erSvg {
+  width: 100%;
+  min-width: 900px;
+  height: auto;
+}
+
+.erCaja {
+  fill: var(--color-surface);
+  stroke: var(--color-border-strong);
+  stroke-width: 1.2;
+}
+
+.erTitulo {
+  fill: var(--acento);
+}
+
+.erTituloRelleno {
+  fill: var(--acento);
+}
+
+.erNombreTabla {
+  fill: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.erCampo {
+  fill: var(--color-text-muted);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.erLinea {
+  fill: none;
+  stroke: var(--color-text-faint);
+  stroke-width: 1.3;
+}
+
+.erEtiquetaFondo {
+  fill: var(--color-surface);
+}
+
+.erEtiqueta {
+  fill: var(--color-text-faint);
+  font-size: 9.5px;
+  font-family: var(--font-mono);
+}
+
+@media (max-width: 640px) {
+  .statsAudit {
+    grid-template-columns: 1fr;
+  }
+}

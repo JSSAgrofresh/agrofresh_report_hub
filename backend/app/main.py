@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import config
+from .auditoria import router as auditoria_router
 from .ingest import router as ingest_router
 from .reportes import router as reportes_router
 
@@ -16,6 +17,7 @@ app.add_middleware(
 
 app.include_router(ingest_router)
 app.include_router(reportes_router)
+app.include_router(auditoria_router)
 
 
 @app.get("/api/salud")
