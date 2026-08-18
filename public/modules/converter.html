@@ -180,15 +180,17 @@ table.uni tbody tr:nth-child(even){background:#FBFCFA}
   <section class="paso oculto" id="secTabla">
     <div class="paso-cab">
       <span class="paso-n">03</span><h2>Resultado</h2>
-      <span class="ayuda">Las 61 columnas del formato, en orden</span>
+      <span class="ayuda">Las columnas del formato, en orden</span>
     </div>
     <div class="tablaCaja"><table class="uni" id="tabla"></table></div>
     <p class="pie" id="pieTabla"></p>
     <div class="btn-fila" style="margin-top:14px">
       <button class="btn" id="btnXlsx">Descargar formato de solicitud</button>
       <button class="btn sec" id="btnCsv">Descargar como CSV</button>
+      <button class="btn sec" id="btnSubir">⬆ Subir a la base de datos</button>
       <button class="btn sec" id="btnLimpiar">Empezar de nuevo</button>
     </div>
+    <p class="pie" id="pieSubir"></p>
   </section>
 </div>
 
@@ -278,7 +280,8 @@ const CATALOGOS = {"catalogo":{"sold_to":["A.G. SERVICIOS SPA","AGRICOLA CONVENT
 const COLUMNAS = [
   "N° Solicitud","Fecha Solicitud","Laboratorio","Solicitante","Sold To","Ship To",
   "Especie","Variedad","Línea Proceso","CSG","Lote","Posición Muestreo","N° Cámara",
-  "N° Orden","Kilos Procesados (KG)","Producto Utilizado","Tipo Muestra","Fecha Muestreo",
+  "N° Orden","Kilos Procesados (KG)","Producto Utilizado","Tipo Muestra","Tipo de servicio",
+  "Fecha Muestreo","Fecha entrada",
   "Hora Muestreo","Nombre Muestreador","Generado Por","Email Solicitante",
   "Email Laboratorio","Observación","FDL ppm","IMZ ppm","PYR ppm","TEBU ppm","AZOX ppm",
   "TBZ ppm","DPA ppm","Dosis Aplicada","Tipo Aplicación","Aplicación En","Gasto",
@@ -446,6 +449,10 @@ function detectar(texto){
 
 /* ---------------- QUITECA ---------------- */
 function leerQuiteca(texto, inf){
+  // Pendiente: no se ha visto todavía un PDF real de Quiteca para saber cómo
+  // vienen escritos "Fecha entrada" y "Tipo de servicio" en este formato, así
+  // que quedan sin extraer (aparecen como "Sin dato" en el panel de análisis,
+  // a la espera de un PDF de muestra real para agregar el patrón correcto).
   const d = inf.datos;
   d["Laboratorio"] = "Quiteca";
   d["N° Solicitud"] = campo(texto, "N° Solicitud", "Fecha de Muestreo");
@@ -510,6 +517,11 @@ function leerDiagnofruit(texto, inf){
   if(new Set(fr).size > 1)
     inf.avisos.push("La fecha de recepción aparece distinta en cada página (" +
                     fr.join(", ") + "): el informe mezcla DD/MM con MM/DD");
+  // "Fecha de recepción" es cuándo la muestra entró al laboratorio.
+  d["Fecha entrada"] = fr.length ? aFecha(fr[0], inf.avisos) : null;
+  // No hay un campo de "tipo de servicio" propiamente tal en este formato: se usa
+  // el análisis solicitado, que es lo que más se le parece en este laboratorio.
+  d["Tipo de servicio"] = campo(texto, "An[áa]lisis realizado");
 
   const obs = [];
   let m = texto.match(/Reporte n[úu]mero:\s*(\S+)/);
@@ -539,9 +551,16 @@ function leerCorthorn(texto, inf){
   d["Solicitante"] = campo(texto, "Contacto");
   d["Especie"]     = campo(texto, "Tipo de Muestras");
   d["Tipo Muestra"]= "Fruta";
+  // Todo lo que procesa el "LABORATORIO CROMATOGRAFÍA" del encabezado es
+  // justamente eso: análisis de residuos por cromatografía.
+  d["Tipo de servicio"] = "Cromatografía";
 
   let m = texto.match(/Fecha y Hora de Ingreso\s+([\d/\-]+)/);
-  if(m) d["Fecha Solicitud"] = aFecha(m[1], inf.avisos);
+  if(m){
+    d["Fecha Solicitud"] = aFecha(m[1], inf.avisos);
+    // "Fecha y Hora de Ingreso" es cuándo la muestra entró al laboratorio.
+    d["Fecha entrada"] = d["Fecha Solicitud"];
+  }
 
   let ident = "";
   m = texto.match(/Identificaci[óo]n Muestra \(NI\)\s+(\d+(?:\s+\d+)*)\s+([\s\S]+?)(?=N°\s*Metodolog|\nN°|$)/);
@@ -573,7 +592,12 @@ function leerCorthorn(texto, inf){
 }
 
 const LECTORES = {"Quiteca":leerQuiteca,"Diagnofruit":leerDiagnofruit,"ALS (Corthon)":leerCorthorn};
-const OBLIGATORIOS = ["Laboratorio","Fecha Muestreo","Especie"];
+// "Fecha entrada" y "Tipo de servicio" son obligatorios para que el límite por
+// especie/tipo de servicio de Report funcione al subir a la base: si el
+// informe no las trae (hoy es el caso de Quiteca, cuyo formato de PDF no se
+// ha mapeado todavía para estos dos campos), tienen que quedar visibles como
+// pendientes en vez de subir en silencio con el dato vacío.
+const OBLIGATORIOS = ["Laboratorio","Fecha Muestreo","Especie","Fecha entrada","Tipo de servicio"];
 
 function analizar(texto, nombreArchivo){
   const inf = {archivo:nombreArchivo, laboratorio:"", datos:{}, resultados:{},
@@ -904,6 +928,94 @@ $("btnCsv").onclick = () => {
   a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv;charset=utf-8"}));
   a.download = "solicitudes_" + hoy() + ".csv";
   a.click(); URL.revokeObjectURL(a.href);
+};
+
+/* ============ subir a la base de datos ============ */
+// Mismo backend que usa el resto del sistema (ver VITE_API_BASE_URL en la raíz
+// del proyecto). Este archivo es estático y no pasa por Vite, así que va fijo acá.
+const API_BASE = "http://localhost:8000/api";
+
+/* Traduce del nombre de columna que usa Converter al nombre de columna crudo
+   que espera el mapeo del backend (mapeo.py) — el mismo que trae el Excel
+   nativo de Quiteca/AgroFresh. Los resultados de Diagnofruit/ALS no necesitan
+   traducción: se guardó ANALITOS_RESULTADO en el backend con los mismos
+   nombres que usa Converter. */
+// aFecha() deja las fechas en DD-MM-YYYY (para mostrar); el backend
+// (mapeo.parse_fecha) exige YYYY-MM-DD, igual que le llega desde Ingest nativo.
+function aISO(ddmmyyyy){
+  if(!ddmmyyyy) return null;
+  const m = String(ddmmyyyy).match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  return m ? m[3] + "-" + m[2] + "-" + m[1] : null;
+}
+
+function filaCruda(inf){
+  const d = inf.datos;
+  const f = {
+    "Informe": d["N° Solicitud"],
+    "Laboratorio": d["Laboratorio"],
+    "Fecha \nSolicitud": aISO(d["Fecha Solicitud"]),
+    "Fecha de muestreo": aISO(d["Fecha Muestreo"]),
+    "Fecha entrada": aISO(d["Fecha entrada"]),
+    "SOLD TO": d["Sold To"],
+    "SHIP TO": d["Ship To"],
+    "CROP": d["Especie"],
+    "Variedad": d["Variedad"],
+    "Tipo de servicio": d["Tipo de servicio"],
+    "Lote": d["Lote"],
+    "Cámara": d["N° Cámara"],
+    "Línea": d["Línea Proceso"],
+    "Posición": d["Posición Muestreo"],
+    "Kg \nprocesados": d["Kilos Procesados (KG)"],
+    "Cód. Productor (CSG)": d["CSG"],
+    "Nombre del responsable": d["Nombre Muestreador"],
+    "orden": d["N° Orden"],
+    "Observaciones": d["Observación"],
+    "TIPO APP": d["Tipo Aplicación"],
+  };
+  Object.assign(f, inf.resultados);
+  return f;
+}
+
+async function llamarIngest(ruta, filas){
+  const resp = await fetch(API_BASE + "/ingest/" + ruta, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({filas}),
+  });
+  if(!resp.ok) throw new Error("El backend respondió " + resp.status + " — revisa que esté corriendo.");
+  return resp.json();
+}
+
+$("btnSubir").onclick = async () => {
+  const ok = informes.filter(i => i.laboratorio);
+  if(!ok.length) return;
+  const filas = ok.map(filaCruda);
+  const pie = $("pieSubir");
+  const btn = $("btnSubir");
+  btn.disabled = true;
+  pie.textContent = "Revisando contra la base de datos…";
+  try{
+    const prev = await llamarIngest("preview", filas);
+    const r = prev.resumen;
+    const msg = "Se van a cargar " + filas.length + " informe(s): " +
+      r.solicitudes_nuevas + " solicitud(es) nueva(s), " +
+      r.solicitudes_existentes + " ya existente(s) (se completan analitos que le falten), " +
+      r.resultados + " resultado(s), " + r.clientes_nuevos + " cliente(s) nuevo(s), " +
+      r.plantas_nuevas + " sucursal(es) nueva(s)." +
+      (prev.advertencias.length ? "\n\nAdvertencias:\n" + prev.advertencias.slice(0,8).join("\n") +
+       (prev.advertencias.length > 8 ? "\n… y " + (prev.advertencias.length - 8) + " más." : "") : "") +
+      "\n\n¿Confirmar la carga a la base de datos?";
+    if(!confirm(msg)){ pie.textContent = "Carga cancelada."; btn.disabled = false; return; }
+    pie.textContent = "Subiendo a la base de datos…";
+    const conf = await llamarIngest("confirmar", filas);
+    const c = conf.resumen;
+    pie.textContent = "✔ Cargado: " + c.solicitudes_nuevas + " solicitud(es) nueva(s), " +
+      c.solicitudes_existentes + " completada(s), " + c.resultados + " resultado(s) en total.";
+  }catch(err){
+    pie.textContent = "⚠ No se pudo subir: " + err.message;
+  }finally{
+    btn.disabled = false;
+  }
 };
 
 $("btnLimpiar").onclick = () => {

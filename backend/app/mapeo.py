@@ -18,16 +18,45 @@ ANALITOS_DOSIS = {
     "TEBU": "TEBU_dosis",
 }
 
-# Columnas de resultado final por analito
-ANALITOS_RESULTADO = {
-    "FDL": "FDL FINAL",
-    "IMZ": "IMZ FINAL",
-    "PYR": "PYR FINAL",
-    "TBZ": "TBZ FINAL",
-    "AZOX": "AZOXFINAL",
-    "TEBU": "TEBU FINAL",
+# Columnas de resultado final por analito. Puede ser un solo nombre de columna
+# o una tupla con varios: los 7 pesticidas de Quiteca/AgroFresh llegan como
+# "FDL FINAL" etc. desde el Excel nativo, pero como "FDL ppm" etc. desde
+# Converter (mismo analito, dos formatos de origen distintos).
+ANALITOS_RESULTADO: dict[str, str | tuple[str, ...]] = {
+    "FDL": ("FDL FINAL", "FDL ppm"),
+    "IMZ": ("IMZ FINAL", "IMZ ppm"),
+    "PYR": ("PYR FINAL", "PYR ppm"),
+    "TBZ": ("TBZ FINAL", "TBZ ppm"),
+    "AZOX": ("AZOXFINAL", "AZOX ppm"),
+    "TEBU": ("TEBU FINAL", "TEBU ppm"),
     "DFN": "DFN FINAL",
-    "DPA": "DPA FINAL",
+    "DPA": ("DPA FINAL", "DPA ppm"),
+    # Diagnofruit y ALS (Corthon): mismos nombres de columna que usa Converter,
+    # así no hace falta traducirlos antes de subir (ver converter.html).
+    "LEV": "Levaduras UFC/mL",
+    "BOT": "Botrytis conidia/mL",
+    "ALT": "Alternaria conidia/mL",
+    "GEO": "Geotrichum esporas/mL",
+    "PEN": "Penicillium conidia/mL",
+    "ECOLI": "E. Coli UFC/100mL",
+    "COLT": "Coliformes Totales UFC/100mL",
+    "PB": "Plomo mg/kg",
+    "HG": "Mercurio mg/kg",
+    "AS": "Arsénico mg/kg",
+    "CD": "Cadmio mg/kg",
+    "AL": "Aluminio mg/kg",
+    "HONG": "Hongos UFC/g",
+    # "Levaduras UFC/g" (ALS, alimento) todavía no tiene su propio código en el
+    # catálogo (solo existe "LEV" para Diagnofruit, que es UFC/mL de agua) —
+    # queda con un código provisorio para que el dato no se pierda; se puede
+    # crear el analito real desde "Gestionar analitos" y corregirlo después.
+    "LEVG": "Levaduras UFC/g",
+    "COLA": "Coliformes Totales UFC/g",
+    "ECOLA": "Escherichia coli UFC/g",
+    "ENTB": "Recuento Enterobacterias UFC/g",
+    "SALM": "Salmonella 25g (P/A)",
+    "CEN": "Cenizas Insolubles en Ácido (%)",
+    "AFLA": "Aflatoxinas Totales B1+B2+G1+G2 (µg/kg)",
 }
 
 LABORATORIO_CATALOGO = "Quiteca / AgroFresh"
@@ -138,7 +167,9 @@ def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
         # dejan como alias por si algún Excel viene con esos encabezados en vez.
         "sold_to_raw": elegir(texto(fila, "SOLD TO"), texto(fila, "Cliente")),
         "ship_to_raw": elegir(texto(fila, "SHIP TO"), texto(fila, "Sucursal")),
-        "especie": texto(fila, "CROP"),
+        # "CROP" es el nombre real del Excel de Quiteca/AgroFresh; "Especie" es el
+        # nombre que usa Converter para Diagnofruit/ALS.
+        "especie": elegir(texto(fila, "CROP"), texto(fila, "Especie")),
         "variedad": texto(fila, "Variedad"),
         "tipo_servicio": texto(fila, "Tipo de servicio"),
         "lote": texto(fila, "Lote"),
@@ -188,8 +219,10 @@ def mapear_productos_aplicados(fila: dict[str, Any]) -> list[dict[str, Any]]:
 
 def mapear_resultados(fila: dict[str, Any]) -> list[dict[str, Any]]:
     resultados = []
-    for codigo, col in ANALITOS_RESULTADO.items():
-        if col not in fila:
+    for codigo, columnas in ANALITOS_RESULTADO.items():
+        cols = (columnas,) if isinstance(columnas, str) else columnas
+        col = next((c for c in cols if c in fila), None)
+        if col is None:
             continue
         valor_num, valor_texto = valor_resultado(fila.get(col))
         if valor_num is None and valor_texto is None:
