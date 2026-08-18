@@ -65,12 +65,21 @@ para tener el catálogo real de Quiteca/AgroFresh cargado con los límites que
 ya conocemos, corre:
 
 ```powershell
-psql -U postgres -d tu_base -f migrations\0004_analito_limites_por_especie_servicio.sql
+psql -U postgres -d tu_base -f migrations\0005_analito_limites_por_especie_servicio.sql
 ```
 
 Crea la tabla `analito_limite`, agrega `limite_cuantificacion` a `analito`, y
 siembra (upsert) los límites reales de "Línea de Proceso" y "Actimist". También
 es segura de repetir.
+
+### ⚠ `0004_reset_datos_transaccionales.sql` — script destructivo, no es una migración de rutina
+
+A diferencia de las demás, esta NO se corre como parte de la instalación
+normal. Vacía `solicitud`, `resultado`, `producto_aplicado`, `planta`,
+`cliente` y las tablas de Accu-Tab (`RESTART IDENTITY CASCADE`) — borra todos
+los datos cargados hasta ahora. No toca `analito` ni `analito_limite` (el
+catálogo y los límites sobreviven). Solo correr a propósito cuando se quiera
+partir de cero con los datos de ingesta/reportería, nunca sin confirmar antes.
 
 ## Arrancar
 
