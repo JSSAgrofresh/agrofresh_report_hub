@@ -46,3 +46,38 @@ export interface ResultadoCorreccion {
   filas_actualizadas: number
   auditoria: ResultadoAuditoria
 }
+
+export interface EntradaHistorial {
+  id: number
+  tabla: string
+  campo: string
+  etiqueta: string
+  valor_nuevo: string
+  filas: number
+  aplicado_en: string
+  deshecho: boolean
+}
+
+export interface ResultadoDeshacer {
+  filas_restauradas: number
+  auditoria: ResultadoAuditoria
+}
+
+export interface ValorColumna {
+  valor: string
+  filas: number
+}
+
+export interface ValoresColumna {
+  tabla: string
+  campo: string
+  schema: string
+  valores: ValorColumna[]
+}
+
+export interface CorregirValoresInput {
+  tabla: string
+  campo: string
+  valores_origen: string[]
+  valor_destino: string
+}

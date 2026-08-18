@@ -81,6 +81,50 @@
   font-weight: 700;
 }
 
+.btnDeshacer {
+  margin-left: auto;
+  border: 1px solid var(--color-border-strong);
+  background: #fff;
+  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btnDeshacer:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.btnDeshacer:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ── exportar ── */
+.btnExportar {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border-strong);
+  background: #fff;
+  border-radius: var(--radius-sm);
+  padding: 0 14px;
+  height: 34px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.btnExportar:hover {
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
 /* ── bloque para elegir y aplicar la corrección de un grupo ── */
 .corregirBloque {
   display: flex;
@@ -275,6 +319,13 @@
   margin-bottom: var(--space-3);
 }
 
+.selectorTabla {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
 .selectorTabla select {
   height: 34px;
   border: 1px solid var(--color-border-strong);
@@ -282,6 +333,83 @@
   padding: 0 10px;
   font-size: 12.5px;
   min-width: 220px;
+}
+
+.pistaColumnas {
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+  font-style: italic;
+}
+
+.thAuditable {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline dotted;
+  cursor: pointer;
+}
+
+.thAuditable:hover {
+  color: var(--acento);
+}
+
+/* ── panel de auditoría manual por columna ── */
+.panelColumna {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cerrarColumna {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+
+.listaValoresColumna {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+}
+
+.filaValorColumna {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.filaValorColumna:hover {
+  background: var(--color-bg);
+}
+
+.filaValorColumna code {
+  flex: 1;
+  font-family: var(--font-mono);
+}
+
+.panelColumna .corregirBloque input[type='text'] {
+  height: 30px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 8px;
+  font-size: 12.5px;
+  flex: 1;
+  max-width: 320px;
 }
 
 .tablaScroll {

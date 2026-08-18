@@ -3,3 +3,4 @@ uvicorn[standard]>=0.34
 psycopg2-binary>=2.9
 python-dotenv>=1.0
 pydantic>=2.10
+openpyxl>=3.1

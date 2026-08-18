@@ -7,14 +7,27 @@ import { areaDeModulo } from '@/constants/areas'
 import {
   auditar,
   corregirGrupo,
+  corregirValores,
   crearStaging,
   descartarStaging,
+  deshacer,
   estadoStaging,
+  historialStaging,
   listarTablas,
   promover,
+  urlExportar,
+  valoresColumna,
   verTabla,
 } from '@/features/auditoria'
-import type { EstadoStaging, GrupoInconsistencia, InfoTabla, PaginaTabla, ResultadoAuditoria } from '@/features/auditoria'
+import type {
+  EntradaHistorial,
+  EstadoStaging,
+  GrupoInconsistencia,
+  InfoTabla,
+  PaginaTabla,
+  ResultadoAuditoria,
+  ValoresColumna,
+} from '@/features/auditoria'
 import { HttpError } from '@/services/http/client'
 import { ErDiagrama } from './ErDiagrama'
 import styles from './DataCoreView.module.css'
@@ -22,11 +35,20 @@ import styles from './DataCoreView.module.css'
 type Vista = 'tabla' | 'modelo'
 const TAMANO_PAGINA = 30
 
-interface Corregido {
-  clave: string
-  etiqueta: string
-  valor: string
-  filas: number
+// Espejo liviano de CAMPOS_AUDITABLES en el backend: solo para decidir qué
+// encabezados de columna son clicables en la Vista de tabla. El backend es
+// quien de verdad decide qué se puede corregir (esto es solo UX).
+const CAMPOS_AUDITABLES: Record<string, string[]> = {
+  solicitud: [
+    'especie', 'variedad', 'tipo_servicio', 'laboratorio', 'sold_to_raw', 'ship_to_raw',
+    'lote', 'nro_camara', 'nro_linea', 'posicion_muestreo', 'csg', 'solicitante',
+    'nombre_muestreador', 'nro_orden', 'tipo_muestra',
+  ],
+  producto_aplicado: ['analito_raw', 'producto_raw', 'tipo_aplicacion', 'linea_proceso'],
+  resultado: ['analito_raw'],
+  planta: ['nombre', 'codigo_sap'],
+  cliente: ['nombre', 'codigo_sap'],
+  analito: ['nombre', 'categoria', 'unidad', 'matriz'],
 }
 
 export function DataCoreView() {
@@ -48,16 +70,27 @@ export function DataCoreView() {
   const [auditando, setAuditando] = useState(false)
   const [grupoAbierto, setGrupoAbierto] = useState<number | null>(null)
   const [corrigiendo, setCorrigiendo] = useState<string | null>(null)
-  const [corregidos, setCorregidos] = useState<Corregido[]>([])
+  const [historial, setHistorial] = useState<EntradaHistorial[]>([])
+  const [deshaciendo, setDeshaciendo] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [promoviendo, setPromoviendo] = useState(false)
+
+  const [columna, setColumna] = useState<{ tabla: string; campo: string } | null>(null)
+  const [datosColumna, setDatosColumna] = useState<ValoresColumna | null>(null)
+  const [cargandoColumna, setCargandoColumna] = useState(false)
+  const [seleccionColumna, setSeleccionColumna] = useState<Set<string>>(new Set())
+  const [destinoColumna, setDestinoColumna] = useState('')
+  const [unificando, setUnificando] = useState(false)
 
   useEffect(() => {
     listarTablas()
       .then(setTablas)
       .catch((err: unknown) => setError(err instanceof HttpError ? err.message : 'No se pudo cargar el listado de tablas.'))
     estadoStaging()
-      .then(setStaging)
+      .then((r) => {
+        setStaging(r)
+        if (r.activo) void cargarHistorial()
+      })
       .catch(() => undefined)
   }, [])
 
@@ -68,7 +101,14 @@ export function DataCoreView() {
       .then(setDatosTabla)
       .catch((err: unknown) => setError(err instanceof HttpError ? err.message : 'No se pudo cargar la tabla.'))
       .finally(() => setCargandoTabla(false))
+    setColumna(null)
   }, [vista, tablaActiva, pagina])
+
+  async function cargarHistorial() {
+    historialStaging()
+      .then(setHistorial)
+      .catch(() => undefined)
+  }
 
   async function refrescarTablas() {
     listarTablas()
@@ -98,7 +138,7 @@ export function DataCoreView() {
     setError(null)
     try {
       setStaging(await crearStaging())
-      setCorregidos([])
+      setHistorial([])
       setAuditoria(await auditar())
       await refrescarTablas()
     } catch (err) {
@@ -114,7 +154,7 @@ export function DataCoreView() {
     setError(null)
     try {
       setStaging(await descartarStaging())
-      setCorregidos([])
+      setHistorial([])
       setAuditoria(await auditar())
       await refrescarTablas()
     } catch (err) {
@@ -131,12 +171,28 @@ export function DataCoreView() {
     try {
       const r = await corregirGrupo({ tabla: g.tabla, campo: g.campo, clave: g.clave, valor })
       setAuditoria(r.auditoria)
-      setCorregidos((prev) => [...prev, { clave, etiqueta: g.etiqueta, valor, filas: r.filas_actualizadas }])
+      await cargarHistorial()
       if (vista === 'tabla') void refrescarTablas()
     } catch (err) {
       setError(err instanceof HttpError ? err.message : 'No se pudo aplicar la corrección.')
     } finally {
       setCorrigiendo(null)
+    }
+  }
+
+  async function deshacerCorreccion(id: number) {
+    setDeshaciendo(id)
+    setError(null)
+    try {
+      const r = await deshacer(id)
+      setAuditoria(r.auditoria)
+      await cargarHistorial()
+      if (vista === 'tabla') void refrescarTablas()
+      if (columna) void abrirColumna(columna.tabla, columna.campo)
+    } catch (err) {
+      setError(err instanceof HttpError ? err.message : 'No se pudo deshacer esa corrección.')
+    } finally {
+      setDeshaciendo(null)
     }
   }
 
@@ -152,7 +208,7 @@ export function DataCoreView() {
     try {
       await promover()
       setStaging({ activo: false })
-      setCorregidos([])
+      setHistorial([])
       setAuditoria(await auditar())
       await refrescarTablas()
     } catch (err) {
@@ -161,6 +217,55 @@ export function DataCoreView() {
       setPromoviendo(false)
     }
   }
+
+  async function abrirColumna(tabla: string, campo: string) {
+    setColumna({ tabla, campo })
+    setSeleccionColumna(new Set())
+    setDestinoColumna('')
+    setCargandoColumna(true)
+    setError(null)
+    try {
+      setDatosColumna(await valoresColumna(tabla, campo))
+    } catch (err) {
+      setError(err instanceof HttpError ? err.message : 'No se pudo auditar esa columna.')
+    } finally {
+      setCargandoColumna(false)
+    }
+  }
+
+  function alternarValorColumna(v: string) {
+    setSeleccionColumna((prev) => {
+      const next = new Set(prev)
+      if (next.has(v)) next.delete(v)
+      else next.add(v)
+      return next
+    })
+    setDestinoColumna((actual) => actual || v)
+  }
+
+  async function unificarColumna() {
+    if (!columna || seleccionColumna.size === 0 || !destinoColumna.trim()) return
+    setUnificando(true)
+    setError(null)
+    try {
+      const r = await corregirValores({
+        tabla: columna.tabla,
+        campo: columna.campo,
+        valores_origen: [...seleccionColumna],
+        valor_destino: destinoColumna.trim(),
+      })
+      setAuditoria(r.auditoria)
+      await cargarHistorial()
+      await abrirColumna(columna.tabla, columna.campo)
+      await refrescarTablas()
+    } catch (err) {
+      setError(err instanceof HttpError ? err.message : 'No se pudo unificar esos valores.')
+    } finally {
+      setUnificando(false)
+    }
+  }
+
+  const historialActivo = historial.filter((h) => !h.deshecho)
 
   return (
     <div className={styles.wrap} style={wrapStyle}>
@@ -179,6 +284,9 @@ export function DataCoreView() {
               toca hasta que apliques los cambios.
             </span>
             <div className={styles.bannerAcciones}>
+              <a className={styles.btnExportar} href={urlExportar()}>
+                Exportar a Excel
+              </a>
               <Button variant="secondary" onClick={() => void descartarCopia()} disabled={staginBusy}>
                 Descartar copia
               </Button>
@@ -195,6 +303,9 @@ export function DataCoreView() {
             <span className={styles.bannerPuntoVivo} />
             <span>Viendo la base en vivo, de solo lectura. Para corregir algo, crea una copia de trabajo primero.</span>
             <div className={styles.bannerAcciones}>
+              <a className={styles.btnExportar} href={urlExportar()}>
+                Exportar a Excel
+              </a>
               <Button onClick={() => void crearCopia()} disabled={staginBusy}>
                 {staginBusy ? 'Creando…' : 'Crear copia de trabajo'}
               </Button>
@@ -234,20 +345,24 @@ export function DataCoreView() {
               </div>
             </div>
 
-            {corregidos.length > 0 && (
+            {historialActivo.length > 0 && (
               <div className={styles.listaCorregidos}>
-                {corregidos
-                  .slice()
-                  .reverse()
-                  .map((c, i) => (
-                    <div key={`${c.clave}-${i}`} className={styles.filaCorregido}>
-                      <span className={styles.filaCorregidoEtiqueta}>{c.etiqueta}</span>
-                      <span>
-                        → unificado a <code>{c.valor}</code>
-                      </span>
-                      <span className={styles.filaGrupoFilas}>{c.filas.toLocaleString('es-CL')} filas</span>
-                    </div>
-                  ))}
+                {historialActivo.map((h) => (
+                  <div key={h.id} className={styles.filaCorregido}>
+                    <span className={styles.filaCorregidoEtiqueta}>{h.etiqueta}</span>
+                    <span>
+                      → unificado a <code>{h.valor_nuevo}</code>
+                    </span>
+                    <span className={styles.filaGrupoFilas}>{h.filas.toLocaleString('es-CL')} filas</span>
+                    <button
+                      className={styles.btnDeshacer}
+                      onClick={() => void deshacerCorreccion(h.id)}
+                      disabled={deshaciendo === h.id}
+                    >
+                      {deshaciendo === h.id ? 'Deshaciendo…' : 'Deshacer'}
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -288,66 +403,138 @@ export function DataCoreView() {
           <ErDiagrama />
         </Card>
       ) : (
-        <Card>
-          <div className={styles.selectorTabla}>
-            <select
-              value={tablaActiva}
-              onChange={(e) => {
-                setTablaActiva(e.target.value)
-                setPagina(1)
-              }}
-            >
-              {(tablas ?? []).map((t) => (
-                <option key={t.nombre} value={t.nombre}>
-                  {t.nombre} ({t.total.toLocaleString('es-CL')})
-                </option>
-              ))}
-            </select>
-          </div>
+        <>
+          <Card>
+            <div className={styles.selectorTabla}>
+              <select
+                value={tablaActiva}
+                onChange={(e) => {
+                  setTablaActiva(e.target.value)
+                  setPagina(1)
+                }}
+              >
+                {(tablas ?? []).map((t) => (
+                  <option key={t.nombre} value={t.nombre}>
+                    {t.nombre} ({t.total.toLocaleString('es-CL')})
+                  </option>
+                ))}
+              </select>
+              <span className={styles.pistaColumnas}>
+                Clic en el nombre de una columna (subrayada) para auditar todos sus valores.
+              </span>
+            </div>
 
-          {cargandoTabla || !datosTabla ? (
-            <p className={styles.panelAuditNota}>Cargando…</p>
-          ) : (
-            <>
-              <div className={styles.tablaScroll}>
-                <table className={styles.tablaDatos}>
-                  <thead>
-                    <tr>
-                      {datosTabla.columnas.map((c) => (
-                        <th key={c}>{c}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {datosTabla.filas.map((fila, i) => (
-                      <tr key={i}>
-                        {datosTabla.columnas.map((c) => (
-                          <td key={c}>{fila[c] === null || fila[c] === undefined ? '—' : String(fila[c])}</td>
-                        ))}
+            {cargandoTabla || !datosTabla ? (
+              <p className={styles.panelAuditNota}>Cargando…</p>
+            ) : (
+              <>
+                <div className={styles.tablaScroll}>
+                  <table className={styles.tablaDatos}>
+                    <thead>
+                      <tr>
+                        {datosTabla.columnas.map((c) => {
+                          const auditable = CAMPOS_AUDITABLES[tablaActiva]?.includes(c)
+                          return (
+                            <th key={c}>
+                              {auditable ? (
+                                <button className={styles.thAuditable} onClick={() => void abrirColumna(tablaActiva, c)}>
+                                  {c}
+                                </button>
+                              ) : (
+                                c
+                              )}
+                            </th>
+                          )
+                        })}
                       </tr>
+                    </thead>
+                    <tbody>
+                      {datosTabla.filas.map((fila, i) => (
+                        <tr key={i}>
+                          {datosTabla.columnas.map((c) => (
+                            <td key={c}>{fila[c] === null || fila[c] === undefined ? '—' : String(fila[c])}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className={styles.paginacion}>
+                  <button disabled={pagina <= 1} onClick={() => setPagina((p) => p - 1)}>
+                    ← Anterior
+                  </button>
+                  <span>
+                    Página {pagina} de {Math.max(1, Math.ceil(datosTabla.total / TAMANO_PAGINA))} ·{' '}
+                    {datosTabla.total.toLocaleString('es-CL')} filas
+                    {staging?.activo && ' (copia de trabajo)'}
+                  </span>
+                  <button
+                    disabled={pagina >= Math.ceil(datosTabla.total / TAMANO_PAGINA)}
+                    onClick={() => setPagina((p) => p + 1)}
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              </>
+            )}
+          </Card>
+
+          {columna && (
+            <Card className={styles.panelColumna}>
+              <div className={styles.panelAuditCabecera}>
+                <div>
+                  <h3>
+                    Auditoría manual: <code>{columna.tabla}.{columna.campo}</code>
+                  </h3>
+                  <p className={styles.panelAuditNota}>
+                    Marca los valores que representan lo mismo y elige a cuál unificarlos. Sirve para cualquier
+                    diferencia -no solo mayúsculas-: typos, abreviaciones, nombres viejos, etc.
+                  </p>
+                </div>
+                <button className={styles.cerrarColumna} onClick={() => setColumna(null)}>
+                  ✕
+                </button>
+              </div>
+
+              {cargandoColumna || !datosColumna ? (
+                <p className={styles.panelAuditNota}>Cargando…</p>
+              ) : (
+                <>
+                  <div className={styles.listaValoresColumna}>
+                    {datosColumna.valores.map((v) => (
+                      <label key={v.valor} className={styles.filaValorColumna}>
+                        <input
+                          type="checkbox"
+                          checked={seleccionColumna.has(v.valor)}
+                          onChange={() => alternarValorColumna(v.valor)}
+                        />
+                        <code>{v.valor}</code>
+                        <span className={styles.filaGrupoFilas}>{v.filas.toLocaleString('es-CL')} filas</span>
+                      </label>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className={styles.paginacion}>
-                <button disabled={pagina <= 1} onClick={() => setPagina((p) => p - 1)}>
-                  ← Anterior
-                </button>
-                <span>
-                  Página {pagina} de {Math.max(1, Math.ceil(datosTabla.total / TAMANO_PAGINA))} ·{' '}
-                  {datosTabla.total.toLocaleString('es-CL')} filas
-                  {staging?.activo && ' (copia de trabajo)'}
-                </span>
-                <button
-                  disabled={pagina >= Math.ceil(datosTabla.total / TAMANO_PAGINA)}
-                  onClick={() => setPagina((p) => p + 1)}
-                >
-                  Siguiente →
-                </button>
-              </div>
-            </>
+                  </div>
+
+                  {staging?.activo ? (
+                    <div className={styles.corregirBloque}>
+                      <span>Unificar seleccionados ({seleccionColumna.size}) a:</span>
+                      <input
+                        type="text"
+                        value={destinoColumna}
+                        onChange={(e) => setDestinoColumna(e.target.value)}
+                        placeholder="Valor final"
+                      />
+                      <Button onClick={() => void unificarColumna()} disabled={unificando || seleccionColumna.size === 0}>
+                        {unificando ? 'Aplicando…' : 'Unificar seleccionados'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className={styles.panelAuditNota}>Crea una copia de trabajo para poder corregir esta columna.</p>
+                  )}
+                </>
+              )}
+            </Card>
           )}
-        </Card>
+        </>
       )}
     </div>
   )

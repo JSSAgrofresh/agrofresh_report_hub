@@ -10,10 +10,14 @@ que requiere 0 inconsistencias pendientes. Como todas las consultas de la app
 usan nombres de tabla sin prefijo de schema (search_path=lab,public), promover
 es un simple renombre de schemas -sin downtime, sin reiniciar el backend-.
 """
+import json
 from datetime import datetime, timezone
+from io import BytesIO
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
 from pydantic import BaseModel
 
 from .db import conexion, cursor_dict
@@ -81,6 +85,24 @@ CAMPOS_HOMOGENIZAR_POR_TABLA: dict[str, set[str]] = {}
 for _tabla, _campo, _et in CAMPOS_HOMOGENIZAR:
     CAMPOS_HOMOGENIZAR_POR_TABLA.setdefault(_tabla, set()).add(_campo)
 
+# Columnas de texto "auditables a mano" desde la Vista de tabla (clic en el
+# encabezado): más amplio que CAMPOS_HOMOGENIZAR -acá se listan TODOS los
+# valores distintos de la columna, no solo los que difieren por mayúsculas-
+# para poder unificar cualquier variante (abreviaciones, typos, etc.), no
+# solo casing. Sigue siendo una whitelist fija por seguridad.
+CAMPOS_AUDITABLES: dict[str, list[str]] = {
+    "solicitud": [
+        "especie", "variedad", "tipo_servicio", "laboratorio", "sold_to_raw", "ship_to_raw",
+        "lote", "nro_camara", "nro_linea", "posicion_muestreo", "csg", "solicitante",
+        "nombre_muestreador", "nro_orden", "tipo_muestra",
+    ],
+    "producto_aplicado": ["analito_raw", "producto_raw", "tipo_aplicacion", "linea_proceso"],
+    "resultado": ["analito_raw"],
+    "planta": ["nombre", "codigo_sap"],
+    "cliente": ["nombre", "codigo_sap"],
+    "analito": ["nombre", "categoria", "unidad", "matriz"],
+}
+
 
 def _schema_activo(cur) -> str:
     """lab_staging si existe una copia de trabajo en curso; si no, lab (solo lectura)."""
@@ -88,11 +110,31 @@ def _schema_activo(cur) -> str:
     return SCHEMA_STAGING if cur.fetchone() else SCHEMA_PROD
 
 
+def _requiere_staging(cur) -> None:
+    cur.execute("SELECT 1 FROM information_schema.schemata WHERE schema_name = %s", (SCHEMA_STAGING,))
+    if not cur.fetchone():
+        raise HTTPException(
+            status_code=400,
+            detail="No hay una copia de trabajo activa. Crea una desde 'Crear copia de trabajo' antes de corregir.",
+        )
+
+
 class CorregirGrupoIn(BaseModel):
     tabla: str
     campo: str
     clave: str
     valor: str
+
+
+class CorregirValoresIn(BaseModel):
+    tabla: str
+    campo: str
+    valores_origen: list[str]
+    valor_destino: str
+
+
+class DeshacerIn(BaseModel):
+    historial_id: int
 
 
 @router.get("/tablas")
@@ -210,6 +252,20 @@ def crear_staging() -> dict[str, Any]:
         cur.execute(f"CREATE SCHEMA {SCHEMA_STAGING}")
         cur.execute(f"CREATE TABLE {SCHEMA_STAGING}._meta (creado_en timestamptz NOT NULL)")
         cur.execute(f"INSERT INTO {SCHEMA_STAGING}._meta (creado_en) VALUES (%s)", (datetime.now(timezone.utc),))
+        cur.execute(
+            f"""
+            CREATE TABLE {SCHEMA_STAGING}._historial (
+                id serial PRIMARY KEY,
+                tabla text NOT NULL,
+                campo text NOT NULL,
+                etiqueta text NOT NULL,
+                valor_nuevo text NOT NULL,
+                filas jsonb NOT NULL,
+                aplicado_en timestamptz NOT NULL DEFAULT now(),
+                deshecho boolean NOT NULL DEFAULT false
+            )
+            """
+        )
 
         for tabla in ORDEN_TABLAS_CLON:
             cur.execute(
@@ -249,6 +305,29 @@ def descartar_staging() -> dict[str, Any]:
     return {"activo": False}
 
 
+def _registrar_y_aplicar(cur, tabla: str, campo: str, etiqueta: str, where_sql: str, where_params: tuple, valor_destino: str) -> int:
+    """Guarda (id, valor_anterior) de cada fila que va a cambiar antes de
+    aplicar el UPDATE, para poder deshacerlo después con /deshacer."""
+    cur.execute(f"SELECT id, {campo} AS valor FROM {SCHEMA_STAGING}.{tabla} WHERE {where_sql}", where_params)
+    filas_antes = cur.fetchall()
+    if not filas_antes:
+        return 0
+
+    cur.execute(
+        f"UPDATE {SCHEMA_STAGING}.{tabla} SET {campo} = %s WHERE {where_sql}",
+        (valor_destino, *where_params),
+    )
+
+    cur.execute(
+        f"""
+        INSERT INTO {SCHEMA_STAGING}._historial (tabla, campo, etiqueta, valor_nuevo, filas)
+        VALUES (%s, %s, %s, %s, %s::jsonb)
+        """,
+        (tabla, campo, etiqueta, valor_destino, json.dumps([{"id": f["id"], "valor": f["valor"]} for f in filas_antes])),
+    )
+    return len(filas_antes)
+
+
 @router.post("/corregir")
 def corregir_grupo(payload: CorregirGrupoIn) -> dict[str, Any]:
     """Reescribe todas las variantes de un grupo de inconsistencia al valor
@@ -256,28 +335,154 @@ def corregir_grupo(payload: CorregirGrupoIn) -> dict[str, Any]:
     puede corregir nada (para eso está /staging/crear)."""
     if payload.tabla not in CAMPOS_HOMOGENIZAR_POR_TABLA or payload.campo not in CAMPOS_HOMOGENIZAR_POR_TABLA[payload.tabla]:
         raise HTTPException(status_code=400, detail="Campo no reconocido para corrección de homogenización")
+    etiqueta = next(et for t, c, et in CAMPOS_HOMOGENIZAR if t == payload.tabla and c == payload.campo)
 
     with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT 1 FROM information_schema.schemata WHERE schema_name = %s", (SCHEMA_STAGING,))
-        if not cur.fetchone():
-            raise HTTPException(
-                status_code=400,
-                detail="No hay una copia de trabajo activa. Crea una desde 'Crear copia de trabajo' antes de corregir.",
-            )
-        cur.execute(
-            f"""
-            UPDATE {SCHEMA_STAGING}.{payload.tabla}
-            SET {payload.campo} = %s
-            WHERE lower(trim({payload.campo})) = %s AND {payload.campo} IS DISTINCT FROM %s
-            """,
-            (payload.valor, payload.clave, payload.valor),
+        _requiere_staging(cur)
+        filas_actualizadas = _registrar_y_aplicar(
+            cur,
+            payload.tabla,
+            payload.campo,
+            etiqueta,
+            f"lower(trim({payload.campo})) = %s AND {payload.campo} IS DISTINCT FROM %s",
+            (payload.clave, payload.valor),
+            payload.valor,
         )
-        filas_actualizadas = cur.rowcount
 
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         auditoria = _auditar(cur, SCHEMA_STAGING)
 
     return {"filas_actualizadas": filas_actualizadas, "auditoria": auditoria}
+
+
+@router.post("/corregir-valores")
+def corregir_valores(payload: CorregirValoresIn) -> dict[str, Any]:
+    """Igual que /corregir, pero para la auditoría manual por columna: unifica
+    una lista de valores elegidos a mano (no necesariamente variantes de
+    mayúsculas entre sí) a un único valor destino."""
+    if payload.tabla not in CAMPOS_AUDITABLES or payload.campo not in CAMPOS_AUDITABLES[payload.tabla]:
+        raise HTTPException(status_code=400, detail="Campo no habilitado para auditoría manual")
+    if not payload.valores_origen:
+        raise HTTPException(status_code=400, detail="Selecciona al menos un valor para unificar")
+
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        _requiere_staging(cur)
+        filas_actualizadas = _registrar_y_aplicar(
+            cur,
+            payload.tabla,
+            payload.campo,
+            f"{payload.tabla}.{payload.campo} (manual)",
+            f"{payload.campo} = ANY(%s) AND {payload.campo} IS DISTINCT FROM %s",
+            (payload.valores_origen, payload.valor_destino),
+            payload.valor_destino,
+        )
+
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        auditoria = _auditar(cur, SCHEMA_STAGING)
+
+    return {"filas_actualizadas": filas_actualizadas, "auditoria": auditoria}
+
+
+@router.get("/staging/historial")
+def historial_staging() -> list[dict[str, Any]]:
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT 1 FROM information_schema.schemata WHERE schema_name = %s", (SCHEMA_STAGING,))
+        if not cur.fetchone():
+            return []
+        cur.execute(
+            f"""
+            SELECT id, tabla, campo, etiqueta, valor_nuevo, jsonb_array_length(filas) AS filas, aplicado_en, deshecho
+            FROM {SCHEMA_STAGING}._historial
+            ORDER BY id DESC
+            """
+        )
+        return cur.fetchall()
+
+
+@router.post("/deshacer")
+def deshacer(payload: DeshacerIn) -> dict[str, Any]:
+    """Revierte una corrección puntual: restaura el valor anterior fila por
+    fila (guardado en /corregir o /corregir-valores) y marca la entrada del
+    historial como deshecha."""
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        _requiere_staging(cur)
+        cur.execute(
+            f"SELECT tabla, campo, filas, deshecho FROM {SCHEMA_STAGING}._historial WHERE id = %s",
+            (payload.historial_id,),
+        )
+        entrada = cur.fetchone()
+        if not entrada:
+            raise HTTPException(status_code=404, detail="Esa corrección no existe en el historial de esta copia.")
+        if entrada["deshecho"]:
+            raise HTTPException(status_code=400, detail="Esa corrección ya estaba deshecha.")
+
+        tabla, campo = entrada["tabla"], entrada["campo"]
+        for fila in entrada["filas"]:
+            cur.execute(
+                f"UPDATE {SCHEMA_STAGING}.{tabla} SET {campo} = %s WHERE id = %s",
+                (fila["valor"], fila["id"]),
+            )
+        cur.execute(f"UPDATE {SCHEMA_STAGING}._historial SET deshecho = true WHERE id = %s", (payload.historial_id,))
+        filas_restauradas = len(entrada["filas"])
+
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        auditoria = _auditar(cur, SCHEMA_STAGING)
+
+    return {"filas_restauradas": filas_restauradas, "auditoria": auditoria}
+
+
+# ---------------------------------------------------------------------------
+# Auditoría manual por columna: clic en un encabezado de la Vista de tabla.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/columna/{tabla}/{campo}")
+def valores_columna(tabla: str, campo: str) -> dict[str, Any]:
+    if tabla not in CAMPOS_AUDITABLES or campo not in CAMPOS_AUDITABLES[tabla]:
+        raise HTTPException(status_code=400, detail="Campo no habilitado para auditoría manual")
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        schema = _schema_activo(cur)
+        cur.execute(
+            f"""
+            SELECT {campo} AS valor, count(*)::int AS filas
+            FROM {schema}.{tabla}
+            WHERE {campo} IS NOT NULL AND trim({campo}) <> ''
+            GROUP BY {campo}
+            ORDER BY count(*) DESC
+            LIMIT 500
+            """
+        )
+        return {"tabla": tabla, "campo": campo, "schema": schema, "valores": cur.fetchall()}
+
+
+# ---------------------------------------------------------------------------
+# Exportar a Excel
+# ---------------------------------------------------------------------------
+
+
+@router.get("/exportar")
+def exportar():
+    wb = Workbook()
+    wb.remove(wb.active)
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        schema = _schema_activo(cur)
+        for tabla, columnas in TABLAS.items():
+            cur.execute(f"SELECT {', '.join(columnas)} FROM {schema}.{tabla} ORDER BY id")
+            filas = cur.fetchall()
+            hoja = wb.create_sheet(tabla[:31])
+            hoja.append(columnas)
+            for fila in filas:
+                hoja.append([str(fila[c]) if fila[c] is not None else None for c in columnas])
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    nombre = f"agrofresh_{schema}_{datetime.now(timezone.utc):%Y%m%d_%H%M}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
 
 
 @router.post("/promover")
@@ -300,6 +505,11 @@ def promover() -> dict[str, Any]:
                 detail=f"La copia de trabajo todavía tiene {auditoria['total_inconsistencias']} inconsistencias. "
                 "Corrígelas todas antes de aplicar a producción.",
             )
+
+        # _meta / _historial son control interno de la copia de trabajo: no
+        # deben quedar dando vueltas dentro de lo que va a ser "lab" en producción.
+        cur.execute(f"DROP TABLE IF EXISTS {SCHEMA_STAGING}._historial")
+        cur.execute(f"DROP TABLE IF EXISTS {SCHEMA_STAGING}._meta")
 
         respaldo = f"{SCHEMA_PROD}_backup_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}"
         cur.execute(f"ALTER SCHEMA {SCHEMA_PROD} RENAME TO {respaldo}")

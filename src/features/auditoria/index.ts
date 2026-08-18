@@ -1,4 +1,18 @@
-export { listarTablas, verTabla, auditar, estadoStaging, crearStaging, descartarStaging, corregirGrupo, promover } from './lib/api'
+export {
+  listarTablas,
+  verTabla,
+  auditar,
+  estadoStaging,
+  crearStaging,
+  descartarStaging,
+  corregirGrupo,
+  corregirValores,
+  historialStaging,
+  deshacer,
+  valoresColumna,
+  promover,
+  urlExportar,
+} from './lib/api'
 export type {
   InfoTabla,
   PaginaTabla,
@@ -6,5 +20,10 @@ export type {
   ResultadoAuditoria,
   EstadoStaging,
   CorregirGrupoInput,
+  CorregirValoresInput,
   ResultadoCorreccion,
+  EntradaHistorial,
+  ResultadoDeshacer,
+  ValorColumna,
+  ValoresColumna,
 } from './lib/tipos'
