@@ -449,13 +449,14 @@ function detectar(texto){
 
 /* ---------------- QUITECA ---------------- */
 function leerQuiteca(texto, inf){
-  // Pendiente: no se ha visto todavía un PDF real de Quiteca para saber cómo
-  // vienen escritos "Fecha entrada" y "Tipo de servicio" en este formato, así
-  // que quedan sin extraer (aparecen como "Sin dato" en el panel de análisis,
-  // a la espera de un PDF de muestra real para agregar el patrón correcto).
+  // Fecha entrada: pendiente, no confirmada todavía en el formato real de Quiteca.
   const d = inf.datos;
   d["Laboratorio"] = "Quiteca";
-  d["N° Solicitud"] = campo(texto, "N° Solicitud", "Fecha de Muestreo");
+  /* El identificador del informe (p.ej. "2026-1712-PC") es el "Informe N°" del
+     encabezado, NO el "N° Solicitud" interno (código largo tipo 26080414255597):
+     ese es un correlativo interno de Quiteca y no sirve para identificar el informe. */
+  const informeN = texto.match(/Informe N°\s*([\w-]+)/);
+  d["N° Solicitud"] = informeN ? informeN[1] : null;
   d["Solicitante"]  = campo(texto, "Solicitado por", "Fecha solicitud");
   /* En Quiteca «Cliente» es la cuenta que paga (AgroFresh, siempre la misma).
      El cliente real del negocio es el empacador, y la sucursal es el lugar
@@ -474,14 +475,19 @@ function leerQuiteca(texto, inf){
   d["Hora Muestreo"]   = aHora(campo(texto, "Hora"));
   d["Tipo Muestra"]    = "Fruta";
   d["Producto Utilizado"] = campo(texto, "Tratamiento", "Línea de Proceso");
+  /* Tipo de servicio: FOGGER o ACTIMIST son el mismo tratamiento (se homogeniza
+     como "Actimist" para no duplicar estados); cualquier otro tratamiento es
+     "Linea de Proceso". Regla confirmada por Jorge Sandoval. */
+  const tratamientoPlano = plano(d["Producto Utilizado"] || "");
+  const esActimist = tratamientoPlano.includes("fogger") || tratamientoPlano.includes("actimist");
+  d["Tipo de servicio"] = esActimist ? "Actimist" : "Linea de Proceso";
 
   const obs = [];
   let m = texto.match(/Obs\.:\s*([\s\S]+?)(?=Resultados de la Muestra)/);
   if(m) obs.push(m[1].replace(/\s+/g," ").trim());
   const cta = campo(texto, "Cliente", "RUT");
   if(cta) obs.push("Cuenta: " + cta);
-  m = texto.match(/Informe N°\s*([\w-]+)/);
-  if(m) obs.push("Informe Quiteca N° " + m[1]);
+  if(informeN) obs.push("Informe Quiteca N° " + informeN[1]);
   m = texto.match(/Muestra N°\s*(\d+)/);
   if(m) obs.push("Muestra N° " + m[1]);
   d["Observación"] = obs.join(" · ") || null;
@@ -490,8 +496,7 @@ function leerQuiteca(texto, inf){
   if(m) d["N° Orden"] = m[1];
   m = texto.match(/DOSIS\s+([\d.,]+)\s*GRS?\/TON/i);
   if(m) d["Dosis Aplicada"] = aNumero(m[1]);
-  if(d["Producto Utilizado"] && plano(d["Producto Utilizado"]).includes("fogger"))
-    d["Tipo Aplicación"] = "Actimist / Fog";
+  if(esActimist) d["Tipo Aplicación"] = "Actimist / Fog";
 
   texto.split("\n").forEach(l => {
     const m = l.match(/^\s*([A-Z]{2,}-\d+)\s+([A-Za-zÁÉÍÓÚñÑ\s\-]+?)\s+([\d.,]+|N\.?D\.?)\s/);
