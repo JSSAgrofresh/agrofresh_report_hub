@@ -639,36 +639,31 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
           </div>
 
           <div className={styles.filtros}>
-            <MultiSelectFiltro
-              etiqueta="Ingrediente Activo"
-              opciones={opciones.ingredientes}
-              valores={filtros.ingredientes}
-              onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v }))}
-              colorDe={colorDeIngrediente}
-            />
+            {/* Filtros principales primero: Laboratorio, Sold To, Ship To, Tipo de servicio, Especie —
+                son los que definen qué tipo de reporte/límites corresponde mostrar. El resto va después. */}
+            <label className={styles.filtro}>
+              <span>Laboratorio</span>
+              <select value={filtros.laboratorio} onChange={(e) => actualizarFiltro('laboratorio', e.target.value)}>
+                <option value="">Todos</option>
+                {opciones.laboratorios.map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </label>
             {!clienteFijo && (
               <BuscableSelect
-                etiqueta="Cliente"
+                etiqueta="Cliente (Sold To)"
                 opciones={opciones.clientes}
                 valor={filtros.cliente}
                 onChange={cambiarCliente}
               />
             )}
             <BuscableSelect
-              etiqueta="Sucursal"
+              etiqueta="Sucursal (Ship To)"
               opciones={opciones.plantas}
               valor={filtros.planta}
               onChange={(v) => actualizarFiltro('planta', v)}
             />
-            <label className={styles.filtro}>
-              <span>Tipo aplicación</span>
-              <select value={filtros.tipoAplicacion} onChange={(e) => actualizarFiltro('tipoAplicacion', e.target.value)}>
-                <option value="">Todos</option>
-                {opciones.tiposAplicacion.map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
             <label className={styles.filtro}>
               <span>Tipo de servicio</span>
               <select value={filtros.tipoServicio} onChange={(e) => actualizarFiltro('tipoServicio', e.target.value)}>
@@ -679,19 +674,27 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
               </select>
             </label>
             <label className={styles.filtro}>
-              <span>Laboratorio</span>
-              <select value={filtros.laboratorio} onChange={(e) => actualizarFiltro('laboratorio', e.target.value)}>
-                <option value="">Todos</option>
-                {opciones.laboratorios.map((v) => (
+              <span>Especie</span>
+              <select value={filtros.crop} onChange={(e) => actualizarFiltro('crop', e.target.value)}>
+                <option value="">Todas</option>
+                {opciones.crops.map((v) => (
                   <option key={v}>{v}</option>
                 ))}
               </select>
             </label>
+
+            <MultiSelectFiltro
+              etiqueta="Ingrediente Activo"
+              opciones={opciones.ingredientes}
+              valores={filtros.ingredientes}
+              onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v }))}
+              colorDe={colorDeIngrediente}
+            />
             <label className={styles.filtro}>
-              <span>Especie / CROP</span>
-              <select value={filtros.crop} onChange={(e) => actualizarFiltro('crop', e.target.value)}>
-                <option value="">Todas</option>
-                {opciones.crops.map((v) => (
+              <span>Tipo aplicación</span>
+              <select value={filtros.tipoAplicacion} onChange={(e) => actualizarFiltro('tipoAplicacion', e.target.value)}>
+                <option value="">Todos</option>
+                {opciones.tiposAplicacion.map((v) => (
                   <option key={v}>{v}</option>
                 ))}
               </select>
