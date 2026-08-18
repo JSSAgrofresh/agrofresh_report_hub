@@ -466,6 +466,7 @@ function leerQuiteca(texto, inf){
   d["Variedad"]     = campo(texto, "Variedad");
   d["Lote"]         = campo(texto, "Lote", "N° cámara");
   d["N° Cámara"]    = campo(texto, "N° cámara");
+  d["CSG"]          = campo(texto, "Cód. productor");
   d["Línea Proceso"]= campo(texto, "Línea", "Kg procesados");
   d["Kilos Procesados (KG)"] = aNumero(campo(texto, "Kg procesados"));
   d["Posición Muestreo"] = campo(texto, "Posición muestreo", "Análisis");
@@ -474,11 +475,14 @@ function leerQuiteca(texto, inf){
   d["Fecha entrada"]   = aFecha(campo(texto, "Fecha de Recepción"), inf.avisos);
   d["Hora Muestreo"]   = aHora(campo(texto, "Hora"));
   d["Tipo Muestra"]    = "Fruta";
-  d["Producto Utilizado"] = campo(texto, "Tratamiento", "Línea de Proceso");
-  /* Tipo de servicio: FOGGER o ACTIMIST son el mismo tratamiento (se homogeniza
-     como "Actimist" para no duplicar estados); cualquier otro tratamiento es
-     "Linea de Proceso". Regla confirmada por Jorge Sandoval. */
-  const tratamientoPlano = plano(d["Producto Utilizado"] || "");
+  /* En Quiteca "Tratamiento" (FOGGER, ACTIMIST, etc.) no es un producto químico,
+     así que va en "Tipo Aplicación" tal cual, no en "Producto Utilizado" (que
+     Quiteca no reporta). Tipo de servicio se deriva de este mismo valor:
+     FOGGER o ACTIMIST son el mismo tratamiento (se homogeniza como "Actimist"
+     para no duplicar estados); cualquier otro tratamiento es "Linea de Proceso".
+     Regla confirmada por Jorge Sandoval. */
+  d["Tipo Aplicación"] = campo(texto, "Tratamiento", "Línea de Proceso");
+  const tratamientoPlano = plano(d["Tipo Aplicación"] || "");
   const esActimist = tratamientoPlano.includes("fogger") || tratamientoPlano.includes("actimist");
   d["Tipo de servicio"] = esActimist ? "Actimist" : "Linea de Proceso";
 
@@ -496,7 +500,6 @@ function leerQuiteca(texto, inf){
   if(m) d["N° Orden"] = m[1];
   m = texto.match(/DOSIS\s+([\d.,]+)\s*GRS?\/TON/i);
   if(m) d["Dosis Aplicada"] = aNumero(m[1]);
-  if(esActimist) d["Tipo Aplicación"] = "Actimist / Fog";
 
   texto.split("\n").forEach(l => {
     const m = l.match(/^\s*([A-Z]{2,}-\d+)\s+([A-Za-zÁÉÍÓÚñÑ\s\-]+?)\s+([\d.,]+|N\.?D\.?)\s/);
