@@ -28,6 +28,7 @@ export interface Analito {
   laboratorio: string
   unidad: string
   limite_deteccion: string | null
+  limite_cuantificacion: string | null
   matriz: string | null
   activo: boolean
   limite_min: number | string | null
@@ -42,8 +43,31 @@ export interface AnalitoInput {
   laboratorio: string
   unidad: string
   limite_deteccion?: string | null
+  limite_cuantificacion?: string | null
   matriz?: string | null
   activo?: boolean
+  limite_min?: number | null
+  limite_central?: number | null
+  limite_max?: number | null
+}
+
+/** Límite de un analito para una especie y tipo de servicio concretos.
+ * especie === '' significa "aplica a todas las especies"; tipo_servicio === ''
+ * significa "aplica a todos los tipos de servicio". */
+export interface LimiteAnalito {
+  id: number
+  analito_id: number
+  especie: string
+  tipo_servicio: string
+  limite_min: number | string | null
+  limite_central: number | string | null
+  limite_max: number | string | null
+}
+
+export interface LimiteAnalitoInput {
+  analito_id: number
+  especie: string
+  tipo_servicio: string
   limite_min?: number | null
   limite_central?: number | null
   limite_max?: number | null

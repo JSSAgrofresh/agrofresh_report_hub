@@ -1,5 +1,5 @@
 import { httpClient } from '@/services/http/client'
-import type { Analito, AnalitoInput, FilaReporte } from './tipos'
+import type { Analito, AnalitoInput, FilaReporte, LimiteAnalito, LimiteAnalitoInput } from './tipos'
 
 export function obtenerDatosReporte(cliente?: string) {
   const query = cliente ? `?cliente=${encodeURIComponent(cliente)}` : ''
@@ -31,4 +31,17 @@ export function actualizarAnalito(id: number, cambios: Partial<AnalitoInput>) {
 
 export function eliminarAnalito(id: number) {
   return httpClient.delete<{ id: number }>(`/reportes/analitos/${id}`)
+}
+
+export function listarLimites() {
+  return httpClient.get<LimiteAnalito[]>('/reportes/limites')
+}
+
+/** También sirve para editar: el backend hace upsert por (analito_id, especie, tipo_servicio). */
+export function guardarLimite(datos: LimiteAnalitoInput) {
+  return httpClient.post<LimiteAnalito>('/reportes/limites', datos)
+}
+
+export function eliminarLimite(id: number) {
+  return httpClient.delete<{ id: number }>(`/reportes/limites/${id}`)
 }

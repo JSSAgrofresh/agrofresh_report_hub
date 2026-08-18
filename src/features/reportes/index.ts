@@ -6,8 +6,11 @@ export {
   crearAnalito,
   actualizarAnalito,
   eliminarAnalito,
+  listarLimites,
+  guardarLimite,
+  eliminarLimite,
 } from './lib/api'
-export type { FilaReporte, Analito, AnalitoInput, Observacion } from './lib/tipos'
+export type { FilaReporte, Analito, AnalitoInput, Observacion, LimiteAnalito, LimiteAnalitoInput } from './lib/tipos'
 export {
   calcularEstadisticas,
   calcularLimitesControl,

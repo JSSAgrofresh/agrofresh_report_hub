@@ -59,6 +59,19 @@ psql -U postgres -d tu_base -f migrations\0003_clientes_sucursales.sql
 Es un upsert por nombre — no toca ni duplica lo que ya exista, así que
 también es segura de repetir.
 
+Para soportar límites por especie y tipo de servicio (un mismo analito puede
+tener un límite distinto en Cereza que en Manzana-Actimist, por ejemplo), y
+para tener el catálogo real de Quiteca/AgroFresh cargado con los límites que
+ya conocemos, corre:
+
+```powershell
+psql -U postgres -d tu_base -f migrations\0004_analito_limites_por_especie_servicio.sql
+```
+
+Crea la tabla `analito_limite`, agrega `limite_cuantificacion` a `analito`, y
+siembra (upsert) los límites reales de "Línea de Proceso" y "Actimist". También
+es segura de repetir.
+
 ## Arrancar
 
 ```powershell

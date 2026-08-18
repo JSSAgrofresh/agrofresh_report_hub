@@ -126,6 +126,7 @@ class AnalitoIn(BaseModel):
     laboratorio: str
     unidad: str
     limite_deteccion: str | None = None
+    limite_cuantificacion: str | None = None
     matriz: str | None = None
     activo: bool = True
     limite_min: float | None = None
@@ -140,6 +141,7 @@ class AnalitoUpdate(BaseModel):
     laboratorio: str | None = None
     unidad: str | None = None
     limite_deteccion: str | None = None
+    limite_cuantificacion: str | None = None
     matriz: str | None = None
     activo: bool | None = None
     limite_min: float | None = None
@@ -149,7 +151,7 @@ class AnalitoUpdate(BaseModel):
 
 ANALITOS_QUERY = """
     SELECT id, codigo, nombre, categoria, laboratorio, unidad, limite_deteccion,
-           matriz, activo, limite_min, limite_central, limite_max
+           limite_cuantificacion, matriz, activo, limite_min, limite_central, limite_max
     FROM analito
     ORDER BY laboratorio, codigo
 """
@@ -165,7 +167,7 @@ def listar_analitos() -> list[dict[str, Any]]:
 
 RETURNING_COLS = (
     "id, codigo, nombre, categoria, laboratorio, unidad, limite_deteccion, "
-    "matriz, activo, limite_min, limite_central, limite_max"
+    "limite_cuantificacion, matriz, activo, limite_min, limite_central, limite_max"
 )
 
 
@@ -225,3 +227,96 @@ def eliminar_analito(analito_id: int) -> dict[str, Any]:
             if fila is None:
                 raise HTTPException(404, "Analito no encontrado.")
     return {"id": analito_id}
+
+
+# ---------------------------------------------------------------------------
+# Límites por analito, especie y tipo de servicio: un mismo analito puede tener
+# distintos límites según la fruta y el tipo de servicio (ej. FDL en Cereza vs.
+# FDL en Manzana-Actimist). especie="" / tipo_servicio="" es el comodín "aplica
+# a todo".
+# ---------------------------------------------------------------------------
+
+
+class LimiteAnalitoIn(BaseModel):
+    analito_id: int
+    especie: str = ""
+    tipo_servicio: str = ""
+    limite_min: float | None = None
+    limite_central: float | None = None
+    limite_max: float | None = None
+
+
+class LimiteAnalitoUpdate(BaseModel):
+    especie: str | None = None
+    tipo_servicio: str | None = None
+    limite_min: float | None = None
+    limite_central: float | None = None
+    limite_max: float | None = None
+
+
+LIMITES_RETURNING = "id, analito_id, especie, tipo_servicio, limite_min, limite_central, limite_max"
+
+
+@router.get("/limites")
+def listar_limites() -> list[dict[str, Any]]:
+    with conexion(escribir=False) as conn:
+        with cursor_dict(conn) as cur:
+            cur.execute(
+                f"SELECT {LIMITES_RETURNING} FROM analito_limite ORDER BY analito_id, tipo_servicio, especie"
+            )
+            return cur.fetchall()
+
+
+@router.post("/limites")
+def crear_limite(payload: LimiteAnalitoIn) -> dict[str, Any]:
+    with conexion(escribir=True) as conn:
+        with cursor_dict(conn) as cur:
+            try:
+                cur.execute(
+                    f"""
+                    INSERT INTO analito_limite (analito_id, especie, tipo_servicio, limite_min, limite_central, limite_max)
+                    VALUES (%(analito_id)s, %(especie)s, %(tipo_servicio)s, %(limite_min)s, %(limite_central)s, %(limite_max)s)
+                    ON CONFLICT (analito_id, especie, tipo_servicio)
+                    DO UPDATE SET limite_min = EXCLUDED.limite_min, limite_central = EXCLUDED.limite_central,
+                                  limite_max = EXCLUDED.limite_max, actualizado_en = now()
+                    RETURNING {LIMITES_RETURNING}
+                    """,
+                    payload.model_dump(),
+                )
+            except psycopg2.errors.ForeignKeyViolation as err:
+                raise HTTPException(404, "Analito no encontrado.") from err
+            return cur.fetchone()
+
+
+@router.put("/limites/{limite_id}")
+def actualizar_limite(limite_id: int, payload: LimiteAnalitoUpdate) -> dict[str, Any]:
+    cambios = payload.model_dump(exclude_unset=True)
+    if not cambios:
+        raise HTTPException(400, "No se enviaron campos para actualizar.")
+    set_clause = ", ".join(f"{campo} = %s" for campo in cambios) + ", actualizado_en = now()"
+    with conexion(escribir=True) as conn:
+        with cursor_dict(conn) as cur:
+            try:
+                cur.execute(
+                    f"UPDATE analito_limite SET {set_clause} WHERE id = %s RETURNING {LIMITES_RETURNING}",
+                    [*cambios.values(), limite_id],
+                )
+            except psycopg2.errors.UniqueViolation as err:
+                raise HTTPException(
+                    409, "Ya existe un límite para esa especie y tipo de servicio en este analito."
+                ) from err
+            fila = cur.fetchone()
+            if fila is None:
+                raise HTTPException(404, "Límite no encontrado.")
+            return fila
+
+
+@router.delete("/limites/{limite_id}")
+def eliminar_limite(limite_id: int) -> dict[str, Any]:
+    with conexion(escribir=True) as conn:
+        with cursor_dict(conn) as cur:
+            cur.execute("DELETE FROM analito_limite WHERE id = %s RETURNING id", (limite_id,))
+            fila = cur.fetchone()
+            if fila is None:
+                raise HTTPException(404, "Límite no encontrado.")
+            return {"id": limite_id}
