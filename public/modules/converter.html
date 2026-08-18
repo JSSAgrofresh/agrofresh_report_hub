@@ -449,7 +449,6 @@ function detectar(texto){
 
 /* ---------------- QUITECA ---------------- */
 function leerQuiteca(texto, inf){
-  // Fecha entrada: pendiente, no confirmada todavía en el formato real de Quiteca.
   const d = inf.datos;
   d["Laboratorio"] = "Quiteca";
   /* El identificador del informe (p.ej. "2026-1712-PC") es el "Informe N°" del
@@ -472,6 +471,7 @@ function leerQuiteca(texto, inf){
   d["Posición Muestreo"] = campo(texto, "Posición muestreo", "Análisis");
   d["Fecha Solicitud"] = aFecha(campo(texto, "Fecha solicitud"), inf.avisos);
   d["Fecha Muestreo"]  = aFecha(campo(texto, "Fecha de Muestreo", "Hora"), inf.avisos);
+  d["Fecha entrada"]   = aFecha(campo(texto, "Fecha de Recepción"), inf.avisos);
   d["Hora Muestreo"]   = aHora(campo(texto, "Hora"));
   d["Tipo Muestra"]    = "Fruta";
   d["Producto Utilizado"] = campo(texto, "Tratamiento", "Línea de Proceso");
