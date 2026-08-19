@@ -364,9 +364,9 @@ export function IngestView() {
                 )}
                 {previewBackend.resumen.pendientes_revision > 0 && (
                   <p className={styles.modalSub}>
-                    ⛔ <b>{previewBackend.resumen.pendientes_revision}</b> fila(s) traen un valor fuera del catálogo (cliente,
-                    sucursal, especie, etc. nunca visto antes) — no se van a crear directo, quedan en "Pendientes de revisión"
-                    dentro de DataCore para aprobarlas o corregirlas a mano.
+                    ⛔ <b>{previewBackend.resumen.pendientes_revision}</b> fila(s) traen un valor que parece typo o mayúsculas
+                    distintas de algo ya cargado (cliente, sucursal, especie, etc.) — no se van a crear directo, quedan en
+                    "Pendientes de revisión" dentro de DataCore para aprobarlas o corregirlas a mano.
                   </p>
                 )}
                 {previewBackend.advertencias.length > 0 && (

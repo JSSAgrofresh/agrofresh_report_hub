@@ -10,11 +10,13 @@ from .db import conexion, cursor_dict
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
-# Campos de solicitud que se comparan contra el catálogo real (valores ya
-# cargados, comparación exacta) antes de insertar una solicitud nueva. Un
-# valor que no calza EXACTO -mayúsculas distintas, typo, o simplemente nunca
-# visto antes- manda la fila entera a pendiente_revision en vez de crearla
-# directo. Reutiliza la misma lista de campos que audita DataCore.
+# Campos de solicitud que se comparan contra el catálogo real antes de
+# insertar una solicitud nueva. Reutiliza la misma lista de campos que
+# audita DataCore. Ojo: NO se exige calce exacto contra todo lo cargado
+# -eso bloquearía cualquier dato nuevo y legítimo (cliente recién onboarded,
+# especie que nunca se había cargado)-. Solo se manda a pendiente_revision
+# cuando el valor es una variante de mayúsculas/espacios de algo que YA
+# existe (probable error de tipeo); un valor genuinamente nuevo entra directo.
 CAMPOS_CATALOGO = [(campo, etiqueta) for _tabla, campo, etiqueta in CAMPOS_HOMOGENIZAR]
 
 
@@ -60,21 +62,37 @@ def _analito_id(cur, codigo: str, laboratorio: str | None) -> tuple[int | None, 
     return None, f"Analito {codigo} no está en el catálogo todavía, se guardó en analito_raw"
 
 
-def _cargar_catalogos(cur) -> dict[str, set[str]]:
+def _cargar_catalogos(cur) -> dict[str, dict[str, set[str]]]:
     """Valores ya existentes en solicitud para cada campo auditado -el
-    "catálogo real" contra el que se compara cada fila nueva-."""
-    catalogos: dict[str, set[str]] = {}
+    "catálogo real" contra el que se compara cada fila nueva-. Guarda tanto
+    los valores exactos como su forma normalizada (sin mayúsculas ni espacios
+    de más) para poder distinguir "es nuevo de verdad" de "es la misma
+    palabra pero mal tipeada"."""
+    catalogos: dict[str, dict[str, set[str]]] = {}
     for campo, _etiqueta in CAMPOS_CATALOGO:
         cur.execute(f"SELECT DISTINCT {campo} FROM solicitud WHERE {campo} IS NOT NULL")
-        catalogos[campo] = {r[campo] for r in cur.fetchall()}
+        valores = {r[campo] for r in cur.fetchall()}
+        catalogos[campo] = {
+            "exactos": valores,
+            "normalizados": {v.strip().lower() for v in valores},
+        }
     return catalogos
 
 
-def _fuera_de_catalogo(sol: dict[str, Any], catalogos: dict[str, set[str]]) -> list[dict[str, str]]:
+def _fuera_de_catalogo(sol: dict[str, Any], catalogos: dict[str, dict[str, set[str]]]) -> list[dict[str, str]]:
+    """Solo marca un valor si es variante de mayúsculas/espacios de algo que
+    YA existe (probable error de tipeo) — un valor genuinamente nuevo (que no
+    se parece a nada cargado antes, ni siquiera normalizado) entra directo,
+    sin pedir revisión: no es un error, es un dato nuevo legítimo."""
     motivos = []
     for campo, etiqueta in CAMPOS_CATALOGO:
         valor = sol.get(campo)
-        if valor and valor not in catalogos[campo]:
+        if not valor:
+            continue
+        cat = catalogos[campo]
+        if valor in cat["exactos"]:
+            continue
+        if valor.strip().lower() in cat["normalizados"]:
             motivos.append({"campo": campo, "etiqueta": etiqueta, "valor": valor})
     return motivos
 
