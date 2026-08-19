@@ -54,8 +54,15 @@ export interface Pendiente {
   creado_en: string
 }
 
-export function listarPendientes() {
-  return httpClient.get<Pendiente[]>('/ingest/pendientes')
+export interface PaginaPendientes {
+  filas: Pendiente[]
+  total: number
+  pagina: number
+  tamano: number
+}
+
+export function listarPendientes(pagina = 1, tamano = 50) {
+  return httpClient.get<PaginaPendientes>(`/ingest/pendientes?pagina=${pagina}&tamano=${tamano}`)
 }
 
 export function aprobarPendiente(id: number, correcciones?: Record<string, string>) {
@@ -64,4 +71,14 @@ export function aprobarPendiente(id: number, correcciones?: Record<string, strin
 
 export function descartarPendiente(id: number) {
   return httpClient.post<{ ok: boolean }>(`/ingest/pendientes/${id}/descartar`, {})
+}
+
+export function aprobarLotePendientes(ids?: number[]) {
+  return httpClient.post<{ aprobados: number; resumen: ResumenCarga }>('/ingest/pendientes/aprobar-lote', {
+    ids: ids ?? null,
+  })
+}
+
+export function descartarLotePendientes(ids?: number[]) {
+  return httpClient.post<{ descartados: number }>('/ingest/pendientes/descartar-lote', { ids: ids ?? null })
 }

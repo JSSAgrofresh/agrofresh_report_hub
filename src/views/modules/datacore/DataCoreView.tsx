@@ -28,7 +28,13 @@ import type {
   ResultadoAuditoria,
   ValoresColumna,
 } from '@/features/auditoria'
-import { aprobarPendiente, descartarPendiente, listarPendientes } from '@/features/ingest'
+import {
+  aprobarLotePendientes,
+  aprobarPendiente,
+  descartarLotePendientes,
+  descartarPendiente,
+  listarPendientes,
+} from '@/features/ingest'
 import type { Pendiente } from '@/features/ingest'
 import { HttpError } from '@/services/http/client'
 import { ErDiagrama } from './ErDiagrama'
@@ -36,6 +42,7 @@ import styles from './DataCoreView.module.css'
 
 type Vista = 'tabla' | 'modelo'
 const TAMANO_PAGINA = 30
+const TAMANO_PENDIENTES = 50
 
 // Espejo liviano de CAMPOS_AUDITABLES en el backend: solo para decidir qué
 // encabezados de columna son clicables en la Vista de tabla. El backend es
@@ -78,8 +85,11 @@ export function DataCoreView() {
   const [promoviendo, setPromoviendo] = useState(false)
 
   const [pendientes, setPendientes] = useState<Pendiente[]>([])
+  const [totalPendientes, setTotalPendientes] = useState(0)
+  const [paginaPendientes, setPaginaPendientes] = useState(1)
   const [pendienteAbierto, setPendienteAbierto] = useState<number | null>(null)
   const [procesandoPendiente, setProcesandoPendiente] = useState<number | null>(null)
+  const [procesandoLote, setProcesandoLote] = useState(false)
 
   const [columna, setColumna] = useState<{ tabla: string; campo: string } | null>(null)
   const [datosColumna, setDatosColumna] = useState<ValoresColumna | null>(null)
@@ -101,9 +111,13 @@ export function DataCoreView() {
     void cargarPendientes()
   }, [])
 
-  async function cargarPendientes() {
-    listarPendientes()
-      .then(setPendientes)
+  async function cargarPendientes(pagina = paginaPendientes) {
+    listarPendientes(pagina, TAMANO_PENDIENTES)
+      .then((r) => {
+        setPendientes(r.filas)
+        setTotalPendientes(r.total)
+        setPaginaPendientes(r.pagina)
+      })
       .catch(() => undefined)
   }
 
@@ -112,8 +126,8 @@ export function DataCoreView() {
     setError(null)
     try {
       await aprobarPendiente(id, correcciones)
-      setPendientes((prev) => prev.filter((p) => p.id !== id))
       setPendienteAbierto(null)
+      await cargarPendientes()
       await refrescarTablas()
     } catch (err) {
       setError(err instanceof HttpError ? err.message : 'No se pudo aprobar ese pendiente.')
@@ -128,12 +142,49 @@ export function DataCoreView() {
     setError(null)
     try {
       await descartarPendiente(id)
-      setPendientes((prev) => prev.filter((p) => p.id !== id))
       setPendienteAbierto(null)
+      await cargarPendientes()
     } catch (err) {
       setError(err instanceof HttpError ? err.message : 'No se pudo descartar ese pendiente.')
     } finally {
       setProcesandoPendiente(null)
+    }
+  }
+
+  async function aprobarTodos() {
+    if (
+      !confirm(
+        `¿Aprobar los ${totalPendientes.toLocaleString('es-CL')} pendientes tal cual están? Se cargan a la base de datos ` +
+          'con los valores que traen ahora, sin corregir nada a mano. Úsalo cuando sepas que son datos reales y correctos ' +
+          '-por ejemplo, justo después de partir el catálogo de cero-.',
+      )
+    )
+      return
+    setProcesandoLote(true)
+    setError(null)
+    try {
+      await aprobarLotePendientes()
+      await cargarPendientes(1)
+      await refrescarTablas()
+    } catch (err) {
+      setError(err instanceof HttpError ? err.message : 'No se pudo aprobar el lote.')
+    } finally {
+      setProcesandoLote(false)
+    }
+  }
+
+  async function descartarTodos() {
+    if (!confirm(`¿Descartar los ${totalPendientes.toLocaleString('es-CL')} pendientes? Ninguno se va a cargar a la base.`))
+      return
+    setProcesandoLote(true)
+    setError(null)
+    try {
+      await descartarLotePendientes()
+      await cargarPendientes(1)
+    } catch (err) {
+      setError(err instanceof HttpError ? err.message : 'No se pudo descartar el lote.')
+    } finally {
+      setProcesandoLote(false)
     }
   }
 
@@ -357,15 +408,24 @@ export function DataCoreView() {
         )}
       </Card>
 
-      {pendientes.length > 0 && (
+      {totalPendientes > 0 && (
         <Card className={styles.panelAudit}>
           <div className={styles.panelAuditCabecera}>
             <div>
-              <h3>Pendientes de revisión ({pendientes.length})</h3>
+              <h3>Pendientes de revisión ({totalPendientes.toLocaleString('es-CL')})</h3>
               <p className={styles.panelAuditNota}>
                 Ingest y Converter no cargan directo una fila que traiga un valor fuera del catálogo real (cliente,
-                sucursal, especie, etc. nunca visto antes). Apruébalas tal cual, corrígelas antes, o descártalas.
+                sucursal, especie, etc. nunca visto antes). Apruébalas tal cual, corrígelas antes, o descártalas —
+                o si sabes que todo el lote es real y correcto (ej. catálogo recién partido de cero), aprueba todo junto.
               </p>
+            </div>
+            <div className={styles.bannerAcciones}>
+              <Button variant="secondary" onClick={() => void descartarTodos()} disabled={procesandoLote}>
+                Descartar todos
+              </Button>
+              <Button onClick={() => void aprobarTodos()} disabled={procesandoLote}>
+                {procesandoLote ? 'Procesando…' : `Aprobar todos (${totalPendientes.toLocaleString('es-CL')})`}
+              </Button>
             </div>
           </div>
           <div className={styles.listaGrupos}>
@@ -381,6 +441,23 @@ export function DataCoreView() {
               />
             ))}
           </div>
+          {totalPendientes > TAMANO_PENDIENTES && (
+            <div className={styles.paginacion}>
+              <button disabled={paginaPendientes <= 1} onClick={() => void cargarPendientes(paginaPendientes - 1)}>
+                ← Anterior
+              </button>
+              <span>
+                Página {paginaPendientes} de {Math.max(1, Math.ceil(totalPendientes / TAMANO_PENDIENTES))} ·{' '}
+                {totalPendientes.toLocaleString('es-CL')} pendientes
+              </span>
+              <button
+                disabled={paginaPendientes >= Math.ceil(totalPendientes / TAMANO_PENDIENTES)}
+                onClick={() => void cargarPendientes(paginaPendientes + 1)}
+              >
+                Siguiente →
+              </button>
+            </div>
+          )}
         </Card>
       )}
 

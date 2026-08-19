@@ -250,6 +250,7 @@
 
 .filaGrupoVariantes {
   flex: 1;
+  min-width: 0;
   font-size: 12.5px;
   font-family: var(--font-mono);
   color: var(--color-text);

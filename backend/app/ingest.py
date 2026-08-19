@@ -1,7 +1,7 @@
 import json
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from . import mapeo
@@ -315,11 +315,35 @@ class AprobarPendienteIn(BaseModel):
     correcciones: dict[str, str] | None = None
 
 
+class LotePendientesIn(BaseModel):
+    # None = todos los pendientes actuales (no solo los de la página visible).
+    ids: list[int] | None = None
+
+
+RESUMEN_VACIO = {
+    "solicitudes_nuevas": 0,
+    "solicitudes_existentes": 0,
+    "clientes_nuevos": 0,
+    "plantas_nuevas": 0,
+    "productos_aplicados": 0,
+    "resultados": 0,
+    "filas_omitidas": 0,
+    "pendientes_revision": 0,
+}
+
+
 @router.get("/pendientes")
-def listar_pendientes() -> list[dict[str, Any]]:
+def listar_pendientes(pagina: int = Query(1, ge=1), tamano: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
+    offset = (pagina - 1) * tamano
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT id, origen, fila, motivos, creado_en FROM pendiente_revision ORDER BY id DESC")
-        return cur.fetchall()
+        cur.execute("SELECT count(*) AS total FROM pendiente_revision")
+        total = cur.fetchone()["total"]
+        cur.execute(
+            "SELECT id, origen, fila, motivos, creado_en FROM pendiente_revision ORDER BY id DESC LIMIT %s OFFSET %s",
+            (tamano, offset),
+        )
+        filas = cur.fetchall()
+    return {"filas": filas, "total": total, "pagina": pagina, "tamano": tamano}
 
 
 @router.post("/pendientes/{pendiente_id}/aprobar")
@@ -353,3 +377,50 @@ def descartar_pendiente(pendiente_id: int) -> dict[str, Any]:
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Ese pendiente ya no existe")
     return {"ok": True}
+
+
+@router.post("/pendientes/aprobar-lote")
+def aprobar_lote(payload: LotePendientesIn) -> dict[str, Any]:
+    """Aprueba muchos pendientes de una sola vez (típico después de una carga
+    masiva contra un catálogo recién partido de cero, donde todo queda
+    pendiente aunque sean datos reales y correctos). Sin ids = todos."""
+    with conexion(escribir=True) as conn:
+        with cursor_dict(conn) as cur:
+            if payload.ids is not None:
+                cur.execute(
+                    "SELECT id, origen, fila FROM pendiente_revision WHERE id = ANY(%s) ORDER BY id",
+                    (payload.ids,),
+                )
+            else:
+                cur.execute("SELECT id, origen, fila FROM pendiente_revision ORDER BY id")
+            pendientes = cur.fetchall()
+            if not pendientes:
+                return {"aprobados": 0, "resumen": dict(RESUMEN_VACIO)}
+
+            # _procesar_filas toma un solo origen por llamada: se agrupa por si
+            # el lote mezcla filas de ingest y converter.
+            por_origen: dict[str, list[dict[str, Any]]] = {}
+            for p in pendientes:
+                por_origen.setdefault(p["origen"], []).append(p["fila"])
+
+            resumen_total = dict(RESUMEN_VACIO)
+            for origen, filas in por_origen.items():
+                r = _procesar_filas(cur, filas, escribir=True, origen=origen, saltar_catalogo=True)
+                for k in resumen_total:
+                    resumen_total[k] += r["resumen"][k]
+
+            ids_aprobados = [p["id"] for p in pendientes]
+            cur.execute("DELETE FROM pendiente_revision WHERE id = ANY(%s)", (ids_aprobados,))
+
+    return {"aprobados": len(ids_aprobados), "resumen": resumen_total}
+
+
+@router.post("/pendientes/descartar-lote")
+def descartar_lote(payload: LotePendientesIn) -> dict[str, Any]:
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        if payload.ids is not None:
+            cur.execute("DELETE FROM pendiente_revision WHERE id = ANY(%s) RETURNING id", (payload.ids,))
+        else:
+            cur.execute("DELETE FROM pendiente_revision RETURNING id")
+        borrados = cur.fetchall()
+    return {"descartados": len(borrados)}
