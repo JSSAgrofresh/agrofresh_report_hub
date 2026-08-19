@@ -163,8 +163,13 @@ const FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-
 
 /** `clienteFijo`: usado por el portal de cliente — cuando viene seteado, los
  * datos ya llegan filtrados por el backend (nunca se filtran solo en el
- * navegador) y el filtro de Cliente ni siquiera se muestra. */
-export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
+ * navegador) y el filtro de Cliente ni siquiera se muestra.
+ * `onCropChange`: usado por el portal de cliente para cambiar la imagen de
+ * fondo del encabezado según la especie elegida en el filtro. */
+export function ReporteView({
+  clienteFijo,
+  onCropChange,
+}: { clienteFijo?: string; onCropChange?: (crop: string) => void } = {}) {
   const { user } = useAuth()
   const acento = areaDeModulo('reports')?.colorPrimario ?? '#6dad3c'
   const wrapStyle = { '--acento': acento } as CSSProperties
@@ -235,6 +240,10 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
     }
   }, [obtenerTodo])
   useActualizacionProgramada(() => void cargar())
+
+  useEffect(() => {
+    onCropChange?.(filtros.crop)
+  }, [filtros.crop, onCropChange])
 
   const esGestor = user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area'
 

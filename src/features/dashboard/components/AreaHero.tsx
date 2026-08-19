@@ -6,6 +6,8 @@ interface AreaHeroProps {
   area: AreaConfig
   titulo: string
   descripcion: string
+  /** Reemplaza el fondo del área (ej. Report cambiando la foto según la fruta filtrada). */
+  fondo?: string
 }
 
 /**
@@ -13,12 +15,12 @@ interface AreaHeroProps {
  * detrás de un degradado del color de marca, para que nunca compita con la
  * legibilidad del texto ni con las tarjetas que van debajo.
  */
-export function AreaHero({ area, titulo, descripcion }: AreaHeroProps) {
+export function AreaHero({ area, titulo, descripcion, fondo }: AreaHeroProps) {
   const oscuro = area.colorOscuro
   const estilo: CSSProperties = {
     backgroundImage: [
       `linear-gradient(100deg, ${oscuro}F0 0%, ${oscuro}CC 32%, ${oscuro}66 68%, ${oscuro}33 100%)`,
-      `url(${area.fondo})`,
+      `url(${fondo ?? area.fondo})`,
     ].join(', '),
   }
 
