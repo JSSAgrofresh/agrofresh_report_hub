@@ -9,6 +9,10 @@ import { ReporteView } from '@/views/modules/reports/ReporteView'
 export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario: Usuario }) {
   const config = AREAS[area]
   const cliente = usuario.clienteNombre ?? usuario.nombre
+  // Si la cuenta está acotada a una sucursal (Ship To) específica, el
+  // encabezado muestra esa sucursal -ej. "Dole Codegua"- en vez del Sold To
+  // completo, para que quede claro qué alcance tiene la cuenta.
+  const titulo = usuario.plantaNombre ?? cliente
   // Temporada de cereza: mientras no haya un filtro de especie activo (o la
   // fruta filtrada todavía no tenga foto propia), el fondo del encabezado
   // es el de cereza -se actualiza en vivo según lo que el cliente filtre en Report-.
@@ -18,13 +22,13 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
     <div>
       <AreaHero
         area={config}
-        titulo={cliente}
+        titulo={titulo}
         descripcion={`Portal de cliente · ${config.nombre}. Acceso exclusivo a tus datos.`}
         fondo={area === 'cromatografia' ? fondoParaEspecie(especieFiltrada, config.fondo) : undefined}
       />
 
       {area === 'cromatografia' ? (
-        <ReporteView clienteFijo={cliente} onCropChange={setEspecieFiltrada} />
+        <ReporteView clienteFijo={cliente} plantaFija={usuario.plantaNombre} onCropChange={setEspecieFiltrada} />
       ) : (
         <EstadoModulo
           etiqueta="Próximamente"

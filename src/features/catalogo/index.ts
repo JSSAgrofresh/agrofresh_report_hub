@@ -1,4 +1,5 @@
 export { useCatalogo } from './hooks/useCatalogo'
+export { listarClientes, listarPlantas } from './lib/api'
 export { ClienteForm } from './components/ClienteForm'
 export { PlantaForm } from './components/PlantaForm'
 export { ClientesTable } from './components/ClientesTable'

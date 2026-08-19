@@ -48,6 +48,11 @@
   color: var(--color-text-muted);
 }
 
+.planta {
+  color: var(--color-text-faint);
+  font-size: 12.5px;
+}
+
 .acciones {
   display: flex;
   gap: var(--space-2);

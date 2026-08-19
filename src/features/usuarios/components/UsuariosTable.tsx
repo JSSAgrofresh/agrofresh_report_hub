@@ -43,7 +43,10 @@ export function UsuariosTable({ usuarios, onEditar, onEliminar }: UsuariosTableP
                 <td>
                   <Badge tone={TONO[u.tipoAcceso]}>{etiquetaAcceso(u)}</Badge>
                 </td>
-                <td className={styles.cliente}>{u.clienteNombre ?? '—'}</td>
+                <td className={styles.cliente}>
+                  {u.clienteNombre ?? '—'}
+                  {u.plantaNombre && <span className={styles.planta}> · {u.plantaNombre}</span>}
+                </td>
                 <td className={styles.acciones}>
                   <button className={styles.boton} onClick={() => onEditar(u)}>
                     Editar

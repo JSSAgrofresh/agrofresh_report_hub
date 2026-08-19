@@ -1,8 +1,11 @@
 import { httpClient } from '@/services/http/client'
 import type { Analito, AnalitoInput, FilaReporte, LimiteAnalito, LimiteAnalitoInput } from './tipos'
 
-export function obtenerDatosReporte(cliente?: string) {
-  const query = cliente ? `?cliente=${encodeURIComponent(cliente)}` : ''
+export function obtenerDatosReporte(cliente?: string, planta?: string) {
+  const params = new URLSearchParams()
+  if (cliente) params.set('cliente', cliente)
+  if (planta) params.set('planta', planta)
+  const query = params.toString() ? `?${params.toString()}` : ''
   return httpClient.get<{ filas: FilaReporte[]; total: number; total_solicitudes: number }>(
     `/reportes/datos${query}`,
   )

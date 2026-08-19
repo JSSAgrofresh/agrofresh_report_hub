@@ -163,13 +163,16 @@ const FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-
 
 /** `clienteFijo`: usado por el portal de cliente — cuando viene seteado, los
  * datos ya llegan filtrados por el backend (nunca se filtran solo en el
- * navegador) y el filtro de Cliente ni siquiera se muestra.
+ * navegador) y los filtros de Cliente/Sucursal ni siquiera se muestran.
+ * `plantaFija`: opcional, solo tiene sentido junto con clienteFijo — cuentas
+ * creadas por Ship To (ej. "Dole Codegua") en vez de por Sold To completo.
  * `onCropChange`: usado por el portal de cliente para cambiar la imagen de
  * fondo del encabezado según la especie elegida en el filtro. */
 export function ReporteView({
   clienteFijo,
+  plantaFija,
   onCropChange,
-}: { clienteFijo?: string; onCropChange?: (crop: string) => void } = {}) {
+}: { clienteFijo?: string; plantaFija?: string; onCropChange?: (crop: string) => void } = {}) {
   const { user } = useAuth()
   const acento = areaDeModulo('reports')?.colorPrimario ?? '#6dad3c'
   const wrapStyle = { '--acento': acento } as CSSProperties
@@ -190,12 +193,12 @@ export function ReporteView({
 
   const obtenerTodo = useCallback(async () => {
     const [datos, catalogo, limitesCatalogo] = await Promise.all([
-      obtenerDatosReporte(clienteFijo),
+      obtenerDatosReporte(clienteFijo, plantaFija),
       listarAnalitos(),
       listarLimites(),
     ])
     return { filas: datos.filas, totalSolicitudes: datos.total_solicitudes, analitos: catalogo, limites: limitesCatalogo }
-  }, [clienteFijo])
+  }, [clienteFijo, plantaFija])
 
   function aplicarExito(r: { filas: FilaReporte[]; totalSolicitudes: number; analitos: Analito[]; limites: LimiteAnalito[] }) {
     setFilas(r.filas)

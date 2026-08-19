@@ -67,11 +67,23 @@ def datos(
     cliente: str | None = Query(
         None, description="Si se pasa, solo trae los datos de este cliente (portal de cliente)."
     ),
+    planta: str | None = Query(
+        None,
+        description="Si se pasa (junto con cliente), acota además a esta sucursal — cuentas "
+        "de cliente creadas por Ship To, en vez de por Sold To completo.",
+    ),
 ) -> dict[str, Any]:
-    # El filtro por cliente se aplica siempre en el SQL, nunca en el navegador: para el
-    # portal de cliente, los datos de otros clientes no deben salir jamás del servidor.
-    filtro_cliente = "AND COALESCE(c.nombre, s.sold_to_raw) = %(cliente)s" if cliente else ""
-    params = {"cliente": cliente} if cliente else {}
+    # El filtro se aplica siempre en el SQL, nunca en el navegador: para el portal de
+    # cliente, los datos de otros clientes/sucursales no deben salir jamás del servidor.
+    condiciones = []
+    params: dict[str, str] = {}
+    if cliente:
+        condiciones.append("COALESCE(c.nombre, s.sold_to_raw) = %(cliente)s")
+        params["cliente"] = cliente
+    if planta:
+        condiciones.append("COALESCE(p.nombre, s.ship_to_raw) = %(planta)s")
+        params["planta"] = planta
+    filtro_cliente = ("AND " + " AND ".join(condiciones)) if condiciones else ""
     with conexion(escribir=False) as conn:
         with cursor_dict(conn) as cur:
             cur.execute(DATOS_QUERY.format(filtro_cliente=filtro_cliente), params)
