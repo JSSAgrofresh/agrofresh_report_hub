@@ -11,6 +11,7 @@ import {
   IconDatabase,
   IconDataCore,
   IconIngest,
+  IconListados,
   IconLogout,
   IconPanel,
   IconReports,
@@ -102,6 +103,14 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
               >
                 <IconUsers className={styles.navIcono} />
                 Usuarios
+              </NavLink>
+              <NavLink
+                to={ROUTES.adminListados}
+                onClick={onCerrar}
+                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                <IconListados className={styles.navIcono} />
+                Listados
               </NavLink>
             </>
           )}

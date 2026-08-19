@@ -159,3 +159,12 @@ export function IconUsers(props: IconProps) {
     </svg>
   )
 }
+
+export function IconListados(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 6h2M4 12h2M4 18h2" />
+      <path d="M9 6h11M9 12h11M9 18h11" />
+    </svg>
+  )
+}

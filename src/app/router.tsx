@@ -10,6 +10,7 @@ import { IngestView } from '@/views/modules/ingest/IngestView'
 import { ReporteView } from '@/views/modules/reports/ReporteView'
 import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { UsuariosView } from '@/views/admin/UsuariosView'
+import { ListadosView } from '@/views/admin/ListadosView'
 import { NotFoundView } from '@/views/not-found/NotFoundView'
 
 export const router = createBrowserRouter([
@@ -43,7 +44,10 @@ export const router = createBrowserRouter([
           },
           {
             element: <RequireAdminGeneral />,
-            children: [{ path: ROUTES.adminUsuarios, element: <UsuariosView /> }],
+            children: [
+              { path: ROUTES.adminUsuarios, element: <UsuariosView /> },
+              { path: ROUTES.adminListados, element: <ListadosView /> },
+            ],
           },
           { path: '*', element: <NotFoundView /> },
         ],

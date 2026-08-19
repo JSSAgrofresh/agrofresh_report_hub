@@ -7,4 +7,5 @@ export const ROUTES = {
   ingest: '/modulos/ingest',
   reports: '/modulos/reportes',
   adminUsuarios: '/admin/usuarios',
+  adminListados: '/admin/listados',
 } as const
