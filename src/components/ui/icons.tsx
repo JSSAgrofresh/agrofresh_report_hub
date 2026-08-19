@@ -168,3 +168,13 @@ export function IconListados(props: IconProps) {
     </svg>
   )
 }
+
+export function IconStorage(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 4h16v16H4z" />
+      <path d="M4 10h16" />
+      <path d="M12 14v4M9.5 16.5 12 14l2.5 2.5" />
+    </svg>
+  )
+}

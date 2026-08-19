@@ -6,6 +6,7 @@ export const ROUTES = {
   converter: '/modulos/convertidor',
   ingest: '/modulos/ingest',
   reports: '/modulos/reportes',
+  storage: '/modulos/storage',
   adminUsuarios: '/admin/usuarios',
   adminListados: '/admin/listados',
 } as const

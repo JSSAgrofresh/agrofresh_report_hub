@@ -46,4 +46,11 @@ export const MODULOS: ModuloInfo[] = [
     ruta: ROUTES.reports,
     estado: 'disponible',
   },
+  {
+    id: 'storage',
+    nombre: 'Storage',
+    descripcion: 'Archivos guardados en el servidor: arrastra y suelta para subirlos.',
+    ruta: ROUTES.storage,
+    estado: 'disponible',
+  },
 ]

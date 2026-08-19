@@ -9,6 +9,7 @@ import { ConverterView } from '@/views/modules/converter/ConverterView'
 import { IngestView } from '@/views/modules/ingest/IngestView'
 import { ReporteView } from '@/views/modules/reports/ReporteView'
 import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
+import { StorageView } from '@/views/modules/storage/StorageView'
 import { UsuariosView } from '@/views/admin/UsuariosView'
 import { ListadosView } from '@/views/admin/ListadosView'
 import { NotFoundView } from '@/views/not-found/NotFoundView'
@@ -41,6 +42,10 @@ export const router = createBrowserRouter([
           {
             element: <RequireModulo moduloId="datacore" />,
             children: [{ path: ROUTES.datacore, element: <DataCoreView /> }],
+          },
+          {
+            element: <RequireModulo moduloId="storage" />,
+            children: [{ path: ROUTES.storage, element: <StorageView /> }],
           },
           {
             element: <RequireAdminGeneral />,

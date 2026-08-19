@@ -18,6 +18,10 @@ coverage
 .env.*
 !.env.example
 
+# Archivos subidos al módulo Storage (carpeta local de desarrollo; en el
+# servidor real usan STORAGE_DIR apuntando fuera del repo)
+backend/storage/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

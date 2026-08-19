@@ -11,3 +11,8 @@ DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
+
+# Carpeta donde el módulo Storage guarda los archivos subidos. En el servidor de
+# AgroFresh es una ruta fija de Windows (ver backend/.env); si no se configura,
+# cae a una carpeta "storage" junto al backend (útil para desarrollo).
+STORAGE_DIR = os.getenv("STORAGE_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage"))

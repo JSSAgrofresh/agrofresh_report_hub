@@ -15,6 +15,7 @@ import {
   IconLogout,
   IconPanel,
   IconReports,
+  IconStorage,
   IconTrace,
   IconUser,
   IconUsers,
@@ -32,6 +33,7 @@ const ICONO_MODULO: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   converter: IconConverter,
   ingest: IconIngest,
   reports: IconReports,
+  storage: IconStorage,
 }
 
 interface SidebarProps {

@@ -34,4 +34,14 @@ export const httpClient = {
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  /** Para subir archivos (FormData): sin Content-Type fijo, el navegador pone
+   * el boundary del multipart solo. */
+  upload: <T>(path: string, formData: FormData) => {
+    async function ejecutar(): Promise<T> {
+      const response = await fetch(`${API_BASE_URL}${path}`, { method: 'POST', body: formData })
+      if (!response.ok) throw new HttpError(response.status, `Request failed: ${response.status} ${path}`)
+      return (await response.json()) as T
+    }
+    return ejecutar()
+  },
 }
