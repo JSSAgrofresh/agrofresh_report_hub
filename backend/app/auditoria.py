@@ -56,6 +56,7 @@ TABLAS: dict[str, list[str]] = {
 ORDEN_TABLAS_CLON = [
     "cliente", "analito", "planta", "solicitud", "resultado",
     "producto_aplicado", "analito_limite", "equipo_accutab", "lectura_accutab",
+    "pendiente_revision",
 ]
 FKS_CLON = [
     ("planta", "cliente_id", "cliente", "id", "RESTRICT"),
