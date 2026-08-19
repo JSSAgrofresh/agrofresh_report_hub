@@ -5,8 +5,9 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { IconArchivoPlano } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
-import { listar } from '@/features/storage'
+import { crearCarpeta, listar } from '@/features/storage'
 import type { EntradaStorage } from '@/features/storage'
+import { HttpError } from '@/services/http/client'
 import { descargarExcelCruce, parsearGC } from '@/features/emitir'
 import type { FilaCruce, MuestraGC } from '@/features/emitir'
 import styles from './CromatografiaEmitirView.module.css'
@@ -21,6 +22,8 @@ function extraerCodigo(nombreArchivo: string): string | null {
 export function CromatografiaEmitirView() {
   const [solicitudes, setSolicitudes] = useState<EntradaStorage[] | null>(null)
   const [errorSolicitudes, setErrorSolicitudes] = useState<string | null>(null)
+  const [carpetaNoExiste, setCarpetaNoExiste] = useState(false)
+  const [creandoCarpeta, setCreandoCarpeta] = useState(false)
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
 
   const [muestrasGC, setMuestrasGC] = useState<MuestraGC[] | null>(null)
@@ -37,14 +40,33 @@ export function CromatografiaEmitirView() {
       const resultado = await listar(CARPETA_SOLICITUDES)
       setSolicitudes(resultado.entradas.filter((e) => e.tipo === 'archivo'))
       setErrorSolicitudes(null)
-    } catch {
-      setErrorSolicitudes('No se pudo conectar con el backend.')
+      setCarpetaNoExiste(false)
+    } catch (e) {
+      if (e instanceof HttpError && e.status === 404) {
+        setCarpetaNoExiste(true)
+        setErrorSolicitudes(null)
+        setSolicitudes([])
+      } else {
+        setErrorSolicitudes('No se pudo conectar con el backend.')
+      }
     }
   }, [])
 
   useEffect(() => {
     refrescarSolicitudes()
   }, [refrescarSolicitudes])
+
+  async function crearCarpetaSolicitudes() {
+    setCreandoCarpeta(true)
+    try {
+      await crearCarpeta('', CARPETA_SOLICITUDES)
+      await refrescarSolicitudes()
+    } catch {
+      setErrorSolicitudes('No se pudo crear la carpeta.')
+    } finally {
+      setCreandoCarpeta(false)
+    }
+  }
 
   function alternarSeleccion(ruta: string) {
     setSeleccionadas((prev) => {
@@ -150,7 +172,16 @@ export function CromatografiaEmitirView() {
             Archivos en Storage / {CARPETA_SOLICITUDES}. Haz clic para seleccionar los que vas a cruzar.
           </p>
           {errorSolicitudes && <p className={styles.error}>{errorSolicitudes}</p>}
-          {solicitudes === null ? (
+          {carpetaNoExiste ? (
+            <div className={styles.avisoCarpeta}>
+              <p>
+                Todavía no existe la carpeta "{CARPETA_SOLICITUDES}" en Storage.
+              </p>
+              <Button variant="secondary" onClick={crearCarpetaSolicitudes} disabled={creandoCarpeta}>
+                {creandoCarpeta ? 'Creando…' : 'Crear carpeta'}
+              </Button>
+            </div>
+          ) : solicitudes === null ? (
             <p className={styles.estado}>Cargando…</p>
           ) : solicitudes.length === 0 ? (
             <p className={styles.estado}>
