@@ -1,2 +1,2 @@
-export { listarArchivos, subirArchivos, eliminarArchivo, urlDescarga } from './lib/api'
-export type { ArchivoStorage } from './lib/tipos'
+export { listar, crearCarpeta, subirArchivos, renombrar, mover, eliminar, urlDescarga } from './lib/api'
+export type { EntradaStorage, ListadoStorage, TipoEntradaStorage } from './lib/tipos'

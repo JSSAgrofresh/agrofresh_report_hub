@@ -1,5 +1,14 @@
-export interface ArchivoStorage {
+export type TipoEntradaStorage = 'carpeta' | 'archivo'
+
+export interface EntradaStorage {
   nombre: string
-  tamano_bytes: number
+  ruta: string
+  tipo: TipoEntradaStorage
+  tamano_bytes: number | null
   modificado: string
+}
+
+export interface ListadoStorage {
+  ruta: string
+  entradas: EntradaStorage[]
 }

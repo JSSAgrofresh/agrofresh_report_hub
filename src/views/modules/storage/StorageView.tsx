@@ -2,29 +2,35 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
+import { IconCarpeta, IconArchivoPlano } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { formatDateTimeCL } from '@/lib/locale'
-import { eliminarArchivo, listarArchivos, subirArchivos, urlDescarga } from '@/features/storage'
-import type { ArchivoStorage } from '@/features/storage'
+import { crearCarpeta, eliminar, listar, mover, renombrar, subirArchivos, urlDescarga } from '@/features/storage'
+import type { EntradaStorage } from '@/features/storage'
 import styles from './StorageView.module.css'
 
-function formatoTamano(bytes: number): string {
+const TIPO_MOVER = 'application/x-storage-ruta'
+
+function formatoTamano(bytes: number | null): string {
+  if (bytes === null) return '—'
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 export function StorageView() {
-  const [archivos, setArchivos] = useState<ArchivoStorage[] | null>(null)
+  const [rutaActual, setRutaActual] = useState('')
+  const [entradas, setEntradas] = useState<EntradaStorage[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [subiendo, setSubiendo] = useState(false)
-  const [arrastrando, setArrastrando] = useState(false)
+  const [ocupado, setOcupado] = useState(false)
+  const [arrastrandoArchivos, setArrastrandoArchivos] = useState(false)
+  const [carpetaSobrevolada, setCarpetaSobrevolada] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const refrescar = useCallback(async () => {
+  const refrescar = useCallback(async (ruta: string) => {
     try {
-      setArchivos(await listarArchivos())
+      const resultado = await listar(ruta)
+      setEntradas(resultado.entradas)
       setError(null)
     } catch {
       setError('No se pudo conectar con el backend.')
@@ -32,56 +38,153 @@ export function StorageView() {
   }, [])
 
   useEffect(() => {
-    refrescar()
-  }, [refrescar])
+    setEntradas(null)
+    refrescar(rutaActual)
+  }, [rutaActual, refrescar])
 
   async function subir(lista: FileList | File[]) {
     const archivosArray = Array.from(lista)
     if (archivosArray.length === 0) return
-    setSubiendo(true)
+    setOcupado(true)
     setError(null)
     try {
-      await subirArchivos(archivosArray)
-      await refrescar()
+      await subirArchivos(rutaActual, archivosArray)
+      await refrescar(rutaActual)
     } catch {
       setError('No se pudo subir el archivo. Revisa que el backend esté corriendo.')
     } finally {
-      setSubiendo(false)
+      setOcupado(false)
     }
   }
 
-  async function eliminar(nombre: string) {
-    if (!confirm(`¿Eliminar "${nombre}"? Esto lo borra de la carpeta Storage del servidor.`)) return
+  async function crear() {
+    const nombre = prompt('Nombre de la nueva carpeta:')
+    if (!nombre || !nombre.trim()) return
+    setError(null)
     try {
-      await eliminarArchivo(nombre)
-      await refrescar()
+      await crearCarpeta(rutaActual, nombre.trim())
+      await refrescar(rutaActual)
     } catch {
-      setError('No se pudo eliminar el archivo.')
+      setError('No se pudo crear la carpeta.')
     }
   }
 
-  function onDrop(e: DragEvent<HTMLDivElement>) {
+  async function renombrarEntrada(entrada: EntradaStorage) {
+    const nombreNuevo = prompt(`Nuevo nombre para "${entrada.nombre}":`, entrada.nombre)
+    if (!nombreNuevo || !nombreNuevo.trim() || nombreNuevo.trim() === entrada.nombre) return
+    setError(null)
+    try {
+      await renombrar(entrada.ruta, nombreNuevo.trim())
+      await refrescar(rutaActual)
+    } catch {
+      setError('No se pudo renombrar (¿ya existe algo con ese nombre?).')
+    }
+  }
+
+  async function eliminarEntrada(entrada: EntradaStorage) {
+    const aviso =
+      entrada.tipo === 'carpeta'
+        ? `¿Eliminar la carpeta "${entrada.nombre}" y todo su contenido?`
+        : `¿Eliminar "${entrada.nombre}"?`
+    if (!confirm(aviso)) return
+    setError(null)
+    try {
+      await eliminar(entrada.ruta)
+      await refrescar(rutaActual)
+    } catch {
+      setError('No se pudo eliminar.')
+    }
+  }
+
+  async function moverEntrada(rutaOrigen: string, rutaDestino: string) {
+    setError(null)
+    try {
+      await mover(rutaOrigen, rutaDestino)
+      await refrescar(rutaActual)
+    } catch {
+      setError('No se pudo mover (¿ya existe algo con ese nombre en esa carpeta?).')
+    }
+  }
+
+  function onDropZona(e: DragEvent<HTMLDivElement>) {
     e.preventDefault()
-    setArrastrando(false)
+    setArrastrandoArchivos(false)
+    if (e.dataTransfer.types.includes(TIPO_MOVER)) {
+      const rutaOrigen = e.dataTransfer.getData(TIPO_MOVER)
+      if (rutaOrigen) moverEntrada(rutaOrigen, rutaActual)
+      return
+    }
     subir(e.dataTransfer.files)
   }
+
+  function onDropCarpeta(e: DragEvent<HTMLTableRowElement>, carpeta: EntradaStorage) {
+    e.preventDefault()
+    e.stopPropagation()
+    setCarpetaSobrevolada(null)
+    const rutaOrigen = e.dataTransfer.getData(TIPO_MOVER)
+    if (rutaOrigen && rutaOrigen !== carpeta.ruta) moverEntrada(rutaOrigen, carpeta.ruta)
+  }
+
+  const migas = rutaActual ? rutaActual.split('/') : []
 
   return (
     <div>
       <Header
         title="Storage"
-        description="Archivos guardados en el servidor de AgroFresh. Arrastra un archivo para subirlo."
+        description="Archivos y carpetas guardados en el servidor de AgroFresh."
       />
 
       <Card>
+        <div className={styles.barraSuperior}>
+          <nav className={styles.migas}>
+            <button
+              type="button"
+              onClick={() => setRutaActual('')}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault()
+                const rutaOrigen = e.dataTransfer.getData(TIPO_MOVER)
+                if (rutaOrigen) moverEntrada(rutaOrigen, '')
+              }}
+              className={cn(!rutaActual && styles.migaActiva)}
+            >
+              Storage
+            </button>
+            {migas.map((nombre, i) => {
+              const ruta = migas.slice(0, i + 1).join('/')
+              return (
+                <span key={ruta} className={styles.migaGrupo}>
+                  <span className={styles.migaSeparador}>/</span>
+                  <button
+                    type="button"
+                    onClick={() => setRutaActual(ruta)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      const rutaOrigen = e.dataTransfer.getData(TIPO_MOVER)
+                      if (rutaOrigen) moverEntrada(rutaOrigen, ruta)
+                    }}
+                    className={cn(i === migas.length - 1 && styles.migaActiva)}
+                  >
+                    {nombre}
+                  </button>
+                </span>
+              )
+            })}
+          </nav>
+          <button type="button" className={styles.botonCarpeta} onClick={crear}>
+            + Nueva carpeta
+          </button>
+        </div>
+
         <div
-          className={cn(styles.zona, arrastrando && styles.zonaActiva)}
+          className={cn(styles.zona, arrastrandoArchivos && styles.zonaActiva)}
           onDragOver={(e) => {
             e.preventDefault()
-            setArrastrando(true)
+            setArrastrandoArchivos(true)
           }}
-          onDragLeave={() => setArrastrando(false)}
-          onDrop={onDrop}
+          onDragLeave={() => setArrastrandoArchivos(false)}
+          onDrop={onDropZona}
           onClick={() => inputRef.current?.click()}
         >
           <input
@@ -92,38 +195,68 @@ export function StorageView() {
             onChange={(e) => e.target.files && subir(e.target.files)}
           />
           <p className={styles.zonaTexto}>
-            {subiendo ? 'Subiendo…' : 'Arrastra archivos aquí, o haz clic para elegirlos'}
+            {ocupado ? 'Subiendo…' : 'Arrastra archivos aquí, o haz clic para elegirlos'}
           </p>
         </div>
 
         {error && <p className={styles.error}>{error}</p>}
 
-        {archivos === null ? (
+        {entradas === null ? (
           <p className={styles.estado}>Cargando…</p>
-        ) : archivos.length === 0 ? (
-          <p className={styles.estado}>Todavía no hay archivos.</p>
+        ) : entradas.length === 0 ? (
+          <p className={styles.estado}>Esta carpeta está vacía.</p>
         ) : (
           <div className={styles.tablaCaja}>
             <table className={styles.tabla}>
               <thead>
                 <tr>
-                  <th>Archivo</th>
+                  <th>Nombre</th>
                   <th>Tamaño</th>
                   <th>Modificado</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {archivos.map((a) => (
-                  <tr key={a.nombre}>
-                    <td className={styles.nombre}>{a.nombre}</td>
-                    <td className={styles.mono}>{formatoTamano(a.tamano_bytes)}</td>
-                    <td className={styles.mono}>{formatDateTimeCL(a.modificado)}</td>
+                {entradas.map((e) => (
+                  <tr
+                    key={e.ruta}
+                    draggable
+                    onDragStart={(ev) => ev.dataTransfer.setData(TIPO_MOVER, e.ruta)}
+                    onDragOver={(ev) => {
+                      if (e.tipo === 'carpeta') {
+                        ev.preventDefault()
+                        setCarpetaSobrevolada(e.ruta)
+                      }
+                    }}
+                    onDragLeave={() => setCarpetaSobrevolada((c) => (c === e.ruta ? null : c))}
+                    onDrop={(ev) => e.tipo === 'carpeta' && onDropCarpeta(ev, e)}
+                    className={cn(carpetaSobrevolada === e.ruta && styles.filaSobrevolada)}
+                  >
+                    <td className={styles.nombre}>
+                      {e.tipo === 'carpeta' ? (
+                        <button type="button" className={styles.nombreCarpeta} onClick={() => setRutaActual(e.ruta)}>
+                          <IconCarpeta className={styles.icono} />
+                          {e.nombre}
+                        </button>
+                      ) : (
+                        <span className={styles.nombreArchivo}>
+                          <IconArchivoPlano className={styles.icono} />
+                          {e.nombre}
+                        </span>
+                      )}
+                    </td>
+                    <td className={styles.mono}>{formatoTamano(e.tamano_bytes)}</td>
+                    <td className={styles.mono}>{formatDateTimeCL(e.modificado)}</td>
                     <td className={styles.acciones}>
-                      <a className={styles.boton} href={urlDescarga(a.nombre)} target="_blank" rel="noreferrer">
-                        Descargar
-                      </a>
-                      <button className={styles.botonEliminar} onClick={() => eliminar(a.nombre)}>
+                      {e.tipo === 'archivo' && (
+                        <a className={styles.boton} href={urlDescarga(e.ruta)} target="_blank" rel="noreferrer">
+                          Descargar
+                        </a>
+                      )}
+                      <button className={styles.boton} onClick={() => renombrarEntrada(e)}>
+                        Renombrar
+                      </button>
+                      <button className={styles.botonEliminar} onClick={() => eliminarEntrada(e)}>
                         Eliminar
                       </button>
                     </td>
@@ -133,6 +266,7 @@ export function StorageView() {
             </table>
           </div>
         )}
+        <p className={styles.ayuda}>Puedes arrastrar un archivo o carpeta hacia otra carpeta de la lista para moverlo, o hacia las migas de arriba.</p>
       </Card>
     </div>
   )
