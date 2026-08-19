@@ -187,6 +187,24 @@ export function IconCarpeta(props: IconProps) {
   )
 }
 
+export function IconFrasco(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M10 3h4M10.5 3v5.5L5.5 18a1.5 1.5 0 0 0 1.3 2.2h10.4a1.5 1.5 0 0 0 1.3-2.2L13.5 8.5V3" />
+      <path d="M8 15.5h8" />
+    </svg>
+  )
+}
+
+export function IconEmitir(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 20V6M6 12l6-6 6 6" />
+      <path d="M5 20h14" />
+    </svg>
+  )
+}
+
 export function IconArchivoPlano(props: IconProps) {
   return (
     <svg {...base} {...props}>

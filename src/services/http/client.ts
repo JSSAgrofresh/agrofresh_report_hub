@@ -44,4 +44,14 @@ export const httpClient = {
     }
     return ejecutar()
   },
+  /** Para endpoints que devuelven un archivo (ej. un Excel generado) en vez de JSON. */
+  postArchivo: async (path: string, body: unknown): Promise<Blob> => {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!response.ok) throw new HttpError(response.status, `Request failed: ${response.status} ${path}`)
+    return response.blob()
+  },
 }

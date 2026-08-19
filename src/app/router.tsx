@@ -8,6 +8,10 @@ import { TraceView } from '@/views/modules/trace/TraceView'
 import { ConverterView } from '@/views/modules/converter/ConverterView'
 import { IngestView } from '@/views/modules/ingest/IngestView'
 import { ReporteView } from '@/views/modules/reports/ReporteView'
+import { ReportesHubView } from '@/views/modules/reports/ReportesHubView'
+import { PostVentaView } from '@/views/modules/reports/PostVentaView'
+import { EmitirReporteHubView } from '@/views/modules/reports/EmitirReporteHubView'
+import { CromatografiaEmitirView } from '@/views/modules/reports/cromatografia/CromatografiaEmitirView'
 import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { StorageView } from '@/views/modules/storage/StorageView'
 import { UsuariosView } from '@/views/admin/UsuariosView'
@@ -37,7 +41,13 @@ export const router = createBrowserRouter([
           },
           {
             element: <RequireModulo moduloId="reports" />,
-            children: [{ path: ROUTES.reports, element: <ReporteView /> }],
+            children: [
+              { path: ROUTES.reports, element: <ReportesHubView /> },
+              { path: ROUTES.reportsLaboratorio, element: <ReporteView /> },
+              { path: ROUTES.reportsPostVenta, element: <PostVentaView /> },
+              { path: ROUTES.reportsEmitir, element: <EmitirReporteHubView /> },
+              { path: ROUTES.reportsEmitirCromatografia, element: <CromatografiaEmitirView /> },
+            ],
           },
           {
             element: <RequireModulo moduloId="datacore" />,
