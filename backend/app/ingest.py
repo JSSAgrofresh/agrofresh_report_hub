@@ -62,16 +62,29 @@ def _analito_id(cur, codigo: str, laboratorio: str | None) -> tuple[int | None, 
     return None, f"Analito {codigo} no está en el catálogo todavía, se guardó en analito_raw"
 
 
+# sold_to_raw/ship_to_raw no se comparan contra lo que ya hay cargado en
+# solicitud (eso solo detecta variantes de algo subido antes): se comparan
+# contra el catálogo oficial de Sold To / Ship To (tablas cliente/planta,
+# ver catalogo.py y migración 0007), que es la fuente de verdad real.
+_TABLA_CATALOGO_OFICIAL = {"sold_to_raw": "cliente", "ship_to_raw": "planta"}
+
+
 def _cargar_catalogos(cur) -> dict[str, dict[str, set[str]]]:
-    """Valores ya existentes en solicitud para cada campo auditado -el
-    "catálogo real" contra el que se compara cada fila nueva-. Guarda tanto
-    los valores exactos como su forma normalizada (sin mayúsculas ni espacios
-    de más) para poder distinguir "es nuevo de verdad" de "es la misma
-    palabra pero mal tipeada"."""
+    """Valores contra los que se compara cada fila nueva -el "catálogo real"-.
+    Para sold_to_raw/ship_to_raw es el catálogo oficial (cliente/planta); para
+    el resto son los valores ya existentes en solicitud. Guarda tanto los
+    valores exactos como su forma normalizada (sin mayúsculas ni espacios de
+    más) para poder distinguir "es nuevo de verdad" de "es la misma palabra
+    pero mal tipeada"."""
     catalogos: dict[str, dict[str, set[str]]] = {}
     for campo, _etiqueta in CAMPOS_CATALOGO:
-        cur.execute(f"SELECT DISTINCT {campo} FROM solicitud WHERE {campo} IS NOT NULL")
-        valores = {r[campo] for r in cur.fetchall()}
+        tabla_oficial = _TABLA_CATALOGO_OFICIAL.get(campo)
+        if tabla_oficial:
+            cur.execute(f"SELECT nombre FROM {tabla_oficial} WHERE activo")
+            valores = {r["nombre"] for r in cur.fetchall()}
+        else:
+            cur.execute(f"SELECT DISTINCT {campo} FROM solicitud WHERE {campo} IS NOT NULL")
+            valores = {r[campo] for r in cur.fetchall()}
         catalogos[campo] = {
             "exactos": valores,
             "normalizados": {v.strip().lower() for v in valores},
