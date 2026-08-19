@@ -283,12 +283,14 @@ export function ReporteView({
       plantas: unique(
         (filas ?? []).filter((f) => !filtros.cliente || f.cliente === filtros.cliente).map((f) => f.planta),
       ),
-      tiposAplicacion: unique((filas ?? []).map((f) => f.tipo_aplicacion)),
+      tiposAplicacion: uniqueCanonico((filas ?? []).map((f) => f.tipo_aplicacion)).map(capitalizarPrimeraLetra),
       // Homogenización pendiente en la carga (dato pasa tal cual del Excel): acá se
       // agrupa sin importar mayúsculas/minúsculas para que el filtro no repita el
-      // mismo valor dos veces por un tema de casing (ej. "cromatografía" y "Cromatografía").
-      tiposServicio: uniqueCanonico((filas ?? []).map((f) => f.tipo_servicio)),
-      laboratorios: unique((filas ?? []).map((f) => f.laboratorio)),
+      // mismo valor dos veces por un tema de casing (ej. "cromatografía" y "Cromatografía"),
+      // y siempre se muestra con primera letra mayúscula y el resto en minúscula
+      // -homogenización solo visual, el dato real cargado no se toca-.
+      tiposServicio: uniqueCanonico((filas ?? []).map((f) => f.tipo_servicio)).map(capitalizarPrimeraLetra),
+      laboratorios: uniqueCanonico((filas ?? []).map((f) => f.laboratorio)).map(capitalizarPrimeraLetra),
       crops: uniqueCanonico((filas ?? []).map((f) => f.especie)).map(capitalizarPrimeraLetra),
       semanas: unique((filas ?? []).map((f) => f.semana_muestreo)),
       meses: unique((filas ?? []).map((f) => f.mes)),
@@ -304,9 +306,9 @@ export function ReporteView({
             (o.ingrediente != null && filtros.ingredientes.includes(o.ingrediente))) &&
           (!filtros.cliente || o.cliente === filtros.cliente) &&
           (!filtros.planta || o.planta === filtros.planta) &&
-          (!filtros.tipoAplicacion || o.tipoAplicacion === filtros.tipoAplicacion) &&
+          (!filtros.tipoAplicacion || igual(o.tipoAplicacion, filtros.tipoAplicacion)) &&
           (!filtros.tipoServicio || igual(o.tipoServicio, filtros.tipoServicio)) &&
-          (!filtros.laboratorio || o.laboratorio === filtros.laboratorio) &&
+          (!filtros.laboratorio || igual(o.laboratorio, filtros.laboratorio)) &&
           (!filtros.crop || igual(o.crop, filtros.crop)) &&
           // Semana/Mes y el calendario son mutuamente excluyentes (ver actualizarSemana/
           // actualizarMes/aplicarRango): solo uno de los dos grupos tiene valor a la vez.
@@ -337,7 +339,7 @@ export function ReporteView({
     const codigo = filtros.ingredientes[0]
     const candidatos = analitos.filter((a) => a.codigo === codigo)
     if (candidatos.length <= 1) return candidatos[0] ?? null
-    return candidatos.find((a) => a.laboratorio === filtros.laboratorio) ?? candidatos[0]
+    return candidatos.find((a) => igual(a.laboratorio, filtros.laboratorio)) ?? candidatos[0]
   }, [analitos, filtros.ingredientes, filtros.laboratorio])
 
   // El límite correcto depende de especie y tipo de servicio, no solo del analito:
@@ -725,20 +727,26 @@ export function ReporteView({
                 ))}
               </select>
             </label>
+            {/* Para cuentas de cliente (clienteFijo) los datos ya vienen acotados desde
+                el backend a ese Sold To/Ship To: mostrar estos dos filtros no aportaría
+                nada (siempre habría un solo valor posible) y solo confundiría. Se
+                mantienen para admin general/admin de área, que sí navegan entre clientes. */}
             {!clienteFijo && (
-              <BuscableSelect
-                etiqueta="Cliente (Sold To)"
-                opciones={opciones.clientes}
-                valor={filtros.cliente}
-                onChange={cambiarCliente}
-              />
+              <>
+                <BuscableSelect
+                  etiqueta="Cliente (Sold To)"
+                  opciones={opciones.clientes}
+                  valor={filtros.cliente}
+                  onChange={cambiarCliente}
+                />
+                <BuscableSelect
+                  etiqueta="Sucursal (Ship To)"
+                  opciones={opciones.plantas}
+                  valor={filtros.planta}
+                  onChange={(v) => actualizarFiltro('planta', v)}
+                />
+              </>
             )}
-            <BuscableSelect
-              etiqueta="Sucursal (Ship To)"
-              opciones={opciones.plantas}
-              valor={filtros.planta}
-              onChange={(v) => actualizarFiltro('planta', v)}
-            />
             <label className={styles.filtro}>
               <span>Tipo de servicio</span>
               <select value={filtros.tipoServicio} onChange={(e) => actualizarFiltro('tipoServicio', e.target.value)}>
