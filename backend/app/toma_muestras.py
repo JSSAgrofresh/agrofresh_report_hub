@@ -244,7 +244,8 @@ def descargar_solicitud_pdf(archivo: str) -> Response:
     ruta = _ruta_archivo(archivo)
     numero = os.path.splitext(os.path.basename(ruta))[0]
     datos = _leer_solicitud_archivo(ruta)
-    pdf_bytes = generar_pdf_solicitud(datos)
+    analitos_config = _leer_config("analitos.json", _ANALITOS_DEFECTO)
+    pdf_bytes = generar_pdf_solicitud(datos, analitos_config)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

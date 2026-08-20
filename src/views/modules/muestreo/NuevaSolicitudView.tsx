@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/Button'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { IconFrasco } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
-import { useAuth } from '@/features/auth'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import {
@@ -69,7 +68,6 @@ const SECCION_DE_CAMPO: Record<string, 'identificacion' | 'muestra'> = {
 }
 
 export function NuevaSolicitudView() {
-  const { user } = useAuth()
   const navigate = useNavigate()
 
   // Configuración cargada desde el mantenedor de Toma de muestras.
@@ -81,6 +79,7 @@ export function NuevaSolicitudView() {
   const [camposTipoAplicacion, setCamposTipoAplicacion] = useState<CampoTipoAplicacionConfig[]>([])
 
   const [laboratorio, setLaboratorio] = useState('')
+  const [generadoPor, setGeneradoPor] = useState('')
   const [tipoAplicacionSel, setTipoAplicacionSel] = useState('')
   const [general, setGeneral] = useState<Record<string, string>>({})
   const [soldTo, setSoldTo] = useState('')
@@ -232,6 +231,10 @@ export function NuevaSolicitudView() {
       setError('Selecciona un Tipo de Aplicación.')
       return
     }
+    if (!generadoPor.trim()) {
+      setError('"Generado por" es requerido.')
+      return
+    }
     for (const campo of [...camposIdentificacion, ...camposMuestraVisibles]) {
       if (campo.requerido && !valorRequerido(campo.clave).trim()) {
         setError(`"${campo.etiqueta}" es requerido.`)
@@ -284,7 +287,7 @@ export function NuevaSolicitudView() {
         fecha_muestreo: general.fecha_muestreo || null,
         hora_muestreo: general.hora_muestreo || null,
         nombre_muestreador: general.nombre_muestreador?.trim() || null,
-        generado_por: user?.nombre ?? '',
+        generado_por: generadoPor.trim(),
         email_solicitante: general.email_solicitante?.trim() || null,
         email_laboratorio: general.email_laboratorio?.trim() || null,
         observacion: general.observacion?.trim() || null,
@@ -416,8 +419,15 @@ export function NuevaSolicitudView() {
               <input value={formatDateCL(new Date())} disabled />
             </label>
             <label className={styles.campo}>
-              <span>Generado por</span>
-              <input value={user?.nombre ?? ''} disabled />
+              <span>
+                Generado por<span className={styles.marcaRequerido}> *</span>
+              </span>
+              <input
+                value={generadoPor}
+                onChange={(e) => setGeneradoPor(e.target.value)}
+                placeholder="Nombre de quien genera la solicitud"
+                required
+              />
             </label>
             <label className={styles.campo}>
               <span>
@@ -499,7 +509,6 @@ export function NuevaSolicitudView() {
                       <th></th>
                       <th>Código</th>
                       <th>Analito</th>
-                      <th>Unidad</th>
                       <th>{esCromatografia ? 'Dosis Aplicada' : 'Valor'}</th>
                     </tr>
                   </thead>
@@ -510,7 +519,7 @@ export function NuevaSolicitudView() {
                         <Fragment key={a.id}>
                           {nuevaCategoria && (
                             <tr>
-                              <td colSpan={5} className={styles.categoriaFila}>
+                              <td colSpan={4} className={styles.categoriaFila}>
                                 {a.categoria}
                               </td>
                             </tr>
@@ -528,10 +537,10 @@ export function NuevaSolicitudView() {
                               {a.nombre}
                               {a.requerido && <span className={styles.marcaRequerido}> *</span>}
                             </td>
-                            <td className={styles.mono}>{a.unidad ?? '—'}</td>
                             <td>
                               <input
                                 type={a.tipo === 'numero' ? 'number' : 'text'}
+                                placeholder={a.unidad ?? ''}
                                 value={valoresAnalitos[a.id] ?? ''}
                                 onChange={(e) => setValoresAnalitos((v) => ({ ...v, [a.id]: e.target.value }))}
                               />

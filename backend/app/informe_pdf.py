@@ -32,11 +32,17 @@ NEGRO_TEXTO = colors.HexColor('#1F2937')
 
 _RUTA_LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'src', 'assets', 'agrofresh-logo.png')
 
+# TODO: reemplazar por la dirección real de AgroFresh Chile -no hay una
+# fuente de verdad para esto en el sistema todavía, así que se deja un
+# valor placeholder explícito en vez de inventar una dirección real.
+DIRECCION_EMPRESA = "AgroFresh Chile S.A. — Dirección pendiente de configurar"
+
 _PAT_CODIGO_COLUMNA = re.compile(r"\(([A-Za-z]+)\)\s*$")
 _PREFIJO_RESULTADO = "Resultado:"
 
 _ESTILO_TITULO = ParagraphStyle('titulo', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=NEGRO_TEXTO, alignment=2)
 _ESTILO_SUBTITULO = ParagraphStyle('subtitulo', fontName='Helvetica', fontSize=8, textColor=GRIS_TEXTO, alignment=2)
+_ESTILO_DIRECCION = ParagraphStyle('direccion', fontName='Helvetica', fontSize=7.3, textColor=GRIS_TEXTO, leading=9.5)
 _ESTILO_FOLIO = ParagraphStyle('folio', fontName='Helvetica-Bold', fontSize=8.5, textColor=VERDE_OSCURO, alignment=2)
 _ESTILO_SECCION = ParagraphStyle('seccion', fontName='Helvetica-Bold', fontSize=8.5, textColor=VERDE_OSCURO, spaceAfter=0)
 _ESTILO_LABEL = ParagraphStyle('label', fontName='Helvetica-Bold', fontSize=6.8, textColor=GRIS_TEXTO)
@@ -115,19 +121,22 @@ def generar_informe_pdf(
 
     elementos = []
 
-    # --- Encabezado: logo + título + folio ---
-    logo = Image(_RUTA_LOGO, width=3.3 * cm, height=1.32 * cm) if os.path.isfile(_RUTA_LOGO) else Paragraph('', _ESTILO_VALOR)
+    # --- Encabezado: logo + dirección (izquierda) · identificador (derecha) ---
+    logo_cel = [
+        Image(_RUTA_LOGO, width=4.2 * cm, height=1.68 * cm) if os.path.isfile(_RUTA_LOGO) else Paragraph('', _ESTILO_VALOR),
+        Spacer(1, 4),
+        Paragraph(DIRECCION_EMPRESA, _ESTILO_DIRECCION),
+    ]
     titulo_cel = [
         Paragraph('INFORME DE ANÁLISIS', _ESTILO_TITULO),
-        Paragraph('Laboratorio de Cromatografía · AgroFresh Chile', _ESTILO_SUBTITULO),
-        Spacer(1, 3),
+        Spacer(1, 4),
         Paragraph(f'N° Informe: {folio}', _ESTILO_FOLIO),
     ]
-    encabezado = Table([[logo, titulo_cel]], colWidths=[6 * cm, 11.6 * cm])
+    encabezado = Table([[logo_cel, titulo_cel]], colWidths=[9.6 * cm, 8 * cm])
     encabezado.setStyle(
         TableStyle(
             [
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
                 ('LINEBELOW', (0, 0), (-1, -1), 0.75, GRIS_LINEA),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
@@ -235,7 +244,7 @@ def generar_informe_pdf(
                 resultado_cel,
             ]
         )
-    tabla_resultados = Table(filas_resultado, colWidths=[8.6 * cm, 3 * cm, 3 * cm, 2.6 * cm])
+    tabla_resultados = Table(filas_resultado, colWidths=[8.6 * cm, 3 * cm, 3 * cm, 2.6 * cm], repeatRows=1)
     tabla_resultados.setStyle(
         TableStyle(
             [
