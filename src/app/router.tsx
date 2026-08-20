@@ -16,6 +16,7 @@ import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { StorageView } from '@/views/modules/storage/StorageView'
 import { SolicitudesView } from '@/views/modules/muestreo/SolicitudesView'
 import { NuevaSolicitudView } from '@/views/modules/muestreo/NuevaSolicitudView'
+import { MuestreoConfigView } from '@/views/modules/muestreo/MuestreoConfigView'
 import { UsuariosView } from '@/views/admin/UsuariosView'
 import { ListadosView } from '@/views/admin/ListadosView'
 import { NotFoundView } from '@/views/not-found/NotFoundView'
@@ -71,6 +72,7 @@ export const router = createBrowserRouter([
             children: [
               { path: ROUTES.adminUsuarios, element: <UsuariosView /> },
               { path: ROUTES.adminListados, element: <ListadosView /> },
+              { path: ROUTES.tomaMuestrasConfig, element: <MuestreoConfigView /> },
             ],
           },
           { path: '*', element: <NotFoundView /> },

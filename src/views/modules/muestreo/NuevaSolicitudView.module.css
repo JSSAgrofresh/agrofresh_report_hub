@@ -4,16 +4,34 @@
   gap: var(--space-4);
 }
 
-.fila {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-4);
+.tituloSeccion {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 var(--space-4);
 }
 
-@media (max-width: 620px) {
-  .fila {
-    grid-template-columns: 1fr;
-  }
+.tituloSeccionLab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-primary-hover);
+  margin: 0 0 var(--space-4);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.iconoLab {
+  width: 18px;
+  height: 18px;
+}
+
+.fila {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-4);
 }
 
 .campo {
@@ -22,11 +40,19 @@
   gap: var(--space-2);
 }
 
+.campoAncho {
+  grid-column: 1 / -1;
+}
+
 .campo span {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--color-text-muted);
   letter-spacing: 0.02em;
+}
+
+.marcaRequerido {
+  color: var(--color-danger);
 }
 
 .campo input,
@@ -68,50 +94,62 @@
   border-color: var(--color-primary);
 }
 
-.seccionLaboratorio {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+.tablaCaja {
+  overflow-x: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: var(--space-4);
+  margin-top: var(--space-4);
 }
 
-.seccionLaboratorio legend {
-  font-size: 12.5px;
-  font-weight: 700;
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.tabla th {
+  text-align: left;
   color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  padding: 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  white-space: nowrap;
 }
 
-.analitos {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+.tabla td {
+  padding: 6px var(--space-3);
+  border-bottom: 1px solid var(--color-border);
 }
 
-.analitosEtiqueta {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  letter-spacing: 0.02em;
+.tabla tbody tr:last-child td {
+  border-bottom: none;
 }
 
-.analitosGrid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.analitoCheckbox {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.tabla td input {
+  font-family: var(--font-sans);
   font-size: 13.5px;
-  font-weight: 600;
+  padding: 6px 9px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   color: var(--color-text);
+  width: 100%;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.estado {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: var(--space-2) 0;
 }
 
 .error {
@@ -128,5 +166,4 @@
   justify-content: flex-end;
   gap: var(--space-3);
   padding-top: var(--space-2);
-  border-top: 1px solid var(--color-border);
 }

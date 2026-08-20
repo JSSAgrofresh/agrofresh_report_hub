@@ -5,142 +5,77 @@ import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
+import { IconFrasco } from '@/components/ui/icons'
+import { cn } from '@/lib/cn'
 import { useAuth } from '@/features/auth'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
-import { crearSolicitud, LABORATORIOS } from '@/features/tomaMuestras'
-import type { Laboratorio } from '@/features/tomaMuestras'
+import {
+  crearSolicitud,
+  LABORATORIOS,
+  listarAnalitosConfig,
+  listarCamposConfig,
+  listarLineasProceso,
+  listarTiposAplicacion,
+} from '@/features/tomaMuestras'
+import type { AnalitoConfig, CampoConfig, Laboratorio, OpcionConfig } from '@/features/tomaMuestras'
 import { ROUTES } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
 import styles from './NuevaSolicitudView.module.css'
 
-interface FormGeneral {
-  solicitante: string
-  especie: string
-  variedad: string
-  lineaProceso: string
-  csg: string
-  lote: string
-  posicionMuestreo: string
-  numeroCamara: string
-  numeroOrden: string
-  kilosProcesados: string
-  productoUtilizado: string
-  tipoMuestra: string
-  fechaMuestreo: string
-  horaMuestreo: string
-  nombreMuestreador: string
-  emailSolicitante: string
-  emailLaboratorio: string
-  observacion: string
+interface AlsPesticida {
+  analito: string
+  resultado: string
 }
 
-const GENERAL_INICIAL: FormGeneral = {
-  solicitante: '',
-  especie: '',
-  variedad: '',
-  lineaProceso: '',
-  csg: '',
-  lote: '',
-  posicionMuestreo: '',
-  numeroCamara: '',
-  numeroOrden: '',
-  kilosProcesados: '',
-  productoUtilizado: '',
-  tipoMuestra: '',
-  fechaMuestreo: '',
-  horaMuestreo: '',
-  nombreMuestreador: '',
-  emailSolicitante: '',
-  emailLaboratorio: '',
-  observacion: '',
-}
-
-const CAMPOS_TEXTO: { clave: keyof FormGeneral; etiqueta: string }[] = [
-  { clave: 'solicitante', etiqueta: 'Solicitante' },
-  { clave: 'especie', etiqueta: 'Especie' },
-  { clave: 'variedad', etiqueta: 'Variedad' },
-  { clave: 'lineaProceso', etiqueta: 'Línea Proceso' },
-  { clave: 'csg', etiqueta: 'CSG' },
-  { clave: 'lote', etiqueta: 'Lote' },
-  { clave: 'posicionMuestreo', etiqueta: 'Posición Muestreo' },
-  { clave: 'numeroCamara', etiqueta: 'N° Cámara' },
-  { clave: 'numeroOrden', etiqueta: 'N° Orden' },
-  { clave: 'productoUtilizado', etiqueta: 'Producto Utilizado' },
-  { clave: 'tipoMuestra', etiqueta: 'Tipo Muestra' },
-  { clave: 'nombreMuestreador', etiqueta: 'Nombre Muestreador' },
+const ALS_PESTICIDAS_VACIO: AlsPesticida[] = [
+  { analito: '', resultado: '' },
+  { analito: '', resultado: '' },
+  { analito: '', resultado: '' },
 ]
-
-interface CampoLaboratorio {
-  etiqueta: string
-  tipo: 'text' | 'number'
-}
-
-const ANALITOS_CROMATOGRAFIA = ['FDL', 'IMZ', 'PYR', 'TEBU', 'AZOX', 'TBZ', 'DPA']
-
-const CAMPOS_CROMATOGRAFIA: CampoLaboratorio[] = [
-  { etiqueta: 'Dosis Aplicada', tipo: 'text' },
-  { etiqueta: 'Tipo Aplicación', tipo: 'text' },
-]
-
-const CAMPOS_DIAGNOFRUIT: CampoLaboratorio[] = [
-  { etiqueta: 'Levaduras UFC/mL', tipo: 'number' },
-  { etiqueta: 'Botrytis conidia/mL', tipo: 'number' },
-  { etiqueta: 'Alternaria conidia/mL', tipo: 'number' },
-  { etiqueta: 'Geotrichum esporas/mL', tipo: 'number' },
-  { etiqueta: 'Penicillium conidia/mL', tipo: 'number' },
-]
-
-const CAMPOS_ALS: CampoLaboratorio[] = [
-  { etiqueta: 'E. Coli UFC/100mL', tipo: 'number' },
-  { etiqueta: 'Coliformes Totales UFC/100mL', tipo: 'number' },
-  { etiqueta: 'Plomo mg/kg', tipo: 'number' },
-  { etiqueta: 'Mercurio mg/kg', tipo: 'number' },
-  { etiqueta: 'Arsénico mg/kg', tipo: 'number' },
-  { etiqueta: 'Cadmio mg/kg', tipo: 'number' },
-  { etiqueta: 'Aluminio mg/kg', tipo: 'number' },
-  { etiqueta: 'Hongos UFC/g', tipo: 'number' },
-  { etiqueta: 'Levaduras UFC/g', tipo: 'number' },
-  { etiqueta: 'Coliformes Totales UFC/g', tipo: 'number' },
-  { etiqueta: 'Escherichia coli UFC/g', tipo: 'number' },
-  { etiqueta: 'Recuento Enterobacterias UFC/g', tipo: 'number' },
-  { etiqueta: 'Salmonella 25g (P/A)', tipo: 'text' },
-  { etiqueta: 'Cenizas Insolubles en Ácido (%)', tipo: 'number' },
-  { etiqueta: 'Aflatoxinas Totales B1+B2+G1+G2 (µg/kg)', tipo: 'number' },
-  { etiqueta: 'Analito Pesticida 1', tipo: 'text' },
-  { etiqueta: 'Resultado Pesticida 1', tipo: 'text' },
-  { etiqueta: 'Analito Pesticida 2', tipo: 'text' },
-  { etiqueta: 'Resultado Pesticida 2', tipo: 'text' },
-  { etiqueta: 'Analito Pesticida 3', tipo: 'text' },
-  { etiqueta: 'Resultado Pesticida 3', tipo: 'text' },
-]
-
-/** Campos propios (fuera de los analitos) según el laboratorio elegido. */
-function camposDe(laboratorio: Laboratorio | ''): CampoLaboratorio[] {
-  if (laboratorio === 'QUITECA' || laboratorio === 'AGROFRESH') return CAMPOS_CROMATOGRAFIA
-  if (laboratorio === 'DIAGNOFRUIT') return CAMPOS_DIAGNOFRUIT
-  if (laboratorio === 'ALS') return CAMPOS_ALS
-  return []
-}
 
 export function NuevaSolicitudView() {
   const { user } = useAuth()
   const navigate = useNavigate()
 
+  // Configuración cargada desde el mantenedor de Toma de muestras.
+  const [camposConfig, setCamposConfig] = useState<CampoConfig[] | null>(null)
+  const [tiposAplicacion, setTiposAplicacion] = useState<OpcionConfig[]>([])
+  const [lineasProceso, setLineasProceso] = useState<OpcionConfig[]>([])
+  const [analitosTodos, setAnalitosTodos] = useState<AnalitoConfig[]>([])
+
   const [laboratorio, setLaboratorio] = useState<Laboratorio | ''>('')
-  const [general, setGeneral] = useState<FormGeneral>(GENERAL_INICIAL)
-  const [analitosSeleccionados, setAnalitosSeleccionados] = useState<string[]>([])
-  const [camposLaboratorio, setCamposLaboratorio] = useState<Record<string, string>>({})
+  const [general, setGeneral] = useState<Record<string, string>>({})
+  const [soldTo, setSoldTo] = useState('')
+  const [shipTo, setShipTo] = useState('')
+  const [lineaProceso, setLineaProceso] = useState('')
+  const [tipoAplicacionSel, setTipoAplicacionSel] = useState('')
+  const [seleccionAnalitos, setSeleccionAnalitos] = useState<Record<number, boolean>>({})
+  const [valoresAnalitos, setValoresAnalitos] = useState<Record<number, string>>({})
+  const [alsPesticidas, setAlsPesticidas] = useState<AlsPesticida[]>(ALS_PESTICIDAS_VACIO)
 
   const [clientesDisponibles, setClientesDisponibles] = useState<string[]>([])
   const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
-  const [soldTo, setSoldTo] = useState('')
-  const [shipTo, setShipTo] = useState('')
 
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
+    listarCamposConfig()
+      .then((campos) => {
+        setCamposConfig(campos)
+        setGeneral(Object.fromEntries(campos.map((c) => [c.clave, ''])))
+      })
+      .catch(() => setError('No se pudo cargar la configuración del formulario.'))
+    listarTiposAplicacion()
+      .then(setTiposAplicacion)
+      .catch(() => setTiposAplicacion([]))
+    listarLineasProceso()
+      .then(setLineasProceso)
+      .catch(() => setLineasProceso([]))
+    listarAnalitosConfig()
+      .then(setAnalitosTodos)
+      .catch(() => setAnalitosTodos([]))
     listarClientes()
       .then((clientes) => setClientesDisponibles(clientes.map((c) => c.nombre)))
       .catch(() => setClientesDisponibles([]))
@@ -150,7 +85,19 @@ export function NuevaSolicitudView() {
   }, [])
 
   const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === soldTo)
-  const camposLabActuales = useMemo(() => camposDe(laboratorio), [laboratorio])
+  const camposActivos = useMemo(
+    () => (camposConfig ?? []).filter((c) => c.activo).sort((a, b) => a.orden - b.orden),
+    [camposConfig],
+  )
+  const lineasActivas = lineasProceso.filter((l) => l.activo).sort((a, b) => a.orden - b.orden)
+  const tiposActivos = tiposAplicacion.filter((t) => t.activo).sort((a, b) => a.orden - b.orden)
+  const analitosLab = useMemo(
+    () =>
+      analitosTodos
+        .filter((a) => a.laboratorio === laboratorio && a.activo)
+        .sort((a, b) => a.orden - b.orden),
+    [analitosTodos, laboratorio],
+  )
   const esCromatografia = laboratorio === 'QUITECA' || laboratorio === 'AGROFRESH'
 
   function alElegirSoldTo(v: string) {
@@ -159,22 +106,29 @@ export function NuevaSolicitudView() {
   }
 
   function alCambiarLaboratorio(v: string) {
-    // Al cambiar de laboratorio se descartan los campos propios del
-    // laboratorio anterior: no deben quedar valores de otro laboratorio
-    // ni enviarse a la solicitud final.
+    // Al cambiar de laboratorio se descartan los analitos y valores del
+    // laboratorio anterior: no deben quedar seleccionados ni enviarse en
+    // la solicitud final.
     setLaboratorio(v as Laboratorio | '')
-    setAnalitosSeleccionados([])
-    setCamposLaboratorio({})
+    setSeleccionAnalitos({})
+    setValoresAnalitos({})
+    setTipoAplicacionSel('')
+    setAlsPesticidas(ALS_PESTICIDAS_VACIO)
   }
 
-  function actualizarGeneral(campo: keyof FormGeneral, valor: string) {
-    setGeneral((g) => ({ ...g, [campo]: valor }))
+  function actualizarGeneral(clave: string, valor: string) {
+    setGeneral((g) => ({ ...g, [clave]: valor }))
   }
 
-  function alternarAnalito(codigo: string) {
-    setAnalitosSeleccionados((actual) =>
-      actual.includes(codigo) ? actual.filter((a) => a !== codigo) : [...actual, codigo],
-    )
+  function alternarAnalito(id: number) {
+    setSeleccionAnalitos((actual) => ({ ...actual, [id]: !actual[id] }))
+  }
+
+  function valorRequerido(clave: string): string {
+    if (clave === 'sold_to') return soldTo
+    if (clave === 'ship_to') return shipTo
+    if (clave === 'linea_proceso') return lineaProceso
+    return general[clave] ?? ''
   }
 
   async function onSubmit(e: FormEvent) {
@@ -185,48 +139,54 @@ export function NuevaSolicitudView() {
       setError('Selecciona un laboratorio.')
       return
     }
-    if (!general.solicitante.trim()) {
-      setError('Ingresa el solicitante.')
-      return
-    }
-    if (!soldTo.trim()) {
-      setError('Selecciona el Sold To.')
-      return
+    for (const campo of camposActivos) {
+      if (campo.requerido && !valorRequerido(campo.clave).trim()) {
+        setError(`"${campo.etiqueta}" es requerido.`)
+        return
+      }
     }
 
-    const camposFinal: Record<string, string> = {}
-    for (const analito of analitosSeleccionados) camposFinal[analito] = 'Solicitado'
-    for (const campo of camposLabActuales) {
-      const valor = camposLaboratorio[campo.etiqueta]
-      if (valor && valor.trim()) camposFinal[campo.etiqueta] = valor.trim()
+    const camposLabFinal: Record<string, string> = {}
+    for (const analito of analitosLab) {
+      if (!seleccionAnalitos[analito.id]) continue
+      const valor = valoresAnalitos[analito.id]?.trim()
+      const etiqueta = analito.unidad ? `${analito.nombre} (${analito.unidad})` : analito.nombre
+      camposLabFinal[etiqueta] = valor || 'Solicitado'
+    }
+    if (esCromatografia && tipoAplicacionSel) camposLabFinal['Tipo Aplicación'] = tipoAplicacionSel
+    if (laboratorio === 'ALS') {
+      alsPesticidas.forEach((p, i) => {
+        if (p.analito.trim()) camposLabFinal[`Analito Pesticida ${i + 1}`] = p.analito.trim()
+        if (p.resultado.trim()) camposLabFinal[`Resultado Pesticida ${i + 1}`] = p.resultado.trim()
+      })
     }
 
     setGuardando(true)
     try {
       await crearSolicitud({
         laboratorio,
-        solicitante: general.solicitante.trim(),
+        solicitante: general.solicitante?.trim() ?? '',
         sold_to: soldTo.trim(),
         ship_to: shipTo.trim() || null,
-        especie: general.especie.trim() || null,
-        variedad: general.variedad.trim() || null,
-        linea_proceso: general.lineaProceso.trim() || null,
-        csg: general.csg.trim() || null,
-        lote: general.lote.trim() || null,
-        posicion_muestreo: general.posicionMuestreo.trim() || null,
-        numero_camara: general.numeroCamara.trim() || null,
-        numero_orden: general.numeroOrden.trim() || null,
-        kilos_procesados: general.kilosProcesados.trim() ? Number(general.kilosProcesados) : null,
-        producto_utilizado: general.productoUtilizado.trim() || null,
-        tipo_muestra: general.tipoMuestra.trim() || null,
-        fecha_muestreo: general.fechaMuestreo || null,
-        hora_muestreo: general.horaMuestreo || null,
-        nombre_muestreador: general.nombreMuestreador.trim() || null,
+        especie: general.especie?.trim() || null,
+        variedad: general.variedad?.trim() || null,
+        linea_proceso: lineaProceso || null,
+        csg: general.csg?.trim() || null,
+        lote: general.lote?.trim() || null,
+        posicion_muestreo: general.posicion_muestreo?.trim() || null,
+        numero_camara: general.numero_camara?.trim() || null,
+        numero_orden: general.numero_orden?.trim() || null,
+        kilos_procesados: general.kilos_procesados?.trim() ? Number(general.kilos_procesados) : null,
+        producto_utilizado: general.producto_utilizado?.trim() || null,
+        tipo_muestra: general.tipo_muestra?.trim() || null,
+        fecha_muestreo: general.fecha_muestreo || null,
+        hora_muestreo: general.hora_muestreo || null,
+        nombre_muestreador: general.nombre_muestreador?.trim() || null,
         generado_por: user?.nombre ?? '',
-        email_solicitante: general.emailSolicitante.trim() || null,
-        email_laboratorio: general.emailLaboratorio.trim() || null,
-        observacion: general.observacion.trim() || null,
-        campos_laboratorio: camposFinal,
+        email_solicitante: general.email_solicitante?.trim() || null,
+        email_laboratorio: general.email_laboratorio?.trim() || null,
+        observacion: general.observacion?.trim() || null,
+        campos_laboratorio: camposLabFinal,
       })
       navigate(ROUTES.tomaMuestras)
     } catch {
@@ -236,12 +196,99 @@ export function NuevaSolicitudView() {
     }
   }
 
+  function renderCampo(campo: CampoConfig) {
+    const etiqueta = (
+      <span>
+        {campo.etiqueta}
+        {campo.requerido && <span className={styles.marcaRequerido}> *</span>}
+      </span>
+    )
+
+    if (campo.clave === 'sold_to') {
+      return (
+        <div className={styles.campo} key={campo.clave}>
+          <BuscableSelect
+            etiqueta={`${campo.etiqueta}${campo.requerido ? ' *' : ''}`}
+            opciones={clientesDisponibles}
+            valor={soldTo}
+            onChange={alElegirSoldTo}
+            placeholderTodos="— elegir cliente —"
+          />
+        </div>
+      )
+    }
+    if (campo.clave === 'ship_to') {
+      return (
+        <div className={styles.campo} key={campo.clave}>
+          <BuscableSelect
+            etiqueta={`${campo.etiqueta}${campo.requerido ? ' *' : ''}`}
+            opciones={plantasDelCliente.map((p) => p.nombre)}
+            valor={shipTo}
+            onChange={setShipTo}
+            placeholderTodos={soldTo ? '— sin sucursal específica —' : '— elige primero Sold To —'}
+            disabled={!soldTo}
+          />
+        </div>
+      )
+    }
+    if (campo.clave === 'linea_proceso') {
+      return (
+        <label className={styles.campo} key={campo.clave}>
+          {etiqueta}
+          <select value={lineaProceso} onChange={(e) => setLineaProceso(e.target.value)}>
+            <option value="">— elegir —</option>
+            {lineasActivas.map((l) => (
+              <option key={l.id} value={l.nombre}>
+                {l.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+      )
+    }
+    if (campo.tipo === 'textarea') {
+      return (
+        <label className={cn(styles.campo, styles.campoAncho)} key={campo.clave}>
+          {etiqueta}
+          <textarea
+            className={styles.textarea}
+            rows={3}
+            value={general[campo.clave] ?? ''}
+            onChange={(e) => actualizarGeneral(campo.clave, e.target.value)}
+          />
+        </label>
+      )
+    }
+    return (
+      <label className={styles.campo} key={campo.clave}>
+        {etiqueta}
+        <input
+          type={campo.tipo}
+          value={general[campo.clave] ?? ''}
+          onChange={(e) => actualizarGeneral(campo.clave, e.target.value)}
+        />
+      </label>
+    )
+  }
+
+  if (camposConfig === null) {
+    return (
+      <div>
+        <Header title="Nueva solicitud" description="Registra una nueva solicitud de muestreo." />
+        <Card>
+          <p className={styles.estado}>Cargando…</p>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div>
       <Header title="Nueva solicitud" description="Registra una nueva solicitud de muestreo." />
 
-      <Card>
-        <form className={styles.form} onSubmit={onSubmit}>
+      <form onSubmit={onSubmit} className={styles.form}>
+        <Card>
+          <h2 className={styles.tituloSeccion}>Identificación de la solicitud</h2>
           <div className={styles.fila}>
             <label className={styles.campo}>
               <span>N° Solicitud</span>
@@ -251,11 +298,10 @@ export function NuevaSolicitudView() {
               <span>Fecha de solicitud</span>
               <input value={formatDateCL(new Date())} disabled />
             </label>
-          </div>
-
-          <div className={styles.fila}>
             <label className={styles.campo}>
-              <span>Laboratorio</span>
+              <span>
+                Laboratorio<span className={styles.marcaRequerido}> *</span>
+              </span>
               <select value={laboratorio} onChange={(e) => alCambiarLaboratorio(e.target.value)} required>
                 <option value="">— elegir —</option>
                 {LABORATORIOS.map((l) => (
@@ -267,143 +313,130 @@ export function NuevaSolicitudView() {
             </label>
             <label className={styles.campo}>
               <span>Generado por</span>
-              <input value={user?.nombre ?? ''} disabled required />
+              <input value={user?.nombre ?? ''} disabled />
             </label>
           </div>
+        </Card>
 
-          <div className={styles.campo}>
-            <BuscableSelect
-              etiqueta="Sold To"
-              opciones={clientesDisponibles}
-              valor={soldTo}
-              onChange={alElegirSoldTo}
-              placeholderTodos="— elegir cliente —"
-            />
-          </div>
+        <Card>
+          <h2 className={styles.tituloSeccion}>Información de la muestra</h2>
+          <div className={styles.fila}>{camposActivos.map(renderCampo)}</div>
+        </Card>
 
-          {soldTo && (
-            <div className={styles.campo}>
-              <BuscableSelect
-                etiqueta="Ship To"
-                opciones={plantasDelCliente.map((p) => p.nombre)}
-                valor={shipTo}
-                onChange={setShipTo}
-                placeholderTodos="— sin sucursal específica —"
-              />
-            </div>
-          )}
+        {laboratorio && (
+          <Card>
+            <h2 className={styles.tituloSeccionLab}>
+              <IconFrasco className={styles.iconoLab} />
+              {laboratorio}
+            </h2>
 
-          <div className={styles.fila}>
-            {CAMPOS_TEXTO.map(({ clave, etiqueta }) => (
-              <label className={styles.campo} key={clave}>
-                <span>{etiqueta}</span>
-                <input value={general[clave]} onChange={(e) => actualizarGeneral(clave, e.target.value)} />
+            {esCromatografia && (
+              <label className={styles.campo}>
+                <span>Tipo Aplicación</span>
+                <select value={tipoAplicacionSel} onChange={(e) => setTipoAplicacionSel(e.target.value)}>
+                  <option value="">— elegir —</option>
+                  {tiposActivos.map((t) => (
+                    <option key={t.id} value={t.nombre}>
+                      {t.nombre}
+                    </option>
+                  ))}
+                </select>
               </label>
-            ))}
+            )}
 
-            <label className={styles.campo}>
-              <span>Kilos Procesados (KG)</span>
-              <input
-                type="number"
-                value={general.kilosProcesados}
-                onChange={(e) => actualizarGeneral('kilosProcesados', e.target.value)}
-              />
-            </label>
-            <label className={styles.campo}>
-              <span>Fecha Muestreo</span>
-              <input
-                type="date"
-                value={general.fechaMuestreo}
-                onChange={(e) => actualizarGeneral('fechaMuestreo', e.target.value)}
-              />
-            </label>
-            <label className={styles.campo}>
-              <span>Hora Muestreo</span>
-              <input
-                type="time"
-                value={general.horaMuestreo}
-                onChange={(e) => actualizarGeneral('horaMuestreo', e.target.value)}
-              />
-            </label>
-            <label className={styles.campo}>
-              <span>Email Solicitante</span>
-              <input
-                type="email"
-                value={general.emailSolicitante}
-                onChange={(e) => actualizarGeneral('emailSolicitante', e.target.value)}
-              />
-            </label>
-            <label className={styles.campo}>
-              <span>Email Laboratorio</span>
-              <input
-                type="email"
-                value={general.emailLaboratorio}
-                onChange={(e) => actualizarGeneral('emailLaboratorio', e.target.value)}
-              />
-            </label>
-          </div>
-
-          <label className={styles.campo}>
-            <span>Observación</span>
-            <textarea
-              className={styles.textarea}
-              rows={3}
-              value={general.observacion}
-              onChange={(e) => actualizarGeneral('observacion', e.target.value)}
-            />
-          </label>
-
-          {laboratorio && (
-            <fieldset className={styles.seccionLaboratorio}>
-              <legend>Campos de {laboratorio}</legend>
-
-              {esCromatografia && (
-                <div className={styles.analitos}>
-                  <span className={styles.analitosEtiqueta}>Analitos solicitados</span>
-                  <div className={styles.analitosGrid}>
-                    {ANALITOS_CROMATOGRAFIA.map((codigo) => (
-                      <label key={codigo} className={styles.analitoCheckbox}>
-                        <input
-                          type="checkbox"
-                          checked={analitosSeleccionados.includes(codigo)}
-                          onChange={() => alternarAnalito(codigo)}
-                        />
-                        {codigo}
-                      </label>
+            {analitosLab.length > 0 && (
+              <div className={styles.tablaCaja}>
+                <table className={styles.tabla}>
+                  <thead>
+                    <tr>
+                      <th></th>
+                      <th>Analito</th>
+                      <th>Código</th>
+                      <th>{esCromatografia ? 'Dosis Aplicada' : 'Valor'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analitosLab.map((a) => (
+                      <tr key={a.id}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(seleccionAnalitos[a.id])}
+                            onChange={() => alternarAnalito(a.id)}
+                          />
+                        </td>
+                        <td>
+                          {a.nombre}
+                          {a.requerido && <span className={styles.marcaRequerido}> *</span>}
+                        </td>
+                        <td className={styles.mono}>{a.codigo}</td>
+                        <td>
+                          <input
+                            type={a.tipo === 'numero' ? 'number' : 'text'}
+                            placeholder={a.unidad ?? ''}
+                            value={valoresAnalitos[a.id] ?? ''}
+                            onChange={(e) => setValoresAnalitos((v) => ({ ...v, [a.id]: e.target.value }))}
+                          />
+                        </td>
+                      </tr>
                     ))}
-                  </div>
-                </div>
-              )}
-
-              <div className={styles.fila}>
-                {camposLabActuales.map((campo) => (
-                  <label className={styles.campo} key={campo.etiqueta}>
-                    <span>{campo.etiqueta}</span>
-                    <input
-                      type={campo.tipo}
-                      value={camposLaboratorio[campo.etiqueta] ?? ''}
-                      onChange={(e) =>
-                        setCamposLaboratorio((c) => ({ ...c, [campo.etiqueta]: e.target.value }))
-                      }
-                    />
-                  </label>
-                ))}
+                  </tbody>
+                </table>
               </div>
-            </fieldset>
-          )}
+            )}
 
-          {error && <p className={styles.error}>{error}</p>}
+            {laboratorio === 'ALS' && (
+              <div className={styles.tablaCaja}>
+                <table className={styles.tabla}>
+                  <thead>
+                    <tr>
+                      <th>Analito Pesticida</th>
+                      <th>Resultado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {alsPesticidas.map((p, i) => (
+                      <tr key={i}>
+                        <td>
+                          <input
+                            value={p.analito}
+                            onChange={(e) =>
+                              setAlsPesticidas((actual) =>
+                                actual.map((it, idx) => (idx === i ? { ...it, analito: e.target.value } : it)),
+                              )
+                            }
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={p.resultado}
+                            onChange={(e) =>
+                              setAlsPesticidas((actual) =>
+                                actual.map((it, idx) => (idx === i ? { ...it, resultado: e.target.value } : it)),
+                              )
+                            }
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        )}
 
-          <div className={styles.acciones}>
-            <Button type="button" variant="secondary" onClick={() => navigate(ROUTES.tomaMuestras)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={guardando}>
-              {guardando ? 'Guardando…' : 'Guardar'}
-            </Button>
-          </div>
-        </form>
-      </Card>
+        {error && <p className={styles.error}>{error}</p>}
+
+        <div className={styles.acciones}>
+          <Button type="button" variant="secondary" onClick={() => navigate(ROUTES.tomaMuestras)}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={guardando}>
+            {guardando ? 'Guardando…' : 'Guardar solicitud'}
+          </Button>
+        </div>
+      </form>
     </div>
   )
 }

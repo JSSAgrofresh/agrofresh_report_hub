@@ -13,6 +13,7 @@ export const ROUTES = {
   storage: '/modulos/storage',
   tomaMuestras: '/modulos/toma-muestras',
   tomaMuestrasNueva: '/modulos/toma-muestras/nueva',
+  tomaMuestrasConfig: '/modulos/toma-muestras/configuracion',
   adminUsuarios: '/admin/usuarios',
   adminListados: '/admin/listados',
 } as const

@@ -33,3 +33,43 @@ export interface Solicitud {
 }
 
 export type SolicitudInput = Omit<Solicitud, 'archivo' | 'numero_solicitud' | 'fecha_solicitud' | 'creado_en'>
+
+/** Metadatos de un campo general del formulario (§3): el conjunto de
+ * claves es fijo, pero etiqueta/tipo/requerido/activo/orden los define el
+ * administrador desde el mantenedor de Toma de muestras. */
+export interface CampoConfig {
+  clave: string
+  etiqueta: string
+  tipo: 'text' | 'number' | 'date' | 'time' | 'email' | 'textarea' | 'select'
+  requerido: boolean
+  activo: boolean
+  orden: number
+}
+
+/** Opción simple de un mantenedor (tipos de aplicación, líneas de proceso). */
+export interface OpcionConfig {
+  id: number
+  nombre: string
+  activo: boolean
+  orden: number
+}
+
+export type OpcionInput = Omit<OpcionConfig, 'id'>
+
+/** Un análisis disponible para un laboratorio. `dosis_aplicable` distingue
+ * los analitos de cromatografía (QUITECA/AGROFRESH), que llevan una dosis
+ * aplicada asociada, de los de resultado directo (DIAGNOFRUIT/ALS). */
+export interface AnalitoConfig {
+  id: number
+  laboratorio: string
+  codigo: string
+  nombre: string
+  unidad: string | null
+  tipo: 'numero' | 'texto'
+  dosis_aplicable: boolean
+  requerido: boolean
+  activo: boolean
+  orden: number
+}
+
+export type AnalitoInput = Omit<AnalitoConfig, 'id'>

@@ -154,3 +154,283 @@ def eliminar_solicitud(archivo: str) -> dict[str, str]:
     ruta = _ruta_archivo(archivo)
     os.remove(ruta)
     return {"estado": "eliminado"}
+
+
+# ---------------------------------------------------------------------------
+# Configuración (mantenedores): igual que las solicitudes, se guarda como
+# JSON en disco (no hay tabla en base de datos) dentro de
+# "solicitudes/_config/". El objetivo es que el administrador pueda
+# activar/desactivar y marcar requerido/opcional los campos generales, y
+# mantener las listas de tipos de aplicación, líneas de proceso y analitos
+# por laboratorio, sin tocar código fuente.
+# ---------------------------------------------------------------------------
+
+_CARPETA_CONFIG = "_config"
+
+
+def _ruta_config(nombre_archivo: str) -> str:
+    carpeta = os.path.join(_carpeta_raiz(), _CARPETA_CONFIG)
+    os.makedirs(carpeta, exist_ok=True)
+    return os.path.join(carpeta, nombre_archivo)
+
+
+def _leer_config(nombre_archivo: str, valores_defecto: list[dict]) -> list[dict]:
+    ruta = _ruta_config(nombre_archivo)
+    if not os.path.isfile(ruta):
+        _escribir_config(nombre_archivo, valores_defecto)
+        return valores_defecto
+    with open(ruta, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _escribir_config(nombre_archivo: str, datos: list[dict]) -> None:
+    with open(_ruta_config(nombre_archivo), "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=2)
+
+
+class CampoConfig(BaseModel):
+    """Metadatos de un campo general del formulario: el conjunto de claves
+    es fijo (ver General Fields §3), pero etiqueta/requerido/activo/orden
+    son editables por el administrador."""
+
+    clave: str
+    etiqueta: str
+    tipo: str
+    requerido: bool
+    activo: bool
+    orden: int
+
+
+# N° Solicitud, Fecha Solicitud, Laboratorio y Generado Por son
+# estructurales (el sistema los completa o son el eje de todo el
+# formulario) y no forman parte de este mantenedor.
+_CAMPOS_GENERALES_DEFECTO: list[dict] = [
+    {"clave": "solicitante", "etiqueta": "Solicitante", "tipo": "text", "requerido": True, "activo": True, "orden": 1},
+    {"clave": "sold_to", "etiqueta": "Sold To", "tipo": "select", "requerido": True, "activo": True, "orden": 2},
+    {"clave": "ship_to", "etiqueta": "Ship To", "tipo": "select", "requerido": False, "activo": True, "orden": 3},
+    {"clave": "especie", "etiqueta": "Especie", "tipo": "text", "requerido": False, "activo": True, "orden": 4},
+    {"clave": "variedad", "etiqueta": "Variedad", "tipo": "text", "requerido": False, "activo": True, "orden": 5},
+    {"clave": "linea_proceso", "etiqueta": "Línea Proceso", "tipo": "select", "requerido": False, "activo": True, "orden": 6},
+    {"clave": "csg", "etiqueta": "CSG", "tipo": "text", "requerido": False, "activo": True, "orden": 7},
+    {"clave": "lote", "etiqueta": "Lote", "tipo": "text", "requerido": False, "activo": True, "orden": 8},
+    {"clave": "posicion_muestreo", "etiqueta": "Posición Muestreo", "tipo": "text", "requerido": False, "activo": True, "orden": 9},
+    {"clave": "numero_camara", "etiqueta": "N° Cámara", "tipo": "text", "requerido": False, "activo": True, "orden": 10},
+    {"clave": "numero_orden", "etiqueta": "N° Orden", "tipo": "text", "requerido": False, "activo": True, "orden": 11},
+    {"clave": "kilos_procesados", "etiqueta": "Kilos Procesados (KG)", "tipo": "number", "requerido": False, "activo": True, "orden": 12},
+    {"clave": "producto_utilizado", "etiqueta": "Producto Utilizado", "tipo": "text", "requerido": False, "activo": True, "orden": 13},
+    {"clave": "tipo_muestra", "etiqueta": "Tipo Muestra", "tipo": "text", "requerido": False, "activo": True, "orden": 14},
+    {"clave": "fecha_muestreo", "etiqueta": "Fecha Muestreo", "tipo": "date", "requerido": False, "activo": True, "orden": 15},
+    {"clave": "hora_muestreo", "etiqueta": "Hora Muestreo", "tipo": "time", "requerido": False, "activo": True, "orden": 16},
+    {"clave": "nombre_muestreador", "etiqueta": "Nombre Muestreador", "tipo": "text", "requerido": False, "activo": True, "orden": 17},
+    {"clave": "email_solicitante", "etiqueta": "Email Solicitante", "tipo": "email", "requerido": False, "activo": True, "orden": 18},
+    {"clave": "email_laboratorio", "etiqueta": "Email Laboratorio", "tipo": "email", "requerido": False, "activo": True, "orden": 19},
+    {"clave": "observacion", "etiqueta": "Observación", "tipo": "textarea", "requerido": False, "activo": True, "orden": 20},
+]
+
+
+@router.get("/config/campos")
+def listar_campos_config() -> list[CampoConfig]:
+    return [CampoConfig(**c) for c in _leer_config("campos_generales.json", _CAMPOS_GENERALES_DEFECTO)]
+
+
+@router.put("/config/campos")
+def guardar_campos_config(campos: list[CampoConfig]) -> list[CampoConfig]:
+    claves_validas = {c["clave"] for c in _CAMPOS_GENERALES_DEFECTO}
+    claves_recibidas = {c.clave for c in campos}
+    if claves_recibidas != claves_validas:
+        raise HTTPException(400, "La lista de campos no coincide con los campos generales del sistema.")
+    _escribir_config("campos_generales.json", [c.model_dump() for c in campos])
+    return campos
+
+
+class OpcionConfig(BaseModel):
+    """Opción simple de un mantenedor (tipos de aplicación, líneas de
+    proceso): nombre + orden + activo/inactivo."""
+
+    id: int
+    nombre: str
+    activo: bool = True
+    orden: int = 0
+
+
+class OpcionIn(BaseModel):
+    nombre: str
+    activo: bool = True
+    orden: int = 0
+
+
+def _siguiente_id(items: list[dict]) -> int:
+    return (max((i["id"] for i in items), default=0)) + 1
+
+
+def _crud_opciones(nombre_archivo: str, defecto: list[dict]):
+    """Fábrica de los 4 endpoints CRUD de un mantenedor simple tipo
+    OpcionConfig (tipos de aplicación / líneas de proceso comparten
+    exactamente la misma forma)."""
+
+    def listar() -> list[OpcionConfig]:
+        return [OpcionConfig(**o) for o in _leer_config(nombre_archivo, defecto)]
+
+    def crear(body: OpcionIn) -> OpcionConfig:
+        items = _leer_config(nombre_archivo, defecto)
+        nuevo = OpcionConfig(id=_siguiente_id(items), **body.model_dump())
+        items.append(nuevo.model_dump())
+        _escribir_config(nombre_archivo, items)
+        return nuevo
+
+    def editar(item_id: int, body: OpcionIn) -> OpcionConfig:
+        items = _leer_config(nombre_archivo, defecto)
+        idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
+        if idx is None:
+            raise HTTPException(404, "No encontrado.")
+        actualizado = OpcionConfig(id=item_id, **body.model_dump())
+        items[idx] = actualizado.model_dump()
+        _escribir_config(nombre_archivo, items)
+        return actualizado
+
+    def eliminar(item_id: int) -> dict[str, str]:
+        items = _leer_config(nombre_archivo, defecto)
+        restantes = [i for i in items if i["id"] != item_id]
+        if len(restantes) == len(items):
+            raise HTTPException(404, "No encontrado.")
+        _escribir_config(nombre_archivo, restantes)
+        return {"estado": "eliminado"}
+
+    return listar, crear, editar, eliminar
+
+
+_TIPOS_APLICACION_DEFECTO: list[dict] = [
+    {"id": 1, "nombre": "Foliar", "activo": True, "orden": 1},
+    {"id": 2, "nombre": "Suelo", "activo": True, "orden": 2},
+    {"id": 3, "nombre": "Poscosecha", "activo": True, "orden": 3},
+]
+_listar_tipos, _crear_tipo, _editar_tipo, _eliminar_tipo = _crud_opciones(
+    "tipos_aplicacion.json", _TIPOS_APLICACION_DEFECTO
+)
+router.get("/config/tipos-aplicacion")(_listar_tipos)
+router.post("/config/tipos-aplicacion")(_crear_tipo)
+router.put("/config/tipos-aplicacion/{item_id}")(_editar_tipo)
+router.delete("/config/tipos-aplicacion/{item_id}")(_eliminar_tipo)
+
+
+_LINEAS_PROCESO_DEFECTO: list[dict] = [
+    {"id": 1, "nombre": "Línea 1", "activo": True, "orden": 1},
+    {"id": 2, "nombre": "Línea 2", "activo": True, "orden": 2},
+]
+_listar_lineas, _crear_linea, _editar_linea, _eliminar_linea = _crud_opciones(
+    "lineas_proceso.json", _LINEAS_PROCESO_DEFECTO
+)
+router.get("/config/lineas-proceso")(_listar_lineas)
+router.post("/config/lineas-proceso")(_crear_linea)
+router.put("/config/lineas-proceso/{item_id}")(_editar_linea)
+router.delete("/config/lineas-proceso/{item_id}")(_eliminar_linea)
+
+
+class AnalitoConfig(BaseModel):
+    """Un análisis disponible para un laboratorio. `dosis_aplicable`
+    distingue los analitos de cromatografía (QUITECA/AGROFRESH), que
+    llevan una dosis aplicada asociada, de los analitos de resultado
+    directo (DIAGNOFRUIT/ALS)."""
+
+    id: int
+    laboratorio: str
+    codigo: str
+    nombre: str
+    unidad: str | None = None
+    tipo: str = "numero"
+    dosis_aplicable: bool = False
+    requerido: bool = False
+    activo: bool = True
+    orden: int = 0
+
+
+class AnalitoIn(BaseModel):
+    laboratorio: str
+    codigo: str
+    nombre: str
+    unidad: str | None = None
+    tipo: str = "numero"
+    dosis_aplicable: bool = False
+    requerido: bool = False
+    activo: bool = True
+    orden: int = 0
+
+
+_ANALITOS_DEFECTO: list[dict] = [
+    # QUITECA / AGROFRESH — cromatografía, con dosis aplicada.
+    {"id": 1, "laboratorio": "QUITECA", "codigo": "FDL", "nombre": "Fludioxonil", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 1},
+    {"id": 2, "laboratorio": "QUITECA", "codigo": "IMZ", "nombre": "Imazalil", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 2},
+    {"id": 3, "laboratorio": "QUITECA", "codigo": "PYR", "nombre": "Pirimetanil", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 3},
+    {"id": 4, "laboratorio": "QUITECA", "codigo": "TEBU", "nombre": "Tebuconazol", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 4},
+    {"id": 5, "laboratorio": "QUITECA", "codigo": "AZOX", "nombre": "Azoxistrobina", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 5},
+    {"id": 6, "laboratorio": "QUITECA", "codigo": "TBZ", "nombre": "Tiabendazol", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 6},
+    {"id": 7, "laboratorio": "QUITECA", "codigo": "DPA", "nombre": "Difenilamina", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 7},
+    {"id": 8, "laboratorio": "AGROFRESH", "codigo": "FDL", "nombre": "Fludioxonil", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 1},
+    {"id": 9, "laboratorio": "AGROFRESH", "codigo": "IMZ", "nombre": "Imazalil", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 2},
+    {"id": 10, "laboratorio": "AGROFRESH", "codigo": "PYR", "nombre": "Pirimetanil", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 3},
+    {"id": 11, "laboratorio": "AGROFRESH", "codigo": "TEBU", "nombre": "Tebuconazol", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 4},
+    {"id": 12, "laboratorio": "AGROFRESH", "codigo": "AZOX", "nombre": "Azoxistrobina", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 5},
+    {"id": 13, "laboratorio": "AGROFRESH", "codigo": "TBZ", "nombre": "Tiabendazol", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 6},
+    {"id": 14, "laboratorio": "AGROFRESH", "codigo": "DPA", "nombre": "Difenilamina", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 7},
+    # DIAGNOFRUIT — cuantificación de patógenos, resultado directo.
+    {"id": 15, "laboratorio": "DIAGNOFRUIT", "codigo": "LEV", "nombre": "Levaduras", "unidad": "UFC/mL", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 1},
+    {"id": 16, "laboratorio": "DIAGNOFRUIT", "codigo": "BOT", "nombre": "Botrytis", "unidad": "conidia/mL", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 2},
+    {"id": 17, "laboratorio": "DIAGNOFRUIT", "codigo": "ALT", "nombre": "Alternaria", "unidad": "conidia/mL", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 3},
+    {"id": 18, "laboratorio": "DIAGNOFRUIT", "codigo": "GEO", "nombre": "Geotrichum", "unidad": "esporas/mL", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 4},
+    {"id": 19, "laboratorio": "DIAGNOFRUIT", "codigo": "PEN", "nombre": "Penicillium", "unidad": "conidia/mL", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 5},
+    # ALS — microbiología / metales / plaguicidas.
+    {"id": 20, "laboratorio": "ALS", "codigo": "ECOLI100", "nombre": "E. Coli", "unidad": "UFC/100mL", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 1},
+    {"id": 21, "laboratorio": "ALS", "codigo": "COLIF100", "nombre": "Coliformes Totales", "unidad": "UFC/100mL", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 2},
+    {"id": 22, "laboratorio": "ALS", "codigo": "PB", "nombre": "Plomo", "unidad": "mg/kg", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 3},
+    {"id": 23, "laboratorio": "ALS", "codigo": "HG", "nombre": "Mercurio", "unidad": "mg/kg", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 4},
+    {"id": 24, "laboratorio": "ALS", "codigo": "AS", "nombre": "Arsénico", "unidad": "mg/kg", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 5},
+    {"id": 25, "laboratorio": "ALS", "codigo": "CD", "nombre": "Cadmio", "unidad": "mg/kg", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 6},
+    {"id": 26, "laboratorio": "ALS", "codigo": "AL", "nombre": "Aluminio", "unidad": "mg/kg", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 7},
+    {"id": 27, "laboratorio": "ALS", "codigo": "HONGOS", "nombre": "Hongos", "unidad": "UFC/g", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 8},
+    {"id": 28, "laboratorio": "ALS", "codigo": "LEVG", "nombre": "Levaduras", "unidad": "UFC/g", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 9},
+    {"id": 29, "laboratorio": "ALS", "codigo": "COLIFG", "nombre": "Coliformes Totales", "unidad": "UFC/g", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 10},
+    {"id": 30, "laboratorio": "ALS", "codigo": "ECOLIG", "nombre": "Escherichia coli", "unidad": "UFC/g", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 11},
+    {"id": 31, "laboratorio": "ALS", "codigo": "ENTERO", "nombre": "Recuento Enterobacterias", "unidad": "UFC/g", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 12},
+    {"id": 32, "laboratorio": "ALS", "codigo": "SALM", "nombre": "Salmonella 25g", "unidad": "P/A", "tipo": "texto", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 13},
+    {"id": 33, "laboratorio": "ALS", "codigo": "CENIZAS", "nombre": "Cenizas Insolubles en Ácido", "unidad": "%", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 14},
+    {"id": 34, "laboratorio": "ALS", "codigo": "AFLAT", "nombre": "Aflatoxinas Totales B1+B2+G1+G2", "unidad": "µg/kg", "tipo": "numero", "dosis_aplicable": False, "requerido": False, "activo": True, "orden": 15},
+]
+
+
+@router.get("/config/analitos")
+def listar_analitos_config(laboratorio: str | None = None) -> list[AnalitoConfig]:
+    items = [AnalitoConfig(**a) for a in _leer_config("analitos.json", _ANALITOS_DEFECTO)]
+    if laboratorio:
+        items = [a for a in items if a.laboratorio == laboratorio]
+    return sorted(items, key=lambda a: (a.laboratorio, a.orden))
+
+
+@router.post("/config/analitos")
+def crear_analito_config(body: AnalitoIn) -> AnalitoConfig:
+    items = _leer_config("analitos.json", _ANALITOS_DEFECTO)
+    nuevo = AnalitoConfig(id=_siguiente_id(items), **body.model_dump())
+    items.append(nuevo.model_dump())
+    _escribir_config("analitos.json", items)
+    return nuevo
+
+
+@router.put("/config/analitos/{item_id}")
+def editar_analito_config(item_id: int, body: AnalitoIn) -> AnalitoConfig:
+    items = _leer_config("analitos.json", _ANALITOS_DEFECTO)
+    idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
+    if idx is None:
+        raise HTTPException(404, "No encontrado.")
+    actualizado = AnalitoConfig(id=item_id, **body.model_dump())
+    items[idx] = actualizado.model_dump()
+    _escribir_config("analitos.json", items)
+    return actualizado
+
+
+@router.delete("/config/analitos/{item_id}")
+def eliminar_analito_config(item_id: int) -> dict[str, str]:
+    items = _leer_config("analitos.json", _ANALITOS_DEFECTO)
+    restantes = [i for i in items if i["id"] != item_id]
+    if len(restantes) == len(items):
+        raise HTTPException(404, "No encontrado.")
+    _escribir_config("analitos.json", restantes)
+    return {"estado": "eliminado"}

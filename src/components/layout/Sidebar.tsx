@@ -145,6 +145,14 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                 <IconListados className={styles.navIcono} />
                 Listados
               </NavLink>
+              <NavLink
+                to={ROUTES.tomaMuestrasConfig}
+                onClick={onCerrar}
+                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                <IconFrasco className={styles.navIcono} />
+                Config. Toma de muestras
+              </NavLink>
             </>
           )}
         </nav>
