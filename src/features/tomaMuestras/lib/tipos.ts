@@ -9,6 +9,7 @@ export interface Solicitud {
   solicitante: string
   sold_to: string
   ship_to: string | null
+  aplicacion: string | null
   especie: string | null
   variedad: string | null
   linea_proceso: string | null
@@ -64,6 +65,7 @@ export type OpcionInput = Omit<OpcionConfig, 'id'>
 export interface AnalitoConfig {
   id: number
   laboratorio: string
+  categoria: string
   codigo: string
   nombre: string
   unidad: string | null
@@ -72,9 +74,47 @@ export interface AnalitoConfig {
   requerido: boolean
   activo: boolean
   orden: number
+  tipo_aplicacion: string
 }
 
 export type AnalitoInput = Omit<AnalitoConfig, 'id'>
+
+/** Laboratorio disponible para elegir en la solicitud (mantenedor). */
+export interface LaboratorioConfig {
+  id: number
+  codigo: string
+  nombre: string
+  descripcion: string | null
+  activo: boolean
+  orden: number
+}
+
+export type LaboratorioInput = Omit<LaboratorioConfig, 'id'>
+
+/** Categoría que agrupa analitos dentro de un laboratorio. */
+export interface CategoriaAnaliticaConfig {
+  id: number
+  laboratorio: string
+  nombre: string
+  activo: boolean
+  orden: number
+}
+
+export type CategoriaAnaliticaInput = Omit<CategoriaAnaliticaConfig, 'id'>
+
+/** Producto disponible para "Producto Utilizado" según laboratorio +
+ * tipo de aplicación (vacío en tipo_aplicacion = aplica a cualquiera). */
+export interface ProductoConfig {
+  id: number
+  nombre: string
+  codigo: string | null
+  laboratorio: string
+  tipo_aplicacion: string
+  activo: boolean
+  orden: number
+}
+
+export type ProductoInput = Omit<ProductoConfig, 'id'>
 
 /** Campo adicional que aparece según el Tipo de Aplicación elegido.
  * `ambito` = "comun" (siempre visible) o el nombre exacto de un tipo de

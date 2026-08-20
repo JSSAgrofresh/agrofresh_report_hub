@@ -5,6 +5,7 @@ export {
   eliminarSolicitud,
   urlDescargaExcel,
   urlDescargaPdf,
+  urlExportarTodasLasSolicitudes,
 } from './lib/api'
 export {
   listarCamposConfig,
@@ -25,6 +26,18 @@ export {
   crearCampoTipoAplicacion,
   actualizarCampoTipoAplicacion,
   eliminarCampoTipoAplicacion,
+  listarLaboratoriosConfig,
+  crearLaboratorioConfig,
+  actualizarLaboratorioConfig,
+  eliminarLaboratorioConfig,
+  listarCategoriasAnaliticas,
+  crearCategoriaAnalitica,
+  actualizarCategoriaAnalitica,
+  eliminarCategoriaAnalitica,
+  listarProductosConfig,
+  crearProductoConfig,
+  actualizarProductoConfig,
+  eliminarProductoConfig,
 } from './lib/api'
 export type {
   Solicitud,
@@ -37,5 +50,11 @@ export type {
   AnalitoInput,
   CampoTipoAplicacionConfig,
   CampoTipoAplicacionInput,
+  LaboratorioConfig,
+  LaboratorioInput,
+  CategoriaAnaliticaConfig,
+  CategoriaAnaliticaInput,
+  ProductoConfig,
+  ProductoInput,
 } from './lib/tipos'
 export { LABORATORIOS } from './lib/tipos'

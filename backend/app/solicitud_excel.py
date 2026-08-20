@@ -29,8 +29,10 @@ CAMPOS_GENERALES_ETIQUETAS: list[tuple[str, str]] = [
     ("fecha_solicitud", "Fecha Solicitud"),
     ("laboratorio", "Laboratorio"),
     ("solicitante", "Solicitante"),
+    ("email_solicitante", "Email Solicitante"),
     ("sold_to", "Sold To"),
     ("ship_to", "Ship To"),
+    ("aplicacion", "Aplicación"),
     ("especie", "Especie"),
     ("variedad", "Variedad"),
     ("linea_proceso", "Línea Proceso"),
@@ -46,7 +48,6 @@ CAMPOS_GENERALES_ETIQUETAS: list[tuple[str, str]] = [
     ("hora_muestreo", "Hora Muestreo"),
     ("nombre_muestreador", "Nombre Muestreador"),
     ("generado_por", "Generado Por"),
-    ("email_solicitante", "Email Solicitante"),
     ("email_laboratorio", "Email Laboratorio"),
 ]
 
@@ -126,6 +127,63 @@ def construir_workbook(datos: dict) -> Workbook:
     ws_datos = wb.create_sheet("_data")
     ws_datos.sheet_state = "hidden"
     ws_datos["A1"] = json.dumps(datos, ensure_ascii=False)
+
+    return wb
+
+
+def _etiqueta_analito(analito: dict) -> str:
+    return f"{analito['nombre']} ({analito['unidad']})" if analito.get("unidad") else analito["nombre"]
+
+
+def construir_workbook_exportacion(solicitudes: list[dict], analitos: list[dict]) -> Workbook:
+    """Une todas las solicitudes en un único Excel "ancho": una fila por
+    solicitud, columnas = datos generales + datos de muestra + una columna
+    por cada analito activo configurado (unión por código -así QUITECA y
+    AGROFRESH, que comparten los mismos códigos, comparten también las
+    mismas columnas de análisis-). Refleja la estructura configurada
+    actual, no una lista fija hardcodeada."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Solicitudes"
+
+    # Columnas de analitos: unión por código, ordenadas por categoría/orden;
+    # el primer analito visto con ese código fija el nombre/unidad mostrados.
+    vistos: dict[str, dict] = {}
+    for a in sorted((x for x in analitos if x.get("activo", True)), key=lambda x: (x["laboratorio"], x.get("categoria", ""), x["orden"])):
+        if a["codigo"] not in vistos:
+            vistos[a["codigo"]] = a
+    columnas_analito = list(vistos.values())
+
+    encabezados = [etiqueta for _, etiqueta in CAMPOS_GENERALES_ETIQUETAS] + [
+        f"{_etiqueta_analito(a)} [{a['codigo']}]" for a in columnas_analito
+    ]
+
+    FUENTE_HEADER = Font(bold=True, size=10, color="FFFFFF")
+    RELLENO_HEADER = PatternFill("solid", fgColor=VERDE_OSCURO)
+    for col_idx, etiqueta in enumerate(encabezados, start=1):
+        c = ws.cell(row=1, column=col_idx, value=etiqueta)
+        c.font = FUENTE_HEADER
+        c.fill = RELLENO_HEADER
+        c.alignment = Alignment(vertical="center", wrap_text=True)
+    ws.row_dimensions[1].height = 32
+
+    for fila_idx, datos in enumerate(solicitudes, start=2):
+        campos_lab: dict = datos.get("campos_laboratorio") or {}
+        for col_idx, (clave, _) in enumerate(CAMPOS_GENERALES_ETIQUETAS, start=1):
+            valor = datos.get(clave)
+            ws.cell(row=fila_idx, column=col_idx, value=valor if valor not in (None, "") else None)
+        for offset, a in enumerate(columnas_analito):
+            etiqueta = _etiqueta_analito(a)
+            valor = campos_lab.get(etiqueta)
+            ws.cell(row=fila_idx, column=len(CAMPOS_GENERALES_ETIQUETAS) + 1 + offset, value=valor or None)
+
+    total_columnas = len(encabezados)
+    ws.freeze_panes = "A2"
+    if ws.max_row >= 1 and total_columnas >= 1:
+        ws.auto_filter.ref = f"A1:{ws.cell(row=1, column=total_columnas).coordinate}"
+    for col_idx in range(1, total_columnas + 1):
+        letra = ws.cell(row=1, column=col_idx).column_letter
+        ws.column_dimensions[letra].width = 16 if col_idx <= len(CAMPOS_GENERALES_ETIQUETAS) else 14
 
     return wb
 

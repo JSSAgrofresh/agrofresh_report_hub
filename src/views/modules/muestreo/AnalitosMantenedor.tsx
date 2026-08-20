@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { LABORATORIOS } from '@/features/tomaMuestras'
-import type { AnalitoConfig, AnalitoInput, Laboratorio } from '@/features/tomaMuestras'
+import type { AnalitoConfig, AnalitoInput, CategoriaAnaliticaConfig, Laboratorio, OpcionConfig } from '@/features/tomaMuestras'
 import { cn } from '@/lib/cn'
 import styles from './MuestreoConfigView.module.css'
 
 interface AnalitosMantenedorProps {
   analitos: AnalitoConfig[]
+  categorias: CategoriaAnaliticaConfig[]
+  tiposAplicacion: OpcionConfig[]
   onCrear: (datos: AnalitoInput) => Promise<void>
   onEditar: (id: number, datos: AnalitoInput) => Promise<void>
   onEliminar: (id: number) => Promise<void>
@@ -14,15 +16,25 @@ interface AnalitosMantenedorProps {
 
 const ANALITO_NUEVO_VACIO = { codigo: '', nombre: '', unidad: '' }
 
-export function AnalitosMantenedor({ analitos, onCrear, onEditar, onEliminar }: AnalitosMantenedorProps) {
+export function AnalitosMantenedor({
+  analitos,
+  categorias,
+  tiposAplicacion,
+  onCrear,
+  onEditar,
+  onEliminar,
+}: AnalitosMantenedorProps) {
   const [laboratorio, setLaboratorio] = useState<Laboratorio>('QUITECA')
   const [nuevo, setNuevo] = useState(ANALITO_NUEVO_VACIO)
 
   const analitosDelLab = analitos.filter((a) => a.laboratorio === laboratorio).sort((a, b) => a.orden - b.orden)
+  const categoriasDelLab = categorias.filter((c) => c.laboratorio === laboratorio && c.activo)
+  const tiposActivos = tiposAplicacion.filter((t) => t.activo)
 
   function campoBase(a: AnalitoConfig): AnalitoInput {
     return {
       laboratorio: a.laboratorio,
+      categoria: a.categoria,
       codigo: a.codigo,
       nombre: a.nombre,
       unidad: a.unidad,
@@ -31,6 +43,7 @@ export function AnalitosMantenedor({ analitos, onCrear, onEditar, onEliminar }: 
       requerido: a.requerido,
       activo: a.activo,
       orden: a.orden,
+      tipo_aplicacion: a.tipo_aplicacion,
     }
   }
 
@@ -38,6 +51,7 @@ export function AnalitosMantenedor({ analitos, onCrear, onEditar, onEliminar }: 
     if (!nuevo.codigo.trim() || !nuevo.nombre.trim()) return
     await onCrear({
       laboratorio,
+      categoria: categoriasDelLab[0]?.nombre ?? '',
       codigo: nuevo.codigo.trim(),
       nombre: nuevo.nombre.trim(),
       unidad: nuevo.unidad.trim() || null,
@@ -46,6 +60,7 @@ export function AnalitosMantenedor({ analitos, onCrear, onEditar, onEliminar }: 
       requerido: false,
       activo: true,
       orden: analitosDelLab.length + 1,
+      tipo_aplicacion: '',
     })
     setNuevo(ANALITO_NUEVO_VACIO)
   }
@@ -69,11 +84,13 @@ export function AnalitosMantenedor({ analitos, onCrear, onEditar, onEliminar }: 
         <table className={styles.tabla}>
           <thead>
             <tr>
+              <th>Categoría</th>
               <th>Código</th>
               <th>Nombre</th>
               <th>Unidad</th>
               <th>Tipo</th>
               <th>Dosis</th>
+              <th>Tipo aplicación</th>
               <th>Requerido</th>
               <th>Activo</th>
               <th>Orden</th>
@@ -83,6 +100,16 @@ export function AnalitosMantenedor({ analitos, onCrear, onEditar, onEliminar }: 
           <tbody>
             {analitosDelLab.map((a) => (
               <tr key={a.id}>
+                <td>
+                  <select value={a.categoria} onChange={(e) => onEditar(a.id, { ...campoBase(a), categoria: e.target.value })}>
+                    <option value="">— sin categoría —</option>
+                    {categoriasDelLab.map((c) => (
+                      <option key={c.id} value={c.nombre}>
+                        {c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </td>
                 <td>
                   <input
                     className={styles.inputCeldaChico}
@@ -121,6 +148,19 @@ export function AnalitosMantenedor({ analitos, onCrear, onEditar, onEliminar }: 
                   />
                 </td>
                 <td>
+                  <select
+                    value={a.tipo_aplicacion}
+                    onChange={(e) => onEditar(a.id, { ...campoBase(a), tipo_aplicacion: e.target.value })}
+                  >
+                    <option value="">— cualquiera —</option>
+                    {tiposActivos.map((t) => (
+                      <option key={t.id} value={t.nombre}>
+                        {t.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
                   <input
                     type="checkbox"
                     checked={a.requerido}
@@ -150,6 +190,7 @@ export function AnalitosMantenedor({ analitos, onCrear, onEditar, onEliminar }: 
               </tr>
             ))}
             <tr>
+              <td></td>
               <td>
                 <input
                   className={styles.inputCeldaChico}
@@ -174,7 +215,7 @@ export function AnalitosMantenedor({ analitos, onCrear, onEditar, onEliminar }: 
                   onChange={(e) => setNuevo((n) => ({ ...n, unidad: e.target.value }))}
                 />
               </td>
-              <td colSpan={5}></td>
+              <td colSpan={6}></td>
               <td>
                 <Button type="button" variant="secondary" onClick={agregar}>
                   + Agregar

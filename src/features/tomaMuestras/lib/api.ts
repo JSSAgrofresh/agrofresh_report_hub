@@ -5,8 +5,14 @@ import type {
   CampoConfig,
   CampoTipoAplicacionConfig,
   CampoTipoAplicacionInput,
+  CategoriaAnaliticaConfig,
+  CategoriaAnaliticaInput,
+  LaboratorioConfig,
+  LaboratorioInput,
   OpcionConfig,
   OpcionInput,
+  ProductoConfig,
+  ProductoInput,
   Solicitud,
   SolicitudInput,
 } from './tipos'
@@ -37,6 +43,11 @@ export function urlDescargaExcel(archivo: string) {
 
 export function urlDescargaPdf(archivo: string) {
   return `${API_BASE_URL}/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/pdf`
+}
+
+/** Un único Excel con todas las solicitudes (una fila por solicitud). */
+export function urlExportarTodasLasSolicitudes() {
+  return `${API_BASE_URL}/toma-muestras/solicitudes/exportar-todo`
 }
 
 // --- Configuración: campos generales -------------------------------------
@@ -87,8 +98,11 @@ export function eliminarLineaProceso(id: number) {
 
 // --- Configuración: analitos por laboratorio -------------------------------
 
-export function listarAnalitosConfig(laboratorio?: string) {
-  const query = laboratorio ? `?laboratorio=${encodeURIComponent(laboratorio)}` : ''
+export function listarAnalitosConfig(laboratorio?: string, tipoAplicacion?: string) {
+  const params = new URLSearchParams()
+  if (laboratorio) params.set('laboratorio', laboratorio)
+  if (tipoAplicacion) params.set('tipo_aplicacion', tipoAplicacion)
+  const query = params.toString() ? `?${params.toString()}` : ''
   return httpClient.get<AnalitoConfig[]>(`/toma-muestras/config/analitos${query}`)
 }
 
@@ -121,4 +135,63 @@ export function actualizarCampoTipoAplicacion(id: number, datos: CampoTipoAplica
 
 export function eliminarCampoTipoAplicacion(id: number) {
   return httpClient.delete<{ estado: string }>(`/toma-muestras/config/campos-tipo-aplicacion/${id}`)
+}
+
+// --- Configuración: laboratorios --------------------------------------------
+
+export function listarLaboratoriosConfig() {
+  return httpClient.get<LaboratorioConfig[]>('/toma-muestras/config/laboratorios')
+}
+
+export function crearLaboratorioConfig(datos: LaboratorioInput) {
+  return httpClient.post<LaboratorioConfig>('/toma-muestras/config/laboratorios', datos)
+}
+
+export function actualizarLaboratorioConfig(id: number, datos: LaboratorioInput) {
+  return httpClient.put<LaboratorioConfig>(`/toma-muestras/config/laboratorios/${id}`, datos)
+}
+
+export function eliminarLaboratorioConfig(id: number) {
+  return httpClient.delete<{ estado: string }>(`/toma-muestras/config/laboratorios/${id}`)
+}
+
+// --- Configuración: categorías analíticas -----------------------------------
+
+export function listarCategoriasAnaliticas(laboratorio?: string) {
+  const query = laboratorio ? `?laboratorio=${encodeURIComponent(laboratorio)}` : ''
+  return httpClient.get<CategoriaAnaliticaConfig[]>(`/toma-muestras/config/categorias-analiticas${query}`)
+}
+
+export function crearCategoriaAnalitica(datos: CategoriaAnaliticaInput) {
+  return httpClient.post<CategoriaAnaliticaConfig>('/toma-muestras/config/categorias-analiticas', datos)
+}
+
+export function actualizarCategoriaAnalitica(id: number, datos: CategoriaAnaliticaInput) {
+  return httpClient.put<CategoriaAnaliticaConfig>(`/toma-muestras/config/categorias-analiticas/${id}`, datos)
+}
+
+export function eliminarCategoriaAnalitica(id: number) {
+  return httpClient.delete<{ estado: string }>(`/toma-muestras/config/categorias-analiticas/${id}`)
+}
+
+// --- Configuración: productos ------------------------------------------------
+
+export function listarProductosConfig(laboratorio?: string, tipoAplicacion?: string) {
+  const params = new URLSearchParams()
+  if (laboratorio) params.set('laboratorio', laboratorio)
+  if (tipoAplicacion) params.set('tipo_aplicacion', tipoAplicacion)
+  const query = params.toString() ? `?${params.toString()}` : ''
+  return httpClient.get<ProductoConfig[]>(`/toma-muestras/config/productos${query}`)
+}
+
+export function crearProductoConfig(datos: ProductoInput) {
+  return httpClient.post<ProductoConfig>('/toma-muestras/config/productos', datos)
+}
+
+export function actualizarProductoConfig(id: number, datos: ProductoInput) {
+  return httpClient.put<ProductoConfig>(`/toma-muestras/config/productos/${id}`, datos)
+}
+
+export function eliminarProductoConfig(id: number) {
+  return httpClient.delete<{ estado: string }>(`/toma-muestras/config/productos/${id}`)
 }

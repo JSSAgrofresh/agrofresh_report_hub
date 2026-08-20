@@ -34,7 +34,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from . import config
-from .solicitud_excel import construir_workbook, leer_datos_workbook
+from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
 from .toma_muestras_pdf import generar_pdf_solicitud
 
 router = APIRouter(prefix="/api/toma-muestras", tags=["toma-muestras"])
@@ -100,6 +100,7 @@ class SolicitudIn(BaseModel):
     solicitante: str
     sold_to: str
     ship_to: str | None = None
+    aplicacion: str | None = None
     especie: str | None = None
     variedad: str | None = None
     linea_proceso: str | None = None
@@ -149,6 +150,38 @@ def listar_solicitudes() -> list[Solicitud]:
             solicitudes.append(Solicitud(archivo=nombre, **datos))
     solicitudes.sort(key=lambda s: s.creado_en, reverse=True)
     return solicitudes
+
+
+@router.get("/solicitudes/exportar-todo")
+def exportar_todas_las_solicitudes() -> StreamingResponse:
+    """Un único Excel "ancho" (una fila por solicitud) con toda la
+    información general + de muestra + una columna por cada analito activo
+    configurado -refleja la configuración vigente, no una plantilla fija."""
+    solicitudes_dict: list[dict] = []
+    for laboratorio in LABORATORIOS:
+        carpeta = os.path.join(_carpeta_raiz(), laboratorio)
+        if not os.path.isdir(carpeta):
+            continue
+        for nombre in os.listdir(carpeta):
+            if not nombre.endswith((".xlsx", ".json")):
+                continue
+            try:
+                solicitudes_dict.append(_leer_solicitud_archivo(os.path.join(carpeta, nombre)))
+            except (ValueError, KeyError):
+                continue
+    solicitudes_dict.sort(key=lambda d: d.get("creado_en") or "", reverse=True)
+
+    analitos = _leer_config("analitos.json", _ANALITOS_DEFECTO)
+    wb = construir_workbook_exportacion(solicitudes_dict, analitos)
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    nombre_archivo = f"Solicitudes_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
+    )
 
 
 @router.get("/solicitudes/{archivo}")
@@ -269,25 +302,26 @@ class CampoConfig(BaseModel):
 # formulario) y no forman parte de este mantenedor.
 _CAMPOS_GENERALES_DEFECTO: list[dict] = [
     {"clave": "solicitante", "etiqueta": "Solicitante", "tipo": "text", "requerido": True, "activo": True, "orden": 1},
-    {"clave": "sold_to", "etiqueta": "Sold To", "tipo": "select", "requerido": True, "activo": True, "orden": 2},
-    {"clave": "ship_to", "etiqueta": "Ship To", "tipo": "select", "requerido": False, "activo": True, "orden": 3},
-    {"clave": "especie", "etiqueta": "Especie", "tipo": "text", "requerido": False, "activo": True, "orden": 4},
-    {"clave": "variedad", "etiqueta": "Variedad", "tipo": "text", "requerido": False, "activo": True, "orden": 5},
-    {"clave": "linea_proceso", "etiqueta": "Línea Proceso", "tipo": "select", "requerido": False, "activo": True, "orden": 6},
-    {"clave": "csg", "etiqueta": "CSG", "tipo": "text", "requerido": False, "activo": True, "orden": 7},
-    {"clave": "lote", "etiqueta": "Lote", "tipo": "text", "requerido": False, "activo": True, "orden": 8},
-    {"clave": "posicion_muestreo", "etiqueta": "Posición Muestreo", "tipo": "text", "requerido": False, "activo": True, "orden": 9},
-    {"clave": "numero_camara", "etiqueta": "N° Cámara", "tipo": "text", "requerido": False, "activo": True, "orden": 10},
-    {"clave": "numero_orden", "etiqueta": "N° Orden", "tipo": "text", "requerido": False, "activo": True, "orden": 11},
-    {"clave": "kilos_procesados", "etiqueta": "Kilos Procesados (KG)", "tipo": "number", "requerido": False, "activo": True, "orden": 12},
-    {"clave": "producto_utilizado", "etiqueta": "Producto Utilizado", "tipo": "text", "requerido": False, "activo": True, "orden": 13},
-    {"clave": "tipo_muestra", "etiqueta": "Tipo Muestra", "tipo": "text", "requerido": False, "activo": True, "orden": 14},
-    {"clave": "fecha_muestreo", "etiqueta": "Fecha Muestreo", "tipo": "date", "requerido": False, "activo": True, "orden": 15},
-    {"clave": "hora_muestreo", "etiqueta": "Hora Muestreo", "tipo": "time", "requerido": False, "activo": True, "orden": 16},
-    {"clave": "nombre_muestreador", "etiqueta": "Nombre Muestreador", "tipo": "text", "requerido": False, "activo": True, "orden": 17},
-    {"clave": "email_solicitante", "etiqueta": "Email Solicitante", "tipo": "email", "requerido": False, "activo": True, "orden": 18},
-    {"clave": "email_laboratorio", "etiqueta": "Email Laboratorio", "tipo": "email", "requerido": False, "activo": True, "orden": 19},
-    {"clave": "observacion", "etiqueta": "Observación", "tipo": "textarea", "requerido": False, "activo": True, "orden": 20},
+    {"clave": "email_solicitante", "etiqueta": "Email Solicitante", "tipo": "email", "requerido": True, "activo": True, "orden": 2},
+    {"clave": "sold_to", "etiqueta": "Sold To", "tipo": "select", "requerido": True, "activo": True, "orden": 3},
+    {"clave": "ship_to", "etiqueta": "Ship To", "tipo": "select", "requerido": False, "activo": True, "orden": 4},
+    {"clave": "aplicacion", "etiqueta": "Aplicación", "tipo": "text", "requerido": True, "activo": True, "orden": 5},
+    {"clave": "especie", "etiqueta": "Especie", "tipo": "text", "requerido": True, "activo": True, "orden": 6},
+    {"clave": "variedad", "etiqueta": "Variedad", "tipo": "text", "requerido": False, "activo": True, "orden": 7},
+    {"clave": "linea_proceso", "etiqueta": "Línea Proceso", "tipo": "select", "requerido": True, "activo": True, "orden": 8},
+    {"clave": "numero_camara", "etiqueta": "N° Cámara", "tipo": "text", "requerido": True, "activo": True, "orden": 9},
+    {"clave": "numero_orden", "etiqueta": "N° Orden", "tipo": "text", "requerido": True, "activo": True, "orden": 10},
+    {"clave": "csg", "etiqueta": "CSG (Código Productor)", "tipo": "text", "requerido": False, "activo": True, "orden": 11},
+    {"clave": "lote", "etiqueta": "Lote", "tipo": "text", "requerido": False, "activo": True, "orden": 12},
+    {"clave": "kilos_procesados", "etiqueta": "Kilos Procesados (KG)", "tipo": "number", "requerido": False, "activo": True, "orden": 13},
+    {"clave": "posicion_muestreo", "etiqueta": "Posición Muestreo", "tipo": "text", "requerido": False, "activo": True, "orden": 14},
+    {"clave": "producto_utilizado", "etiqueta": "Producto Utilizado", "tipo": "select", "requerido": False, "activo": True, "orden": 15},
+    {"clave": "tipo_muestra", "etiqueta": "Tipo Muestra", "tipo": "text", "requerido": True, "activo": True, "orden": 16},
+    {"clave": "fecha_muestreo", "etiqueta": "Fecha Muestreo", "tipo": "date", "requerido": False, "activo": True, "orden": 17},
+    {"clave": "hora_muestreo", "etiqueta": "Hora Muestreo", "tipo": "time", "requerido": False, "activo": True, "orden": 18},
+    {"clave": "nombre_muestreador", "etiqueta": "Nombre Muestreador", "tipo": "text", "requerido": True, "activo": True, "orden": 19},
+    {"clave": "email_laboratorio", "etiqueta": "Email Laboratorio", "tipo": "email", "requerido": False, "activo": True, "orden": 20},
+    {"clave": "observacion", "etiqueta": "Observación", "tipo": "textarea", "requerido": False, "activo": True, "orden": 21},
 ]
 
 
@@ -417,9 +451,8 @@ class CampoTipoAplicacionIn(BaseModel):
 
 
 _CAMPOS_TIPO_APLICACION_DEFECTO: list[dict] = [
-    {"id": 1, "ambito": "comun", "clave": "dosis_aplicada", "etiqueta": "Dosis Aplicada", "tipo": "text", "requerido": False, "activo": True, "orden": 1},
-    {"id": 2, "ambito": "Actimist", "clave": "presion_actimist", "etiqueta": "Presión Actimist (bar)", "tipo": "number", "requerido": False, "activo": True, "orden": 2},
-    {"id": 3, "ambito": "Línea de proceso", "clave": "velocidad_linea", "etiqueta": "Velocidad de Línea (m/min)", "tipo": "number", "requerido": False, "activo": True, "orden": 2},
+    {"id": 1, "ambito": "Actimist", "clave": "presion_actimist", "etiqueta": "Presión Actimist (bar)", "tipo": "number", "requerido": False, "activo": True, "orden": 1},
+    {"id": 2, "ambito": "Línea de proceso", "clave": "velocidad_linea", "etiqueta": "Velocidad de Línea (m/min)", "tipo": "number", "requerido": False, "activo": True, "orden": 1},
 ]
 
 
@@ -466,10 +499,14 @@ class AnalitoConfig(BaseModel):
     """Un análisis disponible para un laboratorio. `dosis_aplicable`
     distingue los analitos de cromatografía (QUITECA/AGROFRESH), que
     llevan una dosis aplicada asociada, de los analitos de resultado
-    directo (DIAGNOFRUIT/ALS)."""
+    directo (DIAGNOFRUIT/ALS). `categoria` agrupa analitos dentro de un
+    laboratorio (ej. "Fungicidas", "Metales"); `tipo_aplicacion` acota el
+    analito a un Tipo de Aplicación específico -vacío significa que aplica
+    a cualquiera-."""
 
     id: int
     laboratorio: str
+    categoria: str = ""
     codigo: str
     nombre: str
     unidad: str | None = None
@@ -478,10 +515,12 @@ class AnalitoConfig(BaseModel):
     requerido: bool = False
     activo: bool = True
     orden: int = 0
+    tipo_aplicacion: str = ""
 
 
 class AnalitoIn(BaseModel):
     laboratorio: str
+    categoria: str = ""
     codigo: str
     nombre: str
     unidad: str | None = None
@@ -490,6 +529,7 @@ class AnalitoIn(BaseModel):
     requerido: bool = False
     activo: bool = True
     orden: int = 0
+    tipo_aplicacion: str = ""
 
 
 _ANALITOS_DEFECTO: list[dict] = [
@@ -534,11 +574,13 @@ _ANALITOS_DEFECTO: list[dict] = [
 
 
 @router.get("/config/analitos")
-def listar_analitos_config(laboratorio: str | None = None) -> list[AnalitoConfig]:
+def listar_analitos_config(laboratorio: str | None = None, tipo_aplicacion: str | None = None) -> list[AnalitoConfig]:
     items = [AnalitoConfig(**a) for a in _leer_config("analitos.json", _ANALITOS_DEFECTO)]
     if laboratorio:
         items = [a for a in items if a.laboratorio == laboratorio]
-    return sorted(items, key=lambda a: (a.laboratorio, a.orden))
+    if tipo_aplicacion:
+        items = [a for a in items if not a.tipo_aplicacion or a.tipo_aplicacion == tipo_aplicacion]
+    return sorted(items, key=lambda a: (a.laboratorio, a.categoria, a.orden))
 
 
 @router.post("/config/analitos")
@@ -569,4 +611,217 @@ def eliminar_analito_config(item_id: int) -> dict[str, str]:
     if len(restantes) == len(items):
         raise HTTPException(404, "No encontrado.")
     _escribir_config("analitos.json", restantes)
+    return {"estado": "eliminado"}
+
+
+# ---------------------------------------------------------------------------
+# Mantenedor de Laboratorios: fuente de verdad para la lista visible en el
+# selector de la solicitud (activo/inactivo/orden/descripción). Por
+# seguridad de almacenamiento, las 4 carpetas físicas de `solicitudes/`
+# siguen ancladas a `LABORATORIOS` -no se crean carpetas arbitrarias-, pero
+# ningún lugar del frontend vuelve a hardcodear la lista para mostrarla.
+# ---------------------------------------------------------------------------
+
+
+class LaboratorioConfig(BaseModel):
+    id: int
+    codigo: str
+    nombre: str
+    descripcion: str | None = None
+    activo: bool = True
+    orden: int = 0
+
+
+class LaboratorioIn(BaseModel):
+    codigo: str
+    nombre: str
+    descripcion: str | None = None
+    activo: bool = True
+    orden: int = 0
+
+
+_LABORATORIOS_DEFECTO: list[dict] = [
+    {"id": 1, "codigo": "QUITECA", "nombre": "Quiteca", "descripcion": None, "activo": True, "orden": 1},
+    {"id": 2, "codigo": "AGROFRESH", "nombre": "AgroFresh", "descripcion": None, "activo": True, "orden": 2},
+    {"id": 3, "codigo": "ALS", "nombre": "ALS", "descripcion": None, "activo": True, "orden": 3},
+    {"id": 4, "codigo": "DIAGNOFRUIT", "nombre": "Diagnofruit", "descripcion": None, "activo": True, "orden": 4},
+]
+
+
+@router.get("/config/laboratorios")
+def listar_laboratorios_config() -> list[LaboratorioConfig]:
+    items = [LaboratorioConfig(**l) for l in _leer_config("laboratorios.json", _LABORATORIOS_DEFECTO)]
+    return sorted(items, key=lambda l: l.orden)
+
+
+@router.post("/config/laboratorios")
+def crear_laboratorio_config(body: LaboratorioIn) -> LaboratorioConfig:
+    if body.codigo not in LABORATORIOS:
+        raise HTTPException(400, f"El código debe ser uno de: {', '.join(LABORATORIOS)}.")
+    items = _leer_config("laboratorios.json", _LABORATORIOS_DEFECTO)
+    nuevo = LaboratorioConfig(id=_siguiente_id(items), **body.model_dump())
+    items.append(nuevo.model_dump())
+    _escribir_config("laboratorios.json", items)
+    return nuevo
+
+
+@router.put("/config/laboratorios/{item_id}")
+def editar_laboratorio_config(item_id: int, body: LaboratorioIn) -> LaboratorioConfig:
+    if body.codigo not in LABORATORIOS:
+        raise HTTPException(400, f"El código debe ser uno de: {', '.join(LABORATORIOS)}.")
+    items = _leer_config("laboratorios.json", _LABORATORIOS_DEFECTO)
+    idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
+    if idx is None:
+        raise HTTPException(404, "No encontrado.")
+    actualizado = LaboratorioConfig(id=item_id, **body.model_dump())
+    items[idx] = actualizado.model_dump()
+    _escribir_config("laboratorios.json", items)
+    return actualizado
+
+
+@router.delete("/config/laboratorios/{item_id}")
+def eliminar_laboratorio_config(item_id: int) -> dict[str, str]:
+    items = _leer_config("laboratorios.json", _LABORATORIOS_DEFECTO)
+    restantes = [i for i in items if i["id"] != item_id]
+    if len(restantes) == len(items):
+        raise HTTPException(404, "No encontrado.")
+    _escribir_config("laboratorios.json", restantes)
+    return {"estado": "eliminado"}
+
+
+# ---------------------------------------------------------------------------
+# Mantenedor de Categorías analíticas: agrupan los analitos de un
+# laboratorio (ej. AGROFRESH → "Fungicidas") para presentarlos ordenados en
+# la sección Analitos del formulario y en el mantenedor de Analitos.
+# ---------------------------------------------------------------------------
+
+
+class CategoriaAnaliticaConfig(BaseModel):
+    id: int
+    laboratorio: str
+    nombre: str
+    activo: bool = True
+    orden: int = 0
+
+
+class CategoriaAnaliticaIn(BaseModel):
+    laboratorio: str
+    nombre: str
+    activo: bool = True
+    orden: int = 0
+
+
+_CATEGORIAS_ANALITICAS_DEFECTO: list[dict] = [
+    {"id": 1, "laboratorio": "QUITECA", "nombre": "Fungicidas", "activo": True, "orden": 1},
+    {"id": 2, "laboratorio": "AGROFRESH", "nombre": "Fungicidas", "activo": True, "orden": 1},
+    {"id": 3, "laboratorio": "DIAGNOFRUIT", "nombre": "Cuantificación de patógenos", "activo": True, "orden": 1},
+    {"id": 4, "laboratorio": "ALS", "nombre": "Microbiología y metales", "activo": True, "orden": 1},
+]
+
+
+@router.get("/config/categorias-analiticas")
+def listar_categorias_analiticas(laboratorio: str | None = None) -> list[CategoriaAnaliticaConfig]:
+    items = [CategoriaAnaliticaConfig(**c) for c in _leer_config("categorias_analiticas.json", _CATEGORIAS_ANALITICAS_DEFECTO)]
+    if laboratorio:
+        items = [c for c in items if c.laboratorio == laboratorio]
+    return sorted(items, key=lambda c: (c.laboratorio, c.orden))
+
+
+@router.post("/config/categorias-analiticas")
+def crear_categoria_analitica(body: CategoriaAnaliticaIn) -> CategoriaAnaliticaConfig:
+    items = _leer_config("categorias_analiticas.json", _CATEGORIAS_ANALITICAS_DEFECTO)
+    nuevo = CategoriaAnaliticaConfig(id=_siguiente_id(items), **body.model_dump())
+    items.append(nuevo.model_dump())
+    _escribir_config("categorias_analiticas.json", items)
+    return nuevo
+
+
+@router.put("/config/categorias-analiticas/{item_id}")
+def editar_categoria_analitica(item_id: int, body: CategoriaAnaliticaIn) -> CategoriaAnaliticaConfig:
+    items = _leer_config("categorias_analiticas.json", _CATEGORIAS_ANALITICAS_DEFECTO)
+    idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
+    if idx is None:
+        raise HTTPException(404, "No encontrado.")
+    actualizado = CategoriaAnaliticaConfig(id=item_id, **body.model_dump())
+    items[idx] = actualizado.model_dump()
+    _escribir_config("categorias_analiticas.json", items)
+    return actualizado
+
+
+@router.delete("/config/categorias-analiticas/{item_id}")
+def eliminar_categoria_analitica(item_id: int) -> dict[str, str]:
+    items = _leer_config("categorias_analiticas.json", _CATEGORIAS_ANALITICAS_DEFECTO)
+    restantes = [i for i in items if i["id"] != item_id]
+    if len(restantes) == len(items):
+        raise HTTPException(404, "No encontrado.")
+    _escribir_config("categorias_analiticas.json", restantes)
+    return {"estado": "eliminado"}
+
+
+# ---------------------------------------------------------------------------
+# Mantenedor de Productos: qué "Producto Utilizado" está disponible según el
+# Laboratorio + Tipo de Aplicación elegidos en la solicitud.
+# ---------------------------------------------------------------------------
+
+
+class ProductoConfig(BaseModel):
+    id: int
+    nombre: str
+    codigo: str | None = None
+    laboratorio: str
+    tipo_aplicacion: str = ""
+    activo: bool = True
+    orden: int = 0
+
+
+class ProductoIn(BaseModel):
+    nombre: str
+    codigo: str | None = None
+    laboratorio: str
+    tipo_aplicacion: str = ""
+    activo: bool = True
+    orden: int = 0
+
+
+_PRODUCTOS_DEFECTO: list[dict] = []
+
+
+@router.get("/config/productos")
+def listar_productos_config(laboratorio: str | None = None, tipo_aplicacion: str | None = None) -> list[ProductoConfig]:
+    items = [ProductoConfig(**p) for p in _leer_config("productos.json", _PRODUCTOS_DEFECTO)]
+    if laboratorio:
+        items = [p for p in items if p.laboratorio == laboratorio]
+    if tipo_aplicacion:
+        items = [p for p in items if not p.tipo_aplicacion or p.tipo_aplicacion == tipo_aplicacion]
+    return sorted(items, key=lambda p: (p.laboratorio, p.orden))
+
+
+@router.post("/config/productos")
+def crear_producto_config(body: ProductoIn) -> ProductoConfig:
+    items = _leer_config("productos.json", _PRODUCTOS_DEFECTO)
+    nuevo = ProductoConfig(id=_siguiente_id(items), **body.model_dump())
+    items.append(nuevo.model_dump())
+    _escribir_config("productos.json", items)
+    return nuevo
+
+
+@router.put("/config/productos/{item_id}")
+def editar_producto_config(item_id: int, body: ProductoIn) -> ProductoConfig:
+    items = _leer_config("productos.json", _PRODUCTOS_DEFECTO)
+    idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
+    if idx is None:
+        raise HTTPException(404, "No encontrado.")
+    actualizado = ProductoConfig(id=item_id, **body.model_dump())
+    items[idx] = actualizado.model_dump()
+    _escribir_config("productos.json", items)
+    return actualizado
+
+
+@router.delete("/config/productos/{item_id}")
+def eliminar_producto_config(item_id: int) -> dict[str, str]:
+    items = _leer_config("productos.json", _PRODUCTOS_DEFECTO)
+    restantes = [i for i in items if i["id"] != item_id]
+    if len(restantes) == len(items):
+        raise HTTPException(404, "No encontrado.")
+    _escribir_config("productos.json", restantes)
     return {"estado": "eliminado"}

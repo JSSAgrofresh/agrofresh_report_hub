@@ -161,6 +161,15 @@
   color: var(--color-text-muted);
 }
 
+.categoriaFila {
+  background: var(--color-bg);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-primary-hover);
+}
+
 .estado {
   font-size: 13px;
   color: var(--color-text-muted);

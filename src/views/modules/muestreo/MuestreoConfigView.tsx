@@ -6,37 +6,71 @@ import { cn } from '@/lib/cn'
 import {
   actualizarAnalitoConfig,
   actualizarCampoTipoAplicacion,
+  actualizarCategoriaAnalitica,
+  actualizarLaboratorioConfig,
   actualizarLineaProceso,
+  actualizarProductoConfig,
   actualizarTipoAplicacion,
   crearAnalitoConfig,
   crearCampoTipoAplicacion,
+  crearCategoriaAnalitica,
+  crearLaboratorioConfig,
   crearLineaProceso,
+  crearProductoConfig,
   crearTipoAplicacion,
   eliminarAnalitoConfig,
   eliminarCampoTipoAplicacion,
+  eliminarCategoriaAnalitica,
+  eliminarLaboratorioConfig,
   eliminarLineaProceso,
+  eliminarProductoConfig,
   eliminarTipoAplicacion,
   guardarCamposConfig,
   listarAnalitosConfig,
   listarCamposConfig,
   listarCamposTipoAplicacion,
+  listarCategoriasAnaliticas,
+  listarLaboratoriosConfig,
   listarLineasProceso,
+  listarProductosConfig,
   listarTiposAplicacion,
 } from '@/features/tomaMuestras'
-import type { AnalitoConfig, CampoConfig, CampoTipoAplicacionConfig, OpcionConfig } from '@/features/tomaMuestras'
+import type {
+  AnalitoConfig,
+  CampoConfig,
+  CampoTipoAplicacionConfig,
+  CategoriaAnaliticaConfig,
+  LaboratorioConfig,
+  OpcionConfig,
+  ProductoConfig,
+} from '@/features/tomaMuestras'
 import { AnalitosMantenedor } from './AnalitosMantenedor'
 import { CamposTipoAplicacionMantenedor } from './CamposTipoAplicacionMantenedor'
+import { CategoriasAnaliticasMantenedor } from './CategoriasAnaliticasMantenedor'
+import { LaboratoriosMantenedor } from './LaboratoriosMantenedor'
 import { OpcionesMantenedor } from './OpcionesMantenedor'
+import { ProductosMantenedor } from './ProductosMantenedor'
 import styles from './MuestreoConfigView.module.css'
 
-type Pestana = 'campos' | 'tiposAplicacion' | 'lineasProceso' | 'analitos' | 'camposTipoAplicacion'
+type Pestana =
+  | 'campos'
+  | 'laboratorios'
+  | 'tiposAplicacion'
+  | 'camposTipoAplicacion'
+  | 'lineasProceso'
+  | 'categoriasAnaliticas'
+  | 'analitos'
+  | 'productos'
 
 const PESTANAS: { valor: Pestana; etiqueta: string }[] = [
   { valor: 'campos', etiqueta: 'Campos generales' },
+  { valor: 'laboratorios', etiqueta: 'Laboratorios' },
   { valor: 'tiposAplicacion', etiqueta: 'Tipos de aplicación' },
   { valor: 'camposTipoAplicacion', etiqueta: 'Campos por tipo de aplicación' },
   { valor: 'lineasProceso', etiqueta: 'Líneas de proceso' },
+  { valor: 'categoriasAnaliticas', etiqueta: 'Categorías analíticas' },
   { valor: 'analitos', etiqueta: 'Analitos por laboratorio' },
+  { valor: 'productos', etiqueta: 'Productos' },
 ]
 
 export function MuestreoConfigView() {
@@ -44,9 +78,12 @@ export function MuestreoConfigView() {
 
   const [campos, setCampos] = useState<CampoConfig[] | null>(null)
   const [guardandoCampos, setGuardandoCampos] = useState(false)
+  const [laboratorios, setLaboratorios] = useState<LaboratorioConfig[]>([])
   const [tiposAplicacion, setTiposAplicacion] = useState<OpcionConfig[]>([])
   const [lineasProceso, setLineasProceso] = useState<OpcionConfig[]>([])
+  const [categoriasAnaliticas, setCategoriasAnaliticas] = useState<CategoriaAnaliticaConfig[]>([])
   const [analitos, setAnalitos] = useState<AnalitoConfig[]>([])
+  const [productos, setProductos] = useState<ProductoConfig[]>([])
   const [camposTipoAplicacion, setCamposTipoAplicacion] = useState<CampoTipoAplicacionConfig[]>([])
   const [error, setError] = useState<string | null>(null)
 
@@ -54,15 +91,24 @@ export function MuestreoConfigView() {
     listarCamposConfig()
       .then(setCampos)
       .catch(() => setError('No se pudo cargar la configuración de campos.'))
+    listarLaboratoriosConfig()
+      .then(setLaboratorios)
+      .catch(() => setError('No se pudo cargar los laboratorios.'))
     listarTiposAplicacion()
       .then(setTiposAplicacion)
       .catch(() => setError('No se pudo cargar los tipos de aplicación.'))
     listarLineasProceso()
       .then(setLineasProceso)
       .catch(() => setError('No se pudo cargar las líneas de proceso.'))
+    listarCategoriasAnaliticas()
+      .then(setCategoriasAnaliticas)
+      .catch(() => setError('No se pudo cargar las categorías analíticas.'))
     listarAnalitosConfig()
       .then(setAnalitos)
       .catch(() => setError('No se pudo cargar los analitos.'))
+    listarProductosConfig()
+      .then(setProductos)
+      .catch(() => setError('No se pudo cargar los productos.'))
     listarCamposTipoAplicacion()
       .then(setCamposTipoAplicacion)
       .catch(() => setError('No se pudo cargar los campos por tipo de aplicación.'))
@@ -175,6 +221,22 @@ export function MuestreoConfigView() {
             </>
           ))}
 
+        {pestana === 'laboratorios' && (
+          <LaboratoriosMantenedor
+            laboratorios={laboratorios}
+            onCrear={async (d) => setLaboratorios(await crearLaboratorioConfig(d).then((n) => [...laboratorios, n]))}
+            onEditar={async (id, d) =>
+              setLaboratorios(
+                await actualizarLaboratorioConfig(id, d).then((n) => laboratorios.map((l) => (l.id === id ? n : l))),
+              )
+            }
+            onEliminar={async (id) => {
+              await eliminarLaboratorioConfig(id)
+              setLaboratorios(laboratorios.filter((l) => l.id !== id))
+            }}
+          />
+        )}
+
         {pestana === 'tiposAplicacion' && (
           <OpcionesMantenedor
             opciones={tiposAplicacion}
@@ -228,9 +290,31 @@ export function MuestreoConfigView() {
           />
         )}
 
+        {pestana === 'categoriasAnaliticas' && (
+          <CategoriasAnaliticasMantenedor
+            categorias={categoriasAnaliticas}
+            onCrear={async (d) =>
+              setCategoriasAnaliticas(await crearCategoriaAnalitica(d).then((n) => [...categoriasAnaliticas, n]))
+            }
+            onEditar={async (id, d) =>
+              setCategoriasAnaliticas(
+                await actualizarCategoriaAnalitica(id, d).then((n) =>
+                  categoriasAnaliticas.map((c) => (c.id === id ? n : c)),
+                ),
+              )
+            }
+            onEliminar={async (id) => {
+              await eliminarCategoriaAnalitica(id)
+              setCategoriasAnaliticas(categoriasAnaliticas.filter((c) => c.id !== id))
+            }}
+          />
+        )}
+
         {pestana === 'analitos' && (
           <AnalitosMantenedor
             analitos={analitos}
+            categorias={categoriasAnaliticas}
+            tiposAplicacion={tiposAplicacion}
             onCrear={async (d) => setAnalitos(await crearAnalitoConfig(d).then((n) => [...analitos, n]))}
             onEditar={async (id, d) =>
               setAnalitos(await actualizarAnalitoConfig(id, d).then((n) => analitos.map((a) => (a.id === id ? n : a))))
@@ -238,6 +322,21 @@ export function MuestreoConfigView() {
             onEliminar={async (id) => {
               await eliminarAnalitoConfig(id)
               setAnalitos(analitos.filter((a) => a.id !== id))
+            }}
+          />
+        )}
+
+        {pestana === 'productos' && (
+          <ProductosMantenedor
+            productos={productos}
+            tiposAplicacion={tiposAplicacion}
+            onCrear={async (d) => setProductos(await crearProductoConfig(d).then((n) => [...productos, n]))}
+            onEditar={async (id, d) =>
+              setProductos(await actualizarProductoConfig(id, d).then((n) => productos.map((p) => (p.id === id ? n : p))))
+            }
+            onEliminar={async (id) => {
+              await eliminarProductoConfig(id)
+              setProductos(productos.filter((p) => p.id !== id))
             }}
           />
         )}

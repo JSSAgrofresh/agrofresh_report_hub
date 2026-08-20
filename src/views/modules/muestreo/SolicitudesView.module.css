@@ -101,3 +101,71 @@
 .botonEliminar:hover {
   background: #fbe8e5;
 }
+
+.accionesCabecera {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.botonDescargaTodas {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  text-decoration: none;
+}
+
+.botonDescargaTodas:hover {
+  border-color: var(--color-primary);
+  background: #eef6e5;
+}
+
+.filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  align-items: end;
+}
+
+.campoFiltro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.campoFiltro span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.campoFiltro input,
+.campoFiltro select {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 7px 9px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.botonLimpiar {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-danger);
+  background: none;
+  border: none;
+  cursor: pointer;
+  align-self: end;
+  padding: 7px 0;
+}
