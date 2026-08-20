@@ -210,18 +210,19 @@
   color: var(--color-primary-hover);
 }
 
-.estadoInfo {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #a8730f;
-  cursor: help;
-}
-
 .estadoSospechoso {
   font-size: 11.5px;
   font-weight: 700;
   color: var(--color-danger);
   cursor: help;
+}
+
+.filaOk td {
+  background: #eef6e5;
+}
+
+.filaSospechosa td {
+  background: #fbe8e5;
 }
 
 .botonQuitar {

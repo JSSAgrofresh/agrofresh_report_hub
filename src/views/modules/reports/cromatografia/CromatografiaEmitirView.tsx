@@ -20,15 +20,15 @@ interface FilaEnCruce {
 }
 
 interface ResultadoValidacion {
-  severidad: 'ok' | 'info' | 'sospechoso'
+  severidad: 'ok' | 'sospechoso'
   mensaje: string | null
 }
 
-/** Compara lo que la solicitud pidió contra lo que el resultado del GC realmente
- * trae. Un analito no detectado (null/0) es normal -significa "no se encontró
- * rastro", no que algo esté mal-. Lo que sí es señal de alerta es que el
- * resultado no traiga NINGUNO de los analitos pedidos pero sí detecte otros
- * -típico indicio de haber asignado el código de vial equivocado-. */
+/** Regla exacta: el conjunto de analitos detectados en el resultado debe ser
+ * idéntico al conjunto de analitos que la solicitud pidió -ni de más ni de
+ * menos-. Cualquier diferencia (detectó algo no solicitado, o no detectó algo
+ * que sí se pidió) se marca como cruce sospechoso y bloquea la exportación:
+ * mejor forzar a revisar el código asignado que dejar pasar un cruce dudoso. */
 function validarCruce(analitosSolicitados: string[], resultados: ResultadoAnalito[]): ResultadoValidacion {
   if (analitosSolicitados.length === 0) return { severidad: 'ok', mensaje: null }
 
@@ -37,8 +37,8 @@ function validarCruce(analitosSolicitados: string[], resultados: ResultadoAnalit
     .filter((r) => r.codigo && r.amount != null && r.amount > 0)
     .map((r) => r.codigo as string)
   const noMedidos = analitosSolicitados.filter((a) => !cubiertos.includes(a))
-  const solicitadosDetectados = analitosSolicitados.filter((a) => detectados.includes(a))
-  const otrosDetectados = detectados.filter((c) => !analitosSolicitados.includes(c))
+  const faltantes = analitosSolicitados.filter((a) => !detectados.includes(a))
+  const sobrantes = detectados.filter((c) => !analitosSolicitados.includes(c))
 
   if (noMedidos.length > 0) {
     return {
@@ -46,16 +46,13 @@ function validarCruce(analitosSolicitados: string[], resultados: ResultadoAnalit
       mensaje: `Este resultado no midió ${noMedidos.join(', ')}, que sí se solicitó.`,
     }
   }
-  if (solicitadosDetectados.length === 0 && otrosDetectados.length > 0) {
-    return {
-      severidad: 'sospechoso',
-      mensaje: `Se solicitó ${analitosSolicitados.join(', ')}, pero el resultado solo detectó ${otrosDetectados.join(', ')}. Revisa si es el código correcto.`,
-    }
+  if (faltantes.length === 0 && sobrantes.length === 0) {
+    return { severidad: 'ok', mensaje: null }
   }
-  if (otrosDetectados.length > 0) {
-    return { severidad: 'info', mensaje: `También detectó ${otrosDetectados.join(', ')}, que no fue solicitado.` }
-  }
-  return { severidad: 'ok', mensaje: null }
+  const motivos: string[] = []
+  if (sobrantes.length > 0) motivos.push(`detectó ${sobrantes.join(', ')}, que no fue solicitado`)
+  if (faltantes.length > 0) motivos.push(`no detectó ${faltantes.join(', ')}, que sí fue solicitado`)
+  return { severidad: 'sospechoso', mensaje: `Cruce sospechoso: ${motivos.join(' y ')}. Revisa si es el código correcto.` }
 }
 
 export function CromatografiaEmitirView() {
@@ -389,7 +386,13 @@ export function CromatografiaEmitirView() {
                   const porCodigo = new Map((muestra?.resultados ?? []).map((r) => [r.codigo, r]))
                   const validacion = f.validacion
                   return (
-                    <tr key={f.solicitud.archivo}>
+                    <tr
+                      key={f.solicitud.archivo}
+                      className={cn(
+                        muestra && validacion?.severidad === 'ok' && styles.filaOk,
+                        muestra && validacion?.severidad === 'sospechoso' && styles.filaSospechosa,
+                      )}
+                    >
                       <td className={styles.nombre}>{f.solicitud.campos['N° Solicitud'] || f.solicitud.archivo}</td>
                       <td>{f.solicitud.campos['Sold To (Nombre)'] || '—'}</td>
                       <td>{f.solicitud.campos['Especie'] || '—'}</td>
@@ -425,10 +428,6 @@ export function CromatografiaEmitirView() {
                         ) : validacion?.severidad === 'sospechoso' ? (
                           <span className={styles.estadoSospechoso} title={validacion.mensaje ?? undefined}>
                             ⚠ Revisar
-                          </span>
-                        ) : validacion?.severidad === 'info' ? (
-                          <span className={styles.estadoInfo} title={validacion.mensaje ?? undefined}>
-                            ℹ Info
                           </span>
                         ) : (
                           <span className={styles.estadoOk}>✓ OK</span>
