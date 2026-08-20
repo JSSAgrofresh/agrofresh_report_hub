@@ -14,3 +14,7 @@ export function listarSolicitudes() {
 export function descargarExcelCruce(filas: FilaCruce[]) {
   return httpClient.postArchivo('/emitir/cromatografia/excel', filas)
 }
+
+export function descargarInformesPDF(filas: FilaCruce[]) {
+  return httpClient.postArchivoConNombre('/emitir/cromatografia/informes-pdf', filas)
+}

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 import { crearCarpeta } from '@/features/storage'
 import { HttpError } from '@/services/http/client'
-import { descargarExcelCruce, listarSolicitudes, parsearGC } from '@/features/emitir'
+import { descargarExcelCruce, descargarInformesPDF, listarSolicitudes, parsearGC } from '@/features/emitir'
 import type { FilaCruce, MuestraGC, ResultadoAnalito, Solicitud } from '@/features/emitir'
 import { SolicitudFichaModal } from './SolicitudFichaModal'
 import styles from './CromatografiaEmitirView.module.css'
@@ -71,6 +71,7 @@ export function CromatografiaEmitirView() {
   const [filasCruce, setFilasCruce] = useState<FilaEnCruce[]>([])
   const [arrastrandoZonaCruce, setArrastrandoZonaCruce] = useState(false)
   const [descargando, setDescargando] = useState(false)
+  const [descargandoPDF, setDescargandoPDF] = useState(false)
 
   const refrescarSolicitudes = useCallback(async () => {
     try {
@@ -163,6 +164,7 @@ export function CromatografiaEmitirView() {
   )
 
   const hayCrucesSospechosos = filasConValidacion.some((f) => f.validacion?.severidad === 'sospechoso')
+  const cantidadExportable = filasConValidacion.filter((f) => f.muestra && f.validacion?.severidad !== 'sospechoso').length
 
   const columnasAnalito = useMemo(() => {
     const vistos: string[] = []
@@ -178,22 +180,28 @@ export function CromatografiaEmitirView() {
     return vistos
   }, [filasCruce, muestrasGC])
 
-  async function descargarExcel() {
+  function construirFilasExportables(): FilaCruce[] {
     const asignadas = filasConValidacion.filter((f) => f.muestra && f.validacion?.severidad !== 'sospechoso')
-    if (asignadas.length === 0) return
+    return asignadas.map((f) => {
+      const resultadosPorCodigo: Record<string, number | null> = {}
+      for (const r of f.muestra?.resultados ?? []) {
+        if (r.codigo) resultadosPorCodigo[r.codigo] = r.amount
+      }
+      return {
+        campos: f.solicitud.campos,
+        analitos_solicitados: f.solicitud.analitos_solicitados,
+        resultados_por_codigo: resultadosPorCodigo,
+        codigo_vial: f.muestra?.codigo ?? null,
+        fecha_inyeccion: f.muestra?.fecha_inyeccion ?? null,
+      }
+    })
+  }
+
+  async function descargarExcel() {
+    const filas = construirFilasExportables()
+    if (filas.length === 0) return
     setDescargando(true)
     try {
-      const filas: FilaCruce[] = asignadas.map((f) => {
-        const resultadosPorCodigo: Record<string, number | null> = {}
-        for (const r of f.muestra?.resultados ?? []) {
-          if (r.codigo) resultadosPorCodigo[r.codigo] = r.amount
-        }
-        return {
-          campos: f.solicitud.campos,
-          analitos_solicitados: f.solicitud.analitos_solicitados,
-          resultados_por_codigo: resultadosPorCodigo,
-        }
-      })
       const blob = await descargarExcelCruce(filas)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -205,6 +213,25 @@ export function CromatografiaEmitirView() {
       setErrorGC('No se pudo generar el Excel.')
     } finally {
       setDescargando(false)
+    }
+  }
+
+  async function descargarInformes() {
+    const filas = construirFilasExportables()
+    if (filas.length === 0) return
+    setDescargandoPDF(true)
+    try {
+      const { blob, nombre } = await descargarInformesPDF(filas)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = nombre ?? (filas.length > 1 ? 'informes_cromatografia.zip' : 'informe.pdf')
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setErrorGC('No se pudo generar el informe.')
+    } finally {
+      setDescargandoPDF(false)
     }
   }
 
@@ -455,6 +482,13 @@ export function CromatografiaEmitirView() {
             <div className={styles.exportarBotones}>
               <Button variant="secondary" onClick={descargarExcel} disabled={descargando || hayCrucesSospechosos}>
                 {descargando ? 'Generando…' : 'Descargar Excel'}
+              </Button>
+              <Button variant="secondary" onClick={descargarInformes} disabled={descargandoPDF || hayCrucesSospechosos}>
+                {descargandoPDF
+                  ? 'Generando…'
+                  : cantidadExportable > 1
+                    ? `Descargar ${cantidadExportable} informes (PDF)`
+                    : 'Descargar informe (PDF)'}
               </Button>
               <button
                 type="button"

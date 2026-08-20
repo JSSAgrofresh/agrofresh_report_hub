@@ -54,4 +54,18 @@ export const httpClient = {
     if (!response.ok) throw new HttpError(response.status, `Request failed: ${response.status} ${path}`)
     return response.blob()
   },
+  /** Igual que postArchivo, pero además devuelve el nombre real del archivo
+   * que puso el backend en Content-Disposition (útil cuando el nombre puede
+   * ser .pdf o .zip según cuántas filas se manden). */
+  postArchivoConNombre: async (path: string, body: unknown): Promise<{ blob: Blob; nombre: string | null }> => {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!response.ok) throw new HttpError(response.status, `Request failed: ${response.status} ${path}`)
+    const disposicion = response.headers.get('Content-Disposition') ?? ''
+    const m = disposicion.match(/filename="?([^";]+)"?/)
+    return { blob: await response.blob(), nombre: m ? m[1] : null }
+  },
 }

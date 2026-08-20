@@ -16,6 +16,10 @@ app.add_middleware(
     allow_origins=config.CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Sin esto el navegador no deja leer Content-Disposition desde el
+    # frontend (otro origen) -necesario para saber el nombre real del
+    # archivo al descargar Excel/PDF generados-.
+    expose_headers=["Content-Disposition"],
 )
 
 app.include_router(ingest_router)

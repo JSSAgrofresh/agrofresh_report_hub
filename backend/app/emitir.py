@@ -1,6 +1,7 @@
 import io
 import os
 import re
+import zipfile
 
 import openpyxl
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -8,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .gc_parser import NOMBRE_GC_A_CODIGO, es_codigo_puro, parsear_gc_txt
+from .informe_pdf import generar_informe_pdf
 from .solicitud_parser import parsear_solicitudes_html
 from .storage import _carpeta_raiz, _nombre_seguro
 
@@ -110,6 +112,8 @@ class FilaCruceIn(BaseModel):
     campos: dict[str, str]
     analitos_solicitados: list[str]
     resultados_por_codigo: dict[str, float | None]
+    codigo_vial: str | None = None
+    fecha_inyeccion: str | None = None
 
 
 @router.post("/excel")
@@ -152,4 +156,56 @@ def generar_excel(filas: list[FilaCruceIn]) -> StreamingResponse:
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=resultados_cromatografia.xlsx"},
+    )
+
+
+def _nombre_informe(campos: dict[str, str]) -> str:
+    n_solicitud = (campos.get("N° Solicitud") or "solicitud").replace("/", "-")
+    return f"Informe_{n_solicitud}.pdf"
+
+
+@router.post("/informes-pdf")
+def generar_informes_pdf(filas: list[FilaCruceIn]) -> StreamingResponse:
+    if not filas:
+        raise HTTPException(400, "No hay filas para exportar.")
+
+    if len(filas) == 1:
+        fila = filas[0]
+        pdf_bytes = generar_informe_pdf(
+            campos=fila.campos,
+            analitos_solicitados=fila.analitos_solicitados,
+            resultados_por_codigo=fila.resultados_por_codigo,
+            codigo_vial=fila.codigo_vial,
+            fecha_inyeccion=fila.fecha_inyeccion,
+        )
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{_nombre_informe(fila.campos)}"'},
+        )
+
+    # Varias solicitudes cruzadas a la vez: un PDF por cada una, empaquetados
+    # en un único zip para descargar de una sola vez.
+    buffer = io.BytesIO()
+    usados: set[str] = set()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fila in filas:
+            pdf_bytes = generar_informe_pdf(
+                campos=fila.campos,
+                analitos_solicitados=fila.analitos_solicitados,
+                resultados_por_codigo=fila.resultados_por_codigo,
+                codigo_vial=fila.codigo_vial,
+                fecha_inyeccion=fila.fecha_inyeccion,
+            )
+            base, ext = os.path.splitext(_nombre_informe(fila.campos))
+            nombre, n = f"{base}{ext}", 2
+            while nombre in usados:
+                nombre, n = f"{base} ({n}){ext}", n + 1
+            usados.add(nombre)
+            zf.writestr(nombre, pdf_bytes)
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="informes_cromatografia.zip"'},
     )

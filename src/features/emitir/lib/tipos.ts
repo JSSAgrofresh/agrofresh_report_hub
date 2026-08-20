@@ -22,4 +22,6 @@ export interface FilaCruce {
   campos: Record<string, string>
   analitos_solicitados: string[]
   resultados_por_codigo: Record<string, number | null>
+  codigo_vial?: string | null
+  fecha_inyeccion?: string | null
 }
