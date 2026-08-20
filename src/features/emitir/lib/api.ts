@@ -1,5 +1,5 @@
 import { httpClient } from '@/services/http/client'
-import type { FilaCruce, InformeConfig, MuestraGC, Solicitud } from './tipos'
+import type { FilaCruce, FilaSubida, InformeConfig, MuestraGC, Solicitud } from './tipos'
 
 export function parsearGC(archivo: File) {
   const formData = new FormData()
@@ -25,4 +25,8 @@ export function obtenerConfiguracionInforme() {
 
 export function guardarConfiguracionInforme(config: InformeConfig) {
   return httpClient.put<InformeConfig>('/emitir/cromatografia/config-informe', config)
+}
+
+export function subirCruceABaseDeDatos(filas: FilaCruce[]) {
+  return httpClient.post<FilaSubida[]>('/emitir/cromatografia/subir-bd', filas)
 }

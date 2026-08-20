@@ -36,3 +36,11 @@ export interface InformeConfig {
   aprobado_por_nombre: string
   aprobado_por_cargo: string
 }
+
+export interface FilaSubida {
+  nro_solicitud_original: string
+  codigo_vial: string | null
+  estado: 'creada' | 'ya_existia' | 'error'
+  folio: string | null
+  mensaje: string | null
+}

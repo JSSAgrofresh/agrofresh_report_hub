@@ -2,7 +2,7 @@ import io
 import os
 import re
 import zipfile
-from datetime import date
+from datetime import date, datetime
 
 import openpyxl
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from .db import conexion, cursor_dict
 from .gc_parser import NOMBRE_GC_A_CODIGO, es_codigo_puro, parsear_gc_txt
 from .informe_pdf import generar_informe_pdf
+from .mapeo import LABORATORIO_CATALOGO, calcular_semana
 from .solicitud_parser import parsear_solicitudes_html
 from .storage import _carpeta_raiz, _nombre_seguro
 
@@ -286,3 +287,166 @@ def generar_informes_pdf(filas: list[FilaCruceIn]) -> StreamingResponse:
         media_type="application/zip",
         headers={"Content-Disposition": 'attachment; filename="informes_cromatografia.zip"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Subir a base de datos: la fila cruzada (solicitud + resultado del GC ya
+# validado, sin cruces sospechosos) pasa a ser un registro real de `solicitud`
+# + `resultado`, visible en Report/DataCore igual que cualquier otro dato
+# cargado por Ingest. Se identifica con NUESTRO folio (LAB-YYYYMMDD-NNN) en
+# vez del N° de solicitud original -así el registro queda trazado al informe
+# que se emitió, no al papeleo de origen-.
+# ---------------------------------------------------------------------------
+
+TIPO_SERVICIO_CROMATOGRAFIA = "Cromatografía"
+
+
+def _parse_fecha(texto: str | None, formato: str) -> date | None:
+    if not texto:
+        return None
+    try:
+        return datetime.strptime(texto.strip(), formato).date()
+    except ValueError:
+        return None
+
+
+def _fecha_ddmmyyyy(texto: str | None) -> date | None:
+    """'18-08-2026' o '19-08-2026 14:59' -> solo la fecha, se descarta la hora
+    (la tabla solicitud guarda DATE, no timestamp, para estos campos)."""
+    if not texto:
+        return None
+    return _parse_fecha(texto, "%d-%m-%Y %H:%M") or _parse_fecha(texto, "%d-%m-%Y")
+
+
+def _fecha_inyeccion_gc(texto: str | None) -> date | None:
+    """Formato de Agilent ChemStation: '7/25/2026 9:14:59 AM'."""
+    return _parse_fecha(texto, "%m/%d/%Y %I:%M:%S %p")
+
+
+class FilaSubidaOut(BaseModel):
+    nro_solicitud_original: str
+    codigo_vial: str | None
+    estado: str  # 'creada' | 'ya_existia' | 'error'
+    folio: str | None = None
+    mensaje: str | None = None
+
+
+def _resolver_cliente_planta(cur, sold_to: str | None, ship_to: str | None) -> tuple[int | None, int | None, str | None]:
+    """Nunca crea cliente/planta nuevos acá -eso es responsabilidad exclusiva
+    del catálogo oficial (Listados, ver catalogo.py)-: si el Sold To/Ship To
+    de la solicitud no calza exacto con algo ya cargado ahí, se rechaza con un
+    mensaje claro en vez de inventar un cliente nuevo silenciosamente."""
+    if not sold_to:
+        return None, None, "La solicitud no trae Sold To: no se puede subir a la base de datos."
+    cur.execute("SELECT id FROM cliente WHERE nombre = %s AND activo", (sold_to,))
+    cliente = cur.fetchone()
+    if not cliente:
+        return None, None, f'Sold To "{sold_to}" no está en el catálogo (Listados). Agrégalo ahí primero.'
+    cliente_id = cliente["id"]
+    if not ship_to:
+        return cliente_id, None, None
+    cur.execute("SELECT id FROM planta WHERE cliente_id = %s AND nombre = %s AND activo", (cliente_id, ship_to))
+    planta = cur.fetchone()
+    if not planta:
+        return None, None, f'Ship To "{ship_to}" no está en el catálogo (Listados) para el Sold To "{sold_to}". Agrégalo ahí primero.'
+    return cliente_id, planta["id"], None
+
+
+@router.post("/subir-bd")
+def subir_bd(filas: list[FilaCruceIn]) -> list[FilaSubidaOut]:
+    if not filas:
+        raise HTTPException(400, "No hay filas para subir.")
+
+    salida: list[FilaSubidaOut] = []
+    con_folio: list[tuple[FilaCruceIn, str, int | None]] = []
+
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        for fila in filas:
+            nro_original = fila.campos.get("N° Solicitud") or "—"
+            codigo_vial = fila.codigo_vial
+
+            # Ya se subió antes: misma solicitud original + mismo vial ya tiene
+            # un registro (referencia/nro_orden), así que no se duplica -clic
+            # repetido al botón, o volver a cruzar lo mismo por accidente-.
+            cur.execute(
+                "SELECT nro_solicitud FROM solicitud WHERE referencia = %s AND nro_orden = %s AND laboratorio = %s",
+                (nro_original, codigo_vial, LABORATORIO_CATALOGO),
+            )
+            existente = cur.fetchone()
+            if existente:
+                salida.append(
+                    FilaSubidaOut(
+                        nro_solicitud_original=nro_original,
+                        codigo_vial=codigo_vial,
+                        estado="ya_existia",
+                        folio=existente["nro_solicitud"],
+                        mensaje="Esta solicitud y vial ya se habían subido antes; no se duplicó.",
+                    )
+                )
+                continue
+
+            cliente_id, planta_id, error = _resolver_cliente_planta(
+                cur, fila.campos.get("Sold To (Nombre)"), fila.campos.get("Ship To (Nombre)")
+            )
+            if error:
+                salida.append(
+                    FilaSubidaOut(nro_solicitud_original=nro_original, codigo_vial=codigo_vial, estado="error", mensaje=error)
+                )
+                continue
+
+            con_folio.append((fila, nro_original, planta_id))
+
+        if con_folio:
+            folios = _asignar_folios(cur, len(con_folio))
+            for (fila, nro_original, planta_id), folio in zip(con_folio, folios):
+                fecha_muestreo = _fecha_ddmmyyyy(fila.campos.get("Fecha Muestreo"))
+                datos_solicitud = {
+                    "nro_solicitud": folio,
+                    "laboratorio": LABORATORIO_CATALOGO,
+                    "fecha_solicitud": _fecha_ddmmyyyy(fila.campos.get("Fecha Solicitud")),
+                    "fecha_muestreo": fecha_muestreo,
+                    "fecha_analisis": _fecha_inyeccion_gc(fila.fecha_inyeccion),
+                    "fecha_informe": date.today(),
+                    "planta_id": planta_id,
+                    "sold_to_raw": fila.campos.get("Sold To (Nombre)"),
+                    "ship_to_raw": fila.campos.get("Ship To (Nombre)") or None,
+                    "especie": fila.campos.get("Especie") or None,
+                    "variedad": fila.campos.get("Variedad") or None,
+                    "tipo_muestra": fila.campos.get("Tipo Muestra") or None,
+                    "tipo_servicio": TIPO_SERVICIO_CROMATOGRAFIA,
+                    "lote": fila.campos.get("Lote") or None,
+                    "solicitante": fila.campos.get("Solicitante") or None,
+                    "nombre_muestreador": fila.campos.get("Nombre Muestreador") or None,
+                    "generado_por": fila.campos.get("Generado Por") or None,
+                    "email_solicitante": fila.campos.get("Email Solicitante") or None,
+                    "nro_orden": fila.codigo_vial,
+                    "referencia": nro_original,
+                    "observacion": fila.campos.get("Producto Utilizado") or None,
+                    "semana_muestreo": calcular_semana(fecha_muestreo.isoformat()) if fecha_muestreo else None,
+                    "mes": fecha_muestreo.month if fecha_muestreo else None,
+                    "origen": "emitir_cromatografia",
+                }
+                columnas = list(datos_solicitud.keys())
+                placeholders = ", ".join(["%s"] * len(columnas))
+                cur.execute(
+                    f"INSERT INTO solicitud ({', '.join(columnas)}) VALUES ({placeholders}) RETURNING id",
+                    [datos_solicitud[c] for c in columnas],
+                )
+                solicitud_id = cur.fetchone()["id"]
+
+                for codigo in fila.analitos_solicitados:
+                    valor = fila.resultados_por_codigo.get(codigo)
+                    cur.execute("SELECT id FROM analito WHERE codigo = %s AND laboratorio = %s", (codigo, LABORATORIO_CATALOGO))
+                    analito = cur.fetchone()
+                    cur.execute(
+                        """INSERT INTO resultado (solicitud_id, analito_id, analito_raw, valor_num)
+                           VALUES (%s, %s, %s, %s)
+                           ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
+                        (solicitud_id, analito["id"] if analito else None, None if analito else codigo, valor),
+                    )
+
+                salida.append(
+                    FilaSubidaOut(nro_solicitud_original=nro_original, codigo_vial=fila.codigo_vial, estado="creada", folio=folio)
+                )
+
+    return salida

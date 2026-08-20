@@ -6,8 +6,14 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 import { crearCarpeta } from '@/features/storage'
 import { HttpError } from '@/services/http/client'
-import { descargarExcelCruce, descargarInformesPDF, listarSolicitudes, parsearGC } from '@/features/emitir'
-import type { FilaCruce, MuestraGC, ResultadoAnalito, Solicitud } from '@/features/emitir'
+import {
+  descargarExcelCruce,
+  descargarInformesPDF,
+  listarSolicitudes,
+  parsearGC,
+  subirCruceABaseDeDatos,
+} from '@/features/emitir'
+import type { FilaCruce, FilaSubida, MuestraGC, ResultadoAnalito, Solicitud } from '@/features/emitir'
 import { SolicitudFichaModal } from './SolicitudFichaModal'
 import { ConfiguracionInformeModal } from './ConfiguracionInformeModal'
 import styles from './CromatografiaEmitirView.module.css'
@@ -74,6 +80,8 @@ export function CromatografiaEmitirView() {
   const [arrastrandoZonaCruce, setArrastrandoZonaCruce] = useState(false)
   const [descargando, setDescargando] = useState(false)
   const [descargandoPDF, setDescargandoPDF] = useState(false)
+  const [subiendo, setSubiendo] = useState(false)
+  const [resultadoSubida, setResultadoSubida] = useState<FilaSubida[] | null>(null)
 
   const refrescarSolicitudes = useCallback(async () => {
     try {
@@ -234,6 +242,24 @@ export function CromatografiaEmitirView() {
       setErrorGC('No se pudo generar el informe.')
     } finally {
       setDescargandoPDF(false)
+    }
+  }
+
+  async function subirABaseDeDatos() {
+    const filas = construirFilasExportables()
+    if (filas.length === 0) return
+    setSubiendo(true)
+    setResultadoSubida(null)
+    try {
+      const resultado = await subirCruceABaseDeDatos(filas)
+      setResultadoSubida(resultado)
+      // La fila se deja en la zona de cruce (igual que tras descargar Excel/PDF):
+      // volver a subirla no duplica nada, el backend ya detecta que esa
+      // solicitud + vial ya se subió antes y avisa "ya estaba subida".
+    } catch {
+      setErrorGC('No se pudo subir a la base de datos.')
+    } finally {
+      setSubiendo(false)
     }
   }
 
@@ -497,19 +523,29 @@ export function CromatografiaEmitirView() {
                     ? `Descargar ${cantidadExportable} informes (PDF)`
                     : 'Descargar informe (PDF)'}
               </Button>
-              <button
-                type="button"
-                className={styles.botonProximamente}
-                disabled
-                title="Falta definir cómo se completan los datos que aún no vienen en la solicitud antes de insertar a producción."
-              >
-                Subir a base de datos (próximamente)
-              </button>
+              <Button variant="secondary" onClick={subirABaseDeDatos} disabled={subiendo || hayCrucesSospechosos}>
+                {subiendo ? 'Subiendo…' : 'Subir a base de datos'}
+              </Button>
             </div>
             {hayCrucesSospechosos && (
               <p className={styles.avisoBloqueo}>
                 Hay cruces marcados "⚠ Revisar" — corrígelos o quítalos de la zona de cruce antes de descargar.
               </p>
+            )}
+            {resultadoSubida && (
+              <ul className={styles.resultadoSubida}>
+                {resultadoSubida.map((r, i) => (
+                  <li
+                    key={`${r.nro_solicitud_original}-${r.codigo_vial}-${i}`}
+                    className={r.estado === 'error' ? styles.resultadoSubidaError : styles.resultadoSubidaOk}
+                  >
+                    {r.nro_solicitud_original} ({r.codigo_vial ?? '—'}):{' '}
+                    {r.estado === 'creada' && `subida — folio ${r.folio}`}
+                    {r.estado === 'ya_existia' && `ya estaba subida (folio ${r.folio})`}
+                    {r.estado === 'error' && r.mensaje}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         )}

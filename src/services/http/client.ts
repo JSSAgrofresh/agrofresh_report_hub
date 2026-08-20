@@ -68,4 +68,13 @@ export const httpClient = {
     const m = disposicion.match(/filename="?([^";]+)"?/)
     return { blob: await response.blob(), nombre: m ? m[1] : null }
   },
+  /** Igual que postArchivoConNombre, pero para endpoints GET que devuelven un
+   * archivo generado (ej. exportar todo el historial de un cliente). */
+  getArchivoConNombre: async (path: string): Promise<{ blob: Blob; nombre: string | null }> => {
+    const response = await fetch(`${API_BASE_URL}${path}`)
+    if (!response.ok) throw new HttpError(response.status, `Request failed: ${response.status} ${path}`)
+    const disposicion = response.headers.get('Content-Disposition') ?? ''
+    const m = disposicion.match(/filename="?([^";]+)"?/)
+    return { blob: await response.blob(), nombre: m ? m[1] : null }
+  },
 }

@@ -5,5 +5,6 @@ export {
   descargarInformesPDF,
   obtenerConfiguracionInforme,
   guardarConfiguracionInforme,
+  subirCruceABaseDeDatos,
 } from './lib/api'
-export type { MuestraGC, ResultadoAnalito, Solicitud, FilaCruce, InformeConfig } from './lib/tipos'
+export type { MuestraGC, ResultadoAnalito, Solicitud, FilaCruce, InformeConfig, FilaSubida } from './lib/tipos'

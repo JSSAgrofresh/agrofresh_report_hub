@@ -11,6 +11,16 @@ export function obtenerDatosReporte(cliente?: string, planta?: string) {
   )
 }
 
+/** Descarga en Excel todo lo que existe para este cliente/sucursal -mismo
+ * filtro exacto que ve el portal de cliente en pantalla-. */
+export function descargarDatosExcel(cliente?: string, planta?: string) {
+  const params = new URLSearchParams()
+  if (cliente) params.set('cliente', cliente)
+  if (planta) params.set('planta', planta)
+  const query = params.toString() ? `?${params.toString()}` : ''
+  return httpClient.getArchivoConNombre(`/reportes/datos/excel${query}`)
+}
+
 export function obtenerResumenReporte() {
   return httpClient.get<{ total_solicitudes: number; registros_ultima_semana: number }>('/reportes/resumen')
 }

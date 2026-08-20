@@ -32,6 +32,7 @@ import {
   calcularLimitesControl,
   colorDeIngrediente,
   contarFueraDeIntervalo,
+  descargarDatosExcel,
   listarAnalitos,
   listarLimites,
   obtenerDatosReporte,
@@ -190,6 +191,7 @@ export function ReporteView({
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
   const [modalAnalitos, setModalAnalitos] = useState(false)
   const [detalle, setDetalle] = useState<{ titulo: string; filas: Observacion[] } | null>(null)
+  const [descargandoDatos, setDescargandoDatos] = useState(false)
 
   const obtenerTodo = useCallback(async () => {
     const [datos, catalogo, limitesCatalogo] = await Promise.all([
@@ -644,6 +646,23 @@ export function ReporteView({
     }))
   }
 
+  async function descargarDatos() {
+    setDescargandoDatos(true)
+    try {
+      const { blob, nombre } = await descargarDatosExcel(clienteFijo, plantaFija)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = nombre ?? 'datos.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setErrorMsg('No se pudo generar el Excel.')
+    } finally {
+      setDescargandoDatos(false)
+    }
+  }
+
   return (
     <div className={styles.wrap} style={wrapStyle}>
       <div className={styles.cabecera}>
@@ -656,6 +675,11 @@ export function ReporteView({
           }
         />
         <div className={styles.accionesCabecera}>
+          {clienteFijo && (
+            <Button variant="secondary" onClick={descargarDatos} disabled={descargandoDatos}>
+              {descargandoDatos ? 'Generando…' : '⬇ Descargar mi historial (Excel)'}
+            </Button>
+          )}
           {esGestor && (
             <Button variant="secondary" onClick={() => setModalAnalitos(true)}>
               ⚙ Gestionar analitos

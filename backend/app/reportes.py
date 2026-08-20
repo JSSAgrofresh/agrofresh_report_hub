@@ -1,7 +1,11 @@
+import io
+import re
 from typing import Any
 
+import openpyxl
 import psycopg2.errors
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .db import conexion, cursor_dict
@@ -102,6 +106,76 @@ def datos(
             )
             total_solicitudes = cur.fetchone()["total"]
     return {"filas": filas, "total": len(filas), "total_solicitudes": total_solicitudes}
+
+
+_ENCABEZADOS_EXCEL_DATOS = [
+    ("nro_solicitud", "N° Solicitud"),
+    ("laboratorio", "Laboratorio"),
+    ("fecha_muestreo", "Fecha Muestreo"),
+    ("fecha_entrada", "Fecha Entrada"),
+    ("especie", "Especie"),
+    ("variedad", "Variedad"),
+    ("semana_muestreo", "Semana"),
+    ("mes", "Mes"),
+    ("temporada", "Temporada"),
+    ("tipo_servicio", "Tipo de Servicio"),
+    ("cliente", "Cliente (Sold To)"),
+    ("planta", "Sucursal (Ship To)"),
+    ("tipo_aplicacion", "Tipo Aplicación"),
+    ("ingrediente", "Ingrediente"),
+    ("valor_num", "Valor"),
+    ("valor_texto", "Valor (texto)"),
+]
+
+_PAT_NO_SEGURO = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _nombre_archivo_datos(cliente: str | None, planta: str | None) -> str:
+    partes = [p for p in (cliente, planta) if p]
+    base = _PAT_NO_SEGURO.sub("_", " ".join(partes)).strip("_") or "todos"
+    return f"Datos_{base}.xlsx"
+
+
+@router.get("/datos/excel")
+def datos_excel(
+    cliente: str | None = Query(None, description="Igual que /datos: acota la descarga a este cliente."),
+    planta: str | None = Query(None, description="Igual que /datos: acota además a esta sucursal."),
+) -> StreamingResponse:
+    """Descarga en Excel de TODO lo que existe para el cliente/sucursal pedido
+    -mismo filtro exacto que ve el portal de cliente en pantalla, nunca más
+    ni menos-, para que un cliente pueda llevarse su propio historial."""
+    condiciones = []
+    params: dict[str, str] = {}
+    if cliente:
+        condiciones.append("COALESCE(c.nombre, s.sold_to_raw) = %(cliente)s")
+        params["cliente"] = cliente
+    if planta:
+        condiciones.append("COALESCE(p.nombre, s.ship_to_raw) = %(planta)s")
+        params["planta"] = planta
+    filtro_cliente = ("AND " + " AND ".join(condiciones)) if condiciones else ""
+    with conexion(escribir=False) as conn:
+        with cursor_dict(conn) as cur:
+            cur.execute(DATOS_QUERY.format(filtro_cliente=filtro_cliente), params)
+            filas = cur.fetchall()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Datos"
+    for col_idx, (_clave, etiqueta) in enumerate(_ENCABEZADOS_EXCEL_DATOS, start=1):
+        ws.cell(row=1, column=col_idx, value=etiqueta)
+    for fila_idx, fila in enumerate(filas, start=2):
+        for col_idx, (clave, _etiqueta) in enumerate(_ENCABEZADOS_EXCEL_DATOS, start=1):
+            ws.cell(row=fila_idx, column=col_idx, value=fila.get(clave))
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    nombre = _nombre_archivo_datos(cliente, planta)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
 
 
 @router.get("/clientes")
