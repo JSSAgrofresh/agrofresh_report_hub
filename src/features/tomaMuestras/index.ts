@@ -1,4 +1,11 @@
-export { listarSolicitudes, obtenerSolicitud, crearSolicitud, eliminarSolicitud } from './lib/api'
+export {
+  listarSolicitudes,
+  obtenerSolicitud,
+  crearSolicitud,
+  eliminarSolicitud,
+  urlDescargaExcel,
+  urlDescargaPdf,
+} from './lib/api'
 export {
   listarCamposConfig,
   guardarCamposConfig,

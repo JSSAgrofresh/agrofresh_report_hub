@@ -34,6 +34,31 @@ const ALS_PESTICIDAS_VACIO: AlsPesticida[] = [
   { analito: '', resultado: '' },
 ]
 
+/** Agrupa los campos configurables en las secciones visuales del
+ * formulario (§5 del rediseño). `observacion` se muestra aparte, en su
+ * propia sección de ancho completo. */
+const SECCION_DE_CAMPO: Record<string, 'identificacion' | 'cliente' | 'muestreo'> = {
+  solicitante: 'identificacion',
+  email_solicitante: 'identificacion',
+  email_laboratorio: 'identificacion',
+  sold_to: 'cliente',
+  ship_to: 'cliente',
+  especie: 'cliente',
+  variedad: 'cliente',
+  linea_proceso: 'cliente',
+  csg: 'cliente',
+  lote: 'cliente',
+  producto_utilizado: 'cliente',
+  posicion_muestreo: 'muestreo',
+  numero_camara: 'muestreo',
+  numero_orden: 'muestreo',
+  kilos_procesados: 'muestreo',
+  tipo_muestra: 'muestreo',
+  fecha_muestreo: 'muestreo',
+  hora_muestreo: 'muestreo',
+  nombre_muestreador: 'muestreo',
+}
+
 export function NuevaSolicitudView() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -89,6 +114,10 @@ export function NuevaSolicitudView() {
     () => (camposConfig ?? []).filter((c) => c.activo).sort((a, b) => a.orden - b.orden),
     [camposConfig],
   )
+  const camposIdentificacion = camposActivos.filter((c) => SECCION_DE_CAMPO[c.clave] === 'identificacion')
+  const camposCliente = camposActivos.filter((c) => SECCION_DE_CAMPO[c.clave] === 'cliente')
+  const camposMuestreo = camposActivos.filter((c) => SECCION_DE_CAMPO[c.clave] === 'muestreo')
+  const campoObservacion = camposActivos.find((c) => c.clave === 'observacion')
   const lineasActivas = lineasProceso.filter((l) => l.activo).sort((a, b) => a.orden - b.orden)
   const tiposActivos = tiposAplicacion.filter((t) => t.activo).sort((a, b) => a.orden - b.orden)
   const analitosLab = useMemo(
@@ -284,11 +313,17 @@ export function NuevaSolicitudView() {
 
   return (
     <div>
-      <Header title="Nueva solicitud" description="Registra una nueva solicitud de muestreo." />
+      <Header
+        title="Nueva solicitud"
+        description="Registra una nueva solicitud de muestreo — los campos y análisis disponibles dependen del laboratorio elegido."
+      />
 
       <form onSubmit={onSubmit} className={styles.form}>
         <Card>
-          <h2 className={styles.tituloSeccion}>Identificación de la solicitud</h2>
+          <h2 className={styles.tituloSeccion}>
+            <span className={styles.numero}>1</span>
+            Información de la solicitud
+          </h2>
           <div className={styles.fila}>
             <label className={styles.campo}>
               <span>N° Solicitud</span>
@@ -315,19 +350,32 @@ export function NuevaSolicitudView() {
               <span>Generado por</span>
               <input value={user?.nombre ?? ''} disabled />
             </label>
+            {camposIdentificacion.map(renderCampo)}
           </div>
         </Card>
 
         <Card>
-          <h2 className={styles.tituloSeccion}>Información de la muestra</h2>
-          <div className={styles.fila}>{camposActivos.map(renderCampo)}</div>
+          <h2 className={styles.tituloSeccion}>
+            <span className={styles.numero}>2</span>
+            Cliente, ubicación y producto
+          </h2>
+          <div className={styles.fila}>{camposCliente.map(renderCampo)}</div>
+        </Card>
+
+        <Card>
+          <h2 className={styles.tituloSeccion}>
+            <span className={styles.numero}>3</span>
+            Información del muestreo
+          </h2>
+          <div className={styles.fila}>{camposMuestreo.map(renderCampo)}</div>
         </Card>
 
         {laboratorio && (
           <Card>
             <h2 className={styles.tituloSeccionLab}>
+              <span className={styles.numero}>4</span>
               <IconFrasco className={styles.iconoLab} />
-              {laboratorio}
+              Configuración de análisis · {laboratorio}
             </h2>
 
             {esCromatografia && (
@@ -423,6 +471,16 @@ export function NuevaSolicitudView() {
                 </table>
               </div>
             )}
+          </Card>
+        )}
+
+        {campoObservacion && (
+          <Card>
+            <h2 className={styles.tituloSeccion}>
+              <span className={styles.numero}>5</span>
+              Observaciones
+            </h2>
+            <div className={styles.fila}>{renderCampo(campoObservacion)}</div>
           </Card>
         )}
 

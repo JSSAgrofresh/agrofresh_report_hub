@@ -1,8 +1,15 @@
 """
 Toma de muestras — listado y creación de solicitudes de muestreo. No hay
 tabla en base de datos todavía (igual que Storage): cada solicitud se
-guarda como un archivo JSON en disco, reutilizando el mismo mecanismo de
+guarda como un archivo en disco, reutilizando el mismo mecanismo de
 almacenamiento que storage.py.
+
+El documento maestro de cada solicitud es un Excel (.xlsx, ver
+`solicitud_excel.py`): la hoja "Solicitud" es legible/imprimible y una hoja
+oculta "_data" guarda el JSON completo para poder reconstruirla sin
+depender de parsear la hoja bonita. Las solicitudes creadas antes de este
+cambio quedaron como .json — se siguen leyendo igual (retrocompatibilidad),
+solo que las nuevas se guardan como .xlsx.
 
 Estructura de carpetas dentro de Storage:
 
@@ -11,19 +18,24 @@ Estructura de carpetas dentro de Storage:
         AGROFRESH/
         ALS/
         DIAGNOFRUIT/
+        _config/            (mantenedores, no es un laboratorio)
 
 Cada laboratorio tiene su propia carpeta; el N° de solicitud (folio
 "SOL-NNNN") es correlativo y único across todas las carpetas.
 """
+import io
 import json
 import os
 import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from . import config
+from .solicitud_excel import construir_workbook, leer_datos_workbook
+from .toma_muestras_pdf import generar_pdf_solicitud
 
 router = APIRouter(prefix="/api/toma-muestras", tags=["toma-muestras"])
 
@@ -56,6 +68,17 @@ def _ruta_archivo(archivo: str) -> str:
         if os.path.isfile(ruta):
             return ruta
     raise HTTPException(404, "Solicitud no encontrada.")
+
+
+def _leer_solicitud_archivo(ruta: str) -> dict:
+    """Lee los datos de una solicitud desde su archivo: .xlsx (formato
+    actual, hoja oculta "_data") o .json (formato legado, retrocompatible)."""
+    if ruta.endswith(".xlsx"):
+        return leer_datos_workbook(ruta)
+    if ruta.endswith(".json"):
+        with open(ruta, encoding="utf-8") as f:
+            return json.load(f)
+    raise HTTPException(400, "Formato de solicitud no reconocido.")
 
 
 def _siguiente_numero() -> str:
@@ -115,10 +138,9 @@ def listar_solicitudes() -> list[Solicitud]:
         if not os.path.isdir(carpeta):
             continue
         for nombre in os.listdir(carpeta):
-            if not nombre.endswith(".json"):
+            if not nombre.endswith((".xlsx", ".json")):
                 continue
-            with open(os.path.join(carpeta, nombre), encoding="utf-8") as f:
-                datos = json.load(f)
+            datos = _leer_solicitud_archivo(os.path.join(carpeta, nombre))
             solicitudes.append(Solicitud(archivo=nombre, **datos))
     solicitudes.sort(key=lambda s: s.creado_en, reverse=True)
     return solicitudes
@@ -127,8 +149,7 @@ def listar_solicitudes() -> list[Solicitud]:
 @router.get("/solicitudes/{archivo}")
 def obtener_solicitud(archivo: str) -> Solicitud:
     ruta = _ruta_archivo(archivo)
-    with open(ruta, encoding="utf-8") as f:
-        datos = json.load(f)
+    datos = _leer_solicitud_archivo(ruta)
     return Solicitud(archivo=os.path.basename(ruta), **datos)
 
 
@@ -143,9 +164,9 @@ def crear_solicitud(body: SolicitudIn) -> Solicitud:
         fecha_solicitud=ahora.date().isoformat(),
         creado_en=ahora.isoformat(),
     )
-    nombre_archivo = f"{numero}.json"
-    with open(os.path.join(carpeta_lab, nombre_archivo), "w", encoding="utf-8") as f:
-        json.dump(datos, f, ensure_ascii=False, indent=2)
+    nombre_archivo = f"{numero}.xlsx"
+    wb = construir_workbook(datos)
+    wb.save(os.path.join(carpeta_lab, nombre_archivo))
     return Solicitud(archivo=nombre_archivo, **datos)
 
 
@@ -154,6 +175,43 @@ def eliminar_solicitud(archivo: str) -> dict[str, str]:
     ruta = _ruta_archivo(archivo)
     os.remove(ruta)
     return {"estado": "eliminado"}
+
+
+@router.get("/solicitudes/{archivo}/excel", response_model=None)
+def descargar_solicitud_excel(archivo: str) -> FileResponse | StreamingResponse:
+    """El documento Excel es el original guardado al crear la solicitud. Para
+    solicitudes legadas (.json, de antes de este cambio) se genera al vuelo
+    con el mismo formato, para que la descarga sea consistente."""
+    ruta = _ruta_archivo(archivo)
+    numero = os.path.splitext(os.path.basename(ruta))[0]
+    media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    if ruta.endswith(".xlsx"):
+        return FileResponse(ruta, filename=f"{numero}.xlsx", media_type=media_type)
+    # Solicitud legada (.json): se genera el Excel al vuelo, en memoria, con
+    # el mismo formato que las solicitudes nuevas -sin dejar archivos
+    # temporales en disco.
+    datos = _leer_solicitud_archivo(ruta)
+    buffer = io.BytesIO()
+    construir_workbook(datos).save(buffer)
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{numero}.xlsx"'},
+    )
+
+
+@router.get("/solicitudes/{archivo}/pdf")
+def descargar_solicitud_pdf(archivo: str) -> Response:
+    ruta = _ruta_archivo(archivo)
+    numero = os.path.splitext(os.path.basename(ruta))[0]
+    datos = _leer_solicitud_archivo(ruta)
+    pdf_bytes = generar_pdf_solicitud(datos)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{numero}.pdf"'},
+    )
 
 
 # ---------------------------------------------------------------------------

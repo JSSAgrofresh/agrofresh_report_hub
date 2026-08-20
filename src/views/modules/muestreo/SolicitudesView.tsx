@@ -5,11 +5,10 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/features/auth'
 import { esAdminGeneral } from '@/features/usuarios'
-import { ROUTES } from '@/constants/routes'
+import { ROUTES, rutaTomaMuestrasDetalle } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
 import { eliminarSolicitud, listarSolicitudes } from '@/features/tomaMuestras'
 import type { Solicitud } from '@/features/tomaMuestras'
-import { SolicitudDetalleModal } from './SolicitudDetalleModal'
 import styles from './SolicitudesView.module.css'
 
 export function SolicitudesView() {
@@ -19,7 +18,6 @@ export function SolicitudesView() {
 
   const [solicitudes, setSolicitudes] = useState<Solicitud[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [seleccionada, setSeleccionada] = useState<Solicitud | null>(null)
 
   const refrescar = useCallback(async () => {
     try {
@@ -94,7 +92,7 @@ export function SolicitudesView() {
                       <td>{s.tipo_muestra ?? '—'}</td>
                       <td>{s.generado_por}</td>
                       <td className={styles.acciones}>
-                        <button className={styles.boton} onClick={() => setSeleccionada(s)}>
+                        <button className={styles.boton} onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}>
                           Ver
                         </button>
                         {puedeEliminar && (
@@ -111,8 +109,6 @@ export function SolicitudesView() {
           </>
         )}
       </Card>
-
-      {seleccionada && <SolicitudDetalleModal solicitud={seleccionada} onCerrar={() => setSeleccionada(null)} />}
     </div>
   )
 }

@@ -17,6 +17,7 @@ import { StorageView } from '@/views/modules/storage/StorageView'
 import { SolicitudesView } from '@/views/modules/muestreo/SolicitudesView'
 import { NuevaSolicitudView } from '@/views/modules/muestreo/NuevaSolicitudView'
 import { MuestreoConfigView } from '@/views/modules/muestreo/MuestreoConfigView'
+import { SolicitudDetalleView } from '@/views/modules/muestreo/SolicitudDetalleView'
 import { UsuariosView } from '@/views/admin/UsuariosView'
 import { ListadosView } from '@/views/admin/ListadosView'
 import { NotFoundView } from '@/views/not-found/NotFoundView'
@@ -65,6 +66,7 @@ export const router = createBrowserRouter([
             children: [
               { path: ROUTES.tomaMuestras, element: <SolicitudesView /> },
               { path: ROUTES.tomaMuestrasNueva, element: <NuevaSolicitudView /> },
+              { path: ROUTES.tomaMuestrasDetalle, element: <SolicitudDetalleView /> },
             ],
           },
           {

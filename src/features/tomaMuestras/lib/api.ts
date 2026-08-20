@@ -17,6 +17,18 @@ export function eliminarSolicitud(archivo: string) {
   return httpClient.delete<{ estado: string }>(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}`)
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
+
+/** El Excel es el documento maestro guardado al crear la solicitud (o
+ * generado al vuelo, con el mismo formato, para solicitudes legadas). */
+export function urlDescargaExcel(archivo: string) {
+  return `${API_BASE_URL}/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/excel`
+}
+
+export function urlDescargaPdf(archivo: string) {
+  return `${API_BASE_URL}/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/pdf`
+}
+
 // --- Configuración: campos generales -------------------------------------
 
 export function listarCamposConfig() {
