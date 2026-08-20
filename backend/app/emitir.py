@@ -13,14 +13,23 @@ from .db import conexion, cursor_dict
 from .gc_parser import NOMBRE_GC_A_CODIGO, es_codigo_puro, parsear_gc_txt
 from .informe_pdf import generar_informe_pdf
 from .mapeo import LABORATORIO_CATALOGO, calcular_semana
+from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS
 from .solicitud_parser import parsear_solicitudes_html
-from .storage import _carpeta_raiz, _nombre_seguro
+from .storage import _carpeta_raiz as _carpeta_raiz_storage, _nombre_seguro
+from .toma_muestras import _carpeta_raiz as _carpeta_raiz_solicitudes, _leer_solicitud_archivo
 
 _PAT_CODIGO_COLUMNA = re.compile(r"\(([A-Za-z]+)\)\s*$")
 _PREFIJO_RESULTADO = "Resultado:"
 
 router = APIRouter(prefix="/api/emitir/cromatografia", tags=["emitir"])
 
+# Fuente principal: solicitudes de Toma de muestras del laboratorio AGROFRESH
+# (ver toma_muestras.py) -carpeta STORAGE_DIR/solicitudes/AGROFRESH-.
+LABORATORIO_SOLICITUDES = "AGROFRESH"
+
+# Fuente legada: archivos HTML-como-.xls subidos manualmente a Storage antes
+# de que existiera el módulo Toma de muestras. Se sigue leyendo para no
+# romper solicitudes que ya estén ahí, pero ya no es la fuente principal.
 CARPETA_SOLICITUDES = "Solicitud de Muestreo"
 
 
@@ -143,25 +152,87 @@ class SolicitudOut(BaseModel):
     analitos_solicitados: list[str]
 
 
+def _fecha_iso_a_ddmmyyyy(valor: str | None) -> str | None:
+    if not valor:
+        return None
+    try:
+        return datetime.strptime(valor, "%Y-%m-%d").strftime("%d-%m-%Y")
+    except ValueError:
+        return valor  # ya venía en otro formato (ej. legado); se deja tal cual
+
+
+def _mapear_solicitud_a_campos(datos: dict) -> dict[str, str]:
+    """Convierte una solicitud de Toma de muestras (dict estructurado, leído
+    de la hoja oculta "_data" del Excel — ver solicitud_excel.py) al mismo
+    formato "campos: dict[etiqueta, valor]" que ya consume todo el resto del
+    pipeline de cromatografía (cruce, exportar Excel/PDF, subir a BD). Así el
+    parser es estructural (por clave configurada), no depende de una
+    plantilla visual, y el pipeline existente no necesita cambios.
+
+    Todos los campos generales configurados se incluyen siempre, aunque
+    estén vacíos (para que el informe final los muestre igual), excepto los
+    analitos de laboratorio que el usuario no marcó como solicitados -esa
+    regla (nunca mostrar un analito no pedido) se mantiene intacta."""
+    campos: dict[str, str] = {}
+    for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS:
+        valor = datos.get(clave)
+        if clave in ("fecha_solicitud", "fecha_muestreo"):
+            valor = _fecha_iso_a_ddmmyyyy(valor)
+        campos[etiqueta] = str(valor) if valor not in (None, "") else ""
+
+    # Alias legado: el resto del pipeline (subir-bd, informe PDF) espera
+    # estas claves exactas, heredadas del formato HTML-como-.xls original.
+    campos["Sold To (Nombre)"] = campos.get("Sold To", "")
+    campos["Ship To (Nombre)"] = campos.get("Ship To", "")
+
+    # Campos propios del laboratorio (analitos solicitados, dosis, tipo de
+    # aplicación, etc.) — ya vienen con las etiquetas humanas como clave.
+    campos.update(datos.get("campos_laboratorio") or {})
+    return campos
+
+
 @router.get("/solicitudes")
 def listar_solicitudes() -> list[SolicitudOut]:
-    carpeta = os.path.join(_carpeta_raiz(), CARPETA_SOLICITUDES)
-    if not os.path.isdir(carpeta):
-        raise HTTPException(404, f'No existe la carpeta "{CARPETA_SOLICITUDES}" en Storage.')
+    salida: list[SolicitudOut] = []
 
-    salida = []
-    for nombre in sorted(os.listdir(carpeta)):
-        ruta = os.path.join(carpeta, _nombre_seguro(nombre))
-        if not os.path.isfile(ruta):
-            continue
-        try:
-            with open(ruta, encoding="utf-8-sig") as f:
-                contenido = f.read()
-            solicitudes = parsear_solicitudes_html(contenido)
-        except (UnicodeDecodeError, ValueError):
-            continue
-        for s in solicitudes:
-            salida.append(SolicitudOut(archivo=nombre, campos=s.campos, analitos_solicitados=s.analitos_solicitados))
+    carpeta_agrofresh = os.path.join(_carpeta_raiz_solicitudes(), LABORATORIO_SOLICITUDES)
+    if os.path.isdir(carpeta_agrofresh):
+        for nombre in sorted(os.listdir(carpeta_agrofresh)):
+            ruta = os.path.join(carpeta_agrofresh, nombre)
+            if not os.path.isfile(ruta) or not nombre.endswith((".xlsx", ".json")):
+                continue
+            try:
+                datos = _leer_solicitud_archivo(ruta)
+            except (ValueError, KeyError):
+                continue
+            salida.append(
+                SolicitudOut(
+                    archivo=nombre,
+                    campos=_mapear_solicitud_a_campos(datos),
+                    analitos_solicitados=datos.get("analitos_solicitados") or [],
+                )
+            )
+
+    carpeta_legado = os.path.join(_carpeta_raiz_storage(), CARPETA_SOLICITUDES)
+    if os.path.isdir(carpeta_legado):
+        for nombre in sorted(os.listdir(carpeta_legado)):
+            ruta = os.path.join(carpeta_legado, _nombre_seguro(nombre))
+            if not os.path.isfile(ruta):
+                continue
+            try:
+                with open(ruta, encoding="utf-8-sig") as f:
+                    contenido = f.read()
+                solicitudes = parsear_solicitudes_html(contenido)
+            except (UnicodeDecodeError, ValueError):
+                continue
+            for s in solicitudes:
+                salida.append(SolicitudOut(archivo=nombre, campos=s.campos, analitos_solicitados=s.analitos_solicitados))
+
+    if not salida and not os.path.isdir(carpeta_agrofresh) and not os.path.isdir(carpeta_legado):
+        raise HTTPException(
+            404,
+            f'Todavía no hay solicitudes de "{LABORATORIO_SOLICITUDES}" — créalas desde Toma de muestras → Nueva solicitud.',
+        )
     return salida
 
 

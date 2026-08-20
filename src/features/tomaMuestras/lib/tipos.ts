@@ -29,6 +29,8 @@ export interface Solicitud {
   observacion: string | null
   /** Campos propios del laboratorio elegido (etiqueta -> valor). */
   campos_laboratorio: Record<string, string>
+  /** Códigos de los analitos marcados como solicitados (ej. ["FDL", "PYR"]). */
+  analitos_solicitados: string[]
   creado_en: string
 }
 
@@ -73,3 +75,19 @@ export interface AnalitoConfig {
 }
 
 export type AnalitoInput = Omit<AnalitoConfig, 'id'>
+
+/** Campo adicional que aparece según el Tipo de Aplicación elegido.
+ * `ambito` = "comun" (siempre visible) o el nombre exacto de un tipo de
+ * aplicación (ej. "Actimist"), configurado en el mantenedor. */
+export interface CampoTipoAplicacionConfig {
+  id: number
+  ambito: string
+  clave: string
+  etiqueta: string
+  tipo: 'text' | 'number' | 'date' | 'time'
+  requerido: boolean
+  activo: boolean
+  orden: number
+}
+
+export type CampoTipoAplicacionInput = Omit<CampoTipoAplicacionConfig, 'id'>

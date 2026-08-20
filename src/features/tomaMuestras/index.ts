@@ -21,6 +21,10 @@ export {
   crearAnalitoConfig,
   actualizarAnalitoConfig,
   eliminarAnalitoConfig,
+  listarCamposTipoAplicacion,
+  crearCampoTipoAplicacion,
+  actualizarCampoTipoAplicacion,
+  eliminarCampoTipoAplicacion,
 } from './lib/api'
 export type {
   Solicitud,
@@ -31,5 +35,7 @@ export type {
   OpcionInput,
   AnalitoConfig,
   AnalitoInput,
+  CampoTipoAplicacionConfig,
+  CampoTipoAplicacionInput,
 } from './lib/tipos'
 export { LABORATORIOS } from './lib/tipos'

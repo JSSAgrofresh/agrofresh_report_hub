@@ -5,30 +5,36 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 import {
   actualizarAnalitoConfig,
+  actualizarCampoTipoAplicacion,
   actualizarLineaProceso,
   actualizarTipoAplicacion,
   crearAnalitoConfig,
+  crearCampoTipoAplicacion,
   crearLineaProceso,
   crearTipoAplicacion,
   eliminarAnalitoConfig,
+  eliminarCampoTipoAplicacion,
   eliminarLineaProceso,
   eliminarTipoAplicacion,
   guardarCamposConfig,
   listarAnalitosConfig,
   listarCamposConfig,
+  listarCamposTipoAplicacion,
   listarLineasProceso,
   listarTiposAplicacion,
 } from '@/features/tomaMuestras'
-import type { AnalitoConfig, CampoConfig, OpcionConfig } from '@/features/tomaMuestras'
+import type { AnalitoConfig, CampoConfig, CampoTipoAplicacionConfig, OpcionConfig } from '@/features/tomaMuestras'
 import { AnalitosMantenedor } from './AnalitosMantenedor'
+import { CamposTipoAplicacionMantenedor } from './CamposTipoAplicacionMantenedor'
 import { OpcionesMantenedor } from './OpcionesMantenedor'
 import styles from './MuestreoConfigView.module.css'
 
-type Pestana = 'campos' | 'tiposAplicacion' | 'lineasProceso' | 'analitos'
+type Pestana = 'campos' | 'tiposAplicacion' | 'lineasProceso' | 'analitos' | 'camposTipoAplicacion'
 
 const PESTANAS: { valor: Pestana; etiqueta: string }[] = [
   { valor: 'campos', etiqueta: 'Campos generales' },
   { valor: 'tiposAplicacion', etiqueta: 'Tipos de aplicación' },
+  { valor: 'camposTipoAplicacion', etiqueta: 'Campos por tipo de aplicación' },
   { valor: 'lineasProceso', etiqueta: 'Líneas de proceso' },
   { valor: 'analitos', etiqueta: 'Analitos por laboratorio' },
 ]
@@ -41,6 +47,7 @@ export function MuestreoConfigView() {
   const [tiposAplicacion, setTiposAplicacion] = useState<OpcionConfig[]>([])
   const [lineasProceso, setLineasProceso] = useState<OpcionConfig[]>([])
   const [analitos, setAnalitos] = useState<AnalitoConfig[]>([])
+  const [camposTipoAplicacion, setCamposTipoAplicacion] = useState<CampoTipoAplicacionConfig[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -56,6 +63,9 @@ export function MuestreoConfigView() {
     listarAnalitosConfig()
       .then(setAnalitos)
       .catch(() => setError('No se pudo cargar los analitos.'))
+    listarCamposTipoAplicacion()
+      .then(setCamposTipoAplicacion)
+      .catch(() => setError('No se pudo cargar los campos por tipo de aplicación.'))
   }, [])
 
   function actualizarCampoLocal(clave: string, cambios: Partial<CampoConfig>) {
@@ -177,6 +187,27 @@ export function MuestreoConfigView() {
             onEliminar={async (id) => {
               await eliminarTipoAplicacion(id)
               setTiposAplicacion(tiposAplicacion.filter((o) => o.id !== id))
+            }}
+          />
+        )}
+
+        {pestana === 'camposTipoAplicacion' && (
+          <CamposTipoAplicacionMantenedor
+            campos={camposTipoAplicacion}
+            tiposAplicacion={tiposAplicacion}
+            onCrear={async (d) =>
+              setCamposTipoAplicacion(await crearCampoTipoAplicacion(d).then((n) => [...camposTipoAplicacion, n]))
+            }
+            onEditar={async (id, d) =>
+              setCamposTipoAplicacion(
+                await actualizarCampoTipoAplicacion(id, d).then((n) =>
+                  camposTipoAplicacion.map((c) => (c.id === id ? n : c)),
+                ),
+              )
+            }
+            onEliminar={async (id) => {
+              await eliminarCampoTipoAplicacion(id)
+              setCamposTipoAplicacion(camposTipoAplicacion.filter((c) => c.id !== id))
             }}
           />
         )}

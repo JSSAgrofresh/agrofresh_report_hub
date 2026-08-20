@@ -1,5 +1,15 @@
 import { httpClient } from '@/services/http/client'
-import type { AnalitoConfig, AnalitoInput, CampoConfig, OpcionConfig, OpcionInput, Solicitud, SolicitudInput } from './tipos'
+import type {
+  AnalitoConfig,
+  AnalitoInput,
+  CampoConfig,
+  CampoTipoAplicacionConfig,
+  CampoTipoAplicacionInput,
+  OpcionConfig,
+  OpcionInput,
+  Solicitud,
+  SolicitudInput,
+} from './tipos'
 
 export function listarSolicitudes() {
   return httpClient.get<Solicitud[]>('/toma-muestras/solicitudes')
@@ -92,4 +102,23 @@ export function actualizarAnalitoConfig(id: number, datos: AnalitoInput) {
 
 export function eliminarAnalitoConfig(id: number) {
   return httpClient.delete<{ estado: string }>(`/toma-muestras/config/analitos/${id}`)
+}
+
+// --- Configuración: campos por tipo de aplicación --------------------------
+
+export function listarCamposTipoAplicacion(ambito?: string) {
+  const query = ambito ? `?ambito=${encodeURIComponent(ambito)}` : ''
+  return httpClient.get<CampoTipoAplicacionConfig[]>(`/toma-muestras/config/campos-tipo-aplicacion${query}`)
+}
+
+export function crearCampoTipoAplicacion(datos: CampoTipoAplicacionInput) {
+  return httpClient.post<CampoTipoAplicacionConfig>('/toma-muestras/config/campos-tipo-aplicacion', datos)
+}
+
+export function actualizarCampoTipoAplicacion(id: number, datos: CampoTipoAplicacionInput) {
+  return httpClient.put<CampoTipoAplicacionConfig>(`/toma-muestras/config/campos-tipo-aplicacion/${id}`, datos)
+}
+
+export function eliminarCampoTipoAplicacion(id: number) {
+  return httpClient.delete<{ estado: string }>(`/toma-muestras/config/campos-tipo-aplicacion/${id}`)
 }

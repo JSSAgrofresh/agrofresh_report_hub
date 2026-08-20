@@ -121,6 +121,11 @@ class SolicitudIn(BaseModel):
     # Campos propios del laboratorio elegido (etiqueta -> valor). Solo debe
     # traer los campos aplicables al `laboratorio` de esta solicitud.
     campos_laboratorio: dict[str, str] = {}
+    # Códigos de los analitos marcados como solicitados (ej. ["FDL", "PYR"]),
+    # aparte de `campos_laboratorio` -permite identificar qué se pidió de
+    # forma estructural (para cruzar con resultados de cromatografía) sin
+    # tener que parsear las etiquetas humanas de `campos_laboratorio`.
+    analitos_solicitados: list[str] = []
 
 
 class Solicitud(SolicitudIn):
@@ -358,9 +363,8 @@ def _crud_opciones(nombre_archivo: str, defecto: list[dict]):
 
 
 _TIPOS_APLICACION_DEFECTO: list[dict] = [
-    {"id": 1, "nombre": "Foliar", "activo": True, "orden": 1},
-    {"id": 2, "nombre": "Suelo", "activo": True, "orden": 2},
-    {"id": 3, "nombre": "Poscosecha", "activo": True, "orden": 3},
+    {"id": 1, "nombre": "Actimist", "activo": True, "orden": 1},
+    {"id": 2, "nombre": "Línea de proceso", "activo": True, "orden": 2},
 ]
 _listar_tipos, _crear_tipo, _editar_tipo, _eliminar_tipo = _crud_opciones(
     "tipos_aplicacion.json", _TIPOS_APLICACION_DEFECTO
@@ -382,6 +386,80 @@ router.get("/config/lineas-proceso")(_listar_lineas)
 router.post("/config/lineas-proceso")(_crear_linea)
 router.put("/config/lineas-proceso/{item_id}")(_editar_linea)
 router.delete("/config/lineas-proceso/{item_id}")(_eliminar_linea)
+
+
+class CampoTipoAplicacionConfig(BaseModel):
+    """Un campo adicional que aparece en el formulario según el Tipo de
+    Aplicación elegido (Actimist / Línea de proceso / lo que el
+    administrador agregue en el mantenedor de Tipos de aplicación).
+    `ambito` = "comun" (aparece siempre que haya un tipo de aplicación
+    elegido) o el nombre exacto de un tipo de aplicación (aparece solo con
+    ese tipo)."""
+
+    id: int
+    ambito: str
+    clave: str
+    etiqueta: str
+    tipo: str = "text"
+    requerido: bool = False
+    activo: bool = True
+    orden: int = 0
+
+
+class CampoTipoAplicacionIn(BaseModel):
+    ambito: str
+    clave: str
+    etiqueta: str
+    tipo: str = "text"
+    requerido: bool = False
+    activo: bool = True
+    orden: int = 0
+
+
+_CAMPOS_TIPO_APLICACION_DEFECTO: list[dict] = [
+    {"id": 1, "ambito": "comun", "clave": "dosis_aplicada", "etiqueta": "Dosis Aplicada", "tipo": "text", "requerido": False, "activo": True, "orden": 1},
+    {"id": 2, "ambito": "Actimist", "clave": "presion_actimist", "etiqueta": "Presión Actimist (bar)", "tipo": "number", "requerido": False, "activo": True, "orden": 2},
+    {"id": 3, "ambito": "Línea de proceso", "clave": "velocidad_linea", "etiqueta": "Velocidad de Línea (m/min)", "tipo": "number", "requerido": False, "activo": True, "orden": 2},
+]
+
+
+@router.get("/config/campos-tipo-aplicacion")
+def listar_campos_tipo_aplicacion(ambito: str | None = None) -> list[CampoTipoAplicacionConfig]:
+    items = [CampoTipoAplicacionConfig(**c) for c in _leer_config("campos_tipo_aplicacion.json", _CAMPOS_TIPO_APLICACION_DEFECTO)]
+    if ambito:
+        items = [c for c in items if c.ambito in ("comun", ambito)]
+    return sorted(items, key=lambda c: (c.ambito != "comun", c.orden))
+
+
+@router.post("/config/campos-tipo-aplicacion")
+def crear_campo_tipo_aplicacion(body: CampoTipoAplicacionIn) -> CampoTipoAplicacionConfig:
+    items = _leer_config("campos_tipo_aplicacion.json", _CAMPOS_TIPO_APLICACION_DEFECTO)
+    nuevo = CampoTipoAplicacionConfig(id=_siguiente_id(items), **body.model_dump())
+    items.append(nuevo.model_dump())
+    _escribir_config("campos_tipo_aplicacion.json", items)
+    return nuevo
+
+
+@router.put("/config/campos-tipo-aplicacion/{item_id}")
+def editar_campo_tipo_aplicacion(item_id: int, body: CampoTipoAplicacionIn) -> CampoTipoAplicacionConfig:
+    items = _leer_config("campos_tipo_aplicacion.json", _CAMPOS_TIPO_APLICACION_DEFECTO)
+    idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
+    if idx is None:
+        raise HTTPException(404, "No encontrado.")
+    actualizado = CampoTipoAplicacionConfig(id=item_id, **body.model_dump())
+    items[idx] = actualizado.model_dump()
+    _escribir_config("campos_tipo_aplicacion.json", items)
+    return actualizado
+
+
+@router.delete("/config/campos-tipo-aplicacion/{item_id}")
+def eliminar_campo_tipo_aplicacion(item_id: int) -> dict[str, str]:
+    items = _leer_config("campos_tipo_aplicacion.json", _CAMPOS_TIPO_APLICACION_DEFECTO)
+    restantes = [i for i in items if i["id"] != item_id]
+    if len(restantes) == len(items):
+        raise HTTPException(404, "No encontrado.")
+    _escribir_config("campos_tipo_aplicacion.json", restantes)
+    return {"estado": "eliminado"}
 
 
 class AnalitoConfig(BaseModel):

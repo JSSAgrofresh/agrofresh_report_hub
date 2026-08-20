@@ -15,10 +15,17 @@ import {
   LABORATORIOS,
   listarAnalitosConfig,
   listarCamposConfig,
+  listarCamposTipoAplicacion,
   listarLineasProceso,
   listarTiposAplicacion,
 } from '@/features/tomaMuestras'
-import type { AnalitoConfig, CampoConfig, Laboratorio, OpcionConfig } from '@/features/tomaMuestras'
+import type {
+  AnalitoConfig,
+  CampoConfig,
+  CampoTipoAplicacionConfig,
+  Laboratorio,
+  OpcionConfig,
+} from '@/features/tomaMuestras'
 import { ROUTES } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
 import styles from './NuevaSolicitudView.module.css'
@@ -68,6 +75,7 @@ export function NuevaSolicitudView() {
   const [tiposAplicacion, setTiposAplicacion] = useState<OpcionConfig[]>([])
   const [lineasProceso, setLineasProceso] = useState<OpcionConfig[]>([])
   const [analitosTodos, setAnalitosTodos] = useState<AnalitoConfig[]>([])
+  const [camposTipoAplicacion, setCamposTipoAplicacion] = useState<CampoTipoAplicacionConfig[]>([])
 
   const [laboratorio, setLaboratorio] = useState<Laboratorio | ''>('')
   const [general, setGeneral] = useState<Record<string, string>>({})
@@ -75,6 +83,7 @@ export function NuevaSolicitudView() {
   const [shipTo, setShipTo] = useState('')
   const [lineaProceso, setLineaProceso] = useState('')
   const [tipoAplicacionSel, setTipoAplicacionSel] = useState('')
+  const [valoresTipoAplicacion, setValoresTipoAplicacion] = useState<Record<string, string>>({})
   const [seleccionAnalitos, setSeleccionAnalitos] = useState<Record<number, boolean>>({})
   const [valoresAnalitos, setValoresAnalitos] = useState<Record<number, string>>({})
   const [alsPesticidas, setAlsPesticidas] = useState<AlsPesticida[]>(ALS_PESTICIDAS_VACIO)
@@ -101,6 +110,9 @@ export function NuevaSolicitudView() {
     listarAnalitosConfig()
       .then(setAnalitosTodos)
       .catch(() => setAnalitosTodos([]))
+    listarCamposTipoAplicacion()
+      .then(setCamposTipoAplicacion)
+      .catch(() => setCamposTipoAplicacion([]))
     listarClientes()
       .then((clientes) => setClientesDisponibles(clientes.map((c) => c.nombre)))
       .catch(() => setClientesDisponibles([]))
@@ -128,6 +140,13 @@ export function NuevaSolicitudView() {
     [analitosTodos, laboratorio],
   )
   const esCromatografia = laboratorio === 'QUITECA' || laboratorio === 'AGROFRESH'
+  const camposTipoAplicacionActivos = useMemo(
+    () =>
+      camposTipoAplicacion
+        .filter((c) => c.activo && (c.ambito === 'comun' || c.ambito === tipoAplicacionSel))
+        .sort((a, b) => (a.ambito !== 'comun' ? 1 : 0) - (b.ambito !== 'comun' ? 1 : 0) || a.orden - b.orden),
+    [camposTipoAplicacion, tipoAplicacionSel],
+  )
 
   function alElegirSoldTo(v: string) {
     setSoldTo(v)
@@ -142,7 +161,16 @@ export function NuevaSolicitudView() {
     setSeleccionAnalitos({})
     setValoresAnalitos({})
     setTipoAplicacionSel('')
+    setValoresTipoAplicacion({})
     setAlsPesticidas(ALS_PESTICIDAS_VACIO)
+  }
+
+  function alCambiarTipoAplicacion(v: string) {
+    // Igual que con el laboratorio: los campos propios del Tipo de
+    // Aplicación anterior (ej. Actimist) no deben quedar con valores
+    // guardados si se cambia a otro (ej. Línea de proceso).
+    setTipoAplicacionSel(v)
+    setValoresTipoAplicacion({})
   }
 
   function actualizarGeneral(clave: string, valor: string) {
@@ -175,14 +203,25 @@ export function NuevaSolicitudView() {
       }
     }
 
+    const codigosAnalitosSolicitados: string[] = []
     const camposLabFinal: Record<string, string> = {}
     for (const analito of analitosLab) {
       if (!seleccionAnalitos[analito.id]) continue
+      codigosAnalitosSolicitados.push(analito.codigo)
       const valor = valoresAnalitos[analito.id]?.trim()
       const etiqueta = analito.unidad ? `${analito.nombre} (${analito.unidad})` : analito.nombre
       camposLabFinal[etiqueta] = valor || 'Solicitado'
     }
-    if (esCromatografia && tipoAplicacionSel) camposLabFinal['Tipo Aplicación'] = tipoAplicacionSel
+    if (esCromatografia && tipoAplicacionSel) {
+      camposLabFinal['Tipo Aplicación'] = tipoAplicacionSel
+      // Los campos propios del Tipo de Aplicación se guardan siempre que
+      // apliquen, aunque estén vacíos: el informe de cromatografía debe
+      // mostrar la estructura completa configurada, no solo lo que tiene
+      // valor (a diferencia de los analitos, que son estrictamente opt-in).
+      for (const campo of camposTipoAplicacionActivos) {
+        camposLabFinal[campo.etiqueta] = (valoresTipoAplicacion[campo.clave] ?? '').trim()
+      }
+    }
     if (laboratorio === 'ALS') {
       alsPesticidas.forEach((p, i) => {
         if (p.analito.trim()) camposLabFinal[`Analito Pesticida ${i + 1}`] = p.analito.trim()
@@ -216,6 +255,7 @@ export function NuevaSolicitudView() {
         email_laboratorio: general.email_laboratorio?.trim() || null,
         observacion: general.observacion?.trim() || null,
         campos_laboratorio: camposLabFinal,
+        analitos_solicitados: codigosAnalitosSolicitados,
       })
       navigate(ROUTES.tomaMuestras)
     } catch {
@@ -379,17 +419,39 @@ export function NuevaSolicitudView() {
             </h2>
 
             {esCromatografia && (
-              <label className={styles.campo}>
-                <span>Tipo Aplicación</span>
-                <select value={tipoAplicacionSel} onChange={(e) => setTipoAplicacionSel(e.target.value)}>
-                  <option value="">— elegir —</option>
-                  {tiposActivos.map((t) => (
-                    <option key={t.id} value={t.nombre}>
-                      {t.nombre}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <>
+                <label className={styles.campo}>
+                  <span>Tipo Aplicación</span>
+                  <select value={tipoAplicacionSel} onChange={(e) => alCambiarTipoAplicacion(e.target.value)}>
+                    <option value="">— elegir —</option>
+                    {tiposActivos.map((t) => (
+                      <option key={t.id} value={t.nombre}>
+                        {t.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {tipoAplicacionSel && camposTipoAplicacionActivos.length > 0 && (
+                  <div className={styles.fila}>
+                    {camposTipoAplicacionActivos.map((campo) => (
+                      <label className={styles.campo} key={campo.clave}>
+                        <span>
+                          {campo.etiqueta}
+                          {campo.requerido && <span className={styles.marcaRequerido}> *</span>}
+                        </span>
+                        <input
+                          type={campo.tipo}
+                          value={valoresTipoAplicacion[campo.clave] ?? ''}
+                          onChange={(e) =>
+                            setValoresTipoAplicacion((v) => ({ ...v, [campo.clave]: e.target.value }))
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
             {analitosLab.length > 0 && (
