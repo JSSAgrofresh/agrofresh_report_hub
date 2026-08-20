@@ -459,7 +459,16 @@ _CAMPOS_TIPO_APLICACION_DEFECTO: list[dict] = [
 
 @router.get("/config/campos-tipo-aplicacion")
 def listar_campos_tipo_aplicacion(ambito: str | None = None) -> list[CampoTipoAplicacionConfig]:
-    items = [CampoTipoAplicacionConfig(**c) for c in _leer_config("campos_tipo_aplicacion.json", _CAMPOS_TIPO_APLICACION_DEFECTO)]
+    guardados = _leer_config("campos_tipo_aplicacion.json", _CAMPOS_TIPO_APLICACION_DEFECTO)
+    # Limpieza de un campo "Dosis Aplicada" genérico que quedó guardado en
+    # instalaciones existentes antes de que la dosis pasara a manejarse por
+    # analito: se elimina del archivo si sigue ahí, no solo se oculta.
+    sin_dosis_generica = [c for c in guardados if not (c["ambito"] == "comun" and c["clave"] == "dosis_aplicada")]
+    if len(sin_dosis_generica) != len(guardados):
+        _escribir_config("campos_tipo_aplicacion.json", sin_dosis_generica)
+        guardados = sin_dosis_generica
+
+    items = [CampoTipoAplicacionConfig(**c) for c in guardados]
     if ambito:
         items = [c for c in items if c.ambito in ("comun", ambito)]
     return sorted(items, key=lambda c: (c.ambito != "comun", c.orden))
