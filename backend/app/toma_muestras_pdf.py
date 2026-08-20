@@ -29,6 +29,7 @@ from .informe_pdf import (
     NEGRO_TEXTO,
     VERDE_CLARO,
     VERDE_OSCURO,
+    _dos_columnas,
     _titulo_seccion,
 )
 from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS
@@ -51,8 +52,9 @@ _CLAVES_MUESTRA = [
     "posicion_muestreo",
     "producto_utilizado",
     "tipo_muestra",
+    "nombre_muestreador",
 ]
-_CLAVES_FECHAS_MUESTREO = ["fecha_muestreo", "hora_muestreo", "nombre_muestreador"]
+_CLAVES_FECHAS = ["fecha_solicitud", "fecha_muestreo", "hora_muestreo"]
 
 
 def _fila_campo(etiqueta: str, valor) -> list:
@@ -82,8 +84,20 @@ def _tabla_pares(pares: list[tuple[str, object]]) -> Table:
     return t
 
 
+_CLAVES_FECHA_ISO = {"fecha_solicitud", "fecha_muestreo"}
+
+
 def _pares_de_claves(datos: dict, claves: list[str]) -> list[tuple[str, object]]:
-    return [(_ETIQUETA_DE_CLAVE[c], datos.get(c)) for c in claves]
+    pares = []
+    for c in claves:
+        valor = datos.get(c)
+        if c in _CLAVES_FECHA_ISO and valor:
+            try:
+                valor = datetime.strptime(valor, "%Y-%m-%d").strftime("%d-%m-%Y")
+            except ValueError:
+                pass
+        pares.append((_ETIQUETA_DE_CLAVE[c], valor))
+    return pares
 
 
 def _etiqueta_analito(analito: dict) -> str:
@@ -154,7 +168,6 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
         _tabla_pares(
             [
                 (_ETIQUETA_DE_CLAVE["numero_solicitud"], datos.get("numero_solicitud")),
-                (_ETIQUETA_DE_CLAVE["fecha_solicitud"], datos.get("fecha_solicitud")),
                 (_ETIQUETA_DE_CLAVE["generado_por"], datos.get("generado_por")),
                 (_ETIQUETA_DE_CLAVE["laboratorio"], laboratorio),
                 ("Tipo Aplicación", campos_lab.get("Tipo Aplicación")),
@@ -168,16 +181,23 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
     elementos.append(_tabla_pares(_pares_de_claves(datos, _CLAVES_SOLICITANTE)))
     elementos.append(Spacer(1, 10))
 
-    # --- 3. Datos del cliente / destino ---
+    # --- 3. Datos del cliente / destino (Sold To y Ship To siempre
+    # visibles, aunque Ship To no se haya ingresado) ---
     elementos.append(_titulo_seccion("DATOS DEL CLIENTE / DESTINO"))
     elementos.append(_tabla_pares(_pares_de_claves(datos, _CLAVES_CLIENTE)))
     elementos.append(Spacer(1, 10))
 
-    # --- 4. Información de la muestra (+ fechas de muestreo agrupadas) ---
-    elementos.append(_titulo_seccion("INFORMACIÓN DE LA MUESTRA"))
-    elementos.append(_tabla_pares(_pares_de_claves(datos, _CLAVES_MUESTRA)))
-    elementos.append(Spacer(1, 6))
-    elementos.append(_tabla_pares(_pares_de_claves(datos, _CLAVES_FECHAS_MUESTREO)))
+    # --- 4. Información de la muestra (izquierda) y fechas del proceso
+    # (derecha), lado a lado -antes iban uno arriba del otro-. ---
+    elementos.append(_titulo_seccion("INFORMACIÓN DE LA MUESTRA Y FECHAS"))
+    elementos.append(
+        _dos_columnas(
+            "INFORMACIÓN DE LA MUESTRA",
+            _pares_de_claves(datos, _CLAVES_MUESTRA),
+            "FECHAS / PROCESO",
+            _pares_de_claves(datos, _CLAVES_FECHAS),
+        )
+    )
     elementos.append(Spacer(1, 10))
 
     # --- 5. Información de aplicación (campos propios del tipo de aplicación) ---

@@ -34,20 +34,19 @@ CARPETA_SOLICITUDES = "Solicitud de Muestreo"
 
 
 def _asignar_folios(cur, cantidad: int) -> list[str]:
-    """Reserva `cantidad` folios consecutivos LAB-YYYYMMDD-NNN para hoy,
-    de forma atómica (INSERT+UPDATE dentro de la misma transacción de
-    escritura). El correlativo es por fecha: al cambiar el día vuelve a
-    partir en 001."""
-    hoy = date.today()
-    cur.execute("INSERT INTO informe_folio (fecha, siguiente) VALUES (%s, 1) ON CONFLICT (fecha) DO NOTHING", (hoy,))
+    """Reserva `cantidad` identificadores de informe consecutivos
+    AGF{año}-{n} (ej. AGF2026-1), de forma atómica (INSERT+UPDATE dentro de
+    la misma transacción de escritura). El correlativo es por año: nunca se
+    reinicia dentro del mismo año, solo al cambiar de año."""
+    anio = date.today().year
+    cur.execute("INSERT INTO informe_folio_anual (anio, siguiente) VALUES (%s, 1) ON CONFLICT (anio) DO NOTHING", (anio,))
     cur.execute(
-        "UPDATE informe_folio SET siguiente = siguiente + %s WHERE fecha = %s RETURNING siguiente",
-        (cantidad, hoy),
+        "UPDATE informe_folio_anual SET siguiente = siguiente + %s WHERE anio = %s RETURNING siguiente",
+        (cantidad, anio),
     )
     siguiente_tras = cur.fetchone()["siguiente"]
     primero = siguiente_tras - cantidad
-    prefijo = f"LAB-{hoy.strftime('%Y%m%d')}"
-    return [f"{prefijo}-{n:03d}" for n in range(primero, siguiente_tras)]
+    return [f"AGF{anio}-{n}" for n in range(primero, siguiente_tras)]
 
 
 class InformeConfigOut(BaseModel):
@@ -184,6 +183,10 @@ def _mapear_solicitud_a_campos(datos: dict) -> dict[str, str]:
     # estas claves exactas, heredadas del formato HTML-como-.xls original.
     campos["Sold To (Nombre)"] = campos.get("Sold To", "")
     campos["Ship To (Nombre)"] = campos.get("Ship To", "")
+    # La observación de la solicitud no forma parte de CAMPOS_GENERALES_ETIQUETAS
+    # (en el Excel de la solicitud va en su propia sección) pero el informe de
+    # análisis sí la necesita como campo independiente, separado del tratamiento.
+    campos["Observación"] = str(datos.get("observacion") or "")
 
     # Campos propios del laboratorio (analitos solicitados, dosis, tipo de
     # aplicación, etc.) — ya vienen con las etiquetas humanas como clave.

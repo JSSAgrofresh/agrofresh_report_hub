@@ -32,10 +32,7 @@ NEGRO_TEXTO = colors.HexColor('#1F2937')
 
 _RUTA_LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'src', 'assets', 'agrofresh-logo.png')
 
-# TODO: reemplazar por la dirección real de AgroFresh Chile -no hay una
-# fuente de verdad para esto en el sistema todavía, así que se deja un
-# valor placeholder explícito en vez de inventar una dirección real.
-DIRECCION_EMPRESA = "AgroFresh Chile S.A. — Dirección pendiente de configurar"
+DIRECCION_EMPRESA = "Manuel Montt, 4060 | Parque Industrial km 90 Rancagua | CHILE"
 
 _PAT_CODIGO_COLUMNA = re.compile(r"\(([A-Za-z]+)\)\s*$")
 _PREFIJO_RESULTADO = "Resultado:"
@@ -45,6 +42,7 @@ _ESTILO_SUBTITULO = ParagraphStyle('subtitulo', fontName='Helvetica', fontSize=8
 _ESTILO_DIRECCION = ParagraphStyle('direccion', fontName='Helvetica', fontSize=7.3, textColor=GRIS_TEXTO, leading=9.5)
 _ESTILO_FOLIO = ParagraphStyle('folio', fontName='Helvetica-Bold', fontSize=8.5, textColor=VERDE_OSCURO, alignment=2)
 _ESTILO_SECCION = ParagraphStyle('seccion', fontName='Helvetica-Bold', fontSize=8.5, textColor=VERDE_OSCURO, spaceAfter=0)
+_ESTILO_SUBSECCION = ParagraphStyle('subseccion', fontName='Helvetica-Bold', fontSize=7.5, textColor=VERDE_OSCURO, spaceAfter=0)
 _ESTILO_LABEL = ParagraphStyle('label', fontName='Helvetica-Bold', fontSize=6.8, textColor=GRIS_TEXTO)
 _ESTILO_VALOR = ParagraphStyle('valor', fontName='Helvetica', fontSize=9, textColor=NEGRO_TEXTO, leading=12)
 _ESTILO_METODO = ParagraphStyle('metodo', fontName='Helvetica-Oblique', fontSize=7.8, textColor=GRIS_TEXTO, leading=11)
@@ -92,8 +90,46 @@ def _titulo_seccion(texto: str) -> Table:
     return t
 
 
-def _fila_campo(etiqueta: str, valor: str) -> list:
-    return [Paragraph(etiqueta, _ESTILO_LABEL), Paragraph(valor or '—', _ESTILO_VALOR)]
+def _fila_campo(etiqueta: str, valor) -> list:
+    texto = str(valor) if valor not in (None, '') else '—'
+    return [Paragraph(etiqueta, _ESTILO_LABEL), Paragraph(texto, _ESTILO_VALOR)]
+
+
+def _lista_vertical(pares: list[tuple[str, str]]) -> Table:
+    """Columna de campos etiqueta/valor, uno por fila (para ir dentro de un
+    bloque de dos columnas lado a lado -ver `_dos_columnas`-)."""
+    filas = [_fila_campo(et, val) for et, val in pares]
+    t = Table(filas, colWidths=[2.7 * cm, 5.7 * cm])
+    t.setStyle(
+        TableStyle(
+            [
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
+            ]
+        )
+    )
+    return t
+
+
+def _dos_columnas(titulo_izq: str, pares_izq: list[tuple[str, str]], titulo_der: str, pares_der: list[tuple[str, str]]) -> Table:
+    """Dos bloques de información lado a lado (identificación de la muestra
+    + fechas del proceso), en vez de uno arriba del otro -reduce el alto del
+    documento y agrupa visualmente cada tema."""
+    col_izq = [Paragraph(titulo_izq, _ESTILO_SUBSECCION), Spacer(1, 5), _lista_vertical(pares_izq)]
+    col_der = [Paragraph(titulo_der, _ESTILO_SUBSECCION), Spacer(1, 5), _lista_vertical(pares_der)]
+    outer = Table([[col_izq, col_der]], colWidths=[8.6 * cm, 8.6 * cm])
+    outer.setStyle(
+        TableStyle(
+            [
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (1, 0), (1, 0), 14),
+                ('LINEAFTER', (0, 0), (0, 0), 0.5, GRIS_LINEA),
+            ]
+        )
+    )
+    return outer
 
 
 def _fecha_iso_a_ddmmyyyy(valor: str | None) -> str:
@@ -166,7 +202,8 @@ def generar_informe_pdf(
     elementos.append(encabezado)
     elementos.append(Spacer(1, 12))
 
-    # --- Solicitante ---
+    # --- Solicitante (Sold To y Ship To siempre visibles, aunque Ship To
+    # venga vacío -se muestra la etiqueta igual, con "—" en el valor-) ---
     elementos.append(_titulo_seccion('SOLICITANTE'))
     tabla_solicitante = Table(
         [
@@ -176,8 +213,9 @@ def generar_informe_pdf(
             ],
             [
                 *_fila_campo('SOLD TO', campos.get('Sold To (Nombre)', '')),
-                *_fila_campo('N° SOLICITUD', campos.get('N° Solicitud', '')),
+                *_fila_campo('SHIP TO', campos.get('Ship To (Nombre)', '')),
             ],
+            [*_fila_campo('N° SOLICITUD', campos.get('N° Solicitud', '')), '', ''],
         ],
         colWidths=[3.2 * cm, 5.6 * cm, 3.2 * cm, 5.6 * cm],
     )
@@ -188,86 +226,71 @@ def generar_informe_pdf(
                 ('TOPPADDING', (0, 0), (-1, -1), 5),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
                 ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
+                ('SPAN', (1, 2), (3, 2)),
             ]
         )
     )
     elementos.append(tabla_solicitante)
     elementos.append(Spacer(1, 10))
 
-    # --- Fechas del proceso: las 5 fechas agrupadas en un solo lugar, en
-    # vez de dispersas por el documento -Solicitud y Muestreo vienen de la
-    # solicitud, Recepción se elige a mano al cruzar, Análisis lo entrega
-    # el GC, e Informe es hoy (el día que se genera este PDF/se sube a BD).
-    elementos.append(_titulo_seccion('FECHAS DEL PROCESO'))
+    # --- Identificación de la muestra (izquierda) y fechas del proceso
+    # (derecha), lado a lado -antes iban uno arriba del otro-. Especie y
+    # Variedad quedan separadas (antes iban combinadas en una sola celda).
+    elementos.append(_titulo_seccion('IDENTIFICACIÓN DE LA MUESTRA Y FECHAS'))
     hoy = datetime.now().strftime('%d-%m-%Y')
-    tabla_fechas = Table(
-        [
+    elementos.append(
+        _dos_columnas(
+            'IDENTIFICACIÓN DE LA MUESTRA',
             [
-                *_fila_campo('FECHA SOLICITUD', campos.get('Fecha Solicitud', '')),
-                *_fila_campo('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
+                ('SOLICITUD DE MUESTREO', campos.get('N° Solicitud', '')),
+                ('IDENTIFICACIÓN MUESTRA (NI)', codigo_vial or ''),
+                ('TIPO DE MUESTRA', campos.get('Tipo Muestra', '')),
+                ('ESPECIE', campos.get('Especie', '')),
+                ('VARIEDAD', campos.get('Variedad', '')),
+                ('LOTE', campos.get('Lote', '')),
+                ('NOMBRE MUESTREADOR', campos.get('Nombre Muestreador', '')),
             ],
+            'FECHAS / PROCESO',
             [
-                *_fila_campo('FECHA RECEPCIÓN', _fecha_iso_a_ddmmyyyy(fecha_recepcion)),
-                *_fila_campo('FECHA ANÁLISIS', _fecha_inyeccion_a_ddmmyyyy(fecha_inyeccion)),
+                ('FECHA SOLICITUD', campos.get('Fecha Solicitud', '')),
+                ('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
+                ('HORA MUESTREO', campos.get('Hora Muestreo', '')),
+                ('FECHA RECEPCIÓN', _fecha_iso_a_ddmmyyyy(fecha_recepcion)),
+                ('FECHA ANÁLISIS', _fecha_inyeccion_a_ddmmyyyy(fecha_inyeccion)),
+                ('FECHA INFORME', hoy),
             ],
-            [*_fila_campo('FECHA INFORME', hoy), '', ''],
-        ],
-        colWidths=[3.2 * cm, 5.6 * cm, 3.2 * cm, 5.6 * cm],
-    )
-    tabla_fechas.setStyle(
-        TableStyle(
-            [
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 5),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-                ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
-                ('SPAN', (1, 2), (3, 2)),
-            ]
         )
     )
-    elementos.append(tabla_fechas)
     elementos.append(Spacer(1, 10))
 
-    # --- Identificación de la muestra ---
-    elementos.append(_titulo_seccion('IDENTIFICACIÓN DE LA MUESTRA'))
-    especie_variedad = ' / '.join(v for v in [campos.get('Especie', ''), campos.get('Variedad', '')] if v) or '—'
-    tratamiento = ' · '.join(v for v in [campos.get('Producto Utilizado', ''), campos.get('Tipo Aplicación', '')] if v) or '—'
-    tabla_muestra = Table(
+    # --- Observaciones y Tratamiento: campos independientes, no combinados
+    # en una sola celda como antes ---
+    elementos.append(_titulo_seccion('OBSERVACIONES'))
+    elementos.append(Spacer(1, 5))
+    elementos.append(Paragraph(campos.get('Observación') or '—', _ESTILO_VALOR))
+    elementos.append(Spacer(1, 10))
+
+    elementos.append(_titulo_seccion('TRATAMIENTO'))
+    tabla_tratamiento = Table(
         [
             [
-                *_fila_campo('SOLICITUD DE MUESTREO', campos.get('N° Solicitud', '')),
-                *_fila_campo('IDENTIFICACIÓN MUESTRA (NI)', codigo_vial or '—'),
+                *_fila_campo('PRODUCTO UTILIZADO', campos.get('Producto Utilizado', '')),
+                *_fila_campo('TIPO APLICACIÓN', campos.get('Tipo Aplicación', '')),
             ],
-            [
-                *_fila_campo('TIPO DE MUESTRA', campos.get('Tipo Muestra', '')),
-                *_fila_campo('ESPECIE / VARIEDAD', especie_variedad),
-            ],
-            [
-                *_fila_campo('LOTE', campos.get('Lote', '')),
-                *_fila_campo('HORA MUESTREO', campos.get('Hora Muestreo', '')),
-            ],
-            [
-                *_fila_campo('NOMBRE MUESTREADOR', campos.get('Nombre Muestreador', '')),
-                '',
-                '',
-            ],
-            [Paragraph('OBSERVACIONES / TRATAMIENTO', _ESTILO_LABEL), Paragraph(tratamiento, _ESTILO_VALOR), '', ''],
         ],
         colWidths=[3.2 * cm, 5.6 * cm, 3.2 * cm, 5.6 * cm],
     )
-    tabla_muestra.setStyle(
+    tabla_tratamiento.setStyle(
         TableStyle(
             [
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('TOPPADDING', (0, 0), (-1, -1), 5),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
                 ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
-                ('SPAN', (1, 3), (3, 3)),
-                ('SPAN', (1, 4), (3, 4)),
             ]
         )
     )
-    elementos.append(tabla_muestra)
+    elementos.append(tabla_tratamiento)
     elementos.append(Spacer(1, 10))
 
     # --- Metodología ---
