@@ -27,12 +27,16 @@ export function IconPanel(props: IconProps) {
   )
 }
 
-export function IconAudit(props: IconProps) {
+/** Tabla de datos (estilo "vista de modelo" de Power BI): grilla de filas y
+ * columnas, para el módulo que muestra la base de datos completa. */
+export function IconDataCore(props: IconProps) {
   return (
     <svg {...base} {...props}>
-      <path d="M8 4h8a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" />
-      <path d="M9.5 3.5h5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-5A.5.5 0 0 1 9 5V4a.5.5 0 0 1 .5-.5Z" />
-      <path d="m9.5 12.5 1.7 1.7L14.5 11" />
+      <rect x="3.5" y="4" width="17" height="16" rx="1.5" />
+      <path d="M3.5 9.5h17" />
+      <path d="M3.5 14.5h17" />
+      <path d="M9.5 4v16" />
+      <path d="M15 4v16" />
     </svg>
   )
 }
@@ -152,6 +156,60 @@ export function IconUsers(props: IconProps) {
       <path d="M3.5 19c.8-2.9 3-4.5 5.5-4.5s4.7 1.6 5.5 4.5" />
       <path d="M15.5 5.3a3 3 0 0 1 0 5.8" />
       <path d="M17.5 14.7c2 .5 3.4 1.9 4 4.3" />
+    </svg>
+  )
+}
+
+export function IconListados(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 6h2M4 12h2M4 18h2" />
+      <path d="M9 6h11M9 12h11M9 18h11" />
+    </svg>
+  )
+}
+
+export function IconStorage(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 4h16v16H4z" />
+      <path d="M4 10h16" />
+      <path d="M12 14v4M9.5 16.5 12 14l2.5 2.5" />
+    </svg>
+  )
+}
+
+export function IconCarpeta(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 6.5a1 1 0 0 1 1-1h4.5l2 2H19a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" />
+    </svg>
+  )
+}
+
+export function IconFrasco(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M10 3h4M10.5 3v5.5L5.5 18a1.5 1.5 0 0 0 1.3 2.2h10.4a1.5 1.5 0 0 0 1.3-2.2L13.5 8.5V3" />
+      <path d="M8 15.5h8" />
+    </svg>
+  )
+}
+
+export function IconEmitir(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 20V6M6 12l6-6 6 6" />
+      <path d="M5 20h14" />
+    </svg>
+  )
+}
+
+export function IconArchivoPlano(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M6 3.5h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1z" />
+      <path d="M14 3.5v4h4" />
     </svg>
   )
 }

@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/Button'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { LISTA_AREAS } from '@/constants/areas'
 import type { AreaId } from '@/constants/areas'
-import { obtenerClientesReporte } from '@/features/reportes'
+import { listarClientes, listarPlantas } from '@/features/catalogo'
+import type { Planta } from '@/features/catalogo'
 import { CORREO_MAESTRO } from '../api/usuariosStore'
 import type { TipoAcceso, Usuario } from '../types'
 import styles from './UsuarioForm.module.css'
@@ -28,18 +29,25 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [tipoAcceso, setTipoAcceso] = useState<TipoAcceso>(usuario?.tipoAcceso ?? 'admin_area')
   const [area, setArea] = useState<AreaId | ''>(usuario?.area ?? '')
   const [clienteNombre, setClienteNombre] = useState(usuario?.clienteNombre ?? '')
+  const [plantaNombre, setPlantaNombre] = useState(usuario?.plantaNombre ?? '')
   const [error, setError] = useState<string | null>(null)
   const [clientesDisponibles, setClientesDisponibles] = useState<string[]>([])
+  const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
 
   const requiereArea = tipoAcceso === 'admin_area' || tipoAcceso === 'cliente'
   const requiereCliente = tipoAcceso === 'cliente'
 
   useEffect(() => {
     if (!requiereCliente) return
-    obtenerClientesReporte()
-      .then(setClientesDisponibles)
+    listarClientes()
+      .then((clientes) => setClientesDisponibles(clientes.map((c) => c.nombre)))
       .catch(() => setClientesDisponibles([]))
+    listarPlantas()
+      .then(setPlantasDisponibles)
+      .catch(() => setPlantasDisponibles([]))
   }, [requiereCliente])
+
+  const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === clienteNombre)
 
   function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -60,7 +68,13 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       tipoAcceso,
       area: requiereArea ? (area as AreaId) : undefined,
       clienteNombre: requiereCliente ? clienteNombre.trim() : undefined,
+      plantaNombre: requiereCliente && plantaNombre.trim() ? plantaNombre.trim() : undefined,
     })
+  }
+
+  function alElegirCliente(v: string) {
+    setClienteNombre(v)
+    setPlantaNombre('')
   }
 
   return (
@@ -116,18 +130,33 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       {requiereCliente && !esMaestro && (
         <div className={styles.campo}>
           <BuscableSelect
-            etiqueta="Nombre del cliente"
+            etiqueta="Sold To (cliente)"
             opciones={
               clienteNombre && !clientesDisponibles.includes(clienteNombre)
                 ? [clienteNombre, ...clientesDisponibles]
                 : clientesDisponibles
             }
             valor={clienteNombre}
-            onChange={setClienteNombre}
+            onChange={alElegirCliente}
             placeholderTodos="— elegir cliente —"
           />
+          <p className={styles.notaChica}>Se elige del catálogo oficial de Sold To (sección Listados).</p>
+        </div>
+      )}
+
+      {requiereCliente && !esMaestro && clienteNombre && (
+        <div className={styles.campo}>
+          <BuscableSelect
+            etiqueta="Sucursal (Ship To) — opcional"
+            opciones={plantasDelCliente.map((p) => p.nombre)}
+            valor={plantaNombre}
+            onChange={setPlantaNombre}
+            placeholderTodos="— cuenta para todo el Sold To —"
+          />
           <p className={styles.notaChica}>
-            Se elige de la lista de clientes que ya tienen datos cargados, para que el nombre calce exacto con Report.
+            {plantasDelCliente.length === 0
+              ? 'Este cliente no tiene sucursales cargadas en Listados: la cuenta ve todo el Sold To.'
+              : 'Si eliges una sucursal, la cuenta ve solo esa planta (ej. "Dole Codegua"). Si la dejas vacía, ve todo el Sold To.'}
           </p>
         </div>
       )}

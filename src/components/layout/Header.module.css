@@ -5,6 +5,20 @@
   margin-bottom: var(--space-5);
 }
 
+.fila {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
 .title {
   font-size: 1.65rem;
   font-weight: 700;

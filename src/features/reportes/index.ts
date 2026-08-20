@@ -1,5 +1,6 @@
 export {
   obtenerDatosReporte,
+  descargarDatosExcel,
   obtenerResumenReporte,
   obtenerClientesReporte,
   listarAnalitos,

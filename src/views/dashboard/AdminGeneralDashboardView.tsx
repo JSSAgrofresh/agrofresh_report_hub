@@ -31,7 +31,7 @@ export function AdminGeneralDashboardView() {
           ) : (
             <p className={styles.metricaGrande}>{resumen?.pendientesRevision ?? 0}</p>
           )}
-          <p className={styles.nota}>Cargas de Audit a la espera de aprobación.</p>
+          <p className={styles.nota}>Cargas a la espera de aprobación.</p>
         </Card>
 
         <Card className={styles.bloque}>

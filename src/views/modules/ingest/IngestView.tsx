@@ -167,8 +167,9 @@ export function IngestView() {
       setPreviewBackend(resultado)
       const r = resultado.resumen
       const existentes = r.solicitudes_existentes > 0 ? ` · ${r.solicitudes_existentes} ya existían (se completó lo que les faltaba)` : ''
+      const pendientes = r.pendientes_revision > 0 ? ` · ⛔ ${r.pendientes_revision} quedaron pendientes de revisión en DataCore` : ''
       mostrarToast(
-        `✅ Carga completada: ${r.solicitudes_nuevas} solicitud(es) nueva(s) · ${r.clientes_nuevos} cliente(s) nuevo(s) · ${r.plantas_nuevas} planta(s) nueva(s)${existentes}.`,
+        `✅ Carga completada: ${r.solicitudes_nuevas} solicitud(es) nueva(s) · ${r.clientes_nuevos} cliente(s) nuevo(s) · ${r.plantas_nuevas} planta(s) nueva(s)${existentes}${pendientes}.`,
       )
     } catch (err) {
       mostrarToast(mensajeErrorBackend(err))
@@ -359,6 +360,13 @@ export function IngestView() {
                   <p className={styles.modalSub}>
                     <b>{previewBackend.resumen.solicitudes_existentes}</b> solicitud(es) ya existen en la base — no se crean de nuevo ni se
                     sobreescribe nada, pero si les falta algún analito (ej. porque antes no se pudo leer) se completa ahora.
+                  </p>
+                )}
+                {previewBackend.resumen.pendientes_revision > 0 && (
+                  <p className={styles.modalSub}>
+                    ⛔ <b>{previewBackend.resumen.pendientes_revision}</b> fila(s) traen un valor que parece typo o mayúsculas
+                    distintas de algo ya cargado (cliente, sucursal, especie, etc.) — no se van a crear directo, quedan en
+                    "Pendientes de revisión" dentro de DataCore para aprobarlas o corregirlas a mano.
                   </p>
                 )}
                 {previewBackend.advertencias.length > 0 && (

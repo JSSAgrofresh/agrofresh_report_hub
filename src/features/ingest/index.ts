@@ -5,5 +5,13 @@ export type { FilaIngest, CambioHomogenizacion } from './lib/homogenizar'
 export { auditarParaCarga, CAMPO_REQUERIDO } from './lib/auditoria'
 export type { Auditoria, Duplicado, AlertaCampo } from './lib/auditoria'
 export { leerExcel, descargarExcel } from './lib/leerExcel'
-export { previsualizarCarga, confirmarCarga } from './lib/api'
-export type { ResumenCarga, DetalleFilaCarga, RespuestaCarga } from './lib/api'
+export {
+  previsualizarCarga,
+  confirmarCarga,
+  listarPendientes,
+  aprobarPendiente,
+  descartarPendiente,
+  aprobarLotePendientes,
+  descartarLotePendientes,
+} from './lib/api'
+export type { ResumenCarga, DetalleFilaCarga, RespuestaCarga, Pendiente, PaginaPendientes, MotivoPendiente } from './lib/api'

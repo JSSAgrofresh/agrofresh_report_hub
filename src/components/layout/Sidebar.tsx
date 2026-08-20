@@ -7,13 +7,15 @@ import { ROUTES } from '@/constants/routes'
 import { cn } from '@/lib/cn'
 import { etiquetaAcceso, modulosPermitidos, puedeAdministrarUsuarios } from '@/features/usuarios'
 import {
-  IconAudit,
   IconConverter,
   IconDatabase,
+  IconDataCore,
   IconIngest,
+  IconListados,
   IconLogout,
   IconPanel,
   IconReports,
+  IconStorage,
   IconTrace,
   IconUser,
   IconUsers,
@@ -26,11 +28,12 @@ const ESTADO_LABEL: Record<string, string> = {
 }
 
 const ICONO_MODULO: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
-  audit: IconAudit,
+  datacore: IconDataCore,
   trace: IconTrace,
   converter: IconConverter,
   ingest: IconIngest,
   reports: IconReports,
+  storage: IconStorage,
 }
 
 interface SidebarProps {
@@ -102,6 +105,14 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
               >
                 <IconUsers className={styles.navIcono} />
                 Usuarios
+              </NavLink>
+              <NavLink
+                to={ROUTES.adminListados}
+                onClick={onCerrar}
+                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                <IconListados className={styles.navIcono} />
+                Listados
               </NavLink>
             </>
           )}

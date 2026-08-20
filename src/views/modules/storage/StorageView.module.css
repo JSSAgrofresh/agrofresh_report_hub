@@ -1,0 +1,226 @@
+.barraSuperior {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.migas {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.migas button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.migas button:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.migaActiva {
+  color: var(--color-text) !important;
+}
+
+.migaGrupo {
+  display: inline-flex;
+  align-items: center;
+}
+
+.migaSeparador {
+  color: var(--color-text-faint);
+  margin: 0 2px;
+}
+
+.botonCarpeta {
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid var(--color-border-strong);
+  background: #fff;
+  color: var(--color-text);
+  cursor: pointer;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+}
+
+.botonCarpeta:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.zona {
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-6, 32px) var(--space-4);
+  text-align: center;
+  cursor: pointer;
+  margin-bottom: var(--space-4);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.zona:hover {
+  border-color: var(--color-primary);
+}
+
+.zonaActiva {
+  border-color: var(--color-primary);
+  background: #eef6e5;
+}
+
+.zonaTexto {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.estado {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: var(--space-2) 0;
+}
+
+.error {
+  font-size: 13px;
+  color: var(--color-danger);
+  background: #fbe8e5;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.tablaCaja {
+  overflow-x: auto;
+  max-height: 560px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.tabla th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+  text-align: left;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-strong);
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: 8px var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tabla tbody tr:hover {
+  background: var(--color-bg);
+}
+
+.filaSobrevolada {
+  background: #eef6e5 !important;
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -2px;
+}
+
+.nombre {
+  font-weight: 600;
+}
+
+.nombreCarpeta,
+.nombreArchivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nombreCarpeta {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-text);
+  padding: 0;
+}
+
+.nombreCarpeta:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.icono {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--color-text-faint);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.acciones {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.boton,
+.botonEliminar {
+  font-size: 12.5px;
+  font-weight: 600;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  color: var(--color-primary-hover);
+  text-decoration: none;
+}
+
+.boton:hover {
+  background: #eef6e5;
+}
+
+.botonEliminar {
+  color: var(--color-danger);
+}
+
+.botonEliminar:hover {
+  background: #fbe8e5;
+}
+
+.ayuda {
+  margin: var(--space-3) 0 0;
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+}

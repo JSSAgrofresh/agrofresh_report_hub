@@ -1,10 +1,16 @@
 export const ROUTES = {
   login: '/login',
   dashboard: '/',
-  audit: '/modulos/audit',
+  datacore: '/modulos/datacore',
   trace: '/modulos/trace',
   converter: '/modulos/convertidor',
   ingest: '/modulos/ingest',
   reports: '/modulos/reportes',
+  reportsLaboratorio: '/modulos/reportes/laboratorio',
+  reportsPostVenta: '/modulos/reportes/post-venta',
+  reportsEmitir: '/modulos/reportes/emitir',
+  reportsEmitirCromatografia: '/modulos/reportes/emitir/cromatografia',
+  storage: '/modulos/storage',
   adminUsuarios: '/admin/usuarios',
+  adminListados: '/admin/listados',
 } as const

@@ -1,0 +1,74 @@
+.tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: var(--space-2) var(--space-1) var(--space-3);
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: var(--color-text);
+}
+
+.tabActiva {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.cabeceraTabla {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.busqueda {
+  flex: 1;
+  max-width: 420px;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.busqueda:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+  border-color: var(--color-primary);
+}
+
+.estado {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: var(--space-2) 0;
+}
+
+.estadoError {
+  font-size: 13px;
+  color: var(--color-danger);
+  background: #fbe8e5;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.notaTope {
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+  margin: 0 0 var(--space-2);
+}

@@ -32,6 +32,7 @@ import {
   calcularLimitesControl,
   colorDeIngrediente,
   contarFueraDeIntervalo,
+  descargarDatosExcel,
   listarAnalitos,
   listarLimites,
   obtenerDatosReporte,
@@ -163,8 +164,16 @@ const FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-
 
 /** `clienteFijo`: usado por el portal de cliente — cuando viene seteado, los
  * datos ya llegan filtrados por el backend (nunca se filtran solo en el
- * navegador) y el filtro de Cliente ni siquiera se muestra. */
-export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
+ * navegador) y los filtros de Cliente/Sucursal ni siquiera se muestran.
+ * `plantaFija`: opcional, solo tiene sentido junto con clienteFijo — cuentas
+ * creadas por Ship To (ej. "Dole Codegua") en vez de por Sold To completo.
+ * `onCropChange`: usado por el portal de cliente para cambiar la imagen de
+ * fondo del encabezado según la especie elegida en el filtro. */
+export function ReporteView({
+  clienteFijo,
+  plantaFija,
+  onCropChange,
+}: { clienteFijo?: string; plantaFija?: string; onCropChange?: (crop: string) => void } = {}) {
   const { user } = useAuth()
   const acento = areaDeModulo('reports')?.colorPrimario ?? '#6dad3c'
   const wrapStyle = { '--acento': acento } as CSSProperties
@@ -182,15 +191,16 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
   const [modalAnalitos, setModalAnalitos] = useState(false)
   const [detalle, setDetalle] = useState<{ titulo: string; filas: Observacion[] } | null>(null)
+  const [descargandoDatos, setDescargandoDatos] = useState(false)
 
   const obtenerTodo = useCallback(async () => {
     const [datos, catalogo, limitesCatalogo] = await Promise.all([
-      obtenerDatosReporte(clienteFijo),
+      obtenerDatosReporte(clienteFijo, plantaFija),
       listarAnalitos(),
       listarLimites(),
     ])
     return { filas: datos.filas, totalSolicitudes: datos.total_solicitudes, analitos: catalogo, limites: limitesCatalogo }
-  }, [clienteFijo])
+  }, [clienteFijo, plantaFija])
 
   function aplicarExito(r: { filas: FilaReporte[]; totalSolicitudes: number; analitos: Analito[]; limites: LimiteAnalito[] }) {
     setFilas(r.filas)
@@ -236,6 +246,10 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
   }, [obtenerTodo])
   useActualizacionProgramada(() => void cargar())
 
+  useEffect(() => {
+    onCropChange?.(filtros.crop)
+  }, [filtros.crop, onCropChange])
+
   const esGestor = user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area'
 
   // Una fila por cada solicitud filtrada (LEFT JOIN con resultado en el backend):
@@ -274,12 +288,14 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
       plantas: unique(
         (filas ?? []).filter((f) => !filtros.cliente || f.cliente === filtros.cliente).map((f) => f.planta),
       ),
-      tiposAplicacion: unique((filas ?? []).map((f) => f.tipo_aplicacion)),
+      tiposAplicacion: uniqueCanonico((filas ?? []).map((f) => f.tipo_aplicacion)).map(capitalizarPrimeraLetra),
       // Homogenización pendiente en la carga (dato pasa tal cual del Excel): acá se
       // agrupa sin importar mayúsculas/minúsculas para que el filtro no repita el
-      // mismo valor dos veces por un tema de casing (ej. "cromatografía" y "Cromatografía").
-      tiposServicio: uniqueCanonico((filas ?? []).map((f) => f.tipo_servicio)),
-      laboratorios: unique((filas ?? []).map((f) => f.laboratorio)),
+      // mismo valor dos veces por un tema de casing (ej. "cromatografía" y "Cromatografía"),
+      // y siempre se muestra con primera letra mayúscula y el resto en minúscula
+      // -homogenización solo visual, el dato real cargado no se toca-.
+      tiposServicio: uniqueCanonico((filas ?? []).map((f) => f.tipo_servicio)).map(capitalizarPrimeraLetra),
+      laboratorios: uniqueCanonico((filas ?? []).map((f) => f.laboratorio)).map(capitalizarPrimeraLetra),
       crops: uniqueCanonico((filas ?? []).map((f) => f.especie)).map(capitalizarPrimeraLetra),
       semanas: unique((filas ?? []).map((f) => f.semana_muestreo)),
       meses: unique((filas ?? []).map((f) => f.mes)),
@@ -295,9 +311,9 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
             (o.ingrediente != null && filtros.ingredientes.includes(o.ingrediente))) &&
           (!filtros.cliente || o.cliente === filtros.cliente) &&
           (!filtros.planta || o.planta === filtros.planta) &&
-          (!filtros.tipoAplicacion || o.tipoAplicacion === filtros.tipoAplicacion) &&
+          (!filtros.tipoAplicacion || igual(o.tipoAplicacion, filtros.tipoAplicacion)) &&
           (!filtros.tipoServicio || igual(o.tipoServicio, filtros.tipoServicio)) &&
-          (!filtros.laboratorio || o.laboratorio === filtros.laboratorio) &&
+          (!filtros.laboratorio || igual(o.laboratorio, filtros.laboratorio)) &&
           (!filtros.crop || igual(o.crop, filtros.crop)) &&
           // Semana/Mes y el calendario son mutuamente excluyentes (ver actualizarSemana/
           // actualizarMes/aplicarRango): solo uno de los dos grupos tiene valor a la vez.
@@ -328,7 +344,7 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
     const codigo = filtros.ingredientes[0]
     const candidatos = analitos.filter((a) => a.codigo === codigo)
     if (candidatos.length <= 1) return candidatos[0] ?? null
-    return candidatos.find((a) => a.laboratorio === filtros.laboratorio) ?? candidatos[0]
+    return candidatos.find((a) => igual(a.laboratorio, filtros.laboratorio)) ?? candidatos[0]
   }, [analitos, filtros.ingredientes, filtros.laboratorio])
 
   // El límite correcto depende de especie y tipo de servicio, no solo del analito:
@@ -630,6 +646,23 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
     }))
   }
 
+  async function descargarDatos() {
+    setDescargandoDatos(true)
+    try {
+      const { blob, nombre } = await descargarDatosExcel(clienteFijo, plantaFija)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = nombre ?? 'datos.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setErrorMsg('No se pudo generar el Excel.')
+    } finally {
+      setDescargandoDatos(false)
+    }
+  }
+
   return (
     <div className={styles.wrap} style={wrapStyle}>
       <div className={styles.cabecera}>
@@ -642,6 +675,11 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
           }
         />
         <div className={styles.accionesCabecera}>
+          {clienteFijo && (
+            <Button variant="secondary" onClick={descargarDatos} disabled={descargandoDatos}>
+              {descargandoDatos ? 'Generando…' : '⬇ Descargar mi historial (Excel)'}
+            </Button>
+          )}
           {esGestor && (
             <Button variant="secondary" onClick={() => setModalAnalitos(true)}>
               ⚙ Gestionar analitos
@@ -716,20 +754,26 @@ export function ReporteView({ clienteFijo }: { clienteFijo?: string } = {}) {
                 ))}
               </select>
             </label>
+            {/* Para cuentas de cliente (clienteFijo) los datos ya vienen acotados desde
+                el backend a ese Sold To/Ship To: mostrar estos dos filtros no aportaría
+                nada (siempre habría un solo valor posible) y solo confundiría. Se
+                mantienen para admin general/admin de área, que sí navegan entre clientes. */}
             {!clienteFijo && (
-              <BuscableSelect
-                etiqueta="Cliente (Sold To)"
-                opciones={opciones.clientes}
-                valor={filtros.cliente}
-                onChange={cambiarCliente}
-              />
+              <>
+                <BuscableSelect
+                  etiqueta="Cliente (Sold To)"
+                  opciones={opciones.clientes}
+                  valor={filtros.cliente}
+                  onChange={cambiarCliente}
+                />
+                <BuscableSelect
+                  etiqueta="Sucursal (Ship To)"
+                  opciones={opciones.plantas}
+                  valor={filtros.planta}
+                  onChange={(v) => actualizarFiltro('planta', v)}
+                />
+              </>
             )}
-            <BuscableSelect
-              etiqueta="Sucursal (Ship To)"
-              opciones={opciones.plantas}
-              valor={filtros.planta}
-              onChange={(v) => actualizarFiltro('planta', v)}
-            />
             <label className={styles.filtro}>
               <span>Tipo de servicio</span>
               <select value={filtros.tipoServicio} onChange={(e) => actualizarFiltro('tipoServicio', e.target.value)}>
