@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { RequireAdminGeneral, RequireAuth, RequireModulo } from '@/features/auth'
+import { RequireAdminGeneral, RequireAuth, RequireModulo, RequireTomaMuestras } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
 import { LoginView } from '@/views/login/LoginView'
 import { DashboardView } from '@/views/dashboard/DashboardView'
@@ -14,6 +14,8 @@ import { EmitirReporteHubView } from '@/views/modules/reports/EmitirReporteHubVi
 import { CromatografiaEmitirView } from '@/views/modules/reports/cromatografia/CromatografiaEmitirView'
 import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { StorageView } from '@/views/modules/storage/StorageView'
+import { SolicitudesView } from '@/views/modules/muestreo/SolicitudesView'
+import { NuevaSolicitudView } from '@/views/modules/muestreo/NuevaSolicitudView'
 import { UsuariosView } from '@/views/admin/UsuariosView'
 import { ListadosView } from '@/views/admin/ListadosView'
 import { NotFoundView } from '@/views/not-found/NotFoundView'
@@ -56,6 +58,13 @@ export const router = createBrowserRouter([
           {
             element: <RequireModulo moduloId="storage" />,
             children: [{ path: ROUTES.storage, element: <StorageView /> }],
+          },
+          {
+            element: <RequireTomaMuestras />,
+            children: [
+              { path: ROUTES.tomaMuestras, element: <SolicitudesView /> },
+              { path: ROUTES.tomaMuestrasNueva, element: <NuevaSolicitudView /> },
+            ],
           },
           {
             element: <RequireAdminGeneral />,

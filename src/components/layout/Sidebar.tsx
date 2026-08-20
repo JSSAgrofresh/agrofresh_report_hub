@@ -5,11 +5,18 @@ import { useAuth } from '@/features/auth'
 import { AREAS } from '@/constants/areas'
 import { ROUTES } from '@/constants/routes'
 import { cn } from '@/lib/cn'
-import { etiquetaAcceso, modulosPermitidos, puedeAdministrarUsuarios } from '@/features/usuarios'
+import {
+  etiquetaAcceso,
+  modulosPermitidos,
+  puedeAdministrarUsuarios,
+  puedeVerTomaMuestras,
+} from '@/features/usuarios'
 import {
   IconConverter,
   IconDatabase,
   IconDataCore,
+  IconEmitir,
+  IconFrasco,
   IconIngest,
   IconListados,
   IconLogout,
@@ -47,6 +54,7 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
 
   const modulos = modulosPermitidos(user)
   const esAdmin = puedeAdministrarUsuarios(user)
+  const veTomaMuestras = puedeVerTomaMuestras(user)
   const acento = user.area ? AREAS[user.area].colorPrimario : undefined
   const estiloSidebar = acento ? ({ '--acento-usuario': acento } as CSSProperties) : undefined
 
@@ -92,6 +100,29 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                   </span>
                 )
               })}
+            </>
+          )}
+
+          {veTomaMuestras && (
+            <>
+              <p className={styles.seccion}>Toma de muestras</p>
+              <NavLink
+                to={ROUTES.tomaMuestras}
+                end
+                onClick={onCerrar}
+                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                <IconFrasco className={styles.navIcono} />
+                Solicitudes
+              </NavLink>
+              <NavLink
+                to={ROUTES.tomaMuestrasNueva}
+                onClick={onCerrar}
+                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                <IconEmitir className={styles.navIcono} />
+                Nueva solicitud
+              </NavLink>
             </>
           )}
 

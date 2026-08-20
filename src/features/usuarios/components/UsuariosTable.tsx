@@ -8,6 +8,7 @@ const TONO: Record<Usuario['tipoAcceso'], 'success' | 'warning' | 'neutral'> = {
   admin_general: 'success',
   admin_area: 'warning',
   cliente: 'neutral',
+  muestreador: 'neutral',
 }
 
 interface UsuariosTableProps {

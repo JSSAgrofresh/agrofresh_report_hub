@@ -11,6 +11,8 @@ export const ROUTES = {
   reportsEmitir: '/modulos/reportes/emitir',
   reportsEmitirCromatografia: '/modulos/reportes/emitir/cromatografia',
   storage: '/modulos/storage',
+  tomaMuestras: '/modulos/toma-muestras',
+  tomaMuestrasNueva: '/modulos/toma-muestras/nueva',
   adminUsuarios: '/admin/usuarios',
   adminListados: '/admin/listados',
 } as const

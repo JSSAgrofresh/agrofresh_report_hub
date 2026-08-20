@@ -33,6 +33,12 @@ const SEED: Usuario[] = [
     area: 'cromatografia',
     clienteNombre: 'DOLE CHILE S.A.',
   },
+  {
+    id: 'u-5',
+    email: 'muestreador.demo@agrofresh.com',
+    nombre: 'Muestreador Demo',
+    tipoAcceso: 'muestreador',
+  },
 ]
 
 function leer(): Usuario[] {

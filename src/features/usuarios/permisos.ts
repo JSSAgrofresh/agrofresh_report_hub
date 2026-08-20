@@ -26,9 +26,16 @@ export function puedeVerModulo(usuario: Usuario, moduloId: string): boolean {
   return modulosPermitidos(usuario).some((m) => m.id === moduloId)
 }
 
+/** Acceso a la categoría "Toma de muestras": el admin general (siempre ve
+ * todo) y el rol dedicado `muestreador`. */
+export function puedeVerTomaMuestras(usuario: Usuario): boolean {
+  return esAdminGeneral(usuario) || usuario.tipoAcceso === 'muestreador'
+}
+
 export function etiquetaAcceso(usuario: Usuario): string {
   if (usuario.tipoAcceso === 'admin_general') return 'Admin general'
   if (usuario.tipoAcceso === 'admin_area' && usuario.area) return `Admin · ${AREAS[usuario.area].nombre}`
   if (usuario.tipoAcceso === 'cliente' && usuario.area) return `Cliente · ${AREAS[usuario.area].nombre}`
+  if (usuario.tipoAcceso === 'muestreador') return 'Muestreador'
   return usuario.tipoAcceso
 }
