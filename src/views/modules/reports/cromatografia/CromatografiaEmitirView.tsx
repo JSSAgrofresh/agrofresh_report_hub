@@ -24,6 +24,7 @@ const TIPO_ARRASTRE_SOLICITUD = 'application/x-solicitud-archivo'
 interface FilaEnCruce {
   solicitud: Solicitud
   codigoAsignado: string | null
+  fechaRecepcion: string
 }
 
 interface ResultadoValidacion {
@@ -135,7 +136,9 @@ export function CromatografiaEmitirView() {
     const solicitud = solicitudes.find((s) => s.archivo === archivo)
     if (!solicitud) return
     setFilasCruce((prev) =>
-      prev.some((f) => f.solicitud.archivo === archivo) ? prev : [...prev, { solicitud, codigoAsignado: null }],
+      prev.some((f) => f.solicitud.archivo === archivo)
+        ? prev
+        : [...prev, { solicitud, codigoAsignado: null, fechaRecepcion: '' }],
     )
   }
 
@@ -143,6 +146,10 @@ export function CromatografiaEmitirView() {
     setFilasCruce((prev) =>
       prev.map((f) => (f.solicitud.archivo === archivo ? { ...f, codigoAsignado: codigo || null } : f)),
     )
+  }
+
+  function asignarFechaRecepcion(archivo: string, fecha: string) {
+    setFilasCruce((prev) => prev.map((f) => (f.solicitud.archivo === archivo ? { ...f, fechaRecepcion: fecha } : f)))
   }
 
   function quitarDeCruce(archivo: string) {
@@ -191,6 +198,7 @@ export function CromatografiaEmitirView() {
         resultados_por_codigo: resultadosPorCodigo,
         codigo_vial: f.muestra?.codigo ?? null,
         fecha_inyeccion: f.muestra?.fecha_inyeccion ?? null,
+        fecha_recepcion: f.fechaRecepcion || null,
       }
     })
   }
@@ -421,6 +429,7 @@ export function CromatografiaEmitirView() {
                   <th>Especie</th>
                   <th>Analitos solicitados</th>
                   <th>Código de vial</th>
+                  <th>Fecha recepción</th>
                   {columnasAnalito.map((a) => (
                     <th key={a}>{a}</th>
                   ))}
@@ -464,6 +473,14 @@ export function CromatografiaEmitirView() {
                             </option>
                           ))}
                         </select>
+                      </td>
+                      <td>
+                        <input
+                          type="date"
+                          value={f.fechaRecepcion}
+                          onChange={(e) => asignarFechaRecepcion(f.solicitud.archivo, e.target.value)}
+                          className={styles.selectCodigo}
+                        />
                       </td>
                       {columnasAnalito.map((a) => (
                         <td key={a} className={styles.mono}>

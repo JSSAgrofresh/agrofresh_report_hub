@@ -96,6 +96,25 @@ def _fila_campo(etiqueta: str, valor: str) -> list:
     return [Paragraph(etiqueta, _ESTILO_LABEL), Paragraph(valor or '—', _ESTILO_VALOR)]
 
 
+def _fecha_iso_a_ddmmyyyy(valor: str | None) -> str:
+    if not valor:
+        return ''
+    try:
+        return datetime.strptime(valor, '%Y-%m-%d').strftime('%d-%m-%Y')
+    except ValueError:
+        return valor
+
+
+def _fecha_inyeccion_a_ddmmyyyy(valor: str | None) -> str:
+    """Formato de Agilent ChemStation: '7/25/2026 9:14:59 AM' -> '25-07-2026'."""
+    if not valor:
+        return ''
+    try:
+        return datetime.strptime(valor, '%m/%d/%Y %I:%M:%S %p').strftime('%d-%m-%Y')
+    except ValueError:
+        return valor
+
+
 def generar_informe_pdf(
     campos: dict[str, str],
     analitos_solicitados: list[str],
@@ -107,6 +126,7 @@ def generar_informe_pdf(
     analizado_por_cargo: str,
     aprobado_por_nombre: str,
     aprobado_por_cargo: str,
+    fecha_recepcion: str | None = None,
 ) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -156,7 +176,7 @@ def generar_informe_pdf(
             ],
             [
                 *_fila_campo('SOLD TO', campos.get('Sold To (Nombre)', '')),
-                *_fila_campo('FECHA SOLICITUD', campos.get('Fecha Solicitud', '')),
+                *_fila_campo('N° SOLICITUD', campos.get('N° Solicitud', '')),
             ],
         ],
         colWidths=[3.2 * cm, 5.6 * cm, 3.2 * cm, 5.6 * cm],
@@ -172,6 +192,40 @@ def generar_informe_pdf(
         )
     )
     elementos.append(tabla_solicitante)
+    elementos.append(Spacer(1, 10))
+
+    # --- Fechas del proceso: las 5 fechas agrupadas en un solo lugar, en
+    # vez de dispersas por el documento -Solicitud y Muestreo vienen de la
+    # solicitud, Recepción se elige a mano al cruzar, Análisis lo entrega
+    # el GC, e Informe es hoy (el día que se genera este PDF/se sube a BD).
+    elementos.append(_titulo_seccion('FECHAS DEL PROCESO'))
+    hoy = datetime.now().strftime('%d-%m-%Y')
+    tabla_fechas = Table(
+        [
+            [
+                *_fila_campo('FECHA SOLICITUD', campos.get('Fecha Solicitud', '')),
+                *_fila_campo('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
+            ],
+            [
+                *_fila_campo('FECHA RECEPCIÓN', _fecha_iso_a_ddmmyyyy(fecha_recepcion)),
+                *_fila_campo('FECHA ANÁLISIS', _fecha_inyeccion_a_ddmmyyyy(fecha_inyeccion)),
+            ],
+            [*_fila_campo('FECHA INFORME', hoy), '', ''],
+        ],
+        colWidths=[3.2 * cm, 5.6 * cm, 3.2 * cm, 5.6 * cm],
+    )
+    tabla_fechas.setStyle(
+        TableStyle(
+            [
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
+                ('SPAN', (1, 2), (3, 2)),
+            ]
+        )
+    )
+    elementos.append(tabla_fechas)
     elementos.append(Spacer(1, 10))
 
     # --- Identificación de la muestra ---
@@ -190,14 +244,6 @@ def generar_informe_pdf(
             ],
             [
                 *_fila_campo('LOTE', campos.get('Lote', '')),
-                *_fila_campo('FECHA INYECCIÓN GC', fecha_inyeccion or '—'),
-            ],
-            # Fechas de muestreo separadas y claras, cada una en su propia
-            # celda -antes iban concatenadas con la hora y el muestreador
-            # en una sola línea, lo que era confuso e inconsistente con la
-            # Fecha Solicitud (que se muestra aparte, en SOLICITANTE).
-            [
-                *_fila_campo('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
                 *_fila_campo('HORA MUESTREO', campos.get('Hora Muestreo', '')),
             ],
             [
@@ -216,8 +262,8 @@ def generar_informe_pdf(
                 ('TOPPADDING', (0, 0), (-1, -1), 5),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
                 ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
+                ('SPAN', (1, 3), (3, 3)),
                 ('SPAN', (1, 4), (3, 4)),
-                ('SPAN', (1, 5), (3, 5)),
             ]
         )
     )
@@ -303,10 +349,10 @@ def generar_informe_pdf(
     elementos.append(KeepTogether(firmas))
     elementos.append(Spacer(1, 20))
 
-    # --- Pie ---
-    hoy = datetime.now().strftime('%d-%m-%Y')
+    # --- Pie --- (la fecha del informe ya se muestra en FECHAS DEL PROCESO,
+    # no se repite acá para no dispersar la misma fecha por el documento)
     pie = Table(
-        [[Paragraph(f'Fecha del informe: {hoy}', _ESTILO_FOOTER), Paragraph('Este informe es una copia electrónica — no requiere firma física.', _ESTILO_FOOTER)]],
+        [[Paragraph(f'N° Informe: {folio}', _ESTILO_FOOTER), Paragraph('Este informe es una copia electrónica — no requiere firma física.', _ESTILO_FOOTER)]],
         colWidths=[8.8 * cm, 8.8 * cm],
     )
     pie.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, -1), 0.5, GRIS_LINEA), ('TOPPADDING', (0, 0), (-1, -1), 6), ('ALIGN', (1, 0), (1, 0), 'RIGHT')]))

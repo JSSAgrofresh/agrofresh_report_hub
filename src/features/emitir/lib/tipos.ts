@@ -24,6 +24,10 @@ export interface FilaCruce {
   resultados_por_codigo: Record<string, number | null>
   codigo_vial?: string | null
   fecha_inyeccion?: string | null
+  /** Fecha en que la muestra física llegó al laboratorio (ISO
+   * "YYYY-MM-DD"): no viene ni de la solicitud ni del GC, se elige a mano
+   * en la zona de cruce. */
+  fecha_recepcion?: string | null
 }
 
 /** Datos del informe que no vienen del cruce solicitud+GC (quién analiza,

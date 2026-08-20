@@ -247,6 +247,10 @@ class FilaCruceIn(BaseModel):
     resultados_por_codigo: dict[str, float | None]
     codigo_vial: str | None = None
     fecha_inyeccion: str | None = None
+    # Fecha en que la muestra física llegó al laboratorio: no viene en la
+    # solicitud ni en el resultado del GC, se elige a mano en la zona de
+    # cruce (formato ISO "YYYY-MM-DD", el que entrega un <input type=date>).
+    fecha_recepcion: str | None = None
 
 
 @router.post("/excel")
@@ -271,12 +275,14 @@ def generar_excel(filas: list[FilaCruceIn]) -> StreamingResponse:
     ws.title = "Solicitudes con resultado"
 
     ws.cell(row=1, column=1, value="N° Informe")
-    for col_idx, columna in enumerate(columnas, start=2):
+    ws.cell(row=1, column=2, value="Fecha Recepción")
+    for col_idx, columna in enumerate(columnas, start=3):
         ws.cell(row=1, column=col_idx, value=columna)
 
     for fila_idx, (fila, folio) in enumerate(zip(filas, folios), start=2):
         ws.cell(row=fila_idx, column=1, value=folio)
-        for col_idx, columna in enumerate(columnas, start=2):
+        ws.cell(row=fila_idx, column=2, value=fila.fecha_recepcion or None)
+        for col_idx, columna in enumerate(columnas, start=3):
             valor: str | float | None = fila.campos.get(columna, "") or None
             if columna.startswith(_PREFIJO_RESULTADO):
                 # Nunca se escribe el resultado de un analito que esta
@@ -323,6 +329,7 @@ def generar_informes_pdf(filas: list[FilaCruceIn]) -> StreamingResponse:
             resultados_por_codigo=fila.resultados_por_codigo,
             codigo_vial=fila.codigo_vial,
             fecha_inyeccion=fila.fecha_inyeccion,
+            fecha_recepcion=fila.fecha_recepcion,
             folio=folio,
             analizado_por_nombre=config_fila.get("analizado_por_nombre") or "",
             analizado_por_cargo=config_fila.get("analizado_por_cargo") or "",
@@ -477,6 +484,7 @@ def subir_bd(filas: list[FilaCruceIn]) -> list[FilaSubidaOut]:
                     "fecha_solicitud": _fecha_ddmmyyyy(fila.campos.get("Fecha Solicitud")),
                     "fecha_muestreo": fecha_muestreo,
                     "fecha_analisis": _fecha_inyeccion_gc(fila.fecha_inyeccion),
+                    "fecha_recepcion": _parse_fecha(fila.fecha_recepcion, "%Y-%m-%d"),
                     "fecha_informe": date.today(),
                     "planta_id": planta_id,
                     "sold_to_raw": fila.campos.get("Sold To (Nombre)"),
