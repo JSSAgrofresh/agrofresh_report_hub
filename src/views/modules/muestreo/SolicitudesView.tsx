@@ -73,9 +73,12 @@ export function SolicitudesView() {
                   <tr>
                     <th>N° Solicitud</th>
                     <th>Fecha</th>
-                    <th>Generado por</th>
                     <th>Laboratorio</th>
-                    <th>Tipo de aplicación</th>
+                    <th>Sold To</th>
+                    <th>Ship To</th>
+                    <th>Especie</th>
+                    <th>Tipo Muestra</th>
+                    <th>Generado por</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -84,9 +87,12 @@ export function SolicitudesView() {
                     <tr key={s.archivo}>
                       <td className={styles.nombre}>{s.numero_solicitud}</td>
                       <td>{formatDateCL(s.fecha_solicitud)}</td>
-                      <td>{s.generado_por}</td>
                       <td>{s.laboratorio}</td>
-                      <td>{s.tipo_aplicacion}</td>
+                      <td>{s.sold_to}</td>
+                      <td>{s.ship_to ?? '—'}</td>
+                      <td>{s.especie ?? '—'}</td>
+                      <td>{s.tipo_muestra ?? '—'}</td>
+                      <td>{s.generado_por}</td>
                       <td className={styles.acciones}>
                         <button className={styles.boton} onClick={() => setSeleccionada(s)}>
                           Ver

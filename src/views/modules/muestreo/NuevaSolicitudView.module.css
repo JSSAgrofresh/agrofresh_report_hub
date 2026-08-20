@@ -2,7 +2,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-width: 640px;
 }
 
 .fila {
@@ -30,7 +29,8 @@
   letter-spacing: 0.02em;
 }
 
-.campo input {
+.campo input,
+.campo select {
   font-family: var(--font-sans);
   font-size: 14px;
   padding: 9px 11px;
@@ -40,7 +40,8 @@
   color: var(--color-text);
 }
 
-.campo input:focus {
+.campo input:focus,
+.campo select:focus {
   outline: 2px solid var(--color-primary);
   outline-offset: -1px;
   border-color: var(--color-primary);
@@ -48,6 +49,69 @@
 
 .campo input:disabled {
   opacity: 0.6;
+}
+
+.textarea {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  padding: 9px 11px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  resize: vertical;
+}
+
+.textarea:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+  border-color: var(--color-primary);
+}
+
+.seccionLaboratorio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.seccionLaboratorio legend {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0 var(--space-2);
+}
+
+.analitos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.analitosEtiqueta {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}
+
+.analitosGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.analitoCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .error {
