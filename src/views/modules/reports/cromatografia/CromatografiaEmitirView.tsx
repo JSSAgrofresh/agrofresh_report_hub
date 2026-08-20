@@ -155,6 +155,18 @@ export function CromatografiaEmitirView() {
 
   const codigosDisponibles = useMemo(() => (muestrasGC ?? []).map((m) => m.codigo), [muestrasGC])
 
+  const filasConValidacion = useMemo(
+    () =>
+      filasCruce.map((f) => {
+        const muestra = muestrasGC?.find((m) => m.codigo === f.codigoAsignado) ?? null
+        const validacion = muestra ? validarCruce(f.solicitud.analitos_solicitados, muestra.resultados) : null
+        return { ...f, muestra, validacion }
+      }),
+    [filasCruce, muestrasGC],
+  )
+
+  const hayCrucesSospechosos = filasConValidacion.some((f) => f.validacion?.severidad === 'sospechoso')
+
   const columnasAnalito = useMemo(() => {
     const vistos: string[] = []
     for (const f of filasCruce) {
@@ -170,19 +182,19 @@ export function CromatografiaEmitirView() {
   }, [filasCruce, muestrasGC])
 
   async function descargarExcel() {
-    const asignadas = filasCruce.filter((f) => f.codigoAsignado)
+    const asignadas = filasConValidacion.filter((f) => f.muestra && f.validacion?.severidad !== 'sospechoso')
     if (asignadas.length === 0) return
     setDescargando(true)
     try {
       const filas: FilaCruce[] = asignadas.map((f) => {
-        const muestra = muestrasGC?.find((m) => m.codigo === f.codigoAsignado)
+        const resultadosPorCodigo: Record<string, number | null> = {}
+        for (const r of f.muestra?.resultados ?? []) {
+          if (r.codigo) resultadosPorCodigo[r.codigo] = r.amount
+        }
         return {
-          codigo: f.codigoAsignado as string,
-          archivo_solicitud: f.solicitud.archivo,
-          n_solicitud: f.solicitud.campos['N° Solicitud'] ?? null,
-          seq_line: muestra?.seq_line ?? null,
-          fecha_inyeccion: muestra?.fecha_inyeccion ?? null,
-          resultados: muestra?.resultados ?? [],
+          campos: f.solicitud.campos,
+          analitos_solicitados: f.solicitud.analitos_solicitados,
+          resultados_por_codigo: resultadosPorCodigo,
         }
       })
       const blob = await descargarExcelCruce(filas)
@@ -372,12 +384,10 @@ export function CromatografiaEmitirView() {
                 </tr>
               </thead>
               <tbody>
-                {filasCruce.map((f) => {
-                  const muestra = muestrasGC?.find((m) => m.codigo === f.codigoAsignado)
+                {filasConValidacion.map((f) => {
+                  const muestra = f.muestra
                   const porCodigo = new Map((muestra?.resultados ?? []).map((r) => [r.codigo, r]))
-                  const validacion = muestra
-                    ? validarCruce(f.solicitud.analitos_solicitados, muestra.resultados)
-                    : null
+                  const validacion = f.validacion
                   return (
                     <tr key={f.solicitud.archivo}>
                       <td className={styles.nombre}>{f.solicitud.campos['N° Solicitud'] || f.solicitud.archivo}</td>
@@ -443,17 +453,24 @@ export function CromatografiaEmitirView() {
 
         {filasCruce.some((f) => f.codigoAsignado) && (
           <div className={styles.exportarAcciones}>
-            <Button variant="secondary" onClick={descargarExcel} disabled={descargando}>
-              {descargando ? 'Generando…' : 'Descargar Excel'}
-            </Button>
-            <button
-              type="button"
-              className={styles.botonProximamente}
-              disabled
-              title="Falta definir cómo se completan los datos que aún no vienen en la solicitud antes de insertar a producción."
-            >
-              Subir a base de datos (próximamente)
-            </button>
+            <div className={styles.exportarBotones}>
+              <Button variant="secondary" onClick={descargarExcel} disabled={descargando || hayCrucesSospechosos}>
+                {descargando ? 'Generando…' : 'Descargar Excel'}
+              </Button>
+              <button
+                type="button"
+                className={styles.botonProximamente}
+                disabled
+                title="Falta definir cómo se completan los datos que aún no vienen en la solicitud antes de insertar a producción."
+              >
+                Subir a base de datos (próximamente)
+              </button>
+            </div>
+            {hayCrucesSospechosos && (
+              <p className={styles.avisoBloqueo}>
+                Hay cruces marcados "⚠ Revisar" — corrígelos o quítalos de la zona de cruce antes de descargar.
+              </p>
+            )}
           </div>
         )}
       </Card>

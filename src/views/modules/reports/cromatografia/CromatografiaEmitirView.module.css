@@ -13,6 +13,10 @@
 
 .panel {
   min-height: 320px;
+  /* Sin esto, un item de grid nunca se achica más allá del ancho mínimo de su
+     contenido: la tabla ancha de adentro empujaba todo el grid (y la página
+     entera) en vez de scrollear solo dentro de .tablaCaja. */
+  min-width: 0;
 }
 
 .panelCabecera {
@@ -236,9 +240,18 @@
 }
 
 .exportarAcciones {
+  margin-top: var(--space-3);
+}
+
+.exportarBotones {
   display: flex;
   gap: var(--space-3);
-  margin-top: var(--space-3);
+}
+
+.avisoBloqueo {
+  margin: var(--space-2) 0 0;
+  font-size: 12px;
+  color: var(--color-danger);
 }
 
 .botonProximamente {

@@ -1,5 +1,6 @@
 import io
 import os
+import re
 
 import openpyxl
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -9,6 +10,9 @@ from pydantic import BaseModel
 from .gc_parser import NOMBRE_GC_A_CODIGO, es_codigo_puro, parsear_gc_txt
 from .solicitud_parser import parsear_solicitudes_html
 from .storage import _carpeta_raiz, _nombre_seguro
+
+_PAT_CODIGO_COLUMNA = re.compile(r"\(([A-Za-z]+)\)\s*$")
+_PREFIJO_RESULTADO = "Resultado:"
 
 router = APIRouter(prefix="/api/emitir/cromatografia", tags=["emitir"])
 
@@ -98,12 +102,14 @@ def listar_solicitudes() -> list[SolicitudOut]:
 
 
 class FilaCruceIn(BaseModel):
-    codigo: str
-    archivo_solicitud: str | None = None
-    n_solicitud: str | None = None
-    seq_line: int | None = None
-    fecha_inyeccion: str | None = None
-    resultados: list[ResultadoAnalitoOut]
+    """Una solicitud ya cruzada con su vial del GC: sus campos originales tal
+    cual (mismas columnas que el archivo de Storage), qué analitos pidió, y el
+    resultado (amount/ppm) por código de analito detectado en el vial
+    asignado."""
+
+    campos: dict[str, str]
+    analitos_solicitados: list[str]
+    resultados_por_codigo: dict[str, float | None]
 
 
 @router.post("/excel")
@@ -111,44 +117,33 @@ def generar_excel(filas: list[FilaCruceIn]) -> StreamingResponse:
     if not filas:
         raise HTTPException(400, "No hay filas para exportar.")
 
-    codigos_analito: list[str] = []
+    # Mismas columnas que el archivo de solicitud original, en el mismo orden
+    # (unión por si alguna solicitud trae un campo que otra no tiene).
+    columnas: list[str] = []
     for fila in filas:
-        for r in fila.resultados:
-            clave = r.codigo or r.analito
-            if clave not in codigos_analito:
-                codigos_analito.append(clave)
+        for columna in fila.campos:
+            if columna not in columnas:
+                columnas.append(columna)
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Resultados GC"
+    ws.title = "Solicitudes con resultado"
 
-    ws.cell(row=1, column=1, value="N° Solicitud")
-    ws.cell(row=1, column=2, value="Código GC")
-    ws.cell(row=1, column=3, value="Archivo solicitud")
-    ws.cell(row=1, column=4, value="Fecha inyección")
-    col = 5
-    for codigo in codigos_analito:
-        ws.merge_cells(start_row=1, start_column=col, end_row=1, end_column=col + 1)
-        ws.cell(row=1, column=col, value=codigo)
-        ws.cell(row=2, column=col, value="Area")
-        ws.cell(row=2, column=col + 1, value="Amount")
-        col += 2
+    for col_idx, columna in enumerate(columnas, start=1):
+        ws.cell(row=1, column=col_idx, value=columna)
 
-    fila_excel = 3
-    for fila in filas:
-        ws.cell(row=fila_excel, column=1, value=fila.n_solicitud)
-        ws.cell(row=fila_excel, column=2, value=fila.codigo)
-        ws.cell(row=fila_excel, column=3, value=fila.archivo_solicitud)
-        ws.cell(row=fila_excel, column=4, value=fila.fecha_inyeccion)
-        por_codigo = {(r.codigo or r.analito): r for r in fila.resultados}
-        col = 5
-        for codigo in codigos_analito:
-            r = por_codigo.get(codigo)
-            if r:
-                ws.cell(row=fila_excel, column=col, value=r.area)
-                ws.cell(row=fila_excel, column=col + 1, value=r.amount)
-            col += 2
-        fila_excel += 1
+    for fila_idx, fila in enumerate(filas, start=2):
+        for col_idx, columna in enumerate(columnas, start=1):
+            valor: str | float | None = fila.campos.get(columna, "") or None
+            if columna.startswith(_PREFIJO_RESULTADO):
+                # Nunca se escribe el resultado de un analito que esta
+                # solicitud no pidió, aunque el vial asignado sí lo haya
+                # detectado -es la regla explícita: solicitud y resultado
+                # siempre tienen los mismos analitos, sin excepción-.
+                m = _PAT_CODIGO_COLUMNA.search(columna)
+                codigo = m.group(1).upper() if m else None
+                valor = fila.resultados_por_codigo.get(codigo) if codigo and codigo in fila.analitos_solicitados else None
+            ws.cell(row=fila_idx, column=col_idx, value=valor)
 
     buffer = io.BytesIO()
     wb.save(buffer)

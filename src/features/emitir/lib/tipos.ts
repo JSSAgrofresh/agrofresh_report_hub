@@ -19,10 +19,7 @@ export interface Solicitud {
 }
 
 export interface FilaCruce {
-  codigo: string
-  archivo_solicitud: string | null
-  n_solicitud: string | null
-  seq_line: number | null
-  fecha_inyeccion: string | null
-  resultados: ResultadoAnalito[]
+  campos: Record<string, string>
+  analitos_solicitados: string[]
+  resultados_por_codigo: Record<string, number | null>
 }
