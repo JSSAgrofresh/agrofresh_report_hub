@@ -21,6 +21,31 @@ solo analito detectado y para curvas con varios).
 import re
 from dataclasses import dataclass, field
 
+# Nombre del compuesto tal como lo escribe el GC (inglés/nombre científico) ->
+# código canónico del sistema (analito.codigo en la base de datos). Cubre el
+# panel de 7 analitos del método NPD actual; si se agrega un método con otros
+# analitos, hay que sumar sus nombres acá.
+NOMBRE_GC_A_CODIGO = {
+    "AZOXYSTROBIN": "AZOX",
+    "DIFENILAMINA": "DPA",
+    "FLUDIOXONIL": "FDL",
+    "IMAZALIL": "IMZ",
+    "PYRYMETHANIL": "PYR",
+    "TEBUCONAZOLE": "TEBU",
+    "THIABENDAZOLE": "TBZ",
+}
+
+# Un "vial" es una muestra real cruzable solo si su nombre es un código puro
+# (letras seguidas de números, sin nada más pegado) -así se excluyen curvas
+# de calibración ("Curva 0.05"), blancos ("Blanco acetona"), inyecciones de
+# conteo ("1", "2") y controles de limpieza ("GCNPD9775 LIMPIEZA NORMAL MET 2").
+_PAT_CODIGO_PURO = re.compile(r"^[A-Za-z]+\d+$")
+
+
+def es_codigo_puro(nombre: str) -> bool:
+    return bool(_PAT_CODIGO_PURO.match(nombre.strip()))
+
+
 _PAT_SAMPLE_NAME = re.compile(r"^.*\nSample Name:\s*(.*)\n")
 _PAT_SEQ_LINE = re.compile(r"Seq\. Line\s*:\s*(\d+)")
 _PAT_FECHA = re.compile(r"Injection Date\s*:\s*(.+?)\s{2,}")
