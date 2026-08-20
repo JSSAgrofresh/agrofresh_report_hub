@@ -40,18 +40,18 @@ _ETIQUETA_DE_CLAVE = dict(CAMPOS_GENERALES_ETIQUETAS)
 _CLAVES_SOLICITANTE = ["solicitante", "email_solicitante"]
 _CLAVES_CLIENTE = ["sold_to", "ship_to"]
 _CLAVES_MUESTRA = [
-    "aplicacion",
-    "linea_proceso",
-    "numero_camara",
-    "numero_orden",
+    "tipo_muestra",
     "especie",
     "variedad",
     "csg",
     "lote",
-    "kilos_procesados",
+    "numero_camara",
+    "numero_orden",
     "posicion_muestreo",
+    "kilos_procesados",
     "producto_utilizado",
-    "tipo_muestra",
+    "aplicacion",
+    "linea_proceso",
     "nombre_muestreador",
 ]
 _CLAVES_FECHAS = ["fecha_solicitud", "fecha_muestreo", "hora_muestreo"]
@@ -75,8 +75,8 @@ def _tabla_pares(pares: list[tuple[str, object]]) -> Table:
         TableStyle(
             [
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 4.5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4.5),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                 ("LINEBELOW", (0, 0), (-1, -1), 0.5, GRIS_LINEA),
             ]
         )
@@ -109,10 +109,10 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        leftMargin=1.8 * cm,
-        rightMargin=1.8 * cm,
-        topMargin=1.4 * cm,
-        bottomMargin=1.5 * cm,
+        leftMargin=1.6 * cm,
+        rightMargin=1.6 * cm,
+        topMargin=1.1 * cm,
+        bottomMargin=1.1 * cm,
         title=f"Solicitud de muestreo {datos.get('numero_solicitud', '')}".strip(),
     )
 
@@ -135,17 +135,17 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
         for etiqueta, a in etiquetas_analitos.items()
         if etiqueta in campos_lab
     ]
-    campos_aplicacion = {k: v for k, v in campos_lab.items() if k not in etiquetas_analitos}
+    campos_aplicacion = {k: v for k, v in campos_lab.items() if k not in etiquetas_analitos and k != "Tipo Aplicación"}
 
     # --- Encabezado: logo + dirección (izquierda) · N° Solicitud (derecha) ---
     logo_cel = [
-        Image(_RUTA_LOGO, width=4.2 * cm, height=1.68 * cm) if os.path.isfile(_RUTA_LOGO) else Paragraph("", _ESTILO_VALOR),
-        Spacer(1, 4),
+        Image(_RUTA_LOGO, width=4.6 * cm, height=1.84 * cm) if os.path.isfile(_RUTA_LOGO) else Paragraph("", _ESTILO_VALOR),
+        Spacer(1, 3),
         Paragraph(DIRECCION_EMPRESA, _ESTILO_DIRECCION),
     ]
     titulo_cel = [
         Paragraph("SOLICITUD DE MUESTREO", _ESTILO_TITULO),
-        Spacer(1, 4),
+        Spacer(1, 3),
         Paragraph(f"N° Solicitud: {datos.get('numero_solicitud', '')}", _ESTILO_FOLIO),
     ]
     encabezado = Table([[logo_cel, titulo_cel]], colWidths=[9.6 * cm, 8 * cm])
@@ -155,14 +155,16 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("ALIGN", (1, 0), (1, 0), "RIGHT"),
                 ("LINEBELOW", (0, 0), (-1, -1), 0.75, GRIS_LINEA),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ]
         )
     )
     elementos.append(encabezado)
-    elementos.append(Spacer(1, 12))
+    elementos.append(Spacer(1, 7))
 
-    # --- 1. Identificación ---
+    # --- 1. Identificación (solo identificadores del documento: N° de
+    # solicitud, quién la generó, laboratorio -Tipo Aplicación es parte de
+    # la identificación de la muestra, no de este bloque) ---
     elementos.append(_titulo_seccion("IDENTIFICACIÓN"))
     elementos.append(
         _tabla_pares(
@@ -170,46 +172,51 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
                 (_ETIQUETA_DE_CLAVE["numero_solicitud"], datos.get("numero_solicitud")),
                 (_ETIQUETA_DE_CLAVE["generado_por"], datos.get("generado_por")),
                 (_ETIQUETA_DE_CLAVE["laboratorio"], laboratorio),
-                ("Tipo Aplicación", campos_lab.get("Tipo Aplicación")),
             ]
         )
     )
-    elementos.append(Spacer(1, 10))
+    elementos.append(Spacer(1, 6))
 
     # --- 2. Datos del solicitante ---
     elementos.append(_titulo_seccion("DATOS DEL SOLICITANTE"))
     elementos.append(_tabla_pares(_pares_de_claves(datos, _CLAVES_SOLICITANTE)))
-    elementos.append(Spacer(1, 10))
+    elementos.append(Spacer(1, 6))
 
     # --- 3. Datos del cliente / destino (Sold To y Ship To siempre
     # visibles, aunque Ship To no se haya ingresado) ---
     elementos.append(_titulo_seccion("DATOS DEL CLIENTE / DESTINO"))
     elementos.append(_tabla_pares(_pares_de_claves(datos, _CLAVES_CLIENTE)))
-    elementos.append(Spacer(1, 10))
+    elementos.append(Spacer(1, 6))
 
-    # --- 4. Información de la muestra (izquierda) y fechas del proceso
-    # (derecha), lado a lado -antes iban uno arriba del otro-. ---
-    elementos.append(_titulo_seccion("INFORMACIÓN DE LA MUESTRA Y FECHAS"))
+    # --- 4. Identificación de la muestra (izquierda) y fechas (derecha),
+    # lado a lado -sin título "padre" encima de ambos-. Tratamiento,
+    # Producto Utilizado y Tipo Aplicación quedan dentro de la
+    # identificación de la muestra (no como sección aparte). ---
+    pares_muestra = _pares_de_claves(datos, _CLAVES_MUESTRA)
+    if campos_lab.get("Tipo Aplicación"):
+        pares_muestra.append(("Tipo Aplicación", campos_lab.get("Tipo Aplicación")))
     elementos.append(
         _dos_columnas(
-            "INFORMACIÓN DE LA MUESTRA",
-            _pares_de_claves(datos, _CLAVES_MUESTRA),
-            "FECHAS / PROCESO",
+            "IDENTIFICACIÓN DE LA MUESTRA",
+            pares_muestra,
+            "FECHAS",
             _pares_de_claves(datos, _CLAVES_FECHAS),
         )
     )
-    elementos.append(Spacer(1, 10))
+    elementos.append(Spacer(1, 6))
 
-    # --- 5. Información de aplicación (campos propios del tipo de aplicación) ---
+    # --- 5. Información de aplicación (campos propios del tipo de aplicación,
+    # ej. dosis/presión -distintos de Tipo Aplicación, que ya va en la
+    # identificación de la muestra-) ---
     if campos_aplicacion:
         elementos.append(_titulo_seccion("INFORMACIÓN DE APLICACIÓN"))
         elementos.append(_tabla_pares(list(campos_aplicacion.items())))
-        elementos.append(Spacer(1, 10))
+        elementos.append(Spacer(1, 6))
 
     # --- 6. Análisis solicitados / Analitos, agrupados por categoría ---
     if filas_analitos:
         elementos.append(_titulo_seccion("ANÁLISIS SOLICITADOS / ANALITOS"))
-        elementos.append(Spacer(1, 6))
+        elementos.append(Spacer(1, 4))
         filas = [
             [
                 Paragraph("CATEGORÍA", _ESTILO_TABLA_HEAD),
@@ -238,8 +245,8 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
                 [
                     ("BACKGROUND", (0, 0), (-1, 0), VERDE_CLARO),
                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3.5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
                     ("LINEBELOW", (0, 0), (-1, 0), 1, VERDE_OSCURO),
                     ("LINEBELOW", (0, 1), (-1, -1), 0.5, GRIS_LINEA),
                     ("ROWBACKGROUNDS", (0, 1), (-1, -1), [None, GRIS_LABEL]),
@@ -247,13 +254,13 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
             )
         )
         elementos.append(tabla_analitos)
-        elementos.append(Spacer(1, 12))
+        elementos.append(Spacer(1, 8))
 
     # --- 7. Observaciones ---
     elementos.append(_titulo_seccion("OBSERVACIONES"))
-    elementos.append(Spacer(1, 5))
+    elementos.append(Spacer(1, 3))
     elementos.append(Paragraph(datos.get("observacion") or "—", _ESTILO_VALOR))
-    elementos.append(Spacer(1, 24))
+    elementos.append(Spacer(1, 10))
 
     # --- 8. Firmas (siempre al final del documento) ---
     def _bloque_firma(titulo: str) -> Table:
@@ -271,14 +278,14 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
         return t
 
     elementos.append(_titulo_seccion("FIRMAS"))
-    elementos.append(Spacer(1, 22))
+    elementos.append(Spacer(1, 10))
     firmas = Table(
         [[_bloque_firma("Solicitado por"), "", _bloque_firma("Recibido por (laboratorio)")]],
         colWidths=[7.5 * cm, 2.6 * cm, 7.5 * cm],
     )
     firmas.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
     elementos.append(KeepTogether(firmas))
-    elementos.append(Spacer(1, 20))
+    elementos.append(Spacer(1, 8))
 
     # --- Pie ---
     hoy = datetime.now().strftime("%d-%m-%Y")
@@ -293,7 +300,7 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
     )
     pie.setStyle(
         TableStyle(
-            [("LINEABOVE", (0, 0), (-1, -1), 0.5, GRIS_LINEA), ("TOPPADDING", (0, 0), (-1, -1), 6), ("ALIGN", (1, 0), (1, 0), "RIGHT")]
+            [("LINEABOVE", (0, 0), (-1, -1), 0.5, GRIS_LINEA), ("TOPPADDING", (0, 0), (-1, -1), 4), ("ALIGN", (1, 0), (1, 0), "RIGHT")]
         )
     )
     elementos.append(KeepTogether(pie))

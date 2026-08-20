@@ -43,8 +43,8 @@ _ESTILO_DIRECCION = ParagraphStyle('direccion', fontName='Helvetica', fontSize=7
 _ESTILO_FOLIO = ParagraphStyle('folio', fontName='Helvetica-Bold', fontSize=8.5, textColor=VERDE_OSCURO, alignment=2)
 _ESTILO_SECCION = ParagraphStyle('seccion', fontName='Helvetica-Bold', fontSize=8.5, textColor=VERDE_OSCURO, spaceAfter=0)
 _ESTILO_SUBSECCION = ParagraphStyle('subseccion', fontName='Helvetica-Bold', fontSize=7.5, textColor=VERDE_OSCURO, spaceAfter=0)
-_ESTILO_LABEL = ParagraphStyle('label', fontName='Helvetica-Bold', fontSize=6.8, textColor=GRIS_TEXTO)
-_ESTILO_VALOR = ParagraphStyle('valor', fontName='Helvetica', fontSize=9, textColor=NEGRO_TEXTO, leading=12)
+_ESTILO_LABEL = ParagraphStyle('label', fontName='Helvetica-Bold', fontSize=6.4, leading=7.4, textColor=GRIS_TEXTO)
+_ESTILO_VALOR = ParagraphStyle('valor', fontName='Helvetica', fontSize=8.6, textColor=NEGRO_TEXTO, leading=10.4)
 _ESTILO_METODO = ParagraphStyle('metodo', fontName='Helvetica-Oblique', fontSize=7.8, textColor=GRIS_TEXTO, leading=11)
 _ESTILO_NOTA = ParagraphStyle('nota', fontName='Helvetica', fontSize=7.3, textColor=GRIS_TEXTO, leading=10)
 _ESTILO_TABLA_HEAD = ParagraphStyle('tablahead', fontName='Helvetica-Bold', fontSize=7.8, textColor=VERDE_OSCURO)
@@ -74,15 +74,15 @@ def _nombre_ensayo(campos: dict[str, str], codigo: str) -> str:
     return codigo
 
 
-def _titulo_seccion(texto: str) -> Table:
+def _titulo_seccion(texto: str, ancho: float = 17.6 * cm) -> Table:
     """Título de sección sobrio: texto en verde con una línea fina debajo,
     sin relleno de color -reemplaza las barras sólidas de la versión anterior."""
-    t = Table([[Paragraph(texto, _ESTILO_SECCION)]], colWidths=[17.6 * cm])
+    t = Table([[Paragraph(texto, _ESTILO_SECCION)]], colWidths=[ancho])
     t.setStyle(
         TableStyle(
             [
                 ('TOPPADDING', (0, 0), (-1, -1), 0),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
                 ('LINEBELOW', (0, 0), (-1, -1), 1, VERDE_OSCURO),
             ]
         )
@@ -99,13 +99,13 @@ def _lista_vertical(pares: list[tuple[str, str]]) -> Table:
     """Columna de campos etiqueta/valor, uno por fila (para ir dentro de un
     bloque de dos columnas lado a lado -ver `_dos_columnas`-)."""
     filas = [_fila_campo(et, val) for et, val in pares]
-    t = Table(filas, colWidths=[2.7 * cm, 5.7 * cm])
+    t = Table(filas, colWidths=[3.1 * cm, 5.3 * cm])
     t.setStyle(
         TableStyle(
             [
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 5),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('TOPPADDING', (0, 0), (-1, -1), 2.5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
                 ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
             ]
         )
@@ -115,10 +115,11 @@ def _lista_vertical(pares: list[tuple[str, str]]) -> Table:
 
 def _dos_columnas(titulo_izq: str, pares_izq: list[tuple[str, str]], titulo_der: str, pares_der: list[tuple[str, str]]) -> Table:
     """Dos bloques de información lado a lado (identificación de la muestra
-    + fechas del proceso), en vez de uno arriba del otro -reduce el alto del
-    documento y agrupa visualmente cada tema."""
-    col_izq = [Paragraph(titulo_izq, _ESTILO_SUBSECCION), Spacer(1, 5), _lista_vertical(pares_izq)]
-    col_der = [Paragraph(titulo_der, _ESTILO_SUBSECCION), Spacer(1, 5), _lista_vertical(pares_der)]
+    + fechas), en vez de uno arriba del otro -reduce el alto del documento y
+    agrupa visualmente cada tema. Cada bloque lleva su propio título de
+    sección (con línea) — no hay un título "padre" por encima de ambos."""
+    col_izq = [_titulo_seccion(titulo_izq, 8.4 * cm), Spacer(1, 3), _lista_vertical(pares_izq)]
+    col_der = [_titulo_seccion(titulo_der, 8.4 * cm), Spacer(1, 3), _lista_vertical(pares_der)]
     outer = Table([[col_izq, col_der]], colWidths=[8.6 * cm, 8.6 * cm])
     outer.setStyle(
         TableStyle(
@@ -168,10 +169,10 @@ def generar_informe_pdf(
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        leftMargin=1.8 * cm,
-        rightMargin=1.8 * cm,
-        topMargin=1.4 * cm,
-        bottomMargin=1.5 * cm,
+        leftMargin=1.6 * cm,
+        rightMargin=1.6 * cm,
+        topMargin=1.1 * cm,
+        bottomMargin=1.1 * cm,
         title=f"Informe de análisis {campos.get('N° Solicitud', '')}".strip(),
     )
 
@@ -179,13 +180,13 @@ def generar_informe_pdf(
 
     # --- Encabezado: logo + dirección (izquierda) · identificador (derecha) ---
     logo_cel = [
-        Image(_RUTA_LOGO, width=4.2 * cm, height=1.68 * cm) if os.path.isfile(_RUTA_LOGO) else Paragraph('', _ESTILO_VALOR),
-        Spacer(1, 4),
+        Image(_RUTA_LOGO, width=4.6 * cm, height=1.84 * cm) if os.path.isfile(_RUTA_LOGO) else Paragraph('', _ESTILO_VALOR),
+        Spacer(1, 3),
         Paragraph(DIRECCION_EMPRESA, _ESTILO_DIRECCION),
     ]
     titulo_cel = [
         Paragraph('INFORME DE ANÁLISIS', _ESTILO_TITULO),
-        Spacer(1, 4),
+        Spacer(1, 3),
         Paragraph(f'N° Informe: {folio}', _ESTILO_FOLIO),
     ]
     encabezado = Table([[logo_cel, titulo_cel]], colWidths=[9.6 * cm, 8 * cm])
@@ -195,12 +196,12 @@ def generar_informe_pdf(
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
                 ('LINEBELOW', (0, 0), (-1, -1), 0.75, GRIS_LINEA),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
             ]
         )
     )
     elementos.append(encabezado)
-    elementos.append(Spacer(1, 12))
+    elementos.append(Spacer(1, 7))
 
     # --- Solicitante (Sold To y Ship To siempre visibles, aunque Ship To
     # venga vacío -se muestra la etiqueta igual, con "—" en el valor-) ---
@@ -223,34 +224,45 @@ def generar_informe_pdf(
         TableStyle(
             [
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 5),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
                 ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
                 ('SPAN', (1, 2), (3, 2)),
             ]
         )
     )
     elementos.append(tabla_solicitante)
-    elementos.append(Spacer(1, 10))
+    elementos.append(Spacer(1, 6))
 
-    # --- Identificación de la muestra (izquierda) y fechas del proceso
-    # (derecha), lado a lado -antes iban uno arriba del otro-. Especie y
-    # Variedad quedan separadas (antes iban combinadas en una sola celda).
-    elementos.append(_titulo_seccion('IDENTIFICACIÓN DE LA MUESTRA Y FECHAS'))
+    # --- Identificación de la muestra (izquierda) y fechas (derecha), lado a
+    # lado -sin título "padre" encima de ambos, cada bloque lleva su propio
+    # título-. Especie y Variedad van separadas. Tratamiento, Producto
+    # Utilizado y Tipo Aplicación son parte de la identificación de la
+    # muestra (no una sección aparte).
     hoy = datetime.now().strftime('%d-%m-%Y')
+    pares_muestra = [
+        ('N° VIAL (NI)', codigo_vial or ''),
+        ('TIPO MUESTRA', campos.get('Tipo Muestra', '')),
+        ('ESPECIE', campos.get('Especie', '')),
+        ('VARIEDAD', campos.get('Variedad', '')),
+        ('LOTE', campos.get('Lote', '')),
+        ('CSG', campos.get('CSG', '')),
+        ('N° CÁMARA', campos.get('N° Cámara', '')),
+        ('N° ORDEN', campos.get('N° Orden', '')),
+        ('POSICIÓN', campos.get('Posición Muestreo', '')),
+        ('PRODUCTO', campos.get('Producto Utilizado', '')),
+        ('TIPO APLICACIÓN', campos.get('Tipo Aplicación', '')),
+    ]
+    if campos.get('Línea Proceso'):
+        pares_muestra.append(('LÍNEA PROCESO', campos.get('Línea Proceso', '')))
+    if campos.get('Aplicación'):
+        pares_muestra.append(('APLICACIÓN', campos.get('Aplicación', '')))
+    pares_muestra.append(('MUESTREADOR', campos.get('Nombre Muestreador', '')))
     elementos.append(
         _dos_columnas(
             'IDENTIFICACIÓN DE LA MUESTRA',
-            [
-                ('SOLICITUD DE MUESTREO', campos.get('N° Solicitud', '')),
-                ('IDENTIFICACIÓN MUESTRA (NI)', codigo_vial or ''),
-                ('TIPO DE MUESTRA', campos.get('Tipo Muestra', '')),
-                ('ESPECIE', campos.get('Especie', '')),
-                ('VARIEDAD', campos.get('Variedad', '')),
-                ('LOTE', campos.get('Lote', '')),
-                ('NOMBRE MUESTREADOR', campos.get('Nombre Muestreador', '')),
-            ],
-            'FECHAS / PROCESO',
+            pares_muestra,
+            'FECHAS',
             [
                 ('FECHA SOLICITUD', campos.get('Fecha Solicitud', '')),
                 ('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
@@ -261,47 +273,23 @@ def generar_informe_pdf(
             ],
         )
     )
-    elementos.append(Spacer(1, 10))
+    elementos.append(Spacer(1, 6))
 
-    # --- Observaciones y Tratamiento: campos independientes, no combinados
-    # en una sola celda como antes ---
+    # --- Observaciones: campo independiente, no combinado con Tratamiento ---
     elementos.append(_titulo_seccion('OBSERVACIONES'))
-    elementos.append(Spacer(1, 5))
+    elementos.append(Spacer(1, 3))
     elementos.append(Paragraph(campos.get('Observación') or '—', _ESTILO_VALOR))
-    elementos.append(Spacer(1, 10))
-
-    elementos.append(_titulo_seccion('TRATAMIENTO'))
-    tabla_tratamiento = Table(
-        [
-            [
-                *_fila_campo('PRODUCTO UTILIZADO', campos.get('Producto Utilizado', '')),
-                *_fila_campo('TIPO APLICACIÓN', campos.get('Tipo Aplicación', '')),
-            ],
-        ],
-        colWidths=[3.2 * cm, 5.6 * cm, 3.2 * cm, 5.6 * cm],
-    )
-    tabla_tratamiento.setStyle(
-        TableStyle(
-            [
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 5),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-                ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
-            ]
-        )
-    )
-    elementos.append(tabla_tratamiento)
-    elementos.append(Spacer(1, 10))
+    elementos.append(Spacer(1, 6))
 
     # --- Metodología ---
     elementos.append(_titulo_seccion('METODOLOGÍA'))
-    elementos.append(Spacer(1, 5))
+    elementos.append(Spacer(1, 3))
     elementos.append(Paragraph(METODOLOGIA_TEXTO, _ESTILO_METODO))
-    elementos.append(Spacer(1, 12))
+    elementos.append(Spacer(1, 7))
 
     # --- Resultados: solo los analitos que esta solicitud pidió, nunca de más ---
     elementos.append(_titulo_seccion('DETERMINACIONES / RESULTADOS DE LOS ENSAYOS'))
-    elementos.append(Spacer(1, 6))
+    elementos.append(Spacer(1, 4))
     filas_resultado = [[
         Paragraph('ENSAYO', _ESTILO_TABLA_HEAD),
         Paragraph('UNIDAD', _ESTILO_TABLA_HEAD),
@@ -329,8 +317,8 @@ def generar_informe_pdf(
                 ('BACKGROUND', (0, 0), (-1, 0), VERDE_CLARO),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
-                ('TOPPADDING', (0, 0), (-1, -1), 6),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 3.5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
                 ('LINEBELOW', (0, 0), (-1, 0), 1, VERDE_OSCURO),
                 ('LINEBELOW', (0, 1), (-1, -1), 0.5, GRIS_LINEA),
                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, GRIS_LABEL]),
@@ -338,13 +326,13 @@ def generar_informe_pdf(
         )
     )
     elementos.append(tabla_resultados)
-    elementos.append(Spacer(1, 14))
+    elementos.append(Spacer(1, 8))
 
     # --- Notas ---
     elementos.append(_titulo_seccion('NOTAS Y CONDICIONES DEL INFORME'))
-    elementos.append(Spacer(1, 5))
+    elementos.append(Spacer(1, 3))
     elementos.append(Paragraph(NOTAS_TEXTO, _ESTILO_NOTA))
-    elementos.append(Spacer(1, 26))
+    elementos.append(Spacer(1, 12))
 
     # --- Firmas ---
     def _bloque_firma(nombre: str, cargo: str) -> Table:
@@ -370,15 +358,15 @@ def generar_informe_pdf(
     )
     firmas.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
     elementos.append(KeepTogether(firmas))
-    elementos.append(Spacer(1, 20))
+    elementos.append(Spacer(1, 8))
 
-    # --- Pie --- (la fecha del informe ya se muestra en FECHAS DEL PROCESO,
-    # no se repite acá para no dispersar la misma fecha por el documento)
+    # --- Pie --- (la fecha del informe ya se muestra en FECHAS, no se
+    # repite acá para no dispersar la misma fecha por el documento)
     pie = Table(
         [[Paragraph(f'N° Informe: {folio}', _ESTILO_FOOTER), Paragraph('Este informe es una copia electrónica — no requiere firma física.', _ESTILO_FOOTER)]],
         colWidths=[8.8 * cm, 8.8 * cm],
     )
-    pie.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, -1), 0.5, GRIS_LINEA), ('TOPPADDING', (0, 0), (-1, -1), 6), ('ALIGN', (1, 0), (1, 0), 'RIGHT')]))
+    pie.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, -1), 0.5, GRIS_LINEA), ('TOPPADDING', (0, 0), (-1, -1), 4), ('ALIGN', (1, 0), (1, 0), 'RIGHT')]))
     elementos.append(KeepTogether(pie))
 
     doc.build(elementos)
