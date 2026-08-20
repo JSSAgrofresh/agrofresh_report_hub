@@ -9,6 +9,7 @@ import { HttpError } from '@/services/http/client'
 import { descargarExcelCruce, descargarInformesPDF, listarSolicitudes, parsearGC } from '@/features/emitir'
 import type { FilaCruce, MuestraGC, ResultadoAnalito, Solicitud } from '@/features/emitir'
 import { SolicitudFichaModal } from './SolicitudFichaModal'
+import { ConfiguracionInformeModal } from './ConfiguracionInformeModal'
 import styles from './CromatografiaEmitirView.module.css'
 
 const CARPETA_SOLICITUDES = 'Solicitud de Muestreo'
@@ -61,6 +62,7 @@ export function CromatografiaEmitirView() {
   const [carpetaNoExiste, setCarpetaNoExiste] = useState(false)
   const [creandoCarpeta, setCreandoCarpeta] = useState(false)
   const [solicitudEnFicha, setSolicitudEnFicha] = useState<Solicitud | null>(null)
+  const [mostrarConfiguracion, setMostrarConfiguracion] = useState(false)
 
   const [muestrasGC, setMuestrasGC] = useState<MuestraGC[] | null>(null)
   const [nombreArchivoGC, setNombreArchivoGC] = useState<string | null>(null)
@@ -240,6 +242,11 @@ export function CromatografiaEmitirView() {
       <Header
         title="Reporte análisis cromatografía"
         description="Arrastra una solicitud a la zona de cruce y asígnale el código de vial del GC que le corresponde."
+        acciones={
+          <button type="button" className={styles.botonChico} onClick={() => setMostrarConfiguracion(true)}>
+            Configurar informe
+          </button>
+        }
       />
 
       <div className={styles.lienzo}>
@@ -509,6 +516,7 @@ export function CromatografiaEmitirView() {
       </Card>
 
       {solicitudEnFicha && <SolicitudFichaModal solicitud={solicitudEnFicha} onCerrar={() => setSolicitudEnFicha(null)} />}
+      {mostrarConfiguracion && <ConfiguracionInformeModal onCerrar={() => setMostrarConfiguracion(false)} />}
     </div>
   )
 }

@@ -25,3 +25,14 @@ export interface FilaCruce {
   codigo_vial?: string | null
   fecha_inyeccion?: string | null
 }
+
+/** Datos del informe que no vienen del cruce solicitud+GC (quién analiza,
+ * quién aprueba) y que quedan seteados en la app hasta que alguien los
+ * cambie -por ejemplo, cuando la jefa de Cromatografía sale de vacaciones y
+ * firma otra persona-. */
+export interface InformeConfig {
+  analizado_por_nombre: string
+  analizado_por_cargo: string
+  aprobado_por_nombre: string
+  aprobado_por_cargo: string
+}

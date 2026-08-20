@@ -2,12 +2,14 @@ import io
 import os
 import re
 import zipfile
+from datetime import date
 
 import openpyxl
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from .db import conexion, cursor_dict
 from .gc_parser import NOMBRE_GC_A_CODIGO, es_codigo_puro, parsear_gc_txt
 from .informe_pdf import generar_informe_pdf
 from .solicitud_parser import parsear_solicitudes_html
@@ -19,6 +21,65 @@ _PREFIJO_RESULTADO = "Resultado:"
 router = APIRouter(prefix="/api/emitir/cromatografia", tags=["emitir"])
 
 CARPETA_SOLICITUDES = "Solicitud de Muestreo"
+
+
+def _asignar_folios(cur, cantidad: int) -> list[str]:
+    """Reserva `cantidad` folios consecutivos LAB-YYYYMMDD-NNN para hoy,
+    de forma atómica (INSERT+UPDATE dentro de la misma transacción de
+    escritura). El correlativo es por fecha: al cambiar el día vuelve a
+    partir en 001."""
+    hoy = date.today()
+    cur.execute("INSERT INTO informe_folio (fecha, siguiente) VALUES (%s, 1) ON CONFLICT (fecha) DO NOTHING", (hoy,))
+    cur.execute(
+        "UPDATE informe_folio SET siguiente = siguiente + %s WHERE fecha = %s RETURNING siguiente",
+        (cantidad, hoy),
+    )
+    siguiente_tras = cur.fetchone()["siguiente"]
+    primero = siguiente_tras - cantidad
+    prefijo = f"LAB-{hoy.strftime('%Y%m%d')}"
+    return [f"{prefijo}-{n:03d}" for n in range(primero, siguiente_tras)]
+
+
+class InformeConfigOut(BaseModel):
+    analizado_por_nombre: str
+    analizado_por_cargo: str
+    aprobado_por_nombre: str
+    aprobado_por_cargo: str
+
+
+@router.get("/config-informe")
+def obtener_config_informe() -> InformeConfigOut:
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "SELECT analizado_por_nombre, analizado_por_cargo, aprobado_por_nombre, aprobado_por_cargo "
+            "FROM informe_config WHERE id = 1"
+        )
+        fila = cur.fetchone()
+        if not fila:
+            raise HTTPException(500, "No existe la configuración del informe (falta la migración 0008).")
+        return InformeConfigOut(**fila)
+
+
+@router.put("/config-informe")
+def guardar_config_informe(body: InformeConfigOut) -> InformeConfigOut:
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            """
+            UPDATE informe_config
+            SET analizado_por_nombre = %s, analizado_por_cargo = %s,
+                aprobado_por_nombre = %s, aprobado_por_cargo = %s,
+                actualizado_en = now()
+            WHERE id = 1
+            RETURNING analizado_por_nombre, analizado_por_cargo, aprobado_por_nombre, aprobado_por_cargo
+            """,
+            (
+                body.analizado_por_nombre.strip(),
+                body.analizado_por_cargo.strip(),
+                body.aprobado_por_nombre.strip(),
+                body.aprobado_por_cargo.strip(),
+            ),
+        )
+        return InformeConfigOut(**cur.fetchone())
 
 
 class ResultadoAnalitoOut(BaseModel):
@@ -121,8 +182,12 @@ def generar_excel(filas: list[FilaCruceIn]) -> StreamingResponse:
     if not filas:
         raise HTTPException(400, "No hay filas para exportar.")
 
+    with conexion() as conn, cursor_dict(conn) as cur:
+        folios = _asignar_folios(cur, len(filas))
+
     # Mismas columnas que el archivo de solicitud original, en el mismo orden
-    # (unión por si alguna solicitud trae un campo que otra no tiene).
+    # (unión por si alguna solicitud trae un campo que otra no tiene), más el
+    # folio interno al inicio.
     columnas: list[str] = []
     for fila in filas:
         for columna in fila.campos:
@@ -133,11 +198,13 @@ def generar_excel(filas: list[FilaCruceIn]) -> StreamingResponse:
     ws = wb.active
     ws.title = "Solicitudes con resultado"
 
-    for col_idx, columna in enumerate(columnas, start=1):
+    ws.cell(row=1, column=1, value="N° Informe")
+    for col_idx, columna in enumerate(columnas, start=2):
         ws.cell(row=1, column=col_idx, value=columna)
 
-    for fila_idx, fila in enumerate(filas, start=2):
-        for col_idx, columna in enumerate(columnas, start=1):
+    for fila_idx, (fila, folio) in enumerate(zip(filas, folios), start=2):
+        ws.cell(row=fila_idx, column=1, value=folio)
+        for col_idx, columna in enumerate(columnas, start=2):
             valor: str | float | None = fila.campos.get(columna, "") or None
             if columna.startswith(_PREFIJO_RESULTADO):
                 # Nunca se escribe el resultado de un analito que esta
@@ -169,15 +236,31 @@ def generar_informes_pdf(filas: list[FilaCruceIn]) -> StreamingResponse:
     if not filas:
         raise HTTPException(400, "No hay filas para exportar.")
 
-    if len(filas) == 1:
-        fila = filas[0]
-        pdf_bytes = generar_informe_pdf(
+    with conexion() as conn, cursor_dict(conn) as cur:
+        folios = _asignar_folios(cur, len(filas))
+        cur.execute(
+            "SELECT analizado_por_nombre, analizado_por_cargo, aprobado_por_nombre, aprobado_por_cargo "
+            "FROM informe_config WHERE id = 1"
+        )
+        config_fila = cur.fetchone() or {}
+
+    def _generar(fila: FilaCruceIn, folio: str) -> bytes:
+        return generar_informe_pdf(
             campos=fila.campos,
             analitos_solicitados=fila.analitos_solicitados,
             resultados_por_codigo=fila.resultados_por_codigo,
             codigo_vial=fila.codigo_vial,
             fecha_inyeccion=fila.fecha_inyeccion,
+            folio=folio,
+            analizado_por_nombre=config_fila.get("analizado_por_nombre") or "",
+            analizado_por_cargo=config_fila.get("analizado_por_cargo") or "",
+            aprobado_por_nombre=config_fila.get("aprobado_por_nombre") or "",
+            aprobado_por_cargo=config_fila.get("aprobado_por_cargo") or "",
         )
+
+    if len(filas) == 1:
+        fila = filas[0]
+        pdf_bytes = _generar(fila, folios[0])
         return StreamingResponse(
             io.BytesIO(pdf_bytes),
             media_type="application/pdf",
@@ -189,14 +272,8 @@ def generar_informes_pdf(filas: list[FilaCruceIn]) -> StreamingResponse:
     buffer = io.BytesIO()
     usados: set[str] = set()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for fila in filas:
-            pdf_bytes = generar_informe_pdf(
-                campos=fila.campos,
-                analitos_solicitados=fila.analitos_solicitados,
-                resultados_por_codigo=fila.resultados_por_codigo,
-                codigo_vial=fila.codigo_vial,
-                fecha_inyeccion=fila.fecha_inyeccion,
-            )
+        for fila, folio in zip(filas, folios):
+            pdf_bytes = _generar(fila, folio)
             base, ext = os.path.splitext(_nombre_informe(fila.campos))
             nombre, n = f"{base}{ext}", 2
             while nombre in usados:
