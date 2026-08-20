@@ -177,9 +177,6 @@ def generar_informe_pdf(
     # --- Identificación de la muestra ---
     elementos.append(_titulo_seccion('IDENTIFICACIÓN DE LA MUESTRA'))
     especie_variedad = ' / '.join(v for v in [campos.get('Especie', ''), campos.get('Variedad', '')] if v) or '—'
-    fecha_entidad = ' · '.join(
-        v for v in [campos.get('Fecha Muestreo', ''), campos.get('Hora Muestreo', ''), campos.get('Nombre Muestreador', '')] if v
-    ) or '—'
     tratamiento = ' · '.join(v for v in [campos.get('Producto Utilizado', ''), campos.get('Tipo Aplicación', '')] if v) or '—'
     tabla_muestra = Table(
         [
@@ -195,7 +192,19 @@ def generar_informe_pdf(
                 *_fila_campo('LOTE', campos.get('Lote', '')),
                 *_fila_campo('FECHA INYECCIÓN GC', fecha_inyeccion or '—'),
             ],
-            [Paragraph('FECHA Y ENTIDAD DE MUESTREO', _ESTILO_LABEL), Paragraph(fecha_entidad, _ESTILO_VALOR), '', ''],
+            # Fechas de muestreo separadas y claras, cada una en su propia
+            # celda -antes iban concatenadas con la hora y el muestreador
+            # en una sola línea, lo que era confuso e inconsistente con la
+            # Fecha Solicitud (que se muestra aparte, en SOLICITANTE).
+            [
+                *_fila_campo('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
+                *_fila_campo('HORA MUESTREO', campos.get('Hora Muestreo', '')),
+            ],
+            [
+                *_fila_campo('NOMBRE MUESTREADOR', campos.get('Nombre Muestreador', '')),
+                '',
+                '',
+            ],
             [Paragraph('OBSERVACIONES / TRATAMIENTO', _ESTILO_LABEL), Paragraph(tratamiento, _ESTILO_VALOR), '', ''],
         ],
         colWidths=[3.2 * cm, 5.6 * cm, 3.2 * cm, 5.6 * cm],
@@ -207,8 +216,8 @@ def generar_informe_pdf(
                 ('TOPPADDING', (0, 0), (-1, -1), 5),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
                 ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
-                ('SPAN', (1, 3), (3, 3)),
                 ('SPAN', (1, 4), (3, 4)),
+                ('SPAN', (1, 5), (3, 5)),
             ]
         )
     )
