@@ -3,7 +3,6 @@ export { listarValores, listarEspeciesActivas, listarVariedadesActivas } from '.
 export { ValorListaForm } from './components/ValorListaForm'
 export { ValorListaTable } from './components/ValorListaTable'
 export { HomogenizarPanel } from './components/HomogenizarPanel'
-export { EstandaresPanel } from './components/EstandaresPanel'
 export type {
   TipoListado,
   ValorLista,

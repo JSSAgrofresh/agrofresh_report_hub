@@ -77,16 +77,20 @@ class AsignarIn(BaseModel):
 def _buscar_o_crear_estandar(cur, tipo: str, valor_crudo: str) -> int:
     """Encuentra la variedad estándar con ese nombre (para que crear
     "Packham" desde dos grupos de similitud distintos termine en la MISMA
-    fila) o la crea si no existe."""
+    fila) o la crea si no existe. Caso normal: el nombre elegido para la
+    variedad estándar coincide con uno de los valores crudos que se le están
+    por asignar (ej. estandarizar "Packham" a partir de un grupo que incluye
+    justamente "Packham") -en ese caso esa fila se "promueve" a variedad
+    estándar en vez de tratarse como un choque."""
     valor = normalizar_texto_general(valor_crudo)
     clave = clave_normalizada(valor)
     cur.execute("SELECT id, es_estandar FROM valor_lista WHERE tipo = %s AND valor_normalizado = %s", (tipo, clave))
     existente = cur.fetchone()
     if existente:
         if not existente["es_estandar"]:
-            raise HTTPException(
-                409,
-                f'Ya existe un valor "{valor}" en {tipo} que no es una variedad estándar. Elimínalo o renómbralo primero.',
+            cur.execute(
+                "UPDATE valor_lista SET es_estandar = true, activo = true, fusionado_en_id = NULL, valor = %s WHERE id = %s",
+                (valor, existente["id"]),
             )
         return existente["id"]
     cur.execute(
@@ -383,6 +387,11 @@ def asignar_valor(tipo: str, valor_id: int, body: AsignarIn) -> dict[str, str]:
         if not fila:
             raise HTTPException(404, "Valor no encontrado")
         if fila["es_estandar"]:
+            # Puede pasar sin querer: el valor que se está "asignando" es el
+            # mismo que acaba de promoverse a variedad estándar (ver
+            # _buscar_o_crear_estandar). Asignarlo a sí mismo es un no-op.
+            if body.estandar_id == valor_id:
+                return {"estado": "ok"}
             raise HTTPException(400, "Una variedad estándar no se puede asignar a otra.")
 
         if body.estandar_id is None:

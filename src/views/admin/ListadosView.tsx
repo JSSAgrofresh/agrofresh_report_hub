@@ -11,7 +11,7 @@ import {
   useCatalogo,
 } from '@/features/catalogo'
 import type { Cliente, ClienteInput, Planta, PlantaInput } from '@/features/catalogo'
-import { EstandaresPanel, HomogenizarPanel, ValorListaForm, ValorListaTable, useListado } from '@/features/listados'
+import { HomogenizarPanel, ValorListaForm, ValorListaTable, useListado } from '@/features/listados'
 import type { TipoListado, ValorLista, ValorListaInput } from '@/features/listados'
 import styles from './ListadosView.module.css'
 
@@ -25,7 +25,6 @@ type Panel =
   | { modo: 'nuevoValor' }
   | { modo: 'editarValor'; valor: ValorLista }
   | { modo: 'homogenizar' }
-  | { modo: 'estandares' }
 
 const ETIQUETA_PESTANA: Record<Pestana, string> = {
   clientes: 'Sold To',
@@ -199,11 +198,6 @@ export function ListadosView() {
                     Homogenizar
                   </Button>
                 )}
-                {tipoListado && (
-                  <Button variant="secondary" onClick={() => setPanel({ modo: 'estandares' })}>
-                    Variedades estándar
-                  </Button>
-                )}
                 <Button
                   onClick={() =>
                     setPanel(
@@ -308,17 +302,11 @@ export function ListadosView() {
             />
             {guardando && <p className={styles.estado}>Guardando…</p>}
           </>
-        ) : panel.modo === 'homogenizar' ? (
+        ) : (
           <HomogenizarPanel
             tipo={tipoListado ?? 'especie'}
             onCerrar={() => setPanel({ modo: 'lista' })}
             onAplicado={listado.refrescar}
-          />
-        ) : (
-          <EstandaresPanel
-            tipo={tipoListado ?? 'especie'}
-            onCerrar={() => setPanel({ modo: 'lista' })}
-            onCambio={listado.refrescar}
           />
         )}
       </Card>
