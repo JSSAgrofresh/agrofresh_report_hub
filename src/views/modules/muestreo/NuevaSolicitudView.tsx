@@ -9,6 +9,7 @@ import { IconFrasco } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
+import { listarEspeciesActivas, listarVariedadesActivas } from '@/features/listados'
 import {
   crearSolicitud,
   listarAnalitosConfig,
@@ -93,6 +94,8 @@ export function NuevaSolicitudView() {
 
   const [clientesDisponibles, setClientesDisponibles] = useState<string[]>([])
   const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
+  const [especiesDisponibles, setEspeciesDisponibles] = useState<string[]>([])
+  const [variedadesDisponibles, setVariedadesDisponibles] = useState<string[]>([])
 
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
@@ -120,11 +123,17 @@ export function NuevaSolicitudView() {
       .then(setCamposTipoAplicacion)
       .catch(() => setCamposTipoAplicacion([]))
     listarClientes()
-      .then((clientes) => setClientesDisponibles(clientes.map((c) => c.nombre)))
+      .then((clientes) => setClientesDisponibles(clientes.filter((c) => c.activo).map((c) => c.nombre)))
       .catch(() => setClientesDisponibles([]))
     listarPlantas()
-      .then(setPlantasDisponibles)
+      .then((plantas) => setPlantasDisponibles(plantas.filter((p) => p.activo)))
       .catch(() => setPlantasDisponibles([]))
+    listarEspeciesActivas()
+      .then(setEspeciesDisponibles)
+      .catch(() => setEspeciesDisponibles([]))
+    listarVariedadesActivas()
+      .then(setVariedadesDisponibles)
+      .catch(() => setVariedadesDisponibles([]))
   }, [])
 
   const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === soldTo)
@@ -343,6 +352,32 @@ export function NuevaSolicitudView() {
           {etiqueta}
           <input value={lineaProceso} onChange={(e) => setLineaProceso(e.target.value)} placeholder="Ej. Línea 1" />
         </label>
+      )
+    }
+    if (campo.clave === 'especie') {
+      return (
+        <div className={styles.campo} key={campo.clave}>
+          <BuscableSelect
+            etiqueta={`${campo.etiqueta}${campo.requerido ? ' *' : ''}`}
+            opciones={especiesDisponibles}
+            valor={general.especie ?? ''}
+            onChange={(v) => actualizarGeneral('especie', v)}
+            placeholderTodos="— elegir especie —"
+          />
+        </div>
+      )
+    }
+    if (campo.clave === 'variedad') {
+      return (
+        <div className={styles.campo} key={campo.clave}>
+          <BuscableSelect
+            etiqueta={`${campo.etiqueta}${campo.requerido ? ' *' : ''}`}
+            opciones={variedadesDisponibles}
+            valor={general.variedad ?? ''}
+            onChange={(v) => actualizarGeneral('variedad', v)}
+            placeholderTodos="— elegir variedad —"
+          />
+        </div>
       )
     }
     if (campo.clave === 'producto_utilizado') {

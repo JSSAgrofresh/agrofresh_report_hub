@@ -1,0 +1,88 @@
+.contenedor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.intro {
+  font-size: 13.5px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.grupo {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.grupoCabecera {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.miembros {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.miembro {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13.5px;
+}
+
+.propuesto {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.propuesto span {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.propuesto input {
+  flex: 1;
+  min-width: 220px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.vacio,
+.estado {
+  color: var(--color-text-muted);
+  font-size: 13.5px;
+  padding: var(--space-4) 0;
+}
+
+.estadoError {
+  color: var(--color-danger);
+  font-size: 13.5px;
+}
+
+.aplicado {
+  color: var(--color-primary-hover);
+  font-size: 12.5px;
+  font-weight: 600;
+}
