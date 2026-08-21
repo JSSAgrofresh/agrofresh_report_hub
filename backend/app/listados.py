@@ -24,13 +24,19 @@ que el administrador decide libremente cuántas variedades estándar crea a
 partir de un grupo y qué valores le asigna a cada una -ver /estandares y
 /{tipo}/{id}/asignar-.
 """
+import io
 import re
 import unicodedata
 from collections import Counter
+from datetime import datetime
 from difflib import SequenceMatcher
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.worksheet.worksheet import Worksheet
 from pydantic import BaseModel
 
 from .db import conexion, cursor_dict
@@ -98,6 +104,96 @@ def _buscar_o_crear_estandar(cur, tipo: str, valor_crudo: str) -> int:
         (tipo, valor, clave),
     )
     return cur.fetchone()["id"]
+
+
+_VERDE_OSCURO = "3D6B1F"
+_VERDE_CLARO = "EBF5E1"
+_FUENTE_HEADER = Font(bold=True, color="FFFFFF", size=10.5)
+_RELLENO_HEADER = PatternFill("solid", fgColor=_VERDE_OSCURO)
+
+
+def _escribir_hoja(wb: Workbook, titulo: str, encabezados: list[str], filas: list[list[Any]], anchos: list[int]) -> Worksheet:
+    ws = wb.create_sheet(titulo[:31])
+    for col, texto in enumerate(encabezados, start=1):
+        c = ws.cell(row=1, column=col, value=texto)
+        c.font = _FUENTE_HEADER
+        c.fill = _RELLENO_HEADER
+        c.alignment = Alignment(vertical="center")
+    ws.row_dimensions[1].height = 20
+    for fila_idx, fila in enumerate(filas, start=2):
+        for col_idx, valor in enumerate(fila, start=1):
+            ws.cell(row=fila_idx, column=col_idx, value=valor)
+    for col_idx, ancho in enumerate(anchos, start=1):
+        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = ancho
+    ws.freeze_panes = "A2"
+    if filas:
+        ws.auto_filter.ref = f"A1:{ws.cell(row=1, column=len(encabezados)).column_letter}{len(filas) + 1}"
+    return ws
+
+
+@router.get("/exportar")
+def exportar_listados() -> StreamingResponse:
+    """Un único Excel con las 4 listas -Sold To, Ship To, Especie, Variedad-,
+    tal como quedan después de homogenizar: variedades estándar primero, y
+    para cada valor crudo a qué variedad estándar quedó asignado (o vacío si
+    todavía está pendiente)."""
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT nombre, codigo_sap, rut, activo FROM cliente ORDER BY nombre")
+        clientes = cur.fetchall()
+        cur.execute(
+            "SELECT p.nombre, p.codigo_sap, c.nombre AS cliente_nombre, p.ciudad, p.activo "
+            "FROM planta p JOIN cliente c ON c.id = p.cliente_id ORDER BY c.nombre, p.nombre"
+        )
+        plantas = cur.fetchall()
+
+        filas_por_tipo: dict[str, list[dict]] = {}
+        for tipo in TIPOS_VALIDOS:
+            cur.execute(
+                "SELECT a.valor, a.activo, a.es_estandar, e.valor AS asignado_a "
+                "FROM valor_lista a LEFT JOIN valor_lista e ON e.id = a.fusionado_en_id "
+                "WHERE a.tipo = %s ORDER BY a.es_estandar DESC, a.valor",
+                (tipo,),
+            )
+            filas_por_tipo[tipo] = cur.fetchall()
+
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    _escribir_hoja(
+        wb,
+        "Sold To",
+        ["N° Sold To", "Sold To", "RUT", "Estado"],
+        [[c["codigo_sap"], c["nombre"], c["rut"], "Activo" if c["activo"] else "Inactivo"] for c in clientes],
+        [14, 44, 16, 12],
+    )
+    _escribir_hoja(
+        wb,
+        "Ship To",
+        ["N° Ship To", "Ship To", "Sold To", "Ciudad", "Estado"],
+        [[p["codigo_sap"], p["nombre"], p["cliente_nombre"], p["ciudad"], "Activo" if p["activo"] else "Inactivo"] for p in plantas],
+        [14, 44, 34, 20, 12],
+    )
+    for tipo, etiqueta in (("especie", "Especie"), ("variedad", "Variedad")):
+        _escribir_hoja(
+            wb,
+            etiqueta,
+            [etiqueta, "Tipo", "Estado", "Variedad estándar asignada"],
+            [
+                [f["valor"], "Estándar" if f["es_estandar"] else "Crudo", "Activo" if f["activo"] else "Inactivo", f["asignado_a"] or ""]
+                for f in filas_por_tipo[tipo]
+            ],
+            [30, 12, 12, 30],
+        )
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    nombre_archivo = f"listados_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
+    )
 
 
 @router.get("/{tipo}")

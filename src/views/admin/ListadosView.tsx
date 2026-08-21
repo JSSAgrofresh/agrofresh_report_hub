@@ -11,7 +11,7 @@ import {
   useCatalogo,
 } from '@/features/catalogo'
 import type { Cliente, ClienteInput, Planta, PlantaInput } from '@/features/catalogo'
-import { HomogenizarPanel, ValorListaForm, ValorListaTable, useListado } from '@/features/listados'
+import { HomogenizarPanel, ValorListaForm, ValorListaTable, urlExportarListados, useListado } from '@/features/listados'
 import type { TipoListado, ValorLista, ValorListaInput } from '@/features/listados'
 import styles from './ListadosView.module.css'
 
@@ -148,6 +148,11 @@ export function ListadosView() {
       <Header
         title="Listados"
         description="Fuente estandarizada de Sold To, Ship To, Especie y Variedad. El resto de la app lee sus valores activos desde acá."
+        acciones={
+          <a className={styles.botonDescarga} href={urlExportarListados()} target="_blank" rel="noreferrer">
+            Descargar Excel
+          </a>
+        }
       />
 
       <Card>

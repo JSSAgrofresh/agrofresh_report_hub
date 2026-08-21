@@ -65,3 +65,12 @@ export function listarEspeciesActivas() {
 export function listarVariedadesActivas() {
   return listarValores('variedad').then((v) => v.map((x) => x.valor))
 }
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
+
+/** Excel con las 4 listas -Sold To, Ship To, Especie, Variedad- tal como
+ * quedaron después de homogenizar. Es una descarga directa (GET), no pasa
+ * por httpClient -mismo patrón que el resto de las descargas de la app-. */
+export function urlExportarListados() {
+  return `${API_BASE_URL}/listados/exportar`
+}
