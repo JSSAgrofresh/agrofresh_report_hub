@@ -43,7 +43,15 @@ export function ListadosView() {
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
 
   const tipoListado: TipoListado | null = pestana === 'especie' || pestana === 'variedad' ? pestana : null
-  const listado = useListado(tipoListado ?? 'especie')
+  const [especieSeleccionadaId, setEspecieSeleccionadaId] = useState<number | null>(null)
+
+  // Variedad siempre necesita una Especie elegida primero -por eso son dos
+  // instancias del hook: una para la pestaña Especie (y para alimentar el
+  // selector de especies), otra para Variedad, filtrada por la elegida-.
+  const especiesListado = useListado('especie')
+  const variedadListado = useListado('variedad', especieSeleccionadaId)
+  const listado = pestana === 'especie' ? especiesListado : variedadListado
+  const especiesActivas = especiesListado.valores.filter((e) => e.activo)
 
   const clientesFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
@@ -176,13 +184,40 @@ export function ListadosView() {
                     ? clientes.length
                     : p === 'plantas'
                       ? plantas.length
-                      : p === pestana
-                        ? listado.valores.length
-                        : ''}
+                      : p === 'especie'
+                        ? especiesListado.valores.length
+                        : p === pestana
+                          ? variedadListado.valores.length
+                          : ''}
                   )
                 </button>
               ))}
             </div>
+
+            {pestana === 'variedad' && (
+              <div className={styles.selectorEspecie}>
+                <label>
+                  <span>Especie</span>
+                  <select
+                    value={especieSeleccionadaId ?? ''}
+                    onChange={(e) => setEspecieSeleccionadaId(e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">— elegir especie —</option>
+                    {especiesActivas.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.valor}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {!especieSeleccionadaId && (
+                  <p className={styles.notaTope}>
+                    Elige una especie para ver, crear y homogenizar sus variedades -"June Gold" de Durazno y
+                    "June Gold" de Manzana son variedades distintas, nunca se mezclan-.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className={styles.cabeceraTabla}>
               <input
@@ -199,11 +234,16 @@ export function ListadosView() {
               />
               <div className={styles.accionesHeader}>
                 {tipoListado && (
-                  <Button variant="secondary" onClick={() => setPanel({ modo: 'homogenizar' })}>
+                  <Button
+                    variant="secondary"
+                    disabled={pestana === 'variedad' && !especieSeleccionadaId}
+                    onClick={() => setPanel({ modo: 'homogenizar' })}
+                  >
                     Homogenizar
                   </Button>
                 )}
                 <Button
+                  disabled={pestana === 'variedad' && !especieSeleccionadaId}
                   onClick={() =>
                     setPanel(
                       pestana === 'clientes'
@@ -257,7 +297,7 @@ export function ListadosView() {
               </>
             )}
 
-            {tipoListado && !listado.cargando && !listado.error && (
+            {tipoListado && !(pestana === 'variedad' && !especieSeleccionadaId) && !listado.cargando && !listado.error && (
               <>
                 {valoresFiltrados.length > TOPE && (
                   <p className={styles.notaTope}>
@@ -310,6 +350,7 @@ export function ListadosView() {
         ) : (
           <HomogenizarPanel
             tipo={tipoListado ?? 'especie'}
+            especieId={especieSeleccionadaId ?? undefined}
             onCerrar={() => setPanel({ modo: 'lista' })}
             onAplicado={listado.refrescar}
           />

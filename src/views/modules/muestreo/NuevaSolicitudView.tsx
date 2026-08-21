@@ -9,7 +9,8 @@ import { IconFrasco } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
-import { listarEspeciesActivas, listarVariedadesActivas } from '@/features/listados'
+import { listarEspeciesActivas, listarVariedadesActivasDeEspecie } from '@/features/listados'
+import type { ValorLista } from '@/features/listados'
 import {
   crearSolicitud,
   listarAnalitosConfig,
@@ -94,7 +95,7 @@ export function NuevaSolicitudView() {
 
   const [clientesDisponibles, setClientesDisponibles] = useState<string[]>([])
   const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
-  const [especiesDisponibles, setEspeciesDisponibles] = useState<string[]>([])
+  const [especiesDisponibles, setEspeciesDisponibles] = useState<ValorLista[]>([])
   const [variedadesDisponibles, setVariedadesDisponibles] = useState<string[]>([])
 
   const [error, setError] = useState<string | null>(null)
@@ -131,9 +132,6 @@ export function NuevaSolicitudView() {
     listarEspeciesActivas()
       .then(setEspeciesDisponibles)
       .catch(() => setEspeciesDisponibles([]))
-    listarVariedadesActivas()
-      .then(setVariedadesDisponibles)
-      .catch(() => setVariedadesDisponibles([]))
   }, [])
 
   const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === soldTo)
@@ -185,6 +183,20 @@ export function NuevaSolicitudView() {
   function alElegirSoldTo(v: string) {
     setSoldTo(v)
     setShipTo('')
+  }
+
+  function alElegirEspecie(v: string) {
+    // Variedad depende de la Especie -"June Gold" de Durazno y "June Gold"
+    // de Manzana son variedades distintas-, así que al cambiar de especie
+    // hay que recargar las variedades disponibles y descartar la elegida.
+    setGeneral((g) => ({ ...g, especie: v, variedad: '' }))
+    setVariedadesDisponibles([])
+    const especie = especiesDisponibles.find((e) => e.valor === v)
+    if (especie) {
+      listarVariedadesActivasDeEspecie(especie.id)
+        .then(setVariedadesDisponibles)
+        .catch(() => setVariedadesDisponibles([]))
+    }
   }
 
   function alCambiarLaboratorio(v: string) {
@@ -359,9 +371,9 @@ export function NuevaSolicitudView() {
         <div className={styles.campo} key={campo.clave}>
           <BuscableSelect
             etiqueta={`${campo.etiqueta}${campo.requerido ? ' *' : ''}`}
-            opciones={especiesDisponibles}
+            opciones={especiesDisponibles.map((e) => e.valor)}
             valor={general.especie ?? ''}
-            onChange={(v) => actualizarGeneral('especie', v)}
+            onChange={alElegirEspecie}
             placeholderTodos="— elegir especie —"
           />
         </div>
@@ -375,7 +387,8 @@ export function NuevaSolicitudView() {
             opciones={variedadesDisponibles}
             valor={general.variedad ?? ''}
             onChange={(v) => actualizarGeneral('variedad', v)}
-            placeholderTodos="— elegir variedad —"
+            placeholderTodos={general.especie ? '— elegir variedad —' : '— elige primero Especie —'}
+            disabled={!general.especie}
           />
         </div>
       )

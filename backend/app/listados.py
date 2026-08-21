@@ -13,16 +13,21 @@ Modelo de datos (valor_lista, tipo especie/variedad):
 - Variedad "estándar": una fila con es_estandar=true. Es el valor que
   realmente ofrecen los selects de la app junto con los valores crudos sin
   asignar. Se crea, renombra y elimina a mano desde /estandares.
+- Toda fila tipo=variedad tiene `especie_id` (apunta a una fila tipo=especie):
+  el mismo texto puede existir en más de una especie (ej. "June Gold" es una
+  variedad de Durazno Y, por separado, de Manzana) y NO deben fusionarse
+  entre sí -por eso Variedad ya no es una lista plana, cada valor pertenece a
+  una especie concreta-.
 
 "Homogenizar" (GET /{tipo}/homogenizar) NUNCA fusiona nada: solo agrupa
 valores crudos que probablemente son el mismo dato mal escrito (mayúsculas,
 acentos, espacios, puntuación -alta confianza-, o variantes ortográficas
-obvias -a revisar-) como ayuda de revisión. Un mismo grupo de similitud puede
-contener MÁS DE UNA variedad real (ej. "Packham" y "Packham's Triumph" caen
-en el mismo grupo por nombre parecido, pero son variedades distintas), así
-que el administrador decide libremente cuántas variedades estándar crea a
-partir de un grupo y qué valores le asigna a cada una -ver /estandares y
-/{tipo}/{id}/asignar-.
+obvias -a revisar-) como ayuda de revisión, siempre DENTRO de la misma
+especie para variedad. Un mismo grupo de similitud puede contener MÁS DE UNA
+variedad real (ej. "Packham" y "Packham's Triumph" caen en el mismo grupo por
+nombre parecido, pero son variedades distintas), así que el administrador
+decide libremente cuántas variedades estándar crea a partir de un grupo y qué
+valores le asigna a cada una -ver /estandares y /{tipo}/{id}/asignar-.
 """
 import io
 import re
@@ -74,23 +79,43 @@ def clave_normalizada(valor: str) -> str:
 class ValorListaIn(BaseModel):
     valor: str
     activo: bool = True
+    # Obligatorio cuando tipo=variedad; se ignora para tipo=especie.
+    especie_id: int | None = None
 
 
 class AsignarIn(BaseModel):
     estandar_id: int | None = None
 
 
-def _buscar_o_crear_estandar(cur, tipo: str, valor_crudo: str) -> int:
-    """Encuentra la variedad estándar con ese nombre (para que crear
-    "Packham" desde dos grupos de similitud distintos termine en la MISMA
-    fila) o la crea si no existe. Caso normal: el nombre elegido para la
-    variedad estándar coincide con uno de los valores crudos que se le están
-    por asignar (ej. estandarizar "Packham" a partir de un grupo que incluye
-    justamente "Packham") -en ese caso esa fila se "promueve" a variedad
-    estándar en vez de tratarse como un choque."""
+def _validar_especie_id(cur, tipo: str, especie_id: int | None) -> int | None:
+    """Variedad SIEMPRE necesita una especie; Especie nunca lleva una."""
+    if tipo == "especie":
+        return None
+    if especie_id is None:
+        raise HTTPException(400, "Elige a qué especie pertenece esta variedad.")
+    cur.execute("SELECT 1 FROM valor_lista WHERE id = %s AND tipo = 'especie'", (especie_id,))
+    if not cur.fetchone():
+        raise HTTPException(404, "La especie indicada no existe.")
+    return especie_id
+
+
+def _buscar_o_crear_estandar(cur, tipo: str, valor_crudo: str, especie_id: int | None) -> int:
+    """Encuentra la variedad estándar con ese nombre EN ESA ESPECIE (para que
+    crear "Packham" desde dos grupos de similitud distintos de la misma
+    especie termine en la MISMA fila, pero un "August" de Durazno nunca se
+    confunda con un "August" de Nectarina) o la crea si no existe. Caso
+    normal: el nombre elegido para la variedad estándar coincide con uno de
+    los valores crudos que se le están por asignar -esa fila se "promueve" a
+    variedad estándar en vez de tratarse como un choque-."""
     valor = normalizar_texto_general(valor_crudo)
     clave = clave_normalizada(valor)
-    cur.execute("SELECT id, es_estandar FROM valor_lista WHERE tipo = %s AND valor_normalizado = %s", (tipo, clave))
+    if tipo == "especie":
+        cur.execute("SELECT id, es_estandar FROM valor_lista WHERE tipo = 'especie' AND valor_normalizado = %s", (clave,))
+    else:
+        cur.execute(
+            "SELECT id, es_estandar FROM valor_lista WHERE tipo = 'variedad' AND especie_id = %s AND valor_normalizado = %s",
+            (especie_id, clave),
+        )
     existente = cur.fetchone()
     if existente:
         if not existente["es_estandar"]:
@@ -100,14 +125,13 @@ def _buscar_o_crear_estandar(cur, tipo: str, valor_crudo: str) -> int:
             )
         return existente["id"]
     cur.execute(
-        "INSERT INTO valor_lista (tipo, valor, valor_normalizado, activo, es_estandar) VALUES (%s, %s, %s, true, true) RETURNING id",
-        (tipo, valor, clave),
+        "INSERT INTO valor_lista (tipo, valor, valor_normalizado, activo, es_estandar, especie_id) VALUES (%s, %s, %s, true, true, %s) RETURNING id",
+        (tipo, valor, clave, especie_id),
     )
     return cur.fetchone()["id"]
 
 
 _VERDE_OSCURO = "3D6B1F"
-_VERDE_CLARO = "EBF5E1"
 _FUENTE_HEADER = Font(bold=True, color="FFFFFF", size=10.5)
 _RELLENO_HEADER = PatternFill("solid", fgColor=_VERDE_OSCURO)
 
@@ -136,7 +160,7 @@ def exportar_listados() -> StreamingResponse:
     """Un único Excel con las 4 listas -Sold To, Ship To, Especie, Variedad-,
     tal como quedan después de homogenizar: variedades estándar primero, y
     para cada valor crudo a qué variedad estándar quedó asignado (o vacío si
-    todavía está pendiente)."""
+    todavía está pendiente). Variedad incluye la Especie a la que pertenece."""
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("SELECT nombre, codigo_sap, rut, activo FROM cliente ORDER BY nombre")
         clientes = cur.fetchall()
@@ -146,15 +170,19 @@ def exportar_listados() -> StreamingResponse:
         )
         plantas = cur.fetchall()
 
-        filas_por_tipo: dict[str, list[dict]] = {}
-        for tipo in TIPOS_VALIDOS:
-            cur.execute(
-                "SELECT a.valor, a.activo, a.es_estandar, e.valor AS asignado_a "
-                "FROM valor_lista a LEFT JOIN valor_lista e ON e.id = a.fusionado_en_id "
-                "WHERE a.tipo = %s ORDER BY a.es_estandar DESC, a.valor",
-                (tipo,),
-            )
-            filas_por_tipo[tipo] = cur.fetchall()
+        cur.execute(
+            "SELECT valor, activo, es_estandar, NULL AS asignado_a "
+            "FROM valor_lista WHERE tipo = 'especie' ORDER BY es_estandar DESC, valor"
+        )
+        especies = cur.fetchall()
+        cur.execute(
+            "SELECT v.valor, v.activo, v.es_estandar, esp.valor AS especie, e.valor AS asignado_a "
+            "FROM valor_lista v "
+            "JOIN valor_lista esp ON esp.id = v.especie_id "
+            "LEFT JOIN valor_lista e ON e.id = v.fusionado_en_id "
+            "WHERE v.tipo = 'variedad' ORDER BY esp.valor, v.es_estandar DESC, v.valor"
+        )
+        variedades = cur.fetchall()
 
     wb = Workbook()
     wb.remove(wb.active)
@@ -173,17 +201,23 @@ def exportar_listados() -> StreamingResponse:
         [[p["codigo_sap"], p["nombre"], p["cliente_nombre"], p["ciudad"], "Activo" if p["activo"] else "Inactivo"] for p in plantas],
         [14, 44, 34, 20, 12],
     )
-    for tipo, etiqueta in (("especie", "Especie"), ("variedad", "Variedad")):
-        _escribir_hoja(
-            wb,
-            etiqueta,
-            [etiqueta, "Tipo", "Estado", "Variedad estándar asignada"],
-            [
-                [f["valor"], "Estándar" if f["es_estandar"] else "Crudo", "Activo" if f["activo"] else "Inactivo", f["asignado_a"] or ""]
-                for f in filas_por_tipo[tipo]
-            ],
-            [30, 12, 12, 30],
-        )
+    _escribir_hoja(
+        wb,
+        "Especie",
+        ["Especie", "Tipo", "Estado", "Estándar asignado"],
+        [[f["valor"], "Estándar" if f["es_estandar"] else "Crudo", "Activo" if f["activo"] else "Inactivo", f["asignado_a"] or ""] for f in especies],
+        [30, 12, 12, 30],
+    )
+    _escribir_hoja(
+        wb,
+        "Variedad",
+        ["Especie", "Variedad", "Tipo", "Estado", "Variedad estándar asignada"],
+        [
+            [f["especie"], f["valor"], "Estándar" if f["es_estandar"] else "Crudo", "Activo" if f["activo"] else "Inactivo", f["asignado_a"] or ""]
+            for f in variedades
+        ],
+        [18, 30, 12, 12, 30],
+    )
 
     buffer = io.BytesIO()
     wb.save(buffer)
@@ -201,16 +235,20 @@ def listar_valores(
     tipo: str,
     incluir_inactivos: bool = Query(False),
     buscar: str | None = Query(None),
+    especie_id: int | None = Query(None),
 ) -> list[dict[str, Any]]:
     _validar_tipo(tipo)
     with conexion() as conn, cursor_dict(conn) as cur:
-        sql = "SELECT id, tipo, valor, activo, es_estandar, fusionado_en_id, creado_en FROM valor_lista WHERE tipo = %s"
+        sql = "SELECT id, tipo, valor, activo, es_estandar, fusionado_en_id, especie_id, creado_en FROM valor_lista WHERE tipo = %s"
         params: list[Any] = [tipo]
         if not incluir_inactivos:
             sql += " AND activo = true"
         if buscar:
             sql += " AND valor ILIKE %s"
             params.append(f"%{buscar}%")
+        if tipo == "variedad" and especie_id is not None:
+            sql += " AND especie_id = %s"
+            params.append(especie_id)
         sql += " ORDER BY valor"
         cur.execute(sql, params)
         return cur.fetchall()
@@ -224,12 +262,19 @@ def crear_valor(tipo: str, body: ValorListaIn) -> dict[str, Any]:
         raise HTTPException(400, "El valor no puede estar vacío.")
     clave = clave_normalizada(valor)
     with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT id FROM valor_lista WHERE tipo = %s AND valor_normalizado = %s", (tipo, clave))
+        especie_id = _validar_especie_id(cur, tipo, body.especie_id)
+        if tipo == "especie":
+            cur.execute("SELECT id FROM valor_lista WHERE tipo = 'especie' AND valor_normalizado = %s", (clave,))
+        else:
+            cur.execute(
+                "SELECT id FROM valor_lista WHERE tipo = 'variedad' AND especie_id = %s AND valor_normalizado = %s",
+                (especie_id, clave),
+            )
         if cur.fetchone():
             raise HTTPException(409, f"Ya existe un valor equivalente en {tipo}.")
         cur.execute(
-            "INSERT INTO valor_lista (tipo, valor, valor_normalizado, activo) VALUES (%s, %s, %s, %s) RETURNING id",
-            (tipo, valor, clave, body.activo),
+            "INSERT INTO valor_lista (tipo, valor, valor_normalizado, activo, especie_id) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            (tipo, valor, clave, body.activo, especie_id),
         )
         return {"id": cur.fetchone()["id"]}
 
@@ -242,15 +287,29 @@ def editar_valor(tipo: str, valor_id: int, body: ValorListaIn) -> dict[str, str]
         raise HTTPException(400, "El valor no puede estar vacío.")
     clave = clave_normalizada(valor)
     with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute(
-            "SELECT id FROM valor_lista WHERE tipo = %s AND valor_normalizado = %s AND id != %s",
-            (tipo, clave, valor_id),
-        )
+        if tipo == "especie":
+            especie_id = None
+            cur.execute(
+                "SELECT id FROM valor_lista WHERE tipo = 'especie' AND valor_normalizado = %s AND id != %s",
+                (clave, valor_id),
+            )
+        else:
+            cur.execute("SELECT id FROM valor_lista WHERE id = %s AND tipo = 'variedad'", (valor_id,))
+            if not cur.fetchone():
+                raise HTTPException(404, "Valor no encontrado")
+            # A diferencia de crear_valor, acá SÍ se permite reasignar la
+            # especie -es la vía para corregir a mano una variedad que quedó
+            # sin especie (datos legados) o mal clasificada-.
+            especie_id = _validar_especie_id(cur, tipo, body.especie_id)
+            cur.execute(
+                "SELECT id FROM valor_lista WHERE tipo = 'variedad' AND especie_id = %s AND valor_normalizado = %s AND id != %s",
+                (especie_id, clave, valor_id),
+            )
         if cur.fetchone():
             raise HTTPException(409, f"Ya existe otro valor equivalente en {tipo}.")
         cur.execute(
-            "UPDATE valor_lista SET valor = %s, valor_normalizado = %s, activo = %s WHERE id = %s AND tipo = %s",
-            (valor, clave, body.activo, valor_id, tipo),
+            "UPDATE valor_lista SET valor = %s, valor_normalizado = %s, activo = %s, especie_id = %s WHERE id = %s AND tipo = %s",
+            (valor, clave, body.activo, especie_id, valor_id, tipo),
         )
         if cur.rowcount == 0:
             raise HTTPException(404, "Valor no encontrado")
@@ -277,10 +336,10 @@ def eliminar_valor(tipo: str, valor_id: int) -> dict[str, str]:
                 "Un valor crudo no se elimina físicamente: desactívalo, o si está asignado, desasígnalo desde "
                 "Homogenizar para que vuelva a la lista pendiente.",
             )
-        # No se borra físicamente una variedad estándar que ya fue absorbida
-        # por otra -no debería pasar, pero por si acaso- ni que todavía
-        # tenga valores asignados -para eso está DELETE /estandares/{id},
-        # que primero los desasigna-.
+        if tipo == "especie":
+            cur.execute("SELECT 1 FROM valor_lista WHERE especie_id = %s", (valor_id,))
+            if cur.fetchone():
+                raise HTTPException(409, "Esta especie todavía tiene variedades asociadas: no se puede eliminar.")
         cur.execute("SELECT 1 FROM valor_lista WHERE fusionado_en_id = %s", (valor_id,))
         if cur.fetchone():
             raise HTTPException(
@@ -295,15 +354,23 @@ def eliminar_valor(tipo: str, valor_id: int) -> dict[str, str]:
 
 
 @router.get("/{tipo}/homogenizar")
-def candidatos_homogenizacion(tipo: str) -> list[dict[str, Any]]:
+def candidatos_homogenizacion(tipo: str, especie_id: int | None = Query(None)) -> list[dict[str, Any]]:
     """Agrupa valores activos que probablemente son el mismo dato repetido.
-    Nunca fusiona nada solo: solo propone -ver /homogenizar/aplicar-."""
+    Nunca fusiona nada solo: solo propone -ver /estandares y /asignar-. Para
+    variedad, especie_id es obligatorio: nunca se agrupan valores de
+    especies distintas, aunque el texto sea idéntico (ej. "June Gold" de
+    Durazno y "June Gold" de Manzana son variedades distintas)."""
     _validar_tipo(tipo)
+    if tipo == "variedad" and especie_id is None:
+        raise HTTPException(400, "Elige una especie primero para homogenizar sus variedades.")
     with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute(
-            "SELECT id, valor FROM valor_lista WHERE tipo = %s AND activo = true AND es_estandar = false AND fusionado_en_id IS NULL ORDER BY valor",
-            (tipo,),
-        )
+        sql = "SELECT id, valor FROM valor_lista WHERE tipo = %s AND activo = true AND es_estandar = false AND fusionado_en_id IS NULL"
+        params: list[Any] = [tipo]
+        if tipo == "variedad":
+            sql += " AND especie_id = %s"
+            params.append(especie_id)
+        sql += " ORDER BY valor"
+        cur.execute(sql, params)
         filas = cur.fetchall()
 
     for f in filas:
@@ -395,26 +462,31 @@ def candidatos_homogenizacion(tipo: str) -> list[dict[str, Any]]:
 
 
 @router.get("/{tipo}/estandares")
-def listar_estandares(tipo: str) -> dict[str, Any]:
+def listar_estandares(tipo: str, especie_id: int | None = Query(None)) -> dict[str, Any]:
     """Cada variedad estándar con los valores crudos que un administrador le
     asignó, más los valores crudos activos que todavía no se asignaron a
     ninguna. Es la vista de "clasificación final" -a diferencia de
-    /homogenizar, que es solo la ayuda de revisión-."""
+    /homogenizar, que es solo la ayuda de revisión-. Para variedad,
+    especie_id es obligatorio -mismo motivo que en /homogenizar-."""
     _validar_tipo(tipo)
+    if tipo == "variedad" and especie_id is None:
+        raise HTTPException(400, "Elige una especie primero.")
+    filtro_especie = " AND especie_id = %s" if tipo == "variedad" else ""
+    params_especie: list[Any] = [especie_id] if tipo == "variedad" else []
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(
-            "SELECT id, valor, activo FROM valor_lista WHERE tipo = %s AND es_estandar = true ORDER BY valor",
-            (tipo,),
+            f"SELECT id, valor, activo FROM valor_lista WHERE tipo = %s AND es_estandar = true{filtro_especie} ORDER BY valor",
+            [tipo, *params_especie],
         )
         estandares = cur.fetchall()
         cur.execute(
-            "SELECT id, valor, fusionado_en_id FROM valor_lista WHERE tipo = %s AND es_estandar = false AND fusionado_en_id IS NOT NULL ORDER BY valor",
-            (tipo,),
+            f"SELECT id, valor, fusionado_en_id FROM valor_lista WHERE tipo = %s AND es_estandar = false AND fusionado_en_id IS NOT NULL{filtro_especie} ORDER BY valor",
+            [tipo, *params_especie],
         )
         asignados = cur.fetchall()
         cur.execute(
-            "SELECT id, valor FROM valor_lista WHERE tipo = %s AND es_estandar = false AND fusionado_en_id IS NULL AND activo = true ORDER BY valor",
-            (tipo,),
+            f"SELECT id, valor FROM valor_lista WHERE tipo = %s AND es_estandar = false AND fusionado_en_id IS NULL AND activo = true{filtro_especie} ORDER BY valor",
+            [tipo, *params_especie],
         )
         sin_asignar = cur.fetchall()
 
@@ -435,14 +507,14 @@ def listar_estandares(tipo: str) -> dict[str, Any]:
 def crear_estandar(tipo: str, body: ValorListaIn) -> dict[str, Any]:
     """Crea una variedad estándar con nombre completamente libre -no tiene
     que derivarse del valor más común de ningún grupo-. Si el administrador
-    reutiliza un nombre que ya existe como estándar, se reusa esa misma fila
-    en vez de duplicarla (para que "Packham" propuesto desde dos grupos de
-    similitud distintos termine en la misma variedad)."""
+    reutiliza un nombre que ya existe como estándar EN LA MISMA ESPECIE, se
+    reusa esa misma fila en vez de duplicarla."""
     _validar_tipo(tipo)
     if not body.valor.strip():
         raise HTTPException(400, "El nombre de la variedad estándar no puede estar vacío.")
     with conexion() as conn, cursor_dict(conn) as cur:
-        estandar_id = _buscar_o_crear_estandar(cur, tipo, body.valor)
+        especie_id = _validar_especie_id(cur, tipo, body.especie_id)
+        estandar_id = _buscar_o_crear_estandar(cur, tipo, body.valor, especie_id)
         return {"id": estandar_id}
 
 
@@ -454,10 +526,20 @@ def editar_estandar(tipo: str, estandar_id: int, body: ValorListaIn) -> dict[str
         raise HTTPException(400, "El valor no puede estar vacío.")
     clave = clave_normalizada(valor)
     with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute(
-            "SELECT id FROM valor_lista WHERE tipo = %s AND valor_normalizado = %s AND id != %s",
-            (tipo, clave, estandar_id),
-        )
+        cur.execute("SELECT especie_id FROM valor_lista WHERE id = %s AND tipo = %s AND es_estandar = true", (estandar_id, tipo))
+        actual = cur.fetchone()
+        if not actual:
+            raise HTTPException(404, "Variedad estándar no encontrada")
+        if tipo == "especie":
+            cur.execute(
+                "SELECT id FROM valor_lista WHERE tipo = 'especie' AND valor_normalizado = %s AND id != %s",
+                (clave, estandar_id),
+            )
+        else:
+            cur.execute(
+                "SELECT id FROM valor_lista WHERE tipo = 'variedad' AND especie_id = %s AND valor_normalizado = %s AND id != %s",
+                (actual["especie_id"], clave, estandar_id),
+            )
         if cur.fetchone():
             raise HTTPException(409, f"Ya existe otro valor equivalente en {tipo}.")
         cur.execute(
@@ -490,11 +572,12 @@ def asignar_valor(tipo: str, valor_id: int, body: AsignarIn) -> dict[str, str]:
     """Asigna (o desasigna, con estandar_id=null) un valor crudo a una
     variedad estándar. Es la operación atómica detrás de todo el flujo:
     "crear variedad(es) libremente desde un grupo de similitud" es, para el
-    backend, una variedad nueva + N llamadas a este endpoint."""
+    backend, una variedad nueva + N llamadas a este endpoint. Para variedad,
+    el destino tiene que ser de la MISMA especie que el valor crudo."""
     _validar_tipo(tipo)
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(
-            "SELECT id, es_estandar FROM valor_lista WHERE id = %s AND tipo = %s",
+            "SELECT id, es_estandar, especie_id FROM valor_lista WHERE id = %s AND tipo = %s",
             (valor_id, tipo),
         )
         fila = cur.fetchone()
@@ -516,11 +599,14 @@ def asignar_valor(tipo: str, valor_id: int, body: AsignarIn) -> dict[str, str]:
             return {"estado": "ok"}
 
         cur.execute(
-            "SELECT 1 FROM valor_lista WHERE id = %s AND tipo = %s AND es_estandar = true",
+            "SELECT especie_id FROM valor_lista WHERE id = %s AND tipo = %s AND es_estandar = true",
             (body.estandar_id, tipo),
         )
-        if not cur.fetchone():
+        destino = cur.fetchone()
+        if not destino:
             raise HTTPException(404, "La variedad estándar de destino no existe.")
+        if tipo == "variedad" and destino["especie_id"] != fila["especie_id"]:
+            raise HTTPException(400, "No se puede asignar una variedad a una variedad estándar de otra especie.")
         cur.execute(
             "UPDATE valor_lista SET activo = false, fusionado_en_id = %s WHERE id = %s",
             (body.estandar_id, valor_id),

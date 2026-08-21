@@ -1,5 +1,10 @@
 export { useListado } from './hooks/useListado'
-export { listarValores, listarEspeciesActivas, listarVariedadesActivas, urlExportarListados } from './lib/api'
+export {
+  listarValores,
+  listarEspeciesActivas,
+  listarVariedadesActivasDeEspecie,
+  urlExportarListados,
+} from './lib/api'
 export { ValorListaForm } from './components/ValorListaForm'
 export { ValorListaTable } from './components/ValorListaTable'
 export { HomogenizarPanel } from './components/HomogenizarPanel'

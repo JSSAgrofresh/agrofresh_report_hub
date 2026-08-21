@@ -15,6 +15,13 @@ Excel oficial de dos hojas entregado por AgroFresh.
   "Abatete Fetel") NO se fusionan acá: quedan como filas separadas para que
   el administrador las revise con "Homogenizar" en el mantenedor.
 
+  IMPORTANTE: esta hoja trae Especie y Variedad como dos columnas sueltas,
+  SIN relación fila a fila -por eso las variedades que este script inserta
+  quedan sin especie_id (huérfanas)-. Después de correr este script hay que
+  correr también scripts/vincular_variedades_especie.py, que sí sabe a qué
+  especie pertenece cada variedad (viene de una tabla CROP/Variedad real,
+  más confiable) y completa esa relación.
+
 Seguro de repetir (idempotente): vuelve a correr sin duplicar filas.
 
 Uso:

@@ -7,12 +7,18 @@ export interface ValorLista {
   activo: boolean
   es_estandar: boolean
   fusionado_en_id: number | null
+  /** Solo aplica a tipo=variedad: a qué especie pertenece -"June Gold" de
+   * Durazno y "June Gold" de Manzana son filas distintas, cada una con su
+   * propio especie_id, nunca se fusionan entre sí-. */
+  especie_id: number | null
   creado_en: string
 }
 
 export interface ValorListaInput {
   valor: string
   activo: boolean
+  /** Obligatorio al crear/editar un valor de tipo=variedad. */
+  especie_id?: number | null
 }
 
 /** Grupo de valores parecidos: solo una AYUDA de revisión -nunca implica que

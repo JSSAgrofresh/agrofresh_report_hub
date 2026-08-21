@@ -30,6 +30,8 @@ interface EstadoGrupo {
 
 interface HomogenizarPanelProps {
   tipo: TipoListado
+  /** Obligatorio cuando tipo=variedad -nunca se homogeniza entre especies-. */
+  especieId?: number
   onCerrar: () => void
   onAplicado: () => void
 }
@@ -38,7 +40,7 @@ function nuevoBucket(nombreSugerido: string): Bucket {
   return { nombre: nombreSugerido, seleccionados: new Set(), creando: false, error: null, creado: false }
 }
 
-export function HomogenizarPanel({ tipo, onCerrar, onAplicado }: HomogenizarPanelProps) {
+export function HomogenizarPanel({ tipo, especieId, onCerrar, onAplicado }: HomogenizarPanelProps) {
   const [grupos, setGrupos] = useState<EstadoGrupo[] | null>(null)
   const [estandares, setEstandares] = useState<EstandaresResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -49,14 +51,15 @@ export function HomogenizarPanel({ tipo, onCerrar, onAplicado }: HomogenizarPane
 
   async function cargarEstandares() {
     try {
-      setEstandares(await listarEstandares(tipo))
+      setEstandares(await listarEstandares(tipo, especieId))
     } catch {
       setError('No se pudo cargar la lista de variedades estándar.')
     }
   }
 
   useEffect(() => {
-    candidatosHomogenizacion(tipo)
+    if (tipo === 'variedad' && !especieId) return
+    candidatosHomogenizacion(tipo, especieId)
       .then((candidatos) =>
         setGrupos(
           candidatos.map((grupo) => ({
@@ -69,7 +72,7 @@ export function HomogenizarPanel({ tipo, onCerrar, onAplicado }: HomogenizarPane
       .catch(() => setError('No se pudieron calcular los grupos candidatos.'))
     cargarEstandares()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tipo])
+  }, [tipo, especieId])
 
   function actualizarGrupo(indice: number, cambios: Partial<EstadoGrupo>) {
     setGrupos((actual) => {
@@ -122,7 +125,7 @@ export function HomogenizarPanel({ tipo, onCerrar, onAplicado }: HomogenizarPane
     }
     actualizarBucket(indiceGrupo, indiceBucket, { creando: true, error: null })
     try {
-      const { id: estandarId } = await crearEstandar(tipo, bucket.nombre.trim())
+      const { id: estandarId } = await crearEstandar(tipo, bucket.nombre.trim(), especieId)
       await Promise.all(ids.map((id) => asignarValor(tipo, id, estandarId)))
       actualizarBucket(indiceGrupo, indiceBucket, { creando: false, creado: true })
       actualizarGrupo(indiceGrupo, { asignados: new Set([...estadoGrupo.asignados, ...ids]) })
@@ -137,7 +140,7 @@ export function HomogenizarPanel({ tipo, onCerrar, onAplicado }: HomogenizarPane
     if (!nombreNuevo.trim()) return
     setOcupado(true)
     try {
-      await crearEstandar(tipo, nombreNuevo.trim())
+      await crearEstandar(tipo, nombreNuevo.trim(), especieId)
       setNombreNuevo('')
       await cargarEstandares()
       onAplicado()
@@ -216,6 +219,19 @@ export function HomogenizarPanel({ tipo, onCerrar, onAplicado }: HomogenizarPane
     } finally {
       setOcupado(false)
     }
+  }
+
+  if (tipo === 'variedad' && !especieId) {
+    return (
+      <div className={styles.contenedor}>
+        <p className={styles.vacio}>Elige una especie antes de homogenizar sus variedades.</p>
+        <div className={styles.acciones}>
+          <Button type="button" variant="secondary" onClick={onCerrar}>
+            Volver
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (

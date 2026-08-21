@@ -9,11 +9,12 @@ import type {
 
 export function listarValores(
   tipo: TipoListado,
-  opciones?: { incluirInactivos?: boolean; buscar?: string },
+  opciones?: { incluirInactivos?: boolean; buscar?: string; especieId?: number },
 ) {
   const params = new URLSearchParams()
   if (opciones?.incluirInactivos) params.set('incluir_inactivos', 'true')
   if (opciones?.buscar) params.set('buscar', opciones.buscar)
+  if (opciones?.especieId) params.set('especie_id', String(opciones.especieId))
   const qs = params.toString()
   return httpClient.get<ValorLista[]>(`/listados/${tipo}${qs ? `?${qs}` : ''}`)
 }
@@ -30,16 +31,24 @@ export function eliminarValor(tipo: TipoListado, id: number) {
   return httpClient.delete<{ estado: string }>(`/listados/${tipo}/${id}`)
 }
 
-export function candidatosHomogenizacion(tipo: TipoListado) {
-  return httpClient.get<GrupoHomogenizacion[]>(`/listados/${tipo}/homogenizar`)
+/** Para variedad, especieId es obligatorio -nunca se agrupan variedades de
+ * especies distintas, aunque el texto sea idéntico-. */
+export function candidatosHomogenizacion(tipo: TipoListado, especieId?: number) {
+  const qs = especieId ? `?especie_id=${especieId}` : ''
+  return httpClient.get<GrupoHomogenizacion[]>(`/listados/${tipo}/homogenizar${qs}`)
 }
 
-export function listarEstandares(tipo: TipoListado) {
-  return httpClient.get<EstandaresResponse>(`/listados/${tipo}/estandares`)
+export function listarEstandares(tipo: TipoListado, especieId?: number) {
+  const qs = especieId ? `?especie_id=${especieId}` : ''
+  return httpClient.get<EstandaresResponse>(`/listados/${tipo}/estandares${qs}`)
 }
 
-export function crearEstandar(tipo: TipoListado, valor: string) {
-  return httpClient.post<{ id: number }>(`/listados/${tipo}/estandares`, { valor, activo: true })
+export function crearEstandar(tipo: TipoListado, valor: string, especieId?: number) {
+  return httpClient.post<{ id: number }>(`/listados/${tipo}/estandares`, {
+    valor,
+    activo: true,
+    especie_id: especieId ?? null,
+  })
 }
 
 export function editarEstandar(tipo: TipoListado, id: number, datos: ValorListaInput) {
@@ -59,11 +68,13 @@ export function asignarValor(tipo: TipoListado, valorId: number, estandarId: num
 
 /** Solo las activas -para alimentar selects del resto de la app-. */
 export function listarEspeciesActivas() {
-  return listarValores('especie').then((v) => v.map((x) => x.valor))
+  return listarValores('especie')
 }
 
-export function listarVariedadesActivas() {
-  return listarValores('variedad').then((v) => v.map((x) => x.valor))
+/** Variedades activas de una especie puntual (id) -el select de Variedad en
+ * Nueva Solicitud depende de qué Especie se eligió antes-. */
+export function listarVariedadesActivasDeEspecie(especieId: number) {
+  return listarValores('variedad', { especieId }).then((v) => v.map((x) => x.valor))
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
