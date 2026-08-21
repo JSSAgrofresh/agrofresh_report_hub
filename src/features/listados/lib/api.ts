@@ -1,5 +1,11 @@
 import { httpClient } from '@/services/http/client'
-import type { GrupoHomogenizacion, TipoListado, ValorLista, ValorListaInput } from './tipos'
+import type {
+  EstandaresResponse,
+  GrupoHomogenizacion,
+  TipoListado,
+  ValorLista,
+  ValorListaInput,
+} from './tipos'
 
 export function listarValores(
   tipo: TipoListado,
@@ -28,11 +34,27 @@ export function candidatosHomogenizacion(tipo: TipoListado) {
   return httpClient.get<GrupoHomogenizacion[]>(`/listados/${tipo}/homogenizar`)
 }
 
-export function aplicarHomogenizacion(tipo: TipoListado, ids: number[], valorEstandar: string) {
-  return httpClient.post<{ estado: string; valor_estandar_id: number }>(
-    `/listados/${tipo}/homogenizar/aplicar`,
-    { ids, valor_estandar: valorEstandar },
-  )
+export function listarEstandares(tipo: TipoListado) {
+  return httpClient.get<EstandaresResponse>(`/listados/${tipo}/estandares`)
+}
+
+export function crearEstandar(tipo: TipoListado, valor: string) {
+  return httpClient.post<{ id: number }>(`/listados/${tipo}/estandares`, { valor, activo: true })
+}
+
+export function editarEstandar(tipo: TipoListado, id: number, datos: ValorListaInput) {
+  return httpClient.put<{ estado: string }>(`/listados/${tipo}/estandares/${id}`, datos)
+}
+
+export function eliminarEstandar(tipo: TipoListado, id: number) {
+  return httpClient.delete<{ estado: string }>(`/listados/${tipo}/estandares/${id}`)
+}
+
+/** Asigna un valor crudo a una variedad estándar (estandarId) o lo libera
+ * (estandarId = null) -es la operación atómica detrás de "crear variedades
+ * libremente desde un grupo de similitud" y de "mover entre grupos". */
+export function asignarValor(tipo: TipoListado, valorId: number, estandarId: number | null) {
+  return httpClient.post<{ estado: string }>(`/listados/${tipo}/${valorId}/asignar`, { estandar_id: estandarId })
 }
 
 /** Solo las activas -para alimentar selects del resto de la app-. */

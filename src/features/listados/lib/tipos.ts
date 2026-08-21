@@ -5,6 +5,7 @@ export interface ValorLista {
   tipo: TipoListado
   valor: string
   activo: boolean
+  es_estandar: boolean
   fusionado_en_id: number | null
   creado_en: string
 }
@@ -14,8 +15,28 @@ export interface ValorListaInput {
   activo: boolean
 }
 
+/** Grupo de valores parecidos: solo una AYUDA de revisión -nunca implica que
+ * todo el grupo sea una única variedad-. El administrador decide cuántas
+ * variedades estándar crea a partir de un grupo (ver EstandaresListado). */
 export interface GrupoHomogenizacion {
   confianza: 'alta' | 'revisar'
   valores: { id: number; valor: string }[]
   valor_propuesto: string
+}
+
+export interface ValorAsignado {
+  id: number
+  valor: string
+}
+
+export interface EstandarListado {
+  id: number
+  valor: string
+  activo: boolean
+  valores_asignados: ValorAsignado[]
+}
+
+export interface EstandaresResponse {
+  estandares: EstandarListado[]
+  sin_asignar: ValorAsignado[]
 }

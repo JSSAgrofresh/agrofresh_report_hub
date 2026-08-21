@@ -4,19 +4,25 @@ seleccionables de Especie y Variedad (Sold To / Ship To siguen viviendo en
 cliente/planta -ver catalogo.py-, ya son la fuente de verdad de esos dos y no
 se duplican acá).
 
-Cada valor vive en `valor_lista` (tipo, valor, activo). La normalización
-distingue dos casos:
-- Especie/Variedad: se guardan en formato "Primera Letra Mayúscula".
-- Sold To/Ship To: NUNCA pasan por acá -no se tocan-.
+Modelo de datos (valor_lista, tipo especie/variedad):
+- Valor "crudo": una fila normal (es_estandar=false). Si `fusionado_en_id` es
+  NULL, es un valor seleccionable tal cual. Si apunta a otra fila, significa
+  que un administrador lo asignó a esa variedad estandarizada -queda inactivo
+  para no aparecer duplicado en los selects, pero NUNCA se borra: las
+  solicitudes históricas guardan el texto tal cual, no un ID-.
+- Variedad "estándar": una fila con es_estandar=true. Es el valor que
+  realmente ofrecen los selects de la app junto con los valores crudos sin
+  asignar. Se crea, renombra y elimina a mano desde /estandares.
 
-"Homogenizar" agrupa valores que son claramente el mismo dato escrito de
-formas distintas (mayúsculas, acentos, espacios, puntuación -alta confianza,
-agrupados automáticamente-, o variantes ortográficas obvias -confianza
-"revisar", solo sugeridas-) para que un administrador las confirme y las
-fusione en un único valor estándar. Fusionar NUNCA borra el valor original:
-lo desactiva y lo deja apuntando al valor estándar (fusionado_en_id), así
-las solicitudes históricas -que guardan el texto tal cual, no un ID- no se
-ven afectadas.
+"Homogenizar" (GET /{tipo}/homogenizar) NUNCA fusiona nada: solo agrupa
+valores crudos que probablemente son el mismo dato mal escrito (mayúsculas,
+acentos, espacios, puntuación -alta confianza-, o variantes ortográficas
+obvias -a revisar-) como ayuda de revisión. Un mismo grupo de similitud puede
+contener MÁS DE UNA variedad real (ej. "Packham" y "Packham's Triumph" caen
+en el mismo grupo por nombre parecido, pero son variedades distintas), así
+que el administrador decide libremente cuántas variedades estándar crea a
+partir de un grupo y qué valores le asigna a cada una -ver /estandares y
+/{tipo}/{id}/asignar-.
 """
 import re
 import unicodedata
@@ -64,9 +70,30 @@ class ValorListaIn(BaseModel):
     activo: bool = True
 
 
-class HomogenizarIn(BaseModel):
-    ids: list[int]
-    valor_estandar: str
+class AsignarIn(BaseModel):
+    estandar_id: int | None = None
+
+
+def _buscar_o_crear_estandar(cur, tipo: str, valor_crudo: str) -> int:
+    """Encuentra la variedad estándar con ese nombre (para que crear
+    "Packham" desde dos grupos de similitud distintos termine en la MISMA
+    fila) o la crea si no existe."""
+    valor = normalizar_texto_general(valor_crudo)
+    clave = clave_normalizada(valor)
+    cur.execute("SELECT id, es_estandar FROM valor_lista WHERE tipo = %s AND valor_normalizado = %s", (tipo, clave))
+    existente = cur.fetchone()
+    if existente:
+        if not existente["es_estandar"]:
+            raise HTTPException(
+                409,
+                f'Ya existe un valor "{valor}" en {tipo} que no es una variedad estándar. Elimínalo o renómbralo primero.',
+            )
+        return existente["id"]
+    cur.execute(
+        "INSERT INTO valor_lista (tipo, valor, valor_normalizado, activo, es_estandar) VALUES (%s, %s, %s, true, true) RETURNING id",
+        (tipo, valor, clave),
+    )
+    return cur.fetchone()["id"]
 
 
 @router.get("/{tipo}")
@@ -77,7 +104,7 @@ def listar_valores(
 ) -> list[dict[str, Any]]:
     _validar_tipo(tipo)
     with conexion() as conn, cursor_dict(conn) as cur:
-        sql = "SELECT id, tipo, valor, activo, fusionado_en_id, creado_en FROM valor_lista WHERE tipo = %s"
+        sql = "SELECT id, tipo, valor, activo, es_estandar, fusionado_en_id, creado_en FROM valor_lista WHERE tipo = %s"
         params: list[Any] = [tipo]
         if not incluir_inactivos:
             sql += " AND activo = true"
@@ -156,7 +183,7 @@ def candidatos_homogenizacion(tipo: str) -> list[dict[str, Any]]:
     _validar_tipo(tipo)
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(
-            "SELECT id, valor FROM valor_lista WHERE tipo = %s AND activo = true AND fusionado_en_id IS NULL ORDER BY valor",
+            "SELECT id, valor FROM valor_lista WHERE tipo = %s AND activo = true AND es_estandar = false AND fusionado_en_id IS NULL ORDER BY valor",
             (tipo,),
         )
         filas = cur.fetchall()
@@ -249,44 +276,130 @@ def candidatos_homogenizacion(tipo: str) -> list[dict[str, Any]]:
     return grupos
 
 
-@router.post("/{tipo}/homogenizar/aplicar")
-def aplicar_homogenizacion(tipo: str, body: HomogenizarIn) -> dict[str, Any]:
-    """Fusiona los valores de `ids` en un único valor estándar activo. Los
-    demás quedan desactivados y apuntando al estándar (fusionado_en_id) -no
-    se borran, no se tocan solicitudes históricas ya guardadas con el texto
-    original-."""
+@router.get("/{tipo}/estandares")
+def listar_estandares(tipo: str) -> dict[str, Any]:
+    """Cada variedad estándar con los valores crudos que un administrador le
+    asignó, más los valores crudos activos que todavía no se asignaron a
+    ninguna. Es la vista de "clasificación final" -a diferencia de
+    /homogenizar, que es solo la ayuda de revisión-."""
     _validar_tipo(tipo)
-    if len(body.ids) < 2:
-        raise HTTPException(400, "Selecciona al menos 2 valores para homogenizar.")
-    valor_estandar = normalizar_texto_general(body.valor_estandar)
-    if not valor_estandar:
-        raise HTTPException(400, "El valor estándar no puede estar vacío.")
-    clave = clave_normalizada(valor_estandar)
-
     with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT id FROM valor_lista WHERE tipo = %s AND id = ANY(%s)", (tipo, body.ids))
-        filas = cur.fetchall()
-        if len(filas) != len(set(body.ids)):
-            raise HTTPException(404, "Alguno de los valores seleccionados ya no existe.")
+        cur.execute(
+            "SELECT id, valor, activo FROM valor_lista WHERE tipo = %s AND es_estandar = true ORDER BY valor",
+            (tipo,),
+        )
+        estandares = cur.fetchall()
+        cur.execute(
+            "SELECT id, valor, fusionado_en_id FROM valor_lista WHERE tipo = %s AND es_estandar = false AND fusionado_en_id IS NOT NULL ORDER BY valor",
+            (tipo,),
+        )
+        asignados = cur.fetchall()
+        cur.execute(
+            "SELECT id, valor FROM valor_lista WHERE tipo = %s AND es_estandar = false AND fusionado_en_id IS NULL AND activo = true ORDER BY valor",
+            (tipo,),
+        )
+        sin_asignar = cur.fetchall()
 
-        cur.execute("SELECT id FROM valor_lista WHERE tipo = %s AND valor_normalizado = %s", (tipo, clave))
-        existente = cur.fetchone()
-        if existente and existente["id"] in body.ids:
-            canonico_id = existente["id"]
-            cur.execute("UPDATE valor_lista SET valor = %s WHERE id = %s", (valor_estandar, canonico_id))
-        elif existente:
-            canonico_id = existente["id"]
-        else:
-            cur.execute(
-                "INSERT INTO valor_lista (tipo, valor, valor_normalizado, activo) VALUES (%s, %s, %s, true) RETURNING id",
-                (tipo, valor_estandar, clave),
-            )
-            canonico_id = cur.fetchone()["id"]
+    por_estandar: dict[int, list[dict]] = {}
+    for a in asignados:
+        por_estandar.setdefault(a["fusionado_en_id"], []).append({"id": a["id"], "valor": a["valor"]})
 
-        otros = [i for i in body.ids if i != canonico_id]
-        if otros:
+    return {
+        "estandares": [
+            {"id": e["id"], "valor": e["valor"], "activo": e["activo"], "valores_asignados": por_estandar.get(e["id"], [])}
+            for e in estandares
+        ],
+        "sin_asignar": [{"id": s["id"], "valor": s["valor"]} for s in sin_asignar],
+    }
+
+
+@router.post("/{tipo}/estandares")
+def crear_estandar(tipo: str, body: ValorListaIn) -> dict[str, Any]:
+    """Crea una variedad estándar con nombre completamente libre -no tiene
+    que derivarse del valor más común de ningún grupo-. Si el administrador
+    reutiliza un nombre que ya existe como estándar, se reusa esa misma fila
+    en vez de duplicarla (para que "Packham" propuesto desde dos grupos de
+    similitud distintos termine en la misma variedad)."""
+    _validar_tipo(tipo)
+    if not body.valor.strip():
+        raise HTTPException(400, "El nombre de la variedad estándar no puede estar vacío.")
+    with conexion() as conn, cursor_dict(conn) as cur:
+        estandar_id = _buscar_o_crear_estandar(cur, tipo, body.valor)
+        return {"id": estandar_id}
+
+
+@router.put("/{tipo}/estandares/{estandar_id}")
+def editar_estandar(tipo: str, estandar_id: int, body: ValorListaIn) -> dict[str, str]:
+    _validar_tipo(tipo)
+    valor = normalizar_texto_general(body.valor)
+    if not valor:
+        raise HTTPException(400, "El valor no puede estar vacío.")
+    clave = clave_normalizada(valor)
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "SELECT id FROM valor_lista WHERE tipo = %s AND valor_normalizado = %s AND id != %s",
+            (tipo, clave, estandar_id),
+        )
+        if cur.fetchone():
+            raise HTTPException(409, f"Ya existe otro valor equivalente en {tipo}.")
+        cur.execute(
+            "UPDATE valor_lista SET valor = %s, valor_normalizado = %s, activo = %s WHERE id = %s AND tipo = %s AND es_estandar = true",
+            (valor, clave, body.activo, estandar_id, tipo),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Variedad estándar no encontrada")
+        return {"estado": "ok"}
+
+
+@router.delete("/{tipo}/estandares/{estandar_id}")
+def eliminar_estandar(tipo: str, estandar_id: int) -> dict[str, str]:
+    """Elimina la variedad estándar y libera a todos los valores crudos que
+    tenía asignados -vuelven a quedar activos y sin asignar, no se borran-."""
+    _validar_tipo(tipo)
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "UPDATE valor_lista SET activo = true, fusionado_en_id = NULL WHERE tipo = %s AND fusionado_en_id = %s",
+            (tipo, estandar_id),
+        )
+        cur.execute("DELETE FROM valor_lista WHERE id = %s AND tipo = %s AND es_estandar = true", (estandar_id, tipo))
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Variedad estándar no encontrada")
+        return {"estado": "ok"}
+
+
+@router.post("/{tipo}/{valor_id}/asignar")
+def asignar_valor(tipo: str, valor_id: int, body: AsignarIn) -> dict[str, str]:
+    """Asigna (o desasigna, con estandar_id=null) un valor crudo a una
+    variedad estándar. Es la operación atómica detrás de todo el flujo:
+    "crear variedad(es) libremente desde un grupo de similitud" es, para el
+    backend, una variedad nueva + N llamadas a este endpoint."""
+    _validar_tipo(tipo)
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "SELECT id, es_estandar FROM valor_lista WHERE id = %s AND tipo = %s",
+            (valor_id, tipo),
+        )
+        fila = cur.fetchone()
+        if not fila:
+            raise HTTPException(404, "Valor no encontrado")
+        if fila["es_estandar"]:
+            raise HTTPException(400, "Una variedad estándar no se puede asignar a otra.")
+
+        if body.estandar_id is None:
             cur.execute(
-                "UPDATE valor_lista SET activo = false, fusionado_en_id = %s WHERE id = ANY(%s)",
-                (canonico_id, otros),
+                "UPDATE valor_lista SET activo = true, fusionado_en_id = NULL WHERE id = %s",
+                (valor_id,),
             )
-        return {"estado": "ok", "valor_estandar_id": canonico_id}
+            return {"estado": "ok"}
+
+        cur.execute(
+            "SELECT 1 FROM valor_lista WHERE id = %s AND tipo = %s AND es_estandar = true",
+            (body.estandar_id, tipo),
+        )
+        if not cur.fetchone():
+            raise HTTPException(404, "La variedad estándar de destino no existe.")
+        cur.execute(
+            "UPDATE valor_lista SET activo = false, fusionado_en_id = %s WHERE id = %s",
+            (body.estandar_id, valor_id),
+        )
+        return {"estado": "ok"}

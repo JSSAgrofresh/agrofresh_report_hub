@@ -30,7 +30,8 @@ export function ValorListaTable({ valores, onEditar, onCambiarEstado, onEliminar
               <td className={styles.nombre}>{v.valor}</td>
               <td>
                 <Badge tone={v.activo ? 'success' : 'neutral'}>{v.activo ? 'Activo' : 'Inactivo'}</Badge>
-                {v.fusionado_en_id && <Badge tone="warning">Fusionado</Badge>}
+                {v.es_estandar && <Badge tone="success">Estándar</Badge>}
+                {v.fusionado_en_id && <Badge tone="warning">Asignado</Badge>}
               </td>
               <td className={styles.acciones}>
                 <button className={styles.boton} onClick={() => onEditar(v)}>
