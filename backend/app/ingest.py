@@ -7,17 +7,26 @@ from pydantic import BaseModel
 from . import mapeo
 from .auditoria import CAMPOS_HOMOGENIZAR
 from .db import conexion, cursor_dict
+from .listados import clave_normalizada
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
-# Campos de solicitud que se comparan contra el catálogo real antes de
-# insertar una solicitud nueva. Reutiliza la misma lista de campos que
-# audita DataCore. Ojo: NO se exige calce exacto contra todo lo cargado
-# -eso bloquearía cualquier dato nuevo y legítimo (cliente recién onboarded,
-# especie que nunca se había cargado)-. Solo se manda a pendiente_revision
-# cuando el valor es una variante de mayúsculas/espacios de algo que YA
-# existe (probable error de tipeo); un valor genuinamente nuevo entra directo.
-CAMPOS_CATALOGO = [(campo, etiqueta) for _tabla, campo, etiqueta in CAMPOS_HOMOGENIZAR]
+# Sold To, Ship To, Especie y Variedad son los 4 campos con una fuente de
+# verdad real y administrada (cliente/planta y valor_lista -ver catalogo.py y
+# listados.py-): toda fila nueva SIEMPRE pasa por ahí antes de insertarse.
+# Si calza -exacto, o es un valor crudo ya homogenizado hacia una variedad
+# estándar- se reescribe al valor CANÓNICO antes de guardar. Si no calza con
+# nada, la fila entera se manda a pendiente_revision -nunca se autocrea un
+# cliente, planta, especie o variedad nuevos solo porque vinieron en un
+# archivo-: alguien tiene que asignarlo o escribirlo a mano desde
+# Listados/Pendientes. tipo_servicio y laboratorio no tienen ese maestro
+# todavía, así que siguen con la regla más laxa de antes (solo se avisa si es
+# una variante de mayúsculas/espacios de algo ya cargado; un valor
+# genuinamente nuevo entra directo).
+CAMPOS_LISTADOS = ("sold_to_raw", "ship_to_raw", "especie", "variedad")
+CAMPOS_CATALOGO = [
+    (campo, etiqueta) for _tabla, campo, etiqueta in CAMPOS_HOMOGENIZAR if campo not in CAMPOS_LISTADOS
+]
 
 
 class CargaRequest(BaseModel):
@@ -62,29 +71,15 @@ def _analito_id(cur, codigo: str, laboratorio: str | None) -> tuple[int | None, 
     return None, f"Analito {codigo} no está en el catálogo todavía, se guardó en analito_raw"
 
 
-# sold_to_raw/ship_to_raw no se comparan contra lo que ya hay cargado en
-# solicitud (eso solo detecta variantes de algo subido antes): se comparan
-# contra el catálogo oficial de Sold To / Ship To (tablas cliente/planta,
-# ver catalogo.py y migración 0007), que es la fuente de verdad real.
-_TABLA_CATALOGO_OFICIAL = {"sold_to_raw": "cliente", "ship_to_raw": "planta"}
-
-
 def _cargar_catalogos(cur) -> dict[str, dict[str, set[str]]]:
-    """Valores contra los que se compara cada fila nueva -el "catálogo real"-.
-    Para sold_to_raw/ship_to_raw es el catálogo oficial (cliente/planta); para
-    el resto son los valores ya existentes en solicitud. Guarda tanto los
-    valores exactos como su forma normalizada (sin mayúsculas ni espacios de
-    más) para poder distinguir "es nuevo de verdad" de "es la misma palabra
-    pero mal tipeada"."""
+    """Catálogo laxo para tipo_servicio/laboratorio -sin maestro real todavía,
+    así que se compara contra lo que ya hay cargado en solicitud, guardando
+    tanto los valores exactos como su forma normalizada para distinguir "es
+    nuevo de verdad" de "es la misma palabra pero mal tipeada"."""
     catalogos: dict[str, dict[str, set[str]]] = {}
     for campo, _etiqueta in CAMPOS_CATALOGO:
-        tabla_oficial = _TABLA_CATALOGO_OFICIAL.get(campo)
-        if tabla_oficial:
-            cur.execute(f"SELECT nombre FROM {tabla_oficial} WHERE activo")
-            valores = {r["nombre"] for r in cur.fetchall()}
-        else:
-            cur.execute(f"SELECT DISTINCT {campo} FROM solicitud WHERE {campo} IS NOT NULL")
-            valores = {r[campo] for r in cur.fetchall()}
+        cur.execute(f"SELECT DISTINCT {campo} FROM solicitud WHERE {campo} IS NOT NULL")
+        valores = {r[campo] for r in cur.fetchall()}
         catalogos[campo] = {
             "exactos": valores,
             "normalizados": {v.strip().lower() for v in valores},
@@ -96,7 +91,9 @@ def _fuera_de_catalogo(sol: dict[str, Any], catalogos: dict[str, dict[str, set[s
     """Solo marca un valor si es variante de mayúsculas/espacios de algo que
     YA existe (probable error de tipeo) — un valor genuinamente nuevo (que no
     se parece a nada cargado antes, ni siquiera normalizado) entra directo,
-    sin pedir revisión: no es un error, es un dato nuevo legítimo."""
+    sin pedir revisión: no es un error, es un dato nuevo legítimo. Aplica
+    solo a tipo_servicio/laboratorio -Sold To, Ship To, Especie y Variedad
+    usan la regla estricta de _resolver_listados-."""
     motivos = []
     for campo, etiqueta in CAMPOS_CATALOGO:
         valor = sol.get(campo)
@@ -107,6 +104,117 @@ def _fuera_de_catalogo(sol: dict[str, Any], catalogos: dict[str, dict[str, set[s
             continue
         if valor.strip().lower() in cat["normalizados"]:
             motivos.append({"campo": campo, "etiqueta": etiqueta, "valor": valor})
+    return motivos
+
+
+_ETIQUETA_LISTADO = {
+    "sold_to_raw": "Sold To (cliente)",
+    "ship_to_raw": "Ship To (sucursal)",
+    "especie": "Especie",
+    "variedad": "Variedad",
+}
+
+
+def _mapa_clientes(cur) -> dict[str, str]:
+    cur.execute("SELECT nombre FROM cliente WHERE activo")
+    return {clave_normalizada(r["nombre"]): r["nombre"] for r in cur.fetchall()}
+
+
+def _mapa_plantas(cur) -> dict[str, dict[str, str]]:
+    """Clave externa: nombre CANÓNICO del cliente (no el id) -así no depende
+    de haber resuelto el cliente antes por id, solo por su nombre ya
+    resuelto-."""
+    cur.execute(
+        "SELECT c.nombre AS cliente_nombre, p.nombre FROM planta p "
+        "JOIN cliente c ON c.id = p.cliente_id WHERE p.activo AND c.activo"
+    )
+    mapa: dict[str, dict[str, str]] = {}
+    for r in cur.fetchall():
+        mapa.setdefault(r["cliente_nombre"], {})[clave_normalizada(r["nombre"])] = r["nombre"]
+    return mapa
+
+
+def _mapa_especies(cur) -> dict[str, tuple[str, int]]:
+    """clave normalizada -> (valor canónico, especie_id). Incluye tanto las
+    especies activas tal cual, como los valores crudos ya homogenizados hacia
+    una -en ese caso el canónico es el de la especie estándar, no el texto
+    crudo que vino en el archivo-."""
+    cur.execute(
+        "SELECT a.valor_normalizado AS clave, COALESCE(e.valor, a.valor) AS canonico, COALESCE(e.id, a.id) AS id "
+        "FROM valor_lista a LEFT JOIN valor_lista e ON e.id = a.fusionado_en_id "
+        "WHERE a.tipo = 'especie' AND (a.activo OR a.fusionado_en_id IS NOT NULL)"
+    )
+    return {r["clave"]: (r["canonico"], r["id"]) for r in cur.fetchall()}
+
+
+def _mapa_variedades(cur) -> dict[int, dict[str, str]]:
+    """especie_id -> {clave normalizada -> valor canónico}. Mismo criterio de
+    homogenización que _mapa_especies."""
+    cur.execute(
+        "SELECT a.especie_id, a.valor_normalizado AS clave, COALESCE(e.valor, a.valor) AS canonico "
+        "FROM valor_lista a LEFT JOIN valor_lista e ON e.id = a.fusionado_en_id "
+        "WHERE a.tipo = 'variedad' AND (a.activo OR a.fusionado_en_id IS NOT NULL)"
+    )
+    mapa: dict[int, dict[str, str]] = {}
+    for r in cur.fetchall():
+        mapa.setdefault(r["especie_id"], {})[r["clave"]] = r["canonico"]
+    return mapa
+
+
+def _cargar_mapas_listados(cur) -> dict[str, Any]:
+    return {
+        "clientes": _mapa_clientes(cur),
+        "plantas": _mapa_plantas(cur),
+        "especies": _mapa_especies(cur),
+        "variedades": _mapa_variedades(cur),
+    }
+
+
+def _resolver_listados(sol: dict[str, Any], mapas: dict[str, Any]) -> list[dict[str, str]]:
+    """Reescribe sold_to_raw/ship_to_raw/especie/variedad de `sol` a su valor
+    CANÓNICO cuando calzan con Listados (exacto, o vía una homogenización ya
+    hecha). Lo que no calza con nada NO se reescribe ni se deja pasar: se
+    devuelve como motivo para mandar la fila entera a pendiente_revision -acá
+    no se autocrea nada, alguien tiene que asignarlo o escribirlo a mano-."""
+    motivos: list[dict[str, str]] = []
+
+    sold_to = sol.get("sold_to_raw")
+    sold_to_resuelto = False
+    especie_id: int | None = None
+    if sold_to:
+        canonico = mapas["clientes"].get(clave_normalizada(sold_to))
+        if canonico:
+            sol["sold_to_raw"] = canonico
+            sold_to_resuelto = True
+        else:
+            motivos.append({"campo": "sold_to_raw", "etiqueta": _ETIQUETA_LISTADO["sold_to_raw"], "valor": sold_to})
+
+    ship_to = sol.get("ship_to_raw")
+    if ship_to and sold_to_resuelto:
+        # Si el Sold To no calzó, tampoco tiene sentido buscar su Ship To -la
+        # fila ya va a pendiente_revision por el Sold To de todos modos-.
+        canonico_planta = mapas["plantas"].get(sol["sold_to_raw"], {}).get(clave_normalizada(ship_to))
+        if canonico_planta:
+            sol["ship_to_raw"] = canonico_planta
+        else:
+            motivos.append({"campo": "ship_to_raw", "etiqueta": _ETIQUETA_LISTADO["ship_to_raw"], "valor": ship_to})
+
+    especie = sol.get("especie")
+    if especie:
+        resuelto = mapas["especies"].get(clave_normalizada(especie))
+        if resuelto:
+            sol["especie"], especie_id = resuelto
+        else:
+            motivos.append({"campo": "especie", "etiqueta": _ETIQUETA_LISTADO["especie"], "valor": especie})
+
+    variedad = sol.get("variedad")
+    if variedad and especie_id is not None:
+        canonico_variedad = mapas["variedades"].get(especie_id, {}).get(clave_normalizada(variedad))
+        if canonico_variedad:
+            sol["variedad"] = canonico_variedad
+        else:
+            motivos.append({"campo": "variedad", "etiqueta": _ETIQUETA_LISTADO["variedad"], "valor": variedad})
+
     return motivos
 
 
@@ -129,6 +237,7 @@ def _procesar_filas(
         "pendientes_revision": 0,
     }
     catalogos = _cargar_catalogos(cur)
+    mapas_listados = _cargar_mapas_listados(cur)
     detalle: list[dict[str, Any]] = []
     advertencias: list[str] = []
 
@@ -173,7 +282,12 @@ def _procesar_filas(
         # cargado en la base), no se inserta directo. Se guarda entera en
         # pendiente_revision para aprobar, corregir o descartar desde DataCore.
         if not ya_existe and not saltar_catalogo:
-            fuera_de_catalogo = _fuera_de_catalogo(sol, catalogos)
+            # _resolver_listados va primero y reescribe sol en el momento
+            # -sold_to_raw/ship_to_raw/especie/variedad quedan con su valor
+            # canónico si calzaron con Listados-, así que si la fila termina
+            # entrando derecho (sin pendientes), ya entra con los 4 valores
+            # limpios, no con el texto crudo del archivo.
+            fuera_de_catalogo = _resolver_listados(sol, mapas_listados) + _fuera_de_catalogo(sol, catalogos)
             if fuera_de_catalogo:
                 resumen["pendientes_revision"] += 1
                 if escribir:

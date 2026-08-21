@@ -414,10 +414,11 @@ export function DataCoreView() {
             <div>
               <h3>Pendientes de revisión ({totalPendientes.toLocaleString('es-CL')})</h3>
               <p className={styles.panelAuditNota}>
-                Ingest y Converter no cargan directo una fila que traiga un valor que parece typo o mayúsculas
-                distintas de algo ya cargado (cliente, sucursal, especie, etc.) — un dato genuinamente nuevo entra
-                directo, sin pedir revisión. Corrige el campo y aprueba, apruébala tal cual si en realidad está bien,
-                o descártala.
+                Ingest y Converter no cargan directo una fila cuyo Sold To, Ship To, Especie o Variedad no calce con
+                Listados -ni exacto ni por una homogenización ya hecha-, sea porque parece un typo o porque es
+                genuinamente nuevo: alguien tiene que asignarlo o escribirlo a mano acá. Tipo de servicio y
+                Laboratorio siguen la regla más laxa de antes (solo se avisa si parece typo de algo ya cargado).
+                Corrige el campo y aprueba, apruébala tal cual si en realidad está bien, o descártala.
               </p>
             </div>
             <div className={styles.bannerAcciones}>
