@@ -163,16 +163,34 @@ def editar_valor(tipo: str, valor_id: int, body: ValorListaIn) -> dict[str, str]
 
 @router.delete("/{tipo}/{valor_id}")
 def eliminar_valor(tipo: str, valor_id: int) -> dict[str, str]:
+    """Borrado FÍSICO y definitivo -a propósito, se reserva para variedades
+    estándar vacías (creadas de más, sin nada asignado). Un valor crudo
+    (es_estandar=false) NUNCA se borra físicamente acá: si sobra, se
+    desactiva (PUT activo=false); si estaba asignado y se desasigna, tiene
+    que volver disponible para homogenizar de nuevo -no desaparecer-. Borrar
+    en la tabla general del mantenedor rompía justamente eso."""
     _validar_tipo(tipo)
     with conexion() as conn, cursor_dict(conn) as cur:
-        # No se borra físicamente un valor que ya fue absorbido por otro en
-        # una homogenización -se perdería la trazabilidad-; ahí solo cabe
-        # desactivar (PUT con activo=false).
+        cur.execute("SELECT es_estandar FROM valor_lista WHERE id = %s AND tipo = %s", (valor_id, tipo))
+        fila = cur.fetchone()
+        if not fila:
+            raise HTTPException(404, "Valor no encontrado")
+        if not fila["es_estandar"]:
+            raise HTTPException(
+                409,
+                "Un valor crudo no se elimina físicamente: desactívalo, o si está asignado, desasígnalo desde "
+                "Homogenizar para que vuelva a la lista pendiente.",
+            )
+        # No se borra físicamente una variedad estándar que ya fue absorbida
+        # por otra -no debería pasar, pero por si acaso- ni que todavía
+        # tenga valores asignados -para eso está DELETE /estandares/{id},
+        # que primero los desasigna-.
         cur.execute("SELECT 1 FROM valor_lista WHERE fusionado_en_id = %s", (valor_id,))
         if cur.fetchone():
             raise HTTPException(
                 409,
-                "Este valor es el resultado de una homogenización: no se puede eliminar, solo desactivar.",
+                "Esta variedad estándar todavía tiene valores asignados: elimínala desde Homogenizar para "
+                "liberarlos primero.",
             )
         cur.execute("DELETE FROM valor_lista WHERE id = %s AND tipo = %s", (valor_id, tipo))
         if cur.rowcount == 0:

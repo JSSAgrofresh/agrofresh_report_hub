@@ -40,7 +40,12 @@ export function ValorListaTable({ valores, onEditar, onCambiarEstado, onEliminar
                 <button className={styles.boton} onClick={() => onCambiarEstado(v)}>
                   {v.activo ? 'Desactivar' : 'Activar'}
                 </button>
-                {!v.fusionado_en_id && (
+                {/* Eliminar acá es DEFINITIVO -a diferencia de "Desactivar", no queda
+                    disponible para re-homogenizar-. Por eso solo se ofrece para
+                    variedades estándar vacías (sin valores asignados); un valor
+                    crudo nunca se borra desde acá -si sobra, se desactiva, o se
+                    deja sin asignar para que vuelva a aparecer en Homogenizar-. */}
+                {!v.fusionado_en_id && v.es_estandar && (
                   <button className={styles.botonPeligro} onClick={() => onEliminar(v)}>
                     Eliminar
                   </button>
