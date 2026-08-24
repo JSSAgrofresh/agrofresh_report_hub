@@ -6,6 +6,7 @@ export {
   modulosPermitidos,
   puedeAdministrarUsuarios,
   puedeVerModulo,
+  puedeVerTomaMuestras,
 } from './permisos'
 export { UsuarioForm } from './components/UsuarioForm'
 export { UsuariosTable } from './components/UsuariosTable'

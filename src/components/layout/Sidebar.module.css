@@ -11,7 +11,7 @@
   position: sticky;
   top: 0;
   height: 100vh;
-  overflow-y: auto;
+  overflow: hidden;
   background: linear-gradient(165deg, #24391a 0%, #345424 50%, #45681f 100%);
   padding: var(--space-5) var(--space-4);
   transition: transform 0.2s ease;
@@ -35,6 +35,8 @@
   flex-direction: column;
   gap: 2px;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .navLink {
@@ -123,6 +125,7 @@
 .pie {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   gap: var(--space-3);
   padding-top: var(--space-4);
   border-top: 1px solid rgba(255, 255, 255, 0.14);

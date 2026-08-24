@@ -11,15 +11,27 @@ import {
   useCatalogo,
 } from '@/features/catalogo'
 import type { Cliente, ClienteInput, Planta, PlantaInput } from '@/features/catalogo'
+import { HomogenizarPanel, ValorListaForm, ValorListaTable, urlExportarListados, useListado } from '@/features/listados'
+import type { TipoListado, ValorLista, ValorListaInput } from '@/features/listados'
 import styles from './ListadosView.module.css'
 
-type Pestana = 'clientes' | 'plantas'
+type Pestana = 'clientes' | 'plantas' | 'especie' | 'variedad'
 type Panel =
   | { modo: 'lista' }
   | { modo: 'nuevoCliente' }
   | { modo: 'editarCliente'; cliente: Cliente }
   | { modo: 'nuevaPlanta'; clientePreseleccionado?: Cliente }
   | { modo: 'editarPlanta'; planta: Planta }
+  | { modo: 'nuevoValor' }
+  | { modo: 'editarValor'; valor: ValorLista }
+  | { modo: 'homogenizar' }
+
+const ETIQUETA_PESTANA: Record<Pestana, string> = {
+  clientes: 'Sold To',
+  plantas: 'Ship To',
+  especie: 'Especie',
+  variedad: 'Variedad',
+}
 
 export function ListadosView() {
   const { clientes, plantas, cargando, error, crearCliente, editarCliente, crearPlanta, editarPlanta } =
@@ -29,6 +41,17 @@ export function ListadosView() {
   const [panel, setPanel] = useState<Panel>({ modo: 'lista' })
   const [guardando, setGuardando] = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
+
+  const tipoListado: TipoListado | null = pestana === 'especie' || pestana === 'variedad' ? pestana : null
+  const [especieSeleccionadaId, setEspecieSeleccionadaId] = useState<number | null>(null)
+
+  // Variedad siempre necesita una Especie elegida primero -por eso son dos
+  // instancias del hook: una para la pestaña Especie (y para alimentar el
+  // selector de especies), otra para Variedad, filtrada por la elegida-.
+  const especiesListado = useListado('especie')
+  const variedadListado = useListado('variedad', especieSeleccionadaId)
+  const listado = pestana === 'especie' ? especiesListado : variedadListado
+  const especiesActivas = especiesListado.valores.filter((e) => e.activo)
 
   const clientesFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
@@ -53,9 +76,16 @@ export function ListadosView() {
     )
   }, [plantas, busqueda])
 
+  const valoresFiltrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase()
+    if (!q) return listado.valores
+    return listado.valores.filter((v) => v.valor.toLowerCase().includes(q))
+  }, [listado.valores, busqueda])
+
   const TOPE = 200
   const clientesVisibles = clientesFiltrados.slice(0, TOPE)
   const plantasVisibles = plantasFiltradas.slice(0, TOPE)
+  const valoresVisibles = valoresFiltrados.slice(0, TOPE)
 
   async function guardarCliente(datos: ClienteInput) {
     setGuardando(true)
@@ -91,73 +121,196 @@ export function ListadosView() {
     }
   }
 
+  async function guardarValor(datos: ValorListaInput) {
+    setGuardando(true)
+    setErrorGuardado(null)
+    try {
+      if (panel.modo === 'editarValor') {
+        await listado.editar(panel.valor.id, datos)
+      } else {
+        await listado.crear(datos)
+      }
+      setPanel({ modo: 'lista' })
+    } catch {
+      setErrorGuardado(`No se pudo guardar el valor de ${ETIQUETA_PESTANA[pestana]}. Puede que ya exista uno equivalente.`)
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  async function cambiarEstadoValor(valor: ValorLista) {
+    await listado.editar(valor.id, { valor: valor.valor, activo: !valor.activo })
+  }
+
+  async function eliminarValor(valor: ValorLista) {
+    if (!window.confirm(`¿Eliminar "${valor.valor}"? Esta acción no se puede deshacer.`)) return
+    try {
+      await listado.eliminar(valor.id)
+    } catch {
+      window.alert('No se pudo eliminar. Si el valor ya fue usado en una homogenización, solo puedes desactivarlo.')
+    }
+  }
+
   return (
     <div>
       <Header
         title="Listados"
-        description="Catálogo oficial de Sold To y Ship To. Ingest y Converter homogenizan contra estos nombres antes de cargar datos nuevos."
+        description="Fuente estandarizada de Sold To, Ship To, Especie y Variedad. El resto de la app lee sus valores activos desde acá."
+        acciones={
+          <a className={styles.botonDescarga} href={urlExportarListados()} target="_blank" rel="noreferrer">
+            Descargar Excel
+          </a>
+        }
       />
 
       <Card>
         {panel.modo === 'lista' ? (
           <>
             <div className={styles.tabs}>
-              <button
-                type="button"
-                className={cn(styles.tab, pestana === 'clientes' && styles.tabActiva)}
-                onClick={() => setPestana('clientes')}
-              >
-                Sold To ({clientes.length})
-              </button>
-              <button
-                type="button"
-                className={cn(styles.tab, pestana === 'plantas' && styles.tabActiva)}
-                onClick={() => setPestana('plantas')}
-              >
-                Ship To ({plantas.length})
-              </button>
+              {(['clientes', 'plantas', 'especie', 'variedad'] as Pestana[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={cn(styles.tab, pestana === p && styles.tabActiva)}
+                  onClick={() => {
+                    setPestana(p)
+                    setBusqueda('')
+                  }}
+                >
+                  {ETIQUETA_PESTANA[p]}
+                  {' '}
+                  (
+                  {p === 'clientes'
+                    ? clientes.length
+                    : p === 'plantas'
+                      ? plantas.length
+                      : p === 'especie'
+                        ? especiesListado.valores.length
+                        : p === pestana
+                          ? variedadListado.valores.length
+                          : ''}
+                  )
+                </button>
+              ))}
             </div>
+
+            {pestana === 'variedad' && (
+              <div className={styles.selectorEspecie}>
+                <label>
+                  <span>Especie</span>
+                  <select
+                    value={especieSeleccionadaId ?? ''}
+                    onChange={(e) => setEspecieSeleccionadaId(e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">— elegir especie —</option>
+                    {especiesActivas.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.valor}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {!especieSeleccionadaId && (
+                  <p className={styles.notaTope}>
+                    Elige una especie para ver, crear y homogenizar sus variedades -"June Gold" de Durazno y
+                    "June Gold" de Manzana son variedades distintas, nunca se mezclan-.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className={styles.cabeceraTabla}>
               <input
                 className={styles.busqueda}
-                placeholder={pestana === 'clientes' ? 'Buscar por nombre, N° Sold To o RUT…' : 'Buscar por nombre, cliente, N° Ship To o ciudad…'}
+                placeholder={
+                  pestana === 'clientes'
+                    ? 'Buscar por nombre, N° Sold To o RUT…'
+                    : pestana === 'plantas'
+                      ? 'Buscar por nombre, cliente, N° Ship To o ciudad…'
+                      : `Buscar ${ETIQUETA_PESTANA[pestana]}…`
+                }
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
               />
-              <Button
-                onClick={() =>
-                  setPanel(pestana === 'clientes' ? { modo: 'nuevoCliente' } : { modo: 'nuevaPlanta' })
-                }
-              >
-                {pestana === 'clientes' ? 'Nuevo Sold To' : 'Nuevo Ship To'}
-              </Button>
+              <div className={styles.accionesHeader}>
+                {tipoListado && (
+                  <Button
+                    variant="secondary"
+                    disabled={pestana === 'variedad' && !especieSeleccionadaId}
+                    onClick={() => setPanel({ modo: 'homogenizar' })}
+                  >
+                    Homogenizar
+                  </Button>
+                )}
+                <Button
+                  disabled={pestana === 'variedad' && !especieSeleccionadaId}
+                  onClick={() =>
+                    setPanel(
+                      pestana === 'clientes'
+                        ? { modo: 'nuevoCliente' }
+                        : pestana === 'plantas'
+                          ? { modo: 'nuevaPlanta' }
+                          : { modo: 'nuevoValor' },
+                    )
+                  }
+                >
+                  Nuevo {ETIQUETA_PESTANA[pestana]}
+                </Button>
+              </div>
             </div>
 
-            {cargando && <p className={styles.estado}>Cargando catálogo…</p>}
-            {error && <p className={styles.estadoError}>{error}</p>}
+            {(pestana === 'clientes' || pestana === 'plantas' ? cargando : listado.cargando) && (
+              <p className={styles.estado}>Cargando…</p>
+            )}
+            {(pestana === 'clientes' || pestana === 'plantas' ? error : listado.error) && (
+              <p className={styles.estadoError}>{pestana === 'clientes' || pestana === 'plantas' ? error : listado.error}</p>
+            )}
 
-            {!cargando && !error && (
+            {pestana === 'clientes' && !cargando && !error && (
               <>
-                {(pestana === 'clientes' ? clientesFiltrados : plantasFiltradas).length > TOPE && (
+                {clientesFiltrados.length > TOPE && (
                   <p className={styles.notaTope}>
-                    Mostrando los primeros {TOPE} resultados de{' '}
-                    {(pestana === 'clientes' ? clientesFiltrados : plantasFiltradas).length}. Afina la búsqueda para
-                    ver otros.
+                    Mostrando los primeros {TOPE} resultados de {clientesFiltrados.length}. Afina la búsqueda para ver
+                    otros.
                   </p>
                 )}
-                {pestana === 'clientes' ? (
-                  <ClientesTable
-                    clientes={clientesVisibles}
-                    onEditar={(cliente) => setPanel({ modo: 'editarCliente', cliente })}
-                    onNuevaSucursal={(cliente) => setPanel({ modo: 'nuevaPlanta', clientePreseleccionado: cliente })}
-                  />
-                ) : (
-                  <PlantasTable
-                    plantas={plantasVisibles}
-                    onEditar={(planta) => setPanel({ modo: 'editarPlanta', planta })}
-                  />
+                <ClientesTable
+                  clientes={clientesVisibles}
+                  onEditar={(cliente) => setPanel({ modo: 'editarCliente', cliente })}
+                  onNuevaSucursal={(cliente) => setPanel({ modo: 'nuevaPlanta', clientePreseleccionado: cliente })}
+                />
+              </>
+            )}
+
+            {pestana === 'plantas' && !cargando && !error && (
+              <>
+                {plantasFiltradas.length > TOPE && (
+                  <p className={styles.notaTope}>
+                    Mostrando los primeros {TOPE} resultados de {plantasFiltradas.length}. Afina la búsqueda para ver
+                    otros.
+                  </p>
                 )}
+                <PlantasTable
+                  plantas={plantasVisibles}
+                  onEditar={(planta) => setPanel({ modo: 'editarPlanta', planta })}
+                />
+              </>
+            )}
+
+            {tipoListado && !(pestana === 'variedad' && !especieSeleccionadaId) && !listado.cargando && !listado.error && (
+              <>
+                {valoresFiltrados.length > TOPE && (
+                  <p className={styles.notaTope}>
+                    Mostrando los primeros {TOPE} resultados de {valoresFiltrados.length}. Afina la búsqueda para ver
+                    otros.
+                  </p>
+                )}
+                <ValorListaTable
+                  valores={valoresVisibles}
+                  onEditar={(valor) => setPanel({ modo: 'editarValor', valor })}
+                  onCambiarEstado={cambiarEstadoValor}
+                  onEliminar={eliminarValor}
+                />
               </>
             )}
           </>
@@ -171,7 +324,7 @@ export function ListadosView() {
             />
             {guardando && <p className={styles.estado}>Guardando…</p>}
           </>
-        ) : (
+        ) : panel.modo === 'nuevaPlanta' || panel.modo === 'editarPlanta' ? (
           <>
             {errorGuardado && <p className={styles.estadoError}>{errorGuardado}</p>}
             <PlantaForm
@@ -183,6 +336,24 @@ export function ListadosView() {
             />
             {guardando && <p className={styles.estado}>Guardando…</p>}
           </>
+        ) : panel.modo === 'nuevoValor' || panel.modo === 'editarValor' ? (
+          <>
+            {errorGuardado && <p className={styles.estadoError}>{errorGuardado}</p>}
+            <ValorListaForm
+              tipo={tipoListado ?? 'especie'}
+              valorExistente={panel.modo === 'editarValor' ? panel.valor : undefined}
+              onGuardar={guardarValor}
+              onCancelar={() => setPanel({ modo: 'lista' })}
+            />
+            {guardando && <p className={styles.estado}>Guardando…</p>}
+          </>
+        ) : (
+          <HomogenizarPanel
+            tipo={tipoListado ?? 'especie'}
+            especieId={especieSeleccionadaId ?? undefined}
+            onCerrar={() => setPanel({ modo: 'lista' })}
+            onAplicado={listado.refrescar}
+          />
         )}
       </Card>
     </div>

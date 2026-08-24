@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DragEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
-import { crearCarpeta } from '@/features/storage'
+import { ROUTES } from '@/constants/routes'
 import { HttpError } from '@/services/http/client'
 import {
   descargarExcelCruce,
@@ -18,12 +19,12 @@ import { SolicitudFichaModal } from './SolicitudFichaModal'
 import { ConfiguracionInformeModal } from './ConfiguracionInformeModal'
 import styles from './CromatografiaEmitirView.module.css'
 
-const CARPETA_SOLICITUDES = 'Solicitud de Muestreo'
 const TIPO_ARRASTRE_SOLICITUD = 'application/x-solicitud-archivo'
 
 interface FilaEnCruce {
   solicitud: Solicitud
   codigoAsignado: string | null
+  fechaRecepcion: string
 }
 
 interface ResultadoValidacion {
@@ -63,10 +64,10 @@ function validarCruce(analitosSolicitados: string[], resultados: ResultadoAnalit
 }
 
 export function CromatografiaEmitirView() {
+  const navigate = useNavigate()
   const [solicitudes, setSolicitudes] = useState<Solicitud[] | null>(null)
   const [errorSolicitudes, setErrorSolicitudes] = useState<string | null>(null)
-  const [carpetaNoExiste, setCarpetaNoExiste] = useState(false)
-  const [creandoCarpeta, setCreandoCarpeta] = useState(false)
+  const [sinSolicitudes, setSinSolicitudes] = useState(false)
   const [solicitudEnFicha, setSolicitudEnFicha] = useState<Solicitud | null>(null)
   const [mostrarConfiguracion, setMostrarConfiguracion] = useState(false)
 
@@ -88,10 +89,10 @@ export function CromatografiaEmitirView() {
       const resultado = await listarSolicitudes()
       setSolicitudes(resultado)
       setErrorSolicitudes(null)
-      setCarpetaNoExiste(false)
+      setSinSolicitudes(false)
     } catch (e) {
       if (e instanceof HttpError && e.status === 404) {
-        setCarpetaNoExiste(true)
+        setSinSolicitudes(true)
         setErrorSolicitudes(null)
         setSolicitudes([])
       } else {
@@ -103,18 +104,6 @@ export function CromatografiaEmitirView() {
   useEffect(() => {
     refrescarSolicitudes()
   }, [refrescarSolicitudes])
-
-  async function crearCarpetaSolicitudes() {
-    setCreandoCarpeta(true)
-    try {
-      await crearCarpeta('', CARPETA_SOLICITUDES)
-      await refrescarSolicitudes()
-    } catch {
-      setErrorSolicitudes('No se pudo crear la carpeta.')
-    } finally {
-      setCreandoCarpeta(false)
-    }
-  }
 
   async function subirGC(archivo: File) {
     setCargandoGC(true)
@@ -147,7 +136,9 @@ export function CromatografiaEmitirView() {
     const solicitud = solicitudes.find((s) => s.archivo === archivo)
     if (!solicitud) return
     setFilasCruce((prev) =>
-      prev.some((f) => f.solicitud.archivo === archivo) ? prev : [...prev, { solicitud, codigoAsignado: null }],
+      prev.some((f) => f.solicitud.archivo === archivo)
+        ? prev
+        : [...prev, { solicitud, codigoAsignado: null, fechaRecepcion: '' }],
     )
   }
 
@@ -155,6 +146,10 @@ export function CromatografiaEmitirView() {
     setFilasCruce((prev) =>
       prev.map((f) => (f.solicitud.archivo === archivo ? { ...f, codigoAsignado: codigo || null } : f)),
     )
+  }
+
+  function asignarFechaRecepcion(archivo: string, fecha: string) {
+    setFilasCruce((prev) => prev.map((f) => (f.solicitud.archivo === archivo ? { ...f, fechaRecepcion: fecha } : f)))
   }
 
   function quitarDeCruce(archivo: string) {
@@ -203,6 +198,7 @@ export function CromatografiaEmitirView() {
         resultados_por_codigo: resultadosPorCodigo,
         codigo_vial: f.muestra?.codigo ?? null,
         fecha_inyeccion: f.muestra?.fecha_inyeccion ?? null,
+        fecha_recepcion: f.fechaRecepcion || null,
       }
     })
   }
@@ -284,21 +280,21 @@ export function CromatografiaEmitirView() {
             </button>
           </div>
           <p className={styles.panelAyuda}>
-            Archivos en Storage / {CARPETA_SOLICITUDES}. Arrastra una fila hacia la zona de cruce; haz clic para ver
-            la ficha completa.
+            Solicitudes de muestreo del laboratorio AGROFRESH (Toma de muestras → Nueva solicitud). Arrastra una
+            fila hacia la zona de cruce; haz clic para ver la ficha completa.
           </p>
           {errorSolicitudes && <p className={styles.error}>{errorSolicitudes}</p>}
-          {carpetaNoExiste ? (
+          {sinSolicitudes ? (
             <div className={styles.avisoCarpeta}>
-              <p>Todavía no existe la carpeta "{CARPETA_SOLICITUDES}" en Storage.</p>
-              <Button variant="secondary" onClick={crearCarpetaSolicitudes} disabled={creandoCarpeta}>
-                {creandoCarpeta ? 'Creando…' : 'Crear carpeta'}
+              <p>Todavía no hay solicitudes de AGROFRESH creadas.</p>
+              <Button variant="secondary" onClick={() => navigate(ROUTES.tomaMuestrasNueva)}>
+                Ir a Nueva solicitud
               </Button>
             </div>
           ) : solicitudes === null ? (
             <p className={styles.estado}>Cargando…</p>
           ) : solicitudes.length === 0 ? (
-            <p className={styles.estado}>No hay solicitudes en Storage todavía.</p>
+            <p className={styles.estado}>No hay solicitudes de AGROFRESH todavía.</p>
           ) : (
             <div className={styles.tablaCaja}>
               <table className={styles.tabla}>
@@ -433,6 +429,7 @@ export function CromatografiaEmitirView() {
                   <th>Especie</th>
                   <th>Analitos solicitados</th>
                   <th>Código de vial</th>
+                  <th>Fecha recepción</th>
                   {columnasAnalito.map((a) => (
                     <th key={a}>{a}</th>
                   ))}
@@ -476,6 +473,14 @@ export function CromatografiaEmitirView() {
                             </option>
                           ))}
                         </select>
+                      </td>
+                      <td>
+                        <input
+                          type="date"
+                          value={f.fechaRecepcion}
+                          onChange={(e) => asignarFechaRecepcion(f.solicitud.archivo, e.target.value)}
+                          className={styles.selectCodigo}
+                        />
                       </td>
                       {columnasAnalito.map((a) => (
                         <td key={a} className={styles.mono}>

@@ -20,6 +20,7 @@ const TIPOS: { valor: TipoAcceso; etiqueta: string }[] = [
   { valor: 'admin_general', etiqueta: 'Administrador general' },
   { valor: 'admin_area', etiqueta: 'Administrador de área' },
   { valor: 'cliente', etiqueta: 'Cliente' },
+  { valor: 'muestreador', etiqueta: 'Muestreador' },
 ]
 
 export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps) {
