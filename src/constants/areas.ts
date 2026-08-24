@@ -1,7 +1,7 @@
 import backgroundLab from '@/assets/backgrounds/background_lab.jpg'
 import backgroundAccutab from '@/assets/backgrounds/background_accutab.jpg'
 
-export type AreaId = 'cromatografia' | 'postcosecha'
+export type AreaId = 'cromatografia' | 'postventa'
 
 export interface AreaConfig {
   id: AreaId
@@ -22,9 +22,9 @@ export const AREAS: Record<AreaId, AreaConfig> = {
     fondo: backgroundLab,
     modulos: ['converter', 'ingest', 'reports'],
   },
-  postcosecha: {
-    id: 'postcosecha',
-    nombre: 'Postcosecha',
+  postventa: {
+    id: 'postventa',
+    nombre: 'Post Venta',
     colorPrimario: '#1C7FA6',
     colorOscuro: '#124D63',
     fondo: backgroundAccutab,

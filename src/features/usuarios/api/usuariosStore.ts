@@ -23,7 +23,7 @@ const SEED: Usuario[] = [
     email: 'rpoblete@agrofresh.com',
     nombre: 'Rodrigo Poblete',
     tipoAcceso: 'admin_area',
-    area: 'postcosecha',
+    area: 'postventa',
   },
   {
     id: 'u-4',
