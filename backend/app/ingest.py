@@ -381,9 +381,23 @@ def _procesar_filas(
             sol["laboratorio"] = "Sin definir"
             motivos.append("Sin Laboratorio: se guardó como 'Sin definir', revisar y corregir después")
 
-        cur.execute("SELECT id FROM solicitud WHERE nro_solicitud = %s", (sol["nro_solicitud"],))
+        cur.execute(
+            "SELECT id, sold_to_raw, ship_to_raw, planta_id FROM solicitud WHERE nro_solicitud = %s",
+            (sol["nro_solicitud"],),
+        )
         existente = cur.fetchone()
         ya_existe = existente is not None
+
+        # _resolver_listados reescribe sold_to_raw/ship_to_raw/especie/variedad a su
+        # valor CANÓNICO cuando calzan con Listados -para fila nueva o existente por
+        # igual-, y devuelve como motivo lo que no calzó con nada. Se llama siempre
+        # -no solo para filas nuevas- para que una solicitud que ya existe (típico:
+        # la creó primero un Converter que no trae Sold To/Ship To) pueda completar
+        # después esos datos con el mismo rigor que una fila nueva, en vez de
+        # quedarse en NULL para siempre o -peor- crear un cliente/sucursal nuevo a
+        # partir de texto crudo sin pasar por Listados.
+        motivos_listados = _resolver_listados(sol, mapas_listados)
+        campos_no_resueltos = {m["campo"] for m in motivos_listados}
 
         # Antes de tocar nada más -y sobre todo antes de que _cliente_id/_planta_id
         # autocreen un cliente o sucursal nuevo sin avisar-: si esta es una solicitud
@@ -391,12 +405,7 @@ def _procesar_filas(
         # cargado en la base), no se inserta directo. Se guarda entera en
         # pendiente_revision para aprobar, corregir o descartar desde DataCore.
         if not ya_existe and not saltar_catalogo:
-            # _resolver_listados va primero y reescribe sol en el momento
-            # -sold_to_raw/ship_to_raw/especie/variedad quedan con su valor
-            # canónico si calzaron con Listados-, así que si la fila termina
-            # entrando derecho (sin pendientes), ya entra con los 4 valores
-            # limpios, no con el texto crudo del archivo.
-            fuera_de_catalogo = _resolver_listados(sol, mapas_listados) + _fuera_de_catalogo(sol, catalogos)
+            fuera_de_catalogo = motivos_listados + _fuera_de_catalogo(sol, catalogos)
             if fuera_de_catalogo:
                 resumen["pendientes_revision"] += 1
                 if escribir:
@@ -414,9 +423,25 @@ def _procesar_filas(
                 )
                 continue
 
+        # Para una solicitud que YA existe (fuera del flujo de aprobación manual,
+        # donde saltar_catalogo=True y se confía en lo que decidió el administrador),
+        # un Sold To/Ship To que no calzó con Listados NUNCA crea un cliente o
+        # sucursal nuevo a partir de texto crudo: se deja como estaba, y se avisa.
+        permitir_resolver_cliente = saltar_catalogo or not ya_existe or "sold_to_raw" not in campos_no_resueltos
+        if ya_existe and "sold_to_raw" in campos_no_resueltos and existente["sold_to_raw"] is None and sol["sold_to_raw"]:
+            motivos.append(
+                f"Sold To \"{sol['sold_to_raw']}\" no calza con Listados: no se pudo completar el dato "
+                "faltante de esta solicitud, corrígelo a mano desde Data Core."
+            )
+        if ya_existe and "ship_to_raw" in campos_no_resueltos and existente["ship_to_raw"] is None and sol["ship_to_raw"]:
+            motivos.append(
+                f"Ship To \"{sol['ship_to_raw']}\" no calza con Listados: no se pudo completar el dato "
+                "faltante de esta solicitud, corrígelo a mano desde Data Core."
+            )
+
         cliente_id = None
         nombre_cliente = sol["sold_to_raw"]
-        if nombre_cliente:
+        if nombre_cliente and permitir_resolver_cliente:
             if nombre_cliente in clientes_cache:
                 cliente_id = clientes_cache[nombre_cliente]
             else:
@@ -426,7 +451,7 @@ def _procesar_filas(
                     resumen["clientes_nuevos"] += 1
 
         planta_id = None
-        if sol["ship_to_raw"] and nombre_cliente:
+        if sol["ship_to_raw"] and nombre_cliente and permitir_resolver_cliente:
             clave_planta = (nombre_cliente, sol["ship_to_raw"])
             if clave_planta in plantas_cache:
                 planta_id = plantas_cache[clave_planta]
@@ -477,6 +502,21 @@ def _procesar_filas(
                     [datos[c] for c in columnas],
                 )
                 solicitud_id = cur.fetchone()["id"]
+            elif existente["sold_to_raw"] is None or existente["ship_to_raw"] is None or existente["planta_id"] is None:
+                # Solicitud que ya existe pero le faltaba Sold To/Ship To/planta_id
+                # -típico: la creó primero un Converter que no trae esos datos-.
+                # COALESCE completa solo lo que está NULL hoy: un dato que ya
+                # tenía valor nunca se pisa con lo que trae esta fila.
+                cur.execute(
+                    "UPDATE solicitud SET sold_to_raw = COALESCE(sold_to_raw, %s), "
+                    "ship_to_raw = COALESCE(ship_to_raw, %s), planta_id = COALESCE(planta_id, %s) WHERE id = %s",
+                    (
+                        sol["sold_to_raw"] if "sold_to_raw" not in campos_no_resueltos else None,
+                        sol["ship_to_raw"] if "ship_to_raw" not in campos_no_resueltos else None,
+                        planta_id,
+                        solicitud_id,
+                    ),
+                )
 
             # Si la solicitud ya existía, esto solo agrega lo que le faltaba
             # (ON CONFLICT DO NOTHING protege cualquier analito que ya tuviera).
