@@ -34,6 +34,7 @@ import {
   descartarLotePendientes,
   descartarPendiente,
   listarPendientes,
+  reintentarPendientes,
 } from '@/features/ingest'
 import type { Pendiente } from '@/features/ingest'
 import { HttpError } from '@/services/http/client'
@@ -183,6 +184,24 @@ export function DataCoreView() {
       await cargarPendientes(1)
     } catch (err) {
       setError(err instanceof HttpError ? err.message : 'No se pudo descartar el lote.')
+    } finally {
+      setProcesandoLote(false)
+    }
+  }
+
+  async function reintentarTodos() {
+    setProcesandoLote(true)
+    setError(null)
+    try {
+      const r = await reintentarPendientes()
+      alert(
+        `Se reintentaron ${r.reintentados.toLocaleString('es-CL')} pendientes: ${r.resueltos.toLocaleString('es-CL')} ` +
+          `ahora calzaron y se cargaron a la base; ${r.resumen.pendientes_revision.toLocaleString('es-CL')} siguen sin resolverse.`,
+      )
+      await cargarPendientes(1)
+      await refrescarTablas()
+    } catch (err) {
+      setError(err instanceof HttpError ? err.message : 'No se pudo reintentar el lote.')
     } finally {
       setProcesandoLote(false)
     }
@@ -418,12 +437,17 @@ export function DataCoreView() {
                 Listados -ni exacto ni por una homogenización ya hecha-, sea porque parece un typo o porque es
                 genuinamente nuevo: alguien tiene que asignarlo o escribirlo a mano acá. Tipo de servicio y
                 Laboratorio siguen la regla más laxa de antes (solo se avisa si parece typo de algo ya cargado).
-                Corrige el campo y aprueba, apruébala tal cual si en realidad está bien, o descártala.
+                Corrige el campo y aprueba, apruébala tal cual si en realidad está bien, o descártala. Si acabas de
+                agregar un alias o una variedad estándar nueva en Listados, usa "Reintentar todos" para volver a
+                evaluarlos automáticamente contra el maestro actualizado, sin tocarlos uno por uno.
               </p>
             </div>
             <div className={styles.bannerAcciones}>
               <Button variant="secondary" onClick={() => void descartarTodos()} disabled={procesandoLote}>
                 Descartar todos
+              </Button>
+              <Button variant="secondary" onClick={() => void reintentarTodos()} disabled={procesandoLote}>
+                {procesandoLote ? 'Procesando…' : 'Reintentar todos'}
               </Button>
               <Button onClick={() => void aprobarTodos()} disabled={procesandoLote}>
                 {procesandoLote ? 'Procesando…' : `Aprobar todos (${totalPendientes.toLocaleString('es-CL')})`}
