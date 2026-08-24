@@ -358,8 +358,8 @@ export function ReporteView({
         (o) =>
           (filtros.ingredientes.length === 0 ||
             (o.ingrediente != null && filtros.ingredientes.includes(o.ingrediente))) &&
-          (!filtros.cliente || o.cliente === filtros.cliente) &&
-          (!filtros.planta || o.planta === filtros.planta) &&
+          (!filtros.cliente || igual(o.cliente, filtros.cliente)) &&
+          (!filtros.planta || igual(o.planta, filtros.planta)) &&
           (!filtros.tipoAplicacion || igual(o.tipoAplicacion, filtros.tipoAplicacion)) &&
           (!filtros.tipoServicio || igual(o.tipoServicio, filtros.tipoServicio)) &&
           (!filtros.laboratorio || igual(o.laboratorio, filtros.laboratorio)) &&
