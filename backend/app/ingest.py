@@ -783,3 +783,44 @@ def descartar_lote(payload: LotePendientesIn) -> dict[str, Any]:
             cur.execute("DELETE FROM pendiente_revision RETURNING id")
         borrados = cur.fetchall()
     return {"descartados": len(borrados)}
+
+
+@router.post("/pendientes/reintentar")
+def reintentar_pendientes(payload: LotePendientesIn) -> dict[str, Any]:
+    """Vuelve a evaluar pendientes ya existentes contra el catálogo/Listados
+    actual -sin que un humano tenga que corregir fila por fila-. Útil después
+    de mejorar el maestro (agregar un alias, una nueva variedad estándar,
+    etc.): las filas que ahora sí calzan se insertan solas, con sus valores
+    ya canónicos; las que todavía no calzan quedan pendientes de nuevo, con
+    el motivo/sugerencia recalculado. Sin ids = reintenta todos."""
+    with conexion(escribir=True) as conn:
+        with cursor_dict(conn) as cur:
+            if payload.ids is not None:
+                cur.execute(
+                    "SELECT id, origen, fila FROM pendiente_revision WHERE id = ANY(%s) ORDER BY id",
+                    (payload.ids,),
+                )
+            else:
+                cur.execute("SELECT id, origen, fila FROM pendiente_revision ORDER BY id")
+            pendientes = cur.fetchall()
+            if not pendientes:
+                return {"reintentados": 0, "resumen": dict(RESUMEN_VACIO)}
+
+            ids_reintentados = [p["id"] for p in pendientes]
+            # Se borran antes de reprocesar: _procesar_filas vuelve a insertar en
+            # pendiente_revision -con motivos/sugerencias frescos- cualquier fila
+            # que todavía no calce, así que no queda duplicado ni se pierde nada.
+            cur.execute("DELETE FROM pendiente_revision WHERE id = ANY(%s)", (ids_reintentados,))
+
+            por_origen: dict[str, list[dict[str, Any]]] = {}
+            for p in pendientes:
+                por_origen.setdefault(p["origen"], []).append(p["fila"])
+
+            resumen_total = dict(RESUMEN_VACIO)
+            for origen, filas in por_origen.items():
+                r = _procesar_filas(cur, filas, escribir=True, origen=origen, saltar_catalogo=False)
+                for k in resumen_total:
+                    resumen_total[k] += r["resumen"][k]
+
+    resueltos = len(ids_reintentados) - resumen_total["pendientes_revision"]
+    return {"reintentados": len(ids_reintentados), "resueltos": resueltos, "resumen": resumen_total}
