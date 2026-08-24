@@ -40,10 +40,18 @@ export function confirmarCarga(filas: FilaIngest[]) {
   return httpClient.post<RespuestaCarga>('/ingest/confirmar', { filas, origen: 'ingest' })
 }
 
+export interface SugerenciaFuzzy {
+  valor: string
+  confianza: number
+}
+
 export interface MotivoPendiente {
   campo: string
   etiqueta: string
   valor: string
+  /** Posibles valores oficiales parecidos -nunca asignados solos, son solo
+   * para que el administrador elija con un clic en vez de tipear-. */
+  sugerencias?: SugerenciaFuzzy[]
 }
 
 export interface Pendiente {

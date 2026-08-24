@@ -824,6 +824,21 @@ function PendienteFila({
                 value={ediciones[m.campo] ?? ''}
                 onChange={(e) => setEdiciones((prev) => ({ ...prev, [m.campo]: e.target.value }))}
               />
+              {m.sugerencias && m.sugerencias.length > 0 && (
+                <div className={styles.sugerencias}>
+                  <span className={styles.sugerenciasEtiqueta}>¿Es alguno de estos?</span>
+                  {m.sugerencias.map((s) => (
+                    <button
+                      key={s.valor}
+                      type="button"
+                      className={styles.sugerenciaChip}
+                      onClick={() => setEdiciones((prev) => ({ ...prev, [m.campo]: s.valor }))}
+                    >
+                      {s.valor} <span className={styles.sugerenciaConfianza}>{Math.round(s.confianza * 100)}%</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           <div className={styles.corregirBloque}>
