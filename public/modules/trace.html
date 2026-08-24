@@ -405,6 +405,7 @@ table.comp tr:last-child td{border-bottom:none}
       <div class="btn-fila">
         <button class="btn" id="btnPdf">Generar informe PDF</button>
         <button class="btn sec" id="btnCsv">Exportar datos normalizados</button>
+        <button class="btn sec" id="btnGuardar">Guardar en el servidor</button>
         <button class="btn sec" id="btnReset">Empezar de nuevo</button>
       </div>
       <p style="margin:12px 0 0;font-size:12.5px;color:var(--tinta-3)">
@@ -1166,6 +1167,9 @@ function cargar(lista, tipoZona){
         if(!r.filas.length)
           throw new Error("El archivo no tiene ninguna lectura válida.");
         if(r.aviso) avisos.push(file.name + ": " + r.aviso);
+        // Se guarda el contenido tal cual vino del pendrive: al subir la carga
+        // al servidor se archiva el original junto a los datos normalizados.
+        r.original = cfg.binario ? null : fr.result;
         destino.push(r);
       }catch(err){
         alert("No se pudo leer «" + file.name + "».\n\n" + err.message);
@@ -1272,6 +1276,65 @@ $("btnPdf").onclick = () => {
   modoGraf = previo;
   dibujar(vis);
   setTimeout(() => window.print(), 120);
+};
+
+/* ============ Guardar la carga en el servidor ============
+   Lo que se sube es lo mismo que se ve en pantalla: los datos ya normalizados
+   y unificados (respetando los filtros activos), más los archivos originales
+   del pendrive. Después queda en "Reportes de Post Venta", con su fecha. */
+// El Report Hub pasa la URL del backend por la query del iframe (ver
+// TraceView.tsx). Abierto suelto, cae a /api del mismo origen.
+const API_BASE = new URLSearchParams(location.search).get("api") || "/api";
+
+function textoABase64(texto){
+  // btoa() solo acepta latin-1; los archivos pueden traer acentos.
+  const bytes = new TextEncoder().encode(texto);
+  let bin = "";
+  bytes.forEach(b => bin += String.fromCharCode(b));
+  return btoa(bin);
+}
+
+$("btnGuardar").onclick = async () => {
+  const vis = aplicarFiltros(todasLasFilas());
+  if(!vis.length){ alert("No hay lecturas para guardar."); return; }
+
+  const boton = $("btnGuardar");
+  const etiqueta = boton.textContent;
+  boton.disabled = true; boton.textContent = "Guardando…";
+  try{
+    const limite = id => { const v = parseFloat($(id).value); return isNaN(v) ? null : v; };
+    const adjuntos = ARCH()
+      .filter(a => typeof a.original === "string" && a.original.length)
+      .map(a => ({nombre: a.nombre, contenido_b64: textoABase64(a.original)}));
+
+    const r = await fetch(API_BASE + "/postventa/registros", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        cliente:     $("fCliente").value.trim() || null,
+        planta:      $("fUbic").value.trim()    || null,
+        equipo:      $("fSerie").value.trim()   || null,
+        responsable: $("fTecnico").value.trim() || null,
+        limites: {phMin: limite("fPhMin"), phMax: limite("fPhMax"),
+                  mvMin: limite("fMvMin"), mvMax: limite("fMvMax")},
+        filas: vis,
+        estadisticas: estad(vis),
+        archivos: adjuntos
+      })
+    });
+    if(!r.ok){
+      const detalle = await r.json().catch(() => null);
+      throw new Error((detalle && detalle.detail) || ("El servidor respondió " + r.status + "."));
+    }
+    const guardado = await r.json();
+    alert("Carga guardada (" + guardado.carpeta + ").\n\n" +
+          "Ya puedes verla en Report → Reportes de Post Venta.");
+  }catch(err){
+    alert("No se pudo guardar en el servidor.\n\n" + err.message +
+          "\n\nRevisa que el backend esté corriendo.");
+  }finally{
+    boton.disabled = false; boton.textContent = etiqueta;
+  }
 };
 
 $("btnReset").onclick = () => {

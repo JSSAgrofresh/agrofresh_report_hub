@@ -28,7 +28,9 @@ export const AREAS: Record<AreaId, AreaConfig> = {
     colorPrimario: '#1C7FA6',
     colorOscuro: '#124D63',
     fondo: backgroundAccutab,
-    modulos: ['trace'],
+    // 'reports' da acceso al hub de Report; qué reporte concreto ve cada
+    // usuario lo decide puedeVerReporte (ver features/usuarios/permisos.ts).
+    modulos: ['trace', 'reports'],
   },
 }
 
