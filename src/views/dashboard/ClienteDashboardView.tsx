@@ -17,6 +17,9 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
   // fruta filtrada todavía no tenga foto propia), el fondo del encabezado
   // es el de cereza -se actualiza en vivo según lo que el cliente filtre en Report-.
   const [especieFiltrada, setEspecieFiltrada] = useState<string | null>(null)
+  // El velo del encabezado toma el tono de la foto de la fruta -verde en pera,
+  // azul en arándano-, no el rojo de marca del área.
+  const fondoHero = area === 'cromatografia' ? fondoParaEspecie(especieFiltrada, config.fondo) : undefined
 
   return (
     <div>
@@ -24,7 +27,8 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
         area={config}
         titulo={titulo}
         descripcion={`Portal de cliente · ${config.nombre}. Acceso exclusivo a tus datos.`}
-        fondo={area === 'cromatografia' ? fondoParaEspecie(especieFiltrada, config.fondo) : undefined}
+        fondo={fondoHero?.imagen}
+        tinte={fondoHero?.tinte}
       />
 
       {area === 'cromatografia' ? (
