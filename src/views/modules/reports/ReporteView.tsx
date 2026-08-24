@@ -271,7 +271,12 @@ export function ReporteView({
   useEffect(() => {
     const especie = especiesOficiales.find((e) => e.valor === filtros.crop)
     listarValores('variedad', especie ? { especieId: especie.id } : undefined)
-      .then((vs) => setVariedadesOficiales(vs.map((v) => v.valor)))
+      // Sin especie elegida se piden TODAS las variedades, y ahí el mismo nombre
+      // puede venir más de una vez porque vive en dos especies distintas
+      // ("June Gold" existe en Durazno y en Nectarina). Como el filtro compara
+      // por texto, se deduplica: si no, la lista muestra la opción repetida y
+      // React reclama por keys duplicadas.
+      .then((vs) => setVariedadesOficiales(unique(vs.map((v) => v.valor))))
       .catch(() => setVariedadesOficiales([]))
   }, [filtros.crop, especiesOficiales])
 
