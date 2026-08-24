@@ -90,6 +90,7 @@ export interface Observacion {
   tipoServicio: string | null
   laboratorio: string | null
   crop: string | null
+  variedad: string | null
   semana: number | null
   mes: number | null
 }
