@@ -69,20 +69,31 @@ Write-Host "      Listo: $archivoDump ($tamano MB)" -ForegroundColor Green
 # devuelve error en ese caso. No alcanza con contar las lineas que salen: la
 # mayoria son cabeceras SQL. Las filas de verdad son las que van entre el
 # "COPY ... FROM stdin;" y el "\." que lo cierra.
-$salidaDatos = & $pgRestore --data-only --table=solicitud -f - $archivoDump 2>$null
-$filas = 0
-$dentroDelCopy = $false
-foreach ($linea in @($salidaDatos)) {
-    if (-not $dentroDelCopy) {
-        if ($linea -match '^COPY .+ FROM stdin;') { $dentroDelCopy = $true }
-        continue
+function Contar-FilasEnDump($dump, $tabla) {
+    $salida = & $pgRestore --data-only --table=$tabla -f - $dump 2>$null
+    $n = 0
+    $dentroDelCopy = $false
+    foreach ($linea in @($salida)) {
+        if (-not $dentroDelCopy) {
+            if ($linea -match '^COPY .+ FROM stdin;') { $dentroDelCopy = $true }
+            continue
+        }
+        if ($linea -match '^\\\.') { $dentroDelCopy = $false; continue }
+        $n++
     }
-    if ($linea -match '^\\\.') { $dentroDelCopy = $false; continue }
-    $filas++
+    return $n
 }
 
-Write-Host "      Filas de 'solicitud' en el dump: $filas"
-if ($filas -eq 0) {
+# Se miran varias tablas, no solo solicitud: es normal que este vacia mientras
+# las filas esperan aprobacion en pendiente_revision, y exigirle datos
+# rechazaria una migracion perfectamente buena.
+$totalFilas = 0
+foreach ($t in @("solicitud", "resultado", "pendiente_revision", "cliente")) {
+    $n = Contar-FilasEnDump $archivoDump $t
+    Write-Host ("      " + $t.PadRight(20) + ("{0:N0}" -f $n).PadLeft(10) + " filas en el dump")
+    $totalFilas += $n
+}
+if ($totalFilas -eq 0) {
     throw ("El dump trae la estructura pero ninguna fila. Revisa que la URL apunte a la base " +
            "correcta y que el usuario tenga permisos de lectura sobre el esquema lab.")
 }
@@ -112,30 +123,35 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "      pg_restore termino con avisos. Verificando el resultado..." -ForegroundColor Yellow
 }
 
-Write-Host "`nVerificando:" -ForegroundColor Cyan
-$conteo = Leer-Escalar $psql $UsuarioLocal $BaseLocal "SET search_path=lab,public; SELECT count(*) FROM solicitud"
+Write-Host "`nVerificando lo que quedo en el equipo:" -ForegroundColor Cyan
 
-# Ojo con el $null: un conteo de "0" es un string no vacio, asi que para
-# PowerShell vale como verdadero. Hay que comparar el numero de verdad.
-if ($null -eq $conteo) {
-    Limpiar-PasswordPg
-    throw "La tabla solicitud no quedo accesible: la restauracion no funciono. Revisa los avisos de arriba."
-}
-if ([int]$conteo -eq 0) {
-    Limpiar-PasswordPg
-    throw ("La tabla solicitud quedo vacia: se restauro la estructura pero no los datos. " +
-           "Suele pasar cuando la URL apunta al pooler de Neon en vez de la conexion directa.")
-}
-
-foreach ($t in @("solicitud", "resultado", "producto_aplicado", "cliente")) {
+$restaurado = 0
+$pendientes = 0
+foreach ($t in @("solicitud", "resultado", "producto_aplicado", "cliente", "analito", "pendiente_revision")) {
     $n = Leer-Escalar $psql $UsuarioLocal $BaseLocal "SET search_path=lab,public; SELECT count(*) FROM $t"
-    if ($null -ne $n) {
-        Write-Host ("      " + $t.PadRight(20) + ("{0:N0}" -f [int]$n).PadLeft(10) + " filas") -ForegroundColor Green
+    if ($null -eq $n) {
+        Write-Host ("      " + $t.PadRight(20) + "     tabla ausente") -ForegroundColor Red
+        continue
     }
+    Write-Host ("      " + $t.PadRight(20) + ("{0:N0}" -f [int]$n).PadLeft(10) + " filas") -ForegroundColor Green
+    $restaurado += [int]$n
+    if ($t -eq "pendiente_revision") { $pendientes = [int]$n }
+}
+
+if ($restaurado -eq 0) {
+    Limpiar-PasswordPg
+    throw "Las tablas quedaron vacias: se restauro la estructura pero no los datos. Revisa los avisos de arriba."
 }
 
 Limpiar-PasswordPg
 
-Write-Host "`nListo. La base local ya tiene los datos de Neon." -ForegroundColor Green
-Write-Host "Compara las solicitudes con lo que muestra la app en produccion: deben coincidir.`n" -ForegroundColor White
+Write-Host "`nListo. La base local ya es un espejo de Neon." -ForegroundColor Green
+Write-Host "Comprobalo contra la app en produccion: los numeros deben coincidir.`n" -ForegroundColor White
+
+if ($pendientes -gt 0) {
+    Write-Host "Nota: hay $pendientes filas esperando en pendiente_revision." -ForegroundColor Yellow
+    Write-Host "Es lo que quedo sin aprobar en la nube, donde el proceso se quedaba sin memoria."
+    Write-Host "Desde este equipo se puede aprobar sin ese limite, una vez levantado el backend.`n"
+}
+
 Write-Host "Siguiente paso: .\2-instalar-backend.ps1`n"
