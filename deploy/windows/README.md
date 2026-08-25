@@ -61,6 +61,44 @@ git clone https://github.com/JSSAgrofresh/agrofresh_report_hub.git
 > del tamaño de AgroFresh. La instalación nativa evita ese problema y además
 > tiene menos capas intermedias.
 
+## Cómo se ejecuta un script
+
+Si nunca corriste scripts de PowerShell, estos cuatro pasos son todo lo que hay
+que saber.
+
+**1. Abrir PowerShell como Administrador.** Botón de Windows → escribir
+`powershell` → click derecho sobre "Windows PowerShell" → *Ejecutar como
+administrador*. El título de la ventana tiene que decir `Administrador:`.
+
+**2. Permitir la ejecución de scripts.** Windows bloquea los archivos `.ps1` por
+defecto; sin esto, cualquier script falla con *"la ejecución de scripts está
+deshabilitada en este sistema"*. Se hace **una sola vez** en el equipo:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Responder `S` cuando pregunta.
+
+**3. Ir a la carpeta:**
+
+```powershell
+cd C:\AgroFresh\agrofresh_report_hub\deploy\windows
+```
+
+> Atajo: en el Explorador de Windows, click derecho sobre la carpeta →
+> *Abrir en Terminal*, y ya queda parado ahí.
+
+**4. Ejecutar:**
+
+```powershell
+.\0-revisar-que-tengo.ps1
+```
+
+El `.\` del principio es parte del comando: significa "en esta carpeta". Sin él,
+PowerShell no encuentra el archivo. Escribiendo `.\0` y apretando **Tab** se
+completa el nombre solo.
+
 ## Instalación
 
 Los scripts se corren una sola vez, en orden, desde

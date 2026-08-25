@@ -1,7 +1,7 @@
 # =============================================================================
 # 3. PUBLICAR EL BACKEND EN INTERNET CON CLOUDFLARE TUNNEL
 #
-# El túnel abre una conexión SALIENTE desde este equipo hacia Cloudflare, así
+# El tunel abre una conexion SALIENTE desde este equipo hacia Cloudflare, asi
 # que no hay que abrir puertos ni pedirle nada al router de la oficina, y el
 # equipo nunca queda expuesto directamente a internet. El certificado HTTPS
 # lo pone Cloudflare.
@@ -32,35 +32,35 @@ if (Get-Command cloudflared -ErrorAction SilentlyContinue) {
     Write-Host "      Ya estaba instalado." -ForegroundColor Green
 } else {
     winget install --id Cloudflare.cloudflared --accept-source-agreements --accept-package-agreements
-    if ($LASTEXITCODE -ne 0) { throw "Falló la instalación. Instalá cloudflared a mano desde https://github.com/cloudflare/cloudflared/releases" }
+    if ($LASTEXITCODE -ne 0) { throw "Fallo la instalacion. Instala cloudflared a mano desde https://github.com/cloudflare/cloudflared/releases" }
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
 }
 
 Write-Host "`n[2/5] Conectando con tu cuenta de Cloudflare..." -ForegroundColor Cyan
-Write-Host "      Se va a abrir el navegador: entrá y autorizá el dominio.`n" -ForegroundColor Yellow
+Write-Host "      Se va a abrir el navegador: entra y autoriza el dominio.`n" -ForegroundColor Yellow
 cloudflared tunnel login
-if ($LASTEXITCODE -ne 0) { throw "Falló el login en Cloudflare." }
+if ($LASTEXITCODE -ne 0) { throw "Fallo el login en Cloudflare." }
 
-Write-Host "`n[3/5] Creando el túnel '$NombreTunel'..." -ForegroundColor Cyan
+Write-Host "`n[3/5] Creando el tunel '$NombreTunel'..." -ForegroundColor Cyan
 $existentes = cloudflared tunnel list 2>&1 | Out-String
 if ($existentes -match [regex]::Escape($NombreTunel)) {
-    Write-Host "      El túnel ya existía, se reutiliza." -ForegroundColor Yellow
+    Write-Host "      El tunel ya existia, se reutiliza." -ForegroundColor Yellow
 } else {
     cloudflared tunnel create $NombreTunel
-    if ($LASTEXITCODE -ne 0) { throw "No se pudo crear el túnel." }
+    if ($LASTEXITCODE -ne 0) { throw "No se pudo crear el tunel." }
 }
 
-Write-Host "`n[4/5] Escribiendo la configuración..." -ForegroundColor Cyan
+Write-Host "`n[4/5] Escribiendo la configuracion..." -ForegroundColor Cyan
 $carpetaCf = Join-Path $env:USERPROFILE ".cloudflared"
 $credencial = Get-ChildItem -Path $carpetaCf -Filter "*.json" |
     Where-Object { $_.Name -ne "cert.pem" } |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 1
-if (-not $credencial) { throw "No se encontró el archivo de credenciales del túnel en $carpetaCf" }
+if (-not $credencial) { throw "No se encontro el archivo de credenciales del tunel en $carpetaCf" }
 
 $idTunel = [System.IO.Path]::GetFileNameWithoutExtension($credencial.Name)
 
-# ingress: todo lo que llegue al dominio se reenvía al backend local. La regla
+# ingress: todo lo que llegue al dominio se reenvia al backend local. La regla
 # http_status:404 del final es obligatoria para cloudflared (caso por defecto).
 $config = @"
 tunnel: $idTunel
@@ -87,7 +87,7 @@ Start-Service cloudflared -ErrorAction SilentlyContinue
 Write-Host "`nListo. El backend queda publicado en:" -ForegroundColor Green
 Write-Host "   https://$Dominio`n" -ForegroundColor White
 
-Write-Host "Falta un último paso, fuera de este equipo:" -ForegroundColor Yellow
-Write-Host "  1. En Vercel, cambiá la variable del frontend que apunta a la API"
-Write-Host "     por  https://$Dominio  y volvé a desplegar."
-Write-Host "  2. En backend\.env, poné la URL de Vercel en CORS_ORIGINS.`n"
+Write-Host "Falta un ultimo paso, fuera de este equipo:" -ForegroundColor Yellow
+Write-Host "  1. En Vercel, cambia la variable del frontend que apunta a la API"
+Write-Host "     por  https://$Dominio  y volve a desplegar."
+Write-Host "  2. En backend\.env, pone la URL de Vercel en CORS_ORIGINS.`n"

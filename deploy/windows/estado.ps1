@@ -1,8 +1,8 @@
 # =============================================================================
 # ESTADO DEL SERVIDOR
 #
-# Revisión rápida de que todo esté funcionando. Es el primer comando a correr
-# cuando alguien reporta que "la página no anda".
+# Revision rapida de que todo este funcionando. Es el primer comando a correr
+# cuando alguien reporta que "la pagina no anda".
 #
 #   .\estado.ps1
 # =============================================================================
@@ -20,7 +20,7 @@ function Estado($etiqueta, $ok, $detalle = "") {
     Write-Host ("  [{0}] {1,-28} {2}" -f $simbolo, $etiqueta, $detalle) -ForegroundColor $color
 }
 
-Write-Host "`n=== AgroFresh Report Hub — estado del servidor ===`n" -ForegroundColor Cyan
+Write-Host "`n=== AgroFresh Report Hub - estado del servidor ===`n" -ForegroundColor Cyan
 
 # 1. PostgreSQL
 $svcPg = Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -32,7 +32,7 @@ if (Test-Path $psql) {
     $n = & $psql -U $UsuarioLocal -d $BaseLocal -tAc "SET search_path=lab,public; SELECT count(*) FROM solicitud" 2>$null
     Estado "Base de datos" ($LASTEXITCODE -eq 0) "$n solicitudes"
 } else {
-    Estado "Base de datos" $false "no se encontró psql"
+    Estado "Base de datos" $false "no se encontro psql"
 }
 
 # 3. Backend
@@ -43,9 +43,9 @@ try {
     Estado "Backend (local)" $false "no responde en el puerto $Puerto"
 }
 
-# 4. Túnel
+# 4. Tunel
 $svcCf = Get-Service -Name "cloudflared" -ErrorAction SilentlyContinue
-Estado "Túnel a internet" ($svcCf -and $svcCf.Status -eq "Running") $(if ($svcCf) { $svcCf.Status } else { "no instalado" })
+Estado "Tunel a internet" ($svcCf -and $svcCf.Status -eq "Running") $(if ($svcCf) { $svcCf.Status } else { "no instalado" })
 
 # 5. Tareas programadas
 foreach ($t in @("AgroFresh Report Hub - Backend", "AgroFresh Report Hub - Respaldo diario")) {
@@ -54,16 +54,16 @@ foreach ($t in @("AgroFresh Report Hub - Backend", "AgroFresh Report Hub - Respa
     Estado "Tarea: $etiqueta" ($tarea -and $tarea.State -ne "Disabled") $(if ($tarea) { $tarea.State } else { "no registrada" })
 }
 
-# 6. Último respaldo
+# 6. Ultimo respaldo
 $ultimo = Get-ChildItem -Path "C:\AgroFresh\respaldos" -Filter "agrofresh-*.dump" -ErrorAction SilentlyContinue |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($ultimo) {
     $horas = [math]::Round(((Get-Date) - $ultimo.LastWriteTime).TotalHours, 1)
     $tamano = [math]::Round($ultimo.Length / 1MB, 1)
-    # Más de 48 h sin respaldo significa que la tarea diaria no está corriendo.
-    Estado "Último respaldo" ($horas -lt 48) "hace $horas h ($tamano MB)"
+    # Mas de 48 h sin respaldo significa que la tarea diaria no esta corriendo.
+    Estado "Ultimo respaldo" ($horas -lt 48) "hace $horas h ($tamano MB)"
 } else {
-    Estado "Último respaldo" $false "no hay ninguno"
+    Estado "Ultimo respaldo" $false "no hay ninguno"
 }
 
 # 7. Recursos
@@ -76,5 +76,5 @@ $diasPrendido = [math]::Round(((Get-Date) - $os.LastBootUpTime).TotalDays, 1)
 
 Write-Host "`n  RAM libre:      $ramLibre GB de $ramTotal GB"
 Write-Host "  Disco libre:    $discoLibre GB"
-Write-Host "  Encendido hace: $diasPrendido días"
+Write-Host "  Encendido hace: $diasPrendido dias"
 Write-Host ""

@@ -1,9 +1,9 @@
 # =============================================================================
-# 4. RESPALDOS AUTOMÁTICOS DIARIOS
+# 4. RESPALDOS AUTOMATICOS DIARIOS
 #
 # Al dejar Neon, los respaldos pasan a ser responsabilidad nuestra. Este script
-# programa un respaldo diario de la base completa y, si R2 está configurado,
-# sube una copia a la nube — para que un problema con este equipo (disco,
+# programa un respaldo diario de la base completa y, si R2 esta configurado,
+# sube una copia a la nube - para que un problema con este equipo (disco,
 # robo, incendio) no se lleve los datos.
 #
 # Requiere PowerShell como Administrador. Se ejecuta UNA SOLA VEZ.
@@ -36,7 +36,7 @@ $accion = New-ScheduledTaskAction `
 $disparador = New-ScheduledTaskTrigger -Daily -At $Hora
 
 # StartWhenAvailable: si el equipo estaba apagado a esa hora, el respaldo se
-# hace apenas vuelve a encenderse, en vez de saltarse el día.
+# hace apenas vuelve a encenderse, en vez de saltarse el dia.
 $opciones = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 $identidad = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 
@@ -44,8 +44,8 @@ Register-ScheduledTask -TaskName $nombreTarea -Action $accion -Trigger $disparad
     -Settings $opciones -Principal $identidad `
     -Description "Respaldo diario de la base del Report Hub." | Out-Null
 
-Write-Host "`nRespaldo programado todos los días a las $Hora." -ForegroundColor Green
-Write-Host "Se guardan los últimos $DiasQueSeGuardan días en C:\AgroFresh\respaldos`n"
+Write-Host "`nRespaldo programado todos los dias a las $Hora." -ForegroundColor Green
+Write-Host "Se guardan los ultimos $DiasQueSeGuardan dias en C:\AgroFresh\respaldos`n"
 
 Write-Host "Probando el respaldo ahora..." -ForegroundColor Cyan
 & $scriptRespaldo -DiasQueSeGuardan $DiasQueSeGuardan
