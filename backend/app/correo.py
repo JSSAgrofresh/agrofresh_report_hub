@@ -14,7 +14,7 @@ from . import config
 router = APIRouter(prefix="/api/correo", tags=["correo"])
 
 RESEND_URL = "https://api.resend.com/emails"
-FROM_ADDRESS = "onboarding@resend.dev"
+FROM_ADDRESS = "solicitudes@sanai.work"
 
 
 def _enviar(destinatario: str, asunto: str, cuerpo_html: str) -> None:
@@ -44,6 +44,9 @@ def _enviar(destinatario: str, asunto: str, cuerpo_html: str) -> None:
                 raise HTTPException(502, f"Resend respondió con status {resp.status}.")
     except HTTPException:
         raise
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(502, f"Resend error {exc.code}: {body}")
     except URLError as exc:
         raise HTTPException(502, f"No se pudo contactar Resend: {exc.reason}")
     except Exception as exc:
