@@ -1,13 +1,10 @@
 """
-Envío de correos desde el sistema usando la cuenta SMTP de AgroFresh
-(Microsoft 365 / smtp.office365.com:587).
-
-Las credenciales se leen de variables de entorno: MAIL_USER y MAIL_PASSWORD.
-Si no están configuradas, los endpoints devuelven 503 con un mensaje claro.
+Envío de correos vía Resend API (https://resend.com) — funciona sobre HTTPS
+(puerto 443), sin restricciones de hosting. La clave se lee de RESEND_API_KEY.
 """
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import json
+import urllib.request
+from urllib.error import URLError
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -16,30 +13,41 @@ from . import config
 
 router = APIRouter(prefix="/api/correo", tags=["correo"])
 
-SMTP_HOST = "smtp.office365.com"
-SMTP_PORT = 587
+RESEND_URL = "https://api.resend.com/emails"
+FROM_ADDRESS = "onboarding@resend.dev"
 
 
 def _enviar(destinatario: str, asunto: str, cuerpo_html: str) -> None:
-    if not config.MAIL_USER or not config.MAIL_PASSWORD:
-        raise HTTPException(503, "El servidor de correo no está configurado (faltan MAIL_USER / MAIL_PASSWORD).")
+    if not config.RESEND_API_KEY:
+        raise HTTPException(503, "El servidor de correo no está configurado (falta RESEND_API_KEY).")
 
-    msg = MIMEMultipart("alternative")
-    msg["From"] = config.MAIL_USER
-    msg["To"] = destinatario
-    msg["Subject"] = asunto
-    msg.attach(MIMEText(cuerpo_html, "html", "utf-8"))
+    payload = json.dumps({
+        "from": FROM_ADDRESS,
+        "to": [destinatario],
+        "subject": asunto,
+        "html": cuerpo_html,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        RESEND_URL,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {config.RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
 
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as smtp:
-            smtp.ehlo()
-            smtp.starttls()
-            smtp.login(config.MAIL_USER, config.MAIL_PASSWORD)
-            smtp.sendmail(config.MAIL_USER, destinatario, msg.as_string())
-    except smtplib.SMTPAuthenticationError:
-        raise HTTPException(502, "Error de autenticación SMTP — revisa MAIL_USER y MAIL_PASSWORD.")
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if resp.status not in (200, 201):
+                raise HTTPException(502, f"Resend respondió con status {resp.status}.")
+    except HTTPException:
+        raise
+    except URLError as exc:
+        raise HTTPException(502, f"No se pudo contactar Resend: {exc.reason}")
     except Exception as exc:
-        raise HTTPException(502, f"No se pudo enviar el correo: {exc}")
+        raise HTTPException(502, f"Error al enviar correo: {exc}")
 
 
 class CorreoPruebaIn(BaseModel):
@@ -59,8 +67,7 @@ def enviar_prueba(payload: CorreoPruebaIn) -> dict[str, str]:
           <p>Si lo estás leyendo, el envío de correos está funcionando correctamente.</p>
           <hr style="border:none;border-top:1px solid #ddd;margin:24px 0;">
           <p style="color:#888;font-size:12px;">
-            Enviado automáticamente por AgroFresh Report Hub —
-            solicitudes.analisis@agrofresh.com
+            Enviado automáticamente por AgroFresh Report Hub
           </p>
         </div>
         """,
