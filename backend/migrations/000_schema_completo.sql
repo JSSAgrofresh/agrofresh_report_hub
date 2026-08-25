@@ -75,7 +75,12 @@ CREATE TABLE IF NOT EXISTS producto_aplicado (
     id               SERIAL PRIMARY KEY,
     solicitud_id     INTEGER NOT NULL REFERENCES solicitud(id) ON DELETE CASCADE,
     analito_id       INTEGER REFERENCES analito(id),
-    tipo_aplicacion  TEXT
+    analito_raw      TEXT,
+    producto_raw     TEXT,
+    dosis            NUMERIC(12, 4),
+    tipo_aplicacion  TEXT,
+    linea_proceso    TEXT,
+    UNIQUE (solicitud_id, analito_id)
 );
 
 -- ----------------------------------------------------------------------------
