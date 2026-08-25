@@ -55,7 +55,7 @@ TABLAS: dict[str, list[str]] = {
 # Postgres), así que hay que declararlas de nuevo apuntando a las tablas clon.
 ORDEN_TABLAS_CLON = [
     "cliente", "analito", "planta", "solicitud", "resultado",
-    "producto_aplicado", "analito_limite", "equipo_accutab", "lectura_accutab",
+    "producto_aplicado", "analito_limite",
     "pendiente_revision",
 ]
 FKS_CLON = [
@@ -66,8 +66,6 @@ FKS_CLON = [
     ("producto_aplicado", "solicitud_id", "solicitud", "id", "RESTRICT"),
     ("producto_aplicado", "analito_id", "analito", "id", "RESTRICT"),
     ("analito_limite", "analito_id", "analito", "id", "CASCADE"),
-    ("equipo_accutab", "planta_id", "planta", "id", "RESTRICT"),
-    ("lectura_accutab", "equipo_id", "equipo_accutab", "id", "RESTRICT"),
 ]
 
 # Campos de texto que deberían tener un único valor "real" por significado:

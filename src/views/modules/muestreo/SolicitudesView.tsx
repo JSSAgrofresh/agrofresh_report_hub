@@ -7,7 +7,7 @@ import { useAuth } from '@/features/auth'
 import { esAdminGeneral } from '@/features/usuarios'
 import { ROUTES, rutaTomaMuestrasDetalle } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
-import { eliminarSolicitud, listarSolicitudes, urlExportarTodasLasSolicitudes } from '@/features/tomaMuestras'
+import { eliminarSolicitud, enviarCorreoPrueba, listarSolicitudes, urlExportarTodasLasSolicitudes } from '@/features/tomaMuestras'
 import type { Solicitud } from '@/features/tomaMuestras'
 import styles from './SolicitudesView.module.css'
 
@@ -56,6 +56,23 @@ export function SolicitudesView() {
   const [error, setError] = useState<string | null>(null)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
+  const [enviandoPrueba, setEnviandoPrueba] = useState(false)
+  const [mensajePrueba, setMensajePrueba] = useState<string | null>(null)
+
+  async function onEnviarPrueba() {
+    const dest = prompt('Ingresa el correo destinatario para el saludo de prueba:')
+    if (!dest) return
+    setEnviandoPrueba(true)
+    setMensajePrueba(null)
+    try {
+      await enviarCorreoPrueba(dest)
+      setMensajePrueba(`✅ Correo de prueba enviado a ${dest}`)
+    } catch {
+      setMensajePrueba('❌ No se pudo enviar el correo. Revisa la configuración SMTP en Render.')
+    } finally {
+      setEnviandoPrueba(false)
+    }
+  }
 
   const refrescar = useCallback(async () => {
     try {
@@ -142,6 +159,9 @@ export function SolicitudesView() {
             <a className={styles.botonDescargaTodas} href={urlExportarTodasLasSolicitudes()} target="_blank" rel="noreferrer">
               Descargar todas las solicitudes
             </a>
+            <Button variant="secondary" onClick={onEnviarPrueba} disabled={enviandoPrueba}>
+              {enviandoPrueba ? 'Enviando…' : '✉ Enviar saludo de prueba'}
+            </Button>
             <Button onClick={() => navigate(ROUTES.tomaMuestrasNueva)}>+ Nueva solicitud</Button>
           </div>
         }
@@ -149,6 +169,7 @@ export function SolicitudesView() {
 
       <Card>
         {error && <p className={styles.error}>{error}</p>}
+        {mensajePrueba && <p className={styles.error}>{mensajePrueba}</p>}
 
         <div className={styles.cabeceraTabla}>
           <p className={styles.contador}>

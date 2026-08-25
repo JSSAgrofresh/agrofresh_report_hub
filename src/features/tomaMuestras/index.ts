@@ -6,6 +6,7 @@ export {
   urlDescargaExcel,
   urlDescargaPdf,
   urlExportarTodasLasSolicitudes,
+  enviarCorreoPrueba,
 } from './lib/api'
 export {
   listarCamposConfig,

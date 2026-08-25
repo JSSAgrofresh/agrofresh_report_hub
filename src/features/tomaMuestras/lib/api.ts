@@ -17,6 +17,10 @@ import type {
   SolicitudInput,
 } from './tipos'
 
+export function enviarCorreoPrueba(destinatario: string) {
+  return httpClient.post<{ ok: string }>('/correo/prueba', { destinatario })
+}
+
 export function listarSolicitudes() {
   return httpClient.get<Solicitud[]>('/toma-muestras/solicitudes')
 }
