@@ -3,6 +3,7 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from psycopg2.extras import execute_values
 from pydantic import BaseModel
 
 from . import mapeo
@@ -507,6 +508,10 @@ def _procesar_filas(
     clientes_cache: dict[str, int | None] = {}
     plantas_cache: dict[tuple[str, str], int | None] = {}
 
+    # Acumuladores para batch insert al final del loop (evita N round-trips a la BD).
+    productos_batch: list[tuple] = []
+    resultados_batch: list[tuple] = []
+
     for i, fila_cruda in enumerate(filas):
         n_fila = i + 2  # misma numeración que usa Ingest en el frontend (fila 1 = encabezado)
         # Encabezados del Excel con espacios de más (ej. " FDL FINAL ") no calzan con
@@ -682,38 +687,20 @@ def _procesar_filas(
                     ),
                 )
 
-            # Si la solicitud ya existía, esto solo agrega lo que le faltaba
-            # (ON CONFLICT DO NOTHING protege cualquier analito que ya tuviera).
-            for p in productos_resueltos:
-                cur.execute(
-                    """INSERT INTO producto_aplicado
-                       (solicitud_id, analito_id, analito_raw, producto_raw, dosis, tipo_aplicacion, linea_proceso)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)
-                       ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
-                    (
-                        solicitud_id,
-                        p["analito_id"],
+            # Acumular para batch insert al final (ver execute_values post-loop).
+            if solicitud_id is not None:
+                for p in productos_resueltos:
+                    productos_batch.append((
+                        solicitud_id, p["analito_id"],
                         None if p["analito_id"] else p["analito_codigo"],
-                        p["producto_raw"],
-                        p["dosis"],
-                        p["tipo_aplicacion"],
-                        p["linea_proceso"],
-                    ),
-                )
-
-            for r in resultados_resueltos:
-                cur.execute(
-                    """INSERT INTO resultado (solicitud_id, analito_id, analito_raw, valor_num, valor_texto)
-                       VALUES (%s, %s, %s, %s, %s)
-                       ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
-                    (
-                        solicitud_id,
-                        r["analito_id"],
+                        p["producto_raw"], p["dosis"], p["tipo_aplicacion"], p["linea_proceso"],
+                    ))
+                for r in resultados_resueltos:
+                    resultados_batch.append((
+                        solicitud_id, r["analito_id"],
                         None if r["analito_id"] else r["analito_codigo"],
-                        r["valor_num"],
-                        r["valor_texto"],
-                    ),
-                )
+                        r["valor_num"], r["valor_texto"],
+                    ))
 
         if not ya_existe:
             resumen["solicitudes_nuevas"] += 1
@@ -735,6 +722,29 @@ def _procesar_filas(
             }
         )
         advertencias.extend(f"Fila {n_fila}: {m}" for m in motivos)
+
+    # Batch insert de productos y resultados: reemplaza N*M execute() individuales
+    # por 2 llamadas únicas, eliminando la mayor parte del tiempo de escritura.
+    if escribir:
+        if productos_batch:
+            execute_values(
+                cur,
+                """INSERT INTO producto_aplicado
+                   (solicitud_id, analito_id, analito_raw, producto_raw, dosis, tipo_aplicacion, linea_proceso)
+                   VALUES %s
+                   ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
+                productos_batch,
+                page_size=500,
+            )
+        if resultados_batch:
+            execute_values(
+                cur,
+                """INSERT INTO resultado (solicitud_id, analito_id, analito_raw, valor_num, valor_texto)
+                   VALUES %s
+                   ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
+                resultados_batch,
+                page_size=500,
+            )
 
     return {"resumen": resumen, "detalle": detalle, "advertencias": advertencias}
 
