@@ -11,8 +11,11 @@ param(
     [int]$Puerto = 8000,
     [string]$BaseLocal = "agrofresh",
     [string]$UsuarioLocal = "postgres",
-    [string]$CarpetaPg = "C:\Program Files\PostgreSQL\16\bin"
+    [string]$CarpetaPg = ""
 )
+
+. (Join-Path $PSScriptRoot "_comun.ps1")
+$CarpetaPg = Buscar-CarpetaPg $CarpetaPg
 
 function Estado($etiqueta, $ok, $detalle = "") {
     $simbolo = if ($ok) { "OK  " } else { "FALLA" }
@@ -27,10 +30,19 @@ $svcPg = Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue | Select-
 Estado "PostgreSQL" ($svcPg -and $svcPg.Status -eq "Running") $(if ($svcPg) { $svcPg.Status } else { "no instalado" })
 
 # 2. Datos
-$psql = Join-Path $CarpetaPg "psql.exe"
-if (Test-Path $psql) {
-    $n = & $psql -U $UsuarioLocal -d $BaseLocal -tAc "SET search_path=lab,public; SELECT count(*) FROM solicitud" 2>$null
-    Estado "Base de datos" ($LASTEXITCODE -eq 0) "$n solicitudes"
+# Se lee del .env del backend, que es donde vive la contrasena: asi este
+# diagnostico corre sin pedir nada por teclado (la tarea programada lo usa).
+$psql = if ($CarpetaPg) { Join-Path $CarpetaPg "psql.exe" } else { $null }
+if ($psql -and (Test-Path $psql)) {
+    $envFile = Join-Path (Split-Path $PSScriptRoot -Parent | Split-Path -Parent) "backend\.env"
+    if (Test-Path $envFile) {
+        $linea = Select-String -Path $envFile -Pattern '^\s*DB_PASSWORD\s*=' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($linea) { $env:PGPASSWORD = ($linea.Line -split '=', 2)[1].Trim() }
+    }
+    $n = Leer-Escalar $psql $UsuarioLocal $BaseLocal "SET search_path=lab,public; SELECT count(*) FROM solicitud"
+    Limpiar-PasswordPg
+    Estado "Base de datos" ($null -ne $n) $(if ($n) { "$n solicitudes" } else { "sin acceso" })
 } else {
     Estado "Base de datos" $false "no se encontro psql"
 }

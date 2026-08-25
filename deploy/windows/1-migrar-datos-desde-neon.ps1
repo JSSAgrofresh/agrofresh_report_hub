@@ -15,10 +15,18 @@ param(
 
     [string]$BaseLocal = "agrofresh",
     [string]$UsuarioLocal = "postgres",
-    [string]$CarpetaPg = "C:\Program Files\PostgreSQL\16\bin"
+    [string]$CarpetaPg = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+. (Join-Path $PSScriptRoot "_comun.ps1")
+
+$CarpetaPg = Buscar-CarpetaPg $CarpetaPg
+if (-not $CarpetaPg) {
+    throw "No se encontro PostgreSQL. Revisa que este instalado, o pasa la ruta con -CarpetaPg."
+}
+Write-Host "Usando PostgreSQL de: $CarpetaPg" -ForegroundColor DarkGray
 
 $pgDump    = Join-Path $CarpetaPg "pg_dump.exe"
 $psql      = Join-Path $CarpetaPg "psql.exe"
@@ -26,9 +34,13 @@ $pgRestore = Join-Path $CarpetaPg "pg_restore.exe"
 
 foreach ($exe in @($pgDump, $psql, $pgRestore)) {
     if (-not (Test-Path $exe)) {
-        throw "No se encontro $exe. Revisa que PostgreSQL este instalado y ajusta -CarpetaPg."
+        throw "No se encontro $exe. Revisa la instalacion de PostgreSQL."
     }
 }
+
+# La contrasena local se pide una vez y viaja en PGPASSWORD, que psql y
+# pg_restore leen solos. La de Neon va dentro de la propia UrlNeon.
+Pedir-PasswordPg $UsuarioLocal
 
 $carpetaTrabajo = "C:\AgroFresh\respaldos"
 New-Item -ItemType Directory -Force -Path $carpetaTrabajo | Out-Null
@@ -46,14 +58,21 @@ $tamano = [math]::Round((Get-Item $archivoDump).Length / 1MB, 1)
 Write-Host "      Listo: $archivoDump ($tamano MB)" -ForegroundColor Green
 
 Write-Host "`n[2/3] Creando la base local '$BaseLocal'..." -ForegroundColor Cyan
-$existe = & $psql -U $UsuarioLocal -tAc "SELECT 1 FROM pg_database WHERE datname='$BaseLocal'"
+$existe = Leer-Escalar $psql $UsuarioLocal "postgres" "SELECT 1 FROM pg_database WHERE datname='$BaseLocal'"
 if ($existe -eq "1") {
-    Write-Host "      La base '$BaseLocal' ya existe." -ForegroundColor Yellow
+    $cuantas = Leer-Escalar $psql $UsuarioLocal $BaseLocal "SET search_path=lab,public; SELECT count(*) FROM solicitud"
+    if ($cuantas) {
+        Write-Host "      La base '$BaseLocal' ya existe y tiene $cuantas solicitudes." -ForegroundColor Yellow
+    } else {
+        Write-Host "      La base '$BaseLocal' ya existe (sin datos del Report Hub)." -ForegroundColor Yellow
+    }
     $rta = Read-Host "      Borrarla y recrearla? Se pierde todo lo que tenga (s/N)"
     if ($rta -ne "s") { Write-Host "Cancelado." -ForegroundColor Yellow; exit 1 }
-    & $psql -U $UsuarioLocal -c "DROP DATABASE $BaseLocal"
+    & $psql -U $UsuarioLocal -d postgres -c "DROP DATABASE $BaseLocal"
+    if ($LASTEXITCODE -ne 0) { throw "No se pudo borrar la base. Cerra pgAdmin u otras conexiones abiertas y proba de nuevo." }
 }
-& $psql -U $UsuarioLocal -c "CREATE DATABASE $BaseLocal"
+& $psql -U $UsuarioLocal -d postgres -c "CREATE DATABASE $BaseLocal"
+if ($LASTEXITCODE -ne 0) { throw "No se pudo crear la base '$BaseLocal'." }
 
 Write-Host "`n[3/3] Restaurando los datos en el equipo..." -ForegroundColor Cyan
 & $pgRestore --no-owner --no-acl --dbname=$BaseLocal --username=$UsuarioLocal $archivoDump
@@ -64,8 +83,15 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "`nVerificando:" -ForegroundColor Cyan
-$conteo = & $psql -U $UsuarioLocal -d $BaseLocal -tAc "SET search_path=lab,public; SELECT count(*) FROM solicitud"
+$conteo = Leer-Escalar $psql $UsuarioLocal $BaseLocal "SET search_path=lab,public; SELECT count(*) FROM solicitud"
+if (-not $conteo) {
+    Limpiar-PasswordPg
+    throw "La tabla solicitud no quedo accesible: la restauracion no funciono. Revisa los avisos de arriba."
+}
 Write-Host "      Solicitudes migradas: $conteo" -ForegroundColor Green
 
+Limpiar-PasswordPg
+
 Write-Host "`nListo. La base local ya tiene los datos de Neon." -ForegroundColor Green
+Write-Host "Compara ese numero con el que muestra la app en produccion: deben coincidir.`n" -ForegroundColor White
 Write-Host "Siguiente paso: .\2-instalar-backend.ps1`n"
