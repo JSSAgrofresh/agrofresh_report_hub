@@ -49,6 +49,14 @@ $archivoDump = Join-Path $carpetaTrabajo "neon-$(Get-Date -Format 'yyyyMMdd-HHmm
 Write-Host "`n[1/3] Descargando la base desde Neon..." -ForegroundColor Cyan
 Write-Host "      (puede tardar varios minutos segun el tamano)"
 
+# Neon expone dos puntos de conexion: el pooler (PgBouncer) y el directo. El
+# pooler no soporta las sentencias que pg_dump necesita para leer el esquema y
+# puede devolver un dump incompleto sin avisar, asi que se usa el directo.
+if ($UrlNeon -match '-pooler\.') {
+    $UrlNeon = $UrlNeon -replace '-pooler\.', '.'
+    Write-Host "      Se detecto el pooler en la URL: se usa la conexion directa." -ForegroundColor Yellow
+}
+
 # --no-owner / --no-acl: los roles de Neon no existen en este equipo, y sin esto
 # el restore falla al intentar asignar permisos a usuarios inexistentes.
 & $pgDump --format=custom --no-owner --no-acl --file=$archivoDump $UrlNeon
@@ -56,6 +64,15 @@ if ($LASTEXITCODE -ne 0) { throw "pg_dump fallo. Revisa la URL de Neon." }
 
 $tamano = [math]::Round((Get-Item $archivoDump).Length / 1MB, 1)
 Write-Host "      Listo: $archivoDump ($tamano MB)" -ForegroundColor Green
+
+# Un dump sin filas de datos no sirve, y hasta aca pg_dump no devolvio error:
+# se cuenta cuantas tablas con contenido trae antes de tocar la base local.
+$entradas = & $pgRestore --list $archivoDump 2>$null
+$conDatos = @(@($entradas) | Where-Object { $_ -match 'TABLE DATA' }).Count
+Write-Host "      Tablas con datos en el dump: $conDatos"
+if ($conDatos -eq 0) {
+    throw "El dump no trae datos. Revisa que la URL apunte a la base correcta y que el usuario tenga permisos de lectura."
+}
 
 Write-Host "`n[2/3] Creando la base local '$BaseLocal'..." -ForegroundColor Cyan
 $existe = Leer-Escalar $psql $UsuarioLocal "postgres" "SELECT 1 FROM pg_database WHERE datname='$BaseLocal'"
@@ -84,14 +101,28 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "`nVerificando:" -ForegroundColor Cyan
 $conteo = Leer-Escalar $psql $UsuarioLocal $BaseLocal "SET search_path=lab,public; SELECT count(*) FROM solicitud"
-if (-not $conteo) {
+
+# Ojo con el $null: un conteo de "0" es un string no vacio, asi que para
+# PowerShell vale como verdadero. Hay que comparar el numero de verdad.
+if ($null -eq $conteo) {
     Limpiar-PasswordPg
     throw "La tabla solicitud no quedo accesible: la restauracion no funciono. Revisa los avisos de arriba."
 }
-Write-Host "      Solicitudes migradas: $conteo" -ForegroundColor Green
+if ([int]$conteo -eq 0) {
+    Limpiar-PasswordPg
+    throw ("La tabla solicitud quedo vacia: se restauro la estructura pero no los datos. " +
+           "Suele pasar cuando la URL apunta al pooler de Neon en vez de la conexion directa.")
+}
+
+foreach ($t in @("solicitud", "resultado", "producto_aplicado", "cliente")) {
+    $n = Leer-Escalar $psql $UsuarioLocal $BaseLocal "SET search_path=lab,public; SELECT count(*) FROM $t"
+    if ($null -ne $n) {
+        Write-Host ("      " + $t.PadRight(20) + ("{0:N0}" -f [int]$n).PadLeft(10) + " filas") -ForegroundColor Green
+    }
+}
 
 Limpiar-PasswordPg
 
 Write-Host "`nListo. La base local ya tiene los datos de Neon." -ForegroundColor Green
-Write-Host "Compara ese numero con el que muestra la app en produccion: deben coincidir.`n" -ForegroundColor White
+Write-Host "Compara las solicitudes con lo que muestra la app en produccion: deben coincidir.`n" -ForegroundColor White
 Write-Host "Siguiente paso: .\2-instalar-backend.ps1`n"
