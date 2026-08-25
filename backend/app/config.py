@@ -23,3 +23,4 @@ STORAGE_DIR = os.getenv("STORAGE_DIR", os.path.join(os.path.dirname(os.path.dirn
 
 MAIL_USER = os.getenv("MAIL_USER", "")
 MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
