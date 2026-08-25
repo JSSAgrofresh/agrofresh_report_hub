@@ -29,6 +29,61 @@ CAMPOS_CATALOGO = [
     (campo, etiqueta) for _tabla, campo, etiqueta in CAMPOS_HOMOGENIZAR if campo not in CAMPOS_LISTADOS
 ]
 
+# Algunos archivos traen la especie pegada al nombre de la variedad, en inglés
+# ("Apples - Cripps Pink", "Blueberries Duke", "Pears Packham"). El prefijo no
+# es parte del nombre real de la variedad: es la especie, repetida. Se saca
+# antes de buscar en Listados, PERO solo si coincide con la Especie que ya se
+# resolvió para esa misma fila -si el archivo dice Especie=Manzana y la
+# variedad viene con prefijo "Blueberries", eso es una contradicción real y la
+# fila tiene que ir a revisión, no adivinarse-.
+_PREFIJO_VARIEDAD_A_ESPECIE = {
+    "apple": "Manzana",
+    "apples": "Manzana",
+    "pear": "Pera",
+    "pears": "Pera",
+    "blueberry": "Arándano",
+    "blueberries": "Arándano",
+    "cherry": "Cerezas",
+    "cherries": "Cerezas",
+    "plum": "Ciruela",
+    "plums": "Ciruela",
+    "grape": "Uva",
+    "grapes": "Uva",
+    "nectarine": "Nectarina",
+    "nectarines": "Nectarina",
+    "peach": "Durazno",
+    "peaches": "Durazno",
+    "kiwi": "Kiwi",
+    "kiwis": "Kiwi",
+    "orange": "Naranja",
+    "oranges": "Naranja",
+    "lemon": "Limón",
+    "lemons": "Limón",
+    "mandarin": "Mandarina",
+    "mandarins": "Mandarina",
+    "clementine": "Clementina",
+    "clementines": "Clementina",
+    "avocado": "Palta",
+    "avocados": "Palta",
+    "pomegranate": "Granada",
+    "grapefruit": "Pomelo",
+}
+
+
+def clave_variedad_sin_prefijo(clave: str, especie_canonica: str) -> str | None:
+    """'apples cripps pink' -> 'cripps pink' cuando la Especie ya resuelta de
+    esa fila es Manzana. Devuelve None si no hay prefijo conocido, si el
+    prefijo contradice la especie, o si al sacarlo no queda nada."""
+    partes = clave.split(" ")
+    if len(partes) < 2:
+        return None
+    especie_del_prefijo = _PREFIJO_VARIEDAD_A_ESPECIE.get(partes[0])
+    if not especie_del_prefijo:
+        return None
+    if clave_normalizada(especie_del_prefijo) != clave_normalizada(especie_canonica):
+        return None
+    return " ".join(partes[1:]) or None
+
 
 class CargaRequest(BaseModel):
     filas: list[dict[str, Any]]
@@ -215,26 +270,56 @@ def _mapa_variedades(cur) -> dict[int, dict[str, str]]:
     return mapa
 
 
+def _mapa_variedades_huerfanas(cur) -> dict[str, tuple[str, int]]:
+    """clave normalizada -> (valor, id) de las variedades que están en Listados
+    pero SIN especie asignada.
+
+    La hoja "ESPECIE VARIEDAD" del Excel maestro trae dos columnas
+    independientes -19 especies por un lado, ~500 variedades por otro, sin
+    parear fila a fila-, así que al importarla ninguna variedad queda
+    vinculada a su especie. Como _mapa_variedades agrupa por especie_id, esas
+    quedan bajo la llave None y _resolver_listados nunca las encuentra: son
+    entradas muertas que garantizan que la fila caiga en pendientes aunque el
+    nombre esté bien escrito y sí exista en el maestro. Se usan como último
+    recurso -ver _resolver_listados-, adoptándolas hacia la especie con la que
+    aparecen por primera vez."""
+    cur.execute(
+        "SELECT id, valor, valor_normalizado FROM valor_lista "
+        "WHERE tipo = 'variedad' AND especie_id IS NULL AND activo AND fusionado_en_id IS NULL"
+    )
+    return {r["valor_normalizado"]: (r["valor"], r["id"]) for r in cur.fetchall()}
+
+
 def _cargar_mapas_listados(cur) -> dict[str, Any]:
     return {
         "clientes": _mapa_clientes(cur),
         "plantas": _mapa_plantas(cur),
         "especies": _mapa_especies(cur),
         "variedades": _mapa_variedades(cur),
+        "variedades_huerfanas": _mapa_variedades_huerfanas(cur),
         "mapeos_sold_to": _mapa_mapeos_confirmados(cur, "sold_to"),
         "mapeos_ship_to": _mapa_mapeos_confirmados(cur, "ship_to"),
     }
 
 
-def _resolver_listados(sol: dict[str, Any], mapas: dict[str, Any]) -> list[dict[str, str]]:
+def _resolver_listados(
+    sol: dict[str, Any], mapas: dict[str, Any], adopciones: list[dict[str, Any]] | None = None
+) -> list[dict[str, str]]:
     """Reescribe sold_to_raw/ship_to_raw/especie/variedad de `sol` a su valor
     CANÓNICO cuando calzan con Listados: primero un mapeo ya confirmado a
     mano antes (memoria), después calce exacto/normalizado. Lo que no calza
     con nada NO se reescribe ni se deja pasar: se devuelve como motivo para
     mandar la fila entera a pendiente_revision -con sugerencias por
     similitud si las hay, pero NUNCA asignadas solas, son solo para que el
-    administrador decida en Data Core-."""
+    administrador decida en Data Core-.
+
+    `adopciones` recolecta las variedades huérfanas que hubo que vincular a
+    una especie para poder resolver la fila. Acá no se escribe nada -esta
+    función no toca la base-: la persiste _procesar_filas, y solo cuando la
+    carga es real (nunca en preview)."""
     motivos: list[dict[str, Any]] = []
+    if adopciones is None:
+        adopciones = []
 
     sold_to = sol.get("sold_to_raw")
     sold_to_resuelto = False
@@ -312,17 +397,57 @@ def _resolver_listados(sol: dict[str, Any], mapas: dict[str, Any]) -> list[dict[
         clave = clave_normalizada(variedad)
         variedades_de_especie = mapas["variedades"].get(especie_id, {})
         canonico_variedad = variedades_de_especie.get(clave)
+
+        # "Apples - Cripps Pink" con Especie=Manzana es la MISMA variedad que
+        # "Cripps Pink": se saca el prefijo de especie y se busca de nuevo.
+        if not canonico_variedad:
+            clave_sin_prefijo = clave_variedad_sin_prefijo(clave, sol["especie"])
+            if clave_sin_prefijo:
+                canonico_variedad = variedades_de_especie.get(clave_sin_prefijo)
+                if canonico_variedad:
+                    clave = clave_sin_prefijo
+
         if canonico_variedad:
             sol["variedad"] = canonico_variedad
         else:
-            motivos.append(
-                {
-                    "campo": "variedad",
-                    "etiqueta": _ETIQUETA_LISTADO["variedad"],
-                    "valor": variedad,
-                    "sugerencias": _sugerencias_fuzzy(clave, variedades_de_especie),
-                }
-            )
+            # Último recurso antes de mandar la fila a revisión: la variedad
+            # puede existir en Listados pero sin especie asignada (ver
+            # _mapa_variedades_huerfanas). El nombre calza exacto con el
+            # maestro -no es un invento ni una similitud-, así que se adopta
+            # hacia esta especie en vez de pedir revisión por algo que ya
+            # estaba en la lista. Queda registrado como advertencia visible.
+            clave_huerfana = clave
+            huerfana = mapas["variedades_huerfanas"].get(clave_huerfana)
+            if not huerfana:
+                alterna = clave_variedad_sin_prefijo(clave, sol["especie"])
+                if alterna:
+                    huerfana = mapas["variedades_huerfanas"].get(alterna)
+                    if huerfana:
+                        clave_huerfana = alterna
+            if huerfana:
+                valor_huerfano, id_huerfano = huerfana
+                sol["variedad"] = valor_huerfano
+                # Se refleja de inmediato en los mapas en memoria para que el
+                # resto del lote la vea ya vinculada y no la adopte dos veces.
+                mapas["variedades"].setdefault(especie_id, {})[clave_huerfana] = valor_huerfano
+                del mapas["variedades_huerfanas"][clave_huerfana]
+                adopciones.append(
+                    {
+                        "valor_lista_id": id_huerfano,
+                        "especie_id": especie_id,
+                        "variedad": valor_huerfano,
+                        "especie": sol["especie"],
+                    }
+                )
+            else:
+                motivos.append(
+                    {
+                        "campo": "variedad",
+                        "etiqueta": _ETIQUETA_LISTADO["variedad"],
+                        "valor": variedad,
+                        "sugerencias": _sugerencias_fuzzy(clave, variedades_de_especie),
+                    }
+                )
 
     return motivos
 
@@ -381,9 +506,38 @@ def _procesar_filas(
             sol["laboratorio"] = "Sin definir"
             motivos.append("Sin Laboratorio: se guardó como 'Sin definir', revisar y corregir después")
 
-        cur.execute("SELECT id FROM solicitud WHERE nro_solicitud = %s", (sol["nro_solicitud"],))
+        cur.execute(
+            "SELECT id, sold_to_raw, ship_to_raw, planta_id FROM solicitud WHERE nro_solicitud = %s",
+            (sol["nro_solicitud"],),
+        )
         existente = cur.fetchone()
         ya_existe = existente is not None
+
+        # _resolver_listados reescribe sold_to_raw/ship_to_raw/especie/variedad a su
+        # valor CANÓNICO cuando calzan con Listados -para fila nueva o existente por
+        # igual-, y devuelve como motivo lo que no calzó con nada. Se llama siempre
+        # -no solo para filas nuevas- para que una solicitud que ya existe (típico:
+        # la creó primero un Converter que no trae Sold To/Ship To) pueda completar
+        # después esos datos con el mismo rigor que una fila nueva, en vez de
+        # quedarse en NULL para siempre o -peor- crear un cliente/sucursal nuevo a
+        # partir de texto crudo sin pasar por Listados.
+        adopciones: list[dict[str, Any]] = []
+        motivos_listados = _resolver_listados(sol, mapas_listados, adopciones)
+        campos_no_resueltos = {m["campo"] for m in motivos_listados}
+
+        # Vincular la variedad huérfana a su especie es un cambio de maestro, no
+        # de esta fila: se escribe una sola vez, solo en carga real, y se avisa
+        # para que quede a la vista en Data Core -es reversible desde Listados-.
+        for a in adopciones:
+            if escribir:
+                cur.execute(
+                    "UPDATE valor_lista SET especie_id = %s WHERE id = %s AND especie_id IS NULL",
+                    (a["especie_id"], a["valor_lista_id"]),
+                )
+            motivos.append(
+                f"Variedad \"{a['variedad']}\" estaba en Listados sin especie asignada: "
+                f"se vinculó a {a['especie']}. Revísalo en Listados si no corresponde."
+            )
 
         # Antes de tocar nada más -y sobre todo antes de que _cliente_id/_planta_id
         # autocreen un cliente o sucursal nuevo sin avisar-: si esta es una solicitud
@@ -391,12 +545,7 @@ def _procesar_filas(
         # cargado en la base), no se inserta directo. Se guarda entera en
         # pendiente_revision para aprobar, corregir o descartar desde DataCore.
         if not ya_existe and not saltar_catalogo:
-            # _resolver_listados va primero y reescribe sol en el momento
-            # -sold_to_raw/ship_to_raw/especie/variedad quedan con su valor
-            # canónico si calzaron con Listados-, así que si la fila termina
-            # entrando derecho (sin pendientes), ya entra con los 4 valores
-            # limpios, no con el texto crudo del archivo.
-            fuera_de_catalogo = _resolver_listados(sol, mapas_listados) + _fuera_de_catalogo(sol, catalogos)
+            fuera_de_catalogo = motivos_listados + _fuera_de_catalogo(sol, catalogos)
             if fuera_de_catalogo:
                 resumen["pendientes_revision"] += 1
                 if escribir:
@@ -414,9 +563,25 @@ def _procesar_filas(
                 )
                 continue
 
+        # Para una solicitud que YA existe (fuera del flujo de aprobación manual,
+        # donde saltar_catalogo=True y se confía en lo que decidió el administrador),
+        # un Sold To/Ship To que no calzó con Listados NUNCA crea un cliente o
+        # sucursal nuevo a partir de texto crudo: se deja como estaba, y se avisa.
+        permitir_resolver_cliente = saltar_catalogo or not ya_existe or "sold_to_raw" not in campos_no_resueltos
+        if ya_existe and "sold_to_raw" in campos_no_resueltos and existente["sold_to_raw"] is None and sol["sold_to_raw"]:
+            motivos.append(
+                f"Sold To \"{sol['sold_to_raw']}\" no calza con Listados: no se pudo completar el dato "
+                "faltante de esta solicitud, corrígelo a mano desde Data Core."
+            )
+        if ya_existe and "ship_to_raw" in campos_no_resueltos and existente["ship_to_raw"] is None and sol["ship_to_raw"]:
+            motivos.append(
+                f"Ship To \"{sol['ship_to_raw']}\" no calza con Listados: no se pudo completar el dato "
+                "faltante de esta solicitud, corrígelo a mano desde Data Core."
+            )
+
         cliente_id = None
         nombre_cliente = sol["sold_to_raw"]
-        if nombre_cliente:
+        if nombre_cliente and permitir_resolver_cliente:
             if nombre_cliente in clientes_cache:
                 cliente_id = clientes_cache[nombre_cliente]
             else:
@@ -426,7 +591,7 @@ def _procesar_filas(
                     resumen["clientes_nuevos"] += 1
 
         planta_id = None
-        if sol["ship_to_raw"] and nombre_cliente:
+        if sol["ship_to_raw"] and nombre_cliente and permitir_resolver_cliente:
             clave_planta = (nombre_cliente, sol["ship_to_raw"])
             if clave_planta in plantas_cache:
                 planta_id = plantas_cache[clave_planta]
@@ -477,6 +642,21 @@ def _procesar_filas(
                     [datos[c] for c in columnas],
                 )
                 solicitud_id = cur.fetchone()["id"]
+            elif existente["sold_to_raw"] is None or existente["ship_to_raw"] is None or existente["planta_id"] is None:
+                # Solicitud que ya existe pero le faltaba Sold To/Ship To/planta_id
+                # -típico: la creó primero un Converter que no trae esos datos-.
+                # COALESCE completa solo lo que está NULL hoy: un dato que ya
+                # tenía valor nunca se pisa con lo que trae esta fila.
+                cur.execute(
+                    "UPDATE solicitud SET sold_to_raw = COALESCE(sold_to_raw, %s), "
+                    "ship_to_raw = COALESCE(ship_to_raw, %s), planta_id = COALESCE(planta_id, %s) WHERE id = %s",
+                    (
+                        sol["sold_to_raw"] if "sold_to_raw" not in campos_no_resueltos else None,
+                        sol["ship_to_raw"] if "ship_to_raw" not in campos_no_resueltos else None,
+                        planta_id,
+                        solicitud_id,
+                    ),
+                )
 
             # Si la solicitud ya existía, esto solo agrega lo que le faltaba
             # (ON CONFLICT DO NOTHING protege cualquier analito que ya tuviera).
@@ -783,3 +963,44 @@ def descartar_lote(payload: LotePendientesIn) -> dict[str, Any]:
             cur.execute("DELETE FROM pendiente_revision RETURNING id")
         borrados = cur.fetchall()
     return {"descartados": len(borrados)}
+
+
+@router.post("/pendientes/reintentar")
+def reintentar_pendientes(payload: LotePendientesIn) -> dict[str, Any]:
+    """Vuelve a evaluar pendientes ya existentes contra el catálogo/Listados
+    actual -sin que un humano tenga que corregir fila por fila-. Útil después
+    de mejorar el maestro (agregar un alias, una nueva variedad estándar,
+    etc.): las filas que ahora sí calzan se insertan solas, con sus valores
+    ya canónicos; las que todavía no calzan quedan pendientes de nuevo, con
+    el motivo/sugerencia recalculado. Sin ids = reintenta todos."""
+    with conexion(escribir=True) as conn:
+        with cursor_dict(conn) as cur:
+            if payload.ids is not None:
+                cur.execute(
+                    "SELECT id, origen, fila FROM pendiente_revision WHERE id = ANY(%s) ORDER BY id",
+                    (payload.ids,),
+                )
+            else:
+                cur.execute("SELECT id, origen, fila FROM pendiente_revision ORDER BY id")
+            pendientes = cur.fetchall()
+            if not pendientes:
+                return {"reintentados": 0, "resumen": dict(RESUMEN_VACIO)}
+
+            ids_reintentados = [p["id"] for p in pendientes]
+            # Se borran antes de reprocesar: _procesar_filas vuelve a insertar en
+            # pendiente_revision -con motivos/sugerencias frescos- cualquier fila
+            # que todavía no calce, así que no queda duplicado ni se pierde nada.
+            cur.execute("DELETE FROM pendiente_revision WHERE id = ANY(%s)", (ids_reintentados,))
+
+            por_origen: dict[str, list[dict[str, Any]]] = {}
+            for p in pendientes:
+                por_origen.setdefault(p["origen"], []).append(p["fila"])
+
+            resumen_total = dict(RESUMEN_VACIO)
+            for origen, filas in por_origen.items():
+                r = _procesar_filas(cur, filas, escribir=True, origen=origen, saltar_catalogo=False)
+                for k in resumen_total:
+                    resumen_total[k] += r["resumen"][k]
+
+    resueltos = len(ids_reintentados) - resumen_total["pendientes_revision"]
+    return {"reintentados": len(ids_reintentados), "resueltos": resueltos, "resumen": resumen_total}

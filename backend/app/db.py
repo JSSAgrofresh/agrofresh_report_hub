@@ -12,16 +12,18 @@ _pool: ThreadedConnectionPool | None = None
 def get_pool() -> ThreadedConnectionPool:
     global _pool
     if _pool is None:
-        _pool = ThreadedConnectionPool(
-            minconn=1,
-            maxconn=5,
-            host=config.DB_HOST,
-            port=config.DB_PORT,
-            dbname=config.DB_NAME,
-            user=config.DB_USER,
-            password=config.DB_PASSWORD,
-            options="-c search_path=lab,public",
-        )
+        kwargs: dict = {"minconn": 1, "maxconn": 10, "options": "-c search_path=lab,public"}
+        if config.DATABASE_URL:
+            kwargs["dsn"] = config.DATABASE_URL
+        else:
+            kwargs.update(
+                host=config.DB_HOST,
+                port=config.DB_PORT,
+                dbname=config.DB_NAME,
+                user=config.DB_USER,
+                password=config.DB_PASSWORD,
+            )
+        _pool = ThreadedConnectionPool(**kwargs)
     return _pool
 
 

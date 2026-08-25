@@ -90,3 +90,10 @@ export function aprobarLotePendientes(ids?: number[]) {
 export function descartarLotePendientes(ids?: number[]) {
   return httpClient.post<{ descartados: number }>('/ingest/pendientes/descartar-lote', { ids: ids ?? null })
 }
+
+export function reintentarPendientes(ids?: number[]) {
+  return httpClient.post<{ reintentados: number; resueltos: number; resumen: ResumenCarga }>(
+    '/ingest/pendientes/reintentar',
+    { ids: ids ?? null },
+  )
+}

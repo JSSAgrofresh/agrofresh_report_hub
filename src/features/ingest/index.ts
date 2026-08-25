@@ -13,5 +13,6 @@ export {
   descartarPendiente,
   aprobarLotePendientes,
   descartarLotePendientes,
+  reintentarPendientes,
 } from './lib/api'
 export type { ResumenCarga, DetalleFilaCarga, RespuestaCarga, Pendiente, PaginaPendientes, MotivoPendiente } from './lib/api'

@@ -1,6 +1,7 @@
 import { MODULOS } from '@/constants/modules'
 import type { ModuloInfo } from '@/constants/modules'
 import { AREAS } from '@/constants/areas'
+import type { AreaId } from '@/constants/areas'
 import type { Usuario } from './types'
 
 export function esAdminGeneral(usuario: Usuario): boolean {
@@ -24,6 +25,24 @@ export function modulosPermitidos(usuario: Usuario): ModuloInfo[] {
 
 export function puedeVerModulo(usuario: Usuario, moduloId: string): boolean {
   return modulosPermitidos(usuario).some((m) => m.id === moduloId)
+}
+
+/** Los reportes que viven dentro del módulo Report. */
+export type ReporteId = 'laboratorio' | 'postventa' | 'emitir'
+
+/** Cada reporte pertenece a un área. Entrar a Report no alcanza: un admin de
+ * Post Venta ve el histórico de Trace, pero NO los datos de laboratorio de
+ * Cromatografía, que son de otra área -y al revés-. */
+const AREA_DE_REPORTE: Record<ReporteId, AreaId> = {
+  laboratorio: 'cromatografia',
+  emitir: 'cromatografia',
+  postventa: 'postventa',
+}
+
+export function puedeVerReporte(usuario: Usuario, reporte: ReporteId): boolean {
+  if (!puedeVerModulo(usuario, 'reports')) return false
+  if (esAdminGeneral(usuario)) return true
+  return usuario.area === AREA_DE_REPORTE[reporte]
 }
 
 /** Acceso a la categoría "Toma de muestras": el admin general (siempre ve

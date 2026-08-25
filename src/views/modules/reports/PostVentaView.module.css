@@ -1,0 +1,235 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panelLista {
+  padding: 0;
+  overflow: hidden;
+}
+
+.tituloPanel {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.lista {
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.itemCarga {
+  display: block;
+  width: 100%;
+  padding: 0.8rem 1rem;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.itemCarga:hover {
+  background: var(--color-bg);
+}
+
+.itemActivo {
+  background: var(--color-bg);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.itemFecha {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.itemCliente {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-top: 0.15rem;
+}
+
+.itemMetricas {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Detalle --- */
+
+.detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.cabeceraDetalle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.tituloDetalle {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--color-text);
+}
+
+.subtituloDetalle {
+  margin: 0.2rem 0 0;
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.enlaceBoton {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.86rem;
+  text-decoration: none;
+}
+
+.enlaceBoton:hover {
+  background: var(--color-bg);
+}
+
+.tarjetas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+.tarjeta {
+  padding: 0.85rem 1rem;
+  border-left: 3px solid var(--color-border-strong);
+}
+
+.tarjetaEtiqueta {
+  font-size: 0.78rem;
+  color: var(--color-text-faint);
+}
+
+.tarjetaValor {
+  margin-top: 0.25rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Para valores que son texto (una fecha) en vez de una cifra: al tamaño de
+   cifra grande, una fecha se parte en tres líneas dentro de la tarjeta. */
+.tarjetaValorTexto {
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+
+.tarjetaDetalle {
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.graficos {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.grafico {
+  padding: 1rem;
+}
+
+.tituloGrafico {
+  margin: 0 0 0.15rem;
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+.notaGrafico {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+}
+
+.lienzo {
+  position: relative;
+  height: 220px;
+}
+
+.tablaEnvoltorio {
+  overflow-x: auto;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.tabla th,
+.tabla td {
+  padding: 0.45rem 0.7rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.tabla th {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-faint);
+  font-weight: 600;
+}
+
+.tabla td {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.pie {
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+}
+
+.error {
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  border-left: 3px solid var(--color-danger);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}

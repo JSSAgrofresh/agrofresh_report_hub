@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { RequireAdminGeneral, RequireAuth, RequireModulo, RequireTomaMuestras } from '@/features/auth'
+import { RequireAdminGeneral, RequireAuth, RequireModulo, RequireReporte, RequireTomaMuestras } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
 import { LoginView } from '@/views/login/LoginView'
 import { DashboardView } from '@/views/dashboard/DashboardView'
@@ -47,10 +47,22 @@ export const router = createBrowserRouter([
             element: <RequireModulo moduloId="reports" />,
             children: [
               { path: ROUTES.reports, element: <ReportesHubView /> },
-              { path: ROUTES.reportsLaboratorio, element: <ReporteView /> },
-              { path: ROUTES.reportsPostVenta, element: <PostVentaView /> },
-              { path: ROUTES.reportsEmitir, element: <EmitirReporteHubView /> },
-              { path: ROUTES.reportsEmitirCromatografia, element: <CromatografiaEmitirView /> },
+              // Cada reporte es de un área: el hub es común, el contenido no.
+              {
+                element: <RequireReporte reporte="laboratorio" />,
+                children: [{ path: ROUTES.reportsLaboratorio, element: <ReporteView /> }],
+              },
+              {
+                element: <RequireReporte reporte="postventa" />,
+                children: [{ path: ROUTES.reportsPostVenta, element: <PostVentaView /> }],
+              },
+              {
+                element: <RequireReporte reporte="emitir" />,
+                children: [
+                  { path: ROUTES.reportsEmitir, element: <EmitirReporteHubView /> },
+                  { path: ROUTES.reportsEmitirCromatografia, element: <CromatografiaEmitirView /> },
+                ],
+              },
             ],
           },
           {

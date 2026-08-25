@@ -25,8 +25,6 @@ import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import type { RangoFechas } from '@/components/ui/CalendarioRango'
 import { areaDeModulo } from '@/constants/areas'
 import { useAuth } from '@/features/auth'
-import { listarClientes, listarPlantas } from '@/features/catalogo'
-import type { Planta } from '@/features/catalogo'
 import { listarEspeciesActivas, listarValores } from '@/features/listados'
 import type { ValorLista } from '@/features/listados'
 import { HttpError } from '@/services/http/client'
@@ -197,12 +195,10 @@ export function ReporteView({
   const [vista, setVista] = useState<Vista>('residual')
   const [sigma, setSigma] = useState(2)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
-  // Sold To, Ship To, Especie y Variedad de los filtros salen de Listados
-  // -la fuente de verdad oficial-, no de lo que ya haya cargado en el
-  // reporte: así el filtro ofrece todo lo que existe de verdad, no solo lo
-  // que por casualidad ya tiene datos hoy.
-  const [clientesOficiales, setClientesOficiales] = useState<string[]>([])
-  const [plantasOficiales, setPlantasOficiales] = useState<Planta[]>([])
+  // Especie y Variedad de los filtros salen de Listados -la fuente de verdad
+  // oficial-, no de lo que ya haya cargado en el reporte: así el filtro
+  // ofrece todo lo que existe de verdad, no solo lo que por casualidad ya
+  // tiene datos hoy. Sold To/Ship To NO -ver comentario en `opciones`-.
   const [especiesOficiales, setEspeciesOficiales] = useState<ValorLista[]>([])
   const [variedadesOficiales, setVariedadesOficiales] = useState<string[]>([])
   const [modalAnalitos, setModalAnalitos] = useState(false)
@@ -267,18 +263,6 @@ export function ReporteView({
   }, [filtros.crop, onCropChange])
 
   useEffect(() => {
-    // El portal de cliente (clienteFijo) oculta estos dos selects -sus datos
-    // ya vienen acotados desde el backend-, así que ni siquiera se pide el
-    // catálogo completo: no tiene por qué llegarle al navegador de un
-    // cliente la lista entera de Sold To/Ship To de los demás.
-    if (!clienteFijo) {
-      listarClientes()
-        .then((cs) => setClientesOficiales(cs.filter((c) => c.activo).map((c) => c.nombre)))
-        .catch(() => setClientesOficiales([]))
-      listarPlantas()
-        .then((ps) => setPlantasOficiales(ps.filter((p) => p.activo)))
-        .catch(() => setPlantasOficiales([]))
-    }
     listarEspeciesActivas()
       .then(setEspeciesOficiales)
       .catch(() => setEspeciesOficiales([]))
@@ -287,7 +271,12 @@ export function ReporteView({
   useEffect(() => {
     const especie = especiesOficiales.find((e) => e.valor === filtros.crop)
     listarValores('variedad', especie ? { especieId: especie.id } : undefined)
-      .then((vs) => setVariedadesOficiales(vs.map((v) => v.valor)))
+      // Sin especie elegida se piden TODAS las variedades, y ahí el mismo nombre
+      // puede venir más de una vez porque vive en dos especies distintas
+      // ("June Gold" existe en Durazno y en Nectarina). Como el filtro compara
+      // por texto, se deduplica: si no, la lista muestra la opción repetida y
+      // React reclama por keys duplicadas.
+      .then((vs) => setVariedadesOficiales(unique(vs.map((v) => v.valor))))
       .catch(() => setVariedadesOficiales([]))
   }, [filtros.crop, especiesOficiales])
 
@@ -325,15 +314,19 @@ export function ReporteView({
   const opciones = useMemo(
     () => ({
       ingredientes: unique((filas ?? []).map((f) => f.ingrediente)),
-      // Sold To/Ship To/Especie/Variedad salen de Listados (clientesOficiales/
-      // plantasOficiales/especiesOficiales/variedadesOficiales), no de `filas`:
-      // el filtro tiene que ofrecer todo lo oficial, no solo lo que ya tiene
-      // datos cargados hoy.
-      clientes: clientesOficiales,
+      // FIX TEMPORAL: Sold To/Ship To vuelven a salir de `filas` (lo ya cargado),
+      // no de Listados -clientesOficiales/plantasOficiales-. El campo "cliente"
+      // que devuelve el backend es COALESCE(cliente.nombre, solicitud.sold_to_raw):
+      // solo sale el nombre oficial cuando la solicitud tiene planta_id resuelto;
+      // si no, cae al texto crudo, que puede no calzar ni normalizado con el
+      // nombre oficial de Listados -de ahí que el filtro mostrara 0 resultados-.
+      // Mientras esa resolución no quede sólida en todas las filas, es más seguro
+      // ofrecer solo valores que de verdad existen en los datos.
+      clientes: uniqueCanonico((filas ?? []).map((f) => f.cliente)),
       // Sucursales en cascada: si hay un cliente elegido, solo se muestran las suyas.
-      plantas: plantasOficiales
-        .filter((p) => !filtros.cliente || p.cliente_nombre === filtros.cliente)
-        .map((p) => p.nombre),
+      plantas: uniqueCanonico(
+        (filas ?? []).filter((f) => !filtros.cliente || igual(f.cliente, filtros.cliente)).map((f) => f.planta),
+      ),
       tiposAplicacion: uniqueCanonico((filas ?? []).map((f) => f.tipo_aplicacion)).map(capitalizarPrimeraLetra),
       // Homogenización pendiente en la carga (dato pasa tal cual del Excel): acá se
       // agrupa sin importar mayúsculas/minúsculas para que el filtro no repita el
@@ -349,7 +342,7 @@ export function ReporteView({
       semanas: unique((filas ?? []).map((f) => f.semana_muestreo)),
       meses: unique((filas ?? []).map((f) => f.mes)),
     }),
-    [filas, filtros.cliente, clientesOficiales, plantasOficiales, especiesOficiales, variedadesOficiales],
+    [filas, filtros.cliente, especiesOficiales, variedadesOficiales],
   )
 
   const filtradas = useMemo(
@@ -358,8 +351,8 @@ export function ReporteView({
         (o) =>
           (filtros.ingredientes.length === 0 ||
             (o.ingrediente != null && filtros.ingredientes.includes(o.ingrediente))) &&
-          (!filtros.cliente || o.cliente === filtros.cliente) &&
-          (!filtros.planta || o.planta === filtros.planta) &&
+          (!filtros.cliente || igual(o.cliente, filtros.cliente)) &&
+          (!filtros.planta || igual(o.planta, filtros.planta)) &&
           (!filtros.tipoAplicacion || igual(o.tipoAplicacion, filtros.tipoAplicacion)) &&
           (!filtros.tipoServicio || igual(o.tipoServicio, filtros.tipoServicio)) &&
           (!filtros.laboratorio || igual(o.laboratorio, filtros.laboratorio)) &&
@@ -685,7 +678,8 @@ export function ReporteView({
       cliente: valor,
       // Si la sucursal actual no es de este cliente, se limpia (evita filtros imposibles).
       planta:
-        prev.planta && plantasOficiales.some((p) => p.nombre === prev.planta && (!valor || p.cliente_nombre === valor))
+        prev.planta &&
+        (filas ?? []).some((f) => igual(f.planta, prev.planta) && (!valor || igual(f.cliente, valor)))
           ? prev.planta
           : '',
     }))
