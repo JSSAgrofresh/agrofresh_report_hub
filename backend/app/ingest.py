@@ -114,16 +114,33 @@ def _planta_id(cur, cliente_id: int | None, nombre: str, escribir: bool) -> tupl
     return cur.fetchone()["id"], True
 
 
-def _analito_id(cur, codigo: str, laboratorio: str | None) -> tuple[int | None, str | None]:
+def _cargar_analitos(cur) -> dict[tuple[str, str], tuple[int, str]]:
+    """(codigo, laboratorio) -> (id, laboratorio). Pre-cargado una vez para evitar
+    una query por analito por fila durante el procesamiento masivo."""
+    cur.execute("SELECT id, codigo, laboratorio FROM analito")
+    mapa: dict[tuple[str, str], tuple[int, str]] = {}
+    primero: dict[str, tuple[int, str]] = {}
+    for r in cur.fetchall():
+        key = (r["codigo"], r["laboratorio"])
+        mapa[key] = (r["id"], r["laboratorio"])
+        if r["codigo"] not in primero:
+            primero[r["codigo"]] = (r["id"], r["laboratorio"])
+    return mapa, primero
+
+
+def _analito_id_cache(
+    mapa: dict[tuple[str, str], tuple[int, str]],
+    primero: dict[str, tuple[int, str]],
+    codigo: str,
+    laboratorio: str | None,
+) -> tuple[int | None, str | None]:
     if laboratorio:
-        cur.execute("SELECT id FROM analito WHERE codigo = %s AND laboratorio = %s", (codigo, laboratorio))
-        row = cur.fetchone()
-        if row:
-            return row["id"], None
-    cur.execute("SELECT id, laboratorio FROM analito WHERE codigo = %s LIMIT 1", (codigo,))
-    row = cur.fetchone()
-    if row:
-        return row["id"], f"Analito {codigo}: el laboratorio '{laboratorio}' no calzó exacto, se usó el catálogo de '{row['laboratorio']}'"
+        entry = mapa.get((codigo, laboratorio))
+        if entry:
+            return entry[0], None
+    fallback = primero.get(codigo)
+    if fallback:
+        return fallback[0], f"Analito {codigo}: el laboratorio '{laboratorio}' no calzó exacto, se usó el catálogo de '{fallback[1]}'"
     return None, f"Analito {codigo} no está en el catálogo todavía, se guardó en analito_raw"
 
 
@@ -472,6 +489,13 @@ def _procesar_filas(
     }
     catalogos = _cargar_catalogos(cur)
     mapas_listados = _cargar_mapas_listados(cur)
+    analitos_mapa, analitos_primero = _cargar_analitos(cur)
+
+    # Pre-carga todas las solicitudes existentes en memoria para evitar una query
+    # por fila del Excel (4000+ filas = 4000+ round-trips a Neon, muy lento).
+    cur.execute("SELECT nro_solicitud, id, sold_to_raw, ship_to_raw, planta_id FROM solicitud")
+    solicitudes_existentes: dict[str, dict] = {r["nro_solicitud"]: r for r in cur.fetchall()}
+
     detalle: list[dict[str, Any]] = []
     advertencias: list[str] = []
 
@@ -506,11 +530,7 @@ def _procesar_filas(
             sol["laboratorio"] = "Sin definir"
             motivos.append("Sin Laboratorio: se guardó como 'Sin definir', revisar y corregir después")
 
-        cur.execute(
-            "SELECT id, sold_to_raw, ship_to_raw, planta_id FROM solicitud WHERE nro_solicitud = %s",
-            (sol["nro_solicitud"],),
-        )
-        existente = cur.fetchone()
+        existente = solicitudes_existentes.get(sol["nro_solicitud"])
         ya_existe = existente is not None
 
         # _resolver_listados reescribe sold_to_raw/ship_to_raw/especie/variedad a su
@@ -619,14 +639,14 @@ def _procesar_filas(
 
         productos_resueltos = []
         for p in productos:
-            analito_id, adv = _analito_id(cur, p["analito_codigo"], sol["laboratorio"])
+            analito_id, adv = _analito_id_cache(analitos_mapa, analitos_primero, p["analito_codigo"], sol["laboratorio"])
             if adv:
                 motivos.append(adv)
             productos_resueltos.append({**p, "analito_id": analito_id})
 
         resultados_resueltos = []
         for r in resultados:
-            analito_id, adv = _analito_id(cur, r["analito_codigo"], sol["laboratorio"])
+            analito_id, adv = _analito_id_cache(analitos_mapa, analitos_primero, r["analito_codigo"], sol["laboratorio"])
             if adv:
                 motivos.append(adv)
             resultados_resueltos.append({**r, "analito_id": analito_id})
@@ -642,6 +662,10 @@ def _procesar_filas(
                     [datos[c] for c in columnas],
                 )
                 solicitud_id = cur.fetchone()["id"]
+                solicitudes_existentes[sol["nro_solicitud"]] = {
+                    "id": solicitud_id, "nro_solicitud": sol["nro_solicitud"],
+                    "sold_to_raw": sol["sold_to_raw"], "ship_to_raw": sol["ship_to_raw"], "planta_id": planta_id,
+                }
             elif existente["sold_to_raw"] is None or existente["ship_to_raw"] is None or existente["planta_id"] is None:
                 # Solicitud que ya existe pero le faltaba Sold To/Ship To/planta_id
                 # -típico: la creó primero un Converter que no trae esos datos-.
