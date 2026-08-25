@@ -3,6 +3,7 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from psycopg2.extras import execute_values
 from pydantic import BaseModel
 
 from . import mapeo
@@ -507,6 +508,17 @@ def _procesar_filas(
     clientes_cache: dict[str, int | None] = {}
     plantas_cache: dict[tuple[str, str], int | None] = {}
 
+    # Acumuladores para batch insert al final del loop (evita N round-trips a la BD).
+    productos_batch: list[tuple] = []
+    resultados_batch: list[tuple] = []
+
+    # Nuevas solicitudes: se acumulan durante el loop y se insertan en un solo
+    # execute_values al final (evita N INSERT individuales con RETURNING id).
+    nuevas_solic_pending: list[dict] = []
+    nuevas_solic_nros: set[str] = set()
+    nuevas_solic_productos: dict[str, list[tuple]] = {}
+    nuevas_solic_resultados: dict[str, list[tuple]] = {}
+
     for i, fila_cruda in enumerate(filas):
         n_fila = i + 2  # misma numeración que usa Ingest en el frontend (fila 1 = encabezado)
         # Encabezados del Excel con espacios de más (ej. " FDL FINAL ") no calzan con
@@ -654,66 +666,55 @@ def _procesar_filas(
         solicitud_id = existente["id"] if ya_existe else None
         if escribir:
             if not ya_existe:
+                # Diferir INSERT: acumular y hacer un solo execute_values al
+                # final del loop en vez de N INSERTs individuales con RETURNING.
                 datos = {**sol, "planta_id": planta_id, "origen": origen}
-                columnas = list(datos.keys())
-                placeholders = ", ".join(["%s"] * len(columnas))
-                cur.execute(
-                    f"INSERT INTO solicitud ({', '.join(columnas)}) VALUES ({placeholders}) RETURNING id",
-                    [datos[c] for c in columnas],
-                )
-                solicitud_id = cur.fetchone()["id"]
-                solicitudes_existentes[sol["nro_solicitud"]] = {
-                    "id": solicitud_id, "nro_solicitud": sol["nro_solicitud"],
-                    "sold_to_raw": sol["sold_to_raw"], "ship_to_raw": sol["ship_to_raw"], "planta_id": planta_id,
-                }
-            elif existente["sold_to_raw"] is None or existente["ship_to_raw"] is None or existente["planta_id"] is None:
-                # Solicitud que ya existe pero le faltaba Sold To/Ship To/planta_id
-                # -típico: la creó primero un Converter que no trae esos datos-.
-                # COALESCE completa solo lo que está NULL hoy: un dato que ya
-                # tenía valor nunca se pisa con lo que trae esta fila.
-                cur.execute(
-                    "UPDATE solicitud SET sold_to_raw = COALESCE(sold_to_raw, %s), "
-                    "ship_to_raw = COALESCE(ship_to_raw, %s), planta_id = COALESCE(planta_id, %s) WHERE id = %s",
-                    (
-                        sol["sold_to_raw"] if "sold_to_raw" not in campos_no_resueltos else None,
-                        sol["ship_to_raw"] if "ship_to_raw" not in campos_no_resueltos else None,
-                        planta_id,
-                        solicitud_id,
-                    ),
-                )
-
-            # Si la solicitud ya existía, esto solo agrega lo que le faltaba
-            # (ON CONFLICT DO NOTHING protege cualquier analito que ya tuviera).
-            for p in productos_resueltos:
-                cur.execute(
-                    """INSERT INTO producto_aplicado
-                       (solicitud_id, analito_id, analito_raw, producto_raw, dosis, tipo_aplicacion, linea_proceso)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)
-                       ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
-                    (
-                        solicitud_id,
+                nro = sol["nro_solicitud"]
+                if nro not in nuevas_solic_nros:
+                    nuevas_solic_pending.append(datos)
+                    nuevas_solic_nros.add(nro)
+                # Acumular productos/resultados de esta solicitud nueva.
+                for p in productos_resueltos:
+                    nuevas_solic_productos.setdefault(nro, []).append((
                         p["analito_id"],
                         None if p["analito_id"] else p["analito_codigo"],
-                        p["producto_raw"],
-                        p["dosis"],
-                        p["tipo_aplicacion"],
-                        p["linea_proceso"],
-                    ),
-                )
-
-            for r in resultados_resueltos:
-                cur.execute(
-                    """INSERT INTO resultado (solicitud_id, analito_id, analito_raw, valor_num, valor_texto)
-                       VALUES (%s, %s, %s, %s, %s)
-                       ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
-                    (
-                        solicitud_id,
+                        p["producto_raw"], p["dosis"], p["tipo_aplicacion"], p["linea_proceso"],
+                    ))
+                for r in resultados_resueltos:
+                    nuevas_solic_resultados.setdefault(nro, []).append((
                         r["analito_id"],
                         None if r["analito_id"] else r["analito_codigo"],
-                        r["valor_num"],
-                        r["valor_texto"],
-                    ),
-                )
+                        r["valor_num"], r["valor_texto"],
+                    ))
+            else:
+                if existente["sold_to_raw"] is None or existente["ship_to_raw"] is None or existente["planta_id"] is None:
+                    # Solicitud que ya existe pero le faltaba Sold To/Ship To/planta_id
+                    # -típico: la creó primero un Converter que no trae esos datos-.
+                    # COALESCE completa solo lo que está NULL hoy: un dato que ya
+                    # tenía valor nunca se pisa con lo que trae esta fila.
+                    cur.execute(
+                        "UPDATE solicitud SET sold_to_raw = COALESCE(sold_to_raw, %s), "
+                        "ship_to_raw = COALESCE(ship_to_raw, %s), planta_id = COALESCE(planta_id, %s) WHERE id = %s",
+                        (
+                            sol["sold_to_raw"] if "sold_to_raw" not in campos_no_resueltos else None,
+                            sol["ship_to_raw"] if "ship_to_raw" not in campos_no_resueltos else None,
+                            planta_id,
+                            solicitud_id,
+                        ),
+                    )
+                # Acumular para batch insert (solicitudes existentes ya tienen ID real).
+                for p in productos_resueltos:
+                    productos_batch.append((
+                        solicitud_id, p["analito_id"],
+                        None if p["analito_id"] else p["analito_codigo"],
+                        p["producto_raw"], p["dosis"], p["tipo_aplicacion"], p["linea_proceso"],
+                    ))
+                for r in resultados_resueltos:
+                    resultados_batch.append((
+                        solicitud_id, r["analito_id"],
+                        None if r["analito_id"] else r["analito_codigo"],
+                        r["valor_num"], r["valor_texto"],
+                    ))
 
         if not ya_existe:
             resumen["solicitudes_nuevas"] += 1
@@ -735,6 +736,48 @@ def _procesar_filas(
             }
         )
         advertencias.extend(f"Fila {n_fila}: {m}" for m in motivos)
+
+    # Batch INSERT de solicitudes nuevas: un solo execute_values reemplaza N INSERTs
+    # individuales con RETURNING id (principal causa del timeout en Render free tier).
+    if escribir and nuevas_solic_pending:
+        columnas = list(nuevas_solic_pending[0].keys())
+        valores = [tuple(d[c] for c in columnas) for d in nuevas_solic_pending]
+        retornados = execute_values(
+            cur,
+            f"INSERT INTO solicitud ({', '.join(columnas)}) VALUES %s RETURNING nro_solicitud, id",
+            valores,
+            fetch=True,
+            page_size=500,
+        )
+        nro_a_id = {r["nro_solicitud"]: r["id"] for r in retornados}
+        for nro, sol_id in nro_a_id.items():
+            for pt in nuevas_solic_productos.get(nro, []):
+                productos_batch.append((sol_id, *pt))
+            for rt in nuevas_solic_resultados.get(nro, []):
+                resultados_batch.append((sol_id, *rt))
+
+    # Batch insert de productos y resultados: reemplaza N*M execute() individuales
+    # por 2 llamadas únicas, eliminando la mayor parte del tiempo de escritura.
+    if escribir:
+        if productos_batch:
+            execute_values(
+                cur,
+                """INSERT INTO producto_aplicado
+                   (solicitud_id, analito_id, analito_raw, producto_raw, dosis, tipo_aplicacion, linea_proceso)
+                   VALUES %s
+                   ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
+                productos_batch,
+                page_size=500,
+            )
+        if resultados_batch:
+            execute_values(
+                cur,
+                """INSERT INTO resultado (solicitud_id, analito_id, analito_raw, valor_num, valor_texto)
+                   VALUES %s
+                   ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
+                resultados_batch,
+                page_size=500,
+            )
 
     return {"resumen": resumen, "detalle": detalle, "advertencias": advertencias}
 
