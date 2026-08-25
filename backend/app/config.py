@@ -20,3 +20,6 @@ CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5
 # AgroFresh es una ruta fija de Windows (ver backend/.env); si no se configura,
 # cae a una carpeta "storage" junto al backend (útil para desarrollo).
 STORAGE_DIR = os.getenv("STORAGE_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage"))
+
+MAIL_USER = os.getenv("MAIL_USER", "")
+MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "")
