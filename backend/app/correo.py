@@ -14,7 +14,7 @@ from . import config
 router = APIRouter(prefix="/api/correo", tags=["correo"])
 
 RESEND_URL = "https://api.resend.com/emails"
-FROM_ADDRESS = "onboarding@resend.dev"
+FROM_ADDRESS = "solicitudes@sanai.work"
 
 
 def _enviar(destinatario: str, asunto: str, cuerpo_html: str) -> None:
