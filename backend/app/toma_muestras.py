@@ -33,7 +33,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
-from . import config
+from . import config, r2
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
 from .toma_muestras_pdf import generar_pdf_solicitud
 
@@ -58,10 +58,31 @@ def _carpeta_laboratorio(laboratorio: str) -> str:
     return ruta
 
 
+# ---------------------------------------------------------------------------
+# Claves R2: mirror de la estructura local de carpetas.
+# ---------------------------------------------------------------------------
+
+def _r2_key_sol(laboratorio: str, nombre: str) -> str:
+    return f"solicitudes/{laboratorio}/{nombre}"
+
+
+def _r2_key_cfg(nombre: str) -> str:
+    return f"solicitudes/_config/{nombre}"
+
+
+def _leer_solicitud_bytes(nombre: bytes | None, ext: str) -> dict:
+    """Parsea bytes en dict de solicitud (.xlsx o .json)."""
+    if nombre is None:
+        raise HTTPException(404, "Solicitud no encontrada.")
+    if ext == ".xlsx":
+        return leer_datos_workbook(io.BytesIO(nombre))
+    if ext == ".json":
+        return json.loads(nombre.decode("utf-8"))
+    raise HTTPException(400, "Formato de solicitud no reconocido.")
+
+
 def _ruta_archivo(archivo: str) -> str:
-    # os.path.basename descarta cualquier componente de ruta ("../etc") -
-    # cada carpeta de laboratorio es plana, así que basta con esto para no
-    # salir de "solicitudes/<LABORATORIO>/".
+    """Solo para modo disco local."""
     nombre = os.path.basename(archivo)
     for laboratorio in LABORATORIOS:
         ruta = os.path.join(_carpeta_raiz(), laboratorio, nombre)
@@ -70,9 +91,19 @@ def _ruta_archivo(archivo: str) -> str:
     raise HTTPException(404, "Solicitud no encontrada.")
 
 
+def _descargar_solicitud_r2(nombre: str) -> tuple[bytes, str]:
+    """Devuelve (bytes, extensión) buscando en todas las carpetas de lab."""
+    basenom = os.path.basename(nombre)
+    ext = os.path.splitext(basenom)[1]
+    for laboratorio in LABORATORIOS:
+        data = r2.descargar(_r2_key_sol(laboratorio, basenom))
+        if data is not None:
+            return data, ext
+    raise HTTPException(404, "Solicitud no encontrada.")
+
+
 def _leer_solicitud_archivo(ruta: str) -> dict:
-    """Lee los datos de una solicitud desde su archivo: .xlsx (formato
-    actual, hoja oculta "_data") o .json (formato legado, retrocompatible)."""
+    """Lee datos de solicitud desde disco local (.xlsx o .json)."""
     if ruta.endswith(".xlsx"):
         return leer_datos_workbook(ruta)
     if ruta.endswith(".json"):
@@ -84,14 +115,21 @@ def _leer_solicitud_archivo(ruta: str) -> dict:
 def _siguiente_numero() -> str:
     """Folio correlativo único entre las 4 carpetas de laboratorio."""
     maximo = 0
-    for laboratorio in LABORATORIOS:
-        carpeta = os.path.join(_carpeta_raiz(), laboratorio)
-        if not os.path.isdir(carpeta):
-            continue
-        for nombre in os.listdir(carpeta):
+    if r2.disponible():
+        for key in r2.listar_keys("solicitudes/"):
+            nombre = key.split("/")[-1]
             m = _PAT_NUMERO.match(os.path.splitext(nombre)[0])
             if m:
                 maximo = max(maximo, int(m.group(1)))
+    else:
+        for laboratorio in LABORATORIOS:
+            carpeta = os.path.join(_carpeta_raiz(), laboratorio)
+            if not os.path.isdir(carpeta):
+                continue
+            for nombre in os.listdir(carpeta):
+                m = _PAT_NUMERO.match(os.path.splitext(nombre)[0])
+                if m:
+                    maximo = max(maximo, int(m.group(1)))
     return f"SOL-{maximo + 1:04d}"
 
 
@@ -139,15 +177,33 @@ class Solicitud(SolicitudIn):
 @router.get("/solicitudes")
 def listar_solicitudes() -> list[Solicitud]:
     solicitudes = []
-    for laboratorio in LABORATORIOS:
-        carpeta = os.path.join(_carpeta_raiz(), laboratorio)
-        if not os.path.isdir(carpeta):
-            continue
-        for nombre in os.listdir(carpeta):
+    if r2.disponible():
+        for key in r2.listar_keys("solicitudes/"):
+            nombre = key.split("/")[-1]
             if not nombre.endswith((".xlsx", ".json")):
                 continue
-            datos = _leer_solicitud_archivo(os.path.join(carpeta, nombre))
-            solicitudes.append(Solicitud(archivo=nombre, **datos))
+            # Ignorar carpeta _config
+            if "_config" in key:
+                continue
+            data = r2.descargar(key)
+            if data is None:
+                continue
+            try:
+                ext = os.path.splitext(nombre)[1]
+                datos = _leer_solicitud_bytes(data, ext)
+                solicitudes.append(Solicitud(archivo=nombre, **datos))
+            except (ValueError, KeyError, HTTPException):
+                continue
+    else:
+        for laboratorio in LABORATORIOS:
+            carpeta = os.path.join(_carpeta_raiz(), laboratorio)
+            if not os.path.isdir(carpeta):
+                continue
+            for nombre in os.listdir(carpeta):
+                if not nombre.endswith((".xlsx", ".json")):
+                    continue
+                datos = _leer_solicitud_archivo(os.path.join(carpeta, nombre))
+                solicitudes.append(Solicitud(archivo=nombre, **datos))
     solicitudes.sort(key=lambda s: s.creado_en, reverse=True)
     return solicitudes
 
@@ -158,17 +214,31 @@ def exportar_todas_las_solicitudes() -> StreamingResponse:
     información general + de muestra + una columna por cada analito activo
     configurado -refleja la configuración vigente, no una plantilla fija."""
     solicitudes_dict: list[dict] = []
-    for laboratorio in LABORATORIOS:
-        carpeta = os.path.join(_carpeta_raiz(), laboratorio)
-        if not os.path.isdir(carpeta):
-            continue
-        for nombre in os.listdir(carpeta):
-            if not nombre.endswith((".xlsx", ".json")):
+    if r2.disponible():
+        for key in r2.listar_keys("solicitudes/"):
+            nombre = key.split("/")[-1]
+            if not nombre.endswith((".xlsx", ".json")) or "_config" in key:
+                continue
+            data = r2.descargar(key)
+            if data is None:
                 continue
             try:
-                solicitudes_dict.append(_leer_solicitud_archivo(os.path.join(carpeta, nombre)))
-            except (ValueError, KeyError):
+                ext = os.path.splitext(nombre)[1]
+                solicitudes_dict.append(_leer_solicitud_bytes(data, ext))
+            except (ValueError, KeyError, HTTPException):
                 continue
+    else:
+        for laboratorio in LABORATORIOS:
+            carpeta = os.path.join(_carpeta_raiz(), laboratorio)
+            if not os.path.isdir(carpeta):
+                continue
+            for nombre in os.listdir(carpeta):
+                if not nombre.endswith((".xlsx", ".json")):
+                    continue
+                try:
+                    solicitudes_dict.append(_leer_solicitud_archivo(os.path.join(carpeta, nombre)))
+                except (ValueError, KeyError):
+                    continue
     solicitudes_dict.sort(key=lambda d: d.get("creado_en") or "", reverse=True)
 
     analitos = _leer_config("analitos.json", _ANALITOS_DEFECTO)
@@ -186,6 +256,10 @@ def exportar_todas_las_solicitudes() -> StreamingResponse:
 
 @router.get("/solicitudes/{archivo}")
 def obtener_solicitud(archivo: str) -> Solicitud:
+    if r2.disponible():
+        data, ext = _descargar_solicitud_r2(archivo)
+        datos = _leer_solicitud_bytes(data, ext)
+        return Solicitud(archivo=os.path.basename(archivo), **datos)
     ruta = _ruta_archivo(archivo)
     datos = _leer_solicitud_archivo(ruta)
     return Solicitud(archivo=os.path.basename(ruta), **datos)
@@ -193,7 +267,6 @@ def obtener_solicitud(archivo: str) -> Solicitud:
 
 @router.post("/solicitudes")
 def crear_solicitud(body: SolicitudIn) -> Solicitud:
-    carpeta_lab = _carpeta_laboratorio(body.laboratorio)
     numero = _siguiente_numero()
     ahora = datetime.now(timezone.utc)
     datos = body.model_dump()
@@ -204,14 +277,37 @@ def crear_solicitud(body: SolicitudIn) -> Solicitud:
     )
     nombre_archivo = f"{numero}.xlsx"
     wb = construir_workbook(datos)
-    wb.save(os.path.join(carpeta_lab, nombre_archivo))
+    if r2.disponible():
+        buf = io.BytesIO()
+        wb.save(buf)
+        r2.subir(
+            _r2_key_sol(body.laboratorio, nombre_archivo),
+            buf.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    else:
+        carpeta_lab = _carpeta_laboratorio(body.laboratorio)
+        wb.save(os.path.join(carpeta_lab, nombre_archivo))
     return Solicitud(archivo=nombre_archivo, **datos)
 
 
 @router.delete("/solicitudes/{archivo}")
 def eliminar_solicitud(archivo: str) -> dict[str, str]:
-    ruta = _ruta_archivo(archivo)
-    os.remove(ruta)
+    if r2.disponible():
+        basenom = os.path.basename(archivo)
+        eliminado = False
+        for laboratorio in LABORATORIOS:
+            key = _r2_key_sol(laboratorio, basenom)
+            data = r2.descargar(key)
+            if data is not None:
+                r2.eliminar(key)
+                eliminado = True
+                break
+        if not eliminado:
+            raise HTTPException(404, "Solicitud no encontrada.")
+    else:
+        ruta = _ruta_archivo(archivo)
+        os.remove(ruta)
     return {"estado": "eliminado"}
 
 
@@ -220,14 +316,22 @@ def descargar_solicitud_excel(archivo: str) -> FileResponse | StreamingResponse:
     """El documento Excel es el original guardado al crear la solicitud. Para
     solicitudes legadas (.json, de antes de este cambio) se genera al vuelo
     con el mismo formato, para que la descarga sea consistente."""
+    media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    if r2.disponible():
+        data, ext = _descargar_solicitud_r2(archivo)
+        nombre_base = os.path.splitext(os.path.basename(archivo))[0]
+        if ext == ".xlsx":
+            buf = io.BytesIO(data)
+        else:
+            datos = _leer_solicitud_bytes(data, ext)
+            buf = io.BytesIO()
+            construir_workbook(datos).save(buf)
+        buf.seek(0)
+        return StreamingResponse(buf, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{nombre_base}.xlsx"'})
     ruta = _ruta_archivo(archivo)
     numero = os.path.splitext(os.path.basename(ruta))[0]
-    media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     if ruta.endswith(".xlsx"):
         return FileResponse(ruta, filename=f"{numero}.xlsx", media_type=media_type)
-    # Solicitud legada (.json): se genera el Excel al vuelo, en memoria, con
-    # el mismo formato que las solicitudes nuevas -sin dejar archivos
-    # temporales en disco.
     datos = _leer_solicitud_archivo(ruta)
     buffer = io.BytesIO()
     construir_workbook(datos).save(buffer)
@@ -241,9 +345,14 @@ def descargar_solicitud_excel(archivo: str) -> FileResponse | StreamingResponse:
 
 @router.get("/solicitudes/{archivo}/pdf")
 def descargar_solicitud_pdf(archivo: str) -> Response:
-    ruta = _ruta_archivo(archivo)
-    numero = os.path.splitext(os.path.basename(ruta))[0]
-    datos = _leer_solicitud_archivo(ruta)
+    if r2.disponible():
+        data, ext = _descargar_solicitud_r2(archivo)
+        datos = _leer_solicitud_bytes(data, ext)
+        numero = os.path.splitext(os.path.basename(archivo))[0]
+    else:
+        ruta = _ruta_archivo(archivo)
+        numero = os.path.splitext(os.path.basename(ruta))[0]
+        datos = _leer_solicitud_archivo(ruta)
     analitos_config = _leer_config("analitos.json", _ANALITOS_DEFECTO)
     pdf_bytes = generar_pdf_solicitud(datos, analitos_config)
     return Response(
@@ -272,6 +381,12 @@ def _ruta_config(nombre_archivo: str) -> str:
 
 
 def _leer_config(nombre_archivo: str, valores_defecto: list[dict]) -> list[dict]:
+    if r2.disponible():
+        datos = r2.leer_json(_r2_key_cfg(nombre_archivo), None)
+        if datos is None:
+            r2.escribir_json(_r2_key_cfg(nombre_archivo), valores_defecto)
+            return valores_defecto
+        return datos
     ruta = _ruta_config(nombre_archivo)
     if not os.path.isfile(ruta):
         _escribir_config(nombre_archivo, valores_defecto)
@@ -281,6 +396,9 @@ def _leer_config(nombre_archivo: str, valores_defecto: list[dict]) -> list[dict]
 
 
 def _escribir_config(nombre_archivo: str, datos: list[dict]) -> None:
+    if r2.disponible():
+        r2.escribir_json(_r2_key_cfg(nombre_archivo), datos)
+        return
     with open(_ruta_config(nombre_archivo), "w", encoding="utf-8") as f:
         json.dump(datos, f, ensure_ascii=False, indent=2)
 
