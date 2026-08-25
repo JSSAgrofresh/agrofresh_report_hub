@@ -65,13 +65,26 @@ if ($LASTEXITCODE -ne 0) { throw "pg_dump fallo. Revisa la URL de Neon." }
 $tamano = [math]::Round((Get-Item $archivoDump).Length / 1MB, 1)
 Write-Host "      Listo: $archivoDump ($tamano MB)" -ForegroundColor Green
 
-# Un dump sin filas de datos no sirve, y hasta aca pg_dump no devolvio error:
-# se cuenta cuantas tablas con contenido trae antes de tocar la base local.
-$entradas = & $pgRestore --list $archivoDump 2>$null
-$conDatos = @(@($entradas) | Where-Object { $_ -match 'TABLE DATA' }).Count
-Write-Host "      Tablas con datos en el dump: $conDatos"
-if ($conDatos -eq 0) {
-    throw "El dump no trae datos. Revisa que la URL apunte a la base correcta y que el usuario tenga permisos de lectura."
+# Un dump puede venir con la estructura completa y ninguna fila, y pg_dump no
+# devuelve error en ese caso. No alcanza con contar las lineas que salen: la
+# mayoria son cabeceras SQL. Las filas de verdad son las que van entre el
+# "COPY ... FROM stdin;" y el "\." que lo cierra.
+$salidaDatos = & $pgRestore --data-only --table=solicitud -f - $archivoDump 2>$null
+$filas = 0
+$dentroDelCopy = $false
+foreach ($linea in @($salidaDatos)) {
+    if (-not $dentroDelCopy) {
+        if ($linea -match '^COPY .+ FROM stdin;') { $dentroDelCopy = $true }
+        continue
+    }
+    if ($linea -match '^\\\.') { $dentroDelCopy = $false; continue }
+    $filas++
+}
+
+Write-Host "      Filas de 'solicitud' en el dump: $filas"
+if ($filas -eq 0) {
+    throw ("El dump trae la estructura pero ninguna fila. Revisa que la URL apunte a la base " +
+           "correcta y que el usuario tenga permisos de lectura sobre el esquema lab.")
 }
 
 Write-Host "`n[2/3] Creando la base local '$BaseLocal'..." -ForegroundColor Cyan
@@ -85,14 +98,14 @@ if ($existe -eq "1") {
     }
     $rta = Read-Host "      Borrarla y recrearla? Se pierde todo lo que tenga (s/N)"
     if ($rta -ne "s") { Write-Host "Cancelado." -ForegroundColor Yellow; exit 1 }
-    & $psql -U $UsuarioLocal -d postgres -c "DROP DATABASE $BaseLocal"
+    & $psql -h 127.0.0.1 -U $UsuarioLocal -d postgres -c "DROP DATABASE $BaseLocal"
     if ($LASTEXITCODE -ne 0) { throw "No se pudo borrar la base. Cerra pgAdmin u otras conexiones abiertas y proba de nuevo." }
 }
-& $psql -U $UsuarioLocal -d postgres -c "CREATE DATABASE $BaseLocal"
+& $psql -h 127.0.0.1 -U $UsuarioLocal -d postgres -c "CREATE DATABASE $BaseLocal"
 if ($LASTEXITCODE -ne 0) { throw "No se pudo crear la base '$BaseLocal'." }
 
 Write-Host "`n[3/3] Restaurando los datos en el equipo..." -ForegroundColor Cyan
-& $pgRestore --no-owner --no-acl --dbname=$BaseLocal --username=$UsuarioLocal $archivoDump
+& $pgRestore -h 127.0.0.1 --no-owner --no-acl --dbname=$BaseLocal --username=$UsuarioLocal $archivoDump
 # pg_restore devuelve codigo 1 por avisos que no son errores reales (ej. extensiones
 # de Neon que aca no aplican), asi que solo se informa en vez de cortar el script.
 if ($LASTEXITCODE -ne 0) {

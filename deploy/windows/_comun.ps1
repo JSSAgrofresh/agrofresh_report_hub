@@ -70,7 +70,10 @@ function Leer-Escalar {
         [string]$Usuario,
         [string]$Base,
         [string]$Sql,
-        [string]$Servidor = "localhost"
+        # 127.0.0.1 y no "localhost": en Windows ese nombre resuelve primero a
+        # ::1 (IPv6), y si pg_hba.conf no lo tiene configurado igual que IPv4 la
+        # conexion falla con "no password supplied" aunque la clave sea correcta.
+        [string]$Servidor = "127.0.0.1"
     )
 
     # -h explicito: sin el, psql elige el metodo de conexion segun el sistema y
