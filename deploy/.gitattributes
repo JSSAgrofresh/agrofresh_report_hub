@@ -1,0 +1,5 @@
+# Los scripts corren en Windows PowerShell: se fuerzan finales de linea CRLF y
+# se marcan como texto para que Git no los altere segun la configuracion de
+# cada equipo.
+*.ps1 text eol=crlf
+*.ejemplo text eol=crlf

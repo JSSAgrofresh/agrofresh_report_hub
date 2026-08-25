@@ -2,7 +2,7 @@
 # 1. MIGRAR LOS DATOS DE NEON AL POSTGRES LOCAL
 #
 # Copia la base completa que hoy vive en Neon al PostgreSQL de este equipo.
-# Se ejecuta UNA SOLA VEZ, después de instalar PostgreSQL y antes de levantar
+# Se ejecuta UNA SOLA VEZ, despues de instalar PostgreSQL y antes de levantar
 # el backend. Neon queda intacto: esto solo lee.
 #
 # Uso:
@@ -26,7 +26,7 @@ $pgRestore = Join-Path $CarpetaPg "pg_restore.exe"
 
 foreach ($exe in @($pgDump, $psql, $pgRestore)) {
     if (-not (Test-Path $exe)) {
-        throw "No se encontró $exe. Revisa que PostgreSQL esté instalado y ajusta -CarpetaPg."
+        throw "No se encontro $exe. Revisa que PostgreSQL este instalado y ajusta -CarpetaPg."
     }
 }
 
@@ -35,12 +35,12 @@ New-Item -ItemType Directory -Force -Path $carpetaTrabajo | Out-Null
 $archivoDump = Join-Path $carpetaTrabajo "neon-$(Get-Date -Format 'yyyyMMdd-HHmmss').dump"
 
 Write-Host "`n[1/3] Descargando la base desde Neon..." -ForegroundColor Cyan
-Write-Host "      (puede tardar varios minutos según el tamaño)"
+Write-Host "      (puede tardar varios minutos segun el tamano)"
 
 # --no-owner / --no-acl: los roles de Neon no existen en este equipo, y sin esto
 # el restore falla al intentar asignar permisos a usuarios inexistentes.
 & $pgDump --format=custom --no-owner --no-acl --file=$archivoDump $UrlNeon
-if ($LASTEXITCODE -ne 0) { throw "pg_dump falló. Revisa la URL de Neon." }
+if ($LASTEXITCODE -ne 0) { throw "pg_dump fallo. Revisa la URL de Neon." }
 
 $tamano = [math]::Round((Get-Item $archivoDump).Length / 1MB, 1)
 Write-Host "      Listo: $archivoDump ($tamano MB)" -ForegroundColor Green
@@ -49,7 +49,7 @@ Write-Host "`n[2/3] Creando la base local '$BaseLocal'..." -ForegroundColor Cyan
 $existe = & $psql -U $UsuarioLocal -tAc "SELECT 1 FROM pg_database WHERE datname='$BaseLocal'"
 if ($existe -eq "1") {
     Write-Host "      La base '$BaseLocal' ya existe." -ForegroundColor Yellow
-    $rta = Read-Host "      ¿Borrarla y recrearla? Se pierde todo lo que tenga (s/N)"
+    $rta = Read-Host "      Borrarla y recrearla? Se pierde todo lo que tenga (s/N)"
     if ($rta -ne "s") { Write-Host "Cancelado." -ForegroundColor Yellow; exit 1 }
     & $psql -U $UsuarioLocal -c "DROP DATABASE $BaseLocal"
 }
@@ -57,10 +57,10 @@ if ($existe -eq "1") {
 
 Write-Host "`n[3/3] Restaurando los datos en el equipo..." -ForegroundColor Cyan
 & $pgRestore --no-owner --no-acl --dbname=$BaseLocal --username=$UsuarioLocal $archivoDump
-# pg_restore devuelve código 1 por avisos que no son errores reales (ej. extensiones
-# de Neon que acá no aplican), así que solo se informa en vez de cortar el script.
+# pg_restore devuelve codigo 1 por avisos que no son errores reales (ej. extensiones
+# de Neon que aca no aplican), asi que solo se informa en vez de cortar el script.
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "      pg_restore terminó con avisos. Verificando el resultado..." -ForegroundColor Yellow
+    Write-Host "      pg_restore termino con avisos. Verificando el resultado..." -ForegroundColor Yellow
 }
 
 Write-Host "`nVerificando:" -ForegroundColor Cyan

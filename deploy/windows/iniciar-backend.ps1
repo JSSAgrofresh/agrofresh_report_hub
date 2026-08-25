@@ -28,8 +28,8 @@ Set-Location $carpetaBackend
 "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Arrancando backend en el puerto $Puerto ($Workers procesos)" |
     Out-File -Append -FilePath $log -Encoding utf8
 
-# Solo escucha en localhost: al exterior se sale por el túnel de Cloudflare,
-# así que no hace falta -ni conviene- exponer el puerto en la red de la oficina.
+# Solo escucha en localhost: al exterior se sale por el tunel de Cloudflare,
+# asi que no hace falta -ni conviene- exponer el puerto en la red de la oficina.
 & $python -m uvicorn app.main:app `
     --host 127.0.0.1 `
     --port $Puerto `
