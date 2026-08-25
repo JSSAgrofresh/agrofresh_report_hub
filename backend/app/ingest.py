@@ -1,3 +1,4 @@
+import gc
 import json
 from difflib import SequenceMatcher
 from typing import Any
@@ -477,7 +478,11 @@ def _procesar_filas(
     origen: str = "ingest",
     saltar_catalogo: bool = False,
     overrides: dict[str, Any] | None = None,
+    acumular_detalle: bool = True,
 ) -> dict[str, Any]:
+    # En operaciones de lote masivo (aprobar/reintentar 13.000+ pendientes) solo
+    # se usa el resumen: acumular un dict de detalle y un string de advertencia
+    # por fila hace que el contenedor se quede sin memoria (512 MB en Render free).
     resumen = {
         "solicitudes_nuevas": 0,
         "solicitudes_existentes": 0,
@@ -532,7 +537,8 @@ def _procesar_filas(
 
         if not sol["nro_solicitud"]:
             resumen["filas_omitidas"] += 1
-            detalle.append({"fila": n_fila, "omitida": True, "motivos": ["Sin N° de solicitud (Informe)"]})
+            if acumular_detalle:
+                detalle.append({"fila": n_fila, "omitida": True, "motivos": ["Sin N° de solicitud (Informe)"]})
             continue
         if not sol["laboratorio"]:
             # laboratorio es NOT NULL en la tabla solicitud: en vez de perder la fila
@@ -585,14 +591,17 @@ def _procesar_filas(
                         "INSERT INTO pendiente_revision (origen, fila, motivos) VALUES (%s, %s::jsonb, %s::jsonb)",
                         (origen, json.dumps(fila), json.dumps(fuera_de_catalogo)),
                     )
-                detalle.append(
-                    {
-                        "fila": n_fila,
-                        "nro_solicitud": sol["nro_solicitud"],
-                        "pendiente_revision": True,
-                        "motivos": [f"{m['etiqueta']}: '{m['valor']}' no está en el catálogo" for m in fuera_de_catalogo],
-                    }
-                )
+                if acumular_detalle:
+                    detalle.append(
+                        {
+                            "fila": n_fila,
+                            "nro_solicitud": sol["nro_solicitud"],
+                            "pendiente_revision": True,
+                            "motivos": [
+                                f"{m['etiqueta']}: '{m['valor']}' no está en el catálogo" for m in fuera_de_catalogo
+                            ],
+                        }
+                    )
                 continue
 
         # Para una solicitud que YA existe (fuera del flujo de aprobación manual,
@@ -721,21 +730,22 @@ def _procesar_filas(
         resumen["productos_aplicados"] += len(productos_resueltos)
         resumen["resultados"] += len(resultados_resueltos)
 
-        motivos = list(dict.fromkeys(motivos))
-        detalle.append(
-            {
-                "fila": n_fila,
-                "nro_solicitud": sol["nro_solicitud"],
-                "solicitud_id": solicitud_id,
-                "cliente": sol["sold_to_raw"],
-                "planta": sol["ship_to_raw"],
-                "productos_aplicados": len(productos_resueltos),
-                "resultados": len(resultados_resueltos),
-                "ya_existia": ya_existe,
-                "motivos": motivos,
-            }
-        )
-        advertencias.extend(f"Fila {n_fila}: {m}" for m in motivos)
+        if acumular_detalle:
+            motivos = list(dict.fromkeys(motivos))
+            detalle.append(
+                {
+                    "fila": n_fila,
+                    "nro_solicitud": sol["nro_solicitud"],
+                    "solicitud_id": solicitud_id,
+                    "cliente": sol["sold_to_raw"],
+                    "planta": sol["ship_to_raw"],
+                    "productos_aplicados": len(productos_resueltos),
+                    "resultados": len(resultados_resueltos),
+                    "ya_existia": ya_existe,
+                    "motivos": motivos,
+                }
+            )
+            advertencias.extend(f"Fila {n_fila}: {m}" for m in motivos)
 
     # Batch INSERT de solicitudes nuevas: un solo execute_values reemplaza N INSERTs
     # individuales con RETURNING id (principal causa del timeout en Render free tier).
@@ -924,6 +934,42 @@ def _recordar_correcciones(cur, fila_original: dict[str, Any], correcciones: dic
         _recordar_valor_lista(cur, "variedad", sol["variedad"], correcciones["variedad"], especie_id=especie_id)
 
 
+# Las operaciones de lote se procesan de a trozos: traer las 13.000+ filas jsonb
+# de golpe (62 columnas cada una) agota la memoria del contenedor antes de
+# insertar nada. Con este tamaño cada vuelta ocupa unos pocos MB.
+CHUNK_PENDIENTES = 500
+
+
+def _procesar_pendientes_en_chunks(
+    cur, ids_por_origen: dict[str, list[int]], saltar_catalogo: bool
+) -> dict[str, int]:
+    """Reprocesa pendientes trozo a trozo, borrando cada trozo apenas se procesa.
+    Devuelve el resumen acumulado (el detalle por fila se descarta: en un lote de
+    miles de filas no se muestra en pantalla y solo consume memoria)."""
+    resumen_total = dict(RESUMEN_VACIO)
+    for origen, ids in ids_por_origen.items():
+        for i in range(0, len(ids), CHUNK_PENDIENTES):
+            trozo = ids[i : i + CHUNK_PENDIENTES]
+            cur.execute("SELECT fila FROM pendiente_revision WHERE id = ANY(%s) ORDER BY id", (trozo,))
+            filas = [r["fila"] for r in cur.fetchall()]
+            # Borrar antes de reprocesar: si la fila sigue sin calzar,
+            # _procesar_filas la vuelve a insertar con motivos frescos.
+            cur.execute("DELETE FROM pendiente_revision WHERE id = ANY(%s)", (trozo,))
+            r = _procesar_filas(
+                cur,
+                filas,
+                escribir=True,
+                origen=origen,
+                saltar_catalogo=saltar_catalogo,
+                acumular_detalle=False,
+            )
+            for k in resumen_total:
+                resumen_total[k] += r["resumen"][k]
+            del filas, r
+            gc.collect()
+    return resumen_total
+
+
 RESUMEN_VACIO = {
     "solicitudes_nuevas": 0,
     "solicitudes_existentes": 0,
@@ -992,33 +1038,31 @@ def aprobar_lote(payload: LotePendientesIn) -> dict[str, Any]:
     pendiente aunque sean datos reales y correctos). Sin ids = todos."""
     with conexion(escribir=True) as conn:
         with cursor_dict(conn) as cur:
+            # Solo id+origen acá: la columna `fila` (el Excel completo de cada
+            # pendiente) se trae después, de a trozos, para no cargar miles de
+            # documentos jsonb en memoria a la vez.
             if payload.ids is not None:
                 cur.execute(
-                    "SELECT id, origen, fila FROM pendiente_revision WHERE id = ANY(%s) ORDER BY id",
+                    "SELECT id, origen FROM pendiente_revision WHERE id = ANY(%s) ORDER BY id",
                     (payload.ids,),
                 )
             else:
-                cur.execute("SELECT id, origen, fila FROM pendiente_revision ORDER BY id")
-            pendientes = cur.fetchall()
-            if not pendientes:
+                cur.execute("SELECT id, origen FROM pendiente_revision ORDER BY id")
+            metas = cur.fetchall()
+            if not metas:
                 return {"aprobados": 0, "resumen": dict(RESUMEN_VACIO)}
 
             # _procesar_filas toma un solo origen por llamada: se agrupa por si
             # el lote mezcla filas de ingest y converter.
-            por_origen: dict[str, list[dict[str, Any]]] = {}
-            for p in pendientes:
-                por_origen.setdefault(p["origen"], []).append(p["fila"])
+            ids_por_origen: dict[str, list[int]] = {}
+            for m in metas:
+                ids_por_origen.setdefault(m["origen"], []).append(m["id"])
+            total = len(metas)
+            del metas
 
-            resumen_total = dict(RESUMEN_VACIO)
-            for origen, filas in por_origen.items():
-                r = _procesar_filas(cur, filas, escribir=True, origen=origen, saltar_catalogo=True)
-                for k in resumen_total:
-                    resumen_total[k] += r["resumen"][k]
+            resumen_total = _procesar_pendientes_en_chunks(cur, ids_por_origen, saltar_catalogo=True)
 
-            ids_aprobados = [p["id"] for p in pendientes]
-            cur.execute("DELETE FROM pendiente_revision WHERE id = ANY(%s)", (ids_aprobados,))
-
-    return {"aprobados": len(ids_aprobados), "resumen": resumen_total}
+    return {"aprobados": total, "resumen": resumen_total}
 
 
 @router.post("/pendientes/descartar-lote")
@@ -1042,32 +1086,26 @@ def reintentar_pendientes(payload: LotePendientesIn) -> dict[str, Any]:
     el motivo/sugerencia recalculado. Sin ids = reintenta todos."""
     with conexion(escribir=True) as conn:
         with cursor_dict(conn) as cur:
+            # Igual que aprobar-lote: la columna `fila` se trae por trozo, no toda
+            # de una vez (ver _procesar_pendientes_en_chunks).
             if payload.ids is not None:
                 cur.execute(
-                    "SELECT id, origen, fila FROM pendiente_revision WHERE id = ANY(%s) ORDER BY id",
+                    "SELECT id, origen FROM pendiente_revision WHERE id = ANY(%s) ORDER BY id",
                     (payload.ids,),
                 )
             else:
-                cur.execute("SELECT id, origen, fila FROM pendiente_revision ORDER BY id")
-            pendientes = cur.fetchall()
-            if not pendientes:
+                cur.execute("SELECT id, origen FROM pendiente_revision ORDER BY id")
+            metas = cur.fetchall()
+            if not metas:
                 return {"reintentados": 0, "resumen": dict(RESUMEN_VACIO)}
 
-            ids_reintentados = [p["id"] for p in pendientes]
-            # Se borran antes de reprocesar: _procesar_filas vuelve a insertar en
-            # pendiente_revision -con motivos/sugerencias frescos- cualquier fila
-            # que todavía no calce, así que no queda duplicado ni se pierde nada.
-            cur.execute("DELETE FROM pendiente_revision WHERE id = ANY(%s)", (ids_reintentados,))
+            ids_por_origen: dict[str, list[int]] = {}
+            for m in metas:
+                ids_por_origen.setdefault(m["origen"], []).append(m["id"])
+            total = len(metas)
+            del metas
 
-            por_origen: dict[str, list[dict[str, Any]]] = {}
-            for p in pendientes:
-                por_origen.setdefault(p["origen"], []).append(p["fila"])
+            resumen_total = _procesar_pendientes_en_chunks(cur, ids_por_origen, saltar_catalogo=False)
 
-            resumen_total = dict(RESUMEN_VACIO)
-            for origen, filas in por_origen.items():
-                r = _procesar_filas(cur, filas, escribir=True, origen=origen, saltar_catalogo=False)
-                for k in resumen_total:
-                    resumen_total[k] += r["resumen"][k]
-
-    resueltos = len(ids_reintentados) - resumen_total["pendientes_revision"]
-    return {"reintentados": len(ids_reintentados), "resueltos": resueltos, "resumen": resumen_total}
+    resueltos = total - resumen_total["pendientes_revision"]
+    return {"reintentados": total, "resueltos": resueltos, "resumen": resumen_total}
