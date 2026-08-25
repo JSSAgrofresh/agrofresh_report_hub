@@ -2,10 +2,7 @@
 Envío de correos vía Resend API (https://resend.com) — funciona sobre HTTPS
 (puerto 443), sin restricciones de hosting. La clave se lee de RESEND_API_KEY.
 """
-import json
-import urllib.request
-from urllib.error import URLError
-
+import requests
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -21,36 +18,24 @@ def _enviar(destinatario: str, asunto: str, cuerpo_html: str) -> None:
     if not config.RESEND_API_KEY:
         raise HTTPException(503, "El servidor de correo no está configurado (falta RESEND_API_KEY).")
 
-    payload = json.dumps({
-        "from": FROM_ADDRESS,
-        "to": [destinatario],
-        "subject": asunto,
-        "html": cuerpo_html,
-    }).encode("utf-8")
-
-    req = urllib.request.Request(
-        RESEND_URL,
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {config.RESEND_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            if resp.status not in (200, 201):
-                raise HTTPException(502, f"Resend respondió con status {resp.status}.")
+        resp = requests.post(
+            RESEND_URL,
+            json={
+                "from": FROM_ADDRESS,
+                "to": [destinatario],
+                "subject": asunto,
+                "html": cuerpo_html,
+            },
+            headers={"Authorization": f"Bearer {config.RESEND_API_KEY}"},
+            timeout=15,
+        )
+        if resp.status_code not in (200, 201):
+            raise HTTPException(502, f"Resend error {resp.status_code}: {resp.text}")
     except HTTPException:
         raise
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise HTTPException(502, f"Resend error {exc.code}: {body}")
-    except URLError as exc:
-        raise HTTPException(502, f"No se pudo contactar Resend: {exc.reason}")
-    except Exception as exc:
-        raise HTTPException(502, f"Error al enviar correo: {exc}")
+    except requests.RequestException as exc:
+        raise HTTPException(502, f"No se pudo contactar Resend: {exc}")
 
 
 class CorreoPruebaIn(BaseModel):
@@ -70,7 +55,7 @@ def enviar_prueba(payload: CorreoPruebaIn) -> dict[str, str]:
           <p>Si lo estás leyendo, el envío de correos está funcionando correctamente.</p>
           <hr style="border:none;border-top:1px solid #ddd;margin:24px 0;">
           <p style="color:#888;font-size:12px;">
-            Enviado automáticamente por AgroFresh Report Hub
+            Enviado automáticamente por AgroFresh Report Hub · solicitudes@sanai.work
           </p>
         </div>
         """,

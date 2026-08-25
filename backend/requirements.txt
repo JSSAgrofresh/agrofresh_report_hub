@@ -6,3 +6,4 @@ pydantic>=2.10
 openpyxl>=3.1
 python-multipart>=0.0.20
 reportlab>=4.2
+requests>=2.32
