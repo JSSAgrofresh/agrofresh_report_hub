@@ -4,6 +4,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Si DATABASE_URL está definida (Neon/Supabase/Render) se usa directamente.
+# Si no, se construye a partir de los parámetros individuales (desarrollo local).
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "agrofresh")
