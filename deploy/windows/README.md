@@ -63,9 +63,27 @@ git clone https://github.com/JSSAgrofresh/agrofresh_report_hub.git
 
 ## Instalación
 
-Los cuatro scripts se corren una sola vez, en orden, desde
+Los scripts se corren una sola vez, en orden, desde
 `C:\AgroFresh\agrofresh_report_hub\deploy\windows` con **PowerShell como
 Administrador**.
+
+### 0. Ver qué hay hoy en el equipo
+
+```powershell
+.\0-revisar-que-tengo.ps1
+```
+
+Si ya se trabajó en local antes, es probable que exista un PostgreSQL con una
+base del Report Hub de esa época. Este script no modifica nada: informa cuántos
+datos tiene, si le faltan migraciones y recomienda si conviene seguir con ella o
+traer la de Neon.
+
+En general conviene traer la de Neon: tiene el esquema al día y los datos
+cargados hoy. La base local se puede conservar renombrándola antes:
+
+```powershell
+psql -U postgres -c "ALTER DATABASE agrofresh RENAME TO agrofresh_viejo"
+```
 
 ### 1. Traer los datos que ya están en Neon
 
