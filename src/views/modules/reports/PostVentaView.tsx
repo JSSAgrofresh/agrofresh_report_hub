@@ -295,7 +295,7 @@ export function PostVentaView() {
                 <button
                   key={c.carpeta}
                   type="button"
-                  className={`${styles.itemCarga} ${c.carpeta === seleccionada ? styles.itemActivo : ''}`}
+                  className={`${styles.itemCarga} ${c.carpeta === seleccionada ? styles.itemActivo : ''} ${c.origen === 'email' ? styles.itemEmail : styles.itemManual}`}
                   onClick={() => setSeleccionada(c.carpeta)}
                 >
                   <div className={styles.itemFechaRow}>
