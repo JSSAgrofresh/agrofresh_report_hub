@@ -34,3 +34,16 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 export function urlDescarga(ruta: string) {
   return `${API_BASE_URL}/storage/descargar?ruta=${encodeURIComponent(ruta)}`
 }
+
+// ---------------------------------------------------------------------------
+// R2 (solo lectura)
+// ---------------------------------------------------------------------------
+
+export function listarR2(prefijo = '') {
+  const query = prefijo ? `?prefijo=${encodeURIComponent(prefijo)}` : ''
+  return httpClient.get<ListadoStorage>(`/storage/r2/listar${query}`)
+}
+
+export function urlDescargaR2(key: string) {
+  return `${API_BASE_URL}/storage/r2/descargar?key=${encodeURIComponent(key)}`
+}
