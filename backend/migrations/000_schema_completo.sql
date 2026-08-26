@@ -239,3 +239,36 @@ ALTER TABLE cliente ALTER COLUMN activo SET DEFAULT true;
 ALTER TABLE planta  ALTER COLUMN activo SET DEFAULT true;
 ALTER TABLE cliente ALTER COLUMN activo SET NOT NULL;
 ALTER TABLE planta  ALTER COLUMN activo SET NOT NULL;
+
+-- ----------------------------------------------------------------------------
+-- 0016 — Columnas faltantes en producto_aplicado + constraint único
+-- ----------------------------------------------------------------------------
+ALTER TABLE producto_aplicado ADD COLUMN IF NOT EXISTS analito_raw   TEXT;
+ALTER TABLE producto_aplicado ADD COLUMN IF NOT EXISTS producto_raw  TEXT;
+ALTER TABLE producto_aplicado ADD COLUMN IF NOT EXISTS dosis         NUMERIC(12, 4);
+ALTER TABLE producto_aplicado ADD COLUMN IF NOT EXISTS linea_proceso TEXT;
+
+-- ----------------------------------------------------------------------------
+-- 0017 — Columnas de solicitud que el código inserta y la tabla no tenía
+--
+-- mapeo.mapear_solicitud() arma 28 campos y la tabla solo tenía 16: el mapeo
+-- fue creciendo con cada formato nuevo de Excel y la migración nunca se
+-- escribió. Sin esto, todo INSERT real falla con "no existe la columna
+-- fecha_solicitud".
+-- ----------------------------------------------------------------------------
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS fecha_solicitud     DATE;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS fecha_analisis      DATE;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS lote                TEXT;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS nro_camara          TEXT;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS nro_linea           TEXT;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS posicion_muestreo   TEXT;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS kg_procesados       NUMERIC(14, 2);
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS csg                 TEXT;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS solicitante         TEXT;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS nombre_muestreador  TEXT;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS nro_orden           TEXT;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS referencia          TEXT;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS referencia_proceso  TEXT;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS observacion         TEXT;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS observacion_2       TEXT;
+ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS semana_entrada      INTEGER;
