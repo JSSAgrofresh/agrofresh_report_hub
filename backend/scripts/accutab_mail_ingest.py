@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import logging
 import os
 import re
@@ -41,6 +42,7 @@ import sys
 import unicodedata
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -55,9 +57,8 @@ if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
 from app import config  # noqa: E402  (importacion post-sys.path)
-
-# Importar r2 despues de ajustar el path
 from app import r2 as _r2  # noqa: E402
+from app.accutab_parser import calcular_estadisticas, parsear_archivos_csv  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Configuracion
@@ -276,15 +277,16 @@ def _subir_archivo(r2_key: str, data: bytes, nombre: str) -> None:
     _r2.subir(r2_key, data, _content_type(nombre))
 
 
-def _procesar_zip(zip_data: bytes, carpeta_r2: str) -> list[str]:
-    """Extrae un ZIP y sube cada entrada a R2 preservando la ruta interna."""
+def _procesar_zip(zip_data: bytes, carpeta_r2: str) -> tuple[list[str], dict[str, bytes]]:
+    """Extrae un ZIP y sube cada entrada a R2 preservando la ruta interna.
+    Devuelve (keys_subidos, archivos_contenido) para parsing posterior."""
     subidos: list[str] = []
+    contenidos: dict[str, bytes] = {}
     with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
         for info in zf.infolist():
             if info.is_dir():
                 continue
             nombre_interno = info.filename
-            # Sanitizar separadores de ruta internos (ZIP usa '/')
             nombre_limpio = nombre_interno.replace("\\", "/").lstrip("/")
             if not nombre_limpio:
                 continue
@@ -292,7 +294,70 @@ def _procesar_zip(zip_data: bytes, carpeta_r2: str) -> list[str]:
             key = f"{carpeta_r2}{nombre_limpio}"
             _subir_archivo(key, contenido, Path(nombre_interno).name)
             subidos.append(key)
-    return subidos
+            contenidos[nombre_limpio] = contenido
+    return subidos, contenidos
+
+
+# ---------------------------------------------------------------------------
+# Generacion automatica de reporte
+# ---------------------------------------------------------------------------
+
+CARPETA_ACCUTAB = "Accutab"
+ARCHIVO_REGISTRO = "registro.json"
+_PATRON_CARPETA = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
+
+
+def _raiz_accutab() -> str:
+    ruta = os.path.normpath(os.path.join(config.STORAGE_DIR, CARPETA_ACCUTAB))
+    os.makedirs(ruta, exist_ok=True)
+    return ruta
+
+
+def _generar_reporte(asunto: str, archivos: dict[str, bytes]) -> bool:
+    """Parsea los CSV adjuntos y crea un registro.json en Storage/Accutab/
+    para que aparezca en el dashboard de Post Venta."""
+    filas = parsear_archivos_csv(archivos)
+    if not filas:
+        log.info("  No se pudo parsear datos pH/ORP de los adjuntos — sin reporte.")
+        return False
+
+    estadisticas = calcular_estadisticas(filas)
+    raiz = _raiz_accutab()
+    momento = datetime.now()
+    for _ in range(60):
+        marca = momento.strftime("%Y-%m-%d_%H-%M-%S")
+        destino = os.path.join(raiz, marca)
+        try:
+            os.makedirs(destino)
+            break
+        except FileExistsError:
+            momento += timedelta(seconds=1)
+    else:
+        log.error("  No se pudo reservar carpeta para el reporte.")
+        return False
+
+    registro = {
+        "guardado_en": datetime.now(tz=timezone.utc).isoformat(),
+        "cliente": None,
+        "planta": None,
+        "equipo": asunto[:120] if asunto else None,
+        "responsable": None,
+        "limites": None,
+        "estadisticas": estadisticas,
+        "filas": filas,
+        "archivos": [],
+        "tiene_pdf": False,
+        "origen": "email",
+    }
+    ruta_json = os.path.join(destino, ARCHIVO_REGISTRO)
+    with open(ruta_json, "w", encoding="utf-8") as f:
+        json.dump(registro, f, ensure_ascii=False)
+
+    log.info("  Reporte creado: %s (%d filas, pH=%.2f, mV=%.0f)",
+             marca, len(filas),
+             estadisticas["ph"]["prom"] or 0,
+             estadisticas["mv"]["prom"] or 0)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -310,7 +375,7 @@ def _procesar_email(
     Procesa un email AccuTab. Devuelve un dict de resumen con:
       - msg_id, asunto, carpeta, archivos_subidos, ok, error
     """
-    resultado: dict = {"msg_id": msg_id, "asunto": "", "carpeta": "", "archivos_subidos": [], "ok": False, "error": ""}
+    resultado: dict = {"msg_id": msg_id, "asunto": "", "carpeta": "", "archivos_subidos": [], "ok": False, "error": "", "reporte": False}
 
     try:
         mensaje = _obtener_mensaje(token, msg_id)
@@ -319,7 +384,7 @@ def _procesar_email(
 
         nombre_base = sanitizar_nombre(asunto)
         carpeta = _nombre_unico(nombre_base, carpetas_existentes)
-        carpetas_existentes.add(carpeta)  # reservar para emails siguientes en el mismo lote
+        carpetas_existentes.add(carpeta)
         resultado["carpeta"] = carpeta
         carpeta_r2 = f"{R2_PREFIX}{carpeta}/"
 
@@ -334,8 +399,9 @@ def _procesar_email(
             log.warning("[%s] Sin adjuntos — carpeta vacia en R2.", asunto[:60])
 
         archivos_subidos: list[str] = []
+        todos_contenidos: dict[str, bytes] = {}
 
-        def _subir(item: tuple[str, bytes]) -> list[str]:
+        def _subir(item: tuple[str, bytes]) -> tuple[list[str], dict[str, bytes]]:
             nombre, data = item
             ext = Path(nombre).suffix.lower()
             if ext == ".zip":
@@ -343,20 +409,24 @@ def _procesar_email(
             else:
                 key = f"{carpeta_r2}{nombre}"
                 _subir_archivo(key, data, nombre)
-                return [key]
+                return [key], {nombre: data}
 
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
             futuros = {pool.submit(_subir, adj): adj[0] for adj in adjuntos}
             for fut in as_completed(futuros):
                 nombre_adj = futuros[fut]
                 try:
-                    archivos_subidos.extend(fut.result())
+                    keys, contenidos = fut.result()
+                    archivos_subidos.extend(keys)
+                    todos_contenidos.update(contenidos)
                 except Exception as exc:
                     raise RuntimeError(f"Error subiendo '{nombre_adj}': {exc}") from exc
 
         resultado["archivos_subidos"] = archivos_subidos
 
-        # Marcar como procesado solo si todo subio bien
+        _generar_reporte(asunto, todos_contenidos)
+        resultado["reporte"] = True
+
         modify_body: dict = {
             "addLabelIds": [label_procesado_id],
             "removeLabelIds": [],
@@ -373,7 +443,7 @@ def _procesar_email(
         resp.raise_for_status()
 
         resultado["ok"] = True
-        log.info("OK  [%s] → %s (%d archivo/s)", asunto[:60], carpeta, len(archivos_subidos))
+        log.info("OK  [%s] → %s (%d archivo/s, reporte=%s)", asunto[:60], carpeta, len(archivos_subidos), resultado["reporte"])
 
     except Exception as exc:
         resultado["error"] = str(exc)

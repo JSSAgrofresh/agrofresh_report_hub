@@ -44,6 +44,7 @@ export interface ResumenCargaTrace {
   mv_promedio: number | null
   tiene_pdf: boolean
   n_archivos: number
+  origen: 'manual' | 'email'
 }
 
 export interface CargaTrace extends ResumenCargaTrace {
