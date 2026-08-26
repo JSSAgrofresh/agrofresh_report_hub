@@ -25,9 +25,12 @@ except ImportError:
     sys.exit(1)
 
 # Scope minimo requerido para enviar correos.
-# Si en el futuro se necesita leer correos, agregar gmail.readonly aqui
-# y regenerar el token ejecutando este script de nuevo.
-SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
+# gmail.send   → enviar correos (notificaciones de solicitudes)
+# gmail.modify → leer mensajes y gestionar etiquetas (ingesta AccuTab)
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.modify",
+]
 
 print("=" * 60)
 print("Autorizacion Gmail API — AgroFresh Report Hub")
