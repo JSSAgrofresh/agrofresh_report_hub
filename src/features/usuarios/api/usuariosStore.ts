@@ -48,7 +48,9 @@ function leer(): Usuario[] {
     return SEED
   }
   try {
-    return JSON.parse(raw) as Usuario[]
+    const parsed = JSON.parse(raw) as (Usuario | null | undefined)[]
+    const validos = parsed.filter((u): u is Usuario => u != null && typeof u === 'object' && 'id' in u)
+    return validos.length > 0 ? validos : SEED
   } catch {
     return SEED
   }
