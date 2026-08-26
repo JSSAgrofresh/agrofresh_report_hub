@@ -68,7 +68,7 @@ export function SolicitudesView() {
       await enviarCorreoPrueba(dest)
       setMensajePrueba(`✅ Correo de prueba enviado a ${dest}`)
     } catch {
-      setMensajePrueba('❌ No se pudo enviar el correo. Revisa la configuración SMTP en Render.')
+      setMensajePrueba('❌ No se pudo enviar el correo. Revisa la configuracion de Gmail API en el servidor.')
     } finally {
       setEnviandoPrueba(false)
     }
