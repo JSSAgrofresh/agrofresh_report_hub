@@ -49,6 +49,13 @@ export function urlDescargaPdf(archivo: string) {
   return `${API_BASE_URL}/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/pdf`
 }
 
+export function enviarSolicitudPorCorreo(archivo: string, destinatario: string) {
+  return httpClient.post<{ ok: string }>(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/enviar`,
+    { destinatario },
+  )
+}
+
 /** Un único Excel con todas las solicitudes (una fila por solicitud). */
 export function urlExportarTodasLasSolicitudes() {
   return `${API_BASE_URL}/toma-muestras/solicitudes/exportar-todo`
