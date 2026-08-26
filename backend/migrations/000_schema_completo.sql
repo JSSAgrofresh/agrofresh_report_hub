@@ -248,6 +248,20 @@ ALTER TABLE producto_aplicado ADD COLUMN IF NOT EXISTS producto_raw  TEXT;
 ALTER TABLE producto_aplicado ADD COLUMN IF NOT EXISTS dosis         NUMERIC(12, 4);
 ALTER TABLE producto_aplicado ADD COLUMN IF NOT EXISTS linea_proceso TEXT;
 
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'lab.producto_aplicado'::regclass
+          AND contype = 'u'
+          AND conname LIKE '%solicitud_id%analito_id%'
+    ) THEN
+        ALTER TABLE producto_aplicado
+            ADD CONSTRAINT producto_aplicado_solicitud_id_analito_id_key
+            UNIQUE (solicitud_id, analito_id);
+    END IF;
+END $$;
+
 -- ----------------------------------------------------------------------------
 -- 0017 — Columnas de solicitud que el código inserta y la tabla no tenía
 --
@@ -272,3 +286,24 @@ ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS referencia_proceso  TEXT;
 ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS observacion         TEXT;
 ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS observacion_2       TEXT;
 ALTER TABLE solicitud ADD COLUMN IF NOT EXISTS semana_entrada      INTEGER;
+
+-- ----------------------------------------------------------------------------
+-- 0018 — Restricción única en resultado (solicitud_id, analito_id)
+--
+-- ingest.py inserta con ON CONFLICT (solicitud_id, analito_id) DO NOTHING,
+-- pero resultado nunca tuvo esa restricción y PostgreSQL rechazaba el INSERT
+-- entero. producto_aplicado sí la traía desde su CREATE TABLE.
+-- ----------------------------------------------------------------------------
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'lab.resultado'::regclass
+          AND contype = 'u'
+          AND conname = 'resultado_solicitud_id_analito_id_key'
+    ) THEN
+        ALTER TABLE resultado
+            ADD CONSTRAINT resultado_solicitud_id_analito_id_key
+            UNIQUE (solicitud_id, analito_id);
+    END IF;
+END $$;
