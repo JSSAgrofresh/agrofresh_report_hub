@@ -1,7 +1,15 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 1rem);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
 .layout {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) 1fr;
-  gap: 1.25rem;
+  grid-template-columns: minmax(280px, 340px) 1fr;
+  gap: 1.5rem;
   align-items: start;
 }
 
@@ -10,6 +18,8 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Panel lateral --- */
 
 .panelLista {
   padding: 0;
@@ -28,7 +38,7 @@
 }
 
 .lista {
-  max-height: 560px;
+  max-height: 600px;
   overflow-y: auto;
 }
 
@@ -43,15 +53,37 @@
   cursor: pointer;
   font: inherit;
   color: inherit;
+  transition: background 0.12s;
 }
 
 .itemCarga:hover {
   background: var(--color-bg);
 }
 
+.itemManual {
+  border-left: 3px solid #6DAD3C;
+}
+
+.itemEmail {
+  border-left: 3px solid #4AADE0;
+}
+
 .itemActivo {
   background: var(--color-bg);
-  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.itemActivo.itemManual {
+  background: #f3f9ed;
+}
+
+.itemActivo.itemEmail {
+  background: #eaf5fb;
+}
+
+.itemFechaRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .itemFecha {
@@ -64,6 +96,9 @@
   font-size: 0.85rem;
   color: var(--color-text-muted);
   margin-top: 0.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .itemMetricas {
@@ -73,12 +108,38 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Badges de origen --- */
+
+.badgeManual,
+.badgeEmail {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.badgeManual {
+  background: #e8f5e1;
+  color: #3d7a1c;
+}
+
+.badgeEmail {
+  background: #e0f0fa;
+  color: #1a6b9c;
+}
+
 /* --- Detalle --- */
 
 .detalle {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.5rem;
 }
 
 .cabeceraDetalle {
@@ -89,9 +150,17 @@
   justify-content: space-between;
 }
 
+.tituloDetalleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
 .tituloDetalle {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1.2rem;
+  font-weight: 600;
   color: var(--color-text);
 }
 
@@ -117,16 +186,31 @@
   color: var(--color-text);
   font-size: 0.86rem;
   text-decoration: none;
+  transition: background 0.12s;
 }
 
 .enlaceBoton:hover {
   background: var(--color-bg);
 }
 
+/* --- Tarjetas de estadísticas --- */
+
 .tarjetas {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.75rem;
+}
+
+@media (max-width: 1100px) {
+  .tarjetas {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .tarjetas {
+    grid-template-columns: 1fr;
+  }
 }
 
 .tarjeta {
@@ -137,6 +221,9 @@
 .tarjetaEtiqueta {
   font-size: 0.78rem;
   color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 500;
 }
 
 .tarjetaValor {
@@ -144,13 +231,14 @@
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Para valores que son texto (una fecha) en vez de una cifra: al tamaño de
-   cifra grande, una fecha se parte en tres líneas dentro de la tarjeta. */
 .tarjetaValorTexto {
-  font-size: 1.05rem;
-  white-space: nowrap;
+  font-size: 0.92rem;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
 }
 
 .tarjetaDetalle {
@@ -160,19 +248,28 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Gráficos --- */
+
 .graficos {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 1rem;
 }
 
+@media (max-width: 1000px) {
+  .graficos {
+    grid-template-columns: 1fr;
+  }
+}
+
 .grafico {
-  padding: 1rem;
+  padding: 1.25rem;
 }
 
 .tituloGrafico {
   margin: 0 0 0.15rem;
   font-size: 0.95rem;
+  font-weight: 600;
   color: var(--color-text);
 }
 
@@ -184,8 +281,10 @@
 
 .lienzo {
   position: relative;
-  height: 220px;
+  height: 240px;
 }
+
+/* --- Tabla --- */
 
 .tablaEnvoltorio {
   overflow-x: auto;
@@ -199,7 +298,7 @@
 
 .tabla th,
 .tabla td {
-  padding: 0.45rem 0.7rem;
+  padding: 0.5rem 0.75rem;
   text-align: left;
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
@@ -211,11 +310,18 @@
   letter-spacing: 0.03em;
   color: var(--color-text-faint);
   font-weight: 600;
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
 }
 
 .tabla td {
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
+}
+
+.tabla tbody tr:hover {
+  background: var(--color-bg);
 }
 
 .pie {

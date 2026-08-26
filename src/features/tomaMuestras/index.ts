@@ -7,6 +7,7 @@ export {
   urlDescargaPdf,
   urlExportarTodasLasSolicitudes,
   enviarCorreoPrueba,
+  enviarSolicitudPorCorreo,
 } from './lib/api'
 export {
   listarCamposConfig,

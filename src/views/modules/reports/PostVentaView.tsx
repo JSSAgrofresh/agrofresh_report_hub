@@ -272,10 +272,10 @@ export function PostVentaView() {
   }
 
   return (
-    <div>
+    <div className={styles.wrap}>
       <Header
         title="Reportes de Post Venta"
-        description="Histórico de cargas de Trace: cada vez que guardas un análisis de un equipo Accu-Tab queda acá, con su fecha."
+        description="Análisis de equipos Accu-Tab: cargas manuales desde Trace y automáticas desde correo."
       />
 
       {error && <p className={styles.error}>{error}</p>}
@@ -284,7 +284,7 @@ export function PostVentaView() {
         <EstadoModulo
           etiqueta="Sin cargas todavía"
           titulo="Aún no hay ningún análisis guardado"
-          descripcion="Abre Trace, carga los archivos de pH y ORP del pendrive del equipo, completa los datos del informe y usa «Guardar en el servidor». Cada carga que guardes aparece acá con su fecha y hora, y puedes volver a abrirla cuando quieras."
+          descripcion="Abre Trace, carga los archivos de pH y ORP del pendrive del equipo, completa los datos del informe y usa «Guardar en el servidor». Los correos con datos AccuTab también se procesan automáticamente."
         />
       ) : (
         <div className={styles.layout}>
@@ -295,12 +295,17 @@ export function PostVentaView() {
                 <button
                   key={c.carpeta}
                   type="button"
-                  className={`${styles.itemCarga} ${c.carpeta === seleccionada ? styles.itemActivo : ''}`}
+                  className={`${styles.itemCarga} ${c.carpeta === seleccionada ? styles.itemActivo : ''} ${c.origen === 'email' ? styles.itemEmail : styles.itemManual}`}
                   onClick={() => setSeleccionada(c.carpeta)}
                 >
-                  <div className={styles.itemFecha}>{fechaDeCarpeta(c.carpeta)}</div>
+                  <div className={styles.itemFechaRow}>
+                    <span className={styles.itemFecha}>{fechaDeCarpeta(c.carpeta)}</span>
+                    <span className={c.origen === 'email' ? styles.badgeEmail : styles.badgeManual}>
+                      {c.origen === 'email' ? 'Correo' : 'Manual'}
+                    </span>
+                  </div>
                   <div className={styles.itemCliente}>
-                    {[c.cliente, c.planta].filter(Boolean).join(' · ') || 'Sin datos del informe'}
+                    {[c.cliente, c.planta, c.equipo].filter(Boolean).join(' · ') || 'Sin datos del informe'}
                   </div>
                   <div className={styles.itemMetricas}>
                     {c.n_registros.toLocaleString('es-CL')} registros · pH {num(c.ph_promedio)} ·{' '}
@@ -317,12 +322,17 @@ export function PostVentaView() {
             <div className={styles.detalle}>
               <div className={styles.cabeceraDetalle}>
                 <div>
-                  <h2 className={styles.tituloDetalle}>
-                    {[detalleVigente.cliente, detalleVigente.planta].filter(Boolean).join(' · ') || 'Carga sin datos del informe'}
-                  </h2>
+                  <div className={styles.tituloDetalleRow}>
+                    <h2 className={styles.tituloDetalle}>
+                      {[detalleVigente.cliente, detalleVigente.planta].filter(Boolean).join(' · ') || detalleVigente.equipo || 'Carga sin datos del informe'}
+                    </h2>
+                    <span className={detalleVigente.origen === 'email' ? styles.badgeEmail : styles.badgeManual}>
+                      {detalleVigente.origen === 'email' ? 'Ingesta automática' : 'Carga manual'}
+                    </span>
+                  </div>
                   <p className={styles.subtituloDetalle}>
                     {fechaDeCarpeta(detalleVigente.carpeta)}
-                    {detalleVigente.equipo ? ` · ${detalleVigente.equipo}` : ''}
+                    {detalleVigente.equipo && detalleVigente.cliente ? ` · ${detalleVigente.equipo}` : ''}
                     {detalleVigente.responsable ? ` · ${detalleVigente.responsable}` : ''}
                   </p>
                 </div>

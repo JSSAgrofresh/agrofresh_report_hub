@@ -33,7 +33,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
-from . import config, r2
+from . import config, correo, r2
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
 from .toma_muestras_pdf import generar_pdf_solicitud
 
@@ -360,6 +360,77 @@ def descargar_solicitud_pdf(archivo: str) -> Response:
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{numero}.pdf"'},
     )
+
+
+class EnvioSolicitudIn(BaseModel):
+    destinatario: str
+
+
+@router.post("/solicitudes/{archivo}/enviar")
+def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[str, str]:
+    """Genera el PDF y Excel de la solicitud y los envía como adjuntos."""
+    if r2.disponible():
+        data, ext = _descargar_solicitud_r2(archivo)
+        datos = _leer_solicitud_bytes(data, ext)
+        numero = os.path.splitext(os.path.basename(archivo))[0]
+    else:
+        ruta = _ruta_archivo(archivo)
+        numero = os.path.splitext(os.path.basename(ruta))[0]
+        datos = _leer_solicitud_archivo(ruta)
+
+    analitos_config = _leer_config("analitos.json", _ANALITOS_DEFECTO)
+    pdf_bytes = generar_pdf_solicitud(datos, analitos_config)
+
+    wb = construir_workbook(datos)
+    buf_excel = io.BytesIO()
+    wb.save(buf_excel)
+    excel_bytes = buf_excel.getvalue()
+
+    lab = datos.get("laboratorio", "")
+    solicitante = datos.get("solicitante", "")
+    sold_to = datos.get("sold_to", "")
+    fecha = datos.get("fecha_solicitud", "")
+
+    asunto = f"[AgroFresh] Solicitud {numero} — {lab}"
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+      <h2 style="color:#2d5a27;">Solicitud de Muestreo {numero}</h2>
+      <table style="font-size:14px;border-collapse:collapse;width:100%;">
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Laboratorio</td><td style="padding:4px 0;">{lab}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Solicitante</td><td style="padding:4px 0;">{solicitante}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Sold To</td><td style="padding:4px 0;">{sold_to}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Fecha</td><td style="padding:4px 0;">{fecha}</td></tr>
+      </table>
+      <p style="margin-top:16px;font-size:14px;">
+        Se adjuntan el PDF y el Excel de la solicitud.
+      </p>
+      <hr style="border:none;border-top:1px solid #ddd;margin:24px 0;">
+      <p style="color:#888;font-size:12px;">
+        Enviado desde AgroFresh Report Hub.
+      </p>
+    </div>
+    """
+    texto = (
+        f"Solicitud de Muestreo {numero}\n\n"
+        f"Laboratorio: {lab}\n"
+        f"Solicitante: {solicitante}\n"
+        f"Sold To: {sold_to}\n"
+        f"Fecha: {fecha}\n\n"
+        f"Se adjuntan el PDF y el Excel de la solicitud.\n\n"
+        f"Enviado desde AgroFresh Report Hub."
+    )
+
+    adjuntos = [
+        correo.Adjunto(f"{numero}.pdf", pdf_bytes, "application/pdf"),
+        correo.Adjunto(
+            f"{numero}.xlsx",
+            excel_bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ),
+    ]
+
+    correo.enviar(body.destinatario, asunto, html, texto, adjuntos)
+    return {"ok": f"Solicitud {numero} enviada a {body.destinatario}."}
 
 
 # ---------------------------------------------------------------------------

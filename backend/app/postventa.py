@@ -112,6 +112,7 @@ def _resumen(carpeta: str, registro: dict[str, Any]) -> dict[str, Any]:
         "mv_promedio": mv.get("prom"),
         "tiene_pdf": registro.get("tiene_pdf", False),
         "n_archivos": len(registro.get("archivos") or []),
+        "origen": registro.get("origen", "manual"),
     }
 
 
@@ -208,6 +209,8 @@ def ver_registro(carpeta: str) -> dict[str, Any]:
     with open(ruta, encoding="utf-8") as f:
         registro = json.load(f)
     registro["carpeta"] = carpeta
+    if "origen" not in registro:
+        registro["origen"] = "manual"
     return registro
 
 

@@ -15,6 +15,7 @@ Para regenerar el refresh token si expira o si el scope cambia, ejecutar:
 """
 import base64
 import logging
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -83,30 +84,57 @@ def _gmail_access_token() -> str:
     return token
 
 
+class Adjunto:
+    """Un archivo adjunto para incluir en el correo."""
+    def __init__(self, nombre: str, contenido: bytes, media_type: str = "application/octet-stream"):
+        self.nombre = nombre
+        self.contenido = contenido
+        self.media_type = media_type
+
+
 def _construir_mime(
     destinatario: str,
     asunto: str,
     cuerpo_html: str,
     cuerpo_texto: str | None = None,
+    adjuntos: list[Adjunto] | None = None,
 ) -> str:
     """Construye un mensaje MIME y lo codifica en base64url para Gmail API."""
-    msg = MIMEMultipart("alternative")
+    if adjuntos:
+        msg = MIMEMultipart("mixed")
+        cuerpo = MIMEMultipart("alternative")
+        if cuerpo_texto:
+            cuerpo.attach(MIMEText(cuerpo_texto, "plain", "utf-8"))
+        cuerpo.attach(MIMEText(cuerpo_html, "html", "utf-8"))
+        msg.attach(cuerpo)
+        for adj in adjuntos:
+            parte = MIMEApplication(adj.contenido, Name=adj.nombre)
+            parte["Content-Disposition"] = f'attachment; filename="{adj.nombre}"'
+            msg.attach(parte)
+    else:
+        msg = MIMEMultipart("alternative")
+        if cuerpo_texto:
+            msg.attach(MIMEText(cuerpo_texto, "plain", "utf-8"))
+        msg.attach(MIMEText(cuerpo_html, "html", "utf-8"))
+
     msg["From"] = f"{FROM_DISPLAY} <{config.GMAIL_ACCOUNT}>"
     msg["To"] = destinatario
     msg["Subject"] = asunto
-
-    if cuerpo_texto:
-        msg.attach(MIMEText(cuerpo_texto, "plain", "utf-8"))
-    msg.attach(MIMEText(cuerpo_html, "html", "utf-8"))
 
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     return raw
 
 
-def _enviar_gmail(destinatario: str, asunto: str, cuerpo_html: str, cuerpo_texto: str | None = None) -> None:
+def _enviar_gmail(
+    destinatario: str,
+    asunto: str,
+    cuerpo_html: str,
+    cuerpo_texto: str | None = None,
+    adjuntos: list[Adjunto] | None = None,
+) -> None:
     """Envia un correo via Gmail API usando OAuth 2.0."""
     access_token = _gmail_access_token()
-    raw = _construir_mime(destinatario, asunto, cuerpo_html, cuerpo_texto)
+    raw = _construir_mime(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos)
 
     try:
         resp = requests.post(
@@ -161,13 +189,19 @@ def _enviar_resend(destinatario: str, asunto: str, cuerpo_html: str) -> None:
 # Funcion publica de envio (Gmail primero, Resend como fallback)
 # ----------------------------------------------------------------------------
 
-def enviar(destinatario: str, asunto: str, cuerpo_html: str, cuerpo_texto: str | None = None) -> None:
+def enviar(
+    destinatario: str,
+    asunto: str,
+    cuerpo_html: str,
+    cuerpo_texto: str | None = None,
+    adjuntos: list[Adjunto] | None = None,
+) -> None:
     """
     Envia un correo. Usa Gmail API si esta configurado; Resend como fallback.
     Llamar desde cualquier modulo del backend que necesite enviar correos.
     """
     if config.GMAIL_CLIENT_ID and config.GMAIL_CLIENT_SECRET and config.GMAIL_REFRESH_TOKEN:
-        _enviar_gmail(destinatario, asunto, cuerpo_html, cuerpo_texto)
+        _enviar_gmail(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos)
     elif config.RESEND_API_KEY:
         logger.warning("Gmail OAuth no configurado; usando Resend como fallback.")
         _enviar_resend(destinatario, asunto, cuerpo_html)

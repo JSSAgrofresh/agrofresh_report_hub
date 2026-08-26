@@ -147,3 +147,123 @@
   padding: var(--space-2) var(--space-3);
   margin-bottom: var(--space-3);
 }
+
+/* --- Envío por correo --- */
+
+.botonEnviar {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  background: #2d8a4e;
+  transition: background 0.12s;
+}
+
+.botonEnviar:hover {
+  background: #236e3d;
+}
+
+.panelEnvio {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  margin-bottom: var(--space-3);
+}
+
+.etiquetaEnvio {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-faint);
+}
+
+.filaEnvio {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.inputEmail {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  font-size: 14px;
+  color: var(--color-text);
+  outline: none;
+}
+
+.inputEmail:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(45, 138, 78, 0.15);
+}
+
+.botonEnviarConfirmar {
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #fff;
+  background: #2d8a4e;
+  transition: background 0.12s;
+}
+
+.botonEnviarConfirmar:hover:not(:disabled) {
+  background: #236e3d;
+}
+
+.botonEnviarConfirmar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.botonCancelar {
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  transition: background 0.12s;
+}
+
+.botonCancelar:hover:not(:disabled) {
+  background: var(--color-bg);
+}
+
+.mensajeOk {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid #2d8a4e;
+  background: #eaf7ee;
+  color: #1a5e33;
+  font-size: 13.5px;
+  margin-bottom: var(--space-3);
+}
+
+.mensajeError {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-danger);
+  background: #fbe8e5;
+  color: var(--color-danger);
+  font-size: 13.5px;
+  margin-bottom: var(--space-3);
+}

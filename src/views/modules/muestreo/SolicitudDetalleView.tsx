@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { IconFrasco } from '@/components/ui/icons'
-import { obtenerSolicitud, urlDescargaExcel, urlDescargaPdf } from '@/features/tomaMuestras'
+import { obtenerSolicitud, urlDescargaExcel, urlDescargaPdf, enviarSolicitudPorCorreo } from '@/features/tomaMuestras'
 import type { Solicitud } from '@/features/tomaMuestras'
 import { ROUTES } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
@@ -24,6 +24,11 @@ export function SolicitudDetalleView() {
   const navigate = useNavigate()
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [mostrarEnvio, setMostrarEnvio] = useState(false)
+  const [emailEnvio, setEmailEnvio] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [mensajeEnvio, setMensajeEnvio] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  const inputEmailRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!archivo) return
@@ -31,6 +36,26 @@ export function SolicitudDetalleView() {
       .then(setSolicitud)
       .catch(() => setError('No se pudo cargar la solicitud.'))
   }, [archivo])
+
+  useEffect(() => {
+    if (mostrarEnvio) inputEmailRef.current?.focus()
+  }, [mostrarEnvio])
+
+  async function handleEnviar() {
+    if (!archivo || !emailEnvio.trim()) return
+    setEnviando(true)
+    setMensajeEnvio(null)
+    try {
+      const res = await enviarSolicitudPorCorreo(archivo, emailEnvio.trim())
+      setMensajeEnvio({ tipo: 'ok', texto: res.ok })
+      setEmailEnvio('')
+      setMostrarEnvio(false)
+    } catch {
+      setMensajeEnvio({ tipo: 'error', texto: 'No se pudo enviar el correo. Verifica la dirección e intenta de nuevo.' })
+    } finally {
+      setEnviando(false)
+    }
+  }
 
   if (error) {
     return (
@@ -75,9 +100,53 @@ export function SolicitudDetalleView() {
             <a className={styles.botonDescargaPdf} href={urlDescargaPdf(solicitud.archivo)} target="_blank" rel="noreferrer">
               Descargar PDF
             </a>
+            <button
+              className={styles.botonEnviar}
+              onClick={() => { setMostrarEnvio(v => !v); setMensajeEnvio(null) }}
+            >
+              Enviar por correo
+            </button>
           </div>
         }
       />
+
+      {mostrarEnvio && (
+        <div className={styles.panelEnvio}>
+          <label className={styles.etiquetaEnvio}>Enviar PDF y Excel a:</label>
+          <div className={styles.filaEnvio}>
+            <input
+              ref={inputEmailRef}
+              type="email"
+              className={styles.inputEmail}
+              placeholder="correo@ejemplo.com"
+              value={emailEnvio}
+              onChange={e => setEmailEnvio(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleEnviar() }}
+              disabled={enviando}
+            />
+            <button
+              className={styles.botonEnviarConfirmar}
+              onClick={handleEnviar}
+              disabled={enviando || !emailEnvio.trim()}
+            >
+              {enviando ? 'Enviando…' : 'Enviar'}
+            </button>
+            <button
+              className={styles.botonCancelar}
+              onClick={() => { setMostrarEnvio(false); setMensajeEnvio(null) }}
+              disabled={enviando}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mensajeEnvio && (
+        <div className={mensajeEnvio.tipo === 'ok' ? styles.mensajeOk : styles.mensajeError}>
+          {mensajeEnvio.texto}
+        </div>
+      )}
 
       <div className={styles.grilla}>
         <Card>
