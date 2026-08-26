@@ -203,3 +203,97 @@ def eliminar(ruta: str) -> dict[str, str]:
     else:
         raise HTTPException(404, "No encontrado.")
     return {"estado": "eliminado"}
+
+
+# ---------------------------------------------------------------------------
+# Navegación de R2 (solo lectura — AccuTab y otros prefijos)
+# ---------------------------------------------------------------------------
+
+from . import r2 as _r2  # noqa: E402
+
+
+@router.get("/r2/listar")
+def r2_listar(prefijo: str = "") -> ListadoStorage:
+    """
+    Lista el contenido de R2 como si fuera un explorador de carpetas.
+    'prefijo' es la ruta relativa dentro del bucket (ej. "" para raíz, "accutab/mail/" para AccuTab).
+    Devuelve el mismo formato que /listar para que el frontend lo reutilice.
+    """
+    if not _r2.disponible():
+        raise HTTPException(503, "R2 no está configurado en este servidor.")
+
+    # Normalizar: siempre termina en "/" salvo si es raíz
+    base = prefijo.strip("/")
+    prefijo_r2 = (base + "/") if base else ""
+
+    try:
+        paginator = _r2._get_client().get_paginator("list_objects_v2")
+        page_iter = paginator.paginate(
+            Bucket=_r2.config.R2_BUCKET,
+            Prefix=prefijo_r2,
+            Delimiter="/",
+        )
+
+        carpetas: list[EntradaStorage] = []
+        archivos: list[EntradaStorage] = []
+
+        for page in page_iter:
+            for cp in page.get("CommonPrefixes", []):
+                nombre = cp["Prefix"].rstrip("/").split("/")[-1]
+                carpetas.append(EntradaStorage(
+                    nombre=nombre,
+                    ruta=cp["Prefix"].rstrip("/"),
+                    tipo="carpeta",
+                    tamano_bytes=None,
+                    modificado="",
+                ))
+            for obj in page.get("Contents", []):
+                key: str = obj["Key"]
+                if key == prefijo_r2:
+                    continue  # entrada de "carpeta vacía", no listar
+                nombre = key.split("/")[-1]
+                if not nombre:
+                    continue
+                archivos.append(EntradaStorage(
+                    nombre=nombre,
+                    ruta=key,
+                    tipo="archivo",
+                    tamano_bytes=obj.get("Size"),
+                    modificado=obj["LastModified"].isoformat() if obj.get("LastModified") else "",
+                ))
+
+        entradas = sorted(carpetas, key=lambda e: e.nombre.lower()) + sorted(archivos, key=lambda e: e.nombre.lower())
+        return ListadoStorage(ruta=prefijo_r2, entradas=entradas)
+
+    except Exception as exc:
+        raise HTTPException(502, f"Error al listar R2: {exc}")
+
+
+from fastapi.responses import StreamingResponse  # noqa: E402
+
+
+@router.get("/r2/descargar")
+def r2_descargar(key: str):
+    """Descarga un archivo de R2 directamente (proxy streaming)."""
+    if not _r2.disponible():
+        raise HTTPException(503, "R2 no está configurado en este servidor.")
+    if not key or ".." in key:
+        raise HTTPException(400, "Key inválida.")
+
+    try:
+        resp = _r2._get_client().get_object(Bucket=_r2.config.R2_BUCKET, Key=key)
+    except Exception as exc:
+        raise HTTPException(404, f"No encontrado en R2: {exc}")
+
+    filename = key.split("/")[-1] or "archivo"
+    content_type = resp.get("ContentType", "application/octet-stream")
+
+    def _iter():
+        for chunk in resp["Body"].iter_chunks(chunk_size=65536):
+            yield chunk
+
+    return StreamingResponse(
+        _iter(),
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
