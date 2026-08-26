@@ -1,18 +1,20 @@
 """
-Ingesta automatica de correos AccuTab desde Gmail → Cloudflare R2.
+Ingesta automatica de correos AccuTab desde Gmail a Cloudflare R2.
+
+Deteccion automatica: busca correos cuyo remitente contenga "accutab"
+O cuyo asunto contenga "accutab". No necesita etiquetas manuales.
 
 Flujo:
-  1. Busca en Gmail emails no procesados con la etiqueta ACCUTAB_PENDIENTE
-     (o sin etiqueta ACCUTAB_PROCESADO si la etiqueta no existe aun).
+  1. Busca en Gmail emails que coincidan con el criterio AccuTab y que
+     NO tengan la etiqueta ACCUTAB_PROCESADO.
   2. Por cada email:
-     a. Sanitiza el asunto → nombre de carpeta.
+     a. Sanitiza el asunto -> nombre de carpeta.
      b. Si ya existe una carpeta con ese nombre, agrega sufijo (2), (3)...
      c. Descarga todos los adjuntos (.csv, .zip, .xlsx, .pdf, ...).
      d. Para archivos .zip: extrae y sube cada entrada preservando la ruta
         interna (PH/, ORP/, etc.).
      e. Sube todos los archivos a R2 bajo accutab/mail/<carpeta>/.
-     f. Solo si todo subio bien, aplica la etiqueta ACCUTAB_PROCESADO
-        y quita ACCUTAB_PENDIENTE (idempotencia).
+     f. Solo si todo subio bien, aplica la etiqueta ACCUTAB_PROCESADO.
   3. Imprime resumen al terminar.
 
 Uso (Windows Task Scheduler o manual):
@@ -64,7 +66,7 @@ from app import r2 as _r2  # noqa: E402
 # ---------------------------------------------------------------------------
 
 LABEL_PROCESADO = "ACCUTAB_PROCESADO"
-LABEL_PENDIENTE = "ACCUTAB_PENDIENTE"
+QUERY_ACCUTAB = "(from:accutab OR subject:accutab) has:attachment"
 R2_PREFIX = "accutab/mail/"
 BATCH_SIZE = 100
 MAX_WORKERS = 4          # subidas paralelas a R2 por email
@@ -164,18 +166,16 @@ def _obtener_o_crear_label(token: str, nombre: str) -> str:
     return resp2.json()["id"]
 
 
-def _listar_mensajes_pendientes(token: str, label_procesado_id: str, label_pendiente_id: str | None) -> list[str]:
+def _listar_mensajes_pendientes(token: str, label_procesado_id: str) -> list[str]:
     """
     Devuelve ids de mensajes AccuTab no procesados.
-    Si existe ACCUTAB_PENDIENTE, busca esa etiqueta.
-    Si no, busca todos los que NO tengan ACCUTAB_PROCESADO.
+    Busca automaticamente correos de AccuTab (por remitente o asunto)
+    que NO tengan la etiqueta ACCUTAB_PROCESADO.
     """
-    params: dict = {"maxResults": BATCH_SIZE}
-    if label_pendiente_id:
-        params["labelIds"] = label_pendiente_id
-    else:
-        # Fallback: buscar emails que contengan "AccuTab" en el asunto y no esten procesados
-        params["q"] = f"-label:{LABEL_PROCESADO} subject:AccuTab"
+    params: dict = {
+        "maxResults": BATCH_SIZE,
+        "q": f"-label:{LABEL_PROCESADO} {QUERY_ACCUTAB}",
+    }
 
     ids: list[str] = []
     page_token = None
@@ -304,7 +304,6 @@ def _procesar_email(
     msg_id: str,
     carpetas_existentes: set[str],
     label_procesado_id: str,
-    label_pendiente_id: str | None,
 ) -> dict:
     """
     Procesa un email AccuTab. Devuelve un dict de resumen con:
@@ -361,8 +360,6 @@ def _procesar_email(
             "addLabelIds": [label_procesado_id],
             "removeLabelIds": [],
         }
-        if label_pendiente_id:
-            modify_body["removeLabelIds"].append(label_pendiente_id)
 
         resp = requests.post(
             f"{GMAIL_API}/users/me/messages/{msg_id}/modify",
@@ -399,14 +396,10 @@ def main() -> int:
         log.error("No se pudo obtener token Gmail: %s", exc)
         return 1
 
-    # Obtener o crear etiquetas
+    # Obtener o crear etiqueta de control
     label_procesado_id = _obtener_o_crear_label(token, LABEL_PROCESADO)
-    try:
-        label_pendiente_id: str | None = _obtener_o_crear_label(token, LABEL_PENDIENTE)
-    except Exception:
-        label_pendiente_id = None
-
-    log.info("Etiquetas: procesado=%s  pendiente=%s", label_procesado_id, label_pendiente_id)
+    log.info("Etiqueta procesado: %s", label_procesado_id)
+    log.info("Busqueda automatica: %s", QUERY_ACCUTAB)
 
     # Determinar carpetas ya existentes en R2 (para deduplicacion de nombres)
     keys_existentes = _r2.listar_keys(R2_PREFIX)
@@ -421,7 +414,7 @@ def main() -> int:
     log.info("Carpetas existentes en R2: %d", len(carpetas_existentes))
 
     # Listar mensajes pendientes
-    ids = _listar_mensajes_pendientes(token, label_procesado_id, label_pendiente_id)
+    ids = _listar_mensajes_pendientes(token, label_procesado_id)
     log.info("Emails pendientes a procesar: %d", len(ids))
 
     if not ids:
@@ -430,7 +423,7 @@ def main() -> int:
 
     resultados = []
     for msg_id in ids:
-        r = _procesar_email(token, msg_id, carpetas_existentes, label_procesado_id, label_pendiente_id)
+        r = _procesar_email(token, msg_id, carpetas_existentes, label_procesado_id)
         resultados.append(r)
 
     # Resumen
