@@ -48,6 +48,7 @@ app.add_middleware(CapturaErrores)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
     # Sin esto el navegador no deja leer Content-Disposition desde el
