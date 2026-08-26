@@ -88,44 +88,14 @@ foreach ($archivo in $archivos) {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Asegurar tablas criticas con schema explicito usando archivo SQL temporal
-#    (evita problemas de parseo de PowerShell con parentesis en here-strings)
+# 4. Asegurar tablas criticas con schema explicito
+#    El SQL vive en backend\scripts\recuperar_schema.sql para evitar
+#    problemas de saltos de linea LF vs CRLF en strings de PowerShell.
 # ---------------------------------------------------------------------------
-$sqlTemp = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.sql'
-
 Write-Host ""
-Write-Host "Asegurando tabla lab.valor_lista..." -NoNewline
-$sqlValorLista = @(
-    "CREATE TABLE IF NOT EXISTS lab.valor_lista (",
-    "    id                SERIAL PRIMARY KEY,",
-    "    tipo              TEXT NOT NULL,",
-    "    valor             TEXT NOT NULL,",
-    "    valor_normalizado TEXT NOT NULL,",
-    "    activo            BOOLEAN NOT NULL DEFAULT true,",
-    "    fusionado_en_id   INTEGER REFERENCES lab.valor_lista(id),",
-    "    creado_en         TIMESTAMPTZ NOT NULL DEFAULT now()",
-    ");",
-    "ALTER TABLE lab.valor_lista ADD COLUMN IF NOT EXISTS es_estandar BOOLEAN NOT NULL DEFAULT false;",
-    "ALTER TABLE lab.valor_lista ADD COLUMN IF NOT EXISTS especie_id  INTEGER REFERENCES lab.valor_lista(id);",
-    "CREATE INDEX IF NOT EXISTS idx_valor_lista_tipo_activo ON lab.valor_lista (tipo, activo);",
-    "CREATE INDEX IF NOT EXISTS idx_valor_lista_estandar    ON lab.valor_lista (tipo, es_estandar);",
-    "CREATE INDEX IF NOT EXISTS idx_valor_lista_especie_id  ON lab.valor_lista (especie_id);"
-) -join "`r`n"
-[System.IO.File]::WriteAllText($sqlTemp, $sqlValorLista, [System.Text.Encoding]::UTF8)
-& $PsqlExe -U $DbUser -h $DbHost -p $DbPort -d $DbName -f $sqlTemp 2>&1 | Out-Null
-Remove-Item $sqlTemp -ErrorAction SilentlyContinue
-Write-Host " OK" -ForegroundColor Green
-
-Write-Host "Asegurando columnas de lab.producto_aplicado..." -NoNewline
-$sqlProducto = @(
-    "ALTER TABLE lab.producto_aplicado ADD COLUMN IF NOT EXISTS tipo_aplicacion text;",
-    "ALTER TABLE lab.producto_aplicado ADD COLUMN IF NOT EXISTS dosis text;",
-    "ALTER TABLE lab.producto_aplicado ADD COLUMN IF NOT EXISTS unidad_dosis text;",
-    "ALTER TABLE lab.producto_aplicado ADD COLUMN IF NOT EXISTS fecha_aplicacion date;"
-) -join "`r`n"
-[System.IO.File]::WriteAllText($sqlTemp, $sqlProducto, [System.Text.Encoding]::UTF8)
-& $PsqlExe -U $DbUser -h $DbHost -p $DbPort -d $DbName -f $sqlTemp 2>&1 | Out-Null
-Remove-Item $sqlTemp -ErrorAction SilentlyContinue
+Write-Host "Asegurando tablas criticas (valor_lista, producto_aplicado)..." -NoNewline
+$sqlSchema = Join-Path $carpetaBackend "scripts\recuperar_schema.sql"
+& $PsqlExe -U $DbUser -h $DbHost -p $DbPort -d $DbName -f $sqlSchema 2>&1 | Out-Null
 Write-Host " OK" -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
