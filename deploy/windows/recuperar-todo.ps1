@@ -88,10 +88,30 @@ foreach ($archivo in $archivos) {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Aplicar columnas de producto_aplicado manualmente (0016 falla sin schema)
+# 4. Asegurar tablas críticas con schema explícito (por si alguna migración
+#    falló o fue ejecutada sin SET search_path correcto)
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "Asegurando columnas de producto_aplicado..." -NoNewline
+Write-Host "Asegurando tabla lab.valor_lista..." -NoNewline
+& $PsqlExe -U $DbUser -h $DbHost -p $DbPort -d $DbName -c @"
+CREATE TABLE IF NOT EXISTS lab.valor_lista (
+    id                SERIAL PRIMARY KEY,
+    tipo              TEXT NOT NULL CHECK (tipo IN ('especie', 'variedad')),
+    valor             TEXT NOT NULL,
+    valor_normalizado TEXT NOT NULL,
+    activo            BOOLEAN NOT NULL DEFAULT true,
+    fusionado_en_id   INTEGER REFERENCES lab.valor_lista(id),
+    creado_en         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE lab.valor_lista ADD COLUMN IF NOT EXISTS es_estandar BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE lab.valor_lista ADD COLUMN IF NOT EXISTS especie_id  INTEGER REFERENCES lab.valor_lista(id);
+CREATE INDEX IF NOT EXISTS idx_valor_lista_tipo_activo  ON lab.valor_lista (tipo, activo);
+CREATE INDEX IF NOT EXISTS idx_valor_lista_estandar     ON lab.valor_lista (tipo, es_estandar);
+CREATE INDEX IF NOT EXISTS idx_valor_lista_especie_id   ON lab.valor_lista (especie_id);
+"@ 2>&1 | Out-Null
+Write-Host " OK" -ForegroundColor Green
+
+Write-Host "Asegurando columnas de lab.producto_aplicado..." -NoNewline
 & $PsqlExe -U $DbUser -h $DbHost -p $DbPort -d $DbName -c @"
 ALTER TABLE lab.producto_aplicado ADD COLUMN IF NOT EXISTS tipo_aplicacion text;
 ALTER TABLE lab.producto_aplicado ADD COLUMN IF NOT EXISTS dosis text;

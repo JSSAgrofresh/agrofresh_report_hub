@@ -93,7 +93,7 @@ def _validar_especie_id(cur, tipo: str, especie_id: int | None) -> int | None:
         return None
     if especie_id is None:
         raise HTTPException(400, "Elige a qué especie pertenece esta variedad.")
-    cur.execute("SELECT 1 FROM valor_lista WHERE id = %s AND tipo = 'especie'", (especie_id,))
+    cur.execute("SELECT 1 FROM lab.valor_lista WHERE id = %s AND tipo = 'especie'", (especie_id,))
     if not cur.fetchone():
         raise HTTPException(404, "La especie indicada no existe.")
     return especie_id
@@ -110,22 +110,22 @@ def _buscar_o_crear_estandar(cur, tipo: str, valor_crudo: str, especie_id: int |
     valor = normalizar_texto_general(valor_crudo)
     clave = clave_normalizada(valor)
     if tipo == "especie":
-        cur.execute("SELECT id, es_estandar FROM valor_lista WHERE tipo = 'especie' AND valor_normalizado = %s", (clave,))
+        cur.execute("SELECT id, es_estandar FROM lab.valor_lista WHERE tipo = 'especie' AND valor_normalizado = %s", (clave,))
     else:
         cur.execute(
-            "SELECT id, es_estandar FROM valor_lista WHERE tipo = 'variedad' AND especie_id = %s AND valor_normalizado = %s",
+            "SELECT id, es_estandar FROM lab.valor_lista WHERE tipo = 'variedad' AND especie_id = %s AND valor_normalizado = %s",
             (especie_id, clave),
         )
     existente = cur.fetchone()
     if existente:
         if not existente["es_estandar"]:
             cur.execute(
-                "UPDATE valor_lista SET es_estandar = true, activo = true, fusionado_en_id = NULL, valor = %s WHERE id = %s",
+                "UPDATE lab.valor_lista SET es_estandar = true, activo = true, fusionado_en_id = NULL, valor = %s WHERE id = %s",
                 (valor, existente["id"]),
             )
         return existente["id"]
     cur.execute(
-        "INSERT INTO valor_lista (tipo, valor, valor_normalizado, activo, es_estandar, especie_id) VALUES (%s, %s, %s, true, true, %s) RETURNING id",
+        "INSERT INTO lab.valor_lista (tipo, valor, valor_normalizado, activo, es_estandar, especie_id) VALUES (%s, %s, %s, true, true, %s) RETURNING id",
         (tipo, valor, clave, especie_id),
     )
     return cur.fetchone()["id"]
@@ -172,14 +172,14 @@ def exportar_listados() -> StreamingResponse:
 
         cur.execute(
             "SELECT valor, activo, es_estandar, NULL AS asignado_a "
-            "FROM valor_lista WHERE tipo = 'especie' ORDER BY es_estandar DESC, valor"
+            "FROM lab.valor_lista WHERE tipo = 'especie' ORDER BY es_estandar DESC, valor"
         )
         especies = cur.fetchall()
         cur.execute(
             "SELECT v.valor, v.activo, v.es_estandar, esp.valor AS especie, e.valor AS asignado_a "
-            "FROM valor_lista v "
-            "JOIN valor_lista esp ON esp.id = v.especie_id "
-            "LEFT JOIN valor_lista e ON e.id = v.fusionado_en_id "
+            "FROM lab.valor_lista v "
+            "JOIN lab.valor_lista esp ON esp.id = v.especie_id "
+            "LEFT JOIN lab.valor_lista e ON e.id = v.fusionado_en_id "
             "WHERE v.tipo = 'variedad' ORDER BY esp.valor, v.es_estandar DESC, v.valor"
         )
         variedades = cur.fetchall()
@@ -239,7 +239,7 @@ def listar_valores(
 ) -> list[dict[str, Any]]:
     _validar_tipo(tipo)
     with conexion() as conn, cursor_dict(conn) as cur:
-        sql = "SELECT id, tipo, valor, activo, es_estandar, fusionado_en_id, especie_id, creado_en FROM valor_lista WHERE tipo = %s"
+        sql = "SELECT id, tipo, valor, activo, es_estandar, fusionado_en_id, especie_id, creado_en FROM lab.valor_lista WHERE tipo = %s"
         params: list[Any] = [tipo]
         if not incluir_inactivos:
             sql += " AND activo = true"
@@ -264,16 +264,16 @@ def crear_valor(tipo: str, body: ValorListaIn) -> dict[str, Any]:
     with conexion() as conn, cursor_dict(conn) as cur:
         especie_id = _validar_especie_id(cur, tipo, body.especie_id)
         if tipo == "especie":
-            cur.execute("SELECT id FROM valor_lista WHERE tipo = 'especie' AND valor_normalizado = %s", (clave,))
+            cur.execute("SELECT id FROM lab.valor_lista WHERE tipo = 'especie' AND valor_normalizado = %s", (clave,))
         else:
             cur.execute(
-                "SELECT id FROM valor_lista WHERE tipo = 'variedad' AND especie_id = %s AND valor_normalizado = %s",
+                "SELECT id FROM lab.valor_lista WHERE tipo = 'variedad' AND especie_id = %s AND valor_normalizado = %s",
                 (especie_id, clave),
             )
         if cur.fetchone():
             raise HTTPException(409, f"Ya existe un valor equivalente en {tipo}.")
         cur.execute(
-            "INSERT INTO valor_lista (tipo, valor, valor_normalizado, activo, especie_id) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            "INSERT INTO lab.valor_lista (tipo, valor, valor_normalizado, activo, especie_id) VALUES (%s, %s, %s, %s, %s) RETURNING id",
             (tipo, valor, clave, body.activo, especie_id),
         )
         return {"id": cur.fetchone()["id"]}
@@ -290,11 +290,11 @@ def editar_valor(tipo: str, valor_id: int, body: ValorListaIn) -> dict[str, str]
         if tipo == "especie":
             especie_id = None
             cur.execute(
-                "SELECT id FROM valor_lista WHERE tipo = 'especie' AND valor_normalizado = %s AND id != %s",
+                "SELECT id FROM lab.valor_lista WHERE tipo = 'especie' AND valor_normalizado = %s AND id != %s",
                 (clave, valor_id),
             )
         else:
-            cur.execute("SELECT id FROM valor_lista WHERE id = %s AND tipo = 'variedad'", (valor_id,))
+            cur.execute("SELECT id FROM lab.valor_lista WHERE id = %s AND tipo = 'variedad'", (valor_id,))
             if not cur.fetchone():
                 raise HTTPException(404, "Valor no encontrado")
             # A diferencia de crear_valor, acá SÍ se permite reasignar la
@@ -302,13 +302,13 @@ def editar_valor(tipo: str, valor_id: int, body: ValorListaIn) -> dict[str, str]
             # sin especie (datos legados) o mal clasificada-.
             especie_id = _validar_especie_id(cur, tipo, body.especie_id)
             cur.execute(
-                "SELECT id FROM valor_lista WHERE tipo = 'variedad' AND especie_id = %s AND valor_normalizado = %s AND id != %s",
+                "SELECT id FROM lab.valor_lista WHERE tipo = 'variedad' AND especie_id = %s AND valor_normalizado = %s AND id != %s",
                 (especie_id, clave, valor_id),
             )
         if cur.fetchone():
             raise HTTPException(409, f"Ya existe otro valor equivalente en {tipo}.")
         cur.execute(
-            "UPDATE valor_lista SET valor = %s, valor_normalizado = %s, activo = %s, especie_id = %s WHERE id = %s AND tipo = %s",
+            "UPDATE lab.valor_lista SET valor = %s, valor_normalizado = %s, activo = %s, especie_id = %s WHERE id = %s AND tipo = %s",
             (valor, clave, body.activo, especie_id, valor_id, tipo),
         )
         if cur.rowcount == 0:
@@ -326,7 +326,7 @@ def eliminar_valor(tipo: str, valor_id: int) -> dict[str, str]:
     en la tabla general del mantenedor rompía justamente eso."""
     _validar_tipo(tipo)
     with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT es_estandar FROM valor_lista WHERE id = %s AND tipo = %s", (valor_id, tipo))
+        cur.execute("SELECT es_estandar FROM lab.valor_lista WHERE id = %s AND tipo = %s", (valor_id, tipo))
         fila = cur.fetchone()
         if not fila:
             raise HTTPException(404, "Valor no encontrado")
@@ -337,17 +337,17 @@ def eliminar_valor(tipo: str, valor_id: int) -> dict[str, str]:
                 "Homogenizar para que vuelva a la lista pendiente.",
             )
         if tipo == "especie":
-            cur.execute("SELECT 1 FROM valor_lista WHERE especie_id = %s", (valor_id,))
+            cur.execute("SELECT 1 FROM lab.valor_lista WHERE especie_id = %s", (valor_id,))
             if cur.fetchone():
                 raise HTTPException(409, "Esta especie todavía tiene variedades asociadas: no se puede eliminar.")
-        cur.execute("SELECT 1 FROM valor_lista WHERE fusionado_en_id = %s", (valor_id,))
+        cur.execute("SELECT 1 FROM lab.valor_lista WHERE fusionado_en_id = %s", (valor_id,))
         if cur.fetchone():
             raise HTTPException(
                 409,
                 "Esta variedad estándar todavía tiene valores asignados: elimínala desde Homogenizar para "
                 "liberarlos primero.",
             )
-        cur.execute("DELETE FROM valor_lista WHERE id = %s AND tipo = %s", (valor_id, tipo))
+        cur.execute("DELETE FROM lab.valor_lista WHERE id = %s AND tipo = %s", (valor_id, tipo))
         if cur.rowcount == 0:
             raise HTTPException(404, "Valor no encontrado")
         return {"estado": "ok"}
@@ -364,7 +364,7 @@ def candidatos_homogenizacion(tipo: str, especie_id: int | None = Query(None)) -
     if tipo == "variedad" and especie_id is None:
         raise HTTPException(400, "Elige una especie primero para homogenizar sus variedades.")
     with conexion() as conn, cursor_dict(conn) as cur:
-        sql = "SELECT id, valor FROM valor_lista WHERE tipo = %s AND activo = true AND es_estandar = false AND fusionado_en_id IS NULL"
+        sql = "SELECT id, valor FROM lab.valor_lista WHERE tipo = %s AND activo = true AND es_estandar = false AND fusionado_en_id IS NULL"
         params: list[Any] = [tipo]
         if tipo == "variedad":
             sql += " AND especie_id = %s"
@@ -475,17 +475,17 @@ def listar_estandares(tipo: str, especie_id: int | None = Query(None)) -> dict[s
     params_especie: list[Any] = [especie_id] if tipo == "variedad" else []
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(
-            f"SELECT id, valor, activo FROM valor_lista WHERE tipo = %s AND es_estandar = true{filtro_especie} ORDER BY valor",
+            f"SELECT id, valor, activo FROM lab.valor_lista WHERE tipo = %s AND es_estandar = true{filtro_especie} ORDER BY valor",
             [tipo, *params_especie],
         )
         estandares = cur.fetchall()
         cur.execute(
-            f"SELECT id, valor, fusionado_en_id FROM valor_lista WHERE tipo = %s AND es_estandar = false AND fusionado_en_id IS NOT NULL{filtro_especie} ORDER BY valor",
+            f"SELECT id, valor, fusionado_en_id FROM lab.valor_lista WHERE tipo = %s AND es_estandar = false AND fusionado_en_id IS NOT NULL{filtro_especie} ORDER BY valor",
             [tipo, *params_especie],
         )
         asignados = cur.fetchall()
         cur.execute(
-            f"SELECT id, valor FROM valor_lista WHERE tipo = %s AND es_estandar = false AND fusionado_en_id IS NULL AND activo = true{filtro_especie} ORDER BY valor",
+            f"SELECT id, valor FROM lab.valor_lista WHERE tipo = %s AND es_estandar = false AND fusionado_en_id IS NULL AND activo = true{filtro_especie} ORDER BY valor",
             [tipo, *params_especie],
         )
         sin_asignar = cur.fetchall()
@@ -526,24 +526,24 @@ def editar_estandar(tipo: str, estandar_id: int, body: ValorListaIn) -> dict[str
         raise HTTPException(400, "El valor no puede estar vacío.")
     clave = clave_normalizada(valor)
     with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT especie_id FROM valor_lista WHERE id = %s AND tipo = %s AND es_estandar = true", (estandar_id, tipo))
+        cur.execute("SELECT especie_id FROM lab.valor_lista WHERE id = %s AND tipo = %s AND es_estandar = true", (estandar_id, tipo))
         actual = cur.fetchone()
         if not actual:
             raise HTTPException(404, "Variedad estándar no encontrada")
         if tipo == "especie":
             cur.execute(
-                "SELECT id FROM valor_lista WHERE tipo = 'especie' AND valor_normalizado = %s AND id != %s",
+                "SELECT id FROM lab.valor_lista WHERE tipo = 'especie' AND valor_normalizado = %s AND id != %s",
                 (clave, estandar_id),
             )
         else:
             cur.execute(
-                "SELECT id FROM valor_lista WHERE tipo = 'variedad' AND especie_id = %s AND valor_normalizado = %s AND id != %s",
+                "SELECT id FROM lab.valor_lista WHERE tipo = 'variedad' AND especie_id = %s AND valor_normalizado = %s AND id != %s",
                 (actual["especie_id"], clave, estandar_id),
             )
         if cur.fetchone():
             raise HTTPException(409, f"Ya existe otro valor equivalente en {tipo}.")
         cur.execute(
-            "UPDATE valor_lista SET valor = %s, valor_normalizado = %s, activo = %s WHERE id = %s AND tipo = %s AND es_estandar = true",
+            "UPDATE lab.valor_lista SET valor = %s, valor_normalizado = %s, activo = %s WHERE id = %s AND tipo = %s AND es_estandar = true",
             (valor, clave, body.activo, estandar_id, tipo),
         )
         if cur.rowcount == 0:
@@ -558,10 +558,10 @@ def eliminar_estandar(tipo: str, estandar_id: int) -> dict[str, str]:
     _validar_tipo(tipo)
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(
-            "UPDATE valor_lista SET activo = true, fusionado_en_id = NULL WHERE tipo = %s AND fusionado_en_id = %s",
+            "UPDATE lab.valor_lista SET activo = true, fusionado_en_id = NULL WHERE tipo = %s AND fusionado_en_id = %s",
             (tipo, estandar_id),
         )
-        cur.execute("DELETE FROM valor_lista WHERE id = %s AND tipo = %s AND es_estandar = true", (estandar_id, tipo))
+        cur.execute("DELETE FROM lab.valor_lista WHERE id = %s AND tipo = %s AND es_estandar = true", (estandar_id, tipo))
         if cur.rowcount == 0:
             raise HTTPException(404, "Variedad estándar no encontrada")
         return {"estado": "ok"}
@@ -577,7 +577,7 @@ def asignar_valor(tipo: str, valor_id: int, body: AsignarIn) -> dict[str, str]:
     _validar_tipo(tipo)
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(
-            "SELECT id, es_estandar, especie_id FROM valor_lista WHERE id = %s AND tipo = %s",
+            "SELECT id, es_estandar, especie_id FROM lab.valor_lista WHERE id = %s AND tipo = %s",
             (valor_id, tipo),
         )
         fila = cur.fetchone()
@@ -593,13 +593,13 @@ def asignar_valor(tipo: str, valor_id: int, body: AsignarIn) -> dict[str, str]:
 
         if body.estandar_id is None:
             cur.execute(
-                "UPDATE valor_lista SET activo = true, fusionado_en_id = NULL WHERE id = %s",
+                "UPDATE lab.valor_lista SET activo = true, fusionado_en_id = NULL WHERE id = %s",
                 (valor_id,),
             )
             return {"estado": "ok"}
 
         cur.execute(
-            "SELECT especie_id FROM valor_lista WHERE id = %s AND tipo = %s AND es_estandar = true",
+            "SELECT especie_id FROM lab.valor_lista WHERE id = %s AND tipo = %s AND es_estandar = true",
             (body.estandar_id, tipo),
         )
         destino = cur.fetchone()
@@ -608,7 +608,7 @@ def asignar_valor(tipo: str, valor_id: int, body: AsignarIn) -> dict[str, str]:
         if tipo == "variedad" and destino["especie_id"] != fila["especie_id"]:
             raise HTTPException(400, "No se puede asignar una variedad a una variedad estándar de otra especie.")
         cur.execute(
-            "UPDATE valor_lista SET activo = false, fusionado_en_id = %s WHERE id = %s",
+            "UPDATE lab.valor_lista SET activo = false, fusionado_en_id = %s WHERE id = %s",
             (body.estandar_id, valor_id),
         )
         return {"estado": "ok"}

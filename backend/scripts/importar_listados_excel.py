@@ -119,12 +119,12 @@ def _insertar_valores(cur, tipo: str, valores_crudos: list[str]) -> int:
 
     insertados = 0
     for clave, variantes in por_clave.items():
-        cur.execute("SELECT id FROM valor_lista WHERE tipo = %s AND valor_normalizado = %s", (tipo, clave))
+        cur.execute("SELECT id FROM lab.valor_lista WHERE tipo = %s AND valor_normalizado = %s", (tipo, clave))
         if cur.fetchone():
             continue
         representante = Counter(variantes).most_common(1)[0][0]
         cur.execute(
-            "INSERT INTO valor_lista (tipo, valor, valor_normalizado, activo) VALUES (%s, %s, %s, true)",
+            "INSERT INTO lab.valor_lista (tipo, valor, valor_normalizado, activo) VALUES (%s, %s, %s, true)",
             (tipo, representante, clave),
         )
         insertados += 1
