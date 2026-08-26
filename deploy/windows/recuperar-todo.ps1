@@ -93,7 +93,7 @@ foreach ($archivo in $archivos) {
 #    problemas de saltos de linea LF vs CRLF en strings de PowerShell.
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "Asegurando tablas criticas (valor_lista, producto_aplicado)..." -NoNewline
+Write-Host "Asegurando tablas criticas..." -NoNewline
 $sqlSchema = Join-Path $carpetaBackend "scripts\recuperar_schema.sql"
 & $PsqlExe -U $DbUser -h $DbHost -p $DbPort -d $DbName -f $sqlSchema 2>&1 | Out-Null
 Write-Host " OK" -ForegroundColor Green
@@ -102,7 +102,7 @@ Write-Host " OK" -ForegroundColor Green
 # 5. Sembrar listados (valor_lista: especies, variedades, laboratorios, etc.)
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "Sembrando catalogo de listados (valor_lista)..." -NoNewline
+Write-Host "Sembrando catalogo de listados..." -NoNewline
 if (Test-Path $seedScript) {
     Push-Location $carpetaBackend
     $salida = & $python $seedScript 2>&1
@@ -114,7 +114,7 @@ if (Test-Path $seedScript) {
         Write-Host $salida
     }
 } else {
-    Write-Host " OMITIDO (script no encontrado)" -ForegroundColor DarkYellow
+    Write-Host " OMITIDO - script no encontrado" -ForegroundColor DarkYellow
 }
 
 # ---------------------------------------------------------------------------
