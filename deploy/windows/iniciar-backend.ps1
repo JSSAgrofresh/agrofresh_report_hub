@@ -6,15 +6,21 @@
 # =============================================================================
 
 param(
-    [string]$RaizProyecto = "C:\AgroFresh\agrofresh_report_hub",
+    [string]$RaizProyecto = "",
     [int]$Puerto = 8000,
     [int]$Workers = 4
 )
 
+# Si no se pasa RaizProyecto, se auto-detecta como dos niveles arriba de este script
+# (deploy\windows\ -> deploy\ -> raiz del proyecto)
+if (-not $RaizProyecto) {
+    $RaizProyecto = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+}
+
 $carpetaBackend = Join-Path $RaizProyecto "backend"
 $python = Join-Path $carpetaBackend ".venv\Scripts\python.exe"
 
-$carpetaLogs = "C:\AgroFresh\logs"
+$carpetaLogs = Join-Path $RaizProyecto "logs"
 New-Item -ItemType Directory -Force -Path $carpetaLogs | Out-Null
 $log = Join-Path $carpetaLogs "backend.log"
 
@@ -22,6 +28,9 @@ $log = Join-Path $carpetaLogs "backend.log"
 if ((Test-Path $log) -and ((Get-Item $log).Length -gt 50MB)) {
     Move-Item $log (Join-Path $carpetaLogs "backend-$(Get-Date -Format 'yyyyMMdd-HHmmss').log") -Force
 }
+
+"[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] RaizProyecto=$RaizProyecto" |
+    Out-File -Append -FilePath $log -Encoding utf8
 
 Set-Location $carpetaBackend
 
