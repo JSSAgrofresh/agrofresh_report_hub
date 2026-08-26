@@ -9,7 +9,7 @@
 param(
     [string]$BaseLocal = "agrofresh",
     [string]$UsuarioLocal = "postgres",
-    [string]$CarpetaPg = "C:\Program Files\PostgreSQL\16\bin",
+    [string]$CarpetaPg = "",
     [string]$CarpetaDestino = "C:\AgroFresh\respaldos",
     [int]$DiasQueSeGuardan = 30
 )
@@ -26,7 +26,21 @@ function Escribir($mensaje, $color = "White") {
     Write-Host $mensaje -ForegroundColor $color
 }
 
+. (Join-Path $PSScriptRoot "_comun.ps1")
+
+# Este script corre de madrugada sin nadie delante, asi que la contrasena sale
+# del .env del backend -la misma que usa la aplicacion- y no del teclado.
+$envFile = Join-Path (Split-Path $PSScriptRoot -Parent | Split-Path -Parent) "backend\.env"
+if (Test-Path $envFile) {
+    $linea = Select-String -Path $envFile -Pattern '^\s*DB_PASSWORD\s*=' -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($linea) { $env:PGPASSWORD = ($linea.Line -split '=', 2)[1].Trim() }
+}
+
 try {
+    $CarpetaPg = Buscar-CarpetaPg $CarpetaPg
+    if (-not $CarpetaPg) { throw "No se encontro PostgreSQL en este equipo." }
+
     $pgDump = Join-Path $CarpetaPg "pg_dump.exe"
     if (-not (Test-Path $pgDump)) { throw "No se encontro pg_dump en $CarpetaPg" }
 
@@ -68,5 +82,8 @@ try {
 
 } catch {
     Escribir "ERROR: $_" "Red"
+    Limpiar-PasswordPg
     exit 1
+} finally {
+    Limpiar-PasswordPg
 }
