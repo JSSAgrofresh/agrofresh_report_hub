@@ -439,7 +439,8 @@ def descargar_solicitud_pdf(archivo: str) -> Response:
         numero = os.path.splitext(os.path.basename(ruta))[0]
         datos = _leer_solicitud_archivo(ruta)
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
-    pdf_bytes = generar_pdf_solicitud(datos, analitos_config)
+    datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
+    pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -465,6 +466,39 @@ def contactos_de_solicitud(laboratorio: str) -> list[str]:
         and c.get("activo", True)
         and c.get("email")
     ]
+
+
+def contactos_de_resultados(laboratorio: str) -> list[str]:
+    """Correos activos que el laboratorio debe usar al entregar resultados.
+
+    Incluye tanto destinatarios del cliente como copias internas AgroFresh.
+    Esta lista es informativa en el PDF y no dispara ningún envío.
+    """
+    contactos = _leer_config("contactos_laboratorio.json", [])
+    correos: list[str] = []
+    vistos: set[str] = set()
+    for contacto in sorted(contactos, key=lambda c: c.get("orden", 0)):
+        email = str(contacto.get("email") or "").strip()
+        clave = email.casefold()
+        if (
+            contacto.get("laboratorio") == laboratorio
+            and contacto.get("tipo") in {"resultado_cliente", "resultado_interno"}
+            and contacto.get("activo", True)
+            and email
+            and clave not in vistos
+        ):
+            correos.append(email)
+            vistos.add(clave)
+    return correos
+
+
+def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
+    """Añade al PDF la configuración vigente sin modificar la solicitud."""
+    datos_pdf = dict(datos)
+    datos_pdf["destinatarios_resultados"] = contactos_de_resultados(
+        str(datos.get("laboratorio") or "")
+    )
+    return datos_pdf
 
 
 @router.get("/solicitudes/{archivo}/destinatarios")
@@ -493,7 +527,8 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
         datos = _leer_solicitud_archivo(ruta)
 
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
-    pdf_bytes = generar_pdf_solicitud(datos, analitos_config)
+    datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
+    pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config)
 
     wb = construir_workbook(datos)
     buf_excel = io.BytesIO()

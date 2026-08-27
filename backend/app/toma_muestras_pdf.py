@@ -233,15 +233,7 @@ def _etiqueta_analito(analito: dict) -> str:
 
 
 def _caja_correos(datos: dict, espacio_libre: float) -> Table:
-    correos: list[str] = []
-    email_sol = datos.get('email_solicitante')
-    if email_sol:
-        correos.append(email_sol)
-    email_lab = datos.get('email_laboratorio')
-    if email_lab:
-        correos.append(email_lab)
-    destinatarios_extra: list[str] = datos.get('destinatarios_extra') or []
-    correos.extend(destinatarios_extra)
+    correos: list[str] = datos.get('destinatarios_resultados') or []
 
     texto = ' · '.join(correos) if correos else '—'
     espacio = max(espacio_libre - 40, 8)
@@ -250,7 +242,7 @@ def _caja_correos(datos: dict, espacio_libre: float) -> Table:
         [Paragraph(texto, _S_CORREO)],
         [Spacer(1, espacio)],
         [Paragraph(
-            'Escriba aquí correos adicionales para el envío de resultados',
+            'Destinatarios de resultados configurados para el laboratorio',
             _S_CORREO_HINT,
         )],
     ]
