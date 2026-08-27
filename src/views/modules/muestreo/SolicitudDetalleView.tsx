@@ -4,7 +4,13 @@ import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { IconFrasco } from '@/components/ui/icons'
-import { obtenerSolicitud, urlDescargaExcel, urlDescargaPdf, enviarSolicitudPorCorreo } from '@/features/tomaMuestras'
+import {
+  obtenerSolicitud,
+  urlDescargaExcel,
+  urlDescargaPdf,
+  enviarSolicitudPorCorreo,
+  destinatariosDeSolicitud,
+} from '@/features/tomaMuestras'
 import type { Solicitud } from '@/features/tomaMuestras'
 import { ROUTES } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
@@ -28,6 +34,7 @@ export function SolicitudDetalleView() {
   const [emailEnvio, setEmailEnvio] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [mensajeEnvio, setMensajeEnvio] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  const [contactosLab, setContactosLab] = useState<string[] | null>(null)
   const inputEmailRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -37,16 +44,24 @@ export function SolicitudDetalleView() {
       .catch(() => setError('No se pudo cargar la solicitud.'))
   }, [archivo])
 
+  // Los contactos del laboratorio se piden al abrir el panel, no al cargar la
+  // vista: solo importan cuando se va a enviar.
   useEffect(() => {
-    if (mostrarEnvio) inputEmailRef.current?.focus()
-  }, [mostrarEnvio])
+    if (!mostrarEnvio || !archivo) return
+    destinatariosDeSolicitud(archivo)
+      .then((r) => setContactosLab(r.destinatarios))
+      .catch(() => setContactosLab([]))
+  }, [mostrarEnvio, archivo])
 
   async function handleEnviar() {
-    if (!archivo || !emailEnvio.trim()) return
+    if (!archivo) return
+    // Sin correo escrito se usan los contactos del laboratorio.
+    const manual = emailEnvio.trim()
+    if (!manual && (contactosLab?.length ?? 0) === 0) return
     setEnviando(true)
     setMensajeEnvio(null)
     try {
-      const res = await enviarSolicitudPorCorreo(archivo, emailEnvio.trim())
+      const res = await enviarSolicitudPorCorreo(archivo, manual || undefined)
       setMensajeEnvio({ tipo: 'ok', texto: res.ok })
       setEmailEnvio('')
       setMostrarEnvio(false)
@@ -112,13 +127,37 @@ export function SolicitudDetalleView() {
 
       {mostrarEnvio && (
         <div className={styles.panelEnvio}>
-          <label className={styles.etiquetaEnvio}>Enviar PDF y Excel a:</label>
+          <label className={styles.etiquetaEnvio}>
+            Enviar PDF y Excel · {solicitud.laboratorio}
+          </label>
+
+          {contactosLab === null ? (
+            <p className={styles.notaEnvio}>Buscando los contactos del laboratorio…</p>
+          ) : contactosLab.length > 0 ? (
+            <div className={styles.destinatarios}>
+              {contactosLab.map((email) => (
+                <span key={email} className={styles.destinatario}>
+                  {email}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.notaEnvioAviso}>
+              {solicitud.laboratorio} no tiene contactos de solicitud configurados. Agrégalos en
+              Administración → Laboratorios → Contactos, o escribe un correo abajo.
+            </p>
+          )}
+
           <div className={styles.filaEnvio}>
             <input
               ref={inputEmailRef}
               type="email"
               className={styles.inputEmail}
-              placeholder="correo@ejemplo.com"
+              placeholder={
+                contactosLab && contactosLab.length > 0
+                  ? 'O escribe otro correo para enviar solo a esa dirección…'
+                  : 'correo@ejemplo.com'
+              }
               value={emailEnvio}
               onChange={e => setEmailEnvio(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleEnviar() }}
@@ -127,9 +166,13 @@ export function SolicitudDetalleView() {
             <button
               className={styles.botonEnviarConfirmar}
               onClick={handleEnviar}
-              disabled={enviando || !emailEnvio.trim()}
+              disabled={enviando || (!emailEnvio.trim() && (contactosLab?.length ?? 0) === 0)}
             >
-              {enviando ? 'Enviando…' : 'Enviar'}
+              {enviando
+                ? 'Enviando…'
+                : emailEnvio.trim()
+                  ? 'Enviar a ese correo'
+                  : `Enviar a ${contactosLab?.length ?? 0} contacto${contactosLab?.length === 1 ? '' : 's'}`}
             </button>
             <button
               className={styles.botonCancelar}

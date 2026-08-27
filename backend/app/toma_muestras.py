@@ -28,6 +28,7 @@ import json
 import os
 import re
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -390,7 +391,36 @@ def descargar_solicitud_pdf(archivo: str) -> Response:
 
 
 class EnvioSolicitudIn(BaseModel):
-    destinatario: str
+    # Correo suelto para un envío puntual (una prueba, alguien fuera de la
+    # lista). Si viene vacío se usan los contactos del laboratorio.
+    destinatario: str | None = None
+
+
+def contactos_de_solicitud(laboratorio: str) -> list[str]:
+    """Correos activos que reciben las solicitudes de muestreo de este
+    laboratorio, según el mantenedor de Laboratorios."""
+    contactos = _leer_config("contactos_laboratorio.json", [])
+    return [
+        c["email"]
+        for c in sorted(contactos, key=lambda c: c.get("orden", 0))
+        if c.get("laboratorio") == laboratorio
+        and c.get("tipo") == "solicitud"
+        and c.get("activo", True)
+        and c.get("email")
+    ]
+
+
+@router.get("/solicitudes/{archivo}/destinatarios")
+def destinatarios_de_solicitud(archivo: str) -> dict[str, Any]:
+    """A quién se le enviaría esta solicitud. El frontend lo muestra antes de
+    enviar para que nadie dispare un correo sin ver a dónde va."""
+    if r2.disponible():
+        data, ext = _descargar_solicitud_r2(archivo)
+        datos = _leer_solicitud_bytes(data, ext)
+    else:
+        datos = _leer_solicitud_archivo(_ruta_archivo(archivo))
+    laboratorio = datos.get("laboratorio", "")
+    return {"laboratorio": laboratorio, "destinatarios": contactos_de_solicitud(laboratorio)}
 
 
 @router.post("/solicitudes/{archivo}/enviar")
@@ -417,6 +447,19 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
     solicitante = datos.get("solicitante", "")
     sold_to = datos.get("sold_to", "")
     fecha = datos.get("fecha_solicitud", "")
+
+    # Un correo escrito a mano manda sobre la lista; si no viene ninguno, van
+    # los contactos configurados para ese laboratorio.
+    if body.destinatario and body.destinatario.strip():
+        destinatarios = [body.destinatario.strip()]
+    else:
+        destinatarios = contactos_de_solicitud(lab)
+    if not destinatarios:
+        raise HTTPException(
+            400,
+            f"{lab} no tiene contactos de solicitud configurados. "
+            "Agrégalos en Administración → Laboratorios → Contactos, o escribe un correo.",
+        )
 
     asunto = f"[AgroFresh] Solicitud {numero} — {lab}"
     html = f"""
@@ -456,8 +499,8 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
         ),
     ]
 
-    correo.enviar(body.destinatario, asunto, html, texto, adjuntos)
-    return {"ok": f"Solicitud {numero} enviada a {body.destinatario}."}
+    correo.enviar(", ".join(destinatarios), asunto, html, texto, adjuntos)
+    return {"ok": f"Solicitud {numero} enviada a {', '.join(destinatarios)}."}
 
 
 # ---------------------------------------------------------------------------

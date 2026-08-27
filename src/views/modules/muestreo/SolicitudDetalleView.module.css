@@ -194,6 +194,40 @@
   align-items: center;
 }
 
+.notaEnvio {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+}
+
+.notaEnvioAviso {
+  margin: 0;
+  padding: 8px 11px;
+  border-radius: var(--radius-sm);
+  background: #fdf3d8;
+  color: #8a6410;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.destinatarios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.destinatario {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: #eaf7ee;
+  border: 1px solid #cbe8d4;
+  color: #1a5e33;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
 .inputEmail {
   flex: 1;
   min-width: 200px;
