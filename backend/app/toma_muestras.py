@@ -202,6 +202,42 @@ class Solicitud(SolicitudIn):
     creado_en: str
 
 
+def leer_solicitudes_de(laboratorio: str) -> list[tuple[str, dict]]:
+    """Todas las solicitudes de un laboratorio como (nombre_archivo, datos),
+    de R2 o de disco según cómo esté levantado el sistema.
+
+    Existe para que otros módulos -emitir.py- no tengan que repetir la
+    decisión R2/disco: cuando el almacenamiento pasó a R2, la copia que vivía
+    en emitir siguió leyendo solo del disco y dejó de encontrar solicitudes.
+    """
+    salida: list[tuple[str, dict]] = []
+    if r2.disponible():
+        for key in r2.listar_keys(f"solicitudes/{laboratorio}/"):
+            nombre = key.split("/")[-1]
+            if not nombre.endswith((".xlsx", ".json")):
+                continue
+            data = r2.descargar(key)
+            if data is None:
+                continue
+            try:
+                salida.append((nombre, _leer_solicitud_bytes(data, os.path.splitext(nombre)[1])))
+            except (ValueError, KeyError, HTTPException):
+                continue
+    else:
+        carpeta = os.path.join(_carpeta_raiz(), laboratorio)
+        if os.path.isdir(carpeta):
+            for nombre in sorted(os.listdir(carpeta)):
+                ruta = os.path.join(carpeta, nombre)
+                if not os.path.isfile(ruta) or not nombre.endswith((".xlsx", ".json")):
+                    continue
+                try:
+                    salida.append((nombre, _leer_solicitud_archivo(ruta)))
+                except (ValueError, KeyError, HTTPException):
+                    continue
+    salida.sort(key=lambda par: par[0])
+    return salida
+
+
 @router.get("/solicitudes")
 def listar_solicitudes() -> list[Solicitud]:
     solicitudes = []
@@ -464,7 +500,7 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
     asunto = f"[AgroFresh] Solicitud {numero} — {lab}"
     html = f"""
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-      <h2 style="color:#2d5a27;">Solicitud de Muestreo {numero}</h2>
+      <h2 style="color:#2d5a27;">Solicitud de Análisis {numero}</h2>
       <table style="font-size:14px;border-collapse:collapse;width:100%;">
         <tr><td style="padding:4px 12px 4px 0;color:#666;">Laboratorio</td><td style="padding:4px 0;">{lab}</td></tr>
         <tr><td style="padding:4px 12px 4px 0;color:#666;">Solicitante</td><td style="padding:4px 0;">{solicitante}</td></tr>
@@ -481,7 +517,7 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
     </div>
     """
     texto = (
-        f"Solicitud de Muestreo {numero}\n\n"
+        f"Solicitud de Análisis {numero}\n\n"
         f"Laboratorio: {lab}\n"
         f"Solicitante: {solicitante}\n"
         f"Sold To: {sold_to}\n"

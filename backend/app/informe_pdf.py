@@ -34,6 +34,9 @@ _RUTA_LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file
 
 DIRECCION_EMPRESA = "Manuel Montt, 4060 | Parque Industrial km 90 Rancagua | CHILE"
 
+# Ancho de contenido: A4 menos los márgenes laterales del documento.
+ANCHO_UTIL = 17.6 * cm
+
 _PAT_CODIGO_COLUMNA = re.compile(r"\(([A-Za-z]+)\)\s*$")
 _PREFIJO_RESULTADO = "Resultado:"
 
@@ -113,24 +116,48 @@ def _lista_vertical(pares: list[tuple[str, str]]) -> Table:
     return t
 
 
-def _dos_columnas(titulo_izq: str, pares_izq: list[tuple[str, str]], titulo_der: str, pares_der: list[tuple[str, str]]) -> Table:
-    """Dos bloques de información lado a lado (identificación de la muestra
-    + fechas), en vez de uno arriba del otro -reduce el alto del documento y
-    agrupa visualmente cada tema. Cada bloque lleva su propio título de
-    sección (con línea) — no hay un título "padre" por encima de ambos."""
-    col_izq = [_titulo_seccion(titulo_izq, 8.4 * cm), Spacer(1, 3), _lista_vertical(pares_izq)]
-    col_der = [_titulo_seccion(titulo_der, 8.4 * cm), Spacer(1, 3), _lista_vertical(pares_der)]
-    outer = Table([[col_izq, col_der]], colWidths=[8.6 * cm, 8.6 * cm])
-    outer.setStyle(
+def _rejilla_campos(pares: list[tuple[str, str]], columnas: int = 2) -> Table:
+    """Campos etiqueta/valor a lo ancho de la página, repartidos en varias
+    columnas de pares. Reemplaza al bloque de dos secciones lado a lado: cada
+    sección ocupa ahora todo el ancho y sus campos se acomodan en rejilla, que
+    es más compacto que una única lista vertical y no obliga a partir el
+    documento en dos temas paralelos."""
+    filas: list[list] = []
+    for i in range(0, len(pares), columnas):
+        fila: list = []
+        for j in range(columnas):
+            if i + j < len(pares):
+                etiqueta, valor = pares[i + j]
+                fila.extend(_fila_campo(etiqueta, valor))
+            else:
+                # Relleno para que la última fila tenga el mismo número de
+                # celdas: sin esto ReportLab rechaza la tabla.
+                fila.extend(['', ''])
+        filas.append(fila)
+
+    # El ancho se reparte entre las columnas pedidas en vez de ser fijo: con
+    # 3 columnas un par etiqueta/valor de tamaño fijo se saldría de la hoja.
+    # Con más columnas la etiqueta se lleva una fracción mayor: los valores
+    # que caben en 3 columnas son cortos (fechas, horas) y las etiquetas no,
+    # y sin esto "FECHA SOLICITUD" se parte en dos líneas.
+    ancho_par = ANCHO_UTIL / columnas
+    proporcion_etiqueta = 0.37 if columnas < 3 else 0.5
+    anchos: list[float] = []
+    for _ in range(columnas):
+        anchos.extend([ancho_par * proporcion_etiqueta, ancho_par * (1 - proporcion_etiqueta)])
+
+    t = Table(filas, colWidths=anchos)
+    t.setStyle(
         TableStyle(
             [
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('LEFTPADDING', (1, 0), (1, 0), 14),
-                ('LINEAFTER', (0, 0), (0, 0), 0.5, GRIS_LINEA),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
             ]
         )
     )
-    return outer
+    return t
 
 
 def _fecha_iso_a_ddmmyyyy(valor: str | None) -> str:
@@ -234,11 +261,10 @@ def generar_informe_pdf(
     elementos.append(tabla_solicitante)
     elementos.append(Spacer(1, 6))
 
-    # --- Identificación de la muestra (izquierda) y fechas (derecha), lado a
-    # lado -sin título "padre" encima de ambos, cada bloque lleva su propio
-    # título-. Especie y Variedad van separadas. Tratamiento, Producto
-    # Utilizado y Tipo Aplicación son parte de la identificación de la
-    # muestra (no una sección aparte).
+    # --- Identificación de la muestra: una sola sección a lo ancho de la
+    # página. Antes compartía la fila con un bloque de fechas a la derecha;
+    # las fechas bajaron a su propia sección (después de Observaciones), así
+    # que acá ya no hay dos columnas de secciones compitiendo.
     hoy = datetime.now().strftime('%d-%m-%Y')
     pares_muestra = [
         ('N° VIAL (NI)', codigo_vial or ''),
@@ -258,11 +284,22 @@ def generar_informe_pdf(
     if campos.get('Aplicación'):
         pares_muestra.append(('APLICACIÓN', campos.get('Aplicación', '')))
     pares_muestra.append(('MUESTREADOR', campos.get('Nombre Muestreador', '')))
+    elementos.append(_titulo_seccion('IDENTIFICACIÓN DE LA MUESTRA'))
+    elementos.append(Spacer(1, 3))
+    elementos.append(_rejilla_campos(pares_muestra))
+    elementos.append(Spacer(1, 6))
+
+    # --- Observaciones: campo independiente, no combinado con Tratamiento ---
+    elementos.append(_titulo_seccion('OBSERVACIONES'))
+    elementos.append(Spacer(1, 3))
+    elementos.append(Paragraph(campos.get('Observación') or '—', _ESTILO_VALOR))
+    elementos.append(Spacer(1, 6))
+
+    # --- Fechas: entre Observaciones y Metodología, a lo ancho de la página ---
+    elementos.append(_titulo_seccion('FECHAS'))
+    elementos.append(Spacer(1, 3))
     elementos.append(
-        _dos_columnas(
-            'IDENTIFICACIÓN DE LA MUESTRA',
-            pares_muestra,
-            'FECHAS',
+        _rejilla_campos(
             [
                 ('FECHA SOLICITUD', campos.get('Fecha Solicitud', '')),
                 ('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
@@ -271,14 +308,9 @@ def generar_informe_pdf(
                 ('FECHA ANÁLISIS', _fecha_inyeccion_a_ddmmyyyy(fecha_inyeccion)),
                 ('FECHA INFORME', hoy),
             ],
+            columnas=3,
         )
     )
-    elementos.append(Spacer(1, 6))
-
-    # --- Observaciones: campo independiente, no combinado con Tratamiento ---
-    elementos.append(_titulo_seccion('OBSERVACIONES'))
-    elementos.append(Spacer(1, 3))
-    elementos.append(Paragraph(campos.get('Observación') or '—', _ESTILO_VALOR))
     elementos.append(Spacer(1, 6))
 
     # --- Metodología ---
@@ -360,13 +392,11 @@ def generar_informe_pdf(
     elementos.append(KeepTogether(firmas))
     elementos.append(Spacer(1, 8))
 
-    # --- Pie --- (la fecha del informe ya se muestra en FECHAS, no se
-    # repite acá para no dispersar la misma fecha por el documento)
-    pie = Table(
-        [[Paragraph(f'N° Informe: {folio}', _ESTILO_FOOTER), Paragraph('Este informe es una copia electrónica — no requiere firma física.', _ESTILO_FOOTER)]],
-        colWidths=[8.8 * cm, 8.8 * cm],
-    )
-    pie.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, -1), 0.5, GRIS_LINEA), ('TOPPADDING', (0, 0), (-1, -1), 4), ('ALIGN', (1, 0), (1, 0), 'RIGHT')]))
+    # --- Pie: solo el folio. La leyenda de "copia electrónica" que iba bajo
+    # la firma se quitó a pedido; la fecha del informe ya está en FECHAS y no
+    # se repite acá para no dispersar la misma fecha por el documento.
+    pie = Table([[Paragraph(f'N° Informe: {folio}', _ESTILO_FOOTER)]], colWidths=[ANCHO_UTIL])
+    pie.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, -1), 0.5, GRIS_LINEA), ('TOPPADDING', (0, 0), (-1, -1), 4)]))
     elementos.append(KeepTogether(pie))
 
     doc.build(elementos)

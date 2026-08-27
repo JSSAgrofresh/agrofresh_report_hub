@@ -29,7 +29,7 @@ from .informe_pdf import (
     NEGRO_TEXTO,
     VERDE_CLARO,
     VERDE_OSCURO,
-    _dos_columnas,
+    _rejilla_campos,
     _titulo_seccion,
 )
 from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS
@@ -113,7 +113,7 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
         rightMargin=1.6 * cm,
         topMargin=1.1 * cm,
         bottomMargin=1.1 * cm,
-        title=f"Solicitud de muestreo {datos.get('numero_solicitud', '')}".strip(),
+        title=f"Solicitud de análisis {datos.get('numero_solicitud', '')}".strip(),
     )
 
     elementos = []
@@ -144,7 +144,7 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
         Paragraph(DIRECCION_EMPRESA, _ESTILO_DIRECCION),
     ]
     titulo_cel = [
-        Paragraph("SOLICITUD DE MUESTREO", _ESTILO_TITULO),
+        Paragraph("SOLICITUD DE ANÁLISIS", _ESTILO_TITULO),
         Spacer(1, 3),
         Paragraph(f"N° Solicitud: {datos.get('numero_solicitud', '')}", _ESTILO_FOLIO),
     ]
@@ -188,21 +188,17 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
     elementos.append(_tabla_pares(_pares_de_claves(datos, _CLAVES_CLIENTE)))
     elementos.append(Spacer(1, 6))
 
-    # --- 4. Identificación de la muestra (izquierda) y fechas (derecha),
-    # lado a lado -sin título "padre" encima de ambos-. Tratamiento,
-    # Producto Utilizado y Tipo Aplicación quedan dentro de la
+    # --- 4. Identificación de la muestra: una sola sección a lo ancho de la
+    # página, igual que en el informe de análisis. Las fechas ya no van en una
+    # columna al lado: bajan a su propia sección, después de Observaciones.
+    # Tratamiento, Producto Utilizado y Tipo Aplicación quedan dentro de la
     # identificación de la muestra (no como sección aparte). ---
     pares_muestra = _pares_de_claves(datos, _CLAVES_MUESTRA)
     if campos_lab.get("Tipo Aplicación"):
         pares_muestra.append(("Tipo Aplicación", campos_lab.get("Tipo Aplicación")))
-    elementos.append(
-        _dos_columnas(
-            "IDENTIFICACIÓN DE LA MUESTRA",
-            pares_muestra,
-            "FECHAS",
-            _pares_de_claves(datos, _CLAVES_FECHAS),
-        )
-    )
+    elementos.append(_titulo_seccion("IDENTIFICACIÓN DE LA MUESTRA"))
+    elementos.append(Spacer(1, 3))
+    elementos.append(_rejilla_campos(pares_muestra))
     elementos.append(Spacer(1, 6))
 
     # --- 5. Información de aplicación (campos propios del tipo de aplicación,
@@ -260,6 +256,12 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
     elementos.append(_titulo_seccion("OBSERVACIONES"))
     elementos.append(Spacer(1, 3))
     elementos.append(Paragraph(datos.get("observacion") or "—", _ESTILO_VALOR))
+    elementos.append(Spacer(1, 6))
+
+    # --- 8. Fechas: después de Observaciones, igual que en el informe ---
+    elementos.append(_titulo_seccion("FECHAS"))
+    elementos.append(Spacer(1, 3))
+    elementos.append(_rejilla_campos(_pares_de_claves(datos, _CLAVES_FECHAS), columnas=3))
     elementos.append(Spacer(1, 10))
 
     # --- 8. Firmas (siempre al final del documento) ---

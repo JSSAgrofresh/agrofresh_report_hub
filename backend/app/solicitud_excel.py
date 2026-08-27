@@ -72,7 +72,7 @@ def construir_workbook(datos: dict) -> Workbook:
 
     fila = 1
     ws.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=2)
-    titulo = ws.cell(row=fila, column=1, value=f"SOLICITUD DE MUESTREO — {datos.get('numero_solicitud', '')}")
+    titulo = ws.cell(row=fila, column=1, value=f"SOLICITUD DE ANÁLISIS — {datos.get('numero_solicitud', '')}")
     titulo.font = Font(bold=True, size=15, color=VERDE_OSCURO)
     ws.row_dimensions[fila].height = 28
     fila += 1

@@ -16,7 +16,7 @@ from .mapeo import LABORATORIO_CATALOGO, calcular_semana
 from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS
 from .solicitud_parser import parsear_solicitudes_html
 from .storage import _carpeta_raiz as _carpeta_raiz_storage, _nombre_seguro
-from .toma_muestras import _carpeta_raiz as _carpeta_raiz_solicitudes, _leer_solicitud_archivo
+from .toma_muestras import leer_solicitudes_de
 
 _PAT_CODIGO_COLUMNA = re.compile(r"\(([A-Za-z]+)\)\s*$")
 _PREFIJO_RESULTADO = "Resultado:"
@@ -198,23 +198,16 @@ def _mapear_solicitud_a_campos(datos: dict) -> dict[str, str]:
 def listar_solicitudes() -> list[SolicitudOut]:
     salida: list[SolicitudOut] = []
 
-    carpeta_agrofresh = os.path.join(_carpeta_raiz_solicitudes(), LABORATORIO_SOLICITUDES)
-    if os.path.isdir(carpeta_agrofresh):
-        for nombre in sorted(os.listdir(carpeta_agrofresh)):
-            ruta = os.path.join(carpeta_agrofresh, nombre)
-            if not os.path.isfile(ruta) or not nombre.endswith((".xlsx", ".json")):
-                continue
-            try:
-                datos = _leer_solicitud_archivo(ruta)
-            except (ValueError, KeyError):
-                continue
-            salida.append(
-                SolicitudOut(
-                    archivo=nombre,
-                    campos=_mapear_solicitud_a_campos(datos),
-                    analitos_solicitados=datos.get("analitos_solicitados") or [],
-                )
+    # R2 o disco según cómo esté levantado el sistema: lo resuelve
+    # `leer_solicitudes_de`, no este módulo.
+    for nombre, datos in leer_solicitudes_de(LABORATORIO_SOLICITUDES):
+        salida.append(
+            SolicitudOut(
+                archivo=nombre,
+                campos=_mapear_solicitud_a_campos(datos),
+                analitos_solicitados=datos.get("analitos_solicitados") or [],
             )
+        )
 
     carpeta_legado = os.path.join(_carpeta_raiz_storage(), CARPETA_SOLICITUDES)
     if os.path.isdir(carpeta_legado):
@@ -231,7 +224,7 @@ def listar_solicitudes() -> list[SolicitudOut]:
             for s in solicitudes:
                 salida.append(SolicitudOut(archivo=nombre, campos=s.campos, analitos_solicitados=s.analitos_solicitados))
 
-    if not salida and not os.path.isdir(carpeta_agrofresh) and not os.path.isdir(carpeta_legado):
+    if not salida:
         raise HTTPException(
             404,
             f'Todavía no hay solicitudes de "{LABORATORIO_SOLICITUDES}" — créalas desde Toma de muestras → Nueva solicitud.',
