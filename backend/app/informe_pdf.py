@@ -50,7 +50,7 @@ _PREFIJO_RESULTADO = "Resultado:"
 # ── Estilos tipográficos ───────────────────────────────────────────────
 
 _S_TITULO = ParagraphStyle(
-    'titulo', fontName='Helvetica-Bold', fontSize=16, leading=19,
+    'titulo', fontName='Helvetica-Bold', fontSize=15, leading=18,
     textColor=NEGRO_TEXTO, alignment=1,
 )
 _S_FOLIO = ParagraphStyle(
@@ -222,6 +222,41 @@ def _rejilla_campos(pares: list[tuple[str, str]], columnas: int = 2) -> Table:
     return t
 
 
+def _rejilla_campos_vertical(
+    pares_izquierda: list[tuple[str, str]],
+    pares_derecha: list[tuple[str, str]],
+) -> Table:
+    """Distribuye campos de arriba hacia abajo en dos columnas independientes."""
+    filas: list[list] = []
+    total_filas = max(len(pares_izquierda), len(pares_derecha))
+    for i in range(total_filas):
+        fila: list = []
+        if i < len(pares_izquierda):
+            fila.extend(_fila_campo(*pares_izquierda[i]))
+        else:
+            fila.extend(['', ''])
+        if i < len(pares_derecha):
+            fila.extend(_fila_campo(*pares_derecha[i]))
+        else:
+            fila.extend(['', ''])
+        filas.append(fila)
+
+    ancho_par = ANCHO_UTIL / 2
+    t = Table(
+        filas,
+        colWidths=[ancho_par * 0.38, ancho_par * 0.62] * 2,
+    )
+    t.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 2.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('LINEBELOW', (0, 0), (-1, -1), 0.3, GRIS_LINEA),
+    ]))
+    return t
+
+
 def _contar_paginas(pdf_bytes: bytes) -> int:
     return len(re.findall(rb'/Type\s*/Page(?!s)', pdf_bytes))
 
@@ -247,7 +282,7 @@ def _construir_elementos(
 
     # ── ENCABEZADO: logo lateral y datos centrados en la página ────────
     logo_img = (
-        Image(_RUTA_LOGO, width=4.4 * cm, height=1.76 * cm)
+        Image(_RUTA_LOGO, width=4.8 * cm, height=1.92 * cm)
         if os.path.isfile(_RUTA_LOGO)
         else Paragraph('', _S_VALOR)
     )
@@ -282,48 +317,48 @@ def _construir_elementos(
     elementos.append(header)
     elementos.append(Spacer(1, _SP))
 
-    # ── SOLICITANTE (cuadrante) ────────────────────────────────────────
+    # ── IDENTIFICACIÓN DE LA SOLICITUD ─────────────────────────────────
     pares_sol = [
         ('SOLICITANTE', campos.get('Solicitante', '')),
         ('GENERADO POR', campos.get('Generado Por', '')),
         ('SOLD TO', campos.get('Sold To (Nombre)', '')),
         ('SHIP TO', campos.get('Ship To (Nombre)', '')),
         ('N° SOLICITUD', campos.get('N° Solicitud', '')),
+        ('FECHA SOLICITUD', campos.get('Fecha Solicitud', '')),
     ]
     contenido_sol = _rejilla_campos(pares_sol, columnas=2)
-    elementos.append(_cuadrante('Solicitante', contenido_sol))
+    elementos.append(_cuadrante('Identificación de la Solicitud', contenido_sol))
     elementos.append(Spacer(1, _SP))
 
-    # ── IDENTIFICACIÓN DE LA MUESTRA (cuadrante, incluye fechas y obs) ─
-    pares_muestra = [
-        ('N° VIAL (NI)', codigo_vial or ''),
+    # ── IDENTIFICACIÓN DE LA MUESTRA (dos columnas verticales) ─────────
+    pares_muestra_izquierda = [
         ('TIPO MUESTRA', campos.get('Tipo Muestra', '')),
-        ('ESPECIE', campos.get('Especie', '')),
         ('VARIEDAD', campos.get('Variedad', '')),
+        ('N° CÁMARA', campos.get('N° Cámara', '')),
+        ('PRODUCTO', campos.get('Producto Utilizado', '')),
+        ('MUESTREADOR', campos.get('Nombre Muestreador', '')),
+    ]
+    pares_muestra_derecha = [
+        ('ESPECIE', campos.get('Especie', '')),
         ('LOTE', campos.get('Lote', '')),
         ('CSG', campos.get('CSG', '')),
-        ('N° CÁMARA', campos.get('N° Cámara', '')),
         ('N° ORDEN', campos.get('N° Orden', '')),
         ('POSICIÓN', campos.get('Posición Muestreo', '')),
-        ('PRODUCTO', campos.get('Producto Utilizado', '')),
         ('TIPO APLICACIÓN', campos.get('Tipo Aplicación', '')),
     ]
     if campos.get('Línea Proceso'):
-        pares_muestra.append(('LÍNEA PROCESO', campos['Línea Proceso']))
+        pares_muestra_derecha.append(('LÍNEA PROCESO', campos['Línea Proceso']))
     if campos.get('Aplicación'):
-        pares_muestra.append(('APLICACIÓN', campos['Aplicación']))
-    pares_muestra.append(('MUESTREADOR', campos.get('Nombre Muestreador', '')))
-
-    # Fechas dentro de este cuadrante
-    pares_muestra.extend([
-        ('FECHA SOLICITUD', campos.get('Fecha Solicitud', '')),
+        pares_muestra_derecha.append(('APLICACIÓN', campos['Aplicación']))
+    pares_muestra_derecha.extend([
         ('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
         ('HORA MUESTREO', campos.get('Hora Muestreo', '')),
-        ('FECHA RECEPCIÓN', _fecha_iso_a_ddmmyyyy(fecha_recepcion)),
-        ('FECHA ANÁLISIS', _fecha_inyeccion_a_ddmmyyyy(fecha_inyeccion)),
     ])
 
-    rejilla_muestra = _rejilla_campos(pares_muestra, columnas=3)
+    rejilla_muestra = _rejilla_campos_vertical(
+        pares_muestra_izquierda,
+        pares_muestra_derecha,
+    )
 
     # Observaciones dentro del cuadrante
     obs_text = campos.get('Observación') or '—'
@@ -361,6 +396,16 @@ def _construir_elementos(
     elementos.append(_cuadrante('Identificación de la Muestra', contenido_muestra))
     elementos.append(Spacer(1, _SP))
 
+    # ── IDENTIFICACIÓN DEL ANÁLISIS ────────────────────────────────────
+    pares_analisis = [
+        ('ID INFORME', codigo_vial or ''),
+        ('FECHA RECEPCIÓN', _fecha_iso_a_ddmmyyyy(fecha_recepcion)),
+        ('FECHA ANÁLISIS', _fecha_inyeccion_a_ddmmyyyy(fecha_inyeccion)),
+    ]
+    contenido_analisis = _rejilla_campos(pares_analisis, columnas=3)
+    elementos.append(_cuadrante('Identificación del Análisis', contenido_analisis))
+    elementos.append(Spacer(1, _SP))
+
     # ── DETERMINACIONES / RESULTADOS (cuadrante) ──────────────────────
     filas_resultado = [[
         Paragraph('ENSAYO', _S_TABLA_HEAD),
@@ -379,9 +424,14 @@ def _construir_elementos(
             resultado_cel,
         ])
 
+    cantidad_filas_resultado = max(7, len(analitos_solicitados))
+    for _ in range(cantidad_filas_resultado - len(analitos_solicitados)):
+        filas_resultado.append(['', '', ''])
+
     tabla_resultados = Table(
         filas_resultado,
         colWidths=[10.2 * cm, 3.2 * cm, ANCHO_UTIL - 13.4 * cm],
+        rowHeights=[None] + [17] * cantidad_filas_resultado,
         repeatRows=1,
     )
     tabla_resultados.setStyle(TableStyle([
