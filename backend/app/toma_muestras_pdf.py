@@ -1,5 +1,5 @@
 """
-PDF de una solicitud de análisis.
+PDF de una solicitud de análisis — diseñado para caber en una sola hoja A4.
 
 Diseño propio, distinto del informe de análisis: paleta verde AgroFresh pero
 con encabezado tipo banner, secciones con acento lateral grueso, y campos con
@@ -41,55 +41,55 @@ GRIS_LABEL = colors.HexColor('#6B7280')
 NEGRO = colors.HexColor('#111827')
 BLANCO = colors.white
 
-ANCHO_UTIL = 17.6 * cm
+ANCHO_UTIL = 18.0 * cm
 
-# ── Estilos tipográficos ────────────────────────────────────────────────
+# ── Estilos tipográficos (compactos para caber en 1 hoja) ──────────────
 _S_BANNER_TITULO = ParagraphStyle(
-    'bannerTitulo', fontName='Helvetica-Bold', fontSize=16, leading=19,
+    'bannerTitulo', fontName='Helvetica-Bold', fontSize=14, leading=16,
     textColor=BLANCO, alignment=0,
 )
 _S_BANNER_FOLIO = ParagraphStyle(
-    'bannerFolio', fontName='Helvetica-Bold', fontSize=10.5, leading=13,
+    'bannerFolio', fontName='Helvetica-Bold', fontSize=9.5, leading=11,
     textColor=VERDE_FOLIO, alignment=2,
 )
 _S_DIRECCION = ParagraphStyle(
-    'direccion', fontName='Helvetica', fontSize=8, leading=10,
+    'direccion', fontName='Helvetica', fontSize=7, leading=9,
     textColor=GRIS_LABEL,
 )
 _S_SECCION = ParagraphStyle(
-    'seccion', fontName='Helvetica-Bold', fontSize=10, leading=12,
+    'seccion', fontName='Helvetica-Bold', fontSize=8.5, leading=10,
     textColor=VERDE_OSCURO,
 )
 _S_LABEL = ParagraphStyle(
-    'label', fontName='Helvetica-Bold', fontSize=7.5, leading=8.5,
+    'label', fontName='Helvetica-Bold', fontSize=6.5, leading=7.5,
     textColor=GRIS_LABEL, spaceBefore=0, spaceAfter=0,
 )
 _S_VALOR = ParagraphStyle(
-    'valor', fontName='Helvetica', fontSize=9.5, leading=11.5,
+    'valor', fontName='Helvetica', fontSize=8.5, leading=10,
     textColor=NEGRO, spaceBefore=0, spaceAfter=0,
 )
 _S_TABLA_HEAD = ParagraphStyle(
-    'tHead', fontName='Helvetica-Bold', fontSize=9, leading=11,
+    'tHead', fontName='Helvetica-Bold', fontSize=8, leading=9.5,
     textColor=BLANCO,
 )
 _S_TABLA_CELDA = ParagraphStyle(
-    'tCelda', fontName='Helvetica', fontSize=9.5, leading=12,
+    'tCelda', fontName='Helvetica', fontSize=8.5, leading=10,
     textColor=NEGRO,
 )
 _S_OBS = ParagraphStyle(
-    'obs', fontName='Helvetica', fontSize=9.5, leading=12.5,
+    'obs', fontName='Helvetica', fontSize=8.5, leading=10.5,
     textColor=NEGRO,
 )
 _S_CORREO = ParagraphStyle(
-    'correo', fontName='Helvetica', fontSize=9.5, leading=14,
+    'correo', fontName='Helvetica', fontSize=8.5, leading=12,
     textColor=NEGRO,
 )
 _S_CORREO_HINT = ParagraphStyle(
-    'correoHint', fontName='Helvetica-Oblique', fontSize=8.5, leading=11,
+    'correoHint', fontName='Helvetica-Oblique', fontSize=7.5, leading=9,
     textColor=GRIS_LABEL,
 )
 _S_PIE = ParagraphStyle(
-    'pie', fontName='Helvetica', fontSize=8, textColor=GRIS_LABEL,
+    'pie', fontName='Helvetica', fontSize=7, textColor=GRIS_LABEL,
 )
 
 _ETIQUETA_DE_CLAVE = dict(CAMPOS_GENERALES_ETIQUETAS)
@@ -105,6 +105,8 @@ _CLAVES_MUESTRA = [
 _CLAVES_FECHAS = ["fecha_solicitud", "fecha_muestreo", "hora_muestreo"]
 _CLAVES_FECHA_ISO = {"fecha_solicitud", "fecha_muestreo"}
 
+_SP = 4
+
 
 # ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -118,24 +120,21 @@ def _fmt_fecha(valor: str | None) -> str:
 
 
 def _titulo_seccion(texto: str) -> Table:
-    """Sección con barra lateral verde gruesa a la izquierda."""
     t = Table(
         [[Paragraph(texto, _S_SECCION)]],
         colWidths=[ANCHO_UTIL],
     )
     t.setStyle(TableStyle([
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        ('LEFTPADDING', (0, 0), (-1, -1), 10),
-        ('LINEBEFORE', (0, 0), (0, -1), 3.5, VERDE_MEDIO),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('LINEBEFORE', (0, 0), (0, -1), 3, VERDE_MEDIO),
         ('BACKGROUND', (0, 0), (-1, -1), VERDE_CLARO),
     ]))
     return t
 
 
 def _campo_box(etiqueta: str, valor) -> Table:
-    """Un campo individual con aspecto de caja: fondo gris claro, label
-    diminuto arriba, valor debajo."""
     txt = str(valor) if valor not in (None, '') else '—'
     t = Table(
         [[Paragraph(etiqueta, _S_LABEL)], [Paragraph(txt, _S_VALOR)]],
@@ -143,14 +142,14 @@ def _campo_box(etiqueta: str, valor) -> Table:
     )
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), GRIS_CAMPO),
-        ('TOPPADDING', (0, 0), (-1, 0), 4),
+        ('TOPPADDING', (0, 0), (-1, 0), 2),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 0),
-        ('TOPPADDING', (0, 1), (-1, 1), 1),
-        ('BOTTOMPADDING', (0, 1), (-1, 1), 5),
-        ('LEFTPADDING', (0, 0), (-1, -1), 7),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 1), (-1, 1), 0),
+        ('BOTTOMPADDING', (0, 1), (-1, 1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
         ('BOX', (0, 0), (-1, -1), 0.5, GRIS_BORDE),
-        ('ROUNDEDCORNERS', [3, 3, 3, 3]),
+        ('ROUNDEDCORNERS', [2, 2, 2, 2]),
     ]))
     return t
 
@@ -159,8 +158,6 @@ def _rejilla_formulario(
     pares: list[tuple[str, object]],
     columnas: int = 2,
 ) -> Table:
-    """Campos tipo formulario en rejilla: cada celda es una caja con label
-    y valor, separadas por un pequeño gap visual."""
     filas: list[list] = []
     for i in range(0, len(pares), columnas):
         fila = []
@@ -176,8 +173,8 @@ def _rejilla_formulario(
     t = Table(filas, colWidths=[ancho_col] * columnas)
     t.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('TOPPADDING', (0, 0), (-1, -1), 2),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('TOPPADDING', (0, 0), (-1, -1), 1),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
         ('LEFTPADDING', (0, 0), (-1, -1), 1),
         ('RIGHTPADDING', (0, 0), (-1, -1), 1),
     ]))
@@ -203,8 +200,6 @@ def _etiqueta_analito(analito: dict) -> str:
 
 
 def _seccion_correos(datos: dict) -> list:
-    """Bloque CORREOS: caja amplia con los emails del solicitante y del
-    laboratorio, listos para que se les envíen los resultados."""
     correos: list[str] = []
     email_sol = datos.get('email_solicitante')
     if email_sol:
@@ -212,18 +207,14 @@ def _seccion_correos(datos: dict) -> list:
     email_lab = datos.get('email_laboratorio')
     if email_lab:
         correos.append(email_lab)
-
     destinatarios_extra: list[str] = datos.get('destinatarios_extra') or []
     correos.extend(destinatarios_extra)
 
-    if correos:
-        texto = '<br/>'.join(correos)
-    else:
-        texto = '—'
+    texto = ' · '.join(correos) if correos else '—'
 
     filas = [
         [Paragraph(texto, _S_CORREO)],
-        [Spacer(1, 30)],
+        [Spacer(1, 18)],
         [Paragraph(
             'Escriba aquí correos adicionales para el envío de resultados',
             _S_CORREO_HINT,
@@ -232,16 +223,16 @@ def _seccion_correos(datos: dict) -> list:
     t = Table(filas, colWidths=[ANCHO_UTIL])
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), GRIS_CAMPO),
-        ('TOPPADDING', (0, 0), (0, 0), 10),
-        ('BOTTOMPADDING', (0, 0), (0, 0), 4),
+        ('TOPPADDING', (0, 0), (0, 0), 6),
+        ('BOTTOMPADDING', (0, 0), (0, 0), 2),
         ('TOPPADDING', (0, 1), (0, 1), 0),
         ('BOTTOMPADDING', (0, 1), (0, 1), 0),
         ('TOPPADDING', (0, 2), (0, 2), 0),
-        ('BOTTOMPADDING', (0, 2), (0, 2), 10),
-        ('LEFTPADDING', (0, 0), (-1, -1), 12),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+        ('BOTTOMPADDING', (0, 2), (0, 2), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
         ('BOX', (0, 0), (-1, -1), 0.5, GRIS_BORDE),
-        ('ROUNDEDCORNERS', [3, 3, 3, 3]),
+        ('ROUNDEDCORNERS', [2, 2, 2, 2]),
     ]))
     return [t]
 
@@ -256,10 +247,10 @@ def generar_pdf_solicitud(
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        leftMargin=1.6 * cm,
-        rightMargin=1.6 * cm,
-        topMargin=1.1 * cm,
-        bottomMargin=1.1 * cm,
+        leftMargin=1.4 * cm,
+        rightMargin=1.4 * cm,
+        topMargin=0.8 * cm,
+        bottomMargin=0.8 * cm,
         title=f"Solicitud de análisis {datos.get('numero_solicitud', '')}".strip(),
     )
 
@@ -288,98 +279,83 @@ def generar_pdf_solicitud(
         if k not in etiquetas_analitos and k != 'Tipo Aplicación'
     }
 
-    # ── ENCABEZADO: banner verde oscuro de ancho completo ───────────────
+    # ── ENCABEZADO: banner verde oscuro compacto ────────────────────────
     logo_img = (
-        Image(_RUTA_LOGO, width=3.8 * cm, height=1.52 * cm)
+        Image(_RUTA_LOGO, width=3.4 * cm, height=1.36 * cm)
         if os.path.isfile(_RUTA_LOGO)
         else Paragraph('', _S_VALOR)
     )
 
-    logo_box = Table([[logo_img]], colWidths=[4.4 * cm])
+    logo_box = Table([[logo_img]], colWidths=[4 * cm])
     logo_box.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('ROUNDEDCORNERS', [4, 4, 4, 4]),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('ROUNDEDCORNERS', [3, 3, 3, 3]),
     ]))
 
     titulo_col = [
         Paragraph('SOLICITUD DE ANÁLISIS', _S_BANNER_TITULO),
-        Spacer(1, 4),
-        Paragraph(
-            f"N° {datos.get('numero_solicitud', '')}",
-            _S_BANNER_FOLIO,
-        ),
+        Spacer(1, 2),
+        Paragraph(f"N° {datos.get('numero_solicitud', '')}", _S_BANNER_FOLIO),
     ]
 
     banner = Table(
         [[logo_box, titulo_col]],
-        colWidths=[5.2 * cm, ANCHO_UTIL - 5.2 * cm],
+        colWidths=[4.8 * cm, ANCHO_UTIL - 4.8 * cm],
     )
     banner.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), VERDE_BANNER),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-        ('LEFTPADDING', (0, 0), (0, 0), 10),
-        ('RIGHTPADDING', (-1, 0), (-1, 0), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
+        ('LEFTPADDING', (0, 0), (0, 0), 8),
+        ('RIGHTPADDING', (-1, 0), (-1, 0), 10),
         ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-        ('ROUNDEDCORNERS', [6, 6, 6, 6]),
+        ('ROUNDEDCORNERS', [5, 5, 5, 5]),
     ]))
     elementos.append(banner)
-
-    elementos.append(Spacer(1, 4))
+    elementos.append(Spacer(1, 2))
     elementos.append(Paragraph(DIRECCION_EMPRESA, _S_DIRECCION))
-    elementos.append(Spacer(1, 10))
+    elementos.append(Spacer(1, _SP + 2))
 
-    # ── 1. IDENTIFICACIÓN ───────────────────────────────────────────────
-    elementos.append(_titulo_seccion('IDENTIFICACIÓN'))
-    elementos.append(Spacer(1, 5))
-    elementos.append(_rejilla_formulario([
+    # ── 1. IDENTIFICACIÓN + SOLICITANTE + CLIENTE en una sola franja ────
+    pares_id = [
         (_ETIQUETA_DE_CLAVE['numero_solicitud'], datos.get('numero_solicitud')),
         (_ETIQUETA_DE_CLAVE['generado_por'], datos.get('generado_por')),
         (_ETIQUETA_DE_CLAVE['laboratorio'], laboratorio),
-    ], columnas=3))
-    elementos.append(Spacer(1, 8))
+        (_ETIQUETA_DE_CLAVE['solicitante'], datos.get('solicitante')),
+        (_ETIQUETA_DE_CLAVE['email_solicitante'], datos.get('email_solicitante')),
+        (_ETIQUETA_DE_CLAVE['sold_to'], datos.get('sold_to')),
+        (_ETIQUETA_DE_CLAVE['ship_to'], datos.get('ship_to')),
+    ]
+    elementos.append(_titulo_seccion('IDENTIFICACIÓN'))
+    elementos.append(Spacer(1, 3))
+    elementos.append(_rejilla_formulario(pares_id, columnas=3))
+    elementos.append(Spacer(1, _SP))
 
-    # ── 2. DATOS DEL SOLICITANTE ────────────────────────────────────────
-    elementos.append(_titulo_seccion('DATOS DEL SOLICITANTE'))
-    elementos.append(Spacer(1, 5))
-    elementos.append(_rejilla_formulario(
-        _pares_de_claves(datos, _CLAVES_SOLICITANTE),
-    ))
-    elementos.append(Spacer(1, 8))
-
-    # ── 3. DATOS DEL CLIENTE / DESTINO ──────────────────────────────────
-    elementos.append(_titulo_seccion('DATOS DEL CLIENTE / DESTINO'))
-    elementos.append(Spacer(1, 5))
-    elementos.append(_rejilla_formulario(
-        _pares_de_claves(datos, _CLAVES_CLIENTE),
-    ))
-    elementos.append(Spacer(1, 8))
-
-    # ── 4. IDENTIFICACIÓN DE LA MUESTRA ─────────────────────────────────
+    # ── 2. IDENTIFICACIÓN DE LA MUESTRA ─────────────────────────────────
     pares_muestra = _pares_de_claves(datos, _CLAVES_MUESTRA)
     if campos_lab.get('Tipo Aplicación'):
         pares_muestra.insert(0, ('Tipo Aplicación', campos_lab['Tipo Aplicación']))
     elementos.append(_titulo_seccion('IDENTIFICACIÓN DE LA MUESTRA'))
-    elementos.append(Spacer(1, 5))
+    elementos.append(Spacer(1, 3))
     elementos.append(_rejilla_formulario(pares_muestra, columnas=3))
-    elementos.append(Spacer(1, 8))
+    elementos.append(Spacer(1, _SP))
 
-    # ── 5. INFORMACIÓN DE APLICACIÓN ────────────────────────────────────
+    # ── 3. INFORMACIÓN DE APLICACIÓN ────────────────────────────────────
     if campos_aplicacion:
         elementos.append(_titulo_seccion('INFORMACIÓN DE APLICACIÓN'))
-        elementos.append(Spacer(1, 5))
-        elementos.append(_rejilla_formulario(list(campos_aplicacion.items())))
-        elementos.append(Spacer(1, 8))
+        elementos.append(Spacer(1, 3))
+        elementos.append(_rejilla_formulario(list(campos_aplicacion.items()), columnas=3))
+        elementos.append(Spacer(1, _SP))
 
-    # ── 6. ANÁLISIS SOLICITADOS ─────────────────────────────────────────
+    # ── 4. ANÁLISIS SOLICITADOS ─────────────────────────────────────────
     if filas_analitos:
         elementos.append(_titulo_seccion('ANÁLISIS SOLICITADOS'))
-        elementos.append(Spacer(1, 5))
+        elementos.append(Spacer(1, 3))
 
         filas_tabla = [[
             Paragraph('CÓDIGO', _S_TABLA_HEAD),
@@ -400,25 +376,25 @@ def generar_pdf_solicitud(
 
         tabla_analitos = Table(
             filas_tabla,
-            colWidths=[3 * cm, 10.2 * cm, 4.4 * cm],
+            colWidths=[2.8 * cm, 10.6 * cm, 4.6 * cm],
             repeatRows=1,
         )
         tabla_analitos.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), VERDE_OSCURO),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('LINEBELOW', (0, 0), (-1, 0), 1.5, VERDE_MEDIO),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('LINEBELOW', (0, 0), (-1, 0), 1, VERDE_MEDIO),
             ('LINEBELOW', (0, 1), (-1, -1), 0.5, GRIS_BORDE),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [BLANCO, VERDE_CLARO]),
             ('BOX', (0, 0), (-1, -1), 0.5, GRIS_BORDE),
         ]))
         elementos.append(tabla_analitos)
-        elementos.append(Spacer(1, 10))
+        elementos.append(Spacer(1, _SP + 2))
 
-    # ── 7. OBSERVACIONES ────────────────────────────────────────────────
+    # ── 5. OBSERVACIONES ────────────────────────────────────────────────
     elementos.append(_titulo_seccion('OBSERVACIONES'))
-    elementos.append(Spacer(1, 5))
+    elementos.append(Spacer(1, 3))
     obs_text = datos.get('observacion') or '—'
     obs_box = Table(
         [[Paragraph(obs_text, _S_OBS)]],
@@ -426,30 +402,30 @@ def generar_pdf_solicitud(
     )
     obs_box.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), GRIS_CAMPO),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('LEFTPADDING', (0, 0), (-1, -1), 10),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
         ('BOX', (0, 0), (-1, -1), 0.5, GRIS_BORDE),
-        ('ROUNDEDCORNERS', [3, 3, 3, 3]),
+        ('ROUNDEDCORNERS', [2, 2, 2, 2]),
     ]))
     elementos.append(obs_box)
-    elementos.append(Spacer(1, 8))
+    elementos.append(Spacer(1, _SP))
 
-    # ── 8. FECHAS ───────────────────────────────────────────────────────
+    # ── 6. FECHAS ───────────────────────────────────────────────────────
     elementos.append(_titulo_seccion('FECHAS'))
-    elementos.append(Spacer(1, 5))
+    elementos.append(Spacer(1, 3))
     elementos.append(_rejilla_formulario(
         _pares_de_claves(datos, _CLAVES_FECHAS),
         columnas=3,
     ))
-    elementos.append(Spacer(1, 10))
+    elementos.append(Spacer(1, _SP))
 
-    # ── 9. CORREOS ──────────────────────────────────────────────────────
+    # ── 7. CORREOS ──────────────────────────────────────────────────────
     elementos.append(_titulo_seccion('CORREOS'))
-    elementos.append(Spacer(1, 5))
+    elementos.append(Spacer(1, 3))
     elementos.extend(_seccion_correos(datos))
-    elementos.append(Spacer(1, 12))
+    elementos.append(Spacer(1, _SP + 2))
 
     # ── PIE ─────────────────────────────────────────────────────────────
     hoy = datetime.now().strftime('%d-%m-%Y')
@@ -458,11 +434,11 @@ def generar_pdf_solicitud(
             Paragraph(f'Fecha del documento: {hoy}', _S_PIE),
             Paragraph('Documento generado por AgroFresh Report Hub', _S_PIE),
         ]],
-        colWidths=[8.8 * cm, 8.8 * cm],
+        colWidths=[9 * cm, 9 * cm],
     )
     pie.setStyle(TableStyle([
-        ('LINEABOVE', (0, 0), (-1, -1), 0.75, VERDE_MEDIO),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('LINEABOVE', (0, 0), (-1, -1), 0.5, VERDE_MEDIO),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
         ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
     ]))
     elementos.append(KeepTogether(pie))
