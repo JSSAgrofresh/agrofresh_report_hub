@@ -14,14 +14,19 @@ solo que las nuevas se guardan como .xlsx.
 Estructura de carpetas dentro de Storage:
 
     solicitudes/
-        QUITECA/
-        AGROFRESH/
-        ALS/
-        DIAGNOFRUIT/
-        _config/            (mantenedores, no es un laboratorio)
+        <SOLD TO>/<AAAA-MM-DD>/OT-NNNN.xlsx    (las nuevas)
+        <LABORATORIO>/SOL-NNNN.xlsx            (layout anterior, solo lectura)
+        _config/                               (mantenedores, no es una solicitud)
 
-Cada laboratorio tiene su propia carpeta; el N° de solicitud (folio
-"SOL-NNNN") es correlativo y único across todas las carpetas.
+Las solicitudes se agrupan por cliente y día porque así se buscan: "las de
+este cliente, de tal fecha". Antes se agrupaban por laboratorio, y esas
+carpetas se siguen leyendo tal cual -no se movió nada de lo ya guardado-, así
+que conviven las dos formas. Por eso las búsquedas recorren `solicitudes/`
+entero y filtran por el contenido de cada solicitud, no por su carpeta.
+
+El folio (N° Solicitud / OT) es correlativo y único entre todas las carpetas.
+Pasó de "SOL-NNNN" a "OT-NNNN"; el correlativo cuenta los dos prefijos para
+que no se repita un número mientras queden folios viejos sin migrar.
 """
 import io
 import json
@@ -41,6 +46,9 @@ from .toma_muestras_pdf import generar_pdf_solicitud
 router = APIRouter(prefix="/api/toma-muestras", tags=["toma-muestras"])
 
 _CARPETA_RAIZ = "solicitudes"
+# Los mantenedores viven dentro de `solicitudes/` pero no son una solicitud:
+# todo recorrido de solicitudes tiene que saltarse esta carpeta.
+_CARPETA_CONFIG = "_config"
 
 # Los cuatro laboratorios con los que nació el sistema. Ya no son la lista
 # cerrada -el administrador puede crear más desde el mantenedor-, pero se
@@ -53,7 +61,12 @@ LABORATORIOS_BASE = ("QUITECA", "AGROFRESH", "ALS", "DIAGNOFRUIT")
 # R2), así que se restringe a mayúsculas, dígitos y guiones: nada que pueda
 # escaparse del directorio de solicitudes.
 _PAT_CODIGO_LAB = re.compile(r"^[A-Z0-9][A-Z0-9_-]{1,30}$")
-_PAT_NUMERO = re.compile(r"^SOL-(\d+)$")
+
+# El folio pasó de SOL-NNNN a OT-NNNN. Se siguen reconociendo los dos: el
+# correlativo se calcula sobre ambos para que no se reinicie ni choque con las
+# solicitudes que todavía tengan el folio viejo.
+PREFIJO_FOLIO = "OT"
+_PAT_NUMERO = re.compile(r"^(?:SOL|OT)-(\d+)$")
 
 
 def LABORATORIOS() -> tuple[str, ...]:
@@ -88,14 +101,53 @@ def _carpeta_laboratorio(laboratorio: str) -> str:
 
 # ---------------------------------------------------------------------------
 # Claves R2: mirror de la estructura local de carpetas.
+#
+# Las solicitudes nuevas se guardan agrupadas por cliente y día:
+#
+#     solicitudes/<SOLD TO>/<AAAA-MM-DD>/<OT-NNNN>.xlsx
+#
+# El layout viejo, `solicitudes/<LABORATORIO>/<SOL-NNNN>.xlsx`, se sigue
+# leyendo tal cual: las dos formas cuelgan de `solicitudes/`, así que buscar
+# por el nombre del archivo bajo ese prefijo encuentra las dos y no hace falta
+# mover nada de lo ya guardado.
 # ---------------------------------------------------------------------------
 
+# Un Sold To es texto libre escrito por una persona y termina siendo un nombre
+# de carpeta: se limpia todo lo que pueda romper una ruta o salirse de ella.
+_PAT_SEGMENTO_INVALIDO = re.compile(r'[\\/:*?"<>|]+')
+
+
+def carpeta_de_cliente(sold_to: str | None) -> str:
+    """Nombre de carpeta para un Sold To. Los que vengan vacíos caen en
+    SIN_CLIENTE en vez de crear una carpeta con nombre vacío."""
+    limpio = _PAT_SEGMENTO_INVALIDO.sub("_", (sold_to or "").strip())
+    limpio = limpio.strip(". ").replace("..", "_")
+    return limpio or "SIN_CLIENTE"
+
+
+def _r2_key_sol_nueva(sold_to: str | None, fecha: str, nombre: str) -> str:
+    return f"solicitudes/{carpeta_de_cliente(sold_to)}/{fecha}/{nombre}"
+
+
 def _r2_key_sol(laboratorio: str, nombre: str) -> str:
+    """Clave del layout viejo, por laboratorio. Se conserva para leer y
+    borrar lo que ya está guardado así."""
     return f"solicitudes/{laboratorio}/{nombre}"
 
 
 def _r2_key_cfg(nombre: str) -> str:
     return f"solicitudes/_config/{nombre}"
+
+
+def _buscar_key_solicitud(nombre: str) -> str | None:
+    """Clave R2 de una solicitud por su nombre de archivo, sirva el layout
+    viejo o el nuevo. Se busca por el último segmento de la clave porque el
+    nombre del archivo -el folio- es lo único común a las dos formas."""
+    basenom = os.path.basename(nombre)
+    for key in r2.listar_keys("solicitudes/"):
+        if key.split("/")[-1] == basenom and _CARPETA_CONFIG not in key.split("/"):
+            return key
+    return None
 
 
 def _leer_solicitud_bytes(nombre: bytes | None, ext: str) -> dict:
@@ -110,24 +162,23 @@ def _leer_solicitud_bytes(nombre: bytes | None, ext: str) -> dict:
 
 
 def _ruta_archivo(archivo: str) -> str:
-    """Solo para modo disco local."""
+    """Solo para modo disco local. Recorre el árbol completo para encontrar la
+    solicitud sirva el layout viejo (por laboratorio) o el nuevo (Sold To)."""
     nombre = os.path.basename(archivo)
-    for laboratorio in LABORATORIOS():
-        ruta = os.path.join(_carpeta_raiz(), laboratorio, nombre)
-        if os.path.isfile(ruta):
-            return ruta
+    for carpeta, archivo_encontrado, _base in _recorrer_solicitudes_en_disco():
+        if archivo_encontrado == nombre:
+            return os.path.join(carpeta, archivo_encontrado)
     raise HTTPException(404, "Solicitud no encontrada.")
 
 
 def _descargar_solicitud_r2(nombre: str) -> tuple[bytes, str]:
-    """Devuelve (bytes, extensión) buscando en todas las carpetas de lab."""
-    basenom = os.path.basename(nombre)
-    ext = os.path.splitext(basenom)[1]
-    for laboratorio in LABORATORIOS():
-        data = r2.descargar(_r2_key_sol(laboratorio, basenom))
-        if data is not None:
-            return data, ext
-    raise HTTPException(404, "Solicitud no encontrada.")
+    """Devuelve (bytes, extensión) de una solicitud, en cualquiera de los dos
+    layouts de carpetas."""
+    key = _buscar_key_solicitud(nombre)
+    data = r2.descargar(key) if key else None
+    if data is None:
+        raise HTTPException(404, "Solicitud no encontrada.")
+    return data, os.path.splitext(os.path.basename(nombre))[1]
 
 
 def _leer_solicitud_archivo(ruta: str) -> dict:
@@ -141,24 +192,34 @@ def _leer_solicitud_archivo(ruta: str) -> dict:
 
 
 def _siguiente_numero() -> str:
-    """Folio correlativo único entre las 4 carpetas de laboratorio."""
+    """Folio correlativo, único sobre todas las solicitudes guardadas. Cuenta
+    tanto los folios OT como los SOL antiguos, así que migrar unos u otros no
+    hace que se repita un número."""
     maximo = 0
     if r2.disponible():
         for key in r2.listar_keys("solicitudes/"):
-            nombre = key.split("/")[-1]
-            m = _PAT_NUMERO.match(os.path.splitext(nombre)[0])
+            m = _PAT_NUMERO.match(os.path.splitext(key.split("/")[-1])[0])
             if m:
                 maximo = max(maximo, int(m.group(1)))
     else:
-        for laboratorio in LABORATORIOS():
-            carpeta = os.path.join(_carpeta_raiz(), laboratorio)
-            if not os.path.isdir(carpeta):
-                continue
-            for nombre in os.listdir(carpeta):
-                m = _PAT_NUMERO.match(os.path.splitext(nombre)[0])
-                if m:
-                    maximo = max(maximo, int(m.group(1)))
-    return f"SOL-{maximo + 1:04d}"
+        for _carpeta, _nombre, base in _recorrer_solicitudes_en_disco():
+            m = _PAT_NUMERO.match(base)
+            if m:
+                maximo = max(maximo, int(m.group(1)))
+    return f"{PREFIJO_FOLIO}-{maximo + 1:04d}"
+
+
+def _recorrer_solicitudes_en_disco():
+    """(carpeta, nombre_archivo, nombre_sin_extensión) de cada solicitud en
+    disco, recorriendo tanto las carpetas por laboratorio del layout viejo
+    como las de Sold To/fecha del nuevo."""
+    raiz = _carpeta_raiz()
+    for actual, _dirs, archivos in os.walk(raiz):
+        if _CARPETA_CONFIG in os.path.relpath(actual, raiz).split(os.sep):
+            continue
+        for nombre in sorted(archivos):
+            if nombre.endswith((".xlsx", ".json")):
+                yield actual, nombre, os.path.splitext(nombre)[0]
 
 
 class SolicitudIn(BaseModel):
@@ -202,19 +263,21 @@ class Solicitud(SolicitudIn):
     creado_en: str
 
 
-def leer_solicitudes_de(laboratorio: str) -> list[tuple[str, dict]]:
-    """Todas las solicitudes de un laboratorio como (nombre_archivo, datos),
-    de R2 o de disco según cómo esté levantado el sistema.
+def leer_todas_las_solicitudes() -> list[tuple[str, dict]]:
+    """Todas las solicitudes guardadas como (nombre_archivo, datos), de R2 o
+    de disco según cómo esté levantado el sistema.
 
-    Existe para que otros módulos -emitir.py- no tengan que repetir la
-    decisión R2/disco: cuando el almacenamiento pasó a R2, la copia que vivía
-    en emitir siguió leyendo solo del disco y dejó de encontrar solicitudes.
+    Recorre `solicitudes/` entero en vez de carpeta por carpeta: así encuentra
+    tanto el layout viejo (por laboratorio) como el nuevo (por Sold To y
+    fecha) sin tener que saber cuál es cuál. Una solicitud ilegible se salta,
+    no tumba el listado completo.
     """
     salida: list[tuple[str, dict]] = []
     if r2.disponible():
-        for key in r2.listar_keys(f"solicitudes/{laboratorio}/"):
-            nombre = key.split("/")[-1]
-            if not nombre.endswith((".xlsx", ".json")):
+        for key in r2.listar_keys("solicitudes/"):
+            partes = key.split("/")
+            nombre = partes[-1]
+            if not nombre.endswith((".xlsx", ".json")) or _CARPETA_CONFIG in partes:
                 continue
             data = r2.descargar(key)
             if data is None:
@@ -224,50 +287,35 @@ def leer_solicitudes_de(laboratorio: str) -> list[tuple[str, dict]]:
             except (ValueError, KeyError, HTTPException):
                 continue
     else:
-        carpeta = os.path.join(_carpeta_raiz(), laboratorio)
-        if os.path.isdir(carpeta):
-            for nombre in sorted(os.listdir(carpeta)):
-                ruta = os.path.join(carpeta, nombre)
-                if not os.path.isfile(ruta) or not nombre.endswith((".xlsx", ".json")):
-                    continue
-                try:
-                    salida.append((nombre, _leer_solicitud_archivo(ruta)))
-                except (ValueError, KeyError, HTTPException):
-                    continue
+        for carpeta, nombre, _base in _recorrer_solicitudes_en_disco():
+            try:
+                salida.append((nombre, _leer_solicitud_archivo(os.path.join(carpeta, nombre))))
+            except (ValueError, KeyError, HTTPException):
+                continue
     salida.sort(key=lambda par: par[0])
     return salida
+
+
+def leer_solicitudes_de(laboratorio: str) -> list[tuple[str, dict]]:
+    """Las solicitudes de un laboratorio. Se filtra por el campo `laboratorio`
+    de cada solicitud y no por su carpeta: desde que las nuevas se agrupan por
+    Sold To, la carpeta ya no dice a qué laboratorio pertenecen.
+
+    Existe para que otros módulos -emitir.py- no tengan que repetir la
+    decisión R2/disco: cuando el almacenamiento pasó a R2, la copia que vivía
+    en emitir siguió leyendo solo del disco y dejó de encontrar solicitudes.
+    """
+    return [par for par in leer_todas_las_solicitudes() if par[1].get("laboratorio") == laboratorio]
 
 
 @router.get("/solicitudes")
 def listar_solicitudes() -> list[Solicitud]:
     solicitudes = []
-    if r2.disponible():
-        for key in r2.listar_keys("solicitudes/"):
-            nombre = key.split("/")[-1]
-            if not nombre.endswith((".xlsx", ".json")):
-                continue
-            # Ignorar carpeta _config
-            if "_config" in key:
-                continue
-            data = r2.descargar(key)
-            if data is None:
-                continue
-            try:
-                ext = os.path.splitext(nombre)[1]
-                datos = _leer_solicitud_bytes(data, ext)
-                solicitudes.append(Solicitud(archivo=nombre, **datos))
-            except (ValueError, KeyError, HTTPException):
-                continue
-    else:
-        for laboratorio in LABORATORIOS():
-            carpeta = os.path.join(_carpeta_raiz(), laboratorio)
-            if not os.path.isdir(carpeta):
-                continue
-            for nombre in os.listdir(carpeta):
-                if not nombre.endswith((".xlsx", ".json")):
-                    continue
-                datos = _leer_solicitud_archivo(os.path.join(carpeta, nombre))
-                solicitudes.append(Solicitud(archivo=nombre, **datos))
+    for nombre, datos in leer_todas_las_solicitudes():
+        try:
+            solicitudes.append(Solicitud(archivo=nombre, **datos))
+        except (ValueError, KeyError):
+            continue
     solicitudes.sort(key=lambda s: s.creado_en, reverse=True)
     return solicitudes
 
@@ -277,32 +325,7 @@ def exportar_todas_las_solicitudes() -> StreamingResponse:
     """Un único Excel "ancho" (una fila por solicitud) con toda la
     información general + de muestra + una columna por cada analito activo
     configurado -refleja la configuración vigente, no una plantilla fija."""
-    solicitudes_dict: list[dict] = []
-    if r2.disponible():
-        for key in r2.listar_keys("solicitudes/"):
-            nombre = key.split("/")[-1]
-            if not nombre.endswith((".xlsx", ".json")) or "_config" in key:
-                continue
-            data = r2.descargar(key)
-            if data is None:
-                continue
-            try:
-                ext = os.path.splitext(nombre)[1]
-                solicitudes_dict.append(_leer_solicitud_bytes(data, ext))
-            except (ValueError, KeyError, HTTPException):
-                continue
-    else:
-        for laboratorio in LABORATORIOS():
-            carpeta = os.path.join(_carpeta_raiz(), laboratorio)
-            if not os.path.isdir(carpeta):
-                continue
-            for nombre in os.listdir(carpeta):
-                if not nombre.endswith((".xlsx", ".json")):
-                    continue
-                try:
-                    solicitudes_dict.append(_leer_solicitud_archivo(os.path.join(carpeta, nombre)))
-                except (ValueError, KeyError):
-                    continue
+    solicitudes_dict = [datos for _nombre, datos in leer_todas_las_solicitudes()]
     solicitudes_dict.sort(key=lambda d: d.get("creado_en") or "", reverse=True)
 
     analitos = _leer_config("analitos.json", ANALITOS_DEFECTO)
@@ -340,35 +363,33 @@ def crear_solicitud(body: SolicitudIn) -> Solicitud:
         creado_en=ahora.isoformat(),
     )
     nombre_archivo = f"{numero}.xlsx"
+    fecha = datos["fecha_solicitud"]
     wb = construir_workbook(datos)
     if r2.disponible():
         buf = io.BytesIO()
         wb.save(buf)
         r2.subir(
-            _r2_key_sol(body.laboratorio, nombre_archivo),
+            _r2_key_sol_nueva(body.sold_to, fecha, nombre_archivo),
             buf.getvalue(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
     else:
-        carpeta_lab = _carpeta_laboratorio(body.laboratorio)
-        wb.save(os.path.join(carpeta_lab, nombre_archivo))
+        # El laboratorio se valida igual aunque ya no dé el nombre de la
+        # carpeta: sigue siendo un campo con lista cerrada.
+        _carpeta_laboratorio(body.laboratorio)
+        carpeta = os.path.join(_carpeta_raiz(), carpeta_de_cliente(body.sold_to), fecha)
+        os.makedirs(carpeta, exist_ok=True)
+        wb.save(os.path.join(carpeta, nombre_archivo))
     return Solicitud(archivo=nombre_archivo, **datos)
 
 
 @router.delete("/solicitudes/{archivo}")
 def eliminar_solicitud(archivo: str) -> dict[str, str]:
     if r2.disponible():
-        basenom = os.path.basename(archivo)
-        eliminado = False
-        for laboratorio in LABORATORIOS():
-            key = _r2_key_sol(laboratorio, basenom)
-            data = r2.descargar(key)
-            if data is not None:
-                r2.eliminar(key)
-                eliminado = True
-                break
-        if not eliminado:
+        key = _buscar_key_solicitud(archivo)
+        if key is None:
             raise HTTPException(404, "Solicitud no encontrada.")
+        r2.eliminar(key)
     else:
         ruta = _ruta_archivo(archivo)
         os.remove(ruta)
@@ -548,7 +569,6 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
 # por laboratorio, sin tocar código fuente.
 # ---------------------------------------------------------------------------
 
-_CARPETA_CONFIG = "_config"
 
 
 # El almacén de mantenedores vive en `config_store` desde que el módulo de

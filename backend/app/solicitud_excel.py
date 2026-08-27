@@ -25,7 +25,7 @@ _BORDE_COMPLETO = Border(*(Side(style="thin", color=GRIS_LINEA),) * 4)
 # Campos generales en el orden en que aparecen en el documento. El conjunto
 # de claves es el mismo que expone el modelo `SolicitudIn` de toma_muestras.py.
 CAMPOS_GENERALES_ETIQUETAS: list[tuple[str, str]] = [
-    ("numero_solicitud", "N° Solicitud"),
+    ("numero_solicitud", "N° Solicitud / OT"),
     ("fecha_solicitud", "Fecha Solicitud"),
     ("laboratorio", "Laboratorio"),
     ("solicitante", "Solicitante"),
