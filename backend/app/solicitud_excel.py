@@ -15,9 +15,11 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.worksheet.worksheet import Worksheet
 
 VERDE_OSCURO = "3D6B1F"
+VERDE_MEDIO = "70AD47"
 VERDE_CLARO = "EBF5E1"
 GRIS_TEXTO = "6B7280"
 GRIS_LINEA = "D9DCE1"
+GRIS_FILA = "F7F8F6"
 
 _BORDE_INFERIOR = Border(bottom=Side(style="thin", color=GRIS_LINEA))
 _BORDE_COMPLETO = Border(*(Side(style="thin", color=GRIS_LINEA),) * 4)
@@ -52,8 +54,8 @@ CAMPOS_GENERALES_ETIQUETAS: list[tuple[str, str]] = [
 ]
 
 
-def _titulo_seccion(ws: Worksheet, fila: int, texto: str) -> int:
-    ws.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=2)
+def _titulo_seccion(ws: Worksheet, fila: int, texto: str, columnas: int = 4) -> int:
+    ws.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=columnas)
     celda = ws.cell(row=fila, column=1, value=texto.upper())
     celda.font = Font(bold=True, size=11, color=VERDE_OSCURO)
     celda.fill = PatternFill("solid", fgColor=VERDE_CLARO)
@@ -62,65 +64,148 @@ def _titulo_seccion(ws: Worksheet, fila: int, texto: str) -> int:
     return fila + 1
 
 
-def construir_workbook(datos: dict) -> Workbook:
+def _valor_visible(clave: str, valor):
+    if valor in (None, ""):
+        return "—"
+    if clave == "kilos_procesados":
+        return f"{valor} kg"
+    return valor
+
+
+def _escribir_pares(ws: Worksheet, fila: int, pares: list[tuple[str, object]]) -> int:
+    """Escribe dos pares etiqueta/valor por fila, como ficha operativa."""
+    for indice in range(0, len(pares), 2):
+        grupo = pares[indice:indice + 2]
+        for bloque, (etiqueta, valor) in enumerate(grupo):
+            col_etiqueta = 1 + bloque * 2
+            col_valor = col_etiqueta + 1
+            c1 = ws.cell(row=fila, column=col_etiqueta, value=etiqueta)
+            c2 = ws.cell(row=fila, column=col_valor, value=valor)
+            c1.font = Font(bold=True, size=9.5, color=GRIS_TEXTO)
+            c1.fill = PatternFill("solid", fgColor=GRIS_FILA)
+            c2.font = Font(size=10)
+            c1.border = _BORDE_COMPLETO
+            c2.border = _BORDE_COMPLETO
+            c1.alignment = Alignment(vertical="center", wrap_text=True)
+            c2.alignment = Alignment(vertical="center", wrap_text=True)
+        if len(grupo) == 1:
+            ws.cell(row=fila, column=3).border = _BORDE_COMPLETO
+            ws.cell(row=fila, column=4).border = _BORDE_COMPLETO
+        ws.row_dimensions[fila].height = 22
+        fila += 1
+    return fila
+
+
+def _analitos_del_documento(datos: dict, analitos: list[dict] | None) -> list[dict]:
+    laboratorio = datos.get("laboratorio")
+    configurados = [
+        a for a in (analitos or [])
+        if a.get("laboratorio") == laboratorio and a.get("activo", True)
+    ]
+    configurados.sort(key=lambda a: (a.get("categoria", ""), a.get("orden", 0), a.get("nombre", "")))
+
+    # Una solicitud histórica puede contener un código retirado. Se conserva
+    # al final para que nunca se pierda del documento lo que realmente pidió.
+    codigos_configurados = {str(a.get("codigo") or "") for a in configurados}
+    for codigo in datos.get("analitos_solicitados") or []:
+        if codigo not in codigos_configurados:
+            configurados.append({"codigo": codigo, "nombre": codigo, "unidad": "", "categoria": ""})
+    return configurados
+
+
+def construir_workbook(datos: dict, analitos: list[dict] | None = None) -> Workbook:
     wb = Workbook()
     ws = wb.active
     ws.title = "Solicitud"
     ws.sheet_view.showGridLines = False
-    ws.column_dimensions["A"].width = 28
-    ws.column_dimensions["B"].width = 52
+    ws.column_dimensions["A"].width = 24
+    ws.column_dimensions["B"].width = 31
+    ws.column_dimensions["C"].width = 24
+    ws.column_dimensions["D"].width = 31
 
     fila = 1
-    ws.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=2)
-    titulo = ws.cell(row=fila, column=1, value=f"SOLICITUD DE ANÁLISIS — {datos.get('numero_solicitud', '')}")
+    ws.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=4)
+    titulo = ws.cell(row=fila, column=1, value=f"SOLICITUD DE ANÁLISIS - {datos.get('numero_solicitud', '')}")
     titulo.font = Font(bold=True, size=15, color=VERDE_OSCURO)
-    ws.row_dimensions[fila].height = 28
+    titulo.fill = PatternFill("solid", fgColor=VERDE_CLARO)
+    titulo.alignment = Alignment(vertical="center")
+    ws.row_dimensions[fila].height = 32
     fila += 1
-    ws.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=2)
+    ws.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=4)
     subtitulo = ws.cell(row=fila, column=1, value=f"Laboratorio {datos.get('laboratorio', '')} · AgroFresh Chile")
     subtitulo.font = Font(size=10, color=GRIS_TEXTO)
+    subtitulo.alignment = Alignment(vertical="center")
     fila += 2
 
-    fila = _titulo_seccion(ws, fila, "Información general")
-    for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS:
-        valor = datos.get(clave)
-        if clave == "kilos_procesados" and valor not in (None, ""):
-            valor = f"{valor} kg"
-        c1 = ws.cell(row=fila, column=1, value=etiqueta)
-        c1.font = Font(bold=True, size=9.5, color=GRIS_TEXTO)
-        c1.border = _BORDE_INFERIOR
-        c2 = ws.cell(row=fila, column=2, value=valor if valor not in (None, "") else "—")
-        c2.font = Font(size=10.5)
-        c2.border = _BORDE_INFERIOR
-        c2.alignment = Alignment(wrap_text=True, vertical="center")
-        fila += 1
+    fila = _titulo_seccion(ws, fila, "Detalle de la solicitud")
+    pares_generales = [
+        (etiqueta, _valor_visible(clave, datos.get(clave)))
+        for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS
+    ]
+    fila = _escribir_pares(ws, fila, pares_generales)
     fila += 1
 
     campos_lab: dict = datos.get("campos_laboratorio") or {}
-    if campos_lab:
-        fila = _titulo_seccion(ws, fila, "Análisis de laboratorio")
-        for etiqueta_col, col in (("CAMPO", 1), ("VALOR", 2)):
-            c = ws.cell(row=fila, column=col, value=etiqueta_col)
-            c.font = Font(bold=True, size=9.5, color=VERDE_OSCURO)
-            c.fill = PatternFill("solid", fgColor=VERDE_CLARO)
-            c.border = _BORDE_COMPLETO
+    fila = _titulo_seccion(ws, fila, "Detalle del análisis")
+    pares_laboratorio = [
+        (str(etiqueta), _valor_visible(str(etiqueta), valor))
+        for etiqueta, valor in campos_lab.items()
+    ] or [("Campos adicionales", "—")]
+    fila = _escribir_pares(ws, fila, pares_laboratorio)
+    fila += 1
+
+    fila = _titulo_seccion(ws, fila, "Analitos solicitados")
+    encabezados = ("CÓDIGO", "ANALITO", "UNIDAD", "SOLICITADO")
+    for col, etiqueta in enumerate(encabezados, start=1):
+        celda = ws.cell(row=fila, column=col, value=etiqueta)
+        celda.font = Font(bold=True, size=9.5, color="FFFFFF")
+        celda.fill = PatternFill("solid", fgColor=VERDE_MEDIO)
+        celda.border = _BORDE_COMPLETO
+        celda.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[fila].height = 23
+    fila += 1
+
+    solicitados = {str(codigo) for codigo in (datos.get("analitos_solicitados") or [])}
+    lista_analitos = _analitos_del_documento(datos, analitos)
+    if not lista_analitos:
+        lista_analitos = [{"codigo": "—", "nombre": "Sin analitos configurados", "unidad": ""}]
+    for indice, analito in enumerate(lista_analitos):
+        codigo = str(analito.get("codigo") or "")
+        valores = [
+            codigo or "—",
+            analito.get("nombre") or codigo or "—",
+            analito.get("unidad") or "—",
+            "✓" if codigo in solicitados else "",
+        ]
+        for col, valor in enumerate(valores, start=1):
+            celda = ws.cell(row=fila, column=col, value=valor)
+            celda.border = _BORDE_COMPLETO
+            celda.font = Font(size=10, bold=(col == 4 and bool(valor)), color=(VERDE_OSCURO if col == 4 else "000000"))
+            celda.alignment = Alignment(horizontal="center" if col in (1, 3, 4) else "left", vertical="center")
+            if indice % 2:
+                celda.fill = PatternFill("solid", fgColor=GRIS_FILA)
+        ws.row_dimensions[fila].height = 21
         fila += 1
-        for etiqueta, valor in campos_lab.items():
-            c1 = ws.cell(row=fila, column=1, value=etiqueta)
-            c2 = ws.cell(row=fila, column=2, value=valor)
-            c1.border = _BORDE_COMPLETO
-            c2.border = _BORDE_COMPLETO
-            c1.font = Font(size=10)
-            c2.font = Font(size=10)
-            fila += 1
-        fila += 1
+    fila += 1
 
     fila = _titulo_seccion(ws, fila, "Observaciones")
-    ws.merge_cells(start_row=fila, start_column=1, end_row=fila + 2, end_column=2)
-    obs = ws.cell(row=fila, column=1, value=datos.get("observacion") or "—")
+    ws.merge_cells(start_row=fila, start_column=1, end_row=fila + 2, end_column=4)
+    obs = ws.cell(row=fila, column=1, value=datos.get("observaciones") or datos.get("observacion") or "—")
     obs.alignment = Alignment(wrap_text=True, vertical="top")
     obs.font = Font(size=10)
-    ws.row_dimensions[fila].height = 18
+    obs.border = _BORDE_COMPLETO
+    ws.row_dimensions[fila].height = 24
+
+    ws.freeze_panes = "A5"
+    ws.auto_filter.ref = f"A{fila - len(lista_analitos) - 2}:D{fila - 2}"
+    ws.page_setup.orientation = "portrait"
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.sheet_view.zoomScale = 90
+    ws.print_area = f"A1:D{fila + 2}"
+    ws.oddFooter.center.text = "AgroFresh Report Hub"
+    ws.oddFooter.right.text = "Página &P de &N"
 
     # Hoja oculta con el JSON completo de la solicitud -permite reconstruir
     # la solicitud (listar/ver/eliminar) sin parsear la hoja visible.
