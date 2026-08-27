@@ -18,6 +18,8 @@
 }
 
 .brand {
+  display: flex;
+  justify-content: center;
   margin-bottom: var(--space-6);
 }
 
@@ -34,7 +36,7 @@
 }
 
 .logo {
-  height: 34px;
+  height: 38px;
   width: auto;
   display: block;
 }
