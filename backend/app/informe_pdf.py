@@ -295,7 +295,10 @@ def generar_informe_pdf(
     elementos.append(Paragraph(campos.get('Observación') or '—', _ESTILO_VALOR))
     elementos.append(Spacer(1, 6))
 
-    # --- Fechas: entre Observaciones y Metodología, a lo ancho de la página ---
+    # --- Fechas: entre Observaciones y Metodología, a lo ancho de la página.
+    # El orden agrupa cada fecha con la suya en la columna de abajo:
+    # solicitud → recepción, muestreo → hora de muestreo, y análisis aparte.
+    # La fecha del informe no va acá: cierra el documento, en el pie.
     elementos.append(_titulo_seccion('FECHAS'))
     elementos.append(Spacer(1, 3))
     elementos.append(
@@ -303,10 +306,9 @@ def generar_informe_pdf(
             [
                 ('FECHA SOLICITUD', campos.get('Fecha Solicitud', '')),
                 ('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
-                ('HORA MUESTREO', campos.get('Hora Muestreo', '')),
-                ('FECHA RECEPCIÓN', _fecha_iso_a_ddmmyyyy(fecha_recepcion)),
                 ('FECHA ANÁLISIS', _fecha_inyeccion_a_ddmmyyyy(fecha_inyeccion)),
-                ('FECHA INFORME', hoy),
+                ('FECHA RECEPCIÓN', _fecha_iso_a_ddmmyyyy(fecha_recepcion)),
+                ('HORA MUESTREO', campos.get('Hora Muestreo', '')),
             ],
             columnas=3,
         )
@@ -392,10 +394,9 @@ def generar_informe_pdf(
     elementos.append(KeepTogether(firmas))
     elementos.append(Spacer(1, 8))
 
-    # --- Pie: solo el folio. La leyenda de "copia electrónica" que iba bajo
-    # la firma se quitó a pedido; la fecha del informe ya está en FECHAS y no
-    # se repite acá para no dispersar la misma fecha por el documento.
-    pie = Table([[Paragraph(f'N° Informe: {folio}', _ESTILO_FOOTER)]], colWidths=[ANCHO_UTIL])
+    # --- Pie: la fecha del informe. El folio no se repite acá porque ya
+    # encabeza el documento arriba a la derecha.
+    pie = Table([[Paragraph(f'Fecha del informe: {hoy}', _ESTILO_FOOTER)]], colWidths=[ANCHO_UTIL])
     pie.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, -1), 0.5, GRIS_LINEA), ('TOPPADDING', (0, 0), (-1, -1), 4)]))
     elementos.append(KeepTogether(pie))
 
