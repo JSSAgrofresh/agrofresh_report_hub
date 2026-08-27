@@ -1,10 +1,11 @@
 """
 PDF de una solicitud de análisis.
 
-Diseño propio, distinto del informe de análisis: paleta azul marino,
-encabezado tipo banner, secciones con acento lateral grueso, campos con
-aspecto de formulario sobre fondo gris claro. El informe usa verde y líneas
-finas —ambos documentos son profesionales pero se distinguen al instante.
+Diseño propio, distinto del informe de análisis: paleta verde AgroFresh pero
+con encabezado tipo banner, secciones con acento lateral grueso, y campos con
+aspecto de formulario sobre fondo gris claro. El informe usa líneas finas y
+rejilla plana —ambos documentos son profesionales pero se distinguen al
+instante.
 """
 import io
 import os
@@ -27,11 +28,12 @@ from reportlab.platypus import (
 from .informe_pdf import _RUTA_LOGO, DIRECCION_EMPRESA
 from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS
 
-# ── Paleta azul marino ──────────────────────────────────────────────────
-AZUL_OSCURO = colors.HexColor('#1B3A5C')
-AZUL_MEDIO = colors.HexColor('#2563EB')
-AZUL_CLARO = colors.HexColor('#EFF6FF')
-AZUL_ACENTO = colors.HexColor('#3B82F6')
+# ── Paleta verde AgroFresh ──────────────────────────────────────────────
+VERDE_BANNER = colors.HexColor('#24391A')
+VERDE_OSCURO = colors.HexColor('#3D6B1F')
+VERDE_MEDIO = colors.HexColor('#4D8B2A')
+VERDE_CLARO = colors.HexColor('#EBF5E1')
+VERDE_FOLIO = colors.HexColor('#A3D977')
 GRIS_CAMPO = colors.HexColor('#F3F4F6')
 GRIS_BORDE = colors.HexColor('#D1D5DB')
 GRIS_TEXTO = colors.HexColor('#374151')
@@ -48,7 +50,7 @@ _S_BANNER_TITULO = ParagraphStyle(
 )
 _S_BANNER_FOLIO = ParagraphStyle(
     'bannerFolio', fontName='Helvetica-Bold', fontSize=10.5, leading=13,
-    textColor=colors.HexColor('#93C5FD'), alignment=2,
+    textColor=VERDE_FOLIO, alignment=2,
 )
 _S_DIRECCION = ParagraphStyle(
     'direccion', fontName='Helvetica', fontSize=8, leading=10,
@@ -56,7 +58,7 @@ _S_DIRECCION = ParagraphStyle(
 )
 _S_SECCION = ParagraphStyle(
     'seccion', fontName='Helvetica-Bold', fontSize=10, leading=12,
-    textColor=AZUL_OSCURO,
+    textColor=VERDE_OSCURO,
 )
 _S_LABEL = ParagraphStyle(
     'label', fontName='Helvetica-Bold', fontSize=7.5, leading=8.5,
@@ -78,11 +80,13 @@ _S_OBS = ParagraphStyle(
     'obs', fontName='Helvetica', fontSize=9.5, leading=12.5,
     textColor=NEGRO,
 )
-_S_FIRMA_NOMBRE = ParagraphStyle(
-    'firmaN', fontName='Helvetica-Bold', fontSize=10, textColor=NEGRO,
+_S_CORREO = ParagraphStyle(
+    'correo', fontName='Helvetica', fontSize=9.5, leading=14,
+    textColor=NEGRO,
 )
-_S_FIRMA_CARGO = ParagraphStyle(
-    'firmaC', fontName='Helvetica', fontSize=8.5, textColor=GRIS_LABEL,
+_S_CORREO_HINT = ParagraphStyle(
+    'correoHint', fontName='Helvetica-Oblique', fontSize=8.5, leading=11,
+    textColor=GRIS_LABEL,
 )
 _S_PIE = ParagraphStyle(
     'pie', fontName='Helvetica', fontSize=8, textColor=GRIS_LABEL,
@@ -114,7 +118,7 @@ def _fmt_fecha(valor: str | None) -> str:
 
 
 def _titulo_seccion(texto: str) -> Table:
-    """Sección con barra lateral azul gruesa a la izquierda."""
+    """Sección con barra lateral verde gruesa a la izquierda."""
     t = Table(
         [[Paragraph(texto, _S_SECCION)]],
         colWidths=[ANCHO_UTIL],
@@ -123,8 +127,8 @@ def _titulo_seccion(texto: str) -> Table:
         ('TOPPADDING', (0, 0), (-1, -1), 3),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
         ('LEFTPADDING', (0, 0), (-1, -1), 10),
-        ('LINEBEFORE', (0, 0), (0, -1), 3.5, AZUL_MEDIO),
-        ('BACKGROUND', (0, 0), (-1, -1), AZUL_CLARO),
+        ('LINEBEFORE', (0, 0), (0, -1), 3.5, VERDE_MEDIO),
+        ('BACKGROUND', (0, 0), (-1, -1), VERDE_CLARO),
     ]))
     return t
 
@@ -198,6 +202,50 @@ def _etiqueta_analito(analito: dict) -> str:
     )
 
 
+def _seccion_correos(datos: dict) -> list:
+    """Bloque CORREOS: caja amplia con los emails del solicitante y del
+    laboratorio, listos para que se les envíen los resultados."""
+    correos: list[str] = []
+    email_sol = datos.get('email_solicitante')
+    if email_sol:
+        correos.append(email_sol)
+    email_lab = datos.get('email_laboratorio')
+    if email_lab:
+        correos.append(email_lab)
+
+    destinatarios_extra: list[str] = datos.get('destinatarios_extra') or []
+    correos.extend(destinatarios_extra)
+
+    if correos:
+        texto = '<br/>'.join(correos)
+    else:
+        texto = '—'
+
+    filas = [
+        [Paragraph(texto, _S_CORREO)],
+        [Spacer(1, 30)],
+        [Paragraph(
+            'Escriba aquí correos adicionales para el envío de resultados',
+            _S_CORREO_HINT,
+        )],
+    ]
+    t = Table(filas, colWidths=[ANCHO_UTIL])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), GRIS_CAMPO),
+        ('TOPPADDING', (0, 0), (0, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (0, 0), 4),
+        ('TOPPADDING', (0, 1), (0, 1), 0),
+        ('BOTTOMPADDING', (0, 1), (0, 1), 0),
+        ('TOPPADDING', (0, 2), (0, 2), 0),
+        ('BOTTOMPADDING', (0, 2), (0, 2), 10),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+        ('BOX', (0, 0), (-1, -1), 0.5, GRIS_BORDE),
+        ('ROUNDEDCORNERS', [3, 3, 3, 3]),
+    ]))
+    return [t]
+
+
 # ── PDF principal ───────────────────────────────────────────────────────
 
 def generar_pdf_solicitud(
@@ -240,14 +288,13 @@ def generar_pdf_solicitud(
         if k not in etiquetas_analitos and k != 'Tipo Aplicación'
     }
 
-    # ── ENCABEZADO: banner azul marino de ancho completo ────────────────
+    # ── ENCABEZADO: banner verde oscuro de ancho completo ───────────────
     logo_img = (
         Image(_RUTA_LOGO, width=3.8 * cm, height=1.52 * cm)
         if os.path.isfile(_RUTA_LOGO)
         else Paragraph('', _S_VALOR)
     )
 
-    # Logo en una caja blanca dentro del banner
     logo_box = Table([[logo_img]], colWidths=[4.4 * cm])
     logo_box.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
@@ -272,7 +319,7 @@ def generar_pdf_solicitud(
         colWidths=[5.2 * cm, ANCHO_UTIL - 5.2 * cm],
     )
     banner.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), AZUL_OSCURO),
+        ('BACKGROUND', (0, 0), (-1, -1), VERDE_BANNER),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, -1), 10),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
@@ -283,7 +330,6 @@ def generar_pdf_solicitud(
     ]))
     elementos.append(banner)
 
-    # Dirección debajo del banner
     elementos.append(Spacer(1, 4))
     elementos.append(Paragraph(DIRECCION_EMPRESA, _S_DIRECCION))
     elementos.append(Spacer(1, 10))
@@ -330,7 +376,7 @@ def generar_pdf_solicitud(
         elementos.append(_rejilla_formulario(list(campos_aplicacion.items())))
         elementos.append(Spacer(1, 8))
 
-    # ── 6. ANÁLISIS SOLICITADOS / ANALITOS ──────────────────────────────
+    # ── 6. ANÁLISIS SOLICITADOS ─────────────────────────────────────────
     if filas_analitos:
         elementos.append(_titulo_seccion('ANÁLISIS SOLICITADOS'))
         elementos.append(Spacer(1, 5))
@@ -358,13 +404,13 @@ def generar_pdf_solicitud(
             repeatRows=1,
         )
         tabla_analitos.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), AZUL_OSCURO),
+            ('BACKGROUND', (0, 0), (-1, 0), VERDE_OSCURO),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('TOPPADDING', (0, 0), (-1, -1), 4),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('LINEBELOW', (0, 0), (-1, 0), 1.5, AZUL_MEDIO),
+            ('LINEBELOW', (0, 0), (-1, 0), 1.5, VERDE_MEDIO),
             ('LINEBELOW', (0, 1), (-1, -1), 0.5, GRIS_BORDE),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [BLANCO, AZUL_CLARO]),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [BLANCO, VERDE_CLARO]),
             ('BOX', (0, 0), (-1, -1), 0.5, GRIS_BORDE),
         ]))
         elementos.append(tabla_analitos)
@@ -397,32 +443,13 @@ def generar_pdf_solicitud(
         _pares_de_claves(datos, _CLAVES_FECHAS),
         columnas=3,
     ))
-    elementos.append(Spacer(1, 12))
-
-    # ── 9. FIRMAS ───────────────────────────────────────────────────────
-    def _bloque_firma(titulo: str) -> Table:
-        t = Table(
-            [
-                [Paragraph('', _S_FIRMA_NOMBRE)],
-                [Paragraph(titulo, _S_FIRMA_CARGO)],
-            ],
-            colWidths=[7.5 * cm],
-        )
-        t.setStyle(TableStyle([
-            ('LINEABOVE', (0, 0), (-1, 0), 0.75, AZUL_OSCURO),
-            ('TOPPADDING', (0, 0), (-1, 0), 5),
-            ('TOPPADDING', (0, 1), (-1, 1), 1),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ]))
-        return t
-
-    firmas = Table(
-        [[_bloque_firma('Solicitado por'), '', _bloque_firma('Recibido por (laboratorio)')]],
-        colWidths=[7.5 * cm, 2.6 * cm, 7.5 * cm],
-    )
-    firmas.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
-    elementos.append(KeepTogether(firmas))
     elementos.append(Spacer(1, 10))
+
+    # ── 9. CORREOS ──────────────────────────────────────────────────────
+    elementos.append(_titulo_seccion('CORREOS'))
+    elementos.append(Spacer(1, 5))
+    elementos.extend(_seccion_correos(datos))
+    elementos.append(Spacer(1, 12))
 
     # ── PIE ─────────────────────────────────────────────────────────────
     hoy = datetime.now().strftime('%d-%m-%Y')
@@ -434,7 +461,7 @@ def generar_pdf_solicitud(
         colWidths=[8.8 * cm, 8.8 * cm],
     )
     pie.setStyle(TableStyle([
-        ('LINEABOVE', (0, 0), (-1, -1), 0.75, AZUL_MEDIO),
+        ('LINEABOVE', (0, 0), (-1, -1), 0.75, VERDE_MEDIO),
         ('TOPPADDING', (0, 0), (-1, -1), 5),
         ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
     ]))
