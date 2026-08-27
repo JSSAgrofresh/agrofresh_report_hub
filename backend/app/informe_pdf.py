@@ -78,15 +78,15 @@ _S_LABEL = ParagraphStyle(
     textColor=GRIS_LABEL,
 )
 _S_VALOR = ParagraphStyle(
-    'valor', fontName='Helvetica', fontSize=9, leading=11,
+    'valor', fontName='Times-Roman', fontSize=9.5, leading=11,
     textColor=NEGRO_TEXTO,
 )
 _S_METODO = ParagraphStyle(
-    'metodo', fontName='Helvetica-Oblique', fontSize=7.5, leading=10,
+    'metodo', fontName='Times-Italic', fontSize=8, leading=10,
     textColor=GRIS_TEXTO,
 )
 _S_NOTA = ParagraphStyle(
-    'nota', fontName='Helvetica', fontSize=7, leading=9.5,
+    'nota', fontName='Times-Roman', fontSize=7.5, leading=9.5,
     textColor=GRIS_TEXTO,
 )
 _S_TABLA_HEAD = ParagraphStyle(
@@ -94,23 +94,23 @@ _S_TABLA_HEAD = ParagraphStyle(
     textColor=VERDE_OSCURO,
 )
 _S_TABLA_CELDA = ParagraphStyle(
-    'tablaCelda', fontName='Helvetica', fontSize=9, leading=11,
+    'tablaCelda', fontName='Times-Roman', fontSize=9.5, leading=11,
     textColor=NEGRO_TEXTO,
 )
 _S_TABLA_CELDA_NEG = ParagraphStyle(
-    'tablaCeldaNeg', fontName='Helvetica-Oblique', fontSize=8.5, leading=10,
+    'tablaCeldaNeg', fontName='Times-Italic', fontSize=9, leading=10,
     textColor=GRIS_LABEL,
 )
 _S_FIRMA_NOMBRE = ParagraphStyle(
-    'firmaNombre', fontName='Helvetica-Bold', fontSize=9.5, leading=11,
+    'firmaNombre', fontName='Times-Bold', fontSize=9.5, leading=11,
     textColor=NEGRO_TEXTO,
 )
 _S_FIRMA_CARGO = ParagraphStyle(
-    'firmaCargo', fontName='Helvetica', fontSize=8.5, leading=10,
+    'firmaCargo', fontName='Times-Roman', fontSize=9, leading=10,
     textColor=GRIS_TEXTO,
 )
 _S_PIE = ParagraphStyle(
-    'pie', fontName='Helvetica', fontSize=7.5, textColor=GRIS_LABEL,
+    'pie', fontName='Times-Roman', fontSize=8, textColor=GRIS_LABEL,
 )
 
 METODOLOGIA_TEXTO = (
@@ -282,7 +282,7 @@ def _construir_elementos(
 
     # ── ENCABEZADO: logo lateral y datos centrados en la página ────────
     logo_img = (
-        Image(_RUTA_LOGO, width=4.8 * cm, height=1.92 * cm)
+        Image(_RUTA_LOGO, width=5.0 * cm, height=2.0 * cm)
         if os.path.isfile(_RUTA_LOGO)
         else Paragraph('', _S_VALOR)
     )
@@ -318,42 +318,44 @@ def _construir_elementos(
     elementos.append(Spacer(1, _SP))
 
     # ── IDENTIFICACIÓN DE LA SOLICITUD ─────────────────────────────────
-    pares_sol = [
+    pares_sol_izquierda = [
         ('SOLICITANTE', campos.get('Solicitante', '')),
-        ('GENERADO POR', campos.get('Generado Por', '')),
         ('SOLD TO', campos.get('Sold To (Nombre)', '')),
         ('SHIP TO', campos.get('Ship To (Nombre)', '')),
+    ]
+    pares_sol_derecha = [
         ('N° SOLICITUD', campos.get('N° Solicitud', '')),
+        ('GENERADO POR', campos.get('Generado Por', '')),
         ('FECHA SOLICITUD', campos.get('Fecha Solicitud', '')),
     ]
-    contenido_sol = _rejilla_campos(pares_sol, columnas=2)
+    contenido_sol = _rejilla_campos_vertical(
+        pares_sol_izquierda,
+        pares_sol_derecha,
+    )
     elementos.append(_cuadrante('Identificación de la Solicitud', contenido_sol))
     elementos.append(Spacer(1, _SP))
 
     # ── IDENTIFICACIÓN DE LA MUESTRA (dos columnas verticales) ─────────
     pares_muestra_izquierda = [
         ('TIPO MUESTRA', campos.get('Tipo Muestra', '')),
+        ('TIPO APLICACIÓN', campos.get('Tipo Aplicación', '')),
+        ('ESPECIE', campos.get('Especie', '')),
         ('VARIEDAD', campos.get('Variedad', '')),
         ('N° CÁMARA', campos.get('N° Cámara', '')),
+        ('N° ORDEN', campos.get('N° Orden', '')),
         ('PRODUCTO', campos.get('Producto Utilizado', '')),
-        ('MUESTREADOR', campos.get('Nombre Muestreador', '')),
+        ('LOTE', campos.get('Lote', '')),
+        ('POSICIÓN', campos.get('Posición Muestreo', '')),
+        ('APLICACIÓN', campos.get('Aplicación', '')),
     ]
     pares_muestra_derecha = [
-        ('ESPECIE', campos.get('Especie', '')),
-        ('LOTE', campos.get('Lote', '')),
         ('CSG', campos.get('CSG', '')),
-        ('N° ORDEN', campos.get('N° Orden', '')),
-        ('POSICIÓN', campos.get('Posición Muestreo', '')),
-        ('TIPO APLICACIÓN', campos.get('Tipo Aplicación', '')),
+        ('MUESTREADOR', campos.get('Nombre Muestreador', '')),
+        ('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
+        ('HORA MUESTREO', campos.get('Hora Muestreo', '')),
     ]
     if campos.get('Línea Proceso'):
         pares_muestra_derecha.append(('LÍNEA PROCESO', campos['Línea Proceso']))
-    if campos.get('Aplicación'):
-        pares_muestra_derecha.append(('APLICACIÓN', campos['Aplicación']))
-    pares_muestra_derecha.extend([
-        ('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
-        ('HORA MUESTREO', campos.get('Hora Muestreo', '')),
-    ])
 
     rejilla_muestra = _rejilla_campos_vertical(
         pares_muestra_izquierda,
