@@ -53,11 +53,11 @@ ANCHO_UTIL = A4[0] - 2 * _MARGEN_H
 # ── Estilos tipográficos ────────────────────────────────────────────────
 _S_BANNER_TITULO = ParagraphStyle(
     'bannerTitulo', fontName='Helvetica-Bold', fontSize=15, leading=18,
-    textColor=BLANCO, alignment=0,
+    textColor=VERDE_OSCURO, alignment=0,
 )
 _S_BANNER_FOLIO = ParagraphStyle(
     'bannerFolio', fontName='Helvetica-Bold', fontSize=10, leading=12,
-    textColor=VERDE_FOLIO, alignment=2,
+    textColor=VERDE_MEDIO, alignment=2,
 )
 _S_DIRECCION = ParagraphStyle(
     'direccion', fontName='Helvetica', fontSize=7.5, leading=9.5,
@@ -77,7 +77,7 @@ _S_VALOR = ParagraphStyle(
 )
 _S_TABLA_HEAD = ParagraphStyle(
     'tHead', fontName='Helvetica-Bold', fontSize=8.5, leading=10,
-    textColor=BLANCO,
+    textColor=VERDE_OSCURO,
 )
 _S_TABLA_CELDA = ParagraphStyle(
     'tCelda', fontName='Helvetica', fontSize=9, leading=11,
@@ -176,6 +176,34 @@ def _rejilla_formulario(
 
     ancho_col = ANCHO_UTIL / columnas
     t = Table(filas, colWidths=[ancho_col] * columnas)
+    t.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 1.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 1),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 1),
+    ]))
+    return t
+
+
+def _rejilla_formulario_vertical(
+    columnas_pares: list[list[tuple[str, object]]],
+) -> Table:
+    """Distribuye cada lista de campos verticalmente en su propia columna."""
+    total_filas = max(len(columna) for columna in columnas_pares)
+    filas: list[list] = []
+    for i in range(total_filas):
+        fila = []
+        for columna in columnas_pares:
+            if i < len(columna):
+                et, val = columna[i]
+                fila.append(_campo_box(et, val))
+            else:
+                fila.append('')
+        filas.append(fila)
+
+    ancho_col = ANCHO_UTIL / len(columnas_pares)
+    t = Table(filas, colWidths=[ancho_col] * len(columnas_pares))
     t.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('TOPPADDING', (0, 0), (-1, -1), 1.5),
@@ -317,13 +345,14 @@ def _construir_elementos(
         colWidths=[5 * cm, ANCHO_UTIL - 5 * cm],
     )
     banner.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), VERDE_BANNER),
+        ('BACKGROUND', (0, 0), (-1, -1), VERDE_CLARO),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('LEFTPADDING', (0, 0), (0, 0), 9),
         ('RIGHTPADDING', (-1, 0), (-1, 0), 11),
         ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('BOX', (0, 0), (-1, -1), 0.75, VERDE_MEDIO),
         ('ROUNDEDCORNERS', [5, 5, 5, 5]),
     ]))
     elementos.append(banner)
@@ -331,25 +360,59 @@ def _construir_elementos(
     elementos.append(Paragraph(DIRECCION_EMPRESA, _S_DIRECCION))
     elementos.append(Spacer(1, _SP))
 
-    # ── 1. IDENTIFICACIÓN ───────────────────────────────────────────────
-    pares_id = [
-        (_ETIQUETA_DE_CLAVE['numero_solicitud'], datos.get('numero_solicitud')),
-        (_ETIQUETA_DE_CLAVE['generado_por'], datos.get('generado_por')),
-        (_ETIQUETA_DE_CLAVE['laboratorio'], laboratorio),
+    # ── 1. IDENTIFICACIÓN DE LA SOLICITUD ──────────────────────────────
+    pares_id_izquierda = [
         (_ETIQUETA_DE_CLAVE['solicitante'], datos.get('solicitante')),
-        ('Email Solicitante', datos.get('email_solicitante')),
+        (_ETIQUETA_DE_CLAVE['laboratorio'], laboratorio),
         (_ETIQUETA_DE_CLAVE['sold_to'], datos.get('sold_to')),
         (_ETIQUETA_DE_CLAVE['ship_to'], datos.get('ship_to')),
     ]
-    elementos.append(_titulo_seccion('IDENTIFICACIÓN'))
+    pares_id_derecha = [
+        (_ETIQUETA_DE_CLAVE['generado_por'], datos.get('generado_por')),
+        ('Email Solicitante', datos.get('email_solicitante')),
+    ]
+    elementos.append(_titulo_seccion('IDENTIFICACIÓN DE LA SOLICITUD'))
     elementos.append(Spacer(1, 4))
-    elementos.append(_rejilla_formulario(pares_id, columnas=3))
+    elementos.append(_rejilla_formulario_vertical([
+        pares_id_izquierda,
+        pares_id_derecha,
+    ]))
     elementos.append(Spacer(1, _SP))
 
     # ── 2. IDENTIFICACIÓN DE LA MUESTRA ─────────────────────────────────
-    pares_muestra = _pares_de_claves(datos, _CLAVES_MUESTRA)
-    if campos_lab.get('Tipo Aplicación'):
-        pares_muestra.insert(0, ('Tipo Aplicación', campos_lab['Tipo Aplicación']))
+    claves_muestra_ordenadas = [
+        'tipo_muestra',
+        'variedad',
+        'numero_camara',
+        'producto_utilizado',
+        'aplicacion',
+        'especie',
+        'numero_orden',
+        'lote',
+        'posicion_muestreo',
+        'csg',
+        'nombre_muestreador',
+    ]
+    valores_muestra = {
+        clave: datos.get(clave)
+        for clave in claves_muestra_ordenadas
+    }
+    pares_muestra = [
+        (_ETIQUETA_DE_CLAVE['tipo_muestra'], valores_muestra['tipo_muestra']),
+        ('Tipo Aplicación', campos_lab.get('Tipo Aplicación')),
+        (_ETIQUETA_DE_CLAVE['especie'], valores_muestra['especie']),
+        (_ETIQUETA_DE_CLAVE['variedad'], valores_muestra['variedad']),
+        (_ETIQUETA_DE_CLAVE['numero_camara'], valores_muestra['numero_camara']),
+        (_ETIQUETA_DE_CLAVE['numero_orden'], valores_muestra['numero_orden']),
+        (_ETIQUETA_DE_CLAVE['producto_utilizado'], valores_muestra['producto_utilizado']),
+        (_ETIQUETA_DE_CLAVE['lote'], valores_muestra['lote']),
+        (_ETIQUETA_DE_CLAVE['posicion_muestreo'], valores_muestra['posicion_muestreo']),
+        (_ETIQUETA_DE_CLAVE['aplicacion'], valores_muestra['aplicacion']),
+        (_ETIQUETA_DE_CLAVE['csg'], valores_muestra['csg']),
+        (_ETIQUETA_DE_CLAVE['nombre_muestreador'], valores_muestra['nombre_muestreador']),
+        (_ETIQUETA_DE_CLAVE['kilos_procesados'], datos.get('kilos_procesados')),
+        (_ETIQUETA_DE_CLAVE['linea_proceso'], datos.get('linea_proceso')),
+    ]
     elementos.append(_titulo_seccion('IDENTIFICACIÓN DE LA MUESTRA'))
     elementos.append(Spacer(1, 4))
     elementos.append(_rejilla_formulario(pares_muestra, columnas=3))
@@ -388,7 +451,7 @@ def _construir_elementos(
             repeatRows=1,
         )
         tabla.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), VERDE_OSCURO),
+            ('BACKGROUND', (0, 0), (-1, 0), VERDE_CLARO),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('TOPPADDING', (0, 0), (-1, -1), 3.5),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
