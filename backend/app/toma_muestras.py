@@ -36,7 +36,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from . import config, config_store, correo, r2
@@ -364,7 +364,8 @@ def crear_solicitud(body: SolicitudIn) -> Solicitud:
     )
     nombre_archivo = f"{numero}.xlsx"
     fecha = datos["fecha_solicitud"]
-    wb = construir_workbook(datos)
+    analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
+    wb = construir_workbook(datos, analitos_config)
     if r2.disponible():
         buf = io.BytesIO()
         wb.save(buf)
@@ -397,29 +398,29 @@ def eliminar_solicitud(archivo: str) -> dict[str, str]:
 
 
 @router.get("/solicitudes/{archivo}/excel", response_model=None)
-def descargar_solicitud_excel(archivo: str) -> FileResponse | StreamingResponse:
-    """El documento Excel es el original guardado al crear la solicitud. Para
-    solicitudes legadas (.json, de antes de este cambio) se genera al vuelo
-    con el mismo formato, para que la descarga sea consistente."""
+def descargar_solicitud_excel(archivo: str) -> StreamingResponse:
+    """Regenera el documento visible con el formato vigente.
+
+    Los datos siempre se leen del archivo maestro guardado (XLSX o JSON), de
+    modo que las solicitudes antiguas también descargan la tabla operativa
+    actual sin modificar su contenido original.
+    """
     media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     if r2.disponible():
         data, ext = _descargar_solicitud_r2(archivo)
         nombre_base = os.path.splitext(os.path.basename(archivo))[0]
-        if ext == ".xlsx":
-            buf = io.BytesIO(data)
-        else:
-            datos = _leer_solicitud_bytes(data, ext)
-            buf = io.BytesIO()
-            construir_workbook(datos).save(buf)
+        datos = _leer_solicitud_bytes(data, ext)
+        buf = io.BytesIO()
+        analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
+        construir_workbook(datos, analitos_config).save(buf)
         buf.seek(0)
         return StreamingResponse(buf, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{nombre_base}.xlsx"'})
     ruta = _ruta_archivo(archivo)
     numero = os.path.splitext(os.path.basename(ruta))[0]
-    if ruta.endswith(".xlsx"):
-        return FileResponse(ruta, filename=f"{numero}.xlsx", media_type=media_type)
     datos = _leer_solicitud_archivo(ruta)
     buffer = io.BytesIO()
-    construir_workbook(datos).save(buffer)
+    analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
+    construir_workbook(datos, analitos_config).save(buffer)
     buffer.seek(0)
     return StreamingResponse(
         buffer,
@@ -530,7 +531,7 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
     datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
     pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config)
 
-    wb = construir_workbook(datos)
+    wb = construir_workbook(datos, analitos_config)
     buf_excel = io.BytesIO()
     wb.save(buf_excel)
     excel_bytes = buf_excel.getvalue()
