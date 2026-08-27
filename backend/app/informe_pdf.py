@@ -1,8 +1,10 @@
 """Genera el PDF del informe de análisis para una solicitud ya cruzada con su
-resultado del GC. Diseño sobrio: títulos de sección tipográficos con una
-línea fina (no bloques de color), y el color reservado para el encabezado de
-la tabla de resultados. Incluye el folio interno del informe y un bloque de
-firma con los responsables configurados en informe_config."""
+resultado del GC.
+
+Diseño inspirado en informes de laboratorio profesionales (estilo Analab):
+encabezado centrado con logo grande, secciones enmarcadas en cuadrantes con
+borde, y la personalidad visual AgroFresh (paleta verde, tipografía limpia).
+"""
 
 import io
 import os
@@ -24,48 +26,109 @@ from reportlab.platypus import (
 )
 
 VERDE_OSCURO = colors.HexColor('#3D6B1F')
+VERDE_MEDIO = colors.HexColor('#4D8B2A')
 VERDE_CLARO = colors.HexColor('#EBF5E1')
-GRIS_LABEL = colors.HexColor('#F7F8F7')
+VERDE_BANNER = colors.HexColor('#24391A')
+GRIS_FONDO = colors.HexColor('#F7F8F7')
 GRIS_TEXTO = colors.HexColor('#374151')
-GRIS_LINEA = colors.HexColor('#9CA3AF')
+GRIS_LINEA = colors.HexColor('#C5C9C5')
+GRIS_LABEL = colors.HexColor('#6B7280')
 NEGRO_TEXTO = colors.HexColor('#111827')
+BLANCO = colors.white
 
 _RUTA_LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'src', 'assets', 'agrofresh-logo.png')
 
 DIRECCION_EMPRESA = "Manuel Montt, 4060 | Parque Industrial km 90 Rancagua | CHILE"
 
-# Ancho de contenido: A4 menos los márgenes laterales del documento.
-ANCHO_UTIL = 17.6 * cm
+_MARGEN_H = 1.5 * cm
+_MARGEN_V = 1.0 * cm
+ANCHO_UTIL = A4[0] - 2 * _MARGEN_H
 
 _PAT_CODIGO_COLUMNA = re.compile(r"\(([A-Za-z]+)\)\s*$")
 _PREFIJO_RESULTADO = "Resultado:"
 
-_ESTILO_TITULO = ParagraphStyle('titulo', fontName='Helvetica-Bold', fontSize=15.5, leading=17.5, textColor=NEGRO_TEXTO, alignment=2)
-_ESTILO_SUBTITULO = ParagraphStyle('subtitulo', fontName='Helvetica', fontSize=9.3, textColor=GRIS_TEXTO, alignment=2)
-_ESTILO_DIRECCION = ParagraphStyle('direccion', fontName='Helvetica', fontSize=8.6, textColor=GRIS_TEXTO, leading=11)
-_ESTILO_FOLIO = ParagraphStyle('folio', fontName='Helvetica-Bold', fontSize=9.8, textColor=VERDE_OSCURO, alignment=2)
-_ESTILO_SECCION = ParagraphStyle('seccion', fontName='Helvetica-Bold', fontSize=9.8, textColor=VERDE_OSCURO, spaceAfter=0)
-_ESTILO_SUBSECCION = ParagraphStyle('subseccion', fontName='Helvetica-Bold', fontSize=8.8, textColor=VERDE_OSCURO, spaceAfter=0)
-_ESTILO_LABEL = ParagraphStyle('label', fontName='Helvetica-Bold', fontSize=7.7, leading=8.8, textColor=GRIS_TEXTO)
-_ESTILO_VALOR = ParagraphStyle('valor', fontName='Helvetica', fontSize=9.9, textColor=NEGRO_TEXTO, leading=11.8)
-_ESTILO_METODO = ParagraphStyle('metodo', fontName='Helvetica-Oblique', fontSize=9.1, textColor=GRIS_TEXTO, leading=12.3)
-_ESTILO_NOTA = ParagraphStyle('nota', fontName='Helvetica', fontSize=8.6, textColor=GRIS_TEXTO, leading=11.3)
-_ESTILO_TABLA_HEAD = ParagraphStyle('tablahead', fontName='Helvetica-Bold', fontSize=9.1, textColor=VERDE_OSCURO)
-_ESTILO_TABLA_CELDA = ParagraphStyle('tablacelda', fontName='Helvetica', fontSize=10.3, textColor=NEGRO_TEXTO)
-_ESTILO_TABLA_CELDA_NEG = ParagraphStyle('tablaceldaneg', fontName='Helvetica-Oblique', fontSize=9.8, textColor=GRIS_TEXTO)
-_ESTILO_FOOTER = ParagraphStyle('footer', fontName='Helvetica', fontSize=8.6, textColor=GRIS_TEXTO)
-_ESTILO_FIRMA_NOMBRE = ParagraphStyle('firmanombre', fontName='Helvetica-Bold', fontSize=10.3, textColor=NEGRO_TEXTO)
-_ESTILO_FIRMA_CARGO = ParagraphStyle('firmacargo', fontName='Helvetica', fontSize=9.1, textColor=GRIS_TEXTO)
+# ── Estilos tipográficos ───────────────────────────────────────────────
 
-METODOLOGIA_TEXTO = "CQ-CROM-023-T · Pesticidas GC-MS/ECD y LC-MS/MS · Laboratorio de Cromatografía AgroFresh Chile"
+_S_TITULO = ParagraphStyle(
+    'titulo', fontName='Helvetica-Bold', fontSize=16, leading=19,
+    textColor=NEGRO_TEXTO, alignment=1,
+)
+_S_FOLIO = ParagraphStyle(
+    'folio', fontName='Helvetica-Bold', fontSize=10, leading=12,
+    textColor=VERDE_OSCURO, alignment=1,
+)
+_S_INFO_HEADER = ParagraphStyle(
+    'infoHeader', fontName='Helvetica', fontSize=7.5, leading=9.5,
+    textColor=GRIS_LABEL, alignment=1,
+)
+_S_PAGINA = ParagraphStyle(
+    'pagina', fontName='Helvetica', fontSize=8, leading=10,
+    textColor=GRIS_TEXTO, alignment=2,
+)
+_S_SECCION = ParagraphStyle(
+    'seccion', fontName='Helvetica-Bold', fontSize=9, leading=11,
+    textColor=VERDE_OSCURO,
+)
+_S_SUBSECCION = ParagraphStyle(
+    'subseccion', fontName='Helvetica-Bold', fontSize=8, leading=10,
+    textColor=VERDE_OSCURO,
+)
+_S_LABEL = ParagraphStyle(
+    'label', fontName='Helvetica-Bold', fontSize=7, leading=8.5,
+    textColor=GRIS_LABEL,
+)
+_S_VALOR = ParagraphStyle(
+    'valor', fontName='Helvetica', fontSize=9, leading=11,
+    textColor=NEGRO_TEXTO,
+)
+_S_METODO = ParagraphStyle(
+    'metodo', fontName='Helvetica-Oblique', fontSize=7.5, leading=10,
+    textColor=GRIS_TEXTO,
+)
+_S_NOTA = ParagraphStyle(
+    'nota', fontName='Helvetica', fontSize=7, leading=9.5,
+    textColor=GRIS_TEXTO,
+)
+_S_TABLA_HEAD = ParagraphStyle(
+    'tablaHead', fontName='Helvetica-Bold', fontSize=8.5, leading=10,
+    textColor=BLANCO,
+)
+_S_TABLA_CELDA = ParagraphStyle(
+    'tablaCelda', fontName='Helvetica', fontSize=9, leading=11,
+    textColor=NEGRO_TEXTO,
+)
+_S_TABLA_CELDA_NEG = ParagraphStyle(
+    'tablaCeldaNeg', fontName='Helvetica-Oblique', fontSize=8.5, leading=10,
+    textColor=GRIS_LABEL,
+)
+_S_FIRMA_NOMBRE = ParagraphStyle(
+    'firmaNombre', fontName='Helvetica-Bold', fontSize=9.5, leading=11,
+    textColor=NEGRO_TEXTO,
+)
+_S_FIRMA_CARGO = ParagraphStyle(
+    'firmaCargo', fontName='Helvetica', fontSize=8.5, leading=10,
+    textColor=GRIS_TEXTO,
+)
+_S_PIE = ParagraphStyle(
+    'pie', fontName='Helvetica', fontSize=7.5, textColor=GRIS_LABEL,
+)
 
-# Sin la leyenda de LD/LC: esa columna ya no existe en la tabla de resultados.
+METODOLOGIA_TEXTO = (
+    "CQ-CROM-023-T · Pesticidas GC-MS/ECD y LC-MS/MS · "
+    "Laboratorio de Cromatografía AgroFresh Chile"
+)
+
 NOTAS_TEXTO = (
-    "Los resultados de este informe corresponden exclusivamente a la(s) muestra(s) identificada(s) en este "
-    "documento. \"No detectado\" indica un valor bajo el límite de detección del método. Este informe no debe "
+    "Los resultados de este informe corresponden exclusivamente a la(s) "
+    "muestra(s) identificada(s) en este documento. \"No detectado\" indica "
+    "un valor bajo el límite de detección del método. Este informe no debe "
     "reproducirse parcialmente sin autorización escrita del laboratorio."
 )
 
+_SP = 5
+
+
+# ── Helpers ────────────────────────────────────────────────────────────
 
 def _nombre_ensayo(campos: dict[str, str], codigo: str) -> str:
     for columna in campos:
@@ -75,89 +138,6 @@ def _nombre_ensayo(campos: dict[str, str], codigo: str) -> str:
         if m and m.group(1).upper() == codigo:
             return columna
     return codigo
-
-
-def _titulo_seccion(texto: str, ancho: float = 17.6 * cm) -> Table:
-    """Título de sección sobrio: texto en verde con una línea fina debajo,
-    sin relleno de color -reemplaza las barras sólidas de la versión anterior."""
-    t = Table([[Paragraph(texto, _ESTILO_SECCION)]], colWidths=[ancho])
-    t.setStyle(
-        TableStyle(
-            [
-                ('TOPPADDING', (0, 0), (-1, -1), 0),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-                ('LINEBELOW', (0, 0), (-1, -1), 1, VERDE_OSCURO),
-            ]
-        )
-    )
-    return t
-
-
-def _fila_campo(etiqueta: str, valor) -> list:
-    texto = str(valor) if valor not in (None, '') else '—'
-    return [Paragraph(etiqueta, _ESTILO_LABEL), Paragraph(texto, _ESTILO_VALOR)]
-
-
-def _lista_vertical(pares: list[tuple[str, str]]) -> Table:
-    """Columna de campos etiqueta/valor, uno por fila (para ir dentro de un
-    bloque de dos columnas lado a lado -ver `_dos_columnas`-)."""
-    filas = [_fila_campo(et, val) for et, val in pares]
-    t = Table(filas, colWidths=[3.1 * cm, 5.3 * cm])
-    t.setStyle(
-        TableStyle(
-            [
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 2.5),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
-                ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
-            ]
-        )
-    )
-    return t
-
-
-def _rejilla_campos(pares: list[tuple[str, str]], columnas: int = 2) -> Table:
-    """Campos etiqueta/valor a lo ancho de la página, repartidos en varias
-    columnas de pares. Reemplaza al bloque de dos secciones lado a lado: cada
-    sección ocupa ahora todo el ancho y sus campos se acomodan en rejilla, que
-    es más compacto que una única lista vertical y no obliga a partir el
-    documento en dos temas paralelos."""
-    filas: list[list] = []
-    for i in range(0, len(pares), columnas):
-        fila: list = []
-        for j in range(columnas):
-            if i + j < len(pares):
-                etiqueta, valor = pares[i + j]
-                fila.extend(_fila_campo(etiqueta, valor))
-            else:
-                # Relleno para que la última fila tenga el mismo número de
-                # celdas: sin esto ReportLab rechaza la tabla.
-                fila.extend(['', ''])
-        filas.append(fila)
-
-    # El ancho se reparte entre las columnas pedidas en vez de ser fijo: con
-    # 3 columnas un par etiqueta/valor de tamaño fijo se saldría de la hoja.
-    # Con más columnas la etiqueta se lleva una fracción mayor: los valores
-    # que caben en 3 columnas son cortos (fechas, horas) y las etiquetas no,
-    # y sin esto "FECHA SOLICITUD" se parte en dos líneas.
-    ancho_par = ANCHO_UTIL / columnas
-    proporcion_etiqueta = 0.37 if columnas < 3 else 0.5
-    anchos: list[float] = []
-    for _ in range(columnas):
-        anchos.extend([ancho_par * proporcion_etiqueta, ancho_par * (1 - proporcion_etiqueta)])
-
-    t = Table(filas, colWidths=anchos)
-    t.setStyle(
-        TableStyle(
-            [
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 3),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-                ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
-            ]
-        )
-    )
-    return t
 
 
 def _fecha_iso_a_ddmmyyyy(valor: str | None) -> str:
@@ -170,7 +150,6 @@ def _fecha_iso_a_ddmmyyyy(valor: str | None) -> str:
 
 
 def _fecha_inyeccion_a_ddmmyyyy(valor: str | None) -> str:
-    """Formato de Agilent ChemStation: '7/25/2026 9:14:59 AM' -> '25-07-2026'."""
     if not valor:
         return ''
     try:
@@ -179,7 +158,77 @@ def _fecha_inyeccion_a_ddmmyyyy(valor: str | None) -> str:
         return valor
 
 
-def generar_informe_pdf(
+def _fila_campo(etiqueta: str, valor) -> list:
+    texto = str(valor) if valor not in (None, '') else '—'
+    return [Paragraph(etiqueta, _S_LABEL), Paragraph(texto, _S_VALOR)]
+
+
+def _cuadrante(titulo: str, contenido_tabla: Table) -> Table:
+    """Envuelve una sección en un cuadrante con borde fino y título en barra verde."""
+    barra_titulo = Table(
+        [[Paragraph(titulo, _S_SECCION)]],
+        colWidths=[ANCHO_UTIL],
+    )
+    barra_titulo.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), VERDE_CLARO),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('LINEBELOW', (0, 0), (-1, -1), 0.75, VERDE_OSCURO),
+    ]))
+    cuadrante = Table(
+        [[barra_titulo], [contenido_tabla]],
+        colWidths=[ANCHO_UTIL],
+    )
+    cuadrante.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
+        ('TOPPADDING', (0, 0), (0, 0), 0),
+        ('BOTTOMPADDING', (0, 0), (0, 0), 0),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 1), (0, 1), 0),
+        ('BOTTOMPADDING', (0, 1), (0, 1), 0),
+    ]))
+    return cuadrante
+
+
+def _rejilla_campos(pares: list[tuple[str, str]], columnas: int = 2) -> Table:
+    filas: list[list] = []
+    for i in range(0, len(pares), columnas):
+        fila: list = []
+        for j in range(columnas):
+            if i + j < len(pares):
+                etiqueta, valor = pares[i + j]
+                fila.extend(_fila_campo(etiqueta, valor))
+            else:
+                fila.extend(['', ''])
+        filas.append(fila)
+
+    ancho_par = ANCHO_UTIL / columnas
+    prop_et = 0.38 if columnas < 3 else 0.48
+    anchos: list[float] = []
+    for _ in range(columnas):
+        anchos.extend([ancho_par * prop_et, ancho_par * (1 - prop_et)])
+
+    t = Table(filas, colWidths=anchos)
+    t.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 2.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('LINEBELOW', (0, 0), (-1, -1), 0.3, GRIS_LINEA),
+    ]))
+    return t
+
+
+def _contar_paginas(pdf_bytes: bytes) -> int:
+    return len(re.findall(rb'/Type\s*/Page(?!s)', pdf_bytes))
+
+
+# ── Construcción de elementos ──────────────────────────────────────────
+
+def _construir_elementos(
     campos: dict[str, str],
     analitos_solicitados: list[str],
     resultados_por_codigo: dict[str, float | None],
@@ -190,82 +239,57 @@ def generar_informe_pdf(
     analizado_por_cargo: str,
     aprobado_por_nombre: str,
     aprobado_por_cargo: str,
-    fecha_recepcion: str | None = None,
-) -> bytes:
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        leftMargin=1.6 * cm,
-        rightMargin=1.6 * cm,
-        topMargin=1.1 * cm,
-        bottomMargin=1.1 * cm,
-        title=f"Informe de análisis {campos.get('N° Solicitud', '')}".strip(),
-    )
-
+    fecha_recepcion: str | None,
+    espacio_extra: float,
+) -> list:
     elementos = []
-
-    # --- Encabezado: logo + dirección (izquierda) · identificador (derecha) ---
-    logo_cel = [
-        Image(_RUTA_LOGO, width=4.6 * cm, height=1.84 * cm) if os.path.isfile(_RUTA_LOGO) else Paragraph('', _ESTILO_VALOR),
-        Spacer(1, 3),
-        Paragraph(DIRECCION_EMPRESA, _ESTILO_DIRECCION),
-    ]
-    titulo_cel = [
-        Paragraph('INFORME DE ANÁLISIS', _ESTILO_TITULO),
-        Spacer(1, 3),
-        Paragraph(f'N° Informe: {folio}', _ESTILO_FOLIO),
-    ]
-    encabezado = Table([[logo_cel, titulo_cel]], colWidths=[9.6 * cm, 8 * cm])
-    encabezado.setStyle(
-        TableStyle(
-            [
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-                ('LINEBELOW', (0, 0), (-1, -1), 0.75, GRIS_LINEA),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-            ]
-        )
-    )
-    elementos.append(encabezado)
-    elementos.append(Spacer(1, 7))
-
-    # --- Solicitante (Sold To y Ship To siempre visibles, aunque Ship To
-    # venga vacío -se muestra la etiqueta igual, con "—" en el valor-) ---
-    elementos.append(_titulo_seccion('SOLICITANTE'))
-    tabla_solicitante = Table(
-        [
-            [
-                *_fila_campo('SOLICITANTE', campos.get('Solicitante', '')),
-                *_fila_campo('GENERADO POR', campos.get('Generado Por', '')),
-            ],
-            [
-                *_fila_campo('SOLD TO', campos.get('Sold To (Nombre)', '')),
-                *_fila_campo('SHIP TO', campos.get('Ship To (Nombre)', '')),
-            ],
-            [*_fila_campo('N° SOLICITUD', campos.get('N° Solicitud', '')), '', ''],
-        ],
-        colWidths=[3.2 * cm, 5.6 * cm, 3.2 * cm, 5.6 * cm],
-    )
-    tabla_solicitante.setStyle(
-        TableStyle(
-            [
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 3),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-                ('LINEBELOW', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
-                ('SPAN', (1, 2), (3, 2)),
-            ]
-        )
-    )
-    elementos.append(tabla_solicitante)
-    elementos.append(Spacer(1, 6))
-
-    # --- Identificación de la muestra: una sola sección a lo ancho de la
-    # página. Antes compartía la fila con un bloque de fechas a la derecha;
-    # las fechas bajaron a su propia sección (después de Observaciones), así
-    # que acá ya no hay dos columnas de secciones compitiendo.
     hoy = datetime.now().strftime('%d-%m-%Y')
+
+    # ── ENCABEZADO centrado ────────────────────────────────────────────
+    logo_img = (
+        Image(_RUTA_LOGO, width=5.4 * cm, height=2.16 * cm)
+        if os.path.isfile(_RUTA_LOGO)
+        else Paragraph('', _S_VALOR)
+    )
+
+    pagina_p = Paragraph('Página 1 de 1', _S_PAGINA)
+
+    header_filas = [
+        [logo_img],
+        [Paragraph('INFORME DE ANÁLISIS', _S_TITULO)],
+        [Paragraph(f'N° Informe: {folio}', _S_FOLIO)],
+        [Paragraph(DIRECCION_EMPRESA, _S_INFO_HEADER)],
+    ]
+    header = Table(header_filas, colWidths=[ANCHO_UTIL])
+    header.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (0, 0), 2),
+        ('BOTTOMPADDING', (0, 0), (0, 0), 4),
+        ('TOPPADDING', (0, 1), (0, 1), 4),
+        ('BOTTOMPADDING', (0, 1), (0, 1), 1),
+        ('TOPPADDING', (0, 2), (0, 2), 1),
+        ('BOTTOMPADDING', (0, 2), (0, 2), 2),
+        ('TOPPADDING', (0, 3), (0, 3), 2),
+        ('BOTTOMPADDING', (0, 3), (0, 3), 4),
+        ('LINEBELOW', (0, 3), (-1, 3), 0.75, VERDE_OSCURO),
+    ]))
+    elementos.append(header)
+    elementos.append(Spacer(1, _SP))
+
+    # ── SOLICITANTE (cuadrante) ────────────────────────────────────────
+    pares_sol = [
+        ('SOLICITANTE', campos.get('Solicitante', '')),
+        ('GENERADO POR', campos.get('Generado Por', '')),
+        ('SOLD TO', campos.get('Sold To (Nombre)', '')),
+        ('SHIP TO', campos.get('Ship To (Nombre)', '')),
+        ('N° SOLICITUD', campos.get('N° Solicitud', '')),
+    ]
+    contenido_sol = _rejilla_campos(pares_sol, columnas=2)
+    elementos.append(_cuadrante('Solicitante', contenido_sol))
+    elementos.append(Spacer(1, _SP))
+
+    # ── IDENTIFICACIÓN DE LA MUESTRA (cuadrante, incluye fechas y obs) ─
     pares_muestra = [
         ('N° VIAL (NI)', codigo_vial or ''),
         ('TIPO MUESTRA', campos.get('Tipo Muestra', '')),
@@ -280,125 +304,242 @@ def generar_informe_pdf(
         ('TIPO APLICACIÓN', campos.get('Tipo Aplicación', '')),
     ]
     if campos.get('Línea Proceso'):
-        pares_muestra.append(('LÍNEA PROCESO', campos.get('Línea Proceso', '')))
+        pares_muestra.append(('LÍNEA PROCESO', campos['Línea Proceso']))
     if campos.get('Aplicación'):
-        pares_muestra.append(('APLICACIÓN', campos.get('Aplicación', '')))
+        pares_muestra.append(('APLICACIÓN', campos['Aplicación']))
     pares_muestra.append(('MUESTREADOR', campos.get('Nombre Muestreador', '')))
-    elementos.append(_titulo_seccion('IDENTIFICACIÓN DE LA MUESTRA'))
-    elementos.append(Spacer(1, 3))
-    elementos.append(_rejilla_campos(pares_muestra))
-    elementos.append(Spacer(1, 6))
 
-    # --- Observaciones: campo independiente, no combinado con Tratamiento ---
-    elementos.append(_titulo_seccion('OBSERVACIONES'))
-    elementos.append(Spacer(1, 3))
-    elementos.append(Paragraph(campos.get('Observación') or '—', _ESTILO_VALOR))
-    elementos.append(Spacer(1, 6))
+    # Fechas dentro de este cuadrante
+    pares_muestra.extend([
+        ('FECHA SOLICITUD', campos.get('Fecha Solicitud', '')),
+        ('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
+        ('HORA MUESTREO', campos.get('Hora Muestreo', '')),
+        ('FECHA RECEPCIÓN', _fecha_iso_a_ddmmyyyy(fecha_recepcion)),
+        ('FECHA ANÁLISIS', _fecha_inyeccion_a_ddmmyyyy(fecha_inyeccion)),
+    ])
 
-    # --- Fechas: entre Observaciones y Metodología, a lo ancho de la página.
-    # El orden agrupa cada fecha con la suya en la columna de abajo:
-    # solicitud → recepción, muestreo → hora de muestreo, y análisis aparte.
-    # La fecha del informe no va acá: cierra el documento, en el pie.
-    elementos.append(_titulo_seccion('FECHAS'))
-    elementos.append(Spacer(1, 3))
-    elementos.append(
-        _rejilla_campos(
-            [
-                ('FECHA SOLICITUD', campos.get('Fecha Solicitud', '')),
-                ('FECHA MUESTREO', campos.get('Fecha Muestreo', '')),
-                ('FECHA ANÁLISIS', _fecha_inyeccion_a_ddmmyyyy(fecha_inyeccion)),
-                ('FECHA RECEPCIÓN', _fecha_iso_a_ddmmyyyy(fecha_recepcion)),
-                ('HORA MUESTREO', campos.get('Hora Muestreo', '')),
-            ],
-            columnas=3,
-        )
+    rejilla_muestra = _rejilla_campos(pares_muestra, columnas=3)
+
+    # Observaciones dentro del cuadrante
+    obs_text = campos.get('Observación') or '—'
+    obs_label = Table(
+        [[Paragraph('OBSERVACIONES', _S_SUBSECCION)]],
+        colWidths=[ANCHO_UTIL],
     )
-    elementos.append(Spacer(1, 6))
+    obs_label.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('LINEABOVE', (0, 0), (-1, -1), 0.3, GRIS_LINEA),
+    ]))
+    obs_valor = Table(
+        [[Paragraph(obs_text, _S_VALOR)]],
+        colWidths=[ANCHO_UTIL],
+    )
+    obs_valor.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 1),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+    ]))
 
-    # --- Metodología ---
-    elementos.append(_titulo_seccion('METODOLOGÍA'))
-    elementos.append(Spacer(1, 3))
-    elementos.append(Paragraph(METODOLOGIA_TEXTO, _ESTILO_METODO))
-    elementos.append(Spacer(1, 7))
+    contenido_muestra = Table(
+        [[rejilla_muestra], [obs_label], [obs_valor]],
+        colWidths=[ANCHO_UTIL],
+    )
+    contenido_muestra.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    elementos.append(_cuadrante('Identificación de la Muestra', contenido_muestra))
+    elementos.append(Spacer(1, _SP))
 
-    # --- Resultados: solo los analitos que esta solicitud pidió, nunca de más ---
-    elementos.append(_titulo_seccion('DETERMINACIONES / RESULTADOS DE LOS ENSAYOS'))
-    elementos.append(Spacer(1, 4))
-    # Sin columna LD / LC: los límites de detección y cuantificación no se
-    # informan por ensayo, así que la columna solo mostraba guiones.
+    # ── DETERMINACIONES / RESULTADOS (cuadrante) ──────────────────────
     filas_resultado = [[
-        Paragraph('ENSAYO', _ESTILO_TABLA_HEAD),
-        Paragraph('UNIDAD', _ESTILO_TABLA_HEAD),
-        Paragraph('RESULTADO', _ESTILO_TABLA_HEAD),
+        Paragraph('ENSAYO', _S_TABLA_HEAD),
+        Paragraph('UNIDAD', _S_TABLA_HEAD),
+        Paragraph('RESULTADO', _S_TABLA_HEAD),
     ]]
     for codigo in analitos_solicitados:
         valor = resultados_por_codigo.get(codigo)
         if valor is None or valor <= 0:
-            resultado_cel = Paragraph('No detectado', _ESTILO_TABLA_CELDA_NEG)
+            resultado_cel = Paragraph('No detectado', _S_TABLA_CELDA_NEG)
         else:
-            resultado_cel = Paragraph(f'{valor:.4f}'.rstrip('0').rstrip('.'), _ESTILO_TABLA_CELDA)
-        filas_resultado.append(
-            [
-                Paragraph(_nombre_ensayo(campos, codigo), _ESTILO_TABLA_CELDA),
-                Paragraph('ppm', _ESTILO_TABLA_CELDA),
-                resultado_cel,
-            ]
-        )
-    tabla_resultados = Table(filas_resultado, colWidths=[10.6 * cm, 3.4 * cm, 3.6 * cm], repeatRows=1)
-    tabla_resultados.setStyle(
-        TableStyle(
-            [
-                ('BACKGROUND', (0, 0), (-1, 0), VERDE_CLARO),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
-                ('TOPPADDING', (0, 0), (-1, -1), 3.5),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
-                ('LINEBELOW', (0, 0), (-1, 0), 1, VERDE_OSCURO),
-                ('LINEBELOW', (0, 1), (-1, -1), 0.5, GRIS_LINEA),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, GRIS_LABEL]),
-            ]
-        )
+            resultado_cel = Paragraph(f'{valor:.4f}'.rstrip('0').rstrip('.'), _S_TABLA_CELDA)
+        filas_resultado.append([
+            Paragraph(_nombre_ensayo(campos, codigo), _S_TABLA_CELDA),
+            Paragraph('ppm', _S_TABLA_CELDA),
+            resultado_cel,
+        ])
+
+    tabla_resultados = Table(
+        filas_resultado,
+        colWidths=[10.2 * cm, 3.2 * cm, ANCHO_UTIL - 13.4 * cm],
+        repeatRows=1,
     )
-    elementos.append(tabla_resultados)
-    elementos.append(Spacer(1, 8))
+    tabla_resultados.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), VERDE_OSCURO),
+        ('TEXTCOLOR', (0, 0), (-1, 0), BLANCO),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('LINEBELOW', (0, 0), (-1, 0), 1, VERDE_MEDIO),
+        ('LINEBELOW', (0, 1), (-1, -1), 0.3, GRIS_LINEA),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [BLANCO, GRIS_FONDO]),
+        ('BOX', (0, 0), (-1, -1), 0.5, GRIS_LINEA),
+    ]))
 
-    # --- Notas ---
-    elementos.append(_titulo_seccion('NOTAS Y CONDICIONES DEL INFORME'))
-    elementos.append(Spacer(1, 3))
-    elementos.append(Paragraph(NOTAS_TEXTO, _ESTILO_NOTA))
-    elementos.append(Spacer(1, 12))
+    # Metodología debajo de resultados, dentro del mismo cuadrante
+    metodo_block = Table(
+        [[Paragraph(f'<b>Metodología:</b> {METODOLOGIA_TEXTO}', _S_METODO)]],
+        colWidths=[ANCHO_UTIL],
+    )
+    metodo_block.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('BACKGROUND', (0, 0), (-1, -1), GRIS_FONDO),
+    ]))
 
-    # --- Firmas ---
+    contenido_resultados = Table(
+        [[tabla_resultados], [metodo_block]],
+        colWidths=[ANCHO_UTIL],
+    )
+    contenido_resultados.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    elementos.append(_cuadrante('Determinaciones / Resultados de los Ensayos', contenido_resultados))
+    elementos.append(Spacer(1, _SP))
+
+    # ── NOTAS Y CONDICIONES (letra pequeña, sin cuadrante) ────────────
+    notas_titulo = Table(
+        [[Paragraph('Notas y Condiciones del Informe', ParagraphStyle(
+            'notasTit', fontName='Helvetica-Bold', fontSize=7.5, leading=9,
+            textColor=GRIS_LABEL,
+        ))]],
+        colWidths=[ANCHO_UTIL],
+    )
+    notas_titulo.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    elementos.append(notas_titulo)
+    elementos.append(Paragraph(NOTAS_TEXTO, _S_NOTA))
+
+    # Spacer expandible para llenar la página
+    if espacio_extra > 0:
+        elementos.append(Spacer(1, espacio_extra))
+
+    elementos.append(Spacer(1, 6))
+
+    # ── FIRMAS ─────────────────────────────────────────────────────────
     def _bloque_firma(nombre: str, cargo: str) -> Table:
         t = Table(
-            [[Paragraph(nombre or '—', _ESTILO_FIRMA_NOMBRE)], [Paragraph(cargo or '—', _ESTILO_FIRMA_CARGO)]],
-            colWidths=[7.5 * cm],
+            [
+                [Paragraph(nombre or '—', _S_FIRMA_NOMBRE)],
+                [Paragraph(cargo or '—', _S_FIRMA_CARGO)],
+            ],
+            colWidths=[7 * cm],
         )
-        t.setStyle(
-            TableStyle(
-                [
-                    ('LINEABOVE', (0, 0), (-1, 0), 0.75, NEGRO_TEXTO),
-                    ('TOPPADDING', (0, 0), (-1, 0), 5),
-                    ('TOPPADDING', (0, 1), (-1, 1), 1),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-                ]
-            )
-        )
+        t.setStyle(TableStyle([
+            ('LINEABOVE', (0, 0), (-1, 0), 0.75, NEGRO_TEXTO),
+            ('TOPPADDING', (0, 0), (-1, 0), 5),
+            ('TOPPADDING', (0, 1), (-1, 1), 1),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
         return t
 
     firmas = Table(
-        [[_bloque_firma(analizado_por_nombre, analizado_por_cargo), '', _bloque_firma(aprobado_por_nombre, aprobado_por_cargo)]],
-        colWidths=[7.5 * cm, 2.6 * cm, 7.5 * cm],
+        [[
+            _bloque_firma(analizado_por_nombre, analizado_por_cargo),
+            '',
+            _bloque_firma(aprobado_por_nombre, aprobado_por_cargo),
+        ]],
+        colWidths=[7 * cm, ANCHO_UTIL - 14 * cm, 7 * cm],
     )
     firmas.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
     elementos.append(KeepTogether(firmas))
-    elementos.append(Spacer(1, 8))
+    elementos.append(Spacer(1, 6))
 
-    # --- Pie: la fecha del informe. El folio no se repite acá porque ya
-    # encabeza el documento arriba a la derecha.
-    pie = Table([[Paragraph(f'Fecha del informe: {hoy}', _ESTILO_FOOTER)]], colWidths=[ANCHO_UTIL])
-    pie.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, -1), 0.5, GRIS_LINEA), ('TOPPADDING', (0, 0), (-1, -1), 4)]))
+    # ── PIE ────────────────────────────────────────────────────────────
+    pie = Table(
+        [[
+            Paragraph(f'Fecha del informe: {hoy}', _S_PIE),
+            Paragraph('Documento generado por AgroFresh Report Hub', _S_PIE),
+        ]],
+        colWidths=[9 * cm, ANCHO_UTIL - 9 * cm],
+    )
+    pie.setStyle(TableStyle([
+        ('LINEABOVE', (0, 0), (-1, -1), 0.5, VERDE_MEDIO),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+    ]))
     elementos.append(KeepTogether(pie))
 
+    return elementos
+
+
+def _construir_pdf(elementos: list, titulo: str) -> bytes:
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=_MARGEN_H, rightMargin=_MARGEN_H,
+        topMargin=_MARGEN_V, bottomMargin=_MARGEN_V,
+        title=titulo,
+    )
     doc.build(elementos)
-    return buffer.getvalue()
+    return buf.getvalue()
+
+
+# ── Función pública ────────────────────────────────────────────────────
+
+def generar_informe_pdf(
+    campos: dict[str, str],
+    analitos_solicitados: list[str],
+    resultados_por_codigo: dict[str, float | None],
+    codigo_vial: str | None,
+    fecha_inyeccion: str | None,
+    folio: str,
+    analizado_por_nombre: str,
+    analizado_por_cargo: str,
+    aprobado_por_nombre: str,
+    aprobado_por_cargo: str,
+    fecha_recepcion: str | None = None,
+) -> bytes:
+    titulo = f"Informe de análisis {campos.get('N° Solicitud', '')}".strip()
+    args = dict(
+        campos=campos,
+        analitos_solicitados=analitos_solicitados,
+        resultados_por_codigo=resultados_por_codigo,
+        codigo_vial=codigo_vial,
+        fecha_inyeccion=fecha_inyeccion,
+        folio=folio,
+        analizado_por_nombre=analizado_por_nombre,
+        analizado_por_cargo=analizado_por_cargo,
+        aprobado_por_nombre=aprobado_por_nombre,
+        aprobado_por_cargo=aprobado_por_cargo,
+        fecha_recepcion=fecha_recepcion,
+    )
+
+    elems_min = _construir_elementos(**args, espacio_extra=0)
+    pdf_min = _construir_pdf(elems_min, titulo)
+    n_paginas = _contar_paginas(pdf_min)
+
+    if n_paginas <= 1:
+        for intento in [200, 150, 100, 75, 50, 25]:
+            elems = _construir_elementos(**args, espacio_extra=intento)
+            pdf = _construir_pdf(elems, titulo)
+            if _contar_paginas(pdf) <= 1:
+                return pdf
+        return pdf_min
+
+    return pdf_min
