@@ -59,11 +59,11 @@ _ESTILO_FIRMA_CARGO = ParagraphStyle('firmacargo', fontName='Helvetica', fontSiz
 
 METODOLOGIA_TEXTO = "CQ-CROM-023-T · Pesticidas GC-MS/ECD y LC-MS/MS · Laboratorio de Cromatografía AgroFresh Chile"
 
+# Sin la leyenda de LD/LC: esa columna ya no existe en la tabla de resultados.
 NOTAS_TEXTO = (
     "Los resultados de este informe corresponden exclusivamente a la(s) muestra(s) identificada(s) en este "
-    "documento. LD: Límite de Detección. LC: Límite de Cuantificación. \"No detectado\" indica un valor bajo "
-    "el límite de detección del método. Este informe no debe reproducirse parcialmente sin autorización "
-    "escrita del laboratorio."
+    "documento. \"No detectado\" indica un valor bajo el límite de detección del método. Este informe no debe "
+    "reproducirse parcialmente sin autorización escrita del laboratorio."
 )
 
 
@@ -322,10 +322,11 @@ def generar_informe_pdf(
     # --- Resultados: solo los analitos que esta solicitud pidió, nunca de más ---
     elementos.append(_titulo_seccion('DETERMINACIONES / RESULTADOS DE LOS ENSAYOS'))
     elementos.append(Spacer(1, 4))
+    # Sin columna LD / LC: los límites de detección y cuantificación no se
+    # informan por ensayo, así que la columna solo mostraba guiones.
     filas_resultado = [[
         Paragraph('ENSAYO', _ESTILO_TABLA_HEAD),
         Paragraph('UNIDAD', _ESTILO_TABLA_HEAD),
-        Paragraph('LD / LC', _ESTILO_TABLA_HEAD),
         Paragraph('RESULTADO', _ESTILO_TABLA_HEAD),
     ]]
     for codigo in analitos_solicitados:
@@ -338,11 +339,10 @@ def generar_informe_pdf(
             [
                 Paragraph(_nombre_ensayo(campos, codigo), _ESTILO_TABLA_CELDA),
                 Paragraph('ppm', _ESTILO_TABLA_CELDA),
-                Paragraph('—', _ESTILO_TABLA_CELDA_NEG),
                 resultado_cel,
             ]
         )
-    tabla_resultados = Table(filas_resultado, colWidths=[8.6 * cm, 3 * cm, 3 * cm, 2.6 * cm], repeatRows=1)
+    tabla_resultados = Table(filas_resultado, colWidths=[10.6 * cm, 3.4 * cm, 3.6 * cm], repeatRows=1)
     tabla_resultados.setStyle(
         TableStyle(
             [

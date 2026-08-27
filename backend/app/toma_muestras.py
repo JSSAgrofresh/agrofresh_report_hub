@@ -724,21 +724,27 @@ class CampoTipoAplicacionIn(BaseModel):
 
 
 _CAMPOS_TIPO_APLICACION_DEFECTO: list[dict] = [
-    {"id": 1, "ambito": "Actimist", "clave": "presion_actimist", "etiqueta": "Presión Actimist (bar)", "tipo": "number", "requerido": False, "activo": True, "orden": 1},
     {"id": 2, "ambito": "Línea de proceso", "clave": "velocidad_linea", "etiqueta": "Velocidad de Línea (m/min)", "tipo": "number", "requerido": False, "activo": True, "orden": 1},
 ]
+
+# Campos que se sembraron alguna vez y que el sistema ya no usa. Se borran del
+# archivo guardado, no solo se ocultan: si solo se ocultaran, seguirían
+# apareciendo en cualquier instalación que ya los tenga escritos.
+_CAMPOS_TIPO_APLICACION_RETIRADOS = {
+    # La dosis pasó a manejarse por analito.
+    ("comun", "dosis_aplicada"),
+    # Presión Actimist no es un dato que se registre en el proceso.
+    ("Actimist", "presion_actimist"),
+}
 
 
 @router.get("/config/campos-tipo-aplicacion")
 def listar_campos_tipo_aplicacion(ambito: str | None = None) -> list[CampoTipoAplicacionConfig]:
     guardados = _leer_config("campos_tipo_aplicacion.json", _CAMPOS_TIPO_APLICACION_DEFECTO)
-    # Limpieza de un campo "Dosis Aplicada" genérico que quedó guardado en
-    # instalaciones existentes antes de que la dosis pasara a manejarse por
-    # analito: se elimina del archivo si sigue ahí, no solo se oculta.
-    sin_dosis_generica = [c for c in guardados if not (c["ambito"] == "comun" and c["clave"] == "dosis_aplicada")]
-    if len(sin_dosis_generica) != len(guardados):
-        _escribir_config("campos_tipo_aplicacion.json", sin_dosis_generica)
-        guardados = sin_dosis_generica
+    vigentes = [c for c in guardados if (c.get("ambito"), c.get("clave")) not in _CAMPOS_TIPO_APLICACION_RETIRADOS]
+    if len(vigentes) != len(guardados):
+        _escribir_config("campos_tipo_aplicacion.json", vigentes)
+        guardados = vigentes
 
     items = [CampoTipoAplicacionConfig(**c) for c in guardados]
     if ambito:

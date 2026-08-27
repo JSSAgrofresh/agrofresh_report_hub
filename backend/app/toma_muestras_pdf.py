@@ -193,9 +193,11 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
     # columna al lado: bajan a su propia sección, después de Observaciones.
     # Tratamiento, Producto Utilizado y Tipo Aplicación quedan dentro de la
     # identificación de la muestra (no como sección aparte). ---
+    # Tipo Aplicación va primero: es el dato que condiciona cómo se interpreta
+    # el resto de la muestra, así que encabeza la sección en vez de cerrarla.
     pares_muestra = _pares_de_claves(datos, _CLAVES_MUESTRA)
     if campos_lab.get("Tipo Aplicación"):
-        pares_muestra.append(("Tipo Aplicación", campos_lab.get("Tipo Aplicación")))
+        pares_muestra.insert(0, ("Tipo Aplicación", campos_lab.get("Tipo Aplicación")))
     elementos.append(_titulo_seccion("IDENTIFICACIÓN DE LA MUESTRA"))
     elementos.append(Spacer(1, 3))
     elementos.append(_rejilla_campos(pares_muestra))
@@ -213,29 +215,27 @@ def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None
     if filas_analitos:
         elementos.append(_titulo_seccion("ANÁLISIS SOLICITADOS / ANALITOS"))
         elementos.append(Spacer(1, 4))
+        # Categoría y Unidad se quitaron de la tabla: la categoría agrupa los
+        # analitos en el mantenedor pero no aporta al leer la solicitud, y la
+        # unidad corresponde al resultado -que todavía no existe cuando se
+        # emite la solicitud-.
         filas = [
             [
-                Paragraph("CATEGORÍA", _ESTILO_TABLA_HEAD),
                 Paragraph("CÓDIGO", _ESTILO_TABLA_HEAD),
                 Paragraph("ANALITO", _ESTILO_TABLA_HEAD),
-                Paragraph("UNIDAD", _ESTILO_TABLA_HEAD),
                 Paragraph("VALOR / DOSIS", _ESTILO_TABLA_HEAD),
             ]
         ]
-        for categoria, etiqueta, codigo, unidad, valor in filas_analitos:
+        for _categoria, etiqueta, codigo, unidad, valor in filas_analitos:
             nombre = etiqueta.rsplit(" (", 1)[0] if unidad != "—" and etiqueta.endswith(f"({unidad})") else etiqueta
             filas.append(
                 [
-                    Paragraph(categoria, _ESTILO_TABLA_CELDA),
                     Paragraph(codigo, _ESTILO_TABLA_CELDA),
                     Paragraph(nombre, _ESTILO_TABLA_CELDA),
-                    Paragraph(unidad, _ESTILO_TABLA_CELDA),
                     Paragraph(str(valor), _ESTILO_TABLA_CELDA),
                 ]
             )
-        tabla_analitos = Table(
-            filas, colWidths=[3.4 * cm, 2.4 * cm, 6 * cm, 2.4 * cm, 3.4 * cm], repeatRows=1
-        )
+        tabla_analitos = Table(filas, colWidths=[3 * cm, 10.2 * cm, 4.4 * cm], repeatRows=1)
         tabla_analitos.setStyle(
             TableStyle(
                 [
