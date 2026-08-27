@@ -2,7 +2,7 @@
 resultado del GC.
 
 Diseño inspirado en informes de laboratorio profesionales (estilo Analab):
-encabezado centrado con logo grande, secciones enmarcadas en cuadrantes con
+encabezado sobrio con logo lateral, secciones enmarcadas en cuadrantes con
 borde, y la personalidad visual AgroFresh (paleta verde, tipografía limpia).
 """
 
@@ -91,7 +91,7 @@ _S_NOTA = ParagraphStyle(
 )
 _S_TABLA_HEAD = ParagraphStyle(
     'tablaHead', fontName='Helvetica-Bold', fontSize=8.5, leading=10,
-    textColor=BLANCO,
+    textColor=VERDE_OSCURO,
 )
 _S_TABLA_CELDA = ParagraphStyle(
     'tablaCelda', fontName='Helvetica', fontSize=9, leading=11,
@@ -245,34 +245,39 @@ def _construir_elementos(
     elementos = []
     hoy = datetime.now().strftime('%d-%m-%Y')
 
-    # ── ENCABEZADO centrado ────────────────────────────────────────────
+    # ── ENCABEZADO: logo lateral y datos centrados en la página ────────
     logo_img = (
-        Image(_RUTA_LOGO, width=5.4 * cm, height=2.16 * cm)
+        Image(_RUTA_LOGO, width=4.4 * cm, height=1.76 * cm)
         if os.path.isfile(_RUTA_LOGO)
         else Paragraph('', _S_VALOR)
     )
 
     pagina_p = Paragraph('Página 1 de 1', _S_PAGINA)
 
-    header_filas = [
-        [logo_img],
+    bloque_titulo = Table([
         [Paragraph('INFORME DE ANÁLISIS', _S_TITULO)],
         [Paragraph(f'N° Informe: {folio}', _S_FOLIO)],
         [Paragraph(DIRECCION_EMPRESA, _S_INFO_HEADER)],
-    ]
-    header = Table(header_filas, colWidths=[ANCHO_UTIL])
-    header.setStyle(TableStyle([
+    ], colWidths=[ANCHO_UTIL - 9.6 * cm])
+    bloque_titulo.setStyle(TableStyle([
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+    ]))
+
+    header = Table(
+        [[logo_img, bloque_titulo, '']],
+        colWidths=[4.8 * cm, ANCHO_UTIL - 9.6 * cm, 4.8 * cm],
+    )
+    header.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (0, 0), 2),
-        ('BOTTOMPADDING', (0, 0), (0, 0), 4),
-        ('TOPPADDING', (0, 1), (0, 1), 4),
-        ('BOTTOMPADDING', (0, 1), (0, 1), 1),
-        ('TOPPADDING', (0, 2), (0, 2), 1),
-        ('BOTTOMPADDING', (0, 2), (0, 2), 2),
-        ('TOPPADDING', (0, 3), (0, 3), 2),
-        ('BOTTOMPADDING', (0, 3), (0, 3), 4),
-        ('LINEBELOW', (0, 3), (-1, 3), 0.75, VERDE_OSCURO),
+        ('LEFTPADDING', (0, 0), (0, 0), 0),
+        ('RIGHTPADDING', (0, 0), (0, 0), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LINEBELOW', (0, 0), (-1, -1), 0.75, VERDE_MEDIO),
     ]))
     elementos.append(header)
     elementos.append(Spacer(1, _SP))
@@ -380,8 +385,8 @@ def _construir_elementos(
         repeatRows=1,
     )
     tabla_resultados.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), VERDE_OSCURO),
-        ('TEXTCOLOR', (0, 0), (-1, 0), BLANCO),
+        ('BACKGROUND', (0, 0), (-1, 0), VERDE_CLARO),
+        ('TEXTCOLOR', (0, 0), (-1, 0), VERDE_OSCURO),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
         ('TOPPADDING', (0, 0), (-1, -1), 3),
