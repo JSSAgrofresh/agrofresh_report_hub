@@ -33,15 +33,42 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
-from . import config, correo, r2
+from . import config, config_store, correo, r2
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
 from .toma_muestras_pdf import generar_pdf_solicitud
 
 router = APIRouter(prefix="/api/toma-muestras", tags=["toma-muestras"])
 
 _CARPETA_RAIZ = "solicitudes"
-LABORATORIOS = ("QUITECA", "AGROFRESH", "ALS", "DIAGNOFRUIT")
+
+# Los cuatro laboratorios con los que nació el sistema. Ya no son la lista
+# cerrada -el administrador puede crear más desde el mantenedor-, pero se
+# siguen recorriendo siempre al buscar solicitudes: si alguno se desactiva o
+# se renombra en la configuración, las solicitudes guardadas en su carpeta
+# tienen que seguir apareciendo.
+LABORATORIOS_BASE = ("QUITECA", "AGROFRESH", "ALS", "DIAGNOFRUIT")
+
+# Un código de laboratorio termina siendo un nombre de carpeta (en disco y en
+# R2), así que se restringe a mayúsculas, dígitos y guiones: nada que pueda
+# escaparse del directorio de solicitudes.
+_PAT_CODIGO_LAB = re.compile(r"^[A-Z0-9][A-Z0-9_-]{1,30}$")
 _PAT_NUMERO = re.compile(r"^SOL-(\d+)$")
+
+
+def LABORATORIOS() -> tuple[str, ...]:
+    """Códigos sobre los que hay que buscar solicitudes: los configurados más
+    los originales, sin repetir y en orden estable."""
+    codigos = list(LABORATORIOS_BASE)
+    try:
+        for lab in _leer_config("laboratorios.json", LABORATORIOS_DEFECTO):
+            codigo = lab.get("codigo")
+            if codigo and codigo not in codigos:
+                codigos.append(codigo)
+    except (OSError, ValueError):
+        # Si la configuración no se puede leer, los cuatro originales bastan
+        # para que el módulo siga sirviendo las solicitudes existentes.
+        pass
+    return tuple(codigos)
 
 
 def _carpeta_raiz() -> str:
@@ -51,7 +78,7 @@ def _carpeta_raiz() -> str:
 
 
 def _carpeta_laboratorio(laboratorio: str) -> str:
-    if laboratorio not in LABORATORIOS:
+    if laboratorio not in LABORATORIOS():
         raise HTTPException(400, f"Laboratorio inválido: {laboratorio}")
     ruta = os.path.join(_carpeta_raiz(), laboratorio)
     os.makedirs(ruta, exist_ok=True)
@@ -84,7 +111,7 @@ def _leer_solicitud_bytes(nombre: bytes | None, ext: str) -> dict:
 def _ruta_archivo(archivo: str) -> str:
     """Solo para modo disco local."""
     nombre = os.path.basename(archivo)
-    for laboratorio in LABORATORIOS:
+    for laboratorio in LABORATORIOS():
         ruta = os.path.join(_carpeta_raiz(), laboratorio, nombre)
         if os.path.isfile(ruta):
             return ruta
@@ -95,7 +122,7 @@ def _descargar_solicitud_r2(nombre: str) -> tuple[bytes, str]:
     """Devuelve (bytes, extensión) buscando en todas las carpetas de lab."""
     basenom = os.path.basename(nombre)
     ext = os.path.splitext(basenom)[1]
-    for laboratorio in LABORATORIOS:
+    for laboratorio in LABORATORIOS():
         data = r2.descargar(_r2_key_sol(laboratorio, basenom))
         if data is not None:
             return data, ext
@@ -122,7 +149,7 @@ def _siguiente_numero() -> str:
             if m:
                 maximo = max(maximo, int(m.group(1)))
     else:
-        for laboratorio in LABORATORIOS:
+        for laboratorio in LABORATORIOS():
             carpeta = os.path.join(_carpeta_raiz(), laboratorio)
             if not os.path.isdir(carpeta):
                 continue
@@ -195,7 +222,7 @@ def listar_solicitudes() -> list[Solicitud]:
             except (ValueError, KeyError, HTTPException):
                 continue
     else:
-        for laboratorio in LABORATORIOS:
+        for laboratorio in LABORATORIOS():
             carpeta = os.path.join(_carpeta_raiz(), laboratorio)
             if not os.path.isdir(carpeta):
                 continue
@@ -228,7 +255,7 @@ def exportar_todas_las_solicitudes() -> StreamingResponse:
             except (ValueError, KeyError, HTTPException):
                 continue
     else:
-        for laboratorio in LABORATORIOS:
+        for laboratorio in LABORATORIOS():
             carpeta = os.path.join(_carpeta_raiz(), laboratorio)
             if not os.path.isdir(carpeta):
                 continue
@@ -241,7 +268,7 @@ def exportar_todas_las_solicitudes() -> StreamingResponse:
                     continue
     solicitudes_dict.sort(key=lambda d: d.get("creado_en") or "", reverse=True)
 
-    analitos = _leer_config("analitos.json", _ANALITOS_DEFECTO)
+    analitos = _leer_config("analitos.json", ANALITOS_DEFECTO)
     wb = construir_workbook_exportacion(solicitudes_dict, analitos)
     buffer = io.BytesIO()
     wb.save(buffer)
@@ -296,7 +323,7 @@ def eliminar_solicitud(archivo: str) -> dict[str, str]:
     if r2.disponible():
         basenom = os.path.basename(archivo)
         eliminado = False
-        for laboratorio in LABORATORIOS:
+        for laboratorio in LABORATORIOS():
             key = _r2_key_sol(laboratorio, basenom)
             data = r2.descargar(key)
             if data is not None:
@@ -353,7 +380,7 @@ def descargar_solicitud_pdf(archivo: str) -> Response:
         ruta = _ruta_archivo(archivo)
         numero = os.path.splitext(os.path.basename(ruta))[0]
         datos = _leer_solicitud_archivo(ruta)
-    analitos_config = _leer_config("analitos.json", _ANALITOS_DEFECTO)
+    analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     pdf_bytes = generar_pdf_solicitud(datos, analitos_config)
     return Response(
         content=pdf_bytes,
@@ -378,7 +405,7 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
         numero = os.path.splitext(os.path.basename(ruta))[0]
         datos = _leer_solicitud_archivo(ruta)
 
-    analitos_config = _leer_config("analitos.json", _ANALITOS_DEFECTO)
+    analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     pdf_bytes = generar_pdf_solicitud(datos, analitos_config)
 
     wb = construir_workbook(datos)
@@ -445,33 +472,11 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
 _CARPETA_CONFIG = "_config"
 
 
-def _ruta_config(nombre_archivo: str) -> str:
-    carpeta = os.path.join(_carpeta_raiz(), _CARPETA_CONFIG)
-    os.makedirs(carpeta, exist_ok=True)
-    return os.path.join(carpeta, nombre_archivo)
-
-
-def _leer_config(nombre_archivo: str, valores_defecto: list[dict]) -> list[dict]:
-    if r2.disponible():
-        datos = r2.leer_json(_r2_key_cfg(nombre_archivo), None)
-        if datos is None:
-            r2.escribir_json(_r2_key_cfg(nombre_archivo), valores_defecto)
-            return valores_defecto
-        return datos
-    ruta = _ruta_config(nombre_archivo)
-    if not os.path.isfile(ruta):
-        _escribir_config(nombre_archivo, valores_defecto)
-        return valores_defecto
-    with open(ruta, encoding="utf-8") as f:
-        return json.load(f)
-
-
-def _escribir_config(nombre_archivo: str, datos: list[dict]) -> None:
-    if r2.disponible():
-        r2.escribir_json(_r2_key_cfg(nombre_archivo), datos)
-        return
-    with open(_ruta_config(nombre_archivo), "w", encoding="utf-8") as f:
-        json.dump(datos, f, ensure_ascii=False, indent=2)
+# El almacén de mantenedores vive en `config_store` desde que el módulo de
+# Laboratorios pasó a usar el mismo mecanismo. Se mantienen estos alias
+# porque el resto del archivo los llama en decenas de lugares.
+_leer_config = config_store.leer
+_escribir_config = config_store.escribir
 
 
 class CampoConfig(BaseModel):
@@ -546,8 +551,7 @@ class OpcionIn(BaseModel):
     orden: int = 0
 
 
-def _siguiente_id(items: list[dict]) -> int:
-    return (max((i["id"] for i in items), default=0)) + 1
+_siguiente_id = config_store.siguiente_id
 
 
 def _crud_opciones(nombre_archivo: str, defecto: list[dict]):
@@ -731,7 +735,7 @@ class AnalitoIn(BaseModel):
     tipo_aplicacion: str = ""
 
 
-_ANALITOS_DEFECTO: list[dict] = [
+ANALITOS_DEFECTO: list[dict] = [
     # QUITECA / AGROFRESH — cromatografía, con dosis aplicada.
     {"id": 1, "laboratorio": "QUITECA", "codigo": "FDL", "nombre": "Fludioxonil", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 1},
     {"id": 2, "laboratorio": "QUITECA", "codigo": "IMZ", "nombre": "Imazalil", "unidad": "ppm", "tipo": "numero", "dosis_aplicable": True, "requerido": False, "activo": True, "orden": 2},
@@ -774,7 +778,7 @@ _ANALITOS_DEFECTO: list[dict] = [
 
 @router.get("/config/analitos")
 def listar_analitos_config(laboratorio: str | None = None, tipo_aplicacion: str | None = None) -> list[AnalitoConfig]:
-    items = [AnalitoConfig(**a) for a in _leer_config("analitos.json", _ANALITOS_DEFECTO)]
+    items = [AnalitoConfig(**a) for a in _leer_config("analitos.json", ANALITOS_DEFECTO)]
     if laboratorio:
         items = [a for a in items if a.laboratorio == laboratorio]
     if tipo_aplicacion:
@@ -784,7 +788,7 @@ def listar_analitos_config(laboratorio: str | None = None, tipo_aplicacion: str 
 
 @router.post("/config/analitos")
 def crear_analito_config(body: AnalitoIn) -> AnalitoConfig:
-    items = _leer_config("analitos.json", _ANALITOS_DEFECTO)
+    items = _leer_config("analitos.json", ANALITOS_DEFECTO)
     nuevo = AnalitoConfig(id=_siguiente_id(items), **body.model_dump())
     items.append(nuevo.model_dump())
     _escribir_config("analitos.json", items)
@@ -793,7 +797,7 @@ def crear_analito_config(body: AnalitoIn) -> AnalitoConfig:
 
 @router.put("/config/analitos/{item_id}")
 def editar_analito_config(item_id: int, body: AnalitoIn) -> AnalitoConfig:
-    items = _leer_config("analitos.json", _ANALITOS_DEFECTO)
+    items = _leer_config("analitos.json", ANALITOS_DEFECTO)
     idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
     if idx is None:
         raise HTTPException(404, "No encontrado.")
@@ -805,7 +809,7 @@ def editar_analito_config(item_id: int, body: AnalitoIn) -> AnalitoConfig:
 
 @router.delete("/config/analitos/{item_id}")
 def eliminar_analito_config(item_id: int) -> dict[str, str]:
-    items = _leer_config("analitos.json", _ANALITOS_DEFECTO)
+    items = _leer_config("analitos.json", ANALITOS_DEFECTO)
     restantes = [i for i in items if i["id"] != item_id]
     if len(restantes) == len(items):
         raise HTTPException(404, "No encontrado.")
@@ -815,11 +819,20 @@ def eliminar_analito_config(item_id: int) -> dict[str, str]:
 
 # ---------------------------------------------------------------------------
 # Mantenedor de Laboratorios: fuente de verdad para la lista visible en el
-# selector de la solicitud (activo/inactivo/orden/descripción). Por
-# seguridad de almacenamiento, las 4 carpetas físicas de `solicitudes/`
-# siguen ancladas a `LABORATORIOS` -no se crean carpetas arbitrarias-, pero
-# ningún lugar del frontend vuelve a hardcodear la lista para mostrarla.
+# selector de la solicitud (activo/inactivo/orden/descripción) y para las
+# carpetas de `solicitudes/`. Se pueden crear laboratorios nuevos; como el
+# código pasa a ser un nombre de carpeta, se valida contra
+# `_PAT_CODIGO_LAB` -mayúsculas, dígitos, guiones- en vez de contra una
+# lista cerrada.
 # ---------------------------------------------------------------------------
+
+
+def _validar_codigo_lab(codigo: str) -> None:
+    if not _PAT_CODIGO_LAB.match(codigo or ""):
+        raise HTTPException(
+            400,
+            "El código debe tener entre 2 y 31 caracteres, solo mayúsculas, dígitos, guion o guion bajo.",
+        )
 
 
 class LaboratorioConfig(BaseModel):
@@ -839,7 +852,7 @@ class LaboratorioIn(BaseModel):
     orden: int = 0
 
 
-_LABORATORIOS_DEFECTO: list[dict] = [
+LABORATORIOS_DEFECTO: list[dict] = [
     {"id": 1, "codigo": "QUITECA", "nombre": "Quiteca", "descripcion": None, "activo": True, "orden": 1},
     {"id": 2, "codigo": "AGROFRESH", "nombre": "AgroFresh", "descripcion": None, "activo": True, "orden": 2},
     {"id": 3, "codigo": "ALS", "nombre": "ALS", "descripcion": None, "activo": True, "orden": 3},
@@ -849,15 +862,16 @@ _LABORATORIOS_DEFECTO: list[dict] = [
 
 @router.get("/config/laboratorios")
 def listar_laboratorios_config() -> list[LaboratorioConfig]:
-    items = [LaboratorioConfig(**l) for l in _leer_config("laboratorios.json", _LABORATORIOS_DEFECTO)]
+    items = [LaboratorioConfig(**l) for l in _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)]
     return sorted(items, key=lambda l: l.orden)
 
 
 @router.post("/config/laboratorios")
 def crear_laboratorio_config(body: LaboratorioIn) -> LaboratorioConfig:
-    if body.codigo not in LABORATORIOS:
-        raise HTTPException(400, f"El código debe ser uno de: {', '.join(LABORATORIOS)}.")
-    items = _leer_config("laboratorios.json", _LABORATORIOS_DEFECTO)
+    _validar_codigo_lab(body.codigo)
+    items = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
+    if any(l["codigo"] == body.codigo for l in items):
+        raise HTTPException(400, f"Ya existe un laboratorio con el código {body.codigo}.")
     nuevo = LaboratorioConfig(id=_siguiente_id(items), **body.model_dump())
     items.append(nuevo.model_dump())
     _escribir_config("laboratorios.json", items)
@@ -866,12 +880,13 @@ def crear_laboratorio_config(body: LaboratorioIn) -> LaboratorioConfig:
 
 @router.put("/config/laboratorios/{item_id}")
 def editar_laboratorio_config(item_id: int, body: LaboratorioIn) -> LaboratorioConfig:
-    if body.codigo not in LABORATORIOS:
-        raise HTTPException(400, f"El código debe ser uno de: {', '.join(LABORATORIOS)}.")
-    items = _leer_config("laboratorios.json", _LABORATORIOS_DEFECTO)
+    _validar_codigo_lab(body.codigo)
+    items = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
     idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
     if idx is None:
         raise HTTPException(404, "No encontrado.")
+    if any(l["codigo"] == body.codigo and l["id"] != item_id for l in items):
+        raise HTTPException(400, f"Ya existe otro laboratorio con el código {body.codigo}.")
     actualizado = LaboratorioConfig(id=item_id, **body.model_dump())
     items[idx] = actualizado.model_dump()
     _escribir_config("laboratorios.json", items)
@@ -880,7 +895,7 @@ def editar_laboratorio_config(item_id: int, body: LaboratorioIn) -> LaboratorioC
 
 @router.delete("/config/laboratorios/{item_id}")
 def eliminar_laboratorio_config(item_id: int) -> dict[str, str]:
-    items = _leer_config("laboratorios.json", _LABORATORIOS_DEFECTO)
+    items = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
     restantes = [i for i in items if i["id"] != item_id]
     if len(restantes) == len(items):
         raise HTTPException(404, "No encontrado.")

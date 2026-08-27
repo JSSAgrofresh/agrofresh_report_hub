@@ -12,6 +12,7 @@ from .correo import router as correo_router
 from .catalogo import router as catalogo_router
 from .emitir import router as emitir_router
 from .ingest import router as ingest_router
+from .laboratorios import router as laboratorios_router
 from .listados import router as listados_router
 from .postventa import router as postventa_router
 from .reportes import router as reportes_router
@@ -66,6 +67,7 @@ app.include_router(postventa_router)
 app.include_router(storage_router)
 app.include_router(emitir_router)
 app.include_router(toma_muestras_router)
+app.include_router(laboratorios_router)
 app.include_router(correo_router)
 
 
