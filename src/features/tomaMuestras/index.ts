@@ -8,6 +8,7 @@ export {
   urlExportarTodasLasSolicitudes,
   enviarCorreoPrueba,
   enviarSolicitudPorCorreo,
+  destinatariosDeSolicitud,
 } from './lib/api'
 export {
   listarCamposConfig,

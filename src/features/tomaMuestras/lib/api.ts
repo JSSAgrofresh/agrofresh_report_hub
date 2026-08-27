@@ -49,10 +49,19 @@ export function urlDescargaPdf(archivo: string) {
   return `${API_BASE_URL}/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/pdf`
 }
 
-export function enviarSolicitudPorCorreo(archivo: string, destinatario: string) {
+/** A quién iría la solicitud según los contactos del laboratorio. */
+export function destinatariosDeSolicitud(archivo: string) {
+  return httpClient.get<{ laboratorio: string; destinatarios: string[] }>(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/destinatarios`,
+  )
+}
+
+/** Sin `destinatario` se envía a los contactos configurados del laboratorio;
+ * con uno, va solo a ese correo. */
+export function enviarSolicitudPorCorreo(archivo: string, destinatario?: string) {
   return httpClient.post<{ ok: string }>(
     `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/enviar`,
-    { destinatario },
+    { destinatario: destinatario ?? null },
   )
 }
 
