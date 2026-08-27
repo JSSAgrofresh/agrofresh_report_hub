@@ -17,6 +17,7 @@ export const ROUTES = {
   tomaMuestrasDetalle: '/modulos/toma-muestras/detalle/:archivo',
   adminUsuarios: '/admin/usuarios',
   adminListados: '/admin/listados',
+  adminLaboratorios: '/admin/laboratorios',
 } as const
 
 export function rutaTomaMuestrasDetalle(archivo: string): string {

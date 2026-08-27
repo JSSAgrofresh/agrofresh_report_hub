@@ -146,12 +146,20 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                 Listados
               </NavLink>
               <NavLink
-                to={ROUTES.tomaMuestrasConfig}
+                to={ROUTES.adminLaboratorios}
                 onClick={onCerrar}
                 className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
               >
                 <IconFrasco className={styles.navIcono} />
-                Config. Toma de muestras
+                Laboratorios
+              </NavLink>
+              <NavLink
+                to={ROUTES.tomaMuestrasConfig}
+                onClick={onCerrar}
+                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                <IconListados className={styles.navIcono} />
+                Ajustes de solicitud
               </NavLink>
             </>
           )}
