@@ -19,15 +19,24 @@
 
 .brand {
   margin-bottom: var(--space-6);
-  padding-left: var(--space-1);
+}
+
+/* El logo es verde y amarillo sobre fondo claro. Antes se pintaba blanco con
+   un filtro para que resaltara contra el verde del sidebar, lo que perdía sus
+   colores; en vez de eso va sobre un panel blanco, que es como está pensado
+   para usarse. */
+.marco {
+  display: inline-flex;
+  padding: 9px 14px;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 }
 
 .logo {
-  height: 42px;
+  height: 34px;
   width: auto;
   display: block;
-  filter: brightness(0) invert(1);
-  opacity: 0.96;
 }
 
 .nav {

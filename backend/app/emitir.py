@@ -1,4 +1,5 @@
 import io
+import logging
 import os
 import re
 import zipfile
@@ -9,6 +10,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from . import r2
 from .db import conexion, cursor_dict
 from .gc_parser import NOMBRE_GC_A_CODIGO, es_codigo_puro, parsear_gc_txt
 from .informe_pdf import generar_informe_pdf
@@ -16,7 +18,7 @@ from .mapeo import LABORATORIO_CATALOGO, calcular_semana
 from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS
 from .solicitud_parser import parsear_solicitudes_html
 from .storage import _carpeta_raiz as _carpeta_raiz_storage, _nombre_seguro
-from .toma_muestras import _carpeta_raiz as _carpeta_raiz_solicitudes, _leer_solicitud_archivo
+from .toma_muestras import carpeta_de_cliente, leer_solicitudes_de
 
 _PAT_CODIGO_COLUMNA = re.compile(r"\(([A-Za-z]+)\)\s*$")
 _PREFIJO_RESULTADO = "Resultado:"
@@ -198,23 +200,16 @@ def _mapear_solicitud_a_campos(datos: dict) -> dict[str, str]:
 def listar_solicitudes() -> list[SolicitudOut]:
     salida: list[SolicitudOut] = []
 
-    carpeta_agrofresh = os.path.join(_carpeta_raiz_solicitudes(), LABORATORIO_SOLICITUDES)
-    if os.path.isdir(carpeta_agrofresh):
-        for nombre in sorted(os.listdir(carpeta_agrofresh)):
-            ruta = os.path.join(carpeta_agrofresh, nombre)
-            if not os.path.isfile(ruta) or not nombre.endswith((".xlsx", ".json")):
-                continue
-            try:
-                datos = _leer_solicitud_archivo(ruta)
-            except (ValueError, KeyError):
-                continue
-            salida.append(
-                SolicitudOut(
-                    archivo=nombre,
-                    campos=_mapear_solicitud_a_campos(datos),
-                    analitos_solicitados=datos.get("analitos_solicitados") or [],
-                )
+    # R2 o disco según cómo esté levantado el sistema: lo resuelve
+    # `leer_solicitudes_de`, no este módulo.
+    for nombre, datos in leer_solicitudes_de(LABORATORIO_SOLICITUDES):
+        salida.append(
+            SolicitudOut(
+                archivo=nombre,
+                campos=_mapear_solicitud_a_campos(datos),
+                analitos_solicitados=datos.get("analitos_solicitados") or [],
             )
+        )
 
     carpeta_legado = os.path.join(_carpeta_raiz_storage(), CARPETA_SOLICITUDES)
     if os.path.isdir(carpeta_legado):
@@ -231,7 +226,7 @@ def listar_solicitudes() -> list[SolicitudOut]:
             for s in solicitudes:
                 salida.append(SolicitudOut(archivo=nombre, campos=s.campos, analitos_solicitados=s.analitos_solicitados))
 
-    if not salida and not os.path.isdir(carpeta_agrofresh) and not os.path.isdir(carpeta_legado):
+    if not salida:
         raise HTTPException(
             404,
             f'Todavía no hay solicitudes de "{LABORATORIO_SOLICITUDES}" — créalas desde Toma de muestras → Nueva solicitud.',
@@ -312,6 +307,26 @@ def _nombre_informe(campos: dict[str, str]) -> str:
     return f"Informe_{n_solicitud}.pdf"
 
 
+def _archivar_informe(campos: dict[str, str], folio: str, pdf_bytes: bytes) -> None:
+    """Guarda una copia del informe en R2, agrupado igual que las solicitudes
+    -por cliente y día- pero bajo `informes/`, su propia raíz:
+
+        informes/<SOLD TO>/<AAAA-MM-DD>/<folio>.pdf
+
+    El archivado no puede costarle la descarga al usuario: si R2 no está
+    configurado o falla, se registra y el informe se entrega igual.
+    """
+    if not r2.disponible():
+        return
+    cliente = carpeta_de_cliente(campos.get("Sold To (Nombre)"))
+    fecha = date.today().isoformat()
+    key = f"informes/{cliente}/{fecha}/{folio}.pdf"
+    try:
+        r2.subir(key, pdf_bytes, "application/pdf")
+    except Exception:
+        logging.getLogger(__name__).exception("No se pudo archivar el informe %s en R2", folio)
+
+
 @router.post("/informes-pdf")
 def generar_informes_pdf(filas: list[FilaCruceIn]) -> StreamingResponse:
     if not filas:
@@ -326,7 +341,7 @@ def generar_informes_pdf(filas: list[FilaCruceIn]) -> StreamingResponse:
         config_fila = cur.fetchone() or {}
 
     def _generar(fila: FilaCruceIn, folio: str) -> bytes:
-        return generar_informe_pdf(
+        pdf_bytes = generar_informe_pdf(
             campos=fila.campos,
             analitos_solicitados=fila.analitos_solicitados,
             resultados_por_codigo=fila.resultados_por_codigo,
@@ -339,6 +354,8 @@ def generar_informes_pdf(filas: list[FilaCruceIn]) -> StreamingResponse:
             aprobado_por_nombre=config_fila.get("aprobado_por_nombre") or "",
             aprobado_por_cargo=config_fila.get("aprobado_por_cargo") or "",
         )
+        _archivar_informe(fila.campos, folio, pdf_bytes)
+        return pdf_bytes
 
     if len(filas) == 1:
         fila = filas[0]

@@ -25,7 +25,7 @@ _BORDE_COMPLETO = Border(*(Side(style="thin", color=GRIS_LINEA),) * 4)
 # Campos generales en el orden en que aparecen en el documento. El conjunto
 # de claves es el mismo que expone el modelo `SolicitudIn` de toma_muestras.py.
 CAMPOS_GENERALES_ETIQUETAS: list[tuple[str, str]] = [
-    ("numero_solicitud", "N° Solicitud"),
+    ("numero_solicitud", "N° Solicitud / OT"),
     ("fecha_solicitud", "Fecha Solicitud"),
     ("laboratorio", "Laboratorio"),
     ("solicitante", "Solicitante"),
@@ -72,7 +72,7 @@ def construir_workbook(datos: dict) -> Workbook:
 
     fila = 1
     ws.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=2)
-    titulo = ws.cell(row=fila, column=1, value=f"SOLICITUD DE MUESTREO — {datos.get('numero_solicitud', '')}")
+    titulo = ws.cell(row=fila, column=1, value=f"SOLICITUD DE ANÁLISIS — {datos.get('numero_solicitud', '')}")
     titulo.font = Font(bold=True, size=15, color=VERDE_OSCURO)
     ws.row_dimensions[fila].height = 28
     fila += 1

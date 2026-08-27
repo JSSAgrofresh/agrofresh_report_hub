@@ -63,7 +63,9 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
       {abierto && <div className={styles.overlay} onClick={onCerrar} />}
       <aside className={cn(styles.sidebar, abierto && styles.abierto)} style={estiloSidebar}>
         <div className={styles.brand}>
-          <img src={agrofreshLogo} alt="AgroFresh" className={styles.logo} />
+          <span className={styles.marco}>
+            <img src={agrofreshLogo} alt="AgroFresh" className={styles.logo} />
+          </span>
         </div>
 
         <nav className={styles.nav}>
