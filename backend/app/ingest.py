@@ -810,6 +810,19 @@ def confirmar(payload: CargaRequest) -> dict[str, Any]:
     Data Core homologue los cuatro maestros y recién después la promueva."""
     with conexion(escribir=True) as conn:
         with cursor_dict(conn) as cur:
+            # Una sola copia de Ingest puede estar activa. El advisory lock
+            # también evita que dos cargas simultáneas pasen el count a la vez.
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext('agrofresh_ingest_copia_activa'))")
+            cur.execute("SELECT count(*) AS total FROM pendiente_revision")
+            activas = cur.fetchone()["total"]
+            if activas:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Ya existe una copia de trabajo activa con {activas} filas en Data Core. "
+                        "Debes enviarla a la BD o descartarla antes de cargar otro Excel."
+                    ),
+                )
             mapas = _cargar_mapas_listados(cur)
             for fila_cruda in payload.filas:
                 fila = {str(k).strip(): v for k, v in fila_cruda.items()}
@@ -833,6 +846,14 @@ class AsignarGrupoIn(BaseModel):
     campo: str
     valores: list[str]
     destino: str
+    especie: str | None = None
+
+
+class EditarDecisionIn(BaseModel):
+    campo: str
+    valor_original: str
+    destino_actual: str
+    destino_nuevo: str
     especie: str | None = None
 
 
@@ -891,29 +912,172 @@ def asignar_grupo(payload: AsignarGrupoIn) -> dict[str, int]:
             correcciones = fila.get("__homogenizacion__", {})
             correcciones[payload.campo] = payload.destino.strip()
             fila["__homogenizacion__"] = correcciones
+            decisiones = fila.get("__decisiones_homogenizacion__", {})
+            motivo_campo = next((m for m in motivos if m.get("campo") == payload.campo), None)
+            decisiones[payload.campo] = {
+                "original": str((motivo_campo or {}).get("valor") or "").strip(),
+                "destino": payload.destino.strip(),
+                "especie": payload.especie,
+            }
+            fila["__decisiones_homogenizacion__"] = decisiones
             restantes = [m for m in motivos if m.get("campo") != payload.campo]
             cur.execute("UPDATE pendiente_revision SET fila=%s::jsonb, motivos=%s::jsonb WHERE id=%s",
                         (json.dumps(fila), json.dumps(restantes), item["id"]))
             actualizadas += 1
-        # Toda decisión pasa a Listados inmediatamente para alimentar filtros.
-        if payload.campo == "sold_to_raw":
-            cur.execute("INSERT INTO cliente(nombre, activo) SELECT %s,true WHERE NOT EXISTS (SELECT 1 FROM cliente WHERE lower(trim(nombre))=lower(%s))", (payload.destino.strip(), payload.destino.strip()))
-        elif payload.campo == "ship_to_raw":
-            cur.execute("SELECT DISTINCT fila FROM pendiente_revision WHERE fila->'__homogenizacion__'->>'ship_to_raw'=%s", (payload.destino.strip(),))
-            for registro in cur.fetchall():
-                sol = mapeo.mapear_solicitud(registro["fila"]); corr = registro["fila"].get("__homogenizacion__", {})
-                sold = corr.get("sold_to_raw") or sol.get("sold_to_raw")
-                if not sold: continue
-                cur.execute("SELECT id FROM cliente WHERE lower(trim(nombre))=lower(%s)", (sold,)); cliente = cur.fetchone()
-                if cliente: cur.execute("INSERT INTO planta(cliente_id,nombre,activo) SELECT %s,%s,true WHERE NOT EXISTS (SELECT 1 FROM planta WHERE cliente_id=%s AND lower(trim(nombre))=lower(%s))", (cliente["id"], payload.destino.strip(), cliente["id"], payload.destino.strip()))
-        elif payload.campo == "especie":
-            from .listados import _buscar_o_crear_estandar
-            _buscar_o_crear_estandar(cur, "especie", payload.destino.strip(), None)
-        elif payload.campo == "variedad" and payload.especie:
+        # Variedad es el único catálogo que crece mientras se audita, para que
+        # el usuario pueda observar el avance en Listados. El resto se guarda
+        # explícitamente con /aplicar-catalogos.
+        if payload.campo == "variedad" and payload.especie:
             from .listados import _buscar_o_crear_estandar
             especie_id = _buscar_o_crear_estandar(cur, "especie", payload.especie, None)
             _buscar_o_crear_estandar(cur, "variedad", payload.destino.strip(), especie_id)
     return {"actualizadas": actualizadas}
+
+
+@router.get("/auditoria-staging/historial")
+def historial_homogenizacion() -> dict[str, Any]:
+    """Decisiones manuales de la copia activa, agrupadas para poder
+    corregirlas aunque el grupo ya haya desaparecido de pendientes."""
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT fila FROM pendiente_revision ORDER BY id")
+        filas = cur.fetchall()
+    acumulado: dict[tuple[str, str, str, str], int] = {}
+    etiquetas = dict((campo, etiqueta) for campo, etiqueta in (
+        ("sold_to_raw", "Sold To"), ("ship_to_raw", "Ship To"),
+        ("especie", "Especie"), ("variedad", "Variedad"),
+    ))
+    for registro in filas:
+        fila = registro["fila"] or {}
+        decisiones = dict(fila.get("__decisiones_homogenizacion__", {}))
+        # Compatibilidad con la copia que ya estaba activa antes de incorporar
+        # el historial explícito: reconstruye sus decisiones desde los valores
+        # originales del Excel y __homogenizacion__.
+        originales = mapeo.mapear_solicitud(fila)
+        for campo, destino in fila.get("__homogenizacion__", {}).items():
+            original = str(originales.get(campo) or "").strip()
+            if campo in CAMPOS_LISTADOS and original != str(destino or "").strip() and campo not in decisiones:
+                decisiones[campo] = {
+                    "original": original,
+                    "destino": destino,
+                    "especie": fila.get("__homogenizacion__", {}).get("especie") if campo == "variedad" else None,
+                }
+        for campo, decision in decisiones.items():
+            clave = (
+                campo,
+                str(decision.get("original") or ""),
+                str(decision.get("destino") or ""),
+                str(decision.get("especie") or ""),
+            )
+            acumulado[clave] = acumulado.get(clave, 0) + 1
+    return {
+        "decisiones": [
+            {"campo": k[0], "etiqueta": etiquetas.get(k[0], k[0]), "valor_original": k[1],
+             "destino": k[2], "especie": k[3] or None, "filas": cantidad}
+            for k, cantidad in acumulado.items()
+        ]
+    }
+
+
+@router.post("/auditoria-staging/historial/editar")
+def editar_decision(payload: EditarDecisionIn) -> dict[str, int]:
+    if payload.campo not in CAMPOS_LISTADOS or not payload.destino_nuevo.strip():
+        raise HTTPException(400, "Campo o destino inválido")
+    actualizadas = 0
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT id, fila FROM pendiente_revision FOR UPDATE")
+        for item in cur.fetchall():
+            fila = item["fila"] or {}
+            decisiones = fila.get("__decisiones_homogenizacion__", {})
+            decision = decisiones.get(payload.campo)
+            if not decision:
+                original = str(mapeo.mapear_solicitud(fila).get(payload.campo) or "").strip()
+                actual = str(fila.get("__homogenizacion__", {}).get(payload.campo) or "").strip()
+                if original == payload.valor_original and actual == payload.destino_actual:
+                    decision = {"original": original, "destino": actual, "especie": payload.especie}
+            if not decision:
+                continue
+            if clave_normalizada(str(decision.get("original") or "")) != clave_normalizada(payload.valor_original):
+                continue
+            if clave_normalizada(str(decision.get("destino") or "")) != clave_normalizada(payload.destino_actual):
+                continue
+            if payload.campo == "variedad" and payload.especie and str(decision.get("especie") or "") != payload.especie:
+                continue
+            nuevo = payload.destino_nuevo.strip()
+            fila.setdefault("__homogenizacion__", {})[payload.campo] = nuevo
+            decision["destino"] = nuevo
+            decisiones[payload.campo] = decision
+            fila["__decisiones_homogenizacion__"] = decisiones
+            cur.execute("UPDATE pendiente_revision SET fila=%s::jsonb WHERE id=%s", (json.dumps(fila), item["id"]))
+            actualizadas += 1
+        if payload.campo == "variedad" and payload.especie:
+            from .listados import _buscar_o_crear_estandar
+            especie_id = _buscar_o_crear_estandar(cur, "especie", payload.especie, None)
+            _buscar_o_crear_estandar(cur, "variedad", payload.destino_nuevo.strip(), especie_id)
+    return {"actualizadas": actualizadas}
+
+
+def _aplicar_catalogos_cur(cur) -> int:
+    aplicadas = 0
+    clientes_creados: set[str] = set()
+    plantas_creadas: set[tuple[str, str]] = set()
+    especies_creadas: dict[str, int] = {}
+    variedades_creadas: set[tuple[int, str]] = set()
+    mapeos_recordados: set[tuple[str, ...]] = set()
+    cur.execute("SELECT fila FROM pendiente_revision FOR UPDATE")
+    for registro in cur.fetchall():
+        fila = registro["fila"] or {}
+        correcciones = fila.get("__homogenizacion__", {})
+        if not correcciones:
+            continue
+        # Crear maestros elegidos; aún no se procesa ninguna solicitud.
+        sold = correcciones.get("sold_to_raw")
+        clave_sold = clave_normalizada_empresa(sold) if sold else ""
+        if sold and clave_sold not in clientes_creados:
+            cur.execute("INSERT INTO cliente(nombre, activo) SELECT %s,true WHERE NOT EXISTS (SELECT 1 FROM cliente WHERE lower(trim(nombre))=lower(%s))", (sold, sold))
+            clientes_creados.add(clave_sold)
+        ship = correcciones.get("ship_to_raw")
+        clave_planta = (clave_sold, clave_normalizada_empresa(ship)) if sold and ship else ("", "")
+        if sold and ship and clave_planta not in plantas_creadas:
+            cur.execute("SELECT id FROM cliente WHERE lower(trim(nombre))=lower(%s)", (sold,))
+            cliente = cur.fetchone()
+            if cliente:
+                cur.execute("INSERT INTO planta(cliente_id,nombre,activo) SELECT %s,%s,true WHERE NOT EXISTS (SELECT 1 FROM planta WHERE cliente_id=%s AND lower(trim(nombre))=lower(%s))", (cliente["id"], ship, cliente["id"], ship))
+                plantas_creadas.add(clave_planta)
+        from .listados import _buscar_o_crear_estandar
+        especie = correcciones.get("especie")
+        clave_especie = clave_normalizada(especie) if especie else ""
+        especie_id = especies_creadas.get(clave_especie)
+        if especie and especie_id is None:
+            especie_id = _buscar_o_crear_estandar(cur, "especie", especie, None)
+            especies_creadas[clave_especie] = especie_id
+        variedad = correcciones.get("variedad")
+        clave_variedad = (especie_id or 0, clave_normalizada(variedad)) if variedad else (0, "")
+        if variedad and especie_id and clave_variedad not in variedades_creadas:
+            _buscar_o_crear_estandar(cur, "variedad", variedad, especie_id)
+            variedades_creadas.add(clave_variedad)
+        originales = mapeo.mapear_solicitud(fila)
+        firma = tuple(str(originales.get(c) or "") + "→" + str(correcciones.get(c) or "") for c in CAMPOS_LISTADOS)
+        if firma not in mapeos_recordados:
+            _recordar_correcciones(cur, fila, correcciones)
+            mapeos_recordados.add(firma)
+        aplicadas += 1
+    return aplicadas
+
+
+@router.post("/auditoria-staging/aplicar-catalogos")
+def aplicar_catalogos_staging() -> dict[str, int]:
+    """Consolida decisiones y alias en Listados sin insertar solicitudes."""
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        aplicadas = _aplicar_catalogos_cur(cur)
+    return {"aplicadas": aplicadas}
+
+
+@router.post("/auditoria-staging/descartar")
+def descartar_copia_ingest() -> dict[str, int]:
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        cur.execute("DELETE FROM pendiente_revision RETURNING id")
+        descartadas = len(cur.fetchall())
+    return {"descartadas": descartadas}
 
 
 @router.post("/auditoria-staging/promover")
@@ -922,6 +1086,9 @@ def promover_staging() -> dict[str, Any]:
         cur.execute("SELECT count(*) AS total FROM pendiente_revision WHERE jsonb_array_length(motivos) > 0")
         if cur.fetchone()["total"]:
             raise HTTPException(409, "Aún quedan valores por homologar.")
+        # Enviar todo también consolida Listados, aunque el usuario no haya
+        # pulsado antes el botón de aplicar avances.
+        _aplicar_catalogos_cur(cur)
         cur.execute("SELECT id, origen FROM pendiente_revision ORDER BY id")
         filas = cur.fetchall()
         ids_por_origen: dict[str, list[int]] = {}
