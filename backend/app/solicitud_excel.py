@@ -67,6 +67,59 @@ CAMPOS_ANALISIS_ETIQUETAS = [
     "Resultado Pesticida 3",
 ]
 
+# Matriz horizontal oficial del formato de Solicitud de Muestreo.  Estas
+# columnas son deliberadamente fijas: tanto una solicitud como la descarga
+# masiva deben verse iguales al archivo maestro, aunque un laboratorio no
+# utilice todos los análisis.
+GRUPOS_EXPORTACION: list[tuple[str, list[tuple[str, str, str]]]] = [
+    ("GENERAL", [("general", clave, etiqueta) for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS]),
+    ("QUITECA / AGROFRESH — RESIDUOS FUNGICIDAS", [
+        *[("analito", codigo, f"{codigo} ppm") for codigo in ("FDL", "IMZ", "PYR", "TEBU", "AZOX", "TBZ", "DPA")],
+        ("campo", "Dosis Aplicada", "Dosis Aplicada"),
+        ("campo", "Tipo Aplicación", "Tipo Aplicación"),
+        ("campo", "Aplicación En", "Aplicación En"),
+        ("campo", "Gasto", "Gasto"),
+    ]),
+    ("DIAGNOFRUIT — PATÓGENOS qPCR", [
+        ("analito", "LEV", "Levaduras UFC/mL"),
+        ("analito", "BOT", "Botrytis conidia/mL"),
+        ("analito", "ALT", "Alternaria conidia/mL"),
+        ("analito", "GEO", "Geotrichum esporas/mL"),
+        ("analito", "PEN", "Penicillium conidia/mL"),
+    ]),
+    ("ALS — MICROBIOLOGÍA AGUA (FSMA)", [
+        ("analito", "ECOLI100", "E. Coli UFC/100mL"),
+        ("analito", "COLIF100", "Coliformes Totales UFC/100mL"),
+    ]),
+    ("ALS — METALES PESADOS (mg/kg)", [
+        ("analito", "PB", "Plomo mg/kg"),
+        ("analito", "HG", "Mercurio mg/kg"),
+        ("analito", "AS", "Arsénico mg/kg"),
+        ("analito", "CD", "Cadmio mg/kg"),
+        ("analito", "AL", "Aluminio mg/kg"),
+    ]),
+    ("ALS — MICROBIOLOGÍA ALIMENTO (UFC/g)", [
+        ("analito", "HONGOS", "Hongos UFC/g"),
+        ("analito", "LEVG", "Levaduras UFC/g"),
+        ("analito", "COLIFG", "Coliformes Totales UFC/g"),
+        ("analito", "ECOLIG", "Escherichia coli UFC/g"),
+        ("analito", "ENTERO", "Recuento Enterobacterias UFC/g"),
+        ("analito", "SALM", "Salmonella 25g (P/A)"),
+    ]),
+    ("ALS — OTROS", [
+        ("analito", "CENIZAS", "Cenizas Insolubles en Ácido (%)"),
+        ("analito", "AFLAT", "Aflatoxinas Totales B1+B2+G1+G2 (µg/kg)"),
+    ]),
+    ("ALS — PESTICIDA PUNTUAL (abierto, hasta 3 analitos)", [
+        ("campo", "Analito Pesticida 1", "Analito Pesticida 1"),
+        ("campo", "Resultado Pesticida 1", "Resultado Pesticida 1"),
+        ("campo", "Analito Pesticida 2", "Analito Pesticida 2"),
+        ("campo", "Resultado Pesticida 2", "Resultado Pesticida 2"),
+        ("campo", "Analito Pesticida 3", "Analito Pesticida 3"),
+        ("campo", "Resultado Pesticida 3", "Resultado Pesticida 3"),
+    ]),
+]
+
 
 def _titulo_seccion(ws: Worksheet, fila: int, texto: str, columnas: int = 4) -> int:
     ws.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=columnas)
@@ -146,76 +199,89 @@ def _etiqueta_analito(analito: dict) -> str:
 
 
 def construir_workbook_exportacion(solicitudes: list[dict], analitos: list[dict]) -> Workbook:
-    """Une todas las solicitudes en un único Excel "ancho": una fila por
-    solicitud, columnas = datos generales + datos de muestra + una columna
-    por cada analito activo configurado (unión por código -así QUITECA y
-    AGROFRESH, que comparten los mismos códigos, comparten también las
-    mismas columnas de análisis-). Refleja la estructura configurada
-    actual, no una lista fija hardcodeada."""
+    """Genera la matriz oficial horizontal: dos filas de encabezado y una
+    fila por solicitud. El Excel individual llama a esta misma función, por
+    lo que sólo se diferencia en que contiene una única fila de datos."""
     wb = Workbook()
     ws = wb.active
     ws.title = "Solicitudes"
 
-    # Columnas de analitos: unión por código, ordenadas por categoría/orden;
-    # el primer analito visto con ese código fija el nombre/unidad mostrados.
-    vistos: dict[str, dict] = {}
-    # Se conserva el orden del catálogo oficial: residuos, patógenos y luego
-    # las categorías ALS. Los códigos compartidos QUITECA/AGROFRESH se
-    # muestran una sola vez.
-    for a in (x for x in analitos if x.get("activo", True)):
-        if a["codigo"] not in vistos:
-            vistos[a["codigo"]] = a
-    columnas_analito = list(vistos.values())
+    columnas = [columna for _, grupo in GRUPOS_EXPORTACION for columna in grupo]
+    analitos_por_codigo = {
+        str(a.get("codigo") or ""): a for a in analitos if a.get("activo", True)
+    }
 
-    encabezados = (
-        [etiqueta for _, etiqueta in CAMPOS_GENERALES_ETIQUETAS]
-        + [f"{a['codigo']} {a.get('unidad') or ''}".strip() for a in columnas_analito]
-        + CAMPOS_ANALISIS_ETIQUETAS
-    )
+    # Fila 1: bandas agrupadas como en el formato maestro.
+    columna_inicio = 1
+    for titulo, grupo in GRUPOS_EXPORTACION:
+        columna_fin = columna_inicio + len(grupo) - 1
+        ws.merge_cells(start_row=1, start_column=columna_inicio, end_row=1, end_column=columna_fin)
+        celda = ws.cell(row=1, column=columna_inicio, value=titulo)
+        celda.font = Font(bold=True, size=10, color=VERDE_OSCURO)
+        celda.fill = PatternFill("solid", fgColor=VERDE_CLARO)
+        celda.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        # Colorear también las celdas combinadas para conservar la banda.
+        for col_idx in range(columna_inicio, columna_fin + 1):
+            ws.cell(row=1, column=col_idx).fill = PatternFill("solid", fgColor=VERDE_CLARO)
+            ws.cell(row=1, column=col_idx).border = _BORDE_COMPLETO
+        columna_inicio = columna_fin + 1
 
-    FUENTE_HEADER = Font(bold=True, size=10, color="FFFFFF")
-    RELLENO_HEADER = PatternFill("solid", fgColor=VERDE_OSCURO)
-    for col_idx, etiqueta in enumerate(encabezados, start=1):
-        c = ws.cell(row=1, column=col_idx, value=etiqueta)
-        c.font = FUENTE_HEADER
-        c.fill = RELLENO_HEADER
-        c.alignment = Alignment(vertical="center", wrap_text=True)
-    ws.row_dimensions[1].height = 32
+    # Fila 2: encabezados filtrables.
+    for col_idx, (_, _, etiqueta) in enumerate(columnas, start=1):
+        c = ws.cell(row=2, column=col_idx, value=etiqueta)
+        c.font = Font(bold=True, size=9, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor=VERDE_OSCURO)
+        c.border = _BORDE_COMPLETO
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 36
 
-    for fila_idx, datos in enumerate(solicitudes, start=2):
+    for fila_idx, datos in enumerate(solicitudes, start=3):
         campos_lab: dict = datos.get("campos_laboratorio") or {}
         solicitados = {str(codigo) for codigo in (datos.get("analitos_solicitados") or [])}
-        for col_idx, (clave, _) in enumerate(CAMPOS_GENERALES_ETIQUETAS, start=1):
-            valor = datos.get(clave)
-            ws.cell(row=fila_idx, column=col_idx, value=valor if valor not in (None, "") else None)
-        for offset, a in enumerate(columnas_analito):
-            valor = "✓" if str(a.get("codigo") or "") in solicitados else None
-            celda = ws.cell(row=fila_idx, column=len(CAMPOS_GENERALES_ETIQUETAS) + 1 + offset, value=valor)
-            celda.alignment = Alignment(horizontal="center", vertical="center")
-            if valor:
-                celda.font = Font(bold=True, color=VERDE_OSCURO)
         dosis = []
-        for a in columnas_analito:
-            if str(a.get("codigo") or "") not in solicitados:
+        for codigo in ("FDL", "IMZ", "PYR", "TEBU", "AZOX", "TBZ", "DPA"):
+            if codigo not in solicitados:
                 continue
-            valor_dosis = campos_lab.get(_etiqueta_analito(a))
+            analito = analitos_por_codigo.get(codigo)
+            valor_dosis = campos_lab.get(_etiqueta_analito(analito)) if analito else None
             if valor_dosis and valor_dosis != "Solicitado" and valor_dosis not in dosis:
                 dosis.append(str(valor_dosis))
-        especiales = {
-            "Dosis Aplicada": ", ".join(dosis),
-            **{etiqueta: campos_lab.get(etiqueta) for etiqueta in CAMPOS_ANALISIS_ETIQUETAS[1:]},
-        }
-        inicio_especiales = len(CAMPOS_GENERALES_ETIQUETAS) + len(columnas_analito) + 1
-        for offset, etiqueta in enumerate(CAMPOS_ANALISIS_ETIQUETAS):
-            ws.cell(row=fila_idx, column=inicio_especiales + offset, value=especiales.get(etiqueta) or None)
+        for col_idx, (tipo, clave, _) in enumerate(columnas, start=1):
+            if tipo == "general":
+                valor = datos.get(clave)
+            elif tipo == "analito":
+                valor = "✓" if clave in solicitados else None
+            elif clave == "Dosis Aplicada":
+                valor = ", ".join(dosis) or None
+            else:
+                valor = campos_lab.get(clave)
+            celda = ws.cell(row=fila_idx, column=col_idx, value=valor if valor not in (None, "") else None)
+            celda.border = _BORDE_COMPLETO
+            celda.alignment = Alignment(
+                horizontal="center" if tipo == "analito" else "left",
+                vertical="center",
+                wrap_text=True,
+            )
+            if tipo == "analito" and valor:
+                celda.font = Font(bold=True, color=VERDE_OSCURO)
+        ws.row_dimensions[fila_idx].height = 24
 
-    total_columnas = len(encabezados)
-    ws.freeze_panes = "A2"
-    if ws.max_row >= 1 and total_columnas >= 1:
-        ws.auto_filter.ref = f"A1:{ws.cell(row=1, column=total_columnas).coordinate}"
+    total_columnas = len(columnas)
+    ws.freeze_panes = "A3"
+    ws.auto_filter.ref = f"A2:{ws.cell(row=max(2, ws.max_row), column=total_columnas).coordinate}"
+    ws.sheet_view.showGridLines = False
     for col_idx in range(1, total_columnas + 1):
-        letra = ws.cell(row=1, column=col_idx).column_letter
-        ws.column_dimensions[letra].width = 16 if col_idx <= len(CAMPOS_GENERALES_ETIQUETAS) else 14
+        letra = ws.cell(row=2, column=col_idx).column_letter
+        etiqueta = ws.cell(row=2, column=col_idx).value or ""
+        ws.column_dimensions[letra].width = min(28, max(13, len(str(etiqueta)) * 0.85))
+
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.page_setup.orientation = "landscape"
+    ws.print_title_rows = "1:2"
+    ws.print_area = f"A1:{ws.cell(row=max(2, ws.max_row), column=total_columnas).coordinate}"
 
     return wb
 
