@@ -93,6 +93,12 @@ export function importarListado(tipo: 'sold_to' | 'ship_to' | TipoListado, archi
   return httpClient.upload<{ creados: number }>(`/listados/importar/${tipo}${qs}`, form)
 }
 
+export function importarMaestroListados(archivo: File) {
+  const form = new FormData()
+  form.append('archivo', archivo)
+  return httpClient.upload<{ sold_to: number; ship_to: number; especie: number; variedad: number }>('/listados/importar-maestro', form)
+}
+
 export function eliminarListadoLote(tipo: 'sold_to' | 'ship_to' | TipoListado, ids: number[]) {
   return httpClient.post<{ eliminados: number }>('/listados/eliminar-lote', { tipo, ids })
 }
