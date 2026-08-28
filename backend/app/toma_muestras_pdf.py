@@ -100,6 +100,9 @@ _S_PIE = ParagraphStyle(
 )
 
 _ETIQUETA_DE_CLAVE = dict(CAMPOS_GENERALES_ETIQUETAS)
+# `Aplicación` sigue siendo un dato interno de la muestra y se muestra en el
+# PDF, aunque no sea una columna general del nuevo Excel oficial.
+_ETIQUETA_DE_CLAVE["aplicacion"] = "Aplicación"
 
 _CLAVES_MUESTRA = [
     "tipo_muestra", "especie", "variedad", "csg", "lote",
