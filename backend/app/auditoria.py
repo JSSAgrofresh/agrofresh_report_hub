@@ -329,21 +329,6 @@ def crear_staging() -> dict[str, Any]:
             cur.execute(f"ALTER SEQUENCE {SCHEMA_STAGING}.{tabla}_id_seq OWNED BY {SCHEMA_STAGING}.{tabla}.id")
             cur.execute(f"INSERT INTO {SCHEMA_STAGING}.{tabla} SELECT * FROM {SCHEMA_PROD}.{tabla}")
             cur.execute(f"SELECT setval('{SCHEMA_STAGING}.{tabla}_id_seq', COALESCE((SELECT max(id) FROM {SCHEMA_STAGING}.{tabla}), 1))")
-            # El id serial de la tabla clonada apunta por defecto a la secuencia
-            # de PRODUCCIÓN (INCLUDING DEFAULTS copia la expresión tal cual):
-            # se reemplaza por una secuencia propia para no interferir con
-            # producción mientras se trabaja en la copia.
-            cur.execute(f"CREATE SEQUENCE {SCHEMA_STAGING}.{tabla}_id_seq")
-            cur.execute(
-                f"ALTER TABLE {SCHEMA_STAGING}.{tabla} "
-                f"ALTER COLUMN id SET DEFAULT nextval('{SCHEMA_STAGING}.{tabla}_id_seq'::regclass)"
-            )
-            cur.execute(f"ALTER SEQUENCE {SCHEMA_STAGING}.{tabla}_id_seq OWNED BY {SCHEMA_STAGING}.{tabla}.id")
-            cur.execute(f"INSERT INTO {SCHEMA_STAGING}.{tabla} SELECT * FROM {SCHEMA_PROD}.{tabla}")
-            cur.execute(
-                f"SELECT setval('{SCHEMA_STAGING}.{tabla}_id_seq', "
-                f"COALESCE((SELECT max(id) FROM {SCHEMA_STAGING}.{tabla}), 1))"
-            )
 
         for tabla, columna, ref_tabla, ref_columna, on_delete in FKS_CLON:
             cur.execute(
