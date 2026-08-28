@@ -37,9 +37,9 @@ from datetime import datetime
 from difflib import SequenceMatcher
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.worksheet import Worksheet
 from pydantic import BaseModel
@@ -85,6 +85,11 @@ class ValorListaIn(BaseModel):
 
 class AsignarIn(BaseModel):
     estandar_id: int | None = None
+
+
+class EliminarLoteIn(BaseModel):
+    tipo: str
+    ids: list[int]
 
 
 def _validar_especie_id(cur, tipo: str, especie_id: int | None) -> int | None:
@@ -190,33 +195,22 @@ def exportar_listados() -> StreamingResponse:
     _escribir_hoja(
         wb,
         "Sold To",
-        ["N° Sold To", "Sold To", "RUT", "Estado"],
-        [[c["codigo_sap"], c["nombre"], c["rut"], "Activo" if c["activo"] else "Inactivo"] for c in clientes],
-        [14, 44, 16, 12],
+        ["Sold To"], [[c["nombre"]] for c in clientes if c["activo"]], [44],
     )
     _escribir_hoja(
         wb,
         "Ship To",
-        ["N° Ship To", "Ship To", "Sold To", "Ciudad", "Estado"],
-        [[p["codigo_sap"], p["nombre"], p["cliente_nombre"], p["ciudad"], "Activo" if p["activo"] else "Inactivo"] for p in plantas],
-        [14, 44, 34, 20, 12],
+        ["Sold To", "Ship To"], [[p["cliente_nombre"], p["nombre"]] for p in plantas if p["activo"]], [44, 44],
     )
     _escribir_hoja(
         wb,
         "Especie",
-        ["Especie", "Tipo", "Estado", "Estándar asignado"],
-        [[f["valor"], "Estándar" if f["es_estandar"] else "Crudo", "Activo" if f["activo"] else "Inactivo", f["asignado_a"] or ""] for f in especies],
-        [30, 12, 12, 30],
+        ["Especie"], [[f["valor"]] for f in especies if f["activo"] and f["es_estandar"]], [30],
     )
     _escribir_hoja(
         wb,
         "Variedad",
-        ["Especie", "Variedad", "Tipo", "Estado", "Variedad estándar asignada"],
-        [
-            [f["especie"], f["valor"], "Estándar" if f["es_estandar"] else "Crudo", "Activo" if f["activo"] else "Inactivo", f["asignado_a"] or ""]
-            for f in variedades
-        ],
-        [18, 30, 12, 12, 30],
+        ["Variedad"], [[f["valor"]] for f in variedades if f["activo"] and f["es_estandar"]], [30],
     )
 
     buffer = io.BytesIO()
@@ -228,6 +222,50 @@ def exportar_listados() -> StreamingResponse:
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
     )
+
+
+@router.post("/importar/{tipo}")
+async def importar_listado(tipo: str, archivo: UploadFile = File(...), especie_id: int | None = Query(None)) -> dict[str, int]:
+    if tipo not in ("sold_to", "ship_to", "especie", "variedad"):
+        raise HTTPException(404, "Listado inválido")
+    try:
+        wb = load_workbook(io.BytesIO(await archivo.read()), read_only=True, data_only=True)
+        filas = list(wb.active.iter_rows(values_only=True))
+    except Exception as exc:
+        raise HTTPException(400, "El archivo no es un Excel válido") from exc
+    creados = 0
+    with conexion() as conn, cursor_dict(conn) as cur:
+        if tipo == "variedad": _validar_especie_id(cur, tipo, especie_id)
+        for indice, fila in enumerate(filas):
+            a = str(fila[0] or "").strip() if fila else ""
+            b = str(fila[1] or "").strip() if len(fila) > 1 else ""
+            if not a or (indice == 0 and clave_normalizada(a) in {"sold to", "ship to", "especie", "variedad"}): continue
+            if tipo == "sold_to":
+                cur.execute("INSERT INTO cliente(nombre, activo) SELECT %s, true WHERE NOT EXISTS (SELECT 1 FROM cliente WHERE lower(trim(nombre))=lower(%s))", (a, a))
+            elif tipo == "ship_to":
+                if not b: continue
+                cur.execute("SELECT id FROM cliente WHERE lower(trim(nombre))=lower(%s)", (a,)); cliente = cur.fetchone()
+                if not cliente:
+                    cur.execute("INSERT INTO cliente(nombre, activo) VALUES (%s,true) RETURNING id", (a,)); cliente = cur.fetchone()
+                cur.execute("INSERT INTO planta(cliente_id,nombre,activo) SELECT %s,%s,true WHERE NOT EXISTS (SELECT 1 FROM planta WHERE cliente_id=%s AND lower(trim(nombre))=lower(%s))", (cliente["id"], b, cliente["id"], b))
+            else:
+                _buscar_o_crear_estandar(cur, tipo, a, especie_id)
+                creados += 1
+                continue
+            creados += max(cur.rowcount, 0)
+    return {"creados": creados}
+
+
+@router.post("/eliminar-lote")
+def eliminar_lote(body: EliminarLoteIn) -> dict[str, int]:
+    if body.tipo not in ("sold_to", "ship_to", "especie", "variedad") or not body.ids:
+        raise HTTPException(400, "Selección inválida")
+    tabla = "cliente" if body.tipo == "sold_to" else "planta" if body.tipo == "ship_to" else "lab.valor_lista"
+    with conexion() as conn, cursor_dict(conn) as cur:
+        try: cur.execute(f"DELETE FROM {tabla} WHERE id = ANY(%s)", (body.ids,))
+        except Exception as exc: raise HTTPException(409, "Hay elementos en uso; desactívalos o elimina primero sus dependencias.") from exc
+        eliminados = cur.rowcount
+    return {"eliminados": eliminados}
 
 
 @router.get("/{tipo}")

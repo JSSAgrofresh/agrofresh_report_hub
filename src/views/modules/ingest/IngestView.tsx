@@ -8,9 +8,7 @@ import { areaDeModulo } from '@/constants/areas'
 import {
   confirmarCarga,
   descargarExcel,
-  homogenize,
   leerExcel,
-  previsualizarCarga,
   SQL_MAP,
 } from '@/features/ingest'
 import type { CambioHomogenizacion, FilaIngest, RespuestaCarga } from '@/features/ingest'
@@ -85,11 +83,10 @@ export function IngestView() {
     setProcesando(true)
     try {
       const { rows, headers: hs } = await leerExcel(file)
-      const { out, changes: ch } = homogenize(rows)
-      setFilas(out)
+      setFilas(rows)
       setHeaders(hs)
-      setChanges(ch)
-      setTab('cambios')
+      setChanges([])
+      setTab('preview')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo procesar el archivo.')
     } finally {
@@ -142,21 +139,8 @@ export function IngestView() {
 
   async function abrirCarga() {
     if (!filas) return
-    setCargando(true)
-    try {
-      // Vista previa real contra la base: nunca escribe nada (rollback siempre en el backend),
-      // pero muestra con certeza qué se crearía y qué solicitudes ya existen.
-      // ⚙ Pendiente secuencia de confirmación: no hay filtro local de duplicados/alertas
-      // antes de esto — se muestra directo lo que dice la base.
-      const preview = await previsualizarCarga(filas)
-      setPreviewBackend(preview)
-      setModal('confirmar-carga')
-    } catch (err) {
-      setPreviewBackend(null)
-      mostrarToast(mensajeErrorBackend(err))
-    } finally {
-      setCargando(false)
-    }
+    setPreviewBackend(null)
+    setModal('confirmar-carga')
   }
 
   async function cargarABaseDeDatos() {
@@ -168,9 +152,7 @@ export function IngestView() {
       const r = resultado.resumen
       const existentes = r.solicitudes_existentes > 0 ? ` · ${r.solicitudes_existentes} ya existían (se completó lo que les faltaba)` : ''
       const pendientes = r.pendientes_revision > 0 ? ` · ⛔ ${r.pendientes_revision} quedaron pendientes de revisión en DataCore` : ''
-      mostrarToast(
-        `✅ Carga completada: ${r.solicitudes_nuevas} solicitud(es) nueva(s) · ${r.clientes_nuevos} cliente(s) nuevo(s) · ${r.plantas_nuevas} planta(s) nueva(s)${existentes}${pendientes}.`,
-      )
+      mostrarToast(`✅ ${r.pendientes_revision} fila(s) enviadas a Data Core para revisión. Todavía no se modificó la base de datos.${existentes}${pendientes}`)
     } catch (err) {
       mostrarToast(mensajeErrorBackend(err))
     } finally {
@@ -181,7 +163,7 @@ export function IngestView() {
   return (
     <div className={styles.wrap} style={wrapStyle}>
       <div className={styles.cabeceraConEngranaje}>
-        <Header title="Ingest" description="Carga de la base de datos, con homogenización y confirmación pendientes de terminar." />
+        <Header title="Ingest" description="Recibe archivos y los envía a Data Core. La base de datos no cambia hasta terminar la auditoría." />
         <div className={styles.engranajeBloque}>
           <button
             className={styles.engranaje}
@@ -242,13 +224,13 @@ export function IngestView() {
             <div>
               <p className={styles.accionesTitulo}>📂 Archivo leído, listo para cargar</p>
               <small className={styles.accionesSub}>
-                {filas.length.toLocaleString()} filas · {headers.length} columnas · homogenización pendiente (⚙)
+                {filas.length.toLocaleString()} filas · {headers.length} columnas · sin transformar
               </small>
             </div>
             <div className={styles.accionesBotones}>
-              <Button variant="secondary" onClick={() => descargarExcel(filas, headers)}>⬇ Descargar Excel homogenizado</Button>
+              <Button variant="secondary" onClick={() => descargarExcel(filas, headers)}>⬇ Descargar copia</Button>
               <button className={styles.btnCargar} onClick={() => void abrirCarga()} disabled={cargando}>
-                {cargando ? 'Verificando…' : '📤 Cargar a la base de datos'}
+                {cargando ? 'Verificando…' : '📤 Enviar a Data Core'}
               </button>
             </div>
           </Card>
@@ -348,11 +330,11 @@ export function IngestView() {
       {modal === 'confirmar-carga' && filas && (
         <div className={styles.overlay} onClick={() => setModal('ninguno')}>
           <div className={styles.modalBoxChica} onClick={(e) => e.stopPropagation()}>
-            <h3>Confirmar carga a la base de datos</h3>
+            <h3>Enviar archivo a Data Core</h3>
             {previewBackend ? (
               <>
                 <p className={styles.modalSub}>
-                  Se van a crear <b>{previewBackend.resumen.solicitudes_nuevas}</b> solicitud(es) nueva(s)
+                  Se enviarán <b>{filas.length}</b> fila(s) a staging para revisar Sold To, Ship To, Especie y Variedad.
                   {previewBackend.resumen.clientes_nuevos > 0 && <> · <b>{previewBackend.resumen.clientes_nuevos}</b> cliente(s) nuevo(s)</>}
                   {previewBackend.resumen.plantas_nuevas > 0 && <> · <b>{previewBackend.resumen.plantas_nuevas}</b> planta(s) nueva(s)</>}.
                 </p>
@@ -376,12 +358,12 @@ export function IngestView() {
                 )}
               </>
             ) : (
-              <p className={styles.modalSub}>Se van a cargar <b>{filas.length.toLocaleString()}</b> fila(s).</p>
+              <p className={styles.modalSub}>Se enviarán <b>{filas.length.toLocaleString()}</b> fila(s) a Data Core. Ninguna entrará aún a la base de datos.</p>
             )}
             <div className={styles.modalAcciones}>
               <Button variant="secondary" onClick={() => setModal('ninguno')}>Cancelar</Button>
               <button className={styles.btnCargar} onClick={() => { setModal('ninguno'); void cargarABaseDeDatos() }} disabled={cargando}>
-                {cargando ? 'Cargando…' : 'Confirmar carga'}
+                {cargando ? 'Enviando…' : 'Enviar a Data Core'}
               </button>
             </div>
           </div>

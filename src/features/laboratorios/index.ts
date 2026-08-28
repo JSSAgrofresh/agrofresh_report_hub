@@ -12,6 +12,8 @@ export {
   crearAnalisis,
   actualizarAnalisis,
   eliminarAnalisis,
+  obtenerTemplateMail,
+  guardarTemplateMail,
 } from './lib/api'
 
 export { MODOS_ANALISIS, TIPOS_CONTACTO } from './lib/tipos'
@@ -27,4 +29,6 @@ export type {
   TipoContacto,
   Unidad,
   UnidadInput,
+  TemplateMail,
+  TemplateMailInput,
 } from './lib/tipos'

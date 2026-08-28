@@ -5,6 +5,8 @@ import type {
   Contacto,
   ContactoInput,
   ResumenLaboratorio,
+  TemplateMail,
+  TemplateMailInput,
   Unidad,
   UnidadInput,
 } from './tipos'
@@ -55,6 +57,14 @@ export function actualizarContacto(id: number, datos: ContactoInput) {
 
 export function eliminarContacto(id: number) {
   return httpClient.delete<{ estado: string }>(`${BASE}/contactos/${id}`)
+}
+
+export function obtenerTemplateMail(laboratorio: string) {
+  return httpClient.get<TemplateMail>(`${BASE}/${encodeURIComponent(laboratorio)}/template-mail`)
+}
+
+export function guardarTemplateMail(laboratorio: string, datos: TemplateMailInput) {
+  return httpClient.put<TemplateMail>(`${BASE}/${encodeURIComponent(laboratorio)}/template-mail`, datos)
 }
 
 // --- Análisis ----------------------------------------------------------------

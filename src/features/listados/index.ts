@@ -4,6 +4,8 @@ export {
   listarEspeciesActivas,
   listarVariedadesActivasDeEspecie,
   urlExportarListados,
+  importarListado,
+  eliminarListadoLote,
 } from './lib/api'
 export { ValorListaForm } from './components/ValorListaForm'
 export { ValorListaTable } from './components/ValorListaTable'

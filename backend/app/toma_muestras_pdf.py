@@ -1,11 +1,9 @@
 """
-PDF de una solicitud de análisis — ocupa toda la hoja A4.
+PDF operativo de una solicitud de análisis — ocupa toda la hoja A4.
 
-Diseño propio, distinto del informe de análisis: paleta verde AgroFresh pero
-con encabezado tipo banner, secciones con acento lateral grueso, y campos con
-aspecto de formulario sobre fondo gris claro. El informe usa líneas finas y
-rejilla plana —ambos documentos son profesionales pero se distinguen al
-instante.
+Diseño técnico y deliberadamente sobrio: logo visible, líneas finas, escala de
+grises y rejillas planas. Se diferencia del informe final porque prioriza la
+lectura mecánica de los datos que el laboratorio debe procesar.
 
 La sección CORREOS se estira para llenar el espacio restante de la página:
 se construye el PDF dos veces —la primera con una caja mínima para medir
@@ -33,13 +31,13 @@ from reportlab.platypus import (
 from .informe_pdf import _RUTA_LOGO, DIRECCION_EMPRESA
 from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS
 
-# ── Paleta verde AgroFresh ──────────────────────────────────────────────
-VERDE_BANNER = colors.HexColor('#24391A')
-VERDE_OSCURO = colors.HexColor('#3D6B1F')
-VERDE_MEDIO = colors.HexColor('#4D8B2A')
-VERDE_CLARO = colors.HexColor('#EBF5E1')
-VERDE_FOLIO = colors.HexColor('#A3D977')
-GRIS_CAMPO = colors.HexColor('#F3F4F6')
+# ── Paleta técnica: el color queda reservado al logo ──────────────────
+VERDE_BANNER = colors.HexColor('#FFFFFF')
+VERDE_OSCURO = colors.HexColor('#22272E')
+VERDE_MEDIO = colors.HexColor('#7A838D')
+VERDE_CLARO = colors.HexColor('#EEF0F2')
+VERDE_FOLIO = colors.HexColor('#4B5563')
+GRIS_CAMPO = colors.HexColor('#FFFFFF')
 GRIS_BORDE = colors.HexColor('#D1D5DB')
 GRIS_TEXTO = colors.HexColor('#374151')
 GRIS_LABEL = colors.HexColor('#6B7280')
@@ -136,7 +134,7 @@ def _titulo_seccion(texto: str) -> Table:
         ('TOPPADDING', (0, 0), (-1, -1), 3),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
         ('LEFTPADDING', (0, 0), (-1, -1), 9),
-        ('LINEBEFORE', (0, 0), (0, -1), 3, VERDE_MEDIO),
+        ('LINEBELOW', (0, 0), (-1, -1), 0.7, VERDE_MEDIO),
         ('BACKGROUND', (0, 0), (-1, -1), VERDE_CLARO),
     ]))
     return t
@@ -157,7 +155,6 @@ def _campo_box(etiqueta: str, valor) -> Table:
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6),
         ('BOX', (0, 0), (-1, -1), 0.5, GRIS_BORDE),
-        ('ROUNDEDCORNERS', [2, 2, 2, 2]),
     ]))
     return t
 
@@ -261,7 +258,6 @@ def _caja_correos(datos: dict, espacio_libre: float) -> Table:
         ('LEFTPADDING', (0, 0), (-1, -1), 10),
         ('RIGHTPADDING', (0, 0), (-1, -1), 10),
         ('BOX', (0, 0), (-1, -1), 0.5, GRIS_BORDE),
-        ('ROUNDEDCORNERS', [2, 2, 2, 2]),
     ]))
     return t
 
@@ -325,7 +321,7 @@ def _construir_elementos(
 
     # ── ENCABEZADO ──────────────────────────────────────────────────────
     logo_img = (
-        Image(_RUTA_LOGO, width=3.6 * cm, height=1.44 * cm)
+        Image(_RUTA_LOGO, width=4.4 * cm, height=1.76 * cm)
         if os.path.isfile(_RUTA_LOGO)
         else Paragraph('', _S_VALOR)
     )
@@ -336,7 +332,6 @@ def _construir_elementos(
         ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('ROUNDEDCORNERS', [3, 3, 3, 3]),
     ]))
     titulo_col = [
         Paragraph('SOLICITUD DE ANÁLISIS', _S_BANNER_TITULO),
@@ -348,15 +343,14 @@ def _construir_elementos(
         colWidths=[5 * cm, ANCHO_UTIL - 5 * cm],
     )
     banner.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), VERDE_CLARO),
+        ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('LEFTPADDING', (0, 0), (0, 0), 9),
         ('RIGHTPADDING', (-1, 0), (-1, 0), 11),
         ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-        ('BOX', (0, 0), (-1, -1), 0.75, VERDE_MEDIO),
-        ('ROUNDEDCORNERS', [5, 5, 5, 5]),
+        ('LINEBELOW', (0, 0), (-1, -1), 1, VERDE_MEDIO),
     ]))
     elementos.append(banner)
     elementos.append(Spacer(1, 3))
@@ -460,7 +454,7 @@ def _construir_elementos(
             ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
             ('LINEBELOW', (0, 0), (-1, 0), 1, VERDE_MEDIO),
             ('LINEBELOW', (0, 1), (-1, -1), 0.5, GRIS_BORDE),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [BLANCO, VERDE_CLARO]),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [BLANCO, colors.HexColor('#F7F8F9')]),
             ('BOX', (0, 0), (-1, -1), 0.5, GRIS_BORDE),
         ]))
         elementos.append(tabla)
@@ -478,7 +472,6 @@ def _construir_elementos(
         ('LEFTPADDING', (0, 0), (-1, -1), 9),
         ('RIGHTPADDING', (0, 0), (-1, -1), 9),
         ('BOX', (0, 0), (-1, -1), 0.5, GRIS_BORDE),
-        ('ROUNDEDCORNERS', [2, 2, 2, 2]),
     ]))
     elementos.append(obs_box)
     elementos.append(Spacer(1, _SP))

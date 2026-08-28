@@ -46,6 +46,15 @@ export interface Contacto {
 
 export type ContactoInput = Omit<Contacto, 'id'>
 
+export interface TemplateMail {
+  laboratorio: string
+  asunto: string
+  cuerpo: string
+  variables: string[]
+}
+
+export type TemplateMailInput = Pick<TemplateMail, 'asunto' | 'cuerpo'>
+
 /** Cómo se piden los analitos de un análisis. */
 export type ModoAnalisis = 'seleccionable' | 'completo'
 
