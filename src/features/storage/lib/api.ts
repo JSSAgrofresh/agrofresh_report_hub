@@ -47,3 +47,10 @@ export function listarR2(prefijo = '') {
 export function urlDescargaR2(key: string) {
   return `${API_BASE_URL}/storage/r2/descargar?key=${encodeURIComponent(key)}`
 }
+
+export function organizarSolicitudesR2() {
+  return httpClient.post<{ movidas: number; omitidas: number }>(
+    '/toma-muestras/solicitudes/organizar-r2',
+    {},
+  )
+}
