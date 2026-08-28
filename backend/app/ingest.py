@@ -530,7 +530,9 @@ def _procesar_filas(
         # los nombres exactos que espera el mapeo — se normalizan acá, una sola vez,
         # antes de que cualquier función de mapeo los use.
         fila = {str(k).strip(): v for k, v in fila_cruda.items()}
+        overrides_fila = fila.pop("__homogenizacion__", {}) if isinstance(fila.get("__homogenizacion__"), dict) else {}
         sol = mapeo.mapear_solicitud(fila)
+        sol.update(overrides_fila)
         if overrides:
             sol.update(overrides)
         motivos: list[str] = []
@@ -804,12 +806,98 @@ def preview(payload: CargaRequest) -> dict[str, Any]:
 
 @router.post("/confirmar")
 def confirmar(payload: CargaRequest) -> dict[str, Any]:
-    """Escritura real, en una sola transacción: si algo falla, no queda nada a medias."""
+    """Ingest nunca escribe solicitudes: deja cada fila en staging para que
+    Data Core homologue los cuatro maestros y recién después la promueva."""
     with conexion(escribir=True) as conn:
         with cursor_dict(conn) as cur:
-            resultado = _procesar_filas(cur, payload.filas, escribir=True, origen=payload.origen)
-    resultado["modo"] = "confirmado"
-    return resultado
+            for fila_cruda in payload.filas:
+                fila = {str(k).strip(): v for k, v in fila_cruda.items()}
+                sol = mapeo.mapear_solicitud(fila)
+                motivos = [
+                    {"campo": campo, "etiqueta": etiqueta, "valor": sol.get(campo) or "", "sugerencias": []}
+                    for campo, etiqueta in (
+                        ("sold_to_raw", "Sold To"), ("ship_to_raw", "Ship To"),
+                        ("especie", "Especie"), ("variedad", "Variedad"),
+                    ) if sol.get(campo)
+                ]
+                cur.execute(
+                    "INSERT INTO pendiente_revision (origen, fila, motivos) VALUES (%s, %s::jsonb, %s::jsonb)",
+                    (payload.origen, json.dumps(fila), json.dumps(motivos)),
+                )
+    return {
+        "modo": "confirmado", "resumen": {**RESUMEN_VACIO, "pendientes_revision": len(payload.filas)},
+        "detalle": [], "advertencias": ["Las filas quedaron en Data Core; todavía no se insertaron en la base."],
+    }
+
+
+class AsignarGrupoIn(BaseModel):
+    campo: str
+    valores: list[str]
+    destino: str
+
+
+@router.get("/auditoria-staging")
+def auditoria_staging() -> dict[str, Any]:
+    """Agrupa por campo y similitud básica. Los valores aislados también se
+    muestran: pueden confirmarse tal cual o recibir un nombre nuevo."""
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT id, motivos FROM pendiente_revision ORDER BY id")
+        filas = cur.fetchall()
+    grupos: list[dict[str, Any]] = []
+    for campo, etiqueta in (("sold_to_raw", "Sold To"), ("ship_to_raw", "Ship To"), ("especie", "Especie"), ("variedad", "Variedad")):
+        conteos: dict[str, int] = {}
+        for fila in filas:
+            for motivo in fila["motivos"] or []:
+                if motivo.get("campo") == campo and str(motivo.get("valor") or "").strip():
+                    valor = str(motivo["valor"]).strip()
+                    conteos[valor] = conteos.get(valor, 0) + 1
+        pendientes = list(conteos)
+        while pendientes:
+            base = pendientes.pop(0)
+            similares = [base]
+            for valor in pendientes[:]:
+                if SequenceMatcher(None, clave_normalizada(base), clave_normalizada(valor)).ratio() >= 0.82:
+                    similares.append(valor); pendientes.remove(valor)
+            grupos.append({"campo": campo, "etiqueta": etiqueta, "valores": similares,
+                           "cantidad": sum(conteos[v] for v in similares), "sugerido": base})
+    return {"grupos": grupos, "filas": len(filas), "pendientes": sum(len(f["motivos"] or []) for f in filas)}
+
+
+@router.post("/auditoria-staging/asignar")
+def asignar_grupo(payload: AsignarGrupoIn) -> dict[str, int]:
+    if payload.campo not in CAMPOS_LISTADOS or not payload.destino.strip():
+        raise HTTPException(400, "Campo o destino inválido")
+    valores = {clave_normalizada(v) for v in payload.valores}
+    actualizadas = 0
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT id, fila, motivos FROM pendiente_revision FOR UPDATE")
+        for item in cur.fetchall():
+            motivos = item["motivos"] or []
+            coincide = any(m.get("campo") == payload.campo and clave_normalizada(str(m.get("valor") or "")) in valores for m in motivos)
+            if not coincide: continue
+            fila = item["fila"] or {}
+            correcciones = fila.get("__homogenizacion__", {})
+            correcciones[payload.campo] = payload.destino.strip()
+            fila["__homogenizacion__"] = correcciones
+            restantes = [m for m in motivos if m.get("campo") != payload.campo]
+            cur.execute("UPDATE pendiente_revision SET fila=%s::jsonb, motivos=%s::jsonb WHERE id=%s",
+                        (json.dumps(fila), json.dumps(restantes), item["id"]))
+            actualizadas += 1
+    return {"actualizadas": actualizadas}
+
+
+@router.post("/auditoria-staging/promover")
+def promover_staging() -> dict[str, Any]:
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT count(*) AS total FROM pendiente_revision WHERE jsonb_array_length(motivos) > 0")
+        if cur.fetchone()["total"]:
+            raise HTTPException(409, "Aún quedan valores por homologar.")
+        cur.execute("SELECT id, origen FROM pendiente_revision ORDER BY id")
+        filas = cur.fetchall()
+        ids_por_origen: dict[str, list[int]] = {}
+        for fila in filas: ids_por_origen.setdefault(fila["origen"], []).append(fila["id"])
+        resumen = _procesar_pendientes_en_chunks(cur, ids_por_origen, saltar_catalogo=True)
+    return {"promovidas": len(filas), "resumen": resumen}
 
 
 # ---------------------------------------------------------------------------

@@ -39,7 +39,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import config, config_store, correo, r2
+from . import config, config_store, correo, mail_templates, r2
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
 from .toma_muestras_pdf import generar_pdf_solicitud
 
@@ -609,34 +609,7 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
             "Agrégalos en Administración → Laboratorios → Contactos, o escribe un correo.",
         )
 
-    asunto = f"[AgroFresh] Solicitud {numero} — {lab}"
-    html = f"""
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-      <h2 style="color:#2d5a27;">Solicitud de Análisis {numero}</h2>
-      <table style="font-size:14px;border-collapse:collapse;width:100%;">
-        <tr><td style="padding:4px 12px 4px 0;color:#666;">Laboratorio</td><td style="padding:4px 0;">{lab}</td></tr>
-        <tr><td style="padding:4px 12px 4px 0;color:#666;">Solicitante</td><td style="padding:4px 0;">{solicitante}</td></tr>
-        <tr><td style="padding:4px 12px 4px 0;color:#666;">Sold To</td><td style="padding:4px 0;">{sold_to}</td></tr>
-        <tr><td style="padding:4px 12px 4px 0;color:#666;">Fecha</td><td style="padding:4px 0;">{fecha}</td></tr>
-      </table>
-      <p style="margin-top:16px;font-size:14px;">
-        Se adjuntan el PDF y el Excel de la solicitud.
-      </p>
-      <hr style="border:none;border-top:1px solid #ddd;margin:24px 0;">
-      <p style="color:#888;font-size:12px;">
-        Enviado desde AgroFresh Report Hub.
-      </p>
-    </div>
-    """
-    texto = (
-        f"Solicitud de Análisis {numero}\n\n"
-        f"Laboratorio: {lab}\n"
-        f"Solicitante: {solicitante}\n"
-        f"Sold To: {sold_to}\n"
-        f"Fecha: {fecha}\n\n"
-        f"Se adjuntan el PDF y el Excel de la solicitud.\n\n"
-        f"Enviado desde AgroFresh Report Hub."
-    )
+    asunto, texto, html = mail_templates.renderizar(lab, datos)
 
     adjuntos = [
         correo.Adjunto(f"{numero}.pdf", pdf_bytes, "application/pdf"),

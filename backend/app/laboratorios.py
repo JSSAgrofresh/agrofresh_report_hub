@@ -17,7 +17,7 @@ cerrado tipo FSSMA donde vienen todos sí o sí (modo `completo`).
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from . import config_store
+from . import config_store, mail_templates
 
 router = APIRouter(prefix="/api/laboratorios", tags=["laboratorios"])
 
@@ -123,6 +123,30 @@ class ContactoIn(BaseModel):
 
 
 config_store.crud_router(router, "/contactos", "contactos_laboratorio.json", Contacto, ContactoIn, [])
+
+
+# ---------------------------------------------------------------------------
+# Template del correo que acompaña PDF + Excel de cada solicitud
+# ---------------------------------------------------------------------------
+
+
+class TemplateMailIn(BaseModel):
+    asunto: str
+    cuerpo: str
+
+
+@router.get("/{laboratorio}/template-mail")
+def obtener_template_mail(laboratorio: str) -> dict:
+    _validar_laboratorio(laboratorio)
+    return mail_templates.obtener(laboratorio)
+
+
+@router.put("/{laboratorio}/template-mail")
+def guardar_template_mail(laboratorio: str, body: TemplateMailIn) -> dict:
+    _validar_laboratorio(laboratorio)
+    if not body.asunto.strip() or not body.cuerpo.strip():
+        raise HTTPException(400, "El asunto y el cuerpo son obligatorios.")
+    return mail_templates.guardar(laboratorio, body.asunto, body.cuerpo)
 
 
 # ---------------------------------------------------------------------------
