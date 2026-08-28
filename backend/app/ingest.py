@@ -810,16 +810,15 @@ def confirmar(payload: CargaRequest) -> dict[str, Any]:
     Data Core homologue los cuatro maestros y recién después la promueva."""
     with conexion(escribir=True) as conn:
         with cursor_dict(conn) as cur:
+            mapas = _cargar_mapas_listados(cur)
             for fila_cruda in payload.filas:
                 fila = {str(k).strip(): v for k, v in fila_cruda.items()}
                 sol = mapeo.mapear_solicitud(fila)
-                motivos = [
-                    {"campo": campo, "etiqueta": etiqueta, "valor": sol.get(campo) or "", "sugerencias": []}
-                    for campo, etiqueta in (
-                        ("sold_to_raw", "Sold To"), ("ship_to_raw", "Ship To"),
-                        ("especie", "Especie"), ("variedad", "Variedad"),
-                    ) if sol.get(campo)
-                ]
+                motivos = _resolver_listados(sol, mapas, [])
+                fila["__homogenizacion__"] = {
+                    campo: sol[campo] for campo in CAMPOS_LISTADOS
+                    if sol.get(campo) and campo not in {m["campo"] for m in motivos}
+                }
                 cur.execute(
                     "INSERT INTO pendiente_revision (origen, fila, motivos) VALUES (%s, %s::jsonb, %s::jsonb)",
                     (payload.origen, json.dumps(fila), json.dumps(motivos)),
@@ -834,6 +833,7 @@ class AsignarGrupoIn(BaseModel):
     campo: str
     valores: list[str]
     destino: str
+    especie: str | None = None
 
 
 @router.get("/auditoria-staging")
@@ -841,25 +841,32 @@ def auditoria_staging() -> dict[str, Any]:
     """Agrupa por campo y similitud básica. Los valores aislados también se
     muestran: pueden confirmarse tal cual o recibir un nombre nuevo."""
     with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT id, motivos FROM pendiente_revision ORDER BY id")
+        cur.execute("SELECT id, fila, motivos FROM pendiente_revision ORDER BY id")
         filas = cur.fetchall()
     grupos: list[dict[str, Any]] = []
     for campo, etiqueta in (("sold_to_raw", "Sold To"), ("ship_to_raw", "Ship To"), ("especie", "Especie"), ("variedad", "Variedad")):
-        conteos: dict[str, int] = {}
+        conteos: dict[tuple[str, str], int] = {}
         for fila in filas:
             for motivo in fila["motivos"] or []:
                 if motivo.get("campo") == campo and str(motivo.get("valor") or "").strip():
                     valor = str(motivo["valor"]).strip()
-                    conteos[valor] = conteos.get(valor, 0) + 1
-        pendientes = list(conteos)
-        while pendientes:
-            base = pendientes.pop(0)
-            similares = [base]
-            for valor in pendientes[:]:
-                if SequenceMatcher(None, clave_normalizada(base), clave_normalizada(valor)).ratio() >= 0.82:
-                    similares.append(valor); pendientes.remove(valor)
-            grupos.append({"campo": campo, "etiqueta": etiqueta, "valores": similares,
-                           "cantidad": sum(conteos[v] for v in similares), "sugerido": base})
+                    especie = ""
+                    if campo == "variedad":
+                        sol = mapeo.mapear_solicitud(fila.get("fila") or {}) if fila.get("fila") else {}
+                        especie = str((fila.get("fila") or {}).get("__homogenizacion__", {}).get("especie") or sol.get("especie") or "Sin especie")
+                    conteos[(especie, valor)] = conteos.get((especie, valor), 0) + 1
+        por_especie: dict[str, list[str]] = {}
+        for especie, valor in conteos: por_especie.setdefault(especie, []).append(valor)
+        for especie, valores_especie in por_especie.items():
+            pendientes = list(dict.fromkeys(valores_especie))
+            while pendientes:
+                base = pendientes.pop(0)
+                similares = [base]
+                for valor in pendientes[:]:
+                    if SequenceMatcher(None, clave_normalizada(base), clave_normalizada(valor)).ratio() >= 0.82:
+                        similares.append(valor); pendientes.remove(valor)
+                grupos.append({"campo": campo, "etiqueta": etiqueta, "especie": especie or None, "valores": similares,
+                               "cantidad": sum(conteos[(especie, v)] for v in similares), "sugerido": base})
     return {"grupos": grupos, "filas": len(filas), "pendientes": sum(len(f["motivos"] or []) for f in filas)}
 
 
@@ -873,7 +880,12 @@ def asignar_grupo(payload: AsignarGrupoIn) -> dict[str, int]:
         cur.execute("SELECT id, fila, motivos FROM pendiente_revision FOR UPDATE")
         for item in cur.fetchall():
             motivos = item["motivos"] or []
+            sol_actual = mapeo.mapear_solicitud(item["fila"] or {})
+            correcciones_actuales = (item["fila"] or {}).get("__homogenizacion__", {})
+            especie_actual = str(correcciones_actuales.get("especie") or sol_actual.get("especie") or "Sin especie")
             coincide = any(m.get("campo") == payload.campo and clave_normalizada(str(m.get("valor") or "")) in valores for m in motivos)
+            if payload.campo == "variedad" and payload.especie and especie_actual != payload.especie:
+                coincide = False
             if not coincide: continue
             fila = item["fila"] or {}
             correcciones = fila.get("__homogenizacion__", {})
@@ -883,6 +895,24 @@ def asignar_grupo(payload: AsignarGrupoIn) -> dict[str, int]:
             cur.execute("UPDATE pendiente_revision SET fila=%s::jsonb, motivos=%s::jsonb WHERE id=%s",
                         (json.dumps(fila), json.dumps(restantes), item["id"]))
             actualizadas += 1
+        # Toda decisión pasa a Listados inmediatamente para alimentar filtros.
+        if payload.campo == "sold_to_raw":
+            cur.execute("INSERT INTO cliente(nombre, activo) SELECT %s,true WHERE NOT EXISTS (SELECT 1 FROM cliente WHERE lower(trim(nombre))=lower(%s))", (payload.destino.strip(), payload.destino.strip()))
+        elif payload.campo == "ship_to_raw":
+            cur.execute("SELECT DISTINCT fila FROM pendiente_revision WHERE fila->'__homogenizacion__'->>'ship_to_raw'=%s", (payload.destino.strip(),))
+            for registro in cur.fetchall():
+                sol = mapeo.mapear_solicitud(registro["fila"]); corr = registro["fila"].get("__homogenizacion__", {})
+                sold = corr.get("sold_to_raw") or sol.get("sold_to_raw")
+                if not sold: continue
+                cur.execute("SELECT id FROM cliente WHERE lower(trim(nombre))=lower(%s)", (sold,)); cliente = cur.fetchone()
+                if cliente: cur.execute("INSERT INTO planta(cliente_id,nombre,activo) SELECT %s,%s,true WHERE NOT EXISTS (SELECT 1 FROM planta WHERE cliente_id=%s AND lower(trim(nombre))=lower(%s))", (cliente["id"], payload.destino.strip(), cliente["id"], payload.destino.strip()))
+        elif payload.campo == "especie":
+            from .listados import _buscar_o_crear_estandar
+            _buscar_o_crear_estandar(cur, "especie", payload.destino.strip(), None)
+        elif payload.campo == "variedad" and payload.especie:
+            from .listados import _buscar_o_crear_estandar
+            especie_id = _buscar_o_crear_estandar(cur, "especie", payload.especie, None)
+            _buscar_o_crear_estandar(cur, "variedad", payload.destino.strip(), especie_id)
     return {"actualizadas": actualizadas}
 
 
