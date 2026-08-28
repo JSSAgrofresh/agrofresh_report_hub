@@ -17,7 +17,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!response.ok) {
-    throw new HttpError(response.status, `Request failed: ${response.status} ${path}`)
+    let detalle = ''
+    try {
+      const body = await response.json() as { detail?: string }
+      detalle = typeof body.detail === 'string' ? body.detail : ''
+    } catch { /* el backend no siempre devuelve JSON */ }
+    throw new HttpError(response.status, detalle || `Request failed: ${response.status} ${path}`)
   }
 
   if (response.status === 204) {
