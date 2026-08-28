@@ -27,14 +27,15 @@ _BORDE_COMPLETO = Border(*(Side(style="thin", color=GRIS_LINEA),) * 4)
 # Campos generales en el orden en que aparecen en el documento. El conjunto
 # de claves es el mismo que expone el modelo `SolicitudIn` de toma_muestras.py.
 CAMPOS_GENERALES_ETIQUETAS: list[tuple[str, str]] = [
-    ("numero_solicitud", "N° Solicitud / OT"),
+    ("numero_solicitud", "N° Solicitud"),
     ("fecha_solicitud", "Fecha Solicitud"),
+    ("fecha_muestreo", "Fecha Muestreo"),
+    ("fecha_informe", "Fecha Informe"),
+    ("hora_muestreo", "Hora Muestreo"),
     ("laboratorio", "Laboratorio"),
     ("solicitante", "Solicitante"),
-    ("email_solicitante", "Email Solicitante"),
     ("sold_to", "Sold To"),
     ("ship_to", "Ship To"),
-    ("aplicacion", "Aplicación"),
     ("especie", "Especie"),
     ("variedad", "Variedad"),
     ("linea_proceso", "Línea Proceso"),
@@ -46,11 +47,24 @@ CAMPOS_GENERALES_ETIQUETAS: list[tuple[str, str]] = [
     ("kilos_procesados", "Kilos Procesados (KG)"),
     ("producto_utilizado", "Producto Utilizado"),
     ("tipo_muestra", "Tipo Muestra"),
-    ("fecha_muestreo", "Fecha Muestreo"),
-    ("hora_muestreo", "Hora Muestreo"),
     ("nombre_muestreador", "Nombre Muestreador"),
     ("generado_por", "Generado Por"),
+    ("email_solicitante", "Email Solicitante"),
     ("email_laboratorio", "Email Laboratorio"),
+    ("observacion", "Observación"),
+]
+
+CAMPOS_ANALISIS_ETIQUETAS = [
+    "Dosis Aplicada",
+    "Tipo Aplicación",
+    "Aplicación En",
+    "Gasto",
+    "Analito Pesticida 1",
+    "Resultado Pesticida 1",
+    "Analito Pesticida 2",
+    "Resultado Pesticida 2",
+    "Analito Pesticida 3",
+    "Resultado Pesticida 3",
 ]
 
 
@@ -145,14 +159,19 @@ def construir_workbook_exportacion(solicitudes: list[dict], analitos: list[dict]
     # Columnas de analitos: unión por código, ordenadas por categoría/orden;
     # el primer analito visto con ese código fija el nombre/unidad mostrados.
     vistos: dict[str, dict] = {}
-    for a in sorted((x for x in analitos if x.get("activo", True)), key=lambda x: (x["laboratorio"], x.get("categoria", ""), x["orden"])):
+    # Se conserva el orden del catálogo oficial: residuos, patógenos y luego
+    # las categorías ALS. Los códigos compartidos QUITECA/AGROFRESH se
+    # muestran una sola vez.
+    for a in (x for x in analitos if x.get("activo", True)):
         if a["codigo"] not in vistos:
             vistos[a["codigo"]] = a
     columnas_analito = list(vistos.values())
 
-    encabezados = [etiqueta for _, etiqueta in CAMPOS_GENERALES_ETIQUETAS] + [
-        f"{_etiqueta_analito(a)} [{a['codigo']}]" for a in columnas_analito
-    ]
+    encabezados = (
+        [etiqueta for _, etiqueta in CAMPOS_GENERALES_ETIQUETAS]
+        + [f"{a['codigo']} {a.get('unidad') or ''}".strip() for a in columnas_analito]
+        + CAMPOS_ANALISIS_ETIQUETAS
+    )
 
     FUENTE_HEADER = Font(bold=True, size=10, color="FFFFFF")
     RELLENO_HEADER = PatternFill("solid", fgColor=VERDE_OSCURO)
@@ -164,6 +183,7 @@ def construir_workbook_exportacion(solicitudes: list[dict], analitos: list[dict]
     ws.row_dimensions[1].height = 32
 
     for fila_idx, datos in enumerate(solicitudes, start=2):
+        campos_lab: dict = datos.get("campos_laboratorio") or {}
         solicitados = {str(codigo) for codigo in (datos.get("analitos_solicitados") or [])}
         for col_idx, (clave, _) in enumerate(CAMPOS_GENERALES_ETIQUETAS, start=1):
             valor = datos.get(clave)
@@ -174,6 +194,20 @@ def construir_workbook_exportacion(solicitudes: list[dict], analitos: list[dict]
             celda.alignment = Alignment(horizontal="center", vertical="center")
             if valor:
                 celda.font = Font(bold=True, color=VERDE_OSCURO)
+        dosis = []
+        for a in columnas_analito:
+            if str(a.get("codigo") or "") not in solicitados:
+                continue
+            valor_dosis = campos_lab.get(_etiqueta_analito(a))
+            if valor_dosis and valor_dosis != "Solicitado" and valor_dosis not in dosis:
+                dosis.append(str(valor_dosis))
+        especiales = {
+            "Dosis Aplicada": ", ".join(dosis),
+            **{etiqueta: campos_lab.get(etiqueta) for etiqueta in CAMPOS_ANALISIS_ETIQUETAS[1:]},
+        }
+        inicio_especiales = len(CAMPOS_GENERALES_ETIQUETAS) + len(columnas_analito) + 1
+        for offset, etiqueta in enumerate(CAMPOS_ANALISIS_ETIQUETAS):
+            ws.cell(row=fila_idx, column=inicio_especiales + offset, value=especiales.get(etiqueta) or None)
 
     total_columnas = len(encabezados)
     ws.freeze_panes = "A2"

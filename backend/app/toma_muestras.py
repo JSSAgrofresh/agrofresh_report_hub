@@ -826,7 +826,8 @@ class CampoTipoAplicacionIn(BaseModel):
 
 
 _CAMPOS_TIPO_APLICACION_DEFECTO: list[dict] = [
-    {"id": 2, "ambito": "Línea de proceso", "clave": "velocidad_linea", "etiqueta": "Velocidad de Línea (m/min)", "tipo": "number", "requerido": False, "activo": True, "orden": 1},
+    {"id": 3, "ambito": "Actimist", "clave": "aplicacion_en", "etiqueta": "Aplicación En", "tipo": "text", "requerido": False, "activo": True, "orden": 1},
+    {"id": 4, "ambito": "Actimist", "clave": "gasto", "etiqueta": "Gasto", "tipo": "number", "requerido": False, "activo": True, "orden": 2},
 ]
 
 # Campos que se sembraron alguna vez y que el sistema ya no usa. Se borran del
@@ -837,6 +838,12 @@ _CAMPOS_TIPO_APLICACION_RETIRADOS = {
     ("comun", "dosis_aplicada"),
     # Presión Actimist no es un dato que se registre en el proceso.
     ("Actimist", "presion_actimist"),
+    # Nunca formó parte del formato oficial de solicitud.
+    ("Línea de proceso", "velocidad_linea"),
+}
+
+_CAMPOS_TIPO_APLICACION_OFICIALES = {
+    (c["ambito"], c["clave"]): c for c in _CAMPOS_TIPO_APLICACION_DEFECTO
 }
 
 
@@ -844,7 +851,15 @@ _CAMPOS_TIPO_APLICACION_RETIRADOS = {
 def listar_campos_tipo_aplicacion(ambito: str | None = None) -> list[CampoTipoAplicacionConfig]:
     guardados = _leer_config("campos_tipo_aplicacion.json", _CAMPOS_TIPO_APLICACION_DEFECTO)
     vigentes = [c for c in guardados if (c.get("ambito"), c.get("clave")) not in _CAMPOS_TIPO_APLICACION_RETIRADOS]
-    if len(vigentes) != len(guardados):
+    claves_vigentes = {(c.get("ambito"), c.get("clave")) for c in vigentes}
+    for clave, campo in _CAMPOS_TIPO_APLICACION_OFICIALES.items():
+        if clave not in claves_vigentes:
+            nuevo = campo.copy()
+            ids_usados = {int(c.get("id", 0)) for c in vigentes}
+            if nuevo["id"] in ids_usados:
+                nuevo["id"] = max(ids_usados, default=0) + 1
+            vigentes.append(nuevo)
+    if vigentes != guardados:
         _escribir_config("campos_tipo_aplicacion.json", vigentes)
         guardados = vigentes
 
