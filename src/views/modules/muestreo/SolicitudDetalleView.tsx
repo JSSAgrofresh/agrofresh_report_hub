@@ -32,6 +32,7 @@ export function SolicitudDetalleView() {
   const [error, setError] = useState<string | null>(null)
   const [mostrarEnvio, setMostrarEnvio] = useState(false)
   const [emailEnvio, setEmailEnvio] = useState('')
+  const [invitados, setInvitados] = useState<string[]>([])
   const [enviando, setEnviando] = useState(false)
   const [mensajeEnvio, setMensajeEnvio] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [contactosLab, setContactosLab] = useState<string[] | null>(null)
@@ -55,21 +56,44 @@ export function SolicitudDetalleView() {
 
   async function handleEnviar() {
     if (!archivo) return
-    // Sin correo escrito se usan los contactos del laboratorio.
-    const manual = emailEnvio.trim()
-    if (!manual && (contactosLab?.length ?? 0) === 0) return
+    const pendientes = agregarInvitados(emailEnvio)
+    if (pendientes === null) return
+    const destinatariosExtra = pendientes
+    if ((contactosLab?.length ?? 0) + destinatariosExtra.length === 0) return
     setEnviando(true)
     setMensajeEnvio(null)
     try {
-      const res = await enviarSolicitudPorCorreo(archivo, manual || undefined)
+      const res = await enviarSolicitudPorCorreo(archivo, destinatariosExtra)
       setMensajeEnvio({ tipo: 'ok', texto: res.ok })
       setEmailEnvio('')
+      setInvitados([])
       setMostrarEnvio(false)
     } catch {
       setMensajeEnvio({ tipo: 'error', texto: 'No se pudo enviar el correo. Verifica la dirección e intenta de nuevo.' })
     } finally {
       setEnviando(false)
     }
+  }
+
+  function agregarInvitados(valor: string, mostrarError = true): string[] | null {
+    const candidatos = valor.split(/[;,\s]+/).map(email => email.trim()).filter(Boolean)
+    if (candidatos.length === 0) return invitados
+    const invalidos = candidatos.filter(email => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    if (invalidos.length > 0) {
+      if (mostrarError) setMensajeEnvio({ tipo: 'error', texto: `Correo inválido: ${invalidos.join(', ')}` })
+      return null
+    }
+    const configurados = new Set((contactosLab ?? []).map(email => email.toLowerCase()))
+    const nuevos = [...invitados]
+    candidatos.forEach(email => {
+      if (!configurados.has(email.toLowerCase()) && !nuevos.some(actual => actual.toLowerCase() === email.toLowerCase())) {
+        nuevos.push(email)
+      }
+    })
+    setInvitados(nuevos)
+    setEmailEnvio('')
+    setMensajeEnvio(null)
+    return nuevos
   }
 
   if (error) {
@@ -130,6 +154,9 @@ export function SolicitudDetalleView() {
           <label className={styles.etiquetaEnvio}>
             Enviar PDF y Excel · {solicitud.laboratorio}
           </label>
+          <p className={styles.descripcionEnvio}>
+            Contactos configurados para recibir solicitudes. Puedes sumar invitados para este envío.
+          </p>
 
           {contactosLab === null ? (
             <p className={styles.notaEnvio}>Buscando los contactos del laboratorio…</p>
@@ -137,7 +164,7 @@ export function SolicitudDetalleView() {
             <div className={styles.destinatarios}>
               {contactosLab.map((email) => (
                 <span key={email} className={styles.destinatario}>
-                  {email}
+                  <span className={styles.tipoDestinatario}>Configurado</span>{email}
                 </span>
               ))}
             </div>
@@ -148,35 +175,58 @@ export function SolicitudDetalleView() {
             </p>
           )}
 
+          {invitados.length > 0 && (
+            <div className={styles.destinatarios}>
+              {invitados.map(email => (
+                <span key={email} className={`${styles.destinatario} ${styles.invitado}`}>
+                  <span className={styles.tipoDestinatario}>Invitado</span>{email}
+                  <button
+                    type="button"
+                    className={styles.quitarInvitado}
+                    aria-label={`Quitar ${email}`}
+                    onClick={() => setInvitados(actuales => actuales.filter(actual => actual !== email))}
+                    disabled={enviando}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
           <div className={styles.filaEnvio}>
             <input
               ref={inputEmailRef}
-              type="email"
+              type="text"
               className={styles.inputEmail}
-              placeholder={
-                contactosLab && contactosLab.length > 0
-                  ? 'O escribe otro correo para enviar solo a esa dirección…'
-                  : 'correo@ejemplo.com'
-              }
+              placeholder="Agregar correo invitado (puedes separar varios con coma)…"
               value={emailEnvio}
               onChange={e => setEmailEnvio(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleEnviar() }}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarInvitados(emailEnvio) } }}
               disabled={enviando}
             />
             <button
+              type="button"
+              className={styles.botonAgregar}
+              onClick={() => agregarInvitados(emailEnvio)}
+              disabled={enviando || !emailEnvio.trim()}
+            >
+              Agregar invitado
+            </button>
+            <button
               className={styles.botonEnviarConfirmar}
               onClick={handleEnviar}
-              disabled={enviando || (!emailEnvio.trim() && (contactosLab?.length ?? 0) === 0)}
+              disabled={enviando || ((contactosLab?.length ?? 0) + invitados.length === 0 && !emailEnvio.trim())}
             >
               {enviando
                 ? 'Enviando…'
                 : emailEnvio.trim()
-                  ? 'Enviar a ese correo'
-                  : `Enviar a ${contactosLab?.length ?? 0} contacto${contactosLab?.length === 1 ? '' : 's'}`}
+                  ? 'Agregar invitado y enviar'
+                  : `Enviar a ${(contactosLab?.length ?? 0) + invitados.length} contacto${(contactosLab?.length ?? 0) + invitados.length === 1 ? '' : 's'}`}
             </button>
             <button
               className={styles.botonCancelar}
-              onClick={() => { setMostrarEnvio(false); setMensajeEnvio(null) }}
+              onClick={() => { setMostrarEnvio(false); setMensajeEnvio(null); setEmailEnvio(''); setInvitados([]) }}
               disabled={enviando}
             >
               Cancelar
