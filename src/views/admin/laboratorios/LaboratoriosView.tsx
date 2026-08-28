@@ -23,15 +23,17 @@ import { AnalisisPanel } from './AnalisisPanel'
 import { AnalitosPanel } from './AnalitosPanel'
 import { ContactosPanel } from './ContactosPanel'
 import { UnidadesPanel } from './UnidadesPanel'
+import { TemplateMailPanel } from './TemplateMailPanel'
 import styles from './LaboratoriosView.module.css'
 
-type Pestana = 'contactos' | 'analisis' | 'analitos' | 'resultados'
+type Pestana = 'contactos' | 'analisis' | 'analitos' | 'resultados' | 'template'
 
 const PESTANAS: { valor: Pestana; etiqueta: string }[] = [
   { valor: 'analisis', etiqueta: 'Análisis' },
   { valor: 'analitos', etiqueta: 'Analitos' },
   { valor: 'contactos', etiqueta: 'Contactos' },
   { valor: 'resultados', etiqueta: 'Resultados' },
+  { valor: 'template', etiqueta: 'Template mail' },
 ]
 
 const LAB_VACIO = { codigo: '', nombre: '', descripcion: '' }
@@ -158,6 +160,7 @@ export function LaboratoriosView() {
     const conteoPestana: Record<Pestana, number> = {
       analisis: contadores.analisis,
       analitos: contadores.analitos,
+      template: 0,
       contactos: contadores.contactos,
       resultados: contadores.resultados ?? 0,
     }
@@ -254,7 +257,7 @@ export function LaboratoriosView() {
               onClick={() => setPestana(p.valor)}
             >
               {p.etiqueta}
-              <span className={styles.tabConteo}>{conteoPestana[p.valor]}</span>
+              {p.valor !== 'template' && <span className={styles.tabConteo}>{conteoPestana[p.valor]}</span>}
             </button>
           ))}
         </div>
@@ -323,6 +326,10 @@ export function LaboratoriosView() {
               }
               onError={setError}
             />
+          )}
+
+          {pestana === 'template' && (
+            <TemplateMailPanel laboratorio={lab.codigo} onError={setError} />
           )}
         </Card>
       </div>
