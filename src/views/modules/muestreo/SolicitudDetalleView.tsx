@@ -260,7 +260,6 @@ export function SolicitudDetalleView() {
           <dl className={styles.fila}>
             <Campo etiqueta="Sold To" valor={solicitud.sold_to} />
             <Campo etiqueta="Ship To" valor={solicitud.ship_to ?? ''} />
-            <Campo etiqueta="Aplicación" valor={solicitud.aplicacion ?? ''} />
             <Campo etiqueta="Especie" valor={solicitud.especie ?? ''} />
             <Campo etiqueta="Variedad" valor={solicitud.variedad ?? ''} />
             <Campo etiqueta="Línea Proceso" valor={solicitud.linea_proceso ?? ''} />

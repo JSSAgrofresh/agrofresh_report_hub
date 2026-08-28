@@ -32,6 +32,9 @@ LABORATORIO_SOLICITUDES = "AGROFRESH"
 # Fuente legada: archivos HTML-como-.xls subidos manualmente a Storage antes
 # de que existiera el módulo Toma de muestras. Se sigue leyendo para no
 # romper solicitudes que ya estén ahí, pero ya no es la fuente principal.
+#
+# Este texto es el nombre real de una carpeta en Storage, no una etiqueta:
+# renombrarlo a "Solicitud de Análisis" dejaría de encontrar lo ya guardado.
 CARPETA_SOLICITUDES = "Solicitud de Muestreo"
 
 
@@ -185,9 +188,6 @@ def _mapear_solicitud_a_campos(datos: dict) -> dict[str, str]:
     # estas claves exactas, heredadas del formato HTML-como-.xls original.
     campos["Sold To (Nombre)"] = campos.get("Sold To", "")
     campos["Ship To (Nombre)"] = campos.get("Ship To", "")
-    # Se conserva para el pipeline de informes aunque ya no forme parte de
-    # las columnas generales del Excel oficial de solicitudes.
-    campos["Aplicación"] = str(datos.get("aplicacion") or "")
     # La observación de la solicitud no forma parte de CAMPOS_GENERALES_ETIQUETAS
     # (en el Excel de la solicitud va en su propia sección) pero el informe de
     # análisis sí la necesita como campo independiente, separado del tratamiento.

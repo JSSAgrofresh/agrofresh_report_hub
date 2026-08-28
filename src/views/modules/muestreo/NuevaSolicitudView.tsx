@@ -9,6 +9,7 @@ import { IconFrasco } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
+import { useAuth } from '@/features/auth'
 import { listarEspeciesActivas, listarVariedadesActivasDeEspecie } from '@/features/listados'
 import type { ValorLista } from '@/features/listados'
 import {
@@ -34,6 +35,28 @@ import styles from './NuevaSolicitudView.module.css'
 
 const SOLICITANTE_FIJO = 'AGROFRESH'
 
+const TIPO_LINEA_PROCESO = 'Línea de proceso'
+const TIPO_ACTIMIST = 'Actimist'
+
+/** Tipo de Muestra es una lista cerrada: el laboratorio procesa estas tres
+ * matrices y nada más. Antes era texto libre y llegaban variantes ("fruta",
+ * "Fruta ", "FRUTA") que había que homogenizar después. */
+const TIPOS_DE_MUESTRA = ['Fruta', 'Agua', 'Cera']
+
+/** Campos que solo son obligatorios dentro de un Tipo de Aplicación. El
+ * mantenedor de campos generales solo tiene un sí/no global, así que estas
+ * dos reglas se resuelven acá y se ignora su `requerido` configurado. */
+const REQUERIDO_SOLO_EN: Record<string, string> = {
+  csg: TIPO_LINEA_PROCESO,
+  posicion_muestreo: TIPO_ACTIMIST,
+}
+
+/** Obligatorios pase lo que pase, sin importar el Tipo de Aplicación. */
+const SIEMPRE_REQUERIDO = new Set(['fecha_muestreo'])
+
+/** Nunca obligatorio, aunque el mantenedor lo marque. */
+const NUNCA_REQUERIDO = new Set(['kilos_procesados'])
+
 interface AlsPesticida {
   analito: string
   resultado: string
@@ -52,7 +75,6 @@ const SECCION_DE_CAMPO: Record<string, 'identificacion' | 'muestra'> = {
   email_solicitante: 'identificacion',
   sold_to: 'identificacion',
   ship_to: 'identificacion',
-  aplicacion: 'muestra',
   especie: 'muestra',
   variedad: 'muestra',
   linea_proceso: 'muestra',
@@ -80,14 +102,27 @@ export function NuevaSolicitudView() {
   const [productosTodos, setProductosTodos] = useState<ProductoConfig[]>([])
   const [camposTipoAplicacion, setCamposTipoAplicacion] = useState<CampoTipoAplicacionConfig[]>([])
 
+  const { user } = useAuth()
+
+  // El correo del solicitante es siempre el de la cuenta que está creando la
+  // solicitud: es a quien hay que responder. No se guarda en el estado del
+  // formulario porque no se edita — se deriva de la sesión.
+  const emailCuenta = user?.email ?? ''
+
   const [laboratorio, setLaboratorio] = useState('')
-  const [generadoPor, setGeneradoPor] = useState('')
+  // "Generado por" arranca con el nombre de la cuenta pero sigue siendo
+  // editable: quien registra puede estar cargando la solicitud de otra
+  // persona del equipo.
+  const [generadoPor, setGeneradoPor] = useState(() => user?.nombre ?? '')
   const [tipoAplicacionSel, setTipoAplicacionSel] = useState('')
   const [general, setGeneral] = useState<Record<string, string>>({})
   const [soldTo, setSoldTo] = useState('')
   const [shipTo, setShipTo] = useState('')
   const [lineaProceso, setLineaProceso] = useState('')
-  const [productoUtilizado, setProductoUtilizado] = useState('')
+  // Una aplicación puede llevar más de un producto, así que la selección es
+  // múltiple. Se guarda como lista y se envía unida por coma para no cambiar
+  // el formato de `producto_utilizado` que ya leen el Excel y el informe.
+  const [productosSeleccionados, setProductosSeleccionados] = useState<string[]>([])
   const [valoresTipoAplicacion, setValoresTipoAplicacion] = useState<Record<string, string>>({})
   const [seleccionAnalitos, setSeleccionAnalitos] = useState<Record<number, boolean>>({})
   const [valoresAnalitos, setValoresAnalitos] = useState<Record<number, string>>({})
@@ -147,8 +182,12 @@ export function NuevaSolicitudView() {
     () =>
       camposActivos.filter((c) => {
         if (SECCION_DE_CAMPO[c.clave] !== 'muestra') return false
-        if (c.clave === 'linea_proceso') return tipoAplicacionSel === 'Línea de proceso'
-        if (c.clave === 'numero_camara' || c.clave === 'numero_orden') return tipoAplicacionSel === 'Actimist'
+        // Kilos procesados y CSG son datos de la línea: en Actimist se
+        // muestrea de una cámara, no de un flujo de proceso.
+        if (c.clave === 'linea_proceso' || c.clave === 'kilos_procesados' || c.clave === 'csg') {
+          return tipoAplicacionSel === TIPO_LINEA_PROCESO
+        }
+        if (c.clave === 'numero_camara' || c.clave === 'numero_orden') return tipoAplicacionSel === TIPO_ACTIMIST
         return true
       }),
     [camposActivos, tipoAplicacionSel],
@@ -172,6 +211,8 @@ export function NuevaSolicitudView() {
     [analitosTodos, laboratorio, tipoAplicacionSel],
   )
   const esCromatografia = laboratorio === 'QUITECA' || laboratorio === 'AGROFRESH'
+  const esLineaProceso = tipoAplicacionSel === TIPO_LINEA_PROCESO
+  const esActimist = tipoAplicacionSel === TIPO_ACTIMIST
   const camposTipoAplicacionActivos = useMemo(
     () =>
       camposTipoAplicacion
@@ -206,7 +247,7 @@ export function NuevaSolicitudView() {
     setLaboratorio(v)
     setSeleccionAnalitos({})
     setValoresAnalitos({})
-    setProductoUtilizado('')
+    setProductosSeleccionados([])
     setAlsPesticidas(ALS_PESTICIDAS_VACIO)
   }
 
@@ -218,10 +259,10 @@ export function NuevaSolicitudView() {
     setTipoAplicacionSel(v)
     setValoresTipoAplicacion({})
     setLineaProceso('')
-    setProductoUtilizado('')
+    setProductosSeleccionados([])
     setSeleccionAnalitos({})
     setValoresAnalitos({})
-    setGeneral((g) => ({ ...g, numero_camara: '', numero_orden: '' }))
+    setGeneral((g) => ({ ...g, numero_camara: '', numero_orden: '', csg: '', kilos_procesados: '' }))
   }
 
   function actualizarGeneral(clave: string, valor: string) {
@@ -233,11 +274,28 @@ export function NuevaSolicitudView() {
   }
 
   function valorRequerido(clave: string): string {
+    if (clave === 'email_solicitante') return emailCuenta
     if (clave === 'sold_to') return soldTo
     if (clave === 'ship_to') return shipTo
     if (clave === 'linea_proceso') return lineaProceso
-    if (clave === 'producto_utilizado') return productoUtilizado
+    if (clave === 'producto_utilizado') return productosSeleccionados.join(', ')
     return general[clave] ?? ''
+  }
+
+  /** Obligatoriedad efectiva de un campo: las reglas por Tipo de Aplicación
+   * mandan sobre el sí/no configurado en el mantenedor. */
+  function esRequerido(campo: CampoConfig): boolean {
+    if (NUNCA_REQUERIDO.has(campo.clave)) return false
+    if (SIEMPRE_REQUERIDO.has(campo.clave)) return true
+    const soloEn = REQUERIDO_SOLO_EN[campo.clave]
+    if (soloEn) return tipoAplicacionSel === soloEn
+    return campo.requerido
+  }
+
+  function alternarProducto(nombre: string) {
+    setProductosSeleccionados((actual) =>
+      actual.includes(nombre) ? actual.filter((p) => p !== nombre) : [...actual, nombre],
+    )
   }
 
   async function onSubmit(e: FormEvent) {
@@ -257,7 +315,7 @@ export function NuevaSolicitudView() {
       return
     }
     for (const campo of [...camposIdentificacion, ...camposMuestraVisibles]) {
-      if (campo.requerido && !valorRequerido(campo.clave).trim()) {
+      if (esRequerido(campo) && !valorRequerido(campo.clave).trim()) {
         setError(`"${campo.etiqueta}" es requerido.`)
         return
       }
@@ -293,23 +351,25 @@ export function NuevaSolicitudView() {
         solicitante: SOLICITANTE_FIJO,
         sold_to: soldTo.trim(),
         ship_to: shipTo.trim() || null,
-        aplicacion: general.aplicacion?.trim() || null,
         especie: general.especie?.trim() || null,
         variedad: general.variedad?.trim() || null,
-        linea_proceso: tipoAplicacionSel === 'Línea de proceso' ? lineaProceso || null : null,
-        csg: general.csg?.trim() || null,
+        linea_proceso: esLineaProceso ? lineaProceso || null : null,
+        // CSG y kilos son propios de la línea: en Actimist ni se piden ni se
+        // guardan, aunque hayan quedado escritos antes de cambiar de tipo.
+        csg: esLineaProceso ? general.csg?.trim() || null : null,
         lote: general.lote?.trim() || null,
         posicion_muestreo: general.posicion_muestreo?.trim() || null,
-        numero_camara: tipoAplicacionSel === 'Actimist' ? general.numero_camara?.trim() || null : null,
-        numero_orden: tipoAplicacionSel === 'Actimist' ? general.numero_orden?.trim() || null : null,
-        kilos_procesados: general.kilos_procesados?.trim() ? Number(general.kilos_procesados) : null,
-        producto_utilizado: productoUtilizado || null,
+        numero_camara: esActimist ? general.numero_camara?.trim() || null : null,
+        numero_orden: esActimist ? general.numero_orden?.trim() || null : null,
+        kilos_procesados:
+          esLineaProceso && general.kilos_procesados?.trim() ? Number(general.kilos_procesados) : null,
+        producto_utilizado: productosSeleccionados.join(', ') || null,
         tipo_muestra: general.tipo_muestra?.trim() || null,
         fecha_muestreo: general.fecha_muestreo || null,
         hora_muestreo: general.hora_muestreo || null,
         nombre_muestreador: general.nombre_muestreador?.trim() || null,
         generado_por: generadoPor.trim(),
-        email_solicitante: general.email_solicitante?.trim() || null,
+        email_solicitante: emailCuenta.trim() || null,
         email_laboratorio: general.email_laboratorio?.trim() || null,
         observacion: general.observacion?.trim() || null,
         campos_laboratorio: camposLabFinal,
@@ -324,18 +384,46 @@ export function NuevaSolicitudView() {
   }
 
   function renderCampo(campo: CampoConfig) {
+    const requerido = esRequerido(campo)
     const etiqueta = (
       <span>
         {campo.etiqueta}
-        {campo.requerido && <span className={styles.marcaRequerido}> *</span>}
+        {requerido && <span className={styles.marcaRequerido}> *</span>}
       </span>
     )
 
+    if (campo.clave === 'email_solicitante') {
+      return (
+        <label className={styles.campo} key={campo.clave}>
+          {etiqueta}
+          <input value={emailCuenta} readOnly disabled />
+          <small className={styles.ayudaCampo}>Es el correo de tu cuenta.</small>
+        </label>
+      )
+    }
+    if (campo.clave === 'tipo_muestra') {
+      return (
+        <label className={styles.campo} key={campo.clave}>
+          {etiqueta}
+          <select
+            value={general.tipo_muestra ?? ''}
+            onChange={(e) => actualizarGeneral('tipo_muestra', e.target.value)}
+          >
+            <option value="">— elegir —</option>
+            {TIPOS_DE_MUESTRA.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+      )
+    }
     if (campo.clave === 'sold_to') {
       return (
         <div className={styles.campo} key={campo.clave}>
           <BuscableSelect
-            etiqueta={`${campo.etiqueta}${campo.requerido ? ' *' : ''}`}
+            etiqueta={`${campo.etiqueta}${requerido ? ' *' : ''}`}
             opciones={clientesDisponibles}
             valor={soldTo}
             onChange={alElegirSoldTo}
@@ -348,7 +436,7 @@ export function NuevaSolicitudView() {
       return (
         <div className={styles.campo} key={campo.clave}>
           <BuscableSelect
-            etiqueta={`${campo.etiqueta}${campo.requerido ? ' *' : ''}`}
+            etiqueta={`${campo.etiqueta}${requerido ? ' *' : ''}`}
             opciones={plantasDelCliente.map((p) => p.nombre)}
             valor={shipTo}
             onChange={setShipTo}
@@ -370,7 +458,7 @@ export function NuevaSolicitudView() {
       return (
         <div className={styles.campo} key={campo.clave}>
           <BuscableSelect
-            etiqueta={`${campo.etiqueta}${campo.requerido ? ' *' : ''}`}
+            etiqueta={`${campo.etiqueta}${requerido ? ' *' : ''}`}
             opciones={especiesDisponibles.map((e) => e.valor)}
             valor={general.especie ?? ''}
             onChange={alElegirEspecie}
@@ -383,7 +471,7 @@ export function NuevaSolicitudView() {
       return (
         <div className={styles.campo} key={campo.clave}>
           <BuscableSelect
-            etiqueta={`${campo.etiqueta}${campo.requerido ? ' *' : ''}`}
+            etiqueta={`${campo.etiqueta}${requerido ? ' *' : ''}`}
             opciones={variedadesDisponibles}
             valor={general.variedad ?? ''}
             onChange={(v) => actualizarGeneral('variedad', v)}
@@ -395,17 +483,28 @@ export function NuevaSolicitudView() {
     }
     if (campo.clave === 'producto_utilizado') {
       return (
-        <label className={styles.campo} key={campo.clave}>
+        <div className={cn(styles.campo, styles.campoAncho)} key={campo.clave}>
           {etiqueta}
-          <select value={productoUtilizado} onChange={(e) => setProductoUtilizado(e.target.value)}>
-            <option value="">— elegir —</option>
-            {productosDisponibles.map((p) => (
-              <option key={p.id} value={p.nombre}>
-                {p.nombre}
-              </option>
-            ))}
-          </select>
-        </label>
+          {productosDisponibles.length === 0 ? (
+            <p className={styles.ayudaCampo}>
+              No hay productos configurados para {laboratorio || 'este laboratorio'}
+              {tipoAplicacionSel ? ` en ${tipoAplicacionSel}` : ''}. Se configuran en Ajustes de la solicitud.
+            </p>
+          ) : (
+            <div className={styles.listaChecks}>
+              {productosDisponibles.map((p) => (
+                <label className={styles.itemCheck} key={p.id}>
+                  <input
+                    type="checkbox"
+                    checked={productosSeleccionados.includes(p.nombre)}
+                    onChange={() => alternarProducto(p.nombre)}
+                  />
+                  <span>{p.nombre}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
       )
     }
     if (campo.tipo === 'textarea') {
@@ -436,7 +535,7 @@ export function NuevaSolicitudView() {
   if (camposConfig === null) {
     return (
       <div>
-        <Header title="Nueva solicitud" description="Registra una nueva solicitud de muestreo." />
+        <Header title="Nueva solicitud" description="Registra una nueva solicitud de análisis." />
         <Card>
           <p className={styles.estado}>Cargando…</p>
         </Card>
@@ -448,7 +547,7 @@ export function NuevaSolicitudView() {
     <div>
       <Header
         title="Nueva solicitud"
-        description="Registra una nueva solicitud de muestreo — los campos y análisis disponibles dependen del laboratorio y el tipo de aplicación."
+        description="Registra una nueva solicitud de análisis — los campos y análisis disponibles dependen del laboratorio y el tipo de aplicación."
       />
 
       <form onSubmit={onSubmit} className={styles.form}>
@@ -528,7 +627,7 @@ export function NuevaSolicitudView() {
             <h2 className={styles.tituloSeccionLab}>
               <span className={styles.numero}>3</span>
               <IconFrasco className={styles.iconoLab} />
-              Analitos · {laboratorio}
+              Análisis · Solicitados · {laboratorio}
             </h2>
 
             {camposTipoAplicacionActivos.length > 0 && (
@@ -586,8 +685,12 @@ export function NuevaSolicitudView() {
                               {a.requerido && <span className={styles.marcaRequerido}> *</span>}
                             </td>
                             <td>
+                              {/* Siempre texto libre: acá se anota lo que
+                                  corresponda al analito (una dosis, una
+                                  unidad distinta, una nota), no solo un
+                                  número en la unidad configurada. */}
                               <input
-                                type={a.tipo === 'numero' ? 'number' : 'text'}
+                                type="text"
                                 placeholder={a.unidad ?? ''}
                                 value={valoresAnalitos[a.id] ?? ''}
                                 onChange={(e) => setValoresAnalitos((v) => ({ ...v, [a.id]: e.target.value }))}

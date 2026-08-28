@@ -174,7 +174,7 @@ export function SolicitudesView() {
   return (
     <div>
       <Header
-        title="Solicitudes de muestreo"
+        title="Solicitudes de análisis"
         description="Listado de todas las solicitudes registradas."
         acciones={
           <div className={styles.accionesCabecera}>

@@ -19,7 +19,7 @@ export const TIPOS_CONTACTO: { valor: TipoContacto; etiqueta: string; descripcio
   {
     valor: 'solicitud',
     etiqueta: 'Solicitudes',
-    descripcion: 'Reciben la solicitud de muestreo cuando se emite.',
+    descripcion: 'Reciben la solicitud de análisis cuando se emite.',
   },
   {
     valor: 'resultado_cliente',

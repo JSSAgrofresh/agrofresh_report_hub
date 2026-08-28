@@ -1,5 +1,5 @@
 """
-Toma de muestras — listado y creación de solicitudes de muestreo. No hay
+Toma de muestras — listado y creación de solicitudes de análisis. No hay
 tabla en base de datos todavía (igual que Storage): cada solicitud se
 guarda como un archivo en disco, reutilizando el mismo mecanismo de
 almacenamiento que storage.py.
@@ -227,7 +227,6 @@ class SolicitudIn(BaseModel):
     solicitante: str
     sold_to: str
     ship_to: str | None = None
-    aplicacion: str | None = None
     especie: str | None = None
     variedad: str | None = None
     linea_proceso: str | None = None
@@ -503,7 +502,7 @@ class EnvioSolicitudIn(BaseModel):
 
 
 def contactos_de_solicitud(laboratorio: str) -> list[str]:
-    """Correos activos que reciben las solicitudes de muestreo de este
+    """Correos activos que reciben las solicitudes de análisis de este
     laboratorio, según el mantenedor de Laboratorios."""
     contactos = _leer_config("contactos_laboratorio.json", [])
     return [
@@ -663,19 +662,23 @@ _CAMPOS_GENERALES_DEFECTO: list[dict] = [
     {"clave": "email_solicitante", "etiqueta": "Email Solicitante", "tipo": "email", "requerido": True, "activo": True, "orden": 2},
     {"clave": "sold_to", "etiqueta": "Sold To", "tipo": "select", "requerido": True, "activo": True, "orden": 3},
     {"clave": "ship_to", "etiqueta": "Ship To", "tipo": "select", "requerido": False, "activo": True, "orden": 4},
-    {"clave": "aplicacion", "etiqueta": "Aplicación", "tipo": "text", "requerido": True, "activo": True, "orden": 5},
     {"clave": "especie", "etiqueta": "Especie", "tipo": "text", "requerido": True, "activo": True, "orden": 6},
     {"clave": "variedad", "etiqueta": "Variedad", "tipo": "text", "requerido": False, "activo": True, "orden": 7},
     {"clave": "linea_proceso", "etiqueta": "Línea Proceso", "tipo": "select", "requerido": True, "activo": True, "orden": 8},
     {"clave": "numero_camara", "etiqueta": "N° Cámara", "tipo": "text", "requerido": True, "activo": True, "orden": 9},
     {"clave": "numero_orden", "etiqueta": "N° Orden", "tipo": "text", "requerido": True, "activo": True, "orden": 10},
+    # CSG y Posición Muestreo son obligatorios solo en un Tipo de Aplicación
+    # (Línea de proceso y Actimist respectivamente). Ese matiz no cabe en el
+    # mantenedor, que solo tiene un sí/no: la regla vive en el formulario
+    # (`REQUERIDO_SOLO_EN` en NuevaSolicitudView) y acá quedan en False para
+    # que el mantenedor no prometa una obligatoriedad que no aplica siempre.
     {"clave": "csg", "etiqueta": "CSG (Código Productor)", "tipo": "text", "requerido": False, "activo": True, "orden": 11},
     {"clave": "lote", "etiqueta": "Lote", "tipo": "text", "requerido": False, "activo": True, "orden": 12},
     {"clave": "kilos_procesados", "etiqueta": "Kilos Procesados (KG)", "tipo": "number", "requerido": False, "activo": True, "orden": 13},
     {"clave": "posicion_muestreo", "etiqueta": "Posición Muestreo", "tipo": "text", "requerido": False, "activo": True, "orden": 14},
     {"clave": "producto_utilizado", "etiqueta": "Producto Utilizado", "tipo": "select", "requerido": False, "activo": True, "orden": 15},
-    {"clave": "tipo_muestra", "etiqueta": "Tipo Muestra", "tipo": "text", "requerido": True, "activo": True, "orden": 16},
-    {"clave": "fecha_muestreo", "etiqueta": "Fecha Muestreo", "tipo": "date", "requerido": False, "activo": True, "orden": 17},
+    {"clave": "tipo_muestra", "etiqueta": "Tipo Muestra", "tipo": "select", "requerido": True, "activo": True, "orden": 16},
+    {"clave": "fecha_muestreo", "etiqueta": "Fecha Muestreo", "tipo": "date", "requerido": True, "activo": True, "orden": 17},
     {"clave": "hora_muestreo", "etiqueta": "Hora Muestreo", "tipo": "time", "requerido": False, "activo": True, "orden": 18},
     {"clave": "nombre_muestreador", "etiqueta": "Nombre Muestreador", "tipo": "text", "requerido": True, "activo": True, "orden": 19},
     {"clave": "email_laboratorio", "etiqueta": "Email Laboratorio", "tipo": "email", "requerido": False, "activo": True, "orden": 20},
@@ -683,9 +686,36 @@ _CAMPOS_GENERALES_DEFECTO: list[dict] = [
 ]
 
 
+def _campos_generales_vigentes() -> list[dict]:
+    """Campos generales guardados, reconciliados contra la definición actual.
+
+    Lo guardado manda en lo que el administrador eligió (etiqueta, si es
+    obligatorio, si está activo y en qué orden). La definición manda en lo
+    estructural: qué campos existen y cómo se editan.
+
+    - Un campo retirado del sistema (`aplicacion`) desaparece aunque siga en
+      el archivo guardado: si no se filtrara, seguiría apareciendo en el
+      formulario de todas las instalaciones ya en marcha.
+    - Un campo nuevo se agrega con sus valores por defecto.
+    - `tipo` se toma siempre de la definición: es cómo se dibuja el control
+      (Tipo Muestra pasó de texto libre a lista desplegable), no una
+      preferencia del mantenedor.
+    """
+    definicion = {c["clave"]: c for c in _CAMPOS_GENERALES_DEFECTO}
+    guardados = {
+        c["clave"]: c
+        for c in _leer_config("campos_generales.json", _CAMPOS_GENERALES_DEFECTO)
+        if c.get("clave") in definicion
+    }
+    return [
+        {**defecto, **guardados.get(clave, {}), "tipo": defecto["tipo"]}
+        for clave, defecto in definicion.items()
+    ]
+
+
 @router.get("/config/campos")
 def listar_campos_config() -> list[CampoConfig]:
-    return [CampoConfig(**c) for c in _leer_config("campos_generales.json", _CAMPOS_GENERALES_DEFECTO)]
+    return [CampoConfig(**c) for c in _campos_generales_vigentes()]
 
 
 @router.put("/config/campos")

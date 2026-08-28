@@ -1,4 +1,4 @@
-"""Plantillas configurables para el correo de solicitudes de muestreo."""
+"""Plantillas configurables para el correo de solicitudes de análisis."""
 from html import escape
 from string import Formatter
 

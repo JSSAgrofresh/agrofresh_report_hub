@@ -9,15 +9,15 @@ import styles from './UsuariosView.module.css'
 type Panel = { modo: 'lista' } | { modo: 'nuevo' } | { modo: 'editar'; usuario: Usuario }
 
 export function UsuariosView() {
-  const { usuarios, crear, actualizar, eliminar } = useUsuarios()
+  const { usuarios, cargando, crear, actualizar, eliminar } = useUsuarios()
   const [panel, setPanel] = useState<Panel>({ modo: 'lista' })
 
-  function onGuardar(datos: Omit<Usuario, 'id'>) {
+  async function onGuardar(datos: Omit<Usuario, 'id'>) {
     try {
       if (panel.modo === 'editar') {
-        actualizar(panel.usuario.id, datos)
+        await actualizar(panel.usuario.id, datos)
       } else {
-        crear(datos)
+        await crear(datos)
       }
       setPanel({ modo: 'lista' })
     } catch (err) {
@@ -25,10 +25,10 @@ export function UsuariosView() {
     }
   }
 
-  function onEliminar(usuario: Usuario) {
+  async function onEliminar(usuario: Usuario) {
     if (!confirm(`¿Eliminar a ${usuario.nombre}? Esta acción no se puede deshacer.`)) return
     try {
-      eliminar(usuario.id)
+      await eliminar(usuario.id)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'No se pudo eliminar el usuario.')
     }
@@ -46,7 +46,9 @@ export function UsuariosView() {
           <>
             <div className={styles.cabeceraTabla}>
               <p className={styles.contador}>
-                {usuarios.length} usuario{usuarios.length === 1 ? '' : 's'}
+                {cargando
+                  ? 'Cargando usuarios…'
+                  : `${usuarios.length} usuario${usuarios.length === 1 ? '' : 's'}`}
               </p>
               <Button onClick={() => setPanel({ modo: 'nuevo' })}>Nuevo usuario</Button>
             </div>

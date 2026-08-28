@@ -295,7 +295,7 @@ export function LaboratoriosView() {
                 {
                   tipo: 'solicitud',
                   titulo: 'Reciben las solicitudes',
-                  nota: 'A estos correos les llega la solicitud de muestreo cuando se emite.',
+                  nota: 'A estos correos les llega la solicitud de análisis cuando se emite.',
                 },
               ]}
               onCambio={(delLab) =>
