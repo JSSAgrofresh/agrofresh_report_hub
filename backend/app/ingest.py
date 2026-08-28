@@ -429,44 +429,17 @@ def _resolver_listados(
         if canonico_variedad:
             sol["variedad"] = canonico_variedad
         else:
-            # Último recurso antes de mandar la fila a revisión: la variedad
-            # puede existir en Listados pero sin especie asignada (ver
-            # _mapa_variedades_huerfanas). El nombre calza exacto con el
-            # maestro -no es un invento ni una similitud-, así que se adopta
-            # hacia esta especie en vez de pedir revisión por algo que ya
-            # estaba en la lista. Queda registrado como advertencia visible.
-            clave_huerfana = clave
-            huerfana = mapas["variedades_huerfanas"].get(clave_huerfana)
-            if not huerfana:
-                alterna = clave_variedad_sin_prefijo(clave, sol["especie"])
-                if alterna:
-                    huerfana = mapas["variedades_huerfanas"].get(alterna)
-                    if huerfana:
-                        clave_huerfana = alterna
-            if huerfana:
-                valor_huerfano, id_huerfano = huerfana
-                sol["variedad"] = valor_huerfano
-                # Se refleja de inmediato en los mapas en memoria para que el
-                # resto del lote la vea ya vinculada y no la adopte dos veces.
-                mapas["variedades"].setdefault(especie_id, {})[clave_huerfana] = valor_huerfano
-                del mapas["variedades_huerfanas"][clave_huerfana]
-                adopciones.append(
-                    {
-                        "valor_lista_id": id_huerfano,
-                        "especie_id": especie_id,
-                        "variedad": valor_huerfano,
-                        "especie": sol["especie"],
-                    }
-                )
-            else:
-                motivos.append(
-                    {
-                        "campo": "variedad",
-                        "etiqueta": _ETIQUETA_LISTADO["variedad"],
-                        "valor": variedad,
-                        "sugerencias": _sugerencias_fuzzy(clave, variedades_de_especie),
-                    }
-                )
+            # Nunca se adopta ni se mueve una variedad automáticamente. Solo
+            # las variedades oficiales de la especie elegida pueden resolver
+            # la fila; cualquier otra pasa a confirmación humana en Data Core.
+            motivos.append(
+                {
+                    "campo": "variedad",
+                    "etiqueta": _ETIQUETA_LISTADO["variedad"],
+                    "valor": variedad,
+                    "sugerencias": _sugerencias_fuzzy(clave, variedades_de_especie),
+                }
+            )
 
     return motivos
 
@@ -847,6 +820,7 @@ class AsignarGrupoIn(BaseModel):
     valores: list[str]
     destino: str
     especie: str | None = None
+    crear_nuevo: bool = False
 
 
 class EditarDecisionIn(BaseModel):
@@ -867,6 +841,7 @@ def auditoria_staging() -> dict[str, Any]:
     grupos: list[dict[str, Any]] = []
     for campo, etiqueta in (("sold_to_raw", "Sold To"), ("ship_to_raw", "Ship To"), ("especie", "Especie"), ("variedad", "Variedad")):
         conteos: dict[tuple[str, str], int] = {}
+        sugerencias_por_valor: dict[tuple[str, str], list[dict[str, Any]]] = {}
         for fila in filas:
             for motivo in fila["motivos"] or []:
                 if motivo.get("campo") == campo and str(motivo.get("valor") or "").strip():
@@ -876,6 +851,7 @@ def auditoria_staging() -> dict[str, Any]:
                         sol = mapeo.mapear_solicitud(fila.get("fila") or {}) if fila.get("fila") else {}
                         especie = str((fila.get("fila") or {}).get("__homogenizacion__", {}).get("especie") or sol.get("especie") or "Sin especie")
                     conteos[(especie, valor)] = conteos.get((especie, valor), 0) + 1
+                    sugerencias_por_valor[(especie, valor)] = motivo.get("sugerencias") or []
         por_especie: dict[str, list[str]] = {}
         for especie, valor in conteos: por_especie.setdefault(especie, []).append(valor)
         for especie, valores_especie in por_especie.items():
@@ -886,8 +862,19 @@ def auditoria_staging() -> dict[str, Any]:
                 for valor in pendientes[:]:
                     if SequenceMatcher(None, clave_normalizada(base), clave_normalizada(valor)).ratio() >= 0.82:
                         similares.append(valor); pendientes.remove(valor)
+                sugerencias = []
+                vistos = set()
+                for valor in similares:
+                    for sugerencia in sugerencias_por_valor.get((especie, valor), []):
+                        oficial = str(sugerencia.get("valor") or "").strip()
+                        if oficial and oficial not in vistos:
+                            sugerencias.append(sugerencia)
+                            vistos.add(oficial)
+                sugerencias.sort(key=lambda item: -float(item.get("confianza") or 0))
                 grupos.append({"campo": campo, "etiqueta": etiqueta, "especie": especie or None, "valores": similares,
-                               "cantidad": sum(conteos[(especie, v)] for v in similares), "sugerido": base})
+                               "cantidad": sum(conteos[(especie, v)] for v in similares),
+                               "sugerencias": sugerencias[:5],
+                               "sugerido": sugerencias[0]["valor"] if sugerencias else base})
     return {"grupos": grupos, "filas": len(filas), "pendientes": sum(len(f["motivos"] or []) for f in filas)}
 
 
@@ -898,7 +885,50 @@ def asignar_grupo(payload: AsignarGrupoIn) -> dict[str, int]:
     valores = {clave_normalizada(v) for v in payload.valores}
     actualizadas = 0
     with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        destino = payload.destino.strip()
+        if payload.campo == "sold_to_raw":
+            cur.execute("SELECT nombre FROM cliente WHERE activo")
+            oficial = next((r["nombre"] for r in cur.fetchall() if clave_normalizada_empresa(r["nombre"]) == clave_normalizada_empresa(destino)), None)
+            if oficial:
+                destino = oficial
+            elif payload.crear_nuevo:
+                cur.execute("INSERT INTO cliente(nombre, activo) VALUES (%s,true)", (destino,))
+            else:
+                raise HTTPException(409, "Ese Sold To no existe en Listados. Elígelo o usa «Agregar como nuevo».")
+        elif payload.campo == "ship_to_raw":
+            cur.execute("SELECT nombre FROM planta WHERE activo")
+            oficial = next((r["nombre"] for r in cur.fetchall() if clave_normalizada_empresa(r["nombre"]) == clave_normalizada_empresa(destino)), None)
+            if oficial:
+                destino = oficial
+            elif not payload.crear_nuevo:
+                raise HTTPException(409, "Ese Ship To no existe en Listados. Elígelo o usa «Agregar como nuevo».")
+        elif payload.campo == "especie":
+            especies = _mapa_especies(cur)
+            oficial = especies.get(clave_normalizada(destino))
+            if oficial:
+                destino = oficial[0]
+            elif payload.crear_nuevo:
+                from .listados import _buscar_o_crear_estandar
+                _buscar_o_crear_estandar(cur, "especie", destino, None)
+            else:
+                raise HTTPException(409, "Esa especie no existe en Listados. Elígela o usa «Agregar como nueva».")
+        elif payload.campo == "variedad":
+            especies = _mapa_especies(cur)
+            especie_oficial = especies.get(clave_normalizada(payload.especie or ""))
+            if not especie_oficial:
+                raise HTTPException(409, "Primero debes homologar la especie contra Listados.")
+            especie_id = especie_oficial[1]
+            oficial = _mapa_variedades(cur).get(especie_id, {}).get(clave_normalizada(destino))
+            if oficial:
+                destino = oficial
+            elif payload.crear_nuevo:
+                from .listados import _buscar_o_crear_estandar
+                _buscar_o_crear_estandar(cur, "variedad", destino, especie_id)
+            else:
+                raise HTTPException(409, "Esa variedad no existe para la especie en Listados. Elígela o usa «Agregar como nueva».")
+
         cur.execute("SELECT id, fila, motivos FROM pendiente_revision FOR UPDATE")
+        sold_para_ship: set[str] = set()
         for item in cur.fetchall():
             motivos = item["motivos"] or []
             sol_actual = mapeo.mapear_solicitud(item["fila"] or {})
@@ -910,13 +940,15 @@ def asignar_grupo(payload: AsignarGrupoIn) -> dict[str, int]:
             if not coincide: continue
             fila = item["fila"] or {}
             correcciones = fila.get("__homogenizacion__", {})
-            correcciones[payload.campo] = payload.destino.strip()
+            correcciones[payload.campo] = destino
+            if payload.campo == "ship_to_raw" and payload.crear_nuevo:
+                sold_para_ship.add(str(correcciones.get("sold_to_raw") or sol_actual.get("sold_to_raw") or "").strip())
             fila["__homogenizacion__"] = correcciones
             decisiones = fila.get("__decisiones_homogenizacion__", {})
             motivo_campo = next((m for m in motivos if m.get("campo") == payload.campo), None)
             decisiones[payload.campo] = {
                 "original": str((motivo_campo or {}).get("valor") or "").strip(),
-                "destino": payload.destino.strip(),
+                "destino": destino,
                 "especie": payload.especie,
             }
             fila["__decisiones_homogenizacion__"] = decisiones
@@ -924,13 +956,16 @@ def asignar_grupo(payload: AsignarGrupoIn) -> dict[str, int]:
             cur.execute("UPDATE pendiente_revision SET fila=%s::jsonb, motivos=%s::jsonb WHERE id=%s",
                         (json.dumps(fila), json.dumps(restantes), item["id"]))
             actualizadas += 1
-        # Variedad es el único catálogo que crece mientras se audita, para que
-        # el usuario pueda observar el avance en Listados. El resto se guarda
-        # explícitamente con /aplicar-catalogos.
-        if payload.campo == "variedad" and payload.especie:
-            from .listados import _buscar_o_crear_estandar
-            especie_id = _buscar_o_crear_estandar(cur, "especie", payload.especie, None)
-            _buscar_o_crear_estandar(cur, "variedad", payload.destino.strip(), especie_id)
+        if payload.campo == "ship_to_raw" and payload.crear_nuevo:
+            for sold in sold_para_ship:
+                cur.execute("SELECT id FROM cliente WHERE lower(trim(nombre))=lower(%s)", (sold,))
+                cliente = cur.fetchone()
+                if cliente:
+                    cur.execute(
+                        "INSERT INTO planta(cliente_id,nombre,activo) SELECT %s,%s,true WHERE NOT EXISTS "
+                        "(SELECT 1 FROM planta WHERE cliente_id=%s AND lower(trim(nombre))=lower(%s))",
+                        (cliente["id"], destino, cliente["id"], destino),
+                    )
     return {"actualizadas": actualizadas}
 
 
@@ -1009,19 +1044,16 @@ def editar_decision(payload: EditarDecisionIn) -> dict[str, int]:
             fila["__decisiones_homogenizacion__"] = decisiones
             cur.execute("UPDATE pendiente_revision SET fila=%s::jsonb WHERE id=%s", (json.dumps(fila), item["id"]))
             actualizadas += 1
-        if payload.campo == "variedad" and payload.especie:
-            from .listados import _buscar_o_crear_estandar
-            especie_id = _buscar_o_crear_estandar(cur, "especie", payload.especie, None)
-            _buscar_o_crear_estandar(cur, "variedad", payload.destino_nuevo.strip(), especie_id)
     return {"actualizadas": actualizadas}
 
 
 def _aplicar_catalogos_cur(cur) -> int:
+    """Guarda solamente la memoria de alias ya confirmados.
+
+    Los maestros nunca se crean aquí: Listados manda. Las altas nuevas se
+    realizan únicamente con la acción explícita «Agregar como nuevo».
+    """
     aplicadas = 0
-    clientes_creados: set[str] = set()
-    plantas_creadas: set[tuple[str, str]] = set()
-    especies_creadas: dict[str, int] = {}
-    variedades_creadas: set[tuple[int, str]] = set()
     mapeos_recordados: set[tuple[str, ...]] = set()
     cur.execute("SELECT fila FROM pendiente_revision FOR UPDATE")
     for registro in cur.fetchall():
@@ -1029,32 +1061,6 @@ def _aplicar_catalogos_cur(cur) -> int:
         correcciones = fila.get("__homogenizacion__", {})
         if not correcciones:
             continue
-        # Crear maestros elegidos; aún no se procesa ninguna solicitud.
-        sold = correcciones.get("sold_to_raw")
-        clave_sold = clave_normalizada_empresa(sold) if sold else ""
-        if sold and clave_sold not in clientes_creados:
-            cur.execute("INSERT INTO cliente(nombre, activo) SELECT %s,true WHERE NOT EXISTS (SELECT 1 FROM cliente WHERE lower(trim(nombre))=lower(%s))", (sold, sold))
-            clientes_creados.add(clave_sold)
-        ship = correcciones.get("ship_to_raw")
-        clave_planta = (clave_sold, clave_normalizada_empresa(ship)) if sold and ship else ("", "")
-        if sold and ship and clave_planta not in plantas_creadas:
-            cur.execute("SELECT id FROM cliente WHERE lower(trim(nombre))=lower(%s)", (sold,))
-            cliente = cur.fetchone()
-            if cliente:
-                cur.execute("INSERT INTO planta(cliente_id,nombre,activo) SELECT %s,%s,true WHERE NOT EXISTS (SELECT 1 FROM planta WHERE cliente_id=%s AND lower(trim(nombre))=lower(%s))", (cliente["id"], ship, cliente["id"], ship))
-                plantas_creadas.add(clave_planta)
-        from .listados import _buscar_o_crear_estandar
-        especie = correcciones.get("especie")
-        clave_especie = clave_normalizada(especie) if especie else ""
-        especie_id = especies_creadas.get(clave_especie)
-        if especie and especie_id is None:
-            especie_id = _buscar_o_crear_estandar(cur, "especie", especie, None)
-            especies_creadas[clave_especie] = especie_id
-        variedad = correcciones.get("variedad")
-        clave_variedad = (especie_id or 0, clave_normalizada(variedad)) if variedad else (0, "")
-        if variedad and especie_id and clave_variedad not in variedades_creadas:
-            _buscar_o_crear_estandar(cur, "variedad", variedad, especie_id)
-            variedades_creadas.add(clave_variedad)
         originales = mapeo.mapear_solicitud(fila)
         firma = tuple(str(originales.get(c) or "") + "→" + str(correcciones.get(c) or "") for c in CAMPOS_LISTADOS)
         if firma not in mapeos_recordados:
