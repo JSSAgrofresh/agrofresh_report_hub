@@ -58,6 +58,8 @@ ORDEN_TABLAS_CLON = [
     "producto_aplicado", "analito_limite",
     "pendiente_revision",
 ]
+TABLAS_AUX_SIN_ID = ["informe_config", "informe_folio", "informe_folio_anual"]
+TABLAS_AUX_CON_ID = ["valor_lista", "mapeo_confirmado"]
 FKS_CLON = [
     ("planta", "cliente_id", "cliente", "id", "RESTRICT"),
     ("solicitud", "planta_id", "planta", "id", "RESTRICT"),
@@ -116,6 +118,50 @@ def _requiere_staging(cur) -> None:
             status_code=400,
             detail="No hay una copia de trabajo activa. Crea una desde 'Crear copia de trabajo' antes de corregir.",
         )
+
+
+def reparar_tablas_omitidas_post_promocion() -> None:
+    """Repara instalaciones afectadas por la versión antigua de /promover,
+    que clonaba solo tablas transaccionales y dejaba Listados dentro del
+    respaldo. No inventa datos: copia las tablas desde el respaldo más
+    reciente que realmente las contenga."""
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "SELECT schema_name FROM information_schema.schemata "
+            "WHERE schema_name LIKE 'lab_backup_%' ORDER BY schema_name DESC"
+        )
+        respaldos = [r["schema_name"] for r in cur.fetchall()]
+        reparadas: set[str] = set()
+        for tabla in TABLAS_AUX_SIN_ID + TABLAS_AUX_CON_ID:
+            cur.execute("SELECT to_regclass(%s) AS tabla", (f"lab.{tabla}",))
+            if cur.fetchone()["tabla"]:
+                continue
+            origen = None
+            for respaldo in respaldos:
+                cur.execute("SELECT to_regclass(%s) AS tabla", (f"{respaldo}.{tabla}",))
+                if cur.fetchone()["tabla"]:
+                    origen = respaldo
+                    break
+            if not origen:
+                continue
+            cur.execute(f"CREATE TABLE lab.{tabla} (LIKE {origen}.{tabla} INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)")
+            if tabla in TABLAS_AUX_CON_ID:
+                cur.execute(f"CREATE SEQUENCE lab.{tabla}_id_seq")
+                cur.execute(f"ALTER TABLE lab.{tabla} ALTER COLUMN id SET DEFAULT nextval('lab.{tabla}_id_seq'::regclass)")
+                cur.execute(f"ALTER SEQUENCE lab.{tabla}_id_seq OWNED BY lab.{tabla}.id")
+            cur.execute(f"INSERT INTO lab.{tabla} SELECT * FROM {origen}.{tabla}")
+            reparadas.add(tabla)
+            if tabla in TABLAS_AUX_CON_ID:
+                cur.execute(f"SELECT setval('lab.{tabla}_id_seq', COALESCE((SELECT max(id) FROM lab.{tabla}), 1))")
+        # LIKE no copia llaves foráneas. Se restauran solo si las tablas existen.
+        if "valor_lista" in reparadas:
+            cur.execute("ALTER TABLE lab.valor_lista DROP CONSTRAINT IF EXISTS valor_lista_fusionado_en_id_fkey")
+            cur.execute("ALTER TABLE lab.valor_lista DROP CONSTRAINT IF EXISTS valor_lista_especie_id_fkey")
+            cur.execute("ALTER TABLE lab.valor_lista ADD CONSTRAINT valor_lista_fusionado_en_id_fkey FOREIGN KEY (fusionado_en_id) REFERENCES lab.valor_lista(id)")
+            cur.execute("ALTER TABLE lab.valor_lista ADD CONSTRAINT valor_lista_especie_id_fkey FOREIGN KEY (especie_id) REFERENCES lab.valor_lista(id)")
+        if "mapeo_confirmado" in reparadas:
+            cur.execute("ALTER TABLE lab.mapeo_confirmado DROP CONSTRAINT IF EXISTS mapeo_confirmado_cliente_id_fkey")
+            cur.execute("ALTER TABLE lab.mapeo_confirmado ADD CONSTRAINT mapeo_confirmado_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES lab.cliente(id)")
 
 
 class CorregirGrupoIn(BaseModel):
@@ -271,6 +317,18 @@ def crear_staging() -> dict[str, Any]:
                 f"CREATE TABLE {SCHEMA_STAGING}.{tabla} "
                 f"(LIKE {SCHEMA_PROD}.{tabla} INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)"
             )
+
+        for tabla in TABLAS_AUX_SIN_ID:
+            cur.execute(f"CREATE TABLE {SCHEMA_STAGING}.{tabla} (LIKE {SCHEMA_PROD}.{tabla} INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)")
+            cur.execute(f"INSERT INTO {SCHEMA_STAGING}.{tabla} SELECT * FROM {SCHEMA_PROD}.{tabla}")
+
+        for tabla in TABLAS_AUX_CON_ID:
+            cur.execute(f"CREATE TABLE {SCHEMA_STAGING}.{tabla} (LIKE {SCHEMA_PROD}.{tabla} INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)")
+            cur.execute(f"CREATE SEQUENCE {SCHEMA_STAGING}.{tabla}_id_seq")
+            cur.execute(f"ALTER TABLE {SCHEMA_STAGING}.{tabla} ALTER COLUMN id SET DEFAULT nextval('{SCHEMA_STAGING}.{tabla}_id_seq'::regclass)")
+            cur.execute(f"ALTER SEQUENCE {SCHEMA_STAGING}.{tabla}_id_seq OWNED BY {SCHEMA_STAGING}.{tabla}.id")
+            cur.execute(f"INSERT INTO {SCHEMA_STAGING}.{tabla} SELECT * FROM {SCHEMA_PROD}.{tabla}")
+            cur.execute(f"SELECT setval('{SCHEMA_STAGING}.{tabla}_id_seq', COALESCE((SELECT max(id) FROM {SCHEMA_STAGING}.{tabla}), 1))")
             # El id serial de la tabla clonada apunta por defecto a la secuencia
             # de PRODUCCIÓN (INCLUDING DEFAULTS copia la expresión tal cual):
             # se reemplaza por una secuencia propia para no interferir con
@@ -293,6 +351,9 @@ def crear_staging() -> dict[str, Any]:
                 f"ADD FOREIGN KEY ({columna}) REFERENCES {SCHEMA_STAGING}.{ref_tabla}({ref_columna}) "
                 f"ON DELETE {on_delete}"
             )
+        cur.execute(f"ALTER TABLE {SCHEMA_STAGING}.valor_lista ADD FOREIGN KEY (fusionado_en_id) REFERENCES {SCHEMA_STAGING}.valor_lista(id)")
+        cur.execute(f"ALTER TABLE {SCHEMA_STAGING}.valor_lista ADD FOREIGN KEY (especie_id) REFERENCES {SCHEMA_STAGING}.valor_lista(id)")
+        cur.execute(f"ALTER TABLE {SCHEMA_STAGING}.mapeo_confirmado ADD FOREIGN KEY (cliente_id) REFERENCES {SCHEMA_STAGING}.cliente(id)")
 
     return estado_staging()
 

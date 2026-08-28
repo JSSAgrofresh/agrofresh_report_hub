@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import config
-from .auditoria import router as auditoria_router
+from .auditoria import reparar_tablas_omitidas_post_promocion, router as auditoria_router
 from .correo import router as correo_router
 from .catalogo import router as catalogo_router
 from .emitir import router as emitir_router
@@ -20,6 +20,11 @@ from .storage import router as storage_router
 from .toma_muestras import router as toma_muestras_router
 
 app = FastAPI(title="AgroFresh Report Hub API")
+
+
+@app.on_event("startup")
+def reparar_promocion_anterior() -> None:
+    reparar_tablas_omitidas_post_promocion()
 
 
 class CapturaErrores(BaseHTTPMiddleware):
