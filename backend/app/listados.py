@@ -92,6 +92,14 @@ class EliminarLoteIn(BaseModel):
     ids: list[int]
 
 
+def _encabezado_indice(encabezados: list[Any], *nombres: str) -> int | None:
+    buscados = {clave_normalizada(nombre) for nombre in nombres}
+    for indice, valor in enumerate(encabezados):
+        if clave_normalizada(str(valor or "")) in buscados:
+            return indice
+    return None
+
+
 def _validar_especie_id(cur, tipo: str, especie_id: int | None) -> int | None:
     """Variedad SIEMPRE necesita una especie; Especie nunca lleva una."""
     if tipo == "especie":
@@ -254,6 +262,96 @@ async def importar_listado(tipo: str, archivo: UploadFile = File(...), especie_i
                 continue
             creados += max(cur.rowcount, 0)
     return {"creados": creados}
+
+
+@router.post("/importar-maestro")
+async def importar_maestro(archivo: UploadFile = File(...)) -> dict[str, int]:
+    """Importa en una sola operación el Excel maestro de Listados.
+
+    Admite la hoja plana usada por AgroFresh (CROP, Variedad, SOLD TO2 y
+    SHIP TO2). Las especies de CROP funcionan como encabezados de bloque:
+    cada variedad pertenece a la última especie visible. Los rótulos de
+    tabla dinámica ``Total ...`` se ignoran. Sold To y Ship To se agregan
+    como listas independientes; un Ship To nuevo se asocia al cliente
+    ``SIN SOLD TO ASIGNADO`` hasta que el administrador lo relacione.
+    """
+    try:
+        wb = load_workbook(io.BytesIO(await archivo.read()), read_only=True, data_only=True)
+        filas = list(wb.active.iter_rows(values_only=True))
+    except Exception as exc:
+        raise HTTPException(400, "El archivo no es un Excel válido") from exc
+    if not filas:
+        raise HTTPException(400, "El Excel está vacío")
+
+    encabezados = list(filas[0])
+    col_especie = _encabezado_indice(encabezados, "crop", "especie")
+    col_variedad = _encabezado_indice(encabezados, "variedad")
+    col_sold = _encabezado_indice(encabezados, "sold to", "sold to2")
+    col_ship = _encabezado_indice(encabezados, "ship to", "ship to2")
+    if all(indice is None for indice in (col_especie, col_variedad, col_sold, col_ship)):
+        raise HTTPException(400, "No se encontraron las columnas CROP/Especie, Variedad, SOLD TO2 o SHIP TO2")
+
+    especies_excel = {
+        normalizar_texto_general(str(fila[col_especie] or ""))
+        for fila in filas[1:]
+        if col_especie is not None
+        and str(fila[col_especie] or "").strip()
+        and not clave_normalizada(str(fila[col_especie])).startswith("total ")
+    }
+    especies_por_clave = {clave_normalizada(valor): valor for valor in especies_excel}
+    conteo = {"sold_to": 0, "ship_to": 0, "especie": 0, "variedad": 0}
+
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        especie_actual: str | None = None
+        especies_id: dict[str, int] = {}
+        for fila in filas[1:]:
+            valores = list(fila)
+            texto_especie = str(valores[col_especie] or "").strip() if col_especie is not None and col_especie < len(valores) else ""
+            if texto_especie and not clave_normalizada(texto_especie).startswith("total "):
+                especie_actual = normalizar_texto_general(texto_especie)
+                clave = clave_normalizada(especie_actual)
+                if clave not in especies_id:
+                    especies_id[clave] = _buscar_o_crear_estandar(cur, "especie", especie_actual, None)
+                    conteo["especie"] += 1
+
+            variedad = str(valores[col_variedad] or "").strip() if col_variedad is not None and col_variedad < len(valores) else ""
+            especie_variedad = especie_actual
+            # Corrige filas como "No indica variedad - Kiwi" que algunos
+            # pivotes dejan justo antes del encabezado Kiwi.
+            if variedad:
+                sufijo = clave_normalizada(variedad).removeprefix("no indica variedad ")
+                if sufijo in especies_por_clave:
+                    especie_variedad = especies_por_clave[sufijo]
+                if especie_variedad:
+                    clave_esp = clave_normalizada(especie_variedad)
+                    especie_id = especies_id.get(clave_esp)
+                    if especie_id is None:
+                        especie_id = _buscar_o_crear_estandar(cur, "especie", especie_variedad, None)
+                        especies_id[clave_esp] = especie_id
+                    _buscar_o_crear_estandar(cur, "variedad", variedad, especie_id)
+                    conteo["variedad"] += 1
+
+            sold = str(valores[col_sold] or "").strip() if col_sold is not None and col_sold < len(valores) else ""
+            if sold and clave_normalizada(sold) != "total general":
+                cur.execute(
+                    "INSERT INTO cliente(nombre, activo) SELECT %s,true WHERE NOT EXISTS "
+                    "(SELECT 1 FROM cliente WHERE lower(trim(nombre))=lower(%s))",
+                    (sold, sold),
+                )
+                conteo["sold_to"] += max(cur.rowcount, 0)
+
+            ship = str(valores[col_ship] or "").strip() if col_ship is not None and col_ship < len(valores) else ""
+            if ship:
+                cur.execute("SELECT id FROM planta WHERE lower(trim(nombre))=lower(%s) LIMIT 1", (ship,))
+                if not cur.fetchone():
+                    cur.execute("SELECT id FROM cliente WHERE nombre = 'SIN SOLD TO ASIGNADO' LIMIT 1")
+                    cliente = cur.fetchone()
+                    if not cliente:
+                        cur.execute("INSERT INTO cliente(nombre, activo) VALUES ('SIN SOLD TO ASIGNADO',true) RETURNING id")
+                        cliente = cur.fetchone()
+                    cur.execute("INSERT INTO planta(cliente_id,nombre,activo) VALUES (%s,%s,true)", (cliente["id"], ship))
+                    conteo["ship_to"] += 1
+    return conteo
 
 
 @router.post("/eliminar-lote")
