@@ -58,12 +58,11 @@ export function destinatariosDeSolicitud(archivo: string) {
   )
 }
 
-/** Sin `destinatario` se envía a los contactos configurados del laboratorio;
- * con uno, va solo a ese correo. */
-export function enviarSolicitudPorCorreo(archivo: string, destinatario?: string) {
+/** Envía a los contactos configurados y suma invitados sólo para este envío. */
+export function enviarSolicitudPorCorreo(archivo: string, destinatariosAdicionales: string[] = []) {
   return httpClient.post<{ ok: string }>(
     `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/enviar`,
-    { destinatario: destinatario ?? null },
+    { destinatarios_adicionales: destinatariosAdicionales },
   )
 }
 
