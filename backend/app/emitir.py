@@ -185,6 +185,9 @@ def _mapear_solicitud_a_campos(datos: dict) -> dict[str, str]:
     # estas claves exactas, heredadas del formato HTML-como-.xls original.
     campos["Sold To (Nombre)"] = campos.get("Sold To", "")
     campos["Ship To (Nombre)"] = campos.get("Ship To", "")
+    # Se conserva para el pipeline de informes aunque ya no forme parte de
+    # las columnas generales del Excel oficial de solicitudes.
+    campos["Aplicación"] = str(datos.get("aplicacion") or "")
     # La observación de la solicitud no forma parte de CAMPOS_GENERALES_ETIQUETAS
     # (en el Excel de la solicitud va en su propia sección) pero el informe de
     # análisis sí la necesita como campo independiente, separado del tratamiento.
