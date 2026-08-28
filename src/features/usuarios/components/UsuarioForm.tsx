@@ -4,9 +4,12 @@ import { Button } from '@/components/ui/Button'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { LISTA_AREAS } from '@/constants/areas'
 import type { AreaId } from '@/constants/areas'
+import { MODULOS } from '@/constants/modules'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import { CORREO_MAESTRO } from '../api/usuariosStore'
+import { MODULO_TOMA_MUESTRAS, modulosPredeterminados, reportesPredeterminados } from '../permisos'
+import type { ReporteId } from '../permisos'
 import type { TipoAcceso, Usuario } from '../types'
 import styles from './UsuarioForm.module.css'
 
@@ -23,6 +26,16 @@ const TIPOS: { valor: TipoAcceso; etiqueta: string }[] = [
   { valor: 'muestreador', etiqueta: 'Muestreador' },
 ]
 
+const REPORTES: { id: ReporteId; nombre: string; descripcion: string }[] = [
+  {
+    id: 'laboratorio',
+    nombre: 'Reporte de laboratorio',
+    descripcion: 'Consulta y gráficos de Cromatografía.',
+  },
+  { id: 'emitir', nombre: 'Emitir reporte', descripcion: 'Emisión de informes de análisis.' },
+  { id: 'postventa', nombre: 'Postventa', descripcion: 'Histórico e informes de Trace.' },
+]
+
 export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps) {
   const esMaestro = usuario?.email === CORREO_MAESTRO
   const [nombre, setNombre] = useState(usuario?.nombre ?? '')
@@ -31,12 +44,19 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [area, setArea] = useState<AreaId | ''>(usuario?.area ?? '')
   const [clienteNombre, setClienteNombre] = useState(usuario?.clienteNombre ?? '')
   const [plantaNombre, setPlantaNombre] = useState(usuario?.plantaNombre ?? '')
+  const [modulos, setModulos] = useState<string[]>(
+    usuario?.modulos ?? modulosPredeterminados(usuario ?? { tipoAcceso: 'admin_area' }),
+  )
+  const [reportes, setReportes] = useState<ReporteId[]>(
+    usuario?.reportes ?? reportesPredeterminados(usuario ?? { tipoAcceso: 'admin_area' }),
+  )
   const [error, setError] = useState<string | null>(null)
   const [clientesDisponibles, setClientesDisponibles] = useState<string[]>([])
   const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
 
   const requiereArea = tipoAcceso === 'admin_area' || tipoAcceso === 'cliente'
   const requiereCliente = tipoAcceso === 'cliente'
+  const configuraPermisos = tipoAcceso !== 'admin_general' && !esMaestro
 
   useEffect(() => {
     if (!requiereCliente) return
@@ -62,6 +82,10 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       setError('Ingresa el nombre del cliente.')
       return
     }
+    if (configuraPermisos && modulos.includes('reports') && reportes.length === 0) {
+      setError('Selecciona al menos una sección de Report o desactiva el módulo Report.')
+      return
+    }
 
     onGuardar({
       nombre: nombre.trim(),
@@ -70,7 +94,35 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       area: requiereArea ? (area as AreaId) : undefined,
       clienteNombre: requiereCliente ? clienteNombre.trim() : undefined,
       plantaNombre: requiereCliente && plantaNombre.trim() ? plantaNombre.trim() : undefined,
+      modulos: configuraPermisos ? modulos : undefined,
+      reportes: configuraPermisos && modulos.includes('reports') ? reportes : undefined,
     })
+  }
+
+  function cambiarTipoAcceso(nuevoTipo: TipoAcceso) {
+    setTipoAcceso(nuevoTipo)
+    const base = { tipoAcceso: nuevoTipo, area: area || undefined }
+    setModulos(modulosPredeterminados(base))
+    setReportes(reportesPredeterminados(base))
+  }
+
+  function cambiarArea(nuevaArea: AreaId | '') {
+    setArea(nuevaArea)
+    const base = { tipoAcceso, area: nuevaArea || undefined }
+    setModulos(modulosPredeterminados(base))
+    setReportes(reportesPredeterminados(base))
+  }
+
+  function alternarModulo(id: string) {
+    setModulos((actuales) =>
+      actuales.includes(id) ? actuales.filter((actual) => actual !== id) : [...actuales, id],
+    )
+  }
+
+  function alternarReporte(id: ReporteId) {
+    setReportes((actuales) =>
+      actuales.includes(id) ? actuales.filter((actual) => actual !== id) : [...actuales, id],
+    )
   }
 
   function alElegirCliente(v: string) {
@@ -102,7 +154,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
         <select
           value={tipoAcceso}
           disabled={esMaestro}
-          onChange={(e) => setTipoAcceso(e.target.value as TipoAcceso)}
+          onChange={(e) => cambiarTipoAcceso(e.target.value as TipoAcceso)}
         >
           {TIPOS.map((t) => (
             <option key={t.valor} value={t.valor}>
@@ -112,12 +164,14 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
         </select>
       </label>
 
-      {esMaestro && <p className={styles.nota}>Este es el usuario maestro: su acceso no se puede cambiar.</p>}
+      {esMaestro && (
+        <p className={styles.nota}>Este es el usuario maestro: su acceso no se puede cambiar.</p>
+      )}
 
       {requiereArea && !esMaestro && (
         <label className={styles.campo}>
           <span>Área</span>
-          <select value={area} onChange={(e) => setArea(e.target.value as AreaId)}>
+          <select value={area} onChange={(e) => cambiarArea(e.target.value as AreaId)}>
             <option value="">— elegir —</option>
             {LISTA_AREAS.map((a) => (
               <option key={a.id} value={a.id}>
@@ -141,7 +195,9 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
             onChange={alElegirCliente}
             placeholderTodos="— elegir cliente —"
           />
-          <p className={styles.notaChica}>Se elige del catálogo oficial de Sold To (sección Listados).</p>
+          <p className={styles.notaChica}>
+            Se elige del catálogo oficial de Sold To (sección Listados).
+          </p>
         </div>
       )}
 
@@ -160,6 +216,58 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
               : 'Si eliges una sucursal, la cuenta ve solo esa planta (ej. "Dole Codegua"). Si la dejas vacía, ve todo el Sold To.'}
           </p>
         </div>
+      )}
+
+      {configuraPermisos && (
+        <fieldset className={styles.permisos}>
+          <legend>Módulos permitidos</legend>
+          <p className={styles.notaChica}>
+            El usuario solo verá y podrá abrir las opciones seleccionadas.
+          </p>
+          <div className={styles.permisosGrid}>
+            {[
+              ...MODULOS.map((m) => ({ id: m.id, nombre: m.nombre, descripcion: m.descripcion })),
+              {
+                id: MODULO_TOMA_MUESTRAS,
+                nombre: 'Toma de solicitudes',
+                descripcion: 'Listado, creación y detalle de solicitudes de análisis.',
+              },
+            ].map((modulo) => (
+              <label className={styles.permisoOpcion} key={modulo.id}>
+                <input
+                  type="checkbox"
+                  checked={modulos.includes(modulo.id)}
+                  onChange={() => alternarModulo(modulo.id)}
+                />
+                <span>
+                  <strong>{modulo.nombre}</strong>
+                  <small>{modulo.descripcion}</small>
+                </span>
+              </label>
+            ))}
+          </div>
+
+          {modulos.includes('reports') && (
+            <div className={styles.subpermisos}>
+              <h3>Secciones de Report</h3>
+              <div className={styles.permisosGrid}>
+                {REPORTES.map((reporte) => (
+                  <label className={styles.permisoOpcion} key={reporte.id}>
+                    <input
+                      type="checkbox"
+                      checked={reportes.includes(reporte.id)}
+                      onChange={() => alternarReporte(reporte.id)}
+                    />
+                    <span>
+                      <strong>{reporte.nombre}</strong>
+                      <small>{reporte.descripcion}</small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </fieldset>
       )}
 
       {error && <p className={styles.error}>{error}</p>}
