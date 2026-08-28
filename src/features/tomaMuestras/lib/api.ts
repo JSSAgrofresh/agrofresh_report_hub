@@ -34,7 +34,9 @@ export function crearSolicitud(datos: SolicitudInput) {
 }
 
 export function eliminarSolicitud(archivo: string) {
-  return httpClient.delete<{ estado: string }>(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}`)
+  return httpClient.delete<{ estado: string }>(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}`,
+  )
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
@@ -65,9 +67,13 @@ export function enviarSolicitudPorCorreo(archivo: string, destinatario?: string)
   )
 }
 
-/** Un único Excel con todas las solicitudes (una fila por solicitud). */
-export function urlExportarTodasLasSolicitudes() {
-  return `${API_BASE_URL}/toma-muestras/solicitudes/exportar-todo`
+/** Excel horizontal con una fila por solicitud. Si se indican archivos,
+ * exporta exactamente las filas visibles después de aplicar filtros. */
+export function urlExportarTodasLasSolicitudes(archivos?: string[]) {
+  const params = new URLSearchParams()
+  archivos?.forEach((archivo) => params.append('archivo', archivo))
+  const query = params.toString() ? `?${params.toString()}` : ''
+  return `${API_BASE_URL}/toma-muestras/solicitudes/exportar-todo${query}`
 }
 
 // --- Configuración: campos generales -------------------------------------
@@ -142,15 +148,23 @@ export function eliminarAnalitoConfig(id: number) {
 
 export function listarCamposTipoAplicacion(ambito?: string) {
   const query = ambito ? `?ambito=${encodeURIComponent(ambito)}` : ''
-  return httpClient.get<CampoTipoAplicacionConfig[]>(`/toma-muestras/config/campos-tipo-aplicacion${query}`)
+  return httpClient.get<CampoTipoAplicacionConfig[]>(
+    `/toma-muestras/config/campos-tipo-aplicacion${query}`,
+  )
 }
 
 export function crearCampoTipoAplicacion(datos: CampoTipoAplicacionInput) {
-  return httpClient.post<CampoTipoAplicacionConfig>('/toma-muestras/config/campos-tipo-aplicacion', datos)
+  return httpClient.post<CampoTipoAplicacionConfig>(
+    '/toma-muestras/config/campos-tipo-aplicacion',
+    datos,
+  )
 }
 
 export function actualizarCampoTipoAplicacion(id: number, datos: CampoTipoAplicacionInput) {
-  return httpClient.put<CampoTipoAplicacionConfig>(`/toma-muestras/config/campos-tipo-aplicacion/${id}`, datos)
+  return httpClient.put<CampoTipoAplicacionConfig>(
+    `/toma-muestras/config/campos-tipo-aplicacion/${id}`,
+    datos,
+  )
 }
 
 export function eliminarCampoTipoAplicacion(id: number) {
@@ -179,15 +193,23 @@ export function eliminarLaboratorioConfig(id: number) {
 
 export function listarCategoriasAnaliticas(laboratorio?: string) {
   const query = laboratorio ? `?laboratorio=${encodeURIComponent(laboratorio)}` : ''
-  return httpClient.get<CategoriaAnaliticaConfig[]>(`/toma-muestras/config/categorias-analiticas${query}`)
+  return httpClient.get<CategoriaAnaliticaConfig[]>(
+    `/toma-muestras/config/categorias-analiticas${query}`,
+  )
 }
 
 export function crearCategoriaAnalitica(datos: CategoriaAnaliticaInput) {
-  return httpClient.post<CategoriaAnaliticaConfig>('/toma-muestras/config/categorias-analiticas', datos)
+  return httpClient.post<CategoriaAnaliticaConfig>(
+    '/toma-muestras/config/categorias-analiticas',
+    datos,
+  )
 }
 
 export function actualizarCategoriaAnalitica(id: number, datos: CategoriaAnaliticaInput) {
-  return httpClient.put<CategoriaAnaliticaConfig>(`/toma-muestras/config/categorias-analiticas/${id}`, datos)
+  return httpClient.put<CategoriaAnaliticaConfig>(
+    `/toma-muestras/config/categorias-analiticas/${id}`,
+    datos,
+  )
 }
 
 export function eliminarCategoriaAnalitica(id: number) {
