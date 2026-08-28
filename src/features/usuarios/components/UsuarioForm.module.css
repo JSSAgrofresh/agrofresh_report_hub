@@ -74,6 +74,83 @@
   padding: var(--space-2) var(--space-3);
 }
 
+.permisos {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.permisos legend {
+  padding: 0 var(--space-2);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.permisosGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.permisoOpcion {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.permisoOpcion:has(input:checked) {
+  border-color: var(--color-primary);
+  background: #f3f8ed;
+}
+
+.permisoOpcion input {
+  margin-top: 2px;
+  accent-color: var(--color-primary);
+}
+
+.permisoOpcion span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.permisoOpcion strong {
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.permisoOpcion small {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+}
+
+.subpermisos {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.subpermisos h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+@media (max-width: 620px) {
+  .permisosGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .acciones {
   display: flex;
   justify-content: flex-end;
