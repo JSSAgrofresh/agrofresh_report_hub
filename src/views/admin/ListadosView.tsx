@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -11,7 +11,7 @@ import {
   useCatalogo,
 } from '@/features/catalogo'
 import type { Cliente, ClienteInput, Planta, PlantaInput } from '@/features/catalogo'
-import { HomogenizarPanel, ValorListaForm, ValorListaTable, urlExportarListados, useListado } from '@/features/listados'
+import { eliminarListadoLote, HomogenizarPanel, importarListado, ValorListaForm, ValorListaTable, urlExportarListados, useListado } from '@/features/listados'
 import type { TipoListado, ValorLista, ValorListaInput } from '@/features/listados'
 import styles from './ListadosView.module.css'
 
@@ -34,13 +34,14 @@ const ETIQUETA_PESTANA: Record<Pestana, string> = {
 }
 
 export function ListadosView() {
-  const { clientes, plantas, cargando, error, crearCliente, editarCliente, crearPlanta, editarPlanta } =
+  const { clientes, plantas, cargando, error, refrescar: refrescarCatalogo, crearCliente, editarCliente, crearPlanta, editarPlanta } =
     useCatalogo()
   const [pestana, setPestana] = useState<Pestana>('clientes')
   const [busqueda, setBusqueda] = useState('')
   const [panel, setPanel] = useState<Panel>({ modo: 'lista' })
   const [guardando, setGuardando] = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
+  const archivoRef = useRef<HTMLInputElement>(null)
 
   const tipoListado: TipoListado | null = pestana === 'especie' || pestana === 'variedad' ? pestana : null
   const [especieSeleccionadaId, setEspecieSeleccionadaId] = useState<number | null>(null)
@@ -151,6 +152,25 @@ export function ListadosView() {
     }
   }
 
+  async function importarArchivo(archivo: File) {
+    const tipo = pestana === 'clientes' ? 'sold_to' : pestana === 'plantas' ? 'ship_to' : pestana
+    try {
+      const r = await importarListado(tipo, archivo, especieSeleccionadaId ?? undefined)
+      window.alert(`${r.creados} valor(es) importados.`)
+      if (pestana === 'clientes' || pestana === 'plantas') await refrescarCatalogo(); else await listado.refrescar()
+    } catch { window.alert('No se pudo importar. Revisa el formato y las dependencias del listado.') }
+  }
+
+  async function eliminarFiltrados() {
+    const ids = pestana === 'clientes' ? clientesFiltrados.map((x) => x.id) : pestana === 'plantas' ? plantasFiltradas.map((x) => x.id) : valoresFiltrados.map((x) => x.id)
+    if (!ids.length || !window.confirm(`¿Eliminar los ${ids.length} resultados visibles del filtro actual?`)) return
+    const tipo = pestana === 'clientes' ? 'sold_to' : pestana === 'plantas' ? 'ship_to' : pestana
+    try {
+      await eliminarListadoLote(tipo, ids)
+      if (pestana === 'clientes' || pestana === 'plantas') await refrescarCatalogo(); else await listado.refrescar()
+    } catch { window.alert('No se pudieron eliminar algunos valores porque están en uso.') }
+  }
+
   return (
     <div>
       <Header
@@ -233,6 +253,9 @@ export function ListadosView() {
                 onChange={(e) => setBusqueda(e.target.value)}
               />
               <div className={styles.accionesHeader}>
+                <input ref={archivoRef} type="file" accept=".xlsx" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void importarArchivo(f); e.currentTarget.value = '' }} />
+                <Button variant="secondary" disabled={pestana === 'variedad' && !especieSeleccionadaId} onClick={() => archivoRef.current?.click()}>Importar Excel</Button>
+                <Button variant="secondary" onClick={() => void eliminarFiltrados()}>Eliminar en masa</Button>
                 {tipoListado && (
                   <Button
                     variant="secondary"
