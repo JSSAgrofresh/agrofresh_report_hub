@@ -41,8 +41,8 @@ const TIPO_BADGE: Record<string, { texto: string; tono: 'success' | 'warning' | 
   warn: { texto: 'resultado*', tono: 'danger' },
 }
 const PENDIENTES = [
-  'Homogenizador: los datos se cargan tal cual vienen del Excel (sin normalizar cliente, sucursal, crop, tipo de aplicación, etc.)',
-  'Secuencia de confirmación: no se filtran duplicados ni campos vacíos antes de cargar — la base es la que decide qué ya existe.',
+  'Solo puede existir una copia de trabajo activa. Debes terminarla o descartarla antes de cargar otro Excel.',
+  'Sold To, Ship To, Especie y Variedad se homologan en Data Core antes de insertar cualquier registro.',
 ]
 
 type Tab = 'cambios' | 'preview' | 'mapa'
@@ -68,7 +68,7 @@ export function IngestView() {
 
   function mensajeErrorBackend(err: unknown): string {
     if (err instanceof HttpError) {
-      return `⚠ El backend respondió con un error (${err.status}). Revisa los datos e inténtalo de nuevo.`
+      return `⚠ ${err.message}`
     }
     return '⚠ No se pudo conectar con el backend. Revisa que esté corriendo (ver backend/README.md).'
   }
@@ -143,7 +143,7 @@ export function IngestView() {
     setModal('confirmar-carga')
   }
 
-  async function cargarABaseDeDatos() {
+  async function enviarADataCore() {
     if (!filas) return
     setCargando(true)
     try {
@@ -362,7 +362,7 @@ export function IngestView() {
             )}
             <div className={styles.modalAcciones}>
               <Button variant="secondary" onClick={() => setModal('ninguno')}>Cancelar</Button>
-              <button className={styles.btnCargar} onClick={() => { setModal('ninguno'); void cargarABaseDeDatos() }} disabled={cargando}>
+              <button className={styles.btnCargar} onClick={() => { setModal('ninguno'); void enviarADataCore() }} disabled={cargando}>
                 {cargando ? 'Enviando…' : 'Enviar a Data Core'}
               </button>
             </div>
