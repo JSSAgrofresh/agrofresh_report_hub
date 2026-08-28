@@ -7,7 +7,12 @@ import { useAuth } from '@/features/auth'
 import { esAdminGeneral } from '@/features/usuarios'
 import { ROUTES, rutaTomaMuestrasDetalle } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
-import { eliminarSolicitud, enviarCorreoPrueba, listarSolicitudes, urlExportarTodasLasSolicitudes } from '@/features/tomaMuestras'
+import {
+  eliminarSolicitud,
+  enviarCorreoPrueba,
+  listarSolicitudes,
+  urlExportarTodasLasSolicitudes,
+} from '@/features/tomaMuestras'
 import type { Solicitud } from '@/features/tomaMuestras'
 import styles from './SolicitudesView.module.css'
 
@@ -68,7 +73,9 @@ export function SolicitudesView() {
       await enviarCorreoPrueba(dest)
       setMensajePrueba(`✅ Correo de prueba enviado a ${dest}`)
     } catch {
-      setMensajePrueba('❌ No se pudo enviar el correo. Revisa la configuracion de Gmail API en el servidor.')
+      setMensajePrueba(
+        '❌ No se pudo enviar el correo. Revisa la configuracion de Gmail API en el servidor.',
+      )
     } finally {
       setEnviandoPrueba(false)
     }
@@ -89,7 +96,12 @@ export function SolicitudesView() {
   }, [refrescar])
 
   async function onEliminar(solicitud: Solicitud) {
-    if (!confirm(`¿Eliminar la solicitud "${solicitud.numero_solicitud}"? Esta acción no se puede deshacer.`)) return
+    if (
+      !confirm(
+        `¿Eliminar la solicitud "${solicitud.numero_solicitud}"? Esta acción no se puede deshacer.`,
+      )
+    )
+      return
     try {
       await eliminarSolicitud(solicitud.archivo)
       await refrescar()
@@ -134,20 +146,30 @@ export function SolicitudesView() {
     return solicitudes.filter((s) => {
       if (filtros.fechaDesde && s.fecha_solicitud < filtros.fechaDesde) return false
       if (filtros.fechaHasta && s.fecha_solicitud > filtros.fechaHasta) return false
-      if (filtros.numeroSolicitud && !contiene(s.numero_solicitud, filtros.numeroSolicitud)) return false
+      if (filtros.numeroSolicitud && !contiene(s.numero_solicitud, filtros.numeroSolicitud))
+        return false
       if (filtros.laboratorio && s.laboratorio !== filtros.laboratorio) return false
       if (filtros.solicitante && !contiene(s.solicitante, filtros.solicitante)) return false
       if (filtros.soldTo && s.sold_to !== filtros.soldTo) return false
       if (filtros.shipTo && s.ship_to !== filtros.shipTo) return false
       if (filtros.especie && !contiene(s.especie, filtros.especie)) return false
       if (filtros.variedad && !contiene(s.variedad, filtros.variedad)) return false
-      if (filtros.tipoAplicacion && s.campos_laboratorio['Tipo Aplicación'] !== filtros.tipoAplicacion) return false
+      if (
+        filtros.tipoAplicacion &&
+        s.campos_laboratorio['Tipo Aplicación'] !== filtros.tipoAplicacion
+      )
+        return false
       if (filtros.lineaProceso && s.linea_proceso !== filtros.lineaProceso) return false
       if (filtros.tipoMuestra && !contiene(s.tipo_muestra, filtros.tipoMuestra)) return false
-      if (filtros.nombreMuestreador && !contiene(s.nombre_muestreador, filtros.nombreMuestreador)) return false
+      if (filtros.nombreMuestreador && !contiene(s.nombre_muestreador, filtros.nombreMuestreador))
+        return false
       return true
     })
   }, [solicitudes, filtros])
+
+  const archivosAExportar = hayFiltrosActivos
+    ? (solicitudesFiltradas ?? []).map((s) => s.archivo)
+    : undefined
 
   return (
     <div>
@@ -156,8 +178,17 @@ export function SolicitudesView() {
         description="Listado de todas las solicitudes registradas."
         acciones={
           <div className={styles.accionesCabecera}>
-            <a className={styles.botonDescargaTodas} href={urlExportarTodasLasSolicitudes()} target="_blank" rel="noreferrer">
-              Descargar todas las solicitudes
+            <a
+              className={styles.botonDescargaTodas}
+              href={urlExportarTodasLasSolicitudes(archivosAExportar)}
+              target="_blank"
+              rel="noreferrer"
+              aria-disabled={solicitudesFiltradas?.length === 0}
+              onClick={(evento) => solicitudesFiltradas?.length === 0 && evento.preventDefault()}
+            >
+              {hayFiltrosActivos
+                ? `Descargar filtradas (${solicitudesFiltradas?.length ?? 0})`
+                : 'Descargar todas las solicitudes'}
             </a>
             <Button variant="secondary" onClick={onEnviarPrueba} disabled={enviandoPrueba}>
               {enviandoPrueba ? 'Enviando…' : '✉ Enviar saludo de prueba'}
@@ -173,10 +204,17 @@ export function SolicitudesView() {
 
         <div className={styles.cabeceraTabla}>
           <p className={styles.contador}>
-            {solicitudesFiltradas ? `${solicitudesFiltradas.length} de ${solicitudes?.length ?? 0}` : '…'} solicitud
+            {solicitudesFiltradas
+              ? `${solicitudesFiltradas.length} de ${solicitudes?.length ?? 0}`
+              : '…'}{' '}
+            solicitud
             {(solicitudesFiltradas?.length ?? 0) === 1 ? '' : 'es'}
           </p>
-          <button type="button" className={styles.boton} onClick={() => setMostrarFiltros((m) => !m)}>
+          <button
+            type="button"
+            className={styles.boton}
+            onClick={() => setMostrarFiltros((m) => !m)}
+          >
             {mostrarFiltros ? 'Ocultar filtros' : 'Mostrar filtros'}
           </button>
         </div>
@@ -185,19 +223,33 @@ export function SolicitudesView() {
           <div className={styles.filtros}>
             <label className={styles.campoFiltro}>
               <span>Fecha desde</span>
-              <input type="date" value={filtros.fechaDesde} onChange={(e) => actualizarFiltro('fechaDesde', e.target.value)} />
+              <input
+                type="date"
+                value={filtros.fechaDesde}
+                onChange={(e) => actualizarFiltro('fechaDesde', e.target.value)}
+              />
             </label>
             <label className={styles.campoFiltro}>
               <span>Fecha hasta</span>
-              <input type="date" value={filtros.fechaHasta} onChange={(e) => actualizarFiltro('fechaHasta', e.target.value)} />
+              <input
+                type="date"
+                value={filtros.fechaHasta}
+                onChange={(e) => actualizarFiltro('fechaHasta', e.target.value)}
+              />
             </label>
             <label className={styles.campoFiltro}>
               <span>N° Solicitud</span>
-              <input value={filtros.numeroSolicitud} onChange={(e) => actualizarFiltro('numeroSolicitud', e.target.value)} />
+              <input
+                value={filtros.numeroSolicitud}
+                onChange={(e) => actualizarFiltro('numeroSolicitud', e.target.value)}
+              />
             </label>
             <label className={styles.campoFiltro}>
               <span>Laboratorio</span>
-              <select value={filtros.laboratorio} onChange={(e) => actualizarFiltro('laboratorio', e.target.value)}>
+              <select
+                value={filtros.laboratorio}
+                onChange={(e) => actualizarFiltro('laboratorio', e.target.value)}
+              >
                 <option value="">Todos</option>
                 {opciones.laboratorio.map((v) => (
                   <option key={v} value={v}>
@@ -208,7 +260,10 @@ export function SolicitudesView() {
             </label>
             <label className={styles.campoFiltro}>
               <span>Tipo de Aplicación</span>
-              <select value={filtros.tipoAplicacion} onChange={(e) => actualizarFiltro('tipoAplicacion', e.target.value)}>
+              <select
+                value={filtros.tipoAplicacion}
+                onChange={(e) => actualizarFiltro('tipoAplicacion', e.target.value)}
+              >
                 <option value="">Todos</option>
                 {opciones.tipoAplicacion.map((v) => (
                   <option key={v} value={v}>
@@ -219,7 +274,10 @@ export function SolicitudesView() {
             </label>
             <label className={styles.campoFiltro}>
               <span>Línea de Proceso</span>
-              <select value={filtros.lineaProceso} onChange={(e) => actualizarFiltro('lineaProceso', e.target.value)}>
+              <select
+                value={filtros.lineaProceso}
+                onChange={(e) => actualizarFiltro('lineaProceso', e.target.value)}
+              >
                 <option value="">Todas</option>
                 {opciones.lineaProceso.map((v) => (
                   <option key={v} value={v}>
@@ -230,11 +288,17 @@ export function SolicitudesView() {
             </label>
             <label className={styles.campoFiltro}>
               <span>Solicitante</span>
-              <input value={filtros.solicitante} onChange={(e) => actualizarFiltro('solicitante', e.target.value)} />
+              <input
+                value={filtros.solicitante}
+                onChange={(e) => actualizarFiltro('solicitante', e.target.value)}
+              />
             </label>
             <label className={styles.campoFiltro}>
               <span>Sold To</span>
-              <select value={filtros.soldTo} onChange={(e) => actualizarFiltro('soldTo', e.target.value)}>
+              <select
+                value={filtros.soldTo}
+                onChange={(e) => actualizarFiltro('soldTo', e.target.value)}
+              >
                 <option value="">Todos</option>
                 {opciones.soldTo.map((v) => (
                   <option key={v} value={v}>
@@ -245,7 +309,10 @@ export function SolicitudesView() {
             </label>
             <label className={styles.campoFiltro}>
               <span>Ship To</span>
-              <select value={filtros.shipTo} onChange={(e) => actualizarFiltro('shipTo', e.target.value)}>
+              <select
+                value={filtros.shipTo}
+                onChange={(e) => actualizarFiltro('shipTo', e.target.value)}
+              >
                 <option value="">Todos</option>
                 {opciones.shipTo.map((v) => (
                   <option key={v} value={v}>
@@ -256,22 +323,38 @@ export function SolicitudesView() {
             </label>
             <label className={styles.campoFiltro}>
               <span>Especie</span>
-              <input value={filtros.especie} onChange={(e) => actualizarFiltro('especie', e.target.value)} />
+              <input
+                value={filtros.especie}
+                onChange={(e) => actualizarFiltro('especie', e.target.value)}
+              />
             </label>
             <label className={styles.campoFiltro}>
               <span>Variedad</span>
-              <input value={filtros.variedad} onChange={(e) => actualizarFiltro('variedad', e.target.value)} />
+              <input
+                value={filtros.variedad}
+                onChange={(e) => actualizarFiltro('variedad', e.target.value)}
+              />
             </label>
             <label className={styles.campoFiltro}>
               <span>Tipo Muestra</span>
-              <input value={filtros.tipoMuestra} onChange={(e) => actualizarFiltro('tipoMuestra', e.target.value)} />
+              <input
+                value={filtros.tipoMuestra}
+                onChange={(e) => actualizarFiltro('tipoMuestra', e.target.value)}
+              />
             </label>
             <label className={styles.campoFiltro}>
               <span>Nombre Muestreador</span>
-              <input value={filtros.nombreMuestreador} onChange={(e) => actualizarFiltro('nombreMuestreador', e.target.value)} />
+              <input
+                value={filtros.nombreMuestreador}
+                onChange={(e) => actualizarFiltro('nombreMuestreador', e.target.value)}
+              />
             </label>
             {hayFiltrosActivos && (
-              <button type="button" className={styles.botonLimpiar} onClick={() => setFiltros(FILTROS_VACIOS)}>
+              <button
+                type="button"
+                className={styles.botonLimpiar}
+                onClick={() => setFiltros(FILTROS_VACIOS)}
+              >
                 Limpiar filtros
               </button>
             )}
@@ -282,7 +365,9 @@ export function SolicitudesView() {
           <p className={styles.estado}>Cargando…</p>
         ) : solicitudesFiltradas.length === 0 ? (
           <p className={styles.estado}>
-            {hayFiltrosActivos ? 'Ninguna solicitud coincide con los filtros.' : 'Todavía no hay solicitudes registradas.'}
+            {hayFiltrosActivos
+              ? 'Ninguna solicitud coincide con los filtros.'
+              : 'Todavía no hay solicitudes registradas.'}
           </p>
         ) : (
           <div className={styles.tablaCaja}>
@@ -312,7 +397,10 @@ export function SolicitudesView() {
                     <td>{s.tipo_muestra ?? '—'}</td>
                     <td>{s.generado_por}</td>
                     <td className={styles.acciones}>
-                      <button className={styles.boton} onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}>
+                      <button
+                        className={styles.boton}
+                        onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}
+                      >
                         Ver
                       </button>
                       {puedeEliminar && (

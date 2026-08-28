@@ -15,4 +15,9 @@ export interface Usuario {
    * To) del cliente en vez del Sold To completo -ej. "Dole Codegua" vs "Dole
    * Molina" como cuentas separadas dentro de "DOLE CHILE S.A."-. */
   plantaNombre?: string
+  /** Módulos asignados manualmente. Los usuarios antiguos sin esta propiedad
+   * conservan los permisos predeterminados de su rol y área. */
+  modulos?: string[]
+  /** Secciones habilitadas dentro del módulo Report. */
+  reportes?: Array<'laboratorio' | 'postventa' | 'emitir'>
 }

@@ -320,12 +320,58 @@ def listar_solicitudes() -> list[Solicitud]:
     return solicitudes
 
 
+@router.post("/solicitudes/organizar-r2")
+def organizar_solicitudes_r2() -> dict[str, int]:
+    """Migra solicitudes del layout antiguo por laboratorio al layout
+    cliente/fecha. Copia y verifica el destino antes de borrar el original;
+    por eso es seguro repetir la operación."""
+    if not r2.disponible():
+        raise HTTPException(503, "R2 no está configurado en este servidor.")
+
+    movidas = 0
+    omitidas = 0
+    for key in r2.listar_keys("solicitudes/"):
+        partes = key.split("/")
+        if len(partes) != 3 or partes[1] == _CARPETA_CONFIG:
+            continue
+        nombre = partes[-1]
+        if not nombre.endswith((".xlsx", ".json")):
+            continue
+        contenido = r2.descargar(key)
+        if contenido is None:
+            omitidas += 1
+            continue
+        try:
+            datos = _leer_solicitud_bytes(contenido, os.path.splitext(nombre)[1])
+            destino = _r2_key_sol_nueva(datos.get("sold_to"), datos.get("fecha_solicitud") or "SIN_FECHA", nombre)
+        except (ValueError, KeyError, HTTPException):
+            omitidas += 1
+            continue
+        if destino == key:
+            continue
+        existente = r2.descargar(destino)
+        if existente is None:
+            tipo = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if nombre.endswith(".xlsx") else "application/json"
+            r2.subir(destino, contenido, tipo)
+            existente = r2.descargar(destino)
+        if existente == contenido:
+            r2.eliminar(key)
+            movidas += 1
+        else:
+            omitidas += 1
+    return {"movidas": movidas, "omitidas": omitidas}
+
+
 @router.get("/solicitudes/exportar-todo")
-def exportar_todas_las_solicitudes() -> StreamingResponse:
+def exportar_todas_las_solicitudes(archivo: list[str] | None = None) -> StreamingResponse:
     """Un único Excel "ancho" (una fila por solicitud) con toda la
     información general + de muestra + una columna por cada analito activo
     configurado -refleja la configuración vigente, no una plantilla fija."""
-    solicitudes_dict = [datos for _nombre, datos in leer_todas_las_solicitudes()]
+    seleccion = set(archivo or [])
+    solicitudes_dict = [
+        datos for nombre, datos in leer_todas_las_solicitudes()
+        if not seleccion or nombre in seleccion
+    ]
     solicitudes_dict.sort(key=lambda d: d.get("creado_en") or "", reverse=True)
 
     analitos = _leer_config("analitos.json", ANALITOS_DEFECTO)

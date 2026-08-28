@@ -11,6 +11,7 @@ import {
   listar,
   listarR2,
   mover,
+  organizarSolicitudesR2,
   renombrar,
   subirArchivos,
   urlDescarga,
@@ -19,7 +20,7 @@ import {
 import type { EntradaStorage } from '@/features/storage'
 import styles from './StorageView.module.css'
 
-type Pestana = 'local' | 'r2'
+type Pestana = 'local' | 'accutab' | 'solicitudes'
 
 const TIPO_MOVER = 'application/x-storage-ruta'
 
@@ -225,7 +226,8 @@ function PanelLocal() {
       />
 
       <p className={styles.ayuda}>
-        Puedes arrastrar un archivo o carpeta hacia otra carpeta de la lista para moverlo, o hacia las migas de arriba.
+        Puedes arrastrar un archivo o carpeta hacia otra carpeta de la lista para moverlo, o hacia
+        las migas de arriba.
       </p>
     </>
   )
@@ -235,12 +237,22 @@ function PanelLocal() {
 // Panel R2 (solo lectura)
 // ---------------------------------------------------------------------------
 
-const R2_RAIZ = 'accutab/mail'
+interface PanelR2Props {
+  raiz: string
+  permiteOrganizar?: boolean
+}
 
-function PanelR2() {
-  const [prefijoActual, setPrefijoActual] = useState(R2_RAIZ)
+function nombreVisible(nombre: string): string {
+  const fechaIso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(nombre)
+  return fechaIso ? `${fechaIso[3]}-${fechaIso[2]}-${fechaIso[1]}` : nombre
+}
+
+function PanelR2({ raiz, permiteOrganizar = false }: PanelR2Props) {
+  const [prefijoActual, setPrefijoActual] = useState(raiz)
   const [entradas, setEntradas] = useState<EntradaStorage[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [mensaje, setMensaje] = useState<string | null>(null)
+  const [organizando, setOrganizando] = useState(false)
 
   const refrescar = useCallback(async (prefijo: string) => {
     setEntradas(null)
@@ -249,7 +261,9 @@ function PanelR2() {
       setEntradas(resultado.entradas)
       setError(null)
     } catch {
-      setError('No se pudo conectar con R2. Verifica que el backend tenga las credenciales R2 en .env.')
+      setError(
+        'No se pudo conectar con R2. Verifica que el backend tenga las credenciales R2 en .env.',
+      )
     }
   }, [])
 
@@ -257,9 +271,25 @@ function PanelR2() {
     refrescar(prefijoActual)
   }, [prefijoActual, refrescar])
 
-  // Migas de pan relativas a R2_RAIZ
+  async function organizar() {
+    setOrganizando(true)
+    setMensaje(null)
+    try {
+      const resultado = await organizarSolicitudesR2()
+      setMensaje(
+        `${resultado.movidas} solicitud(es) reorganizada(s).${resultado.omitidas ? ` ${resultado.omitidas} no pudieron moverse.` : ''}`,
+      )
+      await refrescar(prefijoActual)
+    } catch {
+      setError('No se pudieron organizar las solicitudes existentes.')
+    } finally {
+      setOrganizando(false)
+    }
+  }
+
+  // Migas de pan relativas a la raíz elegida
   const migas = prefijoActual.split('/').filter(Boolean)
-  const migasRaiz = R2_RAIZ.split('/').filter(Boolean)
+  const migasRaiz = raiz.split('/').filter(Boolean)
 
   return (
     <>
@@ -275,7 +305,9 @@ function PanelR2() {
                   type="button"
                   onClick={() => !esRaiz && setPrefijoActual(ruta)}
                   className={cn(i === migas.length - 1 ? styles.migaActiva : !esRaiz && '')}
-                  style={esRaiz ? { color: 'var(--color-text-faint)', cursor: 'default' } : undefined}
+                  style={
+                    esRaiz ? { color: 'var(--color-text-faint)', cursor: 'default' } : undefined
+                  }
                 >
                   {nombre}
                 </button>
@@ -283,10 +315,17 @@ function PanelR2() {
             )
           })}
         </nav>
-        <span style={{ fontSize: 12, color: 'var(--color-text-faint)' }}>Solo lectura</span>
+        {permiteOrganizar ? (
+          <button type="button" className={styles.boton} onClick={organizar} disabled={organizando}>
+            {organizando ? 'Organizando…' : 'Organizar existentes'}
+          </button>
+        ) : (
+          <span style={{ fontSize: 12, color: 'var(--color-text-faint)' }}>Solo lectura</span>
+        )}
       </div>
 
       {error && <p className={styles.error}>{error}</p>}
+      {mensaje && <p className={styles.estado}>{mensaje}</p>}
 
       <TablaEntradas
         entradas={entradas}
@@ -346,21 +385,32 @@ function TablaEntradas({
             <tr
               key={e.ruta}
               draggable={draggable}
-              onDragStart={draggable ? (ev) => ev.dataTransfer.setData(TIPO_MOVER, e.ruta) : undefined}
+              onDragStart={
+                draggable ? (ev) => ev.dataTransfer.setData(TIPO_MOVER, e.ruta) : undefined
+              }
               onDragOver={
                 e.tipo === 'carpeta' && onDragOverCarpeta
-                  ? (ev) => { ev.preventDefault(); onDragOverCarpeta(e.ruta) }
+                  ? (ev) => {
+                      ev.preventDefault()
+                      onDragOverCarpeta(e.ruta)
+                    }
                   : undefined
               }
               onDragLeave={onDragLeave ? () => onDragLeave(e.ruta) : undefined}
-              onDrop={e.tipo === 'carpeta' && onDropCarpeta ? (ev) => onDropCarpeta(ev, e) : undefined}
+              onDrop={
+                e.tipo === 'carpeta' && onDropCarpeta ? (ev) => onDropCarpeta(ev, e) : undefined
+              }
               className={cn(carpetaSobrevolada === e.ruta && styles.filaSobrevolada)}
             >
               <td className={styles.nombre}>
                 {e.tipo === 'carpeta' ? (
-                  <button type="button" className={styles.nombreCarpeta} onClick={() => onNavegar(e.ruta)}>
+                  <button
+                    type="button"
+                    className={styles.nombreCarpeta}
+                    onClick={() => onNavegar(e.ruta)}
+                  >
                     <IconCarpeta className={styles.icono} />
-                    {e.nombre}
+                    {nombreVisible(e.nombre)}
                   </button>
                 ) : (
                   <span className={styles.nombreArchivo}>
@@ -373,7 +423,12 @@ function TablaEntradas({
               <td className={styles.mono}>{e.modificado ? formatDateTimeCL(e.modificado) : '—'}</td>
               <td className={styles.acciones}>
                 {e.tipo === 'archivo' && (
-                  <a className={styles.boton} href={getUrl(e.ruta)} target="_blank" rel="noreferrer">
+                  <a
+                    className={styles.boton}
+                    href={getUrl(e.ruta)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     Descargar
                   </a>
                 )}
@@ -421,15 +476,25 @@ export function StorageView() {
           </button>
           <button
             type="button"
-            className={cn(styles.pestana, pestana === 'r2' && styles.pestanaActiva)}
-            onClick={() => setPestana('r2')}
+            className={cn(styles.pestana, pestana === 'accutab' && styles.pestanaActiva)}
+            onClick={() => setPestana('accutab')}
           >
             Accutab
             <span className={styles.badgeR2}>R2</span>
           </button>
+          <button
+            type="button"
+            className={cn(styles.pestana, pestana === 'solicitudes' && styles.pestanaActiva)}
+            onClick={() => setPestana('solicitudes')}
+          >
+            Solicitudes
+            <span className={styles.badgeR2}>R2</span>
+          </button>
         </div>
 
-        {pestana === 'local' ? <PanelLocal /> : <PanelR2 />}
+        {pestana === 'local' && <PanelLocal />}
+        {pestana === 'accutab' && <PanelR2 raiz="accutab/mail" />}
+        {pestana === 'solicitudes' && <PanelR2 raiz="solicitudes" permiteOrganizar />}
       </Card>
     </div>
   )

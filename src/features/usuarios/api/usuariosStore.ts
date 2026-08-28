@@ -17,6 +17,8 @@ const SEED: Usuario[] = [
     nombre: 'Patricia Salazar',
     tipoAcceso: 'admin_area',
     area: 'cromatografia',
+    modulos: ['converter', 'reports', 'storage', 'toma_muestras'],
+    reportes: ['laboratorio', 'emitir'],
   },
   {
     id: 'u-3',
@@ -24,6 +26,8 @@ const SEED: Usuario[] = [
     nombre: 'Rodrigo Poblete',
     tipoAcceso: 'admin_area',
     area: 'postventa',
+    modulos: ['trace', 'reports'],
+    reportes: ['postventa'],
   },
   {
     id: 'u-4',
@@ -38,6 +42,7 @@ const SEED: Usuario[] = [
     email: 'muestreador.demo@agrofresh.com',
     nombre: 'Muestreador Demo',
     tipoAcceso: 'muestreador',
+    modulos: ['toma_muestras'],
   },
 ]
 
@@ -49,7 +54,9 @@ function leer(): Usuario[] {
   }
   try {
     const parsed = JSON.parse(raw) as (Usuario | null | undefined)[]
-    const validos = parsed.filter((u): u is Usuario => u != null && typeof u === 'object' && 'id' in u)
+    const validos = parsed.filter(
+      (u): u is Usuario => u != null && typeof u === 'object' && 'id' in u,
+    )
     return validos.length > 0 ? validos : SEED
   } catch {
     return SEED

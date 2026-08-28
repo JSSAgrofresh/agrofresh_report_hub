@@ -8,6 +8,9 @@ export {
   puedeVerModulo,
   puedeVerReporte,
   puedeVerTomaMuestras,
+  modulosPredeterminados,
+  reportesPredeterminados,
+  MODULO_TOMA_MUESTRAS,
 } from './permisos'
 export { UsuarioForm } from './components/UsuarioForm'
 export { UsuariosTable } from './components/UsuariosTable'
