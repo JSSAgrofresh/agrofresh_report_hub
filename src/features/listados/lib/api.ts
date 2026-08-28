@@ -85,3 +85,14 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 export function urlExportarListados() {
   return `${API_BASE_URL}/listados/exportar`
 }
+
+export function importarListado(tipo: 'sold_to' | 'ship_to' | TipoListado, archivo: File, especieId?: number) {
+  const form = new FormData()
+  form.append('archivo', archivo)
+  const qs = especieId ? `?especie_id=${especieId}` : ''
+  return httpClient.upload<{ creados: number }>(`/listados/importar/${tipo}${qs}`, form)
+}
+
+export function eliminarListadoLote(tipo: 'sold_to' | 'ship_to' | TipoListado, ids: number[]) {
+  return httpClient.post<{ eliminados: number }>('/listados/eliminar-lote', { tipo, ids })
+}
