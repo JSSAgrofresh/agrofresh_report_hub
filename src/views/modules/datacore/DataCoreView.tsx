@@ -8,7 +8,8 @@ import { httpClient } from '@/services/http/client'
 import { ErDiagrama } from './ErDiagrama'
 import styles from './DataCoreView.module.css'
 
-interface Grupo { campo: string; etiqueta: string; especie?: string | null; valores: string[]; cantidad: number; sugerido: string }
+interface Sugerencia { valor: string; confianza: number }
+interface Grupo { campo: string; etiqueta: string; especie?: string | null; valores: string[]; cantidad: number; sugerido: string; sugerencias: Sugerencia[] }
 interface Auditoria { grupos: Grupo[]; filas: number; pendientes: number }
 interface Decision { campo: string; etiqueta: string; valor_original: string; destino: string; especie?: string | null; filas: number }
 interface Historial { decisiones: Decision[] }
@@ -56,15 +57,17 @@ export function DataCoreView() {
     void verTabla(tabla, pagina, TAMANO).then(setDatosTabla)
   }, [vista, tabla, pagina])
 
-  async function asignar(grupo: Grupo, indice: number) {
+  async function asignar(grupo: Grupo, indice: number, crearNuevo = false) {
     const clave = `${grupo.campo}-${grupo.especie ?? ''}-${indice}`
     const destino = (destinos[clave] ?? grupo.sugerido).trim()
     if (!destino) return
     setCargando(true)
     try {
-      await httpClient.post('/ingest/auditoria-staging/asignar', { campo: grupo.campo, valores: grupo.valores, destino, especie: grupo.especie ?? null })
-      setMensaje(`${grupo.etiqueta}${grupo.especie ? ` de ${grupo.especie}` : ''} guardado en Listados como “${destino}”.`)
+      await httpClient.post('/ingest/auditoria-staging/asignar', { campo: grupo.campo, valores: grupo.valores, destino, especie: grupo.especie ?? null, crear_nuevo: crearNuevo })
+      setMensaje(crearNuevo ? `“${destino}” se agregó a Listados y quedó confirmado.` : `Valores homologados con “${destino}” de Listados.`)
       await cargarAuditoria()
+    } catch (error) {
+      setMensaje(error instanceof Error ? error.message : 'No se pudo guardar la homologación.')
     } finally { setCargando(false) }
   }
 
@@ -82,14 +85,6 @@ export function DataCoreView() {
       const r = await httpClient.post<{ descartadas: number }>('/ingest/auditoria-staging/descartar', {})
       setMensaje(`Copia descartada: ${r.descartadas} filas eliminadas del área de trabajo.`)
       await cargarAuditoria()
-    } finally { setCargando(false) }
-  }
-
-  async function aplicarCatalogos() {
-    setCargando(true)
-    try {
-      const r = await httpClient.post<{ aplicadas: number }>('/ingest/auditoria-staging/aplicar-catalogos', {})
-      setMensaje(`${r.aplicadas} decisiones consolidadas en Listados. Los registros del Excel todavía NO se enviaron a la BD.`)
     } finally { setCargando(false) }
   }
 
@@ -117,7 +112,7 @@ export function DataCoreView() {
       <div><b>{data?.filas ? 'Copia de Ingest activa' : 'Sin copia de trabajo'}</b><span>{data?.filas ? ` ${data.filas.toLocaleString('es-CL')} filas aisladas; todavía no están en la base de datos.` : ' Carga un Excel desde Ingest para comenzar una auditoría.'}</span></div>
       <div className={styles.bannerAcciones}>
         <a className={styles.exportar} href={urlExportar()}>Descargar base en Excel</a>
-        {!!data?.filas && <><Button variant="secondary" disabled={cargando} onClick={() => void descartarCopia()}>Descartar copia</Button><Button disabled={cargando} onClick={() => void aplicarCatalogos()}>Aplicar avances a Listados</Button></>}
+        {!!data?.filas && <Button variant="secondary" disabled={cargando} onClick={() => void descartarCopia()}>Descartar copia</Button>}
       </div>
     </Card>
     <nav className={styles.tabs}>
@@ -141,7 +136,7 @@ export function DataCoreView() {
     </Card>}
     {vista === 'auditoria' && <>
       <div className={styles.resumen}><span><b>{data?.filas ?? 0}</b> filas en copia de trabajo</span><span><b>{data?.pendientes ?? 0}</b> decisiones pendientes</span><Button disabled={cargando || !data?.filas || data.pendientes > 0} onClick={() => void enviarBase()}>Enviar TODO a la BD</Button></div>
-      <div className={styles.columnas}>{Object.entries(CAMPOS).map(([campo, etiqueta]) => { const grupos = data?.grupos.filter((g) => g.campo === campo) ?? []; return <section key={campo}><h2>{etiqueta} <small>{grupos.length}</small></h2>{!grupos.length ? <Card><p className={styles.vacio}>Todo coincide con Listados.</p></Card> : grupos.map((grupo, i) => { const clave = `${campo}-${grupo.especie ?? ''}-${i}`; return <Card key={`${grupo.especie}-${grupo.valores.join('|')}`} className={styles.grupo}>{grupo.especie && <p className={styles.especie}>Especie: {grupo.especie}</p>}<p className={styles.contador}>{grupo.cantidad} fila(s)</p><div className={styles.valores}>{grupo.valores.map((v) => <code key={v}>{v}</code>)}</div><label>Asignar valor oficial<input value={destinos[clave] ?? grupo.sugerido} onChange={(e) => setDestinos((d) => ({ ...d, [clave]: e.target.value }))} /></label><Button disabled={cargando} onClick={() => void asignar(grupo, i)}>Confirmar y guardar en Listados</Button></Card> })}</section> })}</div>
+      <div className={styles.columnas}>{Object.entries(CAMPOS).map(([campo, etiqueta]) => { const grupos = data?.grupos.filter((g) => g.campo === campo) ?? []; return <section key={campo}><h2>{etiqueta} <small>{grupos.length}</small></h2>{!grupos.length ? <Card><p className={styles.vacio}>Todo coincide con Listados.</p></Card> : grupos.map((grupo, i) => { const clave = `${campo}-${grupo.especie ?? ''}-${i}`; return <Card key={`${grupo.especie}-${grupo.valores.join('|')}`} className={styles.grupo}>{grupo.especie && <p className={styles.especie}>Especie: {grupo.especie}</p>}<p className={styles.contador}>{grupo.cantidad} fila(s)</p><div className={styles.valores}>{grupo.valores.map((v) => <code key={v}>{v}</code>)}</div>{grupo.sugerencias.length > 0 && <div className={styles.sugerencias}>{grupo.sugerencias.map((s) => <button type="button" key={s.valor} onClick={() => setDestinos((d) => ({ ...d, [clave]: s.valor }))}>{s.valor} · {Math.round(s.confianza * 100)}%</button>)}</div>}<label>Valor oficial de Listados<input value={destinos[clave] ?? grupo.sugerido} onChange={(e) => setDestinos((d) => ({ ...d, [clave]: e.target.value }))} /></label><div className={styles.accionesGrupo}><Button disabled={cargando} onClick={() => void asignar(grupo, i)}>Usar valor de Listados</Button><Button variant="secondary" disabled={cargando} onClick={() => { if (confirm(`¿Agregar “${(destinos[clave] ?? grupo.sugerido).trim()}” como valor nuevo oficial?`)) void asignar(grupo, i, true) }}>Agregar como nuevo</Button></div></Card> })}</section> })}</div>
     </>}
   </div>
 }

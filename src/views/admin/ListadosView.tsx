@@ -11,7 +11,7 @@ import {
   useCatalogo,
 } from '@/features/catalogo'
 import type { Cliente, ClienteInput, Planta, PlantaInput } from '@/features/catalogo'
-import { eliminarListadoLote, HomogenizarPanel, importarListado, ValorListaForm, ValorListaTable, urlExportarListados, useListado } from '@/features/listados'
+import { eliminarListadoLote, HomogenizarPanel, importarListado, importarMaestroListados, ValorListaForm, ValorListaTable, urlExportarListados, useListado } from '@/features/listados'
 import type { TipoListado, ValorLista, ValorListaInput } from '@/features/listados'
 import styles from './ListadosView.module.css'
 
@@ -34,6 +34,7 @@ const ETIQUETA_PESTANA: Record<Pestana, string> = {
 }
 
 export function ListadosView() {
+  const maestroRef = useRef<HTMLInputElement>(null)
   const { clientes, plantas, cargando, error, refrescar: refrescarCatalogo, crearCliente, editarCliente, crearPlanta, editarPlanta } =
     useCatalogo()
   const [pestana, setPestana] = useState<Pestana>('clientes')
@@ -161,6 +162,15 @@ export function ListadosView() {
     } catch { window.alert('No se pudo importar. Revisa el formato y las dependencias del listado.') }
   }
 
+  async function importarMaestro(archivo: File) {
+    try {
+      const r = await importarMaestroListados(archivo)
+      window.alert(`Maestro cargado: ${r.sold_to} Sold To, ${r.ship_to} Ship To, ${r.especie} especies y ${r.variedad} variedades procesadas.`)
+      await Promise.all([refrescarCatalogo(), listado.refrescar()])
+    } catch { window.alert('No se pudo importar el maestro. Revisa que incluya CROP, Variedad, SOLD TO2 y SHIP TO2.') }
+    finally { if (maestroRef.current) maestroRef.current.value = '' }
+  }
+
   async function eliminarFiltrados() {
     const ids = pestana === 'clientes' ? clientesFiltrados.map((x) => x.id) : pestana === 'plantas' ? plantasFiltradas.map((x) => x.id) : valoresFiltrados.map((x) => x.id)
     if (!ids.length || !window.confirm(`¿Eliminar los ${ids.length} resultados visibles del filtro actual?`)) return
@@ -177,9 +187,11 @@ export function ListadosView() {
         title="Listados"
         description="Fuente estandarizada de Sold To, Ship To, Especie y Variedad. El resto de la app lee sus valores activos desde acá."
         acciones={
-          <a className={styles.botonDescarga} href={urlExportarListados()} target="_blank" rel="noreferrer">
-            Descargar Excel
-          </a>
+          <>
+            <input ref={maestroRef} type="file" accept=".xlsx,.xls" hidden onChange={(e) => { const archivo = e.target.files?.[0]; if (archivo) void importarMaestro(archivo) }} />
+            <Button onClick={() => maestroRef.current?.click()}>Importar maestro</Button>
+            <a className={styles.botonDescarga} href={urlExportarListados()} target="_blank" rel="noreferrer">Descargar Excel</a>
+          </>
         }
       />
 

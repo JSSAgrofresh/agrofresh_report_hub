@@ -8,6 +8,9 @@
 .contador { margin:0 0 8px; color:#6a756e; font-size:12px; }
 .valores { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
 .valores code { padding:5px 8px; background:#f1f4f1; border:1px solid #d9dfda; border-radius:4px; }
+.sugerencias { display:flex; flex-wrap:wrap; gap:6px; margin:-5px 0 14px; }
+.sugerencias button { padding:5px 8px; border:1px solid #bfd1b4; border-radius:4px; background:#f4f9f1; color:#315b25; cursor:pointer; }
+.accionesGrupo { display:flex; flex-wrap:wrap; gap:8px; }
 .grupo label { display:grid; gap:5px; margin-bottom:10px; color:#526057; font-size:12px; }
 .grupo input { border:1px solid #cbd3cd; border-radius:5px; padding:9px 10px; font:inherit; }
 .mensaje { padding:10px 12px; background:#edf7e7; border-left:3px solid #69ad39; }
