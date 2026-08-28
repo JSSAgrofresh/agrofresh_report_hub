@@ -37,7 +37,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import config, config_store, correo, r2
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
@@ -496,9 +496,10 @@ def descargar_solicitud_pdf(archivo: str) -> Response:
 
 
 class EnvioSolicitudIn(BaseModel):
-    # Correo suelto para un envío puntual (una prueba, alguien fuera de la
-    # lista). Si viene vacío se usan los contactos del laboratorio.
+    # `destinatario` se conserva por compatibilidad. Los adicionales se suman
+    # a la configuración vigente del laboratorio sólo para este envío.
     destinatario: str | None = None
+    destinatarios_adicionales: list[str] = Field(default_factory=list)
 
 
 def contactos_de_solicitud(laboratorio: str) -> list[str]:
@@ -587,12 +588,20 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
     sold_to = datos.get("sold_to", "")
     fecha = datos.get("fecha_solicitud", "")
 
-    # Un correo escrito a mano manda sobre la lista; si no viene ninguno, van
-    # los contactos configurados para ese laboratorio.
+    # Siempre parten los contactos configurados. Los invitados escritos en el
+    # cuadro de envío se agregan sólo a este correo y no alteran el mantenedor.
+    candidatos = contactos_de_solicitud(lab)
     if body.destinatario and body.destinatario.strip():
-        destinatarios = [body.destinatario.strip()]
-    else:
-        destinatarios = contactos_de_solicitud(lab)
+        candidatos.append(body.destinatario.strip())
+    candidatos.extend(body.destinatarios_adicionales)
+    destinatarios: list[str] = []
+    vistos: set[str] = set()
+    for candidato in candidatos:
+        email = str(candidato or "").strip()
+        clave = email.casefold()
+        if email and clave not in vistos:
+            destinatarios.append(email)
+            vistos.add(clave)
     if not destinatarios:
         raise HTTPException(
             400,
