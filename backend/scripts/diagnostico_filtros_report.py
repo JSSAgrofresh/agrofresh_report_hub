@@ -108,6 +108,31 @@ def main() -> None:
             if not filas:
                 print("    (ninguno — el desplegable sale vacío)")
 
+        # Qué pipeline creó estas filas. `emitir_cromatografia` es la subida de
+        # resultados del GC; cualquier otro valor viene del ingest de Excel.
+        print("\n── Origen de las solicitudes ───────────────────────────")
+        cur.execute(
+            """
+            SELECT COALESCE(origen, '(sin origen)') AS origen, count(*) AS n
+            FROM solicitud WHERE vigente GROUP BY 1 ORDER BY 2 DESC LIMIT 10
+            """
+        )
+        for fila in cur.fetchall():
+            print(f"    {fila['n']:>7,}".replace(",", ".") + f"  {fila['origen']}")
+
+        # Si el archivo se leyó bien y solo falló el encabezado de Sold To, las
+        # demás columnas del mismo Excel sí deberían tener datos. Si están todas
+        # vacías, lo que falló es el mapeo completo, no una columna suelta.
+        print("\n── Otras columnas del mismo Excel ──────────────────────")
+        for col in ("especie", "variedad", "lote", "tipo_servicio", "laboratorio"):
+            cur.execute(
+                f"SELECT count(*) AS n FROM solicitud "
+                f"WHERE vigente AND nullif(btrim({col}::text), '') IS NOT NULL"
+            )
+            con_dato = cur.fetchone()["n"]
+            marca = "" if con_dato else "   <-- tambien vacia"
+            print(f"  {col:<16} con dato: {_fmt(con_dato, total)}{marca}")
+
         print("\n── Muestra de 5 solicitudes ────────────────────────────")
         cur.execute(
             """
