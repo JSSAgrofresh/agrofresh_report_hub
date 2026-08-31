@@ -10,6 +10,8 @@ import { cn } from '@/lib/cn'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import { useAuth } from '@/features/auth'
+import { listarAnalisis } from '@/features/laboratorios'
+import type { Analisis } from '@/features/laboratorios'
 import { listarEspeciesActivas, listarVariedadesActivasDeEspecie } from '@/features/listados'
 import type { ValorLista } from '@/features/listados'
 import {
@@ -101,6 +103,7 @@ export function NuevaSolicitudView() {
   const [analitosTodos, setAnalitosTodos] = useState<AnalitoConfig[]>([])
   const [productosTodos, setProductosTodos] = useState<ProductoConfig[]>([])
   const [camposTipoAplicacion, setCamposTipoAplicacion] = useState<CampoTipoAplicacionConfig[]>([])
+  const [analisisTodos, setAnalisisTodos] = useState<Analisis[]>([])
 
   const { user } = useAuth()
 
@@ -158,6 +161,9 @@ export function NuevaSolicitudView() {
     listarCamposTipoAplicacion()
       .then(setCamposTipoAplicacion)
       .catch(() => setCamposTipoAplicacion([]))
+    listarAnalisis()
+      .then(setAnalisisTodos)
+      .catch(() => setAnalisisTodos([]))
     listarClientes()
       .then((clientes) => setClientesDisponibles(clientes.filter((c) => c.activo).map((c) => c.nombre)))
       .catch(() => setClientesDisponibles([]))
@@ -210,6 +216,36 @@ export function NuevaSolicitudView() {
         .sort((a, b) => (a.categoria || '').localeCompare(b.categoria || '') || a.orden - b.orden),
     [analitosTodos, laboratorio, tipoAplicacionSel],
   )
+  /** Unidad vigente de cada analito, por id.
+   *
+   * La unidad la define el laboratorio en sus Análisis, no el catálogo de
+   * analitos: el mismo analito puede informarse en ppm en un análisis y en
+   * mg/kg en otro. Si el laboratorio lo dejó sin unidad, queda sin unidad —
+   * por eso el valor del Análisis manda aunque esté vacío.
+   *
+   * Solo se cae al catálogo cuando el analito no aparece en ningún análisis
+   * del laboratorio, que es el caso de los que todavía no se han agrupado.
+   */
+  const unidadPorAnalito = useMemo(() => {
+    const mapa = new Map<number, string>()
+    const analisisDelLab = analisisTodos
+      .filter((a) => a.laboratorio === laboratorio && a.activo)
+      .sort((a, b) => a.orden - b.orden)
+    for (const analisis of analisisDelLab) {
+      for (const item of analisis.analitos) {
+        // El primer análisis que lo incluya define la unidad: dentro de un
+        // mismo laboratorio no hay forma de elegir entre dos que discrepen,
+        // porque la solicitud pide analitos sueltos, no un análisis completo.
+        if (!mapa.has(item.analito_id)) mapa.set(item.analito_id, item.unidad ?? '')
+      }
+    }
+    return mapa
+  }, [analisisTodos, laboratorio])
+
+  function unidadDe(analito: AnalitoConfig): string {
+    return unidadPorAnalito.get(analito.id) ?? analito.unidad ?? ''
+  }
+
   const esCromatografia = laboratorio === 'QUITECA' || laboratorio === 'AGROFRESH'
   const esLineaProceso = tipoAplicacionSel === TIPO_LINEA_PROCESO
   const esActimist = tipoAplicacionSel === TIPO_ACTIMIST
@@ -327,7 +363,8 @@ export function NuevaSolicitudView() {
       if (!seleccionAnalitos[analito.id]) continue
       codigosAnalitosSolicitados.push(analito.codigo)
       const valor = valoresAnalitos[analito.id]?.trim()
-      const etiqueta = analito.unidad ? `${analito.nombre} (${analito.unidad})` : analito.nombre
+      const unidad = unidadDe(analito)
+      const etiqueta = unidad ? `${analito.nombre} (${unidad})` : analito.nombre
       camposLabFinal[etiqueta] = valor || 'Solicitado'
     }
     // Los campos propios del Tipo de Aplicación se guardan siempre que
@@ -691,7 +728,7 @@ export function NuevaSolicitudView() {
                                   número en la unidad configurada. */}
                               <input
                                 type="text"
-                                placeholder={a.unidad ?? ''}
+                                placeholder={unidadDe(a)}
                                 value={valoresAnalitos[a.id] ?? ''}
                                 onChange={(e) => setValoresAnalitos((v) => ({ ...v, [a.id]: e.target.value }))}
                               />
