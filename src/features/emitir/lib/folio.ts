@@ -1,29 +1,46 @@
 import type { Solicitud } from './tipos'
 
-/** Deja un folio comparable venga como venga: el lector de códigos de barras
- * puede entregarlo en minúsculas, con espacios de más o con guiones que el
- * operador no tipearía. Se compara sin nada de eso, así "ot-0012", "OT 0012" y
- * "OT0012" son el mismo folio. */
-function normalizar(texto: string): string {
+/** Deja un folio comparable venga como venga.
+ *
+ * Un lector USB no manda texto: manda las teclas que habría apretado alguien
+ * en un teclado *US*. Con Windows en español, la tecla que allá es `-` acá es
+ * `'`, así que un folio impreso "OT-0010" llega escrito "OT'0010". Eso se
+ * arregla de verdad configurando el país del lector, pero el sistema no puede
+ * depender de que alguien lo haya hecho: comparando sin nada que no sea letra
+ * o número, "OT-0010", "OT'0010", "ot 0010" y "OT0010" son el mismo folio.
+ */
+export function normalizarFolio(texto: string): string {
   return texto.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
-/** Busca la solicitud cuyo N° coincide con lo escaneado. Primero exacto —el
- * caso normal, porque el código de barras lleva el folio tal cual va impreso—
- * y recién después el normalizado, para que un lector con sufijos raros o un
- * folio tipeado a mano igual encuentren la solicitud. */
+/** El folio de la solicitud tal como se compara. */
+function folioDe(solicitud: Solicitud): string {
+  return normalizarFolio(solicitud.campos['N° Solicitud'] || '')
+}
+
+/** Solicitudes cuyo folio empieza con lo tecleado hasta ahora: lo que se ve
+ * mientras el lector escribe, o mientras alguien tipea el número a mano. */
+export function filtrarPorFolio(solicitudes: Solicitud[], texto: string): Solicitud[] {
+  const clave = normalizarFolio(texto)
+  if (!clave) return solicitudes
+  return solicitudes.filter((s) => folioDe(s).includes(clave) || normalizarFolio(s.archivo).includes(clave))
+}
+
+/** La solicitud que corresponde a un folio COMPLETO, o `null`.
+ *
+ * Solo acepta la coincidencia exacta, nunca un prefijo: mientras el lector
+ * escribe letra por letra, "OT001" calza con varias solicitudes, y resolver
+ * ahí elegiría cualquiera. Recién con el folio entero hay una sola respuesta
+ * posible, y por eso esto se puede llamar en cada tecla sin equivocarse.
+ */
 export function buscarPorFolio(solicitudes: Solicitud[], escaneado: string): Solicitud | null {
-  const crudo = escaneado.trim()
-  if (!crudo) return null
-  const exacta = solicitudes.find((s) => (s.campos['N° Solicitud'] || '').trim() === crudo)
-  if (exacta) return exacta
-  const clave = normalizar(crudo)
+  const clave = normalizarFolio(escaneado)
   if (!clave) return null
   return (
-    solicitudes.find((s) => normalizar(s.campos['N° Solicitud'] || '') === clave) ??
-    // Último recurso: el nombre del archivo en Storage, para solicitudes
-    // viejas guardadas antes de que el folio fuera un campo propio.
-    solicitudes.find((s) => normalizar(s.archivo).includes(clave)) ??
+    solicitudes.find((s) => folioDe(s) === clave) ??
+    // Solicitudes viejas, guardadas antes de que el folio fuera un campo
+    // propio: ahí el número solo existe en el nombre del archivo.
+    solicitudes.find((s) => !folioDe(s) && normalizarFolio(s.archivo).includes(clave)) ??
     null
   )
 }

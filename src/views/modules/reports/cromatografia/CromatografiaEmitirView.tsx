@@ -9,6 +9,7 @@ import { ROUTES } from '@/constants/routes'
 import { HttpError } from '@/services/http/client'
 import {
   descargarExcelCruce,
+  filtrarPorFolio,
   descargarInformesPDF,
   listarSolicitudes,
   parsearGC,
@@ -71,6 +72,7 @@ export function CromatografiaEmitirView() {
   const [sinSolicitudes, setSinSolicitudes] = useState(false)
   const [solicitudEnFicha, setSolicitudEnFicha] = useState<Solicitud | null>(null)
   const [mostrarConfiguracion, setMostrarConfiguracion] = useState(false)
+  const [filtroFolio, setFiltroFolio] = useState('')
 
   const [muestrasGC, setMuestrasGC] = useState<MuestraGC[] | null>(null)
   const [nombreArchivoGC, setNombreArchivoGC] = useState<string | null>(null)
@@ -159,6 +161,13 @@ export function CromatografiaEmitirView() {
   function quitarDeCruce(archivo: string) {
     setFilasCruce((prev) => prev.filter((f) => f.solicitud.archivo !== archivo))
   }
+
+  // La tabla muestra lo mismo que el escáner está buscando: así se ve al tiro
+  // qué alcanzó a leer la pistola, aunque el folio venga a medias.
+  const solicitudesVisibles = useMemo(
+    () => filtrarPorFolio(solicitudes ?? [], filtroFolio),
+    [solicitudes, filtroFolio],
+  )
 
   const codigosDisponibles = useMemo(() => (muestrasGC ?? []).map((m) => m.codigo), [muestrasGC])
 
@@ -290,6 +299,7 @@ export function CromatografiaEmitirView() {
           </p>
           <EscanerSolicitud
             solicitudes={solicitudes}
+            onFiltroCambia={setFiltroFolio}
             yaEnCruce={(archivo) => filasCruce.some((f) => f.solicitud.archivo === archivo)}
             onEnviarACruce={agregarACruce}
             onVerFicha={setSolicitudEnFicha}
@@ -319,7 +329,7 @@ export function CromatografiaEmitirView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {solicitudes.map((s) => (
+                  {solicitudesVisibles.map((s) => (
                     <tr
                       key={s.archivo}
                       draggable
@@ -342,6 +352,13 @@ export function CromatografiaEmitirView() {
                       </td>
                     </tr>
                   ))}
+                  {solicitudesVisibles.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className={styles.estado}>
+                        Ninguna solicitud tiene el folio “{filtroFolio}”.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

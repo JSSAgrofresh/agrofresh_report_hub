@@ -19,6 +19,8 @@ const RESUMEN: [string, string][] = [
 
 interface EscanerSolicitudProps {
   solicitudes: Solicitud[] | null
+  /** Lo tecleado hasta ahora, para que la tabla de al lado filtre en vivo. */
+  onFiltroCambia: (texto: string) => void
   /** Ya está en la zona de cruce, para avisar en vez de agregarla dos veces. */
   yaEnCruce: (archivo: string) => boolean
   onEnviarACruce: (solicitud: Solicitud) => void
@@ -28,13 +30,24 @@ interface EscanerSolicitudProps {
 /**
  * Lee la solicitud impresa con la pistola de códigos de barras.
  *
- * Un lector USB se comporta como un teclado: "tipea" el folio y manda Enter.
- * Por eso acá no hay nada de hardware —ni drivers, ni permisos, ni una API—,
+ * Un lector USB se comporta como un teclado: "tipea" el folio y —si está
+ * configurado así— manda Enter. Muchos vienen sin ese sufijo, así que acá no
+ * se espera ninguna tecla de cierre: se busca en cada carácter que entra, y la
+ * solicitud aparece sola apenas el folio está completo. Enter y Tab siguen
+ * funcionando para el que prefiera tipear.
+ *
+ * No hay nada de hardware que manejar —ni drivers, ni permisos, ni una API—,
  * solo un campo que tiene que estar enfocado cuando se dispara. Mantenerlo
- * enfocado solo es responsabilidad de esta caja: si el foco se fuera a
+ * enfocado es responsabilidad exclusiva de esta caja: si el foco se fuera a
  * cualquier otro input de la pantalla, el folio terminaría escrito ahí.
  */
-export function EscanerSolicitud({ solicitudes, yaEnCruce, onEnviarACruce, onVerFicha }: EscanerSolicitudProps) {
+export function EscanerSolicitud({
+  solicitudes,
+  onFiltroCambia,
+  yaEnCruce,
+  onEnviarACruce,
+  onVerFicha,
+}: EscanerSolicitudProps) {
   const [texto, setTexto] = useState('')
   const [ultimo, setUltimo] = useState<{ escaneado: string; solicitud: Solicitud | null } | null>(null)
   const [activo, setActivo] = useState(true)
@@ -54,16 +67,38 @@ export function EscanerSolicitud({ solicitudes, yaEnCruce, onEnviarACruce, onVer
     )
   }, [ultimo])
 
-  function procesar() {
-    const escaneado = texto.trim()
-    if (!escaneado) return
+  /** Deja el texto seleccionado para que el próximo disparo lo reemplace en
+   * vez de pegarse al anterior: es lo que ya hace el navegador con cualquier
+   * campo, y evita tener que acordarse de borrar entre hoja y hoja. */
+  function prepararSiguienteDisparo() {
+    entrada.current?.select()
+  }
+
+  function resolver(valor: string, forzado: boolean) {
+    const escaneado = valor.trim()
+    if (!escaneado) {
+      setUltimo(null)
+      return
+    }
     const solicitud = buscarPorFolio(solicitudes ?? [], escaneado)
+    // Mientras el lector todavía está escribiendo, un folio a medias no
+    // encuentra nada: eso no es un error que valga la pena mostrar, solo
+    // significa que faltan caracteres. Recién se avisa "no existe" cuando
+    // alguien cerró con Enter, que sí es una pregunta terminada.
+    if (!solicitud && !forzado) return
     setUltimo({ escaneado, solicitud })
-    setTexto('')
+    if (!solicitud) return
     // Escanear es el gesto de "esta hoja entra al informe": si la solicitud
     // existe se manda sola a la zona de cruce, así se pueden pasar veinte
     // hojas seguidas sin tocar el mouse. Siempre se puede sacar de ahí.
-    if (solicitud && !yaEnCruce(solicitud.archivo)) onEnviarACruce(solicitud)
+    if (!yaEnCruce(solicitud.archivo)) onEnviarACruce(solicitud)
+    prepararSiguienteDisparo()
+  }
+
+  function alEscribir(valor: string) {
+    setTexto(valor)
+    onFiltroCambia(valor)
+    resolver(valor, false)
   }
 
   return (
@@ -72,7 +107,7 @@ export function EscanerSolicitud({ solicitudes, yaEnCruce, onEnviarACruce, onVer
         className={styles.linea}
         onSubmit={(e) => {
           e.preventDefault()
-          procesar()
+          resolver(texto, true)
         }}
       >
         <span className={styles.icono} aria-hidden="true">
@@ -82,14 +117,14 @@ export function EscanerSolicitud({ solicitudes, yaEnCruce, onEnviarACruce, onVer
           ref={entrada}
           className={styles.entrada}
           value={texto}
-          onChange={(e) => setTexto(e.target.value)}
+          onChange={(e) => alEscribir(e.target.value)}
           onFocus={() => setActivo(true)}
           onBlur={() => setActivo(false)}
           onKeyDown={(e) => {
             // Hay lectores configurados para cerrar con Tab en vez de Enter.
             if (e.key === 'Tab' && texto.trim()) {
               e.preventDefault()
-              procesar()
+              resolver(texto, true)
             }
           }}
           placeholder="Escanea el código de barras de la solicitud impresa"
@@ -97,6 +132,11 @@ export function EscanerSolicitud({ solicitudes, yaEnCruce, onEnviarACruce, onVer
           autoComplete="off"
           spellCheck={false}
         />
+        {texto && (
+          <button type="button" className={styles.limpiar} onClick={() => { setTexto(''); onFiltroCambia(''); setUltimo(null) }}>
+            Limpiar
+          </button>
+        )}
         <span className={activo ? styles.listo : styles.dormido}>{activo ? 'Listo para escanear' : 'Haz clic acá'}</span>
       </form>
 
@@ -110,8 +150,10 @@ export function EscanerSolicitud({ solicitudes, yaEnCruce, onEnviarACruce, onVer
       {ultimo?.solicitud && (
         <div className={styles.ficha}>
           <div className={styles.fichaCabecera}>
-            <strong className={styles.folio}>{ultimo.solicitud.campos['N° Solicitud'] || ultimo.solicitud.archivo}</strong>
-            <span className={styles.estado}>{enCruce ? 'ya está en la zona de cruce' : 'enviada a la zona de cruce'}</span>
+            <strong className={styles.folio}>
+              {ultimo.solicitud.campos['N° Solicitud'] || ultimo.solicitud.archivo}
+            </strong>
+            <span className={styles.estado}>{enCruce ? 'en la zona de cruce' : 'enviada a la zona de cruce'}</span>
           </div>
           <dl className={styles.datos}>
             {resumen.map(([etiqueta, valor]) => (
@@ -135,8 +177,6 @@ export function EscanerSolicitud({ solicitudes, yaEnCruce, onEnviarACruce, onVer
           <button
             type="button"
             className={styles.verFicha}
-            // El clic saca el foco del campo; devolverlo acá evita que el
-            // siguiente disparo de la pistola se pierda.
             onClick={() => {
               const s = ultimo.solicitud
               if (s) onVerFicha(s)
