@@ -206,10 +206,13 @@ esa persona tiene que cambiarla antes de entrar a ninguna parte.
 
 ### CORS
 
-`CORS_ORIGINS` (variable de entorno, separada por comas) tiene que listar los
-dominios reales del frontend. Antes había además un comodín
-`https://*.vercel.app`, que dejaba llamar a esta API desde cualquier deploy
-de cualquier persona en Vercel.
+Sigue abierto a `https://*.vercel.app`, a la espera de que el frontend tenga
+un dominio propio. Cuando lo tenga, va en `CORS_ORIGINS` (variable de
+entorno, separada por comas) y ese comodín se borra de `main.py`.
+
+Mientras tanto no es la puerta del sistema: la sesión se exige igual en cada
+endpoint, y el token viaja en un encabezado y no en una cookie, así que otro
+sitio no puede hacer que el navegador lo mande por su cuenta.
 
 ### Pruebas
 
