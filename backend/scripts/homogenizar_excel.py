@@ -251,14 +251,32 @@ def cmd_homogenizar(catalogo, pares, ruta_historico: str, ruta_archivo: str, rut
     for nombre, i in indices.items():
         encabezado[i] = nombre
 
+    # Una decisión confirmada a mano puede apuntar a un valor que todavía no
+    # está en el catálogo -"SIN VARIEDAD", o una grafía que se prefiere sobre
+    # la registrada-. La persona es la autoridad: su decisión extiende el
+    # catálogo en vez de descartarse.
+    catalogo = {campo: list(valores) for campo, valores in catalogo.items()}
+    nuevos: dict[str, list[str]] = defaultdict(list)
+    for campo, mapa in (decisiones or {}).items():
+        conocidos = {clave(v) for v in catalogo[campo]}
+        for oficial in mapa.values():
+            if clave(oficial) not in conocidos:
+                catalogo[campo].append(oficial)
+                conocidos.add(clave(oficial))
+                nuevos[campo].append(oficial)
+    if nuevos:
+        print("\nValores nuevos que agregan tus decisiones al catálogo:")
+        for campo, vals in nuevos.items():
+            print(f"  {campo}: {', '.join(sorted(vals))}")
+
     ctx = _pares_ship_por_cliente(ruta_historico)
     hs = {
         campo: _homogenizador(campo, catalogo, pares, ctx if campo == "Ship To" else None)
         for campo in CAMPOS
     }
-    # Las decisiones confirmadas entran como alias: pasan a resolverse solas.
-    # Van después de construir el homogenizador para que ganen sobre lo que
-    # hubiera aprendido del histórico.
+    # Las decisiones entran como alias: pasan a resolverse solas. Van después
+    # de construir el homogenizador para que ganen sobre lo aprendido del
+    # histórico, que puede contradecirlas.
     for campo, mapa in (decisiones or {}).items():
         for k, oficial in mapa.items():
             hs[campo].aprender(k, oficial)
