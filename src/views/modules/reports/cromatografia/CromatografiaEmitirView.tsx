@@ -15,6 +15,7 @@ import {
   subirCruceABaseDeDatos,
 } from '@/features/emitir'
 import type { FilaCruce, FilaSubida, MuestraGC, ResultadoAnalito, Solicitud } from '@/features/emitir'
+import { EscanerSolicitud } from './EscanerSolicitud'
 import { SolicitudFichaModal } from './SolicitudFichaModal'
 import { ConfiguracionInformeModal } from './ConfiguracionInformeModal'
 import styles from './CromatografiaEmitirView.module.css'
@@ -134,9 +135,12 @@ export function CromatografiaEmitirView() {
     const archivo = e.dataTransfer.getData(TIPO_ARRASTRE_SOLICITUD)
     if (!archivo || !solicitudes) return
     const solicitud = solicitudes.find((s) => s.archivo === archivo)
-    if (!solicitud) return
+    if (solicitud) agregarACruce(solicitud)
+  }
+
+  function agregarACruce(solicitud: Solicitud) {
     setFilasCruce((prev) =>
-      prev.some((f) => f.solicitud.archivo === archivo)
+      prev.some((f) => f.solicitud.archivo === solicitud.archivo)
         ? prev
         : [...prev, { solicitud, codigoAsignado: null, fechaRecepcion: '' }],
     )
@@ -281,8 +285,15 @@ export function CromatografiaEmitirView() {
           </div>
           <p className={styles.panelAyuda}>
             Solicitudes de análisis del laboratorio AGROFRESH (Toma de muestras → Nueva solicitud). Arrastra una
-            fila hacia la zona de cruce; haz clic para ver la ficha completa.
+            fila hacia la zona de cruce; haz clic para ver la ficha completa. Si tienes la solicitud impresa, escanea
+            su código de barras con la pistola.
           </p>
+          <EscanerSolicitud
+            solicitudes={solicitudes}
+            yaEnCruce={(archivo) => filasCruce.some((f) => f.solicitud.archivo === archivo)}
+            onEnviarACruce={agregarACruce}
+            onVerFicha={setSolicitudEnFicha}
+          />
           {errorSolicitudes && <p className={styles.error}>{errorSolicitudes}</p>}
           {sinSolicitudes ? (
             <div className={styles.avisoCarpeta}>
