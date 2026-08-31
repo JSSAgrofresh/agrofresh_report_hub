@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from . import mapeo
 from .auditoria import CAMPOS_HOMOGENIZAR
 from .db import conexion, cursor_dict
+from .homogenizador import Homogenizador
 from .listados import clave_normalizada
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
@@ -321,6 +322,24 @@ def _cargar_mapas_listados(cur) -> dict[str, Any]:
     }
 
 
+def _rescatar(valor: str, oficiales: dict[str, str]) -> str | None:
+    """Segunda oportunidad para un valor que el calce exacto/normalizado no
+    resolvió, usando las reglas de `homogenizador` -misma razón social escrita
+    distinto, prefijo de un único oficial, variedad con la especie por delante-.
+
+    Solo devuelve algo cuando la resolución es inequívoca. Un simple parecido
+    NO basta: eso sigue yendo a Data Core para que una persona decida, que es
+    la garantía de que el sistema nunca inventa un cliente en silencio.
+
+    `oficiales` es {clave: nombre_canonico}; se pasan los mismos candidatos
+    que ya se usan para las sugerencias.
+    """
+    if not valor or not oficiales:
+        return None
+    resolucion = Homogenizador(list(oficiales.values())).resolver(valor)
+    return resolucion.valor if resolucion.automatico else None
+
+
 def _resolver_listados(
     sol: dict[str, Any], mapas: dict[str, Any], adopciones: list[dict[str, Any]] | None = None
 ) -> list[dict[str, str]]:
@@ -358,14 +377,22 @@ def _resolver_listados(
                 sold_to_resuelto = True
             else:
                 candidatos = {k: v[0] for k, v in mapas["clientes"].items()}
-                motivos.append(
-                    {
-                        "campo": "sold_to_raw",
-                        "etiqueta": _ETIQUETA_LISTADO["sold_to_raw"],
-                        "valor": sold_to,
-                        "sugerencias": _sugerencias_fuzzy(clave, candidatos),
-                    }
-                )
+                rescatado = _rescatar(sold_to, candidatos)
+                if rescatado:
+                    for nombre, c_id in mapas["clientes"].values():
+                        if nombre == rescatado:
+                            sol["sold_to_raw"], cliente_id = nombre, c_id
+                            sold_to_resuelto = True
+                            break
+                if not sold_to_resuelto:
+                    motivos.append(
+                        {
+                            "campo": "sold_to_raw",
+                            "etiqueta": _ETIQUETA_LISTADO["sold_to_raw"],
+                            "valor": sold_to,
+                            "sugerencias": _sugerencias_fuzzy(clave, candidatos),
+                        }
+                    )
 
     ship_to = sol.get("ship_to_raw")
     if ship_to and sold_to_resuelto:
@@ -385,14 +412,18 @@ def _resolver_listados(
                 sol["ship_to_raw"] = resuelto[0]
             else:
                 candidatos = {k: v[0] for k, v in plantas_del_cliente.items()}
-                motivos.append(
-                    {
-                        "campo": "ship_to_raw",
-                        "etiqueta": _ETIQUETA_LISTADO["ship_to_raw"],
-                        "valor": ship_to,
-                        "sugerencias": _sugerencias_fuzzy(clave, candidatos),
-                    }
-                )
+                rescatado = _rescatar(ship_to, candidatos)
+                if rescatado:
+                    sol["ship_to_raw"] = rescatado
+                else:
+                    motivos.append(
+                        {
+                            "campo": "ship_to_raw",
+                            "etiqueta": _ETIQUETA_LISTADO["ship_to_raw"],
+                            "valor": ship_to,
+                            "sugerencias": _sugerencias_fuzzy(clave, candidatos),
+                        }
+                    )
 
     especie = sol.get("especie")
     if especie:
@@ -402,14 +433,21 @@ def _resolver_listados(
             sol["especie"], especie_id = resuelto
         else:
             candidatos = {k: v[0] for k, v in mapas["especies"].items()}
-            motivos.append(
-                {
-                    "campo": "especie",
-                    "etiqueta": _ETIQUETA_LISTADO["especie"],
-                    "valor": especie,
-                    "sugerencias": _sugerencias_fuzzy(clave, candidatos),
-                }
-            )
+            rescatado = _rescatar(especie, candidatos)
+            if rescatado:
+                for nombre, e_id in mapas["especies"].values():
+                    if nombre == rescatado:
+                        sol["especie"], especie_id = nombre, e_id
+                        break
+            if especie_id is None:
+                motivos.append(
+                    {
+                        "campo": "especie",
+                        "etiqueta": _ETIQUETA_LISTADO["especie"],
+                        "valor": especie,
+                        "sugerencias": _sugerencias_fuzzy(clave, candidatos),
+                    }
+                )
 
     variedad = sol.get("variedad")
     if variedad and especie_id is not None:
@@ -425,6 +463,9 @@ def _resolver_listados(
                 canonico_variedad = variedades_de_especie.get(clave_sin_prefijo)
                 if canonico_variedad:
                     clave = clave_sin_prefijo
+
+        if not canonico_variedad:
+            canonico_variedad = _rescatar(variedad, variedades_de_especie)
 
         if canonico_variedad:
             sol["variedad"] = canonico_variedad
