@@ -46,8 +46,47 @@ from app.db import conexion, cursor_dict  # noqa: E402
 
 CARPETA_R2 = "respaldos_bd"
 
+# Bitácora de corridas: cuántas van, cuándo fue la última y qué archivó. Sin
+# esto, una tarea programada que corre de madrugada es una caja negra —no hay
+# forma de saber si sigue funcionando o si dejó de correr hace semanas.
+ARCHIVO_BITACORA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".respaldos_estado.json")
+
 # Schemas que nunca se archivan: el de producción y el área de trabajo.
 PROTEGIDOS = {"lab", "lab_staging"}
+
+
+def _leer_bitacora() -> dict:
+    try:
+        with open(ARCHIVO_BITACORA, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {"corridas": 0, "archivados_total": 0, "ultima": None, "ultimo_error": None}
+
+
+def _guardar_bitacora(estado: dict) -> None:
+    try:
+        with open(ARCHIVO_BITACORA, "w", encoding="utf-8") as f:
+            json.dump(estado, f, ensure_ascii=False, indent=2)
+    except OSError:
+        # No poder escribir la bitácora no es motivo para fallar el respaldo.
+        pass
+
+
+def _hace_cuanto(iso: str | None) -> str:
+    if not iso:
+        return "nunca"
+    try:
+        transcurrido = datetime.now(timezone.utc) - datetime.fromisoformat(iso)
+    except ValueError:
+        return iso
+    segundos = int(transcurrido.total_seconds())
+    if segundos < 60:
+        return f"hace {segundos} s"
+    if segundos < 3600:
+        return f"hace {segundos // 60} min"
+    if segundos < 86400:
+        return f"hace {segundos // 3600} h"
+    return f"hace {segundos // 86400} d"
 
 
 def _tamano(n: float) -> str:
@@ -129,6 +168,14 @@ def main() -> int:
         print("--conservar no puede ser negativo.", file=sys.stderr)
         return 1
 
+    bitacora = _leer_bitacora()
+    print(
+        f"Corrida N.° {bitacora['corridas'] + 1} · última {_hace_cuanto(bitacora.get('ultima'))}"
+        f" · {bitacora.get('archivados_total', 0)} respaldo(s) archivados hasta ahora"
+    )
+    if bitacora.get("ultimo_error"):
+        print(f"  La corrida anterior terminó con error: {bitacora['ultimo_error']}")
+
     if args.aplicar and not r2.disponible():
         print("R2 no está configurado: sin destino donde archivar, no se borra nada.", file=sys.stderr)
         return 1
@@ -184,6 +231,13 @@ def main() -> int:
                 conn.rollback()
                 errores += 1
                 print(f"   ERROR: {exc}. El schema queda intacto; se reintenta en la próxima corrida.", file=sys.stderr)
+
+        archivados = len(archivar) - errores
+        bitacora["corridas"] = bitacora.get("corridas", 0) + 1
+        bitacora["archivados_total"] = bitacora.get("archivados_total", 0) + archivados
+        bitacora["ultima"] = datetime.now(timezone.utc).isoformat()
+        bitacora["ultimo_error"] = f"{errores} schema(s) no se pudieron archivar" if errores else None
+        _guardar_bitacora(bitacora)
 
         if errores:
             print(f"\nTerminó con {errores} error(es).", file=sys.stderr)
