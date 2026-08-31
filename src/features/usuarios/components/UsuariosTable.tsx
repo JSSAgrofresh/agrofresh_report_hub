@@ -15,9 +15,12 @@ interface UsuariosTableProps {
   usuarios: Usuario[]
   onEditar: (usuario: Usuario) => void
   onEliminar: (usuario: Usuario) => void
+  /** Genera una contraseña nueva de un solo uso, para alguien que perdió la
+   * suya. Cierra además sus sesiones abiertas. */
+  onRestablecer: (usuario: Usuario) => void
 }
 
-export function UsuariosTable({ usuarios, onEditar, onEliminar }: UsuariosTableProps) {
+export function UsuariosTable({ usuarios, onEditar, onEliminar, onRestablecer }: UsuariosTableProps) {
   if (usuarios.length === 0) {
     return <p className={styles.vacio}>No hay usuarios todavía.</p>
   }
@@ -49,6 +52,9 @@ export function UsuariosTable({ usuarios, onEditar, onEliminar }: UsuariosTableP
                   {u.plantaNombre && <span className={styles.planta}> · {u.plantaNombre}</span>}
                 </td>
                 <td className={styles.acciones}>
+                  <button className={styles.boton} onClick={() => onRestablecer(u)}>
+                    Restablecer clave
+                  </button>
                   <button className={styles.boton} onClick={() => onEditar(u)}>
                     Editar
                   </button>

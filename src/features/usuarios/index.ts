@@ -1,5 +1,6 @@
 export { useUsuarios } from './hooks/useUsuarios'
-export { buscarUsuarioPorEmail, CORREO_MAESTRO } from './api/usuariosStore'
+export { CORREO_MAESTRO, regenerarPassword } from './api/usuariosStore'
+export type { UsuarioCreado } from './api/usuariosStore'
 export {
   esAdminGeneral,
   etiquetaAcceso,
@@ -12,6 +13,7 @@ export {
   reportesPredeterminados,
   MODULO_TOMA_MUESTRAS,
 } from './permisos'
+export { ClaveTemporalAviso } from './components/ClaveTemporalAviso'
 export { UsuarioForm } from './components/UsuarioForm'
 export { UsuariosTable } from './components/UsuariosTable'
 export type { TipoAcceso, Usuario } from './types'

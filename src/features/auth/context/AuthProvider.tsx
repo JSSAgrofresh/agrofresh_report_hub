@@ -1,19 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
-import { buscarUsuarioPorEmail } from '@/features/usuarios'
-import { login as loginRequest, logout as logoutRequest } from '../api/authApi'
+import { alPerderSesion, tokenActual } from '@/services/http/sesion'
+import { cuentaVigente, login as loginRequest, logout as logoutRequest } from '../api/authApi'
 import type { AuthUser } from '../types'
 import { AuthContext } from './AuthContext'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   // v2: la sesión ahora guarda tipoAcceso/área en vez del rol anterior (consulta/carga/aprobación)
   const [user, setUser] = useLocalStorage<AuthUser | null>('agrofresh.sesion.v2', null)
+  const [sincronizando, setSincronizando] = useState(() => Boolean(user) && Boolean(tokenActual()))
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const authUser = await loginRequest(email, password)
-      setUser(authUser)
+      setUser(await loginRequest(email, password))
     },
     [setUser],
   )
@@ -23,37 +23,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [setUser])
 
-  // La sesión guardada es una foto del usuario tomada al iniciar sesión. Si
-  // un administrador le cambia el nombre, el área o los permisos, esa foto
-  // queda vieja y la persona sigue viendo sus datos anteriores mientras no
-  // cierre sesión. Al arrancar se vuelve a pedir la cuenta por su correo y se
-  // reemplaza la foto por el dato vigente del backend.
+  // Cuando el backend rechaza el token —venció, lo revocaron, o a la cuenta
+  // le cambiaron los permisos— la aplicación tiene que volver al ingreso.
+  // Dejar la sesión guardada mostraría pantallas con datos viejos y un error
+  // en cada llamada, sin explicar nunca qué pasó.
+  useEffect(() => alPerderSesion(() => setUser(null)), [setUser])
+
+  // Lo guardado es una foto tomada al iniciar sesión. Si un administrador
+  // cambió el nombre, el área o los permisos, esa foto quedó vieja. Al
+  // arrancar se pide la cuenta vigente al backend y se reemplaza.
   //
-  // El correo es la identidad estable de la cuenta -el id puede no existir en
-  // sesiones creadas antes de que el padrón viviera en el backend-, así que
-  // la búsqueda va por correo. Si la cuenta ya no existe, se cierra la sesión.
-  const emailSesion = user?.email
-  const yaSincronizado = useRef<string | null>(null)
+  // Es también la única forma de saber si el token todavía sirve: mostrar la
+  // aplicación y descubrirlo recién en la primera llamada deja ver, por un
+  // instante, pantallas que quizá ya no corresponden.
+  const yaSincronizado = useRef(false)
   useEffect(() => {
-    if (!emailSesion || yaSincronizado.current === emailSesion) return
-    yaSincronizado.current = emailSesion
+    if (yaSincronizado.current || !user || !tokenActual()) return
+    yaSincronizado.current = true
     let vigente = true
-    buscarUsuarioPorEmail(emailSesion)
+    cuentaVigente()
       .then((actual) => {
-        if (!vigente) return
-        // `undefined` significa que la cuenta fue eliminada: la sesión ya no
-        // corresponde a nadie y no debe seguir abierta.
-        setUser(actual ?? null)
+        if (vigente) setUser(actual)
       })
-      // Un backend caído no debe expulsar a nadie: se conserva la sesión
+      // Un 401 ya lo maneja `alPerderSesion`. Cualquier otro fallo es el
+      // backend caído, y eso no debe expulsar a nadie: se conserva la foto
       // guardada y se reintenta en la siguiente carga.
       .catch(() => {})
+      .finally(() => {
+        if (vigente) setSincronizando(false)
+      })
     return () => {
       vigente = false
     }
-  }, [emailSesion, setUser])
+  }, [user, setUser])
 
-  const value = useMemo(() => ({ user, login, logout }), [user, login, logout])
+  const refrescar = useCallback(async () => {
+    setUser(await cuentaVigente())
+  }, [setUser])
+
+  const value = useMemo(
+    () => ({ user, login, logout, refrescar, sincronizando }),
+    [user, login, logout, refrescar, sincronizando],
+  )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

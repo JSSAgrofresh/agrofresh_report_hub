@@ -34,11 +34,13 @@ export function useUsuarios() {
     }
   }, [])
 
+  /** Devuelve la cuenta y su contraseña temporal: quien la crea tiene que
+   * dictársela a su dueño, porque no vuelve a mostrarse nunca. */
   const crear = useCallback(
     async (datos: Omit<Usuario, 'id'>) => {
-      const nuevo = await crearUsuario(datos)
+      const creado = await crearUsuario(datos)
       await refrescar()
-      return nuevo
+      return creado
     },
     [refrescar],
   )
