@@ -838,7 +838,6 @@ class CampoTipoAplicacionIn(BaseModel):
 
 
 _CAMPOS_TIPO_APLICACION_DEFECTO: list[dict] = [
-    {"id": 3, "ambito": "Actimist", "clave": "aplicacion_en", "etiqueta": "Aplicación En", "tipo": "text", "requerido": False, "activo": True, "orden": 1},
     {"id": 4, "ambito": "Actimist", "clave": "gasto", "etiqueta": "Gasto", "tipo": "number", "requerido": False, "activo": True, "orden": 2},
 ]
 
@@ -852,6 +851,8 @@ _CAMPOS_TIPO_APLICACION_RETIRADOS = {
     ("Actimist", "presion_actimist"),
     # Nunca formó parte del formato oficial de solicitud.
     ("Línea de proceso", "velocidad_linea"),
+    # Duplicaba a Tipo de Muestra: ambos respondían qué se aplicó.
+    ("Actimist", "aplicacion_en"),
 }
 
 _CAMPOS_TIPO_APLICACION_OFICIALES = {
