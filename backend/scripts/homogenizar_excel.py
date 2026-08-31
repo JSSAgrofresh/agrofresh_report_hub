@@ -43,13 +43,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.homogenizador import Homogenizador, clave  # noqa: E402
 
-# Campo -> (columna del catálogo, columna cruda del archivo, columna homogenizada)
+# Campo -> (columna del catálogo, columna cruda, columna auxiliar donde se
+# escribe el resultado). La auxiliar es opcional: si el archivo no la trae, se
+# corrige la columna cruda en su lugar. Escribir aparte es lo preferible porque
+# deja el dato original a la vista para poder revisar la decisión.
 CAMPOS = {
     "Sold To": ("SOLD TO2", "SOLD TO", "SOLD TO2"),
     "Ship To": ("SHIP TO2", "SHIP TO", "SHIP TO2"),
-    "Especie": ("CROP", "CROP", None),
-    "Variedad": ("Variedad", "Variedad", None),
+    "Especie": ("CROP", "CROP", "CROP2"),
+    "Variedad": ("Variedad", "Variedad", "Variedad2"),
 }
+
+# El orden importa: Ship To se resuelve después de Sold To porque lo usa como
+# contexto, y Variedad después de Especie por la misma razón.
+ORDEN = ("Sold To", "Ship To", "Especie", "Variedad")
 
 # Restos de un buscar/reemplazar mal aplicado en el histórico. Son valores
 # imposibles, no decisiones: usarlos como referencia enseñaría basura.
@@ -96,7 +103,7 @@ def _pares(ruta: str) -> dict[str, list[tuple[str, str]]]:
     indices, datos = _hoja(ruta)
     salida: dict[str, list[tuple[str, str]]] = {}
     for campo, (_, col_crudo, col_ok) in CAMPOS.items():
-        if not col_ok or col_crudo not in indices or col_ok not in indices:
+        if not col_ok or col_ok == col_crudo or col_crudo not in indices or col_ok not in indices:
             continue
         pares = []
         for fila in datos:
@@ -152,6 +159,31 @@ def _pares_ship_por_cliente(ruta: str) -> list[tuple[str, str, str]]:
         if cliente and crudo and ok and not _CORRUPTO.search(ok) and not _CORRUPTO.search(cliente):
             trios.append((cliente, crudo, ok))
     return trios
+
+
+def _leer_decisiones(ruta: str) -> dict[str, dict[str, str]]:
+    """Decisiones confirmadas a mano: {campo: {clave(crudo): oficial}}.
+
+    Se lee la hoja "_decisiones" del archivo que produjo una corrida anterior,
+    ya revisada. Una fila con DECISION vacía se ignora: significa que todavía
+    no se decidió, no que deba borrarse el valor.
+    """
+    wb = openpyxl.load_workbook(ruta, read_only=True, data_only=True)
+    if "_decisiones" not in wb.sheetnames:
+        wb.close()
+        raise SystemExit(f"{ruta}: no tiene la hoja '_decisiones'.")
+    filas = list(wb["_decisiones"].iter_rows(values_only=True))
+    wb.close()
+    salida: dict[str, dict[str, str]] = defaultdict(dict)
+    for fila in filas[1:]:
+        if not fila or len(fila) < 5:
+            continue
+        campo = str(fila[0]).strip() if fila[0] else ""
+        crudo = str(fila[1]).strip() if fila[1] else ""
+        decision = str(fila[4]).strip() if fila[4] else ""
+        if campo in CAMPOS and crudo and decision:
+            salida[campo][clave(crudo)] = decision
+    return salida
 
 
 def cmd_conflictos(catalogo, pares) -> None:
@@ -212,7 +244,8 @@ def cmd_evaluar(catalogo, pares) -> None:
         print()
 
 
-def cmd_homogenizar(catalogo, pares, ruta_historico: str, ruta_archivo: str, ruta_salida: str) -> None:
+def cmd_homogenizar(catalogo, pares, ruta_historico: str, ruta_archivo: str, ruta_salida: str,
+                    decisiones: dict[str, dict[str, str]] | None = None) -> None:
     indices, datos = _hoja(ruta_archivo)
     encabezado = [None] * (max(indices.values()) + 1)
     for nombre, i in indices.items():
@@ -223,6 +256,12 @@ def cmd_homogenizar(catalogo, pares, ruta_historico: str, ruta_archivo: str, rut
         campo: _homogenizador(campo, catalogo, pares, ctx if campo == "Ship To" else None)
         for campo in CAMPOS
     }
+    # Las decisiones confirmadas entran como alias: pasan a resolverse solas.
+    # Van después de construir el homogenizador para que ganen sobre lo que
+    # hubiera aprendido del histórico.
+    for campo, mapa in (decisiones or {}).items():
+        for k, oficial in mapa.items():
+            hs[campo].aprender(k, oficial)
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -237,13 +276,23 @@ def cmd_homogenizar(catalogo, pares, ruta_historico: str, ruta_archivo: str, rut
         salida = list(fila) + [None] * (len(encabezado) - len(fila))
         # Sold To se resuelve primero porque Ship To lo necesita como contexto.
         cliente_resuelto = ""
-        for campo in ("Sold To", "Ship To", "Especie", "Variedad"):
-            _, col_crudo, _ = CAMPOS[campo]
-            i = indices.get(col_crudo)
+        for campo in ORDEN:
+            _, col_crudo, col_destino = CAMPOS[campo]
+            # Se escribe en la auxiliar si existe; si no, sobre la cruda.
+            i = indices.get(col_destino if col_destino in indices else col_crudo)
             if i is None:
                 continue
             crudo = _valor(fila, indices, col_crudo)
             if not crudo:
+                continue
+            # Lo que una persona ya resolvió a mano manda: no se pisa, y además
+            # sirve de contexto para los campos que se resuelven después.
+            ya_resuelto = _valor(fila, indices, col_destino) if col_destino != col_crudo else ""
+            if ya_resuelto:
+                resumen[campo]["ya_resuelto"] += 1
+                automaticas[campo] += 1
+                if campo == "Sold To":
+                    cliente_resuelto = ya_resuelto
                 continue
             r = hs[campo].resolver(crudo, cliente_resuelto if campo == "Ship To" else None)
             resumen[campo][r.regla] += 1
@@ -262,6 +311,30 @@ def cmd_homogenizar(catalogo, pares, ruta_historico: str, ruta_archivo: str, rut
     ws2 = wb.create_sheet("_pendientes")
     for f in pendientes:
         ws2.append(f)
+
+    # Hoja de decisiones: una fila por valor DISTINTO, no por fila del Excel.
+    # Lo pendiente son cientos de filas pero pocas decisiones -"Scarlett"
+    # aparece 23 veces y se decide una sola vez-. La columna DECISION viene
+    # con la mejor sugerencia ya escrita: revisar y corregir es más rápido
+    # que escribir desde cero.
+    agrupado: dict[tuple[str, str], dict] = {}
+    for _fila, campo, crudo, regla, sugs in pendientes[1:]:
+        d = agrupado.setdefault((campo, crudo), {"n": 0, "regla": regla, "sugs": sugs})
+        d["n"] += 1
+    ws3 = wb.create_sheet("_decisiones")
+    ws3.append(["Campo", "Valor crudo", "Filas", "Regla", "DECISION (editar)", "Confianza", "Otras sugerencias"])
+    for (campo, crudo), d in sorted(agrupado.items(), key=lambda x: (x[0][0], -x[1]["n"])):
+        opciones = [t.strip() for t in (d["sugs"] or "").split("|") if t.strip() and t.strip() != "—"]
+        mejor, confianza = "", ""
+        if opciones:
+            m = re.match(r"^(.*) \((\d+)%\)$", opciones[0])
+            if m:
+                mejor, confianza = m.group(1), f"{m.group(2)}%"
+        ws3.append([campo, crudo, d["n"], d["regla"], mejor, confianza, " | ".join(opciones[1:])])
+    ws3.freeze_panes = "A2"
+    for col, ancho in zip("ABCDEFG", (12, 38, 8, 20, 38, 11, 60)):
+        ws3.column_dimensions[col].width = ancho
+
     wb.save(ruta_salida)
 
     print(f"\nEscrito: {ruta_salida}")
@@ -272,7 +345,8 @@ def cmd_homogenizar(catalogo, pares, ruta_historico: str, ruta_archivo: str, rut
             continue
         auto = automaticas[campo]
         print(f"  {campo:<10} {auto:>5}/{total} resueltas ({auto / total * 100:5.1f}%)  {dict(reglas.most_common())}")
-    print(f"\n  Pendientes de revisar: {len(pendientes) - 1} (hoja '_pendientes')")
+    print(f"\n  Pendientes: {len(pendientes) - 1} filas = {len(agrupado)} decisiones distintas")
+    print("  Revisa la hoja '_decisiones': una fila por decisión, con la sugerencia ya escrita.")
 
 
 def main() -> None:
@@ -283,6 +357,11 @@ def main() -> None:
     p.add_argument("--evaluar", action="store_true", help="Mide cuánto resuelve solo y qué falla.")
     p.add_argument("--archivo", help="Excel a homogenizar.")
     p.add_argument("--salida", help="Dónde escribir el resultado.")
+    p.add_argument(
+        "--decisiones",
+        help="Excel de una corrida anterior con la hoja '_decisiones' ya revisada. "
+             "Lo confirmado ahí se aplica y deja de aparecer como pendiente.",
+    )
     args = p.parse_args()
 
     catalogo = _catalogo(args.catalogo)
@@ -298,7 +377,10 @@ def main() -> None:
     if args.archivo:
         if not args.salida:
             raise SystemExit("--archivo necesita --salida.")
-        cmd_homogenizar(catalogo, pares, args.historico, args.archivo, args.salida)
+        decisiones = _leer_decisiones(args.decisiones) if args.decisiones else None
+        if decisiones:
+            print("Decisiones confirmadas:", ", ".join(f"{c}={len(m)}" for c, m in decisiones.items()))
+        cmd_homogenizar(catalogo, pares, args.historico, args.archivo, args.salida, decisiones)
     if not (args.conflictos or args.evaluar or args.archivo):
         p.print_help()
 
