@@ -11,6 +11,7 @@ from .auditoria import reparar_tablas_omitidas_post_promocion, router as auditor
 from .correo import router as correo_router
 from .catalogo import router as catalogo_router
 from .emitir import router as emitir_router
+from .homogenizar_datos import router as homogenizar_router
 from .ingest import router as ingest_router
 from .laboratorios import router as laboratorios_router
 from .listados import router as listados_router
@@ -76,6 +77,7 @@ app.include_router(toma_muestras_router)
 app.include_router(laboratorios_router)
 app.include_router(correo_router)
 app.include_router(usuarios_router)
+app.include_router(homogenizar_router)
 
 
 @app.get("/api/salud")

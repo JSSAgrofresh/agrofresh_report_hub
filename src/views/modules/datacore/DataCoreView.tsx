@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { listarTablas, urlExportar, verTabla } from '@/features/auditoria'
-import type { InfoTabla, PaginaTabla } from '@/features/auditoria'
+import { urlExportar } from '@/features/auditoria'
 import { httpClient } from '@/services/http/client'
 import { ErDiagrama } from './ErDiagrama'
+import { HomogenizarPanel } from './HomogenizarPanel'
 import styles from './DataCoreView.module.css'
 
 interface Sugerencia { valor: string; confianza: number }
@@ -13,9 +13,8 @@ interface Grupo { campo: string; etiqueta: string; especie?: string | null; valo
 interface Auditoria { grupos: Grupo[]; filas: number; pendientes: number }
 interface Decision { campo: string; etiqueta: string; valor_original: string; destino: string; especie?: string | null; filas: number }
 interface Historial { decisiones: Decision[] }
-type Vista = 'auditoria' | 'cambios' | 'modelo' | 'tabla'
+type Vista = 'auditoria' | 'cambios' | 'modelo' | 'homogenizar'
 const CAMPOS = { sold_to_raw: 'Sold To', ship_to_raw: 'Ship To', especie: 'Especie', variedad: 'Variedad' }
-const TAMANO = 30
 
 export function DataCoreView() {
   const [vista, setVista] = useState<Vista>('auditoria')
@@ -23,10 +22,6 @@ export function DataCoreView() {
   const [destinos, setDestinos] = useState<Record<string, string>>({})
   const [historial, setHistorial] = useState<Decision[]>([])
   const [ediciones, setEdiciones] = useState<Record<string, string>>({})
-  const [tablas, setTablas] = useState<InfoTabla[]>([])
-  const [tabla, setTabla] = useState('solicitud')
-  const [pagina, setPagina] = useState(1)
-  const [datosTabla, setDatosTabla] = useState<PaginaTabla | null>(null)
   const [cargando, setCargando] = useState(false)
   const [mensaje, setMensaje] = useState<string | null>(null)
 
@@ -43,19 +38,13 @@ export function DataCoreView() {
     void Promise.all([
       httpClient.get<Auditoria>('/ingest/auditoria-staging'),
       httpClient.get<Historial>('/ingest/auditoria-staging/historial'),
-      listarTablas(),
-    ]).then(([auditoria, cambios, tablasDisponibles]) => {
+    ]).then(([auditoria, cambios]) => {
       if (!vigente) return
       setData(auditoria)
       setHistorial(cambios.decisiones)
-      setTablas(tablasDisponibles)
     })
     return () => { vigente = false }
   }, [])
-  useEffect(() => {
-    if (vista !== 'tabla') return
-    void verTabla(tabla, pagina, TAMANO).then(setDatosTabla)
-  }, [vista, tabla, pagina])
 
   async function asignar(grupo: Grupo, indice: number, crearNuevo = false) {
     const clave = `${grupo.campo}-${grupo.especie ?? ''}-${indice}`
@@ -119,7 +108,7 @@ export function DataCoreView() {
       <button className={vista === 'auditoria' ? styles.tabActiva : ''} onClick={() => setVista('auditoria')}>Auditoría de homologación</button>
       <button className={vista === 'cambios' ? styles.tabActiva : ''} onClick={() => setVista('cambios')}>Cambios aplicados <small>{historial.length}</small></button>
       <button className={vista === 'modelo' ? styles.tabActiva : ''} onClick={() => setVista('modelo')}>Modelo entidad-relación</button>
-      <button className={vista === 'tabla' ? styles.tabActiva : ''} onClick={() => setVista('tabla')}>Tabla de datos</button>
+      <button className={vista === 'homogenizar' ? styles.tabActiva : ''} onClick={() => setVista('homogenizar')}>Homogeneizar datos</button>
     </nav>
     {mensaje && <p className={styles.mensaje}>{mensaje}</p>}
 
@@ -129,11 +118,7 @@ export function DataCoreView() {
       <p className={styles.ayudaCambios}>Puedes corregir cualquier decisión antes de enviar el lote a la base de datos.</p>
       {!historial.length ? <p className={styles.vacio}>Todavía no hay cambios manuales aplicados.</p> : <div className={styles.listaCambios}>{historial.map((decision, i) => { const clave = `hist-${i}`; return <div className={styles.cambio} key={`${decision.campo}-${decision.valor_original}-${decision.destino}-${decision.especie ?? ''}`}><div><b>{decision.etiqueta}{decision.especie ? ` · ${decision.especie}` : ''}</b><span>{decision.filas} fila(s)</span><p><code>{decision.valor_original || 'Sin valor'}</code> →</p></div><input aria-label={`Nuevo destino para ${decision.valor_original}`} value={ediciones[clave] ?? decision.destino} onChange={(e) => setEdiciones((actual) => ({ ...actual, [clave]: e.target.value }))} /><Button disabled={cargando} onClick={() => void editarDecision(decision, i)}>Guardar corrección</Button></div> })}</div>}
     </Card>}
-    {vista === 'tabla' && <Card>
-      <div className={styles.selector}><label>Tabla <select value={tabla} onChange={(e) => { setTabla(e.target.value); setPagina(1) }}>{tablas.map((t) => <option key={t.nombre} value={t.nombre}>{t.nombre} ({t.total.toLocaleString('es-CL')})</option>)}</select></label></div>
-      {!datosTabla ? <p>Cargando…</p> : <><div className={styles.tablaScroll}><table className={styles.tabla}><thead><tr>{datosTabla.columnas.map((c) => <th key={c}>{c}</th>)}</tr></thead><tbody>{datosTabla.filas.map((fila, i) => <tr key={i}>{datosTabla.columnas.map((c) => <td key={c}>{fila[c] == null ? '—' : String(fila[c])}</td>)}</tr>)}</tbody></table></div>
-      <div className={styles.paginacion}><button disabled={pagina <= 1} onClick={() => setPagina((p) => p - 1)}>← Anterior</button><span>Página {pagina} de {Math.max(1, Math.ceil(datosTabla.total / TAMANO))}</span><button disabled={pagina >= Math.ceil(datosTabla.total / TAMANO)} onClick={() => setPagina((p) => p + 1)}>Siguiente →</button></div></>}
-    </Card>}
+    {vista === 'homogenizar' && <HomogenizarPanel />}
     {vista === 'auditoria' && <>
       <div className={styles.resumen}><span><b>{data?.filas ?? 0}</b> filas en copia de trabajo</span><span><b>{data?.pendientes ?? 0}</b> decisiones pendientes</span><Button disabled={cargando || !data?.filas || data.pendientes > 0} onClick={() => void enviarBase()}>Enviar TODO a la BD</Button></div>
       <div className={styles.columnas}>{Object.entries(CAMPOS).map(([campo, etiqueta]) => { const grupos = data?.grupos.filter((g) => g.campo === campo) ?? []; return <section key={campo}><h2>{etiqueta} <small>{grupos.length}</small></h2>{!grupos.length ? <Card><p className={styles.vacio}>Todo coincide con Listados.</p></Card> : grupos.map((grupo, i) => { const clave = `${campo}-${grupo.especie ?? ''}-${i}`; return <Card key={`${grupo.especie}-${grupo.valores.join('|')}`} className={styles.grupo}>{grupo.especie && <p className={styles.especie}>Especie: {grupo.especie}</p>}<p className={styles.contador}>{grupo.cantidad} fila(s)</p><div className={styles.valores}>{grupo.valores.map((v) => <code key={v}>{v}</code>)}</div>{grupo.sugerencias.length > 0 && <div className={styles.sugerencias}>{grupo.sugerencias.map((s) => <button type="button" key={s.valor} onClick={() => setDestinos((d) => ({ ...d, [clave]: s.valor }))}>{s.valor} · {Math.round(s.confianza * 100)}%</button>)}</div>}<label>Valor oficial de Listados<input value={destinos[clave] ?? grupo.sugerido} onChange={(e) => setDestinos((d) => ({ ...d, [clave]: e.target.value }))} /></label><div className={styles.accionesGrupo}><Button disabled={cargando} onClick={() => void asignar(grupo, i)}>Usar valor de Listados</Button><Button variant="secondary" disabled={cargando} onClick={() => { if (confirm(`¿Agregar “${(destinos[clave] ?? grupo.sugerido).trim()}” como valor nuevo oficial?`)) void asignar(grupo, i, true) }}>Agregar como nuevo</Button></div></Card> })}</section> })}</div>
