@@ -62,8 +62,21 @@ ANALITOS_RESULTADO: dict[str, str | tuple[str, ...]] = {
 LABORATORIO_CATALOGO = "Quiteca / AgroFresh"
 
 
+def valor_columna(fila: dict[str, Any], col: str) -> Any:
+    """Valor de una columna, tolerando espacios de más en el nombre buscado.
+
+    Los encabezados del archivo ya llegan sin espacios sobrantes -el lector
+    les hace trim-, así que un nombre con espacio al final acá nunca calzaría
+    y el dato entraría vacío sin que nadie se entere. Pasó exactamente eso con
+    "Temporada ", que nunca llegó a la base.
+    """
+    if col in fila:
+        return fila[col]
+    return fila.get(col.strip())
+
+
 def texto(fila: dict[str, Any], col: str) -> str | None:
-    v = fila.get(col)
+    v = valor_columna(fila, col)
     if v is None:
         return None
     s = str(v).strip()
@@ -191,7 +204,7 @@ def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
         "referencia_proceso": texto(fila, "Referencia reporte proceso+O:T"),
         "observacion": texto(fila, "Observaciones"),
         "observacion_2": concatenar(texto(fila, "Dosis"), texto(fila, "Observación adicional")),
-        "temporada": parse_entero_corto(fila.get("Temporada ")),
+        "temporada": parse_entero_corto(valor_columna(fila, "Temporada")),
         "semana_entrada": parse_entero_corto(fila.get("Semana entrada")),
         # No se usa la columna "SEMANA" del Excel (no es confiable): se calcula
         # a partir de la fecha de entrada, igual que =NUM.DE.SEMANA([Fecha entrada]).
