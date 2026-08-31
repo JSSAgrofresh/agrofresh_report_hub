@@ -1,0 +1,76 @@
+.fondo {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.45);
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  z-index: 50;
+}
+
+.caja {
+  background: var(--color-surface, #fff);
+  border-radius: var(--radius-md);
+  padding: var(--space-5, 24px);
+  max-width: 460px;
+  width: 100%;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.2);
+}
+
+.titulo {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 var(--space-2);
+}
+
+.texto {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-4);
+}
+
+.clave {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.clave code {
+  flex: 1;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 19px;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+  user-select: all;
+}
+
+.copiar {
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--color-border-strong);
+  background: #fff;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.copiar:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.aviso {
+  font-size: 12.5px;
+  color: var(--color-danger);
+  background: #fbe8e5;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-4);
+}

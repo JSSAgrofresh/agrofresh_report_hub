@@ -20,4 +20,7 @@ export interface Usuario {
   modulos?: string[]
   /** Secciones habilitadas dentro del módulo Report. */
   reportes?: Array<'laboratorio' | 'postventa' | 'emitir'>
+  /** La contraseña actual se la puso un administrador: hay que cambiarla
+   * antes de poder usar el sistema. */
+  debeCambiarPassword?: boolean
 }

@@ -1,12 +1,13 @@
 import logging
 import traceback
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import config
+from .auth import router as auth_router, solo_interno, usuario_actual
 from .auditoria import reparar_tablas_omitidas_post_promocion, router as auditoria_router
 from .correo import router as correo_router
 from .catalogo import router as catalogo_router
@@ -56,6 +57,14 @@ app.add_middleware(CapturaErrores)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
+    # Este comodín deja llamar a la API desde cualquier deploy de cualquier
+    # persona en Vercel. Se queda a propósito mientras el frontend no tenga
+    # un dominio propio: acotarlo antes dejaría el sistema sin funcionar.
+    # Cuando exista el dominio, va en CORS_ORIGINS y esta línea se borra.
+    #
+    # No es la puerta: la sesión se exige igual en cada endpoint, y el token
+    # viaja en un encabezado, no en una cookie, así que otro sitio no puede
+    # hacer que el navegador lo mande por su cuenta.
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
@@ -65,19 +74,38 @@ app.add_middleware(
     expose_headers=["Content-Disposition"],
 )
 
-app.include_router(ingest_router)
-app.include_router(reportes_router)
-app.include_router(auditoria_router)
-app.include_router(catalogo_router)
-app.include_router(listados_router)
-app.include_router(postventa_router)
-app.include_router(storage_router)
-app.include_router(emitir_router)
-app.include_router(toma_muestras_router)
-app.include_router(laboratorios_router)
-app.include_router(correo_router)
-app.include_router(usuarios_router)
-app.include_router(homogenizar_router)
+# El login es el único que no puede exigir sesión: es donde se consigue.
+app.include_router(auth_router)
+
+# Todo lo demás exige sesión, y se exige ACÁ, en un solo lugar. Ponerlo por
+# router y no endpoint por endpoint es a propósito: son 131 endpoints, y basta
+# olvidar la anotación en uno para dejar abierta la base entera. Así, un router
+# nuevo que se agregue a esta lista nace protegido sin que nadie se acuerde.
+CON_SESION = [Depends(usuario_actual)]
+
+# Y casi todo exige, además, ser de AgroFresh. Una cuenta de cliente entra a
+# ver SUS resultados: `reportes_router` es el único que necesita, y adentro
+# cada consulta se acota a lo suyo. Todo lo demás -cargar datos, catálogos,
+# solicitudes, correos, el padrón de cuentas- le queda cerrado desde acá.
+SOLO_AGROFRESH = [Depends(solo_interno)]
+
+app.include_router(reportes_router, dependencies=CON_SESION)
+
+for _router in (
+    ingest_router,
+    auditoria_router,
+    catalogo_router,
+    listados_router,
+    postventa_router,
+    storage_router,
+    emitir_router,
+    toma_muestras_router,
+    laboratorios_router,
+    correo_router,
+    usuarios_router,
+    homogenizar_router,
+):
+    app.include_router(_router, dependencies=SOLO_AGROFRESH)
 
 
 @app.get("/api/salud")

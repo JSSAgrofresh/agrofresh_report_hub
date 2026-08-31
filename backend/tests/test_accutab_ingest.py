@@ -97,7 +97,7 @@ class TestProcesarZip:
         monkeypatch.setattr(mod._r2, "subir", _fake_subir)
 
         zip_data = _crear_zip({"resultado.csv": b"a,b,c", "info.txt": b"hola"})
-        keys = mod._procesar_zip(zip_data, "accutab/mail/Prueba/")
+        keys, _contenidos = mod._procesar_zip(zip_data, "accutab/mail/Prueba/")
 
         nombres = {Path(k).name for k in keys}
         assert "resultado.csv" in nombres
@@ -119,7 +119,7 @@ class TestProcesarZip:
             "PH/muestra1.csv": b"ph",
             "ORP/muestra1.csv": b"orp",
         })
-        keys = mod._procesar_zip(zip_data, "accutab/mail/Prueba/")
+        keys, _contenidos = mod._procesar_zip(zip_data, "accutab/mail/Prueba/")
 
         assert any("PH/muestra1.csv" in k for k in keys)
         assert any("ORP/muestra1.csv" in k for k in keys)
@@ -141,7 +141,7 @@ class TestProcesarZip:
             zf.mkdir("carpeta_vacia")  # type: ignore[attr-defined]
         zip_data2 = buf.getvalue()
 
-        keys = mod._procesar_zip(zip_data2, "accutab/mail/Prueba/")
+        keys, _contenidos = mod._procesar_zip(zip_data2, "accutab/mail/Prueba/")
         assert all(not k.endswith("/") for k in keys)
 
 

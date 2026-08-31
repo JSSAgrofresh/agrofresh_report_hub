@@ -1,29 +1,38 @@
 """
-Usuarios del sistema. Igual que los mantenedores de Toma de muestras, se
-guardan como un JSON en `solicitudes/_config/` (R2 o disco) en vez de una
-tabla: no hay base de datos para configuración.
+El padrón de cuentas y sus permisos.
 
-Antes vivían solo en el localStorage del navegador. Eso hacía que editar el
-nombre de una cuenta no tuviera efecto para su dueña: cada navegador tenía su
-propia copia sembrada, así que el cambio del administrador nunca llegaba a la
-sesión de la persona editada. Al centralizarlos acá, cualquier navegador que
-consulte el listado ve el mismo dato.
+Vivía en `solicitudes/_config/usuarios.json` (R2 o disco). Se movió a la
+tabla `usuario` (migración 0019) por dos razones:
 
-Esto NO es autenticación: las contraseñas siguen sin validarse (el login es
-un stub a la espera del backend de sesiones). Este módulo solo mantiene el
-padrón de cuentas y sus permisos.
+  - Ahora guarda contrasenas. Un archivo que se lee entero, se modifica en
+    memoria y se reescribe entero pierde el cambio del primero cuando dos
+    administradores editan a la vez; perder permisos así no es aceptable.
+
+  - Listar el padrón dejó de necesitar una llamada a R2.
+
+Todo lo de acá exige `admin_general`, salvo el listado, que cualquiera con
+sesión puede ver -el frontend lo usa para mostrar nombres-. Nadie puede
+cambiarse los permisos a sí mismo: eso vuelve inútil todo lo demás.
 """
 import re
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from . import config_store
+from . import seguridad
+from .auth import (
+    TIPOS_ACCESO,
+    Usuario,
+    cerrar_sesiones_de,
+    solo_admin_general,
+    usuario_actual,
+    usuario_de_fila,
+    _CAMPOS,
+)
+from .db import conexion, cursor_dict
 
 router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
-
-_ARCHIVO = "usuarios.json"
 
 CORREO_MAESTRO = "jorge.sandoval@agrofresh.com"
 
@@ -41,42 +50,13 @@ class UsuarioIn(BaseModel):
     reportes: list[str] | None = None
 
 
-class Usuario(UsuarioIn):
-    id: str
+class UsuarioCreadoOut(BaseModel):
+    """La contrasena temporal se devuelve UNA vez, al crear la cuenta, para
+    que el administrador se la dicte a su dueno. No se guarda en claro en
+    ninguna parte, así que si se pierde hay que generar otra."""
 
-
-# Cuentas con las que nace el sistema. Se siembran la primera vez y desde ahí
-# el padrón vive en el archivo: editar estos valores no altera lo ya guardado.
-_USUARIOS_DEFECTO: list[dict] = [
-    {
-        "id": "u-1",
-        "email": CORREO_MAESTRO,
-        "nombre": "Jorge Sandoval",
-        "tipoAcceso": "admin_general",
-    },
-    {
-        "id": "u-2",
-        "email": "psalazar@agrofresh.com",
-        "nombre": "Patricia Salazar",
-        "tipoAcceso": "admin_area",
-        "area": "cromatografia",
-        "modulos": ["converter", "reports", "storage", "toma_muestras"],
-        "reportes": ["laboratorio", "emitir"],
-    },
-    {
-        "id": "u-3",
-        "email": "rpoblete@agrofresh.com",
-        "nombre": "Rodrigo Poblete",
-        "tipoAcceso": "admin_area",
-        "area": "postventa",
-        "modulos": ["trace", "reports"],
-        "reportes": ["postventa"],
-    },
-]
-
-
-def _cargar() -> list[dict]:
-    return config_store.leer(_ARCHIVO, _USUARIOS_DEFECTO)
+    usuario: Usuario
+    passwordTemporal: str
 
 
 def _normalizar_email(email: str) -> str:
@@ -86,87 +66,150 @@ def _normalizar_email(email: str) -> str:
     return limpio
 
 
-def _email_en_uso(usuarios: list[dict], email: str, excepto_id: str | None = None) -> bool:
-    buscado = email.lower()
-    return any(
-        u["email"].lower() == buscado and u["id"] != excepto_id
-        for u in usuarios
-    )
+def _validar(body: UsuarioIn) -> None:
+    if body.tipoAcceso not in TIPOS_ACCESO:
+        raise HTTPException(400, f"Tipo de acceso desconocido: {body.tipoAcceso!r}")
+    # Una cuenta de cliente sin cliente asignado no vería nada -o, si el
+    # filtro se tomara del navegador, lo vería todo-. No puede existir.
+    if body.tipoAcceso == "cliente" and not (body.clienteNombre or "").strip():
+        raise HTTPException(400, "Una cuenta de tipo cliente necesita un cliente asignado.")
 
 
-def _siguiente_id(usuarios: list[dict]) -> str:
-    """IDs de la forma `u-N`. Se toma el mayor N existente y se suma uno, así
-    un id nunca se reutiliza aunque se borren cuentas del medio."""
-    maximo = 0
-    for u in usuarios:
-        m = re.fullmatch(r"u-(\d+)", str(u.get("id", "")))
-        if m:
-            maximo = max(maximo, int(m.group(1)))
-    return f"u-{maximo + 1}"
+def _fila_por_id(cur, usuario_id: str) -> dict:
+    if not str(usuario_id).isdigit():
+        raise HTTPException(404, "Usuario no encontrado.")
+    cur.execute(f"SELECT {_CAMPOS} FROM usuario WHERE id = %s", (int(usuario_id),))
+    fila = cur.fetchone()
+    if fila is None:
+        raise HTTPException(404, "Usuario no encontrado.")
+    return fila
+
+
+def _es_maestro(fila: dict) -> bool:
+    return fila["email"].lower() == CORREO_MAESTRO.lower()
 
 
 @router.get("", response_model=list[Usuario])
-def listar_usuarios() -> list[Any]:
-    return [Usuario(**u) for u in _cargar()]
+def listar_usuarios(_: Usuario = Depends(usuario_actual)) -> list[Any]:
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute(f"SELECT {_CAMPOS} FROM usuario ORDER BY nombre")
+        return [usuario_de_fila(f) for f in cur.fetchall()]
 
 
-@router.get("/por-email/{email}", response_model=Usuario)
-def obtener_usuario_por_email(email: str) -> Any:
-    """Usado por el login para resolver la cuenta a partir del correo. Es
-    también lo que permite que un cambio de nombre se vea en la sesión de su
-    dueña: la sesión se re-sincroniza contra este endpoint."""
-    buscado = (email or "").strip().lower()
-    for u in _cargar():
-        if u["email"].lower() == buscado:
-            return Usuario(**u)
-    raise HTTPException(404, "Usuario no encontrado.")
-
-
-@router.post("", response_model=Usuario)
-def crear_usuario(body: UsuarioIn) -> Any:
-    usuarios = _cargar()
+@router.post("", response_model=UsuarioCreadoOut)
+def crear_usuario(body: UsuarioIn, _: Usuario = Depends(solo_admin_general)) -> Any:
+    _validar(body)
     email = _normalizar_email(body.email)
-    if _email_en_uso(usuarios, email):
-        raise HTTPException(409, "Ya existe un usuario con ese correo.")
-    nuevo = Usuario(id=_siguiente_id(usuarios), **{**body.model_dump(), "email": email})
-    usuarios.append(nuevo.model_dump())
-    config_store.escribir(_ARCHIVO, usuarios)
-    return nuevo
+    temporal = seguridad.password_temporal()
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT 1 FROM usuario WHERE lower(email) = lower(%s)", (email,))
+        if cur.fetchone():
+            raise HTTPException(409, "Ya existe un usuario con ese correo.")
+        cur.execute(
+            f"""
+            INSERT INTO usuario
+                (email, nombre, tipo_acceso, area, cliente_nombre, planta_nombre,
+                 modulos, reportes, password_hash, debe_cambiar)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+            RETURNING {_CAMPOS}
+            """,
+            (
+                email, body.nombre, body.tipoAcceso, body.area,
+                body.clienteNombre, body.plantaNombre,
+                body.modulos, body.reportes, seguridad.hashear_password(temporal),
+            ),
+        )
+        return UsuarioCreadoOut(usuario=usuario_de_fila(cur.fetchone()), passwordTemporal=temporal)
 
 
 @router.put("/{usuario_id}", response_model=Usuario)
-def editar_usuario(usuario_id: str, body: UsuarioIn) -> Any:
-    usuarios = _cargar()
-    idx = next((i for i, u in enumerate(usuarios) if u["id"] == usuario_id), None)
-    if idx is None:
-        raise HTTPException(404, "Usuario no encontrado.")
-
-    actual = usuarios[idx]
+def editar_usuario(
+    usuario_id: str,
+    body: UsuarioIn,
+    quien: Usuario = Depends(solo_admin_general),
+) -> Any:
+    _validar(body)
     email = _normalizar_email(body.email)
-    if _email_en_uso(usuarios, email, excepto_id=usuario_id):
-        raise HTTPException(409, "Ya existe un usuario con ese correo.")
+    with conexion() as conn, cursor_dict(conn) as cur:
+        actual = _fila_por_id(cur, usuario_id)
 
-    # El maestro es la única cuenta que no puede quedarse sin administración
-    # general: si se degrada, nadie puede volver a repartir permisos.
-    es_maestro = actual["email"].lower() == CORREO_MAESTRO.lower()
-    if es_maestro and body.tipoAcceso != "admin_general":
-        raise HTTPException(400, "El usuario maestro no puede perder el acceso de administrador general.")
-    if es_maestro and email.lower() != CORREO_MAESTRO.lower():
-        raise HTTPException(400, "El correo del usuario maestro no se puede cambiar.")
+        cur.execute(
+            "SELECT 1 FROM usuario WHERE lower(email) = lower(%s) AND id <> %s",
+            (email, actual["id"]),
+        )
+        if cur.fetchone():
+            raise HTTPException(409, "Ya existe un usuario con ese correo.")
 
-    actualizado = Usuario(id=usuario_id, **{**body.model_dump(), "email": email})
-    usuarios[idx] = actualizado.model_dump()
-    config_store.escribir(_ARCHIVO, usuarios)
-    return actualizado
+        # El maestro es la única cuenta que no puede quedarse sin administración
+        # general: si se degrada, nadie puede volver a repartir permisos.
+        if _es_maestro(actual):
+            if body.tipoAcceso != "admin_general":
+                raise HTTPException(400, "El usuario maestro no puede perder el acceso de administrador general.")
+            if email.lower() != CORREO_MAESTRO.lower():
+                raise HTTPException(400, "El correo del usuario maestro no se puede cambiar.")
+        # Nadie se cambia sus propios permisos. Sin esto, cualquier
+        # administrador podría convertirse en cuenta de cliente y volver, y
+        # los límites de acceso dejarían de significar algo.
+        elif str(actual["id"]) == quien.id and body.tipoAcceso != quien.tipoAcceso:
+            raise HTTPException(400, "No puedes cambiar tu propio tipo de acceso.")
+
+        cur.execute(
+            f"""
+            UPDATE usuario SET
+                email = %s, nombre = %s, tipo_acceso = %s, area = %s,
+                cliente_nombre = %s, planta_nombre = %s, modulos = %s, reportes = %s,
+                actualizado_en = now()
+            WHERE id = %s
+            RETURNING {_CAMPOS}
+            """,
+            (
+                email, body.nombre, body.tipoAcceso, body.area,
+                body.clienteNombre, body.plantaNombre,
+                body.modulos, body.reportes, actual["id"],
+            ),
+        )
+        actualizado = cur.fetchone()
+
+        # Si cambió algo que decide qué puede ver, sus sesiones abiertas
+        # quedaron con permisos viejos. Se cierran para que vuelva a entrar
+        # con los nuevos: quitarle un acceso a alguien no puede tardar una
+        # semana en surtir efecto.
+        cambio_el_alcance = any(
+            actual[col] != actualizado[col]
+            for col in ("tipo_acceso", "area", "cliente_nombre", "planta_nombre", "modulos", "reportes")
+        )
+        if cambio_el_alcance:
+            cerrar_sesiones_de(cur, actual["id"])
+        return usuario_de_fila(actualizado)
+
+
+@router.post("/{usuario_id}/password-temporal", response_model=UsuarioCreadoOut)
+def regenerar_password(usuario_id: str, _: Usuario = Depends(solo_admin_general)) -> Any:
+    """Para cuando alguien olvidó su contrasena. Devuelve una temporal que su
+    dueno debe cambiar al entrar, y cierra sus sesiones abiertas."""
+    temporal = seguridad.password_temporal()
+    with conexion() as conn, cursor_dict(conn) as cur:
+        fila = _fila_por_id(cur, usuario_id)
+        cur.execute(
+            f"""
+            UPDATE usuario SET password_hash = %s, debe_cambiar = TRUE, actualizado_en = now()
+            WHERE id = %s RETURNING {_CAMPOS}
+            """,
+            (seguridad.hashear_password(temporal), fila["id"]),
+        )
+        actualizado = cur.fetchone()
+        cerrar_sesiones_de(cur, fila["id"])
+        return UsuarioCreadoOut(usuario=usuario_de_fila(actualizado), passwordTemporal=temporal)
 
 
 @router.delete("/{usuario_id}")
-def eliminar_usuario(usuario_id: str) -> dict[str, str]:
-    usuarios = _cargar()
-    objetivo = next((u for u in usuarios if u["id"] == usuario_id), None)
-    if objetivo is None:
-        raise HTTPException(404, "Usuario no encontrado.")
-    if objetivo["email"].lower() == CORREO_MAESTRO.lower():
-        raise HTTPException(400, "El usuario maestro no se puede eliminar.")
-    config_store.escribir(_ARCHIVO, [u for u in usuarios if u["id"] != usuario_id])
-    return {"estado": "eliminado"}
+def eliminar_usuario(usuario_id: str, quien: Usuario = Depends(solo_admin_general)) -> dict[str, str]:
+    with conexion() as conn, cursor_dict(conn) as cur:
+        fila = _fila_por_id(cur, usuario_id)
+        if _es_maestro(fila):
+            raise HTTPException(400, "El usuario maestro no se puede eliminar.")
+        if str(fila["id"]) == quien.id:
+            raise HTTPException(400, "No puedes eliminar tu propia cuenta.")
+        # Las sesiones se van con la cuenta por el ON DELETE CASCADE.
+        cur.execute("DELETE FROM usuario WHERE id = %s", (fila["id"],))
+        return {"estado": "eliminado"}

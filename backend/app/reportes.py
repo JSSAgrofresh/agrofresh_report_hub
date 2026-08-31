@@ -4,10 +4,11 @@ from typing import Any
 
 import openpyxl
 import psycopg2.errors
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from .auth import Usuario, alcance_de_datos, solo_interno, usuario_actual
 from .db import conexion, cursor_dict
 
 router = APIRouter(prefix="/api/reportes", tags=["reportes"])
@@ -48,19 +49,59 @@ DATOS_QUERY = """
 """
 
 
+def _filtro_alcance(
+    usuario: Usuario,
+    cliente: str | None,
+    planta: str | None,
+) -> tuple[str, dict[str, str]]:
+    """El `AND ...` que acota una consulta a lo que esta sesión puede ver.
+
+    El filtro se arma SIEMPRE acá y nunca a partir del parámetro crudo: para
+    una cuenta de cliente, `alcance_de_datos` descarta lo que pidió el
+    navegador y devuelve lo que dice su fila. Ese es el único punto donde se
+    decide, y por eso los cuatro endpoints que muestran datos pasan por él.
+    """
+    cliente, planta = alcance_de_datos(usuario, cliente, planta)
+    condiciones = []
+    params: dict[str, str] = {}
+    if cliente:
+        condiciones.append("COALESCE(c.nombre, s.sold_to_raw) = %(cliente)s")
+        params["cliente"] = cliente
+    if planta:
+        condiciones.append("COALESCE(p.nombre, s.ship_to_raw) = %(planta)s")
+        params["planta"] = planta
+    return ("AND " + " AND ".join(condiciones)) if condiciones else "", params
+
+
 @router.get("/resumen")
-def resumen() -> dict[str, Any]:
+def resumen(usuario: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
     """Versión liviana para tarjetas de panel (no trae el detalle largo de /datos)."""
+    # Sin este filtro, la cuenta de un cliente veía en su panel el total de
+    # solicitudes de TODOS los clientes del sistema.
+    filtro, params = _filtro_alcance(usuario, None, None)
     with conexion(escribir=False) as conn:
         with cursor_dict(conn) as cur:
-            cur.execute("SELECT count(*) AS total FROM solicitud WHERE vigente")
+            cur.execute(
+                f"""
+                SELECT count(*) AS total FROM solicitud s
+                LEFT JOIN planta p ON p.id = s.planta_id
+                LEFT JOIN cliente c ON c.id = p.cliente_id
+                WHERE s.vigente {filtro}
+                """,
+                params,
+            )
             total_solicitudes = cur.fetchone()["total"]
             # "Fecha de ingreso" = fecha_entrada (cuándo entró la muestra al laboratorio),
             # ventana móvil de los últimos 7 días contra la fecha real del servidor —
             # nunca un valor fijo, así siempre refleja la semana en la que se está.
             cur.execute(
-                "SELECT count(*) AS total FROM solicitud "
-                "WHERE vigente AND fecha_entrada >= CURRENT_DATE - INTERVAL '7 days'"
+                f"""
+                SELECT count(*) AS total FROM solicitud s
+                LEFT JOIN planta p ON p.id = s.planta_id
+                LEFT JOIN cliente c ON c.id = p.cliente_id
+                WHERE s.vigente AND s.fecha_entrada >= CURRENT_DATE - INTERVAL '7 days' {filtro}
+                """,
+                params,
             )
             registros_ultima_semana = cur.fetchone()["total"]
     return {"total_solicitudes": total_solicitudes, "registros_ultima_semana": registros_ultima_semana}
@@ -76,18 +117,12 @@ def datos(
         description="Si se pasa (junto con cliente), acota además a esta sucursal — cuentas "
         "de cliente creadas por Ship To, en vez de por Sold To completo.",
     ),
+    usuario: Usuario = Depends(usuario_actual),
 ) -> dict[str, Any]:
-    # El filtro se aplica siempre en el SQL, nunca en el navegador: para el portal de
-    # cliente, los datos de otros clientes/sucursales no deben salir jamás del servidor.
-    condiciones = []
-    params: dict[str, str] = {}
-    if cliente:
-        condiciones.append("COALESCE(c.nombre, s.sold_to_raw) = %(cliente)s")
-        params["cliente"] = cliente
-    if planta:
-        condiciones.append("COALESCE(p.nombre, s.ship_to_raw) = %(planta)s")
-        params["planta"] = planta
-    filtro_cliente = ("AND " + " AND ".join(condiciones)) if condiciones else ""
+    # El filtro se aplica siempre en el SQL, nunca en el navegador. Y para una
+    # cuenta de cliente sale de su sesión, no de estos parámetros: antes bastaba
+    # con editar `?cliente=` en la barra de direcciones para ver a otro cliente.
+    filtro_cliente, params = _filtro_alcance(usuario, cliente, planta)
     with conexion(escribir=False) as conn:
         with cursor_dict(conn) as cur:
             cur.execute(DATOS_QUERY.format(filtro_cliente=filtro_cliente), params)
@@ -140,19 +175,15 @@ def _nombre_archivo_datos(cliente: str | None, planta: str | None) -> str:
 def datos_excel(
     cliente: str | None = Query(None, description="Igual que /datos: acota la descarga a este cliente."),
     planta: str | None = Query(None, description="Igual que /datos: acota además a esta sucursal."),
+    usuario: Usuario = Depends(usuario_actual),
 ) -> StreamingResponse:
     """Descarga en Excel de TODO lo que existe para el cliente/sucursal pedido
     -mismo filtro exacto que ve el portal de cliente en pantalla, nunca más
     ni menos-, para que un cliente pueda llevarse su propio historial."""
-    condiciones = []
-    params: dict[str, str] = {}
-    if cliente:
-        condiciones.append("COALESCE(c.nombre, s.sold_to_raw) = %(cliente)s")
-        params["cliente"] = cliente
-    if planta:
-        condiciones.append("COALESCE(p.nombre, s.ship_to_raw) = %(planta)s")
-        params["planta"] = planta
-    filtro_cliente = ("AND " + " AND ".join(condiciones)) if condiciones else ""
+    # "Mismo filtro exacto" ahora lo garantiza el código y no la buena fe:
+    # pantalla y descarga pasan por la misma función.
+    cliente, planta = alcance_de_datos(usuario, cliente, planta)
+    filtro_cliente, params = _filtro_alcance(usuario, cliente, planta)
     with conexion(escribir=False) as conn:
         with cursor_dict(conn) as cur:
             cur.execute(DATOS_QUERY.format(filtro_cliente=filtro_cliente), params)
@@ -179,10 +210,13 @@ def datos_excel(
 
 
 @router.get("/clientes")
-def clientes() -> list[str]:
+def clientes(_: Usuario = Depends(solo_interno)) -> list[str]:
     """Nombres de cliente que ya tienen datos cargados — mismo criterio (COALESCE)
     que /datos, para que la lista calce exacto con lo que aparece en el filtro de
-    Report. Se usa para el selector de cliente al crear un usuario tipo Cliente."""
+    Report. Se usa para el selector de cliente al crear un usuario tipo Cliente.
+
+    Cerrado a las cuentas de cliente: la lista completa revela quiénes son
+    clientes de AgroFresh, que no es asunto de ninguno de ellos."""
     with conexion(escribir=False) as conn:
         with cursor_dict(conn) as cur:
             cur.execute(

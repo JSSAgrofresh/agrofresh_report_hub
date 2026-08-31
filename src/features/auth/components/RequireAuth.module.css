@@ -1,0 +1,9 @@
+.cargando {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+}
