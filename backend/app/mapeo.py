@@ -5,7 +5,7 @@ Sin acceso a base de datos aquí (eso vive en ingest.py).
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Any
 
 # Columnas de dosis por analito (ver src/features/ingest/lib/sqlMap.ts en el frontend)
@@ -62,8 +62,21 @@ ANALITOS_RESULTADO: dict[str, str | tuple[str, ...]] = {
 LABORATORIO_CATALOGO = "Quiteca / AgroFresh"
 
 
+def valor_columna(fila: dict[str, Any], col: str) -> Any:
+    """Valor de una columna, tolerando espacios de más en el nombre buscado.
+
+    Los encabezados del archivo ya llegan sin espacios sobrantes -el lector
+    les hace trim-, así que un nombre con espacio al final acá nunca calzaría
+    y el dato entraría vacío sin que nadie se entere. Pasó exactamente eso con
+    "Temporada ", que nunca llegó a la base.
+    """
+    if col in fila:
+        return fila[col]
+    return fila.get(col.strip())
+
+
 def texto(fila: dict[str, Any], col: str) -> str | None:
-    v = fila.get(col)
+    v = valor_columna(fila, col)
     if v is None:
         return None
     s = str(v).strip()
@@ -99,12 +112,43 @@ def parse_entero_corto(valor: Any) -> int | None:
 
 
 def parse_fecha(valor: Any) -> str | None:
-    """Ya viene homogenizada como YYYY-MM-DD desde el frontend; solo valida el formato."""
-    if not valor:
+    """Fecha del Excel como YYYY-MM-DD, venga en la forma que venga.
+
+    No se puede asumir que el frontend ya la normalizó: cuando una celda de
+    fecha llega como objeto Date, se serializa a JSON como ISO completo
+    ("2026-01-03T00:00:00.000Z") y una validación de solo diez caracteres la
+    descarta entera. Eso dejaba TODAS las fechas en nulo sin ningún error, y
+    el reporte terminaba agrupando cada muestra bajo "Sin fecha".
+
+    Se aceptan las tres formas en que un Excel entrega una fecha: ya
+    normalizada, ISO completo, y el número de serie de Excel.
+    """
+    if valor is None or valor == "":
         return None
+
+    if isinstance(valor, datetime):
+        return valor.date().isoformat()
+    if isinstance(valor, date):
+        return valor.isoformat()
+
+    # Número de serie de Excel: días desde el 30-12-1899 (el 1900 bisiesto
+    # que Excel inventó ya está considerado en esa fecha base).
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        if 1 <= valor <= 2958465:
+            return (date(1899, 12, 30) + timedelta(days=int(valor))).isoformat()
+        return None
+
     s = str(valor).strip()
     if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
         return s
+    # ISO con hora, con o sin zona: "2026-01-03T00:00:00.000Z".
+    m = re.match(r"^(\d{4}-\d{2}-\d{2})[T ]", s)
+    if m:
+        try:
+            date.fromisoformat(m.group(1))
+        except ValueError:
+            return None
+        return m.group(1)
     return None
 
 
@@ -191,7 +235,7 @@ def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
         "referencia_proceso": texto(fila, "Referencia reporte proceso+O:T"),
         "observacion": texto(fila, "Observaciones"),
         "observacion_2": concatenar(texto(fila, "Dosis"), texto(fila, "Observación adicional")),
-        "temporada": parse_entero_corto(fila.get("Temporada ")),
+        "temporada": parse_entero_corto(valor_columna(fila, "Temporada")),
         "semana_entrada": parse_entero_corto(fila.get("Semana entrada")),
         # No se usa la columna "SEMANA" del Excel (no es confiable): se calcula
         # a partir de la fecha de entrada, igual que =NUM.DE.SEMANA([Fecha entrada]).
