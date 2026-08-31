@@ -33,6 +33,36 @@ def _fmt(n: int, total: int) -> str:
 
 def main() -> None:
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        # DataCore no siempre mira la base real: su pestaña "Tabla de datos"
+        # muestra `lab_staging` cuando ese schema existe. Si lo que se ve ahí
+        # no calza con lo que reporta este script, es por eso.
+        print("\n── Schemas presentes ───────────────────────────────────")
+        cur.execute(
+            "SELECT schema_name FROM information_schema.schemata "
+            "WHERE schema_name = 'lab' OR schema_name LIKE 'lab\\_%' ORDER BY schema_name"
+        )
+        schemas = [r["schema_name"] for r in cur.fetchall()]
+        for s in schemas:
+            cur.execute(
+                "SELECT count(*) AS n FROM information_schema.tables "
+                "WHERE table_schema = %s AND table_name = 'solicitud'",
+                (s,),
+            )
+            if cur.fetchone()["n"]:
+                cur.execute(f'SELECT count(*) AS n FROM "{s}".solicitud')
+                n = cur.fetchone()["n"]
+                marca = "   <-- DataCore muestra ESTE" if s == "lab_staging" else ""
+                print(f"  {s:<28} solicitud: {n:>7,}".replace(",", ".") + marca)
+            else:
+                print(f"  {s:<28} (sin tabla solicitud)")
+        if "lab_staging" in schemas:
+            print("\n  OJO: existe `lab_staging`. La pestaña 'Tabla de datos' de")
+            print("       DataCore muestra ese schema, no la base real `lab`.")
+
+        # Filas que quedaron esperando decisión de homologación.
+        cur.execute("SELECT count(*) AS n FROM pendiente_revision")
+        print(f"\n  Filas en cola de revisión (pendiente_revision): {cur.fetchone()['n']:,}".replace(",", "."))
+
         cur.execute("SELECT count(*) AS n FROM solicitud WHERE vigente")
         total = cur.fetchone()["n"]
         print(f"\nSolicitudes vigentes: {total:,}".replace(",", "."))
