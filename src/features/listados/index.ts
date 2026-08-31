@@ -3,7 +3,7 @@ export {
   listarValores,
   listarEspeciesActivas,
   listarVariedadesActivasDeEspecie,
-  urlExportarListados,
+  descargarListados,
   importarListado,
   importarMaestroListados,
   eliminarListadoLote,

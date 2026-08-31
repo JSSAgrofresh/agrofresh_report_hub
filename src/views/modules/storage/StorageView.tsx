@@ -14,8 +14,8 @@ import {
   organizarSolicitudesR2,
   renombrar,
   subirArchivos,
-  urlDescarga,
-  urlDescargaR2,
+  descargar,
+  descargarR2,
 } from '@/features/storage'
 import type { EntradaStorage } from '@/features/storage'
 import styles from './StorageView.module.css'
@@ -221,7 +221,7 @@ function PanelLocal() {
         onDropCarpeta={onDropCarpeta}
         onDragLeave={(ruta) => setCarpetaSobrevolada((c) => (c === ruta ? null : c))}
         onDragOverCarpeta={(ruta) => setCarpetaSobrevolada(ruta)}
-        urlDescarga={urlDescarga}
+        onDescargar={descargar}
         draggable
       />
 
@@ -330,7 +330,7 @@ function PanelR2({ raiz, permiteOrganizar = false }: PanelR2Props) {
       <TablaEntradas
         entradas={entradas}
         onNavegar={setPrefijoActual}
-        urlDescarga={urlDescargaR2}
+        onDescargar={descargarR2}
         draggable={false}
       />
     </>
@@ -350,7 +350,9 @@ interface TablaEntradasProps {
   onDropCarpeta?: (ev: DragEvent<HTMLTableRowElement>, carpeta: EntradaStorage) => void
   onDragLeave?: (ruta: string) => void
   onDragOverCarpeta?: (ruta: string) => void
-  urlDescarga: (ruta: string) => string
+  /** Baja el archivo con el token de la sesión. Un `<a href>` no sirve: el
+   * navegador lo sigue por su cuenta y no puede mandar el encabezado. */
+  onDescargar: (ruta: string) => Promise<void>
   draggable?: boolean
 }
 
@@ -363,7 +365,7 @@ function TablaEntradas({
   onDropCarpeta,
   onDragLeave,
   onDragOverCarpeta,
-  urlDescarga: getUrl,
+  onDescargar,
   draggable = false,
 }: TablaEntradasProps) {
   if (entradas === null) return <p className={styles.estado}>Cargando…</p>
@@ -423,14 +425,13 @@ function TablaEntradas({
               <td className={styles.mono}>{e.modificado ? formatDateTimeCL(e.modificado) : '—'}</td>
               <td className={styles.acciones}>
                 {e.tipo === 'archivo' && (
-                  <a
+                  <button
+                    type="button"
                     className={styles.boton}
-                    href={getUrl(e.ruta)}
-                    target="_blank"
-                    rel="noreferrer"
+                    onClick={() => void onDescargar(e.ruta)}
                   >
                     Descargar
-                  </a>
+                  </button>
                 )}
                 {onRenombrar && (
                   <button className={styles.boton} onClick={() => onRenombrar(e)}>

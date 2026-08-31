@@ -943,6 +943,18 @@ $("btnCsv").onclick = () => {
 // del proyecto). Este archivo es estático y no pasa por Vite, así que va fijo acá.
 const API_BASE = "http://localhost:8000/api";
 
+// El token de la sesión, para que el backend acepte estas llamadas. Este
+// archivo se sirve desde el mismo origen que la app, así que ve su
+// localStorage. La clave está copiada de src/services/http/sesion.ts —si
+// cambia allá, hay que cambiarla acá.
+function autorizacion(){
+  try{
+    const t = localStorage.getItem("agrofresh.token.v1");
+    return t ? {"Authorization": "Bearer " + t} : {};
+  }catch(e){ return {}; }  // navegador con el almacenamiento bloqueado
+}
+
+
 /* Traduce del nombre de columna que usa Converter al nombre de columna crudo
    que espera el mapeo del backend (mapeo.py) — el mismo que trae el Excel
    nativo de Quiteca/AgroFresh. Los resultados de Diagnofruit/ALS no necesitan
@@ -987,7 +999,7 @@ function filaCruda(inf){
 async function llamarIngest(ruta, filas){
   const resp = await fetch(API_BASE + "/ingest/" + ruta, {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: {"Content-Type": "application/json", ...autorizacion()},
     body: JSON.stringify({filas, origen: "converter"}),
   });
   if(!resp.ok) throw new Error("El backend respondió " + resp.status + " — revisa que esté corriendo.");

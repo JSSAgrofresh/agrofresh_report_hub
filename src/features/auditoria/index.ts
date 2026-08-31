@@ -11,7 +11,7 @@ export {
   deshacer,
   valoresColumna,
   promover,
-  urlExportar,
+  descargarExportacion,
 } from './lib/api'
 export type {
   InfoTabla,

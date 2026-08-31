@@ -1,4 +1,5 @@
 import { httpClient } from '@/services/http/client'
+import { descargarArchivo } from '@/services/http/descargar'
 import type { EntradaStorage, ListadoStorage } from './tipos'
 
 export function listar(ruta = '') {
@@ -29,10 +30,8 @@ export function eliminar(ruta: string) {
   return httpClient.delete<{ estado: string }>(`/storage/eliminar?ruta=${encodeURIComponent(ruta)}`)
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
-
-export function urlDescarga(ruta: string) {
-  return `${API_BASE_URL}/storage/descargar?ruta=${encodeURIComponent(ruta)}`
+export function descargar(ruta: string) {
+  return descargarArchivo(`/storage/descargar?ruta=${encodeURIComponent(ruta)}`, ruta.split('/').pop() || 'archivo')
 }
 
 // ---------------------------------------------------------------------------
@@ -44,8 +43,8 @@ export function listarR2(prefijo = '') {
   return httpClient.get<ListadoStorage>(`/storage/r2/listar${query}`)
 }
 
-export function urlDescargaR2(key: string) {
-  return `${API_BASE_URL}/storage/r2/descargar?key=${encodeURIComponent(key)}`
+export function descargarR2(key: string) {
+  return descargarArchivo(`/storage/r2/descargar?key=${encodeURIComponent(key)}`, key.split('/').pop() || 'archivo')
 }
 
 export function organizarSolicitudesR2() {
