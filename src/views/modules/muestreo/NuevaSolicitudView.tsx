@@ -616,7 +616,25 @@ export function NuevaSolicitudView() {
             Información de la muestra
           </h2>
           {tipoAplicacionSel ? (
-            <div className={styles.fila}>{camposMuestraVisibles.map(renderCampo)}</div>
+            <div className={styles.fila}>
+              {camposMuestraVisibles.map(renderCampo)}
+              {/* Los campos propios del Tipo de Aplicación (Gasto en Actimist)
+                  describen la muestra, así que van acá y no en la sección de
+                  análisis, que queda solo con los analitos. */}
+              {camposTipoAplicacionActivos.map((campo) => (
+                <label className={styles.campo} key={campo.clave}>
+                  <span>
+                    {campo.etiqueta}
+                    {campo.requerido && <span className={styles.marcaRequerido}> *</span>}
+                  </span>
+                  <input
+                    type={campo.tipo}
+                    value={valoresTipoAplicacion[campo.clave] ?? ''}
+                    onChange={(e) => setValoresTipoAplicacion((v) => ({ ...v, [campo.clave]: e.target.value }))}
+                  />
+                </label>
+              ))}
+            </div>
           ) : (
             <p className={styles.estado}>Elige un Tipo de Aplicación para ver los campos de la muestra.</p>
           )}
@@ -629,24 +647,6 @@ export function NuevaSolicitudView() {
               <IconFrasco className={styles.iconoLab} />
               Análisis · Solicitados · {laboratorio}
             </h2>
-
-            {camposTipoAplicacionActivos.length > 0 && (
-              <div className={styles.fila}>
-                {camposTipoAplicacionActivos.map((campo) => (
-                  <label className={styles.campo} key={campo.clave}>
-                    <span>
-                      {campo.etiqueta}
-                      {campo.requerido && <span className={styles.marcaRequerido}> *</span>}
-                    </span>
-                    <input
-                      type={campo.tipo}
-                      value={valoresTipoAplicacion[campo.clave] ?? ''}
-                      onChange={(e) => setValoresTipoAplicacion((v) => ({ ...v, [campo.clave]: e.target.value }))}
-                    />
-                  </label>
-                ))}
-              </div>
-            )}
 
             {analitosLab.length > 0 && (
               <div className={styles.tablaCaja}>

@@ -57,7 +57,6 @@ CAMPOS_GENERALES_ETIQUETAS: list[tuple[str, str]] = [
 CAMPOS_ANALISIS_ETIQUETAS = [
     "Dosis Aplicada",
     "Tipo Aplicación",
-    "Aplicación En",
     "Gasto",
     "Analito Pesticida 1",
     "Resultado Pesticida 1",
@@ -77,7 +76,6 @@ GRUPOS_EXPORTACION: list[tuple[str, list[tuple[str, str, str]]]] = [
         *[("analito", codigo, f"{codigo} ppm") for codigo in ("FDL", "IMZ", "PYR", "TEBU", "AZOX", "TBZ", "DPA")],
         ("campo", "Dosis Aplicada", "Dosis Aplicada"),
         ("campo", "Tipo Aplicación", "Tipo Aplicación"),
-        ("campo", "Aplicación En", "Aplicación En"),
         ("campo", "Gasto", "Gasto"),
     ]),
     ("DIAGNOFRUIT — PATÓGENOS qPCR", [

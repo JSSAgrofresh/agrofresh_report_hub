@@ -332,12 +332,14 @@ def _construir_elementos(
         k: v for k, v in campos_lab.items()
         if k not in etiquetas_analitos
         and k != 'Tipo Aplicación'
-        # Este campo existió en una versión anterior del formulario. Algunas
-        # solicitudes guardadas aún lo contienen, pero nunca fue solicitado
-        # por el formato oficial y no debe reaparecer al regenerar su PDF.
+        # Campos retirados del formulario. Algunas solicitudes guardadas
+        # aún los contienen, y no deben reaparecer al regenerar su PDF.
         and k.strip().casefold() not in {
             'velocidad de línea (m/min)'.casefold(),
             'velocidad de linea (m/min)'.casefold(),
+            # Duplicaba a Tipo de Muestra.
+            'aplicación en'.casefold(),
+            'aplicacion en'.casefold(),
         }
     }
 
