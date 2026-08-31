@@ -463,19 +463,16 @@ def _construir_elementos(
         (_ETIQUETA_DE_CLAVE['kilos_procesados'], datos.get('kilos_procesados')),
         (_ETIQUETA_DE_CLAVE['linea_proceso'], datos.get('linea_proceso')),
     ]
+    # Los campos propios del Tipo de Aplicación (Gasto en Actimist) describen
+    # la muestra: van acá y no en una sección aparte, que quedaba con un solo
+    # dato suelto ocupando un bloque entero.
+    pares_muestra.extend(campos_aplicacion.items())
     elementos.append(_titulo_seccion('IDENTIFICACIÓN DE LA MUESTRA'))
     elementos.append(Spacer(1, 4))
     elementos.append(_rejilla_formulario(pares_muestra, columnas=3))
     elementos.append(Spacer(1, _SP))
 
-    # ── 3. INFORMACIÓN DE APLICACIÓN ────────────────────────────────────
-    if campos_aplicacion:
-        elementos.append(_titulo_seccion('INFORMACIÓN DE APLICACIÓN'))
-        elementos.append(Spacer(1, 4))
-        elementos.append(_rejilla_formulario(list(campos_aplicacion.items()), columnas=3))
-        elementos.append(Spacer(1, _SP))
-
-    # ── 4. ANÁLISIS SOLICITADOS ─────────────────────────────────────────
+    # ── 3. ANÁLISIS SOLICITADOS ─────────────────────────────────────────
     if filas_analitos:
         elementos.append(_titulo_seccion('ANÁLISIS SOLICITADOS'))
         elementos.append(Spacer(1, 4))
