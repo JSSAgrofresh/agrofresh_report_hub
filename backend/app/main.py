@@ -57,10 +57,15 @@ app.add_middleware(CapturaErrores)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
-    # Antes acá había un comodín `https://.*\.vercel\.app`, que dejaba
-    # llamar a esta API desde CUALQUIER deploy de cualquier persona en Vercel.
-    # Los dominios reales van en la variable CORS_ORIGINS.
-    allow_credentials=True,
+    # Este comodín deja llamar a la API desde cualquier deploy de cualquier
+    # persona en Vercel. Se queda a propósito mientras el frontend no tenga
+    # un dominio propio: acotarlo antes dejaría el sistema sin funcionar.
+    # Cuando exista el dominio, va en CORS_ORIGINS y esta línea se borra.
+    #
+    # No es la puerta: la sesión se exige igual en cada endpoint, y el token
+    # viaja en un encabezado, no en una cookie, así que otro sitio no puede
+    # hacer que el navegador lo mande por su cuenta.
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
     # Sin esto el navegador no deja leer Content-Disposition desde el
