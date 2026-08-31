@@ -104,7 +104,7 @@ class Contacto(BaseModel):
     nombre: str
     email: str
     cargo: str = ""
-    # solicitud          → recibe la solicitud de muestreo
+    # solicitud          → recibe la solicitud de análisis
     # resultado_cliente  → el laboratorio le manda los resultados al cliente
     # resultado_interno  → copia que nos llega a nosotros
     tipo: str = "solicitud"

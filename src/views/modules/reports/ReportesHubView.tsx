@@ -40,7 +40,7 @@ export function ReportesHubView() {
             <OpcionCard
               icono={<IconEmitir />}
               titulo="Emitir reporte"
-              descripcion="Genera un reporte nuevo a partir de resultados de laboratorio, cruzándolos con las solicitudes de muestreo."
+              descripcion="Genera un reporte nuevo a partir de resultados de laboratorio, cruzándolos con las solicitudes de análisis."
               ruta={ROUTES.reportsEmitir}
             />
           )}

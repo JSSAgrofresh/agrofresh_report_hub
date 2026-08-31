@@ -14,10 +14,11 @@ import os
 import re as _re
 from datetime import datetime
 
+from reportlab.graphics.barcode import code128
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.units import cm
+from reportlab.lib.units import cm, mm
 from reportlab.platypus import (
     Image,
     KeepTogether,
@@ -98,14 +99,11 @@ _S_PIE = ParagraphStyle(
 )
 
 _ETIQUETA_DE_CLAVE = dict(CAMPOS_GENERALES_ETIQUETAS)
-# `Aplicación` sigue siendo un dato interno de la muestra y se muestra en el
-# PDF, aunque no sea una columna general del nuevo Excel oficial.
-_ETIQUETA_DE_CLAVE["aplicacion"] = "Aplicación"
 
 _CLAVES_MUESTRA = [
     "tipo_muestra", "especie", "variedad", "csg", "lote",
     "numero_camara", "numero_orden", "posicion_muestreo",
-    "kilos_procesados", "producto_utilizado", "aplicacion",
+    "kilos_procesados", "producto_utilizado",
     "linea_proceso", "nombre_muestreador",
 ]
 _CLAVES_FECHAS = ["fecha_solicitud", "fecha_muestreo", "hora_muestreo"]
@@ -123,6 +121,30 @@ def _fmt_fecha(valor: str | None) -> str:
         return datetime.strptime(valor, '%Y-%m-%d').strftime('%d-%m-%Y')
     except ValueError:
         return valor
+
+
+def _codigo_barras(folio: str):
+    """Folio de la solicitud como Code 128, para escanearlo al recibir la
+    muestra en el laboratorio en vez de tipear el número.
+
+    Devuelve `None` si el folio está vacío o si no se puede codificar: el PDF
+    tiene que salir igual -el número va impreso al lado en texto-, no fallar
+    la generación por el código de barras.
+    """
+    if not folio.strip():
+        return None
+    try:
+        codigo = code128.Code128(
+            folio.strip(),
+            barHeight=10 * mm,
+            barWidth=0.42 * mm,
+            humanReadable=False,
+            quiet=False,
+        )
+    except Exception:
+        return None
+    codigo.hAlign = 'RIGHT'
+    return codigo
 
 
 def _titulo_seccion(texto: str) -> Table:
@@ -333,11 +355,15 @@ def _construir_elementos(
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6),
     ]))
+    folio = str(datos.get('numero_solicitud') or '')
     titulo_col = [
         Paragraph('SOLICITUD DE ANÁLISIS', _S_BANNER_TITULO),
         Spacer(1, 3),
-        Paragraph(f"N° {datos.get('numero_solicitud', '')}", _S_BANNER_FOLIO),
+        Paragraph(f"N° {folio}", _S_BANNER_FOLIO),
     ]
+    codigo_barras = _codigo_barras(folio)
+    if codigo_barras is not None:
+        titulo_col.extend([Spacer(1, 4), codigo_barras])
     banner = Table(
         [[logo_box, titulo_col]],
         colWidths=[5 * cm, ANCHO_UTIL - 5 * cm],
@@ -382,7 +408,6 @@ def _construir_elementos(
         'variedad',
         'numero_camara',
         'producto_utilizado',
-        'aplicacion',
         'especie',
         'numero_orden',
         'lote',
@@ -404,7 +429,6 @@ def _construir_elementos(
         (_ETIQUETA_DE_CLAVE['producto_utilizado'], valores_muestra['producto_utilizado']),
         (_ETIQUETA_DE_CLAVE['lote'], valores_muestra['lote']),
         (_ETIQUETA_DE_CLAVE['posicion_muestreo'], valores_muestra['posicion_muestreo']),
-        (_ETIQUETA_DE_CLAVE['aplicacion'], valores_muestra['aplicacion']),
         (_ETIQUETA_DE_CLAVE['csg'], valores_muestra['csg']),
         (_ETIQUETA_DE_CLAVE['nombre_muestreador'], valores_muestra['nombre_muestreador']),
         (_ETIQUETA_DE_CLAVE['kilos_procesados'], datos.get('kilos_procesados')),

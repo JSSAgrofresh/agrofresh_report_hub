@@ -18,6 +18,7 @@ from .postventa import router as postventa_router
 from .reportes import router as reportes_router
 from .storage import router as storage_router
 from .toma_muestras import router as toma_muestras_router
+from .usuarios import router as usuarios_router
 
 app = FastAPI(title="AgroFresh Report Hub API")
 
@@ -74,6 +75,7 @@ app.include_router(emitir_router)
 app.include_router(toma_muestras_router)
 app.include_router(laboratorios_router)
 app.include_router(correo_router)
+app.include_router(usuarios_router)
 
 
 @app.get("/api/salud")

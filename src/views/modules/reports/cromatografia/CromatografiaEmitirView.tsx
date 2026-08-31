@@ -274,13 +274,13 @@ export function CromatografiaEmitirView() {
       <div className={styles.lienzo}>
         <Card className={styles.panel}>
           <div className={styles.panelCabecera}>
-            <h3>Solicitudes de muestreo</h3>
+            <h3>Solicitudes de análisis</h3>
             <button type="button" className={styles.botonChico} onClick={refrescarSolicitudes}>
               Actualizar
             </button>
           </div>
           <p className={styles.panelAyuda}>
-            Solicitudes de muestreo del laboratorio AGROFRESH (Toma de muestras → Nueva solicitud). Arrastra una
+            Solicitudes de análisis del laboratorio AGROFRESH (Toma de muestras → Nueva solicitud). Arrastra una
             fila hacia la zona de cruce; haz clic para ver la ficha completa.
           </p>
           {errorSolicitudes && <p className={styles.error}>{errorSolicitudes}</p>}

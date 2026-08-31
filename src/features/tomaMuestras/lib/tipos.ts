@@ -9,7 +9,6 @@ export interface Solicitud {
   solicitante: string
   sold_to: string
   ship_to: string | null
-  aplicacion: string | null
   especie: string | null
   variedad: string | null
   linea_proceso: string | null

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   actualizarUsuario,
   crearUsuario,
@@ -8,35 +8,57 @@ import {
 import type { Usuario } from '../types'
 
 export function useUsuarios() {
-  const [usuarios, setUsuarios] = useState<Usuario[]>(() => listarUsuarios())
+  const [usuarios, setUsuarios] = useState<Usuario[]>([])
+  const [cargando, setCargando] = useState(true)
 
-  const refrescar = useCallback(() => setUsuarios(listarUsuarios()), [])
+  const refrescar = useCallback(async () => {
+    const lista = await listarUsuarios()
+    setUsuarios(lista)
+    return lista
+  }, [])
+
+  useEffect(() => {
+    let vigente = true
+    listarUsuarios()
+      .then((lista) => {
+        if (vigente) setUsuarios(lista)
+      })
+      .catch(() => {
+        if (vigente) setUsuarios([])
+      })
+      .finally(() => {
+        if (vigente) setCargando(false)
+      })
+    return () => {
+      vigente = false
+    }
+  }, [])
 
   const crear = useCallback(
-    (datos: Omit<Usuario, 'id'>) => {
-      const nuevo = crearUsuario(datos)
-      refrescar()
+    async (datos: Omit<Usuario, 'id'>) => {
+      const nuevo = await crearUsuario(datos)
+      await refrescar()
       return nuevo
     },
     [refrescar],
   )
 
   const actualizar = useCallback(
-    (id: string, datos: Partial<Omit<Usuario, 'id'>>) => {
-      const actualizado = actualizarUsuario(id, datos)
-      refrescar()
+    async (id: string, datos: Omit<Usuario, 'id'>) => {
+      const actualizado = await actualizarUsuario(id, datos)
+      await refrescar()
       return actualizado
     },
     [refrescar],
   )
 
   const eliminar = useCallback(
-    (id: string) => {
-      eliminarUsuario(id)
-      refrescar()
+    async (id: string) => {
+      await eliminarUsuario(id)
+      await refrescar()
     },
     [refrescar],
   )
 
-  return { usuarios, crear, actualizar, eliminar }
+  return { usuarios, cargando, crear, actualizar, eliminar, refrescar }
 }

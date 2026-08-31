@@ -346,7 +346,6 @@ def _construir_elementos(
         ('PRODUCTO', campos.get('Producto Utilizado', '')),
         ('LOTE', campos.get('Lote', '')),
         ('POSICIÓN', campos.get('Posición Muestreo', '')),
-        ('APLICACIÓN', campos.get('Aplicación', '')),
     ]
     pares_muestra_derecha = [
         ('CSG', campos.get('CSG', '')),

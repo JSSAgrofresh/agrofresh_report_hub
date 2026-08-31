@@ -67,7 +67,7 @@ CAMPOS_ANALISIS_ETIQUETAS = [
     "Resultado Pesticida 3",
 ]
 
-# Matriz horizontal oficial del formato de Solicitud de Muestreo.  Estas
+# Matriz horizontal oficial del formato de Solicitud de Análisis.  Estas
 # columnas son deliberadamente fijas: tanto una solicitud como la descarga
 # masiva deben verse iguales al archivo maestro, aunque un laboratorio no
 # utilice todos los análisis.

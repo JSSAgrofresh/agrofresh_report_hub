@@ -15,7 +15,7 @@ export function EmitirReporteHubView() {
         <OpcionCard
           icono={<IconFrasco />}
           titulo="Reporte análisis cromatografía"
-          descripcion="Cruza las solicitudes de muestreo con los resultados del GC y arma el registro final."
+          descripcion="Cruza las solicitudes de análisis con los resultados del GC y arma el registro final."
           ruta={ROUTES.reportsEmitirCromatografia}
         />
       </div>
