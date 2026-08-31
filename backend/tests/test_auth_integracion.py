@@ -18,21 +18,14 @@ from fastapi.testclient import TestClient
 
 from app import seguridad
 from app.main import app
+from tests.utiles_bd import hay_base
 
 CLAVE = "clave larga de prueba"
 
 
-def _hay_base():
-    try:
-        from app.db import conexion, cursor_dict
-        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-            cur.execute("SELECT 1 FROM usuario LIMIT 1")
-        return True
-    except Exception:
-        return False
-
-
-pytestmark = pytest.mark.skipif(not _hay_base(), reason="sin Postgres con el esquema aplicado")
+pytestmark = pytest.mark.skipif(
+    not hay_base("usuario"), reason="sin Postgres con el esquema aplicado"
+)
 
 
 @pytest.fixture(scope="module")
