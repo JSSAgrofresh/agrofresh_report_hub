@@ -20,13 +20,17 @@ para no depender de que el binario esté instalado y en el PATH del servidor.
 
 Uso:
     cd backend
-    python scripts/respaldar_schemas.py                 # solo mostrar qué haría
-    python scripts/respaldar_schemas.py --aplicar       # archivar y borrar
-    python scripts/respaldar_schemas.py --conservar 3 --aplicar
+    .venv\Scripts\python.exe scripts/respaldar_schemas.py               # ver qué haría
+    .venv\Scripts\python.exe scripts/respaldar_schemas.py --aplicar     # una vez
+    .venv\Scripts\python.exe scripts/respaldar_schemas.py --aplicar --cada 86400
 
-Para la tarea programada de Windows (una vez al día), el comando es el mismo
-con --aplicar. Devuelve código 0 si todo salió bien y 1 si algo falló, para
-que el Programador de tareas lo marque como error.
+Con --cada queda dando vueltas en la consola, mostrando la cuenta regresiva
+hasta el próximo respaldo —igual que la ingesta de AccuTab—. Se corta con
+Ctrl+C. Sin --cada corre una sola vez y termina, que es lo que sirve para el
+Programador de tareas: devuelve 0 si todo salió bien y 1 si algo falló.
+
+Necesita el Python del entorno virtual (`backend\.venv`), no el del sistema:
+el del sistema no tiene instalado boto3 y no puede hablar con R2.
 """
 from __future__ import annotations
 
@@ -36,12 +40,27 @@ import io
 import json
 import os
 import sys
+import time
 import zipfile
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import r2  # noqa: E402
+try:
+    from app import r2  # noqa: E402
+except ModuleNotFoundError as exc:  # pragma: no cover
+    # Casi siempre es el Python del sistema en vez del entorno virtual: el del
+    # sistema tiene psycopg2 pero no boto3, así que este import es el primero
+    # que se cae y el traceback no dice cuál es el problema real.
+    print(
+        f"Falta el módulo '{exc.name}'.\n"
+        "Este script necesita el Python del entorno virtual, no el del sistema:\n"
+        "    cd backend\n"
+        "    .venv\\Scripts\\python.exe scripts\\respaldar_schemas.py",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
 from app.db import conexion, cursor_dict  # noqa: E402
 
 CARPETA_R2 = "respaldos_bd"
@@ -159,15 +178,19 @@ def _ya_esta_en_r2(key: str, tamano: int) -> bool:
     return datos is not None and len(datos) == tamano
 
 
-def main() -> int:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--conservar", type=int, default=2, help="Respaldos recientes a dejar en Postgres (default 2).")
-    p.add_argument("--aplicar", action="store_true", help="Archivar y borrar. Sin esto solo muestra.")
-    args = p.parse_args()
-    if args.conservar < 0:
-        print("--conservar no puede ser negativo.", file=sys.stderr)
-        return 1
+def _cuenta_regresiva(segundos: int) -> None:
+    """Espera mostrando cuánto falta, en una sola línea que se reescribe.
 
+    Es la señal de que el proceso sigue vivo: una consola congelada sin salida
+    no se distingue de una que se colgó.
+    """
+    for restante in range(segundos, 0, -1):
+        print(f"\rPróximo respaldo en {restante} segundos...   ", end="", flush=True)
+        time.sleep(1)
+    print("\r" + " " * 48 + "\r", end="", flush=True)
+
+
+def _una_corrida(args) -> int:
     bitacora = _leer_bitacora()
     print(
         f"Corrida N.° {bitacora['corridas'] + 1} · última {_hace_cuanto(bitacora.get('ultima'))}"
@@ -246,5 +269,48 @@ def main() -> int:
         return 0
 
 
+def main() -> int:
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--conservar", type=int, default=2, help="Respaldos recientes a dejar en Postgres (default 2).")
+    p.add_argument("--aplicar", action="store_true", help="Archivar y borrar. Sin esto solo muestra.")
+    p.add_argument(
+        "--cada",
+        type=int,
+        metavar="SEGUNDOS",
+        help="Repetir cada N segundos mostrando la cuenta regresiva. Sin esto corre una vez y termina.",
+    )
+    args = p.parse_args()
+    if args.conservar < 0:
+        print("--conservar no puede ser negativo.", file=sys.stderr)
+        return 1
+
+    if not args.cada:
+        return _una_corrida(args)
+
+    if args.cada < 10:
+        print("--cada tiene que ser al menos 10 segundos.", file=sys.stderr)
+        return 1
+
+    print(f"Respaldo automático cada {args.cada} segundos. Ctrl+C para detener.\n")
+    while True:
+        try:
+            _una_corrida(args)
+        except KeyboardInterrupt:
+            raise
+        except Exception as exc:
+            # Un fallo puntual -la base caída, R2 sin red- no debe matar el
+            # bucle: se informa y se reintenta en el próximo ciclo.
+            print(f"\nError en esta corrida: {exc}", file=sys.stderr)
+        print()
+        try:
+            _cuenta_regresiva(args.cada)
+        except KeyboardInterrupt:
+            raise
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("\nDetenido.")
+        sys.exit(0)
