@@ -39,7 +39,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import config, config_store, correo, mail_templates, r2
+from . import config, config_store, correo, indice_solicitudes, mail_templates, r2
+from .db import conexion, cursor_dict
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
 from .toma_muestras_pdf import generar_pdf_solicitud
 
@@ -191,10 +192,10 @@ def _leer_solicitud_archivo(ruta: str) -> dict:
     raise HTTPException(400, "Formato de solicitud no reconocido.")
 
 
-def _siguiente_numero() -> str:
-    """Folio correlativo, único sobre todas las solicitudes guardadas. Cuenta
-    tanto los folios OT como los SOL antiguos, así que migrar unos u otros no
-    hace que se repita un número."""
+def _mayor_folio_en_archivos() -> int:
+    """El folio más alto entre los archivos guardados. Cuenta tanto los OT
+    como los SOL antiguos, así que migrar unos u otros no puede repetir un
+    número."""
     maximo = 0
     if r2.disponible():
         for key in r2.listar_keys("solicitudes/"):
@@ -206,7 +207,40 @@ def _siguiente_numero() -> str:
             m = _PAT_NUMERO.match(base)
             if m:
                 maximo = max(maximo, int(m.group(1)))
-    return f"{PREFIJO_FOLIO}-{maximo + 1:04d}"
+    return maximo
+
+
+def _siguiente_numero() -> str:
+    """Folio correlativo, único sobre todas las solicitudes guardadas.
+
+    Lo entrega una SEQUENCE de Postgres. Antes se calculaba listando los
+    archivos y sumando uno al mayor: dos personas creando una solicitud en el
+    mismo momento leían el mismo máximo y recibían EL MISMO FOLIO. Una
+    secuencia no puede entregar dos veces el mismo número.
+
+    Mientras el índice esté vacío -o sea, mientras no se haya corrido
+    `scripts/indexar_solicitudes.py`- se sigue contando sobre los archivos.
+    Sin eso, un sistema actualizado a medias repartiría folios desde OT-0001
+    y pisaría las solicitudes que ya existen.
+    """
+    if not indice_solicitudes.esta_poblado():
+        return f"{PREFIJO_FOLIO}-{_mayor_folio_en_archivos() + 1:04d}"
+
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT nextval('folio_solicitud') AS n")
+        numero = cur.fetchone()["n"]
+        # Red de seguridad: si la secuencia quedara atrasada respecto de lo ya
+        # indexado -alguien la reinició a mano, se restauró un respaldo viejo-
+        # se la adelanta al máximo real en vez de entregar un folio usado.
+        cur.execute(
+            "SELECT max(substring(numero_solicitud from '[0-9]+$')::bigint) AS tope"
+            " FROM solicitud_archivo WHERE numero_solicitud ~ '[0-9]+$'"
+        )
+        tope = cur.fetchone()["tope"] or 0
+        if numero <= tope:
+            cur.execute("SELECT setval('folio_solicitud', %s) + 1 AS n", (tope,))
+            numero = cur.fetchone()["n"]
+        return f"{PREFIJO_FOLIO}-{numero:04d}"
 
 
 def _recorrer_solicitudes_en_disco():
@@ -262,9 +296,14 @@ class Solicitud(SolicitudIn):
     creado_en: str
 
 
-def leer_todas_las_solicitudes() -> list[tuple[str, dict]]:
-    """Todas las solicitudes guardadas como (nombre_archivo, datos), de R2 o
-    de disco según cómo esté levantado el sistema.
+def _leer_todas_desde_archivos() -> list[tuple[str, dict]]:
+    """Todas las solicitudes, bajando y parseando CADA archivo.
+
+    Esto es lo que hacía el sistema en cada request, y es lo que el índice
+    vino a reemplazar: el trabajo crece con la cantidad de solicitudes, y el
+    parseo ocupa el proceso entero mientras dura. Hoy se usa una sola vez,
+    desde `scripts/indexar_solicitudes.py`, y como respaldo mientras el
+    índice todavía está vacío.
 
     Recorre `solicitudes/` entero en vez de carpeta por carpeta: así encuentra
     tanto el layout viejo (por laboratorio) como el nuevo (por Sold To y
@@ -295,6 +334,21 @@ def leer_todas_las_solicitudes() -> list[tuple[str, dict]]:
     return salida
 
 
+def leer_todas_las_solicitudes() -> list[tuple[str, dict]]:
+    """Todas las solicitudes guardadas, como (nombre_archivo, datos).
+
+    Sale del índice: una consulta, sin tocar R2. El archivo se baja solo
+    cuando alguien pide ese documento en particular.
+
+    Si el índice está vacío se leen los archivos como antes. Eso cubre el rato
+    entre actualizar el sistema y correr `scripts/indexar_solicitudes.py`: sin
+    esta salida, actualizar dejaría a todos sin ver sus solicitudes.
+    """
+    if indice_solicitudes.esta_poblado():
+        return indice_solicitudes.listar()
+    return _leer_todas_desde_archivos()
+
+
 def leer_solicitudes_de(laboratorio: str) -> list[tuple[str, dict]]:
     """Las solicitudes de un laboratorio. Se filtra por el campo `laboratorio`
     de cada solicitud y no por su carpeta: desde que las nuevas se agrupan por
@@ -304,7 +358,11 @@ def leer_solicitudes_de(laboratorio: str) -> list[tuple[str, dict]]:
     decisión R2/disco: cuando el almacenamiento pasó a R2, la copia que vivía
     en emitir siguió leyendo solo del disco y dejó de encontrar solicitudes.
     """
-    return [par for par in leer_todas_las_solicitudes() if par[1].get("laboratorio") == laboratorio]
+    if indice_solicitudes.esta_poblado():
+        # El filtro va en el SQL y no acá: traer todo para descartar la mayoría
+        # es exactamente lo que hacía la versión anterior.
+        return indice_solicitudes.listar(laboratorio)
+    return [par for par in _leer_todas_desde_archivos() if par[1].get("laboratorio") == laboratorio]
 
 
 @router.get("/solicitudes")
@@ -411,11 +469,13 @@ def crear_solicitud(body: SolicitudIn) -> Solicitud:
     fecha = datos["fecha_solicitud"]
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     wb = construir_workbook(datos, analitos_config)
+    r2_key = None
     if r2.disponible():
         buf = io.BytesIO()
         wb.save(buf)
+        r2_key = _r2_key_sol_nueva(body.sold_to, fecha, nombre_archivo)
         r2.subir(
-            _r2_key_sol_nueva(body.sold_to, fecha, nombre_archivo),
+            r2_key,
             buf.getvalue(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
@@ -426,6 +486,13 @@ def crear_solicitud(body: SolicitudIn) -> Solicitud:
         carpeta = os.path.join(_carpeta_raiz(), carpeta_de_cliente(body.sold_to), fecha)
         os.makedirs(carpeta, exist_ok=True)
         wb.save(os.path.join(carpeta, nombre_archivo))
+
+    # Al índice DESPUÉS de que el archivo quedó guardado: si se anotara antes
+    # y la subida fallara, el listado mostraría una solicitud cuyo Excel no
+    # existe. Al revés es recuperable — un archivo sin indexar se arregla
+    # volviendo a correr scripts/indexar_solicitudes.py.
+    with conexion() as conn, cursor_dict(conn) as cur:
+        indice_solicitudes.guardar(cur, nombre_archivo, datos, r2_key)
     return Solicitud(archivo=nombre_archivo, **datos)
 
 
@@ -439,6 +506,10 @@ def eliminar_solicitud(archivo: str) -> dict[str, str]:
     else:
         ruta = _ruta_archivo(archivo)
         os.remove(ruta)
+    # Sacarla también del índice: si quedara anotada, el listado seguiría
+    # mostrando una solicitud cuyo archivo ya no existe.
+    with conexion() as conn, cursor_dict(conn) as cur:
+        indice_solicitudes.olvidar(cur, os.path.basename(archivo))
     return {"estado": "eliminado"}
 
 

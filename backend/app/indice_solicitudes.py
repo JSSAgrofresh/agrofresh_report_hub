@@ -102,3 +102,12 @@ def esta_poblado() -> bool:
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         cur.execute("SELECT EXISTS (SELECT 1 FROM solicitud_archivo) AS hay")
         return bool(cur.fetchone()["hay"])
+
+
+def olvidar(cur, archivo: str) -> None:
+    """Saca una solicitud del índice, cuando se borró su archivo.
+
+    Si quedara anotada, el listado seguiría mostrando una solicitud cuyo
+    Excel ya no existe, y abrirla daría 404 sin explicación.
+    """
+    cur.execute("DELETE FROM solicitud_archivo WHERE archivo = %s", (archivo,))
