@@ -149,3 +149,75 @@ variable.
 - El frontend refresca esta data solo, 4 veces al día (08:00, 12:00,
   16:00 y 20:00), además del botón manual "Actualizar" que refresca al
   tiro sin esperar la hora programada.
+
+## Autenticación y permisos
+
+La API está cerrada: sin sesión, ningún endpoint responde. Antes el login
+aceptaba cualquier contraseña no vacía y los permisos vivían solo en el
+navegador, así que la API entera respondía a quien supiera su URL.
+
+### Cómo se guarda cada cosa
+
+- **Contraseñas**: nunca se guardan. Se guarda el resultado de pasarlas por
+  scrypt (`app/seguridad.py`), con una sal distinta para cada una. Robar la
+  base no es robar las contraseñas.
+- **Sesiones**: en la tabla `sesion`, y de cada una se guarda la *huella*
+  del token, no el token. Son sesiones del servidor y no JWT porque cerrar
+  sesión, expulsar a alguien o revocar todo tras un incidente tiene que ser
+  un `DELETE`, no esperar a que venza una firma.
+- **El padrón de cuentas**: tabla `usuario`. Antes era `usuarios.json` en
+  R2; un archivo que se lee y reescribe entero pierde el cambio del primero
+  cuando dos administradores editan a la vez, y ahora lo que se perdería son
+  permisos y contraseñas.
+
+### Quién ve qué
+
+- La sesión se exige **a nivel de router**, en `main.py`, en un solo lugar.
+  Un router nuevo que se agregue a esa lista nace protegido: con 131
+  endpoints, basta olvidar una anotación para dejar la base abierta.
+- Las cuentas tipo `cliente` solo alcanzan `reportes_router`. Todo lo demás
+  —cargar datos, catálogos, solicitudes, correos, el padrón— les responde
+  403.
+- Qué cliente ve una sesión lo decide `alcance_de_datos` (`app/auth.py`), y
+  **nunca** el parámetro `?cliente=` que manda el navegador. Antes se le
+  creía a ese parámetro: una cuenta de Dole lo editaba en la barra de
+  direcciones y veía Agricom. `tests/test_alcance_datos.py` falla si alguien
+  afloja esa regla.
+
+### Puesta en marcha
+
+Después de aplicar `migrations/0019_usuarios_y_sesiones.sql`:
+
+```
+cd backend
+python scripts/migrar_usuarios_a_bd.py            # vista previa
+python scripts/migrar_usuarios_a_bd.py --aplicar  # mueve el padrón desde usuarios.json
+python scripts/clave.py jorge.sandoval@agrofresh.com
+```
+
+Las cuentas migradas quedan **sin contraseña**: existen, pero no pueden
+entrar hasta que alguien les asigne una. `clave.py` la pide por teclado y no
+la muestra — lo que se escribe en la línea de comandos queda en el historial
+de la terminal.
+
+Desde ahí, las contraseñas se manejan en el sistema: crear una cuenta
+devuelve una contraseña de un solo uso que hay que dictarle a su dueño, y
+esa persona tiene que cambiarla antes de entrar a ninguna parte.
+
+### CORS
+
+`CORS_ORIGINS` (variable de entorno, separada por comas) tiene que listar los
+dominios reales del frontend. Antes había además un comodín
+`https://*.vercel.app`, que dejaba llamar a esta API desde cualquier deploy
+de cualquier persona en Vercel.
+
+### Pruebas
+
+```
+cd backend
+python -m pytest                 # todo lo que no necesita base
+python -m pytest -v              # con Postgres configurado, corre también la integración
+```
+
+Sin Postgres a mano, las pruebas que lo necesitan se saltan solas en vez de
+fallar. En el servidor sí hay base, y ahí corren las 378.
