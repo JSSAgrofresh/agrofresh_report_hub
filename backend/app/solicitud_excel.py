@@ -196,6 +196,24 @@ def _etiqueta_analito(analito: dict) -> str:
     return f"{analito['nombre']} ({analito['unidad']})" if analito.get("unidad") else analito["nombre"]
 
 
+def _valor_guardado(campos_lab: dict, analito: dict):
+    """Valor que la solicitud guardó para este analito.
+
+    La etiqueta se guardó con la unidad vigente al crear la solicitud, y esa
+    unidad la define el laboratorio en sus Análisis: puede haber cambiado o
+    haberse quitado. Se busca por nombre además de por etiqueta exacta para
+    que un cambio de unidad no vacíe la columna de una solicitud antigua.
+    """
+    for candidata in (_etiqueta_analito(analito), analito["nombre"]):
+        if candidata in campos_lab:
+            return campos_lab[candidata]
+    nombre = analito["nombre"].strip()
+    for clave, valor in campos_lab.items():
+        if clave.rsplit(" (", 1)[0].strip() == nombre:
+            return valor
+    return None
+
+
 def construir_workbook_exportacion(solicitudes: list[dict], analitos: list[dict]) -> Workbook:
     """Genera la matriz oficial horizontal: dos filas de encabezado y una
     fila por solicitud. El Excel individual llama a esta misma función, por
@@ -242,7 +260,7 @@ def construir_workbook_exportacion(solicitudes: list[dict], analitos: list[dict]
             if codigo not in solicitados:
                 continue
             analito = analitos_por_codigo.get(codigo)
-            valor_dosis = campos_lab.get(_etiqueta_analito(analito)) if analito else None
+            valor_dosis = _valor_guardado(campos_lab, analito) if analito else None
             if valor_dosis and valor_dosis != "Solicitado" and valor_dosis not in dosis:
                 dosis.append(str(valor_dosis))
         for col_idx, (tipo, clave, _) in enumerate(columnas, start=1):

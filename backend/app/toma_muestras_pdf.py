@@ -254,6 +254,28 @@ def _etiqueta_analito(analito: dict) -> str:
     )
 
 
+def _clave_guardada(campos_lab: dict, analito: dict) -> str | None:
+    """Clave de `campos_laboratorio` que corresponde a este analito.
+
+    La solicitud guardó la etiqueta con la unidad vigente al momento de
+    crearla -"Fludioxonil (ppm)"-, y esa unidad la define el laboratorio en
+    sus Análisis, así que puede haber cambiado -o haberse quitado- desde
+    entonces. Reconstruir la etiqueta con la unidad de hoy no bastaría: el
+    analito desaparecería del PDF de una solicitud vieja. Por eso se busca
+    también por el nombre, con cualquier unidad entre paréntesis.
+
+    Devuelve `None` si la solicitud no pidió este analito.
+    """
+    for candidata in (_etiqueta_analito(analito), analito['nombre']):
+        if candidata in campos_lab:
+            return candidata
+    nombre = analito['nombre'].strip()
+    for clave in campos_lab:
+        if clave.rsplit(' (', 1)[0].strip() == nombre:
+            return clave
+    return None
+
+
 def _caja_correos(datos: dict, espacio_libre: float) -> Table:
     correos: list[str] = datos.get('destinatarios_resultados') or []
 
@@ -316,17 +338,22 @@ def _construir_elementos(
         (a for a in (analitos_config or []) if a.get('laboratorio') == laboratorio),
         key=lambda a: (a.get('categoria') or '', a.get('orden', 0)),
     )
-    etiquetas_analitos = {_etiqueta_analito(a): a for a in analitos_lab}
+    etiquetas_analitos = {}
+    for a in analitos_lab:
+        clave = _clave_guardada(campos_lab, a)
+        if clave is not None:
+            etiquetas_analitos[clave] = a
     filas_analitos = [
         (
             a.get('categoria') or 'General',
             etiqueta,
             a.get('codigo', ''),
-            a.get('unidad') or '—',
+            # La unidad que se muestra es la que quedó en la etiqueta
+            # guardada, no la del catálogo: es la que se pidió.
+            (etiqueta.rsplit(' (', 1)[1][:-1] if etiqueta.endswith(')') and ' (' in etiqueta else '—'),
             campos_lab[etiqueta],
         )
         for etiqueta, a in etiquetas_analitos.items()
-        if etiqueta in campos_lab
     ]
     campos_aplicacion = {
         k: v for k, v in campos_lab.items()
