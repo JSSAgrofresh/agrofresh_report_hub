@@ -10,6 +10,10 @@
  * decide el backend en cada request. Borrarlo del navegador cierra tu
  * sesión, no te da acceso a nada.
  */
+// Ojo: esta clave está copiada tal cual en public/modules/trace.html y
+// converter.html. Son páginas aparte servidas desde el mismo origen, así que
+// leen este mismo localStorage para poder llamar al backend; no pueden
+// importar de acá. Si cambia, hay que cambiarla en los tres lugares.
 const CLAVE = 'agrofresh.token.v1'
 
 let token: string | null = leerGuardado()

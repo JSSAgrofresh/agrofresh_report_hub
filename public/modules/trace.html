@@ -1286,6 +1286,18 @@ $("btnPdf").onclick = () => {
 // TraceView.tsx). Abierto suelto, cae a /api del mismo origen.
 const API_BASE = new URLSearchParams(location.search).get("api") || "/api";
 
+// El token de la sesión, para que el backend acepte estas llamadas. Este
+// archivo se sirve desde el mismo origen que la app, así que ve su
+// localStorage. La clave está copiada de src/services/http/sesion.ts —si
+// cambia allá, hay que cambiarla acá.
+function autorizacion(){
+  try{
+    const t = localStorage.getItem("agrofresh.token.v1");
+    return t ? {"Authorization": "Bearer " + t} : {};
+  }catch(e){ return {}; }  // navegador con el almacenamiento bloqueado
+}
+
+
 function textoABase64(texto){
   // btoa() solo acepta latin-1; los archivos pueden traer acentos.
   const bytes = new TextEncoder().encode(texto);
@@ -1309,7 +1321,7 @@ $("btnGuardar").onclick = async () => {
 
     const r = await fetch(API_BASE + "/postventa/registros", {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
+      headers: {"Content-Type": "application/json", ...autorizacion()},
       body: JSON.stringify({
         cliente:     $("fCliente").value.trim() || null,
         planta:      $("fUbic").value.trim()    || null,

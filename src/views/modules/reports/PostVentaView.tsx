@@ -19,8 +19,8 @@ import {
   eliminarCargaTrace,
   fechaDeCarpeta,
   listarCargasTrace,
-  urlOriginalCarga,
-  urlPdfCarga,
+  descargarOriginalCarga,
+  descargarPdfCarga,
   verCargaTrace,
 } from '@/features/postventa'
 import type { CargaTrace, EstadisticaSerie, ResumenCargaTrace } from '@/features/postventa'
@@ -338,20 +338,23 @@ export function PostVentaView() {
                 </div>
                 <div className={styles.acciones}>
                   {detalleVigente.tiene_pdf && (
-                    <a className={styles.enlaceBoton} href={urlPdfCarga(detalleVigente.carpeta)} target="_blank" rel="noreferrer">
-                      Ver informe PDF
-                    </a>
+                    <button
+                      type="button"
+                      className={styles.enlaceBoton}
+                      onClick={() => void descargarPdfCarga(detalleVigente.carpeta)}
+                    >
+                      Descargar informe PDF
+                    </button>
                   )}
                   {detalleVigente.archivos.map((nombre) => (
-                    <a
+                    <button
                       key={nombre}
+                      type="button"
                       className={styles.enlaceBoton}
-                      href={urlOriginalCarga(detalleVigente.carpeta, nombre)}
-                      target="_blank"
-                      rel="noreferrer"
+                      onClick={() => void descargarOriginalCarga(detalleVigente.carpeta, nombre)}
                     >
                       {nombre}
-                    </a>
+                    </button>
                   ))}
                   <Button variant="ghost" onClick={() => void borrar(detalleVigente.carpeta)}>
                     Eliminar

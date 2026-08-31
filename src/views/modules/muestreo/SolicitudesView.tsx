@@ -11,7 +11,7 @@ import {
   eliminarSolicitud,
   enviarCorreoPrueba,
   listarSolicitudes,
-  urlExportarTodasLasSolicitudes,
+  descargarTodasLasSolicitudes,
 } from '@/features/tomaMuestras'
 import type { Solicitud } from '@/features/tomaMuestras'
 import styles from './SolicitudesView.module.css'
@@ -178,18 +178,16 @@ export function SolicitudesView() {
         description="Listado de todas las solicitudes registradas."
         acciones={
           <div className={styles.accionesCabecera}>
-            <a
+            <button
+              type="button"
               className={styles.botonDescargaTodas}
-              href={urlExportarTodasLasSolicitudes(archivosAExportar)}
-              target="_blank"
-              rel="noreferrer"
-              aria-disabled={solicitudesFiltradas?.length === 0}
-              onClick={(evento) => solicitudesFiltradas?.length === 0 && evento.preventDefault()}
+              disabled={solicitudesFiltradas?.length === 0}
+              onClick={() => void descargarTodasLasSolicitudes(archivosAExportar)}
             >
               {hayFiltrosActivos
                 ? `Descargar filtradas (${solicitudesFiltradas?.length ?? 0})`
                 : 'Descargar todas las solicitudes'}
-            </a>
+            </button>
             <Button variant="secondary" onClick={onEnviarPrueba} disabled={enviandoPrueba}>
               {enviandoPrueba ? 'Enviando…' : '✉ Enviar saludo de prueba'}
             </Button>

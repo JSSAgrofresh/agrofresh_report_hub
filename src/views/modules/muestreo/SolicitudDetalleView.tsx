@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/Button'
 import { IconFrasco } from '@/components/ui/icons'
 import {
   obtenerSolicitud,
-  urlDescargaExcel,
-  urlDescargaPdf,
+  descargarExcelSolicitud,
+  descargarPdfSolicitud,
   enviarSolicitudPorCorreo,
   destinatariosDeSolicitud,
 } from '@/features/tomaMuestras'
@@ -133,12 +133,20 @@ export function SolicitudDetalleView() {
             <Button variant="secondary" onClick={() => navigate(ROUTES.tomaMuestras)}>
               Volver
             </Button>
-            <a className={styles.botonDescarga} href={urlDescargaExcel(solicitud.archivo)} target="_blank" rel="noreferrer">
+            <button
+              type="button"
+              className={styles.botonDescarga}
+              onClick={() => void descargarExcelSolicitud(solicitud.archivo)}
+            >
               Descargar Excel
-            </a>
-            <a className={styles.botonDescargaPdf} href={urlDescargaPdf(solicitud.archivo)} target="_blank" rel="noreferrer">
+            </button>
+            <button
+              type="button"
+              className={styles.botonDescargaPdf}
+              onClick={() => void descargarPdfSolicitud(solicitud.archivo)}
+            >
               Descargar PDF
-            </a>
+            </button>
             <button
               className={styles.botonEnviar}
               onClick={() => { setMostrarEnvio(v => !v); setMensajeEnvio(null) }}

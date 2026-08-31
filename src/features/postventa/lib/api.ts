@@ -1,6 +1,5 @@
 import { httpClient } from '@/services/http/client'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
+import { descargarArchivo } from '@/services/http/descargar'
 
 /** Una medición ya normalizada y unificada pH+ORP, tal como la deja Trace. */
 export interface FilaTrace {
@@ -66,13 +65,15 @@ export function eliminarCargaTrace(carpeta: string) {
   return httpClient.delete<{ ok: boolean }>(`/postventa/registros/${encodeURIComponent(carpeta)}`)
 }
 
-/** Descargas directas (GET), igual que el resto de las descargas de la app. */
-export function urlPdfCarga(carpeta: string) {
-  return `${API_BASE_URL}/postventa/registros/${encodeURIComponent(carpeta)}/pdf`
+export function descargarPdfCarga(carpeta: string) {
+  return descargarArchivo(`/postventa/registros/${encodeURIComponent(carpeta)}/pdf`, `${carpeta}.pdf`)
 }
 
-export function urlOriginalCarga(carpeta: string, nombre: string) {
-  return `${API_BASE_URL}/postventa/registros/${encodeURIComponent(carpeta)}/originales/${encodeURIComponent(nombre)}`
+export function descargarOriginalCarga(carpeta: string, nombre: string) {
+  return descargarArchivo(
+    `/postventa/registros/${encodeURIComponent(carpeta)}/originales/${encodeURIComponent(nombre)}`,
+    nombre,
+  )
 }
 
 /** "2026-08-24_14-32-07" -> "24-08-2026 14:32". El nombre de la carpeta es la

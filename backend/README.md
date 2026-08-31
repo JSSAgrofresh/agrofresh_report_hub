@@ -186,10 +186,9 @@ navegador, así que la API entera respondía a quien supiera su URL.
 
 ### Puesta en marcha
 
-Después de aplicar `migrations/0019_usuarios_y_sesiones.sql`:
-
 ```
 cd backend
+python scripts/migrar.py 0019                     # crea las tablas usuario y sesion
 python scripts/migrar_usuarios_a_bd.py            # vista previa
 python scripts/migrar_usuarios_a_bd.py --aplicar  # mueve el padrón desde usuarios.json
 python scripts/clave.py jorge.sandoval@agrofresh.com

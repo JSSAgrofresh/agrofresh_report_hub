@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { urlExportar } from '@/features/auditoria'
+import { descargarExportacion } from '@/features/auditoria'
 import { httpClient } from '@/services/http/client'
 import { ErDiagrama } from './ErDiagrama'
 import { HomogenizarPanel } from './HomogenizarPanel'
@@ -100,7 +100,7 @@ export function DataCoreView() {
     <Card className={styles.banner}>
       <div><b>{data?.filas ? 'Copia de Ingest activa' : 'Sin copia de trabajo'}</b><span>{data?.filas ? ` ${data.filas.toLocaleString('es-CL')} filas aisladas; todavía no están en la base de datos.` : ' Carga un Excel desde Ingest para comenzar una auditoría.'}</span></div>
       <div className={styles.bannerAcciones}>
-        <a className={styles.exportar} href={urlExportar()}>Descargar base en Excel</a>
+        <button type="button" className={styles.exportar} onClick={() => void descargarExportacion()}>Descargar base en Excel</button>
         {!!data?.filas && <Button variant="secondary" disabled={cargando} onClick={() => void descartarCopia()}>Descartar copia</Button>}
       </div>
     </Card>

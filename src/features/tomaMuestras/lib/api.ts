@@ -1,4 +1,5 @@
 import { httpClient } from '@/services/http/client'
+import { descargarArchivo } from '@/services/http/descargar'
 import type {
   AnalitoConfig,
   AnalitoInput,
@@ -39,16 +40,20 @@ export function eliminarSolicitud(archivo: string) {
   )
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
-
 /** El Excel es el documento maestro guardado al crear la solicitud (o
  * generado al vuelo, con el mismo formato, para solicitudes legadas). */
-export function urlDescargaExcel(archivo: string) {
-  return `${API_BASE_URL}/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/excel`
+export function descargarExcelSolicitud(archivo: string) {
+  return descargarArchivo(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/excel`,
+    `${archivo}.xlsx`,
+  )
 }
 
-export function urlDescargaPdf(archivo: string) {
-  return `${API_BASE_URL}/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/pdf`
+export function descargarPdfSolicitud(archivo: string) {
+  return descargarArchivo(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/pdf`,
+    `${archivo}.pdf`,
+  )
 }
 
 /** A quién iría la solicitud según los contactos del laboratorio. */
@@ -68,11 +73,14 @@ export function enviarSolicitudPorCorreo(archivo: string, destinatariosAdicional
 
 /** Excel horizontal con una fila por solicitud. Si se indican archivos,
  * exporta exactamente las filas visibles después de aplicar filtros. */
-export function urlExportarTodasLasSolicitudes(archivos?: string[]) {
+export function descargarTodasLasSolicitudes(archivos?: string[]) {
   const params = new URLSearchParams()
   archivos?.forEach((archivo) => params.append('archivo', archivo))
   const query = params.toString() ? `?${params.toString()}` : ''
-  return `${API_BASE_URL}/toma-muestras/solicitudes/exportar-todo${query}`
+  return descargarArchivo(
+    `/toma-muestras/solicitudes/exportar-todo${query}`,
+    'Solicitudes.xlsx',
+  )
 }
 
 // --- Configuración: campos generales -------------------------------------

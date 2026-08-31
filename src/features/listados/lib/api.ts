@@ -1,4 +1,5 @@
 import { httpClient } from '@/services/http/client'
+import { descargarArchivo } from '@/services/http/descargar'
 import type {
   EstandaresResponse,
   GrupoHomogenizacion,
@@ -77,13 +78,10 @@ export function listarVariedadesActivasDeEspecie(especieId: number) {
   return listarValores('variedad', { especieId }).then((v) => v.map((x) => x.valor))
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
-
 /** Excel con las 4 listas -Sold To, Ship To, Especie, Variedad- tal como
- * quedaron después de homogenizar. Es una descarga directa (GET), no pasa
- * por httpClient -mismo patrón que el resto de las descargas de la app-. */
-export function urlExportarListados() {
-  return `${API_BASE_URL}/listados/exportar`
+ * quedaron después de homogenizar. */
+export function descargarListados() {
+  return descargarArchivo('/listados/exportar', 'Listados.xlsx')
 }
 
 export function importarListado(tipo: 'sold_to' | 'ship_to' | TipoListado, archivo: File, especieId?: number) {

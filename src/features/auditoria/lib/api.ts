@@ -1,4 +1,5 @@
 import { httpClient } from '@/services/http/client'
+import { descargarArchivo } from '@/services/http/descargar'
 import type {
   CorregirGrupoInput,
   CorregirValoresInput,
@@ -12,7 +13,6 @@ import type {
   ValoresColumna,
 } from './tipos'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 export function listarTablas() {
   return httpClient.get<InfoTabla[]>('/auditoria/tablas')
@@ -62,7 +62,9 @@ export function promover() {
   return httpClient.post<{ ok: boolean; respaldo: string }>('/auditoria/promover', {})
 }
 
-/** Descarga directa (no pasa por httpClient: la respuesta es un archivo binario, no JSON). */
-export function urlExportar() {
-  return `${API_BASE_URL}/auditoria/exportar`
+/** Descarga la base completa en Excel. Va por `descargarArchivo` y no por un
+ * enlace directo porque la API exige sesión, y un `<a href>` no puede llevar
+ * el token. */
+export function descargarExportacion() {
+  return descargarArchivo('/auditoria/exportar', 'Base_de_datos.xlsx')
 }

@@ -11,7 +11,7 @@ import {
   useCatalogo,
 } from '@/features/catalogo'
 import type { Cliente, ClienteInput, Planta, PlantaInput } from '@/features/catalogo'
-import { eliminarListadoLote, HomogenizarPanel, importarListado, importarMaestroListados, ValorListaForm, ValorListaTable, urlExportarListados, useListado } from '@/features/listados'
+import { eliminarListadoLote, HomogenizarPanel, importarListado, importarMaestroListados, ValorListaForm, ValorListaTable, descargarListados, useListado } from '@/features/listados'
 import type { TipoListado, ValorLista, ValorListaInput } from '@/features/listados'
 import styles from './ListadosView.module.css'
 
@@ -190,7 +190,7 @@ export function ListadosView() {
           <>
             <input ref={maestroRef} type="file" accept=".xlsx,.xls" hidden onChange={(e) => { const archivo = e.target.files?.[0]; if (archivo) void importarMaestro(archivo) }} />
             <Button onClick={() => maestroRef.current?.click()}>Importar maestro</Button>
-            <a className={styles.botonDescarga} href={urlExportarListados()} target="_blank" rel="noreferrer">Descargar Excel</a>
+            <button type="button" className={styles.botonDescarga} onClick={() => void descargarListados()}>Descargar Excel</button>
           </>
         }
       />

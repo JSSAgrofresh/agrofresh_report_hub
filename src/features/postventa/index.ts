@@ -2,8 +2,8 @@ export {
   listarCargasTrace,
   verCargaTrace,
   eliminarCargaTrace,
-  urlPdfCarga,
-  urlOriginalCarga,
+  descargarPdfCarga,
+  descargarOriginalCarga,
   fechaDeCarpeta,
 } from './lib/api'
 export type {
