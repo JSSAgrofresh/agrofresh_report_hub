@@ -17,6 +17,7 @@ import {
 } from '@/features/emitir'
 import type { FilaCruce, FilaSubida, MuestraGC, ResultadoAnalito, Solicitud } from '@/features/emitir'
 import { EscanerSolicitud } from './EscanerSolicitud'
+import { EscanerVial } from './EscanerVial'
 import { SolicitudFichaModal } from './SolicitudFichaModal'
 import { ConfiguracionInformeModal } from './ConfiguracionInformeModal'
 import styles from './CromatografiaEmitirView.module.css'
@@ -73,6 +74,17 @@ export function CromatografiaEmitirView() {
   const [solicitudEnFicha, setSolicitudEnFicha] = useState<Solicitud | null>(null)
   const [mostrarConfiguracion, setMostrarConfiguracion] = useState(false)
   const [filtroFolio, setFiltroFolio] = useState('')
+
+  // El par que se está armando con la pistola: una solicitud y su vial. Es el
+  // flujo normal —escanear la hoja, escanear el vial, cruzar—; la zona de
+  // asignación manual de más abajo queda para los casos raros.
+  const [solicitudEscaneada, setSolicitudEscaneada] = useState<Solicitud | null>(null)
+  const [vialEscaneado, setVialEscaneado] = useState<MuestraGC | null>(null)
+  const [fechaRecepcion, setFechaRecepcion] = useState('')
+  const [mostrarManual, setMostrarManual] = useState(false)
+  // Sube en cada cruce: vacía las dos cajas y deja el foco listo para el par
+  // siguiente, para poder pasar veinte hojas sin tocar el mouse.
+  const [cruces, setCruces] = useState(0)
 
   const [muestrasGC, setMuestrasGC] = useState<MuestraGC[] | null>(null)
   const [nombreArchivoGC, setNombreArchivoGC] = useState<string | null>(null)
@@ -160,6 +172,31 @@ export function CromatografiaEmitirView() {
 
   function quitarDeCruce(archivo: string) {
     setFilasCruce((prev) => prev.filter((f) => f.solicitud.archivo !== archivo))
+  }
+
+  // Un cruce solo se puede hacer con los dos lados escaneados. Y se avisa
+  // -sin bloquear- cuando los analitos no calzan: puede ser el vial
+  // equivocado, y es mejor verlo antes de generar el informe que después.
+  const parListo = Boolean(solicitudEscaneada && vialEscaneado)
+  const validacionDelPar = useMemo(
+    () =>
+      solicitudEscaneada && vialEscaneado
+        ? validarCruce(solicitudEscaneada.analitos_solicitados, vialEscaneado.resultados)
+        : null,
+    [solicitudEscaneada, vialEscaneado],
+  )
+
+  function hacerCruce() {
+    if (!solicitudEscaneada || !vialEscaneado) return
+    setFilasCruce((prev) => [
+      ...prev.filter((f) => f.solicitud.archivo !== solicitudEscaneada.archivo),
+      { solicitud: solicitudEscaneada, codigoAsignado: vialEscaneado.codigo, fechaRecepcion },
+    ])
+    // Se limpian los dos lados para poder seguir con el siguiente par sin
+    // tocar el mouse: escanear hoja, escanear vial, cruzar, repetir.
+    setSolicitudEscaneada(null)
+    setVialEscaneado(null)
+    setCruces((n) => n + 1)
   }
 
   // La tabla muestra lo mismo que el escáner está buscando: así se ve al tiro
@@ -276,7 +313,7 @@ export function CromatografiaEmitirView() {
     <div>
       <Header
         title="Reporte análisis cromatografía"
-        description="Arrastra una solicitud a la zona de cruce y asígnale el código de vial del GC que le corresponde."
+        description="Escanea la solicitud impresa y el vial del GC. Cuando los dos queden en verde, crúzalos y genera el informe."
         acciones={
           <button type="button" className={styles.botonChico} onClick={() => setMostrarConfiguracion(true)}>
             Configurar informe
@@ -293,15 +330,16 @@ export function CromatografiaEmitirView() {
             </button>
           </div>
           <p className={styles.panelAyuda}>
-            Solicitudes de análisis del laboratorio AGROFRESH (Toma de muestras → Nueva solicitud). Arrastra una
-            fila hacia la zona de cruce; haz clic para ver la ficha completa. Si tienes la solicitud impresa, escanea
-            su código de barras con la pistola.
+            Solicitudes de análisis del laboratorio AGROFRESH (Toma de muestras → Nueva solicitud). Escanea el
+            código de barras de la hoja impresa, o haz clic en una fila para ver su ficha.
           </p>
           <EscanerSolicitud
             solicitudes={solicitudes}
+            elegida={solicitudEscaneada}
+            onElegir={setSolicitudEscaneada}
             onFiltroCambia={setFiltroFolio}
-            yaEnCruce={(archivo) => filasCruce.some((f) => f.solicitud.archivo === archivo)}
-            onEnviarACruce={agregarACruce}
+            listo={parListo}
+            reinicio={cruces}
             onVerFicha={setSolicitudEnFicha}
           />
           {errorSolicitudes && <p className={styles.error}>{errorSolicitudes}</p>}
@@ -393,6 +431,15 @@ export function CromatografiaEmitirView() {
             </label>
           </div>
           {errorGC && <p className={styles.error}>{errorGC}</p>}
+
+          <EscanerVial
+            muestras={muestrasGC}
+            elegida={vialEscaneado}
+            onElegir={setVialEscaneado}
+            listo={parListo}
+            reinicio={cruces}
+          />
+
           {muestrasGC && (
             <div className={styles.tablaCaja}>
               <table className={styles.tabla}>
@@ -432,6 +479,162 @@ export function CromatografiaEmitirView() {
         </Card>
       </div>
 
+      <div className={styles.zonaBotonCruce}>
+        {validacionDelPar?.severidad === 'sospechoso' && (
+          <p className={styles.avisoPar}>⚠ {validacionDelPar.mensaje}</p>
+        )}
+        <div className={styles.lineaCruce}>
+          <label className={styles.campoFecha}>
+            <span>Fecha de recepción</span>
+            <input
+              type="date"
+              value={fechaRecepcion}
+              onChange={(e) => setFechaRecepcion(e.target.value)}
+            />
+          </label>
+          <Button onClick={hacerCruce} disabled={!parListo} className={styles.botonCruce}>
+            Hacer cruce
+          </Button>
+        </div>
+        <p className={styles.ayudaCruce}>
+          {parListo
+            ? 'Los dos lados están listos. Al cruzar, el par pasa a los datos del informe.'
+            : 'Escanea la solicitud impresa y el vial del GC para poder cruzarlos.'}
+        </p>
+      </div>
+
+      {filasCruce.length > 0 && (
+        <Card className={styles.panelDatos}>
+          <div className={styles.panelCabecera}>
+            <h3>Datos del informe</h3>
+            <span className={styles.contadorDatos}>
+              {filasCruce.length} cruce{filasCruce.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          <p className={styles.panelAyuda}>
+            Esto es exactamente lo que va a salir en el informe. No se edita acá: si algo está
+            mal, quita el cruce y vuelve a escanear.
+          </p>
+          <div className={styles.tablaCaja}>
+            <table className={styles.tabla}>
+              <thead>
+                <tr>
+                  <th>N° Solicitud</th>
+                  <th>Sold To</th>
+                  <th>Especie</th>
+                  <th>Variedad</th>
+                  <th>Código de vial</th>
+                  <th>Fecha inyección</th>
+                  <th>Fecha recepción</th>
+                  {columnasAnalito.map((a) => (
+                    <th key={a}>{a}</th>
+                  ))}
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filasConValidacion.map((f) => {
+                  const porCodigo = new Map((f.muestra?.resultados ?? []).map((r) => [r.codigo, r]))
+                  return (
+                    <tr
+                      key={f.solicitud.archivo}
+                      className={cn(
+                        f.validacion?.severidad === 'ok' && styles.filaOk,
+                        f.validacion?.severidad === 'sospechoso' && styles.filaSospechosa,
+                      )}
+                    >
+                      <td className={styles.nombre}>
+                        {f.solicitud.campos['N° Solicitud'] || f.solicitud.archivo}
+                      </td>
+                      <td>{f.solicitud.campos['Sold To (Nombre)'] || '—'}</td>
+                      <td>{f.solicitud.campos['Especie'] || '—'}</td>
+                      <td>{f.solicitud.campos['Variedad'] || '—'}</td>
+                      <td className={styles.mono}>{f.codigoAsignado ?? '—'}</td>
+                      <td className={styles.mono}>{f.muestra?.fecha_inyeccion ?? '—'}</td>
+                      <td className={styles.mono}>{f.fechaRecepcion || '—'}</td>
+                      {columnasAnalito.map((a) => (
+                        <td key={a} className={styles.mono}>
+                          {porCodigo.get(a)?.amount ?? '—'}
+                        </td>
+                      ))}
+                      <td>
+                        {!f.muestra ? (
+                          <span className={styles.estadoPendiente}>Sin vial</span>
+                        ) : f.validacion?.severidad === 'sospechoso' ? (
+                          <span className={styles.estadoSospechoso} title={f.validacion.mensaje ?? undefined}>
+                            ⚠ Revisar
+                          </span>
+                        ) : (
+                          <span className={styles.estadoOk}>✓ OK</span>
+                        )}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={styles.botonQuitar}
+                          onClick={() => quitarDeCruce(f.solicitud.archivo)}
+                        >
+                          Quitar
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className={styles.exportarAcciones}>
+            <div className={styles.exportarBotones}>
+              <Button
+                onClick={descargarInformes}
+                disabled={descargandoPDF || hayCrucesSospechosos || cantidadExportable === 0}
+              >
+                {descargandoPDF
+                  ? 'Generando…'
+                  : cantidadExportable > 1
+                    ? `Generar ${cantidadExportable} informes (PDF)`
+                    : 'Generar informe (PDF)'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={descargarExcel}
+                disabled={descargando || hayCrucesSospechosos || cantidadExportable === 0}
+              >
+                {descargando ? 'Generando…' : 'Descargar Excel'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={subirABaseDeDatos}
+                disabled={subiendo || hayCrucesSospechosos || cantidadExportable === 0}
+              >
+                {subiendo ? 'Subiendo…' : 'Subir a base de datos'}
+              </Button>
+            </div>
+            {hayCrucesSospechosos && (
+              <p className={styles.avisoBloqueo}>
+                Hay cruces marcados "⚠ Revisar" — corrígelos o quítalos antes de generar el informe.
+              </p>
+            )}
+            {!hayCrucesSospechosos && cantidadExportable === 0 && (
+              <p className={styles.avisoBloqueo}>
+                Ningún cruce tiene vial asignado todavía.
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
+
+      <button
+        type="button"
+        className={styles.botonManual}
+        onClick={() => setMostrarManual((v) => !v)}
+      >
+        {mostrarManual ? '▾' : '▸'} Asignación manual
+      </button>
+
+      {mostrarManual && (
       <Card
         className={cn(styles.panelCruce, arrastrandoZonaCruce && styles.zonaCruceActiva)}
         onDragOver={(e) => {
@@ -543,29 +746,9 @@ export function CromatografiaEmitirView() {
           </div>
         )}
 
-        {filasCruce.some((f) => f.codigoAsignado) && (
+        {resultadoSubida && (
           <div className={styles.exportarAcciones}>
-            <div className={styles.exportarBotones}>
-              <Button variant="secondary" onClick={descargarExcel} disabled={descargando || hayCrucesSospechosos}>
-                {descargando ? 'Generando…' : 'Descargar Excel'}
-              </Button>
-              <Button variant="secondary" onClick={descargarInformes} disabled={descargandoPDF || hayCrucesSospechosos}>
-                {descargandoPDF
-                  ? 'Generando…'
-                  : cantidadExportable > 1
-                    ? `Descargar ${cantidadExportable} informes (PDF)`
-                    : 'Descargar informe (PDF)'}
-              </Button>
-              <Button variant="secondary" onClick={subirABaseDeDatos} disabled={subiendo || hayCrucesSospechosos}>
-                {subiendo ? 'Subiendo…' : 'Subir a base de datos'}
-              </Button>
-            </div>
-            {hayCrucesSospechosos && (
-              <p className={styles.avisoBloqueo}>
-                Hay cruces marcados "⚠ Revisar" — corrígelos o quítalos de la zona de cruce antes de descargar.
-              </p>
-            )}
-            {resultadoSubida && (
+            {(
               <ul className={styles.resultadoSubida}>
                 {resultadoSubida.map((r, i) => (
                   <li
@@ -583,6 +766,7 @@ export function CromatografiaEmitirView() {
           </div>
         )}
       </Card>
+      )}
 
       {solicitudEnFicha && <SolicitudFichaModal solicitud={solicitudEnFicha} onCerrar={() => setSolicitudEnFicha(null)} />}
       {mostrarConfiguracion && <ConfiguracionInformeModal onCerrar={() => setMostrarConfiguracion(false)} />}
