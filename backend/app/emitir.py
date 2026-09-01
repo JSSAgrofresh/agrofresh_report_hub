@@ -7,6 +7,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import openpyxl
+import psycopg2.errors
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -96,42 +97,87 @@ class InformeConfigOut(BaseModel):
     incluir_analista: bool = True
 
 
+_COLUMNAS_CONFIG = (
+    "analizado_por_nombre",
+    "analizado_por_cargo",
+    "aprobado_por_nombre",
+    "aprobado_por_cargo",
+)
+
+
+def leer_config_informe() -> dict:
+    """La fila de configuración del informe, aunque falte la migración 0022.
+
+    Actualizar son dos pasos y en ese orden: `git pull` + reiniciar, y después
+    correr la migración. En esa ventana la columna `incluir_analista` todavía
+    no existe, y sin esto generar un informe respondía 500 con un
+    UndefinedColumn que no le dice nada a nadie.
+
+    Postgres aborta la transacción al fallar la consulta, así que el segundo
+    intento necesita una conexión nueva; no basta con reintentar en la misma.
+    """
+    columnas = ", ".join(_COLUMNAS_CONFIG)
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute(f"SELECT {columnas}, incluir_analista FROM informe_config WHERE id = 1")
+            return dict(cur.fetchone() or {})
+    except psycopg2.errors.UndefinedColumn:
+        pass
+
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute(f"SELECT {columnas} FROM informe_config WHERE id = 1")
+        fila = cur.fetchone()
+    # Sin la columna, el informe sale como salía antes: con las dos firmas.
+    return {**dict(fila or {}), "incluir_analista": True}
+
+
 @router.get("/config-informe")
 def obtener_config_informe() -> InformeConfigOut:
-    with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute(
-            "SELECT analizado_por_nombre, analizado_por_cargo, aprobado_por_nombre,"
-            " aprobado_por_cargo, incluir_analista FROM informe_config WHERE id = 1"
-        )
-        fila = cur.fetchone()
-        if not fila:
-            raise HTTPException(500, "No existe la configuración del informe (falta la migración 0008).")
-        return InformeConfigOut(**fila)
+    fila = leer_config_informe()
+    if not fila:
+        raise HTTPException(500, "No existe la configuración del informe (falta la migración 0008).")
+    return InformeConfigOut(**fila)
 
 
 @router.put("/config-informe")
 def guardar_config_informe(body: InformeConfigOut) -> InformeConfigOut:
+    firmas = (
+        body.analizado_por_nombre.strip(),
+        body.analizado_por_cargo.strip(),
+        body.aprobado_por_nombre.strip(),
+        body.aprobado_por_cargo.strip(),
+    )
+    columnas = ", ".join(_COLUMNAS_CONFIG)
+    asignaciones = ", ".join(f"{c} = %s" for c in _COLUMNAS_CONFIG)
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                f"""
+                UPDATE informe_config
+                SET {asignaciones}, incluir_analista = %s, actualizado_en = now()
+                WHERE id = 1
+                RETURNING {columnas}, incluir_analista
+                """,
+                (*firmas, body.incluir_analista),
+            )
+            return InformeConfigOut(**cur.fetchone())
+    except psycopg2.errors.UndefinedColumn:
+        pass
+
+    # Falta la 0022: se guardan las firmas igual y el check se ignora, en vez
+    # de perder también lo que el usuario acaba de escribir.
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(
-            """
+            f"""
             UPDATE informe_config
-            SET analizado_por_nombre = %s, analizado_por_cargo = %s,
-                aprobado_por_nombre = %s, aprobado_por_cargo = %s,
-                incluir_analista = %s,
-                actualizado_en = now()
+            SET {asignaciones}, actualizado_en = now()
             WHERE id = 1
-            RETURNING analizado_por_nombre, analizado_por_cargo, aprobado_por_nombre,
-                      aprobado_por_cargo, incluir_analista
+            RETURNING {columnas}
             """,
-            (
-                body.analizado_por_nombre.strip(),
-                body.analizado_por_cargo.strip(),
-                body.aprobado_por_nombre.strip(),
-                body.aprobado_por_cargo.strip(),
-                body.incluir_analista,
-            ),
+            firmas,
         )
-        return InformeConfigOut(**cur.fetchone())
+        fila = cur.fetchone()
+    return InformeConfigOut(**fila, incluir_analista=True)
 
 
 class ResultadoAnalitoOut(BaseModel):
@@ -589,11 +635,7 @@ def generar_informes_pdf(filas: list[FilaCruceIn]) -> StreamingResponse:
 
     with conexion() as conn, cursor_dict(conn) as cur:
         folios = _asignar_folios(cur, len(filas))
-        cur.execute(
-            "SELECT analizado_por_nombre, analizado_por_cargo, aprobado_por_nombre,"
-            " aprobado_por_cargo, incluir_analista FROM informe_config WHERE id = 1"
-        )
-        config_fila = cur.fetchone() or {}
+    config_fila = leer_config_informe()
 
     def _generar(fila: FilaCruceIn, folio: str) -> bytes:
         pdf_bytes = generar_informe_pdf(
