@@ -35,24 +35,39 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import config_store, toma_muestras  # noqa: E402
 from app.db import conexion, cursor_dict  # noqa: E402
 
-# Enlazar una fila suelta es siempre el mismo UPDATE, cambia la tabla. Se
-# actualiza como máximo una fila por (solicitud, analito): la tabla tiene una
-# restricción única en ese par, y dos filas sueltas con el mismo código en la
-# misma solicitud harían fallar el UPDATE entero.
+# Enlazar una fila suelta es siempre el mismo UPDATE, cambia la tabla.
+#
+# Se compara sin distinguir mayúsculas: la base guarda el laboratorio como
+# "Agrofresh" y la configuración de la app dice "AGROFRESH". Son el mismo
+# laboratorio escrito por dos subsistemas distintos, y compararlos exacto
+# dejaba 9069 filas sin enlazar por una diferencia de tipeo.
+#
+# `DISTINCT ON (t.id)` deja una sola candidata por fila: si el catálogo
+# tuviera dos analitos que solo difieren en mayúsculas, sin esto el UPDATE
+# elegiría uno al azar. Y `row_number` deja una sola fila por (solicitud,
+# analito): la tabla tiene una restricción única en ese par, y dos resultados
+# del mismo analito en una solicitud harían fallar el UPDATE entero.
 _SQL_ENLAZAR = """
-    WITH candidatas AS (
-        SELECT t.id,
-               a.id AS analito_id,
-               row_number() OVER (PARTITION BY t.solicitud_id, a.id ORDER BY t.id) AS n
+    WITH pares AS (
+        SELECT DISTINCT ON (t.id)
+               t.id, t.solicitud_id, a.id AS analito_id
           FROM {tabla} t
           JOIN solicitud s ON s.id = t.solicitud_id
-          JOIN analito   a ON a.codigo = t.analito_raw AND a.laboratorio = s.laboratorio
+          JOIN analito   a ON upper(trim(a.codigo)) = upper(trim(t.analito_raw))
+                          AND upper(trim(a.laboratorio)) = upper(trim(s.laboratorio))
          WHERE t.analito_id IS NULL
            AND t.analito_raw IS NOT NULL
-           AND NOT EXISTS (
+         ORDER BY t.id, a.id
+    ),
+    candidatas AS (
+        SELECT p.id,
+               p.analito_id,
+               row_number() OVER (PARTITION BY p.solicitud_id, p.analito_id ORDER BY p.id) AS n
+          FROM pares p
+         WHERE NOT EXISTS (
                  SELECT 1 FROM {tabla} otra
-                  WHERE otra.solicitud_id = t.solicitud_id
-                    AND otra.analito_id = a.id
+                  WHERE otra.solicitud_id = p.solicitud_id
+                    AND otra.analito_id = p.analito_id
                )
     )
     UPDATE {tabla} t
@@ -61,6 +76,9 @@ _SQL_ENLAZAR = """
      WHERE t.id = c.id AND c.n = 1
 """
 
+# El laboratorio sale tal como lo escribe la base -no normalizado-, porque el
+# analito se crea con esa misma escritura y así el listado de Report lo
+# muestra igual que el resto del sistema.
 _SQL_SUELTOS = """
     SELECT t.analito_raw AS codigo, s.laboratorio, count(*) AS veces
       FROM {tabla} t
@@ -72,15 +90,25 @@ _SQL_SUELTOS = """
 TABLAS = ("resultado", "producto_aplicado")
 
 
+def _clave(codigo: str, laboratorio: str) -> tuple[str, str]:
+    """Cómo se comparan dos analitos.
+
+    Sin distinguir mayúsculas ni espacios: la base guarda "Agrofresh" y la
+    configuración dice "AGROFRESH". Es el mismo laboratorio escrito por dos
+    subsistemas distintos, no dos laboratorios.
+    """
+    return codigo.strip().upper(), laboratorio.strip().upper()
+
+
 def _catalogo_de_la_app() -> dict[tuple[str, str], dict]:
-    """Los analitos tal como los conoce el resto del sistema, por (código, lab).
+    """Los analitos tal como los conoce el resto del sistema.
 
     Es la misma lista que arma el formulario de solicitudes. Si alguien la
     editó desde Laboratorios, esta lee la versión editada.
     """
     configurados = config_store.leer("analitos.json", toma_muestras.ANALITOS_DEFECTO)
     return {
-        (a["codigo"], a["laboratorio"]): a
+        _clave(a["codigo"], a["laboratorio"]): a
         for a in configurados
         if a.get("codigo") and a.get("laboratorio")
     }
@@ -97,14 +125,21 @@ def main() -> None:
 
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         cur.execute("SELECT codigo, laboratorio FROM analito")
-        ya_estan = {(f["codigo"], f["laboratorio"]) for f in cur.fetchall()}
+        ya_estan = {
+            _clave(f["codigo"] or "", f["laboratorio"] or "") for f in cur.fetchall()
+        }
 
+        # Se agrupa por la clave normalizada, pero se recuerda cómo lo escribe
+        # la base: el analito se crea con ESA escritura, así el listado de
+        # Report lo muestra igual que el resto del sistema.
         sueltos: dict[tuple[str, str], int] = {}
+        escritura: dict[tuple[str, str], tuple[str, str]] = {}
         for tabla in TABLAS:
             cur.execute(_SQL_SUELTOS.format(tabla=tabla))
             for fila in cur.fetchall():
-                clave = (fila["codigo"], fila["laboratorio"])
+                clave = _clave(fila["codigo"], fila["laboratorio"] or "")
                 sueltos[clave] = sueltos.get(clave, 0) + fila["veces"]
+                escritura.setdefault(clave, (fila["codigo"], fila["laboratorio"]))
 
     if not sueltos:
         print("\nNo hay códigos sueltos: todo lo cargado ya está enlazado al catálogo.\n")
@@ -117,20 +152,23 @@ def main() -> None:
     if por_crear:
         print(f"\nSe van a CREAR {len(por_crear)} analito(s), con el nombre y la unidad")
         print("que ya usa el formulario de solicitudes:\n")
-        for (codigo, lab), veces in sorted(por_crear.items(), key=lambda kv: -kv[1]):
-            cfg = catalogo_app[(codigo, lab)]
+        for clave, veces in sorted(por_crear.items(), key=lambda kv: -kv[1]):
+            cfg = catalogo_app[clave]
+            codigo, lab = escritura[clave]
             print(f"   {codigo:<10} {cfg['nombre']:<20} {cfg.get('unidad') or '—':<12} {lab:<12} {veces:>6} fila(s)")
 
     if ya_creados:
         print(f"\nYa están en el catálogo, solo hay que enlazar sus {sum(ya_creados.values())} fila(s):\n")
-        for (codigo, lab), veces in sorted(ya_creados.items(), key=lambda kv: -kv[1]):
+        for clave, veces in sorted(ya_creados.items(), key=lambda kv: -kv[1]):
+            codigo, lab = escritura[clave]
             print(f"   {codigo:<10} {lab:<12} {veces:>6} fila(s)")
 
     if sin_nombre:
         print(f"\n   NO se pueden crear solos: {len(sin_nombre)} código(s) que no están en la")
         print("   configuración de la app, así que no sé su nombre ni su unidad.")
         print("   Créalos a mano en Report → Gestionar analitos y vuelve a correr esto:\n")
-        for (codigo, lab), veces in sorted(sin_nombre.items(), key=lambda kv: -kv[1]):
+        for clave, veces in sorted(sin_nombre.items(), key=lambda kv: -kv[1]):
+            codigo, lab = escritura[clave]
             print(f"   {codigo:<10} {lab:<12} {veces:>6} fila(s)")
 
     print("\n   Los límites residuales quedan VACÍOS: son una decisión del")
@@ -141,8 +179,9 @@ def main() -> None:
         return
 
     with conexion() as conn, cursor_dict(conn) as cur:
-        for (codigo, lab) in por_crear:
-            cfg = catalogo_app[(codigo, lab)]
+        for clave in por_crear:
+            cfg = catalogo_app[clave]
+            codigo, lab = escritura[clave]
             cur.execute(
                 """
                 INSERT INTO analito (codigo, nombre, laboratorio, unidad, activo)
