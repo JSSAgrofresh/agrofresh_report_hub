@@ -125,6 +125,7 @@ def test_leer_la_config_sin_la_columna_no_falla(sin_columna):
 
     assert config["aprobado_por_nombre"] == "Marcela Jefa"
     assert config["incluir_analista"] is True
+    assert config["incluir_analista_disponible"] is False
 
 
 def test_reintenta_en_una_conexion_nueva(sin_columna):
@@ -147,6 +148,17 @@ def test_guardar_la_config_sin_la_columna_conserva_las_firmas(sin_columna):
 
     assert guardada.aprobado_por_nombre == "Marcela Jefa"
     assert guardada.incluir_analista is True
+
+
+def test_avisa_que_el_check_no_se_guardo(sin_columna):
+    """El bug que esto arregla: destildar, apretar Guardar, ver "Guardado ✓" y
+    que el check vuelva marcado sin ninguna explicación. Que no se pueda
+    guardar es aceptable; hacerlo en silencio no."""
+    guardada = emitir.guardar_config_informe(
+        emitir.InformeConfigOut(**FILA_SIN_COLUMNA, incluir_analista=False)
+    )
+
+    assert guardada.incluir_analista_disponible is False
 
 
 def test_una_columna_que_falta_de_verdad_si_sale_a_la_luz(monkeypatch):

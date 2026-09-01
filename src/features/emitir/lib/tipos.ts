@@ -74,6 +74,10 @@ export interface InformeConfig {
   /** Apagado, el informe sale con una sola firma: la de aprobación, abajo a
    * la derecha. No siempre hay analista que firme. */
   incluir_analista: boolean
+  /** False mientras falte correr la migración 0022 en el servidor. El check
+   * no se puede guardar todavía, y hay que decirlo en vez de aceptarlo y
+   * revertirlo sin explicación. */
+  incluir_analista_disponible?: boolean
 }
 
 export interface FilaSubida {
