@@ -19,6 +19,7 @@ import { TablaSolicitudes } from './TablaSolicitudes'
 import { DetalleGCModal } from './DetalleGCModal'
 import { SolicitudFichaModal } from './SolicitudFichaModal'
 import { ConfiguracionInformeModal } from './ConfiguracionInformeModal'
+import { ResultadosAutomaticos } from './ResultadosAutomaticos'
 import styles from './AgrofreshLabView.module.css'
 
 /**
@@ -215,6 +216,9 @@ export function AgrofreshLabView() {
           </label>
         </div>
         {errorGC && <p className={styles.error}>{errorGC}</p>}
+        {muestrasGC && solicitudes && (
+          <ResultadosAutomaticos solicitudes={solicitudes} muestras={muestrasGC} />
+        )}
       </Card>
 
       {detalleGC && (

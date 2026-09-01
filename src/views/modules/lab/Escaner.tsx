@@ -13,6 +13,7 @@ interface EscanerProps<T> {
   motivoDeshabilitado?: string
   reinicio?: number
   tomarFocoAlReiniciar?: boolean
+  tomarFoco?: boolean
   /** Para códigos libres, donde cualquier prefijo también parece válido,
    * espera esta pausa antes de resolver. Los lectores escriben el código
    * completo en pocos milisegundos. */
@@ -31,6 +32,7 @@ export function Escaner<T>({
   motivoDeshabilitado,
   reinicio = 0,
   tomarFocoAlReiniciar = false,
+  tomarFoco = false,
   esperaFinEscaneoMs = 0,
 }: EscanerProps<T>) {
   const [texto, setTexto] = useState('')
@@ -51,6 +53,13 @@ export function Escaner<T>({
   useEffect(() => {
     if (activo && !deshabilitado) entrada.current?.focus()
   }, [activo, deshabilitado])
+
+  useEffect(() => {
+    if (tomarFoco && !deshabilitado) {
+      setActivo(true)
+      entrada.current?.focus()
+    }
+  }, [tomarFoco, deshabilitado])
 
   const primeraVez = useRef(true)
   useEffect(() => {

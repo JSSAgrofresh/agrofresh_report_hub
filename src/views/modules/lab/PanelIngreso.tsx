@@ -89,6 +89,7 @@ export function PanelIngreso({ solicitudes, onCruzar, onVerFicha }: PanelIngreso
             resuelto={Boolean(muestra)}
             reinicio={reinicio}
             esperaFinEscaneoMs={80}
+            tomarFoco={Boolean(solicitud)}
           />
           {muestra && <p className={styles.muestraLeida}>{muestra}</p>}
         </div>
