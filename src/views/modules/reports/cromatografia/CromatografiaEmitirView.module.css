@@ -365,3 +365,14 @@
 .botonManual:hover {
   color: var(--color-primary);
 }
+
+/* Una fecha de recepción que faltó tiene que verse, no pasar como un guion
+   más entre otros: se escribe una vez y va a quedar en el informe. */
+.sinFecha {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-warning, #9a6608);
+  background: #f6eedb;
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+}

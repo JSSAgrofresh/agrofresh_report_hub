@@ -5,6 +5,10 @@ interface EscanerProps<T> {
   /** Busca lo escaneado. Devuelve `null` mientras el código venga a medias. */
   buscar: (texto: string) => T | null
   onEncontrado: (item: T) => void
+  /** Suelta lo que ya se había encontrado. Sin esto, "Limpiar" vaciaba el
+   * campo pero dejaba la ficha en pantalla y el cruce armado: se veía como
+   * si no hubiera limpiado nada. */
+  onLimpiar?: () => void
   /** Lo tecleado hasta ahora, para que la tabla de al lado filtre en vivo. */
   onTexto?: (texto: string) => void
   placeholder: string
@@ -36,6 +40,7 @@ interface EscanerProps<T> {
 export function Escaner<T>({
   buscar,
   onEncontrado,
+  onLimpiar,
   onTexto,
   placeholder,
   mensajeNoEncontrado,
@@ -64,6 +69,14 @@ export function Escaner<T>({
     setSinResultado(null)
     if (tomarFocoAlReiniciar) entrada.current?.focus()
   }, [reinicio, tomarFocoAlReiniciar])
+
+  function limpiar() {
+    setTexto('')
+    onTexto?.('')
+    setSinResultado(null)
+    onLimpiar?.()
+    entrada.current?.focus()
+  }
 
   function resolver(valor: string, forzado: boolean) {
     const escaneado = valor.trim()
@@ -131,11 +144,19 @@ export function Escaner<T>({
           <button
             type="button"
             className={styles.limpiar}
-            onClick={() => {
-              setTexto('')
-              onTexto?.('')
-              setSinResultado(null)
+            // En `mousedown` y no en `click`: mientras se escanea, el foco
+            // está en el campo -es lo que hace que la pistola escriba ahí-.
+            // Al apretar el botón, el campo pierde el foco ANTES de que se
+            // dispare el click; eso vuelve a dibujar la caja y el click se
+            // pierde por el camino, así que el botón simplemente no hacía
+            // nada. `preventDefault` evita esa pérdida de foco, que además
+            // es donde el foco tiene que quedar para el próximo disparo.
+            onMouseDown={(e) => {
+              e.preventDefault()
+              limpiar()
             }}
+            // Para quien lo alcance con el teclado, donde no hay mousedown.
+            onClick={limpiar}
           >
             Limpiar
           </button>

@@ -27,6 +27,7 @@ export function EscanerVial({ muestras, elegida, onElegir, listo, reinicio }: Es
       <Escaner
         buscar={(texto) => buscarPorCodigoVial(muestras ?? [], texto)}
         onEncontrado={onElegir}
+        onLimpiar={() => onElegir(null)}
         placeholder="Escanea el código del vial"
         mensajeNoEncontrado={(c) => `El vial “${c}” no está en el archivo del GC cargado.`}
         resuelto={Boolean(elegida)}

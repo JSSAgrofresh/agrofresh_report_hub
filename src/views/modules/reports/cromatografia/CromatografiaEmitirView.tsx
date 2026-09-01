@@ -216,6 +216,17 @@ export function CromatografiaEmitirView() {
     [solicitudEscaneada, vialEscaneado],
   )
 
+  /** La fecha de recepción es una sola para toda la tanda, pero se cruza par
+   * por par: quien la puso después de cruzar los primeros veía cómo esa fecha
+   * no llegaba al informe. Al cambiarla, alcanza a los cruces que todavía no
+   * tienen ninguna; los que ya traían una la conservan, porque puede ser una
+   * tanda recibida otro día. */
+  function cambiarFechaRecepcion(fecha: string) {
+    setFechaRecepcion(fecha)
+    if (!fecha) return
+    setFilasCruce((prev) => prev.map((f) => (f.fechaRecepcion ? f : { ...f, fechaRecepcion: fecha })))
+  }
+
   function hacerCruce() {
     if (!solicitudEscaneada || !vialEscaneado) return
     setFilasCruce((prev) => [
@@ -529,7 +540,7 @@ export function CromatografiaEmitirView() {
             <input
               type="date"
               value={fechaRecepcion}
-              onChange={(e) => setFechaRecepcion(e.target.value)}
+              onChange={(e) => cambiarFechaRecepcion(e.target.value)}
             />
           </label>
           <Button onClick={hacerCruce} disabled={!parListo} className={styles.botonCruce}>
@@ -592,7 +603,9 @@ export function CromatografiaEmitirView() {
                       <td>{f.solicitud.campos['Variedad'] || '—'}</td>
                       <td className={styles.mono}>{f.codigoAsignado ?? '—'}</td>
                       <td className={styles.mono}>{f.muestra?.fecha_inyeccion ?? '—'}</td>
-                      <td className={styles.mono}>{f.fechaRecepcion || '—'}</td>
+                      <td className={styles.mono}>
+                        {f.fechaRecepcion || <span className={styles.sinFecha}>sin fecha</span>}
+                      </td>
                       {columnasAnalito.map((a) => (
                         <td key={a} className={styles.mono}>
                           {porCodigo.get(a)?.amount ?? '—'}
