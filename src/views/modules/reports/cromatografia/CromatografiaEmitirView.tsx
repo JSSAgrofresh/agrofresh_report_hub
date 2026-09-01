@@ -20,7 +20,7 @@ import type {
   FilaCruce,
   FilaSubida,
   MuestraGC,
-  MuestraGCDetalle,
+  DetalleGC,
   ResultadoAnalito,
   Solicitud,
 } from '@/features/emitir'
@@ -104,7 +104,7 @@ export function CromatografiaEmitirView() {
   // volver a cargarlo: la vista de detalle necesita también las curvas y los
   // blancos, que /parsear-gc descarta por no ser cruzables.
   const [archivoGC, setArchivoGC] = useState<File | null>(null)
-  const [detalleGC, setDetalleGC] = useState<MuestraGCDetalle[] | null>(null)
+  const [detalleGC, setDetalleGC] = useState<DetalleGC | null>(null)
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
 
   const [filasCruce, setFilasCruce] = useState<FilaEnCruce[]>([])
@@ -810,7 +810,7 @@ export function CromatografiaEmitirView() {
 
       {detalleGC && (
         <DetalleGCModal
-          muestras={detalleGC}
+          detalle={detalleGC}
           nombreArchivo={nombreArchivoGC}
           onCerrar={() => setDetalleGC(null)}
         />

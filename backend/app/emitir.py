@@ -12,7 +12,12 @@ from pydantic import BaseModel
 
 from . import r2
 from .db import conexion, cursor_dict
-from .gc_parser import NOMBRE_GC_A_CODIGO, es_codigo_puro, parsear_gc_txt
+from .gc_parser import (
+    NOMBRE_GC_A_CODIGO,
+    es_codigo_puro,
+    parsear_cabecera_gc,
+    parsear_gc_txt,
+)
 from .informe_pdf import generar_informe_pdf
 from .mapeo import LABORATORIO_CATALOGO, calcular_semana
 from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS
@@ -166,8 +171,22 @@ async def parsear_gc(archivo: UploadFile = File(...)) -> list[MuestraGCOut]:
 # concentración contra su área, que es justo lo que se hace al revisar.
 # ---------------------------------------------------------------------------
 
+HOJA_CABECERA = "Información del GC"
 HOJA_DETALLE = "Datos completos"
 HOJA_POR_VIAL = "Área y PPM por vial"
+
+
+class CampoCabeceraOut(BaseModel):
+    seccion: str
+    campo: str
+    valor: str
+
+
+class DetalleGCOut(BaseModel):
+    """Todo lo que la vista de detalle necesita del archivo, de una sola vez."""
+
+    cabecera: list[CampoCabeceraOut]
+    muestras: list["MuestraGCDetalleOut"]
 
 
 class MuestraGCDetalleOut(MuestraGCOut):
@@ -180,7 +199,7 @@ class MuestraGCDetalleOut(MuestraGCOut):
 
 
 @router.post("/parsear-gc/completo")
-async def parsear_gc_completo(archivo: UploadFile = File(...)) -> list[MuestraGCDetalleOut]:
+async def parsear_gc_completo(archivo: UploadFile = File(...)) -> DetalleGCOut:
     """El archivo del GC entero, para la vista de detalle.
 
     Existe aparte de /parsear-gc a propósito: ese devuelve solo las muestras
@@ -196,7 +215,12 @@ async def parsear_gc_completo(archivo: UploadFile = File(...)) -> list[MuestraGC
     if not muestras:
         raise HTTPException(400, "No se encontró ninguna muestra en el archivo. ¿Es el reporte del GC correcto?")
 
-    return [
+    return DetalleGCOut(
+        cabecera=[
+            CampoCabeceraOut(seccion=s, campo=c, valor=v)
+            for s, c, v in parsear_cabecera_gc(contenido)
+        ],
+        muestras=[
         MuestraGCDetalleOut(
             codigo=m.codigo,
             seq_line=m.seq_line,
@@ -214,12 +238,14 @@ async def parsear_gc_completo(archivo: UploadFile = File(...)) -> list[MuestraGC
             ],
         )
         for m in muestras
-    ]
+        ],
+    )
 
 
 class DetalleGCIn(BaseModel):
-    """Las muestras tal como las devolvió /parsear-gc/completo."""
+    """Lo que devolvió /parsear-gc/completo, tal cual."""
 
+    cabecera: list[CampoCabeceraOut] = []
     muestras: list[MuestraGCDetalleOut]
 
 
@@ -242,9 +268,22 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
     compuestos = _compuestos_en_orden(body.muestras)
     wb = openpyxl.Workbook()
 
-    # ── Hoja 1: una fila por compuesto de cada vial, como sale del equipo ──
-    ws = wb.active
-    ws.title = HOJA_DETALLE
+    # ── Hoja 1: con qué se midió. Es lo que respalda un resultado si alguien
+    # lo cuestiona, así que va primero y no escondida al final.
+    ws0 = wb.active
+    ws0.title = HOJA_CABECERA
+    for col, texto in enumerate(("Sección", "Campo", "Valor"), start=1):
+        ws0.cell(row=1, column=col, value=texto)
+    for fila_idx, campo in enumerate(body.cabecera, start=2):
+        ws0.cell(row=fila_idx, column=1, value=campo.seccion)
+        ws0.cell(row=fila_idx, column=2, value=campo.campo)
+        ws0.cell(row=fila_idx, column=3, value=campo.valor)
+    ws0.freeze_panes = "A2"
+    for col, ancho in zip("ABC", (26, 46, 92)):
+        ws0.column_dimensions[col].width = ancho
+
+    # ── Hoja 2: una fila por compuesto de cada vial, como sale del equipo ──
+    ws = wb.create_sheet(HOJA_DETALLE)
     encabezados = [
         "Vial", "Tipo", "Seq Line", "Fecha Inyección",
         "RetTime (min)", "Área (pA*s)", "Amount (ppm)", "Compuesto",

@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { descargarDetalleGCExcel } from '@/features/emitir'
-import type { MuestraGCDetalle } from '@/features/emitir'
+import type { DetalleGC, MuestraGCDetalle } from '@/features/emitir'
 import styles from './DetalleGCModal.module.css'
 
-type Hoja = 'completos' | 'porVial'
+type Hoja = 'cabecera' | 'completos' | 'porVial'
 
 /** Los compuestos en el orden en que aparecen en el reporte, que es el orden
  * del método del equipo — no alfabético, que a nadie le sirve. */
@@ -32,15 +32,16 @@ const num = (v: number | null | undefined) =>
  * No se edita nada: es una vista para mirar y, si hace falta, bajar a Excel.
  */
 export function DetalleGCModal({
-  muestras,
+  detalle,
   nombreArchivo,
   onCerrar,
 }: {
-  muestras: MuestraGCDetalle[]
+  detalle: DetalleGC
   nombreArchivo: string | null
   onCerrar: () => void
 }) {
-  const [hoja, setHoja] = useState<Hoja>('completos')
+  const { cabecera, muestras } = detalle
+  const [hoja, setHoja] = useState<Hoja>('cabecera')
   const [soloMuestras, setSoloMuestras] = useState(false)
   const [bajando, setBajando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -61,7 +62,7 @@ export function DetalleGCModal({
     setBajando(true)
     setError(null)
     try {
-      const { blob, nombre } = await descargarDetalleGCExcel(muestras)
+      const { blob, nombre } = await descargarDetalleGCExcel(detalle)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -96,6 +97,15 @@ export function DetalleGCModal({
             <button
               type="button"
               role="tab"
+              aria-selected={hoja === 'cabecera'}
+              className={hoja === 'cabecera' ? styles.pestanaActiva : styles.pestana}
+              onClick={() => setHoja('cabecera')}
+            >
+              Información del GC
+            </button>
+            <button
+              type="button"
+              role="tab"
               aria-selected={hoja === 'completos'}
               className={hoja === 'completos' ? styles.pestanaActiva : styles.pestana}
               onClick={() => setHoja('completos')}
@@ -113,7 +123,7 @@ export function DetalleGCModal({
             </button>
           </div>
 
-          <label className={styles.filtro}>
+          <label className={styles.filtro} hidden={hoja === 'cabecera'}>
             <input
               type="checkbox"
               checked={soloMuestras}
@@ -124,7 +134,29 @@ export function DetalleGCModal({
         </div>
 
         <div className={styles.tablaCaja}>
-          {hoja === 'completos' ? (
+          {hoja === 'cabecera' ? (
+            <table className={styles.tabla}>
+              <tbody>
+                {cabecera.map((c, i) => {
+                  const abreSeccion = i === 0 || cabecera[i - 1].seccion !== c.seccion
+                  return (
+                    <tr key={`${c.seccion}-${c.campo}-${i}`}>
+                      <td className={styles.seccion}>{abreSeccion ? c.seccion : ''}</td>
+                      <td className={styles.campo}>{c.campo}</td>
+                      <td className={styles.valorLargo}>{c.valor || '—'}</td>
+                    </tr>
+                  )
+                })}
+                {cabecera.length === 0 && (
+                  <tr>
+                    <td className={styles.vacio}>
+                      El archivo no trae la cabecera con la configuración del equipo.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          ) : hoja === 'completos' ? (
             <table className={styles.tabla}>
               <thead>
                 <tr>
@@ -196,7 +228,9 @@ export function DetalleGCModal({
 
         <footer className={styles.pie}>
           <span className={styles.conteo}>
-            {hoja === 'completos'
+            {hoja === 'cabecera'
+              ? `${cabecera.length} campo(s)`
+              : hoja === 'completos'
               ? `${filasLargas.length.toLocaleString('es-CL')} fila(s)`
               : `${visibles.length} vial(es)`}
           </span>

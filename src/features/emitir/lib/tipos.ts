@@ -28,6 +28,20 @@ export interface MuestraGCDetalle extends MuestraGC {
   es_muestra: boolean
 }
 
+/** Con qué se midió: instrumento, columna y parámetros de la secuencia. Es
+ * lo que respalda un resultado si alguien lo cuestiona. Viene como lista y no
+ * como objeto porque el orden importa: es el del archivo. */
+export interface CampoCabeceraGC {
+  seccion: string
+  campo: string
+  valor: string
+}
+
+export interface DetalleGC {
+  cabecera: CampoCabeceraGC[]
+  muestras: MuestraGCDetalle[]
+}
+
 export interface FilaCruce {
   campos: Record<string, string>
   analitos_solicitados: string[]

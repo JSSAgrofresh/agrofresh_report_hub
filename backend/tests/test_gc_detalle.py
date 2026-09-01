@@ -12,13 +12,21 @@ import openpyxl
 import pytest
 
 from app import emitir
-from app.gc_parser import es_codigo_puro, parsear_gc_txt
+from app.gc_parser import es_codigo_puro, parsear_cabecera_gc, parsear_gc_txt
 
 ARCHIVO = os.path.join(os.path.dirname(__file__), "datos", "GLPrprtB.txt")
 
 pytestmark = pytest.mark.skipif(
     not os.path.exists(ARCHIVO), reason="falta el reporte de GC de ejemplo"
 )
+
+
+@pytest.fixture(scope="module")
+def cabecera():
+    return [
+        emitir.CampoCabeceraOut(seccion=s, campo=c, valor=v)
+        for s, c, v in parsear_cabecera_gc(open(ARCHIVO, "rb").read())
+    ]
 
 
 @pytest.fixture(scope="module")
@@ -41,10 +49,12 @@ def muestras():
     ]
 
 
-def _libro(muestras):
+def _libro(muestras, cabecera=()):
     import asyncio
 
-    resp = emitir.generar_excel_detalle_gc(emitir.DetalleGCIn(muestras=muestras))
+    resp = emitir.generar_excel_detalle_gc(
+        emitir.DetalleGCIn(muestras=muestras, cabecera=list(cabecera))
+    )
     trozos: list[bytes] = []
 
     async def leer():
@@ -75,9 +85,62 @@ class TestParseo:
         assert tebu.amount == pytest.approx(0.0488688)
 
 
+class TestCabecera:
+    """Con qué se midió: instrumento, columna y parámetros de la secuencia.
+    Es lo que respalda un resultado si alguien lo cuestiona."""
+
+    def test_lee_los_campos_del_equipo(self, cabecera):
+        valores = {c.campo: c.valor for c in cabecera}
+        assert valores["Instrument"] == "GC 2"
+        assert valores["Column Description"] == "TG-OCP-II"
+        assert valores["Operator"] == "SYSTEM"
+
+    def test_junta_los_dos_pares_de_una_misma_linea(self, cabecera):
+        """`Model# : 26077-5720   Manufacturer: Thermo` son dos campos en una
+        sola línea; leer solo el primero perdía la mitad de la ficha."""
+        valores = {c.campo: c.valor for c in cabecera}
+        assert valores["Model#"] == "26077-5720"
+        assert valores["Manufacturer"] == "Thermo"
+        assert valores["Diameter"] == "250.00 µm"
+        assert valores["Length"] == "30.0 m"
+
+    def test_no_parte_una_etiqueta_en_la_barra(self, cabecera):
+        """`Shutdown Cmd/Macro` se leía como `Macro` a secas."""
+        assert {c.campo for c in cabecera} >= {"Shutdown Cmd/Macro"}
+
+    def test_une_un_valor_partido_en_dos_lineas(self, cabecera):
+        """La ruta de la secuencia no cabe en una línea y el equipo la corta.
+        Separada, el valor quedaba a la mitad."""
+        secuencia = next(c.valor for c in cabecera if c.campo == "Sequence")
+        assert secuencia.endswith("GCNPD SECUENCIA 28-08-26.S")
+
+    def test_una_ruta_de_windows_no_parece_un_campo(self, cabecera):
+        """`C:\\Chem32` tiene dos puntos: si se tomara como etiqueta, el valor
+        se cortaría ahí."""
+        directorio = next(c.valor for c in cabecera if c.campo == "Data Directory")
+        assert directorio.startswith("C:\\Chem32\\1\\Data")
+
+    def test_conserva_el_orden_del_archivo(self, cabecera):
+        secciones = [c.seccion for c in cabecera]
+        assert secciones == sorted(secciones, key=lambda s: 0 if s == secciones[0] else 1)
+
+
 class TestExcel:
-    def test_tiene_las_dos_hojas(self, muestras):
-        assert _libro(muestras).sheetnames == [emitir.HOJA_DETALLE, emitir.HOJA_POR_VIAL]
+    def test_tiene_las_tres_hojas(self, muestras, cabecera):
+        """La información del equipo va PRIMERA: es lo que se mira para
+        respaldar un resultado, no algo escondido al final."""
+        assert _libro(muestras, cabecera).sheetnames == [
+            emitir.HOJA_CABECERA,
+            emitir.HOJA_DETALLE,
+            emitir.HOJA_POR_VIAL,
+        ]
+
+    def test_la_hoja_del_equipo_trae_los_campos(self, muestras, cabecera):
+        ws = _libro(muestras, cabecera)[emitir.HOJA_CABECERA]
+        assert [c.value for c in ws[1]] == ["Sección", "Campo", "Valor"]
+        filas = {f[1]: f[2] for f in ws.iter_rows(min_row=2, values_only=True)}
+        assert filas["Instrument"] == "GC 2"
+        assert filas["Operator"] == "SYSTEM"
 
     def test_datos_completos_calza_con_el_convertidor_viejo(self, muestras):
         """371 filas es exactamente lo que sacaba la herramienta anterior con

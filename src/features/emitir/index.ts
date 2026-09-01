@@ -15,4 +15,4 @@ export {
   filtrarPorFolio,
   normalizarFolio,
 } from './lib/folio'
-export type { MuestraGCDetalle, MuestraGC, ResultadoAnalito, Solicitud, FilaCruce, InformeConfig, FilaSubida } from './lib/tipos'
+export type { CampoCabeceraGC, DetalleGC, MuestraGCDetalle, MuestraGC, ResultadoAnalito, Solicitud, FilaCruce, InformeConfig, FilaSubida } from './lib/tipos'

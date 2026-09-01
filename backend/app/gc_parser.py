@@ -157,3 +157,107 @@ def parsear_gc_txt(contenido: bytes) -> list[MuestraGC]:
         if muestra is not None:
             muestras.append(muestra)
     return muestras
+
+
+# ---------------------------------------------------------------------------
+# Cabecera del archivo: la información auditable de la corrida
+#
+# Antes de las muestras, el equipo escribe con qué se midió: instrumento,
+# módulos, columna cromatográfica y parámetros de la secuencia. Es lo que
+# respalda un resultado si alguien lo cuestiona -qué columna, qué método, qué
+# operador, qué día-, así que la vista de detalle la muestra como primera hoja.
+#
+# Nada de esto entra al cruce ni al informe.
+# ---------------------------------------------------------------------------
+
+SECCION_INSTRUMENTO = "Instrumento y columna"
+SECCION_SECUENCIA = "Parámetros de la secuencia"
+
+# Dónde termina la cabecera y empiezan las muestras.
+_FIN_CABECERA = "SEQUENCE TABLE:"
+
+# Un par "Etiqueta : valor". El valor termina donde empieza OTRA etiqueta, y
+# para eso se exigen dos espacios antes: así `C:\Chem32\...` no se confunde
+# con el comienzo de un campo nuevo -su ':' va pegado a la letra-.
+_PAT_PAR = re.compile(
+    # La barra va en la clase por "Shutdown Cmd/Macro"; la contrabarra NO, que
+    # es lo que impide que una ruta de Windows parezca una etiqueta nueva.
+    r"(?P<campo>[A-Za-z#][A-Za-z0-9#()\-./ ]*?)\s*:\s*"
+    r"(?P<valor>.*?)"
+    r"(?=\s{2,}[A-Za-z#][A-Za-z0-9#()\-./ ]*?\s*:\s|$)"
+)
+
+# Líneas de adorno: los banners "S E Q U E N C E", las reglas de guiones y la
+# línea de la firma.
+_PAT_ADORNO = re.compile(r"^[\s\-=|.]*$|^[\sA-Za-z]{0,4}(?:[A-Za-z]\s){3,}[A-Za-z]?\s*$")
+
+
+def _unir_continuaciones(lineas: list[str]) -> list[str]:
+    """Junta las líneas que continúan el valor anterior.
+
+    Una ruta larga se parte en dos: la segunda línea viene muy indentada y sin
+    etiqueta propia. Separadas, el valor quedaría cortado a la mitad.
+    """
+    unidas: list[str] = []
+    for linea in lineas:
+        continuacion = linea.startswith(" " * 20) and ":" not in linea[:24]
+        if continuacion and unidas:
+            unidas[-1] = unidas[-1].rstrip() + " " + linea.strip()
+        else:
+            unidas.append(linea)
+    return unidas
+
+
+def _pares_de(texto: str) -> list[tuple[str, str]]:
+    pares: list[tuple[str, str]] = []
+    for linea in _unir_continuaciones(texto.split("\n")):
+        if not linea.strip() or _PAT_ADORNO.match(linea):
+            continue
+        for m in _PAT_PAR.finditer(linea):
+            campo = m.group("campo").strip()
+            valor = m.group("valor").strip()
+            if campo and not campo.startswith("-"):
+                pares.append((campo, valor))
+    return pares
+
+
+def _modulos(cabecera: str) -> list[tuple[str, str]]:
+    """La tabla de módulos del equipo, como pares "modelo → detalle"."""
+    m = re.search(r"^Module\s+Type.*?\n-[-|]+\n(.*?)(?=\n\s*\n)", cabecera, re.S | re.M)
+    if not m:
+        return []
+    filas = []
+    for linea in m.group(1).split("\n"):
+        if not linea.strip():
+            continue
+        # Nombre (ancho fijo hasta la columna 39) y el resto por espacios.
+        nombre, resto = linea[:39].strip(), linea[39:].split()
+        if nombre:
+            filas.append((f"Módulo · {nombre}", " · ".join(resto)))
+    return filas
+
+
+def parsear_cabecera_gc(contenido: bytes) -> list[tuple[str, str, str]]:
+    """(sección, campo, valor) de la cabecera, en el orden del archivo.
+
+    Devuelve una lista plana y no un diccionario porque el orden importa: es
+    como el equipo lo escribe, y así se lee igual que el papel.
+    """
+    texto = _decodificar(contenido).replace("\r\n", "\n")
+    corte = texto.find(_FIN_CABECERA)
+    cabecera = texto[:corte] if corte != -1 else texto
+
+    quiebre = cabecera.find("SEQUENCE PARAMETERS")
+    if quiebre == -1:
+        instrumento, secuencia = cabecera, ""
+    else:
+        instrumento, secuencia = cabecera[:quiebre], cabecera[quiebre:]
+
+    filas: list[tuple[str, str, str]] = []
+    for campo, valor in _pares_de(instrumento):
+        filas.append((SECCION_INSTRUMENTO, campo, valor))
+    for campo, valor in _modulos(cabecera):
+        filas.append((SECCION_INSTRUMENTO, campo, valor))
+    for campo, valor in _pares_de(secuencia):
+        filas.append((SECCION_SECUENCIA, campo, valor))
+    return filas

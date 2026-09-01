@@ -1,10 +1,10 @@
 import { httpClient } from '@/services/http/client'
 import type {
+  DetalleGC,
   FilaCruce,
   FilaSubida,
   InformeConfig,
   MuestraGC,
-  MuestraGCDetalle,
   Solicitud,
 } from './tipos'
 
@@ -21,11 +21,11 @@ export function parsearGC(archivo: File) {
 export function parsearGCCompleto(archivo: File) {
   const formData = new FormData()
   formData.append('archivo', archivo)
-  return httpClient.upload<MuestraGCDetalle[]>('/emitir/cromatografia/parsear-gc/completo', formData)
+  return httpClient.upload<DetalleGC>('/emitir/cromatografia/parsear-gc/completo', formData)
 }
 
-export function descargarDetalleGCExcel(muestras: MuestraGCDetalle[]) {
-  return httpClient.postArchivoConNombre('/emitir/cromatografia/detalle-gc/excel', { muestras })
+export function descargarDetalleGCExcel(detalle: DetalleGC) {
+  return httpClient.postArchivoConNombre('/emitir/cromatografia/detalle-gc/excel', detalle)
 }
 
 export function listarSolicitudes() {
