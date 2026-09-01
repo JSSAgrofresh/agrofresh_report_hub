@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { filtrarPorFolio } from '@/features/emitir'
 import type { Solicitud } from '@/features/emitir'
 import styles from './TablaSolicitudes.module.css'
@@ -33,6 +34,30 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
     [solicitudes],
   )
 
+  function descargarConMuestra() {
+    const filas = (solicitudes ?? [])
+      .filter((s) => s.codigo_muestra)
+      .map((s) => ({
+        'N° Solicitud': s.campos['N° Solicitud'] || s.archivo,
+        'N° Muestra': s.codigo_muestra,
+        'Fecha Muestreo': s.campos['Fecha Muestreo'] || '',
+        'Sold To': s.campos['Sold To (Nombre)'] || '',
+        'Ship To': s.campos['Ship To (Nombre)'] || '',
+        Especie: s.campos.Especie || '',
+        Variedad: s.campos.Variedad || '',
+        Analitos: s.analitos_solicitados.join(', '),
+      }))
+    const hoja = XLSX.utils.json_to_sheet(filas)
+    hoja['!autofilter'] = { ref: hoja['!ref'] ?? 'A1:H1' }
+    hoja['!cols'] = [
+      { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 30 },
+      { wch: 24 }, { wch: 18 }, { wch: 22 }, { wch: 28 },
+    ]
+    const libro = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(libro, hoja, 'Con muestra')
+    XLSX.writeFile(libro, 'solicitudes_con_muestra.xlsx')
+  }
+
   const visibles = useMemo(() => {
     let lista = filtrarPorFolio(solicitudes ?? [], buscar)
     if (filtro === 'cruzadas') lista = lista.filter((s) => s.codigo_muestra)
@@ -63,6 +88,14 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
           onChange={(e) => setBuscar(e.target.value)}
           placeholder="Buscar por folio"
         />
+        <button
+          type="button"
+          className={styles.boton}
+          onClick={descargarConMuestra}
+          disabled={cruzadas === 0}
+        >
+          Descargar con muestra
+        </button>
         <span className={styles.conteo}>
           {cruzadas} de {solicitudes?.length ?? 0} con muestra
         </span>
