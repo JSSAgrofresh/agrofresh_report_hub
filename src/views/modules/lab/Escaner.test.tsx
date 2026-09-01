@@ -90,6 +90,22 @@ describe('Escaner', () => {
     })
   })
 
+  it('toma el foco cuando el paso anterior queda resuelto', () => {
+    const propiedades = {
+      buscar: (texto: string) => ITEMS.find((item) => item.codigo === texto.trim()) ?? null,
+      onEncontrado: vi.fn(),
+      placeholder: 'Escanea el código',
+      mensajeNoEncontrado: (codigo: string) => `No existe ${codigo}`,
+    }
+    const { rerender } = render(<Escaner {...propiedades} tomarFoco={false} />)
+    const campo = screen.getByLabelText('Escanea el código')
+    expect(document.activeElement).not.toBe(campo)
+
+    rerender(<Escaner {...propiedades} tomarFoco />)
+
+    expect(document.activeElement).toBe(campo)
+  })
+
   it('deshabilitado no deja escanear', () => {
     const { campo } = montar({ deshabilitado: true, motivoDeshabilitado: 'Carga primero el GC' })
     expect((campo as HTMLInputElement).disabled).toBe(true)
