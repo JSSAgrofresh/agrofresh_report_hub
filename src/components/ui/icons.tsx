@@ -99,6 +99,18 @@ export function IconLogout(props: IconProps) {
   )
 }
 
+/** Panel lateral con una flecha: pliega y despliega la barra de navegación.
+ *  La flecha se gira con CSS según el estado, así es un solo icono. */
+export function IconPanelLateral(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+      <path d="M15.5 9.5 13 12l2.5 2.5" />
+    </svg>
+  )
+}
+
 export function IconAlerta(props: IconProps) {
   return (
     <svg {...base} {...props}>
