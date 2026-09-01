@@ -18,7 +18,7 @@ pytestmark = pytest.mark.skipif(
 
 from fastapi import HTTPException  # noqa: E402
 
-from app import config, indice_solicitudes as indice, toma_muestras as tm  # noqa: E402
+from app import config, emitir, indice_solicitudes as indice, toma_muestras as tm  # noqa: E402
 from app.db import conexion, cursor_dict  # noqa: E402
 
 
@@ -94,3 +94,21 @@ def test_una_solicitud_que_no_existe_avisa(dos_solicitudes):
     with pytest.raises(HTTPException) as e:
         cruzar("no-existe.xlsx", "ZZ-VIAL-9")
     assert e.value.status_code == 404
+
+
+def test_el_listado_del_laboratorio_devuelve_el_cruce(dos_solicitudes, monkeypatch):
+    """El PUT puede guardar bien y aun así la pantalla mostrar cero si el
+    endpoint de listado omite codigo_muestra al serializar la solicitud."""
+    primera, _ = dos_solicitudes
+    cruzar(primera.archivo, "GCNPD10065")
+    datos = indice.buscar(primera.archivo)
+    monkeypatch.setattr(
+        emitir,
+        "leer_solicitudes_de",
+        lambda laboratorio: [(primera.archivo, datos)],
+    )
+    monkeypatch.setattr(emitir.os.path, "isdir", lambda _: False)
+
+    listado = emitir.listar_solicitudes()
+
+    assert listado[0].codigo_muestra == "GCNPD10065"

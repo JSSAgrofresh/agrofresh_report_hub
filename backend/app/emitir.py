@@ -345,6 +345,7 @@ class SolicitudOut(BaseModel):
     archivo: str
     campos: dict[str, str]
     analitos_solicitados: list[str]
+    codigo_muestra: str | None = None
 
 
 def _fecha_iso_a_ddmmyyyy(valor: str | None) -> str | None:
@@ -402,6 +403,7 @@ def listar_solicitudes() -> list[SolicitudOut]:
                 archivo=nombre,
                 campos=_mapear_solicitud_a_campos(datos),
                 analitos_solicitados=datos.get("analitos_solicitados") or [],
+                codigo_muestra=datos.get("codigo_muestra"),
             )
         )
 
