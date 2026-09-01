@@ -2,41 +2,23 @@ import { useEffect, useRef, useState } from 'react'
 import styles from './Escaner.module.css'
 
 interface EscanerProps<T> {
-  /** Busca lo escaneado. Devuelve `null` mientras el código venga a medias. */
   buscar: (texto: string) => T | null
   onEncontrado: (item: T) => void
-  /** Suelta lo que ya se había encontrado. Sin esto, "Limpiar" vaciaba el
-   * campo pero dejaba la ficha en pantalla y el cruce armado: se veía como
-   * si no hubiera limpiado nada. */
   onLimpiar?: () => void
-  /** Lo tecleado hasta ahora, para que la tabla de al lado filtre en vivo. */
   onTexto?: (texto: string) => void
   placeholder: string
-  /** Qué decir cuando el código está completo y no corresponde a nada. */
   mensajeNoEncontrado: (escaneado: string) => string
-  /** Verde: lo escaneado ya está listo para cruzar. */
   resuelto?: boolean
   deshabilitado?: boolean
   motivoDeshabilitado?: string
-  /** Cada vez que cambia, la caja se vacía. Sirve para dejarla lista después
-   * de un cruce sin que el operador tenga que borrar lo anterior. */
   reinicio?: number
-  /** Toma el foco al vaciarse: es la caja por donde empieza el siguiente par,
-   * y así se pueden encadenar sin tocar el mouse. */
   tomarFocoAlReiniciar?: boolean
+  /** Para códigos libres, donde cualquier prefijo también parece válido,
+   * espera esta pausa antes de resolver. Los lectores escriben el código
+   * completo en pocos milisegundos. */
+  esperaFinEscaneoMs?: number
 }
 
-/**
- * La caja de escaneo, igual para los dos lados.
- *
- * Un lector USB se comporta como un teclado: "tipea" el código y —si está
- * configurado así— manda Enter. Muchos vienen sin ese sufijo, así que acá no
- * se espera ninguna tecla de cierre: se busca en cada carácter que entra y lo
- * escaneado aparece solo apenas el código está completo.
- *
- * Solo resuelve con el código EXACTO, nunca con un prefijo: a media lectura,
- * "OT001" calza con varios y elegir ahí sería elegir cualquiera.
- */
 export function Escaner<T>({
   buscar,
   onEncontrado,
@@ -49,11 +31,22 @@ export function Escaner<T>({
   motivoDeshabilitado,
   reinicio = 0,
   tomarFocoAlReiniciar = false,
+  esperaFinEscaneoMs = 0,
 }: EscanerProps<T>) {
   const [texto, setTexto] = useState('')
   const [sinResultado, setSinResultado] = useState<string | null>(null)
   const [activo, setActivo] = useState(false)
   const entrada = useRef<HTMLInputElement>(null)
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function cancelarEspera() {
+    if (temporizador.current !== null) {
+      clearTimeout(temporizador.current)
+      temporizador.current = null
+    }
+  }
+
+  useEffect(() => () => cancelarEspera(), [])
 
   useEffect(() => {
     if (activo && !deshabilitado) entrada.current?.focus()
@@ -65,12 +58,14 @@ export function Escaner<T>({
       primeraVez.current = false
       return
     }
+    cancelarEspera()
     setTexto('')
     setSinResultado(null)
     if (tomarFocoAlReiniciar) entrada.current?.focus()
   }, [reinicio, tomarFocoAlReiniciar])
 
   function limpiar() {
+    cancelarEspera()
     setTexto('')
     onTexto?.('')
     setSinResultado(null)
@@ -86,17 +81,27 @@ export function Escaner<T>({
     }
     const encontrado = buscar(escaneado)
     if (!encontrado) {
-      // Mientras el lector todavía escribe, un código a medias no encuentra
-      // nada: eso no es un error, solo faltan caracteres. Se avisa recién si
-      // alguien cerró con Enter, que sí es una pregunta terminada.
       if (forzado) setSinResultado(escaneado)
       return
     }
     setSinResultado(null)
     onEncontrado(encontrado)
-    // Deja el texto seleccionado para que el próximo disparo lo reemplace en
-    // vez de pegarse al anterior.
-    entrada.current?.select()
+    // Con códigos de catálogo se selecciona para que el próximo disparo los
+    // reemplace. En códigos libres no: resolver el primer carácter y
+    // seleccionarlo era justamente lo que convertía GCNPD10065 en "5".
+    if (esperaFinEscaneoMs === 0) entrada.current?.select()
+  }
+
+  function resolverCambio(valor: string) {
+    cancelarEspera()
+    if (esperaFinEscaneoMs === 0) {
+      resolver(valor, false)
+      return
+    }
+    temporizador.current = setTimeout(() => {
+      temporizador.current = null
+      resolver(valor, false)
+    }, esperaFinEscaneoMs)
   }
 
   return (
@@ -110,12 +115,11 @@ export function Escaner<T>({
         className={styles.linea}
         onSubmit={(e) => {
           e.preventDefault()
+          cancelarEspera()
           resolver(texto, true)
         }}
       >
-        <span className={styles.icono} aria-hidden="true">
-          ▌▏▌▌▏▌
-        </span>
+        <span className={styles.icono} aria-hidden="true">▌▏▌▌▏▌</span>
         <input
           ref={entrada}
           className={styles.entrada}
@@ -124,14 +128,14 @@ export function Escaner<T>({
           onChange={(e) => {
             setTexto(e.target.value)
             onTexto?.(e.target.value)
-            resolver(e.target.value, false)
+            resolverCambio(e.target.value)
           }}
           onFocus={() => setActivo(true)}
           onBlur={() => setActivo(false)}
           onKeyDown={(e) => {
-            // Hay lectores configurados para cerrar con Tab en vez de Enter.
             if (e.key === 'Tab' && texto.trim()) {
               e.preventDefault()
+              cancelarEspera()
               resolver(texto, true)
             }
           }}
@@ -144,18 +148,10 @@ export function Escaner<T>({
           <button
             type="button"
             className={styles.limpiar}
-            // En `mousedown` y no en `click`: mientras se escanea, el foco
-            // está en el campo -es lo que hace que la pistola escriba ahí-.
-            // Al apretar el botón, el campo pierde el foco ANTES de que se
-            // dispare el click; eso vuelve a dibujar la caja y el click se
-            // pierde por el camino, así que el botón simplemente no hacía
-            // nada. `preventDefault` evita esa pérdida de foco, que además
-            // es donde el foco tiene que quedar para el próximo disparo.
             onMouseDown={(e) => {
               e.preventDefault()
               limpiar()
             }}
-            // Para quien lo alcance con el teclado, donde no hay mousedown.
             onClick={limpiar}
           >
             Limpiar
@@ -167,7 +163,6 @@ export function Escaner<T>({
           </span>
         )}
       </form>
-
       {sinResultado && <p className={styles.noEncontrada}>{mensajeNoEncontrado(sinResultado)}</p>}
     </div>
   )
