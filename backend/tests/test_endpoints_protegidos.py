@@ -15,24 +15,18 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.utiles_bd import hay_base
 
 cliente = TestClient(app)
 
 
-def _hay_base():
-    """Rechazar un token INVENTADO obliga a ir a buscarlo a la base; rechazar
-    la FALTA de token, no. Por eso la primera prueba necesita Postgres y la
-    segunda corre en cualquier parte — y la que de verdad cierra la puerta es
-    la segunda."""
-    try:
-        from app.db import conexion
-        with conexion(escribir=False):
-            return True
-    except Exception:
-        return False
-
-
-necesita_base = pytest.mark.skipif(not _hay_base(), reason="sin Postgres a mano")
+# Rechazar un token INVENTADO obliga a ir a buscarlo a la tabla `usuario`;
+# rechazar la FALTA de token, no. Por eso la primera prueba necesita Postgres
+# con el esquema aplicado y la segunda corre en cualquier parte — y la que de
+# verdad cierra la puerta es la segunda.
+necesita_base = pytest.mark.skipif(
+    not hay_base("usuario"), reason="sin Postgres con el esquema aplicado"
+)
 
 # Lo único que puede responder sin sesión, y por qué.
 ABIERTOS = {

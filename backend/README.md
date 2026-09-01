@@ -150,6 +150,42 @@ variable.
   16:00 y 20:00), además del botón manual "Actualizar" que refresca al
   tiro sin esperar la hora programada.
 
+## Dónde vive cada solicitud
+
+R2 guarda el archivo -el Excel que la gente descarga- y la tabla
+`solicitud_archivo` lo indexa. Antes no había índice: para armar cualquier
+listado, el backend bajaba de R2 TODOS los Excel y los parseaba, en cada
+request. Con 10 archivos no se nota; con 5.000 son 5.000 descargas por
+internet más 5.000 parseos, y como el parseo es CPU el proceso queda ocupado
+mientras dura: una sola persona deja al resto esperando.
+
+- **Listar** (`leer_todas_las_solicitudes`, `leer_solicitudes_de`) sale del
+  índice, sin tocar R2. Medido sobre 500 solicitudes: 7,5 ms contra los ~17 s
+  que costaría bajarlas.
+- **Descargar una** sigue yendo a R2: es un archivo, y es lo que R2 hace bien.
+- **El folio** lo entrega la `SEQUENCE` `folio_solicitud`. Antes se calculaba
+  listando R2 y sumando uno al mayor, así que dos personas creando una
+  solicitud en el mismo momento recibían el mismo folio.
+- **Crear y borrar** mantienen el índice al día solas. No hay que correr nada
+  después de cada solicitud.
+
+Mientras el índice esté vacío, todo se comporta como antes -se leen los
+archivos-. Eso cubre el rato entre actualizar el sistema y correr el script
+de indexación: sin esa salida, actualizar dejaría a todos sin ver nada.
+
+### Puesta en marcha
+
+```
+cd backend
+python scripts/migrar.py 0020                      # tabla e índices
+python scripts/indexar_solicitudes.py              # vista previa
+python scripts/indexar_solicitudes.py --aplicar    # lee R2 una última vez
+```
+
+El script es idempotente y no toca R2: se puede correr las veces que haga
+falta. Deja además la secuencia del folio en su lugar, a partir del número
+más alto que ya existe.
+
 ## Autenticación y permisos
 
 La API está cerrada: sin sesión, ningún endpoint responde. Antes el login
