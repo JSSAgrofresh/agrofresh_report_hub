@@ -7,5 +7,10 @@ export {
   guardarConfiguracionInforme,
   subirCruceABaseDeDatos,
 } from './lib/api'
-export { buscarPorFolio, filtrarPorFolio, normalizarFolio } from './lib/folio'
+export {
+  buscarPorCodigoVial,
+  buscarPorFolio,
+  filtrarPorFolio,
+  normalizarFolio,
+} from './lib/folio'
 export type { MuestraGC, ResultadoAnalito, Solicitud, FilaCruce, InformeConfig, FilaSubida } from './lib/tipos'

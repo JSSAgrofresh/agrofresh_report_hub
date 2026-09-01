@@ -1,0 +1,85 @@
+.ficha {
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  margin-top: var(--space-3);
+  background: #fff;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+/* Verde: este lado está listo. Con los dos en verde, se puede cruzar. */
+.listo {
+  border-color: var(--color-primary);
+  border-left-color: var(--color-primary);
+  background: #f4faee;
+}
+
+.cabecera {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.titulo {
+  font-size: 14px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.estado {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.quitar {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+  background: none;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.quitar:hover { color: var(--color-danger); }
+
+.datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+
+.datos dt {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-faint);
+}
+
+.datos dd {
+  font-size: 13px;
+  margin: 1px 0 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--space-3);
+}
+
+.chip {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  background: #eef6e5;
+  color: var(--color-primary);
+  font-family: var(--font-mono, ui-monospace, monospace);
+}

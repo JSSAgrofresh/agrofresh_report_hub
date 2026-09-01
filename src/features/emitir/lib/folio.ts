@@ -44,3 +44,23 @@ export function buscarPorFolio(solicitudes: Solicitud[], escaneado: string): Sol
     null
   )
 }
+
+/** El vial del GC que corresponde a un código escaneado.
+ *
+ * Mismo criterio que con el folio: exacto primero, y si no, comparando sin
+ * nada que no sea letra o número. Las etiquetas de los viales se imprimen y
+ * se vuelven a leer, y ahí un guion de más o de menos no debería importar. */
+export function buscarPorCodigoVial<T extends { codigo: string }>(
+  muestras: T[],
+  escaneado: string,
+): T | null {
+  const crudo = escaneado.trim()
+  if (!crudo) return null
+  const clave = normalizarFolio(crudo)
+  if (!clave) return null
+  return (
+    muestras.find((m) => m.codigo.trim() === crudo) ??
+    muestras.find((m) => normalizarFolio(m.codigo) === clave) ??
+    null
+  )
+}
