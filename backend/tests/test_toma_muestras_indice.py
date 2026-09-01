@@ -75,11 +75,15 @@ class TestCrear:
 
     def test_el_indice_dice_lo_mismo_que_el_archivo(self, limpio):
         """La prueba que importa: si el jsonb perdiera un campo por el camino,
-        el listado mostraría solicitudes incompletas."""
+        el listado mostraría solicitudes incompletas.
+
+        El índice suma `codigo_muestra`, que no está en el archivo: se asigna
+        al recibir la muestra, mucho después de crear la solicitud.
+        """
         tm.crear_solicitud(cuerpo())
         por_indice = dict(tm.leer_todas_las_solicitudes())["OT-0001.xlsx"]
         por_archivo = dict(tm._leer_todas_desde_archivos())["OT-0001.xlsx"]
-        assert por_indice == por_archivo
+        assert por_indice == {**por_archivo, "codigo_muestra": None}
 
     def test_conserva_los_analitos_solicitados(self, limpio):
         """Es lo que usa Emitir informe para cruzar con el resultado del GC."""

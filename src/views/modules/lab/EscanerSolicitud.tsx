@@ -49,6 +49,7 @@ export function EscanerSolicitud({
       <Escaner
         buscar={(texto) => buscarPorFolio(solicitudes ?? [], texto)}
         onEncontrado={onElegir}
+        onLimpiar={() => onElegir(null)}
         onTexto={onFiltroCambia}
         placeholder="Escanea el código de barras de la solicitud impresa"
         mensajeNoEncontrado={(c) =>

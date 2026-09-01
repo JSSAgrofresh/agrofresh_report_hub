@@ -63,9 +63,16 @@ def guardar(cur, archivo: str, datos: dict, r2_key: str | None = None) -> None:
 
 def _fila_a_par(fila: dict) -> tuple[str, dict]:
     """(nombre_archivo, datos) — la misma forma que devolvía leer_todas_las_solicitudes,
-    para que quien la consumía no tenga que cambiar."""
+    para que quien la consumía no tenga que cambiar.
+
+    El código de muestra se suma acá y no vive en el jsonb: se asigna después
+    de crear la solicitud y se puede corregir, así que es una columna propia
+    -con su índice único- y no un campo enterrado en el documento.
+    """
     datos = fila["datos"]
-    return fila["archivo"], (json.loads(datos) if isinstance(datos, str) else datos)
+    datos = json.loads(datos) if isinstance(datos, str) else dict(datos)
+    datos["codigo_muestra"] = fila.get("codigo_muestra")
+    return fila["archivo"], datos
 
 
 def listar(laboratorio: str | None = None) -> list[tuple[str, dict]]:
@@ -76,10 +83,13 @@ def listar(laboratorio: str | None = None) -> list[tuple[str, dict]]:
     """
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         if laboratorio is None:
-            cur.execute("SELECT archivo, datos FROM solicitud_archivo ORDER BY creado_en DESC")
+            cur.execute(
+                "SELECT archivo, datos, codigo_muestra FROM solicitud_archivo ORDER BY creado_en DESC"
+            )
         else:
             cur.execute(
-                "SELECT archivo, datos FROM solicitud_archivo WHERE laboratorio = %s ORDER BY creado_en DESC",
+                "SELECT archivo, datos, codigo_muestra FROM solicitud_archivo"
+                " WHERE laboratorio = %s ORDER BY creado_en DESC",
                 (laboratorio,),
             )
         return [_fila_a_par(f) for f in cur.fetchall()]
@@ -88,7 +98,10 @@ def listar(laboratorio: str | None = None) -> list[tuple[str, dict]]:
 def buscar(archivo: str) -> dict | None:
     """Los datos de una solicitud, o None si no está indexada."""
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT archivo, datos FROM solicitud_archivo WHERE archivo = %s", (archivo,))
+        cur.execute(
+            "SELECT archivo, datos, codigo_muestra FROM solicitud_archivo WHERE archivo = %s",
+            (archivo,),
+        )
         fila = cur.fetchone()
         return _fila_a_par(fila)[1] if fila else None
 
@@ -147,3 +160,40 @@ def olvidar_archivo(archivo: str) -> None:
             olvidar(cur, archivo)
     except psycopg2.errors.UndefinedTable:
         pass
+
+
+class MuestraYaUsada(Exception):
+    """Ese número de muestra ya está cruzado con otra solicitud."""
+
+    def __init__(self, archivo: str):
+        self.archivo = archivo
+        super().__init__(f"El número de muestra ya está cruzado con {archivo}.")
+
+
+def cruzar(archivo: str, codigo_muestra: str | None) -> None:
+    """Deja anotado con qué muestra física corresponde una solicitud.
+
+    `None` deshace el cruce. Un mismo número no puede quedar en dos
+    solicitudes: un vial es un tubo, y si estuviera en dos, el resultado del
+    GC no sabría a cuál de las dos pertenece.
+    """
+    codigo = (codigo_muestra or "").strip() or None
+    with conexion() as conn, cursor_dict(conn) as cur:
+        if codigo is not None:
+            cur.execute(
+                "SELECT archivo FROM solicitud_archivo WHERE codigo_muestra = %s AND archivo <> %s",
+                (codigo, archivo),
+            )
+            fila = cur.fetchone()
+            if fila:
+                raise MuestraYaUsada(fila["archivo"])
+        cur.execute(
+            """
+            UPDATE solicitud_archivo
+            SET codigo_muestra = %s, cruzado_en = CASE WHEN %s IS NULL THEN NULL ELSE now() END
+            WHERE archivo = %s
+            """,
+            (codigo, codigo, archivo),
+        )
+        if cur.rowcount == 0:
+            raise KeyError(archivo)

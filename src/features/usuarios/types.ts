@@ -19,7 +19,7 @@ export interface Usuario {
    * conservan los permisos predeterminados de su rol y área. */
   modulos?: string[]
   /** Secciones habilitadas dentro del módulo Report. */
-  reportes?: Array<'laboratorio' | 'postventa' | 'emitir'>
+  reportes?: Array<'laboratorio' | 'postventa'>
   /** La contraseña actual se la puso un administrador: hay que cambiarla
    * antes de poder usar el sistema. */
   debeCambiarPassword?: boolean

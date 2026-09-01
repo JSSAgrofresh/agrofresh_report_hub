@@ -1,0 +1,110 @@
+.seccion {
+  margin-bottom: var(--space-4);
+}
+
+.seccionCabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+.seccionCabecera h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* El número dice que esto es una secuencia: primero entra la muestra, después
+   llega su resultado. */
+.numero {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ayudaSeccion {
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+  margin: 0 0 var(--space-4);
+  max-width: 78ch;
+}
+
+.separador {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--space-4) 0;
+}
+
+.botonChico {
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid var(--color-border-strong);
+  background: #fff;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 4px 9px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.botonChico:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.botonChico:disabled { opacity: 0.6; cursor: default; }
+
+.zona {
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-5, 24px) var(--space-3);
+  text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.zona:hover { border-color: var(--color-primary); }
+
+.zonaActiva {
+  border-color: var(--color-primary);
+  background: #eef6e5;
+}
+
+.zonaTexto {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: block;
+}
+
+.error {
+  font-size: 13px;
+  color: var(--color-danger);
+  background: #fbe8e5;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0 0;
+}
+
+.avisoCarpeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}

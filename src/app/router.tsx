@@ -10,8 +10,7 @@ import { IngestView } from '@/views/modules/ingest/IngestView'
 import { ReporteView } from '@/views/modules/reports/ReporteView'
 import { ReportesHubView } from '@/views/modules/reports/ReportesHubView'
 import { PostVentaView } from '@/views/modules/reports/PostVentaView'
-import { EmitirReporteHubView } from '@/views/modules/reports/EmitirReporteHubView'
-import { CromatografiaEmitirView } from '@/views/modules/reports/cromatografia/CromatografiaEmitirView'
+import { AgrofreshLabView } from '@/views/modules/lab/AgrofreshLabView'
 import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { StorageView } from '@/views/modules/storage/StorageView'
 import { SolicitudesView } from '@/views/modules/muestreo/SolicitudesView'
@@ -57,14 +56,11 @@ export const router = createBrowserRouter([
                 element: <RequireReporte reporte="postventa" />,
                 children: [{ path: ROUTES.reportsPostVenta, element: <PostVentaView /> }],
               },
-              {
-                element: <RequireReporte reporte="emitir" />,
-                children: [
-                  { path: ROUTES.reportsEmitir, element: <EmitirReporteHubView /> },
-                  { path: ROUTES.reportsEmitirCromatografia, element: <CromatografiaEmitirView /> },
-                ],
-              },
             ],
+          },
+          {
+            element: <RequireModulo moduloId="agrofresh_lab" />,
+            children: [{ path: ROUTES.agrofreshLab, element: <AgrofreshLabView /> }],
           },
           {
             element: <RequireModulo moduloId="datacore" />,

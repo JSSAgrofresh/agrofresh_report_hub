@@ -47,6 +47,13 @@ export const MODULOS: ModuloInfo[] = [
     estado: 'disponible',
   },
   {
+    id: 'agrofresh_lab',
+    nombre: 'AgroFresh Lab',
+    descripcion: 'Ingreso de muestras al laboratorio, cruce con el resultado del GC y emisión de informes.',
+    ruta: ROUTES.agrofreshLab,
+    estado: 'disponible',
+  },
+  {
     id: 'storage',
     nombre: 'Storage',
     descripcion: 'Archivos guardados en el servidor: arrastra y suelta para subirlos.',

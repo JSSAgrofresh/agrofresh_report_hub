@@ -40,6 +40,7 @@ const ICONO_MODULO: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   converter: IconConverter,
   ingest: IconIngest,
   reports: IconReports,
+  agrofresh_lab: IconFrasco,
   storage: IconStorage,
 }
 

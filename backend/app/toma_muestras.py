@@ -294,6 +294,16 @@ class Solicitud(SolicitudIn):
     numero_solicitud: str
     fecha_solicitud: str
     creado_en: str
+    # Con qué muestra física quedó cruzada. Es el mismo código que después
+    # trae el archivo del GC, así que al subir los resultados cada vial
+    # encuentra su solicitud sin volver a emparejar nada.
+    codigo_muestra: str | None = None
+
+
+class CruceIn(BaseModel):
+    """`None` o vacío deshace el cruce."""
+
+    codigo_muestra: str | None = None
 
 
 def _leer_todas_desde_archivos() -> list[tuple[str, dict]]:
@@ -493,6 +503,26 @@ def crear_solicitud(body: SolicitudIn) -> Solicitud:
     # volviendo a correr scripts/indexar_solicitudes.py.
     indice_solicitudes.anotar(nombre_archivo, datos, r2_key)
     return Solicitud(archivo=nombre_archivo, **datos)
+
+
+@router.put("/solicitudes/{archivo}/muestra", response_model=Solicitud)
+def cruzar_con_muestra(archivo: str, body: CruceIn) -> Any:
+    """Cruza una solicitud con el número de la muestra que llegó al laboratorio.
+
+    Se hace al recibir la muestra, no al procesar los resultados: entre una
+    cosa y otra corre el GC y pasa la noche.
+    """
+    try:
+        indice_solicitudes.cruzar(archivo, body.codigo_muestra)
+    except indice_solicitudes.MuestraYaUsada as e:
+        raise HTTPException(409, str(e)) from e
+    except KeyError as e:
+        raise HTTPException(
+            404,
+            "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.",
+        ) from e
+    datos = indice_solicitudes.buscar(archivo)
+    return Solicitud(archivo=archivo, **datos)
 
 
 @router.delete("/solicitudes/{archivo}")
