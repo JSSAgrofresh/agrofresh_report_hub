@@ -13,12 +13,6 @@ import {
 } from './cruceAutomatico'
 import styles from './ResultadosAutomaticos.module.css'
 
-function hoyLocal(): string {
-  const ahora = new Date()
-  const local = new Date(ahora.getTime() - ahora.getTimezoneOffset() * 60_000)
-  return local.toISOString().slice(0, 10)
-}
-
 function guardar(blob: Blob, nombre: string) {
   const url = URL.createObjectURL(blob)
   const enlace = document.createElement('a')
@@ -35,7 +29,6 @@ export function ResultadosAutomaticos({
   solicitudes: Solicitud[]
   muestras: MuestraGC[]
 }) {
-  const [fechaRecepcion, setFechaRecepcion] = useState(hoyLocal)
   const [procesando, setProcesando] = useState<'pdf' | 'excel' | 'bd' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [resultadoSubida, setResultadoSubida] = useState<FilaSubida[] | null>(null)
@@ -53,7 +46,7 @@ export function ResultadosAutomaticos({
   const sinResultado = cruces.filter((c) => !c.muestra)
 
   function filas() {
-    return construirFilasExportables(cruces, fechaRecepcion)
+    return construirFilasExportables(cruces)
   }
 
   async function generarPDF() {
@@ -107,12 +100,9 @@ export function ResultadosAutomaticos({
           <h4>Cruce automático</h4>
           <p>
             {encontrados.length} coincidencia(s) entre el archivo GC y las solicitudes recibidas.
+            La fecha de recepción de cada informe es la del cruce, ya guardada en su solicitud.
           </p>
         </div>
-        <label className={styles.fecha}>
-          Fecha de recepción
-          <input type="date" value={fechaRecepcion} onChange={(e) => setFechaRecepcion(e.target.value)} />
-        </label>
       </div>
 
       <div className={styles.resumen}>

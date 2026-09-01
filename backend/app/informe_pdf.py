@@ -15,6 +15,7 @@ from datetime import datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.lib.units import cm
 from reportlab.platypus import (
     Image,
@@ -48,6 +49,9 @@ DIRECCION_EMPRESA = "Manuel Montt, 4060 | Parque Industrial km 90 Rancagua | CHI
 _MARGEN_H = 1.5 * cm
 _MARGEN_V = 1.0 * cm
 ANCHO_UTIL = A4[0] - 2 * _MARGEN_H
+
+_ANCHO_LOGO_COL = 4.5 * cm
+_ANCHO_PAGINA_COL = 2.7 * cm
 
 
 _PAT_CODIGO_COLUMNA = re.compile(r"\(([A-Za-z]+)\)\s*$")
@@ -120,6 +124,10 @@ _S_FIRMA_CARGO = ParagraphStyle(
 _S_PIE = ParagraphStyle(
     'pie', fontName='Times-Roman', fontSize=8, textColor=GRIS_LABEL,
 )
+_S_DIRECCION_PIE = ParagraphStyle(
+    'direccionPie', fontName='Helvetica', fontSize=7.5, leading=9.5,
+    textColor=GRIS_LABEL, alignment=1,
+)
 
 
 METODOLOGIA_TEXTO = (
@@ -154,6 +162,21 @@ def _nombre_ensayo(campos: dict[str, str], codigo: str) -> str:
     return codigo
 
 
+
+
+def _estilo_titulo_que_entra(texto: str, ancho: float) -> ParagraphStyle:
+    """El título con su folio, siempre en un solo renglón.
+
+    Los folios crecen ("AGF2026-9" y "AGF2026-1487" no miden lo mismo), así
+    que en vez de confiar en que quepa se mide y, si se pasa, se achica la
+    letra hasta 10 pt. Partirlo en dos líneas se ve como un error de armado.
+    """
+    tamano = _S_TITULO.fontSize
+    while tamano > 10 and stringWidth(texto, _S_TITULO.fontName, tamano) > ancho:
+        tamano -= 0.5
+    if tamano == _S_TITULO.fontSize:
+        return _S_TITULO
+    return ParagraphStyle('tituloAjustado', parent=_S_TITULO, fontSize=tamano, leading=tamano + 2)
 
 
 def _fecha_iso_a_ddmmyyyy(valor: str | None) -> str:
@@ -305,6 +328,7 @@ def _construir_elementos(
     aprobado_por_nombre: str,
     aprobado_por_cargo: str,
     fecha_recepcion: str | None,
+    incluir_analista: bool,
     espacio_extra: float,
 ) -> list:
     elementos = []
@@ -320,21 +344,20 @@ def _construir_elementos(
 
 
     pagina_p = Paragraph('Página 1 de 1', _S_PAGINA)
-    titulo_header = Table([
-        [Paragraph(f'INFORME DE RESULTADOS N° {folio}', _S_TITULO)],
-        [Paragraph(DIRECCION_EMPRESA, _S_INFO_HEADER)],
-    ], colWidths=[ANCHO_UTIL - 8.7 * cm])
-    titulo_header.setStyle(TableStyle([
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-        ('TOPPADDING', (0, 0), (-1, -1), 1),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
-    ]))
+
+
+    # El folio va pegado al título, en el mismo renglón. La dirección ya no
+    # vive acá: bajó al pie, que es donde se busca. Eso libera el ancho que
+    # antes ocupaba y evita que "INFORME DE RESULTADOS N°" y el folio queden
+    # partidos en dos líneas.
+    texto_titulo = f'INFORME DE RESULTADOS N° {folio}'
+    ancho_titulo = ANCHO_UTIL - _ANCHO_LOGO_COL - _ANCHO_PAGINA_COL
+    titulo_p = Paragraph(texto_titulo, _estilo_titulo_que_entra(texto_titulo, ancho_titulo))
 
 
     header = Table(
-        [[logo_img, titulo_header, pagina_p]],
-        colWidths=[4.5 * cm, ANCHO_UTIL - 8.7 * cm, 4.2 * cm],
+        [[logo_img, titulo_p, pagina_p]],
+        colWidths=[_ANCHO_LOGO_COL, ancho_titulo, _ANCHO_PAGINA_COL],
     )
     header.setStyle(TableStyle([
         ('ALIGN', (0, 0), (0, 0), 'LEFT'),
@@ -437,7 +460,7 @@ def _construir_elementos(
 
     # ── IDENTIFICACIÓN DEL ANÁLISIS ────────────────────────────────────
     pares_analisis = [
-        ('ID INFORME', codigo_vial or ''),
+        ('ID MUESTRA', codigo_vial or ''),
         ('FECHA RECEPCIÓN', _fecha_iso_a_ddmmyyyy(fecha_recepcion)),
         ('FECHA ANÁLISIS', _fecha_inyeccion_a_ddmmyyyy(fecha_inyeccion)),
     ]
@@ -447,10 +470,12 @@ def _construir_elementos(
 
 
     # ── DETERMINACIONES / RESULTADOS (cuadrante) ──────────────────────
+    # Sin columna de unidad: todos los ensayos se informan en ppm y repetirlo
+    # en cada fila no agrega nada. La unidad va una sola vez, en el título de
+    # la columna de resultado.
     filas_resultado = [[
         Paragraph('ENSAYO', _S_TABLA_HEAD),
-        Paragraph('UNIDAD', _S_TABLA_HEAD),
-        Paragraph('RESULTADO', _S_TABLA_HEAD),
+        Paragraph('RESULTADO (ppm)', _S_TABLA_HEAD),
     ]]
     for codigo in analitos_solicitados:
         tiene_resultado = codigo in resultados_por_codigo
@@ -463,19 +488,18 @@ def _construir_elementos(
             resultado_cel = Paragraph(f'{valor:.4f}'.rstrip('0').rstrip('.'), _S_TABLA_CELDA)
         filas_resultado.append([
             Paragraph(_nombre_ensayo(campos, codigo), _S_TABLA_CELDA),
-            Paragraph('ppm', _S_TABLA_CELDA),
             resultado_cel,
         ])
 
 
     cantidad_filas_resultado = max(7, len(analitos_solicitados))
     for _ in range(cantidad_filas_resultado - len(analitos_solicitados)):
-        filas_resultado.append(['', '', ''])
+        filas_resultado.append(['', ''])
 
 
     tabla_resultados = Table(
         filas_resultado,
-        colWidths=[10.2 * cm, 3.2 * cm, ANCHO_UTIL - 13.4 * cm],
+        colWidths=[ANCHO_UTIL - 4.6 * cm, 4.6 * cm],
         rowHeights=[None] + [17] * cantidad_filas_resultado,
         repeatRows=1,
     )
@@ -489,7 +513,7 @@ def _construir_elementos(
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('LINEBELOW', (0, 0), (-1, 0), 0.8, NEGRO_TEXTO),
         ('LINEBELOW', (0, 1), (-1, -1), 0.35, GRIS_LINEA),
-        ('LINEAFTER', (0, 0), (1, -1), 0.35, GRIS_LINEA),
+        ('LINEAFTER', (0, 0), (0, -1), 0.35, GRIS_LINEA),
         ('BOX', (0, 0), (-1, -1), 0.45, NEGRO_TEXTO),
     ]))
 
@@ -565,12 +589,19 @@ def _construir_elementos(
         return t
 
 
-    firmas = Table(
-        [[
+    # Sin analista queda una sola firma, corrida a la derecha. Antes salía el
+    # bloque igual con una raya y un guión debajo, que se lee como un informe
+    # al que le faltó algo.
+    if incluir_analista:
+        fila_firmas = [
             _bloque_firma(analizado_por_nombre, analizado_por_cargo),
             '',
             _bloque_firma(aprobado_por_nombre, aprobado_por_cargo),
-        ]],
+        ]
+    else:
+        fila_firmas = ['', '', _bloque_firma(aprobado_por_nombre, aprobado_por_cargo)]
+    firmas = Table(
+        [fila_firmas],
         colWidths=[7 * cm, ANCHO_UTIL - 14 * cm, 7 * cm],
     )
     firmas.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
@@ -579,17 +610,37 @@ def _construir_elementos(
 
 
     # ── PIE ────────────────────────────────────────────────────────────
-    pie = Table(
+    pie_datos = Table(
         [[
             Paragraph(f'Fecha del informe: {hoy}', _S_PIE),
             Paragraph('Documento generado por AgroFresh Report Hub', _S_PIE),
         ]],
         colWidths=[9 * cm, ANCHO_UTIL - 9 * cm],
     )
-    pie.setStyle(TableStyle([
-        ('LINEABOVE', (0, 0), (-1, -1), 0.45, GRIS_LINEA),
+    pie_datos.setStyle(TableStyle([
         ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
         ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+    ]))
+    direccion_pie = Table(
+        [[Paragraph(DIRECCION_EMPRESA, _S_DIRECCION_PIE)]],
+        colWidths=[ANCHO_UTIL],
+    )
+    direccion_pie.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    pie = Table([[pie_datos], [direccion_pie]], colWidths=[ANCHO_UTIL])
+    pie.setStyle(TableStyle([
+        ('LINEABOVE', (0, 0), (-1, 0), 0.45, GRIS_LINEA),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
     ]))
     elementos.append(KeepTogether(pie))
 
@@ -628,6 +679,7 @@ def generar_informe_pdf(
     aprobado_por_nombre: str,
     aprobado_por_cargo: str,
     fecha_recepcion: str | None = None,
+    incluir_analista: bool = True,
 ) -> bytes:
     titulo = f"Informe de análisis {campos.get('N° Solicitud', '')}".strip()
     args = dict(
@@ -642,6 +694,7 @@ def generar_informe_pdf(
         aprobado_por_nombre=aprobado_por_nombre,
         aprobado_por_cargo=aprobado_por_cargo,
         fecha_recepcion=fecha_recepcion,
+        incluir_analista=incluir_analista,
     )
 
 

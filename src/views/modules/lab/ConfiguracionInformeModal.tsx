@@ -13,6 +13,7 @@ const CONFIG_VACIA: InformeConfig = {
   analizado_por_cargo: '',
   aprobado_por_nombre: '',
   aprobado_por_cargo: '',
+  incluir_analista: true,
 }
 
 export function ConfiguracionInformeModal({ onCerrar }: ConfiguracionInformeModalProps) {
@@ -27,10 +28,12 @@ export function ConfiguracionInformeModal({ onCerrar }: ConfiguracionInformeModa
       .catch(() => setError('No se pudo cargar la configuración.'))
   }, [])
 
-  function actualizar(campo: keyof InformeConfig, valor: string) {
+  function actualizar(campo: keyof InformeConfig, valor: string | boolean) {
     setConfig((prev) => ({ ...(prev ?? CONFIG_VACIA), [campo]: valor }))
     setGuardado(false)
   }
+
+  const conAnalista = config?.incluir_analista ?? true
 
   async function guardar() {
     if (!config) return
@@ -67,7 +70,24 @@ export function ConfiguracionInformeModal({ onCerrar }: ConfiguracionInformeModa
         ) : (
           <div className={styles.formulario}>
             <div className={styles.grupo}>
-              <h4>Analizado por</h4>
+              <label className={styles.interruptor}>
+                <input
+                  type="checkbox"
+                  checked={conAnalista}
+                  onChange={(e) => actualizar('incluir_analista', e.target.checked)}
+                />
+                <span>
+                  <h4>Analizado por</h4>
+                  {/* No siempre hay analista que firme -turnos, reemplazos-, y
+                      un bloque en blanco con una raya se lee como un informe
+                      al que le faltó algo. */}
+                  <small>
+                    {conAnalista
+                      ? 'Aparece a la izquierda de la firma de aprobación.'
+                      : 'El informe sale solo con la firma de aprobación, abajo a la derecha.'}
+                  </small>
+                </span>
+              </label>
               <label>
                 Nombre
                 <input
@@ -75,6 +95,7 @@ export function ConfiguracionInformeModal({ onCerrar }: ConfiguracionInformeModa
                   value={config?.analizado_por_nombre ?? ''}
                   onChange={(e) => actualizar('analizado_por_nombre', e.target.value)}
                   placeholder="Nombre de quien analiza"
+                  disabled={!conAnalista}
                 />
               </label>
               <label>
@@ -84,6 +105,7 @@ export function ConfiguracionInformeModal({ onCerrar }: ConfiguracionInformeModa
                   value={config?.analizado_por_cargo ?? ''}
                   onChange={(e) => actualizar('analizado_por_cargo', e.target.value)}
                   placeholder="Analista de Laboratorio"
+                  disabled={!conAnalista}
                 />
               </label>
             </div>

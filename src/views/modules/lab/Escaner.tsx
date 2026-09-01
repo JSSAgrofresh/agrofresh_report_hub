@@ -55,10 +55,9 @@ export function Escaner<T>({
   }, [activo, deshabilitado])
 
   useEffect(() => {
-    if (tomarFoco && !deshabilitado) {
-      setActivo(true)
-      entrada.current?.focus()
-    }
+    // Basta con enfocar: el propio onFocus del campo marca la caja como
+    // activa. Llamar acá a setActivo encadenaba un render de más.
+    if (tomarFoco && !deshabilitado) entrada.current?.focus()
   }, [tomarFoco, deshabilitado])
 
   const primeraVez = useRef(true)

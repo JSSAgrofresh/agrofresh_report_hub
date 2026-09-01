@@ -23,6 +23,11 @@ export interface Solicitud {
    * el mismo código que después trae el archivo del GC, así que al subir los
    * resultados cada vial encuentra su solicitud sin emparejar nada a mano. */
   codigo_muestra?: string | null
+  /** Cuándo llegó la muestra física al mesón, en fecha ("YYYY-MM-DD") y hora
+   * ("HH:MM") locales. No se pregunta en ningún formulario: el backend lo
+   * llena con el instante exacto en que se hizo el cruce. */
+  fecha_recepcion?: string | null
+  hora_recepcion?: string | null
 }
 
 /** Una corrida del GC trae, además de las muestras de cliente, la curva de
@@ -53,8 +58,7 @@ export interface FilaCruce {
   codigo_vial?: string | null
   fecha_inyeccion?: string | null
   /** Fecha en que la muestra física llegó al laboratorio (ISO
-   * "YYYY-MM-DD"): no viene ni de la solicitud ni del GC, se elige a mano
-   * en la zona de cruce. */
+   * "YYYY-MM-DD"). Sale del cruce de cada solicitud, no se elige a mano. */
   fecha_recepcion?: string | null
 }
 
@@ -67,6 +71,9 @@ export interface InformeConfig {
   analizado_por_cargo: string
   aprobado_por_nombre: string
   aprobado_por_cargo: string
+  /** Apagado, el informe sale con una sola firma: la de aprobación, abajo a
+   * la derecha. No siempre hay analista que firme. */
+  incluir_analista: boolean
 }
 
 export interface FilaSubida {

@@ -17,19 +17,6 @@
 .cabecera h4 { margin: 0 0 3px; font-size: 15px; }
 .cabecera p { margin: 0; color: var(--color-text-faint); font-size: 12.5px; }
 
-.fecha {
-  display: grid;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-muted);
-}
-.fecha input {
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  padding: 6px 8px;
-}
-
 .resumen { margin: var(--space-3) 0; font-size: 12px; color: var(--color-text-muted); }
 .resumen span { padding: 4px 8px; border-radius: 999px; background: var(--color-bg); }
 

@@ -9,6 +9,8 @@ import {
 const solicitud: Solicitud = {
   archivo: 'OT-0012.xlsx',
   codigo_muestra: 'GCNPD10065',
+  fecha_recepcion: '2026-09-01',
+  hora_recepcion: '08:12',
   campos: { 'N° Solicitud': 'OT-0012' },
   analitos_solicitados: ['FDL', 'PYR'],
 }
@@ -32,13 +34,21 @@ describe('cruce automático del GC', () => {
 
   it('construye la fila que consumen el PDF, Excel y la subida a base', () => {
     const cruces = construirCrucesAutomaticos([solicitud], [muestra])
-    expect(construirFilasExportables(cruces, '2026-09-01')).toEqual([
+    expect(construirFilasExportables(cruces)).toEqual([
       expect.objectContaining({
         codigo_vial: 'gcNPD10065',
+        // La recepción ya no se elige a mano: es la del cruce, que viaja
+        // dentro de la solicitud.
         fecha_recepcion: '2026-09-01',
         resultados_por_codigo: { FDL: 1, PYR: 2 },
       }),
     ])
+  })
+
+  it('sin cruce guardado no inventa una fecha de recepción', () => {
+    const sinRecepcion = { ...solicitud, fecha_recepcion: null, hora_recepcion: null }
+    const cruces = construirCrucesAutomaticos([sinRecepcion], [muestra])
+    expect(construirFilasExportables(cruces)[0].fecha_recepcion).toBeNull()
   })
 
   it('separa los viales que todavía no tienen solicitud cruzada', () => {

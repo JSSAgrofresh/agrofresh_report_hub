@@ -60,13 +60,14 @@ class TestGuardarYLeer:
         """El índice reemplaza al parser: si perdiera un campo por el camino,
         el listado mostraría solicitudes incompletas sin que nadie lo note.
 
-        Suma `codigo_muestra`, que no viene del archivo: se asigna después, al
-        recibir la muestra, y por eso es una columna y no parte del documento.
+        Suma `codigo_muestra` y `recepcion_en`, que no vienen del archivo: se
+        asignan después, al recibir la muestra, y por eso son columnas y no
+        parte del documento.
         """
         datos = solicitud("ZZ-TEST-1")
         guardar(f"{PREFIJO}1.xlsx", datos)
         recuperada = indice.buscar(f"{PREFIJO}1.xlsx")
-        assert recuperada == {**datos, "codigo_muestra": None}
+        assert recuperada == {**datos, "codigo_muestra": None, "recepcion_en": None}
 
     def test_conserva_lo_anidado(self):
         """`campos_laboratorio` y `analitos_solicitados` son lo que usa Emitir
