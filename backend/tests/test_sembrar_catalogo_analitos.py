@@ -30,7 +30,10 @@ import sembrar_catalogo_analitos as sembrar  # noqa: E402
 from app.db import conexion, cursor_dict  # noqa: E402
 
 CLIENTE = "ZZ-SEMBRAR"
-LAB = "AGROFRESH"
+# A propósito NO en mayúsculas: así lo guarda la base de verdad ("Agrofresh"),
+# mientras que la configuración de la app dice "AGROFRESH". Compararlos exacto
+# dejó 9069 filas sin enlazar en el servidor del laboratorio.
+LAB = "Agrofresh"
 
 
 def _limpiar(cur) -> None:
@@ -182,6 +185,27 @@ def test_correrlo_dos_veces_no_duplica_ni_pisa(datos_sueltos, monkeypatch):
             "SELECT count(*) AS n FROM analito WHERE codigo = 'FDL' AND laboratorio = %s", (LAB,)
         )
         assert cur.fetchone()["n"] == 1
+
+
+def test_el_laboratorio_calza_aunque_cambien_las_mayusculas(datos_sueltos, monkeypatch):
+    """El bug que esto arregla. La base dice "Agrofresh" y la configuración
+    dice "AGROFRESH": es el mismo laboratorio escrito por dos subsistemas
+    distintos, no dos laboratorios."""
+    _correr(aplicar=True, monkeypatch=monkeypatch)
+
+    enlazados = [r for r in _resultados(datos_sueltos) if r["codigo"]]
+    assert {r["codigo"] for r in enlazados} == {"FDL", "PYR"}
+
+
+def test_el_analito_se_crea_como_lo_escribe_la_base(datos_sueltos, monkeypatch):
+    """Se crea con "Agrofresh", no con "AGROFRESH": si se normalizara, el
+    listado de Report mostraría este laboratorio distinto al resto y el
+    enlace quedaría dependiendo de una traducción en cada consulta."""
+    _correr(aplicar=True, monkeypatch=monkeypatch)
+
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT laboratorio FROM analito WHERE codigo = 'FDL' AND laboratorio = %s", (LAB,))
+        assert cur.fetchone() is not None
 
 
 def test_no_toca_los_analitos_que_ya_existian(datos_sueltos, monkeypatch):
