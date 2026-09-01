@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout/Header'
 import { OpcionCard } from '@/components/ui/OpcionCard'
 import { EstadoModulo } from '@/components/ui/EstadoModulo'
-import { IconEmitir, IconReports, IconTrendingUp } from '@/components/ui/icons'
+import { IconReports, IconTrendingUp } from '@/components/ui/icons'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/features/auth'
 import { puedeVerReporte } from '@/features/usuarios'
@@ -12,8 +12,8 @@ export function ReportesHubView() {
   // El hub es común a las dos áreas, pero cada tarjeta es de un área: solo se
   // muestra lo que este usuario puede abrir de verdad -si no, la tarjeta
   // llevaría a una pantalla que el guard rebota-.
-  const ver = (reporte: 'laboratorio' | 'postventa' | 'emitir') => !!user && puedeVerReporte(user, reporte)
-  const alguno = ver('laboratorio') || ver('postventa') || ver('emitir')
+  const ver = (reporte: 'laboratorio' | 'postventa') => !!user && puedeVerReporte(user, reporte)
+  const alguno = ver('laboratorio') || ver('postventa')
 
   return (
     <div>
@@ -34,14 +34,6 @@ export function ReportesHubView() {
               titulo="Reportes de Post Venta"
               descripcion="Histórico de cargas de Trace: pH y ORP de los equipos Accu-Tab, por fecha."
               ruta={ROUTES.reportsPostVenta}
-            />
-          )}
-          {ver('emitir') && (
-            <OpcionCard
-              icono={<IconEmitir />}
-              titulo="Emitir reporte"
-              descripcion="Genera un reporte nuevo a partir de resultados de laboratorio, cruzándolos con las solicitudes de análisis."
-              ruta={ROUTES.reportsEmitir}
             />
           )}
         </div>

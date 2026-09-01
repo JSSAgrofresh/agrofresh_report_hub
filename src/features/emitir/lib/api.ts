@@ -32,6 +32,16 @@ export function listarSolicitudes() {
   return httpClient.get<Solicitud[]>('/emitir/cromatografia/solicitudes')
 }
 
+/** Deja anotado con qué muestra física llegó una solicitud. Se hace al
+ * recibirla, no al procesar los resultados: entre una cosa y otra corre el GC
+ * y pasa la noche, así que el cruce se guarda en la base. */
+export function cruzarConMuestra(archivo: string, codigoMuestra: string | null) {
+  return httpClient.put<Solicitud>(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/muestra`,
+    { codigo_muestra: codigoMuestra },
+  )
+}
+
 export function descargarExcelCruce(filas: FilaCruce[]) {
   return httpClient.postArchivo('/emitir/cromatografia/excel', filas)
 }

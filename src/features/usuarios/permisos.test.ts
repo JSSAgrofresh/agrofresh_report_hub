@@ -12,14 +12,17 @@ const cromatografia: Usuario = {
 
 describe('permisos configurables de usuarios', () => {
   it('da al admin de Cromatografía los accesos operativos solicitados por defecto', () => {
+    // AgroFresh Lab entra acá porque es quien recibe las muestras y emite los
+    // informes: era la sección "Emitir" dentro de Report y pasó a ser un
+    // módulo propio.
     expect(modulosPermitidos(cromatografia).map((modulo) => modulo.id)).toEqual([
       'converter',
       'reports',
+      'agrofresh_lab',
       'storage',
     ])
     expect(puedeVerTomaMuestras(cromatografia)).toBe(true)
     expect(puedeVerReporte(cromatografia, 'laboratorio')).toBe(true)
-    expect(puedeVerReporte(cromatografia, 'emitir')).toBe(true)
     expect(puedeVerReporte(cromatografia, 'postventa')).toBe(false)
   })
 
@@ -27,7 +30,7 @@ describe('permisos configurables de usuarios', () => {
     const personalizado: Usuario = {
       ...cromatografia,
       modulos: ['storage', 'reports'],
-      reportes: ['emitir'],
+      reportes: ['postventa'],
     }
 
     expect(modulosPermitidos(personalizado).map((modulo) => modulo.id)).toEqual([
@@ -36,7 +39,13 @@ describe('permisos configurables de usuarios', () => {
     ])
     expect(puedeVerTomaMuestras(personalizado)).toBe(false)
     expect(puedeVerReporte(personalizado, 'laboratorio')).toBe(false)
-    expect(puedeVerReporte(personalizado, 'emitir')).toBe(true)
-    expect(puedeVerReporte(personalizado, 'postventa')).toBe(false)
+    expect(puedeVerReporte(personalizado, 'postventa')).toBe(true)
+  })
+
+  it('una selección manual puede dejar fuera AgroFresh Lab', () => {
+    /* Ser admin de un área no obliga a recibir muestras: quien solo mira
+     * reportes no tiene por qué entrar al laboratorio. */
+    const soloReportes: Usuario = { ...cromatografia, modulos: ['reports'] }
+    expect(modulosPermitidos(soloReportes).map((m) => m.id)).toEqual(['reports'])
   })
 })

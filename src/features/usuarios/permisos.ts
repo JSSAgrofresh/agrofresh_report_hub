@@ -13,14 +13,14 @@ export function puedeAdministrarUsuarios(usuario: Usuario): boolean {
 
 export const MODULO_TOMA_MUESTRAS = 'toma_muestras'
 
-export type ReporteId = 'laboratorio' | 'postventa' | 'emitir'
+export type ReporteId = 'laboratorio' | 'postventa'
 
 export function modulosPredeterminados(usuario: Pick<Usuario, 'tipoAcceso' | 'area'>): string[] {
   if (usuario.tipoAcceso === 'admin_general') {
     return [...MODULOS.map((m) => m.id), MODULO_TOMA_MUESTRAS]
   }
   if (usuario.tipoAcceso === 'admin_area' && usuario.area === 'cromatografia') {
-    return ['converter', 'reports', 'storage', MODULO_TOMA_MUESTRAS]
+    return ['converter', 'reports', 'storage', 'agrofresh_lab', MODULO_TOMA_MUESTRAS]
   }
   if (usuario.tipoAcceso === 'admin_area' && usuario.area === 'postventa') {
     return ['trace', 'reports']
@@ -32,9 +32,9 @@ export function modulosPredeterminados(usuario: Pick<Usuario, 'tipoAcceso' | 'ar
 export function reportesPredeterminados(
   usuario: Pick<Usuario, 'tipoAcceso' | 'area'>,
 ): ReporteId[] {
-  if (usuario.tipoAcceso === 'admin_general') return ['laboratorio', 'emitir', 'postventa']
+  if (usuario.tipoAcceso === 'admin_general') return ['laboratorio', 'postventa']
   if (usuario.tipoAcceso === 'admin_area' && usuario.area === 'cromatografia')
-    return ['laboratorio', 'emitir']
+    return ['laboratorio']
   if (usuario.tipoAcceso === 'admin_area' && usuario.area === 'postventa') return ['postventa']
   return []
 }

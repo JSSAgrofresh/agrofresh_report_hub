@@ -32,7 +32,6 @@ const REPORTES: { id: ReporteId; nombre: string; descripcion: string }[] = [
     nombre: 'Reporte de laboratorio',
     descripcion: 'Consulta y gráficos de Cromatografía.',
   },
-  { id: 'emitir', nombre: 'Emitir reporte', descripcion: 'Emisión de informes de análisis.' },
   { id: 'postventa', nombre: 'Postventa', descripcion: 'Histórico e informes de Trace.' },
 ]
 

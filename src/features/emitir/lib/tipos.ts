@@ -19,6 +19,10 @@ export interface Solicitud {
   archivo: string
   campos: Record<string, string>
   analitos_solicitados: string[]
+  /** Con qué muestra física quedó cruzada, o `null` si todavía no llega. Es
+   * el mismo código que después trae el archivo del GC, así que al subir los
+   * resultados cada vial encuentra su solicitud sin emparejar nada a mano. */
+  codigo_muestra?: string | null
 }
 
 /** Una corrida del GC trae, además de las muestras de cliente, la curva de

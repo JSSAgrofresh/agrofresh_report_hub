@@ -8,6 +8,7 @@ export {
   obtenerConfiguracionInforme,
   guardarConfiguracionInforme,
   subirCruceABaseDeDatos,
+  cruzarConMuestra,
 } from './lib/api'
 export {
   buscarPorCodigoVial,
