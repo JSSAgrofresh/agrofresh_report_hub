@@ -14,6 +14,7 @@ const CONFIG_VACIA: InformeConfig = {
   aprobado_por_nombre: '',
   aprobado_por_cargo: '',
   incluir_analista: true,
+  incluir_analista_disponible: true,
 }
 
 export function ConfiguracionInformeModal({ onCerrar }: ConfiguracionInformeModalProps) {
@@ -34,6 +35,7 @@ export function ConfiguracionInformeModal({ onCerrar }: ConfiguracionInformeModa
   }
 
   const conAnalista = config?.incluir_analista ?? true
+  const puedeElegirAnalista = config?.incluir_analista_disponible ?? true
 
   async function guardar() {
     if (!config) return
@@ -74,6 +76,7 @@ export function ConfiguracionInformeModal({ onCerrar }: ConfiguracionInformeModa
                 <input
                   type="checkbox"
                   checked={conAnalista}
+                  disabled={!puedeElegirAnalista}
                   onChange={(e) => actualizar('incluir_analista', e.target.checked)}
                 />
                 <span>
@@ -82,9 +85,11 @@ export function ConfiguracionInformeModal({ onCerrar }: ConfiguracionInformeModa
                       un bloque en blanco con una raya se lee como un informe
                       al que le faltó algo. */}
                   <small>
-                    {conAnalista
-                      ? 'Aparece a la izquierda de la firma de aprobación.'
-                      : 'El informe sale solo con la firma de aprobación, abajo a la derecha.'}
+                    {!puedeElegirAnalista
+                      ? 'Falta correr la migración 0022 en el servidor. Hasta entonces el informe sale con las dos firmas y este check no se puede guardar.'
+                      : conAnalista
+                        ? 'Aparece a la izquierda de la firma de aprobación.'
+                        : 'El informe sale solo con la firma de aprobación, abajo a la derecha.'}
                   </small>
                 </span>
               </label>

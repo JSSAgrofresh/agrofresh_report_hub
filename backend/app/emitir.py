@@ -95,6 +95,10 @@ class InformeConfigOut(BaseModel):
     # Apagado, el informe sale con una sola firma -la de aprobación- abajo a
     # la derecha, en vez de dejar media hoja con una raya y un guión.
     incluir_analista: bool = True
+    # False mientras la migración 0022 no esté corrida. No se guarda: lo
+    # calcula el backend para que la pantalla pueda decir por qué el check no
+    # responde, en vez de aceptarlo y revertirlo sin explicar nada.
+    incluir_analista_disponible: bool = True
 
 
 _COLUMNAS_CONFIG = (
@@ -128,7 +132,7 @@ def leer_config_informe() -> dict:
         cur.execute(f"SELECT {columnas} FROM informe_config WHERE id = 1")
         fila = cur.fetchone()
     # Sin la columna, el informe sale como salía antes: con las dos firmas.
-    return {**dict(fila or {}), "incluir_analista": True}
+    return {**dict(fila or {}), "incluir_analista": True, "incluir_analista_disponible": False}
 
 
 @router.get("/config-informe")
@@ -164,8 +168,10 @@ def guardar_config_informe(body: InformeConfigOut) -> InformeConfigOut:
     except psycopg2.errors.UndefinedColumn:
         pass
 
-    # Falta la 0022: se guardan las firmas igual y el check se ignora, en vez
-    # de perder también lo que el usuario acaba de escribir.
+    # Falta la 0022: se guardan las firmas igual -no se pierde lo que el
+    # usuario acaba de escribir- pero el check vuelve marcado. Eso se avisa
+    # con `incluir_analista_disponible`: guardar en silencio algo que no se
+    # guardó es peor que no dejar guardarlo.
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(
             f"""
@@ -177,7 +183,7 @@ def guardar_config_informe(body: InformeConfigOut) -> InformeConfigOut:
             firmas,
         )
         fila = cur.fetchone()
-    return InformeConfigOut(**fila, incluir_analista=True)
+    return InformeConfigOut(**fila, incluir_analista=True, incluir_analista_disponible=False)
 
 
 class ResultadoAnalitoOut(BaseModel):
