@@ -4,7 +4,7 @@ import os
 import re
 import zipfile
 from datetime import date, datetime
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import openpyxl
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -26,10 +26,31 @@ from .solicitud_parser import parsear_solicitudes_html
 from .storage import _carpeta_raiz as _carpeta_raiz_storage, _nombre_seguro
 from .toma_muestras import carpeta_de_cliente, leer_solicitudes_de
 
-# El laboratorio está en Rancagua. La base guarda los instantes en UTC, que es
-# lo correcto, pero la fecha que el operador espera ver es la de acá: una
-# muestra recibida a las 21:00 no se recibió mañana.
-ZONA_LABORATORIO = ZoneInfo("America/Santiago")
+def _zona_laboratorio() -> ZoneInfo | None:
+    """La zona del laboratorio, o None para usar la del sistema.
+
+    El laboratorio está en Rancagua. La base guarda los instantes en UTC, que
+    es lo correcto, pero la fecha que el operador espera ver es la de acá: una
+    muestra recibida a las 21:00 no se recibió mañana.
+
+    En Linux las zonas salen del sistema operativo; en Windows hay que
+    instalar el paquete `tzdata` (está en requirements.txt). Si falta, esto
+    devuelve None y `astimezone(None)` convierte a la hora local del equipo
+    -que en este servidor es la misma de Rancagua-. Es un dato de fecha en un
+    listado: no justifica que el backend entero no arranque.
+    """
+    try:
+        return ZoneInfo("America/Santiago")
+    except ZoneInfoNotFoundError:
+        logging.getLogger(__name__).warning(
+            "Sin base de zonas horarias (falta el paquete tzdata): la fecha de "
+            "recepción usará la hora local del servidor. Instálalo con "
+            "'pip install tzdata' para no depender del reloj del equipo."
+        )
+        return None
+
+
+ZONA_LABORATORIO = _zona_laboratorio()
 
 _PAT_CODIGO_COLUMNA = re.compile(r"\(([A-Za-z]+)\)\s*$")
 _PREFIJO_RESULTADO = "Resultado:"
