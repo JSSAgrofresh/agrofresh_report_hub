@@ -96,7 +96,7 @@ def test_una_solicitud_que_no_existe_avisa(dos_solicitudes):
     assert e.value.status_code == 404
 
 
-def test_el_listado_del_laboratorio_devuelve_el_cruce(dos_solicitudes, monkeypatch):
+def test_el_listado_del_laboratorio_devuelve_el_cruce(dos_solicitudes, monkeypatch, tmp_path):
     """El PUT puede guardar bien y aun así la pantalla mostrar cero si el
     endpoint de listado omite codigo_muestra al serializar la solicitud."""
     primera, _ = dos_solicitudes
@@ -107,7 +107,9 @@ def test_el_listado_del_laboratorio_devuelve_el_cruce(dos_solicitudes, monkeypat
         "leer_solicitudes_de",
         lambda laboratorio: [(primera.archivo, datos)],
     )
-    monkeypatch.setattr(emitir.os.path, "isdir", lambda _: False)
+    # Sin carpeta legado: se apunta la raíz a un directorio vacío. Parchar
+    # os.path.isdir lo hace global y revienta os.makedirs(exist_ok=True).
+    monkeypatch.setattr(emitir, "_carpeta_raiz_storage", lambda: str(tmp_path))
 
     listado = emitir.listar_solicitudes()
 
