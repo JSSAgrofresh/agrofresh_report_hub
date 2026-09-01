@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import psycopg2.errors
 from psycopg2.extras import Json
 
 from .db import conexion, cursor_dict
@@ -93,15 +94,24 @@ def buscar(archivo: str) -> dict | None:
 
 
 def esta_poblado() -> bool:
-    """¿Ya se corrió la indexación?
+    """¿Se puede usar el índice?
 
-    Mientras el índice esté vacío, los listados siguen leyendo R2 como antes.
-    Así, actualizar el sistema sin haber corrido el script todavía no deja a
-    nadie sin ver sus solicitudes.
+    False mientras esté vacío -o mientras la tabla ni siquiera exista-, y en
+    ese caso los listados siguen leyendo los archivos como antes.
+
+    Que la tabla falte no es un caso raro: pasa entre actualizar el código y
+    correr la migración, que son dos pasos separados y en ese orden. Sin este
+    `except`, esa ventana dejaba a todos con error 500 al abrir Toma de
+    muestras. Se atrapa solo `UndefinedTable`: cualquier otro problema de base
+    de datos tiene que salir a la luz, no quedar tapado detrás de una lectura
+    silenciosa de R2.
     """
-    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT EXISTS (SELECT 1 FROM solicitud_archivo) AS hay")
-        return bool(cur.fetchone()["hay"])
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute("SELECT EXISTS (SELECT 1 FROM solicitud_archivo) AS hay")
+            return bool(cur.fetchone()["hay"])
+    except psycopg2.errors.UndefinedTable:
+        return False
 
 
 def olvidar(cur, archivo: str) -> None:
@@ -111,3 +121,29 @@ def olvidar(cur, archivo: str) -> None:
     Excel ya no existe, y abrirla daría 404 sin explicación.
     """
     cur.execute("DELETE FROM solicitud_archivo WHERE archivo = %s", (archivo,))
+
+
+def anotar(archivo: str, datos: dict, r2_key: str | None = None) -> None:
+    """Guarda una solicitud recién creada, abriendo su propia conexión.
+
+    Si el índice todavía no existe -código actualizado, migración sin
+    correr-, no hace nada: el archivo ya quedó guardado, que es lo que
+    importa, y la fila la va a poner `scripts/indexar_solicitudes.py` cuando
+    se corra. Crear una solicitud no puede fallar por un índice que aún no
+    está.
+    """
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            guardar(cur, archivo, datos, r2_key)
+    except psycopg2.errors.UndefinedTable:
+        pass
+
+
+def olvidar_archivo(archivo: str) -> None:
+    """Saca del índice una solicitud borrada. Tolera que el índice no exista,
+    por lo mismo que `anotar`."""
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            olvidar(cur, archivo)
+    except psycopg2.errors.UndefinedTable:
+        pass

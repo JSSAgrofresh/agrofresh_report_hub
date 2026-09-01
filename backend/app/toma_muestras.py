@@ -491,8 +491,7 @@ def crear_solicitud(body: SolicitudIn) -> Solicitud:
     # y la subida fallara, el listado mostraría una solicitud cuyo Excel no
     # existe. Al revés es recuperable — un archivo sin indexar se arregla
     # volviendo a correr scripts/indexar_solicitudes.py.
-    with conexion() as conn, cursor_dict(conn) as cur:
-        indice_solicitudes.guardar(cur, nombre_archivo, datos, r2_key)
+    indice_solicitudes.anotar(nombre_archivo, datos, r2_key)
     return Solicitud(archivo=nombre_archivo, **datos)
 
 
@@ -508,8 +507,7 @@ def eliminar_solicitud(archivo: str) -> dict[str, str]:
         os.remove(ruta)
     # Sacarla también del índice: si quedara anotada, el listado seguiría
     # mostrando una solicitud cuyo archivo ya no existe.
-    with conexion() as conn, cursor_dict(conn) as cur:
-        indice_solicitudes.olvidar(cur, os.path.basename(archivo))
+    indice_solicitudes.olvidar_archivo(os.path.basename(archivo))
     return {"estado": "eliminado"}
 
 
