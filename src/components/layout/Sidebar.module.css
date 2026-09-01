@@ -14,7 +14,10 @@
   overflow: hidden;
   background: linear-gradient(165deg, #24391a 0%, #345424 50%, #45681f 100%);
   padding: var(--space-5) var(--space-4);
-  transition: transform 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    width 0.26s ease,
+    padding 0.26s ease;
 }
 
 .brand {
@@ -65,22 +68,30 @@
   }
 }
 
-/* El logo es verde y amarillo sobre fondo claro. Antes se pintaba blanco con
-   un filtro para que resaltara contra el verde del sidebar, lo que perdía sus
-   colores; en vez de eso va sobre un panel blanco, que es como está pensado
-   para usarse. */
+/* El PNG ya trae transparencia, así que va directo sobre el verde: el logo
+   vive en el borde superior, que es la parte más oscura del degradado
+   (#24391A). Medido ahí, el verde del logo da 4,3:1 y el amarillo 6,8:1 —
+   suficiente. Más abajo el degradado aclara y el verde bajaría a 2,2:1, pero
+   el logo nunca llega hasta ahí.
+
+   La sombra suave lo despega del fondo sin repintarlo: pintarlo blanco con un
+   filtro, que fue el primer intento, le quitaba sus colores. */
 .marco {
-  display: inline-flex;
-  padding: 9px 14px;
-  border-radius: var(--radius-md);
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  display: block;
+  overflow: hidden;
+  max-height: 80px;
+  opacity: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+  transition:
+    max-height 0.26s ease,
+    opacity 0.2s ease 0.06s;
 }
 
 .logo {
-  height: 48px;
+  height: 60px;
   width: auto;
   display: block;
+  transition: height 0.26s ease;
 }
 
 .nav {
@@ -90,6 +101,28 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* La barra por defecto es clara y ancha: sobre el verde oscuro se ve como
+     una franja blanca pegada al costado. Acá va fina y translúcida, y solo
+     se marca al pasar el mouse. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+
+.nav:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.34);
 }
 
 .navLink {
@@ -284,17 +317,17 @@
     padding-right: var(--space-2);
   }
 
-  /* El logo es ancho (unas 2,5 veces más que alto). Plegada la barra hay
-     74px, así que se limita por ANCHO y no por alto: con `height: 30px` y
-     `width: auto` medía ~75px y se salía de la barra. */
+  /* El logo se va del todo: en 74px no cabe sin encogerlo hasta que no se
+     lee. Se apaga con `max-height` y opacidad -no con `display: none`, que no
+     se puede animar-, así que se va plegando en vez de desaparecer de golpe.
+     Al volver, la opacidad entra un pelo después de que ya empezó a abrirse
+     el espacio: aparecer antes de tener dónde se ve como un salto. */
   .colapsada .marco {
-    padding: 5px 6px;
-    max-width: 100%;
-  }
-
-  .colapsada .logo {
-    width: 46px;
-    height: auto;
+    max-height: 0;
+    opacity: 0;
+    transition:
+      max-height 0.26s ease,
+      opacity 0.14s ease;
   }
 
   /* Se ocultan con display:none y no con opacidad: si quedaran en el flujo,
@@ -303,8 +336,7 @@
   .colapsada .seccion,
   .colapsada .estadoPill,
   .colapsada .usuarioInfo,
-  .colapsada .estadoBd span,
-  .colapsada .brand > .marco + .plegar ~ * {
+  .colapsada .estadoBd span {
     display: none;
   }
 
@@ -334,9 +366,9 @@
     border-top: 1px solid rgba(255, 255, 255, 0.14);
   }
 
+  /* Sin logo, el botón queda solo y centrado. */
   .colapsada .brand {
-    flex-direction: column;
-    gap: var(--space-2);
+    gap: 0;
     margin-bottom: var(--space-4);
   }
 }
@@ -370,5 +402,16 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+/* Quien pidió menos movimiento en su sistema no quiere que el menú se pliegue
+   con animación: el cambio ocurre igual, pero de una vez. */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .marco,
+  .logo,
+  .plegar svg {
+    transition: none;
   }
 }
