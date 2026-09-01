@@ -42,18 +42,30 @@ def main() -> None:
         )
         resultados = cur.fetchone()
 
-        # Los códigos que aparecen en los datos pero no están en el catálogo:
-        # esta es la lista de lo que hay que crear.
+        # Se separan dos cosas que se ven iguales pero no lo son: un código
+        # que el catálogo no tiene, y uno que sí tiene pero cuya fila quedó
+        # suelta igual (dos resultados del mismo analito en una solicitud: la
+        # tabla solo admite uno, así que el segundo se queda sin enlazar).
         cur.execute(
             """
-            SELECT r.analito_raw AS codigo, count(*) AS veces
+            SELECT r.analito_raw AS codigo,
+                   s.laboratorio,
+                   count(*) AS veces,
+                   EXISTS (
+                     SELECT 1 FROM analito a
+                      WHERE a.codigo = r.analito_raw AND a.laboratorio = s.laboratorio
+                   ) AS en_catalogo
               FROM resultado r
+              JOIN solicitud s ON s.id = r.solicitud_id
              WHERE r.analito_id IS NULL AND r.analito_raw IS NOT NULL
-             GROUP BY r.analito_raw
+             GROUP BY r.analito_raw, s.laboratorio
              ORDER BY count(*) DESC
             """
         )
-        faltantes = cur.fetchall()
+        sueltos = cur.fetchall()
+
+    faltantes = [f for f in sueltos if not f["en_catalogo"]]
+    duplicados = [f for f in sueltos if f["en_catalogo"]]
 
     print(f"\n   {en_catalogo:>6}  analito(s) en el catálogo")
     print(f"   {con_limite:>6}  de ellos con límite residual configurado")
@@ -64,18 +76,27 @@ def main() -> None:
         print("   El catálogo está VACÍO. Report dibuja los puntos igual, pero sin")
         print("   límites contra qué compararlos: por eso Cumplimiento sale en «—».\n")
 
-    if not faltantes:
+    if not sueltos:
         print("   No hay códigos sueltos en los datos.\n")
         return
 
-    print("   Códigos que aparecen en los datos y NO están en el catálogo.")
-    print("   Estos son los que hay que crear en Report → Gestionar analitos:\n")
-    for fila in faltantes:
-        print(f"      {fila['codigo']:<14} {fila['veces']:>6} resultado(s)")
-    print(
-        f"\n   Al crearlos, los {resultados['sueltos']} resultado(s) sueltos NO se enlazan solos:"
-        "\n   hay que volver a cargar esos archivos en Ingest para que queden unidos.\n"
-    )
+    if faltantes:
+        print("   Códigos que aparecen en los datos y NO están en el catálogo:\n")
+        for fila in faltantes:
+            print(f"      {fila['codigo']:<14} {fila['laboratorio']:<12} {fila['veces']:>6} resultado(s)")
+        print(
+            "\n   Para crearlos y enlazar sus datos de una vez:"
+            "\n      python scripts/sembrar_catalogo_analitos.py\n"
+        )
+
+    if duplicados:
+        total = sum(f["veces"] for f in duplicados)
+        print(f"   Otros {total} resultado(s) tienen su analito en el catálogo pero quedaron")
+        print("   sueltos igual: son un segundo resultado del mismo analito en la misma")
+        print("   solicitud, y la tabla solo admite uno. Hay que revisarlos a mano.\n")
+        for fila in duplicados:
+            print(f"      {fila['codigo']:<14} {fila['laboratorio']:<12} {fila['veces']:>6} resultado(s)")
+        print()
 
 
 if __name__ == "__main__":
