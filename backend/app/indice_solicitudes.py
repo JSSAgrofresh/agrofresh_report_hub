@@ -72,6 +72,11 @@ def _fila_a_par(fila: dict) -> tuple[str, dict]:
     datos = fila["datos"]
     datos = json.loads(datos) if isinstance(datos, str) else dict(datos)
     datos["codigo_muestra"] = fila.get("codigo_muestra")
+    # El momento del cruce ES el momento en que la muestra llegó al mesón:
+    # se escanea la solicitud, se escanea el tubo y se cruzan ahí mismo. Por
+    # eso la recepción no se pregunta en ninguna parte, se lee de acá.
+    cruzado_en = fila.get("cruzado_en")
+    datos["recepcion_en"] = cruzado_en.isoformat() if cruzado_en else None
     return fila["archivo"], datos
 
 
@@ -84,11 +89,12 @@ def listar(laboratorio: str | None = None) -> list[tuple[str, dict]]:
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         if laboratorio is None:
             cur.execute(
-                "SELECT archivo, datos, codigo_muestra FROM solicitud_archivo ORDER BY creado_en DESC"
+                "SELECT archivo, datos, codigo_muestra, cruzado_en FROM solicitud_archivo"
+                " ORDER BY creado_en DESC"
             )
         else:
             cur.execute(
-                "SELECT archivo, datos, codigo_muestra FROM solicitud_archivo"
+                "SELECT archivo, datos, codigo_muestra, cruzado_en FROM solicitud_archivo"
                 " WHERE laboratorio = %s ORDER BY creado_en DESC",
                 (laboratorio,),
             )
@@ -99,7 +105,8 @@ def buscar(archivo: str) -> dict | None:
     """Los datos de una solicitud, o None si no está indexada."""
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         cur.execute(
-            "SELECT archivo, datos, codigo_muestra FROM solicitud_archivo WHERE archivo = %s",
+            "SELECT archivo, datos, codigo_muestra, cruzado_en FROM solicitud_archivo"
+            " WHERE archivo = %s",
             (archivo,),
         )
         fila = cur.fetchone()

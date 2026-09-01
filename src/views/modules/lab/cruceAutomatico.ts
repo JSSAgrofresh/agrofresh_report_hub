@@ -32,10 +32,7 @@ export function construirCrucesAutomaticos(
     })
 }
 
-export function construirFilasExportables(
-  cruces: CruceAutomatico[],
-  fechaRecepcion: string,
-): FilaCruce[] {
+export function construirFilasExportables(cruces: CruceAutomatico[]): FilaCruce[] {
   return cruces
     .filter((c) => c.muestra && c.analitosFaltantes.length === 0)
     .map(({ solicitud, muestra }) => {
@@ -49,7 +46,8 @@ export function construirFilasExportables(
         resultados_por_codigo: resultadosPorCodigo,
         codigo_vial: muestra?.codigo ?? null,
         fecha_inyeccion: muestra?.fecha_inyeccion ?? null,
-        fecha_recepcion: fechaRecepcion || null,
+        // La recepción es el momento del cruce, ya guardado en la solicitud.
+        fecha_recepcion: solicitud.fecha_recepcion ?? null,
       }
     })
 }

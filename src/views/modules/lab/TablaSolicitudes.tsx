@@ -5,6 +5,14 @@ import type { Solicitud } from '@/features/emitir'
 import styles from './TablaSolicitudes.module.css'
 
 
+/** El backend entrega la recepción como "YYYY-MM-DD"; en el mesón se lee
+ * al derecho. Sin cruce todavía no hay recepción que mostrar. */
+function formatearFecha(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const [anio, mes, dia] = iso.split('-')
+  return dia ? `${dia}-${mes}-${anio}` : iso
+}
+
 type Filtro = 'todas' | 'cruzadas' | 'pendientes'
 
 
@@ -53,7 +61,7 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
 
     if (!columnas.includes('N° Solicitud')) columnas.unshift('N° Solicitud')
     const indiceSolicitud = columnas.indexOf('N° Solicitud')
-    columnas.splice(indiceSolicitud + 1, 0, 'N° Muestra')
+    columnas.splice(indiceSolicitud + 1, 0, 'N° Muestra', 'Fecha Recepción', 'Hora Recepción')
     if (!columnas.includes('Analitos')) columnas.push('Analitos')
 
     const filas = solicitudesCruzadas.map((solicitud) => {
@@ -63,6 +71,10 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
           fila[columna] = solicitud.campos[columna] || solicitud.archivo
         } else if (columna === 'N° Muestra') {
           fila[columna] = solicitud.codigo_muestra || ''
+        } else if (columna === 'Fecha Recepción') {
+          fila[columna] = formatearFecha(solicitud.fecha_recepcion).replace('—', '')
+        } else if (columna === 'Hora Recepción') {
+          fila[columna] = solicitud.hora_recepcion || ''
         } else if (columna === 'Sold To') {
           fila[columna] = solicitud.campos[columna] || solicitud.campos['Sold To (Nombre)'] || ''
         } else if (columna === 'Ship To') {
@@ -144,6 +156,8 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
             <tr>
               <th>N° Solicitud</th>
               <th>N° Muestra</th>
+              <th>Fecha recepción</th>
+              <th>Hora recepción</th>
               <th>Fecha muestreo</th>
               <th>Sold To</th>
               <th>Especie</th>
@@ -159,6 +173,8 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
                 <td className={styles.muestra}>
                   {s.codigo_muestra ?? <span className={styles.pendiente}>esperando muestra</span>}
                 </td>
+                <td className={styles.mono}>{formatearFecha(s.fecha_recepcion)}</td>
+                <td className={styles.mono}>{s.hora_recepcion || '—'}</td>
                 <td className={styles.mono}>{s.campos['Fecha Muestreo'] || '—'}</td>
                 <td>{s.campos['Sold To (Nombre)'] || '—'}</td>
                 <td>{s.campos['Especie'] || '—'}</td>
@@ -184,7 +200,7 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
             ))}
             {visibles.length === 0 && (
               <tr>
-                <td colSpan={8} className={styles.vacio}>
+                <td colSpan={10} className={styles.vacio}>
                   {solicitudes === null
                     ? 'Cargando…'
                     : buscar

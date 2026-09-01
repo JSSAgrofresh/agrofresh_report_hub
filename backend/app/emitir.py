@@ -4,6 +4,7 @@ import os
 import re
 import zipfile
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import openpyxl
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -24,6 +25,11 @@ from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS
 from .solicitud_parser import parsear_solicitudes_html
 from .storage import _carpeta_raiz as _carpeta_raiz_storage, _nombre_seguro
 from .toma_muestras import carpeta_de_cliente, leer_solicitudes_de
+
+# El laboratorio está en Rancagua. La base guarda los instantes en UTC, que es
+# lo correcto, pero la fecha que el operador espera ver es la de acá: una
+# muestra recibida a las 21:00 no se recibió mañana.
+ZONA_LABORATORIO = ZoneInfo("America/Santiago")
 
 _PAT_CODIGO_COLUMNA = re.compile(r"\(([A-Za-z]+)\)\s*$")
 _PREFIJO_RESULTADO = "Resultado:"
@@ -64,14 +70,17 @@ class InformeConfigOut(BaseModel):
     analizado_por_cargo: str
     aprobado_por_nombre: str
     aprobado_por_cargo: str
+    # Apagado, el informe sale con una sola firma -la de aprobación- abajo a
+    # la derecha, en vez de dejar media hoja con una raya y un guión.
+    incluir_analista: bool = True
 
 
 @router.get("/config-informe")
 def obtener_config_informe() -> InformeConfigOut:
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(
-            "SELECT analizado_por_nombre, analizado_por_cargo, aprobado_por_nombre, aprobado_por_cargo "
-            "FROM informe_config WHERE id = 1"
+            "SELECT analizado_por_nombre, analizado_por_cargo, aprobado_por_nombre,"
+            " aprobado_por_cargo, incluir_analista FROM informe_config WHERE id = 1"
         )
         fila = cur.fetchone()
         if not fila:
@@ -87,15 +96,18 @@ def guardar_config_informe(body: InformeConfigOut) -> InformeConfigOut:
             UPDATE informe_config
             SET analizado_por_nombre = %s, analizado_por_cargo = %s,
                 aprobado_por_nombre = %s, aprobado_por_cargo = %s,
+                incluir_analista = %s,
                 actualizado_en = now()
             WHERE id = 1
-            RETURNING analizado_por_nombre, analizado_por_cargo, aprobado_por_nombre, aprobado_por_cargo
+            RETURNING analizado_por_nombre, analizado_por_cargo, aprobado_por_nombre,
+                      aprobado_por_cargo, incluir_analista
             """,
             (
                 body.analizado_por_nombre.strip(),
                 body.analizado_por_cargo.strip(),
                 body.aprobado_por_nombre.strip(),
                 body.aprobado_por_cargo.strip(),
+                body.incluir_analista,
             ),
         )
         return InformeConfigOut(**cur.fetchone())
@@ -346,6 +358,29 @@ class SolicitudOut(BaseModel):
     campos: dict[str, str]
     analitos_solicitados: list[str]
     codigo_muestra: str | None = None
+    # Cuándo llegó la muestra al laboratorio. No se pregunta en ningún
+    # formulario: se llena solo con el instante del cruce.
+    fecha_recepcion: str | None = None
+    hora_recepcion: str | None = None
+
+
+def _partir_recepcion(valor: str | None) -> tuple[str | None, str | None]:
+    """El instante del cruce, partido en el día y la hora que ve el operador.
+
+    Llega como timestamp con zona ("2026-09-01T18:03:41.779034+00:00"). Se
+    convierte a la hora local del laboratorio antes de partirlo: si no, una
+    muestra recibida a las 21:00 en Rancagua aparecería recibida al día
+    siguiente.
+    """
+    if not valor:
+        return None, None
+    try:
+        momento = datetime.fromisoformat(valor)
+    except ValueError:
+        return None, None
+    if momento.tzinfo is not None:
+        momento = momento.astimezone(ZONA_LABORATORIO)
+    return momento.strftime("%Y-%m-%d"), momento.strftime("%H:%M")
 
 
 def _fecha_iso_a_ddmmyyyy(valor: str | None) -> str | None:
@@ -398,12 +433,15 @@ def listar_solicitudes() -> list[SolicitudOut]:
     # R2 o disco según cómo esté levantado el sistema: lo resuelve
     # `leer_solicitudes_de`, no este módulo.
     for nombre, datos in leer_solicitudes_de(LABORATORIO_SOLICITUDES):
+        fecha_recepcion, hora_recepcion = _partir_recepcion(datos.get("recepcion_en"))
         salida.append(
             SolicitudOut(
                 archivo=nombre,
                 campos=_mapear_solicitud_a_campos(datos),
                 analitos_solicitados=datos.get("analitos_solicitados") or [],
                 codigo_muestra=datos.get("codigo_muestra"),
+                fecha_recepcion=fecha_recepcion,
+                hora_recepcion=hora_recepcion,
             )
         )
 
@@ -531,8 +569,8 @@ def generar_informes_pdf(filas: list[FilaCruceIn]) -> StreamingResponse:
     with conexion() as conn, cursor_dict(conn) as cur:
         folios = _asignar_folios(cur, len(filas))
         cur.execute(
-            "SELECT analizado_por_nombre, analizado_por_cargo, aprobado_por_nombre, aprobado_por_cargo "
-            "FROM informe_config WHERE id = 1"
+            "SELECT analizado_por_nombre, analizado_por_cargo, aprobado_por_nombre,"
+            " aprobado_por_cargo, incluir_analista FROM informe_config WHERE id = 1"
         )
         config_fila = cur.fetchone() or {}
 
@@ -549,6 +587,7 @@ def generar_informes_pdf(filas: list[FilaCruceIn]) -> StreamingResponse:
             analizado_por_cargo=config_fila.get("analizado_por_cargo") or "",
             aprobado_por_nombre=config_fila.get("aprobado_por_nombre") or "",
             aprobado_por_cargo=config_fila.get("aprobado_por_cargo") or "",
+            incluir_analista=config_fila.get("incluir_analista", True),
         )
         _archivar_informe(fila.campos, folio, pdf_bytes)
         return pdf_bytes
