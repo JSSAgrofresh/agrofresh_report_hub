@@ -3,6 +3,9 @@ export interface ResultadoAnalito {
   codigo: string | null
   area: number | null
   amount: number | null
+  /** Tiempo de retención en minutos. Solo lo usa la vista de detalle; el
+   * cruce y el informe no lo miran. */
+  rettime?: number | null
 }
 
 export interface MuestraGC {
@@ -16,6 +19,13 @@ export interface Solicitud {
   archivo: string
   campos: Record<string, string>
   analitos_solicitados: string[]
+}
+
+/** Una corrida del GC trae, además de las muestras de cliente, la curva de
+ * calibración, blancos y controles de limpieza. El cruce los descarta —no son
+ * de nadie—, pero al revisar la corrida son justamente lo que se mira. */
+export interface MuestraGCDetalle extends MuestraGC {
+  es_muestra: boolean
 }
 
 export interface FilaCruce {

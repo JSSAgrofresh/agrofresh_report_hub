@@ -101,6 +101,8 @@ class ResultadoAnalitoOut(BaseModel):
     codigo: str | None
     area: float | None
     amount: float | None
+    # Solo para la vista de detalle; el cruce y el informe no lo usan.
+    rettime: float | None = None
 
 
 class MuestraGCOut(BaseModel):
@@ -142,12 +144,162 @@ async def parsear_gc(archivo: UploadFile = File(...)) -> list[MuestraGCOut]:
                     codigo=NOMBRE_GC_A_CODIGO.get(r.analito),
                     area=r.area,
                     amount=r.amount,
+                    rettime=r.rettime,
                 )
                 for r in m.resultados
             ],
         )
         for m in muestras_reales
     ]
+
+
+# ---------------------------------------------------------------------------
+# Vista de detalle del archivo del GC
+#
+# Reproduce lo que antes hacía una herramienta HTML aparte: pasar el reporte
+# del equipo a planilla. No toca el cruce ni el informe -es solo otra forma de
+# mirar el mismo archivo ya cargado-, así que recibe las muestras ya parseadas
+# y no vuelve a leer el .txt.
+#
+# Aquella herramienta sacaba dos hojas pivote, una de área y otra de ppm. Acá
+# van juntas: leer un vial obligaba a saltar de hoja en hoja para comparar su
+# concentración contra su área, que es justo lo que se hace al revisar.
+# ---------------------------------------------------------------------------
+
+HOJA_DETALLE = "Datos completos"
+HOJA_POR_VIAL = "Área y PPM por vial"
+
+
+class MuestraGCDetalleOut(MuestraGCOut):
+    """Una corrida del GC incluye, además de las muestras de cliente, la curva
+    de calibración, blancos y controles de limpieza. El cruce los descarta -no
+    son de nadie- pero al revisar la corrida son justamente lo que se mira
+    para saber si el equipo estaba midiendo bien."""
+
+    es_muestra: bool
+
+
+@router.post("/parsear-gc/completo")
+async def parsear_gc_completo(archivo: UploadFile = File(...)) -> list[MuestraGCDetalleOut]:
+    """El archivo del GC entero, para la vista de detalle.
+
+    Existe aparte de /parsear-gc a propósito: ese devuelve solo las muestras
+    cruzables, y meter acá las curvas y los blancos haría que el escáner de
+    viales pudiera "encontrar" un blanco. Son dos preguntas distintas sobre el
+    mismo archivo, y conviene que sigan siéndolo.
+    """
+    contenido = await archivo.read()
+    try:
+        muestras = parsear_gc_txt(contenido)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    if not muestras:
+        raise HTTPException(400, "No se encontró ninguna muestra en el archivo. ¿Es el reporte del GC correcto?")
+
+    return [
+        MuestraGCDetalleOut(
+            codigo=m.codigo,
+            seq_line=m.seq_line,
+            fecha_inyeccion=m.fecha_inyeccion,
+            es_muestra=es_codigo_puro(m.codigo),
+            resultados=[
+                ResultadoAnalitoOut(
+                    analito=r.analito,
+                    codigo=NOMBRE_GC_A_CODIGO.get(r.analito),
+                    area=r.area,
+                    amount=r.amount,
+                    rettime=r.rettime,
+                )
+                for r in m.resultados
+            ],
+        )
+        for m in muestras
+    ]
+
+
+class DetalleGCIn(BaseModel):
+    """Las muestras tal como las devolvió /parsear-gc/completo."""
+
+    muestras: list[MuestraGCDetalleOut]
+
+
+def _compuestos_en_orden(muestras: list[MuestraGCOut]) -> list[str]:
+    """Los compuestos en el orden en que aparecen en el reporte, que es el
+    orden del método del equipo — no alfabético, que a nadie le sirve."""
+    vistos: list[str] = []
+    for m in muestras:
+        for r in m.resultados:
+            if r.analito not in vistos:
+                vistos.append(r.analito)
+    return vistos
+
+
+@router.post("/detalle-gc/excel")
+def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
+    if not body.muestras:
+        raise HTTPException(400, "No hay muestras para exportar.")
+
+    compuestos = _compuestos_en_orden(body.muestras)
+    wb = openpyxl.Workbook()
+
+    # ── Hoja 1: una fila por compuesto de cada vial, como sale del equipo ──
+    ws = wb.active
+    ws.title = HOJA_DETALLE
+    encabezados = [
+        "Vial", "Tipo", "Seq Line", "Fecha Inyección",
+        "RetTime (min)", "Área (pA*s)", "Amount (ppm)", "Compuesto",
+    ]
+    for col, texto in enumerate(encabezados, start=1):
+        ws.cell(row=1, column=col, value=texto)
+    fila = 2
+    for m in body.muestras:
+        for r in m.resultados:
+            for col, valor in enumerate(
+                [
+                    m.codigo, "Muestra" if m.es_muestra else "Control",
+                    m.seq_line, m.fecha_inyeccion, r.rettime, r.area, r.amount, r.analito,
+                ],
+                start=1,
+            ):
+                ws.cell(row=fila, column=col, value=valor)
+            fila += 1
+    ws.freeze_panes = "A2"
+    for col, ancho in zip("ABCDEFGH", (16, 10, 9, 22, 13, 14, 14, 18)):
+        ws.column_dimensions[col].width = ancho
+
+    # ── Hoja 2: un vial por fila, con ppm y área de cada compuesto pegados ──
+    ws2 = wb.create_sheet(HOJA_POR_VIAL)
+    ws2.cell(row=1, column=1, value="Seq Line")
+    ws2.cell(row=1, column=2, value="Vial")
+    ws2.cell(row=1, column=3, value="Tipo")
+    for i, compuesto in enumerate(compuestos):
+        ws2.cell(row=1, column=4 + i * 2, value=f"{compuesto} ppm")
+        ws2.cell(row=1, column=5 + i * 2, value=f"{compuesto} área")
+    for fila_idx, m in enumerate(body.muestras, start=2):
+        ws2.cell(row=fila_idx, column=1, value=m.seq_line)
+        ws2.cell(row=fila_idx, column=2, value=m.codigo)
+        ws2.cell(row=fila_idx, column=3, value="Muestra" if m.es_muestra else "Control")
+        por_analito = {r.analito: r for r in m.resultados}
+        for i, compuesto in enumerate(compuestos):
+            r = por_analito.get(compuesto)
+            ws2.cell(row=fila_idx, column=4 + i * 2, value=r.amount if r else None)
+            ws2.cell(row=fila_idx, column=5 + i * 2, value=r.area if r else None)
+    ws2.freeze_panes = "D2"
+    ws2.column_dimensions["A"].width = 9
+    ws2.column_dimensions["B"].width = 18
+    ws2.column_dimensions["C"].width = 10
+    for col in range(4, 4 + len(compuestos) * 2):
+        ws2.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 17
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    nombre = f"Resultados_GC_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
 
 
 class SolicitudOut(BaseModel):

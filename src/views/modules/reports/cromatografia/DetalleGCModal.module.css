@@ -1,0 +1,206 @@
+.fondo {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.5);
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  z-index: 60;
+}
+
+.caja {
+  background: #fff;
+  border-radius: var(--radius-md);
+  width: min(1400px, 100%);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.24);
+  overflow: hidden;
+}
+
+/* ── Cabecera ──────────────────────────────────────────────────────── */
+
+.cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.cabecera h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.subtitulo {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+}
+
+.cerrar {
+  border: none;
+  background: none;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.cerrar:hover { color: var(--color-danger); }
+
+/* ── Pestañas ──────────────────────────────────────────────────────── */
+
+.barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  flex-wrap: wrap;
+}
+
+.pestanas {
+  display: flex;
+  gap: 2px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+}
+
+.pestana,
+.pestanaActiva {
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+}
+
+.pestana:hover { color: var(--color-primary); }
+
+.pestanaActiva {
+  background: #fff;
+  color: var(--color-text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+}
+
+.filtro {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+/* ── Tabla ─────────────────────────────────────────────────────────── */
+
+.tablaCaja {
+  flex: 1;
+  overflow: auto;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabla {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.tabla thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-bg);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-strong);
+  z-index: 1;
+}
+
+/* Segunda fila del encabezado en la vista por vial: va bajo la primera. */
+.tabla thead tr:nth-child(2) th {
+  top: 29px;
+}
+
+.grupo {
+  text-align: center !important;
+  border-left: 1px solid var(--color-border);
+  color: var(--color-primary) !important;
+}
+
+.tabla td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabla tbody tr:hover td {
+  background: #f6f9f2;
+}
+
+.num,
+.numTenue {
+  text-align: right;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+/* El área acompaña al ppm: se muestra más apagada para que la vista se lea
+   como "una columna por compuesto" y no como el doble de columnas. */
+.numTenue {
+  color: var(--color-text-faint);
+}
+
+.mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.tipo {
+  font-size: 11px;
+  color: var(--color-text-faint);
+}
+
+/* Curvas, blancos y controles: presentes pero en segundo plano. */
+.control td {
+  background: #fbfbf9;
+  color: var(--color-text-muted);
+}
+
+/* ── Pie ───────────────────────────────────────────────────────────── */
+
+.pie {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.conteo {
+  font-size: 12px;
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  font-size: 12.5px;
+  color: var(--color-danger);
+}
+
+.pie > :last-child {
+  margin-left: auto;
+}

@@ -13,11 +13,20 @@ import {
   descargarInformesPDF,
   listarSolicitudes,
   parsearGC,
+  parsearGCCompleto,
   subirCruceABaseDeDatos,
 } from '@/features/emitir'
-import type { FilaCruce, FilaSubida, MuestraGC, ResultadoAnalito, Solicitud } from '@/features/emitir'
+import type {
+  FilaCruce,
+  FilaSubida,
+  MuestraGC,
+  MuestraGCDetalle,
+  ResultadoAnalito,
+  Solicitud,
+} from '@/features/emitir'
 import { EscanerSolicitud } from './EscanerSolicitud'
 import { EscanerVial } from './EscanerVial'
+import { DetalleGCModal } from './DetalleGCModal'
 import { SolicitudFichaModal } from './SolicitudFichaModal'
 import { ConfiguracionInformeModal } from './ConfiguracionInformeModal'
 import styles from './CromatografiaEmitirView.module.css'
@@ -91,6 +100,12 @@ export function CromatografiaEmitirView() {
   const [cargandoGC, setCargandoGC] = useState(false)
   const [errorGC, setErrorGC] = useState<string | null>(null)
   const [arrastrandoGC, setArrastrandoGC] = useState(false)
+  // El archivo original se guarda para poder pedir el detalle sin obligar a
+  // volver a cargarlo: la vista de detalle necesita también las curvas y los
+  // blancos, que /parsear-gc descarta por no ser cruzables.
+  const [archivoGC, setArchivoGC] = useState<File | null>(null)
+  const [detalleGC, setDetalleGC] = useState<MuestraGCDetalle[] | null>(null)
+  const [cargandoDetalle, setCargandoDetalle] = useState(false)
 
   const [filasCruce, setFilasCruce] = useState<FilaEnCruce[]>([])
   const [arrastrandoZonaCruce, setArrastrandoZonaCruce] = useState(false)
@@ -127,12 +142,27 @@ export function CromatografiaEmitirView() {
       const muestras = await parsearGC(archivo)
       setMuestrasGC(muestras)
       setNombreArchivoGC(archivo.name)
+      setArchivoGC(archivo)
     } catch (e) {
       setErrorGC(e instanceof HttpError ? e.message : 'No se pudo leer el archivo. ¿Es el reporte de texto del GC?')
       setMuestrasGC(null)
       setNombreArchivoGC(null)
+      setArchivoGC(null)
     } finally {
       setCargandoGC(false)
+    }
+  }
+
+  async function verDetalleGC() {
+    if (!archivoGC) return
+    setCargandoDetalle(true)
+    setErrorGC(null)
+    try {
+      setDetalleGC(await parsearGCCompleto(archivoGC))
+    } catch {
+      setErrorGC('No se pudo leer el detalle del archivo.')
+    } finally {
+      setCargandoDetalle(false)
     }
   }
 
@@ -406,6 +436,16 @@ export function CromatografiaEmitirView() {
         <Card className={styles.panel}>
           <div className={styles.panelCabecera}>
             <h3>Resultados del GC</h3>
+            {archivoGC && (
+              <button
+                type="button"
+                className={styles.botonChico}
+                onClick={() => void verDetalleGC()}
+                disabled={cargandoDetalle}
+              >
+                {cargandoDetalle ? 'Leyendo…' : 'Ver detalle'}
+              </button>
+            )}
           </div>
           <div
             className={cn(styles.zona, arrastrandoGC && styles.zonaActiva)}
@@ -766,6 +806,14 @@ export function CromatografiaEmitirView() {
           </div>
         )}
       </Card>
+      )}
+
+      {detalleGC && (
+        <DetalleGCModal
+          muestras={detalleGC}
+          nombreArchivo={nombreArchivoGC}
+          onCerrar={() => setDetalleGC(null)}
+        />
       )}
 
       {solicitudEnFicha && <SolicitudFichaModal solicitud={solicitudEnFicha} onCerrar={() => setSolicitudEnFicha(null)} />}

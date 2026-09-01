@@ -57,6 +57,10 @@ class ResultadoAnalito:
     analito: str
     area: float | None
     amount: float | None
+    # Tiempo de retención, en minutos. No lo usa el cruce ni el informe: está
+    # para la vista de detalle, que reproduce el reporte del GC tal como sale
+    # del equipo. Antes se descartaba al parsear.
+    rettime: float | None = None
 
 
 @dataclass
@@ -96,12 +100,23 @@ def _parsear_tabla(tabla: str) -> list[ResultadoAnalito]:
         campos = [linea[cortes[i] : cortes[i + 1]].strip() for i in range(len(cortes) - 1)]
         if len(campos) < 7:
             continue
-        _rettime, _tipo, area, _amt_area, amount, _grp, nombre = campos[:7]
+        rettime, _tipo, area, _amt_area, amount, _grp, nombre = campos[:7]
+
+        def numero(valor: str) -> float | None:
+            valor = valor.strip()
+            if valor in ("", "-"):
+                return None
+            try:
+                return float(valor)
+            except ValueError:
+                return None
+
         resultados.append(
             ResultadoAnalito(
                 analito=nombre.strip(),
-                area=None if area in ("", "-") else float(area),
-                amount=None if amount in ("", "-") else float(amount),
+                area=numero(area),
+                amount=numero(amount),
+                rettime=numero(rettime),
             )
         )
     return resultados
