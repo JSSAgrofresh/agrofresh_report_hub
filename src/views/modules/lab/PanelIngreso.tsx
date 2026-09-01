@@ -6,8 +6,6 @@ import { Escaner } from './Escaner'
 import { FichaEscaneada } from './FichaEscaneada'
 import styles from './PanelIngreso.module.css'
 
-/** Los campos que sirven para confirmar de un vistazo, con la hoja impresa en
- * la mano, que se escaneó la solicitud correcta. */
 const RESUMEN: [string, string][] = [
   ['Sold To (Nombre)', 'Cliente'],
   ['Ship To (Nombre)', 'Planta'],
@@ -26,15 +24,6 @@ interface PanelIngresoProps {
   onVerFicha: (solicitud: Solicitud) => void
 }
 
-/**
- * El mesón de recepción: llega la muestra, se escanea su solicitud y se
- * escanea el número que trae pegado.
- *
- * Los dos escaneos ocurren acá, al recibir, y no al procesar los resultados.
- * Entre una cosa y otra corre el GC y pasa la noche; y como el número de
- * muestra es el mismo código que después trae el archivo del GC, al subir los
- * resultados ya no hay que volver a emparejar nada.
- */
 export function PanelIngreso({ solicitudes, onCruzar, onVerFicha }: PanelIngresoProps) {
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null)
   const [muestra, setMuestra] = useState<string>('')
@@ -44,7 +33,6 @@ export function PanelIngreso({ solicitudes, onCruzar, onVerFicha }: PanelIngreso
 
   const listo = Boolean(solicitud && muestra.trim())
   const yaCruzada = solicitud?.codigo_muestra ?? null
-
   const resumen = solicitud
     ? RESUMEN.map(([c, etiqueta]) => [etiqueta, solicitud.campos[c]?.trim() || ''] as [string, string]).filter(
         ([, v]) => v !== '',
@@ -59,8 +47,6 @@ export function PanelIngreso({ solicitudes, onCruzar, onVerFicha }: PanelIngreso
       await onCruzar(solicitud, muestra.trim())
       setSolicitud(null)
       setMuestra('')
-      // Vacía las dos cajas y devuelve el foco a la primera: así se puede
-      // recibir una muestra tras otra sin tocar el mouse.
       setReinicio((n) => n + 1)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo cruzar.')
@@ -92,9 +78,6 @@ export function PanelIngreso({ solicitudes, onCruzar, onVerFicha }: PanelIngreso
         <div className={styles.cajaMuestra}>
           <span className={styles.rotulo}>N° de muestra</span>
           <Escaner
-            // Acá no hay contra qué validar: el número viene pegado en el
-            // tubo y el archivo del GC llega recién esa noche. Se acepta lo
-            // que se lea, y el sistema avisa si ya está usado en otra.
             buscar={(t) => (t.trim() ? { codigo: t.trim() } : null)}
             onEncontrado={(m) => {
               setMuestra(m.codigo)
@@ -105,6 +88,7 @@ export function PanelIngreso({ solicitudes, onCruzar, onVerFicha }: PanelIngreso
             mensajeNoEncontrado={() => ''}
             resuelto={Boolean(muestra)}
             reinicio={reinicio}
+            esperaFinEscaneoMs={80}
           />
           {muestra && <p className={styles.muestraLeida}>{muestra}</p>}
         </div>
