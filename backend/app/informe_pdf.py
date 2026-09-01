@@ -130,7 +130,7 @@ METODOLOGIA_TEXTO = (
 
 NOTAS_TEXTO = (
     "Los resultados de este informe corresponden exclusivamente a la(s) "
-    "muestra(s) identificada(s) en este documento. \"No detectado\" indica "
+    "muestra(s) identificada(s) en este documento. \"ND\" indica "
     "un valor bajo el límite de detección del método. Este informe no debe "
     "reproducirse parcialmente sin autorización escrita del laboratorio."
 )
@@ -322,12 +322,7 @@ def _construir_elementos(
     pagina_p = Paragraph('Página 1 de 1', _S_PAGINA)
     titulo_header = Table([
         [Paragraph(f'INFORME DE RESULTADOS N° {folio}', _S_TITULO)],
-        [Paragraph(
-            f"Solicitud: {campos.get('N° Solicitud', '—')} &nbsp;&nbsp;|&nbsp;&nbsp; "
-            f"Laboratorio: Cromatografía",
-            _S_INFO_HEADER,
-        )],
-        [Paragraph(f'Fecha de emisión: {hoy}', _S_INFO_HEADER)],
+        [Paragraph(DIRECCION_EMPRESA, _S_INFO_HEADER)],
     ], colWidths=[ANCHO_UTIL - 8.7 * cm])
     titulo_header.setStyle(TableStyle([
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
@@ -458,9 +453,12 @@ def _construir_elementos(
         Paragraph('RESULTADO', _S_TABLA_HEAD),
     ]]
     for codigo in analitos_solicitados:
+        tiene_resultado = codigo in resultados_por_codigo
         valor = resultados_por_codigo.get(codigo)
-        if valor is None or valor <= 0:
-            resultado_cel = Paragraph('No detectado', _S_TABLA_CELDA_NEG)
+        if tiene_resultado and valor is None:
+            resultado_cel = Paragraph('ND', _S_TABLA_CELDA_NEG)
+        elif valor is None:
+            resultado_cel = Paragraph('', _S_TABLA_CELDA)
         else:
             resultado_cel = Paragraph(f'{valor:.4f}'.rstrip('0').rstrip('.'), _S_TABLA_CELDA)
         filas_resultado.append([
