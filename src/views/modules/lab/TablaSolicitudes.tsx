@@ -4,7 +4,9 @@ import { filtrarPorFolio } from '@/features/emitir'
 import type { Solicitud } from '@/features/emitir'
 import styles from './TablaSolicitudes.module.css'
 
+
 type Filtro = 'todas' | 'cruzadas' | 'pendientes'
+
 
 const ETIQUETA: Record<Filtro, string> = {
   todas: 'Todas',
@@ -12,11 +14,13 @@ const ETIQUETA: Record<Filtro, string> = {
   pendientes: 'Sin muestra',
 }
 
+
 interface TablaSolicitudesProps {
   solicitudes: Solicitud[] | null
   onVerFicha: (solicitud: Solicitud) => void
   onQuitarCruce: (solicitud: Solicitud) => void
 }
+
 
 /**
  * Todas las solicitudes de AGROFRESH y en qué estado está cada una.
@@ -29,34 +33,65 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
   const [filtro, setFiltro] = useState<Filtro>('todas')
   const [buscar, setBuscar] = useState('')
 
+
   const cruzadas = useMemo(
     () => (solicitudes ?? []).filter((s) => s.codigo_muestra).length,
     [solicitudes],
   )
 
+
   function descargarConMuestra() {
-    const filas = (solicitudes ?? [])
-      .filter((s) => s.codigo_muestra)
-      .map((s) => ({
-        'N° Solicitud': s.campos['N° Solicitud'] || s.archivo,
-        'N° Muestra': s.codigo_muestra,
-        'Fecha Muestreo': s.campos['Fecha Muestreo'] || '',
-        'Sold To': s.campos['Sold To (Nombre)'] || '',
-        'Ship To': s.campos['Ship To (Nombre)'] || '',
-        Especie: s.campos.Especie || '',
-        Variedad: s.campos.Variedad || '',
-        Analitos: s.analitos_solicitados.join(', '),
-      }))
-    const hoja = XLSX.utils.json_to_sheet(filas)
-    hoja['!autofilter'] = { ref: hoja['!ref'] ?? 'A1:H1' }
-    hoja['!cols'] = [
-      { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 30 },
-      { wch: 24 }, { wch: 18 }, { wch: 22 }, { wch: 28 },
-    ]
+    const solicitudesCruzadas = (solicitudes ?? []).filter((s) => s.codigo_muestra)
+    const aliasInternos = new Set(['Sold To (Nombre)', 'Ship To (Nombre)'])
+    const columnas: string[] = []
+
+    solicitudesCruzadas.forEach((solicitud) => {
+      Object.keys(solicitud.campos).forEach((campo) => {
+        if (!aliasInternos.has(campo) && !columnas.includes(campo)) columnas.push(campo)
+      })
+    })
+
+    if (!columnas.includes('N° Solicitud')) columnas.unshift('N° Solicitud')
+    const indiceSolicitud = columnas.indexOf('N° Solicitud')
+    columnas.splice(indiceSolicitud + 1, 0, 'N° Muestra')
+    if (!columnas.includes('Analitos')) columnas.push('Analitos')
+
+    const filas = solicitudesCruzadas.map((solicitud) => {
+      const fila: Record<string, string> = {}
+      columnas.forEach((columna) => {
+        if (columna === 'N° Solicitud') {
+          fila[columna] = solicitud.campos[columna] || solicitud.archivo
+        } else if (columna === 'N° Muestra') {
+          fila[columna] = solicitud.codigo_muestra || ''
+        } else if (columna === 'Sold To') {
+          fila[columna] = solicitud.campos[columna] || solicitud.campos['Sold To (Nombre)'] || ''
+        } else if (columna === 'Ship To') {
+          fila[columna] = solicitud.campos[columna] || solicitud.campos['Ship To (Nombre)'] || ''
+        } else if (columna === 'Analitos') {
+          fila[columna] = solicitud.analitos_solicitados.join(', ')
+        } else {
+          fila[columna] = solicitud.campos[columna] || ''
+        }
+      })
+      return fila
+    })
+
+    const hoja = XLSX.utils.json_to_sheet(filas, { header: columnas })
+    hoja['!autofilter'] = {
+      ref: hoja['!ref'] ?? ('A1:' + XLSX.utils.encode_col(columnas.length - 1) + '1'),
+    }
+    hoja['!cols'] = columnas.map((columna) => ({
+      wch: Math.min(
+        38,
+        Math.max(12, columna.length + 2, ...filas.map((fila) => String(fila[columna] || '').length + 2)),
+      ),
+    }))
+
     const libro = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(libro, hoja, 'Con muestra')
     XLSX.writeFile(libro, 'solicitudes_con_muestra.xlsx')
   }
+
 
   const visibles = useMemo(() => {
     let lista = filtrarPorFolio(solicitudes ?? [], buscar)
@@ -64,6 +99,7 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
     if (filtro === 'pendientes') lista = lista.filter((s) => !s.codigo_muestra)
     return lista
   }, [solicitudes, buscar, filtro])
+
 
   return (
     <>
@@ -100,6 +136,7 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
           {cruzadas} de {solicitudes?.length ?? 0} con muestra
         </span>
       </div>
+
 
       <div className={styles.tablaCaja}>
         <table className={styles.tabla}>
