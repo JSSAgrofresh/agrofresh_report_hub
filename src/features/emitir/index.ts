@@ -1,5 +1,7 @@
 export {
   parsearGC,
+  parsearGCCompleto,
+  descargarDetalleGCExcel,
   listarSolicitudes,
   descargarExcelCruce,
   descargarInformesPDF,
@@ -13,4 +15,4 @@ export {
   filtrarPorFolio,
   normalizarFolio,
 } from './lib/folio'
-export type { MuestraGC, ResultadoAnalito, Solicitud, FilaCruce, InformeConfig, FilaSubida } from './lib/tipos'
+export type { CampoCabeceraGC, DetalleGC, MuestraGCDetalle, MuestraGC, ResultadoAnalito, Solicitud, FilaCruce, InformeConfig, FilaSubida } from './lib/tipos'
