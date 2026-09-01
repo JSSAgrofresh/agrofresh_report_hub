@@ -328,30 +328,43 @@
   padding: var(--space-3);
 }
 
+/* Los cinco campos se reparten el ancho y se van a la línea de abajo cuando
+   dejan de caber, en vez de desbordar el modal.
+
+   `minmax(0, ...)` en vez de `1fr` a secas: una columna `1fr` no baja del
+   ancho de su contenido, y el ancho por defecto de un <input> es de unos
+   170px. Cinco de esos más los botones pedían 1237px dentro de un modal de
+   890px, y "Cancelar" quedaba cortado fuera de la pantalla. */
 .filaLimite {
   display: grid;
-  grid-template-columns: repeat(5, 1fr) auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
   gap: var(--space-3);
   align-items: end;
 }
 
 .filaLimite .campo input {
+  width: 100%;
   min-width: 0;
 }
 
+/* Los botones ocupan su propia línea completa y quedan a la derecha: en una
+   grilla que reacomoda columnas, dejarlos como una celda más los movía de
+   lugar en cada ancho. */
 .accionesLimite {
+  grid-column: 1 / -1;
   display: flex;
+  justify-content: flex-end;
   gap: var(--space-2);
 }
 
-@media (max-width: 900px) {
-  .filaLimite {
-    grid-template-columns: 1fr 1fr;
+/* En pantallas angostas los botones se estiran: son el objetivo táctil. */
+@media (max-width: 560px) {
+  .accionesLimite {
+    flex-direction: column-reverse;
   }
 
-  .accionesLimite {
-    grid-column: 1 / -1;
-    justify-content: flex-end;
+  .accionesLimite button {
+    width: 100%;
   }
 }
 

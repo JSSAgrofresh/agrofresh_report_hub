@@ -19,8 +19,50 @@
 
 .brand {
   display: flex;
+  align-items: center;
   justify-content: center;
+  gap: var(--space-2);
   margin-bottom: var(--space-6);
+}
+
+.plegar {
+  display: none; /* solo en escritorio: en móvil la barra ya es un cajón */
+  flex-shrink: 0;
+  padding: 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.plegar svg {
+  width: 19px;
+  height: 19px;
+  display: block;
+  transition: transform 0.2s ease;
+}
+
+.plegar:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.plegar:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 1px;
+}
+
+/* La flecha apunta hacia donde va a moverse la barra. */
+.colapsada .plegar svg {
+  transform: rotate(180deg);
+}
+
+@media (min-width: 881px) {
+  .plegar {
+    display: inline-flex;
+  }
 }
 
 /* El logo es verde y amarillo sobre fondo claro. Antes se pintaba blanco con
@@ -230,6 +272,73 @@
 .salir:hover {
   color: #ffb199;
   background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Barra plegada: solo los iconos ──────────────────────────────────
+   Debajo de 880px la barra ya es un cajón que se abre encima del contenido,
+   así que plegarla no aplica: ahí se muestra entera. */
+@media (min-width: 881px) {
+  .colapsada {
+    width: 74px;
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+  }
+
+  /* El logo es ancho (unas 2,5 veces más que alto). Plegada la barra hay
+     74px, así que se limita por ANCHO y no por alto: con `height: 30px` y
+     `width: auto` medía ~75px y se salía de la barra. */
+  .colapsada .marco {
+    padding: 5px 6px;
+    max-width: 100%;
+  }
+
+  .colapsada .logo {
+    width: 46px;
+    height: auto;
+  }
+
+  /* Se ocultan con display:none y no con opacidad: si quedaran en el flujo,
+     seguirían empujando el ancho de la barra. */
+  .colapsada .etiqueta,
+  .colapsada .seccion,
+  .colapsada .estadoPill,
+  .colapsada .usuarioInfo,
+  .colapsada .estadoBd span,
+  .colapsada .brand > .marco + .plegar ~ * {
+    display: none;
+  }
+
+  .colapsada .navLink,
+  .colapsada .estadoBd,
+  .colapsada .usuario {
+    justify-content: center;
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .colapsada .estadoBd {
+    font-size: 0;   /* el texto es un nodo suelto, no un elemento */
+  }
+
+  .colapsada .salir {
+    display: none;
+  }
+
+  /* Sin las etiquetas de sección, los grupos se separan con una línea: sin
+     eso los iconos quedan como una lista continua sin jerarquía. */
+  .colapsada .seccion + a,
+  .colapsada .seccion + span {
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+  }
+
+  .colapsada .brand {
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+  }
 }
 
 @media (max-width: 880px) {
