@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ComponentType, CSSProperties, SVGProps } from 'react'
 import { NavLink } from 'react-router-dom'
 import agrofreshLogo from '@/assets/agrofresh-logo.png'
@@ -70,6 +70,20 @@ interface SidebarProps {
 export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   const { user, logout } = useAuth()
   const [colapsada, setColapsada] = useState(leerColapso)
+
+  // Con el menú abierto encima, arrastrar el dedo movía la página de atrás:
+  // se veía el contenido desplazándose bajo un menú que parecía trabado. Solo
+  // pasa en el teléfono, que es donde el menú es un cajón; en escritorio
+  // `abierto` nunca se enciende.
+  useEffect(() => {
+    if (!abierto) return
+    const previo = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previo
+    }
+  }, [abierto])
+
   if (!user) return null
 
   function alternarColapso() {
