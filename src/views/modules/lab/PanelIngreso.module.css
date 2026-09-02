@@ -22,6 +22,10 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
+  /* Sin esto, una celda de la grilla nunca baja del ancho de su contenido:
+     aunque a 393px las cajas ya van una debajo de otra, cada una seguía
+     midiendo 416px y empujaba la página a lo ancho. */
+  min-width: 0;
 }
 
 .rotulo {

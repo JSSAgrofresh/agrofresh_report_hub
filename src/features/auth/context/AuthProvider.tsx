@@ -49,8 +49,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // backend caído, y eso no debe expulsar a nadie: se conserva la foto
       // guardada y se reintenta en la siguiente carga.
       .catch(() => {})
+      // Sin condición a propósito. En desarrollo React monta, desmonta y
+      // vuelve a montar cada efecto para destapar justo esta clase de error:
+      // la limpieza del primer montaje ponía `vigente = false`, y el segundo
+      // salía temprano por `yaSincronizado`, así que nadie apagaba la
+      // sincronización y la aplicación se quedaba para siempre en
+      // "Verificando tu sesión…".
       .finally(() => {
-        if (vigente) setSincronizando(false)
+        setSincronizando(false)
       })
     return () => {
       vigente = false

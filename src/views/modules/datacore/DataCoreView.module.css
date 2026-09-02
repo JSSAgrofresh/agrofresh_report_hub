@@ -19,8 +19,19 @@
 .banner span { color:#69766d; }
 .bannerAcciones { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .exportar { padding:9px 13px; border-radius:5px; background:#eef3ec; color:#315b25; font-weight:600; text-decoration:none; }
-.tabs { display:flex; gap:4px; margin:0 0 18px; border-bottom:1px solid #d8ded9; }
-.tabs button { border:0; background:transparent; padding:11px 14px; cursor:pointer; color:#657168; font-weight:600; }
+/* Las pestañas se desplazan a lo ancho en vez de partirse en dos filas: la
+   línea de subrayado que marca la activa solo se entiende si todas van en el
+   mismo renglón. En un teléfono la última se salía de la pantalla. */
+.tabs {
+  display:flex; gap:4px; margin:0 0 18px; border-bottom:1px solid #d8ded9;
+  overflow-x:auto;
+  scrollbar-width:thin;
+}
+.tabs button {
+  border:0; background:transparent; padding:11px 14px; cursor:pointer;
+  color:#657168; font-weight:600;
+  flex-shrink:0; white-space:nowrap;
+}
 .tabs .tabActiva { color:#315b25; border-bottom:3px solid #69ad39; }
 .tabs small { margin-left:4px; padding:1px 6px; border-radius:10px; background:#edf4e8; color:#4f7d38; }
 .selector { margin-bottom:14px; }
