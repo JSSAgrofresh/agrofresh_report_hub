@@ -20,6 +20,9 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  /* En un teléfono el aviso de estado no cabe al lado del campo: baja solo a
+     la línea de abajo en vez de estirar la caja. */
+  flex-wrap: wrap;
 }
 
 .icono {

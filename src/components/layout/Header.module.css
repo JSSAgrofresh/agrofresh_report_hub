@@ -5,22 +5,38 @@
   margin-bottom: var(--space-5);
 }
 
+/* Título a la izquierda y acciones a la derecha, pero si no caben en la
+   misma línea las acciones bajan a la suya. Sin `wrap`, y con las acciones
+   marcadas `flex-shrink: 0`, no había forma de que entraran: en un teléfono
+   se salían de la pantalla y había que arrastrar la página a un costado para
+   alcanzarlas. Este encabezado lo usa toda la aplicación, así que el mismo
+   arreglo cubre siete pantallas. */
 .fila {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
+  flex-wrap: wrap;
 }
 
 .acciones {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex-shrink: 0;
+  /* Y si el grupo entero tampoco cabe, sus botones se reparten en varias
+     líneas en vez de desbordar.
+     `max-width` es lo que de verdad lo obliga: ya bajado a su propia línea,
+     seguía midiendo el ancho de todos sus botones sumados -592px en un
+     teléfono de 393- porque nada le decía que no podía pasarse. */
+  flex-wrap: wrap;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .title {
   font-size: 1.65rem;
+  /* Un folio largo sin espacios no debe empujar el ancho de la página. */
+  overflow-wrap: anywhere;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--color-text);
