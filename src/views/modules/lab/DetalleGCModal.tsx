@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import agrofreshLogo from '@/assets/agrofresh-logo.png'
 import { Button } from '@/components/ui/Button'
 import { descargarDetalleGCExcel } from '@/features/emitir'
 import type { DetalleGC, MuestraGCDetalle } from '@/features/emitir'
@@ -15,6 +16,11 @@ function compuestosEnOrden(muestras: MuestraGCDetalle[]): string[] {
   }
   return vistos
 }
+
+/** El mismo título que encabeza la primera hoja del Excel. La vista previa y
+ * el archivo descargado tienen que verse igual: si no, quien revisa en
+ * pantalla y quien abre el Excel no están mirando lo mismo. */
+const TITULO = 'RESULTADOS DE ANÁLISIS CROMATOGRÁFICOS'
 
 const num = (v: number | null | undefined) =>
   v === null || v === undefined ? '—' : v.toLocaleString('es-CL', { maximumFractionDigits: 6 })
@@ -135,7 +141,19 @@ export function DetalleGCModal({
 
         <div className={styles.tablaCaja}>
           {hoja === 'cabecera' ? (
+            <>
+            <div className={styles.membrete}>
+              <img src={agrofreshLogo} alt="AgroFresh" className={styles.logo} />
+              <span className={styles.titulo}>{TITULO}</span>
+            </div>
             <table className={styles.tabla}>
+              <thead>
+                <tr>
+                  <th>Sección</th>
+                  <th>Campo</th>
+                  <th>Valor</th>
+                </tr>
+              </thead>
               <tbody>
                 {cabecera.map((c, i) => {
                   const abreSeccion = i === 0 || cabecera[i - 1].seccion !== c.seccion
@@ -149,13 +167,14 @@ export function DetalleGCModal({
                 })}
                 {cabecera.length === 0 && (
                   <tr>
-                    <td className={styles.vacio}>
+                    <td className={styles.vacio} colSpan={3}>
                       El archivo no trae la cabecera con la configuración del equipo.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+            </>
           ) : hoja === 'completos' ? (
             <table className={styles.tabla}>
               <thead>
@@ -190,6 +209,7 @@ export function DetalleGCModal({
               <thead>
                 <tr>
                   <th className={styles.num}>Seq</th>
+                  <th>Ubicación de la muestra</th>
                   <th>Vial</th>
                   <th>Tipo</th>
                   {compuestos.map((c) => (
@@ -199,7 +219,7 @@ export function DetalleGCModal({
                   ))}
                 </tr>
                 <tr>
-                  <th /><th /><th />
+                  <th /><th /><th /><th />
                   {compuestos.map((c) => [
                     <th key={`${c}-ppm`} className={styles.num}>ppm</th>,
                     <th key={`${c}-area`} className={styles.num}>área</th>,
@@ -212,6 +232,7 @@ export function DetalleGCModal({
                   return (
                     <tr key={`${m.seq_line}-${m.codigo}`} className={m.es_muestra ? undefined : styles.control}>
                       <td className={styles.num}>{m.seq_line ?? '—'}</td>
+                      <td className={styles.mono}>{m.ubicacion ?? '—'}</td>
                       <td className={styles.mono}>{m.codigo}</td>
                       <td className={styles.tipo}>{m.es_muestra ? 'Muestra' : 'Control'}</td>
                       {compuestos.map((c) => [

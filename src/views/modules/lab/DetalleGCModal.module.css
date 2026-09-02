@@ -207,6 +207,29 @@
 
 /* ── Hoja de información del equipo ─────────────────────────────────── */
 
+/* El mismo membrete que encabeza la primera hoja del Excel: logo a la
+   izquierda y título al lado. Se queda fijo arriba junto al encabezado de la
+   tabla, porque es lo que identifica de qué corrida se está hablando. */
+.membrete {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  background: #fff;
+}
+
+.logo {
+  height: 38px;
+  width: auto;
+}
+
+.titulo {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: 0.01em;
+}
+
 .seccion {
   font-size: 10.5px;
   font-weight: 600;
