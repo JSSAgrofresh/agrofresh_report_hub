@@ -20,10 +20,14 @@
     padding 0.26s ease;
 }
 
+/* El botón de plegar va DEBAJO del logo y centrado, no a su costado: al
+   plegarse el logo desaparece, y un botón que estaba al margen derecho
+   saltaba al centro. Puesto abajo desde el principio, se queda donde está
+   y lo único que cambia es que el logo se va. */
 .brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: var(--space-2);
   margin-bottom: var(--space-6);
 }
