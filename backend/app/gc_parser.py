@@ -237,6 +237,37 @@ def _modulos(cabecera: str) -> list[tuple[str, str]]:
     return filas
 
 
+# La tabla de la secuencia: qué se puso en cada posición del carrusel.
+#
+# El equipo la escribe después de la cabecera, un bloque por inyección, y no
+# la repite en el reporte de resultados: ahí solo queda el número de línea.
+# La ubicación es lo que permite volver al vial físico si un resultado se
+# cuestiona, así que se lee de acá y se pega a cada muestra por su línea.
+_PAT_LINEA_SECUENCIA = re.compile(
+    r"^Line\s*:\s*(\d+)\s*$.*?^Location\s*:\s*(.*?)\s*$",
+    re.S | re.M,
+)
+
+
+def parsear_ubicaciones_gc(contenido: bytes) -> dict[int, str]:
+    """{línea de la secuencia: ubicación en el carrusel}.
+
+    Solo mira la tabla de la secuencia: buscar "Location" en todo el archivo
+    traería también el "Injection Location" de cada inyección, que es otra
+    cosa (el inyector, no el vial).
+    """
+    texto = _decodificar(contenido).replace("\r\n", "\n")
+    corte = texto.find(_FIN_CABECERA)
+    if corte == -1:
+        return {}
+    tabla = texto[corte:]
+    return {
+        int(linea): ubicacion
+        for linea, ubicacion in _PAT_LINEA_SECUENCIA.findall(tabla)
+        if ubicacion
+    }
+
+
 def parsear_cabecera_gc(contenido: bytes) -> list[tuple[str, str, str]]:
     """(sección, campo, valor) de la cabecera, en el orden del archivo.
 

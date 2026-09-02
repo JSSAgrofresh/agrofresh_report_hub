@@ -12,7 +12,12 @@ import openpyxl
 import pytest
 
 from app import emitir
-from app.gc_parser import es_codigo_puro, parsear_cabecera_gc, parsear_gc_txt
+from app.gc_parser import (
+    es_codigo_puro,
+    parsear_cabecera_gc,
+    parsear_gc_txt,
+    parsear_ubicaciones_gc,
+)
 
 ARCHIVO = os.path.join(os.path.dirname(__file__), "datos", "GLPrprtB.txt")
 
@@ -30,7 +35,12 @@ def cabecera():
 
 
 @pytest.fixture(scope="module")
-def muestras():
+def ubicaciones():
+    return parsear_ubicaciones_gc(open(ARCHIVO, "rb").read())
+
+
+@pytest.fixture(scope="module")
+def muestras(ubicaciones):
     crudas = parsear_gc_txt(open(ARCHIVO, "rb").read())
     return [
         emitir.MuestraGCDetalleOut(
@@ -38,6 +48,7 @@ def muestras():
             seq_line=m.seq_line,
             fecha_inyeccion=m.fecha_inyeccion,
             es_muestra=es_codigo_puro(m.codigo),
+            ubicacion=ubicaciones.get(m.seq_line),
             resultados=[
                 emitir.ResultadoAnalitoOut(
                     analito=r.analito, codigo=None, area=r.area, amount=r.amount, rettime=r.rettime
@@ -87,6 +98,22 @@ class TestParseo:
         tebu = next(r for r in vial_1.resultados if r.analito == "TEBUCONAZOLE")
         assert tebu.area == pytest.approx(1.00441)
         assert tebu.amount == pytest.approx(0.0488688)
+
+
+class TestUbicaciones:
+    """La posición del carrusel. El reporte de resultados solo trae el número
+    de línea; sin la ubicación no se puede volver al vial físico."""
+
+    def test_lee_la_ubicacion_de_cada_linea(self, ubicaciones):
+        assert len(ubicaciones) == 53
+        assert ubicaciones[1] == "1"
+        assert ubicaciones[3] == "1"
+        assert ubicaciones[5] == "3"
+
+    def test_no_confunde_injection_location_con_la_del_vial(self, ubicaciones):
+        """Cada inyección trae además `Injection Location: Back`, que es el
+        inyector y no el vial."""
+        assert "Back" not in ubicaciones.values()
 
 
 class TestCabecera:
@@ -206,6 +233,15 @@ class TestExcel:
         assert encabezados[4] == "DIFENILAMINA ppm"
         assert encabezados[5] == "DIFENILAMINA área"
         assert ws.max_row - 1 == 53
+
+    def test_la_ubicacion_del_carrusel_llega_a_la_planilla(self, muestras):
+        """Es la columna que el laboratorio usa para volver al vial físico."""
+        ws = _libro(muestras)[emitir.HOJA_POR_VIAL]
+        filas = {f[0]: f[1] for f in ws.iter_rows(min_row=2, values_only=True)}
+        assert filas[1] == "1"
+        assert filas[3] == "1"
+        assert filas[5] == "3"
+        assert all(v for v in filas.values())
 
     def test_un_vial_medido_queda_bien_ubicado(self, muestras):
         ws = _libro(muestras)[emitir.HOJA_POR_VIAL]

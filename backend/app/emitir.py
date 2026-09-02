@@ -20,6 +20,7 @@ from .gc_parser import (
     es_codigo_puro,
     parsear_cabecera_gc,
     parsear_gc_txt,
+    parsear_ubicaciones_gc,
 )
 from .informe_pdf import generar_informe_pdf
 from .mapeo import LABORATORIO_CATALOGO, calcular_semana
@@ -282,6 +283,10 @@ class MuestraGCDetalleOut(MuestraGCOut):
     para saber si el equipo estaba midiendo bien."""
 
     es_muestra: bool
+    # En qué posición del carrusel iba el vial. Sale de la tabla de la
+    # secuencia, no del reporte de resultados, y es lo que permite volver al
+    # vial físico si alguien cuestiona un resultado.
+    ubicacion: str | None = None
 
 
 @router.post("/parsear-gc/completo")
@@ -301,6 +306,7 @@ async def parsear_gc_completo(archivo: UploadFile = File(...)) -> DetalleGCOut:
     if not muestras:
         raise HTTPException(400, "No se encontró ninguna muestra en el archivo. ¿Es el reporte del GC correcto?")
 
+    ubicaciones = parsear_ubicaciones_gc(contenido)
     return DetalleGCOut(
         cabecera=[
             CampoCabeceraOut(seccion=s, campo=c, valor=v)
@@ -312,6 +318,7 @@ async def parsear_gc_completo(archivo: UploadFile = File(...)) -> DetalleGCOut:
             seq_line=m.seq_line,
             fecha_inyeccion=m.fecha_inyeccion,
             es_muestra=es_codigo_puro(m.codigo),
+            ubicacion=ubicaciones.get(m.seq_line) if m.seq_line is not None else None,
             resultados=[
                 ResultadoAnalitoOut(
                     analito=r.analito,
@@ -489,8 +496,9 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
         ws.column_dimensions[col].width = ancho
 
     # ── Hoja 3: un vial por fila, con ppm y área de cada compuesto pegados ──
-    # "Ubicación de la Muestra" va vacía a propósito: el archivo del GC no la
-    # trae y el laboratorio la anota a mano al revisar la corrida.
+    # "Ubicación de la Muestra" es la posición del carrusel, que sale de la
+    # tabla de la secuencia: el reporte de resultados solo trae el número de
+    # línea, y con eso no se puede volver al vial físico.
     ws2 = wb.create_sheet(HOJA_POR_VIAL)
     ws2.cell(row=1, column=1, value="Seq Line")
     ws2.cell(row=1, column=2, value="Ubicación de la Muestra")
@@ -501,6 +509,7 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
         ws2.cell(row=1, column=6 + i * 2, value=f"{compuesto} área")
     for fila_idx, m in enumerate(body.muestras, start=2):
         ws2.cell(row=fila_idx, column=1, value=m.seq_line)
+        ws2.cell(row=fila_idx, column=2, value=m.ubicacion)
         ws2.cell(row=fila_idx, column=3, value=m.codigo)
         ws2.cell(row=fila_idx, column=4, value="Muestra" if m.es_muestra else "Control")
         por_analito = {r.analito: r for r in m.resultados}
