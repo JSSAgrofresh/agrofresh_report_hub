@@ -10,7 +10,14 @@
   align-self: flex-start;
   position: sticky;
   top: 0;
+  /* En el Chrome del teléfono `100vh` es la altura SIN la barra de
+     direcciones, o sea más de lo que se ve: el menú quedaba más alto que la
+     pantalla y el final ("Ajustes de solicitud", el usuario) caía abajo del
+     borde. `dvh` es la altura visible de verdad y se ajusta cuando la barra
+     aparece o se esconde. El `vh` queda de respaldo para navegadores viejos:
+     el orden importa, gana la última que el navegador entienda. */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: linear-gradient(165deg, #24391a 0%, #345424 50%, #45681f 100%);
   padding: var(--space-5) var(--space-4);
@@ -105,6 +112,10 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Al llegar al final de la lista, el desplazamiento seguía de largo y
+     empezaba a mover la página de atrás: se sentía como que el menú no baja
+     y la página sí. `contain` corta esa cadena en el borde del menú. */
+  overscroll-behavior: contain;
   /* La barra por defecto es clara y ancha: sobre el verde oscuro se ve como
      una franja blanca pegada al costado. Acá va fina y translúcida, y solo
      se marca al pasar el mouse. */
