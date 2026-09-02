@@ -74,3 +74,24 @@ a {
 button {
   font-family: inherit;
 }
+
+/* Android pinta un recuadro celeste sobre lo que se toca, y lo dibuja encima
+   del resto: al abrir el menú quedaba un cuadrado flotando sobre el logo.
+   Se apaga y en su lugar quedan los estados propios de cada control -el
+   :active de abajo y los :focus-visible de cada componente-, que sí siguen
+   la forma del botón. */
+a,
+button,
+input,
+select,
+textarea,
+label,
+[role='button'] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Sin el recuadro del sistema, el toque necesita SU propia respuesta: si no,
+   se siente como que el botón no reaccionó. */
+button:active {
+  opacity: 0.72;
+}

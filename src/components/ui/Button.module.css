@@ -23,6 +23,9 @@
 
 .button:not(:disabled):active {
   transform: scale(0.98);
+  /* Este botón ya responde al toque encogiéndose; el atenuado global de
+     `button:active` sobra y juntos se ven exagerados. */
+  opacity: 1;
 }
 
 .button:focus-visible {
