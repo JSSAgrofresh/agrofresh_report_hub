@@ -91,11 +91,17 @@ SOLO_AGROFRESH = [Depends(solo_interno)]
 
 app.include_router(reportes_router, dependencies=CON_SESION)
 
+# Los listados de especie y variedad son la excepción: una cuenta de cliente
+# necesita leerlos para que los desplegables de Especie y Variedad de su
+# reporte tengan opciones. Son nombres de fruta -"Cerezas", "Bing"-, no hay
+# nada de nadie en ellos. Adentro, cada endpoint que ESCRIBE lleva su propio
+# `solo_interno`, y hay una prueba que lo verifica uno por uno.
+app.include_router(listados_router, dependencies=CON_SESION)
+
 for _router in (
     ingest_router,
     auditoria_router,
     catalogo_router,
-    listados_router,
     postventa_router,
     storage_router,
     emitir_router,

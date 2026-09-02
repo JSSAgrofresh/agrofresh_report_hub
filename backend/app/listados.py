@@ -37,7 +37,7 @@ from datetime import datetime
 from difflib import SequenceMatcher
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -45,6 +45,8 @@ from openpyxl.worksheet.worksheet import Worksheet
 from pydantic import BaseModel
 
 from .db import conexion, cursor_dict
+
+from .auth import solo_interno
 
 router = APIRouter(prefix="/api/listados", tags=["listados"])
 
@@ -168,7 +170,7 @@ def _escribir_hoja(wb: Workbook, titulo: str, encabezados: list[str], filas: lis
     return ws
 
 
-@router.get("/exportar")
+@router.get("/exportar", dependencies=[Depends(solo_interno)])
 def exportar_listados() -> StreamingResponse:
     """Un único Excel con las 4 listas -Sold To, Ship To, Especie, Variedad-,
     tal como quedan después de homogenizar: variedades estándar primero, y
@@ -232,7 +234,7 @@ def exportar_listados() -> StreamingResponse:
     )
 
 
-@router.post("/importar/{tipo}")
+@router.post("/importar/{tipo}", dependencies=[Depends(solo_interno)])
 async def importar_listado(tipo: str, archivo: UploadFile = File(...), especie_id: int | None = Query(None)) -> dict[str, int]:
     if tipo not in ("sold_to", "ship_to", "especie", "variedad"):
         raise HTTPException(404, "Listado inválido")
@@ -264,7 +266,7 @@ async def importar_listado(tipo: str, archivo: UploadFile = File(...), especie_i
     return {"creados": creados}
 
 
-@router.post("/importar-maestro")
+@router.post("/importar-maestro", dependencies=[Depends(solo_interno)])
 async def importar_maestro(archivo: UploadFile = File(...)) -> dict[str, int]:
     """Importa en una sola operación el Excel maestro de Listados.
 
@@ -354,7 +356,7 @@ async def importar_maestro(archivo: UploadFile = File(...)) -> dict[str, int]:
     return conteo
 
 
-@router.post("/eliminar-lote")
+@router.post("/eliminar-lote", dependencies=[Depends(solo_interno)])
 def eliminar_lote(body: EliminarLoteIn) -> dict[str, int]:
     if body.tipo not in ("sold_to", "ship_to", "especie", "variedad") or not body.ids:
         raise HTTPException(400, "Selección inválida")
@@ -390,7 +392,7 @@ def listar_valores(
         return cur.fetchall()
 
 
-@router.post("/{tipo}")
+@router.post("/{tipo}", dependencies=[Depends(solo_interno)])
 def crear_valor(tipo: str, body: ValorListaIn) -> dict[str, Any]:
     _validar_tipo(tipo)
     valor = normalizar_texto_general(body.valor)
@@ -415,7 +417,7 @@ def crear_valor(tipo: str, body: ValorListaIn) -> dict[str, Any]:
         return {"id": cur.fetchone()["id"]}
 
 
-@router.put("/{tipo}/{valor_id}")
+@router.put("/{tipo}/{valor_id}", dependencies=[Depends(solo_interno)])
 def editar_valor(tipo: str, valor_id: int, body: ValorListaIn) -> dict[str, str]:
     _validar_tipo(tipo)
     valor = normalizar_texto_general(body.valor)
@@ -452,7 +454,7 @@ def editar_valor(tipo: str, valor_id: int, body: ValorListaIn) -> dict[str, str]
         return {"estado": "ok"}
 
 
-@router.delete("/{tipo}/{valor_id}")
+@router.delete("/{tipo}/{valor_id}", dependencies=[Depends(solo_interno)])
 def eliminar_valor(tipo: str, valor_id: int) -> dict[str, str]:
     """Borrado FÍSICO y definitivo -a propósito, se reserva para variedades
     estándar vacías (creadas de más, sin nada asignado). Un valor crudo
@@ -489,7 +491,7 @@ def eliminar_valor(tipo: str, valor_id: int) -> dict[str, str]:
         return {"estado": "ok"}
 
 
-@router.get("/{tipo}/homogenizar")
+@router.get("/{tipo}/homogenizar", dependencies=[Depends(solo_interno)])
 def candidatos_homogenizacion(tipo: str, especie_id: int | None = Query(None)) -> list[dict[str, Any]]:
     """Agrupa valores activos que probablemente son el mismo dato repetido.
     Nunca fusiona nada solo: solo propone -ver /estandares y /asignar-. Para
@@ -597,7 +599,7 @@ def candidatos_homogenizacion(tipo: str, especie_id: int | None = Query(None)) -
     return grupos
 
 
-@router.get("/{tipo}/estandares")
+@router.get("/{tipo}/estandares", dependencies=[Depends(solo_interno)])
 def listar_estandares(tipo: str, especie_id: int | None = Query(None)) -> dict[str, Any]:
     """Cada variedad estándar con los valores crudos que un administrador le
     asignó, más los valores crudos activos que todavía no se asignaron a
@@ -639,7 +641,7 @@ def listar_estandares(tipo: str, especie_id: int | None = Query(None)) -> dict[s
     }
 
 
-@router.post("/{tipo}/estandares")
+@router.post("/{tipo}/estandares", dependencies=[Depends(solo_interno)])
 def crear_estandar(tipo: str, body: ValorListaIn) -> dict[str, Any]:
     """Crea una variedad estándar con nombre completamente libre -no tiene
     que derivarse del valor más común de ningún grupo-. Si el administrador
@@ -654,7 +656,7 @@ def crear_estandar(tipo: str, body: ValorListaIn) -> dict[str, Any]:
         return {"id": estandar_id}
 
 
-@router.put("/{tipo}/estandares/{estandar_id}")
+@router.put("/{tipo}/estandares/{estandar_id}", dependencies=[Depends(solo_interno)])
 def editar_estandar(tipo: str, estandar_id: int, body: ValorListaIn) -> dict[str, str]:
     _validar_tipo(tipo)
     valor = normalizar_texto_general(body.valor)
@@ -687,7 +689,7 @@ def editar_estandar(tipo: str, estandar_id: int, body: ValorListaIn) -> dict[str
         return {"estado": "ok"}
 
 
-@router.delete("/{tipo}/estandares/{estandar_id}")
+@router.delete("/{tipo}/estandares/{estandar_id}", dependencies=[Depends(solo_interno)])
 def eliminar_estandar(tipo: str, estandar_id: int) -> dict[str, str]:
     """Elimina la variedad estándar y libera a todos los valores crudos que
     tenía asignados -vuelven a quedar activos y sin asignar, no se borran-."""
@@ -703,7 +705,7 @@ def eliminar_estandar(tipo: str, estandar_id: int) -> dict[str, str]:
         return {"estado": "ok"}
 
 
-@router.post("/{tipo}/{valor_id}/asignar")
+@router.post("/{tipo}/{valor_id}/asignar", dependencies=[Depends(solo_interno)])
 def asignar_valor(tipo: str, valor_id: int, body: AsignarIn) -> dict[str, str]:
     """Asigna (o desasigna, con estandar_id=null) un valor crudo a una
     variedad estándar. Es la operación atómica detrás de todo el flujo:
