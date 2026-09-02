@@ -7,6 +7,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import openpyxl
+from openpyxl.worksheet.table import Table, TableStyleInfo
 import psycopg2.errors
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -345,6 +346,80 @@ def _compuestos_en_orden(muestras: list[MuestraGCOut]) -> list[str]:
     return vistos
 
 
+ESTILO_TABLA_DATOS = "TableStyleMedium4"
+ESTILO_TABLA_CABECERA = "TableStyleLight11"
+TITULO_EXCEL = "RESULTADOS DE ANÁLISIS CROMATOGRÁFICOS"
+_RUTA_LOGO_EXCEL = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "src", "assets", "agrofresh-logo.png",
+)
+
+
+def _poner_logo(ws, ancla: str = "A1") -> None:
+    """El logo del laboratorio arriba a la izquierda de la primera hoja.
+
+    openpyxl necesita Pillow para medir la imagen. Si no está instalado el
+    Excel sale igual, sin logo: vale más entregar los datos que fallar la
+    descarga entera por un adorno.
+    """
+    try:
+        from openpyxl.drawing.image import Image as ImagenExcel
+
+        imagen = ImagenExcel(_RUTA_LOGO_EXCEL)
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "No se pudo insertar el logo en el Excel del GC (¿falta Pillow?)"
+        )
+        return
+    # El alto del original es 120 px; 86 deja el logo dentro de las cinco
+    # primeras filas, que es donde va el encabezado.
+    imagen.width, imagen.height = 215, 86
+    ws.add_image(imagen, ancla)
+
+
+def _dar_formato_de_tabla(ws, nombre: str, ref: str, estilo: str) -> None:
+    """Convierte un rango en tabla de Excel: filtros, franjas y encabezado
+    fijo sin que nadie tenga que darle formato a mano."""
+    tabla = Table(displayName=nombre, ref=ref)
+    tabla.tableStyleInfo = TableStyleInfo(
+        name=estilo,
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=False,
+    )
+    ws.add_table(tabla)
+
+
+def _nombre_desde_data_directory(cabecera: list[CampoCabeceraOut]) -> str | None:
+    """El nombre del archivo, sacado de la carpeta de la corrida.
+
+    El GC guarda cada secuencia en su propia carpeta, y ese nombre ya trae
+    todo lo que identifica la corrida:
+
+        C:\\Chem32\\1\\Data\\GCNPD SECUENCIA 31-08-26 2026-08-31 12-53-00\\
+        -> GCNPD_SECUENCIA_310826_20260831_125300.xlsx
+
+    Los espacios pasan a "_" y se sacan los guiones, para que el nombre no
+    se rompa al mandarlo por correo ni al guardarlo en R2.
+    """
+    ruta = next(
+        (c.valor for c in cabecera if c.campo.strip().lower() == "data directory" and c.valor),
+        None,
+    )
+    if not ruta:
+        return None
+    carpeta = next(
+        (parte for parte in reversed(re.split(r"[\\/]", ruta.strip())) if parte.strip()),
+        "",
+    )
+    if not carpeta:
+        return None
+    limpio = "_".join(t.replace("-", "") for t in carpeta.split())
+    limpio = re.sub(r"[^A-Za-z0-9_.]", "", limpio)
+    return limpio or None
+
+
 @router.post("/detalle-gc/excel")
 def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
     if not body.muestras:
@@ -357,14 +432,35 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
     # lo cuestiona, así que va primero y no escondida al final.
     ws0 = wb.active
     ws0.title = HOJA_CABECERA
-    for col, texto in enumerate(("Sección", "Campo", "Valor"), start=1):
-        ws0.cell(row=1, column=col, value=texto)
-    for fila_idx, campo in enumerate(body.cabecera, start=2):
-        ws0.cell(row=fila_idx, column=1, value=campo.seccion)
-        ws0.cell(row=fila_idx, column=2, value=campo.campo)
-        ws0.cell(row=fila_idx, column=3, value=campo.valor)
-    ws0.freeze_panes = "A2"
-    for col, ancho in zip("ABC", (26, 46, 92)):
+    ws0.sheet_view.showGridLines = False
+    _poner_logo(ws0)
+    ws0.merge_cells("C2:D3")
+    titulo = ws0["C2"]
+    titulo.value = TITULO_EXCEL
+    titulo.font = openpyxl.styles.Font(bold=True, size=18)
+    titulo.alignment = openpyxl.styles.Alignment(horizontal="left", vertical="center")
+
+    FILA_ENCABEZADO = 6
+    for col, texto in enumerate(("Sección", "Campo", "Valor"), start=2):
+        ws0.cell(row=FILA_ENCABEZADO, column=col, value=texto)
+    fila_idx = FILA_ENCABEZADO
+    seccion_anterior: str | None = None
+    for campo in body.cabecera:
+        fila_idx += 1
+        # La sección se escribe solo cuando cambia: repetirla en cada fila
+        # tapa el dato que de verdad se viene a leer.
+        if campo.seccion != seccion_anterior:
+            ws0.cell(row=fila_idx, column=2, value=campo.seccion)
+            seccion_anterior = campo.seccion
+        ws0.cell(row=fila_idx, column=3, value=campo.campo)
+        celda = ws0.cell(row=fila_idx, column=4, value=campo.valor)
+        celda.alignment = openpyxl.styles.Alignment(wrap_text=True, vertical="center")
+    if body.cabecera:
+        _dar_formato_de_tabla(
+            ws0, "Tabla3", f"B{FILA_ENCABEZADO}:D{fila_idx}", ESTILO_TABLA_CABECERA
+        )
+    ws0.freeze_panes = f"A{FILA_ENCABEZADO + 1}"
+    for col, ancho in zip("BCD", (26, 46, 44)):
         ws0.column_dimensions[col].width = ancho
 
     # ── Hoja 2: una fila por compuesto de cada vial, como sale del equipo ──
@@ -388,41 +484,48 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
                 ws.cell(row=fila, column=col, value=valor)
             fila += 1
     ws.freeze_panes = "A2"
-    for col, ancho in zip("ABCDEFGH", (16, 10, 9, 22, 13, 14, 14, 18)):
+    _dar_formato_de_tabla(ws, "Tabla2", f"A1:H{max(fila - 1, 2)}", ESTILO_TABLA_DATOS)
+    for col, ancho in zip("ABCDEFGH", (16, 10, 11, 22, 16, 14, 16, 18)):
         ws.column_dimensions[col].width = ancho
 
-    # ── Hoja 2: un vial por fila, con ppm y área de cada compuesto pegados ──
+    # ── Hoja 3: un vial por fila, con ppm y área de cada compuesto pegados ──
+    # "Ubicación de la Muestra" va vacía a propósito: el archivo del GC no la
+    # trae y el laboratorio la anota a mano al revisar la corrida.
     ws2 = wb.create_sheet(HOJA_POR_VIAL)
     ws2.cell(row=1, column=1, value="Seq Line")
-    ws2.cell(row=1, column=2, value="Vial")
-    ws2.cell(row=1, column=3, value="Tipo")
+    ws2.cell(row=1, column=2, value="Ubicación de la Muestra")
+    ws2.cell(row=1, column=3, value="Vial")
+    ws2.cell(row=1, column=4, value="Tipo")
     for i, compuesto in enumerate(compuestos):
-        ws2.cell(row=1, column=4 + i * 2, value=f"{compuesto} ppm")
-        ws2.cell(row=1, column=5 + i * 2, value=f"{compuesto} área")
+        ws2.cell(row=1, column=5 + i * 2, value=f"{compuesto} ppm")
+        ws2.cell(row=1, column=6 + i * 2, value=f"{compuesto} área")
     for fila_idx, m in enumerate(body.muestras, start=2):
         ws2.cell(row=fila_idx, column=1, value=m.seq_line)
-        ws2.cell(row=fila_idx, column=2, value=m.codigo)
-        ws2.cell(row=fila_idx, column=3, value="Muestra" if m.es_muestra else "Control")
+        ws2.cell(row=fila_idx, column=3, value=m.codigo)
+        ws2.cell(row=fila_idx, column=4, value="Muestra" if m.es_muestra else "Control")
         por_analito = {r.analito: r for r in m.resultados}
         for i, compuesto in enumerate(compuestos):
             r = por_analito.get(compuesto)
-            ws2.cell(row=fila_idx, column=4 + i * 2, value=r.amount if r else None)
-            ws2.cell(row=fila_idx, column=5 + i * 2, value=r.area if r else None)
-    ws2.freeze_panes = "D2"
-    ws2.column_dimensions["A"].width = 9
-    ws2.column_dimensions["B"].width = 18
-    ws2.column_dimensions["C"].width = 10
-    for col in range(4, 4 + len(compuestos) * 2):
-        ws2.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 17
+            ws2.cell(row=fila_idx, column=5 + i * 2, value=r.amount if r else None)
+            ws2.cell(row=fila_idx, column=6 + i * 2, value=r.area if r else None)
+    ws2.freeze_panes = "E2"
+    ultima_col = openpyxl.utils.get_column_letter(4 + len(compuestos) * 2)
+    _dar_formato_de_tabla(
+        ws2, "Tabla1", f"A1:{ultima_col}{len(body.muestras) + 1}", ESTILO_TABLA_DATOS
+    )
+    for col, ancho in zip("ABCD", (11, 25, 18, 10)):
+        ws2.column_dimensions[col].width = ancho
+    for col in range(5, 5 + len(compuestos) * 2):
+        ws2.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 21
 
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)
-    nombre = f"Resultados_GC_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    nombre = _nombre_desde_data_directory(body.cabecera) or f"Resultados_GC_{datetime.now().strftime('%Y%m%d')}"
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+        headers={"Content-Disposition": f'attachment; filename="{nombre}.xlsx"'},
     )
 
 
