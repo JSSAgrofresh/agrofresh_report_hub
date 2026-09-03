@@ -89,3 +89,5 @@ cliente deben tener el prefijo `VITE_` (requisito de Vite).
 - Estilos con CSS Modules (`Component.module.css`) junto al componente que los usa.
 - Cada `feature` expone su API pública a través de `index.ts`; el resto de sus archivos son
   detalles internos y no deberían importarse directamente desde fuera del feature.
+
+Documentación generada y mantenida con ayuda de ASTRID.
