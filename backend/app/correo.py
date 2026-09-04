@@ -103,8 +103,16 @@ def _construir_mime(
     cuerpo_html: str,
     cuerpo_texto: str | None = None,
     adjuntos: list[Adjunto] | None = None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
 ) -> str:
-    """Construye un mensaje MIME y lo codifica en base64url para Gmail API."""
+    """Construye un mensaje MIME y lo codifica en base64url para Gmail API.
+
+    El encabezado Bcc se incluye tal cual: Gmail API lo usa para resolver a
+    quién más entregar el correo y lo retira de la copia que de verdad ven
+    los demás destinatarios -es el comportamiento estándar de cualquier MTA
+    con un mensaje RFC822 que trae ese encabezado-.
+    """
     if adjuntos:
         msg = MIMEMultipart("mixed")
         cuerpo = MIMEMultipart("alternative")
@@ -124,6 +132,10 @@ def _construir_mime(
 
     msg["From"] = f"{FROM_DISPLAY} <{config.GMAIL_ACCOUNT}>"
     msg["To"] = destinatario
+    if cc:
+        msg["Cc"] = ", ".join(cc)
+    if bcc:
+        msg["Bcc"] = ", ".join(bcc)
     msg["Subject"] = asunto
 
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
@@ -136,10 +148,12 @@ def _enviar_gmail(
     cuerpo_html: str,
     cuerpo_texto: str | None = None,
     adjuntos: list[Adjunto] | None = None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
 ) -> None:
     """Envia un correo via Gmail API usando OAuth 2.0."""
     access_token = _gmail_access_token()
-    raw = _construir_mime(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos)
+    raw = _construir_mime(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos, cc, bcc)
 
     try:
         resp = requests.post(
@@ -171,14 +185,26 @@ def _enviar_gmail(
 # Servicio Resend (fallback)
 # ----------------------------------------------------------------------------
 
-def _enviar_resend(destinatario: str, asunto: str, cuerpo_html: str) -> None:
+def _enviar_resend(
+    destinatario: str,
+    asunto: str,
+    cuerpo_html: str,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
+) -> None:
     if not config.RESEND_API_KEY:
         raise HTTPException(503, "El servidor de correo no esta configurado.")
+
+    payload: dict = {"from": RESEND_FROM, "to": [destinatario], "subject": asunto, "html": cuerpo_html}
+    if cc:
+        payload["cc"] = cc
+    if bcc:
+        payload["bcc"] = bcc
 
     try:
         resp = requests.post(
             RESEND_URL,
-            json={"from": RESEND_FROM, "to": [destinatario], "subject": asunto, "html": cuerpo_html},
+            json=payload,
             headers={"Authorization": f"Bearer {config.RESEND_API_KEY}"},
             timeout=15,
         )
@@ -200,16 +226,21 @@ def enviar(
     cuerpo_html: str,
     cuerpo_texto: str | None = None,
     adjuntos: list[Adjunto] | None = None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
 ) -> None:
     """
     Envia un correo. Usa Gmail API si esta configurado; Resend como fallback.
     Llamar desde cualquier modulo del backend que necesite enviar correos.
+
+    `cc`/`bcc` son listas de correos adicionales -copia visible y copia
+    oculta respectivamente-. No reemplazan a `destinatario`, se suman.
     """
     if config.GMAIL_CLIENT_ID and config.GMAIL_CLIENT_SECRET and config.GMAIL_REFRESH_TOKEN:
-        _enviar_gmail(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos)
+        _enviar_gmail(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos, cc, bcc)
     elif config.RESEND_API_KEY:
         logger.warning("Gmail OAuth no configurado; usando Resend como fallback.")
-        _enviar_resend(destinatario, asunto, cuerpo_html)
+        _enviar_resend(destinatario, asunto, cuerpo_html, cc, bcc)
     else:
         raise HTTPException(
             503,

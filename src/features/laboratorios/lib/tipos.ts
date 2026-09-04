@@ -33,6 +33,14 @@ export const TIPOS_CONTACTO: { valor: TipoContacto; etiqueta: string; descripcio
   },
 ]
 
+/** Cómo sale una copia interna AgroFresh en el correo de resultados. */
+export type TipoCopia = 'cc' | 'bcc'
+
+export const TIPOS_COPIA: { valor: TipoCopia; etiqueta: string }[] = [
+  { valor: 'cc', etiqueta: 'Copia' },
+  { valor: 'bcc', etiqueta: 'Copia oculta' },
+]
+
 export interface Contacto {
   id: number
   laboratorio: string
@@ -40,6 +48,12 @@ export interface Contacto {
   email: string
   cargo: string
   tipo: TipoContacto
+  /** Solo aplica a resultado_cliente/resultado_interno: cada Ship To tiene
+   * su propia configuración de resultados. Vacío = configuración global
+   * (la que existía antes de separar por Ship To). */
+  ship_to: string
+  /** Solo aplica cuando tipo === 'resultado_interno'. */
+  tipo_copia: TipoCopia
   activo: boolean
   orden: number
 }

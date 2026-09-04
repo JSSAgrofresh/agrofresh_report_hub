@@ -97,6 +97,12 @@ config_store.crud_router(router, "/unidades", "unidades.json", Unidad, UnidadIn,
 
 TIPOS_CONTACTO = ("solicitud", "resultado_cliente", "resultado_interno")
 
+# cc  → copia visible (el resto de los destinatarios la ve)
+# bcc → copia oculta (nadie más la ve)
+# Solo aplica a `resultado_interno`: un `resultado_cliente` siempre va como
+# destinatario directo, y `solicitud` no participa de esta configuración.
+TIPOS_COPIA = ("cc", "bcc")
+
 
 class Contacto(BaseModel):
     id: int
@@ -108,6 +114,14 @@ class Contacto(BaseModel):
     # resultado_cliente  → el laboratorio le manda los resultados al cliente
     # resultado_interno  → copia que nos llega a nosotros
     tipo: str = "solicitud"
+    # Solo tiene sentido para resultado_cliente/resultado_interno: cada Ship
+    # To tiene su propia configuración de a quién le llegan sus resultados.
+    # Vacío ("") es la configuración "global" -la que existía antes de que
+    # esto se pudiera separar por Ship To- y sigue aplicando como respaldo
+    # para cualquier Ship To que todavía no tenga la suya propia.
+    ship_to: str = ""
+    # Solo aplica cuando tipo == resultado_interno (ver TIPOS_COPIA).
+    tipo_copia: str = "cc"
     activo: bool = True
     orden: int = 0
 
@@ -118,6 +132,8 @@ class ContactoIn(BaseModel):
     email: str
     cargo: str = ""
     tipo: str = "solicitud"
+    ship_to: str = ""
+    tipo_copia: str = "cc"
     activo: bool = True
     orden: int = 0
 
