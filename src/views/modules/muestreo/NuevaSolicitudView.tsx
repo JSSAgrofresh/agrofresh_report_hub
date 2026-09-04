@@ -919,57 +919,55 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             </h2>
 
             {analitosLab.length > 0 && (
-              <div className={styles.tablaCaja}>
-                <table className={styles.tabla}>
-                  <thead>
-                    <tr>
-                      <th></th>
-                      <th>Código</th>
-                      <th>{esCromatografia ? 'Dosis Aplicada' : 'Valor'}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analitosLab.map((a, i) => {
-                      const nuevaCategoria = a.categoria && a.categoria !== analitosLab[i - 1]?.categoria
-                      return (
-                        <Fragment key={a.id}>
-                          {nuevaCategoria && (
-                            <tr>
-                              <td colSpan={3} className={styles.categoriaFila}>
-                                {a.categoria}
-                              </td>
-                            </tr>
-                          )}
-                          <tr>
-                            <td>
-                              <input
-                                type="checkbox"
-                                checked={Boolean(seleccionAnalitos[a.id])}
-                                onChange={() => alternarAnalito(a.id)}
-                              />
-                            </td>
-                            <td className={styles.mono} title={a.nombre}>
-                              {a.codigo}
-                              {a.requerido && <span className={styles.marcaRequerido}> *</span>}
-                            </td>
-                            <td>
-                              {/* Siempre texto libre: acá se anota lo que
-                                  corresponda al analito (una dosis, una
-                                  unidad distinta, una nota), no solo un
-                                  número en la unidad configurada. */}
+              <div className={styles.analitosPorCategoria}>
+                {analitosLab.map((a, i) => {
+                  const nuevaCategoria = a.categoria && a.categoria !== analitosLab[i - 1]?.categoria
+                  const seleccionado = Boolean(seleccionAnalitos[a.id])
+                  const dosis = valoresAnalitos[a.id] ?? ''
+                  return (
+                    <Fragment key={a.id}>
+                      {nuevaCategoria && <h3 className={styles.categoriaAnalitos}>{a.categoria}</h3>}
+                      <div
+                        className={cn(styles.cardAnalito, seleccionado && styles.cardAnalitoActiva)}
+                        data-testid={`analito-card-${a.id}`}
+                      >
+                        <label className={styles.selectorAnalito}>
+                          <input
+                            type="checkbox"
+                            checked={seleccionado}
+                            onChange={() => alternarAnalito(a.id)}
+                          />
+                          <span>
+                            <span className={styles.mono}>{a.codigo}</span>
+                            <strong>{a.nombre}</strong>
+                            {a.requerido && <span className={styles.marcaRequerido}> *</span>}
+                          </span>
+                        </label>
+                        {seleccionado && (
+                          <div className={styles.dosisAnalito}>
+                            <label>
+                              {esCromatografia ? 'Dosis aplicada' : 'Valor'}
                               <input
                                 type="text"
                                 placeholder={unidadDe(a)}
-                                value={valoresAnalitos[a.id] ?? ''}
+                                value={dosis}
                                 onChange={(e) => setValoresAnalitos((v) => ({ ...v, [a.id]: e.target.value }))}
                               />
-                            </td>
-                          </tr>
-                        </Fragment>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                            </label>
+                            <button
+                              type="button"
+                              className={cn(styles.sinDosis, !dosis && styles.sinDosisActiva)}
+                              aria-pressed={!dosis}
+                              onClick={() => setValoresAnalitos((v) => ({ ...v, [a.id]: '' }))}
+                            >
+                              {dosis ? 'No indicar dosis' : 'Sin dosis: —'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </Fragment>
+                  )
+                })}
               </div>
             )}
 
