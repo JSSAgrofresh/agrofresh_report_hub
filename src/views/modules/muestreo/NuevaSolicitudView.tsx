@@ -1065,7 +1065,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                           <input
                             type="checkbox"
                             checked={seleccionado}
-                            onChange={() => alternarAnalito(a.id)}
+                            onChange={() => alternarAnalito(a)}
                           />
                           <span>
                             <span className={styles.mono}>{a.codigo}</span>
