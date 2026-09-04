@@ -28,8 +28,8 @@ _MARGEN_H = 1.25 * cm
 _MARGEN_V = 0.8 * cm
 ANCHO_UTIL = A4[0] - 2 * _MARGEN_H
 
-_S_TITULO = ParagraphStyle('tituloOrden', fontName='Helvetica-Bold', fontSize=17, leading=19, textColor=VERDE)
-_S_FOLIO = ParagraphStyle('folioOrden', fontName='Helvetica-Bold', fontSize=11, leading=13, textColor=VERDE_2)
+_S_TITULO = ParagraphStyle('tituloOrden', fontName='Helvetica-Bold', fontSize=17, leading=19, textColor=VERDE, alignment=1)
+_S_FOLIO = ParagraphStyle('folioOrden', fontName='Helvetica-Bold', fontSize=11, leading=13, textColor=VERDE_2, alignment=1)
 # Centrada y al pie de la hoja, igual que en el informe de resultados.
 _S_DIRECCION_PIE = ParagraphStyle('direccionOrdenPie', fontName='Helvetica', fontSize=7.2, leading=8.5, textColor=GRIS_3, alignment=1)
 _S_NUM = ParagraphStyle('numeroPaso', fontName='Helvetica-Bold', fontSize=12, leading=13, textColor=VERDE, alignment=1)
@@ -64,7 +64,7 @@ def _codigo_barras(folio: str):
         codigo = code128.Code128(folio.strip(), barHeight=9 * mm, barWidth=0.38 * mm, humanReadable=False, quiet=False)
     except Exception:
         return None
-    codigo.hAlign = 'RIGHT'
+    codigo.hAlign = 'CENTER'
     return codigo
 
 
@@ -161,7 +161,6 @@ def _panel_origen(datos: dict, laboratorio: str, ancho: float) -> Table:
     t = Table(contenido, colWidths=[ancho])
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
-        ('BOX', (0, 0), (-1, -1), 0.6, GRIS_2),
         ('LEFTPADDING', (0, 0), (-1, 0), 0), ('RIGHTPADDING', (0, 0), (-1, 0), 0),
         ('TOPPADDING', (0, 0), (-1, 0), 0), ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
         ('LEFTPADDING', (0, 1), (-1, -1), 8), ('RIGHTPADDING', (0, 1), (-1, -1), 8),
@@ -199,19 +198,20 @@ def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espaci
 
     elementos = []
     folio = str(datos.get('numero_solicitud') or '')
-    logo = Image(_RUTA_LOGO, width=4.35 * cm, height=1.74 * cm) if os.path.isfile(_RUTA_LOGO) else Paragraph('', _S_VALOR)
+    logo = Image(_RUTA_LOGO, width=5.6 * cm, height=2.24 * cm) if os.path.isfile(_RUTA_LOGO) else Paragraph('', _S_VALOR)
     codigo = _codigo_barras(folio)
     # "Solicitud de análisis": es lo que este documento es y lo que dice el
     # resto del sistema (Toma de muestras → Nueva solicitud). "Orden de
     # muestreo" era un nombre que solo vivía acá, en el PDF, y no en ninguna
     # otra parte -de ahí la confusión de quien lo recibe-.
-    identidad = [Paragraph('SOLICITUD DE ANÁLISIS', _S_TITULO), Paragraph(f'N° {folio}', _S_FOLIO)]
+    identidad = [Spacer(1, 12), Paragraph('SOLICITUD DE ANÁLISIS', _S_TITULO), Paragraph(f'N° {folio}', _S_FOLIO)]
     if codigo is not None:
         identidad.extend([Spacer(1, 2), codigo])
-    header = Table([[logo, identidad]], colWidths=[5.2 * cm, ANCHO_UTIL - 5.2 * cm])
+    header = Table([[logo, identidad]], colWidths=[6.4 * cm, ANCHO_UTIL - 6.4 * cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('VALIGN', (0, 0), (0, 0), 'MIDDLE'), ('VALIGN', (1, 0), (1, 0), 'BOTTOM'),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
         ('LEFTPADDING', (0, 0), (0, 0), 0), ('RIGHTPADDING', (0, 0), (0, 0), 8),
         ('LEFTPADDING', (1, 0), (1, 0), 14), ('RIGHTPADDING', (1, 0), (1, 0), 0),
         ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
@@ -238,8 +238,11 @@ def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espaci
     panel_muestra.setStyle(TableStyle([
         ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
         ('TOPPADDING', (0, 0), (-1, -1), 0), ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ('BOX', (0, 0), (-1, -1), 0.6, GRIS_2),
     ]))
+    # El borde de cada panel se dibuja acá, sobre la fila completa de
+    # `cuerpo_superior`, y no dentro de cada tabla por separado: así ambos
+    # bordes miden lo mismo de alto -el de la fila más alta-, en vez de que
+    # el panel más corto (punto 1) quede con un borde más bajo que el punto 2.
     cuerpo_superior = Table(
         [[_panel_origen(datos, laboratorio, 5.15 * cm), panel_muestra]],
         colWidths=[5.15 * cm, ANCHO_UTIL - 5.15 * cm],
@@ -248,6 +251,8 @@ def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espaci
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
         ('TOPPADDING', (0, 0), (-1, -1), 0), ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ('BOX', (0, 0), (0, 0), 0.6, GRIS_2),
+        ('BOX', (1, 0), (1, 0), 0.6, GRIS_2),
     ]))
     elementos.extend([cuerpo_superior, Spacer(1, 6)])
 
