@@ -35,11 +35,12 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from . import config, config_store, correo, indice_solicitudes, mail_templates, r2
+from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
 from .toma_muestras_pdf import generar_pdf_solicitud
@@ -306,6 +307,34 @@ class CruceIn(BaseModel):
     codigo_muestra: str | None = None
 
 
+def _normalizar_correo(valor: str | None) -> str:
+    """trim + minúsculas: para que un espacio de más o una mayúscula no
+    hagan que dos direcciones que son la misma cuenta cuenten como
+    distintas -ni al comparar propiedad, ni al armar TO/CC/BCC-."""
+    return str(valor or "").strip().lower()
+
+
+def _es_propia(usuario: Usuario, datos: dict) -> bool:
+    """¿Esta sesión puede ver/gestionar esta solicitud?
+
+    Un muestreador solo ve lo que él mismo creó -se compara contra
+    `email_solicitante`, que `crear_solicitud` fuerza siempre al correo de la
+    sesión que la crea cuando es un muestreador (ver más abajo): no es un
+    dato que el cliente pueda torcer mandando otro valor en el request.
+    Cualquier otra cuenta interna (admin_general, admin_area) sigue viendo
+    todo, igual que antes.
+    """
+    if usuario.tipoAcceso != "muestreador":
+        return True
+    correo_creador = _normalizar_correo(datos.get("email_solicitante"))
+    return correo_creador != "" and correo_creador == _normalizar_correo(usuario.email)
+
+
+def _exigir_acceso(usuario: Usuario, datos: dict) -> None:
+    if not _es_propia(usuario, datos):
+        raise HTTPException(403, "Esta solicitud fue creada por otro muestreador: no puedes verla ni reenviarla.")
+
+
 def _leer_todas_desde_archivos() -> list[tuple[str, dict]]:
     """Todas las solicitudes, bajando y parseando CADA archivo.
 
@@ -376,9 +405,11 @@ def leer_solicitudes_de(laboratorio: str) -> list[tuple[str, dict]]:
 
 
 @router.get("/solicitudes")
-def listar_solicitudes() -> list[Solicitud]:
+def listar_solicitudes(usuario: Usuario = Depends(usuario_actual)) -> list[Solicitud]:
     solicitudes = []
     for nombre, datos in leer_todas_las_solicitudes():
+        if not _es_propia(usuario, datos):
+            continue
         try:
             solicitudes.append(Solicitud(archivo=nombre, **datos))
         except (ValueError, KeyError):
@@ -455,21 +486,32 @@ def exportar_todas_las_solicitudes(archivo: list[str] | None = None) -> Streamin
 
 
 @router.get("/solicitudes/{archivo}")
-def obtener_solicitud(archivo: str) -> Solicitud:
+def obtener_solicitud(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     if r2.disponible():
         data, ext = _descargar_solicitud_r2(archivo)
         datos = _leer_solicitud_bytes(data, ext)
+        _exigir_acceso(usuario, datos)
         return Solicitud(archivo=os.path.basename(archivo), **datos)
     ruta = _ruta_archivo(archivo)
     datos = _leer_solicitud_archivo(ruta)
+    _exigir_acceso(usuario, datos)
     return Solicitud(archivo=os.path.basename(ruta), **datos)
 
 
 @router.post("/solicitudes")
-def crear_solicitud(body: SolicitudIn) -> Solicitud:
+def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     numero = _siguiente_numero()
     ahora = datetime.now(timezone.utc)
     datos = body.model_dump()
+    if usuario.tipoAcceso == "muestreador":
+        # No confiar en lo que mande el cliente: un muestreador podría
+        # escribir el correo de otra persona en `email_solicitante` y hacer
+        # que la solicitud pareciera creada por ella. El dueño real de la
+        # solicitud es siempre la sesión autenticada que la está creando.
+        datos["email_solicitante"] = _normalizar_correo(usuario.email)
+    # admin_general/admin_area pueden crear solicitudes en nombre de otra
+    # persona (ej. cargando algo a pedido de un muestreador) — para esas
+    # cuentas se respeta el flujo actual y se deja lo que mandó el formulario.
     datos.update(
         numero_solicitud=numero,
         fecha_solicitud=ahora.date().isoformat(),
@@ -542,7 +584,7 @@ def eliminar_solicitud(archivo: str) -> dict[str, str]:
 
 
 @router.get("/solicitudes/{archivo}/excel", response_model=None)
-def descargar_solicitud_excel(archivo: str) -> StreamingResponse:
+def descargar_solicitud_excel(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> StreamingResponse:
     """Regenera el documento visible con el formato vigente.
 
     Los datos siempre se leen del archivo maestro guardado (XLSX o JSON), de
@@ -554,6 +596,7 @@ def descargar_solicitud_excel(archivo: str) -> StreamingResponse:
         data, ext = _descargar_solicitud_r2(archivo)
         nombre_base = os.path.splitext(os.path.basename(archivo))[0]
         datos = _leer_solicitud_bytes(data, ext)
+        _exigir_acceso(usuario, datos)
         buf = io.BytesIO()
         analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
         construir_workbook(datos, analitos_config).save(buf)
@@ -562,6 +605,7 @@ def descargar_solicitud_excel(archivo: str) -> StreamingResponse:
     ruta = _ruta_archivo(archivo)
     numero = os.path.splitext(os.path.basename(ruta))[0]
     datos = _leer_solicitud_archivo(ruta)
+    _exigir_acceso(usuario, datos)
     buffer = io.BytesIO()
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     construir_workbook(datos, analitos_config).save(buffer)
@@ -574,7 +618,7 @@ def descargar_solicitud_excel(archivo: str) -> StreamingResponse:
 
 
 @router.get("/solicitudes/{archivo}/pdf")
-def descargar_solicitud_pdf(archivo: str) -> Response:
+def descargar_solicitud_pdf(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> Response:
     if r2.disponible():
         data, ext = _descargar_solicitud_r2(archivo)
         datos = _leer_solicitud_bytes(data, ext)
@@ -583,6 +627,7 @@ def descargar_solicitud_pdf(archivo: str) -> Response:
         ruta = _ruta_archivo(archivo)
         numero = os.path.splitext(os.path.basename(ruta))[0]
         datos = _leer_solicitud_archivo(ruta)
+    _exigir_acceso(usuario, datos)
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
     pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config)
@@ -614,41 +659,80 @@ def contactos_de_solicitud(laboratorio: str) -> list[str]:
     ]
 
 
-def contactos_de_resultados(laboratorio: str) -> list[str]:
-    """Correos activos que el laboratorio debe usar al entregar resultados.
+def _contactos_resultado_del_ship_to(laboratorio: str, ship_to: str) -> list[dict]:
+    """Los contactos de resultado (cliente + interno) de un Ship To puntual.
 
-    Incluye tanto destinatarios del cliente como copias internas AgroFresh.
-    Esta lista es informativa en el PDF y no dispara ningún envío.
+    Cada Ship To tiene su propia configuración (ver Laboratorios → Resultado
+    a clientes). Si ese Ship To todavía no tiene nada configurado, se cae a
+    los contactos "globales" -los que no tienen Ship To asignado-, que son la
+    configuración previa a este cambio: así ninguna cuenta ya cargada quedó
+    huérfana al pasar la configuración a ser por Ship To.
     """
     contactos = _leer_config("contactos_laboratorio.json", [])
+    del_lab = [
+        c for c in contactos
+        if c.get("laboratorio") == laboratorio and c.get("tipo") in {"resultado_cliente", "resultado_interno"}
+    ]
+    ship_to_norm = (ship_to or "").strip()
+    especificos = [c for c in del_lab if (c.get("ship_to") or "").strip() == ship_to_norm]
+    if ship_to_norm and especificos:
+        return especificos
+    return [c for c in del_lab if not (c.get("ship_to") or "").strip()]
+
+
+def contactos_de_resultados(laboratorio: str, ship_to: str | None = None) -> list[str]:
+    """Correos activos que el laboratorio debe usar al entregar resultados de
+    este Ship To (destinatarios del cliente + copias internas AgroFresh).
+
+    Esta lista es informativa en el PDF y no dispara ningún envío.
+    """
     correos: list[str] = []
     vistos: set[str] = set()
-    for contacto in sorted(contactos, key=lambda c: c.get("orden", 0)):
+    for contacto in sorted(_contactos_resultado_del_ship_to(laboratorio, ship_to or ""), key=lambda c: c.get("orden", 0)):
         email = str(contacto.get("email") or "").strip()
         clave = email.casefold()
-        if (
-            contacto.get("laboratorio") == laboratorio
-            and contacto.get("tipo") in {"resultado_cliente", "resultado_interno"}
-            and contacto.get("activo", True)
-            and email
-            and clave not in vistos
-        ):
+        if contacto.get("activo", True) and email and clave not in vistos:
             correos.append(email)
             vistos.add(clave)
     return correos
+
+
+def destinatarios_resultado_por_tipo(laboratorio: str, ship_to: str | None = None) -> dict[str, list[str]]:
+    """Los correos de resultado de un Ship To, separados en `to`/`cc`/`bcc`.
+
+    `resultado_cliente` siempre va en `to`. `resultado_interno` va en `cc` o
+    en `bcc` según lo que se haya elegido para ese contacto -es la pieza que
+    permite que una copia interna salga oculta y otra no-.
+    """
+    salida: dict[str, list[str]] = {"to": [], "cc": [], "bcc": []}
+    vistos: set[str] = set()
+    for contacto in sorted(_contactos_resultado_del_ship_to(laboratorio, ship_to or ""), key=lambda c: c.get("orden", 0)):
+        if not contacto.get("activo", True):
+            continue
+        email = str(contacto.get("email") or "").strip()
+        clave = email.casefold()
+        if not email or clave in vistos:
+            continue
+        vistos.add(clave)
+        if contacto.get("tipo") == "resultado_cliente":
+            salida["to"].append(email)
+        elif contacto.get("tipo") == "resultado_interno":
+            destino = "bcc" if contacto.get("tipo_copia") == "bcc" else "cc"
+            salida[destino].append(email)
+    return salida
 
 
 def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
     """Añade al PDF la configuración vigente sin modificar la solicitud."""
     datos_pdf = dict(datos)
     datos_pdf["destinatarios_resultados"] = contactos_de_resultados(
-        str(datos.get("laboratorio") or "")
+        str(datos.get("laboratorio") or ""), str(datos.get("ship_to") or "")
     )
     return datos_pdf
 
 
 @router.get("/solicitudes/{archivo}/destinatarios")
-def destinatarios_de_solicitud(archivo: str) -> dict[str, Any]:
+def destinatarios_de_solicitud(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
     """A quién se le enviaría esta solicitud. El frontend lo muestra antes de
     enviar para que nadie dispare un correo sin ver a dónde va."""
     if r2.disponible():
@@ -656,12 +740,15 @@ def destinatarios_de_solicitud(archivo: str) -> dict[str, Any]:
         datos = _leer_solicitud_bytes(data, ext)
     else:
         datos = _leer_solicitud_archivo(_ruta_archivo(archivo))
+    _exigir_acceso(usuario, datos)
     laboratorio = datos.get("laboratorio", "")
     return {"laboratorio": laboratorio, "destinatarios": contactos_de_solicitud(laboratorio)}
 
 
 @router.post("/solicitudes/{archivo}/enviar")
-def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[str, str]:
+def enviar_solicitud_por_correo(
+    archivo: str, body: EnvioSolicitudIn, usuario: Usuario = Depends(usuario_actual)
+) -> dict[str, str]:
     """Genera el PDF y Excel de la solicitud y los envía como adjuntos."""
     if r2.disponible():
         data, ext = _descargar_solicitud_r2(archivo)
@@ -671,6 +758,7 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
         ruta = _ruta_archivo(archivo)
         numero = os.path.splitext(os.path.basename(ruta))[0]
         datos = _leer_solicitud_archivo(ruta)
+    _exigir_acceso(usuario, datos)
 
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
@@ -696,7 +784,7 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
     vistos: set[str] = set()
     for candidato in candidatos:
         email = str(candidato or "").strip()
-        clave = email.casefold()
+        clave = _normalizar_correo(email)
         if email and clave not in vistos:
             destinatarios.append(email)
             vistos.add(clave)
@@ -718,7 +806,16 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
         ),
     ]
 
-    correo.enviar(", ".join(destinatarios), asunto, html, texto, adjuntos)
+    # El muestreador que creó la solicitud SIEMPRE recibe una copia oculta de
+    # su propio envío -es el correo guardado en la solicitud (forzado por el
+    # backend al crearla, ver crear_solicitud), no el de quien aprieta
+    # "enviar" ahora-, aparte de los destinatarios normales de arriba y sin
+    # reemplazarlos. Si esa misma dirección ya está en los destinatarios
+    # normales, no se repite en BCC: recibiría el correo dos veces por nada.
+    email_muestreador = _normalizar_correo(datos.get("email_solicitante"))
+    bcc = [email_muestreador] if email_muestreador and email_muestreador not in vistos else []
+
+    correo.enviar(", ".join(destinatarios), asunto, html, texto, adjuntos, bcc=bcc)
     return {"ok": f"Solicitud {numero} enviada a {', '.join(destinatarios)}."}
 
 

@@ -22,6 +22,7 @@ import { acentoDeLaboratorio, inicialesDe } from './acento'
 import { AnalisisPanel } from './AnalisisPanel'
 import { AnalitosPanel } from './AnalitosPanel'
 import { ContactosPanel } from './ContactosPanel'
+import { ResultadosPanel } from './ResultadosPanel'
 import { UnidadesPanel } from './UnidadesPanel'
 import { TemplateMailPanel } from './TemplateMailPanel'
 import styles from './LaboratoriosView.module.css'
@@ -31,8 +32,8 @@ type Pestana = 'contactos' | 'analisis' | 'analitos' | 'resultados' | 'template'
 const PESTANAS: { valor: Pestana; etiqueta: string }[] = [
   { valor: 'analisis', etiqueta: 'Análisis' },
   { valor: 'analitos', etiqueta: 'Analitos' },
-  { valor: 'contactos', etiqueta: 'Contactos' },
-  { valor: 'resultados', etiqueta: 'Resultados' },
+  { valor: 'contactos', etiqueta: 'Contacto laboratorio' },
+  { valor: 'resultados', etiqueta: 'Resultado a clientes' },
   { valor: 'template', etiqueta: 'Template mail' },
 ]
 
@@ -306,21 +307,9 @@ export function LaboratoriosView() {
           )}
 
           {pestana === 'resultados' && (
-            <ContactosPanel
+            <ResultadosPanel
               laboratorio={lab.codigo}
-              contactos={contactosDelLab}
-              secciones={[
-                {
-                  tipo: 'resultado_cliente',
-                  titulo: 'Destinatarios del cliente',
-                  nota: 'El laboratorio envía los resultados a estos correos del cliente.',
-                },
-                {
-                  tipo: 'resultado_interno',
-                  titulo: 'Copia interna AgroFresh',
-                  nota: 'Correos nuestros que también reciben los resultados.',
-                },
-              ]}
+              contactos={contactosDelLab.filter((c) => c.tipo !== 'solicitud')}
               onCambio={(delLab) =>
                 setContactos([...contactos.filter((c) => c.laboratorio !== lab.codigo), ...delLab])
               }
