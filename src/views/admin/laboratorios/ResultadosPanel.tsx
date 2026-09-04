@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 import { crearContacto, actualizarContacto, eliminarContacto, TIPOS_COPIA } from '@/features/laboratorios'
 import type { Contacto, ContactoInput, TipoContacto, TipoCopia } from '@/features/laboratorios'
+import { listarPlantas } from '@/features/catalogo'
+import type { Planta } from '@/features/catalogo'
 import styles from './LaboratoriosView.module.css'
 
 interface ResultadosPanelProps {
@@ -40,12 +42,23 @@ const SECCIONES: { tipo: TipoContacto; titulo: string; nota: string }[] = [
 
 export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: ResultadosPanelProps) {
   const [shipToActivo, setShipToActivo] = useState<string | null>(null)
+  const [plantas, setPlantas] = useState<Planta[]>([])
   const [nuevoShipTo, setNuevoShipTo] = useState('')
   const [creandoEn, setCreandoEn] = useState<TipoContacto | null>(null)
   const [editando, setEditando] = useState<number | null>(null)
   const [borrador, setBorrador] = useState(VACIO)
   const [tipoCopia, setTipoCopia] = useState<TipoCopia>('cc')
   const [guardando, setGuardando] = useState(false)
+
+  // Los Ship To salen del catálogo (Listados → Ship To), no se escriben a
+  // mano: así queda el mismo nombre que usan las solicitudes y no se crean
+  // configuraciones "huérfanas" por una tilde o un espacio distinto.
+  useEffect(() => {
+    listarPlantas()
+      .then(setPlantas)
+      .catch(() => onError('No se pudo cargar el listado de Ship To.'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const shipTos = useMemo(() => {
     const vistos = new Set<string>()
@@ -54,6 +67,16 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
     if (vistos.has(SHIP_TO_GLOBAL)) lista.unshift(SHIP_TO_GLOBAL)
     return lista
   }, [contactos])
+
+  // Solo se ofrecen para "Nuevo Ship To" las plantas activas que todavía no
+  // tienen su propia configuración de resultados en este laboratorio.
+  const plantasDisponibles = useMemo(
+    () =>
+      plantas
+        .filter((p) => p.activo && !shipTos.includes(p.nombre))
+        .sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    [plantas, shipTos],
+  )
 
   function contador(shipTo: string) {
     return contactos.filter((c) => (c.ship_to ?? '') === shipTo).length
@@ -67,7 +90,7 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
   function crearShipTo() {
     const valor = nuevoShipTo.trim()
     if (!valor) {
-      onError('Escribe el nombre del Ship To.')
+      onError('Elige un Ship To.')
       return
     }
     if (shipTos.includes(valor)) {
@@ -354,16 +377,21 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
         ))}
 
         <div className={styles.tarjetaNueva} style={{ cursor: 'default' }}>
-          <input
-            className={styles.input}
-            placeholder="Nombre del Ship To"
+          <select
+            className={styles.select}
             value={nuevoShipTo}
             onChange={(e) => setNuevoShipTo(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') crearShipTo()
-            }}
-          />
-          <Button variant="secondary" onClick={crearShipTo}>
+          >
+            <option value="">
+              {plantasDisponibles.length === 0 ? 'No hay Ship To sin configurar' : 'Elige un Ship To…'}
+            </option>
+            {plantasDisponibles.map((p) => (
+              <option key={p.id} value={p.nombre}>
+                {p.nombre} · {p.cliente_nombre}
+              </option>
+            ))}
+          </select>
+          <Button variant="secondary" onClick={crearShipTo} disabled={!nuevoShipTo}>
             + Nuevo Ship To
           </Button>
         </div>
