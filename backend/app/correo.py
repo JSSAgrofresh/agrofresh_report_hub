@@ -11,7 +11,10 @@ Variables requeridas en .env:
     GMAIL_ACCOUNT        (default: agrofreshreporthub@gmail.com)
 
 Para regenerar el refresh token si expira o si el scope cambia, ejecutar:
-    python scripts/autorizar_gmail.py
+    cd backend
+    .venv\Scripts\python.exe ..\scripts\autorizar_gmail.py
+
+El script vive en la RAIZ del repo (scripts/), no en backend/scripts/.
 """
 import base64
 import logging
@@ -44,7 +47,8 @@ def _gmail_access_token() -> str:
     if not config.GMAIL_CLIENT_SECRET:
         raise HTTPException(503, "Falta GMAIL_CLIENT_SECRET en la configuracion del servidor.")
     if not config.GMAIL_REFRESH_TOKEN:
-        raise HTTPException(503, "Falta GMAIL_REFRESH_TOKEN. Ejecuta scripts/autorizar_gmail.py para generarlo.")
+        raise HTTPException(503, "Falta GMAIL_REFRESH_TOKEN. Generalo desde backend con: "
+            "python ..\\scripts\\autorizar_gmail.py (el script esta en la raiz del repo).")
 
     try:
         resp = requests.post(
@@ -68,13 +72,14 @@ def _gmail_access_token() -> str:
             raise HTTPException(
                 401,
                 "El refresh token de Gmail es invalido o fue revocado. "
-                "Ejecuta scripts/autorizar_gmail.py para regenerarlo.",
+                "Regeneralo desde backend con: python ..\\scripts\\autorizar_gmail.py "
+                "(el script esta en la raiz del repo, no en backend/scripts/).",
             )
         if "insufficient" in desc.lower() or "scope" in desc.lower():
             raise HTTPException(
                 403,
                 "El token de Gmail no tiene el scope gmail.send. "
-                "Ejecuta scripts/autorizar_gmail.py con el scope correcto.",
+                "Regeneralo desde backend con: python ..\\scripts\\autorizar_gmail.py",
             )
         raise HTTPException(502, f"Error al obtener access token de Google: {desc}")
 
