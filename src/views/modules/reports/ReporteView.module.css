@@ -244,6 +244,14 @@
   color: var(--acento);
 }
 
+.statCard.danger {
+  border-left-color: var(--color-danger);
+}
+
+.statCard.danger .statNum {
+  color: var(--color-danger);
+}
+
 .statLbl {
   font-size: 11.5px;
   color: var(--color-text-faint);
@@ -321,6 +329,77 @@
 
 .indicadores b {
   font-variant-numeric: tabular-nums;
+}
+
+/* ── tabla dinámica (Diagnofruit) ── */
+.tituloConIcono {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iconoPanel {
+  width: 16px;
+  height: 16px;
+  color: var(--acento);
+  flex-shrink: 0;
+}
+
+.tablaDiagnoCaja {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.tablaDiagno {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tablaDiagno th {
+  text-align: left;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  white-space: nowrap;
+}
+
+.tablaDiagno td {
+  padding: 7px var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fecha/Zona de muestreo se combinan en una sola celda por solicitud (rowSpan):
+   se alinean arriba y con un borde propio para no confundirse con el resto. */
+.tablaDiagno td[rowspan] {
+  vertical-align: top;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 2px solid var(--color-border-strong);
+}
+
+.tablaDiagno tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tablaDiagno tbody tr:hover {
+  background: var(--color-bg);
+}
+
+.celdaNormal {
+  color: var(--color-text);
+}
+
+.celdaDetectada {
+  color: var(--color-danger);
+  font-weight: 700;
 }
 
 @media (max-width: 1100px) {

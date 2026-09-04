@@ -535,7 +535,15 @@ function leerDiagnofruit(texto, inf){
   let m = texto.match(/Reporte n[úu]mero:\s*(\S+)/);
   if(m){ obs.push("Reporte Diagnofruit N° " + m[1]); d["N° Solicitud"] = m[1]; }
   m = texto.match(/Nombre de muestra:\s*(.+)/);
-  if(m && !/^[-\s]+$/.test(m[1])) obs.push("Muestra: " + m[1].trim());
+  if(m && !/^[-\s]+$/.test(m[1])){
+    const nombreMuestra = m[1].trim();
+    obs.push("Muestra: " + nombreMuestra);
+    // La zona de muestreo es lo que va antes del primer guion, ej. "M1" en
+    // "M1 - Frutizano - Pozo vaciado". El resto es contexto de la muestra,
+    // no de dónde se tomó, así que no se usa para esto.
+    const zona = nombreMuestra.split("-")[0].trim();
+    if(zona) d["Posición Muestreo"] = zona;
+  }
   const loc = campo(texto, "Localidad:", "U\\. prod");
   if(loc && !plano(loc).startsWith("no ")) obs.push("Localidad: " + loc);
   d["Observación"] = obs.join(" · ") || null;

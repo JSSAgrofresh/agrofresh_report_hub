@@ -20,6 +20,7 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
+import { IconFrasco } from '@/components/ui/icons'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import type { RangoFechas } from '@/components/ui/CalendarioRango'
@@ -166,6 +167,18 @@ function filtrarPorRango(lista: Observacion[], inferior: number | null, superior
   })
 }
 
+/** Para la tabla de Diagnofruit: si el patógeno se detectó en la muestra
+ * (valor numérico > 0, o un texto que no sea "ND"/"0"/vacío), se resalta la
+ * celda -es la lectura que le importa al laboratorio, más que el número exacto-. */
+const TEXTOS_NO_DETECTADO = new Set(['', 'nd', 'no detectado', '0', 'bld'])
+
+function esDetectado(o: Observacion | undefined): boolean {
+  if (!o) return false
+  if (o.ppm != null) return o.ppm > 0
+  const texto = (o.valorTexto ?? '').trim().toLowerCase()
+  return !TEXTOS_NO_DETECTADO.has(texto)
+}
+
 const FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit' })
 
 /** `clienteFijo`: usado por el portal de cliente — cuando viene seteado, los
@@ -302,6 +315,7 @@ export function ReporteView({
         planta: f.planta,
         tipoAplicacion: f.tipo_aplicacion,
         tipoServicio: f.tipo_servicio,
+        posicionMuestreo: f.posicion_muestreo,
         laboratorio: f.laboratorio,
         crop: f.especie,
         variedad: f.variedad,
@@ -368,6 +382,67 @@ export function ReporteView({
   )
 
   const registrosFiltrados = useMemo(() => new Set(filtradas.map((o) => o.solicitudId)).size, [filtradas])
+
+  // Diagnofruit no reporta ppm de un residuo contra un límite: cuantifica
+  // patógenos (levaduras, botrytis, etc.), cada uno en su propia unidad, así
+  // que el gráfico de línea/dona de las otras vistas no tiene nada que
+  // comparar. Acá se muestra una tabla ancha en vez de eso: una fila por
+  // solicitud (fecha + zona de muestreo) y una columna por analito.
+  const esDiagnofruit = Boolean(filtros.laboratorio) && igual(filtros.laboratorio, 'Diagnofruit')
+
+  const gruposDiagnofruit = useMemo(() => {
+    if (!esDiagnofruit) return []
+    const porSolicitud = new Map<
+      number,
+      {
+        nro: string
+        fecha: string | null
+        zona: string | null
+        patogenos: { nombre: string; texto: string; detectado: boolean }[]
+      }
+    >()
+    filtradas.forEach((o) => {
+      if (!o.ingrediente) return
+      let grupo = porSolicitud.get(o.solicitudId)
+      if (!grupo) {
+        grupo = { nro: o.nroSolicitud, fecha: o.fecha, zona: o.posicionMuestreo, patogenos: [] }
+        porSolicitud.set(o.solicitudId, grupo)
+      }
+      // El código del analito (LEV, BOT…) no dice nada al leerlo: se busca su
+      // nombre en el catálogo de Diagnofruit y, si por algún motivo no está
+      // -código nuevo sin catalogar todavía-, se muestra tal cual llegó.
+      const nombre =
+        analitos.find((a) => a.codigo === o.ingrediente && igual(a.laboratorio, 'Diagnofruit'))?.nombre ??
+        o.ingrediente
+      const texto = o.ppm != null ? formatDecimalCL(o.ppm, 2) : o.valorTexto ?? '—'
+      grupo.patogenos.push({ nombre, texto, detectado: esDetectado(o) })
+    })
+    return [...porSolicitud.values()].sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''))
+  }, [esDiagnofruit, filtradas, analitos])
+
+  // El gráfico de barras de abajo es un resumen de la misma tabla, no un dato
+  // aparte: cuántas muestras dieron positivo/negativo para cada patógeno, de
+  // los que de verdad se analizaron con los filtros de arriba puestos.
+  const resumenPatogenosDiagnofruit = useMemo(() => {
+    if (!esDiagnofruit) return []
+    const porNombre = new Map<string, { detectado: number; noDetectado: number }>()
+    gruposDiagnofruit.forEach((grupo) => {
+      grupo.patogenos.forEach((p) => {
+        const entrada = porNombre.get(p.nombre) ?? { detectado: 0, noDetectado: 0 }
+        if (p.detectado) entrada.detectado += 1
+        else entrada.noDetectado += 1
+        porNombre.set(p.nombre, entrada)
+      })
+    })
+    return [...porNombre.entries()]
+      .map(([nombre, c]) => ({ nombre, ...c }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+  }, [esDiagnofruit, gruposDiagnofruit])
+
+  const totalDetecciones = useMemo(
+    () => resumenPatogenosDiagnofruit.reduce((acc, r) => acc + r.detectado, 0),
+    [resumenPatogenosDiagnofruit],
+  )
 
   // Solo las filas con un ppm numérico entran a las estadísticas y los gráficos
   // de valores; las que no tienen resultado (o vienen como texto tipo "ND") ya
@@ -446,9 +521,11 @@ export function ReporteView({
   const mainRef = useRef<HTMLCanvasElement>(null)
   const donutRef = useRef<HTMLCanvasElement>(null)
   const barRef = useRef<HTMLCanvasElement>(null)
+  const diagnoBarRef = useRef<HTMLCanvasElement>(null)
   const mainChart = useRef<Chart | null>(null)
   const donutChart = useRef<Chart | null>(null)
   const barChart = useRef<Chart | null>(null)
+  const diagnoBarChart = useRef<Chart | null>(null)
 
   const colorOk = cssVar('--color-ok', '#2f7d32')
   const colorDanger = cssVar('--color-danger', '#b0271f')
@@ -653,6 +730,58 @@ export function ReporteView({
     return () => barChart.current?.destroy()
   }, [filtradas, valores, limitesActivos.inferior, limitesActivos.superior, colorOk, colorDanger, colorBorder])
 
+  useEffect(() => {
+    if (!esDiagnofruit || !diagnoBarRef.current) return
+    diagnoBarChart.current?.destroy()
+    diagnoBarChart.current = new Chart(diagnoBarRef.current, {
+      type: 'bar',
+      data: {
+        labels: resumenPatogenosDiagnofruit.map((r) => r.nombre),
+        datasets: [
+          {
+            label: 'Detectado',
+            data: resumenPatogenosDiagnofruit.map((r) => r.detectado),
+            backgroundColor: colorDanger,
+            borderRadius: 4,
+            maxBarThickness: 40,
+          },
+          {
+            label: 'No detectado',
+            data: resumenPatogenosDiagnofruit.map((r) => r.noDetectado),
+            backgroundColor: colorOk,
+            borderRadius: 4,
+            maxBarThickness: 40,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } } },
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: colorBorder }, stacked: true },
+          x: { grid: { display: false }, stacked: true },
+        },
+        onClick: (_evt, elements) => {
+          if (!elements.length) return
+          const { datasetIndex, index } = elements[0]
+          const nombre = resumenPatogenosDiagnofruit[index]?.nombre
+          if (!nombre) return
+          const detectadoSel = datasetIndex === 0
+          const obs = filtradas.filter((o) => {
+            if (!o.ingrediente) return false
+            const nombreObs =
+              analitos.find((a) => a.codigo === o.ingrediente && igual(a.laboratorio, 'Diagnofruit'))?.nombre ??
+              o.ingrediente
+            return nombreObs === nombre && esDetectado(o) === detectadoSel
+          })
+          if (obs.length) setDetalle({ titulo: `${nombre} · ${detectadoSel ? 'Detectado' : 'No detectado'}`, filas: obs })
+        },
+      },
+    })
+    return () => diagnoBarChart.current?.destroy()
+  }, [esDiagnofruit, resumenPatogenosDiagnofruit, filtradas, analitos, colorDanger, colorOk, colorBorder])
+
   if (!user) return null
 
   function actualizarFiltro<K extends keyof Filtros>(clave: K, valor: string) {
@@ -769,28 +898,30 @@ export function ReporteView({
         </Card>
       ) : filas ? (
         <>
-          <div className={styles.toolbar}>
-            <div className={styles.tabs}>
-              <button className={`${styles.tab} ${vista === 'residual' ? styles.tabActivo : ''}`} onClick={() => setVista('residual')}>
-                Vista por límite residual
-              </button>
-              <button className={`${styles.tab} ${vista === 'control' ? styles.tabActivo : ''}`} onClick={() => setVista('control')}>
-                Vista por límite de control
-              </button>
-            </div>
-            {vista === 'control' && (
-              <div className={styles.sigmaControl}>
-                <span>N° desviaciones</span>
-                <select value={sigma} onChange={(e) => setSigma(Number(e.target.value))}>
-                  {[1, 2, 3, 4].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
+          {!esDiagnofruit && (
+            <div className={styles.toolbar}>
+              <div className={styles.tabs}>
+                <button className={`${styles.tab} ${vista === 'residual' ? styles.tabActivo : ''}`} onClick={() => setVista('residual')}>
+                  Vista por límite residual
+                </button>
+                <button className={`${styles.tab} ${vista === 'control' ? styles.tabActivo : ''}`} onClick={() => setVista('control')}>
+                  Vista por límite de control
+                </button>
               </div>
-            )}
-          </div>
+              {vista === 'control' && (
+                <div className={styles.sigmaControl}>
+                  <span>N° desviaciones</span>
+                  <select value={sigma} onChange={(e) => setSigma(Number(e.target.value))}>
+                    {[1, 2, 3, 4].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className={styles.filtros}>
             {/* Filtros principales primero: Laboratorio, Sold To, Ship To, Tipo de servicio, Especie —
@@ -894,88 +1025,190 @@ export function ReporteView({
             )}
           </div>
 
-          <p className={styles.nota}>{nota}</p>
+          {esDiagnofruit ? (
+            <>
+              <p className={styles.nota}>
+                Diagnofruit cuantifica patógenos, cada uno en su propia unidad: no hay un único "ppm" que
+                graficar contra un límite, así que la vista principal es una tabla en vez de una línea de
+                tiempo. Respeta los mismos filtros de arriba que el resto de los reportes.
+              </p>
 
-          <div className={styles.stats}>
-            <Card className={`${styles.statCard} ${styles.destacado}`}>
-              <span className={styles.statLbl}>Total de registros (solicitudes)</span>
-              <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
-              {filtrosActivos(filtros) && (
-                <span className={styles.statSub}>de {totalSolicitudes.toLocaleString('es-CL')} en total</span>
-              )}
-            </Card>
-            <Card className={styles.statCard}>
-              <span className={styles.statLbl}>Promedio ({unidad})</span>
-              <span className={styles.statNum}>{formatDecimalCL(stats.promedio, 4)}</span>
-            </Card>
-            <Card className={styles.statCard}>
-              <span className={styles.statLbl}>Desv. estándar</span>
-              <span className={styles.statNum}>{formatDecimalCL(stats.desviacion, 4)}</span>
-            </Card>
-            <Card className={`${styles.statCard} ${styles.warn}`}>
-              <span className={styles.statLbl}>Límite inferior</span>
-              <span className={styles.statNum}>{formatDecimalCL(limitesActivos.inferior, 4)}</span>
-            </Card>
-            <Card className={styles.statCard}>
-              <span className={styles.statLbl}>Límite central</span>
-              <span className={styles.statNum}>{formatDecimalCL(limitesActivos.central, 4)}</span>
-            </Card>
-            <Card className={`${styles.statCard} ${styles.warn}`}>
-              <span className={styles.statLbl}>Límite superior</span>
-              <span className={styles.statNum}>{formatDecimalCL(limitesActivos.superior, 4)}</span>
-            </Card>
-            <Card className={`${styles.statCard} ${styles.info}`}>
-              <span className={styles.statLbl}>Cumplimiento</span>
-              <span className={styles.statNum}>{cumplimiento.porcentaje != null ? `${formatDecimalCL(cumplimiento.porcentaje, 1)}%` : '—'}</span>
-            </Card>
-          </div>
+              <div className={styles.stats}>
+                <Card className={`${styles.statCard} ${styles.destacado}`}>
+                  <span className={styles.statLbl}>Total de registros (solicitudes)</span>
+                  <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
+                  {filtrosActivos(filtros) && (
+                    <span className={styles.statSub}>de {totalSolicitudes.toLocaleString('es-CL')} en total</span>
+                  )}
+                </Card>
+                <Card className={`${styles.statCard} ${styles.info}`}>
+                  <span className={styles.statLbl}>Patógenos analizados</span>
+                  <span className={styles.statNum}>{resumenPatogenosDiagnofruit.length}</span>
+                </Card>
+                <Card className={`${styles.statCard} ${styles.danger}`}>
+                  <span className={styles.statLbl}>Detecciones</span>
+                  <span className={styles.statNum}>{totalDetecciones.toLocaleString('es-CL')}</span>
+                </Card>
+              </div>
 
-          <div className={styles.grid2}>
-            <Card className={styles.panel}>
-              <h3>
-                {vista === 'residual' ? `Promedio de ${unidad} por fecha` : `${unidad} por fecha · límites de control`}
-                <span className={styles.hintClic}>clic en un punto para ver el detalle</span>
-              </h3>
-              <div className={styles.chartbox}>
-                <canvas ref={mainRef} />
-              </div>
-            </Card>
-            <Card className={styles.panel}>
-              <h3>
-                Porcentaje de cumplimiento
-                <span className={styles.hintClic}>clic para ver el detalle</span>
-              </h3>
-              <div className={styles.chartbox}>
-                <canvas ref={donutRef} />
-              </div>
-            </Card>
-          </div>
-
-          <div className={styles.grid2}>
-            <Card className={styles.panel}>
-              <h3>
-                Distribución de cumplimiento
-                <span className={styles.hintClic}>clic para ver el detalle</span>
-              </h3>
-              <div className={styles.chartbox}>
-                <canvas ref={barRef} />
-              </div>
-            </Card>
-            <Card className={styles.panel}>
-              <h3>Indicadores</h3>
-              <div className={styles.indicadores}>
-                <div><span>Observaciones</span><b>{valores.length.toLocaleString('es-CL')}</b></div>
-                <div><span>Promedio</span><b>{formatDecimalCL(stats.promedio, 4)} {unidad}</b></div>
-                <div><span>Desviación estándar muestral</span><b>{formatDecimalCL(stats.desviacion, 4)}</b></div>
-                <div><span>Límite inferior</span><b>{formatDecimalCL(limitesActivos.inferior, 4)}</b></div>
-                <div><span>Línea central</span><b>{formatDecimalCL(limitesActivos.central, 4)}</b></div>
-                <div><span>Límite superior</span><b>{formatDecimalCL(limitesActivos.superior, 4)}</b></div>
-                {cumplimiento.porcentaje != null && (
-                  <div><span>Cumplimiento residual</span><b>{formatDecimalCL(cumplimiento.porcentaje, 1)}% ({cumplimiento.ok}/{cumplimiento.total})</b></div>
+              <Card className={styles.panel}>
+                <h3>
+                  <span className={styles.tituloConIcono}>
+                    <IconFrasco className={styles.iconoPanel} />
+                    Resultados por solicitud
+                  </span>
+                </h3>
+                {gruposDiagnofruit.length === 0 ? (
+                  <p className={styles.nota}>No hay resultados de Diagnofruit para estos filtros.</p>
+                ) : (
+                  <div className={styles.tablaDiagnoCaja}>
+                    <table className={styles.tablaDiagno}>
+                      <thead>
+                        <tr>
+                          <th>Fecha</th>
+                          <th>Zona de muestreo</th>
+                          <th>Patógeno</th>
+                          <th>Resultado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {gruposDiagnofruit.map((grupo) =>
+                          grupo.patogenos.map((p, i) => (
+                            <tr key={`${grupo.nro}-${p.nombre}-${i}`}>
+                              {i === 0 && (
+                                <>
+                                  <td rowSpan={grupo.patogenos.length}>
+                                    {grupo.fecha ? formatDateCL(grupo.fecha) : '—'}
+                                  </td>
+                                  <td rowSpan={grupo.patogenos.length}>{grupo.zona || '—'}</td>
+                                </>
+                              )}
+                              <td>{p.nombre}</td>
+                              <td className={p.detectado ? styles.celdaDetectada : styles.celdaNormal}>
+                                {p.texto}
+                              </td>
+                            </tr>
+                          )),
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
+              </Card>
+
+              {gruposDiagnofruit.length > 0 && (
+                <div className={styles.grid2}>
+                  <Card className={styles.panel}>
+                    <h3>
+                      Detecciones por patógeno
+                      <span className={styles.hintClic}>resumen de la tabla de arriba · clic en una barra para ver el detalle</span>
+                    </h3>
+                    <div className={styles.chartbox}>
+                      <canvas ref={diagnoBarRef} />
+                    </div>
+                  </Card>
+                  <Card className={styles.panel}>
+                    <h3>Indicadores</h3>
+                    <div className={styles.indicadores}>
+                      {resumenPatogenosDiagnofruit.map((r) => (
+                        <div key={r.nombre}>
+                          <span>{r.nombre}</span>
+                          <b className={r.detectado > 0 ? styles.celdaDetectada : undefined}>
+                            {r.detectado} detectada{r.detectado === 1 ? '' : 's'} de {r.detectado + r.noDetectado}
+                          </b>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <p className={styles.nota}>{nota}</p>
+
+              <div className={styles.stats}>
+                <Card className={`${styles.statCard} ${styles.destacado}`}>
+                  <span className={styles.statLbl}>Total de registros (solicitudes)</span>
+                  <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
+                  {filtrosActivos(filtros) && (
+                    <span className={styles.statSub}>de {totalSolicitudes.toLocaleString('es-CL')} en total</span>
+                  )}
+                </Card>
+                <Card className={styles.statCard}>
+                  <span className={styles.statLbl}>Promedio ({unidad})</span>
+                  <span className={styles.statNum}>{formatDecimalCL(stats.promedio, 4)}</span>
+                </Card>
+                <Card className={styles.statCard}>
+                  <span className={styles.statLbl}>Desv. estándar</span>
+                  <span className={styles.statNum}>{formatDecimalCL(stats.desviacion, 4)}</span>
+                </Card>
+                <Card className={`${styles.statCard} ${styles.warn}`}>
+                  <span className={styles.statLbl}>Límite inferior</span>
+                  <span className={styles.statNum}>{formatDecimalCL(limitesActivos.inferior, 4)}</span>
+                </Card>
+                <Card className={styles.statCard}>
+                  <span className={styles.statLbl}>Límite central</span>
+                  <span className={styles.statNum}>{formatDecimalCL(limitesActivos.central, 4)}</span>
+                </Card>
+                <Card className={`${styles.statCard} ${styles.warn}`}>
+                  <span className={styles.statLbl}>Límite superior</span>
+                  <span className={styles.statNum}>{formatDecimalCL(limitesActivos.superior, 4)}</span>
+                </Card>
+                <Card className={`${styles.statCard} ${styles.info}`}>
+                  <span className={styles.statLbl}>Cumplimiento</span>
+                  <span className={styles.statNum}>{cumplimiento.porcentaje != null ? `${formatDecimalCL(cumplimiento.porcentaje, 1)}%` : '—'}</span>
+                </Card>
               </div>
-            </Card>
-          </div>
+
+              <div className={styles.grid2}>
+                <Card className={styles.panel}>
+                  <h3>
+                    {vista === 'residual' ? `Promedio de ${unidad} por fecha` : `${unidad} por fecha · límites de control`}
+                    <span className={styles.hintClic}>clic en un punto para ver el detalle</span>
+                  </h3>
+                  <div className={styles.chartbox}>
+                    <canvas ref={mainRef} />
+                  </div>
+                </Card>
+                <Card className={styles.panel}>
+                  <h3>
+                    Porcentaje de cumplimiento
+                    <span className={styles.hintClic}>clic para ver el detalle</span>
+                  </h3>
+                  <div className={styles.chartbox}>
+                    <canvas ref={donutRef} />
+                  </div>
+                </Card>
+              </div>
+
+              <div className={styles.grid2}>
+                <Card className={styles.panel}>
+                  <h3>
+                    Distribución de cumplimiento
+                    <span className={styles.hintClic}>clic para ver el detalle</span>
+                  </h3>
+                  <div className={styles.chartbox}>
+                    <canvas ref={barRef} />
+                  </div>
+                </Card>
+                <Card className={styles.panel}>
+                  <h3>Indicadores</h3>
+                  <div className={styles.indicadores}>
+                    <div><span>Observaciones</span><b>{valores.length.toLocaleString('es-CL')}</b></div>
+                    <div><span>Promedio</span><b>{formatDecimalCL(stats.promedio, 4)} {unidad}</b></div>
+                    <div><span>Desviación estándar muestral</span><b>{formatDecimalCL(stats.desviacion, 4)}</b></div>
+                    <div><span>Límite inferior</span><b>{formatDecimalCL(limitesActivos.inferior, 4)}</b></div>
+                    <div><span>Línea central</span><b>{formatDecimalCL(limitesActivos.central, 4)}</b></div>
+                    <div><span>Límite superior</span><b>{formatDecimalCL(limitesActivos.superior, 4)}</b></div>
+                    {cumplimiento.porcentaje != null && (
+                      <div><span>Cumplimiento residual</span><b>{formatDecimalCL(cumplimiento.porcentaje, 1)}% ({cumplimiento.ok}/{cumplimiento.total})</b></div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+            </>
+          )}
         </>
       ) : null}
 
