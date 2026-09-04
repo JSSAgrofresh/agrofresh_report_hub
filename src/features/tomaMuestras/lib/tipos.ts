@@ -130,3 +130,13 @@ export interface CampoTipoAplicacionConfig {
 }
 
 export type CampoTipoAplicacionInput = Omit<CampoTipoAplicacionConfig, 'id'>
+
+/** Un destinatario de resultados, tal como quedó configurado en
+ * Laboratorios → Resultado a clientes para un Ship To. Nueva solicitud lo
+ * muestra de solo lectura -no se edita desde acá-. */
+export interface ContactoResultado {
+  nombre: string
+  email: string
+  tipo: 'resultado_cliente' | 'resultado_interno'
+  tipo_copia: 'cc' | 'bcc'
+}

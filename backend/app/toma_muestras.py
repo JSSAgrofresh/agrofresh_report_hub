@@ -722,6 +722,36 @@ def destinatarios_resultado_por_tipo(laboratorio: str, ship_to: str | None = Non
     return salida
 
 
+class ContactoResultadoOut(BaseModel):
+    """Un destinatario de resultados, tal como quedó configurado en
+    Laboratorios → Resultado a clientes -de solo lectura: Nueva solicitud lo
+    muestra, no lo edita-."""
+
+    nombre: str
+    email: str
+    tipo: str  # resultado_cliente | resultado_interno
+    tipo_copia: str  # cc | bcc -solo tiene sentido si tipo es resultado_interno
+
+
+@router.get("/config/resultados-ship-to")
+def resultados_de_ship_to(laboratorio: str, ship_to: str = "") -> list[ContactoResultadoOut]:
+    """La configuración de "Resultado a clientes" vigente para un Ship To de
+    ese laboratorio. La usa Nueva solicitud para mostrarla, de solo lectura,
+    apenas se elige un Sold To/Ship To que ya la tiene configurada -sin que
+    nadie tenga que ir a Laboratorios a revisarla a mano."""
+    contactos = _contactos_resultado_del_ship_to(laboratorio, ship_to)
+    return [
+        ContactoResultadoOut(
+            nombre=str(c.get("nombre") or ""),
+            email=str(c.get("email") or ""),
+            tipo=str(c.get("tipo") or ""),
+            tipo_copia=str(c.get("tipo_copia") or "cc"),
+        )
+        for c in sorted(contactos, key=lambda c: c.get("orden", 0))
+        if c.get("activo", True) and c.get("email")
+    ]
+
+
 def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
     """Añade al PDF la configuración vigente sin modificar la solicitud."""
     datos_pdf = dict(datos)

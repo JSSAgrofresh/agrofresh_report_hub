@@ -16,11 +16,12 @@ def contactos(monkeypatch, items):
     monkeypatch.setattr(tm, "_leer_config", lambda archivo, defecto=None: items)
 
 
-def contacto(tipo, email, ship_to="", tipo_copia="cc", activo=True, orden=0, laboratorio=LAB):
+def contacto(tipo, email, ship_to="", tipo_copia="cc", activo=True, orden=0, laboratorio=LAB, nombre=""):
     return {
         "laboratorio": laboratorio,
         "tipo": tipo,
         "email": email,
+        "nombre": nombre,
         "ship_to": ship_to,
         "tipo_copia": tipo_copia,
         "activo": activo,
@@ -102,3 +103,38 @@ class TestCcYBcc:
         contactos(monkeypatch, [contacto("resultado_interno", "baja@agrofresh.com", ship_to="A", tipo_copia="cc", activo=False)])
         destinos = tm.destinatarios_resultado_por_tipo(LAB, "A")
         assert destinos["cc"] == []
+
+
+class TestEndpointSoloLectura:
+    """`resultados_de_ship_to` es lo que Nueva solicitud consulta para
+    mostrar, de solo lectura, la configuración vigente de un Ship To antes de
+    guardar -tiene que traer el mismo contenido que ve Laboratorios."""
+
+    def test_trae_nombre_correo_tipo_y_tipo_copia(self, monkeypatch):
+        contactos(
+            monkeypatch,
+            [
+                contacto("resultado_cliente", "cliente@dole.cl", ship_to="A", nombre="Cliente 1", orden=1),
+                contacto("resultado_interno", "oculta@agrofresh.com", ship_to="A", tipo_copia="bcc", nombre="Jorge", orden=2),
+            ],
+        )
+        salida = tm.resultados_de_ship_to(LAB, "A")
+        assert [c.model_dump() for c in salida] == [
+            {"nombre": "Cliente 1", "email": "cliente@dole.cl", "tipo": "resultado_cliente", "tipo_copia": "cc"},
+            {"nombre": "Jorge", "email": "oculta@agrofresh.com", "tipo": "resultado_interno", "tipo_copia": "bcc"},
+        ]
+
+    def test_ship_to_sin_configurar_devuelve_vacio_o_la_global(self, monkeypatch):
+        contactos(monkeypatch, [contacto("resultado_cliente", "a@dole.cl", ship_to="Ship To A")])
+        assert tm.resultados_de_ship_to(LAB, "Ship To Sin Configurar") == []
+
+    def test_no_incluye_contactos_de_otro_ship_to(self, monkeypatch):
+        contactos(
+            monkeypatch,
+            [
+                contacto("resultado_cliente", "a@dole.cl", ship_to="A"),
+                contacto("resultado_cliente", "b@dole.cl", ship_to="B"),
+            ],
+        )
+        correos = [c.email for c in tm.resultados_de_ship_to(LAB, "A")]
+        assert correos == ["a@dole.cl"]

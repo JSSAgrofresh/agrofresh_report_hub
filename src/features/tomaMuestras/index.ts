@@ -9,6 +9,7 @@ export {
   enviarCorreoPrueba,
   enviarSolicitudPorCorreo,
   destinatariosDeSolicitud,
+  resultadosDeShipTo,
 } from './lib/api'
 export {
   listarCamposConfig,
@@ -59,5 +60,6 @@ export type {
   CategoriaAnaliticaInput,
   ProductoConfig,
   ProductoInput,
+  ContactoResultado,
 } from './lib/tipos'
 export { LABORATORIOS } from './lib/tipos'
