@@ -257,12 +257,12 @@ def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espaci
     elementos.extend([cuerpo_superior, Spacer(1, 6)])
 
     elementos.append(_seccion('3', 'ANÁLISIS REQUERIDOS', 'Checklist técnico para el laboratorio'))
-    filas = [[Paragraph('CÓDIGO', _S_TABLA_HEAD), Paragraph('DETERMINACIÓN', _S_TABLA_HEAD), Paragraph('SOLICITADO', _S_TABLA_HEAD)]]
-    for codigo_analito, nombre, valor in filas_analitos:
-        filas.append([Paragraph(codigo_analito, _S_TABLA), Paragraph(nombre, _S_TABLA), Paragraph(valor, _S_TABLA)])
+    filas = [[Paragraph('ANALITO SOLICITADO', _S_TABLA_HEAD), Paragraph('DOSIS', _S_TABLA_HEAD)]]
+    for _codigo_analito, nombre, valor in filas_analitos:
+        filas.append([Paragraph(nombre, _S_TABLA), Paragraph(valor, _S_TABLA)])
     if len(filas) == 1:
-        filas.append([Paragraph('—', _S_TABLA), Paragraph('Sin análisis configurados', _S_TABLA), Paragraph('—', _S_TABLA)])
-    tabla_analisis = Table(filas, colWidths=[2.6 * cm, 10.7 * cm, ANCHO_UTIL - 13.3 * cm], repeatRows=1)
+        filas.append([Paragraph('Sin análisis configurados', _S_TABLA), Paragraph('—', _S_TABLA)])
+    tabla_analisis = Table(filas, colWidths=[10.7 * cm, ANCHO_UTIL - 10.7 * cm], repeatRows=1)
     tabla_analisis.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), GRIS_1), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, -1), 2.8), ('BOTTOMPADDING', (0, 0), (-1, -1), 2.8),
