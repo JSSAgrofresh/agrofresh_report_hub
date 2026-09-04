@@ -32,18 +32,30 @@ from app.db import conexion, cursor_dict  # noqa: E402
 ADMIN = Usuario(id="1", email="admin@agrofresh.com", nombre="Admin", tipoAcceso="admin_general")
 
 
+def _limpiar_folios_por_laboratorio(cur) -> None:
+    """Vacía la tabla de contadores por laboratorio (migración 0023). Tolera
+    que no exista todavía -mismo motivo que en `_siguiente_numero`-: no toda
+    base de prueba tiene la migración más nueva aplicada."""
+    try:
+        cur.execute("DELETE FROM folio_solicitud_laboratorio")
+    except psycopg2.errors.UndefinedTable:
+        cur.connection.rollback()
+
+
 @pytest.fixture
 def limpio(tmp_path, monkeypatch):
-    """Un almacenamiento vacío en disco y un índice vacío. Sin R2: en las
-    pruebas no hay credenciales, así que `r2.disponible()` es False y todo
-    pasa por el disco temporal."""
+    """Un almacenamiento vacío en disco, un índice vacío y los contadores de
+    folio en cero. Sin R2: en las pruebas no hay credenciales, así que
+    `r2.disponible()` es False y todo pasa por el disco temporal."""
     monkeypatch.setattr(config, "STORAGE_DIR", str(tmp_path))
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("DELETE FROM solicitud_archivo")
         cur.execute("SELECT setval('folio_solicitud', 1, false)")
+        _limpiar_folios_por_laboratorio(cur)
     yield
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("DELETE FROM solicitud_archivo")
+        _limpiar_folios_por_laboratorio(cur)
 
 
 def cuerpo(**extra):
@@ -57,6 +69,21 @@ def cuerpo(**extra):
     return tm.SolicitudIn(**datos)
 
 
+def _con_prefijos(monkeypatch, prefijos: dict[str, str]):
+    """Configura el prefijo de solicitud de laboratorios puntuales -como
+    quedaría al editarlos en Laboratorios-, sin tocar el resto de la
+    configuración (analitos, campos, etc.) que `_leer_config` también sirve."""
+    original = tm._leer_config
+
+    def parcial(archivo, defecto=None):
+        items = original(archivo, defecto)
+        if archivo == "laboratorios.json":
+            items = [{**lab, "prefijo_solicitud": prefijos.get(lab["codigo"], "")} for lab in items]
+        return items
+
+    monkeypatch.setattr(tm, "_leer_config", parcial)
+
+
 class TestRedDeSeguridad:
     """Mientras el índice esté vacío -entre actualizar el sistema y correr
     scripts/indexar_solicitudes.py- todo tiene que seguir funcionando como
@@ -67,7 +94,7 @@ class TestRedDeSeguridad:
         assert tm.leer_todas_las_solicitudes() == []
 
     def test_con_indice_vacio_el_folio_se_cuenta_sobre_los_archivos(self, limpio):
-        assert tm._siguiente_numero() == "OT-0001"
+        assert tm._siguiente_numero("AGROFRESH") == "OT-0001"
 
 
 class TestCrear:
@@ -98,6 +125,55 @@ class TestCrear:
         """Es lo que usa Emitir informe para cruzar con el resultado del GC."""
         tm.crear_solicitud(cuerpo(analitos_solicitados=["FDL", "PYR", "IMZ"]), usuario=ADMIN)
         assert indice.buscar("OT-0001.xlsx")["analitos_solicitados"] == ["FDL", "PYR", "IMZ"]
+
+
+class TestPrefijoDeSolicitud:
+    """Cada laboratorio puede tener su propio prefijo de folio (Laboratorios
+    → editar, ej. AGROFRESH → "AGF" → OT-AGF0001). Con prefijo, numera aparte
+    de los demás laboratorios; sin prefijo, sigue compartiendo el correlativo
+    global de siempre.
+
+    Cada prueba crea primero una solicitud de relleno (ALS, sin prefijo) para
+    sacar al índice de su estado recién-vacío: mientras está vacío, el folio
+    se cuenta sobre los archivos como red de seguridad transicional (ver
+    `_siguiente_numero`) y no distingue laboratorio -es el mismo
+    comportamiento de siempre, y en un servidor que ya lleva tiempo corriendo
+    ese momento ya quedó atrás-.
+    """
+
+    def test_el_folio_lleva_el_prefijo_configurado(self, limpio, monkeypatch):
+        tm.crear_solicitud(cuerpo(laboratorio="ALS"), usuario=ADMIN)
+        _con_prefijos(monkeypatch, {"AGROFRESH": "AGF"})
+        creada = tm.crear_solicitud(cuerpo(), usuario=ADMIN)
+        assert creada.numero_solicitud == "OT-AGF0001"
+
+    def test_cada_laboratorio_con_prefijo_numera_aparte(self, limpio, monkeypatch):
+        tm.crear_solicitud(cuerpo(laboratorio="ALS"), usuario=ADMIN)
+        _con_prefijos(monkeypatch, {"AGROFRESH": "AGF", "QUITECA": "QTC"})
+        agf1 = tm.crear_solicitud(cuerpo(), usuario=ADMIN).numero_solicitud
+        qtc1 = tm.crear_solicitud(cuerpo(laboratorio="QUITECA"), usuario=ADMIN).numero_solicitud
+        agf2 = tm.crear_solicitud(cuerpo(), usuario=ADMIN).numero_solicitud
+        assert (agf1, qtc1, agf2) == ("OT-AGF0001", "OT-QTC0001", "OT-AGF0002")
+
+    def test_sin_prefijo_no_choca_con_otro_laboratorio_sin_prefijo(self, limpio, monkeypatch):
+        """Si cada laboratorio sin prefijo numerara aparte desde 1, dos
+        laboratorios sin configurar generarían el mismo folio -mismo nombre
+        de archivo- y el segundo pisaría al primero en el índice. Por eso
+        siguen compartiendo el correlativo global mientras no tengan uno."""
+        _con_prefijos(monkeypatch, {})  # AGROFRESH y QUITECA, ninguno configurado
+        agf = tm.crear_solicitud(cuerpo(), usuario=ADMIN).numero_solicitud
+        qtc = tm.crear_solicitud(cuerpo(laboratorio="QUITECA"), usuario=ADMIN).numero_solicitud
+        assert agf != qtc
+        assert (agf, qtc) == ("OT-0001", "OT-0002")
+
+    def test_no_repite_folios_emitidos_antes_de_configurar_el_prefijo(self, limpio, monkeypatch):
+        """AGROFRESH ya tenía OT-0001..OT-0003 sin prefijo. Al configurarle
+        uno, el contador nuevo arranca después de esos, no desde 1."""
+        for _ in range(3):
+            tm.crear_solicitud(cuerpo(), usuario=ADMIN)
+        _con_prefijos(monkeypatch, {"AGROFRESH": "AGF"})
+        siguiente = tm.crear_solicitud(cuerpo(), usuario=ADMIN).numero_solicitud
+        assert siguiente == "OT-AGF0004"
 
 
 class TestPropiedadDeLaSolicitud:

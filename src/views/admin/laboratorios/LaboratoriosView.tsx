@@ -37,7 +37,7 @@ const PESTANAS: { valor: Pestana; etiqueta: string }[] = [
   { valor: 'template', etiqueta: 'Template mail' },
 ]
 
-const LAB_VACIO = { codigo: '', nombre: '', descripcion: '' }
+const LAB_VACIO = { codigo: '', nombre: '', descripcion: '', prefijo_solicitud: '' }
 
 export function LaboratoriosView() {
   const [laboratorios, setLaboratorios] = useState<ResumenLaboratorio[] | null>(null)
@@ -103,7 +103,7 @@ export function LaboratoriosView() {
 
   async function guardarLaboratorio() {
     if (!formLab) return
-    const { codigo, nombre, descripcion } = formLab.datos
+    const { codigo, nombre, descripcion, prefijo_solicitud } = formLab.datos
     if (!codigo.trim() || !nombre.trim()) {
       setError('El código y el nombre del laboratorio son obligatorios.')
       return
@@ -115,6 +115,7 @@ export function LaboratoriosView() {
         codigo: codigo.trim().toUpperCase(),
         nombre: nombre.trim(),
         descripcion: descripcion.trim() || null,
+        prefijo_solicitud: prefijo_solicitud.trim().toUpperCase(),
         activo: true,
         orden: (laboratorios?.length ?? 0) + 1,
       }
@@ -134,8 +135,8 @@ export function LaboratoriosView() {
     } catch {
       setError(
         formLab.modo === 'editar'
-          ? 'No se pudo guardar el laboratorio.'
-          : 'No se pudo crear el laboratorio. Revisa que el código no exista y sea en mayúsculas.',
+          ? 'No se pudo guardar el laboratorio. Revisa que el código y el prefijo de solicitud no estén repetidos.'
+          : 'No se pudo crear el laboratorio. Revisa que el código y el prefijo de solicitud no existan ya.',
       )
     } finally {
       setGuardandoLab(false)
@@ -191,6 +192,14 @@ export function LaboratoriosView() {
             <p className={styles.detalleDescripcion}>
               {lab.descripcion || 'Sin descripción.'}
             </p>
+            <p className={styles.seccionNota}>
+              Prefijo de solicitud:{' '}
+              {lab.prefijo_solicitud ? (
+                <span className={styles.codigo}>OT-{lab.prefijo_solicitud}0001</span>
+              ) : (
+                'sin configurar (folio OT-0001)'
+              )}
+            </p>
           </div>
           <div className={styles.detalleAcciones}>
             <Button
@@ -198,7 +207,12 @@ export function LaboratoriosView() {
               onClick={() =>
                 setFormLab({
                   modo: 'editar',
-                  datos: { codigo: lab.codigo, nombre: lab.nombre, descripcion: lab.descripcion ?? '' },
+                  datos: {
+                    codigo: lab.codigo,
+                    nombre: lab.nombre,
+                    descripcion: lab.descripcion ?? '',
+                    prefijo_solicitud: lab.prefijo_solicitud ?? '',
+                  },
                 })
               }
             >
@@ -227,6 +241,24 @@ export function LaboratoriosView() {
                   value={formLab.datos.nombre}
                   onChange={(e) => setFormLab({ ...formLab, datos: { ...formLab.datos, nombre: e.target.value } })}
                 />
+              </div>
+              <div className={styles.campo}>
+                <label className={styles.etiqueta}>Prefijo de solicitud</label>
+                <input
+                  className={cn(styles.input, styles.inputMono)}
+                  value={formLab.datos.prefijo_solicitud}
+                  placeholder="AGF"
+                  maxLength={8}
+                  onChange={(e) =>
+                    setFormLab({
+                      ...formLab,
+                      datos: { ...formLab.datos, prefijo_solicitud: e.target.value.toUpperCase() },
+                    })
+                  }
+                />
+                <small className={styles.seccionNota}>
+                  Va en cada folio: OT-{formLab.datos.prefijo_solicitud || '···'}0001
+                </small>
               </div>
               <div className={cn(styles.campo, styles.campoAncho)}>
                 <label className={styles.etiqueta}>Descripción</label>
@@ -385,6 +417,24 @@ export function LaboratoriosView() {
                 placeholder="SGS Chile"
                 onChange={(e) => setFormLab({ ...formLab, datos: { ...formLab.datos, nombre: e.target.value } })}
               />
+            </div>
+            <div className={styles.campo}>
+              <label className={styles.etiqueta}>Prefijo de solicitud (opcional)</label>
+              <input
+                className={cn(styles.input, styles.inputMono)}
+                value={formLab.datos.prefijo_solicitud}
+                placeholder="SGS"
+                maxLength={8}
+                onChange={(e) =>
+                  setFormLab({
+                    ...formLab,
+                    datos: { ...formLab.datos, prefijo_solicitud: e.target.value.toUpperCase() },
+                  })
+                }
+              />
+              <small className={styles.seccionNota}>
+                Va en cada folio: OT-{formLab.datos.prefijo_solicitud || '···'}0001
+              </small>
             </div>
             <div className={cn(styles.campo, styles.campoAncho)}>
               <label className={styles.etiqueta}>Descripción (opcional)</label>

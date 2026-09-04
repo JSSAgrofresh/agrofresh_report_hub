@@ -35,6 +35,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+import psycopg2.errors
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
@@ -211,22 +212,26 @@ def _mayor_folio_en_archivos() -> int:
     return maximo
 
 
-def _siguiente_numero() -> str:
-    """Folio correlativo, único sobre todas las solicitudes guardadas.
+def _prefijo_de_laboratorio(laboratorio: str) -> str:
+    """El prefijo de folio configurado para este laboratorio (ej. "AGF" para
+    AGROFRESH → OT-AGF0001), o "" si todavía no se configuró uno -en ese caso
+    el folio sale igual que antes, sin prefijo-."""
+    for lab in _leer_config("laboratorios.json", LABORATORIOS_DEFECTO):
+        if lab.get("codigo") == laboratorio:
+            return str(lab.get("prefijo_solicitud") or "").strip().upper()
+    return ""
 
-    Lo entrega una SEQUENCE de Postgres. Antes se calculaba listando los
-    archivos y sumando uno al mayor: dos personas creando una solicitud en el
-    mismo momento leían el mismo máximo y recibían EL MISMO FOLIO. Una
-    secuencia no puede entregar dos veces el mismo número.
 
-    Mientras el índice esté vacío -o sea, mientras no se haya corrido
-    `scripts/indexar_solicitudes.py`- se sigue contando sobre los archivos.
-    Sin eso, un sistema actualizado a medias repartiría folios desde OT-0001
-    y pisaría las solicitudes que ya existen.
+def _siguiente_numero_global() -> str:
+    """El correlativo compartido de siempre, sin prefijo -lo que usa
+    cualquier laboratorio que todavía no tenga uno configurado-.
+
+    Es DELIBERADO que sea uno solo, compartido entre todos esos laboratorios:
+    si cada uno tuviera su propio contador aun sin prefijo, dos laboratorios
+    sin configurar entregarían el mismo folio "OT-0001" -mismo nombre de
+    archivo- y el segundo pisaría al primero en el índice. Compartir el
+    correlativo es lo que evita ese choque.
     """
-    if not indice_solicitudes.esta_poblado():
-        return f"{PREFIJO_FOLIO}-{_mayor_folio_en_archivos() + 1:04d}"
-
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("SELECT nextval('folio_solicitud') AS n")
         numero = cur.fetchone()["n"]
@@ -242,6 +247,78 @@ def _siguiente_numero() -> str:
             cur.execute("SELECT setval('folio_solicitud', %s) + 1 AS n", (tope,))
             numero = cur.fetchone()["n"]
         return f"{PREFIJO_FOLIO}-{numero:04d}"
+
+
+def _siguiente_numero(laboratorio: str) -> str:
+    """Folio correlativo de una solicitud nueva.
+
+    Un laboratorio CON prefijo configurado (ver `_prefijo_de_laboratorio`)
+    numera aparte de los demás: AGROFRESH con "AGF" no comparte correlativo
+    con QUITECA. Lo entrega la tabla `folio_solicitud_laboratorio` (una fila
+    por laboratorio, incrementada de forma atómica -INSERT+UPDATE dentro de
+    la misma transacción-, igual que `informe_folio_anual` en emitir.py).
+
+    Un laboratorio SIN prefijo sigue compartiendo el correlativo global de
+    siempre (`_siguiente_numero_global`) -eso es lo que evita que dos
+    laboratorios sin prefijo choquen en el mismo folio "OT-0001"-. En cuanto
+    alguien le configura un prefijo en Laboratorios, sus folios pasan a
+    numerarse aparte, sin perder lo ya emitido -el contador nuevo arranca
+    después del folio más alto que ese laboratorio ya tenga-.
+
+    Mientras el índice esté vacío -o sea, mientras no se haya corrido
+    `scripts/indexar_solicitudes.py`- se sigue contando sobre los archivos,
+    sin prefijo: es la misma red de seguridad transicional que ya existía,
+    y ese período ya quedó atrás en un servidor que lleva tiempo corriendo.
+    """
+    if not indice_solicitudes.esta_poblado():
+        return f"{PREFIJO_FOLIO}-{_mayor_folio_en_archivos() + 1:04d}"
+
+    prefijo = _prefijo_de_laboratorio(laboratorio)
+    if not prefijo:
+        return _siguiente_numero_global()
+
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                "INSERT INTO folio_solicitud_laboratorio (laboratorio, siguiente) VALUES (%s, 1)"
+                " ON CONFLICT (laboratorio) DO NOTHING",
+                (laboratorio,),
+            )
+            cur.execute(
+                "UPDATE folio_solicitud_laboratorio SET siguiente = siguiente + 1"
+                " WHERE laboratorio = %s RETURNING siguiente",
+                (laboratorio,),
+            )
+            numero = cur.fetchone()["siguiente"] - 1
+
+            # Red de seguridad, igual que la que tenía la SEQUENCE global: si
+            # el contador de este laboratorio quedara atrasado respecto de lo
+            # ya indexado -se reinició a mano, se restauró un respaldo viejo,
+            # o es la primera solicitud de un laboratorio que ya tenía folios
+            # de antes de configurarle un prefijo- se lo adelanta al máximo
+            # real en vez de entregar un folio repetido.
+            cur.execute(
+                "SELECT max(substring(numero_solicitud from '[0-9]+$')::bigint) AS tope"
+                " FROM solicitud_archivo WHERE laboratorio = %s AND numero_solicitud ~ '[0-9]+$'",
+                (laboratorio,),
+            )
+            tope = cur.fetchone()["tope"] or 0
+            if numero <= tope:
+                cur.execute(
+                    "UPDATE folio_solicitud_laboratorio SET siguiente = %s WHERE laboratorio = %s",
+                    (tope + 2, laboratorio),
+                )
+                numero = tope + 1
+            return f"{PREFIJO_FOLIO}-{prefijo}{numero:04d}"
+    except psycopg2.errors.UndefinedTable:
+        pass
+
+    # Falta la migración 0023 (tabla `folio_solicitud_laboratorio`): se cae al
+    # correlativo global anterior, sin prefijo, para no dejar de poder crear
+    # solicitudes mientras se actualiza el servidor. Postgres aborta la
+    # transacción al fallar la consulta, así que esto necesita una conexión
+    # nueva -no basta con reintentar en la misma-.
+    return _siguiente_numero_global()
 
 
 def _recorrer_solicitudes_en_disco():
@@ -500,7 +577,7 @@ def obtener_solicitud(archivo: str, usuario: Usuario = Depends(usuario_actual)) 
 
 @router.post("/solicitudes")
 def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
-    numero = _siguiente_numero()
+    numero = _siguiente_numero(body.laboratorio)
     ahora = datetime.now(timezone.utc)
     datos = body.model_dump()
     if usuario.tipoAcceso == "muestreador":
@@ -1276,11 +1353,29 @@ def _validar_codigo_lab(codigo: str) -> None:
         )
 
 
+# El prefijo va pegado al correlativo dentro del folio (OT-AGF0001), así que
+# se restringe igual de estricto que el código de laboratorio: nada que
+# pueda romper ese formato. Vacío es válido -significa "todavía sin
+# configurar", y el folio sale como antes, sin prefijo-.
+_PAT_PREFIJO_SOLICITUD = re.compile(r"^[A-Z0-9]{0,8}$")
+
+
+def _validar_prefijo_solicitud(prefijo: str) -> None:
+    if not _PAT_PREFIJO_SOLICITUD.match(prefijo or ""):
+        raise HTTPException(
+            400,
+            "El prefijo de solicitud debe tener hasta 8 caracteres, solo mayúsculas y dígitos.",
+        )
+
+
 class LaboratorioConfig(BaseModel):
     id: int
     codigo: str
     nombre: str
     descripcion: str | None = None
+    # Va en cada folio de este laboratorio: OT-{prefijo}{correlativo}, ej.
+    # OT-AGF0001. Vacío mientras nadie lo configure -el folio sale como antes-.
+    prefijo_solicitud: str = ""
     activo: bool = True
     orden: int = 0
 
@@ -1289,15 +1384,16 @@ class LaboratorioIn(BaseModel):
     codigo: str
     nombre: str
     descripcion: str | None = None
+    prefijo_solicitud: str = ""
     activo: bool = True
     orden: int = 0
 
 
 LABORATORIOS_DEFECTO: list[dict] = [
-    {"id": 1, "codigo": "QUITECA", "nombre": "Quiteca", "descripcion": None, "activo": True, "orden": 1},
-    {"id": 2, "codigo": "AGROFRESH", "nombre": "AgroFresh", "descripcion": None, "activo": True, "orden": 2},
-    {"id": 3, "codigo": "ALS", "nombre": "ALS", "descripcion": None, "activo": True, "orden": 3},
-    {"id": 4, "codigo": "DIAGNOFRUIT", "nombre": "Diagnofruit", "descripcion": None, "activo": True, "orden": 4},
+    {"id": 1, "codigo": "QUITECA", "nombre": "Quiteca", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 1},
+    {"id": 2, "codigo": "AGROFRESH", "nombre": "AgroFresh", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 2},
+    {"id": 3, "codigo": "ALS", "nombre": "ALS", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 3},
+    {"id": 4, "codigo": "DIAGNOFRUIT", "nombre": "Diagnofruit", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 4},
 ]
 
 
@@ -1307,12 +1403,28 @@ def listar_laboratorios_config() -> list[LaboratorioConfig]:
     return sorted(items, key=lambda l: l.orden)
 
 
+def _validar_prefijo_unico(items: list[dict], prefijo: str, item_id: int | None) -> None:
+    """Dos laboratorios con el mismo prefijo generarían folios idénticos
+    -cada uno numera aparte, así que "AGF" en dos laboratorios repetiría
+    OT-AGF0001 en ambos-. Vacío no se valida: puede haber varios laboratorios
+    todavía sin prefijo configurado."""
+    if not prefijo:
+        return
+    if any(
+        (l.get("prefijo_solicitud") or "").strip().upper() == prefijo and l["id"] != item_id
+        for l in items
+    ):
+        raise HTTPException(400, f'Ya hay otro laboratorio usando el prefijo "{prefijo}".')
+
+
 @router.post("/config/laboratorios")
 def crear_laboratorio_config(body: LaboratorioIn) -> LaboratorioConfig:
     _validar_codigo_lab(body.codigo)
+    _validar_prefijo_solicitud(body.prefijo_solicitud)
     items = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
     if any(l["codigo"] == body.codigo for l in items):
         raise HTTPException(400, f"Ya existe un laboratorio con el código {body.codigo}.")
+    _validar_prefijo_unico(items, body.prefijo_solicitud.strip().upper(), None)
     nuevo = LaboratorioConfig(id=_siguiente_id(items), **body.model_dump())
     items.append(nuevo.model_dump())
     _escribir_config("laboratorios.json", items)
@@ -1322,12 +1434,14 @@ def crear_laboratorio_config(body: LaboratorioIn) -> LaboratorioConfig:
 @router.put("/config/laboratorios/{item_id}")
 def editar_laboratorio_config(item_id: int, body: LaboratorioIn) -> LaboratorioConfig:
     _validar_codigo_lab(body.codigo)
+    _validar_prefijo_solicitud(body.prefijo_solicitud)
     items = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
     idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
     if idx is None:
         raise HTTPException(404, "No encontrado.")
     if any(l["codigo"] == body.codigo and l["id"] != item_id for l in items):
         raise HTTPException(400, f"Ya existe otro laboratorio con el código {body.codigo}.")
+    _validar_prefijo_unico(items, body.prefijo_solicitud.strip().upper(), item_id)
     actualizado = LaboratorioConfig(id=item_id, **body.model_dump())
     items[idx] = actualizado.model_dump()
     _escribir_config("laboratorios.json", items)

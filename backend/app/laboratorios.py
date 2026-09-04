@@ -219,6 +219,7 @@ class ResumenLaboratorio(BaseModel):
     codigo: str
     nombre: str
     descripcion: str | None = None
+    prefijo_solicitud: str = ""
     activo: bool
     orden: int
     n_analisis: int
@@ -241,6 +242,7 @@ def resumen_laboratorios() -> list[ResumenLaboratorio]:
             codigo=l["codigo"],
             nombre=l["nombre"],
             descripcion=l.get("descripcion"),
+            prefijo_solicitud=l.get("prefijo_solicitud") or "",
             activo=l.get("activo", True),
             orden=l.get("orden", 0),
             n_analisis=contar(analisis, l["codigo"]),
