@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -15,6 +15,7 @@ import type { Analisis } from '@/features/laboratorios'
 import { listarEspeciesActivas, listarVariedadesActivasDeEspecie } from '@/features/listados'
 import type { ValorLista } from '@/features/listados'
 import {
+  actualizarSolicitud,
   crearSolicitud,
   listarAnalitosConfig,
   listarCamposConfig,
@@ -22,6 +23,7 @@ import {
   listarLaboratoriosConfig,
   listarProductosConfig,
   listarTiposAplicacion,
+  obtenerSolicitud,
 } from '@/features/tomaMuestras'
 import type {
   AnalitoConfig,
@@ -30,8 +32,10 @@ import type {
   LaboratorioConfig,
   OpcionConfig,
   ProductoConfig,
+  Solicitud,
 } from '@/features/tomaMuestras'
-import { ROUTES } from '@/constants/routes'
+import { ROUTES, rutaTomaMuestrasDetalle } from '@/constants/routes'
+import { HttpError } from '@/services/http/client'
 import { formatDateCL } from '@/lib/locale'
 import styles from './NuevaSolicitudView.module.css'
 
@@ -93,8 +97,32 @@ const SECCION_DE_CAMPO: Record<string, 'identificacion' | 'muestra'> = {
   nombre_muestreador: 'muestra',
 }
 
-export function NuevaSolicitudView() {
+/** El valor guardado para un analito en `campos_laboratorio`, buscando por
+ * "Nombre (unidad)" primero y, si no calza, por nombre sin importar la
+ * unidad -mismo criterio que usa el backend al construir el Excel (ver
+ * `_valor_guardado` en solicitud_excel.py)-, para que precargar el
+ * formulario de edición no dependa de que la unidad no haya cambiado. */
+function valorGuardadoParaAnalito(campos: Record<string, string>, analito: AnalitoConfig, unidad: string): string {
+  const etiqueta = unidad ? `${analito.nombre} (${unidad})` : analito.nombre
+  const candidatos = [etiqueta, analito.nombre]
+  for (const clave of candidatos) {
+    if (clave in campos) return campos[clave]
+  }
+  const nombre = analito.nombre.trim()
+  const entrada = Object.entries(campos).find(([clave]) => clave.split(' (')[0].trim() === nombre)
+  return entrada ? entrada[1] : ''
+}
+
+interface NuevaSolicitudViewProps {
+  /** 'crear' registra una solicitud nueva (por defecto). 'editar' reutiliza
+   * el mismo formulario para modificar la solicitud del folio en la URL -sin
+   * crear una nueva-, y solo mientras no se haya enviado por correo. */
+  modo?: 'crear' | 'editar'
+}
+
+export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) {
   const navigate = useNavigate()
+  const { archivo: archivoEditando } = useParams<{ archivo: string }>()
 
   // Configuración cargada desde el mantenedor de Toma de muestras.
   const [camposConfig, setCamposConfig] = useState<CampoConfig[] | null>(null)
@@ -139,6 +167,23 @@ export function NuevaSolicitudView() {
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
 
+  // --- Modo edición: carga la solicitud del folio en la URL y precarga el
+  // formulario con sus datos. `crear_solicitud`/`actualizar_solicitud` en el
+  // backend son las que de verdad protegen que no se edite una ya enviada;
+  // acá solo se refleja ese estado en la pantalla.
+  const [solicitudOriginal, setSolicitudOriginal] = useState<Solicitud | null>(null)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  const prellenadoGeneralRef = useRef(false)
+  const prellenadoAnalitosRef = useRef(false)
+  const prellenadoTipoAplicacionRef = useRef(false)
+
+  useEffect(() => {
+    if (modo !== 'editar' || !archivoEditando) return
+    obtenerSolicitud(archivoEditando)
+      .then(setSolicitudOriginal)
+      .catch(() => setErrorCarga('No se pudo cargar la solicitud a editar.'))
+  }, [modo, archivoEditando])
+
   useEffect(() => {
     listarCamposConfig()
       .then((campos) => {
@@ -174,6 +219,104 @@ export function NuevaSolicitudView() {
       .then(setEspeciesDisponibles)
       .catch(() => setEspeciesDisponibles([]))
   }, [])
+
+  // Precarga los campos generales, identificación y muestra apenas la
+  // solicitud a editar y la configuración de campos están listas. Corre una
+  // sola vez (prellenadoGeneralRef): si corriera de nuevo pisaría lo que la
+  // persona ya empezó a escribir.
+  useEffect(() => {
+    if (modo !== 'editar' || !solicitudOriginal || camposConfig === null || prellenadoGeneralRef.current) return
+    prellenadoGeneralRef.current = true
+    const s = solicitudOriginal
+
+    setLaboratorio(s.laboratorio)
+    setGeneradoPor(s.generado_por)
+    setSoldTo(s.sold_to)
+    setShipTo(s.ship_to ?? '')
+    setLineaProceso(s.linea_proceso ?? '')
+    setProductosSeleccionados(
+      s.producto_utilizado ? s.producto_utilizado.split(',').map((p) => p.trim()).filter(Boolean) : [],
+    )
+    setGeneral({
+      especie: s.especie ?? '',
+      variedad: s.variedad ?? '',
+      csg: s.csg ?? '',
+      lote: s.lote ?? '',
+      posicion_muestreo: s.posicion_muestreo ?? '',
+      numero_camara: s.numero_camara ?? '',
+      numero_orden: s.numero_orden ?? '',
+      kilos_procesados: s.kilos_procesados != null ? String(s.kilos_procesados) : '',
+      tipo_muestra: s.tipo_muestra ?? '',
+      fecha_muestreo: s.fecha_muestreo ?? '',
+      hora_muestreo: s.hora_muestreo ?? '',
+      nombre_muestreador: s.nombre_muestreador ?? '',
+      email_laboratorio: s.email_laboratorio ?? '',
+      observacion: s.observacion ?? '',
+    })
+    setTipoAplicacionSel(s.campos_laboratorio['Tipo Aplicación'] ?? '')
+  }, [modo, solicitudOriginal, camposConfig])
+
+  // Las variedades dependen de la especie y se cargan aparte (piden el id de
+  // la especie al catálogo): no se puede meter en el efecto de arriba porque
+  // `especiesDisponibles` normalmente llega después.
+  useEffect(() => {
+    if (modo !== 'editar' || !solicitudOriginal?.especie) return
+    const especie = especiesDisponibles.find((e) => e.valor === solicitudOriginal.especie)
+    if (!especie) return
+    listarVariedadesActivasDeEspecie(especie.id)
+      .then(setVariedadesDisponibles)
+      .catch(() => setVariedadesDisponibles([]))
+  }, [modo, solicitudOriginal, especiesDisponibles])
+
+  // Analitos marcados y su dosis: se resuelven contra el catálogo completo
+  // (no contra `analitosLab`, que depende del `laboratorio` recién puesto
+  // por el efecto de arriba y en el primer render todavía no lo refleja).
+  useEffect(() => {
+    if (modo !== 'editar' || !solicitudOriginal || analitosTodos.length === 0 || prellenadoAnalitosRef.current) return
+    prellenadoAnalitosRef.current = true
+    const s = solicitudOriginal
+    const candidatos = analitosTodos.filter((a) => a.laboratorio === s.laboratorio)
+    const seleccion: Record<number, boolean> = {}
+    const valores: Record<number, string> = {}
+    for (const codigo of s.analitos_solicitados) {
+      const analito = candidatos.find((a) => a.codigo === codigo)
+      if (!analito) continue
+      seleccion[analito.id] = true
+      const valor = valorGuardadoParaAnalito(s.campos_laboratorio, analito, analito.unidad ?? '')
+      valores[analito.id] = valor && valor !== 'Solicitado' ? valor : ''
+    }
+    setSeleccionAnalitos(seleccion)
+    setValoresAnalitos(valores)
+    setAlsPesticidas(
+      s.laboratorio === 'ALS'
+        ? ALS_PESTICIDAS_VACIO.map((_, i) => ({
+            analito: s.campos_laboratorio[`Analito Pesticida ${i + 1}`] ?? '',
+            resultado: s.campos_laboratorio[`Resultado Pesticida ${i + 1}`] ?? '',
+          }))
+        : ALS_PESTICIDAS_VACIO,
+    )
+  }, [modo, solicitudOriginal, analitosTodos])
+
+  // Los campos propios del Tipo de Aplicación (ej. Gasto en Actimist) se
+  // guardan con su etiqueta como clave en `campos_laboratorio`, igual que
+  // los analitos, así que se resuelven aparte una vez que el mantenedor
+  // llegó.
+  useEffect(() => {
+    if (
+      modo !== 'editar' ||
+      !solicitudOriginal ||
+      camposTipoAplicacion.length === 0 ||
+      prellenadoTipoAplicacionRef.current
+    )
+      return
+    prellenadoTipoAplicacionRef.current = true
+    const s = solicitudOriginal
+    const valores: Record<string, string> = {}
+    for (const campo of camposTipoAplicacion) {
+      if (campo.etiqueta in s.campos_laboratorio) valores[campo.clave] = s.campos_laboratorio[campo.etiqueta]
+    }
+    setValoresTipoAplicacion(valores)
+  }, [modo, solicitudOriginal, camposTipoAplicacion])
 
   const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === soldTo)
   const laboratoriosActivos = laboratoriosConfig.filter((l) => l.activo).sort((a, b) => a.orden - b.orden)
@@ -381,40 +524,55 @@ export function NuevaSolicitudView() {
       })
     }
 
+    const payload = {
+      laboratorio,
+      solicitante: SOLICITANTE_FIJO,
+      sold_to: soldTo.trim(),
+      ship_to: shipTo.trim() || null,
+      especie: general.especie?.trim() || null,
+      variedad: general.variedad?.trim() || null,
+      linea_proceso: esLineaProceso ? lineaProceso || null : null,
+      // CSG y kilos son propios de la línea: en Actimist ni se piden ni se
+      // guardan, aunque hayan quedado escritos antes de cambiar de tipo.
+      csg: esLineaProceso ? general.csg?.trim() || null : null,
+      lote: general.lote?.trim() || null,
+      posicion_muestreo: general.posicion_muestreo?.trim() || null,
+      numero_camara: esActimist ? general.numero_camara?.trim() || null : null,
+      numero_orden: esActimist ? general.numero_orden?.trim() || null : null,
+      kilos_procesados:
+        esLineaProceso && general.kilos_procesados?.trim() ? Number(general.kilos_procesados) : null,
+      producto_utilizado: productosSeleccionados.join(', ') || null,
+      tipo_muestra: general.tipo_muestra?.trim() || null,
+      fecha_muestreo: general.fecha_muestreo || null,
+      hora_muestreo: general.hora_muestreo || null,
+      nombre_muestreador: general.nombre_muestreador?.trim() || null,
+      generado_por: generadoPor.trim(),
+      email_solicitante: emailCuenta.trim() || null,
+      email_laboratorio: general.email_laboratorio?.trim() || null,
+      observacion: general.observacion?.trim() || null,
+      campos_laboratorio: camposLabFinal,
+      analitos_solicitados: codigosAnalitosSolicitados,
+    }
+
     setGuardando(true)
     try {
-      await crearSolicitud({
-        laboratorio,
-        solicitante: SOLICITANTE_FIJO,
-        sold_to: soldTo.trim(),
-        ship_to: shipTo.trim() || null,
-        especie: general.especie?.trim() || null,
-        variedad: general.variedad?.trim() || null,
-        linea_proceso: esLineaProceso ? lineaProceso || null : null,
-        // CSG y kilos son propios de la línea: en Actimist ni se piden ni se
-        // guardan, aunque hayan quedado escritos antes de cambiar de tipo.
-        csg: esLineaProceso ? general.csg?.trim() || null : null,
-        lote: general.lote?.trim() || null,
-        posicion_muestreo: general.posicion_muestreo?.trim() || null,
-        numero_camara: esActimist ? general.numero_camara?.trim() || null : null,
-        numero_orden: esActimist ? general.numero_orden?.trim() || null : null,
-        kilos_procesados:
-          esLineaProceso && general.kilos_procesados?.trim() ? Number(general.kilos_procesados) : null,
-        producto_utilizado: productosSeleccionados.join(', ') || null,
-        tipo_muestra: general.tipo_muestra?.trim() || null,
-        fecha_muestreo: general.fecha_muestreo || null,
-        hora_muestreo: general.hora_muestreo || null,
-        nombre_muestreador: general.nombre_muestreador?.trim() || null,
-        generado_por: generadoPor.trim(),
-        email_solicitante: emailCuenta.trim() || null,
-        email_laboratorio: general.email_laboratorio?.trim() || null,
-        observacion: general.observacion?.trim() || null,
-        campos_laboratorio: camposLabFinal,
-        analitos_solicitados: codigosAnalitosSolicitados,
-      })
-      navigate(ROUTES.tomaMuestras)
-    } catch {
-      setError('No se pudo crear la solicitud. Revisa que el backend esté corriendo.')
+      if (modo === 'editar' && archivoEditando) {
+        await actualizarSolicitud(archivoEditando, payload)
+        navigate(rutaTomaMuestrasDetalle(archivoEditando))
+      } else {
+        await crearSolicitud(payload)
+        navigate(ROUTES.tomaMuestras)
+      }
+    } catch (err) {
+      if (modo === 'editar' && err instanceof HttpError && err.status === 409) {
+        setError('Esta solicitud ya fue enviada y no se puede editar.')
+      } else {
+        setError(
+          modo === 'editar'
+            ? 'No se pudo guardar la edición. Revisa que el backend esté corriendo.'
+            : 'No se pudo crear la solicitud. Revisa que el backend esté corriendo.',
+        )
+      }
     } finally {
       setGuardando(false)
     }
@@ -569,10 +727,43 @@ export function NuevaSolicitudView() {
     )
   }
 
-  if (camposConfig === null) {
+  const tituloVista = modo === 'editar' ? 'Editar solicitud' : 'Nueva solicitud'
+
+  if (errorCarga) {
     return (
       <div>
-        <Header title="Nueva solicitud" description="Registra una nueva solicitud de análisis." />
+        <Header title={tituloVista} />
+        <Card>
+          <p className={styles.error}>{errorCarga}</p>
+          <Button variant="secondary" onClick={() => navigate(ROUTES.tomaMuestras)}>
+            Volver al listado
+          </Button>
+        </Card>
+      </div>
+    )
+  }
+
+  if (modo === 'editar' && solicitudOriginal?.enviada) {
+    return (
+      <div>
+        <Header title={tituloVista} />
+        <Card>
+          <p className={styles.error}>
+            La solicitud {solicitudOriginal.numero_solicitud} ya fue enviada por correo y quedó de solo lectura:
+            no se puede editar.
+          </p>
+          <Button variant="secondary" onClick={() => navigate(rutaTomaMuestrasDetalle(solicitudOriginal.archivo))}>
+            Ver solicitud
+          </Button>
+        </Card>
+      </div>
+    )
+  }
+
+  if (camposConfig === null || (modo === 'editar' && !solicitudOriginal)) {
+    return (
+      <div>
+        <Header title={tituloVista} description="Registra una nueva solicitud de análisis." />
         <Card>
           <p className={styles.estado}>Cargando…</p>
         </Card>
@@ -583,8 +774,12 @@ export function NuevaSolicitudView() {
   return (
     <div>
       <Header
-        title="Nueva solicitud"
-        description="Registra una nueva solicitud de análisis — los campos y análisis disponibles dependen del laboratorio y el tipo de aplicación."
+        title={tituloVista}
+        description={
+          modo === 'editar'
+            ? `Modifica la solicitud ${solicitudOriginal?.numero_solicitud ?? ''} — solo se puede editar mientras no se haya enviado por correo.`
+            : 'Registra una nueva solicitud de análisis — los campos y análisis disponibles dependen del laboratorio y el tipo de aplicación.'
+        }
       />
 
       <form onSubmit={onSubmit} className={styles.form}>
@@ -596,11 +791,23 @@ export function NuevaSolicitudView() {
           <div className={styles.fila}>
             <label className={styles.campo}>
               <span>N° Solicitud</span>
-              <input value="Se asigna automáticamente al guardar" disabled />
+              <input
+                value={
+                  modo === 'editar'
+                    ? solicitudOriginal?.numero_solicitud ?? ''
+                    : 'Se asigna automáticamente al guardar'
+                }
+                disabled
+              />
             </label>
             <label className={styles.campo}>
               <span>Fecha</span>
-              <input value={formatDateCL(new Date())} disabled />
+              <input
+                value={formatDateCL(
+                  modo === 'editar' && solicitudOriginal ? solicitudOriginal.fecha_solicitud : new Date(),
+                )}
+                disabled
+              />
             </label>
             <label className={styles.campo}>
               <span>
@@ -692,7 +899,6 @@ export function NuevaSolicitudView() {
                     <tr>
                       <th></th>
                       <th>Código</th>
-                      <th>Analito</th>
                       <th>{esCromatografia ? 'Dosis Aplicada' : 'Valor'}</th>
                     </tr>
                   </thead>
@@ -703,7 +909,7 @@ export function NuevaSolicitudView() {
                         <Fragment key={a.id}>
                           {nuevaCategoria && (
                             <tr>
-                              <td colSpan={4} className={styles.categoriaFila}>
+                              <td colSpan={3} className={styles.categoriaFila}>
                                 {a.categoria}
                               </td>
                             </tr>
@@ -716,9 +922,8 @@ export function NuevaSolicitudView() {
                                 onChange={() => alternarAnalito(a.id)}
                               />
                             </td>
-                            <td className={styles.mono}>{a.codigo}</td>
-                            <td>
-                              {a.nombre}
+                            <td className={styles.mono} title={a.nombre}>
+                              {a.codigo}
                               {a.requerido && <span className={styles.marcaRequerido}> *</span>}
                             </td>
                             <td>
@@ -796,11 +1001,21 @@ export function NuevaSolicitudView() {
         {error && <p className={styles.error}>{error}</p>}
 
         <div className={styles.acciones}>
-          <Button type="button" variant="secondary" onClick={() => navigate(ROUTES.tomaMuestras)}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() =>
+              navigate(
+                modo === 'editar' && archivoEditando
+                  ? rutaTomaMuestrasDetalle(archivoEditando)
+                  : ROUTES.tomaMuestras,
+              )
+            }
+          >
             Cancelar
           </Button>
           <Button type="submit" disabled={guardando}>
-            {guardando ? 'Guardando…' : 'Guardar solicitud'}
+            {guardando ? 'Guardando…' : modo === 'editar' ? 'Guardar cambios' : 'Guardar solicitud'}
           </Button>
         </div>
       </form>

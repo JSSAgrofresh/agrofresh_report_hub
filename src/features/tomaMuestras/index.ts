@@ -2,6 +2,7 @@ export {
   listarSolicitudes,
   obtenerSolicitud,
   crearSolicitud,
+  actualizarSolicitud,
   eliminarSolicitud,
   descargarExcelSolicitud,
   descargarPdfSolicitud,
