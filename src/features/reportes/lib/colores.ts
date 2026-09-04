@@ -16,8 +16,17 @@ const PALETA_CATEGORICA = [
   '#e34948', // rojo
 ]
 
-// Orden fijo conocido de antemano (catálogo actual de analitos de residuos).
-const ORDEN_CONOCIDO = ['AZOX', 'DFN', 'DPA', 'FDL', 'IMZ', 'PYR', 'TBZ', 'TEBU']
+// Orden fijo conocido de antemano: primero el catálogo de residuos
+// (cromatografía), después el de Diagnofruit (cuantificación de patógenos).
+// Van en la misma lista -y por eso comparten los mismos 8 colores en ciclo-
+// porque nunca se comparan entre sí: Diagnofruit no reporta ppm de residuo,
+// así que un residuo y un patógeno no aparecen juntos en el mismo gráfico.
+// Lo que sí importa es que los 5 patógenos entre ellos salgan distintos, y
+// por hash sin esto "ALT", "GEO" y "PEN" caían en el mismo color.
+const ORDEN_CONOCIDO = [
+  'AZOX', 'DFN', 'DPA', 'FDL', 'IMZ', 'PYR', 'TBZ', 'TEBU',
+  'ALT', 'BOT', 'GEO', 'LEV', 'PEN',
+]
 
 function hashEstable(s: string): number {
   let h = 0
