@@ -12,6 +12,7 @@ import type {
   LaboratorioInput,
   OpcionConfig,
   OpcionInput,
+  ContactoResultado,
   ProductoConfig,
   ProductoInput,
   Solicitud,
@@ -69,6 +70,14 @@ export function enviarSolicitudPorCorreo(archivo: string, destinatariosAdicional
     `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/enviar`,
     { destinatarios_adicionales: destinatariosAdicionales },
   )
+}
+
+/** La configuración de "Resultado a clientes" (Laboratorios) vigente para
+ * este Ship To -de solo lectura, Nueva solicitud la muestra antes de
+ * guardar-. */
+export function resultadosDeShipTo(laboratorio: string, shipTo: string) {
+  const qs = new URLSearchParams({ laboratorio, ship_to: shipTo })
+  return httpClient.get<ContactoResultado[]>(`/toma-muestras/config/resultados-ship-to?${qs.toString()}`)
 }
 
 /** Excel horizontal con una fila por solicitud. Si se indican archivos,
