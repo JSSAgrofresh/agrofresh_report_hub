@@ -940,8 +940,11 @@ $("btnCsv").onclick = () => {
 
 /* ============ subir a la base de datos ============ */
 // Mismo backend que usa el resto del sistema (ver VITE_API_BASE_URL en la raíz
-// del proyecto). Este archivo es estático y no pasa por Vite, así que va fijo acá.
-const API_BASE = "http://localhost:8000/api";
+// del proyecto). Este archivo es estático y no pasa por Vite, así que no puede
+// leer esa variable: ConverterView.tsx se la pasa por la URL del iframe
+// (?api=...), igual que hace TraceView.tsx con trace.html. Si se abre este
+// archivo suelto (sin ese parámetro) cae a localhost, útil solo en desarrollo.
+const API_BASE = new URLSearchParams(location.search).get("api") || "http://localhost:8000/api";
 
 // El token de la sesión, para que el backend acepte estas llamadas. Este
 // archivo se sirve desde el mismo origen que la app, así que ve su
