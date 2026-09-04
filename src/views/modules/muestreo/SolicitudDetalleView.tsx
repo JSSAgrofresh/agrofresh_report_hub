@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
@@ -10,9 +10,10 @@ import {
   descargarPdfSolicitud,
   enviarSolicitudPorCorreo,
   destinatariosDeSolicitud,
+  listarAnalitosConfig,
 } from '@/features/tomaMuestras'
-import type { Solicitud } from '@/features/tomaMuestras'
-import { ROUTES } from '@/constants/routes'
+import type { AnalitoConfig, Solicitud } from '@/features/tomaMuestras'
+import { ROUTES, rutaTomaMuestrasEditar } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
 import styles from './SolicitudDetalleView.module.css'
 
@@ -25,10 +26,27 @@ function Campo({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   )
 }
 
+/** El valor guardado para un analito, buscando su etiqueta tal como la
+ * escribió la solicitud ("Nombre (unidad)"), y si no aparece así, por
+ * nombre sin importar la unidad -mismo criterio de búsqueda que usa el
+ * backend al armar el Excel (ver `_valor_guardado` en solicitud_excel.py),
+ * para que un cambio de unidad en el catálogo no vacíe una solicitud vieja. */
+function dosisDeAnalito(campos: Record<string, string>, analito: AnalitoConfig): string | null {
+  const etiqueta = analito.unidad ? `${analito.nombre} (${analito.unidad})` : analito.nombre
+  if (etiqueta in campos) return campos[etiqueta]
+  if (analito.nombre in campos) return campos[analito.nombre]
+  const nombre = analito.nombre.trim()
+  for (const [clave, valor] of Object.entries(campos)) {
+    if (clave.split(' (')[0].trim() === nombre) return valor
+  }
+  return null
+}
+
 export function SolicitudDetalleView() {
   const { archivo } = useParams<{ archivo: string }>()
   const navigate = useNavigate()
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null)
+  const [analitosLab, setAnalitosLab] = useState<AnalitoConfig[]>([])
   const [error, setError] = useState<string | null>(null)
   const [mostrarEnvio, setMostrarEnvio] = useState(false)
   const [emailEnvio, setEmailEnvio] = useState('')
@@ -44,6 +62,34 @@ export function SolicitudDetalleView() {
       .then(setSolicitud)
       .catch(() => setError('No se pudo cargar la solicitud.'))
   }, [archivo])
+
+  // El catálogo del laboratorio es lo que permite mostrar cada analito
+  // solicitado con su nombre y unidad, no solo el código crudo.
+  useEffect(() => {
+    if (!solicitud) return
+    listarAnalitosConfig(solicitud.laboratorio)
+      .then(setAnalitosLab)
+      .catch(() => setAnalitosLab([]))
+  }, [solicitud])
+
+  // "Analitos solicitados": un renglón por cada código pedido, con su dosis
+  // -o "Solicitado" si se marcó sin anotar una dosis-. Es la sección que
+  // reemplaza tener que buscar la dosis de cada analito perdida entre el
+  // resto de los campos de laboratorio (Tipo Aplicación, Gasto, etc).
+  const analitosSolicitadosConDosis = useMemo(() => {
+    if (!solicitud) return []
+    return solicitud.analitos_solicitados.map((codigo) => {
+      const analito = analitosLab.find((a) => a.codigo === codigo)
+      const valor = analito ? dosisDeAnalito(solicitud.campos_laboratorio, analito) : null
+      return {
+        codigo,
+        nombre: analito?.nombre ?? null,
+        unidad: analito?.unidad ?? null,
+        dosisAplicable: analito?.dosis_aplicable ?? true,
+        dosis: valor && valor !== 'Solicitado' ? valor : null,
+      }
+    })
+  }, [solicitud, analitosLab])
 
   // Los contactos del laboratorio se piden al abrir el panel, no al cargar la
   // vista: solo importan cuando se va a enviar.
@@ -126,13 +172,24 @@ export function SolicitudDetalleView() {
   return (
     <div>
       <Header
-        title={`Solicitud ${solicitud.numero_solicitud}`}
-        description={`${solicitud.laboratorio} · Generada el ${formatDateCL(solicitud.fecha_solicitud)} por ${solicitud.generado_por}`}
+        title={`Solicitud ${solicitud.numero_solicitud}${solicitud.enviada ? ' · Enviada' : ''}`}
+        description={`${solicitud.laboratorio} · Generada el ${formatDateCL(solicitud.fecha_solicitud)} por ${solicitud.generado_por}${solicitud.enviada ? ' · Ya enviada: solo lectura' : ''}`}
         acciones={
           <div className={styles.acciones}>
             <Button variant="secondary" onClick={() => navigate(ROUTES.tomaMuestras)}>
               Volver
             </Button>
+            {/* Editar y Enviar solo existen mientras la solicitud no se haya
+                enviado: una vez enviada queda de solo lectura (el backend
+                también lo rechaza con 409, esto es solo la pantalla). */}
+            {!solicitud.enviada && (
+              <Button
+                variant="secondary"
+                onClick={() => navigate(rutaTomaMuestrasEditar(solicitud.archivo))}
+              >
+                Editar
+              </Button>
+            )}
             <button
               type="button"
               className={styles.botonDescarga}
@@ -147,12 +204,14 @@ export function SolicitudDetalleView() {
             >
               Descargar PDF
             </button>
-            <button
-              className={styles.botonEnviar}
-              onClick={() => { setMostrarEnvio(v => !v); setMensajeEnvio(null) }}
-            >
-              Enviar por correo
-            </button>
+            {!solicitud.enviada && (
+              <button
+                className={styles.botonEnviar}
+                onClick={() => { setMostrarEnvio(v => !v); setMensajeEnvio(null) }}
+              >
+                Enviar por correo
+              </button>
+            )}
           </div>
         }
       />
@@ -293,6 +352,41 @@ export function SolicitudDetalleView() {
             <Campo etiqueta="Nombre Muestreador" valor={solicitud.nombre_muestreador ?? ''} />
           </dl>
         </Card>
+
+        {analitosSolicitadosConDosis.length > 0 && (
+          <Card className={styles.cardAncha}>
+            <h2 className={styles.tituloSeccionLab}>
+              <IconFrasco className={styles.iconoLab} />
+              Analitos solicitados · {solicitud.laboratorio}
+            </h2>
+            <div className={styles.tablaCaja}>
+              <table className={styles.tabla}>
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Analito</th>
+                    <th>Dosis</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analitosSolicitadosConDosis.map((a) => (
+                    <tr key={a.codigo}>
+                      <td className={styles.mono}>{a.codigo}</td>
+                      <td>{a.nombre ? `${a.nombre}${a.unidad ? ` (${a.unidad})` : ''}` : '—'}</td>
+                      <td>
+                        {a.dosisAplicable
+                          ? a.dosis
+                            ? `Dosis: ${a.dosis}`
+                            : 'Dosis: —'
+                          : (a.dosis ?? '—')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
 
         {camposLab.length > 0 && (
           <Card className={styles.cardAncha}>

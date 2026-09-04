@@ -14,6 +14,7 @@ export const ROUTES = {
   tomaMuestrasNueva: '/modulos/toma-muestras/nueva',
   tomaMuestrasConfig: '/modulos/toma-muestras/configuracion',
   tomaMuestrasDetalle: '/modulos/toma-muestras/detalle/:archivo',
+  tomaMuestrasEditar: '/modulos/toma-muestras/editar/:archivo',
   adminUsuarios: '/admin/usuarios',
   adminListados: '/admin/listados',
   adminLaboratorios: '/admin/laboratorios',
@@ -21,4 +22,8 @@ export const ROUTES = {
 
 export function rutaTomaMuestrasDetalle(archivo: string): string {
   return `/modulos/toma-muestras/detalle/${encodeURIComponent(archivo)}`
+}
+
+export function rutaTomaMuestrasEditar(archivo: string): string {
+  return `/modulos/toma-muestras/editar/${encodeURIComponent(archivo)}`
 }

@@ -389,6 +389,13 @@ class Solicitud(SolicitudIn):
     # trae el archivo del GC, así que al subir los resultados cada vial
     # encuentra su solicitud sin volver a emparejar nada.
     codigo_muestra: str | None = None
+    # Una solicitud se puede editar libremente hasta que se envía por correo:
+    # desde ahí queda de solo lectura, tanto en la pantalla (se ocultan
+    # Editar/Enviar) como en la API (PUT y /enviar la rechazan con 409). Nace
+    # siempre en False -no se acepta en SolicitudIn- y solo lo cambia
+    # `enviar_solicitud_por_correo`, después de que el correo salió de verdad.
+    enviada: bool = False
+    enviado_en: str | None = None
 
 
 class CruceIn(BaseModel):
@@ -588,6 +595,68 @@ def obtener_solicitud(archivo: str, usuario: Usuario = Depends(usuario_actual)) 
     return Solicitud(archivo=os.path.basename(ruta), **datos)
 
 
+def _leer_datos_actuales(archivo: str) -> dict:
+    """Los datos guardados de una solicitud, sirva R2 o disco. Se usa antes
+    de editarla o marcarla enviada -para saber si ya está enviada, y para
+    conservar los campos que la API no deja tocar (folio, fechas)."""
+    if r2.disponible():
+        data, ext = _descargar_solicitud_r2(archivo)
+        return _leer_solicitud_bytes(data, ext)
+    return _leer_solicitud_archivo(_ruta_archivo(archivo))
+
+
+def _regrabar_datos_solicitud(archivo: str, datos: dict) -> None:
+    """Reescribe el Excel maestro de una solicitud YA EXISTENTE, en el mismo
+    lugar donde vive (misma clave R2 o mismo archivo en disco), y reindexa.
+
+    A diferencia de `crear_solicitud`, no recalcula dónde debería vivir el
+    archivo según el Sold To/fecha actuales: sobrescribe donde ya está. Así
+    editar una solicitud no puede dejar dos copias ni perder la que ya se
+    había compartido por ese link/carpeta.
+    """
+    nombre_archivo = os.path.basename(archivo)
+    analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
+    wb = construir_workbook(datos, analitos_config)
+    r2_key = None
+    if r2.disponible():
+        r2_key = _buscar_key_solicitud(archivo)
+        if r2_key is None:
+            raise HTTPException(404, "Solicitud no encontrada.")
+        buf = io.BytesIO()
+        wb.save(buf)
+        r2.subir(r2_key, buf.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    else:
+        wb.save(_ruta_archivo(archivo))
+    indice_solicitudes.anotar(nombre_archivo, datos, r2_key)
+
+
+@router.put("/solicitudes/{archivo}")
+def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
+    """Actualiza una solicitud existente -mismo folio, mismo archivo-, nunca
+    crea una nueva. Solo mientras no se haya enviado: una vez enviada queda
+    de solo lectura, protección que se aplica acá y no solo ocultando el
+    botón en el frontend."""
+    datos_actuales = _leer_datos_actuales(archivo)
+    _exigir_acceso(usuario, datos_actuales)
+    if datos_actuales.get("enviada"):
+        raise HTTPException(
+            409,
+            f"La solicitud {datos_actuales.get('numero_solicitud', archivo)} ya fue enviada y no se puede editar.",
+        )
+
+    nombre_archivo = os.path.basename(archivo)
+    datos = body.model_dump()
+    datos.update(
+        numero_solicitud=datos_actuales.get("numero_solicitud"),
+        fecha_solicitud=datos_actuales.get("fecha_solicitud"),
+        creado_en=datos_actuales.get("creado_en"),
+        enviada=False,
+        enviado_en=None,
+    )
+    _regrabar_datos_solicitud(archivo, datos)
+    return Solicitud(archivo=nombre_archivo, **datos)
+
+
 @router.post("/solicitudes")
 def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     numero = _siguiente_numero(body.laboratorio)
@@ -606,6 +675,8 @@ def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual
         numero_solicitud=numero,
         fecha_solicitud=ahora.date().isoformat(),
         creado_en=ahora.isoformat(),
+        enviada=False,
+        enviado_en=None,
     )
     nombre_archivo = f"{numero}.xlsx"
     fecha = datos["fecha_solicitud"]
@@ -880,6 +951,9 @@ def enviar_solicitud_por_correo(
         datos = _leer_solicitud_archivo(ruta)
     _exigir_acceso(usuario, datos)
 
+    if datos.get("enviada"):
+        raise HTTPException(409, f"La solicitud {numero} ya fue enviada; no se puede reenviar.")
+
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
     pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config)
@@ -936,6 +1010,13 @@ def enviar_solicitud_por_correo(
     bcc = [email_muestreador] if email_muestreador and email_muestreador not in vistos else []
 
     correo.enviar(", ".join(destinatarios), asunto, html, texto, adjuntos, bcc=bcc)
+
+    # Recién ahora, con el correo ya afuera: si se marcara antes y el envío
+    # fallara, la solicitud quedaría bloqueada para editar sin haberse
+    # enviado realmente a nadie.
+    datos_enviada = {**datos, "enviada": True, "enviado_en": datetime.now(timezone.utc).isoformat()}
+    _regrabar_datos_solicitud(archivo, datos_enviada)
+
     return {"ok": f"Solicitud {numero} enviada a {', '.join(destinatarios)}."}
 
 

@@ -35,6 +35,12 @@ export function crearSolicitud(datos: SolicitudInput) {
   return httpClient.post<Solicitud>('/toma-muestras/solicitudes', datos)
 }
 
+/** Actualiza una solicitud existente (mismo folio). El backend la rechaza
+ * con 409 si ya fue enviada por correo. */
+export function actualizarSolicitud(archivo: string, datos: SolicitudInput) {
+  return httpClient.put<Solicitud>(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}`, datos)
+}
+
 export function eliminarSolicitud(archivo: string) {
   return httpClient.delete<{ estado: string }>(
     `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}`,

@@ -32,9 +32,16 @@ export interface Solicitud {
   /** Códigos de los analitos marcados como solicitados (ej. ["FDL", "PYR"]). */
   analitos_solicitados: string[]
   creado_en: string
+  /** Una solicitud se puede editar y enviar solo mientras esto sea false.
+   * Una vez enviada por correo queda de solo lectura. */
+  enviada: boolean
+  enviado_en: string | null
 }
 
-export type SolicitudInput = Omit<Solicitud, 'archivo' | 'numero_solicitud' | 'fecha_solicitud' | 'creado_en'>
+export type SolicitudInput = Omit<
+  Solicitud,
+  'archivo' | 'numero_solicitud' | 'fecha_solicitud' | 'creado_en' | 'enviada' | 'enviado_en'
+>
 
 /** Metadatos de un campo general del formulario (§3): el conjunto de
  * claves es fijo, pero etiqueta/tipo/requerido/activo/orden los define el
