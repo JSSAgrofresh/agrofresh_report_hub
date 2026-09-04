@@ -30,6 +30,7 @@ que no se repita un número mientras queden folios viejos sin migrar.
 """
 import io
 import json
+import logging
 import os
 import re
 from datetime import datetime, timezone
@@ -47,6 +48,7 @@ from .solicitud_excel import construir_workbook, construir_workbook_exportacion,
 from .toma_muestras_pdf import generar_pdf_solicitud
 
 router = APIRouter(prefix="/api/toma-muestras", tags=["toma-muestras"])
+logger = logging.getLogger(__name__)
 
 _CARPETA_RAIZ = "solicitudes"
 # Los mantenedores viven dentro de `solicitudes/` pero no son una solicitud:
@@ -311,7 +313,18 @@ def _siguiente_numero(laboratorio: str) -> str:
                 numero = tope + 1
             return f"{PREFIJO_FOLIO}-{prefijo}{numero:04d}"
     except psycopg2.errors.UndefinedTable:
-        pass
+        # Falta la migración 0023: el laboratorio tiene prefijo configurado
+        # pero el folio va a salir SIN prefijo -antes esto se caía en
+        # silencio y nadie se enteraba de por qué el prefijo "no aparecía en
+        # ningún lado" (folio, correo, Excel, PDF: todos salen del mismo
+        # numero_solicitud, así que el problema nunca estuvo repartido en
+        # varios lugares, siempre fue este único punto)-.
+        logger.warning(
+            "El laboratorio %r tiene prefijo de solicitud (%r) pero falta la migración 0023 "
+            "(tabla folio_solicitud_laboratorio): este folio sale sin prefijo. "
+            "Corre: python scripts/migrar.py 0023_folio_solicitud_por_laboratorio.sql",
+            laboratorio, prefijo,
+        )
 
     # Falta la migración 0023 (tabla `folio_solicitud_laboratorio`): se cae al
     # correlativo global anterior, sin prefijo, para no dejar de poder crear
