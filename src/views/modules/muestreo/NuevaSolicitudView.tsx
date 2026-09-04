@@ -10,8 +10,8 @@ import { cn } from '@/lib/cn'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import { useAuth } from '@/features/auth'
-import { listarAnalisis } from '@/features/laboratorios'
-import type { Analisis } from '@/features/laboratorios'
+import { listarAnalisis, listarUnidades } from '@/features/laboratorios'
+import type { Analisis, Unidad } from '@/features/laboratorios'
 import { listarEspeciesActivas, listarVariedadesActivasDeEspecie } from '@/features/listados'
 import type { ValorLista } from '@/features/listados'
 import {
@@ -104,7 +104,11 @@ const SECCION_DE_CAMPO: Record<string, 'identificacion' | 'muestra'> = {
  * unidad -mismo criterio que usa el backend al construir el Excel (ver
  * `_valor_guardado` en solicitud_excel.py)-, para que precargar el
  * formulario de edición no dependa de que la unidad no haya cambiado. */
-function valorGuardadoParaAnalito(campos: Record<string, string>, analito: AnalitoConfig, unidad: string): string {
+function valorGuardadoParaAnalito(
+  campos: Record<string, string>,
+  analito: AnalitoConfig,
+  unidad: string,
+): string {
   const etiqueta = unidad ? `${analito.nombre} (${unidad})` : analito.nombre
   const candidatos = [etiqueta, analito.nombre]
   for (const clave of candidatos) {
@@ -134,6 +138,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [productosTodos, setProductosTodos] = useState<ProductoConfig[]>([])
   const [camposTipoAplicacion, setCamposTipoAplicacion] = useState<CampoTipoAplicacionConfig[]>([])
   const [analisisTodos, setAnalisisTodos] = useState<Analisis[]>([])
+  const [unidades, setUnidades] = useState<Unidad[]>([])
 
   const { user } = useAuth()
 
@@ -159,6 +164,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [valoresTipoAplicacion, setValoresTipoAplicacion] = useState<Record<string, string>>({})
   const [seleccionAnalitos, setSeleccionAnalitos] = useState<Record<number, boolean>>({})
   const [valoresAnalitos, setValoresAnalitos] = useState<Record<number, string>>({})
+  const [unidadesAnalitos, setUnidadesAnalitos] = useState<Record<number, string>>({})
+  const [dosisSinIndicar, setDosisSinIndicar] = useState<Record<number, boolean>>({})
   const [alsPesticidas, setAlsPesticidas] = useState<AlsPesticida[]>(ALS_PESTICIDAS_VACIO)
 
   const [clientesDisponibles, setClientesDisponibles] = useState<string[]>([])
@@ -215,8 +222,13 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     listarAnalisis()
       .then(setAnalisisTodos)
       .catch(() => setAnalisisTodos([]))
+    listarUnidades()
+      .then(setUnidades)
+      .catch(() => setUnidades([]))
     listarClientes()
-      .then((clientes) => setClientesDisponibles(clientes.filter((c) => c.activo).map((c) => c.nombre)))
+      .then((clientes) =>
+        setClientesDisponibles(clientes.filter((c) => c.activo).map((c) => c.nombre)),
+      )
       .catch(() => setClientesDisponibles([]))
     listarPlantas()
       .then((plantas) => setPlantasDisponibles(plantas.filter((p) => p.activo)))
@@ -231,7 +243,13 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // sola vez (prellenadoGeneralRef): si corriera de nuevo pisaría lo que la
   // persona ya empezó a escribir.
   useEffect(() => {
-    if (modo !== 'editar' || !solicitudOriginal || camposConfig === null || prellenadoGeneralRef.current) return
+    if (
+      modo !== 'editar' ||
+      !solicitudOriginal ||
+      camposConfig === null ||
+      prellenadoGeneralRef.current
+    )
+      return
     prellenadoGeneralRef.current = true
     const s = solicitudOriginal
 
@@ -241,7 +259,12 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setShipTo(s.ship_to ?? '')
     setLineaProceso(s.linea_proceso ?? '')
     setProductosSeleccionados(
-      s.producto_utilizado ? s.producto_utilizado.split(',').map((p) => p.trim()).filter(Boolean) : [],
+      s.producto_utilizado
+        ? s.producto_utilizado
+            .split(',')
+            .map((p) => p.trim())
+            .filter(Boolean)
+        : [],
     )
     setGeneral({
       especie: s.especie ?? '',
@@ -278,21 +301,33 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // (no contra `analitosLab`, que depende del `laboratorio` recién puesto
   // por el efecto de arriba y en el primer render todavía no lo refleja).
   useEffect(() => {
-    if (modo !== 'editar' || !solicitudOriginal || analitosTodos.length === 0 || prellenadoAnalitosRef.current) return
+    if (
+      modo !== 'editar' ||
+      !solicitudOriginal ||
+      analitosTodos.length === 0 ||
+      prellenadoAnalitosRef.current
+    )
+      return
     prellenadoAnalitosRef.current = true
     const s = solicitudOriginal
     const candidatos = analitosTodos.filter((a) => a.laboratorio === s.laboratorio)
     const seleccion: Record<number, boolean> = {}
     const valores: Record<number, string> = {}
+    const unidadesDosis: Record<number, string> = {}
+    const sinDosis: Record<number, boolean> = {}
     for (const codigo of s.analitos_solicitados) {
       const analito = candidatos.find((a) => a.codigo === codigo)
       if (!analito) continue
       seleccion[analito.id] = true
       const valor = valorGuardadoParaAnalito(s.campos_laboratorio, analito, analito.unidad ?? '')
-      valores[analito.id] = valor && valor !== 'Solicitado' ? valor : ''
+      sinDosis[analito.id] = valor === '—' || valor === 'Solicitado'
+      valores[analito.id] = sinDosis[analito.id] ? '' : valor
+      unidadesDosis[analito.id] = analito.unidad ?? ''
     }
     setSeleccionAnalitos(seleccion)
     setValoresAnalitos(valores)
+    setUnidadesAnalitos(unidadesDosis)
+    setDosisSinIndicar(sinDosis)
     setAlsPesticidas(
       s.laboratorio === 'ALS'
         ? ALS_PESTICIDAS_VACIO.map((_, i) => ({
@@ -319,7 +354,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     const s = solicitudOriginal
     const valores: Record<string, string> = {}
     for (const campo of camposTipoAplicacion) {
-      if (campo.etiqueta in s.campos_laboratorio) valores[campo.clave] = s.campos_laboratorio[campo.etiqueta]
+      if (campo.etiqueta in s.campos_laboratorio)
+        valores[campo.clave] = s.campos_laboratorio[campo.etiqueta]
     }
     setValoresTipoAplicacion(valores)
   }, [modo, solicitudOriginal, camposTipoAplicacion])
@@ -345,14 +381,22 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   }, [laboratorio, shipTo])
 
   const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === soldTo)
-  const laboratoriosActivos = laboratoriosConfig.filter((l) => l.activo).sort((a, b) => a.orden - b.orden)
+  const laboratoriosActivos = laboratoriosConfig
+    .filter((l) => l.activo)
+    .sort((a, b) => a.orden - b.orden)
   const tiposActivos = tiposAplicacion.filter((t) => t.activo).sort((a, b) => a.orden - b.orden)
+  const unidadesActivas = useMemo(
+    () => unidades.filter((u) => u.activo).sort((a, b) => a.orden - b.orden),
+    [unidades],
+  )
 
   const camposActivos = useMemo(
     () => (camposConfig ?? []).filter((c) => c.activo).sort((a, b) => a.orden - b.orden),
     [camposConfig],
   )
-  const camposIdentificacion = camposActivos.filter((c) => SECCION_DE_CAMPO[c.clave] === 'identificacion')
+  const camposIdentificacion = camposActivos.filter(
+    (c) => SECCION_DE_CAMPO[c.clave] === 'identificacion',
+  )
   const camposMuestraVisibles = useMemo(
     () =>
       camposActivos.filter((c) => {
@@ -362,7 +406,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         if (c.clave === 'linea_proceso' || c.clave === 'kilos_procesados' || c.clave === 'csg') {
           return tipoAplicacionSel === TIPO_LINEA_PROCESO
         }
-        if (c.clave === 'numero_camara' || c.clave === 'numero_orden') return tipoAplicacionSel === TIPO_ACTIMIST
+        if (c.clave === 'numero_camara' || c.clave === 'numero_orden')
+          return tipoAplicacionSel === TIPO_ACTIMIST
         return true
       }),
     [camposActivos, tipoAplicacionSel],
@@ -370,7 +415,13 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const campoObservacion = camposActivos.find((c) => c.clave === 'observacion')
 
   const productosDisponibles = useMemo(
-    () => productosTodos.filter((p) => p.laboratorio === laboratorio && p.activo && (!p.tipo_aplicacion || p.tipo_aplicacion === tipoAplicacionSel)),
+    () =>
+      productosTodos.filter(
+        (p) =>
+          p.laboratorio === laboratorio &&
+          p.activo &&
+          (!p.tipo_aplicacion || p.tipo_aplicacion === tipoAplicacionSel),
+      ),
     [productosTodos, laboratorio, tipoAplicacionSel],
   )
   const analitosLab = useMemo(
@@ -422,7 +473,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     () =>
       camposTipoAplicacion
         .filter((c) => c.activo && (c.ambito === 'comun' || c.ambito === tipoAplicacionSel))
-        .sort((a, b) => (a.ambito !== 'comun' ? 1 : 0) - (b.ambito !== 'comun' ? 1 : 0) || a.orden - b.orden),
+        .sort(
+          (a, b) =>
+            (a.ambito !== 'comun' ? 1 : 0) - (b.ambito !== 'comun' ? 1 : 0) || a.orden - b.orden,
+        ),
     [camposTipoAplicacion, tipoAplicacionSel],
   )
 
@@ -452,6 +506,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setLaboratorio(v)
     setSeleccionAnalitos({})
     setValoresAnalitos({})
+    setUnidadesAnalitos({})
+    setDosisSinIndicar({})
     setProductosSeleccionados([])
     setAlsPesticidas(ALS_PESTICIDAS_VACIO)
   }
@@ -467,15 +523,54 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setProductosSeleccionados([])
     setSeleccionAnalitos({})
     setValoresAnalitos({})
-    setGeneral((g) => ({ ...g, numero_camara: '', numero_orden: '', csg: '', kilos_procesados: '' }))
+    setUnidadesAnalitos({})
+    setDosisSinIndicar({})
+    setGeneral((g) => ({
+      ...g,
+      numero_camara: '',
+      numero_orden: '',
+      csg: '',
+      kilos_procesados: '',
+    }))
   }
 
   function actualizarGeneral(clave: string, valor: string) {
     setGeneral((g) => ({ ...g, [clave]: valor }))
   }
 
-  function alternarAnalito(id: number) {
-    setSeleccionAnalitos((actual) => ({ ...actual, [id]: !actual[id] }))
+  function alternarAnalito(analito: AnalitoConfig) {
+    const seleccionado = !seleccionAnalitos[analito.id]
+    setSeleccionAnalitos((actual) => ({ ...actual, [analito.id]: seleccionado }))
+    if (seleccionado) {
+      setUnidadesAnalitos((actual) => ({
+        ...actual,
+        [analito.id]:
+          actual[analito.id] ??
+          (unidadesActivas.some((unidad) => unidad.simbolo === unidadDe(analito))
+            ? unidadDe(analito)
+            : ''),
+      }))
+      return
+    }
+    setValoresAnalitos((actual) => ({ ...actual, [analito.id]: '' }))
+    setUnidadesAnalitos((actual) => ({ ...actual, [analito.id]: '' }))
+    setDosisSinIndicar((actual) => ({ ...actual, [analito.id]: false }))
+  }
+
+  function actualizarDosis(analitoId: number, valor: string) {
+    setValoresAnalitos((actual) => ({ ...actual, [analitoId]: valor }))
+    if (valor) setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: false }))
+  }
+
+  function actualizarUnidadDosis(analitoId: number, unidad: string) {
+    setUnidadesAnalitos((actual) => ({ ...actual, [analitoId]: unidad }))
+    if (unidad) setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: false }))
+  }
+
+  function indicarSinDosis(analitoId: number) {
+    setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: true }))
+    setValoresAnalitos((actual) => ({ ...actual, [analitoId]: '' }))
+    setUnidadesAnalitos((actual) => ({ ...actual, [analitoId]: '' }))
   }
 
   function valorRequerido(clave: string): string {
@@ -530,11 +625,19 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     const camposLabFinal: Record<string, string> = { 'Tipo Aplicación': tipoAplicacionSel }
     for (const analito of analitosLab) {
       if (!seleccionAnalitos[analito.id]) continue
-      codigosAnalitosSolicitados.push(analito.codigo)
       const valor = valoresAnalitos[analito.id]?.trim()
+      const unidadDosis = unidadesAnalitos[analito.id]?.trim()
+      if (!dosisSinIndicar[analito.id] && (!valor || !unidadDosis)) {
+        const dato = analito.dosis_aplicable ? 'dosis' : 'valor'
+        setError(
+          `Indica el ${dato} y su unidad para "${analito.nombre}", o elige "No indicar dosis".`,
+        )
+        return
+      }
+      codigosAnalitosSolicitados.push(analito.codigo)
       const unidad = unidadDe(analito)
       const etiqueta = unidad ? `${analito.nombre} (${unidad})` : analito.nombre
-      camposLabFinal[etiqueta] = valor || 'Solicitado'
+      camposLabFinal[etiqueta] = dosisSinIndicar[analito.id] ? '—' : `${valor} ${unidadDosis}`
     }
     // Los campos propios del Tipo de Aplicación se guardan siempre que
     // apliquen, aunque estén vacíos: el informe debe mostrar la estructura
@@ -566,7 +669,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       numero_camara: esActimist ? general.numero_camara?.trim() || null : null,
       numero_orden: esActimist ? general.numero_orden?.trim() || null : null,
       kilos_procesados:
-        esLineaProceso && general.kilos_procesados?.trim() ? Number(general.kilos_procesados) : null,
+        esLineaProceso && general.kilos_procesados?.trim()
+          ? Number(general.kilos_procesados)
+          : null,
       producto_utilizado: productosSeleccionados.join(', ') || null,
       tipo_muestra: general.tipo_muestra?.trim() || null,
       fecha_muestreo: general.fecha_muestreo || null,
@@ -671,7 +776,11 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       return (
         <label className={styles.campo} key={campo.clave}>
           {etiqueta}
-          <input value={lineaProceso} onChange={(e) => setLineaProceso(e.target.value)} placeholder="Ej. Línea 1" />
+          <input
+            value={lineaProceso}
+            onChange={(e) => setLineaProceso(e.target.value)}
+            placeholder="Ej. Línea 1"
+          />
         </label>
       )
     }
@@ -709,7 +818,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           {productosDisponibles.length === 0 ? (
             <p className={styles.ayudaCampo}>
               No hay productos configurados para {laboratorio || 'este laboratorio'}
-              {tipoAplicacionSel ? ` en ${tipoAplicacionSel}` : ''}. Se configuran en Ajustes de la solicitud.
+              {tipoAplicacionSel ? ` en ${tipoAplicacionSel}` : ''}. Se configuran en Ajustes de la
+              solicitud.
             </p>
           ) : (
             <div className={styles.listaChecks}>
@@ -775,10 +885,13 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         <Header title={tituloVista} />
         <Card>
           <p className={styles.error}>
-            La solicitud {solicitudOriginal.numero_solicitud} ya fue enviada por correo y quedó de solo lectura:
-            no se puede editar.
+            La solicitud {solicitudOriginal.numero_solicitud} ya fue enviada por correo y quedó de
+            solo lectura: no se puede editar.
           </p>
-          <Button variant="secondary" onClick={() => navigate(rutaTomaMuestrasDetalle(solicitudOriginal.archivo))}>
+          <Button
+            variant="secondary"
+            onClick={() => navigate(rutaTomaMuestrasDetalle(solicitudOriginal.archivo))}
+          >
             Ver solicitud
           </Button>
         </Card>
@@ -820,7 +933,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               <input
                 value={
                   modo === 'editar'
-                    ? solicitudOriginal?.numero_solicitud ?? ''
+                    ? (solicitudOriginal?.numero_solicitud ?? '')
                     : 'Se asigna automáticamente al guardar'
                 }
                 disabled
@@ -830,7 +943,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               <span>Fecha</span>
               <input
                 value={formatDateCL(
-                  modo === 'editar' && solicitudOriginal ? solicitudOriginal.fecha_solicitud : new Date(),
+                  modo === 'editar' && solicitudOriginal
+                    ? solicitudOriginal.fecha_solicitud
+                    : new Date(),
                 )}
                 disabled
               />
@@ -850,7 +965,11 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               <span>
                 Laboratorio<span className={styles.marcaRequerido}> *</span>
               </span>
-              <select value={laboratorio} onChange={(e) => alCambiarLaboratorio(e.target.value)} required>
+              <select
+                value={laboratorio}
+                onChange={(e) => alCambiarLaboratorio(e.target.value)}
+                required
+              >
                 <option value="">— elegir —</option>
                 {laboratoriosActivos.map((l) => (
                   <option key={l.id} value={l.codigo}>
@@ -863,7 +982,11 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               <span>
                 Tipo de Aplicación<span className={styles.marcaRequerido}> *</span>
               </span>
-              <select value={tipoAplicacionSel} onChange={(e) => alCambiarTipoAplicacion(e.target.value)} required>
+              <select
+                value={tipoAplicacionSel}
+                onChange={(e) => alCambiarTipoAplicacion(e.target.value)}
+                required
+              >
                 <option value="">— elegir —</option>
                 {tiposActivos.map((t) => (
                   <option key={t.id} value={t.nombre}>
@@ -900,13 +1023,17 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                   <input
                     type={campo.tipo}
                     value={valoresTipoAplicacion[campo.clave] ?? ''}
-                    onChange={(e) => setValoresTipoAplicacion((v) => ({ ...v, [campo.clave]: e.target.value }))}
+                    onChange={(e) =>
+                      setValoresTipoAplicacion((v) => ({ ...v, [campo.clave]: e.target.value }))
+                    }
                   />
                 </label>
               ))}
             </div>
           ) : (
-            <p className={styles.estado}>Elige un Tipo de Aplicación para ver los campos de la muestra.</p>
+            <p className={styles.estado}>
+              Elige un Tipo de Aplicación para ver los campos de la muestra.
+            </p>
           )}
         </Card>
 
@@ -921,12 +1048,15 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             {analitosLab.length > 0 && (
               <div className={styles.analitosPorCategoria}>
                 {analitosLab.map((a, i) => {
-                  const nuevaCategoria = a.categoria && a.categoria !== analitosLab[i - 1]?.categoria
+                  const nuevaCategoria =
+                    a.categoria && a.categoria !== analitosLab[i - 1]?.categoria
                   const seleccionado = Boolean(seleccionAnalitos[a.id])
-                  const dosis = valoresAnalitos[a.id] ?? ''
+                  const sinDosis = Boolean(dosisSinIndicar[a.id])
                   return (
                     <Fragment key={a.id}>
-                      {nuevaCategoria && <h3 className={styles.categoriaAnalitos}>{a.categoria}</h3>}
+                      {nuevaCategoria && (
+                        <h3 className={styles.categoriaAnalitos}>{a.categoria}</h3>
+                      )}
                       <div
                         className={cn(styles.cardAnalito, seleccionado && styles.cardAnalitoActiva)}
                         data-testid={`analito-card-${a.id}`}
@@ -935,7 +1065,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                           <input
                             type="checkbox"
                             checked={seleccionado}
-                            onChange={() => alternarAnalito(a.id)}
+                            onChange={() => alternarAnalito(a)}
                           />
                           <span>
                             <span className={styles.mono}>{a.codigo}</span>
@@ -947,20 +1077,45 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                           <div className={styles.dosisAnalito}>
                             <label>
                               {esCromatografia ? 'Dosis aplicada' : 'Valor'}
-                              <input
-                                type="text"
-                                placeholder={unidadDe(a)}
-                                value={dosis}
-                                onChange={(e) => setValoresAnalitos((v) => ({ ...v, [a.id]: e.target.value }))}
-                              />
+                              {sinDosis ? (
+                                <span className={styles.dosisOmitida}>—</span>
+                              ) : (
+                                <span className={styles.dosisConUnidad}>
+                                  <input
+                                    type={a.tipo === 'numero' ? 'number' : 'text'}
+                                    min={a.tipo === 'numero' ? '0' : undefined}
+                                    step={a.tipo === 'numero' ? 'any' : undefined}
+                                    inputMode={a.tipo === 'numero' ? 'decimal' : undefined}
+                                    aria-label={`${a.dosis_aplicable ? 'Dosis' : 'Valor'} de ${a.nombre}`}
+                                    value={valoresAnalitos[a.id] ?? ''}
+                                    onChange={(e) => actualizarDosis(a.id, e.target.value)}
+                                  />
+                                  <select
+                                    aria-label={`Unidad de dosis de ${a.nombre}`}
+                                    value={unidadesAnalitos[a.id] ?? ''}
+                                    onChange={(e) => actualizarUnidadDosis(a.id, e.target.value)}
+                                  >
+                                    <option value="">Unidad</option>
+                                    {unidadesActivas.map((u) => (
+                                      <option key={u.id} value={u.simbolo}>
+                                        {u.simbolo}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </span>
+                              )}
                             </label>
                             <button
                               type="button"
-                              className={cn(styles.sinDosis, !dosis && styles.sinDosisActiva)}
-                              aria-pressed={!dosis}
-                              onClick={() => setValoresAnalitos((v) => ({ ...v, [a.id]: '' }))}
+                              className={cn(styles.sinDosis, sinDosis && styles.sinDosisActiva)}
+                              aria-pressed={sinDosis}
+                              onClick={() =>
+                                sinDosis
+                                  ? setDosisSinIndicar((v) => ({ ...v, [a.id]: false }))
+                                  : indicarSinDosis(a.id)
+                              }
                             >
-                              {dosis ? 'No indicar dosis' : 'Sin dosis: —'}
+                              {sinDosis ? 'Sin dosis: —' : 'No indicar dosis'}
                             </button>
                           </div>
                         )}
@@ -988,7 +1143,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                             value={p.analito}
                             onChange={(e) =>
                               setAlsPesticidas((actual) =>
-                                actual.map((it, idx) => (idx === i ? { ...it, analito: e.target.value } : it)),
+                                actual.map((it, idx) =>
+                                  idx === i ? { ...it, analito: e.target.value } : it,
+                                ),
                               )
                             }
                           />
@@ -998,7 +1155,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                             value={p.resultado}
                             onChange={(e) =>
                               setAlsPesticidas((actual) =>
-                                actual.map((it, idx) => (idx === i ? { ...it, resultado: e.target.value } : it)),
+                                actual.map((it, idx) =>
+                                  idx === i ? { ...it, resultado: e.target.value } : it,
+                                ),
                               )
                             }
                           />
@@ -1026,8 +1185,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           <Card>
             <h2 className={styles.tituloSeccion}>Resultado a clientes · {shipTo}</h2>
             <p className={styles.ayudaCampo}>
-              Así está configurado el envío de resultados para este Ship To (Laboratorios → Resultado a
-              clientes). Es de solo lectura: se edita desde ese mantenedor, no desde acá.
+              Así está configurado el envío de resultados para este Ship To (Laboratorios →
+              Resultado a clientes). Es de solo lectura: se edita desde ese mantenedor, no desde
+              acá.
             </p>
             {resultadosShipTo === null ? (
               <p className={styles.estado}>Cargando…</p>

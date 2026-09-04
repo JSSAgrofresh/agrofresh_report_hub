@@ -14,6 +14,7 @@ const {
   listarLaboratoriosConfig,
   listarProductosConfig,
   listarTiposAplicacion,
+  listarUnidades,
 } = vi.hoisted(() => ({
   crearSolicitud: vi.fn(),
   actualizarSolicitud: vi.fn(),
@@ -24,6 +25,7 @@ const {
   listarLaboratoriosConfig: vi.fn(),
   listarProductosConfig: vi.fn(),
   listarTiposAplicacion: vi.fn(),
+  listarUnidades: vi.fn(),
 }))
 
 vi.mock('@/features/tomaMuestras', () => ({
@@ -44,6 +46,7 @@ vi.mock('@/features/catalogo', () => ({
 }))
 vi.mock('@/features/laboratorios', () => ({
   listarAnalisis: vi.fn().mockResolvedValue([]),
+  listarUnidades,
 }))
 vi.mock('@/features/listados', () => ({
   listarEspeciesActivas: vi.fn().mockResolvedValue([]),
@@ -54,17 +57,78 @@ vi.mock('@/features/auth', () => ({
 }))
 
 const CAMPOS_CONFIG: CampoConfig[] = [
-  { clave: 'sold_to', etiqueta: 'Sold To', tipo: 'select', requerido: true, activo: true, orden: 1 },
+  {
+    clave: 'sold_to',
+    etiqueta: 'Sold To',
+    tipo: 'select',
+    requerido: true,
+    activo: true,
+    orden: 1,
+  },
   { clave: 'especie', etiqueta: 'Especie', tipo: 'text', requerido: true, activo: true, orden: 2 },
-  { clave: 'tipo_muestra', etiqueta: 'Tipo Muestra', tipo: 'select', requerido: true, activo: true, orden: 3 },
-  { clave: 'fecha_muestreo', etiqueta: 'Fecha Muestreo', tipo: 'date', requerido: true, activo: true, orden: 4 },
-  { clave: 'nombre_muestreador', etiqueta: 'Nombre Muestreador', tipo: 'text', requerido: false, activo: true, orden: 5 },
-  { clave: 'observacion', etiqueta: 'Observación', tipo: 'textarea', requerido: false, activo: true, orden: 6 },
+  {
+    clave: 'tipo_muestra',
+    etiqueta: 'Tipo Muestra',
+    tipo: 'select',
+    requerido: true,
+    activo: true,
+    orden: 3,
+  },
+  {
+    clave: 'fecha_muestreo',
+    etiqueta: 'Fecha Muestreo',
+    tipo: 'date',
+    requerido: true,
+    activo: true,
+    orden: 4,
+  },
+  {
+    clave: 'nombre_muestreador',
+    etiqueta: 'Nombre Muestreador',
+    tipo: 'text',
+    requerido: false,
+    activo: true,
+    orden: 5,
+  },
+  {
+    clave: 'observacion',
+    etiqueta: 'Observación',
+    tipo: 'textarea',
+    requerido: false,
+    activo: true,
+    orden: 6,
+  },
 ]
 
 const ANALITOS: AnalitoConfig[] = [
-  { id: 1, laboratorio: 'AGROFRESH', categoria: 'Fungicidas', codigo: 'FDL', nombre: 'Fludioxonil', unidad: 'ppm', tipo: 'numero', dosis_aplicable: true, requerido: false, activo: true, orden: 1, tipo_aplicacion: '' },
-  { id: 2, laboratorio: 'AGROFRESH', categoria: 'Fungicidas', codigo: 'PYR', nombre: 'Pirimetanil', unidad: 'ppm', tipo: 'numero', dosis_aplicable: true, requerido: false, activo: true, orden: 2, tipo_aplicacion: '' },
+  {
+    id: 1,
+    laboratorio: 'AGROFRESH',
+    categoria: 'Fungicidas',
+    codigo: 'FDL',
+    nombre: 'Fludioxonil',
+    unidad: 'ppm',
+    tipo: 'numero',
+    dosis_aplicable: true,
+    requerido: false,
+    activo: true,
+    orden: 1,
+    tipo_aplicacion: '',
+  },
+  {
+    id: 2,
+    laboratorio: 'AGROFRESH',
+    categoria: 'Fungicidas',
+    codigo: 'PYR',
+    nombre: 'Pirimetanil',
+    unidad: 'ppm',
+    tipo: 'numero',
+    dosis_aplicable: true,
+    requerido: false,
+    activo: true,
+    orden: 2,
+    tipo_aplicacion: '',
+  },
 ]
 
 function solicitudBase(overrides: Partial<Solicitud> = {}): Solicitud {
@@ -116,6 +180,9 @@ function mockConfigComun() {
   listarAnalitosConfig.mockResolvedValue(ANALITOS)
   listarProductosConfig.mockResolvedValue([])
   listarCamposTipoAplicacion.mockResolvedValue([])
+  listarUnidades.mockResolvedValue([
+    { id: 1, simbolo: 'ppm', nombre: 'Partes por millón', activo: true, orden: 1 },
+  ])
 }
 
 describe('NuevaSolicitudView — crear', () => {
@@ -142,7 +209,9 @@ describe('NuevaSolicitudView — crear', () => {
 
     fireEvent.click(within(tarjetaFDL).getByRole('checkbox'))
 
-    expect(within(tarjetaFDL).getByRole('textbox')).toBeTruthy()
+    expect(within(tarjetaFDL).getByRole('spinbutton')).toBeTruthy()
+    expect(within(tarjetaFDL).getByRole('combobox', { name: /Unidad de dosis/ })).toBeTruthy()
+    fireEvent.click(within(tarjetaFDL).getByRole('button', { name: 'No indicar dosis' }))
     expect(within(tarjetaFDL).getByRole('button', { name: 'Sin dosis: —' })).toBeTruthy()
   })
 })
