@@ -12,7 +12,12 @@ import openpyxl
 import pytest
 
 from app import emitir
-from app.gc_parser import es_codigo_puro, parsear_cabecera_gc, parsear_gc_txt
+from app.gc_parser import (
+    es_codigo_puro,
+    parsear_cabecera_gc,
+    parsear_gc_txt,
+    parsear_ubicaciones_gc,
+)
 
 ARCHIVO = os.path.join(os.path.dirname(__file__), "datos", "GLPrprtB.txt")
 
@@ -30,7 +35,12 @@ def cabecera():
 
 
 @pytest.fixture(scope="module")
-def muestras():
+def ubicaciones():
+    return parsear_ubicaciones_gc(open(ARCHIVO, "rb").read())
+
+
+@pytest.fixture(scope="module")
+def muestras(ubicaciones):
     crudas = parsear_gc_txt(open(ARCHIVO, "rb").read())
     return [
         emitir.MuestraGCDetalleOut(
@@ -38,6 +48,7 @@ def muestras():
             seq_line=m.seq_line,
             fecha_inyeccion=m.fecha_inyeccion,
             es_muestra=es_codigo_puro(m.codigo),
+            ubicacion=ubicaciones.get(m.seq_line),
             resultados=[
                 emitir.ResultadoAnalitoOut(
                     analito=r.analito, codigo=None, area=r.area, amount=r.amount, rettime=r.rettime
@@ -49,12 +60,16 @@ def muestras():
     ]
 
 
+def _respuesta(muestras, cabecera=()):
+    return emitir.generar_excel_detalle_gc(
+        emitir.DetalleGCIn(muestras=muestras, cabecera=list(cabecera))
+    )
+
+
 def _libro(muestras, cabecera=()):
     import asyncio
 
-    resp = emitir.generar_excel_detalle_gc(
-        emitir.DetalleGCIn(muestras=muestras, cabecera=list(cabecera))
-    )
+    resp = _respuesta(muestras, cabecera)
     trozos: list[bytes] = []
 
     async def leer():
@@ -83,6 +98,22 @@ class TestParseo:
         tebu = next(r for r in vial_1.resultados if r.analito == "TEBUCONAZOLE")
         assert tebu.area == pytest.approx(1.00441)
         assert tebu.amount == pytest.approx(0.0488688)
+
+
+class TestUbicaciones:
+    """La posición del carrusel. El reporte de resultados solo trae el número
+    de línea; sin la ubicación no se puede volver al vial físico."""
+
+    def test_lee_la_ubicacion_de_cada_linea(self, ubicaciones):
+        assert len(ubicaciones) == 53
+        assert ubicaciones[1] == "1"
+        assert ubicaciones[3] == "1"
+        assert ubicaciones[5] == "3"
+
+    def test_no_confunde_injection_location_con_la_del_vial(self, ubicaciones):
+        """Cada inyección trae además `Injection Location: Back`, que es el
+        inyector y no el vial."""
+        assert "Back" not in ubicaciones.values()
 
 
 class TestCabecera:
@@ -136,11 +167,54 @@ class TestExcel:
         ]
 
     def test_la_hoja_del_equipo_trae_los_campos(self, muestras, cabecera):
+        """El encabezado va en la fila 6: arriba quedan el logo y el título."""
         ws = _libro(muestras, cabecera)[emitir.HOJA_CABECERA]
-        assert [c.value for c in ws[1]] == ["Sección", "Campo", "Valor"]
-        filas = {f[1]: f[2] for f in ws.iter_rows(min_row=2, values_only=True)}
+        assert [c.value for c in ws["B6:D6"][0]] == ["Sección", "Campo", "Valor"]
+        filas = {f[2]: f[3] for f in ws.iter_rows(min_row=7, values_only=True)}
         assert filas["Instrument"] == "GC 2"
         assert filas["Operator"] == "SYSTEM"
+
+    def test_la_primera_hoja_lleva_titulo_y_logo(self, muestras, cabecera):
+        ws = _libro(muestras, cabecera)[emitir.HOJA_CABECERA]
+        assert ws["C2"].value == emitir.TITULO_EXCEL
+        assert ws["C2"].font.bold and ws["C2"].font.size == 18
+        assert ws.sheet_view.showGridLines is False
+        assert len(ws._images) == 1
+
+    def test_la_seccion_no_se_repite_en_cada_fila(self, muestras, cabecera):
+        """Repetirla en las 25 filas tapa el dato que se viene a leer."""
+        ws = _libro(muestras, cabecera)[emitir.HOJA_CABECERA]
+        secciones = [f[1] for f in ws.iter_rows(min_row=7, values_only=True)]
+        assert secciones[0] == "Instrumento y columna"
+        assert secciones[1] is None
+        assert [s for s in secciones if s] == [
+            "Instrumento y columna",
+            "Parámetros de la secuencia",
+        ]
+
+    def test_las_tres_hojas_son_tablas_de_excel(self, muestras, cabecera):
+        """Como tabla se filtra y ordena sin darle formato a mano cada vez."""
+        wb = _libro(muestras, cabecera)
+        estilos = {
+            hoja: [t.tableStyleInfo.name for t in wb[hoja].tables.values()]
+            for hoja in wb.sheetnames
+        }
+        assert estilos == {
+            emitir.HOJA_CABECERA: [emitir.ESTILO_TABLA_CABECERA],
+            emitir.HOJA_DETALLE: [emitir.ESTILO_TABLA_DATOS],
+            emitir.HOJA_POR_VIAL: [emitir.ESTILO_TABLA_DATOS],
+        }
+
+    def test_el_nombre_sale_del_data_directory(self, muestras, cabecera):
+        """La carpeta de la corrida ya identifica la secuencia; el nombre del
+        archivo no tiene por qué inventar otro."""
+        cd = _respuesta(muestras, cabecera).headers["Content-Disposition"]
+        assert "GCNPD_SECUENCIA_280826_" in cd
+        assert cd.endswith('.xlsx"')
+
+    def test_sin_data_directory_cae_a_la_fecha(self, muestras):
+        cd = _respuesta(muestras).headers["Content-Disposition"]
+        assert "Resultados_GC_" in cd
 
     def test_datos_completos_calza_con_el_convertidor_viejo(self, muestras):
         """371 filas es exactamente lo que sacaba la herramienta anterior con
@@ -153,15 +227,26 @@ class TestExcel:
         una a otra para comparar su concentración contra su área."""
         ws = _libro(muestras)[emitir.HOJA_POR_VIAL]
         encabezados = [c.value for c in ws[1]]
-        assert encabezados[:3] == ["Seq Line", "Vial", "Tipo"]
-        assert encabezados[3] == "DIFENILAMINA ppm"
-        assert encabezados[4] == "DIFENILAMINA área"
+        assert encabezados[:4] == [
+            "Seq Line", "Ubicación de la Muestra", "Vial", "Tipo",
+        ]
+        assert encabezados[4] == "DIFENILAMINA ppm"
+        assert encabezados[5] == "DIFENILAMINA área"
         assert ws.max_row - 1 == 53
+
+    def test_la_ubicacion_del_carrusel_llega_a_la_planilla(self, muestras):
+        """Es la columna que el laboratorio usa para volver al vial físico."""
+        ws = _libro(muestras)[emitir.HOJA_POR_VIAL]
+        filas = {f[0]: f[1] for f in ws.iter_rows(min_row=2, values_only=True)}
+        assert filas[1] == "1"
+        assert filas[3] == "1"
+        assert filas[5] == "3"
+        assert all(v for v in filas.values())
 
     def test_un_vial_medido_queda_bien_ubicado(self, muestras):
         ws = _libro(muestras)[emitir.HOJA_POR_VIAL]
         encabezados = [c.value for c in ws[1]]
-        fila = next(f for f in ws.iter_rows(min_row=2, values_only=True) if f[1] == "1")
+        fila = next(f for f in ws.iter_rows(min_row=2, values_only=True) if f[2] == "1")
         assert fila[encabezados.index("TEBUCONAZOLE ppm")] == pytest.approx(0.0488688)
         assert fila[encabezados.index("TEBUCONAZOLE área")] == pytest.approx(1.00441)
 

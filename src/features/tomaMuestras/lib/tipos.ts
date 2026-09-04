@@ -91,6 +91,9 @@ export interface LaboratorioConfig {
   codigo: string
   nombre: string
   descripcion: string | null
+  /** Va en cada folio de este laboratorio: OT-{prefijo}{correlativo}, ej.
+   * OT-AGF0001. Vacío mientras nadie lo configure. */
+  prefijo_solicitud: string
   activo: boolean
   orden: number
 }
@@ -137,3 +140,13 @@ export interface CampoTipoAplicacionConfig {
 }
 
 export type CampoTipoAplicacionInput = Omit<CampoTipoAplicacionConfig, 'id'>
+
+/** Un destinatario de resultados, tal como quedó configurado en
+ * Laboratorios → Resultado a clientes para un Ship To. Nueva solicitud lo
+ * muestra de solo lectura -no se edita desde acá-. */
+export interface ContactoResultado {
+  nombre: string
+  email: string
+  tipo: 'resultado_cliente' | 'resultado_interno'
+  tipo_copia: 'cc' | 'bcc'
+}

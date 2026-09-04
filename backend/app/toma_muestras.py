@@ -30,21 +30,25 @@ que no se repita un número mientras queden folios viejos sin migrar.
 """
 import io
 import json
+import logging
 import os
 import re
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+import psycopg2.errors
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from . import config, config_store, correo, indice_solicitudes, mail_templates, r2
+from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
 from .toma_muestras_pdf import generar_pdf_solicitud
 
 router = APIRouter(prefix="/api/toma-muestras", tags=["toma-muestras"])
+logger = logging.getLogger(__name__)
 
 _CARPETA_RAIZ = "solicitudes"
 # Los mantenedores viven dentro de `solicitudes/` pero no son una solicitud:
@@ -210,22 +214,26 @@ def _mayor_folio_en_archivos() -> int:
     return maximo
 
 
-def _siguiente_numero() -> str:
-    """Folio correlativo, único sobre todas las solicitudes guardadas.
+def _prefijo_de_laboratorio(laboratorio: str) -> str:
+    """El prefijo de folio configurado para este laboratorio (ej. "AGF" para
+    AGROFRESH → OT-AGF0001), o "" si todavía no se configuró uno -en ese caso
+    el folio sale igual que antes, sin prefijo-."""
+    for lab in _leer_config("laboratorios.json", LABORATORIOS_DEFECTO):
+        if lab.get("codigo") == laboratorio:
+            return str(lab.get("prefijo_solicitud") or "").strip().upper()
+    return ""
 
-    Lo entrega una SEQUENCE de Postgres. Antes se calculaba listando los
-    archivos y sumando uno al mayor: dos personas creando una solicitud en el
-    mismo momento leían el mismo máximo y recibían EL MISMO FOLIO. Una
-    secuencia no puede entregar dos veces el mismo número.
 
-    Mientras el índice esté vacío -o sea, mientras no se haya corrido
-    `scripts/indexar_solicitudes.py`- se sigue contando sobre los archivos.
-    Sin eso, un sistema actualizado a medias repartiría folios desde OT-0001
-    y pisaría las solicitudes que ya existen.
+def _siguiente_numero_global() -> str:
+    """El correlativo compartido de siempre, sin prefijo -lo que usa
+    cualquier laboratorio que todavía no tenga uno configurado-.
+
+    Es DELIBERADO que sea uno solo, compartido entre todos esos laboratorios:
+    si cada uno tuviera su propio contador aun sin prefijo, dos laboratorios
+    sin configurar entregarían el mismo folio "OT-0001" -mismo nombre de
+    archivo- y el segundo pisaría al primero en el índice. Compartir el
+    correlativo es lo que evita ese choque.
     """
-    if not indice_solicitudes.esta_poblado():
-        return f"{PREFIJO_FOLIO}-{_mayor_folio_en_archivos() + 1:04d}"
-
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("SELECT nextval('folio_solicitud') AS n")
         numero = cur.fetchone()["n"]
@@ -241,6 +249,89 @@ def _siguiente_numero() -> str:
             cur.execute("SELECT setval('folio_solicitud', %s) + 1 AS n", (tope,))
             numero = cur.fetchone()["n"]
         return f"{PREFIJO_FOLIO}-{numero:04d}"
+
+
+def _siguiente_numero(laboratorio: str) -> str:
+    """Folio correlativo de una solicitud nueva.
+
+    Un laboratorio CON prefijo configurado (ver `_prefijo_de_laboratorio`)
+    numera aparte de los demás: AGROFRESH con "AGF" no comparte correlativo
+    con QUITECA. Lo entrega la tabla `folio_solicitud_laboratorio` (una fila
+    por laboratorio, incrementada de forma atómica -INSERT+UPDATE dentro de
+    la misma transacción-, igual que `informe_folio_anual` en emitir.py).
+
+    Un laboratorio SIN prefijo sigue compartiendo el correlativo global de
+    siempre (`_siguiente_numero_global`) -eso es lo que evita que dos
+    laboratorios sin prefijo choquen en el mismo folio "OT-0001"-. En cuanto
+    alguien le configura un prefijo en Laboratorios, sus folios pasan a
+    numerarse aparte, sin perder lo ya emitido -el contador nuevo arranca
+    después del folio más alto que ese laboratorio ya tenga-.
+
+    Mientras el índice esté vacío -o sea, mientras no se haya corrido
+    `scripts/indexar_solicitudes.py`- se sigue contando sobre los archivos,
+    sin prefijo: es la misma red de seguridad transicional que ya existía,
+    y ese período ya quedó atrás en un servidor que lleva tiempo corriendo.
+    """
+    if not indice_solicitudes.esta_poblado():
+        return f"{PREFIJO_FOLIO}-{_mayor_folio_en_archivos() + 1:04d}"
+
+    prefijo = _prefijo_de_laboratorio(laboratorio)
+    if not prefijo:
+        return _siguiente_numero_global()
+
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                "INSERT INTO folio_solicitud_laboratorio (laboratorio, siguiente) VALUES (%s, 1)"
+                " ON CONFLICT (laboratorio) DO NOTHING",
+                (laboratorio,),
+            )
+            cur.execute(
+                "UPDATE folio_solicitud_laboratorio SET siguiente = siguiente + 1"
+                " WHERE laboratorio = %s RETURNING siguiente",
+                (laboratorio,),
+            )
+            numero = cur.fetchone()["siguiente"] - 1
+
+            # Red de seguridad, igual que la que tenía la SEQUENCE global: si
+            # el contador de este laboratorio quedara atrasado respecto de lo
+            # ya indexado -se reinició a mano, se restauró un respaldo viejo,
+            # o es la primera solicitud de un laboratorio que ya tenía folios
+            # de antes de configurarle un prefijo- se lo adelanta al máximo
+            # real en vez de entregar un folio repetido.
+            cur.execute(
+                "SELECT max(substring(numero_solicitud from '[0-9]+$')::bigint) AS tope"
+                " FROM solicitud_archivo WHERE laboratorio = %s AND numero_solicitud ~ '[0-9]+$'",
+                (laboratorio,),
+            )
+            tope = cur.fetchone()["tope"] or 0
+            if numero <= tope:
+                cur.execute(
+                    "UPDATE folio_solicitud_laboratorio SET siguiente = %s WHERE laboratorio = %s",
+                    (tope + 2, laboratorio),
+                )
+                numero = tope + 1
+            return f"{PREFIJO_FOLIO}-{prefijo}{numero:04d}"
+    except psycopg2.errors.UndefinedTable:
+        # Falta la migración 0023: el laboratorio tiene prefijo configurado
+        # pero el folio va a salir SIN prefijo -antes esto se caía en
+        # silencio y nadie se enteraba de por qué el prefijo "no aparecía en
+        # ningún lado" (folio, correo, Excel, PDF: todos salen del mismo
+        # numero_solicitud, así que el problema nunca estuvo repartido en
+        # varios lugares, siempre fue este único punto)-.
+        logger.warning(
+            "El laboratorio %r tiene prefijo de solicitud (%r) pero falta la migración 0023 "
+            "(tabla folio_solicitud_laboratorio): este folio sale sin prefijo. "
+            "Corre: python scripts/migrar.py 0023_folio_solicitud_por_laboratorio.sql",
+            laboratorio, prefijo,
+        )
+
+    # Falta la migración 0023 (tabla `folio_solicitud_laboratorio`): se cae al
+    # correlativo global anterior, sin prefijo, para no dejar de poder crear
+    # solicitudes mientras se actualiza el servidor. Postgres aborta la
+    # transacción al fallar la consulta, así que esto necesita una conexión
+    # nueva -no basta con reintentar en la misma-.
+    return _siguiente_numero_global()
 
 
 def _recorrer_solicitudes_en_disco():
@@ -313,6 +404,34 @@ class CruceIn(BaseModel):
     codigo_muestra: str | None = None
 
 
+def _normalizar_correo(valor: str | None) -> str:
+    """trim + minúsculas: para que un espacio de más o una mayúscula no
+    hagan que dos direcciones que son la misma cuenta cuenten como
+    distintas -ni al comparar propiedad, ni al armar TO/CC/BCC-."""
+    return str(valor or "").strip().lower()
+
+
+def _es_propia(usuario: Usuario, datos: dict) -> bool:
+    """¿Esta sesión puede ver/gestionar esta solicitud?
+
+    Un muestreador solo ve lo que él mismo creó -se compara contra
+    `email_solicitante`, que `crear_solicitud` fuerza siempre al correo de la
+    sesión que la crea cuando es un muestreador (ver más abajo): no es un
+    dato que el cliente pueda torcer mandando otro valor en el request.
+    Cualquier otra cuenta interna (admin_general, admin_area) sigue viendo
+    todo, igual que antes.
+    """
+    if usuario.tipoAcceso != "muestreador":
+        return True
+    correo_creador = _normalizar_correo(datos.get("email_solicitante"))
+    return correo_creador != "" and correo_creador == _normalizar_correo(usuario.email)
+
+
+def _exigir_acceso(usuario: Usuario, datos: dict) -> None:
+    if not _es_propia(usuario, datos):
+        raise HTTPException(403, "Esta solicitud fue creada por otro muestreador: no puedes verla ni reenviarla.")
+
+
 def _leer_todas_desde_archivos() -> list[tuple[str, dict]]:
     """Todas las solicitudes, bajando y parseando CADA archivo.
 
@@ -383,9 +502,11 @@ def leer_solicitudes_de(laboratorio: str) -> list[tuple[str, dict]]:
 
 
 @router.get("/solicitudes")
-def listar_solicitudes() -> list[Solicitud]:
+def listar_solicitudes(usuario: Usuario = Depends(usuario_actual)) -> list[Solicitud]:
     solicitudes = []
     for nombre, datos in leer_todas_las_solicitudes():
+        if not _es_propia(usuario, datos):
+            continue
         try:
             solicitudes.append(Solicitud(archivo=nombre, **datos))
         except (ValueError, KeyError):
@@ -462,13 +583,15 @@ def exportar_todas_las_solicitudes(archivo: list[str] | None = None) -> Streamin
 
 
 @router.get("/solicitudes/{archivo}")
-def obtener_solicitud(archivo: str) -> Solicitud:
+def obtener_solicitud(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     if r2.disponible():
         data, ext = _descargar_solicitud_r2(archivo)
         datos = _leer_solicitud_bytes(data, ext)
+        _exigir_acceso(usuario, datos)
         return Solicitud(archivo=os.path.basename(archivo), **datos)
     ruta = _ruta_archivo(archivo)
     datos = _leer_solicitud_archivo(ruta)
+    _exigir_acceso(usuario, datos)
     return Solicitud(archivo=os.path.basename(ruta), **datos)
 
 
@@ -508,12 +631,13 @@ def _regrabar_datos_solicitud(archivo: str, datos: dict) -> None:
 
 
 @router.put("/solicitudes/{archivo}")
-def editar_solicitud(archivo: str, body: SolicitudIn) -> Solicitud:
+def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     """Actualiza una solicitud existente -mismo folio, mismo archivo-, nunca
     crea una nueva. Solo mientras no se haya enviado: una vez enviada queda
     de solo lectura, protección que se aplica acá y no solo ocultando el
     botón en el frontend."""
     datos_actuales = _leer_datos_actuales(archivo)
+    _exigir_acceso(usuario, datos_actuales)
     if datos_actuales.get("enviada"):
         raise HTTPException(
             409,
@@ -534,10 +658,19 @@ def editar_solicitud(archivo: str, body: SolicitudIn) -> Solicitud:
 
 
 @router.post("/solicitudes")
-def crear_solicitud(body: SolicitudIn) -> Solicitud:
-    numero = _siguiente_numero()
+def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
+    numero = _siguiente_numero(body.laboratorio)
     ahora = datetime.now(timezone.utc)
     datos = body.model_dump()
+    if usuario.tipoAcceso == "muestreador":
+        # No confiar en lo que mande el cliente: un muestreador podría
+        # escribir el correo de otra persona en `email_solicitante` y hacer
+        # que la solicitud pareciera creada por ella. El dueño real de la
+        # solicitud es siempre la sesión autenticada que la está creando.
+        datos["email_solicitante"] = _normalizar_correo(usuario.email)
+    # admin_general/admin_area pueden crear solicitudes en nombre de otra
+    # persona (ej. cargando algo a pedido de un muestreador) — para esas
+    # cuentas se respeta el flujo actual y se deja lo que mandó el formulario.
     datos.update(
         numero_solicitud=numero,
         fecha_solicitud=ahora.date().isoformat(),
@@ -612,7 +745,7 @@ def eliminar_solicitud(archivo: str) -> dict[str, str]:
 
 
 @router.get("/solicitudes/{archivo}/excel", response_model=None)
-def descargar_solicitud_excel(archivo: str) -> StreamingResponse:
+def descargar_solicitud_excel(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> StreamingResponse:
     """Regenera el documento visible con el formato vigente.
 
     Los datos siempre se leen del archivo maestro guardado (XLSX o JSON), de
@@ -624,6 +757,7 @@ def descargar_solicitud_excel(archivo: str) -> StreamingResponse:
         data, ext = _descargar_solicitud_r2(archivo)
         nombre_base = os.path.splitext(os.path.basename(archivo))[0]
         datos = _leer_solicitud_bytes(data, ext)
+        _exigir_acceso(usuario, datos)
         buf = io.BytesIO()
         analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
         construir_workbook(datos, analitos_config).save(buf)
@@ -632,6 +766,7 @@ def descargar_solicitud_excel(archivo: str) -> StreamingResponse:
     ruta = _ruta_archivo(archivo)
     numero = os.path.splitext(os.path.basename(ruta))[0]
     datos = _leer_solicitud_archivo(ruta)
+    _exigir_acceso(usuario, datos)
     buffer = io.BytesIO()
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     construir_workbook(datos, analitos_config).save(buffer)
@@ -644,7 +779,7 @@ def descargar_solicitud_excel(archivo: str) -> StreamingResponse:
 
 
 @router.get("/solicitudes/{archivo}/pdf")
-def descargar_solicitud_pdf(archivo: str) -> Response:
+def descargar_solicitud_pdf(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> Response:
     if r2.disponible():
         data, ext = _descargar_solicitud_r2(archivo)
         datos = _leer_solicitud_bytes(data, ext)
@@ -653,6 +788,7 @@ def descargar_solicitud_pdf(archivo: str) -> Response:
         ruta = _ruta_archivo(archivo)
         numero = os.path.splitext(os.path.basename(ruta))[0]
         datos = _leer_solicitud_archivo(ruta)
+    _exigir_acceso(usuario, datos)
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
     pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config)
@@ -684,41 +820,110 @@ def contactos_de_solicitud(laboratorio: str) -> list[str]:
     ]
 
 
-def contactos_de_resultados(laboratorio: str) -> list[str]:
-    """Correos activos que el laboratorio debe usar al entregar resultados.
+def _contactos_resultado_del_ship_to(laboratorio: str, ship_to: str) -> list[dict]:
+    """Los contactos de resultado (cliente + interno) de un Ship To puntual.
 
-    Incluye tanto destinatarios del cliente como copias internas AgroFresh.
-    Esta lista es informativa en el PDF y no dispara ningún envío.
+    Cada Ship To tiene su propia configuración (ver Laboratorios → Resultado
+    a clientes). Si ese Ship To todavía no tiene nada configurado, se cae a
+    los contactos "globales" -los que no tienen Ship To asignado-, que son la
+    configuración previa a este cambio: así ninguna cuenta ya cargada quedó
+    huérfana al pasar la configuración a ser por Ship To.
     """
     contactos = _leer_config("contactos_laboratorio.json", [])
+    del_lab = [
+        c for c in contactos
+        if c.get("laboratorio") == laboratorio and c.get("tipo") in {"resultado_cliente", "resultado_interno"}
+    ]
+    ship_to_norm = (ship_to or "").strip()
+    especificos = [c for c in del_lab if (c.get("ship_to") or "").strip() == ship_to_norm]
+    if ship_to_norm and especificos:
+        return especificos
+    return [c for c in del_lab if not (c.get("ship_to") or "").strip()]
+
+
+def contactos_de_resultados(laboratorio: str, ship_to: str | None = None) -> list[str]:
+    """Correos activos que el laboratorio debe usar al entregar resultados de
+    este Ship To (destinatarios del cliente + copias internas AgroFresh).
+
+    Esta lista es informativa en el PDF y no dispara ningún envío.
+    """
     correos: list[str] = []
     vistos: set[str] = set()
-    for contacto in sorted(contactos, key=lambda c: c.get("orden", 0)):
+    for contacto in sorted(_contactos_resultado_del_ship_to(laboratorio, ship_to or ""), key=lambda c: c.get("orden", 0)):
         email = str(contacto.get("email") or "").strip()
         clave = email.casefold()
-        if (
-            contacto.get("laboratorio") == laboratorio
-            and contacto.get("tipo") in {"resultado_cliente", "resultado_interno"}
-            and contacto.get("activo", True)
-            and email
-            and clave not in vistos
-        ):
+        if contacto.get("activo", True) and email and clave not in vistos:
             correos.append(email)
             vistos.add(clave)
     return correos
+
+
+def destinatarios_resultado_por_tipo(laboratorio: str, ship_to: str | None = None) -> dict[str, list[str]]:
+    """Los correos de resultado de un Ship To, separados en `to`/`cc`/`bcc`.
+
+    `resultado_cliente` siempre va en `to`. `resultado_interno` va en `cc` o
+    en `bcc` según lo que se haya elegido para ese contacto -es la pieza que
+    permite que una copia interna salga oculta y otra no-.
+    """
+    salida: dict[str, list[str]] = {"to": [], "cc": [], "bcc": []}
+    vistos: set[str] = set()
+    for contacto in sorted(_contactos_resultado_del_ship_to(laboratorio, ship_to or ""), key=lambda c: c.get("orden", 0)):
+        if not contacto.get("activo", True):
+            continue
+        email = str(contacto.get("email") or "").strip()
+        clave = email.casefold()
+        if not email or clave in vistos:
+            continue
+        vistos.add(clave)
+        if contacto.get("tipo") == "resultado_cliente":
+            salida["to"].append(email)
+        elif contacto.get("tipo") == "resultado_interno":
+            destino = "bcc" if contacto.get("tipo_copia") == "bcc" else "cc"
+            salida[destino].append(email)
+    return salida
+
+
+class ContactoResultadoOut(BaseModel):
+    """Un destinatario de resultados, tal como quedó configurado en
+    Laboratorios → Resultado a clientes -de solo lectura: Nueva solicitud lo
+    muestra, no lo edita-."""
+
+    nombre: str
+    email: str
+    tipo: str  # resultado_cliente | resultado_interno
+    tipo_copia: str  # cc | bcc -solo tiene sentido si tipo es resultado_interno
+
+
+@router.get("/config/resultados-ship-to")
+def resultados_de_ship_to(laboratorio: str, ship_to: str = "") -> list[ContactoResultadoOut]:
+    """La configuración de "Resultado a clientes" vigente para un Ship To de
+    ese laboratorio. La usa Nueva solicitud para mostrarla, de solo lectura,
+    apenas se elige un Sold To/Ship To que ya la tiene configurada -sin que
+    nadie tenga que ir a Laboratorios a revisarla a mano."""
+    contactos = _contactos_resultado_del_ship_to(laboratorio, ship_to)
+    return [
+        ContactoResultadoOut(
+            nombre=str(c.get("nombre") or ""),
+            email=str(c.get("email") or ""),
+            tipo=str(c.get("tipo") or ""),
+            tipo_copia=str(c.get("tipo_copia") or "cc"),
+        )
+        for c in sorted(contactos, key=lambda c: c.get("orden", 0))
+        if c.get("activo", True) and c.get("email")
+    ]
 
 
 def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
     """Añade al PDF la configuración vigente sin modificar la solicitud."""
     datos_pdf = dict(datos)
     datos_pdf["destinatarios_resultados"] = contactos_de_resultados(
-        str(datos.get("laboratorio") or "")
+        str(datos.get("laboratorio") or ""), str(datos.get("ship_to") or "")
     )
     return datos_pdf
 
 
 @router.get("/solicitudes/{archivo}/destinatarios")
-def destinatarios_de_solicitud(archivo: str) -> dict[str, Any]:
+def destinatarios_de_solicitud(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
     """A quién se le enviaría esta solicitud. El frontend lo muestra antes de
     enviar para que nadie dispare un correo sin ver a dónde va."""
     if r2.disponible():
@@ -726,12 +931,15 @@ def destinatarios_de_solicitud(archivo: str) -> dict[str, Any]:
         datos = _leer_solicitud_bytes(data, ext)
     else:
         datos = _leer_solicitud_archivo(_ruta_archivo(archivo))
+    _exigir_acceso(usuario, datos)
     laboratorio = datos.get("laboratorio", "")
     return {"laboratorio": laboratorio, "destinatarios": contactos_de_solicitud(laboratorio)}
 
 
 @router.post("/solicitudes/{archivo}/enviar")
-def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[str, str]:
+def enviar_solicitud_por_correo(
+    archivo: str, body: EnvioSolicitudIn, usuario: Usuario = Depends(usuario_actual)
+) -> dict[str, str]:
     """Genera el PDF y Excel de la solicitud y los envía como adjuntos."""
     if r2.disponible():
         data, ext = _descargar_solicitud_r2(archivo)
@@ -741,6 +949,7 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
         ruta = _ruta_archivo(archivo)
         numero = os.path.splitext(os.path.basename(ruta))[0]
         datos = _leer_solicitud_archivo(ruta)
+    _exigir_acceso(usuario, datos)
 
     if datos.get("enviada"):
         raise HTTPException(409, f"La solicitud {numero} ya fue enviada; no se puede reenviar.")
@@ -769,7 +978,7 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
     vistos: set[str] = set()
     for candidato in candidatos:
         email = str(candidato or "").strip()
-        clave = email.casefold()
+        clave = _normalizar_correo(email)
         if email and clave not in vistos:
             destinatarios.append(email)
             vistos.add(clave)
@@ -791,7 +1000,16 @@ def enviar_solicitud_por_correo(archivo: str, body: EnvioSolicitudIn) -> dict[st
         ),
     ]
 
-    correo.enviar(", ".join(destinatarios), asunto, html, texto, adjuntos)
+    # El muestreador que creó la solicitud SIEMPRE recibe una copia oculta de
+    # su propio envío -es el correo guardado en la solicitud (forzado por el
+    # backend al crearla, ver crear_solicitud), no el de quien aprieta
+    # "enviar" ahora-, aparte de los destinatarios normales de arriba y sin
+    # reemplazarlos. Si esa misma dirección ya está en los destinatarios
+    # normales, no se repite en BCC: recibiría el correo dos veces por nada.
+    email_muestreador = _normalizar_correo(datos.get("email_solicitante"))
+    bcc = [email_muestreador] if email_muestreador and email_muestreador not in vistos else []
+
+    correo.enviar(", ".join(destinatarios), asunto, html, texto, adjuntos, bcc=bcc)
 
     # Recién ahora, con el correo ya afuera: si se marcara antes y el envío
     # fallara, la solicitud quedaría bloqueada para editar sin haberse
@@ -1229,11 +1447,29 @@ def _validar_codigo_lab(codigo: str) -> None:
         )
 
 
+# El prefijo va pegado al correlativo dentro del folio (OT-AGF0001), así que
+# se restringe igual de estricto que el código de laboratorio: nada que
+# pueda romper ese formato. Vacío es válido -significa "todavía sin
+# configurar", y el folio sale como antes, sin prefijo-.
+_PAT_PREFIJO_SOLICITUD = re.compile(r"^[A-Z0-9]{0,8}$")
+
+
+def _validar_prefijo_solicitud(prefijo: str) -> None:
+    if not _PAT_PREFIJO_SOLICITUD.match(prefijo or ""):
+        raise HTTPException(
+            400,
+            "El prefijo de solicitud debe tener hasta 8 caracteres, solo mayúsculas y dígitos.",
+        )
+
+
 class LaboratorioConfig(BaseModel):
     id: int
     codigo: str
     nombre: str
     descripcion: str | None = None
+    # Va en cada folio de este laboratorio: OT-{prefijo}{correlativo}, ej.
+    # OT-AGF0001. Vacío mientras nadie lo configure -el folio sale como antes-.
+    prefijo_solicitud: str = ""
     activo: bool = True
     orden: int = 0
 
@@ -1242,15 +1478,16 @@ class LaboratorioIn(BaseModel):
     codigo: str
     nombre: str
     descripcion: str | None = None
+    prefijo_solicitud: str = ""
     activo: bool = True
     orden: int = 0
 
 
 LABORATORIOS_DEFECTO: list[dict] = [
-    {"id": 1, "codigo": "QUITECA", "nombre": "Quiteca", "descripcion": None, "activo": True, "orden": 1},
-    {"id": 2, "codigo": "AGROFRESH", "nombre": "AgroFresh", "descripcion": None, "activo": True, "orden": 2},
-    {"id": 3, "codigo": "ALS", "nombre": "ALS", "descripcion": None, "activo": True, "orden": 3},
-    {"id": 4, "codigo": "DIAGNOFRUIT", "nombre": "Diagnofruit", "descripcion": None, "activo": True, "orden": 4},
+    {"id": 1, "codigo": "QUITECA", "nombre": "Quiteca", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 1},
+    {"id": 2, "codigo": "AGROFRESH", "nombre": "AgroFresh", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 2},
+    {"id": 3, "codigo": "ALS", "nombre": "ALS", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 3},
+    {"id": 4, "codigo": "DIAGNOFRUIT", "nombre": "Diagnofruit", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 4},
 ]
 
 
@@ -1260,12 +1497,28 @@ def listar_laboratorios_config() -> list[LaboratorioConfig]:
     return sorted(items, key=lambda l: l.orden)
 
 
+def _validar_prefijo_unico(items: list[dict], prefijo: str, item_id: int | None) -> None:
+    """Dos laboratorios con el mismo prefijo generarían folios idénticos
+    -cada uno numera aparte, así que "AGF" en dos laboratorios repetiría
+    OT-AGF0001 en ambos-. Vacío no se valida: puede haber varios laboratorios
+    todavía sin prefijo configurado."""
+    if not prefijo:
+        return
+    if any(
+        (l.get("prefijo_solicitud") or "").strip().upper() == prefijo and l["id"] != item_id
+        for l in items
+    ):
+        raise HTTPException(400, f'Ya hay otro laboratorio usando el prefijo "{prefijo}".')
+
+
 @router.post("/config/laboratorios")
 def crear_laboratorio_config(body: LaboratorioIn) -> LaboratorioConfig:
     _validar_codigo_lab(body.codigo)
+    _validar_prefijo_solicitud(body.prefijo_solicitud)
     items = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
     if any(l["codigo"] == body.codigo for l in items):
         raise HTTPException(400, f"Ya existe un laboratorio con el código {body.codigo}.")
+    _validar_prefijo_unico(items, body.prefijo_solicitud.strip().upper(), None)
     nuevo = LaboratorioConfig(id=_siguiente_id(items), **body.model_dump())
     items.append(nuevo.model_dump())
     _escribir_config("laboratorios.json", items)
@@ -1275,12 +1528,14 @@ def crear_laboratorio_config(body: LaboratorioIn) -> LaboratorioConfig:
 @router.put("/config/laboratorios/{item_id}")
 def editar_laboratorio_config(item_id: int, body: LaboratorioIn) -> LaboratorioConfig:
     _validar_codigo_lab(body.codigo)
+    _validar_prefijo_solicitud(body.prefijo_solicitud)
     items = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
     idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
     if idx is None:
         raise HTTPException(404, "No encontrado.")
     if any(l["codigo"] == body.codigo and l["id"] != item_id for l in items):
         raise HTTPException(400, f"Ya existe otro laboratorio con el código {body.codigo}.")
+    _validar_prefijo_unico(items, body.prefijo_solicitud.strip().upper(), item_id)
     actualizado = LaboratorioConfig(id=item_id, **body.model_dump())
     items[idx] = actualizado.model_dump()
     _escribir_config("laboratorios.json", items)

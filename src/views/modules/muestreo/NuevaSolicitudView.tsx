@@ -24,11 +24,13 @@ import {
   listarProductosConfig,
   listarTiposAplicacion,
   obtenerSolicitud,
+  resultadosDeShipTo,
 } from '@/features/tomaMuestras'
 import type {
   AnalitoConfig,
   CampoConfig,
   CampoTipoAplicacionConfig,
+  ContactoResultado,
   LaboratorioConfig,
   OpcionConfig,
   ProductoConfig,
@@ -163,6 +165,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
   const [especiesDisponibles, setEspeciesDisponibles] = useState<ValorLista[]>([])
   const [variedadesDisponibles, setVariedadesDisponibles] = useState<string[]>([])
+
+  // Solo informativo: cómo va a salir el resultado de este Ship To según
+  // Laboratorios → Resultado a clientes. No se edita desde acá.
+  const [resultadosShipTo, setResultadosShipTo] = useState<ContactoResultado[] | null>(null)
 
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
@@ -317,6 +323,26 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     }
     setValoresTipoAplicacion(valores)
   }, [modo, solicitudOriginal, camposTipoAplicacion])
+
+  // Apenas hay Laboratorio + Ship To, se muestra cómo va a salir el
+  // resultado de ese Ship To (si ya tiene configuración propia en
+  // Laboratorios → Resultado a clientes) — de solo lectura, para que quien
+  // está creando la solicitud vea a dónde va a llegar el resultado sin tener
+  // que ir a revisarlo a otra pantalla.
+  useEffect(() => {
+    if (!laboratorio || !shipTo) return
+    let vigente = true
+    resultadosDeShipTo(laboratorio, shipTo)
+      .then((contactos) => {
+        if (vigente) setResultadosShipTo(contactos)
+      })
+      .catch(() => {
+        if (vigente) setResultadosShipTo([])
+      })
+    return () => {
+      vigente = false
+    }
+  }, [laboratorio, shipTo])
 
   const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === soldTo)
   const laboratoriosActivos = laboratoriosConfig.filter((l) => l.activo).sort((a, b) => a.orden - b.orden)
@@ -995,6 +1021,50 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               Observaciones
             </h2>
             <div className={styles.fila}>{renderCampo(campoObservacion)}</div>
+          </Card>
+        )}
+
+        {laboratorio && shipTo && (
+          <Card>
+            <h2 className={styles.tituloSeccion}>Resultado a clientes · {shipTo}</h2>
+            <p className={styles.ayudaCampo}>
+              Así está configurado el envío de resultados para este Ship To (Laboratorios → Resultado a
+              clientes). Es de solo lectura: se edita desde ese mantenedor, no desde acá.
+            </p>
+            {resultadosShipTo === null ? (
+              <p className={styles.estado}>Cargando…</p>
+            ) : resultadosShipTo.length === 0 ? (
+              <p className={styles.estado}>
+                Este Ship To todavía no tiene destinatarios de resultados configurados.
+              </p>
+            ) : (
+              <div className={styles.tablaCaja}>
+                <table className={styles.tabla}>
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Correo</th>
+                      <th>Rol</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resultadosShipTo.map((c) => (
+                      <tr key={c.email}>
+                        <td>{c.nombre || '—'}</td>
+                        <td className={styles.mono}>{c.email}</td>
+                        <td>
+                          {c.tipo === 'resultado_cliente'
+                            ? 'Destinatario cliente'
+                            : c.tipo_copia === 'bcc'
+                              ? 'Copia oculta AgroFresh'
+                              : 'Copia AgroFresh'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
         )}
 
