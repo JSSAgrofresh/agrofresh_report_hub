@@ -113,6 +113,9 @@ export interface ResumenLaboratorio {
   codigo: string
   nombre: string
   descripcion: string | null
+  /** Va en cada folio de este laboratorio: OT-{prefijo}{correlativo}, ej.
+   * OT-AGF0001. Vacío mientras nadie lo configure. */
+  prefijo_solicitud: string
   activo: boolean
   orden: number
   n_analisis: number

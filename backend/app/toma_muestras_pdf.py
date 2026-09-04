@@ -18,8 +18,6 @@ from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS
 
 VERDE = colors.HexColor('#315C21')
 VERDE_2 = colors.HexColor('#4D8B2A')
-VERDE_SUAVE = colors.HexColor('#EAF3E5')
-AMARILLO = colors.HexColor('#F8E27A')
 GRIS_1 = colors.HexColor('#F3F4F2')
 GRIS_2 = colors.HexColor('#D5D9D2')
 GRIS_3 = colors.HexColor('#687066')
@@ -32,7 +30,8 @@ ANCHO_UTIL = A4[0] - 2 * _MARGEN_H
 
 _S_TITULO = ParagraphStyle('tituloOrden', fontName='Helvetica-Bold', fontSize=17, leading=19, textColor=VERDE)
 _S_FOLIO = ParagraphStyle('folioOrden', fontName='Helvetica-Bold', fontSize=11, leading=13, textColor=VERDE_2)
-_S_DIRECCION = ParagraphStyle('direccionOrden', fontName='Helvetica', fontSize=7.2, leading=8.5, textColor=GRIS_3)
+# Centrada y al pie de la hoja, igual que en el informe de resultados.
+_S_DIRECCION_PIE = ParagraphStyle('direccionOrdenPie', fontName='Helvetica', fontSize=7.2, leading=8.5, textColor=GRIS_3, alignment=1)
 _S_NUM = ParagraphStyle('numeroPaso', fontName='Helvetica-Bold', fontSize=12, leading=13, textColor=VERDE, alignment=1)
 _S_SECCION = ParagraphStyle('seccionOrden', fontName='Helvetica-Bold', fontSize=9, leading=10, textColor=VERDE)
 _S_SUB = ParagraphStyle('subOrden', fontName='Helvetica', fontSize=6.8, leading=8, textColor=GRIS_3)
@@ -85,9 +84,13 @@ def _clave_guardada(campos_lab: dict, analito: dict) -> str | None:
 
 
 def _seccion(numero: str, titulo: str, subtitulo: str = '', ancho: float = ANCHO_UTIL) -> Table:
+    """La cabecera numerada de cada sección. Sin relleno de color -solo el
+    número en un recuadro con borde, el título en verde y una línea verde
+    abajo-: el color queda para acentuar, no para llenar la hoja."""
     numero_box = Table([[Paragraph(numero, _S_NUM)]], colWidths=[0.8 * cm], rowHeights=[0.72 * cm])
     numero_box.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), AMARILLO),
+        ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
+        ('BOX', (0, 0), (-1, -1), 0.9, VERDE_2),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
     ]))
@@ -96,13 +99,13 @@ def _seccion(numero: str, titulo: str, subtitulo: str = '', ancho: float = ANCHO
         textos.append(Paragraph(subtitulo, _S_SUB))
     barra = Table([[numero_box, textos]], colWidths=[0.95 * cm, ancho - 0.95 * cm])
     barra.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), VERDE_SUAVE),
+        ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
         ('RIGHTPADDING', (0, 0), (-1, -1), 7),
         ('TOPPADDING', (0, 0), (-1, -1), 0),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ('LINEBELOW', (0, 0), (-1, -1), 0.8, VERDE_2),
+        ('LINEBELOW', (0, 0), (-1, -1), 0.9, VERDE_2),
     ]))
     return barra
 
@@ -115,7 +118,10 @@ def _campo(etiqueta: str, valor, invertido: bool = False) -> Table:
         ('TOPPADDING', (0, 0), (-1, 0), 1), ('BOTTOMPADDING', (0, 0), (-1, 0), 0),
         ('TOPPADDING', (0, 1), (-1, 1), 1), ('BOTTOMPADDING', (0, 1), (-1, 1), 3),
         ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 3),
-        ('LINEBELOW', (0, 1), (-1, 1), 0.25, VERDE_2 if invertido else GRIS_2),
+        # 0.25pt es una línea que algunos visores/impresoras directamente no
+        # dibujan -por eso los bordes "se escondían"-. 0.4pt es el mínimo que
+        # se ve siempre.
+        ('LINEBELOW', (0, 1), (-1, 1), 0.4, VERDE_2 if invertido else GRIS_2),
     ]))
     return t
 
@@ -137,7 +143,11 @@ def _rejilla(pares: list[tuple[str, object]], columnas: int = 3, ancho: float = 
     return t
 
 
-def _panel_origen(datos: dict, laboratorio: str) -> Table:
+def _panel_origen(datos: dict, laboratorio: str, ancho: float) -> Table:
+    """El primer panel de la hoja -"1. ORIGEN DE LA SOLICITUD"-. Antes no
+    llevaba número (usaba un título suelto en vez de `_seccion`), así que la
+    numeración de la hoja saltaba directo al "2": esto lo pone en línea con
+    el resto de las secciones."""
     pares = [
         ('N° Solicitud', datos.get('numero_solicitud')),
         ('Laboratorio', laboratorio),
@@ -147,14 +157,16 @@ def _panel_origen(datos: dict, laboratorio: str) -> Table:
         ('Ship To', datos.get('ship_to')),
         ('Generado por', datos.get('generado_por')),
     ]
-    contenido = [[Paragraph('ORIGEN DE LA ORDEN', _S_SECCION)]] + [[_campo(et, val, True)] for et, val in pares]
-    t = Table(contenido, colWidths=[5.15 * cm])
+    contenido = [[_seccion('1', 'ORIGEN DE LA SOLICITUD', ancho=ancho)]] + [[_campo(et, val, True)] for et, val in pares]
+    t = Table(contenido, colWidths=[ancho])
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
-        ('BOX', (0, 0), (-1, -1), 0.7, VERDE_2),
-        ('TOPPADDING', (0, 0), (-1, 0), 7), ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+        ('BOX', (0, 0), (-1, -1), 0.6, GRIS_2),
+        ('LEFTPADDING', (0, 0), (-1, 0), 0), ('RIGHTPADDING', (0, 0), (-1, 0), 0),
+        ('TOPPADDING', (0, 0), (-1, 0), 0), ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+        ('LEFTPADDING', (0, 1), (-1, -1), 8), ('RIGHTPADDING', (0, 1), (-1, -1), 8),
         ('TOPPADDING', (0, 1), (-1, -1), 1), ('BOTTOMPADDING', (0, 1), (-1, -1), 1),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, -1), (-1, -1), 6),
     ]))
     return t
 
@@ -189,18 +201,24 @@ def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espaci
     folio = str(datos.get('numero_solicitud') or '')
     logo = Image(_RUTA_LOGO, width=4.35 * cm, height=1.74 * cm) if os.path.isfile(_RUTA_LOGO) else Paragraph('', _S_VALOR)
     codigo = _codigo_barras(folio)
-    identidad = [Paragraph('ORDEN DE MUESTREO', _S_TITULO), Paragraph(f'FOLIO {folio}', _S_FOLIO)]
+    # "Solicitud de análisis": es lo que este documento es y lo que dice el
+    # resto del sistema (Toma de muestras → Nueva solicitud). "Orden de
+    # muestreo" era un nombre que solo vivía acá, en el PDF, y no en ninguna
+    # otra parte -de ahí la confusión de quien lo recibe-.
+    identidad = [Paragraph('SOLICITUD DE ANÁLISIS', _S_TITULO), Paragraph(f'N° {folio}', _S_FOLIO)]
     if codigo is not None:
         identidad.extend([Spacer(1, 2), codigo])
     header = Table([[logo, identidad]], colWidths=[5.2 * cm, ANCHO_UTIL - 5.2 * cm])
     header.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, 0), BLANCO), ('BACKGROUND', (1, 0), (1, 0), VERDE_SUAVE),
+        ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
         ('LEFTPADDING', (0, 0), (0, 0), 0), ('RIGHTPADDING', (0, 0), (0, 0), 8),
-        ('LEFTPADDING', (1, 0), (1, 0), 14), ('RIGHTPADDING', (1, 0), (1, 0), 12),
+        ('LEFTPADDING', (1, 0), (1, 0), 14), ('RIGHTPADDING', (1, 0), (1, 0), 0),
         ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
+        ('LINEBELOW', (0, 0), (-1, -1), 0.9, VERDE_2),
     ]))
-    elementos.extend([header, Spacer(1, 2), Paragraph(DIRECCION_EMPRESA, _S_DIRECCION), Spacer(1, 6)])
+    # La dirección va al pie de la hoja, centrada -no acá arriba-.
+    elementos.extend([header, Spacer(1, 8)])
 
     muestra = [
         ('Tipo muestra', datos.get('tipo_muestra')), ('Tipo aplicación', campos_lab.get('Tipo Aplicación')),
@@ -222,7 +240,10 @@ def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espaci
         ('TOPPADDING', (0, 0), (-1, -1), 0), ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
         ('BOX', (0, 0), (-1, -1), 0.6, GRIS_2),
     ]))
-    cuerpo_superior = Table([[_panel_origen(datos, laboratorio), panel_muestra]], colWidths=[5.15 * cm, ANCHO_UTIL - 5.15 * cm])
+    cuerpo_superior = Table(
+        [[_panel_origen(datos, laboratorio, 5.15 * cm), panel_muestra]],
+        colWidths=[5.15 * cm, ANCHO_UTIL - 5.15 * cm],
+    )
     cuerpo_superior.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
@@ -238,12 +259,13 @@ def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espaci
         filas.append([Paragraph('—', _S_TABLA), Paragraph('Sin análisis configurados', _S_TABLA), Paragraph('—', _S_TABLA)])
     tabla_analisis = Table(filas, colWidths=[2.6 * cm, 10.7 * cm, ANCHO_UTIL - 13.3 * cm], repeatRows=1)
     tabla_analisis.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), VERDE_SUAVE), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND', (0, 0), (-1, 0), GRIS_1), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, -1), 2.8), ('BOTTOMPADDING', (0, 0), (-1, -1), 2.8),
         ('LEFTPADDING', (0, 0), (-1, -1), 6), ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('LINEBELOW', (0, 1), (-1, -1), 0.35, GRIS_2),
+        ('LINEBELOW', (0, 0), (-1, 0), 0.6, VERDE_2),
+        ('LINEBELOW', (0, 1), (-1, -1), 0.4, GRIS_2),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [BLANCO, GRIS_1]),
-        ('BOX', (0, 0), (-1, -1), 0.55, VERDE_2),
+        ('BOX', (0, 0), (-1, -1), 0.6, GRIS_2),
     ]))
     elementos.extend([tabla_analisis, Spacer(1, 6)])
 
@@ -254,10 +276,11 @@ def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espaci
     ]
     fechas_barra = Table([[_campo(et, val) for et, val in fechas]], colWidths=[ANCHO_UTIL / 3] * 3)
     fechas_barra.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), VERDE_SUAVE),
+        ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
         ('LEFTPADDING', (0, 0), (-1, -1), 7), ('RIGHTPADDING', (0, 0), (-1, -1), 7),
         ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        ('BOX', (0, 0), (-1, -1), 0.5, VERDE_2),
+        ('BOX', (0, 0), (-1, -1), 0.6, GRIS_2),
+        ('LINEAFTER', (0, 0), (-2, -1), 0.4, GRIS_2),
     ]))
     elementos.extend([_seccion('4', 'PROGRAMACIÓN Y DISTRIBUCIÓN', 'Fechas, observaciones y destinatarios'), fechas_barra, Spacer(1, 4)])
 
@@ -272,15 +295,32 @@ def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espaci
         ('TOPPADDING', (0, 0), (-1, 0), 4), ('BOTTOMPADDING', (0, 0), (-1, 0), 1),
         ('TOPPADDING', (0, 1), (-1, 1), 2), ('BOTTOMPADDING', (0, 1), (-1, 1), 6),
         ('LEFTPADDING', (0, 0), (-1, -1), 7), ('RIGHTPADDING', (0, 0), (-1, -1), 7),
-        ('BOX', (0, 0), (-1, -1), 0.5, GRIS_2), ('LINEAFTER', (0, 0), (0, -1), 0.5, GRIS_2),
+        ('BOX', (0, 0), (-1, -1), 0.6, GRIS_2), ('LINEAFTER', (0, 0), (0, -1), 0.6, GRIS_2),
     ]))
     elementos.extend([cierre, Spacer(1, 6)])
 
+    # Pie de página: fecha y procedencia del documento, y la dirección de la
+    # empresa al final de la hoja, centrada -no arriba, junto al logo-.
     hoy = datetime.now().strftime('%d-%m-%Y')
-    pie = Table([[Paragraph(f'Emitido: {hoy}', _S_PEQUENO), Paragraph('AgroFresh Report Hub · Orden operativa de muestreo', _S_PEQUENO)]], colWidths=[5 * cm, ANCHO_UTIL - 5 * cm])
-    pie.setStyle(TableStyle([
-        ('LINEABOVE', (0, 0), (-1, -1), 0.8, VERDE), ('TOPPADDING', (0, 0), (-1, -1), 4),
+    pie_datos = Table(
+        [[Paragraph(f'Fecha del documento: {hoy}', _S_PEQUENO), Paragraph('Documento generado por AgroFresh Report Hub', _S_PEQUENO)]],
+        colWidths=[7 * cm, ANCHO_UTIL - 7 * cm],
+    )
+    pie_datos.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
         ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+    ]))
+    direccion_pie = Table([[Paragraph(DIRECCION_EMPRESA, _S_DIRECCION_PIE)]], colWidths=[ANCHO_UTIL])
+    direccion_pie.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 2), ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    pie = Table([[pie_datos], [direccion_pie]], colWidths=[ANCHO_UTIL])
+    pie.setStyle(TableStyle([
+        ('LINEABOVE', (0, 0), (-1, 0), 0.8, VERDE),
+        ('TOPPADDING', (0, 0), (-1, -1), 0), ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
     ]))
     elementos.append(KeepTogether(pie))
     return elementos
@@ -301,7 +341,7 @@ def _construir_pdf(elementos: list, titulo: str) -> bytes:
 
 
 def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None) -> bytes:
-    titulo = f"Orden de muestreo {datos.get('numero_solicitud', '')}".strip()
+    titulo = f"Solicitud de análisis {datos.get('numero_solicitud', '')}".strip()
     pdf_min = _construir_pdf(_construir_elementos(datos, analitos_config), titulo)
     if _contar_paginas(pdf_min) > 1:
         return pdf_min
