@@ -17,6 +17,7 @@ import {
 import type { ChartDataset } from 'chart.js'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
@@ -398,7 +399,7 @@ export function ReporteView({
         nro: string
         fecha: string | null
         zona: string | null
-        patogenos: { nombre: string; texto: string; detectado: boolean }[]
+        patogenos: { codigo: string; nombre: string; texto: string; detectado: boolean }[]
       }
     >()
     filtradas.forEach((o) => {
@@ -415,27 +416,30 @@ export function ReporteView({
         analitos.find((a) => a.codigo === o.ingrediente && igual(a.laboratorio, 'Diagnofruit'))?.nombre ??
         o.ingrediente
       const texto = o.ppm != null ? formatDecimalCL(o.ppm, 2) : o.valorTexto ?? '—'
-      grupo.patogenos.push({ nombre, texto, detectado: esDetectado(o) })
+      grupo.patogenos.push({ codigo: o.ingrediente, nombre, texto, detectado: esDetectado(o) })
     })
     return [...porSolicitud.values()].sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''))
   }, [esDiagnofruit, filtradas, analitos])
 
   // El gráfico de barras de abajo es un resumen de la misma tabla, no un dato
   // aparte: cuántas muestras dieron positivo/negativo para cada patógeno, de
-  // los que de verdad se analizaron con los filtros de arriba puestos.
+  // los que de verdad se analizaron con los filtros de arriba puestos. El
+  // color de cada patógeno es el mismo `colorDeIngrediente` que usa el resto
+  // de Report -así un mismo código siempre se ve del mismo color, esté en la
+  // tabla, en el gráfico o en el filtro "Ingrediente Activo"-.
   const resumenPatogenosDiagnofruit = useMemo(() => {
     if (!esDiagnofruit) return []
-    const porNombre = new Map<string, { detectado: number; noDetectado: number }>()
+    const porCodigo = new Map<string, { nombre: string; detectado: number; noDetectado: number }>()
     gruposDiagnofruit.forEach((grupo) => {
       grupo.patogenos.forEach((p) => {
-        const entrada = porNombre.get(p.nombre) ?? { detectado: 0, noDetectado: 0 }
+        const entrada = porCodigo.get(p.codigo) ?? { nombre: p.nombre, detectado: 0, noDetectado: 0 }
         if (p.detectado) entrada.detectado += 1
         else entrada.noDetectado += 1
-        porNombre.set(p.nombre, entrada)
+        porCodigo.set(p.codigo, entrada)
       })
     })
-    return [...porNombre.entries()]
-      .map(([nombre, c]) => ({ nombre, ...c }))
+    return [...porCodigo.entries()]
+      .map(([codigo, c]) => ({ codigo, color: colorDeIngrediente(codigo), ...c }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
   }, [esDiagnofruit, gruposDiagnofruit])
 
@@ -760,27 +764,33 @@ export function ReporteView({
         plugins: { legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } } },
         scales: {
           y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: colorBorder }, stacked: true },
-          x: { grid: { display: false }, stacked: true },
+          x: {
+            grid: { display: false },
+            stacked: true,
+            // Cada patógeno con su color representativo -el mismo que usa en la
+            // tabla de arriba y en el filtro "Ingrediente Activo"- para que se
+            // reconozca de un vistazo cuál barra es cuál sin mirar la leyenda.
+            ticks: {
+              color: (ctx) => resumenPatogenosDiagnofruit[ctx.index]?.color ?? colorMuted,
+              font: { weight: 'bold' },
+            },
+          },
         },
         onClick: (_evt, elements) => {
           if (!elements.length) return
           const { datasetIndex, index } = elements[0]
-          const nombre = resumenPatogenosDiagnofruit[index]?.nombre
-          if (!nombre) return
+          const fila = resumenPatogenosDiagnofruit[index]
+          if (!fila) return
           const detectadoSel = datasetIndex === 0
-          const obs = filtradas.filter((o) => {
-            if (!o.ingrediente) return false
-            const nombreObs =
-              analitos.find((a) => a.codigo === o.ingrediente && igual(a.laboratorio, 'Diagnofruit'))?.nombre ??
-              o.ingrediente
-            return nombreObs === nombre && esDetectado(o) === detectadoSel
-          })
-          if (obs.length) setDetalle({ titulo: `${nombre} · ${detectadoSel ? 'Detectado' : 'No detectado'}`, filas: obs })
+          const obs = filtradas.filter((o) => o.ingrediente === fila.codigo && esDetectado(o) === detectadoSel)
+          if (obs.length) {
+            setDetalle({ titulo: `${fila.nombre} · ${detectadoSel ? 'Detectado' : 'No detectado'}`, filas: obs })
+          }
         },
       },
     })
     return () => diagnoBarChart.current?.destroy()
-  }, [esDiagnofruit, resumenPatogenosDiagnofruit, filtradas, analitos, colorDanger, colorOk, colorBorder])
+  }, [esDiagnofruit, resumenPatogenosDiagnofruit, filtradas, colorDanger, colorOk, colorBorder, colorMuted])
 
   if (!user) return null
 
@@ -1083,9 +1093,17 @@ export function ReporteView({
                                   <td rowSpan={grupo.patogenos.length}>{grupo.zona || '—'}</td>
                                 </>
                               )}
-                              <td>{p.nombre}</td>
-                              <td className={p.detectado ? styles.celdaDetectada : styles.celdaNormal}>
-                                {p.texto}
+                              <td>
+                                <span className={styles.indicadorConPunto}>
+                                  <span
+                                    className={styles.puntoColor}
+                                    style={{ background: colorDeIngrediente(p.codigo), color: colorDeIngrediente(p.codigo) }}
+                                  />
+                                  {p.nombre}
+                                </span>
+                              </td>
+                              <td>
+                                <Badge tone={p.detectado ? 'danger' : 'success'}>{p.texto}</Badge>
                               </td>
                             </tr>
                           )),
@@ -1111,8 +1129,11 @@ export function ReporteView({
                     <h3>Indicadores</h3>
                     <div className={styles.indicadores}>
                       {resumenPatogenosDiagnofruit.map((r) => (
-                        <div key={r.nombre}>
-                          <span>{r.nombre}</span>
+                        <div key={r.codigo}>
+                          <span className={styles.indicadorConPunto}>
+                            <span className={styles.puntoColor} style={{ background: r.color, color: r.color }} />
+                            {r.nombre}
+                          </span>
                           <b className={r.detectado > 0 ? styles.celdaDetectada : undefined}>
                             {r.detectado} detectada{r.detectado === 1 ? '' : 's'} de {r.detectado + r.noDetectado}
                           </b>

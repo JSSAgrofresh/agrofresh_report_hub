@@ -361,28 +361,42 @@
   text-align: left;
   color: var(--color-text-muted);
   font-weight: 600;
-  font-size: 11px;
+  font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding: var(--space-2) var(--space-3);
+  letter-spacing: 0.04em;
+  padding: 10px var(--space-4);
   border-bottom: 1px solid var(--color-border-strong);
   background: var(--color-bg);
   white-space: nowrap;
 }
 
 .tablaDiagno td {
-  padding: 7px var(--space-3);
+  padding: 9px var(--space-4);
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  color: var(--color-text);
 }
 
 /* Fecha/Zona de muestreo se combinan en una sola celda por solicitud (rowSpan):
-   se alinean arriba y con un borde propio para no confundirse con el resto. */
+   se alinean arriba y separadas del resto con una línea propia -para que no
+   se confundan con las filas de cada patógeno que agrupan-. */
 .tablaDiagno td[rowspan] {
   vertical-align: top;
   border-right: 1px solid var(--color-border);
-  border-bottom: 2px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.tablaDiagno tbody tr:first-child td {
+  border-top: none;
+}
+
+/* La primera fila de cada grupo de solicitud (rowSpan) lleva una línea más
+   marcada arriba -salvo la primerísima de la tabla- para separar un grupo
+   del anterior sin necesitar una columna de solicitud aparte. */
+.tablaDiagno tbody tr:has(td[rowspan]):not(:first-child) td {
+  border-top: 1px solid var(--color-border-strong);
 }
 
 .tablaDiagno tbody tr:last-child td {
@@ -390,11 +404,22 @@
 }
 
 .tablaDiagno tbody tr:hover {
-  background: var(--color-bg);
+  background: color-mix(in srgb, var(--acento) 4%, var(--color-surface));
 }
 
-.celdaNormal {
-  color: var(--color-text);
+.indicadorConPunto {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 500;
+}
+
+.puntoColor {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 15%, transparent);
 }
 
 .celdaDetectada {
