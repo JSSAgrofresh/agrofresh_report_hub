@@ -150,6 +150,39 @@
   margin-top: var(--space-4);
 }
 
+.dosisConUnidad {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+}
+
+.dosisConUnidad input,
+.dosisConUnidad select {
+  min-width: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  padding: 7px 9px;
+}
+
+.dosisConUnidad input:focus,
+.dosisConUnidad select:focus {
+  border-color: var(--color-primary);
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+}
+
+.dosisOmitida {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 16px;
+}
+
 .tabla {
   width: 100%;
   border-collapse: collapse;
