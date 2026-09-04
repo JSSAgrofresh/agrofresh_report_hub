@@ -118,8 +118,8 @@ function mockConfigComun() {
   listarCamposTipoAplicacion.mockResolvedValue([])
 }
 
-describe('NuevaSolicitudView — crear (CASO 2: sin columna "Analito" redundante)', () => {
-  it('la tabla de analitos no tiene columna "Analito", solo checkbox + código + dosis', async () => {
+describe('NuevaSolicitudView — crear', () => {
+  it('muestra analitos como tarjetas y permite indicar explícitamente que no hay dosis', async () => {
     mockConfigComun()
     render(
       <MemoryRouter initialEntries={['/nueva']}>
@@ -129,22 +129,21 @@ describe('NuevaSolicitudView — crear (CASO 2: sin columna "Analito" redundante
       </MemoryRouter>,
     )
 
-    // Elegir laboratorio y tipo de aplicación para que aparezca la tabla.
+    // Elegir laboratorio y tipo de aplicación para que aparezcan las tarjetas.
     await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
     fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
     fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
 
     await waitFor(() => expect(screen.getByText('FDL')).toBeTruthy())
 
-    const headers = screen.getAllByRole('columnheader').map((th) => th.textContent)
-    expect(headers).not.toContain('Analito')
-    expect(headers).toContain('Código')
+    const tarjetaFDL = screen.getByTestId('analito-card-1')
+    expect(within(tarjetaFDL).getByRole('checkbox')).toBeTruthy()
+    expect(within(tarjetaFDL).queryByRole('textbox')).toBeNull()
 
-    const filaFDL = screen.getByText('FDL').closest('tr')!
-    expect(within(filaFDL).getByRole('checkbox')).toBeTruthy()
-    expect(within(filaFDL).getByRole('textbox')).toBeTruthy()
-    // El nombre completo ya no es una columna visible.
-    expect(screen.queryByText('Fludioxonil')).toBeNull()
+    fireEvent.click(within(tarjetaFDL).getByRole('checkbox'))
+
+    expect(within(tarjetaFDL).getByRole('textbox')).toBeTruthy()
+    expect(within(tarjetaFDL).getByRole('button', { name: 'Sin dosis: —' })).toBeTruthy()
   })
 })
 
