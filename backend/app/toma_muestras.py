@@ -1037,7 +1037,7 @@ def enviar_solicitud_por_correo(
             "Agrégalos en Administración → Laboratorios → Contactos, o escribe un correo.",
         )
 
-    asunto, texto, html = mail_templates.renderizar(lab, datos)
+    asunto, texto, html, imagenes_inline = mail_templates.renderizar(lab, datos)
 
     adjuntos = [
         correo.Adjunto(f"{numero}.pdf", pdf_bytes, "application/pdf"),
@@ -1058,7 +1058,9 @@ def enviar_solicitud_por_correo(
     bcc = [email_muestreador] if email_muestreador and email_muestreador not in vistos else []
 
     try:
-        resultado = correo.enviar(", ".join(destinatarios), asunto, html, texto, adjuntos, bcc=bcc)
+        resultado = correo.enviar(
+            ", ".join(destinatarios), asunto, html, texto, adjuntos, bcc=bcc, imagenes_inline=imagenes_inline
+        )
     except HTTPException as exc:
         _registrar_envio_solicitud(
             archivo=archivo, numero=numero, laboratorio=lab, usuario=usuario,

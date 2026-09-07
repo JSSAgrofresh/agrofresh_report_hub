@@ -20,6 +20,7 @@ import base64
 import logging
 import re
 from email.mime.application import MIMEApplication
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -114,6 +115,21 @@ class Adjunto:
         self.media_type = media_type
 
 
+class ImagenInline:
+    """Una imagen incrustada en el HTML del correo (ej. el logo del header),
+    referenciada desde `cuerpo_html` como `<img src="cid:{content_id}">`.
+
+    Va aparte de `Adjunto`: no aparece como archivo adjunto descargable, y
+    Outlook -a diferencia de Gmail- no muestra imágenes `data:` en base64
+    incrustadas directo en el HTML, así que el logo necesita ir por Content-ID
+    para que se vea en cualquier cliente de correo.
+    """
+    def __init__(self, content_id: str, contenido: bytes, subtype: str = "png"):
+        self.content_id = content_id
+        self.contenido = contenido
+        self.subtype = subtype
+
+
 def _construir_mime(
     destinatario: str,
     asunto: str,
@@ -122,6 +138,7 @@ def _construir_mime(
     adjuntos: list[Adjunto] | None = None,
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
+    imagenes_inline: list[ImagenInline] | None = None,
 ) -> str:
     """Construye un mensaje MIME y lo codifica en base64url para Gmail API.
 
@@ -129,23 +146,42 @@ def _construir_mime(
     quién más entregar el correo y lo retira de la copia que de verdad ven
     los demás destinatarios -es el comportamiento estándar de cualquier MTA
     con un mensaje RFC822 que trae ese encabezado-.
+
+    Estructura MIME cuando hay imágenes inline (multipart/related envuelve el
+    cuerpo + las imágenes, para que un cliente que no las entienda igual
+    muestre el texto/html sin ellas) y adjuntos reales (multipart/mixed por
+    fuera, para que no se confundan con el cuerpo del mensaje):
+        mixed
+          related
+            alternative (text/plain + text/html)
+            image/* (Content-ID, cada una)
+          application/* (adjuntos reales, si los hay)
     """
+    cuerpo_alternative = MIMEMultipart("alternative")
+    if cuerpo_texto:
+        cuerpo_alternative.attach(MIMEText(cuerpo_texto, "plain", "utf-8"))
+    cuerpo_alternative.attach(MIMEText(cuerpo_html, "html", "utf-8"))
+
+    if imagenes_inline:
+        cuerpo = MIMEMultipart("related")
+        cuerpo.attach(cuerpo_alternative)
+        for img in imagenes_inline:
+            parte_img = MIMEImage(img.contenido, _subtype=img.subtype)
+            parte_img.add_header("Content-ID", f"<{img.content_id}>")
+            parte_img.add_header("Content-Disposition", "inline")
+            cuerpo.attach(parte_img)
+    else:
+        cuerpo = cuerpo_alternative
+
     if adjuntos:
         msg = MIMEMultipart("mixed")
-        cuerpo = MIMEMultipart("alternative")
-        if cuerpo_texto:
-            cuerpo.attach(MIMEText(cuerpo_texto, "plain", "utf-8"))
-        cuerpo.attach(MIMEText(cuerpo_html, "html", "utf-8"))
         msg.attach(cuerpo)
         for adj in adjuntos:
             parte = MIMEApplication(adj.contenido, Name=adj.nombre)
             parte["Content-Disposition"] = f'attachment; filename="{adj.nombre}"'
             msg.attach(parte)
     else:
-        msg = MIMEMultipart("alternative")
-        if cuerpo_texto:
-            msg.attach(MIMEText(cuerpo_texto, "plain", "utf-8"))
-        msg.attach(MIMEText(cuerpo_html, "html", "utf-8"))
+        msg = cuerpo
 
     msg["From"] = f"{FROM_DISPLAY} <{config.GMAIL_ACCOUNT}>"
     msg["To"] = destinatario
@@ -167,12 +203,13 @@ def _enviar_gmail(
     adjuntos: list[Adjunto] | None = None,
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
+    imagenes_inline: list[ImagenInline] | None = None,
 ) -> str | None:
     """Envia un correo via Gmail API usando OAuth 2.0. Devuelve el id que
     Gmail asignó al mensaje (para trazabilidad), o None si la respuesta no
     lo trae."""
     access_token = _gmail_access_token()
-    raw = _construir_mime(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos, cc, bcc)
+    raw = _construir_mime(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos, cc, bcc, imagenes_inline)
 
     try:
         resp = requests.post(
@@ -257,6 +294,7 @@ def enviar(
     adjuntos: list[Adjunto] | None = None,
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
+    imagenes_inline: list[ImagenInline] | None = None,
 ) -> ResultadoEnvio:
     """
     Envia un correo. Usa Gmail API si esta configurado; Resend como fallback.
@@ -264,6 +302,11 @@ def enviar(
 
     `cc`/`bcc` son listas de correos adicionales -copia visible y copia
     oculta respectivamente-. No reemplazan a `destinatario`, se suman.
+
+    `imagenes_inline` solo se usa en el envío por Gmail API -Resend, al ser
+    solo el respaldo cuando Gmail no está configurado, sigue mandando el HTML
+    tal cual sin incrustar imágenes; el logo simplemente no se ve ahí, que es
+    mejor que fallar el envío completo-.
 
     Valida el formato de TODAS las direcciones (to/cc/bcc) antes de intentar
     el envío: Gmail API rechaza el mensaje COMPLETO si una sola dirección
@@ -283,7 +326,7 @@ def enviar(
         raise HTTPException(400, "No hay destinatarios para enviar el correo.")
 
     if config.GMAIL_CLIENT_ID and config.GMAIL_CLIENT_SECRET and config.GMAIL_REFRESH_TOKEN:
-        mensaje_id = _enviar_gmail(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos, cc, bcc)
+        mensaje_id = _enviar_gmail(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos, cc, bcc, imagenes_inline)
     elif config.RESEND_API_KEY:
         logger.warning("Gmail OAuth no configurado; usando Resend como fallback.")
         mensaje_id = _enviar_resend(destinatario, asunto, cuerpo_html, cc, bcc)
