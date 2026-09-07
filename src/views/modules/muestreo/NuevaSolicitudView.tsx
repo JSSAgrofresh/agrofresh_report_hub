@@ -10,8 +10,8 @@ import { cn } from '@/lib/cn'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import { useAuth } from '@/features/auth'
-import { listarAnalisis, listarUnidades } from '@/features/laboratorios'
-import type { Analisis, Unidad } from '@/features/laboratorios'
+import { listarAnalisis } from '@/features/laboratorios'
+import type { Analisis } from '@/features/laboratorios'
 import { listarEspeciesActivas, listarVariedadesActivasDeEspecie } from '@/features/listados'
 import type { ValorLista } from '@/features/listados'
 import {
@@ -138,7 +138,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [productosTodos, setProductosTodos] = useState<ProductoConfig[]>([])
   const [camposTipoAplicacion, setCamposTipoAplicacion] = useState<CampoTipoAplicacionConfig[]>([])
   const [analisisTodos, setAnalisisTodos] = useState<Analisis[]>([])
-  const [unidades, setUnidades] = useState<Unidad[]>([])
 
   const { user } = useAuth()
 
@@ -222,9 +221,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     listarAnalisis()
       .then(setAnalisisTodos)
       .catch(() => setAnalisisTodos([]))
-    listarUnidades()
-      .then(setUnidades)
-      .catch(() => setUnidades([]))
     listarClientes()
       .then((clientes) =>
         setClientesDisponibles(clientes.filter((c) => c.activo).map((c) => c.nombre)),
@@ -385,10 +381,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     .filter((l) => l.activo)
     .sort((a, b) => a.orden - b.orden)
   const tiposActivos = tiposAplicacion.filter((t) => t.activo).sort((a, b) => a.orden - b.orden)
-  const unidadesActivas = useMemo(
-    () => unidades.filter((u) => u.activo).sort((a, b) => a.orden - b.orden),
-    [unidades],
-  )
 
   const camposActivos = useMemo(
     () => (camposConfig ?? []).filter((c) => c.activo).sort((a, b) => a.orden - b.orden),
@@ -544,11 +536,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     if (seleccionado) {
       setUnidadesAnalitos((actual) => ({
         ...actual,
-        [analito.id]:
-          actual[analito.id] ??
-          (unidadesActivas.some((unidad) => unidad.simbolo === unidadDe(analito))
-            ? unidadDe(analito)
-            : ''),
+        [analito.id]: actual[analito.id] ?? unidadDe(analito),
       }))
       return
     }
@@ -1090,18 +1078,13 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                                     value={valoresAnalitos[a.id] ?? ''}
                                     onChange={(e) => actualizarDosis(a.id, e.target.value)}
                                   />
-                                  <select
+                                  <input
+                                    type="text"
                                     aria-label={`Unidad de dosis de ${a.nombre}`}
+                                    placeholder="Unidad"
                                     value={unidadesAnalitos[a.id] ?? ''}
                                     onChange={(e) => actualizarUnidadDosis(a.id, e.target.value)}
-                                  >
-                                    <option value="">Unidad</option>
-                                    {unidadesActivas.map((u) => (
-                                      <option key={u.id} value={u.simbolo}>
-                                        {u.simbolo}
-                                      </option>
-                                    ))}
-                                  </select>
+                                  />
                                 </span>
                               )}
                             </label>

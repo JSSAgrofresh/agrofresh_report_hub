@@ -210,7 +210,7 @@ describe('NuevaSolicitudView — crear', () => {
     fireEvent.click(within(tarjetaFDL).getByRole('checkbox'))
 
     expect(within(tarjetaFDL).getByRole('spinbutton')).toBeTruthy()
-    expect(within(tarjetaFDL).getByRole('combobox', { name: /Unidad de dosis/ })).toBeTruthy()
+    expect(within(tarjetaFDL).getByRole('textbox', { name: /Unidad de dosis/ })).toBeTruthy()
     fireEvent.click(within(tarjetaFDL).getByRole('button', { name: 'No indicar dosis' }))
     expect(within(tarjetaFDL).getByRole('button', { name: 'Sin dosis: —' })).toBeTruthy()
   })

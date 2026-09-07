@@ -301,7 +301,6 @@ export function LaboratoriosView() {
               laboratorio={lab.codigo}
               analisis={analisis.filter((a) => a.laboratorio === lab.codigo)}
               analitos={analitos.filter((a) => a.laboratorio === lab.codigo)}
-              unidades={unidades}
               onCambio={(delLab) =>
                 setAnalisis([...analisis.filter((a) => a.laboratorio !== lab.codigo), ...delLab])
               }
@@ -314,7 +313,6 @@ export function LaboratoriosView() {
               laboratorio={lab.codigo}
               analitos={analitos}
               categorias={categorias}
-              unidades={unidades}
               onCambio={setAnalitos}
               onError={setError}
             />
