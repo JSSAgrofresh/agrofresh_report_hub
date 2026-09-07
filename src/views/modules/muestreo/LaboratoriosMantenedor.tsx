@@ -22,7 +22,14 @@ export function LaboratoriosMantenedor({ laboratorios, onCrear, onEditar, onElim
   const [nuevoNombre, setNuevoNombre] = useState('')
 
   function campoBase(l: LaboratorioConfig): LaboratorioInput {
-    return { codigo: l.codigo, nombre: l.nombre, descripcion: l.descripcion, activo: l.activo, orden: l.orden }
+    return {
+      codigo: l.codigo,
+      nombre: l.nombre,
+      descripcion: l.descripcion,
+      prefijo_solicitud: l.prefijo_solicitud,
+      activo: l.activo,
+      orden: l.orden,
+    }
   }
 
   async function agregar() {
@@ -31,6 +38,7 @@ export function LaboratoriosMantenedor({ laboratorios, onCrear, onEditar, onElim
       codigo: nuevoCodigo,
       nombre: nuevoNombre.trim(),
       descripcion: null,
+      prefijo_solicitud: '',
       activo: true,
       orden: laboratorios.length + 1,
     })

@@ -2,9 +2,11 @@ import { Header } from '@/components/layout/Header'
 import { IframeModule } from '@/features/modules'
 
 // converter.html es un archivo estático: no pasa por el build, así que no
-// puede leer VITE_API_BASE_URL. Se le entrega por la URL del iframe, igual
-// que TraceView.tsx hace con trace.html, para que apunte al mismo backend que
-// el resto de la app sea cual sea el origen donde esté publicada.
+// puede leer VITE_API_BASE_URL. Se le entrega por la URL del iframe (mismo
+// patrón que TraceView.tsx con trace.html) para que "Subir a la base de
+// datos" apunte al backend real y no a http://localhost:8000 fijo, que es lo
+// único que existía antes y por eso fallaba con "Failed to fetch" fuera de
+// esa misma máquina.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 const SRC_CONVERTER = `/modules/converter.html?api=${encodeURIComponent(API_BASE_URL)}`
 

@@ -1,5 +1,5 @@
 -- ----------------------------------------------------------------------------
--- 0023 - Columnas nuevas para la plantilla de "Cargar Datos" (69 columnas) +
+-- 0025 - Columnas nuevas para la plantilla de "Cargar Datos" (69 columnas) +
 --         UNIQUE en N° Informe.
 --
 -- La plantilla nueva trae varios campos que el Excel nativo antiguo no traía

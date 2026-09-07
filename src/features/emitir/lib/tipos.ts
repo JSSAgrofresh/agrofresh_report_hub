@@ -35,6 +35,10 @@ export interface Solicitud {
  * de nadie—, pero al revisar la corrida son justamente lo que se mira. */
 export interface MuestraGCDetalle extends MuestraGC {
   es_muestra: boolean
+  /** Posición del carrusel donde iba el vial. Sale de la tabla de la
+   * secuencia del archivo del GC y viaja de vuelta al backend al pedir el
+   * Excel: es lo que permite volver al vial físico. */
+  ubicacion?: string | null
 }
 
 /** Con qué se midió: instrumento, columna y parámetros de la secuencia. Es
