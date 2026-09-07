@@ -14,5 +14,14 @@ export {
   aprobarLotePendientes,
   descartarLotePendientes,
   reintentarPendientes,
+  validarEstructuraExcel,
 } from './lib/api'
-export type { ResumenCarga, DetalleFilaCarga, RespuestaCarga, Pendiente, PaginaPendientes, MotivoPendiente } from './lib/api'
+export type {
+  ResumenCarga,
+  DetalleFilaCarga,
+  RespuestaCarga,
+  Pendiente,
+  PaginaPendientes,
+  MotivoPendiente,
+  ResultadoValidacionEstructura,
+} from './lib/api'

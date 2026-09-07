@@ -13,11 +13,18 @@ interface Grupo { campo: string; etiqueta: string; especie?: string | null; valo
 interface Auditoria { grupos: Grupo[]; filas: number; pendientes: number }
 interface Decision { campo: string; etiqueta: string; valor_original: string; destino: string; especie?: string | null; filas: number }
 interface Historial { decisiones: Decision[] }
-type Vista = 'auditoria' | 'cambios' | 'modelo' | 'homogenizar'
+export type Vista = 'auditoria' | 'cambios' | 'modelo' | 'homogenizar'
 const CAMPOS = { sold_to_raw: 'Sold To', ship_to_raw: 'Ship To', especie: 'Especie', variedad: 'Variedad' }
 
-export function DataCoreView() {
-  const [vista, setVista] = useState<Vista>('auditoria')
+interface DataCoreViewProps {
+  /** Pestaña con la que abre -usado por el wizard de Cargar Datos para caer
+   * directo en "Homogeneizar" o en "Auditoría" según el paso-. Por defecto
+   * abre igual que siempre (standalone, en /modulos/datacore). */
+  vistaInicial?: Vista
+}
+
+export function DataCoreView({ vistaInicial = 'auditoria' }: DataCoreViewProps = {}) {
+  const [vista, setVista] = useState<Vista>(vistaInicial)
   const [data, setData] = useState<Auditoria | null>(null)
   const [destinos, setDestinos] = useState<Record<string, string>>({})
   const [historial, setHistorial] = useState<Decision[]>([])
