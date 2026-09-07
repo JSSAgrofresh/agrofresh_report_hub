@@ -10,10 +10,25 @@ from pydantic import BaseModel
 from . import mapeo
 from .auditoria import CAMPOS_HOMOGENIZAR
 from .db import conexion, cursor_dict
+from .estructura_excel import validar_estructura
 from .homogenizador import Homogenizador
 from .listados import clave_normalizada
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
+
+
+class EstructuraRequest(BaseModel):
+    columnas: list[Any]
+
+
+@router.post("/validar-estructura")
+def validar_estructura_endpoint(payload: EstructuraRequest) -> dict[str, Any]:
+    """Paso 1 de Cargar Datos: valida los encabezados de la plantilla oficial
+    de 69 columnas antes de seguir. Es solo una ayuda para el usuario -no
+    reemplaza ni endurece /preview ni /confirmar-, así que un archivo del
+    formato antiguo puede seguir cargándose igual aunque no pase esta
+    validación."""
+    return validar_estructura(payload.columnas)
 
 # Sold To, Ship To, Especie y Variedad son los 4 campos con una fuente de
 # verdad real y administrada (cliente/planta y valor_lista -ver catalogo.py y
@@ -506,6 +521,11 @@ def _procesar_filas(
         "resultados": 0,
         "filas_omitidas": 0,
         "pendientes_revision": 0,
+        # Fila con datos pero sin N° Informe: no se descarta -queda en
+        # pendiente_revision para que alguien la corrija o la descarte a mano-.
+        "conflictos_sin_informe": 0,
+        # Mismo N° Informe repetido más de una vez dentro del mismo Excel.
+        "duplicados_en_archivo": 0,
     }
     catalogos = _cargar_catalogos(cur)
     mapas_listados = _cargar_mapas_listados(cur)
@@ -534,7 +554,10 @@ def _procesar_filas(
     # Nuevas solicitudes: se acumulan durante el loop y se insertan en un solo
     # execute_values al final (evita N INSERT individuales con RETURNING id).
     nuevas_solic_pending: list[dict] = []
-    nuevas_solic_nros: set[str] = set()
+    # nro_solicitud -> primera fila (n_fila) del Excel que lo trajo. Sirve tanto
+    # para deduplicar el INSERT como para poder avisar "ya apareció en la fila X"
+    # cuando el mismo N° Informe se repite dentro del archivo.
+    nros_vistos_en_lote: dict[str, int] = {}
     nuevas_solic_productos: dict[str, list[tuple]] = {}
     nuevas_solic_resultados: dict[str, list[tuple]] = {}
 
@@ -552,9 +575,37 @@ def _procesar_filas(
         motivos: list[str] = []
 
         if not sol["nro_solicitud"]:
-            resumen["filas_omitidas"] += 1
+            # Fila completamente vacía (ninguna columna trae dato): se descarta
+            # en silencio, no es un error. Una fila con datos pero sin N° Informe
+            # es distinto -es la columna más importante del sistema-: nunca se
+            # descarta sola, queda en Data Core como conflicto hasta que alguien
+            # le asigne un N° Informe, corrija la fila, o la descarte a mano.
+            if not any(str(v).strip() for v in fila.values() if v is not None):
+                resumen["filas_omitidas"] += 1
+                if acumular_detalle:
+                    detalle.append({"fila": n_fila, "omitida": True, "motivos": ["Fila vacía: se descartó automáticamente"]})
+                continue
+
+            resumen["conflictos_sin_informe"] += 1
+            resumen["pendientes_revision"] += 1
+            if escribir:
+                cur.execute(
+                    "INSERT INTO pendiente_revision (origen, fila, motivos) VALUES (%s, %s::jsonb, %s::jsonb)",
+                    (
+                        origen,
+                        json.dumps(fila),
+                        json.dumps([{"campo": "nro_solicitud", "etiqueta": "N° Informe", "valor": None, "sin_informe": True}]),
+                    ),
+                )
             if acumular_detalle:
-                detalle.append({"fila": n_fila, "omitida": True, "motivos": ["Sin N° de solicitud (Informe)"]})
+                detalle.append(
+                    {
+                        "fila": n_fila,
+                        "sin_informe": True,
+                        "pendiente_revision": True,
+                        "motivos": ["Sin N° Informe: la fila tiene datos, asígnale un N° Informe o descártala en Data Core"],
+                    }
+                )
             continue
         if not sol["laboratorio"]:
             # laboratorio es NOT NULL en la tabla solicitud: en vez de perder la fila
@@ -566,6 +617,23 @@ def _procesar_filas(
 
         existente = solicitudes_existentes.get(sol["nro_solicitud"])
         ya_existe = existente is not None
+
+        # N° Informe repetido dentro del MISMO archivo -distinto de "ya existe en
+        # la base"-: nunca se pierde en silencio. Los datos de solicitud de la
+        # primera fila mandan; los analitos/resultados de esta fila adicional se
+        # agregan igual (se completan, nunca se sobreescriben), y se deja
+        # constancia explícita para que quien revisa la carga la vea.
+        if not ya_existe:
+            primera_fila = nros_vistos_en_lote.get(sol["nro_solicitud"])
+            if primera_fila is not None:
+                resumen["duplicados_en_archivo"] += 1
+                motivos.append(
+                    f"N° Informe \"{sol['nro_solicitud']}\" está repetido en este archivo "
+                    f"(ya apareció en la fila {primera_fila}): se usan los datos de esa primera fila; "
+                    "los analitos/resultados de esta fila se agregan igual. Revisa si corresponde a un informe distinto."
+                )
+            else:
+                nros_vistos_en_lote[sol["nro_solicitud"]] = n_fila
 
         # _resolver_listados reescribe sold_to_raw/ship_to_raw/especie/variedad a su
         # valor CANÓNICO cuando calzan con Listados -para fila nueva o existente por
@@ -695,15 +763,17 @@ def _procesar_filas(
                 # final del loop en vez de N INSERTs individuales con RETURNING.
                 datos = {**sol, "planta_id": planta_id, "origen": origen}
                 nro = sol["nro_solicitud"]
-                if nro not in nuevas_solic_nros:
+                if nros_vistos_en_lote.get(nro) == n_fila:
+                    # Esta fila fue la primera en traer este N° Informe -las
+                    # repeticiones posteriores solo aportan analitos/resultados,
+                    # ver el aviso de "duplicados_en_archivo" más arriba-.
                     nuevas_solic_pending.append(datos)
-                    nuevas_solic_nros.add(nro)
                 # Acumular productos/resultados de esta solicitud nueva.
                 for p in productos_resueltos:
                     nuevas_solic_productos.setdefault(nro, []).append((
                         p["analito_id"],
                         None if p["analito_id"] else p["analito_codigo"],
-                        p["producto_raw"], p["dosis"], p["tipo_aplicacion"], p["linea_proceso"],
+                        p["producto_raw"], p["dosis"], p["tipo_aplicacion"], p["linea_proceso"], p.get("gasto"),
                     ))
                 for r in resultados_resueltos:
                     nuevas_solic_resultados.setdefault(nro, []).append((
@@ -732,7 +802,7 @@ def _procesar_filas(
                     productos_batch.append((
                         solicitud_id, p["analito_id"],
                         None if p["analito_id"] else p["analito_codigo"],
-                        p["producto_raw"], p["dosis"], p["tipo_aplicacion"], p["linea_proceso"],
+                        p["producto_raw"], p["dosis"], p["tipo_aplicacion"], p["linea_proceso"], p.get("gasto"),
                     ))
                 for r in resultados_resueltos:
                     resultados_batch.append((
@@ -789,7 +859,7 @@ def _procesar_filas(
             execute_values(
                 cur,
                 """INSERT INTO producto_aplicado
-                   (solicitud_id, analito_id, analito_raw, producto_raw, dosis, tipo_aplicacion, linea_proceso)
+                   (solicitud_id, analito_id, analito_raw, producto_raw, dosis, tipo_aplicacion, linea_proceso, gasto)
                    VALUES %s
                    ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
                 productos_batch,

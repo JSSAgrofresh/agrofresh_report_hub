@@ -8,15 +8,26 @@ import re
 from datetime import date, datetime, timedelta
 from typing import Any
 
-# Columnas de dosis por analito (ver src/features/ingest/lib/sqlMap.ts en el frontend)
-ANALITOS_DOSIS = {
-    "FDL": "FDL_dosis",
-    "IMZ": "IMZ_dosis",
-    "PYR": "PYR_dosis",
-    "TBZ": "TBZ_dosis",
-    "AZOX": "AZOX_dosis",
-    "TEBU": "TEBU_dosis",
+# Columnas de dosis por analito (ver src/features/ingest/lib/sqlMap.ts en el frontend).
+# El Excel nativo antiguo usa "FDL_dosis" (guion bajo); la plantilla nueva de
+# Cargar Datos (69 columnas) usa "FDL Dosis" (con espacio) y además trae DPA,
+# que el formato antiguo no traía como dosis.
+ANALITOS_DOSIS: dict[str, str | tuple[str, ...]] = {
+    "FDL": ("FDL_dosis", "FDL Dosis"),
+    "IMZ": ("IMZ_dosis", "IMZ Dosis"),
+    "PYR": ("PYR_dosis", "PYR Dosis"),
+    "TBZ": ("TBZ_dosis", "TBZ Dosis"),
+    "AZOX": ("AZOX_dosis", "AZOX Dosis"),
+    "TEBU": ("TEBU_dosis", "TEBU Dosis"),
+    "DPA": "DPA Dosis",
 }
+
+# En la plantilla nueva, cada pesticida trae además una columna con su propio
+# nombre ("FDL", "IMZ", ...) que funciona como casillero de "se aplicó este
+# producto" (ej. "✓"), independiente de si la dosis quedó numérica o no. El
+# Excel nativo antiguo nunca tuvo una columna con ese nombre exacto (tenía
+# "FDL_dosis" y "FDL FINAL"), así que no hay riesgo de colisión.
+ANALITOS_APLICADO_MARCA = {codigo: codigo for codigo in ANALITOS_DOSIS}
 
 # Columnas de resultado final por analito. Puede ser un solo nombre de columna
 # o una tupla con varios: los 7 pesticidas de Quiteca/AgroFresh llegan como
@@ -204,59 +215,86 @@ def concatenar(*valores: str | None, separador: str = " / ") -> str | None:
 
 
 def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
-    """Construye el dict de la fila `solicitud`, sin resolver aún cliente_id/planta_id."""
+    """Construye el dict de la fila `solicitud`, sin resolver aún cliente_id/planta_id.
+
+    Reconoce dos formatos de encabezado por campo: el del Excel nativo
+    histórico (Quiteca/AgroFresh, con guiones bajos y saltos de línea) y el de
+    la plantilla nueva de Cargar Datos (69 columnas, ver
+    backend/app/estructura_excel.py) -ambos conviven porque Converter y
+    archivos antiguos siguen usando el primero-.
+    """
     fecha_entrada = parse_fecha(fila.get("Fecha entrada"))
+    fecha_muestreo = elegir(parse_fecha(fila.get("Fecha de muestreo")), parse_fecha(fila.get("Fecha Muestreo")))
     return {
-        "nro_solicitud": texto(fila, "Informe"),
+        "nro_solicitud": elegir(texto(fila, "Informe"), texto(fila, "N° Informe")),
         "laboratorio": texto(fila, "Laboratorio"),
-        "fecha_solicitud": parse_fecha(fila.get("Fecha \nSolicitud")),
-        "fecha_muestreo": parse_fecha(fila.get("Fecha de muestreo")),
-        "fecha_entrada": fecha_entrada,
-        "fecha_analisis": parse_fecha(fila.get("Fecha análisis")),
-        # La base real exporta "SOLD TO" / "SHIP TO"; "Cliente" / "Sucursal" se
-        # dejan como alias por si algún Excel viene con esos encabezados en vez.
-        "sold_to_raw": elegir(texto(fila, "SOLD TO"), texto(fila, "Cliente")),
-        "ship_to_raw": elegir(texto(fila, "SHIP TO"), texto(fila, "Sucursal")),
+        "fecha_solicitud": elegir(parse_fecha(fila.get("Fecha \nSolicitud")), parse_fecha(fila.get("Fecha Solicitud"))),
+        "fecha_muestreo": fecha_muestreo,
+        "fecha_entrada": fecha_entrada or fecha_muestreo,
+        "fecha_analisis": elegir(parse_fecha(fila.get("Fecha análisis")), parse_fecha(fila.get("Fecha Análisis"))),
+        "fecha_informe": parse_fecha(fila.get("Fecha Informe")),
+        "hora_muestreo": texto(fila, "Hora Muestreo"),
+        # La base real exporta "SOLD TO" / "SHIP TO"; "Cliente" / "Sucursal" y
+        # "Sold To" / "Ship To" (plantilla nueva) se dejan como alias.
+        "sold_to_raw": elegir(texto(fila, "SOLD TO"), texto(fila, "Cliente"), texto(fila, "Sold To")),
+        "ship_to_raw": elegir(texto(fila, "SHIP TO"), texto(fila, "Sucursal"), texto(fila, "Ship To")),
         # "CROP" es el nombre real del Excel de Quiteca/AgroFresh; "Especie" es el
-        # nombre que usa Converter para Diagnofruit/ALS.
+        # nombre que usa Converter y la plantilla nueva de Cargar Datos.
         "especie": elegir(texto(fila, "CROP"), texto(fila, "Especie")),
         "variedad": texto(fila, "Variedad"),
         "tipo_servicio": texto(fila, "Tipo de servicio"),
+        "tipo_muestra": texto(fila, "Tipo Muestra"),
         "lote": texto(fila, "Lote"),
-        "nro_camara": texto(fila, "Cámara"),
-        "nro_linea": texto(fila, "Línea"),
-        "posicion_muestreo": texto(fila, "Posición"),
-        "kg_procesados": parse_numero(fila.get("Kg \nprocesados")),
-        "csg": texto(fila, "Cód. Productor (CSG)"),
-        "solicitante": texto(fila, "Asesor \nde servicio"),
-        "nombre_muestreador": texto(fila, "Nombre del responsable"),
-        "nro_orden": elegir(texto(fila, "orden"), texto(fila, "Codigo interno\ndel cliente")),
-        "referencia": texto(fila, "Reference/s"),
+        "nro_camara": elegir(texto(fila, "Cámara"), texto(fila, "N° Cámara")),
+        "nro_linea": elegir(texto(fila, "Línea"), texto(fila, "Línea Proceso")),
+        "posicion_muestreo": elegir(texto(fila, "Posición"), texto(fila, "Posición Muestreo")),
+        "kg_procesados": elegir(parse_numero(fila.get("Kg \nprocesados")), parse_numero(fila.get("Kilos Procesados (KG)"))),
+        "csg": elegir(texto(fila, "Cód. Productor (CSG)"), texto(fila, "CSG")),
+        "solicitante": elegir(texto(fila, "Asesor \nde servicio"), texto(fila, "Solicitante")),
+        "nombre_muestreador": elegir(texto(fila, "Nombre del responsable"), texto(fila, "Nombre Muestreador")),
+        "nro_orden": elegir(texto(fila, "orden"), texto(fila, "Codigo interno\ndel cliente"), texto(fila, "N° Orden")),
+        # "N° Solicitud" (ej. "OT-AGF0025") es el folio interno del laboratorio,
+        # distinto del N° Informe -que es la clave real, ver estructura_excel.py-;
+        # se guarda como referencia libre, igual que "Reference/s" del formato viejo.
+        "referencia": elegir(texto(fila, "Reference/s"), texto(fila, "N° Solicitud")),
         "referencia_proceso": texto(fila, "Referencia reporte proceso+O:T"),
-        "observacion": texto(fila, "Observaciones"),
+        "producto_utilizado": texto(fila, "Producto Utilizado"),
+        "generado_por": texto(fila, "Generado Por"),
+        "email_solicitante": texto(fila, "Email Solicitante"),
+        "email_laboratorio": texto(fila, "Email Laboratorio"),
+        "observacion": elegir(texto(fila, "Observaciones"), texto(fila, "Observación")),
         "observacion_2": concatenar(texto(fila, "Dosis"), texto(fila, "Observación adicional")),
         "temporada": parse_entero_corto(valor_columna(fila, "Temporada")),
         "semana_entrada": parse_entero_corto(fila.get("Semana entrada")),
         # No se usa la columna "SEMANA" del Excel (no es confiable): se calcula
         # a partir de la fecha de entrada, igual que =NUM.DE.SEMANA([Fecha entrada]).
-        "semana_muestreo": calcular_semana(fecha_entrada),
+        "semana_muestreo": calcular_semana(fecha_entrada or fecha_muestreo),
         # La columna "MES" del Excel nativo se respeta si viene; Converter (Quiteca,
-        # Diagnofruit, ALS) no la entrega, así que ahí se calcula desde fecha_entrada
-        # igual que semana_muestreo.
-        "mes": parse_entero_corto(fila.get("MES")) or calcular_mes(fecha_entrada),
+        # Diagnofruit, ALS) y la plantilla nueva no la entregan, así que ahí se
+        # calcula desde fecha_entrada igual que semana_muestreo.
+        "mes": parse_entero_corto(fila.get("MES")) or calcular_mes(fecha_entrada or fecha_muestreo),
     }
 
 
 def mapear_productos_aplicados(fila: dict[str, Any]) -> list[dict[str, Any]]:
-    """Una fila por analito que tenga dosis (por la restricción UNIQUE(solicitud_id, analito_id))."""
-    tipo_aplicacion = texto(fila, "TIPO APP")
-    producto_raw = texto(fila, "APP")
+    """Una fila por analito que tenga dosis o que venga marcado como aplicado
+    (por la restricción UNIQUE(solicitud_id, analito_id))."""
+    tipo_aplicacion = elegir(texto(fila, "TIPO APP"), texto(fila, "Tipo Aplicación"))
+    producto_raw = elegir(texto(fila, "APP"), texto(fila, "Producto Utilizado"))
     linea_proceso = concatenar(texto(fila, "Tratamiento"), texto(fila, "Línea de \nProceso"))
+    gasto = parse_numero(fila.get("Gasto"))
 
     productos = []
     for codigo, col_dosis in ANALITOS_DOSIS.items():
-        dosis = parse_numero(fila.get(col_dosis))
-        if dosis is None:
+        cols = (col_dosis,) if isinstance(col_dosis, str) else col_dosis
+        col = next((c for c in cols if c in fila), None)
+        dosis = parse_numero(fila.get(col)) if col else None
+        # La plantilla nueva marca "se aplicó este producto" con una columna
+        # propia (ej. "FDL" = "✓"), separada de la dosis: una fila puede estar
+        # marcada como aplicada sin traer dosis numérica todavía.
+        marcador = ANALITOS_APLICADO_MARCA.get(codigo)
+        aplicado = bool(texto(fila, marcador)) if marcador else False
+        if dosis is None and not aplicado:
             continue
         productos.append(
             {
@@ -265,6 +303,7 @@ def mapear_productos_aplicados(fila: dict[str, Any]) -> list[dict[str, Any]]:
                 "tipo_aplicacion": tipo_aplicacion,
                 "producto_raw": producto_raw,
                 "linea_proceso": linea_proceso,
+                "gasto": gasto,
             }
         )
 
@@ -281,9 +320,17 @@ def mapear_productos_aplicados(fila: dict[str, Any]) -> list[dict[str, Any]]:
                     "tipo_aplicacion": tipo_aplicacion,
                     "producto_raw": producto_raw,
                     "linea_proceso": linea_proceso,
+                    "gasto": gasto,
                 }
             )
     return productos
+
+
+# Cuántos pares "Analito Pesticida N" / "Resultado Pesticida N" trae la
+# plantilla nueva -pesticidas fuera de los 7 fijos (FDL/IMZ/PYR/TEBU/AZOX/
+# TBZ/DPA) que ya tienen columna propia-. El código del analito viene como
+# texto libre en la celda, no como nombre de columna.
+_PESTICIDAS_LIBRES = 3
 
 
 def mapear_resultados(fila: dict[str, Any]) -> list[dict[str, Any]]:
@@ -297,4 +344,14 @@ def mapear_resultados(fila: dict[str, Any]) -> list[dict[str, Any]]:
         if valor_num is None and valor_texto is None:
             continue
         resultados.append({"analito_codigo": codigo, "valor_num": valor_num, "valor_texto": valor_texto})
+
+    for i in range(1, _PESTICIDAS_LIBRES + 1):
+        analito_libre = texto(fila, f"Analito Pesticida {i}")
+        if not analito_libre:
+            continue
+        valor_num, valor_texto = valor_resultado(fila.get(f"Resultado Pesticida {i}"))
+        if valor_num is None and valor_texto is None:
+            continue
+        resultados.append({"analito_codigo": analito_libre, "valor_num": valor_num, "valor_texto": valor_texto})
+
     return resultados

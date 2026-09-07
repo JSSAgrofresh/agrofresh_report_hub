@@ -10,6 +10,11 @@ export interface ResumenCarga {
   resultados: number
   filas_omitidas: number
   pendientes_revision: number
+  /** Fila con datos pero sin N° Informe: no se descarta, queda como conflicto
+   * en Data Core hasta que alguien le asigne un N° Informe o la descarte. */
+  conflictos_sin_informe?: number
+  /** Mismo N° Informe repetido más de una vez dentro del mismo Excel. */
+  duplicados_en_archivo?: number
 }
 
 export interface DetalleFilaCarga {
@@ -22,7 +27,23 @@ export interface DetalleFilaCarga {
   resultados?: number
   omitida?: boolean
   pendiente_revision?: boolean
+  /** true si esta fila específica es el conflicto "tiene datos pero no N° Informe". */
+  sin_informe?: boolean
   motivos: string[]
+}
+
+export interface ResultadoValidacionEstructura {
+  valido: boolean
+  errores: string[]
+  advertencias: string[]
+}
+
+/** Paso 1 de Cargar Datos: valida los encabezados contra la plantilla oficial
+ * de 69 columnas. Es solo una ayuda visual -no bloquea preview/confirmar-,
+ * así que un Excel del formato antiguo puede seguir usándose igual aunque no
+ * pase esta validación. */
+export function validarEstructuraExcel(columnas: string[]) {
+  return httpClient.post<ResultadoValidacionEstructura>('/ingest/validar-estructura', { columnas })
 }
 
 export interface RespuestaCarga {
