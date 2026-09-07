@@ -204,31 +204,50 @@ def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espaci
     # resto del sistema (Toma de muestras → Nueva solicitud). "Orden de
     # muestreo" era un nombre que solo vivía acá, en el PDF, y no en ninguna
     # otra parte -de ahí la confusión de quien lo recibe-.
+    # Tres columnas -logo, título, código de barras-, no dos: con el código
+    # de barras metido debajo del título en la misma celda quedaba centrado
+    # bajo el texto en vez de alineado a la derecha de la hoja, que es donde
+    # se ve más formal (y es donde alguien que escanea el folio lo busca).
     identidad = [Spacer(1, 12), Paragraph('SOLICITUD DE ANÁLISIS', _S_TITULO), Paragraph(f'N° {folio}', _S_FOLIO)]
-    if codigo is not None:
-        identidad.extend([Spacer(1, 2), codigo])
-    header = Table([[logo, identidad]], colWidths=[6.4 * cm, ANCHO_UTIL - 6.4 * cm])
+    celda_codigo = [Spacer(1, 22), codigo] if codigo is not None else ['']
+    ancho_codigo = 4.6 * cm
+    ancho_titulo = ANCHO_UTIL - 6.4 * cm - ancho_codigo
+    header = Table([[logo, identidad, celda_codigo]], colWidths=[6.4 * cm, ancho_titulo, ancho_codigo])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
-        ('VALIGN', (0, 0), (0, 0), 'MIDDLE'), ('VALIGN', (1, 0), (1, 0), 'BOTTOM'),
-        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+        ('VALIGN', (0, 0), (0, 0), 'MIDDLE'), ('VALIGN', (1, 0), (1, 0), 'BOTTOM'), ('VALIGN', (2, 0), (2, 0), 'MIDDLE'),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'), ('ALIGN', (2, 0), (2, 0), 'CENTER'),
         ('LEFTPADDING', (0, 0), (0, 0), 0), ('RIGHTPADDING', (0, 0), (0, 0), 8),
-        ('LEFTPADDING', (1, 0), (1, 0), 14), ('RIGHTPADDING', (1, 0), (1, 0), 0),
+        ('LEFTPADDING', (1, 0), (1, 0), 14), ('RIGHTPADDING', (1, 0), (1, 0), 14),
+        ('LEFTPADDING', (2, 0), (2, 0), 0), ('RIGHTPADDING', (2, 0), (2, 0), 0),
         ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
         ('LINEBELOW', (0, 0), (-1, -1), 0.9, VERDE_2),
     ]))
     # La dirección va al pie de la hoja, centrada -no acá arriba-.
     elementos.extend([header, Spacer(1, 8)])
 
+    # CSG/Línea proceso/Kilos procesados son propios de "Línea de proceso";
+    # N° cámara/N° orden son propios de "Actimist" -mismo criterio que ya
+    # aplica el formulario (NuevaSolicitudView.tsx) al guardar la solicitud,
+    # que deja en null el campo que no corresponde al tipo elegido-. Sin este
+    # filtro el PDF mostraba los dos juegos de campos a la vez, con "—" en
+    # los que no aplicaban al tipo de aplicación real de esa solicitud.
+    tipo_aplicacion = campos_lab.get('Tipo Aplicación') or ''
+    es_linea_proceso = tipo_aplicacion == 'Línea de proceso'
+    es_actimist = tipo_aplicacion == 'Actimist'
     muestra = [
-        ('Tipo muestra', datos.get('tipo_muestra')), ('Tipo aplicación', campos_lab.get('Tipo Aplicación')),
+        ('Tipo muestra', datos.get('tipo_muestra')), ('Tipo aplicación', tipo_aplicacion),
         ('Especie', datos.get('especie')), ('Variedad', datos.get('variedad')),
-        ('Lote', datos.get('lote')), ('CSG', datos.get('csg')),
-        ('N° cámara', datos.get('numero_camara')), ('N° orden', datos.get('numero_orden')),
-        ('Posición', datos.get('posicion_muestreo')), ('Producto', datos.get('producto_utilizado')),
-        ('Línea proceso', datos.get('linea_proceso')), ('Muestreador', datos.get('nombre_muestreador')),
-        ('Kilos procesados', datos.get('kilos_procesados')),
+        ('Lote', datos.get('lote')), ('Posición', datos.get('posicion_muestreo')),
+        ('Producto', datos.get('producto_utilizado')), ('Muestreador', datos.get('nombre_muestreador')),
     ]
+    if es_linea_proceso:
+        muestra.extend([
+            ('CSG', datos.get('csg')), ('Línea proceso', datos.get('linea_proceso')),
+            ('Kilos procesados', datos.get('kilos_procesados')),
+        ])
+    if es_actimist:
+        muestra.extend([('N° cámara', datos.get('numero_camara')), ('N° orden', datos.get('numero_orden'))])
     muestra.extend(campos_aplicacion.items())
     ancho_muestra = ANCHO_UTIL - 5.15 * cm
     panel_muestra = Table([
