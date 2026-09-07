@@ -3,14 +3,12 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 import { crearAnalitoConfig, actualizarAnalitoConfig, eliminarAnalitoConfig } from '@/features/tomaMuestras'
 import type { AnalitoConfig, AnalitoInput, CategoriaAnaliticaConfig } from '@/features/tomaMuestras'
-import type { Unidad } from '@/features/laboratorios'
 import styles from './LaboratoriosView.module.css'
 
 interface AnalitosPanelProps {
   laboratorio: string
   analitos: AnalitoConfig[]
   categorias: CategoriaAnaliticaConfig[]
-  unidades: Unidad[]
   onCambio: (analitos: AnalitoConfig[]) => void
   onError: (mensaje: string | null) => void
 }
@@ -24,7 +22,6 @@ export function AnalitosPanel({
   laboratorio,
   analitos,
   categorias,
-  unidades,
   onCambio,
   onError,
 }: AnalitosPanelProps) {
@@ -35,7 +32,6 @@ export function AnalitosPanel({
 
   const delLab = analitos.filter((a) => a.laboratorio === laboratorio).sort((a, b) => a.orden - b.orden)
   const categoriasDelLab = categorias.filter((c) => c.laboratorio === laboratorio && c.activo)
-  const unidadesActivas = unidades.filter((u) => u.activo).sort((a, b) => a.orden - b.orden)
 
   function abrirNuevo() {
     setEditando(null)
@@ -143,18 +139,12 @@ export function AnalitosPanel({
           </div>
           <div className={styles.campo}>
             <label className={styles.etiqueta}>Unidad</label>
-            <select
-              className={styles.select}
+            <input
+              className={styles.input}
               value={borrador.unidad}
+              placeholder="mg/kg"
               onChange={(e) => setBorrador({ ...borrador, unidad: e.target.value })}
-            >
-              <option value="">Sin unidad</option>
-              {unidadesActivas.map((u) => (
-                <option key={u.id} value={u.simbolo}>
-                  {u.simbolo}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           <div className={styles.campo}>
             <label className={styles.etiqueta}>Categoría</label>
