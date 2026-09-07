@@ -936,6 +936,54 @@ def destinatarios_de_solicitud(archivo: str, usuario: Usuario = Depends(usuario_
     return {"laboratorio": laboratorio, "destinatarios": contactos_de_solicitud(laboratorio)}
 
 
+def _registrar_envio_solicitud(
+    *,
+    archivo: str,
+    numero: str,
+    laboratorio: str,
+    usuario: Usuario,
+    to: list[str],
+    cc: list[str],
+    bcc: list[str],
+    exitoso: bool,
+    mensaje_id: str | None,
+    error: str | None,
+) -> None:
+    """Deja constancia del intento de envío, exitoso o no, en
+    `envio_solicitud_log` (migración 0023). Es la trazabilidad que faltaba:
+    antes esto solo quedaba -si acaso- en el log de la consola de Windows del
+    backend, que se pierde apenas alguien la cierra (pendiente #1 de
+    CLAUDE.md).
+
+    Best-effort a propósito: si la auditoría falla, NO debe tumbar un envío
+    que salió bien, ni ocultar uno que salió mal -en ambos casos ya se
+    resolvió lo que importa antes de llegar acá-. Un problema de base en ese
+    momento puntual queda en el log de proceso, que es peor que la tabla pero
+    mejor que perder también eso.
+    """
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                """
+                INSERT INTO envio_solicitud_log
+                    (archivo, numero_solicitud, laboratorio, usuario_email, usuario_nombre,
+                     destinatarios_to, destinatarios_cc, destinatarios_bcc,
+                     exitoso, mensaje_id, error)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    archivo, numero, laboratorio, usuario.email, usuario.nombre,
+                    json.dumps(to), json.dumps(cc), json.dumps(bcc),
+                    exitoso, mensaje_id, error,
+                ),
+            )
+    except Exception:
+        logger.exception(
+            "No se pudo registrar el envío de %s en envio_solicitud_log (to=%s cc=%s bcc=%s exitoso=%s)",
+            archivo, to, cc, bcc, exitoso,
+        )
+
+
 @router.post("/solicitudes/{archivo}/enviar")
 def enviar_solicitud_por_correo(
     archivo: str, body: EnvioSolicitudIn, usuario: Usuario = Depends(usuario_actual)
@@ -1009,7 +1057,21 @@ def enviar_solicitud_por_correo(
     email_muestreador = _normalizar_correo(datos.get("email_solicitante"))
     bcc = [email_muestreador] if email_muestreador and email_muestreador not in vistos else []
 
-    correo.enviar(", ".join(destinatarios), asunto, html, texto, adjuntos, bcc=bcc)
+    try:
+        resultado = correo.enviar(", ".join(destinatarios), asunto, html, texto, adjuntos, bcc=bcc)
+    except HTTPException as exc:
+        _registrar_envio_solicitud(
+            archivo=archivo, numero=numero, laboratorio=lab, usuario=usuario,
+            to=destinatarios, cc=[], bcc=bcc,
+            exitoso=False, mensaje_id=None, error=str(exc.detail),
+        )
+        raise
+
+    _registrar_envio_solicitud(
+        archivo=archivo, numero=numero, laboratorio=lab, usuario=usuario,
+        to=resultado.to, cc=resultado.cc, bcc=resultado.bcc,
+        exitoso=True, mensaje_id=resultado.mensaje_id, error=None,
+    )
 
     # Recién ahora, con el correo ya afuera: si se marcara antes y el envío
     # fallara, la solicitud quedaría bloqueada para editar sin haberse

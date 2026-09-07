@@ -239,10 +239,13 @@ class TestBccDelMuestreador:
 
     def test_recibe_copia_oculta_ademas_de_los_destinatarios(self, limpio, monkeypatch):
         capturado = {}
-        monkeypatch.setattr(
-            tm.correo, "enviar",
-            lambda destinatario, *a, **kw: capturado.update(destinatario=destinatario, **kw),
-        )
+
+        def _falso_enviar(destinatario, *a, **kw):
+            capturado.update(destinatario=destinatario, **kw)
+            to = [d.strip() for d in destinatario.split(",") if d.strip()]
+            return tm.correo.ResultadoEnvio(to=to, cc=kw.get("cc") or [], bcc=kw.get("bcc") or [])
+
+        monkeypatch.setattr(tm.correo, "enviar", _falso_enviar)
         usuario_a = self._usuario_a()
         tm.crear_solicitud(cuerpo(), usuario=usuario_a)
         tm.enviar_solicitud_por_correo(
@@ -256,10 +259,13 @@ class TestBccDelMuestreador:
         -mismo correo, distinta mayúscula/espacio-, no se repite en BCC:
         recibiría el mensaje dos veces por nada."""
         capturado = {}
-        monkeypatch.setattr(
-            tm.correo, "enviar",
-            lambda destinatario, *a, **kw: capturado.update(destinatario=destinatario, **kw),
-        )
+
+        def _falso_enviar(destinatario, *a, **kw):
+            capturado.update(destinatario=destinatario, **kw)
+            to = [d.strip() for d in destinatario.split(",") if d.strip()]
+            return tm.correo.ResultadoEnvio(to=to, cc=kw.get("cc") or [], bcc=kw.get("bcc") or [])
+
+        monkeypatch.setattr(tm.correo, "enviar", _falso_enviar)
         usuario_a = self._usuario_a()
         tm.crear_solicitud(cuerpo(), usuario=usuario_a)
         tm.enviar_solicitud_por_correo(

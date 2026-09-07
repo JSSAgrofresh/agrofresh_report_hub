@@ -18,6 +18,7 @@ El script vive en la RAIZ del repo (scripts/), no en backend/scripts/.
 """
 import base64
 import logging
+import re
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -35,6 +36,22 @@ router = APIRouter(prefix="/api/correo", tags=["correo"])
 FROM_DISPLAY = "AgroFresh Report Hub"
 RESEND_URL = "https://api.resend.com/emails"
 RESEND_FROM = "solicitudes@sanai.work"
+
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+
+def es_email_valido(valor: str | None) -> bool:
+    return bool(valor and _EMAIL_RE.match(valor.strip()))
+
+
+class ResultadoEnvio(BaseModel):
+    """Con qué se envió realmente (después de validar) y el id que Gmail
+    asignó al mensaje, para que quien llama pueda dejar constancia."""
+
+    to: list[str]
+    cc: list[str] = []
+    bcc: list[str] = []
+    mensaje_id: str | None = None
 
 # ----------------------------------------------------------------------------
 # Servicio Gmail API OAuth 2.0
@@ -150,8 +167,10 @@ def _enviar_gmail(
     adjuntos: list[Adjunto] | None = None,
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
-) -> None:
-    """Envia un correo via Gmail API usando OAuth 2.0."""
+) -> str | None:
+    """Envia un correo via Gmail API usando OAuth 2.0. Devuelve el id que
+    Gmail asignó al mensaje (para trazabilidad), o None si la respuesta no
+    lo trae."""
     access_token = _gmail_access_token()
     raw = _construir_mime(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos, cc, bcc)
 
@@ -178,7 +197,12 @@ def _enviar_gmail(
             raise HTTPException(403, f"Gmail API: permiso denegado (verifica scope gmail.send). Detalle: {error_msg}")
         raise HTTPException(502, f"Gmail API error {status}: {error_msg}")
 
-    logger.info("Correo enviado via Gmail API a %s (id=%s)", destinatario, resp.json().get("id"))
+    mensaje_id = resp.json().get("id")
+    logger.info(
+        "Correo enviado via Gmail API — to=%s cc=%s bcc=%s (id=%s)",
+        destinatario, cc or [], bcc or [], mensaje_id,
+    )
+    return mensaje_id
 
 
 # ----------------------------------------------------------------------------
@@ -191,7 +215,7 @@ def _enviar_resend(
     cuerpo_html: str,
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
-) -> None:
+) -> str | None:
     if not config.RESEND_API_KEY:
         raise HTTPException(503, "El servidor de correo no esta configurado.")
 
@@ -215,6 +239,11 @@ def _enviar_resend(
     except requests.RequestException as exc:
         raise HTTPException(502, f"No se pudo contactar Resend: {exc}")
 
+    try:
+        return resp.json().get("id")
+    except ValueError:
+        return None
+
 
 # ----------------------------------------------------------------------------
 # Funcion publica de envio (Gmail primero, Resend como fallback)
@@ -228,25 +257,43 @@ def enviar(
     adjuntos: list[Adjunto] | None = None,
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
-) -> None:
+) -> ResultadoEnvio:
     """
     Envia un correo. Usa Gmail API si esta configurado; Resend como fallback.
     Llamar desde cualquier modulo del backend que necesite enviar correos.
 
     `cc`/`bcc` son listas de correos adicionales -copia visible y copia
     oculta respectivamente-. No reemplazan a `destinatario`, se suman.
+
+    Valida el formato de TODAS las direcciones (to/cc/bcc) antes de intentar
+    el envío: Gmail API rechaza el mensaje COMPLETO si una sola dirección
+    viene mal escrita, así que una dirección inválida en cc/bcc podía tumbar
+    el envío entero sin que quedara claro por qué. Devuelve un
+    `ResultadoEnvio` con lo que realmente se envió (para auditoría/logs);
+    nunca devuelve éxito sin haberlo logrado.
     """
+    to = [d.strip() for d in destinatario.split(",") if d and d.strip()]
+    cc = [d.strip() for d in (cc or []) if d and d.strip()]
+    bcc = [d.strip() for d in (bcc or []) if d and d.strip()]
+
+    invalidos = [d for d in (to + cc + bcc) if not es_email_valido(d)]
+    if invalidos:
+        raise HTTPException(400, f"Dirección de correo inválida: {', '.join(invalidos)}")
+    if not to:
+        raise HTTPException(400, "No hay destinatarios para enviar el correo.")
+
     if config.GMAIL_CLIENT_ID and config.GMAIL_CLIENT_SECRET and config.GMAIL_REFRESH_TOKEN:
-        _enviar_gmail(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos, cc, bcc)
+        mensaje_id = _enviar_gmail(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos, cc, bcc)
     elif config.RESEND_API_KEY:
         logger.warning("Gmail OAuth no configurado; usando Resend como fallback.")
-        _enviar_resend(destinatario, asunto, cuerpo_html, cc, bcc)
+        mensaje_id = _enviar_resend(destinatario, asunto, cuerpo_html, cc, bcc)
     else:
         raise HTTPException(
             503,
             "El servidor de correo no esta configurado. "
             "Agrega GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET y GMAIL_REFRESH_TOKEN al .env.",
         )
+    return ResultadoEnvio(to=to, cc=cc, bcc=bcc, mensaje_id=mensaje_id)
 
 
 # ----------------------------------------------------------------------------
