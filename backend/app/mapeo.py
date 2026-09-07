@@ -22,26 +22,34 @@ ANALITOS_DOSIS: dict[str, str | tuple[str, ...]] = {
     "DPA": "DPA Dosis",
 }
 
-# En la plantilla nueva, cada pesticida trae además una columna con su propio
-# nombre ("FDL", "IMZ", ...) que funciona como casillero de "se aplicó este
-# producto" (ej. "✓"), independiente de si la dosis quedó numérica o no. El
-# Excel nativo antiguo nunca tuvo una columna con ese nombre exacto (tenía
-# "FDL_dosis" y "FDL FINAL"), así que no hay riesgo de colisión.
+# En la plantilla nueva, cada uno de estos 7 pesticidas trae además una
+# columna con su propio nombre ("FDL", "IMZ", ...) que es el RESULTADO de
+# residuo de ese pesticida (ver ANALITOS_RESULTADO más abajo) -"...Dosis" es
+# la dosis aplicada, la columna sin sufijo es el resultado de laboratorio-.
+# Acá se usa además como marca de "hubo actividad con este producto" para
+# decidir si corresponde crear la fila de producto_aplicado: un resultado de
+# residuo real implica que el producto se aplicó, así que sirve igual de bien
+# que un casillero dedicado. El Excel nativo antiguo nunca tuvo una columna
+# con ese nombre exacto (tenía "FDL_dosis" y "FDL FINAL"), así que no hay
+# riesgo de colisión entre formatos.
 ANALITOS_APLICADO_MARCA = {codigo: codigo for codigo in ANALITOS_DOSIS}
 
 # Columnas de resultado final por analito. Puede ser un solo nombre de columna
 # o una tupla con varios: los 7 pesticidas de Quiteca/AgroFresh llegan como
-# "FDL FINAL" etc. desde el Excel nativo, pero como "FDL ppm" etc. desde
-# Converter (mismo analito, dos formatos de origen distintos).
+# "FDL FINAL" etc. desde el Excel nativo, como "FDL ppm" etc. desde Converter,
+# y como "FDL" etc. (sin sufijo) desde la plantilla nueva de 69 columnas -ver
+# el comentario de ANALITOS_APLICADO_MARCA-. DFN no tiene columna de dosis ni
+# de "aplicado" en la plantilla nueva (no es uno de los 7 fijos): su resultado
+# solo puede entrar por los 3 casilleros libres de Analito/Resultado Pesticida.
 ANALITOS_RESULTADO: dict[str, str | tuple[str, ...]] = {
-    "FDL": ("FDL FINAL", "FDL ppm"),
-    "IMZ": ("IMZ FINAL", "IMZ ppm"),
-    "PYR": ("PYR FINAL", "PYR ppm"),
-    "TBZ": ("TBZ FINAL", "TBZ ppm"),
-    "AZOX": ("AZOXFINAL", "AZOX ppm"),
-    "TEBU": ("TEBU FINAL", "TEBU ppm"),
+    "FDL": ("FDL FINAL", "FDL ppm", "FDL"),
+    "IMZ": ("IMZ FINAL", "IMZ ppm", "IMZ"),
+    "PYR": ("PYR FINAL", "PYR ppm", "PYR"),
+    "TBZ": ("TBZ FINAL", "TBZ ppm", "TBZ"),
+    "AZOX": ("AZOXFINAL", "AZOX ppm", "AZOX"),
+    "TEBU": ("TEBU FINAL", "TEBU ppm", "TEBU"),
     "DFN": "DFN FINAL",
-    "DPA": ("DPA FINAL", "DPA ppm"),
+    "DPA": ("DPA FINAL", "DPA ppm", "DPA"),
     # Diagnofruit y ALS (Corthon): mismos nombres de columna que usa Converter,
     # así no hace falta traducirlos antes de subir (ver converter.html).
     "LEV": "Levaduras UFC/mL",
@@ -281,7 +289,14 @@ def mapear_productos_aplicados(fila: dict[str, Any]) -> list[dict[str, Any]]:
     (por la restricción UNIQUE(solicitud_id, analito_id))."""
     tipo_aplicacion = elegir(texto(fila, "TIPO APP"), texto(fila, "Tipo Aplicación"))
     producto_raw = elegir(texto(fila, "APP"), texto(fila, "Producto Utilizado"))
-    linea_proceso = concatenar(texto(fila, "Tratamiento"), texto(fila, "Línea de \nProceso"))
+    # "Línea de Proceso" (sin salto de línea) es el mismo campo -tipo de lavado,
+    # ej. "Agua"/"Cera"- que "Línea de \nProceso" del Excel nativo, solo que sin
+    # el salto de línea que trae ese encabezado en el archivo original. No
+    # confundir con "Línea Proceso" (col. 14 de la plantilla nueva), que es el
+    # NÚMERO de línea -ver "nro_linea" en mapear_solicitud-, un campo distinto.
+    linea_proceso = concatenar(
+        texto(fila, "Tratamiento"), texto(fila, "Línea de \nProceso"), texto(fila, "Línea de Proceso")
+    )
     gasto = parse_numero(fila.get("Gasto"))
 
     productos = []
