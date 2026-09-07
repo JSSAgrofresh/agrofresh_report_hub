@@ -48,23 +48,6 @@ _RUTA_LOGO = os.path.join(
     "src", "assets", "agrofresh-logo.png",
 )
 
-# (clave en `datos`, etiqueta) de los campos que se muestran en la tabla
-# resumen del correo -curada, no toda la solicitud: son los que identifican
-# la muestra de un vistazo, igual que se pidió como referencia visual. Un
-# campo sin valor simplemente no aparece, no se conserva la lista completa
-# para no dejar filas vacías.
-_CAMPOS_TABLA_RESUMEN: list[tuple[str, str]] = [
-    ("sold_to", "Sold To"),
-    ("ship_to", "Ship To"),
-    ("especie", "Especie"),
-    ("variedad", "Variedad"),
-    ("tipo_muestra", "Tipo Muestra"),
-    ("fecha_muestreo", "Fecha Muestreo"),
-    ("lote", "Lote"),
-    ("generado_por", "Generado Por"),
-]
-
-
 def _logo_bytes() -> bytes | None:
     """Bytes del logo para incrustar como imagen inline (Content-ID) en el
     correo. Si no se puede leer, el correo sale igual sin el logo -vale más
@@ -113,37 +96,10 @@ def guardar(laboratorio: str, asunto: str, cuerpo: str) -> dict:
     return {**nuevo, "variables": VARIABLES}
 
 
-def _tabla_resumen_html(datos: dict) -> str:
-    filas = []
-    for clave, etiqueta in _CAMPOS_TABLA_RESUMEN:
-        valor = datos.get(clave)
-        if valor is None or str(valor).strip() == "":
-            continue
-        fondo = _FONDO_TENUE if len(filas) % 2 == 0 else "#ffffff"
-        filas.append(
-            f'<tr style="background:{fondo};">'
-            f'<td style="padding:9px 14px;color:{_TEXTO_TENUE};font-size:12.5px;'
-            f'border-bottom:1px solid {_BORDE};white-space:nowrap;">{escape(etiqueta)}</td>'
-            f'<td style="padding:9px 14px;color:{_TEXTO};font-size:13.5px;font-weight:600;'
-            f'border-bottom:1px solid {_BORDE};width:100%;">{escape(str(valor))}</td>'
-            f'</tr>'
-        )
-    if not filas:
-        return ""
-    return (
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-        f'style="border-collapse:collapse;border:1px solid {_BORDE};border-radius:8px;'
-        f'overflow:hidden;margin-top:22px;">{"".join(filas)}</table>'
-    )
-
-
 def renderizar(laboratorio: str, datos: dict) -> tuple[str, str, str, list[ImagenInline]]:
     """Arma el correo de una solicitud: el texto sigue viniendo del template
-    editable por laboratorio (Administración → Laboratorios), pero ahora
-    envuelto en un layout con los colores y el logo del sistema, más una
-    tabla resumen fija con los datos clave de la muestra -Sold To, Ship To,
-    Especie, etc.-, para que de un vistazo se sepa de qué solicitud se trata
-    sin tener que abrir los adjuntos."""
+    editable por laboratorio (Administración → Laboratorios), envuelto en un
+    layout con los colores y el logo del sistema."""
     template = obtener(laboratorio)
     valores = {variable: str(datos.get(variable) or "—") for variable in VARIABLES}
     asunto = template["asunto"].format_map(valores)
@@ -151,7 +107,6 @@ def renderizar(laboratorio: str, datos: dict) -> tuple[str, str, str, list[Image
 
     numero = str(datos.get("numero_solicitud") or valores.get("numero_solicitud") or "")
     cuerpo_html = escape(texto).replace("\n", "<br>")
-    tabla_html = _tabla_resumen_html(datos)
 
     logo = _logo_bytes()
     logo_html = (
@@ -172,7 +127,6 @@ def renderizar(laboratorio: str, datos: dict) -> tuple[str, str, str, list[Image
         <h1 style="margin:0 0 3px;color:{_VERDE_OSCURO};font-size:19px;font-weight:700;">Solicitud de Análisis</h1>
         {f'<p style="margin:0 0 20px;color:{_VERDE};font-weight:700;font-size:14.5px;">Solicitud {escape(numero)}</p>' if numero else '<div style="margin-bottom:20px;"></div>'}
         <div style="color:{_TEXTO};font-size:14px;line-height:1.65;">{cuerpo_html}</div>
-        {tabla_html}
       </td>
     </tr>
     <tr>
