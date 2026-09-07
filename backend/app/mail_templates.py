@@ -37,8 +37,6 @@ AgroFresh"""
 # el correo se sienta parte del mismo sistema.
 _VERDE_OSCURO = "#24391a"
 _VERDE = "#6dad3c"
-_VERDE_TEXTO = "#345424"
-_ACENTO = "#e8c32e"
 _TEXTO = "#1f2933"
 _TEXTO_TENUE = "#77837b"
 _BORDE = "#e1e5dc"
@@ -167,16 +165,7 @@ def renderizar(laboratorio: str, datos: dict) -> tuple[str, str, str, list[Image
 <div style="background:{_FONDO_TENUE};padding:28px 12px;font-family:Arial,Helvetica,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;border-collapse:collapse;background:#ffffff;border-radius:12px;overflow:hidden;">
     <tr>
-      <td style="background:{_VERDE_OSCURO};padding:24px 28px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-          <tr>
-            <td style="vertical-align:middle;">{logo_html}</td>
-            <td style="vertical-align:middle;text-align:right;">
-              <span style="color:{_ACENTO};font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;">Sistema de Calidad</span>
-            </td>
-          </tr>
-        </table>
-      </td>
+      <td style="background:{_VERDE_OSCURO};padding:24px 28px;">{logo_html}</td>
     </tr>
     <tr>
       <td style="padding:30px 28px 26px;">
