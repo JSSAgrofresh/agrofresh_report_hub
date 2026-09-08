@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { NuevaSolicitudView } from './NuevaSolicitudView'
 import type { AnalitoConfig, CampoConfig, Solicitud } from '@/features/tomaMuestras'
+import type { Analisis } from '@/features/laboratorios'
 
 const {
   crearSolicitud,
@@ -15,6 +16,7 @@ const {
   listarProductosConfig,
   listarTiposAplicacion,
   listarUnidades,
+  listarAnalisis,
 } = vi.hoisted(() => ({
   crearSolicitud: vi.fn(),
   actualizarSolicitud: vi.fn(),
@@ -26,6 +28,7 @@ const {
   listarProductosConfig: vi.fn(),
   listarTiposAplicacion: vi.fn(),
   listarUnidades: vi.fn(),
+  listarAnalisis: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('@/features/tomaMuestras', () => ({
@@ -45,7 +48,7 @@ vi.mock('@/features/catalogo', () => ({
   listarPlantas: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('@/features/laboratorios', () => ({
-  listarAnalisis: vi.fn().mockResolvedValue([]),
+  listarAnalisis,
   listarUnidades,
 }))
 vi.mock('@/features/listados', () => ({
@@ -184,6 +187,7 @@ function mockConfigComun() {
   listarUnidades.mockResolvedValue([
     { id: 1, simbolo: 'ppm', nombre: 'Partes por millón', activo: true, orden: 1 },
   ])
+  listarAnalisis.mockResolvedValue([])
 }
 
 describe('NuevaSolicitudView — crear', () => {
@@ -213,6 +217,52 @@ describe('NuevaSolicitudView — crear', () => {
     expect(within(tarjetaFDL).getByRole('textbox', { name: /Dosis de/ })).toBeTruthy()
     fireEvent.click(within(tarjetaFDL).getByRole('button', { name: 'No indicar dosis' }))
     expect(within(tarjetaFDL).getByRole('button', { name: 'Sin dosis: —' })).toBeTruthy()
+  })
+
+  it('agrupa el checklist por el nombre del Análisis del laboratorio, no por la categoría del analito', async () => {
+    mockConfigComun()
+    const ANALISIS: Analisis[] = [
+      {
+        id: 1,
+        laboratorio: 'AGROFRESH',
+        nombre: 'Panel de Fungicidas',
+        observaciones: '',
+        modo: 'seleccionable',
+        analitos: [{ analito_id: 1, unidad: 'ppm', preseleccionado: false }],
+        activo: true,
+        orden: 1,
+      },
+      {
+        id: 2,
+        laboratorio: 'AGROFRESH',
+        nombre: 'Panel de Trazas',
+        observaciones: '',
+        modo: 'seleccionable',
+        analitos: [{ analito_id: 2, unidad: 'ppm', preseleccionado: false }],
+        activo: true,
+        orden: 2,
+      },
+    ]
+    listarAnalisis.mockResolvedValue(ANALISIS)
+
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+
+    await waitFor(() => expect(screen.getByText('Panel de Fungicidas')).toBeTruthy())
+    expect(screen.getByText('Panel de Trazas')).toBeTruthy()
+    // Ambos analitos siguen siendo "Fungicidas" en su propia categoría, pero
+    // como cada uno vive en un Análisis distinto del laboratorio, ya no
+    // deben aparecer agrupados bajo ese texto genérico.
+    expect(screen.queryByText('Fungicidas')).toBeNull()
   })
 })
 
