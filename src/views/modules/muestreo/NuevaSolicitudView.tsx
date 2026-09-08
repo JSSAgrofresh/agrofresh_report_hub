@@ -572,6 +572,34 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setDosisSinIndicar((actual) => ({ ...actual, [analito.id]: false }))
   }
 
+  /** Marca/desmarca de una vez todos los analitos de un Análisis (o de la
+   * agrupación de respaldo, si el analito no está en ningún Análisis del
+   * laboratorio): así queda claro qué análisis completo se está pidiendo,
+   * sin tener que ir tildando analito por analito. Si ya estaban todos
+   * marcados, el checkbox del grupo los desmarca a todos; si no, los marca
+   * a todos -igual que "Marcar todos" en el mantenedor de Análisis-. */
+  function alternarGrupo(grupo: string) {
+    const miembros = analitosLab.filter((a) => grupoDe(a) === grupo)
+    const todosSeleccionados = miembros.every((a) => seleccionAnalitos[a.id])
+    setSeleccionAnalitos((actual) => {
+      const copia = { ...actual }
+      for (const a of miembros) copia[a.id] = !todosSeleccionados
+      return copia
+    })
+    if (todosSeleccionados) {
+      setValoresAnalitos((actual) => {
+        const copia = { ...actual }
+        for (const a of miembros) copia[a.id] = ''
+        return copia
+      })
+      setDosisSinIndicar((actual) => {
+        const copia = { ...actual }
+        for (const a of miembros) copia[a.id] = false
+        return copia
+      })
+    }
+  }
+
   function actualizarDosis(analitoId: number, valor: string) {
     setValoresAnalitos((actual) => ({ ...actual, [analitoId]: valor }))
     if (valor) setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: false }))
@@ -1058,11 +1086,35 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                 {analitosLab.map((a, i) => {
                   const grupo = grupoDe(a)
                   const nuevoGrupo = i === 0 || grupo !== grupoDe(analitosLab[i - 1])
+                  const miembrosGrupo = nuevoGrupo
+                    ? analitosLab.filter((x) => grupoDe(x) === grupo)
+                    : []
+                  const grupoCompleto =
+                    nuevoGrupo && miembrosGrupo.every((m) => seleccionAnalitos[m.id])
+                  const grupoParcial =
+                    nuevoGrupo &&
+                    !grupoCompleto &&
+                    miembrosGrupo.some((m) => seleccionAnalitos[m.id])
                   const seleccionado = Boolean(seleccionAnalitos[a.id])
                   const sinDosis = Boolean(dosisSinIndicar[a.id])
                   return (
                     <Fragment key={a.id}>
-                      {nuevoGrupo && <h3 className={styles.categoriaAnalitos}>{grupo}</h3>}
+                      {nuevoGrupo && (
+                        <h3 className={styles.categoriaAnalitos}>
+                          <label className={styles.selectorGrupo}>
+                            <input
+                              type="checkbox"
+                              checked={grupoCompleto}
+                              ref={(el) => {
+                                if (el) el.indeterminate = grupoParcial
+                              }}
+                              onChange={() => alternarGrupo(grupo)}
+                              aria-label={`Seleccionar todo el análisis ${grupo}`}
+                            />
+                            {grupo}
+                          </label>
+                        </h3>
+                      )}
                       <div
                         className={cn(styles.cardAnalito, seleccionado && styles.cardAnalitoActiva)}
                         data-testid={`analito-card-${a.id}`}

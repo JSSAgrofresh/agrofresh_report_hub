@@ -264,6 +264,62 @@ describe('NuevaSolicitudView — crear', () => {
     // deben aparecer agrupados bajo ese texto genérico.
     expect(screen.queryByText('Fungicidas')).toBeNull()
   })
+
+  it('el checkbox del Análisis marca y desmarca de una vez todos sus analitos', async () => {
+    mockConfigComun()
+    const ANALISIS: Analisis[] = [
+      {
+        id: 1,
+        laboratorio: 'AGROFRESH',
+        nombre: 'FSMA (E. Coli + Coliformes Totales)',
+        observaciones: '',
+        modo: 'completo',
+        analitos: [
+          { analito_id: 1, unidad: 'ppm', preseleccionado: true },
+          { analito_id: 2, unidad: 'ppm', preseleccionado: true },
+        ],
+        activo: true,
+        orden: 1,
+      },
+    ]
+    listarAnalisis.mockResolvedValue(ANALISIS)
+
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('checkbox', {
+          name: 'Seleccionar todo el análisis FSMA (E. Coli + Coliformes Totales)',
+        }),
+      ).toBeTruthy(),
+    )
+    const checkboxGrupo = screen.getByRole('checkbox', {
+      name: 'Seleccionar todo el análisis FSMA (E. Coli + Coliformes Totales)',
+    })
+    const tarjetaFDL = screen.getByTestId('analito-card-1')
+    const tarjetaPYR = screen.getByTestId('analito-card-2')
+
+    expect(within(tarjetaFDL).getByRole('checkbox')).not.toBeChecked()
+    expect(within(tarjetaPYR).getByRole('checkbox')).not.toBeChecked()
+
+    fireEvent.click(checkboxGrupo)
+    expect(within(tarjetaFDL).getByRole('checkbox')).toBeChecked()
+    expect(within(tarjetaPYR).getByRole('checkbox')).toBeChecked()
+
+    fireEvent.click(checkboxGrupo)
+    expect(within(tarjetaFDL).getByRole('checkbox')).not.toBeChecked()
+    expect(within(tarjetaPYR).getByRole('checkbox')).not.toBeChecked()
+  })
 })
 
 describe('NuevaSolicitudView — editar (CASO 3 y 4)', () => {
