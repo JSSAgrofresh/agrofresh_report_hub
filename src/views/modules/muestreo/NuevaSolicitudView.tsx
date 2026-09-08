@@ -494,6 +494,14 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         for (const a of faltantes) copia[a.id] = true
         return copia
       })
+      const sinDosisPorDefecto = faltantes.filter((a) => !a.dosis_aplicable)
+      if (sinDosisPorDefecto.length > 0) {
+        setDosisSinIndicar((actual) => {
+          const copia = { ...actual }
+          for (const a of sinDosisPorDefecto) copia[a.id] = true
+          return copia
+        })
+      }
     }
   }
 
@@ -598,7 +606,14 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   function alternarAnalito(analito: AnalitoConfig) {
     const seleccionado = !seleccionAnalitos[analito.id]
     setSeleccionAnalitos((actual) => ({ ...actual, [analito.id]: seleccionado }))
-    if (seleccionado) return
+    if (seleccionado) {
+      // Un analito de resultado directo (no lleva dosis, ej. DIAGNOFRUIT)
+      // no pide "Valor" en la solicitud: solo se pide o no se pide, así
+      // que queda "sin dosis" -eso es lo que se guarda igual- sin que el
+      // usuario tenga que ir a tocar nada.
+      if (!analito.dosis_aplicable) setDosisSinIndicar((actual) => ({ ...actual, [analito.id]: true }))
+      return
+    }
     setValoresAnalitos((actual) => ({ ...actual, [analito.id]: '' }))
     setDosisSinIndicar((actual) => ({ ...actual, [analito.id]: false }))
   }
@@ -628,6 +643,17 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         for (const a of miembros) copia[a.id] = false
         return copia
       })
+    } else {
+      // Igual que al marcar uno solo: los de resultado directo quedan "sin
+      // dosis" de una, sin pedir "Valor".
+      const sinDosisPorDefecto = miembros.filter((a) => !a.dosis_aplicable)
+      if (sinDosisPorDefecto.length > 0) {
+        setDosisSinIndicar((actual) => {
+          const copia = { ...actual }
+          for (const a of sinDosisPorDefecto) copia[a.id] = true
+          return copia
+        })
+      }
     }
   }
 
@@ -1168,7 +1194,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                             )}
                           </span>
                         </label>
-                        {seleccionado && (
+                        {seleccionado && a.dosis_aplicable && (
                           <div className={styles.dosisAnalito}>
                             <label>
                               {esCromatografia ? 'Dosis aplicada' : 'Valor'}
