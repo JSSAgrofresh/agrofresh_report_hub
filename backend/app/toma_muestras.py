@@ -932,8 +932,9 @@ def descargar_solicitud_pdf(archivo: str, usuario: Usuario = Depends(usuario_act
         datos = _leer_solicitud_archivo(ruta)
     _exigir_acceso(usuario, datos)
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
+    analisis_config = _leer_config("analisis_laboratorio.json", [])
     datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
-    pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config)
+    pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config, analisis_config)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -1145,8 +1146,9 @@ def enviar_solicitud_por_correo(
         raise HTTPException(409, f"La solicitud {numero} ya fue enviada; no se puede reenviar.")
 
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
+    analisis_config = _leer_config("analisis_laboratorio.json", [])
     datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
-    pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config)
+    pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config, analisis_config)
 
     wb = construir_workbook(datos, analitos_config)
     buf_excel = io.BytesIO()
