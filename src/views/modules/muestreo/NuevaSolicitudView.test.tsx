@@ -264,6 +264,116 @@ describe('NuevaSolicitudView — crear', () => {
     // deben aparecer agrupados bajo ese texto genérico.
     expect(screen.queryByText('Fungicidas')).toBeNull()
   })
+
+  it('el checkbox de un Análisis Seleccionable marca y desmarca de una vez todos sus analitos', async () => {
+    mockConfigComun()
+    const ANALISIS: Analisis[] = [
+      {
+        id: 1,
+        laboratorio: 'AGROFRESH',
+        nombre: 'FSMA (E. Coli + Coliformes Totales)',
+        observaciones: '',
+        modo: 'seleccionable',
+        analitos: [
+          { analito_id: 1, unidad: 'ppm', preseleccionado: true },
+          { analito_id: 2, unidad: 'ppm', preseleccionado: true },
+        ],
+        activo: true,
+        orden: 1,
+      },
+    ]
+    listarAnalisis.mockResolvedValue(ANALISIS)
+
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('checkbox', {
+          name: 'Seleccionar todo el análisis FSMA (E. Coli + Coliformes Totales)',
+        }),
+      ).toBeTruthy(),
+    )
+    const checkboxGrupo = screen.getByRole('checkbox', {
+      name: 'Seleccionar todo el análisis FSMA (E. Coli + Coliformes Totales)',
+    })
+    const tarjetaFDL = screen.getByTestId('analito-card-1')
+    const tarjetaPYR = screen.getByTestId('analito-card-2')
+
+    // Un Análisis "Seleccionable" no viene marcado de entrada: hay que
+    // elegirlo, ya sea analito a analito o con el checkbox del grupo.
+    expect(within(tarjetaFDL).getByRole('checkbox')).not.toBeChecked()
+    expect(within(tarjetaPYR).getByRole('checkbox')).not.toBeChecked()
+    expect(within(tarjetaFDL).getByRole('checkbox')).not.toBeDisabled()
+
+    fireEvent.click(checkboxGrupo)
+    expect(within(tarjetaFDL).getByRole('checkbox')).toBeChecked()
+    expect(within(tarjetaPYR).getByRole('checkbox')).toBeChecked()
+
+    fireEvent.click(checkboxGrupo)
+    expect(within(tarjetaFDL).getByRole('checkbox')).not.toBeChecked()
+    expect(within(tarjetaPYR).getByRole('checkbox')).not.toBeChecked()
+  })
+
+  it('un Análisis "Panel completo" viene con sus analitos marcados y bloqueados, y solo se quita completo', async () => {
+    mockConfigComun()
+    const ANALISIS: Analisis[] = [
+      {
+        id: 1,
+        laboratorio: 'AGROFRESH',
+        nombre: 'Cuantificación de patógenos (qPCR)',
+        observaciones: '',
+        modo: 'completo',
+        analitos: [
+          { analito_id: 1, unidad: 'UFC/mL', preseleccionado: true },
+          { analito_id: 2, unidad: 'UFC/mL', preseleccionado: true },
+        ],
+        activo: true,
+        orden: 1,
+      },
+    ]
+    listarAnalisis.mockResolvedValue(ANALISIS)
+
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+
+    const checkboxGrupo = await screen.findByRole('checkbox', {
+      name: 'Seleccionar todo el análisis Cuantificación de patógenos (qPCR)',
+    })
+    const tarjetaFDL = screen.getByTestId('analito-card-1')
+    const tarjetaPYR = screen.getByTestId('analito-card-2')
+
+    // Viene marcado y bloqueado de entrada: no hay que tildar nada.
+    await waitFor(() => expect(within(tarjetaFDL).getByRole('checkbox')).toBeChecked())
+    expect(within(tarjetaPYR).getByRole('checkbox')).toBeChecked()
+    expect(within(tarjetaFDL).getByRole('checkbox')).toBeDisabled()
+    expect(within(tarjetaPYR).getByRole('checkbox')).toBeDisabled()
+    expect(checkboxGrupo).toBeChecked()
+
+    // Solo el checkbox del grupo puede desmarcarlos -el de cada analito está
+    // bloqueado, así que no se puede sacar uno solo del panel.
+    fireEvent.click(checkboxGrupo)
+    expect(within(tarjetaFDL).getByRole('checkbox')).not.toBeChecked()
+    expect(within(tarjetaPYR).getByRole('checkbox')).not.toBeChecked()
+  })
 })
 
 describe('NuevaSolicitudView — editar (CASO 3 y 4)', () => {

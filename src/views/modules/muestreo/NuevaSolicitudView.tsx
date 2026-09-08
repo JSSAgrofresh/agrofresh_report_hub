@@ -450,6 +450,14 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     return analisisPorAnalito.get(analito.id)?.nombre || analito.categoria || 'Otros analitos'
   }
 
+  /** Un analito de un Análisis "Panel completo" no se pide por separado: el
+   * laboratorio lo definió así porque siempre van juntos (ej. un panel de
+   * qPCR). Por eso su checkbox no se toca individualmente -solo el del
+   * Análisis completo, que los marca o desmarca a todos a la vez-. */
+  function esPanelCompleto(analito: AnalitoConfig): boolean {
+    return analisisPorAnalito.get(analito.id)?.modo === 'completo'
+  }
+
   const analitosLab = useMemo(
     () =>
       analitosTodos
@@ -466,6 +474,29 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         }),
     [analitosTodos, laboratorio, tipoAplicacionSel, analisisPorAnalito],
   )
+
+  // Los analitos de un Análisis "Panel completo" vienen marcados de entrada
+  // apenas aparecen en el checklist -no hay que ir a tildarlos uno por
+  // uno-. Al editar no corre: ahí manda lo que ya quedó guardado en la
+  // solicitud (efecto de arriba), sea cual sea.
+  //
+  // Se ajusta durante el render -no en un efecto- comparando contra la
+  // última vez que se vio este `analitosLab` (patrón recomendado por React
+  // para "derivar" estado a partir de otro sin encadenar renders extra):
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [analitosLabVistos, setAnalitosLabVistos] = useState<AnalitoConfig[] | null>(null)
+  if (modo !== 'editar' && analitosLab !== analitosLabVistos) {
+    setAnalitosLabVistos(analitosLab)
+    const faltantes = analitosLab.filter((a) => esPanelCompleto(a) && !seleccionAnalitos[a.id])
+    if (faltantes.length > 0) {
+      setSeleccionAnalitos((actual) => {
+        const copia = { ...actual }
+        for (const a of faltantes) copia[a.id] = true
+        return copia
+      })
+    }
+  }
+
   /** Unidad vigente de cada analito, por id.
    *
    * La unidad la define el laboratorio en sus Análisis, no el catálogo de
@@ -570,6 +601,34 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     if (seleccionado) return
     setValoresAnalitos((actual) => ({ ...actual, [analito.id]: '' }))
     setDosisSinIndicar((actual) => ({ ...actual, [analito.id]: false }))
+  }
+
+  /** Marca/desmarca de una vez todos los analitos de un Análisis (o de la
+   * agrupación de respaldo, si el analito no está en ningún Análisis del
+   * laboratorio): así queda claro qué análisis completo se está pidiendo,
+   * sin tener que ir tildando analito por analito. Si ya estaban todos
+   * marcados, el checkbox del grupo los desmarca a todos; si no, los marca
+   * a todos -igual que "Marcar todos" en el mantenedor de Análisis-. */
+  function alternarGrupo(grupo: string) {
+    const miembros = analitosLab.filter((a) => grupoDe(a) === grupo)
+    const todosSeleccionados = miembros.every((a) => seleccionAnalitos[a.id])
+    setSeleccionAnalitos((actual) => {
+      const copia = { ...actual }
+      for (const a of miembros) copia[a.id] = !todosSeleccionados
+      return copia
+    })
+    if (todosSeleccionados) {
+      setValoresAnalitos((actual) => {
+        const copia = { ...actual }
+        for (const a of miembros) copia[a.id] = ''
+        return copia
+      })
+      setDosisSinIndicar((actual) => {
+        const copia = { ...actual }
+        for (const a of miembros) copia[a.id] = false
+        return copia
+      })
+    }
   }
 
   function actualizarDosis(analitoId: number, valor: string) {
@@ -1058,11 +1117,35 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                 {analitosLab.map((a, i) => {
                   const grupo = grupoDe(a)
                   const nuevoGrupo = i === 0 || grupo !== grupoDe(analitosLab[i - 1])
+                  const miembrosGrupo = nuevoGrupo
+                    ? analitosLab.filter((x) => grupoDe(x) === grupo)
+                    : []
+                  const grupoCompleto =
+                    nuevoGrupo && miembrosGrupo.every((m) => seleccionAnalitos[m.id])
+                  const grupoParcial =
+                    nuevoGrupo &&
+                    !grupoCompleto &&
+                    miembrosGrupo.some((m) => seleccionAnalitos[m.id])
                   const seleccionado = Boolean(seleccionAnalitos[a.id])
                   const sinDosis = Boolean(dosisSinIndicar[a.id])
                   return (
                     <Fragment key={a.id}>
-                      {nuevoGrupo && <h3 className={styles.categoriaAnalitos}>{grupo}</h3>}
+                      {nuevoGrupo && (
+                        <h3 className={styles.categoriaAnalitos}>
+                          <label className={styles.selectorGrupo}>
+                            <input
+                              type="checkbox"
+                              checked={grupoCompleto}
+                              ref={(el) => {
+                                if (el) el.indeterminate = grupoParcial
+                              }}
+                              onChange={() => alternarGrupo(grupo)}
+                              aria-label={`Seleccionar todo el análisis ${grupo}`}
+                            />
+                            {grupo}
+                          </label>
+                        </h3>
+                      )}
                       <div
                         className={cn(styles.cardAnalito, seleccionado && styles.cardAnalitoActiva)}
                         data-testid={`analito-card-${a.id}`}
@@ -1071,12 +1154,18 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                           <input
                             type="checkbox"
                             checked={seleccionado}
+                            disabled={esPanelCompleto(a)}
                             onChange={() => alternarAnalito(a)}
                           />
                           <span>
                             <span className={styles.mono}>{a.codigo}</span>
                             <strong>{a.nombre}</strong>
                             {a.requerido && <span className={styles.marcaRequerido}> *</span>}
+                            {esPanelCompleto(a) && (
+                              <span className={styles.notaPanelCompleto}>
+                                Incluido en el panel completo
+                              </span>
+                            )}
                           </span>
                         </label>
                         {seleccionado && (
