@@ -29,6 +29,7 @@ interface Filtros {
   lineaProceso: string
   tipoMuestra: string
   nombreMuestreador: string
+  estado: '' | 'enviado' | 'pendiente'
 }
 
 const FILTROS_VACIOS: Filtros = {
@@ -45,6 +46,7 @@ const FILTROS_VACIOS: Filtros = {
   lineaProceso: '',
   tipoMuestra: '',
   nombreMuestreador: '',
+  estado: '',
 }
 
 function contiene(valor: string | null | undefined, buscado: string): boolean {
@@ -143,6 +145,8 @@ export function SolicitudesView() {
       if (filtros.tipoMuestra && !contiene(s.tipo_muestra, filtros.tipoMuestra)) return false
       if (filtros.nombreMuestreador && !contiene(s.nombre_muestreador, filtros.nombreMuestreador))
         return false
+      if (filtros.estado === 'enviado' && !s.enviada) return false
+      if (filtros.estado === 'pendiente' && s.enviada) return false
       return true
     })
   }, [solicitudes, filtros])
@@ -323,6 +327,19 @@ export function SolicitudesView() {
                 onChange={(e) => actualizarFiltro('nombreMuestreador', e.target.value)}
               />
             </label>
+            <label className={styles.campoFiltro}>
+              <span>Estado</span>
+              <select
+                value={filtros.estado}
+                onChange={(e) =>
+                  setFiltros((f) => ({ ...f, estado: e.target.value as Filtros['estado'] }))
+                }
+              >
+                <option value="">Todos</option>
+                <option value="enviado">Enviada</option>
+                <option value="pendiente">Pendiente</option>
+              </select>
+            </label>
             {hayFiltrosActivos && (
               <button
                 type="button"
@@ -362,7 +379,10 @@ export function SolicitudesView() {
                 </thead>
                 <tbody>
                   {solicitudesFiltradas.map((s) => (
-                    <tr key={s.archivo}>
+                    <tr
+                      key={s.archivo}
+                      className={s.enviada ? styles.filaEnviada : undefined}
+                    >
                       <td className={styles.nombre}>{s.numero_solicitud}</td>
                       <td>{formatDateCL(s.fecha_solicitud)}</td>
                       <td>
@@ -394,7 +414,10 @@ export function SolicitudesView() {
 
             <div className={styles.tarjetas}>
               {solicitudesFiltradas.map((s) => (
-                <div className={styles.tarjeta} key={s.archivo}>
+                <div
+                  className={`${styles.tarjeta} ${s.enviada ? styles.tarjetaEnviada : ''}`}
+                  key={s.archivo}
+                >
                   <div className={styles.tarjetaCabecera}>
                     <div>
                       <div className={styles.tarjetaId}>{s.numero_solicitud}</div>
