@@ -450,6 +450,14 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     return analisisPorAnalito.get(analito.id)?.nombre || analito.categoria || 'Otros analitos'
   }
 
+  /** Un analito de un Análisis "Panel completo" no se pide por separado: el
+   * laboratorio lo definió así porque siempre van juntos (ej. un panel de
+   * qPCR). Por eso su checkbox no se toca individualmente -solo el del
+   * Análisis completo, que los marca o desmarca a todos a la vez-. */
+  function esPanelCompleto(analito: AnalitoConfig): boolean {
+    return analisisPorAnalito.get(analito.id)?.modo === 'completo'
+  }
+
   const analitosLab = useMemo(
     () =>
       analitosTodos
@@ -466,6 +474,29 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         }),
     [analitosTodos, laboratorio, tipoAplicacionSel, analisisPorAnalito],
   )
+
+  // Los analitos de un Análisis "Panel completo" vienen marcados de entrada
+  // apenas aparecen en el checklist -no hay que ir a tildarlos uno por
+  // uno-. Al editar no corre: ahí manda lo que ya quedó guardado en la
+  // solicitud (efecto de arriba), sea cual sea.
+  //
+  // Se ajusta durante el render -no en un efecto- comparando contra la
+  // última vez que se vio este `analitosLab` (patrón recomendado por React
+  // para "derivar" estado a partir de otro sin encadenar renders extra):
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [analitosLabVistos, setAnalitosLabVistos] = useState<AnalitoConfig[] | null>(null)
+  if (modo !== 'editar' && analitosLab !== analitosLabVistos) {
+    setAnalitosLabVistos(analitosLab)
+    const faltantes = analitosLab.filter((a) => esPanelCompleto(a) && !seleccionAnalitos[a.id])
+    if (faltantes.length > 0) {
+      setSeleccionAnalitos((actual) => {
+        const copia = { ...actual }
+        for (const a of faltantes) copia[a.id] = true
+        return copia
+      })
+    }
+  }
+
   /** Unidad vigente de cada analito, por id.
    *
    * La unidad la define el laboratorio en sus Análisis, no el catálogo de
@@ -1123,12 +1154,18 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                           <input
                             type="checkbox"
                             checked={seleccionado}
+                            disabled={esPanelCompleto(a)}
                             onChange={() => alternarAnalito(a)}
                           />
                           <span>
                             <span className={styles.mono}>{a.codigo}</span>
                             <strong>{a.nombre}</strong>
                             {a.requerido && <span className={styles.marcaRequerido}> *</span>}
+                            {esPanelCompleto(a) && (
+                              <span className={styles.notaPanelCompleto}>
+                                Incluido en el panel completo
+                              </span>
+                            )}
                           </span>
                         </label>
                         {seleccionado && (
