@@ -66,18 +66,13 @@ CAMPOS_ANALISIS_ETIQUETAS = [
     "Resultado Pesticida 3",
 ]
 
-# Matriz horizontal oficial del formato de Solicitud de Análisis.  Estas
-# columnas son deliberadamente fijas: tanto una solicitud como la descarga
-# masiva deben verse iguales al archivo maestro, aunque un laboratorio no
-# utilice todos los análisis.
-GRUPOS_EXPORTACION: list[tuple[str, list[tuple[str, str, str]]]] = [
-    ("GENERAL", [("general", clave, etiqueta) for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS]),
-    ("QUITECA / AGROFRESH — RESIDUOS FUNGICIDAS", [
-        *[("analito", codigo, f"{codigo} ppm") for codigo in ("FDL", "IMZ", "PYR", "TEBU", "AZOX", "TBZ", "DPA")],
-        ("campo", "Dosis Aplicada", "Dosis Aplicada"),
-        ("campo", "Tipo Aplicación", "Tipo Aplicación"),
-        ("campo", "Gasto", "Gasto"),
-    ]),
+# Matriz horizontal oficial del formato de Solicitud de Análisis. Los grupos
+# GENERAL, DIAGNOFRUIT, ALS son deliberadamente fijos: tanto una solicitud
+# como la descarga masiva deben verse iguales al archivo maestro, aunque un
+# laboratorio no utilice todos los análisis. El grupo de QUITECA/AGROFRESH es
+# la excepción: sale del catálogo real de analitos (ver `_grupo_fungicidas`),
+# para que agregar o quitar un analito ahí no requiera tocar código.
+_GRUPOS_EXPORTACION_FIJOS_COLA: list[tuple[str, list[tuple[str, str, str]]]] = [
     ("DIAGNOFRUIT — PATÓGENOS qPCR", [
         ("analito", "LEV", "Levaduras UFC/mL"),
         ("analito", "BOT", "Botrytis conidia/mL"),
@@ -117,6 +112,46 @@ GRUPOS_EXPORTACION: list[tuple[str, list[tuple[str, str, str]]]] = [
         ("campo", "Resultado Pesticida 3", "Resultado Pesticida 3"),
     ]),
 ]
+
+
+def _analitos_fungicidas(analitos: list[dict]) -> list[dict]:
+    """Los analitos vigentes de QUITECA y AGROFRESH (residuos fungicidas),
+    uno por código -los dos laboratorios comparten el mismo catálogo de
+    fungicidas (FDL, PYR, TEBU...), así que la matriz de exportación lleva
+    una columna por analito y no una por laboratorio."""
+    ordenados = sorted(
+        (a for a in analitos if a.get("laboratorio") in ("QUITECA", "AGROFRESH") and a.get("activo", True)),
+        key=lambda a: (a.get("orden", 0), a.get("nombre", "")),
+    )
+    vistos: dict[str, dict] = {}
+    for a in ordenados:
+        codigo = str(a.get("codigo") or "")
+        if codigo and codigo not in vistos:
+            vistos[codigo] = a
+    return list(vistos.values())
+
+
+def _grupo_fungicidas(analitos: list[dict]) -> list[tuple[str, str, str]]:
+    """Columnas del grupo QUITECA/AGROFRESH: una por analito configurado más
+    su columna "<CODIGO> Dosis" inmediatamente después (ej. FDL, FDL Dosis,
+    PYR, PYR Dosis...), calculadas dinámicamente del catálogo real en vez de
+    una lista fija -así un analito nuevo o retirado no requiere tocar código."""
+    columnas: list[tuple[str, str, str]] = []
+    for a in _analitos_fungicidas(analitos):
+        codigo = str(a.get("codigo") or "")
+        columnas.append(("analito", codigo, codigo))
+        columnas.append(("analito_dosis", codigo, f"{codigo} Dosis"))
+    columnas.append(("campo", "Tipo Aplicación", "Tipo Aplicación"))
+    columnas.append(("campo", "Gasto", "Gasto"))
+    return columnas
+
+
+def _grupos_exportacion(analitos: list[dict]) -> list[tuple[str, list[tuple[str, str, str]]]]:
+    return [
+        ("GENERAL", [("general", clave, etiqueta) for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS]),
+        ("QUITECA / AGROFRESH — RESIDUOS FUNGICIDAS", _grupo_fungicidas(analitos)),
+        *_GRUPOS_EXPORTACION_FIJOS_COLA,
+    ]
 
 
 def _titulo_seccion(ws: Worksheet, fila: int, texto: str, columnas: int = 4) -> int:
@@ -222,14 +257,19 @@ def construir_workbook_exportacion(solicitudes: list[dict], analitos: list[dict]
     ws = wb.active
     ws.title = "Solicitudes"
 
-    columnas = [columna for _, grupo in GRUPOS_EXPORTACION for columna in grupo]
+    grupos_exportacion = _grupos_exportacion(analitos)
+    columnas = [columna for _, grupo in grupos_exportacion for columna in grupo]
+    # Uno por código, priorizando el analito de cromatografía (misma unidad
+    # en QUITECA y AGROFRESH) para que "<CODIGO> Dosis" siempre encuentre el
+    # valor guardado, sea cual sea el laboratorio de la fila.
     analitos_por_codigo = {
         str(a.get("codigo") or ""): a for a in analitos if a.get("activo", True)
     }
+    analitos_por_codigo.update({str(a.get("codigo") or ""): a for a in _analitos_fungicidas(analitos)})
 
     # Fila 1: bandas agrupadas como en el formato maestro.
     columna_inicio = 1
-    for titulo, grupo in GRUPOS_EXPORTACION:
+    for titulo, grupo in grupos_exportacion:
         columna_fin = columna_inicio + len(grupo) - 1
         ws.merge_cells(start_row=1, start_column=columna_inicio, end_row=1, end_column=columna_fin)
         celda = ws.cell(row=1, column=columna_inicio, value=titulo)
@@ -255,27 +295,25 @@ def construir_workbook_exportacion(solicitudes: list[dict], analitos: list[dict]
     for fila_idx, datos in enumerate(solicitudes, start=3):
         campos_lab: dict = datos.get("campos_laboratorio") or {}
         solicitados = {str(codigo) for codigo in (datos.get("analitos_solicitados") or [])}
-        dosis = []
-        for codigo in ("FDL", "IMZ", "PYR", "TEBU", "AZOX", "TBZ", "DPA"):
-            if codigo not in solicitados:
-                continue
-            analito = analitos_por_codigo.get(codigo)
-            valor_dosis = _valor_guardado(campos_lab, analito) if analito else None
-            if valor_dosis and valor_dosis != "Solicitado" and valor_dosis not in dosis:
-                dosis.append(str(valor_dosis))
         for col_idx, (tipo, clave, _) in enumerate(columnas, start=1):
             if tipo == "general":
                 valor = datos.get(clave)
             elif tipo == "analito":
                 valor = "✓" if clave in solicitados else None
-            elif clave == "Dosis Aplicada":
-                valor = ", ".join(dosis) or None
+            elif tipo == "analito_dosis":
+                # Nunca se muestra la dosis de un analito que esta solicitud
+                # no pidió, aunque el catálogo lo tenga -mismo criterio que la
+                # columna de check-: y "Solicitado" (el marcador de "se pidió
+                # pero sin dosis anotada") no es una dosis, queda vacío.
+                analito = analitos_por_codigo.get(clave)
+                valor_dosis = _valor_guardado(campos_lab, analito) if (analito and clave in solicitados) else None
+                valor = str(valor_dosis) if valor_dosis and valor_dosis != "Solicitado" else None
             else:
                 valor = campos_lab.get(clave)
             celda = ws.cell(row=fila_idx, column=col_idx, value=valor if valor not in (None, "") else None)
             celda.border = _BORDE_COMPLETO
             celda.alignment = Alignment(
-                horizontal="center" if tipo == "analito" else "left",
+                horizontal="center" if tipo in ("analito", "analito_dosis") else "left",
                 vertical="center",
                 wrap_text=True,
             )

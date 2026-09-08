@@ -21,8 +21,14 @@ from datetime import datetime  # noqa: E402
 from fastapi import HTTPException  # noqa: E402
 
 from app import config, emitir, indice_solicitudes as indice, toma_muestras as tm  # noqa: E402
+from app.auth import Usuario  # noqa: E402
 from app.emitir import ZONA_LABORATORIO  # noqa: E402
 from app.db import conexion, cursor_dict  # noqa: E402
+
+# `crear_solicitud` exige la sesión que la crea, para poder forzar
+# `email_solicitante` cuando es un muestreador (ver test_acceso_solicitudes.py).
+# Acá no se prueba esa regla, así que basta una cuenta interna cualquiera.
+ADMIN = Usuario(id="1", email="admin@agrofresh.com", nombre="Admin", tipoAcceso="admin_general")
 
 
 @pytest.fixture
@@ -35,7 +41,7 @@ def dos_solicitudes(tmp_path, monkeypatch):
         laboratorio="AGROFRESH", solicitante="J", sold_to="ZZ-TEST", generado_por="J",
         especie="Cerezas", analitos_solicitados=["FDL"],
     )
-    yield tm.crear_solicitud(cuerpo), tm.crear_solicitud(cuerpo)
+    yield tm.crear_solicitud(cuerpo, usuario=ADMIN), tm.crear_solicitud(cuerpo, usuario=ADMIN)
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("DELETE FROM solicitud_archivo")
 

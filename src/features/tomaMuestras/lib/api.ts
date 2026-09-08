@@ -12,6 +12,7 @@ import type {
   LaboratorioInput,
   OpcionConfig,
   OpcionInput,
+  ContactoResultado,
   ProductoConfig,
   ProductoInput,
   Solicitud,
@@ -32,6 +33,12 @@ export function obtenerSolicitud(archivo: string) {
 
 export function crearSolicitud(datos: SolicitudInput) {
   return httpClient.post<Solicitud>('/toma-muestras/solicitudes', datos)
+}
+
+/** Actualiza una solicitud existente (mismo folio). El backend la rechaza
+ * con 409 si ya fue enviada por correo. */
+export function actualizarSolicitud(archivo: string, datos: SolicitudInput) {
+  return httpClient.put<Solicitud>(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}`, datos)
 }
 
 export function eliminarSolicitud(archivo: string) {
@@ -69,6 +76,14 @@ export function enviarSolicitudPorCorreo(archivo: string, destinatariosAdicional
     `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/enviar`,
     { destinatarios_adicionales: destinatariosAdicionales },
   )
+}
+
+/** La configuración de "Resultado a clientes" (Laboratorios) vigente para
+ * este Ship To -de solo lectura, Nueva solicitud la muestra antes de
+ * guardar-. */
+export function resultadosDeShipTo(laboratorio: string, shipTo: string) {
+  const qs = new URLSearchParams({ laboratorio, ship_to: shipTo })
+  return httpClient.get<ContactoResultado[]>(`/toma-muestras/config/resultados-ship-to?${qs.toString()}`)
 }
 
 /** Excel horizontal con una fila por solicitud. Si se indican archivos,

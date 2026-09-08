@@ -24,8 +24,12 @@ const FUENTES = import.meta.glob('/src/**/*.{ts,tsx}', {
 /** Puede leer la variable porque es quien arma TODAS las llamadas. */
 const CAPA_HTTP = '/src/services/http/client.ts'
 /** No llama al backend: le pasa la URL al iframe, y ese sí manda el token
- * (ver la función `autorizacion` en public/modules/trace.html). */
-const PASA_LA_URL_AL_IFRAME = '/src/views/modules/trace/TraceView.tsx'
+ * (ver la función `autorizacion` en public/modules/trace.html y
+ * public/modules/converter.html). */
+const PASA_LA_URL_AL_IFRAME = [
+  '/src/views/modules/trace/TraceView.tsx',
+  '/src/views/modules/converter/ConverterView.tsx',
+]
 /** Declaración de tipos de Vite, no código. */
 const TIPOS = '/src/vite-env.d.ts'
 
@@ -40,7 +44,7 @@ function revisar(patron: RegExp, permitidos: string[]): string[] {
 describe('llamadas al backend', () => {
   it('nadie arma URLs del backend fuera de la capa HTTP', () => {
     expect(
-      revisar(/VITE_API_BASE_URL/, [CAPA_HTTP, PASA_LA_URL_AL_IFRAME, TIPOS]),
+      revisar(/VITE_API_BASE_URL/, [CAPA_HTTP, ...PASA_LA_URL_AL_IFRAME, TIPOS]),
       'Estos arman una URL del backend a mano. Si es para bajar un archivo, ' +
         'usa `descargarArchivo` de services/http/descargar: un <a href> no puede ' +
         'llevar el token y el servidor responde 401.',

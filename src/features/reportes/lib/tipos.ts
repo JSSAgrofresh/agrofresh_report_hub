@@ -11,6 +11,7 @@ export interface FilaReporte {
   mes: number | null
   temporada: number | null
   tipo_servicio: string | null
+  posicion_muestreo: string | null
   cliente: string | null
   planta: string | null
   tipo_aplicacion: string | null
@@ -88,6 +89,7 @@ export interface Observacion {
   planta: string | null
   tipoAplicacion: string | null
   tipoServicio: string | null
+  posicionMuestreo: string | null
   laboratorio: string | null
   crop: string | null
   variedad: string | null

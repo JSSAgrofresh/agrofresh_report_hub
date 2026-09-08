@@ -31,6 +31,7 @@ DATOS_QUERY = """
         s.mes,
         s.temporada,
         s.tipo_servicio,
+        s.posicion_muestreo,
         COALESCE(c.nombre, s.sold_to_raw) AS cliente,
         COALESCE(p.nombre, s.ship_to_raw) AS planta,
         pa.tipo_aplicacion,

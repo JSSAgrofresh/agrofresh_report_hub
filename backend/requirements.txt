@@ -14,3 +14,7 @@ google-api-python-client>=2.126
 # Windows no trae la base de zonas horarias que usa zoneinfo -en Linux sale
 # del sistema operativo-, y sin ella el backend no arranca.
 tzdata>=2024.1; sys_platform == "win32"
+
+# openpyxl la necesita para medir el logo que va en el Excel del detalle
+# del GC. Sin ella el Excel sale igual, pero sin logo.
+pillow>=10.0

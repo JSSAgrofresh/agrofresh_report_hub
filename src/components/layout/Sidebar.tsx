@@ -4,6 +4,8 @@ import { NavLink } from 'react-router-dom'
 import agrofreshLogo from '@/assets/agrofresh-logo.png'
 import { useAuth } from '@/features/auth'
 import { AREAS } from '@/constants/areas'
+import { GRUPO_DATACORE } from '@/constants/modules'
+import type { ModuloInfo } from '@/constants/modules'
 import { ROUTES } from '@/constants/routes'
 import { cn } from '@/lib/cn'
 import {
@@ -62,6 +64,32 @@ const ICONO_MODULO: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   storage: IconStorage,
 }
 
+function renderEnlaceModulo(m: ModuloInfo, onCerrar: () => void) {
+  const Icono = ICONO_MODULO[m.id]
+  return m.estado === 'disponible' ? (
+    <NavLink
+      key={m.id}
+      to={m.ruta}
+      title={m.nombre}
+      onClick={onCerrar}
+      className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+    >
+      <Icono className={styles.navIcono} />
+      <span className={styles.etiqueta}>{m.nombre}</span>
+    </NavLink>
+  ) : (
+    <span
+      key={m.id}
+      className={cn(styles.navLink, styles.navLinkDeshabilitado)}
+      title={`${m.nombre} — ${ESTADO_LABEL[m.estado]}`}
+    >
+      <Icono className={styles.navIcono} />
+      <span className={styles.etiqueta}>{m.nombre}</span>
+      <span className={styles.estadoPill}>{ESTADO_LABEL[m.estado]}</span>
+    </span>
+  )
+}
+
 interface SidebarProps {
   abierto: boolean
   onCerrar: () => void
@@ -99,6 +127,8 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   }
 
   const modulos = modulosPermitidos(user)
+  const modulosDataCore = modulos.filter((m) => m.grupo === GRUPO_DATACORE)
+  const otrosModulos = modulos.filter((m) => m.grupo !== GRUPO_DATACORE)
   const esAdmin = puedeAdministrarUsuarios(user)
   const veTomaMuestras = puedeVerTomaMuestras(user)
   const acento = user.area ? AREAS[user.area].colorPrimario : undefined
@@ -139,34 +169,17 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
             <span className={styles.etiqueta}>Panel general</span>
           </NavLink>
 
-          {modulos.length > 0 && (
+          {modulosDataCore.length > 0 && (
+            <>
+              <p className={styles.seccion}>Data Core</p>
+              {modulosDataCore.map((m) => renderEnlaceModulo(m, onCerrar))}
+            </>
+          )}
+
+          {otrosModulos.length > 0 && (
             <>
               <p className={styles.seccion}>Funciones</p>
-              {modulos.map((m) => {
-                const Icono = ICONO_MODULO[m.id]
-                return m.estado === 'disponible' ? (
-                  <NavLink
-                    key={m.id}
-                    to={m.ruta}
-                    title={m.nombre}
-                    onClick={onCerrar}
-                    className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
-                  >
-                    <Icono className={styles.navIcono} />
-                    <span className={styles.etiqueta}>{m.nombre}</span>
-                  </NavLink>
-                ) : (
-                  <span
-                    key={m.id}
-                    className={cn(styles.navLink, styles.navLinkDeshabilitado)}
-                    title={`${m.nombre} — ${ESTADO_LABEL[m.estado]}`}
-                  >
-                    <Icono className={styles.navIcono} />
-                    <span className={styles.etiqueta}>{m.nombre}</span>
-                    <span className={styles.estadoPill}>{ESTADO_LABEL[m.estado]}</span>
-                  </span>
-                )
-              })}
+              {otrosModulos.map((m) => renderEnlaceModulo(m, onCerrar))}
             </>
           )}
 

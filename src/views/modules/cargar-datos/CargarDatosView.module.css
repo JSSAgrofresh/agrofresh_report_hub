@@ -1,0 +1,314 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ── Stepper ─────────────────────────────────────────────────────────── */
+
+.stepper {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.paso {
+  display: flex;
+  align-items: center;
+  flex: 1 0 auto;
+  min-width: 0;
+}
+
+.pasoBoton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-1) 0;
+  text-align: left;
+  color: var(--color-text-muted);
+}
+
+.pasoBoton:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.pasoCirculo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--color-border-strong);
+  background: var(--color-surface);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.pasoActivo .pasoCirculo {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.pasoCompleto .pasoCirculo {
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+
+.pasoTextos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pasoNumeroLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-faint);
+}
+
+.pasoNombre {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.pasoActivo .pasoNombre {
+  color: var(--color-primary-hover);
+}
+
+.pasoLinea {
+  flex: 1 1 24px;
+  height: 2px;
+  background: var(--color-border-strong);
+  margin: 0 var(--space-2);
+  min-width: 16px;
+}
+
+.pasoLineaCompleta {
+  background: var(--color-primary);
+}
+
+/* ── Contenido de cada paso ──────────────────────────────────────────── */
+
+.tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.zona {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.zona:hover,
+.zonaActiva {
+  border-color: var(--color-primary);
+  background: rgba(109, 173, 60, 0.06);
+}
+
+.zonaIcono {
+  font-size: 2.2rem;
+}
+
+.zona h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.zona p {
+  margin: 0;
+  color: var(--color-text-faint);
+  font-size: 0.85rem;
+}
+
+.inputOculto {
+  display: none;
+}
+
+.archivoElegido {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.archivoInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.archivoNombre {
+  font-weight: 600;
+}
+
+.archivoSub {
+  font-size: 0.82rem;
+  color: var(--color-text-faint);
+}
+
+.bannerEstructura {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.bannerOk {
+  border-color: var(--color-ok);
+  background: rgba(47, 125, 50, 0.08);
+}
+
+.bannerErrores {
+  border-color: var(--color-warning);
+  background: rgba(180, 83, 31, 0.08);
+}
+
+.bannerTitulo {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.listaErrores {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.86rem;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-4);
+}
+
+.statNum {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.statLbl {
+  font-size: 0.78rem;
+  color: var(--color-text-faint);
+}
+
+.statAlerta .statNum {
+  color: var(--color-warning);
+}
+
+.statPeligro .statNum {
+  color: var(--color-danger);
+}
+
+.filasConflicto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.filaConflicto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: rgba(180, 83, 31, 0.06);
+  border: 1px solid rgba(180, 83, 31, 0.25);
+  font-size: 0.84rem;
+}
+
+.filaConflictoCabecera {
+  display: flex;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+
+.acciones {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.accionesDerecha {
+  display: flex;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.embebidoDataCore {
+  border-radius: var(--radius-lg);
+}
+
+.avisoFase {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: rgba(109, 173, 60, 0.09);
+  border: 1px solid rgba(109, 173, 60, 0.35);
+  font-size: 0.86rem;
+  color: var(--color-text);
+}
+
+.toast {
+  position: fixed;
+  bottom: var(--space-5);
+  right: var(--space-5);
+  background: var(--color-text);
+  color: #fff;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  max-width: 420px;
+  font-size: 0.86rem;
+  z-index: 50;
+}
+
+.error {
+  color: var(--color-danger);
+  font-weight: 600;
+}

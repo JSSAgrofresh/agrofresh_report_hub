@@ -6,7 +6,7 @@ import { LoginView } from '@/views/login/LoginView'
 import { DashboardView } from '@/views/dashboard/DashboardView'
 import { TraceView } from '@/views/modules/trace/TraceView'
 import { ConverterView } from '@/views/modules/converter/ConverterView'
-import { IngestView } from '@/views/modules/ingest/IngestView'
+import { CargarDatosView } from '@/views/modules/cargar-datos/CargarDatosView'
 import { ReporteView } from '@/views/modules/reports/ReporteView'
 import { ReportesHubView } from '@/views/modules/reports/ReportesHubView'
 import { PostVentaView } from '@/views/modules/reports/PostVentaView'
@@ -41,7 +41,7 @@ export const router = createBrowserRouter([
           },
           {
             element: <RequireModulo moduloId="ingest" />,
-            children: [{ path: ROUTES.ingest, element: <IngestView /> }],
+            children: [{ path: ROUTES.ingest, element: <CargarDatosView /> }],
           },
           {
             element: <RequireModulo moduloId="reports" />,
@@ -75,6 +75,7 @@ export const router = createBrowserRouter([
             children: [
               { path: ROUTES.tomaMuestras, element: <SolicitudesView /> },
               { path: ROUTES.tomaMuestrasNueva, element: <NuevaSolicitudView /> },
+              { path: ROUTES.tomaMuestrasEditar, element: <NuevaSolicitudView modo="editar" /> },
               { path: ROUTES.tomaMuestrasDetalle, element: <SolicitudDetalleView /> },
             ],
           },

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 import { crearAnalisis, actualizarAnalisis, eliminarAnalisis, MODOS_ANALISIS } from '@/features/laboratorios'
-import type { Analisis, AnalisisInput, AnalitoDeAnalisis, ModoAnalisis, Unidad } from '@/features/laboratorios'
+import type { Analisis, AnalisisInput, AnalitoDeAnalisis, ModoAnalisis } from '@/features/laboratorios'
 import type { AnalitoConfig } from '@/features/tomaMuestras'
 import styles from './LaboratoriosView.module.css'
 
@@ -12,7 +12,6 @@ interface AnalisisPanelProps {
   /** Los analitos del laboratorio, del mantenedor de Toma de muestras: un
    * análisis los agrupa, no los redefine. */
   analitos: AnalitoConfig[]
-  unidades: Unidad[]
   onCambio: (analisis: Analisis[]) => void
   onError: (mensaje: string | null) => void
 }
@@ -41,7 +40,6 @@ export function AnalisisPanel({
   laboratorio,
   analisis,
   analitos,
-  unidades,
   onCambio,
   onError,
 }: AnalisisPanelProps) {
@@ -53,10 +51,6 @@ export function AnalisisPanel({
   const analitosActivos = useMemo(
     () => analitos.filter((a) => a.activo).sort((a, b) => a.categoria.localeCompare(b.categoria) || a.orden - b.orden),
     [analitos],
-  )
-  const unidadesActivas = useMemo(
-    () => unidades.filter((u) => u.activo).sort((a, b) => a.orden - b.orden),
-    [unidades],
   )
   const porId = useMemo(() => new Map(analitos.map((a) => [a.id, a])), [analitos])
 
@@ -85,10 +79,9 @@ export function AnalisisPanel({
     if (elegidos.has(analito.id)) {
       elegidos.delete(analito.id)
     } else {
-      // La unidad que ya trae el analito es el mejor punto de partida; si no
-      // está en el mantenedor de unidades, queda vacía para elegirla a mano.
-      const sugerida = unidadesActivas.find((u) => u.simbolo === analito.unidad)?.simbolo ?? ''
-      elegidos.set(analito.id, { analito_id: analito.id, unidad: sugerida, preseleccionado: true })
+      // La unidad que ya trae el analito es el punto de partida; queda
+      // editable a mano porque es texto libre.
+      elegidos.set(analito.id, { analito_id: analito.id, unidad: analito.unidad ?? '', preseleccionado: true })
     }
     setBorrador({ ...borrador, elegidos })
   }
@@ -105,8 +98,7 @@ export function AnalisisPanel({
     const elegidos = new Map(borrador.elegidos)
     for (const a of analitosActivos) {
       if (!elegidos.has(a.id)) {
-        const sugerida = unidadesActivas.find((u) => u.simbolo === a.unidad)?.simbolo ?? ''
-        elegidos.set(a.id, { analito_id: a.id, unidad: sugerida, preseleccionado: true })
+        elegidos.set(a.id, { analito_id: a.id, unidad: a.unidad ?? '', preseleccionado: true })
       }
     }
     setBorrador({ ...borrador, elegidos })
@@ -266,19 +258,13 @@ export function AnalisisPanel({
                           <span className={styles.analitoCodigo}>{a.codigo}</span>
                         </span>
                       </label>
-                      <select
+                      <input
                         className={styles.selectUnidad}
                         value={elegido?.unidad ?? ''}
                         disabled={!elegido}
+                        placeholder="Unidad"
                         onChange={(e) => cambiarUnidad(a.id, e.target.value)}
-                      >
-                        <option value="">Sin unidad</option>
-                        {unidadesActivas.map((u) => (
-                          <option key={u.id} value={u.simbolo}>
-                            {u.simbolo}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </div>
                   )
                 })}

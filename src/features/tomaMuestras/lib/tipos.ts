@@ -32,9 +32,16 @@ export interface Solicitud {
   /** Códigos de los analitos marcados como solicitados (ej. ["FDL", "PYR"]). */
   analitos_solicitados: string[]
   creado_en: string
+  /** Una solicitud se puede editar y enviar solo mientras esto sea false.
+   * Una vez enviada por correo queda de solo lectura. */
+  enviada: boolean
+  enviado_en: string | null
 }
 
-export type SolicitudInput = Omit<Solicitud, 'archivo' | 'numero_solicitud' | 'fecha_solicitud' | 'creado_en'>
+export type SolicitudInput = Omit<
+  Solicitud,
+  'archivo' | 'numero_solicitud' | 'fecha_solicitud' | 'creado_en' | 'enviada' | 'enviado_en'
+>
 
 /** Metadatos de un campo general del formulario (§3): el conjunto de
  * claves es fijo, pero etiqueta/tipo/requerido/activo/orden los define el
@@ -84,6 +91,9 @@ export interface LaboratorioConfig {
   codigo: string
   nombre: string
   descripcion: string | null
+  /** Va en cada folio de este laboratorio: OT-{prefijo}{correlativo}, ej.
+   * OT-AGF0001. Vacío mientras nadie lo configure. */
+  prefijo_solicitud: string
   activo: boolean
   orden: number
 }
@@ -130,3 +140,13 @@ export interface CampoTipoAplicacionConfig {
 }
 
 export type CampoTipoAplicacionInput = Omit<CampoTipoAplicacionConfig, 'id'>
+
+/** Un destinatario de resultados, tal como quedó configurado en
+ * Laboratorios → Resultado a clientes para un Ship To. Nueva solicitud lo
+ * muestra de solo lectura -no se edita desde acá-. */
+export interface ContactoResultado {
+  nombre: string
+  email: string
+  tipo: 'resultado_cliente' | 'resultado_interno'
+  tipo_copia: 'cc' | 'bcc'
+}

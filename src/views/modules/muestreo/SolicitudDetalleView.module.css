@@ -126,6 +126,12 @@
   border-bottom: none;
 }
 
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
 .observacion {
   font-size: 13.5px;
   color: var(--color-text);
