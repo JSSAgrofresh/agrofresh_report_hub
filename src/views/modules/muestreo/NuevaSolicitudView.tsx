@@ -55,7 +55,6 @@ const TIPOS_DE_MUESTRA = ['Fruta', 'Agua', 'Cera']
  * mantenedor de campos generales solo tiene un sí/no global, así que estas
  * dos reglas se resuelven acá y se ignora su `requerido` configurado. */
 const REQUERIDO_SOLO_EN: Record<string, string> = {
-  csg: TIPO_LINEA_PROCESO,
   posicion_muestreo: TIPO_ACTIMIST,
 }
 
@@ -88,7 +87,8 @@ const SECCION_DE_CAMPO: Record<string, 'identificacion' | 'muestra'> = {
   linea_proceso: 'muestra',
   numero_camara: 'muestra',
   numero_orden: 'muestra',
-  csg: 'muestra',
+  csg_productor: 'muestra',
+  csg_packing: 'muestra',
   lote: 'muestra',
   kilos_procesados: 'muestra',
   posicion_muestreo: 'muestra',
@@ -163,7 +163,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [valoresTipoAplicacion, setValoresTipoAplicacion] = useState<Record<string, string>>({})
   const [seleccionAnalitos, setSeleccionAnalitos] = useState<Record<number, boolean>>({})
   const [valoresAnalitos, setValoresAnalitos] = useState<Record<number, string>>({})
-  const [unidadesAnalitos, setUnidadesAnalitos] = useState<Record<number, string>>({})
   const [dosisSinIndicar, setDosisSinIndicar] = useState<Record<number, boolean>>({})
   const [alsPesticidas, setAlsPesticidas] = useState<AlsPesticida[]>(ALS_PESTICIDAS_VACIO)
 
@@ -265,7 +264,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setGeneral({
       especie: s.especie ?? '',
       variedad: s.variedad ?? '',
-      csg: s.csg ?? '',
+      csg_productor: s.csg_productor ?? '',
+      csg_packing: s.csg_packing ?? '',
       lote: s.lote ?? '',
       posicion_muestreo: s.posicion_muestreo ?? '',
       numero_camara: s.numero_camara ?? '',
@@ -309,7 +309,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     const candidatos = analitosTodos.filter((a) => a.laboratorio === s.laboratorio)
     const seleccion: Record<number, boolean> = {}
     const valores: Record<number, string> = {}
-    const unidadesDosis: Record<number, string> = {}
     const sinDosis: Record<number, boolean> = {}
     for (const codigo of s.analitos_solicitados) {
       const analito = candidatos.find((a) => a.codigo === codigo)
@@ -318,11 +317,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       const valor = valorGuardadoParaAnalito(s.campos_laboratorio, analito, analito.unidad ?? '')
       sinDosis[analito.id] = valor === '—' || valor === 'Solicitado'
       valores[analito.id] = sinDosis[analito.id] ? '' : valor
-      unidadesDosis[analito.id] = analito.unidad ?? ''
     }
     setSeleccionAnalitos(seleccion)
     setValoresAnalitos(valores)
-    setUnidadesAnalitos(unidadesDosis)
     setDosisSinIndicar(sinDosis)
     setAlsPesticidas(
       s.laboratorio === 'ALS'
@@ -393,9 +390,15 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     () =>
       camposActivos.filter((c) => {
         if (SECCION_DE_CAMPO[c.clave] !== 'muestra') return false
-        // Kilos procesados y CSG son datos de la línea: en Actimist se
-        // muestrea de una cámara, no de un flujo de proceso.
-        if (c.clave === 'linea_proceso' || c.clave === 'kilos_procesados' || c.clave === 'csg') {
+        // Kilos procesados y los códigos CSG (Productor/Packing) son datos de
+        // la línea: en Actimist se muestrea de una cámara, no de un flujo de
+        // proceso.
+        if (
+          c.clave === 'linea_proceso' ||
+          c.clave === 'kilos_procesados' ||
+          c.clave === 'csg_productor' ||
+          c.clave === 'csg_packing'
+        ) {
           return tipoAplicacionSel === TIPO_LINEA_PROCESO
         }
         if (c.clave === 'numero_camara' || c.clave === 'numero_orden')
@@ -530,7 +533,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setLaboratorio(v)
     setSeleccionAnalitos({})
     setValoresAnalitos({})
-    setUnidadesAnalitos({})
     setDosisSinIndicar({})
     setProductosSeleccionados([])
     setAlsPesticidas(ALS_PESTICIDAS_VACIO)
@@ -547,13 +549,13 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setProductosSeleccionados([])
     setSeleccionAnalitos({})
     setValoresAnalitos({})
-    setUnidadesAnalitos({})
     setDosisSinIndicar({})
     setGeneral((g) => ({
       ...g,
       numero_camara: '',
       numero_orden: '',
-      csg: '',
+      csg_productor: '',
+      csg_packing: '',
       kilos_procesados: '',
     }))
   }
@@ -565,15 +567,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   function alternarAnalito(analito: AnalitoConfig) {
     const seleccionado = !seleccionAnalitos[analito.id]
     setSeleccionAnalitos((actual) => ({ ...actual, [analito.id]: seleccionado }))
-    if (seleccionado) {
-      setUnidadesAnalitos((actual) => ({
-        ...actual,
-        [analito.id]: actual[analito.id] ?? unidadDe(analito),
-      }))
-      return
-    }
+    if (seleccionado) return
     setValoresAnalitos((actual) => ({ ...actual, [analito.id]: '' }))
-    setUnidadesAnalitos((actual) => ({ ...actual, [analito.id]: '' }))
     setDosisSinIndicar((actual) => ({ ...actual, [analito.id]: false }))
   }
 
@@ -582,15 +577,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     if (valor) setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: false }))
   }
 
-  function actualizarUnidadDosis(analitoId: number, unidad: string) {
-    setUnidadesAnalitos((actual) => ({ ...actual, [analitoId]: unidad }))
-    if (unidad) setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: false }))
-  }
-
   function indicarSinDosis(analitoId: number) {
     setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: true }))
     setValoresAnalitos((actual) => ({ ...actual, [analitoId]: '' }))
-    setUnidadesAnalitos((actual) => ({ ...actual, [analitoId]: '' }))
   }
 
   function valorRequerido(clave: string): string {
@@ -646,18 +635,15 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     for (const analito of analitosLab) {
       if (!seleccionAnalitos[analito.id]) continue
       const valor = valoresAnalitos[analito.id]?.trim()
-      const unidadDosis = unidadesAnalitos[analito.id]?.trim()
-      if (!dosisSinIndicar[analito.id] && (!valor || !unidadDosis)) {
+      if (!dosisSinIndicar[analito.id] && !valor) {
         const dato = analito.dosis_aplicable ? 'dosis' : 'valor'
-        setError(
-          `Indica el ${dato} y su unidad para "${analito.nombre}", o elige "No indicar dosis".`,
-        )
+        setError(`Indica el ${dato} para "${analito.nombre}", o elige "No indicar dosis".`)
         return
       }
       codigosAnalitosSolicitados.push(analito.codigo)
       const unidad = unidadDe(analito)
       const etiqueta = unidad ? `${analito.nombre} (${unidad})` : analito.nombre
-      camposLabFinal[etiqueta] = dosisSinIndicar[analito.id] ? '—' : `${valor} ${unidadDosis}`
+      camposLabFinal[etiqueta] = dosisSinIndicar[analito.id] ? '—' : (valor ?? '')
     }
     // Los campos propios del Tipo de Aplicación se guardan siempre que
     // apliquen, aunque estén vacíos: el informe debe mostrar la estructura
@@ -681,9 +667,11 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       especie: general.especie?.trim() || null,
       variedad: general.variedad?.trim() || null,
       linea_proceso: esLineaProceso ? lineaProceso || null : null,
-      // CSG y kilos son propios de la línea: en Actimist ni se piden ni se
-      // guardan, aunque hayan quedado escritos antes de cambiar de tipo.
-      csg: esLineaProceso ? general.csg?.trim() || null : null,
+      // Los códigos CSG y kilos son propios de la línea: en Actimist ni se
+      // piden ni se guardan, aunque hayan quedado escritos antes de cambiar
+      // de tipo.
+      csg_productor: esLineaProceso ? general.csg_productor?.trim() || null : null,
+      csg_packing: esLineaProceso ? general.csg_packing?.trim() || null : null,
       lote: general.lote?.trim() || null,
       posicion_muestreo: general.posicion_muestreo?.trim() || null,
       numero_camara: esActimist ? general.numero_camara?.trim() || null : null,
@@ -711,8 +699,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         await actualizarSolicitud(archivoEditando, payload)
         navigate(rutaTomaMuestrasDetalle(archivoEditando))
       } else {
-        await crearSolicitud(payload)
-        navigate(ROUTES.tomaMuestras)
+        const creada = await crearSolicitud(payload)
+        navigate(rutaTomaMuestrasDetalle(creada.archivo))
       }
     } catch (err) {
       if (modo === 'editar' && err instanceof HttpError && err.status === 409) {
@@ -1100,20 +1088,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                               ) : (
                                 <span className={styles.dosisConUnidad}>
                                   <input
-                                    type={a.tipo === 'numero' ? 'number' : 'text'}
-                                    min={a.tipo === 'numero' ? '0' : undefined}
-                                    step={a.tipo === 'numero' ? 'any' : undefined}
-                                    inputMode={a.tipo === 'numero' ? 'decimal' : undefined}
+                                    type="text"
                                     aria-label={`${a.dosis_aplicable ? 'Dosis' : 'Valor'} de ${a.nombre}`}
                                     value={valoresAnalitos[a.id] ?? ''}
                                     onChange={(e) => actualizarDosis(a.id, e.target.value)}
-                                  />
-                                  <input
-                                    type="text"
-                                    aria-label={`Unidad de dosis de ${a.nombre}`}
-                                    placeholder="Unidad"
-                                    value={unidadesAnalitos[a.id] ?? ''}
-                                    onChange={(e) => actualizarUnidadDosis(a.id, e.target.value)}
                                   />
                                 </span>
                               )}

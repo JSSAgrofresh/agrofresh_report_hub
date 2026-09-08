@@ -8,6 +8,7 @@ import type {
   InfoTabla,
   PaginaTabla,
   ResultadoAuditoria,
+  ResultadoAuditoriaListados,
   ResultadoCorreccion,
   ResultadoDeshacer,
   ValoresColumna,
@@ -24,6 +25,14 @@ export function verTabla(nombre: string, pagina: number, tamano: number) {
 
 export function auditar() {
   return httpClient.get<ResultadoAuditoria>('/auditoria/inconsistencias')
+}
+
+/** El "chequeo de integridad" contra Listados -Sold To, Ship To, Especie y
+ * Variedad de `solicitud` que no calzan con ningún valor vigente de
+ * Listados-. Siempre lee la base en vivo (o la copia de trabajo si hay una
+ * activa): no necesita crear una copia para consultar. */
+export function auditarListados() {
+  return httpClient.get<ResultadoAuditoriaListados>('/auditoria/inconsistencias-listados')
 }
 
 export function estadoStaging() {

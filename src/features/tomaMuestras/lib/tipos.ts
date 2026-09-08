@@ -12,7 +12,8 @@ export interface Solicitud {
   especie: string | null
   variedad: string | null
   linea_proceso: string | null
-  csg: string | null
+  csg_productor: string | null
+  csg_packing: string | null
   lote: string | null
   posicion_muestreo: string | null
   numero_camara: string | null

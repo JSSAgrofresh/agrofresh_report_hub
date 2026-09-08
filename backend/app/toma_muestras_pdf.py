@@ -243,7 +243,9 @@ def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espaci
     ]
     if es_linea_proceso:
         muestra.extend([
-            ('CSG', datos.get('csg')), ('Línea proceso', datos.get('linea_proceso')),
+            ('Código del Productor', datos.get('csg_productor')),
+            ('Código del Packing', datos.get('csg_packing')),
+            ('Línea proceso', datos.get('linea_proceso')),
             ('Kilos procesados', datos.get('kilos_procesados')),
         ])
     if es_actimist:

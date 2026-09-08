@@ -146,7 +146,8 @@ function solicitudBase(overrides: Partial<Solicitud> = {}): Solicitud {
     especie: 'Cerezas',
     variedad: null,
     linea_proceso: null,
-    csg: null,
+    csg_productor: null,
+    csg_packing: null,
     lote: null,
     posicion_muestreo: null,
     numero_camara: null,
@@ -213,8 +214,7 @@ describe('NuevaSolicitudView — crear', () => {
 
     fireEvent.click(within(tarjetaFDL).getByRole('checkbox'))
 
-    expect(within(tarjetaFDL).getByRole('spinbutton')).toBeTruthy()
-    expect(within(tarjetaFDL).getByRole('textbox', { name: /Unidad de dosis/ })).toBeTruthy()
+    expect(within(tarjetaFDL).getByRole('textbox', { name: /Dosis de/ })).toBeTruthy()
     fireEvent.click(within(tarjetaFDL).getByRole('button', { name: 'No indicar dosis' }))
     expect(within(tarjetaFDL).getByRole('button', { name: 'Sin dosis: —' })).toBeTruthy()
   })
