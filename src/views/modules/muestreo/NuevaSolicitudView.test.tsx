@@ -374,6 +374,56 @@ describe('NuevaSolicitudView — crear', () => {
     expect(within(tarjetaFDL).getByRole('checkbox')).not.toBeChecked()
     expect(within(tarjetaPYR).getByRole('checkbox')).not.toBeChecked()
   })
+
+  it('un analito de resultado directo (sin dosis) no pide "Valor" al marcarlo', async () => {
+    listarCamposConfig.mockResolvedValue(CAMPOS_CONFIG)
+    listarLaboratoriosConfig.mockResolvedValue([
+      { id: 1, codigo: 'DIAGNOFRUIT', nombre: 'Diagnofruit', descripcion: null, activo: true, orden: 1 },
+    ])
+    listarTiposAplicacion.mockResolvedValue([{ id: 1, nombre: 'Actimist', activo: true, orden: 1 }])
+    listarAnalitosConfig.mockResolvedValue([
+      {
+        id: 1,
+        laboratorio: 'DIAGNOFRUIT',
+        categoria: 'Patógenos',
+        codigo: 'LEV',
+        nombre: 'Levaduras',
+        unidad: 'UFC/mL',
+        tipo: 'numero',
+        dosis_aplicable: false,
+        requerido: false,
+        activo: true,
+        orden: 1,
+        tipo_aplicacion: '',
+      },
+    ])
+    listarProductosConfig.mockResolvedValue([])
+    listarCamposTipoAplicacion.mockResolvedValue([])
+    listarUnidades.mockResolvedValue([])
+    listarAnalisis.mockResolvedValue([])
+
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('Diagnofruit')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'DIAGNOFRUIT' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+
+    await waitFor(() => expect(screen.getByText('LEV')).toBeTruthy())
+    const tarjetaLEV = screen.getByTestId('analito-card-1')
+    expect(within(tarjetaLEV).queryByRole('textbox')).toBeNull()
+
+    fireEvent.click(within(tarjetaLEV).getByRole('checkbox'))
+
+    // Sigue sin pedir "Valor": el analito solo se pide o no se pide.
+    expect(within(tarjetaLEV).queryByRole('textbox')).toBeNull()
+    expect(within(tarjetaLEV).queryByText('No indicar dosis')).toBeNull()
+  })
 })
 
 describe('NuevaSolicitudView — editar (CASO 3 y 4)', () => {
