@@ -344,52 +344,99 @@ export function SolicitudesView() {
               : 'Todavía no hay solicitudes registradas.'}
           </p>
         ) : (
-          <div className={styles.tablaCaja}>
-            <table className={styles.tabla}>
-              <thead>
-                <tr>
-                  <th>N° Solicitud</th>
-                  <th>Fecha</th>
-                  <th>Laboratorio</th>
-                  <th>Sold To</th>
-                  <th>Ship To</th>
-                  <th>Especie</th>
-                  <th>Tipo Muestra</th>
-                  <th>Generado por</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {solicitudesFiltradas.map((s) => (
-                  <tr key={s.archivo}>
-                    <td className={styles.nombre}>{s.numero_solicitud}</td>
-                    <td>{formatDateCL(s.fecha_solicitud)}</td>
-                    <td>
-                      <span className={styles.etiquetaLaboratorio}>{s.laboratorio}</span>
-                    </td>
-                    <td>{s.sold_to}</td>
-                    <td>{s.ship_to ?? '—'}</td>
-                    <td>{s.especie ?? '—'}</td>
-                    <td>{s.tipo_muestra ?? '—'}</td>
-                    <td>{s.generado_por}</td>
-                    <td className={styles.acciones}>
-                      <button
-                        className={styles.boton}
-                        onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}
-                      >
-                        Ver
-                      </button>
-                      {puedeEliminar && (
-                        <button className={styles.botonEliminar} onClick={() => onEliminar(s)}>
-                          Eliminar
-                        </button>
-                      )}
-                    </td>
+          <>
+            <div className={styles.tablaCaja}>
+              <table className={styles.tabla}>
+                <thead>
+                  <tr>
+                    <th>N° Solicitud</th>
+                    <th>Fecha</th>
+                    <th>Laboratorio</th>
+                    <th>Sold To</th>
+                    <th>Ship To</th>
+                    <th>Especie</th>
+                    <th>Tipo Muestra</th>
+                    <th>Generado por</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {solicitudesFiltradas.map((s) => (
+                    <tr key={s.archivo}>
+                      <td className={styles.nombre}>{s.numero_solicitud}</td>
+                      <td>{formatDateCL(s.fecha_solicitud)}</td>
+                      <td>
+                        <span className={styles.etiquetaLaboratorio}>{s.laboratorio}</span>
+                      </td>
+                      <td>{s.sold_to}</td>
+                      <td>{s.ship_to ?? '—'}</td>
+                      <td>{s.especie ?? '—'}</td>
+                      <td>{s.tipo_muestra ?? '—'}</td>
+                      <td>{s.generado_por}</td>
+                      <td className={styles.acciones}>
+                        <button
+                          className={styles.boton}
+                          onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}
+                        >
+                          Ver
+                        </button>
+                        {puedeEliminar && (
+                          <button className={styles.botonEliminar} onClick={() => onEliminar(s)}>
+                            Eliminar
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className={styles.tarjetas}>
+              {solicitudesFiltradas.map((s) => (
+                <div className={styles.tarjeta} key={s.archivo}>
+                  <div className={styles.tarjetaCabecera}>
+                    <div>
+                      <div className={styles.tarjetaId}>{s.numero_solicitud}</div>
+                      <div className={styles.tarjetaFecha}>{formatDateCL(s.fecha_solicitud)}</div>
+                    </div>
+                    <span className={styles.etiquetaLaboratorio}>{s.laboratorio}</span>
+                  </div>
+                  <div className={styles.tarjetaGrilla}>
+                    <div>
+                      <span className={styles.tarjetaLabel}>Sold To</span>
+                      <span className={styles.tarjetaValor}>{s.sold_to}</span>
+                    </div>
+                    <div>
+                      <span className={styles.tarjetaLabel}>Ship To</span>
+                      <span className={styles.tarjetaValor}>{s.ship_to ?? '—'}</span>
+                    </div>
+                    <div>
+                      <span className={styles.tarjetaLabel}>Especie</span>
+                      <span className={styles.tarjetaValor}>{s.especie ?? '—'}</span>
+                    </div>
+                    <div>
+                      <span className={styles.tarjetaLabel}>Tipo muestra</span>
+                      <span className={styles.tarjetaValor}>{s.tipo_muestra ?? '—'}</span>
+                    </div>
+                  </div>
+                  <div className={styles.tarjetaPie}>
+                    <button
+                      className={styles.botonTarjetaVer}
+                      onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}
+                    >
+                      Ver
+                    </button>
+                    {puedeEliminar && (
+                      <button className={styles.botonTarjetaEliminar} onClick={() => onEliminar(s)}>
+                        Eliminar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </Card>
     </div>

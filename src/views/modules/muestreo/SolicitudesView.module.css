@@ -207,3 +207,104 @@
   align-self: end;
   padding: 7px 0;
 }
+
+.tarjetas {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .tablaCaja {
+    display: none;
+  }
+
+  .tarjetas {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+}
+
+.tarjeta {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+}
+
+.tarjetaCabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.tarjetaId {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.tarjetaFecha {
+  font-size: 12px;
+  color: var(--color-text-faint);
+  margin-top: 2px;
+}
+
+.tarjetaGrilla {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2) var(--space-3);
+  font-size: 13px;
+}
+
+.tarjetaGrilla > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tarjetaLabel {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-faint);
+}
+
+.tarjetaValor {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.tarjetaPie {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--color-border);
+}
+
+.botonTarjetaVer,
+.botonTarjetaEliminar {
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.botonTarjetaVer {
+  color: var(--color-primary-hover);
+  background: #eef6e5;
+  border-color: #d4e9c4;
+}
+
+.botonTarjetaEliminar {
+  color: var(--color-danger);
+  background: #fbe8e5;
+  border-color: #f3c9c1;
+}
