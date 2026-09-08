@@ -31,6 +31,8 @@ export function LoginView() {
           <div className={styles.carruselDegradado} />
         </div>
 
+        <div className={styles.cintaEsquina} aria-hidden="true" />
+
         <div className={styles.contenido}>
           <img src={agrofreshLogo} alt="AgroFresh" className={styles.logoMarca} />
           <div className={styles.marcaTexto}>

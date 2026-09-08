@@ -5,6 +5,10 @@
 }
 
 .marca {
+  --verde-profundo: #16240f;
+  --verde-medio: #355a22;
+  --lima: #c3e04a;
+
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -14,6 +18,27 @@
   color: #fff;
   position: relative;
   overflow: hidden;
+}
+
+.cintaEsquina {
+  position: absolute;
+  top: -14%;
+  right: -14%;
+  width: 48%;
+  height: 64%;
+  clip-path: polygon(100% 0, 100% 88%, 36% 0);
+  background: repeating-linear-gradient(
+    115deg,
+    var(--verde-profundo) 0 34px,
+    var(--verde-medio) 34px 60px,
+    var(--color-primary) 60px 78px,
+    transparent 78px 86px,
+    var(--lima) 86px 98px,
+    transparent 98px 260px
+  );
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .carrusel {
@@ -73,8 +98,6 @@
 .logoMarca {
   height: 46px;
   width: fit-content;
-  filter: brightness(0) invert(1);
-  opacity: 0.96;
   position: relative;
 }
 
