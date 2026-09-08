@@ -101,14 +101,20 @@ def _upsert_cliente(cur, nombre: str, numero: str | None) -> int:
 
 
 def _upsert_planta(cur, cliente_id_defecto: int, nombre: str, numero: str | None) -> int:
-    """Busca la sucursal por nombre en CUALQUIER cliente -no solo en
-    `cliente_id_defecto`-: si ya existe correctamente vinculada a su cliente
-    real, se activa donde está, sin moverla. Solo se crea bajo el
-    placeholder cuando de verdad no existe en ningún lado todavía."""
+    """Busca la sucursal SOLO dentro de `cliente_id_defecto` (el placeholder).
+
+    A propósito NO busca por nombre en cualquier cliente: el mismo Ship To
+    (una planta de packing/frío de terceros) puede recibir fruta de varios
+    Sold To distintos y legítimamente tener una fila propia bajo cada uno
+    -"AMS FAMILY S.A" puede ser Ship To real de seis clientes distintos a la
+    vez-. Como este archivo no trae el pareo Sold To↔Ship To, la única
+    homologación segura es evitar crear dos veces la MISMA fila bajo el
+    MISMO placeholder si el script se corre más de una vez; a qué cliente
+    real pertenece cada una se decide a mano después, en Listados → Ship To."""
     cur.execute(
-        "SELECT id, codigo_sap FROM planta WHERE "
-        "lower(regexp_replace(trim(nombre), '\\s+', ' ', 'g')) = %s LIMIT 1",
-        (_clave_simple(nombre),),
+        "SELECT id, codigo_sap FROM planta WHERE cliente_id = %s "
+        "AND lower(regexp_replace(trim(nombre), '\\s+', ' ', 'g')) = %s",
+        (cliente_id_defecto, _clave_simple(nombre)),
     )
     fila = cur.fetchone()
     if fila:
