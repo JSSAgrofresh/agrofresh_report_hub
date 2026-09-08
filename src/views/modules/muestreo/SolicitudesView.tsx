@@ -344,7 +344,7 @@ export function SolicitudesView() {
               : 'Todavía no hay solicitudes registradas.'}
           </p>
         ) : (
-          <>
+          <div className={styles.contenedorListado}>
             <div className={styles.tablaCaja}>
               <table className={styles.tabla}>
                 <thead>
@@ -436,7 +436,7 @@ export function SolicitudesView() {
                 </div>
               ))}
             </div>
-          </>
+          </div>
         )}
       </Card>
     </div>
