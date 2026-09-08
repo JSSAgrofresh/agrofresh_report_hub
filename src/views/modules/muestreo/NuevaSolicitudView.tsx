@@ -163,7 +163,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [valoresTipoAplicacion, setValoresTipoAplicacion] = useState<Record<string, string>>({})
   const [seleccionAnalitos, setSeleccionAnalitos] = useState<Record<number, boolean>>({})
   const [valoresAnalitos, setValoresAnalitos] = useState<Record<number, string>>({})
-  const [unidadesAnalitos, setUnidadesAnalitos] = useState<Record<number, string>>({})
   const [dosisSinIndicar, setDosisSinIndicar] = useState<Record<number, boolean>>({})
   const [alsPesticidas, setAlsPesticidas] = useState<AlsPesticida[]>(ALS_PESTICIDAS_VACIO)
 
@@ -310,7 +309,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     const candidatos = analitosTodos.filter((a) => a.laboratorio === s.laboratorio)
     const seleccion: Record<number, boolean> = {}
     const valores: Record<number, string> = {}
-    const unidadesDosis: Record<number, string> = {}
     const sinDosis: Record<number, boolean> = {}
     for (const codigo of s.analitos_solicitados) {
       const analito = candidatos.find((a) => a.codigo === codigo)
@@ -319,11 +317,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       const valor = valorGuardadoParaAnalito(s.campos_laboratorio, analito, analito.unidad ?? '')
       sinDosis[analito.id] = valor === '—' || valor === 'Solicitado'
       valores[analito.id] = sinDosis[analito.id] ? '' : valor
-      unidadesDosis[analito.id] = analito.unidad ?? ''
     }
     setSeleccionAnalitos(seleccion)
     setValoresAnalitos(valores)
-    setUnidadesAnalitos(unidadesDosis)
     setDosisSinIndicar(sinDosis)
     setAlsPesticidas(
       s.laboratorio === 'ALS'
@@ -505,7 +501,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setLaboratorio(v)
     setSeleccionAnalitos({})
     setValoresAnalitos({})
-    setUnidadesAnalitos({})
     setDosisSinIndicar({})
     setProductosSeleccionados([])
     setAlsPesticidas(ALS_PESTICIDAS_VACIO)
@@ -522,7 +517,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setProductosSeleccionados([])
     setSeleccionAnalitos({})
     setValoresAnalitos({})
-    setUnidadesAnalitos({})
     setDosisSinIndicar({})
     setGeneral((g) => ({
       ...g,
@@ -541,15 +535,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   function alternarAnalito(analito: AnalitoConfig) {
     const seleccionado = !seleccionAnalitos[analito.id]
     setSeleccionAnalitos((actual) => ({ ...actual, [analito.id]: seleccionado }))
-    if (seleccionado) {
-      setUnidadesAnalitos((actual) => ({
-        ...actual,
-        [analito.id]: actual[analito.id] ?? unidadDe(analito),
-      }))
-      return
-    }
+    if (seleccionado) return
     setValoresAnalitos((actual) => ({ ...actual, [analito.id]: '' }))
-    setUnidadesAnalitos((actual) => ({ ...actual, [analito.id]: '' }))
     setDosisSinIndicar((actual) => ({ ...actual, [analito.id]: false }))
   }
 
@@ -558,15 +545,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     if (valor) setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: false }))
   }
 
-  function actualizarUnidadDosis(analitoId: number, unidad: string) {
-    setUnidadesAnalitos((actual) => ({ ...actual, [analitoId]: unidad }))
-    if (unidad) setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: false }))
-  }
-
   function indicarSinDosis(analitoId: number) {
     setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: true }))
     setValoresAnalitos((actual) => ({ ...actual, [analitoId]: '' }))
-    setUnidadesAnalitos((actual) => ({ ...actual, [analitoId]: '' }))
   }
 
   function valorRequerido(clave: string): string {
@@ -622,18 +603,15 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     for (const analito of analitosLab) {
       if (!seleccionAnalitos[analito.id]) continue
       const valor = valoresAnalitos[analito.id]?.trim()
-      const unidadDosis = unidadesAnalitos[analito.id]?.trim()
-      if (!dosisSinIndicar[analito.id] && (!valor || !unidadDosis)) {
+      if (!dosisSinIndicar[analito.id] && !valor) {
         const dato = analito.dosis_aplicable ? 'dosis' : 'valor'
-        setError(
-          `Indica el ${dato} y su unidad para "${analito.nombre}", o elige "No indicar dosis".`,
-        )
+        setError(`Indica el ${dato} para "${analito.nombre}", o elige "No indicar dosis".`)
         return
       }
       codigosAnalitosSolicitados.push(analito.codigo)
       const unidad = unidadDe(analito)
       const etiqueta = unidad ? `${analito.nombre} (${unidad})` : analito.nombre
-      camposLabFinal[etiqueta] = dosisSinIndicar[analito.id] ? '—' : `${valor} ${unidadDosis}`
+      camposLabFinal[etiqueta] = dosisSinIndicar[analito.id] ? '—' : (valor ?? '')
     }
     // Los campos propios del Tipo de Aplicación se guardan siempre que
     // apliquen, aunque estén vacíos: el informe debe mostrar la estructura
@@ -1080,20 +1058,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                               ) : (
                                 <span className={styles.dosisConUnidad}>
                                   <input
-                                    type={a.tipo === 'numero' ? 'number' : 'text'}
-                                    min={a.tipo === 'numero' ? '0' : undefined}
-                                    step={a.tipo === 'numero' ? 'any' : undefined}
-                                    inputMode={a.tipo === 'numero' ? 'decimal' : undefined}
+                                    type="text"
                                     aria-label={`${a.dosis_aplicable ? 'Dosis' : 'Valor'} de ${a.nombre}`}
                                     value={valoresAnalitos[a.id] ?? ''}
                                     onChange={(e) => actualizarDosis(a.id, e.target.value)}
-                                  />
-                                  <input
-                                    type="text"
-                                    aria-label={`Unidad de dosis de ${a.nombre}`}
-                                    placeholder="Unidad"
-                                    value={unidadesAnalitos[a.id] ?? ''}
-                                    onChange={(e) => actualizarUnidadDosis(a.id, e.target.value)}
                                   />
                                 </span>
                               )}
