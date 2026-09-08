@@ -18,6 +18,12 @@ sí, a diferencia del pivote que lee `POST /listados/importar-maestro`-:
 - Especie y Variedad se crean como valor ESTÁNDAR en `valor_lista` (o se
   promueve un crudo ya existente con ese mismo nombre, para no duplicar).
 
+Para Sold To/Ship To, "ya existe" se compara sin distinguir mayúsculas NI
+espacios dobles/de más -"FRUSAN PLANTA LO HERRERA" y "FRUSAN PLANTA  LO
+HERRERA" (con doble espacio) son la misma sucursal, no dos-. La comparación
+por SQL exacto (`ON CONFLICT`) no alcanza para esto, así que se hace en
+Python contra lo ya cargado, tanto al contar como al escribir.
+
 Nada de esto borra ni desactiva lo que ya existe: solo agrega lo que falta y
 reactiva lo que estaba inactivo con el mismo nombre. Es idempotente: volver a
 correrlo con el mismo archivo no duplica nada.
@@ -31,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,6 +48,14 @@ from app.db import conexion, cursor_dict  # noqa: E402
 from app.listados import _buscar_o_crear_estandar, clave_normalizada, normalizar_texto_general  # noqa: E402
 
 PLACEHOLDER_SIN_SOLD_TO = "SIN SOLD TO ASIGNADO"
+
+
+def _clave_simple(valor: str) -> str:
+    """Sin mayúsculas ni espacios de más -pero sin tocar acentos ni
+    puntuación, a diferencia de `clave_normalizada`-: Sold To/Ship To se
+    guardan tal cual los entrega SAP, así que la comparación tiene que ser
+    la mínima necesaria para no crear un duplicado por un espacio doble."""
+    return re.sub(r"\s+", " ", (valor or "").strip()).lower()
 
 
 def _leer_hoja(ruta: str, nombre_hoja: str, columnas: tuple[str, ...]) -> list[tuple[str, ...]]:
@@ -69,6 +84,42 @@ def _leer_hoja(ruta: str, nombre_hoja: str, columnas: tuple[str, ...]) -> list[t
     return salida
 
 
+def _upsert_cliente(cur, nombre: str, numero: str | None) -> int:
+    """Busca por clave simple (sin distinguir mayúsculas/espacios de más);
+    si existe, activa y completa el código si faltaba -sin pisar el nombre
+    ya guardado-. Si no, lo crea tal cual viene en el archivo."""
+    cur.execute("SELECT id, codigo_sap FROM cliente WHERE lower(regexp_replace(trim(nombre), '\\s+', ' ', 'g')) = %s", (_clave_simple(nombre),))
+    fila = cur.fetchone()
+    if fila:
+        if numero and not fila["codigo_sap"]:
+            cur.execute("UPDATE cliente SET activo = true, codigo_sap = %s WHERE id = %s", (numero, fila["id"]))
+        else:
+            cur.execute("UPDATE cliente SET activo = true WHERE id = %s", (fila["id"],))
+        return fila["id"]
+    cur.execute("INSERT INTO cliente (nombre, codigo_sap, activo) VALUES (%s, %s, true) RETURNING id", (nombre, numero or None))
+    return cur.fetchone()["id"]
+
+
+def _upsert_planta(cur, cliente_id: int, nombre: str, numero: str | None) -> int:
+    cur.execute(
+        "SELECT id, codigo_sap FROM planta WHERE cliente_id = %s "
+        "AND lower(regexp_replace(trim(nombre), '\\s+', ' ', 'g')) = %s",
+        (cliente_id, _clave_simple(nombre)),
+    )
+    fila = cur.fetchone()
+    if fila:
+        if numero and not fila["codigo_sap"]:
+            cur.execute("UPDATE planta SET activo = true, codigo_sap = %s WHERE id = %s", (numero, fila["id"]))
+        else:
+            cur.execute("UPDATE planta SET activo = true WHERE id = %s", (fila["id"],))
+        return fila["id"]
+    cur.execute(
+        "INSERT INTO planta (cliente_id, nombre, codigo_sap, activo) VALUES (%s, %s, %s, true) RETURNING id",
+        (cliente_id, nombre, numero or None),
+    )
+    return cur.fetchone()["id"]
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("archivo", help="Ruta al Listados_finales.xlsx")
@@ -83,17 +134,17 @@ def main() -> None:
           f"{len(especie_variedad)} de Especie-Variedad.\n")
 
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT lower(trim(nombre)) AS clave FROM cliente")
-        clientes_existentes = {f["clave"] for f in cur.fetchall()}
-        cur.execute("SELECT lower(trim(nombre)) AS clave FROM planta")
-        plantas_existentes = {f["clave"] for f in cur.fetchall()}
+        cur.execute("SELECT nombre FROM cliente")
+        clientes_existentes = {_clave_simple(f["nombre"]) for f in cur.fetchall()}
+        cur.execute("SELECT nombre FROM planta")
+        plantas_existentes = {_clave_simple(f["nombre"]) for f in cur.fetchall()}
         cur.execute("SELECT valor_normalizado AS clave FROM valor_lista WHERE tipo = 'especie'")
         especies_existentes = {f["clave"] for f in cur.fetchall()}
         cur.execute("SELECT valor_normalizado AS clave FROM valor_lista WHERE tipo = 'variedad'")
         variedades_existentes = {f["clave"] for f in cur.fetchall()}
 
-    nuevos_clientes = [(num, nom) for num, nom in sold_to if nom and nom.lower() not in clientes_existentes]
-    nuevas_plantas = [(num, nom) for num, nom in ship_to if nom and nom.lower() not in plantas_existentes]
+    nuevos_clientes = [(num, nom) for num, nom in sold_to if nom and _clave_simple(nom) not in clientes_existentes]
+    nuevas_plantas = [(num, nom) for num, nom in ship_to if nom and _clave_simple(nom) not in plantas_existentes]
     especies_del_archivo = {normalizar_texto_general(c) for c, _v in especie_variedad if c}
     nuevas_especies = sorted(e for e in especies_del_archivo if clave_normalizada(e) not in especies_existentes)
     nuevas_variedades = [
@@ -122,40 +173,16 @@ def main() -> None:
         for numero, nombre in sold_to:
             if not nombre:
                 continue
-            cur.execute(
-                "INSERT INTO cliente (nombre, codigo_sap, activo) VALUES (%s, %s, true) "
-                "ON CONFLICT (nombre) DO UPDATE SET activo = true, codigo_sap = COALESCE(cliente.codigo_sap, EXCLUDED.codigo_sap)",
-                (nombre, numero or None),
-            )
+            _upsert_cliente(cur, nombre, numero or None)
             creados_cliente += 1
 
-        cur.execute("SELECT id FROM cliente WHERE lower(trim(nombre)) = lower(%s)", (PLACEHOLDER_SIN_SOLD_TO,))
-        fila = cur.fetchone()
-        if fila:
-            placeholder_id = fila["id"]
-        else:
-            cur.execute("INSERT INTO cliente (nombre, activo) VALUES (%s, true) RETURNING id", (PLACEHOLDER_SIN_SOLD_TO,))
-            placeholder_id = cur.fetchone()["id"]
+        placeholder_id = _upsert_cliente(cur, PLACEHOLDER_SIN_SOLD_TO, None)
 
         creados_planta = 0
         for numero, nombre in ship_to:
             if not nombre:
                 continue
-            cur.execute(
-                "SELECT id FROM planta WHERE cliente_id = %s AND lower(trim(nombre)) = lower(%s)",
-                (placeholder_id, nombre),
-            )
-            if cur.fetchone():
-                cur.execute(
-                    "UPDATE planta SET activo = true, codigo_sap = COALESCE(codigo_sap, %s) "
-                    "WHERE cliente_id = %s AND lower(trim(nombre)) = lower(%s)",
-                    (numero or None, placeholder_id, nombre),
-                )
-            else:
-                cur.execute(
-                    "INSERT INTO planta (cliente_id, nombre, codigo_sap, activo) VALUES (%s, %s, %s, true)",
-                    (placeholder_id, nombre, numero or None),
-                )
+            _upsert_planta(cur, placeholder_id, nombre, numero or None)
             creados_planta += 1
 
         especies_id: dict[str, int] = {}
