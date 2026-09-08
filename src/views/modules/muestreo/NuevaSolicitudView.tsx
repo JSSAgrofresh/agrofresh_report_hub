@@ -55,7 +55,6 @@ const TIPOS_DE_MUESTRA = ['Fruta', 'Agua', 'Cera']
  * mantenedor de campos generales solo tiene un sí/no global, así que estas
  * dos reglas se resuelven acá y se ignora su `requerido` configurado. */
 const REQUERIDO_SOLO_EN: Record<string, string> = {
-  csg: TIPO_LINEA_PROCESO,
   posicion_muestreo: TIPO_ACTIMIST,
 }
 
@@ -88,7 +87,8 @@ const SECCION_DE_CAMPO: Record<string, 'identificacion' | 'muestra'> = {
   linea_proceso: 'muestra',
   numero_camara: 'muestra',
   numero_orden: 'muestra',
-  csg: 'muestra',
+  csg_productor: 'muestra',
+  csg_packing: 'muestra',
   lote: 'muestra',
   kilos_procesados: 'muestra',
   posicion_muestreo: 'muestra',
@@ -265,7 +265,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setGeneral({
       especie: s.especie ?? '',
       variedad: s.variedad ?? '',
-      csg: s.csg ?? '',
+      csg_productor: s.csg_productor ?? '',
+      csg_packing: s.csg_packing ?? '',
       lote: s.lote ?? '',
       posicion_muestreo: s.posicion_muestreo ?? '',
       numero_camara: s.numero_camara ?? '',
@@ -393,9 +394,15 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     () =>
       camposActivos.filter((c) => {
         if (SECCION_DE_CAMPO[c.clave] !== 'muestra') return false
-        // Kilos procesados y CSG son datos de la línea: en Actimist se
-        // muestrea de una cámara, no de un flujo de proceso.
-        if (c.clave === 'linea_proceso' || c.clave === 'kilos_procesados' || c.clave === 'csg') {
+        // Kilos procesados y los códigos CSG (Productor/Packing) son datos de
+        // la línea: en Actimist se muestrea de una cámara, no de un flujo de
+        // proceso.
+        if (
+          c.clave === 'linea_proceso' ||
+          c.clave === 'kilos_procesados' ||
+          c.clave === 'csg_productor' ||
+          c.clave === 'csg_packing'
+        ) {
           return tipoAplicacionSel === TIPO_LINEA_PROCESO
         }
         if (c.clave === 'numero_camara' || c.clave === 'numero_orden')
@@ -521,7 +528,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       ...g,
       numero_camara: '',
       numero_orden: '',
-      csg: '',
+      csg_productor: '',
+      csg_packing: '',
       kilos_procesados: '',
     }))
   }
@@ -649,9 +657,11 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       especie: general.especie?.trim() || null,
       variedad: general.variedad?.trim() || null,
       linea_proceso: esLineaProceso ? lineaProceso || null : null,
-      // CSG y kilos son propios de la línea: en Actimist ni se piden ni se
-      // guardan, aunque hayan quedado escritos antes de cambiar de tipo.
-      csg: esLineaProceso ? general.csg?.trim() || null : null,
+      // Los códigos CSG y kilos son propios de la línea: en Actimist ni se
+      // piden ni se guardan, aunque hayan quedado escritos antes de cambiar
+      // de tipo.
+      csg_productor: esLineaProceso ? general.csg_productor?.trim() || null : null,
+      csg_packing: esLineaProceso ? general.csg_packing?.trim() || null : null,
       lote: general.lote?.trim() || null,
       posicion_muestreo: general.posicion_muestreo?.trim() || null,
       numero_camara: esActimist ? general.numero_camara?.trim() || null : null,
@@ -679,8 +689,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         await actualizarSolicitud(archivoEditando, payload)
         navigate(rutaTomaMuestrasDetalle(archivoEditando))
       } else {
-        await crearSolicitud(payload)
-        navigate(ROUTES.tomaMuestras)
+        const creada = await crearSolicitud(payload)
+        navigate(rutaTomaMuestrasDetalle(creada.archivo))
       }
     } catch (err) {
       if (modo === 'editar' && err instanceof HttpError && err.status === 409) {

@@ -4,19 +4,24 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { SolicitudDetalleView } from './SolicitudDetalleView'
 import type { AnalitoConfig, Solicitud } from '@/features/tomaMuestras'
 
-const { obtenerSolicitud, listarAnalitosConfig, destinatariosDeSolicitud } = vi.hoisted(() => ({
+const { obtenerSolicitud, listarAnalitosConfig, destinatariosDeSolicitud, listarFotosSolicitud } = vi.hoisted(() => ({
   obtenerSolicitud: vi.fn(),
   listarAnalitosConfig: vi.fn(),
   destinatariosDeSolicitud: vi.fn(),
+  listarFotosSolicitud: vi.fn(),
 }))
 
 vi.mock('@/features/tomaMuestras', () => ({
   obtenerSolicitud,
   listarAnalitosConfig,
   destinatariosDeSolicitud,
+  listarFotosSolicitud,
   descargarExcelSolicitud: vi.fn(),
   descargarPdfSolicitud: vi.fn(),
   enviarSolicitudPorCorreo: vi.fn(),
+  subirFotoSolicitud: vi.fn(),
+  eliminarFotoSolicitud: vi.fn(),
+  obtenerFotoSolicitud: vi.fn(),
 }))
 
 const ANALITOS: AnalitoConfig[] = [
@@ -37,7 +42,8 @@ function solicitudBase(overrides: Partial<Solicitud> = {}): Solicitud {
     especie: 'Cerezas',
     variedad: null,
     linea_proceso: null,
-    csg: null,
+    csg_productor: null,
+    csg_packing: null,
     lote: null,
     posicion_muestreo: null,
     numero_camara: null,
@@ -70,6 +76,7 @@ function montar(solicitud: Solicitud) {
   obtenerSolicitud.mockResolvedValue(solicitud)
   listarAnalitosConfig.mockResolvedValue(ANALITOS)
   destinatariosDeSolicitud.mockResolvedValue({ laboratorio: solicitud.laboratorio, destinatarios: [] })
+  listarFotosSolicitud.mockResolvedValue([])
   return render(
     <MemoryRouter initialEntries={[`/solicitud/${solicitud.archivo}`]}>
       <Routes>

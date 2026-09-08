@@ -11,6 +11,10 @@ export {
   enviarSolicitudPorCorreo,
   destinatariosDeSolicitud,
   resultadosDeShipTo,
+  listarFotosSolicitud,
+  subirFotoSolicitud,
+  eliminarFotoSolicitud,
+  obtenerFotoSolicitud,
 } from './lib/api'
 export {
   listarCamposConfig,

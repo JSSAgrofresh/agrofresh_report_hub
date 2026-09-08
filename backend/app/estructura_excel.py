@@ -1,6 +1,6 @@
 """
 Valida que un Excel de la plantilla nueva de Cargar Datos (Data Core) traiga
-exactamente las 69 columnas esperadas, en el orden esperado, con el nombre
+exactamente las 70 columnas esperadas, en el orden esperado, con el nombre
 exacto esperado.
 
 Esto es una validación de AYUDA para el Paso 1 del wizard "Cargar Datos" -le
@@ -15,7 +15,7 @@ from __future__ import annotations
 from difflib import SequenceMatcher
 from typing import Any
 
-# Orden y nombre exacto de las 69 columnas de la plantilla oficial.
+# Orden y nombre exacto de las 70 columnas de la plantilla oficial.
 COLUMNAS_ESPERADAS: tuple[str, ...] = (
     "N° Informe",
     "N° Solicitud",
@@ -31,7 +31,8 @@ COLUMNAS_ESPERADAS: tuple[str, ...] = (
     "Especie",
     "Variedad",
     "Línea Proceso",
-    "CSG",
+    "Código del Productor",
+    "Código del Packing",
     "Lote",
     "Posición Muestreo",
     "N° Cámara",
@@ -110,7 +111,7 @@ def _sugerir(col: str) -> str | None:
 
 def validar_estructura(columnas: list[Any]) -> dict[str, Any]:
     """Compara `columnas` (los encabezados tal como vienen en la fila 1 del
-    Excel, en orden) contra la plantilla oficial de 69 columnas.
+    Excel, en orden) contra la plantilla oficial de 70 columnas.
 
     Devuelve {"valido": bool, "errores": [str, ...], "advertencias": [str, ...]}
     con mensajes concretos y accionables, nunca un genérico "archivo inválido".

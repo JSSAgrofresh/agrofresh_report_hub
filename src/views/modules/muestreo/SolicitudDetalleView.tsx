@@ -11,6 +11,10 @@ import {
   enviarSolicitudPorCorreo,
   destinatariosDeSolicitud,
   listarAnalitosConfig,
+  listarFotosSolicitud,
+  subirFotoSolicitud,
+  eliminarFotoSolicitud,
+  obtenerFotoSolicitud,
 } from '@/features/tomaMuestras'
 import type { AnalitoConfig, Solicitud } from '@/features/tomaMuestras'
 import { ROUTES, rutaTomaMuestrasEditar } from '@/constants/routes'
@@ -22,6 +26,57 @@ function Campo({ etiqueta, valor }: { etiqueta: string; valor: string }) {
     <div className={styles.campo}>
       <dt>{etiqueta}</dt>
       <dd>{valor || '—'}</dd>
+    </div>
+  )
+}
+
+const MAX_FOTOS_MUESTRA = 5
+
+/** Miniatura de una foto ya subida: el backend no expone las fotos por una
+ * URL pública -viven en R2 detrás del mismo login que el resto de la
+ * solicitud-, así que se piden como blob autenticado y se arma un object URL
+ * local, que se libera al desmontar o al cambiar de foto. */
+function MiniaturaFoto({
+  archivo,
+  nombre,
+  onQuitar,
+  quitando,
+}: {
+  archivo: string
+  nombre: string
+  onQuitar: () => void
+  quitando: boolean
+}) {
+  const [url, setUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    let objectUrl: string | null = null
+    let vigente = true
+    obtenerFotoSolicitud(archivo, nombre)
+      .then((blob) => {
+        if (!vigente) return
+        objectUrl = URL.createObjectURL(blob)
+        setUrl(objectUrl)
+      })
+      .catch(() => {})
+    return () => {
+      vigente = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [archivo, nombre])
+
+  return (
+    <div className={styles.miniatura}>
+      {url && <img src={url} alt="Foto de la muestra" />}
+      <button
+        type="button"
+        className={styles.quitarFoto}
+        aria-label="Quitar foto"
+        onClick={onQuitar}
+        disabled={quitando}
+      >
+        ×
+      </button>
     </div>
   )
 }
@@ -56,12 +111,100 @@ export function SolicitudDetalleView() {
   const [contactosLab, setContactosLab] = useState<string[] | null>(null)
   const inputEmailRef = useRef<HTMLInputElement>(null)
 
+  // --- Fotos de la muestra: se piden por cámara y se suben directo a R2,
+  // aparte del Excel de la solicitud (ver toma_muestras.py, endpoints
+  // /fotos). `camaraActiva` refleja si el navegador ya tiene el stream de
+  // video abierto -no si el usuario dio o no el permiso, eso el navegador lo
+  // resuelve solo al llamar getUserMedia-.
+  const [fotos, setFotos] = useState<string[]>([])
+  const [camaraActiva, setCamaraActiva] = useState(false)
+  const [subiendoFoto, setSubiendoFoto] = useState(false)
+  const [quitandoFoto, setQuitandoFoto] = useState<string | null>(null)
+  const [errorCamara, setErrorCamara] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
   useEffect(() => {
     if (!archivo) return
     obtenerSolicitud(archivo)
       .then(setSolicitud)
       .catch(() => setError('No se pudo cargar la solicitud.'))
+    listarFotosSolicitud(archivo)
+      .then(setFotos)
+      .catch(() => setFotos([]))
   }, [archivo])
+
+  // Corta la cámara al salir de la pantalla -si no, el navegador sigue
+  // mostrando el ícono de "cámara en uso" aunque la persona ya se fue.
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+    }
+  }, [])
+
+  async function activarCamara() {
+    setErrorCamara(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+        audio: false,
+      })
+      streamRef.current = stream
+      setCamaraActiva(true)
+      // El <video> recién se monta después de este setState, así que el
+      // stream se asigna en un efecto aparte (ver más abajo) en vez de acá.
+    } catch {
+      setErrorCamara('No se pudo acceder a la cámara. Revisa que el navegador tenga permiso.')
+    }
+  }
+
+  useEffect(() => {
+    if (camaraActiva && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current
+    }
+  }, [camaraActiva])
+
+  function detenerCamara() {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    setCamaraActiva(false)
+  }
+
+  async function tomarFoto() {
+    if (!archivo || !videoRef.current || fotos.length >= MAX_FOTOS_MUESTRA) return
+    const video = videoRef.current
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(video, 0, 0)
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9))
+    if (!blob) return
+    setSubiendoFoto(true)
+    setErrorCamara(null)
+    try {
+      const actualizadas = await subirFotoSolicitud(archivo, blob, `foto_${Date.now()}.jpg`)
+      setFotos(actualizadas)
+    } catch {
+      setErrorCamara('No se pudo guardar la foto. Intenta de nuevo.')
+    } finally {
+      setSubiendoFoto(false)
+    }
+  }
+
+  async function quitarFoto(nombreFoto: string) {
+    if (!archivo) return
+    setQuitandoFoto(nombreFoto)
+    try {
+      const actualizadas = await eliminarFotoSolicitud(archivo, nombreFoto)
+      setFotos(actualizadas)
+    } catch {
+      setErrorCamara('No se pudo quitar la foto. Intenta de nuevo.')
+    } finally {
+      setQuitandoFoto(null)
+    }
+  }
 
   // El catálogo del laboratorio es lo que permite mostrar cada analito
   // solicitado con su nombre y unidad, no solo el código crudo.
@@ -216,6 +359,85 @@ export function SolicitudDetalleView() {
         }
       />
 
+      <Card>
+        <div className={styles.avisoFotos}>
+          <p className={styles.avisoFotosTitulo}>
+            Recuerda escribir la siguiente información en la muestra
+          </p>
+          <dl className={styles.avisoFotosDatos}>
+            <div className={styles.avisoFotosDato}>
+              <dt>OT</dt>
+              <dd>{solicitud.numero_solicitud}</dd>
+            </div>
+            <div className={styles.avisoFotosDato}>
+              <dt>Sold To</dt>
+              <dd>{solicitud.sold_to}</dd>
+            </div>
+            <div className={styles.avisoFotosDato}>
+              <dt>Ship To</dt>
+              <dd>{solicitud.ship_to || '—'}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <h2 className={styles.tituloSeccion}>
+          Fotos de la muestra ({fotos.length}/{MAX_FOTOS_MUESTRA})
+        </h2>
+        <p className={styles.descripcionEnvio}>
+          Solo quedan guardadas junto a la solicitud en R2 -no se adjuntan al Excel ni al PDF-.
+        </p>
+
+        <div className={styles.camaraAcciones}>
+          {!camaraActiva ? (
+            <button
+              type="button"
+              className={styles.botonCamara}
+              onClick={activarCamara}
+              disabled={fotos.length >= MAX_FOTOS_MUESTRA}
+            >
+              Activar cámara
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className={styles.botonCamara}
+                onClick={() => void tomarFoto()}
+                disabled={subiendoFoto || fotos.length >= MAX_FOTOS_MUESTRA}
+              >
+                {subiendoFoto ? 'Guardando…' : 'Tomar foto'}
+              </button>
+              <button type="button" className={styles.botonCamaraSecundario} onClick={detenerCamara}>
+                Detener cámara
+              </button>
+            </>
+          )}
+          {fotos.length >= MAX_FOTOS_MUESTRA && (
+            <span className={styles.contadorFotos}>Máximo de {MAX_FOTOS_MUESTRA} fotos alcanzado.</span>
+          )}
+        </div>
+
+        {errorCamara && <p className={styles.error}>{errorCamara}</p>}
+
+        {camaraActiva && (
+          <video ref={videoRef} className={styles.videoCamara} autoPlay playsInline muted />
+        )}
+
+        {fotos.length > 0 && (
+          <div className={styles.miniaturas}>
+            {fotos.map((nombreFoto) => (
+              <MiniaturaFoto
+                key={nombreFoto}
+                archivo={solicitud.archivo}
+                nombre={nombreFoto}
+                onQuitar={() => void quitarFoto(nombreFoto)}
+                quitando={quitandoFoto === nombreFoto}
+              />
+            ))}
+          </div>
+        )}
+      </Card>
+
       {mostrarEnvio && (
         <div className={styles.panelEnvio}>
           <label className={styles.etiquetaEnvio}>
@@ -330,7 +552,8 @@ export function SolicitudDetalleView() {
             <Campo etiqueta="Especie" valor={solicitud.especie ?? ''} />
             <Campo etiqueta="Variedad" valor={solicitud.variedad ?? ''} />
             <Campo etiqueta="Línea Proceso" valor={solicitud.linea_proceso ?? ''} />
-            <Campo etiqueta="CSG" valor={solicitud.csg ?? ''} />
+            <Campo etiqueta="Código del Productor" valor={solicitud.csg_productor ?? ''} />
+            <Campo etiqueta="Código del Packing" valor={solicitud.csg_packing ?? ''} />
             <Campo etiqueta="Lote" valor={solicitud.lote ?? ''} />
           </dl>
         </Card>
