@@ -83,6 +83,38 @@ def _clave_guardada(campos_lab: dict, analito: dict) -> str | None:
     return None
 
 
+def _analisis_por_analito_id(analisis_config: list[dict] | None, laboratorio: str) -> dict[int, dict]:
+    """Análisis (panel) al que pertenece cada analito, por id -mismo criterio
+    "primer análisis que lo incluya, por orden" que usa el checklist de la
+    solicitud (NuevaSolicitudView.tsx), para que el nombre que sale acá sea
+    el mismo que vio quien armó la solicitud."""
+    analisis_del_lab = sorted(
+        (a for a in (analisis_config or []) if a.get('laboratorio') == laboratorio and a.get('activo')),
+        key=lambda a: a.get('orden', 0),
+    )
+    mapa: dict[int, dict] = {}
+    for analisis in analisis_del_lab:
+        for item in analisis.get('analitos', []):
+            analito_id = item.get('analito_id')
+            if analito_id is not None and analito_id not in mapa:
+                mapa[analito_id] = analisis
+    return mapa
+
+
+def _subtitulo_analisis_requeridos(analitos_solicitados: list[dict], analisis_por_id: dict[int, dict]) -> str:
+    """El nombre del/los Análisis pedidos (ej. "FSMA (E. Coli + Coliformes
+    Totales)") en vez del genérico "Checklist técnico para el laboratorio",
+    para que se vea de una qué análisis es -igual que ya agrupa el checklist
+    de la solicitud-. Si ningún analito pedido está en un Análisis del
+    laboratorio (catálogo viejo sin agrupar), se deja el texto genérico."""
+    nombres = []
+    for analito in analitos_solicitados:
+        analisis = analisis_por_id.get(analito.get('id'))
+        if analisis and analisis['nombre'] not in nombres:
+            nombres.append(analisis['nombre'])
+    return ' · '.join(nombres) if nombres else 'Checklist técnico para el laboratorio'
+
+
 def _seccion(numero: str, titulo: str, subtitulo: str = '', ancho: float = ANCHO_UTIL) -> Table:
     """La cabecera numerada de cada sección. Sin relleno de color -solo el
     número en un recuadro con borde, el título en verde y una línea verde
@@ -170,7 +202,12 @@ def _panel_origen(datos: dict, laboratorio: str, ancho: float) -> Table:
     return t
 
 
-def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espacio_extra: float = 0) -> list:
+def _construir_elementos(
+    datos: dict,
+    analitos_config: list[dict] | None,
+    espacio_extra: float = 0,
+    analisis_config: list[dict] | None = None,
+) -> list:
     laboratorio = datos.get('laboratorio', '')
     campos_lab: dict = datos.get('campos_laboratorio') or {}
     analitos_lab = sorted(
@@ -277,7 +314,9 @@ def _construir_elementos(datos: dict, analitos_config: list[dict] | None, espaci
     ]))
     elementos.extend([cuerpo_superior, Spacer(1, 6)])
 
-    elementos.append(_seccion('3', 'ANÁLISIS REQUERIDOS', 'Checklist técnico para el laboratorio'))
+    analisis_por_id = _analisis_por_analito_id(analisis_config, laboratorio)
+    subtitulo_analisis = _subtitulo_analisis_requeridos(list(etiquetas_analitos.values()), analisis_por_id)
+    elementos.append(_seccion('3', 'ANÁLISIS REQUERIDOS', subtitulo_analisis))
     filas = [[Paragraph('ANALITO SOLICITADO', _S_TABLA_HEAD), Paragraph('DOSIS', _S_TABLA_HEAD)]]
     for _codigo_analito, nombre, valor in filas_analitos:
         filas.append([Paragraph(nombre, _S_TABLA), Paragraph(valor, _S_TABLA)])
@@ -366,13 +405,19 @@ def _construir_pdf(elementos: list, titulo: str) -> bytes:
     return buf.getvalue()
 
 
-def generar_pdf_solicitud(datos: dict, analitos_config: list[dict] | None = None) -> bytes:
+def generar_pdf_solicitud(
+    datos: dict,
+    analitos_config: list[dict] | None = None,
+    analisis_config: list[dict] | None = None,
+) -> bytes:
     titulo = f"Solicitud de análisis {datos.get('numero_solicitud', '')}".strip()
-    pdf_min = _construir_pdf(_construir_elementos(datos, analitos_config), titulo)
+    pdf_min = _construir_pdf(_construir_elementos(datos, analitos_config, analisis_config=analisis_config), titulo)
     if _contar_paginas(pdf_min) > 1:
         return pdf_min
     for espacio in [180, 150, 120, 90, 60, 30]:
-        pdf = _construir_pdf(_construir_elementos(datos, analitos_config, espacio), titulo)
+        pdf = _construir_pdf(
+            _construir_elementos(datos, analitos_config, espacio, analisis_config=analisis_config), titulo
+        )
         if _contar_paginas(pdf) == 1:
             return pdf
     return pdf_min
