@@ -416,6 +416,37 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       ),
     [productosTodos, laboratorio, tipoAplicacionSel],
   )
+  /** Análisis (paneles) activos del laboratorio elegido, en su orden de
+   * mantenedor. Un mismo analito puede estar en más de uno -por eso el
+   * desempate "primer análisis que lo incluya, por orden" se usa tanto acá
+   * como para la unidad-, porque la solicitud pide analitos sueltos, no un
+   * análisis completo. */
+  const analisisDelLab = useMemo(
+    () =>
+      analisisTodos
+        .filter((a) => a.laboratorio === laboratorio && a.activo)
+        .sort((a, b) => a.orden - b.orden),
+    [analisisTodos, laboratorio],
+  )
+
+  /** Análisis (panel) al que pertenece cada analito, por id. Es lo que
+   * agrupa el checklist de la solicitud: mostrar el analito suelto sin este
+   * contexto puede mezclar en la misma lista analitos de análisis
+   * completamente distintos (ej. un metal pesado y una bacteria). */
+  const analisisPorAnalito = useMemo(() => {
+    const mapa = new Map<number, Analisis>()
+    for (const analisis of analisisDelLab) {
+      for (const item of analisis.analitos) {
+        if (!mapa.has(item.analito_id)) mapa.set(item.analito_id, analisis)
+      }
+    }
+    return mapa
+  }, [analisisDelLab])
+
+  function grupoDe(analito: AnalitoConfig): string {
+    return analisisPorAnalito.get(analito.id)?.nombre || analito.categoria || 'Otros analitos'
+  }
+
   const analitosLab = useMemo(
     () =>
       analitosTodos
@@ -425,8 +456,12 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             a.activo &&
             (!a.tipo_aplicacion || a.tipo_aplicacion === tipoAplicacionSel),
         )
-        .sort((a, b) => (a.categoria || '').localeCompare(b.categoria || '') || a.orden - b.orden),
-    [analitosTodos, laboratorio, tipoAplicacionSel],
+        .sort((a, b) => {
+          const ordenA = analisisPorAnalito.get(a.id)?.orden ?? Number.MAX_SAFE_INTEGER
+          const ordenB = analisisPorAnalito.get(b.id)?.orden ?? Number.MAX_SAFE_INTEGER
+          return ordenA - ordenB || grupoDe(a).localeCompare(grupoDe(b)) || a.orden - b.orden
+        }),
+    [analitosTodos, laboratorio, tipoAplicacionSel, analisisPorAnalito],
   )
   /** Unidad vigente de cada analito, por id.
    *
@@ -440,9 +475,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
    */
   const unidadPorAnalito = useMemo(() => {
     const mapa = new Map<number, string>()
-    const analisisDelLab = analisisTodos
-      .filter((a) => a.laboratorio === laboratorio && a.activo)
-      .sort((a, b) => a.orden - b.orden)
     for (const analisis of analisisDelLab) {
       for (const item of analisis.analitos) {
         // El primer análisis que lo incluya define la unidad: dentro de un
@@ -452,7 +484,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       }
     }
     return mapa
-  }, [analisisTodos, laboratorio])
+  }, [analisisDelLab])
 
   function unidadDe(analito: AnalitoConfig): string {
     return unidadPorAnalito.get(analito.id) ?? analito.unidad ?? ''
@@ -1036,15 +1068,13 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             {analitosLab.length > 0 && (
               <div className={styles.analitosPorCategoria}>
                 {analitosLab.map((a, i) => {
-                  const nuevaCategoria =
-                    a.categoria && a.categoria !== analitosLab[i - 1]?.categoria
+                  const grupo = grupoDe(a)
+                  const nuevoGrupo = i === 0 || grupo !== grupoDe(analitosLab[i - 1])
                   const seleccionado = Boolean(seleccionAnalitos[a.id])
                   const sinDosis = Boolean(dosisSinIndicar[a.id])
                   return (
                     <Fragment key={a.id}>
-                      {nuevaCategoria && (
-                        <h3 className={styles.categoriaAnalitos}>{a.categoria}</h3>
-                      )}
+                      {nuevoGrupo && <h3 className={styles.categoriaAnalitos}>{grupo}</h3>}
                       <div
                         className={cn(styles.cardAnalito, seleccionado && styles.cardAnalitoActiva)}
                         data-testid={`analito-card-${a.id}`}
