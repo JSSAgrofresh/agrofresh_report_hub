@@ -9,7 +9,6 @@ import { ROUTES, rutaTomaMuestrasDetalle } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
 import {
   eliminarSolicitud,
-  enviarCorreoPrueba,
   listarSolicitudes,
   descargarTodasLasSolicitudes,
 } from '@/features/tomaMuestras'
@@ -61,25 +60,6 @@ export function SolicitudesView() {
   const [error, setError] = useState<string | null>(null)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
-  const [enviandoPrueba, setEnviandoPrueba] = useState(false)
-  const [mensajePrueba, setMensajePrueba] = useState<string | null>(null)
-
-  async function onEnviarPrueba() {
-    const dest = prompt('Ingresa el correo destinatario para el saludo de prueba:')
-    if (!dest) return
-    setEnviandoPrueba(true)
-    setMensajePrueba(null)
-    try {
-      await enviarCorreoPrueba(dest)
-      setMensajePrueba(`✅ Correo de prueba enviado a ${dest}`)
-    } catch {
-      setMensajePrueba(
-        '❌ No se pudo enviar el correo. Revisa la configuracion de Gmail API en el servidor.',
-      )
-    } finally {
-      setEnviandoPrueba(false)
-    }
-  }
 
   const refrescar = useCallback(async () => {
     try {
@@ -188,9 +168,6 @@ export function SolicitudesView() {
                 ? `Descargar filtradas (${solicitudesFiltradas?.length ?? 0})`
                 : 'Descargar todas las solicitudes'}
             </button>
-            <Button variant="secondary" onClick={onEnviarPrueba} disabled={enviandoPrueba}>
-              {enviandoPrueba ? 'Enviando…' : '✉ Enviar saludo de prueba'}
-            </Button>
             <Button onClick={() => navigate(ROUTES.tomaMuestrasNueva)}>+ Nueva solicitud</Button>
           </div>
         }
@@ -198,7 +175,6 @@ export function SolicitudesView() {
 
       <Card>
         {error && <p className={styles.error}>{error}</p>}
-        {mensajePrueba && <p className={styles.error}>{mensajePrueba}</p>}
 
         <div className={styles.cabeceraTabla}>
           <p className={styles.contador}>
@@ -388,7 +364,9 @@ export function SolicitudesView() {
                   <tr key={s.archivo}>
                     <td className={styles.nombre}>{s.numero_solicitud}</td>
                     <td>{formatDateCL(s.fecha_solicitud)}</td>
-                    <td>{s.laboratorio}</td>
+                    <td>
+                      <span className={styles.etiquetaLaboratorio}>{s.laboratorio}</span>
+                    </td>
                     <td>{s.sold_to}</td>
                     <td>{s.ship_to ?? '—'}</td>
                     <td>{s.especie ?? '—'}</td>

@@ -8,6 +8,7 @@
 
 .contador {
   font-size: 12.5px;
+  font-weight: 500;
   color: var(--color-text-faint);
 }
 
@@ -29,47 +30,79 @@
 .tablaCaja {
   overflow-x: auto;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
 .tabla {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 13.5px;
 }
 
 .tabla th {
   position: sticky;
   top: 0;
-  background: var(--color-surface);
+  z-index: 1;
+  background: var(--color-bg);
   text-align: left;
   color: var(--color-text-muted);
   font-weight: 600;
-  font-size: 11.5px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding: var(--space-2) var(--space-3);
+  letter-spacing: 0.04em;
+  padding: 11px var(--space-3);
   border-bottom: 1px solid var(--color-border-strong);
   white-space: nowrap;
 }
 
+.tabla th:first-child {
+  border-top-left-radius: var(--radius-lg);
+}
+
+.tabla th:last-child {
+  border-top-right-radius: var(--radius-lg);
+}
+
 .tabla td {
-  padding: 8px var(--space-3);
+  padding: 11px var(--space-3);
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
+  color: var(--color-text);
 }
 
 .tabla tbody tr:last-child td {
   border-bottom: none;
 }
 
+.tabla tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+}
+
+.tabla tbody tr {
+  transition: background-color 0.12s ease;
+}
+
 .tabla tbody tr:hover {
-  background: var(--color-bg);
+  background: #eef6e5;
 }
 
 .nombre {
   font-weight: 600;
   font-family: var(--font-mono);
+  color: var(--color-primary-hover);
+}
+
+.etiquetaLaboratorio {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+  background: #eef6e5;
+  border: 1px solid #d4e9c4;
+  border-radius: 999px;
+  padding: 2px 10px;
 }
 
 .acciones {
@@ -82,16 +115,20 @@
 .botonEliminar {
   font-size: 12.5px;
   font-weight: 600;
-  border: none;
+  border: 1px solid transparent;
   background: none;
   cursor: pointer;
-  padding: 5px 9px;
+  padding: 5px 10px;
   border-radius: var(--radius-sm);
   color: var(--color-primary-hover);
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .boton:hover {
   background: #eef6e5;
+  border-color: #d4e9c4;
 }
 
 .botonEliminar {
@@ -100,6 +137,7 @@
 
 .botonEliminar:hover {
   background: #fbe8e5;
+  border-color: #f3c9c1;
 }
 
 .accionesCabecera {
