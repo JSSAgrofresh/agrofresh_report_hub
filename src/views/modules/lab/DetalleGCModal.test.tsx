@@ -48,7 +48,8 @@ describe('DetalleGCModal', () => {
   it('trae ppm, tiempo de retención y área de cada compuesto en la vista por vial', () => {
     montar()
     fireEvent.click(screen.getByRole('tab', { name: 'Área y PPM por vial' }))
-    expect(screen.getByRole('columnheader', { name: 'DIFENILAMINA' }).colSpan).toBe(3)
+    const grupo = screen.getByRole('columnheader', { name: 'DIFENILAMINA' })
+    expect((grupo as HTMLTableCellElement).colSpan).toBe(3)
     expect(screen.getByRole('columnheader', { name: 'ppm' })).toBeTruthy()
     expect(screen.getByRole('columnheader', { name: 'tiempo ret.' })).toBeTruthy()
     expect(screen.getByRole('columnheader', { name: 'área' })).toBeTruthy()
