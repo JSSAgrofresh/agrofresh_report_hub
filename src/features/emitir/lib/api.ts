@@ -21,8 +21,12 @@ export function parsearGCCompleto(archivo: File) {
   return httpClient.upload<DetalleGC>('/emitir/cromatografia/parsear-gc/completo', formData)
 }
 
+/** El Excel se arma con los datos ya leídos, no con el .txt de vuelta: el
+ * texto del archivo pesa cerca de un megabyte y el backend no lo necesita
+ * -solo lo dibuja el visor-. */
 export function descargarDetalleGCExcel(detalle: DetalleGC) {
-  return httpClient.postArchivoConNombre('/emitir/cromatografia/detalle-gc/excel', detalle)
+  const { texto: _texto, regiones: _regiones, categorias: _categorias, ...datos } = detalle
+  return httpClient.postArchivoConNombre('/emitir/cromatografia/detalle-gc/excel', datos)
 }
 
 export function listarSolicitudes() {

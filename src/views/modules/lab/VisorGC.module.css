@@ -1,0 +1,251 @@
+/* El archivo del GC coloreado por partes. Los colores son de la paleta de la
+   marca: verdes para lo que el sistema lee y aprovecha, amarillo para lo que
+   hay que mirar (las advertencias del equipo) y gris para lo que el equipo
+   escribe pero el sistema no ocupa. */
+
+.visor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── Leyenda ───────────────────────────────────────────────────────── */
+
+.leyenda {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(295px, 1fr));
+  gap: 5px;
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.chip,
+.chipApagado {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.chip:hover,
+.chipApagado:hover {
+  border-color: var(--color-border-strong);
+}
+
+.chipApagado {
+  opacity: 0.4;
+}
+
+.chip[aria-pressed='true'] {
+  border-color: var(--color-text-muted);
+}
+
+.muestra {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  flex: none;
+  background: var(--categoria, var(--color-border-strong));
+}
+
+.nombre {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.destino {
+  color: var(--color-text-faint);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cuantas {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  flex: none;
+}
+
+.ayuda {
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+  margin: var(--space-2) 0 0;
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+/* ── El archivo ────────────────────────────────────────────────────── */
+
+.archivo {
+  overflow: auto;
+  border-top: 1px solid var(--color-border);
+  padding-bottom: var(--space-5);
+}
+
+.region {
+  display: flow-root;
+  border-left: 4px solid var(--categoria, var(--color-border-strong));
+  background: var(--categoria-fondo, transparent);
+  min-width: max-content;
+}
+
+.etiqueta {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  margin: 2px 0 0 var(--space-3);
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--categoria, var(--color-border-strong));
+  color: #fff;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.etiqueta span {
+  opacity: 0.85;
+}
+
+.tramo {
+  display: flex;
+}
+
+.numeros,
+.texto {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+  white-space: pre;
+}
+
+.numeros {
+  flex: none;
+  width: 62px;
+  padding-right: 12px;
+  text-align: right;
+  color: var(--color-text-faint);
+  opacity: 0.6;
+  user-select: none;
+}
+
+.texto {
+  padding-right: var(--space-5);
+  color: var(--color-text);
+}
+
+/* ── Un color por parte del reporte ────────────────────────────────── */
+
+.region[data-categoria='portada'],
+.chip[data-categoria='portada'],
+.chipApagado[data-categoria='portada'] {
+  --categoria: #77837b;
+  --categoria-fondo: rgb(119 131 123 / 0.1);
+}
+
+.region[data-categoria='equipo'],
+.chip[data-categoria='equipo'],
+.chipApagado[data-categoria='equipo'] {
+  --categoria: #2f7d32;
+  --categoria-fondo: rgb(47 125 50 / 0.13);
+}
+
+.region[data-categoria='secuencia'],
+.chip[data-categoria='secuencia'],
+.chipApagado[data-categoria='secuencia'] {
+  --categoria: #4f8a26;
+  --categoria-fondo: rgb(79 138 38 / 0.13);
+}
+
+.region[data-categoria='opciones'],
+.chip[data-categoria='opciones'],
+.chipApagado[data-categoria='opciones'] {
+  --categoria: #a9b5a0;
+  --categoria-fondo: rgb(169 181 160 / 0.13);
+}
+
+.region[data-categoria='bitacora'],
+.chip[data-categoria='bitacora'],
+.chipApagado[data-categoria='bitacora'] {
+  --categoria: #7fa05a;
+  --categoria-fondo: rgb(127 160 90 / 0.13);
+}
+
+.region[data-categoria='auditoria'],
+.chip[data-categoria='auditoria'],
+.chipApagado[data-categoria='auditoria'] {
+  --categoria: #9fb84a;
+  --categoria-fondo: rgb(159 184 74 / 0.13);
+}
+
+.region[data-categoria='metodo'],
+.chip[data-categoria='metodo'],
+.chipApagado[data-categoria='metodo'] {
+  --categoria: #b9c94a;
+  --categoria-fondo: rgb(185 201 74 / 0.15);
+}
+
+.region[data-categoria='curva'],
+.chip[data-categoria='curva'],
+.chipApagado[data-categoria='curva'] {
+  --categoria: #d4b52a;
+  --categoria-fondo: rgb(212 181 42 / 0.14);
+}
+
+.region[data-categoria='ident'],
+.chip[data-categoria='ident'],
+.chipApagado[data-categoria='ident'] {
+  --categoria: #6dad3c;
+  --categoria-fondo: rgb(109 173 60 / 0.14);
+}
+
+.region[data-categoria='resultado'],
+.chip[data-categoria='resultado'],
+.chipApagado[data-categoria='resultado'] {
+  --categoria: #2e6f4e;
+  --categoria-fondo: rgb(46 111 78 / 0.13);
+}
+
+.region[data-categoria='advertencia'],
+.chip[data-categoria='advertencia'],
+.chipApagado[data-categoria='advertencia'] {
+  --categoria: #e8c32e;
+  --categoria-fondo: rgb(232 195 46 / 0.2);
+}
+
+.region[data-categoria='sinuso'],
+.chip[data-categoria='sinuso'],
+.chipApagado[data-categoria='sinuso'] {
+  --categoria: #c9d0c4;
+  --categoria-fondo: transparent;
+}
+
+.region[data-categoria='sinuso'] .texto {
+  color: var(--color-text-faint);
+}
+
+.region[data-categoria='sinuso'] .etiqueta {
+  color: var(--color-text-muted);
+}
+
+.region[data-categoria='estadistica'],
+.chip[data-categoria='estadistica'],
+.chipApagado[data-categoria='estadistica'] {
+  --categoria: #8aa63a;
+  --categoria-fondo: rgb(138 166 58 / 0.13);
+}
+
+.region[data-categoria='resumen'],
+.chip[data-categoria='resumen'],
+.chipApagado[data-categoria='resumen'] {
+  --categoria: #3f8f6a;
+  --categoria-fondo: rgb(63 143 106 / 0.13);
+}

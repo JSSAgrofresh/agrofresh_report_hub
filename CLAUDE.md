@@ -138,6 +138,11 @@ por eso apretar una tolerancia en Criterios también revisa el histórico.
 - **Finales de línea mezclados.** `emitir.py`, `toma_muestras.py` y
   `listados.py` son CRLF; otros son LF. Edítalos en binario con un patrón
   tolerante a `\r?\n`, o el reemplazo no calza.
+- **Excel: tabla y autofiltro no conviven.** Una tabla de Excel ya trae su
+  propio filtro. Si además se le pone `ws.auto_filter.ref` al mismo rango, el
+  archivo sale roto: Excel lo abre pidiendo repararlo y pierde el formato. Lo
+  mismo si dos tablas comparten nombre, si el rango no termina en la última
+  fila escrita o si dos columnas de una tabla se llaman igual.
 - **`Agrofresh` vs `AGROFRESH`.** La base (Ingest) guarda el laboratorio en
   capitalización de título; la configuración de la app usa mayúsculas. Compara
   siempre normalizando.

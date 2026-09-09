@@ -16,6 +16,7 @@ from app.gc_parser import (
     es_codigo_puro,
     parsear_cabecera_gc,
     parsear_gc_txt,
+    parsear_reporte_gc,
     parsear_ubicaciones_gc,
 )
 
@@ -40,8 +41,13 @@ def ubicaciones():
 
 
 @pytest.fixture(scope="module")
-def muestras(ubicaciones):
-    crudas = parsear_gc_txt(open(ARCHIVO, "rb").read())
+def reporte():
+    return parsear_reporte_gc(open(ARCHIVO, "rb").read())
+
+
+@pytest.fixture(scope="module")
+def muestras(ubicaciones, reporte):
+    por_linea = {int(f["Line"]): f for f in reporte.secuencia if f.get("Line", "").isdigit()}
     return [
         emitir.MuestraGCDetalleOut(
             codigo=m.codigo,
@@ -49,27 +55,52 @@ def muestras(ubicaciones):
             fecha_inyeccion=m.fecha_inyeccion,
             es_muestra=es_codigo_puro(m.codigo),
             ubicacion=ubicaciones.get(m.seq_line),
+            datos=m.datos,
+            secuencia=por_linea.get(m.seq_line, {}),
+            totales=m.totales,
+            advertencias=m.advertencias,
+            recalibrado=m.recalibrado,
             resultados=[
                 emitir.ResultadoAnalitoOut(
-                    analito=r.analito, codigo=None, area=r.area, amount=r.amount, rettime=r.rettime
+                    analito=r.analito,
+                    codigo=None,
+                    area=r.area,
+                    amount=r.amount,
+                    rettime=r.rettime,
+                    tipo=r.tipo,
+                    amt_area=r.amt_area,
+                    grp=r.grp,
                 )
                 for r in m.resultados
             ],
         )
-        for m in crudas
+        for m in reporte.muestras
     ]
 
 
-def _respuesta(muestras, cabecera=()):
-    return emitir.generar_excel_detalle_gc(
-        emitir.DetalleGCIn(muestras=muestras, cabecera=list(cabecera))
+@pytest.fixture(scope="module")
+def secciones(reporte):
+    """Todo lo que va a las hojas nuevas, tal como lo manda la pantalla."""
+    return dict(
+        metodo=[emitir.CampoCabeceraOut(seccion=s, campo=c, valor=v) for s, c, v in reporte.metodo],
+        auditoria=[emitir.CambioMetodoOut(**a) for a in reporte.auditoria],
+        curva=[emitir.FilaCurvaOut(**f) for f in reporte.curva],
+        estadistica=[emitir.FilaEstadisticaOut(**f) for f in reporte.estadistica],
+        resumen=[emitir.FilaResumenOut(**f) for f in reporte.resumen],
+        bitacora=[emitir.EventoBitacoraOut(**e) for e in reporte.bitacora],
     )
 
 
-def _libro(muestras, cabecera=()):
+def _respuesta(muestras, cabecera=(), **sec):
+    return emitir.generar_excel_detalle_gc(
+        emitir.DetalleGCIn(muestras=muestras, cabecera=list(cabecera), **sec)
+    )
+
+
+def _libro(muestras, cabecera=(), **sec):
     import asyncio
 
-    resp = _respuesta(muestras, cabecera)
+    resp = _respuesta(muestras, cabecera, **sec)
     trozos: list[bytes] = []
 
     async def leer():
@@ -157,14 +188,49 @@ class TestCabecera:
 
 
 class TestExcel:
-    def test_tiene_las_tres_hojas(self, muestras, cabecera):
-        """La información del equipo va PRIMERA: es lo que se mira para
-        respaldar un resultado, no algo escondido al final."""
-        assert _libro(muestras, cabecera).sheetnames == [
+    def test_trae_una_hoja_por_seccion_del_reporte(self, muestras, cabecera, secciones):
+        """El reporte del GC no son solo los resultados: cada sección -método,
+        curva, estadística, bitácora- va a su hoja."""
+        assert _libro(muestras, cabecera, **secciones).sheetnames == [
+            emitir.HOJA_GUIA,
             emitir.HOJA_CABECERA,
-            emitir.HOJA_DETALLE,
             emitir.HOJA_POR_VIAL,
+            emitir.HOJA_DETALLE,
+            emitir.HOJA_SECUENCIA,
+            emitir.HOJA_METODO,
+            emitir.HOJA_AUDITORIA,
+            emitir.HOJA_CURVA,
+            emitir.HOJA_ESTADISTICA,
+            emitir.HOJA_RESUMEN,
+            emitir.HOJA_BITACORA,
         ]
+
+    def test_solo_se_abren_las_tres_hojas_de_siempre(self, muestras, cabecera, secciones):
+        """Once pestañas de golpe no las mira nadie. Las otras ocho son el
+        respaldo: quedan ocultas, a un clic derecho de distancia."""
+        wb = _libro(muestras, cabecera, **secciones)
+        visibles = [h.title for h in wb.worksheets if h.sheet_state == "visible"]
+        assert visibles == [emitir.HOJA_GUIA, emitir.HOJA_CABECERA, emitir.HOJA_POR_VIAL]
+        assert len(wb.sheetnames) == 11
+
+    def test_la_guia_dice_que_hay_hojas_ocultas(self, muestras, cabecera, secciones):
+        """Es la primera hoja que se abre: si no avisa, nadie sabe que el
+        respaldo está ahí."""
+        ws = _libro(muestras, cabecera, **secciones)[emitir.HOJA_GUIA]
+        assert "Mostrar" in ws["C3"].value
+        hojas = {f[1]: f[3] for f in ws.iter_rows(min_row=7, values_only=True)}
+        assert hojas[emitir.HOJA_POR_VIAL] == "visible"
+        assert hojas[emitir.HOJA_BITACORA] == "oculta"
+        assert set(hojas) <= set(_libro(muestras, cabecera, **secciones).sheetnames)
+
+    def test_ninguna_tabla_lleva_autofiltro_encima(self, muestras, cabecera, secciones):
+        """Una tabla de Excel ya trae su propio filtro. Declarar además un
+        `auto_filter` sobre el mismo rango deja el archivo roto: Excel lo abre
+        pidiendo repararlo y pierde el formato."""
+        wb = _libro(muestras, cabecera, **secciones)
+        for hoja in wb.worksheets:
+            if hoja.tables:
+                assert not hoja.auto_filter.ref, hoja.title
 
     def test_la_hoja_del_equipo_trae_los_campos(self, muestras, cabecera):
         """El encabezado va en la fila 6: arriba quedan el logo y el título."""
@@ -192,18 +258,20 @@ class TestExcel:
             "Parámetros de la secuencia",
         ]
 
-    def test_las_tres_hojas_son_tablas_de_excel(self, muestras, cabecera):
-        """Como tabla se filtra y ordena sin darle formato a mano cada vez."""
-        wb = _libro(muestras, cabecera)
+    def test_todas_las_hojas_son_tablas_de_excel(self, muestras, cabecera, secciones):
+        """Como tabla se filtra y ordena sin darle formato a mano cada vez.
+        Los nombres tienen que ser únicos en todo el libro: dos tablas con el
+        mismo nombre rompen el archivo."""
+        wb = _libro(muestras, cabecera, **secciones)
         estilos = {
             hoja: [t.tableStyleInfo.name for t in wb[hoja].tables.values()]
             for hoja in wb.sheetnames
         }
-        assert estilos == {
-            emitir.HOJA_CABECERA: [emitir.ESTILO_TABLA_CABECERA],
-            emitir.HOJA_DETALLE: [emitir.ESTILO_TABLA_DATOS],
-            emitir.HOJA_POR_VIAL: [emitir.ESTILO_TABLA_DATOS],
-        }
+        assert estilos[emitir.HOJA_CABECERA] == [emitir.ESTILO_TABLA_CABECERA]
+        assert estilos[emitir.HOJA_GUIA] == [emitir.ESTILO_TABLA_CABECERA]
+        assert all(estilos[h] for h in wb.sheetnames)
+        nombres = [n for hoja in wb.worksheets for n in hoja.tables]
+        assert len(nombres) == len(set(nombres))
 
     def test_el_nombre_sale_del_data_directory(self, muestras, cabecera):
         """La carpeta de la corrida ya identifica la secuencia; el nombre del
@@ -232,22 +300,50 @@ class TestExcel:
         assert encabezados[:4] == [
             "Seq Line", "Ubicación de la Muestra", "Vial", "Tipo",
         ]
-        assert encabezados[4:7] == [
+        primero = encabezados.index("DIFENILAMINA ppm")
+        assert encabezados[primero : primero + 5] == [
             "DIFENILAMINA ppm",
             "DIFENILAMINA tiempo retención (min)",
             "DIFENILAMINA área",
+            "DIFENILAMINA tipo de pico",
+            "DIFENILAMINA Amt/Area",
         ]
-        assert encabezados[7] == "PYRYMETHANIL ppm"
+        assert encabezados[primero + 5] == "PYRYMETHANIL ppm"
         assert ws.max_row - 1 == 53
 
-    def test_cada_compuesto_ocupa_su_propio_bloque(self, muestras):
-        """Siete compuestos por tres columnas, después de las cuatro del
-        vial: si los bloques se pisaran, un ppm quedaría bajo el compuesto
-        equivocado."""
+    def test_por_vial_trae_los_campos_con_que_el_equipo_declara_el_vial(self, muestras):
+        """Los 12 campos de la tabla de la secuencia, con la etiqueta del
+        equipo. `Sample Type` es el que dice qué es el vial: antes se adivinaba
+        por el nombre, que es justo lo que falla al cambiar la nomenclatura."""
         ws = _libro(muestras)[emitir.HOJA_POR_VIAL]
         encabezados = [c.value for c in ws[1]]
-        assert len(encabezados) == 4 + 7 * len(emitir.COLUMNAS_POR_COMPUESTO)
+        assert encabezados[4:16] == list(emitir.CAMPOS_DE_LA_SECUENCIA)
+        fila = next(f for f in ws.iter_rows(min_row=2, values_only=True) if f[2] == "1")
+        assert fila[encabezados.index("Sample Type")] == "Sample"
+        assert fila[encabezados.index("Method Name")].startswith("NPD_ANALISIS")
+        assert fila[encabezados.index("Injection Location")] == "Back"
+
+    def test_por_vial_avisa_cuando_el_equipo_forzo_un_cero(self, muestras):
+        """"Negative results set to zero" es la diferencia entre "no se
+        detectó nada" y "dio negativo y lo dejé en cero". En la planilla vieja
+        las dos cosas se veían como un cero pelado."""
+        ws = _libro(muestras)[emitir.HOJA_POR_VIAL]
+        encabezados = [c.value for c in ws[1]]
+        avisos = [f[encabezados.index("Advertencias")] for f in ws.iter_rows(min_row=2, values_only=True)]
+        assert any(a and "Calibrated compound(s) not found" in a for a in avisos)
+
+    def test_cada_compuesto_ocupa_su_propio_bloque(self, muestras):
+        """Un bloque de columnas por compuesto, después de las del vial: si
+        los bloques se pisaran, un ppm quedaría bajo el compuesto equivocado.
+        Y ningún encabezado puede repetirse -Excel no abre una tabla con dos
+        columnas del mismo nombre-."""
+        ws = _libro(muestras)[emitir.HOJA_POR_VIAL]
+        encabezados = [c.value for c in ws[1]]
+        de_compuestos = 7 * len(emitir.COLUMNAS_POR_COMPUESTO)
+        assert len(encabezados) == len(emitir.COLUMNAS_FIJAS_POR_VIAL) + de_compuestos
+        assert encabezados[-de_compuestos:][0] == "DIFENILAMINA ppm"
         assert all(e for e in encabezados)
+        assert len(encabezados) == len(set(encabezados))
 
     def test_la_ubicacion_del_carrusel_llega_a_la_planilla(self, muestras):
         """Es la columna que el laboratorio usa para volver al vial físico."""
@@ -294,3 +390,127 @@ class TestExcel:
     def test_sin_muestras_no_genera_nada(self):
         with pytest.raises(Exception):
             emitir.generar_excel_detalle_gc(emitir.DetalleGCIn(muestras=[]))
+
+
+class TestSeccionesDelReporte:
+    """El archivo del GC no son solo los resultados: trae con qué método se
+    midió, con qué curva se calculó cada ppm, la estadística de los picos y la
+    bitácora de la corrida. Antes se leía ~el 6% del archivo y todo eso -el
+    respaldo de los números- se quedaba en el .txt."""
+
+    def test_la_secuencia_trae_todos_los_campos_del_vial(self, reporte):
+        """Antes se leía solo `Location`. `Sample Type` es el que dice si un
+        vial es muestra, blanco o punto de curva: sin él hay que adivinarlo
+        por el nombre, que es justo lo que se rompe al cambiar la
+        nomenclatura."""
+        assert len(reporte.secuencia) == 53
+        linea = next(f for f in reporte.secuencia if f["Line"] == "3")
+        assert linea["Sample Type"] == "Sample"
+        assert linea["Injection Location"] == "Back"
+        assert linea["Method Name"].startswith("NPD_ANALISIS")
+        assert "Lims ID2" in linea
+
+    def test_el_pico_llega_con_sus_siete_columnas(self, reporte):
+        """De la tabla de resultados se descartaban tres: cómo se integró el
+        pico, con qué factor pasó de área a ppm y en qué grupo va."""
+        vial = next(m for m in reporte.muestras if m.codigo == "1")
+        tebu = next(r for r in vial.resultados if r.analito == "TEBUCONAZOLE")
+        assert tebu.tipo == "BB"
+        assert tebu.amt_area == pytest.approx(0.0486541)
+
+    def test_las_advertencias_del_equipo_no_se_pierden(self, reporte):
+        """Un cero puede ser "no se detectó nada" o "dio negativo y se forzó a
+        cero". El equipo lo dice; la planilla no lo mostraba."""
+        con_aviso = [m for m in reporte.muestras if m.advertencias]
+        assert con_aviso
+        assert any("not found" in a for m in con_aviso for a in m.advertencias)
+
+    def test_guarda_la_suma_del_vial_y_la_ficha_de_la_inyeccion(self, reporte):
+        vial = next(m for m in reporte.muestras if m.codigo == "1")
+        assert vial.totales == pytest.approx(0.0488688)
+        assert vial.datos["Acq. Instrument"] == "GC 2"
+        assert vial.datos["Inj Volume"] == "2 µl"
+
+    def test_lee_el_metodo_instrumental(self, reporte):
+        """La rampa del horno y las condiciones del detector: es lo que hay
+        que mostrar si preguntan por qué un resultado dio lo que dio."""
+        assert reporte.metodo
+        por_bloque = {(b, c): v for b, c, v in reporte.metodo}
+        assert por_bloque[("Agilent 7890B", "Hold Time")] == "0.8 min"
+        assert any(c == "Signal 1 Type" for _, c, _ in reporte.metodo)
+
+    def test_lee_la_auditoria_del_metodo(self, reporte):
+        assert reporte.auditoria
+        primero = reporte.auditoria[0]
+        assert primero["operador"] and primero["fecha"]
+        assert "method" in primero["cambio"].lower()
+
+    def test_lee_la_curva_con_que_se_calculo_cada_ppm(self, reporte):
+        """Sin la curva ningún resultado se puede recalcular ni verificar. El
+        nombre del compuesto solo va en la fila del primer nivel: los demás lo
+        heredan."""
+        assert reporte.curva
+        assert all(f["compuesto"] for f in reporte.curva)
+        niveles = [f for f in reporte.curva if f["compuesto"] == "DIFENILAMINA"]
+        assert len(niveles) >= 2
+        assert niveles[0]["factor_respuesta"] is not None
+
+    def test_lee_la_estadistica_de_los_picos(self, reporte):
+        """Alto, ancho y simetría no están en ninguna otra parte del archivo, y
+        el RSD es el criterio con que se acepta o rechaza una curva."""
+        assert reporte.estadistica
+        corridas = [f for f in reporte.estadistica if f["corrida"] is not None]
+        assert corridas and corridas[0]["alto"] is not None
+        assert {"Mean", "S.D.", "RSD", "95% CI"} <= {f["estadistico"] for f in reporte.estadistica}
+
+    def test_lee_el_resumen_de_viales(self, reporte):
+        """Trae cuántos compuestos se detectaron en cada vial: un control de
+        calidad de un vistazo que no está en ninguna otra parte."""
+        assert len(reporte.resumen) == 53
+        assert all(f["vial"] for f in reporte.resumen)
+        assert any(f["compuestos_detectados"] for f in reporte.resumen)
+
+    def test_lee_la_bitacora_juntando_los_mensajes_cortados(self, reporte):
+        """El equipo corta los mensajes largos con un ">" y los sigue en la
+        línea de abajo."""
+        assert reporte.bitacora
+        assert all(e["fecha"] for e in reporte.bitacora)
+        assert any(e["mensaje"].endswith(".M") for e in reporte.bitacora)
+        assert not any(e["mensaje"].endswith(">") for e in reporte.bitacora)
+
+
+class TestVisorPorCategorias:
+    """Después de subir el archivo, la pantalla lo muestra tal como salió del
+    equipo y le pone color a cada parte, diciendo a qué hoja va a parar."""
+
+    def test_cada_linea_del_archivo_queda_clasificada(self, reporte):
+        cubiertas = sum(fin - inicio + 1 for inicio, fin, _ in reporte.regiones)
+        assert cubiertas == len(reporte.texto.split("\n"))
+
+    def test_las_regiones_van_en_orden_y_sin_huecos(self, reporte):
+        assert reporte.regiones[0][0] == 1
+        for (_, fin, _), (inicio, _, _) in zip(reporte.regiones, reporte.regiones[1:]):
+            assert inicio == fin + 1
+
+    def test_reconoce_las_partes_que_importan(self, reporte):
+        categorias = {c for _, _, c in reporte.regiones}
+        assert {"equipo", "secuencia", "ident", "resultado", "metodo", "curva",
+                "bitacora", "estadistica", "resumen"} <= categorias
+
+    def test_la_tabla_de_resultados_cae_en_resultados(self, reporte):
+        """La categoría de una línea tiene que ser la de lo que dice: si el
+        corte se corre, la pantalla colorea cualquier cosa."""
+        lineas = reporte.texto.split("\n")
+        for inicio, fin, categoria in reporte.regiones:
+            for i in range(inicio, fin + 1):
+                if "External Standard Report" in lineas[i - 1]:
+                    assert categoria == "resultado"
+                    return
+        raise AssertionError("no se encontró la tabla de resultados")
+
+    def test_todas_las_categorias_estan_declaradas(self, reporte):
+        from app.gc_parser import CATEGORIAS_GC
+
+        declaradas = {i for i, _, _ in CATEGORIAS_GC}
+        assert {c for _, _, c in reporte.regiones} <= declaradas
+        assert all(nombre for _, nombre, _ in CATEGORIAS_GC)

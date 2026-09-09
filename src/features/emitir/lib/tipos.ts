@@ -6,6 +6,12 @@ export interface ResultadoAnalito {
   /** Tiempo de retención en minutos. Solo lo usa la vista de detalle; el
    * cruce y el informe no lo miran. */
   rettime?: number | null
+  /** Cómo integró el equipo ese pico ("BBA", "MM"…). "MM" es integración
+   * manual: alguien lo ajustó a mano, y eso tiene que quedar a la vista. */
+  tipo?: string
+  /** El factor con que ese pico pasó de área a concentración. */
+  amt_area?: number | null
+  grp?: string
 }
 
 export interface MuestraGC {
@@ -39,6 +45,88 @@ export interface MuestraGCDetalle extends MuestraGC {
    * secuencia del archivo del GC y viaja de vuelta al backend al pedir el
    * Excel: es lo que permite volver al vial físico. */
   ubicacion?: string | null
+  /** La ficha que el equipo escribe arriba de la inyección y la línea que le
+   * toca en la tabla de la secuencia, con las etiquetas del equipo tal cual
+   * ("Sample Type", "Method Name", "Data File"…). */
+  datos?: Record<string, string>
+  secuencia?: Record<string, string>
+  /** La suma de concentraciones del vial, como la reporta el equipo. */
+  totales?: number | null
+  /** "Negative results set to zero", "Calibrated compound(s) not found"… Sin
+   * esto, un cero forzado y un "no se detectó nada" se ven igual. */
+  advertencias?: string[]
+  recalibrado?: boolean
+}
+
+/** Un nivel de la curva del método: con esto el equipo convierte área en
+ * concentración. Sin la curva, ningún resultado se puede recalcular. */
+export interface FilaCurvaGC {
+  compuesto: string
+  rettime?: number | null
+  senal?: string
+  nivel?: number | null
+  amount?: number | null
+  area?: number | null
+  factor_respuesta?: number | null
+  ref?: string
+  istd?: string
+}
+
+/** Una inyección de la curva, o una de las filas con que el equipo la cierra
+ * (Mean, S.D., RSD, 95% CI). El RSD es el criterio de aceptación. */
+export interface FilaEstadisticaGC {
+  compuesto: string
+  senal?: string
+  corrida?: number | null
+  estadistico?: string
+  tipo?: string
+  rettime?: number | null
+  amount?: number | null
+  area?: number | null
+  alto?: number | null
+  ancho?: number | null
+  simetria?: number | null
+}
+
+export interface FilaResumenGC {
+  corrida?: number | null
+  ubicacion?: string
+  inyeccion?: number | null
+  vial?: string
+  cantidad?: number | null
+  multiplicador?: number | null
+  archivo?: string
+  es_punto_de_curva?: boolean
+  compuestos_detectados?: number | null
+}
+
+export interface EventoBitacoraGC {
+  modulo: string
+  mensaje: string
+  fecha: string
+}
+
+export interface CambioMetodoGC {
+  operador: string
+  fecha: string
+  cambio: string
+}
+
+/** Un tramo del archivo que es todo de la misma categoría, con las líneas
+ * numeradas desde 1 como en un editor. La pantalla dibuja un bloque por
+ * región y no una fila por línea: son ~190 nodos en vez de ~9.500. */
+export interface RegionGC {
+  inicio: number
+  fin: number
+  categoria: string
+}
+
+export interface CategoriaGC {
+  id: string
+  nombre: string
+  /** A qué hoja del Excel va a parar, o null si el equipo la escribe pero el
+   * sistema no la ocupa. */
+  hoja: string | null
 }
 
 /** Con qué se midió: instrumento, columna y parámetros de la secuencia. Es
@@ -53,6 +141,18 @@ export interface CampoCabeceraGC {
 export interface DetalleGC {
   cabecera: CampoCabeceraGC[]
   muestras: MuestraGCDetalle[]
+  /** Con qué condiciones se midió: horno, inyector, columna, detector. */
+  metodo?: CampoCabeceraGC[]
+  auditoria?: CambioMetodoGC[]
+  curva?: FilaCurvaGC[]
+  estadistica?: FilaEstadisticaGC[]
+  resumen?: FilaResumenGC[]
+  bitacora?: EventoBitacoraGC[]
+  /** El archivo tal como salió del equipo, y de qué es cada tramo. Es lo que
+   * dibuja el visor; no vuelve al backend al pedir el Excel. */
+  texto?: string
+  regiones?: RegionGC[]
+  categorias?: CategoriaGC[]
 }
 
 export interface FilaCruce {

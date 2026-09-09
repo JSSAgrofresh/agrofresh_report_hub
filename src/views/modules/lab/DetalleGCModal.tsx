@@ -3,9 +3,10 @@ import agrofreshLogo from '@/assets/agrofresh-logo.png'
 import { Button } from '@/components/ui/Button'
 import { descargarDetalleGCExcel } from '@/features/emitir'
 import type { DetalleGC, MuestraGCDetalle, ResultadoAnalito } from '@/features/emitir'
+import { VisorGC } from './VisorGC'
 import styles from './DetalleGCModal.module.css'
 
-type Hoja = 'cabecera' | 'completos' | 'porVial'
+type Hoja = 'archivo' | 'cabecera' | 'completos' | 'porVial'
 
 /** Los compuestos en el orden en que aparecen en el reporte, que es el orden
  * del método del equipo — no alfabético, que a nadie le sirve. */
@@ -57,8 +58,11 @@ export function DetalleGCModal({
   nombreArchivo: string | null
   onCerrar: () => void
 }) {
-  const { cabecera, muestras } = detalle
-  const [hoja, setHoja] = useState<Hoja>('cabecera')
+  const { cabecera, muestras, texto, regiones, categorias } = detalle
+  // Con el archivo a la vista se parte por ahí: es de dónde salen los números
+  // de las otras pestañas, y de un vistazo se ve qué trae el reporte.
+  const hayVisor = Boolean(texto && regiones?.length && categorias?.length)
+  const [hoja, setHoja] = useState<Hoja>(hayVisor ? 'archivo' : 'cabecera')
   const [soloMuestras, setSoloMuestras] = useState(false)
   const [bajando, setBajando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -111,6 +115,17 @@ export function DetalleGCModal({
 
         <div className={styles.barra}>
           <div className={styles.pestanas} role="tablist">
+            {hayVisor && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={hoja === 'archivo'}
+                className={hoja === 'archivo' ? styles.pestanaActiva : styles.pestana}
+                onClick={() => setHoja('archivo')}
+              >
+                Archivo del GC
+              </button>
+            )}
             <button
               type="button"
               role="tab"
@@ -140,7 +155,7 @@ export function DetalleGCModal({
             </button>
           </div>
 
-          <label className={styles.filtro} hidden={hoja === 'cabecera'}>
+          <label className={styles.filtro} hidden={hoja === 'cabecera' || hoja === 'archivo'}>
             <input
               type="checkbox"
               checked={soloMuestras}
@@ -151,7 +166,9 @@ export function DetalleGCModal({
         </div>
 
         <div className={styles.tablaCaja}>
-          {hoja === 'cabecera' ? (
+          {hoja === 'archivo' ? (
+            <VisorGC texto={texto ?? ''} regiones={regiones ?? []} categorias={categorias ?? []} />
+          ) : hoja === 'cabecera' ? (
             <>
             <div className={styles.membrete}>
               <img src={agrofreshLogo} alt="AgroFresh" className={styles.logo} />
@@ -269,7 +286,9 @@ export function DetalleGCModal({
 
         <footer className={styles.pie}>
           <span className={styles.conteo}>
-            {hoja === 'cabecera'
+            {hoja === 'archivo'
+              ? `${(texto ? texto.split('\n').length : 0).toLocaleString('es-CL')} línea(s) · ${regiones?.length ?? 0} tramo(s)`
+              : hoja === 'cabecera'
               ? `${cabecera.length} campo(s)`
               : hoja === 'completos'
               ? `${filasLargas.length.toLocaleString('es-CL')} fila(s)`
