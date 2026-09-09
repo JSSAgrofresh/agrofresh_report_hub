@@ -13,7 +13,7 @@ interface AnalitosPanelProps {
   onError: (mensaje: string | null) => void
 }
 
-const VACIO = { codigo: '', nombre: '', unidad: '', categoria: '' }
+const VACIO = { codigo: '', nombre: '', unidad: '', categoria: '', dosisAplicable: false }
 
 /** Los analitos siguen viviendo en el mantenedor de Toma de muestras -son los
  * que consume el formulario de solicitud-. Este panel es la misma lista
@@ -43,7 +43,13 @@ export function AnalitosPanel({
   function abrirEdicion(a: AnalitoConfig) {
     setCreando(false)
     setEditando(a.id)
-    setBorrador({ codigo: a.codigo, nombre: a.nombre, unidad: a.unidad ?? '', categoria: a.categoria })
+    setBorrador({
+      codigo: a.codigo,
+      nombre: a.nombre,
+      unidad: a.unidad ?? '',
+      categoria: a.categoria,
+      dosisAplicable: a.dosis_aplicable,
+    })
     onError(null)
   }
 
@@ -61,7 +67,7 @@ export function AnalitosPanel({
       nombre: borrador.nombre.trim(),
       unidad: borrador.unidad || null,
       tipo: base?.tipo ?? 'numero',
-      dosis_aplicable: base?.dosis_aplicable ?? false,
+      dosis_aplicable: borrador.dosisAplicable,
       requerido: base?.requerido ?? false,
       activo: base?.activo ?? true,
       orden: base?.orden ?? delLab.length + 1,
@@ -161,6 +167,14 @@ export function AnalitosPanel({
               ))}
             </select>
           </div>
+          <label className={styles.campoCheckbox}>
+            <input
+              type="checkbox"
+              checked={borrador.dosisAplicable}
+              onChange={(e) => setBorrador({ ...borrador, dosisAplicable: e.target.checked })}
+            />
+            <span>Lleva dosis (cromatografía)</span>
+          </label>
         </div>
         <div className={styles.formAcciones}>
           <Button variant="secondary" onClick={cerrar} disabled={guardando}>
@@ -210,6 +224,7 @@ export function AnalitosPanel({
                     <div className={styles.filaSecundario}>
                       {a.categoria || 'Sin categoría'}
                       {a.unidad && ` · ${a.unidad}`}
+                      {a.dosis_aplicable && ' · Lleva dosis'}
                     </div>
                   </div>
                   {!a.activo && <span className={cn(styles.insignia, styles.insigniaInactivo)}>Inactivo</span>}

@@ -81,3 +81,27 @@ export interface CorregirValoresInput {
   valores_origen: string[]
   valor_destino: string
 }
+
+/** Un valor de Sold To/Ship To/Especie/Variedad que no calza con ningún
+ * valor vigente de Listados -aunque esté escrito siempre igual dentro de la
+ * base-. `contexto` es el Sold To (para ship_to_raw) o la Especie (para
+ * variedad) al que pertenece; `null` para sold_to_raw/especie. */
+export interface GrupoFueraDeListados {
+  regla: 'fuera_de_listados'
+  tabla: string
+  campo: 'sold_to_raw' | 'ship_to_raw' | 'especie' | 'variedad'
+  etiqueta: string
+  contexto: string | null
+  valores: string[]
+  filas: number
+  sugerido: string
+  sugerencias: { valor: string; confianza: number }[]
+}
+
+export interface ResultadoAuditoriaListados {
+  schema: string
+  en_copia_de_trabajo: boolean
+  total_inconsistencias: number
+  total_filas_afectadas: number
+  grupos: GrupoFueraDeListados[]
+}

@@ -37,7 +37,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import psycopg2.errors
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -107,31 +107,60 @@ def _carpeta_laboratorio(laboratorio: str) -> str:
 # ---------------------------------------------------------------------------
 # Claves R2: mirror de la estructura local de carpetas.
 #
-# Las solicitudes nuevas se guardan agrupadas por cliente y día:
+# Las solicitudes nuevas se guardan agrupadas por cliente, sucursal y día,
+# cada una en su propia carpeta (para poder guardar junto al Excel las fotos
+# de la etiqueta de la muestra, ver `_carpeta_fotos_r2`):
 #
-#     solicitudes/<SOLD TO>/<AAAA-MM-DD>/<OT-NNNN>.xlsx
+#     solicitudes/<SOLD TO>/<SHIP TO>/<AAAA-MM-DD>/<OT-NNNN>/<OT-NNNN>.xlsx
+#     solicitudes/<SOLD TO>/<SHIP TO>/<AAAA-MM-DD>/<OT-NNNN>/fotos/<n>.jpg
 #
-# El layout viejo, `solicitudes/<LABORATORIO>/<SOL-NNNN>.xlsx`, se sigue
-# leyendo tal cual: las dos formas cuelgan de `solicitudes/`, así que buscar
-# por el nombre del archivo bajo ese prefijo encuentra las dos y no hace falta
-# mover nada de lo ya guardado.
+# El layout viejo, `solicitudes/<LABORATORIO>/<SOL-NNNN>.xlsx`, y el
+# intermedio, `solicitudes/<SOLD TO>/<AAAA-MM-DD>/<OT-NNNN>.xlsx` (sin Ship
+# To ni carpeta propia), se siguen leyendo tal cual: las tres formas cuelgan
+# de `solicitudes/`, así que buscar por el nombre del archivo bajo ese
+# prefijo encuentra cualquiera de ellas y no hace falta mover nada de lo ya
+# guardado.
 # ---------------------------------------------------------------------------
 
-# Un Sold To es texto libre escrito por una persona y termina siendo un nombre
-# de carpeta: se limpia todo lo que pueda romper una ruta o salirse de ella.
+# Un Sold To/Ship To es texto libre escrito por una persona y termina siendo
+# un nombre de carpeta: se limpia todo lo que pueda romper una ruta o
+# salirse de ella.
 _PAT_SEGMENTO_INVALIDO = re.compile(r'[\\/:*?"<>|]+')
+
+
+def _limpiar_segmento(valor: str | None, defecto: str) -> str:
+    limpio = _PAT_SEGMENTO_INVALIDO.sub("_", (valor or "").strip())
+    limpio = limpio.strip(". ").replace("..", "_")
+    return limpio or defecto
 
 
 def carpeta_de_cliente(sold_to: str | None) -> str:
     """Nombre de carpeta para un Sold To. Los que vengan vacíos caen en
     SIN_CLIENTE en vez de crear una carpeta con nombre vacío."""
-    limpio = _PAT_SEGMENTO_INVALIDO.sub("_", (sold_to or "").strip())
-    limpio = limpio.strip(". ").replace("..", "_")
-    return limpio or "SIN_CLIENTE"
+    return _limpiar_segmento(sold_to, "SIN_CLIENTE")
 
 
-def _r2_key_sol_nueva(sold_to: str | None, fecha: str, nombre: str) -> str:
-    return f"solicitudes/{carpeta_de_cliente(sold_to)}/{fecha}/{nombre}"
+def carpeta_de_sucursal(ship_to: str | None) -> str:
+    """Nombre de carpeta para un Ship To. Los que vengan vacíos caen en
+    SIN_SHIP_TO -no toda solicitud trae sucursal-."""
+    return _limpiar_segmento(ship_to, "SIN_SHIP_TO")
+
+
+def _r2_key_sol_nueva(sold_to: str | None, ship_to: str | None, fecha: str, nombre: str) -> str:
+    folio = os.path.splitext(nombre)[0]
+    return f"solicitudes/{carpeta_de_cliente(sold_to)}/{carpeta_de_sucursal(ship_to)}/{fecha}/{folio}/{nombre}"
+
+
+def _carpeta_fotos_r2(archivo: str) -> str | None:
+    """Prefijo `.../fotos/` de una solicitud, calculado a partir de dónde
+    está guardado su Excel -sirve para cualquiera de los tres layouts, sin
+    necesitar volver a armar la ruta desde Sold To/Ship To/fecha-. `None` si
+    la solicitud no existe."""
+    key = _buscar_key_solicitud(archivo)
+    if key is None:
+        return None
+    carpeta = key.rsplit("/", 1)[0]
+    return f"{carpeta}/fotos/"
 
 
 def _r2_key_sol(laboratorio: str, nombre: str) -> str:
@@ -355,7 +384,8 @@ class SolicitudIn(BaseModel):
     especie: str | None = None
     variedad: str | None = None
     linea_proceso: str | None = None
-    csg: str | None = None
+    csg_productor: str | None = None
+    csg_packing: str | None = None
     lote: str | None = None
     posicion_muestreo: str | None = None
     numero_camara: str | None = None
@@ -517,9 +547,10 @@ def listar_solicitudes(usuario: Usuario = Depends(usuario_actual)) -> list[Solic
 
 @router.post("/solicitudes/organizar-r2")
 def organizar_solicitudes_r2() -> dict[str, int]:
-    """Migra solicitudes del layout antiguo por laboratorio al layout
-    cliente/fecha. Copia y verifica el destino antes de borrar el original;
-    por eso es seguro repetir la operación."""
+    """Migra solicitudes de los layouts antiguos (por laboratorio, o por
+    cliente/fecha sin sucursal ni carpeta propia) al layout cliente/sucursal/
+    fecha/carpeta-por-solicitud. Copia y verifica el destino antes de borrar
+    el original; por eso es seguro repetir la operación."""
     if not r2.disponible():
         raise HTTPException(503, "R2 no está configurado en este servidor.")
 
@@ -527,7 +558,7 @@ def organizar_solicitudes_r2() -> dict[str, int]:
     omitidas = 0
     for key in r2.listar_keys("solicitudes/"):
         partes = key.split("/")
-        if len(partes) != 3 or partes[1] == _CARPETA_CONFIG:
+        if len(partes) not in (3, 4) or partes[1] == _CARPETA_CONFIG:
             continue
         nombre = partes[-1]
         if not nombre.endswith((".xlsx", ".json")):
@@ -538,7 +569,9 @@ def organizar_solicitudes_r2() -> dict[str, int]:
             continue
         try:
             datos = _leer_solicitud_bytes(contenido, os.path.splitext(nombre)[1])
-            destino = _r2_key_sol_nueva(datos.get("sold_to"), datos.get("fecha_solicitud") or "SIN_FECHA", nombre)
+            destino = _r2_key_sol_nueva(
+                datos.get("sold_to"), datos.get("ship_to"), datos.get("fecha_solicitud") or "SIN_FECHA", nombre
+            )
         except (ValueError, KeyError, HTTPException):
             omitidas += 1
             continue
@@ -686,7 +719,7 @@ def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual
     if r2.disponible():
         buf = io.BytesIO()
         wb.save(buf)
-        r2_key = _r2_key_sol_nueva(body.sold_to, fecha, nombre_archivo)
+        r2_key = _r2_key_sol_nueva(body.sold_to, body.ship_to, fecha, nombre_archivo)
         r2.subir(
             r2_key,
             buf.getvalue(),
@@ -696,7 +729,13 @@ def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual
         # El laboratorio se valida igual aunque ya no dé el nombre de la
         # carpeta: sigue siendo un campo con lista cerrada.
         _carpeta_laboratorio(body.laboratorio)
-        carpeta = os.path.join(_carpeta_raiz(), carpeta_de_cliente(body.sold_to), fecha)
+        carpeta = os.path.join(
+            _carpeta_raiz(),
+            carpeta_de_cliente(body.sold_to),
+            carpeta_de_sucursal(body.ship_to),
+            fecha,
+            numero,
+        )
         os.makedirs(carpeta, exist_ok=True)
         wb.save(os.path.join(carpeta, nombre_archivo))
 
@@ -742,6 +781,109 @@ def eliminar_solicitud(archivo: str) -> dict[str, str]:
     # mostrando una solicitud cuyo archivo ya no existe.
     indice_solicitudes.olvidar_archivo(os.path.basename(archivo))
     return {"estado": "eliminado"}
+
+
+# ---------------------------------------------------------------------------
+# Fotos de la muestra: quedan en R2 (o disco) junto al Excel de la solicitud,
+# nunca adjuntas a él -son fotos de referencia de la etiqueta escrita a mano
+# para quien recibe la muestra físicamente, no un dato de la solicitud, así
+# que no se listan como campo ni se agregan al documento maestro-.
+# ---------------------------------------------------------------------------
+
+MAX_FOTOS_SOLICITUD = 5
+_TIPO_POR_EXTENSION = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+_EXTENSION_POR_TIPO = {tipo: ext for ext, tipo in _TIPO_POR_EXTENSION.items() if ext != ".jpeg"}
+
+
+def _carpeta_fotos_disco(archivo: str) -> str:
+    ruta = _ruta_archivo(archivo)
+    carpeta = os.path.join(os.path.dirname(ruta), "fotos")
+    os.makedirs(carpeta, exist_ok=True)
+    return carpeta
+
+
+@router.get("/solicitudes/{archivo}/fotos")
+def listar_fotos_solicitud(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> list[str]:
+    """Nombres de las fotos de la muestra ya subidas para esta solicitud."""
+    _exigir_acceso(usuario, _leer_datos_actuales(archivo))
+    if r2.disponible():
+        prefijo = _carpeta_fotos_r2(archivo)
+        if prefijo is None:
+            raise HTTPException(404, "Solicitud no encontrada.")
+        return sorted(key.split("/")[-1] for key in r2.listar_keys(prefijo))
+    return sorted(os.listdir(_carpeta_fotos_disco(archivo)))
+
+
+@router.post("/solicitudes/{archivo}/fotos")
+async def subir_foto_solicitud(
+    archivo: str, foto: UploadFile = File(...), usuario: Usuario = Depends(usuario_actual)
+) -> list[str]:
+    """Sube una foto de la muestra tomada con la cámara. Devuelve el listado
+    actualizado de fotos guardadas para que la pantalla refleje de inmediato
+    cuántas van y pueda bloquear una sexta."""
+    datos = _leer_datos_actuales(archivo)
+    _exigir_acceso(usuario, datos)
+    if foto.content_type not in _EXTENSION_POR_TIPO:
+        raise HTTPException(400, "Solo se aceptan fotos JPEG, PNG o WEBP.")
+    contenido = await foto.read()
+    if not contenido:
+        raise HTTPException(400, "La foto llegó vacía.")
+    extension = _EXTENSION_POR_TIPO[foto.content_type]
+
+    if r2.disponible():
+        prefijo = _carpeta_fotos_r2(archivo)
+        if prefijo is None:
+            raise HTTPException(404, "Solicitud no encontrada.")
+        existentes = sorted(key.split("/")[-1] for key in r2.listar_keys(prefijo))
+        if len(existentes) >= MAX_FOTOS_SOLICITUD:
+            raise HTTPException(400, f"Ya hay {MAX_FOTOS_SOLICITUD} fotos guardadas: es el máximo por solicitud.")
+        nombre = f"foto_{len(existentes) + 1}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}{extension}"
+        r2.subir(f"{prefijo}{nombre}", contenido, foto.content_type)
+        return sorted(existentes + [nombre])
+
+    carpeta = _carpeta_fotos_disco(archivo)
+    existentes = sorted(os.listdir(carpeta))
+    if len(existentes) >= MAX_FOTOS_SOLICITUD:
+        raise HTTPException(400, f"Ya hay {MAX_FOTOS_SOLICITUD} fotos guardadas: es el máximo por solicitud.")
+    nombre = f"foto_{len(existentes) + 1}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}{extension}"
+    with open(os.path.join(carpeta, nombre), "wb") as f:
+        f.write(contenido)
+    return sorted(existentes + [nombre])
+
+
+@router.delete("/solicitudes/{archivo}/fotos/{nombre}")
+def eliminar_foto_solicitud(archivo: str, nombre: str, usuario: Usuario = Depends(usuario_actual)) -> list[str]:
+    _exigir_acceso(usuario, _leer_datos_actuales(archivo))
+    nombre = os.path.basename(nombre)
+    if r2.disponible():
+        prefijo = _carpeta_fotos_r2(archivo)
+        if prefijo is None:
+            raise HTTPException(404, "Solicitud no encontrada.")
+        r2.eliminar(f"{prefijo}{nombre}")
+        return sorted(key.split("/")[-1] for key in r2.listar_keys(prefijo))
+    carpeta = _carpeta_fotos_disco(archivo)
+    ruta = os.path.join(carpeta, nombre)
+    if os.path.exists(ruta):
+        os.remove(ruta)
+    return sorted(os.listdir(carpeta))
+
+
+@router.get("/solicitudes/{archivo}/fotos/{nombre}", response_model=None)
+def descargar_foto_solicitud(archivo: str, nombre: str, usuario: Usuario = Depends(usuario_actual)) -> Response:
+    _exigir_acceso(usuario, _leer_datos_actuales(archivo))
+    nombre = os.path.basename(nombre)
+    tipo = _TIPO_POR_EXTENSION.get(os.path.splitext(nombre)[1].lower(), "application/octet-stream")
+    if r2.disponible():
+        prefijo = _carpeta_fotos_r2(archivo)
+        contenido = r2.descargar(f"{prefijo}{nombre}") if prefijo else None
+        if contenido is None:
+            raise HTTPException(404, "Foto no encontrada.")
+        return Response(content=contenido, media_type=tipo)
+    ruta = os.path.join(_carpeta_fotos_disco(archivo), nombre)
+    if not os.path.isfile(ruta):
+        raise HTTPException(404, "Foto no encontrada.")
+    with open(ruta, "rb") as f:
+        return Response(content=f.read(), media_type=tipo)
 
 
 @router.get("/solicitudes/{archivo}/excel", response_model=None)
@@ -790,8 +932,9 @@ def descargar_solicitud_pdf(archivo: str, usuario: Usuario = Depends(usuario_act
         datos = _leer_solicitud_archivo(ruta)
     _exigir_acceso(usuario, datos)
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
+    analisis_config = _leer_config("analisis_laboratorio.json", [])
     datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
-    pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config)
+    pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config, analisis_config)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -1003,8 +1146,9 @@ def enviar_solicitud_por_correo(
         raise HTTPException(409, f"La solicitud {numero} ya fue enviada; no se puede reenviar.")
 
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
+    analisis_config = _leer_config("analisis_laboratorio.json", [])
     datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
-    pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config)
+    pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config, analisis_config)
 
     wb = construir_workbook(datos, analitos_config)
     buf_excel = io.BytesIO()
@@ -1128,22 +1272,25 @@ _CAMPOS_GENERALES_DEFECTO: list[dict] = [
     {"clave": "linea_proceso", "etiqueta": "Línea Proceso", "tipo": "select", "requerido": True, "activo": True, "orden": 8},
     {"clave": "numero_camara", "etiqueta": "N° Cámara", "tipo": "text", "requerido": True, "activo": True, "orden": 9},
     {"clave": "numero_orden", "etiqueta": "N° Orden", "tipo": "text", "requerido": True, "activo": True, "orden": 10},
-    # CSG y Posición Muestreo son obligatorios solo en un Tipo de Aplicación
-    # (Línea de proceso y Actimist respectivamente). Ese matiz no cabe en el
-    # mantenedor, que solo tiene un sí/no: la regla vive en el formulario
-    # (`REQUERIDO_SOLO_EN` en NuevaSolicitudView) y acá quedan en False para
-    # que el mantenedor no prometa una obligatoriedad que no aplica siempre.
-    {"clave": "csg", "etiqueta": "CSG (Código Productor)", "tipo": "text", "requerido": False, "activo": True, "orden": 11},
-    {"clave": "lote", "etiqueta": "Lote", "tipo": "text", "requerido": False, "activo": True, "orden": 12},
-    {"clave": "kilos_procesados", "etiqueta": "Kilos Procesados (KG)", "tipo": "number", "requerido": False, "activo": True, "orden": 13},
-    {"clave": "posicion_muestreo", "etiqueta": "Posición Muestreo", "tipo": "text", "requerido": False, "activo": True, "orden": 14},
-    {"clave": "producto_utilizado", "etiqueta": "Producto Utilizado", "tipo": "select", "requerido": False, "activo": True, "orden": 15},
-    {"clave": "tipo_muestra", "etiqueta": "Tipo Muestra", "tipo": "select", "requerido": True, "activo": True, "orden": 16},
-    {"clave": "fecha_muestreo", "etiqueta": "Fecha Muestreo", "tipo": "date", "requerido": True, "activo": True, "orden": 17},
-    {"clave": "hora_muestreo", "etiqueta": "Hora Muestreo", "tipo": "time", "requerido": False, "activo": True, "orden": 18},
-    {"clave": "nombre_muestreador", "etiqueta": "Nombre Muestreador", "tipo": "text", "requerido": True, "activo": True, "orden": 19},
-    {"clave": "email_laboratorio", "etiqueta": "Email Laboratorio", "tipo": "email", "requerido": False, "activo": True, "orden": 20},
-    {"clave": "observacion", "etiqueta": "Observación", "tipo": "textarea", "requerido": False, "activo": True, "orden": 21},
+    # Posición Muestreo es obligatorio solo en un Tipo de Aplicación
+    # (Actimist). Ese matiz no cabe en el mantenedor, que solo tiene un
+    # sí/no: la regla vive en el formulario (`REQUERIDO_SOLO_EN` en
+    # NuevaSolicitudView) y acá queda en False para que el mantenedor no
+    # prometa una obligatoriedad que no aplica siempre. Los códigos CSG
+    # (Productor/Packing) nunca son obligatorios y solo se muestran en Línea
+    # de proceso -ese filtro también vive en el formulario-.
+    {"clave": "csg_productor", "etiqueta": "Código del Productor", "tipo": "text", "requerido": False, "activo": True, "orden": 11},
+    {"clave": "csg_packing", "etiqueta": "Código del Packing", "tipo": "text", "requerido": False, "activo": True, "orden": 12},
+    {"clave": "lote", "etiqueta": "Lote", "tipo": "text", "requerido": False, "activo": True, "orden": 13},
+    {"clave": "kilos_procesados", "etiqueta": "Kilos Procesados (KG)", "tipo": "number", "requerido": False, "activo": True, "orden": 14},
+    {"clave": "posicion_muestreo", "etiqueta": "Posición Muestreo", "tipo": "text", "requerido": False, "activo": True, "orden": 15},
+    {"clave": "producto_utilizado", "etiqueta": "Producto Utilizado", "tipo": "select", "requerido": False, "activo": True, "orden": 16},
+    {"clave": "tipo_muestra", "etiqueta": "Tipo Muestra", "tipo": "select", "requerido": True, "activo": True, "orden": 17},
+    {"clave": "fecha_muestreo", "etiqueta": "Fecha Muestreo", "tipo": "date", "requerido": True, "activo": True, "orden": 18},
+    {"clave": "hora_muestreo", "etiqueta": "Hora Muestreo", "tipo": "time", "requerido": False, "activo": True, "orden": 19},
+    {"clave": "nombre_muestreador", "etiqueta": "Nombre Muestreador", "tipo": "text", "requerido": True, "activo": True, "orden": 20},
+    {"clave": "email_laboratorio", "etiqueta": "Email Laboratorio", "tipo": "email", "requerido": False, "activo": True, "orden": 21},
+    {"clave": "observacion", "etiqueta": "Observación", "tipo": "textarea", "requerido": False, "activo": True, "orden": 22},
 ]
 
 

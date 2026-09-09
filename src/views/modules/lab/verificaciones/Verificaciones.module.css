@@ -1,0 +1,590 @@
+/* ---------------------------------------------------------------------------
+   Verificaciones diarias (REG-03).
+
+   Hoja de estilos compartida por las tres pantallas del módulo: el formulario
+   del día, el histórico y los criterios. Están juntas a propósito —son la
+   misma tabla con distintas columnas— y así una fila se ve igual en las tres.
+
+   Todo sale de los tokens de `globals.css`: ningún color escrito a mano fuera
+   de los tres estados de un veredicto (aceptable, no aceptable, sin medir).
+   --------------------------------------------------------------------------- */
+
+.wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+/* --- Barra de estado del día --- */
+
+/* Se queda pegada arriba: en un formulario largo, el veredicto del día es lo
+   que se está mirando mientras se llenan las últimas secciones. */
+.resumen {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.resumenCampos {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.resumenChips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.chip:hover {
+  border-color: var(--color-border-strong);
+}
+
+.chipPunto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+  flex-shrink: 0;
+}
+
+.chipOk {
+  border-color: #cfe6d3;
+  background: #f0f8f1;
+  color: var(--color-ok);
+}
+
+.chipOk .chipPunto {
+  background: var(--color-ok);
+}
+
+.chipMal {
+  border-color: #efd0cd;
+  background: #fdf1ef;
+  color: var(--color-danger);
+}
+
+.chipMal .chipPunto {
+  background: var(--color-danger);
+}
+
+/* --- Veredicto del día --- */
+
+.veredictoDia {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-faint);
+  white-space: nowrap;
+}
+
+.veredictoDiaOk {
+  border-color: #b7dcbd;
+  background: #eaf6ec;
+  color: var(--color-ok);
+}
+
+.veredictoDiaMal {
+  border-color: #e8bdb8;
+  background: #fbeceb;
+  color: var(--color-danger);
+}
+
+/* --- Campos --- */
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.etiqueta {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--color-text);
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(109, 173, 60, 0.14);
+}
+
+.input:disabled {
+  background: var(--color-bg);
+  color: var(--color-text-faint);
+}
+
+/* Los números se leen y se comparan de a columnas: alineados a la derecha y
+   en tipografía de ancho fijo, un 9 fuera de rango salta a la vista. */
+.inputNumero {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  /* Las flechitas de `type=number` se comen el ancho útil de una celda
+     angosta y nadie las usa para escribir un peso. */
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.inputNumero::-webkit-outer-spin-button,
+.inputNumero::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.inputCorto {
+  max-width: 120px;
+}
+
+.textarea {
+  composes: input;
+  resize: vertical;
+  min-height: 62px;
+  font-size: 13.5px;
+}
+
+/* --- Secciones --- */
+
+.seccion {
+  margin-bottom: var(--space-4);
+  padding: 0;
+  overflow: hidden;
+  /* La barra de estado del día es `sticky`: sin este margen, saltar a una
+     sección desde sus chips dejaba el título justo DEBAJO de la barra. */
+  scroll-margin-top: 84px;
+}
+
+.seccionCabecera {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(180deg, #fbfdf9, var(--color-surface));
+}
+
+.numero {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #eef6e5;
+  color: var(--color-primary-hover);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.seccionTitulo {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.seccionNota {
+  font-size: 12px;
+  color: var(--color-text-faint);
+  width: 100%;
+  margin-top: -2px;
+}
+
+.seccionDerecha {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.analista {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.analista .etiqueta {
+  white-space: nowrap;
+}
+
+.analista .input {
+  width: 170px;
+}
+
+.seccionCuerpo {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+/* --- Tablas --- */
+
+/* Una tabla ancha se desplaza dentro de su tarjeta; la página nunca se
+   desplaza a lo ancho. */
+.tablaWrap {
+  overflow-x: auto;
+  margin: 0 calc(var(--space-4) * -1);
+  padding: 0 var(--space-4);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  min-width: 620px;
+}
+
+.tabla th {
+  padding: 7px 10px;
+  text-align: right;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.tabla th:first-child,
+.tabla td:first-child {
+  text-align: left;
+}
+
+.tabla td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+  text-align: right;
+}
+
+.tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tabla tbody tr {
+  transition: background 0.12s ease;
+}
+
+.tabla tbody tr:hover {
+  background: #fafcf8;
+}
+
+/* La fila entera se tiñe apenas cuando algo no cumple: no hay que ir a
+   buscar la columna del veredicto para darse cuenta. */
+.filaMal {
+  background: #fdf5f4;
+}
+
+.filaMal:hover {
+  background: #fbeeec;
+}
+
+.celdaEquipo {
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.celdaNota {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--color-text-faint);
+}
+
+/* Las unidades NO se pasan a mayúsculas: «µL» en mayúscula es «ΜL», que se
+   lee «ML» —mililitros—, mil veces más grande. Un encabezado que miente sobre
+   la unidad en un registro de calibración no es un detalle tipográfico. */
+.unidad {
+  text-transform: none;
+  font-weight: 700;
+}
+
+.calculado {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.criterio {
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+}
+
+/* --- Veredicto de una fila --- */
+
+.veredicto {
+  display: inline-block;
+  min-width: 96px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  text-align: center;
+  /* Sin medir todavía no es un estado: se dibuja apenas, para que las filas
+     que SÍ tienen veredicto sean lo único que resalta en la columna. */
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-faint);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.veredictoOk {
+  border-color: #cfe6d3;
+  background: #eef7ef;
+  color: var(--color-ok);
+}
+
+.veredictoMal {
+  border-color: #efd0cd;
+  background: #fbeeec;
+  color: var(--color-danger);
+}
+
+/* --- Sí / No / N.A. --- */
+
+.opciones {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.opcion {
+  padding: 5px 12px;
+  border: 0;
+  border-right: 1px solid var(--color-border);
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
+}
+
+.opcion:last-child {
+  border-right: 0;
+}
+
+.opcion:hover {
+  background: var(--color-bg);
+}
+
+.opcionActiva {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.opcionActiva:hover {
+  background: var(--color-primary-hover);
+}
+
+/* --- Pie del formulario --- */
+
+.pie {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+@media (max-width: 720px) {
+  .pie {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .resumenChips {
+    margin-left: 0;
+  }
+}
+
+.barraAcciones {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+.estadoGuardado {
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+}
+
+.sinGuardar {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+/* --- Avisos --- */
+
+.error {
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: #fbeceb;
+  border: 1px solid #e8bdb8;
+  color: var(--color-danger);
+  font-size: 13px;
+  margin-bottom: var(--space-3);
+}
+
+.aviso {
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: #fbf6e6;
+  border: 1px solid #ecdcae;
+  color: var(--color-warning);
+  font-size: 12.5px;
+  margin-bottom: var(--space-3);
+}
+
+.vacio {
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 13.5px;
+}
+
+/* --- Histórico --- */
+
+.filtros {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.graficos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.grafico {
+  height: 230px;
+  position: relative;
+}
+
+.filaEnlace {
+  cursor: pointer;
+}
+
+.filaEnlace:hover .celdaEquipo {
+  color: var(--color-primary-hover);
+}
+
+/* --- Criterios --- */
+
+.grupos {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.acciones {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.iconoBoton {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    border-color 0.13s ease,
+    color 0.13s ease;
+}
+
+.iconoBoton:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.iconoBotonPeligro:hover {
+  border-color: #e8bdb8;
+  color: var(--color-danger);
+}
+
+.inactivo {
+  opacity: 0.55;
+}
+
+.formulario {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}

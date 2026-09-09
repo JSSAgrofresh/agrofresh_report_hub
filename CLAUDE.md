@@ -53,7 +53,7 @@ git pull origin claude/modulo-x-implementation-plan-3zhite
 
 # Migraciones (una por archivo, en orden)
 cd backend
-.venv\Scripts\python.exe scripts\migrar.py 0022_informe_analista_opcional.sql
+.venv\Scripts\python.exe scripts\migrar.py 0026_verificaciones_diarias.sql
 
 # Estado general del servidor
 .\deploy\windows\estado.ps1
@@ -93,6 +93,33 @@ Este proyecto no se da por listo con "debería funcionar":
 
 ---
 
+## AgroFresh Lab tiene dos módulos adentro
+
+`/modulos/agrofresh-lab` es un **hub** (dos tarjetas), no una pantalla:
+
+| Módulo | Ruta | Qué es |
+|---|---|---|
+| Ingreso al laboratorio | `/modulos/agrofresh-lab/ingreso` | Lo de siempre: recibir la muestra, cruzarla con su solicitud y subir el resultado del GC. No cambió. |
+| Verificaciones diarias | `/modulos/agrofresh-lab/verificaciones` | REG-03: reemplaza el Excel con macros del control diario de equipos. |
+
+Los dos comparten el permiso `agrofresh_lab`; editar los criterios
+(`/verificaciones/criterios`) sí exige admin general.
+
+Backend: `app/verificaciones.py` (+ `verificaciones_excel.py`), tablas `verif_*`
+de la migración 0026. Frontend: `src/features/verificaciones/`,
+`src/views/modules/lab/verificaciones/`.
+
+**El cálculo está en los dos lados a propósito**: `verificaciones.py` decide y
+es lo que se guarda; `features/verificaciones/lib/calculos.ts` pinta el
+veredicto mientras se escribe. Los dos se prueban contra los MISMOS casos
+(`tests/test_verificaciones.py` y `calculos.test.ts`) — si tocas uno, toca el
+otro y sus pruebas.
+
+**Los veredictos se recalculan al leer**, no se confía en la columna guardada:
+por eso apretar una tolerancia en Criterios también revisa el histórico.
+
+---
+
 ## Trampas conocidas (nos costaron tiempo)
 
 - **Finales de línea mezclados.** `emitir.py`, `toma_muestras.py` y
@@ -108,6 +135,13 @@ Este proyecto no se da por listo con "debería funcionar":
 - **`100vh` en Chrome de Android** incluye la barra de direcciones. Usa `dvh`.
 - **`1fr` no baja del ancho de su contenido.** Para que una celda de grilla
   encoja de verdad: `minmax(0, 1fr)` o `min-width: 0`.
+- **`text-transform: uppercase` convierte «µL» en «ΜL»**, que se lee «ML»:
+  mil veces más grande. En un registro de calibración eso es un error, no un
+  detalle. Las unidades van en `<span className={styles.unidad}>`, que las
+  deja como están.
+- **Los encabezados HTTP no son UTF-8.** Un `Content-Disposition` con tildes
+  llega roto al navegador. Se manda `filename*=UTF-8''…` (RFC 5987) con un
+  `filename` sin tildes al lado; `client.ts` prefiere el primero.
 - **En Windows falta `tzdata`**: sin él `zoneinfo` no encuentra las zonas.
   Está declarado en `requirements.txt`.
 
@@ -122,13 +156,18 @@ pendiente**, en orden de importancia:
    `deploy/windows/2-instalar-backend.ps1` y `3-configurar-tunel.ps1` para
    dejarlos como servicio de Windows. Mientras no se haga, si alguien cierra
    esa ventana el sistema se cae y nadie se entera.
-2. **Etapa 4 del módulo AgroFresh Lab**: botón "Procesar" → modal con el
-   listado de informes → guardar en R2 bajo `informes/<fecha>/` → tabla abajo
-   para descargarlos todos o de a uno.
-3. **`sembrar_catalogo_analitos.py --aplicar`** en el servidor: 14 analitos
+2. **Correr la migración `0026_verificaciones_diarias.sql` en el servidor.**
+   Sin ella, Verificaciones diarias no tiene dónde guardar y la pantalla
+   muestra "No se pudo cargar la configuración del laboratorio".
+   Siembra los criterios tal como están hoy en el Excel REG-03; se editan
+   después desde AgroFresh Lab → Verificaciones diarias → Criterios.
+3. **Etapa 4 del módulo AgroFresh Lab → Ingreso al laboratorio**: botón
+   "Procesar" → modal con el listado de informes → guardar en R2 bajo
+   `informes/<fecha>/` → tabla abajo para descargarlos todos o de a uno.
+4. **`sembrar_catalogo_analitos.py --aplicar`** en el servidor: 14 analitos
    por crear. `DFN` hay que crearlo a mano (la app no conoce su nombre).
-4. **Los límites residuales están vacíos.** Son decisión del laboratorio y se
+5. **Los límites residuales están vacíos.** Son decisión del laboratorio y se
    cargan en Report → Gestionar analitos. **Nunca los inventes.**
-5. Diferidos por decisión del usuario: paginar `/api/reportes/datos` y migrar
+6. Diferidos por decisión del usuario: paginar `/api/reportes/datos` y migrar
    los ~14 mantenedores JSON a tablas.
-6. Opcional: activar compresión gzip (una línea, ~96% menos de payload).
+7. Opcional: activar compresión gzip (una línea, ~96% menos de payload).

@@ -1,0 +1,164 @@
+import type { ReactNode } from 'react'
+import { Card } from '@/components/ui/Card'
+import { cn } from '@/lib/cn'
+import type { Respuesta, Resultado, ResultadoDia } from '@/features/verificaciones'
+import styles from './Verificaciones.module.css'
+
+/**
+ * Las piezas que se repiten en las tres pantallas del módulo.
+ *
+ * Están acá y no en `components/ui` a propósito: son de este formulario -un
+ * campo que distingue "cero" de "vacío", un veredicto de tres estados- y no
+ * han hecho falta en ninguna otra parte del sistema todavía.
+ */
+
+/**
+ * Un número que puede estar vacío.
+ *
+ * El detalle importante es que `null` (no medido) y `0` (medido, dio cero) son
+ * cosas distintas: un `0` que se guarda como "vacío" borraría una medición
+ * real, y un vacío que se guarda como `0` inventaría una que nadie hizo.
+ */
+interface CampoNumeroProps {
+  valor: number | null
+  onCambio: (valor: number | null) => void
+  placeholder?: string
+  ancho?: number
+  titulo?: string
+}
+
+export function CampoNumero({ valor, onCambio, placeholder, ancho, titulo }: CampoNumeroProps) {
+  return (
+    <input
+      type="number"
+      inputMode="decimal"
+      step="any"
+      title={titulo}
+      className={cn(styles.input, styles.inputNumero)}
+      style={ancho ? { width: ancho } : undefined}
+      placeholder={placeholder}
+      value={valor === null ? '' : valor}
+      onChange={(e) => {
+        const texto = e.target.value
+        if (texto === '') return onCambio(null)
+        const numero = Number(texto)
+        onCambio(Number.isNaN(numero) ? null : numero)
+      }}
+    />
+  )
+}
+
+interface SelectorRespuestaProps {
+  valor: Respuesta
+  onCambio: (valor: Respuesta) => void
+  opciones?: Respuesta[]
+}
+
+/** Sí / No / N.A. como botones y no como desplegable: son dos o tres
+ * opciones que se contestan de corrido, y un clic es más rápido que abrir,
+ * elegir y cerrar. Volver a tocar la opción activa la deja sin responder. */
+export function SelectorRespuesta({
+  valor,
+  onCambio,
+  opciones = ['Sí', 'No'],
+}: SelectorRespuestaProps) {
+  return (
+    <span className={styles.opciones}>
+      {opciones.map((opcion) => (
+        <button
+          key={opcion}
+          type="button"
+          className={cn(styles.opcion, valor === opcion && styles.opcionActiva)}
+          aria-pressed={valor === opcion}
+          onClick={() => onCambio(valor === opcion ? '' : opcion)}
+        >
+          {opcion}
+        </button>
+      ))}
+    </span>
+  )
+}
+
+/** El veredicto de una fila. Tres estados: cumple, no cumple, y todavía no se
+ * midió —que no es lo mismo que no cumplir—. */
+export function Veredicto({ resultado }: { resultado: Resultado }) {
+  return (
+    <span
+      className={cn(
+        styles.veredicto,
+        resultado === 'Aceptable' && styles.veredictoOk,
+        resultado === 'No aceptable' && styles.veredictoMal,
+      )}
+    >
+      {resultado || 'Sin medir'}
+    </span>
+  )
+}
+
+export function VeredictoDia({ resultado }: { resultado: ResultadoDia }) {
+  return (
+    <span
+      className={cn(
+        styles.veredictoDia,
+        resultado === 'Aceptable' && styles.veredictoDiaOk,
+        resultado === 'No aceptable' && styles.veredictoDiaMal,
+      )}
+    >
+      {resultado}
+    </span>
+  )
+}
+
+interface SeccionProps {
+  numero: number
+  titulo: string
+  nota?: string
+  analista?: { valor: string; onCambio: (valor: string) => void }
+  resultado?: Resultado
+  id?: string
+  children: ReactNode
+}
+
+/**
+ * Una sección del formulario: número, título, su analista y su veredicto.
+ *
+ * El analista va por sección porque así se trabaja de verdad: una persona
+ * hace las micropipetas y otra la balanza, y el registro tiene que decir
+ * quién hizo qué.
+ */
+export function Seccion({ numero, titulo, nota, analista, resultado, id, children }: SeccionProps) {
+  return (
+    <Card className={styles.seccion} id={id}>
+      <div className={styles.seccionCabecera}>
+        <span className={styles.numero}>{numero}</span>
+        <h3 className={styles.seccionTitulo}>{titulo}</h3>
+        <div className={styles.seccionDerecha}>
+          {analista && (
+            <label className={styles.analista}>
+              <span className={styles.etiqueta}>Analista</span>
+              <input
+                className={styles.input}
+                value={analista.valor}
+                placeholder="Nombre"
+                onChange={(e) => analista.onCambio(e.target.value)}
+              />
+            </label>
+          )}
+          {resultado !== undefined && <Veredicto resultado={resultado} />}
+        </div>
+        {nota && <p className={styles.seccionNota}>{nota}</p>}
+      </div>
+      <div className={styles.seccionCuerpo}>{children}</div>
+    </Card>
+  )
+}
+
+/** Un número calculado por el sistema. Se muestra siempre, aunque esté vacío,
+ * para que la columna no cambie de ancho mientras se escribe. */
+export function Calculado({ valor, decimales = 2 }: { valor: number | null; decimales?: number }) {
+  return (
+    <span className={styles.calculado}>
+      {valor === null ? '—' : valor.toFixed(decimales)}
+    </span>
+  )
+}
