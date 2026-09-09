@@ -15,6 +15,7 @@ import {
   registroABorrador,
   calcularDia,
   descargarDiaExcel,
+  explicarErrorDeConfig,
   NOMBRE_SECCION,
   SECCIONES,
 } from '@/features/verificaciones'
@@ -77,9 +78,9 @@ export function VerificacionesView() {
         setSucio(false)
         setCargando(false)
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         if (!vigente) return
-        setError('No se pudo cargar la configuración del laboratorio. ¿Está el backend arriba?')
+        setError(explicarErrorDeConfig(e))
         setConfig(null)
         setBorrador(null)
         setCargando(false)

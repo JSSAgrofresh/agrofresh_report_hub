@@ -37,6 +37,8 @@ export {
 
 export type { CalculoBalanza, CalculoDetector, CalculoMicropipeta, VistaPrevia } from './lib/calculos'
 
+export { explicarErrorDeConfig } from './lib/errores'
+
 export { NOMBRE_SECCION, SECCIONES } from './lib/tipos'
 
 export type {

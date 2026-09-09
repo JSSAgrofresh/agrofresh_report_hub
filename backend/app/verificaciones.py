@@ -36,7 +36,7 @@ from decimal import Decimal
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
-from psycopg2.errors import ForeignKeyViolation
+from psycopg2.errors import ForeignKeyViolation, UndefinedTable
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -508,8 +508,18 @@ def _param(indice: dict, clave: str, por_defecto: float) -> float:
 
 @router.get("/config", response_model=Config)
 def obtener_config() -> Config:
-    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        return Config(**_leer_config(cur))
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            return Config(**_leer_config(cur))
+    except UndefinedTable:
+        # El código está y la base no: falta correr la migración en el
+        # servidor. Sin este mensaje sale un 500 con "relation ... does not
+        # exist", que no le dice a nadie qué hacer.
+        raise HTTPException(
+            500,
+            "Las tablas de Verificaciones diarias no existen todavía. Falta correr la "
+            "migración en el servidor: scripts/migrar.py 0026_verificaciones_diarias.sql",
+        )
 
 
 def _crud(ruta: str, tabla: str, modelo, modelo_in, columnas: tuple[str, ...]) -> None:

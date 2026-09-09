@@ -7,6 +7,7 @@ import { cn } from '@/lib/cn'
 import { ROUTES } from '@/constants/routes'
 import {
   actualizarParametro,
+  explicarErrorDeConfig,
   gasesApi,
   micropipetasApi,
   obtenerConfig,
@@ -297,7 +298,7 @@ export function CriteriosView() {
     () =>
       obtenerConfig()
         .then(setConfig)
-        .catch(() => setError('No se pudieron cargar los criterios. ¿Está el backend arriba?')),
+        .catch((e: unknown) => setError(explicarErrorDeConfig(e))),
     [],
   )
 
