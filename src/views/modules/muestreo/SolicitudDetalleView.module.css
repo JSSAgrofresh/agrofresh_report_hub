@@ -345,6 +345,151 @@
   margin-bottom: var(--space-3);
 }
 
+/* --- Fotos de la muestra --- */
+
+.avisoFotos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--radius-md);
+  background: #fdf3d8;
+  border: 1px solid #f2dfa0;
+  margin-bottom: var(--space-4);
+}
+
+.avisoFotosTitulo {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #8a6410;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.avisoFotosDatos {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2) var(--space-5);
+  margin-top: var(--space-1);
+}
+
+.avisoFotosDato {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.avisoFotosDato dt {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8a6410;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0;
+  opacity: 0.75;
+}
+
+.avisoFotosDato dd {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #5c4300;
+  margin: 0;
+}
+
+.camaraAcciones {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.botonCamara {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  background: var(--color-primary);
+  transition: background 0.12s;
+}
+
+.botonCamara:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.botonCamara:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.botonCamaraSecundario {
+  composes: botonCamara;
+  background: var(--color-text);
+}
+
+.botonCamaraSecundario:hover:not(:disabled) {
+  background: #000;
+}
+
+.contadorFotos {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.videoCamara {
+  width: 100%;
+  max-width: 480px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: #000;
+}
+
+.miniaturas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.miniatura {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.miniatura img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.quitarFoto {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+}
+
 .mensajeError {
   padding: 10px 14px;
   border-radius: var(--radius-sm);

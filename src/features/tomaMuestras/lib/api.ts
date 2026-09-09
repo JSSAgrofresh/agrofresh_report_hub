@@ -63,6 +63,36 @@ export function descargarPdfSolicitud(archivo: string) {
   )
 }
 
+/** Nombres de las fotos de la muestra ya subidas para esta solicitud -no se
+ * adjuntan al Excel, solo quedan en R2 junto a él-. */
+export function listarFotosSolicitud(archivo: string) {
+  return httpClient.get<string[]>(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/fotos`)
+}
+
+/** Sube una foto tomada con la cámara. El backend rechaza pasar de 5. */
+export function subirFotoSolicitud(archivo: string, foto: Blob, nombreArchivo: string) {
+  const formData = new FormData()
+  formData.append('foto', foto, nombreArchivo)
+  return httpClient.upload<string[]>(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/fotos`,
+    formData,
+  )
+}
+
+export function eliminarFotoSolicitud(archivo: string, nombreFoto: string) {
+  return httpClient.delete<string[]>(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/fotos/${encodeURIComponent(nombreFoto)}`,
+  )
+}
+
+/** Blob de una foto ya subida, para mostrarla como miniatura. */
+export async function obtenerFotoSolicitud(archivo: string, nombreFoto: string): Promise<Blob> {
+  const { blob } = await httpClient.getArchivoConNombre(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/fotos/${encodeURIComponent(nombreFoto)}`,
+  )
+  return blob
+}
+
 /** A quién iría la solicitud según los contactos del laboratorio. */
 export function destinatariosDeSolicitud(archivo: string) {
   return httpClient.get<{ laboratorio: string; destinatarios: string[] }>(

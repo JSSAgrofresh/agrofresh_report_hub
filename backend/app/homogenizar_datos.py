@@ -120,6 +120,12 @@ class HomogenizarIn(BaseModel):
     # Valores tal como se muestran hoy; todos pasarán a llamarse `destino`.
     valores: list[str] = Field(min_length=1)
     destino: str = Field(min_length=1)
+    # Acota el cambio a un Sold To (para `ship_to`) o una Especie (para
+    # `variedad`) -el mismo texto de sucursal puede existir bajo clientes
+    # distintos, y el mismo nombre de variedad bajo especies distintas, así
+    # que sin esto se podría homogenizar de más. None (el caso de siempre,
+    # ej. HomogenizarPanel) no acota nada -mismo comportamiento que antes-.
+    contexto: str | None = None
 
 
 def _cliente_id(cur, nombre: str) -> int:
@@ -190,13 +196,18 @@ def homogenizar(campo: str, body: HomogenizarIn) -> dict[str, Any]:
             # La sucursal solo identifica dentro de su cliente, así que cada
             # solicitud se reapunta a una planta con el nombre de destino bajo
             # SU PROPIO cliente, no bajo uno compartido.
+            filtro_contexto = ""
+            params: list[Any] = [origenes]
+            if body.contexto:
+                filtro_contexto = f" AND {_expr('sold_to')} = %s"
+                params.append(body.contexto)
             cur.execute(
                 f"""
                 SELECT s.id, p.cliente_id
                 FROM solicitud s {_JOINS}
-                WHERE s.vigente AND {expr} = ANY(%s)
+                WHERE s.vigente AND {expr} = ANY(%s){filtro_contexto}
                 """,
-                (origenes,),
+                params,
             )
             afectadas = cur.fetchall()
             if not afectadas:
@@ -215,8 +226,13 @@ def homogenizar(campo: str, body: HomogenizarIn) -> dict[str, Any]:
                 )
             return {"actualizadas": len(afectadas), "destino": destino}
 
+        filtro_contexto = ""
+        params_update: list[Any] = [destino, origenes]
+        if campo == "variedad" and body.contexto:
+            filtro_contexto = " AND especie = %s"
+            params_update.append(body.contexto)
         cur.execute(
-            f"UPDATE solicitud SET {columna} = %s WHERE vigente AND {columna} = ANY(%s)",
-            (destino, origenes),
+            f"UPDATE solicitud SET {columna} = %s WHERE vigente AND {columna} = ANY(%s){filtro_contexto}",
+            params_update,
         )
         return {"actualizadas": cur.rowcount, "destino": destino}

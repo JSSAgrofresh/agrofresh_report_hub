@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { descargarExportacion } from '@/features/auditoria'
 import { httpClient } from '@/services/http/client'
+import { ChequeoListadosPanel } from './ChequeoListadosPanel'
 import { ErDiagrama } from './ErDiagrama'
 import { HomogenizarPanel } from './HomogenizarPanel'
 import { PendientesSinInformePanel } from './PendientesSinInformePanel'
@@ -14,7 +15,7 @@ interface Grupo { campo: string; etiqueta: string; especie?: string | null; valo
 interface Auditoria { grupos: Grupo[]; filas: number; pendientes: number }
 interface Decision { campo: string; etiqueta: string; valor_original: string; destino: string; especie?: string | null; filas: number }
 interface Historial { decisiones: Decision[] }
-export type Vista = 'auditoria' | 'cambios' | 'modelo' | 'homogenizar' | 'sin_informe'
+export type Vista = 'auditoria' | 'cambios' | 'modelo' | 'homogenizar' | 'sin_informe' | 'chequeo_listados'
 const CAMPOS = { sold_to_raw: 'Sold To', ship_to_raw: 'Ship To', especie: 'Especie', variedad: 'Variedad' }
 
 interface DataCoreViewProps {
@@ -54,17 +55,56 @@ export function DataCoreView({ vistaInicial = 'auditoria' }: DataCoreViewProps =
     return () => { vigente = false }
   }, [])
 
+  async function asignarSilencioso(grupo: Grupo, destino: string, crearNuevo = false) {
+    await httpClient.post('/ingest/auditoria-staging/asignar', { campo: grupo.campo, valores: grupo.valores, destino, especie: grupo.especie ?? null, crear_nuevo: crearNuevo })
+  }
+
   async function asignar(grupo: Grupo, indice: number, crearNuevo = false) {
     const clave = `${grupo.campo}-${grupo.especie ?? ''}-${indice}`
     const destino = (destinos[clave] ?? grupo.sugerido).trim()
     if (!destino) return
     setCargando(true)
     try {
-      await httpClient.post('/ingest/auditoria-staging/asignar', { campo: grupo.campo, valores: grupo.valores, destino, especie: grupo.especie ?? null, crear_nuevo: crearNuevo })
+      await asignarSilencioso(grupo, destino, crearNuevo)
       setMensaje(crearNuevo ? `“${destino}” se agregó a Listados y quedó confirmado.` : `Valores homologados con “${destino}” de Listados.`)
       await cargarAuditoria()
     } catch (error) {
       setMensaje(error instanceof Error ? error.message : 'No se pudo guardar la homologación.')
+    } finally { setCargando(false) }
+  }
+
+  /** "Homogenizador inteligente": aplica de una vez las sugerencias con
+   * confianza alta (≥85%, más exigente que el 72% que ya se muestra en
+   * pantalla) sobre TODOS los grupos pendientes -para no tener que
+   * confirmar de a uno cuando el lote trae cientos-. Las que no llegan a
+   * ese umbral quedan igual que antes, para decidir a mano. */
+  const UMBRAL_AUTOMATICO = 0.85
+
+  async function homogenizarAutomatico() {
+    if (!data) return
+    const candidatos = data.grupos.filter((g) => (g.sugerencias[0]?.confianza ?? 0) >= UMBRAL_AUTOMATICO)
+    if (!candidatos.length) {
+      setMensaje('Ningún grupo pendiente tiene una sugerencia con suficiente confianza (≥85%) para aplicar solo.')
+      return
+    }
+    setCargando(true)
+    let aplicados = 0
+    let fallidos = 0
+    try {
+      for (const grupo of candidatos) {
+        try {
+          await asignarSilencioso(grupo, grupo.sugerencias[0].valor)
+          aplicados++
+        } catch {
+          fallidos++
+        }
+      }
+      await cargarAuditoria()
+      setMensaje(
+        `Homogenizador inteligente: ${aplicados} grupo(s) resueltos automáticamente (≥85% de confianza).`
+        + (fallidos ? ` ${fallidos} fallaron y quedaron pendientes.` : '')
+        + ' El resto sigue pendiente para revisar a mano.',
+      )
     } finally { setCargando(false) }
   }
 
@@ -117,6 +157,7 @@ export function DataCoreView({ vistaInicial = 'auditoria' }: DataCoreViewProps =
       <button className={vista === 'cambios' ? styles.tabActiva : ''} onClick={() => setVista('cambios')}>Cambios aplicados <small>{historial.length}</small></button>
       <button className={vista === 'modelo' ? styles.tabActiva : ''} onClick={() => setVista('modelo')}>Modelo entidad-relación</button>
       <button className={vista === 'homogenizar' ? styles.tabActiva : ''} onClick={() => setVista('homogenizar')}>Homogeneizar datos</button>
+      <button className={vista === 'chequeo_listados' ? styles.tabActiva : ''} onClick={() => setVista('chequeo_listados')}>Chequeo de integridad</button>
       <button className={vista === 'sin_informe' ? styles.tabActiva : ''} onClick={() => setVista('sin_informe')}>Filas sin N° Informe</button>
     </nav>
     {mensaje && <p className={styles.mensaje}>{mensaje}</p>}
@@ -128,9 +169,21 @@ export function DataCoreView({ vistaInicial = 'auditoria' }: DataCoreViewProps =
       {!historial.length ? <p className={styles.vacio}>Todavía no hay cambios manuales aplicados.</p> : <div className={styles.listaCambios}>{historial.map((decision, i) => { const clave = `hist-${i}`; return <div className={styles.cambio} key={`${decision.campo}-${decision.valor_original}-${decision.destino}-${decision.especie ?? ''}`}><div><b>{decision.etiqueta}{decision.especie ? ` · ${decision.especie}` : ''}</b><span>{decision.filas} fila(s)</span><p><code>{decision.valor_original || 'Sin valor'}</code> →</p></div><input aria-label={`Nuevo destino para ${decision.valor_original}`} value={ediciones[clave] ?? decision.destino} onChange={(e) => setEdiciones((actual) => ({ ...actual, [clave]: e.target.value }))} /><Button disabled={cargando} onClick={() => void editarDecision(decision, i)}>Guardar corrección</Button></div> })}</div>}
     </Card>}
     {vista === 'homogenizar' && <HomogenizarPanel />}
+    {vista === 'chequeo_listados' && <ChequeoListadosPanel />}
     {vista === 'sin_informe' && <PendientesSinInformePanel />}
     {vista === 'auditoria' && <>
-      <div className={styles.resumen}><span><b>{data?.filas ?? 0}</b> filas en copia de trabajo</span><span><b>{data?.pendientes ?? 0}</b> decisiones pendientes</span><Button disabled={cargando || !data?.filas || data.pendientes > 0} onClick={() => void enviarBase()}>Enviar TODO a la BD</Button></div>
+      <div className={styles.resumen}>
+        <span><b>{data?.filas ?? 0}</b> filas en copia de trabajo</span>
+        <span><b>{data?.pendientes ?? 0}</b> decisiones pendientes</span>
+        <Button
+          variant="secondary"
+          disabled={cargando || !data?.grupos.some((g) => (g.sugerencias[0]?.confianza ?? 0) >= UMBRAL_AUTOMATICO)}
+          onClick={() => void homogenizarAutomatico()}
+        >
+          Homogenizador inteligente
+        </Button>
+        <Button disabled={cargando || !data?.filas || data.pendientes > 0} onClick={() => void enviarBase()}>Enviar TODO a la BD</Button>
+      </div>
       <div className={styles.columnas}>{Object.entries(CAMPOS).map(([campo, etiqueta]) => { const grupos = data?.grupos.filter((g) => g.campo === campo) ?? []; return <section key={campo}><h2>{etiqueta} <small>{grupos.length}</small></h2>{!grupos.length ? <Card><p className={styles.vacio}>Todo coincide con Listados.</p></Card> : grupos.map((grupo, i) => { const clave = `${campo}-${grupo.especie ?? ''}-${i}`; return <Card key={`${grupo.especie}-${grupo.valores.join('|')}`} className={styles.grupo}>{grupo.especie && <p className={styles.especie}>Especie: {grupo.especie}</p>}<p className={styles.contador}>{grupo.cantidad} fila(s)</p><div className={styles.valores}>{grupo.valores.map((v) => <code key={v}>{v}</code>)}</div>{grupo.sugerencias.length > 0 && <div className={styles.sugerencias}>{grupo.sugerencias.map((s) => <button type="button" key={s.valor} onClick={() => setDestinos((d) => ({ ...d, [clave]: s.valor }))}>{s.valor} · {Math.round(s.confianza * 100)}%</button>)}</div>}<label>Valor oficial de Listados<input value={destinos[clave] ?? grupo.sugerido} onChange={(e) => setDestinos((d) => ({ ...d, [clave]: e.target.value }))} /></label><div className={styles.accionesGrupo}><Button disabled={cargando} onClick={() => void asignar(grupo, i)}>Usar valor de Listados</Button><Button variant="secondary" disabled={cargando} onClick={() => { if (confirm(`¿Agregar “${(destinos[clave] ?? grupo.sugerido).trim()}” como valor nuevo oficial?`)) void asignar(grupo, i, true) }}>Agregar como nuevo</Button></div></Card> })}</section> })}</div>
     </>}
   </div>

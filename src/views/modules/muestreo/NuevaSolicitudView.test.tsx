@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { NuevaSolicitudView } from './NuevaSolicitudView'
 import type { AnalitoConfig, CampoConfig, Solicitud } from '@/features/tomaMuestras'
+import type { Analisis } from '@/features/laboratorios'
 
 const {
   crearSolicitud,
@@ -15,6 +16,7 @@ const {
   listarProductosConfig,
   listarTiposAplicacion,
   listarUnidades,
+  listarAnalisis,
 } = vi.hoisted(() => ({
   crearSolicitud: vi.fn(),
   actualizarSolicitud: vi.fn(),
@@ -26,6 +28,7 @@ const {
   listarProductosConfig: vi.fn(),
   listarTiposAplicacion: vi.fn(),
   listarUnidades: vi.fn(),
+  listarAnalisis: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('@/features/tomaMuestras', () => ({
@@ -45,7 +48,7 @@ vi.mock('@/features/catalogo', () => ({
   listarPlantas: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('@/features/laboratorios', () => ({
-  listarAnalisis: vi.fn().mockResolvedValue([]),
+  listarAnalisis,
   listarUnidades,
 }))
 vi.mock('@/features/listados', () => ({
@@ -143,7 +146,8 @@ function solicitudBase(overrides: Partial<Solicitud> = {}): Solicitud {
     especie: 'Cerezas',
     variedad: null,
     linea_proceso: null,
-    csg: null,
+    csg_productor: null,
+    csg_packing: null,
     lote: null,
     posicion_muestreo: null,
     numero_camara: null,
@@ -183,6 +187,7 @@ function mockConfigComun() {
   listarUnidades.mockResolvedValue([
     { id: 1, simbolo: 'ppm', nombre: 'Partes por millón', activo: true, orden: 1 },
   ])
+  listarAnalisis.mockResolvedValue([])
 }
 
 describe('NuevaSolicitudView — crear', () => {
@@ -209,10 +214,215 @@ describe('NuevaSolicitudView — crear', () => {
 
     fireEvent.click(within(tarjetaFDL).getByRole('checkbox'))
 
-    expect(within(tarjetaFDL).getByRole('spinbutton')).toBeTruthy()
-    expect(within(tarjetaFDL).getByRole('textbox', { name: /Unidad de dosis/ })).toBeTruthy()
+    expect(within(tarjetaFDL).getByRole('textbox', { name: /Dosis de/ })).toBeTruthy()
     fireEvent.click(within(tarjetaFDL).getByRole('button', { name: 'No indicar dosis' }))
     expect(within(tarjetaFDL).getByRole('button', { name: 'Sin dosis: —' })).toBeTruthy()
+  })
+
+  it('agrupa el checklist por el nombre del Análisis del laboratorio, no por la categoría del analito', async () => {
+    mockConfigComun()
+    const ANALISIS: Analisis[] = [
+      {
+        id: 1,
+        laboratorio: 'AGROFRESH',
+        nombre: 'Panel de Fungicidas',
+        observaciones: '',
+        modo: 'seleccionable',
+        analitos: [{ analito_id: 1, unidad: 'ppm', preseleccionado: false }],
+        activo: true,
+        orden: 1,
+      },
+      {
+        id: 2,
+        laboratorio: 'AGROFRESH',
+        nombre: 'Panel de Trazas',
+        observaciones: '',
+        modo: 'seleccionable',
+        analitos: [{ analito_id: 2, unidad: 'ppm', preseleccionado: false }],
+        activo: true,
+        orden: 2,
+      },
+    ]
+    listarAnalisis.mockResolvedValue(ANALISIS)
+
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+
+    await waitFor(() => expect(screen.getByText('Panel de Fungicidas')).toBeTruthy())
+    expect(screen.getByText('Panel de Trazas')).toBeTruthy()
+    // Ambos analitos siguen siendo "Fungicidas" en su propia categoría, pero
+    // como cada uno vive en un Análisis distinto del laboratorio, ya no
+    // deben aparecer agrupados bajo ese texto genérico.
+    expect(screen.queryByText('Fungicidas')).toBeNull()
+  })
+
+  it('el checkbox de un Análisis Seleccionable marca y desmarca de una vez todos sus analitos', async () => {
+    mockConfigComun()
+    const ANALISIS: Analisis[] = [
+      {
+        id: 1,
+        laboratorio: 'AGROFRESH',
+        nombre: 'FSMA (E. Coli + Coliformes Totales)',
+        observaciones: '',
+        modo: 'seleccionable',
+        analitos: [
+          { analito_id: 1, unidad: 'ppm', preseleccionado: true },
+          { analito_id: 2, unidad: 'ppm', preseleccionado: true },
+        ],
+        activo: true,
+        orden: 1,
+      },
+    ]
+    listarAnalisis.mockResolvedValue(ANALISIS)
+
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('checkbox', {
+          name: 'Seleccionar todo el análisis FSMA (E. Coli + Coliformes Totales)',
+        }),
+      ).toBeTruthy(),
+    )
+    const checkboxGrupo = screen.getByRole('checkbox', {
+      name: 'Seleccionar todo el análisis FSMA (E. Coli + Coliformes Totales)',
+    })
+    const tarjetaFDL = screen.getByTestId('analito-card-1')
+    const tarjetaPYR = screen.getByTestId('analito-card-2')
+
+    // Un Análisis "Seleccionable" no viene marcado de entrada: hay que
+    // elegirlo, ya sea analito a analito o con el checkbox del grupo.
+    expect(within(tarjetaFDL).getByRole('checkbox')).not.toBeChecked()
+    expect(within(tarjetaPYR).getByRole('checkbox')).not.toBeChecked()
+    expect(within(tarjetaFDL).getByRole('checkbox')).not.toBeDisabled()
+
+    fireEvent.click(checkboxGrupo)
+    expect(within(tarjetaFDL).getByRole('checkbox')).toBeChecked()
+    expect(within(tarjetaPYR).getByRole('checkbox')).toBeChecked()
+
+    fireEvent.click(checkboxGrupo)
+    expect(within(tarjetaFDL).getByRole('checkbox')).not.toBeChecked()
+    expect(within(tarjetaPYR).getByRole('checkbox')).not.toBeChecked()
+  })
+
+  it('un Análisis "Panel completo" viene con sus analitos marcados y bloqueados, y solo se quita completo', async () => {
+    mockConfigComun()
+    const ANALISIS: Analisis[] = [
+      {
+        id: 1,
+        laboratorio: 'AGROFRESH',
+        nombre: 'Cuantificación de patógenos (qPCR)',
+        observaciones: '',
+        modo: 'completo',
+        analitos: [
+          { analito_id: 1, unidad: 'UFC/mL', preseleccionado: true },
+          { analito_id: 2, unidad: 'UFC/mL', preseleccionado: true },
+        ],
+        activo: true,
+        orden: 1,
+      },
+    ]
+    listarAnalisis.mockResolvedValue(ANALISIS)
+
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+
+    const checkboxGrupo = await screen.findByRole('checkbox', {
+      name: 'Seleccionar todo el análisis Cuantificación de patógenos (qPCR)',
+    })
+    const tarjetaFDL = screen.getByTestId('analito-card-1')
+    const tarjetaPYR = screen.getByTestId('analito-card-2')
+
+    // Viene marcado y bloqueado de entrada: no hay que tildar nada.
+    await waitFor(() => expect(within(tarjetaFDL).getByRole('checkbox')).toBeChecked())
+    expect(within(tarjetaPYR).getByRole('checkbox')).toBeChecked()
+    expect(within(tarjetaFDL).getByRole('checkbox')).toBeDisabled()
+    expect(within(tarjetaPYR).getByRole('checkbox')).toBeDisabled()
+    expect(checkboxGrupo).toBeChecked()
+
+    // Solo el checkbox del grupo puede desmarcarlos -el de cada analito está
+    // bloqueado, así que no se puede sacar uno solo del panel.
+    fireEvent.click(checkboxGrupo)
+    expect(within(tarjetaFDL).getByRole('checkbox')).not.toBeChecked()
+    expect(within(tarjetaPYR).getByRole('checkbox')).not.toBeChecked()
+  })
+
+  it('un analito de resultado directo (sin dosis) no pide "Valor" al marcarlo', async () => {
+    listarCamposConfig.mockResolvedValue(CAMPOS_CONFIG)
+    listarLaboratoriosConfig.mockResolvedValue([
+      { id: 1, codigo: 'DIAGNOFRUIT', nombre: 'Diagnofruit', descripcion: null, activo: true, orden: 1 },
+    ])
+    listarTiposAplicacion.mockResolvedValue([{ id: 1, nombre: 'Actimist', activo: true, orden: 1 }])
+    listarAnalitosConfig.mockResolvedValue([
+      {
+        id: 1,
+        laboratorio: 'DIAGNOFRUIT',
+        categoria: 'Patógenos',
+        codigo: 'LEV',
+        nombre: 'Levaduras',
+        unidad: 'UFC/mL',
+        tipo: 'numero',
+        dosis_aplicable: false,
+        requerido: false,
+        activo: true,
+        orden: 1,
+        tipo_aplicacion: '',
+      },
+    ])
+    listarProductosConfig.mockResolvedValue([])
+    listarCamposTipoAplicacion.mockResolvedValue([])
+    listarUnidades.mockResolvedValue([])
+    listarAnalisis.mockResolvedValue([])
+
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('Diagnofruit')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'DIAGNOFRUIT' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+
+    await waitFor(() => expect(screen.getByText('LEV')).toBeTruthy())
+    const tarjetaLEV = screen.getByTestId('analito-card-1')
+    expect(within(tarjetaLEV).queryByRole('textbox')).toBeNull()
+
+    fireEvent.click(within(tarjetaLEV).getByRole('checkbox'))
+
+    // Sigue sin pedir "Valor": el analito solo se pide o no se pide.
+    expect(within(tarjetaLEV).queryByRole('textbox')).toBeNull()
+    expect(within(tarjetaLEV).queryByText('No indicar dosis')).toBeNull()
   })
 })
 

@@ -12,6 +12,7 @@ es un simple renombre de schemas -sin downtime, sin reiniciar el backend-.
 """
 import json
 from datetime import datetime, timezone
+from difflib import SequenceMatcher
 from io import BytesIO
 from typing import Any
 
@@ -21,6 +22,7 @@ from openpyxl import Workbook
 from pydantic import BaseModel
 
 from .db import conexion, cursor_dict
+from .listados import clave_normalizada
 
 router = APIRouter(prefix="/api/auditoria", tags=["auditoria"])
 
@@ -103,6 +105,202 @@ CAMPOS_AUDITABLES: dict[str, list[str]] = {
     "cliente": ["nombre", "codigo_sap"],
     "analito": ["nombre", "categoria", "unidad", "matriz"],
 }
+
+# ---------------------------------------------------------------------------
+# Segunda regla de auditoría: valores de Sold To/Ship To/Especie/Variedad que
+# ya están escritos de forma consistente en la base (por eso la regla de
+# homogenización de arriba no los detecta -exige >1 variante-) pero que no
+# calzan con ningún valor vigente de Listados. Pasa, por ejemplo, cuando un
+# estándar se renombra en Listados después de que estas filas ya se cargaron.
+# Mismo motor de resolución (calce normalizado + sugerencia por similitud)
+# que usa Ingest al recibir un archivo nuevo (ver `_resolver_listados` en
+# ingest.py), aplicado acá retroactivamente sobre lo que ya está en la base.
+# ---------------------------------------------------------------------------
+
+_ETIQUETA_LISTADO = {
+    "sold_to_raw": "Sold To (cliente)",
+    "ship_to_raw": "Ship To (sucursal)",
+    "especie": "Especie",
+    "variedad": "Variedad",
+}
+
+# Palabras de puro "ruido" de razón social (SPA, LTDA, SA...) que se sacan
+# del final del nombre para comparar el núcleo -mismo criterio que usa Ingest
+# para Sold To/Ship To (ver `clave_normalizada_empresa` en ingest.py)-.
+_PALABRAS_SUFIJO_EMPRESA = {
+    "s", "p", "a", "sa", "spa", "ltda", "limitada", "eirl", "e", "i", "r",
+    "cia", "compania", "sac", "srl", "inc", "corp", "llc", "co", "sociedad",
+    "anonima", "hnos", "y",
+}
+
+
+def _clave_empresa(valor: str) -> str:
+    palabras = clave_normalizada(valor).split(" ")
+    while len(palabras) > 1 and palabras[-1] in _PALABRAS_SUFIJO_EMPRESA:
+        palabras.pop()
+    return " ".join(palabras)
+
+
+UMBRAL_SUGERENCIA = 0.72
+TOPE_SUGERENCIAS = 3
+
+
+def _sugerencias_fuzzy(clave_buscada: str, candidatos: dict[str, str]) -> list[dict[str, Any]]:
+    """Nunca se usan para asignar solas: son para mostrarle a la persona "che,
+    esto se parece a tal otra cosa" y que decida ella -el sistema nunca
+    homologa en silencio-."""
+    if not clave_buscada:
+        return []
+    puntuadas = []
+    vistos: set[str] = set()
+    for clave_candidata, valor_oficial in candidatos.items():
+        if valor_oficial in vistos:
+            continue
+        ratio = SequenceMatcher(None, clave_buscada, clave_candidata).ratio()
+        if ratio >= UMBRAL_SUGERENCIA:
+            puntuadas.append({"valor": valor_oficial, "confianza": round(ratio, 2)})
+            vistos.add(valor_oficial)
+    puntuadas.sort(key=lambda s: -s["confianza"])
+    return puntuadas[:TOPE_SUGERENCIAS]
+
+
+def _mapa_clientes(cur, schema: str) -> dict[str, tuple[str, int]]:
+    """clave normalizada -> (nombre oficial, id)."""
+    cur.execute(f"SELECT id, nombre FROM {schema}.cliente WHERE activo")
+    return {_clave_empresa(r["nombre"]): (r["nombre"], r["id"]) for r in cur.fetchall()}
+
+
+def _mapa_plantas(cur, schema: str) -> dict[int, dict[str, tuple[str, int]]]:
+    """cliente_id -> {clave normalizada -> (nombre oficial, id)}."""
+    cur.execute(
+        f"SELECT p.id, p.cliente_id, p.nombre FROM {schema}.planta p "
+        f"JOIN {schema}.cliente c ON c.id = p.cliente_id WHERE p.activo AND c.activo"
+    )
+    mapa: dict[int, dict[str, tuple[str, int]]] = {}
+    for r in cur.fetchall():
+        mapa.setdefault(r["cliente_id"], {})[_clave_empresa(r["nombre"])] = (r["nombre"], r["id"])
+    return mapa
+
+
+def _mapa_especies(cur, schema: str) -> dict[str, tuple[str, int]]:
+    """clave normalizada -> (valor canónico, especie_id). Incluye tanto las
+    especies estándar tal cual como los valores crudos ya homogenizados hacia
+    una -en ese caso el canónico es el de la especie estándar-."""
+    cur.execute(
+        f"SELECT a.valor_normalizado AS clave, COALESCE(e.valor, a.valor) AS canonico, COALESCE(e.id, a.id) AS id "
+        f"FROM {schema}.valor_lista a LEFT JOIN {schema}.valor_lista e ON e.id = a.fusionado_en_id "
+        f"WHERE a.tipo = 'especie' AND (a.activo OR a.fusionado_en_id IS NOT NULL)"
+    )
+    return {r["clave"]: (r["canonico"], r["id"]) for r in cur.fetchall()}
+
+
+def _mapa_variedades(cur, schema: str) -> dict[int, dict[str, str]]:
+    """especie_id -> {clave normalizada -> valor canónico}."""
+    cur.execute(
+        f"SELECT a.especie_id, a.valor_normalizado AS clave, COALESCE(e.valor, a.valor) AS canonico "
+        f"FROM {schema}.valor_lista a LEFT JOIN {schema}.valor_lista e ON e.id = a.fusionado_en_id "
+        f"WHERE a.tipo = 'variedad' AND (a.activo OR a.fusionado_en_id IS NOT NULL)"
+    )
+    mapa: dict[int, dict[str, str]] = {}
+    for r in cur.fetchall():
+        mapa.setdefault(r["especie_id"], {})[r["clave"]] = r["canonico"]
+    return mapa
+
+
+def _auditar_fuera_de_listados(cur, schema: str) -> list[dict[str, Any]]:
+    grupos: list[dict[str, Any]] = []
+
+    clientes = _mapa_clientes(cur, schema)
+    plantas = _mapa_plantas(cur, schema)
+    especies = _mapa_especies(cur, schema)
+    variedades = _mapa_variedades(cur, schema)
+
+    # --- Sold To -------------------------------------------------------
+    candidatos_clientes = {k: v[0] for k, v in clientes.items()}
+    cur.execute(
+        f"SELECT sold_to_raw AS valor, count(*)::int AS filas FROM {schema}.solicitud "
+        f"WHERE sold_to_raw IS NOT NULL AND trim(sold_to_raw) <> '' GROUP BY sold_to_raw"
+    )
+    for fila in cur.fetchall():
+        if _clave_empresa(fila["valor"]) in clientes:
+            continue
+        sugerencias = _sugerencias_fuzzy(_clave_empresa(fila["valor"]), candidatos_clientes)
+        grupos.append({
+            "regla": "fuera_de_listados", "tabla": "solicitud", "campo": "sold_to_raw",
+            "etiqueta": _ETIQUETA_LISTADO["sold_to_raw"], "contexto": None,
+            "valores": [fila["valor"]], "filas": fila["filas"],
+            "sugerido": sugerencias[0]["valor"] if sugerencias else "",
+            "sugerencias": sugerencias,
+        })
+
+    # --- Ship To (por cliente; se salta si el Sold To de esa fila ya está
+    # marcado aparte, mismo criterio que Ingest) -------------------------
+    cur.execute(
+        f"SELECT sold_to_raw, ship_to_raw AS valor, count(*)::int AS filas FROM {schema}.solicitud "
+        f"WHERE ship_to_raw IS NOT NULL AND trim(ship_to_raw) <> '' "
+        f"AND sold_to_raw IS NOT NULL GROUP BY sold_to_raw, ship_to_raw"
+    )
+    for fila in cur.fetchall():
+        cliente = clientes.get(_clave_empresa(fila["sold_to_raw"]))
+        if not cliente:
+            continue
+        cliente_nombre, cliente_id = cliente
+        plantas_del_cliente = plantas.get(cliente_id, {})
+        if _clave_empresa(fila["valor"]) in plantas_del_cliente:
+            continue
+        candidatos = {k: v[0] for k, v in plantas_del_cliente.items()}
+        sugerencias = _sugerencias_fuzzy(_clave_empresa(fila["valor"]), candidatos)
+        grupos.append({
+            "regla": "fuera_de_listados", "tabla": "solicitud", "campo": "ship_to_raw",
+            "etiqueta": _ETIQUETA_LISTADO["ship_to_raw"], "contexto": cliente_nombre,
+            "valores": [fila["valor"]], "filas": fila["filas"],
+            "sugerido": sugerencias[0]["valor"] if sugerencias else "",
+            "sugerencias": sugerencias,
+        })
+
+    # --- Especie ---------------------------------------------------------
+    candidatos_especies = {k: v[0] for k, v in especies.items()}
+    cur.execute(
+        f"SELECT especie AS valor, count(*)::int AS filas FROM {schema}.solicitud "
+        f"WHERE especie IS NOT NULL AND trim(especie) <> '' GROUP BY especie"
+    )
+    for fila in cur.fetchall():
+        if clave_normalizada(fila["valor"]) in especies:
+            continue
+        sugerencias = _sugerencias_fuzzy(clave_normalizada(fila["valor"]), candidatos_especies)
+        grupos.append({
+            "regla": "fuera_de_listados", "tabla": "solicitud", "campo": "especie",
+            "etiqueta": _ETIQUETA_LISTADO["especie"], "contexto": None,
+            "valores": [fila["valor"]], "filas": fila["filas"],
+            "sugerido": sugerencias[0]["valor"] if sugerencias else "",
+            "sugerencias": sugerencias,
+        })
+
+    # --- Variedad (por especie; se salta si la Especie de esa fila ya está
+    # marcada aparte) ------------------------------------------------------
+    cur.execute(
+        f"SELECT especie, variedad AS valor, count(*)::int AS filas FROM {schema}.solicitud "
+        f"WHERE variedad IS NOT NULL AND trim(variedad) <> '' "
+        f"AND especie IS NOT NULL GROUP BY especie, variedad"
+    )
+    for fila in cur.fetchall():
+        resuelto = especies.get(clave_normalizada(fila["especie"]))
+        if not resuelto:
+            continue
+        especie_nombre, especie_id = resuelto
+        variedades_de_especie = variedades.get(especie_id, {})
+        if clave_normalizada(fila["valor"]) in variedades_de_especie:
+            continue
+        sugerencias = _sugerencias_fuzzy(clave_normalizada(fila["valor"]), variedades_de_especie)
+        grupos.append({
+            "regla": "fuera_de_listados", "tabla": "solicitud", "campo": "variedad",
+            "etiqueta": _ETIQUETA_LISTADO["variedad"], "contexto": especie_nombre,
+            "valores": [fila["valor"]], "filas": fila["filas"],
+            "sugerido": sugerencias[0]["valor"] if sugerencias else "",
+            "sugerencias": sugerencias,
+        })
+
+    return grupos
 
 
 def _schema_activo(cur) -> str:
@@ -261,13 +459,33 @@ def _auditar(cur, schema: str) -> dict[str, Any]:
 @router.get("/inconsistencias")
 def auditar() -> dict[str, Any]:
     """Primera pasada de auditoría: variantes de un mismo valor por mayúsculas
-    o espacios distintos dentro de un mismo campo. No compara todavía contra
-    el catálogo real de Sold To / Ship To (pendiente: falta esa lista de
-    referencia) — eso será una segunda regla, aparte de esta. Si hay una
-    copia de trabajo activa, audita esa copia; si no, audita la base en vivo
-    (de solo lectura, no se puede corregir nada hasta crear la copia)."""
+    o espacios distintos dentro de un mismo campo. Si hay una copia de trabajo
+    activa, audita esa copia; si no, audita la base en vivo (de solo lectura,
+    no se puede corregir nada hasta crear la copia). Ver `/inconsistencias-listados`
+    para la segunda regla: valores que no calzan con el catálogo de Listados."""
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         return _auditar(cur, _schema_activo(cur))
+
+
+@router.get("/inconsistencias-listados")
+def auditar_listados() -> dict[str, Any]:
+    """El "chequeo de integridad" contra Listados: Sold To, Ship To, Especie y
+    Variedad de `solicitud` que no calzan con ningún valor vigente de
+    Listados -aunque estén escritos siempre igual dentro de la base, por eso
+    `/inconsistencias` no los detecta-. Sirve tanto recién después de una
+    ingesta (para revisar lo que se acaba de cargar) como en cualquier
+    momento, para auditar lo que ya existe. No exige copia de trabajo para
+    consultar -solo para corregir, ver `/corregir-listados`-."""
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        schema = _schema_activo(cur)
+        grupos = _auditar_fuera_de_listados(cur, schema)
+        return {
+            "schema": schema,
+            "en_copia_de_trabajo": schema == SCHEMA_STAGING,
+            "total_inconsistencias": len(grupos),
+            "total_filas_afectadas": sum(g["filas"] for g in grupos),
+            "grupos": sorted(grupos, key=lambda g: g["filas"], reverse=True),
+        }
 
 
 # ---------------------------------------------------------------------------
