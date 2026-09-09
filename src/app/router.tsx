@@ -11,6 +11,10 @@ import { ReporteView } from '@/views/modules/reports/ReporteView'
 import { ReportesHubView } from '@/views/modules/reports/ReportesHubView'
 import { PostVentaView } from '@/views/modules/reports/PostVentaView'
 import { AgrofreshLabView } from '@/views/modules/lab/AgrofreshLabView'
+import { AgrofreshLabHubView } from '@/views/modules/lab/AgrofreshLabHubView'
+import { VerificacionesView } from '@/views/modules/lab/verificaciones/VerificacionesView'
+import { VerificacionesHistoricoView } from '@/views/modules/lab/verificaciones/VerificacionesHistoricoView'
+import { CriteriosView } from '@/views/modules/lab/verificaciones/CriteriosView'
 import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { StorageView } from '@/views/modules/storage/StorageView'
 import { SolicitudesView } from '@/views/modules/muestreo/SolicitudesView'
@@ -60,7 +64,25 @@ export const router = createBrowserRouter([
           },
           {
             element: <RequireModulo moduloId="agrofresh_lab" />,
-            children: [{ path: ROUTES.agrofreshLab, element: <AgrofreshLabView /> }],
+            children: [
+              // El hub es la puerta; los dos módulos de adentro comparten el
+              // mismo permiso, igual que las tarjetas del hub de Report.
+              { path: ROUTES.agrofreshLab, element: <AgrofreshLabHubView /> },
+              { path: ROUTES.agrofreshLabIngreso, element: <AgrofreshLabView /> },
+              { path: ROUTES.agrofreshLabVerificaciones, element: <VerificacionesView /> },
+              {
+                path: ROUTES.agrofreshLabVerificacionesHistorico,
+                element: <VerificacionesHistoricoView />,
+              },
+            ],
+          },
+          {
+            // Editar los criterios es cambiar cómo se juzga TODO el histórico:
+            // queda con el resto de la administración.
+            element: <RequireAdminGeneral />,
+            children: [
+              { path: ROUTES.agrofreshLabVerificacionesCriterios, element: <CriteriosView /> },
+            ],
           },
           {
             element: <RequireModulo moduloId="datacore" />,

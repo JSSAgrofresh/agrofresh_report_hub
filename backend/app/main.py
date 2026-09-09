@@ -21,6 +21,7 @@ from .reportes import router as reportes_router
 from .storage import router as storage_router
 from .toma_muestras import router as toma_muestras_router
 from .usuarios import router as usuarios_router
+from .verificaciones import router as verificaciones_router
 
 app = FastAPI(title="AgroFresh Report Hub API")
 
@@ -110,6 +111,7 @@ for _router in (
     correo_router,
     usuarios_router,
     homogenizar_router,
+    verificaciones_router,
 ):
     app.include_router(_router, dependencies=SOLO_AGROFRESH)
 

@@ -100,6 +100,14 @@ que es **destructiva a propósito** (vacía datos transaccionales, nunca correrl
 - **`informe_folio`** — correlativo diario (`fecha` PK, `siguiente`) para el folio interno
   `LAB-YYYYMMDD-NNN` que comparten el Excel y el PDF exportados desde Emitir, y el registro
   subido a la base (`solicitud.nro_solicitud`).
+- **`verif_*`** (migración 0026) — Verificaciones diarias del laboratorio
+  (REG-03). Catálogos de lo que se verifica (`verif_micropipeta`,
+  `verif_pesa_patron`, `verif_punto_temperatura`, `verif_gas`), los criterios
+  comunes (`verif_parametro`, clave/valor) y la tabla de referencia del factor
+  Z del agua (`verif_agua_z`). Un día es `verif_registro` (`fecha` UNIQUE) más
+  una tabla de medición por sección, todas con `ON DELETE CASCADE` hacia el
+  día y `ON DELETE RESTRICT` hacia el catálogo — un equipo con historia se
+  desactiva, no se borra. Ver §6b.
 - **`equipo_accutab`** / **`lectura_accutab`** — para el módulo Postcosecha/Trace (área
   distinta a Cromatografía). Poco desarrollado en frontend todavía (ver §7).
 
@@ -196,6 +204,65 @@ Frontend: `src/features/emitir/` (tipos + API), `src/views/modules/reports/croma
 (`CromatografiaEmitirView.tsx` es el canvas principal, `SolicitudFichaModal.tsx`,
 `ConfiguracionInformeModal.tsx`).
 
+## 6b. Módulo AgroFresh Lab → Verificaciones diarias (REG-03)
+
+Reemplaza el libro Excel con macros `REG03_Registro_verificaciones_diarias`,
+donde el ingreso del día vivía en una hoja, los criterios en otra y una macro
+copiaba los datos a siete hojas de histórico.
+
+**AgroFresh Lab pasó a ser un hub** con dos tarjetas (mismo patrón que el hub
+de Report): «Ingreso al laboratorio» (lo que ya existía, movido a
+`/modulos/agrofresh-lab/ingreso`, sin cambios) y «Verificaciones diarias».
+Los dos comparten el permiso `agrofresh_lab`.
+
+Seis secciones, en el orden en que se hacen en el mesón: micropipetas (3
+pesadas por equipo, corregidas por el factor Z del agua), balanza (3 lecturas
+por pesa patrón), temperaturas, gases (presión de contenido y de trabajo por
+cilindro + la pregunta de fugas, que es una sola para el día), inyector y
+detector/método.
+
+Decisiones que importan:
+
+- **El ingreso y el histórico son la misma fila.** No hay "traspaso" que se
+  pueda olvidar o quedar a medias, y `fecha` es UNIQUE: volver a guardar el
+  mismo día actualiza el que ya está, nunca crea un segundo (en el Excel la
+  macro apendaba y era fácil terminar con el día dos veces).
+- **Guardar es un reemplazo completo del día**, no un parche campo por campo:
+  el formulario manda siempre todo lo que tiene en pantalla, así borrar una
+  pesada y guardar la deja borrada.
+- **Los veredictos se recalculan al LEER**, no se confía en la columna
+  guardada. Por eso apretar una tolerancia en Criterios también revisa el
+  histórico. Igual se guardan, para que quien mire la base directamente vea
+  el veredicto sin correr el cálculo.
+- **`''` (sin medir) no es lo mismo que «No aceptable»**: un día a medio
+  llenar no es un día con un problema. Una sección sin mediciones queda sin
+  resultado, nunca aprobada por omisión; el día entero dice "Sin datos".
+- **El cálculo está duplicado a propósito** en `backend/app/verificaciones.py`
+  (manda: es lo que se guarda) y `src/features/verificaciones/lib/calculos.ts`
+  (pinta el veredicto mientras se escribe, sin un viaje por tecla). Los dos se
+  prueban contra los mismos casos.
+- **La fórmula de balanza del Excel estaba rota** (apuntaba a `#REF!`, así que
+  las tres filas salían en error). Acá se compara lo que corresponde: cuánto
+  se aleja el promedio del valor nominal de la pesa.
+- **Fuera de la tabla Z no se inventa un factor.** Sin Z no hay volumen, y un
+  volumen inventado decidiría mal; la pantalla avisa.
+- Los criterios sembrados salen del Excel que el laboratorio usa hoy; ninguno
+  es inventado, y todos se editan desde la pantalla de Criterios (admin
+  general). Un equipo con verificaciones registradas no se puede eliminar
+  (409): se desactiva, para que el histórico siga diciendo a qué equipo
+  pertenecía.
+
+API `/api/verificaciones`: `GET /config` (los seis catálogos en una llamada),
+CRUD de cada catálogo bajo `/config/*`, `GET/PUT/DELETE /registros/{fecha}`,
+`GET /registros` (resumen diario), `GET /historico`, y dos Excel —
+`GET /registros/{fecha}/excel` (el formulario para firmar) y `GET /excel`
+(resumen + una hoja por sección, el reemplazo de las hojas de histórico).
+
+Frontend: `src/features/verificaciones/` (tipos, API y cálculo) y
+`src/views/modules/lab/verificaciones/` (`VerificacionesView` el formulario
+del día, `VerificacionesHistoricoView` con tendencias del detector en
+Chart.js, `CriteriosView` el mantenedor, `componentes.tsx` las piezas chicas).
+
 ## 7. Frontend — estado por módulo
 
 Regla de dependencia (`README.md`): `views` → `features`+`components`; `features` →
@@ -210,6 +277,8 @@ Regla de dependencia (`README.md`): `views` → `features`+`components`; `featur
   backend). Botón "Descargar mi historial (Excel)" visible solo para cuentas de cliente.
   "Gestionar analitos" (matriz de límites por especie/tipo_servicio) visible para
   admin_general/admin_area.
+- **AgroFresh Lab** — `AgrofreshLabHubView.tsx` (hub) → `AgrofreshLabView.tsx`
+  (Ingreso al laboratorio) y el módulo de Verificaciones diarias (ver §6b).
 - **Reports hub** — `ReportesHubView.tsx` (cards: Laboratorio, Post Venta, Emitir reporte) →
   `EmitirReporteHubView.tsx` (card: Reporte análisis cromatografía) →
   `CromatografiaEmitirView.tsx` (ver §6).
