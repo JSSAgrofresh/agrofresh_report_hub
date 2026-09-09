@@ -4,20 +4,17 @@ import type {
   FilaCruce,
   FilaSubida,
   InformeConfig,
-  MuestraGC,
   Solicitud,
 } from './tipos'
 
-export function parsearGC(archivo: File) {
-  const formData = new FormData()
-  formData.append('archivo', archivo)
-  return httpClient.upload<MuestraGC[]>('/emitir/cromatografia/parsear-gc', formData)
-}
-
-/** El archivo del GC entero —muestras, curvas, blancos y controles— para la
- * vista de detalle. Va aparte de `parsearGC` a propósito: ese devuelve solo lo
- * cruzable, y mezclarlos haría que el escáner de viales pudiera encontrar un
- * blanco. */
+/** El archivo del GC entero: muestras de cliente, curvas, blancos y controles,
+ * cada vial marcado con `es_muestra`.
+ *
+ * Es la única lectura del archivo. Antes había otra que devolvía solo los
+ * viales cruzables y fallaba cuando no había ninguno: una corrida sin muestras
+ * de cliente —una curva de calibración— no se podía ni abrir ni pasar a
+ * planilla. Quien cruza filtra por `es_muestra`; la planilla los muestra
+ * todos. */
 export function parsearGCCompleto(archivo: File) {
   const formData = new FormData()
   formData.append('archivo', archivo)

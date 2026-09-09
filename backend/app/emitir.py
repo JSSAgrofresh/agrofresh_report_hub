@@ -204,63 +204,42 @@ class MuestraGCOut(BaseModel):
     resultados: list[ResultadoAnalitoOut]
 
 
-@router.post("/parsear-gc")
-async def parsear_gc(archivo: UploadFile = File(...)) -> list[MuestraGCOut]:
-    contenido = await archivo.read()
-    try:
-        muestras = parsear_gc_txt(contenido)
-    except ValueError as e:
-        raise HTTPException(400, str(e)) from e
-    if not muestras:
-        raise HTTPException(400, "No se encontró ninguna muestra en el archivo. ¿Es el reporte del GC correcto?")
-
-    # Solo los viales con código puro (ej. GCNPD9826) son muestras reales de
-    # cliente cruzables: se descartan curvas de calibración, blancos y
-    # controles de limpieza (ej. "GCNPD9775 LIMPIEZA NORMAL MET 2").
-    muestras_reales = [m for m in muestras if es_codigo_puro(m.codigo)]
-    if not muestras_reales:
-        raise HTTPException(
-            400,
-            "El archivo se leyó bien pero ninguna muestra tiene un código puro "
-            "(ej. GCNPD9826) — solo se encontraron curvas, blancos o controles.",
-        )
-
-    return [
-        MuestraGCOut(
-            codigo=m.codigo,
-            seq_line=m.seq_line,
-            fecha_inyeccion=m.fecha_inyeccion,
-            resultados=[
-                ResultadoAnalitoOut(
-                    analito=r.analito,
-                    codigo=NOMBRE_GC_A_CODIGO.get(r.analito),
-                    area=r.area,
-                    amount=r.amount,
-                    rettime=r.rettime,
-                )
-                for r in m.resultados
-            ],
-        )
-        for m in muestras_reales
-    ]
-
-
 # ---------------------------------------------------------------------------
-# Vista de detalle del archivo del GC
+# Lectura del archivo del GC
 #
-# Reproduce lo que antes hacía una herramienta HTML aparte: pasar el reporte
-# del equipo a planilla. No toca el cruce ni el informe -es solo otra forma de
-# mirar el mismo archivo ya cargado-, así que recibe las muestras ya parseadas
-# y no vuelve a leer el .txt.
+# Hay un solo endpoint y devuelve la corrida entera -muestras de cliente,
+# curvas de calibración, blancos y controles-, marcando cuáles son cruzables.
 #
-# Aquella herramienta sacaba dos hojas pivote, una de área y otra de ppm. Acá
-# van juntas: leer un vial obligaba a saltar de hoja en hoja para comparar su
-# concentración contra su área, que es justo lo que se hace al revisar.
+# Antes había además un /parsear-gc que devolvía solo las muestras de cliente
+# y respondía 400 cuando no encontraba ninguna. Eso dejaba una corrida sin
+# muestras de cliente -una curva de calibración, por ejemplo- sin forma de
+# abrirse: el archivo se leía bien, pero la pantalla lo rechazaba entero y con
+# él la planilla. Pasar el reporte a planilla no depende de que haya códigos
+# GCNPD adentro, así que ya no se rechaza por eso.
+#
+# La planilla reproduce lo que antes hacía una herramienta HTML aparte. Aquella
+# sacaba dos hojas pivote, una de área y otra de ppm. Acá van juntas: leer un
+# vial obligaba a saltar de hoja en hoja para comparar su concentración contra
+# su área, que es justo lo que se hace al revisar.
 # ---------------------------------------------------------------------------
 
 HOJA_CABECERA = "Información del GC"
 HOJA_DETALLE = "Datos completos"
 HOJA_POR_VIAL = "Área y PPM por vial"
+
+# Lo que se escribe de cada compuesto en la hoja pivote, en este orden y como
+# un bloque de columnas por compuesto (PYRYMETHANIL ppm, PYRYMETHANIL tiempo
+# retención, PYRYMETHANIL área, y después el siguiente).
+#
+# El tiempo de retención va pegado a la concentración porque es lo que
+# confirma que el pico integrado es el del compuesto y no el de un vecino: sin
+# él la planilla no sirve para revisar una curva de calibración.
+COLUMNAS_POR_COMPUESTO = ("ppm", "tiempo retención (min)", "área")
+
+
+def _valores_del_compuesto(r: "ResultadoAnalitoOut | None") -> tuple:
+    """Los valores de un compuesto en el orden de COLUMNAS_POR_COMPUESTO."""
+    return (r.amount, r.rettime, r.area) if r else (None,) * len(COLUMNAS_POR_COMPUESTO)
 
 
 class CampoCabeceraOut(BaseModel):
@@ -291,12 +270,13 @@ class MuestraGCDetalleOut(MuestraGCOut):
 
 @router.post("/parsear-gc/completo")
 async def parsear_gc_completo(archivo: UploadFile = File(...)) -> DetalleGCOut:
-    """El archivo del GC entero, para la vista de detalle.
+    """El archivo del GC entero: muestras de cliente, curvas, blancos y
+    controles, cada uno marcado con `es_muestra`.
 
-    Existe aparte de /parsear-gc a propósito: ese devuelve solo las muestras
-    cruzables, y meter acá las curvas y los blancos haría que el escáner de
-    viales pudiera "encontrar" un blanco. Son dos preguntas distintas sobre el
-    mismo archivo, y conviene que sigan siéndolo.
+    Quien cruza contra las solicitudes se queda solo con los `es_muestra`; la
+    vista de detalle y la planilla los muestran todos. Un archivo sin ninguna
+    muestra de cliente se lee igual -es una corrida válida, normalmente una
+    curva de calibración-, y solo se rechaza si no se encontró ni un vial.
     """
     contenido = await archivo.read()
     try:
@@ -495,18 +475,20 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
     for col, ancho in zip("ABCDEFGH", (16, 10, 11, 22, 16, 14, 16, 18)):
         ws.column_dimensions[col].width = ancho
 
-    # ── Hoja 3: un vial por fila, con ppm y área de cada compuesto pegados ──
+    # ── Hoja 3: un vial por fila, con ppm, tiempo de retención y área de
+    # cada compuesto pegados ──
     # "Ubicación de la Muestra" es la posición del carrusel, que sale de la
     # tabla de la secuencia: el reporte de resultados solo trae el número de
     # línea, y con eso no se puede volver al vial físico.
+    ancho_grupo = len(COLUMNAS_POR_COMPUESTO)
     ws2 = wb.create_sheet(HOJA_POR_VIAL)
-    ws2.cell(row=1, column=1, value="Seq Line")
-    ws2.cell(row=1, column=2, value="Ubicación de la Muestra")
-    ws2.cell(row=1, column=3, value="Vial")
-    ws2.cell(row=1, column=4, value="Tipo")
+    for col, texto in enumerate(
+        ("Seq Line", "Ubicación de la Muestra", "Vial", "Tipo"), start=1
+    ):
+        ws2.cell(row=1, column=col, value=texto)
     for i, compuesto in enumerate(compuestos):
-        ws2.cell(row=1, column=5 + i * 2, value=f"{compuesto} ppm")
-        ws2.cell(row=1, column=6 + i * 2, value=f"{compuesto} área")
+        for j, sufijo in enumerate(COLUMNAS_POR_COMPUESTO):
+            ws2.cell(row=1, column=5 + i * ancho_grupo + j, value=f"{compuesto} {sufijo}")
     for fila_idx, m in enumerate(body.muestras, start=2):
         ws2.cell(row=fila_idx, column=1, value=m.seq_line)
         ws2.cell(row=fila_idx, column=2, value=m.ubicacion)
@@ -514,17 +496,16 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
         ws2.cell(row=fila_idx, column=4, value="Muestra" if m.es_muestra else "Control")
         por_analito = {r.analito: r for r in m.resultados}
         for i, compuesto in enumerate(compuestos):
-            r = por_analito.get(compuesto)
-            ws2.cell(row=fila_idx, column=5 + i * 2, value=r.amount if r else None)
-            ws2.cell(row=fila_idx, column=6 + i * 2, value=r.area if r else None)
+            for j, valor in enumerate(_valores_del_compuesto(por_analito.get(compuesto))):
+                ws2.cell(row=fila_idx, column=5 + i * ancho_grupo + j, value=valor)
     ws2.freeze_panes = "E2"
-    ultima_col = openpyxl.utils.get_column_letter(4 + len(compuestos) * 2)
+    ultima_col = openpyxl.utils.get_column_letter(4 + len(compuestos) * ancho_grupo)
     _dar_formato_de_tabla(
         ws2, "Tabla1", f"A1:{ultima_col}{len(body.muestras) + 1}", ESTILO_TABLA_DATOS
     )
     for col, ancho in zip("ABCD", (11, 25, 18, 10)):
         ws2.column_dimensions[col].width = ancho
-    for col in range(5, 5 + len(compuestos) * 2):
+    for col in range(5, 5 + len(compuestos) * ancho_grupo):
         ws2.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 21
 
     buffer = io.BytesIO()

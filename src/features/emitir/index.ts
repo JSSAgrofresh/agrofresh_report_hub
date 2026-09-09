@@ -1,5 +1,4 @@
 export {
-  parsearGC,
   parsearGCCompleto,
   descargarDetalleGCExcel,
   listarSolicitudes,

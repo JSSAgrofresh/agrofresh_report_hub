@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DragEvent } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
@@ -10,10 +10,9 @@ import { HttpError } from '@/services/http/client'
 import {
   cruzarConMuestra,
   listarSolicitudes,
-  parsearGC,
   parsearGCCompleto,
 } from '@/features/emitir'
-import type { DetalleGC, MuestraGC, Solicitud } from '@/features/emitir'
+import type { DetalleGC, Solicitud } from '@/features/emitir'
 import { PanelIngreso } from './PanelIngreso'
 import { TablaSolicitudes } from './TablaSolicitudes'
 import { DetalleGCModal } from './DetalleGCModal'
@@ -30,6 +29,12 @@ import styles from './AgrofreshLabView.module.css'
  *    corre esa noche y los resultados se procesan al día siguiente.
  * 2. Resultados del GC — se suelta el archivo y listo. No hay que emparejar
  *    nada, porque el número de muestra es el mismo código que trae el archivo.
+ *
+ * El archivo se lee una sola vez y entero: de ahí salen tanto los viales de
+ * cliente que se cruzan como la corrida completa que se ve en el detalle y se
+ * baja a Excel. Una corrida sin viales de cliente —una curva de calibración,
+ * por ejemplo— también se abre: no habrá cruce que hacer, pero la planilla se
+ * genera igual.
  */
 export function AgrofreshLabView() {
   const navigate = useNavigate()
@@ -39,14 +44,20 @@ export function AgrofreshLabView() {
   const [solicitudEnFicha, setSolicitudEnFicha] = useState<Solicitud | null>(null)
   const [mostrarConfiguracion, setMostrarConfiguracion] = useState(false)
 
-  const [muestrasGC, setMuestrasGC] = useState<MuestraGC[] | null>(null)
   const [nombreArchivoGC, setNombreArchivoGC] = useState<string | null>(null)
-  const [archivoGC, setArchivoGC] = useState<File | null>(null)
   const [cargandoGC, setCargandoGC] = useState(false)
   const [errorGC, setErrorGC] = useState<string | null>(null)
   const [arrastrandoGC, setArrastrandoGC] = useState(false)
   const [detalleGC, setDetalleGC] = useState<DetalleGC | null>(null)
-  const [cargandoDetalle, setCargandoDetalle] = useState(false)
+  const [mostrarDetalle, setMostrarDetalle] = useState(false)
+
+  /** Los viales cruzables: los que traen código de muestra (ej. GCNPD9826).
+   * El resto —curvas, blancos, controles— no es de nadie, así que no entra al
+   * cruce; sí al detalle y a la planilla. */
+  const muestrasGC = useMemo(
+    () => detalleGC?.muestras.filter((m) => m.es_muestra) ?? null,
+    [detalleGC],
+  )
 
   const refrescarSolicitudes = useCallback(async () => {
     try {
@@ -81,29 +92,14 @@ export function AgrofreshLabView() {
     setCargandoGC(true)
     setErrorGC(null)
     try {
-      setMuestrasGC(await parsearGC(archivo))
+      setDetalleGC(await parsearGCCompleto(archivo))
       setNombreArchivoGC(archivo.name)
-      setArchivoGC(archivo)
     } catch (e) {
       setErrorGC(e instanceof HttpError ? e.message : 'No se pudo leer el archivo. ¿Es el reporte del GC?')
-      setMuestrasGC(null)
+      setDetalleGC(null)
       setNombreArchivoGC(null)
-      setArchivoGC(null)
     } finally {
       setCargandoGC(false)
-    }
-  }
-
-  async function verDetalleGC() {
-    if (!archivoGC) return
-    setCargandoDetalle(true)
-    setErrorGC(null)
-    try {
-      setDetalleGC(await parsearGCCompleto(archivoGC))
-    } catch {
-      setErrorGC('No se pudo leer el detalle del archivo.')
-    } finally {
-      setCargandoDetalle(false)
     }
   }
 
@@ -176,14 +172,13 @@ export function AgrofreshLabView() {
           <h3>
             <span className={styles.numero}>2</span> Resultados del GC
           </h3>
-          {archivoGC && (
+          {detalleGC && (
             <button
               type="button"
               className={styles.botonChico}
-              onClick={() => void verDetalleGC()}
-              disabled={cargandoDetalle}
+              onClick={() => setMostrarDetalle(true)}
             >
-              {cargandoDetalle ? 'Leyendo…' : 'Ver detalle'}
+              Ver detalle
             </button>
           )}
         </div>
@@ -211,21 +206,28 @@ export function AgrofreshLabView() {
             {cargandoGC
               ? 'Leyendo…'
               : nombreArchivoGC
-                ? `Cargado: ${nombreArchivoGC} — ${muestrasGC?.length ?? 0} vial(es). Arrastra otro para reemplazar.`
+                ? `Cargado: ${nombreArchivoGC} — ${detalleGC?.muestras.length ?? 0} vial(es), ${muestrasGC?.length ?? 0} de cliente. Arrastra otro para reemplazar.`
                 : 'Arrastra aquí el reporte de texto del GC, o haz clic para elegirlo'}
           </label>
         </div>
         {errorGC && <p className={styles.error}>{errorGC}</p>}
-        {muestrasGC && solicitudes && (
+        {muestrasGC && muestrasGC.length > 0 && solicitudes && (
           <ResultadosAutomaticos solicitudes={solicitudes} muestras={muestrasGC} />
+        )}
+        {muestrasGC && muestrasGC.length === 0 && (
+          <p className={styles.ayudaSeccion}>
+            Esta corrida no trae viales de cliente (códigos tipo GCNPD9826): son curvas, blancos o
+            controles. No hay cruce que hacer, pero el archivo se leyó completo — abre «Ver detalle»
+            para revisarlo o bajarlo a Excel.
+          </p>
         )}
       </Card>
 
-      {detalleGC && (
+      {detalleGC && mostrarDetalle && (
         <DetalleGCModal
           detalle={detalleGC}
           nombreArchivo={nombreArchivoGC}
-          onCerrar={() => setDetalleGC(null)}
+          onCerrar={() => setMostrarDetalle(false)}
         />
       )}
       {solicitudEnFicha && (
