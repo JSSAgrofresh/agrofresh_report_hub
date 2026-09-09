@@ -55,7 +55,6 @@ const TIPOS_DE_MUESTRA = ['Fruta', 'Agua', 'Cera']
  * mantenedor de campos generales solo tiene un sí/no global, así que estas
  * dos reglas se resuelven acá y se ignora su `requerido` configurado. */
 const REQUERIDO_SOLO_EN: Record<string, string> = {
-  csg: TIPO_LINEA_PROCESO,
   posicion_muestreo: TIPO_ACTIMIST,
 }
 
@@ -88,7 +87,8 @@ const SECCION_DE_CAMPO: Record<string, 'identificacion' | 'muestra'> = {
   linea_proceso: 'muestra',
   numero_camara: 'muestra',
   numero_orden: 'muestra',
-  csg: 'muestra',
+  csg_productor: 'muestra',
+  csg_packing: 'muestra',
   lote: 'muestra',
   kilos_procesados: 'muestra',
   posicion_muestreo: 'muestra',
@@ -163,7 +163,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [valoresTipoAplicacion, setValoresTipoAplicacion] = useState<Record<string, string>>({})
   const [seleccionAnalitos, setSeleccionAnalitos] = useState<Record<number, boolean>>({})
   const [valoresAnalitos, setValoresAnalitos] = useState<Record<number, string>>({})
-  const [unidadesAnalitos, setUnidadesAnalitos] = useState<Record<number, string>>({})
   const [dosisSinIndicar, setDosisSinIndicar] = useState<Record<number, boolean>>({})
   const [alsPesticidas, setAlsPesticidas] = useState<AlsPesticida[]>(ALS_PESTICIDAS_VACIO)
 
@@ -265,7 +264,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setGeneral({
       especie: s.especie ?? '',
       variedad: s.variedad ?? '',
-      csg: s.csg ?? '',
+      csg_productor: s.csg_productor ?? '',
+      csg_packing: s.csg_packing ?? '',
       lote: s.lote ?? '',
       posicion_muestreo: s.posicion_muestreo ?? '',
       numero_camara: s.numero_camara ?? '',
@@ -309,7 +309,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     const candidatos = analitosTodos.filter((a) => a.laboratorio === s.laboratorio)
     const seleccion: Record<number, boolean> = {}
     const valores: Record<number, string> = {}
-    const unidadesDosis: Record<number, string> = {}
     const sinDosis: Record<number, boolean> = {}
     for (const codigo of s.analitos_solicitados) {
       const analito = candidatos.find((a) => a.codigo === codigo)
@@ -318,11 +317,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       const valor = valorGuardadoParaAnalito(s.campos_laboratorio, analito, analito.unidad ?? '')
       sinDosis[analito.id] = valor === '—' || valor === 'Solicitado'
       valores[analito.id] = sinDosis[analito.id] ? '' : valor
-      unidadesDosis[analito.id] = analito.unidad ?? ''
     }
     setSeleccionAnalitos(seleccion)
     setValoresAnalitos(valores)
-    setUnidadesAnalitos(unidadesDosis)
     setDosisSinIndicar(sinDosis)
     setAlsPesticidas(
       s.laboratorio === 'ALS'
@@ -393,9 +390,15 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     () =>
       camposActivos.filter((c) => {
         if (SECCION_DE_CAMPO[c.clave] !== 'muestra') return false
-        // Kilos procesados y CSG son datos de la línea: en Actimist se
-        // muestrea de una cámara, no de un flujo de proceso.
-        if (c.clave === 'linea_proceso' || c.clave === 'kilos_procesados' || c.clave === 'csg') {
+        // Kilos procesados y los códigos CSG (Productor/Packing) son datos de
+        // la línea: en Actimist se muestrea de una cámara, no de un flujo de
+        // proceso.
+        if (
+          c.clave === 'linea_proceso' ||
+          c.clave === 'kilos_procesados' ||
+          c.clave === 'csg_productor' ||
+          c.clave === 'csg_packing'
+        ) {
           return tipoAplicacionSel === TIPO_LINEA_PROCESO
         }
         if (c.clave === 'numero_camara' || c.clave === 'numero_orden')
@@ -416,6 +419,45 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       ),
     [productosTodos, laboratorio, tipoAplicacionSel],
   )
+  /** Análisis (paneles) activos del laboratorio elegido, en su orden de
+   * mantenedor. Un mismo analito puede estar en más de uno -por eso el
+   * desempate "primer análisis que lo incluya, por orden" se usa tanto acá
+   * como para la unidad-, porque la solicitud pide analitos sueltos, no un
+   * análisis completo. */
+  const analisisDelLab = useMemo(
+    () =>
+      analisisTodos
+        .filter((a) => a.laboratorio === laboratorio && a.activo)
+        .sort((a, b) => a.orden - b.orden),
+    [analisisTodos, laboratorio],
+  )
+
+  /** Análisis (panel) al que pertenece cada analito, por id. Es lo que
+   * agrupa el checklist de la solicitud: mostrar el analito suelto sin este
+   * contexto puede mezclar en la misma lista analitos de análisis
+   * completamente distintos (ej. un metal pesado y una bacteria). */
+  const analisisPorAnalito = useMemo(() => {
+    const mapa = new Map<number, Analisis>()
+    for (const analisis of analisisDelLab) {
+      for (const item of analisis.analitos) {
+        if (!mapa.has(item.analito_id)) mapa.set(item.analito_id, analisis)
+      }
+    }
+    return mapa
+  }, [analisisDelLab])
+
+  function grupoDe(analito: AnalitoConfig): string {
+    return analisisPorAnalito.get(analito.id)?.nombre || analito.categoria || 'Otros analitos'
+  }
+
+  /** Un analito de un Análisis "Panel completo" no se pide por separado: el
+   * laboratorio lo definió así porque siempre van juntos (ej. un panel de
+   * qPCR). Por eso su checkbox no se toca individualmente -solo el del
+   * Análisis completo, que los marca o desmarca a todos a la vez-. */
+  function esPanelCompleto(analito: AnalitoConfig): boolean {
+    return analisisPorAnalito.get(analito.id)?.modo === 'completo'
+  }
+
   const analitosLab = useMemo(
     () =>
       analitosTodos
@@ -425,9 +467,44 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             a.activo &&
             (!a.tipo_aplicacion || a.tipo_aplicacion === tipoAplicacionSel),
         )
-        .sort((a, b) => (a.categoria || '').localeCompare(b.categoria || '') || a.orden - b.orden),
-    [analitosTodos, laboratorio, tipoAplicacionSel],
+        .sort((a, b) => {
+          const ordenA = analisisPorAnalito.get(a.id)?.orden ?? Number.MAX_SAFE_INTEGER
+          const ordenB = analisisPorAnalito.get(b.id)?.orden ?? Number.MAX_SAFE_INTEGER
+          return ordenA - ordenB || grupoDe(a).localeCompare(grupoDe(b)) || a.orden - b.orden
+        }),
+    [analitosTodos, laboratorio, tipoAplicacionSel, analisisPorAnalito],
   )
+
+  // Los analitos de un Análisis "Panel completo" vienen marcados de entrada
+  // apenas aparecen en el checklist -no hay que ir a tildarlos uno por
+  // uno-. Al editar no corre: ahí manda lo que ya quedó guardado en la
+  // solicitud (efecto de arriba), sea cual sea.
+  //
+  // Se ajusta durante el render -no en un efecto- comparando contra la
+  // última vez que se vio este `analitosLab` (patrón recomendado por React
+  // para "derivar" estado a partir de otro sin encadenar renders extra):
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [analitosLabVistos, setAnalitosLabVistos] = useState<AnalitoConfig[] | null>(null)
+  if (modo !== 'editar' && analitosLab !== analitosLabVistos) {
+    setAnalitosLabVistos(analitosLab)
+    const faltantes = analitosLab.filter((a) => esPanelCompleto(a) && !seleccionAnalitos[a.id])
+    if (faltantes.length > 0) {
+      setSeleccionAnalitos((actual) => {
+        const copia = { ...actual }
+        for (const a of faltantes) copia[a.id] = true
+        return copia
+      })
+      const sinDosisPorDefecto = faltantes.filter((a) => !a.dosis_aplicable)
+      if (sinDosisPorDefecto.length > 0) {
+        setDosisSinIndicar((actual) => {
+          const copia = { ...actual }
+          for (const a of sinDosisPorDefecto) copia[a.id] = true
+          return copia
+        })
+      }
+    }
+  }
+
   /** Unidad vigente de cada analito, por id.
    *
    * La unidad la define el laboratorio en sus Análisis, no el catálogo de
@@ -440,9 +517,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
    */
   const unidadPorAnalito = useMemo(() => {
     const mapa = new Map<number, string>()
-    const analisisDelLab = analisisTodos
-      .filter((a) => a.laboratorio === laboratorio && a.activo)
-      .sort((a, b) => a.orden - b.orden)
     for (const analisis of analisisDelLab) {
       for (const item of analisis.analitos) {
         // El primer análisis que lo incluya define la unidad: dentro de un
@@ -452,7 +526,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       }
     }
     return mapa
-  }, [analisisTodos, laboratorio])
+  }, [analisisDelLab])
 
   function unidadDe(analito: AnalitoConfig): string {
     return unidadPorAnalito.get(analito.id) ?? analito.unidad ?? ''
@@ -498,7 +572,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setLaboratorio(v)
     setSeleccionAnalitos({})
     setValoresAnalitos({})
-    setUnidadesAnalitos({})
     setDosisSinIndicar({})
     setProductosSeleccionados([])
     setAlsPesticidas(ALS_PESTICIDAS_VACIO)
@@ -515,13 +588,13 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setProductosSeleccionados([])
     setSeleccionAnalitos({})
     setValoresAnalitos({})
-    setUnidadesAnalitos({})
     setDosisSinIndicar({})
     setGeneral((g) => ({
       ...g,
       numero_camara: '',
       numero_orden: '',
-      csg: '',
+      csg_productor: '',
+      csg_packing: '',
       kilos_procesados: '',
     }))
   }
@@ -534,15 +607,54 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     const seleccionado = !seleccionAnalitos[analito.id]
     setSeleccionAnalitos((actual) => ({ ...actual, [analito.id]: seleccionado }))
     if (seleccionado) {
-      setUnidadesAnalitos((actual) => ({
-        ...actual,
-        [analito.id]: actual[analito.id] ?? unidadDe(analito),
-      }))
+      // Un analito de resultado directo (no lleva dosis, ej. DIAGNOFRUIT)
+      // no pide "Valor" en la solicitud: solo se pide o no se pide, así
+      // que queda "sin dosis" -eso es lo que se guarda igual- sin que el
+      // usuario tenga que ir a tocar nada.
+      if (!analito.dosis_aplicable) setDosisSinIndicar((actual) => ({ ...actual, [analito.id]: true }))
       return
     }
     setValoresAnalitos((actual) => ({ ...actual, [analito.id]: '' }))
-    setUnidadesAnalitos((actual) => ({ ...actual, [analito.id]: '' }))
     setDosisSinIndicar((actual) => ({ ...actual, [analito.id]: false }))
+  }
+
+  /** Marca/desmarca de una vez todos los analitos de un Análisis (o de la
+   * agrupación de respaldo, si el analito no está en ningún Análisis del
+   * laboratorio): así queda claro qué análisis completo se está pidiendo,
+   * sin tener que ir tildando analito por analito. Si ya estaban todos
+   * marcados, el checkbox del grupo los desmarca a todos; si no, los marca
+   * a todos -igual que "Marcar todos" en el mantenedor de Análisis-. */
+  function alternarGrupo(grupo: string) {
+    const miembros = analitosLab.filter((a) => grupoDe(a) === grupo)
+    const todosSeleccionados = miembros.every((a) => seleccionAnalitos[a.id])
+    setSeleccionAnalitos((actual) => {
+      const copia = { ...actual }
+      for (const a of miembros) copia[a.id] = !todosSeleccionados
+      return copia
+    })
+    if (todosSeleccionados) {
+      setValoresAnalitos((actual) => {
+        const copia = { ...actual }
+        for (const a of miembros) copia[a.id] = ''
+        return copia
+      })
+      setDosisSinIndicar((actual) => {
+        const copia = { ...actual }
+        for (const a of miembros) copia[a.id] = false
+        return copia
+      })
+    } else {
+      // Igual que al marcar uno solo: los de resultado directo quedan "sin
+      // dosis" de una, sin pedir "Valor".
+      const sinDosisPorDefecto = miembros.filter((a) => !a.dosis_aplicable)
+      if (sinDosisPorDefecto.length > 0) {
+        setDosisSinIndicar((actual) => {
+          const copia = { ...actual }
+          for (const a of sinDosisPorDefecto) copia[a.id] = true
+          return copia
+        })
+      }
+    }
   }
 
   function actualizarDosis(analitoId: number, valor: string) {
@@ -550,15 +662,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     if (valor) setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: false }))
   }
 
-  function actualizarUnidadDosis(analitoId: number, unidad: string) {
-    setUnidadesAnalitos((actual) => ({ ...actual, [analitoId]: unidad }))
-    if (unidad) setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: false }))
-  }
-
   function indicarSinDosis(analitoId: number) {
     setDosisSinIndicar((actual) => ({ ...actual, [analitoId]: true }))
     setValoresAnalitos((actual) => ({ ...actual, [analitoId]: '' }))
-    setUnidadesAnalitos((actual) => ({ ...actual, [analitoId]: '' }))
   }
 
   function valorRequerido(clave: string): string {
@@ -614,18 +720,15 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     for (const analito of analitosLab) {
       if (!seleccionAnalitos[analito.id]) continue
       const valor = valoresAnalitos[analito.id]?.trim()
-      const unidadDosis = unidadesAnalitos[analito.id]?.trim()
-      if (!dosisSinIndicar[analito.id] && (!valor || !unidadDosis)) {
+      if (!dosisSinIndicar[analito.id] && !valor) {
         const dato = analito.dosis_aplicable ? 'dosis' : 'valor'
-        setError(
-          `Indica el ${dato} y su unidad para "${analito.nombre}", o elige "No indicar dosis".`,
-        )
+        setError(`Indica el ${dato} para "${analito.nombre}", o elige "No indicar dosis".`)
         return
       }
       codigosAnalitosSolicitados.push(analito.codigo)
       const unidad = unidadDe(analito)
       const etiqueta = unidad ? `${analito.nombre} (${unidad})` : analito.nombre
-      camposLabFinal[etiqueta] = dosisSinIndicar[analito.id] ? '—' : `${valor} ${unidadDosis}`
+      camposLabFinal[etiqueta] = dosisSinIndicar[analito.id] ? '—' : (valor ?? '')
     }
     // Los campos propios del Tipo de Aplicación se guardan siempre que
     // apliquen, aunque estén vacíos: el informe debe mostrar la estructura
@@ -649,9 +752,11 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       especie: general.especie?.trim() || null,
       variedad: general.variedad?.trim() || null,
       linea_proceso: esLineaProceso ? lineaProceso || null : null,
-      // CSG y kilos son propios de la línea: en Actimist ni se piden ni se
-      // guardan, aunque hayan quedado escritos antes de cambiar de tipo.
-      csg: esLineaProceso ? general.csg?.trim() || null : null,
+      // Los códigos CSG y kilos son propios de la línea: en Actimist ni se
+      // piden ni se guardan, aunque hayan quedado escritos antes de cambiar
+      // de tipo.
+      csg_productor: esLineaProceso ? general.csg_productor?.trim() || null : null,
+      csg_packing: esLineaProceso ? general.csg_packing?.trim() || null : null,
       lote: general.lote?.trim() || null,
       posicion_muestreo: general.posicion_muestreo?.trim() || null,
       numero_camara: esActimist ? general.numero_camara?.trim() || null : null,
@@ -679,8 +784,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         await actualizarSolicitud(archivoEditando, payload)
         navigate(rutaTomaMuestrasDetalle(archivoEditando))
       } else {
-        await crearSolicitud(payload)
-        navigate(ROUTES.tomaMuestras)
+        const creada = await crearSolicitud(payload)
+        navigate(rutaTomaMuestrasDetalle(creada.archivo))
       }
     } catch (err) {
       if (modo === 'editar' && err instanceof HttpError && err.status === 409) {
@@ -1036,14 +1141,36 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             {analitosLab.length > 0 && (
               <div className={styles.analitosPorCategoria}>
                 {analitosLab.map((a, i) => {
-                  const nuevaCategoria =
-                    a.categoria && a.categoria !== analitosLab[i - 1]?.categoria
+                  const grupo = grupoDe(a)
+                  const nuevoGrupo = i === 0 || grupo !== grupoDe(analitosLab[i - 1])
+                  const miembrosGrupo = nuevoGrupo
+                    ? analitosLab.filter((x) => grupoDe(x) === grupo)
+                    : []
+                  const grupoCompleto =
+                    nuevoGrupo && miembrosGrupo.every((m) => seleccionAnalitos[m.id])
+                  const grupoParcial =
+                    nuevoGrupo &&
+                    !grupoCompleto &&
+                    miembrosGrupo.some((m) => seleccionAnalitos[m.id])
                   const seleccionado = Boolean(seleccionAnalitos[a.id])
                   const sinDosis = Boolean(dosisSinIndicar[a.id])
                   return (
                     <Fragment key={a.id}>
-                      {nuevaCategoria && (
-                        <h3 className={styles.categoriaAnalitos}>{a.categoria}</h3>
+                      {nuevoGrupo && (
+                        <h3 className={styles.categoriaAnalitos}>
+                          <label className={styles.selectorGrupo}>
+                            <input
+                              type="checkbox"
+                              checked={grupoCompleto}
+                              ref={(el) => {
+                                if (el) el.indeterminate = grupoParcial
+                              }}
+                              onChange={() => alternarGrupo(grupo)}
+                              aria-label={`Seleccionar todo el análisis ${grupo}`}
+                            />
+                            {grupo}
+                          </label>
+                        </h3>
                       )}
                       <div
                         className={cn(styles.cardAnalito, seleccionado && styles.cardAnalitoActiva)}
@@ -1053,15 +1180,21 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                           <input
                             type="checkbox"
                             checked={seleccionado}
+                            disabled={esPanelCompleto(a)}
                             onChange={() => alternarAnalito(a)}
                           />
                           <span>
                             <span className={styles.mono}>{a.codigo}</span>
                             <strong>{a.nombre}</strong>
                             {a.requerido && <span className={styles.marcaRequerido}> *</span>}
+                            {esPanelCompleto(a) && (
+                              <span className={styles.notaPanelCompleto}>
+                                Incluido en el panel completo
+                              </span>
+                            )}
                           </span>
                         </label>
-                        {seleccionado && (
+                        {seleccionado && a.dosis_aplicable && (
                           <div className={styles.dosisAnalito}>
                             <label>
                               {esCromatografia ? 'Dosis aplicada' : 'Valor'}
@@ -1070,20 +1203,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                               ) : (
                                 <span className={styles.dosisConUnidad}>
                                   <input
-                                    type={a.tipo === 'numero' ? 'number' : 'text'}
-                                    min={a.tipo === 'numero' ? '0' : undefined}
-                                    step={a.tipo === 'numero' ? 'any' : undefined}
-                                    inputMode={a.tipo === 'numero' ? 'decimal' : undefined}
+                                    type="text"
                                     aria-label={`${a.dosis_aplicable ? 'Dosis' : 'Valor'} de ${a.nombre}`}
                                     value={valoresAnalitos[a.id] ?? ''}
                                     onChange={(e) => actualizarDosis(a.id, e.target.value)}
-                                  />
-                                  <input
-                                    type="text"
-                                    aria-label={`Unidad de dosis de ${a.nombre}`}
-                                    placeholder="Unidad"
-                                    value={unidadesAnalitos[a.id] ?? ''}
-                                    onChange={(e) => actualizarUnidadDosis(a.id, e.target.value)}
                                   />
                                 </span>
                               )}

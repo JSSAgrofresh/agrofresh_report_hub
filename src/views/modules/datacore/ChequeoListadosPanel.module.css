@@ -1,0 +1,164 @@
+.cabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.titulo {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 4px;
+}
+
+.ayuda {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  max-width: 60ch;
+  margin: 0;
+}
+
+.accionesCabecera {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.resumen {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.vacio {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: var(--space-3) 0;
+}
+
+.exito {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid #2d8a4e;
+  background: #eaf7ee;
+  color: #1a5e33;
+  font-size: 13.5px;
+  margin-bottom: var(--space-3);
+}
+
+.error {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-danger);
+  background: #fbe8e5;
+  color: var(--color-danger);
+  font-size: 13.5px;
+  margin-bottom: var(--space-3);
+}
+
+.listaAplicadas {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.itemAplicado {
+  font-size: 11.5px;
+  color: #1a5e33;
+  background: #eaf7ee;
+  border: 1px solid #cbe8d4;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+
+.grilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-3);
+}
+
+.tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.tarjetaSugerida {
+  border-color: #e0b93d;
+  background: #fdf8e8;
+}
+
+.campoTarjeta {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-faint);
+  margin: 0;
+}
+
+.contexto {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--color-text-muted);
+}
+
+.valorOriginal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+}
+
+.valorOriginal code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.filas {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+}
+
+.sugerencias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chipSugerencia {
+  font-size: 11.5px;
+  padding: 3px 9px;
+  border-radius: 12px;
+  border: 1px solid #e0b93d;
+  background: #fdf8e8;
+  color: #8a6410;
+  cursor: pointer;
+}
+
+.chipSugerencia:hover {
+  background: #fbeec0;
+}
