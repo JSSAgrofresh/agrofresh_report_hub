@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import agrofreshLogo from '@/assets/agrofresh-logo.png'
 import { Button } from '@/components/ui/Button'
 import { descargarDetalleGCExcel } from '@/features/emitir'
-import type { DetalleGC, MuestraGCDetalle } from '@/features/emitir'
+import type { DetalleGC, MuestraGCDetalle, ResultadoAnalito } from '@/features/emitir'
 import styles from './DetalleGCModal.module.css'
 
 type Hoja = 'cabecera' | 'completos' | 'porVial'
@@ -25,15 +25,26 @@ const TITULO = 'RESULTADOS DE ANÁLISIS CROMATOGRÁFICOS'
 const num = (v: number | null | undefined) =>
   v === null || v === undefined ? '—' : v.toLocaleString('es-CL', { maximumFractionDigits: 6 })
 
+/** Lo que se muestra de cada compuesto en la vista por vial, en el mismo orden
+ * que las columnas del Excel (ver COLUMNAS_POR_COMPUESTO en emitir.py). El
+ * tiempo de retención va pegado a la concentración: es lo que confirma que el
+ * pico integrado es el del compuesto y no el de un vecino. */
+const COLUMNAS_POR_COMPUESTO = [
+  { clave: 'ppm', titulo: 'ppm', valor: (r?: ResultadoAnalito) => r?.amount, tenue: false },
+  { clave: 'rt', titulo: 'tiempo ret.', valor: (r?: ResultadoAnalito) => r?.rettime, tenue: false },
+  { clave: 'area', titulo: 'área', valor: (r?: ResultadoAnalito) => r?.area, tenue: true },
+] as const
+
 /**
  * El archivo del GC visto como planilla, igual que lo hacía el convertidor
  * HTML que se usaba antes.
  *
  * Dos hojas: el reporte tal como sale del equipo —una fila por compuesto de
- * cada vial— y el resumen por vial. Aquel convertidor sacaba el resumen en dos
- * hojas separadas, una de área y otra de ppm; acá van juntas, porque leer un
- * vial obligaba a saltar entre hojas para comparar su concentración contra su
- * área, que es exactamente lo que se hace al revisar una corrida.
+ * cada vial— y el resumen por vial, con ppm, tiempo de retención y área de
+ * cada compuesto. Aquel convertidor sacaba el resumen en dos hojas separadas,
+ * una de área y otra de ppm; acá van juntas, porque leer un vial obligaba a
+ * saltar entre hojas para comparar su concentración contra su área, que es
+ * exactamente lo que se hace al revisar una corrida.
  *
  * No se edita nada: es una vista para mirar y, si hace falta, bajar a Excel.
  */
@@ -213,17 +224,20 @@ export function DetalleGCModal({
                   <th>Vial</th>
                   <th>Tipo</th>
                   {compuestos.map((c) => (
-                    <th key={c} colSpan={2} className={styles.grupo}>
+                    <th key={c} colSpan={COLUMNAS_POR_COMPUESTO.length} className={styles.grupo}>
                       {c}
                     </th>
                   ))}
                 </tr>
                 <tr>
                   <th /><th /><th /><th />
-                  {compuestos.map((c) => [
-                    <th key={`${c}-ppm`} className={styles.num}>ppm</th>,
-                    <th key={`${c}-area`} className={styles.num}>área</th>,
-                  ])}
+                  {compuestos.map((c) =>
+                    COLUMNAS_POR_COMPUESTO.map((col) => (
+                      <th key={`${c}-${col.clave}`} className={styles.num}>
+                        {col.titulo}
+                      </th>
+                    )),
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -235,10 +249,16 @@ export function DetalleGCModal({
                       <td className={styles.mono}>{m.ubicacion ?? '—'}</td>
                       <td className={styles.mono}>{m.codigo}</td>
                       <td className={styles.tipo}>{m.es_muestra ? 'Muestra' : 'Control'}</td>
-                      {compuestos.map((c) => [
-                        <td key={`${c}-ppm`} className={styles.num}>{num(porAnalito.get(c)?.amount)}</td>,
-                        <td key={`${c}-area`} className={styles.numTenue}>{num(porAnalito.get(c)?.area)}</td>,
-                      ])}
+                      {compuestos.map((c) =>
+                        COLUMNAS_POR_COMPUESTO.map((col) => (
+                          <td
+                            key={`${c}-${col.clave}`}
+                            className={col.tenue ? styles.numTenue : styles.num}
+                          >
+                            {num(col.valor(porAnalito.get(c)))}
+                          </td>
+                        )),
+                      )}
                     </tr>
                   )
                 })}

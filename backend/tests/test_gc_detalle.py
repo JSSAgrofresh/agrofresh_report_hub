@@ -222,17 +222,32 @@ class TestExcel:
         ws = _libro(muestras)[emitir.HOJA_DETALLE]
         assert ws.max_row - 1 == 371
 
-    def test_por_vial_lleva_ppm_y_area_juntos(self, muestras):
+    def test_por_vial_lleva_ppm_retencion_y_area_juntos(self, muestras):
         """Antes eran dos hojas separadas: leer un vial obligaba a saltar de
-        una a otra para comparar su concentración contra su área."""
+        una a otra para comparar su concentración contra su área. El tiempo de
+        retención va en el mismo bloque: es lo que confirma que el pico
+        integrado es el del compuesto y no el de un vecino."""
         ws = _libro(muestras)[emitir.HOJA_POR_VIAL]
         encabezados = [c.value for c in ws[1]]
         assert encabezados[:4] == [
             "Seq Line", "Ubicación de la Muestra", "Vial", "Tipo",
         ]
-        assert encabezados[4] == "DIFENILAMINA ppm"
-        assert encabezados[5] == "DIFENILAMINA área"
+        assert encabezados[4:7] == [
+            "DIFENILAMINA ppm",
+            "DIFENILAMINA tiempo retención (min)",
+            "DIFENILAMINA área",
+        ]
+        assert encabezados[7] == "PYRYMETHANIL ppm"
         assert ws.max_row - 1 == 53
+
+    def test_cada_compuesto_ocupa_su_propio_bloque(self, muestras):
+        """Siete compuestos por tres columnas, después de las cuatro del
+        vial: si los bloques se pisaran, un ppm quedaría bajo el compuesto
+        equivocado."""
+        ws = _libro(muestras)[emitir.HOJA_POR_VIAL]
+        encabezados = [c.value for c in ws[1]]
+        assert len(encabezados) == 4 + 7 * len(emitir.COLUMNAS_POR_COMPUESTO)
+        assert all(e for e in encabezados)
 
     def test_la_ubicacion_del_carrusel_llega_a_la_planilla(self, muestras):
         """Es la columna que el laboratorio usa para volver al vial físico."""
@@ -249,6 +264,32 @@ class TestExcel:
         fila = next(f for f in ws.iter_rows(min_row=2, values_only=True) if f[2] == "1")
         assert fila[encabezados.index("TEBUCONAZOLE ppm")] == pytest.approx(0.0488688)
         assert fila[encabezados.index("TEBUCONAZOLE área")] == pytest.approx(1.00441)
+        assert fila[
+            encabezados.index("TEBUCONAZOLE tiempo retención (min)")
+        ] == pytest.approx(14.667)
+
+    def test_el_tiempo_de_retencion_sale_aunque_no_haya_area(self, muestras):
+        """El equipo reporta el tiempo de retención de todo el panel del
+        método, incluso de los compuestos que no midió nada en ese vial. Es
+        justamente lo que se mira al revisar una curva."""
+        ws = _libro(muestras)[emitir.HOJA_POR_VIAL]
+        encabezados = [c.value for c in ws[1]]
+        fila = next(f for f in ws.iter_rows(min_row=2, values_only=True) if f[2] == "1")
+        assert fila[encabezados.index("DIFENILAMINA ppm")] is None
+        assert fila[
+            encabezados.index("DIFENILAMINA tiempo retención (min)")
+        ] == pytest.approx(7.63)
+
+    def test_una_corrida_sin_muestras_de_cliente_se_exporta_igual(self, muestras):
+        """Una corrida puede ser solo curvas, blancos y controles -sin ningún
+        código GCNPD adentro- y pasarla a planilla sigue siendo válido: trae
+        los ppm y los tiempos de retención de la curva, que es lo que se va a
+        revisar. Antes la pantalla rechazaba el archivo entero por esto."""
+        solo_controles = [m for m in muestras if not m.es_muestra]
+        assert solo_controles and len(solo_controles) < len(muestras)
+        ws = _libro(solo_controles)[emitir.HOJA_POR_VIAL]
+        assert ws.max_row - 1 == len(solo_controles)
+        assert {f[3] for f in ws.iter_rows(min_row=2, values_only=True)} == {"Control"}
 
     def test_sin_muestras_no_genera_nada(self):
         with pytest.raises(Exception):

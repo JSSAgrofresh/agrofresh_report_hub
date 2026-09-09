@@ -15,7 +15,13 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
 import { ROUTES } from '@/constants/routes'
-import { descargarHistoricoExcel, historico, NOMBRE_SECCION, SECCIONES } from '@/features/verificaciones'
+import {
+  descargarHistoricoExcel,
+  explicarErrorDeConfig,
+  historico,
+  NOMBRE_SECCION,
+  SECCIONES,
+} from '@/features/verificaciones'
 import type { Registro, Seccion as SeccionId } from '@/features/verificaciones'
 import { Veredicto, VeredictoDia } from './componentes'
 import styles from './Verificaciones.module.css'
@@ -148,10 +154,10 @@ export function VerificacionesHistoricoView() {
         setError(null)
         setDias(filas)
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         if (!vigente) return
         setDias([])
-        setError('No se pudo cargar el histórico. ¿Está el backend arriba?')
+        setError(explicarErrorDeConfig(e))
       })
     return () => {
       vigente = false

@@ -83,7 +83,10 @@ Este proyecto no se da por listo con "debería funcionar":
 
 - **Backend**: `cd backend && python -m pytest -q`. Hay ~600 tests. Los que
   necesitan Postgres se saltan solos si no hay base.
-- **Frontend**: `npx vitest run`, `npx tsc --noEmit`, `npm run lint`.
+- **Frontend**: `npx vitest run`, `npm run build`, `npm run lint`.
+  Los tipos se revisan con `npm run build` (o `npm run typecheck`), que corre
+  `tsc -b`. **`npx tsc --noEmit` no sirve**: no mira los archivos de test, así
+  que un error de tipos ahí pasa limpio acá y bota el deploy de Vercel.
   El lint tiene **8 errores de línea base preexistentes** (`set-state-in-effect`);
   si salen 8, está bien. Si salen 9, algo nuevo lo rompió.
 - **Cambios visuales**: se comprueban en un navegador real con Playwright
