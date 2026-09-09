@@ -59,6 +59,11 @@ async function archivo(path: string, init?: RequestInit): Promise<{ blob: Blob; 
   const response = await pedir(path, init)
   if (!response.ok) await fallar(response, path)
   const disposicion = response.headers.get('Content-Disposition') ?? ''
+  // `filename*` (RFC 5987) es el que puede llevar tildes: los encabezados HTTP
+  // no son UTF-8, así que un nombre con acentos viaja codificado ahí y en
+  // `filename` va una versión sin ellos. Se prefiere el primero cuando está.
+  const utf8 = disposicion.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8) return { blob: await response.blob(), nombre: decodeURIComponent(utf8[1]) }
   const m = disposicion.match(/filename="?([^";]+)"?/)
   return { blob: await response.blob(), nombre: m ? m[1] : null }
 }

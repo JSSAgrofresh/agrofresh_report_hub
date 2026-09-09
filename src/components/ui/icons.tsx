@@ -208,6 +208,16 @@ export function IconFrasco(props: IconProps) {
   )
 }
 
+export function IconVerificar(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M8.5 4.5H7A1.5 1.5 0 0 0 5.5 6v13A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V6A1.5 1.5 0 0 0 17 4.5h-1.5" />
+      <rect x="8.5" y="2.8" width="7" height="3.4" rx="1" />
+      <path d="M9 13.2l2.1 2.1 4-4.3" />
+    </svg>
+  )
+}
+
 export function IconEmitir(props: IconProps) {
   return (
     <svg {...base} {...props}>
