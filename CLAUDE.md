@@ -55,9 +55,19 @@ git pull origin claude/modulo-x-implementation-plan-3zhite
 cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0026_verificaciones_diarias.sql
 
+# Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
+Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
+Start-Sleep -Seconds 3
+Start-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
+
 # Estado general del servidor
 .\deploy\windows\estado.ps1
 ```
+
+**El backend lo levanta una tarea programada de Windows**, "AgroFresh Report
+Hub - Backend" (la instala `deploy/windows/2-instalar-backend.ps1`). Escucha en
+`127.0.0.1:8000` con 4 workers y escribe en `logs/backend.log`. **No lo
+arranques a mano**: ver la trampa del doble backend más abajo.
 
 Los scripts que **escriben** en la base miran primero y solo aplican con
 `--aplicar`. Respeta esa convención al crear scripts nuevos.
@@ -145,6 +155,17 @@ por eso apretar una tolerancia en Criterios también revisa el histórico.
 - **Los encabezados HTTP no son UTF-8.** Un `Content-Disposition` con tildes
   llega roto al navegador. Se manda `filename*=UTF-8''…` (RFC 5987) con un
   `filename` sin tildes al lado; `client.ts` prefiere el primero.
+- **Dos backends en el puerto 8000.** La tarea programada ya tiene uno en
+  `127.0.0.1:8000`. Si además levantas uno a mano con `--host 0.0.0.0`,
+  **Windows no da error** -son direcciones distintas- y quedan los dos vivos.
+  El túnel Cloudflare va a `localhost`, o sea al de la tarea: el que arrancaste
+  a mano no lo escucha nadie, y la pantalla sigue mostrando el código viejo.
+  Síntoma: reinicias, y el frontend igual dice "El backend que está corriendo
+  todavía no conoce este módulo" (un 404). Diagnóstico:
+  `Get-NetTCPConnection -LocalPort 8000 -State Listen` -tiene que salir UNA
+  línea-, y `(Invoke-RestMethod http://localhost:8000/openapi.json).paths.PSObject.Properties.Name`
+  para ver qué rutas conoce de verdad el que responde. El arreglo es reiniciar
+  la tarea, no arrancar otro proceso.
 - **En Windows falta `tzdata`**: sin él `zoneinfo` no encuentra las zonas.
   Está declarado en `requirements.txt`.
 
@@ -155,22 +176,17 @@ por eso apretar una tolerancia en Criterios también revisa el histórico.
 Lo hecho hasta ahora está en el historial de la rama. Lo que **queda
 pendiente**, en orden de importancia:
 
-1. **Backend y túnel Cloudflare corren a mano en consolas.** Ya existen
-   `deploy/windows/2-instalar-backend.ps1` y `3-configurar-tunel.ps1` para
-   dejarlos como servicio de Windows. Mientras no se haga, si alguien cierra
-   esa ventana el sistema se cae y nadie se entera.
-2. **Correr la migración `0026_verificaciones_diarias.sql` en el servidor.**
-   Sin ella, Verificaciones diarias no tiene dónde guardar y la pantalla
-   muestra "No se pudo cargar la configuración del laboratorio".
-   Siembra los criterios tal como están hoy en el Excel REG-03; se editan
-   después desde AgroFresh Lab → Verificaciones diarias → Criterios.
-3. **Etapa 4 del módulo AgroFresh Lab → Ingreso al laboratorio**: botón
+1. **El túnel Cloudflare**: falta confirmar que corra como servicio y no en
+   una consola abierta (`deploy/windows/3-configurar-tunel.ps1` lo deja
+   instalado; `estado.ps1` lo reporta). El **backend ya no es un pendiente**:
+   corre como tarea programada de Windows, verificado el 09-09-2026.
+2. **Etapa 4 del módulo AgroFresh Lab → Ingreso al laboratorio**: botón
    "Procesar" → modal con el listado de informes → guardar en R2 bajo
    `informes/<fecha>/` → tabla abajo para descargarlos todos o de a uno.
-4. **`sembrar_catalogo_analitos.py --aplicar`** en el servidor: 14 analitos
+3. **`sembrar_catalogo_analitos.py --aplicar`** en el servidor: 14 analitos
    por crear. `DFN` hay que crearlo a mano (la app no conoce su nombre).
-5. **Los límites residuales están vacíos.** Son decisión del laboratorio y se
+4. **Los límites residuales están vacíos.** Son decisión del laboratorio y se
    cargan en Report → Gestionar analitos. **Nunca los inventes.**
-6. Diferidos por decisión del usuario: paginar `/api/reportes/datos` y migrar
+5. Diferidos por decisión del usuario: paginar `/api/reportes/datos` y migrar
    los ~14 mantenedores JSON a tablas.
-7. Opcional: activar compresión gzip (una línea, ~96% menos de payload).
+6. Opcional: activar compresión gzip (una línea, ~96% menos de payload).
