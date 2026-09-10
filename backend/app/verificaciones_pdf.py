@@ -153,7 +153,7 @@ def _seccion_micropipetas(registro, config: dict) -> list:
 
 def _seccion_balanza(registro, config: dict) -> list:
     anchos = [UTIL_W * f for f in [0.20, 0.09, 0.09, 0.09, 0.09, 0.16, 0.09, 0.11, 0.08]]
-    cabecera = ["Pesa patrón", "Lect. 1 (mg)", "Lect. 2 (mg)", "Lect. 3 (mg)", "Promedio (mg)", "Rango tolerancia", "Criterio", "Resultado", "Obs."]
+    cabecera = ["Pesa patrón", "Lect. 1 (g)", "Lect. 2 (g)", "Lect. 3 (g)", "Promedio (mg)", "Rango tolerancia", "Criterio", "Resultado", "Obs."]
     medidas = {b.pesa_id: b for b in registro.balanza}
     filas = []
     for pesa in config.get("pesas", []):

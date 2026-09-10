@@ -84,7 +84,10 @@ export function calcularBalanza(
 ): CalculoBalanza {
   const validas = lecturas.filter((l): l is number => l !== null)
   if (validas.length < 3) return { promedio: null, desviacion: null, resultado: SIN_MEDIR }
-  const promedio = validas.reduce((a, b) => a + b, 0) / 3
+  // La balanza entrega las lecturas en gramos, mientras que las pesas patrón
+  // y sus tolerancias se configuran en miligramos. Convertimos antes de
+  // comparar para que promedio, desviación y veredicto estén en la misma unidad.
+  const promedio = (validas.reduce((a, b) => a + b, 0) / 3) * 1000
   const desviacion = Math.abs(promedio - nominal)
   return {
     promedio: redondear(promedio),
