@@ -10,6 +10,7 @@ import { esAdminGeneral } from '@/features/usuarios'
 import {
   borradorVacio,
   guardarRegistro,
+  eliminarRegistro,
   obtenerConfig,
   obtenerRegistro,
   registroABorrador,
@@ -177,12 +178,21 @@ export function VerificacionesView() {
     }
   }
 
-  function limpiarBorrador() {
+  async function limpiarRegistro() {
     if (!config) return
-    try { localStorage.removeItem(claveLocal) } catch { /* ok */ }
-    setBorrador(borradorVacio(config))
-    setGuardadoEn(null)
-    setSucio(false)
+    setGuardando(true)
+    setError(null)
+    try {
+      if (guardadoEn) await eliminarRegistro(fecha)
+      try { localStorage.removeItem(claveLocal) } catch { /* ok */ }
+      setBorrador(borradorVacio(config))
+      setGuardadoEn(null)
+      setSucio(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo limpiar el registro.')
+    } finally {
+      setGuardando(false)
+    }
   }
 
   function irASeccion(id: SeccionId) {
@@ -883,10 +893,12 @@ export function VerificacionesView() {
               <Button
                 variant="secondary"
                 onClick={() => {
-                  if (window.confirm('¿Borrar todo el avance de este día? No se puede deshacer.')) limpiarBorrador()
+                  const mensaje = guardadoEn
+                    ? '¿Eliminar el registro guardado de este día? Se borrarán sus mediciones y no se puede deshacer.'
+                    : '¿Borrar todo el avance de este día? No se puede deshacer.'
+                  if (window.confirm(mensaje)) void limpiarRegistro()
                 }}
-                disabled={Boolean(guardadoEn)}
-                title={guardadoEn ? 'El registro ya está guardado. Para evitar sobrescribirlo por error, no puede limpiarse desde aquí.' : undefined}
+                disabled={guardando}
               >
                 Limpiar registro
               </Button>
