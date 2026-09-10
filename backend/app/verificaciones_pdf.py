@@ -88,8 +88,8 @@ def _tabla(datos: list, col_anchos: list, estilo_extra: list | None = None) -> T
         ("FONT",        (0, 1), (-1, -1), "Helvetica"),
         ("GRID",        (0, 0), (-1, -1), 0.3, GRIS_LINEA),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [BLANCO, colors.HexColor("#F8F9F6")]),
-        ("TOPPADDING",  (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING",  (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ("LEFTPADDING", (0, 0), (-1, -1), 4),
         ("RIGHTPADDING", (0, 0), (-1, -1), 4),
     ]
@@ -303,7 +303,7 @@ def _encabezado(registro) -> list:
         ("RIGHTPADDING", (0, 0), (-1, -1), 4),
         ("LINEBELOW",    (0, 0), (-1, 0), 0.5, VERDE_OSCURO),
     ]))
-    return [header_tabla, Spacer(0, 4)]
+    return [header_tabla, Spacer(0, 8)]
 
 
 def _pie(registro) -> list:
@@ -340,13 +340,13 @@ def pdf_del_dia(registro) -> bytes:
     # Las secciones se intercalan con un separador mínimo
     secciones = (
         _seccion_micropipetas(registro)
-        + [Spacer(0, 3)]
+        + [Spacer(0, 6)]
         + _seccion_balanza(registro)
-        + [Spacer(0, 3)]
+        + [Spacer(0, 6)]
         + _seccion_temperatura(registro)
-        + [Spacer(0, 3)]
+        + [Spacer(0, 6)]
         + _seccion_gases(registro)
-        + [Spacer(0, 3)]
+        + [Spacer(0, 6)]
         + _seccion_inyector_detector(registro)
     )
     story += secciones
