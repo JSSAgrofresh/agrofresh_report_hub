@@ -77,6 +77,7 @@ function fila(texto: string): HTMLElement {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   obtenerConfig.mockResolvedValue(CONFIG)
   obtenerRegistro.mockResolvedValue(null)
   guardarRegistro.mockImplementation(
