@@ -152,32 +152,34 @@ def _seccion_micropipetas(registro, config: dict) -> list:
 
 
 def _seccion_balanza(registro, config: dict) -> list:
-    anchos = [UTIL_W * f for f in [0.22, 0.10, 0.10, 0.10, 0.10, 0.10, 0.14, 0.10]]
-    cabecera = ["Pesa patrón", "Lect. 1 (mg)", "Lect. 2 (mg)", "Lect. 3 (mg)", "Promedio (mg)", "Criterio", "Resultado", "Obs."]
+    anchos = [UTIL_W * f for f in [0.20, 0.09, 0.09, 0.09, 0.09, 0.16, 0.09, 0.11, 0.08]]
+    cabecera = ["Pesa patrón", "Lect. 1 (mg)", "Lect. 2 (mg)", "Lect. 3 (mg)", "Promedio (mg)", "Rango tolerancia", "Criterio", "Resultado", "Obs."]
     medidas = {b.pesa_id: b for b in registro.balanza}
     filas = []
     for pesa in config.get("pesas", []):
         if not pesa.get("activo", True):
             continue
         b = medidas.get(pesa["id"])
+        nom, tol = pesa['valor_nominal'], pesa['tolerancia']
         filas.append([
             _p(pesa["nombre"]),
             _n(b.lectura_1 if b else None), _n(b.lectura_2 if b else None), _n(b.lectura_3 if b else None),
             _n(b.promedio if b else None),
-            f"± {_n(pesa['tolerancia'])} mg",
+            f"{nom - tol} a {nom + tol} mg",
+            f"± {_n(tol)} mg",
             (b.resultado if b else None) or "Sin medir",
             (b.observacion if b else "") or "",
         ])
     if not filas:
-        filas = [["—"] * 8]
+        filas = [["—"] * 9]
     t = _tabla([cabecera] + filas, anchos)
     for i, pesa in enumerate([p for p in config.get("pesas", []) if p.get("activo", True)], start=1):
         b = medidas.get(pesa["id"])
         res = (b.resultado if b else None) or ""
         if res:
             t.setStyle(TableStyle([
-                ("TEXTCOLOR", (6, i), (6, i), _veredicto_color(res)),
-                ("FONT", (6, i), (6, i), "Helvetica-Bold", 8),
+                ("TEXTCOLOR", (7, i), (7, i), _veredicto_color(res)),
+                ("FONT", (7, i), (7, i), "Helvetica-Bold", 8),
             ]))
     return [_titulo_seccion("2. BALANZA ANALÍTICA"), Spacer(0, 1), t]
 

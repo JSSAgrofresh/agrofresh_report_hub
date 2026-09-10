@@ -280,6 +280,7 @@ describe('un registro guardado, vuelto formulario', () => {
     temperatura_agua: 20,
     factor_z: 1.0026,
     fugas_visibles: 'No',
+    fugas_observacion: '',
     resultado_fugas: 'Aceptable',
     observaciones: 'Sin novedad',
     revisado_por: 'Romina Garrido',

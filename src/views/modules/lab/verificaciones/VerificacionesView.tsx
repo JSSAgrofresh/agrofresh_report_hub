@@ -73,6 +73,8 @@ export function VerificacionesView() {
   const [guardadoEn, setGuardadoEn] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const claveLocal = `verif_borrador_${fecha}`
+
   useEffect(() => {
     let vigente = true
     Promise.all([obtenerConfig(), obtenerRegistro(fecha)])
@@ -80,6 +82,20 @@ export function VerificacionesView() {
         if (!vigente) return
         setError(null)
         setConfig(catalogos)
+        // Si hay borrador local para este día y el día no está guardado en el servidor,
+        // restauramos el avance; si ya está guardado, arrancamos desde el servidor.
+        if (!registro) {
+          try {
+            const local = localStorage.getItem(claveLocal)
+            if (local) {
+              setBorrador(JSON.parse(local) as RegistroInput)
+              setSucio(true)
+              setCargando(false)
+              setGuardadoEn(null)
+              return
+            }
+          } catch { /* ignorar errores de localStorage */ }
+        }
         setBorrador(registro ? registroABorrador(registro, catalogos) : borradorVacio(catalogos))
         setGuardadoEn(registro?.actualizado_en ?? null)
         setSucio(false)
@@ -95,6 +111,7 @@ export function VerificacionesView() {
     return () => {
       vigente = false
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fecha])
 
   useEffect(() => {
@@ -111,9 +128,18 @@ export function VerificacionesView() {
 
   const editar = useCallback((cambio: (previo: RegistroInput) => RegistroInput) => {
     if (soloVer) return
-    setBorrador((previo) => (previo ? cambio(previo) : previo))
+    setBorrador((previo) => {
+      if (!previo) return previo
+      const nuevo = cambio(previo)
+      // Auto-save en localStorage solo si el día aún no está guardado en el servidor
+      if (!guardadoEn) {
+        try { localStorage.setItem(claveLocal, JSON.stringify(nuevo)) } catch { /* sin espacio */ }
+      }
+      return nuevo
+    })
     setSucio(true)
-  }, [soloVer])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [soloVer, guardadoEn, claveLocal])
 
   async function guardar() {
     if (!borrador || soloVer) return
@@ -121,6 +147,7 @@ export function VerificacionesView() {
     setError(null)
     try {
       const guardado = await guardarRegistro(fecha, borrador)
+      try { localStorage.removeItem(claveLocal) } catch { /* ok */ }
       if (config) setBorrador(registroABorrador(guardado, config))
       setGuardadoEn(guardado.actualizado_en)
       setSucio(false)
@@ -129,6 +156,14 @@ export function VerificacionesView() {
     } finally {
       setGuardando(false)
     }
+  }
+
+  function limpiarBorrador() {
+    if (!config) return
+    try { localStorage.removeItem(claveLocal) } catch { /* ok */ }
+    setBorrador(borradorVacio(config))
+    setGuardadoEn(null)
+    setSucio(false)
   }
 
   function irASeccion(id: SeccionId) {
@@ -374,7 +409,7 @@ export function VerificacionesView() {
                     <th>Lectura 2 <span className={styles.unidad}>(mg)</span></th>
                     <th>Lectura 3 <span className={styles.unidad}>(mg)</span></th>
                     <th>Promedio</th>
-                    <th>Desviación</th>
+                    <th>Rango de tolerancia</th>
                     <th>Criterio</th>
                     <th>Resultado</th>
                     <th>Obs.</th>
@@ -412,8 +447,8 @@ export function VerificacionesView() {
                         <td>
                           <Calculado valor={calculo?.promedio ?? null} decimales={4} />
                         </td>
-                        <td>
-                          <Calculado valor={calculo?.desviacion ?? null} decimales={4} />
+                        <td className={styles.criterio}>
+                          {pesa.valor_nominal - pesa.tolerancia} a {pesa.valor_nominal + pesa.tolerancia} <span className={styles.unidad}>mg</span>
                         </td>
                         <td className={styles.criterio}>± {pesa.tolerancia} mg</td>
                         <td>
@@ -625,7 +660,15 @@ export function VerificacionesView() {
                     <td>
                       <Veredicto resultado={previa.resultado_fugas} />
                     </td>
-                    <td />
+                    <td>
+                      {borrador.fugas_visibles === 'Sí' && (
+                        <ObservacionModal
+                          valor={borrador.fugas_observacion}
+                          soloVer={soloVer}
+                          onCambio={(v) => editar((p) => ({ ...p, fugas_observacion: v }))}
+                        />
+                      )}
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -807,6 +850,14 @@ export function VerificacionesView() {
             <div className={styles.barraAcciones}>
               <Button onClick={() => void guardar()} disabled={guardando || !sucio}>
                 {guardando ? 'Guardando…' : 'Guardar el día'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (window.confirm('¿Borrar todo el avance de este día? No se puede deshacer.')) limpiarBorrador()
+                }}
+              >
+                Limpiar registro
               </Button>
               <Button
                 variant="secondary"

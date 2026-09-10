@@ -215,6 +215,7 @@ export interface Detector extends DetectorInput {
 export interface RegistroInput {
   temperatura_agua: number | null
   fugas_visibles: Respuesta
+  fugas_observacion: string
   observaciones: string
   revisado_por: string
   analista: string
@@ -234,6 +235,7 @@ export interface Registro {
   temperatura_agua: number | null
   factor_z: number | null
   fugas_visibles: Respuesta
+  fugas_observacion: string
   resultado_fugas: Resultado
   observaciones: string
   revisado_por: string

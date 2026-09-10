@@ -85,6 +85,7 @@ beforeEach(() => {
       temperatura_agua: null,
       factor_z: null,
       fugas_visibles: '',
+      fugas_observacion: '',
       resultado_fugas: '',
       observaciones: '',
       revisado_por: '',
