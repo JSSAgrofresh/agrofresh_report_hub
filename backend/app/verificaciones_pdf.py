@@ -118,32 +118,35 @@ def _colorear_resultado(tabla: Table, col: int, filas_datos: list) -> None:
 # ── Secciones ─────────────────────────────────────────────────────────────
 
 def _seccion_micropipetas(registro, config: dict) -> list:
-    anchos = [UTIL_W * f for f in [0.26, 0.10, 0.10, 0.10, 0.10, 0.12, 0.12, 0.10]]
-    cabecera = ["Equipo", "Peso 1 (g)", "Peso 2 (g)", "Peso 3 (g)", "Vol. medio (µL)", "Criterio", "Resultado", "Obs."]
+    anchos = [UTIL_W * f for f in [0.22, 0.08, 0.08, 0.08, 0.09, 0.14, 0.11, 0.11, 0.09]]
+    cabecera = ["Equipo", "Peso 1 (g)", "Peso 2 (g)", "Peso 3 (g)", "Vol. medio (µL)", "Rango tolerancia", "Criterio", "Resultado", "Obs."]
     medidas = {m.micropipeta_id: m for m in registro.micropipetas}
     filas = []
     for equipo in config.get("micropipetas", []):
         if not equipo.get("activo", True):
             continue
         m = medidas.get(equipo["id"])
+        nom = equipo['volumen_nominal']
+        tol = equipo['tolerancia']
         filas.append([
-            _p(f"{equipo['nombre']}\n{equipo['volumen_nominal']} µL nominal"),
+            _p(f"{equipo['nombre']}\n{nom} µL nominal"),
             _n(m.peso_1 if m else None), _n(m.peso_2 if m else None), _n(m.peso_3 if m else None),
             _n(m.volumen_medio if m else None),
-            f"± {_n(equipo['tolerancia'])} µL",
+            f"{nom - tol} a {nom + tol} µL",
+            f"± {_n(tol)} µL",
             (m.resultado if m else None) or "Sin medir",
             (m.observacion if m else "") or "",
         ])
     if not filas:
-        filas = [["—"] * 8]
+        filas = [["—"] * 9]
     t = _tabla([cabecera] + filas, anchos)
     for i, equipo in enumerate([e for e in config.get("micropipetas", []) if e.get("activo", True)], start=1):
         m = medidas.get(equipo["id"])
         res = (m.resultado if m else None) or ""
         if res:
             t.setStyle(TableStyle([
-                ("TEXTCOLOR", (6, i), (6, i), _veredicto_color(res)),
-                ("FONT", (6, i), (6, i), "Helvetica-Bold", 8),
+                ("TEXTCOLOR", (7, i), (7, i), _veredicto_color(res)),
+                ("FONT", (7, i), (7, i), "Helvetica-Bold", 8),
             ]))
     return [_titulo_seccion("1. MICROPIPETAS — verificación gravimétrica"), Spacer(0, 1), t]
 
