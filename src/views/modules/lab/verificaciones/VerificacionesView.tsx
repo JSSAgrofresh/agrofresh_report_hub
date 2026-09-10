@@ -63,12 +63,6 @@ function hoyISO(): string {
 
 const EMAIL_SUPERADMIN_VERIFICACIONES = 'jorge.sandoval@agrofresh.com'
 
-function ayerISO(): string {
-  const ahora = new Date()
-  const local = new Date(ahora.getTime() - ahora.getTimezoneOffset() * 60000)
-  local.setDate(local.getDate() - 1)
-  return local.toISOString().slice(0, 10)
-}
 
 function esBorradorCompatible(valor: unknown, config: ConfigVerificaciones): valor is RegistroInput {
   if (!valor || typeof valor !== 'object') return false
