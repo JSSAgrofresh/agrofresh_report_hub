@@ -58,34 +58,37 @@ def test_una_temperatura_fuera_de_tabla_no_inventa_un_factor():
 
 
 def test_micropipeta_dentro_de_tolerancia():
-    r = calcular_micropipeta([900, 900, 900], 1.0, 900, 8)
-    assert r["volumen_medio"] == 900
-    assert r["desviacion"] == 0
+    # 0.9 g × 1000 × 1.0 = 900 µL, desv = 0 ≤ 8 → Aceptable
+    r = calcular_micropipeta([0.9, 0.9, 0.9], 1.0, 900, 8)
+    assert r["volumen_medio"] == pytest.approx(900, abs=0.001)
+    assert r["desviacion"] == pytest.approx(0, abs=0.001)
     assert r["resultado"] == ACEPTABLE
 
 
 def test_micropipeta_fuera_de_tolerancia():
-    r = calcular_micropipeta([880, 880, 880], 1.0, 900, 8)
+    # 0.880 g × 1000 × 1.0 = 880 µL, desv = 20 > 8 → No aceptable
+    r = calcular_micropipeta([0.88, 0.88, 0.88], 1.0, 900, 8)
     assert r["resultado"] == NO_ACEPTABLE
-    assert r["desviacion"] == 20
+    assert r["desviacion"] == pytest.approx(20, abs=0.001)
 
 
 def test_micropipeta_justo_en_el_borde_es_aceptable():
     """El criterio del laboratorio es «± 8 µL», y ± incluye el 8."""
-    r = calcular_micropipeta([892, 892, 892], 1.0, 900, 8)
+    # 0.892 g × 1000 × 1.0 = 892 µL, desv = 8 = tolerancia → Aceptable
+    r = calcular_micropipeta([0.892, 0.892, 0.892], 1.0, 900, 8)
     assert r["resultado"] == ACEPTABLE
 
 
 def test_micropipeta_aplica_el_factor_z():
-    """890 mg a 25 °C son 893,29 µL, no 890: sin corregir por Z esta pipeta
-    daría 10 µL de error y saldría rechazada."""
-    r = calcular_micropipeta([890, 890, 890], 1.0037, 900, 8)
+    """0.890 g a 25 °C: 0.890 × 1000 × 1.0037 = 893.293 µL.
+    Sin corregir por Z sería 890 µL → rechazada por 10 µL que no existen."""
+    r = calcular_micropipeta([0.890, 0.890, 0.890], 1.0037, 900, 8)
     assert r["volumen_medio"] == pytest.approx(893.293, abs=0.01)
     assert r["resultado"] == ACEPTABLE
 
 
 def test_micropipeta_con_menos_de_tres_pesadas_no_concluye():
-    r = calcular_micropipeta([900, 900, None], 1.0, 900, 8)
+    r = calcular_micropipeta([0.9, 0.9, None], 1.0, 900, 8)
     assert r["resultado"] == SIN_MEDIR
     assert r["volumen_medio"] is None
 
@@ -93,12 +96,13 @@ def test_micropipeta_con_menos_de_tres_pesadas_no_concluye():
 def test_micropipeta_sin_factor_z_no_concluye():
     """Si la temperatura del agua quedó fuera de la tabla no hay volumen que
     comparar, y eso NO es un rechazo: es un dato que falta."""
-    r = calcular_micropipeta([900, 900, 900], None, 900, 8)
+    r = calcular_micropipeta([0.9, 0.9, 0.9], None, 900, 8)
     assert r["resultado"] == SIN_MEDIR
 
 
 def test_micropipeta_informa_el_error_sistematico():
-    r = calcular_micropipeta([909, 909, 909], 1.0, 900, 8)
+    # 0.909 g × 1000 × 1.0 = 909 µL, error = (909-900)/900 × 100 = 1%
+    r = calcular_micropipeta([0.909, 0.909, 0.909], 1.0, 900, 8)
     assert r["error_pct"] == pytest.approx(1.0, abs=0.001)
 
 

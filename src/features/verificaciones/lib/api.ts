@@ -59,6 +59,10 @@ export function descargarDiaExcel(fecha: string) {
   return descargarArchivo(`${BASE}/registros/${fecha}/excel`, `REG-03 verificaciones ${fecha}.xlsx`)
 }
 
+export function descargarDiaPdf(fecha: string) {
+  return descargarArchivo(`${BASE}/registros/${fecha}/pdf`, `REG-03 verificaciones ${fecha}.pdf`)
+}
+
 export function descargarHistoricoExcel(desde?: string, hasta?: string) {
   return descargarArchivo(`${BASE}/excel${rango(desde, hasta)}`, 'REG-03 histórico.xlsx')
 }

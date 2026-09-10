@@ -75,34 +75,40 @@ describe('factor Z del agua', () => {
 })
 
 describe('micropipetas', () => {
+  // Los pesos van en gramos (lo que muestra la balanza analítica).
+  // Vol (µL) = masa_g × 1000 × Z(µL/mg).
+
   it('acepta lo que está dentro de tolerancia', () => {
-    expect(calcularMicropipeta([900, 900, 900], 1, 900, 8).resultado).toBe('Aceptable')
+    // 0.9 g × 1000 × 1 = 900 µL, desv = 0 ≤ 8 → Aceptable
+    expect(calcularMicropipeta([0.9, 0.9, 0.9], 1, 900, 8).resultado).toBe('Aceptable')
   })
 
   it('rechaza lo que se pasa', () => {
-    const r = calcularMicropipeta([880, 880, 880], 1, 900, 8)
+    // 0.880 g × 1000 × 1 = 880 µL, desv = 20 > 8 → No aceptable
+    const r = calcularMicropipeta([0.88, 0.88, 0.88], 1, 900, 8)
     expect(r.resultado).toBe('No aceptable')
-    expect(r.desviacion).toBe(20)
+    expect(r.desviacion).toBeCloseTo(20, 2)
   })
 
   it('el borde de la tolerancia es aceptable', () => {
-    expect(calcularMicropipeta([892, 892, 892], 1, 900, 8).resultado).toBe('Aceptable')
+    // 0.892 g × 1000 × 1 = 892 µL, desv = 8 = tolerancia → Aceptable
+    expect(calcularMicropipeta([0.892, 0.892, 0.892], 1, 900, 8).resultado).toBe('Aceptable')
   })
 
   it('aplica el factor Z', () => {
-    // 890 mg a 25 °C son 893,29 µL: sin corregir por Z esta pipeta saldría
-    // rechazada por 10 µL que no existen.
-    const r = calcularMicropipeta([890, 890, 890], 1.0037, 900, 8)
+    // 0.890 g a 25 °C: 0.890 × 1000 × 1.0037 = 893.293 µL
+    // Sin corregir por Z sería 890 µL → rechazada por 10 µL que no existen.
+    const r = calcularMicropipeta([0.890, 0.890, 0.890], 1.0037, 900, 8)
     expect(r.volumen_medio).toBeCloseTo(893.293, 2)
     expect(r.resultado).toBe('Aceptable')
   })
 
   it('con menos de tres pesadas no concluye', () => {
-    expect(calcularMicropipeta([900, 900, null], 1, 900, 8).resultado).toBe('')
+    expect(calcularMicropipeta([0.9, 0.9, null], 1, 900, 8).resultado).toBe('')
   })
 
   it('sin factor Z no concluye, y eso no es un rechazo', () => {
-    expect(calcularMicropipeta([900, 900, 900], null, 900, 8).resultado).toBe('')
+    expect(calcularMicropipeta([0.9, 0.9, 0.9], null, 900, 8).resultado).toBe('')
   })
 })
 
@@ -289,9 +295,9 @@ describe('un registro guardado, vuelto formulario', () => {
       {
         micropipeta_id: 2,
         analista: 'Paz Salazar',
-        peso_1: 100,
-        peso_2: 100,
-        peso_3: 100,
+        peso_1: 0.1,
+        peso_2: 0.1,
+        peso_3: 0.1,
         nombre: 'Microman E100',
         volumen_nominal: 100,
         tolerancia: 1,
@@ -343,7 +349,7 @@ describe('un registro guardado, vuelto formulario', () => {
     const borrador = registroABorrador(REGISTRO, CONFIG)
     const medida = borrador.micropipetas.find((m) => m.micropipeta_id === 2)
     const sinMedir = borrador.micropipetas.find((m) => m.micropipeta_id === 1)
-    expect(medida?.peso_1).toBe(100)
+    expect(medida?.peso_1).toBe(0.1)
     expect(medida?.analista).toBe('Paz Salazar')
     expect(sinMedir?.peso_1).toBeNull()
   })

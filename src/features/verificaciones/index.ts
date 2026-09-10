@@ -6,6 +6,7 @@ export {
   eliminarRegistro,
   historico,
   descargarDiaExcel,
+  descargarDiaPdf,
   descargarHistoricoExcel,
   micropipetasApi,
   pesasApi,

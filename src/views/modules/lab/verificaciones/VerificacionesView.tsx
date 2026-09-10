@@ -15,6 +15,7 @@ import {
   registroABorrador,
   calcularDia,
   descargarDiaExcel,
+  descargarDiaPdf,
   explicarErrorDeConfig,
   NOMBRE_SECCION,
   SECCIONES,
@@ -160,9 +161,30 @@ export function VerificacionesView() {
       />
 
       {soloVer && (
-        <p className={styles.soloLecturaAviso}>
-          Modo solo lectura — este registro ya está guardado. Vuelve al día de hoy para editar.
-        </p>
+        <div className={styles.soloLecturaBarra}>
+          <p className={styles.soloLecturaAviso}>
+            Solo lectura — estás viendo un registro guardado.
+          </p>
+          <div className={styles.soloLecturaAcciones}>
+            <Button onClick={() => navigate(`${ROUTES.agrofreshLabVerificaciones}?fecha=${fecha}`)}>
+              Editar
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => void descargarDiaPdf(fecha)}
+              disabled={!guardadoEn}
+            >
+              Descargar PDF
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => void descargarDiaExcel(fecha)}
+              disabled={!guardadoEn}
+            >
+              Descargar Excel
+            </Button>
+          </div>
+        </div>
       )}
 
       {error && <p className={styles.error}>{error}</p>}
@@ -283,9 +305,9 @@ export function VerificacionesView() {
                   <tr>
                     <th>Equipo</th>
                     <th>Código</th>
-                    <th>Peso 1 <span className={styles.unidad}>(mg)</span></th>
-                    <th>Peso 2 <span className={styles.unidad}>(mg)</span></th>
-                    <th>Peso 3 <span className={styles.unidad}>(mg)</span></th>
+                    <th>Peso 1 <span className={styles.unidad}>(g)</span></th>
+                    <th>Peso 2 <span className={styles.unidad}>(g)</span></th>
+                    <th>Peso 3 <span className={styles.unidad}>(g)</span></th>
                     <th>Vol. medio <span className={styles.unidad}>(µL)</span></th>
                     <th>Criterio</th>
                     <th>Resultado</th>
@@ -789,6 +811,14 @@ export function VerificacionesView() {
               </Button>
               <Button
                 variant="secondary"
+                onClick={() => void descargarDiaPdf(fecha)}
+                disabled={!guardadoEn}
+                title={guardadoEn ? undefined : 'Guarda el día antes de descargarlo'}
+              >
+                Descargar PDF
+              </Button>
+              <Button
+                variant="secondary"
                 onClick={() => void descargarDiaExcel(fecha)}
                 disabled={!guardadoEn}
                 title={guardadoEn ? undefined : 'Guarda el día antes de descargarlo'}
@@ -809,13 +839,6 @@ export function VerificacionesView() {
 
           {soloVer && (
             <div className={styles.barraAcciones}>
-              <Button
-                variant="secondary"
-                onClick={() => void descargarDiaExcel(fecha)}
-                disabled={!guardadoEn}
-              >
-                Descargar Excel
-              </Button>
               <Button variant="secondary" onClick={() => navigate(ROUTES.agrofreshLabVerificacionesHistorico)}>
                 Volver al histórico
               </Button>

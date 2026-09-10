@@ -92,12 +92,12 @@ def factor_z(temperatura: float | None, tabla: dict[int, float]) -> float | None
 def calcular_micropipeta(
     pesos: list[float | None], z: float | None, nominal: float, tolerancia: float
 ) -> dict:
-    """Volumen medio = promedio de las 3 pesadas × Z. Aceptable si se desvía
-    del volumen nominal menos que la tolerancia del equipo."""
+    """Volumen medio = promedio de las 3 pesadas × 1000 × Z.
+    Los pesos van en gramos; Z en µL/mg; el ×1000 convierte g→mg."""
     validos = [p for p in pesos if p is not None]
     if len(validos) < 3 or z is None:
         return {"volumen_medio": None, "desviacion": None, "error_pct": None, "resultado": SIN_MEDIR}
-    volumen = sum(validos) / 3 * z
+    volumen = sum(validos) / 3 * 1000 * z
     desviacion = abs(volumen - nominal)
     error_pct = (volumen - nominal) / nominal * 100 if nominal else None
     return {
@@ -1163,6 +1163,25 @@ def descargar_dia_excel(fecha: date) -> StreamingResponse:
     if not registro:
         raise HTTPException(404, "Ese día todavía no tiene verificaciones registradas.")
     return _descarga(libro_del_dia(registro), f"REG-03 verificaciones {fecha}.xlsx")
+
+
+@router.get("/registros/{fecha}/pdf", response_model=None)
+def descargar_dia_pdf(fecha: date) -> StreamingResponse:
+    """El formulario del día en PDF, listo para imprimir y firmar."""
+    from .verificaciones_pdf import pdf_del_dia
+
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        registro = _leer_dia(cur, fecha, _leer_config(cur))
+    if not registro:
+        raise HTTPException(404, "Ese día todavía no tiene verificaciones registradas.")
+    nombre = f"REG-03 verificaciones {fecha}.pdf"
+    ascii_seguro = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode()
+    disposicion = f"attachment; filename=\"{ascii_seguro}\"; filename*=UTF-8''{quote(nombre)}"
+    return StreamingResponse(
+        io.BytesIO(pdf_del_dia(registro)),
+        media_type="application/pdf",
+        headers={"Content-Disposition": disposicion},
+    )
 
 
 @router.get("/excel", response_model=None)
