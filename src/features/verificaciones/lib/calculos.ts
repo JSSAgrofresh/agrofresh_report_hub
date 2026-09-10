@@ -304,6 +304,7 @@ export function borradorVacio(config: CatalogosVistaPrevia): RegistroInput {
   return {
     temperatura_agua: null,
     fugas_visibles: '',
+    fugas_observacion: '',
     observaciones: '',
     revisado_por: '',
     analista: '',
@@ -394,6 +395,7 @@ export function registroABorrador(
     ...base,
     temperatura_agua: registro.temperatura_agua,
     fugas_visibles: registro.fugas_visibles,
+    fugas_observacion: registro.fugas_observacion ?? '',
     observaciones: registro.observaciones,
     revisado_por: registro.revisado_por,
     analista: registro.analista ?? '',

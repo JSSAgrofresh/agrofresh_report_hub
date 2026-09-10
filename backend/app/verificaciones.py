@@ -404,6 +404,7 @@ class Detector(DetectorIn):
 class RegistroIn(BaseModel):
     temperatura_agua: float | None = None
     fugas_visibles: str = ""
+    fugas_observacion: str = ""
     observaciones: str = ""
     revisado_por: str = ""
     analista: str = ""
@@ -423,6 +424,7 @@ class Registro(BaseModel):
     temperatura_agua: float | None = None
     factor_z: float | None = None
     fugas_visibles: str = ""
+    fugas_observacion: str = ""
     resultado_fugas: str = SIN_MEDIR
     observaciones: str = ""
     revisado_por: str = ""
@@ -800,6 +802,7 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
         temperatura_agua=temperatura,
         factor_z=z,
         fugas_visibles=fila_dia["fugas_visibles"],
+        fugas_observacion=fila_dia.get("fugas_observacion", "") or "",
         resultado_fugas=resultado_fugas,
         observaciones=fila_dia["observaciones"],
         revisado_por=fila_dia["revisado_por"],
@@ -901,6 +904,7 @@ def guardar_registro(
                 UPDATE verif_registro
                    SET temperatura_agua     = %s,
                        fugas_visibles       = %s,
+                       fugas_observacion    = %s,
                        observaciones        = %s,
                        revisado_por         = %s,
                        analista             = %s,
@@ -916,6 +920,7 @@ def guardar_registro(
                 [
                     datos.temperatura_agua,
                     datos.fugas_visibles,
+                    datos.fugas_observacion,
                     datos.observaciones,
                     datos.revisado_por,
                     datos.analista,
@@ -929,15 +934,16 @@ def guardar_registro(
         else:
             cur.execute(
                 """
-                INSERT INTO verif_registro (fecha, temperatura_agua, fugas_visibles, observaciones,
-                                            revisado_por, analista, termometro_1, termometro_2, creado_por)
-                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO verif_registro (fecha, temperatura_agua, fugas_visibles, fugas_observacion,
+                                            observaciones, revisado_por, analista, termometro_1, termometro_2, creado_por)
+                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                   RETURNING id
                 """,
                 [
                     fecha,
                     datos.temperatura_agua,
                     datos.fugas_visibles,
+                    datos.fugas_observacion,
                     datos.observaciones,
                     datos.revisado_por,
                     datos.analista,
