@@ -158,9 +158,11 @@ export function Seccion({ numero, titulo, nota, analista, resultado, id, childre
 /** Un número calculado por el sistema. Se muestra siempre, aunque esté vacío,
  * para que la columna no cambie de ancho mientras se escribe. */
 export function Calculado({ valor, decimales = 2 }: { valor: number | null; decimales?: number }) {
+  const mostrado = valor === null ? '—' : Number(valor.toFixed(decimales)).toString()
+
   return (
     <span className={styles.calculado}>
-      {valor === null ? '—' : valor.toFixed(decimales)}
+      {mostrado}
     </span>
   )
 }
