@@ -12,6 +12,7 @@ export {
   pesasApi,
   puntosTemperaturaApi,
   gasesApi,
+  metodosApi,
   actualizarParametro,
 } from './lib/api'
 
@@ -55,6 +56,8 @@ export type {
   GasMedicionInput,
   Inyector,
   InyectorInput,
+  Metodo,
+  MetodoInput,
   Micropipeta,
   MicropipetaInput,
   MicropipetaMedicion,

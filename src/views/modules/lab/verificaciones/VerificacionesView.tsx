@@ -738,11 +738,10 @@ export function VerificacionesView() {
                   <tr>
                     <td className={styles.celdaEquipo}>Método cargado</td>
                     <td>
-                      <input
+                      <select
                         className={styles.input}
                         style={{ width: 220 }}
                         value={borrador.inyector.metodo_nombre}
-                        placeholder="Nombre del método (ej. ECD_Pes)"
                         disabled={soloVer}
                         onChange={(e) =>
                           editar((p) => ({
@@ -750,7 +749,12 @@ export function VerificacionesView() {
                             inyector: { ...p.inyector, metodo_nombre: e.target.value },
                           }))
                         }
-                      />
+                      >
+                        <option value="">— Seleccionar —</option>
+                        {config.metodos.filter((m) => m.activo).map((m) => (
+                          <option key={m.id} value={m.nombre}>{m.nombre}</option>
+                        ))}
+                      </select>
                     </td>
                   </tr>
                   <tr>
@@ -818,16 +822,20 @@ export function VerificacionesView() {
                   <tr className={cn(previa.detector.resultado_metodo === 'No aceptable' && styles.filaMal)}>
                     <td className={styles.celdaEquipo}>Método cargado</td>
                     <td>
-                      <input
+                      <select
                         className={styles.input}
                         style={{ width: 200 }}
                         value={borrador.detector.metodo_nombre}
-                        placeholder="Nombre del método"
                         disabled={soloVer}
                         onChange={(e) =>
                           editar((p) => ({ ...p, detector: { ...p.detector, metodo_nombre: e.target.value } }))
                         }
-                      />
+                      >
+                        <option value="">— Seleccionar —</option>
+                        {config.metodos.filter((m) => m.activo).map((m) => (
+                          <option key={m.id} value={m.nombre}>{m.nombre}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className={styles.criterio}>Cualquier nombre</td>
                     <td>

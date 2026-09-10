@@ -9,12 +9,13 @@ import {
   actualizarParametro,
   explicarErrorDeConfig,
   gasesApi,
+  metodosApi,
   micropipetasApi,
   obtenerConfig,
   pesasApi,
   puntosTemperaturaApi,
 } from '@/features/verificaciones'
-import type { ConfigVerificaciones, Parametro } from '@/features/verificaciones'
+import type { ConfigVerificaciones, Metodo, MetodoInput, Parametro } from '@/features/verificaciones'
 import { HttpError } from '@/services/http/client'
 import { CampoNumero } from './componentes'
 import styles from './Verificaciones.module.css'
@@ -426,6 +427,19 @@ export function CriteriosView() {
             ]}
             vacio={{ nombre: '', codigo: '', minimo: null, maximo: null }}
             api={puntosTemperaturaApi}
+            onCambio={() => void cargar()}
+            onError={setError}
+          />
+
+          <TablaCatalogo<Metodo, MetodoInput>
+            titulo="Métodos analíticos"
+            nota="Nombres de método cargados en el cromatógrafo. Se seleccionan desde la verificación diaria en Inyector y Detector."
+            filas={config.metodos}
+            campos={[
+              { clave: 'nombre', etiqueta: 'Nombre del método', tipo: 'texto', ancho: 280 },
+            ]}
+            vacio={{ nombre: '', orden: 0, activo: true }}
+            api={metodosApi as never}
             onCambio={() => void cargar()}
             onError={setError}
           />
