@@ -114,12 +114,14 @@ def calcular_balanza(lecturas: list[float | None], nominal: float, tolerancia: f
     En el Excel esta fórmula estaba rota: la celda de resultado apuntaba a
     `#REF!` -una columna que alguien borró- y por eso las tres filas de
     balanza salían siempre en error. Acá se compara lo que corresponde:
-    cuánto se aleja el promedio del valor nominal.
+    cuánto se aleja el promedio del valor nominal. Las lecturas de la balanza
+    llegan en gramos y el catálogo de pesas está en miligramos, por lo que se
+    convierte el promedio antes de calcular el veredicto.
     """
     validos = [l for l in lecturas if l is not None]
     if len(validos) < 3:
         return {"promedio": None, "desviacion": None, "resultado": SIN_MEDIR}
-    promedio = sum(validos) / 3
+    promedio = sum(validos) / 3 * 1000
     desviacion = abs(promedio - nominal)
     return {
         "promedio": round(promedio, 4),
