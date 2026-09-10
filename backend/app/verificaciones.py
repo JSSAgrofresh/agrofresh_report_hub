@@ -1165,6 +1165,25 @@ def descargar_dia_excel(fecha: date) -> StreamingResponse:
     return _descarga(libro_del_dia(registro), f"REG-03 verificaciones {fecha}.xlsx")
 
 
+@router.get("/registros/{fecha}/pdf", response_model=None)
+def descargar_dia_pdf(fecha: date) -> StreamingResponse:
+    """El formulario del día en PDF, listo para imprimir y firmar."""
+    from .verificaciones_pdf import pdf_del_dia
+
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        registro = _leer_dia(cur, fecha, _leer_config(cur))
+    if not registro:
+        raise HTTPException(404, "Ese día todavía no tiene verificaciones registradas.")
+    nombre = f"REG-03 verificaciones {fecha}.pdf"
+    ascii_seguro = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode()
+    disposicion = f"attachment; filename=\"{ascii_seguro}\"; filename*=UTF-8''{quote(nombre)}"
+    return StreamingResponse(
+        io.BytesIO(pdf_del_dia(registro)),
+        media_type="application/pdf",
+        headers={"Content-Disposition": disposicion},
+    )
+
+
 @router.get("/excel", response_model=None)
 def descargar_historico_excel(desde: str | None = None, hasta: str | None = None) -> StreamingResponse:
     """El libro completo: resumen diario más una hoja por sección, como las

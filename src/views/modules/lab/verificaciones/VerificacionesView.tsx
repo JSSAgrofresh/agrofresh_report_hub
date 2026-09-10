@@ -15,6 +15,7 @@ import {
   registroABorrador,
   calcularDia,
   descargarDiaExcel,
+  descargarDiaPdf,
   explicarErrorDeConfig,
   NOMBRE_SECCION,
   SECCIONES,
@@ -167,6 +168,13 @@ export function VerificacionesView() {
           <div className={styles.soloLecturaAcciones}>
             <Button onClick={() => navigate(`${ROUTES.agrofreshLabVerificaciones}?fecha=${fecha}`)}>
               Editar
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => void descargarDiaPdf(fecha)}
+              disabled={!guardadoEn}
+            >
+              Descargar PDF
             </Button>
             <Button
               variant="secondary"
@@ -800,6 +808,14 @@ export function VerificacionesView() {
             <div className={styles.barraAcciones}>
               <Button onClick={() => void guardar()} disabled={guardando || !sucio}>
                 {guardando ? 'Guardando…' : 'Guardar el día'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => void descargarDiaPdf(fecha)}
+                disabled={!guardadoEn}
+                title={guardadoEn ? undefined : 'Guarda el día antes de descargarlo'}
+              >
+                Descargar PDF
               </Button>
               <Button
                 variant="secondary"

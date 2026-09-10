@@ -27,6 +27,7 @@ vi.mock('@/features/verificaciones', async (original) => ({
   obtenerRegistro,
   guardarRegistro,
   descargarDiaExcel: vi.fn(),
+  descargarDiaPdf: vi.fn(),
 }))
 
 vi.mock('@/features/auth', () => ({
