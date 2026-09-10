@@ -74,13 +74,6 @@ export const router = createBrowserRouter([
                 path: ROUTES.agrofreshLabVerificacionesHistorico,
                 element: <VerificacionesHistoricoView />,
               },
-            ],
-          },
-          {
-            // Editar los criterios es cambiar cómo se juzga TODO el histórico:
-            // queda con el resto de la administración.
-            element: <RequireAdminGeneral />,
-            children: [
               { path: ROUTES.agrofreshLabVerificacionesCriterios, element: <CriteriosView /> },
             ],
           },

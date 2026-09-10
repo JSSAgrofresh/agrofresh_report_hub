@@ -40,7 +40,7 @@ from psycopg2.errors import ForeignKeyViolation, UndefinedTable
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from .auth import Usuario, solo_admin_general, usuario_actual
+from .auth import Usuario, solo_admin_general, solo_interno, usuario_actual
 from .db import conexion, cursor_dict
 
 router = APIRouter(prefix="/api/verificaciones", tags=["verificaciones"])
@@ -581,7 +581,7 @@ def _crud(ruta: str, tabla: str, modelo, modelo_in, columnas: tuple[str, ...]) -
             return [modelo(**_normalizar(dict(f))) for f in cur.fetchall()]
 
     @router.post(ruta, response_model=modelo, name=f"crear_{tabla}")
-    def crear(datos: modelo_in, _: Usuario = Depends(solo_admin_general)):  # type: ignore[misc]
+    def crear(datos: modelo_in, _: Usuario = Depends(solo_interno)):  # type: ignore[misc]
         valores = [getattr(datos, c) for c in columnas]
         with conexion() as conn, cursor_dict(conn) as cur:
             cur.execute(
@@ -590,7 +590,7 @@ def _crud(ruta: str, tabla: str, modelo, modelo_in, columnas: tuple[str, ...]) -
             return modelo(**_normalizar(dict(cur.fetchone())))
 
     @router.put(f"{ruta}/{{id}}", response_model=modelo, name=f"actualizar_{tabla}")
-    def actualizar(id: int, datos: modelo_in, _: Usuario = Depends(solo_admin_general)):  # type: ignore[misc]
+    def actualizar(id: int, datos: modelo_in, _: Usuario = Depends(solo_interno)):  # type: ignore[misc]
         valores = [getattr(datos, c) for c in columnas]
         with conexion() as conn, cursor_dict(conn) as cur:
             cur.execute(f"UPDATE {tabla} SET {asignaciones} WHERE id = %s RETURNING *", [*valores, id])
@@ -600,7 +600,7 @@ def _crud(ruta: str, tabla: str, modelo, modelo_in, columnas: tuple[str, ...]) -
             return modelo(**_normalizar(dict(fila)))
 
     @router.delete(f"{ruta}/{{id}}", name=f"eliminar_{tabla}")
-    def eliminar(id: int, _: Usuario = Depends(solo_admin_general)) -> dict:  # type: ignore[misc]
+    def eliminar(id: int, _: Usuario = Depends(solo_interno)) -> dict:  # type: ignore[misc]
         with conexion() as conn, cursor_dict(conn) as cur:
             try:
                 cur.execute(f"DELETE FROM {tabla} WHERE id = %s", [id])
@@ -647,7 +647,7 @@ _crud("/config/gases", "verif_gas", Gas, GasIn, ("nombre", "codigo", "orden", "a
 
 @router.put("/config/parametros/{clave}", response_model=Parametro)
 def actualizar_parametro(
-    clave: str, datos: ParametroIn, _: Usuario = Depends(solo_admin_general)
+    clave: str, datos: ParametroIn, _: Usuario = Depends(solo_interno)
 ) -> Parametro:
     """Los parámetros no se crean ni se borran: son un conjunto fijo que el
     cálculo conoce por nombre. Solo cambia su valor."""

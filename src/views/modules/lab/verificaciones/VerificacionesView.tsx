@@ -6,7 +6,6 @@ import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/features/auth'
-import { esAdminGeneral } from '@/features/usuarios'
 import {
   borradorVacio,
   guardarRegistro,
@@ -226,7 +225,7 @@ export function VerificacionesView() {
             <Button variant="secondary" onClick={() => navigate(ROUTES.agrofreshLabVerificacionesHistorico)}>
               Histórico
             </Button>
-            {user && esAdminGeneral(user) && (
+            {user && (
               <Button variant="secondary" onClick={() => navigate(ROUTES.agrofreshLabVerificacionesCriterios)}>
                 Criterios
               </Button>
