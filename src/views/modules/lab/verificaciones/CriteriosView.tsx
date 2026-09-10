@@ -39,6 +39,13 @@ type Campo = {
   unidad?: string
   tipo: 'texto' | 'numero'
   ancho?: number
+  editable?: boolean
+}
+
+type RangoTolerancia = {
+  nominal: string
+  tolerancia: string
+  unidad: string
 }
 
 function Etiqueta({ campo }: { campo: Campo }) {
@@ -63,6 +70,7 @@ interface TablaProps<T extends { id: number }> {
   }
   onCambio: () => void
   onError: (mensaje: string | null) => void
+  rango?: RangoTolerancia
 }
 
 /**
@@ -80,6 +88,7 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
   api,
   onCambio,
   onError,
+  rango,
 }: TablaProps<T>) {
   const [borrador, setBorrador] = useState<Record<string, unknown> | null>(null)
   const [editando, setEditando] = useState<number | null>(null)
@@ -87,13 +96,20 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
 
   function abrirNuevo() {
     setEditando(null)
-    setBorrador({ ...vacio, activo: true, orden: filas.length + 1 })
+    setBorrador({ ...vacio, activo: true, orden: filas.length + 1, rango_minimo: null, rango_maximo: null })
     onError(null)
   }
 
   function abrirEdicion(fila: T) {
     setEditando(fila.id)
-    setBorrador({ ...(fila as unknown as Record<string, unknown>) })
+    const datos = { ...(fila as unknown as Record<string, unknown>) }
+    if (rango) {
+      const nominal = Number(datos[rango.nominal])
+      const tolerancia = Number(datos[rango.tolerancia])
+      datos.rango_minimo = nominal - tolerancia
+      datos.rango_maximo = nominal + tolerancia
+    }
+    setBorrador(datos)
     onError(null)
   }
 
@@ -112,7 +128,19 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
     setGuardando(true)
     onError(null)
     try {
-      const { id: _id, ...datos } = borrador as { id?: number } & Record<string, unknown>
+      const { id: _id, rango_minimo, rango_maximo, ...datos } = borrador as { id?: number; rango_minimo?: number | null; rango_maximo?: number | null } & Record<string, unknown>
+      if (rango) {
+        if (rango_minimo === null || rango_minimo === undefined || rango_maximo === null || rango_maximo === undefined) {
+          onError('Indica el mínimo y máximo del rango de tolerancia.')
+          return
+        }
+        if (rango_minimo >= rango_maximo) {
+          onError('El mínimo del rango debe ser menor que el máximo.')
+          return
+        }
+        datos[rango.nominal] = (rango_minimo + rango_maximo) / 2
+        datos[rango.tolerancia] = (rango_maximo - rango_minimo) / 2
+      }
       if (editando === null) await api.crear({ ...datos, nombre } as never)
       else await api.actualizar(editando, { ...datos, nombre } as never)
       cerrar()
@@ -163,7 +191,7 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
       <div className={styles.seccionCuerpo}>
         {borrador && (
           <div className={styles.formulario}>
-            {campos.map((campo) => (
+            {campos.filter((campo) => campo.editable !== false).map((campo) => (
               <label key={campo.clave} className={styles.campo}>
                 <span className={styles.etiqueta}>
                   <Etiqueta campo={campo} />
@@ -184,6 +212,18 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
                 )}
               </label>
             ))}
+            {rango && (
+              <>
+                <label className={styles.campo}>
+                  <span className={styles.etiqueta}>Rango mínimo <span className={styles.unidad}>({rango.unidad})</span></span>
+                  <CampoNumero valor={(borrador.rango_minimo as number | null) ?? null} ancho={110} onCambio={(v) => setBorrador({ ...borrador, rango_minimo: v })} />
+                </label>
+                <label className={styles.campo}>
+                  <span className={styles.etiqueta}>Rango máximo <span className={styles.unidad}>({rango.unidad})</span></span>
+                  <CampoNumero valor={(borrador.rango_maximo as number | null) ?? null} ancho={110} onCambio={(v) => setBorrador({ ...borrador, rango_maximo: v })} />
+                </label>
+              </>
+            )}
             <Button onClick={() => void guardar()} disabled={guardando}>
               {guardando ? 'Guardando…' : editando === null ? 'Agregar' : 'Guardar'}
             </Button>
@@ -202,6 +242,7 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
                     <Etiqueta campo={c} />
                   </th>
                 ))}
+                {rango && <th>Rango de tolerancia</th>}
                 <th>Estado</th>
                 <th />
               </tr>
@@ -216,6 +257,11 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
                         {String(valores[c.clave] ?? '') || '—'}
                       </td>
                     ))}
+                    {rango && (
+                      <td className={styles.criterio}>
+                        {Number(valores[rango.nominal]) - Number(valores[rango.tolerancia])} a {Number(valores[rango.nominal]) + Number(valores[rango.tolerancia])} <span className={styles.unidad}>{rango.unidad}</span>
+                      </td>
+                    )}
                     <td className={styles.criterio}>{fila.activo ? 'En uso' : 'Desactivado'}</td>
                     <td>
                       <div className={styles.acciones}>
@@ -341,13 +387,14 @@ export function CriteriosView() {
             campos={[
               { clave: 'nombre', etiqueta: 'Equipo', tipo: 'texto' },
               { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
-              { clave: 'volumen_nominal', etiqueta: 'Vol. nominal', unidad: 'µL', tipo: 'numero' },
-              { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'µL', tipo: 'numero' },
+              { clave: 'volumen_nominal', etiqueta: 'Vol. nominal', unidad: 'µL', tipo: 'numero', editable: false },
+              { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'µL', tipo: 'numero', editable: false },
             ]}
             vacio={{ nombre: '', codigo: '', volumen_nominal: null, tolerancia: null }}
             api={micropipetasApi}
             onCambio={() => void cargar()}
             onError={setError}
+            rango={{ nominal: 'volumen_nominal', tolerancia: 'tolerancia', unidad: 'µL' }}
           />
 
           <TablaCatalogo
@@ -357,13 +404,14 @@ export function CriteriosView() {
             campos={[
               { clave: 'nombre', etiqueta: 'Pesa', tipo: 'texto', ancho: 140 },
               { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
-              { clave: 'valor_nominal', etiqueta: 'Valor nominal', unidad: 'mg', tipo: 'numero' },
-              { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'mg', tipo: 'numero' },
+              { clave: 'valor_nominal', etiqueta: 'Valor nominal', unidad: 'mg', tipo: 'numero', editable: false },
+              { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'mg', tipo: 'numero', editable: false },
             ]}
             vacio={{ nombre: '', codigo: '', valor_nominal: null, tolerancia: null }}
             api={pesasApi}
             onCambio={() => void cargar()}
             onError={setError}
+            rango={{ nominal: 'valor_nominal', tolerancia: 'tolerancia', unidad: 'mg' }}
           />
 
           <TablaCatalogo
