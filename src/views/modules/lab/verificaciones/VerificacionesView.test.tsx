@@ -13,10 +13,11 @@ import type { ConfigVerificaciones, Registro } from '@/features/verificaciones'
  * sea lo que está en pantalla.
  */
 
-const { obtenerConfig, obtenerRegistro, guardarRegistro } = vi.hoisted(() => ({
+const { obtenerConfig, obtenerRegistro, guardarRegistro, eliminarRegistro } = vi.hoisted(() => ({
   obtenerConfig: vi.fn(),
   obtenerRegistro: vi.fn(),
   guardarRegistro: vi.fn(),
+  eliminarRegistro: vi.fn(),
 }))
 
 vi.mock('@/features/verificaciones', async (original) => ({
@@ -26,6 +27,7 @@ vi.mock('@/features/verificaciones', async (original) => ({
   obtenerConfig,
   obtenerRegistro,
   guardarRegistro,
+  eliminarRegistro,
   descargarDiaExcel: vi.fn(),
   descargarDiaPdf: vi.fn(),
 }))
@@ -117,6 +119,7 @@ beforeEach(() => {
       resultado: 'Sin datos',
     }),
   )
+  eliminarRegistro.mockResolvedValue({ estado: 'eliminado' })
 })
 
 describe('VerificacionesView', () => {
@@ -208,6 +211,21 @@ describe('VerificacionesView', () => {
     expect(await screen.findByDisplayValue('Romina Garrido')).toBeInTheDocument()
     expect(within(fila('Microman E1000')).getByText('Aceptable')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Guardar el día' })).toBeDisabled()
+  })
+
+  it('permite eliminar un día ya guardado después de confirmarlo', async () => {
+    obtenerRegistro.mockResolvedValue(await guardarRegistro('2026-09-01'))
+    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    pintar()
+
+    await screen.findByText(/Guardado/)
+    const limpiar = screen.getByRole('button', { name: 'Limpiar registro' })
+    expect(limpiar).toBeEnabled()
+    fireEvent.click(limpiar)
+
+    await waitFor(() => expect(eliminarRegistro).toHaveBeenCalledTimes(1))
+    expect(screen.getByText('Este día todavía no se ha guardado')).toBeInTheDocument()
+    confirmar.mockRestore()
   })
 
   it('muestra el factor Z al seleccionar una temperatura del dropdown', async () => {
