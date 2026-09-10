@@ -700,6 +700,11 @@ export function VerificacionesView() {
             numero={5}
             titulo="Inyector"
             nota="Aceptable si se limpió la aguja y, además, la aguja está sana o fue reemplazada."
+            analista={{
+              valor: borrador.inyector.analista,
+              deshabilitado: soloVer,
+              onCambio: (valor) => editar((p) => ({ ...p, inyector: { ...p.inyector, analista: valor } })),
+            }}
             resultado={previa.secciones.inyector}
           >
             <div className={styles.tablaWrap}>
@@ -770,6 +775,11 @@ export function VerificacionesView() {
             numero={6}
             titulo="Detector y método"
             nota="Voltaje de la perla, método cargado y output del detector."
+            analista={{
+              valor: borrador.detector.analista,
+              deshabilitado: soloVer,
+              onCambio: (valor) => editar((p) => ({ ...p, detector: { ...p.detector, analista: valor } })),
+            }}
             resultado={previa.secciones.detector}
           >
             <div className={styles.tablaWrap}>
