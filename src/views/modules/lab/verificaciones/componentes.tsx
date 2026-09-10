@@ -115,7 +115,7 @@ interface SeccionProps {
   numero: number
   titulo: string
   nota?: string
-  analista?: { valor: string; onCambio: (valor: string) => void }
+  analista?: { valor: string; onCambio: (valor: string) => void; deshabilitado?: boolean }
   resultado?: Resultado
   id?: string
   children: ReactNode
@@ -137,11 +137,12 @@ export function Seccion({ numero, titulo, nota, analista, resultado, id, childre
         <div className={styles.seccionDerecha}>
           {analista && (
             <label className={styles.analista}>
-              <span className={styles.etiqueta}>Analista</span>
+              <span className={styles.etiqueta}>Responsable</span>
               <input
                 className={styles.input}
                 value={analista.valor}
                 placeholder="Nombre"
+                disabled={analista.deshabilitado}
                 onChange={(e) => analista.onCambio(e.target.value)}
               />
             </label>
