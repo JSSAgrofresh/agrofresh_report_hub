@@ -1171,14 +1171,15 @@ def descargar_dia_pdf(fecha: date) -> StreamingResponse:
     from .verificaciones_pdf import pdf_del_dia
 
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        registro = _leer_dia(cur, fecha, _leer_config(cur))
+        config = _leer_config(cur)
+        registro = _leer_dia(cur, fecha, config)
     if not registro:
         raise HTTPException(404, "Ese día todavía no tiene verificaciones registradas.")
     nombre = f"REG-03 verificaciones {fecha}.pdf"
     ascii_seguro = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode()
     disposicion = f"attachment; filename=\"{ascii_seguro}\"; filename*=UTF-8''{quote(nombre)}"
     return StreamingResponse(
-        io.BytesIO(pdf_del_dia(registro)),
+        io.BytesIO(pdf_del_dia(registro, config)),
         media_type="application/pdf",
         headers={"Content-Disposition": disposicion},
     )
