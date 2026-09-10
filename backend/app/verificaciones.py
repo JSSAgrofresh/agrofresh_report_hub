@@ -40,7 +40,7 @@ from psycopg2.errors import ForeignKeyViolation, UndefinedTable
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from .auth import Usuario, solo_admin_general, usuario_actual
+from .auth import Usuario, solo_admin_general, solo_interno, usuario_actual
 from .db import conexion, cursor_dict
 
 router = APIRouter(prefix="/api/verificaciones", tags=["verificaciones"])
@@ -431,8 +431,6 @@ class RegistroIn(BaseModel):
     observaciones: str = ""
     revisado_por: str = ""
     analista: str = ""
-    termometro_1: float | None = None
-    termometro_2: float | None = None
     observacion_edicion: str = ""
     micropipetas: list[MicropipetaMedicionIn] = []
     balanza: list[BalanzaMedicionIn] = []
@@ -452,8 +450,6 @@ class Registro(BaseModel):
     observaciones: str = ""
     revisado_por: str = ""
     analista: str = ""
-    termometro_1: float | None = None
-    termometro_2: float | None = None
     editado_por: str | None = None
     editado_en: datetime | None = None
     observacion_edicion: str = ""
@@ -581,7 +577,7 @@ def _crud(ruta: str, tabla: str, modelo, modelo_in, columnas: tuple[str, ...]) -
             return [modelo(**_normalizar(dict(f))) for f in cur.fetchall()]
 
     @router.post(ruta, response_model=modelo, name=f"crear_{tabla}")
-    def crear(datos: modelo_in, _: Usuario = Depends(solo_admin_general)):  # type: ignore[misc]
+    def crear(datos: modelo_in, _: Usuario = Depends(solo_interno)):  # type: ignore[misc]
         valores = [getattr(datos, c) for c in columnas]
         with conexion() as conn, cursor_dict(conn) as cur:
             cur.execute(
@@ -590,7 +586,7 @@ def _crud(ruta: str, tabla: str, modelo, modelo_in, columnas: tuple[str, ...]) -
             return modelo(**_normalizar(dict(cur.fetchone())))
 
     @router.put(f"{ruta}/{{id}}", response_model=modelo, name=f"actualizar_{tabla}")
-    def actualizar(id: int, datos: modelo_in, _: Usuario = Depends(solo_admin_general)):  # type: ignore[misc]
+    def actualizar(id: int, datos: modelo_in, _: Usuario = Depends(solo_interno)):  # type: ignore[misc]
         valores = [getattr(datos, c) for c in columnas]
         with conexion() as conn, cursor_dict(conn) as cur:
             cur.execute(f"UPDATE {tabla} SET {asignaciones} WHERE id = %s RETURNING *", [*valores, id])
@@ -600,7 +596,7 @@ def _crud(ruta: str, tabla: str, modelo, modelo_in, columnas: tuple[str, ...]) -
             return modelo(**_normalizar(dict(fila)))
 
     @router.delete(f"{ruta}/{{id}}", name=f"eliminar_{tabla}")
-    def eliminar(id: int, _: Usuario = Depends(solo_admin_general)) -> dict:  # type: ignore[misc]
+    def eliminar(id: int, _: Usuario = Depends(solo_interno)) -> dict:  # type: ignore[misc]
         with conexion() as conn, cursor_dict(conn) as cur:
             try:
                 cur.execute(f"DELETE FROM {tabla} WHERE id = %s", [id])
@@ -647,7 +643,7 @@ _crud("/config/gases", "verif_gas", Gas, GasIn, ("nombre", "codigo", "orden", "a
 
 @router.put("/config/parametros/{clave}", response_model=Parametro)
 def actualizar_parametro(
-    clave: str, datos: ParametroIn, _: Usuario = Depends(solo_admin_general)
+    clave: str, datos: ParametroIn, _: Usuario = Depends(solo_interno)
 ) -> Parametro:
     """Los parámetros no se crean ni se borran: son un conjunto fijo que el
     cálculo conoce por nombre. Solo cambia su valor."""
@@ -830,8 +826,6 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
         observaciones=fila_dia["observaciones"],
         revisado_por=fila_dia["revisado_por"],
         analista=fila_dia.get("analista", "") or "",
-        termometro_1=_num(fila_dia.get("termometro_1")),
-        termometro_2=_num(fila_dia.get("termometro_2")),
         editado_por=fila_dia.get("editado_por"),
         editado_en=fila_dia.get("editado_en"),
         observacion_edicion=fila_dia.get("observacion_edicion", "") or "",
@@ -932,8 +926,6 @@ def guardar_registro(
                        observaciones        = %s,
                        revisado_por         = %s,
                        analista             = %s,
-                       termometro_1         = %s,
-                       termometro_2         = %s,
                        editado_por          = %s,
                        editado_en           = now(),
                        observacion_edicion  = %s,
@@ -948,8 +940,6 @@ def guardar_registro(
                     datos.observaciones,
                     datos.revisado_por,
                     datos.analista,
-                    datos.termometro_1,
-                    datos.termometro_2,
                     nombre_usuario,
                     datos.observacion_edicion,
                     fecha,
@@ -959,8 +949,8 @@ def guardar_registro(
             cur.execute(
                 """
                 INSERT INTO verif_registro (fecha, temperatura_agua, fugas_visibles, fugas_observacion,
-                                            observaciones, revisado_por, analista, termometro_1, termometro_2, creado_por)
-                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                            observaciones, revisado_por, analista, creado_por)
+                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                   RETURNING id
                 """,
                 [
@@ -971,8 +961,6 @@ def guardar_registro(
                     datos.observaciones,
                     datos.revisado_por,
                     datos.analista,
-                    datos.termometro_1,
-                    datos.termometro_2,
                     nombre_usuario,
                 ],
             )

@@ -287,8 +287,6 @@ describe('un registro guardado, vuelto formulario', () => {
     observaciones: 'Sin novedad',
     revisado_por: 'Romina Garrido',
     analista: 'Paz Salazar',
-    termometro_1: null,
-    termometro_2: null,
     editado_por: null,
     editado_en: null,
     observacion_edicion: '',

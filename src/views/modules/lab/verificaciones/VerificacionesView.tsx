@@ -6,7 +6,6 @@ import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/features/auth'
-import { esAdminGeneral } from '@/features/usuarios'
 import {
   borradorVacio,
   guardarRegistro,
@@ -226,7 +225,7 @@ export function VerificacionesView() {
             <Button variant="secondary" onClick={() => navigate(ROUTES.agrofreshLabVerificacionesHistorico)}>
               Histórico
             </Button>
-            {user && esAdminGeneral(user) && (
+            {user && (
               <Button variant="secondary" onClick={() => navigate(ROUTES.agrofreshLabVerificacionesCriterios)}>
                 Criterios
               </Button>
@@ -522,7 +521,7 @@ export function VerificacionesView() {
             id="seccion-temperatura"
             numero={3}
             titulo="Temperatura"
-            nota="Sala del laboratorio, refrigerador y congelador de reactivos."
+            nota="Salas del laboratorio, refrigerador y congelador de reactivos."
             resultado={previa.secciones.temperatura}
           >
             <div className={styles.tablaWrap}>
@@ -583,23 +582,6 @@ export function VerificacionesView() {
                       </tr>
                     )
                   })}
-                  {/* Termómetros de referencia */}
-                  {(['termometro_1', 'termometro_2'] as const).map((campo, i) => (
-                    <tr key={campo}>
-                      <td className={styles.celdaEquipo}>Termómetro {i + 1}</td>
-                      <td className={styles.criterio}>—</td>
-                      <td>
-                        <CampoNumero
-                          valor={borrador[campo]}
-                          ancho={92}
-                          onCambio={(v) => editar((p) => ({ ...p, [campo]: v }))}
-                        />
-                      </td>
-                      <td className={styles.criterio}>—</td>
-                      <td />
-                      <td />
-                    </tr>
-                  ))}
                 </tbody>
               </table>
             </div>
