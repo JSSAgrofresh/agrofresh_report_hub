@@ -31,7 +31,7 @@ pero lo que queda guardado es lo que se recalcula acá al guardar el día.
 # anotación del cuerpo sea la clase de verdad y no el texto "modelo_in".
 import io
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from urllib.parse import quote
 
@@ -56,6 +56,27 @@ SIN_MEDIR = ""
 SI = "Sí"
 NO = "No"
 NA = "N.A."
+
+EMAIL_SUPERADMIN_VERIFICACIONES = "jorge.sandoval@agrofresh.com"
+
+
+def _es_superadmin_verificaciones(usuario: Usuario) -> bool:
+    return usuario.email.strip().lower() == EMAIL_SUPERADMIN_VERIFICACIONES
+
+
+def _exigir_fecha_editable(usuario: Usuario, fecha: date, existe: bool) -> None:
+    """La carga diaria se crea hoy y solo se corrige al día siguiente.
+
+    La cuenta superadministradora puede intervenir cualquier fecha cuando sea
+    necesario corregir un histórico; esta regla se aplica en el servidor para
+    que no baste con alterar la URL del navegador.
+    """
+    if _es_superadmin_verificaciones(usuario):
+        return
+    fecha_permitida = date.today() - timedelta(days=1) if existe else date.today()
+    if fecha != fecha_permitida:
+        accion = "editar" if existe else "crear"
+        raise HTTPException(403, f"No puedes {accion} verificaciones para esta fecha.")
 
 
 # ---------------------------------------------------------------------------
@@ -896,6 +917,7 @@ def guardar_registro(
         cur.execute("SELECT id, editado_por FROM verif_registro WHERE fecha = %s", [fecha])
         existente = cur.fetchone()
         es_edicion = existente is not None
+        _exigir_fecha_editable(usuario, fecha, es_edicion)
 
         editado_por_nuevo = nombre_usuario if es_edicion else None
         editado_en_nuevo = "now()" if es_edicion else None
