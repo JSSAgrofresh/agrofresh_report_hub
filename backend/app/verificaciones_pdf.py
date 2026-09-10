@@ -10,7 +10,7 @@ import io
 import os
 
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import LETTER, landscape
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import (
@@ -40,15 +40,15 @@ _RUTA_LOGO = os.path.join(
 
 # ── Estilos tipográficos ───────────────────────────────────────────────────
 
-_S_NORMAL  = ParagraphStyle("n",  fontName="Helvetica",      fontSize=8,   leading=10, textColor=NEGRO)
-_S_BOLD    = ParagraphStyle("b",  fontName="Helvetica-Bold", fontSize=8,   leading=10, textColor=NEGRO)
-_S_GRIS    = ParagraphStyle("g",  fontName="Helvetica",      fontSize=7.5, leading=9,  textColor=GRIS_TEXTO)
-_S_HEADER  = ParagraphStyle("h",  fontName="Helvetica-Bold", fontSize=8,   leading=10, textColor=BLANCO)
-_S_SECCION = ParagraphStyle("s",  fontName="Helvetica-Bold", fontSize=9,   leading=11, textColor=VERDE_OSCURO)
-_S_TITULO  = ParagraphStyle("t",  fontName="Helvetica-Bold", fontSize=13,  leading=15, textColor=NEGRO)
+_S_NORMAL  = ParagraphStyle("n",  fontName="Helvetica",      fontSize=7,   leading=9,  textColor=NEGRO)
+_S_BOLD    = ParagraphStyle("b",  fontName="Helvetica-Bold", fontSize=7,   leading=9,  textColor=NEGRO)
+_S_GRIS    = ParagraphStyle("g",  fontName="Helvetica",      fontSize=6.5, leading=8,  textColor=GRIS_TEXTO)
+_S_HEADER  = ParagraphStyle("h",  fontName="Helvetica-Bold", fontSize=7,   leading=9,  textColor=BLANCO)
+_S_SECCION = ParagraphStyle("s",  fontName="Helvetica-Bold", fontSize=8,   leading=10, textColor=VERDE_OSCURO)
+_S_TITULO  = ParagraphStyle("t",  fontName="Helvetica-Bold", fontSize=11,  leading=13, textColor=NEGRO)
 
-_MARGEN = 1.2 * cm
-PAGE_W, PAGE_H = landscape(A4)
+_MARGEN = 1.0 * cm
+PAGE_W, PAGE_H = LETTER  # carta vertical (portrait)
 UTIL_W = PAGE_W - 2 * _MARGEN
 
 
@@ -88,8 +88,8 @@ def _tabla(datos: list, col_anchos: list, estilo_extra: list | None = None) -> T
         ("FONT",        (0, 1), (-1, -1), "Helvetica"),
         ("GRID",        (0, 0), (-1, -1), 0.3, GRIS_LINEA),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [BLANCO, colors.HexColor("#F8F9F6")]),
-        ("TOPPADDING",  (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING",  (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
         ("LEFTPADDING", (0, 0), (-1, -1), 4),
         ("RIGHTPADDING", (0, 0), (-1, -1), 4),
     ]
@@ -263,7 +263,7 @@ def _seccion_inyector_detector(registro) -> list:
 
 def _encabezado(registro) -> list:
     logo_img = (
-        Image(_RUTA_LOGO, width=3.8 * cm, height=1.52 * cm)
+        Image(_RUTA_LOGO, width=3.2 * cm, height=1.28 * cm)
         if os.path.isfile(_RUTA_LOGO)
         else Paragraph("AgroFresh", _S_TITULO)
     )
@@ -272,9 +272,9 @@ def _encabezado(registro) -> list:
     color_res = _veredicto_color(res)
     titulo_texto = (
         f"<b>REG-03 · Registro de verificaciones diarias</b><br/>"
-        f"<font size='8' color='#6B7280'>Laboratorio de Cromatografía AgroFresh</font>"
+        f"<font size='7' color='#6B7280'>Laboratorio de Cromatografía AgroFresh</font>"
     )
-    titulo = Paragraph(titulo_texto, ParagraphStyle("tt", fontName="Helvetica-Bold", fontSize=12, leading=16, textColor=NEGRO))
+    titulo = Paragraph(titulo_texto, ParagraphStyle("tt", fontName="Helvetica-Bold", fontSize=10, leading=13, textColor=NEGRO))
 
     campos = [
         f"<b>Fecha:</b> {registro.fecha.strftime('%d-%m-%Y')}",
@@ -330,7 +330,7 @@ def pdf_del_dia(registro) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf,
-        pagesize=landscape(A4),
+        pagesize=LETTER,
         leftMargin=_MARGEN, rightMargin=_MARGEN,
         topMargin=_MARGEN, bottomMargin=_MARGEN,
     )

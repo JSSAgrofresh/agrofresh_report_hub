@@ -246,28 +246,6 @@ export function VerificacionesView() {
                   {previa.factor_z === null ? '—' : previa.factor_z.toFixed(4)}
                 </span>
               </div>
-              <label className={styles.campo}>
-                <span className={styles.etiqueta}>
-                  Termómetro 1 <span className={styles.unidad}>(°C)</span>
-                </span>
-                <CampoNumero
-                  valor={borrador.termometro_1}
-                  ancho={90}
-                  titulo="Temperatura leída en el termómetro 1"
-                  onCambio={(v) => editar((p) => ({ ...p, termometro_1: v }))}
-                />
-              </label>
-              <label className={styles.campo}>
-                <span className={styles.etiqueta}>
-                  Termómetro 2 <span className={styles.unidad}>(°C)</span>
-                </span>
-                <CampoNumero
-                  valor={borrador.termometro_2}
-                  ancho={90}
-                  titulo="Temperatura leída en el termómetro 2"
-                  onCambio={(v) => editar((p) => ({ ...p, termometro_2: v }))}
-                />
-              </label>
               <VeredictoDia resultado={previa.resultado} />
             </div>
 
@@ -523,6 +501,23 @@ export function VerificacionesView() {
                       </tr>
                     )
                   })}
+                  {/* Termómetros de referencia */}
+                  {(['termometro_1', 'termometro_2'] as const).map((campo, i) => (
+                    <tr key={campo}>
+                      <td className={styles.celdaEquipo}>Termómetro {i + 1}</td>
+                      <td className={styles.criterio}>—</td>
+                      <td>
+                        <CampoNumero
+                          valor={borrador[campo]}
+                          ancho={92}
+                          onCambio={(v) => editar((p) => ({ ...p, [campo]: v }))}
+                        />
+                      </td>
+                      <td className={styles.criterio}>—</td>
+                      <td />
+                      <td />
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
