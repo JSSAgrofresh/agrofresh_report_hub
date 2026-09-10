@@ -46,6 +46,7 @@ const CONFIG: ConfigVerificaciones = {
     { id: 2, nombre: 'Sala de laboratorio 2', codigo: '', minimo: 15, maximo: 25, orden: 2, activo: true },
   ],
   gases: [{ id: 1, nombre: 'Helio BIP', codigo: '', orden: 1, activo: true }],
+  metodos: [{ id: 1, nombre: 'ECD_Pes', orden: 1, activo: true }],
   parametros: [
     { clave: 'gas_presion_contenido_min', valor: 200, descripcion: '', unidad: 'psi', orden: 1 },
     { clave: 'gas_presion_trabajo_min', valor: 80, descripcion: '', unidad: 'psi', orden: 2 },

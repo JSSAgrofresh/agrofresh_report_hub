@@ -9,13 +9,13 @@ import {
   actualizarParametro,
   explicarErrorDeConfig,
   gasesApi,
-  metodosApi,
   micropipetasApi,
+  metodosApi,
   obtenerConfig,
   pesasApi,
   puntosTemperaturaApi,
 } from '@/features/verificaciones'
-import type { ConfigVerificaciones, Metodo, MetodoInput, Parametro } from '@/features/verificaciones'
+import type { ConfigVerificaciones, Metodo, Parametro } from '@/features/verificaciones'
 import { HttpError } from '@/services/http/client'
 import { CampoNumero } from './componentes'
 import styles from './Verificaciones.module.css'
@@ -431,7 +431,7 @@ export function CriteriosView() {
             onError={setError}
           />
 
-          <TablaCatalogo<Metodo, MetodoInput>
+          <TablaCatalogo<Metodo>
             titulo="Métodos analíticos"
             nota="Nombres de método cargados en el cromatógrafo. Se seleccionan desde la verificación diaria en Inyector y Detector."
             filas={config.metodos}
