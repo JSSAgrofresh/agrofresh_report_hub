@@ -287,6 +287,7 @@ export function VerificacionesView() {
                     <th>Peso 2 <span className={styles.unidad}>(g)</span></th>
                     <th>Peso 3 <span className={styles.unidad}>(g)</span></th>
                     <th>Vol. medio <span className={styles.unidad}>(µL)</span></th>
+                    <th>Rango de tolerancia</th>
                     <th>Criterio</th>
                     <th>Resultado</th>
                     <th>Obs.</th>
@@ -325,6 +326,9 @@ export function VerificacionesView() {
                         ))}
                         <td>
                           <Calculado valor={calculo?.volumen_medio ?? null} />
+                        </td>
+                        <td className={styles.criterio}>
+                          {equipo.volumen_nominal - equipo.tolerancia} a {equipo.volumen_nominal + equipo.tolerancia} <span className={styles.unidad}>µL</span>
                         </td>
                         <td className={styles.criterio}>± {equipo.tolerancia} µL</td>
                         <td>
