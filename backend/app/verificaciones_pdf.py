@@ -1,4 +1,4 @@
-"""PDF del formulario diario de verificaciones (REG-03).
+"""PDF del formulario diario de verificaciones .
 
 Mismo contenido que libro_del_dia() del Excel, diseño alineado con
 informe_pdf.py: logo AgroFresh, colores corporativos, alta densidad
@@ -117,87 +117,132 @@ def _colorear_resultado(tabla: Table, col: int, filas_datos: list) -> None:
 
 # ── Secciones ─────────────────────────────────────────────────────────────
 
-def _seccion_micropipetas(registro) -> list:
+def _seccion_micropipetas(registro, config: dict) -> list:
     anchos = [UTIL_W * f for f in [0.26, 0.10, 0.10, 0.10, 0.10, 0.12, 0.12, 0.10]]
     cabecera = ["Equipo", "Peso 1 (g)", "Peso 2 (g)", "Peso 3 (g)", "Vol. medio (µL)", "Criterio", "Resultado", "Obs."]
-    filas = [
-        [
-            _p(m.nombre),
-            _n(m.peso_1), _n(m.peso_2), _n(m.peso_3),
-            _n(m.volumen_medio),
-            f"± {_n(m.tolerancia)} µL",
-            m.resultado or "Sin medir",
-            m.observacion or "",
-        ]
-        for m in registro.micropipetas
-    ] or [["—"] * 8]
+    medidas = {m.micropipeta_id: m for m in registro.micropipetas}
+    filas = []
+    for equipo in config.get("micropipetas", []):
+        if not equipo.get("activo", True):
+            continue
+        m = medidas.get(equipo["id"])
+        filas.append([
+            _p(f"{equipo['nombre']}\n{equipo['volumen_nominal']} µL nominal"),
+            _n(m.peso_1 if m else None), _n(m.peso_2 if m else None), _n(m.peso_3 if m else None),
+            _n(m.volumen_medio if m else None),
+            f"± {_n(equipo['tolerancia'])} µL",
+            (m.resultado if m else None) or "Sin medir",
+            (m.observacion if m else "") or "",
+        ])
+    if not filas:
+        filas = [["—"] * 8]
     t = _tabla([cabecera] + filas, anchos)
-    for i, m in enumerate(registro.micropipetas, start=1):
-        t.setStyle(TableStyle([
-            ("TEXTCOLOR", (6, i), (6, i), _veredicto_color(m.resultado or "")),
-            ("FONT", (6, i), (6, i), "Helvetica-Bold", 8),
-        ]))
+    for i, equipo in enumerate([e for e in config.get("micropipetas", []) if e.get("activo", True)], start=1):
+        m = medidas.get(equipo["id"])
+        res = (m.resultado if m else None) or ""
+        if res:
+            t.setStyle(TableStyle([
+                ("TEXTCOLOR", (6, i), (6, i), _veredicto_color(res)),
+                ("FONT", (6, i), (6, i), "Helvetica-Bold", 8),
+            ]))
     return [_titulo_seccion("1. MICROPIPETAS — verificación gravimétrica"), Spacer(0, 1), t]
 
 
-def _seccion_balanza(registro) -> list:
-    anchos = [UTIL_W * f for f in [0.22, 0.10, 0.10, 0.10, 0.10, 0.10, 0.14, 0.10, 0.04]]
+def _seccion_balanza(registro, config: dict) -> list:
+    anchos = [UTIL_W * f for f in [0.22, 0.10, 0.10, 0.10, 0.10, 0.10, 0.14, 0.10]]
     cabecera = ["Pesa patrón", "Lect. 1 (mg)", "Lect. 2 (mg)", "Lect. 3 (mg)", "Promedio (mg)", "Criterio", "Resultado", "Obs."]
-    anchos2 = anchos[:8]
-    filas = [
-        [
-            _p(b.nombre),
-            _n(b.lectura_1), _n(b.lectura_2), _n(b.lectura_3),
-            _n(b.promedio),
-            f"± {_n(b.tolerancia)} mg",
-            b.resultado or "Sin medir",
-            b.observacion or "",
-        ]
-        for b in registro.balanza
-    ] or [["—"] * 8]
-    t = _tabla([cabecera] + filas, anchos2)
-    for i, b in enumerate(registro.balanza, start=1):
-        t.setStyle(TableStyle([
-            ("TEXTCOLOR", (6, i), (6, i), _veredicto_color(b.resultado or "")),
-            ("FONT", (6, i), (6, i), "Helvetica-Bold", 8),
-        ]))
+    medidas = {b.pesa_id: b for b in registro.balanza}
+    filas = []
+    for pesa in config.get("pesas", []):
+        if not pesa.get("activo", True):
+            continue
+        b = medidas.get(pesa["id"])
+        filas.append([
+            _p(pesa["nombre"]),
+            _n(b.lectura_1 if b else None), _n(b.lectura_2 if b else None), _n(b.lectura_3 if b else None),
+            _n(b.promedio if b else None),
+            f"± {_n(pesa['tolerancia'])} mg",
+            (b.resultado if b else None) or "Sin medir",
+            (b.observacion if b else "") or "",
+        ])
+    if not filas:
+        filas = [["—"] * 8]
+    t = _tabla([cabecera] + filas, anchos)
+    for i, pesa in enumerate([p for p in config.get("pesas", []) if p.get("activo", True)], start=1):
+        b = medidas.get(pesa["id"])
+        res = (b.resultado if b else None) or ""
+        if res:
+            t.setStyle(TableStyle([
+                ("TEXTCOLOR", (6, i), (6, i), _veredicto_color(res)),
+                ("FONT", (6, i), (6, i), "Helvetica-Bold", 8),
+            ]))
     return [_titulo_seccion("2. BALANZA ANALÍTICA"), Spacer(0, 1), t]
 
 
-def _seccion_temperatura(registro) -> list:
+def _seccion_temperatura(registro, config: dict) -> list:
     anchos = [UTIL_W * f for f in [0.30, 0.20, 0.20, 0.20, 0.10]]
     cabecera = ["Punto de control", "Lectura (°C)", "Criterio", "Resultado", "Obs."]
-    filas = [
-        [_p(t.nombre), _n(t.lectura), f"{_n(t.minimo)} a {_n(t.maximo)} °C", t.resultado or "Sin medir", t.observacion or ""]
-        for t in registro.temperaturas
-    ] or [["—"] * 5]
-    # Termómetros de referencia al final de la tabla
+    medidas = {t.punto_id: t for t in registro.temperaturas}
+    filas = []
+    for punto in config.get("puntos_temperatura", []):
+        if not punto.get("activo", True):
+            continue
+        t = medidas.get(punto["id"])
+        filas.append([
+            _p(punto["nombre"]),
+            _n(t.lectura if t else None),
+            f"{_n(punto['minimo'])} a {_n(punto['maximo'])} °C",
+            (t.resultado if t else None) or "Sin medir",
+            (t.observacion if t else "") or "",
+        ])
+    # Termómetros de referencia al final
     filas.append([_p("Termómetro 1"), _n(registro.termometro_1), "—", "—", ""])
     filas.append([_p("Termómetro 2"), _n(registro.termometro_2), "—", "—", ""])
+    if not filas:
+        filas = [["—"] * 5]
     tb = _tabla([cabecera] + filas, anchos)
-    for i, t in enumerate(registro.temperaturas, start=1):
-        tb.setStyle(TableStyle([
-            ("TEXTCOLOR", (3, i), (3, i), _veredicto_color(t.resultado or "")),
-            ("FONT", (3, i), (3, i), "Helvetica-Bold", 8),
-        ]))
+    for i, punto in enumerate([p for p in config.get("puntos_temperatura", []) if p.get("activo", True)], start=1):
+        t = medidas.get(punto["id"])
+        res = (t.resultado if t else None) or ""
+        if res:
+            tb.setStyle(TableStyle([
+                ("TEXTCOLOR", (3, i), (3, i), _veredicto_color(res)),
+                ("FONT", (3, i), (3, i), "Helvetica-Bold", 8),
+            ]))
     return [_titulo_seccion("3. TEMPERATURA"), Spacer(0, 1), tb]
 
 
-def _seccion_gases(registro) -> list:
+def _seccion_gases(registro, config: dict) -> list:
     anchos = [UTIL_W * f for f in [0.28, 0.18, 0.13, 0.13, 0.18, 0.10]]
     cabecera = ["Gas", "Código cilindro", "P. contenido (psi)", "P. trabajo (psi)", "Criterio", "Resultado"]
-    filas = [
-        [_p(g.nombre), g.codigo_cilindro or "—", _n(g.presion_contenido), _n(g.presion_trabajo), "≥200 psi · 80-120 psi", g.resultado or "Sin medir"]
-        for g in registro.gases
-    ] or [["—"] * 6]
+    medidas = {g.gas_id: g for g in registro.gases}
+    filas = []
+    for gas in config.get("gases", []):
+        if not gas.get("activo", True):
+            continue
+        g = medidas.get(gas["id"])
+        filas.append([
+            _p(gas["nombre"]),
+            (g.codigo_cilindro if g else None) or "—",
+            _n(g.presion_contenido if g else None),
+            _n(g.presion_trabajo if g else None),
+            "≥200 psi · 80-120 psi",
+            (g.resultado if g else None) or "Sin medir",
+        ])
+    if not filas:
+        filas = [["—"] * 6]
     filas.append([_p("¿Fugas visibles?"), registro.fugas_visibles or "—", "", "", "Debe ser No", registro.resultado_fugas or "Sin medir"])
     tb = _tabla([cabecera] + filas, anchos)
-    for i, g in enumerate(registro.gases, start=1):
-        tb.setStyle(TableStyle([
-            ("TEXTCOLOR", (5, i), (5, i), _veredicto_color(g.resultado or "")),
-            ("FONT", (5, i), (5, i), "Helvetica-Bold", 8),
-        ]))
-    fila_fugas = len(registro.gases) + 1
+    gases_activos = [gas for gas in config.get("gases", []) if gas.get("activo", True)]
+    for i, gas in enumerate(gases_activos, start=1):
+        g = medidas.get(gas["id"])
+        res = (g.resultado if g else None) or ""
+        if res:
+            tb.setStyle(TableStyle([
+                ("TEXTCOLOR", (5, i), (5, i), _veredicto_color(res)),
+                ("FONT", (5, i), (5, i), "Helvetica-Bold", 8),
+            ]))
+    fila_fugas = len(gases_activos) + 1
     tb.setStyle(TableStyle([
         ("TEXTCOLOR", (5, fila_fugas), (5, fila_fugas), _veredicto_color(registro.resultado_fugas or "")),
         ("FONT", (5, fila_fugas), (5, fila_fugas), "Helvetica-Bold", 8),
@@ -271,7 +316,7 @@ def _encabezado(registro) -> list:
     res = registro.resultado
     color_res = _veredicto_color(res)
     titulo_texto = (
-        f"<b>REG-03 · Registro de verificaciones diarias</b><br/>"
+        f"<b>Registro de verificaciones diarias</b><br/>"
         f"<font size='7' color='#6B7280'>Laboratorio de Cromatografía AgroFresh</font>"
     )
     titulo = Paragraph(titulo_texto, ParagraphStyle("tt", fontName="Helvetica-Bold", fontSize=10, leading=13, textColor=NEGRO))
@@ -325,8 +370,9 @@ def _pie(registro) -> list:
 
 # ── Función pública ────────────────────────────────────────────────────────
 
-def pdf_del_dia(registro) -> bytes:
+def pdf_del_dia(registro, config: dict | None = None) -> bytes:
     """Genera el PDF del formulario diario y devuelve los bytes."""
+    cfg = config or {}
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf,
@@ -339,13 +385,13 @@ def pdf_del_dia(registro) -> bytes:
 
     # Las secciones se intercalan con un separador mínimo
     secciones = (
-        _seccion_micropipetas(registro)
+        _seccion_micropipetas(registro, cfg)
         + [Spacer(0, 3)]
-        + _seccion_balanza(registro)
+        + _seccion_balanza(registro, cfg)
         + [Spacer(0, 3)]
-        + _seccion_temperatura(registro)
+        + _seccion_temperatura(registro, cfg)
         + [Spacer(0, 3)]
-        + _seccion_gases(registro)
+        + _seccion_gases(registro, cfg)
         + [Spacer(0, 3)]
         + _seccion_inyector_detector(registro)
     )

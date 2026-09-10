@@ -1,5 +1,5 @@
 """
-Verificaciones diarias del laboratorio de cromatografía (REG-03).
+Verificaciones diarias del laboratorio de cromatografía .
 
 Reemplaza el libro Excel con macros que el laboratorio llenaba cada mañana.
 Ahí el ingreso del día vivía en una hoja, los criterios en otra, y una macro
@@ -1162,7 +1162,7 @@ def descargar_dia_excel(fecha: date) -> StreamingResponse:
         registro = _leer_dia(cur, fecha, _leer_config(cur))
     if not registro:
         raise HTTPException(404, "Ese día todavía no tiene verificaciones registradas.")
-    return _descarga(libro_del_dia(registro), f"REG-03 verificaciones {fecha}.xlsx")
+    return _descarga(libro_del_dia(registro), f"verificaciones_diarias {fecha}.xlsx")
 
 
 @router.get("/registros/{fecha}/pdf", response_model=None)
@@ -1171,14 +1171,15 @@ def descargar_dia_pdf(fecha: date) -> StreamingResponse:
     from .verificaciones_pdf import pdf_del_dia
 
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        registro = _leer_dia(cur, fecha, _leer_config(cur))
+        config = _leer_config(cur)
+        registro = _leer_dia(cur, fecha, config)
     if not registro:
         raise HTTPException(404, "Ese día todavía no tiene verificaciones registradas.")
-    nombre = f"REG-03 verificaciones {fecha}.pdf"
+    nombre = f"verificaciones_diarias {fecha}.pdf"
     ascii_seguro = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode()
     disposicion = f"attachment; filename=\"{ascii_seguro}\"; filename*=UTF-8''{quote(nombre)}"
     return StreamingResponse(
-        io.BytesIO(pdf_del_dia(registro)),
+        io.BytesIO(pdf_del_dia(registro, config)),
         media_type="application/pdf",
         headers={"Content-Disposition": disposicion},
     )
@@ -1194,4 +1195,4 @@ def descargar_historico_excel(desde: str | None = None, hasta: str | None = None
     if not registros:
         raise HTTPException(404, "No hay verificaciones en ese rango.")
     rango = f"{registros[0].fecha} a {registros[-1].fecha}"
-    return _descarga(libro_historico(registros), f"REG-03 histórico {rango}.xlsx")
+    return _descarga(libro_historico(registros), f"historico_verificaciones {rango}.xlsx")
