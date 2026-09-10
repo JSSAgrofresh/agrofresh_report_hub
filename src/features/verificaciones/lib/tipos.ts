@@ -57,7 +57,7 @@ export interface PesaPatron {
   id: number
   nombre: string
   codigo: string
-  /** En gramos, siempre, aunque la pesa se llame "100 mg". */
+  /** En miligramos, siempre. */
   valor_nominal: number
   tolerancia: number
   orden: number
@@ -120,6 +120,7 @@ export interface MicropipetaMedicionInput {
   peso_1: number | null
   peso_2: number | null
   peso_3: number | null
+  observacion: string
 }
 
 export interface MicropipetaMedicion extends MicropipetaMedicionInput {
@@ -138,6 +139,7 @@ export interface BalanzaMedicionInput {
   lectura_1: number | null
   lectura_2: number | null
   lectura_3: number | null
+  observacion: string
 }
 
 export interface BalanzaMedicion extends BalanzaMedicionInput {
@@ -153,6 +155,7 @@ export interface TemperaturaMedicionInput {
   punto_id: number
   analista: string
   lectura: number | null
+  observacion: string
 }
 
 export interface TemperaturaMedicion extends TemperaturaMedicionInput {
@@ -168,6 +171,7 @@ export interface GasMedicionInput {
   codigo_cilindro: string
   presion_contenido: number | null
   presion_trabajo: number | null
+  observacion: string
 }
 
 export interface GasMedicion extends GasMedicionInput {
@@ -182,6 +186,8 @@ export interface InyectorInput {
   aguja_reemplazada: Respuesta
   cambio_septa: Respuesta
   observaciones: string
+  metodo_nombre: string
+  observacion: string
 }
 
 export interface Inyector extends InyectorInput {
@@ -191,11 +197,13 @@ export interface Inyector extends InyectorInput {
 export interface DetectorInput {
   analista: string
   voltaje_perla: number | null
-  metodo_correcto: Respuesta
+  metodo_nombre: string
   output_detector: number | null
+  observacion: string
 }
 
 export interface Detector extends DetectorInput {
+  metodo_correcto: string
   resultado_voltaje: Resultado
   resultado_metodo: Resultado
   resultado_output: Resultado
@@ -209,6 +217,10 @@ export interface RegistroInput {
   fugas_visibles: Respuesta
   observaciones: string
   revisado_por: string
+  analista: string
+  termometro_1: number | null
+  termometro_2: number | null
+  observacion_edicion: string
   micropipetas: MicropipetaMedicionInput[]
   balanza: BalanzaMedicionInput[]
   temperaturas: TemperaturaMedicionInput[]
@@ -225,6 +237,12 @@ export interface Registro {
   resultado_fugas: Resultado
   observaciones: string
   revisado_por: string
+  analista: string
+  termometro_1: number | null
+  termometro_2: number | null
+  editado_por: string | null
+  editado_en: string | null
+  observacion_edicion: string
   creado_por: string
   actualizado_en: string | null
   micropipetas: MicropipetaMedicion[]

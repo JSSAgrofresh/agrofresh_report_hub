@@ -25,7 +25,15 @@ import type {
   Respuesta,
   Seccion as SeccionId,
 } from '@/features/verificaciones'
-import { Calculado, CampoNumero, Seccion, SelectorRespuesta, Veredicto, VeredictoDia } from './componentes'
+import {
+  Calculado,
+  CampoNumero,
+  ObservacionModal,
+  Seccion,
+  SelectorRespuesta,
+  Veredicto,
+  VeredictoDia,
+} from './componentes'
 import styles from './Verificaciones.module.css'
 
 /**
@@ -39,6 +47,7 @@ import styles from './Verificaciones.module.css'
  *   · No hay "traspaso" al histórico: guardar el día ES el histórico.
  *   · Un día, un registro. Volver a la misma fecha abre lo que ya se guardó,
  *     no una hoja en blanco encima.
+ *   · Con `?solo=ver` el formulario es de solo lectura (viene del histórico).
  */
 
 /** La fecha de hoy en la zona del navegador. `toISOString()` no sirve: pasa a
@@ -52,9 +61,9 @@ function hoyISO(): string {
 export function VerificacionesView() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  // El histórico enlaza a un día concreto con `?fecha=`; sin eso, hoy.
   const [parametrosUrl] = useSearchParams()
   const [fecha, setFecha] = useState(() => parametrosUrl.get('fecha') || hoyISO())
+  const soloVer = parametrosUrl.get('solo') === 'ver'
   const [config, setConfig] = useState<ConfigVerificaciones | null>(null)
   const [borrador, setBorrador] = useState<RegistroInput | null>(null)
   const [cargando, setCargando] = useState(true)
@@ -63,9 +72,6 @@ export function VerificacionesView() {
   const [guardadoEn, setGuardadoEn] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // La guarda `vigente` no es decorativa: si alguien cambia de fecha dos veces
-  // seguidas, la respuesta de la primera puede llegar DESPUÉS de la segunda y
-  // pintaría el día equivocado sobre el que se está mirando.
   useEffect(() => {
     let vigente = true
     Promise.all([obtenerConfig(), obtenerRegistro(fecha)])
@@ -90,29 +96,26 @@ export function VerificacionesView() {
     }
   }, [fecha])
 
-  // Cerrar la pestaña con un día a medio llenar es perder la mañana entera de
-  // alguien. El navegador solo deja avisar, no impedir, y con eso basta.
   useEffect(() => {
-    if (!sucio) return
+    if (!sucio || soloVer) return
     const avisar = (e: BeforeUnloadEvent) => e.preventDefault()
     window.addEventListener('beforeunload', avisar)
     return () => window.removeEventListener('beforeunload', avisar)
-  }, [sucio])
+  }, [sucio, soloVer])
 
   const previa = useMemo(
     () => (config && borrador ? calcularDia(borrador, config) : null),
     [config, borrador],
   )
 
-  /** Toda edición pasa por acá: aplica el cambio y marca el día como sucio,
-   * para que no haya forma de modificar algo sin que el botón se encienda. */
   const editar = useCallback((cambio: (previo: RegistroInput) => RegistroInput) => {
+    if (soloVer) return
     setBorrador((previo) => (previo ? cambio(previo) : previo))
     setSucio(true)
-  }, [])
+  }, [soloVer])
 
   async function guardar() {
-    if (!borrador) return
+    if (!borrador || soloVer) return
     setGuardando(true)
     setError(null)
     try {
@@ -137,8 +140,6 @@ export function VerificacionesView() {
     setFecha(nueva)
   }
 
-  const analistaDe = (filas: { analista: string }[]) => filas.find((f) => f.analista)?.analista ?? ''
-
   return (
     <div className={styles.wrap}>
       <Header
@@ -158,6 +159,12 @@ export function VerificacionesView() {
         }
       />
 
+      {soloVer && (
+        <p className={styles.soloLecturaAviso}>
+          Modo solo lectura — este registro ya está guardado. Vuelve al día de hoy para editar.
+        </p>
+      )}
+
       {error && <p className={styles.error}>{error}</p>}
 
       {cargando && <Card className={styles.vacio}>Cargando el día…</Card>}
@@ -173,16 +180,43 @@ export function VerificacionesView() {
                   className={cn(styles.input, styles.inputCorto)}
                   value={fecha}
                   max={hoyISO()}
+                  disabled={soloVer}
                   onChange={(e) => cambiarFecha(e.target.value)}
                 />
               </label>
               <label className={styles.campo}>
-                <span className={styles.etiqueta}>Temp. agua <span className={styles.unidad}>(°C)</span></span>
-                <CampoNumero
-                  valor={borrador.temperatura_agua}
-                  ancho={90}
-                  onCambio={(v) => editar((p) => ({ ...p, temperatura_agua: v }))}
+                <span className={styles.etiqueta}>Analista</span>
+                <input
+                  className={styles.input}
+                  style={{ width: 160 }}
+                  value={borrador.analista}
+                  placeholder="Nombre"
+                  disabled={soloVer}
+                  onChange={(e) => editar((p) => ({ ...p, analista: e.target.value }))}
                 />
+              </label>
+              <label className={styles.campo}>
+                <span className={styles.etiqueta}>
+                  Temp. agua <span className={styles.unidad}>(°C)</span>
+                </span>
+                <select
+                  className={cn(styles.input, styles.inputCorto)}
+                  value={borrador.temperatura_agua ?? ''}
+                  disabled={soloVer}
+                  onChange={(e) =>
+                    editar((p) => ({
+                      ...p,
+                      temperatura_agua: e.target.value === '' ? null : Number(e.target.value),
+                    }))
+                  }
+                >
+                  <option value="">—</option>
+                  {config.tabla_z.map((fz) => (
+                    <option key={fz.temperatura} value={fz.temperatura}>
+                      {fz.temperatura} °C
+                    </option>
+                  ))}
+                </select>
               </label>
               <div className={styles.campo}>
                 <span className={styles.etiqueta}>Factor Z <span className={styles.unidad}>(µL/mg)</span></span>
@@ -190,6 +224,28 @@ export function VerificacionesView() {
                   {previa.factor_z === null ? '—' : previa.factor_z.toFixed(4)}
                 </span>
               </div>
+              <label className={styles.campo}>
+                <span className={styles.etiqueta}>
+                  Termómetro 1 <span className={styles.unidad}>(°C)</span>
+                </span>
+                <CampoNumero
+                  valor={borrador.termometro_1}
+                  ancho={90}
+                  titulo="Temperatura leída en el termómetro 1"
+                  onCambio={(v) => editar((p) => ({ ...p, termometro_1: v }))}
+                />
+              </label>
+              <label className={styles.campo}>
+                <span className={styles.etiqueta}>
+                  Termómetro 2 <span className={styles.unidad}>(°C)</span>
+                </span>
+                <CampoNumero
+                  valor={borrador.termometro_2}
+                  ancho={90}
+                  titulo="Temperatura leída en el termómetro 2"
+                  onCambio={(v) => editar((p) => ({ ...p, termometro_2: v }))}
+                />
+              </label>
               <VeredictoDia resultado={previa.resultado} />
             </div>
 
@@ -213,13 +269,6 @@ export function VerificacionesView() {
             </div>
           </div>
 
-          {borrador.temperatura_agua !== null && previa.factor_z === null && (
-            <p className={styles.aviso}>
-              No hay factor Z para {borrador.temperatura_agua} °C en la tabla de referencia (va de 15
-              a 35 °C). Sin Z no se puede calcular el volumen de las micropipetas.
-            </p>
-          )}
-
           {/* --- 1. Micropipetas --- */}
           <Seccion
             id="seccion-micropipetas"
@@ -227,24 +276,20 @@ export function VerificacionesView() {
             titulo="Micropipetas"
             nota="Verificación gravimétrica: tres pesadas por equipo. El volumen se corrige por el factor Z del agua a la temperatura del día."
             resultado={previa.secciones.micropipetas}
-            analista={{
-              valor: analistaDe(borrador.micropipetas),
-              onCambio: (v) =>
-                editar((p) => ({ ...p, micropipetas: p.micropipetas.map((m) => ({ ...m, analista: v })) })),
-            }}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla}>
                 <thead>
                   <tr>
                     <th>Equipo</th>
+                    <th>Código</th>
                     <th>Peso 1 <span className={styles.unidad}>(mg)</span></th>
                     <th>Peso 2 <span className={styles.unidad}>(mg)</span></th>
                     <th>Peso 3 <span className={styles.unidad}>(mg)</span></th>
                     <th>Vol. medio <span className={styles.unidad}>(µL)</span></th>
-                    <th>Desv. <span className={styles.unidad}>(µL)</span></th>
                     <th>Criterio</th>
                     <th>Resultado</th>
+                    <th>Obs.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -261,6 +306,7 @@ export function VerificacionesView() {
                           {equipo.nombre}
                           <span className={styles.celdaNota}>{equipo.volumen_nominal} µL nominal</span>
                         </td>
+                        <td className={styles.criterio}>{equipo.codigo || '—'}</td>
                         {(['peso_1', 'peso_2', 'peso_3'] as const).map((campo) => (
                           <td key={campo}>
                             <CampoNumero
@@ -280,12 +326,23 @@ export function VerificacionesView() {
                         <td>
                           <Calculado valor={calculo?.volumen_medio ?? null} />
                         </td>
-                        <td>
-                          <Calculado valor={calculo?.desviacion ?? null} />
-                        </td>
                         <td className={styles.criterio}>± {equipo.tolerancia} µL</td>
                         <td>
                           <Veredicto resultado={calculo?.resultado ?? ''} />
+                        </td>
+                        <td>
+                          <ObservacionModal
+                            valor={m.observacion}
+                            soloVer={soloVer}
+                            onCambio={(v) =>
+                              editar((p) => ({
+                                ...p,
+                                micropipetas: p.micropipetas.map((x, j) =>
+                                  j === i ? { ...x, observacion: v } : x,
+                                ),
+                              }))
+                            }
+                          />
                         </td>
                       </tr>
                     )
@@ -302,24 +359,21 @@ export function VerificacionesView() {
             titulo="Balanza analítica"
             nota="Tres lecturas por pesa patrón. El criterio es cuánto se aleja el promedio del valor nominal de la pesa."
             resultado={previa.secciones.balanza}
-            analista={{
-              valor: analistaDe(borrador.balanza),
-              onCambio: (v) =>
-                editar((p) => ({ ...p, balanza: p.balanza.map((b) => ({ ...b, analista: v })) })),
-            }}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla}>
                 <thead>
                   <tr>
                     <th>Pesa patrón</th>
-                    <th>Lectura 1</th>
-                    <th>Lectura 2</th>
-                    <th>Lectura 3</th>
+                    <th>Código</th>
+                    <th>Lectura 1 <span className={styles.unidad}>(mg)</span></th>
+                    <th>Lectura 2 <span className={styles.unidad}>(mg)</span></th>
+                    <th>Lectura 3 <span className={styles.unidad}>(mg)</span></th>
                     <th>Promedio</th>
                     <th>Desviación</th>
                     <th>Criterio</th>
                     <th>Resultado</th>
+                    <th>Obs.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -334,8 +388,9 @@ export function VerificacionesView() {
                       >
                         <td className={styles.celdaEquipo}>
                           {pesa.nombre}
-                          <span className={styles.celdaNota}>{pesa.valor_nominal} g nominal</span>
+                          <span className={styles.celdaNota}>{pesa.valor_nominal} mg nominal</span>
                         </td>
+                        <td className={styles.criterio}>{pesa.codigo || '—'}</td>
                         {(['lectura_1', 'lectura_2', 'lectura_3'] as const).map((campo) => (
                           <td key={campo}>
                             <CampoNumero
@@ -356,9 +411,21 @@ export function VerificacionesView() {
                         <td>
                           <Calculado valor={calculo?.desviacion ?? null} decimales={4} />
                         </td>
-                        <td className={styles.criterio}>± {pesa.tolerancia} g</td>
+                        <td className={styles.criterio}>± {pesa.tolerancia} mg</td>
                         <td>
                           <Veredicto resultado={calculo?.resultado ?? ''} />
+                        </td>
+                        <td>
+                          <ObservacionModal
+                            valor={b.observacion}
+                            soloVer={soloVer}
+                            onCambio={(v) =>
+                              editar((p) => ({
+                                ...p,
+                                balanza: p.balanza.map((x, j) => (j === i ? { ...x, observacion: v } : x)),
+                              }))
+                            }
+                          />
                         </td>
                       </tr>
                     )
@@ -375,20 +442,17 @@ export function VerificacionesView() {
             titulo="Temperatura"
             nota="Sala del laboratorio, refrigerador y congelador de reactivos."
             resultado={previa.secciones.temperatura}
-            analista={{
-              valor: analistaDe(borrador.temperaturas),
-              onCambio: (v) =>
-                editar((p) => ({ ...p, temperaturas: p.temperaturas.map((t) => ({ ...t, analista: v })) })),
-            }}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla} style={{ minWidth: 480 }}>
                 <thead>
                   <tr>
                     <th>Punto de control</th>
+                    <th>Código</th>
                     <th>Lectura <span className={styles.unidad}>(°C)</span></th>
                     <th>Criterio</th>
                     <th>Resultado</th>
+                    <th>Obs.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -399,6 +463,7 @@ export function VerificacionesView() {
                     return (
                       <tr key={t.punto_id} className={cn(resultado === 'No aceptable' && styles.filaMal)}>
                         <td className={styles.celdaEquipo}>{punto.nombre}</td>
+                        <td className={styles.criterio}>{punto.codigo || '—'}</td>
                         <td>
                           <CampoNumero
                             valor={t.lectura}
@@ -419,6 +484,20 @@ export function VerificacionesView() {
                         <td>
                           <Veredicto resultado={resultado} />
                         </td>
+                        <td>
+                          <ObservacionModal
+                            valor={t.observacion}
+                            soloVer={soloVer}
+                            onCambio={(v) =>
+                              editar((p) => ({
+                                ...p,
+                                temperaturas: p.temperaturas.map((x, j) =>
+                                  j === i ? { ...x, observacion: v } : x,
+                                ),
+                              }))
+                            }
+                          />
+                        </td>
                       </tr>
                     )
                   })}
@@ -434,20 +513,18 @@ export function VerificacionesView() {
             titulo="Presión de gases"
             nota="Un cilindro por línea. La pregunta de fugas es una sola para el día y pesa igual que la presión de cada cilindro."
             resultado={previa.secciones.gases}
-            analista={{
-              valor: analistaDe(borrador.gases),
-              onCambio: (v) => editar((p) => ({ ...p, gases: p.gases.map((g) => ({ ...g, analista: v })) })),
-            }}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla}>
                 <thead>
                   <tr>
                     <th>Gas</th>
-                    <th>Código del cilindro</th>
+                    <th>Código</th>
+                    <th>Cód. cilindro</th>
                     <th>P. contenido <span className={styles.unidad}>(psi)</span></th>
                     <th>P. trabajo <span className={styles.unidad}>(psi)</span></th>
                     <th>Resultado</th>
+                    <th>Obs.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -463,12 +540,14 @@ export function VerificacionesView() {
                     return (
                       <tr key={g.gas_id} className={cn(resultado === 'No aceptable' && styles.filaMal)}>
                         <td className={styles.celdaEquipo}>{gas.nombre}</td>
+                        <td className={styles.criterio}>{gas.codigo || '—'}</td>
                         <td>
                           <input
                             className={styles.input}
-                            style={{ width: 140 }}
+                            style={{ width: 110 }}
                             value={g.codigo_cilindro}
                             placeholder="Código"
+                            disabled={soloVer}
                             onChange={(e) =>
                               editar((p) => ({
                                 ...p,
@@ -496,11 +575,23 @@ export function VerificacionesView() {
                         <td>
                           <Veredicto resultado={resultado} />
                         </td>
+                        <td>
+                          <ObservacionModal
+                            valor={g.observacion}
+                            soloVer={soloVer}
+                            onCambio={(v) =>
+                              editar((p) => ({
+                                ...p,
+                                gases: p.gases.map((x, j) => (j === i ? { ...x, observacion: v } : x)),
+                              }))
+                            }
+                          />
+                        </td>
                       </tr>
                     )
                   })}
                   <tr className={cn(previa.resultado_fugas === 'No aceptable' && styles.filaMal)}>
-                    <td className={styles.celdaEquipo} colSpan={2}>
+                    <td className={styles.celdaEquipo} colSpan={3}>
                       ¿Fugas visibles en alguna conexión?
                       <span className={styles.celdaNota}>Debe ser No</span>
                     </td>
@@ -513,6 +604,7 @@ export function VerificacionesView() {
                     <td>
                       <Veredicto resultado={previa.resultado_fugas} />
                     </td>
+                    <td />
                   </tr>
                 </tbody>
               </table>
@@ -526,10 +618,6 @@ export function VerificacionesView() {
             titulo="Inyector"
             nota="Aceptable si se limpió la aguja y, además, la aguja está sana o fue reemplazada."
             resultado={previa.secciones.inyector}
-            analista={{
-              valor: borrador.inyector.analista,
-              onCambio: (v) => editar((p) => ({ ...p, inyector: { ...p.inyector, analista: v } })),
-            }}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla} style={{ minWidth: 520 }}>
@@ -554,12 +642,31 @@ export function VerificacionesView() {
                     </tr>
                   ))}
                   <tr>
+                    <td className={styles.celdaEquipo}>Método cargado</td>
+                    <td>
+                      <input
+                        className={styles.input}
+                        style={{ width: 220 }}
+                        value={borrador.inyector.metodo_nombre}
+                        placeholder="Nombre del método (ej. ECD_Pes)"
+                        disabled={soloVer}
+                        onChange={(e) =>
+                          editar((p) => ({
+                            ...p,
+                            inyector: { ...p.inyector, metodo_nombre: e.target.value },
+                          }))
+                        }
+                      />
+                    </td>
+                  </tr>
+                  <tr>
                     <td className={styles.celdaEquipo}>Observaciones del inyector</td>
                     <td>
                       <input
                         className={styles.input}
                         value={borrador.inyector.observaciones}
                         placeholder="Opcional"
+                        disabled={soloVer}
                         onChange={(e) =>
                           editar((p) => ({
                             ...p,
@@ -581,10 +688,6 @@ export function VerificacionesView() {
             titulo="Detector y método"
             nota="Voltaje de la perla, método cargado y output del detector."
             resultado={previa.secciones.detector}
-            analista={{
-              valor: borrador.detector.analista,
-              onCambio: (v) => editar((p) => ({ ...p, detector: { ...p.detector, analista: v } })),
-            }}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla} style={{ minWidth: 520 }}>
@@ -614,14 +717,20 @@ export function VerificacionesView() {
                     </td>
                   </tr>
                   <tr className={cn(previa.detector.resultado_metodo === 'No aceptable' && styles.filaMal)}>
-                    <td className={styles.celdaEquipo}>Método correcto cargado</td>
+                    <td className={styles.celdaEquipo}>Método cargado</td>
                     <td>
-                      <SelectorRespuesta
-                        valor={borrador.detector.metodo_correcto}
-                        onCambio={(v) => editar((p) => ({ ...p, detector: { ...p.detector, metodo_correcto: v } }))}
+                      <input
+                        className={styles.input}
+                        style={{ width: 200 }}
+                        value={borrador.detector.metodo_nombre}
+                        placeholder="Nombre del método"
+                        disabled={soloVer}
+                        onChange={(e) =>
+                          editar((p) => ({ ...p, detector: { ...p.detector, metodo_nombre: e.target.value } }))
+                        }
                       />
                     </td>
-                    <td className={styles.criterio}>Sí</td>
+                    <td className={styles.criterio}>Cualquier nombre</td>
                     <td>
                       <Veredicto resultado={previa.detector.resultado_metodo} />
                     </td>
@@ -649,11 +758,12 @@ export function VerificacionesView() {
           <div className={styles.pie}>
             <Card>
               <label className={styles.campo}>
-                <span className={styles.etiqueta}>Observaciones del día</span>
+                <span className={styles.etiqueta}>Observaciones generales del día</span>
                 <textarea
                   className={styles.textarea}
                   value={borrador.observaciones}
                   placeholder="Lo que haya que dejar dicho: una lectura repetida, un equipo que se mandó a calibrar…"
+                  disabled={soloVer}
                   onChange={(e) => editar((p) => ({ ...p, observaciones: e.target.value }))}
                 />
               </label>
@@ -665,34 +775,52 @@ export function VerificacionesView() {
                   className={styles.input}
                   value={borrador.revisado_por}
                   placeholder="Nombre de quien revisa"
+                  disabled={soloVer}
                   onChange={(e) => editar((p) => ({ ...p, revisado_por: e.target.value }))}
                 />
               </label>
             </Card>
           </div>
 
-          <div className={styles.barraAcciones}>
-            <Button onClick={() => void guardar()} disabled={guardando || !sucio}>
-              {guardando ? 'Guardando…' : 'Guardar el día'}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => void descargarDiaExcel(fecha)}
-              disabled={!guardadoEn}
-              title={guardadoEn ? undefined : 'Guarda el día antes de descargarlo'}
-            >
-              Descargar Excel
-            </Button>
-            <span className={styles.estadoGuardado}>
-              {sucio ? (
-                <span className={styles.sinGuardar}>Hay cambios sin guardar</span>
-              ) : guardadoEn ? (
-                `Guardado ${new Date(guardadoEn).toLocaleString('es-CL')}`
-              ) : (
-                'Este día todavía no se ha guardado'
-              )}
-            </span>
-          </div>
+          {!soloVer && (
+            <div className={styles.barraAcciones}>
+              <Button onClick={() => void guardar()} disabled={guardando || !sucio}>
+                {guardando ? 'Guardando…' : 'Guardar el día'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => void descargarDiaExcel(fecha)}
+                disabled={!guardadoEn}
+                title={guardadoEn ? undefined : 'Guarda el día antes de descargarlo'}
+              >
+                Descargar Excel
+              </Button>
+              <span className={styles.estadoGuardado}>
+                {sucio ? (
+                  <span className={styles.sinGuardar}>Hay cambios sin guardar</span>
+                ) : guardadoEn ? (
+                  `Guardado ${new Date(guardadoEn).toLocaleString('es-CL')}`
+                ) : (
+                  'Este día todavía no se ha guardado'
+                )}
+              </span>
+            </div>
+          )}
+
+          {soloVer && (
+            <div className={styles.barraAcciones}>
+              <Button
+                variant="secondary"
+                onClick={() => void descargarDiaExcel(fecha)}
+                disabled={!guardadoEn}
+              >
+                Descargar Excel
+              </Button>
+              <Button variant="secondary" onClick={() => navigate(ROUTES.agrofreshLabVerificacionesHistorico)}>
+                Volver al histórico
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>

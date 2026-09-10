@@ -199,8 +199,13 @@ describe('detector', () => {
     expect(r.resultado).toBe('No aceptable')
   })
 
-  it('método equivocado tumba la sección', () => {
-    expect(calcularDetector(0.86, 'No', 20.3, 0, 1, 19, 22).resultado).toBe('No aceptable')
+  it('método vacío no concluye (sin medir)', () => {
+    // Antes era Sí/No; ahora es texto libre: vacío = sin medir, cualquier nombre = aceptable.
+    expect(calcularDetector(0.86, '', 20.3, 0, 1, 19, 22).resultado_metodo).toBe('')
+  })
+
+  it('cualquier nombre de método da aceptable', () => {
+    expect(calcularDetector(0.86, 'ECD', 20.3, 0, 1, 19, 22).resultado_metodo).toBe('Aceptable')
   })
 
   it('vacío no concluye', () => {
@@ -272,6 +277,12 @@ describe('un registro guardado, vuelto formulario', () => {
     resultado_fugas: 'Aceptable',
     observaciones: 'Sin novedad',
     revisado_por: 'Romina Garrido',
+    analista: 'Paz Salazar',
+    termometro_1: null,
+    termometro_2: null,
+    editado_por: null,
+    editado_en: null,
+    observacion_edicion: '',
     creado_por: 'Paz Salazar',
     actualizado_en: '2026-09-01T12:00:00Z',
     micropipetas: [
@@ -288,6 +299,7 @@ describe('un registro guardado, vuelto formulario', () => {
         desviacion: 0.26,
         error_pct: 0.26,
         resultado: 'Aceptable',
+        observacion: '',
       },
     ],
     balanza: [],
@@ -301,6 +313,8 @@ describe('un registro guardado, vuelto formulario', () => {
       cambio_septa: 'No',
       observaciones: '',
       resultado: 'Aceptable',
+      metodo_nombre: '',
+      observacion: '',
     },
     detector: {
       analista: 'Paz Salazar',
@@ -311,6 +325,8 @@ describe('un registro guardado, vuelto formulario', () => {
       resultado_metodo: 'Aceptable',
       resultado_output: 'Aceptable',
       resultado: 'Aceptable',
+      metodo_nombre: '',
+      observacion: '',
     },
     resultados_seccion: {
       micropipetas: 'Aceptable',

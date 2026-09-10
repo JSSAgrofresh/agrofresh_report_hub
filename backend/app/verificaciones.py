@@ -167,7 +167,7 @@ def calcular_detector(
     output_max: float,
 ) -> dict:
     r_voltaje = SIN_MEDIR if voltaje is None else veredicto(voltaje_min <= voltaje <= voltaje_max)
-    r_metodo = SIN_MEDIR if not metodo else veredicto(metodo == SI)
+    r_metodo = SIN_MEDIR if not metodo else ACEPTABLE
     r_output = SIN_MEDIR if output is None else veredicto(output_min <= output <= output_max)
     return {
         "resultado_voltaje": r_voltaje,
@@ -311,6 +311,7 @@ class MicropipetaMedicionIn(BaseModel):
     peso_1: float | None = None
     peso_2: float | None = None
     peso_3: float | None = None
+    observacion: str = ""
 
 
 class MicropipetaMedicion(MicropipetaMedicionIn):
@@ -329,6 +330,7 @@ class BalanzaMedicionIn(BaseModel):
     lectura_1: float | None = None
     lectura_2: float | None = None
     lectura_3: float | None = None
+    observacion: str = ""
 
 
 class BalanzaMedicion(BalanzaMedicionIn):
@@ -344,6 +346,7 @@ class TemperaturaMedicionIn(BaseModel):
     punto_id: int
     analista: str = ""
     lectura: float | None = None
+    observacion: str = ""
 
 
 class TemperaturaMedicion(TemperaturaMedicionIn):
@@ -359,6 +362,7 @@ class GasMedicionIn(BaseModel):
     codigo_cilindro: str = ""
     presion_contenido: float | None = None
     presion_trabajo: float | None = None
+    observacion: str = ""
 
 
 class GasMedicion(GasMedicionIn):
@@ -373,6 +377,8 @@ class InyectorIn(BaseModel):
     aguja_reemplazada: str = ""
     cambio_septa: str = ""
     observaciones: str = ""
+    metodo_nombre: str = ""
+    observacion: str = ""
 
 
 class Inyector(InyectorIn):
@@ -383,7 +389,9 @@ class DetectorIn(BaseModel):
     analista: str = ""
     voltaje_perla: float | None = None
     metodo_correcto: str = ""
+    metodo_nombre: str = ""
     output_detector: float | None = None
+    observacion: str = ""
 
 
 class Detector(DetectorIn):
@@ -398,6 +406,10 @@ class RegistroIn(BaseModel):
     fugas_visibles: str = ""
     observaciones: str = ""
     revisado_por: str = ""
+    analista: str = ""
+    termometro_1: float | None = None
+    termometro_2: float | None = None
+    observacion_edicion: str = ""
     micropipetas: list[MicropipetaMedicionIn] = []
     balanza: list[BalanzaMedicionIn] = []
     temperaturas: list[TemperaturaMedicionIn] = []
@@ -414,6 +426,12 @@ class Registro(BaseModel):
     resultado_fugas: str = SIN_MEDIR
     observaciones: str = ""
     revisado_por: str = ""
+    analista: str = ""
+    termometro_1: float | None = None
+    termometro_2: float | None = None
+    editado_por: str | None = None
+    editado_en: datetime | None = None
+    observacion_edicion: str = ""
     creado_por: str = ""
     actualizado_en: datetime | None = None
     micropipetas: list[MicropipetaMedicion] = []
@@ -656,6 +674,7 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
                 peso_1=pesos[0],
                 peso_2=pesos[1],
                 peso_3=pesos[2],
+                observacion=f.get("observacion", "") or "",
                 nombre=equipo["nombre"],
                 volumen_nominal=equipo["volumen_nominal"],
                 tolerancia=equipo["tolerancia"],
@@ -678,6 +697,7 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
                 lectura_1=lecturas[0],
                 lectura_2=lecturas[1],
                 lectura_3=lecturas[2],
+                observacion=f.get("observacion", "") or "",
                 nombre=pesa["nombre"],
                 valor_nominal=pesa["valor_nominal"],
                 tolerancia=pesa["tolerancia"],
@@ -699,6 +719,7 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
                 punto_id=f["punto_id"],
                 analista=f["analista"],
                 lectura=lectura,
+                observacion=f.get("observacion", "") or "",
                 nombre=punto["nombre"],
                 minimo=punto["minimo"],
                 maximo=punto["maximo"],
@@ -723,6 +744,7 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
                 codigo_cilindro=f["codigo_cilindro"],
                 presion_contenido=contenido,
                 presion_trabajo=trabajo,
+                observacion=f.get("observacion", "") or "",
                 nombre=gas["nombre"],
                 resultado=calcular_gas(contenido, trabajo, contenido_min, trabajo_min, trabajo_max),
             )
@@ -732,6 +754,8 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
     f = cur.fetchone()
     inyector = Inyector(
         **{c: f[c] for c in ("analista", "limpieza_aguja", "aguja_danada", "aguja_reemplazada", "cambio_septa", "observaciones")},
+        metodo_nombre=f.get("metodo_nombre", "") or "",
+        observacion=f.get("observacion", "") or "",
         resultado=calcular_inyector(f["limpieza_aguja"], f["aguja_danada"], f["aguja_reemplazada"]),
     ) if f else Inyector()
 
@@ -739,14 +763,18 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
     f = cur.fetchone()
     if f:
         voltaje, output = _num(f["voltaje_perla"]), _num(f["output_detector"])
+        metodo_nombre = f.get("metodo_nombre", "") or ""
+        metodo_para_calculo = metodo_nombre or (SI if f.get("metodo_correcto") == SI else "")
         detector = Detector(
             analista=f["analista"],
             voltaje_perla=voltaje,
-            metodo_correcto=f["metodo_correcto"],
+            metodo_correcto=f.get("metodo_correcto", ""),
+            metodo_nombre=metodo_nombre,
+            observacion=f.get("observacion", "") or "",
             output_detector=output,
             **calcular_detector(
                 voltaje,
-                f["metodo_correcto"],
+                metodo_para_calculo,
                 output,
                 _param(indice, "perla_voltaje_min", 0),
                 _param(indice, "perla_voltaje_max", 1),
@@ -775,6 +803,12 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
         resultado_fugas=resultado_fugas,
         observaciones=fila_dia["observaciones"],
         revisado_por=fila_dia["revisado_por"],
+        analista=fila_dia.get("analista", "") or "",
+        termometro_1=_num(fila_dia.get("termometro_1")),
+        termometro_2=_num(fila_dia.get("termometro_2")),
+        editado_por=fila_dia.get("editado_por"),
+        editado_en=fila_dia.get("editado_en"),
+        observacion_edicion=fila_dia.get("observacion_edicion", "") or "",
         creado_por=fila_dia["creado_por"],
         actualizado_en=fila_dia["actualizado_en"],
         micropipetas=micropipetas,
@@ -853,28 +887,65 @@ def guardar_registro(
     se equivocan.
     """
     with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute(
-            """
-            INSERT INTO verif_registro (fecha, temperatura_agua, fugas_visibles, observaciones,
-                                        revisado_por, creado_por)
-                 VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (fecha) DO UPDATE
-                    SET temperatura_agua = EXCLUDED.temperatura_agua,
-                        fugas_visibles   = EXCLUDED.fugas_visibles,
-                        observaciones    = EXCLUDED.observaciones,
-                        revisado_por     = EXCLUDED.revisado_por,
-                        actualizado_en   = now()
-              RETURNING id
-            """,
-            [
-                fecha,
-                datos.temperatura_agua,
-                datos.fugas_visibles,
-                datos.observaciones,
-                datos.revisado_por,
-                usuario.nombre or usuario.email,
-            ],
-        )
+        nombre_usuario = usuario.nombre or usuario.email
+        cur.execute("SELECT id, editado_por FROM verif_registro WHERE fecha = %s", [fecha])
+        existente = cur.fetchone()
+        es_edicion = existente is not None
+
+        editado_por_nuevo = nombre_usuario if es_edicion else None
+        editado_en_nuevo = "now()" if es_edicion else None
+
+        if es_edicion:
+            cur.execute(
+                """
+                UPDATE verif_registro
+                   SET temperatura_agua     = %s,
+                       fugas_visibles       = %s,
+                       observaciones        = %s,
+                       revisado_por         = %s,
+                       analista             = %s,
+                       termometro_1         = %s,
+                       termometro_2         = %s,
+                       editado_por          = %s,
+                       editado_en           = now(),
+                       observacion_edicion  = %s,
+                       actualizado_en       = now()
+                 WHERE fecha = %s
+                RETURNING id
+                """,
+                [
+                    datos.temperatura_agua,
+                    datos.fugas_visibles,
+                    datos.observaciones,
+                    datos.revisado_por,
+                    datos.analista,
+                    datos.termometro_1,
+                    datos.termometro_2,
+                    nombre_usuario,
+                    datos.observacion_edicion,
+                    fecha,
+                ],
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO verif_registro (fecha, temperatura_agua, fugas_visibles, observaciones,
+                                            revisado_por, analista, termometro_1, termometro_2, creado_por)
+                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                  RETURNING id
+                """,
+                [
+                    fecha,
+                    datos.temperatura_agua,
+                    datos.fugas_visibles,
+                    datos.observaciones,
+                    datos.revisado_por,
+                    datos.analista,
+                    datos.termometro_1,
+                    datos.termometro_2,
+                    nombre_usuario,
+                ],
+            )
         registro_id = cur.fetchone()["id"]
 
         # Se borra y se vuelve a escribir: es la forma más simple de que lo
@@ -889,66 +960,74 @@ def guardar_registro(
             cur.execute(f"DELETE FROM {tabla} WHERE registro_id = %s", [registro_id])
 
         for m in datos.micropipetas:
-            if not _con_datos_micropipeta(m) and not m.analista:
+            if not _con_datos_micropipeta(m) and not m.analista and not m.observacion:
                 continue
             cur.execute(
                 """INSERT INTO verif_micropipeta_medicion
-                          (registro_id, micropipeta_id, analista, peso_1, peso_2, peso_3)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                [registro_id, m.micropipeta_id, m.analista, m.peso_1, m.peso_2, m.peso_3],
+                          (registro_id, micropipeta_id, analista, peso_1, peso_2, peso_3, observacion)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                [registro_id, m.micropipeta_id, m.analista, m.peso_1, m.peso_2, m.peso_3, m.observacion],
             )
         for b in datos.balanza:
-            if not _con_datos_balanza(b) and not b.analista:
+            if not _con_datos_balanza(b) and not b.analista and not b.observacion:
                 continue
             cur.execute(
                 """INSERT INTO verif_balanza_medicion
-                          (registro_id, pesa_id, analista, lectura_1, lectura_2, lectura_3)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                [registro_id, b.pesa_id, b.analista, b.lectura_1, b.lectura_2, b.lectura_3],
+                          (registro_id, pesa_id, analista, lectura_1, lectura_2, lectura_3, observacion)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                [registro_id, b.pesa_id, b.analista, b.lectura_1, b.lectura_2, b.lectura_3, b.observacion],
             )
         for t in datos.temperaturas:
-            if t.lectura is None and not t.analista:
+            if t.lectura is None and not t.analista and not t.observacion:
                 continue
             cur.execute(
-                """INSERT INTO verif_temperatura_medicion (registro_id, punto_id, analista, lectura)
-                   VALUES (%s, %s, %s, %s)""",
-                [registro_id, t.punto_id, t.analista, t.lectura],
+                """INSERT INTO verif_temperatura_medicion
+                          (registro_id, punto_id, analista, lectura, observacion)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                [registro_id, t.punto_id, t.analista, t.lectura, t.observacion],
             )
         for g in datos.gases:
-            if g.presion_contenido is None and g.presion_trabajo is None and not g.codigo_cilindro and not g.analista:
+            if g.presion_contenido is None and g.presion_trabajo is None and not g.codigo_cilindro and not g.analista and not g.observacion:
                 continue
             cur.execute(
                 """INSERT INTO verif_gas_medicion
-                          (registro_id, gas_id, analista, codigo_cilindro, presion_contenido, presion_trabajo)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                [registro_id, g.gas_id, g.analista, g.codigo_cilindro, g.presion_contenido, g.presion_trabajo],
+                          (registro_id, gas_id, analista, codigo_cilindro, presion_contenido, presion_trabajo, observacion)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                [registro_id, g.gas_id, g.analista, g.codigo_cilindro, g.presion_contenido, g.presion_trabajo, g.observacion],
             )
 
         i = datos.inyector
         cur.execute(
             """INSERT INTO verif_inyector (registro_id, analista, limpieza_aguja, aguja_danada,
-                                           aguja_reemplazada, cambio_septa, observaciones)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                           aguja_reemplazada, cambio_septa, observaciones,
+                                           metodo_nombre, observacion)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                ON CONFLICT (registro_id) DO UPDATE
                       SET analista = EXCLUDED.analista,
                           limpieza_aguja = EXCLUDED.limpieza_aguja,
                           aguja_danada = EXCLUDED.aguja_danada,
                           aguja_reemplazada = EXCLUDED.aguja_reemplazada,
                           cambio_septa = EXCLUDED.cambio_septa,
-                          observaciones = EXCLUDED.observaciones""",
-            [registro_id, i.analista, i.limpieza_aguja, i.aguja_danada, i.aguja_reemplazada, i.cambio_septa, i.observaciones],
+                          observaciones = EXCLUDED.observaciones,
+                          metodo_nombre = EXCLUDED.metodo_nombre,
+                          observacion = EXCLUDED.observacion""",
+            [registro_id, i.analista, i.limpieza_aguja, i.aguja_danada, i.aguja_reemplazada,
+             i.cambio_septa, i.observaciones, i.metodo_nombre, i.observacion],
         )
         d = datos.detector
         cur.execute(
             """INSERT INTO verif_detector (registro_id, analista, voltaje_perla, metodo_correcto,
-                                           output_detector)
-                    VALUES (%s, %s, %s, %s, %s)
+                                           metodo_nombre, output_detector, observacion)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                ON CONFLICT (registro_id) DO UPDATE
                       SET analista = EXCLUDED.analista,
                           voltaje_perla = EXCLUDED.voltaje_perla,
                           metodo_correcto = EXCLUDED.metodo_correcto,
-                          output_detector = EXCLUDED.output_detector""",
-            [registro_id, d.analista, d.voltaje_perla, d.metodo_correcto, d.output_detector],
+                          metodo_nombre = EXCLUDED.metodo_nombre,
+                          output_detector = EXCLUDED.output_detector,
+                          observacion = EXCLUDED.observacion""",
+            [registro_id, d.analista, d.voltaje_perla, d.metodo_correcto,
+             d.metodo_nombre, d.output_detector, d.observacion],
         )
 
         config = _leer_config(cur)

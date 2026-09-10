@@ -142,7 +142,7 @@ export function calcularDetector(
 ): CalculoDetector {
   const rVoltaje: Resultado =
     voltaje === null ? SIN_MEDIR : veredicto(voltaje >= voltajeMin && voltaje <= voltajeMax)
-  const rMetodo: Resultado = !metodo ? SIN_MEDIR : veredicto(metodo === 'Sí')
+  const rMetodo: Resultado = !metodo ? SIN_MEDIR : ACEPTABLE
   const rOutput: Resultado =
     output === null ? SIN_MEDIR : veredicto(output >= outputMin && output <= outputMax)
   return {
@@ -263,7 +263,7 @@ export function calcularDia(
   )
   const detector = calcularDetector(
     borrador.detector.voltaje_perla,
-    borrador.detector.metodo_correcto,
+    borrador.detector.metodo_nombre,
     borrador.detector.output_detector,
     parametro(catalogos.parametros, 'perla_voltaje_min', 0),
     parametro(catalogos.parametros, 'perla_voltaje_max', 1),
@@ -305,12 +305,17 @@ export function borradorVacio(config: CatalogosVistaPrevia): RegistroInput {
     fugas_visibles: '',
     observaciones: '',
     revisado_por: '',
+    analista: '',
+    termometro_1: null,
+    termometro_2: null,
+    observacion_edicion: '',
     micropipetas: activos(config.micropipetas).map((m) => ({
       micropipeta_id: m.id,
       analista: '',
       peso_1: null,
       peso_2: null,
       peso_3: null,
+      observacion: '',
     })),
     balanza: activos(config.pesas).map((p) => ({
       pesa_id: p.id,
@@ -318,11 +323,13 @@ export function borradorVacio(config: CatalogosVistaPrevia): RegistroInput {
       lectura_1: null,
       lectura_2: null,
       lectura_3: null,
+      observacion: '',
     })),
     temperaturas: activos(config.puntos_temperatura).map((p) => ({
       punto_id: p.id,
       analista: '',
       lectura: null,
+      observacion: '',
     })),
     gases: activos(config.gases).map((g) => ({
       gas_id: g.id,
@@ -330,6 +337,7 @@ export function borradorVacio(config: CatalogosVistaPrevia): RegistroInput {
       codigo_cilindro: '',
       presion_contenido: null,
       presion_trabajo: null,
+      observacion: '',
     })),
     inyector: {
       analista: '',
@@ -338,8 +346,16 @@ export function borradorVacio(config: CatalogosVistaPrevia): RegistroInput {
       aguja_reemplazada: '',
       cambio_septa: '',
       observaciones: '',
+      metodo_nombre: '',
+      observacion: '',
     },
-    detector: { analista: '', voltaje_perla: null, metodo_correcto: '', output_detector: null },
+    detector: {
+      analista: '',
+      voltaje_perla: null,
+      metodo_nombre: '',
+      output_detector: null,
+      observacion: '',
+    },
   }
 }
 
@@ -379,6 +395,10 @@ export function registroABorrador(
     fugas_visibles: registro.fugas_visibles,
     observaciones: registro.observaciones,
     revisado_por: registro.revisado_por,
+    analista: registro.analista ?? '',
+    termometro_1: registro.termometro_1 ?? null,
+    termometro_2: registro.termometro_2 ?? null,
+    observacion_edicion: '',
     micropipetas: mezclar(
       base.micropipetas,
       registro.micropipetas,
@@ -389,6 +409,7 @@ export function registroABorrador(
         peso_1: g.peso_1,
         peso_2: g.peso_2,
         peso_3: g.peso_3,
+        observacion: g.observacion ?? '',
       }),
     ),
     balanza: mezclar(
@@ -401,13 +422,14 @@ export function registroABorrador(
         lectura_1: g.lectura_1,
         lectura_2: g.lectura_2,
         lectura_3: g.lectura_3,
+        observacion: g.observacion ?? '',
       }),
     ),
     temperaturas: mezclar(
       base.temperaturas,
       registro.temperaturas,
       (x) => x.punto_id,
-      (fila, g) => ({ punto_id: fila.punto_id, analista: g.analista, lectura: g.lectura }),
+      (fila, g) => ({ punto_id: fila.punto_id, analista: g.analista, lectura: g.lectura, observacion: g.observacion ?? '' }),
     ),
     gases: mezclar(
       base.gases,
@@ -419,6 +441,7 @@ export function registroABorrador(
         codigo_cilindro: g.codigo_cilindro,
         presion_contenido: g.presion_contenido,
         presion_trabajo: g.presion_trabajo,
+        observacion: g.observacion ?? '',
       }),
     ),
     inyector: {
@@ -428,12 +451,15 @@ export function registroABorrador(
       aguja_reemplazada: registro.inyector.aguja_reemplazada,
       cambio_septa: registro.inyector.cambio_septa,
       observaciones: registro.inyector.observaciones,
+      metodo_nombre: registro.inyector.metodo_nombre ?? '',
+      observacion: registro.inyector.observacion ?? '',
     },
     detector: {
       analista: registro.detector.analista,
       voltaje_perla: registro.detector.voltaje_perla,
-      metodo_correcto: registro.detector.metodo_correcto,
+      metodo_nombre: registro.detector.metodo_nombre ?? '',
       output_detector: registro.detector.output_detector,
+      observacion: registro.detector.observacion ?? '',
     },
   }
 }

@@ -330,25 +330,19 @@ export function CriteriosView() {
 
       {error && <p className={styles.error}>{error}</p>}
 
-      <p className={styles.aviso}>
-        Cambiar un criterio también revisa el histórico: los veredictos se recalculan al leerlos, no
-        quedan congelados en la fila que se guardó. Un equipo que ya tiene verificaciones no se
-        puede eliminar —se desactiva—, para que el histórico siga diciendo a qué equipo pertenecía.
-      </p>
-
       {!config ? (
         <Card className={styles.vacio}>Cargando…</Card>
       ) : (
         <div className={styles.grupos}>
           <TablaCatalogo
             titulo="Micropipetas"
-            nota="Una fila por equipo y volumen: la misma pipeta se verifica a 900 y a 500 µL, y cada volumen tiene su tolerancia."
+            nota="Una fila por equipo y volumen: la misma pipeta se verifica a 900 y a 500 µL, y cada volumen tiene su tolerancia (referencia, no afecta el cálculo)."
             filas={config.micropipetas}
             campos={[
               { clave: 'nombre', etiqueta: 'Equipo', tipo: 'texto' },
               { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
               { clave: 'volumen_nominal', etiqueta: 'Vol. nominal', unidad: 'µL', tipo: 'numero' },
-              { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'µL', tipo: 'numero' },
+              { clave: 'tolerancia', etiqueta: 'Tolerancia ± (ref.)', unidad: 'µL', tipo: 'numero' },
             ]}
             vacio={{ nombre: '', codigo: '', volumen_nominal: null, tolerancia: null }}
             api={micropipetasApi}
@@ -358,13 +352,13 @@ export function CriteriosView() {
 
           <TablaCatalogo
             titulo="Pesas patrón"
-            nota="El valor nominal y la tolerancia van siempre en gramos, aunque la pesa se llame «100 mg»."
+            nota="El valor nominal y la tolerancia van en miligramos. La tolerancia es referencia."
             filas={config.pesas}
             campos={[
               { clave: 'nombre', etiqueta: 'Pesa', tipo: 'texto', ancho: 140 },
               { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
-              { clave: 'valor_nominal', etiqueta: 'Valor nominal', unidad: 'g', tipo: 'numero' },
-              { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'g', tipo: 'numero' },
+              { clave: 'valor_nominal', etiqueta: 'Valor nominal', unidad: 'mg', tipo: 'numero' },
+              { clave: 'tolerancia', etiqueta: 'Tolerancia ± (ref.)', unidad: 'mg', tipo: 'numero' },
             ]}
             vacio={{ nombre: '', codigo: '', valor_nominal: null, tolerancia: null }}
             api={pesasApi}
@@ -401,6 +395,36 @@ export function CriteriosView() {
             onCambio={() => void cargar()}
             onError={setError}
           />
+
+          <Card className={styles.seccion}>
+            <div className={styles.seccionCabecera}>
+              <h3 className={styles.seccionTitulo}>Tabla Z del agua (µL/mg)</h3>
+              <p className={styles.seccionNota}>
+                Factor de corrección gravimétrico por temperatura. Se usa para convertir las pesadas
+                de micropipeta (mg) a volumen (µL). Valor fijo de la ASTM E542.
+              </p>
+            </div>
+            <div className={styles.seccionCuerpo}>
+              <div className={styles.tablaWrap}>
+                <table className={styles.tabla} style={{ minWidth: 280 }}>
+                  <thead>
+                    <tr>
+                      <th>Temp. <span className={styles.unidad}>(°C)</span></th>
+                      <th>Factor Z <span className={styles.unidad}>(µL/mg)</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {config.tabla_z.map((fz) => (
+                      <tr key={fz.temperatura}>
+                        <td className={styles.celdaEquipo}>{fz.temperatura} °C</td>
+                        <td className={styles.criterio}>{fz.factor.toFixed(4)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </Card>
 
           <Card className={styles.seccion}>
             <div className={styles.seccionCabecera}>

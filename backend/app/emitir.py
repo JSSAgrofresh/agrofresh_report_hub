@@ -16,10 +16,12 @@ from pydantic import BaseModel
 from . import r2
 from .db import conexion, cursor_dict
 from .gc_parser import (
+    CATEGORIAS_GC,
     NOMBRE_GC_A_CODIGO,
     es_codigo_puro,
     parsear_cabecera_gc,
     parsear_gc_txt,
+    parsear_reporte_gc,
     parsear_ubicaciones_gc,
 )
 from .informe_pdf import generar_informe_pdf
@@ -193,8 +195,14 @@ class ResultadoAnalitoOut(BaseModel):
     codigo: str | None
     area: float | None
     amount: float | None
-    # Solo para la vista de detalle; el cruce y el informe no lo usan.
+    # Solo para la vista de detalle; el cruce y el informe no los usan.
     rettime: float | None = None
+    # Cómo integró el equipo ese pico ("BBA", "MM"…). "MM" es integración
+    # manual: alguien lo ajustó a mano, y eso tiene que quedar a la vista.
+    tipo: str = ""
+    # El factor con que ese pico pasó de área a concentración.
+    amt_area: float | None = None
+    grp: str = ""
 
 
 class MuestraGCOut(BaseModel):
@@ -234,12 +242,73 @@ HOJA_POR_VIAL = "Área y PPM por vial"
 # El tiempo de retención va pegado a la concentración porque es lo que
 # confirma que el pico integrado es el del compuesto y no el de un vecino: sin
 # él la planilla no sirve para revisar una curva de calibración.
-COLUMNAS_POR_COMPUESTO = ("ppm", "tiempo retención (min)", "área")
+COLUMNAS_POR_COMPUESTO = ("ppm", "tiempo retención (min)", "área", "tipo de pico", "Amt/Area")
 
 
 def _valores_del_compuesto(r: "ResultadoAnalitoOut | None") -> tuple:
     """Los valores de un compuesto en el orden de COLUMNAS_POR_COMPUESTO."""
-    return (r.amount, r.rettime, r.area) if r else (None,) * len(COLUMNAS_POR_COMPUESTO)
+    if r is None:
+        return (None,) * len(COLUMNAS_POR_COMPUESTO)
+    return (r.amount, r.rettime, r.area, r.tipo or None, r.amt_area)
+
+
+# Las hojas que se agregaron al pasar a leer el reporte completo. Van ocultas:
+# el laboratorio abre siempre las mismas tres, y estas son el respaldo al que
+# se recurre cuando alguien cuestiona un resultado (clic derecho en cualquier
+# pestaña -> Mostrar).
+HOJA_GUIA = "Guía"
+HOJA_SECUENCIA = "Secuencia"
+HOJA_METODO = "Método"
+HOJA_AUDITORIA = "Auditoría del método"
+HOJA_CURVA = "Curva de calibración"
+HOJA_ESTADISTICA = "Estadística de la curva"
+HOJA_RESUMEN = "Resumen de viales"
+HOJA_BITACORA = "Bitácora"
+
+HOJAS_VISIBLES = (HOJA_GUIA, HOJA_CABECERA, HOJA_POR_VIAL)
+
+# Los 12 campos con que el equipo declara cada vial en la tabla de la
+# secuencia, con su etiqueta tal cual: es como el laboratorio los lee en el
+# papel del equipo. `Sample Type` es el que dice si un vial es muestra, blanco
+# o punto de curva -antes se adivinaba por el nombre, que es justo lo que se
+# rompe cuando cambia la nomenclatura-.
+CAMPOS_DE_LA_SECUENCIA = (
+    "Sample Information",
+    "Sample Name",
+    "Injection Location",
+    "Injection Source",
+    "Lims ID",
+    "Lims ID2",
+    "Lims ID3",
+    "Method Name",
+    "Injection",
+    "Sample Type",
+    "Injection Volume",
+    "Data File",
+)
+
+# Las columnas de la hoja por vial que no dependen del panel de compuestos:
+# de dónde salió el vial, cómo lo declaró el equipo y qué pasó al medirlo.
+# Después de estas viene un bloque de COLUMNAS_POR_COMPUESTO por compuesto.
+COLUMNAS_FIJAS_POR_VIAL = (
+    "Seq Line",
+    "Ubicación de la Muestra",
+    "Vial",
+    "Tipo",
+    *CAMPOS_DE_LA_SECUENCIA,
+    "Multiplier",
+    "Dilution",
+    "Calibration Level",
+    "Fecha Inyección",
+    "Acq. Operator",
+    "Acq. Instrument",
+    "Inj Volume",
+    "Recalibrado",
+    "Integración manual",
+    "Advertencias",
+    "Compuestos detectados",
+    "Total del vial (ppm)",
+)
 
 
 class CampoCabeceraOut(BaseModel):
@@ -248,11 +317,77 @@ class CampoCabeceraOut(BaseModel):
     valor: str
 
 
-class DetalleGCOut(BaseModel):
-    """Todo lo que la vista de detalle necesita del archivo, de una sola vez."""
+class FilaCurvaOut(BaseModel):
+    """Un nivel de la curva de un compuesto: con esto el equipo convierte área
+    en concentración."""
 
-    cabecera: list[CampoCabeceraOut]
-    muestras: list["MuestraGCDetalleOut"]
+    compuesto: str
+    rettime: float | None = None
+    senal: str = ""
+    nivel: float | None = None
+    amount: float | None = None
+    area: float | None = None
+    factor_respuesta: float | None = None
+    ref: str = ""
+    istd: str = ""
+
+
+class FilaEstadisticaOut(BaseModel):
+    """Una inyección de la curva, o una de las filas de resumen (Mean, S.D.,
+    RSD, 95% CI) con que el equipo cierra cada compuesto."""
+
+    compuesto: str
+    senal: str = ""
+    corrida: float | None = None
+    estadistico: str = ""
+    tipo: str = ""
+    rettime: float | None = None
+    amount: float | None = None
+    area: float | None = None
+    alto: float | None = None
+    ancho: float | None = None
+    simetria: float | None = None
+
+
+class FilaResumenOut(BaseModel):
+    corrida: float | None = None
+    ubicacion: str = ""
+    inyeccion: float | None = None
+    vial: str = ""
+    cantidad: float | None = None
+    multiplicador: float | None = None
+    archivo: str = ""
+    es_punto_de_curva: bool = False
+    compuestos_detectados: float | None = None
+
+
+class EventoBitacoraOut(BaseModel):
+    modulo: str
+    mensaje: str
+    fecha: str
+
+
+class CambioMetodoOut(BaseModel):
+    operador: str
+    fecha: str
+    cambio: str
+
+
+class RegionGCOut(BaseModel):
+    """Un tramo del archivo que es todo de la misma categoría. Las líneas van
+    numeradas desde 1, como en un editor."""
+
+    inicio: int
+    fin: int
+    categoria: str
+
+
+class CategoriaGCOut(BaseModel):
+    id: str
+    nombre: str
+    # A qué hoja del Excel va a parar, o None si el equipo la escribe pero el
+    # sistema no la ocupa.
+    hoja: str | None = None
 
 
 class MuestraGCDetalleOut(MuestraGCOut):
@@ -266,6 +401,35 @@ class MuestraGCDetalleOut(MuestraGCOut):
     # secuencia, no del reporte de resultados, y es lo que permite volver al
     # vial físico si alguien cuestiona un resultado.
     ubicacion: str | None = None
+    # La ficha que el equipo escribe arriba de la inyección y la línea que le
+    # corresponde en la tabla de la secuencia, con las etiquetas del equipo.
+    datos: dict[str, str] = {}
+    secuencia: dict[str, str] = {}
+    totales: float | None = None
+    # "Negative results set to zero", "Calibrated compound(s) not found"… Sin
+    # esto, un cero forzado y un "no se detectó nada" se ven igual.
+    advertencias: list[str] = []
+    recalibrado: bool = False
+
+
+class DetalleGCOut(BaseModel):
+    """Todo lo que la vista de detalle necesita del archivo, de una sola vez.
+
+    `texto` y `regiones` son para el visor: el archivo tal como salió del
+    equipo, más de qué es cada tramo. No vuelven al backend al pedir el Excel.
+    """
+
+    cabecera: list[CampoCabeceraOut]
+    muestras: list[MuestraGCDetalleOut]
+    metodo: list[CampoCabeceraOut] = []
+    auditoria: list[CambioMetodoOut] = []
+    curva: list[FilaCurvaOut] = []
+    estadistica: list[FilaEstadisticaOut] = []
+    resumen: list[FilaResumenOut] = []
+    bitacora: list[EventoBitacoraOut] = []
+    texto: str = ""
+    regiones: list[RegionGCOut] = []
+    categorias: list[CategoriaGCOut] = []
 
 
 @router.post("/parsear-gc/completo")
@@ -277,49 +441,82 @@ async def parsear_gc_completo(archivo: UploadFile = File(...)) -> DetalleGCOut:
     vista de detalle y la planilla los muestran todos. Un archivo sin ninguna
     muestra de cliente se lee igual -es una corrida válida, normalmente una
     curva de calibración-, y solo se rechaza si no se encontró ni un vial.
+
+    Se lee el reporte completo, no solo los resultados: con qué método se
+    midió, con qué curva se calculó cada ppm, la estadística de los picos y la
+    bitácora de la corrida. Es el respaldo de los números, y antes se quedaba
+    en el .txt.
     """
     contenido = await archivo.read()
     try:
-        muestras = parsear_gc_txt(contenido)
+        reporte = parsear_reporte_gc(contenido)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    if not muestras:
+    if not reporte.muestras:
         raise HTTPException(400, "No se encontró ninguna muestra en el archivo. ¿Es el reporte del GC correcto?")
 
-    ubicaciones = parsear_ubicaciones_gc(contenido)
+    por_linea = {int(f["Line"]): f for f in reporte.secuencia if f.get("Line", "").isdigit()}
     return DetalleGCOut(
         cabecera=[
-            CampoCabeceraOut(seccion=s, campo=c, valor=v)
-            for s, c, v in parsear_cabecera_gc(contenido)
+            CampoCabeceraOut(seccion=s, campo=c, valor=v) for s, c, v in reporte.cabecera
         ],
         muestras=[
-        MuestraGCDetalleOut(
-            codigo=m.codigo,
-            seq_line=m.seq_line,
-            fecha_inyeccion=m.fecha_inyeccion,
-            es_muestra=es_codigo_puro(m.codigo),
-            ubicacion=ubicaciones.get(m.seq_line) if m.seq_line is not None else None,
-            resultados=[
-                ResultadoAnalitoOut(
-                    analito=r.analito,
-                    codigo=NOMBRE_GC_A_CODIGO.get(r.analito),
-                    area=r.area,
-                    amount=r.amount,
-                    rettime=r.rettime,
-                )
-                for r in m.resultados
-            ],
-        )
-        for m in muestras
+            MuestraGCDetalleOut(
+                codigo=m.codigo,
+                seq_line=m.seq_line,
+                fecha_inyeccion=m.fecha_inyeccion,
+                es_muestra=es_codigo_puro(m.codigo),
+                ubicacion=reporte.ubicaciones.get(m.seq_line) if m.seq_line is not None else None,
+                datos=m.datos,
+                secuencia=por_linea.get(m.seq_line, {}),
+                totales=m.totales,
+                advertencias=m.advertencias,
+                recalibrado=m.recalibrado,
+                resultados=[
+                    ResultadoAnalitoOut(
+                        analito=r.analito,
+                        codigo=NOMBRE_GC_A_CODIGO.get(r.analito),
+                        area=r.area,
+                        amount=r.amount,
+                        rettime=r.rettime,
+                        tipo=r.tipo,
+                        amt_area=r.amt_area,
+                        grp=r.grp,
+                    )
+                    for r in m.resultados
+                ],
+            )
+            for m in reporte.muestras
+        ],
+        metodo=[CampoCabeceraOut(seccion=s, campo=c, valor=v) for s, c, v in reporte.metodo],
+        auditoria=[CambioMetodoOut(**a) for a in reporte.auditoria],
+        curva=[FilaCurvaOut(**f) for f in reporte.curva],
+        estadistica=[FilaEstadisticaOut(**f) for f in reporte.estadistica],
+        resumen=[FilaResumenOut(**f) for f in reporte.resumen],
+        bitacora=[EventoBitacoraOut(**e) for e in reporte.bitacora],
+        texto=reporte.texto,
+        regiones=[
+            RegionGCOut(inicio=a, fin=b, categoria=c) for a, b, c in reporte.regiones
+        ],
+        categorias=[
+            CategoriaGCOut(id=i, nombre=n, hoja=h) for i, n, h in CATEGORIAS_GC
         ],
     )
 
 
 class DetalleGCIn(BaseModel):
-    """Lo que devolvió /parsear-gc/completo, tal cual."""
+    """Lo que devolvió /parsear-gc/completo, tal cual -menos el texto del
+    archivo, que se queda en la pantalla: el Excel se arma con los datos ya
+    leídos, no con el .txt de vuelta."""
 
     cabecera: list[CampoCabeceraOut] = []
     muestras: list[MuestraGCDetalleOut]
+    metodo: list[CampoCabeceraOut] = []
+    auditoria: list[CambioMetodoOut] = []
+    curva: list[FilaCurvaOut] = []
+    estadistica: list[FilaEstadisticaOut] = []
+    resumen: list[FilaResumenOut] = []
+    bitacora: list[EventoBitacoraOut] = []
 
 
 def _compuestos_en_orden(muestras: list[MuestraGCOut]) -> list[str]:
@@ -407,6 +604,53 @@ def _nombre_desde_data_directory(cabecera: list[CampoCabeceraOut]) -> str | None
     return limpio or None
 
 
+# Lo que dice la hoja Guía: qué hay en cada hoja y cuáles se agregaron al
+# pasar a leer el reporte completo. Es lo primero que se abre, así que es el
+# lugar donde corresponde avisar que hay hojas ocultas.
+GUIA_DE_HOJAS: tuple[tuple[str, str, str], ...] = (
+    (HOJA_CABECERA, "Instrumento, columna cromatográfica y parámetros de la secuencia.", "visible"),
+    (HOJA_POR_VIAL, "Un vial por fila: cómo lo declaró el equipo y, de cada compuesto, ppm, tiempo de retención, área, tipo de pico y Amt/Area.", "visible"),
+    (HOJA_DETALLE, "Una fila por compuesto de cada vial, como sale del equipo.", "oculta"),
+    (HOJA_SECUENCIA, "Qué se puso en cada posición del carrusel, con los campos que declara el equipo.", "oculta"),
+    (HOJA_METODO, "Condiciones instrumentales: horno, inyector, columna, detector NPD e integración.", "oculta"),
+    (HOJA_AUDITORIA, "Quién modificó el método, cuándo y qué cambió.", "oculta"),
+    (HOJA_CURVA, "La curva del método: cada nivel con su área y su factor de respuesta.", "oculta"),
+    (HOJA_ESTADISTICA, "Alto, ancho y simetría de cada pico, con Media, S.D., RSD y 95% CI por compuesto.", "oculta"),
+    (HOJA_RESUMEN, "Cuántos compuestos se detectaron en cada vial y cuáles son puntos de curva.", "oculta"),
+    (HOJA_BITACORA, "Registro cronológico de la corrida: inyecciones, recalibraciones y errores del equipo.", "oculta"),
+)
+
+
+def _escribir_tabla(
+    ws,
+    encabezados: list[str],
+    filas: list[list],
+    nombre_tabla: str,
+    anchos: dict[str, int] | None = None,
+    congelar: str = "A2",
+) -> None:
+    """Una hoja de datos: encabezado, filas y formato de tabla de Excel.
+
+    El rango de la tabla tiene que terminar exactamente en la última fila
+    escrita y sus encabezados ser únicos; si no, Excel abre el archivo
+    pidiendo repararlo. Y nunca se le agrega `auto_filter` encima: la tabla ya
+    trae el suyo, y declarar los dos es lo mismo -el archivo sale roto-.
+    """
+    for col, texto in enumerate(encabezados, start=1):
+        ws.cell(row=1, column=col, value=texto)
+    for f, fila in enumerate(filas, start=2):
+        for col, valor in enumerate(fila, start=1):
+            ws.cell(row=f, column=col, value=valor)
+    ws.freeze_panes = congelar
+    ultima = openpyxl.utils.get_column_letter(len(encabezados))
+    _dar_formato_de_tabla(
+        ws, nombre_tabla, f"A1:{ultima}{max(len(filas) + 1, 2)}", ESTILO_TABLA_DATOS
+    )
+    for col, texto in enumerate(encabezados, start=1):
+        letra = openpyxl.utils.get_column_letter(col)
+        ws.column_dimensions[letra].width = (anchos or {}).get(texto, min(max(len(texto) + 3, 11), 34))
+
+
 @router.post("/detalle-gc/excel")
 def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
     if not body.muestras:
@@ -415,10 +659,33 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
     compuestos = _compuestos_en_orden(body.muestras)
     wb = openpyxl.Workbook()
 
-    # ── Hoja 1: con qué se midió. Es lo que respalda un resultado si alguien
-    # lo cuestiona, así que va primero y no escondida al final.
-    ws0 = wb.active
-    ws0.title = HOJA_CABECERA
+    # ── Guía: qué trae cada hoja y cuáles están ocultas ────────────────────
+    wsg = wb.active
+    wsg.title = HOJA_GUIA
+    wsg.sheet_view.showGridLines = False
+    _poner_logo(wsg)
+    wsg["C2"] = TITULO_EXCEL
+    wsg["C2"].font = openpyxl.styles.Font(bold=True, size=18)
+    wsg["C2"].alignment = openpyxl.styles.Alignment(horizontal="left", vertical="center")
+    wsg["C3"] = "El reporte del GC completo. Las hojas ocultas se abren con clic derecho en una pestaña → Mostrar."
+    wsg["C3"].font = openpyxl.styles.Font(italic=True, size=11, color="3D4A43")
+    for col, texto in enumerate(("Hoja", "Qué contiene", "Estado"), start=2):
+        wsg.cell(row=6, column=col, value=texto)
+    for i, (hoja, que, estado) in enumerate(GUIA_DE_HOJAS, start=7):
+        wsg.cell(row=i, column=2, value=hoja).font = openpyxl.styles.Font(bold=True)
+        celda = wsg.cell(row=i, column=3, value=que)
+        celda.alignment = openpyxl.styles.Alignment(wrap_text=True, vertical="center")
+        wsg.cell(row=i, column=4, value=estado)
+        wsg.row_dimensions[i].height = 28
+    _dar_formato_de_tabla(
+        wsg, "TablaGuia", f"B6:D{6 + len(GUIA_DE_HOJAS)}", ESTILO_TABLA_CABECERA
+    )
+    for col, ancho in zip("BCD", (26, 84, 12)):
+        wsg.column_dimensions[col].width = ancho
+
+    # ── Con qué se midió. Es lo que respalda un resultado si alguien lo
+    # cuestiona, así que va al frente y no escondida al final.
+    ws0 = wb.create_sheet(HOJA_CABECERA)
     ws0.sheet_view.showGridLines = False
     _poner_logo(ws0)
     ws0.merge_cells("C2:D3")
@@ -450,63 +717,129 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
     for col, ancho in zip("BCD", (26, 46, 44)):
         ws0.column_dimensions[col].width = ancho
 
-    # ── Hoja 2: una fila por compuesto de cada vial, como sale del equipo ──
-    ws = wb.create_sheet(HOJA_DETALLE)
-    encabezados = [
-        "Vial", "Tipo", "Seq Line", "Fecha Inyección",
-        "RetTime (min)", "Área (pA*s)", "Amount (ppm)", "Compuesto",
-    ]
-    for col, texto in enumerate(encabezados, start=1):
-        ws.cell(row=1, column=col, value=texto)
-    fila = 2
-    for m in body.muestras:
-        for r in m.resultados:
-            for col, valor in enumerate(
-                [
-                    m.codigo, "Muestra" if m.es_muestra else "Control",
-                    m.seq_line, m.fecha_inyeccion, r.rettime, r.area, r.amount, r.analito,
-                ],
-                start=1,
-            ):
-                ws.cell(row=fila, column=col, value=valor)
-            fila += 1
-    ws.freeze_panes = "A2"
-    _dar_formato_de_tabla(ws, "Tabla2", f"A1:H{max(fila - 1, 2)}", ESTILO_TABLA_DATOS)
-    for col, ancho in zip("ABCDEFGH", (16, 10, 11, 22, 16, 14, 16, 18)):
-        ws.column_dimensions[col].width = ancho
-
-    # ── Hoja 3: un vial por fila, con ppm, tiempo de retención y área de
-    # cada compuesto pegados ──
+    # ── Un vial por fila: cómo lo declaró el equipo y qué midió ────────────
+    #
     # "Ubicación de la Muestra" es la posición del carrusel, que sale de la
     # tabla de la secuencia: el reporte de resultados solo trae el número de
-    # línea, y con eso no se puede volver al vial físico.
-    ancho_grupo = len(COLUMNAS_POR_COMPUESTO)
-    ws2 = wb.create_sheet(HOJA_POR_VIAL)
-    for col, texto in enumerate(
-        ("Seq Line", "Ubicación de la Muestra", "Vial", "Tipo"), start=1
-    ):
-        ws2.cell(row=1, column=col, value=texto)
-    for i, compuesto in enumerate(compuestos):
-        for j, sufijo in enumerate(COLUMNAS_POR_COMPUESTO):
-            ws2.cell(row=1, column=5 + i * ancho_grupo + j, value=f"{compuesto} {sufijo}")
-    for fila_idx, m in enumerate(body.muestras, start=2):
-        ws2.cell(row=fila_idx, column=1, value=m.seq_line)
-        ws2.cell(row=fila_idx, column=2, value=m.ubicacion)
-        ws2.cell(row=fila_idx, column=3, value=m.codigo)
-        ws2.cell(row=fila_idx, column=4, value="Muestra" if m.es_muestra else "Control")
+    # línea, y con eso no se puede volver al vial físico. Los 12 campos de la
+    # secuencia van con la etiqueta del equipo, para que la planilla se lea
+    # igual que el papel.
+    encabezados = list(COLUMNAS_FIJAS_POR_VIAL)
+    for compuesto in compuestos:
+        encabezados += [f"{compuesto} {sufijo}" for sufijo in COLUMNAS_POR_COMPUESTO]
+    resumen_por_vial = {int(r.corrida): r for r in body.resumen if r.corrida is not None}
+    filas = []
+    for m in body.muestras:
+        resumen = resumen_por_vial.get(m.seq_line) if m.seq_line is not None else None
+        fila = [
+            m.seq_line, m.ubicacion, m.codigo, "Muestra" if m.es_muestra else "Control",
+            *(m.secuencia.get(c) or None for c in CAMPOS_DE_LA_SECUENCIA),
+            m.secuencia.get("Multiplier") or m.datos.get("Multiplier"),
+            m.secuencia.get("Dilution") or m.datos.get("Dilution"),
+            m.secuencia.get("Calibration Level") or None,
+            m.fecha_inyeccion, m.datos.get("Acq. Operator"), m.datos.get("Acq. Instrument"),
+            m.datos.get("Inj Volume"), "Sí" if m.recalibrado else "No",
+            "Sí" if "manually integrated" in m.datos.get("Additional Info", "") else "No",
+            " | ".join(m.advertencias) or None,
+            resumen.compuestos_detectados if resumen else None,
+            m.totales,
+        ]
         por_analito = {r.analito: r for r in m.resultados}
-        for i, compuesto in enumerate(compuestos):
-            for j, valor in enumerate(_valores_del_compuesto(por_analito.get(compuesto))):
-                ws2.cell(row=fila_idx, column=5 + i * ancho_grupo + j, value=valor)
-    ws2.freeze_panes = "E2"
-    ultima_col = openpyxl.utils.get_column_letter(4 + len(compuestos) * ancho_grupo)
-    _dar_formato_de_tabla(
-        ws2, "Tabla1", f"A1:{ultima_col}{len(body.muestras) + 1}", ESTILO_TABLA_DATOS
+        for compuesto in compuestos:
+            fila += list(_valores_del_compuesto(por_analito.get(compuesto)))
+        filas.append(fila)
+    ws2 = wb.create_sheet(HOJA_POR_VIAL)
+    _escribir_tabla(
+        ws2, encabezados, filas, "Tabla1",
+        anchos={
+            "Advertencias": 60, "Method Name": 32, "Sample Information": 24,
+            "Sample Name": 18, "Vial": 16, "Fecha Inyección": 20, "Data File": 14,
+            "Ubicación de la Muestra": 22,
+        },
+        congelar="E2",
     )
-    for col, ancho in zip("ABCD", (11, 25, 18, 10)):
-        ws2.column_dimensions[col].width = ancho
-    for col in range(5, 5 + len(compuestos) * ancho_grupo):
+    for col in range(len(COLUMNAS_FIJAS_POR_VIAL) + 1, len(encabezados) + 1):
         ws2.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 21
+
+    # ── Una fila por compuesto de cada vial, como sale del equipo ──────────
+    _escribir_tabla(
+        wb.create_sheet(HOJA_DETALLE),
+        ["Vial", "Tipo", "Seq Line", "Sample Type", "Data File", "Fecha Inyección",
+         "Compuesto", "RetTime (min)", "Tipo de pico", "Área (pA*s)", "Amt/Area",
+         "Amount (ppm)", "Grp", "Total del vial (ppm)", "Advertencias del vial"],
+        [
+            [
+                m.codigo, "Muestra" if m.es_muestra else "Control", m.seq_line,
+                m.secuencia.get("Sample Type") or None, m.secuencia.get("Data File") or None,
+                m.fecha_inyeccion, r.analito, r.rettime, r.tipo or None, r.area,
+                r.amt_area, r.amount, r.grp or None, m.totales,
+                " | ".join(m.advertencias) or None,
+            ]
+            for m in body.muestras
+            for r in m.resultados
+        ],
+        "Tabla2",
+        anchos={"Advertencias del vial": 60, "Fecha Inyección": 20, "Vial": 16, "Compuesto": 18},
+    )
+
+    # ── El resto del reporte, cada sección en su hoja ──────────────────────
+    campos_secuencia = ["Line", "Location", *CAMPOS_DE_LA_SECUENCIA,
+                        "Calibration Level", "Update RF", "Update RT", "Interval",
+                        "Multiplier", "Dilution"]
+    _escribir_tabla(
+        wb.create_sheet(HOJA_SECUENCIA), campos_secuencia,
+        [[m.secuencia.get(c) or None for c in campos_secuencia] for m in body.muestras],
+        "TablaSecuencia",
+        anchos={"Method Name": 32, "Sample Information": 24, "Sample Name": 18},
+    )
+    _escribir_tabla(
+        wb.create_sheet(HOJA_METODO), ["Bloque", "Parámetro", "Valor"],
+        [[c.seccion, c.campo, c.valor or None] for c in body.metodo],
+        "TablaMetodo", anchos={"Bloque": 30, "Parámetro": 38, "Valor": 56},
+    )
+    _escribir_tabla(
+        wb.create_sheet(HOJA_AUDITORIA), ["Operador", "Fecha", "Cambio"],
+        [[a.operador, a.fecha, a.cambio] for a in body.auditoria],
+        "TablaAuditoria", anchos={"Cambio": 90, "Fecha": 22},
+    )
+    _escribir_tabla(
+        wb.create_sheet(HOJA_CURVA),
+        ["Compuesto", "Tiempo retención (min)", "Señal", "Nivel", "Amount (ppm)",
+         "Área (pA*s)", "Factor de respuesta", "Ref", "ISTD"],
+        [[c.compuesto, c.rettime, c.senal or None, c.nivel, c.amount, c.area,
+          c.factor_respuesta, c.ref or None, c.istd or None] for c in body.curva],
+        "TablaCurva", anchos={"Compuesto": 20, "Factor de respuesta": 20},
+    )
+    _escribir_tabla(
+        wb.create_sheet(HOJA_ESTADISTICA),
+        ["Compuesto", "Señal", "Corrida", "Estadístico", "Tipo de pico",
+         "Tiempo retención (min)", "Amount (ppm)", "Área (pA*s)", "Alto (pA)",
+         "Ancho (min)", "Simetría"],
+        [[e.compuesto, e.senal or None, e.corrida, e.estadistico or None, e.tipo or None,
+          e.rettime, e.amount, e.area, e.alto, e.ancho, e.simetria]
+         for e in body.estadistica],
+        "TablaEstadistica", anchos={"Compuesto": 20, "Señal": 24},
+    )
+    _escribir_tabla(
+        wb.create_sheet(HOJA_RESUMEN),
+        ["Corrida", "Ubicación", "Inyección", "Vial", "Cantidad", "Multiplicador × dilución",
+         "Archivo", "Punto de curva", "Compuestos detectados"],
+        [[r.corrida, r.ubicacion or None, r.inyeccion, r.vial, r.cantidad, r.multiplicador,
+          r.archivo or None, "Sí" if r.es_punto_de_curva else None, r.compuestos_detectados]
+         for r in body.resumen],
+        "TablaResumen", anchos={"Vial": 18, "Multiplicador × dilución": 22},
+    )
+    _escribir_tabla(
+        wb.create_sheet(HOJA_BITACORA), ["Módulo", "Mensaje", "Fecha"],
+        [[e.modulo, e.mensaje, e.fecha] for e in body.bitacora],
+        "TablaBitacora", anchos={"Mensaje": 70, "Fecha": 22},
+    )
+
+    # El laboratorio abre siempre las mismas tres hojas; el resto es el
+    # respaldo, y va oculto para no llenar la barra de pestañas.
+    for hoja in wb.worksheets:
+        hoja.sheet_state = "visible" if hoja.title in HOJAS_VISIBLES else "hidden"
+    wb.active = 0
 
     buffer = io.BytesIO()
     wb.save(buffer)
