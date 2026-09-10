@@ -10,13 +10,18 @@ Dos partes bien separadas:
   * El guardado del día. Necesita Postgres con la migración 0026 aplicada;
     sin base se salta solo.
 """
+from datetime import date, timedelta
+
 import pytest
+from fastapi import HTTPException
+from app.auth import Usuario
 
 from app.verificaciones import (
     ACEPTABLE,
     NO_ACEPTABLE,
     SIN_DATOS,
     SIN_MEDIR,
+    _exigir_fecha_editable,
     calcular_balanza,
     calcular_detector,
     calcular_fugas,
@@ -30,6 +35,25 @@ from app.verificaciones import (
 )
 
 TABLA_Z = {18: 1.0022, 20: 1.0026, 25: 1.0037}
+
+
+# --- Fechas de edición ------------------------------------------------------
+
+
+def test_un_usuario_normal_solo_corrige_el_dia_anterior():
+    usuario = Usuario(id="1", email="paz@agrofresh.com", nombre="Paz", tipoAcceso="admin_area")
+    _exigir_fecha_editable(usuario, date.today() - timedelta(days=1), existe=True)
+
+    with pytest.raises(HTTPException) as error:
+        _exigir_fecha_editable(usuario, date.today(), existe=True)
+    assert error.value.status_code == 403
+
+
+def test_la_cuenta_superadministradora_puede_corregir_cualquier_fecha():
+    usuario = Usuario(
+        id="1", email="jorge.sandoval@agrofresh.com", nombre="Jorge", tipoAcceso="admin_general"
+    )
+    _exigir_fecha_editable(usuario, date(2020, 1, 1), existe=True)
 
 
 # --- Factor Z ---------------------------------------------------------------

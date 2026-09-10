@@ -60,6 +60,15 @@ function hoyISO(): string {
   return local.toISOString().slice(0, 10)
 }
 
+const EMAIL_SUPERADMIN_VERIFICACIONES = 'jorge.sandoval@agrofresh.com'
+
+function ayerISO(): string {
+  const ahora = new Date()
+  const local = new Date(ahora.getTime() - ahora.getTimezoneOffset() * 60000)
+  local.setDate(local.getDate() - 1)
+  return local.toISOString().slice(0, 10)
+}
+
 function esBorradorCompatible(valor: unknown, config: ConfigVerificaciones): valor is RegistroInput {
   if (!valor || typeof valor !== 'object') return false
   const borrador = valor as Partial<RegistroInput>
@@ -81,6 +90,8 @@ export function VerificacionesView() {
   const [parametrosUrl] = useSearchParams()
   const [fecha, setFecha] = useState(() => parametrosUrl.get('fecha') || hoyISO())
   const soloVer = parametrosUrl.get('solo') === 'ver'
+  const esSuperadmin = user?.email.toLowerCase() === EMAIL_SUPERADMIN_VERIFICACIONES
+  const puedeEditarRegistro = esSuperadmin || fecha === ayerISO()
   const [config, setConfig] = useState<ConfigVerificaciones | null>(null)
   const [borrador, setBorrador] = useState<RegistroInput | null>(null)
   const [cargando, setCargando] = useState(true)
@@ -230,9 +241,11 @@ export function VerificacionesView() {
             Solo lectura — estás viendo un registro guardado.
           </p>
           <div className={styles.soloLecturaAcciones}>
-            <Button onClick={() => navigate(`${ROUTES.agrofreshLabVerificaciones}?fecha=${fecha}`)}>
-              Editar
-            </Button>
+            {puedeEditarRegistro && (
+              <Button onClick={() => navigate(`${ROUTES.agrofreshLabVerificaciones}?fecha=${fecha}`)}>
+                {esSuperadmin ? 'Editar forzado' : 'Editar'}
+              </Button>
+            )}
             <Button
               variant="secondary"
               onClick={() => void descargarDiaPdf(fecha)}
@@ -266,7 +279,8 @@ export function VerificacionesView() {
                   className={cn(styles.input, styles.inputCorto)}
                   value={fecha}
                   max={hoyISO()}
-                  disabled={soloVer}
+                  disabled={soloVer || !esSuperadmin}
+                  title={esSuperadmin ? undefined : 'Solo la cuenta superadministradora puede seleccionar otra fecha'}
                   onChange={(e) => cambiarFecha(e.target.value)}
                 />
               </label>
