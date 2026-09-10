@@ -87,6 +87,12 @@ beforeEach(() => {
       resultado_fugas: '',
       observaciones: '',
       revisado_por: '',
+      analista: '',
+      termometro_1: null,
+      termometro_2: null,
+      editado_por: null,
+      editado_en: null,
+      observacion_edicion: '',
       creado_por: 'Paz',
       actualizado_en: '2026-09-01T12:00:00Z',
       micropipetas: [],
@@ -95,11 +101,12 @@ beforeEach(() => {
       gases: [],
       inyector: {
         analista: '', limpieza_aguja: '', aguja_danada: '', aguja_reemplazada: '',
-        cambio_septa: '', observaciones: '', resultado: '',
+        cambio_septa: '', observaciones: '', resultado: '', metodo_nombre: '', observacion: '',
       },
       detector: {
-        analista: '', voltaje_perla: null, metodo_correcto: '', output_detector: null,
-        resultado_voltaje: '', resultado_metodo: '', resultado_output: '', resultado: '',
+        analista: '', voltaje_perla: null, metodo_correcto: '', metodo_nombre: '',
+        output_detector: null, resultado_voltaje: '', resultado_metodo: '',
+        resultado_output: '', resultado: '', observacion: '',
       },
       resultados_seccion: {
         micropipetas: '', balanza: '', temperatura: '', gases: '', inyector: '', detector: '',
@@ -197,12 +204,15 @@ describe('VerificacionesView', () => {
     expect(screen.getByRole('button', { name: 'Guardar el día' })).toBeDisabled()
   })
 
-  it('avisa cuando la temperatura del agua queda fuera de la tabla Z', async () => {
+  it('muestra el factor Z al seleccionar una temperatura del dropdown', async () => {
+    // La temperatura es ahora un <select> con los valores de tabla_z (15-35°C).
+    // Seleccionar 20°C muestra el factor Z 1.0026 (del CONFIG mock).
     pintar()
     await screen.findByText('Microman E1000')
 
-    escribir(screen.getByLabelText('Temp. agua (°C)'), '45')
+    const select = screen.getByLabelText('Temp. agua (°C)')
+    fireEvent.change(select, { target: { value: '20' } })
 
-    expect(await screen.findByText(/No hay factor Z para 45/)).toBeInTheDocument()
+    expect(await screen.findByText('1.0026')).toBeInTheDocument()
   })
 })
