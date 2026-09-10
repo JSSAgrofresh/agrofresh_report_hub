@@ -200,9 +200,6 @@ def _seccion_temperatura(registro, config: dict) -> list:
             (t.resultado if t else None) or "Sin medir",
             (t.observacion if t else "") or "",
         ])
-    # Termómetros de referencia al final
-    filas.append([_p("Termómetro 1"), _n(registro.termometro_1), "—", "—", ""])
-    filas.append([_p("Termómetro 2"), _n(registro.termometro_2), "—", "—", ""])
     if not filas:
         filas = [["—"] * 5]
     tb = _tabla([cabecera] + filas, anchos)

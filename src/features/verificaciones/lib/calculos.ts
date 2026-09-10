@@ -311,8 +311,6 @@ export function borradorVacio(config: CatalogosVistaPrevia): RegistroInput {
     observaciones: '',
     revisado_por: '',
     analista: '',
-    termometro_1: null,
-    termometro_2: null,
     observacion_edicion: '',
     micropipetas: activos(config.micropipetas).map((m) => ({
       micropipeta_id: m.id,
@@ -402,8 +400,6 @@ export function registroABorrador(
     observaciones: registro.observaciones,
     revisado_por: registro.revisado_por,
     analista: registro.analista ?? '',
-    termometro_1: registro.termometro_1 ?? null,
-    termometro_2: registro.termometro_2 ?? null,
     observacion_edicion: '',
     micropipetas: mezclar(
       base.micropipetas,

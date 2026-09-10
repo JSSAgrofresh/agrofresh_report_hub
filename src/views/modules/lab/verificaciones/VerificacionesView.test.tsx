@@ -42,7 +42,8 @@ const CONFIG: ConfigVerificaciones = {
   ],
   pesas: [{ id: 1, nombre: '1 g', codigo: '', valor_nominal: 1, tolerancia: 0.03, orden: 1, activo: true }],
   puntos_temperatura: [
-    { id: 1, nombre: 'Sala del laboratorio', codigo: '', minimo: 15, maximo: 25, orden: 1, activo: true },
+    { id: 1, nombre: 'Sala de laboratorio 1', codigo: '', minimo: 15, maximo: 25, orden: 1, activo: true },
+    { id: 2, nombre: 'Sala de laboratorio 2', codigo: '', minimo: 15, maximo: 25, orden: 2, activo: true },
   ],
   gases: [{ id: 1, nombre: 'Helio BIP', codigo: '', orden: 1, activo: true }],
   parametros: [
@@ -93,8 +94,6 @@ beforeEach(() => {
       observaciones: '',
       revisado_por: '',
       analista: '',
-      termometro_1: null,
-      termometro_2: null,
       editado_por: null,
       editado_en: null,
       observacion_edicion: '',
@@ -126,7 +125,8 @@ describe('VerificacionesView', () => {
   it('dibuja una fila por cada equipo del catálogo', async () => {
     pintar()
     expect(await screen.findByText('Microman E1000')).toBeInTheDocument()
-    expect(screen.getByText('Sala del laboratorio')).toBeInTheDocument()
+    expect(screen.getByText('Sala de laboratorio 1')).toBeInTheDocument()
+    expect(screen.getByText('Sala de laboratorio 2')).toBeInTheDocument()
     expect(screen.getByText('Helio BIP')).toBeInTheDocument()
   })
 
@@ -137,13 +137,13 @@ describe('VerificacionesView', () => {
 
   it('marca la temperatura fuera de rango mientras se escribe, sin guardar', async () => {
     pintar()
-    await screen.findByText('Sala del laboratorio')
+    await screen.findByText('Sala de laboratorio 1')
 
-    const celdas = within(fila('Sala del laboratorio')).getAllByRole('spinbutton')
+    const celdas = within(fila('Sala de laboratorio 1')).getAllByRole('spinbutton')
     escribir(celdas[0], '30')
 
     await waitFor(() =>
-      expect(within(fila('Sala del laboratorio')).getByText('No aceptable')).toBeInTheDocument(),
+      expect(within(fila('Sala de laboratorio 1')).getByText('No aceptable')).toBeInTheDocument(),
     )
     expect(guardarRegistro).not.toHaveBeenCalled()
   })

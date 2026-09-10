@@ -219,8 +219,6 @@ export interface RegistroInput {
   observaciones: string
   revisado_por: string
   analista: string
-  termometro_1: number | null
-  termometro_2: number | null
   observacion_edicion: string
   micropipetas: MicropipetaMedicionInput[]
   balanza: BalanzaMedicionInput[]
@@ -240,8 +238,6 @@ export interface Registro {
   observaciones: string
   revisado_por: string
   analista: string
-  termometro_1: number | null
-  termometro_2: number | null
   editado_por: string | null
   editado_en: string | null
   observacion_edicion: string

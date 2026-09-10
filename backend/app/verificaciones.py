@@ -431,8 +431,6 @@ class RegistroIn(BaseModel):
     observaciones: str = ""
     revisado_por: str = ""
     analista: str = ""
-    termometro_1: float | None = None
-    termometro_2: float | None = None
     observacion_edicion: str = ""
     micropipetas: list[MicropipetaMedicionIn] = []
     balanza: list[BalanzaMedicionIn] = []
@@ -452,8 +450,6 @@ class Registro(BaseModel):
     observaciones: str = ""
     revisado_por: str = ""
     analista: str = ""
-    termometro_1: float | None = None
-    termometro_2: float | None = None
     editado_por: str | None = None
     editado_en: datetime | None = None
     observacion_edicion: str = ""
@@ -830,8 +826,6 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
         observaciones=fila_dia["observaciones"],
         revisado_por=fila_dia["revisado_por"],
         analista=fila_dia.get("analista", "") or "",
-        termometro_1=_num(fila_dia.get("termometro_1")),
-        termometro_2=_num(fila_dia.get("termometro_2")),
         editado_por=fila_dia.get("editado_por"),
         editado_en=fila_dia.get("editado_en"),
         observacion_edicion=fila_dia.get("observacion_edicion", "") or "",
@@ -932,8 +926,6 @@ def guardar_registro(
                        observaciones        = %s,
                        revisado_por         = %s,
                        analista             = %s,
-                       termometro_1         = %s,
-                       termometro_2         = %s,
                        editado_por          = %s,
                        editado_en           = now(),
                        observacion_edicion  = %s,
@@ -948,8 +940,6 @@ def guardar_registro(
                     datos.observaciones,
                     datos.revisado_por,
                     datos.analista,
-                    datos.termometro_1,
-                    datos.termometro_2,
                     nombre_usuario,
                     datos.observacion_edicion,
                     fecha,
@@ -959,8 +949,8 @@ def guardar_registro(
             cur.execute(
                 """
                 INSERT INTO verif_registro (fecha, temperatura_agua, fugas_visibles, fugas_observacion,
-                                            observaciones, revisado_por, analista, termometro_1, termometro_2, creado_por)
-                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                            observaciones, revisado_por, analista, creado_por)
+                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                   RETURNING id
                 """,
                 [
@@ -971,8 +961,6 @@ def guardar_registro(
                     datos.observaciones,
                     datos.revisado_por,
                     datos.analista,
-                    datos.termometro_1,
-                    datos.termometro_2,
                     nombre_usuario,
                 ],
             )
