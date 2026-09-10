@@ -91,7 +91,7 @@ export function VerificacionesView() {
   const [parametrosUrl] = useSearchParams()
   const [fecha, setFecha] = useState(() => parametrosUrl.get('fecha') || hoyISO())
   const esSuperadmin = user?.email.toLowerCase() === EMAIL_SUPERADMIN_VERIFICACIONES
-  const puedeEditarRegistro = esSuperadmin || fecha === ayerISO()
+
   const [config, setConfig] = useState<ConfigVerificaciones | null>(null)
   const [borrador, setBorrador] = useState<RegistroInput | null>(null)
   const [cargando, setCargando] = useState(true)
