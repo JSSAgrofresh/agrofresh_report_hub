@@ -62,9 +62,9 @@ def _dia(config, **cambios) -> v.RegistroIn:
             v.BalanzaMedicionIn(
                 pesa_id=p.id,
                 analista="Paz Salazar",
-                lectura_1=p.valor_nominal,
-                lectura_2=p.valor_nominal,
-                lectura_3=p.valor_nominal,
+                lectura_1=p.valor_nominal / 1000,
+                lectura_2=p.valor_nominal / 1000,
+                lectura_3=p.valor_nominal / 1000,
             )
             for p in config.pesas
         ],

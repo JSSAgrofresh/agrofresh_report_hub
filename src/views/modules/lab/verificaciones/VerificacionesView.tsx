@@ -59,6 +59,21 @@ function hoyISO(): string {
   return local.toISOString().slice(0, 10)
 }
 
+function esBorradorCompatible(valor: unknown, config: ConfigVerificaciones): valor is RegistroInput {
+  if (!valor || typeof valor !== 'object') return false
+  const borrador = valor as Partial<RegistroInput>
+  if (!Array.isArray(borrador.micropipetas) || !Array.isArray(borrador.balanza)
+    || !Array.isArray(borrador.temperaturas) || !Array.isArray(borrador.gases)) return false
+
+  const incluyeTodos = <T,>(mediciones: T[], ids: number[], obtenerId: (medicion: T) => number) =>
+    ids.every((id) => mediciones.some((medicion) => obtenerId(medicion) === id))
+
+  return incluyeTodos(borrador.micropipetas, config.micropipetas.map((m) => m.id), (m) => m.micropipeta_id)
+    && incluyeTodos(borrador.balanza, config.pesas.map((p) => p.id), (p) => p.pesa_id)
+    && incluyeTodos(borrador.temperaturas, config.puntos_temperatura.map((p) => p.id), (p) => p.punto_id)
+    && incluyeTodos(borrador.gases, config.gases.map((g) => g.id), (g) => g.gas_id)
+}
+
 export function VerificacionesView() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -88,11 +103,15 @@ export function VerificacionesView() {
           try {
             const local = localStorage.getItem(claveLocal)
             if (local) {
-              setBorrador(JSON.parse(local) as RegistroInput)
-              setSucio(true)
-              setCargando(false)
-              setGuardadoEn(null)
-              return
+              const restaurado: unknown = JSON.parse(local)
+              if (esBorradorCompatible(restaurado, catalogos)) {
+                setBorrador(restaurado)
+                setSucio(true)
+                setCargando(false)
+                setGuardadoEn(null)
+                return
+              }
+              localStorage.removeItem(claveLocal)
             }
           } catch { /* ignorar errores de localStorage */ }
         }
@@ -405,10 +424,10 @@ export function VerificacionesView() {
                   <tr>
                     <th>Pesa patrón</th>
                     <th>Código</th>
-                    <th>Lectura 1 <span className={styles.unidad}>(mg)</span></th>
-                    <th>Lectura 2 <span className={styles.unidad}>(mg)</span></th>
-                    <th>Lectura 3 <span className={styles.unidad}>(mg)</span></th>
-                    <th>Promedio</th>
+                    <th>Lectura 1 <span className={styles.unidad}>(g)</span></th>
+                    <th>Lectura 2 <span className={styles.unidad}>(g)</span></th>
+                    <th>Lectura 3 <span className={styles.unidad}>(g)</span></th>
+                    <th>Promedio <span className={styles.unidad}>(mg)</span></th>
                     <th>Rango de tolerancia</th>
                     <th>Criterio</th>
                     <th>Resultado</th>
@@ -856,6 +875,8 @@ export function VerificacionesView() {
                 onClick={() => {
                   if (window.confirm('¿Borrar todo el avance de este día? No se puede deshacer.')) limpiarBorrador()
                 }}
+                disabled={Boolean(guardadoEn)}
+                title={guardadoEn ? 'El registro ya está guardado. Para evitar sobrescribirlo por error, no puede limpiarse desde aquí.' : undefined}
               >
                 Limpiar registro
               </Button>

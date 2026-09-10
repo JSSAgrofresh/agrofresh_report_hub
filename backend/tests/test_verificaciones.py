@@ -110,18 +110,19 @@ def test_micropipeta_informa_el_error_sistematico():
 
 
 def test_balanza_dentro_de_tolerancia():
-    r = calcular_balanza([1.0, 1.0, 1.01], 1, 0.03)
+    r = calcular_balanza([0.1, 0.1, 0.10001], 100, 0.03)
     assert r["resultado"] == ACEPTABLE
+    assert r["promedio"] == pytest.approx(100.0033)
 
 
 def test_balanza_fuera_de_tolerancia():
-    r = calcular_balanza([1.1, 1.1, 1.1], 1, 0.03)
+    r = calcular_balanza([0.1001, 0.1001, 0.1001], 100, 0.03)
     assert r["resultado"] == NO_ACEPTABLE
     assert r["desviacion"] == pytest.approx(0.1)
 
 
 def test_balanza_con_menos_de_tres_lecturas_no_concluye():
-    assert calcular_balanza([1.0, None, None], 1, 0.03)["resultado"] == SIN_MEDIR
+    assert calcular_balanza([0.1, None, None], 100, 0.03)["resultado"] == SIN_MEDIR
 
 
 # --- Temperatura ------------------------------------------------------------
