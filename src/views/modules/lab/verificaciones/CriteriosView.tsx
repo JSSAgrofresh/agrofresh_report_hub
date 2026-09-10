@@ -336,13 +336,13 @@ export function CriteriosView() {
         <div className={styles.grupos}>
           <TablaCatalogo
             titulo="Micropipetas"
-            nota="Una fila por equipo y volumen: la misma pipeta se verifica a 900 y a 500 µL, y cada volumen tiene su tolerancia (referencia, no afecta el cálculo)."
+            nota="Una fila por equipo y volumen: la misma pipeta se verifica a 900 y a 500 µL, y cada volumen tiene su propia tolerancia de aceptación."
             filas={config.micropipetas}
             campos={[
               { clave: 'nombre', etiqueta: 'Equipo', tipo: 'texto' },
               { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
               { clave: 'volumen_nominal', etiqueta: 'Vol. nominal', unidad: 'µL', tipo: 'numero' },
-              { clave: 'tolerancia', etiqueta: 'Tolerancia ± (ref.)', unidad: 'µL', tipo: 'numero' },
+              { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'µL', tipo: 'numero' },
             ]}
             vacio={{ nombre: '', codigo: '', volumen_nominal: null, tolerancia: null }}
             api={micropipetasApi}
@@ -352,13 +352,13 @@ export function CriteriosView() {
 
           <TablaCatalogo
             titulo="Pesas patrón"
-            nota="El valor nominal y la tolerancia van en miligramos. La tolerancia es referencia."
+            nota="El valor nominal y la tolerancia van en miligramos. La tolerancia se aplica al resultado de la verificación."
             filas={config.pesas}
             campos={[
               { clave: 'nombre', etiqueta: 'Pesa', tipo: 'texto', ancho: 140 },
               { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
               { clave: 'valor_nominal', etiqueta: 'Valor nominal', unidad: 'mg', tipo: 'numero' },
-              { clave: 'tolerancia', etiqueta: 'Tolerancia ± (ref.)', unidad: 'mg', tipo: 'numero' },
+              { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'mg', tipo: 'numero' },
             ]}
             vacio={{ nombre: '', codigo: '', valor_nominal: null, tolerancia: null }}
             api={pesasApi}
