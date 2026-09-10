@@ -298,6 +298,19 @@ class GasIn(BaseModel):
     activo: bool = True
 
 
+class Metodo(BaseModel):
+    id: int
+    nombre: str
+    orden: int = 0
+    activo: bool = True
+
+
+class MetodoIn(BaseModel):
+    nombre: str
+    orden: int = 0
+    activo: bool = True
+
+
 class Parametro(BaseModel):
     clave: str
     valor: float
@@ -324,6 +337,7 @@ class Config(BaseModel):
     pesas: list[PesaPatron]
     puntos_temperatura: list[PuntoTemperatura]
     gases: list[Gas]
+    metodos: list[Metodo]
     parametros: list[Parametro]
     tabla_z: list[FactorZ]
 
@@ -496,6 +510,8 @@ def _leer_config(cur) -> dict:
     puntos = [dict(f) for f in cur.fetchall()]
     cur.execute("SELECT * FROM verif_gas ORDER BY orden, nombre")
     gases = [dict(f) for f in cur.fetchall()]
+    cur.execute("SELECT * FROM verif_metodo ORDER BY orden, nombre")
+    metodos = [dict(f) for f in cur.fetchall()]
     cur.execute("SELECT * FROM verif_parametro ORDER BY orden, clave")
     parametros = [dict(f) for f in cur.fetchall()]
     cur.execute("SELECT temperatura, factor FROM verif_agua_z ORDER BY temperatura")
@@ -515,6 +531,7 @@ def _leer_config(cur) -> dict:
         "pesas": pesas,
         "puntos_temperatura": puntos,
         "gases": gases,
+        "metodos": metodos,
         "parametros": parametros,
         "tabla_z": tabla_z,
     }
@@ -639,6 +656,7 @@ _crud(
     ("nombre", "codigo", "minimo", "maximo", "orden", "activo"),
 )
 _crud("/config/gases", "verif_gas", Gas, GasIn, ("nombre", "codigo", "orden", "activo"))
+_crud("/config/metodos", "verif_metodo", Metodo, MetodoIn, ("nombre", "orden", "activo"))
 
 
 @router.put("/config/parametros/{clave}", response_model=Parametro)

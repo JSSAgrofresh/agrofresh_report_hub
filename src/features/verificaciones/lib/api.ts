@@ -4,6 +4,8 @@ import type {
   ConfigVerificaciones,
   Gas,
   GasInput,
+  Metodo,
+  MetodoInput,
   Micropipeta,
   MicropipetaInput,
   Parametro,
@@ -80,6 +82,7 @@ export const puntosTemperaturaApi = crud<PuntoTemperatura, PuntoTemperaturaInput
   '/config/puntos-temperatura',
 )
 export const gasesApi = crud<Gas, GasInput>('/config/gases')
+export const metodosApi = crud<Metodo, MetodoInput>('/config/metodos')
 
 /** Los cuatro catálogos exponen el mismo CRUD sobre distintas rutas. */
 function crud<T, TInput>(ruta: string) {

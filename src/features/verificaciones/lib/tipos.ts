@@ -88,6 +88,15 @@ export interface Gas {
 
 export type GasInput = Omit<Gas, 'id'>
 
+export interface Metodo {
+  id: number
+  nombre: string
+  orden: number
+  activo: boolean
+}
+
+export type MetodoInput = Omit<Metodo, 'id'>
+
 /** Los criterios que no son de un equipo sino del sistema entero. Las claves
  * las conoce el cálculo por nombre, así que no se crean ni se borran. */
 export interface Parametro {
@@ -108,6 +117,7 @@ export interface ConfigVerificaciones {
   pesas: PesaPatron[]
   puntos_temperatura: PuntoTemperatura[]
   gases: Gas[]
+  metodos: Metodo[]
   parametros: Parametro[]
   tabla_z: FactorZ[]
 }
