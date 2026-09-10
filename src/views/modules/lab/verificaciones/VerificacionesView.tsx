@@ -24,8 +24,10 @@ import type {
   ConfigVerificaciones,
   RegistroInput,
   Respuesta,
+  ResultadoDia,
   Seccion as SeccionId,
 } from '@/features/verificaciones'
+import { ACEPTABLE, SIN_MEDIR } from '@/features/verificaciones'
 import {
   Calculado,
   CampoNumero,
@@ -88,7 +90,6 @@ export function VerificacionesView() {
   const { user } = useAuth()
   const [parametrosUrl] = useSearchParams()
   const [fecha, setFecha] = useState(() => parametrosUrl.get('fecha') || hoyISO())
-  const soloVer = parametrosUrl.get('solo') === 'ver'
   const esSuperadmin = user?.email.toLowerCase() === EMAIL_SUPERADMIN_VERIFICACIONES
   const puedeEditarRegistro = esSuperadmin || fecha === ayerISO()
   const [config, setConfig] = useState<ConfigVerificaciones | null>(null)
@@ -97,7 +98,13 @@ export function VerificacionesView() {
   const [guardando, setGuardando] = useState(false)
   const [sucio, setSucio] = useState(false)
   const [guardadoEn, setGuardadoEn] = useState<string | null>(null)
+  const [resultadoGuardado, setResultadoGuardado] = useState<ResultadoDia | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Si el día ya fue guardado y salió Aceptable, se bloquea la edición automáticamente.
+  // El superadmin sigue pudiendo forzar la edición con el parámetro ?solo=ver.
+  const soloVer = parametrosUrl.get('solo') === 'ver'
+    || (resultadoGuardado === ACEPTABLE && !esSuperadmin)
 
   const claveLocal = `verif_borrador_${fecha}`
 
@@ -128,6 +135,7 @@ export function VerificacionesView() {
         }
         setBorrador(registro ? registroABorrador(registro, catalogos) : borradorVacio(catalogos))
         setGuardadoEn(registro?.actualizado_en ?? null)
+        setResultadoGuardado(registro?.resultado ?? null)
         setSucio(false)
         setCargando(false)
       })
@@ -156,6 +164,22 @@ export function VerificacionesView() {
     [config, borrador],
   )
 
+  // Secciones obligatorias incompletas (todo excepto micropipetas).
+  // Una sección está incompleta si alguno de sus resultados es SIN_MEDIR.
+  const seccionesIncompletas = useMemo((): string[] => {
+    if (!previa) return []
+    const obligatorias: Array<[string, string]> = [
+      ['balanza', NOMBRE_SECCION.balanza],
+      ['temperatura', NOMBRE_SECCION.temperatura],
+      ['gases', NOMBRE_SECCION.gases],
+      ['inyector', NOMBRE_SECCION.inyector],
+      ['detector', NOMBRE_SECCION.detector],
+    ]
+    return obligatorias
+      .filter(([id]) => previa.secciones[id as SeccionId] === SIN_MEDIR)
+      .map(([, nombre]) => nombre)
+  }, [previa])
+
   const editar = useCallback((cambio: (previo: RegistroInput) => RegistroInput) => {
     if (soloVer) return
     setBorrador((previo) => {
@@ -180,6 +204,7 @@ export function VerificacionesView() {
       try { localStorage.removeItem(claveLocal) } catch { /* ok */ }
       if (config) setBorrador(registroABorrador(guardado, config))
       setGuardadoEn(guardado.actualizado_en)
+      setResultadoGuardado(guardado.resultado)
       setSucio(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo guardar el día.')
@@ -197,6 +222,7 @@ export function VerificacionesView() {
       try { localStorage.removeItem(claveLocal) } catch { /* ok */ }
       setBorrador(borradorVacio(config))
       setGuardadoEn(null)
+      setResultadoGuardado(null)
       setSucio(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo limpiar el registro.')
@@ -237,12 +263,14 @@ export function VerificacionesView() {
       {soloVer && (
         <div className={styles.soloLecturaBarra}>
           <p className={styles.soloLecturaAviso}>
-            Solo lectura — estás viendo un registro guardado.
+            {resultadoGuardado === ACEPTABLE && !esSuperadmin
+              ? 'Este día ya está verificado y aprobado — no se puede editar.'
+              : 'Solo lectura — estás viendo un registro guardado.'}
           </p>
           <div className={styles.soloLecturaAcciones}>
-            {puedeEditarRegistro && (
+            {esSuperadmin && (
               <Button onClick={() => navigate(`${ROUTES.agrofreshLabVerificaciones}?fecha=${fecha}`)}>
-                {esSuperadmin ? 'Editar forzado' : 'Editar'}
+                Editar forzado
               </Button>
             )}
             <Button
@@ -891,7 +919,16 @@ export function VerificacionesView() {
 
           {!soloVer && (
             <div className={styles.barraAcciones}>
-              <Button onClick={() => void guardar()} disabled={guardando || !sucio}>
+              {seccionesIncompletas.length > 0 && (
+                <p className={styles.avisoIncompleto}>
+                  Faltan datos en: {seccionesIncompletas.join(', ')}.
+                </p>
+              )}
+              <Button
+                onClick={() => void guardar()}
+                disabled={guardando || !sucio || seccionesIncompletas.length > 0}
+                title={seccionesIncompletas.length > 0 ? `Completa todas las secciones antes de guardar` : undefined}
+              >
                 {guardando ? 'Guardando…' : 'Guardar el día'}
               </Button>
               <Button

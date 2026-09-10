@@ -497,6 +497,17 @@
   margin-bottom: var(--space-3);
 }
 
+.avisoIncompleto {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: #fff8e6;
+  border: 1px solid #f0d070;
+  color: #8a6000;
+  font-size: 12.5px;
+  margin: 0;
+}
+
 .vacio {
   padding: var(--space-5);
   text-align: center;
