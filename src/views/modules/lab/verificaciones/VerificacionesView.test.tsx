@@ -191,9 +191,12 @@ describe('VerificacionesView', () => {
       revisado_por: 'Romina Garrido',
       micropipetas: [
         {
-          micropipeta_id: 1, analista: 'Paz Salazar', peso_1: 900, peso_2: 900, peso_3: 900,
+          micropipeta_id: 1, analista: 'Paz Salazar',
+          // pesos en gramos: 0.9 g × 1000 × 1.0026 ≈ 902.34 µL → Aceptable (nominal 900, tol 8)
+          peso_1: 0.9, peso_2: 0.9, peso_3: 0.9,
           nombre: 'Microman E1000', volumen_nominal: 900, tolerancia: 8,
           volumen_medio: 902.34, desviacion: 2.34, error_pct: 0.26, resultado: 'Aceptable',
+          observacion: '',
         },
       ],
     })
