@@ -137,7 +137,7 @@ def _seccion_micropipetas(registro) -> list:
             ("TEXTCOLOR", (6, i), (6, i), _veredicto_color(m.resultado or "")),
             ("FONT", (6, i), (6, i), "Helvetica-Bold", 8),
         ]))
-    return [_titulo_seccion("1. MICROPIPETAS — verificación gravimétrica"), Spacer(0, 2), t]
+    return [_titulo_seccion("1. MICROPIPETAS — verificación gravimétrica"), Spacer(0, 1), t]
 
 
 def _seccion_balanza(registro) -> list:
@@ -161,7 +161,7 @@ def _seccion_balanza(registro) -> list:
             ("TEXTCOLOR", (6, i), (6, i), _veredicto_color(b.resultado or "")),
             ("FONT", (6, i), (6, i), "Helvetica-Bold", 8),
         ]))
-    return [_titulo_seccion("2. BALANZA ANALÍTICA"), Spacer(0, 2), t]
+    return [_titulo_seccion("2. BALANZA ANALÍTICA"), Spacer(0, 1), t]
 
 
 def _seccion_temperatura(registro) -> list:
@@ -171,13 +171,16 @@ def _seccion_temperatura(registro) -> list:
         [_p(t.nombre), _n(t.lectura), f"{_n(t.minimo)} a {_n(t.maximo)} °C", t.resultado or "Sin medir", t.observacion or ""]
         for t in registro.temperaturas
     ] or [["—"] * 5]
+    # Termómetros de referencia al final de la tabla
+    filas.append([_p("Termómetro 1"), _n(registro.termometro_1), "—", "—", ""])
+    filas.append([_p("Termómetro 2"), _n(registro.termometro_2), "—", "—", ""])
     tb = _tabla([cabecera] + filas, anchos)
     for i, t in enumerate(registro.temperaturas, start=1):
         tb.setStyle(TableStyle([
             ("TEXTCOLOR", (3, i), (3, i), _veredicto_color(t.resultado or "")),
             ("FONT", (3, i), (3, i), "Helvetica-Bold", 8),
         ]))
-    return [_titulo_seccion("3. TEMPERATURA"), Spacer(0, 2), tb]
+    return [_titulo_seccion("3. TEMPERATURA"), Spacer(0, 1), tb]
 
 
 def _seccion_gases(registro) -> list:
@@ -199,7 +202,7 @@ def _seccion_gases(registro) -> list:
         ("TEXTCOLOR", (5, fila_fugas), (5, fila_fugas), _veredicto_color(registro.resultado_fugas or "")),
         ("FONT", (5, fila_fugas), (5, fila_fugas), "Helvetica-Bold", 8),
     ]))
-    return [_titulo_seccion("4. PRESIÓN DE GASES"), Spacer(0, 2), tb]
+    return [_titulo_seccion("4. PRESIÓN DE GASES"), Spacer(0, 1), tb]
 
 
 def _seccion_inyector_detector(registro) -> list:
@@ -253,7 +256,7 @@ def _seccion_inyector_detector(registro) -> list:
         ("TOPPADDING", (0, 0), (-1, -1), 0),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
-    return [_titulo_seccion("5. INYECTOR Y DETECTOR"), Spacer(0, 2), fila_tabla]
+    return [_titulo_seccion("5. INYECTOR Y DETECTOR"), Spacer(0, 1), fila_tabla]
 
 
 # ── Encabezado del documento ───────────────────────────────────────────────
@@ -277,7 +280,6 @@ def _encabezado(registro) -> list:
         f"<b>Fecha:</b> {registro.fecha.strftime('%d-%m-%Y')}",
         f"<b>Temp. agua:</b> {_n(registro.temperatura_agua)} °C  &nbsp; <b>Z:</b> {_n(registro.factor_z)} µL/mg",
         f"<b>Analista:</b> {registro.analista or '—'}",
-        f"<b>Term. 1:</b> {_n(registro.termometro_1)} °C  &nbsp; <b>Term. 2:</b> {_n(registro.termometro_2)} °C",
     ]
     info = Paragraph("<br/>".join(campos), _S_NORMAL)
 
@@ -301,7 +303,7 @@ def _encabezado(registro) -> list:
         ("RIGHTPADDING", (0, 0), (-1, -1), 4),
         ("LINEBELOW",    (0, 0), (-1, 0), 0.5, VERDE_OSCURO),
     ]))
-    return [header_tabla, Spacer(0, 6)]
+    return [header_tabla, Spacer(0, 4)]
 
 
 def _pie(registro) -> list:
@@ -338,13 +340,13 @@ def pdf_del_dia(registro) -> bytes:
     # Las secciones se intercalan con un separador mínimo
     secciones = (
         _seccion_micropipetas(registro)
-        + [Spacer(0, 5)]
+        + [Spacer(0, 3)]
         + _seccion_balanza(registro)
-        + [Spacer(0, 5)]
+        + [Spacer(0, 3)]
         + _seccion_temperatura(registro)
-        + [Spacer(0, 5)]
+        + [Spacer(0, 3)]
         + _seccion_gases(registro)
-        + [Spacer(0, 5)]
+        + [Spacer(0, 3)]
         + _seccion_inyector_detector(registro)
     )
     story += secciones
