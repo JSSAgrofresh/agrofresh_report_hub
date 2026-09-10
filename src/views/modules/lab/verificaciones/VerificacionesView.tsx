@@ -38,7 +38,7 @@ import {
 import styles from './Verificaciones.module.css'
 
 /**
- * Verificaciones diarias (REG-03) — el formulario del día.
+ * Verificaciones diarias  — el formulario del día.
  *
  * Reemplaza la hoja «Ingreso_Diario» del Excel con macros. Las diferencias
  * que importan:
@@ -145,7 +145,7 @@ export function VerificacionesView() {
     <div className={styles.wrap}>
       <Header
         title="Verificaciones diarias"
-        description="REG-03 · Control diario de los equipos del laboratorio de cromatografía."
+        description="Control diario de los equipos del laboratorio de cromatografía."
         acciones={
           <>
             <Button variant="secondary" onClick={() => navigate(ROUTES.agrofreshLabVerificacionesHistorico)}>

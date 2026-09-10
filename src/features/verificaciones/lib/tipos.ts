@@ -1,5 +1,5 @@
 /**
- * Verificaciones diarias del laboratorio (REG-03).
+ * Verificaciones diarias del laboratorio .
  *
  * Estos tipos son el espejo de los modelos de `backend/app/verificaciones.py`.
  * Los `*Input` son lo que se manda al guardar; el resto trae además lo que

@@ -1,4 +1,4 @@
-"""PDF del formulario diario de verificaciones (REG-03).
+"""PDF del formulario diario de verificaciones .
 
 Mismo contenido que libro_del_dia() del Excel, diseño alineado con
 informe_pdf.py: logo AgroFresh, colores corporativos, alta densidad
@@ -316,7 +316,7 @@ def _encabezado(registro) -> list:
     res = registro.resultado
     color_res = _veredicto_color(res)
     titulo_texto = (
-        f"<b>REG-03 · Registro de verificaciones diarias</b><br/>"
+        f"<b>Registro de verificaciones diarias</b><br/>"
         f"<font size='7' color='#6B7280'>Laboratorio de Cromatografía AgroFresh</font>"
     )
     titulo = Paragraph(titulo_texto, ParagraphStyle("tt", fontName="Helvetica-Bold", fontSize=10, leading=13, textColor=NEGRO))

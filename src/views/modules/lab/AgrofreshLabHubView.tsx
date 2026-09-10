@@ -33,7 +33,7 @@ export function AgrofreshLabHubView() {
         <OpcionCard
           icono={<IconVerificar />}
           titulo="Verificaciones diarias"
-          descripcion="REG-03: micropipetas, balanza, temperaturas, gases, inyector y detector, con su histórico."
+          descripcion="micropipetas, balanza, temperaturas, gases, inyector y detector, con su histórico."
           ruta={ROUTES.agrofreshLabVerificaciones}
         />
       </div>

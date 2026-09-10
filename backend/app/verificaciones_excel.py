@@ -89,7 +89,7 @@ def libro_del_dia(registro) -> Workbook:
 
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=8)
     encabezado = ws.cell(
-        row=1, column=1, value="REG-03 · Registro de verificaciones diarias — Laboratorio de Cromatografía AgroFresh"
+        row=1, column=1, value="Registro de verificaciones diarias — Laboratorio de Cromatografía AgroFresh"
     )
     encabezado.font = Font(bold=True, size=13, color=VERDE_OSCURO)
     encabezado.alignment = Alignment(vertical="center")

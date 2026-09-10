@@ -56,15 +56,15 @@ export function historico(desde?: string, hasta?: string) {
 }
 
 export function descargarDiaExcel(fecha: string) {
-  return descargarArchivo(`${BASE}/registros/${fecha}/excel`, `REG-03 verificaciones ${fecha}.xlsx`)
+  return descargarArchivo(`${BASE}/registros/${fecha}/excel`, `verificaciones_diarias ${fecha}.xlsx`)
 }
 
 export function descargarDiaPdf(fecha: string) {
-  return descargarArchivo(`${BASE}/registros/${fecha}/pdf`, `REG-03 verificaciones ${fecha}.pdf`)
+  return descargarArchivo(`${BASE}/registros/${fecha}/pdf`, `verificaciones_diarias ${fecha}.pdf`)
 }
 
 export function descargarHistoricoExcel(desde?: string, hasta?: string) {
-  return descargarArchivo(`${BASE}/excel${rango(desde, hasta)}`, 'REG-03 histórico.xlsx')
+  return descargarArchivo(`${BASE}/excel${rango(desde, hasta)}`, 'historico_verificaciones.xlsx')
 }
 
 function rango(desde?: string, hasta?: string): string {
