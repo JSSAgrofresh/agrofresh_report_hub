@@ -588,3 +588,80 @@
   border-radius: var(--radius-md);
   background: var(--color-bg);
 }
+
+/* --- Botón de observación por fila --- */
+
+.botonObservacion {
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.13s ease;
+}
+
+.botonObservacionCon {
+  border-color: #b7dcbd;
+  background: #eaf6ec;
+  color: var(--color-ok);
+}
+
+.botonObservacionSin {
+  color: var(--color-text-faint);
+}
+
+.botonObservacion:hover {
+  border-color: var(--color-border-strong);
+}
+
+/* --- Modal de observación --- */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.38);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-5);
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.modal h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+/* --- Modo solo lectura --- */
+
+.soloLecturaAviso {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: #f0f4ff;
+  border: 1px solid #c7d5f8;
+  color: #3b5bdb;
+  font-size: 13px;
+  margin-bottom: var(--space-3);
+}

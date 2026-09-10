@@ -280,7 +280,7 @@ export function VerificacionesHistoricoView() {
                         styles.filaEnlace,
                         d.resultado === 'No aceptable' && styles.filaMal,
                       )}
-                      onClick={() => navigate(`${ROUTES.agrofreshLabVerificaciones}?fecha=${d.fecha}`)}
+                      onClick={() => navigate(`${ROUTES.agrofreshLabVerificaciones}?fecha=${d.fecha}&solo=ver`)}
                     >
                       <td className={styles.celdaEquipo}>{d.fecha}</td>
                       {SECCIONES.map((id: SeccionId) => (

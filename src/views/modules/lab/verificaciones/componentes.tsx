@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { useState } from 'react'
+import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
 import type { Respuesta, Resultado, ResultadoDia } from '@/features/verificaciones'
@@ -160,5 +162,54 @@ export function Calculado({ valor, decimales = 2 }: { valor: number | null; deci
     <span className={styles.calculado}>
       {valor === null ? '—' : valor.toFixed(decimales)}
     </span>
+  )
+}
+
+interface ObservacionModalProps {
+  valor: string
+  onCambio: (v: string) => void
+  soloVer?: boolean
+  titulo?: string
+}
+
+/** Botón compacto de observación por fila. Verde si tiene contenido, gris si
+ * está vacío. Al hacer clic abre un modal con un textarea para escribir. */
+export function ObservacionModal({ valor, onCambio, soloVer, titulo }: ObservacionModalProps) {
+  const [abierto, setAbierto] = useState(false)
+  const tieneContenido = valor.trim().length > 0
+
+  return (
+    <>
+      <button
+        type="button"
+        className={cn(
+          styles.botonObservacion,
+          tieneContenido ? styles.botonObservacionCon : styles.botonObservacionSin,
+        )}
+        title={tieneContenido ? valor : 'Sin observación — clic para agregar'}
+        onClick={() => setAbierto(true)}
+      >
+        {tieneContenido ? '● Obs.' : '○ Obs.'}
+      </button>
+      {abierto && (
+        <div className={styles.modalOverlay} onClick={() => setAbierto(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h4>{titulo ?? 'Observación'}</h4>
+            <textarea
+              className={styles.textarea}
+              value={valor}
+              placeholder="Observación opcional para esta fila…"
+              rows={4}
+              autoFocus
+              disabled={soloVer}
+              onChange={(e) => onCambio(e.target.value)}
+            />
+            <div>
+              <Button onClick={() => setAbierto(false)}>Cerrar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
