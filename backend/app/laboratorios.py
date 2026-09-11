@@ -254,7 +254,10 @@ def resumen_laboratorios() -> list[ResumenLaboratorio]:
             activo=l.get("activo", True),
             orden=l.get("orden", 0),
             n_analisis=contar(analisis, l["codigo"]),
-            n_contactos=contar(contactos, l["codigo"]) + n_resultado,
+            n_contactos=sum(
+                1 for c in contactos
+                if c.get("laboratorio") == l["codigo"] and c.get("tipo") == "solicitud"
+            ) + n_resultado,
             n_analitos=contar(analitos, l["codigo"]),
         )
         for l in labs
