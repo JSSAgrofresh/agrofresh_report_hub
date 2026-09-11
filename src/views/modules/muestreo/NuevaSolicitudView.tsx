@@ -361,7 +361,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   useEffect(() => {
     if (!laboratorio || !shipTo) return
     let vigente = true
-    resultadosDeShipTo(laboratorio, shipTo)
+    resultadosDeShipTo(laboratorio, shipTo, soldTo)
       .then((contactos) => {
         if (vigente) setResultadosShipTo(contactos)
       })
@@ -371,7 +371,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     return () => {
       vigente = false
     }
-  }, [laboratorio, shipTo])
+  }, [laboratorio, shipTo, soldTo])
 
   const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === soldTo)
   const laboratoriosActivos = laboratoriosConfig
