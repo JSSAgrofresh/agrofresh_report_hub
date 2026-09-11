@@ -17,6 +17,7 @@ import type {
   Registro,
   RegistroInput,
   ResumenDia,
+  Seccion,
 } from './tipos'
 
 const BASE = '/verificaciones'
@@ -50,6 +51,12 @@ export function guardarRegistro(fecha: string, datos: RegistroInput) {
 
 export function eliminarRegistro(fecha: string) {
   return httpClient.delete<{ estado: string }>(`${BASE}/registros/${fecha}`)
+}
+
+/** Guarda solo una sección del día. El servidor extrae del payload únicamente
+ * los campos de esa sección y registra quién la guardó. */
+export function guardarSeccion(fecha: string, seccion: Seccion, datos: RegistroInput) {
+  return httpClient.put<Registro>(`${BASE}/registros/${fecha}/seccion/${seccion}`, datos)
 }
 
 /** Los días completos de un rango, del más antiguo al más nuevo: es lo que

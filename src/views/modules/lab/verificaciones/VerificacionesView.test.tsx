@@ -118,6 +118,7 @@ beforeEach(() => {
         micropipetas: '', balanza: '', temperatura: '', gases: '', inyector: '', detector: '',
       },
       resultado: 'Sin datos',
+      secciones_guardadas: {},
     }),
   )
   eliminarRegistro.mockResolvedValue({ estado: 'eliminado' })

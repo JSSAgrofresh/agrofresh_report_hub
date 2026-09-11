@@ -9,6 +9,7 @@ import { useAuth } from '@/features/auth'
 import {
   borradorVacio,
   guardarRegistro,
+  guardarSeccion,
   eliminarRegistro,
   obtenerConfig,
   obtenerRegistro,
@@ -26,6 +27,7 @@ import type {
   Respuesta,
   ResultadoDia,
   Seccion as SeccionId,
+  SeccionLock,
 } from '@/features/verificaciones'
 import { ACEPTABLE, SIN_MEDIR } from '@/features/verificaciones'
 import {
@@ -90,9 +92,11 @@ export function VerificacionesView() {
   const [borrador, setBorrador] = useState<RegistroInput | null>(null)
   const [cargando, setCargando] = useState(true)
   const [guardando, setGuardando] = useState(false)
+  const [guardandoSeccion, setGuardandoSeccion] = useState<Partial<Record<SeccionId, boolean>>>({})
   const [sucio, setSucio] = useState(false)
   const [guardadoEn, setGuardadoEn] = useState<string | null>(null)
   const [resultadoGuardado, setResultadoGuardado] = useState<ResultadoDia | null>(null)
+  const [seccionesGuardadas, setSeccionesGuardadas] = useState<Record<string, SeccionLock>>({})
   const [error, setError] = useState<string | null>(null)
 
   // Si el día ya fue guardado y salió Aceptable, se bloquea la edición automáticamente.
@@ -109,28 +113,60 @@ export function VerificacionesView() {
         if (!vigente) return
         setError(null)
         setConfig(catalogos)
-        // Si hay borrador local para este día y el día no está guardado en el servidor,
-        // restauramos el avance; si ya está guardado, arrancamos desde el servidor.
+        setSeccionesGuardadas(registro?.secciones_guardadas ?? {})
+
+        // Intentar restaurar borrador local.
+        let borradorLocal: RegistroInput | null = null
+        try {
+          const local = localStorage.getItem(claveLocal)
+          if (local) {
+            const restaurado: unknown = JSON.parse(local)
+            if (esBorradorCompatible(restaurado, catalogos)) borradorLocal = restaurado
+            else localStorage.removeItem(claveLocal)
+          }
+        } catch { /* ignorar errores de localStorage */ }
+
         if (!registro) {
-          try {
-            const local = localStorage.getItem(claveLocal)
-            if (local) {
-              const restaurado: unknown = JSON.parse(local)
-              if (esBorradorCompatible(restaurado, catalogos)) {
-                setBorrador(restaurado)
-                setSucio(true)
-                setCargando(false)
-                setGuardadoEn(null)
-                return
-              }
-              localStorage.removeItem(claveLocal)
-            }
-          } catch { /* ignorar errores de localStorage */ }
+          // Día sin guardar: si hay borrador local compatible, lo restauramos completo.
+          if (borradorLocal) {
+            setBorrador(borradorLocal)
+            setSucio(true)
+            setCargando(false)
+            setGuardadoEn(null)
+            return
+          }
+          setBorrador(borradorVacio(catalogos))
+        } else {
+          // Día con datos en servidor: usamos servidor como base.
+          // Para las secciones que NO están bloqueadas por otro usuario, si hay
+          // borrador local más reciente lo aplicamos encima (el usuario estaba
+          // a medio llenar esa sección y aún no guardó).
+          const locks = registro.secciones_guardadas ?? {}
+          if (borradorLocal) {
+            const base = registroABorrador(registro, catalogos)
+            // Campos globales: siempre del localStorage (pueden estar a medio llenar).
+            base.analista = borradorLocal.analista
+            base.temperatura_agua = borradorLocal.temperatura_agua
+            base.observaciones = borradorLocal.observaciones
+            base.revisado_por = borradorLocal.revisado_por
+            base.fugas_visibles = borradorLocal.fugas_visibles
+            base.fugas_observacion = borradorLocal.fugas_observacion
+            // Secciones sin lock: preferimos localStorage.
+            if (!locks['micropipetas']) base.micropipetas = borradorLocal.micropipetas
+            if (!locks['balanza']) base.balanza = borradorLocal.balanza
+            if (!locks['temperatura']) base.temperaturas = borradorLocal.temperaturas
+            if (!locks['gases']) base.gases = borradorLocal.gases
+            if (!locks['inyector']) base.inyector = borradorLocal.inyector
+            if (!locks['detector']) base.detector = borradorLocal.detector
+            setBorrador(base)
+            setSucio(true)
+          } else {
+            setBorrador(registroABorrador(registro, catalogos))
+            setSucio(false)
+          }
+          setGuardadoEn(registro.actualizado_en ?? null)
+          setResultadoGuardado(registro.resultado ?? null)
         }
-        setBorrador(registro ? registroABorrador(registro, catalogos) : borradorVacio(catalogos))
-        setGuardadoEn(registro?.actualizado_en ?? null)
-        setResultadoGuardado(registro?.resultado ?? null)
-        setSucio(false)
         setCargando(false)
       })
       .catch((e: unknown) => {
@@ -158,6 +194,14 @@ export function VerificacionesView() {
     [config, borrador],
   )
 
+  /** Devuelve `true` si esta sección la guardó otro analista y el usuario actual
+   * no es superadmin: nadie más puede sobreescribirla. */
+  function seccionBloqueada(id: SeccionId): boolean {
+    if (esSuperadmin || soloVer) return false
+    const lock = seccionesGuardadas[id]
+    return !!lock && lock.email.toLowerCase() !== (user?.email ?? '').toLowerCase()
+  }
+
   // Secciones obligatorias incompletas (todo excepto micropipetas).
   // Una sección está incompleta si alguno de sus resultados es SIN_MEDIR.
   const seccionesIncompletas = useMemo((): string[] => {
@@ -179,15 +223,13 @@ export function VerificacionesView() {
     setBorrador((previo) => {
       if (!previo) return previo
       const nuevo = cambio(previo)
-      // Auto-save en localStorage solo si el día aún no está guardado en el servidor
-      if (!guardadoEn) {
-        try { localStorage.setItem(claveLocal, JSON.stringify(nuevo)) } catch { /* sin espacio */ }
-      }
+      // Siempre persistir en localStorage: el usuario puede navegar a otro módulo
+      // y volver, y sus datos tienen que seguir ahí.
+      try { localStorage.setItem(claveLocal, JSON.stringify(nuevo)) } catch { /* sin espacio */ }
       return nuevo
     })
     setSucio(true)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [soloVer, guardadoEn, claveLocal])
+  }, [soloVer, claveLocal])
 
   async function guardar() {
     if (!borrador || soloVer) return
@@ -204,6 +246,25 @@ export function VerificacionesView() {
       setError(e instanceof Error ? e.message : 'No se pudo guardar el día.')
     } finally {
       setGuardando(false)
+    }
+  }
+
+  async function handleGuardarSeccion(seccion: SeccionId) {
+    if (!borrador || soloVer) return
+    setGuardandoSeccion((prev) => ({ ...prev, [seccion]: true }))
+    setError(null)
+    try {
+      const guardado = await guardarSeccion(fecha, seccion, borrador)
+      setSeccionesGuardadas(guardado.secciones_guardadas)
+      setGuardadoEn(guardado.actualizado_en)
+      setResultadoGuardado(guardado.resultado)
+      // El borrador no cambia: el usuario puede seguir llenando otras secciones.
+      // Actualizamos localStorage para reflejar el estado actual.
+      try { localStorage.setItem(claveLocal, JSON.stringify(borrador)) } catch { /* ok */ }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : `No se pudo guardar la sección ${NOMBRE_SECCION[seccion]}.`)
+    } finally {
+      setGuardandoSeccion((prev) => ({ ...prev, [seccion]: false }))
     }
   }
 
@@ -375,6 +436,10 @@ export function VerificacionesView() {
             titulo="Micropipetas"
             nota="Verificación gravimétrica: tres pesadas por equipo. El volumen se corrige por el factor Z del agua a la temperatura del día."
             resultado={previa.secciones.micropipetas}
+            lock={seccionesGuardadas['micropipetas']}
+            esPropio={seccionesGuardadas['micropipetas']?.email.toLowerCase() === user?.email?.toLowerCase()}
+            onGuardar={!soloVer && !seccionBloqueada('micropipetas') ? () => void handleGuardarSeccion('micropipetas') : undefined}
+            guardando={guardandoSeccion['micropipetas']}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla}>
@@ -462,6 +527,10 @@ export function VerificacionesView() {
             titulo="Balanza analítica"
             nota="Tres lecturas por pesa patrón. El criterio es cuánto se aleja el promedio del valor nominal de la pesa."
             resultado={previa.secciones.balanza}
+            lock={seccionesGuardadas['balanza']}
+            esPropio={seccionesGuardadas['balanza']?.email.toLowerCase() === user?.email?.toLowerCase()}
+            onGuardar={!soloVer && !seccionBloqueada('balanza') ? () => void handleGuardarSeccion('balanza') : undefined}
+            guardando={guardandoSeccion['balanza']}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla}>
@@ -545,6 +614,10 @@ export function VerificacionesView() {
             titulo="Temperatura"
             nota="Salas del laboratorio, refrigerador y congelador de reactivos."
             resultado={previa.secciones.temperatura}
+            lock={seccionesGuardadas['temperatura']}
+            esPropio={seccionesGuardadas['temperatura']?.email.toLowerCase() === user?.email?.toLowerCase()}
+            onGuardar={!soloVer && !seccionBloqueada('temperatura') ? () => void handleGuardarSeccion('temperatura') : undefined}
+            guardando={guardandoSeccion['temperatura']}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla} style={{ minWidth: 480 }}>
@@ -616,6 +689,10 @@ export function VerificacionesView() {
             titulo="Presión de gases"
             nota="Un cilindro por línea. La pregunta de fugas es una sola para el día y pesa igual que la presión de cada cilindro."
             resultado={previa.secciones.gases}
+            lock={seccionesGuardadas['gases']}
+            esPropio={seccionesGuardadas['gases']?.email.toLowerCase() === user?.email?.toLowerCase()}
+            onGuardar={!soloVer && !seccionBloqueada('gases') ? () => void handleGuardarSeccion('gases') : undefined}
+            guardando={guardandoSeccion['gases']}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla}>
@@ -730,10 +807,14 @@ export function VerificacionesView() {
             nota="Aceptable si se limpió la aguja y, además, la aguja está sana o fue reemplazada."
             analista={{
               valor: borrador.inyector.analista,
-              deshabilitado: soloVer,
+              deshabilitado: soloVer || seccionBloqueada('inyector'),
               onCambio: (valor) => editar((p) => ({ ...p, inyector: { ...p.inyector, analista: valor } })),
             }}
             resultado={previa.secciones.inyector}
+            lock={seccionesGuardadas['inyector']}
+            esPropio={seccionesGuardadas['inyector']?.email.toLowerCase() === user?.email?.toLowerCase()}
+            onGuardar={!soloVer && !seccionBloqueada('inyector') ? () => void handleGuardarSeccion('inyector') : undefined}
+            guardando={guardandoSeccion['inyector']}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla} style={{ minWidth: 520 }}>
@@ -809,10 +890,14 @@ export function VerificacionesView() {
             nota="Voltaje de la perla, método cargado y output del detector."
             analista={{
               valor: borrador.detector.analista,
-              deshabilitado: soloVer,
+              deshabilitado: soloVer || seccionBloqueada('detector'),
               onCambio: (valor) => editar((p) => ({ ...p, detector: { ...p.detector, analista: valor } })),
             }}
             resultado={previa.secciones.detector}
+            lock={seccionesGuardadas['detector']}
+            esPropio={seccionesGuardadas['detector']?.email.toLowerCase() === user?.email?.toLowerCase()}
+            onGuardar={!soloVer && !seccionBloqueada('detector') ? () => void handleGuardarSeccion('detector') : undefined}
+            guardando={guardandoSeccion['detector']}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla} style={{ minWidth: 520 }}>
@@ -920,8 +1005,7 @@ export function VerificacionesView() {
               )}
               <Button
                 onClick={() => void guardar()}
-                disabled={guardando || !sucio || seccionesIncompletas.length > 0}
-                title={seccionesIncompletas.length > 0 ? `Completa todas las secciones antes de guardar` : undefined}
+                disabled={guardando || !sucio}
               >
                 {guardando ? 'Guardando…' : 'Guardar el día'}
               </Button>

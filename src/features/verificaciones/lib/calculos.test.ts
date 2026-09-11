@@ -346,6 +346,7 @@ describe('un registro guardado, vuelto formulario', () => {
       detector: 'Aceptable',
     },
     resultado: 'Aceptable',
+    secciones_guardadas: {},
   }
 
   it('rellena lo medido y deja en blanco lo que no se midió', () => {

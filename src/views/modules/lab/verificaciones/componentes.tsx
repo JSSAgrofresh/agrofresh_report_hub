@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
-import type { Respuesta, Resultado, ResultadoDia } from '@/features/verificaciones'
+import type { Respuesta, Resultado, ResultadoDia, SeccionLock } from '@/features/verificaciones'
 import styles from './Verificaciones.module.css'
 
 /**
@@ -119,6 +119,12 @@ interface SeccionProps {
   resultado?: Resultado
   id?: string
   children: ReactNode
+  /** Quién tiene bloqueada esta sección (guardada por otro analista). */
+  lock?: SeccionLock
+  /** El usuario actual es quien guardó la sección (puede reguardar). */
+  esPropio?: boolean
+  onGuardar?: () => void
+  guardando?: boolean
 }
 
 /**
@@ -128,7 +134,7 @@ interface SeccionProps {
  * hace las micropipetas y otra la balanza, y el registro tiene que decir
  * quién hizo qué.
  */
-export function Seccion({ numero, titulo, nota, analista, resultado, id, children }: SeccionProps) {
+export function Seccion({ numero, titulo, nota, analista, resultado, id, children, lock, esPropio, onGuardar, guardando }: SeccionProps) {
   return (
     <Card className={styles.seccion} id={id}>
       <div className={styles.seccionCabecera}>
@@ -147,11 +153,31 @@ export function Seccion({ numero, titulo, nota, analista, resultado, id, childre
               />
             </label>
           )}
+          {lock && (
+            <span className={cn(styles.lockBadge, esPropio && styles.lockBadgePropio)}>
+              {esPropio ? '✓ Guardado por ti' : `🔒 ${lock.analista}`}
+            </span>
+          )}
+          {onGuardar && (
+            <Button
+              variant="secondary"
+              onClick={onGuardar}
+              disabled={guardando}
+              title="Guardar esta sección"
+            >
+              {guardando ? 'Guardando…' : 'Guardar sección'}
+            </Button>
+          )}
           {resultado !== undefined && <Veredicto resultado={resultado} />}
         </div>
         {nota && <p className={styles.seccionNota}>{nota}</p>}
       </div>
-      <div className={styles.seccionCuerpo}>{children}</div>
+      <div
+        className={styles.seccionCuerpo}
+        style={lock && !esPropio ? { pointerEvents: 'none', opacity: 0.65 } : undefined}
+      >
+        {children}
+      </div>
     </Card>
   )
 }
