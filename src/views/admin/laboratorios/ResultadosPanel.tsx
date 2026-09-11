@@ -427,13 +427,22 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
           <button key={g.clave} className={styles.tarjeta} onClick={() => { setGrupoActivo(g.clave); cerrarFormulario() }}>
             <div className={styles.tarjetaCabecera}>
               <div className={styles.tarjetaTitulos}>
-                <p className={styles.tarjetaNombre}>{etiquetaGrupo(g.sold_to, g.ship_to, g.especie)}</p>
-                {(g.sold_to || g.ship_to || g.especie) && (
-                  <p className={styles.tarjetaSecundario} style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                    {[g.sold_to && `ST: ${g.sold_to}`, g.ship_to && `SH: ${g.ship_to}`, g.especie && `ESP: ${g.especie}`]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
+                {(g.sold_to || g.ship_to || g.especie) ? (
+                  <>
+                    <p className={styles.tarjetaNombre}>{g.ship_to || g.sold_to}</p>
+                    {g.sold_to && g.ship_to && (
+                      <p className={styles.tarjetaSecundario} style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                        {g.sold_to}
+                      </p>
+                    )}
+                    {g.especie && (
+                      <p className={styles.tarjetaSecundario} style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-accent)' }}>
+                        {g.especie}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className={styles.tarjetaNombre}>{GLOBAL_ETIQUETA}</p>
                 )}
               </div>
             </div>
