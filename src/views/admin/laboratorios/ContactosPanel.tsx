@@ -58,7 +58,9 @@ export function ContactosPanel({ laboratorio, contactos, secciones, onCambio, on
       // Este panel solo maneja contactos de tipo `solicitud`, que no se
       // separan por Ship To ni tienen CC/BCC -eso es exclusivo de
       // ResultadosPanel, para la pestaña "Resultado a clientes".
+      sold_to: base?.sold_to ?? '',
       ship_to: base?.ship_to ?? '',
+      especie: base?.especie ?? '',
       tipo_copia: base?.tipo_copia ?? 'cc',
       activo: base?.activo ?? true,
       orden: base?.orden ?? contactos.filter((c) => c.tipo === tipo).length + 1,

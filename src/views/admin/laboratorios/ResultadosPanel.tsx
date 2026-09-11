@@ -3,103 +3,132 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 import { crearContacto, actualizarContacto, eliminarContacto, TIPOS_COPIA } from '@/features/laboratorios'
 import type { Contacto, ContactoInput, TipoContacto, TipoCopia } from '@/features/laboratorios'
-import { listarPlantas } from '@/features/catalogo'
-import type { Planta } from '@/features/catalogo'
+import { listarClientes, listarPlantas } from '@/features/catalogo'
+import type { Cliente, Planta } from '@/features/catalogo'
+import { listarEspeciesActivas } from '@/features/listados'
+import type { ValorLista } from '@/features/listados'
 import styles from './LaboratoriosView.module.css'
 
 interface ResultadosPanelProps {
   laboratorio: string
-  /** Solo contactos resultado_cliente/resultado_interno de este laboratorio. */
+  /** Todos los contactos resultado_cliente/resultado_interno (de cualquier lab). */
   contactos: Contacto[]
   onCambio: (contactos: Contacto[]) => void
   onError: (mensaje: string | null) => void
 }
 
-/** El Ship To "" es la configuración previa a este cambio -global, sin Ship
- * To asignado- y sigue funcionando como respaldo para cualquier Ship To que
- * todavía no tenga la suya propia (ver `contactos_de_resultados` en el
- * backend). Se muestra igual, con su propia etiqueta, para que no quede
- * escondida ni se pierda. */
-const SHIP_TO_GLOBAL = ''
-const ETIQUETA_GLOBAL = 'Sin Ship To (configuración general)'
+/** Clave canónica de un grupo (sold_to, ship_to, especie). */
+function claveGrupo(sold_to: string, ship_to: string, especie: string) {
+  return `${(sold_to || '').trim()}|||${(ship_to || '').trim()}|||${(especie || '').trim()}`
+}
+
+const GLOBAL_CLAVE = claveGrupo('', '', '')
+const GLOBAL_ETIQUETA = 'Configuración general (respaldo)'
 
 const VACIO = { nombre: '', email: '', cargo: '' }
-
 const PATRON_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const SECCIONES: { tipo: TipoContacto; titulo: string; nota: string }[] = [
   {
     tipo: 'resultado_cliente',
     titulo: 'Destinatarios del cliente',
-    nota: 'El laboratorio envía los resultados de este Ship To a estos correos del cliente.',
+    nota: 'Correos del cliente (van como destinatario directo en el mail de resultados).',
   },
   {
     tipo: 'resultado_interno',
     titulo: 'Copias internas AgroFresh',
-    nota: 'Correos nuestros que también reciben los resultados de este Ship To, en copia o en copia oculta.',
+    nota: 'Correos AgroFresh que reciben copia (comerciales, técnico, etc.).',
   },
 ]
 
 export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: ResultadosPanelProps) {
-  const [shipToActivo, setShipToActivo] = useState<string | null>(null)
+  const [grupoActivo, setGrupoActivo] = useState<string | null>(null)
+  const [clientes, setClientes] = useState<Cliente[]>([])
   const [plantas, setPlantas] = useState<Planta[]>([])
+  const [especies, setEspecies] = useState<ValorLista[]>([])
+  const [nuevoSoldTo, setNuevoSoldTo] = useState('')
   const [nuevoShipTo, setNuevoShipTo] = useState('')
+  const [nuevoEspecie, setNuevoEspecie] = useState('')
   const [creandoEn, setCreandoEn] = useState<TipoContacto | null>(null)
   const [editando, setEditando] = useState<number | null>(null)
   const [borrador, setBorrador] = useState(VACIO)
   const [tipoCopia, setTipoCopia] = useState<TipoCopia>('cc')
   const [guardando, setGuardando] = useState(false)
 
-  // Los Ship To salen del catálogo (Listados → Ship To), no se escriben a
-  // mano: así queda el mismo nombre que usan las solicitudes y no se crean
-  // configuraciones "huérfanas" por una tilde o un espacio distinto.
   useEffect(() => {
-    listarPlantas()
-      .then(setPlantas)
-      .catch(() => onError('No se pudo cargar el listado de Ship To.'))
+    Promise.all([listarClientes(), listarPlantas(), listarEspeciesActivas()])
+      .then(([c, p, e]) => {
+        setClientes(c)
+        setPlantas(p)
+        setEspecies(e)
+      })
+      .catch(() => onError('No se pudieron cargar los datos del catálogo.'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const shipTos = useMemo(() => {
-    const vistos = new Set<string>()
-    for (const c of contactos) vistos.add((c.ship_to ?? '').trim())
-    const lista = [...vistos].filter((s) => s !== SHIP_TO_GLOBAL).sort((a, b) => a.localeCompare(b))
-    if (vistos.has(SHIP_TO_GLOBAL)) lista.unshift(SHIP_TO_GLOBAL)
-    return lista
+  // Grupos existentes: set de claves únicas
+  const grupos = useMemo(() => {
+    const mapa = new Map<string, { sold_to: string; ship_to: string; especie: string; count: number }>()
+    for (const c of contactos) {
+      const st = (c.sold_to || '').trim()
+      const sh = (c.ship_to || '').trim()
+      const es = (c.especie || '').trim()
+      const k = claveGrupo(st, sh, es)
+      const existente = mapa.get(k)
+      if (existente) {
+        existente.count++
+      } else {
+        mapa.set(k, { sold_to: st, ship_to: sh, especie: es, count: 1 })
+      }
+    }
+    // Primero el global, luego el resto ordenado
+    const global = mapa.get(GLOBAL_CLAVE)
+    const resto = [...mapa.entries()]
+      .filter(([k]) => k !== GLOBAL_CLAVE)
+      .sort(([, a], [, b]) => {
+        const la = `${a.sold_to} ${a.ship_to} ${a.especie}`
+        const lb = `${b.sold_to} ${b.ship_to} ${b.especie}`
+        return la.localeCompare(lb)
+      })
+    const resultado: { clave: string; sold_to: string; ship_to: string; especie: string; count: number }[] = []
+    if (global) resultado.push({ clave: GLOBAL_CLAVE, ...global })
+    for (const [clave, datos] of resto) resultado.push({ clave, ...datos })
+    return resultado
   }, [contactos])
 
-  // Solo se ofrecen para "Nuevo Ship To" las plantas activas que todavía no
-  // tienen su propia configuración de resultados en este laboratorio.
-  const plantasDisponibles = useMemo(
+  const claveActiva = grupoActivo
+  const grupoActivoDatos = grupoActivo !== null
+    ? grupos.find((g) => g.clave === grupoActivo) ?? { sold_to: '', ship_to: '', especie: '' }
+    : null
+
+  // Plantas filtradas por sold_to seleccionado en el formulario nuevo grupo
+  const plantasFiltradas = useMemo(
     () =>
       plantas
-        .filter((p) => p.activo && !shipTos.includes(p.nombre))
+        .filter((p) => p.activo && (!nuevoSoldTo || p.cliente_nombre === nuevoSoldTo))
         .sort((a, b) => a.nombre.localeCompare(b.nombre)),
-    [plantas, shipTos],
+    [plantas, nuevoSoldTo],
   )
 
-  function contador(shipTo: string) {
-    return contactos.filter((c) => (c.ship_to ?? '') === shipTo).length
+  // Claves ya configuradas (para evitar duplicados al crear)
+  const clavesExistentes = useMemo(() => new Set(grupos.map((g) => g.clave)), [grupos])
+
+  function etiquetaGrupo(sold_to: string, ship_to: string, especie: string) {
+    if (!sold_to && !ship_to && !especie) return GLOBAL_ETIQUETA
+    const partes = [sold_to, ship_to, especie].filter(Boolean)
+    return partes.join(' · ')
   }
 
-  function abrirShipTo(shipTo: string) {
-    setShipToActivo(shipTo)
-    cerrarFormulario()
-  }
-
-  function crearShipTo() {
-    const valor = nuevoShipTo.trim()
-    if (!valor) {
-      onError('Elige un Ship To.')
-      return
-    }
-    if (shipTos.includes(valor)) {
-      onError('Ese Ship To ya tiene configuración propia.')
-      return
-    }
-    onError(null)
-    setNuevoShipTo('')
-    setShipToActivo(valor)
+  function contactosDelGrupo(sold_to: string, ship_to: string, especie: string) {
+    const st = sold_to.trim()
+    const sh = ship_to.trim()
+    const es = especie.trim()
+    return contactos.filter(
+      (c) =>
+        (c.sold_to || '').trim() === st &&
+        (c.ship_to || '').trim() === sh &&
+        (c.especie || '').trim() === es,
+    )
   }
 
   function cerrarFormulario() {
@@ -125,21 +154,30 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
     onError(null)
   }
 
-  function datosDe(tipo: TipoContacto, shipTo: string, base?: Contacto): ContactoInput {
+  function datosDe(
+    tipo: TipoContacto,
+    sold_to: string,
+    ship_to: string,
+    especie: string,
+    base?: Contacto,
+  ): ContactoInput {
+    const delGrupoTipo = contactosDelGrupo(sold_to, ship_to, especie).filter((c) => c.tipo === tipo)
     return {
       laboratorio,
       nombre: borrador.nombre.trim(),
       email: borrador.email.trim(),
       cargo: borrador.cargo.trim(),
       tipo,
-      ship_to: shipTo,
+      sold_to: sold_to.trim(),
+      ship_to: ship_to.trim(),
+      especie: especie.trim(),
       tipo_copia: tipo === 'resultado_interno' ? tipoCopia : 'cc',
       activo: base?.activo ?? true,
-      orden: base?.orden ?? contactos.filter((c) => c.tipo === tipo && (c.ship_to ?? '') === shipTo).length + 1,
+      orden: base?.orden ?? delGrupoTipo.length + 1,
     }
   }
 
-  async function guardar(tipo: TipoContacto, shipTo: string, existente?: Contacto) {
+  async function guardar(tipo: TipoContacto, sold_to: string, ship_to: string, especie: string, existente?: Contacto) {
     if (!borrador.nombre.trim() || !borrador.email.trim()) {
       onError('El nombre y el correo son obligatorios.')
       return
@@ -152,10 +190,10 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
     onError(null)
     try {
       if (existente) {
-        const actualizado = await actualizarContacto(existente.id, datosDe(tipo, shipTo, existente))
+        const actualizado = await actualizarContacto(existente.id, datosDe(tipo, sold_to, ship_to, especie, existente))
         onCambio(contactos.map((c) => (c.id === existente.id ? actualizado : c)))
       } else {
-        const nuevo = await crearContacto(datosDe(tipo, shipTo))
+        const nuevo = await crearContacto(datosDe(tipo, sold_to, ship_to, especie))
         onCambio([...contactos, nuevo])
       }
       cerrarFormulario()
@@ -188,7 +226,22 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
     }
   }
 
-  function formulario(tipo: TipoContacto, shipTo: string, existente?: Contacto) {
+  function crearGrupo() {
+    const clave = claveGrupo(nuevoSoldTo, nuevoShipTo, nuevoEspecie)
+    if (!nuevoSoldTo && !nuevoShipTo && !nuevoEspecie) {
+      // El global se abre directamente
+    } else if (clavesExistentes.has(clave)) {
+      onError('Esa combinación ya tiene configuración propia.')
+      return
+    }
+    onError(null)
+    setNuevoSoldTo('')
+    setNuevoShipTo('')
+    setNuevoEspecie('')
+    setGrupoActivo(clave)
+  }
+
+  function formulario(tipo: TipoContacto, sold_to: string, ship_to: string, especie: string, existente?: Contacto) {
     return (
       <div className={styles.formulario}>
         <div className={styles.formGrilla}>
@@ -208,7 +261,7 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
               className={styles.input}
               type="email"
               value={borrador.email}
-              placeholder="ana@laboratorio.cl"
+              placeholder="ana@empresa.cl"
               onChange={(e) => setBorrador({ ...borrador, email: e.target.value })}
             />
           </div>
@@ -217,7 +270,7 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
             <input
               className={styles.input}
               value={borrador.cargo}
-              placeholder="Jefa de laboratorio"
+              placeholder="Comercial"
               onChange={(e) => setBorrador({ ...borrador, cargo: e.target.value })}
             />
           </div>
@@ -242,7 +295,7 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
           <Button variant="secondary" onClick={cerrarFormulario} disabled={guardando}>
             Cancelar
           </Button>
-          <Button onClick={() => guardar(tipo, shipTo, existente)} disabled={guardando}>
+          <Button onClick={() => guardar(tipo, sold_to, ship_to, especie, existente)} disabled={guardando}>
             {guardando ? 'Guardando…' : existente ? 'Guardar cambios' : 'Agregar contacto'}
           </Button>
         </div>
@@ -250,26 +303,33 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
     )
   }
 
-  // --- Detalle de un Ship To ------------------------------------------------
+  // --- Detalle de un grupo (sold_to + ship_to + especie) -------------------
 
-  if (shipToActivo !== null) {
-    const delShipTo = contactos.filter((c) => (c.ship_to ?? '') === shipToActivo)
+  if (claveActiva !== null && grupoActivoDatos !== null) {
+    const { sold_to, ship_to, especie } = grupoActivoDatos
+    const delGrupo = contactosDelGrupo(sold_to, ship_to, especie)
     return (
       <>
         <div className={styles.seccionCabecera}>
           <div>
-            <h3 className={styles.seccionTitulo}>
-              {shipToActivo === SHIP_TO_GLOBAL ? ETIQUETA_GLOBAL : shipToActivo}
-            </h3>
-            <p className={styles.seccionNota}>Configuración de resultados propia de este Ship To.</p>
+            <h3 className={styles.seccionTitulo}>{etiquetaGrupo(sold_to, ship_to, especie)}</h3>
+            <p className={styles.seccionNota}>
+              {[
+                sold_to && `Sold To: ${sold_to}`,
+                ship_to && `Ship To: ${ship_to}`,
+                especie && `Especie: ${especie}`,
+              ]
+                .filter(Boolean)
+                .join(' · ') || 'Configuración de respaldo para combinaciones sin regla propia.'}
+            </p>
           </div>
-          <Button variant="secondary" onClick={() => setShipToActivo(null)}>
-            ← Todos los Ship To
+          <Button variant="secondary" onClick={() => { setGrupoActivo(null); cerrarFormulario() }}>
+            ← Todos los grupos
           </Button>
         </div>
 
         {SECCIONES.map(({ tipo, titulo, nota }) => {
-          const delTipo = delShipTo.filter((c) => c.tipo === tipo).sort((a, b) => a.orden - b.orden)
+          const delTipo = delGrupo.filter((c) => c.tipo === tipo).sort((a, b) => a.orden - b.orden)
           return (
             <section key={tipo} className={styles.seccion}>
               <div className={styles.seccionCabecera}>
@@ -282,7 +342,7 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
                 </Button>
               </div>
 
-              {creandoEn === tipo && formulario(tipo, shipToActivo)}
+              {creandoEn === tipo && formulario(tipo, sold_to, ship_to, especie)}
 
               {delTipo.length === 0 && creandoEn !== tipo ? (
                 <div className={styles.vacio}>
@@ -295,7 +355,7 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
                     {delTipo.map((contacto) =>
                       editando === contacto.id ? (
                         <div key={contacto.id} style={{ padding: 'var(--space-3)' }}>
-                          {formulario(tipo, shipToActivo, contacto)}
+                          {formulario(tipo, sold_to, ship_to, especie, contacto)}
                         </div>
                       ) : (
                         <div key={contacto.id} className={cn(styles.fila, !contacto.activo && styles.filaInactiva)}>
@@ -313,7 +373,9 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
                             </div>
                             <div className={styles.filaSecundario}>{contacto.email}</div>
                           </div>
-                          {!contacto.activo && <span className={cn(styles.insignia, styles.insigniaInactivo)}>Inactivo</span>}
+                          {!contacto.activo && (
+                            <span className={cn(styles.insignia, styles.insigniaInactivo)}>Inactivo</span>
+                          )}
                           <div className={styles.filaAcciones}>
                             <button
                               className={styles.iconoBoton}
@@ -346,53 +408,78 @@ export function ResultadosPanel({ laboratorio, contactos, onCambio, onError }: R
     )
   }
 
-  // --- Grilla de Ship To -----------------------------------------------------
+  // --- Grilla de grupos ----------------------------------------------------
 
   return (
     <>
       <div className={styles.seccionCabecera}>
         <div>
-          <h3 className={styles.seccionTitulo}>Resultado a clientes por Ship To</h3>
+          <h3 className={styles.seccionTitulo}>Resultado a clientes por Sold To · Ship To · Especie</h3>
           <p className={styles.seccionNota}>
-            Cada Ship To tiene su propia lista de destinatarios del cliente y copias internas AgroFresh.
+            Cada combinación tiene su propia lista de destinatarios y copias internas. La configuración es compartida
+            entre todos los laboratorios.
           </p>
         </div>
       </div>
 
       <div className={styles.grilla}>
-        {shipTos.map((shipTo) => (
-          <button key={shipTo || '(global)'} className={styles.tarjeta} onClick={() => abrirShipTo(shipTo)}>
+        {grupos.map((g) => (
+          <button key={g.clave} className={styles.tarjeta} onClick={() => { setGrupoActivo(g.clave); cerrarFormulario() }}>
             <div className={styles.tarjetaCabecera}>
               <div className={styles.tarjetaTitulos}>
-                <p className={styles.tarjetaNombre}>{shipTo === SHIP_TO_GLOBAL ? ETIQUETA_GLOBAL : shipTo}</p>
+                <p className={styles.tarjetaNombre}>{etiquetaGrupo(g.sold_to, g.ship_to, g.especie)}</p>
+                {(g.sold_to || g.ship_to || g.especie) && (
+                  <p className={styles.tarjetaSecundario} style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                    {[g.sold_to && `ST: ${g.sold_to}`, g.ship_to && `SH: ${g.ship_to}`, g.especie && `ESP: ${g.especie}`]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                )}
               </div>
             </div>
             <div className={styles.metricas}>
               <div className={styles.metrica}>
-                <span className={styles.metricaValor}>{contador(shipTo)}</span>
+                <span className={styles.metricaValor}>{g.count}</span>
                 <span className={styles.metricaEtiqueta}>Contactos</span>
               </div>
             </div>
           </button>
         ))}
 
-        <div className={styles.tarjetaNueva} style={{ cursor: 'default' }}>
+        {/* Formulario para nuevo grupo */}
+        <div className={styles.tarjetaNueva} style={{ cursor: 'default', gap: 'var(--space-2)' }}>
+          <select
+            className={styles.select}
+            value={nuevoSoldTo}
+            onChange={(e) => { setNuevoSoldTo(e.target.value); setNuevoShipTo('') }}
+          >
+            <option value="">Sold To (opcional)…</option>
+            {clientes.filter((c) => c.activo).sort((a, b) => a.nombre.localeCompare(b.nombre)).map((c) => (
+              <option key={c.id} value={c.nombre}>{c.nombre}</option>
+            ))}
+          </select>
           <select
             className={styles.select}
             value={nuevoShipTo}
             onChange={(e) => setNuevoShipTo(e.target.value)}
           >
-            <option value="">
-              {plantasDisponibles.length === 0 ? 'No hay Ship To sin configurar' : 'Elige un Ship To…'}
-            </option>
-            {plantasDisponibles.map((p) => (
-              <option key={p.id} value={p.nombre}>
-                {p.nombre} · {p.cliente_nombre}
-              </option>
+            <option value="">Ship To (opcional)…</option>
+            {plantasFiltradas.map((p) => (
+              <option key={p.id} value={p.nombre}>{p.nombre}</option>
             ))}
           </select>
-          <Button variant="secondary" onClick={crearShipTo} disabled={!nuevoShipTo}>
-            + Nuevo Ship To
+          <select
+            className={styles.select}
+            value={nuevoEspecie}
+            onChange={(e) => setNuevoEspecie(e.target.value)}
+          >
+            <option value="">Especie (opcional)…</option>
+            {especies.map((e) => (
+              <option key={e.id} value={e.valor}>{e.valor}</option>
+            ))}
+          </select>
+          <Button variant="secondary" onClick={crearGrupo}>
+            + Nuevo grupo
           </Button>
         </div>
       </div>
