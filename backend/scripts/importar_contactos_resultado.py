@@ -285,6 +285,7 @@ def grupos_a_contactos(grupos: list[dict], id_inicio: int) -> list[dict]:
 
 def main():
     aplicar = "--aplicar" in sys.argv
+    limpiar = "--limpiar" in sys.argv  # borra contactos de resultado antes de reimportar
 
     # Buscar el Excel: primero argumento posicional, luego junto al script
     excel_arg = next((a for a in sys.argv[1:] if not a.startswith("-")), None)
@@ -303,13 +304,16 @@ def main():
     ws = leer_excel(excel_path)
     grupos = construir_grupos(ws)
 
-    # Cargar JSON existente
-    os.makedirs(os.path.dirname(JSON_PATH), exist_ok=True)
-    if os.path.exists(JSON_PATH):
-        with open(JSON_PATH, encoding="utf-8") as f:
-            existentes: list[dict] = json.load(f)
+    # Cargar JSON existente (via config_store para soportar R2)
+    from app import config_store
+    todos: list[dict] = config_store.leer("contactos_laboratorio.json", [])
+
+    # Con --limpiar se eliminan los de resultado para reimportar desde cero
+    if limpiar:
+        existentes = [c for c in todos if c.get("tipo") not in ("resultado_cliente", "resultado_interno")]
+        print(f"--limpiar: se eliminan {len(todos) - len(existentes)} contactos de resultado existentes.")
     else:
-        existentes = []
+        existentes = todos
 
     max_id = max((c["id"] for c in existentes), default=0)
 
@@ -371,12 +375,12 @@ def main():
         print(">> Agrega --aplicar para guardar.")
         return
 
-    # Escribir
+    # Escribir (via config_store para soportar R2)
     resultado = existentes + nuevos_contactos
-    with open(JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(resultado, f, ensure_ascii=False, indent=2)
+    config_store.escribir("contactos_laboratorio.json", resultado)
 
-    print(f"✓ Guardado: {JSON_PATH}")
+    destino = "R2" if __import__("app.r2", fromlist=["disponible"]).disponible() else JSON_PATH
+    print(f"✓ Guardado en: {destino}")
     print(f"  Total contactos ahora: {len(resultado)}")
 
 
