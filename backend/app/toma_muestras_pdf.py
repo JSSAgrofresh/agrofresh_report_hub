@@ -349,11 +349,23 @@ def _construir_elementos(
     ]))
     elementos.extend([_seccion('4', 'PROGRAMACIÓN Y DISTRIBUCIÓN', 'Fechas, observaciones y destinatarios'), fechas_barra, Spacer(1, 4)])
 
-    correos = ' · '.join(datos.get('destinatarios_resultados') or []) or '—'
+    detalle = datos.get('destinatarios_resultados_detalle') or {}
+    para_lst = detalle.get('para') or []
+    cc_lst   = detalle.get('cc') or []
+    bcc_lst  = detalle.get('bcc') or []
+
+    def _bloque_correos(titulo: str, lst: list) -> str:
+        if not lst:
+            return ''
+        return f'<b>{titulo}:</b> {"; ".join(lst)}'
+
+    partes = [_bloque_correos('Para', para_lst), _bloque_correos('CC', cc_lst), _bloque_correos('BCC', bcc_lst)]
+    correos_html = '<br/>'.join(p for p in partes if p) or '—'
+
     obs = datos.get('observacion') or '—'
     cierre = Table([
         [Paragraph('<b>OBSERVACIONES</b>', _S_PEQUENO), Paragraph('<b>DESTINATARIOS DE RESULTADOS</b>', _S_PEQUENO)],
-        [Paragraph(obs, _S_OBS), Paragraph(correos, _S_OBS)],
+        [Paragraph(obs, _S_OBS), Paragraph(correos_html, _S_OBS)],
     ], colWidths=[ANCHO_UTIL * 0.5, ANCHO_UTIL * 0.5], rowHeights=[None, 42 + espacio_extra])
     cierre.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
