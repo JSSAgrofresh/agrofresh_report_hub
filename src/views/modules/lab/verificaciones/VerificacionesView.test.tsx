@@ -57,6 +57,7 @@ const CONFIG: ConfigVerificaciones = {
     { clave: 'output_max', valor: 22, descripcion: '', unidad: '', orden: 7 },
   ],
   tabla_z: [{ temperatura: 20, factor: 1.0026 }],
+  columnas_config: {},
 }
 
 function pintar() {
