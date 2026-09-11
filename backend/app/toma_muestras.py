@@ -1117,12 +1117,37 @@ def resultados_de_ship_to(
 def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
     """Añade al PDF la configuración vigente sin modificar la solicitud."""
     datos_pdf = dict(datos)
-    datos_pdf["destinatarios_resultados"] = contactos_de_resultados(
-        str(datos.get("laboratorio") or ""),
-        str(datos.get("ship_to") or ""),
-        str(datos.get("sold_to") or ""),
-        str(datos.get("especie") or ""),
-    )
+    sold_to = str(datos.get("sold_to") or "")
+    ship_to = str(datos.get("ship_to") or "")
+    especie = str(datos.get("especie") or "")
+    contactos = _contactos_resultado(sold_to, ship_to, especie)
+    activos = [c for c in sorted(contactos, key=lambda c: c.get("orden", 0)) if c.get("activo", True) and c.get("email")]
+    # Lista plana legacy (se conserva por si alguien la usa)
+    vistos: set[str] = set()
+    plana: list[str] = []
+    for c in activos:
+        e = str(c["email"]).strip()
+        if e.casefold() not in vistos:
+            plana.append(e)
+            vistos.add(e.casefold())
+    datos_pdf["destinatarios_resultados"] = plana
+    # Detalle agrupado por rol: para, cc, bcc
+    para: list[str] = []
+    cc: list[str] = []
+    bcc: list[str] = []
+    vistos_det: set[str] = set()
+    for c in activos:
+        e = str(c["email"]).strip()
+        if e.casefold() in vistos_det:
+            continue
+        vistos_det.add(e.casefold())
+        if c.get("tipo") == "resultado_cliente":
+            para.append(e)
+        elif c.get("tipo_copia") == "bcc":
+            bcc.append(e)
+        else:
+            cc.append(e)
+    datos_pdf["destinatarios_resultados_detalle"] = {"para": para, "cc": cc, "bcc": bcc}
     return datos_pdf
 
 
