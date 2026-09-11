@@ -354,45 +354,39 @@ def _construir_elementos(
     cc_lst   = detalle.get('cc') or []
     bcc_lst  = detalle.get('bcc') or []
 
-    # Mini-tabla de destinatarios: una fila por grupo, etiqueta a la izquierda
-    _S_DEST_LABEL = ParagraphStyle('destLabel', fontName='Helvetica-Bold', fontSize=7, leading=9, textColor=GRIS_3)
-    _S_DEST_EMAIL = ParagraphStyle('destEmail', fontName='Helvetica', fontSize=7.8, leading=10, textColor=NEGRO)
-    ANCHO_DEST = ANCHO_UTIL * 0.5
-    COL_TAG = 1.1 * cm
+    # Cada grupo (PARA / CC / BCC) es una sub-fila dentro del recuadro derecho.
+    # El recuadro crece para contener el contenido; las franjas se separan con
+    # una línea delgada interna.
+    _S_DEST_LABEL = ParagraphStyle('destLabel', fontName='Helvetica-Bold', fontSize=6.5, leading=8, textColor=GRIS_3)
+    _S_DEST_EMAIL = ParagraphStyle('destEmail', fontName='Helvetica', fontSize=8, leading=10, textColor=NEGRO)
+    ANCHO_DEST = ANCHO_UTIL * 0.5 - 14  # descuenta paddings del recuadro exterior
+    COL_TAG = 1.0 * cm
 
-    def _fila_dest(etiqueta: str, lst: list, fondo):
-        tag = Paragraph(etiqueta, _S_DEST_LABEL)
-        emails = Paragraph('; '.join(lst), _S_DEST_EMAIL)
-        return [tag, emails], fondo
+    grupos_dest = [(etq, lst) for etq, lst in [('PARA', para_lst), ('CC', cc_lst), ('BCC', bcc_lst)] if lst]
+    if not grupos_dest:
+        grupos_dest = [('—', [])]
 
-    filas_dest = []
-    fondos_dest = []
-    for etq, lst, fondo in [('PARA', para_lst, GRIS_1), ('CC', cc_lst, BLANCO), ('BCC', bcc_lst, GRIS_1)]:
-        if lst:
-            fila, f = _fila_dest(etq, lst, fondo)
-            filas_dest.append(fila)
-            fondos_dest.append(f)
-
-    if not filas_dest:
-        filas_dest = [[Paragraph('', _S_DEST_LABEL), Paragraph('—', _S_DEST_EMAIL)]]
-        fondos_dest = [BLANCO]
+    filas_dest = [
+        [Paragraph(etq, _S_DEST_LABEL), Paragraph('; '.join(lst) if lst else '—', _S_DEST_EMAIL)]
+        for etq, lst in grupos_dest
+    ]
 
     tabla_dest = Table(filas_dest, colWidths=[COL_TAG, ANCHO_DEST - COL_TAG])
     dest_styles = [
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 5), ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-        ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        ('LINEBELOW', (0, 0), (-1, -2), 0.3, GRIS_2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4), ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
     ]
-    for i, fondo in enumerate(fondos_dest):
-        dest_styles.append(('BACKGROUND', (0, i), (-1, i), fondo))
+    # Línea separadora entre grupos
+    for i in range(len(filas_dest) - 1):
+        dest_styles.append(('LINEBELOW', (0, i), (-1, i), 0.5, GRIS_2))
     tabla_dest.setStyle(TableStyle(dest_styles))
 
     obs = datos.get('observacion') or '—'
     cierre = Table([
         [Paragraph('<b>OBSERVACIONES</b>', _S_PEQUENO), Paragraph('<b>DESTINATARIOS DE RESULTADOS</b>', _S_PEQUENO)],
         [Paragraph(obs, _S_OBS), tabla_dest],
-    ], colWidths=[ANCHO_UTIL * 0.5, ANCHO_UTIL * 0.5], rowHeights=[None, 42 + espacio_extra])
+    ], colWidths=[ANCHO_UTIL * 0.5, ANCHO_UTIL * 0.5])
     cierre.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('BACKGROUND', (0, 0), (-1, -1), BLANCO),
         ('TOPPADDING', (0, 0), (-1, 0), 4), ('BOTTOMPADDING', (0, 0), (-1, 0), 1),
