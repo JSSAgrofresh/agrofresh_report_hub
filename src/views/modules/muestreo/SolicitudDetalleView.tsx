@@ -15,8 +15,9 @@ import {
   subirFotoSolicitud,
   eliminarFotoSolicitud,
   obtenerFotoSolicitud,
+  resultadosDeShipTo,
 } from '@/features/tomaMuestras'
-import type { AnalitoConfig, Solicitud } from '@/features/tomaMuestras'
+import type { AnalitoConfig, ContactoResultado, Solicitud } from '@/features/tomaMuestras'
 import { ROUTES, rutaTomaMuestrasEditar } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
 import styles from './SolicitudDetalleView.module.css'
@@ -109,6 +110,7 @@ export function SolicitudDetalleView() {
   const [enviando, setEnviando] = useState(false)
   const [mensajeEnvio, setMensajeEnvio] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [contactosLab, setContactosLab] = useState<string[] | null>(null)
+  const [contactosResultado, setContactosResultado] = useState<ContactoResultado[] | null>(null)
   const inputEmailRef = useRef<HTMLInputElement>(null)
 
   // --- Fotos de la muestra: se piden por cámara y se suben directo a R2,
@@ -127,7 +129,17 @@ export function SolicitudDetalleView() {
   useEffect(() => {
     if (!archivo) return
     obtenerSolicitud(archivo)
-      .then(setSolicitud)
+      .then((sol) => {
+        setSolicitud(sol)
+        resultadosDeShipTo(
+          sol.laboratorio ?? '',
+          sol.ship_to ?? '',
+          sol.sold_to ?? '',
+          sol.especie ?? '',
+        )
+          .then(setContactosResultado)
+          .catch(() => setContactosResultado([]))
+      })
       .catch(() => setError('No se pudo cargar la solicitud.'))
     listarFotosSolicitud(archivo)
       .then(setFotos)
@@ -637,6 +649,36 @@ export function SolicitudDetalleView() {
             </div>
           </Card>
         )}
+
+        <Card className={styles.cardAncha}>
+          <h2 className={styles.tituloSeccion}>Destinatarios de resultados</h2>
+          {contactosResultado === null ? (
+            <p className={styles.observacion}>Cargando…</p>
+          ) : contactosResultado.length === 0 ? (
+            <p className={styles.observacion}>No hay destinatarios configurados para este Ship To / Especie.</p>
+          ) : (
+            <div className={styles.tablaCaja}>
+              <table className={styles.tabla}>
+                <thead>
+                  <tr>
+                    <th>Tipo</th>
+                    <th>Nombre / Email</th>
+                    <th>Envío</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contactosResultado.map((c) => (
+                    <tr key={c.email + c.tipo}>
+                      <td>{c.tipo === 'resultado_cliente' ? 'Cliente' : 'Interno'}</td>
+                      <td>{c.nombre !== c.email && c.nombre ? `${c.nombre} · ${c.email}` : c.email}</td>
+                      <td>{c.tipo === 'resultado_cliente' ? 'Para' : c.tipo_copia === 'bcc' ? 'BCC' : 'CC'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
 
         <Card className={styles.cardAncha}>
           <h2 className={styles.tituloSeccion}>Observaciones</h2>
