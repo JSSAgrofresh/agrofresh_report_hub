@@ -247,6 +247,12 @@ export interface RegistroInput {
   detector: DetectorInput
 }
 
+export interface SeccionLock {
+  analista: string
+  email: string
+  guardado_en: string
+}
+
 export interface Registro {
   fecha: string
   temperatura_agua: number | null
@@ -270,6 +276,7 @@ export interface Registro {
   detector: Detector
   resultados_seccion: Record<Seccion, Resultado>
   resultado: ResultadoDia
+  secciones_guardadas: Record<string, SeccionLock>
 }
 
 /** Una fila del resumen diario: el día y cómo salió cada sección. */

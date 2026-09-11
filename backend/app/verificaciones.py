@@ -469,6 +469,12 @@ class RegistroIn(BaseModel):
     detector: DetectorIn = DetectorIn()
 
 
+class SeccionLock(BaseModel):
+    analista: str
+    email: str
+    guardado_en: datetime
+
+
 class Registro(BaseModel):
     fecha: date
     temperatura_agua: float | None = None
@@ -492,6 +498,7 @@ class Registro(BaseModel):
     detector: Detector = Detector()
     resultados_seccion: dict[str, str] = {}
     resultado: str = SIN_DATOS
+    secciones_guardadas: dict[str, SeccionLock] = {}
 
 
 class ResumenDia(BaseModel):
@@ -880,6 +887,18 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
         "detector": detector.resultado,
     }
 
+    try:
+        cur.execute(
+            "SELECT seccion, analista, email, guardado_en FROM verif_seccion_lock WHERE fecha = %s",
+            [fila_dia["fecha"]],
+        )
+        secciones_guardadas = {
+            f["seccion"]: SeccionLock(analista=f["analista"], email=f["email"], guardado_en=f["guardado_en"])
+            for f in cur.fetchall()
+        }
+    except Exception:
+        secciones_guardadas = {}
+
     return Registro(
         fecha=fila_dia["fecha"],
         temperatura_agua=temperatura,
@@ -903,6 +922,7 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
         detector=detector,
         resultados_seccion=secciones,
         resultado=resultado_del_dia(list(secciones.values())),
+        secciones_guardadas=secciones_guardadas,
     )
 
 
@@ -1167,6 +1187,169 @@ def _guardar_resultados(cur, registro_id: int, registro: Registro) -> None:
         "UPDATE verif_registro SET factor_z = %s, resultado = %s WHERE id = %s",
         [registro.factor_z, registro.resultado, registro_id],
     )
+
+
+_SECCIONES_VALIDAS = {"micropipetas", "balanza", "temperatura", "gases", "inyector", "detector"}
+
+
+@router.put("/registros/{fecha}/seccion/{seccion}", response_model=Registro)
+def guardar_seccion(
+    fecha: date, seccion: str, datos: RegistroIn, usuario: Usuario = Depends(usuario_actual)
+) -> Registro:
+    """Guarda una sola sección del día y registra el bloqueo de autoría.
+
+    Permite guardar parcialmente: al mediodía se graban Micropipetas y Balanza;
+    por la tarde, cuando el cromatógrafo ya corrió, se graban Inyector y Detector.
+    Una sección guardada por alguien solo puede ser editada por esa misma persona
+    (o el superadministrador). Los datos del resto del día no se tocan.
+    """
+    if seccion not in _SECCIONES_VALIDAS:
+        raise HTTPException(400, f"Sección desconocida: {seccion!r}.")
+
+    with conexion() as conn, cursor_dict(conn) as cur:
+        nombre_usuario = usuario.nombre or usuario.email
+        email_usuario = usuario.email
+
+        # Obtener o crear el registro del día
+        cur.execute("SELECT id FROM verif_registro WHERE fecha = %s", [fecha])
+        fila_existente = cur.fetchone()
+        if fila_existente:
+            registro_id = fila_existente["id"]
+            _exigir_fecha_editable(usuario, fecha, True)
+        else:
+            _exigir_fecha_editable(usuario, fecha, False)
+            cur.execute(
+                """INSERT INTO verif_registro
+                          (fecha, temperatura_agua, fugas_visibles, fugas_observacion,
+                           observaciones, revisado_por, analista, creado_por)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id""",
+                [fecha, datos.temperatura_agua, datos.fugas_visibles, datos.fugas_observacion,
+                 datos.observaciones, datos.revisado_por, datos.analista, nombre_usuario],
+            )
+            registro_id = cur.fetchone()["id"]
+
+        # Verificar bloqueo: si otro usuario ya guardó esta sección, rechazar
+        cur.execute(
+            "SELECT email FROM verif_seccion_lock WHERE fecha = %s AND seccion = %s",
+            [fecha, seccion],
+        )
+        lock = cur.fetchone()
+        if lock and lock["email"].lower() != email_usuario.lower() and not _es_superadmin_verificaciones(usuario):
+            raise HTTPException(403, "Esta sección ya fue guardada por otro analista y no puede ser modificada.")
+
+        # Guardar solo los datos de la sección indicada
+        if seccion == "micropipetas":
+            cur.execute(
+                "UPDATE verif_registro SET temperatura_agua = %s, actualizado_en = now() WHERE id = %s",
+                [datos.temperatura_agua, registro_id],
+            )
+            cur.execute("DELETE FROM verif_micropipeta_medicion WHERE registro_id = %s", [registro_id])
+            for m in datos.micropipetas:
+                if not _con_datos_micropipeta(m) and not m.analista and not m.observacion:
+                    continue
+                cur.execute(
+                    """INSERT INTO verif_micropipeta_medicion
+                              (registro_id, micropipeta_id, analista, peso_1, peso_2, peso_3, observacion)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    [registro_id, m.micropipeta_id, m.analista, m.peso_1, m.peso_2, m.peso_3, m.observacion],
+                )
+
+        elif seccion == "balanza":
+            cur.execute("DELETE FROM verif_balanza_medicion WHERE registro_id = %s", [registro_id])
+            for b in datos.balanza:
+                if not _con_datos_balanza(b) and not b.analista and not b.observacion:
+                    continue
+                cur.execute(
+                    """INSERT INTO verif_balanza_medicion
+                              (registro_id, pesa_id, analista, lectura_1, lectura_2, lectura_3, observacion)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    [registro_id, b.pesa_id, b.analista, b.lectura_1, b.lectura_2, b.lectura_3, b.observacion],
+                )
+
+        elif seccion == "temperatura":
+            cur.execute("DELETE FROM verif_temperatura_medicion WHERE registro_id = %s", [registro_id])
+            for t in datos.temperaturas:
+                cur.execute(
+                    """INSERT INTO verif_temperatura_medicion
+                              (registro_id, punto_id, analista, temperatura, observacion)
+                       VALUES (%s, %s, %s, %s, %s)""",
+                    [registro_id, t.punto_id, t.analista, t.temperatura, t.observacion],
+                )
+
+        elif seccion == "gases":
+            cur.execute(
+                """UPDATE verif_registro
+                      SET fugas_visibles = %s, fugas_observacion = %s, actualizado_en = now()
+                    WHERE id = %s""",
+                [datos.fugas_visibles, datos.fugas_observacion, registro_id],
+            )
+            cur.execute("DELETE FROM verif_gas_medicion WHERE registro_id = %s", [registro_id])
+            for g in datos.gases:
+                cur.execute(
+                    """INSERT INTO verif_gas_medicion
+                              (registro_id, gas_id, analista, codigo_cilindro, presion_contenido, presion_trabajo, observacion)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    [registro_id, g.gas_id, g.analista, g.codigo_cilindro, g.presion_contenido, g.presion_trabajo, g.observacion],
+                )
+
+        elif seccion == "inyector":
+            i = datos.inyector
+            cur.execute(
+                """INSERT INTO verif_inyector (registro_id, analista, limpieza_aguja, aguja_danada,
+                                               aguja_reemplazada, cambio_septa, observaciones,
+                                               metodo_nombre, observacion)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (registro_id) DO UPDATE
+                          SET analista = EXCLUDED.analista,
+                              limpieza_aguja = EXCLUDED.limpieza_aguja,
+                              aguja_danada = EXCLUDED.aguja_danada,
+                              aguja_reemplazada = EXCLUDED.aguja_reemplazada,
+                              cambio_septa = EXCLUDED.cambio_septa,
+                              observaciones = EXCLUDED.observaciones,
+                              metodo_nombre = EXCLUDED.metodo_nombre,
+                              observacion = EXCLUDED.observacion""",
+                [registro_id, i.analista, i.limpieza_aguja, i.aguja_danada, i.aguja_reemplazada,
+                 i.cambio_septa, i.observaciones, i.metodo_nombre, i.observacion],
+            )
+            cur.execute(
+                "UPDATE verif_registro SET actualizado_en = now() WHERE id = %s", [registro_id]
+            )
+
+        elif seccion == "detector":
+            d = datos.detector
+            cur.execute(
+                """INSERT INTO verif_detector (registro_id, analista, voltaje_perla, metodo_correcto,
+                                               metodo_nombre, output_detector, observacion)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (registro_id) DO UPDATE
+                          SET analista = EXCLUDED.analista,
+                              voltaje_perla = EXCLUDED.voltaje_perla,
+                              metodo_correcto = EXCLUDED.metodo_correcto,
+                              metodo_nombre = EXCLUDED.metodo_nombre,
+                              output_detector = EXCLUDED.output_detector,
+                              observacion = EXCLUDED.observacion""",
+                [registro_id, d.analista, d.voltaje_perla, d.metodo_correcto,
+                 d.metodo_nombre, d.output_detector, d.observacion],
+            )
+            cur.execute(
+                "UPDATE verif_registro SET actualizado_en = now() WHERE id = %s", [registro_id]
+            )
+
+        # Registrar el bloqueo de autoría
+        cur.execute(
+            """INSERT INTO verif_seccion_lock (fecha, seccion, analista, email)
+               VALUES (%s, %s, %s, %s)
+               ON CONFLICT (fecha, seccion) DO UPDATE
+               SET analista = EXCLUDED.analista, email = EXCLUDED.email, guardado_en = now()""",
+            [fecha, seccion, nombre_usuario, email_usuario],
+        )
+
+        config = _leer_config(cur)
+        cur.execute("SELECT * FROM verif_registro WHERE id = %s", [registro_id])
+        registro = _armar_registro(cur, dict(cur.fetchone()), config)
+        _guardar_resultados(cur, registro_id, registro)
+        return registro
 
 
 @router.delete("/registros/{fecha}")

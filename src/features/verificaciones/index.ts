@@ -3,6 +3,7 @@ export {
   listarRegistros,
   obtenerRegistro,
   guardarRegistro,
+  guardarSeccion,
   eliminarRegistro,
   historico,
   descargarDiaExcel,
@@ -76,6 +77,7 @@ export type {
   ResultadoDia,
   ResumenDia,
   Seccion,
+  SeccionLock,
   TemperaturaMedicion,
   TemperaturaMedicionInput,
 } from './lib/tipos'

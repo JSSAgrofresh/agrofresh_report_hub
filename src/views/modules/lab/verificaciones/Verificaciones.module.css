@@ -266,6 +266,26 @@
   width: 170px;
 }
 
+.lockBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--color-warning-bg, #fff3cd);
+  color: var(--color-warning-text, #7a5c00);
+  border: 1px solid var(--color-warning-border, #ffc107);
+  white-space: nowrap;
+}
+
+.lockBadgePropio {
+  background: var(--color-success-bg, #d1fae5);
+  color: var(--color-success-text, #065f46);
+  border-color: var(--color-success-border, #34d399);
+}
+
 .seccionCuerpo {
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
