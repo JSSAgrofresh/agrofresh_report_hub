@@ -53,6 +53,7 @@ const CONFIG: ConfigVerificaciones = {
     { clave: 'output_max', valor: 22, descripcion: '', unidad: '', orden: 7 },
   ],
   tabla_z: TABLA_Z,
+  columnas_config: {},
 }
 
 describe('factor Z del agua', () => {

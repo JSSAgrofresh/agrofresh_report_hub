@@ -14,6 +14,7 @@ export {
   gasesApi,
   metodosApi,
   actualizarParametro,
+  actualizarColumnaConfig,
 } from './lib/api'
 
 export {
@@ -46,6 +47,7 @@ export { NOMBRE_SECCION, SECCIONES } from './lib/tipos'
 export type {
   BalanzaMedicion,
   BalanzaMedicionInput,
+  ColumnaConfig,
   ConfigVerificaciones,
   Detector,
   DetectorInput,
