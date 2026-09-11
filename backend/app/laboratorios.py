@@ -237,6 +237,11 @@ def resumen_laboratorios() -> list[ResumenLaboratorio]:
     analisis = config_store.leer("analisis_laboratorio.json", [])
     contactos = config_store.leer("contactos_laboratorio.json", [])
 
+    n_resultado = sum(
+        1 for c in contactos
+        if c.get("tipo") in ("resultado_cliente", "resultado_interno")
+    )
+
     def contar(items: list[dict], codigo: str) -> int:
         return sum(1 for i in items if i.get("laboratorio") == codigo)
 
@@ -249,7 +254,7 @@ def resumen_laboratorios() -> list[ResumenLaboratorio]:
             activo=l.get("activo", True),
             orden=l.get("orden", 0),
             n_analisis=contar(analisis, l["codigo"]),
-            n_contactos=contar(contactos, l["codigo"]),
+            n_contactos=contar(contactos, l["codigo"]) + n_resultado,
             n_analitos=contar(analitos, l["codigo"]),
         )
         for l in labs
