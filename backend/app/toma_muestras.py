@@ -1118,7 +1118,10 @@ def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
     """Añade al PDF la configuración vigente sin modificar la solicitud."""
     datos_pdf = dict(datos)
     datos_pdf["destinatarios_resultados"] = contactos_de_resultados(
-        str(datos.get("laboratorio") or ""), str(datos.get("ship_to") or "")
+        str(datos.get("laboratorio") or ""),
+        str(datos.get("ship_to") or ""),
+        str(datos.get("sold_to") or ""),
+        str(datos.get("especie") or ""),
     )
     return datos_pdf
 
