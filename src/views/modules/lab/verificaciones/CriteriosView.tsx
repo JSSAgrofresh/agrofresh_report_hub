@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
 import { ROUTES } from '@/constants/routes'
 import {
+  actualizarColumnaConfig,
   actualizarParametro,
   explicarErrorDeConfig,
   gasesApi,
@@ -15,7 +16,7 @@ import {
   pesasApi,
   puntosTemperaturaApi,
 } from '@/features/verificaciones'
-import type { ConfigVerificaciones, Metodo, Parametro } from '@/features/verificaciones'
+import type { ColumnaConfig, ConfigVerificaciones, Metodo, Parametro } from '@/features/verificaciones'
 import { HttpError } from '@/services/http/client'
 import { CampoNumero } from './componentes'
 import styles from './Verificaciones.module.css'
@@ -58,11 +59,178 @@ function Etiqueta({ campo }: { campo: Campo }) {
   )
 }
 
+/** Aplica las personalizaciones guardadas por el usuario sobre los campos base. */
+function aplicarConfigColumnas(campos: Campo[], configs: ColumnaConfig[] | undefined): Campo[] {
+  if (!configs?.length) return campos
+  const porClave = Object.fromEntries(configs.map((c) => [c.clave, c]))
+  return campos
+    .filter((c) => porClave[c.clave]?.visible !== false)
+    .map((c) => {
+      const cc = porClave[c.clave]
+      if (!cc) return c
+      return {
+        ...c,
+        etiqueta: cc.etiqueta ?? c.etiqueta,
+        // null = usar defecto; string vacío = quitar unidad; string con valor = nuevo texto
+        unidad: cc.unidad !== null ? cc.unidad || undefined : c.unidad,
+      }
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Editor de columnas
+// ---------------------------------------------------------------------------
+
+type BorradorColumna = {
+  clave: string
+  etiquetaDefault: string
+  unidadDefault: string | undefined
+  etiqueta: string
+  unidad: string
+  visible: boolean
+}
+
+function EditorColumnas({
+  camposBase,
+  configs,
+  seccion,
+  onGuardar,
+  onError,
+}: {
+  camposBase: Campo[]
+  configs: ColumnaConfig[] | undefined
+  seccion: string
+  onGuardar: () => void
+  onError: (msg: string | null) => void
+}) {
+  const porClave = Object.fromEntries((configs ?? []).map((c) => [c.clave, c]))
+
+  function borradorInicial(): BorradorColumna[] {
+    return camposBase.map((c) => {
+      const cc = porClave[c.clave]
+      return {
+        clave: c.clave,
+        etiquetaDefault: c.etiqueta,
+        unidadDefault: c.unidad,
+        etiqueta: cc?.etiqueta ?? c.etiqueta,
+        unidad: cc?.unidad ?? c.unidad ?? '',
+        visible: cc?.visible ?? true,
+      }
+    })
+  }
+
+  const [filas, setFilas] = useState<BorradorColumna[]>(borradorInicial)
+  const [guardando, setGuardando] = useState(false)
+
+  function cambiar(clave: string, cambios: Partial<BorradorColumna>) {
+    setFilas((prev) => prev.map((f) => (f.clave === clave ? { ...f, ...cambios } : f)))
+  }
+
+  async function guardar() {
+    setGuardando(true)
+    onError(null)
+    try {
+      await Promise.all(
+        filas.map((f) =>
+          actualizarColumnaConfig(seccion, f.clave, {
+            etiqueta: f.etiqueta !== f.etiquetaDefault ? f.etiqueta : null,
+            unidad: f.unidad !== (f.unidadDefault ?? '') ? f.unidad || null : null,
+            visible: f.visible,
+          }),
+        ),
+      )
+      onGuardar()
+    } catch (e) {
+      onError(e instanceof HttpError ? e.message : 'No se pudo guardar la configuración.')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  const tieneUnidades = camposBase.some((c) => c.unidad)
+
+  return (
+    <div className={styles.formulario} style={{ flexDirection: 'column', gap: 0 }}>
+      <div className={styles.tablaWrap} style={{ marginBottom: 12 }}>
+        <table className={styles.tabla} style={{ minWidth: 420 }}>
+          <thead>
+            <tr>
+              <th style={{ width: 32 }}>Vis.</th>
+              <th>Columna original</th>
+              <th>Nombre a mostrar</th>
+              {tieneUnidades && <th>Unidad</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((f) => (
+              <tr key={f.clave}>
+                <td style={{ textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={f.visible}
+                    onChange={(e) => cambiar(f.clave, { visible: e.target.checked })}
+                    title={f.visible ? 'Ocultar columna' : 'Mostrar columna'}
+                  />
+                </td>
+                <td className={styles.celdaEquipo} style={{ opacity: f.visible ? 1 : 0.4 }}>
+                  {f.etiquetaDefault}
+                  {f.unidadDefault && (
+                    <span className={styles.unidad}> ({f.unidadDefault})</span>
+                  )}
+                </td>
+                <td>
+                  <input
+                    className={styles.input}
+                    style={{ width: 160 }}
+                    value={f.etiqueta}
+                    placeholder={f.etiquetaDefault}
+                    disabled={!f.visible}
+                    onChange={(e) => cambiar(f.clave, { etiqueta: e.target.value })}
+                  />
+                </td>
+                {tieneUnidades && (
+                  <td>
+                    {f.unidadDefault !== undefined ? (
+                      <input
+                        className={styles.input}
+                        style={{ width: 80 }}
+                        value={f.unidad}
+                        placeholder={f.unidadDefault ?? ''}
+                        disabled={!f.visible}
+                        onChange={(e) => cambiar(f.clave, { unidad: e.target.value })}
+                      />
+                    ) : (
+                      <span style={{ color: 'var(--color-text-muted, #999)' }}>—</span>
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Button onClick={() => void guardar()} disabled={guardando}>
+          {guardando ? 'Guardando…' : 'Guardar columnas'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// TablaCatalogo
+// ---------------------------------------------------------------------------
+
 interface TablaProps<T extends { id: number }> {
   titulo: string
   nota: string
   filas: T[]
   campos: Campo[]
+  camposBase: Campo[]
+  seccionColumnas?: string
+  columnasConfig?: ColumnaConfig[]
+  onActualizarColumna?: () => void
   vacio: Record<string, unknown>
   api: {
     crear: (datos: never) => Promise<T>
@@ -85,6 +253,10 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
   nota,
   filas,
   campos,
+  camposBase,
+  seccionColumnas,
+  columnasConfig,
+  onActualizarColumna,
   vacio,
   api,
   onCambio,
@@ -94,10 +266,12 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
   const [borrador, setBorrador] = useState<Record<string, unknown> | null>(null)
   const [editando, setEditando] = useState<number | null>(null)
   const [guardando, setGuardando] = useState(false)
+  const [configurandoColumnas, setConfigurandoColumnas] = useState(false)
 
   function abrirNuevo() {
     setEditando(null)
     setBorrador({ ...vacio, activo: true, orden: filas.length + 1, rango_minimo: null, rango_maximo: null })
+    setConfigurandoColumnas(false)
     onError(null)
   }
 
@@ -111,6 +285,7 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
       datos.rango_maximo = nominal + tolerancia
     }
     setBorrador(datos)
+    setConfigurandoColumnas(false)
     onError(null)
   }
 
@@ -183,6 +358,17 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
       <div className={styles.seccionCabecera}>
         <h3 className={styles.seccionTitulo}>{titulo}</h3>
         <div className={styles.seccionDerecha}>
+          {seccionColumnas && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setConfigurandoColumnas((v) => !v)
+                if (borrador) cerrar()
+              }}
+            >
+              {configurandoColumnas ? 'Cerrar columnas' : 'Columnas'}
+            </Button>
+          )}
           <Button variant="secondary" onClick={abrirNuevo}>
             Agregar
           </Button>
@@ -190,6 +376,19 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
         <p className={styles.seccionNota}>{nota}</p>
       </div>
       <div className={styles.seccionCuerpo}>
+        {configurandoColumnas && seccionColumnas && (
+          <EditorColumnas
+            camposBase={camposBase}
+            configs={columnasConfig}
+            seccion={seccionColumnas}
+            onGuardar={() => {
+              setConfigurandoColumnas(false)
+              onActualizarColumna?.()
+            }}
+            onError={onError}
+          />
+        )}
+
         {borrador && (
           <div className={styles.formulario}>
             {campos.filter((campo) => campo.editable !== false).map((campo) => (
@@ -336,6 +535,40 @@ function FilaParametro({
   )
 }
 
+// ---------------------------------------------------------------------------
+// Campos base por sección (etiquetas y unidades originales, sin personalizar)
+// ---------------------------------------------------------------------------
+
+const CAMPOS_MICROPIPETAS: Campo[] = [
+  { clave: 'nombre', etiqueta: 'Equipo', tipo: 'texto' },
+  { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
+  { clave: 'volumen_nominal', etiqueta: 'Vol. nominal', unidad: 'µL', tipo: 'numero', editable: false },
+  { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'µL', tipo: 'numero', editable: false },
+]
+
+const CAMPOS_PESAS: Campo[] = [
+  { clave: 'nombre', etiqueta: 'Pesa', tipo: 'texto', ancho: 140 },
+  { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
+  { clave: 'valor_nominal', etiqueta: 'Valor nominal', unidad: 'mg', tipo: 'numero', editable: false },
+  { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'mg', tipo: 'numero', editable: false },
+]
+
+const CAMPOS_TEMPERATURA: Campo[] = [
+  { clave: 'nombre', etiqueta: 'Punto de control', tipo: 'texto', ancho: 220 },
+  { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
+  { clave: 'minimo', etiqueta: 'Mínimo', unidad: '°C', tipo: 'numero', ancho: 90 },
+  { clave: 'maximo', etiqueta: 'Máximo', unidad: '°C', tipo: 'numero', ancho: 90 },
+]
+
+const CAMPOS_GASES: Campo[] = [
+  { clave: 'nombre', etiqueta: 'Gas', tipo: 'texto', ancho: 220 },
+  { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
+]
+
+// ---------------------------------------------------------------------------
+// Vista principal
+// ---------------------------------------------------------------------------
+
 export function CriteriosView() {
   const navigate = useNavigate()
   const [config, setConfig] = useState<ConfigVerificaciones | null>(null)
@@ -385,12 +618,11 @@ export function CriteriosView() {
             titulo="Micropipetas"
             nota="Una fila por equipo y volumen: la misma pipeta se verifica a 900 y a 500 µL, y cada volumen tiene su propia tolerancia de aceptación."
             filas={config.micropipetas}
-            campos={[
-              { clave: 'nombre', etiqueta: 'Equipo', tipo: 'texto' },
-              { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
-              { clave: 'volumen_nominal', etiqueta: 'Vol. nominal', unidad: 'µL', tipo: 'numero', editable: false },
-              { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'µL', tipo: 'numero', editable: false },
-            ]}
+            camposBase={CAMPOS_MICROPIPETAS}
+            campos={aplicarConfigColumnas(CAMPOS_MICROPIPETAS, config.columnas_config?.micropipetas)}
+            seccionColumnas="micropipetas"
+            columnasConfig={config.columnas_config?.micropipetas}
+            onActualizarColumna={() => void cargar()}
             vacio={{ nombre: '', codigo: '', volumen_nominal: null, tolerancia: null }}
             api={micropipetasApi}
             onCambio={() => void cargar()}
@@ -402,12 +634,11 @@ export function CriteriosView() {
             titulo="Pesas patrón"
             nota="El valor nominal y la tolerancia van en miligramos. La tolerancia se aplica al resultado de la verificación."
             filas={config.pesas}
-            campos={[
-              { clave: 'nombre', etiqueta: 'Pesa', tipo: 'texto', ancho: 140 },
-              { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
-              { clave: 'valor_nominal', etiqueta: 'Valor nominal', unidad: 'mg', tipo: 'numero', editable: false },
-              { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'mg', tipo: 'numero', editable: false },
-            ]}
+            camposBase={CAMPOS_PESAS}
+            campos={aplicarConfigColumnas(CAMPOS_PESAS, config.columnas_config?.pesas)}
+            seccionColumnas="pesas"
+            columnasConfig={config.columnas_config?.pesas}
+            onActualizarColumna={() => void cargar()}
             vacio={{ nombre: '', codigo: '', valor_nominal: null, tolerancia: null }}
             api={pesasApi}
             onCambio={() => void cargar()}
@@ -419,12 +650,11 @@ export function CriteriosView() {
             titulo="Puntos de temperatura"
             nota="Sala, refrigerador y congelador. Cada punto tiene su propio rango."
             filas={config.puntos_temperatura}
-            campos={[
-              { clave: 'nombre', etiqueta: 'Punto de control', tipo: 'texto', ancho: 220 },
-              { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
-              { clave: 'minimo', etiqueta: 'Mínimo', unidad: '°C', tipo: 'numero', ancho: 90 },
-              { clave: 'maximo', etiqueta: 'Máximo', unidad: '°C', tipo: 'numero', ancho: 90 },
-            ]}
+            camposBase={CAMPOS_TEMPERATURA}
+            campos={aplicarConfigColumnas(CAMPOS_TEMPERATURA, config.columnas_config?.puntos_temperatura)}
+            seccionColumnas="puntos_temperatura"
+            columnasConfig={config.columnas_config?.puntos_temperatura}
+            onActualizarColumna={() => void cargar()}
             vacio={{ nombre: '', codigo: '', minimo: null, maximo: null }}
             api={puntosTemperaturaApi}
             onCambio={() => void cargar()}
@@ -435,9 +665,8 @@ export function CriteriosView() {
             titulo="Métodos analíticos"
             nota="Nombres de método cargados en el cromatógrafo. Se seleccionan desde la verificación diaria en Inyector y Detector."
             filas={config.metodos}
-            campos={[
-              { clave: 'nombre', etiqueta: 'Nombre del método', tipo: 'texto', ancho: 280 },
-            ]}
+            camposBase={[{ clave: 'nombre', etiqueta: 'Nombre del método', tipo: 'texto', ancho: 280 }]}
+            campos={[{ clave: 'nombre', etiqueta: 'Nombre del método', tipo: 'texto', ancho: 280 }]}
             vacio={{ nombre: '', orden: 0, activo: true }}
             api={metodosApi as never}
             onCambio={() => void cargar()}
@@ -448,10 +677,11 @@ export function CriteriosView() {
             titulo="Gases"
             nota="Las líneas del cromatógrafo. Los criterios de presión son comunes a todas y se editan más abajo."
             filas={config.gases}
-            campos={[
-              { clave: 'nombre', etiqueta: 'Gas', tipo: 'texto', ancho: 220 },
-              { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
-            ]}
+            camposBase={CAMPOS_GASES}
+            campos={aplicarConfigColumnas(CAMPOS_GASES, config.columnas_config?.gases)}
+            seccionColumnas="gases"
+            columnasConfig={config.columnas_config?.gases}
+            onActualizarColumna={() => void cargar()}
             vacio={{ nombre: '', codigo: '' }}
             api={gasesApi}
             onCambio={() => void cargar()}

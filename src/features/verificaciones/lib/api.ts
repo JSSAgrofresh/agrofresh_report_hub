@@ -1,6 +1,7 @@
 import { HttpError, httpClient } from '@/services/http/client'
 import { descargarArchivo } from '@/services/http/descargar'
 import type {
+  ColumnaConfig,
   ConfigVerificaciones,
   Gas,
   GasInput,
@@ -97,4 +98,14 @@ function crud<T, TInput>(ruta: string) {
  * el cálculo conoce por nombre. Solo cambia su valor. */
 export function actualizarParametro(clave: string, valor: number) {
   return httpClient.put<Parametro>(`${BASE}/config/parametros/${clave}`, { valor })
+}
+
+/** Guarda la configuración de una columna (etiqueta, unidad, visibilidad).
+ * `null` en etiqueta o unidad significa "usar el valor por defecto". */
+export function actualizarColumnaConfig(
+  seccion: string,
+  clave: string,
+  datos: { etiqueta: string | null; unidad: string | null; visible: boolean },
+) {
+  return httpClient.put<ColumnaConfig>(`${BASE}/config/columnas/${seccion}/${clave}`, datos)
 }

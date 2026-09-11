@@ -112,6 +112,14 @@ export interface FactorZ {
   factor: number
 }
 
+export interface ColumnaConfig {
+  seccion: string
+  clave: string
+  etiqueta: string | null
+  unidad: string | null
+  visible: boolean
+}
+
 export interface ConfigVerificaciones {
   micropipetas: Micropipeta[]
   pesas: PesaPatron[]
@@ -120,6 +128,7 @@ export interface ConfigVerificaciones {
   metodos: Metodo[]
   parametros: Parametro[]
   tabla_z: FactorZ[]
+  columnas_config: Record<string, ColumnaConfig[]>
 }
 
 // --- Mediciones --------------------------------------------------------------

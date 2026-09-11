@@ -328,6 +328,20 @@ class FactorZ(BaseModel):
     factor: float
 
 
+class ColumnaConfig(BaseModel):
+    seccion: str
+    clave: str
+    etiqueta: str | None = None
+    unidad: str | None = None
+    visible: bool = True
+
+
+class ColumnaConfigIn(BaseModel):
+    etiqueta: str | None = None
+    unidad: str | None = None
+    visible: bool = True
+
+
 class Config(BaseModel):
     """Todo lo que el formulario necesita para dibujarse, en una sola llamada.
     Son seis catálogos chicos: pedirlos por separado serían seis viajes para
@@ -340,6 +354,7 @@ class Config(BaseModel):
     metodos: list[Metodo]
     parametros: list[Parametro]
     tabla_z: list[FactorZ]
+    columnas_config: dict[str, list[ColumnaConfig]] = {}
 
 
 class MicropipetaMedicionIn(BaseModel):
@@ -526,6 +541,14 @@ def _leer_config(cur) -> dict:
         for fila in coleccion:
             for campo in campos:
                 fila[campo] = _num(fila[campo])
+    try:
+        cur.execute("SELECT * FROM verif_columna_config ORDER BY seccion, clave")
+        col_filas = [dict(f) for f in cur.fetchall()]
+    except Exception:
+        col_filas = []
+    col_config: dict[str, list] = {}
+    for f in col_filas:
+        col_config.setdefault(f["seccion"], []).append(f)
     return {
         "micropipetas": micropipetas,
         "pesas": pesas,
@@ -534,6 +557,7 @@ def _leer_config(cur) -> dict:
         "metodos": metodos,
         "parametros": parametros,
         "tabla_z": tabla_z,
+        "columnas_config": col_config,
     }
 
 
@@ -657,6 +681,28 @@ _crud(
 )
 _crud("/config/gases", "verif_gas", Gas, GasIn, ("nombre", "codigo", "orden", "activo"))
 _crud("/config/metodos", "verif_metodo", Metodo, MetodoIn, ("nombre", "orden", "activo"))
+
+
+@router.put("/config/columnas/{seccion}/{clave}", response_model=ColumnaConfig)
+def actualizar_columna_config(
+    seccion: str, clave: str, datos: ColumnaConfigIn, _: Usuario = Depends(solo_interno)
+) -> ColumnaConfig:
+    """Sobreescribe la etiqueta, la unidad o la visibilidad de una columna de
+    un catálogo. NULL en etiqueta o unidad = volver al valor por defecto."""
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            """
+            INSERT INTO verif_columna_config (seccion, clave, etiqueta, unidad, visible)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (seccion, clave) DO UPDATE
+            SET etiqueta = EXCLUDED.etiqueta,
+                unidad   = EXCLUDED.unidad,
+                visible  = EXCLUDED.visible
+            RETURNING *
+            """,
+            [seccion, clave, datos.etiqueta, datos.unidad, datos.visible],
+        )
+        return ColumnaConfig(**dict(cur.fetchone()))
 
 
 @router.put("/config/parametros/{clave}", response_model=Parametro)
