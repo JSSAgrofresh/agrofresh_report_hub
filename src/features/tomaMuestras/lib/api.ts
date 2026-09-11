@@ -108,11 +108,15 @@ export function enviarSolicitudPorCorreo(archivo: string, destinatariosAdicional
   )
 }
 
-/** La configuración de "Resultado a clientes" (Laboratorios) vigente para
- * este Ship To -de solo lectura, Nueva solicitud la muestra antes de
- * guardar-. */
-export function resultadosDeShipTo(laboratorio: string, shipTo: string) {
-  const qs = new URLSearchParams({ laboratorio, ship_to: shipTo })
+/** Configuración de "Resultado a clientes" vigente para una combinación
+ * (sold_to, ship_to, especie) — de solo lectura, Nueva solicitud la muestra. */
+export function resultadosDeShipTo(
+  laboratorio: string,
+  shipTo: string,
+  soldTo: string = '',
+  especie: string = '',
+) {
+  const qs = new URLSearchParams({ laboratorio, ship_to: shipTo, sold_to: soldTo, especie })
   return httpClient.get<ContactoResultado[]>(`/toma-muestras/config/resultados-ship-to?${qs.toString()}`)
 }
 

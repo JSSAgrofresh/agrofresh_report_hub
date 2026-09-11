@@ -48,10 +48,12 @@ export interface Contacto {
   email: string
   cargo: string
   tipo: TipoContacto
-  /** Solo aplica a resultado_cliente/resultado_interno: cada Ship To tiene
-   * su propia configuración de resultados. Vacío = configuración global
-   * (la que existía antes de separar por Ship To). */
+  /** Solo aplica a resultado_cliente/resultado_interno: la configuración de
+   * a quién llegan los resultados se determina por (sold_to, ship_to, especie).
+   * Todos vacíos = configuración global de respaldo. */
+  sold_to: string
   ship_to: string
+  especie: string
   /** Solo aplica cuando tipo === 'resultado_interno'. */
   tipo_copia: TipoCopia
   activo: boolean

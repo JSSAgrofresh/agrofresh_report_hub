@@ -963,36 +963,84 @@ def contactos_de_solicitud(laboratorio: str) -> list[str]:
     ]
 
 
-def _contactos_resultado_del_ship_to(laboratorio: str, ship_to: str) -> list[dict]:
-    """Los contactos de resultado (cliente + interno) de un Ship To puntual.
+def _contactos_resultado(sold_to: str, ship_to: str, especie: str) -> list[dict]:
+    """Contactos de resultado para una combinación (sold_to, ship_to, especie).
 
-    Cada Ship To tiene su propia configuración (ver Laboratorios → Resultado
-    a clientes). Si ese Ship To todavía no tiene nada configurado, se cae a
-    los contactos "globales" -los que no tienen Ship To asignado-, que son la
-    configuración previa a este cambio: así ninguna cuenta ya cargada quedó
-    huérfana al pasar la configuración a ser por Ship To.
+    La configuración es compartida entre todos los laboratorios y se determina
+    por la combinación exacta. Si no existe, cae por la cadena:
+      sold_to + ship_to + especie  →  sold_to + ship_to  →  ship_to solo  →  global (todo vacío)
     """
     contactos = _leer_config("contactos_laboratorio.json", [])
-    del_lab = [
+    pool = [
         c for c in contactos
-        if c.get("laboratorio") == laboratorio and c.get("tipo") in {"resultado_cliente", "resultado_interno"}
+        if c.get("tipo") in {"resultado_cliente", "resultado_interno"}
     ]
-    ship_to_norm = (ship_to or "").strip()
-    especificos = [c for c in del_lab if (c.get("ship_to") or "").strip() == ship_to_norm]
-    if ship_to_norm and especificos:
-        return especificos
-    return [c for c in del_lab if not (c.get("ship_to") or "").strip()]
+    st_n = (sold_to or "").strip()
+    sh_n = (ship_to or "").strip()
+    es_n = (especie or "").strip()
+
+    # 1. Exacto
+    exactos = [
+        c for c in pool
+        if (c.get("sold_to") or "").strip() == st_n
+        and (c.get("ship_to") or "").strip() == sh_n
+        and (c.get("especie") or "").strip() == es_n
+    ]
+    if exactos:
+        return exactos
+
+    # 2. sold_to + ship_to (sin especie)
+    if st_n or sh_n:
+        sin_esp = [
+            c for c in pool
+            if (c.get("sold_to") or "").strip() == st_n
+            and (c.get("ship_to") or "").strip() == sh_n
+            and not (c.get("especie") or "").strip()
+        ]
+        if sin_esp:
+            return sin_esp
+
+    # 3. Solo ship_to
+    if sh_n:
+        solo_ship = [
+            c for c in pool
+            if not (c.get("sold_to") or "").strip()
+            and (c.get("ship_to") or "").strip() == sh_n
+            and not (c.get("especie") or "").strip()
+        ]
+        if solo_ship:
+            return solo_ship
+
+    # 4. Global (todo vacío) – respaldo histórico
+    return [
+        c for c in pool
+        if not (c.get("sold_to") or "").strip()
+        and not (c.get("ship_to") or "").strip()
+        and not (c.get("especie") or "").strip()
+    ]
 
 
-def contactos_de_resultados(laboratorio: str, ship_to: str | None = None) -> list[str]:
-    """Correos activos que el laboratorio debe usar al entregar resultados de
-    este Ship To (destinatarios del cliente + copias internas AgroFresh).
+# Alias de compatibilidad para código que todavía llama con la firma antigua.
+def _contactos_resultado_del_ship_to(laboratorio: str, ship_to: str) -> list[dict]:
+    return _contactos_resultado("", ship_to, "")
 
-    Esta lista es informativa en el PDF y no dispara ningún envío.
+
+def contactos_de_resultados(
+    laboratorio: str,
+    ship_to: str | None = None,
+    sold_to: str | None = None,
+    especie: str | None = None,
+) -> list[str]:
+    """Correos activos de resultado para una combinación (sold_to, ship_to, especie).
+
+    Informativo en el PDF; no dispara envíos.
     """
     correos: list[str] = []
     vistos: set[str] = set()
-    for contacto in sorted(_contactos_resultado_del_ship_to(laboratorio, ship_to or ""), key=lambda c: c.get("orden", 0)):
+    for contacto in sorted(
+        _contactos_resultado(sold_to or "", ship_to or "", especie or ""),
+        key=lambda c: c.get("orden", 0),
+    ):
         email = str(contacto.get("email") or "").strip()
         clave = email.casefold()
         if contacto.get("activo", True) and email and clave not in vistos:
@@ -1001,16 +1049,23 @@ def contactos_de_resultados(laboratorio: str, ship_to: str | None = None) -> lis
     return correos
 
 
-def destinatarios_resultado_por_tipo(laboratorio: str, ship_to: str | None = None) -> dict[str, list[str]]:
-    """Los correos de resultado de un Ship To, separados en `to`/`cc`/`bcc`.
+def destinatarios_resultado_por_tipo(
+    laboratorio: str,
+    ship_to: str | None = None,
+    sold_to: str | None = None,
+    especie: str | None = None,
+) -> dict[str, list[str]]:
+    """Correos de resultado separados en `to`/`cc`/`bcc`.
 
-    `resultado_cliente` siempre va en `to`. `resultado_interno` va en `cc` o
-    en `bcc` según lo que se haya elegido para ese contacto -es la pieza que
-    permite que una copia interna salga oculta y otra no-.
+    `resultado_cliente` → `to`. `resultado_interno` → `cc` o `bcc` según
+    `tipo_copia` del contacto.
     """
     salida: dict[str, list[str]] = {"to": [], "cc": [], "bcc": []}
     vistos: set[str] = set()
-    for contacto in sorted(_contactos_resultado_del_ship_to(laboratorio, ship_to or ""), key=lambda c: c.get("orden", 0)):
+    for contacto in sorted(
+        _contactos_resultado(sold_to or "", ship_to or "", especie or ""),
+        key=lambda c: c.get("orden", 0),
+    ):
         if not contacto.get("activo", True):
             continue
         email = str(contacto.get("email") or "").strip()
@@ -1038,12 +1093,15 @@ class ContactoResultadoOut(BaseModel):
 
 
 @router.get("/config/resultados-ship-to")
-def resultados_de_ship_to(laboratorio: str, ship_to: str = "") -> list[ContactoResultadoOut]:
-    """La configuración de "Resultado a clientes" vigente para un Ship To de
-    ese laboratorio. La usa Nueva solicitud para mostrarla, de solo lectura,
-    apenas se elige un Sold To/Ship To que ya la tiene configurada -sin que
-    nadie tenga que ir a Laboratorios a revisarla a mano."""
-    contactos = _contactos_resultado_del_ship_to(laboratorio, ship_to)
+def resultados_de_ship_to(
+    laboratorio: str,
+    ship_to: str = "",
+    sold_to: str = "",
+    especie: str = "",
+) -> list[ContactoResultadoOut]:
+    """Configuración de "Resultado a clientes" vigente para una combinación
+    (sold_to, ship_to, especie). Nueva solicitud la muestra de solo lectura."""
+    contactos = _contactos_resultado(sold_to, ship_to, especie)
     return [
         ContactoResultadoOut(
             nombre=str(c.get("nombre") or ""),

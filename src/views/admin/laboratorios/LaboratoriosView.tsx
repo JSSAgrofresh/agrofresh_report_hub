@@ -96,7 +96,8 @@ export function LaboratoriosView() {
     return {
       analisis: analisis.filter((a) => a.laboratorio === lab.codigo).length,
       contactos: contactos.filter((c) => c.laboratorio === lab.codigo && c.tipo === 'solicitud').length,
-      resultados: contactos.filter((c) => c.laboratorio === lab.codigo && c.tipo !== 'solicitud').length,
+      // La config de resultados es compartida entre todos los labs.
+      resultados: contactos.filter((c) => c.tipo !== 'solicitud').length,
       analitos: analitos.filter((a) => a.laboratorio === lab.codigo).length,
     }
   }, [lab, analisis, contactos, analitos])
@@ -339,9 +340,12 @@ export function LaboratoriosView() {
           {pestana === 'resultados' && (
             <ResultadosPanel
               laboratorio={lab.codigo}
-              contactos={contactosDelLab.filter((c) => c.tipo !== 'solicitud')}
-              onCambio={(delLab) =>
-                setContactos([...contactos.filter((c) => c.laboratorio !== lab.codigo), ...delLab])
+              contactos={contactos.filter((c) => c.tipo !== 'solicitud')}
+              onCambio={(todos) =>
+                setContactos([
+                  ...contactos.filter((c) => c.tipo === 'solicitud'),
+                  ...todos,
+                ])
               }
               onError={setError}
             />

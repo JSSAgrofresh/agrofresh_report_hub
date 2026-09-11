@@ -114,12 +114,13 @@ class Contacto(BaseModel):
     # resultado_cliente  → el laboratorio le manda los resultados al cliente
     # resultado_interno  → copia que nos llega a nosotros
     tipo: str = "solicitud"
-    # Solo tiene sentido para resultado_cliente/resultado_interno: cada Ship
-    # To tiene su propia configuración de a quién le llegan sus resultados.
-    # Vacío ("") es la configuración "global" -la que existía antes de que
-    # esto se pudiera separar por Ship To- y sigue aplicando como respaldo
-    # para cualquier Ship To que todavía no tenga la suya propia.
+    # Solo tiene sentido para resultado_cliente/resultado_interno: la
+    # configuración de a quién llegan los resultados se determina por la
+    # combinación (sold_to, ship_to, especie). Vacíos = configuración global
+    # de respaldo para cualquier combinación sin configuración propia.
+    sold_to: str = ""
     ship_to: str = ""
+    especie: str = ""
     # Solo aplica cuando tipo == resultado_interno (ver TIPOS_COPIA).
     tipo_copia: str = "cc"
     activo: bool = True
@@ -132,7 +133,9 @@ class ContactoIn(BaseModel):
     email: str
     cargo: str = ""
     tipo: str = "solicitud"
+    sold_to: str = ""
     ship_to: str = ""
+    especie: str = ""
     tipo_copia: str = "cc"
     activo: bool = True
     orden: int = 0
