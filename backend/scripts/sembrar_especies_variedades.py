@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.db import conexion, cursor_dict  # noqa: E402
 
 
-_IGNORAR = {"#n/a", "none", "-", ""}
+_IGNORAR = {"#n/a", "none", "-", "", "n a", "n/a"}
 
 
 def _clave(valor: str | None) -> str:
