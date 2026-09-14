@@ -328,23 +328,18 @@ export function SolicitudDetalleView() {
     <div>
       <Header
         title={`Solicitud ${solicitud.numero_solicitud}${solicitud.enviada ? ' · Enviada' : ''}`}
-        description={`${solicitud.laboratorio} · Generada el ${formatDateCL(solicitud.fecha_solicitud)} por ${solicitud.generado_por}${solicitud.enviada ? ' · Ya enviada: solo lectura' : ''}`}
+        description={`${solicitud.laboratorio} · Generada el ${formatDateCL(solicitud.fecha_solicitud)} por ${solicitud.generado_por}`}
         acciones={
           <div className={styles.acciones}>
             <Button variant="secondary" onClick={() => navigate(ROUTES.tomaMuestras)}>
               Volver
             </Button>
-            {/* Editar y Enviar solo existen mientras la solicitud no se haya
-                enviado: una vez enviada queda de solo lectura (el backend
-                también lo rechaza con 409, esto es solo la pantalla). */}
-            {!solicitud.enviada && (
-              <Button
-                variant="secondary"
-                onClick={() => navigate(rutaTomaMuestrasEditar(solicitud.archivo))}
-              >
-                Editar
-              </Button>
-            )}
+            <Button
+              variant="secondary"
+              onClick={() => navigate(rutaTomaMuestrasEditar(solicitud.archivo))}
+            >
+              Editar
+            </Button>
             <button
               type="button"
               className={styles.botonDescarga}
@@ -359,14 +354,12 @@ export function SolicitudDetalleView() {
             >
               Descargar PDF
             </button>
-            {!solicitud.enviada && (
-              <button
-                className={styles.botonEnviar}
-                onClick={() => { setMostrarEnvio(v => !v); setMensajeEnvio(null) }}
-              >
-                Enviar por correo
-              </button>
-            )}
+            <button
+              className={styles.botonEnviar}
+              onClick={() => { setMostrarEnvio(v => !v); setMensajeEnvio(null) }}
+            >
+              {solicitud.enviada ? 'Reenviar por correo' : 'Enviar por correo'}
+            </button>
           </div>
         }
       />

@@ -17,6 +17,7 @@ import type { ValorLista } from '@/features/listados'
 import {
   actualizarSolicitud,
   crearSolicitud,
+  enviarSolicitudPorCorreo,
   listarAnalitosConfig,
   listarCamposConfig,
   listarCamposTipoAplicacion,
@@ -782,21 +783,21 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     try {
       if (modo === 'editar' && archivoEditando) {
         await actualizarSolicitud(archivoEditando, payload)
+        // Envío automático al guardar — si falla igual navega al detalle
+        // para que el usuario pueda reenviar manualmente desde ahí.
+        try { await enviarSolicitudPorCorreo(archivoEditando) } catch { /* continuar */ }
         navigate(rutaTomaMuestrasDetalle(archivoEditando))
       } else {
-        const creada = await crearSolicitud(payload)
-        navigate(rutaTomaMuestrasDetalle(creada.archivo))
+        const solicitudCreada = await crearSolicitud(payload)
+        try { await enviarSolicitudPorCorreo(solicitudCreada.archivo) } catch { /* continuar */ }
+        navigate(rutaTomaMuestrasDetalle(solicitudCreada.archivo))
       }
     } catch (err) {
-      if (modo === 'editar' && err instanceof HttpError && err.status === 409) {
-        setError('Esta solicitud ya fue enviada y no se puede editar.')
-      } else {
-        setError(
-          modo === 'editar'
-            ? 'No se pudo guardar la edición. Revisa que el backend esté corriendo.'
-            : 'No se pudo crear la solicitud. Revisa que el backend esté corriendo.',
-        )
-      }
+      setError(
+        modo === 'editar'
+          ? 'No se pudo guardar la edición. Revisa que el backend esté corriendo.'
+          : 'No se pudo crear la solicitud. Revisa que el backend esté corriendo.',
+      )
     } finally {
       setGuardando(false)
     }
@@ -966,26 +967,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           <p className={styles.error}>{errorCarga}</p>
           <Button variant="secondary" onClick={() => navigate(ROUTES.tomaMuestras)}>
             Volver al listado
-          </Button>
-        </Card>
-      </div>
-    )
-  }
-
-  if (modo === 'editar' && solicitudOriginal?.enviada) {
-    return (
-      <div>
-        <Header title={tituloVista} />
-        <Card>
-          <p className={styles.error}>
-            La solicitud {solicitudOriginal.numero_solicitud} ya fue enviada por correo y quedó de
-            solo lectura: no se puede editar.
-          </p>
-          <Button
-            variant="secondary"
-            onClick={() => navigate(rutaTomaMuestrasDetalle(solicitudOriginal.archivo))}
-          >
-            Ver solicitud
           </Button>
         </Card>
       </div>
@@ -1349,7 +1330,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             Cancelar
           </Button>
           <Button type="submit" disabled={guardando}>
-            {guardando ? 'Guardando…' : modo === 'editar' ? 'Guardar cambios' : 'Guardar solicitud'}
+            {guardando ? 'Guardando y enviando…' : modo === 'editar' ? 'Guardar y enviar' : 'Guardar y enviar'}
           </Button>
         </div>
       </form>

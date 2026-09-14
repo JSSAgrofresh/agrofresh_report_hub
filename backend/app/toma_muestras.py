@@ -666,16 +666,10 @@ def _regrabar_datos_solicitud(archivo: str, datos: dict) -> None:
 @router.put("/solicitudes/{archivo}")
 def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     """Actualiza una solicitud existente -mismo folio, mismo archivo-, nunca
-    crea una nueva. Solo mientras no se haya enviado: una vez enviada queda
-    de solo lectura, protección que se aplica acá y no solo ocultando el
-    botón en el frontend."""
+    crea una nueva. El guardado resetea `enviada` a False para que el
+    frontend pueda disparar el reenvío automático tras editar."""
     datos_actuales = _leer_datos_actuales(archivo)
     _exigir_acceso(usuario, datos_actuales)
-    if datos_actuales.get("enviada"):
-        raise HTTPException(
-            409,
-            f"La solicitud {datos_actuales.get('numero_solicitud', archivo)} ya fue enviada y no se puede editar.",
-        )
 
     nombre_archivo = os.path.basename(archivo)
     datos = body.model_dump()
@@ -1227,9 +1221,6 @@ def enviar_solicitud_por_correo(
         numero = os.path.splitext(os.path.basename(ruta))[0]
         datos = _leer_solicitud_archivo(ruta)
     _exigir_acceso(usuario, datos)
-
-    if datos.get("enviada"):
-        raise HTTPException(409, f"La solicitud {numero} ya fue enviada; no se puede reenviar.")
 
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     analisis_config = _leer_config("analisis_laboratorio.json", [])
