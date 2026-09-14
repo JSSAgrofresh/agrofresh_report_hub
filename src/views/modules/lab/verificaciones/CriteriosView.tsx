@@ -59,22 +59,38 @@ function Etiqueta({ campo }: { campo: Campo }) {
   )
 }
 
-/** Aplica las personalizaciones guardadas por el usuario sobre los campos base. */
+/** Aplica las personalizaciones guardadas por el usuario sobre los campos base,
+ * e incluye columnas personalizadas (claves que no existen en camposBase). */
 function aplicarConfigColumnas(campos: Campo[], configs: ColumnaConfig[] | undefined): Campo[] {
-  if (!configs?.length) return campos
-  const porClave = Object.fromEntries(configs.map((c) => [c.clave, c]))
-  return campos
-    .filter((c) => porClave[c.clave]?.visible !== false)
-    .map((c) => {
-      const cc = porClave[c.clave]
-      if (!cc) return c
-      return {
-        ...c,
-        etiqueta: cc.etiqueta ?? c.etiqueta,
-        // null = usar defecto; string vacío = quitar unidad; string con valor = nuevo texto
-        unidad: cc.unidad !== null ? cc.unidad || undefined : c.unidad,
-      }
-    })
+  const porClave = Object.fromEntries((configs ?? []).map((c) => [c.clave, c]))
+  const clavesBase = new Set(campos.map((c) => c.clave))
+
+  const base = !configs?.length
+    ? campos
+    : campos
+        .filter((c) => porClave[c.clave]?.visible !== false)
+        .map((c) => {
+          const cc = porClave[c.clave]
+          if (!cc) return c
+          return {
+            ...c,
+            etiqueta: cc.etiqueta ?? c.etiqueta,
+            // null = usar defecto; string vacío = quitar unidad; string con valor = nuevo texto
+            unidad: cc.unidad !== null ? cc.unidad || undefined : c.unidad,
+          }
+        })
+
+  // Columnas personalizadas: claves no presentes en camposBase, creadas desde el editor
+  const extras: Campo[] = (configs ?? [])
+    .filter((cc) => !clavesBase.has(cc.clave) && cc.visible !== false)
+    .map((cc): Campo => ({
+      clave: cc.clave,
+      etiqueta: cc.etiqueta ?? cc.clave,
+      unidad: cc.unidad ?? undefined,
+      tipo: 'texto',
+    }))
+
+  return [...base, ...extras]
 }
 
 // ---------------------------------------------------------------------------
@@ -83,6 +99,9 @@ function aplicarConfigColumnas(campos: Campo[], configs: ColumnaConfig[] | undef
 
 type BorradorColumna = {
   clave: string
+  /** true = creada por el usuario en el editor, no viene de camposBase */
+  esPersonalizada: boolean
+  /** Nombre de referencia (sin unidad) para mostrar en la columna "Campo" */
   etiquetaDefault: string
   unidadDefault: string | undefined
   etiqueta: string
@@ -104,12 +123,14 @@ function EditorColumnas({
   onError: (msg: string | null) => void
 }) {
   const porClave = Object.fromEntries((configs ?? []).map((c) => [c.clave, c]))
+  const clavesBase = new Set(camposBase.map((c) => c.clave))
 
   function borradorInicial(): BorradorColumna[] {
-    return camposBase.map((c) => {
+    const base = camposBase.map((c) => {
       const cc = porClave[c.clave]
       return {
         clave: c.clave,
+        esPersonalizada: false,
         etiquetaDefault: c.etiqueta,
         unidadDefault: c.unidad,
         etiqueta: cc?.etiqueta ?? c.etiqueta,
@@ -117,28 +138,78 @@ function EditorColumnas({
         visible: cc?.visible ?? true,
       }
     })
+    // Columnas personalizadas guardadas en el backend que no están en camposBase
+    const extras = (configs ?? [])
+      .filter((cc) => !clavesBase.has(cc.clave) && cc.visible !== false)
+      .map((cc): BorradorColumna => ({
+        clave: cc.clave,
+        esPersonalizada: true,
+        etiquetaDefault: cc.etiqueta ?? cc.clave,
+        unidadDefault: undefined,
+        etiqueta: cc.etiqueta ?? '',
+        unidad: cc.unidad ?? '',
+        visible: true,
+      }))
+    return [...base, ...extras]
   }
 
   const [filas, setFilas] = useState<BorradorColumna[]>(borradorInicial)
+  const [eliminadas, setEliminadas] = useState<string[]>([])
+  const [agregando, setAgregando] = useState(false)
+  const [nuevaEtiqueta, setNuevaEtiqueta] = useState('')
+  const [nuevaUnidad, setNuevaUnidad] = useState('')
   const [guardando, setGuardando] = useState(false)
 
   function cambiar(clave: string, cambios: Partial<BorradorColumna>) {
     setFilas((prev) => prev.map((f) => (f.clave === clave ? { ...f, ...cambios } : f)))
   }
 
+  function eliminarPersonalizada(clave: string) {
+    setFilas((prev) => prev.filter((f) => f.clave !== clave))
+    setEliminadas((prev) => [...prev, clave])
+  }
+
+  function confirmarNueva() {
+    const etiqueta = nuevaEtiqueta.trim()
+    if (!etiqueta) return
+    const clave = `col_${Date.now()}`
+    setFilas((prev) => [
+      ...prev,
+      {
+        clave,
+        esPersonalizada: true,
+        etiquetaDefault: etiqueta,
+        unidadDefault: undefined,
+        etiqueta,
+        unidad: nuevaUnidad.trim(),
+        visible: true,
+      },
+    ])
+    setNuevaEtiqueta('')
+    setNuevaUnidad('')
+    setAgregando(false)
+  }
+
   async function guardar() {
     setGuardando(true)
     onError(null)
     try {
-      await Promise.all(
-        filas.map((f) =>
-          actualizarColumnaConfig(seccion, f.clave, {
-            etiqueta: f.etiqueta !== f.etiquetaDefault ? f.etiqueta : null,
-            unidad: f.unidad !== (f.unidadDefault ?? '') ? f.unidad || null : null,
-            visible: f.visible,
-          }),
+      await Promise.all([
+        // Guardar filas actuales
+        ...filas.map((f) => {
+          const etiqueta = f.esPersonalizada
+            ? f.etiqueta || null
+            : f.etiqueta !== f.etiquetaDefault ? f.etiqueta : null
+          const unidad = f.esPersonalizada
+            ? f.unidad || null
+            : f.unidad !== (f.unidadDefault ?? '') ? f.unidad || null : null
+          return actualizarColumnaConfig(seccion, f.clave, { etiqueta, unidad, visible: f.visible })
+        }),
+        // Marcar como ocultas las columnas personalizadas eliminadas
+        ...eliminadas.map((clave) =>
+          actualizarColumnaConfig(seccion, clave, { etiqueta: null, unidad: null, visible: false }),
         ),
-      )
+      ])
       onGuardar()
     } catch (e) {
       onError(e instanceof HttpError ? e.message : 'No se pudo guardar la configuración.')
@@ -147,7 +218,8 @@ function EditorColumnas({
     }
   }
 
-  const tieneUnidades = camposBase.some((c) => c.unidad)
+  // La columna Unidad aparece si alguna fila de camposBase tiene unidad O si hay personalizadas
+  const tieneUnidades = filas.some((f) => f.unidadDefault !== undefined || f.esPersonalizada)
 
   return (
     <div className={styles.formulario} style={{ flexDirection: 'column', gap: 0 }}>
@@ -156,14 +228,16 @@ function EditorColumnas({
           <thead>
             <tr>
               <th style={{ width: 32 }}>Vis.</th>
-              <th>Columna original</th>
+              {/* "Campo" solo muestra el nombre, sin unidad. La unidad va en su columna aparte. */}
+              <th>Campo</th>
               <th>Nombre a mostrar</th>
               {tieneUnidades && <th>Unidad</th>}
+              <th style={{ width: 32 }} />
             </tr>
           </thead>
           <tbody>
             {filas.map((f) => (
-              <tr key={f.clave}>
+              <tr key={f.clave} style={{ opacity: f.visible ? 1 : 0.45 }}>
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="checkbox"
@@ -172,12 +246,8 @@ function EditorColumnas({
                     title={f.visible ? 'Ocultar columna' : 'Mostrar columna'}
                   />
                 </td>
-                <td className={styles.celdaEquipo} style={{ opacity: f.visible ? 1 : 0.4 }}>
-                  {f.etiquetaDefault}
-                  {f.unidadDefault && (
-                    <span className={styles.unidad}> ({f.unidadDefault})</span>
-                  )}
-                </td>
+                {/* Solo el nombre base, sin unidad — evita el "(mg)" hardcodeado que no se podía cambiar */}
+                <td className={styles.celdaEquipo}>{f.etiquetaDefault}</td>
                 <td>
                   <input
                     className={styles.input}
@@ -190,7 +260,7 @@ function EditorColumnas({
                 </td>
                 {tieneUnidades && (
                   <td>
-                    {f.unidadDefault !== undefined ? (
+                    {f.unidadDefault !== undefined || f.esPersonalizada ? (
                       <input
                         className={styles.input}
                         style={{ width: 80 }}
@@ -204,8 +274,68 @@ function EditorColumnas({
                     )}
                   </td>
                 )}
+                <td>
+                  {f.esPersonalizada && (
+                    <button
+                      type="button"
+                      className={cn(styles.iconoBoton, styles.iconoBotonPeligro)}
+                      title="Eliminar esta columna"
+                      onClick={() => eliminarPersonalizada(f.clave)}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
+            {agregando && (
+              <tr>
+                <td />
+                <td className={styles.celdaEquipo} style={{ color: 'var(--color-text-muted, #999)', fontStyle: 'italic' }}>
+                  Nueva columna
+                </td>
+                <td>
+                  <input
+                    className={styles.input}
+                    style={{ width: 160 }}
+                    value={nuevaEtiqueta}
+                    placeholder="Nombre de la columna"
+                    // eslint-disable-next-line jsx-a11y/no-autofocus
+                    autoFocus
+                    onChange={(e) => setNuevaEtiqueta(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') confirmarNueva()
+                      if (e.key === 'Escape') setAgregando(false)
+                    }}
+                  />
+                </td>
+                {tieneUnidades && (
+                  <td>
+                    <input
+                      className={styles.input}
+                      style={{ width: 80 }}
+                      value={nuevaUnidad}
+                      placeholder="unidad"
+                      onChange={(e) => setNuevaUnidad(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') confirmarNueva()
+                        if (e.key === 'Escape') setAgregando(false)
+                      }}
+                    />
+                  </td>
+                )}
+                <td>
+                  <button
+                    type="button"
+                    className={cn(styles.iconoBoton, styles.iconoBotonPeligro)}
+                    title="Cancelar"
+                    onClick={() => setAgregando(false)}
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -213,6 +343,11 @@ function EditorColumnas({
         <Button onClick={() => void guardar()} disabled={guardando}>
           {guardando ? 'Guardando…' : 'Guardar columnas'}
         </Button>
+        {!agregando && (
+          <Button variant="secondary" onClick={() => setAgregando(true)}>
+            + Agregar columna
+          </Button>
+        )}
       </div>
     </div>
   )
