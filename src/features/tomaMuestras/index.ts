@@ -40,6 +40,8 @@ export {
   crearLaboratorioConfig,
   actualizarLaboratorioConfig,
   eliminarLaboratorioConfig,
+  obtenerConfigEnvioArchivos,
+  actualizarConfigEnvioArchivos,
   listarCategoriasAnaliticas,
   crearCategoriaAnalitica,
   actualizarCategoriaAnalitica,
@@ -49,6 +51,7 @@ export {
   actualizarProductoConfig,
   eliminarProductoConfig,
 } from './lib/api'
+export type { EnvioArchivosConfig } from './lib/api'
 export type {
   Solicitud,
   SolicitudInput,

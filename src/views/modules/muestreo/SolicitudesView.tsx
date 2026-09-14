@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
@@ -11,8 +11,10 @@ import {
   eliminarSolicitud,
   listarSolicitudes,
   descargarTodasLasSolicitudes,
+  obtenerConfigEnvioArchivos,
+  actualizarConfigEnvioArchivos,
 } from '@/features/tomaMuestras'
-import type { Solicitud } from '@/features/tomaMuestras'
+import type { Solicitud, EnvioArchivosConfig } from '@/features/tomaMuestras'
 import styles from './SolicitudesView.module.css'
 
 interface Filtros {
@@ -56,12 +58,56 @@ function contiene(valor: string | null | undefined, buscado: string): boolean {
 export function SolicitudesView() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const puedeEliminar = Boolean(user && esAdminGeneral(user))
+  const esAdmin = Boolean(user && esAdminGeneral(user))
+  const puedeEliminar = esAdmin
 
   const [solicitudes, setSolicitudes] = useState<Solicitud[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
+
+  // Config de archivos adjuntos (solo visible para admin_general)
+  const [envioConfig, setEnvioConfig] = useState<EnvioArchivosConfig | null>(null)
+  const [modal, setModal] = useState<{ campo: 'excel' | 'json'; nuevoValor: boolean } | null>(null)
+  const [password, setPassword] = useState('')
+  const [errorModal, setErrorModal] = useState<string | null>(null)
+  const [guardando, setGuardando] = useState(false)
+  const inputPasswordRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!esAdmin) return
+    obtenerConfigEnvioArchivos()
+      .then(setEnvioConfig)
+      .catch(() => {})
+  }, [esAdmin])
+
+  useEffect(() => {
+    if (modal) {
+      setPassword('')
+      setErrorModal(null)
+      setTimeout(() => inputPasswordRef.current?.focus(), 50)
+    }
+  }, [modal])
+
+  async function confirmarCambio() {
+    if (!modal || !envioConfig) return
+    setGuardando(true)
+    setErrorModal(null)
+    try {
+      const nueva = await actualizarConfigEnvioArchivos(
+        modal.campo === 'excel' ? modal.nuevoValor : envioConfig.excel,
+        modal.campo === 'json' ? modal.nuevoValor : envioConfig.json,
+        password,
+      )
+      setEnvioConfig(nueva)
+      setModal(null)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setErrorModal(msg.includes('401') || msg.toLowerCase().includes('contraseña') ? 'Contraseña incorrecta.' : 'No se pudo guardar el cambio.')
+    } finally {
+      setGuardando(false)
+    }
+  }
 
   const refrescar = useCallback(async () => {
     try {
@@ -155,6 +201,8 @@ export function SolicitudesView() {
     ? (solicitudesFiltradas ?? []).map((s) => s.archivo)
     : undefined
 
+  const etiquetaCampo = (campo: 'excel' | 'json') => (campo === 'excel' ? 'Excel' : 'JSON')
+
   return (
     <div>
       <Header
@@ -176,6 +224,83 @@ export function SolicitudesView() {
           </div>
         }
       />
+
+      {esAdmin && envioConfig && (
+        <Card>
+          <div className={styles.configArchivos}>
+            <p className={styles.configArchivosTitulo}>Archivos adjuntos al enviar solicitudes</p>
+            <div className={styles.configArchivosFilas}>
+              {(
+                [
+                  { campo: 'pdf', etiqueta: 'PDF', fijo: true, activo: true },
+                  { campo: 'excel', etiqueta: 'Excel', fijo: false, activo: envioConfig.excel },
+                  { campo: 'json', etiqueta: 'JSON', fijo: false, activo: envioConfig.json },
+                ] as const
+              ).map(({ campo, etiqueta, fijo, activo }) => (
+                <div key={campo} className={styles.configArchivosFila}>
+                  <span className={styles.configArchivosNombre}>{etiqueta}</span>
+                  <button
+                    type="button"
+                    disabled={fijo}
+                    onClick={() =>
+                      !fijo &&
+                      setModal({ campo: campo as 'excel' | 'json', nuevoValor: !activo })
+                    }
+                    className={`${styles.toggle} ${activo ? styles.toggleOn : styles.toggleOff} ${fijo ? styles.toggleFijo : ''}`}
+                    title={fijo ? 'El PDF siempre se adjunta' : activo ? 'Desactivar' : 'Activar'}
+                  >
+                    <span className={styles.toggleCirculo} />
+                  </button>
+                  <span className={styles.configArchivosEstado}>
+                    {fijo ? 'Siempre activo' : activo ? 'Activo' : 'Inactivo'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {modal && (
+        <div className={styles.overlay}>
+          <div className={styles.modalCambio}>
+            <p className={styles.modalTitulo}>
+              {modal.nuevoValor ? 'Activar' : 'Desactivar'} {etiquetaCampo(modal.campo)}
+            </p>
+            <p className={styles.modalDescripcion}>
+              Este es un cambio estructural. Ingresa tu contraseña para confirmar.
+            </p>
+            <input
+              ref={inputPasswordRef}
+              type="password"
+              className={styles.modalInput}
+              placeholder="Tu contraseña"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void confirmarCambio()}
+            />
+            {errorModal && <p className={styles.modalError}>{errorModal}</p>}
+            <div className={styles.modalAcciones}>
+              <button
+                type="button"
+                className={styles.modalBotonCancelar}
+                onClick={() => setModal(null)}
+                disabled={guardando}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className={styles.modalBotonConfirmar}
+                onClick={() => void confirmarCambio()}
+                disabled={guardando || !password}
+              >
+                {guardando ? 'Guardando…' : 'Confirmar cambio'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Card>
         {error && <p className={styles.error}>{error}</p>}

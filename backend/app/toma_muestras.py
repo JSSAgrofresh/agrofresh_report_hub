@@ -41,7 +41,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import config, config_store, correo, indice_solicitudes, mail_templates, r2
+from . import config, config_store, correo, indice_solicitudes, mail_templates, r2, seguridad
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
@@ -1117,6 +1117,28 @@ def resultados_de_ship_to(
     ]
 
 
+def _generar_json_solicitud(datos: dict) -> bytes:
+    """JSON completo de la solicitud con correos por categoría como adjunto."""
+    import json as _json
+    lab = str(datos.get("laboratorio") or "")
+    ship_to = str(datos.get("ship_to") or "")
+    correos_resultado = destinatarios_resultado_por_tipo(lab, ship_to)
+    email_muestreador = _normalizar_correo(datos.get("email_solicitante"))
+    salida = {
+        **datos,
+        "correos": {
+            "solicitud": {"to": contactos_de_solicitud(lab)},
+            "resultado_cliente": {"to": correos_resultado.get("to", [])},
+            "resultado_interno": {
+                "cc": correos_resultado.get("cc", []),
+                "bcc": correos_resultado.get("bcc", []),
+            },
+            "solicitante_bcc": {"bcc": [email_muestreador] if email_muestreador else []},
+        },
+    }
+    return _json.dumps(salida, ensure_ascii=False, indent=2).encode("utf-8")
+
+
 def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
     """Añade al PDF la configuración vigente sin modificar la solicitud."""
     datos_pdf = dict(datos)
@@ -1166,6 +1188,44 @@ def destinatarios_de_solicitud(archivo: str, usuario: Usuario = Depends(usuario_
     _exigir_acceso(usuario, datos)
     laboratorio = datos.get("laboratorio", "")
     return {"laboratorio": laboratorio, "destinatarios": contactos_de_solicitud(laboratorio)}
+
+
+_ENVIO_ARCHIVOS_DEFECTO = {"excel": True, "json": False}
+
+
+class EnvioArchivosOut(BaseModel):
+    pdf: bool = True
+    excel: bool
+    json: bool
+
+
+class EnvioArchivosIn(BaseModel):
+    excel: bool
+    json: bool
+    password: str
+
+
+@router.get("/config/envio-archivos")
+def obtener_config_envio_archivos(usuario: Usuario = Depends(usuario_actual)) -> EnvioArchivosOut:
+    """Qué archivos se adjuntan al enviar una solicitud. PDF siempre activo."""
+    cfg = _leer_config("envio_archivos.json", _ENVIO_ARCHIVOS_DEFECTO)
+    return EnvioArchivosOut(pdf=True, excel=cfg.get("excel", True), json=cfg.get("json", False))
+
+
+@router.put("/config/envio-archivos")
+def actualizar_config_envio_archivos(
+    body: EnvioArchivosIn, usuario: Usuario = Depends(usuario_actual)
+) -> EnvioArchivosOut:
+    """Cambia qué archivos se adjuntan. Solo admin_general, requiere contraseña."""
+    if usuario.tipoAcceso != "admin_general":
+        raise HTTPException(403, "Solo el administrador general puede cambiar esta configuración.")
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT password_hash FROM usuario WHERE id = %s", (usuario.id,))
+        fila = cur.fetchone()
+    if not fila or not seguridad.verificar_password(body.password, fila.get("password_hash")):
+        raise HTTPException(401, "Contraseña incorrecta.")
+    _escribir_config("envio_archivos.json", {"excel": body.excel, "json": body.json})
+    return EnvioArchivosOut(pdf=True, excel=body.excel, json=body.json)
 
 
 def _registrar_envio_solicitud(
@@ -1236,11 +1296,6 @@ def enviar_solicitud_por_correo(
     datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
     pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config, analisis_config)
 
-    wb = construir_workbook(datos, analitos_config)
-    buf_excel = io.BytesIO()
-    wb.save(buf_excel)
-    excel_bytes = buf_excel.getvalue()
-
     lab = datos.get("laboratorio", "")
     solicitante = datos.get("solicitante", "")
     sold_to = datos.get("sold_to", "")
@@ -1269,14 +1324,25 @@ def enviar_solicitud_por_correo(
 
     asunto, texto, html, imagenes_inline = mail_templates.renderizar(lab, datos)
 
-    adjuntos = [
+    envio_cfg = _leer_config("envio_archivos.json", {"excel": True, "json": False})
+    adjuntos: list[correo.Adjunto] = [
         correo.Adjunto(f"{numero}.pdf", pdf_bytes, "application/pdf"),
-        correo.Adjunto(
-            f"{numero}.xlsx",
-            excel_bytes,
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        ),
     ]
+    if envio_cfg.get("excel", True):
+        wb = construir_workbook(datos, analitos_config)
+        buf_excel = io.BytesIO()
+        wb.save(buf_excel)
+        adjuntos.append(correo.Adjunto(
+            f"{numero}.xlsx",
+            buf_excel.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ))
+    if envio_cfg.get("json", False):
+        adjuntos.append(correo.Adjunto(
+            f"{numero}.json",
+            _generar_json_solicitud(datos),
+            "application/json",
+        ))
 
     # El muestreador que creó la solicitud SIEMPRE recibe una copia oculta de
     # su propio envío -es el correo guardado en la solicitud (forzado por el
