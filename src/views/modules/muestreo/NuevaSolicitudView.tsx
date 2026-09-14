@@ -17,6 +17,7 @@ import type { ValorLista } from '@/features/listados'
 import {
   actualizarSolicitud,
   crearSolicitud,
+  destinatariosParaLaboratorio,
   enviarSolicitudPorCorreo,
   listarAnalitosConfig,
   listarCamposConfig,
@@ -174,6 +175,13 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // Solo informativo: cómo va a salir el resultado de este Ship To según
   // Laboratorios → Resultado a clientes. No se edita desde acá.
   const [resultadosShipTo, setResultadosShipTo] = useState<ContactoResultado[] | null>(null)
+
+  // Destinatarios de la solicitud: se cargan cuando el laboratorio cambia,
+  // para que el muestreador vea a quién va el correo antes de guardar.
+  const [contactosSolicitud, setContactosSolicitud] = useState<string[] | null>(null)
+  const [invitadosForm, setInvitadosForm] = useState<string[]>([])
+  const [emailInvitadoForm, setEmailInvitadoForm] = useState('')
+  const [errorInvitadoForm, setErrorInvitadoForm] = useState<string | null>(null)
 
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
@@ -352,6 +360,18 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     }
     setValoresTipoAplicacion(valores)
   }, [modo, solicitudOriginal, camposTipoAplicacion])
+
+  // Apenas cambia el laboratorio, se buscan los contactos configurados para
+  // recibir solicitudes de ese lab — para que el muestreador vea a quién le
+  // va a llegar el correo antes de presionar "Guardar y enviar".
+  useEffect(() => {
+    if (!laboratorio) return
+    let vigente = true
+    destinatariosParaLaboratorio(laboratorio)
+      .then((r) => { if (vigente) setContactosSolicitud(r.destinatarios) })
+      .catch(() => { if (vigente) setContactosSolicitud([]) })
+    return () => { vigente = false }
+  }, [laboratorio])
 
   // Apenas hay Laboratorio + Ship To, se muestra cómo va a salir el
   // resultado de ese Ship To (si ya tiene configuración propia en
@@ -575,6 +595,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setDosisSinIndicar({})
     setProductosSeleccionados([])
     setAlsPesticidas(ALS_PESTICIDAS_VACIO)
+    setContactosSolicitud(null)
   }
 
   function alCambiarTipoAplicacion(v: string) {
@@ -692,6 +713,27 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     )
   }
 
+  function agregarInvitadoForm(): boolean {
+    const candidatos = emailInvitadoForm.split(/[;,\s]+/).map(e => e.trim()).filter(Boolean)
+    if (candidatos.length === 0) return true
+    const invalidos = candidatos.filter(e => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
+    if (invalidos.length > 0) {
+      setErrorInvitadoForm(`Correo inválido: ${invalidos.join(', ')}`)
+      return false
+    }
+    const configurados = new Set((contactosSolicitud ?? []).map(e => e.toLowerCase()))
+    const actuales = [...invitadosForm]
+    candidatos.forEach(e => {
+      if (!configurados.has(e.toLowerCase()) && !actuales.some(a => a.toLowerCase() === e.toLowerCase())) {
+        actuales.push(e)
+      }
+    })
+    setInvitadosForm(actuales)
+    setEmailInvitadoForm('')
+    setErrorInvitadoForm(null)
+    return true
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
@@ -784,11 +826,11 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         await actualizarSolicitud(archivoEditando, payload)
         // Envío automático al guardar — si falla igual navega al detalle
         // para que el usuario pueda reenviar manualmente desde ahí.
-        try { await enviarSolicitudPorCorreo(archivoEditando) } catch { /* continuar */ }
+        try { await enviarSolicitudPorCorreo(archivoEditando, invitadosForm) } catch { /* continuar */ }
         navigate(rutaTomaMuestrasDetalle(archivoEditando))
       } else {
         const solicitudCreada = await crearSolicitud(payload)
-        try { await enviarSolicitudPorCorreo(solicitudCreada.archivo) } catch { /* continuar */ }
+        try { await enviarSolicitudPorCorreo(solicitudCreada.archivo, invitadosForm) } catch { /* continuar */ }
         navigate(rutaTomaMuestrasDetalle(solicitudCreada.archivo))
       }
     } catch (err) {
@@ -989,7 +1031,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         title={tituloVista}
         description={
           modo === 'editar'
-            ? `Modifica la solicitud ${solicitudOriginal?.numero_solicitud ?? ''} — solo se puede editar mientras no se haya enviado por correo.`
+            ? `Modifica la solicitud ${solicitudOriginal?.numero_solicitud ?? ''} — Al guardar se enviará de inmediato por correo.`
             : 'Registra una nueva solicitud de análisis — los campos y análisis disponibles dependen del laboratorio y el tipo de aplicación.'
         }
       />
@@ -1264,6 +1306,82 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               Observaciones
             </h2>
             <div className={styles.fila}>{renderCampo(campoObservacion)}</div>
+          </Card>
+        )}
+
+        {laboratorio && (
+          <Card>
+            <h2 className={styles.tituloSeccion}>
+              <span className={styles.numero}>5</span>
+              ¿A quién se enviará?
+            </h2>
+            <p className={styles.ayudaCampo}>
+              Al guardar, se envía automáticamente a los contactos configurados para{' '}
+              <strong>{laboratorio}</strong>. Podés agregar destinatarios adicionales solo para este
+              envío.
+            </p>
+            {contactosSolicitud === null ? (
+              <p className={styles.estado}>Cargando destinatarios…</p>
+            ) : (
+              <div className={styles.panelDestinatarios}>
+                {contactosSolicitud.length === 0 && invitadosForm.length === 0 && (
+                  <p className={styles.estado}>
+                    No hay contactos configurados para {laboratorio}. Podés agregar destinatarios
+                    adicionales abajo, o configurarlos en Ajustes → Laboratorios.
+                  </p>
+                )}
+                {(contactosSolicitud.length > 0 || invitadosForm.length > 0) && (
+                  <div className={styles.destinatarios}>
+                    {contactosSolicitud.map((email) => (
+                      <span key={email} className={styles.destinatario}>
+                        <span className={styles.tipoDestinatario}>Configurado</span>
+                        {email}
+                      </span>
+                    ))}
+                    {invitadosForm.map((email) => (
+                      <span key={email} className={cn(styles.destinatario, styles.invitado)}>
+                        <span className={styles.tipoDestinatario}>Invitado</span>
+                        {email}
+                        <button
+                          type="button"
+                          className={styles.quitarInvitado}
+                          aria-label={`Quitar ${email}`}
+                          onClick={() => setInvitadosForm((inv) => inv.filter((e) => e !== email))}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className={styles.filaInvitado}>
+                  <input
+                    className={styles.inputEmail}
+                    type="text"
+                    placeholder="Agregar correo adicional… (separá varios con coma)"
+                    value={emailInvitadoForm}
+                    onChange={(e) => {
+                      setEmailInvitadoForm(e.target.value)
+                      setErrorInvitadoForm(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        agregarInvitadoForm()
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={styles.botonAgregar}
+                    onClick={agregarInvitadoForm}
+                  >
+                    Agregar
+                  </button>
+                </div>
+                {errorInvitadoForm && <p className={styles.errorInvitado}>{errorInvitadoForm}</p>}
+              </div>
+            )}
           </Card>
         )}
 

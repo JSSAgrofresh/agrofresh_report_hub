@@ -1086,6 +1086,15 @@ class ContactoResultadoOut(BaseModel):
     tipo_copia: str  # cc | bcc -solo tiene sentido si tipo es resultado_interno
 
 
+@router.get("/config/destinatarios-solicitud")
+def destinatarios_para_laboratorio(
+    laboratorio: str, _: Usuario = Depends(usuario_actual)
+) -> dict[str, list[str]]:
+    """Contactos configurados para recibir solicitudes de un laboratorio.
+    Lo usa el formulario antes de crear la solicitud, cuando aún no hay archivo."""
+    return {"destinatarios": contactos_de_solicitud(laboratorio)}
+
+
 @router.get("/config/resultados-ship-to")
 def resultados_de_ship_to(
     laboratorio: str,

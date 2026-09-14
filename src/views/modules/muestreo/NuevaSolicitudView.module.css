@@ -378,6 +378,122 @@
   padding: var(--space-2) var(--space-3);
 }
 
+.panelDestinatarios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.destinatarios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.destinatario {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  font-size: 13px;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+.tipoDestinatario {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--color-bg);
+}
+
+.invitado {
+  border-color: var(--color-primary);
+}
+
+.invitado .tipoDestinatario {
+  color: var(--color-primary-hover);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.quitarInvitado {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-border-strong);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.quitarInvitado:hover {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.filaInvitado {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.inputEmail {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  padding: 8px 11px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.inputEmail:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+  border-color: var(--color-primary);
+}
+
+.botonAgregar {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.botonAgregar:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary-hover);
+}
+
+.errorInvitado {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-danger);
+}
+
 .acciones {
   display: flex;
   justify-content: flex-end;

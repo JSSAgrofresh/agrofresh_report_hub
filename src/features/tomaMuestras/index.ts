@@ -10,6 +10,7 @@ export {
   enviarCorreoPrueba,
   enviarSolicitudPorCorreo,
   destinatariosDeSolicitud,
+  destinatariosParaLaboratorio,
   resultadosDeShipTo,
   listarFotosSolicitud,
   subirFotoSolicitud,

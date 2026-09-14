@@ -100,6 +100,14 @@ export function destinatariosDeSolicitud(archivo: string) {
   )
 }
 
+/** Contactos configurados para recibir solicitudes de un laboratorio dado.
+ * Para usar en el formulario antes de que exista el archivo de la solicitud. */
+export function destinatariosParaLaboratorio(laboratorio: string) {
+  return httpClient.get<{ destinatarios: string[] }>(
+    `/toma-muestras/config/destinatarios-solicitud?laboratorio=${encodeURIComponent(laboratorio)}`,
+  )
+}
+
 /** Envía a los contactos configurados y suma invitados sólo para este envío. */
 export function enviarSolicitudPorCorreo(archivo: string, destinatariosAdicionales: string[] = []) {
   return httpClient.post<{ ok: string }>(
