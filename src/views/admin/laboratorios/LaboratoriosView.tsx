@@ -142,7 +142,7 @@ export function LaboratoriosView() {
         await crearLaboratorioConfig(datos)
       }
       setLaboratorios(await resumenLaboratorios())
-      if (formLab.modo === 'editar') setSeleccionado(datos.codigo)
+      if (formLab.modo === 'editar') setSeleccionado(codigo.trim().toUpperCase())
       setFormLab(null)
     } catch {
       setError(
