@@ -42,6 +42,8 @@ type Campo = {
   tipo: 'texto' | 'numero'
   ancho?: number
   editable?: boolean
+  /** Solo aparece en el editor de columnas, no como columna en la tabla ni en el formulario */
+  soloEditor?: boolean
 }
 
 type RangoTolerancia = {
@@ -77,6 +79,7 @@ function aplicarConfigColumnas(campos: Campo[], configs: ColumnaConfig[] | undef
             etiqueta: cc.etiqueta ?? c.etiqueta,
             // null = usar defecto; string vacío = quitar unidad; string con valor = nuevo texto
             unidad: cc.unidad !== null ? cc.unidad || undefined : c.unidad,
+            soloEditor: c.soloEditor,
           }
         })
 
@@ -520,7 +523,7 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
 
         {borrador && (
           <div className={styles.formulario}>
-            {campos.filter((campo) => campo.editable !== false).map((campo) => (
+            {campos.filter((campo) => campo.editable !== false && !campo.soloEditor).map((campo) => (
               <label key={campo.clave} className={styles.campo}>
                 <span className={styles.etiqueta}>
                   <Etiqueta campo={campo} />
@@ -566,7 +569,7 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
           <table className={styles.tabla} style={{ minWidth: 520 }}>
             <thead>
               <tr>
-                {campos.map((c) => (
+                {campos.filter((c) => !c.soloEditor).map((c) => (
                   <th key={c.clave}>
                     <Etiqueta campo={c} />
                   </th>
@@ -581,7 +584,7 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
                 const valores = fila as unknown as Record<string, unknown>
                 return (
                   <tr key={fila.id} className={cn(!fila.activo && styles.inactivo)}>
-                    {campos.map((c, i) => (
+                    {campos.filter((c) => !c.soloEditor).map((c, i) => (
                       <td key={c.clave} className={i === 0 ? styles.celdaEquipo : undefined}>
                         {String(valores[c.clave] ?? '') || '—'}
                       </td>
@@ -686,6 +689,7 @@ const CAMPOS_MICROPIPETAS: Campo[] = [
   { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
   { clave: 'volumen_nominal', etiqueta: 'Vol. nominal', unidad: 'µL', tipo: 'numero', editable: false },
   { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'µL', tipo: 'numero', editable: false },
+  { clave: 'rango_tolerancia', etiqueta: 'Rango de tolerancia', unidad: 'µL', tipo: 'texto', editable: false, soloEditor: true },
 ]
 
 const CAMPOS_PESAS: Campo[] = [
@@ -693,6 +697,7 @@ const CAMPOS_PESAS: Campo[] = [
   { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
   { clave: 'valor_nominal', etiqueta: 'Valor nominal', unidad: 'mg', tipo: 'numero', editable: false },
   { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'mg', tipo: 'numero', editable: false },
+  { clave: 'rango_tolerancia', etiqueta: 'Rango de tolerancia', unidad: 'mg', tipo: 'texto', editable: false, soloEditor: true },
 ]
 
 const CAMPOS_TEMPERATURA: Campo[] = [
@@ -769,7 +774,7 @@ export function CriteriosView() {
             api={micropipetasApi}
             onCambio={() => void cargar()}
             onError={setError}
-            rango={{ nominal: 'volumen_nominal', tolerancia: 'tolerancia', unidad: unidadEfectiva(config.columnas_config?.micropipetas, 'tolerancia', 'µL') }}
+            rango={{ nominal: 'volumen_nominal', tolerancia: 'tolerancia', unidad: unidadEfectiva(config.columnas_config?.micropipetas, 'rango_tolerancia', unidadEfectiva(config.columnas_config?.micropipetas, 'tolerancia', 'µL')) }}
           />
 
           <TablaCatalogo
@@ -785,7 +790,7 @@ export function CriteriosView() {
             api={pesasApi}
             onCambio={() => void cargar()}
             onError={setError}
-            rango={{ nominal: 'valor_nominal', tolerancia: 'tolerancia', unidad: unidadEfectiva(config.columnas_config?.pesas, 'tolerancia', 'mg') }}
+            rango={{ nominal: 'valor_nominal', tolerancia: 'tolerancia', unidad: unidadEfectiva(config.columnas_config?.pesas, 'rango_tolerancia', unidadEfectiva(config.columnas_config?.pesas, 'tolerancia', 'mg')) }}
           />
 
           <TablaCatalogo
