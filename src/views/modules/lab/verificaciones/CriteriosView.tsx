@@ -228,9 +228,8 @@ function EditorColumnas({
           <thead>
             <tr>
               <th style={{ width: 32 }}>Vis.</th>
-              {/* "Campo" solo muestra el nombre, sin unidad. La unidad va en su columna aparte. */}
-              <th>Campo</th>
-              <th>Nombre a mostrar</th>
+              {/* Una sola columna editable: el placeholder gris muestra el nombre original */}
+              <th>Nombre</th>
               {tieneUnidades && <th>Unidad</th>}
               <th style={{ width: 32 }} />
             </tr>
@@ -246,12 +245,10 @@ function EditorColumnas({
                     title={f.visible ? 'Ocultar columna' : 'Mostrar columna'}
                   />
                 </td>
-                {/* Solo el nombre base, sin unidad — evita el "(mg)" hardcodeado que no se podía cambiar */}
-                <td className={styles.celdaEquipo}>{f.etiquetaDefault}</td>
                 <td>
                   <input
                     className={styles.input}
-                    style={{ width: 160 }}
+                    style={{ width: 200 }}
                     value={f.etiqueta}
                     placeholder={f.etiquetaDefault}
                     disabled={!f.visible}
@@ -291,13 +288,10 @@ function EditorColumnas({
             {agregando && (
               <tr>
                 <td />
-                <td className={styles.celdaEquipo} style={{ color: 'var(--color-text-muted, #999)', fontStyle: 'italic' }}>
-                  Nueva columna
-                </td>
                 <td>
                   <input
                     className={styles.input}
-                    style={{ width: 160 }}
+                    style={{ width: 200 }}
                     value={nuevaEtiqueta}
                     placeholder="Nombre de la columna"
                     // eslint-disable-next-line jsx-a11y/no-autofocus
