@@ -140,22 +140,15 @@ export function descargarTodasLasSolicitudes(archivos?: string[]) {
   )
 }
 
-// --- Configuración: archivos adjuntos en envío ---------------------------
+// --- Configuración: envío automático al guardar --------------------------
 
-export interface EnvioArchivosConfig {
-  pdf: boolean
-  excel: boolean
-  json: boolean
+export function obtenerEnvioAutomatico() {
+  return httpClient.get<{ activo: boolean }>('/toma-muestras/config/envio-automatico')
 }
 
-export function obtenerConfigEnvioArchivos() {
-  return httpClient.get<EnvioArchivosConfig>('/toma-muestras/config/envio-archivos')
-}
-
-export function actualizarConfigEnvioArchivos(excel: boolean, json: boolean, password: string) {
-  return httpClient.put<EnvioArchivosConfig>('/toma-muestras/config/envio-archivos', {
-    excel,
-    json,
+export function actualizarEnvioAutomatico(activo: boolean, password: string) {
+  return httpClient.put<{ activo: boolean }>('/toma-muestras/config/envio-automatico', {
+    activo,
     password,
   })
 }

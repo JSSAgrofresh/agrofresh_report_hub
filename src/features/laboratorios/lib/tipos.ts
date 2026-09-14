@@ -123,4 +123,6 @@ export interface ResumenLaboratorio {
   n_analisis: number
   n_contactos: number
   n_analitos: number
+  adjuntos_excel: boolean
+  adjuntos_json: boolean
 }

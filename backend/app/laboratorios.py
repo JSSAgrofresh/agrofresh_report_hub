@@ -228,6 +228,8 @@ class ResumenLaboratorio(BaseModel):
     n_analisis: int
     n_contactos: int
     n_analitos: int
+    adjuntos_excel: bool = True
+    adjuntos_json: bool = False
 
 
 @router.get("/resumen")
@@ -259,6 +261,8 @@ def resumen_laboratorios() -> list[ResumenLaboratorio]:
                 if c.get("laboratorio") == l["codigo"] and c.get("tipo") == "solicitud"
             ) + n_resultado,
             n_analitos=contar(analitos, l["codigo"]),
+            adjuntos_excel=l.get("adjuntos_excel", True),
+            adjuntos_json=l.get("adjuntos_json", False),
         )
         for l in labs
     ]

@@ -11,10 +11,10 @@ import {
   eliminarSolicitud,
   listarSolicitudes,
   descargarTodasLasSolicitudes,
-  obtenerConfigEnvioArchivos,
-  actualizarConfigEnvioArchivos,
+  obtenerEnvioAutomatico,
+  actualizarEnvioAutomatico,
 } from '@/features/tomaMuestras'
-import type { Solicitud, EnvioArchivosConfig } from '@/features/tomaMuestras'
+import type { Solicitud } from '@/features/tomaMuestras'
 import styles from './SolicitudesView.module.css'
 
 interface Filtros {
@@ -66,9 +66,9 @@ export function SolicitudesView() {
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
 
-  // Config de archivos adjuntos (solo visible para admin_general)
-  const [envioConfig, setEnvioConfig] = useState<EnvioArchivosConfig | null>(null)
-  const [modal, setModal] = useState<{ campo: 'excel' | 'json'; nuevoValor: boolean } | null>(null)
+  // Toggle de envío automático (solo visible para admin_general)
+  const [envioAutomatico, setEnvioAutomatico] = useState<boolean | null>(null)
+  const [modalAbierto, setModalAbierto] = useState(false)
   const [password, setPassword] = useState('')
   const [errorModal, setErrorModal] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
@@ -76,31 +76,27 @@ export function SolicitudesView() {
 
   useEffect(() => {
     if (!esAdmin) return
-    obtenerConfigEnvioArchivos()
-      .then(setEnvioConfig)
+    obtenerEnvioAutomatico()
+      .then((r) => setEnvioAutomatico(r.activo))
       .catch(() => {})
   }, [esAdmin])
 
   useEffect(() => {
-    if (modal) {
+    if (modalAbierto) {
       setPassword('')
       setErrorModal(null)
       setTimeout(() => inputPasswordRef.current?.focus(), 50)
     }
-  }, [modal])
+  }, [modalAbierto])
 
   async function confirmarCambio() {
-    if (!modal || !envioConfig) return
+    if (envioAutomatico === null) return
     setGuardando(true)
     setErrorModal(null)
     try {
-      const nueva = await actualizarConfigEnvioArchivos(
-        modal.campo === 'excel' ? modal.nuevoValor : envioConfig.excel,
-        modal.campo === 'json' ? modal.nuevoValor : envioConfig.json,
-        password,
-      )
-      setEnvioConfig(nueva)
-      setModal(null)
+      const res = await actualizarEnvioAutomatico(!envioAutomatico, password)
+      setEnvioAutomatico(res.activo)
+      setModalAbierto(false)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       setErrorModal(msg.includes('401') || msg.toLowerCase().includes('contraseña') ? 'Contraseña incorrecta.' : 'No se pudo guardar el cambio.')
@@ -201,8 +197,6 @@ export function SolicitudesView() {
     ? (solicitudesFiltradas ?? []).map((s) => s.archivo)
     : undefined
 
-  const etiquetaCampo = (campo: 'excel' | 'json') => (campo === 'excel' ? 'Excel' : 'JSON')
-
   return (
     <div>
       <Header
@@ -225,50 +219,43 @@ export function SolicitudesView() {
         }
       />
 
-      {esAdmin && envioConfig && (
+      {esAdmin && envioAutomatico !== null && (
         <Card>
           <div className={styles.configArchivos}>
-            <p className={styles.configArchivosTitulo}>Archivos adjuntos al enviar solicitudes</p>
+            <p className={styles.configArchivosTitulo}>Comportamiento al guardar solicitudes</p>
             <div className={styles.configArchivosFilas}>
-              {(
-                [
-                  { campo: 'pdf', etiqueta: 'PDF', fijo: true, activo: true },
-                  { campo: 'excel', etiqueta: 'Excel', fijo: false, activo: envioConfig.excel },
-                  { campo: 'json', etiqueta: 'JSON', fijo: false, activo: envioConfig.json },
-                ] as const
-              ).map(({ campo, etiqueta, fijo, activo }) => (
-                <div key={campo} className={styles.configArchivosFila}>
-                  <span className={styles.configArchivosNombre}>{etiqueta}</span>
-                  <button
-                    type="button"
-                    disabled={fijo}
-                    onClick={() =>
-                      !fijo &&
-                      setModal({ campo: campo as 'excel' | 'json', nuevoValor: !activo })
-                    }
-                    className={`${styles.toggle} ${activo ? styles.toggleOn : styles.toggleOff} ${fijo ? styles.toggleFijo : ''}`}
-                    title={fijo ? 'El PDF siempre se adjunta' : activo ? 'Desactivar' : 'Activar'}
-                  >
-                    <span className={styles.toggleCirculo} />
-                  </button>
-                  <span className={styles.configArchivosEstado}>
-                    {fijo ? 'Siempre activo' : activo ? 'Activo' : 'Inactivo'}
-                  </span>
-                </div>
-              ))}
+              <div className={styles.configArchivosFila}>
+                <span className={styles.configArchivosNombre}>Envío automático</span>
+                <button
+                  type="button"
+                  onClick={() => setModalAbierto(true)}
+                  className={`${styles.toggle} ${envioAutomatico ? styles.toggleOn : styles.toggleOff}`}
+                  title={envioAutomatico ? 'Desactivar envío automático' : 'Activar envío automático'}
+                >
+                  <span className={styles.toggleCirculo} />
+                </button>
+                <span className={styles.configArchivosEstado}>
+                  {envioAutomatico
+                    ? 'Al guardar se envía de inmediato por correo'
+                    : 'Al guardar queda pendiente — se envía manualmente'}
+                </span>
+              </div>
             </div>
           </div>
         </Card>
       )}
 
-      {modal && (
+      {modalAbierto && (
         <div className={styles.overlay}>
           <div className={styles.modalCambio}>
             <p className={styles.modalTitulo}>
-              {modal.nuevoValor ? 'Activar' : 'Desactivar'} {etiquetaCampo(modal.campo)}
+              {envioAutomatico ? 'Desactivar' : 'Activar'} envío automático
             </p>
             <p className={styles.modalDescripcion}>
-              Este es un cambio estructural. Ingresa tu contraseña para confirmar.
+              {envioAutomatico
+                ? 'Las solicitudes quedarán pendientes hasta que las envíes manualmente.'
+                : 'Las solicitudes se enviarán por correo al momento de guardarlas.'}
+              {' '}Ingresa tu contraseña para confirmar.
             </p>
             <input
               ref={inputPasswordRef}
@@ -284,7 +271,7 @@ export function SolicitudesView() {
               <button
                 type="button"
                 className={styles.modalBotonCancelar}
-                onClick={() => setModal(null)}
+                onClick={() => setModalAbierto(false)}
                 disabled={guardando}
               >
                 Cancelar
