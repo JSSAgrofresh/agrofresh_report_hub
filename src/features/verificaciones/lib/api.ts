@@ -3,6 +3,7 @@ import { descargarArchivo } from '@/services/http/descargar'
 import type {
   ColumnaConfig,
   ConfigVerificaciones,
+  FactorZ,
   Gas,
   GasInput,
   Metodo,
@@ -101,10 +102,16 @@ function crud<T, TInput>(ruta: string) {
   }
 }
 
-/** Los parámetros globales no se crean ni se borran: son un conjunto fijo que
- * el cálculo conoce por nombre. Solo cambia su valor. */
-export function actualizarParametro(clave: string, valor: number) {
-  return httpClient.put<Parametro>(`${BASE}/config/parametros/${clave}`, { valor })
+/** Guarda valor y, opcionalmente, descripción y unidad del parámetro. */
+export function actualizarParametro(
+  clave: string,
+  datos: { valor: number; descripcion?: string; unidad?: string },
+) {
+  return httpClient.put<Parametro>(`${BASE}/config/parametros/${clave}`, datos)
+}
+
+export function actualizarFactorZ(temperatura: number, factor: number) {
+  return httpClient.put<FactorZ>(`${BASE}/config/tabla-z/${temperatura}`, { factor })
 }
 
 /** Guarda la configuración de una columna (etiqueta, unidad, visibilidad).

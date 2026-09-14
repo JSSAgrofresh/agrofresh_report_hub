@@ -321,6 +321,12 @@ class Parametro(BaseModel):
 
 class ParametroIn(BaseModel):
     valor: float
+    descripcion: str | None = None  # None = no cambiar
+    unidad: str | None = None       # None = no cambiar
+
+
+class FactorZIn(BaseModel):
+    factor: float
 
 
 class FactorZ(BaseModel):
@@ -716,14 +722,41 @@ def actualizar_columna_config(
 def actualizar_parametro(
     clave: str, datos: ParametroIn, _: Usuario = Depends(solo_interno)
 ) -> Parametro:
-    """Los parámetros no se crean ni se borran: son un conjunto fijo que el
-    cálculo conoce por nombre. Solo cambia su valor."""
+    """Actualiza valor y, opcionalmente, descripción y unidad del parámetro."""
+    sets = ["valor = %s"]
+    values: list = [datos.valor]
+    if datos.descripcion is not None:
+        sets.append("descripcion = %s")
+        values.append(datos.descripcion)
+    if datos.unidad is not None:
+        sets.append("unidad = %s")
+        values.append(datos.unidad)
+    values.append(clave)
     with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute("UPDATE verif_parametro SET valor = %s WHERE clave = %s RETURNING *", [datos.valor, clave])
+        cur.execute(
+            f"UPDATE verif_parametro SET {', '.join(sets)} WHERE clave = %s RETURNING *",
+            values,
+        )
         fila = cur.fetchone()
         if not fila:
             raise HTTPException(404, f"No existe el parámetro {clave!r}.")
         return Parametro(**_normalizar(dict(fila)))
+
+
+@router.put("/config/tabla-z/{temperatura}", response_model=FactorZ)
+def actualizar_factor_z(
+    temperatura: int, datos: FactorZIn, _: Usuario = Depends(solo_interno)
+) -> FactorZ:
+    """Actualiza el factor Z para una temperatura dada."""
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "UPDATE verif_agua_z SET factor = %s WHERE temperatura = %s RETURNING *",
+            [datos.factor, temperatura],
+        )
+        fila = cur.fetchone()
+        if not fila:
+            raise HTTPException(404, f"No existe factor Z para {temperatura}°C.")
+        return FactorZ(**dict(fila))
 
 
 # ---------------------------------------------------------------------------
