@@ -38,7 +38,6 @@ import type {
   Solicitud,
 } from '@/features/tomaMuestras'
 import { ROUTES, rutaTomaMuestrasDetalle } from '@/constants/routes'
-import { HttpError } from '@/services/http/client'
 import { formatDateCL } from '@/lib/locale'
 import styles from './NuevaSolicitudView.module.css'
 
