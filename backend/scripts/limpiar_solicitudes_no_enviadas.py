@@ -6,12 +6,12 @@ Las solicitudes no enviadas solo se pueden mandar si alguien abre su
 formulario de edición y presiona "Guardar y enviar" manualmente. Este script
 sirve para eliminarlas de forma preventiva.
 
-Uso — solo lectura por defecto:
+Uso - solo lectura por defecto:
     cd backend
-    .venv\Scripts\python.exe scripts\limpiar_solicitudes_no_enviadas.py
+    .venv/Scripts/python.exe scripts/limpiar_solicitudes_no_enviadas.py
 
 Para eliminar de verdad:
-    .venv\Scripts\python.exe scripts\limpiar_solicitudes_no_enviadas.py --aplicar
+    .venv/Scripts/python.exe scripts/limpiar_solicitudes_no_enviadas.py --aplicar
 """
 
 import argparse
