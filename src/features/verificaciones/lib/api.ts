@@ -110,8 +110,24 @@ export function actualizarParametro(
   return httpClient.put<Parametro>(`${BASE}/config/parametros/${clave}`, datos)
 }
 
+export function crearParametro(datos: { clave: string; valor: number; descripcion: string; unidad: string }) {
+  return httpClient.post<Parametro>(`${BASE}/config/parametros`, datos)
+}
+
+export function eliminarParametro(clave: string) {
+  return httpClient.delete<void>(`${BASE}/config/parametros/${clave}`)
+}
+
 export function actualizarFactorZ(temperatura: number, factor: number) {
   return httpClient.put<FactorZ>(`${BASE}/config/tabla-z/${temperatura}`, { factor })
+}
+
+export function crearFactorZ(temperatura: number, factor: number) {
+  return httpClient.post<FactorZ>(`${BASE}/config/tabla-z`, { temperatura, factor })
+}
+
+export function eliminarFactorZ(temperatura: number) {
+  return httpClient.delete<void>(`${BASE}/config/tabla-z/${temperatura}`)
 }
 
 /** Guarda la configuración de una columna (etiqueta, unidad, visibilidad).

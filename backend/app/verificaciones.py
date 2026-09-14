@@ -325,7 +325,19 @@ class ParametroIn(BaseModel):
     unidad: str | None = None       # None = no cambiar
 
 
+class ParametroNuevoIn(BaseModel):
+    clave: str
+    valor: float
+    descripcion: str = ""
+    unidad: str = ""
+
+
 class FactorZIn(BaseModel):
+    factor: float
+
+
+class FactorZNuevoIn(BaseModel):
+    temperatura: int
     factor: float
 
 
@@ -718,6 +730,39 @@ def actualizar_columna_config(
         return ColumnaConfig(**dict(cur.fetchone()))
 
 
+@router.post("/config/parametros", response_model=Parametro, status_code=201)
+def crear_parametro(
+    datos: ParametroNuevoIn, _: Usuario = Depends(solo_interno)
+) -> Parametro:
+    clave = datos.clave.strip()
+    if not clave:
+        raise HTTPException(422, "La clave no puede estar vacía.")
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT 1 FROM verif_parametro WHERE clave = %s", [clave])
+        if cur.fetchone():
+            raise HTTPException(409, f"Ya existe un parámetro con la clave {clave!r}.")
+        cur.execute(
+            "SELECT COALESCE(MAX(orden), 0) + 1 AS sig FROM verif_parametro"
+        )
+        orden = cur.fetchone()["sig"]
+        cur.execute(
+            "INSERT INTO verif_parametro (clave, valor, descripcion, unidad, orden) "
+            "VALUES (%s, %s, %s, %s, %s) RETURNING *",
+            [clave, datos.valor, datos.descripcion, datos.unidad, orden],
+        )
+        return Parametro(**_normalizar(dict(cur.fetchone())))
+
+
+@router.delete("/config/parametros/{clave}", status_code=204)
+def eliminar_parametro(
+    clave: str, _: Usuario = Depends(solo_interno)
+) -> None:
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("DELETE FROM verif_parametro WHERE clave = %s RETURNING clave", [clave])
+        if not cur.fetchone():
+            raise HTTPException(404, f"No existe el parámetro {clave!r}.")
+
+
 @router.put("/config/parametros/{clave}", response_model=Parametro)
 def actualizar_parametro(
     clave: str, datos: ParametroIn, _: Usuario = Depends(solo_interno)
@@ -741,6 +786,31 @@ def actualizar_parametro(
         if not fila:
             raise HTTPException(404, f"No existe el parámetro {clave!r}.")
         return Parametro(**_normalizar(dict(fila)))
+
+
+@router.post("/config/tabla-z", response_model=FactorZ, status_code=201)
+def crear_factor_z(
+    datos: FactorZNuevoIn, _: Usuario = Depends(solo_interno)
+) -> FactorZ:
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT 1 FROM verif_agua_z WHERE temperatura = %s", [datos.temperatura])
+        if cur.fetchone():
+            raise HTTPException(409, f"Ya existe un factor Z para {datos.temperatura}°C.")
+        cur.execute(
+            "INSERT INTO verif_agua_z (temperatura, factor) VALUES (%s, %s) RETURNING *",
+            [datos.temperatura, datos.factor],
+        )
+        return FactorZ(**dict(cur.fetchone()))
+
+
+@router.delete("/config/tabla-z/{temperatura}", status_code=204)
+def eliminar_factor_z(
+    temperatura: int, _: Usuario = Depends(solo_interno)
+) -> None:
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("DELETE FROM verif_agua_z WHERE temperatura = %s RETURNING temperatura", [temperatura])
+        if not cur.fetchone():
+            raise HTTPException(404, f"No existe factor Z para {temperatura}°C.")
 
 
 @router.put("/config/tabla-z/{temperatura}", response_model=FactorZ)

@@ -9,6 +9,10 @@ import {
   actualizarColumnaConfig,
   actualizarFactorZ,
   actualizarParametro,
+  crearFactorZ,
+  crearParametro,
+  eliminarFactorZ,
+  eliminarParametro,
   explicarErrorDeConfig,
   gasesApi,
   micropipetasApi,
@@ -640,9 +644,11 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
 function FilaParametro({
   parametro,
   onGuardar,
+  onEliminar,
 }: {
   parametro: Parametro
   onGuardar: (datos: { valor: number; descripcion: string; unidad: string }) => void
+  onEliminar?: () => void
 }) {
   const [descripcion, setDescripcion] = useState(parametro.descripcion)
   const [valor, setValor] = useState<number | null>(parametro.valor)
@@ -686,6 +692,18 @@ function FilaParametro({
           onKeyDown={(e) => e.key === 'Enter' && confirmar()}
         />
       </td>
+      <td>
+        {onEliminar && (
+          <button
+            type="button"
+            className={cn(styles.iconoBoton, styles.iconoBotonPeligro)}
+            title="Eliminar parámetro"
+            onClick={onEliminar}
+          >
+            ✕
+          </button>
+        )}
+      </td>
     </tr>
   )
 }
@@ -694,9 +712,11 @@ function FilaParametro({
 function FilaFactorZ({
   fila,
   onGuardar,
+  onEliminar,
 }: {
   fila: FactorZ
   onGuardar: (temperatura: number, factor: number) => void
+  onEliminar?: (temperatura: number) => void
 }) {
   const [factor, setFactor] = useState<number | null>(fila.factor)
 
@@ -712,6 +732,18 @@ function FilaFactorZ({
         <span onBlur={confirmar} onKeyDown={(e) => e.key === 'Enter' && confirmar()}>
           <CampoNumero valor={factor} ancho={100} onCambio={setFactor} />
         </span>
+      </td>
+      <td>
+        {onEliminar && (
+          <button
+            type="button"
+            className={cn(styles.iconoBoton, styles.iconoBotonPeligro)}
+            title="Eliminar fila"
+            onClick={() => onEliminar(fila.temperatura)}
+          >
+            ✕
+          </button>
+        )}
       </td>
     </tr>
   )
@@ -766,6 +798,217 @@ const CAMPOS_GASES: Campo[] = [
 // Vista principal
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Secciones con CRUD — Tabla Z y Criterios comunes
+// ---------------------------------------------------------------------------
+
+function SeccionTablaZ({
+  filas,
+  onCambiar,
+  onCrear,
+  onEliminar,
+}: {
+  filas: FactorZ[]
+  onCambiar: (temperatura: number, factor: number) => Promise<void>
+  onCrear: (temperatura: number, factor: number) => Promise<void>
+  onEliminar: (temperatura: number) => Promise<void>
+}) {
+  const [nuevaTemp, setNuevaTemp] = useState<number | null>(null)
+  const [nuevoFactor, setNuevoFactor] = useState<number | null>(null)
+  const [agregando, setAgregando] = useState(false)
+
+  async function confirmarNueva() {
+    if (nuevaTemp === null || nuevoFactor === null) return
+    await onCrear(nuevaTemp, nuevoFactor)
+    setNuevaTemp(null)
+    setNuevoFactor(null)
+    setAgregando(false)
+  }
+
+  return (
+    <Card className={styles.seccion}>
+      <div className={styles.seccionCabecera}>
+        <h3 className={styles.seccionTitulo}>Tabla Z del agua (µL/mg)</h3>
+        <div className={styles.seccionDerecha}>
+          <Button variant="secondary" onClick={() => setAgregando((v) => !v)}>
+            {agregando ? 'Cancelar' : 'Agregar'}
+          </Button>
+        </div>
+        <p className={styles.seccionNota}>
+          Factor de corrección gravimétrico por temperatura. Se usa para convertir las pesadas
+          de micropipeta (mg) a volumen (µL).
+        </p>
+      </div>
+      <div className={styles.seccionCuerpo}>
+        <div className={styles.tablaWrap}>
+          <table className={styles.tabla} style={{ minWidth: 280 }}>
+            <thead>
+              <tr>
+                <th>Temp. <span className={styles.unidad}>(°C)</span></th>
+                <th>Factor Z <span className={styles.unidad}>(µL/mg)</span></th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((fz) => (
+                <FilaFactorZ
+                  key={fz.temperatura}
+                  fila={fz}
+                  onGuardar={(temp, factor) => void onCambiar(temp, factor)}
+                  onEliminar={(temp) => {
+                    if (!window.confirm(`¿Eliminar el factor Z para ${temp}°C?`)) return
+                    void onEliminar(temp)
+                  }}
+                />
+              ))}
+              {agregando && (
+                <tr>
+                  <td>
+                    <CampoNumero valor={nuevaTemp} ancho={80} onCambio={setNuevaTemp} />
+                  </td>
+                  <td>
+                    <CampoNumero valor={nuevoFactor} ancho={100} onCambio={setNuevoFactor} />
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className={styles.iconoBoton}
+                      title="Confirmar"
+                      onClick={() => void confirmarNueva()}
+                    >
+                      ✓
+                    </button>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+function SeccionParametros({
+  parametros,
+  onCambiar,
+  onCrear,
+  onEliminar,
+}: {
+  parametros: Parametro[]
+  onCambiar: (clave: string, datos: { valor: number; descripcion: string; unidad: string }) => Promise<void>
+  onCrear: (datos: { clave: string; valor: number; descripcion: string; unidad: string }) => Promise<void>
+  onEliminar: (clave: string) => Promise<void>
+}) {
+  const [agregando, setAgregando] = useState(false)
+  const [nuevaClave, setNuevaClave] = useState('')
+  const [nuevaDesc, setNuevaDesc] = useState('')
+  const [nuevoValor, setNuevoValor] = useState<number | null>(null)
+  const [nuevaUnidad, setNuevaUnidad] = useState('')
+
+  async function confirmarNueva() {
+    const clave = nuevaClave.trim()
+    if (!clave || nuevoValor === null) return
+    await onCrear({ clave, valor: nuevoValor, descripcion: nuevaDesc.trim(), unidad: nuevaUnidad.trim() })
+    setNuevaClave('')
+    setNuevaDesc('')
+    setNuevoValor(null)
+    setNuevaUnidad('')
+    setAgregando(false)
+  }
+
+  return (
+    <Card className={styles.seccion}>
+      <div className={styles.seccionCabecera}>
+        <h3 className={styles.seccionTitulo}>Criterios comunes</h3>
+        <div className={styles.seccionDerecha}>
+          <Button variant="secondary" onClick={() => setAgregando((v) => !v)}>
+            {agregando ? 'Cancelar' : 'Agregar'}
+          </Button>
+        </div>
+        <p className={styles.seccionNota}>
+          Los que no son de un equipo sino del sistema entero. El cálculo los referencia por clave.
+        </p>
+      </div>
+      <div className={styles.seccionCuerpo}>
+        <div className={styles.tablaWrap}>
+          <table className={styles.tabla} style={{ minWidth: 460 }}>
+            <thead>
+              <tr>
+                <th>Criterio</th>
+                <th>Valor</th>
+                <th>Unidad</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {parametros.map((p) => (
+                <FilaParametro
+                  key={p.clave}
+                  parametro={p}
+                  onGuardar={(datos) => void onCambiar(p.clave, datos)}
+                  onEliminar={() => {
+                    if (!window.confirm(`¿Eliminar el parámetro "${p.clave}"?\nSi el cálculo lo usa, los veredictos que dependan de él dejarán de funcionar.`)) return
+                    void onEliminar(p.clave)
+                  }}
+                />
+              ))}
+              {agregando && (
+                <tr>
+                  <td>
+                    <input
+                      className={styles.input}
+                      style={{ width: 140 }}
+                      value={nuevaDesc}
+                      placeholder="Descripción"
+                      onChange={(e) => setNuevaDesc(e.target.value)}
+                    />
+                    <input
+                      className={styles.input}
+                      style={{ width: 120, marginTop: 4 }}
+                      value={nuevaClave}
+                      placeholder="clave_interna"
+                      onChange={(e) => setNuevaClave(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && void confirmarNueva()}
+                    />
+                  </td>
+                  <td>
+                    <CampoNumero valor={nuevoValor} ancho={110} onCambio={setNuevoValor} />
+                  </td>
+                  <td>
+                    <input
+                      className={styles.input}
+                      style={{ width: 70 }}
+                      value={nuevaUnidad}
+                      placeholder="unidad"
+                      onChange={(e) => setNuevaUnidad(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && void confirmarNueva()}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className={styles.iconoBoton}
+                      title="Confirmar"
+                      onClick={() => void confirmarNueva()}
+                    >
+                      ✓
+                    </button>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Vista principal
+// ---------------------------------------------------------------------------
+
 export function CriteriosView() {
   const navigate = useNavigate()
   const [config, setConfig] = useState<ConfigVerificaciones | null>(null)
@@ -803,6 +1046,46 @@ export function CriteriosView() {
       await cargar()
     } catch (e) {
       setError(e instanceof HttpError ? e.message : 'No se pudo guardar el factor Z.')
+    }
+  }
+
+  async function agregarFactorZ(temperatura: number, factor: number) {
+    setError(null)
+    try {
+      await crearFactorZ(temperatura, factor)
+      await cargar()
+    } catch (e) {
+      setError(e instanceof HttpError ? e.message : 'No se pudo agregar el factor Z.')
+    }
+  }
+
+  async function borrarFactorZ(temperatura: number) {
+    setError(null)
+    try {
+      await eliminarFactorZ(temperatura)
+      await cargar()
+    } catch (e) {
+      setError(e instanceof HttpError ? e.message : 'No se pudo eliminar.')
+    }
+  }
+
+  async function agregarParametro(datos: { clave: string; valor: number; descripcion: string; unidad: string }) {
+    setError(null)
+    try {
+      await crearParametro(datos)
+      await cargar()
+    } catch (e) {
+      setError(e instanceof HttpError ? e.message : 'No se pudo agregar el parámetro.')
+    }
+  }
+
+  async function borrarParametro(clave: string) {
+    setError(null)
+    try {
+      await eliminarParametro(clave)
+      await cargar()
+    } catch (e) {
+      setError(e instanceof HttpError ? e.message : 'No se pudo eliminar el parámetro.')
     }
   }
 
@@ -898,68 +1181,19 @@ export function CriteriosView() {
             onError={setError}
           />
 
-          <Card className={styles.seccion}>
-            <div className={styles.seccionCabecera}>
-              <h3 className={styles.seccionTitulo}>Tabla Z del agua (µL/mg)</h3>
-              <p className={styles.seccionNota}>
-                Factor de corrección gravimétrico por temperatura. Se usa para convertir las pesadas
-                de micropipeta (mg) a volumen (µL). Valor fijo de la ASTM E542.
-              </p>
-            </div>
-            <div className={styles.seccionCuerpo}>
-              <div className={styles.tablaWrap}>
-                <table className={styles.tabla} style={{ minWidth: 280 }}>
-                  <thead>
-                    <tr>
-                      <th>Temp. <span className={styles.unidad}>(°C)</span></th>
-                      <th>Factor Z <span className={styles.unidad}>(µL/mg)</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {config.tabla_z.map((fz) => (
-                      <FilaFactorZ
-                        key={fz.temperatura}
-                        fila={fz}
-                        onGuardar={(temp, factor) => void cambiarFactorZ(temp, factor)}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </Card>
+          <SeccionTablaZ
+            filas={config.tabla_z}
+            onCambiar={cambiarFactorZ}
+            onCrear={agregarFactorZ}
+            onEliminar={borrarFactorZ}
+          />
 
-          <Card className={styles.seccion}>
-            <div className={styles.seccionCabecera}>
-              <h3 className={styles.seccionTitulo}>Criterios comunes</h3>
-              <p className={styles.seccionNota}>
-                Los que no son de un equipo sino del sistema entero. No se crean ni se borran: el
-                cálculo los conoce por nombre, solo cambia su valor.
-              </p>
-            </div>
-            <div className={styles.seccionCuerpo}>
-              <div className={styles.tablaWrap}>
-                <table className={styles.tabla} style={{ minWidth: 460 }}>
-                  <thead>
-                    <tr>
-                      <th>Criterio</th>
-                      <th>Valor</th>
-                      <th>Unidad</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {config.parametros.map((p) => (
-                      <FilaParametro
-                        key={p.clave}
-                        parametro={p}
-                        onGuardar={(datos) => void cambiarParametro(p.clave, datos)}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </Card>
+          <SeccionParametros
+            parametros={config.parametros}
+            onCambiar={cambiarParametro}
+            onCrear={agregarParametro}
+            onEliminar={borrarParametro}
+          />
         </div>
       )}
     </div>
