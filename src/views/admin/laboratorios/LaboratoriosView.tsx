@@ -113,22 +113,32 @@ export function LaboratoriosView() {
     setGuardandoLab(true)
     setError(null)
     try {
-      const datos: LaboratorioInput = {
-        codigo: codigo.trim().toUpperCase(),
-        nombre: nombre.trim(),
-        descripcion: descripcion.trim() || null,
-        prefijo_solicitud: prefijo_solicitud.trim().toUpperCase(),
-        activo: true,
-        orden: (laboratorios?.length ?? 0) + 1,
-      }
       if (formLab.modo === 'editar') {
-        // El resumen no trae el id del mantenedor, así que se resuelve por
-        // código contra la lista completa antes de actualizar.
         const todos = await listarLaboratoriosConfig()
         const actual = todos.find((l) => l.codigo === seleccionado)
         if (!actual) throw new Error('no encontrado')
-        await actualizarLaboratorioConfig(actual.id, { ...datos, activo: actual.activo, orden: actual.orden })
+        const datos: LaboratorioInput = {
+          codigo: codigo.trim().toUpperCase(),
+          nombre: nombre.trim(),
+          descripcion: descripcion.trim() || null,
+          prefijo_solicitud: prefijo_solicitud.trim().toUpperCase(),
+          activo: actual.activo,
+          orden: actual.orden,
+          adjuntos_excel: actual.adjuntos_excel,
+          adjuntos_json: actual.adjuntos_json,
+        }
+        await actualizarLaboratorioConfig(actual.id, datos)
       } else {
+        const datos: LaboratorioInput = {
+          codigo: codigo.trim().toUpperCase(),
+          nombre: nombre.trim(),
+          descripcion: descripcion.trim() || null,
+          prefijo_solicitud: prefijo_solicitud.trim().toUpperCase(),
+          activo: true,
+          orden: (laboratorios?.length ?? 0) + 1,
+          adjuntos_excel: true,
+          adjuntos_json: false,
+        }
         await crearLaboratorioConfig(datos)
       }
       setLaboratorios(await resumenLaboratorios())

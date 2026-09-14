@@ -29,6 +29,8 @@ export function LaboratoriosMantenedor({ laboratorios, onCrear, onEditar, onElim
       prefijo_solicitud: l.prefijo_solicitud,
       activo: l.activo,
       orden: l.orden,
+      adjuntos_excel: l.adjuntos_excel,
+      adjuntos_json: l.adjuntos_json,
     }
   }
 
@@ -41,6 +43,8 @@ export function LaboratoriosMantenedor({ laboratorios, onCrear, onEditar, onElim
       prefijo_solicitud: '',
       activo: true,
       orden: laboratorios.length + 1,
+      adjuntos_excel: true,
+      adjuntos_json: false,
     })
     setNuevoCodigo('')
     setNuevoNombre('')
