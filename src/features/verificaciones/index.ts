@@ -15,7 +15,11 @@ export {
   gasesApi,
   metodosApi,
   actualizarParametro,
+  crearParametro,
+  eliminarParametro,
   actualizarFactorZ,
+  crearFactorZ,
+  eliminarFactorZ,
   actualizarColumnaConfig,
 } from './lib/api'
 
