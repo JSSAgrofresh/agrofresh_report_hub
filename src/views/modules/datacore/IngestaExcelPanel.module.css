@@ -1,0 +1,99 @@
+.zona {
+  border: 2px dashed #c4cfca;
+  border-radius: 8px;
+  padding: 40px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  margin-bottom: 20px;
+}
+.zona:hover, .zonaActiva { border-color: #69ad39; background: #f6fbf2; }
+.zona p { margin: 0; color: #69766d; }
+.zona strong { display: block; margin-bottom: 6px; color: #233229; font-size: 16px; }
+
+.resumen {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 16px;
+  background: #f4f9f1;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.resumenChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.chipVerde { color: #2e7d32; }
+.chipRojo  { color: #c62828; }
+.chipGris  { color: #526057; }
+.resumenAcciones { margin-left: auto; display: flex; gap: 8px; }
+
+.tablaWrap { overflow-x: auto; border: 1px solid #d9dfda; border-radius: 6px; }
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tabla th {
+  position: sticky;
+  top: 0;
+  background: #edf4e8;
+  color: #315b25;
+  font-weight: 700;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 2px solid #c4d9bc;
+}
+.tabla td { padding: 6px 12px; border-bottom: 1px solid #ecefec; }
+.nFila { color: #9ca89f; width: 36px; }
+
+/* Celdas de estado */
+.ok       { background: #f0faf0; color: #2e7d32; }
+.homo     { background: #fff8e1; color: #b25000; }
+.error    { background: #fdecea; color: #c62828; cursor: pointer; }
+.vacio    { color: #b0bab4; font-style: italic; }
+
+.tag { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
+.tagOk   { background: #c8e6c9; color: #1b5e20; }
+.tagHomo { background: #ffe0b2; color: #7a3600; }
+
+/* Modal de resolución */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200;
+}
+.modal {
+  background: white;
+  border-radius: 10px;
+  padding: 24px;
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.modal h3 { margin: 0 0 4px; color: #233229; }
+.modal p  { margin: 0 0 16px; color: #69766d; font-size: 13px; }
+.sugerencias { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.sugerenciaBtn {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 12px;
+  border: 1px solid #c4d9bc;
+  border-radius: 6px;
+  background: #f4f9f1;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: #315b25;
+}
+.sugerenciaBtn:hover { background: #e8f5e2; border-color: #69ad39; }
+.confianza { font-size: 11px; color: #829087; font-weight: 600; }
+.modalAcciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+.vacio2 { padding: 40px; text-align: center; color: #829087; }

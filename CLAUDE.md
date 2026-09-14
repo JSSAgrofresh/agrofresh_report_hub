@@ -78,6 +78,9 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/sembrar_catalogo_analitos.py` | Crea analitos faltantes y enlaza resultados sueltos |
 | `scripts/reconciliar_indice.py` | Saca del índice solicitudes borradas por fuera de la app |
 | `scripts/clave.py` | Asigna contraseña a una cuenta |
+| `scripts/limpiar_bd_excel.py` | Normaliza el Excel maestro BD antes de ingestar (laboratorio, guiones, GC) |
+| `scripts/actualizar_codigos_sap.py` | Actualiza `codigo_sap` en `cliente`/`planta` desde el Excel maestro SAP |
+| `scripts/sembrar_especies_variedades.py` | Crea especies y variedades estándar en `valor_lista` desde el Excel BD |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
 Hay ~9 scripts en `backend/scripts/` que fueron migraciones de una sola vez
