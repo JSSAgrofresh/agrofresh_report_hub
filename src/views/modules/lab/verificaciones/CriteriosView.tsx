@@ -665,6 +665,19 @@ function FilaParametro({
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Devuelve la unidad efectiva de una columna: la guardada en config si existe,
+ * o el valor por defecto. `null` en config.unidad significa "usar el defecto";
+ * string vacío significa "sin unidad". */
+function unidadEfectiva(configs: ColumnaConfig[] | undefined, clave: string, defecto: string): string {
+  const cc = configs?.find((c) => c.clave === clave)
+  if (!cc || cc.unidad === null) return defecto
+  return cc.unidad
+}
+
+// ---------------------------------------------------------------------------
 // Campos base por sección (etiquetas y unidades originales, sin personalizar)
 // ---------------------------------------------------------------------------
 
@@ -756,7 +769,7 @@ export function CriteriosView() {
             api={micropipetasApi}
             onCambio={() => void cargar()}
             onError={setError}
-            rango={{ nominal: 'volumen_nominal', tolerancia: 'tolerancia', unidad: 'µL' }}
+            rango={{ nominal: 'volumen_nominal', tolerancia: 'tolerancia', unidad: unidadEfectiva(config.columnas_config?.micropipetas, 'tolerancia', 'µL') }}
           />
 
           <TablaCatalogo
@@ -772,7 +785,7 @@ export function CriteriosView() {
             api={pesasApi}
             onCambio={() => void cargar()}
             onError={setError}
-            rango={{ nominal: 'valor_nominal', tolerancia: 'tolerancia', unidad: 'mg' }}
+            rango={{ nominal: 'valor_nominal', tolerancia: 'tolerancia', unidad: unidadEfectiva(config.columnas_config?.pesas, 'tolerancia', 'mg') }}
           />
 
           <TablaCatalogo
