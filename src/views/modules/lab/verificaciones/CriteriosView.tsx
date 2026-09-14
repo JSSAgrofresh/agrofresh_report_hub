@@ -7,6 +7,7 @@ import { cn } from '@/lib/cn'
 import { ROUTES } from '@/constants/routes'
 import {
   actualizarColumnaConfig,
+  actualizarFactorZ,
   actualizarParametro,
   explicarErrorDeConfig,
   gasesApi,
@@ -16,7 +17,7 @@ import {
   pesasApi,
   puntosTemperaturaApi,
 } from '@/features/verificaciones'
-import type { ColumnaConfig, ConfigVerificaciones, Metodo, Parametro } from '@/features/verificaciones'
+import type { ColumnaConfig, ConfigVerificaciones, FactorZ, Metodo, Parametro } from '@/features/verificaciones'
 import { HttpError } from '@/services/http/client'
 import { CampoNumero } from './componentes'
 import styles from './Verificaciones.module.css'
@@ -634,27 +635,39 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
   )
 }
 
-/** Un criterio común. Guarda al salir del campo y no en cada tecla: escribir
- * «120» dispararía tres guardados, y el intermedio («12») sería un criterio
- * real durante un instante. */
+/** Un criterio común. Guarda al salir del campo. Los tres campos (descripción,
+ * valor y unidad) son editables inline: click → editar → Tab/Enter/blur. */
 function FilaParametro({
   parametro,
   onGuardar,
 }: {
   parametro: Parametro
-  onGuardar: (valor: number) => void
+  onGuardar: (datos: { valor: number; descripcion: string; unidad: string }) => void
 }) {
+  const [descripcion, setDescripcion] = useState(parametro.descripcion)
   const [valor, setValor] = useState<number | null>(parametro.valor)
+  const [unidad, setUnidad] = useState(parametro.unidad)
 
   function confirmar() {
-    if (valor === null || valor === parametro.valor) return setValor(parametro.valor)
-    onGuardar(valor)
+    if (valor === null) return setValor(parametro.valor)
+    const cambio =
+      valor !== parametro.valor ||
+      descripcion !== parametro.descripcion ||
+      unidad !== parametro.unidad
+    if (cambio) onGuardar({ valor, descripcion, unidad })
   }
 
   return (
     <tr>
       <td className={styles.celdaEquipo}>
-        {parametro.descripcion || parametro.clave}
+        <input
+          className={styles.input}
+          style={{ width: '100%', minWidth: 180 }}
+          value={descripcion}
+          onChange={(e) => setDescripcion(e.target.value)}
+          onBlur={confirmar}
+          onKeyDown={(e) => e.key === 'Enter' && confirmar()}
+        />
         <span className={styles.celdaNota}>{parametro.clave}</span>
       </td>
       <td>
@@ -662,7 +675,44 @@ function FilaParametro({
           <CampoNumero valor={valor} ancho={110} onCambio={setValor} />
         </span>
       </td>
-      <td className={styles.criterio}>{parametro.unidad || '—'}</td>
+      <td>
+        <input
+          className={styles.input}
+          style={{ width: 70 }}
+          value={unidad}
+          placeholder="—"
+          onChange={(e) => setUnidad(e.target.value)}
+          onBlur={confirmar}
+          onKeyDown={(e) => e.key === 'Enter' && confirmar()}
+        />
+      </td>
+    </tr>
+  )
+}
+
+/** Una fila de la tabla Z. Guarda al salir del campo de factor. */
+function FilaFactorZ({
+  fila,
+  onGuardar,
+}: {
+  fila: FactorZ
+  onGuardar: (temperatura: number, factor: number) => void
+}) {
+  const [factor, setFactor] = useState<number | null>(fila.factor)
+
+  function confirmar() {
+    if (factor === null || factor === fila.factor) return setFactor(fila.factor)
+    onGuardar(fila.temperatura, factor)
+  }
+
+  return (
+    <tr>
+      <td className={styles.celdaEquipo}>{fila.temperatura} °C</td>
+      <td className={styles.criterio}>
+        <span onBlur={confirmar} onKeyDown={(e) => e.key === 'Enter' && confirmar()}>
+          <CampoNumero valor={factor} ancho={100} onCambio={setFactor} />
+        </span>
+      </td>
     </tr>
   )
 }
@@ -733,13 +783,26 @@ export function CriteriosView() {
     void cargar()
   }, [cargar])
 
-  async function cambiarParametro(clave: string, valor: number) {
+  async function cambiarParametro(
+    clave: string,
+    datos: { valor: number; descripcion: string; unidad: string },
+  ) {
     setError(null)
     try {
-      await actualizarParametro(clave, valor)
+      await actualizarParametro(clave, datos)
       await cargar()
     } catch (e) {
       setError(e instanceof HttpError ? e.message : 'No se pudo guardar el parámetro.')
+    }
+  }
+
+  async function cambiarFactorZ(temperatura: number, factor: number) {
+    setError(null)
+    try {
+      await actualizarFactorZ(temperatura, factor)
+      await cargar()
+    } catch (e) {
+      setError(e instanceof HttpError ? e.message : 'No se pudo guardar el factor Z.')
     }
   }
 
@@ -854,10 +917,11 @@ export function CriteriosView() {
                   </thead>
                   <tbody>
                     {config.tabla_z.map((fz) => (
-                      <tr key={fz.temperatura}>
-                        <td className={styles.celdaEquipo}>{fz.temperatura} °C</td>
-                        <td className={styles.criterio}>{fz.factor.toFixed(4)}</td>
-                      </tr>
+                      <FilaFactorZ
+                        key={fz.temperatura}
+                        fila={fz}
+                        onGuardar={(temp, factor) => void cambiarFactorZ(temp, factor)}
+                      />
                     ))}
                   </tbody>
                 </table>
@@ -888,7 +952,7 @@ export function CriteriosView() {
                       <FilaParametro
                         key={p.clave}
                         parametro={p}
-                        onGuardar={(valor) => void cambiarParametro(p.clave, valor)}
+                        onGuardar={(datos) => void cambiarParametro(p.clave, datos)}
                       />
                     ))}
                   </tbody>
