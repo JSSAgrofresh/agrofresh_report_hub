@@ -1117,6 +1117,19 @@ def resultados_de_ship_to(
     ]
 
 
+_CAMPOS_FECHA = {"fecha_muestreo", "fecha_solicitud"}
+
+
+def _iso_a_ddmmyyyy(valor: object) -> object:
+    """Convierte 'YYYY-MM-DD' → 'DD-MM-YYYY'. Si no coincide el patrón, devuelve el valor intacto."""
+    import re as _re
+    if isinstance(valor, str):
+        m = _re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", valor.strip())
+        if m:
+            return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+    return valor
+
+
 def _generar_json_solicitud(datos: dict) -> bytes:
     """JSON completo de la solicitud con correos por categoría como adjunto."""
     import json as _json
@@ -1124,8 +1137,12 @@ def _generar_json_solicitud(datos: dict) -> bytes:
     ship_to = str(datos.get("ship_to") or "")
     correos_resultado = destinatarios_resultado_por_tipo(lab, ship_to)
     email_muestreador = _normalizar_correo(datos.get("email_solicitante"))
+    datos_formateados = {
+        k: (_iso_a_ddmmyyyy(v) if k in _CAMPOS_FECHA else v)
+        for k, v in datos.items()
+    }
     salida = {
-        **datos,
+        **datos_formateados,
         "correos": {
             "solicitud": {"to": contactos_de_solicitud(lab)},
             "resultado_cliente": {"to": correos_resultado.get("to", [])},
