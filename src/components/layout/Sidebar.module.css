@@ -280,11 +280,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
-
-.usuarioAvatar svg {
-  width: 15px;
-  height: 15px;
+  transition: background 0.18s ease;
 }
 
 .avatarPopover {

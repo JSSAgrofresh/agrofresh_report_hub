@@ -235,3 +235,69 @@ export function IconArchivoPlano(props: IconProps) {
     </svg>
   )
 }
+
+/* ── Íconos de fruta para avatar de usuario (siluetas rellenas) ─────────── */
+
+export function IconFrutaManzana(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M12 8.5C9 8.5 6.5 11 6.5 14.5C6.5 17.8 8.8 20.5 12 20.5C15.2 20.5 17.5 17.8 17.5 14.5C17.5 11 15 8.5 12 8.5Z" />
+      <rect x="11.4" y="5" width="1.2" height="4.5" rx="0.6" />
+      <path d="M12 7.5C13 5.5 16 6 15.2 8C14.2 7.2 12.8 7.2 12 7.5Z" />
+    </svg>
+  )
+}
+
+export function IconFrutaPera(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <circle cx="12" cy="10.5" r="3" />
+      <ellipse cx="12" cy="16.5" rx="5.5" ry="4.5" />
+      <rect x="11.4" y="4" width="1.2" height="4" rx="0.6" />
+    </svg>
+  )
+}
+
+export function IconFrutaNaranja(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <circle cx="12" cy="14" r="6.5" />
+      <path d="M12 7.5C13 5.5 16 6 15 8C14 7.2 12.8 7.2 12 7.5Z" />
+      <rect x="11.4" y="5" width="1.2" height="3.5" rx="0.6" />
+    </svg>
+  )
+}
+
+export function IconFrutaLimon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <ellipse cx="12" cy="14" rx="7" ry="5.5" />
+      <circle cx="12" cy="8.5" r="1.5" />
+      <circle cx="12" cy="19.5" r="1.5" />
+      <path d="M11 6.5C11 4.5 13 4.5 13 6.5C12.5 6 11.5 6 11 6.5Z" />
+    </svg>
+  )
+}
+
+export function IconFrutaCereza(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <circle cx="8.5" cy="17.5" r="3.5" />
+      <circle cx="15.5" cy="17.5" r="3.5" />
+      <path d="M8.5 14C8.5 11 11 9 12 6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M15.5 14C15.5 11 13 9 12 6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M12 6C12 4.5 13.5 4 14.5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function IconFrutaCiruela(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <circle cx="12" cy="14" r="7" />
+      <path d="M12 7C12 7 13.5 5.5 15 5.5C15 7 13.5 7.5 12 7Z" />
+      <rect x="11.4" y="4.5" width="1.2" height="3.5" rx="0.6" />
+      <path d="M12 7.5Q13.5 11 12 14Q10.5 11 12 7.5Z" fill="rgba(0,0,0,0.12)" />
+    </svg>
+  )
+}
