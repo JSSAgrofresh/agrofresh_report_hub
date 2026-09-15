@@ -14,11 +14,11 @@ from pathlib import Path
 # Permite correrlo tanto desde la raíz del backend como desde scripts/
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.db import get_connection  # noqa: E402
+from app.db import conexion  # noqa: E402
 
 aplicar = '--aplicar' in sys.argv
 
-with get_connection() as conn:
+with conexion() as conn:
     with conn.cursor() as cur:
         cur.execute('SELECT COUNT(*) FROM verif_registro')
         total = cur.fetchone()[0]
