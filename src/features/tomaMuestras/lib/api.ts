@@ -63,6 +63,13 @@ export function descargarPdfSolicitud(archivo: string) {
   )
 }
 
+export function descargarJsonSolicitud(archivo: string) {
+  return descargarArchivo(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/json`,
+    `${archivo}.json`,
+  )
+}
+
 /** Nombres de las fotos de la muestra ya subidas para esta solicitud -no se
  * adjuntan al Excel, solo quedan en R2 junto a él-. */
 export function listarFotosSolicitud(archivo: string) {

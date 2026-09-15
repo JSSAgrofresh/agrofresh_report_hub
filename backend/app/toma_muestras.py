@@ -914,6 +914,29 @@ def descargar_solicitud_excel(archivo: str, usuario: Usuario = Depends(usuario_a
     )
 
 
+@router.get("/solicitudes/{archivo}/json", response_model=None)
+def descargar_solicitud_json(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> Response:
+    """JSON adjunto de la solicitud (mismo que se envía por correo al laboratorio)."""
+    if r2.disponible():
+        data, ext = _descargar_solicitud_r2(archivo)
+        datos = _leer_solicitud_bytes(data, ext)
+        numero = os.path.splitext(os.path.basename(archivo))[0]
+    else:
+        ruta = _ruta_archivo(archivo)
+        numero = os.path.splitext(os.path.basename(ruta))[0]
+        datos = _leer_solicitud_archivo(ruta)
+    _exigir_acceso(usuario, datos)
+    json_bytes = _generar_json_solicitud(datos)
+    nombre = f"{numero}.json"
+    return Response(
+        content=json_bytes,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{nombre}; filename=\"{nombre}\"",
+        },
+    )
+
+
 @router.get("/solicitudes/{archivo}/pdf")
 def descargar_solicitud_pdf(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> Response:
     if r2.disponible():
