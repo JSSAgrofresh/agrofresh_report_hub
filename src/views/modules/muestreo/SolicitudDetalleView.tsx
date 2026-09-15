@@ -8,16 +8,18 @@ import {
   obtenerSolicitud,
   descargarExcelSolicitud,
   descargarPdfSolicitud,
+  descargarJsonSolicitud,
   enviarSolicitudPorCorreo,
   destinatariosDeSolicitud,
   listarAnalitosConfig,
+  listarLaboratoriosConfig,
   listarFotosSolicitud,
   subirFotoSolicitud,
   eliminarFotoSolicitud,
   obtenerFotoSolicitud,
   resultadosDeShipTo,
 } from '@/features/tomaMuestras'
-import type { AnalitoConfig, ContactoResultado, Solicitud } from '@/features/tomaMuestras'
+import type { AnalitoConfig, ContactoResultado, LaboratorioConfig, Solicitud } from '@/features/tomaMuestras'
 import { ROUTES, rutaTomaMuestrasEditar } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
 import styles from './SolicitudDetalleView.module.css'
@@ -111,6 +113,7 @@ export function SolicitudDetalleView() {
   const [mensajeEnvio, setMensajeEnvio] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [contactosLab, setContactosLab] = useState<string[] | null>(null)
   const [contactosResultado, setContactosResultado] = useState<ContactoResultado[] | null>(null)
+  const [labConfig, setLabConfig] = useState<LaboratorioConfig | null>(null)
   const inputEmailRef = useRef<HTMLInputElement>(null)
 
   // --- Fotos de la muestra: se piden por cámara y se suben directo a R2,
@@ -139,6 +142,9 @@ export function SolicitudDetalleView() {
         )
           .then(setContactosResultado)
           .catch(() => setContactosResultado([]))
+        listarLaboratoriosConfig()
+          .then((labs) => setLabConfig(labs.find((l) => l.codigo === sol.laboratorio) ?? null))
+          .catch(() => setLabConfig(null))
       })
       .catch(() => setError('No se pudo cargar la solicitud.'))
     listarFotosSolicitud(archivo)
@@ -354,6 +360,15 @@ export function SolicitudDetalleView() {
             >
               Descargar PDF
             </button>
+            {labConfig?.adjuntos_json && (
+              <button
+                type="button"
+                className={styles.botonDescarga}
+                onClick={() => void descargarJsonSolicitud(solicitud.archivo)}
+              >
+                Descargar JSON
+              </button>
+            )}
             <button
               className={styles.botonEnviar}
               onClick={() => { setMostrarEnvio(v => !v); setMensajeEnvio(null) }}
