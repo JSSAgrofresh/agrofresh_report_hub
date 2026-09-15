@@ -46,12 +46,12 @@ PRODUCTOS_LINEA_PROCESO = [
 
 
 def main(aplicar: bool) -> None:
-    labs_cfg = config_store.leer("laboratorios.json") or []
+    labs_cfg = config_store.leer("laboratorios.json", []) or []
     laboratorios = [l["codigo"] for l in labs_cfg if l.get("activo", True) and l.get("codigo")]
     if not laboratorios:
         laboratorios = ["QUITECA", "AGROFRESH", "ALS", "DIAGNOFRUIT"]
 
-    items: list[dict] = config_store.leer("productos.json") or []
+    items: list[dict] = config_store.leer("productos.json", []) or []
 
     def ya_existe(nombre: str, lab: str, tipo: str) -> bool:
         return any(
