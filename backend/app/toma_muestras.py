@@ -44,6 +44,7 @@ from pydantic import BaseModel, Field
 from . import config, config_store, correo, indice_solicitudes, mail_templates, r2, seguridad
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
+from .listados import clave_normalizada as _clave_esp
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
 from .toma_muestras_pdf import generar_pdf_solicitud
 
@@ -1001,14 +1002,19 @@ def _contactos_resultado(sold_to: str, ship_to: str, especie: str) -> list[dict]
     ]
     st_n = (sold_to or "").strip()
     sh_n = (ship_to or "").strip()
-    es_n = (especie or "").strip()
+    # Especie: comparación normalizada (sin mayúsculas, tildes ni variantes
+    # ortográficas) para que "Cereza"/"CEREZA"/"Cerezas" no rompan el lookup.
+    es_n = _clave_esp(especie or "")
 
-    # 1. Exacto
+    def _esp_cfg(c: dict) -> str:
+        return _clave_esp(c.get("especie") or "")
+
+    # 1. Exacto (sold_to + ship_to + especie normalizada)
     exactos = [
         c for c in pool
         if (c.get("sold_to") or "").strip() == st_n
         and (c.get("ship_to") or "").strip() == sh_n
-        and (c.get("especie") or "").strip() == es_n
+        and _esp_cfg(c) == es_n
     ]
     if exactos:
         return exactos
@@ -1019,7 +1025,7 @@ def _contactos_resultado(sold_to: str, ship_to: str, especie: str) -> list[dict]
             c for c in pool
             if (c.get("sold_to") or "").strip() == st_n
             and (c.get("ship_to") or "").strip() == sh_n
-            and not (c.get("especie") or "").strip()
+            and not _esp_cfg(c)
         ]
         if sin_esp:
             return sin_esp
@@ -1030,7 +1036,7 @@ def _contactos_resultado(sold_to: str, ship_to: str, especie: str) -> list[dict]
             c for c in pool
             if not (c.get("sold_to") or "").strip()
             and (c.get("ship_to") or "").strip() == sh_n
-            and not (c.get("especie") or "").strip()
+            and not _esp_cfg(c)
         ]
         if solo_ship:
             return solo_ship
@@ -1040,7 +1046,7 @@ def _contactos_resultado(sold_to: str, ship_to: str, especie: str) -> list[dict]
         c for c in pool
         if not (c.get("sold_to") or "").strip()
         and not (c.get("ship_to") or "").strip()
-        and not (c.get("especie") or "").strip()
+        and not _esp_cfg(c)
     ]
 
 
