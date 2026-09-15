@@ -41,6 +41,8 @@ vi.mock('@/features/tomaMuestras', () => ({
   listarLaboratoriosConfig,
   listarProductosConfig,
   listarTiposAplicacion,
+  obtenerEnvioAutomatico: vi.fn().mockResolvedValue({ activo: false }),
+  destinatariosParaLaboratorio: vi.fn().mockResolvedValue({ destinatarios: [] }),
 }))
 
 vi.mock('@/features/catalogo', () => ({
@@ -446,7 +448,7 @@ describe('NuevaSolicitudView — editar (CASO 3 y 4)', () => {
     await waitFor(() => expect(screen.getByDisplayValue('25')).toBeTruthy())
     expect(screen.getByDisplayValue('15')).toBeTruthy()
 
-    fireEvent.click(screen.getByText('Guardar cambios'))
+    fireEvent.click(screen.getByText('Guardar'))
 
     await waitFor(() => expect(actualizarSolicitud).toHaveBeenCalledTimes(1))
     const [archivoLlamado, payload] = actualizarSolicitud.mock.calls[0]
@@ -455,7 +457,7 @@ describe('NuevaSolicitudView — editar (CASO 3 y 4)', () => {
     expect(crearSolicitud).not.toHaveBeenCalled()
   })
 
-  it('una solicitud ya enviada se muestra de solo lectura, sin formulario editable (CASO 5)', async () => {
+  it('una solicitud ya enviada sigue siendo editable (CASO 5)', async () => {
     mockConfigComun()
     const solicitud = solicitudBase({ enviada: true, enviado_en: '2026-09-02T10:00:00+00:00' })
     obtenerSolicitud.mockResolvedValue(solicitud)
@@ -468,7 +470,8 @@ describe('NuevaSolicitudView — editar (CASO 3 y 4)', () => {
       </MemoryRouter>,
     )
 
-    await waitFor(() => expect(screen.getByText(/ya fue enviada/)).toBeTruthy())
-    expect(screen.queryByText('Guardar cambios')).toBeNull()
+    await waitFor(() => expect(screen.getByDisplayValue('OT-0007')).toBeTruthy())
+    // Edición siempre habilitada: el formulario se muestra y tiene botón de guardar.
+    expect(screen.getByText('Guardar')).toBeTruthy()
   })
 })

@@ -252,6 +252,7 @@ def _enviar_resend(
     cuerpo_html: str,
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
+    adjuntos: list["Adjunto"] | None = None,
 ) -> str | None:
     if not config.RESEND_API_KEY:
         raise HTTPException(503, "El servidor de correo no esta configurado.")
@@ -261,6 +262,11 @@ def _enviar_resend(
         payload["cc"] = cc
     if bcc:
         payload["bcc"] = bcc
+    if adjuntos:
+        payload["attachments"] = [
+            {"filename": a.nombre, "content": base64.b64encode(a.contenido).decode()}
+            for a in adjuntos
+        ]
 
     try:
         resp = requests.post(
@@ -303,6 +309,7 @@ def enviar(
     `cc`/`bcc` son listas de correos adicionales -copia visible y copia
     oculta respectivamente-. No reemplazan a `destinatario`, se suman.
 
+    `adjuntos` se pasa a los dos proveedores (Gmail y Resend).
     `imagenes_inline` solo se usa en el envío por Gmail API -Resend, al ser
     solo el respaldo cuando Gmail no está configurado, sigue mandando el HTML
     tal cual sin incrustar imágenes; el logo simplemente no se ve ahí, que es
@@ -329,7 +336,7 @@ def enviar(
         mensaje_id = _enviar_gmail(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos, cc, bcc, imagenes_inline)
     elif config.RESEND_API_KEY:
         logger.warning("Gmail OAuth no configurado; usando Resend como fallback.")
-        mensaje_id = _enviar_resend(destinatario, asunto, cuerpo_html, cc, bcc)
+        mensaje_id = _enviar_resend(destinatario, asunto, cuerpo_html, cc, bcc, adjuntos)
     else:
         raise HTTPException(
             503,

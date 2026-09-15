@@ -26,6 +26,11 @@ import { HttpError } from '@/services/http/client'
 import { CampoNumero } from './componentes'
 import styles from './Verificaciones.module.css'
 
+// Claves de parámetros por sección — el cálculo las conoce por nombre.
+const CLAVES_GASES = ['gas_presion_contenido_min', 'gas_presion_trabajo_min', 'gas_presion_trabajo_max']
+const CLAVES_DETECTOR = ['perla_voltaje_min', 'perla_voltaje_max', 'output_min', 'output_max']
+const CLAVES_CONOCIDAS = new Set([...CLAVES_GASES, ...CLAVES_DETECTOR])
+
 /**
  * Los criterios de aceptación, editables.
  *
@@ -360,6 +365,7 @@ function EditorColumnas({
 // ---------------------------------------------------------------------------
 
 interface TablaProps<T extends { id: number }> {
+  numero?: number
   titulo: string
   nota: string
   filas: T[]
@@ -386,6 +392,7 @@ interface TablaProps<T extends { id: number }> {
  * las columnas son datos (`campos`) y no cuatro componentes casi iguales.
  */
 function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>({
+  numero,
   titulo,
   nota,
   filas,
@@ -493,6 +500,7 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
   return (
     <Card className={styles.seccion}>
       <div className={styles.seccionCabecera}>
+        {numero !== undefined && <span className={styles.numero}>{numero}</span>}
         <h3 className={styles.seccionTitulo}>{titulo}</h3>
         <div className={styles.seccionDerecha}>
           {seccionColumnas && (
@@ -777,9 +785,9 @@ const CAMPOS_MICROPIPETAS: Campo[] = [
 const CAMPOS_PESAS: Campo[] = [
   { clave: 'nombre', etiqueta: 'Pesa', tipo: 'texto', ancho: 140 },
   { clave: 'codigo', etiqueta: 'Código', tipo: 'texto', ancho: 120 },
-  { clave: 'valor_nominal', etiqueta: 'Valor nominal', unidad: 'mg', tipo: 'numero', editable: false },
-  { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'mg', tipo: 'numero', editable: false },
-  { clave: 'rango_tolerancia', etiqueta: 'Rango de tolerancia', unidad: 'mg', tipo: 'texto', editable: false, soloEditor: true },
+  { clave: 'valor_nominal', etiqueta: 'Valor nominal', unidad: 'g', tipo: 'numero', editable: false },
+  { clave: 'tolerancia', etiqueta: 'Tolerancia ±', unidad: 'g', tipo: 'numero', editable: false },
+  { clave: 'rango_tolerancia', etiqueta: 'Rango de tolerancia', unidad: 'g', tipo: 'texto', editable: false, soloEditor: true },
 ]
 
 const CAMPOS_TEMPERATURA: Campo[] = [
@@ -1006,6 +1014,94 @@ function SeccionParametros({
 }
 
 // ---------------------------------------------------------------------------
+// Parámetros filtrados por sección
+// ---------------------------------------------------------------------------
+
+/** Muestra solo los parámetros cuya clave está en `claves`, en ese orden.
+ * No tiene CRUD: los parámetros de sección los pone la migración; solo se
+ * edita su valor inline igual que en SeccionParametros. */
+function SeccionParametrosFiltrados({
+  numero,
+  titulo,
+  nota,
+  parametros,
+  claves,
+  onCambiar,
+}: {
+  numero?: number
+  titulo: string
+  nota?: string
+  parametros: Parametro[]
+  claves: string[]
+  onCambiar: (clave: string, datos: { valor: number; descripcion: string; unidad: string }) => Promise<void>
+}) {
+  const filas = claves.map((c) => parametros.find((p) => p.clave === c)).filter((p): p is Parametro => !!p)
+  if (!filas.length) return null
+  return (
+    <Card className={styles.seccion}>
+      <div className={styles.seccionCabecera}>
+        {numero !== undefined && <span className={styles.numero}>{numero}</span>}
+        <h3 className={styles.seccionTitulo}>{titulo}</h3>
+        {nota && <p className={styles.seccionNota}>{nota}</p>}
+      </div>
+      <div className={styles.seccionCuerpo}>
+        <div className={styles.tablaWrap}>
+          <table className={styles.tabla} style={{ minWidth: 380 }}>
+            <thead>
+              <tr>
+                <th>Criterio</th>
+                <th>Valor</th>
+                <th>Unidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((p) => (
+                <FilaParametro
+                  key={p.clave}
+                  parametro={p}
+                  onGuardar={(datos) => void onCambiar(p.clave, datos)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Sección 5: Inyector
+// ---------------------------------------------------------------------------
+
+function SeccionInyector({
+  numero,
+  metodos,
+  onCambio,
+  onError,
+}: {
+  numero: number
+  metodos: Metodo[]
+  onCambio: () => void
+  onError: (msg: string | null) => void
+}) {
+  return (
+    <TablaCatalogo<Metodo>
+      numero={numero}
+      titulo="Inyector"
+      nota="Métodos analíticos disponibles en el cromatógrafo. Se seleccionan en el campo «Método cargado» de las secciones Inyector y Detector durante la verificación diaria. Los demás criterios del inyector son fijos: aguja limpia + (aguja sana o reemplazada) = Aceptable."
+      filas={metodos}
+      camposBase={[{ clave: 'nombre', etiqueta: 'Nombre del método', tipo: 'texto', ancho: 280 }]}
+      campos={[{ clave: 'nombre', etiqueta: 'Nombre del método', tipo: 'texto', ancho: 280 }]}
+      vacio={{ nombre: '', orden: 0, activo: true }}
+      api={metodosApi as never}
+      onCambio={onCambio}
+      onError={onError}
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Vista principal
 // ---------------------------------------------------------------------------
 
@@ -1107,7 +1203,9 @@ export function CriteriosView() {
         <Card className={styles.vacio}>Cargando…</Card>
       ) : (
         <div className={styles.grupos}>
+          {/* 1 — Micropipetas */}
           <TablaCatalogo
+            numero={1}
             titulo="Micropipetas"
             nota="Una fila por equipo y volumen: la misma pipeta se verifica a 900 y a 500 µL, y cada volumen tiene su propia tolerancia de aceptación."
             filas={config.micropipetas}
@@ -1122,10 +1220,18 @@ export function CriteriosView() {
             onError={setError}
             rango={{ nominal: 'volumen_nominal', tolerancia: 'tolerancia', unidad: unidadEfectiva(config.columnas_config?.micropipetas, 'rango_tolerancia', unidadEfectiva(config.columnas_config?.micropipetas, 'tolerancia', 'µL')) }}
           />
+          <SeccionTablaZ
+            filas={config.tabla_z}
+            onCambiar={cambiarFactorZ}
+            onCrear={agregarFactorZ}
+            onEliminar={borrarFactorZ}
+          />
 
+          {/* 2 — Balanza analítica */}
           <TablaCatalogo
-            titulo="Pesas patrón"
-            nota="El valor nominal y la tolerancia van en miligramos. La tolerancia se aplica al resultado de la verificación."
+            numero={2}
+            titulo="Balanza analítica"
+            nota="Valor nominal y tolerancia de cada pesa patrón. La tolerancia se aplica a la desviación del promedio de las tres lecturas respecto al valor nominal."
             filas={config.pesas}
             camposBase={CAMPOS_PESAS}
             campos={aplicarConfigColumnas(CAMPOS_PESAS, config.columnas_config?.pesas)}
@@ -1136,12 +1242,14 @@ export function CriteriosView() {
             api={pesasApi}
             onCambio={() => void cargar()}
             onError={setError}
-            rango={{ nominal: 'valor_nominal', tolerancia: 'tolerancia', unidad: unidadEfectiva(config.columnas_config?.pesas, 'rango_tolerancia', unidadEfectiva(config.columnas_config?.pesas, 'tolerancia', 'mg')) }}
+            rango={{ nominal: 'valor_nominal', tolerancia: 'tolerancia', unidad: unidadEfectiva(config.columnas_config?.pesas, 'rango_tolerancia', unidadEfectiva(config.columnas_config?.pesas, 'tolerancia', 'g')) }}
           />
 
+          {/* 3 — Temperatura */}
           <TablaCatalogo
-            titulo="Puntos de temperatura"
-            nota="Sala, refrigerador y congelador. Cada punto tiene su propio rango."
+            numero={3}
+            titulo="Temperatura"
+            nota="Sala, refrigerador y congelador. Cada punto tiene su propio rango de aceptación."
             filas={config.puntos_temperatura}
             camposBase={CAMPOS_TEMPERATURA}
             campos={aplicarConfigColumnas(CAMPOS_TEMPERATURA, config.columnas_config?.puntos_temperatura)}
@@ -1154,21 +1262,11 @@ export function CriteriosView() {
             onError={setError}
           />
 
-          <TablaCatalogo<Metodo>
-            titulo="Métodos analíticos"
-            nota="Nombres de método cargados en el cromatógrafo. Se seleccionan desde la verificación diaria en Inyector y Detector."
-            filas={config.metodos}
-            camposBase={[{ clave: 'nombre', etiqueta: 'Nombre del método', tipo: 'texto', ancho: 280 }]}
-            campos={[{ clave: 'nombre', etiqueta: 'Nombre del método', tipo: 'texto', ancho: 280 }]}
-            vacio={{ nombre: '', orden: 0, activo: true }}
-            api={metodosApi as never}
-            onCambio={() => void cargar()}
-            onError={setError}
-          />
-
+          {/* 4 — Gases */}
           <TablaCatalogo
+            numero={4}
             titulo="Gases"
-            nota="Las líneas del cromatógrafo. Los criterios de presión son comunes a todas y se editan más abajo."
+            nota="Líneas del cromatógrafo. Los criterios de presión aplican a todas las líneas por igual y se editan en la tabla de abajo."
             filas={config.gases}
             camposBase={CAMPOS_GASES}
             campos={aplicarConfigColumnas(CAMPOS_GASES, config.columnas_config?.gases)}
@@ -1180,20 +1278,41 @@ export function CriteriosView() {
             onCambio={() => void cargar()}
             onError={setError}
           />
-
-          <SeccionTablaZ
-            filas={config.tabla_z}
-            onCambiar={cambiarFactorZ}
-            onCrear={agregarFactorZ}
-            onEliminar={borrarFactorZ}
-          />
-
-          <SeccionParametros
+          <SeccionParametrosFiltrados
+            titulo="Criterios de presión de gases"
+            nota="Se aplican a todos los gases. Cambiar un valor acá recalcula los veredictos históricos automáticamente."
             parametros={config.parametros}
+            claves={CLAVES_GASES}
             onCambiar={cambiarParametro}
-            onCrear={agregarParametro}
-            onEliminar={borrarParametro}
           />
+
+          {/* 5 — Inyector */}
+          <SeccionInyector
+            numero={5}
+            metodos={config.metodos}
+            onCambio={() => void cargar()}
+            onError={setError}
+          />
+
+          {/* 6 — Detector y método */}
+          <SeccionParametrosFiltrados
+            numero={6}
+            titulo="Detector y método"
+            nota="Rangos de aceptación del voltaje de la perla y del output del detector. Cualquier nombre de método es aceptable; lo que importa es que el campo no esté vacío."
+            parametros={config.parametros}
+            claves={CLAVES_DETECTOR}
+            onCambiar={cambiarParametro}
+          />
+
+          {/* Parámetros extra (claves no asignadas a ninguna sección) */}
+          {config.parametros.some((p) => !CLAVES_CONOCIDAS.has(p.clave)) && (
+            <SeccionParametros
+              parametros={config.parametros.filter((p) => !CLAVES_CONOCIDAS.has(p.clave))}
+              onCambiar={cambiarParametro}
+              onCrear={agregarParametro}
+              onEliminar={borrarParametro}
+            />
+          )}
         </div>
       )}
     </div>
