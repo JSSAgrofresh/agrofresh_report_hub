@@ -86,7 +86,10 @@ export function VerificacionesView() {
   const { user } = useAuth()
   const [parametrosUrl] = useSearchParams()
   const [fecha, setFecha] = useState(() => parametrosUrl.get('fecha') || hoyISO())
-  const esSuperadmin = !!user && esAdminGeneral(user)
+  const esSuperadmin = !!user && (
+    esAdminGeneral(user) ||
+    (user.tipoAcceso === 'admin_area' && user.area === 'cromatografia')
+  )
 
   const [config, setConfig] = useState<ConfigVerificaciones | null>(null)
   const [borrador, setBorrador] = useState<RegistroInput | null>(null)
