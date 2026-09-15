@@ -57,7 +57,7 @@ export interface PesaPatron {
   id: number
   nombre: string
   codigo: string
-  /** En miligramos, siempre. */
+  /** La unidad la decide el catálogo (configurable); por defecto gramos. */
   valor_nominal: number
   tolerancia: number
   orden: number

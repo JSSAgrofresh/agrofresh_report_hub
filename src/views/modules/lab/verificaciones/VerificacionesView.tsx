@@ -31,6 +31,13 @@ import type {
   SeccionLock,
 } from '@/features/verificaciones'
 import { ACEPTABLE, SIN_MEDIR } from '@/features/verificaciones'
+import type { ColumnaConfig } from '@/features/verificaciones'
+
+function unidadEfectiva(configs: ColumnaConfig[] | undefined, clave: string, defecto: string): string {
+  const cc = configs?.find((c) => c.clave === clave)
+  if (!cc || cc.unidad === null) return defecto
+  return cc.unidad
+}
 import {
   Calculado,
   CampoNumero,
@@ -544,7 +551,7 @@ export function VerificacionesView() {
                     <th>Lectura 1 <span className={styles.unidad}>(g)</span></th>
                     <th>Lectura 2 <span className={styles.unidad}>(g)</span></th>
                     <th>Lectura 3 <span className={styles.unidad}>(g)</span></th>
-                    <th>Promedio <span className={styles.unidad}>(mg)</span></th>
+                    <th>Promedio <span className={styles.unidad}>({unidadEfectiva(config.columnas_config?.pesas, 'tolerancia', 'g')})</span></th>
                     <th>Rango de tolerancia</th>
                     <th>Criterio</th>
                     <th>Resultado</th>
@@ -563,7 +570,7 @@ export function VerificacionesView() {
                       >
                         <td className={styles.celdaEquipo}>
                           {pesa.nombre}
-                          <span className={styles.celdaNota}>{pesa.valor_nominal} mg nominal</span>
+                          <span className={styles.celdaNota}>{pesa.valor_nominal} {unidadEfectiva(config.columnas_config?.pesas, 'valor_nominal', 'g')} nominal</span>
                         </td>
                         <td className={styles.criterio}>{pesa.codigo || '—'}</td>
                         {(['lectura_1', 'lectura_2', 'lectura_3'] as const).map((campo) => (
@@ -584,9 +591,9 @@ export function VerificacionesView() {
                           <Calculado valor={calculo?.promedio ?? null} decimales={4} />
                         </td>
                         <td className={styles.criterio}>
-                          {pesa.valor_nominal - pesa.tolerancia} a {pesa.valor_nominal + pesa.tolerancia} <span className={styles.unidad}>mg</span>
+                          {pesa.valor_nominal - pesa.tolerancia} a {pesa.valor_nominal + pesa.tolerancia} <span className={styles.unidad}>{unidadEfectiva(config.columnas_config?.pesas, 'rango_tolerancia', unidadEfectiva(config.columnas_config?.pesas, 'tolerancia', 'g'))}</span>
                         </td>
-                        <td className={styles.criterio}>± {pesa.tolerancia} mg</td>
+                        <td className={styles.criterio}>± {pesa.tolerancia} <span className={styles.unidad}>{unidadEfectiva(config.columnas_config?.pesas, 'tolerancia', 'g')}</span></td>
                         <td>
                           <Veredicto resultado={calculo?.resultado ?? ''} />
                         </td>
