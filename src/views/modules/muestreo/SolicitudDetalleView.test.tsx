@@ -18,10 +18,13 @@ vi.mock('@/features/tomaMuestras', () => ({
   listarFotosSolicitud,
   descargarExcelSolicitud: vi.fn(),
   descargarPdfSolicitud: vi.fn(),
+  descargarJsonSolicitud: vi.fn(),
   enviarSolicitudPorCorreo: vi.fn(),
   subirFotoSolicitud: vi.fn(),
   eliminarFotoSolicitud: vi.fn(),
   obtenerFotoSolicitud: vi.fn(),
+  resultadosDeShipTo: vi.fn().mockResolvedValue([]),
+  listarLaboratoriosConfig: vi.fn().mockResolvedValue([]),
 }))
 
 const ANALITOS: AnalitoConfig[] = [
@@ -114,10 +117,11 @@ describe('SolicitudDetalleView — bloqueo tras enviar (CASO 5)', () => {
     expect(screen.getByText('Enviar por correo')).toBeTruthy()
   })
 
-  it('una solicitud ya enviada NO muestra Editar ni Enviar por correo', async () => {
+  it('una solicitud ya enviada muestra Editar y cambia "Enviar" a "Reenviar"', async () => {
     montar(solicitudBase({ enviada: true, enviado_en: '2026-09-02T10:00:00+00:00' }))
     await waitFor(() => expect(screen.getByText(/Enviada/)).toBeTruthy())
-    expect(screen.queryByText('Editar')).toBeNull()
+    expect(screen.getByText('Editar')).toBeTruthy()
+    expect(screen.getByText('Reenviar por correo')).toBeTruthy()
     expect(screen.queryByText('Enviar por correo')).toBeNull()
   })
 })
