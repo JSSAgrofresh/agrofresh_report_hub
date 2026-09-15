@@ -264,8 +264,9 @@ HOJA_CURVA = "Curva de calibración"
 HOJA_ESTADISTICA = "Estadística de la curva"
 HOJA_RESUMEN = "Resumen de viales"
 HOJA_BITACORA = "Bitácora"
+HOJA_ANALITICA = "Analítica de curva"
 
-HOJAS_VISIBLES = (HOJA_GUIA, HOJA_CABECERA, HOJA_POR_VIAL)
+HOJAS_VISIBLES = (HOJA_GUIA, HOJA_CABECERA, HOJA_POR_VIAL, HOJA_ANALITICA)
 
 # Los 12 campos con que el equipo declara cada vial en la tabla de la
 # secuencia, con su etiqueta tal cual: es como el laboratorio los lee en el
@@ -424,6 +425,7 @@ class DetalleGCOut(BaseModel):
     metodo: list[CampoCabeceraOut] = []
     auditoria: list[CambioMetodoOut] = []
     curva: list[FilaCurvaOut] = []
+    curva_ultima: list[FilaCurvaOut] = []
     estadistica: list[FilaEstadisticaOut] = []
     resumen: list[FilaResumenOut] = []
     bitacora: list[EventoBitacoraOut] = []
@@ -491,6 +493,7 @@ async def parsear_gc_completo(archivo: UploadFile = File(...)) -> DetalleGCOut:
         metodo=[CampoCabeceraOut(seccion=s, campo=c, valor=v) for s, c, v in reporte.metodo],
         auditoria=[CambioMetodoOut(**a) for a in reporte.auditoria],
         curva=[FilaCurvaOut(**f) for f in reporte.curva],
+        curva_ultima=[FilaCurvaOut(**f) for f in reporte.curva_ultima],
         estadistica=[FilaEstadisticaOut(**f) for f in reporte.estadistica],
         resumen=[FilaResumenOut(**f) for f in reporte.resumen],
         bitacora=[EventoBitacoraOut(**e) for e in reporte.bitacora],
@@ -514,6 +517,7 @@ class DetalleGCIn(BaseModel):
     metodo: list[CampoCabeceraOut] = []
     auditoria: list[CambioMetodoOut] = []
     curva: list[FilaCurvaOut] = []
+    curva_ultima: list[FilaCurvaOut] = []
     estadistica: list[FilaEstadisticaOut] = []
     resumen: list[FilaResumenOut] = []
     bitacora: list[EventoBitacoraOut] = []
@@ -610,6 +614,7 @@ def _nombre_desde_data_directory(cabecera: list[CampoCabeceraOut]) -> str | None
 GUIA_DE_HOJAS: tuple[tuple[str, str, str], ...] = (
     (HOJA_CABECERA, "Instrumento, columna cromatográfica y parámetros de la secuencia.", "visible"),
     (HOJA_POR_VIAL, "Un vial por fila: cómo lo declaró el equipo y, de cada compuesto, ppm, tiempo de retención, área, tipo de pico y Amt/Area.", "visible"),
+    (HOJA_ANALITICA, "Pendiente, intercepto y R de la última recalibración, con la tabla de niveles y el gráfico de dispersión de cada compuesto.", "visible"),
     (HOJA_DETALLE, "Una fila por compuesto de cada vial, como sale del equipo.", "oculta"),
     (HOJA_SECUENCIA, "Qué se puso en cada posición del carrusel, con los campos que declara el equipo.", "oculta"),
     (HOJA_METODO, "Condiciones instrumentales: horno, inyector, columna, detector NPD e integración.", "oculta"),
@@ -649,6 +654,140 @@ def _escribir_tabla(
     for col, texto in enumerate(encabezados, start=1):
         letra = openpyxl.utils.get_column_letter(col)
         ws.column_dimensions[letra].width = (anchos or {}).get(texto, min(max(len(texto) + 3, 11), 34))
+
+
+def _regresion_lineal(xs: list[float], ys: list[float]) -> tuple[float, float, float]:
+    """Regresión lineal OLS. Devuelve (pendiente, intercepto, r de Pearson)."""
+    n = len(xs)
+    if n < 2:
+        return (0.0, 0.0, 0.0)
+    sx = sum(xs)
+    sy = sum(ys)
+    sxx = sum(x * x for x in xs)
+    sxy = sum(x * y for x, y in zip(xs, ys))
+    syy = sum(y * y for y in ys)
+    denom = n * sxx - sx * sx
+    if denom == 0:
+        return (0.0, sy / n if n else 0.0, 0.0)
+    pend = (n * sxy - sx * sy) / denom
+    intcp = (sy - pend * sx) / n
+    den_r = ((n * sxx - sx * sx) * (n * syy - sy * sy)) ** 0.5
+    r = (n * sxy - sx * sy) / den_r if den_r != 0 else 0.0
+    return (pend, intcp, r)
+
+
+def _crear_hoja_analitica(wb, curva: list[FilaCurvaOut]) -> None:
+    """Hoja 'Analítica de curva': tabla resumen (pendiente, intercepto, R) y,
+    por cada compuesto, la tabla de niveles más un gráfico de dispersión con
+    la línea de regresión. Siempre usa los datos de la última recalibración."""
+    from openpyxl.chart import ScatterChart, Reference, Series
+
+    ws = wb.create_sheet(HOJA_ANALITICA)
+    ws.sheet_view.showGridLines = False
+
+    # Agrupar niveles por compuesto (respetando el orden de aparición)
+    datos: dict[str, list[FilaCurvaOut]] = {}
+    for f in curva:
+        if f.compuesto not in datos:
+            datos[f.compuesto] = []
+        datos[f.compuesto].append(f)
+
+    if not datos:
+        ws["A1"] = "No hay datos de curva de calibración disponibles."
+        return
+
+    # Calcular regresión para cada compuesto
+    regresiones: dict[str, tuple[float, float, float]] = {}
+    for comp, filas in datos.items():
+        xs = [f.amount for f in filas if f.amount is not None and f.area is not None]
+        ys = [f.area for f in filas if f.amount is not None and f.area is not None]
+        regresiones[comp] = _regresion_lineal(xs, ys) if len(xs) >= 2 else (0.0, 0.0, 0.0)
+
+    # ── Tabla resumen: una fila por compuesto ─────────────────────────────────
+    for col, titulo in enumerate(("Compuesto", "Pendiente", "Intercepto", "R"), start=1):
+        celda = ws.cell(row=1, column=col, value=titulo)
+        celda.font = openpyxl.styles.Font(bold=True)
+
+    for i, comp in enumerate(datos.keys(), start=2):
+        pend, intcp, r = regresiones[comp]
+        ws.cell(row=i, column=1, value=comp)
+        ws.cell(row=i, column=2, value=round(pend, 6))
+        ws.cell(row=i, column=3, value=round(intcp, 4))
+        ws.cell(row=i, column=4, value=round(r, 6))
+
+    n_comp = len(datos)
+    _dar_formato_de_tabla(ws, "TablaResumenAnalitica", f"A1:D{n_comp + 1}", ESTILO_TABLA_CABECERA)
+    for col, ancho in zip("ABCD", (22, 16, 14, 12)):
+        ws.column_dimensions[col].width = ancho
+    # Columnas E y F guardan los 2 puntos de la línea de regresión; son datos
+    # auxiliares del gráfico, no del laboratorio: van muy estrechas.
+    ws.column_dimensions["E"].width = 1
+    ws.column_dimensions["F"].width = 1
+
+    # ── Un bloque por compuesto: tabla de niveles + gráfico ──────────────────
+    FILAS_POR_BLOQUE = 22  # alto suficiente para el gráfico (≈12 cm)
+    fila_base = n_comp + 4
+
+    for idx, (comp, filas) in enumerate(datos.items()):
+        fb = fila_base + idx * FILAS_POR_BLOQUE
+
+        # Nombre del compuesto
+        ws.cell(row=fb, column=1, value=comp).font = openpyxl.styles.Font(bold=True, size=12)
+
+        # Encabezados de la tabla de niveles
+        for col, texto in enumerate(("Nivel", "Amount (ng/µL)", "Área (pA*s)"), start=1):
+            ws.cell(row=fb + 1, column=col, value=texto).font = openpyxl.styles.Font(bold=True)
+
+        # Filas de datos
+        n_niveles = 0
+        for j, fila in enumerate(filas):
+            ws.cell(row=fb + 2 + j, column=1, value=fila.nivel)
+            ws.cell(row=fb + 2 + j, column=2, value=fila.amount)
+            ws.cell(row=fb + 2 + j, column=3, value=fila.area)
+            n_niveles += 1
+
+        # Dos puntos de la línea de regresión en columnas E y F
+        pend, intcp, _ = regresiones[comp]
+        xs = [f.amount for f in filas if f.amount is not None]
+        fila_regr = fb + 2
+        if xs:
+            x_min, x_max = min(xs), max(xs)
+            ws.cell(row=fila_regr,     column=5, value=x_min)
+            ws.cell(row=fila_regr,     column=6, value=pend * x_min + intcp)
+            ws.cell(row=fila_regr + 1, column=5, value=x_max)
+            ws.cell(row=fila_regr + 1, column=6, value=pend * x_max + intcp)
+
+        # Gráfico de dispersión
+        chart = ScatterChart()
+        chart.scatterStyle = "lineMarker"
+        chart.title = comp
+        chart.style = 10
+        chart.x_axis.title = "Amount (ng/µL)"
+        chart.y_axis.title = "Área (pA*s)"
+        chart.width = 15
+        chart.height = 12
+        chart.legend = None
+
+        # Serie 1: puntos de calibración
+        xdata = Reference(ws, min_col=2, min_row=fb + 2, max_row=fb + 1 + n_niveles)
+        ydata = Reference(ws, min_col=3, min_row=fb + 2, max_row=fb + 1 + n_niveles)
+        s1 = Series(ydata, xdata, title=comp)
+        s1.marker.symbol = "plus"
+        s1.marker.size = 7
+        s1.graphicalProperties.line.noFill = True
+        chart.series.append(s1)
+
+        # Serie 2: línea de regresión
+        if xs:
+            xreg = Reference(ws, min_col=5, min_row=fila_regr, max_row=fila_regr + 1)
+            yreg = Reference(ws, min_col=6, min_row=fila_regr, max_row=fila_regr + 1)
+            s2 = Series(yreg, xreg, title="Regresión")
+            s2.graphicalProperties.line.solidFill = "4472C4"
+            s2.marker.symbol = "none"
+            chart.series.append(s2)
+
+        col_grafico = openpyxl.utils.get_column_letter(7)
+        ws.add_chart(chart, f"{col_grafico}{fb}")
 
 
 @router.post("/detalle-gc/excel")
@@ -724,9 +863,13 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
     # línea, y con eso no se puede volver al vial físico. Los 12 campos de la
     # secuencia van con la etiqueta del equipo, para que la planilla se lea
     # igual que el papel.
+    # Las columnas de cada compuesto van agrupadas por tipo de dato (todas las
+    # ppm juntas, todas las áreas juntas, etc.) en lugar de por compuesto, para
+    # que se puedan comparar todos los compuestos de un vistazo sin tablas dinámicas.
     encabezados = list(COLUMNAS_FIJAS_POR_VIAL)
-    for compuesto in compuestos:
-        encabezados += [f"{compuesto} {sufijo}" for sufijo in COLUMNAS_POR_COMPUESTO]
+    for sufijo in COLUMNAS_POR_COMPUESTO:
+        for compuesto in compuestos:
+            encabezados.append(f"{compuesto} {sufijo}")
     resumen_por_vial = {int(r.corrida): r for r in body.resumen if r.corrida is not None}
     filas = []
     for m in body.muestras:
@@ -745,8 +888,10 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
             m.totales,
         ]
         por_analito = {r.analito: r for r in m.resultados}
-        for compuesto in compuestos:
-            fila += list(_valores_del_compuesto(por_analito.get(compuesto)))
+        for i in range(len(COLUMNAS_POR_COMPUESTO)):
+            for compuesto in compuestos:
+                vals = _valores_del_compuesto(por_analito.get(compuesto))
+                fila.append(vals[i])
         filas.append(fila)
     ws2 = wb.create_sheet(HOJA_POR_VIAL)
     _escribir_tabla(
@@ -760,6 +905,10 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
     )
     for col in range(len(COLUMNAS_FIJAS_POR_VIAL) + 1, len(encabezados) + 1):
         ws2.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 21
+
+    # La hoja analítica va justo después de "Área y PPM por vial" para que
+    # las tres hojas visibles queden juntas al principio de la barra de pestañas.
+    _crear_hoja_analitica(wb, body.curva_ultima or body.curva)
 
     # ── Una fila por compuesto de cada vial, como sale del equipo ──────────
     _escribir_tabla(
@@ -835,7 +984,7 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
         "TablaBitacora", anchos={"Mensaje": 70, "Fecha": 22},
     )
 
-    # El laboratorio abre siempre las mismas tres hojas; el resto es el
+    # El laboratorio abre siempre las mismas hojas; el resto es el
     # respaldo, y va oculto para no llenar la barra de pestañas.
     for hoja in wb.worksheets:
         hoja.sheet_state = "visible" if hoja.title in HOJAS_VISIBLES else "hidden"

@@ -195,6 +195,7 @@ class TestExcel:
             emitir.HOJA_GUIA,
             emitir.HOJA_CABECERA,
             emitir.HOJA_POR_VIAL,
+            emitir.HOJA_ANALITICA,
             emitir.HOJA_DETALLE,
             emitir.HOJA_SECUENCIA,
             emitir.HOJA_METODO,
@@ -206,12 +207,14 @@ class TestExcel:
         ]
 
     def test_solo_se_abren_las_tres_hojas_de_siempre(self, muestras, cabecera, secciones):
-        """Once pestañas de golpe no las mira nadie. Las otras ocho son el
+        """Doce pestañas de golpe no las mira nadie. Las otras ocho son el
         respaldo: quedan ocultas, a un clic derecho de distancia."""
         wb = _libro(muestras, cabecera, **secciones)
         visibles = [h.title for h in wb.worksheets if h.sheet_state == "visible"]
-        assert visibles == [emitir.HOJA_GUIA, emitir.HOJA_CABECERA, emitir.HOJA_POR_VIAL]
-        assert len(wb.sheetnames) == 11
+        assert visibles == [
+            emitir.HOJA_GUIA, emitir.HOJA_CABECERA, emitir.HOJA_POR_VIAL, emitir.HOJA_ANALITICA,
+        ]
+        assert len(wb.sheetnames) == 12
 
     def test_la_guia_dice_que_hay_hojas_ocultas(self, muestras, cabecera, secciones):
         """Es la primera hoja que se abre: si no avisa, nadie sabe que el
@@ -220,6 +223,7 @@ class TestExcel:
         assert "Mostrar" in ws["C3"].value
         hojas = {f[1]: f[3] for f in ws.iter_rows(min_row=7, values_only=True)}
         assert hojas[emitir.HOJA_POR_VIAL] == "visible"
+        assert hojas[emitir.HOJA_ANALITICA] == "visible"
         assert hojas[emitir.HOJA_BITACORA] == "oculta"
         assert set(hojas) <= set(_libro(muestras, cabecera, **secciones).sheetnames)
 
@@ -261,7 +265,10 @@ class TestExcel:
     def test_todas_las_hojas_son_tablas_de_excel(self, muestras, cabecera, secciones):
         """Como tabla se filtra y ordena sin darle formato a mano cada vez.
         Los nombres tienen que ser únicos en todo el libro: dos tablas con el
-        mismo nombre rompen el archivo."""
+        mismo nombre rompen el archivo.
+
+        La hoja analítica solo lleva tabla si hay datos de curva; el resto
+        de hojas siempre la tienen."""
         wb = _libro(muestras, cabecera, **secciones)
         estilos = {
             hoja: [t.tableStyleInfo.name for t in wb[hoja].tables.values()]
@@ -269,7 +276,9 @@ class TestExcel:
         }
         assert estilos[emitir.HOJA_CABECERA] == [emitir.ESTILO_TABLA_CABECERA]
         assert estilos[emitir.HOJA_GUIA] == [emitir.ESTILO_TABLA_CABECERA]
-        assert all(estilos[h] for h in wb.sheetnames)
+        # Todas las hojas excepto la analítica (que solo la lleva si hay curva).
+        hojas_con_tabla_obligatoria = [h for h in wb.sheetnames if h != emitir.HOJA_ANALITICA]
+        assert all(estilos[h] for h in hojas_con_tabla_obligatoria)
         nombres = [n for hoja in wb.worksheets for n in hoja.tables]
         assert len(nombres) == len(set(nombres))
 
@@ -290,25 +299,27 @@ class TestExcel:
         ws = _libro(muestras)[emitir.HOJA_DETALLE]
         assert ws.max_row - 1 == 371
 
-    def test_por_vial_lleva_ppm_retencion_y_area_juntos(self, muestras):
-        """Antes eran dos hojas separadas: leer un vial obligaba a saltar de
-        una a otra para comparar su concentración contra su área. El tiempo de
-        retención va en el mismo bloque: es lo que confirma que el pico
-        integrado es el del compuesto y no el de un vecino."""
+    def test_por_vial_columnas_agrupadas_por_tipo_de_dato(self, muestras):
+        """Las columnas se agrupan por tipo de dato: primero todos los ppm,
+        después todas las áreas, después todos los tiempos, etc. Así se
+        comparan todos los compuestos de un vistazo sin tablas dinámicas."""
         ws = _libro(muestras)[emitir.HOJA_POR_VIAL]
         encabezados = [c.value for c in ws[1]]
         assert encabezados[:4] == [
             "Seq Line", "Ubicación de la Muestra", "Vial", "Tipo",
         ]
-        primero = encabezados.index("DIFENILAMINA ppm")
-        assert encabezados[primero : primero + 5] == [
-            "DIFENILAMINA ppm",
-            "DIFENILAMINA tiempo retención (min)",
-            "DIFENILAMINA área",
-            "DIFENILAMINA tipo de pico",
-            "DIFENILAMINA Amt/Area",
+        # Después de las columnas fijas, vienen todos los "ppm" juntos.
+        idx_primer_ppm = encabezados.index("DIFENILAMINA ppm")
+        compuestos = [
+            e.replace(" ppm", "") for e in encabezados[idx_primer_ppm:]
+            if e and e.endswith(" ppm")
         ]
-        assert encabezados[primero + 5] == "PYRYMETHANIL ppm"
+        # A continuación los tiempos de retención, en el mismo orden.
+        idx_primer_ret = encabezados.index("DIFENILAMINA tiempo retención (min)")
+        assert idx_primer_ret == idx_primer_ppm + len(compuestos)
+        # Luego las áreas.
+        idx_primer_area = encabezados.index("DIFENILAMINA área")
+        assert idx_primer_area == idx_primer_ppm + 2 * len(compuestos)
         assert ws.max_row - 1 == 53
 
     def test_por_vial_trae_los_campos_con_que_el_equipo_declara_el_vial(self, muestras):
