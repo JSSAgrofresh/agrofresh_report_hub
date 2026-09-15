@@ -51,7 +51,7 @@ const TIPO_ACTIMIST = 'Actimist'
 /** Tipo de Muestra es una lista cerrada: el laboratorio procesa estas tres
  * matrices y nada más. Antes era texto libre y llegaban variantes ("fruta",
  * "Fruta ", "FRUTA") que había que homogenizar después. */
-const TIPOS_DE_MUESTRA = ['Fruta', 'Agua', 'Cera']
+const TIPOS_DE_MUESTRA = ['Fruta', 'Agua', 'Pulpa']
 
 /** Campos que solo son obligatorios dentro de un Tipo de Aplicación. El
  * mantenedor de campos generales solo tiene un sí/no global, así que estas

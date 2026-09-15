@@ -16,7 +16,6 @@ import {
 } from '@/features/usuarios'
 import {
   IconConverter,
-  IconDatabase,
   IconDataCore,
   IconEmitir,
   IconFrasco,
@@ -252,10 +251,7 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
         </nav>
 
         <div className={styles.pie}>
-          <div className={styles.estadoBd}>
-            <IconDatabase className={styles.estadoBdIcono} />
-            Base de datos: pendiente
-          </div>
+
           <div className={styles.usuario}>
             <div className={styles.usuarioAvatar}>
               <IconUser />
