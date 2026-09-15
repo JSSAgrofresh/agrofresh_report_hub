@@ -1207,33 +1207,27 @@ def destinatarios_de_solicitud(archivo: str, usuario: Usuario = Depends(usuario_
     return {"laboratorio": laboratorio, "destinatarios": contactos_de_solicitud(laboratorio)}
 
 
-_ENVIO_ARCHIVOS_DEFECTO = {"excel": True, "json": False}
+class EnvioAutomaticoOut(BaseModel):
+    activo: bool
 
 
-class EnvioArchivosOut(BaseModel):
-    pdf: bool = True
-    excel: bool
-    json: bool
-
-
-class EnvioArchivosIn(BaseModel):
-    excel: bool
-    json: bool
+class EnvioAutomaticoIn(BaseModel):
+    activo: bool
     password: str
 
 
-@router.get("/config/envio-archivos")
-def obtener_config_envio_archivos(usuario: Usuario = Depends(usuario_actual)) -> EnvioArchivosOut:
-    """Qué archivos se adjuntan al enviar una solicitud. PDF siempre activo."""
-    cfg = _leer_config("envio_archivos.json", _ENVIO_ARCHIVOS_DEFECTO)
-    return EnvioArchivosOut(pdf=True, excel=cfg.get("excel", True), json=cfg.get("json", False))
+@router.get("/config/envio-automatico")
+def obtener_envio_automatico(usuario: Usuario = Depends(usuario_actual)) -> EnvioAutomaticoOut:
+    """Si las solicitudes se envían por correo automáticamente al guardar."""
+    cfg = _leer_config("envio_automatico.json", {"activo": True})
+    return EnvioAutomaticoOut(activo=cfg.get("activo", True))
 
 
-@router.put("/config/envio-archivos")
-def actualizar_config_envio_archivos(
-    body: EnvioArchivosIn, usuario: Usuario = Depends(usuario_actual)
-) -> EnvioArchivosOut:
-    """Cambia qué archivos se adjuntan. Solo admin_general, requiere contraseña."""
+@router.put("/config/envio-automatico")
+def actualizar_envio_automatico(
+    body: EnvioAutomaticoIn, usuario: Usuario = Depends(usuario_actual)
+) -> EnvioAutomaticoOut:
+    """Cambia el modo de envío. Solo admin_general, requiere contraseña."""
     if usuario.tipoAcceso != "admin_general":
         raise HTTPException(403, "Solo el administrador general puede cambiar esta configuración.")
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
@@ -1241,8 +1235,8 @@ def actualizar_config_envio_archivos(
         fila = cur.fetchone()
     if not fila or not seguridad.verificar_password(body.password, fila.get("password_hash")):
         raise HTTPException(401, "Contraseña incorrecta.")
-    _escribir_config("envio_archivos.json", {"excel": body.excel, "json": body.json})
-    return EnvioArchivosOut(pdf=True, excel=body.excel, json=body.json)
+    _escribir_config("envio_automatico.json", {"activo": body.activo})
+    return EnvioAutomaticoOut(activo=body.activo)
 
 
 def _registrar_envio_solicitud(
@@ -1341,11 +1335,12 @@ def enviar_solicitud_por_correo(
 
     asunto, texto, html, imagenes_inline = mail_templates.renderizar(lab, datos)
 
-    envio_cfg = _leer_config("envio_archivos.json", {"excel": True, "json": False})
+    labs_cfg = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
+    lab_cfg = next((l for l in labs_cfg if l.get("codigo", "").upper() == lab.upper()), {})
     adjuntos: list[correo.Adjunto] = [
         correo.Adjunto(f"{numero}.pdf", pdf_bytes, "application/pdf"),
     ]
-    if envio_cfg.get("excel", True):
+    if lab_cfg.get("adjuntos_excel", True):
         wb = construir_workbook(datos, analitos_config)
         buf_excel = io.BytesIO()
         wb.save(buf_excel)
@@ -1354,7 +1349,7 @@ def enviar_solicitud_por_correo(
             buf_excel.getvalue(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         ))
-    if envio_cfg.get("json", False):
+    if lab_cfg.get("adjuntos_json", False):
         adjuntos.append(correo.Adjunto(
             f"{numero}.json",
             _generar_json_solicitud(datos),
@@ -1852,6 +1847,8 @@ class LaboratorioConfig(BaseModel):
     prefijo_solicitud: str = ""
     activo: bool = True
     orden: int = 0
+    adjuntos_excel: bool = True
+    adjuntos_json: bool = False
 
 
 class LaboratorioIn(BaseModel):
@@ -1861,13 +1858,15 @@ class LaboratorioIn(BaseModel):
     prefijo_solicitud: str = ""
     activo: bool = True
     orden: int = 0
+    adjuntos_excel: bool = True
+    adjuntos_json: bool = False
 
 
 LABORATORIOS_DEFECTO: list[dict] = [
-    {"id": 1, "codigo": "QUITECA", "nombre": "Quiteca", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 1},
-    {"id": 2, "codigo": "AGROFRESH", "nombre": "AgroFresh", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 2},
-    {"id": 3, "codigo": "ALS", "nombre": "ALS", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 3},
-    {"id": 4, "codigo": "DIAGNOFRUIT", "nombre": "Diagnofruit", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 4},
+    {"id": 1, "codigo": "QUITECA", "nombre": "Quiteca", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 1, "adjuntos_excel": True, "adjuntos_json": False},
+    {"id": 2, "codigo": "AGROFRESH", "nombre": "AgroFresh", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 2, "adjuntos_excel": True, "adjuntos_json": False},
+    {"id": 3, "codigo": "ALS", "nombre": "ALS", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 3, "adjuntos_excel": True, "adjuntos_json": False},
+    {"id": 4, "codigo": "DIAGNOFRUIT", "nombre": "Diagnofruit", "descripcion": None, "prefijo_solicitud": "", "activo": True, "orden": 4, "adjuntos_excel": True, "adjuntos_json": False},
 ]
 
 

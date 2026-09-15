@@ -25,6 +25,7 @@ import {
   listarLaboratoriosConfig,
   listarProductosConfig,
   listarTiposAplicacion,
+  obtenerEnvioAutomatico,
   obtenerSolicitud,
   resultadosDeShipTo,
 } from '@/features/tomaMuestras'
@@ -139,6 +140,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [productosTodos, setProductosTodos] = useState<ProductoConfig[]>([])
   const [camposTipoAplicacion, setCamposTipoAplicacion] = useState<CampoTipoAplicacionConfig[]>([])
   const [analisisTodos, setAnalisisTodos] = useState<Analisis[]>([])
+  const [envioAutomatico, setEnvioAutomatico] = useState(true)
 
   const { user } = useAuth()
 
@@ -213,6 +215,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     listarLaboratoriosConfig()
       .then(setLaboratoriosConfig)
       .catch(() => setLaboratoriosConfig([]))
+    obtenerEnvioAutomatico()
+      .then((r) => setEnvioAutomatico(r.activo))
+      .catch(() => setEnvioAutomatico(true))
     listarTiposAplicacion()
       .then(setTiposAplicacion)
       .catch(() => setTiposAplicacion([]))
@@ -824,13 +829,15 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     try {
       if (modo === 'editar' && archivoEditando) {
         await actualizarSolicitud(archivoEditando, payload)
-        // Envío automático al guardar — si falla igual navega al detalle
-        // para que el usuario pueda reenviar manualmente desde ahí.
-        try { await enviarSolicitudPorCorreo(archivoEditando, invitadosForm) } catch { /* continuar */ }
+        if (envioAutomatico) {
+          try { await enviarSolicitudPorCorreo(archivoEditando, invitadosForm) } catch { /* continuar */ }
+        }
         navigate(rutaTomaMuestrasDetalle(archivoEditando))
       } else {
         const solicitudCreada = await crearSolicitud(payload)
-        try { await enviarSolicitudPorCorreo(solicitudCreada.archivo, invitadosForm) } catch { /* continuar */ }
+        if (envioAutomatico) {
+          try { await enviarSolicitudPorCorreo(solicitudCreada.archivo, invitadosForm) } catch { /* continuar */ }
+        }
         navigate(rutaTomaMuestrasDetalle(solicitudCreada.archivo))
       }
     } catch (err) {
@@ -1447,7 +1454,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             Cancelar
           </Button>
           <Button type="submit" disabled={guardando}>
-            {guardando ? 'Guardando y enviando…' : modo === 'editar' ? 'Guardar y enviar' : 'Guardar y enviar'}
+            {guardando
+              ? (envioAutomatico ? 'Guardando y enviando…' : 'Guardando…')
+              : (envioAutomatico ? 'Guardar y enviar' : 'Guardar')}
           </Button>
         </div>
       </form>

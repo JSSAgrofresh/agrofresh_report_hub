@@ -17,7 +17,7 @@ import {
   listarCategoriasAnaliticas,
   listarLaboratoriosConfig,
 } from '@/features/tomaMuestras'
-import type { AnalitoConfig, CategoriaAnaliticaConfig, LaboratorioInput } from '@/features/tomaMuestras'
+import type { AnalitoConfig, CategoriaAnaliticaConfig, LaboratorioConfig, LaboratorioInput } from '@/features/tomaMuestras'
 import { acentoDeLaboratorio, inicialesDe } from './acento'
 import { AnalisisPanel } from './AnalisisPanel'
 import { AnalitosPanel } from './AnalitosPanel'
@@ -54,6 +54,7 @@ export function LaboratoriosView() {
   const [formLab, setFormLab] = useState<{ modo: 'nuevo' | 'editar'; datos: typeof LAB_VACIO } | null>(null)
   const [guardandoLab, setGuardandoLab] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [guardandoAdjunto, setGuardandoAdjunto] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -112,26 +113,36 @@ export function LaboratoriosView() {
     setGuardandoLab(true)
     setError(null)
     try {
-      const datos: LaboratorioInput = {
-        codigo: codigo.trim().toUpperCase(),
-        nombre: nombre.trim(),
-        descripcion: descripcion.trim() || null,
-        prefijo_solicitud: prefijo_solicitud.trim().toUpperCase(),
-        activo: true,
-        orden: (laboratorios?.length ?? 0) + 1,
-      }
       if (formLab.modo === 'editar') {
-        // El resumen no trae el id del mantenedor, así que se resuelve por
-        // código contra la lista completa antes de actualizar.
         const todos = await listarLaboratoriosConfig()
         const actual = todos.find((l) => l.codigo === seleccionado)
         if (!actual) throw new Error('no encontrado')
-        await actualizarLaboratorioConfig(actual.id, { ...datos, activo: actual.activo, orden: actual.orden })
+        const datos: LaboratorioInput = {
+          codigo: codigo.trim().toUpperCase(),
+          nombre: nombre.trim(),
+          descripcion: descripcion.trim() || null,
+          prefijo_solicitud: prefijo_solicitud.trim().toUpperCase(),
+          activo: actual.activo,
+          orden: actual.orden,
+          adjuntos_excel: actual.adjuntos_excel,
+          adjuntos_json: actual.adjuntos_json,
+        }
+        await actualizarLaboratorioConfig(actual.id, datos)
       } else {
+        const datos: LaboratorioInput = {
+          codigo: codigo.trim().toUpperCase(),
+          nombre: nombre.trim(),
+          descripcion: descripcion.trim() || null,
+          prefijo_solicitud: prefijo_solicitud.trim().toUpperCase(),
+          activo: true,
+          orden: (laboratorios?.length ?? 0) + 1,
+          adjuntos_excel: true,
+          adjuntos_json: false,
+        }
         await crearLaboratorioConfig(datos)
       }
       setLaboratorios(await resumenLaboratorios())
-      if (formLab.modo === 'editar') setSeleccionado(datos.codigo)
+      if (formLab.modo === 'editar') setSeleccionado(codigo.trim().toUpperCase())
       setFormLab(null)
     } catch {
       setError(
@@ -141,6 +152,32 @@ export function LaboratoriosView() {
       )
     } finally {
       setGuardandoLab(false)
+    }
+  }
+
+  async function toggleAdjunto(campo: 'adjuntos_excel' | 'adjuntos_json', nuevoValor: boolean) {
+    if (!seleccionado || guardandoAdjunto) return
+    setGuardandoAdjunto(true)
+    setError(null)
+    try {
+      const todos: LaboratorioConfig[] = await listarLaboratoriosConfig()
+      const actual = todos.find((l) => l.codigo === seleccionado)
+      if (!actual) throw new Error('no encontrado')
+      await actualizarLaboratorioConfig(actual.id, {
+        codigo: actual.codigo,
+        nombre: actual.nombre,
+        descripcion: actual.descripcion,
+        prefijo_solicitud: actual.prefijo_solicitud,
+        activo: actual.activo,
+        orden: actual.orden,
+        adjuntos_excel: campo === 'adjuntos_excel' ? nuevoValor : actual.adjuntos_excel,
+        adjuntos_json: campo === 'adjuntos_json' ? nuevoValor : actual.adjuntos_json,
+      })
+      setLaboratorios(await resumenLaboratorios())
+    } catch {
+      setError('No se pudo guardar la configuración de adjuntos.')
+    } finally {
+      setGuardandoAdjunto(false)
     }
   }
 
@@ -282,6 +319,44 @@ export function LaboratoriosView() {
             </div>
           </div>
         )}
+
+        <div className={styles.adjuntosPanel}>
+          <p className={styles.adjuntosTitulo}>Archivos adjuntos al enviar solicitudes</p>
+          <div className={styles.adjuntosFilas}>
+            {([
+              { campo: 'adjuntos_excel' as const, etiqueta: 'Excel' },
+              { campo: 'adjuntos_json' as const, etiqueta: 'JSON' },
+            ]).map(({ campo, etiqueta }) => {
+              const activo = lab[campo]
+              return (
+                <div key={campo} className={styles.adjuntosFila}>
+                  <span className={styles.adjuntosNombre}>{etiqueta}</span>
+                  <button
+                    type="button"
+                    disabled={guardandoAdjunto}
+                    onClick={() => void toggleAdjunto(campo, !activo)}
+                    className={`${styles.adjuntosToggle} ${activo ? styles.adjuntosToggleOn : styles.adjuntosToggleOff} ${guardandoAdjunto ? styles.adjuntosToggleFijo : ''}`}
+                    title={activo ? `Desactivar ${etiqueta}` : `Activar ${etiqueta}`}
+                  >
+                    <span className={styles.adjuntosToggleCirculo} />
+                  </button>
+                  <span className={styles.adjuntosEstado}>{activo ? 'Se adjunta' : 'No se adjunta'}</span>
+                </div>
+              )
+            })}
+            <div className={styles.adjuntosFila}>
+              <span className={styles.adjuntosNombre}>PDF</span>
+              <button
+                type="button"
+                disabled
+                className={`${styles.adjuntosToggle} ${styles.adjuntosToggleOn} ${styles.adjuntosToggleFijo}`}
+              >
+                <span className={styles.adjuntosToggleCirculo} />
+              </button>
+              <span className={styles.adjuntosEstado}>Siempre activo</span>
+            </div>
+          </div>
+        </div>
 
         <div className={styles.tabs} style={acento}>
           {PESTANAS.map((p) => (

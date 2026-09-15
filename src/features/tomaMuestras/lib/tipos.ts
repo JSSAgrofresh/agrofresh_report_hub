@@ -97,6 +97,8 @@ export interface LaboratorioConfig {
   prefijo_solicitud: string
   activo: boolean
   orden: number
+  adjuntos_excel: boolean
+  adjuntos_json: boolean
 }
 
 export type LaboratorioInput = Omit<LaboratorioConfig, 'id'>
