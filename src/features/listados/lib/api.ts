@@ -73,9 +73,10 @@ export function listarEspeciesActivas() {
 }
 
 /** Variedades activas de una especie puntual (id) -el select de Variedad en
- * Nueva Solicitud depende de qué Especie se eligió antes-. */
+ * Nueva Solicitud depende de qué Especie se eligió antes-. Solo las estándar
+ * para evitar duplicados en el selector. */
 export function listarVariedadesActivasDeEspecie(especieId: number) {
-  return listarValores('variedad', { especieId }).then((v) => v.map((x) => x.valor))
+  return listarValores('variedad', { especieId }).then((v) => v.filter((x) => x.es_estandar).map((x) => x.valor))
 }
 
 /** Excel con las 4 listas -Sold To, Ship To, Especie, Variedad- tal como

@@ -242,7 +242,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       .then((plantas) => setPlantasDisponibles(plantas.filter((p) => p.activo)))
       .catch(() => setPlantasDisponibles([]))
     listarEspeciesActivas()
-      .then(setEspeciesDisponibles)
+      .then((es) => setEspeciesDisponibles(es.filter((e) => e.es_estandar)))
       .catch(() => setEspeciesDisponibles([]))
   }, [])
 
