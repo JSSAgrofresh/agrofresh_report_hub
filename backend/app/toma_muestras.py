@@ -420,11 +420,11 @@ class Solicitud(SolicitudIn):
     # trae el archivo del GC, así que al subir los resultados cada vial
     # encuentra su solicitud sin volver a emparejar nada.
     codigo_muestra: str | None = None
-    # Una solicitud se puede editar libremente hasta que se envía por correo:
-    # desde ahí queda de solo lectura, tanto en la pantalla (se ocultan
-    # Editar/Enviar) como en la API (PUT y /enviar la rechazan con 409). Nace
-    # siempre en False -no se acepta en SolicitudIn- y solo lo cambia
-    # `enviar_solicitud_por_correo`, después de que el correo salió de verdad.
+    # Una solicitud se puede editar en cualquier momento, incluso después de
+    # enviada. Editar resetea `enviada` a False para que el reenvío automático
+    # se dispare al guardar. Nace siempre en False -no se acepta en
+    # SolicitudIn- y solo lo pone en True `enviar_solicitud_por_correo`,
+    # después de que el correo salió de verdad.
     enviada: bool = False
     enviado_en: str | None = None
 
