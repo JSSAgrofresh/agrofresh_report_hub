@@ -39,6 +39,12 @@
   margin-bottom: var(--space-6);
 }
 
+.iconoGrafico {
+  width: 36px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
 .plegar {
   display: none; /* solo en escritorio: en móvil la barra ya es un cajón */
   flex-shrink: 0;
@@ -379,9 +385,11 @@
      se puede animar-, así que se va plegando en vez de desaparecer de golpe.
      Al volver, la opacidad entra un pelo después de que ya empezó a abrirse
      el espacio: aparecer antes de tener dónde se ve como un salto. */
-  .colapsada .marco {
+  .colapsada .marco,
+  .colapsada .iconoGrafico {
     max-height: 0;
     opacity: 0;
+    overflow: hidden;
     transition:
       max-height 0.26s ease,
       opacity 0.14s ease;

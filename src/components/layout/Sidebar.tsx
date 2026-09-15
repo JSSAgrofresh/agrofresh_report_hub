@@ -238,6 +238,12 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
         style={estiloSidebar}
       >
         <div className={styles.brand}>
+          <svg className={styles.iconoGrafico} viewBox="0 0 28 20" fill="none" aria-hidden="true">
+            <rect x="0"  y="10" width="5" height="10" rx="1.5" fill="rgba(255,255,255,.55)"/>
+            <rect x="7"  y="5"  width="5" height="15" rx="1.5" fill="rgba(255,255,255,.75)"/>
+            <rect x="14" y="1"  width="5" height="19" rx="1.5" fill="rgba(255,255,255,.9)"/>
+            <rect x="21" y="7"  width="5" height="13" rx="1.5" fill="rgba(255,255,255,.65)"/>
+          </svg>
           <span className={styles.marco}>
             <img src={agrofreshLogo} alt="AgroFresh" className={styles.logo} />
           </span>
@@ -360,7 +366,7 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                 className={styles.usuarioAvatar}
                 style={{ background: AVATARES.find((a) => a.id === avatarId)?.bg ?? '#C83C32' }}
               >
-                <div style={{ width: 26, height: 26 }}>
+                <div style={{ width: 32, height: 32 }}>
                   {AVATARES.find((a) => a.id === avatarId)?.svg}
                 </div>
               </div>
@@ -379,8 +385,8 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                       setSelectorAbierto(false)
                     }}
                   >
-                    <div style={{ background: av.bg, width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <div style={{ width: 26, height: 26 }}>{av.svg}</div>
+                    <div style={{ background: av.bg, width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: 34, height: 34 }}>{av.svg}</div>
                     </div>
                   </button>
                 ))}
