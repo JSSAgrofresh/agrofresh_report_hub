@@ -366,7 +366,7 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                 className={styles.usuarioAvatar}
                 style={{ background: AVATARES.find((a) => a.id === avatarId)?.bg ?? '#C83C32' }}
               >
-                <div style={{ width: 32, height: 32 }}>
+                <div style={{ width: 34, height: 34 }}>
                   {AVATARES.find((a) => a.id === avatarId)?.svg}
                 </div>
               </div>
