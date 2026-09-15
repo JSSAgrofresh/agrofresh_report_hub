@@ -1158,7 +1158,9 @@ def _generar_json_solicitud(datos: dict) -> bytes:
     import json as _json
     lab = str(datos.get("laboratorio") or "")
     ship_to = str(datos.get("ship_to") or "")
-    correos_resultado = destinatarios_resultado_por_tipo(lab, ship_to)
+    sold_to = str(datos.get("sold_to") or "")
+    especie = str(datos.get("especie") or "")
+    correos_resultado = destinatarios_resultado_por_tipo(lab, ship_to, sold_to, especie)
     email_muestreador = _normalizar_correo(datos.get("email_solicitante"))
     datos_formateados = {
         k: (_iso_a_ddmmyyyy(v) if k in _CAMPOS_FECHA else v)
