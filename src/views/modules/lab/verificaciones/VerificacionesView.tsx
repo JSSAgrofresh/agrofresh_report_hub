@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/features/auth'
+import { esAdminGeneral } from '@/features/usuarios'
 import {
   borradorVacio,
   guardarRegistro,
@@ -63,7 +64,6 @@ function hoyISO(): string {
   return local.toISOString().slice(0, 10)
 }
 
-const EMAIL_SUPERADMIN_VERIFICACIONES = 'jorge.sandoval@agrofresh.com'
 
 
 function esBorradorCompatible(valor: unknown, config: ConfigVerificaciones): valor is RegistroInput {
@@ -86,7 +86,7 @@ export function VerificacionesView() {
   const { user } = useAuth()
   const [parametrosUrl] = useSearchParams()
   const [fecha, setFecha] = useState(() => parametrosUrl.get('fecha') || hoyISO())
-  const esSuperadmin = user?.email.toLowerCase() === EMAIL_SUPERADMIN_VERIFICACIONES
+  const esSuperadmin = !!user && esAdminGeneral(user)
 
   const [config, setConfig] = useState<ConfigVerificaciones | null>(null)
   const [borrador, setBorrador] = useState<RegistroInput | null>(null)
