@@ -360,7 +360,7 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                 className={styles.usuarioAvatar}
                 style={{ background: AVATARES.find((a) => a.id === avatarId)?.bg ?? '#C83C32' }}
               >
-                <div style={{ width: 22, height: 22 }}>
+                <div style={{ width: 26, height: 26 }}>
                   {AVATARES.find((a) => a.id === avatarId)?.svg}
                 </div>
               </div>
@@ -379,8 +379,8 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                       setSelectorAbierto(false)
                     }}
                   >
-                    <div style={{ background: av.bg, width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <div style={{ width: 22, height: 22 }}>{av.svg}</div>
+                    <div style={{ background: av.bg, width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: 26, height: 26 }}>{av.svg}</div>
                     </div>
                   </button>
                 ))}
