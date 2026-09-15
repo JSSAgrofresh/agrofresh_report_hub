@@ -621,6 +621,53 @@ def _curva_de(lineas: list[str]) -> list[dict[str, object]]:
     return curva
 
 
+def _curva_ultima_de(lineas: list[str]) -> list[dict[str, object]]:
+    """Datos de calibración de la ÚLTIMA recalibración del archivo.
+
+    El GC escribe una sección "Calibration Table → Overview Table" en el
+    método y además una por cada punto de calibración inyectado. Se buscan
+    todos esos pares y se devuelven los datos del más reciente.
+    Si no hay más de uno (o no hay ninguno), se cae a `_curva_de`.
+    """
+    candidatos: list[int] = []
+    for i, linea in enumerate(lineas):
+        if _INICIO_CURVA in linea:
+            for j in range(i + 1, min(i + 16, len(lineas))):
+                if _TABLA_CURVA in lineas[j]:
+                    candidatos.append(j)
+                    break
+
+    if not candidatos:
+        return []
+
+    ultimo = candidatos[-1]
+    fin = next(
+        (i for i in range(ultimo + 4, len(lineas)) if lineas[i].strip().startswith("====")),
+        len(lineas),
+    )
+    curva: list[dict[str, object]] = []
+    compuesto = ""
+    for f in _filas_de_tabla(lineas, ultimo, fin):
+        if len(f) < 8:
+            continue
+        if f[-1].strip():
+            compuesto = f[-1].strip()
+        curva.append(
+            {
+                "compuesto": compuesto,
+                "rettime": _numero(f[0]),
+                "senal": f[1].strip(),
+                "nivel": _numero(f[2]),
+                "amount": _numero(f[3]),
+                "area": _numero(f[4]),
+                "factor_respuesta": _numero(f[5]),
+                "ref": f[6].strip(),
+                "istd": f[7].strip(),
+            }
+        )
+    return curva
+
+
 # ── La estadística de los picos ────────────────────────────────────────────
 #
 # Alto, ancho y simetría de cada pico -que no están en ninguna otra parte del
@@ -889,6 +936,7 @@ class ReporteGC:
     metodo: list[tuple[str, str, str]]
     auditoria: list[dict[str, str]]
     curva: list[dict[str, object]]
+    curva_ultima: list[dict[str, object]]
     estadistica: list[dict[str, object]]
     resumen: list[dict[str, object]]
     bitacora: list[dict[str, str]]
@@ -913,6 +961,7 @@ def parsear_reporte_gc(contenido: bytes) -> ReporteGC:
         metodo=_metodo_de(lineas),
         auditoria=_auditoria_de(lineas),
         curva=_curva_de(lineas),
+        curva_ultima=_curva_ultima_de(lineas),
         estadistica=_estadistica_de(lineas),
         resumen=_resumen_de(lineas),
         bitacora=_bitacora_de(lineas),

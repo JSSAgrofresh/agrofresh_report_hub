@@ -145,6 +145,9 @@ export interface DetalleGC {
   metodo?: CampoCabeceraGC[]
   auditoria?: CambioMetodoGC[]
   curva?: FilaCurvaGC[]
+  /** Datos de calibración de la ÚLTIMA recalibración del archivo. Es lo que
+   * usa la hoja "Analítica de curva" para calcular pendiente, intercepto y R. */
+  curva_ultima?: FilaCurvaGC[]
   estadistica?: FilaEstadisticaGC[]
   resumen?: FilaResumenGC[]
   bitacora?: EventoBitacoraGC[]
