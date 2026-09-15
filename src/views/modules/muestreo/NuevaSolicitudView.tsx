@@ -1418,11 +1418,12 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                       <th>Nombre</th>
                       <th>Correo</th>
                       <th>Rol</th>
+                      {resultadosShipTo.some((c) => c.especie) && <th>Especie</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {resultadosShipTo.map((c) => (
-                      <tr key={c.email}>
+                      <tr key={`${c.email}-${c.especie}`}>
                         <td>{c.nombre || '—'}</td>
                         <td className={styles.mono}>{c.email}</td>
                         <td>
@@ -1432,6 +1433,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                               ? 'Copia oculta AgroFresh'
                               : 'Copia AgroFresh'}
                         </td>
+                        {resultadosShipTo.some((x) => x.especie) && (
+                          <td>{c.especie || '—'}</td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
