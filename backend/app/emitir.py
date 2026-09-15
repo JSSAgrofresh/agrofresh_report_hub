@@ -266,7 +266,7 @@ HOJA_RESUMEN = "Resumen de viales"
 HOJA_BITACORA = "Bitácora"
 HOJA_ANALITICA = "Analítica de curva"
 
-HOJAS_VISIBLES = (HOJA_GUIA, HOJA_CABECERA, HOJA_POR_VIAL, HOJA_ANALITICA)
+HOJAS_VISIBLES = (HOJA_CABECERA, HOJA_POR_VIAL, HOJA_ANALITICA)
 
 # Los 12 campos con que el equipo declara cada vial en la tabla de la
 # secuencia, con su etiqueta tal cual: es como el laboratorio los lee en el
@@ -682,6 +682,11 @@ def _crear_hoja_analitica(wb, curva: list[FilaCurvaOut]) -> None:
     la línea de regresión. Siempre usa los datos de la última recalibración."""
     from openpyxl.chart import ScatterChart, Reference, Series
 
+    # Paleta AgroFresh
+    _VERDE = "345424"
+    _VERDE_OSCURO = "24391A"
+    _GRIS_TEXTO = "3D4A43"
+
     ws = wb.create_sheet(HOJA_ANALITICA)
     ws.sheet_view.showGridLines = False
 
@@ -705,8 +710,7 @@ def _crear_hoja_analitica(wb, curva: list[FilaCurvaOut]) -> None:
 
     # ── Tabla resumen: una fila por compuesto ─────────────────────────────────
     for col, titulo in enumerate(("Compuesto", "Pendiente", "Intercepto", "R"), start=1):
-        celda = ws.cell(row=1, column=col, value=titulo)
-        celda.font = openpyxl.styles.Font(bold=True)
+        ws.cell(row=1, column=col, value=titulo).font = openpyxl.styles.Font(bold=True)
 
     for i, comp in enumerate(datos.keys(), start=2):
         pend, intcp, r = regresiones[comp]
@@ -719,70 +723,101 @@ def _crear_hoja_analitica(wb, curva: list[FilaCurvaOut]) -> None:
     _dar_formato_de_tabla(ws, "TablaResumenAnalitica", f"A1:D{n_comp + 1}", ESTILO_TABLA_CABECERA)
     for col, ancho in zip("ABCD", (22, 16, 14, 12)):
         ws.column_dimensions[col].width = ancho
-    # Columnas E y F guardan los 2 puntos de la línea de regresión; son datos
-    # auxiliares del gráfico, no del laboratorio: van muy estrechas.
+    # Columnas E y F guardan los 2 puntos de la línea de regresión (auxiliares
+    # del gráfico, no del laboratorio): van muy estrechas.
     ws.column_dimensions["E"].width = 1
     ws.column_dimensions["F"].width = 1
 
-    # ── Un bloque por compuesto: tabla de niveles + gráfico ──────────────────
-    FILAS_POR_BLOQUE = 22  # alto suficiente para el gráfico (≈12 cm)
+    # ── Un bloque por compuesto: ecuación, tabla de niveles + gráfico ─────────
+    # Filas por bloque:
+    #   fb+0 : nombre del compuesto
+    #   fb+1 : ecuación (Área = … × Amount … | R = …)
+    #   fb+2 : encabezados de la tabla (Nivel / Amount / Área)
+    #   fb+3…: filas de datos
+    #   resto: espacio hasta el próximo bloque / para el gráfico
+    FILAS_POR_BLOQUE = 24
     fila_base = n_comp + 4
 
     for idx, (comp, filas) in enumerate(datos.items()):
         fb = fila_base + idx * FILAS_POR_BLOQUE
+        pend, intcp, r = regresiones[comp]
 
         # Nombre del compuesto
-        ws.cell(row=fb, column=1, value=comp).font = openpyxl.styles.Font(bold=True, size=12)
+        ws.cell(row=fb, column=1, value=comp).font = openpyxl.styles.Font(
+            bold=True, size=12, color=_VERDE_OSCURO
+        )
+
+        # Ecuación de la curva (misma línea que muestra el equipo)
+        signo = "+" if intcp >= 0 else "-"
+        eq = (
+            f"Área = {pend:.7g} × Amount {signo} {abs(intcp):.7g}"
+            f"     R = {r:.5f}"
+        )
+        ws.cell(row=fb + 1, column=1, value=eq).font = openpyxl.styles.Font(
+            italic=True, size=10, color=_GRIS_TEXTO
+        )
 
         # Encabezados de la tabla de niveles
-        for col, texto in enumerate(("Nivel", "Amount (ng/µL)", "Área (pA*s)"), start=1):
-            ws.cell(row=fb + 1, column=col, value=texto).font = openpyxl.styles.Font(bold=True)
+        for col, texto in enumerate(("Nivel", "Amount (ng/µL)", "Área (pA·s)"), start=1):
+            ws.cell(row=fb + 2, column=col, value=texto).font = openpyxl.styles.Font(bold=True)
 
-        # Filas de datos
+        # Filas de datos (a partir de fb+3)
         n_niveles = 0
         for j, fila in enumerate(filas):
-            ws.cell(row=fb + 2 + j, column=1, value=fila.nivel)
-            ws.cell(row=fb + 2 + j, column=2, value=fila.amount)
-            ws.cell(row=fb + 2 + j, column=3, value=fila.area)
+            ws.cell(row=fb + 3 + j, column=1, value=fila.nivel)
+            ws.cell(row=fb + 3 + j, column=2, value=fila.amount)
+            ws.cell(row=fb + 3 + j, column=3, value=fila.area)
             n_niveles += 1
 
-        # Dos puntos de la línea de regresión en columnas E y F
-        pend, intcp, _ = regresiones[comp]
-        xs = [f.amount for f in filas if f.amount is not None]
-        fila_regr = fb + 2
-        if xs:
-            x_min, x_max = min(xs), max(xs)
+        # Dos puntos de la línea de regresión en columnas E/F
+        xs_validos = [f.amount for f in filas if f.amount is not None]
+        fila_regr = fb + 3
+        if xs_validos:
+            x_min, x_max = min(xs_validos), max(xs_validos)
             ws.cell(row=fila_regr,     column=5, value=x_min)
             ws.cell(row=fila_regr,     column=6, value=pend * x_min + intcp)
             ws.cell(row=fila_regr + 1, column=5, value=x_max)
             ws.cell(row=fila_regr + 1, column=6, value=pend * x_max + intcp)
 
-        # Gráfico de dispersión
+        # ── Gráfico de dispersión ─────────────────────────────────────────────
         chart = ScatterChart()
-        chart.scatterStyle = "lineMarker"
+        chart.scatterStyle = "marker"
         chart.title = comp
-        chart.style = 10
-        chart.x_axis.title = "Amount (ng/µL)"
-        chart.y_axis.title = "Área (pA*s)"
-        chart.width = 15
-        chart.height = 12
+        chart.style = 2   # fondo blanco, limpio
+        chart.width = 16
+        chart.height = 13
         chart.legend = None
 
-        # Serie 1: puntos de calibración
-        xdata = Reference(ws, min_col=2, min_row=fb + 2, max_row=fb + 1 + n_niveles)
-        ydata = Reference(ws, min_col=3, min_row=fb + 2, max_row=fb + 1 + n_niveles)
-        s1 = Series(ydata, xdata, title=comp)
+        # Ejes: delete=False es imprescindible para que Excel muestre los
+        # valores numéricos en los ejes de un ScatterChart (por defecto quedan
+        # en None, lo que los oculta igual que delete=True).
+        chart.x_axis.delete = False
+        chart.y_axis.delete = False
+        chart.x_axis.title = "Amount (ng/µL)"
+        chart.y_axis.title = "Área (pA·s)"
+        chart.x_axis.numFmt = "0.####"
+        chart.y_axis.numFmt = "#,##0.##"
+        chart.x_axis.scaling.min = 0
+        chart.y_axis.scaling.min = 0
+
+        # Serie 1: puntos de calibración (+ negro)
+        xdata = Reference(ws, min_col=2, min_row=fb + 3, max_row=fb + 2 + n_niveles)
+        ydata = Reference(ws, min_col=3, min_row=fb + 3, max_row=fb + 2 + n_niveles)
+        s1 = Series(ydata, xdata, title="Calibración")
         s1.marker.symbol = "plus"
-        s1.marker.size = 7
+        s1.marker.size = 8
+        s1.marker.graphicalProperties.solidFill = "1A1A1A"
+        s1.marker.graphicalProperties.line.solidFill = "1A1A1A"
         s1.graphicalProperties.line.noFill = True
         chart.series.append(s1)
 
-        # Serie 2: línea de regresión
-        if xs:
+        # Serie 2: línea de regresión (verde AgroFresh)
+        if xs_validos:
             xreg = Reference(ws, min_col=5, min_row=fila_regr, max_row=fila_regr + 1)
             yreg = Reference(ws, min_col=6, min_row=fila_regr, max_row=fila_regr + 1)
             s2 = Series(yreg, xreg, title="Regresión")
-            s2.graphicalProperties.line.solidFill = "4472C4"
+            s2.graphicalProperties.line.solidFill = _VERDE
+            s2.graphicalProperties.line.width = 22225  # ≈ 1.75 pt
             s2.marker.symbol = "none"
             chart.series.append(s2)
 

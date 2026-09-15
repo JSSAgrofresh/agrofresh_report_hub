@@ -207,12 +207,12 @@ class TestExcel:
         ]
 
     def test_solo_se_abren_las_tres_hojas_de_siempre(self, muestras, cabecera, secciones):
-        """Doce pestañas de golpe no las mira nadie. Las otras ocho son el
-        respaldo: quedan ocultas, a un clic derecho de distancia."""
+        """Doce pestañas de golpe no las mira nadie. Las otras nueve son el
+        respaldo (incluida Guía): quedan ocultas, a un clic derecho."""
         wb = _libro(muestras, cabecera, **secciones)
         visibles = [h.title for h in wb.worksheets if h.sheet_state == "visible"]
         assert visibles == [
-            emitir.HOJA_GUIA, emitir.HOJA_CABECERA, emitir.HOJA_POR_VIAL, emitir.HOJA_ANALITICA,
+            emitir.HOJA_CABECERA, emitir.HOJA_POR_VIAL, emitir.HOJA_ANALITICA,
         ]
         assert len(wb.sheetnames) == 12
 
