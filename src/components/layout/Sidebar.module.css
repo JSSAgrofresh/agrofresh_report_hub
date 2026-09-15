@@ -255,12 +255,21 @@
   gap: 9px;
 }
 
+.usuarioAvatarBtn {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 50%;
+  transition: opacity 0.15s;
+}
+.usuarioAvatarBtn:hover { opacity: 0.82; }
+
 .usuarioAvatar {
   width: 31px;
   height: 31px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--color-primary-hover);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -270,6 +279,39 @@
 .usuarioAvatar svg {
   width: 15px;
   height: 15px;
+}
+
+.avatarPopover {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  background: var(--color-primary-hover, #1e2a38);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  z-index: 200;
+}
+
+.avatarOpcion {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform 0.15s, opacity 0.15s;
+  opacity: 0.75;
+}
+.avatarOpcion:hover { transform: scale(1.12); opacity: 1; }
+
+.avatarOpcionActiva {
+  opacity: 1;
+  outline: 2px solid rgba(255,255,255,0.7);
+  outline-offset: 2px;
+  border-radius: 50%;
 }
 
 .usuarioInfo {
