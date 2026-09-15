@@ -18,6 +18,7 @@ import {
 import {
   IconConverter,
   IconDataCore,
+  IconDatabase,
   IconEmitir,
   IconFrasco,
   IconIngest,
@@ -193,7 +194,19 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   const [colapsada, setColapsada] = useState(leerColapso)
   const [avatarId, setAvatarId] = useState<AvatarId>(leerAvatar)
   const [selectorAbierto, setSelectorAbierto] = useState(false)
-  const avatarRef = useRef<HTMLButtonElement>(null)
+  const avatarZonaRef = useRef<HTMLDivElement>(null)
+
+  // Cierra el selector al hacer clic fuera del área avatar + popover.
+  useEffect(() => {
+    if (!selectorAbierto) return
+    function onClickFuera(e: MouseEvent) {
+      if (avatarZonaRef.current && !avatarZonaRef.current.contains(e.target as Node)) {
+        setSelectorAbierto(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickFuera)
+    return () => document.removeEventListener('mousedown', onClickFuera)
+  }, [selectorAbierto])
 
   // Con el menú abierto encima, arrastrar el dedo movía la página de atrás:
   // se veía el contenido desplazándose bajo un menú que parecía trabado. Solo
@@ -229,6 +242,8 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   const veTomaMuestras = puedeVerTomaMuestras(user)
   const acento = user.area ? AREAS[user.area].colorPrimario : undefined
   const estiloSidebar = acento ? ({ '--acento-usuario': acento } as CSSProperties) : undefined
+
+  const avatarActual = AVATARES.find((a) => a.id === avatarId)
 
   return (
     <>
@@ -354,44 +369,53 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
         </nav>
 
         <div className={styles.pie}>
+          <div className={styles.estadoBd}>
+            <IconDatabase className={styles.estadoBdIcono} />
+            <span>Base de datos: pendiente</span>
+          </div>
 
-          <div className={styles.usuario} style={{ position: 'relative' }}>
-            <button
-              ref={avatarRef}
-              className={styles.usuarioAvatarBtn}
-              onClick={() => setSelectorAbierto((v) => !v)}
-              title="Cambiar avatar"
-            >
-              <div
-                className={styles.usuarioAvatar}
-                style={{ background: AVATARES.find((a) => a.id === avatarId)?.bg ?? '#C83C32' }}
+          <div className={styles.usuario}>
+            {/* Zona avatar + popover: un div wrapper para el clic-fuera */}
+            <div ref={avatarZonaRef} style={{ position: 'relative', flexShrink: 0 }}>
+              <button
+                type="button"
+                className={styles.usuarioAvatarBtn}
+                onClick={() => setSelectorAbierto((v) => !v)}
+                aria-label="Cambiar avatar"
+                title="Cambiar avatar"
               >
-                <div style={{ width: 34, height: 34 }}>
-                  {AVATARES.find((a) => a.id === avatarId)?.svg}
+                <div
+                  className={styles.usuarioAvatar}
+                  style={{ background: avatarActual?.bg ?? '#C83C32' }}
+                >
+                  <div style={{ width: 34, height: 34 }}>
+                    {avatarActual?.svg}
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
 
-            {selectorAbierto && (
-              <div className={styles.avatarPopover}>
-                {AVATARES.map((av) => (
-                  <button
-                    key={av.id}
-                    className={cn(styles.avatarOpcion, avatarId === av.id && styles.avatarOpcionActiva)}
-                    title={av.label}
-                    onClick={() => {
-                      setAvatarId(av.id)
-                      guardarAvatar(av.id)
-                      setSelectorAbierto(false)
-                    }}
-                  >
-                    <div style={{ background: av.bg, width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <div style={{ width: 34, height: 34 }}>{av.svg}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
+              {selectorAbierto && (
+                <div className={styles.avatarPopover}>
+                  {AVATARES.map((av) => (
+                    <button
+                      key={av.id}
+                      type="button"
+                      className={cn(styles.avatarOpcion, avatarId === av.id && styles.avatarOpcionActiva)}
+                      title={av.label}
+                      onClick={() => {
+                        setAvatarId(av.id)
+                        guardarAvatar(av.id)
+                        setSelectorAbierto(false)
+                      }}
+                    >
+                      <div style={{ background: av.bg, width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: 34, height: 34 }}>{av.svg}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className={styles.usuarioInfo}>
               <span className={styles.usuarioNombre}>{user.nombre}</span>
