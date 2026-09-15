@@ -115,18 +115,24 @@ describe('micropipetas', () => {
 })
 
 describe('balanza', () => {
-  it('convierte las lecturas de gramos a miligramos antes de evaluar', () => {
-    const calculo = calcularBalanza([0.0999, 0.0999, 0.0999], 100, 0.016)
-    expect(calculo.promedio).toBe(99.9)
-    expect(calculo.resultado).toBe('No aceptable')
+  it('acepta una pesa dentro de tolerancia', () => {
+    // 1 g nominal, tolerancia 0.03 g → promedio 1.0001 g, desv = 0.0001 ≤ 0.03
+    const calculo = calcularBalanza([1.0001, 1.0001, 1.0001], 1, 0.03)
+    expect(calculo.promedio).toBeCloseTo(1.0001, 4)
+    expect(calculo.resultado).toBe('Aceptable')
   })
 
   it('rechaza fuera de tolerancia', () => {
-    expect(calcularBalanza([0.1001, 0.1001, 0.1001], 100, 0.03).resultado).toBe('No aceptable')
+    // 1 g nominal, tolerancia 0.001 g → promedio 1.002 g, desv = 0.002 > 0.001
+    expect(calcularBalanza([1.002, 1.002, 1.002], 1, 0.001).resultado).toBe('No aceptable')
+  })
+
+  it('el borde de la tolerancia es aceptable', () => {
+    expect(calcularBalanza([1.001, 1.001, 1.001], 1, 0.001).resultado).toBe('Aceptable')
   })
 
   it('con menos de tres lecturas no concluye', () => {
-    expect(calcularBalanza([0.1, null, null], 100, 0.03).resultado).toBe('')
+    expect(calcularBalanza([1.0, null, null], 1, 0.03).resultado).toBe('')
   })
 })
 
