@@ -152,4 +152,5 @@ export interface ContactoResultado {
   email: string
   tipo: 'resultado_cliente' | 'resultado_interno'
   tipo_copia: 'cc' | 'bcc'
+  especie: string
 }

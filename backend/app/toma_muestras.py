@@ -1120,6 +1120,7 @@ class ContactoResultadoOut(BaseModel):
     email: str
     tipo: str  # resultado_cliente | resultado_interno
     tipo_copia: str  # cc | bcc -solo tiene sentido si tipo es resultado_interno
+    especie: str  # vacío = aplica a todas las especies
 
 
 @router.get("/config/destinatarios-solicitud")
@@ -1147,6 +1148,7 @@ def resultados_de_ship_to(
             email=str(c.get("email") or ""),
             tipo=str(c.get("tipo") or ""),
             tipo_copia=str(c.get("tipo_copia") or "cc"),
+            especie=str(c.get("especie") or ""),
         )
         for c in sorted(contactos, key=lambda c: c.get("orden", 0))
         if c.get("activo", True) and c.get("email")
