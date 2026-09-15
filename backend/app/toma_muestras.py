@@ -1153,8 +1153,11 @@ def _iso_a_ddmmyyyy(valor: object) -> object:
     return valor
 
 
+_CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en"}
+
+
 def _generar_json_solicitud(datos: dict) -> bytes:
-    """JSON completo de la solicitud con correos por categoría como adjunto."""
+    """JSON adjunto para el laboratorio: datos de la solicitud + destinatarios de resultado."""
     import json as _json
     lab = str(datos.get("laboratorio") or "")
     ship_to = str(datos.get("ship_to") or "")
@@ -1162,14 +1165,14 @@ def _generar_json_solicitud(datos: dict) -> bytes:
     especie = str(datos.get("especie") or "")
     correos_resultado = destinatarios_resultado_por_tipo(lab, ship_to, sold_to, especie)
     email_muestreador = _normalizar_correo(datos.get("email_solicitante"))
-    datos_formateados = {
+    datos_limpios = {
         k: (_iso_a_ddmmyyyy(v) if k in _CAMPOS_FECHA else v)
         for k, v in datos.items()
+        if k not in _CAMPOS_INTERNOS
     }
     salida = {
-        **datos_formateados,
+        **datos_limpios,
         "correos": {
-            "solicitud": {"to": contactos_de_solicitud(lab)},
             "resultado_cliente": {"to": correos_resultado.get("to", [])},
             "resultado_interno": {
                 "cc": correos_resultado.get("cc", []),
