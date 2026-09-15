@@ -849,28 +849,6 @@ export function VerificacionesView() {
                     </tr>
                   ))}
                   <tr>
-                    <td className={styles.celdaEquipo}>Método cargado</td>
-                    <td>
-                      <select
-                        className={styles.input}
-                        style={{ width: 220 }}
-                        value={borrador.inyector.metodo_nombre}
-                        disabled={soloVer}
-                        onChange={(e) =>
-                          editar((p) => ({
-                            ...p,
-                            inyector: { ...p.inyector, metodo_nombre: e.target.value },
-                          }))
-                        }
-                      >
-                        <option value="">— Seleccionar —</option>
-                        {config.metodos.filter((m) => m.activo).map((m) => (
-                          <option key={m.id} value={m.nombre}>{m.nombre}</option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                  <tr>
                     <td className={styles.celdaEquipo}>Observaciones del inyector</td>
                     <td>
                       <input
