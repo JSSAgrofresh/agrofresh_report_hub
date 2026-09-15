@@ -668,6 +668,7 @@ def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends
     """Actualiza una solicitud existente -mismo folio, mismo archivo-, nunca
     crea una nueva. El guardado resetea `enviada` a False para que el
     frontend pueda disparar el reenvío automático tras editar."""
+    _validar_analitos(body)
     datos_actuales = _leer_datos_actuales(archivo)
     _exigir_acceso(usuario, datos_actuales)
 
@@ -684,8 +685,14 @@ def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends
     return Solicitud(archivo=nombre_archivo, **datos)
 
 
+def _validar_analitos(body: SolicitudIn) -> None:
+    if not body.analitos_solicitados:
+        raise HTTPException(422, "Debes seleccionar al menos un analito.")
+
+
 @router.post("/solicitudes")
 def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
+    _validar_analitos(body)
     numero = _siguiente_numero(body.laboratorio)
     ahora = datetime.now(timezone.utc)
     datos = body.model_dump()
@@ -1343,6 +1350,10 @@ def enviar_solicitud_por_correo(
     # Siempre parten los contactos configurados. Los invitados escritos en el
     # cuadro de envío se agregan sólo a este correo y no alteran el mantenedor.
     candidatos = contactos_de_solicitud(lab)
+    # Toda solicitud Actimist copia a estos dos referentes de producto.
+    tipo_aplicacion = str(datos.get("campos_laboratorio", {}).get("Tipo Aplicación") or "")
+    if tipo_aplicacion == "Actimist":
+        candidatos = candidatos + ["CJIMENEZ@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM"]
     if body.destinatario and body.destinatario.strip():
         candidatos.append(body.destinatario.strip())
     candidatos.extend(body.destinatarios_adicionales)

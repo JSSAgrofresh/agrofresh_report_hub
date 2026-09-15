@@ -777,6 +777,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       const etiqueta = unidad ? `${analito.nombre} (${unidad})` : analito.nombre
       camposLabFinal[etiqueta] = dosisSinIndicar[analito.id] ? '—' : (valor ?? '')
     }
+    if (codigosAnalitosSolicitados.length === 0) {
+      setError('Debes seleccionar al menos un analito.')
+      return
+    }
     // Los campos propios del Tipo de Aplicación se guardan siempre que
     // apliquen, aunque estén vacíos: el informe debe mostrar la estructura
     // completa configurada, no solo lo que tiene valor (a diferencia de los
