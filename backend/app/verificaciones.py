@@ -66,16 +66,18 @@ def _es_superadmin_verificaciones(usuario: Usuario) -> bool:
 
 
 def _exigir_fecha_editable(usuario: Usuario, fecha: date, existe: bool) -> None:
-    """La carga diaria se crea hoy y solo se corrige al día siguiente.
+    """La carga diaria se puede crear y modificar hoy y ayer.
 
-    La cuenta superadministradora puede intervenir cualquier fecha cuando sea
-    necesario corregir un histórico; esta regla se aplica en el servidor para
-    que no baste con alterar la URL del navegador.
+    Hoy: flujo normal (las analistas llenan durante el día, guardando por
+    secciones a medida que avanzan).
+    Ayer: corrección al día siguiente si quedó algo incompleto.
+    Más atrás: solo la cuenta superadministradora puede intervenir.
     """
     if _es_superadmin_verificaciones(usuario):
         return
-    fecha_permitida = date.today() - timedelta(days=1) if existe else date.today()
-    if fecha != fecha_permitida:
+    hoy = date.today()
+    ayer = hoy - timedelta(days=1)
+    if fecha not in (hoy, ayer):
         accion = "editar" if existe else "crear"
         raise HTTPException(403, f"No puedes {accion} verificaciones para esta fecha.")
 
