@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { notificacionesApi } from '../api/notificacionesApi'
 import type { Notificacion } from '../types'
 
@@ -6,13 +6,27 @@ export function useNotificaciones() {
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([])
   const [cargando, setCargando] = useState(true)
   const [tick, setTick] = useState(0)
+  const [toast, setToast] = useState<Notificacion | null>(null)
+  // null = carga inicial pendiente; número = último count conocido
+  const prevIdsRef = useRef<Set<number> | null>(null)
 
   useEffect(() => {
     let activo = true
     notificacionesApi
       .listar()
       .then((data) => {
-        if (activo) { setNotificaciones(data); setCargando(false) }
+        if (!activo) return
+        setNotificaciones(data)
+        setCargando(false)
+        // Primera carga: registrar IDs sin mostrar toast
+        if (prevIdsRef.current === null) {
+          prevIdsRef.current = new Set(data.map((n) => n.id))
+          return
+        }
+        // Cargas siguientes: mostrar toast si llegó algo nuevo
+        const nuevas = data.filter((n) => !prevIdsRef.current!.has(n.id) && !n.leida)
+        if (nuevas.length > 0) setToast(nuevas[0])
+        prevIdsRef.current = new Set(data.map((n) => n.id))
       })
       .catch(() => { if (activo) setCargando(false) })
     return () => { activo = false }
@@ -36,6 +50,7 @@ export function useNotificaciones() {
   }, [])
 
   const refrescar = useCallback(() => setTick((n) => n + 1), [])
+  const limpiarToast = useCallback(() => setToast(null), [])
 
-  return { notificaciones, noLeidas, cargando, marcarLeida, marcarTodasLeidas, refrescar }
+  return { notificaciones, noLeidas, cargando, marcarLeida, marcarTodasLeidas, refrescar, toast, limpiarToast }
 }
