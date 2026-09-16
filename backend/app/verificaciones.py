@@ -1474,6 +1474,47 @@ def guardar_seccion(
         return registro
 
 
+@router.delete("/registros/{fecha}/secciones/{seccion}", status_code=204)
+def limpiar_seccion(fecha: date, seccion: str, _: Usuario = Depends(solo_admin_general)) -> None:
+    """Borra los datos de una sección y libera su bloqueo de autoría.
+
+    Solo disponible para el administrador general: útil para corregir un guardado
+    accidental sin tener que borrar todo el día.
+    """
+    if seccion not in _SECCIONES_VALIDAS:
+        raise HTTPException(400, f"Sección desconocida: {seccion!r}.")
+
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT id FROM verif_registro WHERE fecha = %s", [fecha])
+        fila = cur.fetchone()
+        if not fila:
+            raise HTTPException(404, "Ese día no tiene verificaciones registradas.")
+        registro_id = fila["id"]
+
+        if seccion == "micropipetas":
+            cur.execute("DELETE FROM verif_micropipeta_medicion WHERE registro_id = %s", [registro_id])
+            cur.execute("UPDATE verif_registro SET temperatura_agua = NULL WHERE id = %s", [registro_id])
+        elif seccion == "balanza":
+            cur.execute("DELETE FROM verif_balanza_medicion WHERE registro_id = %s", [registro_id])
+        elif seccion == "temperatura":
+            cur.execute("DELETE FROM verif_temperatura_medicion WHERE registro_id = %s", [registro_id])
+        elif seccion == "gases":
+            cur.execute("DELETE FROM verif_gas_medicion WHERE registro_id = %s", [registro_id])
+            cur.execute(
+                "UPDATE verif_registro SET fugas_visibles = NULL, fugas_observacion = NULL WHERE id = %s",
+                [registro_id],
+            )
+        elif seccion == "inyector":
+            cur.execute("DELETE FROM verif_inyector WHERE registro_id = %s", [registro_id])
+        elif seccion == "detector":
+            cur.execute("DELETE FROM verif_detector WHERE registro_id = %s", [registro_id])
+
+        cur.execute(
+            "DELETE FROM verif_seccion_lock WHERE fecha = %s AND seccion = %s", [fecha, seccion]
+        )
+        cur.execute("UPDATE verif_registro SET actualizado_en = now() WHERE id = %s", [registro_id])
+
+
 @router.delete("/registros/{fecha}")
 def eliminar_registro(fecha: date, _: Usuario = Depends(solo_admin_general)) -> dict:
     """Borrar un día es borrar un registro de calidad: queda solo para el

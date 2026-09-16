@@ -125,6 +125,8 @@ interface SeccionProps {
   esPropio?: boolean
   onGuardar?: () => void
   guardando?: boolean
+  /** Solo admin general: borra los datos guardados de esta sección y libera el lock. */
+  onLimpiar?: () => void
 }
 
 /**
@@ -134,7 +136,7 @@ interface SeccionProps {
  * hace las micropipetas y otra la balanza, y el registro tiene que decir
  * quién hizo qué.
  */
-export function Seccion({ numero, titulo, nota, analista, resultado, id, children, lock, esPropio, onGuardar, guardando }: SeccionProps) {
+export function Seccion({ numero, titulo, nota, analista, resultado, id, children, lock, esPropio, onGuardar, guardando, onLimpiar }: SeccionProps) {
   return (
     <Card className={styles.seccion} id={id}>
       <div className={styles.seccionCabecera}>
@@ -157,6 +159,16 @@ export function Seccion({ numero, titulo, nota, analista, resultado, id, childre
             <span className={cn(styles.lockBadge, esPropio && styles.lockBadgePropio)}>
               {esPropio ? '✓ Guardado por ti' : `🔒 ${lock.analista}`}
             </span>
+          )}
+          {onLimpiar && lock && (
+            <button
+              type="button"
+              className={styles.limpiarBtn}
+              onClick={onLimpiar}
+              title="Borrar datos guardados de esta sección (solo admin general)"
+            >
+              Limpiar sección
+            </button>
           )}
           {onGuardar && (
             <Button

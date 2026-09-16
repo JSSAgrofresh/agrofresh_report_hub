@@ -54,6 +54,10 @@ export function eliminarRegistro(fecha: string) {
   return httpClient.delete<{ estado: string }>(`${BASE}/registros/${fecha}`)
 }
 
+export function limpiarSeccion(fecha: string, seccion: Seccion) {
+  return httpClient.delete<void>(`${BASE}/registros/${fecha}/secciones/${seccion}`)
+}
+
 export function firmarRegistro(fecha: string, nombre: string) {
   return httpClient.post<{ revisado_por: string; revisado_en: string | null }>(
     `${BASE}/registros/${fecha}/firmar`,
