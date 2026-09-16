@@ -24,6 +24,7 @@ from .usuarios import router as usuarios_router
 from .verificaciones import router as verificaciones_router
 from .datacore import router as datacore_router
 from .dashboard import router as dashboard_router
+from .notificaciones import router as notificaciones_router
 
 app = FastAPI(title="AgroFresh Report Hub API")
 
@@ -116,6 +117,7 @@ for _router in (
     verificaciones_router,
     datacore_router,
     dashboard_router,
+    notificaciones_router,
 ):
     app.include_router(_router, dependencies=SOLO_AGROFRESH)
 

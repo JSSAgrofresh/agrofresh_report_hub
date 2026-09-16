@@ -24,6 +24,7 @@ import { SolicitudDetalleView } from '@/views/modules/muestreo/SolicitudDetalleV
 import { UsuariosView } from '@/views/admin/UsuariosView'
 import { ListadosView } from '@/views/admin/ListadosView'
 import { LaboratoriosView } from '@/views/admin/laboratorios/LaboratoriosView'
+import { NotificacionesView } from '@/views/admin/NotificacionesView'
 import { NotFoundView } from '@/views/not-found/NotFoundView'
 
 export const router = createBrowserRouter([
@@ -100,6 +101,7 @@ export const router = createBrowserRouter([
               { path: ROUTES.adminUsuarios, element: <UsuariosView /> },
               { path: ROUTES.adminListados, element: <ListadosView /> },
               { path: ROUTES.adminLaboratorios, element: <LaboratoriosView /> },
+              { path: ROUTES.adminNotificaciones, element: <NotificacionesView /> },
               { path: ROUTES.tomaMuestrasConfig, element: <MuestreoConfigView /> },
             ],
           },
