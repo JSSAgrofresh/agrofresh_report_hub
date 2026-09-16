@@ -38,6 +38,13 @@ const COLOR_MV = '#eb6834'
 const COLOR_GRILLA = '#e1e5dc'
 const COLOR_EJE = '#77837b'
 
+function formatearEquipo(equipo: string): string {
+  return equipo
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 function num(v: number | null | undefined, decimales = 2): string {
   if (v === null || v === undefined || Number.isNaN(v)) return '—'
   return v.toLocaleString('es-CL', { minimumFractionDigits: decimales, maximumFractionDigits: decimales })
@@ -180,6 +187,7 @@ export function PostVentaView() {
   const [seleccionada, setSeleccionada] = useState<string | null>(null)
   const [detalle, setDetalle] = useState<CargaTrace | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [verMasFilas, setVerMasFilas] = useState(false)
 
   const mensaje = (err: unknown, alterno: string) =>
     err instanceof HttpError ? `El backend respondió con un error (${err.status}).` : alterno
@@ -226,6 +234,10 @@ export function PostVentaView() {
     return () => {
       vigente = false
     }
+  }, [seleccionada])
+
+  useEffect(() => {
+    setVerMasFilas(false)
   }, [seleccionada])
 
   // "Está cargando" se deduce de si el detalle que hay en mano corresponde a la
@@ -304,12 +316,18 @@ export function PostVentaView() {
                       {c.origen === 'email' ? 'Correo' : 'Manual'}
                     </span>
                   </div>
-                  <div className={styles.itemCliente}>
-                    {[c.cliente, c.planta, c.equipo].filter(Boolean).join(' · ') || 'Sin datos del informe'}
+                  <div className={styles.itemNombre}>
+                    {c.equipo
+                      ? formatearEquipo(c.equipo)
+                      : [c.cliente, c.planta].filter(Boolean).join(' · ') || 'Sin datos del informe'}
                   </div>
+                  {(c.cliente || c.planta) && c.equipo && (
+                    <div className={styles.itemCliente}>
+                      {[c.cliente, c.planta].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
                   <div className={styles.itemMetricas}>
-                    {c.n_registros.toLocaleString('es-CL')} registros · pH {num(c.ph_promedio)} ·{' '}
-                    {num(c.mv_promedio, 0)} mV
+                    {c.n_registros.toLocaleString('es-CL')} reg · pH {num(c.ph_promedio)} · {num(c.mv_promedio, 0)} mV
                   </div>
                 </button>
               ))}
@@ -323,17 +341,24 @@ export function PostVentaView() {
               <div className={styles.cabeceraDetalle}>
                 <div>
                   <div className={styles.tituloDetalleRow}>
-                    <h2 className={styles.tituloDetalle}>
-                      {[detalleVigente.cliente, detalleVigente.planta].filter(Boolean).join(' · ') || detalleVigente.equipo || 'Carga sin datos del informe'}
-                    </h2>
                     <span className={detalleVigente.origen === 'email' ? styles.badgeEmail : styles.badgeManual}>
                       {detalleVigente.origen === 'email' ? 'Ingesta automática' : 'Carga manual'}
                     </span>
                   </div>
+                  <h2 className={styles.tituloDetalle}>
+                    {detalleVigente.equipo
+                      ? formatearEquipo(detalleVigente.equipo)
+                      : [detalleVigente.cliente, detalleVigente.planta].filter(Boolean).join(' · ') || 'Carga sin datos del informe'}
+                  </h2>
                   <p className={styles.subtituloDetalle}>
-                    {fechaDeCarpeta(detalleVigente.carpeta)}
-                    {detalleVigente.equipo && detalleVigente.cliente ? ` · ${detalleVigente.equipo}` : ''}
-                    {detalleVigente.responsable ? ` · ${detalleVigente.responsable}` : ''}
+                    {[
+                      fechaDeCarpeta(detalleVigente.carpeta),
+                      detalleVigente.cliente,
+                      detalleVigente.planta,
+                      detalleVigente.responsable,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </p>
                 </div>
                 <div className={styles.acciones}>
@@ -413,11 +438,21 @@ export function PostVentaView() {
                 />
               </div>
 
-              <Card>
-                <h3 className={styles.tituloGrafico}>Tabla unificada</h3>
-                <p className={styles.notaGrafico}>
-                  Las mismas mediciones que ves en los gráficos, ya pareadas pH + ORP por cercanía de hora.
-                </p>
+              <Card className={styles.cardTabla}>
+                <div className={styles.tablaHeader}>
+                  <div>
+                    <h3 className={styles.tituloGrafico}>Tabla unificada</h3>
+                    <p className={styles.notaGrafico}>
+                      Mediciones pareadas pH + ORP por cercanía de hora.
+                    </p>
+                  </div>
+                  <span className={styles.tablaConteo}>
+                    {verMasFilas
+                      ? detalleVigente.filas.length.toLocaleString('es-CL')
+                      : Math.min(15, detalleVigente.filas.length).toLocaleString('es-CL')}{' '}
+                    / {detalleVigente.filas.length.toLocaleString('es-CL')} registros
+                  </span>
+                </div>
                 <div className={styles.tablaEnvoltorio}>
                   <table className={styles.tabla}>
                     <thead>
@@ -432,7 +467,7 @@ export function PostVentaView() {
                       </tr>
                     </thead>
                     <tbody>
-                      {detalleVigente.filas.slice(0, 300).map((f, i) => (
+                      {detalleVigente.filas.slice(0, verMasFilas ? undefined : 15).map((f, i) => (
                         <tr key={`${f.ts}-${i}`}>
                           <td>{f.fecha}</td>
                           <td>{f.hora}</td>
@@ -446,11 +481,18 @@ export function PostVentaView() {
                     </tbody>
                   </table>
                 </div>
-                {detalleVigente.filas.length > 300 && (
-                  <p className={styles.pie}>
-                    Se muestran las primeras 300 de {detalleVigente.filas.length.toLocaleString('es-CL')} mediciones. Descarga
-                    el informe PDF o los archivos originales para verlas todas.
-                  </p>
+                {detalleVigente.filas.length > 15 && (
+                  <div className={styles.tablaFooter}>
+                    <button
+                      type="button"
+                      className={styles.botonVerMas}
+                      onClick={() => setVerMasFilas((v) => !v)}
+                    >
+                      {verMasFilas
+                        ? 'Mostrar menos'
+                        : `Ver los ${(detalleVigente.filas.length - 15).toLocaleString('es-CL')} registros restantes`}
+                    </button>
+                  </div>
                 )}
               </Card>
             </div>
