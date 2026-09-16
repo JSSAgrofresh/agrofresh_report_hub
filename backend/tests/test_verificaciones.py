@@ -107,10 +107,10 @@ def test_micropipeta_justo_en_el_borde_es_aceptable():
 
 
 def test_micropipeta_aplica_el_factor_z():
-    """0.890 g a 25 °C: 0.890 × 1000 × 1.0037 = 893.293 µL.
+    """0.890 g a 25 °C: 0.890 × 1000 × 1.0037 = 893.293 µL → redondeado a 893.
     Sin corregir por Z sería 890 µL → rechazada por 10 µL que no existen."""
     r = calcular_micropipeta([0.890, 0.890, 0.890], 1.0037, 900, 8)
-    assert r["volumen_medio"] == pytest.approx(893.293, abs=0.01)
+    assert r["volumen_medio"] == 893  # entero redondeado
     assert r["resultado"] == ACEPTABLE
 
 

@@ -62,11 +62,12 @@ export function calcularMicropipeta(
   }
   // pesos en gramos → µL: masa_g × 1000 (mg/g) × Z (µL/mg)
   const volumen = (validos.reduce((a, b) => a + b, 0) / 3) * 1000 * z
-  const desviacion = Math.abs(volumen - nominal)
+  const volumenRedondeado = Math.round(volumen) // entero; la comparación con el rango usa este valor
+  const desviacion = Math.abs(volumenRedondeado - nominal)
   return {
-    volumen_medio: redondear(volumen),
+    volumen_medio: volumenRedondeado,
     desviacion: redondear(desviacion),
-    error_pct: nominal ? redondear(((volumen - nominal) / nominal) * 100) : null,
+    error_pct: nominal ? redondear(((volumenRedondeado - nominal) / nominal) * 100) : null,
     resultado: veredicto(desviacion <= tolerancia),
   }
 }
