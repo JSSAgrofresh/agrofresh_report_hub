@@ -43,6 +43,7 @@ from pydantic import BaseModel
 
 from .auth import Usuario, solo_admin_general, solo_interno, usuario_actual
 from .db import conexion, cursor_dict
+from .notificaciones import insertar_notif
 
 router = APIRouter(prefix="/api/verificaciones", tags=["verificaciones"])
 
@@ -1157,19 +1158,12 @@ def guardar_registro(
 
         # Notificación automática al crear un día nuevo (no en ediciones).
         if not es_edicion:
-            cur.execute(
-                """
-                INSERT INTO notificacion
-                    (titulo, resumen, cuerpo, categoria, audiencia, publicado, creado_por, metadata)
-                VALUES (%s, %s, %s, 'cromatografia', 'cromatografia', TRUE, %s, %s::jsonb)
-                """,
-                [
-                    f"Verificación diaria — {fecha.strftime('%d %b %Y')}",
-                    "Nueva verificación ingresada al laboratorio. Pendiente de revisión.",
-                    "",
-                    nombre_usuario,
-                    json.dumps({"tipo": "verificacion", "fecha": str(fecha)}),
-                ],
+            insertar_notif(
+                cur,
+                titulo=f"🧪 Verificación diaria registrada · {fecha.strftime('%d %b %Y')}",
+                resumen=f"{nombre_usuario} realizó y registró la verificación diaria del laboratorio correspondiente al {fecha.strftime('%d/%m/%Y')}.",
+                creado_por=nombre_usuario,
+                metadata={"tipo": "verificacion", "fecha": str(fecha)},
             )
 
         # Se borra y se vuelve a escribir: es la forma más simple de que lo
@@ -1642,6 +1636,7 @@ def firmar_registro(fecha: date, body: FirmarIn, quien: Usuario = Depends(usuari
     )
     if not es_admin_croma:
         raise HTTPException(403, "Solo el administrador general o de cromatografía puede firmar.")
+    nombre_quien = quien.nombre or quien.email
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(
             "UPDATE verif_registro SET revisado_por = %s, revisado_en = now() WHERE fecha = %s RETURNING revisado_por, revisado_en",
@@ -1650,6 +1645,13 @@ def firmar_registro(fecha: date, body: FirmarIn, quien: Usuario = Depends(usuari
         r = cur.fetchone()
         if r is None:
             raise HTTPException(404, "No hay registro para esa fecha.")
+        insertar_notif(
+            cur,
+            titulo=f"✅ Verificación diaria aceptada · {fecha.strftime('%d %b %Y')}",
+            resumen=f"{nombre_quien} aceptó la verificación diaria correspondiente al {fecha.strftime('%d/%m/%Y')}. Revisado por: {nombre}.",
+            creado_por=nombre_quien,
+            metadata={"tipo": "verificacion", "fecha": str(fecha)},
+        )
     return {
         "revisado_por": r["revisado_por"],
         "revisado_en": r["revisado_en"].isoformat() if r["revisado_en"] else None,

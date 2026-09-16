@@ -44,6 +44,7 @@ from pydantic import BaseModel, Field
 from . import config, config_store, correo, indice_solicitudes, mail_templates, r2, seguridad
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
+from .notificaciones import notificar
 from .listados import clave_normalizada as _clave_esp
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
 from .toma_muestras_pdf import generar_pdf_solicitud
@@ -746,6 +747,18 @@ def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual
     # existe. Al revés es recuperable — un archivo sin indexar se arregla
     # volviendo a correr scripts/indexar_solicitudes.py.
     indice_solicitudes.anotar(nombre_archivo, datos, r2_key)
+    nombre_quien = usuario.nombre or usuario.email
+    ship_to = body.ship_to or "—"
+    notificar(
+        titulo=f"📋 Nueva solicitud N.º {numero} · {body.sold_to or '—'}",
+        resumen=(
+            f"{nombre_quien} creó una solicitud de análisis. "
+            f"Solicitud: {numero} · Cliente: {body.sold_to or '—'} · Planta: {ship_to}."
+        ),
+        creado_por=nombre_quien,
+        audiencia="todos",
+        metadata={"tipo": "solicitud", "numero": numero, "archivo": nombre_archivo},
+    )
     return Solicitud(archivo=nombre_archivo, **datos)
 
 
