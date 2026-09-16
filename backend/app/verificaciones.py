@@ -1156,15 +1156,15 @@ def guardar_registro(
             )
         registro_id = cur.fetchone()["id"]
 
-        # Notificación automática al crear un día nuevo (no en ediciones).
-        if not es_edicion:
-            insertar_notif(
-                cur,
-                titulo=f"🧪 Verificación diaria registrada · {fecha.strftime('%d %b %Y')}",
-                resumen=f"{nombre_usuario} realizó y registró la verificación diaria del laboratorio correspondiente al {fecha.strftime('%d/%m/%Y')}.",
-                creado_por=nombre_usuario,
-                metadata={"tipo": "verificacion", "fecha": str(fecha)},
-            )
+        # Notificación al guardar el día (nuevo o actualizado).
+        accion = "registró" if not es_edicion else "actualizó"
+        insertar_notif(
+            cur,
+            titulo=f"🧪 Verificación diaria {'registrada' if not es_edicion else 'actualizada'} · {fecha.strftime('%d %b %Y')}",
+            resumen=f"{nombre_usuario} {accion} la verificación diaria del laboratorio correspondiente al {fecha.strftime('%d/%m/%Y')}.",
+            creado_por=nombre_usuario,
+            metadata={"tipo": "verificacion", "fecha": str(fecha)},
+        )
 
         # Se borra y se vuelve a escribir: es la forma más simple de que lo
         # guardado sea EXACTAMENTE lo que está en pantalla. Son unas pocas
