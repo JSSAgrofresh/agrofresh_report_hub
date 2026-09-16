@@ -30,6 +30,7 @@ pero lo que queda guardado es lo que se recalcula acá al guardar el día.
 # CRUD iguales tomando el modelo como argumento, y FastAPI necesita que la
 # anotación del cuerpo sea la clase de verdad y no el texto "modelo_in".
 import io
+import json
 import unicodedata
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -1152,6 +1153,23 @@ def guardar_registro(
             )
         registro_id = cur.fetchone()["id"]
 
+        # Notificación automática al crear un día nuevo (no en ediciones).
+        if not es_edicion:
+            cur.execute(
+                """
+                INSERT INTO notificacion
+                    (titulo, resumen, cuerpo, categoria, audiencia, publicado, creado_por, metadata)
+                VALUES (%s, %s, %s, 'cromatografia', 'cromatografia', TRUE, %s, %s::jsonb)
+                """,
+                [
+                    f"Verificación diaria — {fecha.strftime('%d %b %Y')}",
+                    "Nueva verificación ingresada al laboratorio. Pendiente de revisión.",
+                    "",
+                    nombre_usuario,
+                    json.dumps({"tipo": "verificacion", "fecha": str(fecha)}),
+                ],
+            )
+
         # Se borra y se vuelve a escribir: es la forma más simple de que lo
         # guardado sea EXACTAMENTE lo que está en pantalla. Son unas pocas
         # decenas de filas por día, todo dentro de la misma transacción.
@@ -1563,3 +1581,33 @@ def descargar_historico_excel(desde: str | None = None, hasta: str | None = None
         raise HTTPException(404, "No hay verificaciones en ese rango.")
     rango = f"{registros[0].fecha} a {registros[-1].fecha}"
     return _descarga(libro_historico(registros), f"historico_verificaciones {rango}.xlsx")
+
+
+class FirmarIn(BaseModel):
+    nombre: str
+
+
+@router.post("/registros/{fecha}/firmar")
+def firmar_registro(fecha: date, body: FirmarIn, quien: Usuario = Depends(usuario_actual)) -> dict:
+    """Registra la firma de revisión del día. Solo admin general o admin de cromatografía."""
+    nombre = body.nombre.strip()
+    if not nombre:
+        raise HTTPException(400, "El nombre no puede estar vacío.")
+    es_admin_croma = (
+        quien.tipoAcceso == "admin_general"
+        or (quien.tipoAcceso == "admin_area" and getattr(quien, "area", None) == "cromatografia")
+    )
+    if not es_admin_croma:
+        raise HTTPException(403, "Solo el administrador general o de cromatografía puede firmar.")
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "UPDATE verif_registro SET revisado_por = %s, revisado_en = now() WHERE fecha = %s RETURNING revisado_por, revisado_en",
+            [nombre, fecha],
+        )
+        r = cur.fetchone()
+        if r is None:
+            raise HTTPException(404, "No hay registro para esa fecha.")
+    return {
+        "revisado_por": r["revisado_por"],
+        "revisado_en": r["revisado_en"].isoformat() if r["revisado_en"] else None,
+    }

@@ -1,7 +1,9 @@
 import { createPortal } from 'react-dom'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/cn'
+import { ROUTES } from '@/constants/routes'
 import type { CategoriaNotificacion, Notificacion } from '../types'
 import { useNotificaciones } from '../hooks/useNotificaciones'
 import styles from './BandejaNotificaciones.module.css'
@@ -70,6 +72,7 @@ interface Props {
 }
 
 function BandejaInterna({ onCerrar }: Props) {
+  const navigate = useNavigate()
   const { notificaciones, noLeidas, cargando, marcarLeida, marcarTodasLeidas } = useNotificaciones()
   const [seleccionada, setSeleccionada] = useState<Notificacion | null>(null)
   const [filtro, setFiltro] = useState<CategoriaNotificacion | null>(null)
@@ -190,6 +193,20 @@ function BandejaInterna({ onCerrar }: Props) {
                 <RenderCuerpo texto={seleccionada.cuerpo} />
               ) : (
                 <div className={styles.cuerpoContenido}><p>{seleccionada.resumen}</p></div>
+              )}
+              {seleccionada.metadata?.tipo === 'verificacion' && (
+                <button
+                  type="button"
+                  className={styles.btnVerificacion}
+                  onClick={() => {
+                    navigate(
+                      `${ROUTES.agrofreshLabVerificacionesHistorico}?fecha=${seleccionada.metadata!.fecha}`,
+                    )
+                    onCerrar()
+                  }}
+                >
+                  Ir a la verificación del {seleccionada.metadata.fecha} →
+                </button>
               )}
             </div>
           </>

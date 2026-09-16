@@ -381,3 +381,36 @@
   .sistema       { background: rgba(30, 64, 175, 0.35); color: #93c5fd; }
   .cromatografia { background: rgba(107, 33, 168, 0.35); color: #d8b4fe; }
 }
+
+/* ── Botón de acceso directo a verificación ───────────────────────────── */
+
+.btnVerificacion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid #7c3aed;
+  background: #f3e8ff;
+  color: #6b21a8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.13s ease;
+}
+
+.btnVerificacion:hover {
+  background: #ede9fe;
+}
+
+@media (prefers-color-scheme: dark) {
+  .btnVerificacion {
+    background: rgba(107, 33, 168, 0.2);
+    color: #d8b4fe;
+    border-color: #7c3aed;
+  }
+  .btnVerificacion:hover {
+    background: rgba(107, 33, 168, 0.35);
+  }
+}

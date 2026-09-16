@@ -26,11 +26,10 @@ import type {
   ConfigVerificaciones,
   RegistroInput,
   Respuesta,
-  ResultadoDia,
   Seccion as SeccionId,
   SeccionLock,
 } from '@/features/verificaciones'
-import { ACEPTABLE, SIN_MEDIR } from '@/features/verificaciones'
+import { SIN_MEDIR } from '@/features/verificaciones'
 import type { ColumnaConfig } from '@/features/verificaciones'
 
 function unidadEfectiva(configs: ColumnaConfig[] | undefined, clave: string, defecto: string): string {
@@ -105,14 +104,15 @@ export function VerificacionesView() {
   const [guardandoSeccion, setGuardandoSeccion] = useState<Partial<Record<SeccionId, boolean>>>({})
   const [sucio, setSucio] = useState(false)
   const [guardadoEn, setGuardadoEn] = useState<string | null>(null)
-  const [resultadoGuardado, setResultadoGuardado] = useState<ResultadoDia | null>(null)
   const [seccionesGuardadas, setSeccionesGuardadas] = useState<Record<string, SeccionLock>>({})
   const [error, setError] = useState<string | null>(null)
 
-  // Si el día ya fue guardado y salió Aceptable, se bloquea la edición automáticamente.
-  // El superadmin sigue pudiendo forzar la edición con el parámetro ?solo=ver.
+  // El formulario entra en solo lectura únicamente cuando se llega desde el
+  // histórico con ?solo=ver. El admin general puede salir de ese modo con
+  // "Desbloquear edición". No se bloquea automáticamente por resultado Aceptable:
+  // las analistas tienen que poder seguir llenando secciones aunque alguna
+  // ya esté guardada y el resultado parcial sea Aceptable.
   const soloVer = parametrosUrl.get('solo') === 'ver'
-    || (resultadoGuardado === ACEPTABLE && !esSuperadmin)
 
   const claveLocal = `verif_borrador_${fecha}`
 
@@ -175,7 +175,6 @@ export function VerificacionesView() {
             setSucio(false)
           }
           setGuardadoEn(registro.actualizado_en ?? null)
-          setResultadoGuardado(registro.resultado ?? null)
         }
         setCargando(false)
       })
@@ -250,7 +249,6 @@ export function VerificacionesView() {
       try { localStorage.removeItem(claveLocal) } catch { /* ok */ }
       if (config) setBorrador(registroABorrador(guardado, config))
       setGuardadoEn(guardado.actualizado_en)
-      setResultadoGuardado(guardado.resultado)
       setSucio(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo guardar el día.')
@@ -267,7 +265,6 @@ export function VerificacionesView() {
       const guardado = await guardarSeccion(fecha, seccion, borrador)
       setSeccionesGuardadas(guardado.secciones_guardadas)
       setGuardadoEn(guardado.actualizado_en)
-      setResultadoGuardado(guardado.resultado)
       // El borrador no cambia: el usuario puede seguir llenando otras secciones.
       // Actualizamos localStorage para reflejar el estado actual.
       try { localStorage.setItem(claveLocal, JSON.stringify(borrador)) } catch { /* ok */ }
@@ -287,7 +284,6 @@ export function VerificacionesView() {
       try { localStorage.removeItem(claveLocal) } catch { /* ok */ }
       setBorrador(borradorVacio(config))
       setGuardadoEn(null)
-      setResultadoGuardado(null)
       setSucio(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo limpiar el registro.')
@@ -328,14 +324,12 @@ export function VerificacionesView() {
       {soloVer && (
         <div className={styles.soloLecturaBarra}>
           <p className={styles.soloLecturaAviso}>
-            {resultadoGuardado === ACEPTABLE && !esSuperadmin
-              ? 'Este día ya está verificado y aprobado — no se puede editar.'
-              : 'Solo lectura — estás viendo un registro guardado.'}
+            Solo lectura — estás viendo un registro guardado.
           </p>
           <div className={styles.soloLecturaAcciones}>
-            {esSuperadmin && (
+            {user && esAdminGeneral(user) && (
               <Button onClick={() => navigate(`${ROUTES.agrofreshLabVerificaciones}?fecha=${fecha}`)}>
-                Editar forzado
+                Desbloquear edición
               </Button>
             )}
             <Button
