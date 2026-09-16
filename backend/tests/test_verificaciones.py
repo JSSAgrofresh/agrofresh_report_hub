@@ -40,12 +40,15 @@ TABLA_Z = {18: 1.0022, 20: 1.0026, 25: 1.0037}
 # --- Fechas de edición ------------------------------------------------------
 
 
-def test_un_usuario_normal_solo_corrige_el_dia_anterior():
+def test_un_usuario_normal_puede_editar_hoy_y_ayer():
     usuario = Usuario(id="1", email="paz@agrofresh.com", nombre="Paz", tipoAcceso="admin_area")
+    # Hoy: flujo normal (las analistas guardan secciones durante el día)
+    _exigir_fecha_editable(usuario, date.today(), existe=True)
+    # Ayer: corrección al día siguiente
     _exigir_fecha_editable(usuario, date.today() - timedelta(days=1), existe=True)
-
+    # Anteayer o más atrás: prohibido
     with pytest.raises(HTTPException) as error:
-        _exigir_fecha_editable(usuario, date.today(), existe=True)
+        _exigir_fecha_editable(usuario, date.today() - timedelta(days=2), existe=True)
     assert error.value.status_code == 403
 
 
