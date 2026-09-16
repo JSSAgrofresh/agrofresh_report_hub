@@ -98,10 +98,10 @@ describe('micropipetas', () => {
   })
 
   it('aplica el factor Z', () => {
-    // 0.890 g a 25 °C: 0.890 × 1000 × 1.0037 = 893.293 µL
+    // 0.890 g a 25 °C: 0.890 × 1000 × 1.0037 = 893.293 µL → redondeado a 893
     // Sin corregir por Z sería 890 µL → rechazada por 10 µL que no existen.
     const r = calcularMicropipeta([0.890, 0.890, 0.890], 1.0037, 900, 8)
-    expect(r.volumen_medio).toBeCloseTo(893.293, 2)
+    expect(r.volumen_medio).toBe(893)  // entero redondeado
     expect(r.resultado).toBe('Aceptable')
   })
 

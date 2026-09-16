@@ -123,10 +123,11 @@ def calcular_micropipeta(
     if len(validos) < 3 or z is None:
         return {"volumen_medio": None, "desviacion": None, "error_pct": None, "resultado": SIN_MEDIR}
     volumen = sum(validos) / 3 * 1000 * z
-    desviacion = abs(volumen - nominal)
-    error_pct = (volumen - nominal) / nominal * 100 if nominal else None
+    volumen_redondeado = round(volumen)  # entero; la comparación con el rango usa este valor
+    desviacion = abs(volumen_redondeado - nominal)
+    error_pct = (volumen_redondeado - nominal) / nominal * 100 if nominal else None
     return {
-        "volumen_medio": round(volumen, 4),
+        "volumen_medio": volumen_redondeado,
         "desviacion": round(desviacion, 4),
         "error_pct": round(error_pct, 4) if error_pct is not None else None,
         "resultado": veredicto(desviacion <= tolerancia),
