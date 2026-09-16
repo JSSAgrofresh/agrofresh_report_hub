@@ -5,6 +5,7 @@ export {
   guardarRegistro,
   guardarSeccion,
   eliminarRegistro,
+  firmarRegistro,
   historico,
   descargarDiaExcel,
   descargarDiaPdf,

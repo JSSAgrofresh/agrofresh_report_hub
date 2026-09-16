@@ -35,6 +35,7 @@ def _row(r: dict) -> dict:
         "creado_en": r["creado_en"].isoformat() if r["creado_en"] else None,
         "creado_por": r["creado_por"],
         "leida": bool(r.get("leida", False)),
+        "metadata": r.get("metadata"),
     }
 
 
@@ -46,7 +47,7 @@ def listar(quien: Usuario = Depends(usuario_actual)) -> list[dict]:
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         cur.execute(f"""
             SELECT n.id, n.titulo, n.resumen, n.cuerpo, n.categoria, n.audiencia,
-                   n.publicado, n.creado_en, n.creado_por,
+                   n.publicado, n.creado_en, n.creado_por, n.metadata,
                    (nl.usuario_id IS NOT NULL) AS leida
             FROM notificacion n
             LEFT JOIN notificacion_leida nl
@@ -114,7 +115,7 @@ def admin_listar(_: Usuario = Depends(solo_admin_general)) -> list[dict]:
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         cur.execute("""
             SELECT n.id, n.titulo, n.resumen, n.cuerpo, n.categoria, n.audiencia,
-                   n.publicado, n.creado_en, n.creado_por,
+                   n.publicado, n.creado_en, n.creado_por, n.metadata,
                    count(nl.usuario_id) AS leidas_por
             FROM notificacion n
             LEFT JOIN notificacion_leida nl ON nl.notificacion_id = n.id

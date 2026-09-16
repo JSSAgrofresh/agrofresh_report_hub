@@ -15,9 +15,11 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
 import { ROUTES } from '@/constants/routes'
+import { useAuth } from '@/features/auth'
 import {
   descargarHistoricoExcel,
   explicarErrorDeConfig,
+  firmarRegistro,
   historico,
   NOMBRE_SECCION,
   SECCIONES,
@@ -25,6 +27,12 @@ import {
 import type { Registro, Seccion as SeccionId } from '@/features/verificaciones'
 import { Veredicto, VeredictoDia } from './componentes'
 import styles from './Verificaciones.module.css'
+
+import type { AreaId } from '@/constants/areas'
+
+const PUEDE_FIRMAR = (tipoAcceso: string, area?: AreaId) =>
+  tipoAcceso === 'admin_general' ||
+  (tipoAcceso === 'admin_area' && area === 'cromatografia')
 
 Chart.register(CategoryScale, LinearScale, LineController, LineElement, PointElement, Filler, Tooltip)
 
@@ -139,10 +147,57 @@ function Grafico({ titulo, nota, etiquetas, valores, minimo, maximo, decimales }
 
 export function VerificacionesHistoricoView() {
   const navigate = useNavigate()
+  const { user: usuario } = useAuth()
   const [desde, setDesde] = useState(() => ultimosDias(60))
   const [hasta, setHasta] = useState('')
   const [dias, setDias] = useState<Registro[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [firmando, setFirmando] = useState<string | null>(null)
+  const [nombreFirma, setNombreFirma] = useState('')
+  const [firmandoLoading, setFirmandoLoading] = useState(false)
+  const [firmaError, setFirmaError] = useState<string | null>(null)
+
+  const puedeFirmar =
+    usuario !== null &&
+    PUEDE_FIRMAR(usuario.tipoAcceso, usuario.area)
+
+  function abrirFirma(fecha: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    setFirmando(fecha)
+    setNombreFirma('')
+    setFirmaError(null)
+  }
+
+  function cancelarFirma(e: React.MouseEvent) {
+    e.stopPropagation()
+    setFirmando(null)
+    setFirmaError(null)
+  }
+
+  function guardarFirma(fecha: string, e: React.FormEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    const nombre = nombreFirma.trim()
+    if (!nombre) return
+    setFirmandoLoading(true)
+    setFirmaError(null)
+    firmarRegistro(fecha, nombre)
+      .then((r) => {
+        setDias((prev) =>
+          prev
+            ? prev.map((d) =>
+                d.fecha === fecha ? { ...d, revisado_por: r.revisado_por } : d,
+              )
+            : prev,
+        )
+        setFirmando(null)
+        setFirmandoLoading(false)
+      })
+      .catch(() => {
+        setFirmaError('No se pudo guardar la firma.')
+        setFirmandoLoading(false)
+      })
+  }
 
   // Cambiar el rango dispara una consulta nueva; `vigente` descarta la
   // respuesta de la anterior si llega tarde.
@@ -291,7 +346,56 @@ export function VerificacionesHistoricoView() {
                       <td>
                         <VeredictoDia resultado={d.resultado} />
                       </td>
-                      <td className={styles.criterio}>{d.revisado_por || '—'}</td>
+                      <td
+                        className={styles.criterio}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {firmando === d.fecha ? (
+                          <form
+                            className={styles.firmaForm}
+                            onSubmit={(e) => guardarFirma(d.fecha, e)}
+                          >
+                            <input
+                              autoFocus
+                              className={styles.firmaInput}
+                              placeholder="Tu nombre"
+                              value={nombreFirma}
+                              onChange={(ev) => setNombreFirma(ev.target.value)}
+                              disabled={firmandoLoading}
+                            />
+                            <button
+                              type="submit"
+                              className={styles.firmaBoton}
+                              disabled={firmandoLoading || !nombreFirma.trim()}
+                            >
+                              ✓
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.firmaCancelar}
+                              onClick={cancelarFirma}
+                              disabled={firmandoLoading}
+                            >
+                              ✕
+                            </button>
+                            {firmaError && (
+                              <span className={styles.firmaError}>{firmaError}</span>
+                            )}
+                          </form>
+                        ) : d.revisado_por ? (
+                          d.revisado_por
+                        ) : puedeFirmar ? (
+                          <button
+                            type="button"
+                            className={styles.firmarBtn}
+                            onClick={(e) => abrirFirma(d.fecha, e)}
+                          >
+                            Firmar
+                          </button>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

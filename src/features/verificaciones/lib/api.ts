@@ -54,6 +54,13 @@ export function eliminarRegistro(fecha: string) {
   return httpClient.delete<{ estado: string }>(`${BASE}/registros/${fecha}`)
 }
 
+export function firmarRegistro(fecha: string, nombre: string) {
+  return httpClient.post<{ revisado_por: string; revisado_en: string | null }>(
+    `${BASE}/registros/${fecha}/firmar`,
+    { nombre },
+  )
+}
+
 /** Guarda solo una sección del día. El servidor extrae del payload únicamente
  * los campos de esa sección y registra quién la guardó. */
 export function guardarSeccion(fecha: string, seccion: Seccion, datos: RegistroInput) {

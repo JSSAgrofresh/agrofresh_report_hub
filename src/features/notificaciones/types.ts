@@ -1,6 +1,11 @@
 export type CategoriaNotificacion = 'actualizacion' | 'sistema' | 'cromatografia'
 export type AudienciaNotificacion = 'todos' | 'admin_general' | 'cromatografia'
 
+export interface NotificacionMetadata {
+  tipo: 'verificacion'
+  fecha: string
+}
+
 export interface Notificacion {
   id: number
   titulo: string
@@ -12,6 +17,7 @@ export interface Notificacion {
   creado_en: string | null
   creado_por: string | null
   leida: boolean
+  metadata?: NotificacionMetadata | null
 }
 
 export interface NotificacionAdmin extends Notificacion {
