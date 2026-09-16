@@ -19,7 +19,7 @@ import os
 import re
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from . import config
 from .db import conexion, cursor_dict
@@ -173,4 +173,117 @@ def actividad() -> dict[str, Any]:
             "pendientes_converter": pendientes_converter,
             "verificacion_hoy": verificacion_hoy,
         },
+    }
+
+
+@router.get("/actividad-area")
+def actividad_area(area: str = Query(..., description="'cromatografia' o 'postventa'")) -> dict[str, Any]:
+    """Snapshot de actividad específico para el panel de un admin de área.
+
+    Cromatografía: solicitudes (total, esta semana, lista reciente con quién
+    envió el correo) + verificaciones diarias (última semana, con analistas).
+
+    Post Venta: lecturas AccuTab (total, última semana) + verificaciones.
+    """
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        # ── Métricas comunes ──────────────────────────────────────────
+        cur.execute("SELECT count(*) AS total FROM solicitud WHERE vigente")
+        total_solicitudes = cur.fetchone()["total"]
+
+        cur.execute("""
+            SELECT count(*) AS total FROM solicitud
+            WHERE vigente AND fecha_entrada >= CURRENT_DATE - INTERVAL '7 days'
+        """)
+        solicitudes_semana = cur.fetchone()["total"]
+
+        cur.execute("""
+            SELECT count(*) AS total FROM verif_registro
+            WHERE fecha >= CURRENT_DATE - INTERVAL '7 days'
+        """)
+        verificaciones_semana = cur.fetchone()["total"]
+
+        cur.execute("""
+            SELECT count(*) AS total FROM verif_registro WHERE fecha = CURRENT_DATE
+        """)
+        verificacion_hoy = cur.fetchone()["total"] > 0
+
+        # ── Solicitudes recientes con quién las envió ─────────────────
+        cur.execute("""
+            SELECT
+                s.id,
+                s.nro_solicitud,
+                s.fecha_entrada,
+                s.especie,
+                s.variedad,
+                c.nombre AS cliente,
+                p.nombre AS planta,
+                (
+                    SELECT DISTINCT ON (e.archivo)
+                           e.usuario_nombre
+                    FROM envio_solicitud_log e
+                    WHERE e.numero_solicitud = s.nro_solicitud
+                      AND e.exitoso = TRUE
+                    ORDER BY e.archivo, e.creado_en DESC
+                    LIMIT 1
+                ) AS enviado_por
+            FROM solicitud s
+            LEFT JOIN planta  p ON p.id = s.planta_id
+            LEFT JOIN cliente c ON c.id = p.cliente_id
+            WHERE s.vigente
+              AND s.fecha_entrada >= CURRENT_DATE - INTERVAL '14 days'
+            ORDER BY s.fecha_entrada DESC, s.id DESC
+            LIMIT 10
+        """)
+        solicitudes_recientes = [
+            {
+                "id": r["id"],
+                "nro_solicitud": r["nro_solicitud"],
+                "fecha_entrada": r["fecha_entrada"].isoformat() if r["fecha_entrada"] else None,
+                "especie": r["especie"] or "—",
+                "variedad": r["variedad"] or "—",
+                "cliente": r["cliente"] or "—",
+                "planta": r["planta"] or "—",
+                "enviado_por": r["enviado_por"],
+            }
+            for r in cur.fetchall()
+        ]
+
+        # ── Verificaciones de la última semana con analistas ──────────
+        cur.execute("""
+            SELECT
+                vr.fecha,
+                vr.resultado,
+                vr.creado_por,
+                vr.revisado_por,
+                vr.actualizado_en
+            FROM verif_registro vr
+            WHERE vr.fecha >= CURRENT_DATE - INTERVAL '14 days'
+            ORDER BY vr.fecha DESC
+            LIMIT 10
+        """)
+        verificaciones_recientes = [
+            {
+                "fecha": r["fecha"].isoformat() if r["fecha"] else None,
+                "resultado": r["resultado"] or "Sin datos",
+                "creado_por": r["creado_por"] or None,
+                "revisado_por": r["revisado_por"] or None,
+                "actualizado_en": r["actualizado_en"].isoformat() if r["actualizado_en"] else None,
+            }
+            for r in cur.fetchall()
+        ]
+
+    # ── AccuTab (para Post Venta) ─────────────────────────────────────
+    trace_recientes = _trace_recientes(8)
+
+    return {
+        "area": area,
+        "metricas": {
+            "total_solicitudes": total_solicitudes,
+            "solicitudes_semana": solicitudes_semana,
+            "verificaciones_semana": verificaciones_semana,
+            "verificacion_hoy": verificacion_hoy,
+        },
+        "solicitudes_recientes": solicitudes_recientes,
+        "verificaciones_recientes": verificaciones_recientes,
+        "trace_recientes": trace_recientes,
     }

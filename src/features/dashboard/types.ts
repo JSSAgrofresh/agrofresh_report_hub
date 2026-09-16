@@ -88,3 +88,39 @@ export interface ActividadDashboard {
   verificaciones_recientes: VerificacionReciente[]
   metricas: MetricasDashboard
 }
+
+// ── Dashboard de área ──────────────────────────────────────────────────
+
+export interface SolicitudArea {
+  id: number
+  nro_solicitud: string | null
+  fecha_entrada: string | null
+  especie: string
+  variedad: string
+  cliente: string
+  planta: string
+  enviado_por: string | null
+}
+
+export interface VerificacionArea {
+  fecha: string
+  resultado: string
+  creado_por: string | null
+  revisado_por: string | null
+  actualizado_en: string | null
+}
+
+export interface MetricasArea {
+  total_solicitudes: number
+  solicitudes_semana: number
+  verificaciones_semana: number
+  verificacion_hoy: boolean
+}
+
+export interface ActividadArea {
+  area: string
+  metricas: MetricasArea
+  solicitudes_recientes: SolicitudArea[]
+  verificaciones_recientes: VerificacionArea[]
+  trace_recientes: TraceReciente[]
+}
