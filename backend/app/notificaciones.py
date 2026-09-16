@@ -1,6 +1,8 @@
 """Bandeja de notificaciones del sistema AgroFresh."""
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -11,6 +13,53 @@ router = APIRouter(prefix="/api/notificaciones", tags=["notificaciones"])
 
 _CATEGORIAS = {"actualizacion", "sistema", "cromatografia"}
 _AUDIENCIAS = {"todos", "admin_general", "cromatografia"}
+
+
+def insertar_notif(
+    cur,
+    titulo: str,
+    resumen: str,
+    creado_por: str,
+    categoria: str = "cromatografia",
+    audiencia: str = "cromatografia",
+    cuerpo: str = "",
+    metadata: dict | None = None,
+) -> None:
+    """Inserta una notificación dentro del cursor/transacción actual.
+
+    Llámalo desde dentro de un bloque `with conexion() as conn, cursor_dict(conn) as cur:`
+    ya existente. El commit lo hace el bloque `with` al cerrarse.
+    """
+    cur.execute(
+        """
+        INSERT INTO notificacion
+            (titulo, resumen, cuerpo, categoria, audiencia, publicado, creado_por, metadata)
+        VALUES (%s, %s, %s, %s, %s, TRUE, %s, %s::jsonb)
+        """,
+        [titulo, resumen, cuerpo, categoria, audiencia, creado_por,
+         json.dumps(metadata) if metadata else None],
+    )
+
+
+def notificar(
+    titulo: str,
+    resumen: str,
+    creado_por: str,
+    categoria: str = "cromatografia",
+    audiencia: str = "cromatografia",
+    cuerpo: str = "",
+    metadata: dict | None = None,
+) -> None:
+    """Abre su propia conexión e inserta una notificación.
+
+    Úsalo cuando no hay una transacción abierta (toma_muestras, emitir).
+    Los errores se silencian para que no fallen los endpoints que la llaman.
+    """
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            insertar_notif(cur, titulo, resumen, creado_por, categoria, audiencia, cuerpo, metadata)
+    except Exception:  # noqa: BLE001
+        pass  # Una notificación fallida nunca debe fallar el endpoint principal
 
 
 def _audiencias_para(quien: Usuario) -> list[str]:

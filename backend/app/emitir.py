@@ -9,12 +9,14 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import openpyxl
 from openpyxl.worksheet.table import Table, TableStyleInfo
 import psycopg2.errors
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from . import r2
+from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
+from .notificaciones import notificar
 from .gc_parser import (
     CATEGORIAS_GC,
     NOMBRE_GC_A_CODIGO,
@@ -826,7 +828,10 @@ def _crear_hoja_analitica(wb, curva: list[FilaCurvaOut]) -> None:
 
 
 @router.post("/detalle-gc/excel")
-def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
+def generar_excel_detalle_gc(
+    body: DetalleGCIn,
+    usuario: Usuario = Depends(usuario_actual),
+) -> StreamingResponse:
     if not body.muestras:
         raise HTTPException(400, "No hay muestras para exportar.")
 
@@ -1029,6 +1034,20 @@ def generar_excel_detalle_gc(body: DetalleGCIn) -> StreamingResponse:
     wb.save(buffer)
     buffer.seek(0)
     nombre = _nombre_desde_data_directory(body.cabecera) or f"Resultados_GC_{datetime.now().strftime('%Y%m%d')}"
+    if isinstance(usuario, Usuario):
+        codigos = ", ".join(
+            m.codigo for m in body.muestras if getattr(m, "es_muestra", True) and m.codigo
+        ) or "—"
+        nombre_quien = usuario.nombre or usuario.email
+        notificar(
+            titulo=f"📊 Descarga de resultado GC · {codigos}",
+            resumen=(
+                f"{nombre_quien} descargó el resultado estandarizado de cromatografía de gases "
+                f"correspondiente a: {codigos}."
+            ),
+            creado_por=nombre_quien,
+            metadata={"tipo": "descarga_gc", "codigos": codigos, "archivo": nombre},
+        )
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

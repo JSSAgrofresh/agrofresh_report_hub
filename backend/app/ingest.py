@@ -3,16 +3,18 @@ import json
 from difflib import SequenceMatcher
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg2.extras import execute_values
 from pydantic import BaseModel
 
 from . import mapeo
 from .auditoria import CAMPOS_HOMOGENIZAR
+from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .estructura_excel import validar_estructura
 from .homogenizador import Homogenizador
 from .listados import clave_normalizada
+from .notificaciones import insertar_notif
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
@@ -889,7 +891,7 @@ def preview(payload: CargaRequest) -> dict[str, Any]:
 
 
 @router.post("/confirmar")
-def confirmar(payload: CargaRequest) -> dict[str, Any]:
+def confirmar(payload: CargaRequest, usuario: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
     """Ingest nunca escribe solicitudes: deja cada fila en staging para que
     Data Core homologue los cuatro maestros y recién después la promueva."""
     with conexion(escribir=True) as conn:
@@ -920,6 +922,16 @@ def confirmar(payload: CargaRequest) -> dict[str, Any]:
                     "INSERT INTO pendiente_revision (origen, fila, motivos) VALUES (%s, %s::jsonb, %s::jsonb)",
                     (payload.origen, json.dumps(fila), json.dumps(motivos)),
                 )
+            nombre_quien = usuario.nombre or usuario.email
+            insertar_notif(
+                cur,
+                titulo=f"📥 Carga de datos completada · {payload.origen}",
+                resumen=(
+                    f"{nombre_quien} completó la carga del archivo {payload.origen!r} "
+                    f"en AgroFresh Report Hub. {len(payload.filas)} fila(s) en Data Core pendientes de revisión."
+                ),
+                creado_por=nombre_quien,
+            )
     return {
         "modo": "confirmado", "resumen": {**RESUMEN_VACIO, "pendientes_revision": len(payload.filas)},
         "detalle": [], "advertencias": ["Las filas quedaron en Data Core; todavía no se insertaron en la base."],

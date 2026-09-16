@@ -43,6 +43,7 @@ from pydantic import BaseModel
 
 from .auth import Usuario, solo_admin_general, solo_interno, usuario_actual
 from .db import conexion, cursor_dict
+from .notificaciones import insertar_notif
 
 router = APIRouter(prefix="/api/verificaciones", tags=["verificaciones"])
 
@@ -1157,19 +1158,12 @@ def guardar_registro(
 
         # Notificación automática al crear un día nuevo (no en ediciones).
         if not es_edicion:
-            cur.execute(
-                """
-                INSERT INTO notificacion
-                    (titulo, resumen, cuerpo, categoria, audiencia, publicado, creado_por, metadata)
-                VALUES (%s, %s, %s, 'cromatografia', 'cromatografia', TRUE, %s, %s::jsonb)
-                """,
-                [
-                    f"Verificación diaria — {fecha.strftime('%d %b %Y')}",
-                    "Nueva verificación ingresada al laboratorio. Pendiente de revisión.",
-                    "",
-                    nombre_usuario,
-                    json.dumps({"tipo": "verificacion", "fecha": str(fecha)}),
-                ],
+            insertar_notif(
+                cur,
+                titulo=f"🧪 Verificación diaria registrada · {fecha.strftime('%d %b %Y')}",
+                resumen=f"{nombre_usuario} realizó y registró la verificación diaria del laboratorio correspondiente al {fecha.strftime('%d/%m/%Y')}.",
+                creado_por=nombre_usuario,
+                metadata={"tipo": "verificacion", "fecha": str(fecha)},
             )
 
         # Se borra y se vuelve a escribir: es la forma más simple de que lo
@@ -1474,6 +1468,47 @@ def guardar_seccion(
         return registro
 
 
+@router.delete("/registros/{fecha}/secciones/{seccion}", status_code=204)
+def limpiar_seccion(fecha: date, seccion: str, _: Usuario = Depends(solo_admin_general)) -> None:
+    """Borra los datos de una sección y libera su bloqueo de autoría.
+
+    Solo disponible para el administrador general: útil para corregir un guardado
+    accidental sin tener que borrar todo el día.
+    """
+    if seccion not in _SECCIONES_VALIDAS:
+        raise HTTPException(400, f"Sección desconocida: {seccion!r}.")
+
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT id FROM verif_registro WHERE fecha = %s", [fecha])
+        fila = cur.fetchone()
+        if not fila:
+            raise HTTPException(404, "Ese día no tiene verificaciones registradas.")
+        registro_id = fila["id"]
+
+        if seccion == "micropipetas":
+            cur.execute("DELETE FROM verif_micropipeta_medicion WHERE registro_id = %s", [registro_id])
+            cur.execute("UPDATE verif_registro SET temperatura_agua = NULL WHERE id = %s", [registro_id])
+        elif seccion == "balanza":
+            cur.execute("DELETE FROM verif_balanza_medicion WHERE registro_id = %s", [registro_id])
+        elif seccion == "temperatura":
+            cur.execute("DELETE FROM verif_temperatura_medicion WHERE registro_id = %s", [registro_id])
+        elif seccion == "gases":
+            cur.execute("DELETE FROM verif_gas_medicion WHERE registro_id = %s", [registro_id])
+            cur.execute(
+                "UPDATE verif_registro SET fugas_visibles = NULL, fugas_observacion = NULL WHERE id = %s",
+                [registro_id],
+            )
+        elif seccion == "inyector":
+            cur.execute("DELETE FROM verif_inyector WHERE registro_id = %s", [registro_id])
+        elif seccion == "detector":
+            cur.execute("DELETE FROM verif_detector WHERE registro_id = %s", [registro_id])
+
+        cur.execute(
+            "DELETE FROM verif_seccion_lock WHERE fecha = %s AND seccion = %s", [fecha, seccion]
+        )
+        cur.execute("UPDATE verif_registro SET actualizado_en = now() WHERE id = %s", [registro_id])
+
+
 @router.delete("/registros/{fecha}")
 def eliminar_registro(fecha: date, _: Usuario = Depends(solo_admin_general)) -> dict:
     """Borrar un día es borrar un registro de calidad: queda solo para el
@@ -1601,6 +1636,7 @@ def firmar_registro(fecha: date, body: FirmarIn, quien: Usuario = Depends(usuari
     )
     if not es_admin_croma:
         raise HTTPException(403, "Solo el administrador general o de cromatografía puede firmar.")
+    nombre_quien = quien.nombre or quien.email
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(
             "UPDATE verif_registro SET revisado_por = %s, revisado_en = now() WHERE fecha = %s RETURNING revisado_por, revisado_en",
@@ -1609,6 +1645,13 @@ def firmar_registro(fecha: date, body: FirmarIn, quien: Usuario = Depends(usuari
         r = cur.fetchone()
         if r is None:
             raise HTTPException(404, "No hay registro para esa fecha.")
+        insertar_notif(
+            cur,
+            titulo=f"✅ Verificación diaria aceptada · {fecha.strftime('%d %b %Y')}",
+            resumen=f"{nombre_quien} aceptó la verificación diaria correspondiente al {fecha.strftime('%d/%m/%Y')}. Revisado por: {nombre}.",
+            creado_por=nombre_quien,
+            metadata={"tipo": "verificacion", "fecha": str(fecha)},
+        )
     return {
         "revisado_por": r["revisado_por"],
         "revisado_en": r["revisado_en"].isoformat() if r["revisado_en"] else None,

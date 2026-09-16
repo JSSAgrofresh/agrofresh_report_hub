@@ -12,6 +12,7 @@ import {
   guardarRegistro,
   guardarSeccion,
   eliminarRegistro,
+  limpiarSeccion,
   obtenerConfig,
   obtenerRegistro,
   registroABorrador,
@@ -275,6 +276,35 @@ export function VerificacionesView() {
     }
   }
 
+  async function handleLimpiarSeccion(seccion: SeccionId) {
+    if (!config) return
+    const nombre = NOMBRE_SECCION[seccion]
+    if (!window.confirm(`¿Limpiar la sección "${nombre}"? Se borrarán los datos guardados y el analista podrá volver a llenarla.`)) return
+    setError(null)
+    try {
+      await limpiarSeccion(fecha, seccion)
+      setSeccionesGuardadas((prev) => {
+        const nuevo = { ...prev }
+        delete nuevo[seccion]
+        return nuevo
+      })
+      // Resetear solo esa sección en el borrador local
+      const vacio = borradorVacio(config)
+      setBorrador((prev) => {
+        if (!prev) return prev
+        if (seccion === 'micropipetas') return { ...prev, micropipetas: vacio.micropipetas, temperatura_agua: vacio.temperatura_agua }
+        if (seccion === 'balanza') return { ...prev, balanza: vacio.balanza }
+        if (seccion === 'temperatura') return { ...prev, temperaturas: vacio.temperaturas }
+        if (seccion === 'gases') return { ...prev, gases: vacio.gases, fugas_visibles: vacio.fugas_visibles, fugas_observacion: vacio.fugas_observacion }
+        if (seccion === 'inyector') return { ...prev, inyector: vacio.inyector }
+        if (seccion === 'detector') return { ...prev, detector: vacio.detector }
+        return prev
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : `No se pudo limpiar la sección ${nombre}.`)
+    }
+  }
+
   async function limpiarRegistro() {
     if (!config) return
     setGuardando(true)
@@ -444,6 +474,7 @@ export function VerificacionesView() {
             esPropio={seccionesGuardadas['micropipetas']?.email.toLowerCase() === user?.email?.toLowerCase()}
             onGuardar={!soloVer && !seccionBloqueada('micropipetas') ? () => void handleGuardarSeccion('micropipetas') : undefined}
             guardando={guardandoSeccion['micropipetas']}
+            onLimpiar={!soloVer && user && esAdminGeneral(user) ? () => void handleLimpiarSeccion('micropipetas') : undefined}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla}>
@@ -535,6 +566,7 @@ export function VerificacionesView() {
             esPropio={seccionesGuardadas['balanza']?.email.toLowerCase() === user?.email?.toLowerCase()}
             onGuardar={!soloVer && !seccionBloqueada('balanza') ? () => void handleGuardarSeccion('balanza') : undefined}
             guardando={guardandoSeccion['balanza']}
+            onLimpiar={!soloVer && user && esAdminGeneral(user) ? () => void handleLimpiarSeccion('balanza') : undefined}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla}>
@@ -622,6 +654,7 @@ export function VerificacionesView() {
             esPropio={seccionesGuardadas['temperatura']?.email.toLowerCase() === user?.email?.toLowerCase()}
             onGuardar={!soloVer && !seccionBloqueada('temperatura') ? () => void handleGuardarSeccion('temperatura') : undefined}
             guardando={guardandoSeccion['temperatura']}
+            onLimpiar={!soloVer && user && esAdminGeneral(user) ? () => void handleLimpiarSeccion('temperatura') : undefined}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla} style={{ minWidth: 480 }}>
@@ -697,6 +730,7 @@ export function VerificacionesView() {
             esPropio={seccionesGuardadas['gases']?.email.toLowerCase() === user?.email?.toLowerCase()}
             onGuardar={!soloVer && !seccionBloqueada('gases') ? () => void handleGuardarSeccion('gases') : undefined}
             guardando={guardandoSeccion['gases']}
+            onLimpiar={!soloVer && user && esAdminGeneral(user) ? () => void handleLimpiarSeccion('gases') : undefined}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla}>
@@ -819,6 +853,7 @@ export function VerificacionesView() {
             esPropio={seccionesGuardadas['inyector']?.email.toLowerCase() === user?.email?.toLowerCase()}
             onGuardar={!soloVer && !seccionBloqueada('inyector') ? () => void handleGuardarSeccion('inyector') : undefined}
             guardando={guardandoSeccion['inyector']}
+            onLimpiar={!soloVer && user && esAdminGeneral(user) ? () => void handleLimpiarSeccion('inyector') : undefined}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla} style={{ minWidth: 520 }}>
@@ -880,6 +915,7 @@ export function VerificacionesView() {
             esPropio={seccionesGuardadas['detector']?.email.toLowerCase() === user?.email?.toLowerCase()}
             onGuardar={!soloVer && !seccionBloqueada('detector') ? () => void handleGuardarSeccion('detector') : undefined}
             guardando={guardandoSeccion['detector']}
+            onLimpiar={!soloVer && user && esAdminGeneral(user) ? () => void handleLimpiarSeccion('detector') : undefined}
           >
             <div className={styles.tablaWrap}>
               <table className={styles.tabla} style={{ minWidth: 520 }}>
