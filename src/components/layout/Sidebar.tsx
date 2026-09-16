@@ -254,10 +254,10 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
       >
         <div className={styles.brand}>
           <svg className={styles.iconoGrafico} viewBox="0 0 28 20" fill="none" aria-hidden="true">
-            <rect x="0"  y="10" width="5" height="10" rx="1.5" fill="rgba(255,255,255,.55)"/>
-            <rect x="7"  y="5"  width="5" height="15" rx="1.5" fill="rgba(255,255,255,.75)"/>
-            <rect x="14" y="1"  width="5" height="19" rx="1.5" fill="rgba(255,255,255,.9)"/>
-            <rect x="21" y="7"  width="5" height="13" rx="1.5" fill="rgba(255,255,255,.65)"/>
+            <rect x="0"  y="10" width="5" height="10" rx="1.5" fill="#5a9430"/>
+            <rect x="7"  y="5"  width="5" height="15" rx="1.5" fill="#6dad3c"/>
+            <rect x="14" y="1"  width="5" height="19" rx="1.5" fill="#8dc85a"/>
+            <rect x="21" y="7"  width="5" height="13" rx="1.5" fill="#e8c32e"/>
           </svg>
           <span className={styles.marco}>
             <img src={agrofreshLogo} alt="AgroFresh" className={styles.logo} />
