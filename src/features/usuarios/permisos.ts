@@ -25,6 +25,7 @@ export function modulosPredeterminados(usuario: Pick<Usuario, 'tipoAcceso' | 'ar
   if (usuario.tipoAcceso === 'admin_area' && usuario.area === 'postventa') {
     return ['trace', 'reports']
   }
+  if (usuario.tipoAcceso === 'analista') return ['agrofresh_lab']
   if (usuario.tipoAcceso === 'muestreador') return [MODULO_TOMA_MUESTRAS]
   return []
 }
@@ -70,6 +71,8 @@ export function etiquetaAcceso(usuario: Usuario): string {
     return `Admin · ${AREAS[usuario.area].nombre}`
   if (usuario.tipoAcceso === 'cliente' && usuario.area)
     return `Cliente · ${AREAS[usuario.area].nombre}`
+  if (usuario.tipoAcceso === 'analista' && usuario.area)
+    return `Analista · ${AREAS[usuario.area].nombre}`
   if (usuario.tipoAcceso === 'muestreador') return 'Muestreador'
   return usuario.tipoAcceso
 }
