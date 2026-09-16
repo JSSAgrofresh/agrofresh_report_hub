@@ -41,7 +41,7 @@ DURACION_SESION = timedelta(days=7)
 # costaría más que todo lo demás junto.
 _GRANO_ULTIMO_USO = timedelta(hours=1)
 
-TIPOS_ACCESO = ("admin_general", "admin_area", "cliente", "muestreador")
+TIPOS_ACCESO = ("admin_general", "admin_area", "analista", "cliente", "muestreador")
 
 # `auto_error=False` para que la falta de encabezado la conteste este módulo
 # con su propio mensaje, en vez del 403 genérico de HTTPBearer.
