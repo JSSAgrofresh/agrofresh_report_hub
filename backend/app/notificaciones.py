@@ -18,7 +18,10 @@ def _audiencias_para(quien: Usuario) -> list[str]:
     audiencias = ["todos"]
     if quien.tipoAcceso == "admin_general":
         audiencias += ["admin_general", "cromatografia"]
-    elif quien.tipoAcceso == "admin_area" and getattr(quien, "area", None) == "cromatografia":
+    elif (
+        (quien.tipoAcceso == "admin_area" or quien.tipoAcceso == "analista")
+        and getattr(quien, "area", None) == "cromatografia"
+    ):
         audiencias.append("cromatografia")
     return audiencias
 
