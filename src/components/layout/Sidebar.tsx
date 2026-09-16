@@ -31,7 +31,7 @@ import {
   IconTrace,
   IconUsers,
 } from '@/components/ui/icons'
-import { BandejaNotificaciones, useNotificaciones } from '@/features/notificaciones'
+import { BandejaNotificaciones, ToastNotificacion, useNotificaciones } from '@/features/notificaciones'
 import styles from './Sidebar.module.css'
 
 /** Plegada, la barra deja solo los iconos. La elección se recuerda: quien
@@ -197,7 +197,7 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   const [selectorAbierto, setSelectorAbierto] = useState(false)
   const [bandejaAbierta, setBandejaAbierta] = useState(false)
   const avatarZonaRef = useRef<HTMLDivElement>(null)
-  const { noLeidas } = useNotificaciones()
+  const { noLeidas, marcarTodasLeidas, toast, limpiarToast } = useNotificaciones()
 
   // Cierra el selector al hacer clic fuera del área avatar + popover.
   useEffect(() => {
@@ -291,8 +291,12 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
 
           <button
             type="button"
-            className={styles.navLink}
-            onClick={() => { setBandejaAbierta(true); onCerrar() }}
+            className={cn(styles.navLink, noLeidas > 0 && styles.navLinkNotifPendiente)}
+            onClick={() => {
+              setBandejaAbierta(true)
+              onCerrar()
+              if (noLeidas > 0) marcarTodasLeidas()
+            }}
             title="Notificaciones"
           >
             <svg className={styles.navIcono} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -308,6 +312,8 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
           {bandejaAbierta && (
             <BandejaNotificaciones onCerrar={() => setBandejaAbierta(false)} />
           )}
+
+          {toast && <ToastNotificacion notif={toast} onCerrar={limpiarToast} />}
 
           {modulosDataCore.length > 0 && (
             <>
