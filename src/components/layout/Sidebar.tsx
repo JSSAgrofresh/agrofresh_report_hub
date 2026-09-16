@@ -31,6 +31,7 @@ import {
   IconTrace,
   IconUsers,
 } from '@/components/ui/icons'
+import { BandejaNotificaciones, useNotificaciones } from '@/features/notificaciones'
 import styles from './Sidebar.module.css'
 
 /** Plegada, la barra deja solo los iconos. La elección se recuerda: quien
@@ -194,7 +195,9 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   const [colapsada, setColapsada] = useState(leerColapso)
   const [avatarId, setAvatarId] = useState<AvatarId>(leerAvatar)
   const [selectorAbierto, setSelectorAbierto] = useState(false)
+  const [bandejaAbierta, setBandejaAbierta] = useState(false)
   const avatarZonaRef = useRef<HTMLDivElement>(null)
+  const { noLeidas } = useNotificaciones()
 
   // Cierra el selector al hacer clic fuera del área avatar + popover.
   useEffect(() => {
@@ -286,6 +289,26 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
             <span className={styles.etiqueta}>Panel general</span>
           </NavLink>
 
+          <button
+            type="button"
+            className={styles.navLink}
+            onClick={() => { setBandejaAbierta(true); onCerrar() }}
+            title="Notificaciones"
+          >
+            <svg className={styles.navIcono} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M10 2a6 6 0 0 1 6 6c0 3.5 1.5 5 1.5 5h-15S4 11.5 4 8a6 6 0 0 1 6-6z"/>
+              <path d="M8.5 17a1.5 1.5 0 0 0 3 0"/>
+            </svg>
+            <span className={styles.etiqueta}>Notificaciones</span>
+            {noLeidas > 0 && (
+              <span className={styles.estadoPill}>{noLeidas > 9 ? '9+' : noLeidas}</span>
+            )}
+          </button>
+
+          {bandejaAbierta && (
+            <BandejaNotificaciones onCerrar={() => setBandejaAbierta(false)} />
+          )}
+
           {modulosDataCore.length > 0 && (
             <>
               <p className={styles.seccion}>Data Core</p>
@@ -354,6 +377,18 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
               >
                 <IconFrasco className={styles.navIcono} />
                 <span className={styles.etiqueta}>Laboratorios</span>
+              </NavLink>
+              <NavLink
+                to={ROUTES.adminNotificaciones}
+                title="Notificaciones"
+                onClick={onCerrar}
+                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                <svg className={styles.navIcono} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M10 2a6 6 0 0 1 6 6c0 3.5 1.5 5 1.5 5h-15S4 11.5 4 8a6 6 0 0 1 6-6z"/>
+                  <path d="M8.5 17a1.5 1.5 0 0 0 3 0"/>
+                </svg>
+                <span className={styles.etiqueta}>Notificaciones</span>
               </NavLink>
               <NavLink
                 to={ROUTES.tomaMuestrasConfig}

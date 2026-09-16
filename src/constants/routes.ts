@@ -22,6 +22,7 @@ export const ROUTES = {
   adminUsuarios: '/admin/usuarios',
   adminListados: '/admin/listados',
   adminLaboratorios: '/admin/laboratorios',
+  adminNotificaciones: '/admin/notificaciones',
 } as const
 
 export function rutaTomaMuestrasDetalle(archivo: string): string {
