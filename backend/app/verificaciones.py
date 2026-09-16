@@ -1394,9 +1394,9 @@ def guardar_seccion(
             for t in datos.temperaturas:
                 cur.execute(
                     """INSERT INTO verif_temperatura_medicion
-                              (registro_id, punto_id, analista, temperatura, observacion)
+                              (registro_id, punto_id, analista, lectura, observacion)
                        VALUES (%s, %s, %s, %s, %s)""",
-                    [registro_id, t.punto_id, t.analista, t.temperatura, t.observacion],
+                    [registro_id, t.punto_id, t.analista, t.lectura, t.observacion],
                 )
 
         elif seccion == "gases":
