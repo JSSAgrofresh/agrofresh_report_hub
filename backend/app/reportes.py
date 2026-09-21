@@ -23,12 +23,12 @@ DATOS_QUERY = """
         s.id AS solicitud_id,
         s.nro_solicitud,
         s.laboratorio,
-        s.fecha_muestreo,
-        s.fecha_entrada,
+        COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis) AS fecha_muestreo,
+        COALESCE(s.fecha_entrada, s.fecha_muestreo, s.fecha_informe, s.fecha_analisis) AS fecha_entrada,
         s.especie,
         s.variedad,
-        s.semana_muestreo,
-        s.mes,
+        COALESCE(s.semana_muestreo, date_part('week', COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis))::int) AS semana_muestreo,
+        COALESCE(s.mes, date_part('month', COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis))::int) AS mes,
         s.temporada,
         s.tipo_servicio,
         s.posicion_muestreo,
@@ -46,7 +46,7 @@ DATOS_QUERY = """
     LEFT JOIN producto_aplicado pa ON pa.solicitud_id = r.solicitud_id AND pa.analito_id = r.analito_id
     WHERE s.vigente
     {filtro_cliente}
-    ORDER BY s.fecha_muestreo DESC NULLS LAST, s.id DESC
+    ORDER BY COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis) DESC NULLS LAST, s.id DESC
 """
 
 
