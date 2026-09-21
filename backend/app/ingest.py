@@ -1209,6 +1209,24 @@ def descartar_copia_ingest() -> dict[str, int]:
     return {"descartadas": descartadas}
 
 
+@router.post("/auditoria-staging/descartar-sin-catalogo")
+def descartar_sin_catalogo() -> dict[str, int]:
+    """Elimina del staging todas las filas cuyo Sold To o Ship To no esté
+    en el catálogo (tienen motivo pendiente para sold_to_raw o ship_to_raw).
+    Las filas que sí coinciden con el listado maestro se conservan."""
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        cur.execute("""
+            DELETE FROM pendiente_revision
+            WHERE EXISTS (
+                SELECT 1 FROM jsonb_array_elements(motivos) AS m
+                WHERE m->>'campo' IN ('sold_to_raw', 'ship_to_raw')
+            )
+            RETURNING id
+        """)
+        descartadas = len(cur.fetchall())
+    return {"descartadas": descartadas}
+
+
 @router.post("/auditoria-staging/promover")
 def promover_staging() -> dict[str, Any]:
     with conexion(escribir=True) as conn, cursor_dict(conn) as cur:

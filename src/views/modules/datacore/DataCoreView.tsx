@@ -126,6 +126,16 @@ export function DataCoreView({ vistaInicial = 'auditoria' }: DataCoreViewProps =
     } finally { setCargando(false) }
   }
 
+  async function descartarSinCatalogo() {
+    if (!confirm('¿Descartar las filas cuyo Sold To o Ship To no esté en el listado maestro? Solo quedarán las filas con cliente y sucursal reconocidos.')) return
+    setCargando(true)
+    try {
+      const r = await httpClient.post<{ descartadas: number }>('/ingest/auditoria-staging/descartar-sin-catalogo', {})
+      setMensaje(`${r.descartadas} filas sin catálogo descartadas. Las que coinciden con el listado maestro quedaron en la copia de trabajo.`)
+      await cargarAuditoria()
+    } finally { setCargando(false) }
+  }
+
   async function editarDecision(decision: Decision, indice: number) {
     const clave = `hist-${indice}`
     const destinoNuevo = (ediciones[clave] ?? decision.destino).trim()
@@ -184,6 +194,13 @@ export function DataCoreView({ vistaInicial = 'auditoria' }: DataCoreViewProps =
           onClick={() => void homogenizarAutomatico()}
         >
           Homogenizador inteligente
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={cargando || !data?.filas || !data.grupos.some((g) => g.campo === 'sold_to_raw' || g.campo === 'ship_to_raw')}
+          onClick={() => void descartarSinCatalogo()}
+        >
+          Descartar sin catálogo
         </Button>
         <Button disabled={cargando || !data?.filas || data.pendientes > 0} onClick={() => void enviarBase()}>Enviar TODO a la BD</Button>
       </div>
