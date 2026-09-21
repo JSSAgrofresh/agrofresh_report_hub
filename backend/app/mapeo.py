@@ -231,10 +231,32 @@ def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
     backend/app/estructura_excel.py) -ambos conviven porque Converter y
     archivos antiguos siguen usando el primero-.
     """
-    fecha_entrada = parse_fecha(fila.get("Fecha entrada"))
-    fecha_muestreo = elegir(parse_fecha(fila.get("Fecha de muestreo")), parse_fecha(fila.get("Fecha Muestreo")))
-    fecha_informe = parse_fecha(fila.get("Fecha Informe"))
-    fecha_analisis = elegir(parse_fecha(fila.get("Fecha análisis")), parse_fecha(fila.get("Fecha Análisis")))
+    fecha_entrada = elegir(
+        parse_fecha(fila.get("Fecha entrada")),
+        parse_fecha(fila.get("Fecha de Entrada")),    # BD formato Quiteca
+        parse_fecha(fila.get("Fecha de entrada")),
+        parse_fecha(fila.get("Fecha Entrada")),
+    )
+    fecha_muestreo = elegir(
+        parse_fecha(fila.get("Fecha de muestreo")),
+        parse_fecha(fila.get("Fecha Muestreo")),
+        parse_fecha(fila.get("Fecha de Muestreo")),   # BD formato Quiteca
+        parse_fecha(fila.get("Fecha Muestra")),
+    )
+    fecha_informe = elegir(
+        parse_fecha(fila.get("Fecha Informe")),
+        parse_fecha(fila.get("Fecha informe")),
+        parse_fecha(fila.get("Fecha de Informe")),
+        parse_fecha(fila.get("Fecha de informe")),
+    )
+    fecha_analisis = elegir(
+        parse_fecha(fila.get("Fecha análisis")),
+        parse_fecha(fila.get("Fecha Análisis")),
+        parse_fecha(fila.get("Fecha Analisis")),
+        parse_fecha(fila.get("Fecha de Análisis")),
+        parse_fecha(fila.get("Fecha de análisis")),
+        parse_fecha(fila.get("Fecha de Analisis")),
+    )
     # El formato BD (Quiteca) no trae "Fecha entrada" ni "Fecha de muestreo":
     # usa "Fecha Informe" como mejor proxy para que el Report muestre fecha real
     # en vez de "Sin fecha".
