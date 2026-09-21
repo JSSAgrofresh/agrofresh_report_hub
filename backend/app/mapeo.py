@@ -233,14 +233,20 @@ def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
     """
     fecha_entrada = parse_fecha(fila.get("Fecha entrada"))
     fecha_muestreo = elegir(parse_fecha(fila.get("Fecha de muestreo")), parse_fecha(fila.get("Fecha Muestreo")))
+    fecha_informe = parse_fecha(fila.get("Fecha Informe"))
+    fecha_analisis = elegir(parse_fecha(fila.get("Fecha análisis")), parse_fecha(fila.get("Fecha Análisis")))
+    # El formato BD (Quiteca) no trae "Fecha entrada" ni "Fecha de muestreo":
+    # usa "Fecha Informe" como mejor proxy para que el Report muestre fecha real
+    # en vez de "Sin fecha".
+    fecha_entrada_efectiva = fecha_entrada or fecha_muestreo or fecha_informe or fecha_analisis
     return {
         "nro_solicitud": elegir(texto(fila, "Informe"), texto(fila, "N° Informe")),
         "laboratorio": texto(fila, "Laboratorio"),
         "fecha_solicitud": elegir(parse_fecha(fila.get("Fecha \nSolicitud")), parse_fecha(fila.get("Fecha Solicitud"))),
-        "fecha_muestreo": fecha_muestreo,
-        "fecha_entrada": fecha_entrada or fecha_muestreo,
-        "fecha_analisis": elegir(parse_fecha(fila.get("Fecha análisis")), parse_fecha(fila.get("Fecha Análisis"))),
-        "fecha_informe": parse_fecha(fila.get("Fecha Informe")),
+        "fecha_muestreo": fecha_muestreo or fecha_informe,
+        "fecha_entrada": fecha_entrada_efectiva,
+        "fecha_analisis": fecha_analisis,
+        "fecha_informe": fecha_informe,
         "hora_muestreo": texto(fila, "Hora Muestreo"),
         # La base real exporta "SOLD TO" / "SHIP TO"; "Cliente" / "Sucursal" y
         # "Sold To" / "Ship To" (plantilla nueva) se dejan como alias.
@@ -276,11 +282,11 @@ def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
         "semana_entrada": parse_entero_corto(fila.get("Semana entrada")),
         # No se usa la columna "SEMANA" del Excel (no es confiable): se calcula
         # a partir de la fecha de entrada, igual que =NUM.DE.SEMANA([Fecha entrada]).
-        "semana_muestreo": calcular_semana(fecha_entrada or fecha_muestreo),
+        "semana_muestreo": calcular_semana(fecha_entrada_efectiva),
         # La columna "MES" del Excel nativo se respeta si viene; Converter (Quiteca,
         # Diagnofruit, ALS) y la plantilla nueva no la entregan, así que ahí se
         # calcula desde fecha_entrada igual que semana_muestreo.
-        "mes": parse_entero_corto(fila.get("MES")) or calcular_mes(fecha_entrada or fecha_muestreo),
+        "mes": parse_entero_corto(fila.get("MES")) or calcular_mes(fecha_entrada_efectiva),
     }
 
 
