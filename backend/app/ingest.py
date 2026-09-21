@@ -673,6 +673,14 @@ def _procesar_filas(
             if fuera_de_catalogo:
                 resumen["pendientes_revision"] += 1
                 if escribir:
+                    # Persistir los valores ya resueltos en __homogenizacion__ para que
+                    # DataCore pueda asignar variedad sin perder la especie canónica.
+                    homo_resueltos = {
+                        campo: sol[campo] for campo in CAMPOS_LISTADOS
+                        if sol.get(campo) and campo not in campos_no_resueltos
+                    }
+                    if homo_resueltos:
+                        fila["__homogenizacion__"] = homo_resueltos
                     cur.execute(
                         "INSERT INTO pendiente_revision (origen, fila, motivos) VALUES (%s, %s::jsonb, %s::jsonb)",
                         (origen, json.dumps(fila), json.dumps(fuera_de_catalogo)),
@@ -1038,6 +1046,13 @@ def asignar_grupo(payload: AsignarGrupoIn) -> dict[str, int]:
         elif payload.campo == "variedad":
             especies = _mapa_especies(cur)
             especie_oficial = especies.get(clave_normalizada(payload.especie or ""))
+            if not especie_oficial and payload.especie:
+                # La especie puede haberse resuelto en ingest via _rescatar (fuzzy) sin
+                # quedar en __homogenizacion__. Intentar la misma resolución acá.
+                candidatos = {k: v[0] for k, v in especies.items()}
+                rescatado = _rescatar(payload.especie, candidatos)
+                if rescatado:
+                    especie_oficial = next((v for v in especies.values() if v[0] == rescatado), None)
             if not especie_oficial:
                 raise HTTPException(409, "Primero debes homologar la especie contra Listados.")
             especie_id = especie_oficial[1]
