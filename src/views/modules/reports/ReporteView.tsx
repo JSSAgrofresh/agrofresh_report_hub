@@ -218,6 +218,7 @@ export function ReporteView({
   const [modalAnalitos, setModalAnalitos] = useState(false)
   const [detalle, setDetalle] = useState<{ titulo: string; filas: Observacion[] } | null>(null)
   const [descargandoDatos, setDescargandoDatos] = useState(false)
+  const [vistaGrafico, setVistaGrafico] = useState<'promedios' | 'individual'>('promedios')
 
   const obtenerTodo = useCallback(async () => {
     const [datos, catalogo, limitesCatalogo] = await Promise.all([
@@ -546,90 +547,182 @@ export function ReporteView({
   useEffect(() => {
     if (!mainRef.current) return
 
-    // Todas las fechas que aparecen en los datos filtrados (comunes a todas las líneas).
-    const claves = unique(filtradas.map((o) => o.fecha ?? 'Sin fecha')).sort()
-    const etiquetas = claves.map((k) => (k === 'Sin fecha' ? k : formatDateCL(k)))
-
+    let etiquetas: string[]
     let datasets: ChartDataset<'line', (number | null)[]>[]
+    let onClickGrafico: (_evt: unknown, elements: { datasetIndex: number; index: number }[]) => void
 
-    if (comparandoVarios) {
-      // Una línea de color fijo por ingrediente — sin líneas de límite (son por analito único).
-      datasets = filtros.ingredientes.map((ingrediente) => {
-        const porFecha = new Map<string, number[]>()
-        filtradas
-          .filter((o) => o.ingrediente === ingrediente && o.ppm != null)
-          .forEach((o) => {
-            const clave = o.fecha ?? 'Sin fecha'
-            const arr = porFecha.get(clave) ?? []
-            arr.push(o.ppm as number)
-            porFecha.set(clave, arr)
-          })
-        const color = colorDeIngrediente(ingrediente)
-        return {
-          label: ingrediente,
-          data: claves.map((k) => {
-            const arr = porFecha.get(k)
-            if (!arr || arr.length === 0) return null
-            return arr.reduce((a, b) => a + b, 0) / arr.length
-          }),
-          borderColor: color,
-          backgroundColor: color,
-          borderWidth: 2,
-          pointRadius: 3,
-          pointHoverRadius: 5,
-          tension: 0.25,
-          spanGaps: true,
+    if (vistaGrafico === 'individual') {
+      // Vista individual: un punto por observación, sin agrupar por fecha.
+      const sorted = [...filtradas]
+        .filter((o) => o.ppm != null)
+        .sort((a, b) => (a.fecha ?? '').localeCompare(b.fecha ?? '') || (a.nroSolicitud ?? '').localeCompare(b.nroSolicitud ?? ''))
+
+      etiquetas = sorted.map((o) => (o.fecha ? formatDateCL(o.fecha) : 'Sin fecha'))
+
+      if (comparandoVarios) {
+        datasets = filtros.ingredientes.map((ingrediente) => {
+          const color = colorDeIngrediente(ingrediente)
+          return {
+            label: ingrediente,
+            data: sorted.map((o) => (o.ingrediente === ingrediente ? (o.ppm as number) : null)),
+            borderColor: color,
+            backgroundColor: color,
+            borderWidth: 0,
+            showLine: false,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+          }
+        })
+      } else {
+        datasets = [
+          {
+            label: unidad,
+            data: sorted.map((o) => o.ppm as number),
+            borderColor: colorLineaUnica,
+            backgroundColor: colorLineaUnica,
+            borderWidth: 0,
+            showLine: false,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+          },
+          {
+            label: 'Límite superior',
+            data: sorted.map(() => limitesActivos.superior),
+            borderColor: colorWarning,
+            borderDash: [6, 4],
+            borderWidth: 1.5,
+            pointRadius: 0,
+          },
+          {
+            label: 'Límite central',
+            data: sorted.map(() => limitesActivos.central),
+            borderColor: colorMuted,
+            borderDash: [2, 3],
+            borderWidth: 1.5,
+            pointRadius: 0,
+          },
+          {
+            label: 'Límite inferior',
+            data: sorted.map(() => limitesActivos.inferior),
+            borderColor: colorWarning,
+            borderDash: [6, 4],
+            borderWidth: 1.5,
+            pointRadius: 0,
+          },
+        ]
+      }
+
+      onClickGrafico = (_evt, elements) => {
+        if (!elements.length) return
+        const { datasetIndex, index } = elements[0]
+        if (comparandoVarios) {
+          if (datasetIndex >= filtros.ingredientes.length) return
+          const obs = sorted[index]
+          if (obs) setDetalle({ titulo: `${filtros.ingredientes[datasetIndex] ?? ''} · ${etiquetas[index]}`, filas: [obs] })
+        } else {
+          if (datasetIndex !== 0) return
+          const obs = sorted[index]
+          if (obs) setDetalle({ titulo: `${obs.nroSolicitud} · ${etiquetas[index]}`, filas: [obs] })
         }
-      })
+      }
     } else {
-      const porFecha = new Map<string, number[]>()
-      filtradas.forEach((o) => {
-        if (o.ppm == null) return
-        const clave = o.fecha ?? 'Sin fecha'
-        const arr = porFecha.get(clave) ?? []
-        arr.push(o.ppm)
-        porFecha.set(clave, arr)
-      })
-      const promedios = claves.map((k) => {
-        const arr = porFecha.get(k) ?? []
-        return arr.reduce((a, b) => a + b, 0) / arr.length
-      })
-      datasets = [
-        {
-          label: `Promedio ${unidad}`,
-          data: promedios,
-          borderColor: colorLineaUnica,
-          backgroundColor: colorLineaUnica,
-          borderWidth: 2,
-          pointRadius: 3,
-          pointHoverRadius: 5,
-          tension: 0.25,
-        },
-        {
-          label: 'Límite superior',
-          data: claves.map(() => limitesActivos.superior),
-          borderColor: colorWarning,
-          borderDash: [6, 4],
-          borderWidth: 1.5,
-          pointRadius: 0,
-        },
-        {
-          label: 'Límite central',
-          data: claves.map(() => limitesActivos.central),
-          borderColor: colorMuted,
-          borderDash: [2, 3],
-          borderWidth: 1.5,
-          pointRadius: 0,
-        },
-        {
-          label: 'Límite inferior',
-          data: claves.map(() => limitesActivos.inferior),
-          borderColor: colorWarning,
-          borderDash: [6, 4],
-          borderWidth: 1.5,
-          pointRadius: 0,
-        },
-      ]
+      // Vista por promedios (por defecto): un punto por fecha, valor = promedio del día.
+      const claves = unique(filtradas.map((o) => o.fecha ?? 'Sin fecha')).sort()
+      etiquetas = claves.map((k) => (k === 'Sin fecha' ? k : formatDateCL(k)))
+
+      if (comparandoVarios) {
+        datasets = filtros.ingredientes.map((ingrediente) => {
+          const porFecha = new Map<string, number[]>()
+          filtradas
+            .filter((o) => o.ingrediente === ingrediente && o.ppm != null)
+            .forEach((o) => {
+              const clave = o.fecha ?? 'Sin fecha'
+              const arr = porFecha.get(clave) ?? []
+              arr.push(o.ppm as number)
+              porFecha.set(clave, arr)
+            })
+          const color = colorDeIngrediente(ingrediente)
+          return {
+            label: ingrediente,
+            data: claves.map((k) => {
+              const arr = porFecha.get(k)
+              if (!arr || arr.length === 0) return null
+              return arr.reduce((a, b) => a + b, 0) / arr.length
+            }),
+            borderColor: color,
+            backgroundColor: color,
+            borderWidth: 2,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            tension: 0.25,
+            spanGaps: true,
+          }
+        })
+      } else {
+        const porFecha = new Map<string, number[]>()
+        filtradas.forEach((o) => {
+          if (o.ppm == null) return
+          const clave = o.fecha ?? 'Sin fecha'
+          const arr = porFecha.get(clave) ?? []
+          arr.push(o.ppm)
+          porFecha.set(clave, arr)
+        })
+        const promedios = claves.map((k) => {
+          const arr = porFecha.get(k) ?? []
+          return arr.reduce((a, b) => a + b, 0) / arr.length
+        })
+        datasets = [
+          {
+            label: `Promedio ${unidad}`,
+            data: promedios,
+            borderColor: colorLineaUnica,
+            backgroundColor: colorLineaUnica,
+            borderWidth: 2,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            tension: 0.25,
+          },
+          {
+            label: 'Límite superior',
+            data: claves.map(() => limitesActivos.superior),
+            borderColor: colorWarning,
+            borderDash: [6, 4],
+            borderWidth: 1.5,
+            pointRadius: 0,
+          },
+          {
+            label: 'Límite central',
+            data: claves.map(() => limitesActivos.central),
+            borderColor: colorMuted,
+            borderDash: [2, 3],
+            borderWidth: 1.5,
+            pointRadius: 0,
+          },
+          {
+            label: 'Límite inferior',
+            data: claves.map(() => limitesActivos.inferior),
+            borderColor: colorWarning,
+            borderDash: [6, 4],
+            borderWidth: 1.5,
+            pointRadius: 0,
+          },
+        ]
+      }
+
+      onClickGrafico = (_evt, elements) => {
+        if (!elements.length) return
+        const { datasetIndex, index } = elements[0]
+        const fechaClave = unique(filtradas.map((o) => o.fecha ?? 'Sin fecha')).sort()[index]
+        if (comparandoVarios) {
+          const ingrediente = filtros.ingredientes[datasetIndex]
+          const obs = filtradas.filter((o) => o.ingrediente === ingrediente && (o.fecha ?? 'Sin fecha') === fechaClave)
+          if (obs.length) setDetalle({ titulo: `${ingrediente} · ${etiquetas[index]}`, filas: obs })
+        } else {
+          if (datasetIndex !== 0) return
+          const obs = filtradas.filter((o) => (o.fecha ?? 'Sin fecha') === fechaClave)
+          if (obs.length) setDetalle({ titulo: etiquetas[index], filas: obs })
+        }
+      }
     }
 
     mainChart.current?.destroy()
@@ -639,26 +732,13 @@ export function ReporteView({
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
+        interaction: vistaGrafico === 'individual' ? { mode: 'nearest', intersect: true } : { mode: 'index', intersect: false },
         plugins: { legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } } },
         scales: {
-          x: { ticks: { maxTicksLimit: 10, font: { size: 10 } }, grid: { display: false } },
+          x: { ticks: { maxTicksLimit: vistaGrafico === 'individual' ? 14 : 10, font: { size: 10 } }, grid: { display: false } },
           y: { beginAtZero: true, grid: { color: colorBorder } },
         },
-        onClick: (_evt, elements) => {
-          if (!elements.length) return
-          const { datasetIndex, index } = elements[0]
-          const fechaClave = claves[index]
-          if (comparandoVarios) {
-            const ingrediente = filtros.ingredientes[datasetIndex]
-            const obs = filtradas.filter((o) => o.ingrediente === ingrediente && (o.fecha ?? 'Sin fecha') === fechaClave)
-            if (obs.length) setDetalle({ titulo: `${ingrediente} · ${etiquetas[index]}`, filas: obs })
-          } else {
-            if (datasetIndex !== 0) return // clic en una línea de límite: no hay detalle que mostrar
-            const obs = filtradas.filter((o) => (o.fecha ?? 'Sin fecha') === fechaClave)
-            if (obs.length) setDetalle({ titulo: etiquetas[index], filas: obs })
-          }
-        },
+        onClick: onClickGrafico,
       },
     })
     return () => mainChart.current?.destroy()
@@ -674,6 +754,7 @@ export function ReporteView({
     colorMuted,
     colorBorder,
     unidad,
+    vistaGrafico,
   ])
 
   useEffect(() => {
@@ -1185,7 +1266,15 @@ export function ReporteView({
               <div className={styles.grid2}>
                 <Card className={styles.panel}>
                   <h3>
-                    {vista === 'residual' ? `Promedio de ${unidad} por fecha` : `${unidad} por fecha · límites de control`}
+                    <span className={styles.h3Izq}>
+                      {vista === 'residual' ? `Promedio de ${unidad} por fecha` : `${unidad} por fecha · límites de control`}
+                      <button
+                        className={styles.toggleVista}
+                        onClick={() => setVistaGrafico((v) => (v === 'promedios' ? 'individual' : 'promedios'))}
+                      >
+                        {vistaGrafico === 'promedios' ? 'Ver todos los puntos' : 'Ver por promedio'}
+                      </button>
+                    </span>
                     <span className={styles.hintClic}>clic en un punto para ver el detalle</span>
                   </h3>
                   <div className={styles.chartbox}>
