@@ -21,6 +21,22 @@ export interface MuestraGC {
   resultados: ResultadoAnalito[]
 }
 
+/** Tipos de muestra disponibles. Los dos nuevos se comportan igual que normal
+ * en todo el flujo; solo cambian el color de identificación visual. */
+export type TipoMuestra = 'normal' | 'F-AGF' | 'D-AGF' | string
+
+export interface ConfigTipoMuestra {
+  etiqueta: string
+  descripcion: string
+  /** Nombre de variable CSS que define el color de acento (sin --). */
+  colorVar: string
+}
+
+export const CONFIG_TIPOS_MUESTRA: Record<string, ConfigTipoMuestra> = {
+  'F-AGF': { etiqueta: 'F-AGF', descripcion: 'Sortificado', colorVar: 'tipo-fagf' },
+  'D-AGF': { etiqueta: 'D-AGF', descripcion: 'Duplicado', colorVar: 'tipo-dagf' },
+}
+
 export interface Solicitud {
   archivo: string
   campos: Record<string, string>
@@ -34,6 +50,31 @@ export interface Solicitud {
    * llena con el instante exacto en que se hizo el cruce. */
   fecha_recepcion?: string | null
   hora_recepcion?: string | null
+  /** Peso de la muestra física, registrado al cruzar (migración 0033). */
+  peso_muestra?: number | null
+  unidad_peso?: string | null
+  /** Usuario que hizo el cruce (email y nombre, del token del servidor). */
+  cruzado_por?: string | null
+  cruzado_por_nombre?: string | null
+}
+
+/** Una entrada del historial de actividad del módulo de ingreso. */
+export interface ActividadLab {
+  id: number
+  accion: string
+  archivo: string | null
+  numero_solicitud: string | null
+  codigo_muestra: string | null
+  tipo_muestra: string | null
+  peso_muestra: number | null
+  unidad_peso: string | null
+  r2_key_foto: string | null
+  usuario_email: string
+  usuario_nombre: string
+  detalle: Record<string, unknown>
+  resultado: string
+  mensaje: string | null
+  creado_en: string
 }
 
 /** Una corrida del GC trae, además de las muestras de cliente, la curva de

@@ -19,6 +19,7 @@ import { DetalleGCModal } from './DetalleGCModal'
 import { SolicitudFichaModal } from './SolicitudFichaModal'
 import { ConfiguracionInformeModal } from './ConfiguracionInformeModal'
 import { ResultadosAutomaticos } from './ResultadosAutomaticos'
+import { ActividadLab } from './ActividadLab'
 import styles from './AgrofreshLabView.module.css'
 
 /**
@@ -149,7 +150,7 @@ export function AgrofreshLabView() {
           <>
             <PanelIngreso
               solicitudes={solicitudes}
-              onCruzar={(s, codigo) => cruzar(s, codigo)}
+              onCruzado={refrescarSolicitudes}
               onVerFicha={setSolicitudEnFicha}
             />
 
@@ -222,6 +223,8 @@ export function AgrofreshLabView() {
           </p>
         )}
       </Card>
+
+      <ActividadLab />
 
       {detalleGC && mostrarDetalle && (
         <DetalleGCModal

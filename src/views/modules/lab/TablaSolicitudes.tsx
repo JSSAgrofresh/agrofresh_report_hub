@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { filtrarPorFolio } from '@/features/emitir'
 import type { Solicitud } from '@/features/emitir'
+import { TipoMuestraChip } from './TipoMuestraChip'
 import styles from './TablaSolicitudes.module.css'
 
 
@@ -155,7 +156,9 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
           <thead>
             <tr>
               <th>N° Solicitud</th>
+              <th>Tipo</th>
               <th>N° Muestra</th>
+              <th>Peso</th>
               <th>Fecha recepción</th>
               <th>Hora recepción</th>
               <th>Fecha muestreo</th>
@@ -170,8 +173,18 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
             {visibles.map((s) => (
               <tr key={s.archivo} className={s.codigo_muestra ? styles.lista : undefined}>
                 <td className={styles.folio}>{s.campos['N° Solicitud'] || s.archivo}</td>
+                <td>
+                  {s.campos['Tipo Muestra']
+                    ? <TipoMuestraChip tipo={s.campos['Tipo Muestra']} compacto />
+                    : <span className={styles.pendiente}>—</span>}
+                </td>
                 <td className={styles.muestra}>
                   {s.codigo_muestra ?? <span className={styles.pendiente}>esperando muestra</span>}
+                </td>
+                <td className={styles.mono}>
+                  {s.peso_muestra != null
+                    ? <>{s.peso_muestra} <span className={styles.unidad}>{s.unidad_peso ?? 'kg'}</span></>
+                    : '—'}
                 </td>
                 <td className={styles.mono}>{formatearFecha(s.fecha_recepcion)}</td>
                 <td className={styles.mono}>{s.hora_recepcion || '—'}</td>
@@ -200,7 +213,7 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
             ))}
             {visibles.length === 0 && (
               <tr>
-                <td colSpan={10} className={styles.vacio}>
+                <td colSpan={12} className={styles.vacio}>
                   {solicitudes === null
                     ? 'Cargando…'
                     : buscar

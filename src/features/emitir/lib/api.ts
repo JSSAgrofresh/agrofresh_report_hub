@@ -1,5 +1,6 @@
 import { httpClient } from '@/services/http/client'
 import type {
+  ActividadLab,
   DetalleGC,
   FilaCruce,
   FilaSubida,
@@ -61,4 +62,43 @@ export function guardarConfiguracionInforme(config: InformeConfig) {
 
 export function subirCruceABaseDeDatos(filas: FilaCruce[]) {
   return httpClient.post<FilaSubida[]>('/emitir/cromatografia/subir-bd', filas)
+}
+
+/** Cruce completo con foto y peso obligatorios.
+ * Usa multipart/form-data para enviar la foto junto con los demás campos. */
+export async function cruzarCompleto(
+  archivo: string,
+  codigoMuestra: string,
+  pesoMuestra: number,
+  unidadPeso: string,
+  foto: File,
+): Promise<Solicitud> {
+  const fd = new FormData()
+  fd.append('codigo_muestra', codigoMuestra)
+  fd.append('peso_muestra', String(pesoMuestra))
+  fd.append('unidad_peso', unidadPeso)
+  fd.append('foto', foto)
+  return httpClient.upload<Solicitud>(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/cruzar-completo`,
+    fd,
+  )
+}
+
+/** Historial de actividad del módulo de ingreso al laboratorio. */
+export function listarActividadLab(params?: {
+  limite?: number
+  offset?: number
+  archivo?: string
+}) {
+  const qs = new URLSearchParams()
+  if (params?.limite) qs.set('limite', String(params.limite))
+  if (params?.offset) qs.set('offset', String(params.offset))
+  if (params?.archivo) qs.set('archivo', params.archivo)
+  const q = qs.toString()
+  return httpClient.get<ActividadLab[]>(`/toma-muestras/actividad${q ? `?${q}` : ''}`)
+}
+
+/** URL de la foto del cruce de una solicitud (para <img src>). */
+export function urlFotoCruce(archivo: string): string {
+  return `/api/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/cruce-foto`
 }

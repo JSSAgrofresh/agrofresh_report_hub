@@ -1,0 +1,344 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+@media (min-width: 600px) {
+  .overlay {
+    align-items: center;
+  }
+}
+
+.modal {
+  background: var(--color-bg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  width: 100%;
+  max-width: 520px;
+  max-height: 95dvh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 600px) {
+  .modal {
+    border-radius: var(--radius-lg);
+    max-height: 90dvh;
+  }
+}
+
+.cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--color-border);
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  background: var(--color-bg);
+  z-index: 1;
+}
+
+.titulo {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--color-text);
+}
+
+.subtitulo {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.codigoMuestra {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.botonCerrar {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 2px 6px;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.botonCerrar:hover:not(:disabled) {
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+}
+
+.cuerpo {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+}
+
+.seccion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rotulo {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-faint);
+  display: block;
+}
+
+.obligatorio {
+  color: var(--color-danger);
+}
+
+/* Zona de foto sin foto todavía */
+.zonaFoto {
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  text-align: center;
+}
+
+.ayudaFoto {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.botonesCaptura {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.botonFoto {
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.botonFoto:hover {
+  opacity: 0.9;
+}
+
+.botonFotoSecundario {
+  font-size: 13px;
+  font-weight: 600;
+  background: none;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.botonFotoSecundario:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* Visor de cámara para tomar foto */
+.visorCamara {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: #000;
+}
+
+.video {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+}
+
+.controlesCamara {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #111;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.botonCapturar {
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.botonCapturar:hover {
+  opacity: 0.9;
+}
+
+/* Vista previa de la foto capturada */
+.previsualizacion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.imgPrevia {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-primary);
+  display: block;
+}
+
+.botonRetomar {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 600;
+  background: none;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.botonRetomar:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+/* Peso */
+.filaPeso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.campoPeso {
+  width: 140px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  text-align: right;
+  background: #fff;
+}
+
+.campoPeso:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.campoPeso:disabled {
+  background: var(--color-bg);
+}
+
+.unidadPeso {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.errorCampo {
+  font-size: 12px;
+  color: var(--color-danger);
+  margin: 0;
+}
+
+.errorGeneral {
+  font-size: 13px;
+  color: var(--color-danger);
+  background: #fbe8e5;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin: 0;
+}
+
+/* Pie del modal */
+.pie {
+  display: flex;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--color-border);
+  justify-content: flex-end;
+  position: sticky;
+  bottom: 0;
+  background: var(--color-bg);
+}
+
+.botonCancelar {
+  font-size: 13px;
+  font-weight: 600;
+  background: none;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.botonCancelar:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.botonConfirmar {
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  padding: 8px 20px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  min-width: 150px;
+}
+
+.botonConfirmar:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.botonConfirmar:not(:disabled):hover {
+  opacity: 0.9;
+}
