@@ -8,7 +8,10 @@ Problemas que resuelve:
      campo informe vacío (es un código de inyección de GC, no un folio de informe).
   3. Celdas con el valor "-" (guion) → las vacía (son nulos disfrazados).
   4. Espacios sobrantes en encabezados y en celdas de texto.
-  5. Informa qué columnas de la hoja NO están mapeadas en mapeo.py (no las borra,
+  5. Sold To y Ship To → reemplaza cada valor por su forma canónica oficial según
+     listados_seed.xlsx (coincidencia exacta normalizada). Los que no están en el
+     listado se dejan tal cual.
+  6. Informa qué columnas de la hoja NO están mapeadas en mapeo.py (no las borra,
      solo avisa para que se decida si agregarlas al sistema).
 
 Uso:
@@ -20,8 +23,37 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
+
+# Ruta al listado canónico (relativa a este script)
+_SEED = Path(__file__).parent / "data" / "listados_seed.xlsx"
+
+
+def _norm(s: object) -> str:
+    """Normaliza un valor para comparación: mayúsculas, espacios colapsados."""
+    return re.sub(r'\s+', ' ', str(s or '')).strip().upper()
+
+
+def _cargar_canonicos() -> tuple[dict[str, str], dict[str, str]]:
+    """Lee listados_seed.xlsx y devuelve (sold_to_map, ship_to_map).
+    Cada mapa: {valor_normalizado → valor_canónico_oficial}.
+    """
+    ox = _importar_openpyxl()
+    wb = ox.load_workbook(_SEED, read_only=True, data_only=True)
+    ws = wb['ShIP TO SOLD TO']
+    sold: dict[str, str] = {}
+    ship: dict[str, str] = {}
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        s_to = row[1]   # columna B: SOLD TO
+        h_to = row[4]   # columna E: SHIP TO (nombre final)
+        if s_to:
+            sold[_norm(s_to)] = str(s_to).strip()
+        if h_to:
+            ship[_norm(h_to)] = str(h_to).strip()
+    wb.close()
+    return sold, ship
 
 # ---------------------------------------------------------------------------
 # Columnas que el sistema sí conoce (mapeo.py + campos de solicitud hardcodeados
@@ -186,11 +218,20 @@ def analizar(ruta: Path) -> dict:
     idx_lab       = enc_lower.get("laboratorio")
     idx_informe   = enc_lower.get("n° informe") or enc_lower.get("numero informe") or enc_lower.get("nro. informe")
     idx_orden     = enc_lower.get("n° orden") or enc_lower.get("numero orden") or enc_lower.get("nro. orden")
+    idx_sold      = enc_lower.get("sold to")
+    idx_ship      = enc_lower.get("ship to")
+
+    # Carga canónicos para el conteo (solo si existen las columnas)
+    sold_map, ship_map = ({}, {})
+    if (idx_sold is not None or idx_ship is not None) and _SEED.exists():
+        sold_map, ship_map = _cargar_canonicos()
 
     # ---------- conteo de problemas ----------
     labs_mal: dict[str, int] = {}
     gc_en_informe = 0
     guiones = 0
+    sold_a_canonizar = 0
+    ship_a_canonizar = 0
 
     for fila in datos:
         if idx_lab is not None:
@@ -202,6 +243,18 @@ def analizar(ruta: Path) -> dict:
             inf = str(fila[idx_informe]).strip() if fila[idx_informe] is not None else ""
             if inf.upper().startswith("GC"):
                 gc_en_informe += 1
+
+        if idx_sold is not None and fila[idx_sold] is not None:
+            v = str(fila[idx_sold]).strip()
+            n = _norm(v)
+            if n in sold_map and sold_map[n] != v:
+                sold_a_canonizar += 1
+
+        if idx_ship is not None and fila[idx_ship] is not None:
+            v = str(fila[idx_ship]).strip()
+            n = _norm(v)
+            if n in ship_map and ship_map[n] != v:
+                ship_a_canonizar += 1
 
         for v in fila:
             if str(v).strip() == "-":
@@ -221,6 +274,8 @@ def analizar(ruta: Path) -> dict:
         "idx_lab": idx_lab,
         "idx_informe": idx_informe,
         "idx_orden": idx_orden,
+        "sold_a_canonizar": sold_a_canonizar,
+        "ship_a_canonizar": ship_a_canonizar,
     }
 
 
@@ -242,7 +297,11 @@ def imprimir_resumen(info: dict) -> None:
     print(f"\n[3] Celdas con guion '-' (nulos disfrazados):")
     print(f"      {info['guiones']} celdas")
 
-    print(f"\n[4] Columnas de la hoja BD que el sistema NO mapea aún:")
+    print(f"\n[4] Sold To / Ship To a canonizar (coincidencia exacta con listados_seed):")
+    print(f"      Sold To: {info['sold_a_canonizar']} celdas con forma no canónica")
+    print(f"      Ship To: {info['ship_a_canonizar']} celdas con forma no canónica")
+
+    print(f"\n[5] Columnas de la hoja BD que el sistema NO mapea aún:")
     if info["no_mapeadas"]:
         for col in info["no_mapeadas"]:
             print(f"      '{col}'")
@@ -275,10 +334,21 @@ def limpiar_y_guardar(ruta: Path, salida: Path) -> None:
     idx_lab     = next((i for i, h in encabezados.items() if h == "laboratorio"), None)
     idx_informe = next((i for i, h in encabezados.items() if h in ("n° informe", "numero informe", "nro. informe")), None)
     idx_orden   = next((i for i, h in encabezados.items() if h in ("n° orden", "numero orden", "nro. orden")), None)
+    idx_sold    = next((i for i, h in encabezados.items() if h == "sold to"), None)
+    idx_ship    = next((i for i, h in encabezados.items() if h == "ship to"), None)
 
-    correcciones_lab = 0
-    correcciones_gc  = 0
-    correcciones_gui = 0
+    # Carga mapas canónicos
+    sold_map, ship_map = ({}, {})
+    if (idx_sold is not None or idx_ship is not None) and _SEED.exists():
+        sold_map, ship_map = _cargar_canonicos()
+    elif not _SEED.exists():
+        print(f"AVISO: no se encontró {_SEED}, se omite canonización de Sold To / Ship To.")
+
+    correcciones_lab  = 0
+    correcciones_gc   = 0
+    correcciones_gui  = 0
+    correcciones_sold = 0
+    correcciones_ship = 0
 
     for fila in filas[1:]:
         for cell in fila:
@@ -315,11 +385,33 @@ def limpiar_y_guardar(ruta: Path, salida: Path) -> None:
                         cell_ord.value = inf
                 cell_inf.value = None
 
+        # --- Sold To → forma canónica exacta ---
+        if idx_sold is not None and sold_map:
+            cell_s = fila[idx_sold]
+            val = str(cell_s.value).strip() if cell_s.value else ""
+            if val:
+                canon = sold_map.get(_norm(val))
+                if canon and canon != val:
+                    cell_s.value = canon
+                    correcciones_sold += 1
+
+        # --- Ship To → forma canónica exacta ---
+        if idx_ship is not None and ship_map:
+            cell_h = fila[idx_ship]
+            val = str(cell_h.value).strip() if cell_h.value else ""
+            if val:
+                canon = ship_map.get(_norm(val))
+                if canon and canon != val:
+                    cell_h.value = canon
+                    correcciones_ship += 1
+
     wb.save(salida)
     print(f"\nArchivo limpio guardado en: {salida}")
     print(f"  Laboratorio corregido:      {correcciones_lab} filas")
     print(f"  Códigos GC movidos:         {correcciones_gc} filas")
-    print(f"  Guiones vaciados:           {correcciones_gui} celdas\n")
+    print(f"  Guiones vaciados:           {correcciones_gui} celdas")
+    print(f"  Sold To canonizados:        {correcciones_sold} celdas")
+    print(f"  Ship To canonizados:        {correcciones_ship} celdas\n")
 
 
 def main() -> None:
