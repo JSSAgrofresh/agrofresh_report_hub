@@ -274,6 +274,23 @@ def yo(usuario: Usuario = Depends(usuario_actual)) -> Any:
     return usuario
 
 
+class VerificarClaveIn(BaseModel):
+    password: str
+
+
+@router.post("/verificar-clave")
+def verificar_clave(
+    body: VerificarClaveIn, usuario: Usuario = Depends(usuario_actual)
+) -> dict[str, bool]:
+    """Comprueba que la contraseña corresponde al usuario autenticado.
+    No crea sesión ni cambia nada. Sirve para confirmar acciones críticas."""
+    with conexion() as conn, cursor_dict(conn) as cur:
+        fila = _fila_por_email(cur, usuario.email)
+        if fila is None or not seguridad.verificar_password(body.password, fila["password_hash"]):
+            raise HTTPException(401, "Contraseña incorrecta.")
+    return {"ok": True}
+
+
 @router.post("/cambiar-password", response_model=Usuario)
 def cambiar_password(
     body: CambiarPasswordIn,
