@@ -15,7 +15,11 @@ function normalizarClaves(fila: FilaIngest): FilaIngest {
 export async function leerExcel(file: File): Promise<{ rows: FilaIngest[]; headers: string[] }> {
   const buffer = await file.arrayBuffer()
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
-  const ws = wb.Sheets[wb.SheetNames[0]]
+  const sheetName =
+    wb.SheetNames.find((n) => n === 'Solicitudes') ??
+    wb.SheetNames.find((n) => n === 'BD') ??
+    wb.SheetNames[0]
+  const ws = wb.Sheets[sheetName]
 
   const raw = XLSX.utils.sheet_to_json<FilaIngest>(ws, { defval: null, raw: false }).map(normalizarClaves)
   const rawDates = XLSX.utils.sheet_to_json<FilaIngest>(ws, { defval: null, raw: true }).map(normalizarClaves)

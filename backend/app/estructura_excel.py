@@ -21,8 +21,8 @@ COLUMNAS_ESPERADAS: tuple[str, ...] = (
     "N° Solicitud",
     "Fecha Solicitud",
     "Fecha Muestreo",
-    "Fecha Análisis",
     "Fecha Informe",
+    "Fecha Análisis",
     "Hora Muestreo",
     "Laboratorio",
     "Solicitante",
@@ -31,8 +31,7 @@ COLUMNAS_ESPERADAS: tuple[str, ...] = (
     "Especie",
     "Variedad",
     "Línea Proceso",
-    "Código del Productor",
-    "Código del Packing",
+    "CSG",
     "Lote",
     "Posición Muestreo",
     "N° Cámara",
@@ -87,6 +86,7 @@ COLUMNAS_ESPERADAS: tuple[str, ...] = (
     "Resultado Pesticida 2",
     "Analito Pesticida 3",
     "Resultado Pesticida 3",
+    "Línea de Proceso",
 )
 
 _ESPERADAS_NORMALIZADAS = {c.strip().lower(): c for c in COLUMNAS_ESPERADAS}

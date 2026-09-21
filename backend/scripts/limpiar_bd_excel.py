@@ -34,23 +34,43 @@ CAMPOS_SOLICITUD = {
     "Fecha de Muestreo",
     "Hora de Muestreo",
     "Fecha Informe",
+    "Fecha Análisis",
+    "Hora Muestreo",
     "Laboratorio",
+    # Nombres del formato BD (estándar actual)
+    "Sold To",
+    "Ship To",
+    "Especie",
+    "Variedad",
+    "CSG",
+    "Solicitante",
+    "Línea Proceso",
+    "Línea de Proceso",
+    "Posición Muestreo",
+    "N° Cámara",
+    "Lote",
+    # Nombres del formato antiguo (alias)
     "Cliente",
     "Planta",
     "Producto",
-    "Variedad",
     "Código de Muestra",
     "Código Packing",
+    "Código del Productor",
+    "Código del Packing",
     "N° Orden",
     "N° Informe",
     "Observaciones",
+    "Observación",
     "Norma",
     "Analista",
+    "Nombre Muestreador",
     "Generado Por",
     "Email Solicitante",
     "Email Laboratorio",
     "Tipo de Muestra",
+    "Tipo Muestra",
     "Producto Utilizado",
+    "Kilos Procesados (KG)",
     "SEMANA",
     "MES",
     # alias conocidos del Excel nativo
@@ -58,11 +78,15 @@ CAMPOS_SOLICITUD = {
     "Número de Solicitud",
     "Fecha Entrada",
     "Fecha Muestreo",
+    "Fecha Solicitud",
     "Codigo Muestra",
     "Codigo del Packing",
     "Numero Orden",
     "Numero Informe",
     "Obs",
+    "Tipo Aplicación",
+    "Gasto",
+    "Solicitante",
 }
 
 ANALITOS_CONOCIDOS = {
@@ -126,19 +150,28 @@ def _importar_openpyxl():
         sys.exit(1)
 
 
+def _hoja_datos(wb, modo: str = "r") -> object:
+    """Devuelve la hoja de datos principal: 'Solicitudes', 'BD' o la primera hoja."""
+    for nombre in ("Solicitudes", "BD"):
+        if nombre in wb.sheetnames:
+            return wb[nombre]
+    # Fallback: primera hoja (formatos alternativos)
+    return wb[wb.sheetnames[0]]
+
+
 def analizar(ruta: Path) -> dict:
-    """Lee la hoja BD y devuelve un resumen de los problemas encontrados."""
+    """Lee la hoja de datos y devuelve un resumen de los problemas encontrados."""
     ox = _importar_openpyxl()
     wb = ox.load_workbook(ruta, read_only=True, data_only=True)
 
-    if "BD" not in wb.sheetnames:
-        print(f"ERROR: el archivo no tiene hoja 'BD'. Hojas disponibles: {wb.sheetnames}")
-        sys.exit(1)
+    hojas_conocidas = [h for h in ("Solicitudes", "BD") if h in wb.sheetnames]
+    if not hojas_conocidas:
+        print(f"AVISO: no se encontró hoja 'Solicitudes' ni 'BD'. Usando la primera: '{wb.sheetnames[0]}'")
 
-    ws = wb["BD"]
+    ws = _hoja_datos(wb)
     filas = list(ws.iter_rows(values_only=True))
     if not filas:
-        print("ERROR: la hoja BD está vacía.")
+        print(f"ERROR: la hoja '{ws.title}' está vacía.")
         sys.exit(1)
 
     encabezados_raw = [str(c).strip() if c is not None else "" for c in filas[0]]
@@ -224,11 +257,11 @@ def limpiar_y_guardar(ruta: Path, salida: Path) -> None:
     ox = _importar_openpyxl()
     # load_workbook sin read_only para poder escribir
     wb = ox.load_workbook(ruta, data_only=True)
-    ws = wb["BD"]
+    ws = _hoja_datos(wb)
 
     filas = list(ws.iter_rows())
     if not filas:
-        print("ERROR: la hoja BD está vacía.")
+        print(f"ERROR: la hoja '{ws.title}' está vacía.")
         sys.exit(1)
 
     # Encabezados (fila 0)
