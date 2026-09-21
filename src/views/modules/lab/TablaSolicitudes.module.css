@@ -130,6 +130,11 @@
 
 .lista .chip { background: #fff; }
 
+.unidad {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
 .acciones {
   white-space: nowrap;
   text-align: right;

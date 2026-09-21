@@ -1,0 +1,199 @@
+.seccion {
+  margin-top: var(--space-4);
+}
+
+.cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.titulo {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subtitulo {
+  font-size: 12px;
+  color: var(--color-text-faint);
+  margin: 0;
+}
+
+.acciones {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.botonChico {
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.botonChico:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.botonChico:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.contenido {
+  margin-top: var(--space-3);
+}
+
+.cargando,
+.errorMsg,
+.vacio {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: var(--space-3) 0;
+  margin: 0;
+}
+
+.errorMsg {
+  color: var(--color-danger);
+}
+
+/* Lista de filas */
+.lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fila {
+  background: var(--color-bg-alt, #f8f9fa);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filaError {
+  border-color: var(--color-danger);
+  background: #fef2f2;
+}
+
+.encabezadoFila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.accion {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-primary);
+}
+
+.fecha {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+}
+
+.datosGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.dato {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.datoRotulo {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-faint);
+}
+
+.datoValor {
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 700;
+}
+
+.unidad {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.pieFilas {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.usuario {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.botonFoto {
+  font-size: 11.5px;
+  font-weight: 600;
+  background: none;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.botonFoto:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.mensajeError {
+  font-size: 11.5px;
+  color: var(--color-danger);
+}
+
+.fotoContainer {
+  margin-top: 4px;
+}
+
+.foto {
+  max-width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  display: block;
+}

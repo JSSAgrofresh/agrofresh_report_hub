@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { EscanerCamara } from './EscanerCamara'
 import styles from './Escaner.module.css'
 
 interface EscanerProps<T> {
@@ -18,6 +19,8 @@ interface EscanerProps<T> {
    * espera esta pausa antes de resolver. Los lectores escriben el código
    * completo en pocos milisegundos. */
   esperaFinEscaneoMs?: number
+  /** Título del escáner de cámara cuando se abre (opcional). */
+  tituloCamara?: string
 }
 
 export function Escaner<T>({
@@ -34,10 +37,12 @@ export function Escaner<T>({
   tomarFocoAlReiniciar = false,
   tomarFoco = false,
   esperaFinEscaneoMs = 0,
+  tituloCamara,
 }: EscanerProps<T>) {
   const [texto, setTexto] = useState('')
   const [sinResultado, setSinResultado] = useState<string | null>(null)
   const [activo, setActivo] = useState(false)
+  const [mostrarCamara, setMostrarCamara] = useState(false)
   const entrada = useRef<HTMLInputElement>(null)
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -112,66 +117,104 @@ export function Escaner<T>({
     }, esperaFinEscaneoMs)
   }
 
+  function recibirDeCamara(codigo: string) {
+    setMostrarCamara(false)
+    setTexto(codigo)
+    onTexto?.(codigo)
+    // Intentar resolver de inmediato; si no, dejar el texto para edición manual
+    const encontrado = buscar(codigo)
+    if (encontrado) {
+      setSinResultado(null)
+      onEncontrado(encontrado)
+      if (esperaFinEscaneoMs === 0) entrada.current?.select()
+    } else {
+      setSinResultado(codigo)
+    }
+  }
+
   return (
-    <div
-      className={[styles.caja, resuelto && styles.listo, deshabilitado && styles.apagada]
-        .filter(Boolean)
-        .join(' ')}
-      onClick={() => setActivo(true)}
-    >
-      <form
-        className={styles.linea}
-        onSubmit={(e) => {
-          e.preventDefault()
-          cancelarEspera()
-          resolver(texto, true)
-        }}
-      >
-        <span className={styles.icono} aria-hidden="true">▌▏▌▌▏▌</span>
-        <input
-          ref={entrada}
-          className={styles.entrada}
-          value={texto}
-          disabled={deshabilitado}
-          onChange={(e) => {
-            setTexto(e.target.value)
-            onTexto?.(e.target.value)
-            resolverCambio(e.target.value)
-          }}
-          onFocus={() => setActivo(true)}
-          onBlur={() => setActivo(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'Tab' && texto.trim()) {
-              e.preventDefault()
-              cancelarEspera()
-              resolver(texto, true)
-            }
-          }}
-          placeholder={deshabilitado ? (motivoDeshabilitado ?? placeholder) : placeholder}
-          aria-label={placeholder}
-          autoComplete="off"
-          spellCheck={false}
+    <>
+      {mostrarCamara && !deshabilitado && (
+        <EscanerCamara
+          titulo={tituloCamara ?? placeholder}
+          onLeido={recibirDeCamara}
+          onCerrar={() => setMostrarCamara(false)}
         />
-        {texto && !deshabilitado && (
-          <button
-            type="button"
-            className={styles.limpiar}
-            onMouseDown={(e) => {
-              e.preventDefault()
-              limpiar()
+      )}
+      <div
+        className={[styles.caja, resuelto && styles.listo, deshabilitado && styles.apagada]
+          .filter(Boolean)
+          .join(' ')}
+        onClick={() => setActivo(true)}
+      >
+        <form
+          className={styles.linea}
+          onSubmit={(e) => {
+            e.preventDefault()
+            cancelarEspera()
+            resolver(texto, true)
+          }}
+        >
+          <span className={styles.icono} aria-hidden="true">▌▏▌▌▏▌</span>
+          <input
+            ref={entrada}
+            className={styles.entrada}
+            value={texto}
+            disabled={deshabilitado}
+            onChange={(e) => {
+              setTexto(e.target.value)
+              onTexto?.(e.target.value)
+              resolverCambio(e.target.value)
             }}
-            onClick={limpiar}
-          >
-            Limpiar
-          </button>
-        )}
-        {!deshabilitado && (
-          <span className={activo ? styles.activo : styles.dormido}>
-            {activo ? 'Listo para escanear' : 'Haz clic acá'}
-          </span>
-        )}
-      </form>
-      {sinResultado && <p className={styles.noEncontrada}>{mensajeNoEncontrado(sinResultado)}</p>}
-    </div>
+            onFocus={() => setActivo(true)}
+            onBlur={() => setActivo(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Tab' && texto.trim()) {
+                e.preventDefault()
+                cancelarEspera()
+                resolver(texto, true)
+              }
+            }}
+            placeholder={deshabilitado ? (motivoDeshabilitado ?? placeholder) : placeholder}
+            aria-label={placeholder}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {texto && !deshabilitado && (
+            <button
+              type="button"
+              className={styles.limpiar}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                limpiar()
+              }}
+              onClick={limpiar}
+            >
+              Limpiar
+            </button>
+          )}
+          {!deshabilitado && (
+            <>
+              <span className={activo ? styles.activo : styles.dormido}>
+                {activo ? 'Listo para escanear' : 'Haz clic acá'}
+              </span>
+              <button
+                type="button"
+                className={styles.botonCamara}
+                title="Escanear con cámara"
+                aria-label="Abrir cámara para escanear"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setMostrarCamara(true)
+                }}
+              >
+                📷
+              </button>
+            </>
+          )}
+        </form>
+        {sinResultado && <p className={styles.noEncontrada}>{mensajeNoEncontrado(sinResultado)}</p>}
+      </div>
+    </>
   )
 }

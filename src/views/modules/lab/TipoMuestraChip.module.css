@@ -1,0 +1,73 @@
+/* Variables de color para los tres tipos de muestra */
+:root {
+  --tipo-fagf: #b45309;   /* naranja oscuro — sortificado F-AGF */
+  --tipo-fagf-bg: #fef3c7;
+  --tipo-fagf-border: #fcd34d;
+
+  --tipo-dagf: #6d28d9;   /* morado — duplicado D-AGF */
+  --tipo-dagf-bg: #f5f3ff;
+  --tipo-dagf-border: #c4b5fd;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --tipo-fagf: #fbbf24;
+    --tipo-fagf-bg: #451a03;
+    --tipo-fagf-border: #92400e;
+
+    --tipo-dagf: #a78bfa;
+    --tipo-dagf-bg: #2e1065;
+    --tipo-dagf-border: #4c1d95;
+  }
+}
+
+:root[data-theme="dark"] {
+  --tipo-fagf: #fbbf24;
+  --tipo-fagf-bg: #451a03;
+  --tipo-fagf-border: #92400e;
+
+  --tipo-dagf: #a78bfa;
+  --tipo-dagf-bg: #2e1065;
+  --tipo-dagf-border: #4c1d95;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Tipo normal: verde base del sistema */
+.normal {
+  color: var(--color-primary);
+  background: #eef6e5;
+  border-color: var(--color-primary);
+}
+
+/* F-AGF: sortificado — naranja/ámbar */
+.tipo-fagf {
+  color: var(--tipo-fagf);
+  background: var(--tipo-fagf-bg);
+  border-color: var(--tipo-fagf-border);
+}
+
+/* D-AGF: duplicado — morado */
+.tipo-dagf {
+  color: var(--tipo-dagf);
+  background: var(--tipo-dagf-bg);
+  border-color: var(--tipo-dagf-border);
+}
+
+.descripcion {
+  font-weight: 500;
+  font-size: 10px;
+  opacity: 0.8;
+}

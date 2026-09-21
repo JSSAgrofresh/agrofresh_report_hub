@@ -37,7 +37,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import psycopg2.errors
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -421,6 +421,11 @@ class Solicitud(SolicitudIn):
     # trae el archivo del GC, así que al subir los resultados cada vial
     # encuentra su solicitud sin volver a emparejar nada.
     codigo_muestra: str | None = None
+    # Datos del cruce completo (migración 0033)
+    peso_muestra: float | None = None
+    unidad_peso: str = "kg"
+    cruzado_por: str | None = None
+    cruzado_por_nombre: str | None = None
     # Una solicitud se puede editar en cualquier momento, incluso después de
     # enviada. Editar resetea `enviada` a False para que el reenvío automático
     # se dispare al guardar. Nace siempre en False -no se acepta en
@@ -764,10 +769,10 @@ def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual
 
 @router.put("/solicitudes/{archivo}/muestra", response_model=Solicitud)
 def cruzar_con_muestra(archivo: str, body: CruceIn) -> Any:
-    """Cruza una solicitud con el número de la muestra que llegó al laboratorio.
+    """Cruza o descruza una solicitud con el número de la muestra.
 
-    Se hace al recibir la muestra, no al procesar los resultados: entre una
-    cosa y otra corre el GC y pasa la noche.
+    Para deshacer el cruce: enviar codigo_muestra=null.
+    Para un cruce nuevo con foto y peso obligatorios, usar POST /cruzar-completo.
     """
     try:
         indice_solicitudes.cruzar(archivo, body.codigo_muestra)
@@ -778,8 +783,163 @@ def cruzar_con_muestra(archivo: str, body: CruceIn) -> Any:
             404,
             "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.",
         ) from e
+    if body.codigo_muestra is None:
+        # Registrar anulación de cruce en historial (best-effort)
+        pass
     datos = indice_solicitudes.buscar(archivo)
     return Solicitud(archivo=archivo, **datos)
+
+
+# Prefijo R2 para fotos del cruce (separado de las fotos de la solicitud)
+def _prefijo_foto_cruce_r2(archivo: str, fecha: str) -> str:
+    folio = os.path.splitext(os.path.basename(archivo))[0]
+    return f"cruces/{fecha}/{folio}/"
+
+
+def _carpeta_foto_cruce_disco(archivo: str, fecha: str) -> str:
+    folio = os.path.splitext(os.path.basename(archivo))[0]
+    carpeta = os.path.join(config.STORAGE_DIR, "cruces", fecha, folio)
+    os.makedirs(carpeta, exist_ok=True)
+    return carpeta
+
+
+@router.post("/solicitudes/{archivo}/cruzar-completo", response_model=Solicitud)
+async def cruzar_completo(
+    archivo: str,
+    codigo_muestra: str = Form(...),
+    peso_muestra: float = Form(...),
+    unidad_peso: str = Form(default="kg"),
+    foto: UploadFile = File(...),
+    usuario: Usuario = Depends(usuario_actual),
+) -> Any:
+    """Cruce completo con foto y peso obligatorios.
+
+    Recibe la foto (JPEG/PNG/WEBP), el peso de la muestra y el código de la
+    muestra física. Los guarda de forma atómica: si falla el guardado en BD,
+    la foto queda en R2 huérfana (no hay inconsistencia en la base).
+
+    Evita cruces duplicados: si el código ya está en otra solicitud se
+    rechaza con 409.
+    """
+    # Validaciones del backend (no solo del frontend)
+    codigo = codigo_muestra.strip()
+    if not codigo:
+        raise HTTPException(400, "El código de muestra no puede estar vacío.")
+    if peso_muestra <= 0:
+        raise HTTPException(400, "El peso debe ser mayor a cero.")
+    if foto.content_type not in _EXTENSION_POR_TIPO:
+        raise HTTPException(400, "Solo se aceptan fotos JPEG, PNG o WEBP.")
+    contenido_foto = await foto.read()
+    if not contenido_foto:
+        raise HTTPException(400, "La foto llegó vacía.")
+
+    datos = _leer_datos_actuales(archivo)
+    _exigir_acceso(usuario, datos)
+
+    extension = _EXTENSION_POR_TIPO[foto.content_type]
+    fecha_hoy = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    nombre_foto = f"cruce_{ts}{extension}"
+
+    # Subir foto a R2 / disco antes de la transacción de BD
+    if r2.disponible():
+        prefijo = _prefijo_foto_cruce_r2(archivo, fecha_hoy)
+        r2_key_foto = f"{prefijo}{nombre_foto}"
+        r2.subir(r2_key_foto, contenido_foto, foto.content_type)
+    else:
+        carpeta = _carpeta_foto_cruce_disco(archivo, fecha_hoy)
+        ruta_local = os.path.join(carpeta, nombre_foto)
+        with open(ruta_local, "wb") as f:
+            f.write(contenido_foto)
+        r2_key_foto = f"cruces/{fecha_hoy}/{os.path.splitext(os.path.basename(archivo))[0]}/{nombre_foto}"
+
+    # Cruce en la base (atómico: foto + peso + actividad en una sola tx)
+    try:
+        indice_solicitudes.cruzar_completo(
+            archivo=archivo,
+            codigo_muestra=codigo,
+            peso_muestra=peso_muestra,
+            unidad_peso=unidad_peso,
+            r2_key_foto=r2_key_foto,
+            content_type_foto=foto.content_type,
+            usuario_email=usuario.email,
+            usuario_nombre=usuario.nombre,
+            numero_solicitud=datos.get("numero_solicitud"),
+            tipo_muestra=datos.get("tipo_muestra"),
+            detalle_actividad={
+                "sold_to": datos.get("sold_to"),
+                "ship_to": datos.get("ship_to"),
+                "especie": datos.get("especie"),
+                "variedad": datos.get("variedad"),
+                "laboratorio": datos.get("laboratorio"),
+                "unidad_peso": unidad_peso,
+            },
+        )
+    except indice_solicitudes.MuestraYaUsada as e:
+        raise HTTPException(409, str(e)) from e
+    except KeyError as e:
+        raise HTTPException(
+            404,
+            "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.",
+        ) from e
+
+    datos_actualizados = indice_solicitudes.buscar(archivo)
+    return Solicitud(archivo=archivo, **datos_actualizados)
+
+
+class ActividadItem(BaseModel):
+    id: int
+    accion: str
+    archivo: str | None = None
+    numero_solicitud: str | None = None
+    codigo_muestra: str | None = None
+    tipo_muestra: str | None = None
+    peso_muestra: float | None = None
+    unidad_peso: str | None = None
+    r2_key_foto: str | None = None
+    usuario_email: str
+    usuario_nombre: str
+    detalle: dict = {}
+    resultado: str
+    mensaje: str | None = None
+    creado_en: str
+
+
+@router.get("/actividad", response_model=list[ActividadItem])
+def listar_actividad(
+    limite: int = 100,
+    offset: int = 0,
+    archivo: str | None = None,
+    usuario: Usuario = Depends(usuario_actual),
+) -> Any:
+    """Historial de actividad del módulo de ingreso al laboratorio."""
+    return indice_solicitudes.listar_actividad(
+        limite=min(limite, 500),
+        offset=offset,
+        archivo=archivo,
+    )
+
+
+@router.get("/solicitudes/{archivo}/cruce-foto", response_model=None)
+def descargar_foto_cruce(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> Response:
+    """Descarga la foto del cruce (la tomada al momento de cruzar la muestra)."""
+    _exigir_acceso(usuario, _leer_datos_actuales(archivo))
+    foto_info = indice_solicitudes.foto_de_cruce(archivo)
+    if foto_info is None:
+        raise HTTPException(404, "Esta solicitud no tiene foto de cruce.")
+    r2_key = foto_info["r2_key"]
+    content_type = foto_info.get("content_type", "image/jpeg")
+    if r2.disponible():
+        contenido = r2.descargar(r2_key)
+        if contenido is None:
+            raise HTTPException(404, "La foto de cruce ya no está disponible en el almacén.")
+        return Response(content=contenido, media_type=content_type)
+    # Modo disco: el r2_key es la ruta relativa desde STORAGE_DIR
+    ruta = os.path.join(config.STORAGE_DIR, r2_key)
+    if not os.path.isfile(ruta):
+        raise HTTPException(404, "La foto de cruce ya no está disponible en disco.")
+    with open(ruta, "rb") as f:
+        return Response(content=f.read(), media_type=content_type)
 
 
 @router.delete("/solicitudes/{archivo}")
