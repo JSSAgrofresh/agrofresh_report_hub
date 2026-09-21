@@ -535,7 +535,7 @@ def _procesar_filas(
 
     # Pre-carga todas las solicitudes existentes en memoria para evitar una query
     # por fila del Excel (4000+ filas = 4000+ round-trips a Neon, muy lento).
-    cur.execute("SELECT nro_solicitud, id, sold_to_raw, ship_to_raw, planta_id FROM solicitud")
+    cur.execute("SELECT nro_solicitud, id, sold_to_raw, ship_to_raw, planta_id, fecha_muestreo, fecha_entrada FROM solicitud")
     solicitudes_existentes: dict[str, dict] = {r["nro_solicitud"]: r for r in cur.fetchall()}
 
     detalle: list[dict[str, Any]] = []
@@ -792,18 +792,37 @@ def _procesar_filas(
                         r["valor_num"], r["valor_texto"],
                     ))
             else:
-                if existente["sold_to_raw"] is None or existente["ship_to_raw"] is None or existente["planta_id"] is None:
+                if (
+                    existente["sold_to_raw"] is None or existente["ship_to_raw"] is None
+                    or existente["planta_id"] is None
+                    or existente.get("fecha_muestreo") is None or existente.get("fecha_entrada") is None
+                ):
                     # Solicitud que ya existe pero le faltaba Sold To/Ship To/planta_id
-                    # -típico: la creó primero un Converter que no trae esos datos-.
-                    # COALESCE completa solo lo que está NULL hoy: un dato que ya
-                    # tenía valor nunca se pisa con lo que trae esta fila.
+                    # o fechas (típico en re-ingesta del formato BD que la primera vez
+                    # no traía fechas reconocibles). COALESCE completa solo lo que está
+                    # NULL hoy: un dato que ya tenía valor nunca se sobreescribe.
                     cur.execute(
-                        "UPDATE solicitud SET sold_to_raw = COALESCE(sold_to_raw, %s), "
-                        "ship_to_raw = COALESCE(ship_to_raw, %s), planta_id = COALESCE(planta_id, %s) WHERE id = %s",
+                        "UPDATE solicitud SET "
+                        "sold_to_raw = COALESCE(sold_to_raw, %s), "
+                        "ship_to_raw = COALESCE(ship_to_raw, %s), "
+                        "planta_id = COALESCE(planta_id, %s), "
+                        "fecha_muestreo = COALESCE(fecha_muestreo, %s), "
+                        "fecha_entrada = COALESCE(fecha_entrada, %s), "
+                        "fecha_informe = COALESCE(fecha_informe, %s), "
+                        "fecha_analisis = COALESCE(fecha_analisis, %s), "
+                        "semana_muestreo = COALESCE(semana_muestreo, %s), "
+                        "mes = COALESCE(mes, %s) "
+                        "WHERE id = %s",
                         (
                             sol["sold_to_raw"] if "sold_to_raw" not in campos_no_resueltos else None,
                             sol["ship_to_raw"] if "ship_to_raw" not in campos_no_resueltos else None,
                             planta_id,
+                            sol.get("fecha_muestreo"),
+                            sol.get("fecha_entrada"),
+                            sol.get("fecha_informe"),
+                            sol.get("fecha_analisis"),
+                            sol.get("semana_muestreo"),
+                            sol.get("mes"),
                             solicitud_id,
                         ),
                     )
