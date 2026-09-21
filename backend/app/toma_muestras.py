@@ -106,6 +106,17 @@ def _carpeta_laboratorio(laboratorio: str) -> str:
     return ruta
 
 
+def _exigir_lab_activo(laboratorio: str) -> None:
+    for lab in _leer_config("laboratorios.json", LABORATORIOS_DEFECTO):
+        if lab.get("codigo") == laboratorio:
+            if not lab.get("activo", True):
+                raise HTTPException(
+                    400,
+                    f"El laboratorio {laboratorio} está inhabilitado temporalmente y no acepta solicitudes.",
+                )
+            return
+
+
 # ---------------------------------------------------------------------------
 # Claves R2: mirror de la estructura local de carpetas.
 #
@@ -700,6 +711,7 @@ def _validar_analitos(body: SolicitudIn) -> None:
 @router.post("/solicitudes")
 def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     _validar_analitos(body)
+    _exigir_lab_activo(body.laboratorio)
     numero = _siguiente_numero(body.laboratorio)
     ahora = datetime.now(timezone.utc)
     datos = body.model_dump()
@@ -1518,12 +1530,13 @@ def enviar_solicitud_por_correo(
         datos = _leer_solicitud_archivo(ruta)
     _exigir_acceso(usuario, datos)
 
+    lab = datos.get("laboratorio", "")
+    _exigir_lab_activo(lab)
+
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     analisis_config = _leer_config("analisis_laboratorio.json", [])
     datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
     pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config, analisis_config)
-
-    lab = datos.get("laboratorio", "")
     solicitante = datos.get("solicitante", "")
     sold_to = datos.get("sold_to", "")
     fecha = datos.get("fecha_solicitud", "")

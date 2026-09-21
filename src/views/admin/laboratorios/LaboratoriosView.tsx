@@ -18,6 +18,7 @@ import {
   listarLaboratoriosConfig,
 } from '@/features/tomaMuestras'
 import type { AnalitoConfig, CategoriaAnaliticaConfig, LaboratorioConfig, LaboratorioInput } from '@/features/tomaMuestras'
+import { verificarClave } from '@/features/auth/api/authApi'
 import { acentoDeLaboratorio, inicialesDe } from './acento'
 import { AnalisisPanel } from './AnalisisPanel'
 import { AnalitosPanel } from './AnalitosPanel'
@@ -55,6 +56,10 @@ export function LaboratoriosView() {
   const [guardandoLab, setGuardandoLab] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [guardandoAdjunto, setGuardandoAdjunto] = useState(false)
+  const [confirmToggle, setConfirmToggle] = useState<ResumenLaboratorio | null>(null)
+  const [claveToggle, setClaveToggle] = useState('')
+  const [toggleandoActivo, setToggleandoActivo] = useState(false)
+  const [errorToggle, setErrorToggle] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -181,6 +186,40 @@ export function LaboratoriosView() {
     }
   }
 
+  async function confirmarToggleActivo() {
+    if (!confirmToggle || toggleandoActivo) return
+    setToggleandoActivo(true)
+    setErrorToggle(null)
+    try {
+      await verificarClave(claveToggle)
+      const todos: LaboratorioConfig[] = await listarLaboratoriosConfig()
+      const actual = todos.find((l) => l.codigo === confirmToggle.codigo)
+      if (!actual) throw new Error('no encontrado')
+      await actualizarLaboratorioConfig(actual.id, {
+        codigo: actual.codigo,
+        nombre: actual.nombre,
+        descripcion: actual.descripcion,
+        prefijo_solicitud: actual.prefijo_solicitud,
+        activo: !actual.activo,
+        orden: actual.orden,
+        adjuntos_excel: actual.adjuntos_excel,
+        adjuntos_json: actual.adjuntos_json,
+      })
+      setLaboratorios(await resumenLaboratorios())
+      setConfirmToggle(null)
+      setClaveToggle('')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : ''
+      setErrorToggle(
+        msg.toLowerCase().includes('contraseña') || msg.toLowerCase().includes('incorrect')
+          ? 'Contraseña incorrecta.'
+          : 'No se pudo actualizar el laboratorio.',
+      )
+    } finally {
+      setToggleandoActivo(false)
+    }
+  }
+
   if (laboratorios === null) {
     return (
       <div className={styles.wrap}>
@@ -255,6 +294,16 @@ export function LaboratoriosView() {
               }
             >
               Editar
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setConfirmToggle(lab)
+                setClaveToggle('')
+                setErrorToggle(null)
+              }}
+            >
+              {lab.activo ? 'Inhabilitar' : 'Habilitar'}
             </Button>
           </div>
         </div>
@@ -370,6 +419,48 @@ export function LaboratoriosView() {
             </button>
           ))}
         </div>
+
+        {confirmToggle && (
+          <div className={styles.modalOverlay}>
+            <div className={styles.modalCaja} role="dialog" aria-modal="true" aria-label="Confirmar cambio de estado">
+              <h3 className={styles.modalTitulo}>
+                {confirmToggle.activo ? 'Inhabilitar' : 'Habilitar'} {confirmToggle.nombre}
+              </h3>
+              <p className={styles.modalTexto}>
+                {confirmToggle.activo
+                  ? 'Al inhabilitar este laboratorio, nadie podrá crear ni enviar solicitudes a él hasta que lo vuelvas a habilitar.'
+                  : 'Al habilitar este laboratorio, los usuarios podrán volver a crear y enviar solicitudes.'}
+              </p>
+              <p className={styles.modalTexto}>Ingresa tu contraseña para confirmar:</p>
+              <input
+                type="password"
+                className={styles.input}
+                value={claveToggle}
+                onChange={(e) => { setClaveToggle(e.target.value); setErrorToggle(null) }}
+                placeholder="Tu contraseña"
+                autoFocus
+                disabled={toggleandoActivo}
+                onKeyDown={(e) => { if (e.key === 'Enter') void confirmarToggleActivo() }}
+              />
+              {errorToggle && <p className={styles.modalError}>{errorToggle}</p>}
+              <div className={styles.modalAcciones}>
+                <Button
+                  variant="secondary"
+                  onClick={() => { setConfirmToggle(null); setClaveToggle(''); setErrorToggle(null) }}
+                  disabled={toggleandoActivo}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => void confirmarToggleActivo()}
+                  disabled={!claveToggle || toggleandoActivo}
+                >
+                  {toggleandoActivo ? 'Confirmando…' : (confirmToggle.activo ? 'Inhabilitar' : 'Habilitar')}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Card>
           {pestana === 'analisis' && (

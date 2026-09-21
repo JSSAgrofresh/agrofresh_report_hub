@@ -52,3 +52,7 @@ export async function cambiarPassword(actual: string, nueva: string): Promise<Au
     password_nueva: nueva,
   })
 }
+
+export async function verificarClave(clave: string): Promise<void> {
+  await httpClient.post<{ ok: boolean }>('/auth/verificar-clave', { password: clave })
+}
