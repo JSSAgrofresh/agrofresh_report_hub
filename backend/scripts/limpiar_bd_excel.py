@@ -291,7 +291,7 @@ def imprimir_resumen(info: dict) -> None:
     else:
         print("      OK — todos dicen 'Quiteca / AgroFresh'")
 
-    print(f"\n[2] N° Informe con código GC (hay que mover a N° Orden):")
+    print(f"\n[2] N° Informe con código GC (se copia a N° Orden, N° Informe queda igual):")
     print(f"      {info['gc_en_informe']} filas afectadas")
 
     print(f"\n[3] Celdas con guion '-' (nulos disfrazados):")
@@ -372,7 +372,7 @@ def limpiar_y_guardar(ruta: Path, salida: Path) -> None:
                 cell_lab.value = "Quiteca / AgroFresh"
                 correcciones_lab += 1
 
-        # --- N° Informe con GC → mover a N° Orden ---
+        # --- N° Informe con GC → copiar a N° Orden (pero NO borrar N° Informe) ---
         if idx_informe is not None:
             cell_inf = fila[idx_informe]
             inf = str(cell_inf.value).strip() if cell_inf.value else ""
@@ -380,10 +380,9 @@ def limpiar_y_guardar(ruta: Path, salida: Path) -> None:
                 correcciones_gc += 1
                 if idx_orden is not None:
                     cell_ord = fila[idx_orden]
-                    # Solo mueve si N° Orden está vacío
                     if not cell_ord.value:
                         cell_ord.value = inf
-                cell_inf.value = None
+                # N° Informe se deja intacto: el código GC es el identificador del registro
 
         # --- Sold To → forma canónica exacta ---
         if idx_sold is not None and sold_map:
