@@ -7,7 +7,7 @@ interface EscanerCamaraProps {
   titulo?: string
 }
 
-type Estado = 'iniciando' | 'activo' | 'sin-soporte' | 'permiso-denegado' | 'error'
+type Estado = 'iniciando' | 'activo' | 'confirmar' | 'sin-soporte' | 'permiso-denegado' | 'error'
 
 /**
  * Abre la cámara trasera del teléfono y detecta códigos de barras o QR usando
@@ -19,6 +19,7 @@ type Estado = 'iniciando' | 'activo' | 'sin-soporte' | 'permiso-denegado' | 'err
 export function EscanerCamara({ onLeido, onCerrar, titulo = 'Escanear con cámara' }: EscanerCamaraProps) {
   const [estado, setEstado] = useState<Estado>('iniciando')
   const [mensajeError, setMensajeError] = useState<string | null>(null)
+  const [codigoDetectado, setCodigoDetectado] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const detectorRef = useRef<unknown>(null)
@@ -26,6 +27,8 @@ export function EscanerCamara({ onLeido, onCerrar, titulo = 'Escanear con cámar
   const ultimoLeidoRef = useRef<string | null>(null)
   const ultimoTsRef = useRef<number>(0)
   const cerradoRef = useRef(false)
+  const pausadoRef = useRef(false)
+  const reanudarRef = useRef<(() => void) | null>(null)
 
   const detener = useCallback(() => {
     cerradoRef.current = true
@@ -118,7 +121,7 @@ export function EscanerCamara({ onLeido, onCerrar, titulo = 'Escanear con cámar
 
       // 4. Loop de detección de códigos
       async function detectar() {
-        if (cerradoRef.current || cancelado) return
+        if (cerradoRef.current || cancelado || pausadoRef.current) return
         const video = videoRef.current
         const detector = detectorRef.current
         if (!video || !detector || video.readyState < 2) {
@@ -129,15 +132,16 @@ export function EscanerCamara({ onLeido, onCerrar, titulo = 'Escanear con cámar
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const codigos = await (detector as any).detect(video) as Array<{ rawValue: string }>
-          if (codigos.length > 0 && !cerradoRef.current && !cancelado) {
+          if (codigos.length > 0 && !cerradoRef.current && !cancelado && !pausadoRef.current) {
             const codigo = codigos[0].rawValue.trim()
             const ahora = Date.now()
-            // Evita reportar el mismo código más de una vez en 1.5 s
             if (codigo && (codigo !== ultimoLeidoRef.current || ahora - ultimoTsRef.current > 1500)) {
               ultimoLeidoRef.current = codigo
               ultimoTsRef.current = ahora
-              detener()
-              onLeido(codigo)
+              // Pausar el loop y pedir confirmación al usuario
+              pausadoRef.current = true
+              setCodigoDetectado(codigo)
+              setEstado('confirmar')
               return
             }
           }
@@ -145,9 +149,19 @@ export function EscanerCamara({ onLeido, onCerrar, titulo = 'Escanear con cámar
           // BarcodeDetector puede lanzar si el frame no está listo; ignorar
         }
 
-        if (!cerradoRef.current && !cancelado) {
+        if (!cerradoRef.current && !cancelado && !pausadoRef.current) {
           animFrameRef.current = requestAnimationFrame(() => { void detectar() })
         }
+      }
+
+      // Expone la función de reanudar para el botón "Volver a escanear"
+      reanudarRef.current = () => {
+        if (cerradoRef.current || cancelado) return
+        pausadoRef.current = false
+        ultimoLeidoRef.current = null
+        setCodigoDetectado(null)
+        setEstado('activo')
+        animFrameRef.current = requestAnimationFrame(() => { void detectar() })
       }
 
       animFrameRef.current = requestAnimationFrame(() => { void detectar() })
@@ -163,6 +177,16 @@ export function EscanerCamara({ onLeido, onCerrar, titulo = 'Escanear con cámar
   function cerrar() {
     detener()
     onCerrar()
+  }
+
+  function confirmar() {
+    if (!codigoDetectado) return
+    detener()
+    onLeido(codigoDetectado)
+  }
+
+  function repetir() {
+    reanudarRef.current?.()
   }
 
   return (
@@ -217,6 +241,22 @@ export function EscanerCamara({ onLeido, onCerrar, titulo = 'Escanear con cámar
             <button type="button" className={styles.botonSecundario} onClick={cerrar}>
               Cerrar
             </button>
+          </div>
+        )}
+
+        {estado === 'confirmar' && codigoDetectado && (
+          <div className={styles.confirmacion}>
+            <p className={styles.confirmacionTexto}>Se encontró este código:</p>
+            <p className={styles.confirmacionCodigo}>{codigoDetectado}</p>
+            <p className={styles.confirmacionAyuda}>¿Es el correcto?</p>
+            <div className={styles.confirmacionBotones}>
+              <button type="button" className={styles.botonAceptar} onClick={confirmar}>
+                Aceptar
+              </button>
+              <button type="button" className={styles.botonSecundario} onClick={repetir}>
+                Volver a escanear
+              </button>
+            </div>
           </div>
         )}
 
