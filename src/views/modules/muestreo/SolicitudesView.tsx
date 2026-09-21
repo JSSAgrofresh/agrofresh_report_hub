@@ -59,7 +59,7 @@ export function SolicitudesView() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const esAdmin = Boolean(user && esAdminGeneral(user))
-  const puedeEliminar = esAdmin
+  const puedeEliminar = esAdmin && user?.email === 'jorge.sandoval@agrofresh.com'
 
   const [solicitudes, setSolicitudes] = useState<Solicitud[] | null>(null)
   const [error, setError] = useState<string | null>(null)
