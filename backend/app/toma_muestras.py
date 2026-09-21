@@ -41,7 +41,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import config, config_store, correo, indice_solicitudes, mail_templates, r2, seguridad
+from . import auth, config, config_store, correo, indice_solicitudes, mail_templates, r2, seguridad
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .notificaciones import notificar
@@ -954,8 +954,16 @@ def descargar_foto_cruce(archivo: str, usuario: Usuario = Depends(usuario_actual
         return Response(content=f.read(), media_type=content_type)
 
 
+_SUPER_ADMIN_EMAIL = "jorge.sandoval@agrofresh.com"
+
+
 @router.delete("/solicitudes/{archivo}")
-def eliminar_solicitud(archivo: str) -> dict[str, str]:
+def eliminar_solicitud(
+    archivo: str,
+    usuario: auth.Usuario = Depends(auth.usuario_actual),
+) -> dict[str, str]:
+    if usuario.tipoAcceso != "admin_general" or usuario.email.lower() != _SUPER_ADMIN_EMAIL:
+        raise HTTPException(403, "Solo el administrador principal puede eliminar solicitudes.")
     if r2.disponible():
         key = _buscar_key_solicitud(archivo)
         if key is None:

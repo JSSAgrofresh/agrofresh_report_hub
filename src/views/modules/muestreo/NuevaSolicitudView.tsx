@@ -47,6 +47,7 @@ const SOLICITANTE_FIJO = 'AGROFRESH'
 
 const TIPO_LINEA_PROCESO = 'Línea de proceso'
 const TIPO_ACTIMIST = 'Actimist'
+const TIPO_RYD = 'RYD'
 
 /** Tipo de Muestra es una lista cerrada: el laboratorio procesa estas tres
  * matrices y nada más. Antes era texto libre y llegaban variantes ("fruta",
@@ -408,8 +409,17 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     () => (camposConfig ?? []).filter((c) => c.activo).sort((a, b) => a.orden - b.orden),
     [camposConfig],
   )
-  const camposIdentificacion = camposActivos.filter(
-    (c) => SECCION_DE_CAMPO[c.clave] === 'identificacion',
+  const camposIdentificacion = useMemo(
+    () =>
+      camposActivos.filter(
+        (c) =>
+          SECCION_DE_CAMPO[c.clave] === 'identificacion' &&
+          !(
+            tipoAplicacionSel === TIPO_RYD &&
+            (c.clave === 'sold_to' || c.clave === 'ship_to')
+          ),
+      ),
+    [camposActivos, tipoAplicacionSel],
   )
   const camposMuestraVisibles = useMemo(
     () =>
@@ -424,7 +434,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           c.clave === 'csg_productor' ||
           c.clave === 'csg_packing'
         ) {
-          return tipoAplicacionSel === TIPO_LINEA_PROCESO
+          return tipoAplicacionSel === TIPO_LINEA_PROCESO || tipoAplicacionSel === TIPO_RYD
         }
         if (c.clave === 'numero_camara' || c.clave === 'numero_orden')
           return tipoAplicacionSel === TIPO_ACTIMIST
@@ -560,6 +570,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const esCromatografia = laboratorio === 'QUITECA' || laboratorio === 'AGROFRESH'
   const esLineaProceso = tipoAplicacionSel === TIPO_LINEA_PROCESO
   const esActimist = tipoAplicacionSel === TIPO_ACTIMIST
+  const esRYD = tipoAplicacionSel === TIPO_RYD
   const camposTipoAplicacionActivos = useMemo(
     () =>
       camposTipoAplicacion
@@ -798,22 +809,22 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     const payload = {
       laboratorio,
       solicitante: SOLICITANTE_FIJO,
-      sold_to: soldTo.trim(),
-      ship_to: shipTo.trim() || null,
+      sold_to: esRYD ? '' : soldTo.trim(),
+      ship_to: esRYD ? null : shipTo.trim() || null,
       especie: general.especie?.trim() || null,
       variedad: general.variedad?.trim() || null,
-      linea_proceso: esLineaProceso ? lineaProceso || null : null,
+      linea_proceso: (esLineaProceso || esRYD) ? lineaProceso || null : null,
       // Los códigos CSG y kilos son propios de la línea: en Actimist ni se
       // piden ni se guardan, aunque hayan quedado escritos antes de cambiar
       // de tipo.
-      csg_productor: esLineaProceso ? general.csg_productor?.trim() || null : null,
-      csg_packing: esLineaProceso ? general.csg_packing?.trim() || null : null,
+      csg_productor: (esLineaProceso || esRYD) ? general.csg_productor?.trim() || null : null,
+      csg_packing: (esLineaProceso || esRYD) ? general.csg_packing?.trim() || null : null,
       lote: general.lote?.trim() || null,
       posicion_muestreo: general.posicion_muestreo?.trim() || null,
       numero_camara: esActimist ? general.numero_camara?.trim() || null : null,
       numero_orden: esActimist ? general.numero_orden?.trim() || null : null,
       kilos_procesados:
-        esLineaProceso && general.kilos_procesados?.trim()
+        (esLineaProceso || esRYD) && general.kilos_procesados?.trim()
           ? Number(general.kilos_procesados)
           : null,
       producto_utilizado: productosSeleccionados.join(', ') || null,
