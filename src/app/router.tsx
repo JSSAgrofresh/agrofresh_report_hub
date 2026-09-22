@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { RequireAdminGeneral, RequireAuth, RequireModulo, RequireReporte, RequireTomaMuestras } from '@/features/auth'
+import { RequireAdminGeneral, RequireAuth, RequireModulo, RequireReanalisis, RequireReporte, RequireTomaMuestras } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
 import { LoginView } from '@/views/login/LoginView'
 import { DashboardView } from '@/views/dashboard/DashboardView'
@@ -19,6 +19,7 @@ import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { StorageView } from '@/views/modules/storage/StorageView'
 import { SolicitudesView } from '@/views/modules/muestreo/SolicitudesView'
 import { NuevaSolicitudView } from '@/views/modules/muestreo/NuevaSolicitudView'
+import { NuevaReanalisisView } from '@/views/modules/muestreo/NuevaReanalisisView'
 import { MuestreoConfigView } from '@/views/modules/muestreo/MuestreoConfigView'
 import { SolicitudDetalleView } from '@/views/modules/muestreo/SolicitudDetalleView'
 import { UsuariosView } from '@/views/admin/UsuariosView'
@@ -93,6 +94,13 @@ export const router = createBrowserRouter([
               { path: ROUTES.tomaMuestrasNueva, element: <NuevaSolicitudView /> },
               { path: ROUTES.tomaMuestrasEditar, element: <NuevaSolicitudView modo="editar" /> },
               { path: ROUTES.tomaMuestrasDetalle, element: <SolicitudDetalleView /> },
+            ],
+          },
+          {
+            element: <RequireReanalisis />,
+            children: [
+              { path: ROUTES.tomaMuestrasNuevaReanalisis, element: <NuevaReanalisisView /> },
+              { path: ROUTES.tomaMuestrasReanalisis, element: <NuevaSolicitudView modo="reanalisis" /> },
             ],
           },
           {

@@ -1,0 +1,68 @@
+.error {
+  color: var(--color-danger);
+  margin: 0 0 var(--space-3);
+}
+
+.estado {
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+  margin: 0;
+}
+
+.buscador {
+  margin-bottom: var(--space-4);
+}
+
+.inputBusqueda {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.92rem;
+}
+
+.inputBusqueda:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.tabla {
+  overflow-x: auto;
+}
+
+.tabla table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.tabla th {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 2px solid var(--color-border);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.tabla tr:last-child td {
+  border-bottom: none;
+}
+
+.tabla tr:hover td {
+  background: var(--color-surface-hover, rgba(0,0,0,.03));
+}
+
+.folio {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.88rem;
+  white-space: nowrap;
+}

@@ -9,6 +9,7 @@ export {
   puedeVerModulo,
   puedeVerReporte,
   puedeVerTomaMuestras,
+  puedeCrearReanalisis,
   modulosPredeterminados,
   reportesPredeterminados,
   MODULO_TOMA_MUESTRAS,

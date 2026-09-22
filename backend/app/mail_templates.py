@@ -20,6 +20,21 @@ VARIABLES = [
 ]
 
 ASUNTO_DEFECTO = "[AgroFresh] Solicitud {numero_solicitud} — {laboratorio}"
+ASUNTO_REANALISIS = "[AgroFresh] Reanálisis {numero_solicitud} — {laboratorio}"
+CUERPO_REANALISIS = """Hola {laboratorio},
+
+Adjuntamos una solicitud de REANÁLISIS con código {numero_solicitud}, correspondiente al cliente {sold_to}.
+
+Motivo del reanálisis: {motivo_reanalisis}
+Solicitud original: {solicitud_original_numero}
+
+Solicitante: {solicitante}
+Fecha de solicitud: {fecha_solicitud}
+
+Se incluyen el PDF y el Excel con el detalle completo de la muestra.
+
+Saludos,
+AgroFresh"""
 CUERPO_DEFECTO = """Hola {laboratorio},
 
 Adjuntamos la solicitud {numero_solicitud}, correspondiente al cliente {sold_to}.
@@ -126,6 +141,66 @@ def renderizar(laboratorio: str, datos: dict) -> tuple[str, str, str, list[Image
       <td style="padding:30px 28px 26px;">
         <h1 style="margin:0 0 3px;color:{_VERDE_OSCURO};font-size:19px;font-weight:700;">Solicitud de Análisis</h1>
         {f'<p style="margin:0 0 20px;color:{_VERDE};font-weight:700;font-size:14.5px;">Solicitud {escape(numero)}</p>' if numero else '<div style="margin-bottom:20px;"></div>'}
+        <div style="color:{_TEXTO};font-size:14px;line-height:1.65;">{cuerpo_html}</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:{_FONDO_TENUE};padding:14px 28px;border-top:1px solid {_BORDE};">
+        <p style="margin:0;color:{_TEXTO_TENUE};font-size:11px;">Enviado automáticamente por AgroFresh Report Hub.</p>
+      </td>
+    </tr>
+  </table>
+</div>
+""".strip()
+
+    imagenes = [ImagenInline(LOGO_CONTENT_ID, logo)] if logo else []
+    return asunto, texto, html, imagenes
+
+
+def renderizar_reanalisis(laboratorio: str, datos: dict) -> tuple[str, str, str, list[ImagenInline]]:
+    """Arma el correo de una solicitud de reanálisis.
+
+    Usa el asunto y cuerpo predefinidos para reanálisis (no editables desde
+    el mantenedor de templates) para que el laboratorio identifique
+    claramente que se trata de un reenvío solicitado, no de una muestra nueva.
+    """
+    numero = str(datos.get("numero_solicitud") or "")
+    original_archivo = str(datos.get("solicitud_original_archivo") or "")
+    numero_original = original_archivo.replace(".xlsx", "").replace(".json", "") or "—"
+    motivo = str(datos.get("motivo_reanalisis") or "—")
+
+    valores = {variable: str(datos.get(variable) or "—") for variable in VARIABLES}
+    valores["motivo_reanalisis"] = motivo
+    valores["solicitud_original_numero"] = numero_original
+
+    asunto = ASUNTO_REANALISIS.format_map(valores)
+    texto = CUERPO_REANALISIS.format_map(valores)
+
+    cuerpo_html = escape(texto).replace("\n", "<br>")
+
+    logo = _logo_bytes()
+    logo_html = (
+        f'<img src="cid:{LOGO_CONTENT_ID}" alt="AgroFresh" width="132" height="53" '
+        f'style="display:block;border:0;">'
+        if logo else
+        f'<span style="color:#ffffff;font-size:17px;font-weight:700;">AgroFresh</span>'
+    )
+
+    html = f"""
+<div style="background:{_FONDO_TENUE};padding:28px 12px;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;border-collapse:collapse;background:#ffffff;border-radius:12px;overflow:hidden;">
+    <tr>
+      <td style="background:{_VERDE_OSCURO};padding:24px 28px;">{logo_html}</td>
+    </tr>
+    <tr>
+      <td style="padding:30px 28px 26px;">
+        <h1 style="margin:0 0 3px;color:{_VERDE_OSCURO};font-size:19px;font-weight:700;">Solicitud de Reanálisis</h1>
+        {f'<p style="margin:0 0 6px;color:{_VERDE};font-weight:700;font-size:14.5px;">Reanálisis {escape(numero)}</p>' if numero else '<div style="margin-bottom:20px;"></div>'}
+        <p style="margin:0 0 20px;color:#c0392b;font-size:13px;font-weight:600;">Esta solicitud es un REANÁLISIS de la muestra original.</p>
+        <div style="background:#fff8f0;border:1px solid #f5c6a0;border-radius:6px;padding:12px 16px;margin-bottom:20px;">
+          <p style="margin:0 0 4px;color:{_TEXTO};font-size:13px;"><strong>Motivo del reanálisis:</strong> {escape(motivo)}</p>
+          <p style="margin:0;color:{_TEXTO_TENUE};font-size:12px;">Solicitud original: {escape(numero_original)}</p>
+        </div>
         <div style="color:{_TEXTO};font-size:14px;line-height:1.65;">{cuerpo_html}</div>
       </td>
     </tr>

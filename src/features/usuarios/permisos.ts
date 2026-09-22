@@ -86,6 +86,11 @@ export function puedeVerTomaMuestras(usuario: Usuario): boolean {
   return (usuario.modulos ?? modulosPredeterminados(usuario)).includes(MODULO_TOMA_MUESTRAS)
 }
 
+/** Solo admin_general y admin_area pueden crear reanálisis. */
+export function puedeCrearReanalisis(usuario: Usuario): boolean {
+  return usuario.tipoAcceso === 'admin_general' || usuario.tipoAcceso === 'admin_area'
+}
+
 export function etiquetaAcceso(usuario: Usuario): string {
   if (usuario.tipoAcceso === 'admin_general') return 'Admin general'
   if (usuario.tipoAcceso === 'gerencia') return 'Gerencia'
