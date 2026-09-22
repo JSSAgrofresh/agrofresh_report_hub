@@ -208,6 +208,72 @@ class TestConfigAcceso:
         )
 
 
+class TestCruzarConMuestra:
+    """PUT /solicitudes/{archivo}/muestra solo puede ejecutarlo el dueño de
+    la solicitud (o un admin). Un muestreador no puede cruzar una solicitud
+    de otro.
+
+    Si este test falla, cualquier usuario interno puede mezclar resultados
+    de laboratorio entre solicitudes ajenas. No se arregla el test: se
+    arregla `cruzar_con_muestra`.
+    """
+
+    @pytest.fixture(autouse=True)
+    def restaurar_overrides(self):
+        yield
+        app.dependency_overrides.clear()
+
+    def _como(self, tipo: str, email: str = "test@agrofresh.com"):
+        u = Usuario(id="99", email=email, nombre="Test", tipoAcceso=tipo)
+        app.dependency_overrides[usuario_actual] = lambda: u
+        return TestClient(app)
+
+    def test_muestreador_no_puede_cruzar_solicitud_ajena(self):
+        """Beto no puede cruzar una solicitud cuyo email_solicitante es Ana."""
+        from unittest.mock import patch
+
+        datos_ana = {"email_solicitante": "ana@agrofresh.com"}
+        with patch("app.toma_muestras.indice_solicitudes.buscar", return_value=datos_ana):
+            resp = self._como("muestreador", email="beto@agrofresh.com").put(
+                "/api/toma-muestras/solicitudes/ana_sol.xlsx/muestra",
+                json={"codigo_muestra": "M-001"},
+            )
+        assert resp.status_code == 403, (
+            f"muestreador ajeno obtuvo {resp.status_code} en PUT .../muestra — "
+            "debe devolver 403. No se arregla el test: se arregla cruzar_con_muestra."
+        )
+
+    def test_muestreador_puede_cruzar_su_propia_solicitud(self):
+        """Ana puede cruzar su propia solicitud."""
+        from unittest.mock import patch
+
+        datos_ana = {"email_solicitante": "ana@agrofresh.com"}
+        with patch("app.toma_muestras.indice_solicitudes.buscar", return_value=datos_ana), \
+             patch("app.toma_muestras.indice_solicitudes.cruzar"):
+            resp = self._como("muestreador", email="ana@agrofresh.com").put(
+                "/api/toma-muestras/solicitudes/ana_sol.xlsx/muestra",
+                json={"codigo_muestra": "M-001"},
+            )
+        assert resp.status_code != 403, (
+            f"muestreador obtuvo 403 en su propia solicitud — el guard no debería bloquearlo."
+        )
+
+    def test_admin_area_puede_cruzar_cualquier_solicitud(self):
+        """admin_area no es muestreador: _es_propia devuelve True para todo."""
+        from unittest.mock import patch
+
+        datos_ana = {"email_solicitante": "ana@agrofresh.com"}
+        with patch("app.toma_muestras.indice_solicitudes.buscar", return_value=datos_ana), \
+             patch("app.toma_muestras.indice_solicitudes.cruzar"):
+            resp = self._como("admin_area", email="admin@agrofresh.com").put(
+                "/api/toma-muestras/solicitudes/ana_sol.xlsx/muestra",
+                json={"codigo_muestra": "M-001"},
+            )
+        assert resp.status_code != 403, (
+            f"admin_area obtuvo 403 — no debería estar bloqueado."
+        )
+
+
 class TestExportarTodo:
     """GET /solicitudes/exportar-todo filtra por propiedad para muestreadores.
 

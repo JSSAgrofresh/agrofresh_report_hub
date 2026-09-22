@@ -783,12 +783,24 @@ def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual
 
 
 @router.put("/solicitudes/{archivo}/muestra", response_model=Solicitud)
-def cruzar_con_muestra(archivo: str, body: CruceIn) -> Any:
+def cruzar_con_muestra(
+    archivo: str,
+    body: CruceIn,
+    usuario: Usuario = Depends(usuario_actual),
+) -> Any:
     """Cruza o descruza una solicitud con el número de la muestra.
 
     Para deshacer el cruce: enviar codigo_muestra=null.
     Para un cruce nuevo con foto y peso obligatorios, usar POST /cruzar-completo.
     """
+    try:
+        datos_actuales = indice_solicitudes.buscar(archivo)
+    except KeyError as e:
+        raise HTTPException(
+            404,
+            "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.",
+        ) from e
+    _exigir_acceso(usuario, datos_actuales)
     try:
         indice_solicitudes.cruzar(archivo, body.codigo_muestra)
     except indice_solicitudes.MuestraYaUsada as e:
