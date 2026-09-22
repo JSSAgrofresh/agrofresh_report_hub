@@ -21,6 +21,7 @@ interface UsuarioFormProps {
 
 const TIPOS: { valor: TipoAcceso; etiqueta: string }[] = [
   { valor: 'admin_general', etiqueta: 'Administrador general' },
+  { valor: 'gerencia', etiqueta: 'Gerencia (solo lectura)' },
   { valor: 'admin_area', etiqueta: 'Administrador de área' },
   { valor: 'analista', etiqueta: 'Analista de Cromatografía' },
   { valor: 'cliente', etiqueta: 'Cliente' },
@@ -56,7 +57,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
 
   const requiereArea = tipoAcceso === 'admin_area' || tipoAcceso === 'analista' || tipoAcceso === 'cliente'
   const requiereCliente = tipoAcceso === 'cliente'
-  const configuraPermisos = tipoAcceso !== 'admin_general' && !esMaestro
+  const configuraPermisos = tipoAcceso !== 'admin_general' && tipoAcceso !== 'gerencia' && !esMaestro
 
   useEffect(() => {
     if (!requiereCliente) return

@@ -1,7 +1,7 @@
 import backgroundLab from '@/assets/backgrounds/background_lab.jpg'
 import backgroundAccutab from '@/assets/backgrounds/background_accutab.jpg'
 
-export type AreaId = 'cromatografia' | 'postventa'
+export type AreaId = 'cromatografia' | 'postventa' | 'ryd' | 'toma_muestras'
 
 export interface AreaConfig {
   id: AreaId
@@ -17,8 +17,8 @@ export const AREAS: Record<AreaId, AreaConfig> = {
   cromatografia: {
     id: 'cromatografia',
     nombre: 'Cromatografía',
-    colorPrimario: '#B3394A',
-    colorOscuro: '#6E2029',
+    colorPrimario: '#3A8A52',
+    colorOscuro: '#1E5930',
     fondo: backgroundLab,
     modulos: ['converter', 'ingest', 'reports'],
   },
@@ -31,6 +31,22 @@ export const AREAS: Record<AreaId, AreaConfig> = {
     // 'reports' da acceso al hub de Report; qué reporte concreto ve cada
     // usuario lo decide puedeVerReporte (ver features/usuarios/permisos.ts).
     modulos: ['trace', 'reports'],
+  },
+  ryd: {
+    id: 'ryd',
+    nombre: 'R y D',
+    colorPrimario: '#7B5EA7',
+    colorOscuro: '#4A3567',
+    fondo: backgroundLab,
+    modulos: ['reports', 'agrofresh_lab'],
+  },
+  toma_muestras: {
+    id: 'toma_muestras',
+    nombre: 'Toma de Muestras',
+    colorPrimario: '#2E9E8A',
+    colorOscuro: '#1A6057',
+    fondo: backgroundAccutab,
+    modulos: ['toma_muestras'],
   },
 }
 

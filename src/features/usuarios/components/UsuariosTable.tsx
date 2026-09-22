@@ -6,6 +6,7 @@ import styles from './UsuariosTable.module.css'
 
 const TONO: Record<Usuario['tipoAcceso'], 'success' | 'warning' | 'neutral'> = {
   admin_general: 'success',
+  gerencia: 'success',
   admin_area: 'warning',
   analista: 'warning',
   cliente: 'neutral',

@@ -41,7 +41,7 @@ DURACION_SESION = timedelta(days=7)
 # costaría más que todo lo demás junto.
 _GRANO_ULTIMO_USO = timedelta(hours=1)
 
-TIPOS_ACCESO = ("admin_general", "admin_area", "analista", "cliente", "muestreador")
+TIPOS_ACCESO = ("admin_general", "admin_area", "analista", "cliente", "muestreador", "gerencia")
 
 # `auto_error=False` para que la falta de encabezado la conteste este módulo
 # con su propio mensaje, en vez del 403 genérico de HTTPBearer.
@@ -212,6 +212,20 @@ def solo_interno(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
     """
     if usuario.tipoAcceso == "cliente":
         raise HTTPException(403, "Tu cuenta solo tiene acceso a sus propios resultados.")
+    return usuario
+
+
+def solo_escribiente(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
+    """Bloquea escritura a cuentas de gerencia y cliente.
+
+    Gerencia tiene acceso visual a todo el sistema pero no puede modificar
+    datos. Este guard se aplica en los endpoints POST/PUT/DELETE de los módulos
+    operativos para hacer cumplir esa restricción en el backend.
+    """
+    if usuario.tipoAcceso == "cliente":
+        raise HTTPException(403, "Tu cuenta solo tiene acceso a sus propios resultados.")
+    if usuario.tipoAcceso == "gerencia":
+        raise HTTPException(403, "Tu cuenta de gerencia es de solo lectura.")
     return usuario
 
 

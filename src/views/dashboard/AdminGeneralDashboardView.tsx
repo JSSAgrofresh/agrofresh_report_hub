@@ -32,7 +32,12 @@ function iniciales(nombre: string): string {
 
 function areaLabel(area: string | null): string {
   if (!area) return 'AgroFresh'
-  const mapa: Record<string, string> = { cromatografia: 'Cromatografía', postventa: 'Post Venta' }
+  const mapa: Record<string, string> = {
+    cromatografia: 'Cromatografía',
+    postventa: 'Post Venta',
+    ryd: 'R y D',
+    toma_muestras: 'Toma de Muestras',
+  }
   return mapa[area] ?? area
 }
 
