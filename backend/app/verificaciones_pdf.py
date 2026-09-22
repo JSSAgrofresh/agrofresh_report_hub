@@ -255,10 +255,10 @@ def _seccion_gases(registro, config: dict) -> list:
 def _seccion_inyector_detector(registro) -> list:
     iny = registro.inyector
     det = registro.detector
-    w3 = UTIL_W / 3 - 0.2 * cm
+    lado = (UTIL_W - 0.4 * cm) / 2
 
-    # Inyector
-    anchos_i = [w3 * f for f in [0.55, 0.25, 0.20]]
+    # Inyector — los valores son cortos (Sí/No/N.A.), columna Valor angosta está bien
+    anchos_i = [lado * f for f in [0.55, 0.25, 0.20]]
     cabecera_i = ["Inyector — parámetro", "Valor", "Resultado"]
     filas_i = [
         ["Limpieza de aguja", iny.limpieza_aguja or "—", ""],
@@ -273,14 +273,15 @@ def _seccion_inyector_detector(registro) -> list:
         ("FONT", (2, 5), (2, 5), "Helvetica-Bold", 8),
     ]))
 
-    # Detector
-    anchos_d = [w3 * f for f in [0.55, 0.25, 0.20]]
+    # Detector — columna Valor más ancha y con Paragraph para que el nombre
+    # del método (puede ser largo) haga wrap en vez de desbordarse.
+    anchos_d = [lado * f for f in [0.48, 0.32, 0.20]]
     cabecera_d = ["Detector — parámetro", "Valor", "Resultado"]
     filas_d = [
-        ["Voltaje de la perla (V)", _n(det.voltaje_perla), det.resultado_voltaje or "Sin medir"],
-        ["Método cargado", det.metodo_nombre or det.metodo_correcto or "—", det.resultado_metodo or "Sin medir"],
-        ["Output del detector", _n(det.output_detector), det.resultado_output or "Sin medir"],
-        [_p("Resultado sección", _S_BOLD), "", det.resultado or "Sin medir"],
+        ["Voltaje de la perla (V)", _p(_n(det.voltaje_perla)), det.resultado_voltaje or "Sin medir"],
+        ["Método cargado", _p(det.metodo_nombre or det.metodo_correcto or "—"), det.resultado_metodo or "Sin medir"],
+        ["Output del detector", _p(_n(det.output_detector)), det.resultado_output or "Sin medir"],
+        [_p("Resultado sección", _S_BOLD), _p(""), det.resultado or "Sin medir"],
     ]
     td = _tabla([cabecera_d] + filas_d, anchos_d)
     for i, (_, _, res) in enumerate(filas_d, start=1):
@@ -291,7 +292,6 @@ def _seccion_inyector_detector(registro) -> list:
                 ("FONT", (2, i), (2, i), "Helvetica-Bold", 8),
             ]))
 
-    lado = (UTIL_W - 0.4 * cm) / 2
     fila_tabla = Table(
         [[ti, td]],
         colWidths=[lado, lado],
