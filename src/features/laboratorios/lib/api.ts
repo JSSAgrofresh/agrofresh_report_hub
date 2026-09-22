@@ -67,6 +67,14 @@ export function guardarTemplateMail(laboratorio: string, datos: TemplateMailInpu
   return httpClient.put<TemplateMail>(`${BASE}/${encodeURIComponent(laboratorio)}/template-mail`, datos)
 }
 
+export function obtenerTemplateMailReanalisis(laboratorio: string) {
+  return httpClient.get<TemplateMail>(`${BASE}/${encodeURIComponent(laboratorio)}/template-mail-reanalisis`)
+}
+
+export function guardarTemplateMailReanalisis(laboratorio: string, datos: TemplateMailInput) {
+  return httpClient.put<TemplateMail>(`${BASE}/${encodeURIComponent(laboratorio)}/template-mail-reanalisis`, datos)
+}
+
 // --- Análisis ----------------------------------------------------------------
 
 export function listarAnalisis(laboratorio?: string) {

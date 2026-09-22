@@ -168,6 +168,20 @@ def guardar_template_mail(laboratorio: str, body: TemplateMailIn) -> dict:
     return mail_templates.guardar(laboratorio, body.asunto, body.cuerpo)
 
 
+@router.get("/{laboratorio}/template-mail-reanalisis")
+def obtener_template_mail_reanalisis(laboratorio: str) -> dict:
+    _validar_laboratorio(laboratorio)
+    return mail_templates.obtener_reanalisis(laboratorio)
+
+
+@router.put("/{laboratorio}/template-mail-reanalisis")
+def guardar_template_mail_reanalisis(laboratorio: str, body: TemplateMailIn) -> dict:
+    _validar_laboratorio(laboratorio)
+    if not body.asunto.strip() or not body.cuerpo.strip():
+        raise HTTPException(400, "El asunto y el cuerpo son obligatorios.")
+    return mail_templates.guardar_reanalisis(laboratorio, body.asunto, body.cuerpo)
+
+
 # ---------------------------------------------------------------------------
 # Análisis
 # ---------------------------------------------------------------------------

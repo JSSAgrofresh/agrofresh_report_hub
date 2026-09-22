@@ -1,15 +1,28 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { guardarTemplateMail, obtenerTemplateMail } from '@/features/laboratorios'
+import {
+  guardarTemplateMail,
+  guardarTemplateMailReanalisis,
+  obtenerTemplateMail,
+  obtenerTemplateMailReanalisis,
+} from '@/features/laboratorios'
 import type { TemplateMail } from '@/features/laboratorios'
 import styles from './LaboratoriosView.module.css'
+
+type TipoTemplate = 'analisis' | 'reanalisis'
 
 interface TemplateMailPanelProps {
   laboratorio: string
   onError: (mensaje: string | null) => void
 }
 
-export function TemplateMailPanel({ laboratorio, onError }: TemplateMailPanelProps) {
+interface EditorProps {
+  laboratorio: string
+  tipo: TipoTemplate
+  onError: (mensaje: string | null) => void
+}
+
+function TemplateEditor({ laboratorio, tipo, onError }: EditorProps) {
   const [template, setTemplate] = useState<TemplateMail | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [guardado, setGuardado] = useState(false)
@@ -17,11 +30,13 @@ export function TemplateMailPanel({ laboratorio, onError }: TemplateMailPanelPro
   useEffect(() => {
     let vigente = true
     setTemplate(null)
-    obtenerTemplateMail(laboratorio)
+    setGuardado(false)
+    const cargar = tipo === 'reanalisis' ? obtenerTemplateMailReanalisis : obtenerTemplateMail
+    cargar(laboratorio)
       .then((datos) => { if (vigente) setTemplate(datos) })
       .catch(() => { if (vigente) onError('No se pudo cargar el template del correo.') })
     return () => { vigente = false }
-  }, [laboratorio, onError])
+  }, [laboratorio, tipo, onError])
 
   async function guardar() {
     if (!template || !template.asunto.trim() || !template.cuerpo.trim()) return
@@ -29,7 +44,8 @@ export function TemplateMailPanel({ laboratorio, onError }: TemplateMailPanelPro
     setGuardado(false)
     onError(null)
     try {
-      setTemplate(await guardarTemplateMail(laboratorio, {
+      const guardarFn = tipo === 'reanalisis' ? guardarTemplateMailReanalisis : guardarTemplateMail
+      setTemplate(await guardarFn(laboratorio, {
         asunto: template.asunto,
         cuerpo: template.cuerpo,
       }))
@@ -50,14 +66,7 @@ export function TemplateMailPanel({ laboratorio, onError }: TemplateMailPanelPro
   if (!template) return <p className={styles.estado}>Cargando template…</p>
 
   return (
-    <section className={styles.templatePanel}>
-      <div>
-        <h3 className={styles.seccionTitulo}>Template mail de solicitudes</h3>
-        <p className={styles.seccionNota}>
-          Este texto acompaña el PDF y el Excel. Cada variable será reemplazada con los datos de la solicitud.
-        </p>
-      </div>
-
+    <>
       <label className={styles.campoTemplate}>
         <span>Asunto</span>
         <input
@@ -94,6 +103,45 @@ export function TemplateMailPanel({ laboratorio, onError }: TemplateMailPanelPro
           {guardando ? 'Guardando…' : 'Guardar template'}
         </Button>
       </div>
+    </>
+  )
+}
+
+export function TemplateMailPanel({ laboratorio, onError }: TemplateMailPanelProps) {
+  const [tipo, setTipo] = useState<TipoTemplate>('analisis')
+
+  return (
+    <section className={styles.templatePanel}>
+      <div>
+        <h3 className={styles.seccionTitulo}>Template mail de solicitudes</h3>
+        <p className={styles.seccionNota}>
+          Este texto acompaña el PDF y el Excel. Cada variable será reemplazada con los datos de la solicitud.
+        </p>
+      </div>
+
+      <div className={styles.templateTabs}>
+        <button
+          type="button"
+          className={tipo === 'analisis' ? styles.templateTabActivo : styles.templateTab}
+          onClick={() => setTipo('analisis')}
+        >
+          Solicitud de análisis
+        </button>
+        <button
+          type="button"
+          className={tipo === 'reanalisis' ? styles.templateTabActivo : styles.templateTab}
+          onClick={() => setTipo('reanalisis')}
+        >
+          Reanálisis
+        </button>
+      </div>
+
+      <TemplateEditor
+        key={`${laboratorio}-${tipo}`}
+        laboratorio={laboratorio}
+        tipo={tipo}
+        onError={onError}
+      />
     </section>
   )
 }
