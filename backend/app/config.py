@@ -25,10 +25,10 @@ MAIL_USER = os.getenv("MAIL_USER", "")
 MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 
-# Gmail API OAuth 2.0 — proveedor activo de correo saliente
-GMAIL_CLIENT_ID = os.getenv("GMAIL_CLIENT_ID", "")
-GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET", "")
-GMAIL_REFRESH_TOKEN = os.getenv("GMAIL_REFRESH_TOKEN", "")
+# Gmail SMTP — proveedor activo de correo saliente
+# Genera la App Password en: myaccount.google.com/apppasswords
+# Requiere verificación en 2 pasos activa en la cuenta Gmail.
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
 GMAIL_ACCOUNT = os.getenv("GMAIL_ACCOUNT", "agrofreshreporthub@gmail.com")
 
 R2_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL", "")

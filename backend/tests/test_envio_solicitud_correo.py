@@ -76,7 +76,7 @@ def correo_capturado(monkeypatch):
     tocar la red ni requerir credenciales de Gmail."""
     llamadas: list[dict] = []
 
-    def _falso_enviar(destinatario, asunto, cuerpo_html, cuerpo_texto=None, adjuntos=None, cc=None, bcc=None):
+    def _falso_enviar(destinatario, asunto, cuerpo_html, cuerpo_texto=None, adjuntos=None, cc=None, bcc=None, imagenes_inline=None):
         to = [d.strip() for d in destinatario.split(",") if d.strip()]
         resultado = correo.ResultadoEnvio(to=to, cc=cc or [], bcc=bcc or [], mensaje_id="msg-123")
         llamadas.append({"to": resultado.to, "cc": resultado.cc, "bcc": resultado.bcc})
