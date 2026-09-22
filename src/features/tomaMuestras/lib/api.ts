@@ -15,6 +15,7 @@ import type {
   ContactoResultado,
   ProductoConfig,
   ProductoInput,
+  ReanalisisInput,
   Solicitud,
   SolicitudInput,
 } from './tipos'
@@ -44,6 +45,17 @@ export function actualizarSolicitud(archivo: string, datos: SolicitudInput) {
 export function eliminarSolicitud(archivo: string) {
   return httpClient.delete<{ estado: string }>(
     `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}`,
+  )
+}
+
+export function listarSolicitudesElegiblesReanalisis() {
+  return httpClient.get<Solicitud[]>('/toma-muestras/solicitudes-elegibles-reanalisis')
+}
+
+export function crearSolicitudReanalisis(archivo: string, datos: ReanalisisInput) {
+  return httpClient.post<Solicitud>(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/reanalisis`,
+    datos,
   )
 }
 

@@ -64,6 +64,42 @@ def guardar(cur, archivo: str, datos: dict, r2_key: str | None = None) -> None:
     )
 
 
+def guardar_reanalisis(
+    cur,
+    archivo: str,
+    datos: dict,
+    r2_key: str | None,
+    solicitud_original_archivo: str,
+    motivo_reanalisis: str,
+) -> None:
+    """Como `guardar`, pero también registra las columnas de reanálisis de la
+    migración 0038. Solo se llama cuando esas columnas ya existen."""
+    columnas = ", ".join(_COLUMNAS)
+    marcadores = ", ".join(["%s"] * len(_COLUMNAS))
+    asignaciones = ", ".join(f"{c} = EXCLUDED.{c}" for c in _COLUMNAS)
+    cur.execute(
+        f"""
+        INSERT INTO solicitud_archivo
+            (archivo, r2_key, {columnas}, datos,
+             tipo_solicitud, solicitud_original_archivo, motivo_reanalisis)
+        VALUES (%s, %s, {marcadores}, %s, 'REANALISIS', %s, %s)
+        ON CONFLICT (archivo) DO UPDATE SET
+            r2_key = EXCLUDED.r2_key, {asignaciones},
+            datos = EXCLUDED.datos, indexado_en = now(),
+            tipo_solicitud = 'REANALISIS',
+            solicitud_original_archivo = EXCLUDED.solicitud_original_archivo,
+            motivo_reanalisis = EXCLUDED.motivo_reanalisis
+        """,
+        (
+            archivo, r2_key,
+            *(_valor(datos, c) for c in _COLUMNAS),
+            Json(datos),
+            solicitud_original_archivo,
+            motivo_reanalisis,
+        ),
+    )
+
+
 def _fila_a_par(fila: dict) -> tuple[str, dict]:
     """(nombre_archivo, datos) — la misma forma que devolvía leer_todas_las_solicitudes,
     para que quien la consumía no tenga que cambiar.
@@ -85,6 +121,10 @@ def _fila_a_par(fila: dict) -> tuple[str, dict]:
     datos["unidad_peso"] = fila.get("unidad_peso") or "kg"
     datos["cruzado_por"] = fila.get("cruzado_por")
     datos["cruzado_por_nombre"] = fila.get("cruzado_por_nombre")
+    # Campos de reanálisis (migración 0038): presentes solo cuando la columna existe.
+    datos.setdefault("tipo_solicitud", fila.get("tipo_solicitud") or "CONVENCIONAL")
+    datos.setdefault("solicitud_original_archivo", fila.get("solicitud_original_archivo"))
+    datos.setdefault("motivo_reanalisis", fila.get("motivo_reanalisis"))
     return fila["archivo"], datos
 
 
@@ -92,7 +132,34 @@ _COLUMNAS_CRUCE = (
     "archivo", "datos", "codigo_muestra", "cruzado_en",
     "peso_muestra", "unidad_peso", "cruzado_por", "cruzado_por_nombre",
 )
-_SELECT_CRUCE = ", ".join(_COLUMNAS_CRUCE)
+# Columnas añadidas en migración 0038. Se detecta su presencia una sola vez
+# y se cachea: así el SELECT no cambia entre llamadas, pero el backend no
+# falla si la migración todavía no se corrió.
+_COLUMNAS_REANALISIS = ("tipo_solicitud", "solicitud_original_archivo", "motivo_reanalisis")
+_tiene_columnas_reanalisis: bool | None = None
+
+
+def _detectar_columnas_reanalisis() -> bool:
+    global _tiene_columnas_reanalisis
+    if _tiene_columnas_reanalisis is not None:
+        return _tiene_columnas_reanalisis
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM information_schema.columns"
+                " WHERE table_name = 'solicitud_archivo' AND column_name = 'tipo_solicitud'"
+            )
+            _tiene_columnas_reanalisis = bool(cur.fetchone()["n"])
+    except Exception:
+        _tiene_columnas_reanalisis = False
+    return _tiene_columnas_reanalisis
+
+
+def _select_cruce() -> str:
+    base = ", ".join(_COLUMNAS_CRUCE)
+    if _detectar_columnas_reanalisis():
+        return base + ", " + ", ".join(_COLUMNAS_REANALISIS)
+    return base + ", " + ", ".join(f"NULL AS {c}" for c in _COLUMNAS_REANALISIS)
 
 
 def listar(laboratorio: str | None = None) -> list[tuple[str, dict]]:
@@ -101,15 +168,16 @@ def listar(laboratorio: str | None = None) -> list[tuple[str, dict]]:
     El orden sale de la base y no de Python: `creado_en` tiene índice, así
     que ordenar 10 solicitudes cuesta lo mismo que ordenar 10.000.
     """
+    sel = _select_cruce()
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         if laboratorio is None:
             cur.execute(
-                f"SELECT {_SELECT_CRUCE} FROM solicitud_archivo"
+                f"SELECT {sel} FROM solicitud_archivo"
                 " ORDER BY creado_en DESC"
             )
         else:
             cur.execute(
-                f"SELECT {_SELECT_CRUCE} FROM solicitud_archivo"
+                f"SELECT {sel} FROM solicitud_archivo"
                 " WHERE laboratorio = %s ORDER BY creado_en DESC",
                 (laboratorio,),
             )
@@ -118,9 +186,10 @@ def listar(laboratorio: str | None = None) -> list[tuple[str, dict]]:
 
 def buscar(archivo: str) -> dict | None:
     """Los datos de una solicitud, o None si no está indexada."""
+    sel = _select_cruce()
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         cur.execute(
-            f"SELECT {_SELECT_CRUCE} FROM solicitud_archivo WHERE archivo = %s",
+            f"SELECT {sel} FROM solicitud_archivo WHERE archivo = %s",
             (archivo,),
         )
         fila = cur.fetchone()
@@ -181,6 +250,78 @@ def olvidar_archivo(archivo: str) -> None:
             olvidar(cur, archivo)
     except psycopg2.errors.UndefinedTable:
         pass
+
+
+def anotar_reanalisis(
+    archivo: str,
+    datos: dict,
+    r2_key: str | None,
+    solicitud_original_archivo: str,
+    motivo_reanalisis: str,
+) -> None:
+    """Como `anotar`, pero para solicitudes de reanálisis.
+
+    Si la migración 0038 no se corrió aún, cae a `guardar` normal para no
+    bloquear la creación del reanálisis.
+    """
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            if _detectar_columnas_reanalisis():
+                guardar_reanalisis(cur, archivo, datos, r2_key, solicitud_original_archivo, motivo_reanalisis)
+            else:
+                guardar(cur, archivo, datos, r2_key)
+    except psycopg2.errors.UndefinedTable:
+        pass
+
+
+def solicitud_tiene_reanalisis(archivo: str) -> bool:
+    """True si ya existe una solicitud de reanálisis para este archivo original.
+
+    Se usa antes de crear un reanálisis para evitar duplicados (409).
+    Devuelve False si la migración 0038 no se corrió: en ese caso no hay
+    restricción de unicidad que revisar.
+    """
+    if not _detectar_columnas_reanalisis():
+        return False
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                "SELECT 1 FROM solicitud_archivo WHERE solicitud_original_archivo = %s LIMIT 1",
+                (archivo,),
+            )
+            return cur.fetchone() is not None
+    except Exception:
+        return False
+
+
+def listar_elegibles_reanalisis() -> list[tuple[str, dict]]:
+    """Solicitudes convencionales enviadas que no tienen reanálisis aún.
+
+    Se usa para el selector de la pantalla "Nueva solicitud de reanálisis".
+    Devuelve lista vacía si la migración 0038 no se corrió.
+    """
+    if not _detectar_columnas_reanalisis():
+        sel = _select_cruce()
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                f"SELECT {sel} FROM solicitud_archivo ORDER BY creado_en DESC"
+            )
+            return [
+                par for par in (_fila_a_par(f) for f in cur.fetchall())
+                if par[1].get("enviada")
+            ]
+    sel = _select_cruce()
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            f"""
+            SELECT {sel} FROM solicitud_archivo
+            WHERE tipo_solicitud = 'CONVENCIONAL'
+              AND solicitud_original_archivo IS NULL
+              AND (datos->>'enviada')::boolean = true
+            ORDER BY creado_en DESC
+            """
+        )
+        return [_fila_a_par(f) for f in cur.fetchall()]
 
 
 class MuestraYaUsada(Exception):

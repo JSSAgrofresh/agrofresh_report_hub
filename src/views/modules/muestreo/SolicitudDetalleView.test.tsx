@@ -71,6 +71,9 @@ function solicitudBase(overrides: Partial<Solicitud> = {}): Solicitud {
     creado_en: '2026-09-01T10:00:00+00:00',
     enviada: false,
     enviado_en: null,
+    tipo_solicitud: 'CONVENCIONAL',
+    solicitud_original_archivo: null,
+    motivo_reanalisis: null,
     ...overrides,
   }
 }

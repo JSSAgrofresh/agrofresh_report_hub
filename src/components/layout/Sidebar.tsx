@@ -13,6 +13,7 @@ import {
   etiquetaAcceso,
   modulosPermitidos,
   puedeAdministrarUsuarios,
+  puedeCrearReanalisis,
   puedeVerTomaMuestras,
 } from '@/features/usuarios'
 import {
@@ -243,6 +244,7 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   const otrosModulos = modulos.filter((m) => m.grupo !== GRUPO_DATACORE)
   const esAdmin = puedeAdministrarUsuarios(user)
   const veTomaMuestras = puedeVerTomaMuestras(user)
+  const puedeReanalisis = puedeCrearReanalisis(user)
   const acento = user.area ? AREAS[user.area].colorPrimario : undefined
   const estiloSidebar = acento ? ({ '--acento-usuario': acento } as CSSProperties) : undefined
 
@@ -351,6 +353,17 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                 <IconEmitir className={styles.navIcono} />
                 <span className={styles.etiqueta}>Nueva solicitud</span>
               </NavLink>
+              {puedeReanalisis && (
+                <NavLink
+                  to={ROUTES.tomaMuestrasNuevaReanalisis}
+                  title="Nueva solicitud de reanálisis"
+                  onClick={onCerrar}
+                  className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+                >
+                  <IconEmitir className={styles.navIcono} />
+                  <span className={styles.etiqueta}>Solicitud reanálisis</span>
+                </NavLink>
+              )}
             </>
           )}
 

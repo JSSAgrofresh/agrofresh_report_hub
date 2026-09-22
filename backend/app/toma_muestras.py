@@ -444,6 +444,10 @@ class Solicitud(SolicitudIn):
     # después de que el correo salió de verdad.
     enviada: bool = False
     enviado_en: str | None = None
+    # Reanálisis (migración 0038)
+    tipo_solicitud: str = "CONVENCIONAL"
+    solicitud_original_archivo: str | None = None
+    motivo_reanalisis: str | None = None
 
 
 class CruceIn(BaseModel):
@@ -478,6 +482,20 @@ def _es_propia(usuario: Usuario, datos: dict) -> bool:
 def _exigir_acceso(usuario: Usuario, datos: dict) -> None:
     if not _es_propia(usuario, datos):
         raise HTTPException(403, "Esta solicitud fue creada por otro muestreador: no puedes verla ni reenviarla.")
+
+
+def _puede_crear_reanalisis(usuario: Usuario) -> bool:
+    """Solo admin_general y admin_area (cualquier área) pueden crear reanálisis.
+
+    Gerencia, analistas, clientes y muestreadores no tienen acceso: un
+    reanálisis implica decisiones de laboratorio que esos roles no toman.
+    """
+    return usuario.tipoAcceso in ("admin_general", "admin_area")
+
+
+def _exigir_puede_reanalisis(usuario: Usuario) -> None:
+    if not _puede_crear_reanalisis(usuario):
+        raise HTTPException(403, "Solo administradores pueden crear solicitudes de reanálisis.")
 
 
 def _leer_todas_desde_archivos() -> list[tuple[str, dict]]:
@@ -991,6 +1009,174 @@ def eliminar_solicitud(
     # mostrando una solicitud cuyo archivo ya no existe.
     indice_solicitudes.olvidar_archivo(os.path.basename(archivo))
     return {"estado": "eliminado"}
+
+
+# ---------------------------------------------------------------------------
+# Reanálisis: solicitudes derivadas de una convencional ya enviada.
+# ---------------------------------------------------------------------------
+
+class ReanalisisIn(BaseModel):
+    """Datos exclusivos del reanálisis: el motivo y los campos de la
+    solicitud a copiar (el laboratorio no se puede cambiar)."""
+
+    motivo: str = Field(..., min_length=5, description="Motivo del reanálisis (obligatorio, mín. 5 caracteres).")
+    # Los demás campos son los mismos que SolicitudIn, pero el laboratorio
+    # se ignora: se toma siempre de la solicitud original.
+    solicitante: str
+    sold_to: str
+    ship_to: str | None = None
+    especie: str | None = None
+    variedad: str | None = None
+    linea_proceso: str | None = None
+    csg_productor: str | None = None
+    csg_packing: str | None = None
+    lote: str | None = None
+    posicion_muestreo: str | None = None
+    numero_camara: str | None = None
+    numero_orden: str | None = None
+    kilos_procesados: float | None = None
+    producto_utilizado: str | None = None
+    tipo_muestra: str | None = None
+    fecha_muestreo: str | None = None
+    hora_muestreo: str | None = None
+    nombre_muestreador: str | None = None
+    generado_por: str
+    email_solicitante: str | None = None
+    email_laboratorio: str | None = None
+    observacion: str | None = None
+    campos_laboratorio: dict[str, str] = {}
+    analitos_solicitados: list[str] = []
+
+
+@router.get("/solicitudes-elegibles-reanalisis")
+def listar_solicitudes_elegibles_reanalisis(
+    usuario: Usuario = Depends(usuario_actual),
+) -> list[Solicitud]:
+    """Solicitudes convencionales enviadas que aún no tienen reanálisis.
+
+    Solo visible para usuarios que pueden crear reanálisis.
+    """
+    _exigir_puede_reanalisis(usuario)
+    pares = indice_solicitudes.listar_elegibles_reanalisis()
+    salida: list[Solicitud] = []
+    for nombre, datos in pares:
+        try:
+            salida.append(Solicitud(archivo=nombre, **datos))
+        except (ValueError, KeyError):
+            continue
+    return salida
+
+
+@router.post("/solicitudes/{archivo}/reanalisis")
+def crear_reanalisis(
+    archivo: str,
+    body: ReanalisisIn,
+    usuario: Usuario = Depends(usuario_actual),
+) -> Solicitud:
+    """Crea una solicitud de reanálisis a partir de la original.
+
+    - El laboratorio se hereda de la original (no modificable).
+    - El código sale con prefijo `R-`: `OT-QUI0045` → `R-OT-QUI0045`.
+    - Solo se puede crear UN reanálisis por solicitud original (409 si ya
+      existe).
+    - La original debe estar enviada (`enviada=True`).
+    """
+    _exigir_puede_reanalisis(usuario)
+    motivo = body.motivo.strip()
+    if not motivo:
+        raise HTTPException(422, "El motivo del reanálisis es obligatorio.")
+
+    # 1. Leer la solicitud original
+    if r2.disponible():
+        data, ext = _descargar_solicitud_r2(archivo)
+        datos_original = _leer_solicitud_bytes(data, ext)
+    else:
+        datos_original = _leer_solicitud_archivo(_ruta_archivo(archivo))
+
+    archivo_base = os.path.basename(archivo)
+
+    if not datos_original.get("enviada"):
+        raise HTTPException(
+            400,
+            "Solo se puede solicitar reanálisis de una solicitud que ya fue enviada al laboratorio.",
+        )
+
+    # 2. Verificar que no exista ya un reanálisis para esta solicitud
+    if indice_solicitudes.solicitud_tiene_reanalisis(archivo_base):
+        raise HTTPException(
+            409,
+            f"Ya existe un reanálisis para la solicitud {archivo_base}. "
+            "Solo se permite un reanálisis por solicitud.",
+        )
+
+    laboratorio = datos_original.get("laboratorio", "")
+    numero_original = datos_original.get("numero_solicitud", os.path.splitext(archivo_base)[0])
+
+    # 3. Generar el código del reanálisis: prefijo R- al folio original
+    numero_reanalisis = f"R-{numero_original}"
+
+    # Verificar que el archivo destino no exista ya (p. ej. índice inconsistente)
+    nombre_archivo = f"{numero_reanalisis}.xlsx"
+    if indice_solicitudes.buscar(nombre_archivo) is not None:
+        raise HTTPException(
+            409,
+            f"Ya existe una solicitud con el código {numero_reanalisis}.",
+        )
+
+    ahora = datetime.now(timezone.utc)
+    datos = body.model_dump(exclude={"motivo"})
+    datos.update(
+        laboratorio=laboratorio,
+        numero_solicitud=numero_reanalisis,
+        fecha_solicitud=ahora.date().isoformat(),
+        creado_en=ahora.isoformat(),
+        enviada=False,
+        enviado_en=None,
+        tipo_solicitud="REANALISIS",
+        solicitud_original_archivo=archivo_base,
+        motivo_reanalisis=motivo,
+    )
+
+    # 4. Generar y guardar el Excel
+    analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
+    wb = construir_workbook(datos, analitos_config)
+    r2_key = None
+    if r2.disponible():
+        buf = io.BytesIO()
+        wb.save(buf)
+        r2_key = _r2_key_sol_nueva(body.sold_to, body.ship_to, datos["fecha_solicitud"], nombre_archivo)
+        r2.subir(r2_key, buf.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    else:
+        _exigir_lab_activo(laboratorio)
+        carpeta = os.path.join(
+            _carpeta_raiz(),
+            carpeta_de_cliente(body.sold_to),
+            carpeta_de_sucursal(body.ship_to),
+            datos["fecha_solicitud"],
+            numero_reanalisis,
+        )
+        os.makedirs(carpeta, exist_ok=True)
+        wb.save(os.path.join(carpeta, nombre_archivo))
+
+    # 5. Indexar (guarda también las columnas de reanálisis)
+    indice_solicitudes.anotar_reanalisis(
+        nombre_archivo, datos, r2_key,
+        solicitud_original_archivo=archivo_base,
+        motivo_reanalisis=motivo,
+    )
+
+    nombre_quien = usuario.nombre or usuario.email
+    notificar(
+        titulo=f"🔄 Nuevo reanálisis {numero_reanalisis} · {body.sold_to or '—'}",
+        resumen=(
+            f"{nombre_quien} creó una solicitud de reanálisis. "
+            f"Código: {numero_reanalisis} · Original: {numero_original}."
+        ),
+        creado_por=nombre_quien,
+        audiencia="todos",
+        metadata={"tipo": "reanalisis", "numero": numero_reanalisis, "archivo": nombre_archivo, "original": archivo_base},
+    )
+    return Solicitud(archivo=nombre_archivo, **datos)
 
 
 # ---------------------------------------------------------------------------
@@ -1589,7 +1775,11 @@ def enviar_solicitud_por_correo(
             "Agrégalos en Administración → Laboratorios → Contactos, o escribe un correo.",
         )
 
-    asunto, texto, html, imagenes_inline = mail_templates.renderizar(lab, datos)
+    es_reanalisis = datos.get("tipo_solicitud") == "REANALISIS"
+    if es_reanalisis:
+        asunto, texto, html, imagenes_inline = mail_templates.renderizar_reanalisis(lab, datos)
+    else:
+        asunto, texto, html, imagenes_inline = mail_templates.renderizar(lab, datos)
 
     labs_cfg = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
     lab_cfg = next((l for l in labs_cfg if l.get("codigo", "").upper() == lab.upper()), {})

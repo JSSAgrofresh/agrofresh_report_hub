@@ -37,11 +37,52 @@ export interface Solicitud {
    * Una vez enviada por correo queda de solo lectura. */
   enviada: boolean
   enviado_en: string | null
+  /** Reanálisis (migración 0038) */
+  tipo_solicitud: 'CONVENCIONAL' | 'REANALISIS'
+  solicitud_original_archivo: string | null
+  motivo_reanalisis: string | null
+}
+
+/** Entrada para crear una solicitud de reanálisis. */
+export interface ReanalisisInput {
+  motivo: string
+  solicitante: string
+  sold_to: string
+  ship_to: string | null
+  especie: string | null
+  variedad: string | null
+  linea_proceso: string | null
+  csg_productor: string | null
+  csg_packing: string | null
+  lote: string | null
+  posicion_muestreo: string | null
+  numero_camara: string | null
+  numero_orden: string | null
+  kilos_procesados: number | null
+  producto_utilizado: string | null
+  tipo_muestra: string | null
+  fecha_muestreo: string | null
+  hora_muestreo: string | null
+  nombre_muestreador: string | null
+  generado_por: string
+  email_solicitante: string | null
+  email_laboratorio: string | null
+  observacion: string | null
+  campos_laboratorio: Record<string, string>
+  analitos_solicitados: string[]
 }
 
 export type SolicitudInput = Omit<
   Solicitud,
-  'archivo' | 'numero_solicitud' | 'fecha_solicitud' | 'creado_en' | 'enviada' | 'enviado_en'
+  | 'archivo'
+  | 'numero_solicitud'
+  | 'fecha_solicitud'
+  | 'creado_en'
+  | 'enviada'
+  | 'enviado_en'
+  | 'tipo_solicitud'
+  | 'solicitud_original_archivo'
+  | 'motivo_reanalisis'
 >
 
 /** Metadatos de un campo general del formulario (§3): el conjunto de

@@ -17,6 +17,7 @@ import type { ValorLista } from '@/features/listados'
 import {
   actualizarSolicitud,
   crearSolicitud,
+  crearSolicitudReanalisis,
   destinatariosParaLaboratorio,
   enviarSolicitudPorCorreo,
   listarAnalitosConfig,
@@ -125,8 +126,10 @@ function valorGuardadoParaAnalito(
 interface NuevaSolicitudViewProps {
   /** 'crear' registra una solicitud nueva (por defecto). 'editar' reutiliza
    * el mismo formulario para modificar la solicitud del folio en la URL -sin
-   * crear una nueva-, y solo mientras no se haya enviado por correo. */
-  modo?: 'crear' | 'editar'
+   * crear una nueva-, y solo mientras no se haya enviado por correo.
+   * 'reanalisis' crea una solicitud derivada de la original (URL param
+   * `archivo`), con laboratorio bloqueado y campo de motivo obligatorio. */
+  modo?: 'crear' | 'editar' | 'reanalisis'
 }
 
 export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) {
@@ -189,9 +192,12 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
 
-  // --- Modo edición: carga la solicitud del folio en la URL y precarga el
-  // formulario con sus datos. `crear_solicitud`/`actualizar_solicitud` en el
-  // backend son las que de verdad protegen que no se edite una ya enviada;
+  // Motivo del reanálisis: solo visible y requerido en modo 'reanalisis'.
+  const [motivo, setMotivo] = useState('')
+
+  // --- Modo edición / reanálisis: carga la solicitud del folio en la URL y
+  // precarga el formulario con sus datos. `crear_solicitud`/`actualizar_solicitud`
+  // en el backend son las que de verdad protegen que no se edite una ya enviada;
   // acá solo se refleja ese estado en la pantalla.
   const [solicitudOriginal, setSolicitudOriginal] = useState<Solicitud | null>(null)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
@@ -200,10 +206,14 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const prellenadoTipoAplicacionRef = useRef(false)
 
   useEffect(() => {
-    if (modo !== 'editar' || !archivoEditando) return
+    if ((modo !== 'editar' && modo !== 'reanalisis') || !archivoEditando) return
     obtenerSolicitud(archivoEditando)
       .then(setSolicitudOriginal)
-      .catch(() => setErrorCarga('No se pudo cargar la solicitud a editar.'))
+      .catch(() => setErrorCarga(
+        modo === 'reanalisis'
+          ? 'No se pudo cargar la solicitud original.'
+          : 'No se pudo cargar la solicitud a editar.',
+      ))
   }, [modo, archivoEditando])
 
   useEffect(() => {
@@ -253,7 +263,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // persona ya empezó a escribir.
   useEffect(() => {
     if (
-      modo !== 'editar' ||
+      (modo !== 'editar' && modo !== 'reanalisis') ||
       !solicitudOriginal ||
       camposConfig === null ||
       prellenadoGeneralRef.current
@@ -299,7 +309,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // la especie al catálogo): no se puede meter en el efecto de arriba porque
   // `especiesDisponibles` normalmente llega después.
   useEffect(() => {
-    if (modo !== 'editar' || !solicitudOriginal?.especie) return
+    if ((modo !== 'editar' && modo !== 'reanalisis') || !solicitudOriginal?.especie) return
     const especie = especiesDisponibles.find((e) => e.valor === solicitudOriginal.especie)
     if (!especie) return
     listarVariedadesActivasDeEspecie(especie.id)
@@ -312,7 +322,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // por el efecto de arriba y en el primer render todavía no lo refleja).
   useEffect(() => {
     if (
-      modo !== 'editar' ||
+      (modo !== 'editar' && modo !== 'reanalisis') ||
       !solicitudOriginal ||
       analitosTodos.length === 0 ||
       prellenadoAnalitosRef.current
@@ -351,7 +361,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // llegó.
   useEffect(() => {
     if (
-      modo !== 'editar' ||
+      (modo !== 'editar' && modo !== 'reanalisis') ||
       !solicitudOriginal ||
       camposTipoAplicacion.length === 0 ||
       prellenadoTipoAplicacionRef.current
@@ -754,6 +764,15 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     e.preventDefault()
     setError(null)
 
+    if (modo === 'reanalisis' && !motivo.trim()) {
+      setError('El motivo del reanálisis es obligatorio.')
+      return
+    }
+    if (modo === 'reanalisis' && motivo.trim().length < 5) {
+      setError('El motivo del reanálisis debe tener al menos 5 caracteres.')
+      return
+    }
+
     if (!laboratorio) {
       setError('Selecciona un laboratorio.')
       return
@@ -842,7 +861,16 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
 
     setGuardando(true)
     try {
-      if (modo === 'editar' && archivoEditando) {
+      if (modo === 'reanalisis' && archivoEditando) {
+        const reanalisisCreado = await crearSolicitudReanalisis(archivoEditando, {
+          ...payload,
+          motivo: motivo.trim(),
+        })
+        if (envioAutomatico) {
+          try { await enviarSolicitudPorCorreo(reanalisisCreado.archivo, invitadosForm) } catch { /* continuar */ }
+        }
+        navigate(rutaTomaMuestrasDetalle(reanalisisCreado.archivo))
+      } else if (modo === 'editar' && archivoEditando) {
         await actualizarSolicitud(archivoEditando, payload)
         if (envioAutomatico) {
           try { await enviarSolicitudPorCorreo(archivoEditando, invitadosForm) } catch { /* continuar */ }
@@ -859,7 +887,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       setError(
         modo === 'editar'
           ? 'No se pudo guardar la edición. Revisa que el backend esté corriendo.'
-          : 'No se pudo crear la solicitud. Revisa que el backend esté corriendo.',
+          : modo === 'reanalisis'
+            ? 'No se pudo crear el reanálisis. Verifica que el backend esté corriendo y que no exista ya un reanálisis para esta solicitud.'
+            : 'No se pudo crear la solicitud. Revisa que el backend esté corriendo.',
       )
     } finally {
       setGuardando(false)
@@ -1020,7 +1050,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     )
   }
 
-  const tituloVista = modo === 'editar' ? 'Editar solicitud' : 'Nueva solicitud'
+  const tituloVista =
+    modo === 'editar' ? 'Editar solicitud'
+    : modo === 'reanalisis' ? 'Nueva solicitud de reanálisis'
+    : 'Nueva solicitud'
 
   if (errorCarga) {
     return (
@@ -1036,7 +1069,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     )
   }
 
-  if (camposConfig === null || (modo === 'editar' && !solicitudOriginal)) {
+  if (camposConfig === null || ((modo === 'editar' || modo === 'reanalisis') && !solicitudOriginal)) {
     return (
       <div>
         <Header title={tituloVista} description="Registra una nueva solicitud de análisis." />
@@ -1054,7 +1087,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         description={
           modo === 'editar'
             ? `Modifica la solicitud ${solicitudOriginal?.numero_solicitud ?? ''} — Al guardar se enviará de inmediato por correo.`
-            : 'Registra una nueva solicitud de análisis — los campos y análisis disponibles dependen del laboratorio y el tipo de aplicación.'
+            : modo === 'reanalisis'
+              ? `Solicitud de reanálisis sobre ${solicitudOriginal?.numero_solicitud ?? ''} — El laboratorio se hereda de la solicitud original.`
+              : 'Registra una nueva solicitud de análisis — los campos y análisis disponibles dependen del laboratorio y el tipo de aplicación.'
         }
       />
 
@@ -1071,7 +1106,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                 value={
                   modo === 'editar'
                     ? (solicitudOriginal?.numero_solicitud ?? '')
-                    : 'Se asigna automáticamente al guardar'
+                    : modo === 'reanalisis'
+                      ? `R-${solicitudOriginal?.numero_solicitud ?? ''} (se asigna al guardar)`
+                      : 'Se asigna automáticamente al guardar'
                 }
                 disabled
               />
@@ -1080,7 +1117,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               <span>Fecha</span>
               <input
                 value={formatDateCL(
-                  modo === 'editar' && solicitudOriginal
+                  (modo === 'editar' || modo === 'reanalisis') && solicitudOriginal
                     ? solicitudOriginal.fecha_solicitud
                     : new Date(),
                 )}
@@ -1102,18 +1139,22 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               <span>
                 Laboratorio<span className={styles.marcaRequerido}> *</span>
               </span>
-              <select
-                value={laboratorio}
-                onChange={(e) => alCambiarLaboratorio(e.target.value)}
-                required
-              >
-                <option value="">— elegir —</option>
-                {laboratoriosActivos.map((l) => (
-                  <option key={l.id} value={l.codigo}>
-                    {l.nombre}
-                  </option>
-                ))}
-              </select>
+              {modo === 'reanalisis' ? (
+                <input value={laboratorio} disabled />
+              ) : (
+                <select
+                  value={laboratorio}
+                  onChange={(e) => alCambiarLaboratorio(e.target.value)}
+                  required
+                >
+                  <option value="">— elegir —</option>
+                  {laboratoriosActivos.map((l) => (
+                    <option key={l.id} value={l.codigo}>
+                      {l.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
             </label>
             <label className={styles.campo}>
               <span>
@@ -1139,6 +1180,32 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             {camposIdentificacion.map(renderCampo)}
           </div>
         </Card>
+
+        {modo === 'reanalisis' && (
+          <Card>
+            <h2 className={styles.tituloSeccion}>
+              <span className={styles.numero}>⚠</span>
+              Motivo del reanálisis
+            </h2>
+            <div className={styles.fila}>
+              <label className={cn(styles.campo, styles.campoAncho)} style={{ gridColumn: '1 / -1' }}>
+                <span>
+                  Motivo<span className={styles.marcaRequerido}> *</span>
+                </span>
+                <textarea
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Describe brevemente por qué se solicita el reanálisis (mínimo 5 caracteres)"
+                  rows={3}
+                  required
+                />
+                <small className={styles.ayudaCampo}>
+                  Solicitud original: {solicitudOriginal?.numero_solicitud ?? '—'}
+                </small>
+              </label>
+            </div>
+          </Card>
+        )}
 
         <Card>
           <h2 className={styles.tituloSeccion}>
@@ -1475,7 +1542,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           <Button type="submit" disabled={guardando}>
             {guardando
               ? (envioAutomatico ? 'Guardando y enviando…' : 'Guardando…')
-              : (envioAutomatico ? 'Guardar y enviar' : 'Guardar')}
+              : modo === 'reanalisis'
+                ? (envioAutomatico ? 'Crear reanálisis y enviar' : 'Crear reanálisis')
+                : (envioAutomatico ? 'Guardar y enviar' : 'Guardar')}
           </Button>
         </div>
       </form>
