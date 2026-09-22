@@ -88,7 +88,7 @@ def _gmail_access_token() -> str:
         desc = data.get("error_description", resp.text)
         if error == "invalid_grant":
             raise HTTPException(
-                401,
+                503,
                 "El refresh token de Gmail es invalido o fue revocado. "
                 "Regeneralo desde backend con: python ..\\scripts\\autorizar_gmail.py "
                 "(el script esta en la raiz del repo, no en backend/scripts/).",
