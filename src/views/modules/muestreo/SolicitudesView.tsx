@@ -193,9 +193,43 @@ export function SolicitudesView() {
     })
   }, [solicitudes, filtros])
 
-  const archivosAExportar = hayFiltrosActivos
-    ? (solicitudesFiltradas ?? []).map((s) => s.archivo)
-    : undefined
+  const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
+
+  // Limpiar selección cuando cambian los filtros o la lista base
+  useEffect(() => { setSeleccionadas(new Set()) }, [filtros, solicitudes])
+
+  const archivosVisibles = (solicitudesFiltradas ?? []).map((s) => s.archivo)
+  const todasMarcadas = archivosVisibles.length > 0 && archivosVisibles.every((a) => seleccionadas.has(a))
+  const algunaMarcada = archivosVisibles.some((a) => seleccionadas.has(a))
+
+  function toggleTodas() {
+    if (todasMarcadas) {
+      setSeleccionadas(new Set())
+    } else {
+      setSeleccionadas(new Set(archivosVisibles))
+    }
+  }
+
+  function toggleUna(archivo: string) {
+    setSeleccionadas((prev) => {
+      const next = new Set(prev)
+      if (next.has(archivo)) next.delete(archivo)
+      else next.add(archivo)
+      return next
+    })
+  }
+
+  const archivosAExportar = seleccionadas.size > 0
+    ? [...seleccionadas]
+    : hayFiltrosActivos
+      ? archivosVisibles
+      : undefined
+
+  const etiquetaBotonExport = seleccionadas.size > 0
+    ? `Descargar seleccionadas (${seleccionadas.size})`
+    : hayFiltrosActivos
+      ? `Descargar filtradas (${solicitudesFiltradas?.length ?? 0})`
+      : 'Descargar todas las solicitudes'
 
   return (
     <div>
@@ -207,12 +241,10 @@ export function SolicitudesView() {
             <button
               type="button"
               className={styles.botonDescargaTodas}
-              disabled={solicitudesFiltradas?.length === 0}
+              disabled={(solicitudesFiltradas?.length ?? 0) === 0 && seleccionadas.size === 0}
               onClick={() => void descargarTodasLasSolicitudes(archivosAExportar)}
             >
-              {hayFiltrosActivos
-                ? `Descargar filtradas (${solicitudesFiltradas?.length ?? 0})`
-                : 'Descargar todas las solicitudes'}
+              {etiquetaBotonExport}
             </button>
             <Button onClick={() => navigate(ROUTES.tomaMuestrasNueva)}>+ Nueva solicitud</Button>
           </div>
@@ -478,6 +510,16 @@ export function SolicitudesView() {
               <table className={styles.tabla}>
                 <thead>
                   <tr>
+                    <th className={styles.colCheck}>
+                      <input
+                        type="checkbox"
+                        className={styles.checkbox}
+                        checked={todasMarcadas}
+                        ref={(el) => { if (el) el.indeterminate = algunaMarcada && !todasMarcadas }}
+                        onChange={toggleTodas}
+                        aria-label="Seleccionar todas"
+                      />
+                    </th>
                     <th>N° Solicitud</th>
                     <th>Fecha</th>
                     <th>Laboratorio</th>
@@ -493,8 +535,20 @@ export function SolicitudesView() {
                   {solicitudesFiltradas.map((s) => (
                     <tr
                       key={s.archivo}
-                      className={s.enviada ? styles.filaEnviada : undefined}
+                      className={[
+                        s.enviada ? styles.filaEnviada : '',
+                        seleccionadas.has(s.archivo) ? styles.filaSeleccionada : '',
+                      ].filter(Boolean).join(' ') || undefined}
                     >
+                      <td className={styles.colCheck} onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className={styles.checkbox}
+                          checked={seleccionadas.has(s.archivo)}
+                          onChange={() => toggleUna(s.archivo)}
+                          aria-label={`Seleccionar ${s.numero_solicitud}`}
+                        />
+                      </td>
                       <td className={styles.nombre}>{s.numero_solicitud}</td>
                       <td>{formatDateCL(s.fecha_solicitud)}</td>
                       <td>
@@ -527,13 +581,26 @@ export function SolicitudesView() {
             <div className={styles.tarjetas}>
               {solicitudesFiltradas.map((s) => (
                 <div
-                  className={`${styles.tarjeta} ${s.enviada ? styles.tarjetaEnviada : ''}`}
+                  className={[
+                    styles.tarjeta,
+                    s.enviada ? styles.tarjetaEnviada : '',
+                    seleccionadas.has(s.archivo) ? styles.tarjetaSeleccionada : '',
+                  ].filter(Boolean).join(' ')}
                   key={s.archivo}
                 >
                   <div className={styles.tarjetaCabecera}>
-                    <div>
-                      <div className={styles.tarjetaId}>{s.numero_solicitud}</div>
-                      <div className={styles.tarjetaFecha}>{formatDateCL(s.fecha_solicitud)}</div>
+                    <div className={styles.tarjetaCabeceraIzq}>
+                      <input
+                        type="checkbox"
+                        className={styles.checkbox}
+                        checked={seleccionadas.has(s.archivo)}
+                        onChange={() => toggleUna(s.archivo)}
+                        aria-label={`Seleccionar ${s.numero_solicitud}`}
+                      />
+                      <div>
+                        <div className={styles.tarjetaId}>{s.numero_solicitud}</div>
+                        <div className={styles.tarjetaFecha}>{formatDateCL(s.fecha_solicitud)}</div>
+                      </div>
                     </div>
                     <span className={styles.etiquetaLaboratorio}>{s.laboratorio}</span>
                   </div>
