@@ -438,6 +438,35 @@
   font-weight: 600;
 }
 
+.templateTabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.templateTab,
+.templateTabActivo {
+  padding: 8px 18px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.templateTabActivo {
+  color: var(--color-primary-hover);
+  border-bottom-color: var(--color-primary);
+}
+
+.templateTab:hover {
+  color: var(--color-text);
+}
+
 /* --- Filas (contactos, unidades, analitos) --- */
 
 .filas {

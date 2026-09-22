@@ -14,6 +14,8 @@ export {
   eliminarAnalisis,
   obtenerTemplateMail,
   guardarTemplateMail,
+  obtenerTemplateMailReanalisis,
+  guardarTemplateMailReanalisis,
 } from './lib/api'
 
 export { MODOS_ANALISIS, TIPOS_CONTACTO, TIPOS_COPIA } from './lib/tipos'

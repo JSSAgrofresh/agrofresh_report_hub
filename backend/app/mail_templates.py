@@ -12,12 +12,15 @@ from .correo import ImagenInline
 logger = logging.getLogger(__name__)
 
 ARCHIVO = "templates_mail_solicitudes.json"
+ARCHIVO_REANALISIS = "templates_mail_reanalisis.json"
 
 VARIABLES = [
     "numero_solicitud", "laboratorio", "solicitante", "sold_to", "ship_to",
     "fecha_solicitud", "fecha_muestreo", "generado_por", "email_solicitante",
     "especie", "variedad", "lote",
 ]
+
+VARIABLES_REANALISIS = VARIABLES + ["motivo_reanalisis", "solicitud_original_numero"]
 
 ASUNTO_DEFECTO = "[AgroFresh] Solicitud {numero_solicitud} — {laboratorio}"
 ASUNTO_REANALISIS = "[AgroFresh] Reanálisis {numero_solicitud} — {laboratorio}"
@@ -111,6 +114,42 @@ def guardar(laboratorio: str, asunto: str, cuerpo: str) -> dict:
     return {**nuevo, "variables": VARIABLES}
 
 
+def obtener_reanalisis(laboratorio: str) -> dict:
+    items = config_store.leer(ARCHIVO_REANALISIS, [])
+    actual = next((i for i in items if i.get("laboratorio") == laboratorio), None)
+    return {
+        "laboratorio": laboratorio,
+        "asunto": (actual or {}).get("asunto") or ASUNTO_REANALISIS,
+        "cuerpo": (actual or {}).get("cuerpo") or CUERPO_REANALISIS,
+        "variables": VARIABLES_REANALISIS,
+    }
+
+
+def validar_reanalisis(texto: str) -> None:
+    try:
+        usadas = {
+            nombre for _, nombre, _, _ in Formatter().parse(texto)
+            if nombre is not None
+        }
+    except ValueError as exc:
+        raise HTTPException(400, f"Template inválido: {exc}") from exc
+    desconocidas = sorted(usadas - set(VARIABLES_REANALISIS))
+    if desconocidas:
+        raise HTTPException(400, f"Variables desconocidas: {', '.join(desconocidas)}")
+
+
+def guardar_reanalisis(laboratorio: str, asunto: str, cuerpo: str) -> dict:
+    validar_reanalisis(asunto)
+    validar_reanalisis(cuerpo)
+    items = config_store.leer(ARCHIVO_REANALISIS, [])
+    nuevo = {"laboratorio": laboratorio, "asunto": asunto.strip(), "cuerpo": cuerpo.strip()}
+    items = [nuevo if i.get("laboratorio") == laboratorio else i for i in items]
+    if not any(i.get("laboratorio") == laboratorio for i in items):
+        items.append(nuevo)
+    config_store.escribir(ARCHIVO_REANALISIS, items)
+    return {**nuevo, "variables": VARIABLES_REANALISIS}
+
+
 def renderizar(laboratorio: str, datos: dict) -> tuple[str, str, str, list[ImagenInline]]:
     """Arma el correo de una solicitud: el texto sigue viniendo del template
     editable por laboratorio (Administración → Laboratorios), envuelto en un
@@ -169,12 +208,13 @@ def renderizar_reanalisis(laboratorio: str, datos: dict) -> tuple[str, str, str,
     numero_original = original_archivo.replace(".xlsx", "").replace(".json", "") or "—"
     motivo = str(datos.get("motivo_reanalisis") or "—")
 
+    template = obtener_reanalisis(laboratorio)
     valores = {variable: str(datos.get(variable) or "—") for variable in VARIABLES}
     valores["motivo_reanalisis"] = motivo
     valores["solicitud_original_numero"] = numero_original
 
-    asunto = ASUNTO_REANALISIS.format_map(valores)
-    texto = CUERPO_REANALISIS.format_map(valores)
+    asunto = template["asunto"].format_map(valores)
+    texto = template["cuerpo"].format_map(valores)
 
     cuerpo_html = escape(texto).replace("\n", "<br>")
 
