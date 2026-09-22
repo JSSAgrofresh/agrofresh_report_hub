@@ -1,16 +1,22 @@
 import { Badge } from '@/components/ui/Badge'
+import { AREAS } from '@/constants/areas'
 import { CORREO_MAESTRO } from '../api/usuariosStore'
 import { etiquetaAcceso } from '../permisos'
-import type { Usuario } from '../types'
+import type { TipoAcceso, Usuario } from '../types'
 import styles from './UsuariosTable.module.css'
 
-const TONO: Record<Usuario['tipoAcceso'], 'success' | 'warning' | 'neutral'> = {
+const TONO: Record<TipoAcceso, 'success' | 'warning' | 'neutral'> = {
   admin_general: 'success',
   gerencia: 'success',
   admin_area: 'warning',
   analista: 'warning',
   cliente: 'neutral',
   muestreador: 'neutral',
+}
+
+function colorBadge(usuario: Usuario): string | undefined {
+  if (usuario.area && AREAS[usuario.area]) return AREAS[usuario.area].colorPrimario
+  return undefined
 }
 
 interface UsuariosTableProps {
@@ -47,7 +53,7 @@ export function UsuariosTable({ usuarios, onEditar, onEliminar, onRestablecer }:
                 <td className={styles.nombre}>{u.nombre}</td>
                 <td className={styles.correo}>{u.email}</td>
                 <td>
-                  <Badge tone={TONO[u.tipoAcceso]}>{etiquetaAcceso(u)}</Badge>
+                  <Badge tone={TONO[u.tipoAcceso]} color={colorBadge(u)}>{etiquetaAcceso(u)}</Badge>
                 </td>
                 <td className={styles.cliente}>
                   {u.clienteNombre ?? '—'}
