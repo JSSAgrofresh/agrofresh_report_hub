@@ -16,6 +16,8 @@ const REPORTES_ENVIADOS_EJEMPLO: Record<AreaId, ResumenArea['reportesEnviados']>
     { id: 'rp-2', detalle: 'Informe pH/ORP · Forma 1', fecha: '06-08-2026' },
     { id: 'rp-3', detalle: 'Informe pH/ORP · Forma 3 (Hanna)', fecha: '02-08-2026' },
   ],
+  ryd: [],
+  toma_muestras: [],
 }
 
 const RESUMEN_POSTVENTA_EJEMPLO: ResumenArea = {

@@ -7,7 +7,7 @@ export function DashboardView() {
   const { user } = useAuth()
   if (!user) return null
 
-  if (user.tipoAcceso === 'admin_general') return <AdminGeneralDashboardView />
+  if (user.tipoAcceso === 'admin_general' || user.tipoAcceso === 'gerencia') return <AdminGeneralDashboardView />
   if (user.tipoAcceso === 'admin_area' && user.area) return <AreaDashboardView area={user.area} usuario={user} />
   if (user.tipoAcceso === 'cliente' && user.area) return <ClienteDashboardView area={user.area} usuario={user} />
 

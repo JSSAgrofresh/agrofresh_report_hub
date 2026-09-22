@@ -1,6 +1,6 @@
 import type { AreaId } from '@/constants/areas'
 
-export type TipoAcceso = 'admin_general' | 'admin_area' | 'analista' | 'cliente' | 'muestreador'
+export type TipoAcceso = 'admin_general' | 'admin_area' | 'analista' | 'cliente' | 'muestreador' | 'gerencia'
 
 export interface Usuario {
   id: string
