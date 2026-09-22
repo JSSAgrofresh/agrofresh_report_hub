@@ -1640,7 +1640,12 @@ def enviar_solicitud_por_correo(
 # activar/desactivar y marcar requerido/opcional los campos generales, y
 # mantener las listas de tipos de aplicación, líneas de proceso y analitos
 # por laboratorio, sin tocar código fuente.
+#
+# Todos los endpoints de escritura (POST/PUT/DELETE) requieren admin_general.
 # ---------------------------------------------------------------------------
+
+# Dependencia de rol reutilizada en todos los endpoints de escritura de config.
+_SOLO_ADMIN_CONFIG = [Depends(auth.solo_admin_general)]
 
 
 
@@ -1731,7 +1736,7 @@ def listar_campos_config() -> list[CampoConfig]:
     return [CampoConfig(**c) for c in _campos_generales_vigentes()]
 
 
-@router.put("/config/campos")
+@router.put("/config/campos", dependencies=_SOLO_ADMIN_CONFIG)
 def guardar_campos_config(campos: list[CampoConfig]) -> list[CampoConfig]:
     claves_validas = {c["clave"] for c in _CAMPOS_GENERALES_DEFECTO}
     claves_recibidas = {c.clave for c in campos}
@@ -1804,9 +1809,9 @@ _listar_tipos, _crear_tipo, _editar_tipo, _eliminar_tipo = _crud_opciones(
     "tipos_aplicacion.json", _TIPOS_APLICACION_DEFECTO
 )
 router.get("/config/tipos-aplicacion")(_listar_tipos)
-router.post("/config/tipos-aplicacion")(_crear_tipo)
-router.put("/config/tipos-aplicacion/{item_id}")(_editar_tipo)
-router.delete("/config/tipos-aplicacion/{item_id}")(_eliminar_tipo)
+router.post("/config/tipos-aplicacion", dependencies=_SOLO_ADMIN_CONFIG)(_crear_tipo)
+router.put("/config/tipos-aplicacion/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)(_editar_tipo)
+router.delete("/config/tipos-aplicacion/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)(_eliminar_tipo)
 
 
 _LINEAS_PROCESO_DEFECTO: list[dict] = [
@@ -1817,9 +1822,9 @@ _listar_lineas, _crear_linea, _editar_linea, _eliminar_linea = _crud_opciones(
     "lineas_proceso.json", _LINEAS_PROCESO_DEFECTO
 )
 router.get("/config/lineas-proceso")(_listar_lineas)
-router.post("/config/lineas-proceso")(_crear_linea)
-router.put("/config/lineas-proceso/{item_id}")(_editar_linea)
-router.delete("/config/lineas-proceso/{item_id}")(_eliminar_linea)
+router.post("/config/lineas-proceso", dependencies=_SOLO_ADMIN_CONFIG)(_crear_linea)
+router.put("/config/lineas-proceso/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)(_editar_linea)
+router.delete("/config/lineas-proceso/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)(_eliminar_linea)
 
 
 class CampoTipoAplicacionConfig(BaseModel):
@@ -1895,7 +1900,7 @@ def listar_campos_tipo_aplicacion(ambito: str | None = None) -> list[CampoTipoAp
     return sorted(items, key=lambda c: (c.ambito != "comun", c.orden))
 
 
-@router.post("/config/campos-tipo-aplicacion")
+@router.post("/config/campos-tipo-aplicacion", dependencies=_SOLO_ADMIN_CONFIG)
 def crear_campo_tipo_aplicacion(body: CampoTipoAplicacionIn) -> CampoTipoAplicacionConfig:
     items = _leer_config("campos_tipo_aplicacion.json", _CAMPOS_TIPO_APLICACION_DEFECTO)
     nuevo = CampoTipoAplicacionConfig(id=_siguiente_id(items), **body.model_dump())
@@ -1904,7 +1909,7 @@ def crear_campo_tipo_aplicacion(body: CampoTipoAplicacionIn) -> CampoTipoAplicac
     return nuevo
 
 
-@router.put("/config/campos-tipo-aplicacion/{item_id}")
+@router.put("/config/campos-tipo-aplicacion/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)
 def editar_campo_tipo_aplicacion(item_id: int, body: CampoTipoAplicacionIn) -> CampoTipoAplicacionConfig:
     items = _leer_config("campos_tipo_aplicacion.json", _CAMPOS_TIPO_APLICACION_DEFECTO)
     idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
@@ -1916,7 +1921,7 @@ def editar_campo_tipo_aplicacion(item_id: int, body: CampoTipoAplicacionIn) -> C
     return actualizado
 
 
-@router.delete("/config/campos-tipo-aplicacion/{item_id}")
+@router.delete("/config/campos-tipo-aplicacion/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)
 def eliminar_campo_tipo_aplicacion(item_id: int) -> dict[str, str]:
     items = _leer_config("campos_tipo_aplicacion.json", _CAMPOS_TIPO_APLICACION_DEFECTO)
     restantes = [i for i in items if i["id"] != item_id]
@@ -2014,7 +2019,7 @@ def listar_analitos_config(laboratorio: str | None = None, tipo_aplicacion: str 
     return sorted(items, key=lambda a: (a.laboratorio, a.categoria, a.orden))
 
 
-@router.post("/config/analitos")
+@router.post("/config/analitos", dependencies=_SOLO_ADMIN_CONFIG)
 def crear_analito_config(body: AnalitoIn) -> AnalitoConfig:
     items = _leer_config("analitos.json", ANALITOS_DEFECTO)
     nuevo = AnalitoConfig(id=_siguiente_id(items), **body.model_dump())
@@ -2023,7 +2028,7 @@ def crear_analito_config(body: AnalitoIn) -> AnalitoConfig:
     return nuevo
 
 
-@router.put("/config/analitos/{item_id}")
+@router.put("/config/analitos/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)
 def editar_analito_config(item_id: int, body: AnalitoIn) -> AnalitoConfig:
     items = _leer_config("analitos.json", ANALITOS_DEFECTO)
     idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
@@ -2035,7 +2040,7 @@ def editar_analito_config(item_id: int, body: AnalitoIn) -> AnalitoConfig:
     return actualizado
 
 
-@router.delete("/config/analitos/{item_id}")
+@router.delete("/config/analitos/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)
 def eliminar_analito_config(item_id: int) -> dict[str, str]:
     items = _leer_config("analitos.json", ANALITOS_DEFECTO)
     restantes = [i for i in items if i["id"] != item_id]
@@ -2131,7 +2136,7 @@ def _validar_prefijo_unico(items: list[dict], prefijo: str, item_id: int | None)
         raise HTTPException(400, f'Ya hay otro laboratorio usando el prefijo "{prefijo}".')
 
 
-@router.post("/config/laboratorios")
+@router.post("/config/laboratorios", dependencies=_SOLO_ADMIN_CONFIG)
 def crear_laboratorio_config(body: LaboratorioIn) -> LaboratorioConfig:
     _validar_codigo_lab(body.codigo)
     _validar_prefijo_solicitud(body.prefijo_solicitud)
@@ -2145,7 +2150,7 @@ def crear_laboratorio_config(body: LaboratorioIn) -> LaboratorioConfig:
     return nuevo
 
 
-@router.put("/config/laboratorios/{item_id}")
+@router.put("/config/laboratorios/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)
 def editar_laboratorio_config(item_id: int, body: LaboratorioIn) -> LaboratorioConfig:
     _validar_codigo_lab(body.codigo)
     _validar_prefijo_solicitud(body.prefijo_solicitud)
@@ -2162,7 +2167,7 @@ def editar_laboratorio_config(item_id: int, body: LaboratorioIn) -> LaboratorioC
     return actualizado
 
 
-@router.delete("/config/laboratorios/{item_id}")
+@router.delete("/config/laboratorios/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)
 def eliminar_laboratorio_config(item_id: int) -> dict[str, str]:
     items = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
     restantes = [i for i in items if i["id"] != item_id]
@@ -2210,7 +2215,7 @@ def listar_categorias_analiticas(laboratorio: str | None = None) -> list[Categor
     return sorted(items, key=lambda c: (c.laboratorio, c.orden))
 
 
-@router.post("/config/categorias-analiticas")
+@router.post("/config/categorias-analiticas", dependencies=_SOLO_ADMIN_CONFIG)
 def crear_categoria_analitica(body: CategoriaAnaliticaIn) -> CategoriaAnaliticaConfig:
     items = _leer_config("categorias_analiticas.json", _CATEGORIAS_ANALITICAS_DEFECTO)
     nuevo = CategoriaAnaliticaConfig(id=_siguiente_id(items), **body.model_dump())
@@ -2219,7 +2224,7 @@ def crear_categoria_analitica(body: CategoriaAnaliticaIn) -> CategoriaAnaliticaC
     return nuevo
 
 
-@router.put("/config/categorias-analiticas/{item_id}")
+@router.put("/config/categorias-analiticas/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)
 def editar_categoria_analitica(item_id: int, body: CategoriaAnaliticaIn) -> CategoriaAnaliticaConfig:
     items = _leer_config("categorias_analiticas.json", _CATEGORIAS_ANALITICAS_DEFECTO)
     idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
@@ -2231,7 +2236,7 @@ def editar_categoria_analitica(item_id: int, body: CategoriaAnaliticaIn) -> Cate
     return actualizado
 
 
-@router.delete("/config/categorias-analiticas/{item_id}")
+@router.delete("/config/categorias-analiticas/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)
 def eliminar_categoria_analitica(item_id: int) -> dict[str, str]:
     items = _leer_config("categorias_analiticas.json", _CATEGORIAS_ANALITICAS_DEFECTO)
     restantes = [i for i in items if i["id"] != item_id]
@@ -2279,7 +2284,7 @@ def listar_productos_config(laboratorio: str | None = None, tipo_aplicacion: str
     return sorted(items, key=lambda p: (p.laboratorio, p.orden))
 
 
-@router.post("/config/productos")
+@router.post("/config/productos", dependencies=_SOLO_ADMIN_CONFIG)
 def crear_producto_config(body: ProductoIn) -> ProductoConfig:
     items = _leer_config("productos.json", _PRODUCTOS_DEFECTO)
     nuevo = ProductoConfig(id=_siguiente_id(items), **body.model_dump())
@@ -2288,7 +2293,7 @@ def crear_producto_config(body: ProductoIn) -> ProductoConfig:
     return nuevo
 
 
-@router.put("/config/productos/{item_id}")
+@router.put("/config/productos/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)
 def editar_producto_config(item_id: int, body: ProductoIn) -> ProductoConfig:
     items = _leer_config("productos.json", _PRODUCTOS_DEFECTO)
     idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
@@ -2300,7 +2305,7 @@ def editar_producto_config(item_id: int, body: ProductoIn) -> ProductoConfig:
     return actualizado
 
 
-@router.delete("/config/productos/{item_id}")
+@router.delete("/config/productos/{item_id}", dependencies=_SOLO_ADMIN_CONFIG)
 def eliminar_producto_config(item_id: int) -> dict[str, str]:
     items = _leer_config("productos.json", _PRODUCTOS_DEFECTO)
     restantes = [i for i in items if i["id"] != item_id]

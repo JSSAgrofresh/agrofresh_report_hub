@@ -140,3 +140,69 @@ class TestEliminarSolicitud:
         assert resp.status_code != 403, (
             f"El super admin obtuvo 403 en DELETE /toma-muestras/solicitudes — el guard no debería bloquearlo."
         )
+
+
+# Rutas de escritura de config que se prueban. Solo la muestra — basta con
+# verificar que el guard está en su lugar; no hace falta cubrir cada recurso.
+_CONFIG_ESCRITURA = [
+    ("PUT",    "/api/toma-muestras/config/campos"),
+    ("POST",   "/api/toma-muestras/config/tipos-aplicacion"),
+    ("PUT",    "/api/toma-muestras/config/tipos-aplicacion/1"),
+    ("DELETE", "/api/toma-muestras/config/tipos-aplicacion/1"),
+    ("POST",   "/api/toma-muestras/config/lineas-proceso"),
+    ("PUT",    "/api/toma-muestras/config/lineas-proceso/1"),
+    ("DELETE", "/api/toma-muestras/config/lineas-proceso/1"),
+    ("POST",   "/api/toma-muestras/config/campos-tipo-aplicacion"),
+    ("PUT",    "/api/toma-muestras/config/campos-tipo-aplicacion/1"),
+    ("DELETE", "/api/toma-muestras/config/campos-tipo-aplicacion/1"),
+    ("POST",   "/api/toma-muestras/config/analitos"),
+    ("PUT",    "/api/toma-muestras/config/analitos/1"),
+    ("DELETE", "/api/toma-muestras/config/analitos/1"),
+    ("POST",   "/api/toma-muestras/config/laboratorios"),
+    ("PUT",    "/api/toma-muestras/config/laboratorios/1"),
+    ("DELETE", "/api/toma-muestras/config/laboratorios/1"),
+    ("POST",   "/api/toma-muestras/config/categorias-analiticas"),
+    ("PUT",    "/api/toma-muestras/config/categorias-analiticas/1"),
+    ("DELETE", "/api/toma-muestras/config/categorias-analiticas/1"),
+    ("POST",   "/api/toma-muestras/config/productos"),
+    ("PUT",    "/api/toma-muestras/config/productos/1"),
+    ("DELETE", "/api/toma-muestras/config/productos/1"),
+]
+
+
+class TestConfigAcceso:
+    """Los endpoints de escritura de configuración (POST/PUT/DELETE /config/*)
+    solo los puede ejecutar un admin_general.
+
+    No necesitan Postgres: dependency_overrides inyecta el usuario directo y el
+    check de rol ocurre antes de tocar ningún archivo de config.
+    """
+
+    @pytest.fixture(autouse=True)
+    def restaurar_overrides(self):
+        yield
+        app.dependency_overrides.clear()
+
+    def _como(self, tipo: str):
+        u = Usuario(id="99", email="test@agrofresh.com", nombre="Test", tipoAcceso=tipo)
+        app.dependency_overrides[usuario_actual] = lambda: u
+        return TestClient(app)
+
+    @pytest.mark.parametrize("tipo", ["muestreador", "admin_area"])
+    @pytest.mark.parametrize("metodo,ruta", _CONFIG_ESCRITURA)
+    def test_no_admin_recibe_403(self, tipo, metodo, ruta):
+        """Muestreador y admin_area no pueden modificar la configuración."""
+        resp = self._como(tipo).request(metodo, ruta, json={})
+        assert resp.status_code == 403, (
+            f"{tipo} obtuvo {resp.status_code} en {metodo} {ruta} — "
+            "debe devolver 403. No se arregla el test, se arregla el guard."
+        )
+
+    @pytest.mark.parametrize("metodo,ruta", _CONFIG_ESCRITURA)
+    def test_admin_general_no_recibe_403(self, metodo, ruta):
+        """Un admin_general pasa el guard (puede recibir 400/404/422 por datos
+        inválidos, pero no 403 del guard de rol)."""
+        resp = self._como("admin_general").request(metodo, ruta, json={})
+        assert resp.status_code != 403, (
+            f"admin_general obtuvo 403 en {metodo} {ruta} — el guard no debería bloquearlo."
+        )
