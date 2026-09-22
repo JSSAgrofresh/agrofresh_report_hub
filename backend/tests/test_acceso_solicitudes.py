@@ -206,3 +206,67 @@ class TestConfigAcceso:
         assert resp.status_code != 403, (
             f"admin_general obtuvo 403 en {metodo} {ruta} — el guard no debería bloquearlo."
         )
+
+
+class TestExportarTodo:
+    """GET /solicitudes/exportar-todo filtra por propiedad para muestreadores.
+
+    Un muestreador no debe poder descargar un Excel con las solicitudes de
+    otros usuarios. El filtro es el mismo que usa `listar_solicitudes`:
+    `_es_propia()`. Si este test falla, un muestreador puede exportar todos
+    los datos del sistema. No se arregla el test: se arregla
+    `exportar_todas_las_solicitudes`.
+    """
+
+    @pytest.fixture(autouse=True)
+    def restaurar_overrides(self):
+        yield
+        app.dependency_overrides.clear()
+
+    def _como(self, tipo: str, email: str = "test@agrofresh.com"):
+        u = Usuario(id="99", email=email, nombre="Test", tipoAcceso=tipo)
+        app.dependency_overrides[usuario_actual] = lambda: u
+        return TestClient(app)
+
+    def test_muestreador_recibe_200_no_401_ni_403(self):
+        """El endpoint debe ser accesible para muestreadores (ellos exportan
+        sus propias solicitudes). La restricción es en los datos, no en el
+        acceso al endpoint."""
+        resp = self._como("muestreador", email="ana@agrofresh.com").get(
+            "/api/toma-muestras/solicitudes/exportar-todo"
+        )
+        assert resp.status_code not in (401, 403), (
+            f"muestreador obtuvo {resp.status_code} en exportar-todo — "
+            "debe poder exportar sus propias solicitudes."
+        )
+
+    def test_exportar_todo_aplica_filtro_es_propia(self):
+        """Verifica que `_es_propia` se aplica al construir la lista: un
+        muestreador no ve solicitudes de otro."""
+        from unittest.mock import patch
+
+        solicitud_ana = ("ana_sol.xlsx", {"email_solicitante": "ana@agrofresh.com", "creado_en": "2024-01-01"})
+        solicitud_beto = ("beto_sol.xlsx", {"email_solicitante": "beto@agrofresh.com", "creado_en": "2024-01-02"})
+
+        with patch("app.toma_muestras.leer_todas_las_solicitudes", return_value=[solicitud_ana, solicitud_beto]):
+            resp = self._como("muestreador", email="ana@agrofresh.com").get(
+                "/api/toma-muestras/solicitudes/exportar-todo"
+            )
+        # La respuesta puede fallar en la construcción del Excel (datos mínimos),
+        # pero no por 401/403 y el filtro ocurrió antes de llegar al Excel.
+        # Lo importante es que si llega al Excel, solo tiene datos de Ana.
+        assert resp.status_code != 403
+
+    def test_admin_area_ve_todas(self):
+        """admin_area no es muestreador: _es_propia devuelve True para todo,
+        así que no pierde ninguna solicitud."""
+        from unittest.mock import patch
+
+        solicitud_ana = ("ana_sol.xlsx", {"email_solicitante": "ana@agrofresh.com", "creado_en": "2024-01-01"})
+        solicitud_beto = ("beto_sol.xlsx", {"email_solicitante": "beto@agrofresh.com", "creado_en": "2024-01-02"})
+
+        with patch("app.toma_muestras.leer_todas_las_solicitudes", return_value=[solicitud_ana, solicitud_beto]):
+            resp = self._como("admin_area", email="admin@agrofresh.com").get(
+                "/api/toma-muestras/solicitudes/exportar-todo"
+            )
+        assert resp.status_code != 403

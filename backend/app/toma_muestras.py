@@ -609,14 +609,17 @@ def organizar_solicitudes_r2() -> dict[str, int]:
 
 
 @router.get("/solicitudes/exportar-todo")
-def exportar_todas_las_solicitudes(archivo: list[str] | None = None) -> StreamingResponse:
+def exportar_todas_las_solicitudes(
+    archivo: list[str] | None = None,
+    usuario: Usuario = Depends(usuario_actual),
+) -> StreamingResponse:
     """Un único Excel "ancho" (una fila por solicitud) con toda la
     información general + de muestra + una columna por cada analito activo
     configurado -refleja la configuración vigente, no una plantilla fija."""
     seleccion = set(archivo or [])
     solicitudes_dict = [
         datos for nombre, datos in leer_todas_las_solicitudes()
-        if not seleccion or nombre in seleccion
+        if (not seleccion or nombre in seleccion) and _es_propia(usuario, datos)
     ]
     solicitudes_dict.sort(key=lambda d: d.get("creado_en") or "", reverse=True)
 
