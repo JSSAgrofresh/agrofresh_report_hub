@@ -151,6 +151,7 @@ const ESTADO_LABEL: Record<string, string> = {
 }
 
 const ICONO_MODULO: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
+  ingesta: IconIngest,
   datacore: IconDataCore,
   trace: IconTrace,
   converter: IconConverter,
