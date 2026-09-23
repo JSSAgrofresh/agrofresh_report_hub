@@ -21,6 +21,7 @@ const ESTADO: Record<ModuloInfo['estado'], { texto: string; tono: 'success' | 'w
 }
 
 const ICONO_MODULO: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
+  ingesta: IconIngest,
   datacore: IconDataCore,
   trace: IconTrace,
   converter: IconConverter,
