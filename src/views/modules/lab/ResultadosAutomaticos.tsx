@@ -32,6 +32,7 @@ export function ResultadosAutomaticos({
   const [procesando, setProcesando] = useState<'pdf' | 'excel' | 'bd' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [resultadoSubida, setResultadoSubida] = useState<FilaSubida[] | null>(null)
+  const [pesosExtraidos, setPesosExtraidos] = useState<Record<string, number | undefined>>({})
 
   const cruces = useMemo(
     () => construirCrucesAutomaticos(solicitudes, muestras),
@@ -45,8 +46,13 @@ export function ResultadosAutomaticos({
   const listos = encontrados.filter((c) => c.analitosFaltantes.length === 0)
   const sinResultado = cruces.filter((c) => !c.muestra)
 
+  function setPesoExtraido(archivo: string, valor: string) {
+    const num = parseFloat(valor)
+    setPesosExtraidos((prev) => ({ ...prev, [archivo]: isNaN(num) ? undefined : num }))
+  }
+
   function filas() {
-    return construirFilasExportables(cruces)
+    return construirFilasExportables(cruces, pesosExtraidos)
   }
 
   async function generarPDF() {
@@ -120,6 +126,7 @@ export function ResultadosAutomaticos({
               <th>Sold To</th>
               <th>Especie</th>
               <th>Analitos solicitados</th>
+              <th>Peso muestra extraída (g)</th>
               <th>Estado</th>
             </tr>
           </thead>
@@ -131,6 +138,21 @@ export function ResultadosAutomaticos({
                 <td>{cruce.solicitud.campos['Sold To (Nombre)'] || '—'}</td>
                 <td>{cruce.solicitud.campos.Especie || '—'}</td>
                 <td>{cruce.solicitud.analitos_solicitados.join(', ') || '—'}</td>
+                <td>
+                  {cruce.muestra && cruce.analitosFaltantes.length === 0 ? (
+                    <input
+                      type="number"
+                      step="0.0001"
+                      min="0"
+                      placeholder="ej. 5.0250"
+                      className={styles.inputPeso}
+                      value={pesosExtraidos[cruce.solicitud.archivo] ?? ''}
+                      onChange={(e) => setPesoExtraido(cruce.solicitud.archivo, e.target.value)}
+                    />
+                  ) : (
+                    <span className={styles.textoApagado}>—</span>
+                  )}
+                </td>
                 <td>
                   {!cruce.muestra ? (
                     <span className={styles.pendiente}>No viene en este GC</span>

@@ -27,8 +27,9 @@ from .gc_parser import (
     parsear_ubicaciones_gc,
 )
 from .informe_pdf import generar_informe_pdf
+from .laboratorios import _leer_analitos as _leer_analitos_lab
 from .mapeo import LABORATORIO_CATALOGO, calcular_semana
-from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS
+from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS, _analitos_fungicidas, _valor_guardado
 from .solicitud_parser import parsear_solicitudes_html
 from .storage import _carpeta_raiz as _carpeta_raiz_storage, _nombre_seguro
 from .toma_muestras import carpeta_de_cliente, leer_solicitudes_de
@@ -1185,6 +1186,8 @@ class FilaCruceIn(BaseModel):
     # solicitud ni en el resultado del GC, se elige a mano en la zona de
     # cruce (formato ISO "YYYY-MM-DD", el que entrega un <input type=date>).
     fecha_recepcion: str | None = None
+    # Segundo peso: el de la extracción analítica, registrado antes de emitir.
+    peso_muestra_extraido: float | None = None
 
 
 @router.post("/excel")
@@ -1195,38 +1198,62 @@ def generar_excel(filas: list[FilaCruceIn]) -> StreamingResponse:
     with conexion() as conn, cursor_dict(conn) as cur:
         folios = _asignar_folios(cur, len(filas))
 
-    # Mismas columnas que el archivo de solicitud original, en el mismo orden
-    # (unión por si alguna solicitud trae un campo que otra no tiene), más el
-    # folio interno al inicio.
-    columnas: list[str] = []
-    for fila in filas:
-        for columna in fila.campos:
-            if columna not in columnas:
-                columnas.append(columna)
+    # Catálogo de analitos para las columnas del grupo AGROFRESH.
+    # El orden y las columnas son los mismos que el Excel maestro de solicitudes.
+    analitos_catalogo = _leer_analitos_lab()
+    analitos_fungicidas = _analitos_fungicidas(analitos_catalogo)
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Solicitudes con resultado"
+    ws.title = "Resultados AgroFresh"
 
-    ws.cell(row=1, column=1, value="N° Informe")
-    ws.cell(row=1, column=2, value="Fecha Recepción")
-    for col_idx, columna in enumerate(columnas, start=3):
-        ws.cell(row=1, column=col_idx, value=columna)
+    # ── Encabezado ──────────────────────────────────────────────────────
+    # N° Informe | Fecha Recepción | campos generales |
+    # {COD} ppm | {COD} Dosis | … | Tipo Aplicación | Gasto |
+    # Peso Muestra Extraída
+    col = 1
+    ws.cell(row=1, column=col, value="N° Informe"); col += 1
+    ws.cell(row=1, column=col, value="Fecha Recepción"); col += 1
 
+    for _, etiqueta in CAMPOS_GENERALES_ETIQUETAS:
+        ws.cell(row=1, column=col, value=etiqueta); col += 1
+
+    col_analitos_inicio = col
+    for a in analitos_fungicidas:
+        codigo = str(a.get("codigo") or "")
+        if not codigo:
+            continue
+        ws.cell(row=1, column=col, value=codigo); col += 1
+        ws.cell(row=1, column=col, value=f"{codigo} Dosis"); col += 1
+
+    ws.cell(row=1, column=col, value="Tipo Aplicación"); col += 1
+    ws.cell(row=1, column=col, value="Gasto"); col += 1
+    ws.cell(row=1, column=col, value="Peso Muestra Extraída (g)"); col += 1
+
+    # ── Filas ────────────────────────────────────────────────────────────
     for fila_idx, (fila, folio) in enumerate(zip(filas, folios), start=2):
-        ws.cell(row=fila_idx, column=1, value=folio)
-        ws.cell(row=fila_idx, column=2, value=fila.fecha_recepcion or None)
-        for col_idx, columna in enumerate(columnas, start=3):
-            valor: str | float | None = fila.campos.get(columna, "") or None
-            if columna.startswith(_PREFIJO_RESULTADO):
-                # Nunca se escribe el resultado de un analito que esta
-                # solicitud no pidió, aunque el vial asignado sí lo haya
-                # detectado -es la regla explícita: solicitud y resultado
-                # siempre tienen los mismos analitos, sin excepción-.
-                m = _PAT_CODIGO_COLUMNA.search(columna)
-                codigo = m.group(1).upper() if m else None
-                valor = fila.resultados_por_codigo.get(codigo) if codigo and codigo in fila.analitos_solicitados else None
-            ws.cell(row=fila_idx, column=col_idx, value=valor)
+        col = 1
+        ws.cell(row=fila_idx, column=col, value=folio); col += 1
+        ws.cell(row=fila_idx, column=col, value=fila.fecha_recepcion or None); col += 1
+
+        for _, etiqueta in CAMPOS_GENERALES_ETIQUETAS:
+            ws.cell(row=fila_idx, column=col, value=fila.campos.get(etiqueta) or None); col += 1
+
+        for a in analitos_fungicidas:
+            codigo = str(a.get("codigo") or "")
+            if not codigo:
+                continue
+            # Resultado ppm del GC: solo si este analito fue solicitado
+            ppm = fila.resultados_por_codigo.get(codigo) if codigo in fila.analitos_solicitados else None
+            ws.cell(row=fila_idx, column=col, value=ppm); col += 1
+            # Dosis aplicada, guardada en campos_laboratorio con la etiqueta del analito
+            dosis_raw = _valor_guardado(fila.campos, a) if codigo in fila.analitos_solicitados else None
+            dosis = dosis_raw if dosis_raw and dosis_raw != "Solicitado" else None
+            ws.cell(row=fila_idx, column=col, value=dosis); col += 1
+
+        ws.cell(row=fila_idx, column=col, value=fila.campos.get("Tipo Aplicación") or None); col += 1
+        ws.cell(row=fila_idx, column=col, value=fila.campos.get("Gasto") or None); col += 1
+        ws.cell(row=fila_idx, column=col, value=fila.peso_muestra_extraido); col += 1
 
     buffer = io.BytesIO()
     wb.save(buffer)
@@ -1280,6 +1307,7 @@ def generar_informes_pdf(filas: list[FilaCruceIn]) -> StreamingResponse:
             codigo_vial=fila.codigo_vial,
             fecha_inyeccion=fila.fecha_inyeccion,
             fecha_recepcion=fila.fecha_recepcion,
+            peso_muestra_extraido=fila.peso_muestra_extraido,
             folio=folio,
             analizado_por_nombre=config_fila.get("analizado_por_nombre") or "",
             analizado_por_cargo=config_fila.get("analizado_por_cargo") or "",

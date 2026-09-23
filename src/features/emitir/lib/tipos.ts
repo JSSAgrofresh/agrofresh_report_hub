@@ -208,6 +208,8 @@ export interface FilaCruce {
   /** Fecha en que la muestra física llegó al laboratorio (ISO
    * "YYYY-MM-DD"). Sale del cruce de cada solicitud, no se elige a mano. */
   fecha_recepcion?: string | null
+  /** Segundo peso: el de la extracción analítica, ingresado antes de emitir. */
+  peso_muestra_extraido?: number | null
 }
 
 /** Datos del informe que no vienen del cruce solicitud+GC (quién analiza,
