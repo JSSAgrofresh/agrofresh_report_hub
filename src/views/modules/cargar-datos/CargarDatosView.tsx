@@ -34,10 +34,7 @@ const PASOS: PasoDef[] = [
 
 const VISTA_DATACORE_POR_PASO: Record<3 | 4 | 5, VistaDataCore> = {
   3: 'homogenizar',
-  4: 'auditoria',
-  // Después de subir a la base es cuando tiene sentido chequear que lo recién
-  // ingresado calce con Listados -antes de eso todavía no hay nada nuevo que
-  // auditar en `solicitud`-.
+  4: 'chequeo_listados',
   5: 'chequeo_listados',
 }
 
