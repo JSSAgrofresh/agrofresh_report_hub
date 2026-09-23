@@ -1,6 +1,7 @@
 export const ROUTES = {
   login: '/login',
   dashboard: '/',
+  ingesta: '/modulos/ingesta',
   datacore: '/modulos/datacore',
   trace: '/modulos/trace',
   converter: '/modulos/convertidor',

@@ -6,7 +6,7 @@ import { LoginView } from '@/views/login/LoginView'
 import { DashboardView } from '@/views/dashboard/DashboardView'
 import { TraceView } from '@/views/modules/trace/TraceView'
 import { ConverterView } from '@/views/modules/converter/ConverterView'
-import { CargarDatosView } from '@/views/modules/cargar-datos/CargarDatosView'
+import { IngestaView } from '@/views/modules/ingesta/IngestaView'
 import { ReporteView } from '@/views/modules/reports/ReporteView'
 import { ReportesHubView } from '@/views/modules/reports/ReportesHubView'
 import { PostVentaView } from '@/views/modules/reports/PostVentaView'
@@ -46,8 +46,8 @@ export const router = createBrowserRouter([
             children: [{ path: ROUTES.converter, element: <ConverterView /> }],
           },
           {
-            element: <RequireModulo moduloId="ingest" />,
-            children: [{ path: ROUTES.ingest, element: <CargarDatosView /> }],
+            element: <RequireModulo moduloId="ingesta" />,
+            children: [{ path: ROUTES.ingesta, element: <IngestaView /> }],
           },
           {
             element: <RequireModulo moduloId="reports" />,
@@ -79,10 +79,7 @@ export const router = createBrowserRouter([
               { path: ROUTES.agrofreshLabVerificacionesCriterios, element: <CriteriosView /> },
             ],
           },
-          {
-            element: <RequireModulo moduloId="datacore" />,
-            children: [{ path: ROUTES.datacore, element: <DataCoreView /> }],
-          },
+          { path: ROUTES.datacore, element: <DataCoreView /> },
           {
             element: <RequireModulo moduloId="storage" />,
             children: [{ path: ROUTES.storage, element: <StorageView /> }],
