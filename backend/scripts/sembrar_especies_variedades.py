@@ -158,6 +158,20 @@ def imprimir_resumen(info: dict) -> None:
     print()
 
 
+def limpiar() -> None:
+    """Borra todas las filas de valor_lista (variedades primero, luego especies)."""
+    with conexion() as conn:
+        with cursor_dict(conn) as cur:
+            cur.execute("DELETE FROM lab.valor_lista WHERE tipo = 'variedad'")
+            n_var = cur.rowcount
+            cur.execute("DELETE FROM lab.valor_lista WHERE tipo = 'especie'")
+            n_esp = cur.rowcount
+        conn.commit()
+    print(f"\nLimpieza:")
+    print(f"  Variedades eliminadas: {n_var}")
+    print(f"  Especies eliminadas:   {n_esp}")
+
+
 def aplicar(info: dict) -> None:
     catalogo = info["catalogo_excel"]
 
@@ -226,9 +240,14 @@ def main() -> None:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("archivo", help="Excel maestro (debe tener hoja 'BD')")
+    p.add_argument("archivo", help="Excel maestro (hoja 'BD' o 'ESPECIE-VARIEDAD')")
     p.add_argument("--aplicar", action="store_true", help="Escribir en la BD. Sin esto solo analiza.")
+    p.add_argument("--desde-cero", action="store_true",
+                   help="Borra TODAS las especies y variedades existentes antes de sembrar (implica --aplicar).")
     args = p.parse_args()
+
+    if args.desde_cero:
+        args.aplicar = True
 
     ruta = Path(args.archivo)
     if not ruta.exists():
@@ -241,6 +260,9 @@ def main() -> None:
     if not args.aplicar:
         print("Modo análisis (sin --aplicar). Para sembrar agrega --aplicar.\n")
         return
+
+    if args.desde_cero:
+        limpiar()
 
     aplicar(info)
 
