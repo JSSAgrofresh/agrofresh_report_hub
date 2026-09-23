@@ -1,14 +1,15 @@
-import { useCallback, useRef, useState } from 'react'
-import { Button } from '@/components/ui/Button'
+import { useRef, useState } from 'react'
 import {
   analizarExcel,
   cancelarIngesta,
   confirmarIngesta,
 } from '@/features/homogenizadorIngesta'
-import type { AnalisisIngesta, ValorAnalizado } from '@/features/homogenizadorIngesta'
+import type { AnalisisIngesta, ResumenIngesta } from '@/features/homogenizadorIngesta'
 import styles from './HomogenizadorIngestPanel.module.css'
 
 type Col = 'sold_to' | 'ship_to' | 'especie' | 'variedad'
+
+const COLUMNAS: Col[] = ['sold_to', 'ship_to', 'especie', 'variedad']
 
 const ETIQUETAS: Record<Col, string> = {
   sold_to: 'Sold To',
@@ -17,165 +18,113 @@ const ETIQUETAS: Record<Col, string> = {
   variedad: 'Variedad',
 }
 
-const COLUMNAS: Col[] = ['sold_to', 'ship_to', 'especie', 'variedad']
+interface Celda {
+  id: string
+  col: Col
+  original: string
+  filas: number
+  value: string
+  method: '' | 'manual' | 'automatico'
+  candidates: { valor: string; confianza: number }[]
+}
 
-/** Estado del mapeo para cada valor crudo de una columna.
- * "" significa "descartar todas las filas con este valor".
- * undefined significa "sin resolver todavía". */
-type Mapeos = Record<Col, Record<string, string>>
+type Snapshot = Pick<Celda, 'id' | 'value' | 'method' | 'candidates'>[]
 
-function mapeoInicial(analisis: AnalisisIngesta): Mapeos {
-  const m: Mapeos = { sold_to: {}, ship_to: {}, especie: {}, variedad: {} }
-  for (const col of COLUMNAS) {
-    for (const v of analisis.columnas[col]) {
-      if (v.automatico && v.sugerencia_auto) {
-        m[col][v.valor_crudo] = v.sugerencia_auto
+function initCeldas(analisis: AnalisisIngesta): Celda[] {
+  return COLUMNAS.flatMap((col) =>
+    analisis.columnas[col].map((v) => {
+      const auto = v.automatico && !!v.sugerencia_auto
+      return {
+        id: `${col}||${v.valor_crudo}`,
+        col,
+        original: v.valor_crudo,
+        filas: v.filas,
+        value: auto ? v.sugerencia_auto! : '',
+        method: auto ? ('automatico' as const) : '',
+        candidates: auto ? [] : (v.sugerencias ?? []),
       }
-    }
-  }
-  return m
-}
-
-function contarPendientes(_col: Col, valores: ValorAnalizado[], mapeos: Record<string, string>): number {
-  return valores.filter((v) => mapeos[v.valor_crudo] === undefined).length
-}
-
-// ────────────────────────────────────────────────────────────
-//  Sub-componente: tarjeta de un valor individual
-// ────────────────────────────────────────────────────────────
-
-interface TarjetaProps {
-  v: ValorAnalizado
-  destino: string | undefined
-  onAsignar: (crudo: string, canonico: string) => void
-  onDescartar: (crudo: string) => void
-  onLimpiar: (crudo: string) => void
-}
-
-function Tarjeta({ v, destino, onAsignar, onDescartar, onLimpiar }: TarjetaProps) {
-  const [editando, setEditando] = useState(false)
-  const [texto, setTexto] = useState('')
-
-  const estado =
-    destino === undefined
-      ? 'pendiente'
-      : destino === ''
-        ? 'descartado'
-        : 'asignado'
-
-  function confirmarTexto() {
-    const t = texto.trim()
-    if (t) onAsignar(v.valor_crudo, t)
-    setEditando(false)
-    setTexto('')
-  }
-
-  return (
-    <div className={`${styles.tarjeta} ${styles[`tarjeta_${estado}`]}`}>
-      <div className={styles.tarjetaEncabezado}>
-        <span className={styles.tarjetaValor} title={v.valor_crudo}>
-          {v.valor_crudo || <em className={styles.vacio}>(vacío)</em>}
-        </span>
-        <span className={styles.tarjetaFilas}>{v.filas} fila{v.filas !== 1 ? 's' : ''}</span>
-      </div>
-
-      {estado === 'asignado' && (
-        <div className={styles.tarjetaMapeo}>
-          <span className={styles.flecha}>→</span>
-          <span className={styles.tarjetaDestino} title={destino}>{destino}</span>
-          <button
-            type="button"
-            className={styles.btnQuitar}
-            onClick={() => onLimpiar(v.valor_crudo)}
-            title="Quitar mapeo"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {estado === 'descartado' && (
-        <div className={styles.tarjetaDescartado}>
-          <span>Filas descartadas</span>
-          <button type="button" className={styles.btnQuitar} onClick={() => onLimpiar(v.valor_crudo)}>
-            ×
-          </button>
-        </div>
-      )}
-
-      {estado === 'pendiente' && (
-        <div className={styles.tarjetaSugerencias}>
-          {v.sugerencias.slice(0, 3).map((s) => (
-            <button
-              key={s.valor}
-              type="button"
-              className={styles.chip}
-              title={`${Math.round(s.confianza * 100)}% de confianza`}
-              onClick={() => onAsignar(v.valor_crudo, s.valor)}
-            >
-              {s.valor}
-              <span className={styles.chipPct}>{Math.round(s.confianza * 100)}%</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {estado === 'pendiente' && !editando && (
-        <div className={styles.tarjetaAcciones}>
-          <button type="button" className={styles.btnAsignar} onClick={() => setEditando(true)}>
-            Asignar…
-          </button>
-          <button type="button" className={styles.btnDescartar} onClick={() => onDescartar(v.valor_crudo)}>
-            Descartar
-          </button>
-        </div>
-      )}
-
-      {editando && (
-        <div className={styles.tarjetaEdicion}>
-          <input
-            autoFocus
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') confirmarTexto()
-              if (e.key === 'Escape') { setEditando(false); setTexto('') }
-            }}
-            placeholder="Nombre oficial exacto…"
-          />
-          <button type="button" className={styles.btnOk} onClick={confirmarTexto}>
-            OK
-          </button>
-          <button type="button" className={styles.btnCancelarEdit} onClick={() => { setEditando(false); setTexto('') }}>
-            ×
-          </button>
-        </div>
-      )}
-    </div>
+    }),
   )
 }
 
-// ────────────────────────────────────────────────────────────
-//  Panel principal
-// ────────────────────────────────────────────────────────────
+function canonicosDeCol(celdas: Celda[], col: Col): string[] {
+  const set = new Set<string>()
+  for (const c of celdas.filter((x) => x.col === col)) {
+    if (c.value) set.add(c.value)
+    for (const s of c.candidates) set.add(s.valor)
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, 'es'))
+}
+
+function normalizar(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 export function HomogenizadorIngestPanel() {
   const [etapa, setEtapa] = useState<'subir' | 'mapear' | 'listo'>('subir')
   const [analisis, setAnalisis] = useState<AnalisisIngesta | null>(null)
-  const [mapeos, setMapeos] = useState<Mapeos>({ sold_to: {}, ship_to: {}, especie: {}, variedad: {} })
+  const [celdas, setCeldas] = useState<Celda[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [history, setHistory] = useState<Snapshot[]>([])
+  const [busqueda, setBusqueda] = useState('')
+  const [filtroCol, setFiltroCol] = useState<Col | 'all'>('all')
+  const [filtroEstado, setFiltroEstado] = useState<'all' | 'pending' | 'mapped' | 'review'>('all')
+  const [multiselect, setMultiselect] = useState(false)
+  const [revisarAbierto, setRevisarAbierto] = useState(false)
+  const [dragIds, setDragIds] = useState<string[]>([])
+  const [toast, setToast] = useState('')
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [resumen, setResumen] = useState<Record<string, number> | null>(null)
+  const [resumen, setResumen] = useState<ResumenIngesta | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  // ── Subir y analizar ──────────────────────────────
+  function mostrarToast(msg: string) {
+    setToast(msg)
+    clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setToast(''), 4500)
+  }
+
+  function checkpoint(cs: Celda[]) {
+    const snap: Snapshot = cs.map((c) => ({
+      id: c.id,
+      value: c.value,
+      method: c.method,
+      candidates: [...c.candidates],
+    }))
+    setHistory((h) => [...h.slice(-29), snap])
+  }
+
+  function undo() {
+    setHistory((h) => {
+      if (!h.length) return h
+      const snap = h[h.length - 1]
+      const snapMap = new Map(snap.map((s) => [s.id, s]))
+      setCeldas((cs) =>
+        cs.map((c) => {
+          const s = snapMap.get(c.id)
+          return s ? { ...c, ...s } : c
+        }),
+      )
+      setSelected(new Set())
+      mostrarToast('Última operación deshecha.')
+      return h.slice(0, -1)
+    })
+  }
+
   async function onSubir(archivo: File) {
     setCargando(true)
     setError(null)
     try {
       const r = await analizarExcel(archivo)
+      setCeldas(initCeldas(r))
       setAnalisis(r)
-      setMapeos(mapeoInicial(r))
       setEtapa('mapear')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo analizar el archivo.')
@@ -184,76 +133,74 @@ export function HomogenizadorIngestPanel() {
     }
   }
 
-  // ── Operaciones de mapeo ──────────────────────────
-  const asignar = useCallback((col: Col, crudo: string, canonico: string) => {
-    setMapeos((m) => ({ ...m, [col]: { ...m[col], [crudo]: canonico } }))
-  }, [])
+  function asociar(ids: string[], col: Col, value: string) {
+    if (!ids.length) {
+      mostrarToast('Selecciona primero una o más celdas.')
+      return
+    }
+    const targets = celdas.filter((c) => ids.includes(c.id))
+    if (targets.some((c) => c.col !== col)) {
+      mostrarToast(`Selecciona solo celdas de ${ETIQUETAS[col]} para asociarlas a este valor.`)
+      return
+    }
+    checkpoint(celdas)
+    setCeldas((cs) =>
+      cs.map((c) =>
+        ids.includes(c.id) ? { ...c, value, method: 'manual', candidates: [] } : c,
+      ),
+    )
+    setSelected(new Set())
+    mostrarToast(
+      `${targets.length} ${targets.length === 1 ? 'celda asociada' : 'celdas asociadas'} a "${value}"`,
+    )
+  }
 
-  const descartar = useCallback((col: Col, crudo: string) => {
-    setMapeos((m) => ({ ...m, [col]: { ...m[col], [crudo]: '' } }))
-  }, [])
+  function quitarAsociacion(ids: string[]) {
+    checkpoint(celdas)
+    setCeldas((cs) =>
+      cs.map((c) => (ids.includes(c.id) ? { ...c, value: '', method: '' } : c)),
+    )
+    setSelected(new Set())
+    mostrarToast('Asociaciones eliminadas; originales conservados.')
+  }
 
-  const limpiar = useCallback((col: Col, crudo: string) => {
-    setMapeos((m) => {
-      const copia = { ...m[col] }
-      delete copia[crudo]
-      return { ...m, [col]: copia }
-    })
-  }, [])
-
-  // ── Smart match: aplica sugerencias automáticas ───
   function smartMatch() {
-    if (!analisis) return
-    setMapeos((m) => {
-      const nuevo = { ...m }
-      for (const col of COLUMNAS) {
-        const parcial: Record<string, string> = { ...nuevo[col] }
-        for (const v of analisis.columnas[col]) {
-          if (parcial[v.valor_crudo] === undefined && v.automatico && v.sugerencia_auto) {
-            parcial[v.valor_crudo] = v.sugerencia_auto
-          }
-        }
-        nuevo[col] = parcial
+    checkpoint(celdas)
+    let auto = 0
+    let review = 0
+    const next = celdas.map((c) => {
+      if (c.value || !c.candidates.length) return c
+      const [top, second] = c.candidates
+      if (!top || top.confianza < 0.85) return c
+      const gap = second ? top.confianza - second.confianza : 1
+      if (gap > 0.05) {
+        auto++
+        return { ...c, value: top.valor, method: 'automatico' as const, candidates: [] }
       }
-      return nuevo
+      review++
+      return c
     })
+    setCeldas(next)
+    setSelected(new Set())
+    mostrarToast(`${auto} asociaciones automáticas · ${review} celdas para revisar.`)
+    if (review) setRevisarAbierto(true)
   }
 
-  // ── Descartar todos los pendientes ────────────────
-  function descartarPendientes() {
-    if (!analisis) return
-    setMapeos((m) => {
-      const nuevo = { ...m }
-      for (const col of COLUMNAS) {
-        const parcial: Record<string, string> = { ...nuevo[col] }
-        for (const v of analisis.columnas[col]) {
-          if (parcial[v.valor_crudo] === undefined) {
-            parcial[v.valor_crudo] = ''
-          }
-        }
-        nuevo[col] = parcial
-      }
-      return nuevo
-    })
-  }
-
-  // ── Confirmar ingesta ─────────────────────────────
-  async function confirmar(preview = false) {
+  async function confirmar() {
     if (!analisis) return
     setCargando(true)
     setError(null)
     try {
-      const r = await confirmarIngesta(
-        analisis.token,
-        { sold_to: mapeos.sold_to, ship_to: mapeos.ship_to, especie: mapeos.especie, variedad: mapeos.variedad },
-        preview,
-      )
-      if (!preview) {
-        setResumen(r as unknown as Record<string, number>)
-        setEtapa('listo')
-      } else {
-        setResumen(r as unknown as Record<string, number>)
-      }
+      const buildMapeo = (col: Col) =>
+        Object.fromEntries(celdas.filter((c) => c.col === col).map((c) => [c.original, c.value]))
+      const r = await confirmarIngesta(analisis.token, {
+        sold_to: buildMapeo('sold_to'),
+        ship_to: buildMapeo('ship_to'),
+        especie: buildMapeo('especie'),
+        variedad: buildMapeo('variedad'),
+      })
+      setResumen(r)
+      setEtapa('listo')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al ingestar.')
     } finally {
@@ -263,69 +210,82 @@ export function HomogenizadorIngestPanel() {
 
   async function cancelar() {
     if (analisis?.token) {
-      try { await cancelarIngesta(analisis.token) } catch { /* ignorar */ }
+      try {
+        await cancelarIngesta(analisis.token)
+      } catch {
+        /* ignorar */
+      }
     }
     setEtapa('subir')
     setAnalisis(null)
-    setMapeos({ sold_to: {}, ship_to: {}, especie: {}, variedad: {} })
+    setCeldas([])
+    setSelected(new Set())
+    setHistory([])
     setResumen(null)
     setError(null)
   }
 
-  // ── Estadísticas rápidas ──────────────────────────
-  const totalPendientes = analisis
-    ? COLUMNAS.reduce((s, c) => s + contarPendientes(c, analisis.columnas[c], mapeos[c]), 0)
-    : 0
-  const totalDescartadas = analisis
-    ? COLUMNAS.slice(0, 1).reduce(  // solo sold_to define si la fila entera se descarta
-        (s, c) => s + Object.values(mapeos[c]).filter((v) => v === '').length,
-        0,
-      )
-    : 0
+  const totalCeldas = celdas.length
+  const totalMapped = celdas.filter((c) => c.value).length
+  const totalReview = celdas.filter((c) => !c.value && c.candidates.length > 0).length
+  const totalPending = celdas.filter((c) => !c.value).length
+
+  function visible(c: Celda): boolean {
+    const q = normalizar(busqueda)
+    const matchSearch = !q || normalizar(c.original).includes(q)
+    const matchCol = filtroCol === 'all' || c.col === filtroCol
+    const matchStatus =
+      filtroEstado === 'all' ||
+      (filtroEstado === 'mapped' && !!c.value) ||
+      (filtroEstado === 'pending' && !c.value && !c.candidates.length) ||
+      (filtroEstado === 'review' && c.candidates.length > 0)
+    return matchSearch && matchCol && matchStatus
+  }
 
   // ════════════════════════════════════════════════
-  //  ETAPA 1: Subir archivo
+  //  ETAPA 1: Subir
   // ════════════════════════════════════════════════
   if (etapa === 'subir') {
     return (
-      <div className={styles.wrapper}>
-        <div className={styles.subir}>
-          <h2 className={styles.titulo}>Cargar datos</h2>
-          <p className={styles.bajada}>
-            Sube el Excel de resultados. Antes de que nada entre a la base, revisarás
-            los valores de <b>Sold To</b>, <b>Ship To</b>, <b>Especie</b> y <b>Variedad</b> y
-            confirmarás a qué valores oficiales corresponden. Las filas sin asociación
-            se pueden descartar con un clic.
-          </p>
-          <div
-            className={styles.zona}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault()
-              const f = e.dataTransfer.files[0]
-              if (f) void onSubir(f)
-            }}
-            onClick={() => inputRef.current?.click()}
-          >
-            {cargando ? (
-              <span className={styles.zonaCargando}>Analizando archivo…</span>
-            ) : (
-              <>
-                <span className={styles.zonaIcono}>📂</span>
-                <span>Arrastra el Excel aquí, o haz clic para seleccionarlo</span>
-                <span className={styles.zonaHint}>.xlsx</span>
-              </>
-            )}
-          </div>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".xlsx"
-            style={{ display: 'none' }}
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) void onSubir(f) }}
-          />
-          {error && <p className={styles.error}>{error}</p>}
+      <div className={styles.subirRoot}>
+        <div className={styles.eyebrow}>Ingesta de Datos</div>
+        <h1 className={styles.subirH1}>Del Excel a la base de datos.</h1>
+        <p className={styles.subirIntro}>
+          Sube el archivo de resultados. Antes de que nada entre a la base, revisarás los valores de{' '}
+          <strong>Sold To</strong>, <strong>Ship To</strong>, <strong>Especie</strong> y{' '}
+          <strong>Variedad</strong> y confirmarás a qué valores oficiales corresponden.
+        </p>
+        <div
+          className={styles.zona}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault()
+            const f = e.dataTransfer.files[0]
+            if (f) void onSubir(f)
+          }}
+          onClick={() => inputRef.current?.click()}
+        >
+          {cargando ? (
+            <span className={styles.zonaCargando}>Analizando archivo…</span>
+          ) : (
+            <>
+              <span className={styles.zonaIcono}>📂</span>
+              <span>Arrastra el Excel aquí, o haz clic para seleccionarlo</span>
+              <span className={styles.zonaHint}>.xlsx</span>
+            </>
+          )}
         </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".xlsx"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) void onSubir(f)
+          }}
+        />
+        {error && <p className={styles.errorMsg}>{error}</p>}
       </div>
     )
   }
@@ -334,37 +294,30 @@ export function HomogenizadorIngestPanel() {
   //  ETAPA 3: Listo
   // ════════════════════════════════════════════════
   if (etapa === 'listo' && resumen) {
+    const stats: [number, string][] = [
+      [resumen.solicitudes_nuevas, 'solicitudes nuevas'],
+      [resumen.solicitudes_existentes, 'ya existían'],
+      [resumen.resultados, 'resultados'],
+      [resumen.filas_omitidas ?? 0, 'filas omitidas'],
+    ]
+    if ((resumen.pendientes_revision ?? 0) > 0) {
+      stats.push([resumen.pendientes_revision, 'pendientes de revisión'])
+    }
     return (
-      <div className={styles.wrapper}>
-        <div className={styles.listo}>
-          <div className={styles.listoIcono}>✓</div>
-          <h2 className={styles.titulo}>Datos ingresados correctamente</h2>
-          <div className={styles.resumeGrid}>
-            <div className={styles.resumeStat}>
-              <span className={styles.resumeNum}>{resumen.solicitudes_nuevas ?? 0}</span>
-              <span>solicitudes nuevas</span>
+      <div className={styles.listoRoot}>
+        <div className={styles.listoIcono}>✓</div>
+        <h2 className={styles.listoTitulo}>Datos ingresados correctamente</h2>
+        <div className={styles.resumeGrid}>
+          {stats.map(([n, label]) => (
+            <div key={label} className={styles.resumeStat}>
+              <strong className={styles.resumeNum}>{n}</strong>
+              <span>{label}</span>
             </div>
-            <div className={styles.resumeStat}>
-              <span className={styles.resumeNum}>{resumen.solicitudes_existentes ?? 0}</span>
-              <span>ya existían</span>
-            </div>
-            <div className={styles.resumeStat}>
-              <span className={styles.resumeNum}>{resumen.resultados ?? 0}</span>
-              <span>resultados</span>
-            </div>
-            <div className={styles.resumeStat}>
-              <span className={styles.resumeNum}>{resumen.descartadas ?? 0}</span>
-              <span>filas descartadas</span>
-            </div>
-            {(resumen.pendientes_revision ?? 0) > 0 && (
-              <div className={styles.resumeStat}>
-                <span className={styles.resumeNum}>{resumen.pendientes_revision}</span>
-                <span>pendientes de revisión</span>
-              </div>
-            )}
-          </div>
-          <Button onClick={() => { void cancelar() }}>Cargar otro archivo</Button>
+          ))}
         </div>
+        <button type="button" className={styles.btnPrimary} onClick={() => void cancelar()}>
+          Cargar otro archivo
+        </button>
       </div>
     )
   }
@@ -374,111 +327,438 @@ export function HomogenizadorIngestPanel() {
   // ════════════════════════════════════════════════
   if (!analisis) return null
 
+  const selectedArr = [...selected]
+  const visibleCols = filtroCol === 'all' ? COLUMNAS : [filtroCol as Col]
+
   return (
-    <div className={styles.wrapper}>
-      {/* Barra superior */}
+    <div className={`${styles.mapearRoot} ${dragIds.length ? styles.dragging : ''}`}>
+      {/* ── Barra de acción ── */}
       <div className={styles.topBar}>
-        <div className={styles.topInfo}>
-          <strong>{analisis.total_filas.toLocaleString('es-CL')}</strong> filas · {' '}
-          {totalPendientes > 0
-            ? <span className={styles.alert}>{totalPendientes} valor(es) sin asignar</span>
-            : <span className={styles.ok}>Todos los valores mapeados</span>
-          }
-          {totalDescartadas > 0 && (
-            <span className={styles.muted}> · {totalDescartadas} valor(es) de Sold To descartarán sus filas</span>
-          )}
-        </div>
-        <div className={styles.topAcciones}>
-          <button type="button" className={styles.btnSecundario} onClick={smartMatch} disabled={cargando}>
-            ✨ Smart match
-          </button>
-          <button type="button" className={styles.btnSecundario} onClick={descartarPendientes} disabled={cargando}>
-            Descartar pendientes
-          </button>
-          <button type="button" className={styles.btnSecundario} onClick={() => void cancelar()} disabled={cargando}>
+        <div className={styles.topLeft}>
+          <button
+            type="button"
+            className={styles.btn}
+            onClick={() => void cancelar()}
+            disabled={cargando}
+          >
             ← Cambiar archivo
           </button>
+          <button
+            type="button"
+            className={styles.btn}
+            onClick={undo}
+            disabled={!history.length || cargando}
+          >
+            ↶ Deshacer
+          </button>
+        </div>
+        <div className={styles.topRight}>
+          {error && <span className={styles.errorMsg}>{error}</span>}
+          <button
+            type="button"
+            className={styles.btnPrimary}
+            onClick={() => void confirmar()}
+            disabled={cargando}
+          >
+            {cargando ? 'Procesando…' : 'Ingestar a la base de datos'}
+          </button>
         </div>
       </div>
 
-      {/* Tablero de 4 columnas */}
-      <div className={styles.tablero}>
-        {COLUMNAS.map((col) => {
-          const valores = analisis.columnas[col]
-          const pendientes = contarPendientes(col, valores, mapeos[col])
-          const asignados = valores.filter((v) => mapeos[col][v.valor_crudo] !== undefined && mapeos[col][v.valor_crudo] !== '').length
-          const descartados = valores.filter((v) => mapeos[col][v.valor_crudo] === '').length
+      {/* ── Layout: aside + main ── */}
+      <div className={styles.layout}>
+        {/* Aside: diccionario maestro */}
+        <aside className={styles.aside}>
+          <div className={styles.asideIntro}>
+            <div className={styles.eyebrow}>01 / Diccionario maestro</div>
+            <h2 className={styles.asideH2}>Un nombre para cada dato.</h2>
+            <p className={styles.hint}>
+              Arrastra celdas a su valor correcto. También puedes seleccionarlas y pulsar un valor
+              aquí.
+            </p>
+          </div>
+          {COLUMNAS.map((col) => {
+            const canonicos = canonicosDeCol(celdas, col)
+            if (!canonicos.length) return null
+            const dimmed = filtroCol !== 'all' && filtroCol !== col
+            return (
+              <section
+                key={col}
+                className={`${styles.canonicalGroup} ${dimmed ? styles.canonicalGroupDimmed : ''}`}
+              >
+                <div className={styles.groupTitle}>
+                  <span>{ETIQUETAS[col]}</span>
+                  <span>{canonicos.length}</span>
+                </div>
+                {canonicos.map((name) => {
+                  const count = celdas.filter((c) => c.col === col && c.value === name).length
+                  const incompatible =
+                    selected.size > 0 &&
+                    selectedArr.some((id) => {
+                      const c = celdas.find((x) => x.id === id)
+                      return c && c.col !== col
+                    })
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      className={`${styles.canonical} ${incompatible ? styles.canonicalIncompatible : ''}`}
+                      title={`Asociar selección a "${name}"`}
+                      onClick={() => {
+                        if (selected.size > 0) asociar(selectedArr, col, name)
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault()
+                        const valid = dragIds.every(
+                          (id) => celdas.find((x) => x.id === id)?.col === col,
+                        )
+                        e.dataTransfer.dropEffect = valid ? 'copy' : 'none'
+                        e.currentTarget.classList.add(styles.canonicalOver)
+                      }}
+                      onDragLeave={(e) => e.currentTarget.classList.remove(styles.canonicalOver)}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        e.currentTarget.classList.remove(styles.canonicalOver)
+                        asociar(dragIds, col, name)
+                      }}
+                    >
+                      <span>{name}</span>
+                      <small>{count}</small>
+                    </button>
+                  )
+                })}
+              </section>
+            )
+          })}
+        </aside>
 
-          return (
-            <div key={col} className={styles.columna}>
-              <div className={styles.columnaHeader}>
-                <span className={styles.columnaTitulo}>{ETIQUETAS[col]}</span>
-                <span className={styles.columnaStats}>
-                  {asignados > 0 && <span className={styles.ok}>{asignados} ✓</span>}
-                  {descartados > 0 && <span className={styles.muted}>{descartados} ✕</span>}
-                  {pendientes > 0 && <span className={styles.alert}>{pendientes} ·</span>}
-                </span>
-              </div>
-              <div className={styles.columnaCuerpo}>
-                {valores.length === 0 ? (
-                  <p className={styles.columnaVacia}>Sin valores en el Excel</p>
-                ) : (
-                  valores.map((v) => (
-                    <Tarjeta
-                      key={v.valor_crudo}
-                      v={v}
-                      destino={mapeos[col][v.valor_crudo]}
-                      onAsignar={(crudo, can) => asignar(col, crudo, can)}
-                      onDescartar={(crudo) => descartar(col, crudo)}
-                      onLimpiar={(crudo) => limpiar(col, crudo)}
-                    />
-                  ))
-                )}
+        {/* Main area */}
+        <main className={styles.main}>
+          <div className={styles.eyebrow}>02 / Mesa de trabajo</div>
+          <h1 className={styles.mainH1}>Del ruido a la claridad.</h1>
+          <p className={styles.mainIntro}>
+            Agrupa las variantes, conserva el origen y confirma cada dato antes de ingestar.
+          </p>
+
+          {/* Stats */}
+          <div className={styles.stats}>
+            <div className={styles.stat}>
+              <div className={styles.eyebrow}>Celdas de origen</div>
+              <strong className={styles.statNum}>{totalCeldas}</strong>
+              <small className={styles.statSub}>
+                {analisis.total_filas} filas · {COLUMNAS.length} categorías
+              </small>
+            </div>
+            <div className={styles.stat}>
+              <div className={styles.eyebrow}>Homogeneizadas</div>
+              <strong className={styles.statNum}>{totalMapped}</strong>
+              <div className={styles.progress}>
+                <i
+                  style={{
+                    width: `${totalCeldas ? Math.round((totalMapped / totalCeldas) * 100) : 0}%`,
+                  }}
+                />
               </div>
             </div>
-          )
-        })}
+            <div className={styles.stat}>
+              <div className={styles.eyebrow}>Por resolver</div>
+              <strong className={styles.statNum}>{totalPending}</strong>
+              <small className={styles.statSub}>
+                {totalReview > 0
+                  ? `${totalReview} celdas requieren revisión`
+                  : totalCeldas > 0
+                    ? `${Math.round((totalMapped / totalCeldas) * 100)}% de avance`
+                    : 'Todo listo para empezar'}
+              </small>
+            </div>
+          </div>
+
+          {/* Workspace */}
+          <div className={styles.workspace}>
+            {/* Tools */}
+            <div className={styles.tools}>
+              <label className={styles.search}>
+                <span aria-hidden="true">⌕</span>
+                <input
+                  type="search"
+                  placeholder="Buscar caracteres en los originales…"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                />
+              </label>
+              <select
+                value={filtroCol}
+                onChange={(e) => {
+                  setFiltroCol(e.target.value as Col | 'all')
+                  setSelected(new Set())
+                }}
+              >
+                <option value="all">Todas las categorías</option>
+                {COLUMNAS.map((col) => (
+                  <option key={col} value={col}>
+                    {ETIQUETAS[col]}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={filtroEstado}
+                onChange={(e) => {
+                  setFiltroEstado(e.target.value as typeof filtroEstado)
+                  setSelected(new Set())
+                }}
+              >
+                <option value="all">Todos los estados</option>
+                <option value="pending">Pendientes</option>
+                <option value="mapped">Homogeneizadas</option>
+                <option value="review">Por revisar</option>
+              </select>
+              <button type="button" className={styles.btnSmart} onClick={smartMatch}>
+                ✦ Cruce inteligente · 85%
+              </button>
+              <button
+                type="button"
+                className={styles.btn}
+                onClick={() => setRevisarAbierto(true)}
+              >
+                Revisar <span>{totalReview}</span>
+              </button>
+            </div>
+
+            {/* Selection bar */}
+            <div className={styles.selectionBar}>
+              <span>
+                {selected.size > 0
+                  ? `${selected.size} ${selected.size === 1 ? 'celda seleccionada' : 'celdas seleccionadas'} · arrastra o pulsa un valor del diccionario`
+                  : 'Selecciona una celda para empezar'}
+              </span>
+              <div className={styles.selectionActions}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={multiselect}
+                    onChange={(e) => setMultiselect(e.target.checked)}
+                  />
+                  {' '}Multiselección
+                </label>
+                <button
+                  type="button"
+                  className={styles.btnSmall}
+                  onClick={() => {
+                    const visibles = celdas.filter(visible)
+                    setSelected(new Set(visibles.map((c) => c.id)))
+                    const cols = new Set(visibles.map((c) => c.col))
+                    if (cols.size > 1) {
+                      mostrarToast(
+                        'La selección incluye varias categorías. Filtra una categoría para asociar en masa.',
+                      )
+                    }
+                  }}
+                >
+                  Seleccionar visibles
+                </button>
+                <button
+                  type="button"
+                  className={styles.btnSmall}
+                  disabled={!selected.size}
+                  onClick={() => setSelected(new Set())}
+                >
+                  Limpiar selección
+                </button>
+                <button
+                  type="button"
+                  className={styles.btnSmall}
+                  disabled={!selected.size}
+                  onClick={() => {
+                    const targets = selectedArr
+                      .map((id) => celdas.find((c) => c.id === id))
+                      .filter(Boolean)
+                    if (!targets.some((c) => c!.value || c!.candidates.length)) {
+                      mostrarToast('Estas celdas aún no tienen asociación.')
+                      return
+                    }
+                    quitarAsociacion(selectedArr)
+                  }}
+                >
+                  Quitar asociación
+                </button>
+              </div>
+            </div>
+
+            {/* Board */}
+            <div
+              className={styles.board}
+              style={filtroCol !== 'all' ? { gridTemplateColumns: '1fr' } : undefined}
+            >
+              {visibleCols.map((col) => {
+                const lista = celdas.filter((c) => c.col === col && visible(c))
+                return (
+                  <section key={col} className={styles.column}>
+                    <div className={styles.colHead}>
+                      <span>{ETIQUETAS[col]}</span>
+                      <span className={styles.colCount}>{lista.length} celdas</span>
+                    </div>
+                    <div className={styles.cells}>
+                      {lista.length === 0 ? (
+                        <div className={styles.empty}>
+                          No hay celdas con estos filtros. Prueba otra búsqueda.
+                        </div>
+                      ) : (
+                        lista.map((c) => {
+                          const isSelected = selected.has(c.id)
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              draggable
+                              className={`${styles.cell} ${isSelected ? styles.cellSelected : ''} ${c.value ? styles.cellMapped : ''}`}
+                              title={`${c.original} · ${ETIQUETAS[col]}`}
+                              aria-pressed={isSelected}
+                              onClick={(e) => {
+                                if (e.ctrlKey || e.metaKey || multiselect) {
+                                  setSelected((prev) => {
+                                    const next = new Set(prev)
+                                    if (next.has(c.id)) { next.delete(c.id) } else { next.add(c.id) }
+                                    return next
+                                  })
+                                } else {
+                                  setSelected(new Set([c.id]))
+                                }
+                              }}
+                              onDragStart={(e) => {
+                                const ids = selected.has(c.id) ? [...selected] : [c.id]
+                                setDragIds(ids)
+                                if (!selected.has(c.id)) setSelected(new Set([c.id]))
+                                e.dataTransfer.setData('text/plain', JSON.stringify(ids))
+                                e.dataTransfer.effectAllowed = 'copy'
+                              }}
+                              onDragEnd={() => setDragIds([])}
+                            >
+                              <b>{c.original || <em>(vacío)</em>}</b>
+                              <small className={styles.cellMeta}>
+                                <span>
+                                  {c.filas} {c.filas === 1 ? 'fila' : 'filas'}
+                                </span>
+                                <span>{c.value ? '✓' : c.candidates.length ? '◇' : '○'}</span>
+                              </small>
+                              <small
+                                className={
+                                  c.value
+                                    ? styles.cellResult
+                                    : c.candidates.length
+                                      ? styles.cellAmbiguous
+                                      : styles.cellEmpty
+                                }
+                              >
+                                {c.value
+                                  ? `→ ${c.value}`
+                                  : c.candidates.length
+                                    ? 'Revisar coincidencia'
+                                    : 'Sin asociación'}
+                              </small>
+                            </button>
+                          )
+                        })
+                      )}
+                    </div>
+                  </section>
+                )
+              })}
+            </div>
+
+            <div className={styles.legend}>
+              ○ Pendiente &nbsp;·&nbsp; ✓ Homogeneizada &nbsp;·&nbsp; ◇ Revisión &nbsp;|&nbsp; Las
+              filas sin asociación se descartan al ingestar.
+            </div>
+          </div>
+        </main>
       </div>
 
-      {/* Preview */}
-      {resumen && (
-        <div className={styles.previewBanner}>
-          <strong>Preview:</strong>{' '}
-          {resumen.solicitudes_nuevas} solicitudes nuevas, {resumen.resultados} resultados,{' '}
-          {resumen.descartadas} filas descartadas, {resumen.pendientes_revision} pendientes de revisión.
+      {/* ── Diálogo de revisión ── */}
+      {revisarAbierto && (
+        <div className={styles.dialogBackdrop} onClick={() => setRevisarAbierto(false)}>
+          <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.dialogHead}>
+              <div>
+                <div className={styles.eyebrow}>Control de calidad</div>
+                <h2 className={styles.dialogH2}>Coincidencias por revisar</h2>
+              </div>
+              <button
+                type="button"
+                className={styles.btn}
+                onClick={() => setRevisarAbierto(false)}
+                aria-label="Cerrar revisión"
+              >
+                ✕
+              </button>
+            </div>
+            <p className={styles.hint}>
+              Hay más de un nombre parecido. Elige el correcto o déjalo pendiente para asociarlo
+              manualmente.
+            </p>
+            <div className={styles.reviewList}>
+              {(() => {
+                const ambiguous = celdas.filter((c) => c.candidates.length > 0 && !c.value)
+                if (!ambiguous.length)
+                  return (
+                    <p className={styles.hint}>
+                      No quedan coincidencias ambiguas. Puedes seguir con las celdas pendientes.
+                    </p>
+                  )
+                return ambiguous.map((c) => (
+                  <div key={c.id} className={styles.reviewItem}>
+                    <div className={styles.eyebrow}>
+                      {ETIQUETAS[c.col]} · {c.filas} {c.filas === 1 ? 'fila' : 'filas'}
+                    </div>
+                    <h3 className={styles.reviewOriginal}>{c.original}</h3>
+                    <div className={styles.reviewActions}>
+                      {c.candidates.map((cand) => (
+                        <button
+                          key={cand.valor}
+                          type="button"
+                          className={styles.btn}
+                          onClick={() => {
+                            checkpoint(celdas)
+                            setCeldas((cs) =>
+                              cs.map((x) =>
+                                x.id === c.id
+                                  ? { ...x, value: cand.valor, method: 'manual', candidates: [] }
+                                  : x,
+                              ),
+                            )
+                            mostrarToast(`"${c.original}" → "${cand.valor}"`)
+                          }}
+                        >
+                          {cand.valor} · {Math.round(cand.confianza * 100)}%
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className={styles.btn}
+                        onClick={() => {
+                          checkpoint(celdas)
+                          setCeldas((cs) =>
+                            cs.map((x) => (x.id === c.id ? { ...x, candidates: [] } : x)),
+                          )
+                          mostrarToast('Grupo pendiente para asociación manual.')
+                        }}
+                      >
+                        Dejar pendiente
+                      </button>
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
         </div>
       )}
 
-      {error && <p className={styles.error}>{error}</p>}
-
-      {/* Barra de acción */}
-      <div className={styles.accionesBar}>
-        <button
-          type="button"
-          className={styles.btnSecundario}
-          disabled={cargando}
-          onClick={() => void confirmar(true)}
-        >
-          Vista previa
-        </button>
-        <Button
-          disabled={cargando || totalPendientes > 0}
-          onClick={() => {
-            if (totalDescartadas > 0) {
-              const msg = `Se descartarán filas con ${totalDescartadas} valor(es) de Sold To sin mapeo. ¿Continuar?`
-              if (!confirm(msg)) return
-            }
-            void confirmar(false)
-          }}
-        >
-          {cargando ? 'Procesando…' : 'Ingestar a la base de datos'}
-        </Button>
-        {totalPendientes > 0 && (
-          <span className={styles.hint}>
-            Asigna o descarta todos los valores pendientes antes de ingestar.
-          </span>
-        )}
-      </div>
+      {/* ── Toast ── */}
+      {toast && (
+        <div className={styles.toast} role="status">
+          {toast}
+        </div>
+      )}
     </div>
   )
 }
