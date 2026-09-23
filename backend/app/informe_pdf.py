@@ -330,6 +330,7 @@ def _construir_elementos(
     fecha_recepcion: str | None,
     incluir_analista: bool,
     espacio_extra: float,
+    peso_muestra_extraido: float | None = None,
 ) -> list:
     elementos = []
     hoy = datetime.now().strftime('%d-%m-%Y')
@@ -412,6 +413,8 @@ def _construir_elementos(
     ]
     if campos.get('Línea Proceso'):
         pares_muestra_derecha.append(('LÍNEA PROCESO', campos['Línea Proceso']))
+    if peso_muestra_extraido is not None:
+        pares_muestra_derecha.append(('PESO MUESTRA EXTRAÍDA', f'{peso_muestra_extraido:g} g'))
 
 
     rejilla_muestra = _rejilla_campos_vertical(
@@ -680,6 +683,7 @@ def generar_informe_pdf(
     aprobado_por_cargo: str,
     fecha_recepcion: str | None = None,
     incluir_analista: bool = True,
+    peso_muestra_extraido: float | None = None,
 ) -> bytes:
     titulo = f"Informe de análisis {campos.get('N° Solicitud', '')}".strip()
     args = dict(
@@ -695,6 +699,7 @@ def generar_informe_pdf(
         aprobado_por_cargo=aprobado_por_cargo,
         fecha_recepcion=fecha_recepcion,
         incluir_analista=incluir_analista,
+        peso_muestra_extraido=peso_muestra_extraido,
     )
 
 
