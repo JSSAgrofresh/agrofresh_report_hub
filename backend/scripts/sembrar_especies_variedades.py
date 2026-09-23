@@ -1,10 +1,12 @@
 """
 Siembra el catálogo de Especie y Variedad en valor_lista desde el Excel
-maestro (hoja "BD").
+maestro.
 
-Lee las columnas "Especie" y "Variedad" y crea los valores estándar
-(es_estandar=true) que falten. Los valores "#N/A" y vacíos se ignoran.
+Formatos aceptados:
+  - Hoja "BD"              con columnas "Especie" y "Variedad"
+  - Hoja "ESPECIE-VARIEDAD" con columnas "CROP"    y "Variedad"
 
+Los valores "#N/A" y vacíos se ignoran.
 Solo inserta. Nunca borra ni modifica valores ya existentes.
 
 Uso:
@@ -48,23 +50,32 @@ def _importar_openpyxl():
 
 
 def _leer_excel(ruta: Path) -> dict[str, set[str]]:
-    """Devuelve {especie: {variedad1, variedad2, ...}}."""
+    """Devuelve {especie: {variedad1, variedad2, ...}}.
+
+    Acepta dos formatos:
+      - Hoja "BD"               → columnas "Especie" y "Variedad"
+      - Hoja "ESPECIE-VARIEDAD" → columnas "CROP"    y "Variedad"
+    """
     ox = _importar_openpyxl()
     wb = ox.load_workbook(ruta, read_only=True, data_only=True)
 
-    if "BD" not in wb.sheetnames:
-        print(f"ERROR: no existe la hoja 'BD'. Hojas: {wb.sheetnames}")
+    if "BD" in wb.sheetnames:
+        ws = wb["BD"]
+    elif "ESPECIE-VARIEDAD" in wb.sheetnames:
+        ws = wb["ESPECIE-VARIEDAD"]
+    else:
+        print(f"ERROR: se esperaba hoja 'BD' o 'ESPECIE-VARIEDAD'. Hojas: {wb.sheetnames}")
         sys.exit(1)
 
-    ws = wb["BD"]
     filas = list(ws.iter_rows(values_only=True))
     enc = [str(c).strip().lower() if c else "" for c in filas[0]]
 
-    idx_esp = next((i for i, h in enumerate(enc) if h == "especie"), None)
+    # "especie" o "crop" como alias
+    idx_esp = next((i for i, h in enumerate(enc) if h in ("especie", "crop")), None)
     idx_var = next((i for i, h in enumerate(enc) if h == "variedad"), None)
 
     if idx_esp is None or idx_var is None:
-        print(f"ERROR: no se encontraron columnas 'Especie' o 'Variedad'. Encabezados: {enc}")
+        print(f"ERROR: no se encontraron columnas 'Especie'/'CROP' o 'Variedad'. Encabezados: {enc}")
         sys.exit(1)
 
     catalogo: dict[str, set[str]] = {}
@@ -147,6 +158,20 @@ def imprimir_resumen(info: dict) -> None:
     print()
 
 
+def limpiar() -> None:
+    """Borra todas las filas de valor_lista (variedades primero, luego especies)."""
+    with conexion() as conn:
+        with cursor_dict(conn) as cur:
+            cur.execute("DELETE FROM lab.valor_lista WHERE tipo = 'variedad'")
+            n_var = cur.rowcount
+            cur.execute("DELETE FROM lab.valor_lista WHERE tipo = 'especie'")
+            n_esp = cur.rowcount
+        conn.commit()
+    print(f"\nLimpieza:")
+    print(f"  Variedades eliminadas: {n_var}")
+    print(f"  Especies eliminadas:   {n_esp}")
+
+
 def aplicar(info: dict) -> None:
     catalogo = info["catalogo_excel"]
 
@@ -215,9 +240,14 @@ def main() -> None:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("archivo", help="Excel maestro (debe tener hoja 'BD')")
+    p.add_argument("archivo", help="Excel maestro (hoja 'BD' o 'ESPECIE-VARIEDAD')")
     p.add_argument("--aplicar", action="store_true", help="Escribir en la BD. Sin esto solo analiza.")
+    p.add_argument("--desde-cero", action="store_true",
+                   help="Borra TODAS las especies y variedades existentes antes de sembrar (implica --aplicar).")
     args = p.parse_args()
+
+    if args.desde_cero:
+        args.aplicar = True
 
     ruta = Path(args.archivo)
     if not ruta.exists():
@@ -230,6 +260,9 @@ def main() -> None:
     if not args.aplicar:
         print("Modo análisis (sin --aplicar). Para sembrar agrega --aplicar.\n")
         return
+
+    if args.desde_cero:
+        limpiar()
 
     aplicar(info)
 
