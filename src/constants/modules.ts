@@ -23,10 +23,10 @@ export const GRUPO_DATACORE = 'datacore'
 
 export const MODULOS: ModuloInfo[] = [
   {
-    id: 'ingest',
-    nombre: 'Cargar Datos',
-    descripcion: 'Carga guiada de resultados de laboratorio: validar, homogeneizar y subir a la base de datos.',
-    ruta: ROUTES.ingest,
+    id: 'ingesta',
+    nombre: 'Ingesta de Datos',
+    descripcion: 'Carga, homogeneización y confirmación de resultados de laboratorio en la base de datos.',
+    ruta: ROUTES.ingesta,
     estado: 'disponible',
     grupo: GRUPO_DATACORE,
   },
@@ -43,14 +43,6 @@ export const MODULOS: ModuloInfo[] = [
     nombre: 'Converter',
     descripcion: 'Conversión y homogenización de informes de laboratorio contra el catálogo oficial.',
     ruta: ROUTES.converter,
-    estado: 'disponible',
-    grupo: GRUPO_DATACORE,
-  },
-  {
-    id: 'datacore',
-    nombre: 'Auditoría y modelo',
-    descripcion: 'Modelo entidad-relación, exploración por tabla y auditoría de homogenización de la base de datos.',
-    ruta: ROUTES.datacore,
     estado: 'disponible',
     grupo: GRUPO_DATACORE,
   },
