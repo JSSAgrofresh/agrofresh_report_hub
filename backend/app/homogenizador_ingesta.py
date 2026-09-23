@@ -14,6 +14,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import tempfile
@@ -84,7 +85,14 @@ def _leer_filas(ruta: str) -> list[dict[str, Any]]:
 
     filas: list[dict[str, Any]] = []
     for fila in filas_raw[inicio:]:
-        d = {encabezados[i]: fila[i] for i in range(min(len(encabezados), len(fila)))}
+        d: dict[str, Any] = {}
+        for i in range(min(len(encabezados), len(fila))):
+            v = fila[i]
+            # openpyxl devuelve celdas de fecha como datetime/date; las convertimos
+            # a ISO string para que sean JSON-serializables al guardar en pendiente_revision
+            if isinstance(v, (datetime.datetime, datetime.date)):
+                v = v.isoformat()
+            d[encabezados[i]] = v
         # Omitir filas completamente vacías
         if any(v is not None and str(v).strip() for v in d.values()):
             filas.append(d)
@@ -328,8 +336,9 @@ def confirmar(
 
     with conexion(escribir=escribir) as conn:
         with cursor_dict(conn) as cur:
-            resumen = _procesar_filas(cur, filas_procesadas, escribir=escribir, acumular_detalle=False)
+            resultado = _procesar_filas(cur, filas_procesadas, escribir=escribir, acumular_detalle=False)
 
+    resumen = resultado["resumen"]
     resumen["descartadas"] = descartadas
 
     if escribir:
