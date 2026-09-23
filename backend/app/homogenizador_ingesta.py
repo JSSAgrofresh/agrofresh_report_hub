@@ -17,6 +17,7 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import pathlib
 import tempfile
 import uuid
 from typing import Any
@@ -39,8 +40,16 @@ from .listados import clave_normalizada
 
 router = APIRouter(prefix="/api/homogenizador-ingesta", tags=["homogenizador-ingesta"])
 
-# Archivos subidos pendientes de confirmar: {token: ruta_temporal}
-_PENDIENTES: dict[str, str] = {}
+# Directorio compartido en disco: todos los workers lo ven aunque el upload
+# y el confirm los atienda workers distintos.
+_DIR_PENDIENTES = pathlib.Path(tempfile.gettempdir()) / "hom_ingesta"
+_DIR_PENDIENTES.mkdir(exist_ok=True)
+
+
+def _ruta_token(token: str) -> pathlib.Path:
+    # Solo caracteres UUID válidos, sin path traversal posible.
+    safe = "".join(c for c in token if c in "0123456789abcdef-")
+    return _DIR_PENDIENTES / f"{safe}.xlsx"
 
 # ──────────────────────────────────────────────
 #  Lectura del Excel
@@ -191,26 +200,26 @@ async def analizar(
     """Sube el Excel y devuelve los valores únicos de las 4 columnas con sus
     sugerencias de mapeo y un token para la etapa de confirmación."""
 
-    # Guardar en tmp
-    sufijo = os.path.splitext(archivo.filename or "")[1] or ".xlsx"
-    fd, ruta = tempfile.mkstemp(suffix=sufijo)
+    # Guardar en el directorio compartido con ruta predecible por token.
+    # Así cualquier worker encuentra el archivo al confirmar.
+    token = str(uuid.uuid4())
+    ruta = _ruta_token(token)
     try:
         contenido = await archivo.read()
-        with os.fdopen(fd, "wb") as f:
-            f.write(contenido)
+        ruta.write_bytes(contenido)
     except Exception:
-        os.unlink(ruta)
+        ruta.unlink(missing_ok=True)
         raise
 
     # Leer filas
     try:
-        filas = _leer_filas(ruta)
+        filas = _leer_filas(str(ruta))
     except Exception as exc:
-        os.unlink(ruta)
+        ruta.unlink(missing_ok=True)
         raise HTTPException(400, f"No se pudo leer el Excel: {exc}") from exc
 
     if not filas:
-        os.unlink(ruta)
+        ruta.unlink(missing_ok=True)
         raise HTTPException(400, "El archivo no tiene filas con datos.")
 
     # Extraer columnas de interés
@@ -225,9 +234,6 @@ async def analizar(
             can_ship = _valores_canonicos_ship_to(cur)
             can_esp = _valores_canonicos_especies(cur)
             can_var = _valores_canonicos_variedades(cur)
-
-    token = str(uuid.uuid4())
-    _PENDIENTES[token] = ruta
 
     return {
         "token": token,
@@ -268,11 +274,11 @@ def confirmar(
     preview). Las filas cuyo Sold To, Especie o Variedad hayan sido mapeados a
     "" se descartan antes de tocar la base."""
 
-    ruta = _PENDIENTES.get(payload.token)
-    if not ruta or not os.path.exists(ruta):
+    ruta = _ruta_token(payload.token)
+    if not ruta.exists():
         raise HTTPException(404, "Token inválido o sesión expirada. Vuelve a subir el archivo.")
 
-    filas_raw = _leer_filas(ruta)
+    filas_raw = _leer_filas(str(ruta))
     if not filas_raw:
         raise HTTPException(400, "El archivo no tiene filas con datos.")
 
@@ -357,9 +363,4 @@ def cancelar(
 
 
 def _limpiar_token(token: str) -> None:
-    ruta = _PENDIENTES.pop(token, None)
-    if ruta and os.path.exists(ruta):
-        try:
-            os.unlink(ruta)
-        except OSError:
-            pass
+    _ruta_token(token).unlink(missing_ok=True)
