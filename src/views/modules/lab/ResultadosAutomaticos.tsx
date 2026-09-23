@@ -43,8 +43,11 @@ export function ResultadosAutomaticos({
     [solicitudes, muestras],
   )
   const encontrados = cruces.filter((c) => c.muestra)
-  const listos = encontrados.filter((c) => c.analitosFaltantes.length === 0)
   const sinResultado = cruces.filter((c) => !c.muestra)
+  const listos = encontrados.filter((c) => c.analitosFaltantes.length === 0)
+  const listosConPeso = listos.filter(
+    (c) => pesosExtraidos[c.solicitud.archivo] !== undefined,
+  )
 
   function setPesoExtraido(archivo: string, valor: string) {
     const num = parseFloat(valor)
@@ -52,7 +55,7 @@ export function ResultadosAutomaticos({
   }
 
   function filas() {
-    return construirFilasExportables(cruces, pesosExtraidos)
+    return construirFilasExportables(listosConPeso, pesosExtraidos)
   }
 
   async function generarPDF() {
@@ -112,7 +115,8 @@ export function ResultadosAutomaticos({
       </div>
 
       <div className={styles.resumen}>
-        <span className={styles.ok}>{listos.length} listos para emitir</span>
+        <span className={styles.ok}>{listosConPeso.length} listos para emitir</span>
+        <span className={styles.resumenAmarillo}>{listos.length - listosConPeso.length} coincidencias sin peso ingresado</span>
         <span>{sinResultado.length} solicitudes cruzadas sin resultado en este archivo</span>
         <span>{sinSolicitud.length} viales sin solicitud cruzada</span>
       </div>
@@ -131,8 +135,14 @@ export function ResultadosAutomaticos({
             </tr>
           </thead>
           <tbody>
-            {cruces.map((cruce) => (
-              <tr key={cruce.solicitud.archivo}>
+            {cruces.map((cruce) => {
+              const tienePeso = pesosExtraidos[cruce.solicitud.archivo] !== undefined
+              const esListo = !!cruce.muestra && cruce.analitosFaltantes.length === 0
+              const filaClase = esListo
+                ? tienePeso ? styles.filaVerde : styles.filaAmarilla
+                : undefined
+              return (
+              <tr key={cruce.solicitud.archivo} className={filaClase}>
                 <td>{cruce.solicitud.campos['N° Solicitud'] || cruce.solicitud.archivo}</td>
                 <td className={styles.mono}>{cruce.solicitud.codigo_muestra}</td>
                 <td>{cruce.solicitud.campos['Sold To (Nombre)'] || '—'}</td>
@@ -165,7 +175,8 @@ export function ResultadosAutomaticos({
                   )}
                 </td>
               </tr>
-            ))}
+            )
+            })}
             {cruces.length === 0 && (
               <tr><td colSpan={6} className={styles.vacio}>No hay solicitudes con muestra cruzada.</td></tr>
             )}
@@ -181,13 +192,13 @@ export function ResultadosAutomaticos({
       )}
 
       <div className={styles.acciones}>
-        <Button onClick={() => void generarPDF()} disabled={!listos.length || procesando !== null}>
-          {procesando === 'pdf' ? 'Generando…' : listos.length > 1 ? `Generar ${listos.length} informes PDF` : 'Generar informe PDF'}
+        <Button onClick={() => void generarPDF()} disabled={!listosConPeso.length || procesando !== null}>
+          {procesando === 'pdf' ? 'Generando…' : listosConPeso.length > 1 ? `Generar ${listosConPeso.length} informes PDF` : 'Generar informe PDF'}
         </Button>
-        <Button variant="secondary" onClick={() => void generarExcel()} disabled={!listos.length || procesando !== null}>
+        <Button variant="secondary" onClick={() => void generarExcel()} disabled={!listosConPeso.length || procesando !== null}>
           {procesando === 'excel' ? 'Generando…' : 'Descargar Excel de resultados'}
         </Button>
-        <Button variant="secondary" onClick={() => void subirBD()} disabled={!listos.length || procesando !== null}>
+        <Button variant="secondary" onClick={() => void subirBD()} disabled={!listosConPeso.length || procesando !== null}>
           {procesando === 'bd' ? 'Subiendo…' : 'Subir resultados a la base'}
         </Button>
       </div>
