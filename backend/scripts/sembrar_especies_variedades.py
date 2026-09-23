@@ -1,10 +1,12 @@
 """
 Siembra el catálogo de Especie y Variedad en valor_lista desde el Excel
-maestro (hoja "BD").
+maestro.
 
-Lee las columnas "Especie" y "Variedad" y crea los valores estándar
-(es_estandar=true) que falten. Los valores "#N/A" y vacíos se ignoran.
+Formatos aceptados:
+  - Hoja "BD"              con columnas "Especie" y "Variedad"
+  - Hoja "ESPECIE-VARIEDAD" con columnas "CROP"    y "Variedad"
 
+Los valores "#N/A" y vacíos se ignoran.
 Solo inserta. Nunca borra ni modifica valores ya existentes.
 
 Uso:
@@ -48,23 +50,32 @@ def _importar_openpyxl():
 
 
 def _leer_excel(ruta: Path) -> dict[str, set[str]]:
-    """Devuelve {especie: {variedad1, variedad2, ...}}."""
+    """Devuelve {especie: {variedad1, variedad2, ...}}.
+
+    Acepta dos formatos:
+      - Hoja "BD"               → columnas "Especie" y "Variedad"
+      - Hoja "ESPECIE-VARIEDAD" → columnas "CROP"    y "Variedad"
+    """
     ox = _importar_openpyxl()
     wb = ox.load_workbook(ruta, read_only=True, data_only=True)
 
-    if "BD" not in wb.sheetnames:
-        print(f"ERROR: no existe la hoja 'BD'. Hojas: {wb.sheetnames}")
+    if "BD" in wb.sheetnames:
+        ws = wb["BD"]
+    elif "ESPECIE-VARIEDAD" in wb.sheetnames:
+        ws = wb["ESPECIE-VARIEDAD"]
+    else:
+        print(f"ERROR: se esperaba hoja 'BD' o 'ESPECIE-VARIEDAD'. Hojas: {wb.sheetnames}")
         sys.exit(1)
 
-    ws = wb["BD"]
     filas = list(ws.iter_rows(values_only=True))
     enc = [str(c).strip().lower() if c else "" for c in filas[0]]
 
-    idx_esp = next((i for i, h in enumerate(enc) if h == "especie"), None)
+    # "especie" o "crop" como alias
+    idx_esp = next((i for i, h in enumerate(enc) if h in ("especie", "crop")), None)
     idx_var = next((i for i, h in enumerate(enc) if h == "variedad"), None)
 
     if idx_esp is None or idx_var is None:
-        print(f"ERROR: no se encontraron columnas 'Especie' o 'Variedad'. Encabezados: {enc}")
+        print(f"ERROR: no se encontraron columnas 'Especie'/'CROP' o 'Variedad'. Encabezados: {enc}")
         sys.exit(1)
 
     catalogo: dict[str, set[str]] = {}
