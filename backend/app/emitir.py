@@ -7,6 +7,8 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import openpyxl
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 import psycopg2.errors
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -1230,6 +1232,8 @@ def generar_excel(filas: list[FilaCruceIn]) -> StreamingResponse:
     ws.cell(row=1, column=col, value="Gasto"); col += 1
     ws.cell(row=1, column=col, value="Peso Muestra Extraída (g)"); col += 1
 
+    _N_COLS = col - 1
+
     # ── Filas ────────────────────────────────────────────────────────────
     for fila_idx, (fila, folio) in enumerate(zip(filas, folios), start=2):
         col = 1
@@ -1254,6 +1258,28 @@ def generar_excel(filas: list[FilaCruceIn]) -> StreamingResponse:
         ws.cell(row=fila_idx, column=col, value=fila.campos.get("Tipo Aplicación") or None); col += 1
         ws.cell(row=fila_idx, column=col, value=fila.campos.get("Gasto") or None); col += 1
         ws.cell(row=fila_idx, column=col, value=fila.peso_muestra_extraido); col += 1
+
+    # ── Estilo verde ─────────────────────────────────────────────────────
+    _VD = "3D6B1F"   # verde oscuro (encabezado)
+    _VC = "EBF5E1"   # verde claro  (datos)
+    _N_FILAS = len(filas)
+
+    for c in range(1, _N_COLS + 1):
+        hd = ws.cell(row=1, column=c)
+        hd.font = Font(bold=True, color="FFFFFF", size=9)
+        hd.fill = PatternFill("solid", fgColor=_VD)
+        hd.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws.column_dimensions[get_column_letter(c)].width = 16
+
+    for r in range(2, _N_FILAS + 2):
+        for c in range(1, _N_COLS + 1):
+            cell = ws.cell(row=r, column=c)
+            cell.fill = PatternFill("solid", fgColor=_VC)
+            cell.alignment = Alignment(vertical="center")
+
+    ws.row_dimensions[1].height = 28
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(_N_COLS)}{_N_FILAS + 1}"
 
     buffer = io.BytesIO()
     wb.save(buffer)

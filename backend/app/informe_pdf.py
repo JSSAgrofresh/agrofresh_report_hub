@@ -90,39 +90,31 @@ _S_LABEL = ParagraphStyle(
     textColor=GRIS_LABEL,
 )
 _S_VALOR = ParagraphStyle(
-    'valor', fontName='Times-Roman', fontSize=9.5, leading=11,
+    'valor', fontName='Helvetica', fontSize=9, leading=11,
     textColor=NEGRO_TEXTO,
-)
-_S_METODO = ParagraphStyle(
-    'metodo', fontName='Times-Italic', fontSize=8, leading=10,
-    textColor=GRIS_TEXTO,
-)
-_S_NOTA = ParagraphStyle(
-    'nota', fontName='Times-Roman', fontSize=7.5, leading=9.5,
-    textColor=GRIS_TEXTO,
 )
 _S_TABLA_HEAD = ParagraphStyle(
     'tablaHead', fontName='Helvetica-Bold', fontSize=8.5, leading=10,
     textColor=NEGRO_TEXTO,
 )
 _S_TABLA_CELDA = ParagraphStyle(
-    'tablaCelda', fontName='Times-Roman', fontSize=9.5, leading=11,
+    'tablaCelda', fontName='Helvetica', fontSize=9, leading=11,
     textColor=NEGRO_TEXTO,
 )
 _S_TABLA_CELDA_NEG = ParagraphStyle(
-    'tablaCeldaNeg', fontName='Times-Italic', fontSize=9, leading=10,
+    'tablaCeldaNeg', fontName='Helvetica-Oblique', fontSize=8.5, leading=10,
     textColor=GRIS_LABEL,
 )
 _S_FIRMA_NOMBRE = ParagraphStyle(
-    'firmaNombre', fontName='Times-Bold', fontSize=9.5, leading=11,
+    'firmaNombre', fontName='Helvetica-Bold', fontSize=9.5, leading=11,
     textColor=NEGRO_TEXTO,
 )
 _S_FIRMA_CARGO = ParagraphStyle(
-    'firmaCargo', fontName='Times-Roman', fontSize=9, leading=10,
+    'firmaCargo', fontName='Helvetica', fontSize=9, leading=10,
     textColor=GRIS_TEXTO,
 )
 _S_PIE = ParagraphStyle(
-    'pie', fontName='Times-Roman', fontSize=8, textColor=GRIS_LABEL,
+    'pie', fontName='Helvetica', fontSize=8, textColor=GRIS_LABEL,
 )
 _S_DIRECCION_PIE = ParagraphStyle(
     'direccionPie', fontName='Helvetica', fontSize=7.5, leading=9.5,
@@ -473,13 +465,15 @@ def _construir_elementos(
 
 
     # ── DETERMINACIONES / RESULTADOS (cuadrante) ──────────────────────
-    # Sin columna de unidad: todos los ensayos se informan en ppm y repetirlo
-    # en cada fila no agrega nada. La unidad va una sola vez, en el título de
-    # la columna de resultado.
     filas_resultado = [[
-        Paragraph('ENSAYO', _S_TABLA_HEAD),
-        Paragraph('RESULTADO (ppm)', _S_TABLA_HEAD),
+        Paragraph('ENSAYO / ACTIVO', _S_TABLA_HEAD),
+        Paragraph('RESULTADO', _S_TABLA_HEAD),
+        Paragraph('UNIDAD', _S_TABLA_HEAD),
     ]]
+    _S_TABLA_CELDA_UNIT = ParagraphStyle(
+        'tablaCeldaUnit', fontName='Helvetica', fontSize=8, leading=10,
+        textColor=GRIS_LABEL, alignment=1,
+    )
     for codigo in analitos_solicitados:
         tiene_resultado = codigo in resultados_por_codigo
         valor = resultados_por_codigo.get(codigo)
@@ -492,78 +486,40 @@ def _construir_elementos(
         filas_resultado.append([
             Paragraph(_nombre_ensayo(campos, codigo), _S_TABLA_CELDA),
             resultado_cel,
+            Paragraph('ppm', _S_TABLA_CELDA_UNIT) if tiene_resultado else Paragraph('', _S_TABLA_CELDA),
         ])
 
 
     cantidad_filas_resultado = max(7, len(analitos_solicitados))
     for _ in range(cantidad_filas_resultado - len(analitos_solicitados)):
-        filas_resultado.append(['', ''])
+        filas_resultado.append(['', '', ''])
 
 
     tabla_resultados = Table(
         filas_resultado,
-        colWidths=[ANCHO_UTIL - 4.6 * cm, 4.6 * cm],
-        rowHeights=[None] + [17] * cantidad_filas_resultado,
+        colWidths=[ANCHO_UTIL - 5.8 * cm, 3.5 * cm, 2.3 * cm],
+        rowHeights=[None] + [18] * cantidad_filas_resultado,
         repeatRows=1,
     )
     tabla_resultados.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), GRIS_FONDO),
-        ('TEXTCOLOR', (0, 0), (-1, 0), NEGRO_TEXTO),
+        ('BACKGROUND', (0, 0), (-1, 0), VERDE_OSCURO),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('LINEBELOW', (0, 0), (-1, 0), 0.8, NEGRO_TEXTO),
-        ('LINEBELOW', (0, 1), (-1, -1), 0.35, GRIS_LINEA),
-        ('LINEAFTER', (0, 0), (0, -1), 0.35, GRIS_LINEA),
-        ('BOX', (0, 0), (-1, -1), 0.45, NEGRO_TEXTO),
-    ]))
-
-
-    # Metodología debajo de resultados, dentro del mismo cuadrante
-    metodo_block = Table(
-        [[Paragraph(f'<b>Metodología:</b> {METODOLOGIA_TEXTO}', _S_METODO)]],
-        colWidths=[ANCHO_UTIL],
-    )
-    metodo_block.setStyle(TableStyle([
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-        ('BACKGROUND', (0, 0), (-1, -1), GRIS_FONDO),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('LINEBELOW', (0, 0), (-1, 0), 0),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, VERDE_CLARO]),
+        ('LINEBELOW', (0, 1), (-1, -1), 0.3, GRIS_LINEA),
+        ('LINEAFTER', (0, 0), (1, -1), 0.3, GRIS_LINEA),
+        ('BOX', (0, 0), (-1, -1), 0.6, NEGRO_TEXTO),
     ]))
 
 
-    contenido_resultados = Table(
-        [[tabla_resultados], [metodo_block]],
-        colWidths=[ANCHO_UTIL],
-    )
-    contenido_resultados.setStyle(TableStyle([
-        ('TOPPADDING', (0, 0), (-1, -1), 0),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-    ]))
-    elementos.append(_cuadrante('Determinaciones / Resultados de los Ensayos', contenido_resultados))
+    elementos.append(_cuadrante('Determinaciones / Resultados de los Ensayos', tabla_resultados))
     elementos.append(Spacer(1, _SP))
-
-
-    # ── NOTAS Y CONDICIONES (letra pequeña, sin cuadrante) ────────────
-    notas_titulo = Table(
-        [[Paragraph('Notas y Condiciones del Informe', ParagraphStyle(
-            'notasTit', fontName='Helvetica-Bold', fontSize=7.5, leading=9,
-            textColor=GRIS_LABEL,
-        ))]],
-        colWidths=[ANCHO_UTIL],
-    )
-    notas_titulo.setStyle(TableStyle([
-        ('TOPPADDING', (0, 0), (-1, -1), 0),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
-        ('LEFTPADDING', (0, 0), (-1, -1), 2),
-    ]))
-    elementos.append(notas_titulo)
-    elementos.append(Paragraph(NOTAS_TEXTO, _S_NOTA))
 
 
     # Spacer expandible para llenar la página
