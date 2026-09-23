@@ -73,8 +73,12 @@ def main() -> None:
         print("\nBorrando datos…")
         cur.execute("DELETE FROM pendiente_revision")
         print(f"  ✓ pendiente_revision: {cur.rowcount:,} filas eliminadas")
+        cur.execute("DELETE FROM producto_aplicado")
+        print(f"  ✓ producto_aplicado: {cur.rowcount:,} filas eliminadas")
+        cur.execute("DELETE FROM resultado")
+        print(f"  ✓ resultado: {cur.rowcount:,} filas eliminadas")
         cur.execute("DELETE FROM solicitud")
-        print(f"  ✓ solicitud (+ cascada): {cur.rowcount:,} filas eliminadas")
+        print(f"  ✓ solicitud: {cur.rowcount:,} filas eliminadas")
         conn.commit()
     except Exception:
         conn.rollback()
