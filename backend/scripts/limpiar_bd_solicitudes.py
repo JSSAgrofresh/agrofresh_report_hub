@@ -71,10 +71,10 @@ def main() -> None:
             return
 
         print("\nBorrando datos…")
-        cur.execute("DELETE FROM pendiente_revision")
-        print(f"  ✓ pendiente_revision: {cur.rowcount:,} filas eliminadas")
-        cur.execute("DELETE FROM solicitud")
-        print(f"  ✓ solicitud (+ cascada): {cur.rowcount:,} filas eliminadas")
+        cur.execute(
+            "TRUNCATE TABLE solicitud, resultado, producto_aplicado, pendiente_revision RESTART IDENTITY CASCADE"
+        )
+        print("  ✓ Todas las tablas vaciadas (+ secuencias reiniciadas)")
         conn.commit()
     except Exception:
         conn.rollback()
