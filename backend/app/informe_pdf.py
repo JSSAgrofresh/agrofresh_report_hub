@@ -510,7 +510,6 @@ def _construir_elementos(
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ('LEFTPADDING', (0, 0), (-1, -1), 7),
         ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-        ('LINEBELOW', (0, 0), (-1, 0), 0),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, VERDE_CLARO]),
         ('LINEBELOW', (0, 1), (-1, -1), 0.3, GRIS_LINEA),
         ('LINEAFTER', (0, 0), (1, -1), 0.3, GRIS_LINEA),
