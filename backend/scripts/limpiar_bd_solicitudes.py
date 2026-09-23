@@ -16,12 +16,20 @@ Solo lectura por defecto; agrega --aplicar para ejecutar de verdad:
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.db import get_connection
+import psycopg2
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+
+def get_conn():
+    return psycopg2.connect(os.environ["DATABASE_URL"])
 
 
 def contar(cur, tabla: str) -> int:
@@ -34,7 +42,8 @@ def main() -> None:
     parser.add_argument("--aplicar", action="store_true", help="Ejecutar el borrado de verdad")
     args = parser.parse_args()
 
-    with get_connection() as conn:
+    conn = get_conn()
+    try:
         cur = conn.cursor()
 
         n_solicitudes = contar(cur, "solicitud")
@@ -61,6 +70,11 @@ def main() -> None:
         cur.execute("DELETE FROM solicitud")
         print(f"  ✓ solicitud (+ cascada): {cur.rowcount:,} filas eliminadas")
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
     print("\nListo. La base quedó sin solicitudes.")
 
