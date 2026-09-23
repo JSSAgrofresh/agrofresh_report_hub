@@ -200,7 +200,49 @@
 }
 
 .asideIntro {
+  margin-bottom: 10px;
+}
+
+/* ── Aside search ────────────────────────── */
+
+.asideSearch {
+  display: flex;
+  align-items: center;
+  position: relative;
   margin-bottom: 4px;
+}
+
+.asideSearch span {
+  position: absolute;
+  left: 9px;
+  font-size: 16px;
+  color: var(--n-muted);
+  pointer-events: none;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.asideSearch input {
+  width: 100%;
+  padding: 8px 10px 8px 30px;
+  border: 1px solid var(--n-line);
+  border-radius: 8px;
+  background: var(--n-bg);
+  color: var(--n-ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.asideSearch input:focus {
+  outline: 2px solid var(--n-green);
+  outline-offset: 1px;
+}
+
+.asideEmpty {
+  font-size: 11px;
+  color: var(--n-muted);
+  margin: 4px 0 0;
+  padding: 4px 0;
 }
 
 .asideH2 {
@@ -210,7 +252,9 @@
 }
 
 .canonicalGroup {
-  margin-top: 20px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 3px solid var(--n-line);
 }
 
 .canonicalGroupDimmed {
@@ -218,21 +262,57 @@
   pointer-events: none;
 }
 
+/* Per-column accent colors */
+.canonicalGroup[data-col="sold_to"] {
+  border-top-color: #226b53;
+}
+.canonicalGroup[data-col="sold_to"] .groupTitle { color: #1a5540; }
+.canonicalGroup[data-col="sold_to"] .groupBadge { background: #c2edd4; color: #1a5540; }
+
+.canonicalGroup[data-col="ship_to"] {
+  border-top-color: #2f9070;
+}
+.canonicalGroup[data-col="ship_to"] .groupTitle { color: #1d6650; }
+.canonicalGroup[data-col="ship_to"] .groupBadge { background: #bde6d8; color: #1d6650; }
+
+.canonicalGroup[data-col="especie"] {
+  border-top-color: #5a9a2e;
+}
+.canonicalGroup[data-col="especie"] .groupTitle { color: #3d6a1c; }
+.canonicalGroup[data-col="especie"] .groupBadge { background: #d6efb8; color: #3d6a1c; }
+
+.canonicalGroup[data-col="variedad"] {
+  border-top-color: #8aac18;
+}
+.canonicalGroup[data-col="variedad"] .groupTitle { color: #5a7210; }
+.canonicalGroup[data-col="variedad"] .groupBadge { background: #e8f4a8; color: #5a7210; }
+
 .groupTitle {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 12px;
   font-weight: 700;
   color: var(--n-ink);
   margin-bottom: 8px;
 }
 
+.groupBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: #eef2ec;
+  color: var(--n-muted);
+}
+
 .canonical {
   width: 100%;
   border: 1px solid var(--n-line);
+  border-left: 3px solid var(--n-line);
   background: #fafcf9;
   border-radius: 8px;
-  padding: 9px 11px;
+  padding: 9px 11px 9px 9px;
   text-align: left;
   margin-bottom: 5px;
   display: flex;
@@ -247,8 +327,33 @@
 
 .canonical:hover,
 .canonicalOver {
-  background: #e8f3cd;
-  border-color: #83a94b;
+  background: #dff0cd;
+  border-color: #70a038;
+  border-left-color: #4d8020;
+}
+
+[data-col="sold_to"] .canonical:hover,
+[data-col="sold_to"] .canonicalOver {
+  background: #d0eede;
+  border-left-color: #226b53;
+}
+
+[data-col="ship_to"] .canonical:hover,
+[data-col="ship_to"] .canonicalOver {
+  background: #c8e8e0;
+  border-left-color: #2f9070;
+}
+
+[data-col="especie"] .canonical:hover,
+[data-col="especie"] .canonicalOver {
+  background: #d8f0b4;
+  border-left-color: #5a9a2e;
+}
+
+[data-col="variedad"] .canonical:hover,
+[data-col="variedad"] .canonicalOver {
+  background: #eaf4a4;
+  border-left-color: #8aac18;
 }
 
 .canonicalIncompatible {

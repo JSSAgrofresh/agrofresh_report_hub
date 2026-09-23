@@ -75,6 +75,7 @@ export function HomogenizadorIngestPanel() {
   const [busqueda, setBusqueda] = useState('')
   const [filtroCol, setFiltroCol] = useState<Col | 'all'>('all')
   const [filtroEstado, setFiltroEstado] = useState<'all' | 'pending' | 'mapped' | 'review'>('all')
+  const [busquedaAside, setBusquedaAside] = useState('')
   const [multiselect, setMultiselect] = useState(false)
   const [revisarAbierto, setRevisarAbierto] = useState(false)
   const [dragIds, setDragIds] = useState<string[]>([])
@@ -377,20 +378,37 @@ export function HomogenizadorIngestPanel() {
               aquí.
             </p>
           </div>
+          <label className={styles.asideSearch}>
+            <span aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              placeholder="Filtrar valores…"
+              value={busquedaAside}
+              onChange={(e) => setBusquedaAside(e.target.value)}
+            />
+          </label>
           {COLUMNAS.map((col) => {
             const canonicos = canonicosDeCol(celdas, col)
             if (!canonicos.length) return null
+            const qAside = normalizar(busquedaAside)
+            const canonicosVisibles = qAside
+              ? canonicos.filter((n) => normalizar(n).includes(qAside))
+              : canonicos
             const dimmed = filtroCol !== 'all' && filtroCol !== col
             return (
               <section
                 key={col}
+                data-col={col}
                 className={`${styles.canonicalGroup} ${dimmed ? styles.canonicalGroupDimmed : ''}`}
               >
                 <div className={styles.groupTitle}>
                   <span>{ETIQUETAS[col]}</span>
-                  <span>{canonicos.length}</span>
+                  <span className={styles.groupBadge}>{canonicos.length}</span>
                 </div>
-                {canonicos.map((name) => {
+                {canonicosVisibles.length === 0 && (
+                  <p className={styles.asideEmpty}>Sin coincidencias</p>
+                )}
+                {canonicosVisibles.map((name) => {
                   const count = celdas.filter((c) => c.col === col && c.value === name).length
                   const incompatible =
                     selected.size > 0 &&
