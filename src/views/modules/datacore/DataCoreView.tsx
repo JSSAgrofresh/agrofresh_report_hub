@@ -7,6 +7,7 @@ import { httpClient } from '@/services/http/client'
 import { ChequeoListadosPanel } from './ChequeoListadosPanel'
 import { ErDiagrama } from './ErDiagrama'
 import { HomogenizarPanel } from './HomogenizarPanel'
+import { HomogenizadorIngestPanel } from './HomogenizadorIngestPanel'
 import { IngestaExcelPanel } from './IngestaExcelPanel'
 import { PendientesSinInformePanel } from './PendientesSinInformePanel'
 import styles from './DataCoreView.module.css'
@@ -16,7 +17,7 @@ interface Grupo { campo: string; etiqueta: string; especie?: string | null; valo
 interface Auditoria { grupos: Grupo[]; filas: number; pendientes: number }
 interface Decision { campo: string; etiqueta: string; valor_original: string; destino: string; especie?: string | null; filas: number }
 interface Historial { decisiones: Decision[] }
-export type Vista = 'ingesta_excel' | 'auditoria' | 'cambios' | 'modelo' | 'homogenizar' | 'sin_informe' | 'chequeo_listados'
+export type Vista = 'cargar' | 'ingesta_excel' | 'auditoria' | 'cambios' | 'modelo' | 'homogenizar' | 'sin_informe' | 'chequeo_listados'
 const CAMPOS = { sold_to_raw: 'Sold To', ship_to_raw: 'Ship To', especie: 'Especie', variedad: 'Variedad' }
 
 interface DataCoreViewProps {
@@ -26,7 +27,7 @@ interface DataCoreViewProps {
   vistaInicial?: Vista
 }
 
-export function DataCoreView({ vistaInicial = 'auditoria' }: DataCoreViewProps = {}) {
+export function DataCoreView({ vistaInicial = 'cargar' }: DataCoreViewProps = {}) {
   const [vista, setVista] = useState<Vista>(vistaInicial)
   const [data, setData] = useState<Auditoria | null>(null)
   const [destinos, setDestinos] = useState<Record<string, string>>({})
@@ -164,7 +165,8 @@ export function DataCoreView({ vistaInicial = 'auditoria' }: DataCoreViewProps =
       </div>
     </Card>
     <nav className={styles.tabs}>
-      <button className={vista === 'ingesta_excel' ? styles.tabActiva : ''} onClick={() => setVista('ingesta_excel')}>Ingesta Excel</button>
+      <button className={vista === 'cargar' ? styles.tabActiva : ''} onClick={() => setVista('cargar')}>Cargar datos</button>
+      <button className={vista === 'ingesta_excel' ? styles.tabActiva : ''} onClick={() => setVista('ingesta_excel')}>Ingesta (legacy)</button>
       <button className={vista === 'auditoria' ? styles.tabActiva : ''} onClick={() => setVista('auditoria')}>Auditoría de homologación</button>
       <button className={vista === 'cambios' ? styles.tabActiva : ''} onClick={() => setVista('cambios')}>Cambios aplicados <small>{historial.length}</small></button>
       <button className={vista === 'modelo' ? styles.tabActiva : ''} onClick={() => setVista('modelo')}>Modelo entidad-relación</button>
@@ -174,6 +176,7 @@ export function DataCoreView({ vistaInicial = 'auditoria' }: DataCoreViewProps =
     </nav>
     {mensaje && <p className={styles.mensaje}>{mensaje}</p>}
 
+    {vista === 'cargar' && <Card><HomogenizadorIngestPanel /></Card>}
     {vista === 'ingesta_excel' && <Card><IngestaExcelPanel /></Card>}
     {vista === 'modelo' && <Card><ErDiagrama /></Card>}
     {vista === 'cambios' && <Card>
