@@ -321,13 +321,21 @@ def confirmar(
         if var_crudo:
             fila_mod["Variedad"] = var_ok if var_ok else None
 
+        def _txt(v: Any) -> str | None:
+            if v is None:
+                return None
+            s = str(v).strip()
+            return s or None
+
         # Inyectar los valores ya resueltos para que _procesar_filas no los
         # vuelva a buscar por calce (ya los resolvimos acá arriba).
+        # _txt() garantiza str|None: openpyxl puede devolver 0 (int) en celdas
+        # vacías, que Postgres rechaza al insertar en columnas text.
         fila_mod["__homogenizacion__"] = {
-            "sold_to_raw": fila_mod.get("Sold To"),
-            "ship_to_raw": fila_mod.get("Ship To"),
-            "especie": fila_mod.get("Especie"),
-            "variedad": fila_mod.get("Variedad"),
+            "sold_to_raw": _txt(fila_mod.get("Sold To")),
+            "ship_to_raw": _txt(fila_mod.get("Ship To")),
+            "especie": _txt(fila_mod.get("Especie")),
+            "variedad": _txt(fila_mod.get("Variedad")),
         }
 
         filas_procesadas.append(fila_mod)
