@@ -16,20 +16,26 @@ Solo lectura por defecto; agrega --aplicar para ejecutar de verdad:
 """
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import psycopg2
-from dotenv import load_dotenv
-
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+from app import config  # carga el .env y expone DB_HOST / DATABASE_URL
 
 
 def get_conn():
-    return psycopg2.connect(os.environ["DATABASE_URL"])
+    if config.DATABASE_URL:
+        return psycopg2.connect(config.DATABASE_URL)
+    return psycopg2.connect(
+        host=config.DB_HOST,
+        port=config.DB_PORT,
+        dbname=config.DB_NAME,
+        user=config.DB_USER,
+        password=config.DB_PASSWORD,
+        options="-c search_path=lab,public",
+    )
 
 
 def contar(cur, tabla: str) -> int:
