@@ -11,8 +11,11 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
 ## Cómo trabajar acá
 
 - **Responde siempre en español.**
-- **Rama de trabajo: `claude/modulo-x-implementation-plan-3zhite`.** Todo se
-  commitea y pushea ahí. Nunca a `main`.
+- **Dos ramas, dos papeles** (ver "Flujo de ramas" más abajo):
+  - `claude/modulo-x-implementation-plan-3zhite` = **desarrollo**. Todo se
+    commitea y pushea ahí. Nunca directo a `main`.
+  - `main` = **la estable, la que está en producción**. Solo recibe cambios
+    por PR desde la rama de desarrollo, cuando el usuario decide publicarlos.
 - **Da los comandos de PowerShell completos y exactos**, con la ruta puesta.
   Nunca "reinicia el backend" a secas.
 - **No crees PR** salvo que se pida explícitamente.
@@ -33,7 +36,7 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
 
 | Pieza | Dónde |
 |---|---|
-| Frontend | Vercel (despliega solo al pushear) |
+| Frontend | Vercel: producción sale de `main`; la rama de desarrollo genera *previews* |
 | Backend + Postgres | **Servidor de la oficina** (Windows), tras un túnel Cloudflare |
 | R2 | Solo archivos y respaldos. **No** es base de datos. |
 
@@ -45,11 +48,34 @@ Ruta del proyecto en el servidor:
 
 ---
 
+## Flujo de ramas
+
+Se trabaja en paralelo: mientras se desarrolla, lo que está en producción no
+se mueve.
+
+1. Se programa y se prueba en `claude/modulo-x-implementation-plan-3zhite`.
+   Cada push genera un *preview* en Vercel para mirarlo antes de publicar.
+   **Ojo:** el preview llama al mismo backend y a la misma base de
+   producción, así que lo que se guarde ahí es real.
+2. Cuando algo está listo y el usuario lo pide, se abre un PR de la rama a
+   `main` y se fusiona. Vercel publica producción solo con eso.
+3. En el servidor de la oficina se hace `git pull origin main` y se reinicia
+   el backend (comandos abajo). El servidor **nunca** queda en la rama de
+   desarrollo.
+4. Después de fusionar se sigue en la misma rama de desarrollo, sin
+   recrearla: `main` solo le suma commits de merge.
+
+Un cambio de backend que necesita migración se publica junto con ella: la
+migración se corre en el servidor **antes** de reiniciar.
+
+---
+
 ## Comandos que se usan de verdad
 
 ```powershell
-# Actualizar el servidor
-git pull origin claude/modulo-x-implementation-plan-3zhite
+# Actualizar el servidor (SIEMPRE desde main, la estable)
+git checkout main
+git pull origin main
 
 # Migraciones (una por archivo, en orden)
 cd backend
@@ -100,8 +126,13 @@ Este proyecto no se da por listo con "debería funcionar":
   Los tipos se revisan con `npm run build` (o `npm run typecheck`), que corre
   `tsc -b`. **`npx tsc --noEmit` no sirve**: no mira los archivos de test, así
   que un error de tipos ahí pasa limpio acá y bota el deploy de Vercel.
-  El lint tiene **8 errores de línea base preexistentes** (`set-state-in-effect`);
-  si salen 8, está bien. Si salen 9, algo nuevo lo rompió.
+  El lint tiene **16 errores de línea base preexistentes** (casi todos
+  `set-state-in-effect`); si salen 16, está bien. Si salen 17, algo nuevo lo rompió.
+- En backend hay **4 tests que ya fallan** en la rama (`test_alcance_datos`,
+  `test_envio_solicitud_correo`, `test_resultados_ship_to`,
+  `test_verificaciones::test_detector_con_metodo_equivocado`) y
+  `test_correo_error_gmail.py` no importa. Corre `pytest tests` (no la raíz:
+  `scripts/borrar_lab_test.py` se recoge y corta la corrida).
 - **Cambios visuales**: se comprueban en un navegador real con Playwright
   (`executablePath: '/opt/pw-browsers/chromium'`), no solo con tests.
 - Al escribir un test para un bug, **rompe el arreglo a propósito** y confirma
@@ -133,6 +164,21 @@ otro y sus pruebas.
 
 **Los veredictos se recalculan al leer**, no se confía en la columna guardada:
 por eso apretar una tolerancia en Criterios también revisa el histórico.
+
+---
+
+## Notificaciones: quién recibe qué
+
+Cada notificación lleva su tipo en `metadata->>'tipo'` (`solicitud`,
+`reanalisis`, `verificacion`, `descarga_gc`, `carga_datos`; sin tipo =
+`anuncio`, los avisos escritos a mano). Lo que ve cada usuario lo decide
+`notificacion_suscripcion` (migración 0039), que se edita en Administración →
+Notificaciones → "Quién recibe qué". Sin fila, recibe lo de su perfil
+(`tipos_predeterminados` en `app/notificaciones.py`); con la lista vacía no
+tiene el módulo y no ve la campana. La `audiencia` solo se sigue mirando en los
+avisos a mano. Las cuentas `cliente` no tienen acceso al router (403).
+**Una notificación nueva tiene que llevar `metadata={"tipo": ...}`** y ese tipo
+tiene que estar en `TIPOS`; si no, cae como `anuncio`.
 
 ---
 

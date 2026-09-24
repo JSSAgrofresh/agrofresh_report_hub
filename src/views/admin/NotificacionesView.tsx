@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { cn } from '@/lib/cn'
 import { notificacionesApi } from '@/features/notificaciones'
 import type { NotificacionAdmin, NotificacionIn, CategoriaNotificacion, AudienciaNotificacion } from '@/features/notificaciones'
+import { SuscripcionesPanel } from './SuscripcionesPanel'
 import styles from './NotificacionesView.module.css'
 
 const CATEGORIAS: { id: CategoriaNotificacion; label: string }[] = [
@@ -32,7 +33,10 @@ function formatFecha(iso: string | null): string {
   })
 }
 
+type Pestana = 'avisos' | 'suscripciones'
+
 export function NotificacionesView() {
+  const [pestana, setPestana] = useState<Pestana>('avisos')
   const [lista, setLista] = useState<NotificacionAdmin[]>([])
   const [cargando, setCargando] = useState(true)
   const [formAbierto, setFormAbierto] = useState(false)
@@ -117,179 +121,208 @@ export function NotificacionesView() {
   }
 
   return (
-    <div className={styles.contenedor}>
+    <div className={cn(styles.contenedor, pestana === 'suscripciones' && styles.contenedorAncho)}>
       <div className={styles.header}>
         <h1 className={styles.headerTitulo}>Notificaciones</h1>
-        <button type="button" className={styles.btnNuevo} onClick={abrirNuevo}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" width="14" height="14">
-            <line x1="8" y1="2" x2="8" y2="14" />
-            <line x1="2" y1="8" x2="14" y2="8" />
-          </svg>
-          Nueva notificación
+        {pestana === 'avisos' && (
+          <button type="button" className={styles.btnNuevo} onClick={abrirNuevo}>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" width="14" height="14">
+              <line x1="8" y1="2" x2="8" y2="14" />
+              <line x1="2" y1="8" x2="14" y2="8" />
+            </svg>
+            Nueva notificación
+          </button>
+        )}
+      </div>
+
+      <div className={styles.tabs} role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pestana === 'avisos'}
+          className={cn(styles.tab, pestana === 'avisos' && styles.tabActiva)}
+          onClick={() => setPestana('avisos')}
+        >
+          Avisos
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pestana === 'suscripciones'}
+          className={cn(styles.tab, pestana === 'suscripciones' && styles.tabActiva)}
+          onClick={() => setPestana('suscripciones')}
+        >
+          Quién recibe qué
         </button>
       </div>
 
-      {/* Formulario */}
-      {formAbierto && (
-        <form className={styles.formCard} onSubmit={guardar}>
-          <p className={styles.formTitulo}>
-            {editando ? `Editando: ${editando.titulo}` : 'Nueva notificación'}
-          </p>
-          <div className={styles.campos}>
-            <div className={cn(styles.campo, styles.campoFull)}>
-              <label className={styles.label}>Título *</label>
-              <input
-                className={styles.input}
-                value={campos.titulo}
-                onChange={(e) => set('titulo', e.target.value)}
-                placeholder="Título de la notificación"
-                maxLength={180}
-              />
-            </div>
+      {pestana === 'suscripciones' ? (
+        <SuscripcionesPanel />
+      ) : (
+        <>
+          {/* Formulario */}
+          {formAbierto && (
+            <form className={styles.formCard} onSubmit={guardar}>
+              <p className={styles.formTitulo}>
+                {editando ? `Editando: ${editando.titulo}` : 'Nueva notificación'}
+              </p>
+              <div className={styles.campos}>
+                <div className={cn(styles.campo, styles.campoFull)}>
+                  <label className={styles.label}>Título *</label>
+                  <input
+                    className={styles.input}
+                    value={campos.titulo}
+                    onChange={(e) => set('titulo', e.target.value)}
+                    placeholder="Título de la notificación"
+                    maxLength={180}
+                  />
+                </div>
 
-            <div className={cn(styles.campo, styles.campoFull)}>
-              <label className={styles.label}>Resumen *</label>
-              <input
-                className={styles.input}
-                value={campos.resumen}
-                onChange={(e) => set('resumen', e.target.value)}
-                placeholder="Descripción breve que aparece en la lista"
-                maxLength={300}
-              />
-            </div>
+                <div className={cn(styles.campo, styles.campoFull)}>
+                  <label className={styles.label}>Resumen *</label>
+                  <input
+                    className={styles.input}
+                    value={campos.resumen}
+                    onChange={(e) => set('resumen', e.target.value)}
+                    placeholder="Descripción breve que aparece en la lista"
+                    maxLength={300}
+                  />
+                </div>
 
-            <div className={cn(styles.campo, styles.campoFull)}>
-              <label className={styles.label}>Cuerpo (soporta **negrita**, *cursiva*, `código`, # Título)</label>
-              <textarea
-                className={styles.textarea}
-                value={campos.cuerpo}
-                onChange={(e) => set('cuerpo', e.target.value)}
-                placeholder="Contenido completo de la notificación. Opcional si el resumen es suficiente."
-              />
-            </div>
+                <div className={cn(styles.campo, styles.campoFull)}>
+                  <label className={styles.label}>Cuerpo (soporta **negrita**, *cursiva*, `código`, # Título)</label>
+                  <textarea
+                    className={styles.textarea}
+                    value={campos.cuerpo}
+                    onChange={(e) => set('cuerpo', e.target.value)}
+                    placeholder="Contenido completo de la notificación. Opcional si el resumen es suficiente."
+                  />
+                </div>
 
-            <div className={styles.campo}>
-              <label className={styles.label}>Categoría</label>
-              <select
-                className={styles.select}
-                value={campos.categoria}
-                onChange={(e) => set('categoria', e.target.value)}
-              >
-                {CATEGORIAS.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
-            </div>
+                <div className={styles.campo}>
+                  <label className={styles.label}>Categoría</label>
+                  <select
+                    className={styles.select}
+                    value={campos.categoria}
+                    onChange={(e) => set('categoria', e.target.value)}
+                  >
+                    {CATEGORIAS.map((c) => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className={styles.campo}>
-              <label className={styles.label}>Audiencia</label>
-              <select
-                className={styles.select}
-                value={campos.audiencia}
-                onChange={(e) => set('audiencia', e.target.value)}
-              >
-                {AUDIENCIAS.map((a) => (
-                  <option key={a.id} value={a.id}>{a.label}</option>
-                ))}
-              </select>
-            </div>
+                <div className={styles.campo}>
+                  <label className={styles.label}>Audiencia</label>
+                  <select
+                    className={styles.select}
+                    value={campos.audiencia}
+                    onChange={(e) => set('audiencia', e.target.value)}
+                  >
+                    {AUDIENCIAS.map((a) => (
+                      <option key={a.id} value={a.id}>{a.label}</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className={cn(styles.campo, styles.campoFull)}>
-              <label className={styles.checkRow}>
-                <input
-                  type="checkbox"
-                  checked={campos.publicado}
-                  onChange={(e) => set('publicado', e.target.checked)}
-                />
-                Publicada (visible para los usuarios)
-              </label>
-            </div>
+                <div className={cn(styles.campo, styles.campoFull)}>
+                  <label className={styles.checkRow}>
+                    <input
+                      type="checkbox"
+                      checked={campos.publicado}
+                      onChange={(e) => set('publicado', e.target.checked)}
+                    />
+                    Publicada (visible para los usuarios)
+                  </label>
+                </div>
+              </div>
+
+              <div className={styles.formAcciones}>
+                {error && <span className={styles.errorMsg}>{error}</span>}
+                <button type="button" className={styles.btnCancelar} onClick={cerrarForm}>
+                  Cancelar
+                </button>
+                <button type="submit" className={styles.btnGuardar} disabled={guardando}>
+                  {guardando ? 'Guardando…' : (editando ? 'Guardar cambios' : 'Crear notificación')}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Tabla */}
+          <div className={styles.card}>
+            {cargando ? (
+              <p className={styles.vacia}>Cargando…</p>
+            ) : lista.length === 0 ? (
+              <p className={styles.vacia}>No hay notificaciones creadas aún.</p>
+            ) : (
+              <table className={styles.tabla}>
+                <thead>
+                  <tr>
+                    <th>Título</th>
+                    <th>Resumen</th>
+                    <th>Categoría</th>
+                    <th>Audiencia</th>
+                    <th>Estado</th>
+                    <th>Leídas</th>
+                    <th>Fecha</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lista.map((n) => (
+                    <tr key={n.id}>
+                      <td className={styles.colTitulo}>{n.titulo}</td>
+                      <td className={styles.colResumen}>{n.resumen}</td>
+                      <td>
+                        <span className={cn(styles.badge, styles[n.categoria as keyof typeof styles])}>
+                          {CATEGORIAS.find((c) => c.id === n.categoria)?.label ?? n.categoria}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={styles.badgeAudiencia}>
+                          {AUDIENCIAS.find((a) => a.id === n.audiencia)?.label ?? n.audiencia}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={cn(styles.badgePublicado, n.publicado ? styles.publicado : styles.borrador)}>
+                          {n.publicado ? 'Publicada' : 'Borrador'}
+                        </span>
+                      </td>
+                      <td className={styles.colFecha}>{n.leidas_por}</td>
+                      <td className={styles.colFecha}>{formatFecha(n.creado_en)}</td>
+                      <td>
+                        <div className={styles.acciones}>
+                          <button
+                            type="button"
+                            className={styles.btnEditar}
+                            onClick={() => abrirEditar(n)}
+                            title="Editar"
+                          >
+                            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11.5 2.5l2 2L5 13H3v-2L11.5 2.5z"/>
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.btnEliminar}
+                            onClick={() => eliminar(n)}
+                            title="Eliminar"
+                          >
+                            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M3 5h10M8 5V3M6 5v7M10 5v7M4 5l.5 8h7L12 5"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
-
-          <div className={styles.formAcciones}>
-            {error && <span className={styles.errorMsg}>{error}</span>}
-            <button type="button" className={styles.btnCancelar} onClick={cerrarForm}>
-              Cancelar
-            </button>
-            <button type="submit" className={styles.btnGuardar} disabled={guardando}>
-              {guardando ? 'Guardando…' : (editando ? 'Guardar cambios' : 'Crear notificación')}
-            </button>
-          </div>
-        </form>
+        </>
       )}
-
-      {/* Tabla */}
-      <div className={styles.card}>
-        {cargando ? (
-          <p className={styles.vacia}>Cargando…</p>
-        ) : lista.length === 0 ? (
-          <p className={styles.vacia}>No hay notificaciones creadas aún.</p>
-        ) : (
-          <table className={styles.tabla}>
-            <thead>
-              <tr>
-                <th>Título</th>
-                <th>Resumen</th>
-                <th>Categoría</th>
-                <th>Audiencia</th>
-                <th>Estado</th>
-                <th>Leídas</th>
-                <th>Fecha</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {lista.map((n) => (
-                <tr key={n.id}>
-                  <td className={styles.colTitulo}>{n.titulo}</td>
-                  <td className={styles.colResumen}>{n.resumen}</td>
-                  <td>
-                    <span className={cn(styles.badge, styles[n.categoria as keyof typeof styles])}>
-                      {CATEGORIAS.find((c) => c.id === n.categoria)?.label ?? n.categoria}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={styles.badgeAudiencia}>
-                      {AUDIENCIAS.find((a) => a.id === n.audiencia)?.label ?? n.audiencia}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={cn(styles.badgePublicado, n.publicado ? styles.publicado : styles.borrador)}>
-                      {n.publicado ? 'Publicada' : 'Borrador'}
-                    </span>
-                  </td>
-                  <td className={styles.colFecha}>{n.leidas_por}</td>
-                  <td className={styles.colFecha}>{formatFecha(n.creado_en)}</td>
-                  <td>
-                    <div className={styles.acciones}>
-                      <button
-                        type="button"
-                        className={styles.btnEditar}
-                        onClick={() => abrirEditar(n)}
-                        title="Editar"
-                      >
-                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M11.5 2.5l2 2L5 13H3v-2L11.5 2.5z"/>
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.btnEliminar}
-                        onClick={() => eliminar(n)}
-                        title="Eliminar"
-                      >
-                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 5h10M8 5V3M6 5v7M10 5v7M4 5l.5 8h7L12 5"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
     </div>
   )
 }
