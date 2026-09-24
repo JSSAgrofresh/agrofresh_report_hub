@@ -958,6 +958,7 @@ def confirmar(payload: CargaRequest, usuario: Usuario = Depends(usuario_actual))
                     f"en AgroFresh Report Hub. {len(payload.filas)} fila(s) en Data Core pendientes de revisión."
                 ),
                 creado_por=nombre_quien,
+                metadata={"tipo": "carga_datos", "origen": payload.origen},
             )
     return {
         "modo": "confirmado", "resumen": {**RESUMEN_VACIO, "pendientes_revision": len(payload.filas)},

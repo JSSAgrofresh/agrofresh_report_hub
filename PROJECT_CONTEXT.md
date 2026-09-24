@@ -4,8 +4,8 @@ Contexto completo del estado del proyecto para continuar desarrollo sin depender
 historial de conversación. Actualizado tras el módulo "Emitir reporte → Reporte análisis
 cromatografía" (folio interno, subida a BD, descarga de historial en portal de cliente).
 
-Rama de trabajo activa: `claude/react-vite-typescript-setup-7uzbv6` (se pushea directo, sin PR,
-salvo que se pida explícitamente).
+Ramas: se desarrolla en `claude/modulo-x-implementation-plan-3zhite`; `main` es la
+estable (producción) y solo recibe cambios por PR. Detalle en `CLAUDE.md` → "Flujo de ramas".
 
 ## 1. Qué es esto
 
