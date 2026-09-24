@@ -8,9 +8,11 @@ interface MultiSelectFiltroProps {
   valores: string[]
   onChange: (valores: string[]) => void
   colorDe?: (opcion: string) => string
+  /** Opcional: un número al lado de cada opción (ej. cuántos registros trae). */
+  conteoDe?: (opcion: string) => number | undefined
 }
 
-export function MultiSelectFiltro({ etiqueta, opciones, valores, onChange, colorDe }: MultiSelectFiltroProps) {
+export function MultiSelectFiltro({ etiqueta, opciones, valores, onChange, colorDe, conteoDe }: MultiSelectFiltroProps) {
   const [abierto, setAbierto] = useState(false)
 
   function alternar(o: string) {
@@ -48,6 +50,9 @@ export function MultiSelectFiltro({ etiqueta, opciones, valores, onChange, color
                   <input type="checkbox" checked={valores.includes(o)} onChange={() => alternar(o)} />
                   {colorDe && <span className={styles.puntoColor} style={{ background: colorDe(o) }} />}
                   <span>{o}</span>
+                  {conteoDe && conteoDe(o) !== undefined && (
+                    <span className={styles.conteo}>{conteoDe(o)?.toLocaleString('es-CL')}</span>
+                  )}
                 </label>
               ))
             )}

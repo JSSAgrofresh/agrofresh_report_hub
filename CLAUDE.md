@@ -100,8 +100,9 @@ Este proyecto no se da por listo con "debería funcionar":
   Los tipos se revisan con `npm run build` (o `npm run typecheck`), que corre
   `tsc -b`. **`npx tsc --noEmit` no sirve**: no mira los archivos de test, así
   que un error de tipos ahí pasa limpio acá y bota el deploy de Vercel.
-  El lint tiene **8 errores de línea base preexistentes** (`set-state-in-effect`);
-  si salen 8, está bien. Si salen 9, algo nuevo lo rompió.
+  El lint tiene **16 errores de línea base preexistentes** (casi todos
+  `set-state-in-effect`; recontado el 24-09-2026). Si salen 16, está bien. Si
+  salen 17, algo nuevo lo rompió.
 - **Cambios visuales**: se comprueban en un navegador real con Playwright
   (`executablePath: '/opt/pw-browsers/chromium'`), no solo con tests.
 - Al escribir un test para un bug, **rompe el arreglo a propósito** y confirma
