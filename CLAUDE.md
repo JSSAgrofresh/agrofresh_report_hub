@@ -126,8 +126,13 @@ Este proyecto no se da por listo con "debería funcionar":
   Los tipos se revisan con `npm run build` (o `npm run typecheck`), que corre
   `tsc -b`. **`npx tsc --noEmit` no sirve**: no mira los archivos de test, así
   que un error de tipos ahí pasa limpio acá y bota el deploy de Vercel.
-  El lint tiene **8 errores de línea base preexistentes** (`set-state-in-effect`);
-  si salen 8, está bien. Si salen 9, algo nuevo lo rompió.
+  El lint tiene **16 errores de línea base preexistentes** (casi todos
+  `set-state-in-effect`); si salen 16, está bien. Si salen 17, algo nuevo lo rompió.
+- En backend hay **4 tests que ya fallan** en la rama (`test_alcance_datos`,
+  `test_envio_solicitud_correo`, `test_resultados_ship_to`,
+  `test_verificaciones::test_detector_con_metodo_equivocado`) y
+  `test_correo_error_gmail.py` no importa. Corre `pytest tests` (no la raíz:
+  `scripts/borrar_lab_test.py` se recoge y corta la corrida).
 - **Cambios visuales**: se comprueban en un navegador real con Playwright
   (`executablePath: '/opt/pw-browsers/chromium'`), no solo con tests.
 - Al escribir un test para un bug, **rompe el arreglo a propósito** y confirma
@@ -159,6 +164,21 @@ otro y sus pruebas.
 
 **Los veredictos se recalculan al leer**, no se confía en la columna guardada:
 por eso apretar una tolerancia en Criterios también revisa el histórico.
+
+---
+
+## Notificaciones: quién recibe qué
+
+Cada notificación lleva su tipo en `metadata->>'tipo'` (`solicitud`,
+`reanalisis`, `verificacion`, `descarga_gc`, `carga_datos`; sin tipo =
+`anuncio`, los avisos escritos a mano). Lo que ve cada usuario lo decide
+`notificacion_suscripcion` (migración 0039), que se edita en Administración →
+Notificaciones → "Quién recibe qué". Sin fila, recibe lo de su perfil
+(`tipos_predeterminados` en `app/notificaciones.py`); con la lista vacía no
+tiene el módulo y no ve la campana. La `audiencia` solo se sigue mirando en los
+avisos a mano. Las cuentas `cliente` no tienen acceso al router (403).
+**Una notificación nueva tiene que llevar `metadata={"tipo": ...}`** y ese tipo
+tiene que estar en `TIPOS`; si no, cae como `anuncio`.
 
 ---
 
