@@ -191,7 +191,8 @@ que la app no funciona.
 
 ```powershell
 cd C:\AgroFresh\agrofresh_report_hub
-git pull
+git checkout main          # el servidor siempre corre la rama estable
+git pull origin main
 .\backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
 Stop-ScheduledTask  -TaskName "AgroFresh Report Hub - Backend"
 Start-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"

@@ -11,8 +11,11 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
 ## Cómo trabajar acá
 
 - **Responde siempre en español.**
-- **Rama de trabajo: `claude/modulo-x-implementation-plan-3zhite`.** Todo se
-  commitea y pushea ahí. Nunca a `main`.
+- **Dos ramas, dos papeles** (ver "Flujo de ramas" más abajo):
+  - `claude/modulo-x-implementation-plan-3zhite` = **desarrollo**. Todo se
+    commitea y pushea ahí. Nunca directo a `main`.
+  - `main` = **la estable, la que está en producción**. Solo recibe cambios
+    por PR desde la rama de desarrollo, cuando el usuario decide publicarlos.
 - **Da los comandos de PowerShell completos y exactos**, con la ruta puesta.
   Nunca "reinicia el backend" a secas.
 - **No crees PR** salvo que se pida explícitamente.
@@ -33,7 +36,7 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
 
 | Pieza | Dónde |
 |---|---|
-| Frontend | Vercel (despliega solo al pushear) |
+| Frontend | Vercel: producción sale de `main`; la rama de desarrollo genera *previews* |
 | Backend + Postgres | **Servidor de la oficina** (Windows), tras un túnel Cloudflare |
 | R2 | Solo archivos y respaldos. **No** es base de datos. |
 
@@ -45,11 +48,34 @@ Ruta del proyecto en el servidor:
 
 ---
 
+## Flujo de ramas
+
+Se trabaja en paralelo: mientras se desarrolla, lo que está en producción no
+se mueve.
+
+1. Se programa y se prueba en `claude/modulo-x-implementation-plan-3zhite`.
+   Cada push genera un *preview* en Vercel para mirarlo antes de publicar.
+   **Ojo:** el preview llama al mismo backend y a la misma base de
+   producción, así que lo que se guarde ahí es real.
+2. Cuando algo está listo y el usuario lo pide, se abre un PR de la rama a
+   `main` y se fusiona. Vercel publica producción solo con eso.
+3. En el servidor de la oficina se hace `git pull origin main` y se reinicia
+   el backend (comandos abajo). El servidor **nunca** queda en la rama de
+   desarrollo.
+4. Después de fusionar se sigue en la misma rama de desarrollo, sin
+   recrearla: `main` solo le suma commits de merge.
+
+Un cambio de backend que necesita migración se publica junto con ella: la
+migración se corre en el servidor **antes** de reiniciar.
+
+---
+
 ## Comandos que se usan de verdad
 
 ```powershell
-# Actualizar el servidor
-git pull origin claude/modulo-x-implementation-plan-3zhite
+# Actualizar el servidor (SIEMPRE desde main, la estable)
+git checkout main
+git pull origin main
 
 # Migraciones (una por archivo, en orden)
 cd backend
