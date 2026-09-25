@@ -185,6 +185,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // Destinatarios de la solicitud: se cargan cuando el laboratorio cambia,
   // para que el muestreador vea a quién va el correo antes de guardar.
   const [contactosSolicitud, setContactosSolicitud] = useState<string[] | null>(null)
+  const [copiasSolicitud, setCopiasSolicitud] = useState<{ cc: string[]; bcc: string[] }>({ cc: [], bcc: [] })
   const [invitadosForm, setInvitadosForm] = useState<string[]>([])
   const [emailInvitadoForm, setEmailInvitadoForm] = useState('')
   const [errorInvitadoForm, setErrorInvitadoForm] = useState<string | null>(null)
@@ -384,7 +385,11 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     if (!laboratorio) return
     let vigente = true
     destinatariosParaLaboratorio(laboratorio)
-      .then((r) => { if (vigente) setContactosSolicitud(r.destinatarios) })
+      .then((r) => {
+        if (!vigente) return
+        setContactosSolicitud(r.destinatarios)
+        setCopiasSolicitud({ cc: r.cc ?? [], bcc: r.bcc ?? [] })
+      })
       .catch(() => { if (vigente) setContactosSolicitud([]) })
     return () => { vigente = false }
   }, [laboratorio])
@@ -1425,6 +1430,16 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                       <span key={email} className={styles.destinatario}>
                         <span className={styles.tipoDestinatario}>Configurado</span>
                         {email}
+                      </span>
+                    ))}
+                    {copiasSolicitud.cc.map((email) => (
+                      <span key={`cc-${email}`} className={styles.destinatario}>
+                        <span className={styles.tipoDestinatario}>Copia</span>{email}
+                      </span>
+                    ))}
+                    {copiasSolicitud.bcc.map((email) => (
+                      <span key={`bcc-${email}`} className={styles.destinatario}>
+                        <span className={styles.tipoDestinatario}>Copia oculta</span>{email}
                       </span>
                     ))}
                     {invitadosForm.map((email) => (

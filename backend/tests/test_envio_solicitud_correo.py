@@ -157,3 +157,89 @@ def test_no_se_puede_reenviar_una_solicitud_ya_enviada(solicitud_guardada, corre
         tm.enviar_solicitud_por_correo(archivo, tm.EnvioSolicitudIn(), usuario=_usuario())
     assert exc.value.status_code == 409
     assert correo_capturado == []
+
+
+# ── Copias configuradas en Contacto laboratorio ─────────────────────────────
+# Cada contacto de solicitud elige cómo va: Para (lo de siempre), Copia o
+# Copia oculta. Así alguien de AgroFresh puede estar en todas las solicitudes
+# de un laboratorio sin tener que escribirlo a mano en cada envío.
+
+
+def _contactos(*filas):
+    config_store.escribir(
+        "contactos_laboratorio.json",
+        [
+            {"email": email, "laboratorio": "AGROFRESH", "tipo": "solicitud", "activo": True,
+             "orden": i, **({"envio": envio} if envio else {})}
+            for i, (email, envio) in enumerate(filas, start=1)
+        ],
+    )
+
+
+def test_los_contactos_se_reparten_segun_como_van(solicitud_guardada):
+    _contactos(
+        ("recepcion@quiteca-lab.cl", None),       # los de antes, sin `envio`: Para
+        ("jefa@quiteca-lab.cl", "para"),
+        ("claudia@agrofresh.com", "bcc"),
+        ("calidad@agrofresh.com", "cc"),
+    )
+    assert tm.contactos_de_solicitud_por_envio("AGROFRESH") == {
+        "to": ["recepcion@quiteca-lab.cl", "jefa@quiteca-lab.cl"],
+        "cc": ["calidad@agrofresh.com"],
+        "bcc": ["claudia@agrofresh.com"],
+    }
+    # Lo que se muestra como "destinatarios" sigue siendo solo el Para.
+    assert tm.contactos_de_solicitud("AGROFRESH") == ["recepcion@quiteca-lab.cl", "jefa@quiteca-lab.cl"]
+
+
+def test_un_contacto_inactivo_no_va_ni_en_copia(solicitud_guardada):
+    _contactos(("recepcion@quiteca-lab.cl", None), ("claudia@agrofresh.com", "bcc"))
+    contactos = config_store.leer("contactos_laboratorio.json", [])
+    contactos[1]["activo"] = False
+    config_store.escribir("contactos_laboratorio.json", contactos)
+    assert tm.contactos_de_solicitud_por_envio("AGROFRESH")["bcc"] == []
+
+
+@_necesita_base
+def test_la_copia_oculta_configurada_llega_junto_a_la_del_creador(solicitud_guardada, correo_capturado):
+    archivo, _ = solicitud_guardada
+    _contactos(
+        ("recepcion@quiteca-lab.cl", None),
+        ("claudia@agrofresh.com", "bcc"),
+        ("calidad@agrofresh.com", "cc"),
+    )
+    tm.enviar_solicitud_por_correo(archivo, tm.EnvioSolicitudIn(), usuario=_usuario())
+
+    enviado = correo_capturado[0]
+    assert enviado["to"] == ["recepcion@quiteca-lab.cl"]
+    assert enviado["cc"] == ["calidad@agrofresh.com"]
+    assert enviado["bcc"] == ["claudia@agrofresh.com", "jorge.gomez@agrofresh.com"]
+
+
+@_necesita_base
+def test_nadie_recibe_el_correo_dos_veces(solicitud_guardada, correo_capturado):
+    """Si el creador de la solicitud además está configurado en copia oculta,
+    o alguien está en Para y en Copia a la vez, va una sola vez."""
+    archivo, _ = solicitud_guardada
+    _contactos(
+        ("recepcion@quiteca-lab.cl", None),
+        ("RECEPCION@quiteca-lab.cl", "cc"),
+        ("Jorge.Gomez@agrofresh.com", "bcc"),
+    )
+    tm.enviar_solicitud_por_correo(archivo, tm.EnvioSolicitudIn(), usuario=_usuario())
+
+    enviado = correo_capturado[0]
+    assert enviado["to"] == ["recepcion@quiteca-lab.cl"]
+    assert enviado["cc"] == []
+    assert [c.lower() for c in enviado["bcc"]] == ["jorge.gomez@agrofresh.com"]
+
+
+def test_solo_copias_sin_para_no_se_envia(solicitud_guardada, correo_capturado):
+    """Un correo necesita al menos un destinatario directo: si el laboratorio
+    solo tiene copias configuradas, se avisa en vez de mandar a nadie."""
+    archivo, _ = solicitud_guardada
+    _contactos(("claudia@agrofresh.com", "bcc"))
+    with pytest.raises(Exception) as error:
+        tm.enviar_solicitud_por_correo(archivo, tm.EnvioSolicitudIn(), usuario=_usuario())
+    assert getattr(error.value, "status_code", None) == 400
+    assert correo_capturado == []

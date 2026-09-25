@@ -41,6 +41,15 @@ export const TIPOS_COPIA: { valor: TipoCopia; etiqueta: string }[] = [
   { valor: 'bcc', etiqueta: 'Copia oculta' },
 ]
 
+/** Cómo va un contacto de `solicitud` en el correo de la solicitud. */
+export type EnvioSolicitud = 'para' | 'cc' | 'bcc'
+
+export const ENVIOS_SOLICITUD: { valor: EnvioSolicitud; etiqueta: string }[] = [
+  { valor: 'para', etiqueta: 'Para' },
+  { valor: 'cc', etiqueta: 'Copia (CC)' },
+  { valor: 'bcc', etiqueta: 'Copia oculta (CCO)' },
+]
+
 export interface Contacto {
   id: number
   laboratorio: string
@@ -56,6 +65,8 @@ export interface Contacto {
   especie: string
   /** Solo aplica cuando tipo === 'resultado_interno'. */
   tipo_copia: TipoCopia
+  /** Solo aplica cuando tipo === 'solicitud'. Sin valor = 'para'. */
+  envio?: EnvioSolicitud
   activo: boolean
   orden: number
 }
