@@ -191,6 +191,15 @@ avisos a mano. Las cuentas `cliente` no tienen acceso al router (403).
 **Una notificación nueva tiene que llevar `metadata={"tipo": ...}`** y ese tipo
 tiene que estar en `TIPOS`; si no, cae como `anuncio`.
 
+La bandeja muestra la **hora** de cada notificación («Hoy, 14:32»; el detalle
+trae fecha larga con segundos) y tiene un **buscador** como el de un correo:
+`GET /api/notificaciones?q=...` busca en TODAS las visibles (no solo las 60
+de la bandeja, tope 200), cada palabra debe aparecer en título, resumen,
+cuerpo, `creado_por` o los valores de la metadata, sin importar mayúsculas ni
+tildes. La normalización está en los dos lados (`normalizar_busqueda` en
+`notificaciones.py` y `lib/formato.ts`, que además resalta lo encontrado): si
+tocas una, toca la otra.
+
 ---
 
 ## Trampas conocidas (nos costaron tiempo)
@@ -241,10 +250,8 @@ tiene que estar en `TIPOS`; si no, cae como `anuncio`.
 Lo hecho hasta ahora está en el historial de la rama. Lo que **queda
 pendiente**, en orden de importancia:
 
-1. **El túnel Cloudflare**: falta confirmar que corra como servicio y no en
-   una consola abierta (`deploy/windows/3-configurar-tunel.ps1` lo deja
-   instalado; `estado.ps1` lo reporta). El **backend ya no es un pendiente**:
-   corre como tarea programada de Windows, verificado el 09-09-2026.
+1. ~~El túnel Cloudflare~~ **resuelto**: `estado.ps1` lo reporta como servicio
+   `Running` (25-09-2026), igual que el backend (tarea programada).
 2. **Etapa 4 del módulo AgroFresh Lab → Ingreso al laboratorio**: botón
    "Procesar" → modal con el listado de informes → guardar en R2 bajo
    `informes/<fecha>/` → tabla abajo para descargarlos todos o de a uno.

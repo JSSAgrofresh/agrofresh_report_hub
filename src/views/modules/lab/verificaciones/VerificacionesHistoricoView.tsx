@@ -305,8 +305,8 @@ export function VerificacionesHistoricoView() {
         <div className={styles.seccionCabecera}>
           <h3 className={styles.seccionTitulo}>Resumen diario</h3>
           <p className={styles.seccionNota}>
-            Haz clic en un día para abrirlo. Los veredictos se recalculan con los criterios vigentes,
-            así que apretar una tolerancia también revisa la historia.
+            Haz clic en un día para abrirlo. Cada día se juzga con los criterios que regían ese día:
+            cambiar un criterio hoy no altera los días anteriores.
           </p>
         </div>
         <div className={styles.seccionCuerpo}>
