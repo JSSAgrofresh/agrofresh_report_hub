@@ -277,6 +277,12 @@ export interface Registro {
   resultados_seccion: Record<Seccion, Resultado>
   resultado: ResultadoDia
   secciones_guardadas: Record<string, SeccionLock>
+  /**
+   * Los catálogos con los criterios con que se juzgó ESTE día (congelados al
+   * guardar cada sección). Un día pasado se pinta con estos, no con los
+   * vigentes: cambiar un criterio no reescribe la historia.
+   */
+  criterios?: ConfigVerificaciones | null
 }
 
 /** Una fila del resumen diario: el día y cómo salió cada sección. */

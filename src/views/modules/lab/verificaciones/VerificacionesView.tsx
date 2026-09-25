@@ -98,7 +98,11 @@ export function VerificacionesView() {
     (user.tipoAcceso === 'admin_area' && user.area === 'cromatografia')
   )
 
+  // `config` son los criterios con que se juzga el día abierto: los congelados
+  // del día si ya se guardó, o los vigentes si no. `vigentes` son los del
+  // catálogo hoy, para volver a ellos si se borra el día o una sección.
   const [config, setConfig] = useState<ConfigVerificaciones | null>(null)
+  const [vigentes, setVigentes] = useState<ConfigVerificaciones | null>(null)
   const [borrador, setBorrador] = useState<RegistroInput | null>(null)
   const [cargando, setCargando] = useState(true)
   const [guardando, setGuardando] = useState(false)
@@ -123,7 +127,8 @@ export function VerificacionesView() {
       .then(([catalogos, registro]) => {
         if (!vigente) return
         setError(null)
-        setConfig(catalogos)
+        setVigentes(catalogos)
+        setConfig(registro?.criterios ?? catalogos)
         setSeccionesGuardadas(registro?.secciones_guardadas ?? {})
 
         // Intentar restaurar borrador local.
@@ -248,7 +253,9 @@ export function VerificacionesView() {
     try {
       const guardado = await guardarRegistro(fecha, borrador)
       try { localStorage.removeItem(claveLocal) } catch { /* ok */ }
-      if (config) setBorrador(registroABorrador(guardado, config))
+      const criterios = guardado.criterios ?? config
+      if (guardado.criterios) setConfig(guardado.criterios)
+      if (criterios) setBorrador(registroABorrador(guardado, criterios))
       setGuardadoEn(guardado.actualizado_en)
       setSucio(false)
     } catch (e) {
@@ -265,6 +272,7 @@ export function VerificacionesView() {
     try {
       const guardado = await guardarSeccion(fecha, seccion, borrador)
       setSeccionesGuardadas(guardado.secciones_guardadas)
+      if (guardado.criterios) setConfig(guardado.criterios)
       setGuardadoEn(guardado.actualizado_en)
       // El borrador no cambia: el usuario puede seguir llenando otras secciones.
       // Actualizamos localStorage para reflejar el estado actual.
@@ -283,6 +291,9 @@ export function VerificacionesView() {
     setError(null)
     try {
       await limpiarSeccion(fecha, seccion)
+      // La sección soltó sus criterios congelados: vuelve a los vigentes.
+      const actualizado = await obtenerRegistro(fecha)
+      setConfig(actualizado?.criterios ?? vigentes ?? config)
       setSeccionesGuardadas((prev) => {
         const nuevo = { ...prev }
         delete nuevo[seccion]
@@ -312,7 +323,8 @@ export function VerificacionesView() {
     try {
       if (guardadoEn) await eliminarRegistro(fecha)
       try { localStorage.removeItem(claveLocal) } catch { /* ok */ }
-      setBorrador(borradorVacio(config))
+      if (vigentes) setConfig(vigentes)
+      setBorrador(borradorVacio(vigentes ?? config))
       setGuardadoEn(null)
       setSucio(false)
     } catch (e) {

@@ -107,6 +107,7 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/limpiar_bd_excel.py` | Normaliza el Excel maestro BD antes de ingestar (laboratorio, guiones, GC) |
 | `scripts/actualizar_codigos_sap.py` | Actualiza `codigo_sap` en `cliente`/`planta` desde el Excel maestro SAP |
 | `scripts/sembrar_especies_variedades.py` | Crea especies y variedades estándar en `valor_lista` desde el Excel BD |
+| `scripts/congelar_criterios_verificaciones.py` | Congela los criterios de los días de verificación guardados antes de la 0040 (`--param clave=valor` con los valores viejos) |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
 Hay ~9 scripts en `backend/scripts/` que fueron migraciones de una sola vez
@@ -162,8 +163,13 @@ veredicto mientras se escribe. Los dos se prueban contra los MISMOS casos
 (`tests/test_verificaciones.py` y `calculos.test.ts`) — si tocas uno, toca el
 otro y sus pruebas.
 
-**Los veredictos se recalculan al leer**, no se confía en la columna guardada:
-por eso apretar una tolerancia en Criterios también revisa el histórico.
+**Un día se juzga con los criterios que regían ESE día.** Cada sección congela
+sus criterios la primera vez que se guarda (`verif_registro.criterios`, JSONB,
+migración 0040); cambiar una tolerancia en Criterios **no** reescribe días
+pasados (antes sí lo hacía, y eso tumbó días aprobados cuando se movió el
+output 19–22). Limpiar una sección suelta sus criterios. Los días guardados
+antes de la 0040 se congelan con `scripts/congelar_criterios_verificaciones.py`.
+El registro trae `criterios` y la pantalla los usa para pintar el día.
 
 ---
 
