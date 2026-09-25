@@ -331,6 +331,10 @@ const ANALITOS = {
 var CAT = (typeof CATALOGOS !== "undefined") ? CATALOGOS
         : {catalogo:{}, alias:{}, productos:{}, variedad_especie:{}};
 
+function palabras(s){
+  return plano(s).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 function compacto(s){
   return plano(s).replace(/[\s'\u2019\-/]/g, "");
 }
@@ -356,8 +360,9 @@ function oficialesPara(campo, inf){
 }
 
 /* Lleva un valor a su forma oficial. Devuelve qué se hizo, para poder mostrarlo.
-   `oficiales` acota los valores válidos (ej. las plantas de un Sold To). */
-function homogenizar(campo, valor, oficiales){
+   `oficiales` acota los valores válidos (ej. las plantas de un Sold To);
+   `deUnCliente` dice que son las plantas de UN cliente ya resuelto. */
+function homogenizar(campo, valor, oficiales, deUnCliente){
   if(!valor) return {valor: valor, estado: "vacio"};
   const of = oficiales || CAT.catalogo[campo] || [];
   const ali = CAT.alias[campo] || {};
@@ -383,6 +388,16 @@ function homogenizar(campo, valor, oficiales){
   // nombre abreviado, solo si no hay ambigüedad
   const cand = of.filter(o => compacto(o).startsWith(c) && c.length >= 5);
   if(cand.length === 1) return {valor: cand[0], estado: "corregido", antes: bruto};
+
+  // la única planta del cliente que contiene lo que dice el informe:
+  // "SAN FERNANDO" -> "DOLE PLANTA SAN FERNANDO". Palabras completas, y solo
+  // entre las plantas de su Sold To (misma regla que homogenizador.py, 5b).
+  if(deUnCliente){
+    const pal = " " + palabras(bruto) + " ";
+    const contienen = of.filter(o => (" " + palabras(o) + " ").includes(pal));
+    if(pal.trim().length >= 3 && contienen.length === 1)
+      return {valor: contienen[0], estado: "corregido", antes: bruto};
+  }
 
   return {valor: bruto, estado: "fuera_de_catalogo",
           sugerencias: cand.slice(0, 4)};
@@ -697,7 +712,8 @@ function revisarCatalogo(inf){
     delete inf.manual[col];
     if(inf.crudos[col]) inf.datos[col] = inf.crudos[col];
     else delete inf.datos[col];
-    const r = homogenizar(CAMPOS_CAT[col], inf.datos[col], oficiales);
+    const deUnCliente = col === "Ship To" && !!LISTADOS.plantasPorCliente[inf.datos["Sold To"]];
+    const r = homogenizar(CAMPOS_CAT[col], inf.datos[col], oficiales, deUnCliente);
     if(r.estado === "vacio"){
       inf.revision.push({campo:col, estado:"vacio",
                          detalle:"el informe no trae este dato"});
