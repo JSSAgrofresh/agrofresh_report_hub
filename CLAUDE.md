@@ -241,10 +241,8 @@ tiene que estar en `TIPOS`; si no, cae como `anuncio`.
 Lo hecho hasta ahora está en el historial de la rama. Lo que **queda
 pendiente**, en orden de importancia:
 
-1. **El túnel Cloudflare**: falta confirmar que corra como servicio y no en
-   una consola abierta (`deploy/windows/3-configurar-tunel.ps1` lo deja
-   instalado; `estado.ps1` lo reporta). El **backend ya no es un pendiente**:
-   corre como tarea programada de Windows, verificado el 09-09-2026.
+1. ~~El túnel Cloudflare~~ **resuelto**: `estado.ps1` lo reporta como servicio
+   `Running` (25-09-2026), igual que el backend (tarea programada).
 2. **Etapa 4 del módulo AgroFresh Lab → Ingreso al laboratorio**: botón
    "Procesar" → modal con el listado de informes → guardar en R2 bajo
    `informes/<fecha>/` → tabla abajo para descargarlos todos o de a uno.
