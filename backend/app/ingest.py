@@ -927,51 +927,34 @@ def preview(payload: CargaRequest) -> dict[str, Any]:
 
 @router.post("/confirmar")
 def confirmar(payload: CargaRequest, usuario: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
-    """Ingest nunca escribe solicitudes: deja cada fila en staging para que
-    Data Core homologue los cuatro maestros y recién después la promueva."""
+    """Carga real -la usa el Converter-: inserta en la base lo que calza con
+    Listados, igual que la Ingesta de Datos. Lo que no calza NO se inserta:
+    queda en pendiente_revision, que se ve y se reintenta o descarta desde
+    Ingesta de Datos → Pendientes.
+
+    Antes esto dejaba TODAS las filas en esa tabla como una "copia de
+    trabajo" que había que promover desde una pantalla que ya no existe, y
+    se negaba a cargar mientras quedara una sola fila: un informe subido por
+    el Converter nunca llegaba al Report.
+    """
     with conexion(escribir=True) as conn:
         with cursor_dict(conn) as cur:
-            # Una sola copia de Ingest puede estar activa. El advisory lock
-            # también evita que dos cargas simultáneas pasen el count a la vez.
-            cur.execute("SELECT pg_advisory_xact_lock(hashtext('agrofresh_ingest_copia_activa'))")
-            cur.execute("SELECT count(*) AS total FROM pendiente_revision")
-            activas = cur.fetchone()["total"]
-            if activas:
-                raise HTTPException(
-                    status_code=409,
-                    detail=(
-                        f"Ya existe una copia de trabajo activa con {activas} filas en Data Core. "
-                        "Debes enviarla a la BD o descartarla antes de cargar otro Excel."
-                    ),
-                )
-            mapas = _cargar_mapas_listados(cur)
-            for fila_cruda in payload.filas:
-                fila = {str(k).strip(): v for k, v in fila_cruda.items()}
-                sol = mapeo.mapear_solicitud(fila)
-                motivos = _resolver_listados(sol, mapas, [])
-                fila["__homogenizacion__"] = {
-                    campo: sol[campo] for campo in CAMPOS_LISTADOS
-                    if sol.get(campo) and campo not in {m["campo"] for m in motivos}
-                }
-                cur.execute(
-                    "INSERT INTO pendiente_revision (origen, fila, motivos) VALUES (%s, %s::jsonb, %s::jsonb)",
-                    (payload.origen, json.dumps(fila), json.dumps(motivos)),
-                )
+            resultado = _procesar_filas(cur, payload.filas, escribir=True, origen=payload.origen)
+            r = resultado["resumen"]
             nombre_quien = usuario.nombre or usuario.email
             insertar_notif(
                 cur,
                 titulo=f"📥 Carga de datos completada · {payload.origen}",
                 resumen=(
-                    f"{nombre_quien} completó la carga del archivo {payload.origen!r} "
-                    f"en AgroFresh Report Hub. {len(payload.filas)} fila(s) en Data Core pendientes de revisión."
+                    f"{nombre_quien} cargó {len(payload.filas)} fila(s) desde {payload.origen!r}: "
+                    f"{r['solicitudes_nuevas']} solicitud(es) nueva(s), {r['resultados']} resultado(s)"
+                    + (f", {r['pendientes_revision']} pendiente(s) de revisión." if r["pendientes_revision"] else ".")
                 ),
                 creado_por=nombre_quien,
                 metadata={"tipo": "carga_datos", "origen": payload.origen},
             )
-    return {
-        "modo": "confirmado", "resumen": {**RESUMEN_VACIO, "pendientes_revision": len(payload.filas)},
-        "detalle": [], "advertencias": ["Las filas quedaron en Data Core; todavía no se insertaron en la base."],
-    }
+    resultado["modo"] = "confirmado"
+    return resultado
 
 
 class AsignarGrupoIn(BaseModel):
