@@ -295,6 +295,40 @@ def test_limpiar_una_seccion_suelta_sus_criterios(limpio, config, restaurar_crit
     assert registro.detector.resultado_voltaje == v.NO_ACEPTABLE
 
 
+def test_una_seccion_vacia_al_guardar_el_dia_no_congela_criterios(limpio, config, restaurar_criterios):
+    """"Guardar el día" en la mañana, con el detector todavía vacío, no puede
+    dejar fijo el criterio del detector: si a mediodía cambia el método y su
+    rango, el detector de la tarde se juzga con el rango de la tarde."""
+    guardar(_dia(config, detector=v.DetectorIn()))
+    _cambiar_voltaje(0.6, 1)
+    registro = guardar(_dia(config, detector=v.DetectorIn(voltaje_perla=0.5, metodo_nombre="PFBBR")))
+    assert registro.detector.resultado_voltaje == v.NO_ACEPTABLE
+    # Y lo que ya tenía datos en la mañana sigue con los criterios de la mañana.
+    assert registro.resultados_seccion["micropipetas"] == v.ACEPTABLE
+
+
+def test_un_dia_anterior_no_cambia_aunque_se_guarde_otro_dia_con_criterios_nuevos(
+    limpio, config, restaurar_criterios
+):
+    """Días distintos, métodos distintos: guardar HOY con criterios nuevos no
+    toca cómo quedó AYER."""
+    otro = date(2020, 1, 16)
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("DELETE FROM verif_registro WHERE fecha = %s", [otro])
+    try:
+        guardar(_dia(config, detector=v.DetectorIn(voltaje_perla=0.5, metodo_nombre="PFBBR")))
+        _cambiar_voltaje(0.6, 1)
+        hoy = v.guardar_registro(
+            otro, _dia(config, detector=v.DetectorIn(voltaje_perla=0.5, metodo_nombre="Otro")), usuario=ANALISTA
+        )
+        assert hoy.detector.resultado_voltaje == v.NO_ACEPTABLE
+        assert v.obtener_registro(FECHA).detector.resultado_voltaje == v.ACEPTABLE
+        assert v.obtener_registro(FECHA).resultado == v.ACEPTABLE
+    finally:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute("DELETE FROM verif_registro WHERE fecha = %s", [otro])
+
+
 def test_el_output_es_solo_registro_y_nunca_tumba_el_dia(limpio, config):
     """El output del detector se anota pero no se juzga: ni un valor absurdo
     cambia el resultado del día."""

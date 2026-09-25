@@ -726,6 +726,23 @@ def config_del_dia(config: dict, congelados: dict | None) -> dict:
     return dia
 
 
+def _congelar_y_armar(cur, registro_id: int, config: dict, secciones) -> "Registro":
+    """Congela los criterios de las secciones guardadas QUE YA TIENEN DATOS y
+    devuelve el día armado con ellos.
+
+    Una sección vacía no se congela: si en la mañana se guarda el día sin el
+    detector y a mediodía se cambia el método y sus criterios, el detector de
+    la tarde tiene que juzgarse con los criterios de la tarde, no con los de
+    la mañana."""
+    cur.execute("SELECT * FROM verif_registro WHERE id = %s", [registro_id])
+    previo = _armar_registro(cur, dict(cur.fetchone()), config)
+    con_datos = [s for s in secciones if previo.resultados_seccion.get(s, SIN_MEDIR) != SIN_MEDIR]
+    if con_datos:
+        _congelar_criterios(cur, registro_id, config, con_datos)
+    cur.execute("SELECT * FROM verif_registro WHERE id = %s", [registro_id])
+    return _armar_registro(cur, dict(cur.fetchone()), config)
+
+
 def _congelar_criterios(cur, registro_id: int, config: dict, secciones) -> None:
     """Congela los criterios de las secciones que todavía no los tengan. Las
     que ya estaban congeladas NO se tocan: `||` deja ganar al lado derecho,
@@ -1378,9 +1395,7 @@ def guardar_registro(
         )
 
         config = _leer_config(cur)
-        _congelar_criterios(cur, registro_id, config, SECCIONES)
-        cur.execute("SELECT * FROM verif_registro WHERE id = %s", [registro_id])
-        registro = _armar_registro(cur, dict(cur.fetchone()), config)
+        registro = _congelar_y_armar(cur, registro_id, config, SECCIONES)
 
         # Los resultados también se guardan, aunque al leer se recalculen: el
         # día que alguien mire la base directamente -o la respalde- tiene que
@@ -1592,9 +1607,7 @@ def guardar_seccion(
         )
 
         config = _leer_config(cur)
-        _congelar_criterios(cur, registro_id, config, (seccion,))
-        cur.execute("SELECT * FROM verif_registro WHERE id = %s", [registro_id])
-        registro = _armar_registro(cur, dict(cur.fetchone()), config)
+        registro = _congelar_y_armar(cur, registro_id, config, (seccion,))
         _guardar_resultados(cur, registro_id, registro)
         return registro
 
