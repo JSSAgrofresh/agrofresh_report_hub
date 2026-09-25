@@ -173,6 +173,7 @@ table.uni tbody tr:nth-child(even){background:#FBFCFA}
       <span class="paso-n">02</span><h2>Análisis de datos</h2>
       <span class="ayuda">Homogeneización contra el catálogo oficial</span>
     </div>
+    <p class="pie" id="estadoListados" style="margin:0 0 12px">Leyendo los listados de la base…</p>
     <div class="resumen" id="resumen"></div>
     <div class="fichas" id="revision"></div>
   </section>
@@ -334,17 +335,41 @@ function compacto(s){
   return plano(s).replace(/[\s'\u2019\-/]/g, "");
 }
 
-/* Lleva un valor a su forma oficial. Devuelve qué se hizo, para poder mostrarlo. */
-function homogenizar(campo, valor){
+/* Listados en vivo, leídos de la base al abrir el Converter (ver
+   cargarListados más abajo). La copia de CATALOGOS pegada arriba es una foto
+   vieja de Listados: solo se usa si la base no responde. */
+const LISTADOS = {enVivo: false, plantasPorCliente: {}, variedadesPorEspecie: {}};
+
+/* Valores oficiales que corresponden a un campo DE ESTE informe: el Ship To
+   solo puede ser una planta de su Sold To, y la Variedad una de su Especie
+   (misma jerarquía que usa el backend al cargar, ver ingest._resolver_listados). */
+function oficialesPara(campo, inf){
+  if(campo === "ship_to"){
+    const plantas = LISTADOS.plantasPorCliente[inf && inf.datos["Sold To"]];
+    if(plantas) return plantas;
+  }
+  if(campo === "variedad"){
+    const variedades = LISTADOS.variedadesPorEspecie[inf && inf.datos["Especie"]];
+    if(variedades) return variedades;
+  }
+  return CAT.catalogo[campo] || [];
+}
+
+/* Lleva un valor a su forma oficial. Devuelve qué se hizo, para poder mostrarlo.
+   `oficiales` acota los valores válidos (ej. las plantas de un Sold To). */
+function homogenizar(campo, valor, oficiales){
   if(!valor) return {valor: valor, estado: "vacio"};
-  const of = CAT.catalogo[campo] || [];
+  const of = oficiales || CAT.catalogo[campo] || [];
   const ali = CAT.alias[campo] || {};
   const bruto = String(valor).trim();
 
   if(of.includes(bruto)) return {valor: bruto, estado: "ok"};
 
   const p = plano(bruto);
-  if(ali[p]) return {valor: ali[p], estado: ali[p] === bruto ? "ok" : "corregido", antes: bruto};
+  // el alias tiene que apuntar a un valor válido para este informe: una
+  // planta con el mismo nombre en otro cliente no sirve
+  if(ali[p] && of.includes(ali[p]))
+    return {valor: ali[p], estado: ali[p] === bruto ? "ok" : "corregido", antes: bruto};
 
   const c = compacto(bruto);
   for(const o of of) if(compacto(o) === c)
@@ -636,12 +661,43 @@ function analizar(texto, nombreArchivo){
     if(inf.datos[k] === null || inf.datos[k] === "" || inf.datos[k] === "-")
       delete inf.datos[k];
 
-  /* --- homogeneización contra el catálogo oficial --- */
-  const CAMPOS_CAT = {"Sold To":"sold_to","Ship To":"ship_to",
-                      "Especie":"especie","Variedad":"variedad"};
+  // lo que dice el PDF, antes de homogenizar: se vuelve a partir de acá cada
+  // vez que se revisa el informe (ej. al cambiar el Sold To cambia qué
+  // plantas son válidas para el Ship To)
+  inf.crudos = {};
+  for(const col in CAMPOS_CAT) inf.crudos[col] = inf.datos[col];
+  inf.manual = {};
+  revisarCatalogo(inf);
+
+  const faltan = OBLIGATORIOS.filter(c => !inf.datos[c]);
+  if(faltan.length) inf.avisos.push("Sin dato para: " + faltan.join(", "));
+  if(!Object.keys(inf.resultados).length && !inf.sueltos.length)
+    inf.avisos.push("No se encontró ningún resultado en el informe");
+  return inf;
+}
+
+const CAMPOS_CAT = {"Sold To":"sold_to","Ship To":"ship_to",
+                    "Especie":"especie","Variedad":"variedad"};
+
+/* Homogeneización contra el catálogo oficial. En este orden a propósito: el
+   Ship To se busca entre las plantas del Sold To ya resuelto, y la Variedad
+   entre las de la Especie ya resuelta. Lo elegido a mano se respeta mientras
+   siga siendo válido. */
+function revisarCatalogo(inf){
   inf.revision = [];
   for(const col in CAMPOS_CAT){
-    const r = homogenizar(CAMPOS_CAT[col], inf.datos[col]);
+    const oficiales = oficialesPara(CAMPOS_CAT[col], inf);
+    const manual = inf.manual[col];
+    if(manual && oficiales.includes(manual)){
+      inf.datos[col] = manual;
+      inf.revision.push({campo:col, estado:"corregido", antes:inf.crudos[col] || "(vacío)",
+                         ahora:manual, detalle:"elegido a mano del catálogo"});
+      continue;
+    }
+    delete inf.manual[col];
+    if(inf.crudos[col]) inf.datos[col] = inf.crudos[col];
+    else delete inf.datos[col];
+    const r = homogenizar(CAMPOS_CAT[col], inf.datos[col], oficiales);
     if(r.estado === "vacio"){
       inf.revision.push({campo:col, estado:"vacio",
                          detalle:"el informe no trae este dato"});
@@ -671,12 +727,6 @@ function analizar(texto, nombreArchivo){
                          detalle:"«" + vari + "» se ha usado siempre con " +
                                  esperadas.join(" o ") + ", no con " + esp});
   }
-
-  const faltan = OBLIGATORIOS.filter(c => !inf.datos[c]);
-  if(faltan.length) inf.avisos.push("Sin dato para: " + faltan.join(", "));
-  if(!Object.keys(inf.resultados).length && !inf.sueltos.length)
-    inf.avisos.push("No se encontró ningún resultado en el informe");
-  return inf;
 }
 
 function fila(inf){
@@ -824,21 +874,9 @@ function pintarAnalisis(ok){
         else val = '<span class="antes" style="text-decoration:none;color:var(--error)">' +
                    esc(r.antes) + "</span>";
 
-        // desplegable para elegir el valor oficial
-        let fix = "";
-        if(r.estado === "fuera" || r.estado === "vacio"){
-          const clave = CAMPO_CLAVE[r.campo];
-          if(clave){
-            const lista = CAT.catalogo[clave] || [];
-            const sug = (r.sugerencias || []).filter(s => lista.includes(s));
-            const resto = lista.filter(s => !sug.includes(s));
-            fix = '<select class="fix" data-inf="' + k + '" data-campo="' + esc(r.campo) + '">' +
-              '<option value="">— elegir del catálogo —</option>' +
-              (sug.length ? '<optgroup label="Parecidos">' +
-                 sug.map(s => '<option>' + esc(s) + "</option>").join("") + "</optgroup>" : "") +
-              resto.map(s => '<option>' + esc(s) + "</option>").join("") + "</select>";
-          }
-        }
+        // desplegable para elegir (o cambiar) el valor oficial: siempre
+        // disponible, también si la homogeneización automática se equivocó
+        const fix = CAMPO_CLAVE[r.campo] ? selectorCatalogo(inf, k, r) : "";
         return "<tr><td>" + esc(r.campo) + '</td><td><span class="est ' + r.estado + '">' +
                ETIQ_EST[r.estado] + "</span></td><td>" + val + (fix ? "<br>" + fix : "") +
                '</td><td style="font-size:12px;color:var(--tinta-3)">' +
@@ -851,14 +889,111 @@ function pintarAnalisis(ok){
   cont.querySelectorAll("select.fix").forEach(s => s.onchange = () => {
     if(!s.value) return;
     const inf = ok[+s.dataset.inf];
-    inf.datos[s.dataset.campo] = s.value;
-    const r = inf.revision.find(x => x.campo === s.dataset.campo);
-    r.estado = "corregido";
-    r.antes = r.antes || "(vacío)";
-    r.ahora = s.value;
-    r.detalle = "elegido a mano del catálogo";
+    const eleccion = JSON.parse(s.value);
+    // una planta elegida desde la lista agrupada por cliente trae su Sold To:
+    // esa planta solo existe bajo ese cliente
+    if(eleccion.soldTo) inf.manual["Sold To"] = eleccion.soldTo;
+    inf.manual[s.dataset.campo] = eleccion.valor;
+    revisarCatalogo(inf);   // p.ej. otro Sold To cambia qué Ship To son válidos
     pintar();
   });
+}
+
+function opcion(valor, texto, extra){
+  return "<option value='" + esc(JSON.stringify(Object.assign({valor: valor}, extra || {})))
+    .replace(/'/g, "&#39;") + "'>" + esc(texto || valor) + "</option>";
+}
+
+/* El desplegable de un campo del catálogo. Ship To muestra solo las plantas
+   del Sold To de este informe; si el Sold To todavía no está resuelto, todas,
+   agrupadas por cliente. Variedad, igual con su Especie. */
+function selectorCatalogo(inf, k, r){
+  const clave = CAMPO_CLAVE[r.campo];
+  const lista = oficialesPara(clave, inf);
+  const sug = (r.sugerencias || []).filter(s => lista.includes(s));
+  let opciones = "";
+  if(sug.length)
+    opciones += '<optgroup label="Parecidos">' + sug.map(s => opcion(s)).join("") + "</optgroup>";
+
+  const soldTo = inf.datos["Sold To"];
+  if(clave === "ship_to" && !LISTADOS.plantasPorCliente[soldTo] && LISTADOS.enVivo){
+    for(const cliente of Object.keys(LISTADOS.plantasPorCliente).sort())
+      opciones += '<optgroup label="' + esc(cliente) + '">' +
+        LISTADOS.plantasPorCliente[cliente].map(p => opcion(p, p, {soldTo: cliente})).join("") +
+        "</optgroup>";
+  }else{
+    opciones += lista.filter(s => !sug.includes(s)).map(s => opcion(s)).join("");
+  }
+
+  let titulo = "— elegir del catálogo —";
+  if(clave === "ship_to" && LISTADOS.plantasPorCliente[soldTo])
+    titulo = "— plantas de " + soldTo + " —";
+  else if(clave === "variedad" && LISTADOS.variedadesPorEspecie[inf.datos["Especie"]])
+    titulo = "— variedades de " + inf.datos["Especie"] + " —";
+  if(r.estado === "ok" || r.estado === "corregido") titulo = "— cambiar —";
+
+  return '<select class="fix" data-inf="' + k + '" data-campo="' + esc(r.campo) + '">' +
+    '<option value="">' + esc(titulo) + "</option>" + opciones + "</select>";
+}
+
+/* ============ listados en vivo ============ */
+async function leerApi(ruta){
+  const resp = await fetch(API_BASE + ruta, {headers: autorizacion()});
+  if(!resp.ok) throw new Error(ruta + " respondió " + resp.status);
+  return resp.json();
+}
+
+/* Trae de la base Sold To, Ship To, Especie y Variedad -lo mismo que
+   administra Listados y contra lo que valida el backend al cargar-. Si la
+   base no responde se sigue con la copia guardada en este archivo, y se
+   avisa, porque esa copia puede no tener lo último que se agregó. */
+async function cargarListados(){
+  const aviso = $("estadoListados");
+  try{
+    const [clientes, plantas, especies, variedades] = await Promise.all([
+      leerApi("/catalogo/clientes"), leerApi("/catalogo/plantas"),
+      leerApi("/listados/especie"), leerApi("/listados/variedad"),
+    ]);
+    const orden = (a, b) => a.localeCompare(b, "es");
+    const clientesActivos = clientes.filter(c => c.activo).map(c => c.nombre);
+    const porCliente = {};
+    plantas.filter(p => p.activo && clientesActivos.includes(p.cliente_nombre)).forEach(p =>
+      (porCliente[p.cliente_nombre] = porCliente[p.cliente_nombre] || []).push(p.nombre));
+    for(const c in porCliente) porCliente[c].sort(orden);
+
+    const nombreEspecie = {};
+    especies.forEach(e => nombreEspecie[e.id] = e.valor);
+    const porEspecie = {}, variedadEspecie = {};
+    variedades.filter(v => !v.fusionado_en_id).forEach(v => {
+      const esp = nombreEspecie[v.especie_id];
+      if(!esp) return;
+      (porEspecie[esp] = porEspecie[esp] || []).push(v.valor);
+      (variedadEspecie[v.valor] = variedadEspecie[v.valor] || []).push(esp);
+    });
+    for(const e in porEspecie) porEspecie[e].sort(orden);
+
+    CAT.catalogo = {
+      sold_to: clientesActivos.slice().sort(orden),
+      ship_to: [...new Set(Object.values(porCliente).flat())].sort(orden),
+      especie: especies.filter(e => !e.fusionado_en_id).map(e => e.valor).sort(orden),
+      variedad: [...new Set(variedades.filter(v => !v.fusionado_en_id).map(v => v.valor))].sort(orden),
+    };
+    CAT.variedad_especie = variedadEspecie;
+    LISTADOS.plantasPorCliente = porCliente;
+    LISTADOS.variedadesPorEspecie = porEspecie;
+    LISTADOS.enVivo = true;
+    aviso.textContent = "Listados leídos de la base: " + CAT.catalogo.sold_to.length + " Sold To, " +
+      Object.values(porCliente).flat().length + " Ship To, " + CAT.catalogo.especie.length +
+      " especies, " + CAT.catalogo.variedad.length + " variedades.";
+    aviso.style.color = "";
+  }catch(err){
+    aviso.textContent = "⚠ No se pudieron leer los listados de la base (" + err.message + "). " +
+      "Se usa una copia guardada, que puede no tener los Sold To / Ship To más nuevos.";
+    aviso.style.color = "var(--error)";
+  }
+  // los informes que ya estaban cargados se revisan de nuevo con los listados reales
+  informes.filter(i => i.laboratorio).forEach(revisarCatalogo);
+  pintar();
 }
 
 function pintarTabla(ok){
@@ -1058,6 +1193,7 @@ $("btnLimpiar").onclick = () => {
 };
 
 pintar();
+cargarListados();
 </script>
 </body>
 </html>
