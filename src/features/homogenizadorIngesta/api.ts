@@ -47,9 +47,11 @@ export function confirmarIngesta(
     variedad: Record<string, string>
   },
   preview = false,
+  archivo?: string,
 ): Promise<ResumenIngesta> {
   return httpClient.post<ResumenIngesta>('/homogenizador-ingesta/confirmar', {
     token,
+    archivo: archivo ?? null,
     sold_to: { mapeo: mapeos.sold_to },
     ship_to: { mapeo: mapeos.ship_to },
     especie: { mapeo: mapeos.especie },

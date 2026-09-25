@@ -15,6 +15,8 @@ export {
   descartarLotePendientes,
   reintentarPendientes,
   validarEstructuraExcel,
+  listarCargas,
+  deshacerCarga,
 } from './lib/api'
 export type {
   ResumenCarga,
@@ -24,4 +26,6 @@ export type {
   PaginaPendientes,
   MotivoPendiente,
   ResultadoValidacionEstructura,
+  CargaDatos,
+  HistorialCargas,
 } from './lib/api'

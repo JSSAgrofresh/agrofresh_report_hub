@@ -190,6 +190,16 @@ reintenta y descarta en **Ingesta de Datos → Filas pendientes**, sin subir
 archivo. (Antes `/ingest/confirmar` dejaba todo ahí como "copia de trabajo" y
 daba 409 mientras quedara una fila: ya no existe ese bloqueo.)
 
+**Cada carga queda registrada** (migración 0042, tabla `carga_datos`): quién,
+cuándo, Excel o PDF y el nombre del archivo. Todo lo que inserta lleva su
+`carga_id` (solicitud, resultado, producto_aplicado y pendiente_revision; al
+reintentar una pendiente conserva su carga). La pantalla de inicio de la
+Ingesta muestra las últimas cargas con lo que tienen HOY y un botón
+**Deshacer** que borra exactamente esa carga (`POST /ingest/cargas/{id}/deshacer`).
+No deshace si otra carga agregó resultados a sus informes (409): primero se
+deshace la otra. Lo cargado antes de la 0042 no tiene carga y no se puede
+deshacer desde la pantalla. Sin la 0042 corrida se carga igual, sin registrar.
+
 El Ship To se busca **solo entre las plantas de su Sold To**. Si el Excel trae
 la ciudad ("SAN FERNANDO") vale la planta que la contiene, si es una sola
 ("DOLE PLANTA SAN FERNANDO", regla `contiene` de `homogenizador.py`, igual en

@@ -35,6 +35,7 @@ from .ingest import (
     _cargar_mapas_listados,
     _procesar_filas,
     clave_normalizada_empresa,
+    crear_carga,
 )
 from .listados import clave_normalizada
 
@@ -263,12 +264,14 @@ class ConfirmarRequest(BaseModel):
     especie: MapeoColumna
     variedad: MapeoColumna
     preview: bool = False
+    # Nombre del Excel, solo para el historial de cargas.
+    archivo: str | None = None
 
 
 @router.post("/confirmar")
 def confirmar(
     payload: ConfirmarRequest,
-    _usuario: Usuario = Depends(usuario_actual),
+    usuario: Usuario = Depends(usuario_actual),
 ) -> dict[str, Any]:
     """Aplica los mapeos a todas las filas del Excel y las ingesta (o hace
     preview). Las filas cuyo Sold To, Especie o Variedad hayan sido mapeados a
@@ -350,7 +353,14 @@ def confirmar(
 
     with conexion(escribir=escribir) as conn:
         with cursor_dict(conn) as cur:
-            resultado = _procesar_filas(cur, filas_procesadas, escribir=escribir, acumular_detalle=False)
+            carga_id = (
+                crear_carga(cur, "ingest", payload.archivo, len(filas_procesadas), usuario.nombre or usuario.email)
+                if escribir
+                else None
+            )
+            resultado = _procesar_filas(
+                cur, filas_procesadas, escribir=escribir, acumular_detalle=False, carga_id=carga_id
+            )
 
     resumen = resultado["resumen"]
     resumen["descartadas"] = descartadas

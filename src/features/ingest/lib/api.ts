@@ -95,7 +95,9 @@ export function listarPendientes(pagina = 1, tamano = 50) {
 }
 
 export function aprobarPendiente(id: number, correcciones?: Record<string, string>) {
-  return httpClient.post<RespuestaCarga>(`/ingest/pendientes/${id}/aprobar`, { correcciones: correcciones ?? null })
+  return httpClient.post<RespuestaCarga>(`/ingest/pendientes/${id}/aprobar`, {
+    correcciones: correcciones ?? null,
+  })
 }
 
 export function descartarPendiente(id: number) {
@@ -103,13 +105,18 @@ export function descartarPendiente(id: number) {
 }
 
 export function aprobarLotePendientes(ids?: number[]) {
-  return httpClient.post<{ aprobados: number; resumen: ResumenCarga }>('/ingest/pendientes/aprobar-lote', {
-    ids: ids ?? null,
-  })
+  return httpClient.post<{ aprobados: number; resumen: ResumenCarga }>(
+    '/ingest/pendientes/aprobar-lote',
+    {
+      ids: ids ?? null,
+    },
+  )
 }
 
 export function descartarLotePendientes(ids?: number[]) {
-  return httpClient.post<{ descartados: number }>('/ingest/pendientes/descartar-lote', { ids: ids ?? null })
+  return httpClient.post<{ descartados: number }>('/ingest/pendientes/descartar-lote', {
+    ids: ids ?? null,
+  })
 }
 
 export function reintentarPendientes(ids?: number[]) {
@@ -117,4 +124,39 @@ export function reintentarPendientes(ids?: number[]) {
     '/ingest/pendientes/reintentar',
     { ids: ids ?? null },
   )
+}
+
+/** Una carga a la base (Ingesta de Datos o Converter), con lo que tiene hoy. */
+export interface CargaDatos {
+  id: number
+  origen: 'ingest' | 'converter'
+  archivo: string | null
+  filas: number
+  creado_por: string | null
+  creado_en: string
+  deshecha_en: string | null
+  deshecha_por: string | null
+  solicitudes: number
+  resultados: number
+  pendientes: number
+}
+
+export interface HistorialCargas {
+  /** false mientras no se corra la migración 0042 en el servidor. */
+  disponible: boolean
+  cargas: CargaDatos[]
+}
+
+export function listarCargas(limite = 30) {
+  return httpClient.get<HistorialCargas>(`/ingest/cargas?limite=${limite}`)
+}
+
+export function deshacerCarga(id: number) {
+  return httpClient.post<{
+    carga_id: number
+    solicitudes: number
+    resultados: number
+    productos: number
+    pendientes: number
+  }>(`/ingest/cargas/${id}/deshacer`, {})
 }

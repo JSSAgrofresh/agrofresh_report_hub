@@ -1156,11 +1156,12 @@ function filaCruda(inf){
   return f;
 }
 
-async function llamarIngest(ruta, filas){
+async function llamarIngest(ruta, filas, archivo){
   const resp = await fetch(API_BASE + "/ingest/" + ruta, {
     method: "POST",
     headers: {"Content-Type": "application/json", ...autorizacion()},
-    body: JSON.stringify({filas, origen: "converter"}),
+    // el nombre de los PDF va al historial de cargas de Ingesta de Datos
+    body: JSON.stringify({filas, origen: "converter", archivo}),
   });
   if(!resp.ok){
     let detalle = "";
@@ -1174,6 +1175,7 @@ $("btnSubir").onclick = async () => {
   const ok = informes.filter(i => i.laboratorio);
   if(!ok.length) return;
   const filas = ok.map(filaCruda);
+  const archivos = ok.map(i => i.archivo).join(", ");
   const pie = $("pieSubir");
   const btn = $("btnSubir");
   btn.disabled = true;
@@ -1194,7 +1196,7 @@ $("btnSubir").onclick = async () => {
       "\n\n¿Confirmar la carga a la base de datos?";
     if(!confirm(msg)){ pie.textContent = "Carga cancelada."; btn.disabled = false; return; }
     pie.textContent = "Subiendo a la base de datos…";
-    const conf = await llamarIngest("confirmar", filas);
+    const conf = await llamarIngest("confirmar", filas, archivos);
     const c = conf.resumen;
     pie.textContent = "✔ Cargado: " + c.solicitudes_nuevas + " solicitud(es) nueva(s), " +
       c.solicitudes_existentes + " completada(s), " + c.resultados + " resultado(s) en total." +
