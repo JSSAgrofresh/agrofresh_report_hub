@@ -103,6 +103,13 @@ TIPOS_CONTACTO = ("solicitud", "resultado_cliente", "resultado_interno")
 # destinatario directo, y `solicitud` no participa de esta configuración.
 TIPOS_COPIA = ("cc", "bcc")
 
+# Cómo va un contacto de `solicitud` en el correo de la solicitud:
+# para → destinatario directo (lo de siempre)
+# cc   → copia visible
+# bcc  → copia oculta (p. ej. alguien de AgroFresh que tiene que estar en
+#        todas las solicitudes sin que el laboratorio lo vea)
+ENVIOS_SOLICITUD = ("para", "cc", "bcc")
+
 
 class Contacto(BaseModel):
     id: int
@@ -123,6 +130,10 @@ class Contacto(BaseModel):
     especie: str = ""
     # Solo aplica cuando tipo == resultado_interno (ver TIPOS_COPIA).
     tipo_copia: str = "cc"
+    # Solo aplica cuando tipo == solicitud: cómo va en el correo de la
+    # solicitud (ver ENVIOS_SOLICITUD). Los contactos anteriores no lo traen
+    # y quedan en "para", que es como siempre se enviaron.
+    envio: str = "para"
     activo: bool = True
     orden: int = 0
 
@@ -137,6 +148,7 @@ class ContactoIn(BaseModel):
     ship_to: str = ""
     especie: str = ""
     tipo_copia: str = "cc"
+    envio: str = "para"
     activo: bool = True
     orden: int = 0
 

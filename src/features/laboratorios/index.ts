@@ -18,7 +18,7 @@ export {
   guardarTemplateMailReanalisis,
 } from './lib/api'
 
-export { MODOS_ANALISIS, TIPOS_CONTACTO, TIPOS_COPIA } from './lib/tipos'
+export { ENVIOS_SOLICITUD, MODOS_ANALISIS, TIPOS_CONTACTO, TIPOS_COPIA } from './lib/tipos'
 
 export type {
   Analisis,
@@ -30,6 +30,7 @@ export type {
   ResumenLaboratorio,
   TipoContacto,
   TipoCopia,
+  EnvioSolicitud,
   Unidad,
   UnidadInput,
   TemplateMail,
