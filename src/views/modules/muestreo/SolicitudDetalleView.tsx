@@ -112,6 +112,9 @@ export function SolicitudDetalleView() {
   const [enviando, setEnviando] = useState(false)
   const [mensajeEnvio, setMensajeEnvio] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [contactosLab, setContactosLab] = useState<string[] | null>(null)
+  // Copias configuradas en Contacto laboratorio (CC / CCO): se muestran para
+  // que quien envía vea a todos los que van a recibir el correo.
+  const [copiasLab, setCopiasLab] = useState<{ cc: string[]; bcc: string[] }>({ cc: [], bcc: [] })
   const [contactosResultado, setContactosResultado] = useState<ContactoResultado[] | null>(null)
   const [labConfig, setLabConfig] = useState<LaboratorioConfig | null>(null)
   const inputEmailRef = useRef<HTMLInputElement>(null)
@@ -257,7 +260,10 @@ export function SolicitudDetalleView() {
   useEffect(() => {
     if (!mostrarEnvio || !archivo) return
     destinatariosDeSolicitud(archivo)
-      .then((r) => setContactosLab(r.destinatarios))
+      .then((r) => {
+        setContactosLab(r.destinatarios)
+        setCopiasLab({ cc: r.cc ?? [], bcc: r.bcc ?? [] })
+      })
       .catch(() => setContactosLab([]))
   }, [mostrarEnvio, archivo])
 
@@ -474,6 +480,16 @@ export function SolicitudDetalleView() {
               {contactosLab.map((email) => (
                 <span key={email} className={styles.destinatario}>
                   <span className={styles.tipoDestinatario}>Configurado</span>{email}
+                </span>
+              ))}
+              {copiasLab.cc.map((email) => (
+                <span key={`cc-${email}`} className={styles.destinatario}>
+                  <span className={styles.tipoDestinatario}>Copia</span>{email}
+                </span>
+              ))}
+              {copiasLab.bcc.map((email) => (
+                <span key={`bcc-${email}`} className={styles.destinatario}>
+                  <span className={styles.tipoDestinatario}>Copia oculta</span>{email}
                 </span>
               ))}
             </div>

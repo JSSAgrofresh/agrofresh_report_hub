@@ -178,6 +178,15 @@ vuelvas a poner rango sin que el laboratorio lo pida.
 
 ---
 
+## Correo de la solicitud: quién lo recibe
+
+Los contactos de **Laboratorios → Contacto laboratorio** (`tipo: solicitud`)
+llevan el campo `envio`: `para` (sin valor = `para`, como los antiguos), `cc` o
+`bcc`. `contactos_de_solicitud_por_envio` los reparte; el creador de la
+solicitud va siempre en CCO aparte. Nadie va dos veces (se deduplica sin
+mayúsculas). Se necesita al menos un Para: solo copias = error 400. No
+confundir con `tipo_copia`, que es de los contactos de **resultados**.
+
 ## Notificaciones: quién recibe qué
 
 Cada notificación lleva su tipo en `metadata->>'tipo'` (`solicitud`,
