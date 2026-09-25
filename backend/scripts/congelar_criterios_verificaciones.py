@@ -97,19 +97,31 @@ def main() -> None:
             return
 
         print(f"\nParámetros que se congelan distintos de los vigentes: {cambios or 'ninguno'}\n")
-        print(f"{'Fecha':<12} {'Con los de hoy':<15} {'Congelado':<15} {'Guardado':<15}")
+        print(f"{'Fecha':<12} {'Con los de hoy':<15} {'Congelado':<15} {'Guardado':<15} Secciones que cambian")
         dudosos = 0
         for dia in dias:
-            hoy = v._armar_registro(cur, {**dia, "criterios": None}, vigente).resultado
-            congelado = v._armar_registro(cur, {**dia, "criterios": criterios}, vigente)
+            hoy = v._armar_registro(cur, {**dia, "criterios": None}, vigente)
+            # Solo se congelan las secciones que ya tienen datos. Una sección
+            # sin medir (p. ej. el detector de hoy, que se hace en la tarde)
+            # queda libre y congelará los criterios vigentes cuando se guarde.
+            del_dia = {
+                s: c for s, c in criterios.items() if hoy.resultados_seccion.get(s, v.SIN_MEDIR) != v.SIN_MEDIR
+            }
+            congelado = v._armar_registro(cur, {**dia, "criterios": del_dia}, vigente)
             guardado = _veredicto_guardado(cur, dia["id"])
+            cambian = [
+                s for s in v.SECCIONES if hoy.resultados_seccion.get(s) != congelado.resultados_seccion.get(s)
+            ]
             marca = "" if congelado.resultado == guardado else "  !!"
             dudosos += bool(marca)
-            print(f"{dia['fecha']!s:<12} {hoy:<15} {congelado.resultado:<15} {guardado:<15}{marca}")
+            print(
+                f"{dia['fecha']!s:<12} {hoy.resultado:<15} {congelado.resultado:<15} {guardado:<15}"
+                f" {', '.join(cambian) or '-'}{marca}"
+            )
             if args.aplicar:
                 cur.execute(
                     "UPDATE verif_registro SET criterios = %s::jsonb WHERE id = %s AND criterios IS NULL",
-                    [json.dumps(criterios), dia["id"]],
+                    [json.dumps(del_dia), dia["id"]],
                 )
                 v._guardar_resultados(cur, dia["id"], congelado)
 
