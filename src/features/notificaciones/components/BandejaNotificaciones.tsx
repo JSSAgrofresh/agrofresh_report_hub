@@ -1,11 +1,13 @@
 import { createPortal } from 'react-dom'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/cn'
 import { ROUTES } from '@/constants/routes'
 import type { CategoriaNotificacion, Notificacion } from '../types'
 import { useNotificaciones } from '../hooks/useNotificaciones'
+import { notificacionesApi } from '../api/notificacionesApi'
+import { fechaHoraCorta, fechaHoraLarga, palabrasDe, resaltar } from '../lib/formato'
 import styles from './BandejaNotificaciones.module.css'
 
 // ── Renderer de cuerpo estilo Markdown ─────────────────────────────────
@@ -59,11 +61,27 @@ function badgeClass(cat: CategoriaNotificacion) {
   return cn(styles.badge, styles[cat as keyof typeof styles])
 }
 
-function formatFecha(iso: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
+/** El texto con las palabras buscadas resaltadas. */
+function Resaltado({ texto, palabras }: { texto: string; palabras: string[] }) {
+  return (
+    <>
+      {resaltar(texto, palabras).map((t, i) =>
+        t.coincide ? <mark key={i} className={styles.coincide}>{t.texto}</mark> : t.texto,
+      )}
+    </>
+  )
 }
+
+/** Lo que devolvió el servidor para una búsqueda. */
+interface ResultadoBusqueda {
+  q: string
+  items: Notificacion[]
+  error?: boolean
+}
+
+// El servidor corta la búsqueda en las 200 más recientes (`listar` en
+// app/notificaciones.py).
+const TOPE_BUSQUEDA = 200
 
 // ── Componente principal ─────────────────────────────────────────────────
 
@@ -76,12 +94,50 @@ function BandejaInterna({ onCerrar }: Props) {
   const { notificaciones, noLeidas, cargando, marcarLeida, marcarTodasLeidas } = useNotificaciones()
   const [seleccionada, setSeleccionada] = useState<Notificacion | null>(null)
   const [filtro, setFiltro] = useState<CategoriaNotificacion | null>(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [resultado, setResultado] = useState<ResultadoBusqueda | null>(null)
+  // Las que se leyeron mientras se miraban resultados de búsqueda (esas no
+  // están en la lista del hook, que solo trae las 60 recientes).
+  const [leidasAca, setLeidasAca] = useState<Set<number>>(() => new Set())
+  const [todasLeidas, setTodasLeidas] = useState(false)
 
-  const visibles = filtro ? notificaciones.filter((n) => n.categoria === filtro) : notificaciones
+  const q = busqueda.trim()
+  const palabras = palabrasDe(q)
+
+  // La búsqueda va al servidor -busca en TODAS, no solo en las 60 cargadas-,
+  // con una pausa de 300 ms para no consultar a cada tecla.
+  useEffect(() => {
+    if (!q) return
+    let activo = true
+    const t = setTimeout(() => {
+      notificacionesApi
+        .listar(q)
+        .then((items) => { if (activo) setResultado({ q, items }) })
+        .catch(() => { if (activo) setResultado({ q, items: [], error: true }) })
+    }, 300)
+    return () => {
+      activo = false
+      clearTimeout(t)
+    }
+  }, [q])
+
+  const buscando = q !== '' && resultado?.q !== q
+  const encontradas = q ? (resultado?.q === q ? resultado.items : []) : null
+  const base = encontradas ?? notificaciones
+  const visibles = filtro ? base.filter((n) => n.categoria === filtro) : base
+  const esLeida = (n: Notificacion) => n.leida || todasLeidas || leidasAca.has(n.id)
 
   function seleccionar(n: Notificacion) {
     setSeleccionada(n)
-    if (!n.leida) marcarLeida(n.id)
+    if (!esLeida(n)) {
+      marcarLeida(n.id)
+      setLeidasAca((prev) => new Set(prev).add(n.id))
+    }
+  }
+
+  function leerTodas() {
+    marcarTodasLeidas()
+    setTodasLeidas(true)
   }
 
   const haySplit = seleccionada !== null
@@ -97,7 +153,7 @@ function BandejaInterna({ onCerrar }: Props) {
             Notificaciones{noLeidas > 0 ? ` · ${noLeidas}` : ''}
           </span>
           {noLeidas > 0 && (
-            <button type="button" className={styles.btnLeerTodas} onClick={marcarTodasLeidas}>
+            <button type="button" className={styles.btnLeerTodas} onClick={leerTodas}>
               Marcar todas como leídas
             </button>
           )}
@@ -108,6 +164,42 @@ function BandejaInterna({ onCerrar }: Props) {
             </svg>
           </button>
         </div>
+
+        {/* Buscador */}
+        <div className={styles.buscador}>
+          <svg className={styles.buscadorIcono} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.5" />
+            <line x1="10.5" y1="10.5" x2="14" y2="14" />
+          </svg>
+          <input
+            type="search"
+            className={styles.buscadorInput}
+            placeholder="Buscar por nombre, OT, número…"
+            aria-label="Buscar notificaciones"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape' && busqueda) { e.stopPropagation(); setBusqueda('') } }}
+          />
+          {busqueda && (
+            <button
+              type="button"
+              className={styles.buscadorLimpiar}
+              onClick={() => setBusqueda('')}
+              aria-label="Limpiar búsqueda"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        {q && !buscando && encontradas && (
+          <p className={styles.buscadorEstado} role="status">
+            {resultado?.error
+              ? 'No se pudo buscar. Revisa la conexión e intenta de nuevo.'
+              : encontradas.length === 0
+                ? `Sin resultados para «${q}».`
+                : `${encontradas.length === TOPE_BUSQUEDA ? `Las ${TOPE_BUSQUEDA} más recientes` : encontradas.length} ${encontradas.length === 1 ? 'resultado' : 'resultados'} para «${q}»${encontradas.length === TOPE_BUSQUEDA ? ': agrega otra palabra para acotar' : ''}.`}
+          </p>
+        )}
 
         {/* Filtros de categoría */}
         <div className={styles.filtros}>
@@ -136,13 +228,16 @@ function BandejaInterna({ onCerrar }: Props) {
 
         {/* Lista */}
         <div className={haySplit ? styles.listaSplit : styles.lista}>
-          {cargando && (
-            <p className={styles.vacia}>Cargando notificaciones…</p>
+          {(q ? buscando : cargando) && (
+            <p className={styles.vacia}>{q ? 'Buscando…' : 'Cargando notificaciones…'}</p>
           )}
-          {!cargando && visibles.length === 0 && (
+          {!q && !cargando && visibles.length === 0 && (
             <p className={styles.vacia}>No hay notificaciones{filtro ? ' en esta categoría' : ''}.</p>
           )}
-          {!cargando && visibles.map((n) => (
+          {q && !buscando && encontradas && encontradas.length > 0 && visibles.length === 0 && (
+            <p className={styles.vacia}>Ningún resultado en esta categoría.</p>
+          )}
+          {!(q ? buscando : cargando) && visibles.map((n) => (
             <div
               key={n.id}
               className={cn(styles.item, seleccionada?.id === n.id && styles.itemActivo)}
@@ -153,16 +248,21 @@ function BandejaInterna({ onCerrar }: Props) {
             >
               <div className={styles.itemCuerpo}>
                 <div className={styles.itemTitulo}>
-                  {!n.leida && <span className={styles.puntito} aria-label="No leída" />}
-                  {n.titulo}
+                  {!esLeida(n) && <span className={styles.puntito} aria-label="No leída" />}
+                  {/* Un solo span: el título es flex y separaría cada tramo resaltado. */}
+                  <span><Resaltado texto={n.titulo} palabras={palabras} /></span>
                 </div>
-                <div className={styles.itemResumen}>{n.resumen}</div>
+                <div className={styles.itemResumen}>
+                  <Resaltado texto={n.resumen} palabras={palabras} />
+                </div>
                 <div className={styles.itemMeta}>
                   <span className={badgeClass(n.categoria)}>
                     {CATEGORIAS.find((c) => c.id === n.categoria)?.label ?? n.categoria}
                   </span>
                   {n.creado_en && (
-                    <span className={styles.fecha}>{formatFecha(n.creado_en)}</span>
+                    <time className={styles.fecha} dateTime={n.creado_en} title={fechaHoraLarga(n.creado_en)}>
+                      {fechaHoraCorta(n.creado_en)}
+                    </time>
                   )}
                 </div>
               </div>
@@ -185,7 +285,7 @@ function BandejaInterna({ onCerrar }: Props) {
                     <span className={styles.detalleAutor}>Por {seleccionada.creado_por}</span>
                   )}
                   {seleccionada.creado_en && (
-                    <span>{formatFecha(seleccionada.creado_en)}</span>
+                    <time dateTime={seleccionada.creado_en}>{fechaHoraLarga(seleccionada.creado_en)}</time>
                   )}
                 </div>
               </div>

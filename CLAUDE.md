@@ -191,6 +191,15 @@ avisos a mano. Las cuentas `cliente` no tienen acceso al router (403).
 **Una notificación nueva tiene que llevar `metadata={"tipo": ...}`** y ese tipo
 tiene que estar en `TIPOS`; si no, cae como `anuncio`.
 
+La bandeja muestra la **hora** de cada notificación («Hoy, 14:32»; el detalle
+trae fecha larga con segundos) y tiene un **buscador** como el de un correo:
+`GET /api/notificaciones?q=...` busca en TODAS las visibles (no solo las 60
+de la bandeja, tope 200), cada palabra debe aparecer en título, resumen,
+cuerpo, `creado_por` o los valores de la metadata, sin importar mayúsculas ni
+tildes. La normalización está en los dos lados (`normalizar_busqueda` en
+`notificaciones.py` y `lib/formato.ts`, que además resalta lo encontrado): si
+tocas una, toca la otra.
+
 ---
 
 ## Trampas conocidas (nos costaron tiempo)

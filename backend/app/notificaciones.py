@@ -165,11 +165,55 @@ def _row(r: dict) -> dict:
     }
 
 
+# ── Búsqueda ───────────────────────────────────────────────────────────────
+# Como el buscador de un correo: cada palabra tiene que aparecer en alguna
+# parte (título, resumen, cuerpo, quién la generó o sus datos), sin importar
+# mayúsculas ni tildes. «ot 1234 paz» encuentra la notificación que tiene las
+# tres cosas, aunque estén en campos distintos.
+
+_CON_TILDE = "áéíóúüñÁÉÍÓÚÜÑàèìòùÀÈÌÒÙ"
+_SIN_TILDE = "aeiouunAEIOUUNaeiouAEIOU"
+_TEXTO_BUSCABLE = (
+    "lower(translate(concat_ws(' ', n.titulo, n.resumen, n.cuerpo, n.creado_por, "
+    # Solo los VALORES de la metadata: con `metadata::text` buscar «tipo» o
+    # «fecha» encontraría todas, por los nombres de las claves.
+    "(SELECT string_agg(value, ' ') FROM jsonb_each_text(n.metadata))), "
+    f"'{_CON_TILDE}', '{_SIN_TILDE}'))"
+)
+_MAX_PALABRAS = 8
+
+
+def normalizar_busqueda(texto: str) -> str:
+    """Minúsculas y sin tildes: igual que `_TEXTO_BUSCABLE` del lado SQL."""
+    return texto.translate(str.maketrans(_CON_TILDE, _SIN_TILDE)).lower()
+
+
+def filtro_busqueda(q: str | None) -> tuple[str, list]:
+    """Condición SQL (alias `n`) para una búsqueda. Vacía si no se buscó nada.
+
+    `%` y `_` se escapan: quien escribe «50%» busca eso, no un comodín."""
+    palabras = normalizar_busqueda(q or "").split()[:_MAX_PALABRAS]
+    if not palabras:
+        return "", []
+    condiciones, valores = [], []
+    for palabra in palabras:
+        escapada = palabra.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        condiciones.append(f"{_TEXTO_BUSCABLE} LIKE %s ESCAPE '\\'")
+        valores.append(f"%{escapada}%")
+    return " AND " + " AND ".join(condiciones), valores
+
+
 @router.get("")
-def listar(quien: Usuario = Depends(usuario_actual)) -> list[dict]:
-    """Notificaciones visibles para el usuario actual (según los tipos que recibe)."""
+def listar(quien: Usuario = Depends(usuario_actual), q: str | None = None) -> list[dict]:
+    """Notificaciones visibles para el usuario actual (según los tipos que recibe).
+
+    Sin `q`, las 60 más recientes (la bandeja). Con `q`, busca en TODAS las
+    que el usuario puede ver, no solo en las 60 cargadas: lo que se busca
+    suele ser justamente algo viejo."""
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         where, params = _filtro_para(cur, quien)
+        extra, valores_busqueda = filtro_busqueda(q)
+        limite = 200 if extra else 60
         cur.execute(f"""
             SELECT n.id, n.titulo, n.resumen, n.cuerpo, n.categoria, n.audiencia,
                    n.publicado, n.creado_en, n.creado_por, n.metadata,
@@ -177,10 +221,10 @@ def listar(quien: Usuario = Depends(usuario_actual)) -> list[dict]:
             FROM notificacion n
             LEFT JOIN notificacion_leida nl
                 ON nl.notificacion_id = n.id AND nl.usuario_id = %s
-            WHERE {where}
+            WHERE {where}{extra}
             ORDER BY n.creado_en DESC
-            LIMIT 60
-        """, (int(quien.id), *params))
+            LIMIT {limite}
+        """, (int(quien.id), *params, *valores_busqueda))
         return [_row(r) for r in cur.fetchall()]
 
 
