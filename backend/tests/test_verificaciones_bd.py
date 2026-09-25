@@ -22,7 +22,10 @@ from app import verificaciones as v  # noqa: E402
 from app.auth import Usuario  # noqa: E402
 from app.db import conexion, cursor_dict  # noqa: E402
 
-ANALISTA = Usuario(id="1", email="paz@agrofresh.com", nombre="Paz Salazar", tipoAcceso="admin_general")
+# La cuenta superadministradora: FECHA es vieja y solo ella puede tocarla.
+ANALISTA = Usuario(
+    id="1", email=v.EMAIL_SUPERADMIN_VERIFICACIONES, nombre="Paz Salazar", tipoAcceso="admin_general"
+)
 FECHA = date(2020, 1, 15)  # una fecha vieja, para no pisar datos reales
 
 
@@ -31,6 +34,7 @@ def limpio():
     def borrar():
         with conexion() as conn, cursor_dict(conn) as cur:
             cur.execute("DELETE FROM verif_registro WHERE fecha = %s", [FECHA])
+            cur.execute("DELETE FROM verif_seccion_lock WHERE fecha = %s", [FECHA])
 
     borrar()
     yield
@@ -40,6 +44,11 @@ def limpio():
 @pytest.fixture
 def config():
     return v.obtener_config()
+
+
+def _gramos(volumen_ul: float) -> float:
+    """El peso de agua (g) que a 20 °C (Z = 1.0026 µL/mg) da ese volumen."""
+    return volumen_ul / 1000 / 1.0026
 
 
 def _dia(config, **cambios) -> v.RegistroIn:
@@ -52,9 +61,9 @@ def _dia(config, **cambios) -> v.RegistroIn:
             v.MicropipetaMedicionIn(
                 micropipeta_id=m.id,
                 analista="Paz Salazar",
-                peso_1=m.volumen_nominal,
-                peso_2=m.volumen_nominal,
-                peso_3=m.volumen_nominal,
+                peso_1=_gramos(m.volumen_nominal),
+                peso_2=_gramos(m.volumen_nominal),
+                peso_3=_gramos(m.volumen_nominal),
             )
             for m in config.micropipetas
         ],
@@ -62,9 +71,9 @@ def _dia(config, **cambios) -> v.RegistroIn:
             v.BalanzaMedicionIn(
                 pesa_id=p.id,
                 analista="Paz Salazar",
-                lectura_1=p.valor_nominal / 1000,
-                lectura_2=p.valor_nominal / 1000,
-                lectura_3=p.valor_nominal / 1000,
+                lectura_1=p.valor_nominal,
+                lectura_2=p.valor_nominal,
+                lectura_3=p.valor_nominal,
             )
             for p in config.pesas
         ],
@@ -195,30 +204,102 @@ def test_el_resultado_tambien_queda_escrito_en_la_base(limpio, config):
         assert cur.fetchone()["resultado"] == v.NO_ACEPTABLE
 
 
-def test_cambiar_un_criterio_se_refleja_en_lo_ya_guardado(limpio, config):
-    """Los resultados se recalculan al leer justamente para esto: apretar una
-    tolerancia tiene que revisar la historia, no solo lo que venga."""
+def _micropipeta_al_borde(equipo) -> v.MicropipetaMedicionIn:
+    """Una medición que entra con la tolerancia del equipo pero no con una
+    diez veces menor: el volumen queda a media tolerancia del nominal."""
+    peso = _gramos(equipo.volumen_nominal + equipo.tolerancia / 2)
+    return v.MicropipetaMedicionIn(micropipeta_id=equipo.id, peso_1=peso, peso_2=peso, peso_3=peso)
+
+
+@pytest.fixture
+def restaurar_criterios(config):
+    """Deja la tolerancia y el output como estaban, pase lo que pase."""
+    yield
+    with conexion() as conn, cursor_dict(conn) as cur:
+        for m in config.micropipetas:
+            cur.execute("UPDATE verif_micropipeta SET tolerancia = %s WHERE id = %s", [m.tolerancia, m.id])
+        for p in config.parametros:
+            cur.execute("UPDATE verif_parametro SET valor = %s WHERE clave = %s", [p.valor, p.clave])
+
+
+def _cambiar_output(minimo, maximo):
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("UPDATE verif_parametro SET valor = %s WHERE clave = 'output_min'", [minimo])
+        cur.execute("UPDATE verif_parametro SET valor = %s WHERE clave = 'output_max'", [maximo])
+
+
+def test_cambiar_un_criterio_no_reescribe_un_dia_ya_guardado(limpio, config, restaurar_criterios):
+    """Un día se juzga con los criterios que regían ESE día. Apretar una
+    tolerancia hoy no puede convertir en "No aceptable" un día que se aprobó."""
     equipo = config.micropipetas[0]
-    medicion = v.MicropipetaMedicionIn(
-        micropipeta_id=equipo.id,
-        peso_1=equipo.volumen_nominal + equipo.tolerancia / 2,
-        peso_2=equipo.volumen_nominal + equipo.tolerancia / 2,
-        peso_3=equipo.volumen_nominal + equipo.tolerancia / 2,
-    )
-    # Z a 20 °C es 1.0026, así que el volumen queda un poco por sobre el peso;
-    # con la tolerancia original entra, con una diez veces menor no.
-    assert guardar(_dia(config, micropipetas=[medicion])).micropipetas[0].resultado == v.ACEPTABLE
+    assert guardar(_dia(config, micropipetas=[_micropipeta_al_borde(equipo)])).micropipetas[0].resultado == v.ACEPTABLE
 
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("UPDATE verif_micropipeta SET tolerancia = %s WHERE id = %s", [0.001, equipo.id])
-    try:
-        assert v.obtener_registro(FECHA).micropipetas[0].resultado == v.NO_ACEPTABLE
-    finally:
-        with conexion() as conn, cursor_dict(conn) as cur:
-            cur.execute(
-                "UPDATE verif_micropipeta SET tolerancia = %s WHERE id = %s",
-                [equipo.tolerancia, equipo.id],
-            )
+
+    registro = v.obtener_registro(FECHA)
+    assert registro.micropipetas[0].resultado == v.ACEPTABLE
+    assert registro.micropipetas[0].tolerancia == equipo.tolerancia
+    fila = next(r for r in v.listar_registros(desde=str(FECHA), hasta=str(FECHA)))
+    assert fila.micropipetas == v.ACEPTABLE
+
+
+def test_cambiar_el_output_no_tumba_los_dias_anteriores(limpio, config, restaurar_criterios):
+    """El caso que pasó: el output se aprobó con 19–22 y después se movió el
+    rango. El día ya guardado sigue aceptable, en el resumen y en el día."""
+    registro = guardar(_dia(config, detector=v.DetectorIn(
+        voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=20.3,
+    )))
+    assert registro.detector.resultado_output == v.ACEPTABLE
+
+    _cambiar_output(10, 15)
+
+    assert v.obtener_registro(FECHA).detector.resultado_output == v.ACEPTABLE
+    fila = next(r for r in v.listar_registros(desde=str(FECHA), hasta=str(FECHA)))
+    assert fila.detector == v.ACEPTABLE
+    assert fila.resultado == v.ACEPTABLE
+    # Y la pantalla recibe el rango con que se juzgó, no el vigente.
+    output_min = next(p.valor for p in v.obtener_registro(FECHA).criterios.parametros if p.clave == "output_min")
+    assert output_min == 19
+
+
+def test_volver_a_guardar_un_dia_pasado_mantiene_sus_criterios(limpio, config, restaurar_criterios):
+    guardar(_dia(config, detector=v.DetectorIn(voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=20.3)))
+    _cambiar_output(10, 15)
+    registro = guardar(_dia(config, observaciones="corrección", detector=v.DetectorIn(
+        voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=20.3,
+    )))
+    assert registro.detector.resultado_output == v.ACEPTABLE
+
+
+def test_una_seccion_guardada_despues_del_cambio_usa_el_criterio_nuevo(limpio, config, restaurar_criterios):
+    """Cada sección congela sus criterios cuando se guarda: si en la mañana se
+    guardó Micropipetas y a mediodía se cambió el output, el Detector de la
+    tarde se juzga con el output nuevo."""
+    dia = _dia(config, detector=v.DetectorIn(voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=20.3))
+    v.guardar_seccion(FECHA, "micropipetas", dia, usuario=ANALISTA)
+    _cambiar_output(10, 15)
+    registro = v.guardar_seccion(FECHA, "detector", dia, usuario=ANALISTA)
+    assert registro.detector.resultado_output == v.NO_ACEPTABLE
+
+
+def test_limpiar_una_seccion_suelta_sus_criterios(limpio, config, restaurar_criterios):
+    dia = _dia(config, detector=v.DetectorIn(voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=20.3))
+    v.guardar_seccion(FECHA, "detector", dia, usuario=ANALISTA)
+    _cambiar_output(10, 15)
+    v.limpiar_seccion(FECHA, "detector", ANALISTA)
+    registro = v.guardar_seccion(FECHA, "detector", dia, usuario=ANALISTA)
+    assert registro.detector.resultado_output == v.NO_ACEPTABLE
+
+
+def test_un_dia_sin_criterios_congelados_usa_los_vigentes(limpio, config, restaurar_criterios):
+    """Los días guardados antes de la 0040 no tienen criterios: hasta que se
+    congelen con el script, siguen con los vigentes."""
+    guardar(_dia(config, detector=v.DetectorIn(voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=20.3)))
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("UPDATE verif_registro SET criterios = NULL WHERE fecha = %s", [FECHA])
+    _cambiar_output(10, 15)
+    assert v.obtener_registro(FECHA).detector.resultado_output == v.NO_ACEPTABLE
 
 
 # --- Listado y borrado ------------------------------------------------------

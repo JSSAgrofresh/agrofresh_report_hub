@@ -521,6 +521,9 @@ class Registro(BaseModel):
     resultados_seccion: dict[str, str] = {}
     resultado: str = SIN_DATOS
     secciones_guardadas: dict[str, SeccionLock] = {}
+    # Los catálogos con los criterios con que se juzgó ESTE día. La pantalla
+    # los usa para pintar el veredicto de un día pasado igual que el servidor.
+    criterios: Config | None = None
 
 
 class ResumenDia(BaseModel):
@@ -608,6 +611,124 @@ def _param(indice: dict, clave: str, por_defecto: float) -> float:
     día: se cae al valor con que se sembró la migración."""
     valor = indice["parametros"].get(clave)
     return por_defecto if valor is None else valor
+
+
+# ---------------------------------------------------------------------------
+# Criterios congelados por día
+#
+# Un día se juzga con los criterios que regían ESE día. Si mañana se aprieta
+# el rango del output del detector, los días que ya se aprobaron con el rango
+# viejo siguen aprobados: cambiar un criterio no reescribe registros de
+# calidad. Cada sección congela sus criterios la primera vez que se guarda
+# (columna `verif_registro.criterios`, migración 0040); una sección todavía
+# sin congelar usa los vigentes.
+# ---------------------------------------------------------------------------
+
+# Qué parámetros globales usa el cálculo de cada sección. Los demás no
+# deciden ningún veredicto y no hace falta congelarlos.
+PARAMETROS_POR_SECCION = {
+    "gases": ("gas_presion_contenido_min", "gas_presion_trabajo_min", "gas_presion_trabajo_max"),
+    "detector": ("perla_voltaje_min", "perla_voltaje_max", "output_min", "output_max"),
+}
+
+
+def criterios_de_seccion(config: dict, seccion: str) -> dict:
+    """Lo que hay que congelar de una sección: solo los números con que se
+    decide su veredicto, no los nombres ni el orden (esos pueden cambiar sin
+    tocar la historia)."""
+    if seccion == "micropipetas":
+        return {
+            "micropipetas": [
+                {"id": m["id"], "volumen_nominal": m["volumen_nominal"], "tolerancia": m["tolerancia"]}
+                for m in config["micropipetas"]
+            ],
+            "tabla_z": [
+                {"temperatura": int(f["temperatura"]), "factor": f["factor"]} for f in config["tabla_z"]
+            ],
+        }
+    if seccion == "balanza":
+        return {
+            "pesas": [
+                {"id": p["id"], "valor_nominal": p["valor_nominal"], "tolerancia": p["tolerancia"]}
+                for p in config["pesas"]
+            ]
+        }
+    if seccion == "temperatura":
+        return {
+            "puntos_temperatura": [
+                {"id": p["id"], "minimo": p["minimo"], "maximo": p["maximo"]}
+                for p in config["puntos_temperatura"]
+            ]
+        }
+    if seccion in PARAMETROS_POR_SECCION:
+        vigentes = {p["clave"]: p["valor"] for p in config["parametros"]}
+        return {
+            "parametros": {
+                clave: vigentes[clave] for clave in PARAMETROS_POR_SECCION[seccion] if clave in vigentes
+            }
+        }
+    return {}
+
+
+def criterios_del_dia(config: dict, secciones=SECCIONES) -> dict:
+    return {s: criterios_de_seccion(config, s) for s in secciones}
+
+
+def config_del_dia(config: dict, congelados: dict | None) -> dict:
+    """Los catálogos vigentes con los criterios congelados del día encima.
+
+    Se parte de los vigentes para que el día siga teniendo nombres, métodos y
+    columnas; lo único que se reemplaza son los números del veredicto de las
+    secciones que ya quedaron congeladas."""
+    if not congelados:
+        return config
+    dia = {**config}
+
+    def encima(clave_lista: str, seccion: dict, campos: tuple[str, ...]) -> None:
+        por_id = {f["id"]: f for f in seccion.get(clave_lista, [])}
+        filas = []
+        for fila in config[clave_lista]:
+            fija = por_id.pop(fila["id"], None)
+            filas.append({**fila, **{c: fija[c] for c in campos if c in fija}} if fija else fila)
+        dia[clave_lista] = filas
+
+    if "micropipetas" in congelados:
+        seccion = congelados["micropipetas"]
+        encima("micropipetas", seccion, ("volumen_nominal", "tolerancia"))
+        if "tabla_z" in seccion:
+            dia["tabla_z"] = [dict(f) for f in seccion["tabla_z"]]
+    if "balanza" in congelados:
+        encima("pesas", congelados["balanza"], ("valor_nominal", "tolerancia"))
+    if "temperatura" in congelados:
+        encima("puntos_temperatura", congelados["temperatura"], ("minimo", "maximo"))
+
+    fijos: dict = {}
+    for seccion in PARAMETROS_POR_SECCION:
+        fijos.update((congelados.get(seccion) or {}).get("parametros", {}))
+    if fijos:
+        parametros = []
+        for p in config["parametros"]:
+            parametros.append({**p, "valor": fijos.pop(p["clave"])} if p["clave"] in fijos else p)
+        # Un parámetro que se borró del catálogo después sigue valiendo para
+        # el día que lo usó.
+        parametros += [
+            {"clave": clave, "valor": valor, "descripcion": "", "unidad": "", "orden": 999}
+            for clave, valor in fijos.items()
+        ]
+        dia["parametros"] = parametros
+    return dia
+
+
+def _congelar_criterios(cur, registro_id: int, config: dict, secciones) -> None:
+    """Congela los criterios de las secciones que todavía no los tengan. Las
+    que ya estaban congeladas NO se tocan: `||` deja ganar al lado derecho,
+    que es lo que ya estaba guardado."""
+    cur.execute(
+        """UPDATE verif_registro
+              SET criterios = %s::jsonb || COALESCE(criterios, '{}'::jsonb)
+            WHERE id = %s""",
+        [json.dumps(criterios_del_dia(config, secciones)), registro_id],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -848,9 +969,10 @@ def _con_datos_balanza(m: BalanzaMedicionIn) -> bool:
 
 def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
     """Toma la fila del día y sus mediciones y devuelve el registro completo,
-    con los resultados recalculados. Recalcular al LEER -y no confiar en la
-    columna guardada- es lo que hace que cambiar un criterio se refleje en el
-    histórico sin tener que reprocesar nada."""
+    con los resultados calculados contra los criterios CONGELADOS del día
+    (`config_del_dia`): cambiar un criterio hoy no reescribe cómo salió un
+    día que ya pasó. Las secciones aún sin congelar usan los vigentes."""
+    config = config_del_dia(config, fila_dia.get("criterios"))
     indice = _indexar(config)
     registro_id = fila_dia["id"]
     temperatura = _num(fila_dia["temperatura_agua"])
@@ -1030,6 +1152,7 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
         resultados_seccion=secciones,
         resultado=resultado_del_dia(list(secciones.values())),
         secciones_guardadas=secciones_guardadas,
+        criterios=Config(**config),
     )
 
 
@@ -1039,8 +1162,8 @@ def listar_registros(desde: str | None = None, hasta: str | None = None) -> list
 
     Se arma recorriendo los días completos en vez de leer una columna
     `resultado` guardada, porque los criterios se pueden editar: el resumen
-    tiene que decir cómo salió ese día CON los criterios de hoy, igual que
-    hacían las fórmulas del Excel.
+    tiene que decir cómo salió ese día con los criterios que regían ESE día
+    (los congelados en `verif_registro.criterios`), no con los de hoy.
     """
     condiciones, valores = [], []
     if desde:
@@ -1250,6 +1373,7 @@ def guardar_registro(
         )
 
         config = _leer_config(cur)
+        _congelar_criterios(cur, registro_id, config, SECCIONES)
         cur.execute("SELECT * FROM verif_registro WHERE id = %s", [registro_id])
         registro = _armar_registro(cur, dict(cur.fetchone()), config)
 
@@ -1463,6 +1587,7 @@ def guardar_seccion(
         )
 
         config = _leer_config(cur)
+        _congelar_criterios(cur, registro_id, config, (seccion,))
         cur.execute("SELECT * FROM verif_registro WHERE id = %s", [registro_id])
         registro = _armar_registro(cur, dict(cur.fetchone()), config)
         _guardar_resultados(cur, registro_id, registro)
@@ -1507,7 +1632,14 @@ def limpiar_seccion(fecha: date, seccion: str, _: Usuario = Depends(solo_admin_g
         cur.execute(
             "DELETE FROM verif_seccion_lock WHERE fecha = %s AND seccion = %s", [fecha, seccion]
         )
-        cur.execute("UPDATE verif_registro SET actualizado_en = now() WHERE id = %s", [registro_id])
+        # La sección vuelve a quedar en blanco: su próximo guardado congela
+        # los criterios vigentes en ese momento.
+        cur.execute(
+            """UPDATE verif_registro
+                  SET actualizado_en = now(), criterios = criterios - %s
+                WHERE id = %s""",
+            [seccion, registro_id],
+        )
 
 
 @router.delete("/registros/{fecha}")
@@ -1602,7 +1734,9 @@ def descargar_dia_pdf(fecha: date) -> StreamingResponse:
     ascii_seguro = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode()
     disposicion = f"attachment; filename=\"{ascii_seguro}\"; filename*=UTF-8''{quote(nombre)}"
     return StreamingResponse(
-        io.BytesIO(pdf_del_dia(registro, config)),
+        # Los criterios del día, no los vigentes: la hoja impresa tiene que
+        # mostrar la tolerancia con que se juzgó ese día.
+        io.BytesIO(pdf_del_dia(registro, registro.criterios.model_dump() if registro.criterios else config)),
         media_type="application/pdf",
         headers={"Content-Disposition": disposicion},
     )
