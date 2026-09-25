@@ -5,7 +5,7 @@ la migración 0040.
 Hasta la 0040 el veredicto de cada día se recalculaba con los criterios
 VIGENTES, así que cambiar un criterio reescribía la historia: al mover el
 rango del output del detector, días que se aprobaron con 19–22 pasaron a
-"No aceptable". Desde la 0040 cada día guarda los criterios con que se juzgó
+"No aceptable". (El output ya ni siquiera se juzga: 0041.) Desde la 0040 cada día guarda los criterios con que se juzgó
 (`verif_registro.criterios`), pero los días anteriores quedaron sin ellos y
 siguen usando los vigentes hasta que se congelen con este script.
 
@@ -23,11 +23,11 @@ Si los dos últimos no coinciden, se marca con «!!»: revisar antes de aplicar.
 Uso:
     cd backend
     # solo mirar
-    python scripts/congelar_criterios_verificaciones.py --param output_min=19 --param output_max=22
+    python scripts/congelar_criterios_verificaciones.py --param perla_voltaje_max=1
     # aplicar
-    python scripts/congelar_criterios_verificaciones.py --param output_min=19 --param output_max=22 --aplicar
+    python scripts/congelar_criterios_verificaciones.py --param perla_voltaje_max=1 --aplicar
     # solo hasta cierta fecha (los días posteriores quedan con los vigentes)
-    python scripts/congelar_criterios_verificaciones.py --param output_min=19 --param output_max=22 --hasta 2026-09-23
+    python scripts/congelar_criterios_verificaciones.py --param perla_voltaje_max=1 --hasta 2026-09-23
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def _parametros(pares: list[str]) -> dict[str, float]:
     for par in pares:
         clave, _, valor = par.partition("=")
         if not clave or not valor:
-            raise SystemExit(f"--param mal escrito: {par!r}. Va como clave=valor, p. ej. output_min=19")
+            raise SystemExit(f"--param mal escrito: {par!r}. Va como clave=valor, p. ej. perla_voltaje_max=1")
         salida[clave.strip()] = float(valor.replace(",", "."))
     return salida
 

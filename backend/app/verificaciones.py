@@ -55,6 +55,9 @@ SIN_DATOS = "Sin datos"
 # día a medio llenar se viera como un día con un problema-.
 SIN_MEDIR = ""
 
+# Un valor que se anota pero no se juzga (el output del detector).
+REGISTRADO = "Registrado"
+
 SI = "Sí"
 NO = "No"
 NA = "N.A."
@@ -190,17 +193,18 @@ def calcular_detector(
     output: float | None,
     voltaje_min: float,
     voltaje_max: float,
-    output_min: float,
-    output_max: float,
 ) -> dict:
+    """El output del detector es SOLO REGISTRO: se anota para seguir su
+    tendencia, pero no tiene rango ni decide el veredicto (decisión del
+    laboratorio, 25-09-2026). Por eso no entra en `resumir`."""
     r_voltaje = SIN_MEDIR if voltaje is None else veredicto(voltaje_min <= voltaje <= voltaje_max)
     r_metodo = SIN_MEDIR if not metodo else ACEPTABLE
-    r_output = SIN_MEDIR if output is None else veredicto(output_min <= output <= output_max)
+    r_output = SIN_MEDIR if output is None else REGISTRADO
     return {
         "resultado_voltaje": r_voltaje,
         "resultado_metodo": r_metodo,
         "resultado_output": r_output,
-        "resultado": resumir([r_voltaje, r_metodo, r_output]),
+        "resultado": resumir([r_voltaje, r_metodo]),
     }
 
 
@@ -628,7 +632,7 @@ def _param(indice: dict, clave: str, por_defecto: float) -> float:
 # deciden ningún veredicto y no hace falta congelarlos.
 PARAMETROS_POR_SECCION = {
     "gases": ("gas_presion_contenido_min", "gas_presion_trabajo_min", "gas_presion_trabajo_max"),
-    "detector": ("perla_voltaje_min", "perla_voltaje_max", "output_min", "output_max"),
+    "detector": ("perla_voltaje_min", "perla_voltaje_max"),
 }
 
 
@@ -703,8 +707,11 @@ def config_del_dia(config: dict, congelados: dict | None) -> dict:
         encima("puntos_temperatura", congelados["temperatura"], ("minimo", "maximo"))
 
     fijos: dict = {}
-    for seccion in PARAMETROS_POR_SECCION:
-        fijos.update((congelados.get(seccion) or {}).get("parametros", {}))
+    for seccion, claves in PARAMETROS_POR_SECCION.items():
+        # Solo los que todavía deciden algo: un día congelado con el rango del
+        # output (que ya no se juzga) no lo vuelve a traer.
+        guardados = (congelados.get(seccion) or {}).get("parametros", {})
+        fijos.update((c, val) for c, val in guardados.items() if c in claves)
     if fijos:
         parametros = []
         for p in config["parametros"]:
@@ -1099,8 +1106,6 @@ def _armar_registro(cur, fila_dia: dict, config: dict) -> Registro:
                 output,
                 _param(indice, "perla_voltaje_min", 0),
                 _param(indice, "perla_voltaje_max", 1),
-                _param(indice, "output_min", 19),
-                _param(indice, "output_max", 22),
             ),
         )
     else:

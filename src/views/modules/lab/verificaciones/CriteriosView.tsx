@@ -28,8 +28,11 @@ import styles from './Verificaciones.module.css'
 
 // Claves de parámetros por sección — el cálculo las conoce por nombre.
 const CLAVES_GASES = ['gas_presion_contenido_min', 'gas_presion_trabajo_min', 'gas_presion_trabajo_max']
-const CLAVES_DETECTOR = ['perla_voltaje_min', 'perla_voltaje_max', 'output_min', 'output_max']
-const CLAVES_CONOCIDAS = new Set([...CLAVES_GASES, ...CLAVES_DETECTOR])
+const CLAVES_DETECTOR = ['perla_voltaje_min', 'perla_voltaje_max']
+// El output del detector ya no tiene rango (es solo registro). Si la migración
+// 0041 aún no corre, sus claves no deben aparecer como parámetros sueltos.
+const CLAVES_RETIRADAS = ['output_min', 'output_max']
+const CLAVES_CONOCIDAS = new Set([...CLAVES_GASES, ...CLAVES_DETECTOR, ...CLAVES_RETIRADAS])
 
 /**
  * Los criterios de aceptación, editables.
@@ -1298,7 +1301,7 @@ export function CriteriosView() {
           <SeccionParametrosFiltrados
             numero={6}
             titulo="Detector y método"
-            nota="Rangos de aceptación del voltaje de la perla y del output del detector. Cualquier nombre de método es aceptable; lo que importa es que el campo no esté vacío."
+            nota="Rango de aceptación del voltaje de la perla. Cualquier nombre de método es aceptable; lo que importa es que el campo no esté vacío. El output del detector es solo registro: no tiene rango."
             parametros={config.parametros}
             claves={CLAVES_DETECTOR}
             onCambiar={cambiarParametro}

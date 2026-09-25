@@ -213,7 +213,7 @@ def _micropipeta_al_borde(equipo) -> v.MicropipetaMedicionIn:
 
 @pytest.fixture
 def restaurar_criterios(config):
-    """Deja la tolerancia y el output como estaban, pase lo que pase."""
+    """Deja la tolerancia y los parámetros como estaban, pase lo que pase."""
     yield
     with conexion() as conn, cursor_dict(conn) as cur:
         for m in config.micropipetas:
@@ -222,10 +222,10 @@ def restaurar_criterios(config):
             cur.execute("UPDATE verif_parametro SET valor = %s WHERE clave = %s", [p.valor, p.clave])
 
 
-def _cambiar_output(minimo, maximo):
+def _cambiar_voltaje(minimo, maximo):
     with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute("UPDATE verif_parametro SET valor = %s WHERE clave = 'output_min'", [minimo])
-        cur.execute("UPDATE verif_parametro SET valor = %s WHERE clave = 'output_max'", [maximo])
+        cur.execute("UPDATE verif_parametro SET valor = %s WHERE clave = 'perla_voltaje_min'", [minimo])
+        cur.execute("UPDATE verif_parametro SET valor = %s WHERE clave = 'perla_voltaje_max'", [maximo])
 
 
 def test_cambiar_un_criterio_no_reescribe_un_dia_ya_guardado(limpio, config, restaurar_criterios):
@@ -244,52 +244,66 @@ def test_cambiar_un_criterio_no_reescribe_un_dia_ya_guardado(limpio, config, res
     assert fila.micropipetas == v.ACEPTABLE
 
 
-def test_cambiar_el_output_no_tumba_los_dias_anteriores(limpio, config, restaurar_criterios):
-    """El caso que pasó: el output se aprobó con 19–22 y después se movió el
-    rango. El día ya guardado sigue aceptable, en el resumen y en el día."""
+def test_cambiar_el_rango_del_voltaje_no_tumba_los_dias_anteriores(limpio, config, restaurar_criterios):
+    """El caso que pasó (con el output, 19–22): un día aprobado sigue aprobado
+    aunque después se mueva el rango. El día ya guardado sigue aceptable, en
+    el resumen y en el día."""
     registro = guardar(_dia(config, detector=v.DetectorIn(
         voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=20.3,
     )))
-    assert registro.detector.resultado_output == v.ACEPTABLE
+    assert registro.detector.resultado_voltaje == v.ACEPTABLE
 
-    _cambiar_output(10, 15)
+    _cambiar_voltaje(0.6, 1)
 
-    assert v.obtener_registro(FECHA).detector.resultado_output == v.ACEPTABLE
+    assert v.obtener_registro(FECHA).detector.resultado_voltaje == v.ACEPTABLE
     fila = next(r for r in v.listar_registros(desde=str(FECHA), hasta=str(FECHA)))
     assert fila.detector == v.ACEPTABLE
     assert fila.resultado == v.ACEPTABLE
     # Y la pantalla recibe el rango con que se juzgó, no el vigente.
-    output_min = next(p.valor for p in v.obtener_registro(FECHA).criterios.parametros if p.clave == "output_min")
-    assert output_min == 19
+    voltaje_min = next(
+        p.valor for p in v.obtener_registro(FECHA).criterios.parametros if p.clave == "perla_voltaje_min"
+    )
+    assert voltaje_min == 0
 
 
 def test_volver_a_guardar_un_dia_pasado_mantiene_sus_criterios(limpio, config, restaurar_criterios):
     guardar(_dia(config, detector=v.DetectorIn(voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=20.3)))
-    _cambiar_output(10, 15)
+    _cambiar_voltaje(0.6, 1)
     registro = guardar(_dia(config, observaciones="corrección", detector=v.DetectorIn(
         voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=20.3,
     )))
-    assert registro.detector.resultado_output == v.ACEPTABLE
+    assert registro.detector.resultado_voltaje == v.ACEPTABLE
 
 
 def test_una_seccion_guardada_despues_del_cambio_usa_el_criterio_nuevo(limpio, config, restaurar_criterios):
     """Cada sección congela sus criterios cuando se guarda: si en la mañana se
-    guardó Micropipetas y a mediodía se cambió el output, el Detector de la
-    tarde se juzga con el output nuevo."""
+    guardó Micropipetas y a mediodía se cambió el rango del voltaje, el
+    Detector de la tarde se juzga con el rango nuevo."""
     dia = _dia(config, detector=v.DetectorIn(voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=20.3))
     v.guardar_seccion(FECHA, "micropipetas", dia, usuario=ANALISTA)
-    _cambiar_output(10, 15)
+    _cambiar_voltaje(0.6, 1)
     registro = v.guardar_seccion(FECHA, "detector", dia, usuario=ANALISTA)
-    assert registro.detector.resultado_output == v.NO_ACEPTABLE
+    assert registro.detector.resultado_voltaje == v.NO_ACEPTABLE
 
 
 def test_limpiar_una_seccion_suelta_sus_criterios(limpio, config, restaurar_criterios):
     dia = _dia(config, detector=v.DetectorIn(voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=20.3))
     v.guardar_seccion(FECHA, "detector", dia, usuario=ANALISTA)
-    _cambiar_output(10, 15)
+    _cambiar_voltaje(0.6, 1)
     v.limpiar_seccion(FECHA, "detector", ANALISTA)
     registro = v.guardar_seccion(FECHA, "detector", dia, usuario=ANALISTA)
-    assert registro.detector.resultado_output == v.NO_ACEPTABLE
+    assert registro.detector.resultado_voltaje == v.NO_ACEPTABLE
+
+
+def test_el_output_es_solo_registro_y_nunca_tumba_el_dia(limpio, config):
+    """El output del detector se anota pero no se juzga: ni un valor absurdo
+    cambia el resultado del día."""
+    registro = guardar(_dia(config, detector=v.DetectorIn(
+        voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=999,
+    )))
+    assert registro.detector.resultado_output == v.REGISTRADO
+    assert registro.detector.resultado == v.ACEPTABLE
+    assert registro.resultado == v.ACEPTABLE
 
 
 def test_un_dia_sin_criterios_congelados_usa_los_vigentes(limpio, config, restaurar_criterios):
@@ -298,8 +312,8 @@ def test_un_dia_sin_criterios_congelados_usa_los_vigentes(limpio, config, restau
     guardar(_dia(config, detector=v.DetectorIn(voltaje_perla=0.5, metodo_nombre="PFBBR", output_detector=20.3)))
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("UPDATE verif_registro SET criterios = NULL WHERE fecha = %s", [FECHA])
-    _cambiar_output(10, 15)
-    assert v.obtener_registro(FECHA).detector.resultado_output == v.NO_ACEPTABLE
+    _cambiar_voltaje(0.6, 1)
+    assert v.obtener_registro(FECHA).detector.resultado_voltaje == v.NO_ACEPTABLE
 
 
 # --- Listado y borrado ------------------------------------------------------

@@ -171,6 +171,11 @@ output 19–22). Limpiar una sección suelta sus criterios. Los días guardados
 antes de la 0040 se congelan con `scripts/congelar_criterios_verificaciones.py`.
 El registro trae `criterios` y la pantalla los usa para pintar el día.
 
+**El output del detector es SOLO REGISTRO** (decisión del laboratorio,
+25-09-2026, migración 0041): se anota y se grafica en el histórico, pero no
+tiene rango ni decide el veredicto (`resultado_output` = `Registrado`). No le
+vuelvas a poner rango sin que el laboratorio lo pida.
+
 ---
 
 ## Notificaciones: quién recibe qué

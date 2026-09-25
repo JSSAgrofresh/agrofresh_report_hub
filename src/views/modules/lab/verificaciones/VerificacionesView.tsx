@@ -916,7 +916,7 @@ export function VerificacionesView() {
             id="seccion-detector"
             numero={6}
             titulo="Detector y método"
-            nota="Voltaje de la perla, método cargado y output del detector."
+            nota="Voltaje de la perla y método cargado. El output del detector se anota solo como registro: no decide el resultado."
             analista={{
               valor: borrador.detector.analista,
               deshabilitado: soloVer || seccionBloqueada('detector'),
@@ -979,7 +979,7 @@ export function VerificacionesView() {
                       <Veredicto resultado={previa.detector.resultado_metodo} />
                     </td>
                   </tr>
-                  <tr className={cn(previa.detector.resultado_output === 'No aceptable' && styles.filaMal)}>
+                  <tr>
                     <td className={styles.celdaEquipo}>Output del detector</td>
                     <td>
                       <CampoNumero
@@ -988,9 +988,10 @@ export function VerificacionesView() {
                         onCambio={(v) => editar((p) => ({ ...p, detector: { ...p.detector, output_detector: v } }))}
                       />
                     </td>
-                    <td className={styles.criterio}>{rango(config, 'output_min', 'output_max')}</td>
-                    <td>
-                      <Veredicto resultado={previa.detector.resultado_output} />
+                    {/* Solo registro: se anota para seguir la tendencia, no se juzga. */}
+                    <td className={styles.criterio}>Solo registro</td>
+                    <td className={styles.criterio}>
+                      {previa.detector.resultado_output || 'Sin medir'}
                     </td>
                   </tr>
                 </tbody>
