@@ -108,6 +108,8 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/actualizar_codigos_sap.py` | Actualiza `codigo_sap` en `cliente`/`planta` desde el Excel maestro SAP |
 | `scripts/sembrar_especies_variedades.py` | Crea especies y variedades estándar en `valor_lista` desde el Excel BD |
 | `scripts/congelar_criterios_verificaciones.py` | Congela los criterios de los días de verificación guardados antes de la 0040 (`--param clave=valor` con los valores viejos) |
+| `scripts/vaciar_reportes.py` | Borra los datos de Report (solicitud, resultado, producto_aplicado, pendientes). Deja Listados y analitos. Pide escribir "SI" |
+| `scripts/reintentar_pendientes_ingesta.py` | Reprocesa las filas pendientes y descarta las que siguen sin Ship To válido (respaldo en `logs/`) |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
 Hay ~9 scripts en `backend/scripts/` que fueron migraciones de una sola vez
@@ -177,6 +179,22 @@ tiene rango ni decide el veredicto (`resultado_output` = `Registrado`). No le
 vuelvas a poner rango sin que el laboratorio lo pida.
 
 ---
+
+## Carga de datos: Ingesta, Converter y pendientes
+
+Las dos cargan directo a la base con `ingest._procesar_filas`: la Ingesta de
+Datos por `/homogenizador-ingesta/confirmar`, el Converter por
+`/ingest/confirmar`. Lo que no calza con Listados (Sold To, Ship To, Especie,
+Variedad) **no se inserta**: queda en `pendiente_revision`, que se ve,
+reintenta y descarta en **Ingesta de Datos → Filas pendientes**, sin subir
+archivo. (Antes `/ingest/confirmar` dejaba todo ahí como "copia de trabajo" y
+daba 409 mientras quedara una fila: ya no existe ese bloqueo.)
+
+El Ship To se busca **solo entre las plantas de su Sold To**. Si el Excel trae
+la ciudad ("SAN FERNANDO") vale la planta que la contiene, si es una sola
+("DOLE PLANTA SAN FERNANDO", regla `contiene` de `homogenizador.py`, igual en
+`converter.html`). "0" o "-" en esos cuatro campos es "sin dato". El Converter
+lee Listados en vivo de la base al abrirse.
 
 ## Correo de la solicitud: quién lo recibe
 

@@ -1,0 +1,132 @@
+.root {
+  --n-ink: #183d38;
+  --n-muted: #647972;
+  --n-line: #dce5df;
+  --n-bg: #f4f6f2;
+  max-width: 1100px;
+  margin: 0 auto 48px;
+  padding: 0 16px;
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--n-line);
+  padding-top: 20px;
+}
+
+.titulo {
+  margin: 0;
+  font-size: 17px;
+  color: var(--n-ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.contador {
+  font-size: 12px;
+  font-weight: 700;
+  background: #fbecea;
+  color: #a8342b;
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.acciones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nota {
+  color: var(--n-muted);
+  font-size: 13px;
+  margin: 8px 0 12px;
+}
+
+.ok {
+  color: #2f6b22;
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+
+.error {
+  color: #c0392b;
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+
+.btn,
+.btnPeligro,
+.btnChico {
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--n-ink);
+  background: #fff;
+  color: var(--n-ink);
+  padding: 7px 14px;
+  font-size: 13px;
+}
+
+.btnPeligro {
+  border-color: #c0392b;
+  color: #c0392b;
+}
+
+.btnChico {
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 500;
+  border-color: var(--n-line);
+}
+
+.btn:disabled,
+.btnPeligro:disabled,
+.btnChico:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tablaCaja {
+  max-height: 460px;
+  overflow: auto;
+  border: 1px solid var(--n-line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.tabla th {
+  position: sticky;
+  top: 0;
+  background: var(--n-bg);
+  text-align: left;
+  font-weight: 600;
+  color: var(--n-muted);
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--n-line);
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #f1f3ee;
+  vertical-align: top;
+  color: var(--n-ink);
+}
+
+.motivo {
+  color: #a8342b;
+  min-width: 220px;
+}
