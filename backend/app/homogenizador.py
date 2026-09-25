@@ -163,7 +163,10 @@ class Homogenizador:
         oficiales: list[str],
         alias: dict[str, str] | None = None,
         alias_por_contexto: dict[tuple[str, str], str] | None = None,
+        permitir_contiene: bool = False,
     ):
+        # Solo para plantas de UN cliente (ver la regla 5b en `resolver`).
+        self.permitir_contiene = permitir_contiene
         self.oficiales = [o for o in dict.fromkeys(v.strip() for v in oficiales if v and v.strip())]
 
         self._por_clave: dict[str, str] = {}
@@ -255,6 +258,18 @@ class Homogenizador:
         ]
         if len(prefijos) == 1:
             return Resolucion(prefijos[0], "prefijo", True)
+
+        # 5b. Contenido en un único oficial ("SAN FERNANDO" -> "DOLE PLANTA
+        #     SAN FERNANDO"). Los Excel de ingesta suelen traer solo la
+        #     ciudad de la planta, y el nombre oficial la lleva al final, así
+        #     que el prefijo no la encuentra. Solo se habilita para las plantas
+        #     de un cliente ya resuelto: ahí la ciudad identifica, mientras que
+        #     contra todo el catálogo "SAN FERNANDO" calzaría con cualquier cosa.
+        #     Palabras completas y un único candidato, igual que el prefijo.
+        if self.permitir_contiene and len(k) >= 3:
+            contienen = [o for o in self.oficiales if f" {k} " in f" {clave(o)} "]
+            if len(contienen) == 1:
+                return Resolucion(contienen[0], "contiene", True)
 
         # 6. Parecido: se propone, nunca se aplica solo.
         puntajes = sorted(

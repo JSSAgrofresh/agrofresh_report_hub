@@ -339,7 +339,7 @@ def _cargar_mapas_listados(cur) -> dict[str, Any]:
     }
 
 
-def _rescatar(valor: str, oficiales: dict[str, str]) -> str | None:
+def _rescatar(valor: str, oficiales: dict[str, str], contiene: bool = False) -> str | None:
     """Segunda oportunidad para un valor que el calce exacto/normalizado no
     resolvió, usando las reglas de `homogenizador` -misma razón social escrita
     distinto, prefijo de un único oficial, variedad con la especie por delante-.
@@ -349,11 +349,13 @@ def _rescatar(valor: str, oficiales: dict[str, str]) -> str | None:
     la garantía de que el sistema nunca inventa un cliente en silencio.
 
     `oficiales` es {clave: nombre_canonico}; se pasan los mismos candidatos
-    que ya se usan para las sugerencias.
+    que ya se usan para las sugerencias. `contiene` habilita la regla de
+    "el oficial contiene el valor" -solo para las plantas de un cliente ya
+    resuelto, ver Homogenizador.resolver-.
     """
     if not valor or not oficiales:
         return None
-    resolucion = Homogenizador(list(oficiales.values())).resolver(valor)
+    resolucion = Homogenizador(list(oficiales.values()), permitir_contiene=contiene).resolver(valor)
     return resolucion.valor if resolucion.automatico else None
 
 
@@ -429,7 +431,9 @@ def _resolver_listados(
                 sol["ship_to_raw"] = resuelto[0]
             else:
                 candidatos = {k: v[0] for k, v in plantas_del_cliente.items()}
-                rescatado = _rescatar(ship_to, candidatos)
+                # El Excel suele traer solo la ciudad ("SAN FERNANDO") y la
+                # planta oficial la lleva en el nombre ("DOLE PLANTA SAN FERNANDO").
+                rescatado = _rescatar(ship_to, candidatos, contiene=True)
                 if rescatado:
                     sol["ship_to_raw"] = rescatado
                 else:
@@ -574,6 +578,10 @@ def _procesar_filas(
         sol.update(overrides_fila)
         if overrides:
             sol.update(overrides)
+        # Los valores ya resueltos llegan por __homogenizacion__ sin pasar por
+        # mapeo: un "0" de celda vacía también hay que limpiarlo acá.
+        for campo in CAMPOS_LISTADOS:
+            sol[campo] = mapeo.sin_relleno(sol.get(campo))
         motivos: list[str] = []
 
         if not sol["nro_solicitud"]:

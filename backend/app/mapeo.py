@@ -102,6 +102,19 @@ def texto(fila: dict[str, Any], col: str) -> str | None:
     return s or None
 
 
+# Lo que una planilla pone en una celda de nombre cuando no hay dato: un "0"
+# de celda vacía o de una fórmula que no encontró nada, o un guion puesto a
+# mano. Nunca es un Sold To, Ship To, Especie ni Variedad real.
+_RELLENOS = {"0", "-"}
+
+
+def sin_relleno(valor: Any) -> Any:
+    """None si `valor` es un relleno de celda vacía ("0", "-"); si no, tal cual."""
+    if isinstance(valor, str) and valor.strip() in _RELLENOS:
+        return None
+    return valor
+
+
 def parse_numero(valor: Any) -> float | None:
     """Coma o punto decimal, igual que el resto del sistema. None si no se puede convertir."""
     if valor is None:
@@ -272,12 +285,12 @@ def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
         "hora_muestreo": texto(fila, "Hora Muestreo"),
         # La base real exporta "SOLD TO" / "SHIP TO"; "Cliente" / "Sucursal" y
         # "Sold To" / "Ship To" (plantilla nueva) se dejan como alias.
-        "sold_to_raw": elegir(texto(fila, "SOLD TO"), texto(fila, "Cliente"), texto(fila, "Sold To")),
-        "ship_to_raw": elegir(texto(fila, "SHIP TO"), texto(fila, "Sucursal"), texto(fila, "Ship To")),
+        "sold_to_raw": sin_relleno(elegir(texto(fila, "SOLD TO"), texto(fila, "Cliente"), texto(fila, "Sold To"))),
+        "ship_to_raw": sin_relleno(elegir(texto(fila, "SHIP TO"), texto(fila, "Sucursal"), texto(fila, "Ship To"))),
         # "CROP" es el nombre real del Excel de Quiteca/AgroFresh; "Especie" es el
         # nombre que usa Converter y la plantilla nueva de Cargar Datos.
-        "especie": elegir(texto(fila, "CROP"), texto(fila, "Especie")),
-        "variedad": texto(fila, "Variedad"),
+        "especie": sin_relleno(elegir(texto(fila, "CROP"), texto(fila, "Especie"))),
+        "variedad": sin_relleno(texto(fila, "Variedad")),
         "tipo_servicio": texto(fila, "Tipo de servicio"),
         "tipo_muestra": texto(fila, "Tipo Muestra"),
         "lote": texto(fila, "Lote"),
