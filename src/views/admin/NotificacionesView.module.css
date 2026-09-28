@@ -4,6 +4,38 @@
   padding: var(--space-6) var(--space-5);
 }
 
+.contenedorAncho {
+  max-width: 1120px;
+}
+
+/* ── Pestañas ──────────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: var(--space-2) var(--space-1) var(--space-3);
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.tab:hover { color: var(--color-text); }
+
+.tabActiva {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
 /* ── Cabecera ──────────────────────────────────────────────────────────── */
 
 .header {

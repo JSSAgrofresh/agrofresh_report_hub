@@ -153,7 +153,7 @@ def libro_del_dia(registro) -> Workbook:
     for etiqueta, valor, resultado in (
         ("Voltaje de la perla (V)", d.voltaje_perla, d.resultado_voltaje),
         ("Método correcto cargado", d.metodo_correcto, d.resultado_metodo),
-        ("Output del detector", d.output_detector, d.resultado_output),
+        ("Output del detector (solo registro)", d.output_detector, d.resultado_output),
     ):
         fila = _fila(ws, fila, [etiqueta, valor, None, None, None, None, "", resultado], 8)
     fila += 2

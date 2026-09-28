@@ -41,3 +41,8 @@ R2_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL", "")
 R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "")
 R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "")
 R2_BUCKET = os.getenv("R2_BUCKET", "agrofresh-storage")
+
+# Única cuenta que puede crear solicitudes de prueba (Toma de muestras →
+# Solicitudes → "Solicitud de prueba"). No es una credencial: solo decide a
+# quién se le muestra el botón. Se puede cambiar en el .env del backend.
+SOLICITUDES_PRUEBA_EMAIL = os.getenv("SOLICITUDES_PRUEBA_EMAIL", "jorge.sandoval@agrofresh.com").strip().lower()

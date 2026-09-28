@@ -199,7 +199,7 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   const [selectorAbierto, setSelectorAbierto] = useState(false)
   const [bandejaAbierta, setBandejaAbierta] = useState(false)
   const avatarZonaRef = useRef<HTMLDivElement>(null)
-  const { noLeidas, marcarTodasLeidas, toast, limpiarToast } = useNotificaciones()
+  const { habilitado: notifHabilitadas, noLeidas, marcarTodasLeidas, toast, limpiarToast } = useNotificaciones()
 
   // Cierra el selector al hacer clic fuera del área avatar + popover.
   useEffect(() => {
@@ -292,25 +292,27 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
             <span className={styles.etiqueta}>Panel general</span>
           </NavLink>
 
-          <button
-            type="button"
-            className={cn(styles.navLink, noLeidas > 0 && styles.navLinkNotifPendiente)}
-            onClick={() => {
-              setBandejaAbierta(true)
-              onCerrar()
-              if (noLeidas > 0) marcarTodasLeidas()
-            }}
-            title="Notificaciones"
-          >
-            <svg className={styles.navIcono} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M10 2a6 6 0 0 1 6 6c0 3.5 1.5 5 1.5 5h-15S4 11.5 4 8a6 6 0 0 1 6-6z"/>
-              <path d="M8.5 17a1.5 1.5 0 0 0 3 0"/>
-            </svg>
-            <span className={styles.etiqueta}>Notificaciones</span>
-            {noLeidas > 0 && (
-              <span className={styles.estadoPill}>{noLeidas > 9 ? '9+' : noLeidas}</span>
-            )}
-          </button>
+          {notifHabilitadas && (
+            <button
+              type="button"
+              className={cn(styles.navLink, noLeidas > 0 && styles.navLinkNotifPendiente)}
+              onClick={() => {
+                setBandejaAbierta(true)
+                onCerrar()
+                if (noLeidas > 0) marcarTodasLeidas()
+              }}
+              title="Notificaciones"
+            >
+              <svg className={styles.navIcono} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M10 2a6 6 0 0 1 6 6c0 3.5 1.5 5 1.5 5h-15S4 11.5 4 8a6 6 0 0 1 6-6z"/>
+                <path d="M8.5 17a1.5 1.5 0 0 0 3 0"/>
+              </svg>
+              <span className={styles.etiqueta}>Notificaciones</span>
+              {noLeidas > 0 && (
+                <span className={styles.estadoPill}>{noLeidas > 9 ? '9+' : noLeidas}</span>
+              )}
+            </button>
+          )}
 
           {bandejaAbierta && (
             <BandejaNotificaciones onCerrar={() => setBandejaAbierta(false)} />

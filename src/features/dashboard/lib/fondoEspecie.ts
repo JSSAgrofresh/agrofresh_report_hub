@@ -1,4 +1,5 @@
 import arandano from '@/assets/backgrounds/arandano.avif'
+import backgroundLab from '@/assets/backgrounds/background_lab.jpg'
 import ciruela from '@/assets/backgrounds/ciruela.avif'
 import clementina from '@/assets/backgrounds/clementina.avif'
 import kiwi from '@/assets/backgrounds/kiwi.avif'
@@ -50,6 +51,22 @@ const FONDOS_POR_ESPECIE: Record<string, FondoEspecie> = {
   pera: { imagen: pera, tinte: '#636E20' },
 }
 
+/** Rojo cereza: el tinte de la foto base del área (background_lab.jpg), que
+ * es de cerezas. Era el color de marca de Cromatografía hasta que el área pasó
+ * a verde; desde entonces hay que pedirlo por la foto, no por el área. */
+export const TINTE_CEREZA = '#6E2029'
+
+/**
+ * Tinte que corresponde a una foto de fondo por lo que muestra, sin importar el
+ * área. El velo sigue a la fruta: cerezas con velo verde (Cromatografía) o
+ * morado (R y D) se ven mal. Devuelve `undefined` para fotos sin tinte propio
+ * (ej. la de Accu-Tab), que siguen usando el color de marca del área.
+ */
+export function tinteDeFoto(imagen: string | undefined): string | undefined {
+  if (imagen === backgroundLab) return TINTE_CEREZA
+  return Object.values(FONDOS_POR_ESPECIE).find((f) => f.imagen === imagen)?.tinte
+}
+
 function normalizar(texto: string): string {
   return texto
     .normalize('NFD')
@@ -63,7 +80,7 @@ function normalizar(texto: string): string {
  * especie filtrada en Report. Sin filtro (o especie sin foto propia todavía),
  * cae al fondo "base" que se pasa como segundo argumento -cereza en temporada
  * de cereza, la foto de área normal (background_lab.jpg)-; ahí el tinte queda
- * en `undefined` para que el encabezado use el color de marca del área.
+ * en `undefined` y AreaHero lo saca de la foto (ver tinteDeFoto).
  */
 export function fondoParaEspecie(
   especie: string | null | undefined,

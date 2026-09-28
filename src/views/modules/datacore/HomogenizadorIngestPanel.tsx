@@ -1,11 +1,8 @@
 import { useRef, useState } from 'react'
-import {
-  analizarExcel,
-  cancelarIngesta,
-  confirmarIngesta,
-} from '@/features/homogenizadorIngesta'
+import { analizarExcel, cancelarIngesta, confirmarIngesta } from '@/features/homogenizadorIngesta'
 import type { AnalisisIngesta, ResumenIngesta } from '@/features/homogenizadorIngesta'
 import styles from './HomogenizadorIngestPanel.module.css'
+import { IngestaInicio } from './IngestaInicio'
 
 type Col = 'sold_to' | 'ship_to' | 'especie' | 'variedad'
 
@@ -83,7 +80,7 @@ export function HomogenizadorIngestPanel() {
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resumen, setResumen] = useState<ResumenIngesta | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [nombreArchivo, setNombreArchivo] = useState<string | undefined>(undefined)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   function mostrarToast(msg: string) {
@@ -124,6 +121,7 @@ export function HomogenizadorIngestPanel() {
     setError(null)
     try {
       const r = await analizarExcel(archivo)
+      setNombreArchivo(archivo.name)
       setCeldas(initCeldas(r))
       setAnalisis(r)
       setEtapa('mapear')
@@ -146,9 +144,7 @@ export function HomogenizadorIngestPanel() {
     }
     checkpoint(celdas)
     setCeldas((cs) =>
-      cs.map((c) =>
-        ids.includes(c.id) ? { ...c, value, method: 'manual', candidates: [] } : c,
-      ),
+      cs.map((c) => (ids.includes(c.id) ? { ...c, value, method: 'manual', candidates: [] } : c)),
     )
     setSelected(new Set())
     mostrarToast(
@@ -158,9 +154,7 @@ export function HomogenizadorIngestPanel() {
 
   function quitarAsociacion(ids: string[]) {
     checkpoint(celdas)
-    setCeldas((cs) =>
-      cs.map((c) => (ids.includes(c.id) ? { ...c, value: '', method: '' } : c)),
-    )
+    setCeldas((cs) => cs.map((c) => (ids.includes(c.id) ? { ...c, value: '', method: '' } : c)))
     setSelected(new Set())
     mostrarToast('Asociaciones eliminadas; originales conservados.')
   }
@@ -194,12 +188,17 @@ export function HomogenizadorIngestPanel() {
     try {
       const buildMapeo = (col: Col) =>
         Object.fromEntries(celdas.filter((c) => c.col === col).map((c) => [c.original, c.value]))
-      const r = await confirmarIngesta(analisis.token, {
-        sold_to: buildMapeo('sold_to'),
-        ship_to: buildMapeo('ship_to'),
-        especie: buildMapeo('especie'),
-        variedad: buildMapeo('variedad'),
-      })
+      const r = await confirmarIngesta(
+        analisis.token,
+        {
+          sold_to: buildMapeo('sold_to'),
+          ship_to: buildMapeo('ship_to'),
+          especie: buildMapeo('especie'),
+          variedad: buildMapeo('variedad'),
+        },
+        false,
+        nombreArchivo,
+      )
       setResumen(r)
       setEtapa('listo')
     } catch (e) {
@@ -247,48 +246,7 @@ export function HomogenizadorIngestPanel() {
   //  ETAPA 1: Subir
   // ════════════════════════════════════════════════
   if (etapa === 'subir') {
-    return (
-      <div className={styles.subirRoot}>
-        <div className={styles.eyebrow}>Ingesta de Datos</div>
-        <h1 className={styles.subirH1}>Del Excel a la base de datos.</h1>
-        <p className={styles.subirIntro}>
-          Sube el archivo de resultados. Antes de que nada entre a la base, revisarás los valores de{' '}
-          <strong>Sold To</strong>, <strong>Ship To</strong>, <strong>Especie</strong> y{' '}
-          <strong>Variedad</strong> y confirmarás a qué valores oficiales corresponden.
-        </p>
-        <div
-          className={styles.zona}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault()
-            const f = e.dataTransfer.files[0]
-            if (f) void onSubir(f)
-          }}
-          onClick={() => inputRef.current?.click()}
-        >
-          {cargando ? (
-            <span className={styles.zonaCargando}>Analizando archivo…</span>
-          ) : (
-            <>
-              <span className={styles.zonaIcono}>📂</span>
-              <span>Arrastra el Excel aquí, o haz clic para seleccionarlo</span>
-              <span className={styles.zonaHint}>.xlsx</span>
-            </>
-          )}
-        </div>
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".xlsx"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) void onSubir(f)
-          }}
-        />
-        {error && <p className={styles.errorMsg}>{error}</p>}
-      </div>
-    )
+    return <IngestaInicio cargando={cargando} error={error} onArchivo={(f) => void onSubir(f)} />
   }
 
   // ════════════════════════════════════════════════
@@ -533,11 +491,7 @@ export function HomogenizadorIngestPanel() {
               <button type="button" className={styles.btnSmart} onClick={smartMatch}>
                 ✦ Cruce inteligente · 85%
               </button>
-              <button
-                type="button"
-                className={styles.btn}
-                onClick={() => setRevisarAbierto(true)}
-              >
+              <button type="button" className={styles.btn} onClick={() => setRevisarAbierto(true)}>
                 Revisar <span>{totalReview}</span>
               </button>
             </div>
@@ -555,8 +509,8 @@ export function HomogenizadorIngestPanel() {
                     type="checkbox"
                     checked={multiselect}
                     onChange={(e) => setMultiselect(e.target.checked)}
-                  />
-                  {' '}Multiselección
+                  />{' '}
+                  Multiselección
                 </label>
                 <button
                   type="button"
@@ -635,7 +589,11 @@ export function HomogenizadorIngestPanel() {
                                 if (e.ctrlKey || e.metaKey || multiselect) {
                                   setSelected((prev) => {
                                     const next = new Set(prev)
-                                    if (next.has(c.id)) { next.delete(c.id) } else { next.add(c.id) }
+                                    if (next.has(c.id)) {
+                                      next.delete(c.id)
+                                    } else {
+                                      next.add(c.id)
+                                    }
                                     return next
                                   })
                                 } else {

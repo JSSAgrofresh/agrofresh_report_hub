@@ -1,6 +1,6 @@
 """
 Vacía los datos de Report/Data Core (`solicitud`, `resultado`,
-`producto_aplicado`, `pendiente_revision`) para poder volver a cargar un
+`producto_aplicado`, `pendiente_revision` y el historial `carga_datos`) para poder volver a cargar un
 Excel de prueba desde cero -por ejemplo, para comprobar de punta a punta que
 el chequeo de integridad contra Listados (Data Core → Chequeo de integridad)
 funciona con datos reales-.
@@ -39,6 +39,14 @@ from app.db import conexion, cursor_dict  # noqa: E402
 # ON DELETE CASCADE, ser explícito acá deja claro qué se está vaciando y no
 # depende de que la restricción exista tal cual en todas las instalaciones).
 TABLAS = ("resultado", "producto_aplicado", "solicitud", "pendiente_revision")
+# El historial de cargas (migración 0042) se vacía junto con lo que registra:
+# si no, quedarían cargas apuntando a informes que ya no existen.
+TABLA_CARGAS = "carga_datos"
+
+
+def _tablas(cur) -> tuple[str, ...]:
+    cur.execute("SELECT to_regclass(%s) IS NOT NULL AS hay", (TABLA_CARGAS,))
+    return TABLAS + ((TABLA_CARGAS,) if cur.fetchone()["hay"] else ())
 
 
 def main() -> None:
@@ -48,7 +56,8 @@ def main() -> None:
 
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         conteos = {}
-        for tabla in TABLAS:
+        tablas = _tablas(cur)
+        for tabla in tablas:
             cur.execute(f"SELECT count(*) AS n FROM {tabla}")
             conteos[tabla] = cur.fetchone()["n"]
 
@@ -65,7 +74,7 @@ def main() -> None:
         print(f"\nModo mirar (sin --aplicar): no se borró nada. {total:,} fila(s) en total.\n".replace(",", "."))
         return
 
-    print(f"\nSe van a BORRAR {total:,} fila(s) de {', '.join(TABLAS)}.".replace(",", "."))
+    print(f"\nSe van a BORRAR {total:,} fila(s) de {', '.join(tablas)}.".replace(",", "."))
     print("Esto es IRREVERSIBLE. Asegúrate de haber corrido el respaldo antes de seguir.")
     respuesta = input('Escribe "SI" (en mayúsculas) para confirmar: ').strip()
     if respuesta != "SI":
@@ -73,7 +82,7 @@ def main() -> None:
         return
 
     with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
-        for tabla in TABLAS:
+        for tabla in tablas:
             cur.execute(f"DELETE FROM {tabla}")
 
     print(f"\nListo: se borraron {total:,} fila(s). La base de Report/Data Core quedó vacía.\n".replace(",", "."))

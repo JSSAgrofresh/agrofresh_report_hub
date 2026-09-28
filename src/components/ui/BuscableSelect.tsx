@@ -9,6 +9,13 @@ interface BuscableSelectProps {
   onChange: (valor: string) => void
   placeholderTodos?: string
   disabled?: boolean
+  /** Opcional: un número al lado de cada opción (ej. cuántos registros trae). */
+  conteoDe?: (opcion: string) => number | undefined
+}
+
+/** Para buscar sin que importen tildes ni mayúsculas: "maria" encuentra "María". */
+function sinTildes(s: string): string {
+  return s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
 
 export function BuscableSelect({
@@ -18,15 +25,16 @@ export function BuscableSelect({
   onChange,
   placeholderTodos = 'Todos',
   disabled,
+  conteoDe,
 }: BuscableSelectProps) {
   const [abierto, setAbierto] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
   const filtradas = useMemo(() => {
-    const q = busqueda.trim().toLowerCase()
+    const q = sinTildes(busqueda.trim())
     if (!q) return opciones
-    return opciones.filter((o) => o.toLowerCase().includes(q))
+    return opciones.filter((o) => sinTildes(o).includes(q))
   }, [opciones, busqueda])
 
   function abrir() {
@@ -95,7 +103,10 @@ export function BuscableSelect({
                   className={cn(styles.opcion, o === valor && styles.opcionActiva)}
                   onClick={() => elegir(o)}
                 >
-                  {o}
+                  <span className={styles.opcionTexto}>{o}</span>
+                  {conteoDe && conteoDe(o) !== undefined && (
+                    <span className={styles.opcionConteo}>{conteoDe(o)?.toLocaleString('es-CL')}</span>
+                  )}
                 </button>
               ))
             )}

@@ -11,8 +11,11 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
 ## Cómo trabajar acá
 
 - **Responde siempre en español.**
-- **Rama de trabajo: `claude/modulo-x-implementation-plan-3zhite`.** Todo se
-  commitea y pushea ahí. Nunca a `main`.
+- **Dos ramas, dos papeles** (ver "Flujo de ramas" más abajo):
+  - `claude/modulo-x-implementation-plan-3zhite` = **desarrollo**. Todo se
+    commitea y pushea ahí. Nunca directo a `main`.
+  - `main` = **la estable, la que está en producción**. Solo recibe cambios
+    por PR desde la rama de desarrollo, cuando el usuario decide publicarlos.
 - **Da los comandos de PowerShell completos y exactos**, con la ruta puesta.
   Nunca "reinicia el backend" a secas.
 - **No crees PR** salvo que se pida explícitamente.
@@ -33,7 +36,7 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
 
 | Pieza | Dónde |
 |---|---|
-| Frontend | Vercel (despliega solo al pushear) |
+| Frontend | Vercel: producción sale de `main`; la rama de desarrollo genera *previews* |
 | Backend + Postgres | **Servidor de la oficina** (Windows), tras un túnel Cloudflare |
 | R2 | Solo archivos y respaldos. **No** es base de datos. |
 
@@ -45,11 +48,34 @@ Ruta del proyecto en el servidor:
 
 ---
 
+## Flujo de ramas
+
+Se trabaja en paralelo: mientras se desarrolla, lo que está en producción no
+se mueve.
+
+1. Se programa y se prueba en `claude/modulo-x-implementation-plan-3zhite`.
+   Cada push genera un *preview* en Vercel para mirarlo antes de publicar.
+   **Ojo:** el preview llama al mismo backend y a la misma base de
+   producción, así que lo que se guarde ahí es real.
+2. Cuando algo está listo y el usuario lo pide, se abre un PR de la rama a
+   `main` y se fusiona. Vercel publica producción solo con eso.
+3. En el servidor de la oficina se hace `git pull origin main` y se reinicia
+   el backend (comandos abajo). El servidor **nunca** queda en la rama de
+   desarrollo.
+4. Después de fusionar se sigue en la misma rama de desarrollo, sin
+   recrearla: `main` solo le suma commits de merge.
+
+Un cambio de backend que necesita migración se publica junto con ella: la
+migración se corre en el servidor **antes** de reiniciar.
+
+---
+
 ## Comandos que se usan de verdad
 
 ```powershell
-# Actualizar el servidor
-git pull origin claude/modulo-x-implementation-plan-3zhite
+# Actualizar el servidor (SIEMPRE desde main, la estable)
+git checkout main
+git pull origin main
 
 # Migraciones (una por archivo, en orden)
 cd backend
@@ -82,6 +108,9 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/actualizar_codigos_sap.py` | Actualiza `codigo_sap` en `cliente`/`planta` desde el Excel maestro SAP |
 | `scripts/sembrar_especies_variedades.py` | Crea especies y variedades estándar en `valor_lista` desde el Excel BD |
 | `scripts/copiar_bcc_contacto.py` | Pone a alguien en copia oculta de resultados en todas las plantas donde ya está otra persona (`--lista` para ver quiénes) |
+| `scripts/congelar_criterios_verificaciones.py` | Congela los criterios de los días de verificación guardados antes de la 0040 (`--param clave=valor` con los valores viejos) |
+| `scripts/vaciar_reportes.py` | Borra los datos de Report (solicitud, resultado, producto_aplicado, pendientes). Deja Listados y analitos. Pide escribir "SI" |
+| `scripts/reintentar_pendientes_ingesta.py` | Reprocesa las filas pendientes y descarta las que siguen sin Ship To válido (respaldo en `logs/`) |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
 Hay ~9 scripts en `backend/scripts/` que fueron migraciones de una sola vez
@@ -101,8 +130,13 @@ Este proyecto no se da por listo con "debería funcionar":
   Los tipos se revisan con `npm run build` (o `npm run typecheck`), que corre
   `tsc -b`. **`npx tsc --noEmit` no sirve**: no mira los archivos de test, así
   que un error de tipos ahí pasa limpio acá y bota el deploy de Vercel.
-  El lint tiene **8 errores de línea base preexistentes** (`set-state-in-effect`);
-  si salen 8, está bien. Si salen 9, algo nuevo lo rompió.
+  El lint tiene **16 errores de línea base preexistentes** (casi todos
+  `set-state-in-effect`); si salen 16, está bien. Si salen 17, algo nuevo lo rompió.
+- En backend hay **4 tests que ya fallan** en la rama (`test_alcance_datos`,
+  `test_envio_solicitud_correo`, `test_resultados_ship_to`,
+  `test_verificaciones::test_detector_con_metodo_equivocado`) y
+  `test_correo_error_gmail.py` no importa. Corre `pytest tests` (no la raíz:
+  `scripts/borrar_lab_test.py` se recoge y corta la corrida).
 - **Cambios visuales**: se comprueban en un navegador real con Playwright
   (`executablePath: '/opt/pw-browsers/chromium'`), no solo con tests.
 - Al escribir un test para un bug, **rompe el arreglo a propósito** y confirma
@@ -132,8 +166,115 @@ veredicto mientras se escribe. Los dos se prueban contra los MISMOS casos
 (`tests/test_verificaciones.py` y `calculos.test.ts`) — si tocas uno, toca el
 otro y sus pruebas.
 
-**Los veredictos se recalculan al leer**, no se confía en la columna guardada:
-por eso apretar una tolerancia en Criterios también revisa el histórico.
+**Un día se juzga con los criterios que regían ESE día.** Cada sección congela
+sus criterios la primera vez que se guarda (`verif_registro.criterios`, JSONB,
+migración 0040); cambiar una tolerancia en Criterios **no** reescribe días
+pasados (antes sí lo hacía, y eso tumbó días aprobados cuando se movió el
+output 19–22). Limpiar una sección suelta sus criterios. Los días guardados
+antes de la 0040 se congelan con `scripts/congelar_criterios_verificaciones.py`.
+El registro trae `criterios` y la pantalla los usa para pintar el día.
+
+**El output del detector es SOLO REGISTRO** (decisión del laboratorio,
+25-09-2026, migración 0041): se anota y se grafica en el histórico, pero no
+tiene rango ni decide el veredicto (`resultado_output` = `Registrado`). No le
+vuelvas a poner rango sin que el laboratorio lo pida.
+
+---
+
+## Carga de datos: Ingesta, Converter y pendientes
+
+Las dos cargan directo a la base con `ingest._procesar_filas`: la Ingesta de
+Datos por `/homogenizador-ingesta/confirmar`, el Converter por
+`/ingest/confirmar`. Lo que no calza con Listados (Sold To, Ship To, Especie,
+Variedad) **no se inserta**: queda en `pendiente_revision`, que se ve,
+reintenta y descarta en **Ingesta de Datos → Filas pendientes**, sin subir
+archivo. (Antes `/ingest/confirmar` dejaba todo ahí como "copia de trabajo" y
+daba 409 mientras quedara una fila: ya no existe ese bloqueo.)
+
+**Cada carga queda registrada** (migración 0042, tabla `carga_datos`): quién,
+cuándo, Excel o PDF y el nombre del archivo. Todo lo que inserta lleva su
+`carga_id` (solicitud, resultado, producto_aplicado y pendiente_revision; al
+reintentar una pendiente conserva su carga). La pantalla de inicio de la
+Ingesta muestra las últimas cargas con lo que tienen HOY y un botón
+**Deshacer** que borra exactamente esa carga (`POST /ingest/cargas/{id}/deshacer`).
+No deshace si otra carga agregó resultados a sus informes (409): primero se
+deshace la otra. Lo cargado antes de la 0042 no tiene carga y no se puede
+deshacer desde la pantalla. Sin la 0042 corrida se carga igual, sin registrar.
+
+El Ship To se busca **solo entre las plantas de su Sold To**. Si el Excel trae
+la ciudad ("SAN FERNANDO") vale la planta que la contiene, si es una sola
+("DOLE PLANTA SAN FERNANDO", regla `contiene` de `homogenizador.py`, igual en
+`converter.html`). "0" o "-" en esos cuatro campos es "sin dato". El Converter
+lee Listados en vivo de la base al abrirse.
+
+## Correo de la solicitud: quién lo recibe
+
+Los contactos de **Laboratorios → Contacto laboratorio** (`tipo: solicitud`)
+llevan el campo `envio`: `para` (sin valor = `para`, como los antiguos), `cc` o
+`bcc`. `contactos_de_solicitud_por_envio` los reparte; el creador de la
+solicitud va siempre en CCO aparte. Nadie va dos veces (se deduplica sin
+mayúsculas). Se necesita al menos un Para: solo copias = error 400. No
+confundir con `tipo_copia`, que es de los contactos de **resultados**.
+
+## Solicitudes de prueba
+
+Al borrar las solicitudes de prueba del arranque, el contador de folios de
+cada laboratorio no volvió atrás (`folio_solicitud_laboratorio` solo avanza):
+las reales empezaron en QUITECA 18 y AGF 50. Ese hueco (1..17 y 1..49) se usa
+para **solicitudes de prueba**, con el botón «+ Solicitud de prueba» de
+Toma de muestras → Solicitudes.
+
+- Solo lo ve y lo usa **una cuenta**: `SOLICITUDES_PRUEBA_EMAIL` en el `.env`
+  (por defecto `jorge.sandoval@agrofresh.com`, la misma que puede eliminar).
+- Toman el folio libre **más bajo** del hueco; el límite no está escrito a
+  mano: es el folio real más bajo del laboratorio, menos uno. Lleno el hueco,
+  409. No tocan el contador real.
+- La marca es `es_prueba` dentro de `datos` (hoja `_data` del Excel + jsonb
+  del índice): **no hay migración**, y sobrevive a editar y a reindexar.
+- **Nunca se envían solas** (ni al crear ni al editar, aunque el envío
+  automático esté prendido): se envían a mano desde el detalle, a los
+  contactos reales, con **«(PRUEBA)»** al inicio del asunto.
+- No notifican, no aparecen en el Ingreso al laboratorio (`emitir.py`) ni se
+  les puede pedir reanálisis. En el listado llevan la etiqueta PRUEBA.
+
+## Notificaciones: quién recibe qué
+
+Cada notificación lleva su tipo en `metadata->>'tipo'` (`solicitud`,
+`reanalisis`, `verificacion`, `descarga_gc`, `carga_datos`; sin tipo =
+`anuncio`, los avisos escritos a mano). Lo que ve cada usuario lo decide
+`notificacion_suscripcion` (migración 0039), que se edita en Administración →
+Notificaciones → "Quién recibe qué". Sin fila, recibe lo de su perfil
+(`tipos_predeterminados` en `app/notificaciones.py`); con la lista vacía no
+tiene el módulo y no ve la campana. La `audiencia` solo se sigue mirando en los
+avisos a mano. Las cuentas `cliente` no tienen acceso al router (403).
+**Una notificación nueva tiene que llevar `metadata={"tipo": ...}`** y ese tipo
+tiene que estar en `TIPOS`; si no, cae como `anuncio`.
+
+La bandeja muestra la **hora** de cada notificación («Hoy, 14:32»; el detalle
+trae fecha larga con segundos) y tiene un **buscador** como el de un correo:
+`GET /api/notificaciones?q=...` busca en TODAS las visibles (no solo las 60
+de la bandeja, tope 200), cada palabra debe aparecer en título, resumen,
+cuerpo, `creado_por` o los valores de la metadata, sin importar mayúsculas ni
+tildes. La normalización está en los dos lados (`normalizar_busqueda` en
+`notificaciones.py` y `lib/formato.ts`, que además resalta lo encontrado): si
+tocas una, toca la otra.
+
+---
+
+## Report: tablero y simulación
+
+- Admin y cliente ven Report con el mismo encabezado con foto (`AreaHero`):
+  la foto sigue a la especie filtrada. El admin entra por
+  `ReporteLaboratorioView`; el cliente, por `ClienteDashboardView`.
+- **«Simular 1.000 datos»** (solo admin, nunca en el portal de cliente):
+  `features/reportes/lib/simulacion.ts`. Clientes «(Sim.)», ids negativos,
+  límites ficticios. Vive solo en el estado de la pantalla: se pierde al
+  salir, recargar o actualizar. Nunca va al backend.
+- Post Venta (Accu-Tab) tiene una vista general arriba del detalle
+  (`PostVentaResumen.tsx` + `features/postventa/lib/resumen.ts`), calculada
+  sobre la lista de cargas. pH y ORP **siempre en gráficos separados**.
+  Por ahora solo para admin: mostrárselo a clientes exige filtrar las
+  cargas por cliente en el backend.
 
 ---
 
@@ -185,10 +326,8 @@ por eso apretar una tolerancia en Criterios también revisa el histórico.
 Lo hecho hasta ahora está en el historial de la rama. Lo que **queda
 pendiente**, en orden de importancia:
 
-1. **El túnel Cloudflare**: falta confirmar que corra como servicio y no en
-   una consola abierta (`deploy/windows/3-configurar-tunel.ps1` lo deja
-   instalado; `estado.ps1` lo reporta). El **backend ya no es un pendiente**:
-   corre como tarea programada de Windows, verificado el 09-09-2026.
+1. ~~El túnel Cloudflare~~ **resuelto**: `estado.ps1` lo reporta como servicio
+   `Running` (25-09-2026), igual que el backend (tarea programada).
 2. **Etapa 4 del módulo AgroFresh Lab → Ingreso al laboratorio**: botón
    "Procesar" → modal con el listado de informes → guardar en R2 bajo
    `informes/<fecha>/` → tabla abajo para descargarlos todos o de a uno.

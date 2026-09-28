@@ -216,6 +216,32 @@ describe('VerificacionesView', () => {
     expect(screen.getByRole('button', { name: 'Guardar el día' })).toBeDisabled()
   })
 
+  it('un día pasado se juzga con SUS criterios, no con los vigentes', async () => {
+    // Hoy la tolerancia se apretó a 0.5 µL; el día se guardó cuando era 8.
+    // 0.9 g × 1000 × 1.0026 ≈ 902 µL: aceptable con 8, no con 0.5. Cambiar un
+    // criterio no puede reescribir un día que ya se aprobó.
+    const apretada = { ...CONFIG.micropipetas[0], tolerancia: 0.5 }
+    obtenerConfig.mockResolvedValue({ ...CONFIG, micropipetas: [apretada] })
+    obtenerRegistro.mockResolvedValue({
+      ...(await guardarRegistro('2026-09-01')),
+      temperatura_agua: 20,
+      micropipetas: [
+        {
+          micropipeta_id: 1, analista: 'Paz Salazar',
+          peso_1: 0.9, peso_2: 0.9, peso_3: 0.9,
+          nombre: 'Microman E1000', volumen_nominal: 900, tolerancia: 8,
+          volumen_medio: 902, desviacion: 2, error_pct: 0.22, resultado: 'Aceptable',
+          observacion: '',
+        },
+      ],
+      criterios: CONFIG,
+    })
+    pintar()
+
+    await screen.findByText('Microman E1000')
+    expect(within(fila('Microman E1000')).getByText('Aceptable')).toBeInTheDocument()
+  })
+
   it('permite eliminar un día ya guardado después de confirmarlo', async () => {
     obtenerRegistro.mockResolvedValue(await guardarRegistro('2026-09-01'))
     const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(true)
