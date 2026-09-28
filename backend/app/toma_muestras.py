@@ -448,6 +448,11 @@ class Solicitud(SolicitudIn):
     tipo_solicitud: str = "CONVENCIONAL"
     solicitud_original_archivo: str | None = None
     motivo_reanalisis: str | None = None
+    # Solicitud de prueba (ver `crear_solicitud_prueba`): folio del hueco que
+    # dejaron las pruebas borradas, nunca se envía sola, "(PRUEBA)" en el
+    # asunto y no aparece en el Ingreso al laboratorio ni en reanálisis. Vive
+    # en `datos` (Excel `_data` + jsonb del índice): no necesita migración.
+    es_prueba: bool = False
 
 
 class CruceIn(BaseModel):
@@ -702,6 +707,91 @@ def _regrabar_datos_solicitud(archivo: str, datos: dict) -> None:
     indice_solicitudes.anotar(nombre_archivo, datos, r2_key)
 
 
+# ── Solicitudes de prueba ───────────────────────────────────────────────
+#
+# Al borrar las solicitudes de prueba del arranque, el contador de cada
+# laboratorio no volvió atrás: las reales empezaron en QUITECA 18 y AGF 50.
+# Los folios de ese hueco (1..17, 1..49) se usan para solicitudes de prueba,
+# que crea solo una cuenta (config.SOLICITUDES_PRUEBA_EMAIL). El límite no está
+# escrito a mano: es el folio real más bajo del laboratorio, menos uno.
+
+
+def _es_dueno_pruebas(usuario: Usuario) -> bool:
+    return bool(config.SOLICITUDES_PRUEBA_EMAIL) and (
+        _normalizar_correo(usuario.email) == config.SOLICITUDES_PRUEBA_EMAIL
+    )
+
+
+def _exigir_dueno_pruebas(usuario: Usuario) -> None:
+    if not _es_dueno_pruebas(usuario):
+        raise HTTPException(403, "Las solicitudes de prueba solo las puede crear su cuenta autorizada.")
+
+
+def _formato_folio(laboratorio: str, numero: int) -> str:
+    prefijo = _prefijo_de_laboratorio(laboratorio)
+    return f"{PREFIJO_FOLIO}-{prefijo}{numero:04d}" if prefijo else f"{PREFIJO_FOLIO}-{numero:04d}"
+
+
+def _hueco_de_prueba(laboratorio: str) -> dict:
+    """Límite del hueco, folios de prueba ya usados y el siguiente libre."""
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "SELECT numero_solicitud, coalesce(datos->>'es_prueba', 'false') = 'true' AS prueba"
+            " FROM solicitud_archivo WHERE laboratorio = %s AND numero_solicitud ~ '[0-9]+$'",
+            (laboratorio,),
+        )
+        filas = cur.fetchall()
+        # Los folios existen en todos los laboratorios: uno sin prefijo comparte
+        # la numeración con los demás sin prefijo.
+        cur.execute("SELECT numero_solicitud FROM solicitud_archivo")
+        existentes = {f["numero_solicitud"] for f in cur.fetchall()}
+
+    def _numero(folio: str) -> int:
+        return int(re.search(r"[0-9]+$", folio).group())
+
+    reales = [_numero(f["numero_solicitud"]) for f in filas if not f["prueba"]]
+    limite = (min(reales) - 1) if reales else 0
+    usados = sum(1 for f in filas if f["prueba"])
+    siguiente = next(
+        (n for n in range(1, limite + 1) if _formato_folio(laboratorio, n) not in existentes),
+        None,
+    )
+    return {
+        "laboratorio": laboratorio,
+        "limite": limite,
+        "usados": usados,
+        "siguiente": _formato_folio(laboratorio, siguiente) if siguiente else None,
+    }
+
+
+@router.get("/solicitudes-prueba/estado")
+def estado_solicitudes_prueba(usuario: Usuario = Depends(usuario_actual)) -> dict:
+    """Si la cuenta puede crear pruebas y cuántos folios le quedan por laboratorio."""
+    if not _es_dueno_pruebas(usuario):
+        return {"permitido": False, "laboratorios": []}
+    labs = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
+    codigos = [l.get("codigo") for l in labs if l.get("codigo") and l.get("activo", True)]
+    return {"permitido": True, "laboratorios": [_hueco_de_prueba(c) for c in codigos]}
+
+
+@router.post("/solicitudes-prueba")
+def crear_solicitud_prueba(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
+    """Como `crear_solicitud`, pero con el folio libre más bajo del hueco, la
+    marca `es_prueba` y sin notificación. El envío por correo lo decide la
+    pantalla: una prueba nunca se envía sola."""
+    _exigir_dueno_pruebas(usuario)
+    _validar_analitos(body)
+    _exigir_lab_activo(body.laboratorio)
+    hueco = _hueco_de_prueba(body.laboratorio)
+    if not hueco["siguiente"]:
+        raise HTTPException(
+            409,
+            f"No quedan folios de prueba para {body.laboratorio}: "
+            f"el hueco llega hasta el {hueco['limite']} y ya está completo.",
+        )
+    return _guardar_solicitud_nueva(body, usuario, hueco["siguiente"], es_prueba=True)
+
+
 @router.put("/solicitudes/{archivo}")
 def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     """Actualiza una solicitud existente -mismo folio, mismo archivo-, nunca
@@ -720,6 +810,9 @@ def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends
         enviada=False,
         enviado_en=None,
     )
+    if datos_actuales.get("es_prueba"):
+        # Editar no le quita la marca: sigue siendo de prueba.
+        datos["es_prueba"] = True
     _regrabar_datos_solicitud(archivo, datos)
     return Solicitud(archivo=nombre_archivo, **datos)
 
@@ -733,7 +826,12 @@ def _validar_analitos(body: SolicitudIn) -> None:
 def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     _validar_analitos(body)
     _exigir_lab_activo(body.laboratorio)
-    numero = _siguiente_numero(body.laboratorio)
+    return _guardar_solicitud_nueva(body, usuario, _siguiente_numero(body.laboratorio))
+
+
+def _guardar_solicitud_nueva(
+    body: SolicitudIn, usuario: Usuario, numero: str, *, es_prueba: bool = False,
+) -> Solicitud:
     ahora = datetime.now(timezone.utc)
     datos = body.model_dump()
     if usuario.tipoAcceso == "muestreador":
@@ -752,6 +850,8 @@ def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual
         enviada=False,
         enviado_en=None,
     )
+    if es_prueba:
+        datos["es_prueba"] = True
     nombre_archivo = f"{numero}.xlsx"
     fecha = datos["fecha_solicitud"]
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
@@ -785,6 +885,9 @@ def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual
     # existe. Al revés es recuperable — un archivo sin indexar se arregla
     # volviendo a correr scripts/indexar_solicitudes.py.
     indice_solicitudes.anotar(nombre_archivo, datos, r2_key)
+    if es_prueba:
+        # Una prueba no avisa a nadie: solo existe en Solicitudes.
+        return Solicitud(archivo=nombre_archivo, **datos)
     nombre_quien = usuario.nombre or usuario.email
     ship_to = body.ship_to or "—"
     notificar(
@@ -1060,6 +1163,8 @@ def listar_solicitudes_elegibles_reanalisis(
     pares = indice_solicitudes.listar_elegibles_reanalisis()
     salida: list[Solicitud] = []
     for nombre, datos in pares:
+        if datos.get("es_prueba"):
+            continue
         try:
             salida.append(Solicitud(archivo=nombre, **datos))
         except (ValueError, KeyError):
@@ -1094,6 +1199,9 @@ def crear_reanalisis(
         datos_original = _leer_solicitud_archivo(_ruta_archivo(archivo))
 
     archivo_base = os.path.basename(archivo)
+
+    if datos_original.get("es_prueba"):
+        raise HTTPException(400, "Una solicitud de prueba no admite reanálisis.")
 
     if not datos_original.get("enviada"):
         raise HTTPException(
@@ -1799,6 +1907,8 @@ def enviar_solicitud_por_correo(
         asunto, texto, html, imagenes_inline = mail_templates.renderizar_reanalisis(lab, datos)
     else:
         asunto, texto, html, imagenes_inline = mail_templates.renderizar(lab, datos)
+    if datos.get("es_prueba"):
+        asunto = f"(PRUEBA) {asunto}"
 
     labs_cfg = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
     lab_cfg = next((l for l in labs_cfg if l.get("codigo", "").upper() == lab.upper()), {})
