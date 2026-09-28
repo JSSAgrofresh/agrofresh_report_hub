@@ -239,6 +239,23 @@ tocas una, toca la otra.
 
 ---
 
+## Report: tablero y simulación
+
+- Admin y cliente ven Report con el mismo encabezado con foto (`AreaHero`):
+  la foto sigue a la especie filtrada. El admin entra por
+  `ReporteLaboratorioView`; el cliente, por `ClienteDashboardView`.
+- **«Simular 1.000 datos»** (solo admin, nunca en el portal de cliente):
+  `features/reportes/lib/simulacion.ts`. Clientes «(Sim.)», ids negativos,
+  límites ficticios. Vive solo en el estado de la pantalla: se pierde al
+  salir, recargar o actualizar. Nunca va al backend.
+- Post Venta (Accu-Tab) tiene una vista general arriba del detalle
+  (`PostVentaResumen.tsx` + `features/postventa/lib/resumen.ts`), calculada
+  sobre la lista de cargas. pH y ORP **siempre en gráficos separados**.
+  Por ahora solo para admin: mostrárselo a clientes exige filtrar las
+  cargas por cliente en el backend.
+
+---
+
 ## Trampas conocidas (nos costaron tiempo)
 
 - **Finales de línea mezclados.** `emitir.py`, `toma_muestras.py` y
