@@ -15,7 +15,10 @@ export const MAX_PUNTOS_DIARIOS = 60
 
 /** Solicitudes distintas por valor de `campo`, de mayor a menor. Agrupa las
  * variantes que solo difieren en tildes/mayúsculas (como los filtros). */
-export function solicitudesPor(obs: Observacion[], campo: 'crop' | 'cliente' | 'planta' | 'tipoServicio') {
+export function solicitudesPor(
+  obs: Observacion[],
+  campo: 'crop' | 'cliente' | 'planta' | 'tipoServicio',
+) {
   const grupos = new Map<string, { valor: string; solicitudes: Set<number> }>()
   obs.forEach((o) => {
     const v = o[campo]

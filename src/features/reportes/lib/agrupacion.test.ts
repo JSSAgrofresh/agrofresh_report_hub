@@ -45,7 +45,10 @@ describe('lunesDe', () => {
 describe('solicitudesPor', () => {
   it('cuenta solicitudes distintas, no filas de resultado', () => {
     // La solicitud 1 trae dos resultados (dos analitos): cuenta una vez.
-    const r = solicitudesPor([obs(1, 'Cereza'), obs(1, 'Cereza'), obs(2, 'Cereza'), obs(3, 'Pera')], 'crop')
+    const r = solicitudesPor(
+      [obs(1, 'Cereza'), obs(1, 'Cereza'), obs(2, 'Cereza'), obs(3, 'Pera')],
+      'crop',
+    )
     expect(r).toEqual([
       { valor: 'Cereza', n: 2 },
       { valor: 'Pera', n: 1 },
@@ -53,7 +56,10 @@ describe('solicitudesPor', () => {
   })
 
   it('junta variantes con tildes o mayúsculas y descarta vacíos', () => {
-    const r = solicitudesPor([obs(1, 'Arándano'), obs(2, 'ARANDANO'), obs(3, null), obs(4, '  ')], 'crop')
+    const r = solicitudesPor(
+      [obs(1, 'Arándano'), obs(2, 'ARANDANO'), obs(3, null), obs(4, '  ')],
+      'crop',
+    )
     expect(r).toEqual([{ valor: 'Arándano', n: 2 }])
   })
 

@@ -63,8 +63,16 @@ const ESPECIES: { especie: string; variedades: string[]; peso: number }[] = [
 
 // "Sim." en el nombre: si alguien saca una captura, no pasa por un cliente real.
 const CLIENTES: { cliente: string; plantas: string[]; peso: number }[] = [
-  { cliente: 'Frutícola Los Andes (Sim.)', plantas: ['Planta Los Andes', 'Planta San Felipe'], peso: 4 },
-  { cliente: 'Exportadora Valle Central (Sim.)', plantas: ['Planta Rancagua', 'Planta Rengo', 'Planta Requínoa'], peso: 5 },
+  {
+    cliente: 'Frutícola Los Andes (Sim.)',
+    plantas: ['Planta Los Andes', 'Planta San Felipe'],
+    peso: 4,
+  },
+  {
+    cliente: 'Exportadora Valle Central (Sim.)',
+    plantas: ['Planta Rancagua', 'Planta Rengo', 'Planta Requínoa'],
+    peso: 5,
+  },
   { cliente: 'Agrícola Del Maule (Sim.)', plantas: ['Planta Talca', 'Planta Curicó'], peso: 3 },
   { cliente: 'Packing Sur (Sim.)', plantas: ['Planta Chillán'], peso: 2 },
   { cliente: 'Frutas del Pacífico (Sim.)', plantas: ['Planta Linderos', 'Planta Buin'], peso: 3 },
@@ -104,7 +112,11 @@ function iso(fecha: Date): string {
  * rango objetivo y un ~4 % viene como "ND" (sin valor numérico), igual que en
  * los datos reales.
  */
-export function generarDatosSimulados(resultados = 1000, semilla = 20260928, hoy = new Date()): DatosSimulados {
+export function generarDatosSimulados(
+  resultados = 1000,
+  semilla = 20260928,
+  hoy = new Date(),
+): DatosSimulados {
   const azar = crearAzar(semilla)
   const filas: FilaReporte[] = []
   const finUtc = Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate())
@@ -152,7 +164,11 @@ export function generarDatosSimulados(resultados = 1000, semilla = 20260928, hoy
       // Casi todo dentro del rango, con una cola a ambos lados.
       const ancho = (ing.max - ing.min) / 2
       let valor = ing.central + azar.normal() * ancho * 0.45
-      if (azar.siguiente() < 0.08) valor = azar.siguiente() < 0.5 ? ing.min * (0.3 + azar.siguiente() * 0.6) : ing.max * (1.05 + azar.siguiente() * 0.5)
+      if (azar.siguiente() < 0.08)
+        valor =
+          azar.siguiente() < 0.5
+            ? ing.min * (0.3 + azar.siguiente() * 0.6)
+            : ing.max * (1.05 + azar.siguiente() * 0.5)
       valor = Math.max(0.01, Math.round(valor * 1000) / 1000)
       filas.push({ ...base, ingrediente: ing.codigo, valor_num: valor, valor_texto: null })
     }
@@ -184,5 +200,10 @@ export function generarDatosSimulados(resultados = 1000, semilla = 20260928, hoy
     limite_max: ing.max,
   }))
 
-  return { filas, analitos, limites, totalSolicitudes: new Set(filas.map((f) => f.solicitud_id)).size }
+  return {
+    filas,
+    analitos,
+    limites,
+    totalSolicitudes: new Set(filas.map((f) => f.solicitud_id)).size,
+  }
 }

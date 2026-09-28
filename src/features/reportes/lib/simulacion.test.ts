@@ -51,7 +51,9 @@ describe('generarDatosSimulados', () => {
     const dentro = conValor.filter((f) => {
       const a = analitos.find((x) => x.codigo === f.ingrediente)!
       const l = limites.find((x) => x.analito_id === a.id)!
-      return Number(f.valor_num) >= Number(l.limite_min) && Number(f.valor_num) <= Number(l.limite_max)
+      return (
+        Number(f.valor_num) >= Number(l.limite_min) && Number(f.valor_num) <= Number(l.limite_max)
+      )
     })
     const pct = dentro.length / conValor.length
     expect(pct).toBeGreaterThan(0.75)
