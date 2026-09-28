@@ -13,6 +13,7 @@ import {
   descargarTodasLasSolicitudes,
   obtenerEnvioAutomatico,
   actualizarEnvioAutomatico,
+  estadoSolicitudesPrueba,
 } from '@/features/tomaMuestras'
 import type { Solicitud } from '@/features/tomaMuestras'
 import styles from './SolicitudesView.module.css'
@@ -62,6 +63,8 @@ export function SolicitudesView() {
   const puedeEliminar = esAdmin && user?.email === 'jorge.sandoval@agrofresh.com'
 
   const [solicitudes, setSolicitudes] = useState<Solicitud[] | null>(null)
+  // Botón "Solicitud de prueba": lo decide el backend (una sola cuenta).
+  const [puedeCrearPruebas, setPuedeCrearPruebas] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
@@ -73,6 +76,12 @@ export function SolicitudesView() {
   const [errorModal, setErrorModal] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
   const inputPasswordRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    estadoSolicitudesPrueba()
+      .then((r) => setPuedeCrearPruebas(r.permitido))
+      .catch(() => setPuedeCrearPruebas(false))
+  }, [])
 
   useEffect(() => {
     if (!esAdmin) return
@@ -246,6 +255,11 @@ export function SolicitudesView() {
             >
               {etiquetaBotonExport}
             </button>
+            {puedeCrearPruebas && (
+              <Button variant="secondary" onClick={() => navigate(ROUTES.tomaMuestrasNuevaPrueba)}>
+                + Solicitud de prueba
+              </Button>
+            )}
             <Button onClick={() => navigate(ROUTES.tomaMuestrasNueva)}>+ Nueva solicitud</Button>
           </div>
         }
@@ -549,7 +563,10 @@ export function SolicitudesView() {
                           aria-label={`Seleccionar ${s.numero_solicitud}`}
                         />
                       </td>
-                      <td className={styles.nombre}>{s.numero_solicitud}</td>
+                      <td className={styles.nombre}>
+                        {s.numero_solicitud}
+                        {s.es_prueba && <span className={styles.etiquetaPrueba}>PRUEBA</span>}
+                      </td>
                       <td>{formatDateCL(s.fecha_solicitud)}</td>
                       <td>
                         <span className={styles.etiquetaLaboratorio}>{s.laboratorio}</span>
@@ -598,7 +615,10 @@ export function SolicitudesView() {
                         aria-label={`Seleccionar ${s.numero_solicitud}`}
                       />
                       <div>
-                        <div className={styles.tarjetaId}>{s.numero_solicitud}</div>
+                        <div className={styles.tarjetaId}>
+                          {s.numero_solicitud}
+                          {s.es_prueba && <span className={styles.etiquetaPrueba}>PRUEBA</span>}
+                        </div>
                         <div className={styles.tarjetaFecha}>{formatDateCL(s.fecha_solicitud)}</div>
                       </div>
                     </div>
