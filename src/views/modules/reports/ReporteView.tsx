@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import {
   ArcElement,
   BarController,
@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
-import { IconFrasco } from '@/components/ui/icons'
+import { IconAlerta, IconArchivoPlano, IconFrasco, IconTrendingUp, IconVerificar } from '@/components/ui/icons'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import type { RangoFechas } from '@/components/ui/CalendarioRango'
@@ -37,13 +37,19 @@ import {
   aplicarFiltros,
   calcularEstadisticas,
   calcularLimitesControl,
+  claveFiltro,
   clientesDeSucursal,
+  colorCategorico,
   colorDeIngrediente,
   contarFiltrosActivos,
   contarFueraDeIntervalo,
   descargarDatosExcel,
+  generarDatosSimulados,
   histograma,
   listarAnalitos,
+  lunesDe,
+  MAX_PUNTOS_DIARIOS,
+  solicitudesPor,
   listarLimites,
   mismoValor,
   obtenerDatosReporte,
@@ -53,6 +59,7 @@ import {
 } from '@/features/reportes'
 import type {
   Analito,
+  DatosSimulados,
   FilaReporte,
   FiltrosReporte,
   LimiteAnalito,
@@ -185,18 +192,66 @@ function chipsDeFiltros(f: Filtros, clienteFijo: boolean): { campo: keyof Filtro
 
 const FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit' })
 
+/** Tarjeta de indicador: ícono en su pastilla de color, etiqueta, cifra y
+ * una línea de contexto. `tono` colorea el ícono y el borde, nunca la cifra
+ * -el texto va siempre en los tonos de texto, legible en cualquier caso-. */
+function Kpi({
+  icono,
+  tono,
+  etiqueta,
+  destacado,
+  children,
+  sub,
+}: {
+  icono: ReactNode
+  tono: string
+  etiqueta: ReactNode
+  destacado?: boolean
+  children: ReactNode
+  sub?: ReactNode
+}) {
+  return (
+    <Card
+      className={`${styles.statCard} ${destacado ? styles.destacado : ''}`}
+      style={{ '--kpi': tono } as CSSProperties}
+    >
+      <div className={styles.kpiCabeza}>
+        <span className={styles.kpiIcono} aria-hidden="true">
+          {icono}
+        </span>
+        <span className={styles.statLbl}>{etiqueta}</span>
+      </div>
+      {children}
+      {sub != null && <span className={styles.statSub}>{sub}</span>}
+    </Card>
+  )
+}
+
+const ETIQUETA_DIMENSION = {
+  cliente: 'cliente (Sold To)',
+  planta: 'sucursal (Ship To)',
+  tipoServicio: 'tipo de servicio',
+} as const
+
 /** `clienteFijo`: usado por el portal de cliente — cuando viene seteado, los
  * datos ya llegan filtrados por el backend (nunca se filtran solo en el
  * navegador) y los filtros de Cliente/Sucursal ni siquiera se muestran.
  * `plantaFija`: opcional, solo tiene sentido junto con clienteFijo — cuentas
  * creadas por Ship To (ej. "Dole Codegua") en vez de por Sold To completo.
- * `onCropChange`: usado por el portal de cliente para cambiar la imagen de
- * fondo del encabezado según la especie elegida en el filtro. */
+ * `onCropChange`: usado por el portal de cliente (y el encabezado del admin)
+ * para cambiar la imagen de fondo según la especie elegida en el filtro.
+ * `onClienteChange`: el encabezado del admin muestra el Sold To filtrado. */
 export function ReporteView({
   clienteFijo,
   plantaFija,
   onCropChange,
-}: { clienteFijo?: string; plantaFija?: string; onCropChange?: (crop: string) => void } = {}) {
+  onClienteChange,
+}: {
+  clienteFijo?: string
+  plantaFija?: string
+  onCropChange?: (crop: string) => void
+  onClienteChange?: (cliente: string) => void
+} = {}) {
   const { user } = useAuth()
   const acento = areaDeModulo('reports')?.colorPrimario ?? '#6dad3c'
   const wrapStyle = { '--acento': acento } as CSSProperties
@@ -222,6 +277,13 @@ export function ReporteView({
   const [detalle, setDetalle] = useState<{ titulo: string; filas: Observacion[] } | null>(null)
   const [descargandoDatos, setDescargandoDatos] = useState(false)
   const [vistaGrafico, setVistaGrafico] = useState<'promedios' | 'individual'>('promedios')
+  // Datos de prueba (solo admin): viven en este estado y en ningún otro lado.
+  // Se pierden al salir de Report, al recargar y al actualizar -a propósito:
+  // nunca pueden mezclarse con los reales-.
+  const [simulacion, setSimulacion] = useState<DatosSimulados | null>(null)
+  const cambiarCropRef = useRef<(v: string) => void>(() => {})
+  const cambiarClienteRef = useRef<(v: string) => void>(() => {})
+  const cambiarPlantaRef = useRef<(v: string) => void>(() => {})
 
   const obtenerTodo = useCallback(async () => {
     const [datos, catalogo, limitesCatalogo] = await Promise.all([
@@ -233,6 +295,7 @@ export function ReporteView({
   }, [clienteFijo, plantaFija])
 
   function aplicarExito(r: { filas: FilaReporte[]; totalSolicitudes: number; analitos: Analito[]; limites: LimiteAnalito[] }) {
+    setSimulacion(null)
     setFilas(r.filas)
     setTotalSolicitudes(r.totalSolicitudes)
     setAnalitos(r.analitos)
@@ -281,6 +344,10 @@ export function ReporteView({
   }, [filtros.crop, onCropChange])
 
   useEffect(() => {
+    onClienteChange?.(filtros.cliente)
+  }, [filtros.cliente, onClienteChange])
+
+  useEffect(() => {
     listarEspeciesActivas()
       .then(setEspeciesOficiales)
       .catch(() => setEspeciesOficiales([]))
@@ -297,6 +364,15 @@ export function ReporteView({
   }, [])
 
   const esGestor = user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area'
+  // Nunca en el portal de cliente: un cliente no puede ver datos inventados.
+  const puedeSimular = esGestor && !clienteFijo
+  const simulando = puedeSimular && simulacion != null
+  // Lo que se muestra: los datos simulados mientras la simulación está activa,
+  // los reales el resto del tiempo. Todo lo de abajo lee de acá.
+  const filasVista = simulando ? simulacion.filas : filas
+  const analitosVista = simulando ? simulacion.analitos : analitos
+  const limitesVista = simulando ? simulacion.limites : limites
+  const totalVista = simulando ? simulacion.totalSolicitudes : totalSolicitudes
 
   // Una fila por cada solicitud filtrada (LEFT JOIN con resultado en el backend):
   // toda solicitud de la base aparece acá, tenga o no un resultado numérico —
@@ -304,8 +380,8 @@ export function ReporteView({
   // un resultado cualitativo como "ND"), pero la solicitud igual se cuenta y
   // se puede ver en el detalle.
   const observaciones = useMemo<Observacion[]>(() => {
-    if (!filas) return []
-    return filas.map((f) => {
+    if (!filasVista) return []
+    return filasVista.map((f) => {
       const num = f.valor_num == null ? null : Number(f.valor_num)
       return {
         solicitudId: f.solicitud_id,
@@ -326,7 +402,7 @@ export function ReporteView({
         mes: f.mes,
       }
     })
-  }, [filas])
+  }, [filasVista])
 
   // Cada desplegable ofrece lo que queda con TODOS LOS DEMÁS filtros puestos
   // (facetas), con cuántas solicitudes trae cada opción. Antes Especie y
@@ -395,13 +471,13 @@ export function ReporteView({
       // nombre en el catálogo de Diagnofruit y, si por algún motivo no está
       // -código nuevo sin catalogar todavía-, se muestra tal cual llegó.
       const nombre =
-        analitos.find((a) => a.codigo === o.ingrediente && mismoValor(a.laboratorio, 'Diagnofruit'))?.nombre ??
+        analitosVista.find((a) => a.codigo === o.ingrediente && mismoValor(a.laboratorio, 'Diagnofruit'))?.nombre ??
         o.ingrediente
       const texto = o.ppm != null ? formatDecimalCL(o.ppm, 2) : o.valorTexto ?? '—'
       grupo.patogenos.push({ codigo: o.ingrediente, nombre, texto, detectado: esDetectado(o) })
     })
     return [...porSolicitud.values()].sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''))
-  }, [esDiagnofruit, filtradas, analitos])
+  }, [esDiagnofruit, filtradas, analitosVista])
 
   // El gráfico de barras de abajo es un resumen de la misma tabla, no un dato
   // aparte: cuántas muestras dieron positivo/negativo para cada patógeno, de
@@ -446,17 +522,17 @@ export function ReporteView({
   const analitoSeleccionado = useMemo(() => {
     if (filtros.ingredientes.length !== 1) return null
     const codigo = filtros.ingredientes[0]
-    const candidatos = analitos.filter((a) => a.codigo === codigo)
+    const candidatos = analitosVista.filter((a) => a.codigo === codigo)
     if (candidatos.length <= 1) return candidatos[0] ?? null
     return candidatos.find((a) => mismoValor(a.laboratorio, filtros.laboratorio)) ?? candidatos[0]
-  }, [analitos, filtros.ingredientes, filtros.laboratorio])
+  }, [analitosVista, filtros.ingredientes, filtros.laboratorio])
 
   // El límite correcto depende de especie y tipo de servicio, no solo del analito:
   // se busca primero la combinación exacta, y si no existe se va relajando hacia
   // los comodines ('' = "aplica a todas/todos") hasta encontrar algo definido.
   const limiteResidual = useMemo(() => {
     if (!analitoSeleccionado) return { inferior: null, central: null, superior: null }
-    const propios = limites.filter((l) => l.analito_id === analitoSeleccionado.id)
+    const propios = limitesVista.filter((l) => l.analito_id === analitoSeleccionado.id)
     const especie = filtros.crop
     const servicio = filtros.tipoServicio
     const candidatos = [
@@ -471,7 +547,7 @@ export function ReporteView({
       central: encontrado?.limite_central != null ? Number(encontrado.limite_central) : null,
       superior: encontrado?.limite_max != null ? Number(encontrado.limite_max) : null,
     }
-  }, [analitoSeleccionado, limites, filtros.crop, filtros.tipoServicio])
+  }, [analitoSeleccionado, limitesVista, filtros.crop, filtros.tipoServicio])
 
   const limitesActivos = vista === 'residual' ? limiteResidual : limitesControl
   // Una sola definición de "cumplimiento" para el KPI, la dona y la barra: dentro
@@ -502,6 +578,11 @@ export function ReporteView({
           ? `Ingrediente seleccionado: ${filtros.ingredientes[0]}. Las líneas de límite residual vienen de los valores configurados para este analito.`
           : 'Selecciona un ingrediente activo para ver sus límites residuales.'
         : `Límites dinámicos: promedio ± ${sigma} × desviación estándar de las ${valores.length.toLocaleString('es-CL')} observación(es) filtradas.`
+
+  const agrupacionSemanal = useMemo(
+    () => new Set(filtradas.map((o) => o.fecha).filter(Boolean)).size > MAX_PUNTOS_DIARIOS,
+    [filtradas],
+  )
 
   // ── gráficos ──
   const mainRef = useRef<HTMLCanvasElement>(null)
@@ -618,9 +699,11 @@ export function ReporteView({
         }
       }
     } else {
-      // Vista por promedios (por defecto): un punto por fecha, valor = promedio del día.
-      const claves = unique(filtradas.map((o) => o.fecha ?? 'Sin fecha')).sort()
-      etiquetas = claves.map((k) => (k === 'Sin fecha' ? k : formatDateCL(k)))
+      // Vista por promedios (por defecto): un punto por fecha, valor = promedio
+      // del día; o por semana cuando hay demasiadas fechas (ver agrupacionSemanal).
+      const claveFecha = (o: Observacion) => (o.fecha ? (agrupacionSemanal ? lunesDe(o.fecha) : o.fecha) : 'Sin fecha')
+      const claves = unique(filtradas.map(claveFecha)).sort()
+      etiquetas = claves.map((k) => (k === 'Sin fecha' ? k : agrupacionSemanal ? `Sem. ${formatDateCL(k)}` : formatDateCL(k)))
 
       if (comparandoVarios) {
         datasets = filtros.ingredientes.map((ingrediente) => {
@@ -628,7 +711,7 @@ export function ReporteView({
           filtradas
             .filter((o) => o.ingrediente === ingrediente && o.ppm != null)
             .forEach((o) => {
-              const clave = o.fecha ?? 'Sin fecha'
+              const clave = claveFecha(o)
               const arr = porFecha.get(clave) ?? []
               arr.push(o.ppm as number)
               porFecha.set(clave, arr)
@@ -654,7 +737,7 @@ export function ReporteView({
         const porFecha = new Map<string, number[]>()
         filtradas.forEach((o) => {
           if (o.ppm == null) return
-          const clave = o.fecha ?? 'Sin fecha'
+          const clave = claveFecha(o)
           const arr = porFecha.get(clave) ?? []
           arr.push(o.ppm)
           porFecha.set(clave, arr)
@@ -709,14 +792,14 @@ export function ReporteView({
       onClickGrafico = (_evt, elements) => {
         if (!elements.length) return
         const { datasetIndex, index } = elements[0]
-        const fechaClave = unique(filtradas.map((o) => o.fecha ?? 'Sin fecha')).sort()[index]
+        const fechaClave = claves[index]
         if (comparandoVarios) {
           const ingrediente = filtros.ingredientes[datasetIndex]
-          const obs = filtradas.filter((o) => o.ingrediente === ingrediente && (o.fecha ?? 'Sin fecha') === fechaClave)
+          const obs = filtradas.filter((o) => o.ingrediente === ingrediente && claveFecha(o) === fechaClave)
           if (obs.length) setDetalle({ titulo: `${ingrediente} · ${etiquetas[index]}`, filas: obs })
         } else {
           if (datasetIndex !== 0) return
-          const obs = filtradas.filter((o) => (o.fecha ?? 'Sin fecha') === fechaClave)
+          const obs = filtradas.filter((o) => claveFecha(o) === fechaClave)
           if (obs.length) setDetalle({ titulo: etiquetas[index], filas: obs })
         }
       }
@@ -778,6 +861,7 @@ export function ReporteView({
     colorDanger,
     unidad,
     vistaGrafico,
+    agrupacionSemanal,
   ])
 
   useEffect(() => {
@@ -875,6 +959,225 @@ export function ReporteView({
     return () => barChart.current?.destroy()
   }, [tramos, filtradas, limitesActivos.inferior, limitesActivos.superior, acento, unidad, colorOk, colorDanger, colorBorder, colorMuted])
 
+  // ── desglose: especie, ingrediente y cliente/sucursal ──
+  // El color de cada especie se fija UNA vez con todos los datos (no los
+  // filtrados): así filtrar no repinta las especies que quedan. Pasado el
+  // 7.º color, todo va a "Otras" en gris -nunca un tono inventado-.
+  const colorEspecie = useMemo(() => {
+    const mapa = new Map<string, string>()
+    solicitudesPor(observaciones, 'crop')
+      .slice(0, 7)
+      .forEach((e, i) => mapa.set(claveFiltro(e.valor), colorCategorico(i) ?? colorMuted))
+    return mapa
+  }, [observaciones, colorMuted])
+
+  const porEspecie = useMemo(() => {
+    const lista = solicitudesPor(filtradas, 'crop')
+    const conColor = lista.filter((e) => colorEspecie.has(claveFiltro(e.valor)))
+    const otras = lista.filter((e) => !colorEspecie.has(claveFiltro(e.valor)))
+    const nOtras = otras.reduce((s, e) => s + e.n, 0)
+    return [
+      ...conColor.map((e) => ({ ...e, color: colorEspecie.get(claveFiltro(e.valor)) as string, otras: false })),
+      ...(nOtras > 0 ? [{ valor: 'Otras', n: nOtras, color: colorMuted, otras: true }] : []),
+    ]
+  }, [filtradas, colorEspecie, colorMuted])
+  const totalEspecies = porEspecie.reduce((s, e) => s + e.n, 0)
+
+  const promedioPorIngrediente = useMemo(() => {
+    const grupos = new Map<string, number[]>()
+    filtradas.forEach((o) => {
+      if (o.ppm == null || !o.ingrediente) return
+      const arr = grupos.get(o.ingrediente) ?? []
+      arr.push(o.ppm)
+      grupos.set(o.ingrediente, arr)
+    })
+    return [...grupos.entries()]
+      .map(([codigo, vs]) => ({ codigo, promedio: vs.reduce((a, b) => a + b, 0) / vs.length, n: vs.length }))
+      .sort((a, b) => b.promedio - a.promedio)
+  }, [filtradas])
+
+  // El tercer desglose se adapta: por cliente mientras haya varios; con uno
+  // solo (filtrado, o el portal de un cliente) baja a sucursal, y si también
+  // hay una sola, a tipo de servicio.
+  const desgloseOrg = useMemo(() => {
+    const candidatos = (clienteFijo ? ['planta', 'tipoServicio'] : ['cliente', 'planta', 'tipoServicio']) as (
+      | 'cliente'
+      | 'planta'
+      | 'tipoServicio'
+    )[]
+    for (const campo of candidatos) {
+      const lista = solicitudesPor(filtradas, campo)
+      if (lista.length > 1) return { campo, lista: lista.slice(0, 8), resto: Math.max(0, lista.length - 8) }
+    }
+    const campo = candidatos[candidatos.length - 1]
+    return { campo, lista: solicitudesPor(filtradas, campo).slice(0, 8), resto: 0 }
+  }, [filtradas, clienteFijo])
+
+  const especieRef = useRef<HTMLCanvasElement>(null)
+  const ingredienteRef = useRef<HTMLCanvasElement>(null)
+  const orgRef = useRef<HTMLCanvasElement>(null)
+  const especieChart = useRef<Chart | null>(null)
+  const ingredienteChart = useRef<Chart | null>(null)
+  const orgChart = useRef<Chart | null>(null)
+  const colorSuperficie = cssVar('--color-surface', '#ffffff')
+
+  useEffect(() => {
+    if (!especieRef.current) return
+    especieChart.current?.destroy()
+    especieChart.current = new Chart(especieRef.current, {
+      type: 'doughnut',
+      data: {
+        labels: porEspecie.map((e) => e.valor),
+        datasets: [
+          {
+            data: porEspecie.map((e) => e.n),
+            backgroundColor: porEspecie.map((e) => e.color),
+            // Separación de 2 px entre porciones, del color de la tarjeta.
+            borderColor: colorSuperficie,
+            borderWidth: 2,
+            hoverOffset: 6,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '66%',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const n = Number(ctx.raw)
+                const pct = totalEspecies ? (n / totalEspecies) * 100 : 0
+                return `${ctx.label}: ${n.toLocaleString('es-CL')} solicitud${n === 1 ? '' : 'es'} (${formatDecimalCL(pct, 1)}%)`
+              },
+            },
+          },
+        },
+        onClick: (_evt, elements) => {
+          const e = elements.length ? porEspecie[elements[0].index] : undefined
+          if (e && !e.otras) cambiarCropRef.current(e.valor)
+        },
+      },
+    })
+    return () => especieChart.current?.destroy()
+  }, [porEspecie, totalEspecies, colorSuperficie])
+
+  useEffect(() => {
+    if (!ingredienteRef.current) return
+    ingredienteChart.current?.destroy()
+    ingredienteChart.current = new Chart(ingredienteRef.current, {
+      type: 'bar',
+      data: {
+        labels: promedioPorIngrediente.map((r) => r.codigo),
+        datasets: [
+          {
+            label: `Promedio ${unidad}`,
+            data: promedioPorIngrediente.map((r) => r.promedio),
+            backgroundColor: promedioPorIngrediente.map((r) => colorDeIngrediente(r.codigo)),
+            borderRadius: 4,
+            borderSkipped: 'start',
+            maxBarThickness: 22,
+          },
+        ],
+      },
+      options: {
+        indexAxis: 'y',
+        // Clic en cualquier parte de la fila, no solo sobre la barra: una
+        // barra corta sería casi imposible de atinar.
+        interaction: { mode: 'nearest', axis: 'y', intersect: false },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const r = promedioPorIngrediente[ctx.dataIndex]
+                return `${formatDecimalCL(r.promedio, 3)} ${unidad} · ${r.n.toLocaleString('es-CL')} resultado${r.n === 1 ? '' : 's'}`
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            grid: { color: colorBorder },
+            ticks: { callback: (v) => formatDecimalCL(Number(v), 1), font: { size: 10 } },
+          },
+          y: { grid: { display: false }, ticks: { font: { size: 11, weight: 'bold' } } },
+        },
+        onClick: (_evt, elements) => {
+          const r = elements.length ? promedioPorIngrediente[elements[0].index] : undefined
+          if (r) setFiltros((prev) => ({ ...prev, ingredientes: [r.codigo] }))
+        },
+      },
+    })
+    return () => ingredienteChart.current?.destroy()
+  }, [promedioPorIngrediente, unidad, colorBorder])
+
+  useEffect(() => {
+    if (!orgRef.current) return
+    const { campo, lista } = desgloseOrg
+    orgChart.current?.destroy()
+    orgChart.current = new Chart(orgRef.current, {
+      type: 'bar',
+      data: {
+        labels: lista.map((r) => r.valor),
+        datasets: [
+          {
+            label: 'Solicitudes',
+            data: lista.map((r) => r.n),
+            backgroundColor: conAlfa(acento, 0.85),
+            hoverBackgroundColor: acento,
+            borderRadius: 4,
+            borderSkipped: 'start',
+            maxBarThickness: 22,
+          },
+        ],
+      },
+      options: {
+        indexAxis: 'y',
+        // Clic en cualquier parte de la fila, no solo sobre la barra: una
+        // barra corta sería casi imposible de atinar.
+        interaction: { mode: 'nearest', axis: 'y', intersect: false },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `${Number(ctx.raw).toLocaleString('es-CL')} solicitud${ctx.raw === 1 ? '' : 'es'}`,
+            },
+          },
+        },
+        scales: {
+          x: { beginAtZero: true, grid: { color: colorBorder }, ticks: { precision: 0, font: { size: 10 } } },
+          y: {
+            grid: { display: false },
+            ticks: {
+              font: { size: 10.5 },
+              // Nombres largos de cliente: se recortan en el eje, completos en el tooltip.
+              callback: function (v) {
+                const t = String(this.getLabelForValue(Number(v)))
+                return t.length > 22 ? `${t.slice(0, 21)}…` : t
+              },
+            },
+          },
+        },
+        onClick: (_evt, elements) => {
+          const r = elements.length ? lista[elements[0].index] : undefined
+          if (!r) return
+          if (campo === 'cliente') cambiarClienteRef.current(r.valor)
+          else if (campo === 'planta') cambiarPlantaRef.current(r.valor)
+          else setFiltros((prev) => ({ ...prev, tipoServicio: r.valor }))
+        },
+      },
+    })
+    return () => orgChart.current?.destroy()
+  }, [desgloseOrg, acento, colorBorder])
+
   useEffect(() => {
     if (!esDiagnofruit || !diagnoBarRef.current) return
     diagnoBarChart.current?.destroy()
@@ -932,6 +1235,14 @@ export function ReporteView({
     })
     return () => diagnoBarChart.current?.destroy()
   }, [esDiagnofruit, resumenPatogenosDiagnofruit, filtradas, colorDanger, colorOk, colorBorder, colorMuted])
+
+  // Los gráficos llaman a estos cambios desde sus propios efectos: se pasan
+  // por ref para no recrear cada gráfico en cada render.
+  useEffect(() => {
+    cambiarCropRef.current = cambiarCrop
+    cambiarClienteRef.current = cambiarCliente
+    cambiarPlantaRef.current = cambiarPlanta
+  })
 
   if (!user) return null
 
@@ -994,6 +1305,14 @@ export function ReporteView({
     else setFiltros((prev) => ({ ...prev, [campo]: FILTROS_VACIOS[campo] }))
   }
 
+  function alternarSimulacion() {
+    // Los filtros de los datos reales no sirven para los simulados (y al
+    // revés): se parte limpio en los dos sentidos.
+    setFiltros(FILTROS_VACIOS)
+    setDetalle(null)
+    setSimulacion(simulando ? null : generarDatosSimulados(1000, Math.floor(Math.random() * 1e9)))
+  }
+
   async function descargarDatos() {
     setDescargandoDatos(true)
     try {
@@ -1028,6 +1347,16 @@ export function ReporteView({
               {descargandoDatos ? 'Generando…' : '⬇ Descargar mi historial (Excel)'}
             </Button>
           )}
+          {puedeSimular && (
+            <Button
+              variant="secondary"
+              onClick={alternarSimulacion}
+              aria-pressed={simulando}
+              title="Muestra 1.000 resultados inventados para probar cómo se ve el reporte. No se guarda nada."
+            >
+              {simulando ? '✕ Salir de la simulación' : '🧪 Simular 1.000 datos'}
+            </Button>
+          )}
           {esGestor && (
             <Button variant="secondary" onClick={() => setModalAnalitos(true)}>
               ⚙ Gestionar analitos
@@ -1045,6 +1374,21 @@ export function ReporteView({
         </div>
       </div>
 
+      {simulando && (
+        <div className={styles.bannerSim} role="status">
+          <span className={styles.bannerSimIcono} aria-hidden="true">🧪</span>
+          <div>
+            <b>Datos simulados — no son reales.</b>{' '}
+            {simulacion.filas.length.toLocaleString('es-CL')} resultados de{' '}
+            {simulacion.totalSolicitudes.toLocaleString('es-CL')} solicitudes inventadas, con clientes y límites
+            ficticios. No se guardan en ningún lado: desaparecen al salir de Report, al recargar o al actualizar.
+          </div>
+          <button type="button" className={styles.bannerSimBoton} onClick={alternarSimulacion}>
+            Volver a los datos reales
+          </button>
+        </div>
+      )}
+
       {estado === 'error' && (
         <p className={styles.error}>
           ⚠ {errorMsg} <button className={styles.reintentar} onClick={() => void cargar()}>Reintentar</button>
@@ -1060,12 +1404,12 @@ export function ReporteView({
             </Card>
           ))}
         </div>
-      ) : filas && filas.length === 0 ? (
+      ) : filasVista && filasVista.length === 0 ? (
         <Card className={styles.vacioCard}>
           <p className={styles.vacioTitulo}>Todavía no hay datos cargados en la base.</p>
           <p className={styles.vacioTexto}>Usa el módulo Ingest para cargar resultados de laboratorio; en cuanto haya datos, aparecerán aquí automáticamente.</p>
         </Card>
-      ) : filas ? (
+      ) : filasVista ? (
         <>
           {!esDiagnofruit && (
             <div className={styles.toolbar}>
@@ -1099,7 +1443,7 @@ export function ReporteView({
                 {nFiltros > 0 && <span className={styles.filtrosContador}>{nFiltros}</span>}
               </span>
               <span className={styles.filtrosResumen}>
-                {registrosFiltrados.toLocaleString('es-CL')} de {totalSolicitudes.toLocaleString('es-CL')} solicitudes
+                {registrosFiltrados.toLocaleString('es-CL')} de {totalVista.toLocaleString('es-CL')} solicitudes
               </span>
               {nFiltros > 0 && (
                 <button className={styles.limpiar} onClick={() => setFiltros(FILTROS_VACIOS)}>
@@ -1240,7 +1584,7 @@ export function ReporteView({
                   <span className={styles.statLbl}>Total de registros (solicitudes)</span>
                   <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
                   {nFiltros > 0 && (
-                    <span className={styles.statSub}>de {totalSolicitudes.toLocaleString('es-CL')} en total</span>
+                    <span className={styles.statSub}>de {totalVista.toLocaleString('es-CL')} en total</span>
                   )}
                 </Card>
                 <Card className={`${styles.statCard} ${styles.info}`}>
@@ -1344,29 +1688,36 @@ export function ReporteView({
               </p>
 
               <div className={styles.stats}>
-                <Card className={`${styles.statCard} ${styles.destacado}`}>
-                  <span className={styles.statLbl}>Solicitudes</span>
+                <Kpi
+                  destacado
+                  tono={acento}
+                  icono={<IconArchivoPlano />}
+                  etiqueta="Solicitudes"
+                  sub={nFiltros > 0 ? `de ${totalVista.toLocaleString('es-CL')} en total` : 'sin filtros'}
+                >
                   <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
-                  <span className={styles.statSub}>
-                    {nFiltros > 0 ? `de ${totalSolicitudes.toLocaleString('es-CL')} en total` : 'sin filtros'}
-                  </span>
-                </Card>
-                <Card className={styles.statCard}>
-                  <span className={styles.statLbl}>Resultados con valor</span>
+                </Kpi>
+                <Kpi tono="#2a78d6" icono={<IconFrasco />} etiqueta="Resultados con valor" sub="análisis con ppm numérico">
                   <span className={styles.statNum}>{valores.length.toLocaleString('es-CL')}</span>
-                  <span className={styles.statSub}>análisis con ppm numérico</span>
-                </Card>
-                <Card className={styles.statCard}>
-                  <span className={styles.statLbl}>
-                    Promedio (<span className={styles.unidad}>{unidad}</span>)
-                  </span>
+                </Kpi>
+                <Kpi
+                  tono="#4a3aa7"
+                  icono={<IconTrendingUp />}
+                  etiqueta={
+                    <>
+                      Promedio (<span className={styles.unidad}>{unidad}</span>)
+                    </>
+                  }
+                  sub={`desv. estándar ${formatDecimalCL(stats.desviacion, 4)}`}
+                >
                   <span className={styles.statNum}>{formatDecimalCL(stats.promedio, 4)}</span>
-                  <span className={styles.statSub}>desv. estándar {formatDecimalCL(stats.desviacion, 4)}</span>
-                </Card>
-                <Card className={`${styles.statCard} ${styles.warn}`}>
-                  <span className={styles.statLbl}>
-                    {vista === 'residual' ? 'Límites residuales' : `Límites de control (±${sigma}σ)`}
-                  </span>
+                </Kpi>
+                <Kpi
+                  tono={colorWarning}
+                  icono={<IconAlerta />}
+                  etiqueta={vista === 'residual' ? 'Límites residuales' : `Límites de control (±${sigma}σ)`}
+                  sub={simulando && vista === 'residual' && limitesActivos.superior != null ? 'ficticios (simulación)' : undefined}
+                >
                   {limitesActivos.inferior == null && limitesActivos.central == null && limitesActivos.superior == null ? (
                     <span className={styles.statVacio}>
                       {filtros.ingredientes.length === 1 ? 'Sin límites cargados' : 'Elige un ingrediente'}
@@ -1378,25 +1729,35 @@ export function ReporteView({
                       <div><dt>Sup.</dt><dd>{formatDecimalCL(limitesActivos.superior, 2)}</dd></div>
                     </dl>
                   )}
-                </Card>
-                <Card className={`${styles.statCard} ${styles.info}`}>
-                  <span className={styles.statLbl}>Cumplimiento</span>
+                </Kpi>
+                <Kpi
+                  tono={colorOk}
+                  icono={<IconVerificar />}
+                  etiqueta="Cumplimiento"
+                  sub={
+                    cumplimiento.porcentaje != null
+                      ? `${cumplimiento.ok.toLocaleString('es-CL')} de ${cumplimiento.total.toLocaleString('es-CL')} dentro de rango`
+                      : 'requiere límites'
+                  }
+                >
                   <span className={styles.statNum}>
                     {cumplimiento.porcentaje != null ? `${formatDecimalCL(cumplimiento.porcentaje, 1)}%` : '—'}
                   </span>
-                  <span className={styles.statSub}>
-                    {cumplimiento.porcentaje != null
-                      ? `${cumplimiento.ok.toLocaleString('es-CL')} de ${cumplimiento.total.toLocaleString('es-CL')} dentro de rango`
-                      : 'requiere límites'}
-                  </span>
-                </Card>
+                  {cumplimiento.porcentaje != null && (
+                    <span className={styles.kpiBarra} aria-hidden="true">
+                      <span style={{ width: `${cumplimiento.porcentaje}%` }} />
+                    </span>
+                  )}
+                </Kpi>
               </div>
 
               <div className={styles.grid2}>
                 <Card className={styles.panel}>
                   <h3>
                     <span className={styles.h3Izq}>
-                      {vista === 'residual' ? `Promedio de ${unidad} por fecha` : `${unidad} por fecha · límites de control`}
+                      {vista === 'residual'
+                        ? `Promedio de ${unidad} por ${agrupacionSemanal && vistaGrafico === 'promedios' ? 'semana' : 'fecha'}`
+                        : `${unidad} por ${agrupacionSemanal && vistaGrafico === 'promedios' ? 'semana' : 'fecha'} · límites de control`}
                       <button
                         className={styles.toggleVista}
                         onClick={() => setVistaGrafico((v) => (v === 'promedios' ? 'individual' : 'promedios'))}
@@ -1439,6 +1800,74 @@ export function ReporteView({
                           ? `${filtros.ingredientes[0]} no tiene límites residuales cargados para esta especie y tipo de servicio. Se cargan en «Gestionar analitos», o usa la vista por límite de control.`
                           : 'Elige un solo ingrediente activo para evaluar su cumplimiento, o usa la vista por límite de control.'}
                       </p>
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              <div className={styles.grid3}>
+                <Card className={styles.panel}>
+                  <h3>
+                    Solicitudes por especie
+                    <span className={styles.hintClic}>clic para filtrar</span>
+                  </h3>
+                  {porEspecie.length === 0 ? (
+                    <div className={styles.panelVacioChico}>Sin especie informada en estas solicitudes.</div>
+                  ) : (
+                    <div className={styles.especieCaja}>
+                      <div className={styles.donutChica}>
+                        <canvas ref={especieRef} aria-label="Solicitudes por especie" role="img" />
+                        <div className={styles.donutCentro}>
+                          <b>{porEspecie.filter((e) => !e.otras).length}</b>
+                          <span>especie{porEspecie.filter((e) => !e.otras).length === 1 ? '' : 's'}</span>
+                        </div>
+                      </div>
+                      <ul className={styles.leyendaLista}>
+                        {porEspecie.map((e) => (
+                          <li key={e.valor}>
+                            <button
+                              type="button"
+                              disabled={e.otras}
+                              onClick={() => cambiarCrop(e.valor)}
+                              className={mismoValor(filtros.crop, e.valor) ? styles.leyendaActiva : undefined}
+                            >
+                              <i style={{ background: e.color }} />
+                              <span className={styles.leyendaNombre}>{e.valor}</span>
+                              <b>{totalEspecies ? formatDecimalCL((e.n / totalEspecies) * 100, 0) : 0}%</b>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </Card>
+                <Card className={styles.panel}>
+                  <h3>
+                    <span>
+                      Promedio por ingrediente (<span className={styles.unidad}>{unidad}</span>)
+                    </span>
+                    <span className={styles.hintClic}>clic para elegirlo</span>
+                  </h3>
+                  {promedioPorIngrediente.length === 0 ? (
+                    <div className={styles.panelVacioChico}>Sin resultados numéricos para estos filtros.</div>
+                  ) : (
+                    <div className={styles.chartboxChico}>
+                      <canvas ref={ingredienteRef} aria-label="Promedio por ingrediente activo" role="img" />
+                    </div>
+                  )}
+                </Card>
+                <Card className={styles.panel}>
+                  <h3>
+                    <span>Solicitudes por {ETIQUETA_DIMENSION[desgloseOrg.campo]}</span>
+                    <span className={styles.hintClic}>
+                      {desgloseOrg.resto > 0 ? `top 8 · ${desgloseOrg.resto} más` : 'clic para filtrar'}
+                    </span>
+                  </h3>
+                  {desgloseOrg.lista.length === 0 ? (
+                    <div className={styles.panelVacioChico}>Sin datos para desglosar.</div>
+                  ) : (
+                    <div className={styles.chartboxChico}>
+                      <canvas ref={orgRef} aria-label={`Solicitudes por ${ETIQUETA_DIMENSION[desgloseOrg.campo]}`} role="img" />
                     </div>
                   )}
                 </Card>
