@@ -46,7 +46,16 @@ function motivo(p: Pendiente): string {
  * que subir un archivo: antes solo se podía por consola, y mientras hubiera
  * una sola, el Converter no dejaba cargar.
  */
-export function PendientesIngesta() {
+interface Props {
+  /** Cambia cuando otra parte de la pantalla movió datos: hay que releer. */
+  version?: number
+  /** Avisa que acá se movieron datos (reintentar, descartar). */
+  onCambio?: () => void
+  /** Sin filas pendientes no muestra nada (la pantalla de inicio de Ingesta). */
+  ocultarSiVacio?: boolean
+}
+
+export function PendientesIngesta({ version = 0, onCambio, ocultarSiVacio = false }: Props = {}) {
   const [filas, setFilas] = useState<Pendiente[] | null>(null)
   const [total, setTotal] = useState(0)
   const [ocupado, setOcupado] = useState(false)
@@ -79,7 +88,7 @@ export function PendientesIngesta() {
     return () => {
       vigente = false
     }
-  }, [])
+  }, [version])
 
   async function accion(fn: () => Promise<string>) {
     setOcupado(true)
@@ -87,6 +96,7 @@ export function PendientesIngesta() {
     try {
       setMensaje(await fn())
       await cargar()
+      onCambio?.()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo completar la acción.')
     } finally {
@@ -122,6 +132,7 @@ export function PendientesIngesta() {
 
   if (error && filas === null) return <p className={styles.error}>{error}</p>
   if (filas === null) return null
+  if (ocultarSiVacio && total === 0 && !mensaje) return null
 
   return (
     <section className={styles.root} aria-labelledby="pendientes-titulo">

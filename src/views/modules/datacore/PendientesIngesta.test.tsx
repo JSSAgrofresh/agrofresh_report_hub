@@ -3,12 +3,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { PendientesIngesta } from './PendientesIngesta'
 import type { Pendiente } from '@/features/ingest'
 
-const { listarPendientes, descartarPendiente, descartarLotePendientes, reintentarPendientes } = vi.hoisted(() => ({
-  listarPendientes: vi.fn(),
-  descartarPendiente: vi.fn(),
-  descartarLotePendientes: vi.fn(),
-  reintentarPendientes: vi.fn(),
-}))
+const { listarPendientes, descartarPendiente, descartarLotePendientes, reintentarPendientes } =
+  vi.hoisted(() => ({
+    listarPendientes: vi.fn(),
+    descartarPendiente: vi.fn(),
+    descartarLotePendientes: vi.fn(),
+    reintentarPendientes: vi.fn(),
+  }))
 
 vi.mock('@/features/ingest', () => ({
   listarPendientes,
@@ -20,7 +21,12 @@ vi.mock('@/features/ingest', () => ({
 const PENDIENTE: Pendiente = {
   id: 7,
   origen: 'ingest',
-  fila: { 'N° Informe': 'INF-9', 'Sold To': 'DOLE CHILE S.A.', 'Ship To': 'AMS FAMILY S.A', Especie: 'Manzana' },
+  fila: {
+    'N° Informe': 'INF-9',
+    'Sold To': 'DOLE CHILE S.A.',
+    'Ship To': 'AMS FAMILY S.A',
+    Especie: 'Manzana',
+  },
   motivos: [{ campo: 'ship_to_raw', etiqueta: 'Ship To (sucursal)', valor: 'AMS FAMILY S.A' }],
   creado_en: '2026-09-25T12:00:00Z',
 }
@@ -34,7 +40,9 @@ describe('PendientesIngesta', () => {
     listarPendientes.mockResolvedValue(pagina([PENDIENTE]))
     render(<PendientesIngesta />)
     expect(await screen.findByText('INF-9')).toBeInTheDocument()
-    expect(screen.getByText('Ship To (sucursal) «AMS FAMILY S.A» no está en Listados')).toBeInTheDocument()
+    expect(
+      screen.getByText('Ship To (sucursal) «AMS FAMILY S.A» no está en Listados'),
+    ).toBeInTheDocument()
   })
 
   it('descartar todas pide confirmación y vuelve a leer', async () => {

@@ -190,6 +190,16 @@ reintenta y descarta en **Ingesta de Datos → Filas pendientes**, sin subir
 archivo. (Antes `/ingest/confirmar` dejaba todo ahí como "copia de trabajo" y
 daba 409 mientras quedara una fila: ya no existe ese bloqueo.)
 
+**Cada carga queda registrada** (migración 0042, tabla `carga_datos`): quién,
+cuándo, Excel o PDF y el nombre del archivo. Todo lo que inserta lleva su
+`carga_id` (solicitud, resultado, producto_aplicado y pendiente_revision; al
+reintentar una pendiente conserva su carga). La pantalla de inicio de la
+Ingesta muestra las últimas cargas con lo que tienen HOY y un botón
+**Deshacer** que borra exactamente esa carga (`POST /ingest/cargas/{id}/deshacer`).
+No deshace si otra carga agregó resultados a sus informes (409): primero se
+deshace la otra. Lo cargado antes de la 0042 no tiene carga y no se puede
+deshacer desde la pantalla. Sin la 0042 corrida se carga igual, sin registrar.
+
 El Ship To se busca **solo entre las plantas de su Sold To**. Si el Excel trae
 la ciudad ("SAN FERNANDO") vale la planta que la contiene, si es una sola
 ("DOLE PLANTA SAN FERNANDO", regla `contiene` de `homogenizador.py`, igual en
@@ -226,6 +236,23 @@ cuerpo, `creado_por` o los valores de la metadata, sin importar mayúsculas ni
 tildes. La normalización está en los dos lados (`normalizar_busqueda` en
 `notificaciones.py` y `lib/formato.ts`, que además resalta lo encontrado): si
 tocas una, toca la otra.
+
+---
+
+## Report: tablero y simulación
+
+- Admin y cliente ven Report con el mismo encabezado con foto (`AreaHero`):
+  la foto sigue a la especie filtrada. El admin entra por
+  `ReporteLaboratorioView`; el cliente, por `ClienteDashboardView`.
+- **«Simular 1.000 datos»** (solo admin, nunca en el portal de cliente):
+  `features/reportes/lib/simulacion.ts`. Clientes «(Sim.)», ids negativos,
+  límites ficticios. Vive solo en el estado de la pantalla: se pierde al
+  salir, recargar o actualizar. Nunca va al backend.
+- Post Venta (Accu-Tab) tiene una vista general arriba del detalle
+  (`PostVentaResumen.tsx` + `features/postventa/lib/resumen.ts`), calculada
+  sobre la lista de cargas. pH y ORP **siempre en gráficos separados**.
+  Por ahora solo para admin: mostrárselo a clientes exige filtrar las
+  cargas por cliente en el backend.
 
 ---
 

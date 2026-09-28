@@ -7,7 +7,7 @@ import { DashboardView } from '@/views/dashboard/DashboardView'
 import { TraceView } from '@/views/modules/trace/TraceView'
 import { ConverterView } from '@/views/modules/converter/ConverterView'
 import { IngestaView } from '@/views/modules/ingesta/IngestaView'
-import { ReporteView } from '@/views/modules/reports/ReporteView'
+import { ReporteLaboratorioView } from '@/views/modules/reports/ReporteLaboratorioView'
 import { ReportesHubView } from '@/views/modules/reports/ReportesHubView'
 import { PostVentaView } from '@/views/modules/reports/PostVentaView'
 import { AgrofreshLabView } from '@/views/modules/lab/AgrofreshLabView'
@@ -56,7 +56,7 @@ export const router = createBrowserRouter([
               // Cada reporte es de un área: el hub es común, el contenido no.
               {
                 element: <RequireReporte reporte="laboratorio" />,
-                children: [{ path: ROUTES.reportsLaboratorio, element: <ReporteView /> }],
+                children: [{ path: ROUTES.reportsLaboratorio, element: <ReporteLaboratorioView /> }],
               },
               {
                 element: <RequireReporte reporte="postventa" />,

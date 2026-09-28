@@ -21,7 +21,7 @@ export {
 } from './lib/estadisticas'
 export type { Estadisticas, Limites, Cumplimiento, TramoHistograma } from './lib/estadisticas'
 export { proximaHoraProgramada, useActualizacionProgramada, HORAS_PROGRAMADAS } from './lib/programacion'
-export { colorDeIngrediente } from './lib/colores'
+export { colorCategorico, colorDeIngrediente } from './lib/colores'
 export {
   FILTROS_VACIOS,
   aplicarFiltros,
@@ -32,3 +32,6 @@ export {
   opcionesDe,
 } from './lib/filtros'
 export type { FiltrosReporte, OpcionFiltro, CampoTexto } from './lib/filtros'
+export { generarDatosSimulados } from './lib/simulacion'
+export type { DatosSimulados } from './lib/simulacion'
+export { lunesDe, solicitudesPor, MAX_PUNTOS_DIARIOS } from './lib/agrupacion'

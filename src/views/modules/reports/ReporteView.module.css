@@ -345,7 +345,13 @@
   flex-direction: column;
   gap: 4px;
   padding: var(--space-4);
-  border-left: 4px solid var(--acento);
+  border-left: 4px solid var(--kpi, var(--acento));
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.statCard:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .statCard.warn {
@@ -373,13 +379,59 @@
   color: var(--color-danger);
 }
 
+.kpiCabeza {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+/* Pastilla del ícono: el tono del indicador al 12 %, con el trazo en el tono pleno. */
+.kpiIcono {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--kpi, var(--acento)) 12%, var(--color-surface));
+  color: var(--kpi, var(--acento));
+}
+
+.kpiIcono svg {
+  width: 17px;
+  height: 17px;
+}
+
+.kpiBarra {
+  display: block;
+  height: 5px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--kpi, var(--acento)) 14%, var(--color-surface));
+  overflow: hidden;
+  margin: 2px 0 2px;
+}
+
+.kpiBarra span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--kpi, var(--acento));
+  transition: width 0.4s ease;
+}
+
 .statLbl {
-  font-size: 11.5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--color-text-faint);
 }
 
 .statNum {
-  font-size: 1.4rem;
+  font-size: 1.55rem;
+  letter-spacing: -0.01em;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -426,7 +478,148 @@
   text-transform: none;
 }
 
+/* ── simulación ── */
+.bannerSim {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 12px var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px dashed #7b5ea7;
+  background: repeating-linear-gradient(135deg, #f4f0fa 0 12px, #efe8f8 12px 24px);
+  color: #3b2a55;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.bannerSimIcono {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.bannerSimBoton {
+  margin-left: auto;
+  flex-shrink: 0;
+  border: 1px solid #7b5ea7;
+  background: #fff;
+  color: #4a3567;
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bannerSimBoton:hover {
+  background: #7b5ea7;
+  color: #fff;
+}
+
 /* ── gráficos ── */
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.chartboxChico {
+  height: 250px;
+  position: relative;
+}
+
+.chartboxChico canvas {
+  cursor: pointer;
+}
+
+.panelVacioChico {
+  height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+}
+
+.especieCaja {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 250px;
+}
+
+.donutChica {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  flex-shrink: 0;
+}
+
+.donutChica canvas {
+  cursor: pointer;
+}
+
+.leyendaLista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.leyendaLista button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.leyendaLista button:hover:not(:disabled),
+.leyendaLista button.leyendaActiva {
+  background: color-mix(in srgb, var(--acento) 9%, var(--color-surface));
+  color: var(--color-text);
+}
+
+.leyendaLista button:disabled {
+  cursor: default;
+}
+
+.leyendaLista i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.leyendaNombre {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leyendaLista b {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
 .grid2 {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
@@ -692,7 +885,8 @@
 }
 
 @media (max-width: 1100px) {
-  .grid2 {
+  .grid2,
+  .grid3 {
     grid-template-columns: 1fr;
   }
 }
@@ -710,5 +904,21 @@
   }
   .actualizarBloque {
     align-items: flex-start;
+  }
+  .bannerSim {
+    flex-wrap: wrap;
+  }
+  .bannerSimBoton {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .especieCaja {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .donutChica {
+    align-self: center;
   }
 }

@@ -15,7 +15,11 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { EstadoModulo } from '@/components/ui/EstadoModulo'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { AREAS } from '@/constants/areas'
+import { AreaHero } from '@/features/dashboard'
 import {
+  FILTRO_CARGAS_VACIO,
+  filtrarCargas,
   eliminarCargaTrace,
   fechaDeCarpeta,
   listarCargasTrace,
@@ -23,8 +27,9 @@ import {
   descargarPdfCarga,
   verCargaTrace,
 } from '@/features/postventa'
-import type { CargaTrace, EstadisticaSerie, ResumenCargaTrace } from '@/features/postventa'
+import type { CargaTrace, EstadisticaSerie, FiltroCargas, ResumenCargaTrace } from '@/features/postventa'
 import { HttpError } from '@/services/http/client'
+import { PostVentaResumen } from './PostVentaResumen'
 import styles from './PostVentaView.module.css'
 
 Chart.register(CategoryScale, LinearScale, LineController, LineElement, PointElement, Filler, Legend, Tooltip)
@@ -188,6 +193,15 @@ export function PostVentaView() {
   const [detalle, setDetalle] = useState<CargaTrace | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [verMasFilas, setVerMasFilas] = useState(false)
+  const [filtro, setFiltro] = useState<FiltroCargas>(FILTRO_CARGAS_VACIO)
+  const detalleRef = useRef<HTMLDivElement | null>(null)
+  const cargasFiltradas = useMemo(() => filtrarCargas(cargas ?? [], filtro), [cargas, filtro])
+
+  // Clic en un punto de la vista general: abre esa carga y baja hasta ella.
+  function abrirCarga(carpeta: string) {
+    setSeleccionada(carpeta)
+    requestAnimationFrame(() => detalleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
 
   const mensaje = (err: unknown, alterno: string) =>
     err instanceof HttpError ? `El backend respondió con un error (${err.status}).` : alterno
@@ -277,6 +291,11 @@ export function PostVentaView() {
   if (cargas === null) {
     return (
       <div>
+        <AreaHero
+          area={AREAS.postventa}
+          titulo="Accu-Tab · pH y ORP"
+          descripcion="Seguimiento de los equipos en planta: la evolución del pH y del ORP carga a carga."
+        />
         <Header title="Reportes de Post Venta" description="Histórico de cargas de Trace: equipos Accu-Tab, pH y ORP." />
         <Skeleton />
       </div>
@@ -285,6 +304,11 @@ export function PostVentaView() {
 
   return (
     <div className={styles.wrap}>
+      <AreaHero
+        area={AREAS.postventa}
+        titulo="Accu-Tab · pH y ORP"
+        descripcion="Seguimiento de los equipos en planta: la evolución del pH y del ORP carga a carga."
+      />
       <Header
         title="Reportes de Post Venta"
         description="Análisis de equipos Accu-Tab: cargas manuales desde Trace y automáticas desde correo."
@@ -299,11 +323,23 @@ export function PostVentaView() {
           descripcion="Abre Trace, carga los archivos de pH y ORP del pendrive del equipo, completa los datos del informe y usa «Guardar en el servidor». Los correos con datos AccuTab también se procesan automáticamente."
         />
       ) : (
-        <div className={styles.layout}>
+        <>
+        <PostVentaResumen
+          todas={cargas}
+          filtradas={cargasFiltradas}
+          filtro={filtro}
+          onFiltro={setFiltro}
+          onSeleccionar={abrirCarga}
+        />
+        <div className={styles.layout} ref={detalleRef}>
           <Card className={styles.panelLista}>
-            <h2 className={styles.tituloPanel}>Cargas guardadas ({cargas.length})</h2>
+            <h2 className={styles.tituloPanel}>
+              Cargas guardadas ({cargasFiltradas.length}
+              {cargasFiltradas.length !== cargas.length ? ` de ${cargas.length}` : ''})
+            </h2>
             <div className={styles.lista}>
-              {cargas.map((c) => (
+              {cargasFiltradas.length === 0 && <p className={styles.listaVacia}>Ninguna carga con estos filtros.</p>}
+              {cargasFiltradas.map((c) => (
                 <button
                   key={c.carpeta}
                   type="button"
@@ -498,6 +534,7 @@ export function PostVentaView() {
             </div>
           ) : null}
         </div>
+        </>
       )}
     </div>
   )
