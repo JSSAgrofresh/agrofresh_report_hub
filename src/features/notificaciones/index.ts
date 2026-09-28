@@ -2,4 +2,16 @@ export { BandejaNotificaciones } from './components/BandejaNotificaciones'
 export { ToastNotificacion } from './components/ToastNotificacion'
 export { useNotificaciones } from './hooks/useNotificaciones'
 export { notificacionesApi } from './api/notificacionesApi'
-export type { Notificacion, NotificacionAdmin, NotificacionIn, CategoriaNotificacion, AudienciaNotificacion, NotificacionMetadata, TipoNotificacion, TipoNotificacionInfo, SuscripcionUsuario, Suscripciones } from './types'
+export { fechaHoraCorta } from './lib/formato'
+export type {
+  Notificacion,
+  NotificacionAdmin,
+  NotificacionIn,
+  CategoriaNotificacion,
+  AudienciaNotificacion,
+  NotificacionMetadata,
+  TipoNotificacion,
+  TipoNotificacionInfo,
+  SuscripcionUsuario,
+  Suscripciones,
+} from './types'

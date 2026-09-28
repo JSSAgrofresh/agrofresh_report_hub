@@ -8,14 +8,16 @@
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(200px, 240px) 1fr;
+  /* minmax(0, …): con 1fr a secas la tabla de mediciones ensanchaba la
+     columna más allá de la pantalla (1fr no baja del ancho de su contenido). */
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
   gap: 1.25rem;
   align-items: start;
 }
 
 @media (max-width: 900px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -441,4 +443,11 @@
   background: var(--color-surface);
   color: var(--color-text-muted);
   font-size: 0.86rem;
+}
+
+.listaVacia {
+  margin: 0;
+  padding: 0.85rem;
+  font-size: 0.78rem;
+  color: var(--color-text-faint);
 }

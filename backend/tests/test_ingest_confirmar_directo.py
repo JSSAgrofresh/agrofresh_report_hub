@@ -32,6 +32,9 @@ def catalogo():
         cur.execute("DELETE FROM solicitud WHERE nro_solicitud LIKE %s", (f"%{marca}%",))
         cur.execute("DELETE FROM pendiente_revision WHERE fila->>'Informe' LIKE %s", (f"%{marca}%",))
         cur.execute("DELETE FROM notificacion WHERE resumen LIKE %s", ("%Prueba cargó%",))
+        cur.execute("SELECT to_regclass('carga_datos') IS NOT NULL AS hay")
+        if cur.fetchone()["hay"]:
+            cur.execute("DELETE FROM carga_datos WHERE creado_por = %s", (USUARIO.nombre,))
         cur.execute("DELETE FROM planta WHERE cliente_id = %s", (cliente_id,))
         cur.execute("DELETE FROM cliente WHERE id = %s", (cliente_id,))
 

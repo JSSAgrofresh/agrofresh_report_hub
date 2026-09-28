@@ -1,0 +1,359 @@
+.resumen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── filtros ── */
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-3) var(--space-4);
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.campo > span {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.campo select {
+  height: 34px;
+  min-width: 170px;
+  max-width: 100%;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 8px;
+  background: #fff;
+  font-size: 12.5px;
+}
+
+.segmentos {
+  display: inline-flex;
+  height: 34px;
+  padding: 3px;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+  background: #eaf2f5;
+}
+
+.segmentos button {
+  border: none;
+  background: none;
+  padding: 0 11px;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.segmentos button:hover {
+  color: #124d63;
+}
+
+.segmentos .segmentoActivo {
+  background: #fff;
+  color: #124d63;
+  box-shadow: var(--shadow-sm);
+}
+
+.conteo {
+  margin-left: auto;
+  align-self: center;
+  font-size: 12px;
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.limpiar {
+  align-self: center;
+  height: 30px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.limpiar:hover {
+  border-color: #1c7fa6;
+  color: #1c7fa6;
+}
+
+/* ── indicadores ── */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1.5px solid #124d63;
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.tile:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.tileColor {
+  border: none;
+  color: #fff;
+  background: linear-gradient(135deg, var(--desde) 0%, var(--hasta) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Un brillo suave en la esquina: da volumen sin agregar otro color. */
+.tileColor::after {
+  content: '';
+  position: absolute;
+  right: -30px;
+  top: -30px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.09);
+  pointer-events: none;
+}
+
+.tileEtiqueta {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.92;
+}
+
+.tileValor {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.tileValorTexto {
+  font-size: 1.2rem;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.tileDetalle {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.tile:not(.tileColor) .tileEtiqueta,
+.tile:not(.tileColor) .tileDetalle {
+  color: var(--color-text-faint);
+  opacity: 1;
+}
+
+/* ── gráficos ── */
+.grilla {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.panel {
+  min-width: 0;
+}
+
+.panelCabeza {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.panelTitulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.panelTitulo i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.panelNota {
+  font-size: 10.5px;
+  font-style: italic;
+  color: var(--color-text-faint);
+  margin: 0;
+}
+
+.lienzo {
+  position: relative;
+  height: 250px;
+}
+
+.lienzo canvas {
+  cursor: pointer;
+}
+
+/* ── tabla por equipo ── */
+.equipos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.equipoFila {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.6fr) 56px 56px;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+button.equipoFila:hover:not(:disabled),
+.equipoActivo {
+  background: #eaf2f5;
+  color: var(--color-text);
+}
+
+button.equipoFila:disabled {
+  cursor: default;
+}
+
+.equipoCabeza {
+  cursor: default;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+}
+
+.equipoCabeza span:nth-child(n + 3) {
+  text-align: right;
+}
+
+.equipoNombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.equipoBarra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.equipoBarra span {
+  display: block;
+  height: 8px;
+  min-width: 4px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #15627f, #1c7fa6);
+}
+
+.equipoBarra b {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.equipoNum {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.vacio {
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 13px;
+  padding: var(--space-5);
+}
+
+@media (max-width: 1200px) {
+  .tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .grilla {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .campo,
+  .campo select {
+    width: 100%;
+  }
+  .segmentos {
+    width: 100%;
+    overflow-x: auto;
+  }
+  .conteo {
+    margin-left: 0;
+  }
+  .equipoFila {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px 44px;
+    gap: var(--space-2);
+  }
+}

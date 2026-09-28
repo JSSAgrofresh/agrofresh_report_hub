@@ -1,0 +1,354 @@
+/* Misma paleta que el resto de la Ingesta (HomogenizadorIngestPanel.module.css). */
+.root,
+.bloque {
+  --n-ink: #183d38;
+  --n-muted: #647972;
+  --n-green: #226b53;
+  --n-line: #dce5df;
+  --n-bg: #f4f6f2;
+  --n-lime: #d9ef96;
+  --n-rojo: #b0271f;
+}
+
+.root {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 36px 16px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Cabecera ─────────────────────────────── */
+.eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.8px;
+  font-weight: 700;
+  color: var(--n-muted);
+}
+
+.titulo {
+  margin: 6px 0 8px;
+  font-size: clamp(24px, 4vw, 34px);
+  letter-spacing: -1px;
+  color: var(--n-ink);
+}
+
+.intro {
+  margin: 0;
+  max-width: 640px;
+  color: var(--n-muted);
+  line-height: 1.6;
+}
+
+/* ── Las dos formas de cargar ─────────────── */
+.opciones {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.opcion {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid var(--n-line);
+  border-radius: 14px;
+  padding: 20px;
+}
+
+.opcionCab {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.opcionIcono {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.iconoExcel {
+  background: #e3f1e8;
+  color: var(--n-green);
+}
+
+.iconoPdf {
+  background: #fbe9e7;
+  color: #a8342b;
+}
+
+.opcionTitulo {
+  margin: 0 0 4px;
+  font-size: 16px;
+  color: var(--n-ink);
+}
+
+.opcionTexto {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--n-muted);
+}
+
+.zona {
+  flex: 1;
+  min-height: 118px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  border: 2px dashed var(--n-line);
+  border-radius: 12px;
+  background: var(--n-bg);
+  font: inherit;
+  color: var(--n-ink);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.zona:hover:not(:disabled),
+.zonaActiva {
+  border-color: var(--n-green);
+  background: #eef6ea;
+}
+
+.zona:focus-visible {
+  outline: 2px solid var(--n-green);
+  outline-offset: 2px;
+}
+
+.zona:disabled {
+  cursor: progress;
+}
+
+.zonaPrincipal {
+  font-weight: 600;
+}
+
+.zonaSecundaria {
+  font-size: 12.5px;
+  color: var(--n-muted);
+}
+
+.zonaCargando {
+  color: var(--n-green);
+  font-weight: 600;
+}
+
+.labs {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.labs li {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--n-ink);
+  background: var(--n-bg);
+  border: 1px solid var(--n-line);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+
+.btnConverter {
+  align-self: flex-start;
+  border-radius: 9px;
+  padding: 10px 18px;
+  background: var(--n-ink);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.btnConverter:hover {
+  opacity: 0.88;
+}
+
+.error {
+  margin: 0;
+  color: #c0392b;
+  font-size: 13px;
+}
+
+.ok {
+  margin: 0 0 12px;
+  color: #2f6b22;
+  font-size: 13px;
+}
+
+/* ── Historial de cargas ──────────────────── */
+.bloque {
+  background: #fff;
+  border: 1px solid var(--n-line);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.bloqueCab {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-bottom: 12px;
+}
+
+.bloqueTitulo {
+  margin: 0;
+  font-size: 17px;
+  color: var(--n-ink);
+}
+
+.bloqueAyuda {
+  font-size: 12.5px;
+  color: var(--n-muted);
+}
+
+.vacio {
+  margin: 0;
+  padding: 18px 0 6px;
+  color: var(--n-muted);
+  font-size: 13.5px;
+}
+
+.cargas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.carga {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--n-line);
+}
+
+.cargaDeshecha {
+  opacity: 0.55;
+}
+
+.tipo {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+
+.tipoExcel {
+  background: #e3f1e8;
+  color: var(--n-green);
+}
+
+.tipoPdf {
+  background: #fbe9e7;
+  color: #a8342b;
+}
+
+.cargaInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cargaArchivo {
+  font-weight: 600;
+  color: var(--n-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cargaMeta {
+  font-size: 12.5px;
+  color: var(--n-muted);
+}
+
+.cifras {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px 14px;
+  font-size: 13px;
+  color: var(--n-muted);
+}
+
+.cifra strong {
+  color: var(--n-ink);
+  font-size: 15px;
+}
+
+.cifraAlerta,
+.cifraAlerta strong {
+  color: var(--n-rojo);
+}
+
+.cifraDeshecha {
+  font-size: 12.5px;
+  font-style: italic;
+}
+
+.btnDeshacer {
+  border: 1px solid var(--n-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--n-rojo);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.btnDeshacer:hover:not(:disabled) {
+  border-color: var(--n-rojo);
+}
+
+.btnDeshacer:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── Celular ──────────────────────────────── */
+@media (max-width: 760px) {
+  .opciones {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .carga {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .cifras {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  .btnDeshacer {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

@@ -108,6 +108,8 @@ def clave_variedad_sin_prefijo(clave: str, especie_canonica: str) -> str | None:
 class CargaRequest(BaseModel):
     filas: list[dict[str, Any]]
     origen: str = "ingest"
+    # Nombre del archivo o de los PDF, solo para el historial de cargas.
+    archivo: str | None = None
 
 
 def _cliente_id(cur, nombre: str, escribir: bool) -> tuple[int | None, bool]:
@@ -506,6 +508,37 @@ def _resolver_listados(
     return motivos
 
 
+def _insertar_pendiente(cur, origen: str, fila: dict[str, Any], motivos: list, carga_id: int | None) -> None:
+    if carga_id is None:
+        cur.execute(
+            "INSERT INTO pendiente_revision (origen, fila, motivos) VALUES (%s, %s::jsonb, %s::jsonb)",
+            (origen, json.dumps(fila), json.dumps(motivos)),
+        )
+    else:
+        cur.execute(
+            "INSERT INTO pendiente_revision (origen, fila, motivos, carga_id) VALUES (%s, %s::jsonb, %s::jsonb, %s)",
+            (origen, json.dumps(fila), json.dumps(motivos), carga_id),
+        )
+
+
+def hay_registro_de_cargas(cur) -> bool:
+    """¿Ya se corrió la migración 0042? Entre actualizar el código y correrla
+    se sigue cargando igual que antes, solo que sin registrar la carga."""
+    cur.execute("SELECT to_regclass('carga_datos') IS NOT NULL AS hay")
+    return bool(cur.fetchone()["hay"])
+
+
+def crear_carga(cur, origen: str, archivo: str | None, filas: int, creado_por: str | None) -> int | None:
+    """Anota una carga y devuelve su id, o None si la 0042 no está corrida."""
+    if not hay_registro_de_cargas(cur):
+        return None
+    cur.execute(
+        "INSERT INTO carga_datos (origen, archivo, filas, creado_por) VALUES (%s, %s, %s, %s) RETURNING id",
+        (origen, (archivo or "").strip()[:500] or None, filas, creado_por),
+    )
+    return cur.fetchone()["id"]
+
+
 def _procesar_filas(
     cur,
     filas: list[dict[str, Any]],
@@ -514,6 +547,7 @@ def _procesar_filas(
     saltar_catalogo: bool = False,
     overrides: dict[str, Any] | None = None,
     acumular_detalle: bool = True,
+    carga_id: int | None = None,
 ) -> dict[str, Any]:
     # En operaciones de lote masivo (aprobar/reintentar 13.000+ pendientes) solo
     # se usa el resumen: acumular un dict de detalle y un string de advertencia
@@ -599,13 +633,10 @@ def _procesar_filas(
             resumen["conflictos_sin_informe"] += 1
             resumen["pendientes_revision"] += 1
             if escribir:
-                cur.execute(
-                    "INSERT INTO pendiente_revision (origen, fila, motivos) VALUES (%s, %s::jsonb, %s::jsonb)",
-                    (
-                        origen,
-                        json.dumps(fila),
-                        json.dumps([{"campo": "nro_solicitud", "etiqueta": "N° Informe", "valor": None, "sin_informe": True}]),
-                    ),
+                _insertar_pendiente(
+                    cur, origen, fila,
+                    [{"campo": "nro_solicitud", "etiqueta": "N° Informe", "valor": None, "sin_informe": True}],
+                    carga_id,
                 )
             if acumular_detalle:
                 detalle.append(
@@ -689,10 +720,7 @@ def _procesar_filas(
                     }
                     if homo_resueltos:
                         fila["__homogenizacion__"] = homo_resueltos
-                    cur.execute(
-                        "INSERT INTO pendiente_revision (origen, fila, motivos) VALUES (%s, %s::jsonb, %s::jsonb)",
-                        (origen, json.dumps(fila), json.dumps(fuera_de_catalogo)),
-                    )
+                    _insertar_pendiente(cur, origen, fila, fuera_de_catalogo, carga_id)
                 if acumular_detalle:
                     detalle.append(
                         {
@@ -780,6 +808,8 @@ def _procesar_filas(
                 # Diferir INSERT: acumular y hacer un solo execute_values al
                 # final del loop en vez de N INSERTs individuales con RETURNING.
                 datos = {**sol, "planta_id": planta_id, "origen": origen}
+                if carga_id is not None:
+                    datos["carga_id"] = carga_id
                 nro = sol["nro_solicitud"]
                 if nros_vistos_en_lote.get(nro) == n_fila:
                     # Esta fila fue la primera en traer este N° Informe -las
@@ -891,24 +921,28 @@ def _procesar_filas(
 
     # Batch insert de productos y resultados: reemplaza N*M execute() individuales
     # por 2 llamadas únicas, eliminando la mayor parte del tiempo de escritura.
+    # Con carga_id cada fila queda marcada con la carga que la trajo, para
+    # poder deshacerla después (ver deshacer_carga).
     if escribir:
+        col_carga = ", carga_id" if carga_id is not None else ""
+        con_carga = (lambda t: (*t, carga_id)) if carga_id is not None else (lambda t: t)
         if productos_batch:
             execute_values(
                 cur,
-                """INSERT INTO producto_aplicado
-                   (solicitud_id, analito_id, analito_raw, producto_raw, dosis, tipo_aplicacion, linea_proceso, gasto)
+                f"""INSERT INTO producto_aplicado
+                   (solicitud_id, analito_id, analito_raw, producto_raw, dosis, tipo_aplicacion, linea_proceso, gasto{col_carga})
                    VALUES %s
                    ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
-                productos_batch,
+                [con_carga(t) for t in productos_batch],
                 page_size=500,
             )
         if resultados_batch:
             execute_values(
                 cur,
-                """INSERT INTO resultado (solicitud_id, analito_id, analito_raw, valor_num, valor_texto)
+                f"""INSERT INTO resultado (solicitud_id, analito_id, analito_raw, valor_num, valor_texto{col_carga})
                    VALUES %s
                    ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
-                resultados_batch,
+                [con_carga(t) for t in resultados_batch],
                 page_size=500,
             )
 
@@ -939,9 +973,11 @@ def confirmar(payload: CargaRequest, usuario: Usuario = Depends(usuario_actual))
     """
     with conexion(escribir=True) as conn:
         with cursor_dict(conn) as cur:
-            resultado = _procesar_filas(cur, payload.filas, escribir=True, origen=payload.origen)
-            r = resultado["resumen"]
             nombre_quien = usuario.nombre or usuario.email
+            carga_id = crear_carga(cur, payload.origen, payload.archivo, len(payload.filas), nombre_quien)
+            resultado = _procesar_filas(cur, payload.filas, escribir=True, origen=payload.origen, carga_id=carga_id)
+            resultado["carga_id"] = carga_id
+            r = resultado["resumen"]
             insertar_notif(
                 cur,
                 titulo=f"📥 Carga de datos completada · {payload.origen}",
@@ -1405,25 +1441,32 @@ def _procesar_pendientes_en_chunks(
     Devuelve el resumen acumulado (el detalle por fila se descarta: en un lote de
     miles de filas no se muestra en pantalla y solo consume memoria)."""
     resumen_total = dict(RESUMEN_VACIO)
+    # Cada fila vuelve a entrar con la carga que la trajo: si después se
+    # deshace esa carga, se lleva también lo que entró al reintentar.
+    col_carga = "carga_id" if hay_registro_de_cargas(cur) else "NULL::int AS carga_id"
     for origen, ids in ids_por_origen.items():
         for i in range(0, len(ids), CHUNK_PENDIENTES):
             trozo = ids[i : i + CHUNK_PENDIENTES]
-            cur.execute("SELECT fila FROM pendiente_revision WHERE id = ANY(%s) ORDER BY id", (trozo,))
-            filas = [r["fila"] for r in cur.fetchall()]
+            cur.execute(f"SELECT fila, {col_carga} FROM pendiente_revision WHERE id = ANY(%s) ORDER BY id", (trozo,))
+            por_carga: dict[int | None, list[dict[str, Any]]] = {}
+            for fila in cur.fetchall():
+                por_carga.setdefault(fila["carga_id"], []).append(fila["fila"])
             # Borrar antes de reprocesar: si la fila sigue sin calzar,
             # _procesar_filas la vuelve a insertar con motivos frescos.
             cur.execute("DELETE FROM pendiente_revision WHERE id = ANY(%s)", (trozo,))
-            r = _procesar_filas(
-                cur,
-                filas,
-                escribir=True,
-                origen=origen,
-                saltar_catalogo=saltar_catalogo,
-                acumular_detalle=False,
-            )
-            for k in resumen_total:
-                resumen_total[k] += r["resumen"][k]
-            del filas, r
+            for carga_id, filas in por_carga.items():
+                r = _procesar_filas(
+                    cur,
+                    filas,
+                    escribir=True,
+                    origen=origen,
+                    saltar_catalogo=saltar_catalogo,
+                    acumular_detalle=False,
+                    carga_id=carga_id,
+                )
+                for k in resumen_total:
+                    resumen_total[k] += r["resumen"][k]
+            del por_carga
             gc.collect()
     return resumen_total
 
@@ -1462,7 +1505,8 @@ def aprobar_pendiente(pendiente_id: int, payload: AprobarPendienteIn) -> dict[st
     de verdad es nuevo (cliente recién onboarded, etc.), no un error."""
     with conexion(escribir=True) as conn:
         with cursor_dict(conn) as cur:
-            cur.execute("SELECT origen, fila FROM pendiente_revision WHERE id = %s", (pendiente_id,))
+            col_carga = "carga_id" if hay_registro_de_cargas(cur) else "NULL::int AS carga_id"
+            cur.execute(f"SELECT origen, fila, {col_carga} FROM pendiente_revision WHERE id = %s", (pendiente_id,))
             pendiente = cur.fetchone()
             if not pendiente:
                 raise HTTPException(status_code=404, detail="Ese pendiente ya no existe")
@@ -1473,6 +1517,7 @@ def aprobar_pendiente(pendiente_id: int, payload: AprobarPendienteIn) -> dict[st
                 origen=pendiente["origen"],
                 saltar_catalogo=True,
                 overrides=payload.correcciones,
+                carga_id=pendiente["carga_id"],
             )
             if payload.correcciones:
                 _recordar_correcciones(cur, pendiente["fila"], payload.correcciones)
@@ -1567,3 +1612,93 @@ def reintentar_pendientes(payload: LotePendientesIn) -> dict[str, Any]:
 
     resueltos = total - resumen_total["pendientes_revision"]
     return {"reintentados": total, "resueltos": resueltos, "resumen": resumen_total}
+
+
+# ──────────────────────────────────────────────
+#  Historial de cargas (migración 0042)
+# ──────────────────────────────────────────────
+
+@router.get("/cargas")
+def listar_cargas(limite: int = Query(30, ge=1, le=200)) -> dict[str, Any]:
+    """Las últimas cargas, con lo que cada una tiene HOY en la base: los
+    conteos se calculan al leer, así una fila pendiente que después entró al
+    reintentar se cuenta donde está ahora."""
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        if not hay_registro_de_cargas(cur):
+            return {"disponible": False, "cargas": []}
+        cur.execute(
+            """
+            SELECT c.id, c.origen, c.archivo, c.filas, c.creado_por, c.creado_en,
+                   c.deshecha_en, c.deshecha_por,
+                   (SELECT count(*) FROM solicitud s WHERE s.carga_id = c.id) AS solicitudes,
+                   (SELECT count(*) FROM resultado r WHERE r.carga_id = c.id) AS resultados,
+                   (SELECT count(*) FROM pendiente_revision p WHERE p.carga_id = c.id) AS pendientes
+            FROM carga_datos c
+            ORDER BY c.id DESC
+            LIMIT %s
+            """,
+            (limite,),
+        )
+        return {"disponible": True, "cargas": cur.fetchall()}
+
+
+@router.post("/cargas/{carga_id}/deshacer")
+def deshacer_carga(carga_id: int, usuario: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
+    """Borra exactamente lo que trajo una carga: sus solicitudes (con sus
+    resultados), los resultados y productos que agregó a solicitudes que ya
+    existían, y sus filas pendientes. La carga queda en el historial marcada
+    como deshecha.
+
+    Si una carga POSTERIOR agregó resultados a una solicitud que creó esta,
+    no se deshace: borrar la solicitud se llevaría datos de la otra carga.
+    Hay que deshacer primero la posterior.
+
+    Lo que una carga completó en una solicitud que ya existía (un Sold To o
+    una fecha que estaba vacía) no se revierte: no se guarda el valor
+    anterior, que era vacío.
+    """
+    with conexion(escribir=True) as conn, cursor_dict(conn) as cur:
+        if not hay_registro_de_cargas(cur):
+            raise HTTPException(409, "Falta correr la migración 0042 en el servidor.")
+        cur.execute("SELECT id, deshecha_en FROM carga_datos WHERE id = %s FOR UPDATE", (carga_id,))
+        carga = cur.fetchone()
+        if not carga:
+            raise HTTPException(404, "Esa carga no existe.")
+        if carga["deshecha_en"]:
+            raise HTTPException(409, "Esa carga ya estaba deshecha.")
+
+        cur.execute(
+            """
+            SELECT s.nro_solicitud FROM solicitud s
+            WHERE s.carga_id = %(id)s
+              AND (EXISTS (SELECT 1 FROM resultado r
+                           WHERE r.solicitud_id = s.id AND r.carga_id IS DISTINCT FROM %(id)s)
+                   OR EXISTS (SELECT 1 FROM producto_aplicado p
+                              WHERE p.solicitud_id = s.id AND p.carga_id IS DISTINCT FROM %(id)s))
+            ORDER BY s.nro_solicitud
+            LIMIT 5
+            """,
+            {"id": carga_id},
+        )
+        compartidas = [r["nro_solicitud"] for r in cur.fetchall()]
+        if compartidas:
+            raise HTTPException(
+                409,
+                "Otra carga agregó resultados a informes de esta (" + ", ".join(compartidas) + "). "
+                "Deshaz primero esa carga.",
+            )
+
+        borrado = {}
+        for clave, tabla in (
+            ("resultados", "resultado"),
+            ("productos", "producto_aplicado"),
+            ("solicitudes", "solicitud"),
+            ("pendientes", "pendiente_revision"),
+        ):
+            cur.execute(f"DELETE FROM {tabla} WHERE carga_id = %s", (carga_id,))
+            borrado[clave] = cur.rowcount
+        cur.execute(
+            "UPDATE carga_datos SET deshecha_en = now(), deshecha_por = %s WHERE id = %s",
+            (usuario.nombre or usuario.email, carga_id),
+        )
+    return {"carga_id": carga_id, **borrado}

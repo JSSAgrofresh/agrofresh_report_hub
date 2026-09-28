@@ -3,9 +3,11 @@
   --n-muted: #647972;
   --n-line: #dce5df;
   --n-bg: #f4f6f2;
-  max-width: 1100px;
-  margin: 0 auto 48px;
-  padding: 0 16px;
+  background: #fff;
+  border: 1px solid #e8c4b4;
+  border-left: 4px solid #c0392b;
+  border-radius: 12px;
+  padding: 16px 18px;
 }
 
 .cabecera {
@@ -14,8 +16,6 @@
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  border-top: 1px solid var(--n-line);
-  padding-top: 20px;
 }
 
 .titulo {

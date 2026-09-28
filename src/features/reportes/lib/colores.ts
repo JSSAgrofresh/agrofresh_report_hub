@@ -41,3 +41,12 @@ export function colorDeIngrediente(codigo: string): string {
   if (idx !== -1) return PALETA_CATEGORICA[idx % PALETA_CATEGORICA.length]
   return PALETA_CATEGORICA[hashEstable(codigo) % PALETA_CATEGORICA.length]
 }
+
+/** Color categórico por posición fija (0, 1, 2…). Para categorías que no son
+ * analitos -especies, por ejemplo-: quien lo llama fija el orden una vez, con
+ * todos los datos, para que un filtro no repinte lo que queda. Pasado el
+ * último color devuelve null: esa categoría va a "Otras", nunca a un tono
+ * inventado. */
+export function colorCategorico(posicion: number): string | null {
+  return PALETA_CATEGORICA[posicion] ?? null
+}
