@@ -19,6 +19,8 @@ export {
   obtenerFotoSolicitud,
   listarSolicitudesElegiblesReanalisis,
   crearSolicitudReanalisis,
+  estadoSolicitudesPrueba,
+  crearSolicitudPrueba,
 } from './lib/api'
 export {
   listarCamposConfig,
@@ -58,6 +60,8 @@ export type {
   Solicitud,
   SolicitudInput,
   ReanalisisInput,
+  EstadoSolicitudesPrueba,
+  HuecoPrueba,
   Laboratorio,
   CampoConfig,
   OpcionConfig,

@@ -215,6 +215,27 @@ solicitud va siempre en CCO aparte. Nadie va dos veces (se deduplica sin
 mayúsculas). Se necesita al menos un Para: solo copias = error 400. No
 confundir con `tipo_copia`, que es de los contactos de **resultados**.
 
+## Solicitudes de prueba
+
+Al borrar las solicitudes de prueba del arranque, el contador de folios de
+cada laboratorio no volvió atrás (`folio_solicitud_laboratorio` solo avanza):
+las reales empezaron en QUITECA 18 y AGF 50. Ese hueco (1..17 y 1..49) se usa
+para **solicitudes de prueba**, con el botón «+ Solicitud de prueba» de
+Toma de muestras → Solicitudes.
+
+- Solo lo ve y lo usa **una cuenta**: `SOLICITUDES_PRUEBA_EMAIL` en el `.env`
+  (por defecto `jorge.sandoval@agrofresh.com`, la misma que puede eliminar).
+- Toman el folio libre **más bajo** del hueco; el límite no está escrito a
+  mano: es el folio real más bajo del laboratorio, menos uno. Lleno el hueco,
+  409. No tocan el contador real.
+- La marca es `es_prueba` dentro de `datos` (hoja `_data` del Excel + jsonb
+  del índice): **no hay migración**, y sobrevive a editar y a reindexar.
+- **Nunca se envían solas** (ni al crear ni al editar, aunque el envío
+  automático esté prendido): se envían a mano desde el detalle, a los
+  contactos reales, con **«(PRUEBA)»** al inicio del asunto.
+- No notifican, no aparecen en el Ingreso al laboratorio (`emitir.py`) ni se
+  les puede pedir reanálisis. En el listado llevan la etiqueta PRUEBA.
+
 ## Notificaciones: quién recibe qué
 
 Cada notificación lleva su tipo en `metadata->>'tipo'` (`solicitud`,

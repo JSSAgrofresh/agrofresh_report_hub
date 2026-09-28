@@ -339,7 +339,7 @@ export function SolicitudDetalleView() {
   return (
     <div>
       <Header
-        title={`Solicitud ${solicitud.numero_solicitud}${solicitud.enviada ? ' · Enviada' : ''}`}
+        title={`Solicitud ${solicitud.numero_solicitud}${solicitud.es_prueba ? ' · PRUEBA' : ''}${solicitud.enviada ? ' · Enviada' : ''}`}
         description={`${solicitud.laboratorio} · Generada el ${formatDateCL(solicitud.fecha_solicitud)} por ${solicitud.generado_por}`}
         acciones={
           <div className={styles.acciones}>

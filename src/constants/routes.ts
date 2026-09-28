@@ -17,6 +17,7 @@ export const ROUTES = {
   storage: '/modulos/storage',
   tomaMuestras: '/modulos/toma-muestras',
   tomaMuestrasNueva: '/modulos/toma-muestras/nueva',
+  tomaMuestrasNuevaPrueba: '/modulos/toma-muestras/prueba/nueva',
   tomaMuestrasConfig: '/modulos/toma-muestras/configuracion',
   tomaMuestrasDetalle: '/modulos/toma-muestras/detalle/:archivo',
   tomaMuestrasEditar: '/modulos/toma-muestras/editar/:archivo',

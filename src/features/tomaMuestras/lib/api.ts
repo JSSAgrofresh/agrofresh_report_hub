@@ -15,6 +15,7 @@ import type {
   ContactoResultado,
   ProductoConfig,
   ProductoInput,
+  EstadoSolicitudesPrueba,
   ReanalisisInput,
   Solicitud,
   SolicitudInput,
@@ -46,6 +47,17 @@ export function eliminarSolicitud(archivo: string) {
   return httpClient.delete<{ estado: string }>(
     `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}`,
   )
+}
+
+/** Si la cuenta puede crear solicitudes de prueba y qué folios le quedan. */
+export function estadoSolicitudesPrueba() {
+  return httpClient.get<EstadoSolicitudesPrueba>('/toma-muestras/solicitudes-prueba/estado')
+}
+
+/** Crea una solicitud de prueba: toma el folio libre más bajo del hueco de su
+ * laboratorio y queda marcada `es_prueba`. No se envía sola. */
+export function crearSolicitudPrueba(datos: SolicitudInput) {
+  return httpClient.post<Solicitud>('/toma-muestras/solicitudes-prueba', datos)
 }
 
 export function listarSolicitudesElegiblesReanalisis() {

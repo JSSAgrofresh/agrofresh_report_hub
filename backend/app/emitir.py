@@ -1138,6 +1138,9 @@ def listar_solicitudes() -> list[SolicitudOut]:
     # R2 o disco según cómo esté levantado el sistema: lo resuelve
     # `leer_solicitudes_de`, no este módulo.
     for nombre, datos in leer_solicitudes_de(LABORATORIO_SOLICITUDES):
+        # Las solicitudes de prueba no llegan al laboratorio.
+        if datos.get("es_prueba"):
+            continue
         fecha_recepcion, hora_recepcion = _partir_recepcion(datos.get("recepcion_en"))
         salida.append(
             SolicitudOut(
