@@ -17,6 +17,10 @@ import { VerificacionesHistoricoView } from '@/views/modules/lab/verificaciones/
 import { CriteriosView } from '@/views/modules/lab/verificaciones/CriteriosView'
 import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { StorageView } from '@/views/modules/storage/StorageView'
+import { AuditoriaInternaHubView } from '@/views/modules/auditoria-interna/AuditoriaInternaHubView'
+import { SolicitudesInformesView } from '@/views/modules/auditoria-interna/SolicitudesInformesView'
+import { CarpetasView } from '@/views/modules/auditoria-interna/CarpetasView'
+import { LimiteControlView } from '@/views/modules/auditoria-interna/LimiteControlView'
 import { SolicitudesView } from '@/views/modules/muestreo/SolicitudesView'
 import { NuevaSolicitudView } from '@/views/modules/muestreo/NuevaSolicitudView'
 import { NuevaReanalisisView } from '@/views/modules/muestreo/NuevaReanalisisView'
@@ -77,6 +81,15 @@ export const router = createBrowserRouter([
                 element: <VerificacionesHistoricoView />,
               },
               { path: ROUTES.agrofreshLabVerificacionesCriterios, element: <CriteriosView /> },
+            ],
+          },
+          {
+            element: <RequireModulo moduloId="auditoria_interna" />,
+            children: [
+              { path: ROUTES.auditoriaInterna, element: <AuditoriaInternaHubView /> },
+              { path: ROUTES.auditoriaInternaSolicitudes, element: <SolicitudesInformesView /> },
+              { path: ROUTES.auditoriaInternaCarpetas, element: <CarpetasView /> },
+              { path: ROUTES.auditoriaInternaLimiteControl, element: <LimiteControlView /> },
             ],
           },
           { path: ROUTES.datacore, element: <DataCoreView /> },

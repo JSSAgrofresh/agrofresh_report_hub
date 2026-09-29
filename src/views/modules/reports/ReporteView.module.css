@@ -112,27 +112,6 @@
   flex-wrap: wrap;
 }
 
-.tabs {
-  display: flex;
-  gap: 6px;
-}
-
-.tab {
-  background: #eef2ec;
-  color: var(--color-text-muted);
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 8px 14px;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.tabActivo {
-  background: var(--acento);
-  color: #fff;
-}
-
 .sigmaControl {
   display: flex;
   align-items: center;

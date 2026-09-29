@@ -1,4 +1,4 @@
-import { MODULOS } from '@/constants/modules'
+import { MODULOS, MODULO_AUDITORIA_INTERNA } from '@/constants/modules'
 import type { ModuloInfo } from '@/constants/modules'
 import { AREAS } from '@/constants/areas'
 import type { Usuario } from './types'
@@ -29,8 +29,11 @@ export const MODULO_TOMA_MUESTRAS = 'toma_muestras'
 export type ReporteId = 'laboratorio' | 'postventa'
 
 export function modulosPredeterminados(usuario: Pick<Usuario, 'tipoAcceso' | 'area'>): string[] {
-  if (usuario.tipoAcceso === 'admin_general' || usuario.tipoAcceso === 'gerencia') {
+  if (usuario.tipoAcceso === 'admin_general') {
     return [...MODULOS.map((m) => m.id), MODULO_TOMA_MUESTRAS]
+  }
+  if (usuario.tipoAcceso === 'gerencia') {
+    return [...MODULOS.filter((m) => m.id !== MODULO_AUDITORIA_INTERNA).map((m) => m.id), MODULO_TOMA_MUESTRAS]
   }
   if (usuario.tipoAcceso === 'admin_area' && usuario.area === 'cromatografia') {
     return ['converter', 'reports', 'storage', 'agrofresh_lab', MODULO_TOMA_MUESTRAS]
@@ -61,10 +64,13 @@ export function reportesPredeterminados(
   return []
 }
 
-/** Módulos que el usuario puede ver en "Funciones": todos para admin general
- * y gerencia, solo los de su área para admin de área, ninguno para cliente. */
+/** Módulos que el usuario puede ver en "Funciones": todos para admin general,
+ * todos menos Auditoría interna para gerencia, solo los de su área para admin
+ * de área, ninguno para cliente. Auditoría interna solo la ve el admin general
+ * y quien él designe (cuentas con el módulo asignado). */
 export function modulosPermitidos(usuario: Usuario): ModuloInfo[] {
-  if (esAdminGeneral(usuario) || esGerencia(usuario)) return MODULOS
+  if (esAdminGeneral(usuario)) return MODULOS
+  if (esGerencia(usuario)) return MODULOS.filter((m) => m.id !== MODULO_AUDITORIA_INTERNA)
   const idsPermitidos = usuario.modulos ?? modulosPredeterminados(usuario)
   return MODULOS.filter((m) => idsPermitidos.includes(m.id))
 }

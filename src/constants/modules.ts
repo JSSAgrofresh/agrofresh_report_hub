@@ -21,6 +21,11 @@ export interface ModuloInfo {
  * como antes. */
 export const GRUPO_DATACORE = 'datacore'
 
+/** id del módulo Auditoría interna. Es el más restringido del sistema: lo ve el
+ * admin general y solo quien él designe -ni siquiera Gerencia lo tiene por
+ * defecto-. Ver features/usuarios/permisos.ts y `puede_auditoria` en el backend. */
+export const MODULO_AUDITORIA_INTERNA = 'auditoria_interna'
+
 export const MODULOS: ModuloInfo[] = [
   {
     id: 'ingesta',
@@ -49,7 +54,7 @@ export const MODULOS: ModuloInfo[] = [
   {
     id: 'reports',
     nombre: 'Report',
-    descripcion: 'Control de residuos: límites residuales y de control en tiempo real desde la base de datos.',
+    descripcion: 'Control de residuos: límites residuales en tiempo real desde la base de datos.',
     ruta: ROUTES.reports,
     estado: 'disponible',
   },
@@ -58,6 +63,13 @@ export const MODULOS: ModuloInfo[] = [
     nombre: 'AgroFresh Lab',
     descripcion: 'Ingreso de muestras al laboratorio, cruce con el resultado del GC y emisión de informes.',
     ruta: ROUTES.agrofreshLab,
+    estado: 'disponible',
+  },
+  {
+    id: MODULO_AUDITORIA_INTERNA,
+    nombre: 'Auditoría Interna',
+    descripcion: 'Panel analítico: solicitudes emitidas vs. informes recibidos, carpetas de auditoría y límites de control.',
+    ruta: ROUTES.auditoriaInterna,
     estado: 'disponible',
   },
   {

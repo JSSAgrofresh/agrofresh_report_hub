@@ -1,7 +1,8 @@
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { MODULOS } from '@/constants/modules'
+import { useAuth } from '@/features/auth'
+import { modulosPermitidos } from '@/features/usuarios'
 import { ModuloCard, useActividadDashboard } from '@/features/dashboard'
 import type { ConverterReciente, SolicitudReciente, TraceReciente, UsuarioActivo, VerificacionReciente } from '@/features/dashboard'
 import styles from './AdminGeneralDashboardView.module.css'
@@ -210,6 +211,10 @@ function VerificacionesPanel({ items, cargando }: { items: VerificacionReciente[
 }
 
 export function AdminGeneralDashboardView() {
+  const { user } = useAuth()
+  // Gerencia comparte este panel con el admin general pero NO ve Auditoría
+  // interna: las tarjetas salen de lo permitido, no de la lista completa.
+  const modulos = user ? modulosPermitidos(user) : []
   const { actividad, status, ultimaActualizacion, refrescar } = useActividadDashboard()
   const cargando = status === 'loading'
   const m = actividad?.metricas
@@ -223,7 +228,7 @@ export function AdminGeneralDashboardView() {
 
       {/* Módulos */}
       <div className={styles.grid}>
-        {MODULOS.map((mod, i) => (
+        {modulos.map((mod, i) => (
           <ModuloCard key={mod.id} modulo={mod} indice={i} />
         ))}
       </div>
