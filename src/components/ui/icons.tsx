@@ -227,6 +227,15 @@ export function IconEmitir(props: IconProps) {
   )
 }
 
+export function IconCandado(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="5" y="10.5" width="14" height="9.5" rx="1.6" />
+      <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
+    </svg>
+  )
+}
+
 export function IconArchivoPlano(props: IconProps) {
   return (
     <svg {...base} {...props}>

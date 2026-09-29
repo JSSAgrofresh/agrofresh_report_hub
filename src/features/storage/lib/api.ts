@@ -1,6 +1,12 @@
 import { httpClient } from '@/services/http/client'
 import { descargarArchivo } from '@/services/http/descargar'
-import type { EntradaStorage, ListadoStorage } from './tipos'
+import type {
+  EntradaStorage,
+  EspacioPermisos,
+  ListadoStorage,
+  PermisoCarpeta,
+  ResumenPermiso,
+} from './tipos'
 
 export function listar(ruta = '') {
   const query = ruta ? `?ruta=${encodeURIComponent(ruta)}` : ''
@@ -52,4 +58,25 @@ export function organizarSolicitudesR2() {
     '/toma-muestras/solicitudes/organizar-r2',
     {},
   )
+}
+
+// ---------------------------------------------------------------------------
+// Permisos por carpeta (solo admin general)
+// ---------------------------------------------------------------------------
+
+export function verPermisos(espacio: EspacioPermisos, ruta: string) {
+  const query = `?espacio=${espacio}&ruta=${encodeURIComponent(ruta)}`
+  return httpClient.get<PermisoCarpeta>(`/storage/permisos${query}`)
+}
+
+export function guardarPermisos(espacio: EspacioPermisos, ruta: string, usuarioIds: number[]) {
+  return httpClient.put<PermisoCarpeta>('/storage/permisos', {
+    espacio,
+    ruta,
+    usuario_ids: usuarioIds,
+  })
+}
+
+export function resumenPermisos() {
+  return httpClient.get<ResumenPermiso[]>('/storage/permisos/resumen')
 }

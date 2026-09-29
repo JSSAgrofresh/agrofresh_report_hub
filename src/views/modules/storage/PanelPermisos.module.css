@@ -1,0 +1,260 @@
+.panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-height: 720px;
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-3) 0;
+}
+
+.titulo {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.iconoTitulo {
+  width: 15px;
+  height: 15px;
+  color: var(--color-text-muted);
+}
+
+.cerrar {
+  background: none;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.cerrar:hover {
+  background: var(--color-bg);
+}
+
+.pestanas {
+  display: flex;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pestana {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 8px;
+  color: var(--color-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.pestanaActiva {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.cuerpo {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+}
+
+.carpeta {
+  margin: 0;
+  font-weight: 700;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opcion {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.opcion:has(input:checked) {
+  border-color: var(--color-primary);
+  background: #f4f9ee;
+}
+
+.opcion span,
+.persona span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.opcion small,
+.persona small {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.buscador {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.persona {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.persona:hover {
+  background: var(--color-bg);
+}
+
+.vacio {
+  padding: 10px;
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+}
+
+.guardar {
+  margin-top: var(--space-1);
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: #fff;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.guardar:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.guardar:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.nota,
+.aviso {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  padding: 0 var(--space-3);
+}
+
+.cuerpo .nota,
+.cuerpo .aviso {
+  padding: 0;
+}
+
+.panel > .nota {
+  padding: var(--space-3);
+}
+
+.aviso {
+  color: #7a5a00;
+}
+
+.error {
+  margin: var(--space-3);
+  font-size: 12.5px;
+  color: var(--color-danger);
+  background: #fbe8e5;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+.cuerpo .error {
+  margin: 0;
+}
+
+.ok {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--color-primary-hover);
+}
+
+.resumen {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.resumenItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.resumenRuta {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  text-align: left;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.resumenRuta:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.resumenPersonas {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
