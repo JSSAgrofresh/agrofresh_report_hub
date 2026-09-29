@@ -99,9 +99,22 @@ table.rev tr:last-child td{border-bottom:none}
 .est.incoherente{background:#FBECEA;color:#A8342B}
 .antes{font-family:var(--mono);font-size:12px;color:var(--tinta-3);text-decoration:line-through}
 .ahora{font-family:var(--mono);font-size:12px;color:var(--verde-osc);font-weight:600}
-select.fix{font-family:var(--ui);font-size:12.5px;padding:4px 7px;border:1px solid var(--borde-f);
-  border-radius:5px;background:var(--sup);max-width:290px}
-select.fix:focus{outline:2px solid var(--verde);outline-offset:-1px}
+.cb{display:inline-block;position:relative;max-width:100%}
+.cb-in{font-family:var(--ui);font-size:12.5px;padding:6px 9px;width:300px;max-width:100%;border:1px solid var(--borde-f);
+  border-radius:6px;background:var(--sup) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2377837B' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  color:var(--tinta)}
+.cb-in:focus{outline:2px solid var(--verde);outline-offset:-1px}
+.cb-lista{position:fixed;z-index:1000;margin:0;padding:4px;list-style:none;background:var(--sup);border:1px solid var(--borde-f);
+  border-radius:9px;box-shadow:0 10px 30px rgba(22,32,27,.18);overflow:auto;font-size:13px}
+.cb-grupo{padding:8px 10px 3px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3)}
+.cb-op{padding:7px 10px;border-radius:6px;cursor:pointer;line-height:1.3}
+.cb-op.activo{background:#EAF3E2;color:var(--verde-osc)}
+.cb-op mark{background:#F6E58A;color:inherit;border-radius:2px}
+.cb-vacio,.cb-mas{padding:10px;color:var(--tinta-3);font-size:12.5px}
+.est.aprendida{background:#E7F0FA;color:#1F5C99}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1100;max-width:min(560px,92vw);padding:11px 16px;
+  border-radius:9px;background:var(--tinta);color:#fff;font-size:13px;box-shadow:0 10px 30px rgba(22,32,27,.3)}
+.toast.err{background:#8A2A18}
 .resumen{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .resumen .c{flex:1;min-width:130px;background:var(--sup);border:1px solid var(--borde);
   border-radius:9px;padding:12px 15px}
@@ -742,6 +755,7 @@ const CAMPOS_CAT = {"Sold To":"sold_to","Ship To":"ship_to",
    siga siendo válido. */
 function revisarCatalogo(inf){
   inf.revision = [];
+  inf.usadas = [];   // asociaciones guardadas que se aplicaron solas en este informe
   for(const col in CAMPOS_CAT){
     const oficiales = oficialesPara(CAMPOS_CAT[col], inf);
     const manual = inf.manual[col];
@@ -755,7 +769,18 @@ function revisarCatalogo(inf){
     if(inf.crudos[col]) inf.datos[col] = inf.crudos[col];
     else delete inf.datos[col];
     const deUnCliente = col === "Ship To" && !!LISTADOS.plantasPorCliente[inf.datos["Sold To"]];
-    const r = homogenizar(CAMPOS_CAT[col], inf.datos[col], oficiales, deUnCliente);
+    let r = homogenizar(CAMPOS_CAT[col], inf.datos[col], oficiales, deUnCliente);
+    // Lo que el sistema aprendió de una corrección anterior. Solo se aplica si
+    // el valor guardado sigue siendo válido para ESTE informe (p. ej. la planta
+    // existe bajo el Sold To de este informe): nunca a ciegas.
+    if(r.estado === "fuera_de_catalogo"){
+      const ctx = contextoDe(CAMPOS_CAT[col], inf);
+      const guardada = APRENDIDAS[claveAprendida(CAMPOS_CAT[col], ctx, inf.datos[col])];
+      if(guardada && oficiales.includes(guardada)){
+        r = {valor: guardada, estado: "corregido", antes: inf.datos[col], aprendida: true};
+        inf.usadas.push({campo: CAMPOS_CAT[col], contexto: ctx, valor_crudo: inf.crudos[col]});
+      }
+    }
     if(r.estado === "vacio"){
       inf.revision.push({campo:col, estado:"vacio",
                          detalle:"el informe no trae este dato"});
@@ -764,7 +789,9 @@ function revisarCatalogo(inf){
     if(r.estado === "corregido"){
       inf.datos[col] = r.valor;
       inf.revision.push({campo:col, estado:"corregido", antes:r.antes, ahora:r.valor,
-                         detalle:"se llevó a la forma oficial del catálogo"});
+                         aprendida: !!r.aprendida,
+                         detalle: r.aprendida ? "corregido con una asociación guardada de una corrección anterior"
+                                              : "se llevó a la forma oficial del catálogo"});
     }else if(r.estado === "fuera_de_catalogo"){
       inf.revision.push({campo:col, estado:"fuera", antes:r.valor,
                          sugerencias:r.sugerencias,
@@ -899,6 +926,7 @@ const CAMPO_CLAVE = {"Sold To":"sold_to","Ship To":"ship_to",
 /* Panel de análisis: campo por campo, con corrección en línea para lo que
    quedó fuera del catálogo. */
 function pintarAnalisis(ok){
+  const montajes = [];   // buscadores por montar una vez armado el HTML
   const tot = {ok:0, corregido:0, fuera:0, vacio:0, incoherente:0};
   ok.forEach(i => i.revision.forEach(r => tot[r.estado]++));
 
@@ -934,9 +962,16 @@ function pintarAnalisis(ok){
 
         // desplegable para elegir (o cambiar) el valor oficial: siempre
         // disponible, también si la homogeneización automática se equivocó
-        const fix = CAMPO_CLAVE[r.campo] ? selectorCatalogo(inf, k, r) : "";
+        let fix = "";
+        if(CAMPO_CLAVE[r.campo]){
+          const id = "cbm" + montajes.length;
+          montajes.push({id, inf, r});
+          fix = '<div class="cb" id="' + id + '"></div>';
+        }
         return "<tr><td>" + esc(r.campo) + '</td><td><span class="est ' + r.estado + '">' +
-               ETIQ_EST[r.estado] + "</span></td><td>" + val + (fix ? "<br>" + fix : "") +
+               ETIQ_EST[r.estado] + "</span>" +
+               (r.aprendida ? ' <span class="est aprendida" title="Se corrigió con una asociación que el sistema guardó antes">guardada</span>' : "") +
+               "</td><td>" + val + (fix ? "<br>" + fix : "") +
                '</td><td style="font-size:12px;color:var(--tinta-3)">' +
                esc(r.detalle) + "</td></tr>";
       }).join("") + "</table></div>";
@@ -944,54 +979,214 @@ function pintarAnalisis(ok){
     cont.appendChild(d);
   });
 
-  cont.querySelectorAll("select.fix").forEach(s => s.onchange = () => {
-    if(!s.value) return;
-    const inf = ok[+s.dataset.inf];
-    const eleccion = JSON.parse(s.value);
-    // una planta elegida desde la lista agrupada por cliente trae su Sold To:
-    // esa planta solo existe bajo ese cliente
-    if(eleccion.soldTo) inf.manual["Sold To"] = eleccion.soldTo;
-    inf.manual[s.dataset.campo] = eleccion.valor;
-    revisarCatalogo(inf);   // p.ej. otro Sold To cambia qué Ship To son válidos
-    pintar();
+  montajes.forEach(({id, inf, r}) => {
+    const datos = datosSelector(inf, r);
+    montarCombobox($(id), {
+      titulo: datos.titulo, grupos: datos.grupos,
+      onElegir: eleccion => aplicarEleccion(inf, r.campo, eleccion),
+    });
   });
 }
 
-function opcion(valor, texto, extra){
-  return "<option value='" + esc(JSON.stringify(Object.assign({valor: valor}, extra || {})))
-    .replace(/'/g, "&#39;") + "'>" + esc(texto || valor) + "</option>";
-}
-
-/* El desplegable de un campo del catálogo. Ship To muestra solo las plantas
-   del Sold To de este informe; si el Sold To todavía no está resuelto, todas,
-   agrupadas por cliente. Variedad, igual con su Especie. */
-function selectorCatalogo(inf, k, r){
+/* Lo que ofrece el buscador de un campo del catálogo. Ship To muestra solo las
+   plantas del Sold To de este informe; si el Sold To todavía no está resuelto,
+   todas, agrupadas por cliente. Variedad, igual con su Especie. */
+function datosSelector(inf, r){
   const clave = CAMPO_CLAVE[r.campo];
   const lista = oficialesPara(clave, inf);
-  const sug = (r.sugerencias || []).filter(s => lista.includes(s));
-  let opciones = "";
-  if(sug.length)
-    opciones += '<optgroup label="Parecidos">' + sug.map(s => opcion(s)).join("") + "</optgroup>";
+  const sug = (r.sugerencias || []).filter(x => lista.includes(x));
+  const grupos = [];
+  if(sug.length) grupos.push({titulo: "Parecidos", items: sug.map(x => ({valor: x, texto: x}))});
 
   const soldTo = inf.datos["Sold To"];
   if(clave === "ship_to" && !LISTADOS.plantasPorCliente[soldTo] && LISTADOS.enVivo){
     for(const cliente of Object.keys(LISTADOS.plantasPorCliente).sort())
-      opciones += '<optgroup label="' + esc(cliente) + '">' +
-        LISTADOS.plantasPorCliente[cliente].map(p => opcion(p, p, {soldTo: cliente})).join("") +
-        "</optgroup>";
+      grupos.push({titulo: cliente, items: LISTADOS.plantasPorCliente[cliente].map(p => ({valor: p, texto: p, soldTo: cliente}))});
   }else{
-    opciones += lista.filter(s => !sug.includes(s)).map(s => opcion(s)).join("");
+    grupos.push({titulo: sug.length ? "Todos" : null, items: lista.filter(x => !sug.includes(x)).map(x => ({valor: x, texto: x}))});
   }
 
-  let titulo = "— elegir del catálogo —";
-  if(clave === "ship_to" && LISTADOS.plantasPorCliente[soldTo])
-    titulo = "— plantas de " + soldTo + " —";
+  let titulo = "elegir del catálogo";
+  if(clave === "ship_to" && LISTADOS.plantasPorCliente[soldTo]) titulo = "plantas de " + soldTo;
   else if(clave === "variedad" && LISTADOS.variedadesPorEspecie[inf.datos["Especie"]])
-    titulo = "— variedades de " + inf.datos["Especie"] + " —";
-  if(r.estado === "ok" || r.estado === "corregido") titulo = "— cambiar —";
+    titulo = "variedades de " + inf.datos["Especie"];
+  if(r.estado === "ok" || r.estado === "corregido") titulo = "cambiar";
+  return {titulo, grupos};
+}
 
-  return '<select class="fix" data-inf="' + k + '" data-campo="' + esc(r.campo) + '">' +
-    '<option value="">' + esc(titulo) + "</option>" + opciones + "</select>";
+/* ---------- buscador (reemplaza al desplegable) ----------
+   Se escribe para filtrar, sin importar tildes ni mayúsculas. Flechas y Enter
+   para elegir, Esc para cerrar. La lista es «fixed» porque las fichas recortan
+   lo que se sale de ellas. */
+let cbSeq = 0;
+const CB_MAX = 150;
+
+function montarCombobox(host, cfg){
+  host.textContent = "";
+  const inp = document.createElement("input");
+  inp.type = "text"; inp.className = "cb-in"; inp.autocomplete = "off";
+  inp.placeholder = cfg.titulo + " — escribe para buscar";
+  inp.setAttribute("role", "combobox");
+  inp.setAttribute("aria-expanded", "false");
+  inp.setAttribute("aria-label", cfg.titulo);
+  const lista = document.createElement("ul");
+  lista.className = "cb-lista"; lista.hidden = true; lista.setAttribute("role", "listbox");
+  lista.id = "cb" + (++cbSeq);
+  inp.setAttribute("aria-controls", lista.id);
+  host.append(inp, lista);
+
+  let opciones = [];   // lo que se ve ahora, en orden
+  let activo = -1;
+
+  function colocar(){
+    const r = inp.getBoundingClientRect();
+    const abajo = window.innerHeight - r.bottom - 16;
+    const arriba = r.top - 16;
+    const alto = Math.min(300, Math.max(abajo, arriba < abajo ? abajo : Math.min(arriba, 300)));
+    lista.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 348)) + "px";
+    lista.style.width = Math.max(r.width, 340) + "px";
+    lista.style.maxHeight = alto + "px";
+    if(abajo < 160 && arriba > abajo){ lista.style.top = "auto"; lista.style.bottom = (window.innerHeight - r.top + 4) + "px"; }
+    else{ lista.style.bottom = "auto"; lista.style.top = (r.bottom + 4) + "px"; }
+  }
+
+  function marcar(texto, q){
+    const span = document.createDocumentFragment();
+    const p = plano(texto), i = q ? p.indexOf(q) : -1;
+    if(i < 0 || p.length !== texto.length){ span.append(texto); return span; }
+    span.append(texto.slice(0, i));
+    const m = document.createElement("mark"); m.textContent = texto.slice(i, i + q.length);
+    span.append(m, texto.slice(i + q.length));
+    return span;
+  }
+
+  function pintarLista(){
+    const q = plano(inp.value);
+    lista.textContent = "";
+    opciones = []; 
+    let total = 0, corte = false;
+    for(const g of cfg.grupos){
+      const coincideGrupo = q && g.titulo && plano(g.titulo).includes(q);
+      const its = g.items.filter(it => !q || coincideGrupo || plano(it.texto).includes(q));
+      if(!its.length) continue;
+      if(g.titulo){ const h = document.createElement("li"); h.className = "cb-grupo"; h.textContent = g.titulo; h.setAttribute("role", "presentation"); lista.append(h); }
+      for(const it of its){
+        if(total >= CB_MAX){ corte = true; break; }
+        const li = document.createElement("li");
+        li.className = "cb-op"; li.setAttribute("role", "option"); li.dataset.i = String(opciones.length);
+        li.append(marcar(it.texto, coincideGrupo ? "" : q));
+        lista.append(li); opciones.push(it); total++;
+      }
+      if(corte) break;
+    }
+    if(!opciones.length){ const v = document.createElement("li"); v.className = "cb-vacio"; v.textContent = "Nada coincide con «" + inp.value + "»"; lista.append(v); }
+    if(corte){ const m = document.createElement("li"); m.className = "cb-mas"; m.textContent = "Hay más: sigue escribiendo para acotar."; lista.append(m); }
+    activo = opciones.length ? 0 : -1;
+    resaltar();
+  }
+
+  function resaltar(){
+    lista.querySelectorAll(".cb-op").forEach((li, i) => {
+      li.classList.toggle("activo", i === activo);
+      li.setAttribute("aria-selected", i === activo ? "true" : "false");
+      if(i === activo) li.scrollIntoView({block: "nearest"});
+    });
+  }
+
+  function abrir(){
+    if(!lista.hidden) return;
+    pintarLista(); colocar(); lista.hidden = false; inp.setAttribute("aria-expanded", "true");
+    window.addEventListener("scroll", colocar, true); window.addEventListener("resize", colocar);
+  }
+  function cerrar(){
+    lista.hidden = true; inp.setAttribute("aria-expanded", "false");
+    window.removeEventListener("scroll", colocar, true); window.removeEventListener("resize", colocar);
+  }
+  function elegir(i){
+    const it = opciones[i]; if(!it) return;
+    cerrar(); cfg.onElegir(it);
+  }
+
+  inp.addEventListener("focus", abrir);
+  inp.addEventListener("click", abrir);
+  inp.addEventListener("input", () => { abrir(); pintarLista(); colocar(); });
+  inp.addEventListener("blur", cerrar);
+  inp.addEventListener("keydown", e => {
+    if(e.key === "ArrowDown"){ e.preventDefault(); abrir(); if(opciones.length){ activo = (activo + 1) % opciones.length; resaltar(); } }
+    else if(e.key === "ArrowUp"){ e.preventDefault(); abrir(); if(opciones.length){ activo = (activo - 1 + opciones.length) % opciones.length; resaltar(); } }
+    else if(e.key === "Enter"){ e.preventDefault(); if(!lista.hidden) elegir(activo); }
+    else if(e.key === "Escape"){ if(!lista.hidden){ e.preventDefault(); cerrar(); } }
+  });
+  // mousedown y no click: el blur del input cerraría la lista antes del click
+  lista.addEventListener("mousedown", e => {
+    e.preventDefault();
+    const li = e.target.closest(".cb-op");
+    if(li) elegir(+li.dataset.i);
+  });
+}
+
+/* ---------- lo que el sistema aprende de cada corrección a mano ---------- */
+const APRENDIDAS = {};   // «campo|contexto|texto» -> valor oficial
+const soloContextual = campo => campo === "ship_to" || campo === "variedad";
+const claveAprendida = (campo, ctx, crudo) =>
+  campo + "|" + (soloContextual(campo) ? plano(ctx || "") : "") + "|" + plano(crudo || "");
+/* el contexto que le da sentido a un valor: el Sold To de una planta, la
+   Especie de una variedad */
+function contextoDe(campo, inf){
+  if(campo === "ship_to") return inf.datos["Sold To"] || "";
+  if(campo === "variedad") return inf.datos["Especie"] || "";
+  return "";
+}
+
+function avisar(texto, error){
+  const t = document.createElement("div");
+  t.className = "toast" + (error ? " err" : ""); t.setAttribute("role", "status"); t.textContent = texto;
+  document.body.append(t);
+  setTimeout(() => t.remove(), error ? 6000 : 3500);
+}
+
+async function aprender(inf, campoNombre, valorElegido){
+  const campo = CAMPO_CLAVE[campoNombre];
+  const crudo = inf.crudos[campoNombre];
+  if(!crudo || plano(crudo) === plano(valorElegido)) return;   // no hay nada que recordar
+  const contexto = contextoDe(campo, inf);
+  try{
+    const r = await fetch(API_BASE + "/correcciones", {
+      method: "POST", headers: {"Content-Type": "application/json", ...autorizacion()},
+      body: JSON.stringify({campo, contexto, valor_crudo: crudo, valor_oficial: valorElegido, archivo: inf.archivo}),
+    });
+    if(!r.ok){
+      let det = ""; try{ det = (await r.json()).detail || ""; }catch(e){}
+      throw new Error(det || ("respondió " + r.status));
+    }
+    APRENDIDAS[claveAprendida(campo, contexto, crudo)] = valorElegido;
+    avisar("Asociación guardada: «" + crudo + "» → «" + valorElegido + "». La próxima vez se corrige sola.");
+  }catch(err){
+    avisar("No se pudo guardar la asociación (" + err.message + "). La corrección de este informe sí quedó aplicada.", true);
+  }
+}
+
+function aplicarEleccion(inf, campoNombre, eleccion){
+  // una planta elegida desde la lista agrupada por cliente trae su Sold To:
+  // esa planta solo existe bajo ese cliente
+  const soldToAntes = inf.crudos["Sold To"];
+  if(eleccion.soldTo) inf.manual["Sold To"] = eleccion.soldTo;
+  inf.manual[campoNombre] = eleccion.valor;
+  revisarCatalogo(inf);   // p.ej. otro Sold To cambia qué Ship To son válidos
+  if(eleccion.soldTo && soldToAntes && plano(soldToAntes) !== plano(eleccion.soldTo))
+    void aprender(inf, "Sold To", eleccion.soldTo);
+  void aprender(inf, campoNombre, eleccion.valor);
+  pintar();
+}
+
+async function cargarAprendidas(){
+  try{
+    const filas = await leerApi("/correcciones/alias");
+    filas.forEach(f => { APRENDIDAS[claveAprendida(f.campo, f.contexto, f.valor_crudo)] = f.valor_oficial; });
+    // lo que ya se cargó se vuelve a revisar con lo aprendido
+    informes.filter(i => i.laboratorio).forEach(revisarCatalogo);
+    pintar();
+  }catch(e){ /* sin memoria (backend viejo o sin permiso): el Converter sigue como siempre */ }
 }
 
 /* ============ listados en vivo ============ */
@@ -1250,6 +1445,9 @@ $("btnSubir").onclick = async () => {
     const base = "✔ Cargado: " + c.solicitudes_nuevas + " solicitud(es) nueva(s), " +
       c.solicitudes_existentes + " completada(s), " + c.resultados + " resultado(s) en total." +
       (c.pendientes_revision ? " ⛔ " + c.pendientes_revision + " quedaron en Ingesta de Datos → Pendientes." : "");
+    const usos = ok.flatMap(i => i.usadas || []);
+    if(usos.length)   // cuántas veces el sistema corrigió solo con lo que aprendió
+      fetch(API_BASE + "/correcciones/usos", {method: "POST", headers: {"Content-Type": "application/json", ...autorizacion()}, body: JSON.stringify(usos)}).catch(() => {});
     pie.className = "pie";
     pie.textContent = base + " Guardando los PDF en auditoría…";
     const pdf = await subirPdfs(ok);
@@ -1422,6 +1620,7 @@ $("btnLimpiar").onclick = () => {
 
 pintar();
 cargarAbiertas();
+cargarAprendidas();
 cargarListados();
 </script>
 </body>
