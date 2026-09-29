@@ -54,3 +54,35 @@ export function contarFueraDeIntervalo(valores: number[], inferior: number | nul
   })
   return { dentro: valores.length - fuera, fuera }
 }
+
+export interface TramoHistograma {
+  desde: number
+  hasta: number
+  conteo: number
+}
+
+/** Reparte los valores en tramos del mismo ancho entre el mínimo y el máximo.
+ * El último tramo incluye el máximo. Con todos los valores iguales sale un
+ * solo tramo. Cantidad por defecto: raíz de n, entre 1 y 12 tramos. */
+export function histograma(valores: number[], tramos?: number): TramoHistograma[] {
+  if (valores.length === 0) return []
+  let min = Infinity
+  let max = -Infinity
+  valores.forEach((v) => {
+    if (v < min) min = v
+    if (v > max) max = v
+  })
+  if (min === max) return [{ desde: min, hasta: max, conteo: valores.length }]
+  const n = Math.max(1, Math.min(12, tramos ?? Math.ceil(Math.sqrt(valores.length))))
+  const ancho = (max - min) / n
+  const res: TramoHistograma[] = Array.from({ length: n }, (_, i) => ({
+    desde: min + i * ancho,
+    hasta: i === n - 1 ? max : min + (i + 1) * ancho,
+    conteo: 0,
+  }))
+  valores.forEach((v) => {
+    const i = Math.min(n - 1, Math.floor((v - min) / ancho))
+    res[i].conteo++
+  })
+  return res
+}

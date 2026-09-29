@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import {
   ArcElement,
   BarController,
@@ -7,6 +7,7 @@ import {
   CategoryScale,
   Chart,
   DoughnutController,
+  Filler,
   Legend,
   LinearScale,
   LineController,
@@ -14,14 +15,14 @@ import {
   PointElement,
   Tooltip,
 } from 'chart.js'
-import type { ChartDataset } from 'chart.js'
+import type { ChartDataset, TooltipItem } from 'chart.js'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
-import { IconFrasco } from '@/components/ui/icons'
+import { IconAlerta, IconArchivoPlano, IconFrasco, IconTrendingUp, IconVerificar } from '@/components/ui/icons'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import type { RangoFechas } from '@/components/ui/CalendarioRango'
@@ -32,20 +33,46 @@ import type { ValorLista } from '@/features/listados'
 import { HttpError } from '@/services/http/client'
 import { formatDateCL, formatDecimalCL } from '@/lib/locale'
 import {
+  FILTROS_VACIOS,
+  aplicarFiltros,
   calcularEstadisticas,
   calcularLimitesControl,
+  claveFiltro,
+  clientesDeSucursal,
+  colorCategorico,
   colorDeIngrediente,
+  contarFiltrosActivos,
   contarFueraDeIntervalo,
+  descargarBdExcel,
   descargarDatosExcel,
+  describirFiltros,
+  generarDatosSimulados,
+  histograma,
   listarAnalitos,
+  lunesDe,
+  MAX_PUNTOS_DIARIOS,
+  solicitudesPor,
   listarLimites,
+  mismoValor,
   obtenerDatosReporte,
+  opcionesDe,
+  pedidoBd,
   proximaHoraProgramada,
   useActualizacionProgramada,
 } from '@/features/reportes'
-import type { Analito, FilaReporte, LimiteAnalito, Observacion } from '@/features/reportes'
+import type {
+  Analito,
+  DatosSimulados,
+  FilaReporte,
+  FiltrosReporte,
+  LimiteAnalito,
+  Observacion,
+  OpcionFiltro,
+  TramoHistograma,
+} from '@/features/reportes'
 import { AnalitosAdminModal } from './AnalitosAdminModal'
 import { DetalleObservacionesModal } from './DetalleObservacionesModal'
+import { DescargaBdDialogo } from './DescargaBdDialogo'
 import styles from './ReporteView.module.css'
 
 Chart.register(
@@ -60,6 +87,7 @@ Chart.register(
   DoughnutController,
   BarController,
   BarElement,
+  Filler,
 )
 
 function cssVar(name: string, fallback: string): string {
@@ -67,40 +95,18 @@ function cssVar(name: string, fallback: string): string {
   return v || fallback
 }
 
+/** '#2f7d32' + 0.1 -> 'rgba(47, 125, 50, 0.1)'. Si el color no es hex, se deja igual. */
+function conAlfa(color: string, alfa: number): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(color.trim())
+  if (!m) return color
+  const n = parseInt(m[1], 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alfa})`
+}
+
 function unique(valores: (string | number | null | undefined)[]): string[] {
   return [...new Set(valores.filter((v) => v !== null && v !== undefined && v !== '').map(String))].sort((a, b) =>
     a.localeCompare(b, 'es', { numeric: true }),
   )
-}
-
-/** Igual que unique(), pero agrupa sin importar mayúsculas/minúsculas y elige
- * como etiqueta la variante que más se repite en los datos reales — así
- * "cromatografía" y "Cromatografía" no aparecen duplicados en el filtro,
- * mientras la homogenización de fondo (fuera de esta pantalla) sigue pendiente. */
-function uniqueCanonico(valores: (string | number | null | undefined)[]): string[] {
-  const porClave = new Map<string, Map<string, number>>()
-  valores.forEach((v) => {
-    if (v === null || v === undefined) return
-    const s = String(v).trim()
-    if (!s) return
-    const clave = s.toLowerCase()
-    const variantes = porClave.get(clave) ?? new Map<string, number>()
-    variantes.set(s, (variantes.get(s) ?? 0) + 1)
-    porClave.set(clave, variantes)
-  })
-  const canonicos: string[] = []
-  porClave.forEach((variantes) => {
-    let mejor = ''
-    let mejorConteo = -1
-    variantes.forEach((n, variante) => {
-      if (n > mejorConteo) {
-        mejor = variante
-        mejorConteo = n
-      }
-    })
-    canonicos.push(mejor)
-  })
-  return canonicos.sort((a, b) => a.localeCompare(b, 'es', { numeric: true }))
 }
 
 /** Especie es casi siempre una sola palabra: si la variante más frecuente vino
@@ -112,48 +118,21 @@ function capitalizarPrimeraLetra(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
 }
 
-function igual(a: string | null | undefined, b: string): boolean {
-  return (a ?? '').trim().toLowerCase() === b.trim().toLowerCase()
-}
-
 type Vista = 'residual' | 'control'
 type Estado = 'cargando' | 'ok' | 'error'
 
-interface Filtros {
-  ingredientes: string[]
-  cliente: string
-  planta: string
-  tipoAplicacion: string
-  tipoServicio: string
-  laboratorio: string
-  crop: string
-  variedad: string
-  semana: string
-  mes: string
-  rango: RangoFechas | null
+type Filtros = FiltrosReporte
+
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+function nombreMes(mes: string): string {
+  return MESES[Number(mes) - 1] ?? mes
 }
 
-const FILTROS_VACIOS: Filtros = {
-  ingredientes: [],
-  cliente: '',
-  planta: '',
-  tipoAplicacion: '',
-  tipoServicio: '',
-  laboratorio: '',
-  crop: '',
-  variedad: '',
-  semana: '',
-  mes: '',
-  rango: null,
-}
-
-function filtrosActivos(f: Filtros): boolean {
-  return (
-    f.ingredientes.length > 0 ||
-    Boolean(
-      f.cliente || f.planta || f.tipoAplicacion || f.tipoServicio || f.laboratorio || f.crop || f.variedad || f.semana || f.mes || f.rango,
-    )
-  )
+/** Texto de una opción de un desplegable nativo: el valor y cuántas
+ * solicitudes trae, para saber antes de elegir si hay algo que ver. */
+function textoOpcion(o: OpcionFiltro, etiqueta: (v: string) => string = (v) => v): string {
+  return `${etiqueta(o.valor)} (${o.conteo.toLocaleString('es-CL')})`
 }
 
 /** Observaciones dentro (o fuera) del intervalo [inferior, superior]; sin ambos
@@ -180,15 +159,92 @@ function esDetectado(o: Observacion | undefined): boolean {
   return !TEXTOS_NO_DETECTADO.has(texto)
 }
 
+const ETIQUETAS_FILTRO: Record<keyof Filtros, string> = {
+  laboratorio: 'Laboratorio',
+  cliente: 'Sold To',
+  planta: 'Ship To',
+  tipoServicio: 'Servicio',
+  crop: 'Especie',
+  variedad: 'Variedad',
+  ingredientes: 'Ingrediente',
+  tipoAplicacion: 'Aplicación',
+  semana: 'Semana',
+  mes: 'Mes',
+  rango: 'Fechas',
+}
+
+/** Un "chip" por filtro puesto, para ver de un vistazo qué está aplicado y
+ * quitarlo con un clic (los desplegables solo muestran el valor recortado). */
+function chipsDeFiltros(f: Filtros, clienteFijo: boolean): { campo: keyof Filtros; etiqueta: string; valor: string }[] {
+  const chips: { campo: keyof Filtros; etiqueta: string; valor: string }[] = []
+  ;(Object.keys(ETIQUETAS_FILTRO) as (keyof Filtros)[]).forEach((campo) => {
+    if (clienteFijo && (campo === 'cliente' || campo === 'planta')) return
+    const valor =
+      campo === 'ingredientes'
+        ? f.ingredientes.join(', ')
+        : campo === 'rango'
+          ? f.rango
+            ? `${formatDateCL(f.rango.desde)} – ${formatDateCL(f.rango.hasta)}`
+            : ''
+          : campo === 'mes'
+            ? f.mes && nombreMes(f.mes)
+            : f[campo]
+    if (valor) chips.push({ campo, etiqueta: ETIQUETAS_FILTRO[campo], valor })
+  })
+  return chips
+}
+
 const FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit' })
+
+/** Tarjeta de indicador: ícono en su pastilla de color, etiqueta, cifra y
+ * una línea de contexto. `tono` colorea el ícono y el borde, nunca la cifra
+ * -el texto va siempre en los tonos de texto, legible en cualquier caso-. */
+function Kpi({
+  icono,
+  tono,
+  etiqueta,
+  destacado,
+  children,
+  sub,
+}: {
+  icono: ReactNode
+  tono: string
+  etiqueta: ReactNode
+  destacado?: boolean
+  children: ReactNode
+  sub?: ReactNode
+}) {
+  return (
+    <Card
+      className={`${styles.statCard} ${destacado ? styles.destacado : ''}`}
+      style={{ '--kpi': tono } as CSSProperties}
+    >
+      <div className={styles.kpiCabeza}>
+        <span className={styles.kpiIcono} aria-hidden="true">
+          {icono}
+        </span>
+        <span className={styles.statLbl}>{etiqueta}</span>
+      </div>
+      {children}
+      {sub != null && <span className={styles.statSub}>{sub}</span>}
+    </Card>
+  )
+}
+
+const ETIQUETA_DIMENSION = {
+  cliente: 'cliente (Sold To)',
+  planta: 'sucursal (Ship To)',
+  tipoServicio: 'tipo de servicio',
+} as const
 
 /** `clienteFijo`: usado por el portal de cliente — cuando viene seteado, los
  * datos ya llegan filtrados por el backend (nunca se filtran solo en el
  * navegador) y los filtros de Cliente/Sucursal ni siquiera se muestran.
  * `plantaFija`: opcional, solo tiene sentido junto con clienteFijo — cuentas
  * creadas por Ship To (ej. "Dole Codegua") en vez de por Sold To completo.
- * `onCropChange`: usado por el portal de cliente para cambiar la imagen de
- * fondo del encabezado según la especie elegida en el filtro.
+ * `onCropChange`: usado por el portal de cliente (y el encabezado del admin)
+ * para cambiar la imagen de fondo según la especie elegida en el filtro.
+ * `onClienteChange`: el encabezado del admin muestra el Sold To filtrado.
  * `vistaControl`: la vista por límite de control es un gráfico INTERNO y vive
  * solo en Auditoría interna, que monta este componente con esta bandera. Sin
  * ella -Report y portal de cliente- solo existe la vista por límite residual. */
@@ -197,11 +253,13 @@ export function ReporteView({
   plantaFija,
   onCropChange,
   vistaControl = false,
+  onClienteChange,
 }: {
   clienteFijo?: string
   plantaFija?: string
   onCropChange?: (crop: string) => void
   vistaControl?: boolean
+  onClienteChange?: (cliente: string) => void
 } = {}) {
   const { user } = useAuth()
   const acento = areaDeModulo('reports')?.colorPrimario ?? '#6dad3c'
@@ -227,7 +285,16 @@ export function ReporteView({
   const [modalAnalitos, setModalAnalitos] = useState(false)
   const [detalle, setDetalle] = useState<{ titulo: string; filas: Observacion[] } | null>(null)
   const [descargandoDatos, setDescargandoDatos] = useState(false)
+  const [avisoBd, setAvisoBd] = useState(false)
+  const [descargandoBd, setDescargandoBd] = useState(false)
   const [vistaGrafico, setVistaGrafico] = useState<'promedios' | 'individual'>('promedios')
+  // Datos de prueba (solo admin): viven en este estado y en ningún otro lado.
+  // Se pierden al salir de Report, al recargar y al actualizar -a propósito:
+  // nunca pueden mezclarse con los reales-.
+  const [simulacion, setSimulacion] = useState<DatosSimulados | null>(null)
+  const cambiarCropRef = useRef<(v: string) => void>(() => {})
+  const cambiarClienteRef = useRef<(v: string) => void>(() => {})
+  const cambiarPlantaRef = useRef<(v: string) => void>(() => {})
 
   const obtenerTodo = useCallback(async () => {
     const [datos, catalogo, limitesCatalogo] = await Promise.all([
@@ -239,6 +306,7 @@ export function ReporteView({
   }, [clienteFijo, plantaFija])
 
   function aplicarExito(r: { filas: FilaReporte[]; totalSolicitudes: number; analitos: Analito[]; limites: LimiteAnalito[] }) {
+    setSimulacion(null)
     setFilas(r.filas)
     setTotalSolicitudes(r.totalSolicitudes)
     setAnalitos(r.analitos)
@@ -287,24 +355,35 @@ export function ReporteView({
   }, [filtros.crop, onCropChange])
 
   useEffect(() => {
+    onClienteChange?.(filtros.cliente)
+  }, [filtros.cliente, onClienteChange])
+
+  useEffect(() => {
     listarEspeciesActivas()
       .then(setEspeciesOficiales)
       .catch(() => setEspeciesOficiales([]))
   }, [clienteFijo])
 
   useEffect(() => {
-    const especie = especiesOficiales.find((e) => e.valor === filtros.crop)
-    listarValores('variedad', especie ? { especieId: especie.id } : undefined)
-      // Sin especie elegida se piden TODAS las variedades, y ahí el mismo nombre
-      // puede venir más de una vez porque vive en dos especies distintas
-      // ("June Gold" existe en Durazno y en Nectarina). Como el filtro compara
-      // por texto, se deduplica: si no, la lista muestra la opción repetida y
-      // React reclama por keys duplicadas.
+    // Todas las variedades, sin acotar por especie: se usan solo para mostrar
+    // el nombre oficial. La cascada Especie → Variedad la hacen los propios
+    // datos (ver `opciones`), así "June Gold" de Durazno y de Manzana nunca
+    // se mezclan.
+    listarValores('variedad')
       .then((vs) => setVariedadesOficiales(unique(vs.map((v) => v.valor))))
       .catch(() => setVariedadesOficiales([]))
-  }, [filtros.crop, especiesOficiales])
+  }, [])
 
   const esGestor = user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area'
+  // Nunca en el portal de cliente: un cliente no puede ver datos inventados.
+  const puedeSimular = esGestor && !clienteFijo
+  const simulando = puedeSimular && simulacion != null
+  // Lo que se muestra: los datos simulados mientras la simulación está activa,
+  // los reales el resto del tiempo. Todo lo de abajo lee de acá.
+  const filasVista = simulando ? simulacion.filas : filas
+  const analitosVista = simulando ? simulacion.analitos : analitos
+  const limitesVista = simulando ? simulacion.limites : limites
+  const totalVista = simulando ? simulacion.totalSolicitudes : totalSolicitudes
 
   // Una fila por cada solicitud filtrada (LEFT JOIN con resultado en el backend):
   // toda solicitud de la base aparece acá, tenga o no un resultado numérico —
@@ -312,8 +391,8 @@ export function ReporteView({
   // un resultado cualitativo como "ND"), pero la solicitud igual se cuenta y
   // se puede ver en el detalle.
   const observaciones = useMemo<Observacion[]>(() => {
-    if (!filas) return []
-    return filas.map((f) => {
+    if (!filasVista) return []
+    return filasVista.map((f) => {
       const num = f.valor_num == null ? null : Number(f.valor_num)
       return {
         solicitudId: f.solicitud_id,
@@ -334,63 +413,43 @@ export function ReporteView({
         mes: f.mes,
       }
     })
-  }, [filas])
+  }, [filasVista])
 
-  const opciones = useMemo(
-    () => ({
-      ingredientes: unique((filas ?? []).map((f) => f.ingrediente)),
-      // FIX TEMPORAL: Sold To/Ship To vuelven a salir de `filas` (lo ya cargado),
-      // no de Listados -clientesOficiales/plantasOficiales-. El campo "cliente"
-      // que devuelve el backend es COALESCE(cliente.nombre, solicitud.sold_to_raw):
-      // solo sale el nombre oficial cuando la solicitud tiene planta_id resuelto;
-      // si no, cae al texto crudo, que puede no calzar ni normalizado con el
-      // nombre oficial de Listados -de ahí que el filtro mostrara 0 resultados-.
-      // Mientras esa resolución no quede sólida en todas las filas, es más seguro
-      // ofrecer solo valores que de verdad existen en los datos.
-      clientes: uniqueCanonico((filas ?? []).map((f) => f.cliente)),
-      // Sucursales en cascada: si hay un cliente elegido, solo se muestran las suyas.
-      plantas: uniqueCanonico(
-        (filas ?? []).filter((f) => !filtros.cliente || igual(f.cliente, filtros.cliente)).map((f) => f.planta),
-      ),
-      tiposAplicacion: uniqueCanonico((filas ?? []).map((f) => f.tipo_aplicacion)).map(capitalizarPrimeraLetra),
-      // Homogenización pendiente en la carga (dato pasa tal cual del Excel): acá se
-      // agrupa sin importar mayúsculas/minúsculas para que el filtro no repita el
-      // mismo valor dos veces por un tema de casing (ej. "cromatografía" y "Cromatografía"),
-      // y siempre se muestra con primera letra mayúscula y el resto en minúscula
-      // -homogenización solo visual, el dato real cargado no se toca-.
-      tiposServicio: uniqueCanonico((filas ?? []).map((f) => f.tipo_servicio)).map(capitalizarPrimeraLetra),
-      laboratorios: uniqueCanonico((filas ?? []).map((f) => f.laboratorio)).map(capitalizarPrimeraLetra),
-      crops: especiesOficiales.map((e) => e.valor),
-      // Variedades en cascada: si hay una especie elegida, solo las suyas
-      // -"June Gold" de Durazno y de Manzana nunca se mezclan-.
-      variedades: variedadesOficiales,
-      semanas: unique((filas ?? []).map((f) => f.semana_muestreo)),
-      meses: unique((filas ?? []).map((f) => f.mes)),
-    }),
-    [filas, filtros.cliente, especiesOficiales, variedadesOficiales],
-  )
+  // Cada desplegable ofrece lo que queda con TODOS LOS DEMÁS filtros puestos
+  // (facetas), con cuántas solicitudes trae cada opción. Antes Especie y
+  // Variedad listaban todo Listados: con un Sold To elegido, casi todas daban
+  // 0 resultados. Ahora Listados solo pone el nombre oficial.
+  //
+  // Sold To/Ship To salen de los datos (COALESCE(cliente.nombre, sold_to_raw)
+  // en el backend): una solicitud sin planta resuelta cae al texto crudo, y
+  // ese texto puede venir escrito distinto al oficial ("AG Servicios SpA" vs
+  // "A.G. SERVICIOS SPA"). `claveFiltro` los junta en una sola opción.
+  const opciones = useMemo(() => {
+    const de = (
+      campo: Parameters<typeof opcionesDe>[1],
+      config: Parameters<typeof opcionesDe>[2] = {},
+    ): OpcionFiltro[] => opcionesDe(aplicarFiltros(observaciones, filtros, campo), campo, config)
+    return {
+      ingredientes: de('ingredientes', { seleccionados: filtros.ingredientes }),
+      clientes: de('cliente', { seleccionados: [filtros.cliente] }),
+      plantas: de('planta', { seleccionados: [filtros.planta] }),
+      tiposAplicacion: de('tipoAplicacion', { formatear: capitalizarPrimeraLetra, seleccionados: [filtros.tipoAplicacion] }),
+      tiposServicio: de('tipoServicio', { formatear: capitalizarPrimeraLetra, seleccionados: [filtros.tipoServicio] }),
+      laboratorios: de('laboratorio', { formatear: capitalizarPrimeraLetra, seleccionados: [filtros.laboratorio] }),
+      crops: de('crop', { canonicos: especiesOficiales.map((e) => e.valor), seleccionados: [filtros.crop] }),
+      variedades: de('variedad', { canonicos: variedadesOficiales, seleccionados: [filtros.variedad] }),
+      semanas: de('semana', { orden: 'numero', seleccionados: [filtros.semana] }),
+      meses: de('mes', { orden: 'numero', seleccionados: [filtros.mes] }),
+    }
+  }, [observaciones, filtros, especiesOficiales, variedadesOficiales])
 
-  const filtradas = useMemo(
-    () =>
-      observaciones.filter(
-        (o) =>
-          (filtros.ingredientes.length === 0 ||
-            (o.ingrediente != null && filtros.ingredientes.includes(o.ingrediente))) &&
-          (!filtros.cliente || igual(o.cliente, filtros.cliente)) &&
-          (!filtros.planta || igual(o.planta, filtros.planta)) &&
-          (!filtros.tipoAplicacion || igual(o.tipoAplicacion, filtros.tipoAplicacion)) &&
-          (!filtros.tipoServicio || igual(o.tipoServicio, filtros.tipoServicio)) &&
-          (!filtros.laboratorio || igual(o.laboratorio, filtros.laboratorio)) &&
-          (!filtros.crop || igual(o.crop, filtros.crop)) &&
-          (!filtros.variedad || igual(o.variedad, filtros.variedad)) &&
-          // Semana/Mes y el calendario son mutuamente excluyentes (ver actualizarSemana/
-          // actualizarMes/aplicarRango): solo uno de los dos grupos tiene valor a la vez.
-          (!filtros.semana || String(o.semana ?? '') === filtros.semana) &&
-          (!filtros.mes || String(o.mes ?? '') === filtros.mes) &&
-          (!filtros.rango || (o.fecha != null && o.fecha >= filtros.rango.desde && o.fecha <= filtros.rango.hasta)),
-      ),
-    [observaciones, filtros],
-  )
+  const conteoPorValor = useMemo(() => {
+    const mapa = (lista: OpcionFiltro[]) => new Map(lista.map((o) => [o.valor, o.conteo]))
+    return { clientes: mapa(opciones.clientes), plantas: mapa(opciones.plantas), ingredientes: mapa(opciones.ingredientes) }
+  }, [opciones])
+
+  const filtradas = useMemo(() => aplicarFiltros(observaciones, filtros), [observaciones, filtros])
+  const nFiltros = contarFiltrosActivos(filtros)
 
   const registrosFiltrados = useMemo(() => new Set(filtradas.map((o) => o.solicitudId)).size, [filtradas])
 
@@ -399,7 +458,7 @@ export function ReporteView({
   // que el gráfico de línea/dona de las otras vistas no tiene nada que
   // comparar. Acá se muestra una tabla ancha en vez de eso: una fila por
   // solicitud (fecha + zona de muestreo) y una columna por analito.
-  const esDiagnofruit = Boolean(filtros.laboratorio) && igual(filtros.laboratorio, 'Diagnofruit')
+  const esDiagnofruit = Boolean(filtros.laboratorio) && mismoValor(filtros.laboratorio, 'Diagnofruit')
 
   const gruposDiagnofruit = useMemo(() => {
     if (!esDiagnofruit) return []
@@ -423,13 +482,13 @@ export function ReporteView({
       // nombre en el catálogo de Diagnofruit y, si por algún motivo no está
       // -código nuevo sin catalogar todavía-, se muestra tal cual llegó.
       const nombre =
-        analitos.find((a) => a.codigo === o.ingrediente && igual(a.laboratorio, 'Diagnofruit'))?.nombre ??
+        analitosVista.find((a) => a.codigo === o.ingrediente && mismoValor(a.laboratorio, 'Diagnofruit'))?.nombre ??
         o.ingrediente
       const texto = o.ppm != null ? formatDecimalCL(o.ppm, 2) : o.valorTexto ?? '—'
       grupo.patogenos.push({ codigo: o.ingrediente, nombre, texto, detectado: esDetectado(o) })
     })
     return [...porSolicitud.values()].sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''))
-  }, [esDiagnofruit, filtradas, analitos])
+  }, [esDiagnofruit, filtradas, analitosVista])
 
   // El gráfico de barras de abajo es un resumen de la misma tabla, no un dato
   // aparte: cuántas muestras dieron positivo/negativo para cada patógeno, de
@@ -474,23 +533,23 @@ export function ReporteView({
   const analitoSeleccionado = useMemo(() => {
     if (filtros.ingredientes.length !== 1) return null
     const codigo = filtros.ingredientes[0]
-    const candidatos = analitos.filter((a) => a.codigo === codigo)
+    const candidatos = analitosVista.filter((a) => a.codigo === codigo)
     if (candidatos.length <= 1) return candidatos[0] ?? null
-    return candidatos.find((a) => igual(a.laboratorio, filtros.laboratorio)) ?? candidatos[0]
-  }, [analitos, filtros.ingredientes, filtros.laboratorio])
+    return candidatos.find((a) => mismoValor(a.laboratorio, filtros.laboratorio)) ?? candidatos[0]
+  }, [analitosVista, filtros.ingredientes, filtros.laboratorio])
 
   // El límite correcto depende de especie y tipo de servicio, no solo del analito:
   // se busca primero la combinación exacta, y si no existe se va relajando hacia
   // los comodines ('' = "aplica a todas/todos") hasta encontrar algo definido.
   const limiteResidual = useMemo(() => {
     if (!analitoSeleccionado) return { inferior: null, central: null, superior: null }
-    const propios = limites.filter((l) => l.analito_id === analitoSeleccionado.id)
+    const propios = limitesVista.filter((l) => l.analito_id === analitoSeleccionado.id)
     const especie = filtros.crop
     const servicio = filtros.tipoServicio
     const candidatos = [
-      propios.find((l) => igual(l.especie, especie) && igual(l.tipo_servicio, servicio)),
-      especie ? propios.find((l) => igual(l.especie, especie) && l.tipo_servicio === '') : undefined,
-      servicio ? propios.find((l) => l.especie === '' && igual(l.tipo_servicio, servicio)) : undefined,
+      propios.find((l) => mismoValor(l.especie, especie) && mismoValor(l.tipo_servicio, servicio)),
+      especie ? propios.find((l) => mismoValor(l.especie, especie) && l.tipo_servicio === '') : undefined,
+      servicio ? propios.find((l) => l.especie === '' && mismoValor(l.tipo_servicio, servicio)) : undefined,
       propios.find((l) => l.especie === '' && l.tipo_servicio === ''),
     ]
     const encontrado = candidatos.find((l) => l !== undefined)
@@ -499,7 +558,7 @@ export function ReporteView({
       central: encontrado?.limite_central != null ? Number(encontrado.limite_central) : null,
       superior: encontrado?.limite_max != null ? Number(encontrado.limite_max) : null,
     }
-  }, [analitoSeleccionado, limites, filtros.crop, filtros.tipoServicio])
+  }, [analitoSeleccionado, limitesVista, filtros.crop, filtros.tipoServicio])
 
   const limitesActivos = vista === 'residual' ? limiteResidual : limitesControl
   // Una sola definición de "cumplimiento" para el KPI, la dona y la barra: dentro
@@ -531,6 +590,11 @@ export function ReporteView({
           : 'Selecciona un ingrediente activo para ver sus límites residuales.'
         : `Límites dinámicos: promedio ± ${sigma} × desviación estándar de las ${valores.length.toLocaleString('es-CL')} observación(es) filtradas.`
 
+  const agrupacionSemanal = useMemo(
+    () => new Set(filtradas.map((o) => o.fecha).filter(Boolean)).size > MAX_PUNTOS_DIARIOS,
+    [filtradas],
+  )
+
   // ── gráficos ──
   const mainRef = useRef<HTMLCanvasElement>(null)
   const donutRef = useRef<HTMLCanvasElement>(null)
@@ -559,6 +623,15 @@ export function ReporteView({
     let etiquetas: string[]
     let datasets: ChartDataset<'line', (number | null)[]>[]
     let onClickGrafico: (_evt: unknown, elements: { datasetIndex: number; index: number }[]) => void
+    // Cuántas muestras promedia cada punto (solo vista por promedios, un ingrediente).
+    let muestrasPorPunto: number[] | null = null
+    const inferior = limitesActivos.inferior
+    const superior = limitesActivos.superior
+    const hayLimites = inferior != null && superior != null
+    // Con límites definidos, un punto fuera del intervalo se pinta rojo: se ve
+    // el incumplimiento sin tener que comparar a ojo contra la línea punteada.
+    const colorPunto = (v: number | null) =>
+      hayLimites && v != null && (v < inferior || v > superior) ? colorDanger : colorLineaUnica
 
     if (vistaGrafico === 'individual') {
       // Vista individual: un punto por observación, sin agrupar por fecha.
@@ -589,6 +662,8 @@ export function ReporteView({
             data: sorted.map((o) => o.ppm as number),
             borderColor: colorLineaUnica,
             backgroundColor: colorLineaUnica,
+            pointBackgroundColor: sorted.map((o) => colorPunto(o.ppm)),
+            pointBorderColor: sorted.map((o) => colorPunto(o.ppm)),
             borderWidth: 0,
             showLine: false,
             pointRadius: 3,
@@ -635,9 +710,11 @@ export function ReporteView({
         }
       }
     } else {
-      // Vista por promedios (por defecto): un punto por fecha, valor = promedio del día.
-      const claves = unique(filtradas.map((o) => o.fecha ?? 'Sin fecha')).sort()
-      etiquetas = claves.map((k) => (k === 'Sin fecha' ? k : formatDateCL(k)))
+      // Vista por promedios (por defecto): un punto por fecha, valor = promedio
+      // del día; o por semana cuando hay demasiadas fechas (ver agrupacionSemanal).
+      const claveFecha = (o: Observacion) => (o.fecha ? (agrupacionSemanal ? lunesDe(o.fecha) : o.fecha) : 'Sin fecha')
+      const claves = unique(filtradas.map(claveFecha)).sort()
+      etiquetas = claves.map((k) => (k === 'Sin fecha' ? k : agrupacionSemanal ? `Sem. ${formatDateCL(k)}` : formatDateCL(k)))
 
       if (comparandoVarios) {
         datasets = filtros.ingredientes.map((ingrediente) => {
@@ -645,7 +722,7 @@ export function ReporteView({
           filtradas
             .filter((o) => o.ingrediente === ingrediente && o.ppm != null)
             .forEach((o) => {
-              const clave = o.fecha ?? 'Sin fecha'
+              const clave = claveFecha(o)
               const arr = porFecha.get(clave) ?? []
               arr.push(o.ppm as number)
               porFecha.set(clave, arr)
@@ -671,21 +748,26 @@ export function ReporteView({
         const porFecha = new Map<string, number[]>()
         filtradas.forEach((o) => {
           if (o.ppm == null) return
-          const clave = o.fecha ?? 'Sin fecha'
+          const clave = claveFecha(o)
           const arr = porFecha.get(clave) ?? []
           arr.push(o.ppm)
           porFecha.set(clave, arr)
         })
         const promedios = claves.map((k) => {
           const arr = porFecha.get(k) ?? []
-          return arr.reduce((a, b) => a + b, 0) / arr.length
+          return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null
         })
+        muestrasPorPunto = claves.map((k) => porFecha.get(k)?.length ?? 0)
         datasets = [
           {
             label: `Promedio ${unidad}`,
             data: promedios,
             borderColor: colorLineaUnica,
-            backgroundColor: colorLineaUnica,
+            backgroundColor: conAlfa(colorLineaUnica, 0.08),
+            pointBackgroundColor: promedios.map((v) => colorPunto(v)),
+            pointBorderColor: promedios.map((v) => colorPunto(v)),
+            fill: 'origin',
+            spanGaps: true,
             borderWidth: 2,
             pointRadius: 3,
             pointHoverRadius: 5,
@@ -721,14 +803,14 @@ export function ReporteView({
       onClickGrafico = (_evt, elements) => {
         if (!elements.length) return
         const { datasetIndex, index } = elements[0]
-        const fechaClave = unique(filtradas.map((o) => o.fecha ?? 'Sin fecha')).sort()[index]
+        const fechaClave = claves[index]
         if (comparandoVarios) {
           const ingrediente = filtros.ingredientes[datasetIndex]
-          const obs = filtradas.filter((o) => o.ingrediente === ingrediente && (o.fecha ?? 'Sin fecha') === fechaClave)
+          const obs = filtradas.filter((o) => o.ingrediente === ingrediente && claveFecha(o) === fechaClave)
           if (obs.length) setDetalle({ titulo: `${ingrediente} · ${etiquetas[index]}`, filas: obs })
         } else {
           if (datasetIndex !== 0) return
-          const obs = filtradas.filter((o) => (o.fecha ?? 'Sin fecha') === fechaClave)
+          const obs = filtradas.filter((o) => claveFecha(o) === fechaClave)
           if (obs.length) setDetalle({ titulo: etiquetas[index], filas: obs })
         }
       }
@@ -742,10 +824,35 @@ export function ReporteView({
         responsive: true,
         maintainAspectRatio: false,
         interaction: vistaGrafico === 'individual' ? { mode: 'nearest', intersect: true } : { mode: 'index', intersect: false },
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } } },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              boxWidth: 14,
+              font: { size: 11 },
+              // Una línea de límite sin valor no dibuja nada: tampoco va en la leyenda.
+              filter: (item, data) => (data.datasets[item.datasetIndex ?? 0]?.data ?? []).some((v) => v != null),
+            },
+          },
+          tooltip: {
+            filter: (item: TooltipItem<'line'>) => item.raw != null,
+            callbacks: {
+              label: (ctx: TooltipItem<'line'>) => {
+                const base = `${ctx.dataset.label}: ${formatDecimalCL(ctx.raw as number, 4)}`
+                const n = ctx.datasetIndex === 0 ? muestrasPorPunto?.[ctx.dataIndex] : undefined
+                return n ? `${base} (${n} muestra${n === 1 ? '' : 's'})` : base
+              },
+            },
+          },
+        },
         scales: {
-          x: { ticks: { maxTicksLimit: vistaGrafico === 'individual' ? 14 : 10, font: { size: 10 } }, grid: { display: false } },
-          y: { beginAtZero: true, grid: { color: colorBorder } },
+          x: { ticks: { maxTicksLimit: 8, autoSkipPadding: 16, font: { size: 10 }, maxRotation: 0 }, grid: { display: false } },
+          y: {
+            beginAtZero: true,
+            grid: { color: colorBorder },
+            ticks: { callback: (v) => formatDecimalCL(Number(v), 2) },
+            title: { display: true, text: unidad, font: { size: 11 }, color: colorMuted },
+          },
         },
         onClick: onClickGrafico,
       },
@@ -762,8 +869,10 @@ export function ReporteView({
     colorWarning,
     colorMuted,
     colorBorder,
+    colorDanger,
     unidad,
     vistaGrafico,
+    agrupacionSemanal,
   ])
 
   useEffect(() => {
@@ -779,9 +888,11 @@ export function ReporteView({
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '68%',
+        cutout: '72%',
         plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } },
+          // La leyenda va aparte (HTML, con los números): así el centro de la
+          // dona queda de verdad al centro y ahí se escribe el porcentaje.
+          legend: { display: false },
           tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw} muestra(s)` } },
         },
         onClick: (_evt, elements) => {
@@ -795,34 +906,288 @@ export function ReporteView({
     return () => donutChart.current?.destroy()
   }, [filtradas, cumplimiento, limitesActivos.inferior, limitesActivos.superior, colorOk, colorDanger])
 
+  // Distribución de los valores medidos (histograma). Reemplaza al gráfico
+  // "dentro/fuera" que repetía lo mismo que la dona: este sirve también sin
+  // límites cargados, y con límites pinta en rojo los tramos que caen fuera.
+  const tramos = useMemo(() => histograma(valores), [valores])
+
   useEffect(() => {
     if (!barRef.current) return
-    const { dentro, fuera } = contarFueraDeIntervalo(valores, limitesActivos.inferior, limitesActivos.superior)
+    const inferior = limitesActivos.inferior
+    const superior = limitesActivos.superior
+    const hayLimites = inferior != null && superior != null
+    const colorTramo = (t: TramoHistograma) => {
+      if (!hayLimites) return acento
+      const medio = (t.desde + t.hasta) / 2
+      return medio < inferior || medio > superior ? colorDanger : colorOk
+    }
+    const etiqueta = (t: TramoHistograma) =>
+      t.desde === t.hasta ? formatDecimalCL(t.desde, 2) : `${formatDecimalCL(t.desde, 2)}–${formatDecimalCL(t.hasta, 2)}`
     barChart.current?.destroy()
     barChart.current = new Chart(barRef.current, {
       type: 'bar',
       data: {
-        labels: ['Dentro del intervalo', 'Fuera del intervalo'],
-        datasets: [{ label: 'Muestras', data: [dentro, fuera], backgroundColor: [colorOk, colorDanger], borderRadius: 4, maxBarThickness: 64 }],
+        labels: tramos.map(etiqueta),
+        datasets: [
+          {
+            label: 'Muestras',
+            data: tramos.map((t) => t.conteo),
+            backgroundColor: tramos.map(colorTramo),
+            borderRadius: 3,
+            categoryPercentage: 0.95,
+            barPercentage: 0.95,
+          },
+        ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (items) => `${items[0]?.label ?? ''} ${unidad}`,
+              label: (ctx) => `${ctx.raw} muestra(s)`,
+            },
+          },
+        },
         scales: {
-          y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: colorBorder } },
-          x: { grid: { display: false } },
+          y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: colorBorder }, title: { display: true, text: 'Muestras', font: { size: 11 }, color: colorMuted } },
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 }, title: { display: true, text: unidad, font: { size: 11 }, color: colorMuted } },
         },
         onClick: (_evt, elements) => {
           if (!elements.length) return
-          const dentroSel = elements[0].index === 0
-          const obs = filtrarPorRango(filtradas, limitesActivos.inferior, limitesActivos.superior, dentroSel)
-          if (obs.length) setDetalle({ titulo: dentroSel ? 'Dentro del intervalo' : 'Fuera del intervalo', filas: obs })
+          const t = tramos[elements[0].index]
+          if (!t) return
+          const ultimo = elements[0].index === tramos.length - 1
+          const obs = filtradas.filter(
+            (o) => o.ppm != null && o.ppm >= t.desde && (ultimo ? o.ppm <= t.hasta : o.ppm < t.hasta),
+          )
+          if (obs.length) setDetalle({ titulo: `${etiqueta(t)} ${unidad}`, filas: obs })
         },
       },
     })
     return () => barChart.current?.destroy()
-  }, [filtradas, valores, limitesActivos.inferior, limitesActivos.superior, colorOk, colorDanger, colorBorder])
+  }, [tramos, filtradas, limitesActivos.inferior, limitesActivos.superior, acento, unidad, colorOk, colorDanger, colorBorder, colorMuted])
+
+  // ── desglose: especie, ingrediente y cliente/sucursal ──
+  // El color de cada especie se fija UNA vez con todos los datos (no los
+  // filtrados): así filtrar no repinta las especies que quedan. Pasado el
+  // 7.º color, todo va a "Otras" en gris -nunca un tono inventado-.
+  const colorEspecie = useMemo(() => {
+    const mapa = new Map<string, string>()
+    solicitudesPor(observaciones, 'crop')
+      .slice(0, 7)
+      .forEach((e, i) => mapa.set(claveFiltro(e.valor), colorCategorico(i) ?? colorMuted))
+    return mapa
+  }, [observaciones, colorMuted])
+
+  const porEspecie = useMemo(() => {
+    const lista = solicitudesPor(filtradas, 'crop')
+    const conColor = lista.filter((e) => colorEspecie.has(claveFiltro(e.valor)))
+    const otras = lista.filter((e) => !colorEspecie.has(claveFiltro(e.valor)))
+    const nOtras = otras.reduce((s, e) => s + e.n, 0)
+    return [
+      ...conColor.map((e) => ({ ...e, color: colorEspecie.get(claveFiltro(e.valor)) as string, otras: false })),
+      ...(nOtras > 0 ? [{ valor: 'Otras', n: nOtras, color: colorMuted, otras: true }] : []),
+    ]
+  }, [filtradas, colorEspecie, colorMuted])
+  const totalEspecies = porEspecie.reduce((s, e) => s + e.n, 0)
+
+  const promedioPorIngrediente = useMemo(() => {
+    const grupos = new Map<string, number[]>()
+    filtradas.forEach((o) => {
+      if (o.ppm == null || !o.ingrediente) return
+      const arr = grupos.get(o.ingrediente) ?? []
+      arr.push(o.ppm)
+      grupos.set(o.ingrediente, arr)
+    })
+    return [...grupos.entries()]
+      .map(([codigo, vs]) => ({ codigo, promedio: vs.reduce((a, b) => a + b, 0) / vs.length, n: vs.length }))
+      .sort((a, b) => b.promedio - a.promedio)
+  }, [filtradas])
+
+  // El tercer desglose se adapta: por cliente mientras haya varios; con uno
+  // solo (filtrado, o el portal de un cliente) baja a sucursal, y si también
+  // hay una sola, a tipo de servicio.
+  const desgloseOrg = useMemo(() => {
+    const candidatos = (clienteFijo ? ['planta', 'tipoServicio'] : ['cliente', 'planta', 'tipoServicio']) as (
+      | 'cliente'
+      | 'planta'
+      | 'tipoServicio'
+    )[]
+    for (const campo of candidatos) {
+      const lista = solicitudesPor(filtradas, campo)
+      if (lista.length > 1) return { campo, lista: lista.slice(0, 8), resto: Math.max(0, lista.length - 8) }
+    }
+    const campo = candidatos[candidatos.length - 1]
+    return { campo, lista: solicitudesPor(filtradas, campo).slice(0, 8), resto: 0 }
+  }, [filtradas, clienteFijo])
+
+  const especieRef = useRef<HTMLCanvasElement>(null)
+  const ingredienteRef = useRef<HTMLCanvasElement>(null)
+  const orgRef = useRef<HTMLCanvasElement>(null)
+  const especieChart = useRef<Chart | null>(null)
+  const ingredienteChart = useRef<Chart | null>(null)
+  const orgChart = useRef<Chart | null>(null)
+  const colorSuperficie = cssVar('--color-surface', '#ffffff')
+
+  useEffect(() => {
+    if (!especieRef.current) return
+    especieChart.current?.destroy()
+    especieChart.current = new Chart(especieRef.current, {
+      type: 'doughnut',
+      data: {
+        labels: porEspecie.map((e) => e.valor),
+        datasets: [
+          {
+            data: porEspecie.map((e) => e.n),
+            backgroundColor: porEspecie.map((e) => e.color),
+            // Separación de 2 px entre porciones, del color de la tarjeta.
+            borderColor: colorSuperficie,
+            borderWidth: 2,
+            hoverOffset: 6,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '66%',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const n = Number(ctx.raw)
+                const pct = totalEspecies ? (n / totalEspecies) * 100 : 0
+                return `${ctx.label}: ${n.toLocaleString('es-CL')} solicitud${n === 1 ? '' : 'es'} (${formatDecimalCL(pct, 1)}%)`
+              },
+            },
+          },
+        },
+        onClick: (_evt, elements) => {
+          const e = elements.length ? porEspecie[elements[0].index] : undefined
+          if (e && !e.otras) cambiarCropRef.current(e.valor)
+        },
+      },
+    })
+    return () => especieChart.current?.destroy()
+  }, [porEspecie, totalEspecies, colorSuperficie])
+
+  useEffect(() => {
+    if (!ingredienteRef.current) return
+    ingredienteChart.current?.destroy()
+    ingredienteChart.current = new Chart(ingredienteRef.current, {
+      type: 'bar',
+      data: {
+        labels: promedioPorIngrediente.map((r) => r.codigo),
+        datasets: [
+          {
+            label: `Promedio ${unidad}`,
+            data: promedioPorIngrediente.map((r) => r.promedio),
+            backgroundColor: promedioPorIngrediente.map((r) => colorDeIngrediente(r.codigo)),
+            borderRadius: 4,
+            borderSkipped: 'start',
+            maxBarThickness: 22,
+          },
+        ],
+      },
+      options: {
+        indexAxis: 'y',
+        // Clic en cualquier parte de la fila, no solo sobre la barra: una
+        // barra corta sería casi imposible de atinar.
+        interaction: { mode: 'nearest', axis: 'y', intersect: false },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const r = promedioPorIngrediente[ctx.dataIndex]
+                return `${formatDecimalCL(r.promedio, 3)} ${unidad} · ${r.n.toLocaleString('es-CL')} resultado${r.n === 1 ? '' : 's'}`
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            grid: { color: colorBorder },
+            ticks: { callback: (v) => formatDecimalCL(Number(v), 1), font: { size: 10 } },
+          },
+          y: { grid: { display: false }, ticks: { font: { size: 11, weight: 'bold' } } },
+        },
+        onClick: (_evt, elements) => {
+          const r = elements.length ? promedioPorIngrediente[elements[0].index] : undefined
+          if (r) setFiltros((prev) => ({ ...prev, ingredientes: [r.codigo] }))
+        },
+      },
+    })
+    return () => ingredienteChart.current?.destroy()
+  }, [promedioPorIngrediente, unidad, colorBorder])
+
+  useEffect(() => {
+    if (!orgRef.current) return
+    const { campo, lista } = desgloseOrg
+    orgChart.current?.destroy()
+    orgChart.current = new Chart(orgRef.current, {
+      type: 'bar',
+      data: {
+        labels: lista.map((r) => r.valor),
+        datasets: [
+          {
+            label: 'Solicitudes',
+            data: lista.map((r) => r.n),
+            backgroundColor: conAlfa(acento, 0.85),
+            hoverBackgroundColor: acento,
+            borderRadius: 4,
+            borderSkipped: 'start',
+            maxBarThickness: 22,
+          },
+        ],
+      },
+      options: {
+        indexAxis: 'y',
+        // Clic en cualquier parte de la fila, no solo sobre la barra: una
+        // barra corta sería casi imposible de atinar.
+        interaction: { mode: 'nearest', axis: 'y', intersect: false },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `${Number(ctx.raw).toLocaleString('es-CL')} solicitud${ctx.raw === 1 ? '' : 'es'}`,
+            },
+          },
+        },
+        scales: {
+          x: { beginAtZero: true, grid: { color: colorBorder }, ticks: { precision: 0, font: { size: 10 } } },
+          y: {
+            grid: { display: false },
+            ticks: {
+              font: { size: 10.5 },
+              // Nombres largos de cliente: se recortan en el eje, completos en el tooltip.
+              callback: function (v) {
+                const t = String(this.getLabelForValue(Number(v)))
+                return t.length > 22 ? `${t.slice(0, 21)}…` : t
+              },
+            },
+          },
+        },
+        onClick: (_evt, elements) => {
+          const r = elements.length ? lista[elements[0].index] : undefined
+          if (!r) return
+          if (campo === 'cliente') cambiarClienteRef.current(r.valor)
+          else if (campo === 'planta') cambiarPlantaRef.current(r.valor)
+          else setFiltros((prev) => ({ ...prev, tipoServicio: r.valor }))
+        },
+      },
+    })
+    return () => orgChart.current?.destroy()
+  }, [desgloseOrg, acento, colorBorder])
 
   useEffect(() => {
     if (!esDiagnofruit || !diagnoBarRef.current) return
@@ -882,6 +1247,14 @@ export function ReporteView({
     return () => diagnoBarChart.current?.destroy()
   }, [esDiagnofruit, resumenPatogenosDiagnofruit, filtradas, colorDanger, colorOk, colorBorder, colorMuted])
 
+  // Los gráficos llaman a estos cambios desde sus propios efectos: se pasan
+  // por ref para no recrear cada gráfico en cada render.
+  useEffect(() => {
+    cambiarCropRef.current = cambiarCrop
+    cambiarClienteRef.current = cambiarCliente
+    cambiarPlantaRef.current = cambiarPlanta
+  })
+
   if (!user) return null
 
   function actualizarFiltro<K extends keyof Filtros>(clave: K, valor: string) {
@@ -907,22 +1280,48 @@ export function ReporteView({
       cliente: valor,
       // Si la sucursal actual no es de este cliente, se limpia (evita filtros imposibles).
       planta:
-        prev.planta &&
-        (filas ?? []).some((f) => igual(f.planta, prev.planta) && (!valor || igual(f.cliente, valor)))
+        prev.planta && (!valor || clientesDeSucursal(observaciones, prev.planta).some((c) => mismoValor(c, valor)))
           ? prev.planta
           : '',
     }))
+  }
+
+  function cambiarPlanta(valor: string) {
+    setFiltros((prev) => {
+      // Elegir una sucursal sin cliente completa el Sold To si la sucursal es de
+      // uno solo: el nombre de una planta puede repetirse entre clientes
+      // ("Planta Rancagua"), y así queda a la vista de quién es.
+      const duenos = valor && !prev.cliente ? clientesDeSucursal(observaciones, valor) : []
+      return { ...prev, planta: valor, cliente: duenos.length === 1 ? duenos[0] : prev.cliente }
+    })
   }
 
   function cambiarCrop(valor: string) {
     setFiltros((prev) => ({
       ...prev,
       crop: valor,
-      // La variedad elegida puede no existir en la nueva especie -se limpia
-      // para no dejar un filtro imposible (ej. "June Gold" de Manzana
-      // quedando puesto al cambiar a Durazno)-.
-      variedad: '',
+      // La variedad elegida se mantiene solo si existe en la nueva especie
+      // -"June Gold" de Manzana no puede quedar puesta al cambiar a Durazno-.
+      variedad:
+        prev.variedad &&
+        (!valor || observaciones.some((o) => mismoValor(o.crop, valor) && mismoValor(o.variedad, prev.variedad)))
+          ? prev.variedad
+          : '',
     }))
+  }
+
+  function quitarFiltro(campo: keyof Filtros) {
+    if (campo === 'cliente') cambiarCliente('')
+    else if (campo === 'crop') cambiarCrop('')
+    else setFiltros((prev) => ({ ...prev, [campo]: FILTROS_VACIOS[campo] }))
+  }
+
+  function alternarSimulacion() {
+    // Los filtros de los datos reales no sirven para los simulados (y al
+    // revés): se parte limpio en los dos sentidos.
+    setFiltros(FILTROS_VACIOS)
+    setDetalle(null)
+    setSimulacion(simulando ? null : generarDatosSimulados(1000, Math.floor(Math.random() * 1e9)))
   }
 
   async function descargarDatos() {
@@ -940,6 +1339,40 @@ export function ReporteView({
     } finally {
       setDescargandoDatos(false)
     }
+  }
+
+  // La BD completa de resultados: solo personal interno, y nunca sobre datos simulados.
+  const puedeDescargarBd = !clienteFijo && !simulando && user.tipoAcceso !== 'cliente'
+
+  async function bajarBd(acotada: boolean) {
+    const chips = chipsDeFiltros(filtros, false)
+    setDescargandoBd(true)
+    try {
+      const { blob, nombre } = await descargarBdExcel(pedidoBd(filtradas, filtros, acotada, describirFiltros(chips)))
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = nombre ?? 'BD_Laboratorio.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+      setAvisoBd(false)
+    } catch {
+      setErrorMsg('No se pudo generar el Excel de la BD.')
+      setAvisoBd(false)
+    } finally {
+      setDescargandoBd(false)
+    }
+  }
+
+  /** Sin filtros baja directo; con filtros avisa primero que no es el total. */
+  function pedirBd() {
+    if (nFiltros === 0) void bajarBd(false)
+    else setAvisoBd(true)
+  }
+
+  function limpiarYBajarBdCompleta() {
+    setFiltros(FILTROS_VACIOS)
+    void bajarBd(false)
   }
 
   return (
@@ -961,6 +1394,30 @@ export function ReporteView({
               {descargandoDatos ? 'Generando…' : '⬇ Descargar mi historial (Excel)'}
             </Button>
           )}
+          {puedeDescargarBd && (
+            <Button
+              variant="secondary"
+              onClick={pedirBd}
+              disabled={descargandoBd || filas === null}
+              title={
+                nFiltros > 0
+                  ? 'Descarga la BD de resultados en Excel. Hay filtros aplicados: se te avisará antes.'
+                  : 'Descarga toda la BD de resultados en Excel.'
+              }
+            >
+              {descargandoBd ? 'Generando…' : nFiltros > 0 ? '⬇ Descargar BD (filtrada)' : '⬇ Descargar BD'}
+            </Button>
+          )}
+          {puedeSimular && (
+            <Button
+              variant="secondary"
+              onClick={alternarSimulacion}
+              aria-pressed={simulando}
+              title="Muestra 1.000 resultados inventados para probar cómo se ve el reporte. No se guarda nada."
+            >
+              {simulando ? '✕ Salir de la simulación' : '🧪 Simular 1.000 datos'}
+            </Button>
+          )}
           {esGestor && (
             <Button variant="secondary" onClick={() => setModalAnalitos(true)}>
               ⚙ Gestionar analitos
@@ -978,6 +1435,33 @@ export function ReporteView({
         </div>
       </div>
 
+      {avisoBd && (
+        <DescargaBdDialogo
+          chips={chipsDeFiltros(filtros, false)}
+          solicitudesFiltradas={registrosFiltrados}
+          solicitudesTotales={totalVista}
+          descargando={descargandoBd}
+          onDescargarFiltrada={() => void bajarBd(true)}
+          onLimpiarYDescargarCompleta={limpiarYBajarBdCompleta}
+          onCerrar={() => setAvisoBd(false)}
+        />
+      )}
+
+      {simulando && (
+        <div className={styles.bannerSim} role="status">
+          <span className={styles.bannerSimIcono} aria-hidden="true">🧪</span>
+          <div>
+            <b>Datos simulados — no son reales.</b>{' '}
+            {simulacion.filas.length.toLocaleString('es-CL')} resultados de{' '}
+            {simulacion.totalSolicitudes.toLocaleString('es-CL')} solicitudes inventadas, con clientes y límites
+            ficticios. No se guardan en ningún lado: desaparecen al salir de Report, al recargar o al actualizar.
+          </div>
+          <button type="button" className={styles.bannerSimBoton} onClick={alternarSimulacion}>
+            Volver a los datos reales
+          </button>
+        </div>
+      )}
+
       {estado === 'error' && (
         <p className={styles.error}>
           ⚠ {errorMsg} <button className={styles.reintentar} onClick={() => void cargar()}>Reintentar</button>
@@ -993,12 +1477,12 @@ export function ReporteView({
             </Card>
           ))}
         </div>
-      ) : filas && filas.length === 0 ? (
+      ) : filasVista && filasVista.length === 0 ? (
         <Card className={styles.vacioCard}>
           <p className={styles.vacioTitulo}>Todavía no hay datos cargados en la base.</p>
           <p className={styles.vacioTexto}>Usa el módulo Ingest para cargar resultados de laboratorio; en cuanto haya datos, aparecerán aquí automáticamente.</p>
         </Card>
-      ) : filas ? (
+      ) : filasVista ? (
         <>
           {vistaControl && !esDiagnofruit && (
             <div className={styles.toolbar}>
@@ -1015,107 +1499,140 @@ export function ReporteView({
             </div>
           )}
 
-          <div className={styles.filtros}>
-            {/* Filtros principales primero: Laboratorio, Sold To, Ship To, Tipo de servicio, Especie —
-                son los que definen qué tipo de reporte/límites corresponde mostrar. El resto va después. */}
-            <label className={styles.filtro}>
-              <span>Laboratorio</span>
-              <select value={filtros.laboratorio} onChange={(e) => actualizarFiltro('laboratorio', e.target.value)}>
-                <option value="">Todos</option>
-                {opciones.laboratorios.map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
-            {/* Para cuentas de cliente (clienteFijo) los datos ya vienen acotados desde
-                el backend a ese Sold To/Ship To: mostrar estos dos filtros no aportaría
-                nada (siempre habría un solo valor posible) y solo confundiría. Se
-                mantienen para admin general/admin de área, que sí navegan entre clientes. */}
-            {!clienteFijo && (
-              <>
-                <BuscableSelect
-                  etiqueta="Cliente (Sold To)"
-                  opciones={opciones.clientes}
-                  valor={filtros.cliente}
-                  onChange={cambiarCliente}
-                />
-                <BuscableSelect
-                  etiqueta="Sucursal (Ship To)"
-                  opciones={opciones.plantas}
-                  valor={filtros.planta}
-                  onChange={(v) => actualizarFiltro('planta', v)}
-                />
-              </>
-            )}
-            <label className={styles.filtro}>
-              <span>Tipo de servicio</span>
-              <select value={filtros.tipoServicio} onChange={(e) => actualizarFiltro('tipoServicio', e.target.value)}>
-                <option value="">Todos</option>
-                {opciones.tiposServicio.map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.filtro}>
-              <span>Especie</span>
-              <select value={filtros.crop} onChange={(e) => cambiarCrop(e.target.value)}>
-                <option value="">Todas</option>
-                {opciones.crops.map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.filtro}>
-              <span>Variedad</span>
-              <select value={filtros.variedad} onChange={(e) => actualizarFiltro('variedad', e.target.value)}>
-                <option value="">Todas</option>
-                {opciones.variedades.map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
+          <section className={styles.filtrosCard} aria-label="Filtros">
+            <div className={styles.filtrosCabecera}>
+              <span className={styles.filtrosTitulo}>
+                Filtros
+                {nFiltros > 0 && <span className={styles.filtrosContador}>{nFiltros}</span>}
+              </span>
+              <span className={styles.filtrosResumen}>
+                {registrosFiltrados.toLocaleString('es-CL')} de {totalVista.toLocaleString('es-CL')} solicitudes
+              </span>
+              {nFiltros > 0 && (
+                <button className={styles.limpiar} onClick={() => setFiltros(FILTROS_VACIOS)}>
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
 
-            <MultiSelectFiltro
-              etiqueta="Ingrediente Activo"
-              opciones={opciones.ingredientes}
-              valores={filtros.ingredientes}
-              onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v }))}
-              colorDe={colorDeIngrediente}
-            />
-            <label className={styles.filtro}>
-              <span>Tipo aplicación</span>
-              <select value={filtros.tipoAplicacion} onChange={(e) => actualizarFiltro('tipoAplicacion', e.target.value)}>
-                <option value="">Todos</option>
-                {opciones.tiposAplicacion.map((v) => (
-                  <option key={v}>{v}</option>
+            <div className={styles.filtros}>
+              {/* Filtros principales primero: Laboratorio, Sold To, Ship To, Tipo de servicio, Especie —
+                  son los que definen qué tipo de reporte/límites corresponde mostrar. El resto va después.
+                  Cada opción lleva entre paréntesis cuántas solicitudes trae con los demás filtros puestos. */}
+              <label className={styles.filtro}>
+                <span>Laboratorio</span>
+                <select value={filtros.laboratorio} onChange={(e) => actualizarFiltro('laboratorio', e.target.value)}>
+                  <option value="">Todos</option>
+                  {opciones.laboratorios.map((o) => (
+                    <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
+                  ))}
+                </select>
+              </label>
+              {/* Para cuentas de cliente (clienteFijo) los datos ya vienen acotados desde
+                  el backend a ese Sold To/Ship To: mostrar estos dos filtros no aportaría
+                  nada (siempre habría un solo valor posible) y solo confundiría. Se
+                  mantienen para admin general/admin de área, que sí navegan entre clientes. */}
+              {!clienteFijo && (
+                <>
+                  <BuscableSelect
+                    etiqueta="Cliente (Sold To)"
+                    opciones={opciones.clientes.map((o) => o.valor)}
+                    valor={filtros.cliente}
+                    onChange={cambiarCliente}
+                    conteoDe={(v) => conteoPorValor.clientes.get(v)}
+                  />
+                  <BuscableSelect
+                    etiqueta="Sucursal (Ship To)"
+                    opciones={opciones.plantas.map((o) => o.valor)}
+                    valor={filtros.planta}
+                    onChange={cambiarPlanta}
+                    conteoDe={(v) => conteoPorValor.plantas.get(v)}
+                  />
+                </>
+              )}
+              <label className={styles.filtro}>
+                <span>Tipo de servicio</span>
+                <select value={filtros.tipoServicio} onChange={(e) => actualizarFiltro('tipoServicio', e.target.value)}>
+                  <option value="">Todos</option>
+                  {opciones.tiposServicio.map((o) => (
+                    <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.filtro}>
+                <span>Especie</span>
+                <select value={filtros.crop} onChange={(e) => cambiarCrop(e.target.value)}>
+                  <option value="">Todas</option>
+                  {opciones.crops.map((o) => (
+                    <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.filtro}>
+                <span>Variedad</span>
+                <select value={filtros.variedad} onChange={(e) => actualizarFiltro('variedad', e.target.value)}>
+                  <option value="">Todas</option>
+                  {opciones.variedades.map((o) => (
+                    <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
+                  ))}
+                </select>
+              </label>
+
+              <MultiSelectFiltro
+                etiqueta="Ingrediente Activo"
+                opciones={opciones.ingredientes.map((o) => o.valor)}
+                valores={filtros.ingredientes}
+                onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v }))}
+                colorDe={colorDeIngrediente}
+                conteoDe={(v) => conteoPorValor.ingredientes.get(v)}
+              />
+              <label className={styles.filtro}>
+                <span>Tipo aplicación</span>
+                <select value={filtros.tipoAplicacion} onChange={(e) => actualizarFiltro('tipoAplicacion', e.target.value)}>
+                  <option value="">Todos</option>
+                  {opciones.tiposAplicacion.map((o) => (
+                    <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.filtro}>
+                <span>Semana</span>
+                <select value={filtros.semana} onChange={(e) => actualizarSemana(e.target.value)} disabled={Boolean(filtros.rango)}>
+                  <option value="">Todas</option>
+                  {opciones.semanas.map((o) => (
+                    <option key={o.valor} value={o.valor}>{textoOpcion(o, (v) => `Semana ${v}`)}</option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.filtro}>
+                <span>Mes</span>
+                <select value={filtros.mes} onChange={(e) => actualizarMes(e.target.value)} disabled={Boolean(filtros.rango)}>
+                  <option value="">Todos</option>
+                  {opciones.meses.map((o) => (
+                    <option key={o.valor} value={o.valor}>{textoOpcion(o, nombreMes)}</option>
+                  ))}
+                </select>
+              </label>
+              <CalendarioRango etiqueta="Rango de fechas" valor={filtros.rango} onChange={aplicarRango} />
+            </div>
+
+            {nFiltros > 0 && (
+              <div className={styles.chips} aria-label="Filtros aplicados">
+                {chipsDeFiltros(filtros, Boolean(clienteFijo)).map((chip) => (
+                  <button
+                    key={chip.campo}
+                    type="button"
+                    className={styles.chip}
+                    onClick={() => quitarFiltro(chip.campo)}
+                    title={`Quitar filtro ${chip.etiqueta}`}
+                  >
+                    <span className={styles.chipEtiqueta}>{chip.etiqueta}:</span> {chip.valor}
+                    <span className={styles.chipX} aria-hidden="true">×</span>
+                  </button>
                 ))}
-              </select>
-            </label>
-            <label className={styles.filtro}>
-              <span>Semana</span>
-              <select value={filtros.semana} onChange={(e) => actualizarSemana(e.target.value)} disabled={Boolean(filtros.rango)}>
-                <option value="">Todas</option>
-                {opciones.semanas.map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.filtro}>
-              <span>Mes</span>
-              <select value={filtros.mes} onChange={(e) => actualizarMes(e.target.value)} disabled={Boolean(filtros.rango)}>
-                <option value="">Todos</option>
-                {opciones.meses.map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-            </label>
-            <CalendarioRango etiqueta="Rango de fechas" valor={filtros.rango} onChange={aplicarRango} />
-            {filtrosActivos(filtros) && (
-              <button className={styles.limpiar} onClick={() => setFiltros(FILTROS_VACIOS)}>
-                Limpiar filtros
-              </button>
+              </div>
             )}
-          </div>
+          </section>
 
           {esDiagnofruit ? (
             <>
@@ -1129,8 +1646,8 @@ export function ReporteView({
                 <Card className={`${styles.statCard} ${styles.destacado}`}>
                   <span className={styles.statLbl}>Total de registros (solicitudes)</span>
                   <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
-                  {filtrosActivos(filtros) && (
-                    <span className={styles.statSub}>de {totalSolicitudes.toLocaleString('es-CL')} en total</span>
+                  {nFiltros > 0 && (
+                    <span className={styles.statSub}>de {totalVista.toLocaleString('es-CL')} en total</span>
                   )}
                 </Card>
                 <Card className={`${styles.statCard} ${styles.info}`}>
@@ -1228,47 +1745,82 @@ export function ReporteView({
             </>
           ) : (
             <>
-              <p className={styles.nota}>{nota}</p>
+              <p className={styles.nota}>
+                <span className={styles.notaIcono} aria-hidden="true">i</span>
+                {nota}
+              </p>
 
               <div className={styles.stats}>
-                <Card className={`${styles.statCard} ${styles.destacado}`}>
-                  <span className={styles.statLbl}>Total de registros (solicitudes)</span>
+                <Kpi
+                  destacado
+                  tono={acento}
+                  icono={<IconArchivoPlano />}
+                  etiqueta="Solicitudes"
+                  sub={nFiltros > 0 ? `de ${totalVista.toLocaleString('es-CL')} en total` : 'sin filtros'}
+                >
                   <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
-                  {filtrosActivos(filtros) && (
-                    <span className={styles.statSub}>de {totalSolicitudes.toLocaleString('es-CL')} en total</span>
-                  )}
-                </Card>
-                <Card className={styles.statCard}>
-                  <span className={styles.statLbl}>Promedio ({unidad})</span>
+                </Kpi>
+                <Kpi tono="#2a78d6" icono={<IconFrasco />} etiqueta="Resultados con valor" sub="análisis con ppm numérico">
+                  <span className={styles.statNum}>{valores.length.toLocaleString('es-CL')}</span>
+                </Kpi>
+                <Kpi
+                  tono="#4a3aa7"
+                  icono={<IconTrendingUp />}
+                  etiqueta={
+                    <>
+                      Promedio (<span className={styles.unidad}>{unidad}</span>)
+                    </>
+                  }
+                  sub={`desv. estándar ${formatDecimalCL(stats.desviacion, 4)}`}
+                >
                   <span className={styles.statNum}>{formatDecimalCL(stats.promedio, 4)}</span>
-                </Card>
-                <Card className={styles.statCard}>
-                  <span className={styles.statLbl}>Desv. estándar</span>
-                  <span className={styles.statNum}>{formatDecimalCL(stats.desviacion, 4)}</span>
-                </Card>
-                <Card className={`${styles.statCard} ${styles.warn}`}>
-                  <span className={styles.statLbl}>Límite inferior</span>
-                  <span className={styles.statNum}>{formatDecimalCL(limitesActivos.inferior, 4)}</span>
-                </Card>
-                <Card className={styles.statCard}>
-                  <span className={styles.statLbl}>Límite central</span>
-                  <span className={styles.statNum}>{formatDecimalCL(limitesActivos.central, 4)}</span>
-                </Card>
-                <Card className={`${styles.statCard} ${styles.warn}`}>
-                  <span className={styles.statLbl}>Límite superior</span>
-                  <span className={styles.statNum}>{formatDecimalCL(limitesActivos.superior, 4)}</span>
-                </Card>
-                <Card className={`${styles.statCard} ${styles.info}`}>
-                  <span className={styles.statLbl}>Cumplimiento</span>
-                  <span className={styles.statNum}>{cumplimiento.porcentaje != null ? `${formatDecimalCL(cumplimiento.porcentaje, 1)}%` : '—'}</span>
-                </Card>
+                </Kpi>
+                <Kpi
+                  tono={colorWarning}
+                  icono={<IconAlerta />}
+                  etiqueta={vista === 'residual' ? 'Límites residuales' : `Límites de control (±${sigma}σ)`}
+                  sub={simulando && vista === 'residual' && limitesActivos.superior != null ? 'ficticios (simulación)' : undefined}
+                >
+                  {limitesActivos.inferior == null && limitesActivos.central == null && limitesActivos.superior == null ? (
+                    <span className={styles.statVacio}>
+                      {filtros.ingredientes.length === 1 ? 'Sin límites cargados' : 'Elige un ingrediente'}
+                    </span>
+                  ) : (
+                    <dl className={styles.limitesMini}>
+                      <div><dt>Inf.</dt><dd>{formatDecimalCL(limitesActivos.inferior, 2)}</dd></div>
+                      <div><dt>Central</dt><dd>{formatDecimalCL(limitesActivos.central, 2)}</dd></div>
+                      <div><dt>Sup.</dt><dd>{formatDecimalCL(limitesActivos.superior, 2)}</dd></div>
+                    </dl>
+                  )}
+                </Kpi>
+                <Kpi
+                  tono={colorOk}
+                  icono={<IconVerificar />}
+                  etiqueta="Cumplimiento"
+                  sub={
+                    cumplimiento.porcentaje != null
+                      ? `${cumplimiento.ok.toLocaleString('es-CL')} de ${cumplimiento.total.toLocaleString('es-CL')} dentro de rango`
+                      : 'requiere límites'
+                  }
+                >
+                  <span className={styles.statNum}>
+                    {cumplimiento.porcentaje != null ? `${formatDecimalCL(cumplimiento.porcentaje, 1)}%` : '—'}
+                  </span>
+                  {cumplimiento.porcentaje != null && (
+                    <span className={styles.kpiBarra} aria-hidden="true">
+                      <span style={{ width: `${cumplimiento.porcentaje}%` }} />
+                    </span>
+                  )}
+                </Kpi>
               </div>
 
               <div className={styles.grid2}>
                 <Card className={styles.panel}>
                   <h3>
                     <span className={styles.h3Izq}>
-                      {vista === 'residual' ? `Promedio de ${unidad} por fecha` : `${unidad} por fecha · límites de control`}
+                      {vista === 'residual'
+                        ? `Promedio de ${unidad} por ${agrupacionSemanal && vistaGrafico === 'promedios' ? 'semana' : 'fecha'}`
+                        : `${unidad} por ${agrupacionSemanal && vistaGrafico === 'promedios' ? 'semana' : 'fecha'} · límites de control`}
                       <button
                         className={styles.toggleVista}
                         onClick={() => setVistaGrafico((v) => (v === 'promedios' ? 'individual' : 'promedios'))}
@@ -1285,19 +1837,112 @@ export function ReporteView({
                 <Card className={styles.panel}>
                   <h3>
                     Porcentaje de cumplimiento
-                    <span className={styles.hintClic}>clic para ver el detalle</span>
+                    {cumplimiento.porcentaje != null && <span className={styles.hintClic}>clic para ver el detalle</span>}
                   </h3>
-                  <div className={styles.chartbox}>
-                    <canvas ref={donutRef} />
-                  </div>
+                  {cumplimiento.porcentaje != null ? (
+                    <>
+                      <div className={styles.donutbox}>
+                        <canvas ref={donutRef} />
+                        <div className={styles.donutCentro}>
+                          <b>{formatDecimalCL(cumplimiento.porcentaje, 1)}%</b>
+                          <span>dentro de rango</span>
+                        </div>
+                      </div>
+                      <div className={styles.leyendaDona}>
+                        <span><i style={{ background: colorOk }} />Dentro de rango <b>{cumplimiento.ok.toLocaleString('es-CL')}</b></span>
+                        <span><i style={{ background: colorDanger }} />Fuera de rango <b>{cumplimiento.fuera.toLocaleString('es-CL')}</b></span>
+                      </div>
+                    </>
+                  ) : (
+                    // Sin límites no hay con qué comparar: antes la dona salía 100 %
+                    // verde "Dentro de rango", que se leía como cumplimiento total.
+                    <div className={styles.panelVacio}>
+                      <p className={styles.panelVacioTitulo}>Sin límites para comparar</p>
+                      <p>
+                        {filtros.ingredientes.length === 1
+                          ? `${filtros.ingredientes[0]} no tiene límites residuales cargados para esta especie y tipo de servicio. Se cargan en «Gestionar analitos», o usa la vista por límite de control.`
+                          : 'Elige un solo ingrediente activo para evaluar su cumplimiento, o usa la vista por límite de control.'}
+                      </p>
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              <div className={styles.grid3}>
+                <Card className={styles.panel}>
+                  <h3>
+                    Solicitudes por especie
+                    <span className={styles.hintClic}>clic para filtrar</span>
+                  </h3>
+                  {porEspecie.length === 0 ? (
+                    <div className={styles.panelVacioChico}>Sin especie informada en estas solicitudes.</div>
+                  ) : (
+                    <div className={styles.especieCaja}>
+                      <div className={styles.donutChica}>
+                        <canvas ref={especieRef} aria-label="Solicitudes por especie" role="img" />
+                        <div className={styles.donutCentro}>
+                          <b>{porEspecie.filter((e) => !e.otras).length}</b>
+                          <span>especie{porEspecie.filter((e) => !e.otras).length === 1 ? '' : 's'}</span>
+                        </div>
+                      </div>
+                      <ul className={styles.leyendaLista}>
+                        {porEspecie.map((e) => (
+                          <li key={e.valor}>
+                            <button
+                              type="button"
+                              disabled={e.otras}
+                              onClick={() => cambiarCrop(e.valor)}
+                              className={mismoValor(filtros.crop, e.valor) ? styles.leyendaActiva : undefined}
+                            >
+                              <i style={{ background: e.color }} />
+                              <span className={styles.leyendaNombre}>{e.valor}</span>
+                              <b>{totalEspecies ? formatDecimalCL((e.n / totalEspecies) * 100, 0) : 0}%</b>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </Card>
+                <Card className={styles.panel}>
+                  <h3>
+                    <span>
+                      Promedio por ingrediente (<span className={styles.unidad}>{unidad}</span>)
+                    </span>
+                    <span className={styles.hintClic}>clic para elegirlo</span>
+                  </h3>
+                  {promedioPorIngrediente.length === 0 ? (
+                    <div className={styles.panelVacioChico}>Sin resultados numéricos para estos filtros.</div>
+                  ) : (
+                    <div className={styles.chartboxChico}>
+                      <canvas ref={ingredienteRef} aria-label="Promedio por ingrediente activo" role="img" />
+                    </div>
+                  )}
+                </Card>
+                <Card className={styles.panel}>
+                  <h3>
+                    <span>Solicitudes por {ETIQUETA_DIMENSION[desgloseOrg.campo]}</span>
+                    <span className={styles.hintClic}>
+                      {desgloseOrg.resto > 0 ? `top 8 · ${desgloseOrg.resto} más` : 'clic para filtrar'}
+                    </span>
+                  </h3>
+                  {desgloseOrg.lista.length === 0 ? (
+                    <div className={styles.panelVacioChico}>Sin datos para desglosar.</div>
+                  ) : (
+                    <div className={styles.chartboxChico}>
+                      <canvas ref={orgRef} aria-label={`Solicitudes por ${ETIQUETA_DIMENSION[desgloseOrg.campo]}`} role="img" />
+                    </div>
+                  )}
                 </Card>
               </div>
 
               <div className={styles.grid2}>
                 <Card className={styles.panel}>
                   <h3>
-                    Distribución de cumplimiento
-                    <span className={styles.hintClic}>clic para ver el detalle</span>
+                    <span>
+                      Distribución de valores (<span className={styles.unidad}>{unidad}</span>)
+                    </span>
+                    <span className={styles.hintClic}>clic en una barra para ver sus muestras</span>
                   </h3>
                   <div className={styles.chartbox}>
                     <canvas ref={barRef} />
@@ -1306,14 +1951,16 @@ export function ReporteView({
                 <Card className={styles.panel}>
                   <h3>Indicadores</h3>
                   <div className={styles.indicadores}>
-                    <div><span>Observaciones</span><b>{valores.length.toLocaleString('es-CL')}</b></div>
-                    <div><span>Promedio</span><b>{formatDecimalCL(stats.promedio, 4)} {unidad}</b></div>
+                    <div><span>Solicitudes</span><b>{registrosFiltrados.toLocaleString('es-CL')}</b></div>
+                    <div><span>Resultados con valor</span><b>{valores.length.toLocaleString('es-CL')}</b></div>
+                    <div><span>Promedio</span><b>{formatDecimalCL(stats.promedio, 4)} <span className={styles.unidad}>{unidad}</span></b></div>
                     <div><span>Desviación estándar muestral</span><b>{formatDecimalCL(stats.desviacion, 4)}</b></div>
+                    <div><span>Mínimo / máximo</span><b>{tramos.length ? `${formatDecimalCL(tramos[0].desde, 4)} / ${formatDecimalCL(tramos[tramos.length - 1].hasta, 4)}` : '—'}</b></div>
                     <div><span>Límite inferior</span><b>{formatDecimalCL(limitesActivos.inferior, 4)}</b></div>
                     <div><span>Línea central</span><b>{formatDecimalCL(limitesActivos.central, 4)}</b></div>
                     <div><span>Límite superior</span><b>{formatDecimalCL(limitesActivos.superior, 4)}</b></div>
                     {cumplimiento.porcentaje != null && (
-                      <div><span>Cumplimiento residual</span><b>{formatDecimalCL(cumplimiento.porcentaje, 1)}% ({cumplimiento.ok}/{cumplimiento.total})</b></div>
+                      <div><span>Cumplimiento</span><b>{formatDecimalCL(cumplimiento.porcentaje, 1)}% ({cumplimiento.ok}/{cumplimiento.total})</b></div>
                     )}
                   </div>
                 </Card>

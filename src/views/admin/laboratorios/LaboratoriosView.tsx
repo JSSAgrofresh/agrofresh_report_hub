@@ -493,7 +493,7 @@ export function LaboratoriosView() {
                 {
                   tipo: 'solicitud',
                   titulo: 'Reciben las solicitudes',
-                  nota: 'A estos correos les llega la solicitud de análisis cuando se emite.',
+                  nota: 'A estos correos les llega la solicitud de análisis cuando se emite. Cada uno puede ir en Para, Copia (CC) o Copia oculta (CCO): por ejemplo, alguien de AgroFresh que tiene que estar en todas las solicitudes de este laboratorio.',
                 },
               ]}
               onCambio={(delLab) =>

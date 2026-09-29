@@ -13,7 +13,7 @@ from tests.utiles_bd import hay_base
 
 pytestmark = pytest.mark.skipif(
     not (hay_base("solicitud_archivo") and hay_base("informe_auditoria")),
-    reason="sin Postgres con las migraciones 0020 y 0039",
+    reason="sin Postgres con las migraciones 0020 y 0044",
 )
 
 cliente = TestClient(app)

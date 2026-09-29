@@ -81,6 +81,7 @@ export type {
   RegistroInput,
   Respuesta,
   Resultado,
+  ResultadoRegistro,
   ResultadoDia,
   ResumenDia,
   Seccion,

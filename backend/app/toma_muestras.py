@@ -448,6 +448,11 @@ class Solicitud(SolicitudIn):
     tipo_solicitud: str = "CONVENCIONAL"
     solicitud_original_archivo: str | None = None
     motivo_reanalisis: str | None = None
+    # Solicitud de prueba (ver `crear_solicitud_prueba`): folio del hueco que
+    # dejaron las pruebas borradas, nunca se envía sola, "(PRUEBA)" en el
+    # asunto y no aparece en el Ingreso al laboratorio ni en reanálisis. Vive
+    # en `datos` (Excel `_data` + jsonb del índice): no necesita migración.
+    es_prueba: bool = False
 
 
 class CruceIn(BaseModel):
@@ -702,6 +707,91 @@ def _regrabar_datos_solicitud(archivo: str, datos: dict) -> None:
     indice_solicitudes.anotar(nombre_archivo, datos, r2_key)
 
 
+# ── Solicitudes de prueba ───────────────────────────────────────────────
+#
+# Al borrar las solicitudes de prueba del arranque, el contador de cada
+# laboratorio no volvió atrás: las reales empezaron en QUITECA 18 y AGF 50.
+# Los folios de ese hueco (1..17, 1..49) se usan para solicitudes de prueba,
+# que crea solo una cuenta (config.SOLICITUDES_PRUEBA_EMAIL). El límite no está
+# escrito a mano: es el folio real más bajo del laboratorio, menos uno.
+
+
+def _es_dueno_pruebas(usuario: Usuario) -> bool:
+    return bool(config.SOLICITUDES_PRUEBA_EMAIL) and (
+        _normalizar_correo(usuario.email) == config.SOLICITUDES_PRUEBA_EMAIL
+    )
+
+
+def _exigir_dueno_pruebas(usuario: Usuario) -> None:
+    if not _es_dueno_pruebas(usuario):
+        raise HTTPException(403, "Las solicitudes de prueba solo las puede crear su cuenta autorizada.")
+
+
+def _formato_folio(laboratorio: str, numero: int) -> str:
+    prefijo = _prefijo_de_laboratorio(laboratorio)
+    return f"{PREFIJO_FOLIO}-{prefijo}{numero:04d}" if prefijo else f"{PREFIJO_FOLIO}-{numero:04d}"
+
+
+def _hueco_de_prueba(laboratorio: str) -> dict:
+    """Límite del hueco, folios de prueba ya usados y el siguiente libre."""
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "SELECT numero_solicitud, coalesce(datos->>'es_prueba', 'false') = 'true' AS prueba"
+            " FROM solicitud_archivo WHERE laboratorio = %s AND numero_solicitud ~ '[0-9]+$'",
+            (laboratorio,),
+        )
+        filas = cur.fetchall()
+        # Los folios existen en todos los laboratorios: uno sin prefijo comparte
+        # la numeración con los demás sin prefijo.
+        cur.execute("SELECT numero_solicitud FROM solicitud_archivo")
+        existentes = {f["numero_solicitud"] for f in cur.fetchall()}
+
+    def _numero(folio: str) -> int:
+        return int(re.search(r"[0-9]+$", folio).group())
+
+    reales = [_numero(f["numero_solicitud"]) for f in filas if not f["prueba"]]
+    limite = (min(reales) - 1) if reales else 0
+    usados = sum(1 for f in filas if f["prueba"])
+    siguiente = next(
+        (n for n in range(1, limite + 1) if _formato_folio(laboratorio, n) not in existentes),
+        None,
+    )
+    return {
+        "laboratorio": laboratorio,
+        "limite": limite,
+        "usados": usados,
+        "siguiente": _formato_folio(laboratorio, siguiente) if siguiente else None,
+    }
+
+
+@router.get("/solicitudes-prueba/estado")
+def estado_solicitudes_prueba(usuario: Usuario = Depends(usuario_actual)) -> dict:
+    """Si la cuenta puede crear pruebas y cuántos folios le quedan por laboratorio."""
+    if not _es_dueno_pruebas(usuario):
+        return {"permitido": False, "laboratorios": []}
+    labs = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
+    codigos = [l.get("codigo") for l in labs if l.get("codigo") and l.get("activo", True)]
+    return {"permitido": True, "laboratorios": [_hueco_de_prueba(c) for c in codigos]}
+
+
+@router.post("/solicitudes-prueba")
+def crear_solicitud_prueba(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
+    """Como `crear_solicitud`, pero con el folio libre más bajo del hueco, la
+    marca `es_prueba` y sin notificación. El envío por correo lo decide la
+    pantalla: una prueba nunca se envía sola."""
+    _exigir_dueno_pruebas(usuario)
+    _validar_analitos(body)
+    _exigir_lab_activo(body.laboratorio)
+    hueco = _hueco_de_prueba(body.laboratorio)
+    if not hueco["siguiente"]:
+        raise HTTPException(
+            409,
+            f"No quedan folios de prueba para {body.laboratorio}: "
+            f"el hueco llega hasta el {hueco['limite']} y ya está completo.",
+        )
+    return _guardar_solicitud_nueva(body, usuario, hueco["siguiente"], es_prueba=True)
+
+
 @router.put("/solicitudes/{archivo}")
 def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     """Actualiza una solicitud existente -mismo folio, mismo archivo-, nunca
@@ -720,6 +810,9 @@ def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends
         enviada=False,
         enviado_en=None,
     )
+    if datos_actuales.get("es_prueba"):
+        # Editar no le quita la marca: sigue siendo de prueba.
+        datos["es_prueba"] = True
     _regrabar_datos_solicitud(archivo, datos)
     return Solicitud(archivo=nombre_archivo, **datos)
 
@@ -733,7 +826,12 @@ def _validar_analitos(body: SolicitudIn) -> None:
 def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     _validar_analitos(body)
     _exigir_lab_activo(body.laboratorio)
-    numero = _siguiente_numero(body.laboratorio)
+    return _guardar_solicitud_nueva(body, usuario, _siguiente_numero(body.laboratorio))
+
+
+def _guardar_solicitud_nueva(
+    body: SolicitudIn, usuario: Usuario, numero: str, *, es_prueba: bool = False,
+) -> Solicitud:
     ahora = datetime.now(timezone.utc)
     datos = body.model_dump()
     if usuario.tipoAcceso == "muestreador":
@@ -752,6 +850,8 @@ def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual
         enviada=False,
         enviado_en=None,
     )
+    if es_prueba:
+        datos["es_prueba"] = True
     nombre_archivo = f"{numero}.xlsx"
     fecha = datos["fecha_solicitud"]
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
@@ -785,6 +885,9 @@ def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual
     # existe. Al revés es recuperable — un archivo sin indexar se arregla
     # volviendo a correr scripts/indexar_solicitudes.py.
     indice_solicitudes.anotar(nombre_archivo, datos, r2_key)
+    if es_prueba:
+        # Una prueba no avisa a nadie: solo existe en Solicitudes.
+        return Solicitud(archivo=nombre_archivo, **datos)
     nombre_quien = usuario.nombre or usuario.email
     ship_to = body.ship_to or "—"
     notificar(
@@ -1060,6 +1163,8 @@ def listar_solicitudes_elegibles_reanalisis(
     pares = indice_solicitudes.listar_elegibles_reanalisis()
     salida: list[Solicitud] = []
     for nombre, datos in pares:
+        if datos.get("es_prueba"):
+            continue
         try:
             salida.append(Solicitud(archivo=nombre, **datos))
         except (ValueError, KeyError):
@@ -1094,6 +1199,9 @@ def crear_reanalisis(
         datos_original = _leer_solicitud_archivo(_ruta_archivo(archivo))
 
     archivo_base = os.path.basename(archivo)
+
+    if datos_original.get("es_prueba"):
+        raise HTTPException(400, "Una solicitud de prueba no admite reanálisis.")
 
     if not datos_original.get("enviada"):
         raise HTTPException(
@@ -1368,18 +1476,29 @@ class EnvioSolicitudIn(BaseModel):
     destinatarios_adicionales: list[str] = Field(default_factory=list)
 
 
-def contactos_de_solicitud(laboratorio: str) -> list[str]:
-    """Correos activos que reciben las solicitudes de análisis de este
-    laboratorio, según el mantenedor de Laboratorios."""
+def contactos_de_solicitud_por_envio(laboratorio: str) -> dict[str, list[str]]:
+    """Correos activos que reciben las solicitudes de este laboratorio,
+    separados en `to` / `cc` / `bcc` según cómo se configuró cada contacto
+    en Laboratorios → Contacto laboratorio (campo `envio`). Un contacto sin
+    `envio` -los de antes- va en `to`, como siempre."""
     contactos = _leer_config("contactos_laboratorio.json", [])
-    return [
-        c["email"]
-        for c in sorted(contactos, key=lambda c: c.get("orden", 0))
-        if c.get("laboratorio") == laboratorio
-        and c.get("tipo") == "solicitud"
-        and c.get("activo", True)
-        and c.get("email")
-    ]
+    salida: dict[str, list[str]] = {"to": [], "cc": [], "bcc": []}
+    for c in sorted(contactos, key=lambda c: c.get("orden", 0)):
+        if not (
+            c.get("laboratorio") == laboratorio
+            and c.get("tipo") == "solicitud"
+            and c.get("activo", True)
+            and c.get("email")
+        ):
+            continue
+        envio = c.get("envio")
+        salida[envio if envio in ("cc", "bcc") else "to"].append(c["email"])
+    return salida
+
+
+def contactos_de_solicitud(laboratorio: str) -> list[str]:
+    """Los destinatarios directos (Para) de las solicitudes de este laboratorio."""
+    return contactos_de_solicitud_por_envio(laboratorio)["to"]
 
 
 def _contactos_resultado(sold_to: str, ship_to: str, especie: str) -> list[dict]:
@@ -1523,7 +1642,8 @@ def destinatarios_para_laboratorio(
 ) -> dict[str, list[str]]:
     """Contactos configurados para recibir solicitudes de un laboratorio.
     Lo usa el formulario antes de crear la solicitud, cuando aún no hay archivo."""
-    return {"destinatarios": contactos_de_solicitud(laboratorio)}
+    por_envio = contactos_de_solicitud_por_envio(laboratorio)
+    return {"destinatarios": por_envio["to"], "cc": por_envio["cc"], "bcc": por_envio["bcc"]}
 
 
 @router.get("/config/resultados-ship-to")
@@ -1565,6 +1685,19 @@ def _iso_a_ddmmyyyy(valor: object) -> object:
 _CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en"}
 
 
+def _sample_identification(datos: dict) -> str:
+    """Texto para el campo «Sample Identification (IN)» del informe del laboratorio:
+    `N° solicitud - Posición muestreo - Fecha muestreo`. Siempre las tres partes,
+    en ese orden, para que el PDF de vuelta se lea con un patrón fijo. Una parte
+    vacía queda como «—» (igual que en `campos_laboratorio`), nunca se omite."""
+    partes = (
+        datos.get("numero_solicitud"),
+        datos.get("posicion_muestreo"),
+        _iso_a_ddmmyyyy(datos.get("fecha_muestreo")),
+    )
+    return " - ".join(str(p).strip() if p and str(p).strip() else "—" for p in partes)
+
+
 def _generar_json_solicitud(datos: dict) -> bytes:
     """JSON adjunto para el laboratorio: datos de la solicitud + destinatarios de resultado."""
     import json as _json
@@ -1581,6 +1714,8 @@ def _generar_json_solicitud(datos: dict) -> bytes:
     }
     salida = {
         **datos_limpios,
+        # Solo ALS: es quien lo copia a «Sample Identification (IN)» de su informe.
+        **({"sample_identification": _sample_identification(datos)} if lab.strip().casefold() == "als" else {}),
         "correos": {
             "resultado_cliente": {"to": correos_resultado.get("to", [])},
             "resultado_interno": {
@@ -1641,7 +1776,13 @@ def destinatarios_de_solicitud(archivo: str, usuario: Usuario = Depends(usuario_
         datos = _leer_solicitud_archivo(_ruta_archivo(archivo))
     _exigir_acceso(usuario, datos)
     laboratorio = datos.get("laboratorio", "")
-    return {"laboratorio": laboratorio, "destinatarios": contactos_de_solicitud(laboratorio)}
+    por_envio = contactos_de_solicitud_por_envio(laboratorio)
+    return {
+        "laboratorio": laboratorio,
+        "destinatarios": por_envio["to"],
+        "cc": por_envio["cc"],
+        "bcc": por_envio["bcc"],
+    }
 
 
 class EnvioAutomaticoOut(BaseModel):
@@ -1752,7 +1893,8 @@ def enviar_solicitud_por_correo(
 
     # Siempre parten los contactos configurados. Los invitados escritos en el
     # cuadro de envío se agregan sólo a este correo y no alteran el mantenedor.
-    candidatos = contactos_de_solicitud(lab)
+    por_envio = contactos_de_solicitud_por_envio(lab)
+    candidatos = list(por_envio["to"])
     # Toda solicitud Actimist copia a estos dos referentes de producto.
     tipo_aplicacion = str(datos.get("campos_laboratorio", {}).get("Tipo Aplicación") or "")
     if tipo_aplicacion == "Actimist":
@@ -1780,6 +1922,8 @@ def enviar_solicitud_por_correo(
         asunto, texto, html, imagenes_inline = mail_templates.renderizar_reanalisis(lab, datos)
     else:
         asunto, texto, html, imagenes_inline = mail_templates.renderizar(lab, datos)
+    if datos.get("es_prueba"):
+        asunto = f"(PRUEBA) {asunto}"
 
     labs_cfg = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
     lab_cfg = next((l for l in labs_cfg if l.get("codigo", "").upper() == lab.upper()), {})
@@ -1809,16 +1953,32 @@ def enviar_solicitud_por_correo(
     # reemplazarlos. Si esa misma dirección ya está en los destinatarios
     # normales, no se repite en BCC: recibiría el correo dos veces por nada.
     email_muestreador = _normalizar_correo(datos.get("email_solicitante"))
-    bcc = [email_muestreador] if email_muestreador and email_muestreador not in vistos else []
+
+    # Copias configuradas en Contacto laboratorio (Copia / Copia oculta) y la
+    # copia oculta del muestreador. Nadie va dos veces: quien ya está en el
+    # Para no se repite en copia, y quien está en Copia no se repite en oculta.
+    def _sin_repetir(lista: list[str]) -> list[str]:
+        salida: list[str] = []
+        for candidato in lista:
+            email = str(candidato or "").strip()
+            clave = _normalizar_correo(email)
+            if email and clave not in vistos:
+                salida.append(email)
+                vistos.add(clave)
+        return salida
+
+    cc = _sin_repetir(por_envio["cc"])
+    bcc = _sin_repetir([*por_envio["bcc"], email_muestreador])
 
     try:
         resultado = correo.enviar(
-            ", ".join(destinatarios), asunto, html, texto, adjuntos, bcc=bcc, imagenes_inline=imagenes_inline
+            ", ".join(destinatarios), asunto, html, texto, adjuntos, cc=cc, bcc=bcc,
+            imagenes_inline=imagenes_inline,
         )
     except HTTPException as exc:
         _registrar_envio_solicitud(
             archivo=archivo, numero=numero, laboratorio=lab, usuario=usuario,
-            to=destinatarios, cc=[], bcc=bcc,
+            to=destinatarios, cc=cc, bcc=bcc,
             exitoso=False, mensaje_id=None, error=str(exc.detail),
         )
         raise

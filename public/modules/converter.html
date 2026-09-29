@@ -177,6 +177,7 @@ select.ot.sugerida{border-color:var(--verde-osc);background:#F2F8EC}
       <span class="paso-n">02</span><h2>Análisis de datos</h2>
       <span class="ayuda">Homogeneización contra el catálogo oficial</span>
     </div>
+    <p class="pie" id="estadoListados" style="margin:0 0 12px">Leyendo los listados de la base…</p>
     <div class="resumen" id="resumen"></div>
     <div class="fichas" id="revision"></div>
   </section>
@@ -295,10 +296,10 @@ const CATALOGOS = {"catalogo":{"sold_to":["A.G. SERVICIOS SPA","AGRICOLA CONVENT
 /* Lógica del conversor, en JS puro. Se prueba aquí y luego va tal cual al HTML. */
 
 const COLUMNAS = [
-  "N° Solicitud","Fecha Solicitud","Laboratorio","Solicitante","Sold To","Ship To",
+  "N° Solicitud","OT","Fecha Solicitud","Laboratorio","Solicitante","Sold To","Ship To",
   "Especie","Variedad","Línea Proceso","CSG","Lote","Posición Muestreo","N° Cámara",
   "N° Orden","Kilos Procesados (KG)","Producto Utilizado","Tipo Muestra","Tipo de servicio",
-  "Fecha Muestreo","Fecha entrada",
+  "Fecha Muestreo","Fecha entrada","Fecha Informe","Fecha Análisis",
   "Hora Muestreo","Nombre Muestreador","Generado Por","Email Solicitante",
   "Email Laboratorio","Observación","FDL ppm","IMZ ppm","PYR ppm","TEBU ppm","AZOX ppm",
   "TBZ ppm","DPA ppm","Dosis Aplicada","Tipo Aplicación","Aplicación En","Gasto",
@@ -347,21 +348,50 @@ const ANALITOS = {
 var CAT = (typeof CATALOGOS !== "undefined") ? CATALOGOS
         : {catalogo:{}, alias:{}, productos:{}, variedad_especie:{}};
 
+function palabras(s){
+  return plano(s).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 function compacto(s){
   return plano(s).replace(/[\s'\u2019\-/]/g, "");
 }
 
-/* Lleva un valor a su forma oficial. Devuelve qué se hizo, para poder mostrarlo. */
-function homogenizar(campo, valor){
+/* Listados en vivo, leídos de la base al abrir el Converter (ver
+   cargarListados más abajo). La copia de CATALOGOS pegada arriba es una foto
+   vieja de Listados: solo se usa si la base no responde. */
+const LISTADOS = {enVivo: false, plantasPorCliente: {}, variedadesPorEspecie: {}};
+
+/* Valores oficiales que corresponden a un campo DE ESTE informe: el Ship To
+   solo puede ser una planta de su Sold To, y la Variedad una de su Especie
+   (misma jerarquía que usa el backend al cargar, ver ingest._resolver_listados). */
+function oficialesPara(campo, inf){
+  if(campo === "ship_to"){
+    const plantas = LISTADOS.plantasPorCliente[inf && inf.datos["Sold To"]];
+    if(plantas) return plantas;
+  }
+  if(campo === "variedad"){
+    const variedades = LISTADOS.variedadesPorEspecie[inf && inf.datos["Especie"]];
+    if(variedades) return variedades;
+  }
+  return CAT.catalogo[campo] || [];
+}
+
+/* Lleva un valor a su forma oficial. Devuelve qué se hizo, para poder mostrarlo.
+   `oficiales` acota los valores válidos (ej. las plantas de un Sold To);
+   `deUnCliente` dice que son las plantas de UN cliente ya resuelto. */
+function homogenizar(campo, valor, oficiales, deUnCliente){
   if(!valor) return {valor: valor, estado: "vacio"};
-  const of = CAT.catalogo[campo] || [];
+  const of = oficiales || CAT.catalogo[campo] || [];
   const ali = CAT.alias[campo] || {};
   const bruto = String(valor).trim();
 
   if(of.includes(bruto)) return {valor: bruto, estado: "ok"};
 
   const p = plano(bruto);
-  if(ali[p]) return {valor: ali[p], estado: ali[p] === bruto ? "ok" : "corregido", antes: bruto};
+  // el alias tiene que apuntar a un valor válido para este informe: una
+  // planta con el mismo nombre en otro cliente no sirve
+  if(ali[p] && of.includes(ali[p]))
+    return {valor: ali[p], estado: ali[p] === bruto ? "ok" : "corregido", antes: bruto};
 
   const c = compacto(bruto);
   for(const o of of) if(compacto(o) === c)
@@ -375,6 +405,16 @@ function homogenizar(campo, valor){
   // nombre abreviado, solo si no hay ambigüedad
   const cand = of.filter(o => compacto(o).startsWith(c) && c.length >= 5);
   if(cand.length === 1) return {valor: cand[0], estado: "corregido", antes: bruto};
+
+  // la única planta del cliente que contiene lo que dice el informe:
+  // "SAN FERNANDO" -> "DOLE PLANTA SAN FERNANDO". Palabras completas, y solo
+  // entre las plantas de su Sold To (misma regla que homogenizador.py, 5b).
+  if(deUnCliente){
+    const pal = " " + palabras(bruto) + " ";
+    const contienen = of.filter(o => (" " + palabras(o) + " ").includes(pal));
+    if(pal.trim().length >= 3 && contienen.length === 1)
+      return {valor: contienen[0], estado: "corregido", antes: bruto};
+  }
 
   return {valor: bruto, estado: "fuera_de_catalogo",
           sugerencias: cand.slice(0, 4)};
@@ -399,6 +439,16 @@ function aFecha(txt, avisos){
   }
   if(mes < 1 || mes > 12 || d < 1 || d > 31) return null;
   return String(d).padStart(2,"0") + "-" + String(mes).padStart(2,"0") + "-" + y;
+}
+
+/* "25 de septiembre de 2026" -> "25-09-2026". Quiteca escribe así la fecha del
+   informe (al pie), no en números. */
+const MESES = {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,
+               septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+function aFechaLarga(txt){
+  const m = plano(txt || "").match(/(\d{1,2})\s+de\s+([a-z]+)\s+(?:de\s+)?(\d{4})/);
+  if(!m || !MESES[m[2]]) return null;
+  return String(+m[1]).padStart(2,"0") + "-" + String(MESES[m[2]]).padStart(2,"0") + "-" + m[3];
 }
 
 function aHora(txt){
@@ -491,6 +541,17 @@ function leerQuiteca(texto, inf){
   d["Fecha Muestreo"]  = aFecha(campo(texto, "Fecha de Muestreo", "Hora"), inf.avisos);
   d["Fecha entrada"]   = aFecha(campo(texto, "Fecha de Recepción"), inf.avisos);
   d["Hora Muestreo"]   = aHora(campo(texto, "Hora"));
+  /* Fecha de Análisis: arriba a la derecha de la tabla de resultados. Fecha
+     Informe: al pie, escrita con letras ("25 de septiembre de 2026"). */
+  const fa = texto.match(/Fecha de An[áa]lisis\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
+  d["Fecha Análisis"] = fa ? aFecha(fa[1], inf.avisos) : null;
+  const fi = texto.match(/Fecha Informe\s*:?\s*(\d{1,2}\s+de\s+[A-Za-zÁÉÍÓÚáéíóú]+\s+(?:de\s+)?\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
+  d["Fecha Informe"] = fi ? (aFechaLarga(fi[1]) || aFecha(fi[1], inf.avisos)) : null;
+  /* El OT que generamos viaja en el campo «N° Solicitud» del informe. Los
+     informes antiguos traían ahí el correlativo interno de Quiteca (un número
+     largo): eso NO es un OT y se ignora. */
+  const ot = texto.match(/N°\s*Solicitud\s*:?\s*(OT-[A-Za-z0-9]+)/i);
+  d["OT"] = ot ? ot[1].toUpperCase() : null;
   d["Tipo Muestra"]    = "Fruta";
   /* En Quiteca "Tratamiento" (FOGGER, ACTIMIST, etc.) no es un producto químico,
      así que va en "Tipo Aplicación" tal cual, no en "Producto Utilizado" (que
@@ -653,12 +714,44 @@ function analizar(texto, nombreArchivo){
     if(inf.datos[k] === null || inf.datos[k] === "" || inf.datos[k] === "-")
       delete inf.datos[k];
 
-  /* --- homogeneización contra el catálogo oficial --- */
-  const CAMPOS_CAT = {"Sold To":"sold_to","Ship To":"ship_to",
-                      "Especie":"especie","Variedad":"variedad"};
+  // lo que dice el PDF, antes de homogenizar: se vuelve a partir de acá cada
+  // vez que se revisa el informe (ej. al cambiar el Sold To cambia qué
+  // plantas son válidas para el Ship To)
+  inf.crudos = {};
+  for(const col in CAMPOS_CAT) inf.crudos[col] = inf.datos[col];
+  inf.manual = {};
+  revisarCatalogo(inf);
+
+  const faltan = OBLIGATORIOS.filter(c => !inf.datos[c]);
+  if(faltan.length) inf.avisos.push("Sin dato para: " + faltan.join(", "));
+  if(!Object.keys(inf.resultados).length && !inf.sueltos.length)
+    inf.avisos.push("No se encontró ningún resultado en el informe");
+  return inf;
+}
+
+const CAMPOS_CAT = {"Sold To":"sold_to","Ship To":"ship_to",
+                    "Especie":"especie","Variedad":"variedad"};
+
+/* Homogeneización contra el catálogo oficial. En este orden a propósito: el
+   Ship To se busca entre las plantas del Sold To ya resuelto, y la Variedad
+   entre las de la Especie ya resuelta. Lo elegido a mano se respeta mientras
+   siga siendo válido. */
+function revisarCatalogo(inf){
   inf.revision = [];
   for(const col in CAMPOS_CAT){
-    const r = homogenizar(CAMPOS_CAT[col], inf.datos[col]);
+    const oficiales = oficialesPara(CAMPOS_CAT[col], inf);
+    const manual = inf.manual[col];
+    if(manual && oficiales.includes(manual)){
+      inf.datos[col] = manual;
+      inf.revision.push({campo:col, estado:"corregido", antes:inf.crudos[col] || "(vacío)",
+                         ahora:manual, detalle:"elegido a mano del catálogo"});
+      continue;
+    }
+    delete inf.manual[col];
+    if(inf.crudos[col]) inf.datos[col] = inf.crudos[col];
+    else delete inf.datos[col];
+    const deUnCliente = col === "Ship To" && !!LISTADOS.plantasPorCliente[inf.datos["Sold To"]];
+    const r = homogenizar(CAMPOS_CAT[col], inf.datos[col], oficiales, deUnCliente);
     if(r.estado === "vacio"){
       inf.revision.push({campo:col, estado:"vacio",
                          detalle:"el informe no trae este dato"});
@@ -688,12 +781,6 @@ function analizar(texto, nombreArchivo){
                          detalle:"«" + vari + "» se ha usado siempre con " +
                                  esperadas.join(" o ") + ", no con " + esp});
   }
-
-  const faltan = OBLIGATORIOS.filter(c => !inf.datos[c]);
-  if(faltan.length) inf.avisos.push("Sin dato para: " + faltan.join(", "));
-  if(!Object.keys(inf.resultados).length && !inf.sueltos.length)
-    inf.avisos.push("No se encontró ningún resultado en el informe");
-  return inf;
 }
 
 function fila(inf){
@@ -841,21 +928,9 @@ function pintarAnalisis(ok){
         else val = '<span class="antes" style="text-decoration:none;color:var(--error)">' +
                    esc(r.antes) + "</span>";
 
-        // desplegable para elegir el valor oficial
-        let fix = "";
-        if(r.estado === "fuera" || r.estado === "vacio"){
-          const clave = CAMPO_CLAVE[r.campo];
-          if(clave){
-            const lista = CAT.catalogo[clave] || [];
-            const sug = (r.sugerencias || []).filter(s => lista.includes(s));
-            const resto = lista.filter(s => !sug.includes(s));
-            fix = '<select class="fix" data-inf="' + k + '" data-campo="' + esc(r.campo) + '">' +
-              '<option value="">— elegir del catálogo —</option>' +
-              (sug.length ? '<optgroup label="Parecidos">' +
-                 sug.map(s => '<option>' + esc(s) + "</option>").join("") + "</optgroup>" : "") +
-              resto.map(s => '<option>' + esc(s) + "</option>").join("") + "</select>";
-          }
-        }
+        // desplegable para elegir (o cambiar) el valor oficial: siempre
+        // disponible, también si la homogeneización automática se equivocó
+        const fix = CAMPO_CLAVE[r.campo] ? selectorCatalogo(inf, k, r) : "";
         return "<tr><td>" + esc(r.campo) + '</td><td><span class="est ' + r.estado + '">' +
                ETIQ_EST[r.estado] + "</span></td><td>" + val + (fix ? "<br>" + fix : "") +
                '</td><td style="font-size:12px;color:var(--tinta-3)">' +
@@ -868,14 +943,111 @@ function pintarAnalisis(ok){
   cont.querySelectorAll("select.fix").forEach(s => s.onchange = () => {
     if(!s.value) return;
     const inf = ok[+s.dataset.inf];
-    inf.datos[s.dataset.campo] = s.value;
-    const r = inf.revision.find(x => x.campo === s.dataset.campo);
-    r.estado = "corregido";
-    r.antes = r.antes || "(vacío)";
-    r.ahora = s.value;
-    r.detalle = "elegido a mano del catálogo";
+    const eleccion = JSON.parse(s.value);
+    // una planta elegida desde la lista agrupada por cliente trae su Sold To:
+    // esa planta solo existe bajo ese cliente
+    if(eleccion.soldTo) inf.manual["Sold To"] = eleccion.soldTo;
+    inf.manual[s.dataset.campo] = eleccion.valor;
+    revisarCatalogo(inf);   // p.ej. otro Sold To cambia qué Ship To son válidos
     pintar();
   });
+}
+
+function opcion(valor, texto, extra){
+  return "<option value='" + esc(JSON.stringify(Object.assign({valor: valor}, extra || {})))
+    .replace(/'/g, "&#39;") + "'>" + esc(texto || valor) + "</option>";
+}
+
+/* El desplegable de un campo del catálogo. Ship To muestra solo las plantas
+   del Sold To de este informe; si el Sold To todavía no está resuelto, todas,
+   agrupadas por cliente. Variedad, igual con su Especie. */
+function selectorCatalogo(inf, k, r){
+  const clave = CAMPO_CLAVE[r.campo];
+  const lista = oficialesPara(clave, inf);
+  const sug = (r.sugerencias || []).filter(s => lista.includes(s));
+  let opciones = "";
+  if(sug.length)
+    opciones += '<optgroup label="Parecidos">' + sug.map(s => opcion(s)).join("") + "</optgroup>";
+
+  const soldTo = inf.datos["Sold To"];
+  if(clave === "ship_to" && !LISTADOS.plantasPorCliente[soldTo] && LISTADOS.enVivo){
+    for(const cliente of Object.keys(LISTADOS.plantasPorCliente).sort())
+      opciones += '<optgroup label="' + esc(cliente) + '">' +
+        LISTADOS.plantasPorCliente[cliente].map(p => opcion(p, p, {soldTo: cliente})).join("") +
+        "</optgroup>";
+  }else{
+    opciones += lista.filter(s => !sug.includes(s)).map(s => opcion(s)).join("");
+  }
+
+  let titulo = "— elegir del catálogo —";
+  if(clave === "ship_to" && LISTADOS.plantasPorCliente[soldTo])
+    titulo = "— plantas de " + soldTo + " —";
+  else if(clave === "variedad" && LISTADOS.variedadesPorEspecie[inf.datos["Especie"]])
+    titulo = "— variedades de " + inf.datos["Especie"] + " —";
+  if(r.estado === "ok" || r.estado === "corregido") titulo = "— cambiar —";
+
+  return '<select class="fix" data-inf="' + k + '" data-campo="' + esc(r.campo) + '">' +
+    '<option value="">' + esc(titulo) + "</option>" + opciones + "</select>";
+}
+
+/* ============ listados en vivo ============ */
+async function leerApi(ruta){
+  const resp = await fetch(API_BASE + ruta, {headers: autorizacion()});
+  if(!resp.ok) throw new Error(ruta + " respondió " + resp.status);
+  return resp.json();
+}
+
+/* Trae de la base Sold To, Ship To, Especie y Variedad -lo mismo que
+   administra Listados y contra lo que valida el backend al cargar-. Si la
+   base no responde se sigue con la copia guardada en este archivo, y se
+   avisa, porque esa copia puede no tener lo último que se agregó. */
+async function cargarListados(){
+  const aviso = $("estadoListados");
+  try{
+    const [clientes, plantas, especies, variedades] = await Promise.all([
+      leerApi("/catalogo/clientes"), leerApi("/catalogo/plantas"),
+      leerApi("/listados/especie"), leerApi("/listados/variedad"),
+    ]);
+    const orden = (a, b) => a.localeCompare(b, "es");
+    const clientesActivos = clientes.filter(c => c.activo).map(c => c.nombre);
+    const porCliente = {};
+    plantas.filter(p => p.activo && clientesActivos.includes(p.cliente_nombre)).forEach(p =>
+      (porCliente[p.cliente_nombre] = porCliente[p.cliente_nombre] || []).push(p.nombre));
+    for(const c in porCliente) porCliente[c].sort(orden);
+
+    const nombreEspecie = {};
+    especies.forEach(e => nombreEspecie[e.id] = e.valor);
+    const porEspecie = {}, variedadEspecie = {};
+    variedades.filter(v => !v.fusionado_en_id).forEach(v => {
+      const esp = nombreEspecie[v.especie_id];
+      if(!esp) return;
+      (porEspecie[esp] = porEspecie[esp] || []).push(v.valor);
+      (variedadEspecie[v.valor] = variedadEspecie[v.valor] || []).push(esp);
+    });
+    for(const e in porEspecie) porEspecie[e].sort(orden);
+
+    CAT.catalogo = {
+      sold_to: clientesActivos.slice().sort(orden),
+      ship_to: [...new Set(Object.values(porCliente).flat())].sort(orden),
+      especie: especies.filter(e => !e.fusionado_en_id).map(e => e.valor).sort(orden),
+      variedad: [...new Set(variedades.filter(v => !v.fusionado_en_id).map(v => v.valor))].sort(orden),
+    };
+    CAT.variedad_especie = variedadEspecie;
+    LISTADOS.plantasPorCliente = porCliente;
+    LISTADOS.variedadesPorEspecie = porEspecie;
+    LISTADOS.enVivo = true;
+    aviso.textContent = "Listados leídos de la base: " + CAT.catalogo.sold_to.length + " Sold To, " +
+      Object.values(porCliente).flat().length + " Ship To, " + CAT.catalogo.especie.length +
+      " especies, " + CAT.catalogo.variedad.length + " variedades.";
+    aviso.style.color = "";
+  }catch(err){
+    aviso.textContent = "⚠ No se pudieron leer los listados de la base (" + err.message + "). " +
+      "Se usa una copia guardada, que puede no tener los Sold To / Ship To más nuevos.";
+    aviso.style.color = "var(--error)";
+  }
+  // los informes que ya estaban cargados se revisan de nuevo con los listados reales
+  informes.filter(i => i.laboratorio).forEach(revisarCatalogo);
+  pintar();
 }
 
 function pintarTabla(ok){
@@ -1004,6 +1176,9 @@ function filaCruda(inf){
     "Fecha \nSolicitud": aISO(d["Fecha Solicitud"]),
     "Fecha de muestreo": aISO(d["Fecha Muestreo"]),
     "Fecha entrada": aISO(d["Fecha entrada"]),
+    "Fecha Informe": aISO(d["Fecha Informe"]),
+    "Fecha Análisis": aISO(d["Fecha Análisis"]),
+    "N° Solicitud": d["OT"],
     "SOLD TO": d["Sold To"],
     "SHIP TO": d["Ship To"],
     "CROP": d["Especie"],
@@ -1024,13 +1199,18 @@ function filaCruda(inf){
   return f;
 }
 
-async function llamarIngest(ruta, filas){
+async function llamarIngest(ruta, filas, archivo){
   const resp = await fetch(API_BASE + "/ingest/" + ruta, {
     method: "POST",
     headers: {"Content-Type": "application/json", ...autorizacion()},
-    body: JSON.stringify({filas, origen: "converter"}),
+    // el nombre de los PDF va al historial de cargas de Ingesta de Datos
+    body: JSON.stringify({filas, origen: "converter", archivo}),
   });
-  if(!resp.ok) throw new Error("El backend respondió " + resp.status + " — revisa que esté corriendo.");
+  if(!resp.ok){
+    let detalle = "";
+    try{ detalle = (await resp.json()).detail || ""; }catch(e){}
+    throw new Error(detalle ? String(detalle) : "El backend respondió " + resp.status + " — revisa que esté corriendo.");
+  }
   return resp.json();
 }
 
@@ -1038,6 +1218,7 @@ $("btnSubir").onclick = async () => {
   const ok = informes.filter(i => i.laboratorio);
   if(!ok.length) return;
   const filas = ok.map(filaCruda);
+  const archivos = ok.map(i => i.archivo).join(", ");
   const pie = $("pieSubir");
   const btn = $("btnSubir");
   btn.disabled = true;
@@ -1050,20 +1231,20 @@ $("btnSubir").onclick = async () => {
       r.solicitudes_existentes + " ya existente(s) (se completan analitos que le falten), " +
       r.resultados + " resultado(s), " + r.clientes_nuevos + " cliente(s) nuevo(s), " +
       r.plantas_nuevas + " sucursal(es) nueva(s)." +
-      (r.pendientes_revision ? "\n\n⛔ " + r.pendientes_revision + " fila(s) traen un valor que parece typo o " +
-       "mayúsculas distintas de algo ya cargado (cliente, sucursal, especie, etc.) y no se van a crear directo: " +
-       "quedan en \"Pendientes de revisión\" dentro de DataCore para aprobarlas o corregirlas a mano." : "") +
+      (r.pendientes_revision ? "\n\n⛔ " + r.pendientes_revision + " fila(s) traen un Sold To, Ship To, especie " +
+       "o variedad que no está en Listados: no se cargan, quedan en Ingesta de Datos → Pendientes " +
+       "para reintentarlas o descartarlas." : "") +
       (prev.advertencias.length ? "\n\nAdvertencias:\n" + prev.advertencias.slice(0,8).join("\n") +
        (prev.advertencias.length > 8 ? "\n… y " + (prev.advertencias.length - 8) + " más." : "") : "") +
       "\n\nLos PDF también se guardarán en las carpetas de auditoría (laboratorio / ship to)." +
       "\n\n¿Confirmar la carga a la base de datos?";
     if(!confirm(msg)){ pie.textContent = "Carga cancelada."; btn.disabled = false; return; }
     pie.textContent = "Subiendo a la base de datos…";
-    const conf = await llamarIngest("confirmar", filas);
+    const conf = await llamarIngest("confirmar", filas, archivos);
     const c = conf.resumen;
     const base = "✔ Cargado: " + c.solicitudes_nuevas + " solicitud(es) nueva(s), " +
       c.solicitudes_existentes + " completada(s), " + c.resultados + " resultado(s) en total." +
-      (c.pendientes_revision ? " ⛔ " + c.pendientes_revision + " quedaron pendientes de revisión en DataCore." : "");
+      (c.pendientes_revision ? " ⛔ " + c.pendientes_revision + " quedaron en Ingesta de Datos → Pendientes." : "");
     pie.textContent = base + " Guardando los PDF en auditoría…";
     const pdf = await subirPdfs(ok);
     pie.textContent = base + " " + pdf;
@@ -1102,6 +1283,12 @@ const mismoTexto = (a, b) => !!a && !!b && plano(a) === plano(b);
 function sugerirOT(inf, tomadas){
   if(!abiertas) return "";
   const d = inf.datos, fecha = aISO(d["Fecha Muestreo"]);
+  // Si el PDF trae nuestro OT (Quiteca lo escribe en «N° Solicitud»), es el
+  // amarre más seguro: se toma tal cual, sin adivinar por planta y fecha.
+  if(d["OT"]){
+    const exacta = abiertas.find(o => !tomadas.has(o.archivo) && plano(o.numero_solicitud || "") === plano(d["OT"]));
+    if(exacta) return exacta.archivo;
+  }
   const libres = abiertas.filter(o => !tomadas.has(o.archivo) && mismoLab(d["Laboratorio"], o.laboratorio));
   const porPlanta = libres.filter(o => mismoTexto(d["Ship To"], o.ship_to));
   if(porPlanta.length === 1) return porPlanta[0].archivo;
@@ -1167,7 +1354,7 @@ function pintarAmarre(ok){
       if(inf.ot && inf.otSugerida){
         const nota = document.createElement("div");
         nota.className = "pie"; nota.style.marginTop = "3px";
-        nota.textContent = "Sugerida (laboratorio, planta, fecha)";
+        nota.textContent = inf.datos["OT"] ? "Según el OT del informe" : "Sugerida (laboratorio, planta, fecha)";
         tdOt.appendChild(nota);
       }
     }
@@ -1224,6 +1411,7 @@ $("btnLimpiar").onclick = () => {
 
 pintar();
 cargarAbiertas();
+cargarListados();
 </script>
 </body>
 </html>

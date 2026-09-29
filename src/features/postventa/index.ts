@@ -13,3 +13,15 @@ export type {
   EstadisticasTrace,
   EstadisticaSerie,
 } from './lib/api'
+export {
+  FILTRO_CARGAS_VACIO,
+  calcularKpis,
+  cargasPorMes,
+  cronologico,
+  fechaDeCarga,
+  filtrarCargas,
+  nombreEquipo,
+  opcionesDeCampo,
+  resumenPorEquipo,
+} from './lib/resumen'
+export type { FiltroCargas, Kpis, Periodo } from './lib/resumen'

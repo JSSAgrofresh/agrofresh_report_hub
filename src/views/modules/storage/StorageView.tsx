@@ -1,502 +1,160 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { DragEvent } from 'react'
-import { Header } from '@/components/layout/Header'
+import { useEffect, useRef, useState } from 'react'
 import { Card } from '@/components/ui/Card'
-import { IconCarpeta, IconArchivoPlano } from '@/components/ui/icons'
-import { cn } from '@/lib/cn'
-import { formatDateTimeCL } from '@/lib/locale'
-import {
-  crearCarpeta,
-  eliminar,
-  listar,
-  listarR2,
-  mover,
-  organizarSolicitudesR2,
-  renombrar,
-  subirArchivos,
-  descargar,
-  descargarR2,
-} from '@/features/storage'
-import type { EntradaStorage } from '@/features/storage'
+import { useAuth } from '@/features/auth/hooks/useAuth'
+import { ESPACIOS, operaciones, puede, useAvisos, useFavoritos } from '@/features/storage'
+import type { Espacio } from '@/features/storage'
+import { ArbolCarpetas } from './ArbolCarpetas'
+import { Avisos } from './Avisos'
+import { BusquedaGlobal } from './BusquedaGlobal'
+import { Explorador } from './Explorador'
+import { IconoCarpeta } from './IconoArchivo'
+import { PanelPermisos } from './PanelPermisos'
 import styles from './StorageView.module.css'
 
-type Pestana = 'local' | 'accutab' | 'solicitudes'
-
-const TIPO_MOVER = 'application/x-storage-ruta'
-
-function formatoTamano(bytes: number | null): string {
-  if (bytes === null) return '—'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+interface PermisosAbiertos {
+  espacioId: Espacio['id']
+  ruta: string
 }
-
-// ---------------------------------------------------------------------------
-// Panel local (mismo que antes)
-// ---------------------------------------------------------------------------
-
-function PanelLocal() {
-  const [rutaActual, setRutaActual] = useState('')
-  const [entradas, setEntradas] = useState<EntradaStorage[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [ocupado, setOcupado] = useState(false)
-  const [arrastrandoArchivos, setArrastrandoArchivos] = useState(false)
-  const [carpetaSobrevolada, setCarpetaSobrevolada] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const refrescar = useCallback(async (ruta: string) => {
-    try {
-      const resultado = await listar(ruta)
-      setEntradas(resultado.entradas)
-      setError(null)
-    } catch {
-      setError('No se pudo conectar con el backend.')
-    }
-  }, [])
-
-  useEffect(() => {
-    setEntradas(null)
-    refrescar(rutaActual)
-  }, [rutaActual, refrescar])
-
-  async function subir(lista: FileList | File[]) {
-    const archivosArray = Array.from(lista)
-    if (archivosArray.length === 0) return
-    setOcupado(true)
-    setError(null)
-    try {
-      await subirArchivos(rutaActual, archivosArray)
-      await refrescar(rutaActual)
-    } catch {
-      setError('No se pudo subir el archivo. Revisa que el backend esté corriendo.')
-    } finally {
-      setOcupado(false)
-    }
-  }
-
-  async function crear() {
-    const nombre = prompt('Nombre de la nueva carpeta:')
-    if (!nombre || !nombre.trim()) return
-    setError(null)
-    try {
-      await crearCarpeta(rutaActual, nombre.trim())
-      await refrescar(rutaActual)
-    } catch {
-      setError('No se pudo crear la carpeta.')
-    }
-  }
-
-  async function renombrarEntrada(entrada: EntradaStorage) {
-    const nombreNuevo = prompt(`Nuevo nombre para "${entrada.nombre}":`, entrada.nombre)
-    if (!nombreNuevo || !nombreNuevo.trim() || nombreNuevo.trim() === entrada.nombre) return
-    setError(null)
-    try {
-      await renombrar(entrada.ruta, nombreNuevo.trim())
-      await refrescar(rutaActual)
-    } catch {
-      setError('No se pudo renombrar (¿ya existe algo con ese nombre?).')
-    }
-  }
-
-  async function eliminarEntrada(entrada: EntradaStorage) {
-    const aviso =
-      entrada.tipo === 'carpeta'
-        ? `¿Eliminar la carpeta "${entrada.nombre}" y todo su contenido?`
-        : `¿Eliminar "${entrada.nombre}"?`
-    if (!confirm(aviso)) return
-    setError(null)
-    try {
-      await eliminar(entrada.ruta)
-      await refrescar(rutaActual)
-    } catch {
-      setError('No se pudo eliminar.')
-    }
-  }
-
-  async function moverEntrada(rutaOrigen: string, rutaDestino: string) {
-    setError(null)
-    try {
-      await mover(rutaOrigen, rutaDestino)
-      await refrescar(rutaActual)
-    } catch {
-      setError('No se pudo mover (¿ya existe algo con ese nombre en esa carpeta?).')
-    }
-  }
-
-  function onDropZona(e: DragEvent<HTMLDivElement>) {
-    e.preventDefault()
-    setArrastrandoArchivos(false)
-    if (e.dataTransfer.types.includes(TIPO_MOVER)) {
-      const rutaOrigen = e.dataTransfer.getData(TIPO_MOVER)
-      if (rutaOrigen) moverEntrada(rutaOrigen, rutaActual)
-      return
-    }
-    subir(e.dataTransfer.files)
-  }
-
-  function onDropCarpeta(e: DragEvent<HTMLTableRowElement>, carpeta: EntradaStorage) {
-    e.preventDefault()
-    e.stopPropagation()
-    setCarpetaSobrevolada(null)
-    const rutaOrigen = e.dataTransfer.getData(TIPO_MOVER)
-    if (rutaOrigen && rutaOrigen !== carpeta.ruta) moverEntrada(rutaOrigen, carpeta.ruta)
-  }
-
-  const migas = rutaActual ? rutaActual.split('/') : []
-
-  return (
-    <>
-      <div className={styles.barraSuperior}>
-        <nav className={styles.migas}>
-          <button
-            type="button"
-            onClick={() => setRutaActual('')}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault()
-              const rutaOrigen = e.dataTransfer.getData(TIPO_MOVER)
-              if (rutaOrigen) moverEntrada(rutaOrigen, '')
-            }}
-            className={cn(!rutaActual && styles.migaActiva)}
-          >
-            Storage
-          </button>
-          {migas.map((nombre, i) => {
-            const ruta = migas.slice(0, i + 1).join('/')
-            return (
-              <span key={ruta} className={styles.migaGrupo}>
-                <span className={styles.migaSeparador}>/</span>
-                <button
-                  type="button"
-                  onClick={() => setRutaActual(ruta)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault()
-                    const rutaOrigen = e.dataTransfer.getData(TIPO_MOVER)
-                    if (rutaOrigen) moverEntrada(rutaOrigen, ruta)
-                  }}
-                  className={cn(i === migas.length - 1 && styles.migaActiva)}
-                >
-                  {nombre}
-                </button>
-              </span>
-            )
-          })}
-        </nav>
-        <button type="button" className={styles.botonCarpeta} onClick={crear}>
-          + Nueva carpeta
-        </button>
-      </div>
-
-      <div
-        className={cn(styles.zona, arrastrandoArchivos && styles.zonaActiva)}
-        onDragOver={(e) => {
-          e.preventDefault()
-          setArrastrandoArchivos(true)
-        }}
-        onDragLeave={() => setArrastrandoArchivos(false)}
-        onDrop={onDropZona}
-        onClick={() => inputRef.current?.click()}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          hidden
-          onChange={(e) => e.target.files && subir(e.target.files)}
-        />
-        <p className={styles.zonaTexto}>
-          {ocupado ? 'Subiendo…' : 'Arrastra archivos aquí, o haz clic para elegirlos'}
-        </p>
-      </div>
-
-      {error && <p className={styles.error}>{error}</p>}
-
-      <TablaEntradas
-        entradas={entradas}
-        onNavegar={setRutaActual}
-        onRenombrar={renombrarEntrada}
-        onEliminar={eliminarEntrada}
-        carpetaSobrevolada={carpetaSobrevolada}
-        onDropCarpeta={onDropCarpeta}
-        onDragLeave={(ruta) => setCarpetaSobrevolada((c) => (c === ruta ? null : c))}
-        onDragOverCarpeta={(ruta) => setCarpetaSobrevolada(ruta)}
-        onDescargar={descargar}
-        draggable
-      />
-
-      <p className={styles.ayuda}>
-        Puedes arrastrar un archivo o carpeta hacia otra carpeta de la lista para moverlo, o hacia
-        las migas de arriba.
-      </p>
-    </>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Panel R2 (solo lectura)
-// ---------------------------------------------------------------------------
-
-interface PanelR2Props {
-  raiz: string
-  permiteOrganizar?: boolean
-}
-
-function nombreVisible(nombre: string): string {
-  const fechaIso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(nombre)
-  return fechaIso ? `${fechaIso[3]}-${fechaIso[2]}-${fechaIso[1]}` : nombre
-}
-
-function PanelR2({ raiz, permiteOrganizar = false }: PanelR2Props) {
-  const [prefijoActual, setPrefijoActual] = useState(raiz)
-  const [entradas, setEntradas] = useState<EntradaStorage[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [mensaje, setMensaje] = useState<string | null>(null)
-  const [organizando, setOrganizando] = useState(false)
-
-  const refrescar = useCallback(async (prefijo: string) => {
-    setEntradas(null)
-    try {
-      const resultado = await listarR2(prefijo)
-      setEntradas(resultado.entradas)
-      setError(null)
-    } catch {
-      setError(
-        'No se pudo conectar con R2. Verifica que el backend tenga las credenciales R2 en .env.',
-      )
-    }
-  }, [])
-
-  useEffect(() => {
-    refrescar(prefijoActual)
-  }, [prefijoActual, refrescar])
-
-  async function organizar() {
-    setOrganizando(true)
-    setMensaje(null)
-    try {
-      const resultado = await organizarSolicitudesR2()
-      setMensaje(
-        `${resultado.movidas} solicitud(es) reorganizada(s).${resultado.omitidas ? ` ${resultado.omitidas} no pudieron moverse.` : ''}`,
-      )
-      await refrescar(prefijoActual)
-    } catch {
-      setError('No se pudieron organizar las solicitudes existentes.')
-    } finally {
-      setOrganizando(false)
-    }
-  }
-
-  // Migas de pan relativas a la raíz elegida
-  const migas = prefijoActual.split('/').filter(Boolean)
-  const migasRaiz = raiz.split('/').filter(Boolean)
-
-  return (
-    <>
-      <div className={styles.barraSuperior}>
-        <nav className={styles.migas}>
-          {migas.map((nombre, i) => {
-            const ruta = migas.slice(0, i + 1).join('/')
-            const esRaiz = i < migasRaiz.length
-            return (
-              <span key={ruta} className={styles.migaGrupo}>
-                {i > 0 && <span className={styles.migaSeparador}>/</span>}
-                <button
-                  type="button"
-                  onClick={() => !esRaiz && setPrefijoActual(ruta)}
-                  className={cn(i === migas.length - 1 ? styles.migaActiva : !esRaiz && '')}
-                  style={
-                    esRaiz ? { color: 'var(--color-text-faint)', cursor: 'default' } : undefined
-                  }
-                >
-                  {nombre}
-                </button>
-              </span>
-            )
-          })}
-        </nav>
-        {permiteOrganizar ? (
-          <button type="button" className={styles.boton} onClick={organizar} disabled={organizando}>
-            {organizando ? 'Organizando…' : 'Organizar existentes'}
-          </button>
-        ) : (
-          <span style={{ fontSize: 12, color: 'var(--color-text-faint)' }}>Solo lectura</span>
-        )}
-      </div>
-
-      {error && <p className={styles.error}>{error}</p>}
-      {mensaje && <p className={styles.estado}>{mensaje}</p>}
-
-      <TablaEntradas
-        entradas={entradas}
-        onNavegar={setPrefijoActual}
-        onDescargar={descargarR2}
-        draggable={false}
-      />
-    </>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Tabla reutilizable
-// ---------------------------------------------------------------------------
-
-interface TablaEntradasProps {
-  entradas: EntradaStorage[] | null
-  onNavegar: (ruta: string) => void
-  onRenombrar?: (e: EntradaStorage) => void
-  onEliminar?: (e: EntradaStorage) => void
-  carpetaSobrevolada?: string | null
-  onDropCarpeta?: (ev: DragEvent<HTMLTableRowElement>, carpeta: EntradaStorage) => void
-  onDragLeave?: (ruta: string) => void
-  onDragOverCarpeta?: (ruta: string) => void
-  /** Baja el archivo con el token de la sesión. Un `<a href>` no sirve: el
-   * navegador lo sigue por su cuenta y no puede mandar el encabezado. */
-  onDescargar: (ruta: string) => Promise<void>
-  draggable?: boolean
-}
-
-function TablaEntradas({
-  entradas,
-  onNavegar,
-  onRenombrar,
-  onEliminar,
-  carpetaSobrevolada,
-  onDropCarpeta,
-  onDragLeave,
-  onDragOverCarpeta,
-  onDescargar,
-  draggable = false,
-}: TablaEntradasProps) {
-  if (entradas === null) return <p className={styles.estado}>Cargando…</p>
-  if (entradas.length === 0) return <p className={styles.estado}>Esta carpeta está vacía.</p>
-
-  return (
-    <div className={styles.tablaCaja}>
-      <table className={styles.tabla}>
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Tamaño</th>
-            <th>Modificado</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {entradas.map((e) => (
-            <tr
-              key={e.ruta}
-              draggable={draggable}
-              onDragStart={
-                draggable ? (ev) => ev.dataTransfer.setData(TIPO_MOVER, e.ruta) : undefined
-              }
-              onDragOver={
-                e.tipo === 'carpeta' && onDragOverCarpeta
-                  ? (ev) => {
-                      ev.preventDefault()
-                      onDragOverCarpeta(e.ruta)
-                    }
-                  : undefined
-              }
-              onDragLeave={onDragLeave ? () => onDragLeave(e.ruta) : undefined}
-              onDrop={
-                e.tipo === 'carpeta' && onDropCarpeta ? (ev) => onDropCarpeta(ev, e) : undefined
-              }
-              className={cn(carpetaSobrevolada === e.ruta && styles.filaSobrevolada)}
-            >
-              <td className={styles.nombre}>
-                {e.tipo === 'carpeta' ? (
-                  <button
-                    type="button"
-                    className={styles.nombreCarpeta}
-                    onClick={() => onNavegar(e.ruta)}
-                  >
-                    <IconCarpeta className={styles.icono} />
-                    {nombreVisible(e.nombre)}
-                  </button>
-                ) : (
-                  <span className={styles.nombreArchivo}>
-                    <IconArchivoPlano className={styles.icono} />
-                    {e.nombre}
-                  </span>
-                )}
-              </td>
-              <td className={styles.mono}>{formatoTamano(e.tamano_bytes)}</td>
-              <td className={styles.mono}>{e.modificado ? formatDateTimeCL(e.modificado) : '—'}</td>
-              <td className={styles.acciones}>
-                {e.tipo === 'archivo' && (
-                  <button
-                    type="button"
-                    className={styles.boton}
-                    onClick={() => void onDescargar(e.ruta)}
-                  >
-                    Descargar
-                  </button>
-                )}
-                {onRenombrar && (
-                  <button className={styles.boton} onClick={() => onRenombrar(e)}>
-                    Renombrar
-                  </button>
-                )}
-                {onEliminar && (
-                  <button className={styles.botonEliminar} onClick={() => onEliminar(e)}>
-                    Eliminar
-                  </button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Vista principal
-// ---------------------------------------------------------------------------
 
 export function StorageView() {
-  const [pestana, setPestana] = useState<Pestana>('local')
+  const { user } = useAuth()
+  const [espacioId, setEspacioId] = useState<Espacio['id']>('local')
+  const [ruta, setRuta] = useState('')
+  // Sube cuando algo cambió (crear, mover, borrar, permisos): relee árbol y listado.
+  const [version, setVersion] = useState(0)
+  const [permisos, setPermisos] = useState<PermisosAbiertos | null>(null)
+  const [resaltar, setResaltar] = useState<string | null>(null)
+  const temporizador = useRef<number | null>(null)
+  const { avisos, avisar, quitar } = useAvisos()
+  const { favoritos, esFavorito, alternar } = useFavoritos()
+
+  const esAdmin = user?.tipoAcceso === 'admin_general'
+  // Gerencia mira todo, pero no modifica nada.
+  const puedeEscribir = user?.tipoAcceso !== 'gerencia'
+  const espacio = ESPACIOS.find((e) => e.id === espacioId) ?? ESPACIOS[0]
+  const espacioPermisos = ESPACIOS.find((e) => e.id === permisos?.espacioId)
+  const rutaActual = ruta || espacio.raiz
+
+  useEffect(
+    () => () => {
+      if (temporizador.current) window.clearTimeout(temporizador.current)
+    },
+    [],
+  )
+
+  function ir(id: Espacio['id'], nuevaRuta: string, destacar: string | null = null) {
+    setEspacioId(id)
+    setRuta(nuevaRuta)
+    setResaltar(destacar)
+    if (temporizador.current) window.clearTimeout(temporizador.current)
+    if (destacar) temporizador.current = window.setTimeout(() => setResaltar(null), 3800)
+  }
+
+  async function moverDesdeArbol(esp: Espacio, rutas: string[], destino: string) {
+    if (!puede(esp, 'crear', destino)) {
+      avisar('error', 'No se puede mover a esa carpeta.')
+      return
+    }
+    const ops = operaciones(esp)
+    const fallos: string[] = []
+    let movidos = 0
+    for (const r of rutas) {
+      if (r === destino || destino.startsWith(r + '/')) continue
+      if (r.split('/').slice(0, -1).join('/') === destino) continue
+      try {
+        await ops.mover(r, destino)
+        movidos++
+      } catch {
+        fallos.push(r.split('/').pop() ?? r)
+      }
+    }
+    setVersion((v) => v + 1)
+    if (fallos.length) avisar('error', `No se pudo mover: ${fallos.join(', ')}.`)
+    else if (movidos) avisar('ok', `${movidos} elemento(s) movido(s).`)
+  }
 
   return (
     <div>
-      <Header
-        title="Storage"
-        description="Archivos y carpetas guardados en el servidor de AgroFresh."
-      />
+      <header className={styles.hero} style={{ '--acento': espacio.acento } as React.CSSProperties}>
+        <div className={styles.heroTexto}>
+          <h1 className={styles.heroTitulo}>Storage</h1>
+          <p className={styles.heroDescripcion}>{espacio.descripcion}</p>
+        </div>
+        <BusquedaGlobal onAbrir={(id, r, destacar) => ir(id, r, destacar)} />
+      </header>
 
       <Card>
-        <div className={styles.pestanas}>
-          <button
-            type="button"
-            className={cn(styles.pestana, pestana === 'local' && styles.pestanaActiva)}
-            onClick={() => setPestana('local')}
-          >
-            Local
-          </button>
-          <button
-            type="button"
-            className={cn(styles.pestana, pestana === 'accutab' && styles.pestanaActiva)}
-            onClick={() => setPestana('accutab')}
-          >
-            Accutab
-            <span className={styles.badgeR2}>R2</span>
-          </button>
-          <button
-            type="button"
-            className={cn(styles.pestana, pestana === 'solicitudes' && styles.pestanaActiva)}
-            onClick={() => setPestana('solicitudes')}
-          >
-            Solicitudes
-            <span className={styles.badgeR2}>R2</span>
-          </button>
-        </div>
+        <div className={styles.pagina} data-con-panel={permisos && esAdmin ? 'si' : 'no'}>
+          <nav className={styles.lateral} aria-label="Carpetas">
+            {favoritos.length > 0 && (
+              <div className={styles.lateralGrupo}>
+                <p className={styles.lateralTitulo}>★ Favoritos</p>
+                {favoritos.map((f) => {
+                  const esp = ESPACIOS.find((e) => e.id === f.espacio) ?? ESPACIOS[0]
+                  return (
+                    <div key={`${f.espacio}|${f.ruta}`} className={styles.favorito}>
+                      <button type="button" className={styles.favoritoIr} onClick={() => ir(f.espacio, f.ruta)} title={f.ruta}>
+                        <IconoCarpeta color={esp.acento} className={styles.favoritoIcono} />
+                        <span>{f.nombre}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.favoritoQuitar}
+                        aria-label={`Quitar ${f.nombre} de favoritos`}
+                        onClick={() => alternar(f)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {ESPACIOS.map((e) => (
+              <div key={e.id} className={styles.lateralGrupo}>
+                <ArbolCarpetas
+                  espacio={e}
+                  rutaActual={e.id === espacioId ? rutaActual : null}
+                  onNavegar={(r) => ir(e.id, r)}
+                  version={version}
+                  onSoltar={puedeEscribir ? (rutas, destino) => void moverDesdeArbol(e, rutas, destino) : undefined}
+                />
+              </div>
+            ))}
+          </nav>
 
-        {pestana === 'local' && <PanelLocal />}
-        {pestana === 'accutab' && <PanelR2 raiz="accutab/mail" />}
-        {pestana === 'solicitudes' && <PanelR2 raiz="solicitudes" permiteOrganizar />}
+          <Explorador
+            key={`${espacio.id}|${rutaActual}`}
+            espacio={espacio}
+            ruta={rutaActual}
+            onNavegar={(r) => ir(espacio.id, r)}
+            version={version}
+            onCambio={() => setVersion((v) => v + 1)}
+            esAdmin={esAdmin}
+            puedeEscribir={puedeEscribir}
+            onAbrirPermisos={(r) => setPermisos({ espacioId: espacio.id, ruta: r })}
+            esFavorito={esFavorito(espacio.id, rutaActual)}
+            onAlternarFavorito={(r, nombre) => alternar({ espacio: espacio.id, ruta: r, nombre })}
+            avisar={avisar}
+            resaltar={resaltar}
+          />
+
+          {esAdmin && permisos && espacioPermisos && (
+            <PanelPermisos
+              espacio={espacioPermisos}
+              ruta={permisos.ruta}
+              onCerrar={() => setPermisos(null)}
+              onCambio={() => setVersion((v) => v + 1)}
+              onIrA={(id, r) => {
+                ir(id, r)
+                setPermisos({ espacioId: id, ruta: r })
+              }}
+            />
+          )}
+        </div>
       </Card>
+
+      <Avisos avisos={avisos} onQuitar={quitar} />
     </div>
   )
 }

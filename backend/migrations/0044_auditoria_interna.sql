@@ -1,5 +1,5 @@
 -- ----------------------------------------------------------------------------
--- 0039 - Auditoría interna: PDF de los informes de laboratorio
+-- 0044 - Auditoría interna: PDF de los informes de laboratorio
 --
 -- Cuando Converter sube un informe a la base, además guarda el PDF original en
 -- el bucket "auditoria" de R2 (<laboratorio>/<ship to>/<archivo>.pdf) y anota
@@ -17,7 +17,7 @@
 --
 -- Idempotente. Aplicar con:
 --   cd backend
---   .venv\Scripts\python.exe scripts\migrar.py 0039_auditoria_interna.sql
+--   .venv\Scripts\python.exe scripts\migrar.py 0044_auditoria_interna.sql
 -- ----------------------------------------------------------------------------
 
 SET search_path = lab, public;

@@ -9,5 +9,47 @@ export {
   listarR2,
   descargarR2,
   organizarSolicitudesR2,
+  verPermisos,
+  guardarPermisos,
+  resumenPermisos,
+  buscar,
 } from './lib/api'
-export type { EntradaStorage, ListadoStorage, TipoEntradaStorage } from './lib/tipos'
+export type {
+  EntradaStorage,
+  EspacioPermisos,
+  ListadoStorage,
+  PermisoCarpeta,
+  ResumenPermiso,
+  TipoEntradaStorage,
+} from './lib/tipos'
+export {
+  ESPACIOS,
+  TIPO_MOVER,
+  carpetaDe,
+  espacioDeRuta,
+  leerArrastre,
+  partirResaltado,
+  puede,
+  tipoDeArchivo,
+  estaDentro,
+  filtrarEntradas,
+  formatoTamano,
+  migasDe,
+  nombreDe,
+  nombreVisible,
+  ordenarEntradas,
+} from './lib/explorador'
+export type {
+  Arrastre,
+  CampoOrden,
+  Espacio,
+  Miga,
+  Operacion,
+  Orden,
+  TipoArchivo,
+} from './lib/explorador'
+export { operaciones } from './lib/operaciones'
+export { useFavoritos } from './lib/favoritos'
+export type { Favorito } from './lib/favoritos'
+export { useAvisos } from './lib/avisos'
+export type { Aviso } from './lib/avisos'

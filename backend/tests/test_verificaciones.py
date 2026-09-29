@@ -19,6 +19,7 @@ from app.auth import Usuario
 from app.verificaciones import (
     ACEPTABLE,
     NO_ACEPTABLE,
+    REGISTRADO,
     SIN_DATOS,
     SIN_MEDIR,
     _exigir_fecha_editable,
@@ -236,24 +237,42 @@ def test_inyector_sin_responder_no_concluye():
 
 
 def test_detector_todo_en_rango():
-    r = calcular_detector(0.86, "Sí", 20.3, 0, 1, 19, 22)
+    r = calcular_detector(0.86, "ECD_Pes", 20.3, 0, 1)
     assert r["resultado"] == ACEPTABLE
 
 
-def test_detector_con_output_fuera_de_rango():
-    r = calcular_detector(0.86, "Sí", 25, 0, 1, 19, 22)
-    assert r["resultado_output"] == NO_ACEPTABLE
+@pytest.mark.parametrize("output", [25, 10, 20.3, -3])
+def test_el_output_es_solo_registro_y_no_decide(output):
+    """El output se anota pero no se juzga: cualquier valor queda
+    «Registrado» y la sección sale aceptable si voltaje y método lo son."""
+    r = calcular_detector(0.86, "ECD_Pes", output, 0, 1)
+    assert r["resultado_output"] == REGISTRADO
+    assert r["resultado"] == ACEPTABLE
+
+
+def test_sin_output_no_se_registra_nada():
+    assert calcular_detector(0.86, "ECD_Pes", None, 0, 1)["resultado_output"] == SIN_MEDIR
+
+
+def test_el_output_solo_no_aprueba_la_seccion():
+    """Anotar solo el output no basta: sin voltaje ni método, sin medir."""
+    assert calcular_detector(None, "", 20.3, 0, 1)["resultado"] == SIN_MEDIR
+
+
+def test_detector_con_voltaje_fuera_de_rango():
+    r = calcular_detector(1.5, "ECD_Pes", 20.3, 0, 1)
+    assert r["resultado_voltaje"] == NO_ACEPTABLE
     assert r["resultado"] == NO_ACEPTABLE
 
 
-def test_detector_con_metodo_equivocado():
-    r = calcular_detector(0.86, "No", 20.3, 0, 1, 19, 22)
-    assert r["resultado_metodo"] == NO_ACEPTABLE
-    assert r["resultado"] == NO_ACEPTABLE
+def test_cualquier_nombre_de_metodo_es_aceptable():
+    # El método es texto libre: vacío = sin medir, cualquier nombre = aceptable.
+    assert calcular_detector(0.86, "ECD", 20.3, 0, 1)["resultado_metodo"] == ACEPTABLE
+    assert calcular_detector(0.86, "", 20.3, 0, 1)["resultado_metodo"] == SIN_MEDIR
 
 
 def test_detector_vacio_no_concluye():
-    assert calcular_detector(None, "", None, 0, 1, 19, 22)["resultado"] == SIN_MEDIR
+    assert calcular_detector(None, "", None, 0, 1)["resultado"] == SIN_MEDIR
 
 
 # --- Resumen ----------------------------------------------------------------
