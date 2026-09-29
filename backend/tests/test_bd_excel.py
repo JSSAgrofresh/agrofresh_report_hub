@@ -240,3 +240,99 @@ def test_laboratorio_combinado_o_desconocido_usa_el_rotulo_de_los_dos():
     otra = _fila(laboratorio="???", resultados={"FDL": {"valor": 1, "nombre": "F"}})
     assert _banda_fungicidas([combinada]) == "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
     assert _banda_fungicidas([otra]) == "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+
+
+# ── Lo que la base no trae se completa desde la solicitud ────────────────
+
+SOLICITUD_OT = {
+    "numero_solicitud": "OT-ALS0004",
+    "linea_proceso": "1",
+    "numero_camara": "3",
+    "kilos_procesados": 1.0,
+    "producto_utilizado": "FUNGAZIL",
+    "tipo_muestra": "Agua",
+    "nombre_muestreador": "Jorge Sandoval",
+    "generado_por": "Jorge Sandoval",
+    "email_solicitante": "jorge.sandoval@agrofresh.com",
+    "posicion_muestreo": "Pozo Vaciado",
+    "fecha_solicitud": "28-09-2026",
+}
+
+
+def test_se_llena_desde_la_solicitud_lo_que_la_base_no_trae():
+    fila = _fila(nro_solicitud=None, fecha_muestreo=None)
+    bd_excel.completar_fila(fila, SOLICITUD_OT, ["a@lab.cl", "b@lab.cl"])
+    assert fila["nro_solicitud"] == "OT-ALS0004"
+    assert fila["tipo_muestra"] == "Agua"
+    assert fila["nombre_muestreador"] == "Jorge Sandoval"
+    assert fila["generado_por"] == "Jorge Sandoval"
+    assert fila["email_solicitante"] == "jorge.sandoval@agrofresh.com"
+    assert fila["email_laboratorio"] == "a@lab.cl; b@lab.cl"
+    assert str(fila["fecha_solicitud"]) == "2026-09-28"  # texto DD-MM-AAAA -> fecha
+
+
+def test_lo_que_la_base_ya_trae_no_se_pisa():
+    fila = _fila(tipo_muestra="Fruta", lote="L-9")
+    bd_excel.completar_fila(fila, {**SOLICITUD_OT, "lote": "otro"}, None)
+    assert fila["tipo_muestra"] == "Fruta" and fila["lote"] == "L-9"
+
+
+def test_solicitante_es_siempre_agrofresh():
+    fila = _fila(solicitante="Otra persona")
+    bd_excel.completar_fila(fila, None, None)
+    assert fila["solicitante"] == "AGROFRESH"
+
+
+def test_temporada_es_el_anio_de_la_muestra_y_no_pisa_una_existente():
+    import datetime as dt
+
+    fila = _fila(fecha_muestreo=dt.date(2026, 9, 25))
+    bd_excel.completar_fila(fila, None, None)
+    assert fila["temporada"] == 2026
+    fila = _fila(fecha_muestreo=dt.date(2026, 9, 25), temporada="2025")
+    bd_excel.completar_fila(fila, None, None)
+    assert fila["temporada"] == "2025"
+    sin_fecha = _fila()
+    bd_excel.completar_fila(sin_fecha, None, None)
+    assert sin_fecha.get("temporada") is None
+
+
+def test_lo_que_no_hay_en_ningun_lado_queda_vacio_sin_romper():
+    fila = _fila()
+    bd_excel.completar_fila(fila, None, None)
+    assert fila.get("numero_camara") is None and fila.get("kilos_procesados") is None
+    wb = bd_excel.construir_workbook_bd([fila], ANALITOS_DEFECTO)
+    assert wb["BD"].max_row == 3
+
+
+def test_n_orden_ya_no_es_una_columna():
+    columnas, _ = _encabezados(bd_excel.construir_workbook_bd([_fila()], ANALITOS_DEFECTO))
+    assert "N° Orden" not in columnas
+
+
+@pytest.mark.skipif(not hay_base("solicitud_archivo"), reason="sin la tabla del índice de solicitudes (0020)")
+def test_la_descarga_une_con_el_indice_de_solicitudes(datos_bd, cliente_http, monkeypatch):
+    import json
+
+    from app import reportes
+    from app.db import conexion, cursor_dict
+
+    monkeypatch.setattr(reportes, "_correos_de_laboratorio", lambda lab: ["lab1@x.cl", "lab2@x.cl"])
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "INSERT INTO solicitud_archivo (archivo, numero_solicitud, datos) VALUES ('__bd_test.xlsx', 'OT-als', %s)",
+            (json.dumps({**SOLICITUD_OT, "numero_solicitud": "OT-als"}),),
+        )
+    try:
+        r = cliente_http.post("/api/reportes/bd/excel", json={"solicitud_ids": [datos_bd["als"]]})
+        _, columnas, filas = _hoja(r)
+        fila = dict(zip(columnas, filas[0]))
+        assert fila["Tipo Muestra"] == "Agua"
+        assert fila["Nombre Muestreador"] == "Jorge Sandoval"
+        assert fila["Email Solicitante"] == "jorge.sandoval@agrofresh.com"
+        assert fila["Email Laboratorio"] == "lab1@x.cl; lab2@x.cl"
+        assert fila["Solicitante"] == "AGROFRESH"
+        assert fila["Temporada"] == 2026
+    finally:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute("DELETE FROM solicitud_archivo WHERE archivo = '__bd_test.xlsx'")

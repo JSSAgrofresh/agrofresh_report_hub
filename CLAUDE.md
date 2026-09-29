@@ -331,6 +331,14 @@ tocas una, toca la otra.
   `ALIAS_CODIGO` une los códigos de la ingesta con los del catálogo de Toma de
   muestras (ECOLI/ECOLI100, HONG/HONGOS…); un analito sin columna cae en
   «Otros analitos», nunca se pierde.
+  **Se completa con la solicitud de Toma de muestras** (`completar_fila`): la base
+  no trae muestreador, tipo de muestra, línea, cámara, kilos, producto, email del
+  solicitante, etc. Se unen por el N° de OT (`solicitud.referencia` =
+  `solicitud_archivo.numero_solicitud`) y solo se rellena lo que la base dejó
+  vacío. Reglas del laboratorio: **Solicitante = AGROFRESH siempre**, Temporada =
+  año de la muestra, Email Laboratorio = contactos del laboratorio (Para y CC)
+  separados por «;», y **N° Orden ya no existe**. Lo que no está en ningún lado
+  queda vacío. Sin la tabla del índice (0020) la descarga sigue funcionando.
   La banda de fungicidas nombra solo los laboratorios presentes (`titulo_fungicidas`):
   «QUITECA — ANÁLISIS DE RESIDUOS DE FUNGICIDAS», o «QUITECA / AGROFRESH — …» si están los dos.
 
