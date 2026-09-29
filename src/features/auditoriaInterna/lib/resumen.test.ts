@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { demoraDias, estadoDe, ordenarSolicitudes, porSemana, solicitudesACsv, topClientes, totales } from './resumen'
+import {
+  estadoDe,
+  ordenarSolicitudes,
+  porClienteYServicio,
+  porLaboratorio,
+  solicitudesACsv,
+  tipoServicioDe,
+  topClientesPorServicio,
+  totales,
+} from './resumen'
 import type { SolicitudAuditoria } from './tipos'
 
 function sol(extra: Partial<SolicitudAuditoria> = {}): SolicitudAuditoria {
@@ -10,6 +19,9 @@ function sol(extra: Partial<SolicitudAuditoria> = {}): SolicitudAuditoria {
     sold_to: 'Dole',
     ship_to: 'Codegua',
     especie: 'Cerezas',
+    variedad: null,
+    tipo_servicio: 'Actimist',
+    analitos: ['FDL', 'PYR'],
     fecha_solicitud: null,
     fecha_muestreo: null,
     emitida_en: '2026-09-28T10:00:00',
@@ -20,154 +32,154 @@ function sol(extra: Partial<SolicitudAuditoria> = {}): SolicitudAuditoria {
   }
 }
 
-const informe = { id: 1, nro_informe: 'X', nombre_archivo: 'x.pdf', ruta: 'Q/C/x.pdf', cargado_en: null, fecha_envio: null }
+const informe = { id: 1, nro_informe: 'INF-7', nombre_archivo: 'x.pdf', ruta: 'Q/C/x.pdf', cargado_en: null, fecha_envio: null }
+const concretada = () => sol({ informe, en_report: true, concretada: true })
+const sinReport = () => sol({ informe })
 
 describe('estadoDe', () => {
-  it('concretada exige PDF y Report', () => {
-    expect(estadoDe(sol({ informe, en_report: true, concretada: true }))).toBe('concretada')
-  })
-  it('con PDF pero sin Report NO está concretada', () => {
-    expect(estadoDe(sol({ informe, en_report: false }))).toBe('sin_report')
-  })
-  it('sin PDF está pendiente', () => {
-    expect(estadoDe(sol())).toBe('pendiente')
-  })
+  it('concretada exige PDF y Report', () => expect(estadoDe(concretada())).toBe('concretada'))
+  it('con PDF pero sin Report NO está concretada', () => expect(estadoDe(sinReport())).toBe('sin_report'))
+  it('sin PDF está pendiente', () => expect(estadoDe(sol())).toBe('pendiente'))
 })
 
 describe('totales', () => {
   it('cuenta cada estado y el porcentaje', () => {
-    const t = totales([
-      sol({ informe, en_report: true, concretada: true }),
-      sol({ informe }),
-      sol(),
-      sol(),
-    ])
-    expect(t).toMatchObject({ emitidas: 4, concretadas: 1, sinReport: 1, pendientes: 2, porcentajeConcretado: 25 })
+    expect(totales([concretada(), sinReport(), sol(), sol()])).toEqual({
+      emitidas: 4, concretadas: 1, sinReport: 1, pendientes: 2, porcentajeConcretado: 25,
+    })
   })
-  it('sin solicitudes no divide por cero', () => {
-    expect(totales([]).porcentajeConcretado).toBe(0)
+  it('sin solicitudes no divide por cero', () => expect(totales([]).porcentajeConcretado).toBe(0))
+})
+
+describe('porLaboratorio', () => {
+  it('un resumen por laboratorio, en orden alfabético', () => {
+    const r = porLaboratorio([
+      sol({ laboratorio: 'Quiteca' }), concretada(), sol({ laboratorio: 'Diagnofruit' }),
+      sol({ laboratorio: 'Diagnofruit', ...{ informe, en_report: true, concretada: true } }),
+    ])
+    expect(r.map((x) => [x.laboratorio, x.emitidas, x.concretadas])).toEqual([
+      ['Diagnofruit', 2, 1], ['Quiteca', 2, 1],
+    ])
+    expect(r[0].porcentajeConcretado).toBe(50)
+  })
+  it('los estados suman el total de cada laboratorio', () => {
+    const r = porLaboratorio([concretada(), sinReport(), sol(), sol()])[0]
+    expect(r.concretadas + r.sinReport + r.pendientes).toBe(r.emitidas)
+  })
+  it('sin laboratorio se agrupa aparte', () => {
+    expect(porLaboratorio([sol({ laboratorio: null }), sol({ laboratorio: '  ' })])).toHaveLength(1)
+    expect(porLaboratorio([sol({ laboratorio: null })])[0].laboratorio).toBe('Sin laboratorio')
+  })
+  it('sin datos, nada', () => expect(porLaboratorio([])).toEqual([]))
+})
+
+describe('tipoServicioDe', () => {
+  it('unifica las escrituras', () => {
+    expect(tipoServicioDe(sol({ tipo_servicio: 'ACTIMIST' }))).toBe('Actimist')
+    expect(tipoServicioDe(sol({ tipo_servicio: 'Linea de Proceso' }))).toBe('Línea de proceso')
+    expect(tipoServicioDe(sol({ tipo_servicio: 'línea de proceso' }))).toBe('Línea de proceso')
+  })
+  it('sin tipo o con uno nuevo', () => {
+    expect(tipoServicioDe(sol({ tipo_servicio: null }))).toBe('Sin tipo')
+    expect(tipoServicioDe(sol({ tipo_servicio: '  Cámara fría ' }))).toBe('Cámara fría')
   })
 })
 
-describe('porSemana', () => {
-  it('agrupa de lunes a domingo', () => {
-    // 2026-09-28 es lunes; 2026-10-04 es domingo de la misma semana.
-    const p = porSemana([
-      sol({ emitida_en: '2026-09-28T00:10:00' }),
-      sol({ emitida_en: '2026-10-04T23:50:00' }),
-      sol({ emitida_en: '2026-10-05T08:00:00' }),
+describe('porClienteYServicio', () => {
+  it('cuenta análisis e informes por cliente y tipo', () => {
+    const r = porClienteYServicio([
+      sol({ sold_to: 'Dole', tipo_servicio: 'Actimist', informe, en_report: true, concretada: true }),
+      sol({ sold_to: 'Dole', tipo_servicio: 'Actimist' }),
+      sol({ sold_to: 'Dole', tipo_servicio: 'Línea de proceso' }),
+      sol({ sold_to: 'Agricom', tipo_servicio: 'Línea de proceso', informe, en_report: true, concretada: true }),
     ])
-    expect(p.map((x) => [x.inicio, x.emitidas])).toEqual([
-      ['2026-09-28', 2],
-      ['2026-10-05', 1],
-    ])
+    expect(r[0]).toEqual({
+      cliente: 'Dole', total: 3,
+      tipos: { Actimist: { analisis: 2, informes: 1 }, 'Línea de proceso': { analisis: 1, informes: 0 } },
+    })
+    expect(r[1].tipos).toEqual({ 'Línea de proceso': { analisis: 1, informes: 1 } })
   })
-  it('rellena con cero las semanas sin solicitudes', () => {
-    const p = porSemana([sol({ emitida_en: '2026-09-07T10:00:00' }), sol({ emitida_en: '2026-09-28T10:00:00' })])
-    expect(p.map((x) => x.emitidas)).toEqual([1, 0, 0, 1])
+  it('un PDF sin Report NO cuenta como informe', () => {
+    expect(porClienteYServicio([sinReport()])[0].tipos.Actimist).toEqual({ analisis: 1, informes: 0 })
   })
-  it('cuenta las concretadas dentro de la semana de emisión', () => {
-    const p = porSemana([
-      sol({ concretada: true, informe, en_report: true }),
-      sol(),
-    ])
-    expect(p[0]).toMatchObject({ emitidas: 2, concretadas: 1, sinReport: 0, pendientes: 1 })
-  })
-  it('etiqueta con la semana ISO', () => {
-    expect(porSemana([sol({ emitida_en: '2026-09-28T10:00:00' })])[0].etiqueta).toBe('S40 · 28 sep')
-  })
-  it('usa fecha_solicitud si no hay marca de emisión, y omite las que no tienen ninguna', () => {
-    const p = porSemana([sol({ emitida_en: null, fecha_solicitud: '2026-09-29' }), sol({ emitida_en: null })])
-    expect(p).toHaveLength(1)
-    expect(p[0].emitidas).toBe(1)
-  })
-  it('se queda con las últimas semanas pedidas', () => {
-    const p = porSemana(
-      [sol({ emitida_en: '2026-01-05T10:00:00' }), sol({ emitida_en: '2026-09-28T10:00:00' })],
-      4,
-    )
-    expect(p).toHaveLength(4)
-    expect(p[3].inicio).toBe('2026-09-28')
-  })
-  it('sin datos, no hay semanas', () => {
-    expect(porSemana([])).toEqual([])
+  it('más solicitudes primero, y sin cliente aparte', () => {
+    const r = porClienteYServicio([sol({ sold_to: 'A' }), sol({ sold_to: 'B' }), sol({ sold_to: 'B' }), sol({ sold_to: null })])
+    expect(r.map((c) => c.cliente)).toEqual(['B', 'A', 'Sin cliente'])
   })
 })
 
-describe('topClientes', () => {
-  it('ordena por solicitudes y corta en n', () => {
-    const t = topClientes(
-      [sol({ sold_to: 'A' }), sol({ sold_to: 'B' }), sol({ sold_to: 'B' }), sol({ sold_to: 'C' })],
-      2,
-    )
-    expect(t.map((c) => [c.cliente, c.solicitudes])).toEqual([['B', 2], ['A', 1]])
-  })
-  it('agrupa sin cliente y cuenta concretadas', () => {
-    const t = topClientes([sol({ sold_to: null, concretada: true }), sol({ sold_to: '  ' })])
-    expect(t).toEqual([{ cliente: 'Sin cliente', solicitudes: 2, concretadas: 1, sinReport: 0, pendientes: 1 }])
-  })
-})
+describe('topClientesPorServicio', () => {
+  const lista = [
+    sol({ sold_to: 'A', tipo_servicio: 'Actimist' }),
+    sol({ sold_to: 'A', tipo_servicio: 'Actimist' }),
+    sol({ sold_to: 'B', tipo_servicio: 'Línea de proceso' }),
+    sol({ sold_to: 'B', tipo_servicio: 'Línea de proceso' }),
+    sol({ sold_to: 'B', tipo_servicio: 'Línea de proceso' }),
+    sol({ sold_to: 'C', tipo_servicio: 'Actimist' }),
+  ]
+  const nombres = (l: ReturnType<typeof topClientesPorServicio>) => l.map((c) => c.cliente)
 
-describe('los tres estados suman el total', () => {
-  it('por semana y por cliente', () => {
-    const lista = [sol({ concretada: true, informe, en_report: true }), sol({ informe }), sol(), sol()]
-    const w = porSemana(lista)[0]
-    expect(w.concretadas + w.sinReport + w.pendientes).toBe(w.emitidas)
-    const c = topClientes(lista)[0]
-    expect([c.concretadas, c.sinReport, c.pendientes]).toEqual([1, 1, 2])
-    expect(c.concretadas + c.sinReport + c.pendientes).toBe(c.solicitudes)
+  it('con ambos tipos ordena por la suma', () => {
+    expect(nombres(topClientesPorServicio(lista, ['Actimist', 'Línea de proceso'], 0))).toEqual(['B', 'A', 'C'])
   })
-})
-
-describe('demoraDias', () => {
-  const con = (cargado: string | null, emitida: string | null = '2026-09-28T10:00:00') =>
-    sol({ emitida_en: emitida, informe: cargado ? { ...informe, cargado_en: cargado } : null })
-
-  it('cuenta días entre emisión y carga', () => {
-    expect(demoraDias(con('2026-10-01T09:00:00'))).toBe(3)
+  it('con un solo tipo, solo los que lo tienen y ordenados por él', () => {
+    expect(nombres(topClientesPorServicio(lista, ['Actimist'], 0))).toEqual(['A', 'C'])
+    expect(nombres(topClientesPorServicio(lista, ['Línea de proceso'], 0))).toEqual(['B'])
   })
-  it('sin informe o sin fechas es null', () => {
-    expect(demoraDias(con(null))).toBeNull()
-    expect(demoraDias(con('2026-10-01T09:00:00', null))).toBeNull()
-  })
-  it('nunca es negativa', () => {
-    expect(demoraDias(con('2026-09-20T09:00:00'))).toBe(0)
-  })
-  it('el promedio de totales ignora las que no tienen informe', () => {
-    const t = totales([con('2026-09-30T00:00:00'), con('2026-10-02T00:00:00'), con(null)])
-    expect(t.demoraPromedioDias).toBe(3)
-    expect(totales([con(null)]).demoraPromedioDias).toBeNull()
+  it('respeta el límite (0 = todos)', () => {
+    expect(topClientesPorServicio(lista, ['Actimist', 'Línea de proceso'], 2)).toHaveLength(2)
+    expect(topClientesPorServicio(lista, ['Actimist', 'Línea de proceso'], 0)).toHaveLength(3)
   })
 })
 
 describe('ordenarSolicitudes', () => {
-  const a = sol({ numero_solicitud: 'OT-2', emitida_en: '2026-09-02T00:00:00' })
-  const b = sol({ numero_solicitud: 'OT-10', emitida_en: '2026-09-01T00:00:00' })
-  const vacia = sol({ numero_solicitud: null, emitida_en: null })
+  const a = sol({ numero_solicitud: 'OT-2' })
+  const b = sol({ numero_solicitud: 'OT-10' })
+  const vacia = sol({ numero_solicitud: null })
 
-  it('ordena números de OT de forma natural (OT-2 antes que OT-10)', () => {
-    expect(ordenarSolicitudes([b, a], 'numero', 'asc').map((s) => s.numero_solicitud)).toEqual(['OT-2', 'OT-10'])
+  it('ordena las OT de forma natural (OT-2 antes que OT-10)', () => {
+    expect(ordenarSolicitudes([b, a], 'solicitud', 'asc').map((s) => s.numero_solicitud)).toEqual(['OT-2', 'OT-10'])
   })
   it('los vacíos van al final en ambos sentidos', () => {
-    expect(ordenarSolicitudes([vacia, a, b], 'numero', 'asc').at(-1)).toBe(vacia)
-    expect(ordenarSolicitudes([vacia, a, b], 'numero', 'desc').at(-1)).toBe(vacia)
+    expect(ordenarSolicitudes([vacia, a, b], 'solicitud', 'asc').at(-1)).toBe(vacia)
+    expect(ordenarSolicitudes([vacia, a, b], 'solicitud', 'desc').at(-1)).toBe(vacia)
+  })
+  it('por informe: los que no tienen quedan al final', () => {
+    const con = concretada()
+    expect(ordenarSolicitudes([sol(), con], 'informe', 'asc')[0]).toBe(con)
+    expect(ordenarSolicitudes([sol(), con], 'informe', 'desc')[0]).toBe(con)
+  })
+  it('por estado: concretadas primero', () => {
+    const c = concretada()
+    expect(ordenarSolicitudes([sol(), c], 'estado', 'asc')[0]).toBe(c)
+  })
+  it('el orden de partida es por fecha de emisión', () => {
+    const vieja = sol({ emitida_en: '2026-09-01T00:00:00' })
+    const nueva = sol({ emitida_en: '2026-09-20T00:00:00' })
+    expect(ordenarSolicitudes([vieja, nueva], 'emitida', 'desc')[0]).toBe(nueva)
   })
   it('no muta la lista original', () => {
     const lista = [b, a]
-    ordenarSolicitudes(lista, 'emitida', 'asc')
+    ordenarSolicitudes(lista, 'solicitud', 'asc')
     expect(lista[0]).toBe(b)
-  })
-  it('por estado: concretadas primero', () => {
-    const c = sol({ informe, en_report: true, concretada: true })
-    expect(ordenarSolicitudes([sol(), c], 'estado', 'asc')[0]).toBe(c)
   })
 })
 
 describe('solicitudesACsv', () => {
-  it('trae BOM, separador ; y escapa comillas y separadores', () => {
-    const csv = solicitudesACsv([sol({ sold_to: 'Dole; "Chile"' })])
-    expect(csv.startsWith('\uFEFFSolicitud;Laboratorio')).toBe(true)
-    expect(csv).toContain('"Dole; ""Chile"""')
-    expect(csv.split('\r\n')).toHaveLength(2)
+  it('trae BOM, separador ; y las columnas de la tabla', () => {
+    const csv = solicitudesACsv([concretada()])
+    const [cab, fila] = csv.split('\r\n')
+    expect(cab.startsWith('﻿Laboratorio;Solicitud;N° informe;Cliente;Planta;Tipo de análisis;Analitos;Estado')).toBe(true)
+    expect(fila).toContain('Quiteca;OT-1;INF-7;Dole;Codegua;Actimist;FDL, PYR;Concretada')
+  })
+  it('el estado es concretada o no; el PDF sin Report se aclara', () => {
+    expect(solicitudesACsv([sol()])).toContain(';Pendiente;')
+    expect(solicitudesACsv([sinReport()])).toContain(';Pendiente (PDF sin Report);')
+  })
+  it('escapa comillas y separadores', () => {
+    expect(solicitudesACsv([sol({ sold_to: 'Dole; "Chile"' })])).toContain('"Dole; ""Chile"""')
+  })
+  it('no queda nada de demora', () => {
+    expect(solicitudesACsv([sol()]).toLowerCase()).not.toContain('demora')
   })
 })

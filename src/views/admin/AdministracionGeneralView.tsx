@@ -7,27 +7,28 @@ import { esAdminGeneral } from '@/features/usuarios'
 import {
   ETIQUETA_CAMPO,
   ORDEN_CAMPOS,
-  fechaHora,
   filtrarCorrecciones,
   listarCorrecciones,
   olvidarCorreccion,
   resumirCorrecciones,
-} from '@/features/auditoriaInterna'
-import type { CampoCorreccion, CorreccionConverter } from '@/features/auditoriaInterna'
-import { Indicador } from './AvanceInformes'
-import { IconoActualizar, IconoAlerta, IconoBuscar, IconoCerrar, IconoPapelera } from './iconos'
-import { Modal } from './Modal'
-import styles from './CorreccionesView.module.css'
+} from '@/features/correcciones'
+import type { CampoCorreccion, CorreccionConverter } from '@/features/correcciones'
+import { Indicador } from '@/components/ui/Indicador'
+import { IconoActualizar, IconoAlerta, IconoBuscar, IconoCerrar, IconoPapelera } from '@/components/ui/iconosAccion'
+import { Modal } from '@/components/ui/Modal'
+import { fechaHora } from '@/lib/fechaHoraChile'
+import styles from './AdministracionGeneralView.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
 /**
- * Historial de correcciones del Converter: cada vez que alguien elige a mano el
- * valor oficial de un Sold To, Ship To, Especie o Variedad, el sistema lo
- * recuerda y lo aplica solo la próxima vez. Acá se ve qué aprendió, de quién y
- * cuántas veces lo usó. Si aprendió algo mal, el admin general lo olvida.
+ * Administración General: lo que solo ve y toca el admin general. Por ahora
+ * trae el historial de correcciones del Converter: cada vez que alguien elige a
+ * mano el valor oficial de un Sold To, Ship To, Especie o Variedad, el sistema
+ * lo recuerda y lo aplica solo la próxima vez. Acá se ve qué aprendió, de quién
+ * y cuántas veces lo usó, y se olvida lo que haya aprendido mal.
  */
-export function CorreccionesView() {
+export function AdministracionGeneralView() {
   const { user } = useAuth()
   const puedeEditar = user ? esAdminGeneral(user) : false
 
@@ -81,8 +82,8 @@ export function CorreccionesView() {
   return (
     <div className={styles.pagina}>
       <Header
-        title="Historial de correcciones"
-        description="Lo que el Converter aprendió cada vez que alguien corrigió a mano un Sold To, Ship To, especie o variedad. Si el mismo texto vuelve a llegar, se corrige solo."
+        title="Administración General"
+        description="Historial de correcciones del Converter: lo que aprendió cada vez que alguien corrigió a mano un Sold To, Ship To, especie o variedad. Si el mismo texto vuelve a llegar, se corrige solo."
         acciones={
           <Button variant="secondary" onClick={() => { setCargando(true); setRecarga((n) => n + 1) }} disabled={cargando} className={styles.boton}>
             <IconoActualizar width={16} height={16} className={cargando ? styles.girando : undefined} />

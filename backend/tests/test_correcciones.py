@@ -65,8 +65,12 @@ class TestEntradas:
 
 
 class TestPermisos:
-    def test_el_historial_es_de_auditoria(self, como):
-        como(cuenta("admin_area", ["reports"]))
+    def test_el_historial_es_solo_del_admin_general(self, como):
+        # es el módulo Administración General: ni siquiera quien tiene
+        # Auditoría interna asignada lo ve
+        como(cuenta("admin_area", ["auditoria_interna"]))
+        assert cliente.get("/api/correcciones").status_code == 403
+        como(cuenta("gerencia"))
         assert cliente.get("/api/correcciones").status_code == 403
 
     def test_olvidar_es_solo_del_admin_general(self, como):

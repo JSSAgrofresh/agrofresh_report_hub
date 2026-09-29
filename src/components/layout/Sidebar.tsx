@@ -21,6 +21,7 @@ import {
   IconDataCore,
   IconDatabase,
   IconEmitir,
+  IconAdminGeneral,
   IconAuditoria,
   IconFrasco,
   IconIngest,
@@ -413,6 +414,15 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                   <path d="M8.5 17a1.5 1.5 0 0 0 3 0"/>
                 </svg>
                 <span className={styles.etiqueta}>Notificaciones</span>
+              </NavLink>
+              <NavLink
+                to={ROUTES.adminAdministracionGeneral}
+                title="Administración General"
+                onClick={onCerrar}
+                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                <IconAdminGeneral className={styles.navIcono} />
+                <span className={styles.etiqueta}>Administración General</span>
               </NavLink>
               <NavLink
                 to={ROUTES.tomaMuestrasConfig}

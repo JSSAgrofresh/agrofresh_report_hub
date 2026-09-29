@@ -17,6 +17,11 @@ export interface SolicitudAuditoria {
   sold_to: string | null
   ship_to: string | null
   especie: string | null
+  variedad: string | null
+  /** Actimist o Línea de proceso (el «Tipo Aplicación» de la solicitud) */
+  tipo_servicio: string | null
+  /** códigos de los analitos que se pidieron (ej. FDL, PYR) */
+  analitos: string[]
   fecha_solicitud: string | null
   fecha_muestreo: string | null
   /** cuándo se emitió la solicitud en el sistema (ISO) */

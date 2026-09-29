@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fechaHora, formatoTamano, paraInputFechaHora, soloFecha } from './formato'
+import { fechaHora, formatoTamano, paraInputFechaHora, soloFecha } from './fechaHoraChile'
 
 describe('formato de fechas (hora de Chile)', () => {
   it('sin fecha, guion', () => {

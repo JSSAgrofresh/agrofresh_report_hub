@@ -1,21 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useAuth } from '@/features/auth'
 import { esAdminGeneral } from '@/features/usuarios'
 import {
+  descargarZipInformes,
   eliminarArchivo,
   eliminarCarpeta,
-  fechaHora,
-  formatoTamano,
   listarCarpeta,
   renombrarArchivo,
   rutaPdfArchivo,
 } from '@/features/auditoriaInterna'
 import type { ArchivoEntrada, ContenidoCarpeta } from '@/features/auditoriaInterna'
 import { httpClient } from '@/services/http/client'
-import { descargarArchivo } from '@/services/http/descargar'
+import { fechaHora, formatoTamano } from '@/lib/fechaHoraChile'
+import { descargarArchivo, guardarBlob } from '@/services/http/descargar'
 import {
   IconoAlerta,
   IconoBuscar,
@@ -27,8 +27,8 @@ import {
   IconoOjo,
   IconoPapelera,
   IconoPdf,
-} from './iconos'
-import { Modal } from './Modal'
+} from '@/components/ui/iconosAccion'
+import { Modal } from '@/components/ui/Modal'
 import styles from './CarpetasView.module.css'
 
 type Accion =
@@ -170,6 +170,10 @@ export function CarpetasView() {
   const [recarga, setRecarga] = useState(0)
   const [filtro, setFiltro] = useState('')
   const [accion, setAccion] = useState<Accion | null>(null)
+  // Los informes marcados para descargar juntos (por su ruta). Se vacía al
+  // cambiar de carpeta o de contenido: una marca vieja no debe bajar lo que ya no se ve.
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
+  const [preparandoZip, setPreparandoZip] = useState(false)
 
   useEffect(() => {
     let cancelado = false
@@ -194,12 +198,14 @@ export function CarpetasView() {
 
   function ir(nueva: string) {
     setCargando(true)
+    setSeleccion(new Set())
     setFiltro('')
     setRuta(nueva)
   }
 
   function recargar() {
     setAccion(null)
+    setSeleccion(new Set())
     setCargando(true)
     setRecarga((n) => n + 1)
   }
@@ -211,6 +217,40 @@ export function CarpetasView() {
     () => (contenido?.archivos ?? []).filter((a) => !q || [a.nombre, a.numero_solicitud, a.nro_informe].some((v) => (v ?? '').toLowerCase().includes(q))),
     [contenido, q],
   )
+  const rutasVisibles = archivos.map((a) => a.ruta)
+  const marcadosVisibles = rutasVisibles.filter((r) => seleccion.has(r))
+  const todosMarcados = rutasVisibles.length > 0 && marcadosVisibles.length === rutasVisibles.length
+  const cabeceraRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    // el «estado intermedio» del casillero de la cabecera solo se fija por código
+    if (cabeceraRef.current) cabeceraRef.current.indeterminate = marcadosVisibles.length > 0 && !todosMarcados
+  }, [marcadosVisibles.length, todosMarcados])
+
+  function alternar(ruta: string) {
+    setSeleccion((prev) => {
+      const s = new Set(prev)
+      if (s.has(ruta)) s.delete(ruta)
+      else s.add(ruta)
+      return s
+    })
+  }
+
+  async function descargarZip() {
+    // con marcados, esos; sin marcados, todos los de la carpeta que se ven
+    const rutas = marcadosVisibles.length > 0 ? marcadosVisibles : rutasVisibles
+    if (rutas.length === 0) return
+    setPreparandoZip(true)
+    try {
+      const { blob, nombre } = await descargarZipInformes(rutas, migas.at(-1) ?? 'auditoria')
+      guardarBlob(blob, nombre ?? 'informes_auditoria.zip')
+      setError(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo preparar el zip.')
+    } finally {
+      setPreparandoZip(false)
+    }
+  }
+
   const vacia = contenido && contenido.carpetas.length === 0 && contenido.archivos.length === 0
   const sinResultados = contenido && !vacia && carpetas.length === 0 && archivos.length === 0
 
@@ -313,10 +353,36 @@ export function CarpetasView() {
 
           {archivos.length > 0 && (
             <section className={styles.tablaCard} aria-label="Informes de esta carpeta">
+              <div className={styles.barraSeleccion}>
+                <span className={styles.resumenSeleccion}>
+                  {marcadosVisibles.length > 0
+                    ? <><b>{marcadosVisibles.length}</b> de {archivos.length} seleccionados</>
+                    : <>{archivos.length} {archivos.length === 1 ? 'informe' : 'informes'} en esta carpeta</>}
+                </span>
+                <div className={styles.accionesSeleccion}>
+                  {marcadosVisibles.length > 0 && (
+                    <button type="button" className={styles.enlace} onClick={() => setSeleccion(new Set())}>Quitar selección</button>
+                  )}
+                  {!todosMarcados && (
+                    <button type="button" className={styles.enlace} onClick={() => setSeleccion(new Set(rutasVisibles))}>Seleccionar todos</button>
+                  )}
+                  <Button onClick={() => void descargarZip()} disabled={preparandoZip} className={styles.botonZip}>
+                    <IconoDescargar width={16} height={16} />
+                    {preparandoZip
+                      ? 'Preparando zip…'
+                      : marcadosVisibles.length > 0
+                        ? `Descargar seleccionados (${marcadosVisibles.length})`
+                        : `Descargar todos (${archivos.length})`}
+                  </Button>
+                </div>
+              </div>
               <div className={styles.tablaScroll}>
                 <table className={styles.tabla}>
                   <thead>
                     <tr>
+                      <th className={styles.colCheck}>
+                        <input ref={cabeceraRef} type="checkbox" checked={todosMarcados} aria-label="Seleccionar todos los informes de la carpeta" onChange={() => setSeleccion(todosMarcados ? new Set() : new Set(rutasVisibles))} />
+                      </th>
                       <th>Informe</th>
                       <th>Solicitud</th>
                       <th>N° informe</th>
@@ -327,7 +393,10 @@ export function CarpetasView() {
                   </thead>
                   <tbody>
                     {archivos.map((a) => (
-                      <tr key={a.ruta}>
+                      <tr key={a.ruta} className={seleccion.has(a.ruta) ? styles.filaMarcada : undefined}>
+                        <td className={styles.colCheck}>
+                          <input type="checkbox" checked={seleccion.has(a.ruta)} aria-label={`Seleccionar ${a.nombre}`} onChange={() => alternar(a.ruta)} />
+                        </td>
                         <td>
                           <button type="button" className={styles.nombreArchivo} onClick={() => setAccion({ tipo: 'ver', archivo: a })} title="Ver el PDF">
                             <IconoPdf width={20} height={20} />
