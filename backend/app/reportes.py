@@ -266,7 +266,7 @@ def _texto_seguro_excel(texto: str | None) -> str | None:
 def _completar_con_solicitudes(cur, filas: list[dict[str, Any]], correos_laboratorio) -> None:
     """Une cada fila con la solicitud de Toma de muestras que la originó (por su
     N° de OT) y llena lo que la base no trae: muestreador, tipo de muestra, etc."""
-    from .bd_excel import completar_fila
+    from .bd_excel import buscar_por_parecido, completar_fila
 
     claves = {str(v).strip().upper() for f in filas for v in (f.get("nro_solicitud"), f.get("nro_informe")) if v}
     por_ot: dict[str, dict] = {}
@@ -281,12 +281,31 @@ def _completar_con_solicitudes(cur, filas: list[dict[str, Any]], correos_laborat
                 por_ot[r["ot"]] = r["datos"]  # ante un repetido queda la más reciente
         except psycopg2.errors.UndefinedTable:
             cur.connection.rollback()  # sin la tabla del índice: se sigue sin solicitudes
-    correos: dict[str, list[str]] = {}
-    for f in filas:
-        datos = next(
+    enlazadas = [
+        next(
             (por_ot[str(v).strip().upper()] for v in (f.get("nro_solicitud"), f.get("nro_informe")) if v and str(v).strip().upper() in por_ot),
             None,
         )
+        for f in filas
+    ]
+    # Los resultados que llegaron sin OT (Quiteca no lo trae) se buscan por
+    # parecido, y solo se aceptan si la coincidencia es única.
+    fechas = sorted({f["fecha_muestreo"] for f, d in zip(filas, enlazadas) if d is None and f.get("fecha_muestreo")})
+    candidatos: list[dict] = []
+    if fechas:
+        try:
+            cur.execute(
+                "SELECT numero_solicitud, laboratorio, ship_to, especie, fecha_muestreo, datos"
+                " FROM solicitud_archivo WHERE fecha_muestreo = ANY(%(fechas)s)",
+                {"fechas": fechas},
+            )
+            candidatos = [dict(r) for r in cur.fetchall()]
+        except psycopg2.errors.UndefinedTable:
+            cur.connection.rollback()
+    correos: dict[str, list[str]] = {}
+    for f, datos in zip(filas, enlazadas):
+        if datos is None and candidatos:
+            datos = buscar_por_parecido(f, candidatos)
         lab = str(f.get("laboratorio") or "")
         if correos_laboratorio and lab not in correos:
             correos[lab] = correos_laboratorio(lab)
