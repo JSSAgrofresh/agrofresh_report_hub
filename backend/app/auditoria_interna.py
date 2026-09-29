@@ -58,8 +58,7 @@ def _exigir_r2() -> None:
     if not r2a.disponible():
         raise HTTPException(
             503,
-            "El bucket de auditoría no está configurado en el servidor "
-            "(R2_AUDITORIA_BUCKET y las llaves de R2 en el .env del backend).",
+            "R2 no está configurado en el servidor: faltan las llaves de R2 en el .env del backend.",
         )
 
 
@@ -75,7 +74,7 @@ def errores_r2():
         yield
     except ClientError as exc:
         codigo = str(exc.response.get("Error", {}).get("Code", ""))
-        bucket = r2a.config.R2_AUDITORIA_BUCKET
+        bucket = r2a.config.R2_AUDITORIA_BUCKET + (f"/{r2a.config.R2_AUDITORIA_PREFIJO}" if r2a.config.R2_AUDITORIA_PREFIJO else "")
         logger.exception("R2 (auditoría) respondió %s", codigo)
         if codigo in ("403", "AccessDenied", "Forbidden", "InvalidAccessKeyId", "SignatureDoesNotMatch"):
             detalle = (

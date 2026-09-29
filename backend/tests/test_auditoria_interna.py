@@ -223,3 +223,111 @@ class TestErroresDeR2:
             files={"archivo": ("x.pdf", b"%PDF-1.4", "application/pdf")},
         )
         assert r.status_code == 502 and "token de R2" in r.json()["detail"]
+
+
+class _R2Falso:
+    """Un bucket en memoria con la parte de boto3 que usa r2_auditoria."""
+
+    def __init__(self):
+        self.objs: dict[str, bytes] = {}
+
+    def put_object(self, Bucket, Key, Body, ContentType=None):
+        self.objs[Key] = Body
+
+    def get_object(self, Bucket, Key):
+        import io
+        from botocore.exceptions import ClientError
+        if Key not in self.objs:
+            raise ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
+        return {"Body": io.BytesIO(self.objs[Key])}
+
+    def head_object(self, Bucket, Key):
+        from botocore.exceptions import ClientError
+        if Key not in self.objs:
+            raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
+
+    def delete_object(self, Bucket, Key):
+        self.objs.pop(Key, None)
+
+    def copy_object(self, Bucket, Key, CopySource):
+        self.objs[Key] = self.objs[CopySource["Key"]]
+
+    def get_paginator(self, _):
+        from datetime import datetime
+        objs = self.objs
+
+        class P:
+            def paginate(self, Bucket, Prefix="", Delimiter=None):
+                claves = sorted(k for k in objs if k.startswith(Prefix))
+                if not Delimiter:
+                    return [{"Contents": [{"Key": k, "Size": 1, "LastModified": datetime(2026, 1, 1)} for k in claves]}]
+                carpetas, archivos = set(), []
+                for k in claves:
+                    resto = k[len(Prefix):]
+                    if "/" in resto:
+                        carpetas.add(Prefix + resto.split("/")[0] + "/")
+                    else:
+                        archivos.append({"Key": k, "Size": len(objs[k]), "LastModified": datetime(2026, 1, 1)})
+                return [{"CommonPrefixes": [{"Prefix": c} for c in sorted(carpetas)], "Contents": archivos}]
+
+        return P()
+
+
+class TestPrefijoDeLaCarpeta:
+    """La carpeta de auditoría vive DENTRO de agrofresh-storage ("auditoria/"):
+    nada de lo de auditoría puede escribirse ni verse fuera de ese prefijo, y
+    nada del resto del bucket (solicitudes/, accutab/, respaldos/) puede
+    aparecer como carpeta de auditoría."""
+
+    @pytest.fixture
+    def bucket(self, monkeypatch):
+        falso = _R2Falso()
+        monkeypatch.setattr(r2a, "_cliente", lambda: falso)
+        monkeypatch.setattr(r2a.config, "R2_AUDITORIA_PREFIJO", "auditoria")
+        falso.objs["solicitudes/DOLE/OT-1/OT-1.xlsx"] = b"x"
+        falso.objs["accutab/mail/a.pdf"] = b"x"
+        return falso
+
+    def test_subir_escribe_bajo_el_prefijo(self, bucket):
+        r2a.subir("Quiteca/Dole/a.pdf", b"%PDF")
+        assert "auditoria/Quiteca/Dole/a.pdf" in bucket.objs
+        assert "Quiteca/Dole/a.pdf" not in bucket.objs
+        assert r2a.descargar("Quiteca/Dole/a.pdf") == b"%PDF"
+        assert r2a.existe("Quiteca/Dole/a.pdf") and not r2a.existe("a.pdf")
+
+    def test_la_raiz_solo_muestra_lo_de_auditoria(self, bucket):
+        assert r2a.listar_nivel("") == ([], [])  # solicitudes/ y accutab/ no aparecen
+        r2a.subir("Quiteca/Dole/a.pdf", b"%PDF")
+        carpetas, archivos = r2a.listar_nivel("")
+        assert carpetas == ["Quiteca"] and archivos == []
+        carpetas, archivos = r2a.listar_nivel("Quiteca/Dole")
+        assert carpetas == [] and [a["key"] for a in archivos] == ["Quiteca/Dole/a.pdf"]  # ruta relativa
+
+    def test_borrar_carpeta_no_toca_el_resto_del_bucket(self, bucket):
+        r2a.subir("Quiteca/Dole/a.pdf", b"1")
+        r2a.subir("Quiteca/Dole/b.pdf", b"2")
+        for k in r2a.listar_recursivo("Quiteca/"):
+            r2a.eliminar(k)
+        assert list(bucket.objs) == ["solicitudes/DOLE/OT-1/OT-1.xlsx", "accutab/mail/a.pdf"]
+
+    def test_copiar_y_renombrar_quedan_dentro(self, bucket):
+        r2a.subir("Q/D/a.pdf", b"1")
+        r2a.copiar("Q/D/a.pdf", "Q/D/b.pdf")
+        assert "auditoria/Q/D/b.pdf" in bucket.objs
+
+    def test_por_defecto_usa_el_bucket_de_siempre_con_prefijo(self, monkeypatch):
+        import importlib
+        from app import config
+        monkeypatch.delenv("R2_AUDITORIA_BUCKET", raising=False)
+        monkeypatch.delenv("R2_AUDITORIA_PREFIJO", raising=False)
+        monkeypatch.setenv("R2_BUCKET", "agrofresh-storage")
+        try:
+            importlib.reload(config)
+            assert config.R2_AUDITORIA_BUCKET == "agrofresh-storage"
+            assert config.R2_AUDITORIA_PREFIJO == "auditoria"
+            monkeypatch.setenv("R2_AUDITORIA_BUCKET", "otro")
+            importlib.reload(config)
+            assert config.R2_AUDITORIA_BUCKET == "otro" and config.R2_AUDITORIA_PREFIJO == ""
+        finally:
+            monkeypatch.undo()
+            importlib.reload(config)
