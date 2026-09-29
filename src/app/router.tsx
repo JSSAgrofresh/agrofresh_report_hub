@@ -21,6 +21,7 @@ import { AuditoriaInternaHubView } from '@/views/modules/auditoria-interna/Audit
 import { SolicitudesInformesView } from '@/views/modules/auditoria-interna/SolicitudesInformesView'
 import { CarpetasView } from '@/views/modules/auditoria-interna/CarpetasView'
 import { LimiteControlView } from '@/views/modules/auditoria-interna/LimiteControlView'
+import { CorreccionesView } from '@/views/modules/auditoria-interna/CorreccionesView'
 import { SolicitudesView } from '@/views/modules/muestreo/SolicitudesView'
 import { NuevaSolicitudView } from '@/views/modules/muestreo/NuevaSolicitudView'
 import { NuevaReanalisisView } from '@/views/modules/muestreo/NuevaReanalisisView'
@@ -90,6 +91,7 @@ export const router = createBrowserRouter([
               { path: ROUTES.auditoriaInternaSolicitudes, element: <SolicitudesInformesView /> },
               { path: ROUTES.auditoriaInternaCarpetas, element: <CarpetasView /> },
               { path: ROUTES.auditoriaInternaLimiteControl, element: <LimiteControlView /> },
+              { path: ROUTES.auditoriaInternaCorrecciones, element: <CorreccionesView /> },
             ],
           },
           { path: ROUTES.datacore, element: <DataCoreView /> },
