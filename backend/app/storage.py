@@ -3,11 +3,16 @@ import re
 import shutil
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+import psycopg2.errors
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import config
+from . import storage_permisos as permisos
+from .auth import Usuario, solo_admin_general, solo_escribiente, usuario_actual
+from .db import conexion, cursor_dict
 
 router = APIRouter(prefix="/api/storage", tags=["storage"])
 
@@ -79,6 +84,27 @@ class EntradaStorage(BaseModel):
     tipo: str
     tamano_bytes: int | None
     modificado: str
+    # La carpeta tiene su propia regla de acceso (ver storage_permisos.py).
+    restringida: bool = False
+    # Cuántas cuentas la ven. Solo se informa a quien administra los permisos.
+    n_usuarios: int | None = None
+
+
+def _visibles(
+    entradas: list[EntradaStorage], reglas: permisos.Reglas, usuario: Usuario
+) -> list[EntradaStorage]:
+    """Deja solo lo que `usuario` puede ver y marca las carpetas con regla propia."""
+    admin = usuario.tipoAcceso == "admin_general"
+    salida = []
+    for e in entradas:
+        if not permisos.puede_ver(reglas, e.ruta, usuario):
+            continue
+        propia = permisos.normalizar(e.ruta) in reglas and e.tipo == "carpeta"
+        e.restringida = propia
+        if propia and admin:
+            e.n_usuarios = len(reglas[permisos.normalizar(e.ruta)])
+        salida.append(e)
+    return salida
 
 
 class ListadoStorage(BaseModel):
@@ -102,22 +128,33 @@ class MoverIn(BaseModel):
 
 
 @router.get("/listar")
-def listar(ruta: str = "") -> ListadoStorage:
+def listar(ruta: str = "", usuario: Usuario = Depends(usuario_actual)) -> ListadoStorage:
     raiz = _carpeta_raiz()
     carpeta_abs = _resolver(ruta)
     if not os.path.isdir(carpeta_abs):
         raise HTTPException(404, "Carpeta no encontrada.")
+    reglas = permisos.cargar_reglas("local")
+    permisos.exigir_ver(reglas, _ruta_relativa(raiz, carpeta_abs) if carpeta_abs != raiz else "", usuario)
     entradas = [_info(raiz, os.path.join(carpeta_abs, n)) for n in os.listdir(carpeta_abs)]
+    entradas = _visibles(entradas, reglas, usuario)
     entradas.sort(key=lambda e: (e.tipo != "carpeta", e.nombre.lower()))
     return ListadoStorage(ruta=_ruta_relativa(raiz, carpeta_abs) if carpeta_abs != raiz else "", entradas=entradas)
 
 
+def _exigir_local(usuario: Usuario, *rutas: str) -> None:
+    """403 si alguna de estas rutas locales no es para `usuario`."""
+    reglas = permisos.cargar_reglas("local")
+    for r in rutas:
+        permisos.exigir_ver(reglas, r, usuario)
+
+
 @router.post("/carpetas")
-def crear_carpeta(datos: CrearCarpetaIn) -> EntradaStorage:
+def crear_carpeta(datos: CrearCarpetaIn, usuario: Usuario = Depends(solo_escribiente)) -> EntradaStorage:
     raiz = _carpeta_raiz()
     padre_abs = _resolver(datos.ruta_padre)
     if not os.path.isdir(padre_abs):
         raise HTTPException(404, "Carpeta no encontrada.")
+    _exigir_local(usuario, datos.ruta_padre)
     nombre = _nombre_disponible(padre_abs, _nombre_seguro(datos.nombre))
     absoluto = os.path.join(padre_abs, nombre)
     os.makedirs(absoluto)
@@ -125,11 +162,16 @@ def crear_carpeta(datos: CrearCarpetaIn) -> EntradaStorage:
 
 
 @router.post("/subir")
-async def subir_archivos(ruta: str = Form(""), archivos: list[UploadFile] = File(...)) -> list[EntradaStorage]:
+async def subir_archivos(
+    ruta: str = Form(""),
+    archivos: list[UploadFile] = File(...),
+    usuario: Usuario = Depends(solo_escribiente),
+) -> list[EntradaStorage]:
     raiz = _carpeta_raiz()
     carpeta_abs = _resolver(ruta)
     if not os.path.isdir(carpeta_abs):
         raise HTTPException(404, "Carpeta no encontrada.")
+    _exigir_local(usuario, ruta)
     subidos = []
     for archivo in archivos:
         if not archivo.filename:
@@ -144,24 +186,27 @@ async def subir_archivos(ruta: str = Form(""), archivos: list[UploadFile] = File
 
 
 @router.put("/renombrar")
-def renombrar(datos: RenombrarIn) -> EntradaStorage:
+def renombrar(datos: RenombrarIn, usuario: Usuario = Depends(solo_escribiente)) -> EntradaStorage:
     raiz = _carpeta_raiz()
     origen_abs = _resolver(datos.ruta)
     if origen_abs == raiz:
         raise HTTPException(400, "No puedes renombrar la carpeta raíz.")
     if not os.path.exists(origen_abs):
         raise HTTPException(404, "No encontrado.")
+    _exigir_local(usuario, datos.ruta)
     padre_abs = os.path.dirname(origen_abs)
     nombre_nuevo = _nombre_seguro(datos.nombre_nuevo)
     destino_abs = os.path.join(padre_abs, nombre_nuevo)
     if destino_abs != origen_abs and os.path.exists(destino_abs):
         raise HTTPException(409, "Ya existe un archivo o carpeta con ese nombre.")
     os.rename(origen_abs, destino_abs)
+    if os.path.isdir(destino_abs):
+        permisos.reubicar("local", _ruta_relativa(raiz, origen_abs), _ruta_relativa(raiz, destino_abs))
     return _info(raiz, destino_abs)
 
 
 @router.put("/mover")
-def mover(datos: MoverIn) -> EntradaStorage:
+def mover(datos: MoverIn, usuario: Usuario = Depends(solo_escribiente)) -> EntradaStorage:
     raiz = _carpeta_raiz()
     origen_abs = _resolver(datos.ruta)
     destino_carpeta_abs = _resolver(datos.ruta_destino)
@@ -169,6 +214,7 @@ def mover(datos: MoverIn) -> EntradaStorage:
         raise HTTPException(400, "No puedes mover la carpeta raíz.")
     if not os.path.exists(origen_abs):
         raise HTTPException(404, "No encontrado.")
+    _exigir_local(usuario, datos.ruta, datos.ruta_destino)
     if not os.path.isdir(destino_carpeta_abs):
         raise HTTPException(404, "Carpeta de destino no encontrada.")
     if destino_carpeta_abs == os.path.dirname(origen_abs):
@@ -180,24 +226,30 @@ def mover(datos: MoverIn) -> EntradaStorage:
     nombre = _nombre_disponible(destino_carpeta_abs, os.path.basename(origen_abs))
     destino_abs = os.path.join(destino_carpeta_abs, nombre)
     shutil.move(origen_abs, destino_abs)
+    if os.path.isdir(destino_abs):
+        permisos.reubicar("local", _ruta_relativa(raiz, origen_abs), _ruta_relativa(raiz, destino_abs))
     return _info(raiz, destino_abs)
 
 
 @router.get("/descargar")
-def descargar_archivo(ruta: str) -> FileResponse:
+def descargar_archivo(ruta: str, usuario: Usuario = Depends(usuario_actual)) -> FileResponse:
     absoluto = _resolver(ruta)
     if not os.path.isfile(absoluto):
         raise HTTPException(404, "Archivo no encontrado.")
+    _exigir_local(usuario, ruta)
     return FileResponse(absoluto, filename=os.path.basename(absoluto))
 
 
 @router.delete("/eliminar")
-def eliminar(ruta: str) -> dict[str, str]:
+def eliminar(ruta: str, usuario: Usuario = Depends(solo_escribiente)) -> dict[str, str]:
     absoluto = _resolver(ruta)
     if absoluto == _carpeta_raiz():
         raise HTTPException(400, "No puedes eliminar la carpeta raíz.")
+    _exigir_local(usuario, ruta)
     if os.path.isdir(absoluto):
+        rel = _ruta_relativa(_carpeta_raiz(), absoluto)
         shutil.rmtree(absoluto)
+        permisos.reubicar("local", rel, None)
     elif os.path.isfile(absoluto):
         os.remove(absoluto)
     else:
@@ -213,7 +265,7 @@ from . import r2 as _r2  # noqa: E402
 
 
 @router.get("/r2/listar")
-def r2_listar(prefijo: str = "") -> ListadoStorage:
+def r2_listar(prefijo: str = "", usuario: Usuario = Depends(usuario_actual)) -> ListadoStorage:
     """
     Lista el contenido de R2 como si fuera un explorador de carpetas.
     'prefijo' es la ruta relativa dentro del bucket (ej. "" para raíz, "accutab/mail/" para AccuTab).
@@ -225,6 +277,8 @@ def r2_listar(prefijo: str = "") -> ListadoStorage:
     # Normalizar: siempre termina en "/" salvo si es raíz
     base = prefijo.strip("/")
     prefijo_r2 = (base + "/") if base else ""
+    reglas = permisos.cargar_reglas("r2")
+    permisos.exigir_ver(reglas, base, usuario)
 
     try:
         paginator = _r2._get_client().get_paginator("list_objects_v2")
@@ -263,7 +317,7 @@ def r2_listar(prefijo: str = "") -> ListadoStorage:
                 ))
 
         entradas = sorted(carpetas, key=lambda e: e.nombre.lower()) + sorted(archivos, key=lambda e: e.nombre.lower())
-        return ListadoStorage(ruta=prefijo_r2, entradas=entradas)
+        return ListadoStorage(ruta=prefijo_r2, entradas=_visibles(entradas, reglas, usuario))
 
     except Exception as exc:
         raise HTTPException(502, f"Error al listar R2: {exc}")
@@ -273,12 +327,13 @@ from fastapi.responses import StreamingResponse  # noqa: E402
 
 
 @router.get("/r2/descargar")
-def r2_descargar(key: str):
+def r2_descargar(key: str, usuario: Usuario = Depends(usuario_actual)):
     """Descarga un archivo de R2 directamente (proxy streaming)."""
     if not _r2.disponible():
         raise HTTPException(503, "R2 no está configurado en este servidor.")
     if not key or ".." in key:
         raise HTTPException(400, "Key inválida.")
+    permisos.exigir_ver(permisos.cargar_reglas("r2"), key, usuario)
 
     try:
         resp = _r2._get_client().get_object(Bucket=_r2.config.R2_BUCKET, Key=key)
@@ -297,3 +352,102 @@ def r2_descargar(key: str):
         media_type=content_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Permisos por carpeta (solo admin general)
+# ---------------------------------------------------------------------------
+
+class PermisoIn(BaseModel):
+    espacio: str
+    ruta: str
+    usuario_ids: list[int]
+
+
+class PermisoOut(BaseModel):
+    espacio: str
+    ruta: str
+    restringida: bool
+    usuario_ids: list[int]
+    # Si la carpeta no tiene regla propia pero una que la contiene sí.
+    heredada_de: str | None = None
+    heredados_ids: list[int] = []
+    # Con la carpeta contenedora restringida, solo esas cuentas se pueden elegir.
+    elegibles_ids: list[int] | None = None
+
+
+class UsuarioConAcceso(BaseModel):
+    id: int
+    nombre: str
+    email: str
+
+
+class ResumenPermiso(BaseModel):
+    espacio: str
+    ruta: str
+    usuarios: list[UsuarioConAcceso]
+
+
+def _validar_carpeta_permiso(espacio: str, ruta: str) -> str:
+    if espacio not in permisos.ESPACIOS:
+        raise HTTPException(400, "Espacio inválido.")
+    ruta = permisos.normalizar(ruta)
+    if not ruta:
+        raise HTTPException(400, "Elige una carpeta: la raíz no se restringe.")
+    if espacio == "local":
+        if not os.path.isdir(_resolver(ruta)):
+            raise HTTPException(404, "Carpeta no encontrada.")
+    elif not _r2.disponible():
+        raise HTTPException(503, "R2 no está configurado en este servidor.")
+    return ruta
+
+
+@router.get("/permisos")
+def ver_permisos(espacio: str, ruta: str, _: Usuario = Depends(solo_admin_general)) -> PermisoOut:
+    ruta = _validar_carpeta_permiso(espacio, ruta)
+    reglas = permisos.cargar_reglas(espacio)
+    propia = reglas.get(ruta)
+    padre = None
+    for anc in list(permisos._ancestros(ruta))[1:]:
+        if anc in reglas:
+            padre = (anc, reglas[anc])
+            break
+    return PermisoOut(
+        espacio=espacio,
+        ruta=ruta,
+        restringida=propia is not None,
+        usuario_ids=sorted(propia or []),
+        heredada_de=padre[0] if padre and propia is None else None,
+        heredados_ids=sorted(padre[1]) if padre and propia is None else [],
+        elegibles_ids=sorted(padre[1]) if padre else None,
+    )
+
+
+@router.put("/permisos")
+def guardar_permisos(datos: PermisoIn, quien: Usuario = Depends(solo_admin_general)) -> PermisoOut:
+    ruta = _validar_carpeta_permiso(datos.espacio, datos.ruta)
+    permisos.guardar(datos.espacio, ruta, datos.usuario_ids, quien.email)
+    return ver_permisos(datos.espacio, ruta, quien)
+
+
+@router.get("/permisos/resumen")
+def resumen_permisos(_: Usuario = Depends(solo_admin_general)) -> list[ResumenPermiso]:
+    """Todas las carpetas restringidas y quién entra a cada una."""
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                """
+                SELECT p.espacio, p.ruta, u.id, u.nombre, u.email
+                FROM storage_permiso p JOIN usuario u ON u.id = p.usuario_id
+                ORDER BY p.espacio, p.ruta, u.nombre
+                """
+            )
+            filas = cur.fetchall()
+    except psycopg2.errors.UndefinedTable:
+        return []
+    por_carpeta: dict[tuple[str, str], list[UsuarioConAcceso]] = {}
+    for f in filas:
+        por_carpeta.setdefault((f["espacio"], f["ruta"]), []).append(
+            UsuarioConAcceso(id=f["id"], nombre=f["nombre"], email=f["email"])
+        )
+    return [ResumenPermiso(espacio=e, ruta=r, usuarios=u) for (e, r), u in por_carpeta.items()]

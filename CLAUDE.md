@@ -216,6 +216,31 @@ solicitud va siempre en CCO aparte. Nadie va dos veces (se deduplica sin
 mayúsculas). Se necesita al menos un Para: solo copias = error 400. No
 confundir con `tipo_copia`, que es de los contactos de **resultados**.
 
+## Storage: explorador y permisos por carpeta
+
+`/modulos/storage` tiene un árbol lateral con tres espacios: **Archivos del
+servidor** (disco, `STORAGE_DIR`), **Solicitudes** y **Accutab** (bucket R2).
+Solo el primero se administra (crear, subir, renombrar, mover, eliminar,
+arrastrar, selección múltiple). Los de R2 son **solo lectura a propósito**: los
+escribe la aplicación y moverles algo rompe las solicitudes que apuntan a esas
+rutas. Gerencia mira todo pero no escribe (`solo_escribiente`).
+
+**Permisos por carpeta** (migración 0043, `storage_permiso`; lógica en
+`app/storage_permisos.py`, solo admin general los edita desde el panel
+«Permisos»):
+
+- Carpeta **sin filas = abierta** (la ve todo el que tenga el módulo Storage):
+  aplicar la migración no cambia nada de lo que ya existe.
+- Carpeta **con filas = restringida**: solo esas cuentas, más admin general y
+  gerencia. Se aplica al listar Y al descargar/escribir (no basta esconderla).
+- Las subcarpetas **heredan** la regla más cercana hacia arriba y solo pueden
+  restringir más, nunca ampliar (`reglas_a_podar` lo mantiene al guardar y al
+  mover).
+- Renombrar/mover/borrar una carpeta acompaña su regla (`reubicar`).
+- Controla lo que se ve en **Storage**; las solicitudes se siguen viendo desde
+  Toma de muestras con los permisos de ese módulo.
+- Sin la 0043 corrida, todo queda abierto y Storage funciona como antes.
+
 ## Solicitudes de prueba
 
 Al borrar las solicitudes de prueba del arranque, el contador de folios de
