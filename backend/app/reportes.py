@@ -210,6 +210,143 @@ def datos_excel(
     )
 
 
+# ---------------------------------------------------------------------------
+# BD de resultados en Excel (Report → Laboratorio): formato de Solicitudes,
+# una fila por solicitud, con el resultado de cada analito en su columna.
+# ---------------------------------------------------------------------------
+
+class BdExcelIn(BaseModel):
+    # Solicitudes a descargar. None = TODAS. El filtrado lo hace la pantalla
+    # (es quien tiene los filtros) y manda aquí lo que quedó a la vista.
+    solicitud_ids: list[int] | None = None
+    # Solo estos analitos (por su código). None = todos los que tengan dato.
+    ingredientes: list[str] | None = None
+    # Texto legible de los filtros aplicados; va en una hoja aparte del Excel.
+    descripcion_filtros: str | None = None
+
+
+_CONSULTA_BD = """
+    SELECT
+        s.id,
+        s.nro_solicitud AS nro_informe,
+        s.referencia AS nro_solicitud,
+        s.laboratorio,
+        s.fecha_solicitud, s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis,
+        s.hora_muestreo,
+        COALESCE(s.semana_muestreo, date_part('week', COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis))::int) AS semana,
+        COALESCE(s.mes, date_part('month', COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis))::int) AS mes,
+        s.temporada, s.tipo_servicio, s.solicitante,
+        COALESCE(c.nombre, s.sold_to_raw) AS sold_to,
+        COALESCE(p.nombre, s.ship_to_raw) AS ship_to,
+        s.especie, s.variedad,
+        s.nro_linea AS linea_proceso, s.csg, s.lote, s.posicion_muestreo,
+        s.nro_camara AS numero_camara, s.nro_orden AS numero_orden,
+        s.kg_procesados AS kilos_procesados,
+        s.producto_utilizado, s.tipo_muestra, s.nombre_muestreador, s.generado_por,
+        s.email_solicitante, s.email_laboratorio, s.observacion
+    FROM solicitud s
+    LEFT JOIN planta p ON p.id = s.planta_id
+    LEFT JOIN cliente c ON c.id = p.cliente_id
+    WHERE s.vigente
+    {filtro_alcance}
+    {filtro_ids}
+    ORDER BY COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis) DESC NULLS LAST, s.id DESC
+"""
+
+
+def _texto_seguro_excel(texto: str | None) -> str | None:
+    """Un texto que llega de la pantalla y se escribe en una celda: si empezara
+    con «=» Excel lo ejecutaría como fórmula."""
+    texto = (texto or "").strip()[:2000]
+    if not texto:
+        return None
+    return "'" + texto if texto[:1] in "=+-@" else texto
+
+
+def filas_de_bd(cur, filtro_alcance: str, params: dict, ids: list[int] | None) -> list[dict[str, Any]]:
+    """Las solicitudes pedidas, cada una con sus resultados y sus dosis."""
+    filtro_ids = ""
+    if ids is not None:
+        filtro_ids = "AND s.id = ANY(%(ids)s)"
+        params = {**params, "ids": ids}
+    cur.execute(_CONSULTA_BD.format(filtro_alcance=filtro_alcance, filtro_ids=filtro_ids), params)
+    filas = [dict(f) for f in cur.fetchall()]
+    por_id = {f["id"]: f for f in filas}
+    for f in filas:
+        f["resultados"] = {}
+        f["dosis"] = {}
+        f["tipo_aplicacion"] = None
+    if not por_id:
+        return filas
+    cur.execute(
+        """
+        SELECT r.solicitud_id, COALESCE(a.codigo, r.analito_raw) AS codigo,
+               COALESCE(a.nombre, r.analito_raw) AS nombre, r.valor_num, r.valor_texto
+        FROM resultado r LEFT JOIN analito a ON a.id = r.analito_id
+        WHERE r.solicitud_id = ANY(%(ids)s)
+        """,
+        {"ids": list(por_id)},
+    )
+    for r in cur.fetchall():
+        if not r["codigo"]:
+            continue
+        valor = r["valor_num"] if r["valor_num"] is not None else r["valor_texto"]
+        if valor is not None:
+            por_id[r["solicitud_id"]]["resultados"][r["codigo"]] = {"valor": valor, "nombre": r["nombre"]}
+    cur.execute(
+        """
+        SELECT pa.solicitud_id, COALESCE(a.codigo, pa.analito_raw) AS codigo, pa.dosis, pa.tipo_aplicacion
+        FROM producto_aplicado pa LEFT JOIN analito a ON a.id = pa.analito_id
+        WHERE pa.solicitud_id = ANY(%(ids)s)
+        """,
+        {"ids": list(por_id)},
+    )
+    for r in cur.fetchall():
+        fila = por_id[r["solicitud_id"]]
+        if r["codigo"] and r["dosis"] is not None:
+            fila["dosis"][r["codigo"]] = r["dosis"]
+        if r["tipo_aplicacion"] and not fila["tipo_aplicacion"]:
+            fila["tipo_aplicacion"] = r["tipo_aplicacion"]
+    return filas
+
+
+@router.post("/bd/excel")
+def bd_excel(datos: BdExcelIn, usuario: Usuario = Depends(solo_interno)) -> StreamingResponse:
+    """Descarga la BD de resultados. Sin `solicitud_ids` baja TODO; con ellos,
+    solo esas solicitudes (lo que la pantalla tiene filtrado) y con las columnas
+    acotadas a lo que tienen. Un archivo filtrado lleva una hoja «Filtros
+    aplicados» avisando que no es la base completa."""
+    from datetime import date
+
+    from . import config_store
+    from .bd_excel import construir_workbook_bd
+    from .toma_muestras import ANALITOS_DEFECTO
+
+    filtro_alcance, params = _filtro_alcance(usuario, None, None)
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        filas = filas_de_bd(cur, filtro_alcance, params, datos.solicitud_ids)
+    analitos = config_store.leer("analitos.json", ANALITOS_DEFECTO)
+    filtrado = datos.solicitud_ids is not None or bool(datos.ingredientes)
+    nota = None
+    if filtrado:
+        nota = _texto_seguro_excel(datos.descripcion_filtros) or "Se aplicaron filtros en Report."
+    wb = construir_workbook_bd(
+        filas,
+        analitos,
+        set(datos.ingredientes) if datos.ingredientes else None,
+        nota_filtro=nota,
+    )
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    nombre = f"BD_Laboratorio_{'filtrada' if filtrado else 'completa'}_{date.today():%Y%m%d}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
 @router.get("/clientes")
 def clientes(_: Usuario = Depends(solo_interno)) -> list[str]:
     """Nombres de cliente que ya tienen datos cargados — mismo criterio (COALESCE)
