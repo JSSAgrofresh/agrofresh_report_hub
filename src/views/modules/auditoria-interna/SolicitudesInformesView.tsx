@@ -27,6 +27,7 @@ import {
   ordenarSolicitudes,
   porLaboratorio,
   porClienteYServicio,
+  resumenPorTipo,
   rutaPdfInforme,
   solicitudesACsv,
   tipoServicioDe,
@@ -45,7 +46,7 @@ import { fechaHora, paraInputFechaHora } from '@/lib/fechaHoraChile'
 import { descargarArchivo } from '@/services/http/descargar'
 import { ESTADOS, ORDEN_ESTADOS } from './estados'
 import {
-  DonaLaboratorio,
+  DonaTipoServicio,
   GraficoClienteServicio,
   GraficoTotalPorLaboratorio,
   LeyendaEstados,
@@ -233,6 +234,8 @@ export function SolicitudesInformesView() {
   const alcance = useMemo(() => filtrarSolicitudes(todas ?? [], filtros, { estado: true }), [todas, filtros])
   const tot = useMemo(() => totales(alcance), [alcance])
   const laboratorios = useMemo(() => porLaboratorio(alcance), [alcance])
+  const actimist = useMemo(() => resumenPorTipo(alcance, TIPO_ACTIMIST), [alcance])
+  const lineaProceso = useMemo(() => resumenPorTipo(alcance, TIPO_LINEA), [alcance])
   const tiposElegidos = tipoGrafico === 'ambos' ? [TIPO_ACTIMIST, TIPO_LINEA] : [tipoGrafico]
   const clientes = useMemo(
     () => topClientesPorServicio(alcance, tipoGrafico === 'ambos' ? [TIPO_ACTIMIST, TIPO_LINEA] : [tipoGrafico], topClientes),
@@ -315,9 +318,21 @@ export function SolicitudesInformesView() {
             </div>
           ) : (
             <>
-              <div className={styles.donas}>
-                <DonaLaboratorio titulo="Todos los laboratorios" resumen={tot} destacada />
-                {laboratorios.map((l) => <DonaLaboratorio key={l.laboratorio} titulo={l.laboratorio} resumen={l} />)}
+              <div className={styles.superior}>
+                <TarjetaGrafico
+                  titulo="Solicitudes por laboratorio"
+                  subtitulo="Cuántas se emitieron a cada laboratorio y en qué estado están"
+                  alto={Math.max(150, laboratorios.length * 52 + 48)}
+                  leyenda={<LeyendaEstados />}
+                  tabla={{
+                    columnas: ['Laboratorio', 'Total', 'Concretadas', 'PDF sin Report', 'Pendientes'],
+                    filas: laboratorios.map((l) => [l.laboratorio, l.emitidas, l.concretadas, l.sinReport, l.pendientes]),
+                  }}
+                >
+                  <GraficoTotalPorLaboratorio laboratorios={laboratorios} />
+                </TarjetaGrafico>
+                <DonaTipoServicio tipo={TIPO_ACTIMIST} resumen={actimist} />
+                <DonaTipoServicio tipo={TIPO_LINEA} resumen={lineaProceso} />
               </div>
 
               <TarjetaGrafico
@@ -351,19 +366,6 @@ export function SolicitudesInformesView() {
                 ) : (
                   <p className={styles.sinDatosGrafico}>No hay solicitudes de este tipo con los filtros actuales.</p>
                 )}
-              </TarjetaGrafico>
-
-              <TarjetaGrafico
-                titulo="Total de solicitudes por laboratorio"
-                subtitulo="Cuántas se emitieron a cada laboratorio y en qué estado están"
-                alto={Math.max(110, laboratorios.length * 46 + 44)}
-                leyenda={<LeyendaEstados />}
-                tabla={{
-                  columnas: ['Laboratorio', 'Total', 'Concretadas', 'PDF sin Report', 'Pendientes'],
-                  filas: laboratorios.map((l) => [l.laboratorio, l.emitidas, l.concretadas, l.sinReport, l.pendientes]),
-                }}
-              >
-                <GraficoTotalPorLaboratorio laboratorios={laboratorios} />
               </TarjetaGrafico>
 
               <section className={styles.tablaCard} ref={tablaRef} aria-label="Detalle de solicitudes">

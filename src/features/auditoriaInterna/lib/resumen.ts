@@ -84,6 +84,11 @@ export function tipoServicioDe(s: SolicitudAuditoria): string {
   return (s.tipo_servicio ?? '').trim()
 }
 
+/** Cómo van las solicitudes de UN tipo de servicio (Actimist o Línea de proceso). */
+export function resumenPorTipo(solicitudes: SolicitudAuditoria[], tipo: string): Totales {
+  return totales(solicitudes.filter((s) => tipoServicioDe(s) === tipo))
+}
+
 // ── por cliente y tipo de servicio ──────────────────────────────────────
 
 export interface ParAnalisisInformes {
