@@ -82,3 +82,38 @@ def test_una_fila_pendiente_ya_no_bloquea_la_siguiente_carga(catalogo):
     confirmar(CargaRequest(filas=[_fila(f"CONV-{marca}-3", cliente, "NO EXISTE")], origen="converter"), USUARIO)
     r = confirmar(CargaRequest(filas=[_fila(f"CONV-{marca}-4", cliente, planta)], origen="converter"), USUARIO)
     assert r["resumen"]["solicitudes_nuevas"] == 1
+
+
+def _estado(informe: str) -> dict:
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "SELECT fecha_informe, fecha_analisis, referencia FROM solicitud WHERE nro_solicitud = %s", (informe,)
+        )
+        return cur.fetchone()
+
+
+def test_volver_a_subir_el_informe_completa_las_fechas_y_el_ot_sin_pisar_nada(catalogo):
+    """Las cargas de antes de que el lector leyera las fechas del informe y el OT
+    los tienen vacíos: subir el mismo informe otra vez los completa."""
+    marca, cliente, planta = catalogo
+    informe = f"CONV-{marca}-5"
+    confirmar(CargaRequest(filas=[_fila(informe, cliente, planta)], origen="converter"), USUARIO)
+    assert _estado(informe) == {"fecha_informe": None, "fecha_analisis": None, "referencia": None}
+
+    completa = {
+        **_fila(informe, cliente, planta),
+        "Fecha Informe": "2026-09-25",
+        "Fecha Análisis": "2026-09-24",
+        "N° Solicitud": "OT-QUI0022",
+    }
+    confirmar(CargaRequest(filas=[completa], origen="converter"), USUARIO)
+    e = _estado(informe)
+    assert str(e["fecha_informe"]) == "2026-09-25"
+    assert str(e["fecha_analisis"]) == "2026-09-24"
+    assert e["referencia"] == "OT-QUI0022"
+
+    # un dato que ya tiene valor nunca se sobreescribe
+    otra = {**completa, "Fecha Informe": "2026-10-30", "N° Solicitud": "OT-QUI9999"}
+    confirmar(CargaRequest(filas=[otra], origen="converter"), USUARIO)
+    e = _estado(informe)
+    assert str(e["fecha_informe"]) == "2026-09-25" and e["referencia"] == "OT-QUI0022"
