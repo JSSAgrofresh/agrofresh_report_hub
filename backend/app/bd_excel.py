@@ -84,6 +84,26 @@ ALIAS_CODIGO: dict[str, str] = {
     "AFLA": "AFLAT",
 }
 
+TITULO_FUNGICIDAS_BASE = "ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+_PREFIJO_FUNGICIDAS = "QUITECA / AGROFRESH"
+
+
+def titulo_fungicidas(laboratorios: set[str]) -> str:
+    """Banda del grupo de fungicidas según los laboratorios que hay en la
+    descarga: si solo está Quiteca, dice Quiteca; si están los dos, los dos.
+    (En Solicitudes la banda es fija porque ahí el formato es el mismo para todos.)"""
+    presentes = [nombre for nombre in ("QUITECA", "AGROFRESH") if nombre in laboratorios]
+    rotulo = " / ".join(presentes) if presentes else _PREFIJO_FUNGICIDAS
+    return f"{rotulo} — {TITULO_FUNGICIDAS_BASE}"
+
+
+def _laboratorios_de(valor: Any) -> set[str]:
+    """{'QUITECA', 'AGROFRESH'} que menciona el nombre de laboratorio de una fila
+    («Quiteca», «AGROFRESH», «Quiteca / AgroFresh»...)."""
+    texto = str(valor or "").casefold()
+    return {n for n in ("QUITECA", "AGROFRESH") if n.casefold() in texto}
+
+
 TITULO_OTROS = "OTROS ANALITOS (sin columna propia en el formato)"
 # Estas columnas del formato de Solicitudes no tienen dato en la base o se
 # reemplazan por «Otros»: no se muestran.
@@ -154,6 +174,7 @@ def columnas_de_bd(
     conocidos: set[str] = set()
     for titulo, columnas in _grupos_exportacion(analitos)[1:]:  # [0] es el GENERAL de Solicitudes
         elegidas: list[Columna] = []
+        es_fungicidas = titulo.startswith(_PREFIJO_FUNGICIDAS)
         for tipo, clave, etiqueta in columnas:
             if tipo == "analito":
                 conocidos.add(clave)
@@ -165,6 +186,14 @@ def columnas_de_bd(
             elif tipo == "campo" and etiqueta not in _CAMPOS_OMITIDOS:
                 if etiqueta == "Tipo Aplicación" and hay_tipo_aplicacion:
                     elegidas.append(("tipo_aplicacion", clave, etiqueta))
+        if elegidas and es_fungicidas:
+            codigos = {clave for _, clave, _ in elegidas}
+            labs: set[str] = set()
+            for fila in filas:
+                tiene = any(codigo_de_formato(c) in codigos for c in list(fila.get("resultados") or {}) + list(fila.get("dosis") or {}))
+                if tiene:
+                    labs |= _laboratorios_de(fila.get("laboratorio"))
+            titulo = titulo_fungicidas(labs)
         if elegidas:
             grupos.append((titulo, elegidas))
 

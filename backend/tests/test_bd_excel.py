@@ -214,3 +214,29 @@ def test_cliente_no_puede_usar_la_descarga():
         assert TestClient(app).post("/api/reportes/bd/excel", json={}).status_code == 403
     finally:
         app.dependency_overrides.pop(usuario_actual, None)
+
+
+def _banda_fungicidas(filas):
+    _, bandas = _encabezados(bd_excel.construir_workbook_bd(filas, ANALITOS_DEFECTO))
+    return next(b for b in bandas if "FUNGICIDAS" in b)
+
+
+def test_la_banda_de_fungicidas_nombra_solo_el_laboratorio_que_hay():
+    quiteca = _fila(laboratorio="QUITECA", resultados={"FDL": {"valor": 1, "nombre": "F"}})
+    agro = _fila(laboratorio="Agrofresh", resultados={"IMZ": {"valor": 2, "nombre": "I"}})
+    assert _banda_fungicidas([quiteca]) == "QUITECA — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+    assert _banda_fungicidas([agro]) == "AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+    assert _banda_fungicidas([quiteca, agro]) == "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+
+
+def test_un_laboratorio_sin_resultados_de_fungicidas_no_entra_en_la_banda():
+    quiteca = _fila(laboratorio="QUITECA", resultados={"FDL": {"valor": 1, "nombre": "F"}})
+    agua_agro = _fila(laboratorio="AGROFRESH", resultados={"ECOLI": {"valor": 3, "nombre": "E"}})
+    assert _banda_fungicidas([quiteca, agua_agro]) == "QUITECA — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+
+
+def test_laboratorio_combinado_o_desconocido_usa_el_rotulo_de_los_dos():
+    combinada = _fila(laboratorio="Quiteca / AgroFresh", resultados={"FDL": {"valor": 1, "nombre": "F"}})
+    otra = _fila(laboratorio="???", resultados={"FDL": {"valor": 1, "nombre": "F"}})
+    assert _banda_fungicidas([combinada]) == "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+    assert _banda_fungicidas([otra]) == "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
