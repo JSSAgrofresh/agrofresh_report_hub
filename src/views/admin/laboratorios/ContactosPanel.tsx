@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
-import { crearContacto, actualizarContacto, eliminarContacto } from '@/features/laboratorios'
-import type { Contacto, ContactoInput, TipoContacto } from '@/features/laboratorios'
+import { crearContacto, actualizarContacto, eliminarContacto, ENVIOS_SOLICITUD } from '@/features/laboratorios'
+import type { Contacto, ContactoInput, EnvioSolicitud, TipoContacto } from '@/features/laboratorios'
 import styles from './LaboratoriosView.module.css'
 
 interface ContactosPanelProps {
@@ -16,7 +16,13 @@ interface ContactosPanelProps {
   onError: (mensaje: string | null) => void
 }
 
-const VACIO = { nombre: '', email: '', cargo: '' }
+const VACIO = { nombre: '', email: '', cargo: '', envio: 'para' as EnvioSolicitud }
+
+const ETIQUETA_ENVIO: Record<EnvioSolicitud, string> = {
+  para: 'Para',
+  cc: 'Copia (CC)',
+  bcc: 'Copia oculta (CCO)',
+}
 
 /** Un correo válido a ojos del usuario: algo@algo.algo. La validación real la
  * hace el servidor de correo al enviar; esto solo evita el error de dedo. */
@@ -38,7 +44,7 @@ export function ContactosPanel({ laboratorio, contactos, secciones, onCambio, on
   function abrirEdicion(contacto: Contacto) {
     setCreandoEn(null)
     setEditando(contacto.id)
-    setBorrador({ nombre: contacto.nombre, email: contacto.email, cargo: contacto.cargo })
+    setBorrador({ nombre: contacto.nombre, email: contacto.email, cargo: contacto.cargo, envio: contacto.envio ?? 'para' })
     onError(null)
   }
 
@@ -56,12 +62,13 @@ export function ContactosPanel({ laboratorio, contactos, secciones, onCambio, on
       cargo: borrador.cargo.trim(),
       tipo,
       // Este panel solo maneja contactos de tipo `solicitud`, que no se
-      // separan por Ship To ni tienen CC/BCC -eso es exclusivo de
-      // ResultadosPanel, para la pestaña "Resultado a clientes".
+      // separan por Ship To. Su copia se elige con `envio` (Para / CC / CCO);
+      // `tipo_copia` es de los resultados (ResultadosPanel) y no se toca.
       sold_to: base?.sold_to ?? '',
       ship_to: base?.ship_to ?? '',
       especie: base?.especie ?? '',
       tipo_copia: base?.tipo_copia ?? 'cc',
+      envio: borrador.envio,
       activo: base?.activo ?? true,
       orden: base?.orden ?? contactos.filter((c) => c.tipo === tipo).length + 1,
     }
@@ -149,6 +156,23 @@ export function ContactosPanel({ laboratorio, contactos, secciones, onCambio, on
               onChange={(e) => setBorrador({ ...borrador, cargo: e.target.value })}
             />
           </div>
+          {tipo === 'solicitud' && (
+            <div className={styles.campo}>
+              <label className={styles.etiqueta} htmlFor="envio-contacto">Va en el correo como</label>
+              <select
+                id="envio-contacto"
+                className={styles.select}
+                value={borrador.envio}
+                onChange={(e) => setBorrador({ ...borrador, envio: e.target.value as EnvioSolicitud })}
+              >
+                {ENVIOS_SOLICITUD.map((t) => (
+                  <option key={t.valor} value={t.valor}>
+                    {t.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <div className={styles.formAcciones}>
           <Button variant="secondary" onClick={cerrar} disabled={guardando}>
@@ -200,6 +224,9 @@ export function ContactosPanel({ laboratorio, contactos, secciones, onCambio, on
                           <div className={styles.filaPrincipal}>
                             {contacto.nombre}
                             {contacto.cargo && <span className={styles.chipUnidad}> · {contacto.cargo}</span>}
+                            {tipo === 'solicitud' && (contacto.envio ?? 'para') !== 'para' && (
+                              <span className={styles.chipUnidad}> · {ETIQUETA_ENVIO[contacto.envio ?? 'para']}</span>
+                            )}
                           </div>
                           <div className={styles.filaSecundario}>{contacto.email}</div>
                         </div>

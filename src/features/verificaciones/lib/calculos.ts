@@ -23,6 +23,7 @@ import type {
   RegistroInput,
   Resultado,
   ResultadoDia,
+  ResultadoRegistro,
   Seccion,
 } from './tipos'
 
@@ -30,6 +31,7 @@ export const ACEPTABLE = 'Aceptable'
 export const NO_ACEPTABLE = 'No aceptable'
 export const SIN_DATOS = 'Sin datos'
 export const SIN_MEDIR = ''
+export const REGISTRADO = 'Registrado'
 
 export const veredicto = (cumple: boolean): Resultado => (cumple ? ACEPTABLE : NO_ACEPTABLE)
 
@@ -129,7 +131,7 @@ export function calcularInyector(
 export interface CalculoDetector {
   resultado_voltaje: Resultado
   resultado_metodo: Resultado
-  resultado_output: Resultado
+  resultado_output: ResultadoRegistro
   resultado: Resultado
 }
 
@@ -139,19 +141,18 @@ export function calcularDetector(
   output: number | null,
   voltajeMin: number,
   voltajeMax: number,
-  outputMin: number,
-  outputMax: number,
 ): CalculoDetector {
+  // El output del detector es SOLO REGISTRO: se anota, pero no tiene rango ni
+  // decide el veredicto (decisión del laboratorio, 25-09-2026).
   const rVoltaje: Resultado =
     voltaje === null ? SIN_MEDIR : veredicto(voltaje >= voltajeMin && voltaje <= voltajeMax)
   const rMetodo: Resultado = !metodo ? SIN_MEDIR : ACEPTABLE
-  const rOutput: Resultado =
-    output === null ? SIN_MEDIR : veredicto(output >= outputMin && output <= outputMax)
+  const rOutput: ResultadoRegistro = output === null ? SIN_MEDIR : REGISTRADO
   return {
     resultado_voltaje: rVoltaje,
     resultado_metodo: rMetodo,
     resultado_output: rOutput,
-    resultado: resumir([rVoltaje, rMetodo, rOutput]),
+    resultado: resumir([rVoltaje, rMetodo]),
   }
 }
 
@@ -269,8 +270,6 @@ export function calcularDia(
     borrador.detector.output_detector,
     parametro(catalogos.parametros, 'perla_voltaje_min', 0),
     parametro(catalogos.parametros, 'perla_voltaje_max', 1),
-    parametro(catalogos.parametros, 'output_min', 19),
-    parametro(catalogos.parametros, 'output_max', 22),
   )
 
   const secciones: Record<Seccion, Resultado> = {

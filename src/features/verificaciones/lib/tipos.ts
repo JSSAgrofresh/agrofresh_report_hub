@@ -11,6 +11,9 @@
  * que "no aceptable": un día a medio llenar no es un día con un problema. */
 export type Resultado = 'Aceptable' | 'No aceptable' | ''
 
+/** Un valor que se anota pero no se juzga (el output del detector). */
+export type ResultadoRegistro = 'Registrado' | ''
+
 /** El veredicto del día completo. Si no se midió nada, "Sin datos". */
 export type ResultadoDia = 'Aceptable' | 'No aceptable' | 'Sin datos'
 
@@ -225,7 +228,7 @@ export interface Detector extends DetectorInput {
   metodo_correcto: string
   resultado_voltaje: Resultado
   resultado_metodo: Resultado
-  resultado_output: Resultado
+  resultado_output: ResultadoRegistro
   resultado: Resultado
 }
 
@@ -277,6 +280,12 @@ export interface Registro {
   resultados_seccion: Record<Seccion, Resultado>
   resultado: ResultadoDia
   secciones_guardadas: Record<string, SeccionLock>
+  /**
+   * Los catálogos con los criterios con que se juzgó ESTE día (congelados al
+   * guardar cada sección). Un día pasado se pinta con estos, no con los
+   * vigentes: cambiar un criterio no reescribe la historia.
+   */
+  criterios?: ConfigVerificaciones | null
 }
 
 /** Una fila del resumen diario: el día y cómo salió cada sección. */

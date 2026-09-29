@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { HttpError } from '@/services/http/client'
 import { notificacionesApi } from '../api/notificacionesApi'
 import type { Notificacion } from '../types'
 
@@ -7,10 +8,25 @@ export function useNotificaciones() {
   const [cargando, setCargando] = useState(true)
   const [tick, setTick] = useState(0)
   const [toast, setToast] = useState<Notificacion | null>(null)
+  // Si el usuario no recibe ningún tipo, no tiene el módulo: sin campana ni
+  // consultas. null = todavía no se sabe (se asume que sí, como antes).
+  const [habilitado, setHabilitado] = useState<boolean | null>(null)
   // null = carga inicial pendiente; número = último count conocido
   const prevIdsRef = useRef<Set<number> | null>(null)
 
   useEffect(() => {
+    let activo = true
+    notificacionesApi
+      .misTipos()
+      .then(({ tipos }) => { if (activo) setHabilitado(tipos.length > 0) })
+      // 403: la cuenta no tiene acceso a notificaciones (clientes). Otro
+      // error -p. ej. un backend todavía sin actualizar- deja la campana.
+      .catch((e) => { if (activo) setHabilitado(!(e instanceof HttpError && e.status === 403)) })
+    return () => { activo = false }
+  }, [])
+
+  useEffect(() => {
+    if (habilitado !== true) return
     let activo = true
     notificacionesApi
       .listar()
@@ -30,12 +46,13 @@ export function useNotificaciones() {
       })
       .catch(() => { if (activo) setCargando(false) })
     return () => { activo = false }
-  }, [tick])
+  }, [tick, habilitado])
 
   useEffect(() => {
+    if (habilitado !== true) return
     const t = setInterval(() => setTick((n) => n + 1), 5 * 60_000)
     return () => clearInterval(t)
-  }, [])
+  }, [habilitado])
 
   const noLeidas = notificaciones.filter((n) => !n.leida).length
 
@@ -52,5 +69,5 @@ export function useNotificaciones() {
   const refrescar = useCallback(() => setTick((n) => n + 1), [])
   const limpiarToast = useCallback(() => setToast(null), [])
 
-  return { notificaciones, noLeidas, cargando, marcarLeida, marcarTodasLeidas, refrescar, toast, limpiarToast }
+  return { habilitado: habilitado !== false, notificaciones, noLeidas, cargando: habilitado !== false && cargando, marcarLeida, marcarTodasLeidas, refrescar, toast, limpiarToast }
 }
