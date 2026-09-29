@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { OpcionCard } from '@/components/ui/OpcionCard'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { IconAuditoria, IconCarpeta, IconTrendingUp } from '@/components/ui/icons'
+import { IconAuditoria, IconCarpeta, IconListados, IconTrendingUp } from '@/components/ui/icons'
 import { ROUTES } from '@/constants/routes'
 import { totales, useSolicitudesAuditoria } from '@/features/auditoriaInterna'
 import { ESTADOS, ORDEN_ESTADOS } from './estados'
@@ -83,6 +83,12 @@ export function AuditoriaInternaHubView() {
           titulo="Vista por límite de control"
           descripcion="Límites dinámicos (promedio ± N desviaciones) sobre los resultados de la base."
           ruta={ROUTES.auditoriaInternaLimiteControl}
+        />
+        <OpcionCard
+          icono={<IconListados />}
+          titulo="Historial de correcciones"
+          descripcion="Lo que el Converter aprendió cuando alguien corrigió un Sold To, Ship To, especie o variedad."
+          ruta={ROUTES.auditoriaInternaCorrecciones}
         />
       </div>
     </div>

@@ -81,6 +81,7 @@ git pull origin main
 cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0026_verificaciones_diarias.sql
 .venv\Scripts\python.exe scripts\migrar.py 0044_auditoria_interna.sql
+.venv\Scripts\python.exe scripts\migrar.py 0045_correcciones_converter.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -363,6 +364,7 @@ tocas una, toca la otra.
 | Solicitudes e informes | Solicitudes emitidas (`solicitud_archivo`) vs informes recibidos, con 3 gráficos y tooltip del ícono de informe (emitida / cargada / enviada). |
 | Carpetas de auditoría | Navegador de la carpeta **`auditoria/`** dentro del bucket de siempre (`agrofresh-storage`): `<laboratorio>/<ship to>/<archivo>.pdf`. Las carpetas nacen con el primer PDF. |
 | Vista por límite de control | El gráfico que antes era una pestaña de Report. Es `ReporteView` con `vistaControl`; en Report ya no existe. |
+| Historial de correcciones | Lo que el Converter aprendió cuando alguien corrigió a mano un Sold To, Ship To, Especie o Variedad (ver abajo). |
 
 - **Permiso `auditoria_interna`**: solo el admin general y a quien él asigne.
   Gerencia NO lo ve (ni en el menú ni en el panel de inicio). Backend:
@@ -382,6 +384,21 @@ tocas una, toca la otra.
   (`solicitud.nro_solicitud = informe_auditoria.nro_informe`). PDF sin Report
   se muestra aparte. El laboratorio `AGROFRESH` (propio) no entra al panel: su
   resultado llega por el GC, no por un informe externo.
+- **El Converter aprende de las correcciones a mano** (`app/correcciones.py`,
+  tabla `correccion_converter`, migración 0045). Los cuatro desplegables del
+  catálogo son ahora un **buscador** (sin tildes ni mayúsculas, flechas y
+  Enter). Al elegir a mano el valor oficial, el sistema guarda la asociación
+  «texto del informe → valor oficial» y, si el mismo texto vuelve a llegar, lo
+  corrige solo (se ve con la etiqueta «guardada»). El contexto importa: un Ship
+  To se asocia dentro de SU Sold To y una Variedad dentro de SU Especie. Nunca se
+  aplica a ciegas: solo si el valor guardado sigue siendo válido para ESE
+  informe (`revisarCatalogo` en `converter.html`). Solo se aprende hacia valores
+  que existen en Listados (el backend lo valida). El historial (quién, cuándo,
+  cuántas veces se aplicó sola) se ve en Auditoría → Historial de correcciones;
+  el admin general puede **olvidar** una asociación equivocada. Es independiente
+  de `mapeo_confirmado` (la memoria de DataCore para la Ingesta de Excel): el
+  Converter manda al backend los valores ya corregidos. Sin la 0045 el Converter
+  sigue funcionando, sin memoria.
 - Tabla `informe_auditoria` (migración 0044). **No hay nada que configurar**:
   por defecto los PDF van a `auditoria/` dentro de `R2_BUCKET`, con las mismas
   llaves de R2. El prefijo se agrega y se quita solo en `r2_auditoria.py`; lo
