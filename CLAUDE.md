@@ -339,7 +339,12 @@ tocas una, toca la otra.
   queda vacía), así que sin OT se enlaza por parecido (`buscar_por_parecido`):
   misma fecha de muestreo, laboratorio, sucursal y especie, y **solo si la
   coincidencia es única** (dos muestras de la misma planta el mismo día = no se
-  adivina, queda vacío). Lo definitivo es que el OT llegue con el resultado. Reglas del laboratorio: **Solicitante = AGROFRESH siempre**, Temporada =
+  adivina, queda vacío). Lo definitivo es que el OT llegue con el resultado: el lector de Quiteca del
+  Converter (`leerQuiteca` en `public/modules/converter.html`, con prueba en
+  `converterQuiteca.test.ts`) ya lo lee de «N° Solicitud : OT-…», junto con la
+  **Fecha de Análisis** (arriba de la tabla) y la **Fecha Informe** (al pie, con
+  letras). Volver a subir un informe ya cargado completa esos tres datos si
+  estaban vacíos (`ingest.py`, solo con COALESCE: nunca pisa un valor). Reglas del laboratorio: **Solicitante = AGROFRESH siempre**, Temporada =
   año de la muestra, Email Laboratorio = contactos del laboratorio (Para y CC)
   separados por «;», y **N° Orden ya no existe**. Lo que no está en ningún lado
   queda vacío. Sin la tabla del índice (0020) la descarga sigue funcionando.

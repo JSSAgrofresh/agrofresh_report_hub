@@ -279,10 +279,10 @@ const CATALOGOS = {"catalogo":{"sold_to":["A.G. SERVICIOS SPA","AGRICOLA CONVENT
 /* Lógica del conversor, en JS puro. Se prueba aquí y luego va tal cual al HTML. */
 
 const COLUMNAS = [
-  "N° Solicitud","Fecha Solicitud","Laboratorio","Solicitante","Sold To","Ship To",
+  "N° Solicitud","OT","Fecha Solicitud","Laboratorio","Solicitante","Sold To","Ship To",
   "Especie","Variedad","Línea Proceso","CSG","Lote","Posición Muestreo","N° Cámara",
   "N° Orden","Kilos Procesados (KG)","Producto Utilizado","Tipo Muestra","Tipo de servicio",
-  "Fecha Muestreo","Fecha entrada",
+  "Fecha Muestreo","Fecha entrada","Fecha Informe","Fecha Análisis",
   "Hora Muestreo","Nombre Muestreador","Generado Por","Email Solicitante",
   "Email Laboratorio","Observación","FDL ppm","IMZ ppm","PYR ppm","TEBU ppm","AZOX ppm",
   "TBZ ppm","DPA ppm","Dosis Aplicada","Tipo Aplicación","Aplicación En","Gasto",
@@ -424,6 +424,16 @@ function aFecha(txt, avisos){
   return String(d).padStart(2,"0") + "-" + String(mes).padStart(2,"0") + "-" + y;
 }
 
+/* "25 de septiembre de 2026" -> "25-09-2026". Quiteca escribe así la fecha del
+   informe (al pie), no en números. */
+const MESES = {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,
+               septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+function aFechaLarga(txt){
+  const m = plano(txt || "").match(/(\d{1,2})\s+de\s+([a-z]+)\s+(?:de\s+)?(\d{4})/);
+  if(!m || !MESES[m[2]]) return null;
+  return String(+m[1]).padStart(2,"0") + "-" + String(MESES[m[2]]).padStart(2,"0") + "-" + m[3];
+}
+
 function aHora(txt){
   const m = String(txt||"").match(/(\d{1,2}):(\d{2})/);
   if(!m) return null;
@@ -514,6 +524,17 @@ function leerQuiteca(texto, inf){
   d["Fecha Muestreo"]  = aFecha(campo(texto, "Fecha de Muestreo", "Hora"), inf.avisos);
   d["Fecha entrada"]   = aFecha(campo(texto, "Fecha de Recepción"), inf.avisos);
   d["Hora Muestreo"]   = aHora(campo(texto, "Hora"));
+  /* Fecha de Análisis: arriba a la derecha de la tabla de resultados. Fecha
+     Informe: al pie, escrita con letras ("25 de septiembre de 2026"). */
+  const fa = texto.match(/Fecha de An[áa]lisis\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
+  d["Fecha Análisis"] = fa ? aFecha(fa[1], inf.avisos) : null;
+  const fi = texto.match(/Fecha Informe\s*:?\s*(\d{1,2}\s+de\s+[A-Za-zÁÉÍÓÚáéíóú]+\s+(?:de\s+)?\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
+  d["Fecha Informe"] = fi ? (aFechaLarga(fi[1]) || aFecha(fi[1], inf.avisos)) : null;
+  /* El OT que generamos viaja en el campo «N° Solicitud» del informe. Los
+     informes antiguos traían ahí el correlativo interno de Quiteca (un número
+     largo): eso NO es un OT y se ignora. */
+  const ot = texto.match(/N°\s*Solicitud\s*:?\s*(OT-[A-Za-z0-9]+)/i);
+  d["OT"] = ot ? ot[1].toUpperCase() : null;
   d["Tipo Muestra"]    = "Fruta";
   /* En Quiteca "Tratamiento" (FOGGER, ACTIMIST, etc.) no es un producto químico,
      así que va en "Tipo Aplicación" tal cual, no en "Producto Utilizado" (que
@@ -1136,6 +1157,9 @@ function filaCruda(inf){
     "Fecha \nSolicitud": aISO(d["Fecha Solicitud"]),
     "Fecha de muestreo": aISO(d["Fecha Muestreo"]),
     "Fecha entrada": aISO(d["Fecha entrada"]),
+    "Fecha Informe": aISO(d["Fecha Informe"]),
+    "Fecha Análisis": aISO(d["Fecha Análisis"]),
+    "N° Solicitud": d["OT"],
     "SOLD TO": d["Sold To"],
     "SHIP TO": d["Ship To"],
     "CROP": d["Especie"],

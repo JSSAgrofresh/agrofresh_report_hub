@@ -573,7 +573,10 @@ def _procesar_filas(
 
     # Pre-carga todas las solicitudes existentes en memoria para evitar una query
     # por fila del Excel (4000+ filas = 4000+ round-trips a Neon, muy lento).
-    cur.execute("SELECT nro_solicitud, id, sold_to_raw, ship_to_raw, planta_id, fecha_muestreo, fecha_entrada FROM solicitud")
+    cur.execute(
+        "SELECT nro_solicitud, id, sold_to_raw, ship_to_raw, planta_id, fecha_muestreo, fecha_entrada,"
+        " fecha_informe, fecha_analisis, referencia FROM solicitud"
+    )
     solicitudes_existentes: dict[str, dict] = {r["nro_solicitud"]: r for r in cur.fetchall()}
 
     detalle: list[dict[str, Any]] = []
@@ -834,6 +837,12 @@ def _procesar_filas(
                     existente["sold_to_raw"] is None or existente["ship_to_raw"] is None
                     or existente["planta_id"] is None
                     or existente.get("fecha_muestreo") is None or existente.get("fecha_entrada") is None
+                    # Las fechas del informe/análisis y el OT llegaron después que la
+                    # primera carga (antes el lector no los leía): volver a subir el
+                    # informe los completa, sin pisar nada que ya tenga valor.
+                    or (existente.get("fecha_informe") is None and sol.get("fecha_informe"))
+                    or (existente.get("fecha_analisis") is None and sol.get("fecha_analisis"))
+                    or (existente.get("referencia") is None and sol.get("referencia"))
                 ):
                     # Solicitud que ya existe pero le faltaba Sold To/Ship To/planta_id
                     # o fechas (típico en re-ingesta del formato BD que la primera vez
@@ -848,6 +857,7 @@ def _procesar_filas(
                         "fecha_entrada = COALESCE(fecha_entrada, %s), "
                         "fecha_informe = COALESCE(fecha_informe, %s), "
                         "fecha_analisis = COALESCE(fecha_analisis, %s), "
+                        "referencia = COALESCE(referencia, %s), "
                         "semana_muestreo = COALESCE(semana_muestreo, %s), "
                         "mes = COALESCE(mes, %s) "
                         "WHERE id = %s",
@@ -859,6 +869,7 @@ def _procesar_filas(
                             sol.get("fecha_entrada"),
                             sol.get("fecha_informe"),
                             sol.get("fecha_analisis"),
+                            sol.get("referencia"),
                             sol.get("semana_muestreo"),
                             sol.get("mes"),
                             solicitud_id,
