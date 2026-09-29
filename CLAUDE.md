@@ -219,11 +219,28 @@ confundir con `tipo_copia`, que es de los contactos de **resultados**.
 ## Storage: explorador y permisos por carpeta
 
 `/modulos/storage` tiene un árbol lateral con tres espacios: **Archivos del
-servidor** (disco, `STORAGE_DIR`), **Solicitudes** y **Accutab** (bucket R2).
-Solo el primero se administra (crear, subir, renombrar, mover, eliminar,
-arrastrar, selección múltiple). Los de R2 son **solo lectura a propósito**: los
-escribe la aplicación y moverles algo rompe las solicitudes que apuntan a esas
-rutas. Gerencia mira todo pero no escribe (`solo_escribiente`).
+servidor** (disco, `STORAGE_DIR`), **Solicitudes** y **Accutab** (bucket R2),
+búsqueda global en el encabezado (tecla `/`; `GET /storage/buscar`, disco y R2,
+respeta permisos), vista de lista y cuadrícula, vista previa (imagen, PDF y
+texto), favoritos (en el `localStorage` de cada persona) y avisos flotantes.
+Gerencia mira todo pero no escribe (`solo_escribiente`).
+
+**Qué se puede modificar en R2** lo decide `storage_r2.permitir` (y lo espeja
+`puede` en `features/storage/lib/explorador.ts`; los dos se prueban con los
+MISMOS casos: `tests/test_storage_r2.py` y `explorador.test.ts`, si tocas uno
+toca el otro). La aplicación es dueña de parte del bucket, por eso:
+
+- **Accutab** (`accutab/mail`): se administra entero, salvo su carpeta base.
+- **Solicitudes** (`solicitudes`): se pueden crear, renombrar y mover
+  **carpetas**. NO se sube nada (el reindexado tomaría archivos ajenos por
+  solicitudes), NO se borra (se hace desde Toma de muestras, que limpia el
+  índice) y NO se mueven archivos sueltos. La app encuentra cada solicitud por
+  el NOMBRE de su archivo en cualquier subcarpeta y sus fotos por la carpeta
+  donde está el Excel, así que mover carpetas enteras es seguro.
+- **`_config`** no se toca nunca, y no se mueve entre Solicitudes y Accutab.
+- Renombrar/mover una carpeta en R2 es copiar cada objeto y borrar el original
+  (R2 no tiene carpetas: son prefijos; una vacía es un objeto de 0 bytes que
+  termina en `/`).
 
 **Permisos por carpeta** (migración 0043, `storage_permiso`; lógica en
 `app/storage_permisos.py`, solo admin general los edita desde el panel
