@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { IconoCerrar } from './iconos'
+import { IconoCerrar } from './iconosAccion'
 import styles from './Modal.module.css'
 
 interface ModalProps {

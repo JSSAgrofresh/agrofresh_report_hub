@@ -230,6 +230,17 @@ export function IconAuditoria(props: IconProps) {
   )
 }
 
+/** Escudo con engranaje: Administración General (solo el admin general). */
+export function IconAdminGeneral(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 3l7 2.8v5.4c0 4.3-2.8 7.6-7 9.3-4.2-1.7-7-5-7-9.3V5.8z" />
+      <circle cx="12" cy="11.5" r="2.4" />
+      <path d="M12 7.6v1.5M12 13.9v1.5M8.6 9.5l1.3.8M14.1 12.7l1.3.8M8.6 13.5l1.3-.8M14.1 10.3l1.3-.8" />
+    </svg>
+  )
+}
+
 export function IconEmitir(props: IconProps) {
   return (
     <svg {...base} {...props}>

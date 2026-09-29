@@ -2,40 +2,70 @@ import { useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
+import {
+  IconoActualizar,
+  IconoAlerta,
+  IconoBuscar,
+  IconoExcel,
+  IconoFlecha,
+  IconoLapiz,
+  IconoPdf,
+} from '@/components/ui/iconosAccion'
 import { useAuth } from '@/features/auth'
 import { esAdminGeneral } from '@/features/usuarios'
 import {
-  demoraDias,
+  FILTROS_VACIOS,
+  TIPO_ACTIMIST,
+  TIPO_LINEA,
+  contarFiltros,
   editarFechaEnvio,
   estadoDe,
-  fechaHora,
+  filtrarSolicitudes,
+  opcionesDeFiltros,
   ordenarSolicitudes,
-  paraInputFechaHora,
-  porSemana,
+  porLaboratorio,
+  porClienteYServicio,
   rutaPdfInforme,
-  soloFecha,
   solicitudesACsv,
-  topClientes,
+  tipoServicioDe,
+  topClientesPorServicio,
   totales,
   useSolicitudesAuditoria,
 } from '@/features/auditoriaInterna'
-import type { CampoOrden, EstadoSolicitud, Sentido, SolicitudAuditoria } from '@/features/auditoriaInterna'
+import type {
+  CampoOrden,
+  EstadoSolicitud,
+  FiltrosSolicitudes,
+  Sentido,
+  SolicitudAuditoria,
+} from '@/features/auditoriaInterna'
+import { fechaHora, paraInputFechaHora } from '@/lib/fechaHoraChile'
 import { descargarArchivo } from '@/services/http/descargar'
-import { AvanceInformes, Indicador } from './AvanceInformes'
 import { ESTADOS, ORDEN_ESTADOS } from './estados'
-import { GraficoClientes, GraficoSemanas, TarjetaGrafico } from './Graficos'
-import { IconoActualizar, IconoAlerta, IconoBuscar, IconoCerrar, IconoExcel, IconoFlecha, IconoLapiz, IconoPdf } from './iconos'
-import { Modal } from './Modal'
+import {
+  DonaLaboratorio,
+  GraficoClienteServicio,
+  GraficoTotalPorLaboratorio,
+  LeyendaEstados,
+  LeyendaTipos,
+  TarjetaGrafico,
+} from './Graficos'
+import { altoClienteServicio } from './coloresTipo'
+import { PanelFiltros } from './PanelFiltros'
 import styles from './SolicitudesInformesView.module.css'
 
 const POR_PAGINA = 100
+const MAX_ANALITOS_VISIBLES = 4
 const nf = new Intl.NumberFormat('es-CL')
-const nd = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 1 })
 
-function tieneSinEnvio(s: SolicitudAuditoria) {
-  return s.informe !== null && !s.informe.fecha_envio
-}
+type TipoGrafico = 'ambos' | typeof TIPO_ACTIMIST | typeof TIPO_LINEA
+const TIPOS_GRAFICO: { valor: TipoGrafico; texto: string }[] = [
+  { valor: 'ambos', texto: 'Ambos' },
+  { valor: TIPO_ACTIMIST, texto: 'Actimist' },
+  { valor: TIPO_LINEA, texto: 'Línea de proceso' },
+]
 
 function IconoInforme({ s, onEditar }: { s: SolicitudAuditoria; onEditar?: () => void }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
@@ -145,79 +175,85 @@ function ModalFechaEnvio({
   )
 }
 
-const COLUMNAS: { campo: CampoOrden; titulo: string; numerica?: boolean }[] = [
-  { campo: 'numero', titulo: 'Solicitud' },
+const COLUMNAS: { campo: CampoOrden; titulo: string }[] = [
   { campo: 'laboratorio', titulo: 'Laboratorio' },
+  { campo: 'solicitud', titulo: 'Solicitud' },
+  { campo: 'informe', titulo: 'Informe' },
   { campo: 'cliente', titulo: 'Cliente / Planta' },
-  { campo: 'emitida', titulo: 'Emitida' },
-  { campo: 'cargada', titulo: 'Cargada' },
-  { campo: 'enviada', titulo: 'Enviada' },
-  { campo: 'demora', titulo: 'Demora', numerica: true },
-  { campo: 'estado', titulo: 'Estado' },
+  { campo: 'tipo', titulo: 'Tipo de análisis' },
 ]
+
+function Analitos({ codigos }: { codigos: string[] }) {
+  if (codigos.length === 0) return <span className={styles.vacioCelda}>—</span>
+  const visibles = codigos.slice(0, MAX_ANALITOS_VISIBLES)
+  const resto = codigos.length - visibles.length
+  return (
+    <span className={styles.analitos} title={codigos.join(', ')}>
+      {visibles.map((c) => <span key={c} className={styles.analito}>{c}</span>)}
+      {resto > 0 && <span className={styles.analitoMas}>+{resto}</span>}
+    </span>
+  )
+}
+
+/** Concretada o no. Un informe que llegó pero aún no está en Report es «no»,
+ * con el aviso de que es lo que hay que ir a revisar. */
+function EstadoCelda({ s }: { s: SolicitudAuditoria }) {
+  const e = estadoDe(s)
+  const est = ESTADOS[e === 'concretada' ? 'concretada' : 'pendiente']
+  return (
+    <span className={styles.estadoCelda}>
+      <span className={styles.pastilla} style={{ background: est.fondo, color: est.tinta }}>
+        <i style={{ background: est.color }} />
+        {est.corto}
+      </span>
+      {e === 'sin_report' && (
+        <span className={styles.avisoReport} title={ESTADOS.sin_report.descripcion}>PDF sin Report</span>
+      )}
+    </span>
+  )
+}
 
 export function SolicitudesInformesView() {
   const { user } = useAuth()
   const puedeEditar = user ? esAdminGeneral(user) : false
   const { datos: todas, setDatos, error, cargando, refrescar } = useSolicitudesAuditoria()
 
-  const [laboratorio, setLaboratorio] = useState('')
-  const [texto, setTexto] = useState('')
-  const [sinEnvio, setSinEnvio] = useState(false)
-  const [estado, setEstado] = useState<EstadoSolicitud | ''>('')
+  const [filtros, setFiltros] = useState<FiltrosSolicitudes>({ ...FILTROS_VACIOS })
   const [orden, setOrden] = useState<{ campo: CampoOrden; sentido: Sentido }>({ campo: 'emitida', sentido: 'desc' })
   const [visibles, setVisibles] = useState(POR_PAGINA)
   const [editando, setEditando] = useState<SolicitudAuditoria | null>(null)
+  const [tipoGrafico, setTipoGrafico] = useState<TipoGrafico>('ambos')
+  const [topClientes, setTopClientes] = useState(10)
   const tablaRef = useRef<HTMLElement>(null)
 
-  const laboratorios = useMemo(
-    () => [...new Set((todas ?? []).map((s) => s.laboratorio).filter((l): l is string => Boolean(l)))].sort((a, b) => a.localeCompare(b, 'es')),
-    [todas],
-  )
+  const opciones = useMemo(() => opcionesDeFiltros(todas ?? [], filtros), [todas, filtros])
 
-  // Lo que alcanzan los filtros de arriba (laboratorio, texto, sin envío): scopea TODO lo de abajo.
-  const alcance = useMemo(() => {
-    const q = texto.trim().toLowerCase()
-    return (todas ?? []).filter((s) => {
-      if (laboratorio && s.laboratorio !== laboratorio) return false
-      if (sinEnvio && !tieneSinEnvio(s)) return false
-      if (!q) return true
-      return [s.numero_solicitud, s.sold_to, s.ship_to, s.especie, s.informe?.nro_informe, s.informe?.nombre_archivo]
-        .some((v) => (v ?? '').toLowerCase().includes(q))
-    })
-  }, [todas, laboratorio, texto, sinEnvio])
-
+  // Lo que dejan pasar los filtros: scopea TODO lo de abajo. El estado se
+  // aplica solo a la tabla, para que sus conteos sigan siendo los del resto.
+  const alcance = useMemo(() => filtrarSolicitudes(todas ?? [], filtros, { estado: true }), [todas, filtros])
   const tot = useMemo(() => totales(alcance), [alcance])
-  const semanas = useMemo(() => porSemana(alcance), [alcance])
-  const clientes = useMemo(() => topClientes(alcance), [alcance])
-  const sinFechaEnvio = useMemo(() => (todas ?? []).filter((s) => (!laboratorio || s.laboratorio === laboratorio) && tieneSinEnvio(s)).length, [todas, laboratorio])
+  const laboratorios = useMemo(() => porLaboratorio(alcance), [alcance])
+  const tiposElegidos = tipoGrafico === 'ambos' ? [TIPO_ACTIMIST, TIPO_LINEA] : [tipoGrafico]
+  const clientes = useMemo(
+    () => topClientesPorServicio(alcance, tipoGrafico === 'ambos' ? [TIPO_ACTIMIST, TIPO_LINEA] : [tipoGrafico], topClientes),
+    [alcance, tipoGrafico, topClientes],
+  )
+  const totalClientes = useMemo(() => porClienteYServicio(alcance).length, [alcance])
 
-  // El filtro por estado es solo de la tabla (sus conteos salen del alcance).
   const filas = useMemo(
-    () => ordenarSolicitudes(estado ? alcance.filter((s) => estadoDe(s) === estado) : alcance, orden.campo, orden.sentido),
-    [alcance, estado, orden],
+    () => ordenarSolicitudes(filtros.estado ? alcance.filter((s) => estadoDe(s) === filtros.estado) : alcance, orden.campo, orden.sentido),
+    [alcance, filtros.estado, orden],
   )
 
-  const hayFiltros = Boolean(laboratorio || texto || sinEnvio || estado)
-  const limpiar = () => {
-    setLaboratorio('')
-    setTexto('')
-    setSinEnvio(false)
-    setEstado('')
+  const hayFiltros = contarFiltros(filtros) > 0
+  const cambiarFiltros = (f: FiltrosSolicitudes) => {
+    setFiltros(f)
     setVisibles(POR_PAGINA)
   }
-  const cambiar = <T,>(fijar: (v: T) => void) => (v: T) => {
-    fijar(v)
-    setVisibles(POR_PAGINA)
-  }
-
-  function elegirEstado(e: EstadoSolicitud | '') {
-    cambiar(setEstado)(e)
-    if (e) tablaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  const elegirEstado = (e: EstadoSolicitud | '') => cambiarFiltros({ ...filtros, estado: e })
 
   function ordenarPor(campo: CampoOrden) {
-    setOrden((o) => (o.campo === campo ? { campo, sentido: o.sentido === 'asc' ? 'desc' : 'asc' } : { campo, sentido: campo === 'emitida' || campo === 'cargada' || campo === 'enviada' ? 'desc' : 'asc' }))
+    setOrden((o) => (o.campo === campo ? { campo, sentido: o.sentido === 'asc' ? 'desc' : 'asc' } : { campo, sentido: 'asc' }))
   }
 
   function exportar() {
@@ -259,104 +295,85 @@ export function SolicitudesInformesView() {
       )}
 
       {primeraCarga && (
-        <div className={styles.resumen} aria-busy="true">
-          <div className={styles.esqueleto}><Skeleton style={{ width: '40%', height: 56 }} /><Skeleton style={{ width: '100%', height: 12 }} /><Skeleton style={{ width: '70%', height: 20 }} /></div>
-          <div className={styles.indicadores}>{[0, 1, 2].map((i) => <div key={i} className={styles.esqueleto}><Skeleton style={{ width: '55%', height: 14 }} /><Skeleton style={{ width: '35%', height: 30 }} /></div>)}</div>
+        <div className={styles.donas} aria-busy="true">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className={styles.esqueleto}><Skeleton style={{ width: '50%', height: 14 }} /><Skeleton style={{ width: 150, height: 150, borderRadius: '50%', alignSelf: 'center' }} /></div>
+          ))}
         </div>
       )}
 
       {todas && (
-        <div className={cargando ? styles.recargando : undefined}>
-          <div className={styles.filtros} role="search">
-            <label className={styles.buscar}>
-              <IconoBuscar className={styles.lupa} width={16} height={16} />
-              <input
-                type="search"
-                placeholder="Buscar OT, cliente, planta o N° de informe…"
-                aria-label="Buscar"
-                value={texto}
-                onChange={(e) => cambiar(setTexto)(e.target.value)}
-              />
-            </label>
-            <label className={styles.campo}>
-              <span>Laboratorio</span>
-              <select value={laboratorio} onChange={(e) => cambiar(setLaboratorio)(e.target.value)}>
-                <option value="">Todos</option>
-                {laboratorios.map((l) => <option key={l}>{l}</option>)}
-              </select>
-            </label>
-            <button type="button" className={`${styles.chip} ${sinEnvio ? styles.chipActivo : ''}`} aria-pressed={sinEnvio} onClick={() => cambiar(setSinEnvio)(!sinEnvio)}>
-              Sin fecha de envío
-            </button>
-            {hayFiltros && (
-              <button type="button" className={styles.limpiar} onClick={limpiar}>
-                <IconoCerrar width={14} height={14} /> Limpiar filtros
-              </button>
-            )}
-          </div>
+        <div className={cargando ? styles.recargando : styles.contenido}>
+          <PanelFiltros filtros={filtros} onChange={cambiarFiltros} opciones={opciones} datos={todas} />
 
           {tot.emitidas === 0 ? (
             <div className={styles.vacio}>
               <IconoBuscar width={28} height={28} />
               <h3>{todas.length === 0 ? 'Aún no hay solicitudes emitidas' : 'Nada coincide con los filtros'}</h3>
-              <p>{todas.length === 0 ? 'Cuando se emitan solicitudes desde Toma de muestras, aparecerán acá.' : 'Prueba con otra búsqueda o limpia los filtros.'}</p>
-              {hayFiltros && <Button variant="secondary" onClick={limpiar}>Limpiar filtros</Button>}
+              <p>{todas.length === 0 ? 'Cuando se emitan solicitudes desde Toma de muestras, aparecerán acá.' : 'Prueba con otra combinación o limpia los filtros.'}</p>
+              {hayFiltros && <Button variant="secondary" onClick={() => cambiarFiltros({ ...FILTROS_VACIOS })}>Limpiar filtros</Button>}
             </div>
           ) : (
             <>
-              <div className={styles.resumen}>
-                <AvanceInformes totales={tot} activo={estado} onElegir={elegirEstado} />
-                <div className={styles.indicadores}>
-                  <Indicador etiqueta="Solicitudes emitidas" valor={nf.format(tot.emitidas)} sub={hayFiltros ? 'con los filtros actuales' : 'en total'} />
-                  <Indicador
-                    etiqueta="Demora promedio"
-                    valor={tot.demoraPromedioDias === null ? '—' : `${nd.format(tot.demoraPromedioDias)} d`}
-                    sub="entre emitir y cargar el informe"
-                  />
-                  <Indicador
-                    etiqueta="Sin fecha de envío"
-                    valor={nf.format(sinFechaEnvio)}
-                    sub={sinFechaEnvio ? 'informes por completar — clic para verlos' : 'todos los informes la tienen'}
-                    alerta={sinFechaEnvio > 0}
-                    onClick={sinFechaEnvio || sinEnvio ? () => cambiar(setSinEnvio)(!sinEnvio) : undefined}
-                    activo={sinEnvio}
-                  />
-                </div>
+              <div className={styles.donas}>
+                <DonaLaboratorio titulo="Todos los laboratorios" resumen={tot} destacada />
+                {laboratorios.map((l) => <DonaLaboratorio key={l.laboratorio} titulo={l.laboratorio} resumen={l} />)}
               </div>
 
-              <div className={styles.graficos}>
-                <TarjetaGrafico
-                  titulo="Solicitudes por semana"
-                  subtitulo="Emitidas cada semana y en qué estado están hoy"
-                  alto={260}
-                  tabla={{
-                    columnas: ['Semana', 'Emitidas', 'Concretadas', 'PDF sin Report', 'Pendientes'],
-                    filas: semanas.map((p) => [p.etiqueta, p.emitidas, p.concretadas, p.sinReport, p.pendientes]),
-                  }}
-                >
-                  <GraficoSemanas puntos={semanas} />
-                </TarjetaGrafico>
-                <TarjetaGrafico
-                  titulo="Top clientes con solicitudes"
-                  subtitulo="Los 10 clientes con más solicitudes emitidas"
-                  alto={Math.max(180, clientes.length * 34 + 40)}
-                  tabla={{
-                    columnas: ['Cliente', 'Solicitudes', 'Concretadas', 'PDF sin Report', 'Pendientes'],
-                    filas: clientes.map((c) => [c.cliente, c.solicitudes, c.concretadas, c.sinReport, c.pendientes]),
-                  }}
-                >
-                  <GraficoClientes clientes={clientes} />
-                </TarjetaGrafico>
-              </div>
+              <TarjetaGrafico
+                titulo="Análisis e informes por cliente"
+                subtitulo={`Análisis pedidos y informes concretados, por tipo de servicio · ${clientes.length} de ${nf.format(totalClientes)} clientes`}
+                alto={altoClienteServicio(clientes.length, tiposElegidos.length)}
+                leyenda={<LeyendaTipos tipos={tiposElegidos} />}
+                controles={
+                  <>
+                    <div className={styles.segmentadoChico} role="group" aria-label="Tipo de servicio">
+                      {TIPOS_GRAFICO.map((t) => (
+                        <button key={t.valor} type="button" aria-pressed={tipoGrafico === t.valor} className={tipoGrafico === t.valor ? styles.segActivo : ''} onClick={() => setTipoGrafico(t.valor)}>
+                          {t.texto}
+                        </button>
+                      ))}
+                    </div>
+                    <select className={styles.selectChico} aria-label="Cuántos clientes mostrar" value={topClientes} onChange={(e) => setTopClientes(Number(e.target.value))}>
+                      <option value={10}>Top 10</option>
+                      <option value={20}>Top 20</option>
+                      <option value={0}>Todos</option>
+                    </select>
+                  </>
+                }
+                tabla={{
+                  columnas: ['Cliente', ...tiposElegidos.flatMap((t) => [`${t} · análisis`, `${t} · informes`])],
+                  filas: clientes.map((c) => [c.cliente, ...tiposElegidos.flatMap((t) => [c.tipos[t]?.analisis ?? 0, c.tipos[t]?.informes ?? 0])]),
+                }}
+              >
+                {clientes.length > 0 ? (
+                  <GraficoClienteServicio clientes={clientes} tipos={tiposElegidos} />
+                ) : (
+                  <p className={styles.sinDatosGrafico}>No hay solicitudes de este tipo con los filtros actuales.</p>
+                )}
+              </TarjetaGrafico>
+
+              <TarjetaGrafico
+                titulo="Total de solicitudes por laboratorio"
+                subtitulo="Cuántas se emitieron a cada laboratorio y en qué estado están"
+                alto={Math.max(110, laboratorios.length * 46 + 44)}
+                leyenda={<LeyendaEstados />}
+                tabla={{
+                  columnas: ['Laboratorio', 'Total', 'Concretadas', 'PDF sin Report', 'Pendientes'],
+                  filas: laboratorios.map((l) => [l.laboratorio, l.emitidas, l.concretadas, l.sinReport, l.pendientes]),
+                }}
+              >
+                <GraficoTotalPorLaboratorio laboratorios={laboratorios} />
+              </TarjetaGrafico>
 
               <section className={styles.tablaCard} ref={tablaRef} aria-label="Detalle de solicitudes">
                 <header className={styles.tablaCab}>
                   <div className={styles.segmentado} role="group" aria-label="Filtrar por estado">
-                    <button type="button" aria-pressed={estado === ''} className={estado === '' ? styles.segActivo : ''} onClick={() => cambiar(setEstado)('')}>
+                    <button type="button" aria-pressed={filtros.estado === ''} className={filtros.estado === '' ? styles.segActivo : ''} onClick={() => elegirEstado('')}>
                       Todas <span>{nf.format(alcance.length)}</span>
                     </button>
                     {ORDEN_ESTADOS.map((e) => (
-                      <button key={e} type="button" aria-pressed={estado === e} className={estado === e ? styles.segActivo : ''} onClick={() => cambiar(setEstado)(estado === e ? '' : e)}>
+                      <button key={e} type="button" aria-pressed={filtros.estado === e} className={filtros.estado === e ? styles.segActivo : ''} onClick={() => elegirEstado(filtros.estado === e ? '' : e)}>
                         <i style={{ background: ESTADOS[e].color }} />
                         {ESTADOS[e].texto} <span>{nf.format(e === 'concretada' ? tot.concretadas : e === 'sin_report' ? tot.sinReport : tot.pendientes)}</span>
                       </button>
@@ -375,52 +392,48 @@ export function SolicitudesInformesView() {
                     <thead>
                       <tr>
                         {COLUMNAS.map((c) => (
-                          <th
-                            key={c.campo}
-                            className={c.numerica ? styles.num : undefined}
-                            aria-sort={orden.campo === c.campo ? (orden.sentido === 'asc' ? 'ascending' : 'descending') : 'none'}
-                          >
+                          <th key={c.campo} aria-sort={orden.campo === c.campo ? (orden.sentido === 'asc' ? 'ascending' : 'descending') : 'none'}>
                             <button type="button" onClick={() => ordenarPor(c.campo)} className={orden.campo === c.campo ? styles.ordenActivo : ''}>
                               {c.titulo}
                               <IconoFlecha sentido={orden.campo === c.campo ? orden.sentido : null} />
                             </button>
                           </th>
                         ))}
-                        <th className={styles.colInforme}>Informe</th>
+                        <th className={styles.colAnalitos}>Analitos</th>
+                        <th aria-sort={orden.campo === 'estado' ? (orden.sentido === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                          <button type="button" onClick={() => ordenarPor('estado')} className={orden.campo === 'estado' ? styles.ordenActivo : ''}>
+                            Estado
+                            <IconoFlecha sentido={orden.campo === 'estado' ? orden.sentido : null} />
+                          </button>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filas.slice(0, visibles).map((s) => {
-                        const e = ESTADOS[estadoDe(s)]
-                        const demora = demoraDias(s)
-                        return (
-                          <tr key={s.archivo}>
-                            <td className={styles.mono}>{s.numero_solicitud ?? '—'}</td>
-                            <td>{s.laboratorio ?? '—'}</td>
-                            <td>
-                              <span className={styles.cliente}>{s.sold_to ?? '—'}</span>
-                              {s.ship_to && <span className={styles.planta}>{s.ship_to}</span>}
-                            </td>
-                            <td className={styles.fecha}>{soloFecha(s.emitida_en ?? s.fecha_solicitud)}</td>
-                            <td className={styles.fecha}>{s.informe ? soloFecha(s.informe.cargado_en) : '—'}</td>
-                            <td className={styles.fecha}>
-                              {!s.informe ? '—' : s.informe.fecha_envio ? fechaHora(s.informe.fecha_envio) : <span className={styles.faltante}>Sin fecha</span>}
-                            </td>
-                            <td className={`${styles.num} ${styles.fecha}`}>{demora === null ? '—' : `${demora} d`}</td>
-                            <td>
-                              <span className={styles.pastilla} style={{ background: e.fondo, color: e.tinta }} title={e.descripcion}>
-                                <i style={{ background: e.color }} />
-                                {e.corto}
+                      {filas.slice(0, visibles).map((s) => (
+                        <tr key={s.archivo}>
+                          <td>{s.laboratorio ?? '—'}</td>
+                          <td className={styles.mono}>{s.numero_solicitud ?? '—'}</td>
+                          <td>
+                            {s.informe ? (
+                              <span className={styles.informeCelda}>
+                                <span className={styles.mono}>{s.informe.nro_informe ?? 'Sin N°'}</span>
+                                <IconoInforme s={s} onEditar={puedeEditar ? () => setEditando(s) : undefined} />
                               </span>
-                            </td>
-                            <td className={styles.colInforme}>
-                              <IconoInforme s={s} onEditar={puedeEditar && s.informe ? () => setEditando(s) : undefined} />
-                            </td>
-                          </tr>
-                        )
-                      })}
+                            ) : (
+                              <span className={styles.vacioCelda}>—</span>
+                            )}
+                          </td>
+                          <td>
+                            <span className={styles.cliente}>{s.sold_to ?? '—'}</span>
+                            {s.ship_to && <span className={styles.planta}>{s.ship_to}</span>}
+                          </td>
+                          <td>{s.tipo_servicio ? tipoServicioDe(s) : <span className={styles.vacioCelda}>—</span>}</td>
+                          <td className={styles.colAnalitos}><Analitos codigos={s.analitos} /></td>
+                          <td><EstadoCelda s={s} /></td>
+                        </tr>
+                      ))}
                       {filas.length === 0 && (
-                        <tr><td colSpan={COLUMNAS.length + 1} className={styles.sinFilas}>No hay solicitudes en este estado.</td></tr>
+                        <tr><td colSpan={COLUMNAS.length + 2} className={styles.sinFilas}>No hay solicitudes en este estado.</td></tr>
                       )}
                     </tbody>
                   </table>
