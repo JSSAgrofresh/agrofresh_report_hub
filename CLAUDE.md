@@ -361,7 +361,7 @@ tocas una, toca la otra.
 | Pantalla | Qué es |
 |---|---|
 | Solicitudes e informes | Solicitudes emitidas (`solicitud_archivo`) vs informes recibidos, con 3 gráficos y tooltip del ícono de informe (emitida / cargada / enviada). |
-| Carpetas de auditoría | Navegador del bucket R2 **`auditoria`**: `<laboratorio>/<ship to>/<archivo>.pdf`. Las carpetas nacen con el primer PDF. |
+| Carpetas de auditoría | Navegador de la carpeta **`auditoria/`** dentro del bucket de siempre (`agrofresh-storage`): `<laboratorio>/<ship to>/<archivo>.pdf`. Las carpetas nacen con el primer PDF. |
 | Vista por límite de control | El gráfico que antes era una pestaña de Report. Es `ReporteView` con `vistaControl`; en Report ya no existe. |
 
 - **Permiso `auditoria_interna`**: solo el admin general y a quien él asigne.
@@ -382,10 +382,16 @@ tocas una, toca la otra.
   (`solicitud.nro_solicitud = informe_auditoria.nro_informe`). PDF sin Report
   se muestra aparte. El laboratorio `AGROFRESH` (propio) no entra al panel: su
   resultado llega por el GC, no por un informe externo.
-- Tabla `informe_auditoria` (migración 0044). Config del bucket en el `.env`
-  del backend: `R2_AUDITORIA_BUCKET=auditoria` (usa las mismas llaves de R2 salvo
-  que se definan `R2_AUDITORIA_ENDPOINT_URL/ACCESS_KEY_ID/SECRET_ACCESS_KEY`).
-  Sin bucket configurado, subir y listar responden 503 con un mensaje claro.
+- Tabla `informe_auditoria` (migración 0044). **No hay nada que configurar**:
+  por defecto los PDF van a `auditoria/` dentro de `R2_BUCKET`, con las mismas
+  llaves de R2. El prefijo se agrega y se quita solo en `r2_auditoria.py`; lo
+  que se guarda en la base es la ruta relativa (`Quiteca/Dole/x.pdf`). Solo si
+  algún día se quiere un bucket aparte: `R2_AUDITORIA_BUCKET` (y, si el token es
+  otro, `R2_AUDITORIA_ENDPOINT_URL/ACCESS_KEY_ID/SECRET_ACCESS_KEY`);
+  `R2_AUDITORIA_PREFIJO` fija el prefijo a mano. Un fallo de R2 sale como 502
+  con la causa (p. ej. 403 = el token no tiene permiso sobre el bucket).
+  La primera versión creó un bucket `auditoria` aparte y el token no lo abría
+  (403): la intención siempre fue una carpeta dentro de `agrofresh-storage`.
 
 ---
 

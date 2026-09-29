@@ -42,11 +42,19 @@ R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "")
 R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "")
 R2_BUCKET = os.getenv("R2_BUCKET", "agrofresh-storage")
 
-# Bucket de Auditoría interna: guarda los PDF de los informes de laboratorio
-# (<laboratorio>/<ship to>/<archivo>.pdf). Es un bucket aparte del de
-# Storage/solicitudes. Usa el mismo endpoint y las mismas llaves de R2 salvo
-# que se definan las R2_AUDITORIA_* (útil si el token de R2 se limitó al bucket).
-R2_AUDITORIA_BUCKET = os.getenv("R2_AUDITORIA_BUCKET", "auditoria")
+# Dónde guardan sus PDF los informes de Auditoría interna
+# (<laboratorio>/<ship to>/<archivo>.pdf).
+#
+# Por defecto: la carpeta "auditoria/" DENTRO del mismo bucket de siempre
+# (R2_BUCKET), con las mismas llaves de R2: no hay nada nuevo que crear ni
+# permisos que ampliar. Si algún día se quiere un bucket aparte, se define
+# R2_AUDITORIA_BUCKET (y, si el token es otro, las R2_AUDITORIA_*): en ese caso
+# los informes van a la raíz de ese bucket, salvo que se fije R2_AUDITORIA_PREFIJO.
+R2_AUDITORIA_BUCKET = os.getenv("R2_AUDITORIA_BUCKET", "").strip() or R2_BUCKET
+_prefijo_env = os.getenv("R2_AUDITORIA_PREFIJO")
+R2_AUDITORIA_PREFIJO = (
+    _prefijo_env if _prefijo_env is not None else ("auditoria" if R2_AUDITORIA_BUCKET == R2_BUCKET else "")
+).strip("/ ")
 R2_AUDITORIA_ENDPOINT_URL = os.getenv("R2_AUDITORIA_ENDPOINT_URL", "") or R2_ENDPOINT_URL
 R2_AUDITORIA_ACCESS_KEY_ID = os.getenv("R2_AUDITORIA_ACCESS_KEY_ID", "") or R2_ACCESS_KEY_ID
 R2_AUDITORIA_SECRET_ACCESS_KEY = os.getenv("R2_AUDITORIA_SECRET_ACCESS_KEY", "") or R2_SECRET_ACCESS_KEY
