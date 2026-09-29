@@ -42,6 +42,15 @@ R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "")
 R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "")
 R2_BUCKET = os.getenv("R2_BUCKET", "agrofresh-storage")
 
+# Bucket de Auditoría interna: guarda los PDF de los informes de laboratorio
+# (<laboratorio>/<ship to>/<archivo>.pdf). Es un bucket aparte del de
+# Storage/solicitudes. Usa el mismo endpoint y las mismas llaves de R2 salvo
+# que se definan las R2_AUDITORIA_* (útil si el token de R2 se limitó al bucket).
+R2_AUDITORIA_BUCKET = os.getenv("R2_AUDITORIA_BUCKET", "auditoria")
+R2_AUDITORIA_ENDPOINT_URL = os.getenv("R2_AUDITORIA_ENDPOINT_URL", "") or R2_ENDPOINT_URL
+R2_AUDITORIA_ACCESS_KEY_ID = os.getenv("R2_AUDITORIA_ACCESS_KEY_ID", "") or R2_ACCESS_KEY_ID
+R2_AUDITORIA_SECRET_ACCESS_KEY = os.getenv("R2_AUDITORIA_SECRET_ACCESS_KEY", "") or R2_SECRET_ACCESS_KEY
+
 # Única cuenta que puede crear solicitudes de prueba (Toma de muestras →
 # Solicitudes → "Solicitud de prueba"). No es una credencial: solo decide a
 # quién se le muestra el botón. Se puede cambiar en el .env del backend.

@@ -80,6 +80,7 @@ git pull origin main
 # Migraciones (una por archivo, en orden)
 cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0026_verificaciones_diarias.sql
+.venv\Scripts\python.exe scripts\migrar.py 0044_auditoria_interna.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -350,6 +351,41 @@ tocas una, toca la otra.
   queda vacío. Sin la tabla del índice (0020) la descarga sigue funcionando.
   La banda de fungicidas nombra solo los laboratorios presentes (`titulo_fungicidas`):
   «QUITECA — ANÁLISIS DE RESIDUOS DE FUNGICIDAS», o «QUITECA / AGROFRESH — …» si están los dos.
+
+---
+
+## Auditoría Interna (módulo nuevo)
+
+`/modulos/auditoria-interna` es un hub con tres tarjetas:
+
+| Pantalla | Qué es |
+|---|---|
+| Solicitudes e informes | Solicitudes emitidas (`solicitud_archivo`) vs informes recibidos, con 3 gráficos y tooltip del ícono de informe (emitida / cargada / enviada). |
+| Carpetas de auditoría | Navegador del bucket R2 **`auditoria`**: `<laboratorio>/<ship to>/<archivo>.pdf`. Las carpetas nacen con el primer PDF. |
+| Vista por límite de control | El gráfico que antes era una pestaña de Report. Es `ReporteView` con `vistaControl`; en Report ya no existe. |
+
+- **Permiso `auditoria_interna`**: solo el admin general y a quien él asigne.
+  Gerencia NO lo ve (ni en el menú ni en el panel de inicio). Backend:
+  `puede_auditoria` en `app/auditoria_interna.py`. Nótese que el prefijo es
+  `/api/auditoria-interna`; `/api/auditoria` es la auditoría de homogenización
+  de DataCore, otra cosa.
+- **Editar** (fecha de envío, renombrar, borrar) es solo del admin general. La
+  raíz del bucket no se puede borrar.
+- **Cómo llegan los PDF**: Converter (`public/modules/converter.html`), al
+  "Subir a la base de datos", sube además cada PDF a
+  `POST /api/auditoria-interna/informes`. El PDF del laboratorio trae SU N° de
+  informe, no el OT-xxxx: por eso Converter ofrece un desplegable "Solicitud
+  (OT)" con sugerencia (laboratorio + planta + fecha de muestreo) que la
+  persona confirma. También ahí se escribe a mano la fecha y hora de envío
+  (opcional; se edita después).
+- **Concretada** = tiene PDF guardado **y** sus resultados ya están en Report
+  (`solicitud.nro_solicitud = informe_auditoria.nro_informe`). PDF sin Report
+  se muestra aparte. El laboratorio `AGROFRESH` (propio) no entra al panel: su
+  resultado llega por el GC, no por un informe externo.
+- Tabla `informe_auditoria` (migración 0044). Config del bucket en el `.env`
+  del backend: `R2_AUDITORIA_BUCKET=auditoria` (usa las mismas llaves de R2 salvo
+  que se definan `R2_AUDITORIA_ENDPOINT_URL/ACCESS_KEY_ID/SECRET_ACCESS_KEY`).
+  Sin bucket configurado, subir y listar responden 503 con un mensaje claro.
 
 ---
 

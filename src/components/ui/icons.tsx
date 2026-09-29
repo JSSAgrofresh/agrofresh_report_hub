@@ -218,6 +218,18 @@ export function IconVerificar(props: IconProps) {
   )
 }
 
+export function IconAuditoria(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M13 3.5H7A1.5 1.5 0 0 0 5.5 5v14A1.5 1.5 0 0 0 7 20.5h5" />
+      <path d="M13 3.5l4.5 4.5V10" />
+      <path d="M13 3.5V8h4.5" />
+      <circle cx="16.2" cy="15.8" r="3" />
+      <path d="M18.4 18l2.4 2.4" />
+    </svg>
+  )
+}
+
 export function IconEmitir(props: IconProps) {
   return (
     <svg {...base} {...props}>

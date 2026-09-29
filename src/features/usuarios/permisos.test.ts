@@ -49,3 +49,24 @@ describe('permisos configurables de usuarios', () => {
     expect(modulosPermitidos(soloReportes).map((m) => m.id)).toEqual(['reports'])
   })
 })
+describe('Auditoría interna: solo el admin general y a quien él designe', () => {
+  const ve = (u: Usuario) => modulosPermitidos(u).some((m) => m.id === 'auditoria_interna')
+
+  it('el admin general lo ve siempre', () => {
+    expect(ve({ id: '1', email: 'a@a.com', nombre: 'A', tipoAcceso: 'admin_general' })).toBe(true)
+  })
+
+  it('Gerencia NO lo ve, aunque ve el resto de los módulos', () => {
+    const gerencia: Usuario = { id: '2', email: 'g@a.com', nombre: 'G', tipoAcceso: 'gerencia' }
+    expect(ve(gerencia)).toBe(false)
+    expect(modulosPermitidos(gerencia).length).toBeGreaterThan(3)
+  })
+
+  it('un admin de área no lo ve por defecto', () => {
+    expect(ve(cromatografia)).toBe(false)
+  })
+
+  it('lo ve quien lo tenga asignado', () => {
+    expect(ve({ ...cromatografia, modulos: ['reports', 'auditoria_interna'] })).toBe(true)
+  })
+})
