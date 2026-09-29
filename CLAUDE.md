@@ -331,6 +331,8 @@ tocas una, toca la otra.
   `ALIAS_CODIGO` une los códigos de la ingesta con los del catálogo de Toma de
   muestras (ECOLI/ECOLI100, HONG/HONGOS…); un analito sin columna cae en
   «Otros analitos», nunca se pierde.
+  La banda de fungicidas nombra solo los laboratorios presentes (`titulo_fungicidas`):
+  «QUITECA — ANÁLISIS DE RESIDUOS DE FUNGICIDAS», o «QUITECA / AGROFRESH — …» si están los dos.
 
 ---
 
