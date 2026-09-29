@@ -1,0 +1,270 @@
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  margin-bottom: var(--space-4);
+}
+
+.filtros label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+}
+
+.filtros select,
+.filtros input {
+  height: 34px;
+  min-width: 160px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.buscar {
+  flex: 1 1 240px;
+}
+
+.buscar input {
+  width: 100%;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kpiEtiqueta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+}
+
+.kpiValor {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.kpiSub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.graficos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.graficoCard h3 {
+  font-size: 13.5px;
+  margin-bottom: var(--space-3);
+}
+
+/* El top de clientes ocupa todo el ancho de la segunda fila. */
+.graficoCard.ancho:last-child {
+  grid-column: 1 / -1;
+}
+
+.lienzo {
+  position: relative;
+  height: 260px;
+}
+
+.tablaCard {
+  padding: 0;
+  overflow: hidden;
+}
+
+.tablaScroll {
+  overflow-x: auto;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tabla th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--color-text-faint);
+  border-bottom: 1px solid var(--color-border-strong);
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.tabla tbody tr:hover {
+  background: var(--color-bg);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.masFila {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3);
+}
+
+.vacio {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: var(--space-6);
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: 13px;
+  margin-bottom: var(--space-3);
+}
+
+.informe {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sinInforme {
+  color: var(--color-text-faint);
+}
+
+.botonInforme,
+.botonEditar {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-ok);
+  padding: 3px;
+  line-height: 0;
+}
+
+.botonEditar {
+  color: var(--color-text-faint);
+  font-size: 14px;
+  line-height: 1;
+  padding: 3px 5px;
+}
+
+.botonInforme:hover,
+.botonInforme:focus-visible,
+.botonEditar:hover,
+.botonEditar:focus-visible {
+  background: var(--color-bg);
+  border-color: var(--color-border-strong);
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  width: 288px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--color-text);
+  color: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  font-size: 12.5px;
+  pointer-events: none;
+}
+
+.tooltip strong {
+  font-size: 12.5px;
+  word-break: break-all;
+  margin-bottom: 2px;
+}
+
+.tooltip span {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tooltip em {
+  font-style: normal;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.fondoModal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(22, 32, 27, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.modal {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-md);
+}
+
+.modal h3 {
+  font-size: 16px;
+}
+
+.modalSub {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  word-break: break-all;
+}
+
+.modal input {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+
+.modalBotones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 860px) {
+  .graficos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -127,6 +127,10 @@ table.uni td.e{color:#D8DCD4}
 table.uni tbody tr:nth-child(even){background:#FBFCFA}
 .pie{font-size:12.5px;color:var(--tinta-3);margin-top:10px}
 .oculto{display:none !important}
+table.uni td.amarre{white-space:normal;min-width:260px}
+select.ot,input.envio{font-family:var(--ui);font-size:13px;padding:6px 8px;border:1px solid var(--borde-f);
+  border-radius:6px;background:var(--sup);color:var(--tinta);max-width:100%}
+select.ot.sugerida{border-color:var(--verde-osc);background:#F2F8EC}
 @media (max-width:760px){ .labs{flex-direction:column} }
 </style>
 </head>
@@ -184,6 +188,19 @@ table.uni tbody tr:nth-child(even){background:#FBFCFA}
     </div>
     <div class="tablaCaja"><table class="uni" id="tabla"></table></div>
     <p class="pie" id="pieTabla"></p>
+    <div id="amarre" style="margin-top:22px">
+      <div class="paso-cab">
+        <h2 style="font-size:15px">Solicitud y envío de cada informe</h2>
+        <span class="ayuda">Para auditoría interna · el PDF se guarda en su carpeta al subir</span>
+      </div>
+      <div class="btn-fila" style="margin:10px 0">
+        <label for="envioTodos" style="font-size:13px;color:var(--tinta-2)">Fecha y hora de envío para todos:</label>
+        <input type="datetime-local" id="envioTodos" class="envio">
+        <button class="btn sec" id="btnEnvioTodos">Aplicar a todos</button>
+      </div>
+      <div class="tablaCaja"><table class="uni" id="tablaAmarre"></table></div>
+      <p class="pie" id="pieAmarre"></p>
+    </div>
     <div class="btn-fila" style="margin-top:14px">
       <button class="btn" id="btnXlsx">Descargar formato de solicitud</button>
       <button class="btn sec" id="btnCsv">Descargar como CSV</button>
@@ -780,7 +797,7 @@ function pintar(){
   $("estado").textContent = informes.length
     ? ok.length + " de " + informes.length + " informe(s) reconocido(s)"
     : "Sin informes cargados";
-  if(ok.length){ pintarAnalisis(ok); pintarTabla(ok); }
+  if(ok.length){ pintarAnalisis(ok); pintarTabla(ok); pintarAmarre(ok); }
 }
 
 const ETIQ_EST = {ok:"correcto", corregido:"corregido", fuera:"fuera de catálogo",
@@ -889,7 +906,9 @@ async function cargar(lista){
     }
     try{
       const buf = new Uint8Array(await file.arrayBuffer());
-      informes.push(analizar(await textoDelPdf(buf), file.name));
+      const inf = analizar(await textoDelPdf(buf), file.name);
+      inf.file = file;   // el PDF original: se guarda en las carpetas de auditoría al subir
+      informes.push(inf);
     }catch(err){
       informes.push({archivo: file.name, laboratorio: "", datos: {}, resultados: {},
                      sueltos: [], avisos: ["No se pudo leer el PDF: " + err.message]});
@@ -1036,20 +1055,166 @@ $("btnSubir").onclick = async () => {
        "quedan en \"Pendientes de revisión\" dentro de DataCore para aprobarlas o corregirlas a mano." : "") +
       (prev.advertencias.length ? "\n\nAdvertencias:\n" + prev.advertencias.slice(0,8).join("\n") +
        (prev.advertencias.length > 8 ? "\n… y " + (prev.advertencias.length - 8) + " más." : "") : "") +
+      "\n\nLos PDF también se guardarán en las carpetas de auditoría (laboratorio / ship to)." +
       "\n\n¿Confirmar la carga a la base de datos?";
     if(!confirm(msg)){ pie.textContent = "Carga cancelada."; btn.disabled = false; return; }
     pie.textContent = "Subiendo a la base de datos…";
     const conf = await llamarIngest("confirmar", filas);
     const c = conf.resumen;
-    pie.textContent = "✔ Cargado: " + c.solicitudes_nuevas + " solicitud(es) nueva(s), " +
+    const base = "✔ Cargado: " + c.solicitudes_nuevas + " solicitud(es) nueva(s), " +
       c.solicitudes_existentes + " completada(s), " + c.resultados + " resultado(s) en total." +
       (c.pendientes_revision ? " ⛔ " + c.pendientes_revision + " quedaron pendientes de revisión en DataCore." : "");
+    pie.textContent = base + " Guardando los PDF en auditoría…";
+    const pdf = await subirPdfs(ok);
+    pie.textContent = base + " " + pdf;
   }catch(err){
     pie.textContent = "⚠ No se pudo subir: " + err.message;
   }finally{
     btn.disabled = false;
   }
 };
+
+/* ============ auditoría interna: amarre con la solicitud (OT) y PDF ============ */
+// OT emitidas que todavía no tienen informe. null = no se pudieron leer (sin
+// permiso o backend viejo): el informe se sube igual, solo que sin amarrar.
+let abiertas = null;
+
+async function cargarAbiertas(){
+  try{
+    const r = await fetch(API_BASE + "/auditoria-interna/solicitudes-abiertas", {headers: autorizacion()});
+    abiertas = r.ok ? await r.json() : null;
+  }catch(e){ abiertas = null; }
+  pintar();
+}
+
+function normLab(s){ return plano(s || "").replace(/[^a-z0-9]/g, ""); }
+function mismoLab(a, b){
+  const x = normLab(a), y = normLab(b);
+  return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
+}
+const mismoTexto = (a, b) => !!a && !!b && plano(a) === plano(b);
+
+/* La OT que calza con este informe: mismo laboratorio y misma planta; si hay
+   varias, la que además coincide en fecha de muestreo. Si queda más de una
+   posible, NO se elige ninguna: se sugiere solo cuando no hay duda, y de todas
+   formas la persona confirma. `tomadas` son las OT ya elegidas por otro
+   informe del mismo lote. */
+function sugerirOT(inf, tomadas){
+  if(!abiertas) return "";
+  const d = inf.datos, fecha = aISO(d["Fecha Muestreo"]);
+  const libres = abiertas.filter(o => !tomadas.has(o.archivo) && mismoLab(d["Laboratorio"], o.laboratorio));
+  const porPlanta = libres.filter(o => mismoTexto(d["Ship To"], o.ship_to));
+  if(porPlanta.length === 1) return porPlanta[0].archivo;
+  const porFecha = porPlanta.filter(o => fecha && o.fecha_muestreo === fecha);
+  return porFecha.length === 1 ? porFecha[0].archivo : "";
+}
+
+function etiquetaOT(o){
+  return (o.numero_solicitud || o.archivo) + " · " + (o.ship_to || "sin planta") +
+    (o.fecha_muestreo ? " · muestreo " + o.fecha_muestreo.split("-").reverse().join("-") : "");
+}
+
+function pintarAmarre(ok){
+  const tabla = $("tablaAmarre");
+  tabla.textContent = "";
+  if(abiertas === null){
+    $("pieAmarre").textContent = "No se pudieron leer las solicitudes emitidas: los informes se guardan igual, sin amarrar a una solicitud.";
+  }else{
+    $("pieAmarre").textContent = "Elige la solicitud (OT) a la que corresponde cada informe. Las sugeridas salen marcadas en verde: confírmalas o cámbialas.";
+  }
+
+  // primero se resuelven las sugerencias, sin repetir una OT entre informes
+  const tomadas = new Set(ok.map(i => i.ot).filter(Boolean));
+  ok.forEach(inf => {
+    if(inf.otElegida || inf.ot) return;
+    const sug = sugerirOT(inf, tomadas);
+    if(sug){ inf.ot = sug; inf.otSugerida = true; tomadas.add(sug); }
+  });
+
+  const cab = tabla.createTHead().insertRow();
+  ["Informe", "Laboratorio", "Ship To", "Solicitud (OT)", "Fecha y hora de envío"].forEach(t => {
+    const th = document.createElement("th"); th.textContent = t; cab.appendChild(th);
+  });
+  const cuerpo = tabla.createTBody();
+  ok.forEach(inf => {
+    const tr = cuerpo.insertRow();
+    [inf.archivo, inf.datos["Laboratorio"], inf.datos["Ship To"]].forEach(v => {
+      const td = tr.insertCell(); td.textContent = v || "—";
+    });
+
+    const tdOt = tr.insertCell(); tdOt.className = "amarre";
+    if(abiertas === null){ tdOt.textContent = "—"; }
+    else{
+      const sel = document.createElement("select");
+      sel.className = "ot" + (inf.ot && inf.otSugerida ? " sugerida" : "");
+      sel.appendChild(new Option("— sin amarrar —", ""));
+      const usadasPorOtros = new Set(ok.filter(o => o !== inf).map(o => o.ot).filter(Boolean));
+      const mias = abiertas.filter(o => mismoLab(inf.datos["Laboratorio"], o.laboratorio));
+      const otras = abiertas.filter(o => !mias.includes(o));
+      [["Mismo laboratorio", mias], ["Otros laboratorios", otras]].forEach(([titulo, lista]) => {
+        if(!lista.length) return;
+        const g = document.createElement("optgroup"); g.label = titulo;
+        lista.forEach(o => {
+          const op = new Option(etiquetaOT(o), o.archivo);
+          op.disabled = usadasPorOtros.has(o.archivo);
+          g.appendChild(op);
+        });
+        sel.appendChild(g);
+      });
+      sel.value = inf.ot || "";
+      sel.onchange = () => { inf.ot = sel.value; inf.otElegida = true; inf.otSugerida = false; pintarAmarre(ok); };
+      tdOt.appendChild(sel);
+      if(inf.ot && inf.otSugerida){
+        const nota = document.createElement("div");
+        nota.className = "pie"; nota.style.marginTop = "3px";
+        nota.textContent = "Sugerida (laboratorio, planta, fecha)";
+        tdOt.appendChild(nota);
+      }
+    }
+
+    const tdEnvio = tr.insertCell();
+    const inp = document.createElement("input");
+    inp.type = "datetime-local"; inp.className = "envio"; inp.value = inf.envio || "";
+    inp.onchange = () => { inf.envio = inp.value; };
+    tdEnvio.appendChild(inp);
+  });
+}
+
+$("btnEnvioTodos").onclick = () => {
+  const v = $("envioTodos").value;
+  informes.filter(i => i.laboratorio).forEach(i => { i.envio = v; });
+  pintar();
+};
+
+/* Guarda el PDF de cada informe en su carpeta de auditoría. Corre DESPUÉS de
+   subir a la base: si algo falla acá, los resultados ya están cargados y el
+   informe queda como «PDF pendiente» en el panel. Devuelve el texto para el pie. */
+async function subirPdfs(ok){
+  let bien = 0; const fallas = [];
+  for(const inf of ok){
+    if(!inf.file){ fallas.push(inf.archivo + ": sin archivo"); continue; }
+    const fd = new FormData();
+    fd.append("archivo", inf.file, inf.file.name);
+    fd.append("laboratorio", inf.datos["Laboratorio"] || "");
+    fd.append("ship_to", inf.datos["Ship To"] || "");
+    fd.append("sold_to", inf.datos["Sold To"] || "");
+    fd.append("nro_informe", inf.datos["N° Solicitud"] || "");
+    fd.append("archivo_solicitud", inf.ot || "");
+    fd.append("fecha_envio", inf.envio ? new Date(inf.envio).toISOString() : "");
+    try{
+      const r = await fetch(API_BASE + "/auditoria-interna/informes", {method: "POST", headers: autorizacion(), body: fd});
+      if(!r.ok){
+        let det = "";
+        try{ det = (await r.json()).detail || ""; }catch(e){}
+        throw new Error(det || ("respondió " + r.status));
+      }
+      bien++;
+    }catch(err){ fallas.push(inf.archivo + ": " + err.message); }
+  }
+  cargarAbiertas();   // las OT que ya se amarraron dejan de ofrecerse
+  return "📁 " + bien + " PDF guardado(s) en auditoría." +
+    (fallas.length ? " ⚠ No se pudieron guardar " + fallas.length + ": " + fallas.slice(0, 3).join(" · ") : "");
+}
 
 $("btnLimpiar").onclick = () => {
   if(informes.length && !confirm("Se quitarán todos los informes cargados.")) return;
@@ -1058,6 +1223,7 @@ $("btnLimpiar").onclick = () => {
 };
 
 pintar();
+cargarAbiertas();
 </script>
 </body>
 </html>

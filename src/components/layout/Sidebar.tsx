@@ -21,6 +21,7 @@ import {
   IconDataCore,
   IconDatabase,
   IconEmitir,
+  IconAuditoria,
   IconFrasco,
   IconIngest,
   IconListados,
@@ -158,6 +159,7 @@ const ICONO_MODULO: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   ingest: IconIngest,
   reports: IconReports,
   agrofresh_lab: IconFrasco,
+  auditoria_interna: IconAuditoria,
   storage: IconStorage,
 }
 

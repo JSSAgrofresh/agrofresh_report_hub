@@ -188,12 +188,21 @@ const FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-
  * `plantaFija`: opcional, solo tiene sentido junto con clienteFijo — cuentas
  * creadas por Ship To (ej. "Dole Codegua") en vez de por Sold To completo.
  * `onCropChange`: usado por el portal de cliente para cambiar la imagen de
- * fondo del encabezado según la especie elegida en el filtro. */
+ * fondo del encabezado según la especie elegida en el filtro.
+ * `vistaControl`: la vista por límite de control es un gráfico INTERNO y vive
+ * solo en Auditoría interna, que monta este componente con esta bandera. Sin
+ * ella -Report y portal de cliente- solo existe la vista por límite residual. */
 export function ReporteView({
   clienteFijo,
   plantaFija,
   onCropChange,
-}: { clienteFijo?: string; plantaFija?: string; onCropChange?: (crop: string) => void } = {}) {
+  vistaControl = false,
+}: {
+  clienteFijo?: string
+  plantaFija?: string
+  onCropChange?: (crop: string) => void
+  vistaControl?: boolean
+} = {}) {
   const { user } = useAuth()
   const acento = areaDeModulo('reports')?.colorPrimario ?? '#6dad3c'
   const wrapStyle = { '--acento': acento } as CSSProperties
@@ -206,7 +215,7 @@ export function ReporteView({
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [ultimaActualizacion, setUltimaActualizacion] = useState<Date | null>(null)
   const [proximaAuto, setProximaAuto] = useState<Date>(() => proximaHoraProgramada(new Date()))
-  const [vista, setVista] = useState<Vista>('residual')
+  const vista: Vista = vistaControl ? 'control' : 'residual'
   const [sigma, setSigma] = useState(2)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
   // Especie y Variedad de los filtros salen de Listados -la fuente de verdad
@@ -937,11 +946,13 @@ export function ReporteView({
     <div className={styles.wrap} style={wrapStyle}>
       <div className={styles.cabecera}>
         <Header
-          title={clienteFijo ? `Report · ${clienteFijo}` : 'Report'}
+          title={vistaControl ? 'Vista por límite de control' : clienteFijo ? `Report · ${clienteFijo}` : 'Report'}
           description={
-            clienteFijo
-              ? `Control de residuos de ${clienteFijo}: límites residuales y de control desde la base de datos.`
-              : 'Control de residuos: límites residuales y de control desde la base de datos.'
+            vistaControl
+              ? 'Límites dinámicos de control (promedio ± N desviaciones estándar) sobre los resultados de la base de datos.'
+              : clienteFijo
+                ? `Control de residuos de ${clienteFijo}: límites residuales desde la base de datos.`
+                : 'Control de residuos: límites residuales desde la base de datos.'
           }
         />
         <div className={styles.accionesCabecera}>
@@ -989,28 +1000,18 @@ export function ReporteView({
         </Card>
       ) : filas ? (
         <>
-          {!esDiagnofruit && (
+          {vistaControl && !esDiagnofruit && (
             <div className={styles.toolbar}>
-              <div className={styles.tabs}>
-                <button className={`${styles.tab} ${vista === 'residual' ? styles.tabActivo : ''}`} onClick={() => setVista('residual')}>
-                  Vista por límite residual
-                </button>
-                <button className={`${styles.tab} ${vista === 'control' ? styles.tabActivo : ''}`} onClick={() => setVista('control')}>
-                  Vista por límite de control
-                </button>
+              <div className={styles.sigmaControl}>
+                <span>N° desviaciones</span>
+                <select value={sigma} onChange={(e) => setSigma(Number(e.target.value))}>
+                  {[1, 2, 3, 4].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
               </div>
-              {vista === 'control' && (
-                <div className={styles.sigmaControl}>
-                  <span>N° desviaciones</span>
-                  <select value={sigma} onChange={(e) => setSigma(Number(e.target.value))}>
-                    {[1, 2, 3, 4].map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
           )}
 
