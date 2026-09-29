@@ -13,7 +13,7 @@ import {
 import type { Plugin, ScriptableContext } from 'chart.js'
 import type { ClienteServicio, LaboratorioResumen, Totales } from '@/features/auditoriaInterna'
 import { ESTADOS, ORDEN_ESTADOS } from './estados'
-import { colorDeTipo } from './coloresTipo'
+import { colorDeTipo, tonosDeTipo } from './coloresTipo'
 import styles from './Graficos.module.css'
 
 Chart.register(ArcElement, DoughnutController, BarController, BarElement, CategoryScale, LinearScale, Tooltip)
@@ -50,20 +50,12 @@ const TOOLTIP = {
   footerFont: { weight: 700 as const },
 }
 
-// ── donas por laboratorio ───────────────────────────────────────────────
+// ── donas por tipo de servicio ──────────────────────────────────────────
 
-/** Una dona: cómo van las solicitudes de un laboratorio (o de todos). El % del
- * centro es lo concretado; el resto de los estados se lee en la leyenda. */
-export function DonaLaboratorio({
-  titulo,
-  resumen,
-  destacada,
-}: {
-  titulo: string
-  resumen: Totales
-  /** la dona de «todos» se marca como el total */
-  destacada?: boolean
-}) {
+/** Una dona por tipo de servicio: cómo van sus solicitudes. El color es el del
+ * tipo y el estado se lee por el tono; el % del centro es lo concretado. */
+export function DonaTipoServicio({ tipo, resumen }: { tipo: string; resumen: Totales }) {
+  const tonos = tonosDeTipo(tipo)
   const ref = useGrafico(
     (canvas) =>
       new Chart(canvas, {
@@ -73,7 +65,7 @@ export function DonaLaboratorio({
           datasets: [
             {
               data: [resumen.concretadas, resumen.sinReport, resumen.pendientes],
-              backgroundColor: ORDEN_ESTADOS.map((e) => ESTADOS[e].color),
+              backgroundColor: ORDEN_ESTADOS.map((e) => tonos[e]),
               borderColor: SUPERFICIE,
               borderWidth: 2,
               hoverOffset: 3,
@@ -83,7 +75,7 @@ export function DonaLaboratorio({
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          cutout: '72%',
+          cutout: '68%',
           animation: { duration: 350 },
           plugins: {
             legend: { display: false },
@@ -97,7 +89,7 @@ export function DonaLaboratorio({
           },
         },
       }),
-    [resumen.concretadas, resumen.sinReport, resumen.pendientes, resumen.emitidas],
+    [tipo, resumen.concretadas, resumen.sinReport, resumen.pendientes, resumen.emitidas],
   )
   const cantidades: Record<string, number> = {
     concretada: resumen.concretadas,
@@ -105,27 +97,36 @@ export function DonaLaboratorio({
     pendiente: resumen.pendientes,
   }
   return (
-    <section className={`${styles.dona} ${destacada ? styles.donaTotal : ''}`} aria-label={`Estado de las solicitudes: ${titulo}`}>
-      <h3>{titulo}</h3>
-      <div className={styles.donaLienzo}>
-        <canvas ref={ref} role="img" aria-label={`${titulo}: ${Math.round(resumen.porcentajeConcretado)}% concretadas`} />
-        <div className={styles.donaCentro} aria-hidden="true">
-          <b>{Math.round(resumen.porcentajeConcretado)}<small>%</small></b>
-          <span>concretadas</span>
-        </div>
-      </div>
-      <p className={styles.donaTotalTexto}>
-        <b>{nf.format(resumen.concretadas)}</b> de {nf.format(resumen.emitidas)} solicitudes
-      </p>
-      <ul className={styles.donaLeyenda}>
-        {ORDEN_ESTADOS.map((e) => (
-          <li key={e}>
-            <span className={styles.muestra} style={{ background: ESTADOS[e].color }} />
-            {ESTADOS[e].texto}
-            <b>{nf.format(cantidades[e])}</b>
-          </li>
-        ))}
-      </ul>
+    <section className={styles.dona} aria-label={`Estado de las solicitudes de ${tipo}`}>
+      <h3>
+        <span className={styles.puntoTipo} style={{ background: colorDeTipo(tipo) }} />
+        {tipo}
+      </h3>
+      {resumen.emitidas === 0 ? (
+        <p className={styles.donaVacia}>Sin solicitudes de este tipo con los filtros actuales.</p>
+      ) : (
+        <>
+          <div className={styles.donaLienzo}>
+            <canvas ref={ref} role="img" aria-label={`${tipo}: ${Math.round(resumen.porcentajeConcretado)}% concretadas`} />
+            <div className={styles.donaCentro} aria-hidden="true">
+              <b style={{ color: colorDeTipo(tipo) }}>{Math.round(resumen.porcentajeConcretado)}<small>%</small></b>
+              <span>concretadas</span>
+            </div>
+          </div>
+          <p className={styles.donaTotalTexto}>
+            <b>{nf.format(resumen.concretadas)}</b> de {nf.format(resumen.emitidas)} solicitudes
+          </p>
+          <ul className={styles.donaLeyenda}>
+            {ORDEN_ESTADOS.map((e) => (
+              <li key={e}>
+                <span className={styles.muestra} style={{ background: tonos[e] }} />
+                {ESTADOS[e].texto}
+                <b>{nf.format(cantidades[e])}</b>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   )
 }

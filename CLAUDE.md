@@ -361,7 +361,7 @@ tocas una, toca la otra.
 
 | Pantalla | Qué es |
 |---|---|
-| Solicitudes e informes | Solicitudes emitidas (`solicitud_archivo`) vs informes recibidos: filtros ocultables (como Report), una **dona por laboratorio** (más una de «todos»), barras de **análisis vs informes por cliente** con botón Ambos / Actimist / Línea de proceso, total de solicitudes por laboratorio y una tabla (laboratorio · solicitud · informe · cliente/planta · tipo de análisis · analitos · estado). El ícono del informe muestra al pasar el mouse emitida / cargada / enviada. |
+| Solicitudes e informes | Solicitudes emitidas (`solicitud_archivo`) vs informes recibidos: filtros ocultables (como Report), barras de **solicitudes por laboratorio** (apiladas por estado), **dos donas, una por tipo de servicio** (Actimist en azul, Línea de proceso en violeta; el estado se lee por el tono y los números van en la leyenda), barras de **análisis vs informes por cliente** con botón Ambos / Actimist / Línea de proceso, y una tabla (laboratorio · solicitud · informe · cliente/planta · tipo de análisis · analitos · estado)). Los filtros principales son Cliente y Sucursal (Ship To); los analitos son una lista de botones que se marcan. El ícono del informe muestra al pasar el mouse emitida / cargada / enviada. |
 | Carpetas de auditoría | Navegador de la carpeta **`auditoria/`** dentro del bucket de siempre (`agrofresh-storage`): `<laboratorio>/<ship to>/<archivo>.pdf`. Las carpetas nacen con el primer PDF. En una carpeta se marcan uno, varios o todos los informes y se bajan juntos en un **.zip** (`POST /carpetas/zip`, tope 300 archivos / 400 MB). |
 | Vista por límite de control | El gráfico que antes era una pestaña de Report. Es `ReporteView` con `vistaControl`; en Report ya no existe. |
 
