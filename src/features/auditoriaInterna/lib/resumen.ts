@@ -3,117 +3,9 @@ import type { EstadoSolicitud, SolicitudAuditoria } from './tipos'
 export function estadoDe(s: SolicitudAuditoria): EstadoSolicitud {
   if (s.concretada) return 'concretada'
   // Tiene su PDF, pero los resultados todavía no se ven en Report (por
-  // ejemplo, quedaron en Pendientes de revisión de DataCore).
+  // ejemplo, quedaron en Pendientes de la Ingesta de Datos).
   if (s.informe) return 'sin_report'
   return 'pendiente'
-}
-
-export interface Totales {
-  emitidas: number
-  concretadas: number
-  sinReport: number
-  pendientes: number
-  /** 0-100; 0 si no hay solicitudes */
-  porcentajeConcretado: number
-  /** días promedio entre emitir y cargar el informe; null si ninguna tiene informe */
-  demoraPromedioDias: number | null
-}
-
-export function totales(solicitudes: SolicitudAuditoria[]): Totales {
-  const t = { emitidas: solicitudes.length, concretadas: 0, sinReport: 0, pendientes: 0 }
-  for (const s of solicitudes) {
-    const e = estadoDe(s)
-    if (e === 'concretada') t.concretadas++
-    else if (e === 'sin_report') t.sinReport++
-    else t.pendientes++
-  }
-  const demoras = solicitudes.map(demoraDias).filter((d): d is number => d !== null)
-  return {
-    ...t,
-    porcentajeConcretado: t.emitidas ? (t.concretadas / t.emitidas) * 100 : 0,
-    demoraPromedioDias: demoras.length ? demoras.reduce((a, b) => a + b, 0) / demoras.length : null,
-  }
-}
-
-/** Días enteros entre el día de emisión y el día de carga del informe. null si
- * falta alguna de las dos fechas. Nunca negativo: una carga "anterior" a la
- * emisión es un desfase de reloj, no una demora. */
-export function demoraDias(s: SolicitudAuditoria): number | null {
-  const emitida = soloDia(s.emitida_en) ?? soloDia(s.fecha_solicitud)
-  const cargada = soloDia(s.informe?.cargado_en ?? null)
-  if (!emitida || !cargada) return null
-  const [a1, m1, d1] = emitida.split('-').map(Number)
-  const [a2, m2, d2] = cargada.split('-').map(Number)
-  const dias = Math.round((Date.UTC(a2, m2 - 1, d2) - Date.UTC(a1, m1 - 1, d1)) / DIA_MS)
-  return Math.max(0, dias)
-}
-
-/** La fecha (YYYY-MM-DD) de una marca ISO, sin convertir de zona: es el día
- * que quedó escrito, que es lo que interesa para agrupar por semana. */
-function soloDia(iso: string | null): string | null {
-  const m = (iso ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/)
-  return m ? `${m[1]}-${m[2]}-${m[3]}` : null
-}
-
-const DIA_MS = 24 * 60 * 60 * 1000
-
-function lunesDe(dia: string): number {
-  const [a, m, d] = dia.split('-').map(Number)
-  const t = Date.UTC(a, m - 1, d)
-  const diaSemana = (new Date(t).getUTCDay() + 6) % 7 // lunes = 0
-  return t - diaSemana * DIA_MS
-}
-
-/** Semana ISO (1-53) del lunes dado. */
-function semanaIso(lunes: number): number {
-  const jueves = new Date(lunes + 3 * DIA_MS)
-  const inicioAnio = Date.UTC(jueves.getUTCFullYear(), 0, 1)
-  return Math.floor((jueves.getTime() - inicioAnio) / (7 * DIA_MS)) + 1
-}
-
-const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
-
-export interface PuntoSemana {
-  /** lunes de la semana, YYYY-MM-DD */
-  inicio: string
-  etiqueta: string
-  /** total emitidas = concretadas + sinReport + pendientes */
-  emitidas: number
-  concretadas: number
-  sinReport: number
-  pendientes: number
-}
-
-/** Solicitudes emitidas por semana (según cuándo se emitieron), y cuántas de
- * ellas ya se concretaron. Las semanas sin ninguna quedan en cero para que el
- * gráfico no salte. Se devuelven las últimas `maxSemanas`. */
-export function porSemana(solicitudes: SolicitudAuditoria[], maxSemanas = 26): PuntoSemana[] {
-  type Cuenta = Omit<PuntoSemana, 'inicio' | 'etiqueta'>
-  const nueva = (): Cuenta => ({ emitidas: 0, concretadas: 0, sinReport: 0, pendientes: 0 })
-  const cuenta = new Map<number, Cuenta>()
-  for (const s of solicitudes) {
-    const dia = soloDia(s.emitida_en) ?? soloDia(s.fecha_solicitud)
-    if (!dia) continue
-    const lunes = lunesDe(dia)
-    const c = cuenta.get(lunes) ?? nueva()
-    sumar(c, s)
-    cuenta.set(lunes, c)
-  }
-  if (cuenta.size === 0) return []
-  const lunes = [...cuenta.keys()]
-  const primero = Math.max(Math.min(...lunes), Math.max(...lunes) - (maxSemanas - 1) * 7 * DIA_MS)
-  const ultimo = Math.max(...lunes)
-  const puntos: PuntoSemana[] = []
-  for (let t = primero; t <= ultimo; t += 7 * DIA_MS) {
-    const f = new Date(t)
-    const c = cuenta.get(t) ?? nueva()
-    puntos.push({
-      inicio: f.toISOString().slice(0, 10),
-      etiqueta: `S${semanaIso(t)} · ${f.getUTCDate()} ${MESES[f.getUTCMonth()]}`,
-      ...c,
-    })
-  }
-  return puntos
 }
 
 interface ConteoEstados {
@@ -131,52 +23,141 @@ function sumar(c: ConteoEstados, s: SolicitudAuditoria) {
   else c.pendientes++
 }
 
-export interface ClienteTop {
+function conteoVacio(): ConteoEstados {
+  return { emitidas: 0, concretadas: 0, sinReport: 0, pendientes: 0 }
+}
+
+export interface Totales extends ConteoEstados {
+  /** 0-100; 0 si no hay solicitudes */
+  porcentajeConcretado: number
+}
+
+export function totales(solicitudes: SolicitudAuditoria[]): Totales {
+  const t = conteoVacio()
+  for (const s of solicitudes) sumar(t, s)
+  return { ...t, porcentajeConcretado: t.emitidas ? (t.concretadas / t.emitidas) * 100 : 0 }
+}
+
+// ── por laboratorio ─────────────────────────────────────────────────────
+
+export interface LaboratorioResumen extends Totales {
+  laboratorio: string
+}
+
+export const SIN_LABORATORIO = 'Sin laboratorio'
+
+/** Un resumen por laboratorio, en orden alfabético. */
+export function porLaboratorio(solicitudes: SolicitudAuditoria[]): LaboratorioResumen[] {
+  const por = new Map<string, ConteoEstados>()
+  for (const s of solicitudes) {
+    const lab = (s.laboratorio ?? '').trim() || SIN_LABORATORIO
+    const c = por.get(lab) ?? conteoVacio()
+    sumar(c, s)
+    por.set(lab, c)
+  }
+  return [...por.entries()]
+    .map(([laboratorio, c]) => ({
+      laboratorio,
+      ...c,
+      porcentajeConcretado: c.emitidas ? (c.concretadas / c.emitidas) * 100 : 0,
+    }))
+    .sort((a, b) => a.laboratorio.localeCompare(b.laboratorio, 'es'))
+}
+
+// ── tipo de servicio ────────────────────────────────────────────────────
+
+export const TIPO_ACTIMIST = 'Actimist'
+export const TIPO_LINEA = 'Línea de proceso'
+export const SIN_TIPO = 'Sin tipo'
+
+function plano(s: string | null | undefined): string {
+  return (s ?? '').normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+/** El tipo de servicio con un nombre único: «linea de proceso», «Línea de
+ * Proceso» y «LINEA DE PROCESO» son lo mismo. */
+export function tipoServicioDe(s: SolicitudAuditoria): string {
+  const t = plano(s.tipo_servicio)
+  if (!t) return SIN_TIPO
+  if (t.includes('actimist')) return TIPO_ACTIMIST
+  if (t.includes('linea')) return TIPO_LINEA
+  return (s.tipo_servicio ?? '').trim()
+}
+
+// ── por cliente y tipo de servicio ──────────────────────────────────────
+
+export interface ParAnalisisInformes {
+  /** solicitudes de análisis emitidas */
+  analisis: number
+  /** informes concretados (con su PDF y ya en Report) */
+  informes: number
+}
+
+export interface ClienteServicio {
   cliente: string
-  /** total de solicitudes = concretadas + sinReport + pendientes */
-  solicitudes: number
-  concretadas: number
-  sinReport: number
-  pendientes: number
+  /** todas las solicitudes del cliente, de cualquier tipo */
+  total: number
+  tipos: Record<string, ParAnalisisInformes>
 }
 
 export const SIN_CLIENTE = 'Sin cliente'
 
-export function topClientes(solicitudes: SolicitudAuditoria[], n = 10): ClienteTop[] {
-  const por = new Map<string, ClienteTop>()
+/** Por cliente: cuántos análisis se pidieron y cuántos informes se concretaron,
+ * separado por tipo de servicio. Más solicitudes primero. */
+export function porClienteYServicio(solicitudes: SolicitudAuditoria[]): ClienteServicio[] {
+  const por = new Map<string, ClienteServicio>()
   for (const s of solicitudes) {
     const cliente = (s.sold_to ?? '').trim() || SIN_CLIENTE
-    const c = por.get(cliente) ?? { cliente, solicitudes: 0, concretadas: 0, sinReport: 0, pendientes: 0 }
-    const conteo = { emitidas: c.solicitudes, concretadas: c.concretadas, sinReport: c.sinReport, pendientes: c.pendientes }
-    sumar(conteo, s)
-    por.set(cliente, { cliente, solicitudes: conteo.emitidas, concretadas: conteo.concretadas, sinReport: conteo.sinReport, pendientes: conteo.pendientes })
+    const c = por.get(cliente) ?? { cliente, total: 0, tipos: {} }
+    const tipo = tipoServicioDe(s)
+    const par = c.tipos[tipo] ?? { analisis: 0, informes: 0 }
+    par.analisis++
+    if (s.concretada) par.informes++
+    c.tipos[tipo] = par
+    c.total++
+    por.set(cliente, c)
   }
-  return [...por.values()]
-    .sort((a, b) => b.solicitudes - a.solicitudes || a.cliente.localeCompare(b.cliente, 'es'))
-    .slice(0, n)
+  return [...por.values()].sort((a, b) => b.total - a.total || a.cliente.localeCompare(b.cliente, 'es'))
 }
 
-export type CampoOrden = 'numero' | 'laboratorio' | 'cliente' | 'planta' | 'emitida' | 'cargada' | 'enviada' | 'estado' | 'demora'
+/** Los clientes con más análisis de los tipos elegidos (los que no tienen
+ * ninguno de esos tipos no aparecen), ordenados por esa suma. `limite` 0 = todos. */
+export function topClientesPorServicio(
+  solicitudes: SolicitudAuditoria[],
+  tipos: string[],
+  limite: number,
+): ClienteServicio[] {
+  const puntaje = (c: ClienteServicio) => tipos.reduce((suma, t) => suma + (c.tipos[t]?.analisis ?? 0), 0)
+  const con = porClienteYServicio(solicitudes)
+    .map((c) => ({ c, p: puntaje(c) }))
+    .filter((x) => x.p > 0)
+    .sort((a, b) => b.p - a.p || a.c.cliente.localeCompare(b.c.cliente, 'es'))
+    .map((x) => x.c)
+  return limite > 0 ? con.slice(0, limite) : con
+}
+
+// ── orden ───────────────────────────────────────────────────────────────
+
+/** `emitida` no es una columna: es el orden de partida (lo más reciente arriba). */
+export type CampoOrden = 'emitida' | 'laboratorio' | 'solicitud' | 'informe' | 'cliente' | 'tipo' | 'estado'
 export type Sentido = 'asc' | 'desc'
 
 const PESO_ESTADO: Record<EstadoSolicitud, number> = { concretada: 0, sin_report: 1, pendiente: 2 }
 
 function valorDe(s: SolicitudAuditoria, campo: CampoOrden): string | number | null {
   switch (campo) {
-    case 'numero': return s.numero_solicitud
-    case 'laboratorio': return s.laboratorio
-    case 'cliente': return s.sold_to
-    case 'planta': return s.ship_to
     case 'emitida': return s.emitida_en ?? s.fecha_solicitud
-    case 'cargada': return s.informe?.cargado_en ?? null
-    case 'enviada': return s.informe?.fecha_envio ?? null
+    case 'laboratorio': return s.laboratorio
+    case 'solicitud': return s.numero_solicitud
+    case 'informe': return s.informe?.nro_informe ?? null
+    case 'cliente': return s.sold_to
+    case 'tipo': return s.tipo_servicio ? tipoServicioDe(s) : null
     case 'estado': return PESO_ESTADO[estadoDe(s)]
-    case 'demora': return demoraDias(s)
   }
 }
 
 /** Ordena sin mutar. Los vacíos van SIEMPRE al final, en cualquier sentido:
- * un "sin fecha" nunca debe quedar arriba de la lista por ordenar de menor a mayor. */
+ * un «sin informe» nunca debe quedar arriba por ordenar de menor a mayor. */
 export function ordenarSolicitudes(
   solicitudes: SolicitudAuditoria[],
   campo: CampoOrden,
@@ -193,25 +174,30 @@ export function ordenarSolicitudes(
   })
 }
 
-const ETIQUETA_ESTADO_CSV: Record<EstadoSolicitud, string> = {
-  concretada: 'Concretada',
-  sin_report: 'PDF sin Report',
-  pendiente: 'Pendiente',
+// ── CSV ─────────────────────────────────────────────────────────────────
+
+/** El estado como se muestra: concretada o no. El PDF sin Report se distingue
+ * solo entre paréntesis, porque es lo que hay que ir a revisar. */
+export function etiquetaEstadoCsv(s: SolicitudAuditoria): string {
+  const e = estadoDe(s)
+  if (e === 'concretada') return 'Concretada'
+  return e === 'sin_report' ? 'Pendiente (PDF sin Report)' : 'Pendiente'
 }
 
-/** CSV para Excel en español (separador ";", BOM UTF-8), con las mismas columnas de la tabla. */
+/** CSV para Excel en español (separador ";", BOM UTF-8): las columnas de la
+ * tabla, más las fechas que la tabla muestra solo al pasar el mouse. */
 export function solicitudesACsv(solicitudes: SolicitudAuditoria[]): string {
   const celda = (v: string | number | null | undefined) => {
     const t = v === null || v === undefined ? '' : String(v)
     return /[;"\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
   }
   const filas = [
-    ['Solicitud', 'Laboratorio', 'Cliente', 'Planta', 'Emitida', 'Cargada', 'Enviada', 'Demora (días)', 'Estado', 'N° informe', 'Archivo'],
+    ['Laboratorio', 'Solicitud', 'N° informe', 'Cliente', 'Planta', 'Tipo de análisis', 'Analitos', 'Estado', 'Emitida', 'Cargada', 'Enviada'],
     ...solicitudes.map((s) => [
-      s.numero_solicitud, s.laboratorio, s.sold_to, s.ship_to,
+      s.laboratorio, s.numero_solicitud, s.informe?.nro_informe, s.sold_to, s.ship_to,
+      s.tipo_servicio ? tipoServicioDe(s) : '', s.analitos.join(', '), etiquetaEstadoCsv(s),
       s.emitida_en ?? s.fecha_solicitud, s.informe?.cargado_en, s.informe?.fecha_envio,
-      demoraDias(s), ETIQUETA_ESTADO_CSV[estadoDe(s)], s.informe?.nro_informe, s.informe?.nombre_archivo,
     ]),
   ]
-  return '\uFEFF' + filas.map((f) => f.map(celda).join(';')).join('\r\n')
+  return '﻿' + filas.map((f) => f.map(celda).join(';')).join('\r\n')
 }

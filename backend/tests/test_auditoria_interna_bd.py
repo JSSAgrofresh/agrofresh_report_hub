@@ -57,7 +57,9 @@ def entorno(monkeypatch):
         cur.execute("DELETE FROM solicitud WHERE nro_solicitud = %s", (NRO_INFORME,))
         cur.execute(
             "INSERT INTO solicitud_archivo (archivo, numero_solicitud, laboratorio, sold_to, ship_to, creado_en, datos)"
-            " VALUES (%s, 'OT-9001', 'TestLab', 'Cliente T', 'Planta T', '2026-09-28T10:00:00', '{}')",
+            " VALUES (%s, 'OT-9001', 'TestLab', 'Cliente T', 'Planta T', '2026-09-28T10:00:00',"
+            " '{\"variedad\": \"Bing\", \"campos_laboratorio\": {\"Tipo Aplicación\": \"Actimist\"},"
+            " \"analitos_solicitados\": [\"FDL\", \"PYR\"]}')",
             (ARCHIVO_OT,),
         )
     yield bucket
@@ -159,3 +161,17 @@ def test_renombrar_actualiza_el_registro(entorno):
     assert r.json()["ruta"] == "TestLab/Planta T/Informe final.pdf"
     assert list(entorno) == ["TestLab/Planta T/Informe final.pdf"]
     assert _mi_fila()["informe"]["ruta"] == "TestLab/Planta T/Informe final.pdf"
+
+
+def test_la_lista_trae_tipo_de_servicio_variedad_y_analitos(entorno):
+    fila = _mi_fila()
+    assert fila["tipo_servicio"] == "Actimist"
+    assert fila["variedad"] == "Bing"
+    assert fila["analitos"] == ["FDL", "PYR"]
+
+
+def test_una_solicitud_sin_esos_datos_no_rompe_la_lista(entorno):
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("UPDATE solicitud_archivo SET datos = '{}' WHERE archivo = %s", (ARCHIVO_OT,))
+    fila = _mi_fila()
+    assert fila["tipo_servicio"] is None and fila["variedad"] is None and fila["analitos"] == []

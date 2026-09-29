@@ -18,8 +18,10 @@ PDF guardado Y sus resultados ya se ven en Report (`solicitud.nro_solicitud`).
 El amarre OT <-> informe lo confirma quien sube el informe en Converter: el PDF
 del laboratorio trae SU número de informe, no nuestro OT-xxxx.
 """
+import io
 import logging
 import unicodedata
+import zipfile
 from contextlib import contextmanager
 from datetime import datetime
 from urllib.parse import quote
@@ -276,6 +278,9 @@ def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
             """
             SELECT sa.archivo, sa.numero_solicitud, sa.laboratorio, sa.sold_to, sa.ship_to,
                    sa.especie, sa.fecha_solicitud, sa.fecha_muestreo, sa.creado_en,
+                   sa.datos->'campos_laboratorio'->>'Tipo Aplicación' AS tipo_servicio,
+                   sa.datos->>'variedad' AS variedad,
+                   sa.datos->'analitos_solicitados' AS analitos,
                    ia.id AS informe_id, ia.nro_informe, ia.nombre_archivo, ia.r2_key,
                    ia.fecha_envio, ia.subido_en,
                    (ia.id IS NOT NULL AND EXISTS (
@@ -301,6 +306,9 @@ def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
             "sold_to": f["sold_to"],
             "ship_to": f["ship_to"],
             "especie": f["especie"],
+            "variedad": f["variedad"],
+            "tipo_servicio": (f["tipo_servicio"] or "").strip() or None,
+            "analitos": [str(a) for a in f["analitos"]] if isinstance(f["analitos"], list) else [],
             "fecha_solicitud": _iso(f["fecha_solicitud"]),
             "fecha_muestreo": _iso(f["fecha_muestreo"]),
             "emitida_en": f["creado_en"],
@@ -439,6 +447,68 @@ def eliminar_carpeta(ruta: str = Query(...), _: Usuario = Depends(solo_admin_gen
             carpeta.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "/%",
         ))
     return {"eliminados": len(keys)}
+
+
+MAX_ARCHIVOS_ZIP = 300
+MAX_BYTES_ZIP = 400 * 1024 * 1024
+
+
+class ZipIn(BaseModel):
+    rutas: list[str]
+    # nombre del .zip (sin extensión); si no viene, «informes_auditoria»
+    nombre: str | None = None
+
+
+@router.post("/carpetas/zip")
+def descargar_zip(body: ZipIn, _: Usuario = Depends(puede_auditoria)) -> Response:
+    """Varios informes en un solo .zip (uno, varios o todos los de una carpeta).
+
+    Dentro del zip los archivos van sin carpetas y, si dos se llaman igual, el
+    segundo lleva « (2)». Un archivo que ya no esté se omite; si no queda
+    ninguno, 404. Los topes existen para no armar un zip que agote la memoria.
+    """
+    _exigir_r2()
+    rutas: list[str] = []
+    for r in body.rutas:
+        key = _ruta(r)
+        if not key or "/" not in key:
+            raise HTTPException(400, "Ruta inválida.")
+        if key not in rutas:
+            rutas.append(key)
+    if not rutas:
+        raise HTTPException(400, "No hay informes seleccionados.")
+    if len(rutas) > MAX_ARCHIVOS_ZIP:
+        raise HTTPException(413, f"Son demasiados informes de una vez (máximo {MAX_ARCHIVOS_ZIP}).")
+
+    salida = io.BytesIO()
+    usados: set[str] = set()
+    total = 0
+    incluidos = 0
+    with errores_r2(), zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as z:
+        for key in rutas:
+            datos = r2a.descargar(key)
+            if datos is None:
+                continue
+            total += len(datos)
+            if total > MAX_BYTES_ZIP:
+                raise HTTPException(413, "Los informes pesan demasiado para un solo zip: descarga menos a la vez.")
+            nombre = key.rsplit("/", 1)[-1]
+            base, punto, ext = nombre.rpartition(".")
+            n = 2
+            while nombre.lower() in usados:
+                nombre = f"{base} ({n}){punto}{ext}"
+                n += 1
+            usados.add(nombre.lower())
+            z.writestr(nombre, datos)
+            incluidos += 1
+    if incluidos == 0:
+        raise HTTPException(404, "Ninguno de los informes elegidos está en la carpeta.")
+    nombre_zip = r2a.segmento_seguro(body.nombre, "informes_auditoria") + ".zip"
+    return Response(
+        content=salida.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": _disposicion(nombre_zip)},
+    )
 
 
 class RenombrarIn(BaseModel):

@@ -19,7 +19,6 @@ export const ROUTES = {
   auditoriaInternaSolicitudes: '/modulos/auditoria-interna/solicitudes',
   auditoriaInternaCarpetas: '/modulos/auditoria-interna/carpetas',
   auditoriaInternaLimiteControl: '/modulos/auditoria-interna/limite-control',
-  auditoriaInternaCorrecciones: '/modulos/auditoria-interna/correcciones',
   tomaMuestras: '/modulos/toma-muestras',
   tomaMuestrasNueva: '/modulos/toma-muestras/nueva',
   tomaMuestrasNuevaPrueba: '/modulos/toma-muestras/prueba/nueva',
@@ -32,6 +31,7 @@ export const ROUTES = {
   adminListados: '/admin/listados',
   adminLaboratorios: '/admin/laboratorios',
   adminNotificaciones: '/admin/notificaciones',
+  adminAdministracionGeneral: '/admin/administracion-general',
 } as const
 
 export function rutaTomaMuestrasDetalle(archivo: string): string {

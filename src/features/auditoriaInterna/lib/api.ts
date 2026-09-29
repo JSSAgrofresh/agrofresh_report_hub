@@ -26,6 +26,11 @@ export function rutaPdfArchivo(ruta: string) {
   return `${BASE}/carpetas/archivo?ruta=${encodeURIComponent(ruta)}`
 }
 
+/** Varios informes en un solo .zip; devuelve el archivo y el nombre que puso el backend. */
+export function descargarZipInformes(rutas: string[], nombre?: string) {
+  return httpClient.postArchivoConNombre(`${BASE}/carpetas/zip`, { rutas, nombre })
+}
+
 export function eliminarArchivo(ruta: string) {
   return httpClient.delete<{ ok: boolean }>(`${BASE}/carpetas/archivo?ruta=${encodeURIComponent(ruta)}`)
 }

@@ -103,10 +103,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.demora {
-  margin-left: auto;
-}
-
 .carga {
   display: flex;
   align-items: center;

@@ -361,10 +361,9 @@ tocas una, toca la otra.
 
 | Pantalla | Qué es |
 |---|---|
-| Solicitudes e informes | Solicitudes emitidas (`solicitud_archivo`) vs informes recibidos, con 3 gráficos y tooltip del ícono de informe (emitida / cargada / enviada). |
-| Carpetas de auditoría | Navegador de la carpeta **`auditoria/`** dentro del bucket de siempre (`agrofresh-storage`): `<laboratorio>/<ship to>/<archivo>.pdf`. Las carpetas nacen con el primer PDF. |
+| Solicitudes e informes | Solicitudes emitidas (`solicitud_archivo`) vs informes recibidos: filtros ocultables (como Report), una **dona por laboratorio** (más una de «todos»), barras de **análisis vs informes por cliente** con botón Ambos / Actimist / Línea de proceso, total de solicitudes por laboratorio y una tabla (laboratorio · solicitud · informe · cliente/planta · tipo de análisis · analitos · estado). El ícono del informe muestra al pasar el mouse emitida / cargada / enviada. |
+| Carpetas de auditoría | Navegador de la carpeta **`auditoria/`** dentro del bucket de siempre (`agrofresh-storage`): `<laboratorio>/<ship to>/<archivo>.pdf`. Las carpetas nacen con el primer PDF. En una carpeta se marcan uno, varios o todos los informes y se bajan juntos en un **.zip** (`POST /carpetas/zip`, tope 300 archivos / 400 MB). |
 | Vista por límite de control | El gráfico que antes era una pestaña de Report. Es `ReporteView` con `vistaControl`; en Report ya no existe. |
-| Historial de correcciones | Lo que el Converter aprendió cuando alguien corrigió a mano un Sold To, Ship To, Especie o Variedad (ver abajo). |
 
 - **Permiso `auditoria_interna`**: solo el admin general y a quien él asigne.
   Gerencia NO lo ve (ni en el menú ni en el panel de inicio). Backend:
@@ -382,8 +381,19 @@ tocas una, toca la otra.
   (opcional; se edita después).
 - **Concretada** = tiene PDF guardado **y** sus resultados ya están en Report
   (`solicitud.nro_solicitud = informe_auditoria.nro_informe`). PDF sin Report
-  se muestra aparte. El laboratorio `AGROFRESH` (propio) no entra al panel: su
+  se muestra aparte en las donas y los gráficos, y en la tabla como «Pendiente»
+  con el aviso «PDF sin Report». **No hay nada de «demora de concretación»**: se
+  quitó a propósito (no es relevante); no la vuelvas a agregar sin que lo pidan.
+  El **tipo de análisis** de una solicitud es el «Tipo Aplicación» de su formulario
+  (`datos.campos_laboratorio`: Actimist / Línea de proceso) y los **analitos** son
+  `datos.analitos_solicitados`; `/solicitudes` los devuelve. En el gráfico por
+  cliente, «informes» = informes **concretados**. La lógica (filtros, donas,
+  clientes) es pura y se prueba en `features/auditoriaInterna/lib/`. El laboratorio `AGROFRESH` (propio) no entra al panel: su
   resultado llega por el GC, no por un informe externo.
+- **Administración General** (`/admin/administracion-general`, en el menú debajo de
+  Notificaciones, **solo admin general**): ahí vive el **historial de correcciones
+  del Converter** (ver abajo). `GET /api/correcciones` exige admin general; ni quien
+  tiene Auditoría interna lo ve.
 - **El Converter aprende de las correcciones a mano** (`app/correcciones.py`,
   tabla `correccion_converter`, migración 0045). Los cuatro desplegables del
   catálogo son ahora un **buscador** (sin tildes ni mayúsculas, flechas y
@@ -394,8 +404,8 @@ tocas una, toca la otra.
   aplica a ciegas: solo si el valor guardado sigue siendo válido para ESE
   informe (`revisarCatalogo` en `converter.html`). Solo se aprende hacia valores
   que existen en Listados (el backend lo valida). El historial (quién, cuándo,
-  cuántas veces se aplicó sola) se ve en Auditoría → Historial de correcciones;
-  el admin general puede **olvidar** una asociación equivocada. Es independiente
+  cuántas veces se aplicó sola) se ve en Administración General; el admin general
+  puede **olvidar** una asociación equivocada. Es independiente
   de `mapeo_confirmado` (la memoria de DataCore para la Ingesta de Excel): el
   Converter manda al backend los valores ya corregidos. Sin la 0045 el Converter
   sigue funcionando, sin memoria.

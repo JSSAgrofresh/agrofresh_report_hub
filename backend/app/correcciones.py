@@ -10,9 +10,9 @@ Quién puede qué:
   - Leer las asociaciones (para que el Converter las aplique), guardar una
     corrección y contar un uso: cualquier cuenta interna (es lo que hace
     quien carga informes).
-  - Ver el historial completo: quien tenga Auditoría interna.
-  - Olvidar una asociación: solo el admin general (si el sistema aprendió algo
-    mal, hay que poder deshacerlo).
+  - Ver el historial completo y olvidar una asociación: solo el admin general
+    (es el módulo Administración General; si el sistema aprendió algo mal, hay
+    que poder deshacerlo).
 
 Una asociación jamás se aplica a ciegas: el Converter solo la usa si el valor
 oficial sigue siendo válido para ESE informe (p. ej. la planta sigue existiendo
@@ -24,7 +24,6 @@ import unicodedata
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from .auditoria_interna import puede_auditoria
 from .auth import Usuario, solo_admin_general, usuario_actual
 from .db import conexion, cursor_dict
 
@@ -140,7 +139,7 @@ def contar_usos(usos: list[UsoIn], _: Usuario = Depends(usuario_actual)) -> dict
 
 
 @router.get("")
-def historial(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
+def historial(_: Usuario = Depends(solo_admin_general)) -> list[dict]:
     """El historial completo, lo más reciente primero."""
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         cur.execute(

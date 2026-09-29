@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { OpcionCard } from '@/components/ui/OpcionCard'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { IconAuditoria, IconCarpeta, IconListados, IconTrendingUp } from '@/components/ui/icons'
+import { IconAuditoria, IconCarpeta, IconTrendingUp } from '@/components/ui/icons'
 import { ROUTES } from '@/constants/routes'
 import { totales, useSolicitudesAuditoria } from '@/features/auditoriaInterna'
 import { ESTADOS, ORDEN_ESTADOS } from './estados'
@@ -10,7 +10,6 @@ import tarjetas from '@/components/ui/OpcionCard.module.css'
 import styles from './AuditoriaInternaHubView.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
-const nd = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 1 })
 
 /** Puerta de entrada de Auditoría interna, con el pulso del panel a la vista:
  * antes de abrir nada, ya se sabe cuánto falta. Un solo permiso para las tres
@@ -50,9 +49,6 @@ export function AuditoriaInternaHubView() {
                       {ESTADOS[e].texto}
                     </li>
                   ))}
-                  {t.demoraPromedioDias !== null && (
-                    <li className={styles.demora}>Demora promedio <b>{nd.format(t.demoraPromedioDias)} días</b></li>
-                  )}
                 </ul>
               </div>
             </>
@@ -69,7 +65,7 @@ export function AuditoriaInternaHubView() {
         <OpcionCard
           icono={<IconAuditoria />}
           titulo="Solicitudes e informes"
-          descripcion="Qué solicitudes emitimos, cuáles ya tienen su informe y están en Report, y los gráficos del total."
+          descripcion="Qué solicitudes emitimos, cuáles ya tienen su informe y están en Report, con los gráficos por laboratorio y por cliente."
           ruta={ROUTES.auditoriaInternaSolicitudes}
         />
         <OpcionCard
@@ -83,12 +79,6 @@ export function AuditoriaInternaHubView() {
           titulo="Vista por límite de control"
           descripcion="Límites dinámicos (promedio ± N desviaciones) sobre los resultados de la base."
           ruta={ROUTES.auditoriaInternaLimiteControl}
-        />
-        <OpcionCard
-          icono={<IconListados />}
-          titulo="Historial de correcciones"
-          descripcion="Lo que el Converter aprendió cuando alguien corrigió un Sold To, Ship To, especie o variedad."
-          ruta={ROUTES.auditoriaInternaCorrecciones}
         />
       </div>
     </div>
