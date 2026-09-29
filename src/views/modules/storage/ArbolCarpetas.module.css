@@ -1,0 +1,112 @@
+.arbol {
+  font-size: 13px;
+}
+
+.fila {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.fila:hover {
+  background: var(--color-bg);
+}
+
+.actual {
+  background: #eef6e5;
+}
+
+.actual .nombre {
+  color: var(--color-primary-hover);
+  font-weight: 700;
+}
+
+.encima {
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -2px;
+}
+
+.bloqueada {
+  opacity: 0.4;
+}
+
+.flecha {
+  flex-shrink: 0;
+  width: 20px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.chevron {
+  width: 6px;
+  height: 6px;
+  border-right: 1.6px solid var(--color-text-muted);
+  border-bottom: 1.6px solid var(--color-text-muted);
+  transform: rotate(-45deg);
+  transition: transform 0.12s ease;
+}
+
+.chevronAbierto {
+  transform: rotate(45deg);
+}
+
+.nombre {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px 4px 0;
+  font: inherit;
+  font-weight: 500;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.nombre:disabled {
+  cursor: not-allowed;
+}
+
+.icono {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--color-text-faint);
+}
+
+.texto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aviso {
+  margin: 0;
+  padding: 3px 0;
+  font-size: 12px;
+  color: var(--color-text-faint);
+}
+
+.hijo {
+  position: relative;
+}
+
+.candado {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 12px;
+  height: 12px;
+  color: var(--color-text-faint);
+  pointer-events: none;
+}

@@ -1,0 +1,43 @@
+.fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(20, 24, 18, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.ventana {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 460px;
+  max-height: 90dvh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+
+.titulo {
+  margin: 0;
+  padding: var(--space-4) var(--space-4) var(--space-2);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.cuerpo {
+  padding: 0 var(--space-4) var(--space-3);
+  overflow-y: auto;
+  font-size: 13.5px;
+  color: var(--color-text);
+}
+
+.pie {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
