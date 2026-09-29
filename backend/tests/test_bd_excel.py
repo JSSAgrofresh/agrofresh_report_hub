@@ -336,3 +336,95 @@ def test_la_descarga_une_con_el_indice_de_solicitudes(datos_bd, cliente_http, mo
     finally:
         with conexion() as conn, cursor_dict(conn) as cur:
             cur.execute("DELETE FROM solicitud_archivo WHERE archivo = '__bd_test.xlsx'")
+
+
+# ── Enlace por parecido, cuando el resultado llegó sin OT ────────────────
+
+def _cand(ot, lab="QUITECA", ship="DOLE PLANTA CODEGUA", esp="Palta", fecha="2026-09-23", **datos):
+    import datetime as dt
+
+    return {
+        "numero_solicitud": ot, "laboratorio": lab, "ship_to": ship, "especie": esp,
+        "fecha_muestreo": dt.date.fromisoformat(fecha), "datos": {"numero_solicitud": ot, **datos},
+    }
+
+
+def _fila_sin_ot(**kw):
+    import datetime as dt
+
+    base = {"laboratorio": "Quiteca", "ship_to": "DOLE PLANTA CODEGUA", "especie": "Palta", "fecha_muestreo": dt.date(2026, 9, 23)}
+    base.update(kw)
+    return base
+
+
+def test_una_coincidencia_unica_enlaza_aunque_cambien_mayusculas_y_espacios():
+    fila = _fila_sin_ot(ship_to="Dole  Planta Codegua", laboratorio="QUITECA")
+    datos = bd_excel.buscar_por_parecido(fila, [_cand("OT-QUI0025", tipo_muestra="Fruta")])
+    assert datos["numero_solicitud"] == "OT-QUI0025"
+
+
+def test_dos_solicitudes_iguales_el_mismo_dia_no_se_adivinan():
+    candidatas = [_cand("OT-QUI0019"), _cand("OT-QUI0020")]
+    assert bd_excel.buscar_por_parecido(_fila_sin_ot(), candidatas) is None
+
+
+def test_no_enlaza_si_cambia_la_fecha_el_laboratorio_la_planta_o_la_especie():
+    fila = _fila_sin_ot()
+    for otra in (
+        _cand("OT-1", fecha="2026-09-22"),
+        _cand("OT-2", lab="ALS"),
+        _cand("OT-3", ship="OTRA PLANTA"),
+        _cand("OT-4", esp="Limón"),
+    ):
+        assert bd_excel.buscar_por_parecido(fila, [otra]) is None
+
+
+def test_sin_fecha_planta_o_especie_no_se_intenta():
+    assert bd_excel.buscar_por_parecido(_fila_sin_ot(fecha_muestreo=None), [_cand("OT-1")]) is None
+    assert bd_excel.buscar_por_parecido(_fila_sin_ot(ship_to=None), [_cand("OT-1")]) is None
+    assert bd_excel.buscar_por_parecido(_fila_sin_ot(especie=""), [_cand("OT-1")]) is None
+
+
+def test_dos_archivos_de_la_misma_solicitud_cuentan_como_una():
+    # reindexar o un reanálisis puede dejar el mismo N° dos veces: no es ambigüedad
+    assert bd_excel.buscar_por_parecido(_fila_sin_ot(), [_cand("OT-QUI0025"), _cand("OT-QUI0025")]) is not None
+
+
+@pytest.mark.skipif(not hay_base("solicitud_archivo"), reason="sin la tabla del índice de solicitudes (0020)")
+def test_la_descarga_enlaza_por_parecido_cuando_el_resultado_no_trae_ot(datos_bd, cliente_http, monkeypatch):
+    import json
+
+    from app import reportes
+    from app.db import conexion, cursor_dict
+
+    monkeypatch.setattr(reportes, "_correos_de_laboratorio", lambda lab: [])
+    with conexion() as conn, cursor_dict(conn) as cur:
+        # la solicitud del resultado de QUITECA: misma planta, especie y fecha, pero sin OT en la base
+        cur.execute("SELECT ship_to_raw, planta_id FROM solicitud WHERE id = %s", (datos_bd["quiteca"],))
+        cur.execute("SELECT nombre FROM planta WHERE nombre = '__PLANTA_BD__'")
+        planta = cur.fetchone()["nombre"]
+        cur.execute("UPDATE solicitud SET referencia = NULL WHERE id = %s", (datos_bd["quiteca"],))
+        cur.execute(
+            "INSERT INTO solicitud_archivo (archivo, numero_solicitud, laboratorio, ship_to, especie, fecha_muestreo, datos)"
+            " VALUES ('__bd_par.xlsx', 'OT-QUI9999', 'QUITECA', %s, 'Cereza', '2026-09-01', %s)",
+            (planta, json.dumps({"numero_solicitud": "OT-QUI9999", "tipo_muestra": "Fruta", "nombre_muestreador": "Catherine"})),
+        )
+    try:
+        r = cliente_http.post("/api/reportes/bd/excel", json={"solicitud_ids": [datos_bd["quiteca"]]})
+        _, columnas, filas = _hoja(r)
+        fila = dict(zip(columnas, filas[0]))
+        assert fila["N° Solicitud"] == "OT-QUI9999"
+        assert fila["Nombre Muestreador"] == "Catherine"
+        # con dos coincidencias ya no se adivina
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                "INSERT INTO solicitud_archivo (archivo, numero_solicitud, laboratorio, ship_to, especie, fecha_muestreo, datos)"
+                " VALUES ('__bd_par2.xlsx', 'OT-QUI9998', 'QUITECA', %s, 'Cereza', '2026-09-01', %s)",
+                (planta, json.dumps({"numero_solicitud": "OT-QUI9998", "nombre_muestreador": "Otra"})),
+            )
+        r = cliente_http.post("/api/reportes/bd/excel", json={"solicitud_ids": [datos_bd["quiteca"]]})
+        _, columnas, filas = _hoja(r)
+        assert dict(zip(columnas, filas[0]))["Nombre Muestreador"] is None
+    finally:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute("DELETE FROM solicitud_archivo WHERE archivo LIKE '\\_\\_bd\\_par%'")

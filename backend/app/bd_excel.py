@@ -162,6 +162,38 @@ def _a_fecha(v: Any) -> Any:
     return v
 
 
+def buscar_por_parecido(fila: dict[str, Any], candidatos: list[dict[str, Any]]) -> dict | None:
+    """La solicitud de Toma de muestras que origina esta fila cuando la base no
+    guardó su N° de OT: misma fecha de muestreo, laboratorio, sucursal y especie.
+
+    Solo se acepta si hay **una única** coincidencia. Si hay dos (dos muestras de
+    la misma planta el mismo día) no se sabe cuál es cuál y se devuelve None:
+    una celda vacía es mejor que el muestreador equivocado.
+
+    `candidatos`: filas del índice con numero_solicitud, laboratorio, ship_to,
+    especie, fecha_muestreo y datos."""
+    from .listados import clave_normalizada as clave
+
+    fecha = fila.get("fecha_muestreo")
+    if not isinstance(fecha, (date, datetime)) or not fila.get("ship_to") or not fila.get("especie"):
+        return None
+    if isinstance(fecha, datetime):
+        fecha = fecha.date()
+    iguales: dict[str, dict] = {}
+    for c in candidatos:
+        f = c.get("fecha_muestreo")
+        if isinstance(f, datetime):
+            f = f.date()
+        if (
+            f == fecha
+            and clave(c.get("laboratorio") or "") == clave(fila.get("laboratorio") or "")
+            and clave(c.get("ship_to") or "") == clave(fila["ship_to"])
+            and clave(c.get("especie") or "") == clave(fila["especie"])
+        ):
+            iguales[str(c.get("numero_solicitud"))] = c["datos"]
+    return next(iter(iguales.values())) if len(iguales) == 1 else None
+
+
 def completar_fila(fila: dict[str, Any], datos: dict | None, correos_laboratorio: list[str] | None = None) -> None:
     """Llena, en su lugar, lo que la base no trae de una solicitud.
 

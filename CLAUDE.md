@@ -335,7 +335,11 @@ tocas una, toca la otra.
   no trae muestreador, tipo de muestra, línea, cámara, kilos, producto, email del
   solicitante, etc. Se unen por el N° de OT (`solicitud.referencia` =
   `solicitud_archivo.numero_solicitud`) y solo se rellena lo que la base dejó
-  vacío. Reglas del laboratorio: **Solicitante = AGROFRESH siempre**, Temporada =
+  vacío. **Quiteca no manda el OT** (su N° Informe es `2026-1885-PC`, `referencia`
+  queda vacía), así que sin OT se enlaza por parecido (`buscar_por_parecido`):
+  misma fecha de muestreo, laboratorio, sucursal y especie, y **solo si la
+  coincidencia es única** (dos muestras de la misma planta el mismo día = no se
+  adivina, queda vacío). Lo definitivo es que el OT llegue con el resultado. Reglas del laboratorio: **Solicitante = AGROFRESH siempre**, Temporada =
   año de la muestra, Email Laboratorio = contactos del laboratorio (Para y CC)
   separados por «;», y **N° Orden ya no existe**. Lo que no está en ningún lado
   queda vacío. Sin la tabla del índice (0020) la descarga sigue funcionando.
