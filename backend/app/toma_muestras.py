@@ -1565,6 +1565,19 @@ def _iso_a_ddmmyyyy(valor: object) -> object:
 _CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en"}
 
 
+def _sample_identification(datos: dict) -> str:
+    """Texto para el campo «Sample Identification (IN)» del informe del laboratorio:
+    `N° solicitud - Posición muestreo - Fecha muestreo`. Siempre las tres partes,
+    en ese orden, para que el PDF de vuelta se lea con un patrón fijo. Una parte
+    vacía queda como «—» (igual que en `campos_laboratorio`), nunca se omite."""
+    partes = (
+        datos.get("numero_solicitud"),
+        datos.get("posicion_muestreo"),
+        _iso_a_ddmmyyyy(datos.get("fecha_muestreo")),
+    )
+    return " - ".join(str(p).strip() if p and str(p).strip() else "—" for p in partes)
+
+
 def _generar_json_solicitud(datos: dict) -> bytes:
     """JSON adjunto para el laboratorio: datos de la solicitud + destinatarios de resultado."""
     import json as _json
@@ -1581,6 +1594,7 @@ def _generar_json_solicitud(datos: dict) -> bytes:
     }
     salida = {
         **datos_limpios,
+        "sample_identification": _sample_identification(datos),
         "correos": {
             "resultado_cliente": {"to": correos_resultado.get("to", [])},
             "resultado_interno": {
