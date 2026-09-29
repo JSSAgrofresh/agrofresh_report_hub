@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { DragEvent } from 'react'
-import { IconCandado, IconCarpeta } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
-import { listar, listarR2, TIPO_MOVER, estaDentro, nombreVisible } from '@/features/storage'
+import { TIPO_MOVER, estaDentro, leerArrastre, nombreVisible, operaciones } from '@/features/storage'
 import type { EntradaStorage, Espacio } from '@/features/storage'
+import { IconoCarpeta } from './IconoArchivo'
 import styles from './ArbolCarpetas.module.css'
 
 function carpetasDe(espacio: Espacio, ruta: string): Promise<EntradaStorage[]> {
-  const pedir = espacio.r2 ? listarR2(ruta) : listar(ruta)
-  return pedir.then((r) => r.entradas.filter((e) => e.tipo === 'carpeta'))
+  return operaciones(espacio).listar(ruta).then((r) => r.entradas.filter((e) => e.tipo === 'carpeta'))
 }
 
 interface ArbolProps {
@@ -47,9 +46,10 @@ interface NodoProps extends Omit<ArbolProps, 'espacio'> {
   ruta: string
   etiqueta: string
   nivel: number
+  restringida?: boolean
 }
 
-function Nodo({ espacio, ruta, etiqueta, nivel, rutaActual, onNavegar, version, onSoltar, bloqueadas = [] }: NodoProps) {
+function Nodo({ espacio, ruta, etiqueta, nivel, restringida, rutaActual, onNavegar, version, onSoltar, bloqueadas = [] }: NodoProps) {
   // `manual` es lo que el usuario decidió con la flecha; sin decisión, un nodo
   // está abierto si el espacio es el activo y la carpeta actual cuelga de él.
   const [manual, setManual] = useState<boolean | null>(null)
@@ -81,8 +81,9 @@ function Nodo({ espacio, ruta, etiqueta, nivel, rutaActual, onNavegar, version, 
     e.preventDefault()
     setEncima(false)
     if (!onSoltar) return
-    const rutas = JSON.parse(e.dataTransfer.getData(TIPO_MOVER) || '[]') as string[]
-    if (rutas.length) onSoltar(rutas, ruta)
+    const arrastre = leerArrastre(e.dataTransfer.getData(TIPO_MOVER))
+    // Solo se mueve dentro del mismo espacio: disco y bucket son mundos distintos.
+    if (arrastre && arrastre.espacio === espacio.id && arrastre.rutas.length) onSoltar(arrastre.rutas, ruta)
   }
 
   return (
@@ -114,12 +115,12 @@ function Nodo({ espacio, ruta, etiqueta, nivel, rutaActual, onNavegar, version, 
             if (!abierto) setManual(true)
           }}
         >
-          <IconCarpeta className={styles.icono} />
+          <IconoCarpeta color={nivel === 0 ? espacio.acento : undefined} restringida={restringida} className={styles.icono} />
           <span className={styles.texto}>{nivel === 0 ? etiqueta : nombreVisible(etiqueta)}</span>
         </button>
       </div>
       {abierto && (
-        <div role="group">
+        <div role="group" className={styles.grupo}>
           {fallo && <p className={styles.aviso} style={{ paddingLeft: 26 + nivel * 14 }}>No se pudo leer.</p>}
           {!fallo && hijos === null && <p className={styles.aviso} style={{ paddingLeft: 26 + nivel * 14 }}>Cargando…</p>}
           {hijos?.map((h) => (
@@ -144,8 +145,7 @@ function Nodo({ espacio, ruta, etiqueta, nivel, rutaActual, onNavegar, version, 
 function NodoHijo({ entrada, ...resto }: Omit<NodoProps, 'ruta' | 'etiqueta'> & { entrada: EntradaStorage }) {
   return (
     <div className={styles.hijo}>
-      <Nodo {...resto} ruta={entrada.ruta} etiqueta={entrada.nombre} />
-      {entrada.restringida && <IconCandado className={styles.candado} aria-label="Carpeta restringida" />}
+      <Nodo {...resto} ruta={entrada.ruta} etiqueta={entrada.nombre} restringida={entrada.restringida} />
     </div>
   )
 }

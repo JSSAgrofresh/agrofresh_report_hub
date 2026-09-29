@@ -1,33 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
-import { IconArchivoPlano, IconCandado, IconCarpeta } from '@/components/ui/icons'
+import { IconCandado } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { formatDateTimeCL } from '@/lib/locale'
 import { HttpError } from '@/services/http/client'
 import {
   TIPO_MOVER,
   carpetaDe,
-  crearCarpeta,
-  descargar,
-  descargarR2,
-  eliminar,
   estaDentro,
   filtrarEntradas,
   formatoTamano,
-  listar,
-  listarR2,
+  leerArrastre,
   migasDe,
-  mover,
   nombreVisible,
+  operaciones,
   ordenarEntradas,
   organizarSolicitudesR2,
-  renombrar,
-  rutasArrastradas,
-  subirArchivos,
+  puede,
 } from '@/features/storage'
-import type { CampoOrden, EntradaStorage, Espacio, Orden } from '@/features/storage'
+import type { CampoOrden, EntradaStorage, Espacio, Operacion, Orden } from '@/features/storage'
 import { ArbolCarpetas } from './ArbolCarpetas'
 import { Dialogo } from './Dialogo'
+import { IconoArchivo, IconoCarpeta } from './IconoArchivo'
+import { VistaPrevia } from './VistaPrevia'
 import styles from './StorageView.module.css'
 
 type Estado =
@@ -35,6 +30,17 @@ type Estado =
   | { tipo: 'renombrar'; entrada: EntradaStorage }
   | { tipo: 'eliminar'; entradas: EntradaStorage[] }
   | { tipo: 'mover'; entradas: EntradaStorage[] }
+
+type Vista = 'lista' | 'cuadricula'
+const CLAVE_VISTA = 'agrofresh.storage.vista.v1'
+
+function vistaGuardada(): Vista {
+  try {
+    return window.localStorage.getItem(CLAVE_VISTA) === 'cuadricula' ? 'cuadricula' : 'lista'
+  } catch {
+    return 'lista'
+  }
+}
 
 function mensajeDe(e: unknown, defecto: string): string {
   return e instanceof HttpError && e.message && !e.message.startsWith('Request failed') ? e.message : defecto
@@ -51,11 +57,15 @@ interface ExploradorProps {
   esAdmin: boolean
   puedeEscribir: boolean
   onAbrirPermisos: (ruta: string) => void
+  esFavorito: boolean
+  onAlternarFavorito: (ruta: string, nombre: string) => void
+  avisar: (tipo: 'ok' | 'error', texto: string) => void
+  /** Archivo al que llegó la búsqueda: se resalta un momento. */
+  resaltar: string | null
 }
 
-/** Lo que se ve a la derecha del árbol: barra, buscador, tabla y ventanas. Se
- * monta de nuevo en cada carpeta (ver `key` en StorageView), así que
- * selección y búsqueda parten limpias sin código que las reinicie. */
+/** Lo que se ve a la derecha del árbol. Se monta de nuevo en cada carpeta (ver
+ * `key` en StorageView): selección y filtro parten limpios sin código que los reinicie. */
 export function Explorador({
   espacio,
   ruta,
@@ -65,39 +75,52 @@ export function Explorador({
   esAdmin,
   puedeEscribir,
   onAbrirPermisos,
+  esFavorito,
+  onAlternarFavorito,
+  avisar,
+  resaltar,
 }: ExploradorProps) {
-  const editable = espacio.editable && puedeEscribir
+  const ops = useMemo(() => operaciones(espacio), [espacio])
   const [entradas, setEntradas] = useState<EntradaStorage[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [mensaje, setMensaje] = useState<string | null>(null)
+  const [errorLista, setErrorLista] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [orden, setOrden] = useState<Orden>({ campo: 'nombre', descendente: false })
+  const [vista, setVista] = useState<Vista>(vistaGuardada)
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
   const [estado, setEstado] = useState<Estado | null>(null)
+  const [previa, setPrevia] = useState<EntradaStorage | null>(null)
   const [menu, setMenu] = useState<string | null>(null)
   const [arrastrando, setArrastrando] = useState(false)
   const [sobre, setSobre] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const admite = useCallback(
+    (op: Operacion, r: string, esCarpeta = true) => puedeEscribir && puede(espacio, op, r, esCarpeta),
+    [espacio, puedeEscribir],
+  )
+  const puedeCrear = admite('crear', ruta)
+  const puedeSubir = admite('subir', ruta)
+  const sobreEntrada = (op: Operacion, e: EntradaStorage) => admite(op, e.ruta, e.tipo === 'carpeta')
+
   useEffect(() => {
     let vigente = true
-    const pedir = espacio.r2 ? listarR2(ruta) : listar(ruta)
-    pedir
+    ops
+      .listar(ruta)
       .then((r) => {
         if (!vigente) return
         setEntradas(r.entradas)
-        setError(null)
+        setErrorLista(null)
       })
       .catch((e) => {
         if (!vigente) return
         setEntradas([])
-        setError(mensajeDe(e, 'No se pudo leer esta carpeta. Revisa que el backend esté corriendo.'))
+        setErrorLista(mensajeDe(e, 'No se pudo leer esta carpeta. Revisa que el backend esté corriendo.'))
       })
     return () => {
       vigente = false
     }
-  }, [espacio, ruta, version])
+  }, [ops, ruta, version])
 
   const visibles = useMemo(
     () => ordenarEntradas(filtrarEntradas(entradas ?? [], busqueda), orden),
@@ -105,6 +128,18 @@ export function Explorador({
   )
   const seleccionadas = visibles.filter((e) => seleccion.has(e.ruta))
   const todasMarcadas = visibles.length > 0 && seleccionadas.length === visibles.length
+  const nCarpetas = (entradas ?? []).filter((e) => e.tipo === 'carpeta').length
+  const nArchivos = (entradas ?? []).length - nCarpetas
+  const pesoTotal = (entradas ?? []).reduce((suma, e) => suma + (e.tamano_bytes ?? 0), 0)
+
+  function cambiarVista(v: Vista) {
+    setVista(v)
+    try {
+      window.localStorage.setItem(CLAVE_VISTA, v)
+    } catch {
+      // sin almacenamiento: la elección dura lo que dure la pantalla
+    }
+  }
 
   function ordenarPor(campo: CampoOrden) {
     setOrden((o) => (o.campo === campo ? { campo, descendente: !o.descendente } : { campo, descendente: false }))
@@ -122,58 +157,78 @@ export function Explorador({
     })
   }
 
-  const conError = useCallback(async (accion: () => Promise<void>, defecto: string) => {
-    setError(null)
-    setMensaje(null)
-    setOcupado(true)
-    try {
-      await accion()
-    } catch (e) {
-      setError(mensajeDe(e, defecto))
-    } finally {
-      setOcupado(false)
-    }
-  }, [])
+  const conAviso = useCallback(
+    async (accion: () => Promise<string | void>, defecto: string) => {
+      setOcupado(true)
+      try {
+        const texto = await accion()
+        if (texto) avisar('ok', texto)
+      } catch (e) {
+        avisar('error', mensajeDe(e, defecto))
+      } finally {
+        setOcupado(false)
+      }
+    },
+    [avisar],
+  )
 
   async function subir(lista: FileList | File[]) {
     const archivos = Array.from(lista)
     if (archivos.length === 0) return
-    await conError(async () => {
-      await subirArchivos(ruta, archivos)
-      setMensaje(`${archivos.length} archivo(s) subido(s).`)
+    await conAviso(async () => {
+      await ops.subir(ruta, archivos)
       onCambio()
+      return archivos.length === 1 ? `«${archivos[0].name}» subido.` : `${archivos.length} archivos subidos.`
     }, 'No se pudo subir. Revisa que el backend esté corriendo.')
   }
 
   async function moverA(rutas: string[], destino: string) {
     const aMover = rutas.filter((r) => carpetaDe(r) !== destino && !estaDentro(destino, r))
     if (aMover.length === 0) return
-    await conError(async () => {
+    await conAviso(async () => {
       const fallos: string[] = []
       for (const r of aMover) {
         try {
-          await mover(r, destino)
+          await ops.mover(r, destino)
         } catch {
           fallos.push(r.split('/').pop() ?? r)
         }
       }
       setSeleccion(new Set())
       onCambio()
-      if (fallos.length) setError(`No se pudo mover: ${fallos.join(', ')} (¿ya existe algo con ese nombre allí?).`)
-      else setMensaje(`${aMover.length} elemento(s) movido(s).`)
+      if (fallos.length) throw new Error(`No se pudo mover: ${fallos.join(', ')}.`)
+      return `${aMover.length} elemento(s) movido(s).`
     }, 'No se pudo mover.')
   }
 
-  function empezarArrastre(e: DragEvent<HTMLTableRowElement>, entrada: EntradaStorage) {
-    const rutas = seleccion.has(entrada.ruta) ? [...seleccion] : [entrada.ruta]
-    e.dataTransfer.setData(TIPO_MOVER, JSON.stringify(rutas))
+  async function eliminarLista(lista: EntradaStorage[]) {
+    await conAviso(async () => {
+      const fallos: string[] = []
+      for (const e of lista) {
+        try {
+          await ops.eliminar(e.ruta)
+        } catch {
+          fallos.push(e.nombre)
+        }
+      }
+      setSeleccion(new Set())
+      onCambio()
+      if (fallos.length) throw new Error(`No se pudo eliminar: ${fallos.join(', ')}.`)
+      return `${lista.length} elemento(s) eliminado(s).`
+    }, 'No se pudo eliminar.')
+  }
+
+  function empezarArrastre(e: DragEvent<HTMLElement>, entrada: EntradaStorage) {
+    const base = seleccion.has(entrada.ruta) ? [...seleccion] : [entrada.ruta]
+    const movibles = base.filter((r) => admite('mover', r, entradas?.find((x) => x.ruta === r)?.tipo === 'carpeta'))
+    e.dataTransfer.setData(TIPO_MOVER, JSON.stringify({ espacio: espacio.id, rutas: movibles }))
+    e.dataTransfer.effectAllowed = 'move'
   }
 
   function alSoltarEnZona(e: DragEvent<HTMLDivElement>) {
     e.preventDefault()
     setArrastrando(false)
-    if (!editable) return
-    if (e.dataTransfer.types.includes(TIPO_MOVER)) return // mover se hace sobre una carpeta, no sobre la zona
+    if (!puedeSubir || e.dataTransfer.types.includes(TIPO_MOVER)) return
     void subir(e.dataTransfer.files)
   }
 
@@ -182,43 +237,146 @@ export function Explorador({
     e.stopPropagation()
     setSobre(null)
     setArrastrando(false)
-    const rutas = rutasArrastradas(e.dataTransfer.getData(TIPO_MOVER))
-    if (rutas.length) void moverA(rutas, destino)
+    const arrastre = leerArrastre(e.dataTransfer.getData(TIPO_MOVER))
+    if (arrastre && arrastre.espacio === espacio.id && arrastre.rutas.length) void moverA(arrastre.rutas, destino)
   }
 
   async function organizar() {
-    await conError(async () => {
+    await conAviso(async () => {
       const r = await organizarSolicitudesR2()
-      setMensaje(
-        `${r.movidas} solicitud(es) reorganizada(s).${r.omitidas ? ` ${r.omitidas} no pudieron moverse.` : ''}`,
-      )
       onCambio()
+      return `${r.movidas} solicitud(es) reorganizada(s).${r.omitidas ? ` ${r.omitidas} no pudieron moverse.` : ''}`
     }, 'No se pudieron organizar las solicitudes existentes.')
   }
 
+  function abrir(e: EntradaStorage) {
+    if (e.tipo === 'carpeta') onNavegar(e.ruta)
+    else setPrevia(e)
+  }
+
+  // Atajos: Supr elimina, F2 renombra, Esc quita la selección.
+  useEffect(() => {
+    function alTeclear(ev: KeyboardEvent) {
+      const t = ev.target as HTMLElement
+      if (estado || previa || t.closest('input,textarea,select,[contenteditable]')) return
+      if (ev.key === 'Escape') setSeleccion(new Set())
+      if (ev.key === 'Delete' && seleccionadas.length && seleccionadas.every((e) => sobreEntrada('eliminar', e))) {
+        setEstado({ tipo: 'eliminar', entradas: seleccionadas })
+      }
+      if (ev.key === 'F2' && seleccionadas.length === 1 && sobreEntrada('renombrar', seleccionadas[0])) {
+        ev.preventDefault()
+        setEstado({ tipo: 'renombrar', entrada: seleccionadas[0] })
+      }
+    }
+    window.addEventListener('keydown', alTeclear)
+    return () => window.removeEventListener('keydown', alTeclear)
+  })
+
   const migas = migasDe(espacio, ruta)
-  const descargarEntrada = espacio.r2 ? descargarR2 : descargar
-  const arrastrable = editable
+  const puedeMoverSel = seleccionadas.length > 0 && seleccionadas.every((e) => sobreEntrada('mover', e))
+  const puedeEliminarSel = seleccionadas.length > 0 && seleccionadas.every((e) => sobreEntrada('eliminar', e))
+  const hayMenu = (e: EntradaStorage) =>
+    sobreEntrada('renombrar', e) || sobreEntrada('mover', e) || sobreEntrada('eliminar', e) || e.tipo === 'carpeta'
+
+  function menuDe(e: EntradaStorage, indice: number, arriba: boolean) {
+    if (!hayMenu(e)) return null
+    return (
+      <div className={cn(styles.menuCaja, menu === e.ruta && styles.menuCajaAbierta)}>
+        <button
+          type="button"
+          className={styles.botonMenu}
+          aria-label={`Más acciones para ${e.nombre}`}
+          aria-expanded={menu === e.ruta}
+          onClick={(ev) => {
+            ev.stopPropagation()
+            setMenu(menu === e.ruta ? null : e.ruta)
+          }}
+        >
+          ⋯
+        </button>
+        {menu === e.ruta && (
+          <div className={cn(styles.menu, (arriba || (visibles.length > 3 && indice >= visibles.length - 2)) && styles.menuArriba)} role="menu">
+            {e.tipo === 'archivo' && (
+              <button type="button" role="menuitem" onClick={() => { setMenu(null); setPrevia(e) }}>
+                Vista previa
+              </button>
+            )}
+            {e.tipo === 'carpeta' && (
+              <button type="button" role="menuitem" onClick={() => { setMenu(null); onAlternarFavorito(e.ruta, e.nombre) }}>
+                Fijar en favoritos
+              </button>
+            )}
+            {sobreEntrada('renombrar', e) && (
+              <button type="button" role="menuitem" onClick={() => { setMenu(null); setEstado({ tipo: 'renombrar', entrada: e }) }}>
+                Renombrar
+              </button>
+            )}
+            {sobreEntrada('mover', e) && (
+              <button type="button" role="menuitem" onClick={() => { setMenu(null); setEstado({ tipo: 'mover', entradas: [e] }) }}>
+                Mover a…
+              </button>
+            )}
+            {esAdmin && e.tipo === 'carpeta' && (
+              <button type="button" role="menuitem" onClick={() => { setMenu(null); onAbrirPermisos(e.ruta) }}>
+                Permisos…
+              </button>
+            )}
+            {sobreEntrada('eliminar', e) && (
+              <button type="button" role="menuitem" className={styles.menuPeligro} onClick={() => { setMenu(null); setEstado({ tipo: 'eliminar', entradas: [e] }) }}>
+                Eliminar
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function propiedadesFila(e: EntradaStorage) {
+    const movible = sobreEntrada('mover', e)
+    const recibe = e.tipo === 'carpeta' && admite('crear', e.ruta)
+    return {
+      draggable: movible,
+      onDragStart: movible ? (ev: DragEvent<HTMLElement>) => empezarArrastre(ev, e) : undefined,
+      onDragOver: recibe ? (ev: DragEvent<HTMLElement>) => { ev.preventDefault(); setSobre(e.ruta) } : undefined,
+      onDragLeave: recibe ? () => setSobre((s) => (s === e.ruta ? null : s)) : undefined,
+      onDrop: recibe ? (ev: DragEvent<HTMLElement>) => alSoltarEnCarpeta(ev, e.ruta) : undefined,
+    }
+  }
+
+  const nombreDe = (e: EntradaStorage) => (e.tipo === 'carpeta' ? nombreVisible(e.nombre) : e.nombre)
 
   return (
-    <section className={styles.explorador}>
+    <section className={styles.explorador} style={{ '--acento': espacio.acento } as React.CSSProperties}>
       <div className={styles.barra}>
         <nav className={styles.migas} aria-label="Ruta">
           {migas.map((m, i) => (
             <span key={m.ruta} className={styles.migaGrupo}>
-              {i > 0 && <span className={styles.migaSeparador}>/</span>}
+              {i > 0 && <span className={styles.migaSeparador}>›</span>}
               <button
                 type="button"
                 className={cn(i === migas.length - 1 && styles.migaActiva, sobre === `miga:${m.ruta}` && styles.migaSobre)}
                 onClick={() => onNavegar(m.ruta)}
-                onDragOver={arrastrable ? (e) => { e.preventDefault(); setSobre(`miga:${m.ruta}`) } : undefined}
-                onDragLeave={arrastrable ? () => setSobre(null) : undefined}
-                onDrop={arrastrable ? (e) => alSoltarEnCarpeta(e, m.ruta) : undefined}
+                onDragOver={admite('crear', m.ruta) ? (e) => { e.preventDefault(); setSobre(`miga:${m.ruta}`) } : undefined}
+                onDragLeave={() => setSobre(null)}
+                onDrop={admite('crear', m.ruta) ? (e) => alSoltarEnCarpeta(e, m.ruta) : undefined}
               >
                 {m.etiqueta}
               </button>
             </span>
           ))}
+          {ruta !== espacio.raiz && (
+          <button
+            type="button"
+            className={cn(styles.estrella, esFavorito && styles.estrellaOn)}
+            aria-pressed={esFavorito}
+            aria-label={esFavorito ? 'Quitar de favoritos' : 'Fijar en favoritos'}
+            title={esFavorito ? 'Quitar de favoritos' : 'Fijar en favoritos'}
+            onClick={() => onAlternarFavorito(ruta, migas[migas.length - 1].etiqueta)}
+          >
+            ★
+          </button>
+          )}
         </nav>
         <div className={styles.herramientas}>
           {espacio.permiteOrganizar && puedeEscribir && (
@@ -231,11 +389,13 @@ export function Explorador({
               <IconCandado className={styles.iconoBoton} /> Permisos
             </button>
           )}
-          {editable && (
+          {puedeCrear && (
+            <button type="button" className={styles.boton} onClick={() => setEstado({ tipo: 'carpeta' })}>
+              + Nueva carpeta
+            </button>
+          )}
+          {puedeSubir && (
             <>
-              <button type="button" className={styles.boton} onClick={() => setEstado({ tipo: 'carpeta' })}>
-                + Nueva carpeta
-              </button>
               <button type="button" className={styles.botonPrimario} onClick={() => inputRef.current?.click()} disabled={ocupado}>
                 {ocupado ? 'Procesando…' : 'Subir archivos'}
               </button>
@@ -249,30 +409,45 @@ export function Explorador({
         <input
           type="search"
           className={styles.buscador}
-          placeholder="Buscar en esta carpeta…"
-          aria-label="Buscar en esta carpeta"
+          placeholder="Filtrar esta carpeta…"
+          aria-label="Filtrar esta carpeta"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
         />
+        <div className={styles.vistas} role="group" aria-label="Vista">
+          <button type="button" className={cn(styles.vistaBoton, vista === 'lista' && styles.vistaActiva)} aria-pressed={vista === 'lista'} onClick={() => cambiarVista('lista')} title="Lista">
+            <svg viewBox="0 0 20 20" aria-hidden><path d="M3 5h14M3 10h14M3 15h14" /></svg>
+          </button>
+          <button type="button" className={cn(styles.vistaBoton, vista === 'cuadricula' && styles.vistaActiva)} aria-pressed={vista === 'cuadricula'} onClick={() => cambiarVista('cuadricula')} title="Cuadrícula">
+            <svg viewBox="0 0 20 20" aria-hidden><rect x="3" y="3" width="5.5" height="5.5" rx="1" /><rect x="11.5" y="3" width="5.5" height="5.5" rx="1" /><rect x="3" y="11.5" width="5.5" height="5.5" rx="1" /><rect x="11.5" y="11.5" width="5.5" height="5.5" rx="1" /></svg>
+          </button>
+        </div>
+        {vista === 'cuadricula' && (
+          <select className={styles.selectOrden} aria-label="Ordenar por" value={orden.campo} onChange={(e) => setOrden({ campo: e.target.value as CampoOrden, descendente: false })}>
+            <option value="nombre">Nombre</option>
+            <option value="tamano">Tamaño</option>
+            <option value="modificado">Fecha</option>
+          </select>
+        )}
         <span className={styles.contador}>
-          {entradas === null ? '' : `${visibles.length} elemento${visibles.length === 1 ? '' : 's'}`}
+          {entradas === null
+            ? ''
+            : `${nCarpetas} carpeta${nCarpetas === 1 ? '' : 's'} · ${nArchivos} archivo${nArchivos === 1 ? '' : 's'}${pesoTotal ? ` · ${formatoTamano(pesoTotal)}` : ''}`}
         </span>
       </div>
-
-      {!espacio.editable && <p className={styles.soloLectura}>{espacio.descripcion}</p>}
 
       {seleccionadas.length > 0 && (
         <div className={styles.seleccion} role="status">
           <strong>{seleccionadas.length} seleccionado(s)</strong>
-          {editable && (
-            <>
-              <button type="button" className={styles.boton} onClick={() => setEstado({ tipo: 'mover', entradas: seleccionadas })}>
-                Mover a…
-              </button>
-              <button type="button" className={styles.botonEliminar} onClick={() => setEstado({ tipo: 'eliminar', entradas: seleccionadas })}>
-                Eliminar
-              </button>
-            </>
+          {puedeMoverSel && (
+            <button type="button" className={styles.boton} onClick={() => setEstado({ tipo: 'mover', entradas: seleccionadas })}>
+              Mover a…
+            </button>
+          )}
+          {puedeEliminarSel && (
+            <button type="button" className={styles.botonEliminar} onClick={() => setEstado({ tipo: 'eliminar', entradas: seleccionadas })}>
+              Eliminar
+            </button>
           )}
           <button type="button" className={styles.boton} onClick={() => setSeleccion(new Set())}>
             Quitar selección
@@ -280,27 +455,31 @@ export function Explorador({
         </div>
       )}
 
-      {error && <p className={styles.error} role="alert">{error}</p>}
-      {mensaje && <p className={styles.ok} role="status">{mensaje}</p>}
+      {errorLista && <p className={styles.error} role="alert">{errorLista}</p>}
 
       <div
-        className={cn(styles.tablaCaja, arrastrando && editable && styles.zonaActiva)}
-        onDragOver={editable ? (e) => { e.preventDefault(); if (!e.dataTransfer.types.includes(TIPO_MOVER)) setArrastrando(true) } : undefined}
-        onDragLeave={editable ? () => setArrastrando(false) : undefined}
-        onDrop={editable ? alSoltarEnZona : undefined}
+        className={cn(styles.tablaCaja, arrastrando && puedeSubir && styles.zonaActiva)}
+        onDragOver={puedeSubir ? (e) => { e.preventDefault(); if (!e.dataTransfer.types.includes(TIPO_MOVER)) setArrastrando(true) } : undefined}
+        onDragLeave={puedeSubir ? () => setArrastrando(false) : undefined}
+        onDrop={puedeSubir ? alSoltarEnZona : undefined}
         onClick={() => menu && setMenu(null)}
       >
+        {arrastrando && puedeSubir && <div className={styles.cartelSoltar}>Suelta los archivos para subirlos aquí</div>}
+
         {entradas === null ? (
-          <p className={styles.estado}>Cargando…</p>
+          <div className={styles.esqueleto} aria-label="Cargando">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className={styles.esqueletoFila} style={{ animationDelay: `${i * 90}ms` }} />
+            ))}
+          </div>
         ) : visibles.length === 0 ? (
-          <p className={styles.estado}>
-            {busqueda
-              ? 'Nada coincide con la búsqueda.'
-              : editable
-                ? 'Carpeta vacía. Arrastra archivos aquí o usa «Subir archivos».'
-                : 'Esta carpeta está vacía.'}
-          </p>
-        ) : (
+          <div className={styles.vacio}>
+            <IconoCarpeta grande color={espacio.acento} />
+            <p className={styles.vacioTitulo}>{busqueda ? 'Nada coincide con el filtro' : 'Esta carpeta está vacía'}</p>
+            {!busqueda && puedeSubir && <p>Arrastra archivos aquí o usa «Subir archivos».</p>}
+            {!busqueda && !puedeSubir && puedeCrear && <p>Crea una carpeta con «+ Nueva carpeta».</p>}
+          </div>
+        ) : vista === 'lista' ? (
           <table className={styles.tabla}>
             <thead>
               <tr>
@@ -317,39 +496,27 @@ export function Explorador({
               {visibles.map((e, indice) => (
                 <tr
                   key={e.ruta}
-                  draggable={arrastrable}
+                  {...propiedadesFila(e)}
+                  ref={e.ruta === resaltar ? (el) => el?.scrollIntoView({ block: 'center' }) : undefined}
                   aria-selected={seleccion.has(e.ruta)}
-                  className={cn(seleccion.has(e.ruta) && styles.filaMarcada, sobre === e.ruta && styles.filaSobrevolada)}
-                  onDragStart={arrastrable ? (ev) => empezarArrastre(ev, e) : undefined}
-                  onDragOver={arrastrable && e.tipo === 'carpeta' ? (ev) => { ev.preventDefault(); setSobre(e.ruta) } : undefined}
-                  onDragLeave={arrastrable ? () => setSobre((s) => (s === e.ruta ? null : s)) : undefined}
-                  onDrop={arrastrable && e.tipo === 'carpeta' ? (ev) => alSoltarEnCarpeta(ev, e.ruta) : undefined}
+                  className={cn(
+                    styles.fila,
+                    seleccion.has(e.ruta) && styles.filaMarcada,
+                    sobre === e.ruta && styles.filaSobrevolada,
+                    e.ruta === resaltar && styles.filaResaltada,
+                  )}
+                  style={{ animationDelay: `${Math.min(indice, 14) * 22}ms` }}
                 >
                   <td className={styles.colCheck}>
-                    <input
-                      type="checkbox"
-                      aria-label={`Seleccionar ${e.nombre}`}
-                      checked={seleccion.has(e.ruta)}
-                      onChange={() => alternar(e.ruta)}
-                    />
+                    <input type="checkbox" aria-label={`Seleccionar ${e.nombre}`} checked={seleccion.has(e.ruta)} onChange={() => alternar(e.ruta)} />
                   </td>
                   <td className={styles.nombre}>
-                    {e.tipo === 'carpeta' ? (
-                      <button type="button" className={styles.nombreCarpeta} onClick={() => onNavegar(e.ruta)}>
-                        <IconCarpeta className={styles.icono} />
-                        {nombreVisible(e.nombre)}
-                      </button>
-                    ) : (
-                      <span className={styles.nombreArchivo}>
-                        <IconArchivoPlano className={styles.icono} />
-                        {e.nombre}
-                      </span>
-                    )}
+                    <button type="button" className={styles.nombreBoton} onClick={() => abrir(e)}>
+                      {e.tipo === 'carpeta' ? <IconoCarpeta restringida={e.restringida} /> : <IconoArchivo nombre={e.nombre} />}
+                      <span className={styles.nombreTexto}>{nombreDe(e)}</span>
+                    </button>
                     {e.restringida && (
-                      <span
-                        className={styles.chipRestringida}
-                        title={e.n_usuarios != null ? `Solo ${e.n_usuarios} cuenta(s) la ven` : 'Carpeta restringida'}
-                      >
+                      <span className={styles.chipRestringida} title={e.n_usuarios != null ? `Solo ${e.n_usuarios} cuenta(s) la ven` : 'Carpeta restringida'}>
                         <IconCandado className={styles.iconoChip} />
                         {e.n_usuarios != null ? e.n_usuarios : 'Restringida'}
                       </span>
@@ -357,68 +524,62 @@ export function Explorador({
                   </td>
                   <td className={styles.mono}>{formatoTamano(e.tamano_bytes)}</td>
                   <td className={styles.mono}>{e.modificado ? formatDateTimeCL(e.modificado) : '—'}</td>
-                  <td className={cn(styles.celdaAcciones, menu === e.ruta && styles.celdaMenuAbierta)}>
+                  <td className={styles.celdaAcciones + (menu === e.ruta ? ` ${styles.celdaMenuAbierta}` : '')}>
                     <div className={styles.acciones}>
-                    {e.tipo === 'archivo' && (
-                      <button type="button" className={styles.boton} onClick={() => void descargarEntrada(e.ruta)}>
-                        Descargar
-                      </button>
-                    )}
-                    {(editable || (esAdmin && e.tipo === 'carpeta')) && (
-                      <div className={styles.menuCaja}>
-                        <button
-                          type="button"
-                          className={styles.boton}
-                          aria-label={`Más acciones para ${e.nombre}`}
-                          aria-expanded={menu === e.ruta}
-                          onClick={(ev) => { ev.stopPropagation(); setMenu(menu === e.ruta ? null : e.ruta) }}
-                        >
-                          ⋯
+                      {e.tipo === 'archivo' && (
+                        <button type="button" className={styles.boton} onClick={() => void ops.descargar(e.ruta)}>
+                          Descargar
                         </button>
-                        {menu === e.ruta && (
-                          <div
-                            className={cn(styles.menu, visibles.length > 3 && indice >= visibles.length - 2 && styles.menuArriba)}
-                            role="menu"
-                          >
-                            {editable && (
-                              <button type="button" role="menuitem" onClick={() => { setMenu(null); setEstado({ tipo: 'renombrar', entrada: e }) }}>
-                                Renombrar
-                              </button>
-                            )}
-                            {editable && (
-                              <button type="button" role="menuitem" onClick={() => { setMenu(null); setEstado({ tipo: 'mover', entradas: [e] }) }}>
-                                Mover a…
-                              </button>
-                            )}
-                            {esAdmin && e.tipo === 'carpeta' && (
-                              <button type="button" role="menuitem" onClick={() => { setMenu(null); onAbrirPermisos(e.ruta) }}>
-                                Permisos…
-                              </button>
-                            )}
-                            {editable && (
-                              <button type="button" role="menuitem" className={styles.menuPeligro} onClick={() => { setMenu(null); setEstado({ tipo: 'eliminar', entradas: [e] }) }}>
-                                Eliminar
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                      )}
+                      {menuDe(e, indice, false)}
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        ) : (
+          <div className={styles.cuadricula}>
+            {visibles.map((e, indice) => (
+              <div
+                key={e.ruta}
+                {...propiedadesFila(e)}
+                ref={e.ruta === resaltar ? (el) => el?.scrollIntoView({ block: 'center' }) : undefined}
+                className={cn(
+                  styles.tarjeta,
+                  seleccion.has(e.ruta) && styles.tarjetaMarcada,
+                  sobre === e.ruta && styles.filaSobrevolada,
+                  e.ruta === resaltar && styles.filaResaltada,
+                  menu === e.ruta && styles.tarjetaMenu,
+                )}
+                style={{ animationDelay: `${Math.min(indice, 14) * 22}ms` }}
+              >
+                <input
+                  type="checkbox"
+                  className={styles.tarjetaCheck}
+                  aria-label={`Seleccionar ${e.nombre}`}
+                  checked={seleccion.has(e.ruta)}
+                  onChange={() => alternar(e.ruta)}
+                />
+                <div className={styles.tarjetaMenuPos}>{menuDe(e, indice, false)}</div>
+                <button type="button" className={styles.tarjetaCuerpo} onClick={() => abrir(e)} title={e.nombre}>
+                  {e.tipo === 'carpeta' ? <IconoCarpeta grande restringida={e.restringida} /> : <IconoArchivo nombre={e.nombre} grande />}
+                  <span className={styles.tarjetaNombre}>{nombreDe(e)}</span>
+                  <small className={styles.tarjetaMeta}>
+                    {e.tipo === 'archivo' ? formatoTamano(e.tamano_bytes) : e.restringida ? 'Restringida' : 'Carpeta'}
+                  </small>
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
-      {editable && (
-        <p className={styles.ayuda}>
-          Arrastra archivos desde tu computador para subirlos, o mueve elementos arrastrándolos a
-          una carpeta, a la ruta de arriba o al árbol de la izquierda.
-        </p>
-      )}
+      <p className={styles.ayuda}>
+        {puedeSubir || puedeCrear
+          ? 'Arrastra archivos para subirlos o elementos a una carpeta para moverlos. Atajos: F2 renombra, Supr elimina, / busca en todo Storage.'
+          : 'Haz clic en un archivo para ver su vista previa. Atajo: / busca en todo Storage.'}
+      </p>
 
       {estado?.tipo === 'carpeta' && (
         <DialogoNombre
@@ -428,9 +589,10 @@ export function Explorador({
           onCerrar={() => setEstado(null)}
           onConfirmar={async (nombre) => {
             setEstado(null)
-            await conError(async () => {
-              await crearCarpeta(ruta, nombre)
+            await conAviso(async () => {
+              await ops.crearCarpeta(ruta, nombre)
               onCambio()
+              return `Carpeta «${nombre}» creada.`
             }, 'No se pudo crear la carpeta.')
           }}
         />
@@ -447,9 +609,10 @@ export function Explorador({
             const entrada = estado.entrada
             setEstado(null)
             if (nombre === entrada.nombre) return
-            await conError(async () => {
-              await renombrar(entrada.ruta, nombre)
+            await conAviso(async () => {
+              await ops.renombrar(entrada.ruta, nombre)
               onCambio()
+              return `Renombrado a «${nombre}».`
             }, 'No se pudo renombrar (¿ya existe algo con ese nombre?).')
           }}
         />
@@ -462,20 +625,7 @@ export function Explorador({
           onConfirmar={async () => {
             const lista = estado.entradas
             setEstado(null)
-            await conError(async () => {
-              const fallos: string[] = []
-              for (const e of lista) {
-                try {
-                  await eliminar(e.ruta)
-                } catch {
-                  fallos.push(e.nombre)
-                }
-              }
-              setSeleccion(new Set())
-              onCambio()
-              if (fallos.length) setError(`No se pudo eliminar: ${fallos.join(', ')}.`)
-              else setMensaje(`${lista.length} elemento(s) eliminado(s).`)
-            }, 'No se pudo eliminar.')
+            await eliminarLista(lista)
           }}
         />
       )}
@@ -492,6 +642,15 @@ export function Explorador({
             setEstado(null)
             await moverA(lista.map((e) => e.ruta), destino)
           }}
+        />
+      )}
+
+      {previa && (
+        <VistaPrevia
+          entrada={previa}
+          abrir={ops.abrir}
+          onDescargar={() => void ops.descargar(previa.ruta)}
+          onCerrar={() => setPrevia(null)}
         />
       )}
     </section>
@@ -558,7 +717,7 @@ function DialogoNombre({
       >
         <label className={styles.campo}>
           {etiqueta}
-          <input autoFocus value={nombre} onChange={(e) => setNombre(e.target.value)} />
+          <input autoFocus value={nombre} onChange={(e) => setNombre(e.target.value)} onFocus={(e) => e.target.select()} />
         </label>
       </form>
     </Dialogo>
@@ -587,9 +746,7 @@ function DialogoEliminar({
       }
     >
       <p>
-        {hayCarpetas
-          ? 'Se borra todo lo que hay dentro de las carpetas, y también sus permisos. '
-          : ''}
+        {hayCarpetas ? 'Se borra todo lo que hay dentro de las carpetas, y también sus permisos. ' : ''}
         Esta acción no se puede deshacer.
       </p>
       {entradas.length > 1 && (
@@ -618,7 +775,7 @@ function DialogoMover({
 }) {
   const [destino, setDestino] = useState<string | null>(null)
   const carpetas = entradas.filter((e) => e.tipo === 'carpeta').map((e) => e.ruta)
-  const valido = destino !== null && destino !== origen
+  const valido = destino !== null && destino !== origen && puede(espacio, 'crear', destino)
   return (
     <Dialogo
       titulo={entradas.length === 1 ? `Mover «${entradas[0].nombre}»` : `Mover ${entradas.length} elementos`}
@@ -634,13 +791,7 @@ function DialogoMover({
     >
       <p className={styles.ayudaDialogo}>Elige la carpeta de destino.</p>
       <div className={styles.selectorArbol}>
-        <ArbolCarpetas
-          espacio={espacio}
-          rutaActual={destino ?? origen}
-          onNavegar={setDestino}
-          version={version}
-          bloqueadas={carpetas}
-        />
+        <ArbolCarpetas espacio={espacio} rutaActual={destino ?? origen} onNavegar={setDestino} version={version} bloqueadas={carpetas} />
       </div>
     </Dialogo>
   )

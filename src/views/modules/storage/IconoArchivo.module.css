@@ -1,0 +1,94 @@
+.carpeta,
+.archivo {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 20px;
+  transition: transform 0.18s ease;
+}
+
+.grande {
+  width: 56px;
+  height: 52px;
+}
+
+.carpeta {
+  --carpeta: #f2b134;
+}
+
+.carpeta svg:first-child {
+  width: 100%;
+  height: 100%;
+}
+
+.carpetaAtras {
+  fill: color-mix(in srgb, var(--carpeta) 72%, #000);
+}
+
+.carpetaFrente {
+  fill: var(--carpeta);
+}
+
+.candado {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 45%;
+  height: 45%;
+  fill: #7a5a00;
+  stroke: #7a5a00;
+  stroke-width: 2;
+  background: #fff4d6;
+  border-radius: 50%;
+  padding: 2px;
+  box-shadow: 0 0 0 1.5px #fff;
+}
+
+.archivo {
+  width: 18px;
+  height: 22px;
+}
+
+.grande.archivo {
+  width: 44px;
+  height: 54px;
+}
+
+.archivo svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.hoja {
+  fill: color-mix(in srgb, var(--tipo) 12%, #fff);
+  stroke: var(--tipo);
+  stroke-width: 1.4;
+}
+
+.doblez {
+  fill: var(--tipo);
+  opacity: 0.35;
+}
+
+.etiqueta {
+  position: relative;
+  margin-top: 30%;
+  font-size: 6px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--tipo);
+}
+
+.grande .etiqueta {
+  font-size: 12px;
+}
+
+:global(tr:hover) .carpeta,
+:global(tr:hover) .archivo {
+  transform: translateY(-1px) scale(1.08);
+}

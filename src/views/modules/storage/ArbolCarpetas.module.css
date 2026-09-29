@@ -77,10 +77,29 @@
 }
 
 .icono {
-  width: 15px;
+  width: 17px;
   height: 15px;
-  flex-shrink: 0;
-  color: var(--color-text-faint);
+}
+
+.grupo {
+  animation: despliega 0.18s ease;
+}
+
+@keyframes despliega {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grupo {
+    animation: none;
+  }
 }
 
 .texto {
@@ -99,14 +118,4 @@
 
 .hijo {
   position: relative;
-}
-
-.candado {
-  position: absolute;
-  right: 6px;
-  top: 6px;
-  width: 12px;
-  height: 12px;
-  color: var(--color-text-faint);
-  pointer-events: none;
 }

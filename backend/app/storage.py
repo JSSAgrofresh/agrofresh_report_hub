@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from . import config
 from . import storage_permisos as permisos
+from . import storage_r2 as sr2
 from .auth import Usuario, solo_admin_general, solo_escribiente, usuario_actual
 from .db import conexion, cursor_dict
 
@@ -451,3 +452,138 @@ def resumen_permisos(_: Usuario = Depends(solo_admin_general)) -> list[ResumenPe
             UsuarioConAcceso(id=f["id"], nombre=f["nombre"], email=f["email"])
         )
     return [ResumenPermiso(espacio=e, ruta=r, usuarios=u) for (e, r), u in por_carpeta.items()]
+
+
+# ---------------------------------------------------------------------------
+# R2: crear, subir, renombrar, mover y eliminar (con la política de storage_r2)
+# ---------------------------------------------------------------------------
+
+def _exigir_r2(usuario: Usuario, *rutas: str) -> None:
+    reglas = permisos.cargar_reglas("r2")
+    for r in rutas:
+        permisos.exigir_ver(reglas, r, usuario)
+
+
+def _entrada_r2(ruta: str, tipo: str, tamano: int | None = None) -> EntradaStorage:
+    return EntradaStorage(
+        nombre=ruta.rsplit("/", 1)[-1], ruta=ruta, tipo=tipo, tamano_bytes=tamano, modificado=""
+    )
+
+
+@router.post("/r2/carpetas")
+def r2_crear_carpeta(datos: CrearCarpetaIn, usuario: Usuario = Depends(solo_escribiente)) -> EntradaStorage:
+    sr2.puede_llamar_r2()
+    padre = sr2.normalizar(datos.ruta_padre)
+    sr2.exigir("crear", padre)
+    _exigir_r2(usuario, padre)
+    ruta = sr2.crear_carpeta(padre, _nombre_seguro(datos.nombre))
+    return _entrada_r2(ruta, "carpeta")
+
+
+@router.post("/r2/subir")
+async def r2_subir(
+    ruta: str = Form(""),
+    archivos: list[UploadFile] = File(...),
+    usuario: Usuario = Depends(solo_escribiente),
+) -> list[EntradaStorage]:
+    sr2.puede_llamar_r2()
+    carpeta = sr2.normalizar(ruta)
+    sr2.exigir("subir", carpeta)
+    _exigir_r2(usuario, carpeta)
+    subidos = []
+    for archivo in archivos:
+        if not archivo.filename:
+            continue
+        datos = await archivo.read()
+        destino = sr2.subir_archivo(carpeta, _nombre_seguro(archivo.filename), datos)
+        subidos.append(_entrada_r2(destino, "archivo", len(datos)))
+    return subidos
+
+
+@router.put("/r2/renombrar")
+def r2_renombrar(datos: RenombrarIn, usuario: Usuario = Depends(solo_escribiente)) -> EntradaStorage:
+    sr2.puede_llamar_r2()
+    ruta = sr2.normalizar(datos.ruta)
+    tipo = sr2.tipo_de(ruta)
+    if tipo is None:
+        raise HTTPException(404, "No encontrado.")
+    sr2.exigir("renombrar", ruta, tipo == "carpeta")
+    _exigir_r2(usuario, ruta)
+    nuevo = sr2.renombrar(ruta, _nombre_seguro(datos.nombre_nuevo))
+    if tipo == "carpeta" and nuevo != ruta:
+        permisos.reubicar("r2", ruta, nuevo)
+    return _entrada_r2(nuevo, tipo)
+
+
+@router.put("/r2/mover")
+def r2_mover(datos: MoverIn, usuario: Usuario = Depends(solo_escribiente)) -> EntradaStorage:
+    sr2.puede_llamar_r2()
+    ruta = sr2.normalizar(datos.ruta)
+    destino = sr2.normalizar(datos.ruta_destino)
+    tipo = sr2.tipo_de(ruta)
+    if tipo is None:
+        raise HTTPException(404, "No encontrado.")
+    sr2.exigir("mover", ruta, tipo == "carpeta")
+    sr2.exigir("crear", destino)
+    if sr2.zona(ruta) != sr2.zona(destino):
+        raise HTTPException(403, "No se puede mover entre Solicitudes y Accutab.")
+    _exigir_r2(usuario, ruta, destino)
+    nuevo = sr2.mover(ruta, destino)
+    if tipo == "carpeta" and nuevo != ruta:
+        permisos.reubicar("r2", ruta, nuevo)
+    return _entrada_r2(nuevo, tipo)
+
+
+@router.delete("/r2/eliminar")
+def r2_eliminar(ruta: str, usuario: Usuario = Depends(solo_escribiente)) -> dict[str, str]:
+    sr2.puede_llamar_r2()
+    ruta = sr2.normalizar(ruta)
+    tipo = sr2.tipo_de(ruta)
+    if tipo is None:
+        raise HTTPException(404, "No encontrado.")
+    sr2.exigir("eliminar", ruta, tipo == "carpeta")
+    _exigir_r2(usuario, ruta)
+    sr2.eliminar(ruta)
+    if tipo == "carpeta":
+        permisos.reubicar("r2", ruta, None)
+    return {"estado": "eliminado"}
+
+
+# ---------------------------------------------------------------------------
+# Búsqueda global
+# ---------------------------------------------------------------------------
+
+@router.get("/buscar")
+def buscar(
+    q: str,
+    espacio: str = "local",
+    limite: int = 80,
+    usuario: Usuario = Depends(usuario_actual),
+) -> list[EntradaStorage]:
+    """Archivos y carpetas cuyo nombre contiene TODAS las palabras de `q`
+    (sin importar mayúsculas ni tildes), en cualquier subcarpeta. Solo devuelve
+    lo que `usuario` puede ver."""
+    palabras = [p for p in sr2.sin_tildes(q).split() if p]
+    if not palabras:
+        return []
+    limite = max(1, min(limite, 200))
+    if espacio == "local":
+        raiz = _carpeta_raiz()
+        encontrados: list[dict] = []
+        for carpeta, subcarpetas, archivos in os.walk(raiz):
+            for nombre in subcarpetas + archivos:
+                if not sr2.coincide(nombre, palabras):
+                    continue
+                e = _info(raiz, os.path.join(carpeta, nombre))
+                encontrados.append(e.model_dump())
+        encontrados.sort(key=lambda e: (e["tipo"] != "carpeta", not sr2.sin_tildes(e["nombre"]).startswith(palabras[0]), e["nombre"].lower()))
+        resultado = [EntradaStorage(**e) for e in encontrados]
+        reglas = permisos.cargar_reglas("local")
+    elif espacio == "r2":
+        sr2.puede_llamar_r2()
+        claves = sr2.claves_de(sr2.RAIZ_ACCUTAB) + sr2.claves_de(sr2.RAIZ_SOLICITUDES)
+        resultado = [EntradaStorage(**e) for e in sr2.buscar_en_claves(claves, palabras, 10_000)]
+        reglas = permisos.cargar_reglas("r2")
+    else:
+        raise HTTPException(400, "Espacio inválido.")
+    return _visibles(resultado, reglas, usuario)[:limite]

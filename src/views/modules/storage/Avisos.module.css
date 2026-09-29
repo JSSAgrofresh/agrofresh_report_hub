@@ -1,0 +1,84 @@
+.pila {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: min(380px, calc(100vw - 32px));
+}
+
+.aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-left-width: 4px;
+  box-shadow: 0 10px 30px rgba(20, 30, 10, 0.18);
+  font-size: 13px;
+  animation: entra 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.ok {
+  border-left-color: #5f9e1f;
+}
+
+.error {
+  border-left-color: var(--color-danger);
+}
+
+.marca {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.ok .marca {
+  background: #5f9e1f;
+}
+
+.error .marca {
+  background: var(--color-danger);
+}
+
+.texto {
+  flex: 1;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.cerrar {
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-text-faint);
+}
+
+@keyframes entra {
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aviso {
+    animation: none;
+  }
+}
