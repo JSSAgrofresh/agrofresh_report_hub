@@ -127,6 +127,10 @@ table.uni td.e{color:#D8DCD4}
 table.uni tbody tr:nth-child(even){background:#FBFCFA}
 .pie{font-size:12.5px;color:var(--tinta-3);margin-top:10px}
 .oculto{display:none !important}
+.resultado{padding:12px 14px;border-radius:8px;border:1px solid var(--borde);font-size:13.5px;line-height:1.5}
+.resultado.ok{background:#F2F8EC;border-color:#B7D8A0;color:#245A1A}
+.resultado.err{background:#FDF1EC;border-color:#E8C4B4;color:#8A2A18}
+.resultado b{font-weight:700}
 table.uni td.amarre{white-space:normal;min-width:260px}
 select.ot,input.envio{font-family:var(--ui);font-size:13px;padding:6px 8px;border:1px solid var(--borde-f);
   border-radius:6px;background:var(--sup);color:var(--tinta);max-width:100%}
@@ -1222,6 +1226,7 @@ $("btnSubir").onclick = async () => {
   const pie = $("pieSubir");
   const btn = $("btnSubir");
   btn.disabled = true;
+  pie.className = "pie";
   pie.textContent = "Revisando contra la base de datos…";
   try{
     const prev = await llamarIngest("preview", filas);
@@ -1245,10 +1250,13 @@ $("btnSubir").onclick = async () => {
     const base = "✔ Cargado: " + c.solicitudes_nuevas + " solicitud(es) nueva(s), " +
       c.solicitudes_existentes + " completada(s), " + c.resultados + " resultado(s) en total." +
       (c.pendientes_revision ? " ⛔ " + c.pendientes_revision + " quedaron en Ingesta de Datos → Pendientes." : "");
+    pie.className = "pie";
     pie.textContent = base + " Guardando los PDF en auditoría…";
     const pdf = await subirPdfs(ok);
-    pie.textContent = base + " " + pdf;
+    pie.className = "pie resultado " + (pdf.fallas.length ? "err" : "ok");
+    pie.textContent = base + " " + pdf.texto;
   }catch(err){
+    pie.className = "pie resultado err";
     pie.textContent = "⚠ No se pudo subir: " + err.message;
   }finally{
     btn.disabled = false;
@@ -1399,8 +1407,11 @@ async function subirPdfs(ok){
     }catch(err){ fallas.push(inf.archivo + ": " + err.message); }
   }
   cargarAbiertas();   // las OT que ya se amarraron dejan de ofrecerse
-  return "📁 " + bien + " PDF guardado(s) en auditoría." +
-    (fallas.length ? " ⚠ No se pudieron guardar " + fallas.length + ": " + fallas.slice(0, 3).join(" · ") : "");
+  return {
+    fallas,
+    texto: "📁 " + bien + " PDF guardado(s) en auditoría." +
+      (fallas.length ? " ⚠ No se pudieron guardar " + fallas.length + ": " + fallas.slice(0, 3).join(" · ") : ""),
+  };
 }
 
 $("btnLimpiar").onclick = () => {

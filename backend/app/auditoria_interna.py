@@ -20,10 +20,12 @@ del laboratorio trae SU número de informe, no nuestro OT-xxxx.
 """
 import logging
 import unicodedata
+from contextlib import contextmanager
 from datetime import datetime
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -59,6 +61,36 @@ def _exigir_r2() -> None:
             "El bucket de auditoría no está configurado en el servidor "
             "(R2_AUDITORIA_BUCKET y las llaves de R2 en el .env del backend).",
         )
+
+
+@contextmanager
+def errores_r2():
+    """Traduce los fallos de R2 a un mensaje que diga QUÉ arreglar.
+
+    Sin esto, un 403 de Cloudflare -el token no tiene permiso sobre el bucket-
+    salía como un 500 «ClientError» sin más, y quien subía el informe veía que
+    "no pasó nada". Un 502 con la causa en español llega hasta la pantalla.
+    """
+    try:
+        yield
+    except ClientError as exc:
+        codigo = str(exc.response.get("Error", {}).get("Code", ""))
+        bucket = r2a.config.R2_AUDITORIA_BUCKET
+        logger.exception("R2 (auditoría) respondió %s", codigo)
+        if codigo in ("403", "AccessDenied", "Forbidden", "InvalidAccessKeyId", "SignatureDoesNotMatch"):
+            detalle = (
+                f"Cloudflare rechazó el acceso al bucket «{bucket}» ({codigo}): el token de R2 no tiene "
+                "permiso sobre ese bucket. Dale permiso de lectura y escritura de objetos en Cloudflare, "
+                "o define R2_AUDITORIA_ACCESS_KEY_ID y R2_AUDITORIA_SECRET_ACCESS_KEY en el .env del backend."
+            )
+        elif codigo in ("NoSuchBucket", "404") and "bucket" in str(exc).lower():
+            detalle = f"El bucket «{bucket}» no existe en Cloudflare R2: créalo con ese nombre."
+        else:
+            detalle = f"R2 respondió un error ({codigo or 'desconocido'}) al usar el bucket «{bucket}»."
+        raise HTTPException(502, detalle)
+    except BotoCoreError as exc:
+        logger.exception("No se pudo hablar con R2 (auditoría)")
+        raise HTTPException(502, f"No se pudo conectar con R2: {exc}")
 
 
 def _es_interno(laboratorio: str | None) -> bool:
@@ -185,11 +217,13 @@ async def subir_informe(
         if not (previo and previo["r2_key"] == key):
             base, punto, ext = nombre.rpartition(".")
             n = 2
-            while r2a.existe(key):
-                key = f"{carpeta}/{base} ({n}){punto}{ext}"
-                n += 1
+            with errores_r2():
+                while r2a.existe(key):
+                    key = f"{carpeta}/{base} ({n}){punto}{ext}"
+                    n += 1
 
-        r2a.subir(key, datos)
+        with errores_r2():
+            r2a.subir(key, datos)
         try:
             cur.execute(
                 """
@@ -311,7 +345,8 @@ def descargar_informe(informe_id: int, _: Usuario = Depends(puede_auditoria)) ->
         fila = cur.fetchone()
     if fila is None:
         raise HTTPException(404, "Informe no encontrado.")
-    datos = r2a.descargar(fila["r2_key"])
+    with errores_r2():
+        datos = r2a.descargar(fila["r2_key"])
     if datos is None:
         raise HTTPException(404, "El PDF ya no está en el bucket de auditoría.")
     return _respuesta_pdf(datos, fila["nombre_archivo"])
@@ -332,7 +367,8 @@ def listar_carpeta(ruta: str = Query(""), _: Usuario = Depends(puede_auditoria))
     llega su primer informe."""
     _exigir_r2()
     ruta = _ruta(ruta)
-    carpetas, archivos = r2a.listar_nivel(ruta)
+    with errores_r2():
+        carpetas, archivos = r2a.listar_nivel(ruta)
     por_key: dict[str, dict] = {}
     if archivos:
         with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
@@ -367,7 +403,8 @@ def descargar_archivo(ruta: str = Query(...), _: Usuario = Depends(puede_auditor
     key = _ruta(ruta)
     if not key:
         raise HTTPException(400, "Falta la ruta del archivo.")
-    datos = r2a.descargar(key)
+    with errores_r2():
+        datos = r2a.descargar(key)
     if datos is None:
         raise HTTPException(404, "Archivo no encontrado.")
     return _respuesta_pdf(datos, key.rsplit("/", 1)[-1])
@@ -379,7 +416,8 @@ def eliminar_archivo(ruta: str = Query(...), _: Usuario = Depends(solo_admin_gen
     key = _ruta(ruta)
     if not key or "/" not in key:
         raise HTTPException(400, "Ruta inválida.")
-    r2a.eliminar(key)
+    with errores_r2():
+        r2a.eliminar(key)
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("DELETE FROM informe_auditoria WHERE r2_key = %s", (key,))
     return {"ok": True}
@@ -393,9 +431,10 @@ def eliminar_carpeta(ruta: str = Query(...), _: Usuario = Depends(solo_admin_gen
     carpeta = _ruta(ruta)
     if not carpeta:
         raise HTTPException(400, "La carpeta raíz de auditoría no se puede borrar.")
-    keys = r2a.listar_recursivo(f"{carpeta}/")
-    for key in keys:
-        r2a.eliminar(key)
+    with errores_r2():
+        keys = r2a.listar_recursivo(f"{carpeta}/")
+        for key in keys:
+            r2a.eliminar(key)
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("DELETE FROM informe_auditoria WHERE r2_key LIKE %s ESCAPE '\\'", (
             carpeta.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "/%",
@@ -422,10 +461,11 @@ def renombrar_archivo(body: RenombrarIn, _: Usuario = Depends(solo_admin_general
     destino = f"{origen.rsplit('/', 1)[0]}/{nombre}"
     if destino == origen:
         return {"ruta": origen}
-    if r2a.existe(destino):
-        raise HTTPException(409, "Ya existe un archivo con ese nombre en la carpeta.")
-    r2a.copiar(origen, destino)
-    r2a.eliminar(origen)
+    with errores_r2():
+        if r2a.existe(destino):
+            raise HTTPException(409, "Ya existe un archivo con ese nombre en la carpeta.")
+        r2a.copiar(origen, destino)
+        r2a.eliminar(origen)
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(
             "UPDATE informe_auditoria SET r2_key = %s, nombre_archivo = %s WHERE r2_key = %s",

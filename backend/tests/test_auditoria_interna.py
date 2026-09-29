@@ -165,3 +165,61 @@ class TestSubida:
             files={"archivo": ("x.pdf", b"%PDF-1.4", "application/pdf")},
         )
         assert r.status_code == 403
+
+
+class TestErroresDeR2:
+    """Un 403 de Cloudflare (token sin permiso sobre el bucket) llegó como un
+    500 sin explicación y nadie supo qué arreglar. Ahora es un 502 que lo dice."""
+
+    def _falla(self, monkeypatch, codigo):
+        from botocore.exceptions import ClientError
+
+        def boom(*a, **k):
+            raise ClientError({"Error": {"Code": codigo, "Message": "x"}}, "HeadObject")
+
+        monkeypatch.setattr(r2a, "disponible", lambda: True)
+        monkeypatch.setattr(r2a, "listar_nivel", boom)
+
+    def test_403_explica_el_permiso_del_token(self, monkeypatch, como):
+        self._falla(monkeypatch, "403")
+        como(cuenta("admin_general"))
+        r = cliente.get("/api/auditoria-interna/carpetas")
+        assert r.status_code == 502
+        assert "token de R2" in r.json()["detail"] and "auditoria" in r.json()["detail"]
+
+    def test_bucket_inexistente_lo_dice(self, monkeypatch, como):
+        self._falla(monkeypatch, "NoSuchBucket")
+        como(cuenta("admin_general"))
+        r = cliente.get("/api/auditoria-interna/carpetas")
+        assert r.status_code == 502 and "no existe" in r.json()["detail"]
+
+    def test_la_subida_tambien_traduce_el_403(self, monkeypatch, como):
+        from botocore.exceptions import ClientError
+
+        monkeypatch.setattr(r2a, "disponible", lambda: True)
+
+        def boom(k):
+            raise ClientError({"Error": {"Code": "403", "Message": "x"}}, "HeadObject")
+
+        monkeypatch.setattr(r2a, "existe", boom)
+        # sin base no se llega a R2: se simula la consulta previa
+        import app.auditoria_interna as ai
+        from contextlib import contextmanager
+
+        class _Cur:
+            def execute(self, *a, **k): pass
+            def fetchone(self): return None
+
+        @contextmanager
+        def falsa_conexion(escribir=True):
+            yield object()
+
+        monkeypatch.setattr(ai, "conexion", falsa_conexion)
+        monkeypatch.setattr(ai, "cursor_dict", lambda c: __import__("contextlib").nullcontext(_Cur()))
+        como(cuenta("analista"))
+        r = cliente.post(
+            "/api/auditoria-interna/informes",
+            data={"laboratorio": "Quiteca"},
+            files={"archivo": ("x.pdf", b"%PDF-1.4", "application/pdf")},
+        )
+        assert r.status_code == 502 and "token de R2" in r.json()["detail"]
