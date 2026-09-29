@@ -1,4 +1,5 @@
 import { httpClient } from '@/services/http/client'
+import type { PedidoBd } from './descargaBd'
 import type { Analito, AnalitoInput, FilaReporte, LimiteAnalito, LimiteAnalitoInput } from './tipos'
 
 export function obtenerDatosReporte(cliente?: string, planta?: string) {
@@ -57,4 +58,10 @@ export function guardarLimite(datos: LimiteAnalitoInput) {
 
 export function eliminarLimite(id: number) {
   return httpClient.delete<{ id: number }>(`/reportes/limites/${id}`)
+}
+
+/** Descarga la BD de resultados en Excel (formato de Solicitudes, con el resultado
+ * de cada analito). `solicitudIds: null` = toda la base; con ids, solo esas. */
+export function descargarBdExcel(pedido: PedidoBd) {
+  return httpClient.postArchivoConNombre('/reportes/bd/excel', pedido)
 }

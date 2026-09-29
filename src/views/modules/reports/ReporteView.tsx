@@ -43,7 +43,9 @@ import {
   colorDeIngrediente,
   contarFiltrosActivos,
   contarFueraDeIntervalo,
+  descargarBdExcel,
   descargarDatosExcel,
+  describirFiltros,
   generarDatosSimulados,
   histograma,
   listarAnalitos,
@@ -54,6 +56,7 @@ import {
   mismoValor,
   obtenerDatosReporte,
   opcionesDe,
+  pedidoBd,
   proximaHoraProgramada,
   useActualizacionProgramada,
 } from '@/features/reportes'
@@ -69,6 +72,7 @@ import type {
 } from '@/features/reportes'
 import { AnalitosAdminModal } from './AnalitosAdminModal'
 import { DetalleObservacionesModal } from './DetalleObservacionesModal'
+import { DescargaBdDialogo } from './DescargaBdDialogo'
 import styles from './ReporteView.module.css'
 
 Chart.register(
@@ -276,6 +280,8 @@ export function ReporteView({
   const [modalAnalitos, setModalAnalitos] = useState(false)
   const [detalle, setDetalle] = useState<{ titulo: string; filas: Observacion[] } | null>(null)
   const [descargandoDatos, setDescargandoDatos] = useState(false)
+  const [avisoBd, setAvisoBd] = useState(false)
+  const [descargandoBd, setDescargandoBd] = useState(false)
   const [vistaGrafico, setVistaGrafico] = useState<'promedios' | 'individual'>('promedios')
   // Datos de prueba (solo admin): viven en este estado y en ningún otro lado.
   // Se pierden al salir de Report, al recargar y al actualizar -a propósito:
@@ -1330,6 +1336,40 @@ export function ReporteView({
     }
   }
 
+  // La BD completa de resultados: solo personal interno, y nunca sobre datos simulados.
+  const puedeDescargarBd = !clienteFijo && !simulando && user.tipoAcceso !== 'cliente'
+
+  async function bajarBd(acotada: boolean) {
+    const chips = chipsDeFiltros(filtros, false)
+    setDescargandoBd(true)
+    try {
+      const { blob, nombre } = await descargarBdExcel(pedidoBd(filtradas, filtros, acotada, describirFiltros(chips)))
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = nombre ?? 'BD_Laboratorio.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+      setAvisoBd(false)
+    } catch {
+      setErrorMsg('No se pudo generar el Excel de la BD.')
+      setAvisoBd(false)
+    } finally {
+      setDescargandoBd(false)
+    }
+  }
+
+  /** Sin filtros baja directo; con filtros avisa primero que no es el total. */
+  function pedirBd() {
+    if (nFiltros === 0) void bajarBd(false)
+    else setAvisoBd(true)
+  }
+
+  function limpiarYBajarBdCompleta() {
+    setFiltros(FILTROS_VACIOS)
+    void bajarBd(false)
+  }
+
   return (
     <div className={styles.wrap} style={wrapStyle}>
       <div className={styles.cabecera}>
@@ -1345,6 +1385,20 @@ export function ReporteView({
           {clienteFijo && (
             <Button variant="secondary" onClick={descargarDatos} disabled={descargandoDatos}>
               {descargandoDatos ? 'Generando…' : '⬇ Descargar mi historial (Excel)'}
+            </Button>
+          )}
+          {puedeDescargarBd && (
+            <Button
+              variant="secondary"
+              onClick={pedirBd}
+              disabled={descargandoBd || filas === null}
+              title={
+                nFiltros > 0
+                  ? 'Descarga la BD de resultados en Excel. Hay filtros aplicados: se te avisará antes.'
+                  : 'Descarga toda la BD de resultados en Excel.'
+              }
+            >
+              {descargandoBd ? 'Generando…' : nFiltros > 0 ? '⬇ Descargar BD (filtrada)' : '⬇ Descargar BD'}
             </Button>
           )}
           {puedeSimular && (
@@ -1373,6 +1427,18 @@ export function ReporteView({
           </div>
         </div>
       </div>
+
+      {avisoBd && (
+        <DescargaBdDialogo
+          chips={chipsDeFiltros(filtros, false)}
+          solicitudesFiltradas={registrosFiltrados}
+          solicitudesTotales={totalVista}
+          descargando={descargandoBd}
+          onDescargarFiltrada={() => void bajarBd(true)}
+          onLimpiarYDescargarCompleta={limpiarYBajarBdCompleta}
+          onCerrar={() => setAvisoBd(false)}
+        />
+      )}
 
       {simulando && (
         <div className={styles.bannerSim} role="status">
