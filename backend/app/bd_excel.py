@@ -58,7 +58,6 @@ GENERALES_BD: list[tuple[str, str]] = [
     ("lote", "Lote"),
     ("posicion_muestreo", "Posición Muestreo"),
     ("numero_camara", "N° Cámara"),
-    ("numero_orden", "N° Orden"),
     ("kilos_procesados", "Kilos Procesados (KG)"),
     ("producto_utilizado", "Producto Utilizado"),
     ("tipo_muestra", "Tipo Muestra"),
@@ -115,6 +114,76 @@ _CAMPOS_OMITIDOS = {
 }
 
 Columna = tuple[str, str, str]  # (tipo, clave, encabezado)
+
+# Solicitante es siempre AgroFresh (regla del laboratorio).
+SOLICITANTE = "AGROFRESH"
+
+# Lo que la base no trae se toma de la solicitud de Toma de muestras que la
+# originó (se une por el N° de OT). Clave de la fila de la BD -> clave en la
+# solicitud. La base manda: solo se rellena lo que quedó vacío.
+DESDE_SOLICITUD: dict[str, str] = {
+    "nro_solicitud": "numero_solicitud",
+    "fecha_solicitud": "fecha_solicitud",
+    "fecha_muestreo": "fecha_muestreo",
+    "hora_muestreo": "hora_muestreo",
+    "especie": "especie",
+    "variedad": "variedad",
+    "linea_proceso": "linea_proceso",
+    "csg": "csg_productor",
+    "lote": "lote",
+    "posicion_muestreo": "posicion_muestreo",
+    "numero_camara": "numero_camara",
+    "kilos_procesados": "kilos_procesados",
+    "producto_utilizado": "producto_utilizado",
+    "tipo_muestra": "tipo_muestra",
+    "nombre_muestreador": "nombre_muestreador",
+    "generado_por": "generado_por",
+    "email_solicitante": "email_solicitante",
+    "email_laboratorio": "email_laboratorio",
+}
+
+_FECHAS_BD = {"fecha_solicitud", "fecha_muestreo", "fecha_entrada", "fecha_informe", "fecha_analisis"}
+
+
+def _vacio(v: Any) -> bool:
+    return v is None or (isinstance(v, str) and not v.strip())
+
+
+def _a_fecha(v: Any) -> Any:
+    """'28-09-2026' o '2026-09-28' -> date; lo demás queda como vino."""
+    if not isinstance(v, str):
+        return v
+    t = v.strip()
+    for formato in ("%d-%m-%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(t[:10], formato).date()
+        except ValueError:
+            continue
+    return v
+
+
+def completar_fila(fila: dict[str, Any], datos: dict | None, correos_laboratorio: list[str] | None = None) -> None:
+    """Llena, en su lugar, lo que la base no trae de una solicitud.
+
+    `datos` es la solicitud de Toma de muestras que la originó (None si no se
+    encontró: la fila queda con lo que tenga). `correos_laboratorio` son los
+    contactos del laboratorio, que van en «Email Laboratorio» separados por «;»."""
+    for clave, clave_solicitud in DESDE_SOLICITUD.items():
+        if _vacio(fila.get(clave)) and datos and not _vacio(datos.get(clave_solicitud)):
+            fila[clave] = datos[clave_solicitud]
+    if _vacio(fila.get("email_laboratorio")) and correos_laboratorio:
+        fila["email_laboratorio"] = "; ".join(correos_laboratorio)
+    for clave in _FECHAS_BD:
+        fila[clave] = _a_fecha(fila.get(clave))
+    fila["solicitante"] = SOLICITANTE
+    if _vacio(fila.get("temporada")):
+        # La temporada es el año de la muestra (2026), no un dato que se tipee.
+        for clave in ("fecha_muestreo", "fecha_entrada", "fecha_informe", "fecha_analisis"):
+            f = fila.get(clave)
+            if isinstance(f, (date, datetime)):
+                fila["temporada"] = f.year
+                break
+
 
 
 def codigo_de_formato(codigo: str | None) -> str:

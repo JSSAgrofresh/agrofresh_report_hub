@@ -263,8 +263,47 @@ def _texto_seguro_excel(texto: str | None) -> str | None:
     return "'" + texto if texto[:1] in "=+-@" else texto
 
 
-def filas_de_bd(cur, filtro_alcance: str, params: dict, ids: list[int] | None) -> list[dict[str, Any]]:
-    """Las solicitudes pedidas, cada una con sus resultados y sus dosis."""
+def _completar_con_solicitudes(cur, filas: list[dict[str, Any]], correos_laboratorio) -> None:
+    """Une cada fila con la solicitud de Toma de muestras que la originó (por su
+    N° de OT) y llena lo que la base no trae: muestreador, tipo de muestra, etc."""
+    from .bd_excel import completar_fila
+
+    claves = {str(v).strip().upper() for f in filas for v in (f.get("nro_solicitud"), f.get("nro_informe")) if v}
+    por_ot: dict[str, dict] = {}
+    if claves:
+        try:
+            cur.execute(
+                "SELECT upper(numero_solicitud) AS ot, datos FROM solicitud_archivo"
+                " WHERE upper(numero_solicitud) = ANY(%(claves)s) ORDER BY indexado_en ASC",
+                {"claves": sorted(claves)},
+            )
+            for r in cur.fetchall():
+                por_ot[r["ot"]] = r["datos"]  # ante un repetido queda la más reciente
+        except psycopg2.errors.UndefinedTable:
+            cur.connection.rollback()  # sin la tabla del índice: se sigue sin solicitudes
+    correos: dict[str, list[str]] = {}
+    for f in filas:
+        datos = next(
+            (por_ot[str(v).strip().upper()] for v in (f.get("nro_solicitud"), f.get("nro_informe")) if v and str(v).strip().upper() in por_ot),
+            None,
+        )
+        lab = str(f.get("laboratorio") or "")
+        if correos_laboratorio and lab not in correos:
+            correos[lab] = correos_laboratorio(lab)
+        completar_fila(f, datos, correos.get(lab))
+
+
+def filas_de_bd(
+    cur,
+    filtro_alcance: str,
+    params: dict,
+    ids: list[int] | None,
+    correos_laboratorio=None,
+) -> list[dict[str, Any]]:
+    """Las solicitudes pedidas, cada una con sus resultados y sus dosis.
+
+    `correos_laboratorio(laboratorio) -> list[str]` da los contactos del
+    laboratorio para «Email Laboratorio»; sin él esa columna queda como esté."""
     filtro_ids = ""
     if ids is not None:
         filtro_ids = "AND s.id = ANY(%(ids)s)"
@@ -278,6 +317,7 @@ def filas_de_bd(cur, filtro_alcance: str, params: dict, ids: list[int] | None) -
         f["tipo_aplicacion"] = None
     if not por_id:
         return filas
+    _completar_con_solicitudes(cur, filas, correos_laboratorio)
     cur.execute(
         """
         SELECT r.solicitud_id, COALESCE(a.codigo, r.analito_raw) AS codigo,
@@ -310,6 +350,16 @@ def filas_de_bd(cur, filtro_alcance: str, params: dict, ids: list[int] | None) -
     return filas
 
 
+def _correos_de_laboratorio(laboratorio: str) -> list[str]:
+    """Contactos del laboratorio (Para y CC; el CCO no es de quien lee el
+    archivo) tal como están en Laboratorios → Contacto laboratorio. La base
+    guarda «Als» y la configuración «ALS»."""
+    from .toma_muestras import contactos_de_solicitud_por_envio
+
+    envio = contactos_de_solicitud_por_envio(laboratorio.strip().upper())
+    return [*envio["to"], *envio["cc"]]
+
+
 @router.post("/bd/excel")
 def bd_excel(datos: BdExcelIn, usuario: Usuario = Depends(solo_interno)) -> StreamingResponse:
     """Descarga la BD de resultados. Sin `solicitud_ids` baja TODO; con ellos,
@@ -324,7 +374,7 @@ def bd_excel(datos: BdExcelIn, usuario: Usuario = Depends(solo_interno)) -> Stre
 
     filtro_alcance, params = _filtro_alcance(usuario, None, None)
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        filas = filas_de_bd(cur, filtro_alcance, params, datos.solicitud_ids)
+        filas = filas_de_bd(cur, filtro_alcance, params, datos.solicitud_ids, _correos_de_laboratorio)
     analitos = config_store.leer("analitos.json", ANALITOS_DEFECTO)
     filtrado = datos.solicitud_ids is not None or bool(datos.ingredientes)
     nota = None
