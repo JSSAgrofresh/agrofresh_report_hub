@@ -317,6 +317,20 @@ tocas una, toca la otra.
   sobre la lista de cargas. pH y ORP **siempre en gráficos separados**.
   Por ahora solo para admin: mostrárselo a clientes exige filtrar las
   cargas por cliente en el backend.
+- **«Descargar BD»** (solo personal interno, nunca en el portal de cliente ni
+  sobre datos simulados): `POST /reportes/bd/excel`, código en `app/bd_excel.py`.
+  Mismo formato que la matriz de Solicitudes (dos filas de encabezado, una fila
+  por solicitud), pero en las columnas de analitos va el **resultado** en vez
+  del ✓, y «<COD> Dosis» trae la dosis aplicada. Las columnas se **acotan a lo
+  que hay en la descarga** (un laboratorio filtrado no arrastra los analitos de
+  los otros). Los filtros de Report se aplican en el navegador, así que la
+  pantalla manda los `solicitud_ids` que quedaron a la vista (`pedidoBd`); `null`
+  = toda la base, **lista vacía = ninguna** (nunca «todas»). Con filtros puestos
+  avisa antes (`DescargaBdDialogo`): «descargar BD filtrada» o «limpiar filtros y
+  descargar BD completa»; el archivo filtrado lleva una hoja «Filtros aplicados».
+  `ALIAS_CODIGO` une los códigos de la ingesta con los del catálogo de Toma de
+  muestras (ECOLI/ECOLI100, HONG/HONGOS…); un analito sin columna cae en
+  «Otros analitos», nunca se pierde.
 
 ---
 

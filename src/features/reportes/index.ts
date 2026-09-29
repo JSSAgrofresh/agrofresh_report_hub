@@ -1,6 +1,7 @@
 export {
   obtenerDatosReporte,
   descargarDatosExcel,
+  descargarBdExcel,
   obtenerResumenReporte,
   obtenerClientesReporte,
   listarAnalitos,
@@ -35,3 +36,5 @@ export type { FiltrosReporte, OpcionFiltro, CampoTexto } from './lib/filtros'
 export { generarDatosSimulados } from './lib/simulacion'
 export type { DatosSimulados } from './lib/simulacion'
 export { lunesDe, solicitudesPor, MAX_PUNTOS_DIARIOS } from './lib/agrupacion'
+export { describirFiltros, pedidoBd } from './lib/descargaBd'
+export type { PedidoBd } from './lib/descargaBd'
