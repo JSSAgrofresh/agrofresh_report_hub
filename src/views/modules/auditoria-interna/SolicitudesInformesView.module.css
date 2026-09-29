@@ -354,6 +354,16 @@
   from { opacity: 0; transform: translateY(6px); }
 }
 
+@media (max-width: 1180px) {
+  .superior {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .superior > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 980px) {
   .resumen,
   .graficos {
@@ -367,6 +377,10 @@
 }
 
 @media (max-width: 600px) {
+  .superior {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .tablaAcciones {
     width: 100%;
     justify-content: space-between;
@@ -407,6 +421,14 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--space-3);
+}
+
+/* Arriba: barras por laboratorio (más ancho) y una dona por tipo de servicio. */
+.superior {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
 }
 
 .esqueleto {

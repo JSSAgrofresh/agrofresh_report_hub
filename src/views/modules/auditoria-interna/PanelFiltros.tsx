@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
-import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { IconoBuscar, IconoCerrar } from '@/components/ui/iconosAccion'
 import { FILTROS_VACIOS, chipsDeFiltros, contarFiltros } from '@/features/auditoriaInterna'
 import type { FiltrosSolicitudes, OpcionesFiltros, SolicitudAuditoria } from '@/features/auditoriaInterna'
@@ -57,6 +56,7 @@ export function PanelFiltros({
   const [visible, setVisible] = useState(leerVisible)
   const activos = contarFiltros(filtros)
   const chips = chipsDeFiltros(filtros)
+  const conteoAnalito = (a: string) => datos.filter((s) => s.analitos.includes(a)).length
   const cambiar = <K extends keyof FiltrosSolicitudes>(clave: K, valor: FiltrosSolicitudes[K]) => {
     const siguiente = { ...filtros, [clave]: valor }
     // Al cambiar el cliente, la planta elegida puede dejar de ser de él; igual con especie y variedad.
@@ -106,20 +106,13 @@ export function PanelFiltros({
               />
             </span>
           </label>
-          <BuscableSelect etiqueta="Laboratorio" opciones={opciones.laboratorios} valor={filtros.laboratorio} onChange={(v) => cambiar('laboratorio', v)} conteoDe={conteo(datos, (s) => s.laboratorio)} />
           <BuscableSelect etiqueta="Cliente (Sold To)" opciones={opciones.clientes} valor={filtros.cliente} onChange={(v) => cambiar('cliente', v)} conteoDe={conteo(datos, (s) => s.sold_to)} />
-          <BuscableSelect etiqueta="Planta (Ship To)" opciones={opciones.plantas} valor={filtros.planta} onChange={(v) => cambiar('planta', v)} conteoDe={conteo(datos, (s) => s.ship_to)} />
+          <BuscableSelect etiqueta="Sucursal (Ship To)" opciones={opciones.plantas} valor={filtros.planta} onChange={(v) => cambiar('planta', v)} conteoDe={conteo(datos, (s) => s.ship_to)} />
+          <BuscableSelect etiqueta="Laboratorio" opciones={opciones.laboratorios} valor={filtros.laboratorio} onChange={(v) => cambiar('laboratorio', v)} conteoDe={conteo(datos, (s) => s.laboratorio)} />
           <BuscableSelect etiqueta="Tipo de servicio" opciones={opciones.tipos} valor={filtros.tipo} onChange={(v) => cambiar('tipo', v)} conteoDe={conteo(datos, (s) => (s.tipo_servicio ? tipoServicioDe(s) : ''))} />
+          <CalendarioRango etiqueta="Fecha de emisión" valor={filtros.rango} onChange={(r) => cambiar('rango', r)} />
           <BuscableSelect etiqueta="Especie" opciones={opciones.especies} valor={filtros.especie} onChange={(v) => cambiar('especie', v)} conteoDe={conteo(datos, (s) => s.especie)} />
           <BuscableSelect etiqueta="Variedad" opciones={opciones.variedades} valor={filtros.variedad} onChange={(v) => cambiar('variedad', v)} conteoDe={conteo(datos, (s) => s.variedad)} />
-          <MultiSelectFiltro
-            etiqueta="Analitos pedidos"
-            opciones={opciones.analitos}
-            valores={filtros.analitos}
-            onChange={(v) => cambiar('analitos', v)}
-            conteoDe={(a) => datos.filter((s) => s.analitos.includes(a)).length}
-          />
-          <CalendarioRango etiqueta="Fecha de emisión" valor={filtros.rango} onChange={(r) => cambiar('rango', r)} />
           <button
             type="button"
             className={`${styles.interruptor} ${filtros.sinEnvio ? styles.interruptorActivo : ''}`}
@@ -128,6 +121,42 @@ export function PanelFiltros({
           >
             Solo informes sin fecha de envío
           </button>
+          {opciones.analitos.length > 0 && (
+            <div className={styles.analitosBloque}>
+              <div className={styles.analitosCab}>
+                <span className={styles.etiqueta}>Analitos pedidos</span>
+                <span className={styles.analitosAyuda}>
+                  {filtros.analitos.length === 0
+                    ? 'Marca uno o varios: se muestran las solicitudes que pidieron al menos uno.'
+                    : `${filtros.analitos.length} marcado${filtros.analitos.length === 1 ? '' : 's'}`}
+                </span>
+                {filtros.analitos.length > 0 && (
+                  <button type="button" className={styles.limpiar} onClick={() => cambiar('analitos', [])}>
+                    Quitar analitos
+                  </button>
+                )}
+              </div>
+              <ul className={styles.analitosLista}>
+                {opciones.analitos.map((a) => {
+                  const marcado = filtros.analitos.includes(a)
+                  return (
+                    <li key={a}>
+                      <button
+                        type="button"
+                        className={`${styles.analito} ${marcado ? styles.analitoMarcado : ''}`}
+                        aria-pressed={marcado}
+                        title={`${conteoAnalito(a)} solicitudes lo pidieron`}
+                        onClick={() => cambiar('analitos', marcado ? filtros.analitos.filter((x) => x !== a) : [...filtros.analitos, a])}
+                      >
+                        {a}
+                        <small>{conteoAnalito(a)}</small>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

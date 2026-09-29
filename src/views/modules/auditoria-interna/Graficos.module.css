@@ -142,12 +142,10 @@
   box-shadow: var(--shadow-sm);
 }
 
-.donaTotal {
-  border-color: var(--color-border-strong);
-  background: linear-gradient(180deg, #ffffff, #f9faf7);
-}
-
 .dona h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   align-self: flex-start;
   font-size: 13.5px;
   font-weight: 700;
@@ -225,4 +223,17 @@
   margin-left: auto;
   color: var(--color-text);
   font-variant-numeric: tabular-nums;
+}
+
+.puntoTipo {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.donaVacia {
+  padding: var(--space-6) var(--space-3);
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 12.5px;
 }

@@ -4,6 +4,7 @@ import {
   ordenarSolicitudes,
   porClienteYServicio,
   porLaboratorio,
+  resumenPorTipo,
   solicitudesACsv,
   tipoServicioDe,
   topClientesPorServicio,
@@ -82,6 +83,21 @@ describe('tipoServicioDe', () => {
   it('sin tipo o con uno nuevo', () => {
     expect(tipoServicioDe(sol({ tipo_servicio: null }))).toBe('Sin tipo')
     expect(tipoServicioDe(sol({ tipo_servicio: '  Cámara fría ' }))).toBe('Cámara fría')
+  })
+})
+
+describe('resumenPorTipo', () => {
+  it('cuenta solo las solicitudes de ese tipo, con sus estados', () => {
+    const lista = [
+      concretada(), sol(), sinReport(),
+      sol({ tipo_servicio: 'Línea de proceso' }),
+      sol({ tipo_servicio: 'LINEA DE PROCESO', informe, en_report: true, concretada: true }),
+    ]
+    expect(resumenPorTipo(lista, 'Actimist')).toMatchObject({ emitidas: 3, concretadas: 1, sinReport: 1, pendientes: 1 })
+    expect(resumenPorTipo(lista, 'Línea de proceso')).toMatchObject({ emitidas: 2, concretadas: 1, pendientes: 1 })
+  })
+  it('un tipo sin solicitudes queda en cero', () => {
+    expect(resumenPorTipo([concretada()], 'Línea de proceso')).toMatchObject({ emitidas: 0, porcentajeConcretado: 0 })
   })
 })
 
