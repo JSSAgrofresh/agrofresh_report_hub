@@ -1,5 +1,10 @@
 """
-Cliente de R2 para el bucket de Auditoría interna.
+Cliente de R2 para las carpetas de Auditoría interna.
+
+Las rutas que entran y salen de acá son RELATIVAS a la carpeta de auditoría
+("Quiteca/Dole Codegua/x.pdf"); el prefijo real en el bucket ("auditoria/")
+se agrega y se quita en este archivo y en ningún otro. Así lo que se guarda en
+la base no cambia si un día la carpeta se muda a un bucket propio.
 
 Aparte de r2.py a propósito: es otro bucket, y sus llaves pueden ser otras. Acá
 también viven las reglas de la carpeta: la raíz del bucket no se borra nunca, y
@@ -15,6 +20,17 @@ from . import config
 _client = None
 
 _INVALIDO = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+
+
+def _real(key: str) -> str:
+    """Ruta relativa -> clave real en el bucket."""
+    p = config.R2_AUDITORIA_PREFIJO
+    return f"{p}/{key}" if p else key
+
+
+def _relativa(key: str) -> str:
+    p = config.R2_AUDITORIA_PREFIJO
+    return key[len(p) + 1:] if p and key.startswith(p + "/") else key
 
 
 def disponible() -> bool:
@@ -57,12 +73,12 @@ def ruta_segura(ruta: str | None) -> str:
 
 
 def subir(key: str, data: bytes, content_type: str = "application/pdf") -> None:
-    _cliente().put_object(Bucket=config.R2_AUDITORIA_BUCKET, Key=key, Body=data, ContentType=content_type)
+    _cliente().put_object(Bucket=config.R2_AUDITORIA_BUCKET, Key=_real(key), Body=data, ContentType=content_type)
 
 
 def descargar(key: str) -> bytes | None:
     try:
-        return _cliente().get_object(Bucket=config.R2_AUDITORIA_BUCKET, Key=key)["Body"].read()
+        return _cliente().get_object(Bucket=config.R2_AUDITORIA_BUCKET, Key=_real(key))["Body"].read()
     except ClientError as exc:
         if exc.response["Error"]["Code"] in ("NoSuchKey", "404"):
             return None
@@ -71,7 +87,7 @@ def descargar(key: str) -> bytes | None:
 
 def existe(key: str) -> bool:
     try:
-        _cliente().head_object(Bucket=config.R2_AUDITORIA_BUCKET, Key=key)
+        _cliente().head_object(Bucket=config.R2_AUDITORIA_BUCKET, Key=_real(key))
         return True
     except ClientError as exc:
         if exc.response["Error"]["Code"] in ("NoSuchKey", "404", "NotFound"):
@@ -80,14 +96,14 @@ def existe(key: str) -> bool:
 
 
 def eliminar(key: str) -> None:
-    _cliente().delete_object(Bucket=config.R2_AUDITORIA_BUCKET, Key=key)
+    _cliente().delete_object(Bucket=config.R2_AUDITORIA_BUCKET, Key=_real(key))
 
 
 def copiar(origen: str, destino: str) -> None:
     _cliente().copy_object(
         Bucket=config.R2_AUDITORIA_BUCKET,
-        Key=destino,
-        CopySource={"Bucket": config.R2_AUDITORIA_BUCKET, "Key": origen},
+        Key=_real(destino),
+        CopySource={"Bucket": config.R2_AUDITORIA_BUCKET, "Key": _real(origen)},
     )
 
 
@@ -96,7 +112,8 @@ def listar_nivel(ruta: str) -> tuple[list[str], list[dict]]:
 
     Devuelve (nombres de carpeta, archivos con key/tamano/modificado).
     """
-    prefijo = f"{ruta}/" if ruta else ""
+    base = _real(ruta) if ruta else config.R2_AUDITORIA_PREFIJO
+    prefijo = f"{base}/" if base else ""
     carpetas: list[str] = []
     archivos: list[dict] = []
     paginador = _cliente().get_paginator("list_objects_v2")
@@ -107,7 +124,7 @@ def listar_nivel(ruta: str) -> tuple[list[str], list[dict]]:
             if obj["Key"] == prefijo:
                 continue
             archivos.append({
-                "key": obj["Key"],
+                "key": _relativa(obj["Key"]),
                 "nombre": obj["Key"][len(prefijo):],
                 "tamano_bytes": obj["Size"],
                 "modificado": obj["LastModified"].isoformat(),
@@ -118,6 +135,6 @@ def listar_nivel(ruta: str) -> tuple[list[str], list[dict]]:
 def listar_recursivo(prefijo: str) -> list[str]:
     keys: list[str] = []
     paginador = _cliente().get_paginator("list_objects_v2")
-    for pagina in paginador.paginate(Bucket=config.R2_AUDITORIA_BUCKET, Prefix=prefijo):
-        keys.extend(o["Key"] for o in pagina.get("Contents", []))
+    for pagina in paginador.paginate(Bucket=config.R2_AUDITORIA_BUCKET, Prefix=_real(prefijo)):
+        keys.extend(_relativa(o["Key"]) for o in pagina.get("Contents", []))
     return keys
