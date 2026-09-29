@@ -1714,7 +1714,8 @@ def _generar_json_solicitud(datos: dict) -> bytes:
     }
     salida = {
         **datos_limpios,
-        "sample_identification": _sample_identification(datos),
+        # Solo ALS: es quien lo copia a «Sample Identification (IN)» de su informe.
+        **({"sample_identification": _sample_identification(datos)} if lab.strip().casefold() == "als" else {}),
         "correos": {
             "resultado_cliente": {"to": correos_resultado.get("to", [])},
             "resultado_interno": {

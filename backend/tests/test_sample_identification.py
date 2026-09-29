@@ -11,6 +11,7 @@ def _json(datos):
 
 def test_sample_identification_une_solicitud_posicion_y_fecha():
     salida = _json({
+        "laboratorio": "ALS",
         "numero_solicitud": "OT-ALS0004",
         "posicion_muestreo": "Pozo Vaciado",
         "fecha_muestreo": "2026-09-28",
@@ -19,5 +20,12 @@ def test_sample_identification_une_solicitud_posicion_y_fecha():
 
 
 def test_parte_vacia_queda_marcada_y_no_se_omite():
-    salida = _json({"numero_solicitud": "OT-ALS0005", "posicion_muestreo": None, "fecha_muestreo": "28-09-2026"})
+    salida = _json({"laboratorio": "ALS", "numero_solicitud": "OT-ALS0005", "posicion_muestreo": None, "fecha_muestreo": "28-09-2026"})
     assert salida["sample_identification"] == "OT-ALS0005 - — - 28-09-2026"
+
+
+def test_solo_als_recibe_sample_identification():
+    base = {"numero_solicitud": "OT-X1", "posicion_muestreo": "Pozo", "fecha_muestreo": "28-09-2026"}
+    assert "sample_identification" in _json({**base, "laboratorio": "ALS"})
+    assert "sample_identification" in _json({**base, "laboratorio": "als"})
+    assert "sample_identification" not in _json({**base, "laboratorio": "QUITECA"})
