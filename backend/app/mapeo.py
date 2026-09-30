@@ -78,7 +78,10 @@ ANALITOS_RESULTADO: dict[str, str | tuple[str, ...]] = {
     "AFLA": "Aflatoxinas Totales B1+B2+G1+G2 (µg/kg)",
 }
 
-LABORATORIO_CATALOGO = "Quiteca / AgroFresh"
+# El laboratorio propio tal cual lo guarda la base. El catálogo de analitos solo
+# tiene "Agrofresh" y "Quiteca", y la carga busca cada analito por (código,
+# laboratorio) exacto: con otro nombre el analito no se encuentra.
+LABORATORIO_CATALOGO = "Agrofresh"
 
 
 def valor_columna(fila: dict[str, Any], col: str) -> Any:

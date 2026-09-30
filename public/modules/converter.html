@@ -720,9 +720,10 @@ function fechaDe(texto, etiqueta){
 
 function leerAgrofresh(texto, inf){
   const d = inf.datos;
-  // Mismo laboratorio con que el sistema guarda su propia cromatografía
-  // (emitir.py -> mapeo.LABORATORIO_CATALOGO): de él cuelga el catálogo de analitos.
-  d["Laboratorio"] = "Quiteca / AgroFresh";
+  // Tal cual lo guarda la base para el laboratorio propio: la carga busca cada
+  // analito por (código, laboratorio) EXACTO, y el catálogo de analitos de
+  // AgroFresh está bajo "Agrofresh" (no existe "Quiteca / AgroFresh").
+  d["Laboratorio"] = "Agrofresh";
   d["Tipo de servicio"] = "Cromatografía";
 
   const m = texto.match(/(\S+)\s+Solicitud de An[áa]lisis\s+N°\s*(OT-[\w-]+)/i);
@@ -1661,6 +1662,9 @@ async function cargarAbiertas(){
   pintar();
 }
 
+// El laboratorio propio (AgroFresh) no recibe informes externos: no se amarra.
+const esPropio = inf => normLab(inf.datos["Laboratorio"]) === "agrofresh";
+
 function normLab(s){ return plano(s || "").replace(/[^a-z0-9]/g, ""); }
 function mismoLab(a, b){
   const x = normLab(a), y = normLab(b);
@@ -1706,7 +1710,7 @@ function pintarAmarre(ok){
   // primero se resuelven las sugerencias, sin repetir una OT entre informes
   const tomadas = new Set(ok.map(i => i.ot).filter(Boolean));
   ok.forEach(inf => {
-    if(inf.otElegida || inf.ot) return;
+    if(esPropio(inf) || inf.otElegida || inf.ot) return;
     const sug = sugerirOT(inf, tomadas);
     if(sug){ inf.ot = sug; inf.otSugerida = true; tomadas.add(sug); }
   });
@@ -1723,7 +1727,12 @@ function pintarAmarre(ok){
     });
 
     const tdOt = tr.insertCell(); tdOt.className = "amarre";
-    if(abiertas === null){ tdOt.textContent = "—"; }
+    if(esPropio(inf)){
+      // El informe propio ya viaja atado a su solicitud por el N° OT del PDF, y
+      // las solicitudes de AgroFresh no se ofrecen aquí (Auditoría no las audita).
+      tdOt.textContent = inf.datos["OT"] ? inf.datos["OT"] + " (del informe)" : "—";
+    }
+    else if(abiertas === null){ tdOt.textContent = "—"; }
     else{
       const sel = document.createElement("select");
       sel.className = "ot" + (inf.ot && inf.otSugerida ? " sugerida" : "");
