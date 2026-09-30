@@ -604,7 +604,14 @@ export function SolicitudDetalleView() {
               etiqueta="Kilos Procesados (KG)"
               valor={solicitud.kilos_procesados != null ? String(solicitud.kilos_procesados) : ''}
             />
-            <Campo etiqueta="Producto Utilizado" valor={solicitud.producto_utilizado ?? ''} />
+            <Campo
+              etiqueta="Producto Utilizado"
+              valor={
+                solicitud.producto_utilizado === 'MIXTO' && solicitud.productos_lista?.length
+                  ? `MIXTO (${solicitud.productos_lista.join(', ')})`
+                  : (solicitud.producto_utilizado ?? '')
+              }
+            />
             <Campo etiqueta="Tipo Muestra" valor={solicitud.tipo_muestra ?? ''} />
             <Campo etiqueta="Fecha Muestreo" valor={solicitud.fecha_muestreo ? formatDateCL(solicitud.fecha_muestreo) : ''} />
             <Campo etiqueta="Hora Muestreo" valor={solicitud.hora_muestreo ?? ''} />

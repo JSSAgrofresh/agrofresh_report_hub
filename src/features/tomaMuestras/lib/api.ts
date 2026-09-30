@@ -135,9 +135,18 @@ export function destinatariosDeSolicitud(archivo: string) {
 
 /** Contactos configurados para recibir solicitudes de un laboratorio dado.
  * Para usar en el formulario antes de que exista el archivo de la solicitud. */
-export function destinatariosParaLaboratorio(laboratorio: string) {
+export function destinatariosParaLaboratorio(
+  laboratorio: string,
+  contexto: { sold_to?: string; ship_to?: string; especie?: string } = {},
+) {
+  const params = new URLSearchParams({
+    laboratorio,
+    sold_to: contexto.sold_to ?? '',
+    ship_to: contexto.ship_to ?? '',
+    especie: contexto.especie ?? '',
+  })
   return httpClient.get<{ destinatarios: string[]; cc?: string[]; bcc?: string[] }>(
-    `/toma-muestras/config/destinatarios-solicitud?laboratorio=${encodeURIComponent(laboratorio)}`,
+    `/toma-muestras/config/destinatarios-solicitud?${params.toString()}`,
   )
 }
 

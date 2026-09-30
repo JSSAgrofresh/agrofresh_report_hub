@@ -20,6 +20,8 @@ export interface Solicitud {
   numero_orden: string | null
   kilos_procesados: number | null
   producto_utilizado: string | null
+  /** Lo que se eligió de verdad; `producto_utilizado` dice MIXTO si son más de 2. */
+  productos_lista?: string[]
   tipo_muestra: string | null
   fecha_muestreo: string | null
   hora_muestreo: string | null
@@ -79,6 +81,8 @@ export interface ReanalisisInput {
   numero_orden: string | null
   kilos_procesados: number | null
   producto_utilizado: string | null
+  /** Lo que se eligió de verdad; `producto_utilizado` dice MIXTO si son más de 2. */
+  productos_lista?: string[]
   tipo_muestra: string | null
   fecha_muestreo: string | null
   hora_muestreo: string | null
