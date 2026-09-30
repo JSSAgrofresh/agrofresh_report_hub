@@ -299,7 +299,9 @@ input.cb-in{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3
     <div class="tarjeta">
       <div class="campos">
         <label class="campo"><span>Cliente</span><input type="text" id="fCliente" placeholder="Busca el cliente (Sold To)"></label>
-        <label class="campo"><span>Ubicación del equipo (planta)</span><input type="text" id="fUbic" placeholder="Busca la planta (Ship To)"></label>
+        <label class="campo"><span>Planta</span><input type="text" id="fPlanta" placeholder="Busca la planta (Ship To)"></label>
+        <label class="campo"><span>Ubicación del equipo</span><input type="text" id="fUbic" placeholder="Línea o sector"></label>
+        <label class="campo"><span>Especie</span><input type="text" id="fEspecie" placeholder="Busca la especie"></label>
         <label class="campo"><span>N° de serie del equipo</span><input type="text" id="fSerie" placeholder="Opcional"></label>
         <label class="campo"><span>Técnico responsable</span><input type="text" id="fTecnico" placeholder="Quien extrajo los datos"></label>
       </div>
@@ -440,7 +442,9 @@ input.cb-in{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3
   <div class="inf-meta">
     <div class="inf-caja"><table class="inf-t"><colgroup><col style="width:42%"><col></colgroup><tr><th colspan="2">Identificación</th></tr>
       <tr><td class="k">Cliente</td><td id="iCliente"></td></tr>
+      <tr><td class="k">Planta</td><td id="iPlanta"></td></tr>
       <tr><td class="k">Ubicación equipo</td><td id="iUbic"></td></tr>
+      <tr><td class="k">Especie</td><td id="iEspecie"></td></tr>
       <tr><td class="k">N° de serie</td><td id="iSerie"></td></tr>
       <tr><td class="k">Técnico</td><td id="iTecnico"></td></tr>
     </table></div>
@@ -1267,7 +1271,9 @@ $("btnPdf").onclick = () => {
   const e = estad(vis);
   const t = (id, v) => $(id).textContent = v;
   t("iCliente", $("fCliente").value || "—");
+  t("iPlanta",  $("fPlanta").value || "—");
   t("iUbic",    $("fUbic").value || "—");
+  t("iEspecie", $("fEspecie").value || "—");
   t("iSerie",   $("fSerie").value || "—");
   t("iTecnico", $("fTecnico").value || "—");
   t("iDesde", vis[0].fecha + " " + vis[0].hora);
@@ -1336,7 +1342,9 @@ $("btnGuardar").onclick = async () => {
       headers: {"Content-Type": "application/json", ...autorizacion()},
       body: JSON.stringify({
         cliente:     $("fCliente").value.trim() || null,
-        planta:      $("fUbic").value.trim()    || null,
+        planta:      $("fPlanta").value.trim()  || null,
+        ubicacion:   $("fUbic").value.trim()    || null,
+        especie:     $("fEspecie").value.trim() || null,
         equipo:      $("fSerie").value.trim()   || null,
         responsable: $("fTecnico").value.trim() || null,
         limites: {phMin: limite("fPhMin"), phMax: limite("fPhMax"),
@@ -1366,7 +1374,7 @@ $("btnReset").onclick = () => {
               " y se limpiarán los datos del informe.")) return;
   ARCH().length = 0;
   ["fDesde","fHasta","fPhMin","fPhMax","fMvMin","fMvMax",
-   "fCliente","fUbic","fSerie","fTecnico"].forEach(id => $(id).value = "");
+   "fCliente","fPlanta","fUbic","fEspecie","fSerie","fTecnico"].forEach(id => $(id).value = "");
   refrescar();
 };
 
@@ -1378,7 +1386,7 @@ refrescar();
    para elegir, Esc para cerrar. La planta se acota al cliente elegido. Si la
    base no responde, los dos campos siguen siendo de texto libre. */
 const plano = t => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-const LISTA = {clientes: [], plantas: []};   // plantas: {nombre, cliente}
+const LISTA = {clientes: [], plantas: [], especies: []};   // plantas: {nombre, cliente}
 
 function montarBuscador(inp, opcionesFn, alElegir){
   inp.classList.add("cb-in"); inp.autocomplete = "off";
@@ -1471,11 +1479,12 @@ function opcionesPlanta(){
 
 montarBuscador($("fCliente"), () => LISTA.clientes, cliente => {
   // si la planta ya elegida no es de este cliente, se limpia
-  const ubic = plano($("fUbic").value);
-  if(ubic && !LISTA.plantas.some(p => plano(p.cliente) === plano(cliente) && plano(p.nombre) === ubic))
-    $("fUbic").value = "";
+  const pl = plano($("fPlanta").value);
+  if(pl && !LISTA.plantas.some(p => plano(p.cliente) === plano(cliente) && plano(p.nombre) === pl))
+    $("fPlanta").value = "";
 });
-montarBuscador($("fUbic"), opcionesPlanta, planta => {
+montarBuscador($("fEspecie"), () => LISTA.especies, () => {});
+montarBuscador($("fPlanta"), opcionesPlanta, planta => {
   // al elegir la planta con el cliente vacío, se completa con su cliente
   if($("fCliente").value.trim()) return;
   const dueños = [...new Set(LISTA.plantas.filter(p => p.nombre === planta).map(p => p.cliente))];
@@ -1489,17 +1498,19 @@ async function cargarListadosTrace(){
       if(!r.ok) throw new Error(ruta + " respondió " + r.status);
       return r.json();
     };
-    const [clientes, plantas] = await Promise.all([leer("/catalogo/clientes"), leer("/catalogo/plantas")]);
+    const [clientes, plantas, especies] = await Promise.all(
+      [leer("/catalogo/clientes"), leer("/catalogo/plantas"), leer("/listados/especie")]);
     const orden = (a, b) => a.localeCompare(b, "es");
     const activos = clientes.filter(c => c.activo).map(c => c.nombre).sort(orden);
     LISTA.clientes = activos;
     LISTA.plantas = plantas.filter(p => p.activo && activos.includes(p.cliente_nombre))
       .map(p => ({nombre: p.nombre, cliente: p.cliente_nombre}))
       .sort((a, b) => orden(a.nombre, b.nombre));
+    LISTA.especies = especies.filter(e => !e.fusionado_en_id).map(e => e.valor).sort(orden);
   }catch(err){
     // sin listas, los campos siguen siendo de texto libre
     console.warn("Trace: no se pudieron leer Sold To / Ship To:", err.message);
-    $("fCliente").placeholder = "Razón social"; $("fUbic").placeholder = "Planta, línea o sector";
+    $("fCliente").placeholder = "Razón social"; $("fPlanta").placeholder = "Planta"; $("fEspecie").placeholder = "Especie";
   }
 }
 cargarListadosTrace();
