@@ -185,3 +185,53 @@ def test_leer_datos_workbook_no_se_confunde_con_las_columnas_nuevas():
     headers = [ws_visible.cell(row=2, column=c).value for c in range(1, ws_visible.max_column + 1)]
     assert "FDL Dosis" in headers
     wb_reabierto.close()
+
+
+def _endpoint_con_muestra(filas):
+    """Ejecuta el endpoint y devuelve la hoja resultante."""
+    import asyncio
+
+    from app.emitir import generar_excel_con_muestra
+
+    async def _leer():
+        r = generar_excel_con_muestra(filas)
+        return b"".join([c async for c in r.body_iterator])
+
+    return openpyxl.load_workbook(io.BytesIO(asyncio.run(_leer()))).active
+
+
+def test_excel_con_muestra_usa_formato_de_la_base_solo_con_analitos_agrofresh():
+    from app.emitir import FilaConMuestraIn
+
+    fila = FilaConMuestraIn(
+        campos={
+            "N° Solicitud": "OT-AGF0050",
+            "Especie": "Mandarina",
+            "Tipo Aplicación": "RYD",
+            "Posición Muestreo": "A1, B2",
+            "Código de Ensayo": "E-77",
+            "N° Ensayo": "3",
+            "Fludioxonil (ppm)": "250",
+        },
+        analitos_solicitados=["FDL"],
+        codigo_muestra="AGF0001",
+        fecha_recepcion="2026-09-25",
+        hora_recepcion="16:57",
+    )
+    ws = _endpoint_con_muestra([fila])
+    headers = [ws.cell(row=2, column=c).value for c in range(1, ws.max_column + 1)]
+    valores = dict(zip(headers, [ws.cell(row=3, column=c).value for c in range(1, ws.max_column + 1)]))
+
+    # N° Muestra y recepción van justo después del N° Solicitud.
+    assert headers[:4] == ["N° Solicitud", "N° Muestra", "Fecha Recepción", "Hora Recepción"]
+    assert valores["N° Muestra"] == "AGF0001"
+    assert valores["Fecha Recepción"] == "25-09-2026"
+    assert valores["FDL"] == "✓"
+    assert valores["FDL Dosis"] == "250"
+    # Campos de RYD.
+    assert valores["Posición Muestreo"] == "A1, B2"
+    assert valores["Código de Ensayo"] == "E-77"
+    assert valores["N° Ensayo"] == "3"
+    # Solo AgroFresh: sin los grupos de otros laboratorios.
+    assert "Levaduras UFC/mL" not in headers and "E. Coli UFC/100mL" not in headers
+    assert "FDL" in headers

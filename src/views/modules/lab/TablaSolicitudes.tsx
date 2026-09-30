@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import * as XLSX from 'xlsx'
-import { filtrarPorFolio } from '@/features/emitir'
+import { descargarExcelConMuestra, filtrarPorFolio } from '@/features/emitir'
+import { guardarBlob } from '@/services/http/descargar'
 import type { Solicitud } from '@/features/emitir'
 import { TipoMuestraChip } from './TipoMuestraChip'
 import styles from './TablaSolicitudes.module.css'
@@ -49,60 +49,13 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
   )
 
 
-  function descargarConMuestra() {
+  async function descargarConMuestra() {
     const solicitudesCruzadas = (solicitudes ?? []).filter((s) => s.codigo_muestra)
-    const aliasInternos = new Set(['Sold To (Nombre)', 'Ship To (Nombre)'])
-    const columnas: string[] = []
-
-    solicitudesCruzadas.forEach((solicitud) => {
-      Object.keys(solicitud.campos).forEach((campo) => {
-        if (!aliasInternos.has(campo) && !columnas.includes(campo)) columnas.push(campo)
-      })
-    })
-
-    if (!columnas.includes('N° Solicitud')) columnas.unshift('N° Solicitud')
-    const indiceSolicitud = columnas.indexOf('N° Solicitud')
-    columnas.splice(indiceSolicitud + 1, 0, 'N° Muestra', 'Fecha Recepción', 'Hora Recepción')
-    if (!columnas.includes('Analitos')) columnas.push('Analitos')
-
-    const filas = solicitudesCruzadas.map((solicitud) => {
-      const fila: Record<string, string> = {}
-      columnas.forEach((columna) => {
-        if (columna === 'N° Solicitud') {
-          fila[columna] = solicitud.campos[columna] || solicitud.archivo
-        } else if (columna === 'N° Muestra') {
-          fila[columna] = solicitud.codigo_muestra || ''
-        } else if (columna === 'Fecha Recepción') {
-          fila[columna] = formatearFecha(solicitud.fecha_recepcion).replace('—', '')
-        } else if (columna === 'Hora Recepción') {
-          fila[columna] = solicitud.hora_recepcion || ''
-        } else if (columna === 'Sold To') {
-          fila[columna] = solicitud.campos[columna] || solicitud.campos['Sold To (Nombre)'] || ''
-        } else if (columna === 'Ship To') {
-          fila[columna] = solicitud.campos[columna] || solicitud.campos['Ship To (Nombre)'] || ''
-        } else if (columna === 'Analitos') {
-          fila[columna] = solicitud.analitos_solicitados.join(', ')
-        } else {
-          fila[columna] = solicitud.campos[columna] || ''
-        }
-      })
-      return fila
-    })
-
-    const hoja = XLSX.utils.json_to_sheet(filas, { header: columnas })
-    hoja['!autofilter'] = {
-      ref: hoja['!ref'] ?? ('A1:' + XLSX.utils.encode_col(columnas.length - 1) + '1'),
+    try {
+      guardarBlob(await descargarExcelConMuestra(solicitudesCruzadas), 'solicitudes_con_muestra.xlsx')
+    } catch {
+      alert('No se pudo generar el Excel. Intenta de nuevo.')
     }
-    hoja['!cols'] = columnas.map((columna) => ({
-      wch: Math.min(
-        38,
-        Math.max(12, columna.length + 2, ...filas.map((fila) => String(fila[columna] || '').length + 2)),
-      ),
-    }))
-
-    const libro = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(libro, hoja, 'Con muestra')
-    XLSX.writeFile(libro, 'solicitudes_con_muestra.xlsx')
   }
 
 
@@ -140,7 +93,7 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
         <button
           type="button"
           className={styles.boton}
-          onClick={descargarConMuestra}
+          onClick={() => void descargarConMuestra()}
           disabled={cruzadas === 0}
         >
           Descargar con muestra
