@@ -439,7 +439,7 @@ class SolicitudIn(BaseModel):
     generado_por: str
     email_solicitante: str | None = None
     email_laboratorio: str | None = None
-    observacion: str | None = None
+    observacion: str | None = Field(default=None, max_length=50)
     # Campos propios del laboratorio elegido (etiqueta -> valor). Solo debe
     # traer los campos aplicables al `laboratorio` de esta solicitud.
     campos_laboratorio: dict[str, str] = {}
