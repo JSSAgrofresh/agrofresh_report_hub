@@ -3,6 +3,7 @@ export {
   descargarDetalleGCExcel,
   listarSolicitudes,
   descargarExcelCruce,
+  descargarExcelConMuestra,
   descargarInformesPDF,
   obtenerConfiguracionInforme,
   guardarConfiguracionInforme,
