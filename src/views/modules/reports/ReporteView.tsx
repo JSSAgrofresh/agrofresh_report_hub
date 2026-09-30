@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
-import { IconAlerta, IconArchivoPlano, IconFrasco, IconTrendingUp, IconVerificar } from '@/components/ui/icons'
+import { IconAlerta, IconArchivoPlano, IconFrasco, IconTrendingUp } from '@/components/ui/icons'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import type { RangoFechas } from '@/components/ui/CalendarioRango'
@@ -1755,13 +1755,10 @@ export function ReporteView({
                   destacado
                   tono={acento}
                   icono={<IconArchivoPlano />}
-                  etiqueta="Solicitudes"
+                  etiqueta="Informes de análisis"
                   sub={nFiltros > 0 ? `de ${totalVista.toLocaleString('es-CL')} en total` : 'sin filtros'}
                 >
                   <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
-                </Kpi>
-                <Kpi tono="#2a78d6" icono={<IconFrasco />} etiqueta="Resultados con valor" sub="análisis con ppm numérico">
-                  <span className={styles.statNum}>{valores.length.toLocaleString('es-CL')}</span>
                 </Kpi>
                 <Kpi
                   tono="#4a3aa7"
@@ -1791,25 +1788,6 @@ export function ReporteView({
                       <div><dt>Central</dt><dd>{formatDecimalCL(limitesActivos.central, 2)}</dd></div>
                       <div><dt>Sup.</dt><dd>{formatDecimalCL(limitesActivos.superior, 2)}</dd></div>
                     </dl>
-                  )}
-                </Kpi>
-                <Kpi
-                  tono={colorOk}
-                  icono={<IconVerificar />}
-                  etiqueta="Cumplimiento"
-                  sub={
-                    cumplimiento.porcentaje != null
-                      ? `${cumplimiento.ok.toLocaleString('es-CL')} de ${cumplimiento.total.toLocaleString('es-CL')} dentro de rango`
-                      : 'requiere límites'
-                  }
-                >
-                  <span className={styles.statNum}>
-                    {cumplimiento.porcentaje != null ? `${formatDecimalCL(cumplimiento.porcentaje, 1)}%` : '—'}
-                  </span>
-                  {cumplimiento.porcentaje != null && (
-                    <span className={styles.kpiBarra} aria-hidden="true">
-                      <span style={{ width: `${cumplimiento.porcentaje}%` }} />
-                    </span>
                   )}
                 </Kpi>
               </div>
