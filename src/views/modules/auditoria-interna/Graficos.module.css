@@ -1,0 +1,239 @@
+.tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.cabecera h3 {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.cabecera p {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+}
+
+.alternar {
+  flex-shrink: 0;
+  padding: 5px 11px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alternar:hover,
+.alternar:focus-visible {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.leyenda li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.muestra {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.lienzo {
+  position: relative;
+}
+
+.tablaCaja {
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.tabla th,
+.tabla td {
+  padding: 7px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabla th {
+  position: sticky;
+  top: 0;
+  background: var(--color-bg);
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+}
+
+.tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.acciones {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.leyendaTipo em {
+  font-style: normal;
+  color: var(--color-text-faint);
+}
+
+.pareja {
+  display: inline-flex;
+  gap: 2px;
+}
+
+/* ── donas ── */
+.dona {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.dona h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.donaLienzo {
+  position: relative;
+  width: 100%;
+  max-width: 176px;
+  height: 176px;
+}
+
+.donaCentro {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* La cifra del centro: proporcional (no tabular) y en la misma tipografía. */
+.donaCentro b {
+  font-size: 32px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.donaCentro small {
+  margin-left: 1px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+}
+
+.donaCentro span {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+}
+
+.donaTotalTexto {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.donaTotalTexto b {
+  color: var(--color-text);
+}
+
+.donaLeyenda {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  margin: 0;
+  padding: var(--space-2) 0 0;
+  list-style: none;
+  border-top: 1px solid var(--color-border);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.donaLeyenda li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.donaLeyenda b {
+  margin-left: auto;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.puntoTipo {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.donaVacia {
+  padding: var(--space-6) var(--space-3);
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 12.5px;
+}

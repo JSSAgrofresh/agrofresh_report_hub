@@ -280,7 +280,7 @@ def _seccion_inyector_detector(registro) -> list:
     filas_d = [
         ["Voltaje de la perla (V)", _p(_n(det.voltaje_perla)), det.resultado_voltaje or "Sin medir"],
         ["Método cargado", _p(det.metodo_nombre or det.metodo_correcto or "—"), det.resultado_metodo or "Sin medir"],
-        ["Output del detector", _p(_n(det.output_detector)), det.resultado_output or "Sin medir"],
+        ["Output del detector (solo registro)", _p(_n(det.output_detector)), det.resultado_output or "Sin medir"],
         [_p("Resultado sección", _S_BOLD), _p(""), det.resultado or "Sin medir"],
     ]
     td = _tabla([cabecera_d] + filas_d, anchos_d)

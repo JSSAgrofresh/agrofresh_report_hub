@@ -41,6 +41,25 @@ export interface Solicitud {
   tipo_solicitud: 'CONVENCIONAL' | 'REANALISIS'
   solicitud_original_archivo: string | null
   motivo_reanalisis: string | null
+  /** Solicitud de prueba: folio del hueco que dejaron las pruebas borradas,
+   * nunca se envía sola y su correo dice "(PRUEBA)". Ausente = false. */
+  es_prueba?: boolean
+}
+
+/** Folios de prueba de un laboratorio (ver `estadoSolicitudesPrueba`). */
+export interface HuecoPrueba {
+  laboratorio: string
+  /** Último folio del hueco: el real más bajo menos uno. */
+  limite: number
+  usados: number
+  /** Folio que tomaría la próxima prueba; null = hueco lleno. */
+  siguiente: string | null
+}
+
+export interface EstadoSolicitudesPrueba {
+  /** Solo la cuenta autorizada ve el botón. */
+  permitido: boolean
+  laboratorios: HuecoPrueba[]
 }
 
 /** Entrada para crear una solicitud de reanálisis. */
@@ -83,6 +102,7 @@ export type SolicitudInput = Omit<
   | 'tipo_solicitud'
   | 'solicitud_original_archivo'
   | 'motivo_reanalisis'
+  | 'es_prueba'
 >
 
 /** Metadatos de un campo general del formulario (§3): el conjunto de

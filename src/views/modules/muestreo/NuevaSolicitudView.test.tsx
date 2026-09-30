@@ -17,6 +17,10 @@ const {
   listarTiposAplicacion,
   listarUnidades,
   listarAnalisis,
+  obtenerEnvioAutomatico,
+  enviarSolicitudPorCorreo,
+  estadoSolicitudesPrueba,
+  crearSolicitudPrueba,
 } = vi.hoisted(() => ({
   crearSolicitud: vi.fn(),
   actualizarSolicitud: vi.fn(),
@@ -29,6 +33,10 @@ const {
   listarTiposAplicacion: vi.fn(),
   listarUnidades: vi.fn(),
   listarAnalisis: vi.fn().mockResolvedValue([]),
+  obtenerEnvioAutomatico: vi.fn().mockResolvedValue({ activo: false }),
+  enviarSolicitudPorCorreo: vi.fn().mockResolvedValue({}),
+  estadoSolicitudesPrueba: vi.fn(),
+  crearSolicitudPrueba: vi.fn(),
 }))
 
 vi.mock('@/features/tomaMuestras', () => ({
@@ -41,7 +49,10 @@ vi.mock('@/features/tomaMuestras', () => ({
   listarLaboratoriosConfig,
   listarProductosConfig,
   listarTiposAplicacion,
-  obtenerEnvioAutomatico: vi.fn().mockResolvedValue({ activo: false }),
+  obtenerEnvioAutomatico,
+  enviarSolicitudPorCorreo,
+  estadoSolicitudesPrueba,
+  crearSolicitudPrueba,
   destinatariosParaLaboratorio: vi.fn().mockResolvedValue({ destinatarios: [] }),
 }))
 
@@ -476,5 +487,78 @@ describe('NuevaSolicitudView — editar (CASO 3 y 4)', () => {
     await waitFor(() => expect(screen.getByDisplayValue('OT-0007')).toBeTruthy())
     // Edición siempre habilitada: el formulario se muestra y tiene botón de guardar.
     expect(screen.getByText('Guardar')).toBeTruthy()
+  })
+})
+
+describe('NuevaSolicitudView — solicitudes de prueba', () => {
+  function renderEditar(solicitud: Solicitud) {
+    obtenerSolicitud.mockResolvedValue(solicitud)
+    actualizarSolicitud.mockResolvedValue(solicitud)
+    render(
+      <MemoryRouter initialEntries={[`/editar/${solicitud.archivo}`]}>
+        <Routes>
+          <Route path="/editar/:archivo" element={<NuevaSolicitudView modo="editar" />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('con el envío automático prendido, una solicitud normal se envía al guardar', async () => {
+    mockConfigComun()
+    obtenerEnvioAutomatico.mockResolvedValue({ activo: true })
+    enviarSolicitudPorCorreo.mockClear()
+    renderEditar(solicitudBase())
+
+    await waitFor(() => expect(screen.getByText('Guardar y enviar')).toBeTruthy())
+    await waitFor(() => expect(screen.getByDisplayValue('25')).toBeTruthy())
+    fireEvent.click(screen.getByText('Guardar y enviar'))
+    await waitFor(() => expect(enviarSolicitudPorCorreo).toHaveBeenCalledTimes(1))
+  })
+
+  it('una prueba nunca se envía sola, aunque el envío automático esté prendido', async () => {
+    mockConfigComun()
+    obtenerEnvioAutomatico.mockResolvedValue({ activo: true })
+    enviarSolicitudPorCorreo.mockClear()
+    actualizarSolicitud.mockClear()
+    renderEditar(solicitudBase({ es_prueba: true, numero_solicitud: 'OT-AGF0001', archivo: 'OT-AGF0001.xlsx' }))
+
+    await waitFor(() => expect(screen.getByDisplayValue('OT-AGF0001')).toBeTruthy())
+    await waitFor(() => expect(screen.getByDisplayValue('25')).toBeTruthy())
+    fireEvent.click(screen.getByText('Guardar'))
+    await waitFor(() => expect(actualizarSolicitud).toHaveBeenCalledTimes(1))
+    expect(enviarSolicitudPorCorreo).not.toHaveBeenCalled()
+  })
+
+  it('en modo prueba muestra el folio del hueco y bloquea el guardado si ya no quedan', async () => {
+    mockConfigComun()
+    listarLaboratoriosConfig.mockResolvedValue([
+      { id: 1, codigo: 'AGROFRESH', nombre: 'AgroFresh', descripcion: null, activo: true, orden: 1 },
+      { id: 2, codigo: 'QUITECA', nombre: 'Quiteca', descripcion: null, activo: true, orden: 2 },
+    ])
+    estadoSolicitudesPrueba.mockResolvedValue({
+      permitido: true,
+      laboratorios: [
+        { laboratorio: 'AGROFRESH', limite: 49, usados: 3, siguiente: 'OT-AGF0004' },
+        { laboratorio: 'QUITECA', limite: 17, usados: 17, siguiente: null },
+      ],
+    })
+    render(
+      <MemoryRouter initialEntries={['/prueba']}>
+        <Routes>
+          <Route path="/prueba" element={<NuevaSolicitudView modo="prueba" />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    await waitFor(() =>
+      expect(screen.getByDisplayValue('OT-AGF0004 (quedan 46)')).toBeTruthy(),
+    )
+    expect(screen.getByText('Guardar prueba')).not.toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'QUITECA' } })
+    await waitFor(() => expect(screen.getByDisplayValue('Sin folios de prueba libres para QUITECA')).toBeTruthy())
+    expect(screen.getByText('Guardar prueba')).toBeDisabled()
   })
 })

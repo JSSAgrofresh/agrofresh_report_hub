@@ -218,11 +218,43 @@ export function IconVerificar(props: IconProps) {
   )
 }
 
+export function IconAuditoria(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M13 3.5H7A1.5 1.5 0 0 0 5.5 5v14A1.5 1.5 0 0 0 7 20.5h5" />
+      <path d="M13 3.5l4.5 4.5V10" />
+      <path d="M13 3.5V8h4.5" />
+      <circle cx="16.2" cy="15.8" r="3" />
+      <path d="M18.4 18l2.4 2.4" />
+    </svg>
+  )
+}
+
+/** Escudo con engranaje: Administración General (solo el admin general). */
+export function IconAdminGeneral(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 3l7 2.8v5.4c0 4.3-2.8 7.6-7 9.3-4.2-1.7-7-5-7-9.3V5.8z" />
+      <circle cx="12" cy="11.5" r="2.4" />
+      <path d="M12 7.6v1.5M12 13.9v1.5M8.6 9.5l1.3.8M14.1 12.7l1.3.8M8.6 13.5l1.3-.8M14.1 10.3l1.3-.8" />
+    </svg>
+  )
+}
+
 export function IconEmitir(props: IconProps) {
   return (
     <svg {...base} {...props}>
       <path d="M12 20V6M6 12l6-6 6 6" />
       <path d="M5 20h14" />
+    </svg>
+  )
+}
+
+export function IconCandado(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="5" y="10.5" width="14" height="9.5" rx="1.6" />
+      <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
     </svg>
   )
 }

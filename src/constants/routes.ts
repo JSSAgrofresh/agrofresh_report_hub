@@ -15,8 +15,13 @@ export const ROUTES = {
   agrofreshLabVerificacionesHistorico: '/modulos/agrofresh-lab/verificaciones/historico',
   agrofreshLabVerificacionesCriterios: '/modulos/agrofresh-lab/verificaciones/criterios',
   storage: '/modulos/storage',
+  auditoriaInterna: '/modulos/auditoria-interna',
+  auditoriaInternaSolicitudes: '/modulos/auditoria-interna/solicitudes',
+  auditoriaInternaCarpetas: '/modulos/auditoria-interna/carpetas',
+  auditoriaInternaLimiteControl: '/modulos/auditoria-interna/limite-control',
   tomaMuestras: '/modulos/toma-muestras',
   tomaMuestrasNueva: '/modulos/toma-muestras/nueva',
+  tomaMuestrasNuevaPrueba: '/modulos/toma-muestras/prueba/nueva',
   tomaMuestrasConfig: '/modulos/toma-muestras/configuracion',
   tomaMuestrasDetalle: '/modulos/toma-muestras/detalle/:archivo',
   tomaMuestrasEditar: '/modulos/toma-muestras/editar/:archivo',
@@ -26,6 +31,7 @@ export const ROUTES = {
   adminListados: '/admin/listados',
   adminLaboratorios: '/admin/laboratorios',
   adminNotificaciones: '/admin/notificaciones',
+  adminAdministracionGeneral: '/admin/administracion-general',
 } as const
 
 export function rutaTomaMuestrasDetalle(archivo: string): string {

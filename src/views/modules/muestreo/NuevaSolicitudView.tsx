@@ -17,9 +17,11 @@ import type { ValorLista } from '@/features/listados'
 import {
   actualizarSolicitud,
   crearSolicitud,
+  crearSolicitudPrueba,
   crearSolicitudReanalisis,
   destinatariosParaLaboratorio,
   enviarSolicitudPorCorreo,
+  estadoSolicitudesPrueba,
   listarAnalitosConfig,
   listarCamposConfig,
   listarCamposTipoAplicacion,
@@ -35,6 +37,7 @@ import type {
   CampoConfig,
   CampoTipoAplicacionConfig,
   ContactoResultado,
+  HuecoPrueba,
   LaboratorioConfig,
   OpcionConfig,
   ProductoConfig,
@@ -42,6 +45,7 @@ import type {
 } from '@/features/tomaMuestras'
 import { ROUTES, rutaTomaMuestrasDetalle } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
+import { HttpError } from '@/services/http/client'
 import styles from './NuevaSolicitudView.module.css'
 
 const SOLICITANTE_FIJO = 'AGROFRESH'
@@ -128,8 +132,10 @@ interface NuevaSolicitudViewProps {
    * el mismo formulario para modificar la solicitud del folio en la URL -sin
    * crear una nueva-, y solo mientras no se haya enviado por correo.
    * 'reanalisis' crea una solicitud derivada de la original (URL param
-   * `archivo`), con laboratorio bloqueado y campo de motivo obligatorio. */
-  modo?: 'crear' | 'editar' | 'reanalisis'
+   * `archivo`), con laboratorio bloqueado y campo de motivo obligatorio.
+   * 'prueba' crea una solicitud de prueba (solo la cuenta autorizada): folio
+   * del hueco de su laboratorio y nunca se envía sola. */
+  modo?: 'crear' | 'editar' | 'reanalisis' | 'prueba'
 }
 
 export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) {
@@ -145,6 +151,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [camposTipoAplicacion, setCamposTipoAplicacion] = useState<CampoTipoAplicacionConfig[]>([])
   const [analisisTodos, setAnalisisTodos] = useState<Analisis[]>([])
   const [envioAutomatico, setEnvioAutomatico] = useState(true)
+  // Folios de prueba libres por laboratorio (solo en modo 'prueba').
+  const [huecosPrueba, setHuecosPrueba] = useState<HuecoPrueba[] | null>(null)
 
   const { user } = useAuth()
 
@@ -185,6 +193,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // Destinatarios de la solicitud: se cargan cuando el laboratorio cambia,
   // para que el muestreador vea a quién va el correo antes de guardar.
   const [contactosSolicitud, setContactosSolicitud] = useState<string[] | null>(null)
+  const [copiasSolicitud, setCopiasSolicitud] = useState<{ cc: string[]; bcc: string[] }>({ cc: [], bcc: [] })
   const [invitadosForm, setInvitadosForm] = useState<string[]>([])
   const [emailInvitadoForm, setEmailInvitadoForm] = useState('')
   const [errorInvitadoForm, setErrorInvitadoForm] = useState<string | null>(null)
@@ -200,10 +209,21 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // en el backend son las que de verdad protegen que no se edite una ya enviada;
   // acá solo se refleja ese estado en la pantalla.
   const [solicitudOriginal, setSolicitudOriginal] = useState<Solicitud | null>(null)
+  // Una solicitud de prueba nunca se envía sola, ni al crearla ni al editarla:
+  // es como si para ella el envío automático estuviera apagado.
+  const esPrueba = modo === 'prueba' || (modo === 'editar' && !!solicitudOriginal?.es_prueba)
+  const enviaSolo = envioAutomatico && !esPrueba
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const prellenadoGeneralRef = useRef(false)
   const prellenadoAnalitosRef = useRef(false)
   const prellenadoTipoAplicacionRef = useRef(false)
+
+  useEffect(() => {
+    if (modo !== 'prueba') return
+    estadoSolicitudesPrueba()
+      .then((r) => setHuecosPrueba(r.permitido ? r.laboratorios : []))
+      .catch(() => setHuecosPrueba([]))
+  }, [modo])
 
   useEffect(() => {
     if ((modo !== 'editar' && modo !== 'reanalisis') || !archivoEditando) return
@@ -384,7 +404,11 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     if (!laboratorio) return
     let vigente = true
     destinatariosParaLaboratorio(laboratorio)
-      .then((r) => { if (vigente) setContactosSolicitud(r.destinatarios) })
+      .then((r) => {
+        if (!vigente) return
+        setContactosSolicitud(r.destinatarios)
+        setCopiasSolicitud({ cc: r.cc ?? [], bcc: r.bcc ?? [] })
+      })
       .catch(() => { if (vigente) setContactosSolicitud([]) })
     return () => { vigente = false }
   }, [laboratorio])
@@ -866,24 +890,31 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           ...payload,
           motivo: motivo.trim(),
         })
-        if (envioAutomatico) {
+        if (enviaSolo) {
           try { await enviarSolicitudPorCorreo(reanalisisCreado.archivo, invitadosForm) } catch { /* continuar */ }
         }
         navigate(rutaTomaMuestrasDetalle(reanalisisCreado.archivo))
       } else if (modo === 'editar' && archivoEditando) {
         await actualizarSolicitud(archivoEditando, payload)
-        if (envioAutomatico) {
+        if (enviaSolo) {
           try { await enviarSolicitudPorCorreo(archivoEditando, invitadosForm) } catch { /* continuar */ }
         }
         navigate(rutaTomaMuestrasDetalle(archivoEditando))
+      } else if (modo === 'prueba') {
+        const prueba = await crearSolicitudPrueba(payload)
+        navigate(rutaTomaMuestrasDetalle(prueba.archivo))
       } else {
         const solicitudCreada = await crearSolicitud(payload)
-        if (envioAutomatico) {
+        if (enviaSolo) {
           try { await enviarSolicitudPorCorreo(solicitudCreada.archivo, invitadosForm) } catch { /* continuar */ }
         }
         navigate(rutaTomaMuestrasDetalle(solicitudCreada.archivo))
       }
     } catch (err) {
+      if (modo === 'prueba' && err instanceof HttpError && err.status === 409) {
+        setError(err.message)
+        return
+      }
       setError(
         modo === 'editar'
           ? 'No se pudo guardar la edición. Revisa que el backend esté corriendo.'
@@ -1050,9 +1081,17 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     )
   }
 
+  const huecoActual = huecosPrueba?.find((h) => h.laboratorio === laboratorio)
+  const textoFolioPrueba = !laboratorio
+    ? 'Elige el laboratorio para ver el folio de prueba'
+    : huecoActual?.siguiente
+      ? `${huecoActual.siguiente} (quedan ${huecoActual.limite - huecoActual.usados})`
+      : `Sin folios de prueba libres para ${laboratorio}`
+
   const tituloVista =
     modo === 'editar' ? 'Editar solicitud'
     : modo === 'reanalisis' ? 'Nueva solicitud de reanálisis'
+    : modo === 'prueba' ? 'Nueva solicitud de prueba'
     : 'Nueva solicitud'
 
   if (errorCarga) {
@@ -1085,8 +1124,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       <Header
         title={tituloVista}
         description={
-          modo === 'editar'
-            ? `Modifica la solicitud ${solicitudOriginal?.numero_solicitud ?? ''} — Al guardar se enviará de inmediato por correo.`
+          modo === 'prueba'
+            ? 'Solicitud de prueba: toma un folio del hueco de su laboratorio, no avisa a nadie y no se envía sola. Revísala y envíala a mano desde su detalle; el asunto del correo dirá (PRUEBA).'
+            : modo === 'editar'
+            ? `Modifica la solicitud ${solicitudOriginal?.numero_solicitud ?? ''} — ${enviaSolo ? 'Al guardar se enviará de inmediato por correo.' : 'Al guardar no se envía: envíala a mano desde su detalle.'}`
             : modo === 'reanalisis'
               ? `Solicitud de reanálisis sobre ${solicitudOriginal?.numero_solicitud ?? ''} — El laboratorio se hereda de la solicitud original.`
               : 'Registra una nueva solicitud de análisis — los campos y análisis disponibles dependen del laboratorio y el tipo de aplicación.'
@@ -1108,7 +1149,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                     ? (solicitudOriginal?.numero_solicitud ?? '')
                     : modo === 'reanalisis'
                       ? `R-${solicitudOriginal?.numero_solicitud ?? ''} (se asigna al guardar)`
-                      : 'Se asigna automáticamente al guardar'
+                      : modo === 'prueba'
+                        ? textoFolioPrueba
+                        : 'Se asigna automáticamente al guardar'
                 }
                 disabled
               />
@@ -1427,6 +1470,16 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                         {email}
                       </span>
                     ))}
+                    {copiasSolicitud.cc.map((email) => (
+                      <span key={`cc-${email}`} className={styles.destinatario}>
+                        <span className={styles.tipoDestinatario}>Copia</span>{email}
+                      </span>
+                    ))}
+                    {copiasSolicitud.bcc.map((email) => (
+                      <span key={`bcc-${email}`} className={styles.destinatario}>
+                        <span className={styles.tipoDestinatario}>Copia oculta</span>{email}
+                      </span>
+                    ))}
                     {invitadosForm.map((email) => (
                       <span key={email} className={cn(styles.destinatario, styles.invitado)}>
                         <span className={styles.tipoDestinatario}>Invitado</span>
@@ -1539,12 +1592,14 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           >
             Cancelar
           </Button>
-          <Button type="submit" disabled={guardando}>
+          <Button type="submit" disabled={guardando || (modo === 'prueba' && !!laboratorio && !huecoActual?.siguiente)}>
             {guardando
-              ? (envioAutomatico ? 'Guardando y enviando…' : 'Guardando…')
-              : modo === 'reanalisis'
-                ? (envioAutomatico ? 'Crear reanálisis y enviar' : 'Crear reanálisis')
-                : (envioAutomatico ? 'Guardar y enviar' : 'Guardar')}
+              ? (enviaSolo ? 'Guardando y enviando…' : 'Guardando…')
+              : modo === 'prueba'
+                ? 'Guardar prueba'
+                : modo === 'reanalisis'
+                ? (enviaSolo ? 'Crear reanálisis y enviar' : 'Crear reanálisis')
+                : (enviaSolo ? 'Guardar y enviar' : 'Guardar')}
           </Button>
         </div>
       </form>

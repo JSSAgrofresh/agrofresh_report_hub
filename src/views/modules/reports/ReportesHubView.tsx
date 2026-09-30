@@ -24,7 +24,7 @@ export function ReportesHubView() {
             <OpcionCard
               icono={<IconReports />}
               titulo="Reportes de Laboratorio"
-              descripcion="Control de residuos: límites residuales y de control en tiempo real desde la base de datos."
+              descripcion="Control de residuos: límites residuales en tiempo real desde la base de datos."
               ruta={ROUTES.reportsLaboratorio}
             />
           )}

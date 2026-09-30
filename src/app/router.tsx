@@ -7,7 +7,7 @@ import { DashboardView } from '@/views/dashboard/DashboardView'
 import { TraceView } from '@/views/modules/trace/TraceView'
 import { ConverterView } from '@/views/modules/converter/ConverterView'
 import { IngestaView } from '@/views/modules/ingesta/IngestaView'
-import { ReporteView } from '@/views/modules/reports/ReporteView'
+import { ReporteLaboratorioView } from '@/views/modules/reports/ReporteLaboratorioView'
 import { ReportesHubView } from '@/views/modules/reports/ReportesHubView'
 import { PostVentaView } from '@/views/modules/reports/PostVentaView'
 import { AgrofreshLabView } from '@/views/modules/lab/AgrofreshLabView'
@@ -17,6 +17,11 @@ import { VerificacionesHistoricoView } from '@/views/modules/lab/verificaciones/
 import { CriteriosView } from '@/views/modules/lab/verificaciones/CriteriosView'
 import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { StorageView } from '@/views/modules/storage/StorageView'
+import { AuditoriaInternaHubView } from '@/views/modules/auditoria-interna/AuditoriaInternaHubView'
+import { SolicitudesInformesView } from '@/views/modules/auditoria-interna/SolicitudesInformesView'
+import { CarpetasView } from '@/views/modules/auditoria-interna/CarpetasView'
+import { LimiteControlView } from '@/views/modules/auditoria-interna/LimiteControlView'
+import { AdministracionGeneralView } from '@/views/admin/AdministracionGeneralView'
 import { SolicitudesView } from '@/views/modules/muestreo/SolicitudesView'
 import { NuevaSolicitudView } from '@/views/modules/muestreo/NuevaSolicitudView'
 import { NuevaReanalisisView } from '@/views/modules/muestreo/NuevaReanalisisView'
@@ -56,7 +61,7 @@ export const router = createBrowserRouter([
               // Cada reporte es de un área: el hub es común, el contenido no.
               {
                 element: <RequireReporte reporte="laboratorio" />,
-                children: [{ path: ROUTES.reportsLaboratorio, element: <ReporteView /> }],
+                children: [{ path: ROUTES.reportsLaboratorio, element: <ReporteLaboratorioView /> }],
               },
               {
                 element: <RequireReporte reporte="postventa" />,
@@ -79,6 +84,15 @@ export const router = createBrowserRouter([
               { path: ROUTES.agrofreshLabVerificacionesCriterios, element: <CriteriosView /> },
             ],
           },
+          {
+            element: <RequireModulo moduloId="auditoria_interna" />,
+            children: [
+              { path: ROUTES.auditoriaInterna, element: <AuditoriaInternaHubView /> },
+              { path: ROUTES.auditoriaInternaSolicitudes, element: <SolicitudesInformesView /> },
+              { path: ROUTES.auditoriaInternaCarpetas, element: <CarpetasView /> },
+              { path: ROUTES.auditoriaInternaLimiteControl, element: <LimiteControlView /> },
+            ],
+          },
           { path: ROUTES.datacore, element: <DataCoreView /> },
           {
             element: <RequireModulo moduloId="storage" />,
@@ -89,6 +103,7 @@ export const router = createBrowserRouter([
             children: [
               { path: ROUTES.tomaMuestras, element: <SolicitudesView /> },
               { path: ROUTES.tomaMuestrasNueva, element: <NuevaSolicitudView /> },
+              { path: ROUTES.tomaMuestrasNuevaPrueba, element: <NuevaSolicitudView modo="prueba" /> },
               { path: ROUTES.tomaMuestrasEditar, element: <NuevaSolicitudView modo="editar" /> },
               { path: ROUTES.tomaMuestrasDetalle, element: <SolicitudDetalleView /> },
             ],
@@ -107,6 +122,7 @@ export const router = createBrowserRouter([
               { path: ROUTES.adminListados, element: <ListadosView /> },
               { path: ROUTES.adminLaboratorios, element: <LaboratoriosView /> },
               { path: ROUTES.adminNotificaciones, element: <NotificacionesView /> },
+              { path: ROUTES.adminAdministracionGeneral, element: <AdministracionGeneralView /> },
               { path: ROUTES.tomaMuestrasConfig, element: <MuestreoConfigView /> },
             ],
           },

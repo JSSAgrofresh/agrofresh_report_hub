@@ -100,9 +100,25 @@ table.rev tr:last-child td{border-bottom:none}
 .est.incoherente{background:#FBECEA;color:#A8342B}
 .antes{font-family:var(--mono);font-size:12px;color:var(--tinta-3);text-decoration:line-through}
 .ahora{font-family:var(--mono);font-size:12px;color:var(--verde-osc);font-weight:600}
-select.fix,input.fix{font-family:var(--ui);font-size:12.5px;padding:4px 7px;border:1px solid var(--borde-f);
-  border-radius:5px;background:var(--sup);max-width:290px}
+.cb{display:inline-block;position:relative;max-width:100%}
+.cb-in{font-family:var(--ui);font-size:12.5px;padding:6px 9px;width:300px;max-width:100%;border:1px solid var(--borde-f);
+  border-radius:6px;background:var(--sup) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2377837B' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  color:var(--tinta)}
+.cb-in:focus{outline:2px solid var(--verde);outline-offset:-1px}
+select.fix,input.fix{font-family:var(--ui);font-size:12.5px;padding:6px 9px;border:1px solid var(--borde-f);
+  border-radius:6px;background:var(--sup);color:var(--tinta);max-width:100%}
 select.fix:focus,input.fix:focus{outline:2px solid var(--verde);outline-offset:-1px}
+.cb-lista{position:fixed;z-index:1000;margin:0;padding:4px;list-style:none;background:var(--sup);border:1px solid var(--borde-f);
+  border-radius:9px;box-shadow:0 10px 30px rgba(22,32,27,.18);overflow:auto;font-size:13px}
+.cb-grupo{padding:8px 10px 3px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3)}
+.cb-op{padding:7px 10px;border-radius:6px;cursor:pointer;line-height:1.3}
+.cb-op.activo{background:#EAF3E2;color:var(--verde-osc)}
+.cb-op mark{background:#F6E58A;color:inherit;border-radius:2px}
+.cb-vacio,.cb-mas{padding:10px;color:var(--tinta-3);font-size:12.5px}
+.est.aprendida{background:#E7F0FA;color:#1F5C99}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1100;max-width:min(560px,92vw);padding:11px 16px;
+  border-radius:9px;background:var(--tinta);color:#fff;font-size:13px;box-shadow:0 10px 30px rgba(22,32,27,.3)}
+.toast.err{background:#8A2A18}
 .resumen{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .resumen .c{flex:1;min-width:130px;background:var(--sup);border:1px solid var(--borde);
   border-radius:9px;padding:12px 15px}
@@ -128,6 +144,14 @@ table.uni td.e{color:#D8DCD4}
 table.uni tbody tr:nth-child(even){background:#FBFCFA}
 .pie{font-size:12.5px;color:var(--tinta-3);margin-top:10px}
 .oculto{display:none !important}
+.resultado{padding:12px 14px;border-radius:8px;border:1px solid var(--borde);font-size:13.5px;line-height:1.5}
+.resultado.ok{background:#F2F8EC;border-color:#B7D8A0;color:#245A1A}
+.resultado.err{background:#FDF1EC;border-color:#E8C4B4;color:#8A2A18}
+.resultado b{font-weight:700}
+table.uni td.amarre{white-space:normal;min-width:260px}
+select.ot,input.envio{font-family:var(--ui);font-size:13px;padding:6px 8px;border:1px solid var(--borde-f);
+  border-radius:6px;background:var(--sup);color:var(--tinta);max-width:100%}
+select.ot.sugerida{border-color:var(--verde-osc);background:#F2F8EC}
 @media (max-width:760px){ .labs{flex-direction:column} }
 </style>
 </head>
@@ -176,6 +200,7 @@ table.uni tbody tr:nth-child(even){background:#FBFCFA}
       <span class="paso-n">02</span><h2>Análisis de datos</h2>
       <span class="ayuda">Homogeneización contra el catálogo oficial</span>
     </div>
+    <p class="pie" id="estadoListados" style="margin:0 0 12px">Leyendo los listados de la base…</p>
     <div class="resumen" id="resumen"></div>
     <div class="fichas" id="revision"></div>
   </section>
@@ -187,6 +212,19 @@ table.uni tbody tr:nth-child(even){background:#FBFCFA}
     </div>
     <div class="tablaCaja"><table class="uni" id="tabla"></table></div>
     <p class="pie" id="pieTabla"></p>
+    <div id="amarre" style="margin-top:22px">
+      <div class="paso-cab">
+        <h2 style="font-size:15px">Solicitud y envío de cada informe</h2>
+        <span class="ayuda">Para auditoría interna · el PDF se guarda en su carpeta al subir</span>
+      </div>
+      <div class="btn-fila" style="margin:10px 0">
+        <label for="envioTodos" style="font-size:13px;color:var(--tinta-2)">Fecha y hora de envío para todos:</label>
+        <input type="datetime-local" id="envioTodos" class="envio">
+        <button class="btn sec" id="btnEnvioTodos">Aplicar a todos</button>
+      </div>
+      <div class="tablaCaja"><table class="uni" id="tablaAmarre"></table></div>
+      <p class="pie" id="pieAmarre"></p>
+    </div>
     <div class="btn-fila" style="margin-top:14px">
       <button class="btn" id="btnXlsx">Descargar formato de solicitud</button>
       <button class="btn sec" id="btnCsv">Descargar como CSV</button>
@@ -281,10 +319,10 @@ const CATALOGOS = {"catalogo":{"sold_to":["A.G. SERVICIOS SPA","AGRICOLA CONVENT
 /* Lógica del conversor, en JS puro. Se prueba aquí y luego va tal cual al HTML. */
 
 const COLUMNAS = [
-  "N° Solicitud","Fecha Solicitud","Laboratorio","Solicitante","Sold To","Ship To",
+  "N° Solicitud","OT","Fecha Solicitud","Laboratorio","Solicitante","Sold To","Ship To",
   "Especie","Variedad","Línea Proceso","CSG","Lote","Posición Muestreo","N° Cámara",
   "N° Orden","Kilos Procesados (KG)","Producto Utilizado","Tipo Muestra","Tipo de servicio",
-  "Fecha Muestreo","Fecha entrada",
+  "Fecha Muestreo","Fecha entrada","Fecha Informe","Fecha Análisis",
   "Hora Muestreo","Nombre Muestreador","Generado Por","Email Solicitante",
   "Email Laboratorio","Observación","FDL ppm","IMZ ppm","PYR ppm","TEBU ppm","AZOX ppm",
   "TBZ ppm","DPA ppm","Dosis Aplicada","Tipo Aplicación","Aplicación En","Gasto",
@@ -333,21 +371,50 @@ const ANALITOS = {
 var CAT = (typeof CATALOGOS !== "undefined") ? CATALOGOS
         : {catalogo:{}, alias:{}, productos:{}, variedad_especie:{}};
 
+function palabras(s){
+  return plano(s).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 function compacto(s){
   return plano(s).replace(/[\s'\u2019\-/]/g, "");
 }
 
-/* Lleva un valor a su forma oficial. Devuelve qué se hizo, para poder mostrarlo. */
-function homogenizar(campo, valor){
+/* Listados en vivo, leídos de la base al abrir el Converter (ver
+   cargarListados más abajo). La copia de CATALOGOS pegada arriba es una foto
+   vieja de Listados: solo se usa si la base no responde. */
+const LISTADOS = {enVivo: false, plantasPorCliente: {}, variedadesPorEspecie: {}};
+
+/* Valores oficiales que corresponden a un campo DE ESTE informe: el Ship To
+   solo puede ser una planta de su Sold To, y la Variedad una de su Especie
+   (misma jerarquía que usa el backend al cargar, ver ingest._resolver_listados). */
+function oficialesPara(campo, inf){
+  if(campo === "ship_to"){
+    const plantas = LISTADOS.plantasPorCliente[inf && inf.datos["Sold To"]];
+    if(plantas) return plantas;
+  }
+  if(campo === "variedad"){
+    const variedades = LISTADOS.variedadesPorEspecie[inf && inf.datos["Especie"]];
+    if(variedades) return variedades;
+  }
+  return CAT.catalogo[campo] || [];
+}
+
+/* Lleva un valor a su forma oficial. Devuelve qué se hizo, para poder mostrarlo.
+   `oficiales` acota los valores válidos (ej. las plantas de un Sold To);
+   `deUnCliente` dice que son las plantas de UN cliente ya resuelto. */
+function homogenizar(campo, valor, oficiales, deUnCliente){
   if(!valor) return {valor: valor, estado: "vacio"};
-  const of = CAT.catalogo[campo] || [];
+  const of = oficiales || CAT.catalogo[campo] || [];
   const ali = CAT.alias[campo] || {};
   const bruto = String(valor).trim();
 
   if(of.includes(bruto)) return {valor: bruto, estado: "ok"};
 
   const p = plano(bruto);
-  if(ali[p]) return {valor: ali[p], estado: ali[p] === bruto ? "ok" : "corregido", antes: bruto};
+  // el alias tiene que apuntar a un valor válido para este informe: una
+  // planta con el mismo nombre en otro cliente no sirve
+  if(ali[p] && of.includes(ali[p]))
+    return {valor: ali[p], estado: ali[p] === bruto ? "ok" : "corregido", antes: bruto};
 
   const c = compacto(bruto);
   for(const o of of) if(compacto(o) === c)
@@ -361,6 +428,16 @@ function homogenizar(campo, valor){
   // nombre abreviado, solo si no hay ambigüedad
   const cand = of.filter(o => compacto(o).startsWith(c) && c.length >= 5);
   if(cand.length === 1) return {valor: cand[0], estado: "corregido", antes: bruto};
+
+  // la única planta del cliente que contiene lo que dice el informe:
+  // "SAN FERNANDO" -> "DOLE PLANTA SAN FERNANDO". Palabras completas, y solo
+  // entre las plantas de su Sold To (misma regla que homogenizador.py, 5b).
+  if(deUnCliente){
+    const pal = " " + palabras(bruto) + " ";
+    const contienen = of.filter(o => (" " + palabras(o) + " ").includes(pal));
+    if(pal.trim().length >= 3 && contienen.length === 1)
+      return {valor: contienen[0], estado: "corregido", antes: bruto};
+  }
 
   return {valor: bruto, estado: "fuera_de_catalogo",
           sugerencias: cand.slice(0, 4)};
@@ -385,6 +462,16 @@ function aFecha(txt, avisos){
   }
   if(mes < 1 || mes > 12 || d < 1 || d > 31) return null;
   return String(d).padStart(2,"0") + "-" + String(mes).padStart(2,"0") + "-" + y;
+}
+
+/* "25 de septiembre de 2026" -> "25-09-2026". Quiteca escribe así la fecha del
+   informe (al pie), no en números. */
+const MESES = {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,
+               septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+function aFechaLarga(txt){
+  const m = plano(txt || "").match(/(\d{1,2})\s+de\s+([a-z]+)\s+(?:de\s+)?(\d{4})/);
+  if(!m || !MESES[m[2]]) return null;
+  return String(+m[1]).padStart(2,"0") + "-" + String(MESES[m[2]]).padStart(2,"0") + "-" + m[3];
 }
 
 function aHora(txt){
@@ -481,6 +568,17 @@ function leerQuiteca(texto, inf){
   d["Fecha Muestreo"]  = aFecha(campo(texto, "Fecha de Muestreo", "Hora"), inf.avisos);
   d["Fecha entrada"]   = aFecha(campo(texto, "Fecha de Recepción"), inf.avisos);
   d["Hora Muestreo"]   = aHora(campo(texto, "Hora"));
+  /* Fecha de Análisis: arriba a la derecha de la tabla de resultados. Fecha
+     Informe: al pie, escrita con letras ("25 de septiembre de 2026"). */
+  const fa = texto.match(/Fecha de An[áa]lisis\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
+  d["Fecha Análisis"] = fa ? aFecha(fa[1], inf.avisos) : null;
+  const fi = texto.match(/Fecha Informe\s*:?\s*(\d{1,2}\s+de\s+[A-Za-zÁÉÍÓÚáéíóú]+\s+(?:de\s+)?\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
+  d["Fecha Informe"] = fi ? (aFechaLarga(fi[1]) || aFecha(fi[1], inf.avisos)) : null;
+  /* El OT que generamos viaja en el campo «N° Solicitud» del informe. Los
+     informes antiguos traían ahí el correlativo interno de Quiteca (un número
+     largo): eso NO es un OT y se ignora. */
+  const ot = texto.match(/N°\s*Solicitud\s*:?\s*(OT-[A-Za-z0-9]+)/i);
+  d["OT"] = ot ? ot[1].toUpperCase() : null;
   d["Tipo Muestra"]    = "Fruta";
   /* En Quiteca "Tratamiento" (FOGGER, ACTIMIST, etc.) no es un producto químico,
      así que va en "Tipo Aplicación" tal cual, no en "Producto Utilizado" (que
@@ -615,16 +713,6 @@ function leerCorthorn(texto, inf){
 }
 
 /* ---------------- AGROFRESH (informe propio) ---------------- */
-const MESES = {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,
-               septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
-
-/* "28 de septiembre de 2026" -> "28-09-2026" */
-function aFechaLarga(txt){
-  const m = plano(txt || "").match(/(\d{1,2}) de ([a-z]+) de (\d{4})/);
-  if(!m || !MESES[m[2]]) return null;
-  return String(+m[1]).padStart(2,"0") + "-" + String(MESES[m[2]]).padStart(2,"0") + "-" + m[3];
-}
-
 function fechaDe(texto, etiqueta){
   const m = texto.match(new RegExp(etiqueta + "\\s+(\\d{1,2} de [A-Za-zéÉ]+ de \\d{4})", "i"));
   return m ? aFechaLarga(m[1]) : null;
@@ -639,8 +727,8 @@ function leerAgrofresh(texto, inf){
 
   const m = texto.match(/(\S+)\s+Solicitud de An[áa]lisis\s+N°\s*(OT-[\w-]+)/i);
   if(m){
-    d["N° Solicitud"] = m[1];      // N° del informe: es la clave, como el "Informe N°" de Quiteca
-    d["N° OT"] = m[2].toUpperCase(); // la solicitud de origen; sirve para buscar el resto
+    d["N° Solicitud"] = m[1];        // N° del informe: es la clave, como el "Informe N°" de Quiteca
+    d["OT"] = m[2].toUpperCase();    // la solicitud de origen: con ella se trae el resto
   }
   d["Fecha Análisis"]  = fechaDe(texto, "Fecha an[áa]lisis");
   d["Fecha entrada"]   = fechaDe(texto, "Fecha Recepci[óo]n");
@@ -708,8 +796,15 @@ function limpio(v){
   return (!t || t === "—" || t === "-") ? null : t;
 }
 
+/* "Sin dato para: ..." siempre refleja lo que de verdad falta ahora. */
+function avisarFaltantes(inf){
+  inf.avisos = inf.avisos.filter(a => !/^Sin dato para:/.test(a));
+  const faltan = OBLIGATORIOS.filter(c => !inf.datos[c]);
+  if(faltan.length) inf.avisos.push("Sin dato para: " + faltan.join(", "));
+}
+
 async function completarDesdeSolicitud(inf){
-  const ot = inf.datos["N° OT"];
+  const d = inf.datos, ot = d["OT"];
   if(!ot){ inf.avisos.push("El informe no trae el N° de solicitud (OT-...): no se pudo completar desde la solicitud."); return; }
   let sol;
   try{
@@ -726,16 +821,13 @@ async function completarDesdeSolicitud(inf){
     return;
   }
   const c = sol.campos || {};
-  const d = inf.datos;
-  inf.deSolicitud = new Set();   // lo que vino de la solicitud ya pasó por el catálogo real del sistema
   for(const col in DE_SOLICITUD){
     const v = limpio(c[DE_SOLICITUD[col]]);
     if(v === null) continue;
-    if(limpio(d[col]) === null){ d[col] = v; inf.deSolicitud.add(col); }
+    if(limpio(d[col]) === null) d[col] = v;
     else if(["Especie","Variedad","CSG"].includes(col) && plano(d[col]) !== plano(v)){
       // El informe manda, pero si contradice a la solicitud alguien tiene que verlo.
       inf.avisos.push(col + ": el informe dice «" + d[col] + "» y la solicitud «" + v + "»");
-      if(col !== "CSG"){ d[col] = v; inf.deSolicitud.add(col); }
     }
   }
   const traza = "Informe AgroFresh N° " + (d["N° Solicitud"] || "—") + " · Solicitud " + ot;
@@ -750,6 +842,11 @@ async function completarDesdeSolicitud(inf){
   for(const col in inf.resultados)
     if(/ ppm$/.test(col) && !pedidos.has(col))
       inf.avisos.push(col.replace(" ppm","") + " tiene resultado en el informe pero no estaba en la solicitud");
+
+  // Lo que se completó pasa por el catálogo vivo igual que lo que trae el PDF.
+  for(const col in CAMPOS_CAT) inf.crudos[col] = d[col];
+  revisarCatalogo(inf);
+  avisarFaltantes(inf);
 }
 
 const LECTORES = {"Quiteca":leerQuiteca,"Diagnofruit":leerDiagnofruit,"ALS (Corthon)":leerCorthorn,"AgroFresh":leerAgrofresh};
@@ -767,7 +864,7 @@ const EDITABLES = {
 };
 const OBLIGATORIOS = ["Laboratorio","Fecha Muestreo","Especie","Fecha entrada","Tipo de servicio"];
 
-async function analizar(texto, nombreArchivo){
+function analizar(texto, nombreArchivo){
   const inf = {archivo:nombreArchivo, laboratorio:"", datos:{}, resultados:{},
                sueltos:[], avisos:[], revision:[], texto:texto};
   if(!texto || texto.trim().length < 100){
@@ -783,25 +880,62 @@ async function analizar(texto, nombreArchivo){
   }
   inf.laboratorio = lab;
   LECTORES[lab](texto, inf);
-  if(lab === "AgroFresh") await completarDesdeSolicitud(inf);
 
   for(const k in inf.datos)
     if(inf.datos[k] === null || inf.datos[k] === "" || inf.datos[k] === "-")
       delete inf.datos[k];
 
-  /* --- homogeneización contra el catálogo oficial --- */
-  const CAMPOS_CAT = {"Sold To":"sold_to","Ship To":"ship_to",
-                      "Especie":"especie","Variedad":"variedad"};
+  // lo que dice el PDF, antes de homogenizar: se vuelve a partir de acá cada
+  // vez que se revisa el informe (ej. al cambiar el Sold To cambia qué
+  // plantas son válidas para el Ship To)
+  inf.crudos = {};
+  for(const col in CAMPOS_CAT) inf.crudos[col] = inf.datos[col];
+  inf.manual = {};
+  inf.aMano = {};   // campos (no de catálogo) completados desde el panel
+  revisarCatalogo(inf);
+
+  const faltan = OBLIGATORIOS.filter(c => !inf.datos[c]);
+  if(faltan.length) inf.avisos.push("Sin dato para: " + faltan.join(", "));
+  if(!Object.keys(inf.resultados).length && !inf.sueltos.length)
+    inf.avisos.push("No se encontró ningún resultado en el informe");
+  return inf;
+}
+
+const CAMPOS_CAT = {"Sold To":"sold_to","Ship To":"ship_to",
+                    "Especie":"especie","Variedad":"variedad"};
+
+/* Homogeneización contra el catálogo oficial. En este orden a propósito: el
+   Ship To se busca entre las plantas del Sold To ya resuelto, y la Variedad
+   entre las de la Especie ya resuelta. Lo elegido a mano se respeta mientras
+   siga siendo válido. */
+function revisarCatalogo(inf){
   inf.revision = [];
+  inf.usadas = [];   // asociaciones guardadas que se aplicaron solas en este informe
   for(const col in CAMPOS_CAT){
-    // El catálogo embebido en esta página es una copia: si el valor viene de la
-    // solicitud, la fuente es el catálogo vivo y no se vuelve a discutir.
-    if(inf.deSolicitud && inf.deSolicitud.has(col)){
-      inf.revision.push({campo:col, estado:"ok", ahora:inf.datos[col],
-                         detalle:"viene de la solicitud, ya validada contra el catálogo"});
+    const oficiales = oficialesPara(CAMPOS_CAT[col], inf);
+    const manual = inf.manual[col];
+    if(manual && oficiales.includes(manual)){
+      inf.datos[col] = manual;
+      inf.revision.push({campo:col, estado:"corregido", antes:inf.crudos[col] || "(vacío)",
+                         ahora:manual, detalle:"elegido a mano del catálogo"});
       continue;
     }
-    const r = homogenizar(CAMPOS_CAT[col], inf.datos[col]);
+    delete inf.manual[col];
+    if(inf.crudos[col]) inf.datos[col] = inf.crudos[col];
+    else delete inf.datos[col];
+    const deUnCliente = col === "Ship To" && !!LISTADOS.plantasPorCliente[inf.datos["Sold To"]];
+    let r = homogenizar(CAMPOS_CAT[col], inf.datos[col], oficiales, deUnCliente);
+    // Lo que el sistema aprendió de una corrección anterior. Solo se aplica si
+    // el valor guardado sigue siendo válido para ESTE informe (p. ej. la planta
+    // existe bajo el Sold To de este informe): nunca a ciegas.
+    if(r.estado === "fuera_de_catalogo"){
+      const ctx = contextoDe(CAMPOS_CAT[col], inf);
+      const guardada = APRENDIDAS[claveAprendida(CAMPOS_CAT[col], ctx, inf.datos[col])];
+      if(guardada && oficiales.includes(guardada)){
+        r = {valor: guardada, estado: "corregido", antes: inf.datos[col], aprendida: true};
+        inf.usadas.push({campo: CAMPOS_CAT[col], contexto: ctx, valor_crudo: inf.crudos[col]});
+      }
+    }
     if(r.estado === "vacio"){
       inf.revision.push({campo:col, estado:"vacio",
                          detalle:"el informe no trae este dato"});
@@ -810,7 +944,9 @@ async function analizar(texto, nombreArchivo){
     if(r.estado === "corregido"){
       inf.datos[col] = r.valor;
       inf.revision.push({campo:col, estado:"corregido", antes:r.antes, ahora:r.valor,
-                         detalle:"se llevó a la forma oficial del catálogo"});
+                         aprendida: !!r.aprendida,
+                         detalle: r.aprendida ? "corregido con una asociación guardada de una corrección anterior"
+                                              : "se llevó a la forma oficial del catálogo"});
     }else if(r.estado === "fuera_de_catalogo"){
       inf.revision.push({campo:col, estado:"fuera", antes:r.valor,
                          sugerencias:r.sugerencias,
@@ -822,10 +958,13 @@ async function analizar(texto, nombreArchivo){
   }
 
   /* los obligatorios que no son de catálogo (fechas, tipo de servicio) también
-     se pueden completar a mano desde este panel */
+     se completan a mano desde este panel */
   OBLIGATORIOS.forEach(c => {
-    if(!(c in CAMPOS_CAT) && !inf.datos[c] && c in EDITABLES)
-      inf.revision.push({campo:c, estado:"vacio", detalle:"el informe no trae este dato"});
+    if(!(c in EDITABLES)) return;
+    if(!inf.datos[c]) inf.revision.push({campo:c, estado:"vacio", detalle:"el informe no trae este dato"});
+    else if(inf.aMano && inf.aMano[c])
+      inf.revision.push({campo:c, estado:"corregido", antes:"(vacío)", ahora:inf.datos[c],
+                         detalle:"completado a mano"});
   });
 
   /* la variedad debe corresponder a la especie */
@@ -838,12 +977,6 @@ async function analizar(texto, nombreArchivo){
                          detalle:"«" + vari + "» se ha usado siempre con " +
                                  esperadas.join(" o ") + ", no con " + esp});
   }
-
-  const faltan = OBLIGATORIOS.filter(c => !inf.datos[c]);
-  if(faltan.length) inf.avisos.push("Sin dato para: " + faltan.join(", "));
-  if(!Object.keys(inf.resultados).length && !inf.sueltos.length)
-    inf.avisos.push("No se encontró ningún resultado en el informe");
-  return inf;
 }
 
 function fila(inf){
@@ -947,7 +1080,7 @@ function pintar(){
   $("estado").textContent = informes.length
     ? ok.length + " de " + informes.length + " informe(s) reconocido(s)"
     : "Sin informes cargados";
-  if(ok.length){ pintarAnalisis(ok); pintarTabla(ok); }
+  if(ok.length){ pintarAnalisis(ok); pintarTabla(ok); pintarAmarre(ok); }
 }
 
 const ETIQ_EST = {ok:"correcto", corregido:"corregido", fuera:"fuera de catálogo",
@@ -958,6 +1091,7 @@ const CAMPO_CLAVE = {"Sold To":"sold_to","Ship To":"ship_to",
 /* Panel de análisis: campo por campo, con corrección en línea para lo que
    quedó fuera del catálogo. */
 function pintarAnalisis(ok){
+  const montajes = [];   // buscadores por montar una vez armado el HTML
   const tot = {ok:0, corregido:0, fuera:0, vacio:0, incoherente:0};
   ok.forEach(i => i.revision.forEach(r => tot[r.estado]++));
 
@@ -994,30 +1128,25 @@ function pintarAnalisis(ok){
         else val = '<span class="antes" style="text-decoration:none;color:var(--error)">' +
                    esc(r.antes) + "</span>";
 
-        // desplegable para elegir el valor oficial
+        // desplegable para elegir (o cambiar) el valor oficial: siempre
+        // disponible, también si la homogeneización automática se equivocó
         let fix = "";
-        if((r.estado === "fuera" || r.estado === "vacio") && EDITABLES[r.campo]){
+        if(EDITABLES[r.campo]){
           const ed = EDITABLES[r.campo];
           fix = ed === "fecha"
             ? '<input class="fix" type="date" data-inf="' + k + '" data-campo="' + esc(r.campo) + '">'
             : '<select class="fix" data-inf="' + k + '" data-campo="' + esc(r.campo) + '">' +
               '<option value="">— elegir —</option>' +
-              ed.map(s => '<option>' + esc(s) + "</option>").join("") + "</select>";
-        }else if(r.estado === "fuera" || r.estado === "vacio"){
-          const clave = CAMPO_CLAVE[r.campo];
-          if(clave){
-            const lista = CAT.catalogo[clave] || [];
-            const sug = (r.sugerencias || []).filter(s => lista.includes(s));
-            const resto = lista.filter(s => !sug.includes(s));
-            fix = '<select class="fix" data-inf="' + k + '" data-campo="' + esc(r.campo) + '">' +
-              '<option value="">— elegir del catálogo —</option>' +
-              (sug.length ? '<optgroup label="Parecidos">' +
-                 sug.map(s => '<option>' + esc(s) + "</option>").join("") + "</optgroup>" : "") +
-              resto.map(s => '<option>' + esc(s) + "</option>").join("") + "</select>";
-          }
+              ed.map(x => '<option>' + esc(x) + "</option>").join("") + "</select>";
+        }else if(CAMPO_CLAVE[r.campo]){
+          const id = "cbm" + montajes.length;
+          montajes.push({id, inf, r});
+          fix = '<div class="cb" id="' + id + '"></div>';
         }
         return "<tr><td>" + esc(r.campo) + '</td><td><span class="est ' + r.estado + '">' +
-               ETIQ_EST[r.estado] + "</span></td><td>" + val + (fix ? "<br>" + fix : "") +
+               ETIQ_EST[r.estado] + "</span>" +
+               (r.aprendida ? ' <span class="est aprendida" title="Se corrigió con una asociación que el sistema guardó antes">guardada</span>' : "") +
+               "</td><td>" + val + (fix ? "<br>" + fix : "") +
                '</td><td style="font-size:12px;color:var(--tinta-3)">' +
                esc(r.detalle) + "</td></tr>";
       }).join("") + "</table></div>";
@@ -1025,24 +1154,285 @@ function pintarAnalisis(ok){
     cont.appendChild(d);
   });
 
-  cont.querySelectorAll("select.fix, input.fix").forEach(s => s.onchange = () => {
-    if(!s.value) return;
-    const inf = ok[+s.dataset.inf];
+  cont.querySelectorAll("select.fix, input.fix").forEach(el => el.onchange = () => {
+    if(!el.value) return;
+    const inf = ok[+el.dataset.inf];
     // el selector de día entrega AAAA-MM-DD; la tabla guarda DD-MM-AAAA
-    if(s.type === "date") s.dataset.valor = s.value.split("-").reverse().join("-");
-    const elegido = s.type === "date" ? s.dataset.valor : s.value;
-    inf.datos[s.dataset.campo] = elegido;
-    const r = inf.revision.find(x => x.campo === s.dataset.campo);
-    r.estado = "corregido";
-    r.antes = r.antes || "(vacío)";
-    r.ahora = elegido;
-    // el aviso "Sin dato para: ..." se recalcula con lo que sigue faltando
-    inf.avisos = inf.avisos.filter(a => !/^Sin dato para:/.test(a));
-    const faltan = OBLIGATORIOS.filter(c => !inf.datos[c]);
-    if(faltan.length) inf.avisos.push("Sin dato para: " + faltan.join(", "));
-    r.detalle = EDITABLES[s.dataset.campo] ? "completado a mano" : "elegido a mano del catálogo";
+    inf.datos[el.dataset.campo] = el.type === "date" ? el.value.split("-").reverse().join("-") : el.value;
+    inf.aMano[el.dataset.campo] = true;
+    revisarCatalogo(inf);
+    avisarFaltantes(inf);
     pintar();
   });
+
+  montajes.forEach(({id, inf, r}) => {
+    const datos = datosSelector(inf, r);
+    montarCombobox($(id), {
+      titulo: datos.titulo, grupos: datos.grupos,
+      onElegir: eleccion => aplicarEleccion(inf, r.campo, eleccion),
+    });
+  });
+}
+
+/* Lo que ofrece el buscador de un campo del catálogo. Ship To muestra solo las
+   plantas del Sold To de este informe; si el Sold To todavía no está resuelto,
+   todas, agrupadas por cliente. Variedad, igual con su Especie. */
+function datosSelector(inf, r){
+  const clave = CAMPO_CLAVE[r.campo];
+  const lista = oficialesPara(clave, inf);
+  const sug = (r.sugerencias || []).filter(x => lista.includes(x));
+  const grupos = [];
+  if(sug.length) grupos.push({titulo: "Parecidos", items: sug.map(x => ({valor: x, texto: x}))});
+
+  const soldTo = inf.datos["Sold To"];
+  if(clave === "ship_to" && !LISTADOS.plantasPorCliente[soldTo] && LISTADOS.enVivo){
+    for(const cliente of Object.keys(LISTADOS.plantasPorCliente).sort())
+      grupos.push({titulo: cliente, items: LISTADOS.plantasPorCliente[cliente].map(p => ({valor: p, texto: p, soldTo: cliente}))});
+  }else{
+    grupos.push({titulo: sug.length ? "Todos" : null, items: lista.filter(x => !sug.includes(x)).map(x => ({valor: x, texto: x}))});
+  }
+
+  let titulo = "elegir del catálogo";
+  if(clave === "ship_to" && LISTADOS.plantasPorCliente[soldTo]) titulo = "plantas de " + soldTo;
+  else if(clave === "variedad" && LISTADOS.variedadesPorEspecie[inf.datos["Especie"]])
+    titulo = "variedades de " + inf.datos["Especie"];
+  if(r.estado === "ok" || r.estado === "corregido") titulo = "cambiar";
+  return {titulo, grupos};
+}
+
+/* ---------- buscador (reemplaza al desplegable) ----------
+   Se escribe para filtrar, sin importar tildes ni mayúsculas. Flechas y Enter
+   para elegir, Esc para cerrar. La lista es «fixed» porque las fichas recortan
+   lo que se sale de ellas. */
+let cbSeq = 0;
+const CB_MAX = 150;
+
+function montarCombobox(host, cfg){
+  host.textContent = "";
+  const inp = document.createElement("input");
+  inp.type = "text"; inp.className = "cb-in"; inp.autocomplete = "off";
+  inp.placeholder = cfg.titulo + " — escribe para buscar";
+  inp.setAttribute("role", "combobox");
+  inp.setAttribute("aria-expanded", "false");
+  inp.setAttribute("aria-label", cfg.titulo);
+  const lista = document.createElement("ul");
+  lista.className = "cb-lista"; lista.hidden = true; lista.setAttribute("role", "listbox");
+  lista.id = "cb" + (++cbSeq);
+  inp.setAttribute("aria-controls", lista.id);
+  host.append(inp, lista);
+
+  let opciones = [];   // lo que se ve ahora, en orden
+  let activo = -1;
+
+  function colocar(){
+    const r = inp.getBoundingClientRect();
+    const abajo = window.innerHeight - r.bottom - 16;
+    const arriba = r.top - 16;
+    const alto = Math.min(300, Math.max(abajo, arriba < abajo ? abajo : Math.min(arriba, 300)));
+    lista.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 348)) + "px";
+    lista.style.width = Math.max(r.width, 340) + "px";
+    lista.style.maxHeight = alto + "px";
+    if(abajo < 160 && arriba > abajo){ lista.style.top = "auto"; lista.style.bottom = (window.innerHeight - r.top + 4) + "px"; }
+    else{ lista.style.bottom = "auto"; lista.style.top = (r.bottom + 4) + "px"; }
+  }
+
+  function marcar(texto, q){
+    const span = document.createDocumentFragment();
+    const p = plano(texto), i = q ? p.indexOf(q) : -1;
+    if(i < 0 || p.length !== texto.length){ span.append(texto); return span; }
+    span.append(texto.slice(0, i));
+    const m = document.createElement("mark"); m.textContent = texto.slice(i, i + q.length);
+    span.append(m, texto.slice(i + q.length));
+    return span;
+  }
+
+  function pintarLista(){
+    const q = plano(inp.value);
+    lista.textContent = "";
+    opciones = []; 
+    let total = 0, corte = false;
+    for(const g of cfg.grupos){
+      const coincideGrupo = q && g.titulo && plano(g.titulo).includes(q);
+      const its = g.items.filter(it => !q || coincideGrupo || plano(it.texto).includes(q));
+      if(!its.length) continue;
+      if(g.titulo){ const h = document.createElement("li"); h.className = "cb-grupo"; h.textContent = g.titulo; h.setAttribute("role", "presentation"); lista.append(h); }
+      for(const it of its){
+        if(total >= CB_MAX){ corte = true; break; }
+        const li = document.createElement("li");
+        li.className = "cb-op"; li.setAttribute("role", "option"); li.dataset.i = String(opciones.length);
+        li.append(marcar(it.texto, coincideGrupo ? "" : q));
+        lista.append(li); opciones.push(it); total++;
+      }
+      if(corte) break;
+    }
+    if(!opciones.length){ const v = document.createElement("li"); v.className = "cb-vacio"; v.textContent = "Nada coincide con «" + inp.value + "»"; lista.append(v); }
+    if(corte){ const m = document.createElement("li"); m.className = "cb-mas"; m.textContent = "Hay más: sigue escribiendo para acotar."; lista.append(m); }
+    activo = opciones.length ? 0 : -1;
+    resaltar();
+  }
+
+  function resaltar(){
+    lista.querySelectorAll(".cb-op").forEach((li, i) => {
+      li.classList.toggle("activo", i === activo);
+      li.setAttribute("aria-selected", i === activo ? "true" : "false");
+      if(i === activo) li.scrollIntoView({block: "nearest"});
+    });
+  }
+
+  function abrir(){
+    if(!lista.hidden) return;
+    pintarLista(); colocar(); lista.hidden = false; inp.setAttribute("aria-expanded", "true");
+    window.addEventListener("scroll", colocar, true); window.addEventListener("resize", colocar);
+  }
+  function cerrar(){
+    lista.hidden = true; inp.setAttribute("aria-expanded", "false");
+    window.removeEventListener("scroll", colocar, true); window.removeEventListener("resize", colocar);
+  }
+  function elegir(i){
+    const it = opciones[i]; if(!it) return;
+    cerrar(); cfg.onElegir(it);
+  }
+
+  inp.addEventListener("focus", abrir);
+  inp.addEventListener("click", abrir);
+  inp.addEventListener("input", () => { abrir(); pintarLista(); colocar(); });
+  inp.addEventListener("blur", cerrar);
+  inp.addEventListener("keydown", e => {
+    if(e.key === "ArrowDown"){ e.preventDefault(); abrir(); if(opciones.length){ activo = (activo + 1) % opciones.length; resaltar(); } }
+    else if(e.key === "ArrowUp"){ e.preventDefault(); abrir(); if(opciones.length){ activo = (activo - 1 + opciones.length) % opciones.length; resaltar(); } }
+    else if(e.key === "Enter"){ e.preventDefault(); if(!lista.hidden) elegir(activo); }
+    else if(e.key === "Escape"){ if(!lista.hidden){ e.preventDefault(); cerrar(); } }
+  });
+  // mousedown y no click: el blur del input cerraría la lista antes del click
+  lista.addEventListener("mousedown", e => {
+    e.preventDefault();
+    const li = e.target.closest(".cb-op");
+    if(li) elegir(+li.dataset.i);
+  });
+}
+
+/* ---------- lo que el sistema aprende de cada corrección a mano ---------- */
+const APRENDIDAS = {};   // «campo|contexto|texto» -> valor oficial
+const soloContextual = campo => campo === "ship_to" || campo === "variedad";
+const claveAprendida = (campo, ctx, crudo) =>
+  campo + "|" + (soloContextual(campo) ? plano(ctx || "") : "") + "|" + plano(crudo || "");
+/* el contexto que le da sentido a un valor: el Sold To de una planta, la
+   Especie de una variedad */
+function contextoDe(campo, inf){
+  if(campo === "ship_to") return inf.datos["Sold To"] || "";
+  if(campo === "variedad") return inf.datos["Especie"] || "";
+  return "";
+}
+
+function avisar(texto, error){
+  const t = document.createElement("div");
+  t.className = "toast" + (error ? " err" : ""); t.setAttribute("role", "status"); t.textContent = texto;
+  document.body.append(t);
+  setTimeout(() => t.remove(), error ? 6000 : 3500);
+}
+
+async function aprender(inf, campoNombre, valorElegido){
+  const campo = CAMPO_CLAVE[campoNombre];
+  const crudo = inf.crudos[campoNombre];
+  if(!crudo || plano(crudo) === plano(valorElegido)) return;   // no hay nada que recordar
+  const contexto = contextoDe(campo, inf);
+  try{
+    const r = await fetch(API_BASE + "/correcciones", {
+      method: "POST", headers: {"Content-Type": "application/json", ...autorizacion()},
+      body: JSON.stringify({campo, contexto, valor_crudo: crudo, valor_oficial: valorElegido, archivo: inf.archivo}),
+    });
+    if(!r.ok){
+      let det = ""; try{ det = (await r.json()).detail || ""; }catch(e){}
+      throw new Error(det || ("respondió " + r.status));
+    }
+    APRENDIDAS[claveAprendida(campo, contexto, crudo)] = valorElegido;
+    avisar("Asociación guardada: «" + crudo + "» → «" + valorElegido + "». La próxima vez se corrige sola.");
+  }catch(err){
+    avisar("No se pudo guardar la asociación (" + err.message + "). La corrección de este informe sí quedó aplicada.", true);
+  }
+}
+
+function aplicarEleccion(inf, campoNombre, eleccion){
+  // una planta elegida desde la lista agrupada por cliente trae su Sold To:
+  // esa planta solo existe bajo ese cliente
+  const soldToAntes = inf.crudos["Sold To"];
+  if(eleccion.soldTo) inf.manual["Sold To"] = eleccion.soldTo;
+  inf.manual[campoNombre] = eleccion.valor;
+  revisarCatalogo(inf);   // p.ej. otro Sold To cambia qué Ship To son válidos
+  if(eleccion.soldTo && soldToAntes && plano(soldToAntes) !== plano(eleccion.soldTo))
+    void aprender(inf, "Sold To", eleccion.soldTo);
+  void aprender(inf, campoNombre, eleccion.valor);
+  pintar();
+}
+
+async function cargarAprendidas(){
+  try{
+    const filas = await leerApi("/correcciones/alias");
+    filas.forEach(f => { APRENDIDAS[claveAprendida(f.campo, f.contexto, f.valor_crudo)] = f.valor_oficial; });
+    // lo que ya se cargó se vuelve a revisar con lo aprendido
+    informes.filter(i => i.laboratorio).forEach(revisarCatalogo);
+    pintar();
+  }catch(e){ /* sin memoria (backend viejo o sin permiso): el Converter sigue como siempre */ }
+}
+
+/* ============ listados en vivo ============ */
+async function leerApi(ruta){
+  const resp = await fetch(API_BASE + ruta, {headers: autorizacion()});
+  if(!resp.ok) throw new Error(ruta + " respondió " + resp.status);
+  return resp.json();
+}
+
+/* Trae de la base Sold To, Ship To, Especie y Variedad -lo mismo que
+   administra Listados y contra lo que valida el backend al cargar-. Si la
+   base no responde se sigue con la copia guardada en este archivo, y se
+   avisa, porque esa copia puede no tener lo último que se agregó. */
+async function cargarListados(){
+  const aviso = $("estadoListados");
+  try{
+    const [clientes, plantas, especies, variedades] = await Promise.all([
+      leerApi("/catalogo/clientes"), leerApi("/catalogo/plantas"),
+      leerApi("/listados/especie"), leerApi("/listados/variedad"),
+    ]);
+    const orden = (a, b) => a.localeCompare(b, "es");
+    const clientesActivos = clientes.filter(c => c.activo).map(c => c.nombre);
+    const porCliente = {};
+    plantas.filter(p => p.activo && clientesActivos.includes(p.cliente_nombre)).forEach(p =>
+      (porCliente[p.cliente_nombre] = porCliente[p.cliente_nombre] || []).push(p.nombre));
+    for(const c in porCliente) porCliente[c].sort(orden);
+
+    const nombreEspecie = {};
+    especies.forEach(e => nombreEspecie[e.id] = e.valor);
+    const porEspecie = {}, variedadEspecie = {};
+    variedades.filter(v => !v.fusionado_en_id).forEach(v => {
+      const esp = nombreEspecie[v.especie_id];
+      if(!esp) return;
+      (porEspecie[esp] = porEspecie[esp] || []).push(v.valor);
+      (variedadEspecie[v.valor] = variedadEspecie[v.valor] || []).push(esp);
+    });
+    for(const e in porEspecie) porEspecie[e].sort(orden);
+
+    CAT.catalogo = {
+      sold_to: clientesActivos.slice().sort(orden),
+      ship_to: [...new Set(Object.values(porCliente).flat())].sort(orden),
+      especie: especies.filter(e => !e.fusionado_en_id).map(e => e.valor).sort(orden),
+      variedad: [...new Set(variedades.filter(v => !v.fusionado_en_id).map(v => v.valor))].sort(orden),
+    };
+    CAT.variedad_especie = variedadEspecie;
+    LISTADOS.plantasPorCliente = porCliente;
+    LISTADOS.variedadesPorEspecie = porEspecie;
+    LISTADOS.enVivo = true;
+    aviso.textContent = "Listados leídos de la base: " + CAT.catalogo.sold_to.length + " Sold To, " +
+      Object.values(porCliente).flat().length + " Ship To, " + CAT.catalogo.especie.length +
+      " especies, " + CAT.catalogo.variedad.length + " variedades.";
+    aviso.style.color = "";
+  }catch(err){
+    aviso.textContent = "⚠ No se pudieron leer los listados de la base (" + err.message + "). " +
+      "Se usa una copia guardada, que puede no tener los Sold To / Ship To más nuevos.";
+    aviso.style.color = "var(--error)";
+  }
+  // los informes que ya estaban cargados se revisan de nuevo con los listados reales
+  informes.filter(i => i.laboratorio).forEach(revisarCatalogo);
+  pintar();
 }
 
 function pintarTabla(ok){
@@ -1073,7 +1463,10 @@ async function cargar(lista){
     }
     try{
       const buf = new Uint8Array(await file.arrayBuffer());
-      informes.push(await analizar(await textoDelPdf(buf), file.name));
+      const inf = analizar(await textoDelPdf(buf), file.name);
+      if(inf.laboratorio === "AgroFresh") await completarDesdeSolicitud(inf);
+      inf.file = file;   // el PDF original: se guarda en las carpetas de auditoría al subir
+      informes.push(inf);
     }catch(err){
       informes.push({archivo: file.name, laboratorio: "", datos: {}, resultados: {},
                      sueltos: [], avisos: ["No se pudo leer el PDF: " + err.message]});
@@ -1169,6 +1562,9 @@ function filaCruda(inf){
     "Fecha \nSolicitud": aISO(d["Fecha Solicitud"]),
     "Fecha de muestreo": aISO(d["Fecha Muestreo"]),
     "Fecha entrada": aISO(d["Fecha entrada"]),
+    "Fecha Informe": aISO(d["Fecha Informe"]),
+    "Fecha Análisis": aISO(d["Fecha Análisis"]),
+    "N° Solicitud": d["OT"],
     "SOLD TO": d["Sold To"],
     "SHIP TO": d["Ship To"],
     "CROP": d["Especie"],
@@ -1185,22 +1581,22 @@ function filaCruda(inf){
     "Observaciones": d["Observación"],
     "TIPO APP": d["Tipo Aplicación"],
   };
-  // Solo los trae el informe propio de AgroFresh: viajan a la base pero no
-  // son columnas de la tabla (no se crea ninguna).
-  if(d["Fecha Informe"]) f["Fecha Informe"] = aISO(d["Fecha Informe"]);
-  if(d["Fecha Análisis"]) f["Fecha Análisis"] = aISO(d["Fecha Análisis"]);
-  if(d["N° OT"]) f["Reference/s"] = d["N° OT"];
   Object.assign(f, inf.resultados);
   return f;
 }
 
-async function llamarIngest(ruta, filas){
+async function llamarIngest(ruta, filas, archivo){
   const resp = await fetch(API_BASE + "/ingest/" + ruta, {
     method: "POST",
     headers: {"Content-Type": "application/json", ...autorizacion()},
-    body: JSON.stringify({filas, origen: "converter"}),
+    // el nombre de los PDF va al historial de cargas de Ingesta de Datos
+    body: JSON.stringify({filas, origen: "converter", archivo}),
   });
-  if(!resp.ok) throw new Error("El backend respondió " + resp.status + " — revisa que esté corriendo.");
+  if(!resp.ok){
+    let detalle = "";
+    try{ detalle = (await resp.json()).detail || ""; }catch(e){}
+    throw new Error(detalle ? String(detalle) : "El backend respondió " + resp.status + " — revisa que esté corriendo.");
+  }
   return resp.json();
 }
 
@@ -1208,9 +1604,11 @@ $("btnSubir").onclick = async () => {
   const ok = informes.filter(i => i.laboratorio);
   if(!ok.length) return;
   const filas = ok.map(filaCruda);
+  const archivos = ok.map(i => i.archivo).join(", ");
   const pie = $("pieSubir");
   const btn = $("btnSubir");
   btn.disabled = true;
+  pie.className = "pie";
   pie.textContent = "Revisando contra la base de datos…";
   try{
     const prev = await llamarIngest("preview", filas);
@@ -1220,25 +1618,186 @@ $("btnSubir").onclick = async () => {
       r.solicitudes_existentes + " ya existente(s) (se completan analitos que le falten), " +
       r.resultados + " resultado(s), " + r.clientes_nuevos + " cliente(s) nuevo(s), " +
       r.plantas_nuevas + " sucursal(es) nueva(s)." +
-      (r.pendientes_revision ? "\n\n⛔ " + r.pendientes_revision + " fila(s) traen un valor que parece typo o " +
-       "mayúsculas distintas de algo ya cargado (cliente, sucursal, especie, etc.) y no se van a crear directo: " +
-       "quedan en \"Pendientes de revisión\" dentro de DataCore para aprobarlas o corregirlas a mano." : "") +
+      (r.pendientes_revision ? "\n\n⛔ " + r.pendientes_revision + " fila(s) traen un Sold To, Ship To, especie " +
+       "o variedad que no está en Listados: no se cargan, quedan en Ingesta de Datos → Pendientes " +
+       "para reintentarlas o descartarlas." : "") +
       (prev.advertencias.length ? "\n\nAdvertencias:\n" + prev.advertencias.slice(0,8).join("\n") +
        (prev.advertencias.length > 8 ? "\n… y " + (prev.advertencias.length - 8) + " más." : "") : "") +
+      "\n\nLos PDF también se guardarán en las carpetas de auditoría (laboratorio / ship to)." +
       "\n\n¿Confirmar la carga a la base de datos?";
     if(!confirm(msg)){ pie.textContent = "Carga cancelada."; btn.disabled = false; return; }
     pie.textContent = "Subiendo a la base de datos…";
-    const conf = await llamarIngest("confirmar", filas);
+    const conf = await llamarIngest("confirmar", filas, archivos);
     const c = conf.resumen;
-    pie.textContent = "✔ Cargado: " + c.solicitudes_nuevas + " solicitud(es) nueva(s), " +
+    const base = "✔ Cargado: " + c.solicitudes_nuevas + " solicitud(es) nueva(s), " +
       c.solicitudes_existentes + " completada(s), " + c.resultados + " resultado(s) en total." +
-      (c.pendientes_revision ? " ⛔ " + c.pendientes_revision + " quedaron pendientes de revisión en DataCore." : "");
+      (c.pendientes_revision ? " ⛔ " + c.pendientes_revision + " quedaron en Ingesta de Datos → Pendientes." : "");
+    const usos = ok.flatMap(i => i.usadas || []);
+    if(usos.length)   // cuántas veces el sistema corrigió solo con lo que aprendió
+      fetch(API_BASE + "/correcciones/usos", {method: "POST", headers: {"Content-Type": "application/json", ...autorizacion()}, body: JSON.stringify(usos)}).catch(() => {});
+    pie.className = "pie";
+    pie.textContent = base + " Guardando los PDF en auditoría…";
+    const pdf = await subirPdfs(ok);
+    pie.className = "pie resultado " + (pdf.fallas.length ? "err" : "ok");
+    pie.textContent = base + " " + pdf.texto;
   }catch(err){
+    pie.className = "pie resultado err";
     pie.textContent = "⚠ No se pudo subir: " + err.message;
   }finally{
     btn.disabled = false;
   }
 };
+
+/* ============ auditoría interna: amarre con la solicitud (OT) y PDF ============ */
+// OT emitidas que todavía no tienen informe. null = no se pudieron leer (sin
+// permiso o backend viejo): el informe se sube igual, solo que sin amarrar.
+let abiertas = null;
+
+async function cargarAbiertas(){
+  try{
+    const r = await fetch(API_BASE + "/auditoria-interna/solicitudes-abiertas", {headers: autorizacion()});
+    abiertas = r.ok ? await r.json() : null;
+  }catch(e){ abiertas = null; }
+  pintar();
+}
+
+function normLab(s){ return plano(s || "").replace(/[^a-z0-9]/g, ""); }
+function mismoLab(a, b){
+  const x = normLab(a), y = normLab(b);
+  return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
+}
+const mismoTexto = (a, b) => !!a && !!b && plano(a) === plano(b);
+
+/* La OT que calza con este informe: mismo laboratorio y misma planta; si hay
+   varias, la que además coincide en fecha de muestreo. Si queda más de una
+   posible, NO se elige ninguna: se sugiere solo cuando no hay duda, y de todas
+   formas la persona confirma. `tomadas` son las OT ya elegidas por otro
+   informe del mismo lote. */
+function sugerirOT(inf, tomadas){
+  if(!abiertas) return "";
+  const d = inf.datos, fecha = aISO(d["Fecha Muestreo"]);
+  // Si el PDF trae nuestro OT (Quiteca lo escribe en «N° Solicitud»), es el
+  // amarre más seguro: se toma tal cual, sin adivinar por planta y fecha.
+  if(d["OT"]){
+    const exacta = abiertas.find(o => !tomadas.has(o.archivo) && plano(o.numero_solicitud || "") === plano(d["OT"]));
+    if(exacta) return exacta.archivo;
+  }
+  const libres = abiertas.filter(o => !tomadas.has(o.archivo) && mismoLab(d["Laboratorio"], o.laboratorio));
+  const porPlanta = libres.filter(o => mismoTexto(d["Ship To"], o.ship_to));
+  if(porPlanta.length === 1) return porPlanta[0].archivo;
+  const porFecha = porPlanta.filter(o => fecha && o.fecha_muestreo === fecha);
+  return porFecha.length === 1 ? porFecha[0].archivo : "";
+}
+
+function etiquetaOT(o){
+  return (o.numero_solicitud || o.archivo) + " · " + (o.ship_to || "sin planta") +
+    (o.fecha_muestreo ? " · muestreo " + o.fecha_muestreo.split("-").reverse().join("-") : "");
+}
+
+function pintarAmarre(ok){
+  const tabla = $("tablaAmarre");
+  tabla.textContent = "";
+  if(abiertas === null){
+    $("pieAmarre").textContent = "No se pudieron leer las solicitudes emitidas: los informes se guardan igual, sin amarrar a una solicitud.";
+  }else{
+    $("pieAmarre").textContent = "Elige la solicitud (OT) a la que corresponde cada informe. Las sugeridas salen marcadas en verde: confírmalas o cámbialas.";
+  }
+
+  // primero se resuelven las sugerencias, sin repetir una OT entre informes
+  const tomadas = new Set(ok.map(i => i.ot).filter(Boolean));
+  ok.forEach(inf => {
+    if(inf.otElegida || inf.ot) return;
+    const sug = sugerirOT(inf, tomadas);
+    if(sug){ inf.ot = sug; inf.otSugerida = true; tomadas.add(sug); }
+  });
+
+  const cab = tabla.createTHead().insertRow();
+  ["Informe", "Laboratorio", "Ship To", "Solicitud (OT)", "Fecha y hora de envío"].forEach(t => {
+    const th = document.createElement("th"); th.textContent = t; cab.appendChild(th);
+  });
+  const cuerpo = tabla.createTBody();
+  ok.forEach(inf => {
+    const tr = cuerpo.insertRow();
+    [inf.archivo, inf.datos["Laboratorio"], inf.datos["Ship To"]].forEach(v => {
+      const td = tr.insertCell(); td.textContent = v || "—";
+    });
+
+    const tdOt = tr.insertCell(); tdOt.className = "amarre";
+    if(abiertas === null){ tdOt.textContent = "—"; }
+    else{
+      const sel = document.createElement("select");
+      sel.className = "ot" + (inf.ot && inf.otSugerida ? " sugerida" : "");
+      sel.appendChild(new Option("— sin amarrar —", ""));
+      const usadasPorOtros = new Set(ok.filter(o => o !== inf).map(o => o.ot).filter(Boolean));
+      const mias = abiertas.filter(o => mismoLab(inf.datos["Laboratorio"], o.laboratorio));
+      const otras = abiertas.filter(o => !mias.includes(o));
+      [["Mismo laboratorio", mias], ["Otros laboratorios", otras]].forEach(([titulo, lista]) => {
+        if(!lista.length) return;
+        const g = document.createElement("optgroup"); g.label = titulo;
+        lista.forEach(o => {
+          const op = new Option(etiquetaOT(o), o.archivo);
+          op.disabled = usadasPorOtros.has(o.archivo);
+          g.appendChild(op);
+        });
+        sel.appendChild(g);
+      });
+      sel.value = inf.ot || "";
+      sel.onchange = () => { inf.ot = sel.value; inf.otElegida = true; inf.otSugerida = false; pintarAmarre(ok); };
+      tdOt.appendChild(sel);
+      if(inf.ot && inf.otSugerida){
+        const nota = document.createElement("div");
+        nota.className = "pie"; nota.style.marginTop = "3px";
+        nota.textContent = inf.datos["OT"] ? "Según el OT del informe" : "Sugerida (laboratorio, planta, fecha)";
+        tdOt.appendChild(nota);
+      }
+    }
+
+    const tdEnvio = tr.insertCell();
+    const inp = document.createElement("input");
+    inp.type = "datetime-local"; inp.className = "envio"; inp.value = inf.envio || "";
+    inp.onchange = () => { inf.envio = inp.value; };
+    tdEnvio.appendChild(inp);
+  });
+}
+
+$("btnEnvioTodos").onclick = () => {
+  const v = $("envioTodos").value;
+  informes.filter(i => i.laboratorio).forEach(i => { i.envio = v; });
+  pintar();
+};
+
+/* Guarda el PDF de cada informe en su carpeta de auditoría. Corre DESPUÉS de
+   subir a la base: si algo falla acá, los resultados ya están cargados y el
+   informe queda como «PDF pendiente» en el panel. Devuelve el texto para el pie. */
+async function subirPdfs(ok){
+  let bien = 0; const fallas = [];
+  for(const inf of ok){
+    if(!inf.file){ fallas.push(inf.archivo + ": sin archivo"); continue; }
+    const fd = new FormData();
+    fd.append("archivo", inf.file, inf.file.name);
+    fd.append("laboratorio", inf.datos["Laboratorio"] || "");
+    fd.append("ship_to", inf.datos["Ship To"] || "");
+    fd.append("sold_to", inf.datos["Sold To"] || "");
+    fd.append("nro_informe", inf.datos["N° Solicitud"] || "");
+    fd.append("archivo_solicitud", inf.ot || "");
+    fd.append("fecha_envio", inf.envio ? new Date(inf.envio).toISOString() : "");
+    try{
+      const r = await fetch(API_BASE + "/auditoria-interna/informes", {method: "POST", headers: autorizacion(), body: fd});
+      if(!r.ok){
+        let det = "";
+        try{ det = (await r.json()).detail || ""; }catch(e){}
+        throw new Error(det || ("respondió " + r.status));
+      }
+      bien++;
+    }catch(err){ fallas.push(inf.archivo + ": " + err.message); }
+  }
+  cargarAbiertas();   // las OT que ya se amarraron dejan de ofrecerse
+  return {
+    fallas,
+    texto: "📁 " + bien + " PDF guardado(s) en auditoría." +
+      (fallas.length ? " ⚠ No se pudieron guardar " + fallas.length + ": " + fallas.slice(0, 3).join(" · ") : ""),
+  };
+}
 
 $("btnLimpiar").onclick = () => {
   if(informes.length && !confirm("Se quitarán todos los informes cargados.")) return;
@@ -1247,6 +1806,9 @@ $("btnLimpiar").onclick = () => {
 };
 
 pintar();
+cargarAbiertas();
+cargarAprendidas();
+cargarListados();
 </script>
 </body>
 </html>

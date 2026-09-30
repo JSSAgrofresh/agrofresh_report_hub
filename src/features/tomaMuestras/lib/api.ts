@@ -15,6 +15,7 @@ import type {
   ContactoResultado,
   ProductoConfig,
   ProductoInput,
+  EstadoSolicitudesPrueba,
   ReanalisisInput,
   Solicitud,
   SolicitudInput,
@@ -46,6 +47,17 @@ export function eliminarSolicitud(archivo: string) {
   return httpClient.delete<{ estado: string }>(
     `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}`,
   )
+}
+
+/** Si la cuenta puede crear solicitudes de prueba y qué folios le quedan. */
+export function estadoSolicitudesPrueba() {
+  return httpClient.get<EstadoSolicitudesPrueba>('/toma-muestras/solicitudes-prueba/estado')
+}
+
+/** Crea una solicitud de prueba: toma el folio libre más bajo del hueco de su
+ * laboratorio y queda marcada `es_prueba`. No se envía sola. */
+export function crearSolicitudPrueba(datos: SolicitudInput) {
+  return httpClient.post<Solicitud>('/toma-muestras/solicitudes-prueba', datos)
 }
 
 export function listarSolicitudesElegiblesReanalisis() {
@@ -114,7 +126,9 @@ export async function obtenerFotoSolicitud(archivo: string, nombreFoto: string):
 
 /** A quién iría la solicitud según los contactos del laboratorio. */
 export function destinatariosDeSolicitud(archivo: string) {
-  return httpClient.get<{ laboratorio: string; destinatarios: string[] }>(
+  // `cc`/`bcc`: las copias configuradas en Contacto laboratorio (un backend
+  // anterior no las manda).
+  return httpClient.get<{ laboratorio: string; destinatarios: string[]; cc?: string[]; bcc?: string[] }>(
     `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/destinatarios`,
   )
 }
@@ -122,7 +136,7 @@ export function destinatariosDeSolicitud(archivo: string) {
 /** Contactos configurados para recibir solicitudes de un laboratorio dado.
  * Para usar en el formulario antes de que exista el archivo de la solicitud. */
 export function destinatariosParaLaboratorio(laboratorio: string) {
-  return httpClient.get<{ destinatarios: string[] }>(
+  return httpClient.get<{ destinatarios: string[]; cc?: string[]; bcc?: string[] }>(
     `/toma-muestras/config/destinatarios-solicitud?laboratorio=${encodeURIComponent(laboratorio)}`,
   )
 }

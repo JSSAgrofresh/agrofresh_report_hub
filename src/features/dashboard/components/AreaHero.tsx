@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { AreaConfig } from '@/constants/areas'
+import { tinteDeFoto } from '../lib/fondoEspecie'
 import styles from './AreaHero.module.css'
 
 interface AreaHeroProps {
@@ -8,8 +9,9 @@ interface AreaHeroProps {
   descripcion: string
   /** Reemplaza el fondo del área (ej. Report cambiando la foto según la fruta filtrada). */
   fondo?: string
-  /** Color del degradado. Por defecto el de marca del área; se pasa distinto
-   * cuando el fondo es una foto con su propio tono (ver fondoParaEspecie). */
+  /** Color del degradado. Si no se pasa, sale de la foto (cerezas -> rojo
+   * cereza, ver tinteDeFoto) y, si la foto no tiene tono propio, del color de
+   * marca del área. */
   tinte?: string
 }
 
@@ -19,11 +21,12 @@ interface AreaHeroProps {
  * legibilidad del texto ni con las tarjetas que van debajo.
  */
 export function AreaHero({ area, titulo, descripcion, fondo, tinte }: AreaHeroProps) {
-  const oscuro = tinte ?? area.colorOscuro
+  const imagen = fondo ?? area.fondo
+  const oscuro = tinte ?? tinteDeFoto(imagen) ?? area.colorOscuro
   const estilo: CSSProperties = {
     backgroundImage: [
       `linear-gradient(100deg, ${oscuro}F0 0%, ${oscuro}CC 32%, ${oscuro}66 68%, ${oscuro}33 100%)`,
-      `url(${fondo ?? area.fondo})`,
+      `url(${imagen})`,
     ].join(', '),
   }
 

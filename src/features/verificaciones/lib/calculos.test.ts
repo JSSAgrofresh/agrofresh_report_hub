@@ -206,26 +206,40 @@ describe('inyector', () => {
 
 describe('detector', () => {
   it('todo en rango', () => {
-    expect(calcularDetector(0.86, 'Sí', 20.3, 0, 1, 19, 22).resultado).toBe('Aceptable')
+    expect(calcularDetector(0.86, 'ECD_Pes', 20.3, 0, 1).resultado).toBe('Aceptable')
   })
 
-  it('output fuera de rango tumba la sección', () => {
-    const r = calcularDetector(0.86, 'Sí', 25, 0, 1, 19, 22)
-    expect(r.resultado_output).toBe('No aceptable')
+  it.each([25, 10, 20.3, -3])('el output %s es solo registro y no decide', (output) => {
+    const r = calcularDetector(0.86, 'ECD_Pes', output, 0, 1)
+    expect(r.resultado_output).toBe('Registrado')
+    expect(r.resultado).toBe('Aceptable')
+  })
+
+  it('sin output no se registra nada', () => {
+    expect(calcularDetector(0.86, 'ECD_Pes', null, 0, 1).resultado_output).toBe('')
+  })
+
+  it('el output solo no aprueba la sección', () => {
+    expect(calcularDetector(null, '', 20.3, 0, 1).resultado).toBe('')
+  })
+
+  it('voltaje fuera de rango tumba la sección', () => {
+    const r = calcularDetector(1.5, 'ECD_Pes', 20.3, 0, 1)
+    expect(r.resultado_voltaje).toBe('No aceptable')
     expect(r.resultado).toBe('No aceptable')
   })
 
   it('método vacío no concluye (sin medir)', () => {
     // Antes era Sí/No; ahora es texto libre: vacío = sin medir, cualquier nombre = aceptable.
-    expect(calcularDetector(0.86, '', 20.3, 0, 1, 19, 22).resultado_metodo).toBe('')
+    expect(calcularDetector(0.86, '', 20.3, 0, 1).resultado_metodo).toBe('')
   })
 
   it('cualquier nombre de método da aceptable', () => {
-    expect(calcularDetector(0.86, 'ECD', 20.3, 0, 1, 19, 22).resultado_metodo).toBe('Aceptable')
+    expect(calcularDetector(0.86, 'ECD', 20.3, 0, 1).resultado_metodo).toBe('Aceptable')
   })
 
   it('vacío no concluye', () => {
-    expect(calcularDetector(null, '', null, 0, 1, 19, 22).resultado).toBe('')
+    expect(calcularDetector(null, '', null, 0, 1).resultado).toBe('')
   })
 })
 
@@ -338,7 +352,7 @@ describe('un registro guardado, vuelto formulario', () => {
       output_detector: 20.3,
       resultado_voltaje: 'Aceptable',
       resultado_metodo: 'Aceptable',
-      resultado_output: 'Aceptable',
+      resultado_output: 'Registrado',
       resultado: 'Aceptable',
       metodo_nombre: '',
       observacion: '',
