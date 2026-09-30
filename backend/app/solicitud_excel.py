@@ -115,13 +115,16 @@ _GRUPOS_EXPORTACION_FIJOS_COLA: list[tuple[str, list[tuple[str, str, str]]]] = [
 ]
 
 
-def _analitos_fungicidas(analitos: list[dict]) -> list[dict]:
+def _analitos_fungicidas(
+    analitos: list[dict],
+    laboratorios: tuple[str, ...] = ("QUITECA", "AGROFRESH"),
+) -> list[dict]:
     """Los analitos vigentes de QUITECA y AGROFRESH (residuos fungicidas),
     uno por código -los dos laboratorios comparten el mismo catálogo de
     fungicidas (FDL, PYR, TEBU...), así que la matriz de exportación lleva
     una columna por analito y no una por laboratorio."""
     ordenados = sorted(
-        (a for a in analitos if a.get("laboratorio") in ("QUITECA", "AGROFRESH") and a.get("activo", True)),
+        (a for a in analitos if a.get("laboratorio") in laboratorios and a.get("activo", True)),
         key=lambda a: (a.get("orden", 0), a.get("nombre", "")),
     )
     vistos: dict[str, dict] = {}
@@ -132,13 +135,16 @@ def _analitos_fungicidas(analitos: list[dict]) -> list[dict]:
     return list(vistos.values())
 
 
-def _grupo_fungicidas(analitos: list[dict]) -> list[tuple[str, str, str]]:
+def _grupo_fungicidas(
+    analitos: list[dict],
+    laboratorios: tuple[str, ...] = ("QUITECA", "AGROFRESH"),
+) -> list[tuple[str, str, str]]:
     """Columnas del grupo QUITECA/AGROFRESH: una por analito configurado más
     su columna "<CODIGO> Dosis" inmediatamente después (ej. FDL, FDL Dosis,
     PYR, PYR Dosis...), calculadas dinámicamente del catálogo real en vez de
     una lista fija -así un analito nuevo o retirado no requiere tocar código."""
     columnas: list[tuple[str, str, str]] = []
-    for a in _analitos_fungicidas(analitos):
+    for a in _analitos_fungicidas(analitos, laboratorios):
         codigo = str(a.get("codigo") or "")
         columnas.append(("analito", codigo, codigo))
         columnas.append(("analito_dosis", codigo, f"{codigo} Dosis"))
@@ -149,11 +155,34 @@ def _grupo_fungicidas(analitos: list[dict]) -> list[tuple[str, str, str]]:
     return columnas
 
 
-def _grupos_exportacion(analitos: list[dict]) -> list[tuple[str, list[tuple[str, str, str]]]]:
+def _grupos_exportacion(
+    analitos: list[dict],
+    *,
+    laboratorios: tuple[str, ...] | None = None,
+    columnas_tras_solicitud: list[tuple[str, str]] | None = None,
+) -> list[tuple[str, list[tuple[str, str, str]]]]:
+    """Grupos de columnas de la matriz.
+
+    Sin argumentos es la matriz completa (todos los laboratorios). Con
+    `laboratorios` sale solo el grupo de residuos de esos laboratorios y se
+    omiten los grupos fijos de los demás (DIAGNOFRUIT, ALS): es la descarga
+    de un único laboratorio, con el mismo formato que la base general.
+    `columnas_tras_solicitud` agrega columnas generales (clave, etiqueta)
+    justo después de N° Solicitud.
+    """
+    generales = [("general", clave, etiqueta) for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS]
+    if columnas_tras_solicitud:
+        pos = next((i for i, (_, clave, _e) in enumerate(generales) if clave == "numero_solicitud"), -1) + 1
+        generales[pos:pos] = [("general", clave, etiqueta) for clave, etiqueta in columnas_tras_solicitud]
+    if laboratorios is None:
+        return [
+            ("GENERAL", generales),
+            ("QUITECA / AGROFRESH — RESIDUOS FUNGICIDAS", _grupo_fungicidas(analitos)),
+            *_GRUPOS_EXPORTACION_FIJOS_COLA,
+        ]
     return [
-        ("GENERAL", [("general", clave, etiqueta) for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS]),
-        ("QUITECA / AGROFRESH — RESIDUOS FUNGICIDAS", _grupo_fungicidas(analitos)),
-        *_GRUPOS_EXPORTACION_FIJOS_COLA,
+        ("GENERAL", generales),
+        (f"{' / '.join(laboratorios)} — RESIDUOS FUNGICIDAS", _grupo_fungicidas(analitos, laboratorios)),
     ]
 
 
@@ -252,15 +281,24 @@ def _valor_guardado(campos_lab: dict, analito: dict):
     return None
 
 
-def construir_workbook_exportacion(solicitudes: list[dict], analitos: list[dict]) -> Workbook:
+def construir_workbook_exportacion(
+    solicitudes: list[dict],
+    analitos: list[dict],
+    *,
+    laboratorios: tuple[str, ...] | None = None,
+    columnas_tras_solicitud: list[tuple[str, str]] | None = None,
+    titulo_hoja: str = "Solicitudes",
+) -> Workbook:
     """Genera la matriz oficial horizontal: dos filas de encabezado y una
     fila por solicitud. El Excel individual llama a esta misma función, por
     lo que sólo se diferencia en que contiene una única fila de datos."""
     wb = Workbook()
     ws = wb.active
-    ws.title = "Solicitudes"
+    ws.title = titulo_hoja
 
-    grupos_exportacion = _grupos_exportacion(analitos)
+    grupos_exportacion = _grupos_exportacion(
+        analitos, laboratorios=laboratorios, columnas_tras_solicitud=columnas_tras_solicitud,
+    )
     columnas = [columna for _, grupo in grupos_exportacion for columna in grupo]
     # Uno por código, priorizando el analito de cromatografía (misma unidad
     # en QUITECA y AGROFRESH) para que "<CODIGO> Dosis" siempre encuentre el
@@ -268,7 +306,9 @@ def construir_workbook_exportacion(solicitudes: list[dict], analitos: list[dict]
     analitos_por_codigo = {
         str(a.get("codigo") or ""): a for a in analitos if a.get("activo", True)
     }
-    analitos_por_codigo.update({str(a.get("codigo") or ""): a for a in _analitos_fungicidas(analitos)})
+    analitos_por_codigo.update(
+        {str(a.get("codigo") or ""): a for a in _analitos_fungicidas(analitos, laboratorios or ("QUITECA", "AGROFRESH"))}
+    )
 
     # Fila 1: bandas agrupadas como en el formato maestro.
     columna_inicio = 1

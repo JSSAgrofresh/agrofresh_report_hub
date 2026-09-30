@@ -31,7 +31,12 @@ from .gc_parser import (
 from .informe_pdf import generar_informe_pdf
 from .laboratorios import _leer_analitos as _leer_analitos_lab
 from .mapeo import LABORATORIO_CATALOGO, calcular_semana
-from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS, _analitos_fungicidas, _valor_guardado
+from .solicitud_excel import (
+    CAMPOS_GENERALES_ETIQUETAS,
+    _analitos_fungicidas,
+    _valor_guardado,
+    construir_workbook_exportacion,
+)
 from .solicitud_parser import parsear_solicitudes_html
 from .storage import _carpeta_raiz as _carpeta_raiz_storage, _nombre_seguro
 from .toma_muestras import carpeta_de_cliente, leer_solicitudes_de
@@ -1340,6 +1345,58 @@ def _archivar_informe(campos: dict[str, str], folio: str, pdf_bytes: bytes) -> N
         r2.subir(key, pdf_bytes, "application/pdf")
     except Exception:
         logging.getLogger(__name__).exception("No se pudo archivar el informe %s en R2", folio)
+
+
+class FilaConMuestraIn(BaseModel):
+    """Una solicitud ya cruzada con su muestra, tal como la lista la pantalla
+    de Ingreso al laboratorio."""
+    campos: dict[str, str]
+    analitos_solicitados: list[str]
+    codigo_muestra: str | None = None
+    fecha_recepcion: str | None = None
+    hora_recepcion: str | None = None
+
+
+@router.post("/excel-con-muestra")
+def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingResponse:
+    """Base de las solicitudes de AgroFresh ya cruzadas con su muestra.
+
+    Mismo formato que la base general de solicitudes (columnas generales,
+    un analito y su dosis por cada fungicida, Tipo Aplicación, Gasto y los
+    datos del ensayo RYD), pero solo con los analitos de AgroFresh y con
+    N° Muestra y la recepción a continuación del N° Solicitud.
+    """
+    solicitudes: list[dict] = []
+    for fila in filas:
+        datos: dict = {clave: fila.campos.get(etiqueta) or None for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS}
+        datos["codigo_muestra"] = fila.codigo_muestra
+        datos["fecha_recepcion"] = _fecha_iso_a_ddmmyyyy(fila.fecha_recepcion)
+        datos["hora_recepcion"] = fila.hora_recepcion
+        datos["analitos_solicitados"] = fila.analitos_solicitados
+        # Dosis, Tipo Aplicación, Gasto y datos del ensayo viajan en `campos`
+        # con su etiqueta humana, igual que en campos_laboratorio.
+        datos["campos_laboratorio"] = fila.campos
+        solicitudes.append(datos)
+
+    wb = construir_workbook_exportacion(
+        solicitudes,
+        _leer_analitos_lab(),
+        laboratorios=("AGROFRESH",),
+        columnas_tras_solicitud=[
+            ("codigo_muestra", "N° Muestra"),
+            ("fecha_recepcion", "Fecha Recepción"),
+            ("hora_recepcion", "Hora Recepción"),
+        ],
+        titulo_hoja="Con muestra",
+    )
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="solicitudes_con_muestra.xlsx"'},
+    )
 
 
 @router.post("/informes-pdf")

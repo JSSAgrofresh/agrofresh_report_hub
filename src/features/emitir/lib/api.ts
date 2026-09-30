@@ -48,6 +48,17 @@ export function descargarExcelCruce(filas: FilaCruce[]) {
   return httpClient.postArchivo('/emitir/cromatografia/excel', filas)
 }
 
+export function descargarExcelConMuestra(solicitudes: Solicitud[]) {
+  const filas = solicitudes.map((s) => ({
+    campos: s.campos,
+    analitos_solicitados: s.analitos_solicitados,
+    codigo_muestra: s.codigo_muestra ?? null,
+    fecha_recepcion: s.fecha_recepcion ?? null,
+    hora_recepcion: s.hora_recepcion ?? null,
+  }))
+  return httpClient.postArchivo('/emitir/cromatografia/excel-con-muestra', filas)
+}
+
 export function descargarInformesPDF(filas: FilaCruce[]) {
   return httpClient.postArchivoConNombre('/emitir/cromatografia/informes-pdf', filas)
 }
