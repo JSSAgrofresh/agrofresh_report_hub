@@ -216,7 +216,7 @@ llevan el campo `envio`: `para` (sin valor = `para`, como los antiguos), `cc` o
 `bcc`. `contactos_de_solicitud_por_envio` los reparte; el creador de la
 solicitud va siempre en CCO aparte. Nadie va dos veces (se deduplica sin
 mayúsculas). **Sin nadie en Para** (el laboratorio no tiene lista de distribución) rige la
-lista de respaldo (`contactos_de_solicitud_de`): Para = Jorge y Claudia
+lista de respaldo (`contactos_de_solicitud_de`): Para = Jorge y Claudia Guerrero
 (`DESTINATARIOS_SIN_LISTA`), Copia = los contactos `resultado_interno`
 (técnicos y comerciales) del Ship To. **Productos**: con más de 2, el Excel, el
 PDF, el JSON y el correo dicen `MIXTO` (`producto_utilizado`); la lista real va

@@ -1542,12 +1542,12 @@ def contactos_de_solicitud_por_envio(laboratorio: str) -> dict[str, list[str]]:
 # Cuando el laboratorio no tiene lista de distribución de solicitudes, el
 # correo va Para a estas dos personas y con copia a los técnicos y comerciales
 # de la planta (los contactos internos de "Resultado a clientes").
-DESTINATARIOS_SIN_LISTA = ["JORGE.SANDOVAL@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM"]
+DESTINATARIOS_SIN_LISTA = ["JORGE.SANDOVAL@AGROFRESH.COM", "CGUERRERO@AGROFRESH.COM"]
 
 
 def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[str]]:
     """Como `contactos_de_solicitud_por_envio`, pero si el laboratorio no
-    tiene a nadie en Para arma la lista de respaldo: Para = Jorge y Claudia,
+    tiene a nadie en Para arma la lista de respaldo: Para = Jorge y Claudia Guerrero,
     Copia = los técnicos y comerciales configurados para el Ship To."""
     por_envio = contactos_de_solicitud_por_envio(laboratorio)
     if por_envio["to"]:
@@ -1976,7 +1976,7 @@ def enviar_solicitud_por_correo(
     # Toda solicitud Actimist copia a estos dos referentes de producto.
     tipo_aplicacion = str(datos.get("campos_laboratorio", {}).get("Tipo Aplicación") or "")
     if tipo_aplicacion == "Actimist":
-        candidatos = candidatos + ["CJIMENEZ@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM"]
+        candidatos = candidatos + ["CJIMENEZ@AGROFRESH.COM", "CGUERRERO@AGROFRESH.COM"]
     if body.destinatario and body.destinatario.strip():
         candidatos.append(body.destinatario.strip())
     candidatos.extend(body.destinatarios_adicionales)
