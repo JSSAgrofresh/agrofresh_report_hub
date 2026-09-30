@@ -1542,12 +1542,12 @@ def contactos_de_solicitud_por_envio(laboratorio: str) -> dict[str, list[str]]:
 # Cuando el laboratorio no tiene lista de distribución de solicitudes, el
 # correo va Para a estas dos personas y con copia a los técnicos y comerciales
 # de la planta (los contactos internos de "Resultado a clientes").
-DESTINATARIOS_SIN_LISTA = ["JORGE.SANDOVAL@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM"]
+DESTINATARIOS_SIN_LISTA = ["JORGE.SANDOVAL@AGROFRESH.COM", "CGUERRERO@AGROFRESH.COM"]
 
 
 def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[str]]:
     """Como `contactos_de_solicitud_por_envio`, pero si el laboratorio no
-    tiene a nadie en Para arma la lista de respaldo: Para = Jorge y Claudia,
+    tiene a nadie en Para arma la lista de respaldo: Para = Jorge y Claudia Guerrero,
     Copia = los técnicos y comerciales configurados para el Ship To."""
     por_envio = contactos_de_solicitud_por_envio(laboratorio)
     if por_envio["to"]:
@@ -1691,6 +1691,12 @@ def destinatarios_resultado_por_tipo(
         elif contacto.get("tipo") == "resultado_interno":
             destino = "bcc" if contacto.get("tipo_copia") == "bcc" else "cc"
             salida[destino].append(email)
+    if not salida["to"]:
+        # Sin lista de distribución para este Ship To: Para = Jorge y Claudia;
+        # los técnicos y comerciales (internos) ya quedaron en copia arriba.
+        salida["to"] = list(DESTINATARIOS_SIN_LISTA)
+        salida["cc"] = [e for e in salida["cc"] if e.casefold() not in {d.casefold() for d in DESTINATARIOS_SIN_LISTA}]
+        salida["bcc"] = [e for e in salida["bcc"] if e.casefold() not in {d.casefold() for d in DESTINATARIOS_SIN_LISTA}]
     return salida
 
 
@@ -1839,6 +1845,12 @@ def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
             bcc.append(e)
         else:
             cc.append(e)
+    if not para:
+        # Misma regla de respaldo que `destinatarios_resultado_por_tipo`.
+        respaldo = {d.casefold() for d in DESTINATARIOS_SIN_LISTA}
+        para = list(DESTINATARIOS_SIN_LISTA)
+        cc = [e for e in cc if e.casefold() not in respaldo]
+        bcc = [e for e in bcc if e.casefold() not in respaldo]
     datos_pdf["destinatarios_resultados_detalle"] = {"para": para, "cc": cc, "bcc": bcc}
     return datos_pdf
 
@@ -1973,10 +1985,11 @@ def enviar_solicitud_por_correo(
     # cuadro de envío se agregan sólo a este correo y no alteran el mantenedor.
     por_envio = contactos_de_solicitud_de(lab, datos)
     candidatos = list(por_envio["to"])
-    # Toda solicitud Actimist copia a estos dos referentes de producto.
+    # Toda solicitud Actimist copia a estos dos referentes de producto; las
+    # de prueba no, para no llenarles la bandeja con correos de ensayo.
     tipo_aplicacion = str(datos.get("campos_laboratorio", {}).get("Tipo Aplicación") or "")
-    if tipo_aplicacion == "Actimist":
-        candidatos = candidatos + ["CJIMENEZ@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM"]
+    if tipo_aplicacion == "Actimist" and not datos.get("es_prueba"):
+        candidatos = candidatos + ["CJIMENEZ@AGROFRESH.COM", "CGUERRERO@AGROFRESH.COM"]
     if body.destinatario and body.destinatario.strip():
         candidatos.append(body.destinatario.strip())
     candidatos.extend(body.destinatarios_adicionales)
