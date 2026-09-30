@@ -1592,10 +1592,17 @@ def contactos_de_solicitud_por_envio(laboratorio: str) -> dict[str, list[str]]:
 DESTINATARIOS_SIN_LISTA = ["JORGE.SANDOVAL@AGROFRESH.COM", "CGUERRERO@AGROFRESH.COM"]
 
 
+# Las solicitudes de prueba de Quiteca NUNCA van a los contactos reales del
+# laboratorio: solo a estas dos direcciones (el portal de Quiteca y Jorge).
+DESTINATARIOS_PRUEBA_QUITECA = ["agrofresh@portal.quiteca.cl", "jorge.sandoval@agrofresh.com"]
+
+
 def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[str]]:
     """Como `contactos_de_solicitud_por_envio`, pero si el laboratorio no
     tiene a nadie en Para arma la lista de respaldo: Para = Jorge y Claudia Guerrero,
     Copia = los técnicos y comerciales configurados para el Ship To."""
+    if datos.get("es_prueba") and str(laboratorio).strip().upper() == "QUITECA":
+        return {"to": list(DESTINATARIOS_PRUEBA_QUITECA), "cc": [], "bcc": []}
     por_envio = contactos_de_solicitud_por_envio(laboratorio)
     if por_envio["to"]:
         return por_envio
