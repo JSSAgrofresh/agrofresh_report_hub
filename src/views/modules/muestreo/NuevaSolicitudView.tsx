@@ -53,6 +53,24 @@ const SOLICITANTE_FIJO = 'AGROFRESH'
 const TIPO_LINEA_PROCESO = 'Línea de proceso'
 const TIPO_ACTIMIST = 'Actimist'
 const TIPO_RYD = 'RYD'
+const LAB_AGROFRESH = 'AGROFRESH'
+
+/** Claves con las que RYD de AgroFresh guarda sus dos datos de ensayo en
+ * `campos_laboratorio` (el backend los lleva a columnas al subir a la base). */
+const ETIQUETA_CODIGO_ENSAYO = 'Código de Ensayo'
+const ETIQUETA_NRO_ENSAYO = 'N° Ensayo'
+
+/** Las posiciones de muestreo se guardan en un solo texto, separadas por
+ * coma: es el formato que ya leen el Excel, el PDF y Report. */
+const SEPARADOR_POSICIONES = ', '
+
+function partirPosiciones(texto: string | null | undefined): string[] {
+  const posiciones = (texto ?? '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+  return posiciones.length > 0 ? posiciones : ['']
+}
 
 /** Tipo de Muestra es una lista cerrada: el laboratorio procesa estas tres
  * matrices y nada más. Antes era texto libre y llegaban variantes ("fruta",
@@ -168,6 +186,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [generadoPor, setGeneradoPor] = useState(() => user?.nombre ?? '')
   const [tipoAplicacionSel, setTipoAplicacionSel] = useState('')
   const [general, setGeneral] = useState<Record<string, string>>({})
+  // Solo RYD de AgroFresh: varias posiciones de muestreo + código y N° de ensayo.
+  const [posiciones, setPosiciones] = useState<string[]>([''])
+  const [codigoEnsayo, setCodigoEnsayo] = useState('')
+  const [nroEnsayo, setNroEnsayo] = useState('')
   const [soldTo, setSoldTo] = useState('')
   const [shipTo, setShipTo] = useState('')
   const [lineaProceso, setLineaProceso] = useState('')
@@ -323,6 +345,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       observacion: s.observacion ?? '',
     })
     setTipoAplicacionSel(s.campos_laboratorio['Tipo Aplicación'] ?? '')
+    setPosiciones(partirPosiciones(s.posicion_muestreo))
+    setCodigoEnsayo(s.campos_laboratorio[ETIQUETA_CODIGO_ENSAYO] ?? '')
+    setNroEnsayo(s.campos_laboratorio[ETIQUETA_NRO_ENSAYO] ?? '')
   }, [modo, solicitudOriginal, camposConfig])
 
   // Las variedades dependen de la especie y se cargan aparte (piden el id de
@@ -605,6 +630,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const esLineaProceso = tipoAplicacionSel === TIPO_LINEA_PROCESO
   const esActimist = tipoAplicacionSel === TIPO_ACTIMIST
   const esRYD = tipoAplicacionSel === TIPO_RYD
+  // RYD pide datos extra solo para AgroFresh: los otros laboratorios siguen
+  // con el formulario de siempre.
+  const esRYDAgrofresh = esRYD && laboratorio === LAB_AGROFRESH
   const camposTipoAplicacionActivos = useMemo(
     () =>
       camposTipoAplicacion
@@ -635,11 +663,18 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     }
   }
 
+  function limpiarDatosRYD() {
+    setPosiciones([''])
+    setCodigoEnsayo('')
+    setNroEnsayo('')
+  }
+
   function alCambiarLaboratorio(v: string) {
     // Al cambiar de laboratorio se descartan los analitos, producto y
     // valores del laboratorio anterior: no deben quedar seleccionados ni
     // enviarse en la solicitud final.
     setLaboratorio(v)
+    if (v !== LAB_AGROFRESH) limpiarDatosRYD()
     setSeleccionAnalitos({})
     setValoresAnalitos({})
     setDosisSinIndicar({})
@@ -654,6 +689,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     // adicionales, analitos y producto) no deben quedar con valores de un
     // tipo que ya no aplica.
     setTipoAplicacionSel(v)
+    limpiarDatosRYD()
     setValoresTipoAplicacion({})
     setLineaProceso('')
     setProductosSeleccionados([])
@@ -744,6 +780,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     if (clave === 'ship_to') return shipTo
     if (clave === 'linea_proceso') return lineaProceso
     if (clave === 'producto_utilizado') return productosSeleccionados.join(', ')
+    if (clave === 'posicion_muestreo' && esRYDAgrofresh) return posiciones.join('')
     return general[clave] ?? ''
   }
 
@@ -842,6 +879,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     for (const campo of camposTipoAplicacionActivos) {
       camposLabFinal[campo.etiqueta] = (valoresTipoAplicacion[campo.clave] ?? '').trim()
     }
+    if (esRYDAgrofresh) {
+      camposLabFinal[ETIQUETA_CODIGO_ENSAYO] = codigoEnsayo.trim()
+      camposLabFinal[ETIQUETA_NRO_ENSAYO] = nroEnsayo.trim()
+    }
     if (laboratorio === 'ALS') {
       alsPesticidas.forEach((p, i) => {
         if (p.analito.trim()) camposLabFinal[`Analito Pesticida ${i + 1}`] = p.analito.trim()
@@ -863,7 +904,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       csg_productor: (esLineaProceso || esRYD) ? general.csg_productor?.trim() || null : null,
       csg_packing: (esLineaProceso || esRYD) ? general.csg_packing?.trim() || null : null,
       lote: general.lote?.trim() || null,
-      posicion_muestreo: general.posicion_muestreo?.trim() || null,
+      posicion_muestreo: esRYDAgrofresh
+        ? posiciones.map((p) => p.trim()).filter(Boolean).join(SEPARADOR_POSICIONES) || null
+        : general.posicion_muestreo?.trim() || null,
       numero_camara: esActimist ? general.numero_camara?.trim() || null : null,
       numero_orden: esActimist ? general.numero_orden?.trim() || null : null,
       kilos_procesados:
@@ -988,6 +1031,51 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             disabled={!soldTo}
           />
         </div>
+      )
+    }
+    if (campo.clave === 'posicion_muestreo' && esRYDAgrofresh) {
+      return (
+        <Fragment key={campo.clave}>
+          <div className={styles.campo}>
+            {etiqueta}
+            {posiciones.map((valor, i) => (
+              <div className={styles.filaPosicion} key={i}>
+                <input
+                  value={valor}
+                  aria-label={`Posición de muestreo ${i + 1}`}
+                  onChange={(e) =>
+                    setPosiciones((ps) => ps.map((p, j) => (j === i ? e.target.value : p)))
+                  }
+                />
+                {posiciones.length > 1 && (
+                  <button
+                    type="button"
+                    className={styles.botonPosicion}
+                    aria-label={`Quitar posición ${i + 1}`}
+                    onClick={() => setPosiciones((ps) => ps.filter((_, j) => j !== i))}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              className={styles.agregarPosicion}
+              onClick={() => setPosiciones((ps) => [...ps, ''])}
+            >
+              + Agregar posición
+            </button>
+          </div>
+          <label className={styles.campo}>
+            <span>{ETIQUETA_CODIGO_ENSAYO}</span>
+            <input value={codigoEnsayo} onChange={(e) => setCodigoEnsayo(e.target.value)} />
+          </label>
+          <label className={styles.campo}>
+            <span>{ETIQUETA_NRO_ENSAYO}</span>
+            <input value={nroEnsayo} onChange={(e) => setNroEnsayo(e.target.value)} />
+          </label>
+        </Fragment>
       )
     }
     if (campo.clave === 'linea_proceso') {

@@ -144,6 +144,8 @@ def _grupo_fungicidas(analitos: list[dict]) -> list[tuple[str, str, str]]:
         columnas.append(("analito_dosis", codigo, f"{codigo} Dosis"))
     columnas.append(("campo", "Tipo Aplicación", "Tipo Aplicación"))
     columnas.append(("campo", "Gasto", "Gasto"))
+    columnas.append(("campo", "Código de Ensayo", "Código de Ensayo"))
+    columnas.append(("campo", "N° Ensayo", "N° Ensayo"))
     return columnas
 
 
