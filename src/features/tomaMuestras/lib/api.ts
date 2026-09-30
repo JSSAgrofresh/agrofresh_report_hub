@@ -1,9 +1,10 @@
 import { httpClient } from '@/services/http/client'
-import { descargarArchivo } from '@/services/http/descargar'
+import { descargarArchivo, guardarBlob } from '@/services/http/descargar'
 import type {
   AnalitoConfig,
   AnalitoInput,
   CampoConfig,
+  ConfigEnvioAutomatico,
   CampoTipoAplicacionConfig,
   CampoTipoAplicacionInput,
   CategoriaAnaliticaConfig,
@@ -185,14 +186,29 @@ export function descargarTodasLasSolicitudes(archivos?: string[]) {
 // --- Configuración: envío automático al guardar --------------------------
 
 export function obtenerEnvioAutomatico() {
-  return httpClient.get<{ activo: boolean }>('/toma-muestras/config/envio-automatico')
+  return httpClient.get<ConfigEnvioAutomatico>('/toma-muestras/config/envio-automatico')
 }
 
-export function actualizarEnvioAutomatico(activo: boolean, password: string) {
-  return httpClient.put<{ activo: boolean }>('/toma-muestras/config/envio-automatico', {
+/** Sin `tipo` cambia la regla general; con `tipo`, la de ese tipo de aplicación
+ * (`heredar` la quita y vuelve a regir la general). */
+export function actualizarEnvioAutomatico(
+  activo: boolean,
+  password: string,
+  opciones: { tipo?: string; heredar?: boolean } = {},
+) {
+  return httpClient.put<ConfigEnvioAutomatico>('/toma-muestras/config/envio-automatico', {
     activo,
     password,
+    ...opciones,
   })
+}
+
+/** Los PDF de varias solicitudes en un solo .zip. */
+export async function descargarPdfsZip(archivos: string[]) {
+  const { blob, nombre } = await httpClient.postArchivoConNombre('/toma-muestras/solicitudes/pdf-zip', {
+    archivos,
+  })
+  guardarBlob(blob, nombre ?? 'Solicitudes_PDF.zip')
 }
 
 // --- Configuración: campos generales -------------------------------------
