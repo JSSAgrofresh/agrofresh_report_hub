@@ -75,6 +75,8 @@ class RegistroIn(BaseModel):
     # Datos del informe que ya pide Trace en pantalla.
     cliente: str | None = None
     planta: str | None = None
+    ubicacion: str | None = None
+    especie: str | None = None
     equipo: str | None = None
     responsable: str | None = None
     limites: dict[str, Any] | None = None
@@ -162,6 +164,8 @@ def guardar_registro(datos: RegistroIn) -> dict[str, Any]:
             "guardado_en": datetime.now(tz=timezone.utc).isoformat(),
             "cliente": datos.cliente,
             "planta": datos.planta,
+            "ubicacion": datos.ubicacion,
+            "especie": datos.especie,
             "equipo": datos.equipo,
             "responsable": datos.responsable,
             "limites": datos.limites,
