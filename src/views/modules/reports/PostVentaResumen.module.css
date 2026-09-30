@@ -357,3 +357,70 @@ button.equipoFila:disabled {
     gap: var(--space-2);
   }
 }
+
+/* ── pulido visual: todo entra en cascada y responde al mouse ── */
+.tile {
+  animation: pvEntra 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.tile:nth-child(2) { animation-delay: 50ms; }
+.tile:nth-child(3) { animation-delay: 100ms; }
+.tile:nth-child(4) { animation-delay: 150ms; }
+.tile:nth-child(5) { animation-delay: 200ms; }
+.tile:nth-child(6) { animation-delay: 250ms; }
+
+.tile:hover {
+  box-shadow: 0 10px 24px rgba(18, 77, 99, 0.22);
+}
+
+.tileValor {
+  font-size: 1.85rem;
+  font-weight: 800;
+}
+
+.barra {
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--color-surface), color-mix(in srgb, var(--color-bg) 70%, var(--color-surface)));
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  animation: pvEntra 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 300ms;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+/* Filete de color arriba de cada gráfico, el mismo azul/naranjo del Post Venta. */
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, #1c7fa6, #4aade0 60%, #e8c32e);
+  opacity: 0.85;
+}
+
+.panel:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.equipoFila {
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.equipoFila:hover {
+  transform: translateX(3px);
+}
+
+@keyframes pvEntra {
+  from { opacity: 0; transform: translateY(12px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile,
+  .panel {
+    animation: none;
+  }
+}

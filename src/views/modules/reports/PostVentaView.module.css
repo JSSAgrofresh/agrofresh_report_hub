@@ -451,3 +451,30 @@
   font-size: 0.78rem;
   color: var(--color-text-faint);
 }
+
+/* --- pulido visual --- */
+.panelLista {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.tituloPanel {
+  background: linear-gradient(90deg, rgba(28, 127, 166, 0.1), transparent);
+}
+
+.itemCarga {
+  transition: background 0.15s ease, transform 0.15s ease, padding-left 0.15s ease;
+}
+
+.itemCarga:hover {
+  background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+  padding-left: 1rem;
+}
+
+.cabeceraDetalle {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  background:
+    radial-gradient(520px 120px at 0% 0%, rgba(74, 173, 224, 0.12), transparent 65%),
+    var(--color-surface);
+}

@@ -490,3 +490,113 @@
   border-radius: 2px;
   padding: 0;
 }
+
+/* ── pulido visual: panel flotante con tarjetas que entran y responden ── */
+
+.panel {
+  border-radius: 18px;
+  background:
+    radial-gradient(420px 140px at 0% 0%, rgba(109, 173, 60, 0.12), transparent 70%),
+    var(--color-bg);
+}
+
+.cabecera {
+  padding: 18px 18px 12px;
+}
+
+.titulo {
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.filtros {
+  padding: 10px 16px;
+  border-bottom: none;
+}
+
+.filtroBtn {
+  padding: 5px 12px;
+  background: var(--color-surface);
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.filtroBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.filtroBtnActivo {
+  box-shadow: 0 4px 10px rgba(232, 195, 46, 0.35);
+}
+
+.lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 12px 14px;
+}
+
+.item {
+  flex-shrink: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  animation: itemEntra 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.item:last-child {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.item:hover {
+  background: var(--color-surface);
+  transform: translateY(-2px);
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.itemActivo,
+.itemActivo:hover {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
+}
+
+/* La franja de la izquierda marca lo no leído. */
+.item:has(.puntito)::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--color-primary), var(--color-accent));
+}
+
+.item:nth-child(1) { animation-delay: 0ms; }
+.item:nth-child(2) { animation-delay: 40ms; }
+.item:nth-child(3) { animation-delay: 80ms; }
+.item:nth-child(4) { animation-delay: 120ms; }
+.item:nth-child(5) { animation-delay: 160ms; }
+.item:nth-child(n + 6) { animation-delay: 200ms; }
+
+.puntito {
+  box-shadow: 0 0 0 3px rgba(232, 195, 46, 0.28);
+  animation: latido 2.2s ease-in-out infinite;
+}
+
+@keyframes itemEntra {
+  from { opacity: 0; transform: translateY(10px); }
+}
+
+@keyframes latido {
+  50% { box-shadow: 0 0 0 5px rgba(232, 195, 46, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item,
+  .puntito {
+    animation: none;
+  }
+}

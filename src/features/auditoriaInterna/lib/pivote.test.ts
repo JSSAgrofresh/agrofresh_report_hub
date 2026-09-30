@@ -78,3 +78,16 @@ describe('pivotePorMes', () => {
     expect(p.totales['Actimist'].total).toBe(0)
   })
 })
+
+describe('simularSolicitudes', () => {
+  it('genera lo pedido, marcado como simulado y sin fechas futuras', async () => {
+    const { simularSolicitudes } = await import('./simulacion')
+    const hoy = new Date(2026, 8, 30)
+    const s = simularSolicitudes(1000, hoy)
+    expect(s).toHaveLength(1000)
+    expect(s.every((x) => x.sold_to?.includes('(Sim.)') && x.numero_solicitud?.startsWith('SIM-'))).toBe(true)
+    expect(s.every((x) => (x.emitida_en ?? '') <= '2026-09-30T23:59:59')).toBe(true)
+    expect(s.every((x) => x.concretada === (x.en_report && x.informe !== null))).toBe(true)
+    expect(simularSolicitudes(50, hoy)).toEqual(simularSolicitudes(50, hoy))
+  })
+})

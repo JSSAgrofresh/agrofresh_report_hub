@@ -675,3 +675,52 @@
   color: var(--color-text-muted);
   margin-bottom: var(--space-3);
 }
+
+/* ── pulido visual: resumen arriba, filas que entran y responden ── */
+.heroSolicitudes {
+  margin-bottom: var(--space-4);
+}
+
+.tabla tbody tr {
+  animation: filaEntra 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.tabla tbody tr:nth-child(-n + 12) {
+  animation-delay: calc(var(--n, 0) * 25ms);
+}
+
+.tabla tbody tr:hover td:first-child,
+.tabla tbody tr:hover td:nth-child(2) {
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.tabla td,
+.tabla th {
+  transition: box-shadow 0.15s ease;
+}
+
+.tarjeta {
+  animation: filaEntra 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.tarjeta:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.chipEnviada,
+.chipPendiente {
+  padding: 3px 12px;
+}
+
+@keyframes filaEntra {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabla tbody tr,
+  .tarjeta {
+    animation: none;
+  }
+}
