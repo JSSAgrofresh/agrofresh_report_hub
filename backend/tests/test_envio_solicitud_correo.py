@@ -234,12 +234,14 @@ def test_nadie_recibe_el_correo_dos_veces(solicitud_guardada, correo_capturado):
     assert [c.lower() for c in enviado["bcc"]] == ["jorge.gomez@agrofresh.com"]
 
 
-def test_solo_copias_sin_para_no_se_envia(solicitud_guardada, correo_capturado):
-    """Un correo necesita al menos un destinatario directo: si el laboratorio
-    solo tiene copias configuradas, se avisa en vez de mandar a nadie."""
+@_necesita_base
+def test_solo_copias_sin_para_usa_la_lista_de_respaldo(solicitud_guardada, correo_capturado):
+    """Sin nadie en Para, la solicitud no queda sin destinatario: va Para a
+    Jorge y Claudia (`DESTINATARIOS_SIN_LISTA`) y las copias configuradas se
+    conservan."""
     archivo, _ = solicitud_guardada
     _contactos(("claudia@agrofresh.com", "bcc"))
-    with pytest.raises(Exception) as error:
-        tm.enviar_solicitud_por_correo(archivo, tm.EnvioSolicitudIn(), usuario=_usuario())
-    assert getattr(error.value, "status_code", None) == 400
-    assert correo_capturado == []
+    tm.enviar_solicitud_por_correo(archivo, tm.EnvioSolicitudIn(), usuario=_usuario())
+    enviado = correo_capturado[0]
+    assert enviado["to"] == tm.DESTINATARIOS_SIN_LISTA
+    assert "claudia@agrofresh.com" in [c.lower() for c in enviado["bcc"]]

@@ -39,7 +39,7 @@ from typing import Any
 import psycopg2.errors
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from . import auth, config, config_store, correo, indice_solicitudes, mail_templates, r2, seguridad
 from .auth import Usuario, usuario_actual
@@ -389,6 +389,29 @@ def _recorrer_solicitudes_en_disco():
                 yield actual, nombre, os.path.splitext(nombre)[0]
 
 
+MAX_PRODUCTOS_VISIBLES = 2
+PRODUCTO_MIXTO = "MIXTO"
+
+
+def normalizar_productos(producto_utilizado: str | None, lista: list[str]) -> tuple[str | None, list[str]]:
+    """Cuántos productos se ven en el Excel, el PDF, el JSON y el correo.
+
+    Con hasta 2 productos se muestran tal cual; con 3 o más todo dice «MIXTO».
+    La lista completa de lo que se eligió se conserva aparte
+    (`productos_lista`) para poder editar la solicitud y para uso interno."""
+    if not lista and producto_utilizado:
+        lista = producto_utilizado.split(",")
+    limpia: list[str] = []
+    for nombre in lista:
+        nombre = str(nombre).strip()
+        if nombre and nombre not in limpia:
+            limpia.append(nombre)
+    if not limpia:
+        return producto_utilizado, []
+    visible = PRODUCTO_MIXTO if len(limpia) > MAX_PRODUCTOS_VISIBLES else ", ".join(limpia)
+    return visible, limpia
+
+
 class SolicitudIn(BaseModel):
     laboratorio: str
     solicitante: str
@@ -405,6 +428,9 @@ class SolicitudIn(BaseModel):
     numero_orden: str | None = None
     kilos_procesados: float | None = None
     producto_utilizado: str | None = None
+    # Lo que realmente se eligió (uso interno). `producto_utilizado` dice MIXTO
+    # cuando son más de dos.
+    productos_lista: list[str] = []
     tipo_muestra: str | None = None
     fecha_muestreo: str | None = None
     hora_muestreo: str | None = None
@@ -421,6 +447,13 @@ class SolicitudIn(BaseModel):
     # forma estructural (para cruzar con resultados de cromatografía) sin
     # tener que parsear las etiquetas humanas de `campos_laboratorio`.
     analitos_solicitados: list[str] = []
+
+    @model_validator(mode="after")
+    def _productos_visibles(self):
+        self.producto_utilizado, self.productos_lista = normalizar_productos(
+            self.producto_utilizado, self.productos_lista
+        )
+        return self
 
 
 class Solicitud(SolicitudIn):
@@ -1139,6 +1172,9 @@ class ReanalisisIn(BaseModel):
     numero_orden: str | None = None
     kilos_procesados: float | None = None
     producto_utilizado: str | None = None
+    # Lo que realmente se eligió (uso interno). `producto_utilizado` dice MIXTO
+    # cuando son más de dos.
+    productos_lista: list[str] = []
     tipo_muestra: str | None = None
     fecha_muestreo: str | None = None
     hora_muestreo: str | None = None
@@ -1149,6 +1185,13 @@ class ReanalisisIn(BaseModel):
     observacion: str | None = None
     campos_laboratorio: dict[str, str] = {}
     analitos_solicitados: list[str] = []
+
+    @model_validator(mode="after")
+    def _productos_visibles(self):
+        self.producto_utilizado, self.productos_lista = normalizar_productos(
+            self.producto_utilizado, self.productos_lista
+        )
+        return self
 
 
 @router.get("/solicitudes-elegibles-reanalisis")
@@ -1496,6 +1539,33 @@ def contactos_de_solicitud_por_envio(laboratorio: str) -> dict[str, list[str]]:
     return salida
 
 
+# Cuando el laboratorio no tiene lista de distribución de solicitudes, el
+# correo va Para a estas dos personas y con copia a los técnicos y comerciales
+# de la planta (los contactos internos de "Resultado a clientes").
+DESTINATARIOS_SIN_LISTA = ["JORGE.SANDOVAL@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM"]
+
+
+def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[str]]:
+    """Como `contactos_de_solicitud_por_envio`, pero si el laboratorio no
+    tiene a nadie en Para arma la lista de respaldo: Para = Jorge y Claudia,
+    Copia = los técnicos y comerciales configurados para el Ship To."""
+    por_envio = contactos_de_solicitud_por_envio(laboratorio)
+    if por_envio["to"]:
+        return por_envio
+    internos = [
+        c for c in _contactos_resultado(
+            str(datos.get("sold_to") or ""), str(datos.get("ship_to") or ""), str(datos.get("especie") or "")
+        )
+        if c.get("tipo") == "resultado_interno" and c.get("activo", True) and c.get("email")
+    ]
+    internos.sort(key=lambda c: c.get("orden", 0))
+    return {
+        "to": list(DESTINATARIOS_SIN_LISTA),
+        "cc": [*por_envio["cc"], *(c["email"] for c in internos if c.get("tipo_copia") != "bcc")],
+        "bcc": [*por_envio["bcc"], *(c["email"] for c in internos if c.get("tipo_copia") == "bcc")],
+    }
+
+
 def contactos_de_solicitud(laboratorio: str) -> list[str]:
     """Los destinatarios directos (Para) de las solicitudes de este laboratorio."""
     return contactos_de_solicitud_por_envio(laboratorio)["to"]
@@ -1638,11 +1708,19 @@ class ContactoResultadoOut(BaseModel):
 
 @router.get("/config/destinatarios-solicitud")
 def destinatarios_para_laboratorio(
-    laboratorio: str, _: Usuario = Depends(usuario_actual)
+    laboratorio: str,
+    sold_to: str = "",
+    ship_to: str = "",
+    especie: str = "",
+    _: Usuario = Depends(usuario_actual),
 ) -> dict[str, list[str]]:
     """Contactos configurados para recibir solicitudes de un laboratorio.
-    Lo usa el formulario antes de crear la solicitud, cuando aún no hay archivo."""
-    por_envio = contactos_de_solicitud_por_envio(laboratorio)
+    Lo usa el formulario antes de crear la solicitud, cuando aún no hay archivo.
+    Si el laboratorio no tiene lista, devuelve la de respaldo (ver
+    `contactos_de_solicitud_de`), que depende del Ship To."""
+    por_envio = contactos_de_solicitud_de(
+        laboratorio, {"sold_to": sold_to, "ship_to": ship_to, "especie": especie}
+    )
     return {"destinatarios": por_envio["to"], "cc": por_envio["cc"], "bcc": por_envio["bcc"]}
 
 
@@ -1776,7 +1854,7 @@ def destinatarios_de_solicitud(archivo: str, usuario: Usuario = Depends(usuario_
         datos = _leer_solicitud_archivo(_ruta_archivo(archivo))
     _exigir_acceso(usuario, datos)
     laboratorio = datos.get("laboratorio", "")
-    por_envio = contactos_de_solicitud_por_envio(laboratorio)
+    por_envio = contactos_de_solicitud_de(laboratorio, datos)
     return {
         "laboratorio": laboratorio,
         "destinatarios": por_envio["to"],
@@ -1893,7 +1971,7 @@ def enviar_solicitud_por_correo(
 
     # Siempre parten los contactos configurados. Los invitados escritos en el
     # cuadro de envío se agregan sólo a este correo y no alteran el mantenedor.
-    por_envio = contactos_de_solicitud_por_envio(lab)
+    por_envio = contactos_de_solicitud_de(lab, datos)
     candidatos = list(por_envio["to"])
     # Toda solicitud Actimist copia a estos dos referentes de producto.
     tipo_aplicacion = str(datos.get("campos_laboratorio", {}).get("Tipo Aplicación") or "")

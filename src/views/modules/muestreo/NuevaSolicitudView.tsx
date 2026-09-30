@@ -308,12 +308,14 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setShipTo(s.ship_to ?? '')
     setLineaProceso(s.linea_proceso ?? '')
     setProductosSeleccionados(
-      s.producto_utilizado
-        ? s.producto_utilizado
-            .split(',')
-            .map((p) => p.trim())
-            .filter(Boolean)
-        : [],
+      s.productos_lista?.length
+        ? s.productos_lista
+        : s.producto_utilizado
+          ? s.producto_utilizado
+              .split(',')
+              .map((p) => p.trim())
+              .filter(Boolean)
+          : [],
     )
     setGeneral({
       especie: s.especie ?? '',
@@ -408,7 +410,11 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   useEffect(() => {
     if (!laboratorio) return
     let vigente = true
-    destinatariosParaLaboratorio(laboratorio)
+    destinatariosParaLaboratorio(laboratorio, {
+      sold_to: soldTo,
+      ship_to: shipTo,
+      especie: general.especie ?? '',
+    })
       .then((r) => {
         if (!vigente) return
         setContactosSolicitud(r.destinatarios)
@@ -416,7 +422,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       })
       .catch(() => { if (vigente) setContactosSolicitud([]) })
     return () => { vigente = false }
-  }, [laboratorio])
+  }, [laboratorio, soldTo, shipTo, general.especie])
 
   // Apenas hay Laboratorio + Ship To, se muestra cómo va a salir el
   // resultado de ese Ship To (si ya tiene configuración propia en
@@ -886,7 +892,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         (esLineaProceso || esRYD) && general.kilos_procesados?.trim()
           ? Number(general.kilos_procesados)
           : null,
+      // Con más de dos productos el backend deja «MIXTO» a la vista y guarda
+      // aparte la lista completa.
       producto_utilizado: productosSeleccionados.join(', ') || null,
+      productos_lista: productosSeleccionados,
       tipo_muestra: general.tipo_muestra?.trim() || null,
       fecha_muestreo: general.fecha_muestreo || null,
       hora_muestreo: general.hora_muestreo || null,
@@ -1113,6 +1122,12 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                 </label>
               ))}
             </div>
+          )}
+          {productosSeleccionados.length > 2 && (
+            <p className={styles.ayudaCampo}>
+              Con más de 2 productos, el Excel, el PDF y el correo dirán <strong>MIXTO</strong>; la
+              lista completa queda guardada en la solicitud.
+            </p>
           )}
         </div>
       )
