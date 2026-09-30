@@ -245,3 +245,29 @@ def test_solo_copias_sin_para_usa_la_lista_de_respaldo(solicitud_guardada, corre
     enviado = correo_capturado[0]
     assert enviado["to"] == tm.DESTINATARIOS_SIN_LISTA
     assert "claudia@agrofresh.com" in [c.lower() for c in enviado["bcc"]]
+
+
+
+def _guardar_actimist(tmp_path, datos, **extra):
+    wb = construir_workbook(
+        {**datos, "campos_laboratorio": {"Tipo Aplicación": "Actimist"}, **extra}, tm.ANALITOS_DEFECTO
+    )
+    wb.save(str(tmp_path / "solicitudes" / "AGROFRESH" / "OT-0001.xlsx"))
+
+
+@_necesita_base
+def test_actimist_copia_a_los_referentes_de_producto(solicitud_guardada, correo_capturado, tmp_path):
+    archivo, datos = solicitud_guardada
+    _guardar_actimist(tmp_path, datos)
+    tm.enviar_solicitud_por_correo(archivo, tm.EnvioSolicitudIn(), usuario=_usuario())
+    to = [t.upper() for t in correo_capturado[0]["to"]]
+    assert "CJIMENEZ@AGROFRESH.COM" in to and "CVALENZUELA@AGROFRESH.COM" in to
+
+
+@_necesita_base
+def test_actimist_de_prueba_no_copia_a_los_referentes(solicitud_guardada, correo_capturado, tmp_path):
+    archivo, datos = solicitud_guardada
+    _guardar_actimist(tmp_path, datos, es_prueba=True)
+    tm.enviar_solicitud_por_correo(archivo, tm.EnvioSolicitudIn(), usuario=_usuario())
+    to = [t.upper() for t in correo_capturado[0]["to"]]
+    assert "CJIMENEZ@AGROFRESH.COM" not in to and "CVALENZUELA@AGROFRESH.COM" not in to
