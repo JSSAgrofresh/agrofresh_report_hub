@@ -90,17 +90,6 @@ const SIEMPRE_REQUERIDO = new Set(['fecha_muestreo'])
 /** Nunca obligatorio, aunque el mantenedor lo marque. */
 const NUNCA_REQUERIDO = new Set(['kilos_procesados'])
 
-interface AlsPesticida {
-  analito: string
-  resultado: string
-}
-
-const ALS_PESTICIDAS_VACIO: AlsPesticida[] = [
-  { analito: '', resultado: '' },
-  { analito: '', resultado: '' },
-  { analito: '', resultado: '' },
-]
-
 /** Campos de "Información de la muestra" comunes a cualquier Tipo de
  * Aplicación (§4). Línea Proceso / N° Cámara+N° Orden son exclusivos de
  * cada caso y se resuelven aparte. */
@@ -201,7 +190,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [seleccionAnalitos, setSeleccionAnalitos] = useState<Record<number, boolean>>({})
   const [valoresAnalitos, setValoresAnalitos] = useState<Record<number, string>>({})
   const [dosisSinIndicar, setDosisSinIndicar] = useState<Record<number, boolean>>({})
-  const [alsPesticidas, setAlsPesticidas] = useState<AlsPesticida[]>(ALS_PESTICIDAS_VACIO)
 
   const [clientesDisponibles, setClientesDisponibles] = useState<string[]>([])
   const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
@@ -390,14 +378,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setSeleccionAnalitos(seleccion)
     setValoresAnalitos(valores)
     setDosisSinIndicar(sinDosis)
-    setAlsPesticidas(
-      s.laboratorio === 'ALS'
-        ? ALS_PESTICIDAS_VACIO.map((_, i) => ({
-            analito: s.campos_laboratorio[`Analito Pesticida ${i + 1}`] ?? '',
-            resultado: s.campos_laboratorio[`Resultado Pesticida ${i + 1}`] ?? '',
-          }))
-        : ALS_PESTICIDAS_VACIO,
-    )
   }, [modo, solicitudOriginal, analitosTodos])
 
   // Los campos propios del Tipo de Aplicación (ej. Gasto en Actimist) se
@@ -679,7 +659,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     setValoresAnalitos({})
     setDosisSinIndicar({})
     setProductosSeleccionados([])
-    setAlsPesticidas(ALS_PESTICIDAS_VACIO)
     setContactosSolicitud(null)
   }
 
@@ -882,12 +861,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     if (esRYDAgrofresh) {
       camposLabFinal[ETIQUETA_CODIGO_ENSAYO] = codigoEnsayo.trim()
       camposLabFinal[ETIQUETA_NRO_ENSAYO] = nroEnsayo.trim()
-    }
-    if (laboratorio === 'ALS') {
-      alsPesticidas.forEach((p, i) => {
-        if (p.analito.trim()) camposLabFinal[`Analito Pesticida ${i + 1}`] = p.analito.trim()
-        if (p.resultado.trim()) camposLabFinal[`Resultado Pesticida ${i + 1}`] = p.resultado.trim()
-      })
     }
 
     const payload = {
@@ -1471,49 +1444,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                     </Fragment>
                   )
                 })}
-              </div>
-            )}
-
-            {laboratorio === 'ALS' && (
-              <div className={styles.tablaCaja}>
-                <table className={styles.tabla}>
-                  <thead>
-                    <tr>
-                      <th>Analito Pesticida</th>
-                      <th>Resultado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {alsPesticidas.map((p, i) => (
-                      <tr key={i}>
-                        <td>
-                          <input
-                            value={p.analito}
-                            onChange={(e) =>
-                              setAlsPesticidas((actual) =>
-                                actual.map((it, idx) =>
-                                  idx === i ? { ...it, analito: e.target.value } : it,
-                                ),
-                              )
-                            }
-                          />
-                        </td>
-                        <td>
-                          <input
-                            value={p.resultado}
-                            onChange={(e) =>
-                              setAlsPesticidas((actual) =>
-                                actual.map((it, idx) =>
-                                  idx === i ? { ...it, resultado: e.target.value } : it,
-                                ),
-                              )
-                            }
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             )}
           </Card>

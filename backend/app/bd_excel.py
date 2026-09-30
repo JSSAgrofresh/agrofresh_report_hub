@@ -28,6 +28,7 @@ from .solicitud_excel import (
     _BORDE_COMPLETO,
     VERDE_CLARO,
     VERDE_OSCURO,
+    expandir_por_posicion,
     _grupos_exportacion,
 )
 
@@ -317,6 +318,12 @@ def construir_workbook_bd(
     """`filas`: una por solicitud, con las claves de GENERALES_BD y además
     `resultados` {código: {"valor": ..., "nombre": ...}}, `dosis` {código: valor}
     y `tipo_aplicacion`."""
+    filas = expandir_por_posicion(
+        filas,
+        tipo=lambda f: f.get("tipo_aplicacion"),
+        posicion=lambda f: f.get("posicion_muestreo"),
+        con_posicion=lambda f, p: {**f, "posicion_muestreo": p},
+    )
     wb = Workbook()
     ws = wb.active
     ws.title = "BD"

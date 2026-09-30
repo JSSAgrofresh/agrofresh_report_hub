@@ -9,6 +9,7 @@ eliminar siguen funcionando exactamente igual que antes, ahora leyendo desde
 Excel en vez de JSON.
 """
 import json
+import re
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -281,6 +282,25 @@ def _valor_guardado(campos_lab: dict, analito: dict):
     return None
 
 
+def posiciones_de(valor) -> list[str]:
+    """Las posiciones de muestreo de una solicitud ("R1, R2, R4" -> 3)."""
+    return [x.strip() for x in re.split(r"[,;\n]", str(valor or "")) if x.strip()]
+
+
+def expandir_por_posicion(filas: list[dict], *, tipo, posicion, con_posicion) -> list[dict]:
+    """En un ensayo RYD cada posición de muestreo es una muestra distinta: la
+    base lleva una fila por posición, con lo demás repetido. Otros tipos de
+    aplicación, o una sola posición, salen tal cual."""
+    salida: list[dict] = []
+    for fila in filas:
+        posiciones = posiciones_de(posicion(fila))
+        if str(tipo(fila) or "").strip().upper() == "RYD" and len(posiciones) > 1:
+            salida.extend(con_posicion(fila, p) for p in posiciones)
+        else:
+            salida.append(fila)
+    return salida
+
+
 def construir_workbook_exportacion(
     solicitudes: list[dict],
     analitos: list[dict],
@@ -296,6 +316,12 @@ def construir_workbook_exportacion(
     ws = wb.active
     ws.title = titulo_hoja
 
+    solicitudes = expandir_por_posicion(
+        solicitudes,
+        tipo=lambda d: (d.get("campos_laboratorio") or {}).get("Tipo Aplicación"),
+        posicion=lambda d: d.get("posicion_muestreo"),
+        con_posicion=lambda d, p: {**d, "posicion_muestreo": p},
+    )
     grupos_exportacion = _grupos_exportacion(
         analitos, laboratorios=laboratorios, columnas_tras_solicitud=columnas_tras_solicitud,
     )
