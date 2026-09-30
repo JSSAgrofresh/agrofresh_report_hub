@@ -58,6 +58,12 @@ export interface HuecoPrueba {
   siguiente: string | null
 }
 
+/** Envío automático al guardar: regla general + una propia por tipo de aplicación. */
+export interface ConfigEnvioAutomatico {
+  activo: boolean
+  por_tipo?: Record<string, boolean>
+}
+
 export interface EstadoSolicitudesPrueba {
   /** Solo la cuenta autorizada ve el botón. */
   permitido: boolean
