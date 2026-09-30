@@ -39,6 +39,7 @@ interface Filtros {
   tipoMuestra: string
   nombreMuestreador: string
   estado: '' | 'enviado' | 'pendiente'
+  prueba: '' | 'solo' | 'sin'
 }
 
 const FILTROS_VACIOS: Filtros = {
@@ -57,6 +58,7 @@ const FILTROS_VACIOS: Filtros = {
   tipoMuestra: '',
   nombreMuestreador: '',
   estado: '',
+  prueba: '',
 }
 
 function contiene(valor: string | null | undefined, buscado: string): boolean {
@@ -233,6 +235,8 @@ export function SolicitudesView() {
         return false
       if (filtros.estado === 'enviado' && !s.enviada) return false
       if (filtros.estado === 'pendiente' && s.enviada) return false
+      if (filtros.prueba === 'solo' && !s.es_prueba) return false
+      if (filtros.prueba === 'sin' && s.es_prueba) return false
       return true
     })
   }, [solicitudes, filtros])
@@ -678,6 +682,19 @@ export function SolicitudesView() {
                 <option value="">Todos</option>
                 <option value="enviado">Enviada</option>
                 <option value="pendiente">Pendiente</option>
+              </select>
+            </label>
+            <label className={styles.campoFiltro}>
+              <span>Solicitudes de prueba</span>
+              <select
+                value={filtros.prueba}
+                onChange={(e) =>
+                  setFiltros((f) => ({ ...f, prueba: e.target.value as Filtros['prueba'] }))
+                }
+              >
+                <option value="">Todas</option>
+                <option value="solo">Solo de prueba</option>
+                <option value="sin">Sin las de prueba</option>
               </select>
             </label>
             {hayFiltrosActivos && (

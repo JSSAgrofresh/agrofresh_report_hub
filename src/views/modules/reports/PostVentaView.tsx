@@ -197,12 +197,6 @@ export function PostVentaView() {
   const detalleRef = useRef<HTMLDivElement | null>(null)
   const cargasFiltradas = useMemo(() => filtrarCargas(cargas ?? [], filtro), [cargas, filtro])
 
-  // Clic en un punto de la vista general: abre esa carga y baja hasta ella.
-  function abrirCarga(carpeta: string) {
-    setSeleccionada(carpeta)
-    requestAnimationFrame(() => detalleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-  }
-
   const mensaje = (err: unknown, alterno: string) =>
     err instanceof HttpError ? `El backend respondió con un error (${err.status}).` : alterno
 
@@ -329,7 +323,6 @@ export function PostVentaView() {
           filtradas={cargasFiltradas}
           filtro={filtro}
           onFiltro={setFiltro}
-          onSeleccionar={abrirCarga}
         />
         <div className={styles.layout} ref={detalleRef}>
           <Card className={styles.panelLista}>
