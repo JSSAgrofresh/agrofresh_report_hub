@@ -162,6 +162,15 @@ table.comp tr:last-child td{border-bottom:none}
 .aviso{background:#FDF6E8;border:1px solid #EBD9A8;border-radius:8px;padding:11px 14px;font-size:13px;color:#6B5410;margin-top:12px}
 .oculto{display:none !important}
 
+/* ---------- buscador de Cliente / Planta ---------- */
+.cb-lista{position:fixed;z-index:50;margin:0;padding:4px;list-style:none;overflow:auto;background:var(--sup);border:1px solid var(--borde-f);border-radius:8px;box-shadow:0 8px 24px rgba(22,32,27,.14);font-size:13.5px}
+.cb-lista[hidden]{display:none}
+.cb-op,.cb-vacio{padding:7px 10px;border-radius:5px;cursor:pointer}
+.cb-op.activo{background:#EEF5E6}
+.cb-op mark{background:none;color:var(--verde-osc);font-weight:700}
+.cb-vacio{color:var(--tinta-3);cursor:default}
+input.cb-in{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%2377837B' stroke-width='1.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+
 /* ---------- informe imprimible ---------- */
 #informe{display:none}
 @media print{
@@ -289,8 +298,8 @@ table.comp tr:last-child td{border-bottom:none}
     </div>
     <div class="tarjeta">
       <div class="campos">
-        <label class="campo"><span>Cliente</span><input type="text" id="fCliente" placeholder="Razón social"></label>
-        <label class="campo"><span>Ubicación del equipo</span><input type="text" id="fUbic" placeholder="Planta, línea o sector"></label>
+        <label class="campo"><span>Cliente</span><input type="text" id="fCliente" placeholder="Busca el cliente (Sold To)"></label>
+        <label class="campo"><span>Ubicación del equipo (planta)</span><input type="text" id="fUbic" placeholder="Busca la planta (Ship To)"></label>
         <label class="campo"><span>N° de serie del equipo</span><input type="text" id="fSerie" placeholder="Opcional"></label>
         <label class="campo"><span>Técnico responsable</span><input type="text" id="fTecnico" placeholder="Quien extrajo los datos"></label>
       </div>
@@ -1362,6 +1371,138 @@ $("btnReset").onclick = () => {
 };
 
 refrescar();
+
+/* ============ Cliente y Planta: buscador sobre Sold To / Ship To ============
+   Mismas listas que administra Listados (las lee de la base al abrir). Se
+   escribe para filtrar, sin importar tildes ni mayúsculas; flechas y Enter
+   para elegir, Esc para cerrar. La planta se acota al cliente elegido. Si la
+   base no responde, los dos campos siguen siendo de texto libre. */
+const plano = t => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const LISTA = {clientes: [], plantas: []};   // plantas: {nombre, cliente}
+
+function montarBuscador(inp, opcionesFn, alElegir){
+  inp.classList.add("cb-in"); inp.autocomplete = "off";
+  const lista = document.createElement("ul");
+  lista.className = "cb-lista"; lista.hidden = true; lista.setAttribute("role", "listbox");
+  document.body.appendChild(lista);
+  let ops = [], activo = -1;
+
+  function colocar(){
+    const r = inp.getBoundingClientRect();
+    const abajo = window.innerHeight - r.bottom - 16, arriba = r.top - 16;
+    lista.style.left = r.left + "px";
+    lista.style.width = Math.max(r.width, 280) + "px";
+    if(abajo < 180 && arriba > abajo){
+      lista.style.top = "auto"; lista.style.bottom = (window.innerHeight - r.top + 4) + "px";
+      lista.style.maxHeight = Math.min(300, arriba) + "px";
+    }else{
+      lista.style.bottom = "auto"; lista.style.top = (r.bottom + 4) + "px";
+      lista.style.maxHeight = Math.min(300, abajo) + "px";
+    }
+  }
+  function pintar(){
+    const q = plano(inp.value);
+    ops = opcionesFn().filter(o => !q || plano(o).includes(q));
+    lista.textContent = "";
+    ops.slice(0, 150).forEach((o, i) => {
+      const li = document.createElement("li");
+      li.className = "cb-op"; li.setAttribute("role", "option"); li.dataset.i = i;
+      const k = q ? plano(o).indexOf(q) : -1;
+      if(k >= 0 && plano(o).length === o.length){
+        const mk = document.createElement("mark"); mk.textContent = o.slice(k, k + q.length);
+        li.append(o.slice(0, k), mk, o.slice(k + q.length));
+      }else li.textContent = o;
+      lista.appendChild(li);
+    });
+    if(!ops.length){
+      const v = document.createElement("li"); v.className = "cb-vacio";
+      v.textContent = "Nada coincide con «" + inp.value + "»"; lista.appendChild(v);
+    }
+    activo = ops.length ? 0 : -1; resaltar();
+  }
+  function resaltar(){
+    lista.querySelectorAll(".cb-op").forEach((li, i) => {
+      li.classList.toggle("activo", i === activo);
+      if(i === activo) li.scrollIntoView({block: "nearest"});
+    });
+  }
+  function abrir(){ pintar(); colocar(); lista.hidden = false; }
+  function cerrar(){ lista.hidden = true; }
+  function elegir(i){
+    if(ops[i] === undefined) return;
+    inp.value = ops[i]; cerrar(); alElegir(ops[i]);
+  }
+  inp.addEventListener("focus", () => { if(opcionesFn().length) abrir(); });
+  inp.addEventListener("click", () => { if(opcionesFn().length && lista.hidden) abrir(); });
+  inp.addEventListener("input", () => { if(opcionesFn().length){ abrir(); } });
+  inp.addEventListener("keydown", e => {
+    if(lista.hidden && (e.key === "ArrowDown") && opcionesFn().length){ abrir(); e.preventDefault(); return; }
+    if(lista.hidden) return;
+    if(e.key === "ArrowDown"){ activo = Math.min(ops.length - 1, activo + 1); resaltar(); e.preventDefault(); }
+    else if(e.key === "ArrowUp"){ activo = Math.max(0, activo - 1); resaltar(); e.preventDefault(); }
+    else if(e.key === "Enter"){ if(activo >= 0){ elegir(activo); e.preventDefault(); } }
+    else if(e.key === "Escape"){ cerrar(); }
+  });
+  // mousedown y no click: el blur del campo cerraría la lista antes del click
+  lista.addEventListener("mousedown", e => {
+    const li = e.target.closest(".cb-op");
+    if(li){ e.preventDefault(); elegir(+li.dataset.i); }
+  });
+  // Con las listas cargadas solo vale un valor de la lista: lo escrito a
+  // medias se deja solo si calza exacto (sin tildes ni mayúsculas).
+  inp.addEventListener("blur", () => {
+    cerrar();
+    const todas = opcionesFn();
+    if(!todas.length || !inp.value.trim()) return;
+    const exacto = todas.find(o => plano(o) === plano(inp.value));
+    if(exacto){ inp.value = exacto; alElegir(exacto); }
+    else inp.value = "";
+  });
+  window.addEventListener("scroll", () => { if(!lista.hidden) colocar(); }, true);
+  window.addEventListener("resize", () => { if(!lista.hidden) colocar(); });
+}
+
+function opcionesPlanta(){
+  const cli = plano($("fCliente").value);
+  const propias = cli ? LISTA.plantas.filter(p => plano(p.cliente) === cli) : [];
+  const fuente = propias.length ? propias : LISTA.plantas;
+  return [...new Set(fuente.map(p => p.nombre))];
+}
+
+montarBuscador($("fCliente"), () => LISTA.clientes, cliente => {
+  // si la planta ya elegida no es de este cliente, se limpia
+  const ubic = plano($("fUbic").value);
+  if(ubic && !LISTA.plantas.some(p => plano(p.cliente) === plano(cliente) && plano(p.nombre) === ubic))
+    $("fUbic").value = "";
+});
+montarBuscador($("fUbic"), opcionesPlanta, planta => {
+  // al elegir la planta con el cliente vacío, se completa con su cliente
+  if($("fCliente").value.trim()) return;
+  const dueños = [...new Set(LISTA.plantas.filter(p => p.nombre === planta).map(p => p.cliente))];
+  if(dueños.length === 1) $("fCliente").value = dueños[0];
+});
+
+async function cargarListadosTrace(){
+  try{
+    const leer = async ruta => {
+      const r = await fetch(API_BASE + ruta, {headers: autorizacion()});
+      if(!r.ok) throw new Error(ruta + " respondió " + r.status);
+      return r.json();
+    };
+    const [clientes, plantas] = await Promise.all([leer("/catalogo/clientes"), leer("/catalogo/plantas")]);
+    const orden = (a, b) => a.localeCompare(b, "es");
+    const activos = clientes.filter(c => c.activo).map(c => c.nombre).sort(orden);
+    LISTA.clientes = activos;
+    LISTA.plantas = plantas.filter(p => p.activo && activos.includes(p.cliente_nombre))
+      .map(p => ({nombre: p.nombre, cliente: p.cliente_nombre}))
+      .sort((a, b) => orden(a.nombre, b.nombre));
+  }catch(err){
+    // sin listas, los campos siguen siendo de texto libre
+    console.warn("Trace: no se pudieron leer Sold To / Ship To:", err.message);
+    $("fCliente").placeholder = "Razón social"; $("fUbic").placeholder = "Planta, línea o sector";
+  }
+}
+cargarListadosTrace();
 
 </script>
 </body>
