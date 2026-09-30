@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
+import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { IconoBuscar, IconoCerrar } from '@/components/ui/iconosAccion'
 import { FILTROS_VACIOS, chipsDeFiltros, contarFiltros } from '@/features/auditoriaInterna'
 import type { FiltrosSolicitudes, OpcionesFiltros, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { tipoServicioDe } from '@/features/auditoriaInterna'
+import { colorDeIngrediente } from '@/features/reportes'
 import styles from './PanelFiltros.module.css'
 
 const CLAVE_VISIBLE = 'agrofresh.auditoria.filtros.visibles'
@@ -113,6 +115,14 @@ export function PanelFiltros({
           <CalendarioRango etiqueta="Fecha de emisión" valor={filtros.rango} onChange={(r) => cambiar('rango', r)} />
           <BuscableSelect etiqueta="Especie" opciones={opciones.especies} valor={filtros.especie} onChange={(v) => cambiar('especie', v)} conteoDe={conteo(datos, (s) => s.especie)} />
           <BuscableSelect etiqueta="Variedad" opciones={opciones.variedades} valor={filtros.variedad} onChange={(v) => cambiar('variedad', v)} conteoDe={conteo(datos, (s) => s.variedad)} />
+          <MultiSelectFiltro
+            etiqueta="Analitos pedidos"
+            opciones={opciones.analitos}
+            valores={filtros.analitos}
+            onChange={(v) => cambiar('analitos', v)}
+            colorDe={colorDeIngrediente}
+            conteoDe={conteoAnalito}
+          />
           <button
             type="button"
             className={`${styles.interruptor} ${filtros.sinEnvio ? styles.interruptorActivo : ''}`}
@@ -121,42 +131,6 @@ export function PanelFiltros({
           >
             Solo informes sin fecha de envío
           </button>
-          {opciones.analitos.length > 0 && (
-            <div className={styles.analitosBloque}>
-              <div className={styles.analitosCab}>
-                <span className={styles.etiqueta}>Analitos pedidos</span>
-                <span className={styles.analitosAyuda}>
-                  {filtros.analitos.length === 0
-                    ? 'Marca uno o varios: se muestran las solicitudes que pidieron al menos uno.'
-                    : `${filtros.analitos.length} marcado${filtros.analitos.length === 1 ? '' : 's'}`}
-                </span>
-                {filtros.analitos.length > 0 && (
-                  <button type="button" className={styles.limpiar} onClick={() => cambiar('analitos', [])}>
-                    Quitar analitos
-                  </button>
-                )}
-              </div>
-              <ul className={styles.analitosLista}>
-                {opciones.analitos.map((a) => {
-                  const marcado = filtros.analitos.includes(a)
-                  return (
-                    <li key={a}>
-                      <button
-                        type="button"
-                        className={`${styles.analito} ${marcado ? styles.analitoMarcado : ''}`}
-                        aria-pressed={marcado}
-                        title={`${conteoAnalito(a)} solicitudes lo pidieron`}
-                        onClick={() => cambiar('analitos', marcado ? filtros.analitos.filter((x) => x !== a) : [...filtros.analitos, a])}
-                      >
-                        {a}
-                        <small>{conteoAnalito(a)}</small>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          )}
         </div>
       )}
 
