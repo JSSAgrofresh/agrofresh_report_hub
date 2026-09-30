@@ -1691,6 +1691,12 @@ def destinatarios_resultado_por_tipo(
         elif contacto.get("tipo") == "resultado_interno":
             destino = "bcc" if contacto.get("tipo_copia") == "bcc" else "cc"
             salida[destino].append(email)
+    if not salida["to"]:
+        # Sin lista de distribución para este Ship To: Para = Jorge y Claudia;
+        # los técnicos y comerciales (internos) ya quedaron en copia arriba.
+        salida["to"] = list(DESTINATARIOS_SIN_LISTA)
+        salida["cc"] = [e for e in salida["cc"] if e.casefold() not in {d.casefold() for d in DESTINATARIOS_SIN_LISTA}]
+        salida["bcc"] = [e for e in salida["bcc"] if e.casefold() not in {d.casefold() for d in DESTINATARIOS_SIN_LISTA}]
     return salida
 
 
@@ -1839,6 +1845,12 @@ def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
             bcc.append(e)
         else:
             cc.append(e)
+    if not para:
+        # Misma regla de respaldo que `destinatarios_resultado_por_tipo`.
+        respaldo = {d.casefold() for d in DESTINATARIOS_SIN_LISTA}
+        para = list(DESTINATARIOS_SIN_LISTA)
+        cc = [e for e in cc if e.casefold() not in respaldo]
+        bcc = [e for e in bcc if e.casefold() not in respaldo]
     datos_pdf["destinatarios_resultados_detalle"] = {"para": para, "cc": cc, "bcc": bcc}
     return datos_pdf
 
