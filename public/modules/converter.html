@@ -65,6 +65,7 @@ body{background:var(--papel);color:var(--tinta);font-family:var(--ui);font-size:
 .tag.q{background:#E4F0FA;color:#1B5E8A}
 .tag.d{background:#FBE9E7;color:#A8342B}
 .tag.a{background:#E8F1E4;color:#38661F}
+.tag.g{background:#E9F7DD;color:#2E7D14}
 .tag.x{background:#F2F2F2;color:#6A6A6A}
 .cuerpo{padding:14px 15px;display:none}
 .ficha.abierta .cuerpo{display:block}
@@ -104,6 +105,9 @@ table.rev tr:last-child td{border-bottom:none}
   border-radius:6px;background:var(--sup) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2377837B' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
   color:var(--tinta)}
 .cb-in:focus{outline:2px solid var(--verde);outline-offset:-1px}
+select.fix,input.fix{font-family:var(--ui);font-size:12.5px;padding:6px 9px;border:1px solid var(--borde-f);
+  border-radius:6px;background:var(--sup);color:var(--tinta);max-width:100%}
+select.fix:focus,input.fix:focus{outline:2px solid var(--verde);outline-offset:-1px}
 .cb-lista{position:fixed;z-index:1000;margin:0;padding:4px;list-style:none;background:var(--sup);border:1px solid var(--borde-f);
   border-radius:9px;box-shadow:0 10px 30px rgba(22,32,27,.18);overflow:auto;font-size:13px}
 .cb-grupo{padding:8px 10px 3px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3)}
@@ -185,6 +189,8 @@ select.ot.sugerida{border-color:var(--verde-osc);background:#F2F8EC}
         <div class="d">Patógenos por qPCR</div></div>
       <div class="lab"><div class="n">Corthorn / ALS</div>
         <div class="d">Cromatografía, metales, microbiología</div></div>
+      <div class="lab"><div class="n">AgroFresh</div>
+        <div class="d">Informe de cromatografía propio</div></div>
     </div>
     <div class="fichas" id="fichas"></div>
   </section>
@@ -336,7 +342,7 @@ const ANALITOS = {
   "imazalil":"IMZ ppm","imz":"IMZ ppm",
   "pirimetanil":"PYR ppm","pyrimethanil":"PYR ppm","pyr":"PYR ppm",
   "tebuconazol":"TEBU ppm","tebuconazole":"TEBU ppm","tebu":"TEBU ppm",
-  "azoxistrobina":"AZOX ppm","azoxystrobin":"AZOX ppm","azox":"AZOX ppm",
+  "azoxistrobina":"AZOX ppm","azoxistrobin":"AZOX ppm","azoxystrobin":"AZOX ppm","azox":"AZOX ppm",
   "tiabendazol":"TBZ ppm","thiabendazole":"TBZ ppm","tbz":"TBZ ppm",
   "difenilamina":"DPA ppm","diphenylamine":"DPA ppm","dpa":"DPA ppm",
   "levaduras":"Levaduras UFC/mL","botrytis":"Botrytis conidia/mL",
@@ -525,6 +531,10 @@ function guardar(inf, nombre, valor){
 
 function detectar(texto){
   const t = plano(texto);
+  /* El informe propio de AgroFresh se reconoce por su encabezado con el N° de
+     la solicitud (OT-...). Va primero porque también dice "Cromatografía"
+     (firmantes) y "AgroFresh" (como cliente aparece en Quiteca y Corthorn). */
+  if(/Solicitud de An[áa]lisis\s+N°\s*OT-/i.test(texto) && t.includes("agrofresh.com")) return "AgroFresh";
   if(t.includes("quiteca")) return "Quiteca";
   if(t.includes("diagnofruit")) return "Diagnofruit";
   if(t.includes("corthorn") || t.includes("cromatografia")) return "ALS (Corthon)";
@@ -702,12 +712,156 @@ function leerCorthorn(texto, inf){
   });
 }
 
-const LECTORES = {"Quiteca":leerQuiteca,"Diagnofruit":leerDiagnofruit,"ALS (Corthon)":leerCorthorn};
+/* ---------------- AGROFRESH (informe propio) ---------------- */
+function fechaDe(texto, etiqueta){
+  const m = texto.match(new RegExp(etiqueta + "\\s+(\\d{1,2} de [A-Za-zéÉ]+ de \\d{4})", "i"));
+  return m ? aFechaLarga(m[1]) : null;
+}
+
+function leerAgrofresh(texto, inf){
+  const d = inf.datos;
+  // Mismo laboratorio con que el sistema guarda su propia cromatografía
+  // (emitir.py -> mapeo.LABORATORIO_CATALOGO): de él cuelga el catálogo de analitos.
+  d["Laboratorio"] = "Quiteca / AgroFresh";
+  d["Tipo de servicio"] = "Cromatografía";
+
+  const m = texto.match(/(\S+)\s+Solicitud de An[áa]lisis\s+N°\s*(OT-[\w-]+)/i);
+  if(m){
+    d["N° Solicitud"] = m[1];        // N° del informe: es la clave, como el "Informe N°" de Quiteca
+    d["OT"] = m[2].toUpperCase();    // la solicitud de origen: con ella se trae el resto
+  }
+  d["Fecha Análisis"]  = fechaDe(texto, "Fecha an[áa]lisis");
+  d["Fecha entrada"]   = fechaDe(texto, "Fecha Recepci[óo]n");
+  d["Fecha Muestreo"]  = fechaDe(texto, "Fecha Muestreo");
+  // La fecha del informe es la del pie ("martes, 29 de septiembre de 2026").
+  const fi = texto.match(/(?:lunes|martes|mi[ée]rcoles|jueves|viernes|s[áa]bado|domingo),\s*(\d{1,2} de [A-Za-zé]+ de \d{4})/i);
+  d["Fecha Informe"] = fi ? aFechaLarga(fi[1]) : null;
+
+  d["Especie"] = campo(texto, "Cultivo:", "Tipo de an[áa]lisis:");
+  const v = texto.match(/Variedad:\s*(.+?)\s+An[áa]lisis de\b/i) || texto.match(/Variedad:\s*(.+)/i);
+  d["Variedad"] = v ? v[1].trim() : null;
+
+  // "Referencia/s de la muestra": un solo texto con campos separados por "|".
+  // Al envolverse, "Ver en tabla de resultados" (la otra columna) se cuela en medio.
+  const bloque = texto.match(/Referencia\/s de la muestra:\s*([\s\S]+?)\nResultados:/i);
+  if(bloque){
+    const plana = bloque[1].split("\n")
+      .filter(l => !/^Ver en tabla de resultados$/i.test(l.trim()))
+      .join(" ").replace(/\s+/g," ");
+    const partes = plana.split("|").map(x => x.trim()).filter(Boolean);
+    const val = (t, re) => { const r = t.match(re); return r ? r[1].trim() : null; };
+    partes.forEach(t => {
+      let x;
+      if((x = val(t, /^OBSERVACIONES:\s*(.*)$/i)) !== null) d["Observación"] = x;
+      else if((x = val(t, /^LINEA PROCESO\s*(.*)$/i)) !== null) d["Línea Proceso"] = x;
+      else if((x = val(t, /^CODIGO PRODUCTOR \(CSG\)\s*(.*)$/i)) !== null) d["CSG"] = x;
+      else if((x = val(t, /^C[áa]mara\s*(.*)$/i)) !== null) d["N° Cámara"] = x;
+      else if(/^Dosis:/i.test(t)) inf.dosis = t.replace(/^Dosis:\s*/i,"");
+      else if((x = val(t, /^KG PROCESADOS\s*(.*)$/i)) !== null) d["Kilos Procesados (KG)"] = aNumero(x);
+      else if((x = val(t, /^GASTO\s*(.*)$/i)) !== null) d["Gasto"] = aNumero(x);
+      else if((x = val(t, /^LOTE\s*(.*)$/i)) !== null) d["Lote"] = x;
+      else d["Posición Muestreo"] = t;   // "EMBALAJE" viene solo, sin etiqueta
+    });
+  }
+
+  inf.noPedidos = [];
+  let dentro = false;
+  for(const l of texto.split("\n")){
+    if(/^ANALITO\s+mg\/kg/i.test(l.trim())){ dentro = true; continue; }
+    if(!dentro) continue;
+    const r = l.match(/^\s*([A-Za-zÁÉÍÓÚñÑ][A-Za-zÁÉÍÓÚñÑ .]*?)\s+(NA|ND|<?[\d.,]+)\s*$/);
+    if(!r){ if(/^Este informe/i.test(l.trim())) break; continue; }
+    // NA = "No analizado": el analito no se pidió, no es un resultado.
+    if(r[2].toUpperCase() === "NA") inf.noPedidos.push(r[1]);
+    else guardar(inf, r[1], r[2]);
+  }
+}
+
+/* Con el N° OT del informe se trae la solicitud y se completa lo que el
+   informe no dice (cliente, sucursal, muestreador...). Lo que el informe SÍ
+   trae manda; la solicitud solo rellena huecos. No agrega columnas. */
+const DE_SOLICITUD = {
+  "Fecha Solicitud":"Fecha Solicitud","Fecha Muestreo":"Fecha Muestreo","Hora Muestreo":"Hora Muestreo",
+  "Solicitante":"Solicitante","Sold To":"Sold To (Nombre)","Ship To":"Ship To (Nombre)",
+  "Especie":"Especie","Variedad":"Variedad","Línea Proceso":"Línea Proceso","CSG":"Código del Productor",
+  "Lote":"Lote","Posición Muestreo":"Posición Muestreo","N° Cámara":"N° Cámara","N° Orden":"N° Orden",
+  "Kilos Procesados (KG)":"Kilos Procesados (KG)","Producto Utilizado":"Producto Utilizado",
+  "Tipo Muestra":"Tipo Muestra","Nombre Muestreador":"Nombre Muestreador","Generado Por":"Generado Por",
+  "Email Solicitante":"Email Solicitante","Email Laboratorio":"Email Laboratorio",
+  "Tipo Aplicación":"Tipo Aplicación","Gasto":"Gasto","Observación":"Observación"
+};
+
+function limpio(v){
+  const t = String(v === null || v === undefined ? "" : v).trim();
+  return (!t || t === "—" || t === "-") ? null : t;
+}
+
+/* "Sin dato para: ..." siempre refleja lo que de verdad falta ahora. */
+function avisarFaltantes(inf){
+  inf.avisos = inf.avisos.filter(a => !/^Sin dato para:/.test(a));
+  const faltan = OBLIGATORIOS.filter(c => !inf.datos[c]);
+  if(faltan.length) inf.avisos.push("Sin dato para: " + faltan.join(", "));
+}
+
+async function completarDesdeSolicitud(inf){
+  const d = inf.datos, ot = d["OT"];
+  if(!ot){ inf.avisos.push("El informe no trae el N° de solicitud (OT-...): no se pudo completar desde la solicitud."); return; }
+  let sol;
+  try{
+    const resp = await fetch(API_BASE + "/emitir/cromatografia/solicitud/" + encodeURIComponent(ot),
+                             {headers: autorizacion()});
+    if(resp.status === 404){
+      inf.avisos.push("No se encontró la solicitud " + ot + " en el sistema: cliente y sucursal hay que elegirlos a mano.");
+      return;
+    }
+    if(!resp.ok) throw new Error("el backend respondió " + resp.status);
+    sol = await resp.json();
+  }catch(err){
+    inf.avisos.push("No se pudo leer la solicitud " + ot + " (" + err.message + "): cliente y sucursal hay que elegirlos a mano.");
+    return;
+  }
+  const c = sol.campos || {};
+  for(const col in DE_SOLICITUD){
+    const v = limpio(c[DE_SOLICITUD[col]]);
+    if(v === null) continue;
+    if(limpio(d[col]) === null) d[col] = v;
+    else if(["Especie","Variedad","CSG"].includes(col) && plano(d[col]) !== plano(v)){
+      // El informe manda, pero si contradice a la solicitud alguien tiene que verlo.
+      inf.avisos.push(col + ": el informe dice «" + d[col] + "» y la solicitud «" + v + "»");
+    }
+  }
+  const traza = "Informe AgroFresh N° " + (d["N° Solicitud"] || "—") + " · Solicitud " + ot;
+  d["Observación"] = [limpio(d["Observación"]), traza].filter(Boolean).join(" · ");
+  if(!d["Fecha entrada"] && sol.fecha_recepcion) d["Fecha entrada"] = aFecha(sol.fecha_recepcion, inf.avisos);
+
+  // Coherencia entre lo pedido y lo informado.
+  const pedidos = new Set((sol.analitos_solicitados || []).map(a => a + " ppm"));
+  for(const col of pedidos)
+    if(inf.resultados[col] === undefined)
+      inf.avisos.push("Se pidió " + col.replace(" ppm","") + " y el informe no trae su resultado");
+  for(const col in inf.resultados)
+    if(/ ppm$/.test(col) && !pedidos.has(col))
+      inf.avisos.push(col.replace(" ppm","") + " tiene resultado en el informe pero no estaba en la solicitud");
+
+  // Lo que se completó pasa por el catálogo vivo igual que lo que trae el PDF.
+  for(const col in CAMPOS_CAT) inf.crudos[col] = d[col];
+  revisarCatalogo(inf);
+  avisarFaltantes(inf);
+}
+
+const LECTORES = {"Quiteca":leerQuiteca,"Diagnofruit":leerDiagnofruit,"ALS (Corthon)":leerCorthorn,"AgroFresh":leerAgrofresh};
 // "Fecha entrada" y "Tipo de servicio" son obligatorios para que el límite por
 // especie/tipo de servicio de Report funcione al subir a la base: si el
 // informe no las trae (hoy es el caso de Quiteca, cuyo formato de PDF no se
 // ha mapeado todavía para estos dos campos), tienen que quedar visibles como
 // pendientes en vez de subir en silencio con el dato vacío.
+// Campos que se pueden escribir a mano en el panel de análisis, con las opciones
+// disponibles: "fecha" abre un selector de día; una lista, un desplegable.
+// Solo rellenan columnas que ya existen; no se crea ninguna.
+const EDITABLES = {
+  "Fecha Muestreo":"fecha", "Fecha entrada":"fecha",
+  "Tipo de servicio":["Cromatografía","Linea de Proceso","Actimist"]
+};
 const OBLIGATORIOS = ["Laboratorio","Fecha Muestreo","Especie","Fecha entrada","Tipo de servicio"];
 
 function analizar(texto, nombreArchivo){
@@ -721,7 +875,7 @@ function analizar(texto, nombreArchivo){
   const lab = detectar(texto);
   if(!lab){
     inf.avisos.push("No se reconoce el laboratorio. Formatos soportados: " +
-                    "Quiteca, Diagnofruit y Corthorn/ALS.");
+                    "Quiteca, Diagnofruit, Corthorn/ALS e informe AgroFresh.");
     return inf;
   }
   inf.laboratorio = lab;
@@ -737,6 +891,7 @@ function analizar(texto, nombreArchivo){
   inf.crudos = {};
   for(const col in CAMPOS_CAT) inf.crudos[col] = inf.datos[col];
   inf.manual = {};
+  inf.aMano = {};   // campos (no de catálogo) completados desde el panel
   revisarCatalogo(inf);
 
   const faltan = OBLIGATORIOS.filter(c => !inf.datos[c]);
@@ -802,6 +957,16 @@ function revisarCatalogo(inf){
     }
   }
 
+  /* los obligatorios que no son de catálogo (fechas, tipo de servicio) también
+     se completan a mano desde este panel */
+  OBLIGATORIOS.forEach(c => {
+    if(!(c in EDITABLES)) return;
+    if(!inf.datos[c]) inf.revision.push({campo:c, estado:"vacio", detalle:"el informe no trae este dato"});
+    else if(inf.aMano && inf.aMano[c])
+      inf.revision.push({campo:c, estado:"corregido", antes:"(vacío)", ahora:inf.datos[c],
+                         detalle:"completado a mano"});
+  });
+
   /* la variedad debe corresponder a la especie */
   const esp = inf.datos["Especie"], vari = inf.datos["Variedad"];
   if(esp && vari){
@@ -862,7 +1027,7 @@ async function textoDelPdf(buffer){
 }
 
 /* ============ interfaz ============ */
-const CLASE_LAB = {"Quiteca": "q", "Diagnofruit": "d", "ALS (Corthon)": "a"};
+const CLASE_LAB = {"Quiteca": "q", "Diagnofruit": "d", "ALS (Corthon)": "a", "AgroFresh": "g"};
 
 function esc(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
 
@@ -941,13 +1106,16 @@ function pintarAnalisis(ok){
   cont.innerHTML = "";
   ok.forEach((inf, k) => {
     const pend = inf.revision.filter(r => r.estado === "fuera" || r.estado === "incoherente").length;
+    // Un campo sin dato también se completa desde acá: la ficha queda abierta
+    // (si se cerrara al redibujar, cada elección obligaría a volver a abrirla).
+    const vac = inf.revision.filter(r => r.estado === "vacio").length;
     const d = document.createElement("div");
-    d.className = "ficha" + (pend ? " mal abierta" : "");
+    d.className = "ficha" + (pend ? " mal abierta" : vac ? " abierta" : "");
     d.innerHTML =
       '<div class="cab"><span class="fl">&#9656;</span><b>' + esc(inf.archivo) + "</b>" +
       '<span class="tag ' + (CLASE_LAB[inf.laboratorio] || "x") + '">' +
       esc(inf.laboratorio) + "</span>" +
-      '<span class="meta">' + (pend ? pend + " por decidir" : "todo homogenizado") + "</span></div>" +
+      '<span class="meta">' + (pend ? pend + " por decidir" : vac ? vac + " sin dato" : "todo homogenizado") + "</span></div>" +
       '<div class="cuerpo"><table class="rev"><tr><th>Campo</th><th>Estado</th>' +
       "<th>Valor</th><th>Detalle</th></tr>" +
       inf.revision.map((r, j) => {
@@ -963,7 +1131,14 @@ function pintarAnalisis(ok){
         // desplegable para elegir (o cambiar) el valor oficial: siempre
         // disponible, también si la homogeneización automática se equivocó
         let fix = "";
-        if(CAMPO_CLAVE[r.campo]){
+        if(EDITABLES[r.campo]){
+          const ed = EDITABLES[r.campo];
+          fix = ed === "fecha"
+            ? '<input class="fix" type="date" data-inf="' + k + '" data-campo="' + esc(r.campo) + '">'
+            : '<select class="fix" data-inf="' + k + '" data-campo="' + esc(r.campo) + '">' +
+              '<option value="">— elegir —</option>' +
+              ed.map(x => '<option>' + esc(x) + "</option>").join("") + "</select>";
+        }else if(CAMPO_CLAVE[r.campo]){
           const id = "cbm" + montajes.length;
           montajes.push({id, inf, r});
           fix = '<div class="cb" id="' + id + '"></div>';
@@ -977,6 +1152,17 @@ function pintarAnalisis(ok){
       }).join("") + "</table></div>";
     d.querySelector(".cab").onclick = () => d.classList.toggle("abierta");
     cont.appendChild(d);
+  });
+
+  cont.querySelectorAll("select.fix, input.fix").forEach(el => el.onchange = () => {
+    if(!el.value) return;
+    const inf = ok[+el.dataset.inf];
+    // el selector de día entrega AAAA-MM-DD; la tabla guarda DD-MM-AAAA
+    inf.datos[el.dataset.campo] = el.type === "date" ? el.value.split("-").reverse().join("-") : el.value;
+    inf.aMano[el.dataset.campo] = true;
+    revisarCatalogo(inf);
+    avisarFaltantes(inf);
+    pintar();
   });
 
   montajes.forEach(({id, inf, r}) => {
@@ -1278,6 +1464,7 @@ async function cargar(lista){
     try{
       const buf = new Uint8Array(await file.arrayBuffer());
       const inf = analizar(await textoDelPdf(buf), file.name);
+      if(inf.laboratorio === "AgroFresh") await completarDesdeSolicitud(inf);
       inf.file = file;   // el PDF original: se guarda en las carpetas de auditoría al subir
       informes.push(inf);
     }catch(err){
