@@ -547,6 +547,21 @@ export function LaboratoriosView() {
         </Card>
       )}
 
+      <div className={styles.kpis}>
+        {[
+          { etiqueta: 'Laboratorios', valor: laboratorios.filter((l) => l.activo).length, nota: `${laboratorios.length} en total`, clase: styles.kpiVerde },
+          { etiqueta: 'Análisis', valor: laboratorios.reduce((n, l) => n + l.n_analisis, 0), nota: 'configurados', clase: styles.kpiAzul },
+          { etiqueta: 'Analitos', valor: laboratorios.reduce((n, l) => n + l.n_analitos, 0), nota: 'en el catálogo', clase: styles.kpiVioleta },
+          { etiqueta: 'Contactos', valor: laboratorios.reduce((n, l) => n + l.n_contactos, 0), nota: 'reciben correos', clase: styles.kpiTeal },
+        ].map((k, i) => (
+          <div key={k.etiqueta} className={cn(styles.kpi, k.clase)} style={{ animationDelay: `${i * 60}ms` }}>
+            <span className={styles.kpiEtiqueta}>{k.etiqueta}</span>
+            <b>{new Intl.NumberFormat('es-CL').format(k.valor)}</b>
+            <span className={styles.kpiNota}>{k.nota}</span>
+          </div>
+        ))}
+      </div>
+
       <div className={styles.barra}>
         <div className={styles.buscador}>
           <svg className={styles.buscadorIcono} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -626,11 +641,11 @@ export function LaboratoriosView() {
       )}
 
       <div className={styles.grilla}>
-        {filtrados.map((l) => (
+        {filtrados.map((l, i) => (
           <button
             key={l.codigo}
             className={cn(styles.tarjeta, !l.activo && styles.tarjetaInactiva)}
-            style={acentoDeLaboratorio(l.codigo)}
+            style={{ ...acentoDeLaboratorio(l.codigo), animationDelay: `${i * 50}ms` }}
             onClick={() => {
               setSeleccionado(l.codigo)
               setPestana('analisis')

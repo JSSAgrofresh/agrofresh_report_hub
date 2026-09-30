@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { ResumenHero } from '@/components/ui/ResumenHero'
 import { useAuth } from '@/features/auth'
 import { esAdminGeneral } from '@/features/usuarios'
 import { ROUTES, rutaTomaMuestrasDetalle } from '@/constants/routes'
@@ -342,6 +344,23 @@ export function SolicitudesView() {
           </div>
         }
       />
+
+      {solicitudesFiltradas && solicitudesFiltradas.length > 0 && (
+        <div className={styles.heroSolicitudes}>
+          <ResumenHero
+            etiqueta="Solicitudes enviadas"
+            porcentaje={(totalEnviadas / solicitudesFiltradas.length) * 100}
+            cifra={totalEnviadas}
+            cifraSub={`de ${solicitudesFiltradas.length} registradas`}
+            descripcion="Las que ya salieron por correo al laboratorio."
+            ariaLabel="Resumen de solicitudes enviadas"
+            segmentos={[
+              { clave: 'enviadas', texto: 'Enviadas', n: totalEnviadas, color: '#1b7f5c', tinta: '#14664a', fondo: 'rgba(27, 127, 92, 0.12)' },
+              { clave: 'pendientes', texto: 'Pendientes', n: totalPendientes, color: '#d08a00', tinta: '#8a5a00', fondo: 'rgba(208, 138, 0, 0.13)' },
+            ]}
+          />
+        </div>
+      )}
 
       {esAdmin && envioAutomatico !== null && (
         <Card>
@@ -711,9 +730,10 @@ export function SolicitudesView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {solicitudesFiltradas.map((s) => (
+                  {solicitudesFiltradas.map((s, idx) => (
                     <tr
                       key={s.archivo}
+                      style={{ '--n': idx } as CSSProperties}
                       className={[
                         s.enviada ? styles.filaEnviada : '',
                         seleccionadas.has(s.archivo) ? styles.filaSeleccionada : '',

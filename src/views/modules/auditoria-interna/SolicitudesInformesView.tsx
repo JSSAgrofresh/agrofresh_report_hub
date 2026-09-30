@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react'
+import { useAuth } from '@/features/auth'
+import { esAdminGeneral } from '@/features/usuarios'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -12,11 +14,12 @@ import {
   opcionesDeFiltros,
   porClienteYServicio,
   resumenPorTipo,
+  simularSolicitudes,
   topClientesPorServicio,
   totales,
   useSolicitudesAuditoria,
 } from '@/features/auditoriaInterna'
-import type { FiltrosSolicitudes } from '@/features/auditoriaInterna'
+import type { FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { DonaTipoServicio, GraficoClienteServicio, LeyendaTipos, TarjetaGrafico } from './Graficos'
 import { altoClienteServicio } from './coloresTipo'
 import { PanelFiltros } from './PanelFiltros'
@@ -34,7 +37,18 @@ const TIPOS_GRAFICO: { valor: TipoGrafico; texto: string }[] = [
 ]
 
 export function SolicitudesInformesView() {
-  const { datos: todas, error, cargando, refrescar } = useSolicitudesAuditoria()
+  const { user } = useAuth()
+  const puedeSimular = user ? esAdminGeneral(user) : false
+  const { datos: reales, error, cargando, refrescar: recargarReales } = useSolicitudesAuditoria()
+  // Datos inventados que reemplazan a los reales mientras dura la simulación.
+  // Solo en memoria: «Actualizar» o salir de la pantalla los descarta.
+  const [simulacion, setSimulacion] = useState<SolicitudAuditoria[] | null>(null)
+  const simulando = puedeSimular && simulacion !== null
+  const todas = simulando ? simulacion : reales
+  const refrescar = () => {
+    setSimulacion(null)
+    recargarReales()
+  }
 
   const [filtros, setFiltros] = useState<FiltrosSolicitudes>({ ...FILTROS_VACIOS })
   const [tipoGrafico, setTipoGrafico] = useState<TipoGrafico>('ambos')
@@ -63,12 +77,30 @@ export function SolicitudesInformesView() {
         title="Solicitudes e informes"
         description="Las solicitudes que emitimos y cuáles ya están concretadas: con su PDF guardado y sus resultados en Report."
         acciones={
+          <>
+          {puedeSimular && (
+            <Button
+              variant="secondary"
+              onClick={() => setSimulacion(simulando ? null : simularSolicitudes(1000))}
+              aria-pressed={simulando}
+              title="Muestra 1.000 solicitudes inventadas para probar cómo se ve el panel. No se guarda nada."
+            >
+              {simulando ? '✕ Salir de la simulación' : '🧪 Simular 1.000 datos'}
+            </Button>
+          )}
           <Button variant="secondary" onClick={refrescar} disabled={cargando} className={styles.botonActualizar}>
             <IconoActualizar className={cargando ? styles.girando : undefined} width={16} height={16} />
             {cargando ? 'Actualizando…' : 'Actualizar'}
           </Button>
+          </>
         }
       />
+
+      {simulando && (
+        <div className={styles.avisoSim} role="status">
+          🧪 Estás viendo 1.000 solicitudes <b>simuladas</b>. No son reales ni se guardan; «Actualizar» vuelve a los datos de verdad.
+        </div>
+      )}
 
       {error && (
         <div className={styles.errorCaja} role="alert">
@@ -87,7 +119,7 @@ export function SolicitudesInformesView() {
       )}
 
       {todas && (
-        <div className={cargando ? styles.recargando : styles.contenido}>
+        <div className={cargando && !simulando ? styles.recargando : styles.contenido}>
           <ResumenConcretadas totales={tot} />
           <PanelFiltros filtros={filtros} onChange={(f) => setFiltros(f)} opciones={opciones} datos={todas} />
 
