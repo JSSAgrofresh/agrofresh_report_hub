@@ -1,5 +1,5 @@
 -- ----------------------------------------------------------------------------
--- 0039 - Codigo de ensayo y N° de ensayo (solicitudes RYD de AgroFresh)
+-- 0046 - Codigo de ensayo y N° de ensayo (solicitudes RYD de AgroFresh)
 --
 -- Las solicitudes de Tipo de Aplicacion RYD de AgroFresh piden dos datos
 -- propios: el codigo del ensayo y su numero. Se guardan como columnas para

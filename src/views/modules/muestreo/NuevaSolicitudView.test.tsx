@@ -654,7 +654,7 @@ describe('NuevaSolicitudView — RYD de AgroFresh', () => {
     fireEvent.click(screen.getByRole('button', { name: '+ Agregar posición' }))
     fireEvent.change(screen.getByLabelText('Posición de muestreo 3'), { target: { value: 'Centro' } })
     fireEvent.click(screen.getByRole('button', { name: 'Quitar posición 1' }))
-    fireEvent.click(screen.getByText('Guardar'))
+    fireEvent.click(screen.getByRole('button', { name: /^Guardar/ }))
 
     await waitFor(() => expect(actualizarSolicitud).toHaveBeenCalledTimes(1))
     const payload = actualizarSolicitud.mock.calls[0][1]
