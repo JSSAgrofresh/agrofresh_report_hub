@@ -132,8 +132,8 @@ Este proyecto no se da por listo con "debería funcionar":
   Los tipos se revisan con `npm run build` (o `npm run typecheck`), que corre
   `tsc -b`. **`npx tsc --noEmit` no sirve**: no mira los archivos de test, así
   que un error de tipos ahí pasa limpio acá y bota el deploy de Vercel.
-  El lint tiene **16 errores de línea base preexistentes** (casi todos
-  `set-state-in-effect`); si salen 16, está bien. Si salen 17, algo nuevo lo rompió.
+  El lint tiene **14 errores de línea base preexistentes** (casi todos
+  `set-state-in-effect`); si salen 14, está bien. Si salen 15, algo nuevo lo rompió.
 - En backend hay **4 tests que ya fallan** en la rama (`test_alcance_datos`,
   `test_envio_solicitud_correo`, `test_resultados_ship_to`,
   `test_verificaciones::test_detector_con_metodo_equivocado`) y
@@ -319,9 +319,11 @@ tocas una, toca la otra.
   `features/reportes/lib/simulacion.ts`. Clientes «(Sim.)», ids negativos,
   límites ficticios. Vive solo en el estado de la pantalla: se pierde al
   salir, recargar o actualizar. Nunca va al backend.
-- Post Venta (Accu-Tab) tiene una vista general arriba del detalle
-  (`PostVentaResumen.tsx` + `features/postventa/lib/resumen.ts`), calculada
-  sobre la lista de cargas. pH y ORP **siempre en gráficos separados**.
+- Post Venta (Accu-Tab) tiene arriba del detalle una vista general con filtros
+  (cliente, equipo, período) e indicadores (`PostVentaResumen.tsx` +
+  `features/postventa/lib/resumen.ts`). Los 4 gráficos que tuvo (pH, ORP,
+  cargas por mes, por equipo) se **quitaron a pedido del usuario**: no los
+  vuelvas a poner. pH y ORP, si vuelven a graficarse, van en gráficos separados.
   Por ahora solo para admin: mostrárselo a clientes exige filtrar las
   cargas por cliente en el backend.
 - **«Descargar BD»** (solo personal interno, nunca en el portal de cliente ni
