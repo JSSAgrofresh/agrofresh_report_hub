@@ -1527,6 +1527,10 @@ def subir_bd(filas: list[FilaCruceIn]) -> list[FilaSubidaOut]:
                     "tipo_muestra": fila.campos.get("Tipo Muestra") or None,
                     "tipo_servicio": TIPO_SERVICIO_CROMATOGRAFIA,
                     "lote": fila.campos.get("Lote") or None,
+                    # Posición (RYD admite varias, unidas por coma) y datos del ensayo RYD.
+                    "posicion_muestreo": fila.campos.get("Posición Muestreo") or None,
+                    "codigo_ensayo": fila.campos.get("Código de Ensayo") or None,
+                    "nro_ensayo": fila.campos.get("N° Ensayo") or None,
                     "solicitante": fila.campos.get("Solicitante") or None,
                     "nombre_muestreador": fila.campos.get("Nombre Muestreador") or None,
                     "generado_por": fila.campos.get("Generado Por") or None,
