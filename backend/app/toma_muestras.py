@@ -1985,9 +1985,10 @@ def enviar_solicitud_por_correo(
     # cuadro de envío se agregan sólo a este correo y no alteran el mantenedor.
     por_envio = contactos_de_solicitud_de(lab, datos)
     candidatos = list(por_envio["to"])
-    # Toda solicitud Actimist copia a estos dos referentes de producto.
+    # Toda solicitud Actimist copia a estos dos referentes de producto; las
+    # de prueba no, para no llenarles la bandeja con correos de ensayo.
     tipo_aplicacion = str(datos.get("campos_laboratorio", {}).get("Tipo Aplicación") or "")
-    if tipo_aplicacion == "Actimist":
+    if tipo_aplicacion == "Actimist" and not datos.get("es_prueba"):
         candidatos = candidatos + ["CJIMENEZ@AGROFRESH.COM", "CGUERRERO@AGROFRESH.COM"]
     if body.destinatario and body.destinatario.strip():
         candidatos.append(body.destinatario.strip())
