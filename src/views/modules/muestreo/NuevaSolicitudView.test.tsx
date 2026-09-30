@@ -562,3 +562,104 @@ describe('NuevaSolicitudView — solicitudes de prueba', () => {
     expect(screen.getByText('Guardar prueba')).toBeDisabled()
   })
 })
+
+describe('NuevaSolicitudView — RYD de AgroFresh', () => {
+  const CAMPOS_CON_POSICION: CampoConfig[] = [
+    ...CAMPOS_CONFIG,
+    {
+      clave: 'posicion_muestreo',
+      etiqueta: 'Posición Muestreo',
+      tipo: 'text',
+      requerido: false,
+      activo: true,
+      orden: 7,
+    },
+  ]
+
+  function mockConfigRyd() {
+    mockConfigComun()
+    listarCamposConfig.mockResolvedValue(CAMPOS_CON_POSICION)
+    listarLaboratoriosConfig.mockResolvedValue([
+      { id: 1, codigo: 'AGROFRESH', nombre: 'AgroFresh', descripcion: null, activo: true, orden: 1 },
+      { id: 2, codigo: 'QUITECA', nombre: 'Quiteca', descripcion: null, activo: true, orden: 2 },
+    ])
+    listarTiposAplicacion.mockResolvedValue([
+      { id: 1, nombre: 'Actimist', activo: true, orden: 1 },
+      { id: 2, nombre: 'RYD', activo: true, orden: 2 },
+    ])
+  }
+
+  function montarNueva() {
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('pide código y N° de ensayo y permite varias posiciones solo en RYD + AgroFresh', async () => {
+    mockConfigRyd()
+    montarNueva()
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'RYD' } })
+
+    expect(screen.getByText('Código de Ensayo')).toBeTruthy()
+    expect(screen.getByText('N° Ensayo')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '+ Agregar posición' }))
+    expect(screen.getByLabelText('Posición de muestreo 2')).toBeTruthy()
+
+    // Otro laboratorio con RYD: formulario de siempre.
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'QUITECA' } })
+    expect(screen.queryByText('Código de Ensayo')).toBeNull()
+    expect(screen.queryByRole('button', { name: '+ Agregar posición' })).toBeNull()
+
+    // AgroFresh pero otro tipo de aplicación: tampoco.
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+    expect(screen.queryByText('N° Ensayo')).toBeNull()
+  })
+
+  it('al editar precarga las posiciones y guarda ensayo y posiciones unidas por coma', async () => {
+    actualizarSolicitud.mockClear()
+    mockConfigRyd()
+    const solicitud = solicitudBase({
+      posicion_muestreo: 'Entrada, Salida',
+      campos_laboratorio: {
+        'Fludioxonil (ppm)': '25',
+        'Tipo Aplicación': 'RYD',
+        'Código de Ensayo': 'ENS-1',
+        'N° Ensayo': '42',
+      },
+      analitos_solicitados: ['FDL'],
+    })
+    obtenerSolicitud.mockResolvedValue(solicitud)
+    actualizarSolicitud.mockResolvedValue(solicitud)
+
+    render(
+      <MemoryRouter initialEntries={[`/editar/${solicitud.archivo}`]}>
+        <Routes>
+          <Route path="/editar/:archivo" element={<NuevaSolicitudView modo="editar" />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByDisplayValue('Entrada')).toBeTruthy())
+    expect(screen.getByDisplayValue('Salida')).toBeTruthy()
+    expect(screen.getByDisplayValue('ENS-1')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Agregar posición' }))
+    fireEvent.change(screen.getByLabelText('Posición de muestreo 3'), { target: { value: 'Centro' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar posición 1' }))
+    fireEvent.click(screen.getByText('Guardar'))
+
+    await waitFor(() => expect(actualizarSolicitud).toHaveBeenCalledTimes(1))
+    const payload = actualizarSolicitud.mock.calls[0][1]
+    expect(payload.posicion_muestreo).toBe('Salida, Centro')
+    expect(payload.campos_laboratorio['Código de Ensayo']).toBe('ENS-1')
+    expect(payload.campos_laboratorio['N° Ensayo']).toBe('42')
+  })
+})
