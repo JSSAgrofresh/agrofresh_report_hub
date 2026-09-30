@@ -1066,3 +1066,97 @@
   flex-wrap: wrap;
   margin-top: var(--space-1);
 }
+
+/* --- pulido visual: resumen en mosaicos de color y tarjetas que entran --- */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.kpi {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-4);
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  color: #fff;
+  box-shadow: var(--shadow-md);
+  animation: entra 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.kpi::after {
+  content: '';
+  position: absolute;
+  right: -28px;
+  top: -28px;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.kpi:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(22, 32, 27, 0.18);
+}
+
+.kpi b {
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiEtiqueta {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.kpiNota {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.kpiVerde { background: linear-gradient(135deg, #6dad3c, #2f7d32); }
+.kpiAzul { background: linear-gradient(135deg, #2d7fb8, #1c4f86); }
+.kpiVioleta { background: linear-gradient(135deg, #7b5ea7, #4a3aa7); }
+.kpiTeal { background: linear-gradient(135deg, #2a8f82, #166a62); }
+
+.tarjeta {
+  animation: entra 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  background: linear-gradient(160deg, var(--acento-suave, #eef5e7) 0%, var(--color-surface) 42%);
+}
+
+.tarjeta:hover .avatar {
+  background: var(--acento, var(--color-primary));
+  color: #fff;
+}
+
+.avatar {
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.tarjeta:hover .avatar {
+  transform: scale(1.06) rotate(-3deg);
+}
+
+@keyframes entra {
+  from { opacity: 0; transform: translateY(10px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi,
+  .tarjeta {
+    animation: none;
+  }
+}

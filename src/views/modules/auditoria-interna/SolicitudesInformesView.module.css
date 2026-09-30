@@ -555,3 +555,12 @@ th.colAnalitos {
     flex-direction: column;
   }
 }
+
+.avisoSim {
+  padding: 10px 16px;
+  border: 1px dashed #c2410c;
+  border-radius: var(--radius-md);
+  background: rgba(194, 65, 12, 0.07);
+  color: #9a3412;
+  font-size: 13px;
+}
