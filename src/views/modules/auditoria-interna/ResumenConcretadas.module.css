@@ -1,0 +1,221 @@
+.tarjeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-5) var(--space-6);
+  padding: var(--space-5) var(--space-6);
+  background:
+    radial-gradient(900px 220px at 0% 0%, rgba(109, 173, 60, 0.13), transparent 60%),
+    radial-gradient(600px 220px at 100% 100%, rgba(27, 127, 92, 0.09), transparent 60%),
+    var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  animation: entra 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.principal {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+/* ── anillo ── */
+.anillo {
+  position: relative;
+  flex-shrink: 0;
+  width: 132px;
+  height: 132px;
+}
+
+.anillo svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  filter: drop-shadow(0 4px 10px rgba(27, 127, 92, 0.22));
+}
+
+.pista,
+.progreso {
+  fill: none;
+  stroke-width: 10;
+}
+
+.pista {
+  stroke: var(--color-border);
+}
+
+.progreso {
+  stroke: url(#anilloConcretadas);
+  stroke-linecap: round;
+}
+
+.cifra {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.cifra small {
+  margin: 6px 0 0 1px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text-faint);
+  align-self: center;
+}
+
+.texto {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.etiqueta {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-primary-hover);
+}
+
+.grande {
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.grande small {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
+}
+
+.sub {
+  max-width: 260px;
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+}
+
+/* ── reparto ── */
+.detalle {
+  flex: 1 1 340px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.barra {
+  display: flex;
+  gap: 3px;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--color-border);
+  box-shadow: inset 0 1px 2px rgba(22, 32, 27, 0.08);
+}
+
+.barra span {
+  min-width: 6px;
+  border-radius: 3px;
+  transform-origin: left;
+  animation: llena 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.estados {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.estados li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border-left: 4px solid var(--c);
+  background: var(--fondo);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.estados li:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.estados b {
+  font-size: 24px;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+}
+
+.estados span {
+  grid-column: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.estados em {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tinta);
+  opacity: 0.8;
+}
+
+@keyframes entra {
+  from { opacity: 0; transform: translateY(10px); }
+}
+
+@keyframes llena {
+  from { transform: scaleX(0); }
+}
+
+@media (max-width: 600px) {
+  .tarjeta {
+    padding: var(--space-4);
+  }
+
+  .anillo {
+    width: 104px;
+    height: 104px;
+  }
+
+  .cifra {
+    font-size: 30px;
+  }
+
+  .grande {
+    font-size: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta,
+  .barra span {
+    animation: none;
+  }
+}
