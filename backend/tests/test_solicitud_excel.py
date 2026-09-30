@@ -229,9 +229,29 @@ def test_excel_con_muestra_usa_formato_de_la_base_solo_con_analitos_agrofresh():
     assert valores["FDL"] == "✓"
     assert valores["FDL Dosis"] == "250"
     # Campos de RYD.
-    assert valores["Posición Muestreo"] == "A1, B2"
+    assert valores["Posición Muestreo"] == "A1"  # RYD: una fila por posición
+    assert ws.cell(row=4, column=headers.index("Posición Muestreo") + 1).value == "B2"
     assert valores["Código de Ensayo"] == "E-77"
     assert valores["N° Ensayo"] == "3"
     # Solo AgroFresh: sin los grupos de otros laboratorios.
     assert "Levaduras UFC/mL" not in headers and "E. Coli UFC/100mL" not in headers
     assert "FDL" in headers
+
+
+def test_ryd_con_varias_posiciones_sale_una_fila_por_posicion():
+    datos = {
+        **DATOS_BASE,
+        "numero_solicitud": "OT-AGF0052",
+        "posicion_muestreo": "R1, R2, R4",
+        "analitos_solicitados": ["PYR"],
+        "campos_laboratorio": {"Tipo Aplicación": "RYD", "Código de Ensayo": "E1", "N° Ensayo": "1"},
+    }
+    otra = {**datos, "numero_solicitud": "OT-2", "posicion_muestreo": "A, B",
+            "campos_laboratorio": {"Tipo Aplicación": "Actimist"}}
+    ws = construir_workbook_exportacion([datos, otra], ANALITOS_DEFECTO).active
+    headers = [c.value for c in ws[2]]
+    filas = [dict(zip(headers, [c.value for c in r])) for r in ws.iter_rows(min_row=3)]
+    assert [(f["N° Solicitud"], f["Posición Muestreo"]) for f in filas] == [
+        ("OT-AGF0052", "R1"), ("OT-AGF0052", "R2"), ("OT-AGF0052", "R4"), ("OT-2", "A, B"),
+    ]
+    assert all(f["Código de Ensayo"] == "E1" for f in filas[:3])
