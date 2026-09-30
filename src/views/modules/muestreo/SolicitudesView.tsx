@@ -13,15 +13,19 @@ import {
   descargarTodasLasSolicitudes,
   obtenerEnvioAutomatico,
   actualizarEnvioAutomatico,
+  descargarPdfsZip,
+  enviarSolicitudPorCorreo,
   estadoSolicitudesPrueba,
+  listarTiposAplicacion,
 } from '@/features/tomaMuestras'
-import type { Solicitud } from '@/features/tomaMuestras'
+import type { ConfigEnvioAutomatico, OpcionConfig, Solicitud } from '@/features/tomaMuestras'
 import styles from './SolicitudesView.module.css'
 
 interface Filtros {
   fechaDesde: string
   fechaHasta: string
   numeroSolicitud: string
+  busqueda: string
   laboratorio: string
   solicitante: string
   soldTo: string
@@ -39,6 +43,7 @@ const FILTROS_VACIOS: Filtros = {
   fechaDesde: '',
   fechaHasta: '',
   numeroSolicitud: '',
+  busqueda: '',
   laboratorio: '',
   solicitante: '',
   soldTo: '',
@@ -70,8 +75,12 @@ export function SolicitudesView() {
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
 
   // Toggle de envío automático (solo visible para admin_general)
-  const [envioAutomatico, setEnvioAutomatico] = useState<boolean | null>(null)
-  const [modalAbierto, setModalAbierto] = useState(false)
+  // Una regla general y una por tipo de aplicación (Actimist, Línea de proceso…).
+  const [envioAutomatico, setEnvioAutomatico] = useState<ConfigEnvioAutomatico | null>(null)
+  const [tiposAplicacion, setTiposAplicacion] = useState<OpcionConfig[]>([])
+  // Qué regla se está por cambiar: null = la general, texto = ese tipo.
+  const [reglaACambiar, setReglaACambiar] = useState<{ tipo: string | null } | null>(null)
+  const modalAbierto = reglaACambiar !== null
   const [password, setPassword] = useState('')
   const [errorModal, setErrorModal] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
@@ -86,8 +95,11 @@ export function SolicitudesView() {
   useEffect(() => {
     if (!esAdmin) return
     obtenerEnvioAutomatico()
-      .then((r) => setEnvioAutomatico(r.activo))
+      .then(setEnvioAutomatico)
       .catch(() => {})
+    listarTiposAplicacion()
+      .then((t) => setTiposAplicacion(t.filter((x) => x.activo)))
+      .catch(() => setTiposAplicacion([]))
   }, [esAdmin])
 
   useEffect(() => {
@@ -98,14 +110,26 @@ export function SolicitudesView() {
     }
   }, [modalAbierto])
 
-  async function confirmarCambio() {
-    if (envioAutomatico === null) return
+  const [avisoMasivo, setAvisoMasivo] = useState<string | null>(null)
+  const [trabajando, setTrabajando] = useState<null | 'pdf' | 'excel' | 'enviar'>(null)
+
+  // Lo que rige HOY para un tipo (o para la regla general si tipo es null).
+  function reglaVigente(tipo: string | null): boolean {
+    if (!envioAutomatico) return true
+    return (tipo ? envioAutomatico.por_tipo?.[tipo] : undefined) ?? envioAutomatico.activo
+  }
+
+  async function confirmarCambio(heredar = false) {
+    if (envioAutomatico === null || reglaACambiar === null) return
+    const { tipo } = reglaACambiar
     setGuardando(true)
     setErrorModal(null)
     try {
-      const res = await actualizarEnvioAutomatico(!envioAutomatico, password)
-      setEnvioAutomatico(res.activo)
-      setModalAbierto(false)
+      const res = await actualizarEnvioAutomatico(!reglaVigente(tipo), password, {
+        ...(tipo ? { tipo, heredar } : {}),
+      })
+      setEnvioAutomatico(res)
+      setReglaACambiar(null)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       setErrorModal(msg.includes('401') || msg.toLowerCase().includes('contraseña') ? 'Contraseña incorrecta.' : 'No se pudo guardar el cambio.')
@@ -179,6 +203,15 @@ export function SolicitudesView() {
     return solicitudes.filter((s) => {
       if (filtros.fechaDesde && s.fecha_solicitud < filtros.fechaDesde) return false
       if (filtros.fechaHasta && s.fecha_solicitud > filtros.fechaHasta) return false
+      if (filtros.busqueda) {
+        const pajar = [
+          s.numero_solicitud, s.sold_to, s.ship_to, s.especie, s.variedad,
+          s.laboratorio, s.generado_por, s.tipo_muestra, s.campos_laboratorio['Tipo Aplicación'],
+        ].join(' ')
+        const claves = filtros.busqueda.trim().toLowerCase().split(/\s+/)
+        const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        if (!claves.every((c) => norm(pajar).includes(norm(c)))) return false
+      }
       if (filtros.numeroSolicitud && !contiene(s.numero_solicitud, filtros.numeroSolicitud))
         return false
       if (filtros.laboratorio && s.laboratorio !== filtros.laboratorio) return false
@@ -228,6 +261,9 @@ export function SolicitudesView() {
     })
   }
 
+  const filasSeleccionadas = (solicitudesFiltradas ?? []).filter((x) => seleccionadas.has(x.archivo))
+  const pendientesSel = filasSeleccionadas.filter((x) => !x.enviada)
+
   const archivosAExportar = seleccionadas.size > 0
     ? [...seleccionadas]
     : hayFiltrosActivos
@@ -239,6 +275,48 @@ export function SolicitudesView() {
     : hayFiltrosActivos
       ? `Descargar filtradas (${solicitudesFiltradas?.length ?? 0})`
       : 'Descargar todas las solicitudes'
+
+  async function correr(tarea: 'pdf' | 'excel' | 'enviar', fn: () => Promise<void>) {
+    setTrabajando(tarea)
+    setAvisoMasivo(null)
+    try {
+      await fn()
+    } catch (e) {
+      setAvisoMasivo(e instanceof Error && e.message ? e.message : 'No se pudo completar la acción.')
+    } finally {
+      setTrabajando(null)
+    }
+  }
+
+  // Sin selección, el PDF masivo baja lo que se ve (con o sin filtros).
+  const archivosParaPdf = seleccionadas.size > 0 ? [...seleccionadas] : archivosVisibles
+
+  async function enviarPendientes() {
+    const n = pendientesSel.length
+    if (n === 0) return
+    if (!confirm(`Se enviarán por correo ${n} solicitud${n === 1 ? '' : 'es'} pendiente${n === 1 ? '' : 's'} a sus contactos. ¿Continuar?`)) return
+    await correr('enviar', async () => {
+      let ok = 0
+      const fallidas: string[] = []
+      for (const x of pendientesSel) {
+        try {
+          await enviarSolicitudPorCorreo(x.archivo)
+          ok += 1
+        } catch {
+          fallidas.push(x.numero_solicitud)
+        }
+      }
+      await refrescar()
+      setAvisoMasivo(
+        fallidas.length === 0
+          ? `Se enviaron ${ok} solicitud${ok === 1 ? '' : 'es'}.`
+          : `Se enviaron ${ok}. No se pudieron enviar: ${fallidas.join(', ')}.`,
+      )
+    })
+  }
+
+  const totalEnviadas = (solicitudesFiltradas ?? []).filter((x) => x.enviada).length
+  const totalPendientes = (solicitudesFiltradas?.length ?? 0) - totalEnviadas
 
   return (
     <div>
@@ -268,22 +346,47 @@ export function SolicitudesView() {
       {esAdmin && envioAutomatico !== null && (
         <Card>
           <div className={styles.configArchivos}>
-            <p className={styles.configArchivosTitulo}>Comportamiento al guardar solicitudes</p>
+            <p className={styles.configArchivosTitulo}>Envío automático al guardar, por tipo de aplicación</p>
             <div className={styles.configArchivosFilas}>
+              {tiposAplicacion.map((t) => {
+                const propia = envioAutomatico.por_tipo?.[t.nombre]
+                const activo = reglaVigente(t.nombre)
+                return (
+                  <div className={styles.configArchivosFila} key={t.id}>
+                    <span className={styles.configArchivosNombre}>{t.nombre}</span>
+                    <button
+                      type="button"
+                      onClick={() => setReglaACambiar({ tipo: t.nombre })}
+                      className={`${styles.toggle} ${activo ? styles.toggleOn : styles.toggleOff}`}
+                      title={`${activo ? 'Desactivar' : 'Activar'} envío automático de ${t.nombre}`}
+                      aria-label={`Envío automático de ${t.nombre}`}
+                      aria-pressed={activo}
+                    >
+                      <span className={styles.toggleCirculo} />
+                    </button>
+                    <span className={styles.configArchivosEstado}>
+                      {activo
+                        ? 'Al guardar se envía de inmediato por correo'
+                        : 'Al guardar queda pendiente — se envía manualmente'}
+                      {propia === undefined && ' (según la regla general)'}
+                    </span>
+                  </div>
+                )
+              })}
               <div className={styles.configArchivosFila}>
-                <span className={styles.configArchivosNombre}>Envío automático</span>
+                <span className={styles.configArchivosNombre}>General</span>
                 <button
                   type="button"
-                  onClick={() => setModalAbierto(true)}
-                  className={`${styles.toggle} ${envioAutomatico ? styles.toggleOn : styles.toggleOff}`}
-                  title={envioAutomatico ? 'Desactivar envío automático' : 'Activar envío automático'}
+                  onClick={() => setReglaACambiar({ tipo: null })}
+                  className={`${styles.toggle} ${envioAutomatico.activo ? styles.toggleOn : styles.toggleOff}`}
+                  title={envioAutomatico.activo ? 'Desactivar la regla general' : 'Activar la regla general'}
+                  aria-label="Envío automático general"
+                  aria-pressed={envioAutomatico.activo}
                 >
                   <span className={styles.toggleCirculo} />
                 </button>
                 <span className={styles.configArchivosEstado}>
-                  {envioAutomatico
-                    ? 'Al guardar se envía de inmediato por correo'
-                    : 'Al guardar queda pendiente — se envía manualmente'}
+                  Rige para los tipos sin regla propia y para solicitudes sin tipo
                 </span>
               </div>
             </div>
@@ -295,12 +398,13 @@ export function SolicitudesView() {
         <div className={styles.overlay}>
           <div className={styles.modalCambio}>
             <p className={styles.modalTitulo}>
-              {envioAutomatico ? 'Desactivar' : 'Activar'} envío automático
+              {reglaVigente(reglaACambiar?.tipo ?? null) ? 'Desactivar' : 'Activar'} envío automático
+              {reglaACambiar?.tipo ? ` — ${reglaACambiar.tipo}` : ' — regla general'}
             </p>
             <p className={styles.modalDescripcion}>
-              {envioAutomatico
-                ? 'Las solicitudes quedarán pendientes hasta que las envíes manualmente.'
-                : 'Las solicitudes se enviarán por correo al momento de guardarlas.'}
+              {reglaVigente(reglaACambiar?.tipo ?? null)
+                ? 'Estas solicitudes quedarán pendientes hasta que las envíes manualmente.'
+                : 'Estas solicitudes se enviarán por correo al momento de guardarlas.'}
               {' '}Ingresa tu contraseña para confirmar.
             </p>
             <input
@@ -317,7 +421,7 @@ export function SolicitudesView() {
               <button
                 type="button"
                 className={styles.modalBotonCancelar}
-                onClick={() => setModalAbierto(false)}
+                onClick={() => setReglaACambiar(null)}
                 disabled={guardando}
               >
                 Cancelar
@@ -354,6 +458,65 @@ export function SolicitudesView() {
             {mostrarFiltros ? 'Ocultar filtros' : 'Mostrar filtros'}
           </button>
         </div>
+
+        <div className={styles.barraBusqueda}>
+          <input
+            type="search"
+            className={styles.buscador}
+            placeholder="Buscar por N°, cliente, planta, especie, tipo…"
+            value={filtros.busqueda}
+            onChange={(e) => actualizarFiltro('busqueda', e.target.value)}
+            aria-label="Buscar solicitudes"
+          />
+          <span className={styles.resumenEstados}>
+            <span className={styles.chipEnviada}>{totalEnviadas} enviada{totalEnviadas === 1 ? '' : 's'}</span>
+            <span className={styles.chipPendiente}>{totalPendientes} pendiente{totalPendientes === 1 ? '' : 's'}</span>
+          </span>
+        </div>
+
+        {seleccionadas.size > 0 && (
+          <div className={styles.barraSeleccion} role="region" aria-label="Acciones sobre la selección">
+            <strong className={styles.contadorSel}>
+              {seleccionadas.size} seleccionada{seleccionadas.size === 1 ? '' : 's'}
+            </strong>
+            <span className={styles.detalleSel}>
+              {filasSeleccionadas.length - pendientesSel.length} enviada{filasSeleccionadas.length - pendientesSel.length === 1 ? '' : 's'} · {pendientesSel.length} pendiente{pendientesSel.length === 1 ? '' : 's'}
+            </span>
+            <button
+              type="button"
+              className={styles.botonBarra}
+              disabled={trabajando !== null}
+              onClick={() => void correr('pdf', () => descargarPdfsZip(archivosParaPdf))}
+            >
+              {trabajando === 'pdf' ? 'Generando PDF…' : 'Descargar PDF (.zip)'}
+            </button>
+            <button
+              type="button"
+              className={styles.botonBarra}
+              disabled={trabajando !== null}
+              onClick={() => void correr('excel', () => descargarTodasLasSolicitudes([...seleccionadas]))}
+            >
+              Descargar Excel
+            </button>
+            <button
+              type="button"
+              className={styles.botonBarra}
+              disabled={trabajando !== null || pendientesSel.length === 0}
+              onClick={() => void enviarPendientes()}
+            >
+              {trabajando === 'enviar' ? 'Enviando…' : `Enviar pendientes (${pendientesSel.length})`}
+            </button>
+            {archivosVisibles.length > seleccionadas.size && (
+              <button type="button" className={styles.botonBarraSuave} onClick={() => setSeleccionadas(new Set(archivosVisibles))}>
+                Seleccionar las {archivosVisibles.length} visibles
+              </button>
+            )}
+            <button type="button" className={styles.botonBarraSuave} onClick={() => setSeleccionadas(new Set())}>
+              Quitar selección
+            </button>
+          </div>
+        )}
+        {avisoMasivo && <p className={styles.avisoMasivo} role="status">{avisoMasivo}</p>}
 
         {mostrarFiltros && (
           <div className={styles.filtros}>
@@ -540,8 +703,10 @@ export function SolicitudesView() {
                     <th>Sold To</th>
                     <th>Ship To</th>
                     <th>Especie</th>
+                    <th>Tipo Aplicación</th>
                     <th>Tipo Muestra</th>
                     <th>Generado por</th>
+                    <th>Estado</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -574,8 +739,14 @@ export function SolicitudesView() {
                       <td>{s.sold_to}</td>
                       <td>{s.ship_to ?? '—'}</td>
                       <td>{s.especie ?? '—'}</td>
+                      <td>{s.campos_laboratorio['Tipo Aplicación'] ?? '—'}</td>
                       <td>{s.tipo_muestra ?? '—'}</td>
                       <td>{s.generado_por}</td>
+                      <td>
+                        <span className={s.enviada ? styles.chipEnviada : styles.chipPendiente}>
+                          {s.enviada ? 'Enviada' : 'Pendiente'}
+                        </span>
+                      </td>
                       <td className={styles.acciones}>
                         <button
                           className={styles.boton}
@@ -623,6 +794,9 @@ export function SolicitudesView() {
                       </div>
                     </div>
                     <span className={styles.etiquetaLaboratorio}>{s.laboratorio}</span>
+                    <span className={s.enviada ? styles.chipEnviada : styles.chipPendiente}>
+                      {s.enviada ? 'Enviada' : 'Pendiente'}
+                    </span>
                   </div>
                   <div className={styles.tarjetaGrilla}>
                     <div>

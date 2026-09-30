@@ -47,6 +47,7 @@ export {
   eliminarLaboratorioConfig,
   obtenerEnvioAutomatico,
   actualizarEnvioAutomatico,
+  descargarPdfsZip,
   listarCategoriasAnaliticas,
   crearCategoriaAnalitica,
   actualizarCategoriaAnalitica,
@@ -56,11 +57,13 @@ export {
   actualizarProductoConfig,
   eliminarProductoConfig,
 } from './lib/api'
+export { enviaSoloSegunTipo } from './lib/envioAutomatico'
 export type {
   Solicitud,
   SolicitudInput,
   ReanalisisInput,
   EstadoSolicitudesPrueba,
+  ConfigEnvioAutomatico,
   HuecoPrueba,
   Laboratorio,
   CampoConfig,

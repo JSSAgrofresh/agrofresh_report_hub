@@ -33,6 +33,7 @@ import json
 import logging
 import os
 import re
+import zipfile
 from datetime import datetime, timezone
 from typing import Any
 
@@ -689,6 +690,52 @@ def exportar_todas_las_solicitudes(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
+    )
+
+
+MAX_PDF_ZIP = 200
+
+
+class PdfZipIn(BaseModel):
+    archivos: list[str] = Field(min_length=1)
+
+
+@router.post("/solicitudes/pdf-zip")
+def descargar_pdfs_zip(body: PdfZipIn, usuario: Usuario = Depends(usuario_actual)) -> Response:
+    """Los PDF de varias solicitudes en un solo .zip. Respeta el acceso de cada
+    una (las que la sesión no puede ver se omiten) y va en nombres únicos."""
+    archivos = list(dict.fromkeys(body.archivos))
+    if len(archivos) > MAX_PDF_ZIP:
+        raise HTTPException(413, f"Son demasiadas solicitudes de una vez (máximo {MAX_PDF_ZIP}).")
+    analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
+    analisis_config = _leer_config("analisis_laboratorio.json", [])
+    salida = io.BytesIO()
+    generados = 0
+    with zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as z:
+        for archivo in archivos:
+            try:
+                if r2.disponible():
+                    data, ext = _descargar_solicitud_r2(archivo)
+                    datos = _leer_solicitud_bytes(data, ext)
+                    numero = os.path.splitext(os.path.basename(archivo))[0]
+                else:
+                    ruta = _ruta_archivo(archivo)
+                    numero = os.path.splitext(os.path.basename(ruta))[0]
+                    datos = _leer_solicitud_archivo(ruta)
+                if not _es_propia(usuario, datos):
+                    continue
+                datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
+                z.writestr(f"{numero}.pdf", generar_pdf_solicitud(datos_pdf, analitos_config, analisis_config))
+                generados += 1
+            except HTTPException:
+                continue
+    if generados == 0:
+        raise HTTPException(404, "No se pudo generar ningún PDF de la selección.")
+    nombre = f"Solicitudes_PDF_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+    return Response(
+        content=salida.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
     )
 
 
@@ -1876,19 +1923,35 @@ def destinatarios_de_solicitud(archivo: str, usuario: Usuario = Depends(usuario_
 
 
 class EnvioAutomaticoOut(BaseModel):
+    # `activo` = regla general (tipos sin regla propia y solicitudes sin tipo).
     activo: bool
+    # Regla propia por tipo de aplicación: {"Actimist": true, "Línea de proceso": false}
+    por_tipo: dict[str, bool] = Field(default_factory=dict)
 
 
 class EnvioAutomaticoIn(BaseModel):
     activo: bool
     password: str
+    # Sin `tipo` se cambia la regla general; con `tipo`, solo la de ese tipo.
+    tipo: str | None = None
+    # Con `tipo`, True quita la regla propia y vuelve a regir la general.
+    heredar: bool = False
+
+
+def _config_envio_automatico() -> EnvioAutomaticoOut:
+    cfg = _leer_config("envio_automatico.json", {"activo": True})
+    por_tipo = cfg.get("por_tipo") or {}
+    return EnvioAutomaticoOut(
+        activo=bool(cfg.get("activo", True)),
+        por_tipo={str(k): bool(v) for k, v in por_tipo.items()},
+    )
 
 
 @router.get("/config/envio-automatico")
 def obtener_envio_automatico(usuario: Usuario = Depends(usuario_actual)) -> EnvioAutomaticoOut:
-    """Si las solicitudes se envían por correo automáticamente al guardar."""
-    cfg = _leer_config("envio_automatico.json", {"activo": True})
-    return EnvioAutomaticoOut(activo=cfg.get("activo", True))
+    """Si las solicitudes se envían por correo automáticamente al guardar:
+    una regla general y, opcionalmente, una por tipo de aplicación."""
+    return _config_envio_automatico()
 
 
 @router.put("/config/envio-automatico")
@@ -1903,8 +1966,19 @@ def actualizar_envio_automatico(
         fila = cur.fetchone()
     if not fila or not seguridad.verificar_password(body.password, fila.get("password_hash")):
         raise HTTPException(401, "Contraseña incorrecta.")
-    _escribir_config("envio_automatico.json", {"activo": body.activo})
-    return EnvioAutomaticoOut(activo=body.activo)
+    actual = _config_envio_automatico()
+    tipo = (body.tipo or "").strip()
+    if tipo:
+        if body.heredar:
+            actual.por_tipo.pop(tipo, None)
+        else:
+            actual.por_tipo[tipo] = body.activo
+    else:
+        actual.activo = body.activo
+    _escribir_config(
+        "envio_automatico.json", {"activo": actual.activo, "por_tipo": actual.por_tipo}
+    )
+    return actual
 
 
 def _registrar_envio_solicitud(

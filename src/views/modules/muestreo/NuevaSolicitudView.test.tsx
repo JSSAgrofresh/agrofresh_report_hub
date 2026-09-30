@@ -39,7 +39,9 @@ const {
   crearSolicitudPrueba: vi.fn(),
 }))
 
-vi.mock('@/features/tomaMuestras', () => ({
+vi.mock('@/features/tomaMuestras', async () => {
+  const { enviaSoloSegunTipo } = await import('@/features/tomaMuestras/lib/envioAutomatico')
+  return {
   crearSolicitud,
   actualizarSolicitud,
   obtenerSolicitud,
@@ -53,8 +55,10 @@ vi.mock('@/features/tomaMuestras', () => ({
   enviarSolicitudPorCorreo,
   estadoSolicitudesPrueba,
   crearSolicitudPrueba,
+  enviaSoloSegunTipo,
   destinatariosParaLaboratorio: vi.fn().mockResolvedValue({ destinatarios: [] }),
-}))
+  }
+})
 
 vi.mock('@/features/catalogo', () => ({
   listarClientes: vi.fn().mockResolvedValue([]),
@@ -513,6 +517,21 @@ describe('NuevaSolicitudView — solicitudes de prueba', () => {
     await waitFor(() => expect(screen.getByDisplayValue('25')).toBeTruthy())
     fireEvent.click(screen.getByText('Guardar y enviar'))
     await waitFor(() => expect(enviarSolicitudPorCorreo).toHaveBeenCalledTimes(1))
+  })
+
+  it('la regla del tipo de aplicación manda sobre la general: Actimist sin envío automático', async () => {
+    mockConfigComun()
+    // General prendida, pero Actimist (el tipo de la solicitud base) apagado.
+    obtenerEnvioAutomatico.mockResolvedValue({ activo: true, por_tipo: { Actimist: false } })
+    enviarSolicitudPorCorreo.mockClear()
+    actualizarSolicitud.mockClear()
+    renderEditar(solicitudBase())
+
+    await waitFor(() => expect(screen.getByDisplayValue('25')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Guardar')).toBeTruthy())
+    fireEvent.click(screen.getByText('Guardar'))
+    await waitFor(() => expect(actualizarSolicitud).toHaveBeenCalledTimes(1))
+    expect(enviarSolicitudPorCorreo).not.toHaveBeenCalled()
   })
 
   it('una prueba nunca se envía sola, aunque el envío automático esté prendido', async () => {

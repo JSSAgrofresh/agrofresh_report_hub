@@ -29,6 +29,7 @@ import {
   listarProductosConfig,
   listarTiposAplicacion,
   obtenerEnvioAutomatico,
+  enviaSoloSegunTipo,
   obtenerSolicitud,
   resultadosDeShipTo,
 } from '@/features/tomaMuestras'
@@ -36,6 +37,7 @@ import type {
   AnalitoConfig,
   CampoConfig,
   CampoTipoAplicacionConfig,
+  ConfigEnvioAutomatico,
   ContactoResultado,
   HuecoPrueba,
   LaboratorioConfig,
@@ -157,7 +159,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [productosTodos, setProductosTodos] = useState<ProductoConfig[]>([])
   const [camposTipoAplicacion, setCamposTipoAplicacion] = useState<CampoTipoAplicacionConfig[]>([])
   const [analisisTodos, setAnalisisTodos] = useState<Analisis[]>([])
-  const [envioAutomatico, setEnvioAutomatico] = useState(true)
+  const [envioAutomatico, setEnvioAutomatico] = useState<ConfigEnvioAutomatico>({ activo: true })
   // Folios de prueba libres por laboratorio (solo en modo 'prueba').
   const [huecosPrueba, setHuecosPrueba] = useState<HuecoPrueba[] | null>(null)
 
@@ -222,7 +224,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // Una solicitud de prueba nunca se envía sola, ni al crearla ni al editarla:
   // es como si para ella el envío automático estuviera apagado.
   const esPrueba = modo === 'prueba' || (modo === 'editar' && !!solicitudOriginal?.es_prueba)
-  const enviaSolo = envioAutomatico && !esPrueba
+  // La regla depende del tipo de aplicación elegido (Actimist, Línea de proceso…).
+  const enviaSolo = enviaSoloSegunTipo(envioAutomatico, tipoAplicacionSel) && !esPrueba
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const prellenadoGeneralRef = useRef(false)
   const prellenadoAnalitosRef = useRef(false)
@@ -257,8 +260,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       .then(setLaboratoriosConfig)
       .catch(() => setLaboratoriosConfig([]))
     obtenerEnvioAutomatico()
-      .then((r) => setEnvioAutomatico(r.activo))
-      .catch(() => setEnvioAutomatico(true))
+      .then(setEnvioAutomatico)
+      .catch(() => setEnvioAutomatico({ activo: true }))
     listarTiposAplicacion()
       .then(setTiposAplicacion)
       .catch(() => setTiposAplicacion([]))

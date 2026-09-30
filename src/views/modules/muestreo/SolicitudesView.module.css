@@ -422,7 +422,7 @@
   font-size: 13.5px;
   font-weight: 600;
   color: var(--color-text);
-  width: 50px;
+  min-width: 120px;
 }
 
 .configArchivosEstado {
@@ -567,4 +567,111 @@
 
 .modalBotonConfirmar:not(:disabled):hover {
   background: var(--color-primary-hover, #3a6124);
+}
+
+/* Búsqueda rápida y resumen de estados */
+.barraBusqueda {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.buscador {
+  flex: 1 1 260px;
+  min-width: 0;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.resumenEstados {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.chipEnviada,
+.chipPendiente {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+
+.chipEnviada {
+  color: var(--color-primary-hover);
+  background: #eef6e5;
+  border: 1px solid #d4e9c4;
+}
+
+.chipPendiente {
+  color: #8a5a00;
+  background: #fff4dc;
+  border: 1px solid #f0d9a4;
+}
+
+/* Barra de acciones sobre lo seleccionado */
+.barraSeleccion {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+  background: #eef6e5;
+  border: 1px solid #d4e9c4;
+  border-radius: var(--radius-md);
+}
+
+.contadorSel {
+  font-size: 13.5px;
+  color: var(--color-primary-hover);
+}
+
+.detalleSel {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-right: auto;
+}
+
+.botonBarra,
+.botonBarraSuave {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.botonBarra {
+  color: #fff;
+  background: var(--color-primary, #4a7c2f);
+  border: 1px solid var(--color-primary, #4a7c2f);
+}
+
+.botonBarra:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.botonBarraSuave {
+  color: var(--color-primary-hover);
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+}
+
+.avisoMasivo {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
 }
