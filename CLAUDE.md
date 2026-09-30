@@ -460,6 +460,14 @@ tocas una, toca la otra.
   línea-, y `(Invoke-RestMethod http://localhost:8000/openapi.json).paths.PSObject.Properties.Name`
   para ver qué rutas conoce de verdad el que responde. El arreglo es reiniciar
   la tarea, no arrancar otro proceso.
+- **`Quiteca / AgroFresh` no es un laboratorio de la base.** Es
+  `mapeo.LABORATORIO_CATALOGO`, pero el catálogo de analitos solo tiene
+  `Agrofresh` y `Quiteca` (7 analitos cada uno), y la carga busca cada analito
+  por (código, laboratorio) EXACTO: con otro nombre cae, con una advertencia,
+  en el catálogo del primero que encuentra y mezcla los resultados de un mismo
+  informe. El informe propio de AgroFresh en Converter usa `Agrofresh`.
+  `emitir.py` (subir a la base) aún usa `LABORATORIO_CATALOGO`: revisar antes de
+  confiar en él.
 - **En Windows falta `tzdata`**: sin él `zoneinfo` no encuentra las zonas.
   Está declarado en `requirements.txt`.
 
