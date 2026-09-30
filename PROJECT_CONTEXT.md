@@ -294,8 +294,14 @@ Regla de dependencia (`README.md`): `views` → `features`+`components`; `featur
 
 **Placeholder / sin construir (`EstadoModulo` — "próximamente" o "en proceso"):**
 - **Trace** (`TraceView.tsx`, 11 líneas) — módulo del área Postcosecha, no iniciado.
-- **Converter** (`ConverterView.tsx`, 11 líneas) — existe como página HTML standalone separada
-  mencionada en el backend README (`converter.html`) pero la vista React es un stub.
+- **Converter** — la vista React (`ConverterView.tsx`) solo embebe `public/modules/converter.html`,
+  que es donde vive todo: un lector por laboratorio (Quiteca, Diagnofruit, Corthorn/ALS y el
+  **informe propio de AgroFresh**) que llena las columnas fijas de `COLUMNAS` y sube por
+  `/api/ingest` con `origen="converter"`. El informe de AgroFresh se reconoce por su encabezado
+  «Solicitud de Análisis N° OT-…»; con ese N° se busca la solicitud
+  (`GET /api/emitir/cromatografia/solicitud/{numero}`) para traer cliente, sucursal, muestreador,
+  etc. Los `NA` de la tabla son analitos no pedidos y se descartan. No agrega columnas: lo que
+  falte se completa a mano en el panel «Análisis de datos» (catálogo, fechas, tipo de servicio).
 - **Post Venta** (`PostVentaView.tsx`) — explícitamente "En proceso de creación" por pedido
   del usuario, sin fecha definida para retomarlo.
 

@@ -1171,6 +1171,29 @@ def listar_solicitudes() -> list[SolicitudOut]:
     return salida
 
 
+@router.get("/solicitud/{numero}")
+def solicitud_por_numero(numero: str) -> SolicitudOut:
+    """Una solicitud de AgroFresh por su N° (ej. "OT-AGF0050").
+
+    La usa Converter: el informe que se hace a mano trae ese N° y con él se
+    trae el resto de los campos (cliente, sucursal, especie, analitos
+    pedidos...) en vez de volver a tipearlos."""
+    buscado = numero.strip().upper()
+    for nombre, datos in leer_solicitudes_de(LABORATORIO_SOLICITUDES):
+        if str(datos.get("numero_solicitud") or "").strip().upper() != buscado:
+            continue
+        fecha_recepcion, hora_recepcion = _partir_recepcion(datos.get("recepcion_en"))
+        return SolicitudOut(
+            archivo=nombre,
+            campos=_mapear_solicitud_a_campos(datos),
+            analitos_solicitados=datos.get("analitos_solicitados") or [],
+            codigo_muestra=datos.get("codigo_muestra"),
+            fecha_recepcion=fecha_recepcion,
+            hora_recepcion=hora_recepcion,
+        )
+    raise HTTPException(404, f'No existe la solicitud "{numero}" en el sistema.')
+
+
 class FilaCruceIn(BaseModel):
     """Una solicitud ya cruzada con su vial del GC: sus campos originales tal
     cual (mismas columnas que el archivo de Storage), qué analitos pidió, y el
