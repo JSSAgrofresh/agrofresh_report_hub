@@ -195,7 +195,7 @@ export function AdministracionGeneralView() {
           ) : (
             <section className={styles.tablaCard} aria-label="Correcciones guardadas">
               <div className={styles.tablaScroll}>
-                <table className={styles.tabla}>
+                <table className={styles.tabla} data-apilar>
                   <thead>
                     <tr>
                       <th className={styles.colChevron} aria-label="Ampliar" />

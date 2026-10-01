@@ -95,3 +95,73 @@ label,
 button:active {
   opacity: 0.72;
 }
+
+/* Celular: una tabla marcada con `data-apilar` se muestra como tarjetas, una
+   por fila, sin desplazamiento lateral. La etiqueta de cada celda la pone
+   `useApilarTablas` (lib/apilarTablas.ts); la primera columna hace de título. */
+@media (max-width: 720px) {
+  table[data-apilar] {
+    display: block;
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  table[data-apilar] thead {
+    display: none;
+  }
+
+  table[data-apilar] tbody {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  table[data-apilar] tbody tr {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  table[data-apilar] tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  table[data-apilar] tbody td:first-child {
+    justify-content: flex-start;
+    text-align: left;
+    flex-wrap: wrap;
+    font-weight: 700;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  table[data-apilar] tbody td[data-label]:not([data-label=''])::before {
+    content: attr(data-label);
+    flex: none;
+    max-width: 45%;
+    text-align: left;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--color-text-faint);
+  }
+
+  /* Un campo (input, selector) ocupa lo que le dejó la etiqueta. */
+  table[data-apilar] tbody td > input,
+  table[data-apilar] tbody td > select {
+    min-width: 0;
+    flex: 1;
+  }
+}

@@ -45,7 +45,7 @@
 
 .fila {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
   gap: var(--space-4);
 }
 
@@ -102,7 +102,7 @@
    larga no empuje el resto del formulario hacia abajo. */
 .listaChecks {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
   gap: var(--space-2) var(--space-4);
   padding: 10px 12px;
   border: 1px solid var(--color-border-strong);
@@ -250,7 +250,7 @@
 
 .analitosPorCategoria {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   gap: var(--space-3);
 }
 

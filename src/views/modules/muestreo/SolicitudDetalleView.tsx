@@ -626,7 +626,7 @@ export function SolicitudDetalleView() {
               Analitos solicitados · {solicitud.laboratorio}
             </h2>
             <div className={styles.tablaCaja}>
-              <table className={styles.tabla}>
+              <table className={styles.tabla} data-apilar>
                 <thead>
                   <tr>
                     <th>Código</th>
@@ -661,7 +661,7 @@ export function SolicitudDetalleView() {
               Análisis de laboratorio · {solicitud.laboratorio}
             </h2>
             <div className={styles.tablaCaja}>
-              <table className={styles.tabla}>
+              <table className={styles.tabla} data-apilar>
                 <thead>
                   <tr>
                     <th>Campo</th>
@@ -689,7 +689,7 @@ export function SolicitudDetalleView() {
             <p className={styles.observacion}>No hay destinatarios configurados para este Ship To / Especie.</p>
           ) : (
             <div className={styles.tablaCaja}>
-              <table className={styles.tabla}>
+              <table className={styles.tabla} data-apilar>
                 <thead>
                   <tr>
                     <th>Tipo</th>
