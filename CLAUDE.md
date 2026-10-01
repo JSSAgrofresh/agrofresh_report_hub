@@ -474,6 +474,15 @@ tocas una, toca la otra.
   una advertencia, en el catálogo del primero que encuentra y mezcla los
   resultados de un mismo informe. Lo usan el informe propio de Converter y
   «Subir a la base» de emitir.py (`tests/test_subir_bd_laboratorio.py`).
+- **La cámara del escáner no es solo Chrome/Android.** `BarcodeDetector` nativo
+  solo existe ahí; en iPhone (Safari), Firefox y escritorio `EscanerCamara` usa
+  el lector de respaldo de `detectorCodigos.ts` (paquete `barcode-detector`, ZXing
+  en WebAssembly, empaquetado en la app y cargado solo cuando hace falta). El
+  motor es más pesado: la lectura está limitada a un cuadro cada 150 ms. Para
+  probarlo en Playwright: Chromium de Linux no trae el nativo, y la cámara
+  falsa necesita `--use-fake-device-for-media-stream
+  --use-file-for-fake-video-capture=x.y4m` (con `.mjpeg` no carga el archivo y
+  da cuadros verdes), con el código sin escalar a medias.
 - **En Windows falta `tzdata`**: sin él `zoneinfo` no encuentra las zonas.
   Está declarado en `requirements.txt`.
 

@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@vercel/speed-insights": "^2.0.0",
+    "barcode-detector": "^3.2.2",
     "chart.js": "^4.5.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
