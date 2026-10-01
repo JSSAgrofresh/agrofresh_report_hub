@@ -77,10 +77,11 @@
 }
 
 .tabla tbody tr:nth-child(even) {
-  background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+  background: color-mix(in srgb, var(--color-bg) 55%, #fff);
 }
 
 .tabla tbody tr {
+  background: #fff;
   transition: background-color 0.12s ease;
 }
 
@@ -162,6 +163,40 @@
   display: flex;
   gap: var(--space-2);
   justify-content: flex-end;
+}
+
+/* Tabla compacta: cabe sin desplazarse, así las acciones siempre se ven. */
+.tabla th,
+.tabla td {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.tabla td.acciones {
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.tabla td.acciones .boton,
+.tabla td.acciones .botonEliminar {
+  padding: 5px 7px;
+}
+
+.clientePlanta {
+  white-space: normal !important;
+  min-width: 130px;
+  max-width: 190px;
+}
+
+.clientePrincipal {
+  display: block;
+  font-weight: 600;
+}
+
+.clienteSecundario {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
 .boton,
@@ -272,7 +307,7 @@
   display: none;
 }
 
-/* La tabla necesita ~880px para mostrar sus 9 columnas sin apretarse.
+/* La tabla necesita ~880px para mostrar sus columnas sin apretarse.
    Por debajo de eso se muestra como tarjetas, sin importar si el ancho
    disponible se achica por la ventana o por el panel lateral. */
 @container listado-solicitudes (max-width: 880px) {

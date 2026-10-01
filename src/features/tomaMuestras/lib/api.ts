@@ -88,6 +88,11 @@ export function descargarPdfSolicitud(archivo: string) {
   )
 }
 
+/** El PDF como blob, para mostrarlo en pantalla sin guardarlo en disco. */
+export function abrirPdfSolicitud(archivo: string) {
+  return httpClient.getArchivoConNombre(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/pdf`)
+}
+
 export function descargarJsonSolicitud(archivo: string) {
   return descargarArchivo(
     `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/json`,
