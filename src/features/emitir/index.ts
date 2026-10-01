@@ -10,8 +10,9 @@ export {
   subirCruceABaseDeDatos,
   cruzarConMuestra,
   cruzarCompleto,
+  editarCruce,
+  obtenerFotoCruce,
   listarActividadLab,
-  urlFotoCruce,
 } from './lib/api'
 export {
   buscarPorCodigoVial,

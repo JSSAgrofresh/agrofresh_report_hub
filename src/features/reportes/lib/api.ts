@@ -1,6 +1,6 @@
 import { httpClient } from '@/services/http/client'
 import type { PedidoBd } from './descargaBd'
-import type { Analito, AnalitoInput, FilaReporte, LimiteAnalito, LimiteAnalitoInput } from './tipos'
+import type { Analito, AnalitoInput, FichaInforme, FilaReporte, LimiteAnalito, LimiteAnalitoInput } from './tipos'
 
 export function obtenerDatosReporte(cliente?: string, planta?: string) {
   const params = new URLSearchParams()
@@ -64,4 +64,13 @@ export function eliminarLimite(id: number) {
  * de cada analito). `solicitudIds: null` = toda la base; con ids, solo esas. */
 export function descargarBdExcel(pedido: PedidoBd) {
   return httpClient.postArchivoConNombre('/reportes/bd/excel', pedido)
+}
+
+export function obtenerFichaInforme(solicitudId: number) {
+  return httpClient.get<FichaInforme>(`/reportes/informe/${solicitudId}`)
+}
+
+/** El PDF del informe (se baja con el token: un <iframe src> directo daría 401). */
+export function descargarPdfInforme(solicitudId: number) {
+  return httpClient.getArchivoConNombre(`/reportes/informe/${solicitudId}/pdf`)
 }

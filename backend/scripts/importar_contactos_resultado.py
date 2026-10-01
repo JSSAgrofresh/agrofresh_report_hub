@@ -4,6 +4,14 @@ Importa los contactos de "Resultado a clientes" desde el Excel maestro.
 Uso (desde la carpeta backend):
   .venv\\Scripts\\python.exe scripts\\importar_contactos_resultado.py           # preview
   .venv\\Scripts\\python.exe scripts\\importar_contactos_resultado.py --aplicar # escribe
+  .venv\\Scripts\\python.exe scripts\\importar_contactos_resultado.py --sincronizar-internos            # preview
+  .venv\\Scripts\\python.exe scripts\\importar_contactos_resultado.py --sincronizar-internos --aplicar  # escribe
+
+Sin opciones solo agrega las plantas/especies que aún no existen: NO actualiza
+las que ya están. Para que los cambios del Excel en comerciales, técnicos y
+admin lleguen a lo ya cargado se usa --sincronizar-internos, que rehace SOLO los
+contactos internos de las plantas del Excel (deja intactos los de cliente) y
+guarda antes un respaldo en logs/.
 
 Lee la hoja "Informes Laboratorios-Pack Line" del archivo Excel y genera
 entradas en contactos_laboratorio.json organizadas por (sold_to, ship_to,
@@ -11,11 +19,14 @@ especie).
 
 Reglas:
 - Columna H (Admin Report Hub)  → resultado_interno bcc (copia oculta)
-- Columna I (Comercial a cargo) → resultado_interno cc
-- Columna J (Técnico a cargo)   → resultado_interno cc (vacío actualmente)
+- Columna I (Comercial a cargo) → resultado_interno cc (copia)
+- Columna J (Técnico a cargo)   → resultado_interno bcc (copia oculta)
 - Columnas K-S (especies)       → resultado_cliente (destinatario directo)
 - Filas con comercial = andres.gonzalez@agrofresh.com → se saltan (pendiente)
 - Filas con VIGENTE POST VENTA ≠ "SI" → se saltan
+- Una planta SIN correos de cliente (FALTA) igual se carga con sus internos
+  (comercial, técnico, admin): así, sin lista de distribución, los técnicos y
+  comerciales siguen saliendo en la solicitud.
 - Cuando los correos de cliente son iguales en todas las especies de una fila
   se crea UN solo grupo con especie="" (aplica a todas via fallback).
 - Cuando difieren se expanden las categorías del Excel a especies individuales.
@@ -36,6 +47,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -51,6 +63,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 from app import config  # noqa: E402
 
 STORAGE_DIR = config.STORAGE_DIR
+CARPETA_LOGS = os.path.join(BACKEND_DIR.parent, "logs")
 JSON_PATH = os.path.join(STORAGE_DIR, "solicitudes", "_config", "contactos_laboratorio.json")
 
 # ---------------------------------------------------------------------------
@@ -162,7 +175,18 @@ def construir_grupos(ws) -> list[dict]:
             sorted(v) == sorted(vals[0]) for v in vals
         )
 
-        if todos_iguales and vals:
+        if not cat_emails:
+            # Sin correos de cliente (FALTA): se carga igual, solo con los internos.
+            grupos.append({
+                "sold_to":  sold_to,
+                "ship_to":  ship_to,
+                "especie":  "",
+                "clientes": [],
+                "comercial": comercial,
+                "admin":    admin,
+                "tecnico":  tecnico,
+            })
+        elif todos_iguales and vals:
             # Un grupo genérico sin especie (fallback para todas)
             grupos.append({
                 "sold_to":  sold_to,
@@ -222,61 +246,110 @@ def grupos_a_contactos(grupos: list[dict], id_inicio: int) -> list[dict]:
             next_id += 1
             orden   += 1
 
-        for email in g["comercial"]:
-            contactos.append({
-                "id":         next_id,
-                "laboratorio": LAB_COMPARTIDO,
-                "nombre":     email,
-                "email":      email,
-                "cargo":      "Comercial",
-                "tipo":       "resultado_interno",
-                "sold_to":    sold_to,
-                "ship_to":    ship_to,
-                "especie":    especie,
-                "tipo_copia": "cc",
-                "activo":     True,
-                "orden":      orden,
-            })
-            next_id += 1
-            orden   += 1
-
-        for email in g["tecnico"]:
-            contactos.append({
-                "id":         next_id,
-                "laboratorio": LAB_COMPARTIDO,
-                "nombre":     email,
-                "email":      email,
-                "cargo":      "Técnico",
-                "tipo":       "resultado_interno",
-                "sold_to":    sold_to,
-                "ship_to":    ship_to,
-                "especie":    especie,
-                "tipo_copia": "cc",
-                "activo":     True,
-                "orden":      orden,
-            })
-            next_id += 1
-            orden   += 1
-
-        for email in g["admin"]:
-            contactos.append({
-                "id":         next_id,
-                "laboratorio": LAB_COMPARTIDO,
-                "nombre":     email,
-                "email":      email,
-                "cargo":      "Admin",
-                "tipo":       "resultado_interno",
-                "sold_to":    sold_to,
-                "ship_to":    ship_to,
-                "especie":    especie,
-                "tipo_copia": "bcc",
-                "activo":     True,
-                "orden":      orden,
-            })
-            next_id += 1
-            orden   += 1
+        internos, next_id = contactos_internos(g, especie, next_id, orden)
+        contactos.extend(internos)
 
     return contactos
+
+
+
+def contactos_internos(g: dict, especie: str, next_id: int, orden: int = 1) -> tuple[list[dict], int]:
+    """Los contactos internos de un grupo: comercial → cc, técnico → bcc, admin → bcc.
+
+    El comercial va en copia (cc) y el técnico y el admin en copia OCULTA (bcc).
+    Si un correo figura en más de un rol manda el más visible: nadie va dos veces.
+    """
+    salida: list[dict] = []
+    vistos: set[str] = set()
+    for rol, cargo, copia in (
+        ("comercial", "Comercial", "cc"),
+        ("tecnico", "Técnico", "bcc"),
+        ("admin", "Admin", "bcc"),
+    ):
+        for email in g.get(rol, []):
+            if email.casefold() in vistos:
+                continue
+            vistos.add(email.casefold())
+            salida.append({
+                "id":         next_id,
+                "laboratorio": LAB_COMPARTIDO,
+                "nombre":     email,
+                "email":      email,
+                "cargo":      cargo,
+                "tipo":       "resultado_interno",
+                "sold_to":    g["sold_to"],
+                "ship_to":    g["ship_to"],
+                "especie":    especie,
+                "tipo_copia": copia,
+                "activo":     True,
+                "orden":      orden,
+            })
+            next_id += 1
+            orden += 1
+    return salida, next_id
+
+
+def sincronizar_internos(existentes: list[dict], grupos: list[dict]) -> tuple[list[dict], dict]:
+    """Rehace los contactos internos de las plantas del Excel.
+
+    Para cada planta (Sold To + Ship To) del Excel quita sus `resultado_interno`
+    actuales y los vuelve a crear desde el Excel, en cada especie donde la
+    planta tiene contactos: las del Excel y las que ya tenía configuradas con
+    correos de cliente. Así, el nivel que la app elija al buscar (exacto por
+    especie, o el general de la planta) siempre trae también a sus internos.
+    Los contactos de cliente y los de plantas que NO están en el Excel no se tocan.
+    """
+    def clave(c: dict) -> tuple[str, str]:
+        return ((c.get("sold_to") or "").strip(), (c.get("ship_to") or "").strip())
+
+    por_planta: dict[tuple[str, str], dict] = {}
+    for g in grupos:
+        k = (g["sold_to"], g["ship_to"])
+        p = por_planta.setdefault(k, {"comercial": [], "tecnico": [], "admin": [], "especies": set()})
+        for rol in ("comercial", "tecnico", "admin"):
+            for e in g[rol]:
+                if e not in p[rol]:
+                    p[rol].append(e)
+        p["especies"].add(g["especie"])
+    for c in existentes:
+        k = clave(c)
+        if k in por_planta and c.get("tipo") == "resultado_cliente":
+            por_planta[k]["especies"].add(c.get("especie") or "")
+
+    quitados = [c for c in existentes if c.get("tipo") == "resultado_interno" and clave(c) in por_planta]
+    base = [c for c in existentes if c not in quitados]
+    next_id = max((c["id"] for c in existentes), default=0) + 1
+    nuevos: list[dict] = []
+    for (sold_to, ship_to), p in por_planta.items():
+        for especie in sorted(p["especies"]):
+            g = {"sold_to": sold_to, "ship_to": ship_to, "comercial": p["comercial"],
+                 "tecnico": p["tecnico"], "admin": p["admin"]}
+            creados, next_id = contactos_internos(g, especie, next_id)
+            nuevos.extend(creados)
+    return base + nuevos, {"plantas": len(por_planta), "quitados": len(quitados), "creados": len(nuevos)}
+
+
+def _sincronizar(todos: list[dict], grupos: list[dict], aplicar: bool) -> None:
+    from app import config_store
+
+    resultado, r = sincronizar_internos(todos, grupos)
+    print("=" * 60)
+    print("SINCRONIZAR CONTACTOS INTERNOS (comercial=cc, técnico=bcc, admin=bcc)")
+    print("=" * 60)
+    print(f"Plantas del Excel:             {r['plantas']}")
+    print(f"Internos que se reemplazan:    {r['quitados']}")
+    print(f"Internos que quedan:           {r['creados']}")
+    print(f"Contactos en total: {len(todos)} → {len(resultado)}")
+    if not aplicar:
+        print("\n>> DRY RUN — no se escribió nada. Agrega --aplicar para guardar.")
+        return
+    os.makedirs(CARPETA_LOGS, exist_ok=True)
+    respaldo = os.path.join(CARPETA_LOGS, f"contactos_laboratorio_respaldo_{datetime.now():%Y%m%d_%H%M%S}.json")
+    with open(respaldo, "w", encoding="utf-8") as f:
+        json.dump(todos, f, ensure_ascii=False, indent=2)
+    print(f"Respaldo previo: {respaldo}")
+    config_store.escribir("contactos_laboratorio.json", resultado)
+    print("✓ Guardado.")
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +406,10 @@ def main():
     ]
     grupos_duplicados = len(grupos) - len(grupos_nuevos)
 
+    if "--sincronizar-internos" in sys.argv:
+        _sincronizar(todos, grupos, aplicar)
+        return
+
     nuevos_contactos = grupos_a_contactos(grupos_nuevos, id_inicio=max_id + 1)
 
     # --- Resumen ---
@@ -361,7 +438,7 @@ def main():
         if g["comercial"]:
             print(f"    comercial (cc):  {g['comercial']}")
         if g["tecnico"]:
-            print(f"    técnico (cc):    {g['tecnico']}")
+            print(f"    técnico (bcc):   {g['tecnico']}")
         if g["admin"]:
             print(f"    admin (bcc):     {g['admin']}")
 

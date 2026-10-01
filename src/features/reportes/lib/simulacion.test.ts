@@ -62,3 +62,11 @@ describe('generarDatosSimulados', () => {
     expect(filas.some((f) => f.valor_num == null && f.valor_texto === 'ND')).toBe(true)
   })
 })
+
+describe('analitos simulados', () => {
+  it('incluyen todos los de la lista conocida, TEBU entre ellos, y cada uno aparece en los datos', () => {
+    const { filas, analitos } = generarDatosSimulados(1000, 9, HOY)
+    expect(analitos.map((a) => a.codigo)).toEqual(expect.arrayContaining(['IMZ', 'FDL', 'PYR', 'TBZ', 'DPA', 'AZOX', 'TEBU']))
+    expect(new Set(filas.map((f) => f.ingrediente))).toContain('TEBU')
+  })
+})

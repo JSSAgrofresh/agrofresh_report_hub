@@ -3,6 +3,8 @@ export {
   descargarDatosExcel,
   descargarBdExcel,
   obtenerResumenReporte,
+  obtenerFichaInforme,
+  descargarPdfInforme,
   obtenerClientesReporte,
   listarAnalitos,
   crearAnalito,
@@ -12,7 +14,9 @@ export {
   guardarLimite,
   eliminarLimite,
 } from './lib/api'
-export type { FilaReporte, Analito, AnalitoInput, Observacion, LimiteAnalito, LimiteAnalitoInput } from './lib/tipos'
+export type { FilaReporte, Analito, AnalitoInput, Observacion, LimiteAnalito, LimiteAnalitoInput, FichaInforme, FichaResultado } from './lib/tipos'
+export { limiteDeAnalito, estadoResultado } from './lib/estadoResultado'
+export type { LimiteResuelto, EstadoResultado } from './lib/estadoResultado'
 export {
   calcularEstadisticas,
   calcularLimitesControl,
@@ -36,5 +40,8 @@ export type { FiltrosReporte, OpcionFiltro, CampoTexto } from './lib/filtros'
 export { generarDatosSimulados } from './lib/simulacion'
 export type { DatosSimulados } from './lib/simulacion'
 export { lunesDe, solicitudesPor, MAX_PUNTOS_DIARIOS } from './lib/agrupacion'
+export { tituloGrafico, informesConPuntos, colorEspecieMarca } from './lib/graficoResiduales'
+export { tramosSuaves, trazarCurvaSuave } from './lib/curvaSuave'
+export type { InformeConPuntos } from './lib/graficoResiduales'
 export { describirFiltros, pedidoBd } from './lib/descargaBd'
 export type { PedidoBd } from './lib/descargaBd'
