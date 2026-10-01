@@ -223,6 +223,15 @@ PDF, el JSON y el correo dicen `MIXTO` (`producto_utilizado`); la lista real va
 en `productos_lista` (`normalizar_productos`). No
 confundir con `tipo_copia`, que es de los contactos de **resultados**.
 
+**«Sin lista de distribución»** (chip morado en Toma de muestras → Solicitudes,
+junto a Enviada/Pendiente, con su filtro): la solicitud cuyos **resultados** no
+tienen a nadie del cliente en Para para su Sold To + Ship To + **especie**, o
+sea que rige la regla de «solo Jorge y Claudia» (también si ellos dos son los
+únicos cargados). Lo calcula `solicitud_sin_lista` con los contactos de hoy, no
+se guarda. **No leas la configuración de contactos dentro de un bucle por
+solicitud**: viene de R2 y el listado pasó a tardar 6 s; se lee una vez
+(`_calculador_sin_lista`).
+
 ## Storage: explorador y permisos por carpeta
 
 `/modulos/storage` tiene un árbol lateral con tres espacios: **Archivos del
