@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ESPACIOS,
   espacioDeRuta,
+  espacioLocalDeRuta,
   leerArrastre,
   partirResaltado,
   puede,
@@ -137,7 +138,32 @@ describe('puede (espejo de storage_r2.permitir)', () => {
     expect(puede(solicitudes, 'renombrar', 'solicitudes', true)).toBe(false)
   })
 
+  it('Informes se ven y se borran, pero no se reordenan (los ordena la aplicación)', () => {
+    const informes = ESPACIOS.find((e) => e.id === 'informes')!
+    const ruta = 'informes/PLANTA X/2026-09-30/Actimist/Quiteca/i.pdf'
+    expect(puede(informes, 'eliminar', ruta, false)).toBe(true)
+    expect(puede(informes, 'eliminar', 'informes/PLANTA X', true)).toBe(true)
+    for (const op of ['crear', 'subir', 'renombrar', 'mover'] as const) {
+      expect(puede(informes, op, ruta, false)).toBe(false)
+      expect(puede(informes, op, 'informes/PLANTA X', true)).toBe(false)
+    }
+    expect(puede(informes, 'eliminar', 'informes', true)).toBe(false)
+    expect(puede(informes, 'crear', 'informes2/x')).toBe(false)
+  })
+
+  it('Laboratorio AgroFresh es una carpeta del disco con su propia entrada', () => {
+    const lab = ESPACIOS.find((e) => e.id === 'laboratorio')!
+    expect(lab).toMatchObject({ r2: false, raiz: 'Laboratorio AgroFresh' })
+    expect(puede(lab, 'subir', 'Laboratorio AgroFresh/GC')).toBe(true)
+    expect(espacioLocalDeRuta('Laboratorio AgroFresh/GC/x.xlsx')).toBe('laboratorio')
+    expect(espacioLocalDeRuta('Laboratorio AgroFresh')).toBe('laboratorio')
+    expect(espacioLocalDeRuta('Laboratorio AgroFresh 2')).toBe('local')
+    expect(espacioLocalDeRuta('Clientes/DOLE')).toBe('local')
+  })
+
   it('no confunde prefijos parecidos', () => {
+    expect(espacioDeRuta('informes/PLANTA X')).toBe('informes')
+    expect(espacioDeRuta('informes2/x')).toBe('local')
     expect(puede(solicitudes, 'crear', 'solicitudes2/x')).toBe(false)
     expect(espacioDeRuta('solicitudes2/x')).toBe('local')
     expect(espacioDeRuta('accutab/mail/A')).toBe('accutab')

@@ -241,6 +241,8 @@
 
 .campoFiltro input,
 .campoFiltro select {
+  box-sizing: border-box;
+  height: 34px;
   font-family: var(--font-sans);
   font-size: 13px;
   padding: 7px 9px;

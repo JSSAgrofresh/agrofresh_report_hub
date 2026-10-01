@@ -274,6 +274,34 @@ toca el otro). La aplicación es dueña de parte del bucket, por eso:
   Toma de muestras con los permisos de ese módulo.
 - Sin la 0043 corrida, todo queda abierto y Storage funciona como antes.
 
+**Storage tiene cinco entradas principales**: Archivos del servidor, Solicitudes,
+Accutab, **Laboratorio AgroFresh** (una carpeta del disco con entrada propia,
+`CARPETA_LABORATORIO` en `explorador.ts`) e **Informes** (R2, prefijo `informes/`).
+
+**Informes** (`app/informes_storage.py`): cada PDF que se sube por Converter
+(`POST /auditoria-interna/informes`, que ahora también recibe `fecha` y
+`analisis`) y cada informe propio de cromatografía (`emitir._archivar_informe`)
+quedan en `informes/<PLANTA>/<FECHA DE MUESTREO>/<TIPO DE SERVICIO>/<LABORATORIO>/<archivo>.pdf`.
+Es independiente de Auditoría (`auditoria/`): dos copias, dos usos. La planta
+es el Ship To; si dos clientes tienen un Ship To con el mismo nombre
+(«CHILLAN») la carpeta lleva el cliente entre paréntesis, para no mezclar
+informes de clientes (esta carpeta es la que algún día verá cada cliente).
+Volver a pasar un informe lo **reemplaza** en su sitio (mismo nombre), no lo
+duplica. Desde Storage solo se ven, descargan y borran (`storage_r2.permitir`,
+espejo en `explorador.ts` con los mismos casos en los dos tests). Lo que
+`_archivar_informe` guardó antes bajo `informes/<SOLD TO>/<fecha>/<folio>.pdf`
+sigue ahí con ese orden viejo. **El prefijo `informes/` ya es de este espacio**:
+la «Etapa 4» de Ingreso al laboratorio tiene que usar otra raíz o este mismo orden.
+Pendiente: que cada cliente vea sus informes (hoy Storage no es accesible a
+cuentas `cliente`).
+
+**Filtros de Solicitudes (Toma de muestras)**: Laboratorio, Sold To, Ship To,
+Especie, Tipo de aplicación, Línea de proceso, Tipo muestra, Nombre muestreador
+y Estado se marcan **de a varios** (`MultiSelectFiltro`; lógica pura en
+`features/tomaMuestras/lib/filtrosSolicitudes.ts`). Dentro de un filtro vale
+cualquiera de los marcados; entre filtros, todos. En Estado, Enviada/Pendiente
+son alternativas y «Sin lista de distribución» se suma como condición.
+
 ## Solicitudes de prueba
 
 Al borrar las solicitudes de prueba del arranque, el contador de folios de
@@ -505,8 +533,9 @@ pendiente**, en orden de importancia:
 1. ~~El túnel Cloudflare~~ **resuelto**: `estado.ps1` lo reporta como servicio
    `Running` (25-09-2026), igual que el backend (tarea programada).
 2. **Etapa 4 del módulo AgroFresh Lab → Ingreso al laboratorio**: botón
-   "Procesar" → modal con el listado de informes → guardar en R2 bajo
-   `informes/<fecha>/` → tabla abajo para descargarlos todos o de a uno.
+   "Procesar" → modal con el listado de informes → guardar en R2 (ojo: `informes/`
+   ya es el espacio Informes, con su orden planta/fecha/análisis/laboratorio) →
+   tabla abajo para descargarlos todos o de a uno.
 3. **`sembrar_catalogo_analitos.py --aplicar`** en el servidor: 14 analitos
    por crear. `DFN` hay que crearlo a mano (la app no conoce su nombre).
 4. **Los límites residuales están vacíos.** Son decisión del laboratorio y se

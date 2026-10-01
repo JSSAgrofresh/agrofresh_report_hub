@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { IconCandado } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { HttpError } from '@/services/http/client'
-import { guardarPermisos, nombreDe, resumenPermisos, verPermisos } from '@/features/storage'
+import { espacioDeRuta, espacioLocalDeRuta, guardarPermisos, nombreDe, resumenPermisos, verPermisos } from '@/features/storage'
 import type { Espacio, PermisoCarpeta, ResumenPermiso } from '@/features/storage'
 import { listarUsuarios } from '@/features/usuarios/api/usuariosStore'
 import type { Usuario } from '@/features/usuarios'
@@ -285,7 +285,7 @@ function Resumen({ onIrA }: { onIrA: PanelPermisosProps['onIrA'] }) {
   return (
     <ul className={styles.resumen}>
       {filas.map((f) => {
-        const destino = f.espacio === 'local' ? 'local' : f.ruta.startsWith('accutab') ? 'accutab' : 'solicitudes'
+        const destino = f.espacio === 'local' ? espacioLocalDeRuta(f.ruta) : espacioDeRuta(f.ruta)
         return (
           <li key={`${f.espacio}|${f.ruta}`} className={styles.resumenItem}>
             <button type="button" className={styles.resumenRuta} onClick={() => onIrA(destino, f.ruta)}>
