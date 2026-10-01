@@ -1,11 +1,12 @@
 import type { EntradaStorage } from './tipos'
 
 /** Un lugar de Storage. Local es el disco del servidor y se puede administrar
- * entero; Solicitudes y Accutab son del bucket R2 y solo se leen: las escribe
- * la propia aplicación y renombrarles o moverles algo dejaría rotas las
- * solicitudes que apuntan a esas rutas. */
+ * entero (Laboratorio AgroFresh es una carpeta suya con entrada propia);
+ * Solicitudes, Accutab e Informes son del bucket R2 y la aplicación es dueña de
+ * parte de lo que hay: renombrar o mover a mano dejaría rotas las solicitudes
+ * o los informes que apuntan a esas rutas. */
 export interface Espacio {
-  id: 'local' | 'solicitudes' | 'accutab'
+  id: 'local' | 'solicitudes' | 'accutab' | 'laboratorio' | 'informes'
   etiqueta: string
   descripcion: string
   r2: boolean
@@ -15,6 +16,9 @@ export interface Espacio {
   acento: string
   permiteOrganizar?: boolean
 }
+
+/** Carpeta del disco del servidor que tiene su propia entrada en Storage. */
+export const CARPETA_LABORATORIO = 'Laboratorio AgroFresh'
 
 export const ESPACIOS: Espacio[] = [
   {
@@ -41,6 +45,23 @@ export const ESPACIOS: Espacio[] = [
     r2: true,
     raiz: 'accutab/mail',
     acento: '#e08a1e',
+  },
+  {
+    id: 'laboratorio',
+    etiqueta: CARPETA_LABORATORIO,
+    descripcion: 'Archivos del laboratorio de AgroFresh, guardados en el servidor.',
+    r2: false,
+    raiz: CARPETA_LABORATORIO,
+    acento: '#0f8b8d',
+  },
+  {
+    id: 'informes',
+    etiqueta: 'Informes',
+    descripcion:
+      'Los informes de cada planta, ordenados por fecha de muestreo, tipo de análisis y laboratorio. Los deja la aplicación al cargar un informe en Converter.',
+    r2: true,
+    raiz: 'informes',
+    acento: '#7c4dbd',
   },
 ]
 
@@ -156,6 +177,7 @@ export type Operacion = 'crear' | 'subir' | 'renombrar' | 'mover' | 'eliminar'
 
 const RAIZ_ACCUTAB = 'accutab/mail'
 const RAIZ_SOLICITUDES = 'solicitudes'
+const RAIZ_INFORMES = 'informes'
 
 function dentro(ruta: string, raiz: string, estricto: boolean): boolean {
   return ruta === raiz ? !estricto : ruta.startsWith(raiz + '/')
@@ -165,7 +187,14 @@ function dentro(ruta: string, raiz: string, estricto: boolean): boolean {
 export function espacioDeRuta(ruta: string): Espacio['id'] {
   if (dentro(ruta, RAIZ_ACCUTAB, false)) return 'accutab'
   if (dentro(ruta, RAIZ_SOLICITUDES, false)) return 'solicitudes'
+  if (dentro(ruta, RAIZ_INFORMES, false)) return 'informes'
   return 'local'
+}
+
+/** Espacio del disco al que pertenece una ruta local: Laboratorio AgroFresh tiene
+ * el suyo; todo lo demás es «Archivos del servidor». */
+export function espacioLocalDeRuta(ruta: string): 'local' | 'laboratorio' {
+  return dentro(ruta, CARPETA_LABORATORIO, false) ? 'laboratorio' : 'local'
 }
 
 /**
@@ -178,9 +207,10 @@ export function puede(espacio: Espacio, operacion: Operacion, ruta: string, esCa
   if (ruta.split('/').includes('_config')) return false
   const zona = espacioDeRuta(ruta)
   if (zona === 'local') return false
-  const raiz = zona === 'accutab' ? RAIZ_ACCUTAB : RAIZ_SOLICITUDES
+  const raiz = zona === 'accutab' ? RAIZ_ACCUTAB : zona === 'informes' ? RAIZ_INFORMES : RAIZ_SOLICITUDES
   if (['renombrar', 'mover', 'eliminar'].includes(operacion) && !dentro(ruta, raiz, true)) return false
   if (zona === 'accutab') return true
+  if (zona === 'informes') return operacion === 'eliminar'
   if (operacion === 'subir' || operacion === 'eliminar') return false
   if ((operacion === 'renombrar' || operacion === 'mover') && !esCarpeta) return false
   return true

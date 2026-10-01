@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from . import informes_storage
 from . import r2
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
@@ -39,7 +40,7 @@ from .solicitud_excel import (
 )
 from .solicitud_parser import parsear_solicitudes_html
 from .storage import _carpeta_raiz as _carpeta_raiz_storage, _nombre_seguro
-from .toma_muestras import carpeta_de_cliente, leer_solicitudes_de
+from .toma_muestras import leer_solicitudes_de
 
 def _zona_laboratorio() -> ZoneInfo | None:
     """La zona del laboratorio, o None para usar la del sistema.
@@ -1328,21 +1329,25 @@ def _nombre_informe(campos: dict[str, str]) -> str:
 
 
 def _archivar_informe(campos: dict[str, str], folio: str, pdf_bytes: bytes) -> None:
-    """Guarda una copia del informe en R2, agrupado igual que las solicitudes
-    -por cliente y día- pero bajo `informes/`, su propia raíz:
+    """Guarda una copia del informe en R2, en el mismo orden que los informes de
+    los otros laboratorios (Storage → Informes):
 
-        informes/<SOLD TO>/<AAAA-MM-DD>/<folio>.pdf
+        informes/<PLANTA>/<FECHA DE MUESTREO>/<TIPO DE ANÁLISIS>/AgroFresh/<folio>.pdf
 
     El archivado no puede costarle la descarga al usuario: si R2 no está
     configurado o falla, se registra y el informe se entrega igual.
     """
     if not r2.disponible():
         return
-    cliente = carpeta_de_cliente(campos.get("Sold To (Nombre)"))
-    fecha = date.today().isoformat()
-    key = f"informes/{cliente}/{fecha}/{folio}.pdf"
     try:
-        r2.subir(key, pdf_bytes, "application/pdf")
+        informes_storage.guardar(
+            pdf_bytes, f"{folio}.pdf",
+            ship_to=campos.get("Ship To (Nombre)") or campos.get("Ship To"),
+            sold_to=campos.get("Sold To (Nombre)") or campos.get("Sold To"),
+            fecha=campos.get("Fecha Muestreo") or date.today().isoformat(),
+            analisis=campos.get("Tipo Aplicación"),
+            laboratorio="AgroFresh",
+        )
     except Exception:
         logging.getLogger(__name__).exception("No se pudo archivar el informe %s en R2", folio)
 

@@ -18,53 +18,30 @@ import {
   descargarPdfsZip,
   enviarSolicitudPorCorreo,
   estadoSolicitudesPrueba,
+  FILTROS_VACIOS,
+  filtrarSolicitudes,
+  hayFiltros,
   listarTiposAplicacion,
+  opcionesDe,
+  tipoAplicacionDe,
 } from '@/features/tomaMuestras'
-import type { ConfigEnvioAutomatico, OpcionConfig, Solicitud } from '@/features/tomaMuestras'
+import type { ConfigEnvioAutomatico, EstadoFiltro, FiltrosSolicitudes, OpcionConfig, Solicitud } from '@/features/tomaMuestras'
+import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { EstadoSolicitud } from './EstadoSolicitud'
 import styles from './SolicitudesView.module.css'
 
-interface Filtros {
-  fechaDesde: string
-  fechaHasta: string
-  numeroSolicitud: string
-  busqueda: string
-  laboratorio: string
-  solicitante: string
-  soldTo: string
-  shipTo: string
-  especie: string
-  variedad: string
-  tipoAplicacion: string
-  lineaProceso: string
-  tipoMuestra: string
-  nombreMuestreador: string
-  estado: '' | 'enviado' | 'pendiente' | 'sin_lista'
-  prueba: '' | 'solo' | 'sin'
-}
+type ListaFiltro =
+  | 'laboratorio' | 'soldTo' | 'shipTo' | 'especie' | 'tipoAplicacion' | 'lineaProceso' | 'tipoMuestra' | 'nombreMuestreador'
 
-const FILTROS_VACIOS: Filtros = {
-  fechaDesde: '',
-  fechaHasta: '',
-  numeroSolicitud: '',
-  busqueda: '',
-  laboratorio: '',
-  solicitante: '',
-  soldTo: '',
-  shipTo: '',
-  especie: '',
-  variedad: '',
-  tipoAplicacion: '',
-  lineaProceso: '',
-  tipoMuestra: '',
-  nombreMuestreador: '',
-  estado: '',
-  prueba: '',
+const ETIQUETA_DE: Record<EstadoFiltro, string> = {
+  enviada: 'Enviada',
+  pendiente: 'Pendiente',
+  sin_lista: 'Sin lista de distribución',
 }
-
-function contiene(valor: string | null | undefined, buscado: string): boolean {
-  return (valor ?? '').toLowerCase().includes(buscado.toLowerCase())
-}
+const ETIQUETAS_ESTADO = Object.values(ETIQUETA_DE)
+const ESTADO_DE = Object.fromEntries(
+  (Object.entries(ETIQUETA_DE) as [EstadoFiltro, string][]).map(([k, v]) => [v, k]),
+) as Record<string, EstadoFiltro>
 
 export function SolicitudesView() {
   const { user } = useAuth()
@@ -76,7 +53,7 @@ export function SolicitudesView() {
   // Botón "Solicitud de prueba": lo decide el backend (una sola cuenta).
   const [puedeCrearPruebas, setPuedeCrearPruebas] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
+  const [filtros, setFiltros] = useState<FiltrosSolicitudes>(FILTROS_VACIOS)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
 
   // Toggle de envío automático (solo visible para admin_general)
@@ -172,76 +149,46 @@ export function SolicitudesView() {
     }
   }
 
-  function actualizarFiltro(campo: keyof Filtros, valor: string) {
+  function actualizarFiltro(campo: 'fechaDesde' | 'fechaHasta' | 'numeroSolicitud' | 'busqueda' | 'solicitante' | 'variedad', valor: string) {
     setFiltros((f) => ({ ...f, [campo]: valor }))
   }
 
-  // Las opciones de los selects se derivan de las solicitudes ya cargadas
+  function marcar(campo: ListaFiltro, valores: string[]) {
+    setFiltros((f) => ({ ...f, [campo]: valores }))
+  }
+
+  // Las opciones de las listas se derivan de las solicitudes ya cargadas
   // (una sola carga, sin volver a leer todos los Excel por cada filtro).
-  const opciones = useMemo(() => {
-    const laboratorio = new Set<string>()
-    const soldTo = new Set<string>()
-    const shipTo = new Set<string>()
-    const tipoAplicacion = new Set<string>()
-    const lineaProceso = new Set<string>()
-    for (const s of solicitudes ?? []) {
-      laboratorio.add(s.laboratorio)
-      soldTo.add(s.sold_to)
-      if (s.ship_to) shipTo.add(s.ship_to)
-      const ta = s.campos_laboratorio['Tipo Aplicación']
-      if (ta) tipoAplicacion.add(ta)
-      if (s.linea_proceso) lineaProceso.add(s.linea_proceso)
+  const opciones = useMemo(() => opcionesDe(solicitudes ?? [], filtros), [solicitudes, filtros])
+
+  const hayFiltrosActivos = hayFiltros(filtros)
+
+  const solicitudesFiltradas = useMemo(
+    () => (solicitudes ? filtrarSolicitudes(solicitudes, filtros) : null),
+    [solicitudes, filtros],
+  )
+
+  // Cuántas solicitudes trae cada opción, sobre todas las cargadas.
+  const conteo = useMemo(() => {
+    const por = (f: (s: Solicitud) => string | null | undefined) => {
+      const m = new Map<string, number>()
+      for (const s of solicitudes ?? []) {
+        const v = f(s)
+        if (v) m.set(v, (m.get(v) ?? 0) + 1)
+      }
+      return (o: string) => m.get(o) ?? 0
     }
     return {
-      laboratorio: [...laboratorio].sort(),
-      soldTo: [...soldTo].sort(),
-      shipTo: [...shipTo].sort(),
-      tipoAplicacion: [...tipoAplicacion].sort(),
-      lineaProceso: [...lineaProceso].sort(),
+      laboratorio: por((s) => s.laboratorio),
+      soldTo: por((s) => s.sold_to),
+      shipTo: por((s) => s.ship_to),
+      especie: por((s) => s.especie),
+      tipoAplicacion: por(tipoAplicacionDe),
+      lineaProceso: por((s) => s.linea_proceso),
+      tipoMuestra: por((s) => s.tipo_muestra),
+      nombreMuestreador: por((s) => s.nombre_muestreador),
     }
   }, [solicitudes])
-
-  const hayFiltrosActivos = Object.values(filtros).some((v) => v.trim())
-
-  const solicitudesFiltradas = useMemo(() => {
-    if (!solicitudes) return null
-    return solicitudes.filter((s) => {
-      if (filtros.fechaDesde && s.fecha_solicitud < filtros.fechaDesde) return false
-      if (filtros.fechaHasta && s.fecha_solicitud > filtros.fechaHasta) return false
-      if (filtros.busqueda) {
-        const pajar = [
-          s.numero_solicitud, s.sold_to, s.ship_to, s.especie, s.variedad,
-          s.laboratorio, s.generado_por, s.tipo_muestra, s.campos_laboratorio['Tipo Aplicación'],
-        ].join(' ')
-        const claves = filtros.busqueda.trim().toLowerCase().split(/\s+/)
-        const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        if (!claves.every((c) => norm(pajar).includes(norm(c)))) return false
-      }
-      if (filtros.numeroSolicitud && !contiene(s.numero_solicitud, filtros.numeroSolicitud))
-        return false
-      if (filtros.laboratorio && s.laboratorio !== filtros.laboratorio) return false
-      if (filtros.solicitante && !contiene(s.solicitante, filtros.solicitante)) return false
-      if (filtros.soldTo && s.sold_to !== filtros.soldTo) return false
-      if (filtros.shipTo && s.ship_to !== filtros.shipTo) return false
-      if (filtros.especie && !contiene(s.especie, filtros.especie)) return false
-      if (filtros.variedad && !contiene(s.variedad, filtros.variedad)) return false
-      if (
-        filtros.tipoAplicacion &&
-        s.campos_laboratorio['Tipo Aplicación'] !== filtros.tipoAplicacion
-      )
-        return false
-      if (filtros.lineaProceso && s.linea_proceso !== filtros.lineaProceso) return false
-      if (filtros.tipoMuestra && !contiene(s.tipo_muestra, filtros.tipoMuestra)) return false
-      if (filtros.nombreMuestreador && !contiene(s.nombre_muestreador, filtros.nombreMuestreador))
-        return false
-      if (filtros.estado === 'enviado' && !s.enviada) return false
-      if (filtros.estado === 'pendiente' && s.enviada) return false
-      if (filtros.estado === 'sin_lista' && !s.sin_lista_distribucion) return false
-      if (filtros.prueba === 'solo' && !s.es_prueba) return false
-      if (filtros.prueba === 'sin' && s.es_prueba) return false
-      return true
-    })
-  }, [solicitudes, filtros])
 
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
 
@@ -572,48 +519,27 @@ export function SolicitudesView() {
                 onChange={(e) => actualizarFiltro('numeroSolicitud', e.target.value)}
               />
             </label>
-            <label className={styles.campoFiltro}>
-              <span>Laboratorio</span>
-              <select
-                value={filtros.laboratorio}
-                onChange={(e) => actualizarFiltro('laboratorio', e.target.value)}
-              >
-                <option value="">Todos</option>
-                {opciones.laboratorio.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.campoFiltro}>
-              <span>Tipo de Aplicación</span>
-              <select
-                value={filtros.tipoAplicacion}
-                onChange={(e) => actualizarFiltro('tipoAplicacion', e.target.value)}
-              >
-                <option value="">Todos</option>
-                {opciones.tipoAplicacion.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.campoFiltro}>
-              <span>Línea de Proceso</span>
-              <select
-                value={filtros.lineaProceso}
-                onChange={(e) => actualizarFiltro('lineaProceso', e.target.value)}
-              >
-                <option value="">Todas</option>
-                {opciones.lineaProceso.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <MultiSelectFiltro
+              etiqueta="Laboratorio"
+              opciones={opciones.laboratorio}
+              valores={filtros.laboratorio}
+              onChange={(v) => marcar('laboratorio', v)}
+              conteoDe={conteo.laboratorio}
+            />
+            <MultiSelectFiltro
+              etiqueta="Tipo de Aplicación"
+              opciones={opciones.tipoAplicacion}
+              valores={filtros.tipoAplicacion}
+              onChange={(v) => marcar('tipoAplicacion', v)}
+              conteoDe={conteo.tipoAplicacion}
+            />
+            <MultiSelectFiltro
+              etiqueta="Línea de Proceso"
+              opciones={opciones.lineaProceso}
+              valores={filtros.lineaProceso}
+              onChange={(v) => marcar('lineaProceso', v)}
+              conteoDe={conteo.lineaProceso}
+            />
             <label className={styles.campoFiltro}>
               <span>Solicitante</span>
               <input
@@ -621,41 +547,27 @@ export function SolicitudesView() {
                 onChange={(e) => actualizarFiltro('solicitante', e.target.value)}
               />
             </label>
-            <label className={styles.campoFiltro}>
-              <span>Sold To</span>
-              <select
-                value={filtros.soldTo}
-                onChange={(e) => actualizarFiltro('soldTo', e.target.value)}
-              >
-                <option value="">Todos</option>
-                {opciones.soldTo.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.campoFiltro}>
-              <span>Ship To</span>
-              <select
-                value={filtros.shipTo}
-                onChange={(e) => actualizarFiltro('shipTo', e.target.value)}
-              >
-                <option value="">Todos</option>
-                {opciones.shipTo.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.campoFiltro}>
-              <span>Especie</span>
-              <input
-                value={filtros.especie}
-                onChange={(e) => actualizarFiltro('especie', e.target.value)}
-              />
-            </label>
+            <MultiSelectFiltro
+              etiqueta="Sold To"
+              opciones={opciones.soldTo}
+              valores={filtros.soldTo}
+              onChange={(v) => marcar('soldTo', v)}
+              conteoDe={conteo.soldTo}
+            />
+            <MultiSelectFiltro
+              etiqueta="Ship To"
+              opciones={opciones.shipTo}
+              valores={filtros.shipTo}
+              onChange={(v) => marcar('shipTo', v)}
+              conteoDe={conteo.shipTo}
+            />
+            <MultiSelectFiltro
+              etiqueta="Especie"
+              opciones={opciones.especie}
+              valores={filtros.especie}
+              onChange={(v) => marcar('especie', v)}
+              conteoDe={conteo.especie}
+            />
             <label className={styles.campoFiltro}>
               <span>Variedad</span>
               <input
@@ -663,40 +575,32 @@ export function SolicitudesView() {
                 onChange={(e) => actualizarFiltro('variedad', e.target.value)}
               />
             </label>
-            <label className={styles.campoFiltro}>
-              <span>Tipo Muestra</span>
-              <input
-                value={filtros.tipoMuestra}
-                onChange={(e) => actualizarFiltro('tipoMuestra', e.target.value)}
-              />
-            </label>
-            <label className={styles.campoFiltro}>
-              <span>Nombre Muestreador</span>
-              <input
-                value={filtros.nombreMuestreador}
-                onChange={(e) => actualizarFiltro('nombreMuestreador', e.target.value)}
-              />
-            </label>
-            <label className={styles.campoFiltro}>
-              <span>Estado</span>
-              <select
-                value={filtros.estado}
-                onChange={(e) =>
-                  setFiltros((f) => ({ ...f, estado: e.target.value as Filtros['estado'] }))
-                }
-              >
-                <option value="">Todos</option>
-                <option value="enviado">Enviada</option>
-                <option value="pendiente">Pendiente</option>
-                <option value="sin_lista">Sin lista de distribución</option>
-              </select>
-            </label>
+            <MultiSelectFiltro
+              etiqueta="Tipo Muestra"
+              opciones={opciones.tipoMuestra}
+              valores={filtros.tipoMuestra}
+              onChange={(v) => marcar('tipoMuestra', v)}
+              conteoDe={conteo.tipoMuestra}
+            />
+            <MultiSelectFiltro
+              etiqueta="Nombre Muestreador"
+              opciones={opciones.nombreMuestreador}
+              valores={filtros.nombreMuestreador}
+              onChange={(v) => marcar('nombreMuestreador', v)}
+              conteoDe={conteo.nombreMuestreador}
+            />
+            <MultiSelectFiltro
+              etiqueta="Estado"
+              opciones={ETIQUETAS_ESTADO}
+              valores={filtros.estado.map((e) => ETIQUETA_DE[e])}
+              onChange={(v) => setFiltros((f) => ({ ...f, estado: v.map((x) => ESTADO_DE[x]) }))}
+            />
             <label className={styles.campoFiltro}>
               <span>Solicitudes de prueba</span>
               <select
                 value={filtros.prueba}
                 onChange={(e) =>
-                  setFiltros((f) => ({ ...f, prueba: e.target.value as Filtros['prueba'] }))
+                  setFiltros((f) => ({ ...f, prueba: e.target.value as FiltrosSolicitudes['prueba'] }))
                 }
               >
                 <option value="">Todas</option>

@@ -581,7 +581,9 @@ def buscar(
         reglas = permisos.cargar_reglas("local")
     elif espacio == "r2":
         sr2.puede_llamar_r2()
-        claves = sr2.claves_de(sr2.RAIZ_ACCUTAB) + sr2.claves_de(sr2.RAIZ_SOLICITUDES)
+        claves = (
+            sr2.claves_de(sr2.RAIZ_ACCUTAB) + sr2.claves_de(sr2.RAIZ_SOLICITUDES) + sr2.claves_de(sr2.RAIZ_INFORMES)
+        )
         resultado = [EntradaStorage(**e) for e in sr2.buscar_en_claves(claves, palabras, 10_000)]
         reglas = permisos.cargar_reglas("r2")
     else:

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { buscar, ESPACIOS, espacioDeRuta, partirResaltado } from '@/features/storage'
+import { buscar, ESPACIOS, espacioDeRuta, espacioLocalDeRuta, partirResaltado } from '@/features/storage'
 import type { EntradaStorage, Espacio } from '@/features/storage'
 import { cn } from '@/lib/cn'
 import { IconoArchivo, IconoCarpeta } from './IconoArchivo'
@@ -60,8 +60,12 @@ export function BusquedaGlobal({ onAbrir }: BusquedaGlobalProps) {
         if (!vigente) return
         const lista: Resultado[] = []
         if (local.status === 'fulfilled') {
-          const e = ESPACIOS[0]
-          lista.push(...local.value.map((entrada) => ({ entrada, espacio: e })))
+          lista.push(
+            ...local.value.map((entrada) => ({
+              entrada,
+              espacio: ESPACIOS.find((x) => x.id === espacioLocalDeRuta(entrada.ruta)) ?? ESPACIOS[0],
+            })),
+          )
         }
         if (r2.status === 'fulfilled') {
           lista.push(

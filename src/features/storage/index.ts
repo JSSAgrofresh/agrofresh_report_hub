@@ -23,10 +23,12 @@ export type {
   TipoEntradaStorage,
 } from './lib/tipos'
 export {
+  CARPETA_LABORATORIO,
   ESPACIOS,
   TIPO_MOVER,
   carpetaDe,
   espacioDeRuta,
+  espacioLocalDeRuta,
   leerArrastre,
   partirResaltado,
   puede,
