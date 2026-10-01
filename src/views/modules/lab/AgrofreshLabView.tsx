@@ -159,6 +159,7 @@ export function AgrofreshLabView() {
             <TablaSolicitudes
               solicitudes={solicitudes}
               onVerFicha={setSolicitudEnFicha}
+              onCruceEditado={refrescarSolicitudes}
               onQuitarCruce={(s) => {
                 if (!confirm(`¿Quitar la muestra ${s.codigo_muestra} de esta solicitud?`)) return
                 void cruzar(s, null)

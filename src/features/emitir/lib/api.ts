@@ -95,6 +95,27 @@ export async function cruzarCompleto(
   )
 }
 
+/** Corrige un cruce ya hecho (N° de muestra y peso; la foto solo si se manda una nueva). */
+export function editarCruce(
+  archivo: string,
+  datos: { codigoMuestra: string; peso: number; unidad: string; foto?: File | null },
+): Promise<Solicitud> {
+  const fd = new FormData()
+  fd.append('codigo_muestra', datos.codigoMuestra)
+  fd.append('peso_muestra', String(datos.peso))
+  fd.append('unidad_peso', datos.unidad)
+  if (datos.foto) fd.append('foto', datos.foto)
+  return httpClient.patchUpload<Solicitud>(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/cruce`, fd)
+}
+
+/** La foto del cruce como archivo local: un <img src> directo no lleva el token (daría 401). */
+export async function obtenerFotoCruce(archivo: string): Promise<Blob> {
+  const { blob } = await httpClient.getArchivoConNombre(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/cruce-foto`,
+  )
+  return blob
+}
+
 /** Historial de actividad del módulo de ingreso al laboratorio. */
 export function listarActividadLab(params?: {
   limite?: number
@@ -109,7 +130,3 @@ export function listarActividadLab(params?: {
   return httpClient.get<ActividadLab[]>(`/toma-muestras/actividad${q ? `?${q}` : ''}`)
 }
 
-/** URL de la foto del cruce de una solicitud (para <img src>). */
-export function urlFotoCruce(archivo: string): string {
-  return `/api/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/cruce-foto`
-}

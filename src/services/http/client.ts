@@ -90,6 +90,12 @@ export const httpClient = {
     if (!response.ok) await fallar(response, path)
     return (await response.json()) as T
   },
+  /** Igual que `upload`, pero con PATCH (corregir algo ya guardado con foto). */
+  patchUpload: async <T>(path: string, formData: FormData): Promise<T> => {
+    const response = await pedir(path, { method: 'PATCH', body: formData })
+    if (!response.ok) await fallar(response, path)
+    return (await response.json()) as T
+  },
   /** Para endpoints que devuelven un archivo (ej. un Excel generado) en vez de JSON. */
   postArchivo: async (path: string, body: unknown): Promise<Blob> =>
     (await archivo(path, conJson('POST', body))).blob,

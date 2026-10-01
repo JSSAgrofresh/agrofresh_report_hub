@@ -1132,6 +1132,74 @@ async def cruzar_completo(
     return Solicitud(archivo=archivo, **datos_actualizados)
 
 
+def _guardar_foto_cruce(archivo: str, foto: UploadFile, contenido: bytes) -> dict:
+    """Sube la foto del cruce (R2 o disco) y devuelve {r2_key, content_type}."""
+    extension = _EXTENSION_POR_TIPO[foto.content_type]
+    fecha_hoy = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    nombre_foto = f"cruce_{ts}{extension}"
+    folio = os.path.splitext(os.path.basename(archivo))[0]
+    if r2.disponible():
+        clave = f"{_prefijo_foto_cruce_r2(archivo, fecha_hoy)}{nombre_foto}"
+        r2.subir(clave, contenido, foto.content_type)
+    else:
+        with open(os.path.join(_carpeta_foto_cruce_disco(archivo, fecha_hoy), nombre_foto), "wb") as f:
+            f.write(contenido)
+        clave = f"cruces/{fecha_hoy}/{folio}/{nombre_foto}"
+    return {"r2_key": clave, "content_type": foto.content_type}
+
+
+@router.patch("/solicitudes/{archivo}/cruce", response_model=Solicitud)
+async def editar_cruce(
+    archivo: str,
+    codigo_muestra: str = Form(...),
+    peso_muestra: float = Form(...),
+    unidad_peso: str = Form(default="kg"),
+    foto: UploadFile | None = File(default=None),
+    usuario: Usuario = Depends(usuario_actual),
+) -> Any:
+    """Corrige un cruce ya hecho: N° de muestra, peso y (opcional) la foto.
+
+    Sirve cuando alguien digitó mal el peso o el número. No cambia cuándo llegó
+    la muestra ni quién la recibió; el antes y el después quedan en el
+    historial. La foto anterior se conserva, solo deja de ser la activa.
+    """
+    codigo = codigo_muestra.strip()
+    if not codigo:
+        raise HTTPException(400, "El código de muestra no puede estar vacío.")
+    if peso_muestra <= 0:
+        raise HTTPException(400, "El peso debe ser mayor a cero.")
+    contenido_foto = None
+    if foto is not None and foto.filename:
+        if foto.content_type not in _EXTENSION_POR_TIPO:
+            raise HTTPException(400, "Solo se aceptan fotos JPEG, PNG o WEBP.")
+        contenido_foto = await foto.read()
+        if not contenido_foto:
+            raise HTTPException(400, "La foto llegó vacía.")
+
+    datos = _leer_datos_actuales(archivo)
+    _exigir_acceso(usuario, datos)
+    foto_guardada = _guardar_foto_cruce(archivo, foto, contenido_foto) if contenido_foto else None
+    try:
+        indice_solicitudes.editar_cruce(
+            archivo=archivo,
+            codigo_muestra=codigo,
+            peso_muestra=peso_muestra,
+            unidad_peso=unidad_peso,
+            usuario_email=usuario.email,
+            usuario_nombre=usuario.nombre,
+            foto=foto_guardada,
+            detalle={"laboratorio": datos.get("laboratorio")},
+        )
+    except indice_solicitudes.MuestraYaUsada as e:
+        raise HTTPException(409, str(e)) from e
+    except indice_solicitudes.SinCruce as e:
+        raise HTTPException(409, "Esa solicitud todavía no tiene muestra: primero se cruza.") from e
+    except KeyError as e:
+        raise HTTPException(404, "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.") from e
+    return Solicitud(archivo=archivo, **indice_solicitudes.buscar(archivo))
+
+
 class ActividadItem(BaseModel):
     id: int
     accion: str

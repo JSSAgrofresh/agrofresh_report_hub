@@ -309,6 +309,21 @@ y Estado se marcan **de a varios** (`MultiSelectFiltro`; lógica pura en
 cualquiera de los marcados; entre filtros, todos. En Estado, Enviada/Pendiente
 son alternativas y «Sin lista de distribución» se suma como condición.
 
+## Ingreso al laboratorio: corregir un cruce
+
+En la tabla de solicitudes de **Ingreso al laboratorio** cada fila cruzada trae el
+peso, un ícono 🖼️ que abre la foto de la muestra y el botón **Editar cruce**
+(N° de muestra, peso y, si hace falta, cambiar la foto). Backend:
+`PATCH /api/toma-muestras/solicitudes/{archivo}/cruce` (multipart, la foto es
+opcional) → `indice_solicitudes.editar_cruce`: no toca la hora de recepción ni
+quién cruzó, respeta que un N° de muestra no esté en dos solicitudes (409), exige
+que ya haya cruce (409) y deja la acción `edicion_cruce` en el historial con el
+antes y el después; la foto anterior se conserva, solo deja de ser la activa.
+`/emitir/cromatografia/solicitudes` ahora devuelve `peso_muestra`, `unidad_peso`,
+`cruzado_por_nombre` y `tiene_foto` (antes no traía el peso y la columna Peso salía
+siempre «—»). **Las fotos se bajan con `FotoCruce`** (blob con el token): un
+`<img src>` directo al backend no lleva la sesión y da 401.
+
 ## Solicitudes de prueba
 
 Al borrar las solicitudes de prueba del arranque, el contador de folios de

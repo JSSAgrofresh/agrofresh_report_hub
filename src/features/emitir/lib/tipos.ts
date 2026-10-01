@@ -56,6 +56,8 @@ export interface Solicitud {
   /** Usuario que hizo el cruce (email y nombre, del token del servidor). */
   cruzado_por?: string | null
   cruzado_por_nombre?: string | null
+  /** El cruce tiene una foto guardada (se baja con `obtenerFotoCruce`). */
+  tiene_foto?: boolean
 }
 
 /** Una entrada del historial de actividad del módulo de ingreso. */
