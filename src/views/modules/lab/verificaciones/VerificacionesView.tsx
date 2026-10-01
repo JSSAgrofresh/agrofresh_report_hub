@@ -489,7 +489,7 @@ export function VerificacionesView() {
             onLimpiar={!soloVer && user && esAdminGeneral(user) ? () => void handleLimpiarSeccion('micropipetas') : undefined}
           >
             <div className={styles.tablaWrap}>
-              <table className={styles.tabla}>
+              <table className={styles.tabla} data-apilar>
                 <thead>
                   <tr>
                     <th>Equipo</th>
@@ -581,7 +581,7 @@ export function VerificacionesView() {
             onLimpiar={!soloVer && user && esAdminGeneral(user) ? () => void handleLimpiarSeccion('balanza') : undefined}
           >
             <div className={styles.tablaWrap}>
-              <table className={styles.tabla}>
+              <table className={styles.tabla} data-apilar>
                 <thead>
                   <tr>
                     <th>Pesa patrón</th>
@@ -669,7 +669,7 @@ export function VerificacionesView() {
             onLimpiar={!soloVer && user && esAdminGeneral(user) ? () => void handleLimpiarSeccion('temperatura') : undefined}
           >
             <div className={styles.tablaWrap}>
-              <table className={styles.tabla} style={{ minWidth: 480 }}>
+              <table className={styles.tabla} style={{ minWidth: 480 }} data-apilar>
                 <thead>
                   <tr>
                     <th>Punto de control</th>
@@ -745,7 +745,7 @@ export function VerificacionesView() {
             onLimpiar={!soloVer && user && esAdminGeneral(user) ? () => void handleLimpiarSeccion('gases') : undefined}
           >
             <div className={styles.tablaWrap}>
-              <table className={styles.tabla}>
+              <table className={styles.tabla} data-apilar>
                 <thead>
                   <tr>
                     <th>Gas</th>
@@ -868,7 +868,7 @@ export function VerificacionesView() {
             onLimpiar={!soloVer && user && esAdminGeneral(user) ? () => void handleLimpiarSeccion('inyector') : undefined}
           >
             <div className={styles.tablaWrap}>
-              <table className={styles.tabla} style={{ minWidth: 520 }}>
+              <table className={styles.tabla} style={{ minWidth: 'min(520px, 100%)' }}>
                 <tbody>
                   {(
                     [
@@ -930,7 +930,7 @@ export function VerificacionesView() {
             onLimpiar={!soloVer && user && esAdminGeneral(user) ? () => void handleLimpiarSeccion('detector') : undefined}
           >
             <div className={styles.tablaWrap}>
-              <table className={styles.tabla} style={{ minWidth: 520 }}>
+              <table className={styles.tabla} style={{ minWidth: 520 }} data-apilar>
                 <thead>
                   <tr>
                     <th>Parámetro</th>

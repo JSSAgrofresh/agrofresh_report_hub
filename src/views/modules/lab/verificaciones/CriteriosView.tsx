@@ -240,7 +240,7 @@ function EditorColumnas({
   return (
     <div className={styles.formulario} style={{ flexDirection: 'column', gap: 0 }}>
       <div className={styles.tablaWrap} style={{ marginBottom: 12 }}>
-        <table className={styles.tabla} style={{ minWidth: 420 }}>
+        <table className={styles.tabla} style={{ minWidth: 420 }} data-apilar>
           <thead>
             <tr>
               <th style={{ width: 32 }}>Vis.</th>
@@ -582,7 +582,7 @@ function TablaCatalogo<T extends { id: number; activo: boolean; orden: number }>
         )}
 
         <div className={styles.tablaWrap}>
-          <table className={styles.tabla} style={{ minWidth: 520 }}>
+          <table className={styles.tabla} style={{ minWidth: 520 }} data-apilar>
             <thead>
               <tr>
                 {campos.filter((c) => !c.soloEditor).map((c) => (
@@ -852,7 +852,7 @@ function SeccionTablaZ({
       </div>
       <div className={styles.seccionCuerpo}>
         <div className={styles.tablaWrap}>
-          <table className={styles.tabla} style={{ minWidth: 280 }}>
+          <table className={styles.tabla} style={{ minWidth: 280 }} data-apilar>
             <thead>
               <tr>
                 <th>Temp. <span className={styles.unidad}>(°C)</span></th>
@@ -943,7 +943,7 @@ function SeccionParametros({
       </div>
       <div className={styles.seccionCuerpo}>
         <div className={styles.tablaWrap}>
-          <table className={styles.tabla} style={{ minWidth: 460 }}>
+          <table className={styles.tabla} style={{ minWidth: 460 }} data-apilar>
             <thead>
               <tr>
                 <th>Criterio</th>
@@ -1049,7 +1049,7 @@ function SeccionParametrosFiltrados({
       </div>
       <div className={styles.seccionCuerpo}>
         <div className={styles.tablaWrap}>
-          <table className={styles.tabla} style={{ minWidth: 380 }}>
+          <table className={styles.tabla} style={{ minWidth: 380 }} data-apilar>
             <thead>
               <tr>
                 <th>Criterio</th>
