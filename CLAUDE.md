@@ -315,6 +315,20 @@ tocas una, toca la otra.
 - Admin y cliente ven Report con el mismo encabezado con foto (`AreaHero`):
   la foto sigue a la especie filtrada. El admin entra por
   `ReporteLaboratorioView`; el cliente, por `ClienteDashboardView`.
+- **Tablero de Report (residual)**: arriba «Informes de análisis» y **«Promedios
+  por analito»** (un promedio por analito, cada uno con su color; nunca se
+  mezclan). Luego un solo gráfico grande: **una columna por informe** (la fecha
+  se repite tantas veces como informes haya ese día, en vertical), los analitos
+  uno sobre otro según su ppm y unidos por una **línea punteada negra**
+  (`conectoresInforme`). **Nunca se promedia en ese gráfico.** Su título se arma
+  solo con los filtros y parte con «Residuales» (`tituloGrafico`, ej. «Residuales
+  - Dole Lontué - Actimist - Manzana - Fludioxonil»). El filtro de ingredientes
+  parte con **todos** los analitos (vacío = todos). Abajo quedan solo «Informes
+  por especie» (paleta verdes/amarillos de la marca, `colorEspecieMarca`) y
+  «Promedio por ingrediente» (sin «ppm» en el título). Se **quitaron a pedido**:
+  tarjeta de límites residuales, % de cumplimiento, distribución de valores,
+  indicadores y solicitudes por cliente: no los vuelvas a poner. La vista por
+  límite de control (Auditoría interna) conserva su tarjeta de límites.
 - **«Simular 1.000 datos»** (solo admin, nunca en el portal de cliente):
   `features/reportes/lib/simulacion.ts`. Clientes «(Sim.)», ids negativos,
   límites ficticios. Vive solo en el estado de la pantalla: se pierde al
