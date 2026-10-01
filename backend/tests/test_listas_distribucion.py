@@ -151,3 +151,88 @@ def test_un_excel_sin_las_columnas_da_error_claro():
     wb.save(buf)
     with pytest.raises(ValueError, match="SOLD TO NAME"):
         ld.leer_filas_excel(buf.getvalue())
+
+
+def test_planta_que_no_esta_en_listados_sugiere_el_nombre_parecido():
+    lis = {
+        ld.clave_planta("EXPORTADORA AGUA SANTA SA", "AGUA SANTA PLANTA LISONJERAS"): ("EXPORTADORA AGUA SANTA SA", "AGUA SANTA PLANTA LISONJERAS"),
+        ld.clave_planta("OTRO CLIENTE", "PLANTA SIN RELACION"): ("OTRO CLIENTE", "PLANTA SIN RELACION"),
+    }
+    fila = _fila(sold_to="EXPORTADORA AGUA SANTA S.A", ship_to="AGUA SANTA PLANTA LISONJERA", comercial=["c@agrofresh.com"])
+    c = _cambios(_sistema(), fila, lis)[0]
+    assert c["aviso"] and c["sugerencias"] == [
+        {"sold_to": "EXPORTADORA AGUA SANTA SA", "ship_to": "AGUA SANTA PLANTA LISONJERAS"}]
+
+
+# --- estado para la tabla ---------------------------------------------------
+
+def test_estado_para_tabla_marca_copia_mal_por_rol_y_si_esta_en_listados():
+    estado = ld.estado_desde_contactos(_sistema())
+    clave = ld.clave_planta("CLI SA", "PLANTA UNO")
+    r = ld.estado_para_tabla(estado, {clave: ("CLI SA", "PLANTA UNO"), ld.clave_planta("X", "Y"): ("X", "Y")})
+    fila = r["filas"][0]
+    assert fila["en_listados"] is True and fila["copia_mal"] == {"admin": [], "comercial": [], "tecnico": ["tec@agrofresh.com"]}
+    assert r["resumen"] == {"plantas_con_lista": 1, "plantas_listados": 2, "listados_sin_lista": 1}
+    assert len(r["filas"]) == 1  # la de Listados sin lista solo entra si se pide
+    todas = ld.estado_para_tabla(estado, {clave: ("CLI SA", "PLANTA UNO"), ld.clave_planta("X", "Y"): ("X", "Y")}, True)
+    assert [(f["sold_to"], f["sin_contactos"]) for f in todas["filas"]] == [("CLI SA", False), ("X", True)]  # orden alfabético
+
+
+def test_estado_para_tabla_sin_base_no_inventa_nada():
+    r = ld.estado_para_tabla(ld.estado_desde_contactos(_sistema()), None)
+    assert r["filas"][0]["en_listados"] is None and r["resumen"]["plantas_listados"] is None
+
+
+class _Cur:
+    """Cursor de mentira: clientes y plantas ya existentes, y lo que se inserte."""
+
+    def __init__(self, clientes, plantas):
+        self.clientes, self.plantas, self.inserts, self._ultimo = clientes, plantas, [], None
+
+    def execute(self, sql, params=()):
+        self._ultimo = None
+        if sql.startswith("SELECT id, nombre FROM cliente"):
+            self._ultimo = list(self.clientes)
+        elif sql.startswith("SELECT id, nombre FROM planta"):
+            self._ultimo = [p for p in self.plantas if p["cliente_id"] == params[0]]
+        elif sql.startswith("INSERT INTO cliente"):
+            self.inserts.append(("cliente", params))
+            self._ultimo = {"id": 99}
+        elif sql.startswith("INSERT INTO planta"):
+            self.inserts.append(("planta", params))
+            self._ultimo = {"id": 100}
+
+    def fetchall(self):
+        return self._ultimo
+
+    def fetchone(self):
+        return self._ultimo
+
+
+def test_crear_planta_en_listados_reusa_lo_que_existe_sin_duplicar():
+    cur = _Cur([{"id": 1, "nombre": "EXPORTADORA AGUA SANTA SA"}],
+               [{"id": 7, "cliente_id": 1, "nombre": "AGUA SANTA PLANTA LISONJERA"}])
+    r = ld.asegurar_planta(cur, "exportadora  agua santa sa", "agua santa planta   lisonjera")
+    assert cur.inserts == []
+    assert r == {"sold_to": "EXPORTADORA AGUA SANTA SA", "ship_to": "AGUA SANTA PLANTA LISONJERA",
+                 "cliente_creado": False, "planta_creada": False}
+
+
+def test_crear_planta_en_listados_crea_cliente_y_planta_con_sus_codigos_sap():
+    cur = _Cur([], [])
+    r = ld.asegurar_planta(cur, "CLIENTE NUEVO SA", "PLANTA NUEVA", "10001", "20002")
+    assert cur.inserts == [("cliente", ("CLIENTE NUEVO SA", "10001")), ("planta", (99, "PLANTA NUEVA", "20002"))]
+    assert r["cliente_creado"] and r["planta_creada"]
+    with pytest.raises(ValueError):
+        ld.asegurar_planta(cur, "SOLO CLIENTE", "  ")
+
+
+def test_el_excel_trae_los_codigos_sap_si_los_hay():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["S NUMBER", "SOLD TO NAME", "SHIP TO NUMBER", "SHIP TO NAME", "Admin Report Hub"])
+    ws.append([10001, "CLI SA", 20002, "PLANTA UNO", "a@x.cl"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    filas, _ = ld.leer_filas_excel(buf.getvalue())
+    assert (filas[0]["codigo_sold"], filas[0]["codigo_ship"]) == ("10001", "20002")

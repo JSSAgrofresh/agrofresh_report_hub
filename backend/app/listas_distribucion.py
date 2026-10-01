@@ -25,6 +25,7 @@ Reglas:
 """
 from __future__ import annotations
 
+import difflib
 import io
 import logging
 import re
@@ -218,6 +219,10 @@ def leer_filas_excel(contenido: bytes) -> tuple[list[dict], list[str]]:
                     columnas["tecnico"] = i
                 elif "vigente" in h:
                     columnas["vigente"] = i
+                elif h in ("s number", "sold to number"):
+                    columnas["codigo_sold"] = i
+                elif h == "ship to number":
+                    columnas["codigo_ship"] = i
                 else:
                     for cat in CATEGORIAS:
                         if h == norm(cat):
@@ -257,6 +262,8 @@ def leer_filas_excel(contenido: bytes) -> tuple[list[dict], list[str]]:
 
         filas.append({
             "sold_to": sold_to, "ship_to": ship_to,
+            "codigo_sold": str(celda("codigo_sold") or "").strip() or None,
+            "codigo_ship": str(celda("codigo_ship") or "").strip() or None,
             "admin": correos("admin"), "comercial": correos("comercial"), "tecnico": correos("tecnico"),
             "clientes": {cat: correos(cat) for cat in CATEGORIAS},
         })
@@ -270,6 +277,21 @@ def leer_filas_excel(contenido: bytes) -> tuple[list[dict], list[str]]:
 def _sin_los_de(lista: list[str], otros: list[str]) -> list[str]:
     ya = {e.casefold() for e in otros}
     return [e for e in lista if e.casefold() not in ya]
+
+
+def parecidas(sold_to: str, ship_to: str, listados: dict[tuple[str, str], tuple[str, str]], n: int = 3) -> list[dict]:
+    """Hasta `n` plantas de Listados con un nombre parecido, para decirle a quien
+    revisa «¿será esta?» cuando el Excel trae un nombre que Listados no tiene."""
+    ship_n, sold_n = norm(ship_to), norm(sold_to)
+    puntuadas: list[tuple[float, tuple[str, str]]] = []
+    for (sold_l, ship_l), oficial in listados.items():
+        r_ship = difflib.SequenceMatcher(None, ship_n, ship_l).ratio()
+        if r_ship < 0.6:
+            continue
+        r_sold = difflib.SequenceMatcher(None, sold_n, sold_l).ratio()
+        puntuadas.append((r_ship * 0.7 + r_sold * 0.3, oficial))
+    puntuadas.sort(key=lambda p: -p[0])
+    return [{"sold_to": a, "ship_to": b} for _, (a, b) in puntuadas[:n]]
 
 
 def comparar(
@@ -291,17 +313,18 @@ def comparar(
             if not any(fila[c] for c in CAMPOS_INTERNOS) and not any(fila["clientes"].values()):
                 sin_cambios += 1  # fila en blanco: nada que agregar
                 continue
-            sold_to, ship_to, aviso = fila["sold_to"], fila["ship_to"], None
+            sold_to, ship_to, aviso, sugerencias = fila["sold_to"], fila["ship_to"], None, []
             if listados is not None:
                 if clave in listados:
                     sold_to, ship_to = listados[clave]
                 else:
                     aviso = "No existe en Listados con ese nombre: la app no la encontrará hasta que coincida."
+                    sugerencias = parecidas(sold_to, ship_to, listados)
             cambios.append({
                 "id": f"{'|'.join(clave)}|nueva", "tipo": "planta_nueva",
                 "planta": {"sold_to": sold_to, "ship_to": ship_to},
                 "campo": "planta", "etiqueta": "Planta nueva en las listas",
-                "agregar": [], "quitar": [], "corregir": [], "aviso": aviso,
+                "agregar": [], "quitar": [], "corregir": [], "aviso": aviso, "sugerencias": sugerencias,
                 "fila": {**fila, "sold_to": sold_to, "ship_to": ship_to},
             })
             continue
@@ -539,6 +562,78 @@ def construir_excel(estado: dict[tuple[str, str], dict], vacias: list[tuple[str,
 
 
 # ---------------------------------------------------------------------------
+# Estado para la tabla y alta en Listados
+# ---------------------------------------------------------------------------
+
+def estado_para_tabla(
+    estado: dict[tuple[str, str], dict],
+    listados: dict[tuple[str, str], tuple[str, str]] | None,
+    incluir_sin_lista: bool = False,
+) -> dict:
+    """Las filas de la tabla dinámica: una por planta, con lo que recibe cada rol."""
+    filas: list[dict] = []
+    for clave, f in estado.items():
+        filas.append({
+            "sold_to": f["sold_to"], "ship_to": f["ship_to"],
+            "admin": f["admin"], "comercial": f["comercial"], "tecnico": f["tecnico"],
+            "clientes": f["clientes"],
+            # qué correos de cada rol están en la copia equivocada (para marcarlos en la celda)
+            "copia_mal": {rol: [e for e in f[rol] if e in f["copia_mal"]] for rol in CAMPOS_INTERNOS},
+            "en_listados": None if listados is None else clave in listados,
+            "sin_contactos": False,
+        })
+    sin_lista = 0
+    if listados is not None:
+        faltan = [par for k, par in listados.items() if k not in estado]
+        sin_lista = len(faltan)
+        if incluir_sin_lista:
+            for sold_to, ship_to in faltan:
+                f = _fila_vacia(sold_to, ship_to)
+                filas.append({
+                    "sold_to": sold_to, "ship_to": ship_to, "admin": [], "comercial": [], "tecnico": [],
+                    "clientes": f["clientes"], "copia_mal": {rol: [] for rol in CAMPOS_INTERNOS},
+                    "en_listados": True, "sin_contactos": True,
+                })
+    filas.sort(key=lambda f: (norm(f["sold_to"]), norm(f["ship_to"])))
+    return {
+        "filas": filas,
+        "resumen": {
+            "plantas_con_lista": len(estado),
+            "plantas_listados": None if listados is None else len(listados),
+            "listados_sin_lista": None if listados is None else sin_lista,
+        },
+    }
+
+
+def asegurar_planta(cur, sold_to: str, ship_to: str, codigo_sold: str | None = None,
+                    codigo_ship: str | None = None) -> dict:
+    """Crea en Listados el cliente (Sold To) y la planta (Ship To) si no existen.
+
+    Compara sin mayúsculas, tildes ni espacios repetidos para no duplicar. Devuelve
+    los nombres oficiales (los que ya había, o los escritos) y qué se creó.
+    """
+    sold_to, ship_to = re.sub(r"\s+", " ", sold_to).strip(), re.sub(r"\s+", " ", ship_to).strip()
+    if not sold_to or not ship_to:
+        raise ValueError("Falta el Sold To o el Ship To.")
+    cur.execute("SELECT id, nombre FROM cliente")
+    cliente = next((c for c in cur.fetchall() if norm(c["nombre"]) == norm(sold_to)), None)
+    cliente_creado = cliente is None
+    if cliente is None:
+        cur.execute("INSERT INTO cliente (nombre, codigo_sap, activo) VALUES (%s, %s, true) RETURNING id",
+                    (sold_to, codigo_sold))
+        cliente = {"id": cur.fetchone()["id"], "nombre": sold_to}
+    cur.execute("SELECT id, nombre FROM planta WHERE cliente_id = %s", (cliente["id"],))
+    planta = next((p for p in cur.fetchall() if norm(p["nombre"]) == norm(ship_to)), None)
+    planta_creada = planta is None
+    if planta is None:
+        cur.execute("INSERT INTO planta (cliente_id, nombre, codigo_sap, activo) VALUES (%s, %s, %s, true) RETURNING id",
+                    (cliente["id"], ship_to, codigo_ship))
+        planta = {"id": cur.fetchone()["id"], "nombre": ship_to}
+    return {"sold_to": cliente["nombre"], "ship_to": planta["nombre"],
+            "cliente_creado": cliente_creado, "planta_creada": planta_creada}
+
+
+# ---------------------------------------------------------------------------
 # Endpoints (solo admin general)
 # ---------------------------------------------------------------------------
 
@@ -558,8 +653,29 @@ def _listados() -> dict[tuple[str, str], tuple[str, str]] | None:
         return None
 
 
+def _clientes_listados() -> list[str]:
+    try:
+        from .db import conexion, cursor_dict
+
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute("SELECT nombre FROM cliente WHERE activo ORDER BY nombre")
+            return [f["nombre"] for f in cur.fetchall()]
+    except Exception:
+        logger.warning("No se pudo leer los clientes de Listados.", exc_info=True)
+        return []
+
+
 class CambiosIn(BaseModel):
     cambios: list[dict] = Field(default_factory=list, max_length=2000)
+
+
+@router.get("/estado")
+def estado_actual(sin_lista: bool = False, _: Usuario = Depends(solo_admin_general)) -> dict:
+    """Lo que el sistema tiene hoy, una fila por planta: la base de la tabla dinámica."""
+    estado = estado_desde_contactos(config_store.leer(ARCHIVO_CONTACTOS, []))
+    resultado = estado_para_tabla(estado, _listados(), sin_lista)
+    resultado["clientes"] = _clientes_listados()
+    return resultado
 
 
 @router.get("/excel")
@@ -595,6 +711,26 @@ async def comparar_excel(archivo: UploadFile = File(...), _: Usuario = Depends(s
 def aplicar_cambios(datos: CambiosIn, usuario: Usuario = Depends(solo_admin_general)) -> dict:
     if not datos.cambios:
         raise HTTPException(400, "No hay cambios confirmados para aplicar.")
+    creados = {"clientes": 0, "plantas": 0}
+    for it in datos.cambios:
+        if it.get("tipo") == "planta_nueva" and it.get("crear_en_listados"):
+            fila = it.get("fila") or {}
+            try:
+                from .db import conexion, cursor_dict
+
+                with conexion() as conn, cursor_dict(conn) as cur:
+                    r = asegurar_planta(cur, (it.get("planta") or {}).get("sold_to", ""),
+                                        (it.get("planta") or {}).get("ship_to", ""),
+                                        fila.get("codigo_sold"), fila.get("codigo_ship"))
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            except Exception as exc:
+                logger.exception("No se pudo crear la planta en Listados")
+                raise HTTPException(500, f"No se pudo crear la planta en Listados: {exc}") from exc
+            it["planta"] = {"sold_to": r["sold_to"], "ship_to": r["ship_to"]}
+            it["fila"] = {**fila, "sold_to": r["sold_to"], "ship_to": r["ship_to"]}
+            creados["clientes"] += r["cliente_creado"]
+            creados["plantas"] += r["planta_creada"]
     actuales = config_store.leer(ARCHIVO_CONTACTOS, [])
     respaldo = f"contactos_laboratorio_respaldo_{datetime.now():%Y%m%d_%H%M%S}.json"
     config_store.escribir(respaldo, actuales)
@@ -602,4 +738,4 @@ def aplicar_cambios(datos: CambiosIn, usuario: Usuario = Depends(solo_admin_gene
     config_store.escribir(ARCHIVO_CONTACTOS, nuevos)
     logger.info("Listas de distribución: %s aplicó %d cambios en %d plantas (respaldo %s)",
                 usuario.email, hechos["aplicados"], hechos["plantas"], respaldo)
-    return {**hechos, "respaldo": respaldo}
+    return {**hechos, "respaldo": respaldo, "listados_creados": creados}
