@@ -117,7 +117,9 @@ def _fila_a_par(fila: dict) -> tuple[str, dict]:
     cruzado_en = fila.get("cruzado_en")
     datos["recepcion_en"] = cruzado_en.isoformat() if cruzado_en else None
     # Peso de la muestra (obligatorio desde migración 0033)
-    datos["peso_muestra"] = fila.get("peso_muestra")
+    peso = fila.get("peso_muestra")
+    # NUMERIC llega como Decimal, que no se puede guardar como JSON.
+    datos["peso_muestra"] = float(peso) if peso is not None else None
     datos["unidad_peso"] = fila.get("unidad_peso") or "kg"
     datos["cruzado_por"] = fila.get("cruzado_por")
     datos["cruzado_por_nombre"] = fila.get("cruzado_por_nombre")
