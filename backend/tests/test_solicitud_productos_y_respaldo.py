@@ -36,10 +36,36 @@ CONTACTOS = [
 ]
 
 
-def test_con_lista_de_solicitud_no_hay_respaldo(monkeypatch):
+def test_con_lista_de_solicitud_no_hay_respaldo_pero_los_internos_siempre_van(monkeypatch):
     monkeypatch.setattr(tm, "_leer_config", lambda n, d: CONTACTOS)
     r = tm.contactos_de_solicitud_de("ALS", {"sold_to": "S", "ship_to": "P"})
-    assert r["to"] == ["lab@als.cl"] and r["cc"] == []
+    assert r["to"] == ["lab@als.cl"]  # Para = el laboratorio, no Jorge y Claudia
+    assert r["cc"] == ["tec@agrofresh.com", "com@agrofresh.com"]  # y los internos van igual
+
+
+def test_comercial_en_copia_y_tecnico_en_copia_oculta_siempre(monkeypatch):
+    contactos = [
+        {"laboratorio": "ALS", "tipo": "solicitud", "email": "lab@als.cl", "activo": True},
+        {"tipo": "resultado_interno", "sold_to": "S", "ship_to": "P", "email": "com@agrofresh.com", "tipo_copia": "cc", "activo": True, "orden": 1},
+        {"tipo": "resultado_interno", "sold_to": "S", "ship_to": "P", "email": "tec@agrofresh.com", "tipo_copia": "bcc", "activo": True, "orden": 2},
+    ]
+    monkeypatch.setattr(tm, "_leer_config", lambda n, d: contactos)
+    r = tm.contactos_de_solicitud_de("ALS", {"sold_to": "S", "ship_to": "P", "especie": "Kiwi"})
+    assert r["cc"] == ["com@agrofresh.com"] and r["bcc"] == ["tec@agrofresh.com"]
+
+
+def test_los_internos_salen_aunque_el_cliente_solo_tenga_correos_de_otra_especie(monkeypatch):
+    """Con correos de cliente solo para Manzana, una solicitud de Kiwi no
+    encuentra nivel exacto: igual tiene que traer a sus técnicos y comerciales."""
+    contactos = [
+        {"tipo": "resultado_cliente", "sold_to": "S", "ship_to": "P", "especie": "Manzana", "email": "cli@x.cl", "activo": True},
+        {"tipo": "resultado_interno", "sold_to": "S", "ship_to": "P", "especie": "Manzana", "email": "com@agrofresh.com", "tipo_copia": "cc", "activo": True, "orden": 1},
+        {"tipo": "resultado_interno", "sold_to": "S", "ship_to": "P", "especie": "Manzana", "email": "tec@agrofresh.com", "tipo_copia": "bcc", "activo": True, "orden": 2},
+    ]
+    monkeypatch.setattr(tm, "_leer_config", lambda n, d: contactos)
+    r = tm.destinatarios_resultado_por_tipo("AGROFRESH", "P", "S", "Kiwi")
+    assert r["cc"] == ["com@agrofresh.com"] and r["bcc"] == ["tec@agrofresh.com"]
+    assert "cli@x.cl" not in r["to"]  # el cliente de Manzana no recibe resultados de Kiwi
 
 
 def test_sin_lista_va_para_jorge_y_claudia_con_copia_a_tecnicos_y_comerciales(monkeypatch):

@@ -215,10 +215,15 @@ Los contactos de **Laboratorios → Contacto laboratorio** (`tipo: solicitud`)
 llevan el campo `envio`: `para` (sin valor = `para`, como los antiguos), `cc` o
 `bcc`. `contactos_de_solicitud_por_envio` los reparte; el creador de la
 solicitud va siempre en CCO aparte. Nadie va dos veces (se deduplica sin
-mayúsculas). **Sin nadie en Para** (el laboratorio no tiene lista de distribución) rige la
-lista de respaldo (`contactos_de_solicitud_de`): Para = Jorge y Claudia Guerrero
-(`DESTINATARIOS_SIN_LISTA`), Copia = los contactos `resultado_interno`
-(técnicos y comerciales) del Ship To. La misma regla rige para «Destinatarios de resultados» del PDF y del JSON cuando el Ship To no tiene contacto de resultado a clientes. **Productos**: con más de 2, el Excel, el
+mayúsculas). **Los técnicos y comerciales SIEMPRE van** (`contactos_de_solicitud_de`),
+tenga o no el laboratorio lista de distribución: los contactos `resultado_interno`
+de la planta, el comercial en Copia y el técnico (y el admin Report Hub) en Copia
+oculta (`tipo_copia`; el Excel maestro los carga así). Se buscan por planta, sin
+importar la especie (`_contactos_resultado`). **Sin nadie en Para** (el
+laboratorio no tiene lista de distribución), además Para = Jorge y Claudia
+Guerrero (`DESTINATARIOS_SIN_LISTA`). Se actualizan con
+`scripts/importar_contactos_resultado.py --sincronizar-internos` y se revisan con
+`scripts/auditar_contactos_resultado.py`. La misma regla rige para «Destinatarios de resultados» del PDF y del JSON cuando el Ship To no tiene contacto de resultado a clientes. **Productos**: con más de 2, el Excel, el
 PDF, el JSON y el correo dicen `MIXTO` (`producto_utilizado`); la lista real va
 en `productos_lista` (`normalizar_productos`). No
 confundir con `tipo_copia`, que es de los contactos de **resultados**.
