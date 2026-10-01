@@ -17,6 +17,11 @@ del módulo, porque parte del bucket no es de Storage sino de la aplicación:
                     tomaría por solicitudes) ni borrar (se borra desde Toma de
                     muestras, que también limpia el índice). `_config` es del
                     sistema y no se toca nunca.
+  * `informes`      Los PDF los deja la aplicación (Converter y el informe de
+                    cromatografía) en planta/fecha/análisis/laboratorio. Se
+                    miran, se descargan y se pueden borrar -uno equivocado-;
+                    crear carpetas, subir, renombrar o mover los desordenaría
+                    y dejaría a un cliente sin ver lo suyo.
   * el resto        no se toca.
 
 La política es pura (sin R2 adentro) para poder probarla sola.
@@ -33,6 +38,7 @@ from . import r2
 
 RAIZ_ACCUTAB = "accutab/mail"
 RAIZ_SOLICITUDES = "solicitudes"
+RAIZ_INFORMES = "informes"
 _CONFIG = "_config"
 
 OPERACIONES = ("crear", "subir", "renombrar", "mover", "eliminar")
@@ -54,6 +60,8 @@ def zona(ruta: str) -> str | None:
         return "accutab"
     if _dentro(ruta, RAIZ_SOLICITUDES, False):
         return "solicitudes"
+    if _dentro(ruta, RAIZ_INFORMES, False):
+        return "informes"
     return None
 
 
@@ -68,11 +76,15 @@ def permitir(operacion: str, ruta: str, es_carpeta: bool = True) -> str | None:
     z = zona(ruta)
     if z is None:
         return "Esta zona del almacenamiento no se puede modificar desde aquí."
-    raiz = RAIZ_ACCUTAB if z == "accutab" else RAIZ_SOLICITUDES
+    raiz = {"accutab": RAIZ_ACCUTAB, "solicitudes": RAIZ_SOLICITUDES, "informes": RAIZ_INFORMES}[z]
     if operacion in ("renombrar", "mover", "eliminar") and not _dentro(ruta, raiz, True):
         return "La carpeta base no se puede renombrar, mover ni eliminar."
     if z == "accutab":
         return None
+    if z == "informes":
+        if operacion == "eliminar":
+            return None
+        return "Los informes los ordena la aplicación (planta, fecha, análisis y laboratorio); aquí solo se ven, se descargan o se borran."
     # solicitudes: la aplicación es dueña de los archivos, no de las carpetas.
     if operacion == "subir":
         return "Aquí solo se guardan solicitudes creadas desde la aplicación."

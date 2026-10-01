@@ -487,6 +487,11 @@ class Solicitud(SolicitudIn):
     # asunto y no aparece en el Ingreso al laboratorio ni en reanálisis. Vive
     # en `datos` (Excel `_data` + jsonb del índice): no necesita migración.
     es_prueba: bool = False
+    # ¿Los resultados de esta solicitud NO tienen lista de distribución al
+    # cliente (para este Sold To, Ship To y especie)? Entonces rige la regla
+    # de respaldo: Para = solo Jorge y Claudia. No se guarda: el listado lo
+    # calcula con los contactos de hoy (`solicitud_sin_lista`).
+    sin_lista_distribucion: bool | None = None
 
 
 class CruceIn(BaseModel):
@@ -609,13 +614,19 @@ def leer_solicitudes_de(laboratorio: str) -> list[tuple[str, dict]]:
 @router.get("/solicitudes")
 def listar_solicitudes(usuario: Usuario = Depends(usuario_actual)) -> list[Solicitud]:
     solicitudes = []
+    # La configuración de contactos se lee UNA vez para todo el listado (viene
+    # de R2: leerla por solicitud tardaba segundos), y el resultado se
+    # reutiliza para las solicitudes de un mismo cliente, planta y especie.
+    _sin_lista_cacheado = _calculador_sin_lista(_leer_config("contactos_laboratorio.json", []))
     for nombre, datos in leer_todas_las_solicitudes():
         if not _es_propia(usuario, datos):
             continue
         try:
-            solicitudes.append(Solicitud(archivo=nombre, **datos))
+            solicitud = Solicitud(archivo=nombre, **datos)
         except (ValueError, KeyError):
             continue
+        solicitud.sin_lista_distribucion = _sin_lista_cacheado(datos)
+        solicitudes.append(solicitud)
     solicitudes.sort(key=lambda s: s.creado_en, reverse=True)
     return solicitudes
 
@@ -1597,6 +1608,49 @@ DESTINATARIOS_SIN_LISTA = ["JORGE.SANDOVAL@AGROFRESH.COM", "CGUERRERO@AGROFRESH.
 DESTINATARIOS_PRUEBA_QUITECA = ["agrofresh@portal.quiteca.cl", "jorge.sandoval@agrofresh.com"]
 
 
+def solicitud_sin_lista(datos: dict, contactos: list[dict] | None = None) -> bool:
+    """¿Los resultados de esta solicitud quedan SIN lista de distribución?
+
+    Es cuando, para su Sold To, Ship To y especie, no hay ningún contacto
+    activo de «Resultado a clientes» que no sea Jorge o Claudia: o no hay
+    nadie (rige el respaldo, Para = Jorge y Claudia) o los únicos en Para son
+    ellos mismos. Los técnicos y comerciales (internos) no cuentan: van en
+    copia, no son la lista del cliente."""
+    propios = {c.casefold() for c in DESTINATARIOS_SIN_LISTA}
+    for c in _contactos_resultado(
+        str(datos.get("sold_to") or ""), str(datos.get("ship_to") or ""), str(datos.get("especie") or ""),
+        contactos,
+    ):
+        email = str(c.get("email") or "").strip()
+        if (
+            c.get("tipo") == "resultado_cliente"
+            and c.get("activo", True)
+            and email
+            and email.casefold() not in propios
+        ):
+            return False
+    return True
+
+
+def _calculador_sin_lista(contactos: list[dict]):
+    """`solicitud_sin_lista` con los contactos ya leídos y memoria por
+    (Sold To, Ship To, especie): cientos de solicitudes comparten pocas
+    combinaciones."""
+    memoria: dict[tuple[str, str, str], bool] = {}
+
+    def calcular(datos: dict) -> bool:
+        clave = (
+            str(datos.get("sold_to") or "").strip(),
+            str(datos.get("ship_to") or "").strip(),
+            _clave_esp(str(datos.get("especie") or "")),
+        )
+        if clave not in memoria:
+            memoria[clave] = solicitud_sin_lista(datos, contactos)
+        return memoria[clave]
+
+    return calcular
+
+
 def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[str]]:
     """Como `contactos_de_solicitud_por_envio`, pero si el laboratorio no
     tiene a nadie en Para arma la lista de respaldo: Para = Jorge y Claudia Guerrero,
@@ -1625,14 +1679,17 @@ def contactos_de_solicitud(laboratorio: str) -> list[str]:
     return contactos_de_solicitud_por_envio(laboratorio)["to"]
 
 
-def _contactos_resultado(sold_to: str, ship_to: str, especie: str) -> list[dict]:
+def _contactos_resultado(
+    sold_to: str, ship_to: str, especie: str, contactos: list[dict] | None = None
+) -> list[dict]:
     """Contactos de resultado para una combinación (sold_to, ship_to, especie).
 
     La configuración es compartida entre todos los laboratorios y se determina
     por la combinación exacta. Si no existe, cae por la cadena:
       sold_to + ship_to + especie  →  sold_to + ship_to  →  ship_to solo  →  global (todo vacío)
     """
-    contactos = _leer_config("contactos_laboratorio.json", [])
+    if contactos is None:
+        contactos = _leer_config("contactos_laboratorio.json", [])
     pool = [
         c for c in contactos
         if c.get("tipo") in {"resultado_cliente", "resultado_interno"}
@@ -1820,7 +1877,7 @@ def _iso_a_ddmmyyyy(valor: object) -> object:
     return valor
 
 
-_CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en"}
+_CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en", "sin_lista_distribucion"}
 
 
 def _sample_identification(datos: dict) -> str:

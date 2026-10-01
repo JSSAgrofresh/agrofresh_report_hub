@@ -223,6 +223,15 @@ PDF, el JSON y el correo dicen `MIXTO` (`producto_utilizado`); la lista real va
 en `productos_lista` (`normalizar_productos`). No
 confundir con `tipo_copia`, que es de los contactos de **resultados**.
 
+**«Sin lista de distribución»** (chip morado en Toma de muestras → Solicitudes,
+junto a Enviada/Pendiente, con su filtro): la solicitud cuyos **resultados** no
+tienen a nadie del cliente en Para para su Sold To + Ship To + **especie**, o
+sea que rige la regla de «solo Jorge y Claudia» (también si ellos dos son los
+únicos cargados). Lo calcula `solicitud_sin_lista` con los contactos de hoy, no
+se guarda. **No leas la configuración de contactos dentro de un bucle por
+solicitud**: viene de R2 y el listado pasó a tardar 6 s; se lee una vez
+(`_calculador_sin_lista`).
+
 ## Storage: explorador y permisos por carpeta
 
 `/modulos/storage` tiene un árbol lateral con tres espacios: **Archivos del
@@ -264,6 +273,34 @@ toca el otro). La aplicación es dueña de parte del bucket, por eso:
 - Controla lo que se ve en **Storage**; las solicitudes se siguen viendo desde
   Toma de muestras con los permisos de ese módulo.
 - Sin la 0043 corrida, todo queda abierto y Storage funciona como antes.
+
+**Storage tiene cinco entradas principales**: Archivos del servidor, Solicitudes,
+Accutab, **Laboratorio AgroFresh** (una carpeta del disco con entrada propia,
+`CARPETA_LABORATORIO` en `explorador.ts`) e **Informes** (R2, prefijo `informes/`).
+
+**Informes** (`app/informes_storage.py`): cada PDF que se sube por Converter
+(`POST /auditoria-interna/informes`, que ahora también recibe `fecha` y
+`analisis`) y cada informe propio de cromatografía (`emitir._archivar_informe`)
+quedan en `informes/<PLANTA>/<FECHA DE MUESTREO>/<TIPO DE SERVICIO>/<LABORATORIO>/<archivo>.pdf`.
+Es independiente de Auditoría (`auditoria/`): dos copias, dos usos. La planta
+es el Ship To; si dos clientes tienen un Ship To con el mismo nombre
+(«CHILLAN») la carpeta lleva el cliente entre paréntesis, para no mezclar
+informes de clientes (esta carpeta es la que algún día verá cada cliente).
+Volver a pasar un informe lo **reemplaza** en su sitio (mismo nombre), no lo
+duplica. Desde Storage solo se ven, descargan y borran (`storage_r2.permitir`,
+espejo en `explorador.ts` con los mismos casos en los dos tests). Lo que
+`_archivar_informe` guardó antes bajo `informes/<SOLD TO>/<fecha>/<folio>.pdf`
+sigue ahí con ese orden viejo. **El prefijo `informes/` ya es de este espacio**:
+la «Etapa 4» de Ingreso al laboratorio tiene que usar otra raíz o este mismo orden.
+Pendiente: que cada cliente vea sus informes (hoy Storage no es accesible a
+cuentas `cliente`).
+
+**Filtros de Solicitudes (Toma de muestras)**: Laboratorio, Sold To, Ship To,
+Especie, Tipo de aplicación, Línea de proceso, Tipo muestra, Nombre muestreador
+y Estado se marcan **de a varios** (`MultiSelectFiltro`; lógica pura en
+`features/tomaMuestras/lib/filtrosSolicitudes.ts`). Dentro de un filtro vale
+cualquiera de los marcados; entre filtros, todos. En Estado, Enviada/Pendiente
+son alternativas y «Sin lista de distribución» se suma como condición.
 
 ## Solicitudes de prueba
 
@@ -488,6 +525,15 @@ tocas una, toca la otra.
   una advertencia, en el catálogo del primero que encuentra y mezcla los
   resultados de un mismo informe. Lo usan el informe propio de Converter y
   «Subir a la base» de emitir.py (`tests/test_subir_bd_laboratorio.py`).
+- **La cámara del escáner no es solo Chrome/Android.** `BarcodeDetector` nativo
+  solo existe ahí; en iPhone (Safari), Firefox y escritorio `EscanerCamara` usa
+  el lector de respaldo de `detectorCodigos.ts` (paquete `barcode-detector`, ZXing
+  en WebAssembly, empaquetado en la app y cargado solo cuando hace falta). El
+  motor es más pesado: la lectura está limitada a un cuadro cada 150 ms. Para
+  probarlo en Playwright: Chromium de Linux no trae el nativo, y la cámara
+  falsa necesita `--use-fake-device-for-media-stream
+  --use-file-for-fake-video-capture=x.y4m` (con `.mjpeg` no carga el archivo y
+  da cuadros verdes), con el código sin escalar a medias.
 - **En Windows falta `tzdata`**: sin él `zoneinfo` no encuentra las zonas.
   Está declarado en `requirements.txt`.
 
@@ -501,8 +547,9 @@ pendiente**, en orden de importancia:
 1. ~~El túnel Cloudflare~~ **resuelto**: `estado.ps1` lo reporta como servicio
    `Running` (25-09-2026), igual que el backend (tarea programada).
 2. **Etapa 4 del módulo AgroFresh Lab → Ingreso al laboratorio**: botón
-   "Procesar" → modal con el listado de informes → guardar en R2 bajo
-   `informes/<fecha>/` → tabla abajo para descargarlos todos o de a uno.
+   "Procesar" → modal con el listado de informes → guardar en R2 (ojo: `informes/`
+   ya es el espacio Informes, con su orden planta/fecha/análisis/laboratorio) →
+   tabla abajo para descargarlos todos o de a uno.
 3. **`sembrar_catalogo_analitos.py --aplicar`** en el servidor: 14 analitos
    por crear. `DFN` hay que crearlo a mano (la app no conoce su nombre).
 4. **Los límites residuales están vacíos.** Son decisión del laboratorio y se

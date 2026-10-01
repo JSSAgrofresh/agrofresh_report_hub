@@ -70,3 +70,66 @@ def test_pdf_con_lista_de_resultados_no_cambia(monkeypatch):
     monkeypatch.setattr(tm, "_leer_config", lambda n, d: CONTACTOS[1:])
     det = tm._datos_pdf_con_destinatarios_resultados({"sold_to": "S", "ship_to": "P"})["destinatarios_resultados_detalle"]
     assert det["para"] == ["cli@x.cl"]
+
+
+def _cli(email, **extra):
+    return {"tipo": "resultado_cliente", "sold_to": "S", "ship_to": "P", "email": email, "activo": True, **extra}
+
+
+def test_sin_lista_cuando_en_para_solo_estan_jorge_y_claudia(monkeypatch):
+    """«Sin lista de distribución» = el Para de los resultados es solo Jorge y
+    Claudia: porque no hay nadie (respaldo) o porque son los únicos cargados."""
+    datos = {"sold_to": "S", "ship_to": "P", "especie": "Manzana"}
+    # Hay un contacto del cliente: tiene lista.
+    assert tm.solicitud_sin_lista(datos, [_cli("cli@x.cl")]) is False
+    # No hay a nadie: rige el respaldo.
+    assert tm.solicitud_sin_lista(datos, []) is True
+    # Solo ellos dos cargados como destinatarios: también.
+    solo_ellos = [_cli("jorge.sandoval@agrofresh.com"), _cli("CGUERRERO@agrofresh.com")]
+    assert tm.solicitud_sin_lista(datos, solo_ellos) is True
+    # Ellos dos más alguien del cliente: tiene lista.
+    assert tm.solicitud_sin_lista(datos, [*solo_ellos, _cli("cli@x.cl")]) is False
+
+
+def test_sin_lista_ignora_internos_inactivos_y_otras_plantas(monkeypatch):
+    datos = {"sold_to": "S", "ship_to": "P", "especie": "Manzana"}
+    interno = {"tipo": "resultado_interno", "sold_to": "S", "ship_to": "P", "email": "tec@agrofresh.com", "activo": True}
+    assert tm.solicitud_sin_lista(datos, [interno]) is True  # los internos van en copia, no son la lista
+    assert tm.solicitud_sin_lista(datos, [_cli("cli@x.cl", activo=False)]) is True
+    otra_planta = {**_cli("cli@x.cl"), "ship_to": "OTRA"}
+    assert tm.solicitud_sin_lista(datos, [otra_planta]) is True
+
+
+def test_sin_lista_depende_de_la_especie():
+    """El Excel maestro trae el correo del cliente POR especie: una planta puede
+    tener lista para Manzana y no para Palta."""
+    contactos = [_cli("cli@x.cl", especie="Manzana")]
+    assert tm.solicitud_sin_lista({"sold_to": "S", "ship_to": "P", "especie": "Manzana"}, contactos) is False
+    assert tm.solicitud_sin_lista({"sold_to": "S", "ship_to": "P", "especie": "Palta"}, contactos) is True
+
+
+def test_listado_lee_la_configuracion_una_sola_vez(monkeypatch):
+    """Antes se leía (de R2) una vez por solicitud y el listado tardaba segundos."""
+    base = dict(
+        numero_solicitud="OT-X1", fecha_solicitud="2026-09-30", creado_en="2026-09-30T10:00:00",
+        laboratorio="ALS", solicitante="X", generado_por="g", analitos_solicitados=["A"],
+    )
+    datos = [
+        ("a.xlsx", {**base, "sold_to": "S", "ship_to": "P", "especie": "Manzana"}),   # con lista
+        ("b.xlsx", {**base, "sold_to": "S", "ship_to": "P", "especie": "Palta"}),     # sin lista (otra especie)
+        ("c.xlsx", {**base, "sold_to": "S", "ship_to": "Q", "especie": "Manzana", "sin_lista_distribucion": False}),  # lo viejo guardado se ignora
+    ] + [(f"m{i}.xlsx", {**base, "sold_to": "S", "ship_to": "P", "especie": "Manzana"}) for i in range(300)]
+    lecturas = []
+
+    def leer(nombre, defecto):
+        lecturas.append(nombre)
+        return [_cli("cli@x.cl", especie="Manzana")]
+
+    monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: datos)
+    monkeypatch.setattr(tm, "_leer_config", leer)
+    usuario = type("U", (), {"tipoAcceso": "admin_general", "email": "a@b.c"})()
+    r = {s.archivo: s.sin_lista_distribucion for s in tm.listar_solicitudes(usuario)}
+    assert r["a.xlsx"] is False and r["m7.xlsx"] is False
+    assert r["b.xlsx"] is True
+    assert r["c.xlsx"] is True  # la planta Q no tiene contactos; ignora el False guardado
+    assert lecturas.count("contactos_laboratorio.json") == 1

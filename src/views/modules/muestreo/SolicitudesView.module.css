@@ -241,6 +241,8 @@
 
 .campoFiltro input,
 .campoFiltro select {
+  box-sizing: border-box;
+  height: 34px;
   font-family: var(--font-sans);
   font-size: 13px;
   padding: 7px 9px;
@@ -595,7 +597,8 @@
 }
 
 .chipEnviada,
-.chipPendiente {
+.chipPendiente,
+.chipSinLista {
   display: inline-block;
   font-size: 11.5px;
   font-weight: 600;
@@ -614,6 +617,18 @@
   color: #8a5a00;
   background: #fff4dc;
   border: 1px solid #f0d9a4;
+}
+
+.chipSinLista {
+  color: #7a2f8f;
+  background: #f6ebfa;
+  border: 1px solid #e2c6ec;
+}
+
+.estadosSolicitud {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 /* Barra de acciones sobre lo seleccionado */
@@ -710,7 +725,8 @@
 }
 
 .chipEnviada,
-.chipPendiente {
+.chipPendiente,
+.chipSinLista {
   padding: 3px 12px;
 }
 
