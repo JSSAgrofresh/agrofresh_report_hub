@@ -159,3 +159,42 @@ def test_listado_lee_la_configuracion_una_sola_vez(monkeypatch):
     assert r["b.xlsx"] is True
     assert r["c.xlsx"] is True  # la planta Q no tiene contactos; ignora el False guardado
     assert lecturas.count("contactos_laboratorio.json") == 1
+
+
+ADMINS = ["jorge.sandoval@agrofresh.com", "cguerrero@agrofresh.com", "agrofreshreporthub@gmail.com"]
+
+
+def _con_admin(extra=()):
+    base = [
+        {"tipo": "resultado_interno", "sold_to": "S", "ship_to": "P", "email": "com@agrofresh.com",
+         "cargo": "Comercial", "tipo_copia": "cc", "activo": True, "orden": 1},
+        {"tipo": "resultado_interno", "sold_to": "S", "ship_to": "P", "email": "tec@agrofresh.com",
+         "cargo": "Técnico", "tipo_copia": "bcc", "activo": True, "orden": 2},
+        *({"tipo": "resultado_interno", "sold_to": "S", "ship_to": "P", "email": e, "cargo": "Admin",
+           "tipo_copia": "bcc", "activo": True, "orden": 3 + i} for i, e in enumerate(ADMINS)),
+    ]
+    return [*extra, *base]
+
+
+def test_admin_va_en_cco_cuando_hay_lista(monkeypatch):
+    lab = {"laboratorio": "ALS", "tipo": "solicitud", "email": "lab@als.cl", "activo": True}
+    monkeypatch.setattr(tm, "_leer_config", lambda n, d: _con_admin([lab]))
+    r = tm.contactos_de_solicitud_de("ALS", {"sold_to": "S", "ship_to": "P"})
+    assert r["to"] == ["lab@als.cl"]
+    assert r["bcc"] == ["tec@agrofresh.com", *ADMINS]
+
+
+def test_admin_pasa_de_cco_a_para_cuando_no_hay_lista(monkeypatch):
+    monkeypatch.setattr(tm, "_leer_config", lambda n, d: _con_admin())
+    r = tm.contactos_de_solicitud_de("ALS", {"sold_to": "S", "ship_to": "P"})
+    assert {e.casefold() for e in r["to"]} == {e.casefold() for e in ADMINS}  # Jorge, Claudia y el Report Hub
+    assert r["cc"] == ["com@agrofresh.com"] and r["bcc"] == ["tec@agrofresh.com"]
+
+
+def test_resultados_sin_lista_tambien_pasan_el_admin_a_para(monkeypatch):
+    monkeypatch.setattr(tm, "_leer_config", lambda n, d: _con_admin())
+    r = tm.destinatarios_resultado_por_tipo("AGROFRESH", "P", "S", "Kiwi")
+    assert {e.casefold() for e in r["to"]} == {e.casefold() for e in ADMINS}
+    assert r["bcc"] == ["tec@agrofresh.com"]
+    pdf = tm._datos_pdf_con_destinatarios_resultados({"sold_to": "S", "ship_to": "P", "especie": "Kiwi"})
+    assert {e.casefold() for e in pdf["destinatarios_resultados_detalle"]["para"]} == {e.casefold() for e in ADMINS}

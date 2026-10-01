@@ -219,9 +219,11 @@ mayúsculas). **Los técnicos y comerciales SIEMPRE van** (`contactos_de_solicit
 tenga o no el laboratorio lista de distribución: los contactos `resultado_interno`
 de la planta, el comercial en Copia y el técnico (y el admin Report Hub) en Copia
 oculta (`tipo_copia`; el Excel maestro los carga así). Se buscan por planta, sin
-importar la especie (`_contactos_resultado`). **Sin nadie en Para** (el
-laboratorio no tiene lista de distribución), además Para = Jorge y Claudia
-Guerrero (`DESTINATARIOS_SIN_LISTA`). Se actualizan con
+importar la especie (`_contactos_resultado`). **Sin nadie en Para** (sin lista
+de distribución), Para = Jorge y Claudia (`DESTINATARIOS_SIN_LISTA`) más los
+admin del Report Hub (cargo «Admin»: `agrofreshreporthub@gmail.com`…), que
+con lista van en CCO: **sin lista pasan de CCO a Para** (`_para_sin_lista`;
+igual en el JSON y el PDF). Se actualizan con
 `scripts/importar_contactos_resultado.py --sincronizar-internos` y se revisan con
 `scripts/auditar_contactos_resultado.py`. La misma regla rige para «Destinatarios de resultados» del PDF y del JSON cuando el Ship To no tiene contacto de resultado a clientes. **Productos**: con más de 2, el Excel, el
 PDF, el JSON y el correo dicen `MIXTO` (`producto_utilizado`); la lista real va
