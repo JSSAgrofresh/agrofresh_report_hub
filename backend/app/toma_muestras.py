@@ -623,7 +623,9 @@ def listar_solicitudes(usuario: Usuario = Depends(usuario_actual)) -> list[Solic
             continue
         try:
             solicitud = Solicitud(archivo=nombre, **datos)
-        except (ValueError, KeyError):
+        except (ValueError, KeyError) as exc:
+            # Antes se saltaba sin decir nada y la solicitud desaparecia del listado.
+            logger.warning("Solicitud %s omitida del listado: datos invalidos (%s)", nombre, exc)
             continue
         solicitud.sin_lista_distribucion = _sin_lista_cacheado(datos)
         solicitudes.append(solicitud)
