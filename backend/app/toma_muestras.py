@@ -487,6 +487,11 @@ class Solicitud(SolicitudIn):
     # asunto y no aparece en el Ingreso al laboratorio ni en reanálisis. Vive
     # en `datos` (Excel `_data` + jsonb del índice): no necesita migración.
     es_prueba: bool = False
+    # ¿Esta solicitud va (o fue) con la lista de respaldo -Para = Jorge y
+    # Claudia- porque su laboratorio no tiene a nadie en Para? Al enviar
+    # queda guardado con lo que de verdad pasó; mientras no se envía, el
+    # listado lo calcula con los contactos de hoy (`laboratorio_sin_lista`).
+    sin_lista_distribucion: bool | None = None
 
 
 class CruceIn(BaseModel):
@@ -613,9 +618,12 @@ def listar_solicitudes(usuario: Usuario = Depends(usuario_actual)) -> list[Solic
         if not _es_propia(usuario, datos):
             continue
         try:
-            solicitudes.append(Solicitud(archivo=nombre, **datos))
+            solicitud = Solicitud(archivo=nombre, **datos)
         except (ValueError, KeyError):
             continue
+        if solicitud.sin_lista_distribucion is None:
+            solicitud.sin_lista_distribucion = laboratorio_sin_lista(datos)
+        solicitudes.append(solicitud)
     solicitudes.sort(key=lambda s: s.creado_en, reverse=True)
     return solicitudes
 
@@ -1597,6 +1605,18 @@ DESTINATARIOS_SIN_LISTA = ["JORGE.SANDOVAL@AGROFRESH.COM", "CGUERRERO@AGROFRESH.
 DESTINATARIOS_PRUEBA_QUITECA = ["agrofresh@portal.quiteca.cl", "jorge.sandoval@agrofresh.com"]
 
 
+def laboratorio_sin_lista(datos: dict) -> bool:
+    """¿Esta solicitud sale con la lista de respaldo (Para = Jorge y Claudia)?
+
+    Es la misma condición que `contactos_de_solicitud_de`: el laboratorio no
+    tiene a nadie en Para. Las pruebas de Quiteca van a su propia lista fija,
+    así que no cuentan."""
+    lab = str(datos.get("laboratorio") or "")
+    if datos.get("es_prueba") and lab.strip().upper() == "QUITECA":
+        return False
+    return not contactos_de_solicitud_por_envio(lab)["to"]
+
+
 def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[str]]:
     """Como `contactos_de_solicitud_por_envio`, pero si el laboratorio no
     tiene a nadie en Para arma la lista de respaldo: Para = Jorge y Claudia Guerrero,
@@ -1820,7 +1840,7 @@ def _iso_a_ddmmyyyy(valor: object) -> object:
     return valor
 
 
-_CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en"}
+_CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en", "sin_lista_distribucion"}
 
 
 def _sample_identification(datos: dict) -> str:
@@ -2164,7 +2184,12 @@ def enviar_solicitud_por_correo(
     # Recién ahora, con el correo ya afuera: si se marcara antes y el envío
     # fallara, la solicitud quedaría bloqueada para editar sin haberse
     # enviado realmente a nadie.
-    datos_enviada = {**datos, "enviada": True, "enviado_en": datetime.now(timezone.utc).isoformat()}
+    datos_enviada = {
+        **datos,
+        "enviada": True,
+        "enviado_en": datetime.now(timezone.utc).isoformat(),
+        "sin_lista_distribucion": laboratorio_sin_lista(datos),
+    }
     _regrabar_datos_solicitud(archivo, datos_enviada)
 
     return {"ok": f"Solicitud {numero} enviada a {', '.join(destinatarios)}."}

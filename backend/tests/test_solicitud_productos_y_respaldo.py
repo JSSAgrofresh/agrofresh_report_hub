@@ -70,3 +70,38 @@ def test_pdf_con_lista_de_resultados_no_cambia(monkeypatch):
     monkeypatch.setattr(tm, "_leer_config", lambda n, d: CONTACTOS[1:])
     det = tm._datos_pdf_con_destinatarios_resultados({"sold_to": "S", "ship_to": "P"})["destinatarios_resultados_detalle"]
     assert det["para"] == ["cli@x.cl"]
+
+
+def test_laboratorio_sin_lista_marca_cuando_se_aplica_el_respaldo(monkeypatch):
+    """Es lo que muestra el estado «Sin lista de distribución» en Solicitudes."""
+    monkeypatch.setattr(tm, "_leer_config", lambda n, d: CONTACTOS)
+    assert tm.laboratorio_sin_lista({"laboratorio": "ALS"}) is False
+    assert tm.laboratorio_sin_lista({"laboratorio": "QUITECA"}) is True  # nadie en Para
+    # Un contacto solo en copia no es lista de distribución: igual rige el respaldo.
+    solo_cc = [{"laboratorio": "ALS", "tipo": "solicitud", "email": "cc@als.cl", "activo": True, "envio": "cc"}]
+    monkeypatch.setattr(tm, "_leer_config", lambda n, d: solo_cc)
+    assert tm.laboratorio_sin_lista({"laboratorio": "ALS"}) is True
+
+
+def test_prueba_de_quiteca_no_cuenta_como_sin_lista(monkeypatch):
+    monkeypatch.setattr(tm, "_leer_config", lambda n, d: [])
+    assert tm.laboratorio_sin_lista({"laboratorio": "QUITECA", "es_prueba": True}) is False
+    assert tm.laboratorio_sin_lista({"laboratorio": "ALS", "es_prueba": True}) is True
+
+
+def test_listado_calcula_el_estado_y_respeta_lo_guardado_al_enviar(monkeypatch):
+    base = dict(
+        numero_solicitud="OT-X1", fecha_solicitud="2026-09-30", creado_en="2026-09-30T10:00:00",
+        solicitante="X", sold_to="S", generado_por="g", analitos_solicitados=["A"],
+    )
+    datos = [
+        ("a.xlsx", {**base, "laboratorio": "ALS"}),                                        # sin enviar: se calcula
+        ("d.xlsx", {**base, "laboratorio": "QUI"}),                                        # sin enviar y sin lista
+        ("b.xlsx", {**base, "laboratorio": "QUI", "enviada": True, "sin_lista_distribucion": True}),
+        ("c.xlsx", {**base, "laboratorio": "ALS", "enviada": True, "sin_lista_distribucion": False}),
+    ]
+    monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: datos)
+    monkeypatch.setattr(tm, "_leer_config", lambda n, d: CONTACTOS)
+    usuario = type("U", (), {"tipoAcceso": "admin_general", "email": "a@b.c"})()
+    r = {s.archivo: s.sin_lista_distribucion for s in tm.listar_solicitudes(usuario)}
+    assert r == {"a.xlsx": False, "d.xlsx": True, "b.xlsx": True, "c.xlsx": False}
