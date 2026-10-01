@@ -32,6 +32,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from . import informes_storage
 from . import r2_auditoria as r2a
 from .auth import Usuario, solo_admin_general, usuario_actual
 from .db import conexion, cursor_dict
@@ -176,11 +177,16 @@ async def subir_informe(
     nro_informe: str = Form(""),
     archivo_solicitud: str = Form(""),
     fecha_envio: str = Form(""),
+    fecha: str = Form(""),
+    analisis: str = Form(""),
     usuario: Usuario = Depends(usuario_actual),
 ) -> dict:
     """Guarda el PDF en <laboratorio>/<ship to>/ (la carpeta se crea sola con el
-    primer archivo) y lo registra. Volver a subir el mismo informe lo reemplaza."""
-    _exigir_r2()
+    primer archivo) y lo registra. Volver a subir el mismo informe lo reemplaza.
+
+    Aparte, deja una copia en Storage → Informes, por planta / fecha de muestreo
+    / tipo de análisis / laboratorio (`informes_storage`). Esa copia no depende
+    de Auditoría: se guarda primero y, si falla, el informe igual sigue su curso."""
     datos = await archivo.read()
     if not (archivo.filename or "").lower().endswith(".pdf") or not datos.startswith(b"%PDF"):
         raise HTTPException(400, "El archivo no es un PDF.")
@@ -189,6 +195,16 @@ async def subir_informe(
     if not laboratorio.strip():
         raise HTTPException(400, "Falta el laboratorio.")
 
+    ruta_informes = None
+    try:
+        ruta_informes = informes_storage.guardar(
+            datos, archivo.filename or "informe.pdf",
+            ship_to=ship_to, sold_to=sold_to, fecha=fecha, analisis=analisis, laboratorio=laboratorio,
+        )
+    except Exception:
+        logger.exception("No se pudo guardar %s en Storage → Informes", archivo.filename)
+
+    _exigir_r2()
     envio = parsear_fecha_envio(fecha_envio)
     nro = nro_informe.strip() or None
     ot = archivo_solicitud.strip() or None
@@ -260,7 +276,7 @@ async def subir_informe(
             r2a.eliminar(previo["r2_key"])
         except Exception:
             logger.exception("No se pudo borrar el PDF anterior %s", previo["r2_key"])
-    return {"id": nuevo_id, "ruta": key}
+    return {"id": nuevo_id, "ruta": key, "ruta_informes": ruta_informes}
 
 
 # ── Panel ───────────────────────────────────────────────────────────────

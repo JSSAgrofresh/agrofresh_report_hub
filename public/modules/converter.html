@@ -1624,7 +1624,8 @@ $("btnSubir").onclick = async () => {
        "para reintentarlas o descartarlas." : "") +
       (prev.advertencias.length ? "\n\nAdvertencias:\n" + prev.advertencias.slice(0,8).join("\n") +
        (prev.advertencias.length > 8 ? "\n… y " + (prev.advertencias.length - 8) + " más." : "") : "") +
-      "\n\nLos PDF también se guardarán en las carpetas de auditoría (laboratorio / ship to)." +
+      "\n\nLos PDF también se guardarán en Storage → Informes (planta / fecha / análisis / laboratorio) y en las carpetas de auditoría." +
+      "\nSi ya los habías subido, no se duplican: el PDF se reemplaza en su mismo lugar." +
       "\n\n¿Confirmar la carga a la base de datos?";
     if(!confirm(msg)){ pie.textContent = "Carga cancelada."; btn.disabled = false; return; }
     pie.textContent = "Subiendo a la base de datos…";
@@ -1637,7 +1638,7 @@ $("btnSubir").onclick = async () => {
     if(usos.length)   // cuántas veces el sistema corrigió solo con lo que aprendió
       fetch(API_BASE + "/correcciones/usos", {method: "POST", headers: {"Content-Type": "application/json", ...autorizacion()}, body: JSON.stringify(usos)}).catch(() => {});
     pie.className = "pie";
-    pie.textContent = base + " Guardando los PDF en auditoría…";
+    pie.textContent = base + " Guardando los PDF en Informes y en auditoría…";
     const pdf = await subirPdfs(ok);
     pie.className = "pie resultado " + (pdf.fallas.length ? "err" : "ok");
     pie.textContent = base + " " + pdf.texto;
@@ -1789,6 +1790,9 @@ async function subirPdfs(ok){
     fd.append("sold_to", inf.datos["Sold To"] || "");
     fd.append("nro_informe", inf.datos["N° Solicitud"] || "");
     fd.append("archivo_solicitud", inf.ot || "");
+    // Para Storage → Informes: planta / fecha de muestreo / tipo de análisis / laboratorio.
+    fd.append("fecha", aISO(inf.datos["Fecha Muestreo"]) || inf.datos["Fecha Muestreo"] || "");
+    fd.append("analisis", inf.datos["Tipo de servicio"] || "");
     fd.append("fecha_envio", inf.envio ? new Date(inf.envio).toISOString() : "");
     try{
       const r = await fetch(API_BASE + "/auditoria-interna/informes", {method: "POST", headers: autorizacion(), body: fd});
@@ -1803,7 +1807,7 @@ async function subirPdfs(ok){
   cargarAbiertas();   // las OT que ya se amarraron dejan de ofrecerse
   return {
     fallas,
-    texto: "📁 " + bien + " PDF guardado(s) en auditoría." +
+    texto: "📁 " + bien + " PDF guardado(s) en Informes y auditoría." +
       (fallas.length ? " ⚠ No se pudieron guardar " + fallas.length + ": " + fallas.slice(0, 3).join(" · ") : ""),
   };
 }
