@@ -364,7 +364,9 @@ tocas una, toca la otra.
   mezclan). Luego un solo gráfico grande: **una columna por informe** (la fecha
   se repite tantas veces como informes haya ese día, en vertical), los analitos
   uno sobre otro según su ppm y unidos por una **línea punteada negra**
-  (`conectoresInforme`). **Nunca se promedia en ese gráfico.** Su título se arma
+  (`conectoresInforme`). Además cada analito lleva una **línea tenue de su mismo color** que une sus puntos de un informe al
+  siguiente en orden de fecha (`lineasPorAnalito` en `ReporteView.tsx`, debajo de los
+  puntos; salta los informes donde ese analito no vino). **Nunca se promedia en ese gráfico.** Su título se arma
   solo con los filtros y parte con «Residuales» (`tituloGrafico`, ej. «Residuales
   - Dole Lontué - Actimist - Manzana - Fludioxonil»). El filtro de ingredientes
   parte con **todos** los analitos (vacío = todos). Abajo quedan solo «Informes
