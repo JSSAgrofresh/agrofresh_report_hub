@@ -1,9 +1,10 @@
 import type { Solicitud } from '@/features/tomaMuestras'
 import styles from './SolicitudesView.module.css'
 
-/** Enviada / Pendiente y, además, «Sin lista de distribución» cuando el
- * laboratorio no tiene a nadie en Para y rige la lista de respaldo (Jorge y
- * Claudia). Es el aviso de que esa regla se está aplicando. */
+/** Enviada / Pendiente y, además, «Sin lista de distribución» cuando los
+ * resultados de esta solicitud no tienen a nadie del cliente en Para (para su
+ * Sold To, Ship To y especie) y rige la regla de respaldo: solo Jorge y
+ * Claudia. Es el aviso de que esa regla se está aplicando. */
 export function EstadoSolicitud({ s }: { s: Solicitud }) {
   return (
     <span className={styles.estadosSolicitud}>
@@ -13,11 +14,7 @@ export function EstadoSolicitud({ s }: { s: Solicitud }) {
       {s.sin_lista_distribucion && (
         <span
           className={styles.chipSinLista}
-          title={
-            s.enviada
-              ? 'El laboratorio no tiene lista de distribución: se envió a Jorge y Claudia.'
-              : 'El laboratorio no tiene lista de distribución: se enviará a Jorge y Claudia.'
-          }
+          title="Este cliente y planta no tienen correos de distribución para esta especie: los resultados van solo a Jorge y Claudia."
         >
           Sin lista de distribución
         </span>
