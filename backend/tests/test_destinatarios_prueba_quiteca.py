@@ -31,3 +31,13 @@ def test_solicitud_real_de_quiteca_sigue_a_sus_contactos():
 
 def test_prueba_de_otro_laboratorio_no_cambia():
     assert "agrofresh@portal.quiteca.cl" not in _contactos({"es_prueba": True}, "AGROFRESH")["to"]
+
+
+def test_observacion_de_mas_de_50_caracteres_se_rechaza():
+    import pytest
+    from pydantic import ValidationError
+
+    base = {"generado_por": "J", "laboratorio": "QUITECA", "solicitante": "J", "sold_to": "X", "especie": "Y"}
+    toma_muestras.SolicitudIn(**base, observacion="x" * 50)
+    with pytest.raises(ValidationError):
+        toma_muestras.SolicitudIn(**base, observacion="x" * 51)

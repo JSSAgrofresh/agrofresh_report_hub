@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { descargarExcelConMuestra, filtrarPorFolio } from '@/features/emitir'
+import { descargarPdfsZip } from '@/features/tomaMuestras'
+import { Modal } from '@/components/ui/Modal'
 import { guardarBlob } from '@/services/http/descargar'
 import type { Solicitud } from '@/features/emitir'
 import { TipoMuestraChip } from './TipoMuestraChip'
@@ -13,6 +15,9 @@ function formatearFecha(iso: string | null | undefined): string {
   const [anio, mes, dia] = iso.split('-')
   return dia ? `${dia}-${mes}-${anio}` : iso
 }
+
+/** Lo máximo que acepta el backend en un solo .zip (`MAX_PDF_ZIP`). */
+const PDFS_POR_ZIP = 200
 
 type Filtro = 'todas' | 'cruzadas' | 'pendientes'
 
@@ -41,6 +46,8 @@ interface TablaSolicitudesProps {
 export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: TablaSolicitudesProps) {
   const [filtro, setFiltro] = useState<Filtro>('todas')
   const [buscar, setBuscar] = useState('')
+  const [dialogoPdf, setDialogoPdf] = useState(false)
+  const [bajandoPdf, setBajandoPdf] = useState(false)
 
 
   const cruzadas = useMemo(
@@ -58,6 +65,28 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
     }
   }
 
+
+  const sinCruzar = useMemo(
+    () => (solicitudes ?? []).filter((s) => !s.codigo_muestra),
+    [solicitudes],
+  )
+
+  /** Los PDF de la solicitud de análisis, en uno o más .zip (el backend acepta
+   * hasta `PDFS_POR_ZIP` por vez). */
+  async function descargarPdfs(lista: Solicitud[]) {
+    setBajandoPdf(true)
+    try {
+      const archivos = lista.map((s) => s.archivo)
+      for (let i = 0; i < archivos.length; i += PDFS_POR_ZIP) {
+        await descargarPdfsZip(archivos.slice(i, i + PDFS_POR_ZIP))
+      }
+      setDialogoPdf(false)
+    } catch {
+      alert('No se pudieron generar los PDF. Intenta de nuevo.')
+    } finally {
+      setBajandoPdf(false)
+    }
+  }
 
   const visibles = useMemo(() => {
     let lista = filtrarPorFolio(solicitudes ?? [], buscar)
@@ -98,11 +127,60 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
         >
           Descargar con muestra
         </button>
+        <button
+          type="button"
+          className={styles.boton}
+          onClick={() => setDialogoPdf(true)}
+          disabled={(solicitudes?.length ?? 0) === 0}
+        >
+          Descargar PDFs
+        </button>
         <span className={styles.conteo}>
           {cruzadas} de {solicitudes?.length ?? 0} con muestra
         </span>
       </div>
 
+
+      {dialogoPdf && (
+        <Modal
+          titulo="Descargar solicitudes en PDF"
+          subtitulo="Las solicitudes de análisis, en un .zip."
+          onCerrar={() => !bajandoPdf && setDialogoPdf(false)}
+          pie={
+            <button type="button" className={styles.boton} onClick={() => setDialogoPdf(false)} disabled={bajandoPdf}>
+              Cancelar
+            </button>
+          }
+        >
+          <p className={styles.pregunta}>¿Cuáles quieres descargar?</p>
+          <div className={styles.opcionesPdf}>
+            <button
+              type="button"
+              data-foco
+              className={styles.opcionPdf}
+              onClick={() => void descargarPdfs(solicitudes ?? [])}
+              disabled={bajandoPdf}
+            >
+              <strong>Todas</strong>
+              <span>{solicitudes?.length ?? 0} solicitudes, con o sin muestra</span>
+            </button>
+            <button
+              type="button"
+              className={styles.opcionPdf}
+              onClick={() => void descargarPdfs(sinCruzar)}
+              disabled={bajandoPdf || sinCruzar.length === 0}
+            >
+              <strong>Solo las que no están cruzadas</strong>
+              <span>
+                {sinCruzar.length === 0
+                  ? 'Todas ya tienen su muestra'
+                  : `${sinCruzar.length} esperando muestra`}
+              </span>
+            </button>
+          </div>
+          {bajandoPdf && <p className={styles.pregunta}>Generando los PDF…</p>}
+        </Modal>
+      )}
 
       <div className={styles.tablaCaja}>
         <table className={styles.tabla}>

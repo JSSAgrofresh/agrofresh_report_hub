@@ -21,6 +21,7 @@ import {
   listarTiposAplicacion,
 } from '@/features/tomaMuestras'
 import type { ConfigEnvioAutomatico, OpcionConfig, Solicitud } from '@/features/tomaMuestras'
+import { EstadoSolicitud } from './EstadoSolicitud'
 import styles from './SolicitudesView.module.css'
 
 interface Filtros {
@@ -38,7 +39,7 @@ interface Filtros {
   lineaProceso: string
   tipoMuestra: string
   nombreMuestreador: string
-  estado: '' | 'enviado' | 'pendiente'
+  estado: '' | 'enviado' | 'pendiente' | 'sin_lista'
   prueba: '' | 'solo' | 'sin'
 }
 
@@ -235,6 +236,7 @@ export function SolicitudesView() {
         return false
       if (filtros.estado === 'enviado' && !s.enviada) return false
       if (filtros.estado === 'pendiente' && s.enviada) return false
+      if (filtros.estado === 'sin_lista' && !s.sin_lista_distribucion) return false
       if (filtros.prueba === 'solo' && !s.es_prueba) return false
       if (filtros.prueba === 'sin' && s.es_prueba) return false
       return true
@@ -323,6 +325,7 @@ export function SolicitudesView() {
 
   const totalEnviadas = (solicitudesFiltradas ?? []).filter((x) => x.enviada).length
   const totalPendientes = (solicitudesFiltradas?.length ?? 0) - totalEnviadas
+  const totalSinLista = (solicitudesFiltradas ?? []).filter((x) => x.sin_lista_distribucion).length
 
   return (
     <div>
@@ -494,6 +497,9 @@ export function SolicitudesView() {
           <span className={styles.resumenEstados}>
             <span className={styles.chipEnviada}>{totalEnviadas} enviada{totalEnviadas === 1 ? '' : 's'}</span>
             <span className={styles.chipPendiente}>{totalPendientes} pendiente{totalPendientes === 1 ? '' : 's'}</span>
+            {totalSinLista > 0 && (
+              <span className={styles.chipSinLista}>{totalSinLista} sin lista de distribución</span>
+            )}
           </span>
         </div>
 
@@ -682,6 +688,7 @@ export function SolicitudesView() {
                 <option value="">Todos</option>
                 <option value="enviado">Enviada</option>
                 <option value="pendiente">Pendiente</option>
+                <option value="sin_lista">Sin lista de distribución</option>
               </select>
             </label>
             <label className={styles.campoFiltro}>
@@ -780,9 +787,7 @@ export function SolicitudesView() {
                       <td>{s.tipo_muestra ?? '—'}</td>
                       <td>{s.generado_por}</td>
                       <td>
-                        <span className={s.enviada ? styles.chipEnviada : styles.chipPendiente}>
-                          {s.enviada ? 'Enviada' : 'Pendiente'}
-                        </span>
+                        <EstadoSolicitud s={s} />
                       </td>
                       <td className={styles.acciones}>
                         <button
@@ -831,9 +836,7 @@ export function SolicitudesView() {
                       </div>
                     </div>
                     <span className={styles.etiquetaLaboratorio}>{s.laboratorio}</span>
-                    <span className={s.enviada ? styles.chipEnviada : styles.chipPendiente}>
-                      {s.enviada ? 'Enviada' : 'Pendiente'}
-                    </span>
+                    <EstadoSolicitud s={s} />
                   </div>
                   <div className={styles.tarjetaGrilla}>
                     <div>
