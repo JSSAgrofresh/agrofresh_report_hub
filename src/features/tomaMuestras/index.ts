@@ -6,6 +6,7 @@ export {
   eliminarSolicitud,
   descargarExcelSolicitud,
   descargarPdfSolicitud,
+  abrirPdfSolicitud,
   descargarJsonSolicitud,
   descargarTodasLasSolicitudes,
   enviarCorreoPrueba,
