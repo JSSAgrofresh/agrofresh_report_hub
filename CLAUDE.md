@@ -381,6 +381,17 @@ tocas una, toca la otra.
   tarjeta de límites residuales, % de cumplimiento, distribución de valores,
   indicadores y solicitudes por cliente: no los vuelvas a poner. La vista por
   límite de control (Auditoría interna) conserva su tarjeta de límites.
+- **Ficha del informe** (clic en un punto del gráfico de residuales): si todas las
+  filas son de UNA solicitud y es personal interno (`puedeDescargarBd`, nunca cliente
+  ni datos simulados), `DetalleObservacionesModal` abre `FichaInformeModal`: resultados
+  con producto, dosis, límite y estado (Dentro/Sobre/Bajo/Sin límite; la cadena de
+  límites está en `features/reportes/lib/estadoResultado.ts`, espejo de
+  `limiteResidual`), «Datos del informe», carga de origen y una miniatura del PDF con
+  «Ver» (visor grande) y «Descargar». Backend: `app/ficha_informe.py`
+  (`GET /api/reportes/informe/{id}` y `/pdf`, `solo_interno`). El PDF se busca en
+  `informe_auditoria` (N° de informe + laboratorio) y, si no, en `informes/<planta>/`
+  de Storage por nombre (`elegir_clave`). Sin PDF guardado muestra el aviso. Con varias
+  solicitudes (Diagnofruit) queda la tabla simple de antes.
 - **«Simular 1.000 datos»** (solo admin, nunca en el portal de cliente):
   `features/reportes/lib/simulacion.ts`. Clientes «(Sim.)», ids negativos,
   límites ficticios. Vive solo en el estado de la pantalla: se pierde al

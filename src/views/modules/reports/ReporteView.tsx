@@ -1619,7 +1619,12 @@ export function ReporteView({
       )}
 
       {detalle && (
-        <DetalleObservacionesModal titulo={detalle.titulo} filas={detalle.filas} onCerrar={() => setDetalle(null)} />
+        <DetalleObservacionesModal
+          titulo={detalle.titulo}
+          filas={detalle.filas}
+          onCerrar={() => setDetalle(null)}
+          fichaCompleta={puedeDescargarBd ? { analitos: analitosVista, limites: limitesVista } : undefined}
+        />
       )}
     </div>
   )
