@@ -46,6 +46,7 @@ import {
   describirFiltros,
   generarDatosSimulados,
   informesConPuntos,
+  trazarCurvaSuave,
   listarAnalitos,
   solicitudesPor,
   listarLimites,
@@ -599,10 +600,11 @@ export function ReporteView({
       )
     }
 
-    // Una línea tenue por analito, del mismo color que sus puntos, que une sus
+    // Una curva tenue por analito, del mismo color que sus puntos, que une sus
     // resultados de un informe al siguiente en orden de fecha (se salta los
     // informes donde ese analito no vino). Va DEBAJO de los puntos y de los
-    // conectores, para que se lea la tendencia sin tapar ningún dato.
+    // conectores, para que se lea la tendencia sin tapar ningún dato. Es una
+    // curva monótona: pasa por cada punto y nunca se sale de los valores.
     const lineasPorAnalito: Plugin<'line'> = {
       id: 'lineasPorAnalito',
       beforeDatasetsDraw(chart) {
@@ -619,7 +621,7 @@ export function ReporteView({
           if (puntos.length < 2) continue
           ctx.strokeStyle = colorDeIngrediente(analitosGraficados[di])
           ctx.beginPath()
-          puntos.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)))
+          trazarCurvaSuave(ctx, puntos)
           ctx.stroke()
         }
         ctx.restore()
