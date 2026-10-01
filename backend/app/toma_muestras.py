@@ -1609,6 +1609,28 @@ def contactos_de_solicitud_por_envio(laboratorio: str) -> dict[str, list[str]]:
 DESTINATARIOS_SIN_LISTA = ["JORGE.SANDOVAL@AGROFRESH.COM", "CGUERRERO@AGROFRESH.COM"]
 
 
+def _admins_de(contactos: list[dict]) -> list[str]:
+    """Correos activos con cargo «Admin» (Admin Report Hub del Excel maestro)."""
+    return [
+        str(c["email"]).strip() for c in contactos
+        if c.get("tipo") == "resultado_interno" and c.get("activo", True)
+        and c.get("email") and str(c.get("cargo") or "").strip().casefold() == "admin"
+    ]
+
+
+def _para_sin_lista(admins: list[str]) -> list[str]:
+    """Para cuando no hay lista de distribución: Jorge y Claudia, más los admin
+    del Report Hub. Con lista, esos mismos van en copia oculta; sin lista pasan
+    de CCO a Para."""
+    salida: list[str] = []
+    vistos: set[str] = set()
+    for e in [*DESTINATARIOS_SIN_LISTA, *admins]:
+        if e.casefold() not in vistos:
+            vistos.add(e.casefold())
+            salida.append(e)
+    return salida
+
+
 # Las solicitudes de prueba de Quiteca NUNCA van a los contactos reales del
 # laboratorio: solo a estas dos direcciones (el portal de Quiteca y Jorge).
 DESTINATARIOS_PRUEBA_QUITECA = ["agrofresh@portal.quiteca.cl", "jorge.sandoval@agrofresh.com"]
@@ -1658,14 +1680,16 @@ def _calculador_sin_lista(contactos: list[dict]):
 
 
 def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[str]]:
-    """Como `contactos_de_solicitud_por_envio`, pero si el laboratorio no
-    tiene a nadie en Para arma la lista de respaldo: Para = Jorge y Claudia Guerrero,
-    Copia = los técnicos y comerciales configurados para el Ship To."""
+    """Quién recibe el correo de la solicitud: Para / Copia / Copia oculta.
+
+    Los técnicos y comerciales de la planta (los contactos internos de
+    «Resultado a clientes») SIEMPRE van: el comercial en Copia y el técnico en
+    Copia oculta, tenga o no el laboratorio lista de distribución. Si el
+    laboratorio no tiene a nadie en Para, además Para = Jorge y Claudia Guerrero.
+    """
     if datos.get("es_prueba") and str(laboratorio).strip().upper() == "QUITECA":
         return {"to": list(DESTINATARIOS_PRUEBA_QUITECA), "cc": [], "bcc": []}
     por_envio = contactos_de_solicitud_por_envio(laboratorio)
-    if por_envio["to"]:
-        return por_envio
     internos = [
         c for c in _contactos_resultado(
             str(datos.get("sold_to") or ""), str(datos.get("ship_to") or ""), str(datos.get("especie") or "")
@@ -1673,10 +1697,15 @@ def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[s
         if c.get("tipo") == "resultado_interno" and c.get("activo", True) and c.get("email")
     ]
     internos.sort(key=lambda c: c.get("orden", 0))
+    para = por_envio["to"] or _para_sin_lista(_admins_de(internos))
+    en_para = {e.casefold() for e in para}
     return {
-        "to": list(DESTINATARIOS_SIN_LISTA),
+        "to": para,
         "cc": [*por_envio["cc"], *(c["email"] for c in internos if c.get("tipo_copia") != "bcc")],
-        "bcc": [*por_envio["bcc"], *(c["email"] for c in internos if c.get("tipo_copia") == "bcc")],
+        "bcc": [
+            e for e in (*por_envio["bcc"], *(c["email"] for c in internos if c.get("tipo_copia") == "bcc"))
+            if e.casefold() not in en_para
+        ],
     }
 
 
@@ -1685,7 +1714,7 @@ def contactos_de_solicitud(laboratorio: str) -> list[str]:
     return contactos_de_solicitud_por_envio(laboratorio)["to"]
 
 
-def _contactos_resultado(
+def _contactos_resultado_nivel(
     sold_to: str, ship_to: str, especie: str, contactos: list[dict] | None = None
 ) -> list[dict]:
     """Contactos de resultado para una combinación (sold_to, ship_to, especie).
@@ -1750,6 +1779,47 @@ def _contactos_resultado(
     ]
 
 
+def _contactos_resultado(
+    sold_to: str, ship_to: str, especie: str, contactos: list[dict] | None = None
+) -> list[dict]:
+    """Contactos de resultado de una combinación (sold_to, ship_to, especie).
+
+    Los de cliente salen del nivel que corresponda (ver `_contactos_resultado_nivel`).
+    Los internos -comerciales y técnicos- NO dependen de la especie: toda planta
+    los trae siempre, aunque la solicitud sea de una especie para la que el
+    cliente no tiene correos propios.
+    """
+    if contactos is None:
+        contactos = _leer_config("contactos_laboratorio.json", [])
+    base = _contactos_resultado_nivel(sold_to, ship_to, especie, contactos)
+    tienen = {
+        str(c.get("email") or "").strip().casefold()
+        for c in base
+        if c.get("tipo") == "resultado_interno" and c.get("activo", True)
+    }
+    st_n, sh_n = (sold_to or "").strip(), (ship_to or "").strip()
+    internos = [
+        c for c in contactos
+        if c.get("tipo") == "resultado_interno"
+        and (c.get("sold_to") or "").strip() == st_n
+        and (c.get("ship_to") or "").strip() == sh_n
+    ]
+    if not internos and sh_n:
+        internos = [
+            c for c in contactos
+            if c.get("tipo") == "resultado_interno"
+            and not (c.get("sold_to") or "").strip()
+            and (c.get("ship_to") or "").strip() == sh_n
+        ]
+    extra: list[dict] = []
+    for c in sorted(internos, key=lambda c: c.get("orden", 0)):
+        email = str(c.get("email") or "").strip().casefold()
+        if c.get("activo", True) and email and email not in tienen:
+            tienen.add(email)
+            extra.append(c)
+    return [*base, *extra]
+
+
 # Alias de compatibilidad para código que todavía llama con la firma antigua.
 def _contactos_resultado_del_ship_to(laboratorio: str, ship_to: str) -> list[dict]:
     return _contactos_resultado("", ship_to, "")
@@ -1809,11 +1879,15 @@ def destinatarios_resultado_por_tipo(
             destino = "bcc" if contacto.get("tipo_copia") == "bcc" else "cc"
             salida[destino].append(email)
     if not salida["to"]:
-        # Sin lista de distribución para este Ship To: Para = Jorge y Claudia;
-        # los técnicos y comerciales (internos) ya quedaron en copia arriba.
-        salida["to"] = list(DESTINATARIOS_SIN_LISTA)
-        salida["cc"] = [e for e in salida["cc"] if e.casefold() not in {d.casefold() for d in DESTINATARIOS_SIN_LISTA}]
-        salida["bcc"] = [e for e in salida["bcc"] if e.casefold() not in {d.casefold() for d in DESTINATARIOS_SIN_LISTA}]
+        # Sin lista de distribución para este Ship To: Para = Jorge, Claudia y
+        # los admin del Report Hub (que con lista van en CCO); los técnicos y
+        # comerciales (internos) ya quedaron en copia arriba.
+        salida["to"] = _para_sin_lista(_admins_de(
+            _contactos_resultado(sold_to or "", ship_to or "", especie or "")
+        ))
+        en_para = {d.casefold() for d in salida["to"]}
+        salida["cc"] = [e for e in salida["cc"] if e.casefold() not in en_para]
+        salida["bcc"] = [e for e in salida["bcc"] if e.casefold() not in en_para]
     return salida
 
 
@@ -1964,8 +2038,8 @@ def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
             cc.append(e)
     if not para:
         # Misma regla de respaldo que `destinatarios_resultado_por_tipo`.
-        respaldo = {d.casefold() for d in DESTINATARIOS_SIN_LISTA}
-        para = list(DESTINATARIOS_SIN_LISTA)
+        para = _para_sin_lista(_admins_de(activos))
+        respaldo = {d.casefold() for d in para}
         cc = [e for e in cc if e.casefold() not in respaldo]
         bcc = [e for e in bcc if e.casefold() not in respaldo]
     datos_pdf["destinatarios_resultados_detalle"] = {"para": para, "cc": cc, "bcc": bcc}
