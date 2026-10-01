@@ -96,3 +96,26 @@ export interface Observacion {
   semana: number | null
   mes: number | null
 }
+
+/** Ficha completa de un informe (`GET /reportes/informe/{id}`, solo personal interno). */
+export interface FichaResultado {
+  codigo: string | null
+  nombre: string | null
+  categoria: string | null
+  unidad: string
+  valor_num: number | null
+  valor_texto: string | null
+  producto: string | null
+  dosis: number | string | null
+  gasto: number | string | null
+  tipo_aplicacion: string | null
+  linea_proceso: string | null
+}
+
+export interface FichaInforme {
+  solicitud: Record<string, string | number | null> & { id: number; cliente: string | null; planta: string | null }
+  resultados: FichaResultado[]
+  carga: { archivo: string | null; origen: string | null; creado_por: string | null; creado_en: string | null } | null
+  toma: Record<string, string | number | null> | null
+  pdf: { disponible: boolean; nombre?: string; origen?: string }
+}

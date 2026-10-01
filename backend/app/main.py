@@ -12,6 +12,7 @@ from .auditoria import reparar_tablas_omitidas_post_promocion, router as auditor
 from .auditoria_interna import router as auditoria_interna_router
 from .correcciones import router as correcciones_router
 from .listas_distribucion import router as listas_distribucion_router
+from .ficha_informe import router as ficha_informe_router
 from .correo import router as correo_router
 from .catalogo import router as catalogo_router
 from .emitir import router as emitir_router
@@ -112,6 +113,7 @@ for _router in (
     auditoria_interna_router,
     correcciones_router,
     listas_distribucion_router,
+    ficha_informe_router,
     catalogo_router,
     postventa_router,
     storage_router,
