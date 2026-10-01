@@ -5,6 +5,8 @@ import { Modal } from '@/components/ui/Modal'
 import { guardarBlob } from '@/services/http/descargar'
 import type { Solicitud } from '@/features/emitir'
 import { TipoMuestraChip } from './TipoMuestraChip'
+import { FotoCruce } from './FotoCruce'
+import { EditarCruceModal } from './EditarCruceModal'
 import styles from './TablaSolicitudes.module.css'
 
 
@@ -33,6 +35,8 @@ interface TablaSolicitudesProps {
   solicitudes: Solicitud[] | null
   onVerFicha: (solicitud: Solicitud) => void
   onQuitarCruce: (solicitud: Solicitud) => void
+  /** Se llamó después de corregir un cruce: hay que recargar la lista. */
+  onCruceEditado: () => void | Promise<void>
 }
 
 
@@ -43,7 +47,9 @@ interface TablaSolicitudesProps {
  * llegó y está esperando su resultado; blanca, que todavía no. Con eso se ve
  * de un vistazo qué falta por recibir, sin leer ninguna columna.
  */
-export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: TablaSolicitudesProps) {
+export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce, onCruceEditado }: TablaSolicitudesProps) {
+  const [enFoto, setEnFoto] = useState<Solicitud | null>(null)
+  const [enEdicion, setEnEdicion] = useState<Solicitud | null>(null)
   const [filtro, setFiltro] = useState<Filtro>('todas')
   const [buscar, setBuscar] = useState('')
   const [dialogoPdf, setDialogoPdf] = useState(false)
@@ -141,6 +147,32 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
       </div>
 
 
+      {enFoto && (
+        <Modal
+          titulo={`Foto de la muestra ${enFoto.codigo_muestra ?? ''}`}
+          subtitulo={[
+            enFoto.campos['N° Solicitud'],
+            enFoto.peso_muestra != null ? `${enFoto.peso_muestra} ${enFoto.unidad_peso ?? 'kg'}` : null,
+            enFoto.cruzado_por_nombre ? `recibida por ${enFoto.cruzado_por_nombre}` : null,
+          ].filter(Boolean).join(' · ')}
+          ancho="grande"
+          onCerrar={() => setEnFoto(null)}
+        >
+          <FotoCruce archivo={enFoto.archivo} alt={`Foto de la muestra ${enFoto.codigo_muestra ?? ''}`} className={styles.fotoGrande} />
+        </Modal>
+      )}
+
+      {enEdicion && (
+        <EditarCruceModal
+          solicitud={enEdicion}
+          onCancelar={() => setEnEdicion(null)}
+          onGuardado={async () => {
+            await onCruceEditado()
+            setEnEdicion(null)
+          }}
+        />
+      )}
+
       {dialogoPdf && (
         <Modal
           titulo="Descargar solicitudes en PDF"
@@ -190,6 +222,7 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
               <th>Tipo</th>
               <th>N° Muestra</th>
               <th>Peso</th>
+              <th>Foto</th>
               <th>Fecha recepción</th>
               <th>Hora recepción</th>
               <th>Fecha muestreo</th>
@@ -217,6 +250,15 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
                     ? <>{s.peso_muestra} <span className={styles.unidad}>{s.unidad_peso ?? 'kg'}</span></>
                     : '—'}
                 </td>
+                <td>
+                  {s.tiene_foto ? (
+                    <button type="button" className={styles.botonFoto} onClick={() => setEnFoto(s)} title="Ver la foto de la muestra" aria-label={`Ver foto de ${s.codigo_muestra}`}>
+                      🖼️
+                    </button>
+                  ) : (
+                    <span className={styles.pendiente}>—</span>
+                  )}
+                </td>
                 <td className={styles.mono}>{formatearFecha(s.fecha_recepcion)}</td>
                 <td className={styles.mono}>{s.hora_recepcion || '—'}</td>
                 <td className={styles.mono}>{s.campos['Fecha Muestreo'] || '—'}</td>
@@ -235,6 +277,11 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
                     Ver ficha
                   </button>
                   {s.codigo_muestra && (
+                    <button type="button" className={styles.boton} onClick={() => setEnEdicion(s)}>
+                      Editar cruce
+                    </button>
+                  )}
+                  {s.codigo_muestra && (
                     <button type="button" className={styles.boton} onClick={() => onQuitarCruce(s)}>
                       Quitar muestra
                     </button>
@@ -244,7 +291,7 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce }: Tab
             ))}
             {visibles.length === 0 && (
               <tr>
-                <td colSpan={12} className={styles.vacio}>
+                <td colSpan={13} className={styles.vacio}>
                   {solicitudes === null
                     ? 'Cargando…'
                     : buscar

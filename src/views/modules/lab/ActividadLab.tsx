@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Card } from '@/components/ui/Card'
-import { listarActividadLab, urlFotoCruce } from '@/features/emitir'
+import { listarActividadLab } from '@/features/emitir'
 import type { ActividadLab as ActividadItem } from '@/features/emitir'
 import { TipoMuestraChip } from './TipoMuestraChip'
+import { FotoCruce } from './FotoCruce'
 import styles from './ActividadLab.module.css'
 
 const ETIQUETAS_ACCION: Record<string, string> = {
   cruce: 'Cruce',
+  edicion_cruce: 'Corrección de cruce',
   anulacion_cruce: 'Anulación de cruce',
   foto_cruce: 'Foto de cruce',
   ingreso_solicitud: 'Ingreso de solicitud',
@@ -98,13 +100,10 @@ function FilaActividad({ item }: { item: ActividadItem }) {
 
       {mostrarFoto && item.archivo && (
         <div className={styles.fotoContainer}>
-          <img
-            src={urlFotoCruce(item.archivo)}
+          <FotoCruce
+            archivo={item.archivo}
             alt={`Foto del cruce de ${item.numero_solicitud ?? item.archivo}`}
             className={styles.foto}
-            onError={(e) => {
-              ;(e.target as HTMLImageElement).style.display = 'none'
-            }}
           />
         </div>
       )}

@@ -189,3 +189,25 @@
 .opcionPdf span { font-size: 12px; color: var(--color-text-muted); }
 .opcionPdf:hover:not(:disabled) { border-color: var(--color-primary); }
 .opcionPdf:disabled { opacity: 0.55; cursor: default; }
+
+.botonFoto {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 3px 6px;
+}
+
+.botonFoto:hover {
+  background: var(--color-bg);
+}
+
+.fotoGrande {
+  display: block;
+  max-width: 100%;
+  max-height: 70dvh;
+  margin: 0 auto;
+  object-fit: contain;
+}
