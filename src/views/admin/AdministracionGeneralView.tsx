@@ -16,7 +16,7 @@ import type { CampoCorreccion, CorreccionConverter } from '@/features/correccion
 import { Indicador } from '@/components/ui/Indicador'
 import { IconoActualizar, IconoAlerta, IconoBuscar, IconoCerrar, IconoPapelera } from '@/components/ui/iconosAccion'
 import { Modal } from '@/components/ui/Modal'
-import { ListasDistribucionPanel } from './ListasDistribucionPanel'
+import { ListasPanel } from './listas/ListasPanel'
 import { fechaHora } from '@/lib/fechaHoraChile'
 import styles from './AdministracionGeneralView.module.css'
 
@@ -48,7 +48,8 @@ export function AdministracionGeneralView() {
   const [aOlvidar, setAOlvidar] = useState<CorreccionConverter | null>(null)
   const [olvidando, setOlvidando] = useState(false)
   const [errorOlvidar, setErrorOlvidar] = useState<string | null>(null)
-  const [pestana, setPestana] = useState<Pestana>('correcciones')
+  const [pestana, setPestana] = useState<Pestana>('listas')
+  const [listasVisitada, setListasVisitada] = useState(true)
   const [abiertas, setAbiertas] = useState<Set<number>>(new Set())
   const [ampliarTodas, setAmpliarTodas] = useState(false)
 
@@ -117,15 +118,16 @@ export function AdministracionGeneralView() {
       />
 
       <div className={styles.pestanas} role="tablist" aria-label="Secciones">
+        <button type="button" role="tab" aria-selected={pestana === 'listas'} className={pestana === 'listas' ? styles.pestanaActiva : ''} onClick={() => { setListasVisitada(true); setPestana('listas') }}>
+          Listas de distribución
+        </button>
         <button type="button" role="tab" aria-selected={pestana === 'correcciones'} className={pestana === 'correcciones' ? styles.pestanaActiva : ''} onClick={() => setPestana('correcciones')}>
           Correcciones del Converter
         </button>
-        <button type="button" role="tab" aria-selected={pestana === 'listas'} className={pestana === 'listas' ? styles.pestanaActiva : ''} onClick={() => setPestana('listas')}>
-          Listas de distribución
-        </button>
       </div>
 
-      {pestana === 'listas' && <ListasDistribucionPanel />}
+      {/* Se monta al visitarla y se conserva: cambiar de pestaña no pierde los cambios sin guardar. */}
+      {listasVisitada && <div hidden={pestana !== 'listas'}><ListasPanel /></div>}
 
       {pestana === 'correcciones' && <>
 

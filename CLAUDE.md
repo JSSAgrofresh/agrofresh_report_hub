@@ -459,17 +459,29 @@ tocas una, toca la otra.
   Notificaciones, **solo admin general**): tiene dos pestañas. **Correcciones del
   Converter** (ver abajo; las filas parten compactas y se agrandan con un clic):
   `GET /api/correcciones` exige admin general; ni quien tiene Auditoría interna lo
-  ve. **Listas de distribución** (`app/listas_distribucion.py`, prefijo
-  `/api/listas-distribucion`, solo admin general): exporta a Excel lo que el
-  sistema tiene (`/excel?todas=true` suma las plantas de Listados sin lista), se
-  edita, se sube (`/comparar`, acepta también la hoja «Informes
-  Laboratorios-Pack Line» del maestro) y la pantalla muestra cada cambio (+ agregar,
-  − quitar, ajuste de copia, planta nueva) para **confirmarlo uno por uno**;
-  `/aplicar` solo aplica lo confirmado y deja antes un respaldo
-  `contactos_laboratorio_respaldo_<fecha>.json` junto al original. **Una celda
-  vacía NO quita a nadie**; para sacar a alguien se quita su correo de la celda.
+  ve. **Listas de distribución** (pestaña que abre por defecto; `app/listas_distribucion.py`,
+  prefijo `/api/listas-distribucion`, solo admin general) es **una tabla dinámica**:
+  una fila por planta y una columna por rol (Admin Report Hub, Comercial, Técnico) y
+  por especie (correos del cliente; si todas las especies tienen la misma lista se ve
+  una sola celda, «Separar por especie» la abre). Arriba, indicadores de cobertura y
+  alertas que filtran la tabla (sin técnico, sin comercial, sin lista de cliente,
+  fuera de Listados, copia mal puesta, plantas de Listados sin lista). **Todo cambio
+  es una PROPUESTA sobre una celda** (`features/listasDistribucion/lib/tabla.ts`,
+  lógica pura con pruebas): lo que sale de **importar** un Excel (acepta también la
+  hoja «Informes Laboratorios-Pack Line» del maestro) queda en **amarillo** y se
+  acepta (✓) o rechaza (✕) celda por celda; lo que se edita **a mano** (clic en la
+  celda) queda en **verde**, ya aceptado. Nada se escribe hasta «Guardar»:
+  `/aplicar` aplica solo lo aceptado y deja antes un respaldo
+  `contactos_laboratorio_respaldo_<fecha>.json` junto al original. **Una celda vacía
+  del Excel NO quita a nadie**; para sacar a alguien se quita su correo de la celda.
+  **Plantas nuevas**: si el nombre no existe en Listados, la fila avisa y sugiere los
+  nombres parecidos («Usar …»); «+ Agregar planta» y las nuevas del Excel se
+  **crean también en Listados** (cliente y planta, con los códigos SAP si el Excel
+  los trae; `asegurar_planta` reusa lo que ya existe sin duplicar) al guardar.
+  `GET /estado` alimenta la tabla; `/excel` exporta; `/comparar` solo compara.
   Reemplaza a los scripts `importar_contactos_resultado.py` /
-  `auditar_contactos_resultado.py` para el uso diario.
+  `auditar_contactos_resultado.py` para el uso diario. El panel se mantiene montado al
+  cambiar de pestaña para no perder cambios sin guardar.
 - **El Converter aprende de las correcciones a mano** (`app/correcciones.py`,
   tabla `correccion_converter`, migración 0045). Los cuatro desplegables del
   catálogo son ahora un **buscador** (sin tildes ni mayúsculas, flechas y

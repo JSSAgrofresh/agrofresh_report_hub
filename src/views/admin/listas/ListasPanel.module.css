@@ -1,0 +1,259 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cargando {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.espacio {
+  flex: 1;
+}
+
+.oculto {
+  display: none;
+}
+
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.buscar {
+  position: relative;
+  flex: 1 1 280px;
+  min-width: 220px;
+  max-width: 420px;
+}
+
+.lupa {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-faint);
+}
+
+.buscar input {
+  width: 100%;
+  padding: 8px 12px 8px 34px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: 13.5px;
+}
+
+.limpiar,
+.atajo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+  cursor: pointer;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.errorCaja {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: #fbe8e5;
+  border: 1px solid #f3c9c1;
+  color: var(--color-danger);
+  font-size: 13.5px;
+}
+
+.exito {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: #eef6e5;
+  border: 1px solid #d4e9c4;
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+
+.exito code {
+  font-size: 12px;
+}
+
+.importado {
+  position: relative;
+  padding: var(--space-3) var(--space-4);
+  padding-right: 44px;
+  border-radius: var(--radius-md);
+  background: #fff4c2;
+  border: 1px solid #f0d58a;
+  font-size: 13.5px;
+}
+
+.importado > button {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.importado details {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.importado summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.importado ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.revision {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: 8px var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 14px rgba(16, 24, 40, 0.1);
+}
+
+.contador {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.contador small {
+  color: var(--color-text-muted);
+}
+
+.puntoAmarillo,
+.puntoVerde {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+}
+
+.puntoAmarillo {
+  background: #fff4c2;
+  border: 1px solid #e0b100;
+}
+
+.puntoVerde {
+  background: #e8f4dc;
+  border: 1px solid #6faf3b;
+}
+
+.guia {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px var(--space-4);
+  font-size: 13px;
+}
+
+.guia summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.guiaCuerpo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.via,
+.leyendaPendiente,
+.leyendaAceptada,
+.leyendaFalta {
+  display: inline-block;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.PARA { background: #eef6e5; border-color: #d4e9c4; color: #2f6b12; }
+.CC { background: #eaf2fb; border-color: #cddff2; color: #25589a; }
+.CCO { background: #f1edf8; border-color: #ddd3ee; color: #5b3f93; }
+.leyendaPendiente { background: #fff4c2; border-color: #e0b100; color: #6f5000; }
+.leyendaAceptada { background: #e8f4dc; border-color: #6faf3b; color: #245a0c; }
+.leyendaFalta { background: #fffaf0; border: 1px dashed #d9a400; color: #8a6100; }
+
+.vacio {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+}
+
+.vacio h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.vacio p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13.5px;
+}
+
+.pie {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.rojo {
+  color: var(--color-danger);
+}
+
+.errorTexto {
+  color: var(--color-danger);
+  font-size: 13px;
+}
