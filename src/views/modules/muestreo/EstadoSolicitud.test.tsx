@@ -15,12 +15,12 @@ describe('EstadoSolicitud', () => {
   it('pendiente sin lista muestra los dos estados', () => {
     render(<EstadoSolicitud s={solicitud({ sin_lista_distribucion: true })} />)
     expect(screen.getByText('Pendiente')).toBeInTheDocument()
-    expect(screen.getByText('Sin lista de distribución')).toHaveAttribute('title', expect.stringContaining('se enviará a Jorge y Claudia'))
+    expect(screen.getByText('Sin lista de distribución')).toHaveAttribute('title', expect.stringContaining('solo a Jorge y Claudia'))
   })
 
-  it('enviada sin lista dice que se envió a Jorge y Claudia', () => {
+  it('enviada sin lista también avisa que va solo a Jorge y Claudia', () => {
     render(<EstadoSolicitud s={solicitud({ enviada: true, sin_lista_distribucion: true })} />)
     expect(screen.getByText('Enviada')).toBeInTheDocument()
-    expect(screen.getByText('Sin lista de distribución')).toHaveAttribute('title', expect.stringContaining('se envió a Jorge y Claudia'))
+    expect(screen.getByText('Sin lista de distribución')).toHaveAttribute('title', expect.stringContaining('solo a Jorge y Claudia'))
   })
 })
