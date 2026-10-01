@@ -55,6 +55,8 @@ const SOLICITANTE_FIJO = 'AGROFRESH'
 const TIPO_LINEA_PROCESO = 'Línea de proceso'
 const TIPO_ACTIMIST = 'Actimist'
 const TIPO_RYD = 'RYD'
+/** Largo máximo de la observación (el backend lo exige también). */
+const OBSERVACION_MAX = 50
 const LAB_AGROFRESH = 'AGROFRESH'
 
 /** Claves con las que RYD de AgroFresh guarda sus dos datos de ensayo en
@@ -822,6 +824,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       return
     }
 
+    if ((general.observacion ?? '').length > OBSERVACION_MAX) {
+      setError(`La observación no puede pasar de ${OBSERVACION_MAX} caracteres.`)
+      return
+    }
     if (!laboratorio) {
       setError('Selecciona un laboratorio.')
       return
@@ -1136,15 +1142,26 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       )
     }
     if (campo.tipo === 'textarea') {
+      const esObservacion = campo.clave === 'observacion'
+      const largo = (general[campo.clave] ?? '').length
       return (
         <label className={cn(styles.campo, styles.campoAncho)} key={campo.clave}>
           {etiqueta}
           <textarea
             className={styles.textarea}
             rows={3}
+            maxLength={esObservacion ? OBSERVACION_MAX : undefined}
             value={general[campo.clave] ?? ''}
             onChange={(e) => actualizarGeneral(campo.clave, e.target.value)}
           />
+          {esObservacion && (
+            <small
+              className={cn(styles.contador, largo >= OBSERVACION_MAX && styles.contadorLleno)}
+              aria-live="polite"
+            >
+              {largo}/{OBSERVACION_MAX} caracteres
+            </small>
+          )}
         </label>
       )
     }

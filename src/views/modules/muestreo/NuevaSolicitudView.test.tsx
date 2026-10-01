@@ -211,6 +211,26 @@ function mockConfigComun() {
 }
 
 describe('NuevaSolicitudView — crear', () => {
+  it('la observación tiene tope de 50 caracteres y un contador', async () => {
+    mockConfigComun()
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+
+    const campo = (await screen.findByLabelText(/Observación/)) as HTMLTextAreaElement
+    expect(campo.maxLength).toBe(50)
+    expect(screen.getByText('0/50 caracteres')).toBeTruthy()
+    fireEvent.change(campo, { target: { value: 'T2 - CS (150) P.V' } })
+    expect(screen.getByText('17/50 caracteres')).toBeTruthy()
+  })
+
   it('muestra analitos como tarjetas y permite indicar explícitamente que no hay dosis', async () => {
     mockConfigComun()
     render(
