@@ -151,3 +151,14 @@ def test_un_excel_sin_las_columnas_da_error_claro():
     wb.save(buf)
     with pytest.raises(ValueError, match="SOLD TO NAME"):
         ld.leer_filas_excel(buf.getvalue())
+
+
+def test_planta_que_no_esta_en_listados_sugiere_el_nombre_parecido():
+    lis = {
+        ld.clave_planta("EXPORTADORA AGUA SANTA SA", "AGUA SANTA PLANTA LISONJERAS"): ("EXPORTADORA AGUA SANTA SA", "AGUA SANTA PLANTA LISONJERAS"),
+        ld.clave_planta("OTRO CLIENTE", "PLANTA SIN RELACION"): ("OTRO CLIENTE", "PLANTA SIN RELACION"),
+    }
+    fila = _fila(sold_to="EXPORTADORA AGUA SANTA S.A", ship_to="AGUA SANTA PLANTA LISONJERA", comercial=["c@agrofresh.com"])
+    c = _cambios(_sistema(), fila, lis)[0]
+    assert c["aviso"] and c["sugerencias"] == [
+        {"sold_to": "EXPORTADORA AGUA SANTA SA", "ship_to": "AGUA SANTA PLANTA LISONJERAS"}]

@@ -27,6 +27,8 @@ export interface CambioLista {
   quitar: string[]
   corregir: string[]
   aviso: string | null
+  /** plantas de Listados con un nombre parecido (solo en planta_nueva con aviso) */
+  sugerencias?: PlantaLista[]
   fila: FilaLista | null
 }
 

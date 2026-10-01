@@ -25,6 +25,7 @@ Reglas:
 """
 from __future__ import annotations
 
+import difflib
 import io
 import logging
 import re
@@ -272,6 +273,21 @@ def _sin_los_de(lista: list[str], otros: list[str]) -> list[str]:
     return [e for e in lista if e.casefold() not in ya]
 
 
+def parecidas(sold_to: str, ship_to: str, listados: dict[tuple[str, str], tuple[str, str]], n: int = 3) -> list[dict]:
+    """Hasta `n` plantas de Listados con un nombre parecido, para decirle a quien
+    revisa «¿será esta?» cuando el Excel trae un nombre que Listados no tiene."""
+    ship_n, sold_n = norm(ship_to), norm(sold_to)
+    puntuadas: list[tuple[float, tuple[str, str]]] = []
+    for (sold_l, ship_l), oficial in listados.items():
+        r_ship = difflib.SequenceMatcher(None, ship_n, ship_l).ratio()
+        if r_ship < 0.6:
+            continue
+        r_sold = difflib.SequenceMatcher(None, sold_n, sold_l).ratio()
+        puntuadas.append((r_ship * 0.7 + r_sold * 0.3, oficial))
+    puntuadas.sort(key=lambda p: -p[0])
+    return [{"sold_to": a, "ship_to": b} for _, (a, b) in puntuadas[:n]]
+
+
 def comparar(
     estado: dict[tuple[str, str], dict],
     filas: list[dict],
@@ -291,17 +307,18 @@ def comparar(
             if not any(fila[c] for c in CAMPOS_INTERNOS) and not any(fila["clientes"].values()):
                 sin_cambios += 1  # fila en blanco: nada que agregar
                 continue
-            sold_to, ship_to, aviso = fila["sold_to"], fila["ship_to"], None
+            sold_to, ship_to, aviso, sugerencias = fila["sold_to"], fila["ship_to"], None, []
             if listados is not None:
                 if clave in listados:
                     sold_to, ship_to = listados[clave]
                 else:
                     aviso = "No existe en Listados con ese nombre: la app no la encontrará hasta que coincida."
+                    sugerencias = parecidas(sold_to, ship_to, listados)
             cambios.append({
                 "id": f"{'|'.join(clave)}|nueva", "tipo": "planta_nueva",
                 "planta": {"sold_to": sold_to, "ship_to": ship_to},
                 "campo": "planta", "etiqueta": "Planta nueva en las listas",
-                "agregar": [], "quitar": [], "corregir": [], "aviso": aviso,
+                "agregar": [], "quitar": [], "corregir": [], "aviso": aviso, "sugerencias": sugerencias,
                 "fila": {**fila, "sold_to": sold_to, "ship_to": ship_to},
             })
             continue

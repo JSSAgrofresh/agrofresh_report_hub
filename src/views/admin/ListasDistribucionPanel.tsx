@@ -211,7 +211,7 @@ export function ListasDistribucionPanel() {
                 <button type="button" className={styles.atajo} onClick={() => marcar(visibles.filter((c) => c.quitar.length === 0 && c.tipo !== 'planta_nueva'))}>
                   Marcar los que solo agregan
                 </button>
-                <button type="button" className={styles.atajo} onClick={() => marcar(visibles)}>Marcar todos los visibles</button>
+                <button type="button" className={styles.atajo} onClick={() => marcar(visibles.filter((c) => !c.aviso || c.tipo !== 'planta_nueva'))} title="No incluye las plantas con aviso: esas se marcan a mano">Marcar todos los visibles</button>
                 <button type="button" className={styles.atajo} onClick={() => setMarcados(new Set())} disabled={marcados.size === 0}>Desmarcar todos</button>
                 <span className={styles.espacio} />
                 <span className={styles.contador}>
@@ -245,6 +245,17 @@ export function ListasDistribucionPanel() {
                               {c.corregir.map((e) => <span key={`~${e}`} className={styles.ajuste}>↻ {e}</span>)}
                               {c.fila && <FilaNueva fila={c.fila} />}
                               {c.aviso && <span className={styles.aviso}><IconoAlerta width={14} height={14} /> {c.aviso}</span>}
+                              {c.sugerencias && c.sugerencias.length > 0 && (
+                                <span className={styles.sugerencia}>
+                                  ¿Será {c.sugerencias.length === 1 ? 'esta' : 'una de estas'} de Listados? {c.sugerencias.map((s) => `«${s.ship_to}» (${s.sold_to})`).join(' · ')}.
+                                  Si lo es, corrige el nombre en el Excel y vuélvelo a subir.
+                                </span>
+                              )}
+                              {c.aviso && !c.sugerencias?.length && (
+                                <span className={styles.sugerencia}>
+                                  Si es una planta nueva, créala primero en Listados con ese nombre exacto y vuelve a subir el Excel.
+                                </span>
+                              )}
                             </div>
                           </li>
                         ))}
