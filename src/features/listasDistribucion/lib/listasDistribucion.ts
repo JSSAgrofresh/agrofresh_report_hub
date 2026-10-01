@@ -9,6 +9,9 @@ export interface PlantaLista {
 export interface FilaLista {
   sold_to: string
   ship_to: string
+  /** códigos SAP, si el Excel los trae (se usan al crear la planta en Listados) */
+  codigo_sold?: string | null
+  codigo_ship?: string | null
   admin: string[]
   comercial: string[]
   tecnico: string[]
@@ -30,6 +33,8 @@ export interface CambioLista {
   /** plantas de Listados con un nombre parecido (solo en planta_nueva con aviso) */
   sugerencias?: PlantaLista[]
   fila: FilaLista | null
+  /** solo planta_nueva: crear también el cliente y la planta en Listados */
+  crear_en_listados?: boolean
 }
 
 export interface ResumenComparacion {
@@ -52,6 +57,7 @@ export interface ResultadoAplicar {
   plantas: number
   ignorados: string[]
   respaldo: string
+  listados_creados?: { clientes: number; plantas: number }
 }
 
 export function exportarListas(incluirPlantasSinLista: boolean) {
@@ -69,74 +75,4 @@ export function compararListas(archivo: File) {
 
 export function aplicarListas(cambios: CambioLista[]) {
   return httpClient.post<ResultadoAplicar>('/listas-distribucion/aplicar', { cambios })
-}
-
-export type FiltroCambios = 'todos' | 'agregan' | 'quitan' | 'nuevas' | 'copia'
-
-export const ETIQUETA_FILTRO: Record<FiltroCambios, string> = {
-  todos: 'Todos',
-  agregan: 'Solo agregan',
-  quitan: 'Quitan a alguien',
-  nuevas: 'Plantas nuevas',
-  copia: 'Ajuste de copia',
-}
-export const ORDEN_FILTROS: FiltroCambios[] = ['todos', 'agregan', 'quitan', 'nuevas', 'copia']
-
-export function coincideFiltro(c: CambioLista, filtro: FiltroCambios): boolean {
-  switch (filtro) {
-    case 'agregan': return c.tipo === 'campo' && c.quitar.length === 0
-    case 'quitan': return c.quitar.length > 0
-    case 'nuevas': return c.tipo === 'planta_nueva'
-    case 'copia': return c.tipo === 'copia'
-    default: return true
-  }
-}
-
-/** Sin tildes ni mayúsculas, para buscar «romeral» y encontrar «ROMERAL». */
-function plano(t: string): string {
-  return t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-}
-
-export function filtrarCambios(cambios: CambioLista[], filtro: FiltroCambios, texto: string): CambioLista[] {
-  const palabras = plano(texto).split(/\s+/).filter(Boolean)
-  return cambios.filter((c) => {
-    if (!coincideFiltro(c, filtro)) return false
-    if (palabras.length === 0) return true
-    const pajar = plano([c.planta.sold_to, c.planta.ship_to, c.etiqueta, ...c.agregar, ...c.quitar, ...c.corregir].join(' '))
-    return palabras.every((p) => pajar.includes(p))
-  })
-}
-
-export interface GrupoPlanta {
-  clave: string
-  planta: PlantaLista
-  cambios: CambioLista[]
-}
-
-/** Los cambios agrupados por planta, en el orden en que aparecen. */
-export function agruparPorPlanta(cambios: CambioLista[]): GrupoPlanta[] {
-  const grupos = new Map<string, GrupoPlanta>()
-  for (const c of cambios) {
-    const clave = `${c.planta.sold_to}\u0000${c.planta.ship_to}`
-    const g = grupos.get(clave) ?? { clave, planta: c.planta, cambios: [] }
-    g.cambios.push(c)
-    grupos.set(clave, g)
-  }
-  return [...grupos.values()]
-}
-
-/** Cuántos correos se agregan, quitan o ajustan entre los cambios dados. */
-export function contarCorreos(cambios: CambioLista[]) {
-  return cambios.reduce(
-    (t, c) => ({
-      agregan: t.agregan + c.agregar.length + (c.fila ? contarFila(c.fila) : 0),
-      quitan: t.quitan + c.quitar.length,
-      ajustan: t.ajustan + c.corregir.length,
-    }),
-    { agregan: 0, quitan: 0, ajustan: 0 },
-  )
-}
-
-function contarFila(f: FilaLista): number {
-  return f.admin.length + f.comercial.length + f.tecnico.length + Object.values(f.clientes).reduce((n, l) => n + l.length, 0)
 }
