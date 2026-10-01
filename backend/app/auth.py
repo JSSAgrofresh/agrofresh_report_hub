@@ -259,12 +259,19 @@ def login(body: LoginIn) -> Any:
         # endpoint serviría para averiguar quién tiene cuenta en el sistema.
         if fila is None or not seguridad.verificar_password(body.password, fila["password_hash"]):
             _registrar_fallo(email.lower())
+            from . import actividad  # import tardío: actividad importa de este módulo
+
+            actividad.registrar(email, fila["nombre"] if fila else None, "acceso", "login_fallido",
+                                None if fila else "la cuenta no existe", sensible=False)
             raise HTTPException(401, "Correo o contrasena incorrectos.")
 
         # Barrido de sesiones vencidas. Va acá porque el login es poco
         # frecuente y así la tabla no necesita una tarea programada aparte.
         cur.execute("DELETE FROM sesion WHERE expira_en < now()")
         _fallidos.pop(email.lower(), None)
+        from . import actividad  # import tardío: actividad importa de este módulo
+
+        actividad.registrar(fila["email"], fila["nombre"], "acceso", "login")
         return LoginOut(token=_crear_sesion(cur, fila["id"]), usuario=usuario_de_fila(fila))
 
 

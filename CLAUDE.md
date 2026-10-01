@@ -82,6 +82,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0026_verificaciones_diarias.sql
 .venv\Scripts\python.exe scripts\migrar.py 0044_auditoria_interna.sql
 .venv\Scripts\python.exe scripts\migrar.py 0045_correcciones_converter.sql
+.venv\Scripts\python.exe scripts\migrar.py 0047_actividad_usuario.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -516,6 +517,29 @@ tocas una, toca la otra.
   Reemplaza a los scripts `importar_contactos_resultado.py` /
   `auditar_contactos_resultado.py` para el uso diario. El panel se mantiene montado al
   cambiar de pestaña para no perder cambios sin guardar.
+- **Panel de Administración General** (pestañas **Resumen** y **Actividad**, las
+  primeras; solo admin general; `app/admin_panel.py`, prefijo `/api/admin-panel`;
+  front en `views/admin/panel/` y `features/adminPanel/`). Tema oscuro verde
+  AgroFresh **solo dentro del panel** (variables `--p-*` en `PanelAdmin.module.css`).
+  Resumen: KPIs (usuarios activos, solicitudes, informes concretados %, días
+  solicitud→informe por laboratorio, salud de datos 0–100 con sus descuentos a la
+  vista), actividad por día, uso por módulo, actividad por persona, cambios
+  sensibles / ingresos fallidos y «Requiere tu atención» (cada ítem lleva a su
+  pantalla). Actividad: ranking de personas y, al elegir una, su ficha + historial
+  filtrable. **La actividad de cada persona se ARMA uniendo tablas que ya
+  existían** (`solicitud_archivo`, `envio_solicitud_log`, `carga_datos`,
+  `lab_actividad`, `verif_seccion_lock`, `correccion_converter`,
+  `informe_auditoria`) más `actividad_usuario` (migración 0047: accesos y fallidos,
+  visitas por módulo y cambios sensibles: permisos, cuentas, clave reiniciada,
+  solicitud eliminada). Cada fuente se lee aparte: si falta una migración el panel
+  sigue con las demás. `actividad.registrar` **nunca lanza** (la bitácora no puede
+  tumbar un login). Las visitas las manda `AppLayout` a `POST /api/actividad/visita`
+  (el servidor no repite el mismo módulo en 10 min; clientes no se registran).
+  Quien no tiene correo en la fuente (cargas de datos solo guardan el nombre) se
+  une por nombre (`resolver_nombres`). Sin la 0047 no hay accesos/visitas/sensibles,
+  pero el resto funciona. **Si agregas una acción nueva de una persona, anótala en
+  una tabla y súmala a `leer_eventos`.** Pruebas: `tests/test_admin_panel.py`,
+  `adminPanel.test.ts`.
 - **El Converter aprende de las correcciones a mano** (`app/correcciones.py`,
   tabla `correccion_converter`, migración 0045). Los cuatro desplegables del
   catálogo son ahora un **buscador** (sin tildes ni mayúsculas, flechas y
