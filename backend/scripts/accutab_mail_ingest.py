@@ -20,10 +20,8 @@ Uso (Windows Task Scheduler o manual):
     .venv\\Scripts\\python.exe scripts\\accutab_mail_ingest.py
 
 Variables de entorno requeridas (en backend/.env):
-    GMAIL_CLIENT_ID
-    GMAIL_CLIENT_SECRET
-    GMAIL_REFRESH_TOKEN
     GMAIL_ACCOUNT
+    GMAIL_APP_PASSWORD   (contrasena de aplicacion; IMAP debe estar habilitado)
     R2_ENDPOINT_URL
     R2_ACCESS_KEY_ID
     R2_SECRET_ACCESS_KEY
@@ -32,7 +30,9 @@ Variables de entorno requeridas (en backend/.env):
 
 from __future__ import annotations
 
-import base64
+import email
+import email.policy
+import imaplib
 import io
 import json
 import logging
@@ -43,9 +43,8 @@ import unicodedata
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
 from pathlib import Path
-
-import requests
 
 # ---------------------------------------------------------------------------
 # Bootstrap: asegurar que el paquete `app` sea importable al ejecutar el
@@ -69,7 +68,7 @@ LABEL_PENDIENTE = "ACCUTAB_PENDIENTE"
 R2_PREFIX = "accutab/mail/"
 BATCH_SIZE = 100
 MAX_WORKERS = 4          # subidas paralelas a R2 por email
-GMAIL_API = "https://gmail.googleapis.com/gmail/v1"
+IMAP_HOST = "imap.gmail.com"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -110,147 +109,77 @@ def _nombre_unico(base: str, existentes: set[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Gmail API helpers
+# Gmail por IMAP (contrasena de aplicacion)
 # ---------------------------------------------------------------------------
 
-def _access_token() -> str:
-    """Obtiene un access_token fresco usando el refresh_token del .env."""
-    if not (config.GMAIL_CLIENT_ID and config.GMAIL_CLIENT_SECRET and config.GMAIL_REFRESH_TOKEN):
+def _conectar() -> imaplib.IMAP4_SSL:
+    """Abre sesion IMAP en Gmail con GMAIL_ACCOUNT + GMAIL_APP_PASSWORD."""
+    clave = (config.GMAIL_APP_PASSWORD or "").replace(" ", "")
+    if not (config.GMAIL_ACCOUNT and clave):
         raise RuntimeError(
-            "Faltan credenciales Gmail en .env: "
-            "GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN"
+            "Faltan credenciales Gmail en .env: GMAIL_ACCOUNT y GMAIL_APP_PASSWORD"
         )
-    resp = requests.post(
-        "https://oauth2.googleapis.com/token",
-        data={
-            "client_id": config.GMAIL_CLIENT_ID,
-            "client_secret": config.GMAIL_CLIENT_SECRET,
-            "refresh_token": config.GMAIL_REFRESH_TOKEN,
-            "grant_type": "refresh_token",
-        },
-        timeout=15,
-    )
-    if resp.status_code != 200:
-        data = resp.json()
-        raise RuntimeError(f"Error OAuth: {data.get('error_description', resp.text)}")
-    token = resp.json().get("access_token")
-    if not token:
-        raise RuntimeError("Google no devolvio access_token")
-    return token
+    try:
+        imap = imaplib.IMAP4_SSL(IMAP_HOST, timeout=30)
+        imap.login(config.GMAIL_ACCOUNT, clave)
+    except imaplib.IMAP4.error as exc:
+        raise RuntimeError(
+            f"Gmail rechazo el login IMAP ({exc}). Revisa la contrasena de aplicacion "
+            "y que IMAP este habilitado en la cuenta."
+        ) from exc
+    return imap
 
 
-def _headers(token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {token}"}
+def _asegurar_label(imap: imaplib.IMAP4_SSL, nombre: str) -> None:
+    """En Gmail las etiquetas son carpetas IMAP. Si ya existe, CREATE responde NO y se ignora."""
+    imap.create(nombre)
 
 
-# ---------------------------------------------------------------------------
-# Gestion de etiquetas Gmail
-# ---------------------------------------------------------------------------
-
-def _obtener_o_crear_label(token: str, nombre: str) -> str:
-    """Devuelve el id de la etiqueta, creandola si no existe."""
-    resp = requests.get(f"{GMAIL_API}/users/me/labels", headers=_headers(token), timeout=10)
-    resp.raise_for_status()
-    for label in resp.json().get("labels", []):
-        if label["name"] == nombre:
-            return label["id"]
-    # Crear
-    resp2 = requests.post(
-        f"{GMAIL_API}/users/me/labels",
-        json={"name": nombre, "labelListVisibility": "labelShow", "messageListVisibility": "show"},
-        headers=_headers(token),
-        timeout=10,
-    )
-    resp2.raise_for_status()
-    return resp2.json()["id"]
-
-
-def _listar_por_label(token: str, label_id: str) -> list[str]:
-    """Busca mensajes que tengan una etiqueta especifica."""
-    ids: list[str] = []
-    page_token = None
-    while True:
-        p: dict = {"maxResults": BATCH_SIZE, "labelIds": label_id}
-        if page_token:
-            p["pageToken"] = page_token
-        resp = requests.get(f"{GMAIL_API}/users/me/messages", headers=_headers(token), params=p, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-        for m in data.get("messages", []):
-            ids.append(m["id"])
-        page_token = data.get("nextPageToken")
-        if not page_token or len(ids) >= BATCH_SIZE:
-            break
-    return ids[:BATCH_SIZE]
-
-
-def _listar_mensajes_pendientes(token: str, label_pendiente_id: str | None) -> list[str]:
-    """
-    Devuelve ids de mensajes AccuTab no procesados.
-    Busca todos los emails con etiqueta ACCUTAB_PENDIENTE.
-    """
-    if not label_pendiente_id:
+def _listar_pendientes(imap: imaplib.IMAP4_SSL) -> list[bytes]:
+    """UIDs de los correos con la etiqueta ACCUTAB_PENDIENTE (los mas viejos primero)."""
+    typ, _ = imap.select(f'"{LABEL_PENDIENTE}"')
+    if typ != "OK":
         log.warning("No existe la etiqueta %s en Gmail. No se encontraron emails.", LABEL_PENDIENTE)
         return []
-    return _listar_por_label(token, label_pendiente_id)
+    typ, data = imap.uid("SEARCH", None, "ALL")
+    if typ != "OK" or not data or not data[0]:
+        return []
+    return data[0].split()[:BATCH_SIZE]
 
 
-def _obtener_mensaje(token: str, msg_id: str) -> dict:
-    resp = requests.get(
-        f"{GMAIL_API}/users/me/messages/{msg_id}",
-        headers=_headers(token),
-        params={"format": "full"},
-        timeout=20,
-    )
-    resp.raise_for_status()
-    return resp.json()
+def _obtener_mensaje(imap: imaplib.IMAP4_SSL, uid: bytes) -> EmailMessage:
+    typ, data = imap.uid("FETCH", uid, "(BODY.PEEK[])")
+    if typ != "OK" or not data or not isinstance(data[0], tuple):
+        raise RuntimeError(f"No se pudo descargar el correo uid={uid.decode()}")
+    return email.message_from_bytes(data[0][1], policy=email.policy.default)  # type: ignore[return-value]
 
 
-def _asunto_mensaje(mensaje: dict) -> str:
-    for header in mensaje.get("payload", {}).get("headers", []):
-        if header["name"].lower() == "subject":
-            return header["value"]
-    return ""
+def _asunto_mensaje(mensaje: EmailMessage) -> str:
+    return str(mensaje.get("Subject", "") or "").replace("\r", " ").replace("\n", " ").strip()
 
 
-def _extraer_partes(payload: dict) -> list[dict]:
-    """Aplana recursivamente todas las partes del mensaje MIME."""
-    partes: list[dict] = []
-    if "parts" in payload:
-        for p in payload["parts"]:
-            partes.extend(_extraer_partes(p))
-    else:
-        partes.append(payload)
-    return partes
+def _adjuntos(mensaje: EmailMessage) -> list[tuple[str, bytes]]:
+    """(nombre_archivo, bytes) de cada adjunto del correo."""
+    salida: list[tuple[str, bytes]] = []
+    for parte in mensaje.walk():
+        nombre = parte.get_filename()
+        if not nombre:
+            continue
+        data = parte.get_payload(decode=True)
+        if data is None:
+            continue
+        salida.append((nombre, data))
+    return salida
 
 
-def _descargar_attachment(token: str, msg_id: str, attachment_id: str) -> bytes:
-    resp = requests.get(
-        f"{GMAIL_API}/users/me/messages/{msg_id}/attachments/{attachment_id}",
-        headers=_headers(token),
-        timeout=30,
-    )
-    resp.raise_for_status()
-    data = resp.json().get("data", "")
-    # Gmail API usa base64url
-    return base64.urlsafe_b64decode(data + "==")
-
-
-def _datos_adjunto(token: str, msg_id: str, parte: dict) -> tuple[str, bytes] | None:
-    """Devuelve (nombre_archivo, bytes) o None si la parte no es adjunto."""
-    filename = parte.get("filename", "")
-    if not filename:
-        return None
-    body = parte.get("body", {})
-    att_id = body.get("attachmentId")
-    if att_id:
-        data = _descargar_attachment(token, msg_id, att_id)
-    else:
-        raw = body.get("data", "")
-        if not raw:
-            return None
-        data = base64.urlsafe_b64decode(raw + "==")
-    return filename, data
+def _marcar_procesado(imap: imaplib.IMAP4_SSL, uid: bytes) -> None:
+    """Pone ACCUTAB_PROCESADO y quita ACCUTAB_PENDIENTE (extension X-GM-LABELS de Gmail)."""
+    typ, _ = imap.uid("STORE", uid, "+X-GM-LABELS", f'("{LABEL_PROCESADO}")')
+    if typ != "OK":
+        raise RuntimeError("No se pudo aplicar la etiqueta ACCUTAB_PROCESADO")
+    typ, _ = imap.uid("STORE", uid, "-X-GM-LABELS", f'("{LABEL_PENDIENTE}")')
+    if typ != "OK":
+        raise RuntimeError("No se pudo quitar la etiqueta ACCUTAB_PENDIENTE")
 
 
 # ---------------------------------------------------------------------------
@@ -365,20 +294,19 @@ def _generar_reporte(asunto: str, archivos: dict[str, bytes]) -> bool:
 # ---------------------------------------------------------------------------
 
 def _procesar_email(
-    token: str,
-    msg_id: str,
+    imap: imaplib.IMAP4_SSL,
+    uid: bytes,
     carpetas_existentes: set[str],
-    label_procesado_id: str,
-    label_pendiente_id: str | None,
 ) -> dict:
     """
     Procesa un email AccuTab. Devuelve un dict de resumen con:
       - msg_id, asunto, carpeta, archivos_subidos, ok, error
     """
+    msg_id = uid.decode()
     resultado: dict = {"msg_id": msg_id, "asunto": "", "carpeta": "", "archivos_subidos": [], "ok": False, "error": "", "reporte": False}
 
     try:
-        mensaje = _obtener_mensaje(token, msg_id)
+        mensaje = _obtener_mensaje(imap, uid)
         asunto = _asunto_mensaje(mensaje)
         resultado["asunto"] = asunto
 
@@ -388,12 +316,7 @@ def _procesar_email(
         resultado["carpeta"] = carpeta
         carpeta_r2 = f"{R2_PREFIX}{carpeta}/"
 
-        partes = _extraer_partes(mensaje.get("payload", {}))
-        adjuntos: list[tuple[str, bytes]] = []
-        for parte in partes:
-            adj = _datos_adjunto(token, msg_id, parte)
-            if adj:
-                adjuntos.append(adj)
+        adjuntos = _adjuntos(mensaje)
 
         if not adjuntos:
             log.warning("[%s] Sin adjuntos — carpeta vacia en R2.", asunto[:60])
@@ -427,20 +350,7 @@ def _procesar_email(
         _generar_reporte(asunto, todos_contenidos)
         resultado["reporte"] = True
 
-        modify_body: dict = {
-            "addLabelIds": [label_procesado_id],
-            "removeLabelIds": [],
-        }
-        if label_pendiente_id:
-            modify_body["removeLabelIds"].append(label_pendiente_id)
-
-        resp = requests.post(
-            f"{GMAIL_API}/users/me/messages/{msg_id}/modify",
-            json=modify_body,
-            headers=_headers(token),
-            timeout=15,
-        )
-        resp.raise_for_status()
+        _marcar_procesado(imap, uid)
 
         resultado["ok"] = True
         log.info("OK  [%s] → %s (%d archivo/s, reporte=%s)", asunto[:60], carpeta, len(archivos_subidos), resultado["reporte"])
@@ -464,18 +374,23 @@ def main() -> int:
         return 1
 
     try:
-        token = _access_token()
-    except RuntimeError as exc:
-        log.error("No se pudo obtener token Gmail: %s", exc)
+        imap = _conectar()
+    except (RuntimeError, OSError) as exc:
+        log.error("No se pudo conectar a Gmail: %s", exc)
         return 1
 
-    # Obtener o crear etiquetas
-    label_procesado_id = _obtener_o_crear_label(token, LABEL_PROCESADO)
     try:
-        label_pendiente_id: str | None = _obtener_o_crear_label(token, LABEL_PENDIENTE)
-    except Exception:
-        label_pendiente_id = None
-    log.info("Etiquetas: procesado=%s  pendiente=%s", label_procesado_id, label_pendiente_id)
+        return _ejecutar(imap)
+    finally:
+        try:
+            imap.logout()
+        except Exception:
+            pass
+
+
+def _ejecutar(imap: imaplib.IMAP4_SSL) -> int:
+    _asegurar_label(imap, LABEL_PROCESADO)
+    _asegurar_label(imap, LABEL_PENDIENTE)
 
     # Determinar carpetas ya existentes en R2 (para deduplicacion de nombres)
     keys_existentes = _r2.listar_keys(R2_PREFIX)
@@ -490,7 +405,7 @@ def main() -> int:
     log.info("Carpetas existentes en R2: %d", len(carpetas_existentes))
 
     # Listar mensajes pendientes
-    ids = _listar_mensajes_pendientes(token, label_pendiente_id)
+    ids = _listar_pendientes(imap)
     log.info("Emails pendientes a procesar: %d", len(ids))
 
     if not ids:
@@ -499,7 +414,7 @@ def main() -> int:
 
     resultados = []
     for msg_id in ids:
-        r = _procesar_email(token, msg_id, carpetas_existentes, label_procesado_id, label_pendiente_id)
+        r = _procesar_email(imap, msg_id, carpetas_existentes)
         resultados.append(r)
 
     # Resumen
