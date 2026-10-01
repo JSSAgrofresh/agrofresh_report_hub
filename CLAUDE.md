@@ -456,9 +456,20 @@ tocas una, toca la otra.
   clientes) es pura y se prueba en `features/auditoriaInterna/lib/`. El laboratorio `AGROFRESH` (propio) no entra al panel: su
   resultado llega por el GC, no por un informe externo.
 - **Administración General** (`/admin/administracion-general`, en el menú debajo de
-  Notificaciones, **solo admin general**): ahí vive el **historial de correcciones
-  del Converter** (ver abajo). `GET /api/correcciones` exige admin general; ni quien
-  tiene Auditoría interna lo ve.
+  Notificaciones, **solo admin general**): tiene dos pestañas. **Correcciones del
+  Converter** (ver abajo; las filas parten compactas y se agrandan con un clic):
+  `GET /api/correcciones` exige admin general; ni quien tiene Auditoría interna lo
+  ve. **Listas de distribución** (`app/listas_distribucion.py`, prefijo
+  `/api/listas-distribucion`, solo admin general): exporta a Excel lo que el
+  sistema tiene (`/excel?todas=true` suma las plantas de Listados sin lista), se
+  edita, se sube (`/comparar`, acepta también la hoja «Informes
+  Laboratorios-Pack Line» del maestro) y la pantalla muestra cada cambio (+ agregar,
+  − quitar, ajuste de copia, planta nueva) para **confirmarlo uno por uno**;
+  `/aplicar` solo aplica lo confirmado y deja antes un respaldo
+  `contactos_laboratorio_respaldo_<fecha>.json` junto al original. **Una celda
+  vacía NO quita a nadie**; para sacar a alguien se quita su correo de la celda.
+  Reemplaza a los scripts `importar_contactos_resultado.py` /
+  `auditar_contactos_resultado.py` para el uso diario.
 - **El Converter aprende de las correcciones a mano** (`app/correcciones.py`,
   tabla `correccion_converter`, migración 0045). Los cuatro desplegables del
   catálogo son ahora un **buscador** (sin tildes ni mayúsculas, flechas y
