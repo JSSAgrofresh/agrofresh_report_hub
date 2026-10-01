@@ -3,6 +3,8 @@ export {
   descargarDatosExcel,
   descargarBdExcel,
   obtenerResumenReporte,
+  obtenerFichaInforme,
+  descargarPdfInforme,
   obtenerClientesReporte,
   listarAnalitos,
   crearAnalito,
@@ -12,7 +14,9 @@ export {
   guardarLimite,
   eliminarLimite,
 } from './lib/api'
-export type { FilaReporte, Analito, AnalitoInput, Observacion, LimiteAnalito, LimiteAnalitoInput } from './lib/tipos'
+export type { FilaReporte, Analito, AnalitoInput, Observacion, LimiteAnalito, LimiteAnalitoInput, FichaInforme, FichaResultado } from './lib/tipos'
+export { limiteDeAnalito, estadoResultado } from './lib/estadoResultado'
+export type { LimiteResuelto, EstadoResultado } from './lib/estadoResultado'
 export {
   calcularEstadisticas,
   calcularLimitesControl,
