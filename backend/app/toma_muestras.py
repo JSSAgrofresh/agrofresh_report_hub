@@ -459,6 +459,10 @@ class SolicitudIn(BaseModel):
 
 class Solicitud(SolicitudIn):
     archivo: str
+    # El tope de 50 caracteres rige al CREAR/EDITAR (SolicitudIn). Al LEER no se
+    # vuelve a exigir: una solicitud ya guardada con una observacion mas larga
+    # (la AGF0050 la tenia) dejaba de salir del listado, sin ningun aviso.
+    observacion: str | None = None
     numero_solicitud: str
     fecha_solicitud: str
     creado_en: str
