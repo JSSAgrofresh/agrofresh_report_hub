@@ -49,6 +49,7 @@ const INGREDIENTES = [
   { codigo: 'TBZ', nombre: 'Tiabendazol (simulado)', min: 1.5, central: 3.0, max: 4.5 },
   { codigo: 'DPA', nombre: 'Difenilamina (simulado)', min: 2.0, central: 3.5, max: 5.0 },
   { codigo: 'AZOX', nombre: 'Azoxistrobina (simulado)', min: 0.5, central: 1.1, max: 1.8 },
+  { codigo: 'TEBU', nombre: 'Tebuconazol (simulado)', min: 0.4, central: 0.9, max: 1.6 },
 ] as const
 
 const ESPECIES: { especie: string; variedades: string[]; peso: number }[] = [

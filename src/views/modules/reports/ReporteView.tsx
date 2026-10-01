@@ -599,6 +599,33 @@ export function ReporteView({
       )
     }
 
+    // Una línea tenue por analito, del mismo color que sus puntos, que une sus
+    // resultados de un informe al siguiente en orden de fecha (se salta los
+    // informes donde ese analito no vino). Va DEBAJO de los puntos y de los
+    // conectores, para que se lea la tendencia sin tapar ningún dato.
+    const lineasPorAnalito: Plugin<'line'> = {
+      id: 'lineasPorAnalito',
+      beforeDatasetsDraw(chart) {
+        const { ctx } = chart
+        ctx.save()
+        ctx.globalAlpha = 0.4
+        ctx.lineWidth = 1.5
+        ctx.lineJoin = 'round'
+        ctx.setLineDash([])
+        for (let di = 0; di < nAnalitos; di++) {
+          if (!chart.isDatasetVisible(di)) continue
+          const valores = chart.data.datasets[di].data
+          const puntos = chart.getDatasetMeta(di).data.filter((_, idx) => valores[idx] != null)
+          if (puntos.length < 2) continue
+          ctx.strokeStyle = colorDeIngrediente(analitosGraficados[di])
+          ctx.beginPath()
+          puntos.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)))
+          ctx.stroke()
+        }
+        ctx.restore()
+      },
+    }
+
     // Línea punteada negra que une los analitos de un mismo informe, de abajo
     // hacia arriba, para ver de un golpe cuáles pertenecen a la misma muestra.
     const conectores: Plugin<'line'> = {
@@ -633,7 +660,7 @@ export function ReporteView({
     mainChart.current = new Chart(mainRef.current, {
       type: 'line',
       data: { labels: etiquetas, datasets },
-      plugins: [conectores],
+      plugins: [lineasPorAnalito, conectores],
       options: {
         responsive: true,
         maintainAspectRatio: false,
