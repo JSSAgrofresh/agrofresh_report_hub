@@ -16,6 +16,8 @@ import {
   obtenerEnvioAutomatico,
   actualizarEnvioAutomatico,
   descargarPdfsZip,
+  descargarPdfSolicitud,
+  abrirPdfSolicitud,
   enviarSolicitudPorCorreo,
   estadoSolicitudesPrueba,
   FILTROS_VACIOS,
@@ -27,6 +29,7 @@ import {
 } from '@/features/tomaMuestras'
 import type { ConfigEnvioAutomatico, EstadoFiltro, FiltrosSolicitudes, OpcionConfig, Solicitud } from '@/features/tomaMuestras'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
+import { VistaPrevia } from '@/views/modules/storage/VistaPrevia'
 import { EstadoSolicitud } from './EstadoSolicitud'
 import styles from './SolicitudesView.module.css'
 
@@ -55,6 +58,8 @@ export function SolicitudesView() {
   const [error, setError] = useState<string | null>(null)
   const [filtros, setFiltros] = useState<FiltrosSolicitudes>(FILTROS_VACIOS)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
+  // Solicitud cuyo PDF se está mirando en pantalla (mismo visor que Storage).
+  const [pdfAbierto, setPdfAbierto] = useState<Solicitud | null>(null)
 
   // Toggle de envío automático (solo visible para admin_general)
   // Una regla general y una por tipo de aplicación (Actimist, Línea de proceso…).
@@ -647,12 +652,8 @@ export function SolicitudesView() {
                     <th>N° Solicitud</th>
                     <th>Fecha</th>
                     <th>Laboratorio</th>
-                    <th>Sold To</th>
-                    <th>Ship To</th>
+                    <th>Cliente / Planta</th>
                     <th>Especie</th>
-                    <th>Tipo Aplicación</th>
-                    <th>Tipo Muestra</th>
-                    <th>Generado por</th>
                     <th>Estado</th>
                     <th></th>
                   </tr>
@@ -684,12 +685,11 @@ export function SolicitudesView() {
                       <td>
                         <span className={styles.etiquetaLaboratorio}>{s.laboratorio}</span>
                       </td>
-                      <td>{s.sold_to}</td>
-                      <td>{s.ship_to ?? '—'}</td>
+                      <td className={styles.clientePlanta}>
+                        <span className={styles.clientePrincipal}>{s.ship_to ?? s.sold_to}</span>
+                        {s.ship_to && <span className={styles.clienteSecundario}>{s.sold_to}</span>}
+                      </td>
                       <td>{s.especie ?? '—'}</td>
-                      <td>{s.campos_laboratorio['Tipo Aplicación'] ?? '—'}</td>
-                      <td>{s.tipo_muestra ?? '—'}</td>
-                      <td>{s.generado_por}</td>
                       <td>
                         <EstadoSolicitud s={s} />
                       </td>
@@ -699,6 +699,9 @@ export function SolicitudesView() {
                           onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}
                         >
                           Ver
+                        </button>
+                        <button className={styles.boton} onClick={() => setPdfAbierto(s)}>
+                          PDF
                         </button>
                         {puedeEliminar && (
                           <button className={styles.botonEliminar} onClick={() => onEliminar(s)}>
@@ -767,6 +770,9 @@ export function SolicitudesView() {
                     >
                       Ver
                     </button>
+                    <button className={styles.botonTarjetaVer} onClick={() => setPdfAbierto(s)}>
+                      PDF
+                    </button>
                     {puedeEliminar && (
                       <button className={styles.botonTarjetaEliminar} onClick={() => onEliminar(s)}>
                         Eliminar
@@ -779,6 +785,20 @@ export function SolicitudesView() {
           </div>
         )}
       </Card>
+      {pdfAbierto && (
+        <VistaPrevia
+          entrada={{
+            nombre: `${pdfAbierto.numero_solicitud}.pdf`,
+            ruta: pdfAbierto.archivo,
+            tipo: 'archivo',
+            tamano_bytes: null,
+            modificado: '',
+          }}
+          abrir={abrirPdfSolicitud}
+          onDescargar={() => void descargarPdfSolicitud(pdfAbierto.archivo)}
+          onCerrar={() => setPdfAbierto(null)}
+        />
+      )}
     </div>
   )
 }
