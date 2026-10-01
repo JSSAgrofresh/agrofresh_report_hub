@@ -548,6 +548,8 @@ export function ReporteView({
   const colorWarning = cssVar('--color-warning', '#b4531f')
   const colorMuted = cssVar('--color-text-faint', '#77837b')
   const colorBorder = cssVar('--color-border', '#e1e5dc')
+  const colorSuperficie = cssVar('--color-surface', '#ffffff')
+  const colorTexto = cssVar('--color-text', '#1b2a20')
 
   // Gráfico central: una columna por informe (la fecha se repite tantas veces
   // como informes haya ese día) y sus analitos uno sobre otro según el ppm,
@@ -563,6 +565,10 @@ export function ReporteView({
     if (!mainRef.current) return
     const etiquetas = informes.map((i) => (i.fecha ? formatDateCL(i.fecha) : 'Sin fecha'))
     const nAnalitos = analitosGraficados.length
+    // Todas las fechas, cada una UNA vez: la etiqueta va en la primera columna del
+    // día y las demás columnas de ese día quedan sin texto. Esas primeras columnas
+    // también marcan el inicio de cada fecha con una línea de fondo muy suave.
+    const inicioDeFecha = etiquetas.map((e, i) => i === 0 || e !== etiquetas[i - 1])
 
     const datasets: ChartDataset<'line', (number | null)[]>[] = analitosGraficados.map((ingrediente) => {
       const color = colorDeIngrediente(ingrediente)
@@ -573,9 +579,17 @@ export function ReporteView({
         backgroundColor: color,
         borderWidth: 0,
         showLine: false,
-        pointRadius: 4.5,
-        pointHoverRadius: 6.5,
-        pointHitRadius: 8,
+        // Grandes y con un aro del color de la tarjeta: se leen bien aunque se
+        // solapen, y se distingue a qué columna (fecha) pertenece cada uno.
+        pointRadius: 7,
+        pointHoverRadius: 10,
+        pointHitRadius: 10,
+        pointBackgroundColor: color,
+        pointBorderColor: colorSuperficie,
+        pointBorderWidth: 2,
+        pointHoverBackgroundColor: color,
+        pointHoverBorderColor: colorSuperficie,
+        pointHoverBorderWidth: 2.5,
       }
     })
 
@@ -628,6 +642,51 @@ export function ReporteView({
       },
     }
 
+    // Línea guía: cruza el gráfico de arriba abajo por la columna (informe) que
+    // está bajo el mouse, para saber con certeza a qué fecha pertenece cada punto.
+    // Va debajo de los puntos.
+    const lineaGuia: Plugin<'line'> = {
+      id: 'lineaGuia',
+      beforeDatasetsDraw(chart) {
+        const activo = chart.tooltip?.getActiveElements()?.[0]
+        if (!activo) return
+        const { ctx, chartArea } = chart
+        ctx.save()
+        ctx.beginPath()
+        ctx.moveTo(activo.element.x, chartArea.top)
+        ctx.lineTo(activo.element.x, chartArea.bottom)
+        ctx.lineWidth = 1.5
+        ctx.strokeStyle = colorMuted
+        ctx.globalAlpha = 0.7
+        ctx.stroke()
+        ctx.restore()
+      },
+      // La fecha de la columna, en una etiqueta arriba de la guía.
+      afterDatasetsDraw(chart) {
+        const activo = chart.tooltip?.getActiveElements()?.[0]
+        const texto = activo ? etiquetas[activo.index] : null
+        if (!activo || !texto) return
+        const { ctx, chartArea } = chart
+        ctx.save()
+        ctx.font = '600 11px sans-serif'
+        const ancho = ctx.measureText(texto).width + 14
+        const x = Math.min(Math.max(activo.element.x - ancho / 2, chartArea.left), chartArea.right - ancho)
+        const y = chartArea.top + 4
+        ctx.fillStyle = colorSuperficie
+        ctx.strokeStyle = colorMuted
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.roundRect(x, y, ancho, 20, 6)
+        ctx.fill()
+        ctx.stroke()
+        ctx.fillStyle = colorTexto
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(texto, x + ancho / 2, y + 10.5)
+        ctx.restore()
+      },
+    }
+
     // Línea punteada negra que une los analitos de un mismo informe, de abajo
     // hacia arriba, para ver de un golpe cuáles pertenecen a la misma muestra.
     const conectores: Plugin<'line'> = {
@@ -662,11 +721,12 @@ export function ReporteView({
     mainChart.current = new Chart(mainRef.current, {
       type: 'line',
       data: { labels: etiquetas, datasets },
-      plugins: [lineasPorAnalito, conectores],
+      plugins: [lineaGuia, lineasPorAnalito, conectores],
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        interaction: { mode: 'nearest', intersect: true },
+        // Por columna: basta pasar el mouse cerca para ver la guía y todos los analitos del informe.
+        interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: {
             position: 'bottom',
@@ -679,7 +739,10 @@ export function ReporteView({
             },
           },
           tooltip: {
-            filter: (item: TooltipItem<'line'>) => item.raw != null,
+            filter: (item: TooltipItem<'line'>) => item.raw != null && item.datasetIndex < nAnalitos,
+            // Más opaco y separado de los puntos: no esconde ni deja ver las curvas de atrás.
+            backgroundColor: 'rgba(28, 36, 32, 0.94)',
+            caretPadding: 14,
             callbacks: {
               title: (items) => {
                 const inf = informes[items[0]?.dataIndex ?? -1]
@@ -690,10 +753,19 @@ export function ReporteView({
           },
         },
         scales: {
-          // Fechas en vertical: así caben todas aunque el día se repita.
+          // Fechas en vertical y TODAS (sin saltarse ninguna): una etiqueta por día.
           x: {
-            ticks: { autoSkip: true, autoSkipPadding: 6, font: { size: 10 }, maxRotation: 90, minRotation: 90 },
-            grid: { display: false },
+            ticks: {
+              autoSkip: false,
+              font: { size: 10 },
+              maxRotation: 90,
+              minRotation: 90,
+              callback: (_valor, i) => (inicioDeFecha[i] ? etiquetas[i] : ''),
+            },
+            grid: {
+              display: true,
+              color: (c) => (inicioDeFecha[c.index] ? colorBorder : 'transparent'),
+            },
           },
           y: {
             beginAtZero: true,
@@ -702,9 +774,11 @@ export function ReporteView({
             title: { display: true, text: unidad, font: { size: 11 }, color: colorMuted },
           },
         },
-        onClick: (_evt, elements) => {
-          if (!elements.length) return
-          const { datasetIndex, index } = elements[0]
+        onClick: (evt, _elements, chart) => {
+          // La interacción es por columna, pero el informe se abre solo al hacer clic sobre un punto.
+          const sobrePunto = chart.getElementsAtEventForMode(evt as unknown as Event, 'nearest', { intersect: true }, true)
+          if (!sobrePunto.length) return
+          const { datasetIndex, index } = sobrePunto[0]
           if (datasetIndex >= nAnalitos) return
           const inf = informes[index]
           if (inf) setDetalle({ titulo: `${inf.nroSolicitud} · ${etiquetas[index]}`, filas: inf.puntos })
@@ -722,6 +796,8 @@ export function ReporteView({
     colorWarning,
     colorMuted,
     colorBorder,
+    colorSuperficie,
+    colorTexto,
     unidad,
   ])
 
@@ -766,7 +842,6 @@ export function ReporteView({
   const ingredienteRef = useRef<HTMLCanvasElement>(null)
   const especieChart = useRef<Chart | null>(null)
   const ingredienteChart = useRef<Chart | null>(null)
-  const colorSuperficie = cssVar('--color-surface', '#ffffff')
 
   useEffect(() => {
     if (!especieRef.current) return

@@ -361,8 +361,12 @@ tocas una, toca la otra.
   `ReporteLaboratorioView`; el cliente, por `ClienteDashboardView`.
 - **Tablero de Report (residual)**: arriba «Informes de análisis» y **«Promedios
   por analito»** (un promedio por analito, cada uno con su color; nunca se
-  mezclan). Luego un solo gráfico grande: **una columna por informe** (la fecha
-  se repite tantas veces como informes haya ese día, en vertical), los analitos
+  mezclan). Luego un solo gráfico grande: **una columna por informe** (el eje
+  muestra TODAS las fechas, cada una una sola vez, en la primera columna de ese día, con
+  una línea de fondo suave que marca dónde empieza cada fecha; puntos grandes con aro; al
+  pasar el mouse por una columna sale una **línea guía vertical** con la fecha arriba y un
+  tooltip con todos los analitos de ese informe, y el clic abre el informe solo si se hace
+  sobre un punto), los analitos
   uno sobre otro según su ppm y unidos por una **línea punteada negra**
   (`conectoresInforme`). Además cada analito lleva una **curva tenue de su mismo color** que une sus puntos de un informe al
   siguiente en orden de fecha (`lineasPorAnalito` en `ReporteView.tsx`, debajo de los
