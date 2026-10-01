@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from . import informes_storage
+from . import indice_solicitudes, informes_storage
 from . import r2
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
@@ -1073,6 +1073,12 @@ class SolicitudOut(BaseModel):
     # formulario: se llena solo con el instante del cruce.
     fecha_recepcion: str | None = None
     hora_recepcion: str | None = None
+    # Lo que se anotó al cruzar: peso de la muestra, quién la recibió y si hay
+    # foto (la foto se pide aparte, por `/toma-muestras/.../cruce-foto`).
+    peso_muestra: float | None = None
+    unidad_peso: str | None = None
+    cruzado_por_nombre: str | None = None
+    tiene_foto: bool = False
 
 
 def _partir_recepcion(valor: str | None) -> tuple[str | None, str | None]:
@@ -1143,6 +1149,7 @@ def listar_solicitudes() -> list[SolicitudOut]:
 
     # R2 o disco según cómo esté levantado el sistema: lo resuelve
     # `leer_solicitudes_de`, no este módulo.
+    con_foto = indice_solicitudes.archivos_con_foto()
     for nombre, datos in leer_solicitudes_de(LABORATORIO_SOLICITUDES):
         # Las solicitudes de prueba no llegan al laboratorio.
         if datos.get("es_prueba"):
@@ -1156,6 +1163,10 @@ def listar_solicitudes() -> list[SolicitudOut]:
                 codigo_muestra=datos.get("codigo_muestra"),
                 fecha_recepcion=fecha_recepcion,
                 hora_recepcion=hora_recepcion,
+                peso_muestra=datos.get("peso_muestra"),
+                unidad_peso=datos.get("unidad_peso"),
+                cruzado_por_nombre=datos.get("cruzado_por_nombre"),
+                tiene_foto=nombre in con_foto,
             )
         )
 
@@ -1201,6 +1212,10 @@ def solicitud_por_numero(numero: str) -> SolicitudOut:
             codigo_muestra=datos.get("codigo_muestra"),
             fecha_recepcion=fecha_recepcion,
             hora_recepcion=hora_recepcion,
+            peso_muestra=datos.get("peso_muestra"),
+            unidad_peso=datos.get("unidad_peso"),
+            cruzado_por_nombre=datos.get("cruzado_por_nombre"),
+            tiene_foto=nombre in indice_solicitudes.archivos_con_foto(),
         )
     raise HTTPException(404, f'No existe la solicitud "{numero}" en el sistema.')
 
