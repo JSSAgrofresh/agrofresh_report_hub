@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { descargarExcelConMuestra, filtrarPorFolio } from '@/features/emitir'
+import { descargarExcelConMuestra, filtrarPorFolio, guardarPesoExtraido } from '@/features/emitir'
+import { EliminarConClave } from '@/components/ui/EliminarConClave'
 import { descargarPdfsZip } from '@/features/tomaMuestras'
 import { Modal } from '@/components/ui/Modal'
 import { guardarBlob } from '@/services/http/descargar'
@@ -34,7 +35,9 @@ const ETIQUETA: Record<Filtro, string> = {
 interface TablaSolicitudesProps {
   solicitudes: Solicitud[] | null
   onVerFicha: (solicitud: Solicitud) => void
-  onQuitarCruce: (solicitud: Solicitud) => void
+  /** Solo el administrador principal puede quitar una muestra (pide su clave). */
+  puedeQuitarCruce?: boolean
+  onQuitarCruce: (solicitud: Solicitud) => Promise<void> | void
   /** Se llamó después de corregir un cruce: hay que recargar la lista. */
   onCruceEditado: () => void | Promise<void>
 }
@@ -47,7 +50,56 @@ interface TablaSolicitudesProps {
  * llegó y está esperando su resultado; blanca, que todavía no. Con eso se ve
  * de un vistazo qué falta por recibir, sin leer ninguna columna.
  */
-export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce, onCruceEditado }: TablaSolicitudesProps) {
+/**
+ * El segundo peso (muestra extraída, en gramos). Se anota apenas la muestra
+ * está cruzada y queda guardado en la solicitud; se puede corregir después.
+ */
+function PesoExtraido({ solicitud, onGuardado }: { solicitud: Solicitud; onGuardado: () => void | Promise<void> }) {
+  const guardado = solicitud.peso_muestra_extraido ?? null
+  const [borrador, setBorrador] = useState(guardado === null ? '' : String(guardado))
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const numero = parseFloat(borrador.replace(',', '.'))
+  const valido = Number.isFinite(numero) && numero > 0
+  const cambio = valido && numero !== guardado
+
+  async function guardar() {
+    if (!cambio) return
+    setGuardando(true)
+    setError(null)
+    try {
+      await guardarPesoExtraido(solicitud.archivo, numero)
+      await onGuardado()
+    } catch {
+      setError('No se pudo guardar.')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <div className={styles.pesoExtraido}>
+      <input
+        type="number"
+        inputMode="decimal"
+        step="0.0001"
+        min="0"
+        placeholder="ej. 5.0250"
+        aria-label={`Segundo peso (extraído) de ${solicitud.codigo_muestra ?? solicitud.archivo} en gramos`}
+        className={styles.inputPeso}
+        value={borrador}
+        disabled={guardando}
+        onChange={(e) => setBorrador(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && void guardar()}
+        onBlur={() => void guardar()}
+      />
+      <span className={styles.unidad}>g</span>
+      {error && <span className={styles.errorPeso} role="alert">{error}</span>}
+    </div>
+  )
+}
+
+export function TablaSolicitudes({ solicitudes, onVerFicha, puedeQuitarCruce = false, onQuitarCruce, onCruceEditado }: TablaSolicitudesProps) {
   const [enFoto, setEnFoto] = useState<Solicitud | null>(null)
   const [enEdicion, setEnEdicion] = useState<Solicitud | null>(null)
   const [filtro, setFiltro] = useState<Filtro>('todas')
@@ -222,6 +274,7 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce, onCru
               <th>Tipo</th>
               <th>N° Muestra</th>
               <th>Peso</th>
+              <th>Peso extraído</th>
               <th>Foto</th>
               <th>Fecha recepción</th>
               <th>Hora recepción</th>
@@ -235,7 +288,7 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce, onCru
           </thead>
           <tbody>
             {visibles.map((s) => (
-              <tr key={s.archivo} className={s.codigo_muestra ? styles.lista : undefined}>
+              <tr key={s.archivo} className={!s.codigo_muestra ? undefined : s.peso_muestra_extraido != null ? styles.listaCompleta : styles.lista}>
                 <td className={styles.folio}>{s.campos['N° Solicitud'] || s.archivo}</td>
                 <td>
                   {s.campos['Tipo Muestra']
@@ -249,6 +302,13 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce, onCru
                   {s.peso_muestra != null
                     ? <>{s.peso_muestra} <span className={styles.unidad}>{s.unidad_peso ?? 'kg'}</span></>
                     : '—'}
+                </td>
+                <td>
+                  {s.codigo_muestra ? (
+                    <PesoExtraido key={`${s.archivo}|${s.peso_muestra_extraido ?? ''}`} solicitud={s} onGuardado={onCruceEditado} />
+                  ) : (
+                    <span className={styles.pendiente}>—</span>
+                  )}
                 </td>
                 <td>
                   {s.tiene_foto ? (
@@ -281,17 +341,20 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, onQuitarCruce, onCru
                       Editar cruce
                     </button>
                   )}
-                  {s.codigo_muestra && (
-                    <button type="button" className={styles.boton} onClick={() => onQuitarCruce(s)}>
-                      Quitar muestra
-                    </button>
+                  {s.codigo_muestra && puedeQuitarCruce && (
+                    <EliminarConClave
+                      etiqueta="Quitar muestra"
+                      titulo={`Quitar la muestra ${s.codigo_muestra}`}
+                      descripcion={`Se deshace el cruce de ${s.campos['N° Solicitud'] || s.archivo}: pierde su peso extraído y vuelve a «esperando muestra».`}
+                      onConfirmar={() => onQuitarCruce(s)}
+                    />
                   )}
                 </td>
               </tr>
             ))}
             {visibles.length === 0 && (
               <tr>
-                <td colSpan={13} className={styles.vacio}>
+                <td colSpan={14} className={styles.vacio}>
                   {solicitudes === null
                     ? 'Cargando…'
                     : buscar

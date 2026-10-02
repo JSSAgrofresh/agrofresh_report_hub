@@ -9,6 +9,7 @@ export {
   guardarConfiguracionInforme,
   subirCruceABaseDeDatos,
   cruzarConMuestra,
+  guardarPesoExtraido,
   cruzarCompleto,
   editarCruce,
   obtenerFotoCruce,

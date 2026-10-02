@@ -328,3 +328,18 @@ def test_la_base_con_muestra_trae_la_lista_de_distribucion_de_resultados(monkeyp
     assert fila["Lista de Distribución (Para)"] == "cliente@dole.cl; otro@dole.cl"
     assert fila["Lista de Distribución (CC)"] == "comercial@agrofresh.com"
     assert fila["Lista de Distribución (CCO)"] == "tecnico@agrofresh.com"
+
+
+def test_excel_con_muestra_trae_el_peso_extraido_en_su_columna():
+    from app.emitir import FilaConMuestraIn
+
+    def valores(peso):
+        ws = _endpoint_con_muestra([FilaConMuestraIn(
+            campos={"N° Solicitud": "OT-AGF0050"}, analitos_solicitados=[],
+            codigo_muestra="AGF0001", peso_muestra_extraido=peso,
+        )])
+        headers = [ws.cell(row=2, column=c).value for c in range(1, ws.max_column + 1)]
+        return dict(zip(headers, [ws.cell(row=3, column=c).value for c in range(1, ws.max_column + 1)]))
+
+    assert valores(5.025)["Peso Muestra Extraída (g)"] == 5.025
+    assert valores(None)["Peso Muestra Extraída (g)"] is None

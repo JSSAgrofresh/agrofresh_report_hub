@@ -337,6 +337,17 @@ antes y el después; la foto anterior se conserva, solo deja de ser la activa.
 siempre «—»). **Las fotos se bajan con `FotoCruce`** (blob con el token): un
 `<img src>` directo al backend no lleva la sesión y da 401.
 
+**Segundo peso (muestra extraída, g)** (migración 0048, columnas `peso_extraido*` de
+`solicitud_archivo`): se anota en la tabla de Ingreso de muestras apenas la fila está
+cruzada (`PUT /toma-muestras/solicitudes/{archivo}/peso-extraido`, queda en
+`lab_actividad`). La fila es verde tenue al cruzar y verde fuerte con el peso guardado.
+Sale en «Descargar con muestra», en la BD de Report (`Peso Muestra Extraída (g)`, está en
+`GENERALES_BASE`) y en el informe; la sección 2 (Resultados del GC) ya no lo pide, solo lo
+lee. Descruzar lo borra. Sin la 0048 corrida todo sigue y el peso sale vacío (503 al guardar).
+**Quitar muestra** (descruzar) y **Eliminar solicitud** son solo de
+`jorge.sandoval@agrofresh.com`: botón de marco punteado que pide la contraseña
+(`components/ui/EliminarConClave`, `/auth/verificar-clave`); el backend lo exige también.
+
 ## Solicitudes de prueba
 
 Las pruebas llevan **su propia serie de folios**, `OTP-<prefijo><NNNN>` (OTP-DIAG0001,

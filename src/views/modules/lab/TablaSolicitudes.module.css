@@ -94,6 +94,42 @@
   background: #eef6e5;
 }
 
+/* Con el segundo peso ya guardado: el verde sube de intensidad. */
+.listaCompleta td {
+  background: #cfe6b8;
+}
+
+.listaCompleta .muestra {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.listaCompleta .chip { background: #fff; }
+
+.pesoExtraido {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inputPeso {
+  width: 96px;
+  padding: 4px 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-family: var(--font-mono, monospace);
+  text-align: right;
+  background: #fff;
+}
+
+.inputPeso:focus { outline: 2px solid var(--color-primary); border-color: transparent; }
+
+.errorPeso {
+  font-size: 11px;
+  color: var(--color-danger, #b3261e);
+}
+
 .lista .muestra {
   color: var(--color-primary);
   font-weight: 700;

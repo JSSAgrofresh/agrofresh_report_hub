@@ -16,6 +16,11 @@ vi.mock('@/features/emitir', async (importOriginal) => ({
   cruzarConMuestra: vi.fn(),
 }))
 
+vi.mock('@/features/auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/auth')>()),
+  useAuth: () => ({ user: null }),
+}))
+
 function vial(codigo: string, esMuestra: boolean): MuestraGCDetalle {
   return {
     codigo,
