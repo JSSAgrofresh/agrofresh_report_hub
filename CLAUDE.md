@@ -488,8 +488,8 @@ tocas una, toca la otra.
   (`datos.campos_laboratorio`: Actimist / Línea de proceso) y los **analitos** son
   `datos.analitos_solicitados`; `/solicitudes` los devuelve. En el gráfico por
   cliente, «informes» = informes **concretados**. La lógica (filtros, donas,
-  clientes) es pura y se prueba en `features/auditoriaInterna/lib/`. El laboratorio `AGROFRESH` (propio) no entra al panel: su
-  resultado llega por el GC, no por un informe externo.
+  clientes) es pura y se prueba en `features/auditoriaInterna/lib/`. El laboratorio `AGROFRESH` (propio) **sí entra** al panel y a
+  las OT candidatas de Converter (antes se filtraba y su informe subido no se veía).
 - **Administración General** (`/admin/administracion-general`, en el menú debajo de
   Notificaciones, **solo admin general**): tiene dos pestañas. **Correcciones del
   Converter** (ver abajo; las filas parten compactas y se agrandan con un clic):
