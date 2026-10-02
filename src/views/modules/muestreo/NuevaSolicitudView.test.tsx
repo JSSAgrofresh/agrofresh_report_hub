@@ -666,7 +666,8 @@ describe('NuevaSolicitudView — RYD de AgroFresh', () => {
     actualizarSolicitud.mockClear()
     mockConfigRyd()
     const solicitud = solicitudBase({
-      posicion_muestreo: 'Entrada, Salida',
+      posicion_muestreo: 'Hidrocooler, Pozo vaciado',
+      tipo_muestra: 'Agua',
       campos_laboratorio: {
         'Fludioxonil (ppm)': '25',
         'Tipo Aplicación': 'RYD',
@@ -686,18 +687,18 @@ describe('NuevaSolicitudView — RYD de AgroFresh', () => {
       </MemoryRouter>,
     )
 
-    await waitFor(() => expect(screen.getByDisplayValue('Entrada')).toBeTruthy())
-    expect(screen.getByDisplayValue('Salida')).toBeTruthy()
+    await waitFor(() => expect(screen.getByDisplayValue('Hidrocooler')).toBeTruthy())
+    expect(screen.getByDisplayValue('Pozo vaciado')).toBeTruthy()
     expect(screen.getByDisplayValue('ENS-1')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: '+ Agregar posición' }))
-    fireEvent.change(screen.getByLabelText('Posición de muestreo 3'), { target: { value: 'Centro' } })
+    fireEvent.change(screen.getByLabelText('Posición de muestreo 3'), { target: { value: 'Cortapedicelo' } })
     fireEvent.click(screen.getByRole('button', { name: 'Quitar posición 1' }))
     fireEvent.click(screen.getByRole('button', { name: /^Guardar/ }))
 
     await waitFor(() => expect(actualizarSolicitud).toHaveBeenCalledTimes(1))
     const payload = actualizarSolicitud.mock.calls[0][1]
-    expect(payload.posicion_muestreo).toBe('Salida, Centro')
+    expect(payload.posicion_muestreo).toBe('Pozo vaciado, Cortapedicelo')
     expect(payload.campos_laboratorio['Código de Ensayo']).toBe('ENS-1')
     expect(payload.campos_laboratorio['N° Ensayo']).toBe('42')
   })
