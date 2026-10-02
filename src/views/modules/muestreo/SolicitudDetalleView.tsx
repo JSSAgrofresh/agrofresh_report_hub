@@ -110,6 +110,8 @@ export function SolicitudDetalleView() {
   const [emailEnvio, setEmailEnvio] = useState('')
   const [invitados, setInvitados] = useState<string[]>([])
   const [enviando, setEnviando] = useState(false)
+  // Solicitudes de prueba: por defecto el correo NO va a la lista real.
+  const [soloAEstos, setSoloAEstos] = useState(true)
   const [mensajeEnvio, setMensajeEnvio] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [contactosLab, setContactosLab] = useState<string[] | null>(null)
   // Copias configuradas en Contacto laboratorio (CC / CCO): se muestran para
@@ -272,11 +274,13 @@ export function SolicitudDetalleView() {
     const pendientes = agregarInvitados(emailEnvio)
     if (pendientes === null) return
     const destinatariosExtra = pendientes
-    if ((contactosLab?.length ?? 0) + destinatariosExtra.length === 0) return
+    // «Solo a estos» sin nadie escrito = enviármelo a mí (lo resuelve el backend).
+    const ensayo = Boolean(solicitud?.es_prueba) && soloAEstos
+    if (!ensayo && (contactosLab?.length ?? 0) + destinatariosExtra.length === 0) return
     setEnviando(true)
     setMensajeEnvio(null)
     try {
-      const res = await enviarSolicitudPorCorreo(archivo, destinatariosExtra)
+      const res = await enviarSolicitudPorCorreo(archivo, destinatariosExtra, ensayo)
       setMensajeEnvio({ tipo: 'ok', texto: res.ok })
       setEmailEnvio('')
       setInvitados([])
@@ -308,6 +312,8 @@ export function SolicitudDetalleView() {
     setMensajeEnvio(null)
     return nuevos
   }
+
+  const ensayoActivo = Boolean(solicitud?.es_prueba) && soloAEstos
 
   if (error) {
     return (
@@ -470,10 +476,30 @@ export function SolicitudDetalleView() {
             Enviar PDF y Excel · {solicitud.laboratorio}
           </label>
           <p className={styles.descripcionEnvio}>
-            Contactos configurados para recibir solicitudes. Puedes sumar invitados para este envío.
+            {ensayoActivo
+              ? 'Solicitud de prueba: el correo NO va a la lista real.'
+              : 'Contactos configurados para recibir solicitudes. Puedes sumar invitados para este envío.'}
           </p>
 
-          {contactosLab === null ? (
+          {solicitud.es_prueba && (
+            <label className={styles.opcionEnsayo}>
+              <input
+                type="checkbox"
+                checked={soloAEstos}
+                onChange={e => setSoloAEstos(e.target.checked)}
+                disabled={enviando}
+              />
+              Enviar solo a mí o a quien escriba (no a la lista real)
+            </label>
+          )}
+
+          {ensayoActivo ? (
+            <p className={styles.notaEnvio}>
+              {invitados.length === 0 && !emailEnvio.trim()
+                ? 'Sin nadie escrito, se envía solo a tu correo. La solicitud no queda marcada como enviada.'
+                : 'Se envía solo a las direcciones que escribas, sin copias. La solicitud no queda marcada como enviada.'}
+            </p>
+          ) : contactosLab === null ? (
             <p className={styles.notaEnvio}>Buscando los contactos del laboratorio…</p>
           ) : contactosLab.length > 0 ? (
             <div className={styles.destinatarios}>
@@ -541,13 +567,15 @@ export function SolicitudDetalleView() {
             <button
               className={styles.botonEnviarConfirmar}
               onClick={handleEnviar}
-              disabled={enviando || ((contactosLab?.length ?? 0) + invitados.length === 0 && !emailEnvio.trim())}
+              disabled={enviando || (!ensayoActivo && (contactosLab?.length ?? 0) + invitados.length === 0 && !emailEnvio.trim())}
             >
               {enviando
                 ? 'Enviando…'
                 : emailEnvio.trim()
                   ? 'Agregar invitado y enviar'
-                  : `Enviar a ${(contactosLab?.length ?? 0) + invitados.length} contacto${(contactosLab?.length ?? 0) + invitados.length === 1 ? '' : 's'}`}
+                  : ensayoActivo
+                    ? (invitados.length === 0 ? 'Enviarme a mí' : `Enviar a ${invitados.length} correo${invitados.length === 1 ? '' : 's'}`)
+                    : `Enviar a ${(contactosLab?.length ?? 0) + invitados.length} contacto${(contactosLab?.length ?? 0) + invitados.length === 1 ? '' : 's'}`}
             </button>
             <button
               className={styles.botonCancelar}

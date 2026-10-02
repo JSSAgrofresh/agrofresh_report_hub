@@ -341,8 +341,14 @@ Toma de muestras → Solicitudes.
 - La marca es `es_prueba` dentro de `datos` (hoja `_data` del Excel + jsonb
   del índice): **no hay migración**, y sobrevive a editar y a reindexar.
 - **Nunca se envían solas** (ni al crear ni al editar, aunque el envío
-  automático esté prendido): se envían a mano desde el detalle, a los
-  contactos reales, con **«(PRUEBA)»** al inicio del asunto.
+  automático esté prendido): se envían a mano desde el detalle con
+  **«(PRUEBA)»** al inicio del asunto. El panel de envío trae la casilla
+  **«Enviar solo a mí o a quien escriba (no a la lista real)»**, marcada por
+  defecto (`solo_a_estos` en `EnvioSolicitudIn`): va solo a las direcciones
+  escritas, o a quien aprieta enviar si no escribe ninguna, sin lista real, sin
+  copias ni CCO, y **no marca la solicitud como enviada** (se puede repetir).
+  Desmarcada, va a los contactos reales como antes. El backend rechaza
+  `solo_a_estos` en una solicitud que no es de prueba (400).
 - No notifican, no aparecen en el Ingreso al laboratorio (`emitir.py`) ni se
   les puede pedir reanálisis. En el listado llevan la etiqueta PRUEBA.
 
@@ -492,6 +498,14 @@ tocas una, toca la otra.
   las OT candidatas de Converter (antes se filtraba y su informe subido no se veía).
   Su «Tipo Aplicación» es **RYD**: es un tercer tipo de servicio (`TIPO_RYD`, naranjo)
   con su dona, su grupo en la tabla dinámica y su botón en el gráfico por cliente.
+  **Las donas y la cifra de arriba muestran solo dos estados**: «Informes Recibidos»
+  (concretadas) y «Solicitudes enviadas» (`ESTADOS_DONA`); el «PDF sin Report» no se
+  muestra aparte, se suma a las enviadas. **El título de la tabla dinámica** lleva un
+  campo por cada filtro del panel («Todos los clientes», «Todas las sucursales»…, o el
+  valor elegido; `camposTituloTabla`).
+- **El PDF de la solicitud de ALS y Diagnofruit no lleva la tabla «Analito solicitado /
+  Dosis»**: la sección 3 solo nombra el análisis (`_LABS_SOLO_ANALISIS` en
+  `toma_muestras_pdf.py`); los demás laboratorios la conservan.
 - **Administración General** (`/admin/administracion-general`, en el menú debajo de
   Notificaciones, **solo admin general**): tiene dos pestañas. **Correcciones del
   Converter** (ver abajo; las filas parten compactas y se agrandan con un clic):

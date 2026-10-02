@@ -265,6 +265,16 @@
   line-height: 1;
 }
 
+.opcionEnsayo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5d477f;
+  cursor: pointer;
+}
+
 .inputEmail {
   flex: 1;
   min-width: 200px;

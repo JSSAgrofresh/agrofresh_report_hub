@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { LABS_PIVOTE, TIPOS_PIVOTE, pivotePorMes } from '@/features/auditoriaInterna'
-import type { CeldaLab, FilaPivote, SolicitudAuditoria } from '@/features/auditoriaInterna'
+import { LABS_PIVOTE, TIPOS_PIVOTE, camposTituloTabla, pivotePorMes } from '@/features/auditoriaInterna'
+import type { CeldaLab, FilaPivote, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { colorDeTipo } from './coloresTipo'
 import styles from './TablaDinamica.module.css'
 
@@ -41,7 +41,7 @@ function Reparto({ c }: { c: CeldaLab }) {
  * grupos (Línea de proceso, Actimist), cada uno con la cantidad de Quiteca y de
  * Agrofresh y cómo se reparten en %. El cambio mes ↔ semana desliza las filas.
  */
-export function TablaDinamica({ solicitudes }: { solicitudes: SolicitudAuditoria[] }) {
+export function TablaDinamica({ solicitudes, filtros }: { solicitudes: SolicitudAuditoria[]; filtros: FiltrosSolicitudes }) {
   const pivote = useMemo(() => pivotePorMes(solicitudes), [solicitudes])
   const [mes, setMes] = useState<string | null>(null)
   const [sentido, setSentido] = useState<'entra' | 'vuelve'>('entra')
@@ -94,6 +94,11 @@ export function TablaDinamica({ solicitudes }: { solicitudes: SolicitudAuditoria
             )}
           </nav>
           <h3>{mesActual ? `Semanas de ${mesActual.etiqueta}` : 'Análisis por mes'}</h3>
+          <p className={styles.alcance} aria-label="Filtros de la tabla">
+            {camposTituloTabla(filtros).map((c, i) => (
+              <span key={i}>{c}</span>
+            ))}
+          </p>
           <p>
             {mesActual
               ? 'Cuántos análisis hizo cada laboratorio en cada semana (de lunes a domingo).'

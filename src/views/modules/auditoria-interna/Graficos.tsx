@@ -12,7 +12,7 @@ import {
 } from 'chart.js'
 import type { Plugin, ScriptableContext } from 'chart.js'
 import type { ClienteServicio, LaboratorioResumen, Totales } from '@/features/auditoriaInterna'
-import { ESTADOS, ORDEN_ESTADOS } from './estados'
+import { ESTADOS, ESTADOS_DONA, ORDEN_ESTADOS } from './estados'
 import { colorDeTipo, tonosDeTipo } from './coloresTipo'
 import styles from './Graficos.module.css'
 
@@ -56,16 +56,18 @@ const TOOLTIP = {
  * tipo y el estado se lee por el tono; el % del centro es lo concretado. */
 export function DonaTipoServicio({ tipo, resumen }: { tipo: string; resumen: Totales }) {
   const tonos = tonosDeTipo(tipo)
+  // El PDF sin Report no se muestra aparte: cuenta como solicitud enviada.
+  const enviadas = resumen.pendientes + resumen.sinReport
   const ref = useGrafico(
     (canvas) =>
       new Chart(canvas, {
         type: 'doughnut',
         data: {
-          labels: ORDEN_ESTADOS.map((e) => ESTADOS[e].texto),
+          labels: ESTADOS_DONA.map((e) => ESTADOS[e].texto),
           datasets: [
             {
-              data: [resumen.concretadas, resumen.sinReport, resumen.pendientes],
-              backgroundColor: ORDEN_ESTADOS.map((e) => tonos[e]),
+              data: [resumen.concretadas, enviadas],
+              backgroundColor: ESTADOS_DONA.map((e) => tonos[e]),
               borderColor: SUPERFICIE,
               borderWidth: 2,
               hoverOffset: 3,
@@ -89,12 +91,12 @@ export function DonaTipoServicio({ tipo, resumen }: { tipo: string; resumen: Tot
           },
         },
       }),
-    [tipo, resumen.concretadas, resumen.sinReport, resumen.pendientes, resumen.emitidas],
+    [tipo, resumen.concretadas, enviadas, resumen.emitidas],
   )
   const cantidades: Record<string, number> = {
     concretada: resumen.concretadas,
     sin_report: resumen.sinReport,
-    pendiente: resumen.pendientes,
+    pendiente: enviadas,
   }
   return (
     <section className={styles.dona} aria-label={`Estado de las solicitudes de ${tipo}`}>
@@ -107,17 +109,17 @@ export function DonaTipoServicio({ tipo, resumen }: { tipo: string; resumen: Tot
       ) : (
         <>
           <div className={styles.donaLienzo}>
-            <canvas ref={ref} role="img" aria-label={`${tipo}: ${Math.round(resumen.porcentajeConcretado)}% concretadas`} />
+            <canvas ref={ref} role="img" aria-label={`${tipo}: ${Math.round(resumen.porcentajeConcretado)}% informes recibidos`} />
             <div className={styles.donaCentro} aria-hidden="true">
               <b style={{ color: colorDeTipo(tipo) }}>{Math.round(resumen.porcentajeConcretado)}<small>%</small></b>
-              <span>concretadas</span>
+              <span>informes recibidos</span>
             </div>
           </div>
           <p className={styles.donaTotalTexto}>
             <b>{nf.format(resumen.concretadas)}</b> de {nf.format(resumen.emitidas)} solicitudes
           </p>
           <ul className={styles.donaLeyenda}>
-            {ORDEN_ESTADOS.map((e) => (
+            {ESTADOS_DONA.map((e) => (
               <li key={e}>
                 <span className={styles.muestra} style={{ background: tonos[e] }} />
                 {ESTADOS[e].texto}

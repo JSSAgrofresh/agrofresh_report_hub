@@ -1,14 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { SolicitudDetalleView } from './SolicitudDetalleView'
 import type { AnalitoConfig, Solicitud } from '@/features/tomaMuestras'
 
-const { obtenerSolicitud, listarAnalitosConfig, destinatariosDeSolicitud, listarFotosSolicitud } = vi.hoisted(() => ({
+const { obtenerSolicitud, listarAnalitosConfig, destinatariosDeSolicitud, listarFotosSolicitud, enviarSolicitudPorCorreo } = vi.hoisted(() => ({
   obtenerSolicitud: vi.fn(),
   listarAnalitosConfig: vi.fn(),
   destinatariosDeSolicitud: vi.fn(),
   listarFotosSolicitud: vi.fn(),
+  enviarSolicitudPorCorreo: vi.fn(),
 }))
 
 vi.mock('@/features/tomaMuestras', () => ({
@@ -19,7 +20,7 @@ vi.mock('@/features/tomaMuestras', () => ({
   descargarExcelSolicitud: vi.fn(),
   descargarPdfSolicitud: vi.fn(),
   descargarJsonSolicitud: vi.fn(),
-  enviarSolicitudPorCorreo: vi.fn(),
+  enviarSolicitudPorCorreo,
   subirFotoSolicitud: vi.fn(),
   eliminarFotoSolicitud: vi.fn(),
   obtenerFotoSolicitud: vi.fn(),
@@ -126,5 +127,33 @@ describe('SolicitudDetalleView — bloqueo tras enviar (CASO 5)', () => {
     expect(screen.getByText('Editar')).toBeTruthy()
     expect(screen.getByText('Reenviar por correo')).toBeTruthy()
     expect(screen.queryByText('Enviar por correo')).toBeNull()
+  })
+})
+
+describe('SolicitudDetalleView — envío de una solicitud de prueba', () => {
+  it('por defecto se envía solo a quien envía, sin la lista real', async () => {
+    enviarSolicitudPorCorreo.mockResolvedValue({ ok: 'enviada' })
+    montar(solicitudBase({ es_prueba: true }))
+    fireEvent.click(await screen.findByText('Enviar por correo'))
+    fireEvent.click(await screen.findByText('Enviarme a mí'))
+    await waitFor(() => expect(enviarSolicitudPorCorreo).toHaveBeenCalledWith('OT-0001.xlsx', [], true))
+  })
+
+  it('desmarcando la opción vuelve al envío normal', async () => {
+    enviarSolicitudPorCorreo.mockClear()
+    enviarSolicitudPorCorreo.mockResolvedValue({ ok: 'enviada' })
+    montar(solicitudBase({ es_prueba: true }))
+    destinatariosDeSolicitud.mockResolvedValue({ laboratorio: 'AGROFRESH', destinatarios: ['lab@x.cl'] })
+    fireEvent.click(await screen.findByText('Enviar por correo'))
+    fireEvent.click(await screen.findByLabelText(/solo a mí o a quien escriba/i))
+    fireEvent.click(await screen.findByText('Enviar a 1 contacto'))
+    await waitFor(() => expect(enviarSolicitudPorCorreo).toHaveBeenCalledWith('OT-0001.xlsx', [], false))
+  })
+
+  it('una solicitud real no ofrece la opción', async () => {
+    montar(solicitudBase())
+    fireEvent.click(await screen.findByText('Enviar por correo'))
+    await screen.findByText(/Contactos configurados/)
+    expect(screen.queryByLabelText(/solo a mí o a quien escriba/i)).toBeNull()
   })
 })

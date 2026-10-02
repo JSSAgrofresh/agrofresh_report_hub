@@ -271,3 +271,45 @@ def test_actimist_de_prueba_no_copia_a_los_referentes(solicitud_guardada, correo
     tm.enviar_solicitud_por_correo(archivo, tm.EnvioSolicitudIn(), usuario=_usuario())
     to = [t.upper() for t in correo_capturado[0]["to"]]
     assert "CJIMENEZ@AGROFRESH.COM" not in to and "CVALENZUELA@AGROFRESH.COM" not in to
+
+
+# --- Prueba: «solo a estos» (no toca la lista real) -------------------------
+# No necesitan Postgres: este camino no marca la solicitud como enviada.
+
+def test_prueba_solo_a_quien_se_escribe(solicitud_guardada, correo_capturado, tmp_path):
+    archivo, datos = solicitud_guardada
+    _guardar_actimist(tmp_path, datos, es_prueba=True)
+    body = tm.EnvioSolicitudIn(solo_a_estos=True, destinatarios_adicionales=["yo@agrofresh.com"])
+    tm.enviar_solicitud_por_correo(archivo, body, usuario=_usuario())
+    assert correo_capturado[0] == {"to": ["yo@agrofresh.com"], "cc": [], "bcc": []}
+
+
+def test_prueba_sin_escribir_a_nadie_va_a_quien_la_envia(solicitud_guardada, correo_capturado, tmp_path):
+    archivo, datos = solicitud_guardada
+    _guardar_actimist(tmp_path, datos, es_prueba=True)
+    tm.enviar_solicitud_por_correo(
+        archivo, tm.EnvioSolicitudIn(solo_a_estos=True), usuario=_usuario(email="jorge@agrofresh.com")
+    )
+    assert correo_capturado[0] == {"to": ["jorge@agrofresh.com"], "cc": [], "bcc": []}
+
+
+def test_prueba_solo_a_estos_no_marca_la_solicitud_como_enviada(solicitud_guardada, correo_capturado, tmp_path, monkeypatch):
+    archivo, datos = solicitud_guardada
+    _guardar_actimist(tmp_path, datos, es_prueba=True)
+    regrabadas = []
+    monkeypatch.setattr(tm, "_regrabar_datos_solicitud", lambda *a, **k: regrabadas.append(a))
+    tm.enviar_solicitud_por_correo(archivo, tm.EnvioSolicitudIn(solo_a_estos=True), usuario=_usuario())
+    assert regrabadas == []
+
+
+def test_solicitud_real_rechaza_solo_a_estos(solicitud_guardada, correo_capturado):
+    from fastapi import HTTPException
+
+    archivo, _ = solicitud_guardada
+    with pytest.raises(HTTPException) as exc:
+        tm.enviar_solicitud_por_correo(
+            archivo, tm.EnvioSolicitudIn(solo_a_estos=True, destinatarios_adicionales=["yo@agrofresh.com"]),
+            usuario=_usuario(),
+        )
+    assert exc.value.status_code == 400
+    assert correo_capturado == []

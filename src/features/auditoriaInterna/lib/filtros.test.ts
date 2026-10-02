@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FILTROS_VACIOS, chipsDeFiltros, contarFiltros, filtrarSolicitudes, opcionesDeFiltros } from './filtros'
+import { FILTROS_VACIOS, camposTituloTabla, chipsDeFiltros, contarFiltros, filtrarSolicitudes, opcionesDeFiltros } from './filtros'
 import type { FiltrosSolicitudes } from './filtros'
 import type { SolicitudAuditoria } from './tipos'
 
@@ -96,5 +96,26 @@ describe('opcionesDeFiltros', () => {
     expect(o.plantas).toEqual(['Agricom Sur'])
     expect(o.variedades).toEqual(['Thompson'])
     expect(opcionesDeFiltros(lista, FILTROS_VACIOS).plantas).toEqual(['Agricom Sur', 'Dole Codegua'])
+  })
+})
+
+describe('camposTituloTabla', () => {
+  it('sin filtros, cada campo dice «Todos»', () => {
+    expect(camposTituloTabla(FILTROS_VACIOS)).toEqual([
+      'Todos los clientes', 'Todas las sucursales', 'Todos los laboratorios', 'Todos los tipos de servicio',
+      'Todas las fechas', 'Todas las especies', 'Todas las variedades', 'Todos los analitos',
+    ])
+  })
+
+  it('con filtros, cada campo muestra lo elegido y el resto sigue en «Todos»', () => {
+    const campos = camposTituloTabla({
+      ...FILTROS_VACIOS, cliente: 'Dole', laboratorio: 'ALS', analitos: ['FDL', 'PYR'],
+      rango: { desde: '2026-09-01', hasta: '2026-09-30' },
+    })
+    expect(campos[0]).toBe('Dole')
+    expect(campos[1]).toBe('Todas las sucursales')
+    expect(campos[2]).toBe('ALS')
+    expect(campos[4]).toBe('Emitidas del 2026-09-01 al 2026-09-30')
+    expect(campos[7]).toBe('FDL, PYR')
   })
 })

@@ -115,6 +115,14 @@ def _subtitulo_analisis_requeridos(analitos_solicitados: list[dict], analisis_po
     return ' · '.join(nombres) if nombres else 'Checklist técnico para el laboratorio'
 
 
+# Laboratorios cuya solicitud solo nombra el análisis: sin tabla de analitos ni dosis.
+_LABS_SOLO_ANALISIS = {'als', 'diagnofruit'}
+
+
+def _solo_analisis(laboratorio: object) -> bool:
+    return str(laboratorio or '').strip().casefold() in _LABS_SOLO_ANALISIS
+
+
 def _seccion(numero: str, titulo: str, subtitulo: str = '', ancho: float = ANCHO_UTIL) -> Table:
     """La cabecera numerada de cada sección. Sin relleno de color -solo el
     número en un recuadro con borde, el título en verde y una línea verde
@@ -316,23 +324,30 @@ def _construir_elementos(
 
     analisis_por_id = _analisis_por_analito_id(analisis_config, laboratorio)
     subtitulo_analisis = _subtitulo_analisis_requeridos(list(etiquetas_analitos.values()), analisis_por_id)
-    elementos.append(_seccion('3', 'ANÁLISIS REQUERIDOS', subtitulo_analisis))
-    filas = [[Paragraph('ANALITO SOLICITADO', _S_TABLA_HEAD), Paragraph('DOSIS', _S_TABLA_HEAD)]]
-    for _codigo_analito, nombre, valor in filas_analitos:
-        filas.append([Paragraph(nombre, _S_TABLA), Paragraph(valor, _S_TABLA)])
-    if len(filas) == 1:
-        filas.append([Paragraph('Sin análisis configurados', _S_TABLA), Paragraph('—', _S_TABLA)])
-    tabla_analisis = Table(filas, colWidths=[10.7 * cm, ANCHO_UTIL - 10.7 * cm], repeatRows=1)
-    tabla_analisis.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), GRIS_1), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 2.8), ('BOTTOMPADDING', (0, 0), (-1, -1), 2.8),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6), ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('LINEBELOW', (0, 0), (-1, 0), 0.6, VERDE_2),
-        ('LINEBELOW', (0, 1), (-1, -1), 0.4, GRIS_2),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [BLANCO, GRIS_1]),
-        ('BOX', (0, 0), (-1, -1), 0.6, GRIS_2),
-    ]))
-    elementos.extend([tabla_analisis, Spacer(1, 6)])
+    if _solo_analisis(laboratorio):
+        # ALS y Diagnofruit: solo el análisis pedido (el subtítulo), sin la tabla
+        # «Analito solicitado / Dosis». Sin análisis agrupado, se nombran los analitos.
+        if subtitulo_analisis == 'Checklist técnico para el laboratorio' and filas_analitos:
+            subtitulo_analisis = ' · '.join(nombre for _c, nombre, _v in filas_analitos)
+        elementos.extend([_seccion('3', 'ANÁLISIS REQUERIDOS', subtitulo_analisis), Spacer(1, 6)])
+    else:
+        elementos.append(_seccion('3', 'ANÁLISIS REQUERIDOS', subtitulo_analisis))
+        filas = [[Paragraph('ANALITO SOLICITADO', _S_TABLA_HEAD), Paragraph('DOSIS', _S_TABLA_HEAD)]]
+        for _codigo_analito, nombre, valor in filas_analitos:
+            filas.append([Paragraph(nombre, _S_TABLA), Paragraph(valor, _S_TABLA)])
+        if len(filas) == 1:
+            filas.append([Paragraph('Sin análisis configurados', _S_TABLA), Paragraph('—', _S_TABLA)])
+        tabla_analisis = Table(filas, colWidths=[10.7 * cm, ANCHO_UTIL - 10.7 * cm], repeatRows=1)
+        tabla_analisis.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), GRIS_1), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 2.8), ('BOTTOMPADDING', (0, 0), (-1, -1), 2.8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6), ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('LINEBELOW', (0, 0), (-1, 0), 0.6, VERDE_2),
+            ('LINEBELOW', (0, 1), (-1, -1), 0.4, GRIS_2),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [BLANCO, GRIS_1]),
+            ('BOX', (0, 0), (-1, -1), 0.6, GRIS_2),
+        ]))
+        elementos.extend([tabla_analisis, Spacer(1, 6)])
 
     fechas = [
         ('Solicitud', _fmt_fecha(datos.get('fecha_solicitud'))),

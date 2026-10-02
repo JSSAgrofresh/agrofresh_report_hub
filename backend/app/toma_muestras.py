@@ -1651,6 +1651,10 @@ class EnvioSolicitudIn(BaseModel):
     # a la configuración vigente del laboratorio sólo para este envío.
     destinatario: str | None = None
     destinatarios_adicionales: list[str] = Field(default_factory=list)
+    # Solo para solicitudes de PRUEBA: el correo va únicamente a quien se escribe
+    # (o a quien aprieta «enviar» si no escribe a nadie), sin la lista real, sin
+    # copias y sin marcar la solicitud como enviada. Una solicitud real lo rechaza.
+    solo_a_estos: bool = False
 
 
 def contactos_de_solicitud_por_envio(laboratorio: str) -> dict[str, list[str]]:
@@ -2267,7 +2271,13 @@ def enviar_solicitud_por_correo(
 
     # Siempre parten los contactos configurados. Los invitados escritos en el
     # cuadro de envío se agregan sólo a este correo y no alteran el mantenedor.
-    por_envio = contactos_de_solicitud_de(lab, datos)
+    solo_a_estos = body.solo_a_estos
+    if solo_a_estos and not datos.get("es_prueba"):
+        raise HTTPException(400, "Enviar solo a destinatarios elegidos es únicamente para solicitudes de prueba.")
+    por_envio = (
+        {"to": [], "cc": [], "bcc": []} if solo_a_estos
+        else contactos_de_solicitud_de(lab, datos)
+    )
     candidatos = list(por_envio["to"])
     # Toda solicitud Actimist copia a estos dos referentes de producto; las
     # de prueba no, para no llenarles la bandeja con correos de ensayo.
@@ -2277,6 +2287,8 @@ def enviar_solicitud_por_correo(
     if body.destinatario and body.destinatario.strip():
         candidatos.append(body.destinatario.strip())
     candidatos.extend(body.destinatarios_adicionales)
+    if solo_a_estos and not any(str(c or "").strip() for c in candidatos):
+        candidatos.append(usuario.email)
     destinatarios: list[str] = []
     vistos: set[str] = set()
     for candidato in candidatos:
@@ -2343,7 +2355,7 @@ def enviar_solicitud_por_correo(
         return salida
 
     cc = _sin_repetir(por_envio["cc"])
-    bcc = _sin_repetir([*por_envio["bcc"], email_muestreador])
+    bcc = [] if solo_a_estos else _sin_repetir([*por_envio["bcc"], email_muestreador])
 
     try:
         resultado = correo.enviar(
@@ -2367,8 +2379,11 @@ def enviar_solicitud_por_correo(
     # Recién ahora, con el correo ya afuera: si se marcara antes y el envío
     # fallara, la solicitud quedaría bloqueada para editar sin haberse
     # enviado realmente a nadie.
-    datos_enviada = {**datos, "enviada": True, "enviado_en": datetime.now(timezone.utc).isoformat()}
-    _regrabar_datos_solicitud(archivo, datos_enviada)
+    # Un ensayo «solo a estos» no cuenta como envío: la prueba sigue editable y
+    # se puede repetir.
+    if not solo_a_estos:
+        datos_enviada = {**datos, "enviada": True, "enviado_en": datetime.now(timezone.utc).isoformat()}
+        _regrabar_datos_solicitud(archivo, datos_enviada)
 
     return {"ok": f"Solicitud {numero} enviada a {', '.join(destinatarios)}."}
 
