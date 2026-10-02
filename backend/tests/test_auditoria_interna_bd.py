@@ -175,3 +175,13 @@ def test_una_solicitud_sin_esos_datos_no_rompe_la_lista(entorno):
         cur.execute("UPDATE solicitud_archivo SET datos = '{}' WHERE archivo = %s", (ARCHIVO_OT,))
     fila = _mi_fila()
     assert fila["tipo_servicio"] is None and fila["variedad"] is None and fila["analitos"] == []
+
+
+def test_las_solicitudes_de_agrofresh_tambien_se_ven(entorno):
+    """El informe propio (Converter, laboratorio Agrofresh) se audita igual que
+    los de Quiteca: su solicitud sale en el panel y en las candidatas de Converter."""
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("UPDATE solicitud_archivo SET laboratorio = 'AGROFRESH' WHERE archivo = %s", (ARCHIVO_OT,))
+    assert _mi_fila()["laboratorio"] == "AGROFRESH"
+    abiertas = cliente.get("/api/auditoria-interna/solicitudes-abiertas").json()
+    assert any(a["archivo"] == ARCHIVO_OT for a in abiertas)
