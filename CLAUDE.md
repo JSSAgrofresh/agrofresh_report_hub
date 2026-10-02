@@ -498,6 +498,14 @@ tocas una, toca la otra.
   las OT candidatas de Converter (antes se filtraba y su informe subido no se veía).
   Su «Tipo Aplicación» es **RYD**: es un tercer tipo de servicio (`TIPO_RYD`, naranjo)
   con su dona, su grupo en la tabla dinámica y su botón en el gráfico por cliente.
+  **Las donas y la cifra de arriba muestran solo dos estados**: «Informes Recibidos»
+  (concretadas) y «Solicitudes enviadas» (`ESTADOS_DONA`); el «PDF sin Report» no se
+  muestra aparte, se suma a las enviadas. **El título de la tabla dinámica** lleva un
+  campo por cada filtro del panel («Todos los clientes», «Todas las sucursales»…, o el
+  valor elegido; `camposTituloTabla`).
+- **El PDF de la solicitud de ALS y Diagnofruit no lleva la tabla «Analito solicitado /
+  Dosis»**: la sección 3 solo nombra el análisis (`_LABS_SOLO_ANALISIS` en
+  `toma_muestras_pdf.py`); los demás laboratorios la conservan.
 - **Administración General** (`/admin/administracion-general`, en el menú debajo de
   Notificaciones, **solo admin general**): tiene dos pestañas. **Correcciones del
   Converter** (ver abajo; las filas parten compactas y se agrandan con un clic):

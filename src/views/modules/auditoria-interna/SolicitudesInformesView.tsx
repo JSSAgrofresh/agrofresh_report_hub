@@ -142,7 +142,7 @@ export function SolicitudesInformesView() {
                   <DonaTipoServicio tipo={TIPO_ACTIMIST} resumen={actimist} />
                   {ryd.emitidas > 0 && <DonaTipoServicio tipo={TIPO_RYD} resumen={ryd} />}
                 </div>
-                <TablaDinamica solicitudes={alcance} />
+                <TablaDinamica solicitudes={alcance} filtros={filtros} />
               </div>
 
               <TarjetaGrafico
