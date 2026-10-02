@@ -53,6 +53,8 @@ export interface Solicitud {
   /** Peso de la muestra física, registrado al cruzar (migración 0033). */
   peso_muestra?: number | null
   unidad_peso?: string | null
+  /** Segundo peso (muestra extraída, g), anotado después del cruce. */
+  peso_muestra_extraido?: number | null
   /** Usuario que hizo el cruce (email y nombre, del token del servidor). */
   cruzado_por?: string | null
   cruzado_por_nombre?: string | null

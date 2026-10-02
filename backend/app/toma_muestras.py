@@ -477,6 +477,8 @@ class Solicitud(SolicitudIn):
     codigo_muestra: str | None = None
     # Datos del cruce completo (migración 0033)
     peso_muestra: float | None = None
+    # Segundo peso (muestra extraída, g), anotado en Ingreso al laboratorio.
+    peso_muestra_extraido: float | None = None
     unidad_peso: str = "kg"
     cruzado_por: str | None = None
     cruzado_por_nombre: str | None = None
@@ -997,6 +999,9 @@ def cruzar_con_muestra(
             "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.",
         ) from e
     _exigir_acceso(usuario, datos_actuales)
+    if body.codigo_muestra is None and usuario.email.lower() != _SUPER_ADMIN_EMAIL:
+        # Quitar la muestra de una solicitud es solo del administrador principal.
+        raise HTTPException(403, "Solo el administrador principal puede quitar una muestra.")
     try:
         indice_solicitudes.cruzar(archivo, body.codigo_muestra)
     except indice_solicitudes.MuestraYaUsada as e:
@@ -1006,11 +1011,37 @@ def cruzar_con_muestra(
             404,
             "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.",
         ) from e
-    if body.codigo_muestra is None:
-        # Registrar anulación de cruce en historial (best-effort)
-        pass
     datos = indice_solicitudes.buscar(archivo)
     return Solicitud(archivo=archivo, **datos)
+
+
+class PesoExtraidoIn(BaseModel):
+    peso: float
+
+
+@router.put("/solicitudes/{archivo}/peso-extraido", response_model=Solicitud)
+def guardar_peso_extraido(
+    archivo: str,
+    body: PesoExtraidoIn,
+    usuario: Usuario = Depends(usuario_actual),
+) -> Any:
+    """Anota el segundo peso (muestra extraída, en gramos) de una solicitud ya
+    cruzada. Se puede corregir; el antes y el después quedan en el historial."""
+    if not (body.peso > 0):
+        raise HTTPException(400, "El peso debe ser mayor a cero.")
+    datos_actuales = indice_solicitudes.buscar(archivo)
+    if datos_actuales is None:
+        raise HTTPException(404, "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.")
+    _exigir_acceso(usuario, datos_actuales)
+    try:
+        indice_solicitudes.guardar_peso_extraido(archivo, body.peso, usuario.email, usuario.nombre)
+    except indice_solicitudes.SinCruce as e:
+        raise HTTPException(409, "Esa solicitud todavía no tiene muestra: primero se cruza.") from e
+    except indice_solicitudes.SinPesoExtraido as e:
+        raise HTTPException(503, "Falta correr la migración 0048_peso_extraido.sql en el servidor.") from e
+    except KeyError as e:
+        raise HTTPException(404, "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.") from e
+    return Solicitud(archivo=archivo, **indice_solicitudes.buscar(archivo))
 
 
 # Prefijo R2 para fotos del cruce (separado de las fotos de la solicitud)
