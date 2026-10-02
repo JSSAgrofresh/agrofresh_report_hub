@@ -236,8 +236,9 @@ _CONSULTA_BD = """
         s.nro_solicitud AS nro_informe,
         s.referencia AS nro_solicitud,
         s.laboratorio,
-        s.fecha_solicitud, s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis,
+        s.fecha_solicitud, s.fecha_muestreo, s.fecha_entrada, s.fecha_recepcion, s.fecha_informe, s.fecha_analisis,
         s.hora_muestreo,
+        s.codigo_ensayo, s.nro_ensayo,
         COALESCE(s.semana_muestreo, date_part('week', COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis))::int) AS semana,
         COALESCE(s.mes, date_part('month', COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis))::int) AS mes,
         s.temporada, s.tipo_servicio, s.solicitante,
@@ -268,22 +269,34 @@ def _texto_seguro_excel(texto: str | None) -> str | None:
     return "'" + texto if texto[:1] in "=+-@" else texto
 
 
+def _con_cruce(fila_archivo: dict) -> dict:
+    """Los datos de la solicitud más su cruce con la muestra (N° de muestra y
+    momento de la recepción), que viven en columnas aparte del índice."""
+    datos = dict(fila_archivo["datos"] or {})
+    if fila_archivo.get("codigo_muestra"):
+        datos["codigo_muestra"] = fila_archivo["codigo_muestra"]
+    if fila_archivo.get("cruzado_en"):
+        datos["recepcion_en"] = fila_archivo["cruzado_en"].isoformat()
+    return datos
+
+
 def _completar_con_solicitudes(cur, filas: list[dict[str, Any]], correos_laboratorio) -> None:
     """Une cada fila con la solicitud de Toma de muestras que la originó (por su
     N° de OT) y llena lo que la base no trae: muestreador, tipo de muestra, etc."""
     from .bd_excel import buscar_por_parecido, completar_fila
+    from .columnas_base import calculador_listas
 
     claves = {str(v).strip().upper() for f in filas for v in (f.get("nro_solicitud"), f.get("nro_informe")) if v}
     por_ot: dict[str, dict] = {}
     if claves:
         try:
             cur.execute(
-                "SELECT upper(numero_solicitud) AS ot, datos FROM solicitud_archivo"
+                "SELECT upper(numero_solicitud) AS ot, datos, codigo_muestra, cruzado_en FROM solicitud_archivo"
                 " WHERE upper(numero_solicitud) = ANY(%(claves)s) ORDER BY indexado_en ASC",
                 {"claves": sorted(claves)},
             )
             for r in cur.fetchall():
-                por_ot[r["ot"]] = r["datos"]  # ante un repetido queda la más reciente
+                por_ot[r["ot"]] = _con_cruce(r)  # ante un repetido queda la más reciente
         except psycopg2.errors.UndefinedTable:
             cur.connection.rollback()  # sin la tabla del índice: se sigue sin solicitudes
     enlazadas = [
@@ -300,14 +313,16 @@ def _completar_con_solicitudes(cur, filas: list[dict[str, Any]], correos_laborat
     if fechas:
         try:
             cur.execute(
-                "SELECT numero_solicitud, laboratorio, ship_to, especie, fecha_muestreo, datos"
+                "SELECT numero_solicitud, laboratorio, ship_to, especie, fecha_muestreo, datos,"
+                " codigo_muestra, cruzado_en"
                 " FROM solicitud_archivo WHERE fecha_muestreo = ANY(%(fechas)s)",
                 {"fechas": fechas},
             )
-            candidatos = [dict(r) for r in cur.fetchall()]
+            candidatos = [{**dict(r), "datos": _con_cruce(r)} for r in cur.fetchall()]
         except psycopg2.errors.UndefinedTable:
             cur.connection.rollback()
     correos: dict[str, list[str]] = {}
+    listas = calculador_listas()
     for f, datos in zip(filas, enlazadas):
         if datos is None and candidatos:
             datos = buscar_por_parecido(f, candidatos)
@@ -315,6 +330,8 @@ def _completar_con_solicitudes(cur, filas: list[dict[str, Any]], correos_laborat
         if correos_laboratorio and lab not in correos:
             correos[lab] = correos_laboratorio(lab)
         completar_fila(f, datos, correos.get(lab))
+        # Lista de distribución de resultados (misma regla que el correo, el PDF y el JSON).
+        f.update(listas(f.get("sold_to"), f.get("ship_to"), f.get("especie")))
 
 
 def filas_de_bd(

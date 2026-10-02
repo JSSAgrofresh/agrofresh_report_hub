@@ -401,7 +401,6 @@ export function ReporteView({
       ingredientes: de('ingredientes', { seleccionados: filtros.ingredientes }),
       clientes: de('cliente', { seleccionados: [filtros.cliente] }),
       plantas: de('planta', { seleccionados: [filtros.planta] }),
-      tiposAplicacion: de('tipoAplicacion', { formatear: capitalizarPrimeraLetra, seleccionados: [filtros.tipoAplicacion] }),
       tiposServicio: de('tipoServicio', { formatear: capitalizarPrimeraLetra, seleccionados: [filtros.tipoServicio] }),
       laboratorios: de('laboratorio', { formatear: capitalizarPrimeraLetra, seleccionados: [filtros.laboratorio] }),
       crops: de('crop', { canonicos: especiesOficiales.map((e) => e.valor), seleccionados: [filtros.crop] }),
@@ -1335,15 +1334,6 @@ export function ReporteView({
                 conteoDe={(v) => conteoPorValor.ingredientes.get(v)}
               />
               <label className={styles.filtro}>
-                <span>Tipo aplicación</span>
-                <select value={filtros.tipoAplicacion} onChange={(e) => actualizarFiltro('tipoAplicacion', e.target.value)}>
-                  <option value="">Todos</option>
-                  {opciones.tiposAplicacion.map((o) => (
-                    <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
-                  ))}
-                </select>
-              </label>
-              <label className={styles.filtro}>
                 <span>Semana</span>
                 <select value={filtros.semana} onChange={(e) => actualizarSemana(e.target.value)} disabled={Boolean(filtros.rango)}>
                   <option value="">Todas</option>
@@ -1529,7 +1519,7 @@ export function ReporteView({
                             <i aria-hidden="true" />
                             {r.codigo}
                           </span>
-                          <b>{formatDecimalCL(r.promedio, 4)}</b>
+                          <b>{formatDecimalCL(r.promedio, 2)}</b>
                           <span className={styles.promedioN}>
                             {r.n.toLocaleString('es-CL')} resultado{r.n === 1 ? '' : 's'}
                           </span>

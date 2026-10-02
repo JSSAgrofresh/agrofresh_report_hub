@@ -7,6 +7,7 @@ No necesita Postgres: son funciones puras sobre bytes de Excel.
 """
 from __future__ import annotations
 
+import datetime
 import io
 
 import openpyxl
@@ -222,10 +223,11 @@ def test_excel_con_muestra_usa_formato_de_la_base_solo_con_analitos_agrofresh():
     headers = [ws.cell(row=2, column=c).value for c in range(1, ws.max_column + 1)]
     valores = dict(zip(headers, [ws.cell(row=3, column=c).value for c in range(1, ws.max_column + 1)]))
 
-    # N° Muestra y recepción van justo después del N° Solicitud.
-    assert headers[:4] == ["N° Solicitud", "N° Muestra", "Fecha Recepción", "Hora Recepción"]
+    # Mismas columnas generales que la BD de Report (ver columnas_base.py).
+    assert headers[:3] == ["N° Informe", "N° Solicitud", "N° Muestra"]
     assert valores["N° Muestra"] == "AGF0001"
-    assert valores["Fecha Recepción"] == "25-09-2026"
+    assert valores["Fecha Recepción"] == datetime.datetime(2026, 9, 25)
+    assert valores["Hora Recepción"] == "16:57"
     assert valores["FDL"] == "✓"
     assert valores["FDL Dosis"] == "250"
     # Campos de RYD.
@@ -255,3 +257,74 @@ def test_ryd_con_varias_posiciones_sale_una_fila_por_posicion():
         ("OT-AGF0052", "R1"), ("OT-AGF0052", "R2"), ("OT-AGF0052", "R4"), ("OT-2", "A, B"),
     ]
     assert all(f["Código de Ensayo"] == "E1" for f in filas[:3])
+
+
+# --- Las dos bases (Report y «con muestra») comparten sus columnas generales ---
+
+def _generales(ws) -> list[str]:
+    """Los encabezados de la banda GENERAL (fila 2, hasta donde llega la fila 1)."""
+    fin = next(r.max_col for r in ws.merged_cells.ranges if r.min_row == 1 and r.min_col == 1)
+    return [ws.cell(row=2, column=c).value for c in range(1, fin + 1)]
+
+
+def test_la_base_con_muestra_y_la_bd_de_report_tienen_las_mismas_columnas_generales():
+    from app import bd_excel
+    from app.columnas_base import GENERALES_BASE
+    from app.emitir import FilaConMuestraIn
+
+    ws_muestra = _endpoint_con_muestra([FilaConMuestraIn(
+        campos={"N° Solicitud": "OT-AGF0001", "Fludioxonil (ppm)": "250"}, analitos_solicitados=["FDL"],
+    )])
+    bd = bd_excel.construir_workbook_bd(
+        [{"nro_informe": "I-1", "laboratorio": "AGROFRESH", "resultados": {"FDL": {"valor": 1.0, "nombre": "F"}},
+          "dosis": {"FDL": 250}, "tipo_aplicacion": "Actimist"}],
+        ANALITOS_DEFECTO,
+    )["BD"]
+    esperadas = [etiqueta for _, etiqueta in GENERALES_BASE]
+    assert _generales(ws_muestra) == esperadas
+    assert _generales(bd) == esperadas
+
+
+def test_las_dos_bases_traen_los_mismos_campos_del_grupo_de_fungicidas():
+    from app import bd_excel
+    from app.emitir import FilaConMuestraIn
+
+    ws_muestra = _endpoint_con_muestra([FilaConMuestraIn(campos={"Fludioxonil (ppm)": "250"}, analitos_solicitados=["FDL"])])
+    bd = bd_excel.construir_workbook_bd(
+        [{"laboratorio": "AGROFRESH", "resultados": {"FDL": {"valor": 1.0, "nombre": "F"}}, "dosis": {"FDL": 250}}],
+        ANALITOS_DEFECTO,
+    )["BD"]
+    for ws in (ws_muestra, bd):
+        cabeceras = [c.value for c in ws[2]]
+        for columna in ("FDL", "FDL Dosis", "Tipo Aplicación", "Gasto", "Código de Ensayo", "N° Ensayo"):
+            assert columna in cabeceras, columna
+
+
+def test_la_base_con_muestra_trae_la_lista_de_distribucion_de_resultados(monkeypatch):
+    from app import toma_muestras as tm
+    from app.emitir import FilaConMuestraIn
+
+    contactos = [
+        {"email": "cliente@dole.cl", "tipo": "resultado_cliente", "activo": True, "orden": 1,
+         "sold_to": "DOLE", "ship_to": "DOLE LONTUE", "especie": ""},
+        {"email": "otro@dole.cl", "tipo": "resultado_cliente", "activo": True, "orden": 2,
+         "sold_to": "DOLE", "ship_to": "DOLE LONTUE", "especie": ""},
+        {"email": "tecnico@agrofresh.com", "tipo": "resultado_interno", "tipo_copia": "bcc", "activo": True,
+         "orden": 3, "sold_to": "DOLE", "ship_to": "DOLE LONTUE", "especie": ""},
+        {"email": "comercial@agrofresh.com", "tipo": "resultado_interno", "tipo_copia": "cc", "activo": True,
+         "orden": 4, "sold_to": "DOLE", "ship_to": "DOLE LONTUE", "especie": ""},
+    ]
+    leer_original = tm._leer_config
+    monkeypatch.setattr(
+        tm, "_leer_config",
+        lambda archivo, defecto=None: contactos if archivo == "contactos_laboratorio.json" else leer_original(archivo, defecto),
+    )
+    ws = _endpoint_con_muestra([FilaConMuestraIn(
+        campos={"N° Solicitud": "OT-AGF0001", "Sold To": "DOLE", "Ship To": "DOLE LONTUE", "Especie": "Cereza"},
+        analitos_solicitados=[],
+    )])
+    headers = [c.value for c in ws[2]]
+    fila = dict(zip(headers, [c.value for c in ws[3]]))
+    assert fila["Lista de Distribución (Para)"] == "cliente@dole.cl; otro@dole.cl"
+    assert fila["Lista de Distribución (CC)"] == "comercial@agrofresh.com"
+    assert fila["Lista de Distribución (CCO)"] == "tecnico@agrofresh.com"

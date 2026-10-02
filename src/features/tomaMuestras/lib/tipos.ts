@@ -43,23 +43,13 @@ export interface Solicitud {
   tipo_solicitud: 'CONVENCIONAL' | 'REANALISIS'
   solicitud_original_archivo: string | null
   motivo_reanalisis: string | null
-  /** Solicitud de prueba: folio del hueco que dejaron las pruebas borradas,
-   * nunca se envía sola y su correo dice "(PRUEBA)". Ausente = false. */
+  /** Solicitud de prueba: folio de su propia serie (OTP-DIAG0001), nunca se
+   * envía sola y su correo dice "(PRUEBA)". Ausente = false. */
   es_prueba?: boolean
   /** Los resultados no tienen a nadie del cliente en Para (para su Sold To,
    * Ship To y especie): rige el respaldo, solo Jorge y Claudia. Lo calcula el
    * backend con los contactos de hoy; no se guarda. */
   sin_lista_distribucion?: boolean | null
-}
-
-/** Folios de prueba de un laboratorio (ver `estadoSolicitudesPrueba`). */
-export interface HuecoPrueba {
-  laboratorio: string
-  /** Último folio del hueco: el real más bajo menos uno. */
-  limite: number
-  usados: number
-  /** Folio que tomaría la próxima prueba; null = hueco lleno. */
-  siguiente: string | null
 }
 
 /** Envío automático al guardar: regla general + una propia por tipo de aplicación. */
@@ -71,7 +61,6 @@ export interface ConfigEnvioAutomatico {
 export interface EstadoSolicitudesPrueba {
   /** Solo la cuenta autorizada ve el botón. */
   permitido: boolean
-  laboratorios: HuecoPrueba[]
 }
 
 /** Entrada para crear una solicitud de reanálisis. */
