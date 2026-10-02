@@ -65,7 +65,6 @@ export type {
   ReanalisisInput,
   EstadoSolicitudesPrueba,
   ConfigEnvioAutomatico,
-  HuecoPrueba,
   Laboratorio,
   CampoConfig,
   OpcionConfig,

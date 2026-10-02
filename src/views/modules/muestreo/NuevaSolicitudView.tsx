@@ -21,7 +21,6 @@ import {
   crearSolicitudReanalisis,
   destinatariosParaLaboratorio,
   enviarSolicitudPorCorreo,
-  estadoSolicitudesPrueba,
   listarAnalitosConfig,
   listarCamposConfig,
   listarCamposTipoAplicacion,
@@ -39,7 +38,6 @@ import type {
   CampoTipoAplicacionConfig,
   ConfigEnvioAutomatico,
   ContactoResultado,
-  HuecoPrueba,
   LaboratorioConfig,
   OpcionConfig,
   ProductoConfig,
@@ -146,7 +144,7 @@ interface NuevaSolicitudViewProps {
    * 'reanalisis' crea una solicitud derivada de la original (URL param
    * `archivo`), con laboratorio bloqueado y campo de motivo obligatorio.
    * 'prueba' crea una solicitud de prueba (solo la cuenta autorizada): folio
-   * del hueco de su laboratorio y nunca se envía sola. */
+   * con folio de su propia serie (OTP-…) y nunca se envía sola. */
   modo?: 'crear' | 'editar' | 'reanalisis' | 'prueba'
 }
 
@@ -164,7 +162,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [analisisTodos, setAnalisisTodos] = useState<Analisis[]>([])
   const [envioAutomatico, setEnvioAutomatico] = useState<ConfigEnvioAutomatico>({ activo: true })
   // Folios de prueba libres por laboratorio (solo en modo 'prueba').
-  const [huecosPrueba, setHuecosPrueba] = useState<HuecoPrueba[] | null>(null)
 
   const { user } = useAuth()
 
@@ -233,13 +230,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const prellenadoGeneralRef = useRef(false)
   const prellenadoAnalitosRef = useRef(false)
   const prellenadoTipoAplicacionRef = useRef(false)
-
-  useEffect(() => {
-    if (modo !== 'prueba') return
-    estadoSolicitudesPrueba()
-      .then((r) => setHuecosPrueba(r.permitido ? r.laboratorios : []))
-      .catch(() => setHuecosPrueba([]))
-  }, [modo])
 
   useEffect(() => {
     if ((modo !== 'editar' && modo !== 'reanalisis') || !archivoEditando) return
@@ -1224,13 +1214,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     )
   }
 
-  const huecoActual = huecosPrueba?.find((h) => h.laboratorio === laboratorio)
-  const textoFolioPrueba = !laboratorio
-    ? 'Elige el laboratorio para ver el folio de prueba'
-    : huecoActual?.siguiente
-      ? `${huecoActual.siguiente} (quedan ${huecoActual.limite - huecoActual.usados})`
-      : `Sin folios de prueba libres para ${laboratorio}`
-
   const tituloVista =
     modo === 'editar' ? 'Editar solicitud'
     : modo === 'reanalisis' ? 'Nueva solicitud de reanálisis'
@@ -1268,7 +1251,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         title={tituloVista}
         description={
           modo === 'prueba'
-            ? 'Solicitud de prueba: toma un folio del hueco de su laboratorio, no avisa a nadie y no se envía sola. Revísala y envíala a mano desde su detalle; el asunto del correo dirá (PRUEBA).'
+            ? 'Solicitud de prueba: lleva su propio correlativo (OTP-…), no avisa a nadie y no se envía sola. Revísala y envíala a mano desde su detalle; el asunto del correo dirá (PRUEBA).'
             : modo === 'editar'
             ? `Modifica la solicitud ${solicitudOriginal?.numero_solicitud ?? ''} — ${enviaSolo ? 'Al guardar se enviará de inmediato por correo.' : 'Al guardar no se envía: envíala a mano desde su detalle.'}`
             : modo === 'reanalisis'
@@ -1293,7 +1276,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                     : modo === 'reanalisis'
                       ? `R-${solicitudOriginal?.numero_solicitud ?? ''} (se asigna al guardar)`
                       : modo === 'prueba'
-                        ? textoFolioPrueba
+                        ? 'OTP-… (se asigna al guardar)'
                         : 'Se asigna automáticamente al guardar'
                 }
                 disabled
@@ -1692,7 +1675,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           >
             Cancelar
           </Button>
-          <Button type="submit" disabled={guardando || (modo === 'prueba' && !!laboratorio && !huecoActual?.siguiente)}>
+          <Button type="submit" disabled={guardando}>
             {guardando
               ? (enviaSolo ? 'Guardando y enviando…' : 'Guardando…')
               : modo === 'prueba'

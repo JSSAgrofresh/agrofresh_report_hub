@@ -19,7 +19,6 @@ const {
   listarAnalisis,
   obtenerEnvioAutomatico,
   enviarSolicitudPorCorreo,
-  estadoSolicitudesPrueba,
   crearSolicitudPrueba,
 } = vi.hoisted(() => ({
   crearSolicitud: vi.fn(),
@@ -35,7 +34,6 @@ const {
   listarAnalisis: vi.fn().mockResolvedValue([]),
   obtenerEnvioAutomatico: vi.fn().mockResolvedValue({ activo: false }),
   enviarSolicitudPorCorreo: vi.fn().mockResolvedValue({}),
-  estadoSolicitudesPrueba: vi.fn(),
   crearSolicitudPrueba: vi.fn(),
 }))
 
@@ -53,7 +51,6 @@ vi.mock('@/features/tomaMuestras', async () => {
   listarTiposAplicacion,
   obtenerEnvioAutomatico,
   enviarSolicitudPorCorreo,
-  estadoSolicitudesPrueba,
   crearSolicitudPrueba,
   enviaSoloSegunTipo,
   destinatariosParaLaboratorio: vi.fn().mockResolvedValue({ destinatarios: [] }),
@@ -568,19 +565,12 @@ describe('NuevaSolicitudView — solicitudes de prueba', () => {
     expect(enviarSolicitudPorCorreo).not.toHaveBeenCalled()
   })
 
-  it('en modo prueba muestra el folio del hueco y bloquea el guardado si ya no quedan', async () => {
+  it('en modo prueba el folio es de la serie OTP y el guardado nunca se bloquea por folios', async () => {
     mockConfigComun()
     listarLaboratoriosConfig.mockResolvedValue([
       { id: 1, codigo: 'AGROFRESH', nombre: 'AgroFresh', descripcion: null, activo: true, orden: 1 },
       { id: 2, codigo: 'QUITECA', nombre: 'Quiteca', descripcion: null, activo: true, orden: 2 },
     ])
-    estadoSolicitudesPrueba.mockResolvedValue({
-      permitido: true,
-      laboratorios: [
-        { laboratorio: 'AGROFRESH', limite: 49, usados: 3, siguiente: 'OT-AGF0004' },
-        { laboratorio: 'QUITECA', limite: 17, usados: 17, siguiente: null },
-      ],
-    })
     render(
       <MemoryRouter initialEntries={['/prueba']}>
         <Routes>
@@ -590,15 +580,10 @@ describe('NuevaSolicitudView — solicitudes de prueba', () => {
     )
 
     await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
-    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
-    await waitFor(() =>
-      expect(screen.getByDisplayValue('OT-AGF0004 (quedan 46)')).toBeTruthy(),
-    )
-    expect(screen.getByText('Guardar prueba')).not.toBeDisabled()
-
     fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'QUITECA' } })
-    await waitFor(() => expect(screen.getByDisplayValue('Sin folios de prueba libres para QUITECA')).toBeTruthy())
-    expect(screen.getByText('Guardar prueba')).toBeDisabled()
+    await waitFor(() => expect(screen.getByDisplayValue('OTP-… (se asigna al guardar)')).toBeTruthy())
+    expect(screen.getByText('Guardar prueba')).not.toBeDisabled()
+    expect(screen.queryByText(/quedan/)).toBeNull()
   })
 })
 

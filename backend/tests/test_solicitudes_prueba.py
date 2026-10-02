@@ -1,11 +1,10 @@
 """
 Solicitudes de prueba.
 
-Al borrar las pruebas del arranque, el contador de folios no volvió atrás:
-las solicitudes reales empezaron en QUITECA 18 y AGF 50. El hueco (1..17 y
-1..49) se llena con solicitudes de prueba: solo las crea una cuenta, toman el
-folio libre más bajo del hueco sin mover el contador real, no avisan a nadie,
-no llegan al Ingreso al laboratorio y su correo sale con "(PRUEBA)".
+Las solicitudes de prueba llevan su propia serie de folios, `OTP-<prefijo>NNNN`
+(OTP-DIAG0001, OTP-QTC0001…), un correlativo por laboratorio que parte en 1: solo
+las crea una cuenta, no mueven ni gastan el contador real, no avisan a nadie, no
+llegan al Ingreso al laboratorio y su correo sale con "(PRUEBA)".
 
 Necesita Postgres con el esquema aplicado; sin base se salta entera.
 """
@@ -29,6 +28,7 @@ OTRO_ADMIN = Usuario(id="2", email="otra@agrofresh.cl", nombre="Otra", tipoAcces
 LABS = [
     {"id": 1, "codigo": "AGROFRESH", "nombre": "AgroFresh", "prefijo_solicitud": "AGF", "activo": True, "orden": 1},
     {"id": 2, "codigo": "QUITECA", "nombre": "Quiteca", "prefijo_solicitud": "QTC", "activo": True, "orden": 2},
+    {"id": 3, "codigo": "DIAGNOFRUIT", "nombre": "Diagnofruit", "prefijo_solicitud": "DIAG", "activo": True, "orden": 3},
 ]
 
 
@@ -52,7 +52,7 @@ def entorno(tmp_path, monkeypatch):
             cur.execute("DELETE FROM folio_solicitud_laboratorio")
 
     borrar()
-    # Las reales de QUITECA empezaron en el 3: el hueco de prueba es 1..2.
+    # QUITECA ya tiene dos solicitudes reales (3 y 4): las pruebas no las afectan.
     for n in (3, 4):
         folio = f"OT-QTC{n:04d}"
         indice_solicitudes.anotar(f"{folio}.xlsx", {
@@ -71,30 +71,28 @@ def _cuerpo(laboratorio="QUITECA") -> tm.SolicitudIn:
 
 
 def test_solo_la_cuenta_autorizada_puede_crear_pruebas(entorno):
-    assert tm.estado_solicitudes_prueba(OTRO_ADMIN) == {"permitido": False, "laboratorios": []}
+    assert tm.estado_solicitudes_prueba(OTRO_ADMIN) == {"permitido": False}
+    assert tm.estado_solicitudes_prueba(DUENO) == {"permitido": True}
     with pytest.raises(HTTPException) as e:
         tm.crear_solicitud_prueba(_cuerpo(), OTRO_ADMIN)
     assert e.value.status_code == 403
 
 
-def test_toma_el_folio_libre_mas_bajo_y_se_bloquea_al_llenar_el_hueco(entorno):
-    primera = tm.crear_solicitud_prueba(_cuerpo(), DUENO)
-    segunda = tm.crear_solicitud_prueba(_cuerpo(), DUENO)
-    assert (primera.numero_solicitud, segunda.numero_solicitud) == ("OT-QTC0001", "OT-QTC0002")
-    assert primera.es_prueba and segunda.es_prueba
-
-    with pytest.raises(HTTPException) as e:
-        tm.crear_solicitud_prueba(_cuerpo(), DUENO)
-    assert e.value.status_code == 409
-
-    estado = {l["laboratorio"]: l for l in tm.estado_solicitudes_prueba(DUENO)["laboratorios"]}
-    assert estado["QUITECA"] == {"laboratorio": "QUITECA", "limite": 2, "usados": 2, "siguiente": None}
+def test_las_pruebas_llevan_su_propia_serie_por_laboratorio(entorno):
+    p1 = tm.crear_solicitud_prueba(_cuerpo(), DUENO)
+    p2 = tm.crear_solicitud_prueba(_cuerpo(), DUENO)
+    assert (p1.numero_solicitud, p2.numero_solicitud) == ("OTP-QTC0001", "OTP-QTC0002")
+    assert p1.es_prueba and p2.es_prueba
+    # Cada laboratorio parte en 1, también los que ya tienen solicitudes reales o ninguna.
+    assert tm.crear_solicitud_prueba(_cuerpo("DIAGNOFRUIT"), DUENO).numero_solicitud == "OTP-DIAG0001"
+    assert tm.crear_solicitud_prueba(_cuerpo("AGROFRESH"), DUENO).numero_solicitud == "OTP-AGF0001"
+    assert tm.crear_solicitud_prueba(_cuerpo("DIAGNOFRUIT"), DUENO).numero_solicitud == "OTP-DIAG0002"
 
 
-def test_un_laboratorio_sin_solicitudes_reales_no_tiene_hueco(entorno):
-    with pytest.raises(HTTPException) as e:
-        tm.crear_solicitud_prueba(_cuerpo("AGROFRESH"), DUENO)
-    assert e.value.status_code == 409
+def test_sin_limite_de_folios(entorno):
+    """Ya no hay «hueco»: se pueden crear más pruebas que solicitudes reales."""
+    numeros = [tm.crear_solicitud_prueba(_cuerpo(), DUENO).numero_solicitud for _ in range(8)]
+    assert numeros[-1] == "OTP-QTC0008"
 
 
 def test_no_mueve_el_contador_real_ni_avisa(entorno):
@@ -105,6 +103,14 @@ def test_no_mueve_el_contador_real_ni_avisa(entorno):
     assert real.numero_solicitud == "OT-QTC0005"
     assert not real.es_prueba
     assert len(avisos) == 1
+
+
+def test_muchas_pruebas_no_adelantan_el_contador_real(entorno):
+    """Las pruebas llegan a OTP-QTC0009, más que el folio real más alto (4): el
+    siguiente real igual es el 5, no el 10."""
+    for _ in range(9):
+        tm.crear_solicitud_prueba(_cuerpo(), DUENO)
+    assert tm.crear_solicitud(_cuerpo(), DUENO).numero_solicitud == "OT-QTC0005"
 
 
 def test_editar_una_prueba_no_le_quita_la_marca(entorno):

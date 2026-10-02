@@ -339,17 +339,18 @@ siempre «—»). **Las fotos se bajan con `FotoCruce`** (blob con el token): un
 
 ## Solicitudes de prueba
 
-Al borrar las solicitudes de prueba del arranque, el contador de folios de
-cada laboratorio no volvió atrás (`folio_solicitud_laboratorio` solo avanza):
-las reales empezaron en QUITECA 18 y AGF 50. Ese hueco (1..17 y 1..49) se usa
-para **solicitudes de prueba**, con el botón «+ Solicitud de prueba» de
-Toma de muestras → Solicitudes.
+Las pruebas llevan **su propia serie de folios**, `OTP-<prefijo><NNNN>` (OTP-DIAG0001,
+OTP-QTC0001, OTP-ALS0001…), con el botón «+ Solicitud de prueba» de Toma de muestras →
+Solicitudes. Es un correlativo por laboratorio que parte en 1 y sube sin tope
+(`_siguiente_numero_prueba`: el siguiente al más alto `OTP-` de ese laboratorio). **No
+gastan ni mueven el contador real**: las consultas del «tope» de los folios reales
+excluyen `OTP-` (`numero_solicitud !~ '^OTP-'`), si no, muchas pruebas adelantarían el
+siguiente folio real. (Antes usaban el «hueco» de folios bajo el primer real; se quitó:
+ya no existe el «folio disponible».) Las pruebas viejas con folio `OT-…` conservan el suyo.
 
 - Solo lo ve y lo usa **una cuenta**: `SOLICITUDES_PRUEBA_EMAIL` en el `.env`
   (por defecto `jorge.sandoval@agrofresh.com`, la misma que puede eliminar).
-- Toman el folio libre **más bajo** del hueco; el límite no está escrito a
-  mano: es el folio real más bajo del laboratorio, menos uno. Lleno el hueco,
-  409. No tocan el contador real.
+  `GET /solicitudes-prueba/estado` solo devuelve `{permitido}`.
 - La marca es `es_prueba` dentro de `datos` (hoja `_data` del Excel + jsonb
   del índice): **no hay migración**, y sobrevive a editar y a reindexar.
 - **Nunca se envían solas** (ni al crear ni al editar, aunque el envío
