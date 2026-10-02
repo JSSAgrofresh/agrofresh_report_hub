@@ -10,7 +10,7 @@ como antes.
 | Servicio          | Listado (tablas)                     | Contactos (`servicio`) |
 |-------------------|--------------------------------------|------------------------|
 | Línea de proceso  | `cliente` · `planta`                 | vacío (los de siempre) |
-| Actimist          | `cliente_actimist` · `planta_actimist` (0048) | `"actimist"`  |
+| Actimist          | `cliente_actimist` · `planta_actimist` (0049) | `"actimist"`  |
 
 Ingesta, Converter y Report siguen leyendo SOLO `cliente`/`planta`: el listado
 de Actimist lo usa por ahora únicamente el formulario de la solicitud.

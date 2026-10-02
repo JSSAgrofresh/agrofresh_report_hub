@@ -83,7 +83,8 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0044_auditoria_interna.sql
 .venv\Scripts\python.exe scripts\migrar.py 0045_correcciones_converter.sql
 .venv\Scripts\python.exe scripts\migrar.py 0047_actividad_usuario.sql
-.venv\Scripts\python.exe scripts\migrar.py 0048_listado_actimist.sql
+.venv\Scripts\python.exe scripts\migrar.py 0048_peso_extraido.sql
+.venv\Scripts\python.exe scripts\migrar.py 0049_listado_actimist.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -233,10 +234,10 @@ Aplicación» o una RYD siguen exactamente igual. La regla vive en
 `app/servicios.py` (`clave_servicio`, espejo en `src/lib/servicio.ts`; mismos
 casos en `test_servicio_actimist.py` y `servicio.test.ts`).
 
-- **Listado** (migración 0048): Línea de proceso = `cliente`/`planta` (sin
+- **Listado** (migración 0049): Línea de proceso = `cliente`/`planta` (sin
   cambios); Actimist = `cliente_actimist`/`planta_actimist`. Un cliente que está
   en los dos existe en las dos tablas, sin choque. Rutas `/api/catalogo/actimist/...`
-  (sin la 0048 dan 503 con aviso). En **Listados**, Sold To y Ship To tienen el
+  (sin la 0049 dan 503 con aviso). En **Listados**, Sold To y Ship To tienen el
   selector «Tipo de servicio»; Especie y Variedad son comunes. Actimist se carga
   con «Importar Excel» (muestra el plan y escribe solo al confirmar; nunca borra
   ni modifica) o con `scripts/cargar_listado_actimist.py`.

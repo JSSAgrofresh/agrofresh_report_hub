@@ -348,7 +348,7 @@ def test_plan_es_idempotente():
 
 from tests.utiles_bd import hay_base  # noqa: E402
 
-_necesita_actimist = pytest.mark.skipif(not hay_base("cliente_actimist"), reason="sin Postgres con la 0048")
+_necesita_actimist = pytest.mark.skipif(not hay_base("cliente_actimist"), reason="sin Postgres con la 0049")
 
 
 def _contar(cur, tabla):

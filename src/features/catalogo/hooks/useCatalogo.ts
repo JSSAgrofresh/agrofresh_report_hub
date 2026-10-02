@@ -72,7 +72,7 @@ export function useCatalogo(servicio: Servicio = 'linea') {
 export function mensajeCatalogo(e: unknown, servicio: Servicio): string {
   if (servicio === 'actimist' && e instanceof HttpError) {
     if (e.status === 404) return 'El servidor todavía no tiene el listado de Actimist: falta actualizar y reiniciar el backend.'
-    if (e.status === 503) return e.message || 'Falta correr la migración 0048 en el servidor para usar el listado de Actimist.'
+    if (e.status === 503) return e.message || 'Falta correr la migración 0049 en el servidor para usar el listado de Actimist.'
   }
   return 'No se pudo conectar con el backend.'
 }

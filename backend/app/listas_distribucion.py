@@ -664,7 +664,7 @@ def asegurar_planta(cur, sold_to: str, ship_to: str, codigo_sold: str | None = N
 
 def _listados(servicio: str = "") -> dict[tuple[str, str], tuple[str, str]] | None:
     """Plantas de Listados: clave normalizada → (Sold To, Ship To) oficiales.
-    Cada servicio tiene su listado (Actimist: migración 0048)."""
+    Cada servicio tiene su listado (Actimist: migración 0049)."""
     t_cliente, t_planta = tablas(servicio)
     try:
         from .db import conexion, cursor_dict

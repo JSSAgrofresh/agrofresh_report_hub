@@ -1,7 +1,7 @@
 """
 Carga el listado de Actimist (Sold To / Ship To) desde la dinámica del Planner.
 
-Necesita la migración 0048_listado_actimist.sql. Solo escribe en
+Necesita la migración 0049_listado_actimist.sql. Solo escribe en
 `cliente_actimist` / `planta_actimist`: el listado de Línea de proceso no se
 toca. Nunca borra ni modifica lo que ya existe; lo que ya está se reconoce por
 código SAP (o por nombre) y se deja igual. Se puede correr más de una vez.

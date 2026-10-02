@@ -1,5 +1,5 @@
 -- ----------------------------------------------------------------------------
--- 0048 - Listado propio de Actimist (Sold To / Ship To)
+-- 0049 - Listado propio de Actimist (Sold To / Ship To)
 --
 -- Las tablas `cliente` y `planta` pasan a ser el listado de LINEA DE PROCESO,
 -- sin ningun cambio: Ingesta, Converter, Report y todo lo demas las siguen

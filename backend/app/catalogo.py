@@ -105,7 +105,7 @@ def editar_planta(planta_id: int, body: PlantaIn) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Listado de Actimist (migración 0048)
+# Listado de Actimist (migración 0049)
 #
 # Las rutas de arriba son el listado de LÍNEA DE PROCESO y no cambian: Ingesta,
 # Converter y Report siguen leyendo `cliente`/`planta`. Actimist tiene sus
@@ -121,7 +121,7 @@ from . import listado_actimist  # noqa: E402
 _CLI_ACT, _PLA_ACT = listado_actimist.TABLA_CLIENTES, listado_actimist.TABLA_PLANTAS
 _SIN_MIGRACION = (
     "El listado de Actimist todavía no existe en la base: falta correr la migración "
-    "0048_listado_actimist.sql en el servidor."
+    "0049_listado_actimist.sql en el servidor."
 )
 
 

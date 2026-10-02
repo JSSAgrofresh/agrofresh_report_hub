@@ -198,7 +198,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [clientesDisponibles, setClientesDisponibles] = useState<string[]>([])
   const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
   // Actimist tiene su propio listado de Sold To / Ship To. Si no se puede leer
-  // (backend sin actualizar o sin la migración 0048) se avisa en el campo y
+  // (backend sin actualizar o sin la migración 0049) se avisa en el campo y
   // Línea de proceso sigue funcionando igual.
   const [clientesActimist, setClientesActimist] = useState<string[]>([])
   const [plantasActimist, setPlantasActimist] = useState<Planta[]>([])
