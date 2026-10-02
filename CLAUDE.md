@@ -341,8 +341,14 @@ Toma de muestras → Solicitudes.
 - La marca es `es_prueba` dentro de `datos` (hoja `_data` del Excel + jsonb
   del índice): **no hay migración**, y sobrevive a editar y a reindexar.
 - **Nunca se envían solas** (ni al crear ni al editar, aunque el envío
-  automático esté prendido): se envían a mano desde el detalle, a los
-  contactos reales, con **«(PRUEBA)»** al inicio del asunto.
+  automático esté prendido): se envían a mano desde el detalle con
+  **«(PRUEBA)»** al inicio del asunto. El panel de envío trae la casilla
+  **«Enviar solo a mí o a quien escriba (no a la lista real)»**, marcada por
+  defecto (`solo_a_estos` en `EnvioSolicitudIn`): va solo a las direcciones
+  escritas, o a quien aprieta enviar si no escribe ninguna, sin lista real, sin
+  copias ni CCO, y **no marca la solicitud como enviada** (se puede repetir).
+  Desmarcada, va a los contactos reales como antes. El backend rechaza
+  `solo_a_estos` en una solicitud que no es de prueba (400).
 - No notifican, no aparecen en el Ingreso al laboratorio (`emitir.py`) ni se
   les puede pedir reanálisis. En el listado llevan la etiqueta PRUEBA.
 
