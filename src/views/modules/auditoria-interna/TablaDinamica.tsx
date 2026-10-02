@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { LABS_PIVOTE, NOMBRE_RYD, TIPOS_DE_AREA, camposTituloTabla, pivotePorMes, tipoCorto } from '@/features/auditoriaInterna'
-import type { AreaPivote, CeldaLab, FilaPivote, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
+import { LABS_PIVOTE, camposTituloTabla, contarFueraDeTabla, pivotePorMes, tipoCorto } from '@/features/auditoriaInterna'
+import type { CeldaLab, FilaPivote, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { colorDeTipo } from './coloresTipo'
 import styles from './TablaDinamica.module.css'
 
@@ -41,10 +41,18 @@ function Reparto({ c }: { c: CeldaLab }) {
  * grupos (Línea de proceso, Actimist), cada uno con la cantidad de Quiteca y de
  * Agrofresh y cómo se reparten en %. El cambio mes ↔ semana desliza las filas.
  */
-export function TablaDinamica({ solicitudes, filtros }: { solicitudes: SolicitudAuditoria[]; filtros: FiltrosSolicitudes }) {
+export function TablaDinamica({
+  solicitudes,
+  filtros,
+  tipos,
+}: {
+  solicitudes: SolicitudAuditoria[]
+  filtros: FiltrosSolicitudes
+  /** Los grupos de columnas que se muestran (según el área elegida). */
+  tipos: readonly string[]
+}) {
   const pivote = useMemo(() => pivotePorMes(solicitudes), [solicitudes])
-  const [area, setArea] = useState<AreaPivote>('operaciones')
-  const tipos = TIPOS_DE_AREA[area]
+  const fuera = useMemo(() => contarFueraDeTabla(solicitudes, tipos), [solicitudes, tipos])
   const [mes, setMes] = useState<string | null>(null)
   const [sentido, setSentido] = useState<'entra' | 'vuelve'>('entra')
 
@@ -82,25 +90,6 @@ export function TablaDinamica({ solicitudes, filtros }: { solicitudes: Solicitud
 
   return (
     <section className={styles.tarjeta} aria-label="Análisis por mes y por semana">
-      <div className={styles.areas} role="group" aria-label="Área">
-        <button
-          type="button"
-          aria-pressed={area === 'operaciones'}
-          className={`${styles.area} ${styles.areaOperaciones} ${area === 'operaciones' ? styles.areaActiva : ''}`}
-          onClick={() => setArea('operaciones')}
-        >
-          Operaciones
-        </button>
-        <button
-          type="button"
-          aria-pressed={area === 'rd'}
-          title={NOMBRE_RYD}
-          className={`${styles.area} ${styles.areaRd} ${area === 'rd' ? styles.areaActiva : ''}`}
-          onClick={() => setArea('rd')}
-        >
-          R&amp;D
-        </button>
-      </div>
       <header className={styles.cabecera}>
         <div className={styles.titulos}>
           <nav className={styles.migas} aria-label="Ubicación">
@@ -207,6 +196,11 @@ export function TablaDinamica({ solicitudes, filtros }: { solicitudes: Solicitud
             </tfoot>
           </table>
         </div>
+      )}
+      {fuera > 0 && (
+        <p className={styles.nota}>
+          {nf.format(fuera)} solicitud{fuera === 1 ? '' : 'es'} de estos tipos no entra{fuera === 1 ? '' : 'n'} acá porque son de otro laboratorio (solo se cuentan Quiteca y Agrofresh) o no tienen fecha; sí están en las donas.
+        </p>
       )}
     </section>
   )

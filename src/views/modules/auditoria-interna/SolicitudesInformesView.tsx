@@ -17,14 +17,16 @@ import {
   resumenPorTipo,
   simularSolicitudes,
   tipoCorto,
+  tiposDeArea,
   topClientesPorServicio,
   totales,
   useSolicitudesAuditoria,
 } from '@/features/auditoriaInterna'
-import type { FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
+import type { AreaPivote, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { DonaTipoServicio, GraficoClienteServicio, LeyendaTipos, TarjetaGrafico } from './Graficos'
 import { altoClienteServicio } from './coloresTipo'
 import { PanelFiltros } from './PanelFiltros'
+import { SelectorArea } from './SelectorArea'
 import { ResumenConcretadas } from './ResumenConcretadas'
 import { TablaDinamica } from './TablaDinamica'
 import styles from './SolicitudesInformesView.module.css'
@@ -55,6 +57,8 @@ export function SolicitudesInformesView() {
   }
 
   const [filtros, setFiltros] = useState<FiltrosSolicitudes>({ ...FILTROS_VACIOS })
+  // null = ver todo (lo predeterminado)
+  const [area, setArea] = useState<AreaPivote | null>(null)
   const [tipoGrafico, setTipoGrafico] = useState<TipoGrafico>('ambos')
   const [topClientes, setTopClientes] = useState(10)
 
@@ -137,13 +141,14 @@ export function SolicitudesInformesView() {
             </div>
           ) : (
             <>
+              <SelectorArea area={area} onChange={setArea} />
               <div className={styles.panel}>
                 <div className={styles.lateral}>
-                  <DonaTipoServicio tipo={TIPO_LINEA} resumen={lineaProceso} />
-                  <DonaTipoServicio tipo={TIPO_ACTIMIST} resumen={actimist} />
-                  {ryd.emitidas > 0 && <DonaTipoServicio tipo={TIPO_RYD} resumen={ryd} />}
+                  {area !== 'rd' && <DonaTipoServicio tipo={TIPO_LINEA} resumen={lineaProceso} />}
+                  {area !== 'rd' && <DonaTipoServicio tipo={TIPO_ACTIMIST} resumen={actimist} />}
+                  {(area === 'rd' || (area === null && ryd.emitidas > 0)) && <DonaTipoServicio tipo={TIPO_RYD} resumen={ryd} />}
                 </div>
-                <TablaDinamica solicitudes={alcance} filtros={filtros} />
+                <TablaDinamica solicitudes={alcance} filtros={filtros} tipos={tiposDeArea(area)} />
               </div>
 
               <TarjetaGrafico
