@@ -31,6 +31,7 @@ import type { ConfigEnvioAutomatico, EstadoFiltro, FiltrosSolicitudes, OpcionCon
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { VistaPrevia } from '@/views/modules/storage/VistaPrevia'
 import { EstadoSolicitud } from './EstadoSolicitud'
+import { EliminarConClave } from '@/components/ui/EliminarConClave'
 import styles from './SolicitudesView.module.css'
 
 type ListaFiltro =
@@ -139,19 +140,10 @@ export function SolicitudesView() {
     refrescar()
   }, [refrescar])
 
+  /** La confirmación con contraseña la pide `EliminarConClave`; si esto falla, el diálogo lo avisa. */
   async function onEliminar(solicitud: Solicitud) {
-    if (
-      !confirm(
-        `¿Eliminar la solicitud "${solicitud.numero_solicitud}"? Esta acción no se puede deshacer.`,
-      )
-    )
-      return
-    try {
-      await eliminarSolicitud(solicitud.archivo)
-      await refrescar()
-    } catch {
-      setError('No se pudo eliminar la solicitud.')
-    }
+    await eliminarSolicitud(solicitud.archivo)
+    await refrescar()
   }
 
   function actualizarFiltro(campo: 'fechaDesde' | 'fechaHasta' | 'numeroSolicitud' | 'busqueda' | 'solicitante' | 'variedad', valor: string) {
@@ -704,9 +696,12 @@ export function SolicitudesView() {
                           PDF
                         </button>
                         {puedeEliminar && (
-                          <button className={styles.botonEliminar} onClick={() => onEliminar(s)}>
-                            Eliminar
-                          </button>
+                          <EliminarConClave
+                            etiqueta="Eliminar"
+                            titulo={`Eliminar la solicitud ${s.numero_solicitud}`}
+                            descripcion="Se borra para siempre y no se puede deshacer."
+                            onConfirmar={() => onEliminar(s)}
+                          />
                         )}
                       </td>
                     </tr>
@@ -774,9 +769,12 @@ export function SolicitudesView() {
                       PDF
                     </button>
                     {puedeEliminar && (
-                      <button className={styles.botonTarjetaEliminar} onClick={() => onEliminar(s)}>
-                        Eliminar
-                      </button>
+                      <EliminarConClave
+                        etiqueta="Eliminar"
+                        titulo={`Eliminar la solicitud ${s.numero_solicitud}`}
+                        descripcion="Se borra para siempre y no se puede deshacer."
+                        onConfirmar={() => onEliminar(s)}
+                      />
                     )}
                   </div>
                 </div>
