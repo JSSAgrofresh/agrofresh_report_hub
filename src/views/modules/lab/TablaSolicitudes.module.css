@@ -247,3 +247,30 @@
   margin: 0 auto;
   object-fit: contain;
 }
+
+/* Botón «tiket» para guardar el segundo peso. */
+.tiket,
+.tiketPendiente {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  border: 1px solid var(--color-border-strong);
+  background: #fff;
+  color: var(--color-text-faint);
+}
+
+.tiketPendiente {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.tiket:disabled {
+  cursor: default;
+  color: var(--color-primary);
+  background: #eef6e5;
+}
