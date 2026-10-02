@@ -1,4 +1,4 @@
-import { TIPO_ACTIMIST, TIPO_LINEA, tipoServicioDe } from './resumen'
+import { TIPO_ACTIMIST, TIPO_LINEA, TIPO_RYD, tipoServicioDe } from './resumen'
 import type { SolicitudAuditoria } from './tipos'
 
 /** Los dos laboratorios de la tabla dinámica. */
@@ -8,8 +8,8 @@ export const LABS_PIVOTE: { clave: ClaveLab; texto: string }[] = [
   { clave: 'agrofresh', texto: 'Agrofresh' },
 ]
 
-/** Orden de los grupos de la tabla: primero Línea de proceso, luego Actimist. */
-export const TIPOS_PIVOTE = [TIPO_LINEA, TIPO_ACTIMIST] as const
+/** Orden de los grupos de la tabla: primero Línea de proceso, luego Actimist y RYD. */
+export const TIPOS_PIVOTE = [TIPO_LINEA, TIPO_ACTIMIST, TIPO_RYD] as const
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
