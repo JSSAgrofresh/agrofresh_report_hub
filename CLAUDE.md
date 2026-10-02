@@ -339,17 +339,18 @@ siempre «—»). **Las fotos se bajan con `FotoCruce`** (blob con el token): un
 
 ## Solicitudes de prueba
 
-Al borrar las solicitudes de prueba del arranque, el contador de folios de
-cada laboratorio no volvió atrás (`folio_solicitud_laboratorio` solo avanza):
-las reales empezaron en QUITECA 18 y AGF 50. Ese hueco (1..17 y 1..49) se usa
-para **solicitudes de prueba**, con el botón «+ Solicitud de prueba» de
-Toma de muestras → Solicitudes.
+Las pruebas llevan **su propia serie de folios**, `OTP-<prefijo><NNNN>` (OTP-DIAG0001,
+OTP-QTC0001, OTP-ALS0001…), con el botón «+ Solicitud de prueba» de Toma de muestras →
+Solicitudes. Es un correlativo por laboratorio que parte en 1 y sube sin tope
+(`_siguiente_numero_prueba`: el siguiente al más alto `OTP-` de ese laboratorio). **No
+gastan ni mueven el contador real**: las consultas del «tope» de los folios reales
+excluyen `OTP-` (`numero_solicitud !~ '^OTP-'`), si no, muchas pruebas adelantarían el
+siguiente folio real. (Antes usaban el «hueco» de folios bajo el primer real; se quitó:
+ya no existe el «folio disponible».) Las pruebas viejas con folio `OT-…` conservan el suyo.
 
 - Solo lo ve y lo usa **una cuenta**: `SOLICITUDES_PRUEBA_EMAIL` en el `.env`
   (por defecto `jorge.sandoval@agrofresh.com`, la misma que puede eliminar).
-- Toman el folio libre **más bajo** del hueco; el límite no está escrito a
-  mano: es el folio real más bajo del laboratorio, menos uno. Lleno el hueco,
-  409. No tocan el contador real.
+  `GET /solicitudes-prueba/estado` solo devuelve `{permitido}`.
 - La marca es `es_prueba` dentro de `datos` (hoja `_data` del Excel + jsonb
   del índice): **no hay migración**, y sobrevive a editar y a reindexar.
 - **Nunca se envían solas** (ni al crear ni al editar, aunque el envío
@@ -437,6 +438,18 @@ tocas una, toca la otra.
   vuelvas a poner. pH y ORP, si vuelven a graficarse, van en gráficos separados.
   Por ahora solo para admin: mostrárselo a clientes exige filtrar las
   cargas por cliente en el backend.
+- **Las dos bases en Excel comparten sus columnas generales** para poder cruzarlas:
+  la BD de Report (`bd_excel.py`) y «Descargar con muestra» de Ingreso al laboratorio
+  (`emitir.generar_excel_con_muestra`). **La única definición es `app/columnas_base.py`**
+  (`GENERALES_BASE`, mismo nombre y orden en las dos; `CAMPOS_FUNGICIDAS`: Gasto, Código
+  de Ensayo y N° Ensayo, que junto a Tipo Aplicación van tras los analitos en ambas).
+  Si falta una columna, se agrega ahí y sale en las dos; cada descarga llena lo que tiene
+  (la BD trae el **resultado** de cada analito; «con muestra» trae la **dosis** y un ✓ si
+  se solicitó, sin resultados). Incluye N° Muestra, Fecha/Hora Recepción (el momento del
+  cruce) y **la lista de distribución de resultados** (Para / CC / CCO, la misma regla del
+  correo, el PDF y el JSON: `calculador_listas` lee la configuración una vez). Hay pruebas
+  que comparan las dos cabeceras (`test_solicitud_excel.py`, `test_bd_excel.py`).
+  **El formato de Solicitudes (matriz masiva) no cambió.**
 - **«Descargar BD»** (solo personal interno, nunca en el portal de cliente ni
   sobre datos simulados): `POST /reportes/bd/excel`, código en `app/bd_excel.py`.
   Mismo formato que la matriz de Solicitudes (dos filas de encabezado, una fila

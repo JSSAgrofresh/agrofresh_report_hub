@@ -74,6 +74,9 @@ _PAT_CODIGO_LAB = re.compile(r"^[A-Z0-9][A-Z0-9_-]{1,30}$")
 # correlativo se calcula sobre ambos para que no se reinicie ni choque con las
 # solicitudes que todavía tengan el folio viejo.
 PREFIJO_FOLIO = "OT"
+# Las solicitudes de prueba llevan su propia serie (OTP-DIAG0001…), aparte del
+# correlativo real: no gastan folios reales ni los mueven.
+PREFIJO_FOLIO_PRUEBA = "OTP"
 _PAT_NUMERO = re.compile(r"^(?:SOL|OT)-(\d+)$")
 
 
@@ -286,6 +289,7 @@ def _siguiente_numero_global() -> str:
         cur.execute(
             "SELECT max(substring(numero_solicitud from '[0-9]+$')::bigint) AS tope"
             " FROM solicitud_archivo WHERE numero_solicitud ~ '[0-9]+$'"
+            " AND numero_solicitud !~ '^OTP-'"
         )
         tope = cur.fetchone()["tope"] or 0
         if numero <= tope:
@@ -344,7 +348,8 @@ def _siguiente_numero(laboratorio: str) -> str:
             # real en vez de entregar un folio repetido.
             cur.execute(
                 "SELECT max(substring(numero_solicitud from '[0-9]+$')::bigint) AS tope"
-                " FROM solicitud_archivo WHERE laboratorio = %s AND numero_solicitud ~ '[0-9]+$'",
+                " FROM solicitud_archivo WHERE laboratorio = %s AND numero_solicitud ~ '[0-9]+$'"
+                " AND numero_solicitud !~ '^OTP-'",
                 (laboratorio,),
             )
             tope = cur.fetchone()["tope"] or 0
@@ -824,69 +829,36 @@ def _exigir_dueno_pruebas(usuario: Usuario) -> None:
         raise HTTPException(403, "Las solicitudes de prueba solo las puede crear su cuenta autorizada.")
 
 
-def _formato_folio(laboratorio: str, numero: int) -> str:
+def _siguiente_numero_prueba(laboratorio: str) -> str:
+    """Folio de una solicitud de prueba: serie propia `OTP-<prefijo><NNNN>` (ej.
+    OTP-DIAG0001), un correlativo por laboratorio que parte en 1 y no toca el
+    contador real. Es el siguiente al más alto que ya tenga ese laboratorio."""
     prefijo = _prefijo_de_laboratorio(laboratorio)
-    return f"{PREFIJO_FOLIO}-{prefijo}{numero:04d}" if prefijo else f"{PREFIJO_FOLIO}-{numero:04d}"
-
-
-def _hueco_de_prueba(laboratorio: str) -> dict:
-    """Límite del hueco, folios de prueba ya usados y el siguiente libre."""
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         cur.execute(
-            "SELECT numero_solicitud, coalesce(datos->>'es_prueba', 'false') = 'true' AS prueba"
-            " FROM solicitud_archivo WHERE laboratorio = %s AND numero_solicitud ~ '[0-9]+$'",
+            "SELECT max(substring(numero_solicitud from '[0-9]+$')::bigint) AS tope"
+            " FROM solicitud_archivo WHERE laboratorio = %s AND numero_solicitud ~ '^OTP-.*[0-9]+$'",
             (laboratorio,),
         )
-        filas = cur.fetchall()
-        # Los folios existen en todos los laboratorios: uno sin prefijo comparte
-        # la numeración con los demás sin prefijo.
-        cur.execute("SELECT numero_solicitud FROM solicitud_archivo")
-        existentes = {f["numero_solicitud"] for f in cur.fetchall()}
-
-    def _numero(folio: str) -> int:
-        return int(re.search(r"[0-9]+$", folio).group())
-
-    reales = [_numero(f["numero_solicitud"]) for f in filas if not f["prueba"]]
-    limite = (min(reales) - 1) if reales else 0
-    usados = sum(1 for f in filas if f["prueba"])
-    siguiente = next(
-        (n for n in range(1, limite + 1) if _formato_folio(laboratorio, n) not in existentes),
-        None,
-    )
-    return {
-        "laboratorio": laboratorio,
-        "limite": limite,
-        "usados": usados,
-        "siguiente": _formato_folio(laboratorio, siguiente) if siguiente else None,
-    }
+        tope = cur.fetchone()["tope"] or 0
+    return f"{PREFIJO_FOLIO_PRUEBA}-{prefijo}{tope + 1:04d}"
 
 
 @router.get("/solicitudes-prueba/estado")
 def estado_solicitudes_prueba(usuario: Usuario = Depends(usuario_actual)) -> dict:
-    """Si la cuenta puede crear pruebas y cuántos folios le quedan por laboratorio."""
-    if not _es_dueno_pruebas(usuario):
-        return {"permitido": False, "laboratorios": []}
-    labs = _leer_config("laboratorios.json", LABORATORIOS_DEFECTO)
-    codigos = [l.get("codigo") for l in labs if l.get("codigo") and l.get("activo", True)]
-    return {"permitido": True, "laboratorios": [_hueco_de_prueba(c) for c in codigos]}
+    """Si la cuenta puede crear solicitudes de prueba (solo ella ve el botón)."""
+    return {"permitido": _es_dueno_pruebas(usuario)}
 
 
 @router.post("/solicitudes-prueba")
 def crear_solicitud_prueba(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
-    """Como `crear_solicitud`, pero con el folio libre más bajo del hueco, la
+    """Como `crear_solicitud`, pero con folio de la serie de pruebas (OTP-…), la
     marca `es_prueba` y sin notificación. El envío por correo lo decide la
     pantalla: una prueba nunca se envía sola."""
     _exigir_dueno_pruebas(usuario)
     _validar_analitos(body)
     _exigir_lab_activo(body.laboratorio)
-    hueco = _hueco_de_prueba(body.laboratorio)
-    if not hueco["siguiente"]:
-        raise HTTPException(
-            409,
-            f"No quedan folios de prueba para {body.laboratorio}: "
-            f"el hueco llega hasta el {hueco['limite']} y ya está completo.",
-        )
-    return _guardar_solicitud_nueva(body, usuario, hueco["siguiente"], es_prueba=True)
+    return _guardar_solicitud_nueva(body, usuario, _siguiente_numero_prueba(body.laboratorio), es_prueba=True)
 
 
 @router.put("/solicitudes/{archivo}")
@@ -1935,8 +1907,12 @@ def destinatarios_resultado_por_tipo(
     ship_to: str | None = None,
     sold_to: str | None = None,
     especie: str | None = None,
+    contactos: list[dict] | None = None,
 ) -> dict[str, list[str]]:
     """Correos de resultado separados en `to`/`cc`/`bcc`.
+
+    `contactos`: la configuración ya leída (para llamarla muchas veces sin
+    volver a leerla de R2, como hace la descarga de Excel).
 
     `resultado_cliente` → `to`. `resultado_interno` → `cc` o `bcc` según
     `tipo_copia` del contacto.
@@ -1944,7 +1920,7 @@ def destinatarios_resultado_por_tipo(
     salida: dict[str, list[str]] = {"to": [], "cc": [], "bcc": []}
     vistos: set[str] = set()
     for contacto in sorted(
-        _contactos_resultado(sold_to or "", ship_to or "", especie or ""),
+        _contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos),
         key=lambda c: c.get("orden", 0),
     ):
         if not contacto.get("activo", True):
@@ -1964,7 +1940,7 @@ def destinatarios_resultado_por_tipo(
         # los admin del Report Hub (que con lista van en CCO); los técnicos y
         # comerciales (internos) ya quedaron en copia arriba.
         salida["to"] = _para_sin_lista(_admins_de(
-            _contactos_resultado(sold_to or "", ship_to or "", especie or "")
+            _contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos)
         ))
         en_para = {d.casefold() for d in salida["to"]}
         salida["cc"] = [e for e in salida["cc"] if e.casefold() not in en_para]
