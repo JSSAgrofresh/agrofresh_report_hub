@@ -1,0 +1,268 @@
+/* El modal grande deja el cuerpo sin margen (lo usan visores a todo el ancho):
+   este diálogo pone el suyo. */
+.cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: #fbe8e5;
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
+.zona {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 40px var(--space-4);
+  border: 2px dashed #c3d8ef;
+  border-radius: var(--radius-lg);
+  background: #f5f9fd;
+  color: #2563a8;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.zona:hover:not(:disabled) {
+  background: #eaf2fb;
+  border-color: #2563a8;
+}
+
+.zona:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.zona strong {
+  font-size: 15px;
+}
+
+.zona span {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.exito {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: #e9f5e4;
+  color: var(--color-ok);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+.cifras {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.cifra {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.cifraDestacada {
+  border-color: #c3d8ef;
+  background: #f5f9fd;
+}
+
+.valor {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--color-text);
+}
+
+.cifraDestacada .valor {
+  color: #2563a8;
+}
+
+.etiquetaCifra {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.nota {
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+}
+
+.seccion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.seccion h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.contador {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+}
+
+.omitidas {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #fbe8e5;
+  color: var(--color-danger);
+}
+
+.avisos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #f0dcc4;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.avisos li {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: var(--space-2) var(--space-3);
+  background: #fdf7ef;
+  font-size: 12.5px;
+  border-top: 1px solid #f0dcc4;
+}
+
+.avisos li:first-child {
+  border-top: none;
+}
+
+.avisos .avisoGrave {
+  background: #fbe8e5;
+}
+
+.fila {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+}
+
+.planta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.motivo {
+  color: var(--color-warning);
+}
+
+.avisoGrave .motivo {
+  color: var(--color-danger);
+}
+
+.tablaCaja {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.tabla th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.tabla td {
+  padding: 7px var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.soldTo {
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.verMas {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #2563a8;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .cifras {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .avisos li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}

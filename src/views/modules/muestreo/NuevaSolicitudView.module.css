@@ -543,3 +543,24 @@
   padding: 6px 10px;
   color: var(--color-primary);
 }
+
+/* Bajo el Sold To: de qué listado salen los clientes (solo Actimist). */
+.listadoServicio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+
+.avisoListado {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  background: #fdf3e7;
+  color: var(--color-warning);
+  font-size: 11.5px;
+  line-height: 1.4;
+}

@@ -143,13 +143,15 @@ export function destinatariosDeSolicitud(archivo: string) {
  * Para usar en el formulario antes de que exista el archivo de la solicitud. */
 export function destinatariosParaLaboratorio(
   laboratorio: string,
-  contexto: { sold_to?: string; ship_to?: string; especie?: string } = {},
+  contexto: { sold_to?: string; ship_to?: string; especie?: string; tipo_aplicacion?: string } = {},
 ) {
+  // El Tipo Aplicación decide la lista de distribución (Actimist tiene la suya).
   const params = new URLSearchParams({
     laboratorio,
     sold_to: contexto.sold_to ?? '',
     ship_to: contexto.ship_to ?? '',
     especie: contexto.especie ?? '',
+    tipo_aplicacion: contexto.tipo_aplicacion ?? '',
   })
   return httpClient.get<{ destinatarios: string[]; cc?: string[]; bcc?: string[] }>(
     `/toma-muestras/config/destinatarios-solicitud?${params.toString()}`,
@@ -179,8 +181,9 @@ export function resultadosDeShipTo(
   shipTo: string,
   soldTo: string = '',
   especie: string = '',
+  tipoAplicacion: string = '',
 ) {
-  const qs = new URLSearchParams({ laboratorio, ship_to: shipTo, sold_to: soldTo, especie })
+  const qs = new URLSearchParams({ laboratorio, ship_to: shipTo, sold_to: soldTo, especie, tipo_aplicacion: tipoAplicacion })
   return httpClient.get<ContactoResultado[]>(`/toma-muestras/config/resultados-ship-to?${qs.toString()}`)
 }
 

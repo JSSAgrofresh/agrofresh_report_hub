@@ -22,6 +22,11 @@ Reglas:
     borra listas ya cargadas.)
   - Las plantas se reconocen por su Sold To + Ship To ignorando mayúsculas,
     tildes y espacios repetidos; al escribir se respeta el nombre del sistema.
+  - Cada tipo de servicio tiene SU lista (`servicio`, ver servicios.py): la de
+    siempre es Línea de proceso; Actimist es otra, con su propio listado de
+    plantas. Todo endpoint recibe `servicio` (vacío = Línea de proceso) y solo
+    lee y escribe los contactos de ese servicio: guardar en uno nunca toca el
+    otro, aunque una planta se llame igual en los dos.
 """
 from __future__ import annotations
 
@@ -40,6 +45,7 @@ from pydantic import BaseModel, Field
 from . import config_store
 from .auth import Usuario, solo_admin_general
 from .listados import clave_normalizada as _clave_esp
+from .servicios import ACTIMIST, clave_servicio, es_del_servicio, tablas
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +164,11 @@ def _fila_vacia(sold_to: str, ship_to: str) -> dict:
 def _agregar(lista: list[str], email: str) -> None:
     if email.casefold() not in {e.casefold() for e in lista}:
         lista.append(email)
+
+
+def del_servicio(contactos: list[dict], servicio: str = "") -> list[dict]:
+    """Solo los contactos de la lista de ese servicio (vacío = Línea de proceso)."""
+    return [c for c in contactos if es_del_servicio(c, servicio)]
 
 
 def estado_desde_contactos(contactos: list[dict]) -> dict[tuple[str, str], dict]:
@@ -373,17 +384,22 @@ def comparar(
 # ---------------------------------------------------------------------------
 
 def _contacto(id_: int, sold_to: str, ship_to: str, especie: str, email: str, tipo: str,
-              cargo: str, copia: str, orden: int, nombre: str | None = None) -> dict:
-    return {
+              cargo: str, copia: str, orden: int, nombre: str | None = None, servicio: str = "") -> dict:
+    contacto = {
         "id": id_, "laboratorio": LAB_COMPARTIDO, "nombre": nombre or email, "email": email,
         "cargo": cargo, "tipo": tipo, "sold_to": sold_to, "ship_to": ship_to, "especie": especie,
         "tipo_copia": copia, "activo": True, "orden": orden,
     }
+    # Los de Línea de proceso quedan como siempre (sin la llave); los de
+    # Actimist llevan su marca.
+    if clave_servicio(servicio) == ACTIMIST:
+        contacto["servicio"] = ACTIMIST
+    return contacto
 
 
 def _contactos_clientes(
     sold_to: str, ship_to: str, mapa: dict[str, list[str]], sig_id: int, orden0: int,
-    nombres: dict[str, dict],
+    nombres: dict[str, dict], servicio: str = "",
 ) -> tuple[list[dict], int]:
     """Los contactos de cliente de un mapa categoría → correos.
 
@@ -401,7 +417,7 @@ def _contactos_clientes(
         nonlocal sig_id, orden
         previo = nombres.get(email.casefold(), {})
         c = _contacto(sig_id, sold_to, ship_to, especie, email, "resultado_cliente",
-                      previo.get("cargo", ""), "cc", orden, previo.get("nombre"))
+                      previo.get("cargo", ""), "cc", orden, previo.get("nombre"), servicio)
         salida.append(c)
         sig_id += 1
         orden += 1
@@ -417,12 +433,16 @@ def _contactos_clientes(
     return salida, sig_id
 
 
-def aplicar(contactos: list[dict], cambios: list[dict]) -> tuple[list[dict], dict]:
+def aplicar(contactos: list[dict], cambios: list[dict], servicio: str = "") -> tuple[list[dict], dict]:
     """Aplica SOLO los cambios confirmados sobre una copia de `contactos`.
 
     Es tolerante: agregar a quien ya está, o quitar a quien ya no está, se
     ignora. Devuelve la lista nueva y un resumen de lo hecho.
+
+    `contactos` es la configuración COMPLETA (todos los servicios), pero solo
+    se tocan los del `servicio` pedido: los de la otra lista quedan intactos.
     """
+    servicio = clave_servicio(servicio)
     nuevos = [dict(c) for c in contactos]
     sig_id = max((c.get("id", 0) for c in nuevos), default=0) + 1
     hechos = {"aplicados": 0, "plantas": set(), "ignorados": []}
@@ -435,6 +455,7 @@ def aplicar(contactos: list[dict], cambios: list[dict]) -> tuple[list[dict], dic
     for clave, items in por_planta.items():
         def de_la_planta(c: dict) -> bool:
             return c.get("tipo") in ("resultado_cliente", "resultado_interno") and \
+                es_del_servicio(c, servicio) and \
                 clave_planta(c.get("sold_to"), c.get("ship_to")) == clave
 
         existentes = [c for c in nuevos if de_la_planta(c)]
@@ -457,12 +478,13 @@ def aplicar(contactos: list[dict], cambios: list[dict]) -> tuple[list[dict], dic
                 fila = it.get("fila") or {}
                 for rol, (cargo, copia) in ROLES.items():
                     for email in limpiar_emails(";".join(fila.get(rol) or []))[0]:
-                        nuevos.append(_contacto(sig_id, sold_to, ship_to, "", email, "resultado_interno", cargo, copia, orden0))
+                        nuevos.append(_contacto(sig_id, sold_to, ship_to, "", email, "resultado_interno", cargo, copia,
+                                                orden0, servicio=servicio))
                         sig_id += 1
                         orden0 += 1
                 cli, sig_id = _contactos_clientes(
                     sold_to, ship_to, {c: (fila.get("clientes") or {}).get(c, []) for c in CATEGORIAS},
-                    sig_id, orden0, {})
+                    sig_id, orden0, {}, servicio)
                 nuevos.extend(cli)
                 hechos["aplicados"] += 1
                 hechos["plantas"].add(clave)
@@ -480,7 +502,8 @@ def aplicar(contactos: list[dict], cambios: list[dict]) -> tuple[list[dict], dic
                 for email in agregar:
                     if email.casefold() in ya:
                         continue
-                    nuevos.append(_contacto(sig_id, sold_to, ship_to, "", email.lower(), "resultado_interno", cargo, copia, orden0))
+                    nuevos.append(_contacto(sig_id, sold_to, ship_to, "", email.lower(), "resultado_interno", cargo, copia,
+                                            orden0, servicio=servicio))
                     sig_id += 1
                     orden0 += 1
                 hechos["aplicados"] += 1
@@ -516,7 +539,7 @@ def aplicar(contactos: list[dict], cambios: list[dict]) -> tuple[list[dict], dic
                 return not esp or categoria_de_especie(esp) is not None
 
             nuevos[:] = [c for c in nuevos if not reemplazable(c)]
-            cli, sig_id = _contactos_clientes(sold_to, ship_to, mapa_clientes, sig_id, orden0, nombres)
+            cli, sig_id = _contactos_clientes(sold_to, ship_to, mapa_clientes, sig_id, orden0, nombres, servicio)
             nuevos.extend(cli)
 
     hechos["plantas"] = len(hechos["plantas"])
@@ -606,27 +629,29 @@ def estado_para_tabla(
 
 
 def asegurar_planta(cur, sold_to: str, ship_to: str, codigo_sold: str | None = None,
-                    codigo_ship: str | None = None) -> dict:
+                    codigo_ship: str | None = None, servicio: str = "") -> dict:
     """Crea en Listados el cliente (Sold To) y la planta (Ship To) si no existen.
 
     Compara sin mayúsculas, tildes ni espacios repetidos para no duplicar. Devuelve
     los nombres oficiales (los que ya había, o los escritos) y qué se creó.
+    Escribe en el listado del `servicio` (Actimist tiene el suyo).
     """
+    t_cliente, t_planta = tablas(servicio)
     sold_to, ship_to = re.sub(r"\s+", " ", sold_to).strip(), re.sub(r"\s+", " ", ship_to).strip()
     if not sold_to or not ship_to:
         raise ValueError("Falta el Sold To o el Ship To.")
-    cur.execute("SELECT id, nombre FROM cliente")
+    cur.execute(f"SELECT id, nombre FROM {t_cliente}")
     cliente = next((c for c in cur.fetchall() if norm(c["nombre"]) == norm(sold_to)), None)
     cliente_creado = cliente is None
     if cliente is None:
-        cur.execute("INSERT INTO cliente (nombre, codigo_sap, activo) VALUES (%s, %s, true) RETURNING id",
+        cur.execute(f"INSERT INTO {t_cliente} (nombre, codigo_sap, activo) VALUES (%s, %s, true) RETURNING id",
                     (sold_to, codigo_sold))
         cliente = {"id": cur.fetchone()["id"], "nombre": sold_to}
-    cur.execute("SELECT id, nombre FROM planta WHERE cliente_id = %s", (cliente["id"],))
+    cur.execute(f"SELECT id, nombre FROM {t_planta} WHERE cliente_id = %s", (cliente["id"],))
     planta = next((p for p in cur.fetchall() if norm(p["nombre"]) == norm(ship_to)), None)
     planta_creada = planta is None
     if planta is None:
-        cur.execute("INSERT INTO planta (cliente_id, nombre, codigo_sap, activo) VALUES (%s, %s, %s, true) RETURNING id",
+        cur.execute(f"INSERT INTO {t_planta} (cliente_id, nombre, codigo_sap, activo) VALUES (%s, %s, %s, true) RETURNING id",
                     (cliente["id"], ship_to, codigo_ship))
         planta = {"id": cur.fetchone()["id"], "nombre": ship_to}
     return {"sold_to": cliente["nombre"], "ship_to": planta["nombre"],
@@ -637,15 +662,17 @@ def asegurar_planta(cur, sold_to: str, ship_to: str, codigo_sold: str | None = N
 # Endpoints (solo admin general)
 # ---------------------------------------------------------------------------
 
-def _listados() -> dict[tuple[str, str], tuple[str, str]] | None:
-    """Plantas de Listados: clave normalizada → (Sold To, Ship To) oficiales."""
+def _listados(servicio: str = "") -> dict[tuple[str, str], tuple[str, str]] | None:
+    """Plantas de Listados: clave normalizada → (Sold To, Ship To) oficiales.
+    Cada servicio tiene su listado (Actimist: migración 0049)."""
+    t_cliente, t_planta = tablas(servicio)
     try:
         from .db import conexion, cursor_dict
 
         with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
             cur.execute(
-                "SELECT c.nombre AS cliente, p.nombre AS planta FROM planta p "
-                "JOIN cliente c ON c.id = p.cliente_id WHERE p.activo AND c.activo"
+                f"SELECT c.nombre AS cliente, p.nombre AS planta FROM {t_planta} p "
+                f"JOIN {t_cliente} c ON c.id = p.cliente_id WHERE p.activo AND c.activo"
             )
             return {clave_planta(f["cliente"], f["planta"]): (f["cliente"], f["planta"]) for f in cur.fetchall()}
     except Exception:
@@ -653,12 +680,13 @@ def _listados() -> dict[tuple[str, str], tuple[str, str]] | None:
         return None
 
 
-def _clientes_listados() -> list[str]:
+def _clientes_listados(servicio: str = "") -> list[str]:
+    t_cliente, _ = tablas(servicio)
     try:
         from .db import conexion, cursor_dict
 
         with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-            cur.execute("SELECT nombre FROM cliente WHERE activo ORDER BY nombre")
+            cur.execute(f"SELECT nombre FROM {t_cliente} WHERE activo ORDER BY nombre")
             return [f["nombre"] for f in cur.fetchall()]
     except Exception:
         logger.warning("No se pudo leer los clientes de Listados.", exc_info=True)
@@ -670,22 +698,28 @@ class CambiosIn(BaseModel):
 
 
 @router.get("/estado")
-def estado_actual(sin_lista: bool = False, _: Usuario = Depends(solo_admin_general)) -> dict:
+def estado_actual(
+    sin_lista: bool = False, servicio: str = "", _: Usuario = Depends(solo_admin_general)
+) -> dict:
     """Lo que el sistema tiene hoy, una fila por planta: la base de la tabla dinámica."""
-    estado = estado_desde_contactos(config_store.leer(ARCHIVO_CONTACTOS, []))
-    resultado = estado_para_tabla(estado, _listados(), sin_lista)
-    resultado["clientes"] = _clientes_listados()
+    servicio = clave_servicio(servicio)
+    estado = estado_desde_contactos(del_servicio(config_store.leer(ARCHIVO_CONTACTOS, []), servicio))
+    resultado = estado_para_tabla(estado, _listados(servicio), sin_lista)
+    resultado["clientes"] = _clientes_listados(servicio)
+    resultado["servicio"] = servicio
     return resultado
 
 
 @router.get("/excel")
-def exportar(todas: bool = False, _: Usuario = Depends(solo_admin_general)) -> Response:
-    estado = estado_desde_contactos(config_store.leer(ARCHIVO_CONTACTOS, []))
+def exportar(todas: bool = False, servicio: str = "", _: Usuario = Depends(solo_admin_general)) -> Response:
+    servicio = clave_servicio(servicio)
+    estado = estado_desde_contactos(del_servicio(config_store.leer(ARCHIVO_CONTACTOS, []), servicio))
     vacias: list[tuple[str, str]] = []
     if todas:
-        lis = _listados() or {}
+        lis = _listados(servicio) or {}
         vacias = [par for k, par in lis.items() if k not in estado]
-    nombre = f"listas_distribucion_{datetime.now():%Y-%m-%d}.xlsx"
+    sufijo = "_actimist" if servicio == ACTIMIST else ""
+    nombre = f"listas_distribucion{sufijo}_{datetime.now():%Y-%m-%d}.xlsx"
     return Response(
         construir_excel(estado, vacias),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -694,7 +728,10 @@ def exportar(todas: bool = False, _: Usuario = Depends(solo_admin_general)) -> R
 
 
 @router.post("/comparar")
-async def comparar_excel(archivo: UploadFile = File(...), _: Usuario = Depends(solo_admin_general)) -> dict:
+async def comparar_excel(
+    archivo: UploadFile = File(...), servicio: str = "", _: Usuario = Depends(solo_admin_general)
+) -> dict:
+    servicio = clave_servicio(servicio)
     contenido = await archivo.read()
     if len(contenido) > 15 * 1024 * 1024:
         raise HTTPException(413, "El archivo pesa más de 15 MB.")
@@ -702,13 +739,17 @@ async def comparar_excel(archivo: UploadFile = File(...), _: Usuario = Depends(s
         filas, avisos = leer_filas_excel(contenido)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
-    resultado = comparar(estado_desde_contactos(config_store.leer(ARCHIVO_CONTACTOS, [])), filas, _listados())
+    resultado = comparar(
+        estado_desde_contactos(del_servicio(config_store.leer(ARCHIVO_CONTACTOS, []), servicio)),
+        filas, _listados(servicio),
+    )
     resultado["resumen"]["avisos"] = avisos[:100]
     return resultado
 
 
 @router.post("/aplicar")
-def aplicar_cambios(datos: CambiosIn, usuario: Usuario = Depends(solo_admin_general)) -> dict:
+def aplicar_cambios(datos: CambiosIn, servicio: str = "", usuario: Usuario = Depends(solo_admin_general)) -> dict:
+    servicio = clave_servicio(servicio)
     if not datos.cambios:
         raise HTTPException(400, "No hay cambios confirmados para aplicar.")
     creados = {"clientes": 0, "plantas": 0}
@@ -721,7 +762,7 @@ def aplicar_cambios(datos: CambiosIn, usuario: Usuario = Depends(solo_admin_gene
                 with conexion() as conn, cursor_dict(conn) as cur:
                     r = asegurar_planta(cur, (it.get("planta") or {}).get("sold_to", ""),
                                         (it.get("planta") or {}).get("ship_to", ""),
-                                        fila.get("codigo_sold"), fila.get("codigo_ship"))
+                                        fila.get("codigo_sold"), fila.get("codigo_ship"), servicio)
             except ValueError as exc:
                 raise HTTPException(400, str(exc)) from exc
             except Exception as exc:
@@ -734,8 +775,8 @@ def aplicar_cambios(datos: CambiosIn, usuario: Usuario = Depends(solo_admin_gene
     actuales = config_store.leer(ARCHIVO_CONTACTOS, [])
     respaldo = f"contactos_laboratorio_respaldo_{datetime.now():%Y%m%d_%H%M%S}.json"
     config_store.escribir(respaldo, actuales)
-    nuevos, hechos = aplicar(actuales, datos.cambios)
+    nuevos, hechos = aplicar(actuales, datos.cambios, servicio)
     config_store.escribir(ARCHIVO_CONTACTOS, nuevos)
-    logger.info("Listas de distribución: %s aplicó %d cambios en %d plantas (respaldo %s)",
-                usuario.email, hechos["aplicados"], hechos["plantas"], respaldo)
+    logger.info("Listas de distribución (%s): %s aplicó %d cambios en %d plantas (respaldo %s)",
+                servicio or "linea", usuario.email, hechos["aplicados"], hechos["plantas"], respaldo)
     return {**hechos, "respaldo": respaldo, "listados_creados": creados}

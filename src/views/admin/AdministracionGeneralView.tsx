@@ -17,6 +17,8 @@ import { Indicador } from '@/components/ui/Indicador'
 import { IconoActualizar, IconoAlerta, IconoBuscar, IconoCerrar, IconoPapelera } from '@/components/ui/iconosAccion'
 import { Modal } from '@/components/ui/Modal'
 import { ListasPanel } from './listas/ListasPanel'
+import { SelectorServicio } from '@/components/ui/SelectorServicio'
+import type { Servicio } from '@/lib/servicio'
 import { ActividadPanel } from './panel/ActividadPanel'
 import { ResumenPanel } from './panel/ResumenPanel'
 import { fechaHora } from '@/lib/fechaHoraChile'
@@ -52,6 +54,10 @@ export function AdministracionGeneralView() {
   const [errorOlvidar, setErrorOlvidar] = useState<string | null>(null)
   const [pestana, setPestana] = useState<Pestana>('resumen')
   const [listasVisitada, setListasVisitada] = useState(false)
+  // Cada tipo de servicio tiene su lista de distribución. Los dos paneles se
+  // conservan montados: cambiar de servicio no pierde lo que no se guardó.
+  const [servicioListas, setServicioListas] = useState<Servicio>('linea')
+  const [actimistVisitada, setActimistVisitada] = useState(false)
   const [personaElegida, setPersonaElegida] = useState<string | null>(null)
   const [abiertas, setAbiertas] = useState<Set<number>>(new Set())
   const [ampliarTodas, setAmpliarTodas] = useState(false)
@@ -148,7 +154,23 @@ export function AdministracionGeneralView() {
       {pestana === 'actividad' && <ActividadPanel emailInicial={personaElegida} onCambiarEmail={setPersonaElegida} />}
 
       {/* Se monta al visitarla y se conserva: cambiar de pestaña no pierde los cambios sin guardar. */}
-      {listasVisitada && <div hidden={pestana !== 'listas'}><ListasPanel /></div>}
+      {listasVisitada && (
+        <div hidden={pestana !== 'listas'}>
+          <div className={styles.servicioListas}>
+            <SelectorServicio
+              etiqueta="Lista de distribución de"
+              valor={servicioListas}
+              onChange={(s) => { if (s === 'actimist') setActimistVisitada(true); setServicioListas(s) }}
+              detalle={{
+                linea: 'La de siempre, por planta y especie.',
+                actimist: 'Plantas del listado de Actimist. Sin clientes, van Jorge, el Report Hub, Carlos y Cristian.',
+              }}
+            />
+          </div>
+          <div hidden={servicioListas !== 'linea'}><ListasPanel servicio="linea" /></div>
+          {actimistVisitada && <div hidden={servicioListas !== 'actimist'}><ListasPanel servicio="actimist" /></div>}
+        </div>
+      )}
 
       {pestana === 'correcciones' && <>
 

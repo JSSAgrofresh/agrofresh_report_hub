@@ -1,0 +1,144 @@
+/* Colores de cada servicio: los mismos en toda la app (Auditoría interna usa
+   violeta para Línea de proceso y azul para Actimist). */
+.linea {
+  --servicio: #6b46c1;
+  --servicio-suave: #f3eefc;
+  --servicio-borde: #d9cbf3;
+}
+
+.actimist {
+  --servicio: #2563a8;
+  --servicio-suave: #eaf2fb;
+  --servicio-borde: #c3d8ef;
+}
+
+.contenedor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.etiqueta {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.opciones {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  max-width: 560px;
+}
+
+.opcion {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.opcion:hover {
+  border-color: var(--servicio-borde);
+  background: var(--servicio-suave);
+}
+
+.opcion:focus-visible {
+  outline: 2px solid var(--servicio);
+  outline-offset: 2px;
+}
+
+.activa {
+  border-color: var(--servicio);
+  background: var(--servicio-suave);
+  color: var(--color-text);
+  box-shadow: 0 0 0 3px var(--servicio-suave), var(--shadow-sm);
+}
+
+.punto {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--servicio);
+  box-shadow: 0 0 0 3px var(--servicio-suave);
+}
+
+.textos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nombre {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.activa .nombre {
+  color: var(--servicio);
+}
+
+.conteo {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+}
+
+.activa .conteo {
+  background: var(--color-surface);
+  color: var(--servicio);
+}
+
+.detalle {
+  font-size: 12px;
+  color: var(--color-text-faint);
+  line-height: 1.35;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--servicio-borde);
+  background: var(--servicio-suave);
+  color: var(--servicio);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chip .punto {
+  width: 7px;
+  height: 7px;
+  margin-top: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 520px) {
+  .opciones {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

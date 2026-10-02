@@ -88,12 +88,16 @@ def crud_router(
     defecto: list[dict] | None = None,
     orden: Callable[[dict], Any] | None = None,
     al_eliminar: Callable[[int], None] | None = None,
+    conservar: tuple[str, ...] = (),
 ) -> None:
     """Registra GET/POST/PUT/DELETE para un mantenedor sobre `ruta`.
 
     - `orden`: clave de ordenamiento del listado (por defecto, campo `orden`).
     - `al_eliminar`: gancho para limpiar referencias en otros mantenedores
       antes de borrar (ej. al borrar un análisis, soltar sus analitos).
+    - `conservar`: campos que una edición NO borra si no los manda (una
+      pantalla que todavía no conoce el campo no debe pisarlo con su valor
+      por defecto; ej. el `servicio` de un contacto).
 
     El listado filtra por cualquier campo del modelo que se pase como query
     param: `?laboratorio=QUITECA` funciona sin declararlo acá.
@@ -132,7 +136,11 @@ def crud_router(
         idx = next((i for i, it in enumerate(items) if it["id"] == item_id), None)
         if idx is None:
             raise HTTPException(404, "No encontrado.")
-        actualizado = modelo(id=item_id, **body.model_dump())
+        valores = body.model_dump()
+        for campo in conservar:
+            if campo not in body.model_fields_set and campo in items[idx]:
+                valores[campo] = items[idx][campo]
+        actualizado = modelo(id=item_id, **valores)
         items[idx] = actualizado.model_dump()
         escribir(nombre_archivo, items)
         return actualizado
