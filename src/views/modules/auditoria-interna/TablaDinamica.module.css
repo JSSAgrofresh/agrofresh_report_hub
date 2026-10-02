@@ -40,6 +40,23 @@
   color: var(--color-text-faint);
 }
 
+.titulos .alcance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 4px 0 2px;
+}
+
+.alcance span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-surface-muted, #f1f4ee);
+  border: 1px solid var(--color-border, #e1e5dc);
+  color: var(--color-text-muted, #4b5750);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .migas {
   display: flex;
   align-items: center;

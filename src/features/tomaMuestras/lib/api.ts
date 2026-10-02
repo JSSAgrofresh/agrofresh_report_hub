@@ -157,10 +157,18 @@ export function destinatariosParaLaboratorio(
 }
 
 /** Envía a los contactos configurados y suma invitados sólo para este envío. */
-export function enviarSolicitudPorCorreo(archivo: string, destinatariosAdicionales: string[] = []) {
+export function enviarSolicitudPorCorreo(
+  archivo: string,
+  destinatariosAdicionales: string[] = [],
+  soloAEstos = false,
+) {
+  // `soloAEstos` (solo solicitudes de prueba): va únicamente a esas direcciones,
+  // o a quien envía si no hay ninguna; sin lista real ni copias.
   return httpClient.post<{ ok: string }>(
     `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/enviar`,
-    { destinatarios_adicionales: destinatariosAdicionales },
+    soloAEstos
+      ? { destinatarios_adicionales: destinatariosAdicionales, solo_a_estos: true }
+      : { destinatarios_adicionales: destinatariosAdicionales },
   )
 }
 

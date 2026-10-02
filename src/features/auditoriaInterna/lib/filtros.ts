@@ -146,3 +146,22 @@ export function chipsDeFiltros(f: FiltrosSolicitudes): ChipFiltro[] {
   if (f.sinEnvio) chips.push({ clave: 'sinEnvio', texto: 'Sin fecha de envío' })
   return chips
 }
+
+/**
+ * Los campos del título de la tabla dinámica, uno por cada filtro del panel
+ * (Cliente, Sucursal, Laboratorio, Tipo de servicio, Fecha de emisión, Especie,
+ * Variedad y Analitos): cada uno dice su valor o «Todos» si no se filtró.
+ * Cambia con los filtros, así el título siempre describe lo que muestra la tabla.
+ */
+export function camposTituloTabla(f: FiltrosSolicitudes): string[] {
+  return [
+    f.cliente || 'Todos los clientes',
+    f.planta || 'Todas las sucursales',
+    f.laboratorio || 'Todos los laboratorios',
+    f.tipo || 'Todos los tipos de servicio',
+    f.rango ? `Emitidas del ${f.rango.desde} al ${f.rango.hasta}` : 'Todas las fechas',
+    f.especie || 'Todas las especies',
+    f.variedad || 'Todas las variedades',
+    f.analitos.length ? f.analitos.join(', ') : 'Todos los analitos',
+  ]
+}

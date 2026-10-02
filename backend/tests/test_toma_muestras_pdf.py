@@ -72,3 +72,47 @@ def test_subtitulo_junta_los_nombres_si_se_pidieron_varios_analisis_distintos():
 def test_subtitulo_cae_al_texto_generico_si_ningun_analito_pertenece_a_un_analisis():
     subtitulo = _subtitulo_analisis_requeridos([SUELTO], {})
     assert subtitulo == "Checklist técnico para el laboratorio"
+
+
+# --- ALS y Diagnofruit: solo el análisis, sin tabla de analitos/dosis ---------
+
+def _textos(flowables) -> list[str]:
+    """Todo el texto de los flowables (recorre las tablas anidadas)."""
+    salida: list[str] = []
+    for f in flowables:
+        if hasattr(f, "getPlainText"):
+            salida.append(f.getPlainText())
+        celdas = getattr(f, "_cellvalues", None)
+        if celdas:
+            for fila in celdas:
+                for celda in fila:
+                    salida.extend(_textos(celda if isinstance(celda, list) else [celda]))
+    return salida
+
+
+def _elementos(laboratorio: str):
+    from app.toma_muestras_pdf import _construir_elementos
+
+    analitos = [{"id": 10, "codigo": "ECOLI100", "nombre": "E. Coli", "unidad": "UFC/100mL",
+                 "laboratorio": laboratorio, "categoria": "Microbiología", "orden": 1}]
+    datos = {
+        "laboratorio": laboratorio, "numero_solicitud": "OT-1", "sold_to": "X", "ship_to": "Y",
+        "campos_laboratorio": {"E. Coli (UFC/100mL)": "250cc/100L"}, "analitos_solicitados": ["ECOLI100"],
+    }
+    analisis = [{**FSMA, "laboratorio": laboratorio}]
+    return _textos(_construir_elementos(datos, analitos, analisis_config=analisis))
+
+
+def test_als_y_diagnofruit_solo_muestran_el_analisis():
+    for lab in ("ALS", "DIAGNOFRUIT", "Diagnofruit"):
+        textos = _elementos(lab)
+        assert "ANÁLISIS REQUERIDOS" in textos
+        assert "FSMA (E. Coli + Coliformes Totales)" in textos
+        assert "ANALITO SOLICITADO" not in textos and "DOSIS" not in textos
+        assert "250cc/100L" not in textos
+
+
+def test_otros_laboratorios_siguen_con_su_tabla_de_analitos_y_dosis():
+    textos = _elementos("AGROFRESH")
+    assert "ANALITO SOLICITADO" in textos and "DOSIS" in textos
+    assert "250cc/100L" in textos
