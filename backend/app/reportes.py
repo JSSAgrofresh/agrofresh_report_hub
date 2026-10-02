@@ -331,7 +331,8 @@ def _completar_con_solicitudes(cur, filas: list[dict[str, Any]], correos_laborat
             correos[lab] = correos_laboratorio(lab)
         completar_fila(f, datos, correos.get(lab))
         # Lista de distribución de resultados (misma regla que el correo, el PDF y el JSON).
-        f.update(listas(f.get("sold_to"), f.get("ship_to"), f.get("especie")))
+        # El tipo de servicio decide la lista: Actimist tiene la suya.
+        f.update(listas(f.get("sold_to"), f.get("ship_to"), f.get("especie"), f.get("tipo_servicio")))
 
 
 def filas_de_bd(
