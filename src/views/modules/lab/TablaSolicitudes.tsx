@@ -91,9 +91,18 @@ function PesoExtraido({ solicitud, onGuardado }: { solicitud: Solicitud; onGuard
         disabled={guardando}
         onChange={(e) => setBorrador(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && void guardar()}
-        onBlur={() => void guardar()}
       />
       <span className={styles.unidad}>g</span>
+      <button
+        type="button"
+        className={cambio ? styles.tiketPendiente : styles.tiket}
+        onClick={() => void guardar()}
+        disabled={!cambio || guardando}
+        title={guardado !== null && !cambio ? 'Guardado' : 'Guardar el segundo peso'}
+        aria-label="Guardar segundo peso"
+      >
+        {guardando ? '…' : '✓'}
+      </button>
       {error && <span className={styles.errorPeso} role="alert">{error}</span>}
     </div>
   )

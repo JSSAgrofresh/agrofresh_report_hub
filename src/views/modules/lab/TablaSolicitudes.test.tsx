@@ -114,7 +114,7 @@ describe('TablaSolicitudes · segundo peso (muestra extraída)', () => {
     const inputs = screen.getAllByLabelText(/Segundo peso/)
     expect(inputs).toHaveLength(1)
     fireEvent.change(inputs[0], { target: { value: '5.025' } })
-    fireEvent.keyDown(inputs[0], { key: 'Enter' })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar segundo peso' }))
     await waitFor(() => expect(guardarPesoExtraido).toHaveBeenCalledWith('OT-AGF7.xlsx', 5.025))
   })
 

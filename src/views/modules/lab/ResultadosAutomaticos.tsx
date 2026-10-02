@@ -32,12 +32,14 @@ export function ResultadosAutomaticos({
   const [procesando, setProcesando] = useState<'pdf' | 'excel' | 'bd' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [resultadoSubida, setResultadoSubida] = useState<FilaSubida[] | null>(null)
-
-  // El segundo peso se anota arriba, en Ingreso de muestras, y queda guardado en la solicitud.
-  const pesosExtraidos = useMemo(
-    () => Object.fromEntries(solicitudes.map((s) => [s.archivo, s.peso_muestra_extraido ?? undefined])),
-    [solicitudes],
-  ) as Record<string, number | undefined>
+  // Lo que se digita acá manda; si no se tocó, vale el peso ya guardado en la solicitud
+  // (el que se anota en la tabla de Ingreso de muestras).
+  const [pesosEditados, setPesosEditados] = useState<Record<string, number | undefined>>({})
+  const pesosExtraidos = useMemo(() => {
+    const r: Record<string, number | undefined> = {}
+    for (const s of solicitudes) r[s.archivo] = s.archivo in pesosEditados ? pesosEditados[s.archivo] : (s.peso_muestra_extraido ?? undefined)
+    return r
+  }, [solicitudes, pesosEditados])
 
   const cruces = useMemo(
     () => construirCrucesAutomaticos(solicitudes, muestras),
@@ -53,6 +55,11 @@ export function ResultadosAutomaticos({
   const listosConPeso = listos.filter(
     (c) => pesosExtraidos[c.solicitud.archivo] !== undefined,
   )
+
+  function setPesoExtraido(archivo: string, valor: string) {
+    const num = parseFloat(valor)
+    setPesosEditados((prev) => ({ ...prev, [archivo]: isNaN(num) ? undefined : num }))
+  }
 
   function filas() {
     return construirFilasExportables(listosConPeso, pesosExtraidos)
@@ -116,7 +123,7 @@ export function ResultadosAutomaticos({
 
       <div className={styles.resumen}>
         <span className={styles.ok}>{listosConPeso.length} listos para emitir</span>
-        <span className={styles.resumenAmarillo}>{listos.length - listosConPeso.length} coincidencias sin peso extraído (anótalo arriba, en Ingreso de muestras)</span>
+        <span className={styles.resumenAmarillo}>{listos.length - listosConPeso.length} coincidencias sin peso ingresado</span>
         <span>{sinResultado.length} solicitudes cruzadas sin resultado en este archivo</span>
         <span>{sinSolicitud.length} viales sin solicitud cruzada</span>
       </div>
@@ -130,6 +137,7 @@ export function ResultadosAutomaticos({
               <th>Sold To</th>
               <th>Especie</th>
               <th>Analitos solicitados</th>
+              <th>Peso muestra extraída (g)</th>
               <th>Estado</th>
             </tr>
           </thead>
@@ -148,14 +156,27 @@ export function ResultadosAutomaticos({
                 <td>{cruce.solicitud.campos.Especie || '—'}</td>
                 <td>{cruce.solicitud.analitos_solicitados.join(', ') || '—'}</td>
                 <td>
+                  {cruce.muestra && cruce.analitosFaltantes.length === 0 ? (
+                    <input
+                      type="number"
+                      step="0.0001"
+                      min="0"
+                      placeholder="ej. 5.0250"
+                      className={styles.inputPeso}
+                      value={pesosExtraidos[cruce.solicitud.archivo] ?? ''}
+                      onChange={(e) => setPesoExtraido(cruce.solicitud.archivo, e.target.value)}
+                    />
+                  ) : (
+                    <span className={styles.textoApagado}>—</span>
+                  )}
+                </td>
+                <td>
                   {!cruce.muestra ? (
                     <span className={styles.pendiente}>No viene en este GC</span>
                   ) : cruce.analitosFaltantes.length ? (
                     <span className={styles.revisar}>
                       Revisar: faltan {cruce.analitosFaltantes.join(', ')}
                     </span>
-                  ) : !tienePeso ? (
-                    <span className={styles.revisar}>Falta el peso extraído (anótalo arriba)</span>
                   ) : (
                     <span className={styles.ok}>✓ Coincidencia exacta</span>
                   )}
