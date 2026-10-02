@@ -1643,7 +1643,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               </p>
             ) : (
               <div className={styles.tablaCaja}>
-                <table className={styles.tabla}>
+                <table className={styles.tabla} data-apilar>
                   <thead>
                     <tr>
                       <th>Nombre</th>

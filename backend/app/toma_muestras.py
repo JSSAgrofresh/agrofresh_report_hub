@@ -42,7 +42,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
-from . import auth, config, config_store, correo, indice_solicitudes, mail_templates, r2, seguridad
+from . import actividad, auth, config, config_store, correo, indice_solicitudes, mail_templates, r2, seguridad
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .notificaciones import notificar
@@ -459,6 +459,10 @@ class SolicitudIn(BaseModel):
 
 class Solicitud(SolicitudIn):
     archivo: str
+    # El tope de 50 caracteres rige al CREAR/EDITAR (SolicitudIn). Al LEER no se
+    # vuelve a exigir: una solicitud ya guardada con una observacion mas larga
+    # (la AGF0050 la tenia) dejaba de salir del listado, sin ningun aviso.
+    observacion: str | None = None
     numero_solicitud: str
     fecha_solicitud: str
     creado_en: str
@@ -487,6 +491,11 @@ class Solicitud(SolicitudIn):
     # asunto y no aparece en el Ingreso al laboratorio ni en reanálisis. Vive
     # en `datos` (Excel `_data` + jsonb del índice): no necesita migración.
     es_prueba: bool = False
+    # ¿Los resultados de esta solicitud NO tienen lista de distribución al
+    # cliente (para este Sold To, Ship To y especie)? Entonces rige la regla
+    # de respaldo: Para = solo Jorge y Claudia. No se guarda: el listado lo
+    # calcula con los contactos de hoy (`solicitud_sin_lista`).
+    sin_lista_distribucion: bool | None = None
 
 
 class CruceIn(BaseModel):
@@ -609,13 +618,21 @@ def leer_solicitudes_de(laboratorio: str) -> list[tuple[str, dict]]:
 @router.get("/solicitudes")
 def listar_solicitudes(usuario: Usuario = Depends(usuario_actual)) -> list[Solicitud]:
     solicitudes = []
+    # La configuración de contactos se lee UNA vez para todo el listado (viene
+    # de R2: leerla por solicitud tardaba segundos), y el resultado se
+    # reutiliza para las solicitudes de un mismo cliente, planta y especie.
+    _sin_lista_cacheado = _calculador_sin_lista(_leer_config("contactos_laboratorio.json", []))
     for nombre, datos in leer_todas_las_solicitudes():
         if not _es_propia(usuario, datos):
             continue
         try:
-            solicitudes.append(Solicitud(archivo=nombre, **datos))
-        except (ValueError, KeyError):
+            solicitud = Solicitud(archivo=nombre, **datos)
+        except (ValueError, KeyError) as exc:
+            # Antes se saltaba sin decir nada y la solicitud desaparecia del listado.
+            logger.warning("Solicitud %s omitida del listado: datos invalidos (%s)", nombre, exc)
             continue
+        solicitud.sin_lista_distribucion = _sin_lista_cacheado(datos)
+        solicitudes.append(solicitud)
     solicitudes.sort(key=lambda s: s.creado_en, reverse=True)
     return solicitudes
 
@@ -1115,6 +1132,74 @@ async def cruzar_completo(
     return Solicitud(archivo=archivo, **datos_actualizados)
 
 
+def _guardar_foto_cruce(archivo: str, foto: UploadFile, contenido: bytes) -> dict:
+    """Sube la foto del cruce (R2 o disco) y devuelve {r2_key, content_type}."""
+    extension = _EXTENSION_POR_TIPO[foto.content_type]
+    fecha_hoy = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    nombre_foto = f"cruce_{ts}{extension}"
+    folio = os.path.splitext(os.path.basename(archivo))[0]
+    if r2.disponible():
+        clave = f"{_prefijo_foto_cruce_r2(archivo, fecha_hoy)}{nombre_foto}"
+        r2.subir(clave, contenido, foto.content_type)
+    else:
+        with open(os.path.join(_carpeta_foto_cruce_disco(archivo, fecha_hoy), nombre_foto), "wb") as f:
+            f.write(contenido)
+        clave = f"cruces/{fecha_hoy}/{folio}/{nombre_foto}"
+    return {"r2_key": clave, "content_type": foto.content_type}
+
+
+@router.patch("/solicitudes/{archivo}/cruce", response_model=Solicitud)
+async def editar_cruce(
+    archivo: str,
+    codigo_muestra: str = Form(...),
+    peso_muestra: float = Form(...),
+    unidad_peso: str = Form(default="kg"),
+    foto: UploadFile | None = File(default=None),
+    usuario: Usuario = Depends(usuario_actual),
+) -> Any:
+    """Corrige un cruce ya hecho: N° de muestra, peso y (opcional) la foto.
+
+    Sirve cuando alguien digitó mal el peso o el número. No cambia cuándo llegó
+    la muestra ni quién la recibió; el antes y el después quedan en el
+    historial. La foto anterior se conserva, solo deja de ser la activa.
+    """
+    codigo = codigo_muestra.strip()
+    if not codigo:
+        raise HTTPException(400, "El código de muestra no puede estar vacío.")
+    if peso_muestra <= 0:
+        raise HTTPException(400, "El peso debe ser mayor a cero.")
+    contenido_foto = None
+    if foto is not None and foto.filename:
+        if foto.content_type not in _EXTENSION_POR_TIPO:
+            raise HTTPException(400, "Solo se aceptan fotos JPEG, PNG o WEBP.")
+        contenido_foto = await foto.read()
+        if not contenido_foto:
+            raise HTTPException(400, "La foto llegó vacía.")
+
+    datos = _leer_datos_actuales(archivo)
+    _exigir_acceso(usuario, datos)
+    foto_guardada = _guardar_foto_cruce(archivo, foto, contenido_foto) if contenido_foto else None
+    try:
+        indice_solicitudes.editar_cruce(
+            archivo=archivo,
+            codigo_muestra=codigo,
+            peso_muestra=peso_muestra,
+            unidad_peso=unidad_peso,
+            usuario_email=usuario.email,
+            usuario_nombre=usuario.nombre,
+            foto=foto_guardada,
+            detalle={"laboratorio": datos.get("laboratorio")},
+        )
+    except indice_solicitudes.MuestraYaUsada as e:
+        raise HTTPException(409, str(e)) from e
+    except indice_solicitudes.SinCruce as e:
+        raise HTTPException(409, "Esa solicitud todavía no tiene muestra: primero se cruza.") from e
+    except KeyError as e:
+        raise HTTPException(404, "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.") from e
+    return Solicitud(archivo=archivo, **indice_solicitudes.buscar(archivo))
+
+
 class ActividadItem(BaseModel):
     id: int
     accion: str
@@ -1191,6 +1276,8 @@ def eliminar_solicitud(
     # Sacarla también del índice: si quedara anotada, el listado seguiría
     # mostrando una solicitud cuyo archivo ya no existe.
     indice_solicitudes.olvidar_archivo(os.path.basename(archivo))
+    actividad.registrar(usuario.email, usuario.nombre, "sensible", "solicitud_eliminada",
+                        f"eliminó la solicitud {os.path.basename(archivo)}", sensible=True)
     return {"estado": "eliminado"}
 
 
@@ -1592,20 +1679,87 @@ def contactos_de_solicitud_por_envio(laboratorio: str) -> dict[str, list[str]]:
 DESTINATARIOS_SIN_LISTA = ["JORGE.SANDOVAL@AGROFRESH.COM", "CGUERRERO@AGROFRESH.COM"]
 
 
+def _admins_de(contactos: list[dict]) -> list[str]:
+    """Correos activos con cargo «Admin» (Admin Report Hub del Excel maestro)."""
+    return [
+        str(c["email"]).strip() for c in contactos
+        if c.get("tipo") == "resultado_interno" and c.get("activo", True)
+        and c.get("email") and str(c.get("cargo") or "").strip().casefold() == "admin"
+    ]
+
+
+def _para_sin_lista(admins: list[str]) -> list[str]:
+    """Para cuando no hay lista de distribución: Jorge y Claudia, más los admin
+    del Report Hub. Con lista, esos mismos van en copia oculta; sin lista pasan
+    de CCO a Para."""
+    salida: list[str] = []
+    vistos: set[str] = set()
+    for e in [*DESTINATARIOS_SIN_LISTA, *admins]:
+        if e.casefold() not in vistos:
+            vistos.add(e.casefold())
+            salida.append(e)
+    return salida
+
+
 # Las solicitudes de prueba de Quiteca NUNCA van a los contactos reales del
 # laboratorio: solo a estas dos direcciones (el portal de Quiteca y Jorge).
 DESTINATARIOS_PRUEBA_QUITECA = ["agrofresh@portal.quiteca.cl", "jorge.sandoval@agrofresh.com"]
 
 
+def solicitud_sin_lista(datos: dict, contactos: list[dict] | None = None) -> bool:
+    """¿Los resultados de esta solicitud quedan SIN lista de distribución?
+
+    Es cuando, para su Sold To, Ship To y especie, no hay ningún contacto
+    activo de «Resultado a clientes» que no sea Jorge o Claudia: o no hay
+    nadie (rige el respaldo, Para = Jorge y Claudia) o los únicos en Para son
+    ellos mismos. Los técnicos y comerciales (internos) no cuentan: van en
+    copia, no son la lista del cliente."""
+    propios = {c.casefold() for c in DESTINATARIOS_SIN_LISTA}
+    for c in _contactos_resultado(
+        str(datos.get("sold_to") or ""), str(datos.get("ship_to") or ""), str(datos.get("especie") or ""),
+        contactos,
+    ):
+        email = str(c.get("email") or "").strip()
+        if (
+            c.get("tipo") == "resultado_cliente"
+            and c.get("activo", True)
+            and email
+            and email.casefold() not in propios
+        ):
+            return False
+    return True
+
+
+def _calculador_sin_lista(contactos: list[dict]):
+    """`solicitud_sin_lista` con los contactos ya leídos y memoria por
+    (Sold To, Ship To, especie): cientos de solicitudes comparten pocas
+    combinaciones."""
+    memoria: dict[tuple[str, str, str], bool] = {}
+
+    def calcular(datos: dict) -> bool:
+        clave = (
+            str(datos.get("sold_to") or "").strip(),
+            str(datos.get("ship_to") or "").strip(),
+            _clave_esp(str(datos.get("especie") or "")),
+        )
+        if clave not in memoria:
+            memoria[clave] = solicitud_sin_lista(datos, contactos)
+        return memoria[clave]
+
+    return calcular
+
+
 def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[str]]:
-    """Como `contactos_de_solicitud_por_envio`, pero si el laboratorio no
-    tiene a nadie en Para arma la lista de respaldo: Para = Jorge y Claudia Guerrero,
-    Copia = los técnicos y comerciales configurados para el Ship To."""
+    """Quién recibe el correo de la solicitud: Para / Copia / Copia oculta.
+
+    Los técnicos y comerciales de la planta (los contactos internos de
+    «Resultado a clientes») SIEMPRE van: el comercial en Copia y el técnico en
+    Copia oculta, tenga o no el laboratorio lista de distribución. Si el
+    laboratorio no tiene a nadie en Para, además Para = Jorge y Claudia Guerrero.
+    """
     if datos.get("es_prueba") and str(laboratorio).strip().upper() == "QUITECA":
         return {"to": list(DESTINATARIOS_PRUEBA_QUITECA), "cc": [], "bcc": []}
     por_envio = contactos_de_solicitud_por_envio(laboratorio)
-    if por_envio["to"]:
-        return por_envio
     internos = [
         c for c in _contactos_resultado(
             str(datos.get("sold_to") or ""), str(datos.get("ship_to") or ""), str(datos.get("especie") or "")
@@ -1613,10 +1767,15 @@ def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[s
         if c.get("tipo") == "resultado_interno" and c.get("activo", True) and c.get("email")
     ]
     internos.sort(key=lambda c: c.get("orden", 0))
+    para = por_envio["to"] or _para_sin_lista(_admins_de(internos))
+    en_para = {e.casefold() for e in para}
     return {
-        "to": list(DESTINATARIOS_SIN_LISTA),
+        "to": para,
         "cc": [*por_envio["cc"], *(c["email"] for c in internos if c.get("tipo_copia") != "bcc")],
-        "bcc": [*por_envio["bcc"], *(c["email"] for c in internos if c.get("tipo_copia") == "bcc")],
+        "bcc": [
+            e for e in (*por_envio["bcc"], *(c["email"] for c in internos if c.get("tipo_copia") == "bcc"))
+            if e.casefold() not in en_para
+        ],
     }
 
 
@@ -1625,14 +1784,17 @@ def contactos_de_solicitud(laboratorio: str) -> list[str]:
     return contactos_de_solicitud_por_envio(laboratorio)["to"]
 
 
-def _contactos_resultado(sold_to: str, ship_to: str, especie: str) -> list[dict]:
+def _contactos_resultado_nivel(
+    sold_to: str, ship_to: str, especie: str, contactos: list[dict] | None = None
+) -> list[dict]:
     """Contactos de resultado para una combinación (sold_to, ship_to, especie).
 
     La configuración es compartida entre todos los laboratorios y se determina
     por la combinación exacta. Si no existe, cae por la cadena:
       sold_to + ship_to + especie  →  sold_to + ship_to  →  ship_to solo  →  global (todo vacío)
     """
-    contactos = _leer_config("contactos_laboratorio.json", [])
+    if contactos is None:
+        contactos = _leer_config("contactos_laboratorio.json", [])
     pool = [
         c for c in contactos
         if c.get("tipo") in {"resultado_cliente", "resultado_interno"}
@@ -1685,6 +1847,47 @@ def _contactos_resultado(sold_to: str, ship_to: str, especie: str) -> list[dict]
         and not (c.get("ship_to") or "").strip()
         and not _esp_cfg(c)
     ]
+
+
+def _contactos_resultado(
+    sold_to: str, ship_to: str, especie: str, contactos: list[dict] | None = None
+) -> list[dict]:
+    """Contactos de resultado de una combinación (sold_to, ship_to, especie).
+
+    Los de cliente salen del nivel que corresponda (ver `_contactos_resultado_nivel`).
+    Los internos -comerciales y técnicos- NO dependen de la especie: toda planta
+    los trae siempre, aunque la solicitud sea de una especie para la que el
+    cliente no tiene correos propios.
+    """
+    if contactos is None:
+        contactos = _leer_config("contactos_laboratorio.json", [])
+    base = _contactos_resultado_nivel(sold_to, ship_to, especie, contactos)
+    tienen = {
+        str(c.get("email") or "").strip().casefold()
+        for c in base
+        if c.get("tipo") == "resultado_interno" and c.get("activo", True)
+    }
+    st_n, sh_n = (sold_to or "").strip(), (ship_to or "").strip()
+    internos = [
+        c for c in contactos
+        if c.get("tipo") == "resultado_interno"
+        and (c.get("sold_to") or "").strip() == st_n
+        and (c.get("ship_to") or "").strip() == sh_n
+    ]
+    if not internos and sh_n:
+        internos = [
+            c for c in contactos
+            if c.get("tipo") == "resultado_interno"
+            and not (c.get("sold_to") or "").strip()
+            and (c.get("ship_to") or "").strip() == sh_n
+        ]
+    extra: list[dict] = []
+    for c in sorted(internos, key=lambda c: c.get("orden", 0)):
+        email = str(c.get("email") or "").strip().casefold()
+        if c.get("activo", True) and email and email not in tienen:
+            tienen.add(email)
+            extra.append(c)
+    return [*base, *extra]
 
 
 # Alias de compatibilidad para código que todavía llama con la firma antigua.
@@ -1746,11 +1949,15 @@ def destinatarios_resultado_por_tipo(
             destino = "bcc" if contacto.get("tipo_copia") == "bcc" else "cc"
             salida[destino].append(email)
     if not salida["to"]:
-        # Sin lista de distribución para este Ship To: Para = Jorge y Claudia;
-        # los técnicos y comerciales (internos) ya quedaron en copia arriba.
-        salida["to"] = list(DESTINATARIOS_SIN_LISTA)
-        salida["cc"] = [e for e in salida["cc"] if e.casefold() not in {d.casefold() for d in DESTINATARIOS_SIN_LISTA}]
-        salida["bcc"] = [e for e in salida["bcc"] if e.casefold() not in {d.casefold() for d in DESTINATARIOS_SIN_LISTA}]
+        # Sin lista de distribución para este Ship To: Para = Jorge, Claudia y
+        # los admin del Report Hub (que con lista van en CCO); los técnicos y
+        # comerciales (internos) ya quedaron en copia arriba.
+        salida["to"] = _para_sin_lista(_admins_de(
+            _contactos_resultado(sold_to or "", ship_to or "", especie or "")
+        ))
+        en_para = {d.casefold() for d in salida["to"]}
+        salida["cc"] = [e for e in salida["cc"] if e.casefold() not in en_para]
+        salida["bcc"] = [e for e in salida["bcc"] if e.casefold() not in en_para]
     return salida
 
 
@@ -1820,7 +2027,7 @@ def _iso_a_ddmmyyyy(valor: object) -> object:
     return valor
 
 
-_CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en"}
+_CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en", "sin_lista_distribucion"}
 
 
 def _sample_identification(datos: dict) -> str:
@@ -1901,8 +2108,8 @@ def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
             cc.append(e)
     if not para:
         # Misma regla de respaldo que `destinatarios_resultado_por_tipo`.
-        respaldo = {d.casefold() for d in DESTINATARIOS_SIN_LISTA}
-        para = list(DESTINATARIOS_SIN_LISTA)
+        para = _para_sin_lista(_admins_de(activos))
+        respaldo = {d.casefold() for d in para}
         cc = [e for e in cc if e.casefold() not in respaldo]
         bcc = [e for e in bcc if e.casefold() not in respaldo]
     datos_pdf["destinatarios_resultados_detalle"] = {"para": para, "cc": cc, "bcc": bcc}

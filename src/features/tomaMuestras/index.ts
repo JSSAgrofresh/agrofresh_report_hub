@@ -6,6 +6,7 @@ export {
   eliminarSolicitud,
   descargarExcelSolicitud,
   descargarPdfSolicitud,
+  abrirPdfSolicitud,
   descargarJsonSolicitud,
   descargarTodasLasSolicitudes,
   enviarCorreoPrueba,
@@ -82,3 +83,11 @@ export type {
   ContactoResultado,
 } from './lib/tipos'
 export { LABORATORIOS } from './lib/tipos'
+export {
+  FILTROS_VACIOS,
+  filtrarSolicitudes,
+  hayFiltros,
+  opcionesDe,
+  tipoAplicacionDe,
+} from './lib/filtrosSolicitudes'
+export type { EstadoFiltro, FiltrosSolicitudes, OpcionesFiltros } from './lib/filtrosSolicitudes'

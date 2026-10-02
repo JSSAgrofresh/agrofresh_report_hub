@@ -322,3 +322,96 @@
     animation: none;
   }
 }
+
+/* Pestañas de la pantalla */
+.pestanas {
+  display: flex;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  /* Con cuatro pestañas no caben en un celular: la franja se desplaza sola en vez de ensanchar la página. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pestanas::-webkit-scrollbar {
+  display: none;
+}
+
+.pestanas button {
+  flex: none;
+  white-space: nowrap;
+  padding: 9px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.pestanas button:hover {
+  color: var(--color-text);
+}
+
+.pestanas .pestanaActiva {
+  color: var(--color-text);
+  border-bottom-color: var(--color-primary);
+}
+
+/* Filas compactas: una línea por asociación; con un clic se ven completas. */
+.colChevron {
+  width: 34px;
+  padding-right: 0 !important;
+}
+
+.chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.12s ease;
+}
+
+.chevron:hover {
+  background: var(--color-bg);
+}
+
+.filaAbierta .chevron {
+  transform: rotate(90deg);
+}
+
+.tabla tbody tr.filaCompacta,
+.tabla tbody tr.filaAbierta {
+  cursor: pointer;
+}
+
+.tabla tbody tr.filaCompacta td {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  vertical-align: middle;
+  font-size: 12.5px;
+}
+
+.filaCompacta .contexto {
+  display: none;
+}
+
+.ampliar {
+  margin-left: auto;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+  cursor: pointer;
+}

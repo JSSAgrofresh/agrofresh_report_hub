@@ -316,7 +316,7 @@ export function VerificacionesHistoricoView() {
             <p className={styles.vacio}>No hay verificaciones registradas en este rango.</p>
           ) : (
             <div className={styles.tablaWrap}>
-              <table className={styles.tabla}>
+              <table className={styles.tabla} data-apilar>
                 <thead>
                   <tr>
                     <th>Fecha</th>

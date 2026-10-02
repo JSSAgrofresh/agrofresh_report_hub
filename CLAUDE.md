@@ -82,6 +82,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0026_verificaciones_diarias.sql
 .venv\Scripts\python.exe scripts\migrar.py 0044_auditoria_interna.sql
 .venv\Scripts\python.exe scripts\migrar.py 0045_correcciones_converter.sql
+.venv\Scripts\python.exe scripts\migrar.py 0047_actividad_usuario.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -215,13 +216,29 @@ Los contactos de **Laboratorios → Contacto laboratorio** (`tipo: solicitud`)
 llevan el campo `envio`: `para` (sin valor = `para`, como los antiguos), `cc` o
 `bcc`. `contactos_de_solicitud_por_envio` los reparte; el creador de la
 solicitud va siempre en CCO aparte. Nadie va dos veces (se deduplica sin
-mayúsculas). **Sin nadie en Para** (el laboratorio no tiene lista de distribución) rige la
-lista de respaldo (`contactos_de_solicitud_de`): Para = Jorge y Claudia Guerrero
-(`DESTINATARIOS_SIN_LISTA`), Copia = los contactos `resultado_interno`
-(técnicos y comerciales) del Ship To. La misma regla rige para «Destinatarios de resultados» del PDF y del JSON cuando el Ship To no tiene contacto de resultado a clientes. **Productos**: con más de 2, el Excel, el
+mayúsculas). **Los técnicos y comerciales SIEMPRE van** (`contactos_de_solicitud_de`),
+tenga o no el laboratorio lista de distribución: los contactos `resultado_interno`
+de la planta, el comercial en Copia y el técnico (y el admin Report Hub) en Copia
+oculta (`tipo_copia`; el Excel maestro los carga así). Se buscan por planta, sin
+importar la especie (`_contactos_resultado`). **Sin nadie en Para** (sin lista
+de distribución), Para = Jorge y Claudia (`DESTINATARIOS_SIN_LISTA`) más los
+admin del Report Hub (cargo «Admin»: `agrofreshreporthub@gmail.com`…), que
+con lista van en CCO: **sin lista pasan de CCO a Para** (`_para_sin_lista`;
+igual en el JSON y el PDF). Se actualizan con
+`scripts/importar_contactos_resultado.py --sincronizar-internos` y se revisan con
+`scripts/auditar_contactos_resultado.py`. La misma regla rige para «Destinatarios de resultados» del PDF y del JSON cuando el Ship To no tiene contacto de resultado a clientes. **Productos**: con más de 2, el Excel, el
 PDF, el JSON y el correo dicen `MIXTO` (`producto_utilizado`); la lista real va
 en `productos_lista` (`normalizar_productos`). No
 confundir con `tipo_copia`, que es de los contactos de **resultados**.
+
+**«Sin lista de distribución»** (chip morado en Toma de muestras → Solicitudes,
+junto a Enviada/Pendiente, con su filtro): la solicitud cuyos **resultados** no
+tienen a nadie del cliente en Para para su Sold To + Ship To + **especie**, o
+sea que rige la regla de «solo Jorge y Claudia» (también si ellos dos son los
+únicos cargados). Lo calcula `solicitud_sin_lista` con los contactos de hoy, no
+se guarda. **No leas la configuración de contactos dentro de un bucle por
+solicitud**: viene de R2 y el listado pasó a tardar 6 s; se lee una vez
+(`_calculador_sin_lista`).
 
 ## Storage: explorador y permisos por carpeta
 
@@ -264,6 +281,49 @@ toca el otro). La aplicación es dueña de parte del bucket, por eso:
 - Controla lo que se ve en **Storage**; las solicitudes se siguen viendo desde
   Toma de muestras con los permisos de ese módulo.
 - Sin la 0043 corrida, todo queda abierto y Storage funciona como antes.
+
+**Storage tiene cinco entradas principales**: Archivos del servidor, Solicitudes,
+Accutab, **Laboratorio AgroFresh** (una carpeta del disco con entrada propia,
+`CARPETA_LABORATORIO` en `explorador.ts`) e **Informes** (R2, prefijo `informes/`).
+
+**Informes** (`app/informes_storage.py`): cada PDF que se sube por Converter
+(`POST /auditoria-interna/informes`, que ahora también recibe `fecha` y
+`analisis`) y cada informe propio de cromatografía (`emitir._archivar_informe`)
+quedan en `informes/<PLANTA>/<FECHA DE MUESTREO>/<TIPO DE SERVICIO>/<LABORATORIO>/<archivo>.pdf`.
+Es independiente de Auditoría (`auditoria/`): dos copias, dos usos. La planta
+es el Ship To; si dos clientes tienen un Ship To con el mismo nombre
+(«CHILLAN») la carpeta lleva el cliente entre paréntesis, para no mezclar
+informes de clientes (esta carpeta es la que algún día verá cada cliente).
+Volver a pasar un informe lo **reemplaza** en su sitio (mismo nombre), no lo
+duplica. Desde Storage solo se ven, descargan y borran (`storage_r2.permitir`,
+espejo en `explorador.ts` con los mismos casos en los dos tests). Lo que
+`_archivar_informe` guardó antes bajo `informes/<SOLD TO>/<fecha>/<folio>.pdf`
+sigue ahí con ese orden viejo. **El prefijo `informes/` ya es de este espacio**:
+la «Etapa 4» de Ingreso al laboratorio tiene que usar otra raíz o este mismo orden.
+Pendiente: que cada cliente vea sus informes (hoy Storage no es accesible a
+cuentas `cliente`).
+
+**Filtros de Solicitudes (Toma de muestras)**: Laboratorio, Sold To, Ship To,
+Especie, Tipo de aplicación, Línea de proceso, Tipo muestra, Nombre muestreador
+y Estado se marcan **de a varios** (`MultiSelectFiltro`; lógica pura en
+`features/tomaMuestras/lib/filtrosSolicitudes.ts`). Dentro de un filtro vale
+cualquiera de los marcados; entre filtros, todos. En Estado, Enviada/Pendiente
+son alternativas y «Sin lista de distribución» se suma como condición.
+
+## Ingreso al laboratorio: corregir un cruce
+
+En la tabla de solicitudes de **Ingreso al laboratorio** cada fila cruzada trae el
+peso, un ícono 🖼️ que abre la foto de la muestra y el botón **Editar cruce**
+(N° de muestra, peso y, si hace falta, cambiar la foto). Backend:
+`PATCH /api/toma-muestras/solicitudes/{archivo}/cruce` (multipart, la foto es
+opcional) → `indice_solicitudes.editar_cruce`: no toca la hora de recepción ni
+quién cruzó, respeta que un N° de muestra no esté en dos solicitudes (409), exige
+que ya haya cruce (409) y deja la acción `edicion_cruce` en el historial con el
+antes y el después; la foto anterior se conserva, solo deja de ser la activa.
+`/emitir/cromatografia/solicitudes` ahora devuelve `peso_muestra`, `unidad_peso`,
+`cruzado_por_nombre` y `tiene_foto` (antes no traía el peso y la columna Peso salía
+siempre «—»). **Las fotos se bajan con `FotoCruce`** (blob con el token): un
+`<img src>` directo al backend no lleva la sesión y da 401.
 
 ## Solicitudes de prueba
 
@@ -315,6 +375,39 @@ tocas una, toca la otra.
 - Admin y cliente ven Report con el mismo encabezado con foto (`AreaHero`):
   la foto sigue a la especie filtrada. El admin entra por
   `ReporteLaboratorioView`; el cliente, por `ClienteDashboardView`.
+- **Tablero de Report (residual)**: arriba «Informes de análisis» y **«Promedios
+  por analito»** (un promedio por analito, cada uno con su color; nunca se
+  mezclan). Luego un solo gráfico grande: **una columna por informe** (el eje
+  muestra TODAS las fechas, cada una una sola vez, en la primera columna de ese día, con
+  una línea de fondo suave que marca dónde empieza cada fecha; puntos grandes con aro; al
+  pasar el mouse por una columna sale una **línea guía vertical** con la fecha arriba y un
+  tooltip con todos los analitos de ese informe, y el clic abre el informe solo si se hace
+  sobre un punto), los analitos
+  uno sobre otro según su ppm y unidos por una **línea punteada negra**
+  (`conectoresInforme`). Además cada analito lleva una **curva tenue de su mismo color** que une sus puntos de un informe al
+  siguiente en orden de fecha (`lineasPorAnalito` en `ReporteView.tsx`, debajo de los
+  puntos; salta los informes donde ese analito no vino). Es una spline **monótona**
+  (`features/reportes/lib/curvaSuave.ts`): pasa por cada punto y nunca se sale de los
+  valores (no baja de cero ni inventa picos); no la cambies por una spline común. **Nunca se promedia en ese gráfico.** Su título se arma
+  solo con los filtros y parte con «Residuales» (`tituloGrafico`, ej. «Residuales
+  - Dole Lontué - Actimist - Manzana - Fludioxonil»). El filtro de ingredientes
+  parte con **todos** los analitos (vacío = todos). Abajo quedan solo «Informes
+  por especie» (paleta verdes/amarillos de la marca, `colorEspecieMarca`) y
+  «Promedio por ingrediente» (sin «ppm» en el título). Se **quitaron a pedido**:
+  tarjeta de límites residuales, % de cumplimiento, distribución de valores,
+  indicadores y solicitudes por cliente: no los vuelvas a poner. La vista por
+  límite de control (Auditoría interna) conserva su tarjeta de límites.
+- **Ficha del informe** (clic en un punto del gráfico de residuales): si todas las
+  filas son de UNA solicitud y es personal interno (`puedeDescargarBd`, nunca cliente
+  ni datos simulados), `DetalleObservacionesModal` abre `FichaInformeModal`: resultados
+  con producto, dosis, límite y estado (Dentro/Sobre/Bajo/Sin límite; la cadena de
+  límites está en `features/reportes/lib/estadoResultado.ts`, espejo de
+  `limiteResidual`), «Datos del informe», carga de origen y una miniatura del PDF con
+  «Ver» (visor grande) y «Descargar». Backend: `app/ficha_informe.py`
+  (`GET /api/reportes/informe/{id}` y `/pdf`, `solo_interno`). El PDF se busca en
+  `informe_auditoria` (N° de informe + laboratorio) y, si no, en `informes/<planta>/`
+  de Storage por nombre (`elegir_clave`). Sin PDF guardado muestra el aviso. Con varias
+  solicitudes (Diagnofruit) queda la tabla simple de antes.
 - **«Simular 1.000 datos»** (solo admin, nunca en el portal de cliente):
   `features/reportes/lib/simulacion.ts`. Clientes «(Sim.)», ids negativos,
   límites ficticios. Vive solo en el estado de la pantalla: se pierde al
@@ -398,9 +491,55 @@ tocas una, toca la otra.
   clientes) es pura y se prueba en `features/auditoriaInterna/lib/`. El laboratorio `AGROFRESH` (propio) no entra al panel: su
   resultado llega por el GC, no por un informe externo.
 - **Administración General** (`/admin/administracion-general`, en el menú debajo de
-  Notificaciones, **solo admin general**): ahí vive el **historial de correcciones
-  del Converter** (ver abajo). `GET /api/correcciones` exige admin general; ni quien
-  tiene Auditoría interna lo ve.
+  Notificaciones, **solo admin general**): tiene dos pestañas. **Correcciones del
+  Converter** (ver abajo; las filas parten compactas y se agrandan con un clic):
+  `GET /api/correcciones` exige admin general; ni quien tiene Auditoría interna lo
+  ve. **Listas de distribución** (pestaña que abre por defecto; `app/listas_distribucion.py`,
+  prefijo `/api/listas-distribucion`, solo admin general) es **una tabla dinámica**:
+  una fila por planta y una columna por rol (Admin Report Hub, Comercial, Técnico) y
+  por especie (correos del cliente; si todas las especies tienen la misma lista se ve
+  una sola celda, «Separar por especie» la abre). Arriba, indicadores de cobertura y
+  alertas que filtran la tabla (sin técnico, sin comercial, sin lista de cliente,
+  fuera de Listados, copia mal puesta, plantas de Listados sin lista). **Todo cambio
+  es una PROPUESTA sobre una celda** (`features/listasDistribucion/lib/tabla.ts`,
+  lógica pura con pruebas): lo que sale de **importar** un Excel (acepta también la
+  hoja «Informes Laboratorios-Pack Line» del maestro) queda en **amarillo** y se
+  acepta (✓) o rechaza (✕) celda por celda; lo que se edita **a mano** (clic en la
+  celda) queda en **verde**, ya aceptado. Nada se escribe hasta «Guardar»:
+  `/aplicar` aplica solo lo aceptado y deja antes un respaldo
+  `contactos_laboratorio_respaldo_<fecha>.json` junto al original. **Una celda vacía
+  del Excel NO quita a nadie**; para sacar a alguien se quita su correo de la celda.
+  **Plantas nuevas**: si el nombre no existe en Listados, la fila avisa y sugiere los
+  nombres parecidos («Usar …»); «+ Agregar planta» y las nuevas del Excel se
+  **crean también en Listados** (cliente y planta, con los códigos SAP si el Excel
+  los trae; `asegurar_planta` reusa lo que ya existe sin duplicar) al guardar.
+  `GET /estado` alimenta la tabla; `/excel` exporta; `/comparar` solo compara.
+  Reemplaza a los scripts `importar_contactos_resultado.py` /
+  `auditar_contactos_resultado.py` para el uso diario. El panel se mantiene montado al
+  cambiar de pestaña para no perder cambios sin guardar.
+- **Panel de Administración General** (pestañas **Resumen** y **Actividad**, las
+  primeras; solo admin general; `app/admin_panel.py`, prefijo `/api/admin-panel`;
+  front en `views/admin/panel/` y `features/adminPanel/`). Tema oscuro verde
+  AgroFresh **solo dentro del panel** (variables `--p-*` en `PanelAdmin.module.css`).
+  Resumen: KPIs (usuarios activos, solicitudes, informes concretados %, días
+  solicitud→informe por laboratorio, salud de datos 0–100 con sus descuentos a la
+  vista), actividad por día, uso por módulo, actividad por persona, cambios
+  sensibles / ingresos fallidos y «Requiere tu atención» (cada ítem lleva a su
+  pantalla). Actividad: ranking de personas y, al elegir una, su ficha + historial
+  filtrable. **La actividad de cada persona se ARMA uniendo tablas que ya
+  existían** (`solicitud_archivo`, `envio_solicitud_log`, `carga_datos`,
+  `lab_actividad`, `verif_seccion_lock`, `correccion_converter`,
+  `informe_auditoria`) más `actividad_usuario` (migración 0047: accesos y fallidos,
+  visitas por módulo y cambios sensibles: permisos, cuentas, clave reiniciada,
+  solicitud eliminada). Cada fuente se lee aparte: si falta una migración el panel
+  sigue con las demás. `actividad.registrar` **nunca lanza** (la bitácora no puede
+  tumbar un login). Las visitas las manda `AppLayout` a `POST /api/actividad/visita`
+  (el servidor no repite el mismo módulo en 10 min; clientes no se registran).
+  Quien no tiene correo en la fuente (cargas de datos solo guardan el nombre) se
+  une por nombre (`resolver_nombres`). Sin la 0047 no hay accesos/visitas/sensibles,
+  pero el resto funciona. **Si agregas una acción nueva de una persona, anótala en
+  una tabla y súmala a `leer_eventos`.** Pruebas: `tests/test_admin_panel.py`,
+  `adminPanel.test.ts`.
 - **El Converter aprende de las correcciones a mano** (`app/correcciones.py`,
   tabla `correccion_converter`, migración 0045). Los cuatro desplegables del
   catálogo son ahora un **buscador** (sin tildes ni mayúsculas, flechas y
@@ -474,6 +613,15 @@ tocas una, toca la otra.
   una advertencia, en el catálogo del primero que encuentra y mezcla los
   resultados de un mismo informe. Lo usan el informe propio de Converter y
   «Subir a la base» de emitir.py (`tests/test_subir_bd_laboratorio.py`).
+- **La cámara del escáner no es solo Chrome/Android.** `BarcodeDetector` nativo
+  solo existe ahí; en iPhone (Safari), Firefox y escritorio `EscanerCamara` usa
+  el lector de respaldo de `detectorCodigos.ts` (paquete `barcode-detector`, ZXing
+  en WebAssembly, empaquetado en la app y cargado solo cuando hace falta). El
+  motor es más pesado: la lectura está limitada a un cuadro cada 150 ms. Para
+  probarlo en Playwright: Chromium de Linux no trae el nativo, y la cámara
+  falsa necesita `--use-fake-device-for-media-stream
+  --use-file-for-fake-video-capture=x.y4m` (con `.mjpeg` no carga el archivo y
+  da cuadros verdes), con el código sin escalar a medias.
 - **En Windows falta `tzdata`**: sin él `zoneinfo` no encuentra las zonas.
   Está declarado en `requirements.txt`.
 
@@ -487,8 +635,9 @@ pendiente**, en orden de importancia:
 1. ~~El túnel Cloudflare~~ **resuelto**: `estado.ps1` lo reporta como servicio
    `Running` (25-09-2026), igual que el backend (tarea programada).
 2. **Etapa 4 del módulo AgroFresh Lab → Ingreso al laboratorio**: botón
-   "Procesar" → modal con el listado de informes → guardar en R2 bajo
-   `informes/<fecha>/` → tabla abajo para descargarlos todos o de a uno.
+   "Procesar" → modal con el listado de informes → guardar en R2 (ojo: `informes/`
+   ya es el espacio Informes, con su orden planta/fecha/análisis/laboratorio) →
+   tabla abajo para descargarlos todos o de a uno.
 3. **`sembrar_catalogo_analitos.py --aplicar`** en el servidor: 14 analitos
    por crear. `DFN` hay que crearlo a mano (la app no conoce su nombre).
 4. **Los límites residuales están vacíos.** Son decisión del laboratorio y se
