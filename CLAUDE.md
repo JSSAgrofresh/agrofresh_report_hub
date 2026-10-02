@@ -123,6 +123,18 @@ Hay ~9 scripts en `backend/scripts/` que fueron migraciones de una sola vez
 
 ---
 
+## Lo ya emitido no se reescribe (regla del usuario)
+
+**Un cambio de formato o estructura no puede alterar las solicitudes anteriores.**
+El PDF, el Excel y el JSON de una solicitud **se regeneran cada vez que se abren**
+con el código de ese momento, así que cambiar el diseño reescribe también lo ya
+emitido y enviado. Todo cambio que modifique cómo se ve o qué lleva una solicitud
+debe quedar **detrás de una marca guardada en sus datos** (`datos`, que viaja en la
+hoja `_data` del Excel y en el índice) puesta solo al crear, de modo que las
+antiguas, sin marca, sigan igual. Ejemplo: `pdf_solo_analisis`. Antes de
+terminar, pregúntate «¿cómo se ve ahora una solicitud vieja?» y pruébalo con un
+test de una solicitud sin la marca.
+
 ## Cómo verificar (importante)
 
 Este proyecto no se da por listo con "debería funcionar":
@@ -505,7 +517,10 @@ tocas una, toca la otra.
   valor elegido; `camposTituloTabla`).
 - **El PDF de la solicitud de ALS y Diagnofruit no lleva la tabla «Analito solicitado /
   Dosis»**: la sección 3 solo nombra el análisis (`_LABS_SOLO_ANALISIS` en
-  `toma_muestras_pdf.py`); los demás laboratorios la conservan.
+  `toma_muestras_pdf.py`); los demás laboratorios la conservan. **Solo vale para las
+  solicitudes creadas desde ese cambio**: llevan `pdf_solo_analisis: true` en sus datos
+  (se pone al crear, también en prueba y reanálisis, y la edición lo conserva); las
+  anteriores no lo tienen y se siguen dibujando con su tabla.
 - **Administración General** (`/admin/administracion-general`, en el menú debajo de
   Notificaciones, **solo admin general**): tiene dos pestañas. **Correcciones del
   Converter** (ver abajo; las filas parten compactas y se agrandan con un clic):

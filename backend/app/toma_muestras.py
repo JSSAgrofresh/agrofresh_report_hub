@@ -907,6 +907,9 @@ def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends
         enviada=False,
         enviado_en=None,
     )
+    # Editar no cambia el formato del PDF: una solicitud antigua sigue como era.
+    if datos_actuales.get("pdf_solo_analisis"):
+        datos["pdf_solo_analisis"] = True
     if datos_actuales.get("es_prueba"):
         # Editar no le quita la marca: sigue siendo de prueba.
         datos["es_prueba"] = True
@@ -946,6 +949,9 @@ def _guardar_solicitud_nueva(
         creado_en=ahora.isoformat(),
         enviada=False,
         enviado_en=None,
+        # Solo las solicitudes creadas desde ahora usan el PDF «solo análisis» de
+        # ALS y Diagnofruit; las anteriores (sin esta marca) conservan su tabla.
+        pdf_solo_analisis=True,
     )
     if es_prueba:
         datos["es_prueba"] = True
@@ -1417,6 +1423,7 @@ def crear_reanalisis(
         creado_en=ahora.isoformat(),
         enviada=False,
         enviado_en=None,
+        pdf_solo_analisis=True,
         tipo_solicitud="REANALISIS",
         solicitud_original_archivo=archivo_base,
         motivo_reanalisis=motivo,
@@ -2031,7 +2038,7 @@ def _iso_a_ddmmyyyy(valor: object) -> object:
     return valor
 
 
-_CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en", "sin_lista_distribucion"}
+_CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en", "sin_lista_distribucion", "pdf_solo_analisis"}
 
 
 def _sample_identification(datos: dict) -> str:

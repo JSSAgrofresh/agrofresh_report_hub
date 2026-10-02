@@ -119,8 +119,15 @@ def _subtitulo_analisis_requeridos(analitos_solicitados: list[dict], analisis_po
 _LABS_SOLO_ANALISIS = {'als', 'diagnofruit'}
 
 
-def _solo_analisis(laboratorio: object) -> bool:
-    return str(laboratorio or '').strip().casefold() in _LABS_SOLO_ANALISIS
+def _solo_analisis(datos: dict) -> bool:
+    """ALS y Diagnofruit, y solo si la solicitud se creó con el formato nuevo
+    (`pdf_solo_analisis`). Las anteriores no llevan la marca y se dibujan como
+    siempre: el PDF se genera al abrirlo, así que sin esto un cambio de diseño
+    reescribiría también las solicitudes ya emitidas."""
+    return (
+        bool(datos.get('pdf_solo_analisis'))
+        and str(datos.get('laboratorio') or '').strip().casefold() in _LABS_SOLO_ANALISIS
+    )
 
 
 def _seccion(numero: str, titulo: str, subtitulo: str = '', ancho: float = ANCHO_UTIL) -> Table:
@@ -324,7 +331,7 @@ def _construir_elementos(
 
     analisis_por_id = _analisis_por_analito_id(analisis_config, laboratorio)
     subtitulo_analisis = _subtitulo_analisis_requeridos(list(etiquetas_analitos.values()), analisis_por_id)
-    if _solo_analisis(laboratorio):
+    if _solo_analisis(datos):
         # ALS y Diagnofruit: solo el análisis pedido (el subtítulo), sin la tabla
         # «Analito solicitado / Dosis». Sin análisis agrupado, se nombran los analitos.
         if subtitulo_analisis == 'Checklist técnico para el laboratorio' and filas_analitos:

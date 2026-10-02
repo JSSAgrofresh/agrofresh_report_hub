@@ -90,7 +90,7 @@ def _textos(flowables) -> list[str]:
     return salida
 
 
-def _elementos(laboratorio: str):
+def _elementos(laboratorio: str, **extra):
     from app.toma_muestras_pdf import _construir_elementos
 
     analitos = [{"id": 10, "codigo": "ECOLI100", "nombre": "E. Coli", "unidad": "UFC/100mL",
@@ -98,6 +98,7 @@ def _elementos(laboratorio: str):
     datos = {
         "laboratorio": laboratorio, "numero_solicitud": "OT-1", "sold_to": "X", "ship_to": "Y",
         "campos_laboratorio": {"E. Coli (UFC/100mL)": "250cc/100L"}, "analitos_solicitados": ["ECOLI100"],
+        **extra,
     }
     analisis = [{**FSMA, "laboratorio": laboratorio}]
     return _textos(_construir_elementos(datos, analitos, analisis_config=analisis))
@@ -105,7 +106,7 @@ def _elementos(laboratorio: str):
 
 def test_als_y_diagnofruit_solo_muestran_el_analisis():
     for lab in ("ALS", "DIAGNOFRUIT", "Diagnofruit"):
-        textos = _elementos(lab)
+        textos = _elementos(lab, pdf_solo_analisis=True)
         assert "ANÁLISIS REQUERIDOS" in textos
         assert "FSMA (E. Coli + Coliformes Totales)" in textos
         assert "ANALITO SOLICITADO" not in textos and "DOSIS" not in textos
@@ -116,3 +117,20 @@ def test_otros_laboratorios_siguen_con_su_tabla_de_analitos_y_dosis():
     textos = _elementos("AGROFRESH")
     assert "ANALITO SOLICITADO" in textos and "DOSIS" in textos
     assert "250cc/100L" in textos
+
+
+def test_las_solicitudes_anteriores_conservan_su_tabla():
+    """Sin la marca `pdf_solo_analisis` (solicitudes emitidas antes del cambio) el
+    PDF sigue igual: ALS y Diagnofruit con su tabla de analitos y dosis."""
+    for lab in ("ALS", "DIAGNOFRUIT"):
+        textos = _elementos(lab)
+        assert "ANALITO SOLICITADO" in textos and "DOSIS" in textos
+        assert "250cc/100L" in textos
+
+
+def test_el_marcador_no_viaja_en_el_json_del_laboratorio():
+    import json
+    from app import toma_muestras as tm
+
+    salida = json.loads(tm._generar_json_solicitud({"laboratorio": "ALS", "pdf_solo_analisis": True}))
+    assert "pdf_solo_analisis" not in salida
