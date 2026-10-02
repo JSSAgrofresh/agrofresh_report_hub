@@ -4,7 +4,9 @@ Carga del listado de Actimist (Sold To / Ship To) desde un Excel.
 El Excel es la dinámica del Planner: cuatro columnas, «Sold to Number»,
 «Sold to Name», «Ship to Number» y «Ship to Name», en cualquier hoja y con el
 encabezado en cualquier fila (la dinámica deja filas vacías arriba y un
-«Total general» abajo).
+«Total general» abajo). Como toda dinámica, escribe el Sold To solo en su
+primera fila: una fila con Ship To y sin Sold To es del Sold To de más arriba.
+También sirve el Excel con el Sold To repetido en cada fila.
 
 Se hace en dos pasos, como los scripts que escriben en la base:
   1. `planear` dice qué se crearía, qué ya existe y qué no se puede cargar.
@@ -80,6 +82,9 @@ def leer_excel(contenido: bytes) -> list[dict]:
         for ws in wb.worksheets:
             columnas: dict[str, int] | None = None
             filas: list[dict] = []
+            # En la dinámica el Sold To se escribe solo en su primera fila: las
+            # de abajo vienen en blanco y son del Sold To más cercano hacia arriba.
+            sold_actual: tuple[str, str | None] | None = None
             for n, fila in enumerate(ws.iter_rows(values_only=True), start=1):
                 if columnas is None:
                     if n > 40:
@@ -91,15 +96,20 @@ def leer_excel(contenido: bytes) -> list[dict]:
                 valor = {k: (fila[i] if i < len(fila) else None) for k, i in columnas.items()}
                 sold_nombre = _texto(valor["sold_nombre"])
                 sold_num = _codigo(valor["sold_num"])
-                if not sold_nombre and not sold_num:
-                    continue
+                ship_nombre = _texto(valor["ship_nombre"])
                 if norm(valor["sold_num"]).startswith("total") or norm(sold_nombre).startswith("total general"):
+                    continue
+                if sold_nombre or sold_num:
+                    sold_actual = (sold_nombre, sold_num)
+                elif ship_nombre and sold_actual is not None:
+                    sold_nombre, sold_num = sold_actual   # hereda el de arriba
+                else:
                     continue
                 filas.append({
                     "fila": n,
                     "sold_to": sold_nombre,
                     "codigo_sold": sold_num,
-                    "ship_to": _texto(valor["ship_nombre"]),
+                    "ship_to": ship_nombre,
                     "codigo_ship": _codigo(valor["ship_num"]),
                 })
             if columnas is not None:
@@ -136,6 +146,7 @@ def planear(filas: list[dict], clientes: list[dict], plantas: list[dict]) -> dic
     plantas_nuevas: list[dict] = []
     avisos: list[dict] = []
     existentes = {"clientes": set(), "plantas": 0}
+    sin_codigo_avisado: set[str] = set()
 
     def avisar(f: dict, motivo: str, grave: bool) -> None:
         avisos.append({"fila": f["fila"], "sold_to": f["sold_to"], "ship_to": f["ship_to"],
@@ -165,7 +176,8 @@ def planear(filas: list[dict], clientes: list[dict], plantas: list[dict]) -> dic
             por_nombre[norm(cliente["nombre"])] = cliente
         elif not cliente["nuevo"]:
             existentes["clientes"].add(cliente["id"])
-        if f["codigo_sold"] is None:
+        if f["codigo_sold"] is None and norm(f["sold_to"]) not in sin_codigo_avisado:
+            sin_codigo_avisado.add(norm(f["sold_to"]))
             avisar(f, "Sold To sin código SAP (viene vacío): se reconoce solo por el nombre.", False)
 
         if not f["ship_to"]:
