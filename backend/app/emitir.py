@@ -1077,6 +1077,8 @@ class SolicitudOut(BaseModel):
     # foto (la foto se pide aparte, por `/toma-muestras/.../cruce-foto`).
     peso_muestra: float | None = None
     unidad_peso: str | None = None
+    # Segundo peso (g): se anota después del cruce y se usa en el informe y el Excel.
+    peso_muestra_extraido: float | None = None
     cruzado_por_nombre: str | None = None
     tiene_foto: bool = False
 
@@ -1165,6 +1167,7 @@ def listar_solicitudes() -> list[SolicitudOut]:
                 hora_recepcion=hora_recepcion,
                 peso_muestra=datos.get("peso_muestra"),
                 unidad_peso=datos.get("unidad_peso"),
+                peso_muestra_extraido=datos.get("peso_muestra_extraido"),
                 cruzado_por_nombre=datos.get("cruzado_por_nombre"),
                 tiene_foto=nombre in con_foto,
             )
@@ -1214,6 +1217,7 @@ def solicitud_por_numero(numero: str) -> SolicitudOut:
             hora_recepcion=hora_recepcion,
             peso_muestra=datos.get("peso_muestra"),
             unidad_peso=datos.get("unidad_peso"),
+            peso_muestra_extraido=datos.get("peso_muestra_extraido"),
             cruzado_por_nombre=datos.get("cruzado_por_nombre"),
             tiene_foto=nombre in indice_solicitudes.archivos_con_foto(),
         )
@@ -1375,6 +1379,8 @@ class FilaConMuestraIn(BaseModel):
     codigo_muestra: str | None = None
     fecha_recepcion: str | None = None
     hora_recepcion: str | None = None
+    # Segundo peso (g), anotado después del cruce.
+    peso_muestra_extraido: float | None = None
 
 
 @router.post("/excel-con-muestra")
@@ -1396,6 +1402,7 @@ def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingRespons
         datos = columnas_base.fila_desde_campos(
             fila.campos,
             codigo_muestra=fila.codigo_muestra,
+            peso_extraido=fila.peso_muestra_extraido,
             fecha_recepcion=fila.fecha_recepcion,
             hora_recepcion=fila.hora_recepcion,
             listas=listas,

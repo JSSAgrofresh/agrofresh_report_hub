@@ -30,6 +30,7 @@ GENERALES_BASE: list[tuple[str, str]] = [
     ("fecha_entrada", "Fecha Entrada"),
     ("fecha_recepcion", "Fecha Recepción"),
     ("hora_recepcion", "Hora Recepción"),
+    ("peso_extraido", "Peso Muestra Extraída (g)"),
     ("fecha_informe", "Fecha Informe"),
     ("fecha_analisis", "Fecha Análisis"),
     ("hora_muestreo", "Hora Muestreo"),
@@ -130,6 +131,7 @@ def fila_desde_campos(
     campos: dict[str, str],
     *,
     codigo_muestra: str | None = None,
+    peso_extraido: float | None = None,
     fecha_recepcion: str | None = None,
     hora_recepcion: str | None = None,
     listas: Callable[[Any, Any, Any], dict[str, str]] | None = None,
@@ -140,6 +142,7 @@ def fila_desde_campos(
     for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS:
         fila[_RENOMBRE.get(clave, clave)] = campos.get(etiqueta) or None
     fila["codigo_muestra"] = codigo_muestra
+    fila["peso_extraido"] = peso_extraido
     fila["fecha_recepcion"] = a_fecha(fecha_recepcion)
     fila["hora_recepcion"] = hora_recepcion
     fila["csg_packing"] = campos.get("Código del Packing") or None
