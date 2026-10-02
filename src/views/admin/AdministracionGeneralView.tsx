@@ -16,17 +16,26 @@ import type { CampoCorreccion, CorreccionConverter } from '@/features/correccion
 import { Indicador } from '@/components/ui/Indicador'
 import { IconoActualizar, IconoAlerta, IconoBuscar, IconoCerrar, IconoPapelera } from '@/components/ui/iconosAccion'
 import { Modal } from '@/components/ui/Modal'
+import { ListasPanel } from './listas/ListasPanel'
+import { ActividadPanel } from './panel/ActividadPanel'
+import { ResumenPanel } from './panel/ResumenPanel'
 import { fechaHora } from '@/lib/fechaHoraChile'
 import styles from './AdministracionGeneralView.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
+type Pestana = 'resumen' | 'actividad' | 'correcciones' | 'listas'
+
 /**
- * Administración General: lo que solo ve y toca el admin general. Por ahora
- * trae el historial de correcciones del Converter: cada vez que alguien elige a
- * mano el valor oficial de un Sold To, Ship To, Especie o Variedad, el sistema
- * lo recuerda y lo aplica solo la próxima vez. Acá se ve qué aprendió, de quién
- * y cuántas veces lo usó, y se olvida lo que haya aprendido mal.
+ * Administración General: lo que solo ve y toca el admin general.
+ *
+ * - Correcciones del Converter: cada vez que alguien elige a mano el valor
+ *   oficial de un Sold To, Ship To, Especie o Variedad, el sistema lo recuerda y
+ *   lo aplica solo la próxima vez. Acá se ve qué aprendió, de quién y cuántas
+ *   veces lo usó, y se olvida lo que haya aprendido mal. Las filas parten
+ *   compactas y se agrandan con un clic.
+ * - Listas de distribución: actualizar quién recibe los resultados desde un
+ *   Excel, confirmando cada cambio.
  */
 export function AdministracionGeneralView() {
   const { user } = useAuth()
@@ -41,6 +50,19 @@ export function AdministracionGeneralView() {
   const [aOlvidar, setAOlvidar] = useState<CorreccionConverter | null>(null)
   const [olvidando, setOlvidando] = useState(false)
   const [errorOlvidar, setErrorOlvidar] = useState<string | null>(null)
+  const [pestana, setPestana] = useState<Pestana>('resumen')
+  const [listasVisitada, setListasVisitada] = useState(false)
+  const [personaElegida, setPersonaElegida] = useState<string | null>(null)
+  const [abiertas, setAbiertas] = useState<Set<number>>(new Set())
+  const [ampliarTodas, setAmpliarTodas] = useState(false)
+
+  function alternarFila(id: number) {
+    setAbiertas((prev) => {
+      const sig = new Set(prev)
+      if (!sig.delete(id)) sig.add(id)
+      return sig
+    })
+  }
 
   useEffect(() => {
     let cancelado = false
@@ -83,14 +105,52 @@ export function AdministracionGeneralView() {
     <div className={styles.pagina}>
       <Header
         title="Administración General"
-        description="Historial de correcciones del Converter: lo que aprendió cada vez que alguien corrigió a mano un Sold To, Ship To, especie o variedad. Si el mismo texto vuelve a llegar, se corrige solo."
+        description={
+          pestana === 'resumen'
+            ? 'Panel de control: cómo va la operación, qué hace cada persona y qué necesita tu atención. Solo lo ve el administrador general.'
+            : pestana === 'actividad'
+            ? 'Qué hace cada persona: acciones, ingresos y visitas a cada módulo, con su historial.'
+            : pestana === 'correcciones'
+            ? 'Historial de correcciones del Converter: lo que aprendió cada vez que alguien corrigió a mano un Sold To, Ship To, especie o variedad. Si el mismo texto vuelve a llegar, se corrige solo.'
+            : 'Listas de distribución de resultados: exporta lo que hay, edítalo en Excel, súbelo y confirma cada cambio antes de que se guarde.'
+        }
         acciones={
-          <Button variant="secondary" onClick={() => { setCargando(true); setRecarga((n) => n + 1) }} disabled={cargando} className={styles.boton}>
-            <IconoActualizar width={16} height={16} className={cargando ? styles.girando : undefined} />
-            {cargando ? 'Actualizando…' : 'Actualizar'}
-          </Button>
+          pestana === 'correcciones' ? (
+            <Button variant="secondary" onClick={() => { setCargando(true); setRecarga((n) => n + 1) }} disabled={cargando} className={styles.boton}>
+              <IconoActualizar width={16} height={16} className={cargando ? styles.girando : undefined} />
+              {cargando ? 'Actualizando…' : 'Actualizar'}
+            </Button>
+          ) : undefined
         }
       />
+
+      <div className={styles.pestanas} role="tablist" aria-label="Secciones">
+        <button type="button" role="tab" aria-selected={pestana === 'resumen'} className={pestana === 'resumen' ? styles.pestanaActiva : ''} onClick={() => setPestana('resumen')}>
+          Resumen
+        </button>
+        <button type="button" role="tab" aria-selected={pestana === 'actividad'} className={pestana === 'actividad' ? styles.pestanaActiva : ''} onClick={() => setPestana('actividad')}>
+          Actividad
+        </button>
+        <button type="button" role="tab" aria-selected={pestana === 'listas'} className={pestana === 'listas' ? styles.pestanaActiva : ''} onClick={() => { setListasVisitada(true); setPestana('listas') }}>
+          Listas de distribución
+        </button>
+        <button type="button" role="tab" aria-selected={pestana === 'correcciones'} className={pestana === 'correcciones' ? styles.pestanaActiva : ''} onClick={() => setPestana('correcciones')}>
+          Correcciones del Converter
+        </button>
+      </div>
+
+      {pestana === 'resumen' && (
+        <ResumenPanel
+          onIrAPestana={(p) => { if (p === 'listas') setListasVisitada(true); setPestana(p) }}
+          onVerPersona={(email) => { setPersonaElegida(email); setPestana('actividad') }}
+        />
+      )}
+      {pestana === 'actividad' && <ActividadPanel emailInicial={personaElegida} onCambiarEmail={setPersonaElegida} />}
+
+      {/* Se monta al visitarla y se conserva: cambiar de pestaña no pierde los cambios sin guardar. */}
+      {listasVisitada && <div hidden={pestana !== 'listas'}><ListasPanel /></div>}
+
+      {pestana === 'correcciones' && <>
 
       {error && (
         <div className={styles.errorCaja} role="alert">
@@ -138,6 +198,9 @@ export function AdministracionGeneralView() {
                 <IconoCerrar width={14} height={14} /> Limpiar
               </button>
             )}
+            <button type="button" className={styles.ampliar} aria-pressed={ampliarTodas} onClick={() => { setAmpliarTodas((v) => !v); setAbiertas(new Set()) }}>
+              {ampliarTodas ? 'Compactar todas' : 'Ampliar todas'}
+            </button>
           </div>
 
           {datos.length === 0 ? (
@@ -153,9 +216,10 @@ export function AdministracionGeneralView() {
           ) : (
             <section className={styles.tablaCard} aria-label="Correcciones guardadas">
               <div className={styles.tablaScroll}>
-                <table className={styles.tabla}>
+                <table className={styles.tabla} data-apilar>
                   <thead>
                     <tr>
+                      <th className={styles.colChevron} aria-label="Ampliar" />
                       <th>Campo</th>
                       <th>Texto del informe</th>
                       <th>Se corrige a</th>
@@ -165,8 +229,21 @@ export function AdministracionGeneralView() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filas.map((c) => (
-                      <tr key={c.id}>
+                    {filas.map((c) => {
+                      const abierta = ampliarTodas || abiertas.has(c.id)
+                      return (
+                      <tr key={c.id} className={abierta ? styles.filaAbierta : styles.filaCompacta} onClick={() => alternarFila(c.id)}>
+                        <td className={styles.colChevron}>
+                          <button
+                            type="button"
+                            className={styles.chevron}
+                            aria-expanded={abierta}
+                            aria-label={`${abierta ? 'Compactar' : 'Ampliar'} la asociación de ${c.valor_crudo}`}
+                            onClick={(e) => { e.stopPropagation(); alternarFila(c.id) }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9 6 6 6-6 6" /></svg>
+                          </button>
+                        </td>
                         <td><span className={styles.campo}>{ETIQUETA_CAMPO[c.campo]}</span></td>
                         <td>
                           <span className={styles.crudo}>{c.valor_crudo}</span>
@@ -186,13 +263,14 @@ export function AdministracionGeneralView() {
                         </td>
                         {puedeEditar && (
                           <td className={styles.colAcciones}>
-                            <button type="button" className={styles.olvidar} aria-label={`Olvidar la asociación de ${c.valor_crudo}`} title="Olvidar esta asociación" onClick={() => { setErrorOlvidar(null); setAOlvidar(c) }}>
+                            <button type="button" className={styles.olvidar} aria-label={`Olvidar la asociación de ${c.valor_crudo}`} title="Olvidar esta asociación" onClick={(e) => { e.stopPropagation(); setErrorOlvidar(null); setAOlvidar(c) }}>
                               <IconoPapelera width={16} height={16} />
                             </button>
                           </td>
                         )}
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -200,6 +278,8 @@ export function AdministracionGeneralView() {
           )}
         </div>
       )}
+
+      </>}
 
       {aOlvidar && (
         <Modal

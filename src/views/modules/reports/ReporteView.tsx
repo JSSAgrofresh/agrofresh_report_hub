@@ -15,7 +15,7 @@ import {
   PointElement,
   Tooltip,
 } from 'chart.js'
-import type { ChartDataset, TooltipItem } from 'chart.js'
+import type { ChartDataset, Plugin, TooltipItem } from 'chart.js'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -35,22 +35,19 @@ import { formatDateCL, formatDecimalCL } from '@/lib/locale'
 import {
   FILTROS_VACIOS,
   aplicarFiltros,
-  calcularEstadisticas,
   calcularLimitesControl,
   claveFiltro,
   clientesDeSucursal,
-  colorCategorico,
   colorDeIngrediente,
+  colorEspecieMarca,
   contarFiltrosActivos,
-  contarFueraDeIntervalo,
   descargarBdExcel,
   descargarDatosExcel,
   describirFiltros,
   generarDatosSimulados,
-  histograma,
+  informesConPuntos,
+  trazarCurvaSuave,
   listarAnalitos,
-  lunesDe,
-  MAX_PUNTOS_DIARIOS,
   solicitudesPor,
   listarLimites,
   mismoValor,
@@ -58,6 +55,7 @@ import {
   opcionesDe,
   pedidoBd,
   proximaHoraProgramada,
+  tituloGrafico,
   useActualizacionProgramada,
 } from '@/features/reportes'
 import type {
@@ -68,7 +66,6 @@ import type {
   LimiteAnalito,
   Observacion,
   OpcionFiltro,
-  TramoHistograma,
 } from '@/features/reportes'
 import { AnalitosAdminModal } from './AnalitosAdminModal'
 import { DetalleObservacionesModal } from './DetalleObservacionesModal'
@@ -93,14 +90,6 @@ Chart.register(
 function cssVar(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
   return v || fallback
-}
-
-/** '#2f7d32' + 0.1 -> 'rgba(47, 125, 50, 0.1)'. Si el color no es hex, se deja igual. */
-function conAlfa(color: string, alfa: number): string {
-  const m = /^#([0-9a-f]{6})$/i.exec(color.trim())
-  if (!m) return color
-  const n = parseInt(m[1], 16)
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alfa})`
 }
 
 function unique(valores: (string | number | null | undefined)[]): string[] {
@@ -133,18 +122,6 @@ function nombreMes(mes: string): string {
  * solicitudes trae, para saber antes de elegir si hay algo que ver. */
 function textoOpcion(o: OpcionFiltro, etiqueta: (v: string) => string = (v) => v): string {
   return `${etiqueta(o.valor)} (${o.conteo.toLocaleString('es-CL')})`
-}
-
-/** Observaciones dentro (o fuera) del intervalo [inferior, superior]; sin ambos
- * límites definidos, todo cuenta como "dentro" (no hay con qué comparar). Las
- * filas sin ppm numérico no entran a ninguno de los dos grupos (no hay valor
- * que comparar), igual que en los conteos de la dona/barra. */
-function filtrarPorRango(lista: Observacion[], inferior: number | null, superior: number | null, dentro: boolean) {
-  return lista.filter((o) => {
-    if (o.ppm == null) return false
-    const estaDentro = inferior == null || superior == null ? true : o.ppm >= inferior && o.ppm <= superior
-    return dentro ? estaDentro : !estaDentro
-  })
 }
 
 /** Para la tabla de Diagnofruit: si el patógeno se detectó en la muestra
@@ -231,12 +208,6 @@ function Kpi({
   )
 }
 
-const ETIQUETA_DIMENSION = {
-  cliente: 'cliente (Sold To)',
-  planta: 'sucursal (Ship To)',
-  tipoServicio: 'tipo de servicio',
-} as const
-
 /** `clienteFijo`: usado por el portal de cliente — cuando viene seteado, los
  * datos ya llegan filtrados por el backend (nunca se filtran solo en el
  * navegador) y los filtros de Cliente/Sucursal ni siquiera se muestran.
@@ -287,14 +258,11 @@ export function ReporteView({
   const [descargandoDatos, setDescargandoDatos] = useState(false)
   const [avisoBd, setAvisoBd] = useState(false)
   const [descargandoBd, setDescargandoBd] = useState(false)
-  const [vistaGrafico, setVistaGrafico] = useState<'promedios' | 'individual'>('promedios')
   // Datos de prueba (solo admin): viven en este estado y en ningún otro lado.
   // Se pierden al salir de Report, al recargar y al actualizar -a propósito:
   // nunca pueden mezclarse con los reales-.
   const [simulacion, setSimulacion] = useState<DatosSimulados | null>(null)
   const cambiarCropRef = useRef<(v: string) => void>(() => {})
-  const cambiarClienteRef = useRef<(v: string) => void>(() => {})
-  const cambiarPlantaRef = useRef<(v: string) => void>(() => {})
 
   const obtenerTodo = useCallback(async () => {
     const [datos, catalogo, limitesCatalogo] = await Promise.all([
@@ -524,19 +492,23 @@ export function ReporteView({
     () => filtradas.map((o) => o.ppm).filter((v): v is number => v != null),
     [filtradas],
   )
-  const stats = useMemo(() => calcularEstadisticas(valores), [valores])
   const limitesControl = useMemo(() => calcularLimitesControl(valores, sigma), [valores, sigma])
 
+  // Con el filtro de ingredientes vacío rigen TODOS los analitos disponibles:
+  // así parte seleccionado completo, sin que la persona tenga que marcarlos. Al
+  // desmarcar uno queda la lista explícita; marcar todos vuelve a vacío.
+  const todosIngredientes = useMemo(() => opciones.ingredientes.map((o) => o.valor), [opciones.ingredientes])
+  const ingredientesActivos = filtros.ingredientes.length > 0 ? filtros.ingredientes : todosIngredientes
+
   // Los límites residuales son por analito: solo tienen sentido con exactamente
-  // uno seleccionado. Con 0 o 2+, el gráfico principal sigue funcionando (ver
-  // más abajo), pero los KPIs/límite no tienen un único analito al que referirse.
+  // uno en juego (elegido, o el único que hay con estos filtros).
   const analitoSeleccionado = useMemo(() => {
-    if (filtros.ingredientes.length !== 1) return null
-    const codigo = filtros.ingredientes[0]
+    if (ingredientesActivos.length !== 1) return null
+    const codigo = ingredientesActivos[0]
     const candidatos = analitosVista.filter((a) => a.codigo === codigo)
     if (candidatos.length <= 1) return candidatos[0] ?? null
     return candidatos.find((a) => mismoValor(a.laboratorio, filtros.laboratorio)) ?? candidatos[0]
-  }, [analitosVista, filtros.ingredientes, filtros.laboratorio])
+  }, [analitosVista, ingredientesActivos, filtros.laboratorio])
 
   // El límite correcto depende de especie y tipo de servicio, no solo del analito:
   // se busca primero la combinación exacta, y si no existe se va relajando hacia
@@ -561,48 +533,14 @@ export function ReporteView({
   }, [analitoSeleccionado, limitesVista, filtros.crop, filtros.tipoServicio])
 
   const limitesActivos = vista === 'residual' ? limiteResidual : limitesControl
-  // Una sola definición de "cumplimiento" para el KPI, la dona y la barra: dentro
-  // del intervalo [límite inferior, límite superior] cuando ambos están definidos.
-  const distribucionRango = useMemo(
-    () => contarFueraDeIntervalo(valores, limitesActivos.inferior, limitesActivos.superior),
-    [valores, limitesActivos.inferior, limitesActivos.superior],
-  )
-  const cumplimiento = useMemo(() => {
-    const total = valores.length
-    if (limitesActivos.superior == null || total === 0) {
-      return { ok: distribucionRango.dentro, fuera: distribucionRango.fuera, total, porcentaje: null }
-    }
-    return {
-      ok: distribucionRango.dentro,
-      fuera: distribucionRango.fuera,
-      total,
-      porcentaje: (distribucionRango.dentro / total) * 100,
-    }
-  }, [distribucionRango, valores.length, limitesActivos.superior])
   const unidad = analitoSeleccionado?.unidad ?? 'ppm'
 
-  const nota =
-    filtros.ingredientes.length > 1
-      ? `Comparando ${filtros.ingredientes.length} ingredientes (colores en la leyenda del gráfico). Los límites y el % de cumplimiento solo se muestran con un ingrediente a la vez — selecciona uno solo para verlos.`
-      : vista === 'residual'
-        ? filtros.ingredientes.length === 1
-          ? `Ingrediente seleccionado: ${filtros.ingredientes[0]}. Las líneas de límite residual vienen de los valores configurados para este analito.`
-          : 'Selecciona un ingrediente activo para ver sus límites residuales.'
-        : `Límites dinámicos: promedio ± ${sigma} × desviación estándar de las ${valores.length.toLocaleString('es-CL')} observación(es) filtradas.`
-
-  const agrupacionSemanal = useMemo(
-    () => new Set(filtradas.map((o) => o.fecha).filter(Boolean)).size > MAX_PUNTOS_DIARIOS,
-    [filtradas],
-  )
+  const nota = `Límites dinámicos: promedio ± ${sigma} × desviación estándar de las ${valores.length.toLocaleString('es-CL')} observación(es) filtradas.`
 
   // ── gráficos ──
   const mainRef = useRef<HTMLCanvasElement>(null)
-  const donutRef = useRef<HTMLCanvasElement>(null)
-  const barRef = useRef<HTMLCanvasElement>(null)
   const diagnoBarRef = useRef<HTMLCanvasElement>(null)
   const mainChart = useRef<Chart | null>(null)
-  const donutChart = useRef<Chart | null>(null)
-  const barChart = useRef<Chart | null>(null)
   const diagnoBarChart = useRef<Chart | null>(null)
 
   const colorOk = cssVar('--color-ok', '#2f7d32')
@@ -610,243 +548,225 @@ export function ReporteView({
   const colorWarning = cssVar('--color-warning', '#b4531f')
   const colorMuted = cssVar('--color-text-faint', '#77837b')
   const colorBorder = cssVar('--color-border', '#e1e5dc')
+  const colorSuperficie = cssVar('--color-surface', '#ffffff')
+  const colorTexto = cssVar('--color-text', '#1b2a20')
 
-  const comparandoVarios = filtros.ingredientes.length > 1
-  // Con un solo ingrediente activo seleccionado, la línea/puntos usan su color fijo
-  // (el mismo de la leyenda del multi-selector); con "todos" mezclados no hay un
-  // único color que tenga sentido, así que se usa el color del área.
-  const colorLineaUnica = filtros.ingredientes.length === 1 ? colorDeIngrediente(filtros.ingredientes[0]) : acento
+  // Gráfico central: una columna por informe (la fecha se repite tantas veces
+  // como informes haya ese día) y sus analitos uno sobre otro según el ppm,
+  // cada uno con su color. Nunca se promedia.
+  const informes = useMemo(() => informesConPuntos(filtradas), [filtradas])
+  const analitosGraficados = useMemo(
+    () => [...new Set(informes.flatMap((i) => i.puntos.map((p) => p.ingrediente as string)))].sort((a, b) => a.localeCompare(b, 'es')),
+    [informes],
+  )
+  const tituloPrincipal = tituloGrafico(filtros, !clienteFijo, vistaControl ? 'Límites de control' : 'Residuales')
 
   useEffect(() => {
     if (!mainRef.current) return
+    const etiquetas = informes.map((i) => (i.fecha ? formatDateCL(i.fecha) : 'Sin fecha'))
+    const nAnalitos = analitosGraficados.length
+    // Todas las fechas, cada una UNA vez: la etiqueta va en la primera columna del
+    // día y las demás columnas de ese día quedan sin texto. Esas primeras columnas
+    // también marcan el inicio de cada fecha con una línea de fondo muy suave.
+    const inicioDeFecha = etiquetas.map((e, i) => i === 0 || e !== etiquetas[i - 1])
 
-    let etiquetas: string[]
-    let datasets: ChartDataset<'line', (number | null)[]>[]
-    let onClickGrafico: (_evt: unknown, elements: { datasetIndex: number; index: number }[]) => void
-    // Cuántas muestras promedia cada punto (solo vista por promedios, un ingrediente).
-    let muestrasPorPunto: number[] | null = null
-    const inferior = limitesActivos.inferior
-    const superior = limitesActivos.superior
-    const hayLimites = inferior != null && superior != null
-    // Con límites definidos, un punto fuera del intervalo se pinta rojo: se ve
-    // el incumplimiento sin tener que comparar a ojo contra la línea punteada.
-    const colorPunto = (v: number | null) =>
-      hayLimites && v != null && (v < inferior || v > superior) ? colorDanger : colorLineaUnica
-
-    if (vistaGrafico === 'individual') {
-      // Vista individual: un punto por observación, sin agrupar por fecha.
-      const sorted = [...filtradas]
-        .filter((o) => o.ppm != null)
-        .sort((a, b) => (a.fecha ?? '').localeCompare(b.fecha ?? '') || (a.nroSolicitud ?? '').localeCompare(b.nroSolicitud ?? ''))
-
-      etiquetas = sorted.map((o) => (o.fecha ? formatDateCL(o.fecha) : 'Sin fecha'))
-
-      if (comparandoVarios) {
-        datasets = filtros.ingredientes.map((ingrediente) => {
-          const color = colorDeIngrediente(ingrediente)
-          return {
-            label: ingrediente,
-            data: sorted.map((o) => (o.ingrediente === ingrediente ? (o.ppm as number) : null)),
-            borderColor: color,
-            backgroundColor: color,
-            borderWidth: 0,
-            showLine: false,
-            pointRadius: 3,
-            pointHoverRadius: 5,
-          }
-        })
-      } else {
-        datasets = [
-          {
-            label: unidad,
-            data: sorted.map((o) => o.ppm as number),
-            borderColor: colorLineaUnica,
-            backgroundColor: colorLineaUnica,
-            pointBackgroundColor: sorted.map((o) => colorPunto(o.ppm)),
-            pointBorderColor: sorted.map((o) => colorPunto(o.ppm)),
-            borderWidth: 0,
-            showLine: false,
-            pointRadius: 3,
-            pointHoverRadius: 5,
-          },
-          {
-            label: 'Límite superior',
-            data: sorted.map(() => limitesActivos.superior),
-            borderColor: colorWarning,
-            borderDash: [6, 4],
-            borderWidth: 1.5,
-            pointRadius: 0,
-          },
-          {
-            label: 'Límite central',
-            data: sorted.map(() => limitesActivos.central),
-            borderColor: colorMuted,
-            borderDash: [2, 3],
-            borderWidth: 1.5,
-            pointRadius: 0,
-          },
-          {
-            label: 'Límite inferior',
-            data: sorted.map(() => limitesActivos.inferior),
-            borderColor: colorWarning,
-            borderDash: [6, 4],
-            borderWidth: 1.5,
-            pointRadius: 0,
-          },
-        ]
+    const datasets: ChartDataset<'line', (number | null)[]>[] = analitosGraficados.map((ingrediente) => {
+      const color = colorDeIngrediente(ingrediente)
+      return {
+        label: ingrediente,
+        data: informes.map((i) => i.puntos.find((p) => p.ingrediente === ingrediente)?.ppm ?? null),
+        borderColor: color,
+        backgroundColor: color,
+        borderWidth: 0,
+        showLine: false,
+        // Grandes y con un aro del color de la tarjeta: se leen bien aunque se
+        // solapen, y se distingue a qué columna (fecha) pertenece cada uno.
+        pointRadius: 7,
+        pointHoverRadius: 10,
+        pointHitRadius: 10,
+        pointBackgroundColor: color,
+        pointBorderColor: colorSuperficie,
+        pointBorderWidth: 2,
+        pointHoverBackgroundColor: color,
+        pointHoverBorderColor: colorSuperficie,
+        pointHoverBorderWidth: 2.5,
       }
+    })
 
-      onClickGrafico = (_evt, elements) => {
-        if (!elements.length) return
-        const { datasetIndex, index } = elements[0]
-        if (comparandoVarios) {
-          if (datasetIndex >= filtros.ingredientes.length) return
-          const obs = sorted[index]
-          if (obs) setDetalle({ titulo: `${filtros.ingredientes[datasetIndex] ?? ''} · ${etiquetas[index]}`, filas: [obs] })
-        } else {
-          if (datasetIndex !== 0) return
-          const obs = sorted[index]
-          if (obs) setDetalle({ titulo: `${obs.nroSolicitud} · ${etiquetas[index]}`, filas: [obs] })
+    // Las líneas de límite solo tienen sentido con un único analito (residual)
+    // o en la vista por límite de control, que es global.
+    if (vistaControl || nAnalitos === 1) {
+      const lineas: [string, number | null, string, number[]][] = [
+        ['Límite superior', limitesActivos.superior, colorWarning, [6, 4]],
+        ['Límite central', limitesActivos.central, colorMuted, [2, 3]],
+        ['Límite inferior', limitesActivos.inferior, colorWarning, [6, 4]],
+      ]
+      lineas.forEach(([label, valor, color, dash]) =>
+        datasets.push({
+          label,
+          data: informes.map(() => valor),
+          borderColor: color,
+          borderDash: dash,
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHitRadius: 0,
+        }),
+      )
+    }
+
+    // Una curva tenue por analito, del mismo color que sus puntos, que une sus
+    // resultados de un informe al siguiente en orden de fecha (se salta los
+    // informes donde ese analito no vino). Va DEBAJO de los puntos y de los
+    // conectores, para que se lea la tendencia sin tapar ningún dato. Es una
+    // curva monótona: pasa por cada punto y nunca se sale de los valores.
+    const lineasPorAnalito: Plugin<'line'> = {
+      id: 'lineasPorAnalito',
+      beforeDatasetsDraw(chart) {
+        const { ctx } = chart
+        ctx.save()
+        ctx.globalAlpha = 0.4
+        ctx.lineWidth = 1.5
+        ctx.lineJoin = 'round'
+        ctx.setLineDash([])
+        for (let di = 0; di < nAnalitos; di++) {
+          if (!chart.isDatasetVisible(di)) continue
+          const valores = chart.data.datasets[di].data
+          const puntos = chart.getDatasetMeta(di).data.filter((_, idx) => valores[idx] != null)
+          if (puntos.length < 2) continue
+          ctx.strokeStyle = colorDeIngrediente(analitosGraficados[di])
+          ctx.beginPath()
+          trazarCurvaSuave(ctx, puntos)
+          ctx.stroke()
         }
-      }
-    } else {
-      // Vista por promedios (por defecto): un punto por fecha, valor = promedio
-      // del día; o por semana cuando hay demasiadas fechas (ver agrupacionSemanal).
-      const claveFecha = (o: Observacion) => (o.fecha ? (agrupacionSemanal ? lunesDe(o.fecha) : o.fecha) : 'Sin fecha')
-      const claves = unique(filtradas.map(claveFecha)).sort()
-      etiquetas = claves.map((k) => (k === 'Sin fecha' ? k : agrupacionSemanal ? `Sem. ${formatDateCL(k)}` : formatDateCL(k)))
+        ctx.restore()
+      },
+    }
 
-      if (comparandoVarios) {
-        datasets = filtros.ingredientes.map((ingrediente) => {
-          const porFecha = new Map<string, number[]>()
-          filtradas
-            .filter((o) => o.ingrediente === ingrediente && o.ppm != null)
-            .forEach((o) => {
-              const clave = claveFecha(o)
-              const arr = porFecha.get(clave) ?? []
-              arr.push(o.ppm as number)
-              porFecha.set(clave, arr)
-            })
-          const color = colorDeIngrediente(ingrediente)
-          return {
-            label: ingrediente,
-            data: claves.map((k) => {
-              const arr = porFecha.get(k)
-              if (!arr || arr.length === 0) return null
-              return arr.reduce((a, b) => a + b, 0) / arr.length
-            }),
-            borderColor: color,
-            backgroundColor: color,
-            borderWidth: 2,
-            pointRadius: 3,
-            pointHoverRadius: 5,
-            tension: 0.25,
-            spanGaps: true,
+    // Línea guía: cruza el gráfico de arriba abajo por la columna (informe) que
+    // está bajo el mouse, para saber con certeza a qué fecha pertenece cada punto.
+    // Va debajo de los puntos.
+    const lineaGuia: Plugin<'line'> = {
+      id: 'lineaGuia',
+      beforeDatasetsDraw(chart) {
+        const activo = chart.tooltip?.getActiveElements()?.[0]
+        if (!activo) return
+        const { ctx, chartArea } = chart
+        ctx.save()
+        ctx.beginPath()
+        ctx.moveTo(activo.element.x, chartArea.top)
+        ctx.lineTo(activo.element.x, chartArea.bottom)
+        ctx.lineWidth = 1.5
+        ctx.strokeStyle = colorMuted
+        ctx.globalAlpha = 0.7
+        ctx.stroke()
+        ctx.restore()
+      },
+      // La fecha de la columna, en una etiqueta arriba de la guía.
+      afterDatasetsDraw(chart) {
+        const activo = chart.tooltip?.getActiveElements()?.[0]
+        const texto = activo ? etiquetas[activo.index] : null
+        if (!activo || !texto) return
+        const { ctx, chartArea } = chart
+        ctx.save()
+        ctx.font = '600 11px sans-serif'
+        const ancho = ctx.measureText(texto).width + 14
+        const x = Math.min(Math.max(activo.element.x - ancho / 2, chartArea.left), chartArea.right - ancho)
+        const y = chartArea.top + 4
+        ctx.fillStyle = colorSuperficie
+        ctx.strokeStyle = colorMuted
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.roundRect(x, y, ancho, 20, 6)
+        ctx.fill()
+        ctx.stroke()
+        ctx.fillStyle = colorTexto
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(texto, x + ancho / 2, y + 10.5)
+        ctx.restore()
+      },
+    }
+
+    // Línea punteada negra que une los analitos de un mismo informe, de abajo
+    // hacia arriba, para ver de un golpe cuáles pertenecen a la misma muestra.
+    const conectores: Plugin<'line'> = {
+      id: 'conectoresInforme',
+      beforeDatasetsDraw(chart) {
+        const { ctx } = chart
+        ctx.save()
+        ctx.strokeStyle = '#000000'
+        ctx.lineWidth = 1
+        ctx.setLineDash([3, 3])
+        informes.forEach((_, idx) => {
+          const ys: number[] = []
+          let x = 0
+          for (let di = 0; di < nAnalitos; di++) {
+            if (!chart.isDatasetVisible(di) || chart.data.datasets[di].data[idx] == null) continue
+            const punto = chart.getDatasetMeta(di).data[idx]
+            if (!punto) continue
+            ys.push(punto.y)
+            x = punto.x
           }
+          if (ys.length < 2) return
+          ctx.beginPath()
+          ctx.moveTo(x, Math.min(...ys))
+          ctx.lineTo(x, Math.max(...ys))
+          ctx.stroke()
         })
-      } else {
-        const porFecha = new Map<string, number[]>()
-        filtradas.forEach((o) => {
-          if (o.ppm == null) return
-          const clave = claveFecha(o)
-          const arr = porFecha.get(clave) ?? []
-          arr.push(o.ppm)
-          porFecha.set(clave, arr)
-        })
-        const promedios = claves.map((k) => {
-          const arr = porFecha.get(k) ?? []
-          return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null
-        })
-        muestrasPorPunto = claves.map((k) => porFecha.get(k)?.length ?? 0)
-        datasets = [
-          {
-            label: `Promedio ${unidad}`,
-            data: promedios,
-            borderColor: colorLineaUnica,
-            backgroundColor: conAlfa(colorLineaUnica, 0.08),
-            pointBackgroundColor: promedios.map((v) => colorPunto(v)),
-            pointBorderColor: promedios.map((v) => colorPunto(v)),
-            fill: 'origin',
-            spanGaps: true,
-            borderWidth: 2,
-            pointRadius: 3,
-            pointHoverRadius: 5,
-            tension: 0.25,
-          },
-          {
-            label: 'Límite superior',
-            data: claves.map(() => limitesActivos.superior),
-            borderColor: colorWarning,
-            borderDash: [6, 4],
-            borderWidth: 1.5,
-            pointRadius: 0,
-          },
-          {
-            label: 'Límite central',
-            data: claves.map(() => limitesActivos.central),
-            borderColor: colorMuted,
-            borderDash: [2, 3],
-            borderWidth: 1.5,
-            pointRadius: 0,
-          },
-          {
-            label: 'Límite inferior',
-            data: claves.map(() => limitesActivos.inferior),
-            borderColor: colorWarning,
-            borderDash: [6, 4],
-            borderWidth: 1.5,
-            pointRadius: 0,
-          },
-        ]
-      }
-
-      onClickGrafico = (_evt, elements) => {
-        if (!elements.length) return
-        const { datasetIndex, index } = elements[0]
-        const fechaClave = claves[index]
-        if (comparandoVarios) {
-          const ingrediente = filtros.ingredientes[datasetIndex]
-          const obs = filtradas.filter((o) => o.ingrediente === ingrediente && claveFecha(o) === fechaClave)
-          if (obs.length) setDetalle({ titulo: `${ingrediente} · ${etiquetas[index]}`, filas: obs })
-        } else {
-          if (datasetIndex !== 0) return
-          const obs = filtradas.filter((o) => claveFecha(o) === fechaClave)
-          if (obs.length) setDetalle({ titulo: etiquetas[index], filas: obs })
-        }
-      }
+        ctx.restore()
+      },
     }
 
     mainChart.current?.destroy()
     mainChart.current = new Chart(mainRef.current, {
       type: 'line',
       data: { labels: etiquetas, datasets },
+      plugins: [lineaGuia, lineasPorAnalito, conectores],
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        interaction: vistaGrafico === 'individual' ? { mode: 'nearest', intersect: true } : { mode: 'index', intersect: false },
+        // Por columna: basta pasar el mouse cerca para ver la guía y todos los analitos del informe.
+        interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: {
             position: 'bottom',
             labels: {
-              boxWidth: 14,
+              boxWidth: 10,
+              usePointStyle: true,
               font: { size: 11 },
               // Una línea de límite sin valor no dibuja nada: tampoco va en la leyenda.
               filter: (item, data) => (data.datasets[item.datasetIndex ?? 0]?.data ?? []).some((v) => v != null),
             },
           },
           tooltip: {
-            filter: (item: TooltipItem<'line'>) => item.raw != null,
+            filter: (item: TooltipItem<'line'>) => item.raw != null && item.datasetIndex < nAnalitos,
+            // Más opaco y separado de los puntos: no esconde ni deja ver las curvas de atrás.
+            backgroundColor: 'rgba(28, 36, 32, 0.94)',
+            caretPadding: 14,
             callbacks: {
-              label: (ctx: TooltipItem<'line'>) => {
-                const base = `${ctx.dataset.label}: ${formatDecimalCL(ctx.raw as number, 4)}`
-                const n = ctx.datasetIndex === 0 ? muestrasPorPunto?.[ctx.dataIndex] : undefined
-                return n ? `${base} (${n} muestra${n === 1 ? '' : 's'})` : base
+              title: (items) => {
+                const inf = informes[items[0]?.dataIndex ?? -1]
+                return inf ? `${inf.nroSolicitud} · ${etiquetas[items[0].dataIndex]}` : ''
               },
+              label: (ctx: TooltipItem<'line'>) => `${ctx.dataset.label}: ${formatDecimalCL(ctx.raw as number, 4)}`,
             },
           },
         },
         scales: {
-          x: { ticks: { maxTicksLimit: 8, autoSkipPadding: 16, font: { size: 10 }, maxRotation: 0 }, grid: { display: false } },
+          // Fechas en vertical y TODAS (sin saltarse ninguna): una etiqueta por día.
+          x: {
+            ticks: {
+              autoSkip: false,
+              font: { size: 10 },
+              maxRotation: 90,
+              minRotation: 90,
+              callback: (_valor, i) => (inicioDeFecha[i] ? etiquetas[i] : ''),
+            },
+            grid: {
+              display: true,
+              color: (c) => (inicioDeFecha[c.index] ? colorBorder : 'transparent'),
+            },
+          },
           y: {
             beginAtZero: true,
             grid: { color: colorBorder },
@@ -854,121 +774,32 @@ export function ReporteView({
             title: { display: true, text: unidad, font: { size: 11 }, color: colorMuted },
           },
         },
-        onClick: onClickGrafico,
+        onClick: (evt, _elements, chart) => {
+          // La interacción es por columna, pero el informe se abre solo al hacer clic sobre un punto.
+          const sobrePunto = chart.getElementsAtEventForMode(evt as unknown as Event, 'nearest', { intersect: true }, true)
+          if (!sobrePunto.length) return
+          const { datasetIndex, index } = sobrePunto[0]
+          if (datasetIndex >= nAnalitos) return
+          const inf = informes[index]
+          if (inf) setDetalle({ titulo: `${inf.nroSolicitud} · ${etiquetas[index]}`, filas: inf.puntos })
+        },
       },
     })
     return () => mainChart.current?.destroy()
   }, [
-    filtradas,
-    comparandoVarios,
-    filtros.ingredientes,
+    informes,
+    analitosGraficados,
+    vistaControl,
     limitesActivos.superior,
     limitesActivos.central,
     limitesActivos.inferior,
-    colorLineaUnica,
     colorWarning,
     colorMuted,
     colorBorder,
-    colorDanger,
+    colorSuperficie,
+    colorTexto,
     unidad,
-    vistaGrafico,
-    agrupacionSemanal,
   ])
-
-  useEffect(() => {
-    if (!donutRef.current) return
-    const datos = [cumplimiento.ok, cumplimiento.fuera]
-    donutChart.current?.destroy()
-    donutChart.current = new Chart(donutRef.current, {
-      type: 'doughnut',
-      data: {
-        labels: ['Dentro de rango', 'Fuera de rango'],
-        datasets: [{ data: datos, backgroundColor: [colorOk, colorDanger], borderWidth: 0 }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '72%',
-        plugins: {
-          // La leyenda va aparte (HTML, con los números): así el centro de la
-          // dona queda de verdad al centro y ahí se escribe el porcentaje.
-          legend: { display: false },
-          tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw} muestra(s)` } },
-        },
-        onClick: (_evt, elements) => {
-          if (!elements.length) return
-          const dentro = elements[0].index === 0
-          const obs = filtrarPorRango(filtradas, limitesActivos.inferior, limitesActivos.superior, dentro)
-          if (obs.length) setDetalle({ titulo: dentro ? 'Dentro de rango' : 'Fuera de rango', filas: obs })
-        },
-      },
-    })
-    return () => donutChart.current?.destroy()
-  }, [filtradas, cumplimiento, limitesActivos.inferior, limitesActivos.superior, colorOk, colorDanger])
-
-  // Distribución de los valores medidos (histograma). Reemplaza al gráfico
-  // "dentro/fuera" que repetía lo mismo que la dona: este sirve también sin
-  // límites cargados, y con límites pinta en rojo los tramos que caen fuera.
-  const tramos = useMemo(() => histograma(valores), [valores])
-
-  useEffect(() => {
-    if (!barRef.current) return
-    const inferior = limitesActivos.inferior
-    const superior = limitesActivos.superior
-    const hayLimites = inferior != null && superior != null
-    const colorTramo = (t: TramoHistograma) => {
-      if (!hayLimites) return acento
-      const medio = (t.desde + t.hasta) / 2
-      return medio < inferior || medio > superior ? colorDanger : colorOk
-    }
-    const etiqueta = (t: TramoHistograma) =>
-      t.desde === t.hasta ? formatDecimalCL(t.desde, 2) : `${formatDecimalCL(t.desde, 2)}–${formatDecimalCL(t.hasta, 2)}`
-    barChart.current?.destroy()
-    barChart.current = new Chart(barRef.current, {
-      type: 'bar',
-      data: {
-        labels: tramos.map(etiqueta),
-        datasets: [
-          {
-            label: 'Muestras',
-            data: tramos.map((t) => t.conteo),
-            backgroundColor: tramos.map(colorTramo),
-            borderRadius: 3,
-            categoryPercentage: 0.95,
-            barPercentage: 0.95,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: (items) => `${items[0]?.label ?? ''} ${unidad}`,
-              label: (ctx) => `${ctx.raw} muestra(s)`,
-            },
-          },
-        },
-        scales: {
-          y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: colorBorder }, title: { display: true, text: 'Muestras', font: { size: 11 }, color: colorMuted } },
-          x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 }, title: { display: true, text: unidad, font: { size: 11 }, color: colorMuted } },
-        },
-        onClick: (_evt, elements) => {
-          if (!elements.length) return
-          const t = tramos[elements[0].index]
-          if (!t) return
-          const ultimo = elements[0].index === tramos.length - 1
-          const obs = filtradas.filter(
-            (o) => o.ppm != null && o.ppm >= t.desde && (ultimo ? o.ppm <= t.hasta : o.ppm < t.hasta),
-          )
-          if (obs.length) setDetalle({ titulo: `${etiqueta(t)} ${unidad}`, filas: obs })
-        },
-      },
-    })
-    return () => barChart.current?.destroy()
-  }, [tramos, filtradas, limitesActivos.inferior, limitesActivos.superior, acento, unidad, colorOk, colorDanger, colorBorder, colorMuted])
 
   // ── desglose: especie, ingrediente y cliente/sucursal ──
   // El color de cada especie se fija UNA vez con todos los datos (no los
@@ -978,7 +809,7 @@ export function ReporteView({
     const mapa = new Map<string, string>()
     solicitudesPor(observaciones, 'crop')
       .slice(0, 7)
-      .forEach((e, i) => mapa.set(claveFiltro(e.valor), colorCategorico(i) ?? colorMuted))
+      .forEach((e, i) => mapa.set(claveFiltro(e.valor), colorEspecieMarca(i) ?? colorMuted))
     return mapa
   }, [observaciones, colorMuted])
 
@@ -1007,30 +838,10 @@ export function ReporteView({
       .sort((a, b) => b.promedio - a.promedio)
   }, [filtradas])
 
-  // El tercer desglose se adapta: por cliente mientras haya varios; con uno
-  // solo (filtrado, o el portal de un cliente) baja a sucursal, y si también
-  // hay una sola, a tipo de servicio.
-  const desgloseOrg = useMemo(() => {
-    const candidatos = (clienteFijo ? ['planta', 'tipoServicio'] : ['cliente', 'planta', 'tipoServicio']) as (
-      | 'cliente'
-      | 'planta'
-      | 'tipoServicio'
-    )[]
-    for (const campo of candidatos) {
-      const lista = solicitudesPor(filtradas, campo)
-      if (lista.length > 1) return { campo, lista: lista.slice(0, 8), resto: Math.max(0, lista.length - 8) }
-    }
-    const campo = candidatos[candidatos.length - 1]
-    return { campo, lista: solicitudesPor(filtradas, campo).slice(0, 8), resto: 0 }
-  }, [filtradas, clienteFijo])
-
   const especieRef = useRef<HTMLCanvasElement>(null)
   const ingredienteRef = useRef<HTMLCanvasElement>(null)
-  const orgRef = useRef<HTMLCanvasElement>(null)
   const especieChart = useRef<Chart | null>(null)
   const ingredienteChart = useRef<Chart | null>(null)
-  const orgChart = useRef<Chart | null>(null)
-  const colorSuperficie = cssVar('--color-surface', '#ffffff')
 
   useEffect(() => {
     if (!especieRef.current) return
@@ -1061,7 +872,7 @@ export function ReporteView({
               label: (ctx) => {
                 const n = Number(ctx.raw)
                 const pct = totalEspecies ? (n / totalEspecies) * 100 : 0
-                return `${ctx.label}: ${n.toLocaleString('es-CL')} solicitud${n === 1 ? '' : 'es'} (${formatDecimalCL(pct, 1)}%)`
+                return `${ctx.label}: ${n.toLocaleString('es-CL')} informe${n === 1 ? '' : 's'} (${formatDecimalCL(pct, 1)}%)`
               },
             },
           },
@@ -1129,67 +940,6 @@ export function ReporteView({
   }, [promedioPorIngrediente, unidad, colorBorder])
 
   useEffect(() => {
-    if (!orgRef.current) return
-    const { campo, lista } = desgloseOrg
-    orgChart.current?.destroy()
-    orgChart.current = new Chart(orgRef.current, {
-      type: 'bar',
-      data: {
-        labels: lista.map((r) => r.valor),
-        datasets: [
-          {
-            label: 'Solicitudes',
-            data: lista.map((r) => r.n),
-            backgroundColor: conAlfa(acento, 0.85),
-            hoverBackgroundColor: acento,
-            borderRadius: 4,
-            borderSkipped: 'start',
-            maxBarThickness: 22,
-          },
-        ],
-      },
-      options: {
-        indexAxis: 'y',
-        // Clic en cualquier parte de la fila, no solo sobre la barra: una
-        // barra corta sería casi imposible de atinar.
-        interaction: { mode: 'nearest', axis: 'y', intersect: false },
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => `${Number(ctx.raw).toLocaleString('es-CL')} solicitud${ctx.raw === 1 ? '' : 'es'}`,
-            },
-          },
-        },
-        scales: {
-          x: { beginAtZero: true, grid: { color: colorBorder }, ticks: { precision: 0, font: { size: 10 } } },
-          y: {
-            grid: { display: false },
-            ticks: {
-              font: { size: 10.5 },
-              // Nombres largos de cliente: se recortan en el eje, completos en el tooltip.
-              callback: function (v) {
-                const t = String(this.getLabelForValue(Number(v)))
-                return t.length > 22 ? `${t.slice(0, 21)}…` : t
-              },
-            },
-          },
-        },
-        onClick: (_evt, elements) => {
-          const r = elements.length ? lista[elements[0].index] : undefined
-          if (!r) return
-          if (campo === 'cliente') cambiarClienteRef.current(r.valor)
-          else if (campo === 'planta') cambiarPlantaRef.current(r.valor)
-          else setFiltros((prev) => ({ ...prev, tipoServicio: r.valor }))
-        },
-      },
-    })
-    return () => orgChart.current?.destroy()
-  }, [desgloseOrg, acento, colorBorder])
-
-  useEffect(() => {
     if (!esDiagnofruit || !diagnoBarRef.current) return
     diagnoBarChart.current?.destroy()
     diagnoBarChart.current = new Chart(diagnoBarRef.current, {
@@ -1251,8 +1001,6 @@ export function ReporteView({
   // por ref para no recrear cada gráfico en cada render.
   useEffect(() => {
     cambiarCropRef.current = cambiarCrop
-    cambiarClienteRef.current = cambiarCliente
-    cambiarPlantaRef.current = cambiarPlanta
   })
 
   if (!user) return null
@@ -1581,8 +1329,8 @@ export function ReporteView({
               <MultiSelectFiltro
                 etiqueta="Ingrediente Activo"
                 opciones={opciones.ingredientes.map((o) => o.valor)}
-                valores={filtros.ingredientes}
-                onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v }))}
+                valores={ingredientesActivos}
+                onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v.length >= todosIngredientes.length ? [] : v }))}
                 colorDe={colorDeIngrediente}
                 conteoDe={(v) => conteoPorValor.ingredientes.get(v)}
               />
@@ -1745,12 +1493,14 @@ export function ReporteView({
             </>
           ) : (
             <>
-              <p className={styles.nota}>
-                <span className={styles.notaIcono} aria-hidden="true">i</span>
-                {nota}
-              </p>
+              {vistaControl && (
+                <p className={styles.nota}>
+                  <span className={styles.notaIcono} aria-hidden="true">i</span>
+                  {nota}
+                </p>
+              )}
 
-              <div className={styles.stats}>
+              <div className={`${styles.statsResiduales} ${vistaControl ? styles.conLimites : ''}`}>
                 <Kpi
                   destacado
                   tono={acento}
@@ -1765,91 +1515,54 @@ export function ReporteView({
                   icono={<IconTrendingUp />}
                   etiqueta={
                     <>
-                      Promedio (<span className={styles.unidad}>{unidad}</span>)
+                      Promedios por analito (<span className={styles.unidad}>{unidad}</span>)
                     </>
                   }
-                  sub={`desv. estándar ${formatDecimalCL(stats.desviacion, 4)}`}
                 >
-                  <span className={styles.statNum}>{formatDecimalCL(stats.promedio, 4)}</span>
-                </Kpi>
-                <Kpi
-                  tono={colorWarning}
-                  icono={<IconAlerta />}
-                  etiqueta={vista === 'residual' ? 'Límites residuales' : `Límites de control (±${sigma}σ)`}
-                  sub={simulando && vista === 'residual' && limitesActivos.superior != null ? 'ficticios (simulación)' : undefined}
-                >
-                  {limitesActivos.inferior == null && limitesActivos.central == null && limitesActivos.superior == null ? (
-                    <span className={styles.statVacio}>
-                      {filtros.ingredientes.length === 1 ? 'Sin límites cargados' : 'Elige un ingrediente'}
-                    </span>
+                  {promedioPorIngrediente.length === 0 ? (
+                    <span className={styles.statVacio}>Sin resultados numéricos para estos filtros</span>
                   ) : (
+                    <ul className={styles.promedios}>
+                      {promedioPorIngrediente.map((r) => (
+                        <li key={r.codigo} style={{ '--analito': colorDeIngrediente(r.codigo) } as CSSProperties}>
+                          <span className={styles.promedioNombre}>
+                            <i aria-hidden="true" />
+                            {r.codigo}
+                          </span>
+                          <b>{formatDecimalCL(r.promedio, 4)}</b>
+                          <span className={styles.promedioN}>
+                            {r.n.toLocaleString('es-CL')} resultado{r.n === 1 ? '' : 's'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Kpi>
+                {vistaControl && (
+                  <Kpi tono={colorWarning} icono={<IconAlerta />} etiqueta={`Límites de control (±${sigma}σ)`}>
                     <dl className={styles.limitesMini}>
                       <div><dt>Inf.</dt><dd>{formatDecimalCL(limitesActivos.inferior, 2)}</dd></div>
                       <div><dt>Central</dt><dd>{formatDecimalCL(limitesActivos.central, 2)}</dd></div>
                       <div><dt>Sup.</dt><dd>{formatDecimalCL(limitesActivos.superior, 2)}</dd></div>
                     </dl>
-                  )}
-                </Kpi>
+                  </Kpi>
+                )}
               </div>
 
-              <div className={styles.grid2}>
-                <Card className={styles.panel}>
-                  <h3>
-                    <span className={styles.h3Izq}>
-                      {vista === 'residual'
-                        ? `Promedio de ${unidad} por ${agrupacionSemanal && vistaGrafico === 'promedios' ? 'semana' : 'fecha'}`
-                        : `${unidad} por ${agrupacionSemanal && vistaGrafico === 'promedios' ? 'semana' : 'fecha'} · límites de control`}
-                      <button
-                        className={styles.toggleVista}
-                        onClick={() => setVistaGrafico((v) => (v === 'promedios' ? 'individual' : 'promedios'))}
-                      >
-                        {vistaGrafico === 'promedios' ? 'Ver todos los puntos' : 'Ver por promedio'}
-                      </button>
-                    </span>
-                    <span className={styles.hintClic}>clic en un punto para ver el detalle</span>
-                  </h3>
-                  <div className={styles.chartbox}>
-                    <canvas ref={mainRef} />
-                  </div>
-                </Card>
-                <Card className={styles.panel}>
-                  <h3>
-                    Porcentaje de cumplimiento
-                    {cumplimiento.porcentaje != null && <span className={styles.hintClic}>clic para ver el detalle</span>}
-                  </h3>
-                  {cumplimiento.porcentaje != null ? (
-                    <>
-                      <div className={styles.donutbox}>
-                        <canvas ref={donutRef} />
-                        <div className={styles.donutCentro}>
-                          <b>{formatDecimalCL(cumplimiento.porcentaje, 1)}%</b>
-                          <span>dentro de rango</span>
-                        </div>
-                      </div>
-                      <div className={styles.leyendaDona}>
-                        <span><i style={{ background: colorOk }} />Dentro de rango <b>{cumplimiento.ok.toLocaleString('es-CL')}</b></span>
-                        <span><i style={{ background: colorDanger }} />Fuera de rango <b>{cumplimiento.fuera.toLocaleString('es-CL')}</b></span>
-                      </div>
-                    </>
-                  ) : (
-                    // Sin límites no hay con qué comparar: antes la dona salía 100 %
-                    // verde "Dentro de rango", que se leía como cumplimiento total.
-                    <div className={styles.panelVacio}>
-                      <p className={styles.panelVacioTitulo}>Sin límites para comparar</p>
-                      <p>
-                        {filtros.ingredientes.length === 1
-                          ? `${filtros.ingredientes[0]} no tiene límites residuales cargados para esta especie y tipo de servicio. Se cargan en «Gestionar analitos», o usa la vista por límite de control.`
-                          : 'Elige un solo ingrediente activo para evaluar su cumplimiento, o usa la vista por límite de control.'}
-                      </p>
-                    </div>
-                  )}
-                </Card>
-              </div>
+              <Card className={styles.panel}>
+                <h3>
+                  <span className={styles.h3Izq}>{tituloPrincipal}</span>
+                  <span className={styles.hintClic}>clic en un punto para ver el informe</span>
+                </h3>
+                <div className={styles.chartboxGrande}>
+                  <canvas ref={mainRef} />
+                </div>
+              </Card>
 
-              <div className={styles.grid3}>
+              <div className={styles.grid2Iguales}>
                 <Card className={styles.panel}>
                   <h3>
-                    Solicitudes por especie
+                    Informes por especie
                     <span className={styles.hintClic}>clic para filtrar</span>
                   </h3>
                   {porEspecie.length === 0 ? (
@@ -1857,7 +1570,7 @@ export function ReporteView({
                   ) : (
                     <div className={styles.especieCaja}>
                       <div className={styles.donutChica}>
-                        <canvas ref={especieRef} aria-label="Solicitudes por especie" role="img" />
+                        <canvas ref={especieRef} aria-label="Informes por especie" role="img" />
                         <div className={styles.donutCentro}>
                           <b>{porEspecie.filter((e) => !e.otras).length}</b>
                           <span>especie{porEspecie.filter((e) => !e.otras).length === 1 ? '' : 's'}</span>
@@ -1884,9 +1597,7 @@ export function ReporteView({
                 </Card>
                 <Card className={styles.panel}>
                   <h3>
-                    <span>
-                      Promedio por ingrediente (<span className={styles.unidad}>{unidad}</span>)
-                    </span>
+                    <span>Promedio por ingrediente</span>
                     <span className={styles.hintClic}>clic para elegirlo</span>
                   </h3>
                   {promedioPorIngrediente.length === 0 ? (
@@ -1896,51 +1607,6 @@ export function ReporteView({
                       <canvas ref={ingredienteRef} aria-label="Promedio por ingrediente activo" role="img" />
                     </div>
                   )}
-                </Card>
-                <Card className={styles.panel}>
-                  <h3>
-                    <span>Solicitudes por {ETIQUETA_DIMENSION[desgloseOrg.campo]}</span>
-                    <span className={styles.hintClic}>
-                      {desgloseOrg.resto > 0 ? `top 8 · ${desgloseOrg.resto} más` : 'clic para filtrar'}
-                    </span>
-                  </h3>
-                  {desgloseOrg.lista.length === 0 ? (
-                    <div className={styles.panelVacioChico}>Sin datos para desglosar.</div>
-                  ) : (
-                    <div className={styles.chartboxChico}>
-                      <canvas ref={orgRef} aria-label={`Solicitudes por ${ETIQUETA_DIMENSION[desgloseOrg.campo]}`} role="img" />
-                    </div>
-                  )}
-                </Card>
-              </div>
-
-              <div className={styles.grid2}>
-                <Card className={styles.panel}>
-                  <h3>
-                    <span>
-                      Distribución de valores (<span className={styles.unidad}>{unidad}</span>)
-                    </span>
-                    <span className={styles.hintClic}>clic en una barra para ver sus muestras</span>
-                  </h3>
-                  <div className={styles.chartbox}>
-                    <canvas ref={barRef} />
-                  </div>
-                </Card>
-                <Card className={styles.panel}>
-                  <h3>Indicadores</h3>
-                  <div className={styles.indicadores}>
-                    <div><span>Solicitudes</span><b>{registrosFiltrados.toLocaleString('es-CL')}</b></div>
-                    <div><span>Resultados con valor</span><b>{valores.length.toLocaleString('es-CL')}</b></div>
-                    <div><span>Promedio</span><b>{formatDecimalCL(stats.promedio, 4)} <span className={styles.unidad}>{unidad}</span></b></div>
-                    <div><span>Desviación estándar muestral</span><b>{formatDecimalCL(stats.desviacion, 4)}</b></div>
-                    <div><span>Mínimo / máximo</span><b>{tramos.length ? `${formatDecimalCL(tramos[0].desde, 4)} / ${formatDecimalCL(tramos[tramos.length - 1].hasta, 4)}` : '—'}</b></div>
-                    <div><span>Límite inferior</span><b>{formatDecimalCL(limitesActivos.inferior, 4)}</b></div>
-                    <div><span>Línea central</span><b>{formatDecimalCL(limitesActivos.central, 4)}</b></div>
-                    <div><span>Límite superior</span><b>{formatDecimalCL(limitesActivos.superior, 4)}</b></div>
-                    {cumplimiento.porcentaje != null && (
-                      <div><span>Cumplimiento</span><b>{formatDecimalCL(cumplimiento.porcentaje, 1)}% ({cumplimiento.ok}/{cumplimiento.total})</b></div>
-                    )}
-                  </div>
                 </Card>
               </div>
             </>
@@ -1953,7 +1619,12 @@ export function ReporteView({
       )}
 
       {detalle && (
-        <DetalleObservacionesModal titulo={detalle.titulo} filas={detalle.filas} onCerrar={() => setDetalle(null)} />
+        <DetalleObservacionesModal
+          titulo={detalle.titulo}
+          filas={detalle.filas}
+          onCerrar={() => setDetalle(null)}
+          fichaCompleta={puedeDescargarBd ? { analitos: analitosVista, limites: limitesVista } : undefined}
+        />
       )}
     </div>
   )

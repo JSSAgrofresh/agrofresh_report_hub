@@ -46,6 +46,7 @@ import type {
   Solicitud,
 } from '@/features/tomaMuestras'
 import { ROUTES, rutaTomaMuestrasDetalle } from '@/constants/routes'
+import { posicionesDeMuestreo } from '@/features/tomaMuestras/lib/posicionesMuestreo'
 import { formatDateCL } from '@/lib/locale'
 import { HttpError } from '@/services/http/client'
 import styles from './NuevaSolicitudView.module.css'
@@ -1024,6 +1025,32 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         </div>
       )
     }
+    const opcionesPosicion =
+      campo.clave === 'posicion_muestreo'
+        ? posicionesDeMuestreo(general.especie, general.tipo_muestra)
+        : null
+    if (campo.clave === 'posicion_muestreo' && opcionesPosicion && !esRYDAgrofresh) {
+      const actual = general.posicion_muestreo ?? ''
+      return (
+        <label className={styles.campo} key={campo.clave}>
+          {etiqueta}
+          <select
+            value={actual}
+            onChange={(e) => actualizarGeneral('posicion_muestreo', e.target.value)}
+          >
+            <option value="">— elegir —</option>
+            {(actual && !opcionesPosicion.includes(actual)
+              ? [actual, ...opcionesPosicion]
+              : opcionesPosicion
+            ).map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </label>
+      )
+    }
     if (campo.clave === 'posicion_muestreo' && esRYDAgrofresh) {
       return (
         <Fragment key={campo.clave}>
@@ -1031,13 +1058,33 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             {etiqueta}
             {posiciones.map((valor, i) => (
               <div className={styles.filaPosicion} key={i}>
-                <input
-                  value={valor}
-                  aria-label={`Posición de muestreo ${i + 1}`}
-                  onChange={(e) =>
-                    setPosiciones((ps) => ps.map((p, j) => (j === i ? e.target.value : p)))
-                  }
-                />
+                {opcionesPosicion ? (
+                  <select
+                    value={valor}
+                    aria-label={`Posición de muestreo ${i + 1}`}
+                    onChange={(e) =>
+                      setPosiciones((ps) => ps.map((p, j) => (j === i ? e.target.value : p)))
+                    }
+                  >
+                    <option value="">— elegir —</option>
+                    {(valor && !opcionesPosicion.includes(valor)
+                      ? [valor, ...opcionesPosicion]
+                      : opcionesPosicion
+                    ).map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={valor}
+                    aria-label={`Posición de muestreo ${i + 1}`}
+                    onChange={(e) =>
+                      setPosiciones((ps) => ps.map((p, j) => (j === i ? e.target.value : p)))
+                    }
+                  />
+                )}
                 {posiciones.length > 1 && (
                   <button
                     type="button"
@@ -1596,7 +1643,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               </p>
             ) : (
               <div className={styles.tablaCaja}>
-                <table className={styles.tabla}>
+                <table className={styles.tabla} data-apilar>
                   <thead>
                     <tr>
                       <th>Nombre</th>

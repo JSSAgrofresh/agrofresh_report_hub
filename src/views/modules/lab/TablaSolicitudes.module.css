@@ -160,3 +160,54 @@
   color: var(--color-text-faint);
   font-size: 13px;
 }
+
+.pregunta {
+  margin: 0 0 var(--space-3, 12px);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.opcionesPdf {
+  display: grid;
+  gap: var(--space-2, 8px);
+}
+
+.opcionPdf {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.opcionPdf span { font-size: 12px; color: var(--color-text-muted); }
+.opcionPdf:hover:not(:disabled) { border-color: var(--color-primary); }
+.opcionPdf:disabled { opacity: 0.55; cursor: default; }
+
+.botonFoto {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 3px 6px;
+}
+
+.botonFoto:hover {
+  background: var(--color-bg);
+}
+
+.fotoGrande {
+  display: block;
+  max-width: 100%;
+  max-height: 70dvh;
+  margin: 0 auto;
+  object-fit: contain;
+}

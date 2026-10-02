@@ -77,10 +77,11 @@
 }
 
 .tabla tbody tr:nth-child(even) {
-  background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+  background: color-mix(in srgb, var(--color-bg) 55%, #fff);
 }
 
 .tabla tbody tr {
+  background: #fff;
   transition: background-color 0.12s ease;
 }
 
@@ -164,6 +165,40 @@
   justify-content: flex-end;
 }
 
+/* Tabla compacta: cabe sin desplazarse, así las acciones siempre se ven. */
+.tabla th,
+.tabla td {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.tabla td.acciones {
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.tabla td.acciones .boton,
+.tabla td.acciones .botonEliminar {
+  padding: 5px 7px;
+}
+
+.clientePlanta {
+  white-space: normal !important;
+  min-width: 130px;
+  max-width: 190px;
+}
+
+.clientePrincipal {
+  display: block;
+  font-weight: 600;
+}
+
+.clienteSecundario {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
 .boton,
 .botonEliminar {
   font-size: 12.5px;
@@ -241,6 +276,8 @@
 
 .campoFiltro input,
 .campoFiltro select {
+  box-sizing: border-box;
+  height: 34px;
   font-family: var(--font-sans);
   font-size: 13px;
   padding: 7px 9px;
@@ -270,7 +307,7 @@
   display: none;
 }
 
-/* La tabla necesita ~880px para mostrar sus 9 columnas sin apretarse.
+/* La tabla necesita ~880px para mostrar sus columnas sin apretarse.
    Por debajo de eso se muestra como tarjetas, sin importar si el ancho
    disponible se achica por la ventana o por el panel lateral. */
 @container listado-solicitudes (max-width: 880px) {
@@ -595,7 +632,8 @@
 }
 
 .chipEnviada,
-.chipPendiente {
+.chipPendiente,
+.chipSinLista {
   display: inline-block;
   font-size: 11.5px;
   font-weight: 600;
@@ -614,6 +652,18 @@
   color: #8a5a00;
   background: #fff4dc;
   border: 1px solid #f0d9a4;
+}
+
+.chipSinLista {
+  color: #7a2f8f;
+  background: #f6ebfa;
+  border: 1px solid #e2c6ec;
+}
+
+.estadosSolicitud {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 /* Barra de acciones sobre lo seleccionado */
@@ -710,7 +760,8 @@
 }
 
 .chipEnviada,
-.chipPendiente {
+.chipPendiente,
+.chipSinLista {
   padding: 3px 12px;
 }
 

@@ -80,6 +80,10 @@ describe('tipoServicioDe', () => {
     expect(tipoServicioDe(sol({ tipo_servicio: 'Linea de Proceso' }))).toBe('Línea de proceso')
     expect(tipoServicioDe(sol({ tipo_servicio: 'línea de proceso' }))).toBe('Línea de proceso')
   })
+  it('RYD es un tipo propio (AgroFresh)', () => {
+    expect(tipoServicioDe(sol({ tipo_servicio: 'RYD' }))).toBe('RYD')
+    expect(tipoServicioDe(sol({ tipo_servicio: 'ryd' }))).toBe('RYD')
+  })
   it('sin tipo o con uno nuevo', () => {
     expect(tipoServicioDe(sol({ tipo_servicio: null }))).toBe('Sin tipo')
     expect(tipoServicioDe(sol({ tipo_servicio: '  Cámara fría ' }))).toBe('Cámara fría')

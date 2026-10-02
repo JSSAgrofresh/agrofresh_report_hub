@@ -117,7 +117,9 @@ def _fila_a_par(fila: dict) -> tuple[str, dict]:
     cruzado_en = fila.get("cruzado_en")
     datos["recepcion_en"] = cruzado_en.isoformat() if cruzado_en else None
     # Peso de la muestra (obligatorio desde migración 0033)
-    datos["peso_muestra"] = fila.get("peso_muestra")
+    peso = fila.get("peso_muestra")
+    # NUMERIC llega como Decimal, que no se puede guardar como JSON.
+    datos["peso_muestra"] = float(peso) if peso is not None else None
     datos["unidad_peso"] = fila.get("unidad_peso") or "kg"
     datos["cruzado_por"] = fila.get("cruzado_por")
     datos["cruzado_por_nombre"] = fila.get("cruzado_por_nombre")
@@ -332,6 +334,10 @@ class MuestraYaUsada(Exception):
         super().__init__(f"El número de muestra ya está cruzado con {archivo}.")
 
 
+class SinCruce(Exception):
+    """La solicitud todavía no tiene muestra: no hay cruce que corregir."""
+
+
 def cruzar(archivo: str, codigo_muestra: str | None) -> None:
     """Deja anotado con qué muestra física corresponde una solicitud.
 
@@ -532,6 +538,89 @@ def listar_actividad(
                 fila["peso_muestra"] = float(fila["peso_muestra"])
             resultado.append(fila)
         return resultado
+
+
+def archivos_con_foto() -> set[str]:
+    """Las solicitudes cuyo cruce tiene una foto activa. Una sola consulta para
+    todo el listado. Sin la tabla (migración 0033) devuelve vacío."""
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute("SELECT DISTINCT archivo FROM cruce_foto WHERE activa = true")
+            return {f["archivo"] for f in cur.fetchall()}
+    except psycopg2.errors.UndefinedTable:
+        return set()
+    except Exception:
+        # Solo adorna el listado (el ícono de foto): sin base no debe tumbarlo.
+        logger.warning("No se pudo saber qué cruces tienen foto.", exc_info=True)
+        return set()
+
+
+def editar_cruce(
+    archivo: str,
+    codigo_muestra: str,
+    peso_muestra: float,
+    unidad_peso: str,
+    usuario_email: str,
+    usuario_nombre: str,
+    foto: dict | None = None,
+    detalle: dict | None = None,
+) -> dict:
+    """Corrige un cruce ya hecho (N° de muestra, peso y, si se pide, la foto)
+    sin tocar cuándo llegó la muestra ni quién la cruzó. Deja el antes y el
+    después en el historial. Devuelve los valores anteriores."""
+    codigo = codigo_muestra.strip()
+    if not codigo:
+        raise ValueError("El código de muestra no puede estar vacío.")
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "SELECT codigo_muestra, peso_muestra, unidad_peso, datos FROM solicitud_archivo WHERE archivo = %s FOR UPDATE",
+            (archivo,),
+        )
+        antes = cur.fetchone()
+        if antes is None:
+            raise KeyError(archivo)
+        if not antes["codigo_muestra"]:
+            raise SinCruce(archivo)
+        cur.execute(
+            "SELECT archivo FROM solicitud_archivo WHERE codigo_muestra = %s AND archivo <> %s",
+            (codigo, archivo),
+        )
+        otra = cur.fetchone()
+        if otra:
+            raise MuestraYaUsada(otra["archivo"])
+        cur.execute(
+            "UPDATE solicitud_archivo SET codigo_muestra = %s, peso_muestra = %s, unidad_peso = %s WHERE archivo = %s",
+            (codigo, peso_muestra, unidad_peso, archivo),
+        )
+        if foto is not None:
+            cur.execute("UPDATE cruce_foto SET activa = false WHERE archivo = %s AND activa = true", (archivo,))
+            cur.execute(
+                "INSERT INTO cruce_foto (archivo, r2_key, content_type, usuario_email, usuario_nombre, activa)"
+                " VALUES (%s, %s, %s, %s, %s, true)",
+                (archivo, foto["r2_key"], foto["content_type"], usuario_email, usuario_nombre),
+            )
+        previo = {
+            "codigo_muestra": antes["codigo_muestra"],
+            "peso_muestra": float(antes["peso_muestra"]) if antes["peso_muestra"] is not None else None,
+            "unidad_peso": antes["unidad_peso"] or "kg",
+        }
+        datos_sol = antes["datos"] if isinstance(antes["datos"], dict) else {}
+        cur.execute(
+            """
+            INSERT INTO lab_actividad
+                (accion, archivo, numero_solicitud, codigo_muestra, tipo_muestra,
+                 peso_muestra, unidad_peso, r2_key_foto,
+                 usuario_email, usuario_nombre, detalle, resultado)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'ok')
+            """,
+            (
+                "edicion_cruce", archivo, datos_sol.get("numero_solicitud"), codigo, datos_sol.get("tipo_muestra"),
+                peso_muestra, unidad_peso, foto["r2_key"] if foto else None,
+                usuario_email, usuario_nombre,
+                Json({**(detalle or {}), "antes": previo, "foto_cambiada": foto is not None}),
+            ),
+        )
+    return previo
 
 
 def foto_de_cruce(archivo: str) -> dict | None:

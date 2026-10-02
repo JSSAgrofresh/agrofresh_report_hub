@@ -46,6 +46,10 @@ export interface Solicitud {
   /** Solicitud de prueba: folio del hueco que dejaron las pruebas borradas,
    * nunca se envía sola y su correo dice "(PRUEBA)". Ausente = false. */
   es_prueba?: boolean
+  /** Los resultados no tienen a nadie del cliente en Para (para su Sold To,
+   * Ship To y especie): rige el respaldo, solo Jorge y Claudia. Lo calcula el
+   * backend con los contactos de hoy; no se guarda. */
+  sin_lista_distribucion?: boolean | null
 }
 
 /** Folios de prueba de un laboratorio (ver `estadoSolicitudesPrueba`). */

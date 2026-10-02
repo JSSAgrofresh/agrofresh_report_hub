@@ -96,6 +96,18 @@ def test_solicitudes_deja_ordenar_carpetas_pero_no_archivos_ni_borrar():
     assert sr2.permitir("renombrar", "solicitudes", True)
 
 
+def test_informes_se_ven_y_se_borran_pero_no_se_reordenan():
+    """Los PDF los deja la aplicación en planta/fecha/análisis/laboratorio."""
+    ruta = "informes/PLANTA X/2026-09-30/Actimist/Quiteca/i.pdf"
+    assert sr2.permitir("eliminar", ruta, False) is None
+    assert sr2.permitir("eliminar", "informes/PLANTA X", True) is None
+    for op in ("crear", "subir", "renombrar", "mover"):
+        assert sr2.permitir(op, ruta, False)
+        assert sr2.permitir(op, "informes/PLANTA X", True)
+    assert sr2.permitir("eliminar", "informes", True)  # la carpeta base no
+    assert sr2.permitir("crear", "informes2/x")  # ni se confunden prefijos parecidos
+
+
 def test_fuera_de_las_zonas_no_se_toca_nada():
     assert sr2.permitir("crear", "otra/cosa")
     assert sr2.permitir("crear", "")
@@ -183,6 +195,18 @@ def api(bucket, monkeypatch):
     app.dependency_overrides[usuario_actual] = lambda: quien["u"]
     yield TestClient(app), bucket, quien
     app.dependency_overrides.pop(usuario_actual, None)
+
+
+def test_informes_por_la_api_solo_borrar(api):
+    cli, bucket, _ = api
+    bucket.objs["informes/PLANTA X/2026-09-30/Actimist/Quiteca/i.pdf"] = b"%PDF"
+    r = cli.post("/api/storage/r2/subir", data={"ruta": "informes/PLANTA X"}, files={"archivos": ("a.pdf", b"x")})
+    assert r.status_code == 403
+    r = cli.post("/api/storage/r2/carpetas", json={"ruta_padre": "informes", "nombre": "Nueva"})
+    assert r.status_code == 403
+    r = cli.request("DELETE", "/api/storage/r2/eliminar", params={"ruta": "informes/PLANTA X/2026-09-30/Actimist/Quiteca/i.pdf"})
+    assert r.status_code == 200
+    assert "informes/PLANTA X/2026-09-30/Actimist/Quiteca/i.pdf" not in bucket.objs
 
 
 def test_crear_y_subir_en_accutab(api):

@@ -1,0 +1,391 @@
+.scroll {
+  overflow: auto;
+  max-height: 68dvh;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.tabla {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+  min-width: max-content;
+}
+
+.tabla th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 8px 10px;
+  background: #f9faf7;
+  border-bottom: 1px solid var(--color-border-strong);
+  border-right: 1px solid var(--color-border);
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* segunda fila del encabezado, debajo de la de grupos */
+.tabla thead tr:nth-child(2) th {
+  top: 33px;
+}
+
+.grupos th {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+  color: var(--color-text-faint);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.via {
+  display: block;
+  width: max-content;
+  margin-top: 3px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.PARA { background: #eef6e5; border-color: #d4e9c4; color: #2f6b12; }
+.CC { background: #eaf2fb; border-color: #cddff2; color: #25589a; }
+.CCO { background: #f1edf8; border-color: #ddd3ee; color: #5b3f93; }
+
+/* Las dos primeras columnas quedan fijas al desplazarse a la derecha. */
+.pegada {
+  position: sticky;
+  z-index: 2;
+  background: var(--color-surface);
+}
+
+th.pegada {
+  z-index: 4;
+}
+
+.pegada1 {
+  left: 0;
+  width: 190px;
+  min-width: 190px;
+  max-width: 190px;
+  box-sizing: border-box;
+}
+
+.pegada2 {
+  left: 190px;
+  width: 230px;
+  min-width: 230px;
+  max-width: 230px;
+  box-sizing: border-box;
+  box-shadow: 6px 0 6px -6px rgba(16, 24, 40, 0.18);
+}
+
+.fila > td {
+  border-bottom: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  vertical-align: top;
+  padding: 0;
+  min-width: 170px;
+  max-width: 260px;
+}
+
+.fila:hover > td {
+  background: #fafbf8;
+}
+
+.fila:hover > td.pegada {
+  background: #fafbf8;
+}
+
+.fila > td.celdaNombre {
+  padding: 8px 10px;
+}
+
+.nombre {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+td.pegada1.celdaNombre {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.celdaNombre strong {
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.sinContactos > td.celdaNombre strong {
+  color: var(--color-text-muted);
+}
+
+.aviso,
+.sinLista,
+.ok,
+.etiquetaNueva {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: max-content;
+  max-width: 100%;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.aviso {
+  color: #8a6100;
+}
+
+.sinLista {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+}
+
+.ok {
+  color: #2f6b12;
+}
+
+.etiquetaNueva {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #fde9a8;
+  border: 1px solid #f0d58a;
+  color: #6f5000;
+}
+
+.crear {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.sugerencias {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.sugerencias button {
+  text-align: left;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sugerencias button:hover {
+  background: #eef6e5;
+}
+
+.sugerencias i {
+  display: block;
+  font-style: normal;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.filaAcciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.separar {
+  width: max-content;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.fila:hover .separar,
+.separar:focus-visible {
+  opacity: 1;
+}
+
+/* ---- celdas ---- */
+.celda {
+  position: relative;
+}
+
+.contenido {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.contenido:hover {
+  background: rgba(111, 175, 59, 0.1);
+}
+
+.contenido:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip i {
+  font-style: normal;
+  font-weight: 800;
+}
+
+.chip.nuevo {
+  background: #e3f3d2;
+  border-color: #9fcf7b;
+  color: #245a0c;
+}
+
+.chip.quitado {
+  background: #fbe8e5;
+  border-color: #f3c9c1;
+  color: var(--color-danger);
+}
+
+.chip.quitado > span {
+  text-decoration: line-through;
+}
+
+.chip.ajuste {
+  background: #f1edf8;
+  border-color: #ddd3ee;
+  color: #5b3f93;
+}
+
+.mas {
+  align-self: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.vacia {
+  color: var(--color-text-faint);
+}
+
+.falta {
+  padding: 1px 8px;
+  border: 1px dashed #d9a400;
+  border-radius: 999px;
+  background: #fffaf0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #8a6100;
+}
+
+/* Amarillo = propuesto, por revisar. Verde = aceptado, se guardará. */
+.pendiente {
+  background: #fff4c2 !important;
+  box-shadow: inset 3px 0 0 #e0b100;
+}
+
+.aceptada {
+  background: #e8f4dc !important;
+  box-shadow: inset 3px 0 0 #6faf3b;
+}
+
+/* Se deja lugar a la derecha para los botones, que no tapen los correos. */
+.pendiente .contenido {
+  padding-right: 58px;
+}
+
+.aceptada .contenido {
+  padding-right: 32px;
+}
+
+.acciones {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: flex;
+  gap: 3px;
+}
+
+.acciones button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  background: var(--color-surface);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.acciones .ok {
+  color: #2f6b12;
+  border-color: #9fcf7b;
+}
+
+.acciones .no {
+  color: var(--color-danger);
+  border-color: #f3c9c1;
+}
+
+.acciones button:hover {
+  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.2);
+}
+
+.filaNueva > td.pegada {
+  background: #fff9dc;
+}
