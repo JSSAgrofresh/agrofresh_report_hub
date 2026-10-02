@@ -29,3 +29,37 @@ def test_solo_als_recibe_sample_identification():
     assert "sample_identification" in _json({**base, "laboratorio": "ALS"})
     assert "sample_identification" in _json({**base, "laboratorio": "als"})
     assert "sample_identification" not in _json({**base, "laboratorio": "QUITECA"})
+
+
+ROTULACION = "{numero_solicitud} - {posicion_muestreo} - {fecha_muestreo_dmy}"
+
+
+def test_correo_dice_lo_mismo_que_el_json(monkeypatch):
+    from app import mail_templates as mt
+
+    monkeypatch.setattr(mt, "obtener", lambda lab: {"asunto": "x", "cuerpo": ROTULACION})
+    monkeypatch.setattr(mt, "obtener_reanalisis", lambda lab: {"asunto": "x", "cuerpo": ROTULACION})
+    casos = [
+        {"numero_solicitud": "OT-ALS0007", "posicion_muestreo": "Pozo vaciado", "fecha_muestreo": "2026-10-01"},
+        {"numero_solicitud": "OT-ALS0006", "posicion_muestreo": None, "fecha_muestreo": "2026-09-30"},
+        {"numero_solicitud": "OT-ALS0008", "posicion_muestreo": "   ", "fecha_muestreo": "2026-10-01"},
+        {"numero_solicitud": "OT-ALS0009", "posicion_muestreo": " Pozo Vaciado ", "fecha_muestreo": ""},
+    ]
+    for caso in casos:
+        datos = {"laboratorio": "ALS", **caso}
+        assert mt.renderizar("ALS", datos)[1] == _json(datos)["sample_identification"]
+        assert mt.renderizar_reanalisis("ALS", datos)[1] == _json(datos)["sample_identification"]
+
+
+def test_variables_nuevas_son_validas_en_el_template():
+    from app import mail_templates as mt
+
+    mt.validar(ROTULACION)
+    mt.validar_reanalisis(ROTULACION)
+
+
+def test_fecha_muestreo_y_solicitud_no_cambian_para_otros_templates(monkeypatch):
+    from app import mail_templates as mt
+
+    monkeypatch.setattr(mt, "obtener", lambda lab: {"asunto": "x", "cuerpo": "{fecha_muestreo}"})
+    assert mt.renderizar("QUITECA", {"fecha_muestreo": "2026-10-01"})[1] == "2026-10-01"

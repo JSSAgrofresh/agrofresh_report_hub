@@ -1,6 +1,7 @@
 """Plantillas configurables para el correo de solicitudes de análisis."""
 import logging
 import os
+import re
 from html import escape
 from string import Formatter
 
@@ -18,9 +19,35 @@ VARIABLES = [
     "numero_solicitud", "laboratorio", "solicitante", "sold_to", "ship_to",
     "fecha_solicitud", "fecha_muestreo", "generado_por", "email_solicitante",
     "especie", "variedad", "lote",
+    # Piezas de la rotulación de la muestra (ALS): se arman en el template como
+    # `{numero_solicitud} - {posicion_muestreo} - {fecha_muestreo_dmy}`.
+    "posicion_muestreo", "fecha_muestreo_dmy",
 ]
 
 VARIABLES_REANALISIS = VARIABLES + ["motivo_reanalisis", "solicitud_original_numero"]
+
+def iso_a_ddmmyyyy(valor: object) -> object:
+    """Convierte 'YYYY-MM-DD' → 'DD-MM-YYYY'. Si no coincide el patrón, devuelve el valor intacto."""
+    if isinstance(valor, str):
+        m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", valor.strip())
+        if m:
+            return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+    return valor
+
+
+def rotulacion_partes(datos: dict) -> dict[str, str]:
+    """Las tres partes de la rotulación de la muestra, ya listas para unir.
+
+    Es la ÚNICA fuente: la usan el JSON adjunto (`sample_identification`) y las
+    variables del template del correo, para que ambos digan exactamente lo mismo.
+    Una parte vacía queda como «—», nunca se omite."""
+    crudas = {
+        "numero_solicitud": datos.get("numero_solicitud"),
+        "posicion_muestreo": datos.get("posicion_muestreo"),
+        "fecha_muestreo_dmy": iso_a_ddmmyyyy(datos.get("fecha_muestreo")),
+    }
+    return {k: str(v).strip() if v and str(v).strip() else "—" for k, v in crudas.items()}
+
 
 ASUNTO_DEFECTO = "[AgroFresh] Solicitud {numero_solicitud} — {laboratorio}"
 ASUNTO_REANALISIS = "[AgroFresh] Reanálisis {numero_solicitud} — {laboratorio}"
@@ -156,6 +183,7 @@ def renderizar(laboratorio: str, datos: dict) -> tuple[str, str, str, list[Image
     layout con los colores y el logo del sistema."""
     template = obtener(laboratorio)
     valores = {variable: str(datos.get(variable) or "—") for variable in VARIABLES}
+    valores.update(rotulacion_partes(datos))
     asunto = template["asunto"].format_map(valores)
     texto = template["cuerpo"].format_map(valores)
 
@@ -210,6 +238,7 @@ def renderizar_reanalisis(laboratorio: str, datos: dict) -> tuple[str, str, str,
 
     template = obtener_reanalisis(laboratorio)
     valores = {variable: str(datos.get(variable) or "—") for variable in VARIABLES}
+    valores.update(rotulacion_partes(datos))
     valores["motivo_reanalisis"] = motivo
     valores["solicitud_original_numero"] = numero_original
 
