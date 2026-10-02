@@ -10,6 +10,8 @@ from . import config
 from .auth import router as auth_router, solo_interno, usuario_actual
 from .auditoria import reparar_tablas_omitidas_post_promocion, router as auditoria_router
 from .auditoria_interna import router as auditoria_interna_router
+from .actividad import router as actividad_router
+from .admin_panel import router as admin_panel_router
 from .correcciones import router as correcciones_router
 from .listas_distribucion import router as listas_distribucion_router
 from .ficha_informe import router as ficha_informe_router
@@ -111,6 +113,8 @@ for _router in (
     ingest_router,
     auditoria_router,
     auditoria_interna_router,
+    actividad_router,
+    admin_panel_router,
     correcciones_router,
     listas_distribucion_router,
     ficha_informe_router,

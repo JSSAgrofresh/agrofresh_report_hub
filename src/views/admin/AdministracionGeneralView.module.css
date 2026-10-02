@@ -328,9 +328,18 @@
   display: flex;
   gap: var(--space-2);
   border-bottom: 1px solid var(--color-border);
+  /* Con cuatro pestañas no caben en un celular: la franja se desplaza sola en vez de ensanchar la página. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pestanas::-webkit-scrollbar {
+  display: none;
 }
 
 .pestanas button {
+  flex: none;
+  white-space: nowrap;
   padding: 9px 16px;
   border: none;
   border-bottom: 2px solid transparent;

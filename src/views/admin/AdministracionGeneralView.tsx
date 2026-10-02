@@ -17,12 +17,14 @@ import { Indicador } from '@/components/ui/Indicador'
 import { IconoActualizar, IconoAlerta, IconoBuscar, IconoCerrar, IconoPapelera } from '@/components/ui/iconosAccion'
 import { Modal } from '@/components/ui/Modal'
 import { ListasPanel } from './listas/ListasPanel'
+import { ActividadPanel } from './panel/ActividadPanel'
+import { ResumenPanel } from './panel/ResumenPanel'
 import { fechaHora } from '@/lib/fechaHoraChile'
 import styles from './AdministracionGeneralView.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
-type Pestana = 'correcciones' | 'listas'
+type Pestana = 'resumen' | 'actividad' | 'correcciones' | 'listas'
 
 /**
  * Administración General: lo que solo ve y toca el admin general.
@@ -48,8 +50,9 @@ export function AdministracionGeneralView() {
   const [aOlvidar, setAOlvidar] = useState<CorreccionConverter | null>(null)
   const [olvidando, setOlvidando] = useState(false)
   const [errorOlvidar, setErrorOlvidar] = useState<string | null>(null)
-  const [pestana, setPestana] = useState<Pestana>('listas')
-  const [listasVisitada, setListasVisitada] = useState(true)
+  const [pestana, setPestana] = useState<Pestana>('resumen')
+  const [listasVisitada, setListasVisitada] = useState(false)
+  const [personaElegida, setPersonaElegida] = useState<string | null>(null)
   const [abiertas, setAbiertas] = useState<Set<number>>(new Set())
   const [ampliarTodas, setAmpliarTodas] = useState(false)
 
@@ -103,7 +106,11 @@ export function AdministracionGeneralView() {
       <Header
         title="Administración General"
         description={
-          pestana === 'correcciones'
+          pestana === 'resumen'
+            ? 'Panel de control: cómo va la operación, qué hace cada persona y qué necesita tu atención. Solo lo ve el administrador general.'
+            : pestana === 'actividad'
+            ? 'Qué hace cada persona: acciones, ingresos y visitas a cada módulo, con su historial.'
+            : pestana === 'correcciones'
             ? 'Historial de correcciones del Converter: lo que aprendió cada vez que alguien corrigió a mano un Sold To, Ship To, especie o variedad. Si el mismo texto vuelve a llegar, se corrige solo.'
             : 'Listas de distribución de resultados: exporta lo que hay, edítalo en Excel, súbelo y confirma cada cambio antes de que se guarde.'
         }
@@ -118,6 +125,12 @@ export function AdministracionGeneralView() {
       />
 
       <div className={styles.pestanas} role="tablist" aria-label="Secciones">
+        <button type="button" role="tab" aria-selected={pestana === 'resumen'} className={pestana === 'resumen' ? styles.pestanaActiva : ''} onClick={() => setPestana('resumen')}>
+          Resumen
+        </button>
+        <button type="button" role="tab" aria-selected={pestana === 'actividad'} className={pestana === 'actividad' ? styles.pestanaActiva : ''} onClick={() => setPestana('actividad')}>
+          Actividad
+        </button>
         <button type="button" role="tab" aria-selected={pestana === 'listas'} className={pestana === 'listas' ? styles.pestanaActiva : ''} onClick={() => { setListasVisitada(true); setPestana('listas') }}>
           Listas de distribución
         </button>
@@ -125,6 +138,14 @@ export function AdministracionGeneralView() {
           Correcciones del Converter
         </button>
       </div>
+
+      {pestana === 'resumen' && (
+        <ResumenPanel
+          onIrAPestana={(p) => { if (p === 'listas') setListasVisitada(true); setPestana(p) }}
+          onVerPersona={(email) => { setPersonaElegida(email); setPestana('actividad') }}
+        />
+      )}
+      {pestana === 'actividad' && <ActividadPanel emailInicial={personaElegida} onCambiarEmail={setPersonaElegida} />}
 
       {/* Se monta al visitarla y se conserva: cambiar de pestaña no pierde los cambios sin guardar. */}
       {listasVisitada && <div hidden={pestana !== 'listas'}><ListasPanel /></div>}

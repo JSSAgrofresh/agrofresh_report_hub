@@ -42,7 +42,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
-from . import auth, config, config_store, correo, indice_solicitudes, mail_templates, r2, seguridad
+from . import actividad, auth, config, config_store, correo, indice_solicitudes, mail_templates, r2, seguridad
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .notificaciones import notificar
@@ -1276,6 +1276,8 @@ def eliminar_solicitud(
     # Sacarla también del índice: si quedara anotada, el listado seguiría
     # mostrando una solicitud cuyo archivo ya no existe.
     indice_solicitudes.olvidar_archivo(os.path.basename(archivo))
+    actividad.registrar(usuario.email, usuario.nombre, "sensible", "solicitud_eliminada",
+                        f"eliminó la solicitud {os.path.basename(archivo)}", sensible=True)
     return {"estado": "eliminado"}
 
 
