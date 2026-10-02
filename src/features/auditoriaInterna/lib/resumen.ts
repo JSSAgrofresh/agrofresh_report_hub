@@ -68,6 +68,7 @@ export function porLaboratorio(solicitudes: SolicitudAuditoria[]): LaboratorioRe
 
 export const TIPO_ACTIMIST = 'Actimist'
 export const TIPO_LINEA = 'Línea de proceso'
+export const TIPO_RYD = 'RYD'
 export const SIN_TIPO = 'Sin tipo'
 
 function plano(s: string | null | undefined): string {
@@ -81,10 +82,11 @@ export function tipoServicioDe(s: SolicitudAuditoria): string {
   if (!t) return SIN_TIPO
   if (t.includes('actimist')) return TIPO_ACTIMIST
   if (t.includes('linea')) return TIPO_LINEA
+  if (t === 'ryd' || t.startsWith('ryd ')) return TIPO_RYD
   return (s.tipo_servicio ?? '').trim()
 }
 
-/** Cómo van las solicitudes de UN tipo de servicio (Actimist o Línea de proceso). */
+/** Cómo van las solicitudes de UN tipo de servicio (Actimist, Línea de proceso o RYD). */
 export function resumenPorTipo(solicitudes: SolicitudAuditoria[], tipo: string): Totales {
   return totales(solicitudes.filter((s) => tipoServicioDe(s) === tipo))
 }

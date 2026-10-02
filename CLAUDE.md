@@ -490,6 +490,8 @@ tocas una, toca la otra.
   cliente, «informes» = informes **concretados**. La lógica (filtros, donas,
   clientes) es pura y se prueba en `features/auditoriaInterna/lib/`. El laboratorio `AGROFRESH` (propio) **sí entra** al panel y a
   las OT candidatas de Converter (antes se filtraba y su informe subido no se veía).
+  Su «Tipo Aplicación» es **RYD**: es un tercer tipo de servicio (`TIPO_RYD`, naranjo)
+  con su dona, su grupo en la tabla dinámica y su botón en el gráfico por cliente.
 - **Administración General** (`/admin/administracion-general`, en el menú debajo de
   Notificaciones, **solo admin general**): tiene dos pestañas. **Correcciones del
   Converter** (ver abajo; las filas parten compactas y se agrandan con un clic):

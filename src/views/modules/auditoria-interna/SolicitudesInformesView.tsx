@@ -9,6 +9,7 @@ import {
   FILTROS_VACIOS,
   TIPO_ACTIMIST,
   TIPO_LINEA,
+  TIPO_RYD,
   contarFiltros,
   filtrarSolicitudes,
   opcionesDeFiltros,
@@ -29,12 +30,14 @@ import styles from './SolicitudesInformesView.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
-type TipoGrafico = 'ambos' | typeof TIPO_ACTIMIST | typeof TIPO_LINEA
+type TipoGrafico = 'ambos' | typeof TIPO_ACTIMIST | typeof TIPO_LINEA | typeof TIPO_RYD
 const TIPOS_GRAFICO: { valor: TipoGrafico; texto: string }[] = [
-  { valor: 'ambos', texto: 'Ambos' },
+  { valor: 'ambos', texto: 'Todos' },
   { valor: TIPO_ACTIMIST, texto: 'Actimist' },
   { valor: TIPO_LINEA, texto: 'Línea de proceso' },
+  { valor: TIPO_RYD, texto: 'RYD' },
 ]
+const TODOS_LOS_TIPOS = [TIPO_ACTIMIST, TIPO_LINEA, TIPO_RYD]
 
 export function SolicitudesInformesView() {
   const { user } = useAuth()
@@ -61,9 +64,10 @@ export function SolicitudesInformesView() {
   const tot = useMemo(() => totales(alcance), [alcance])
   const actimist = useMemo(() => resumenPorTipo(alcance, TIPO_ACTIMIST), [alcance])
   const lineaProceso = useMemo(() => resumenPorTipo(alcance, TIPO_LINEA), [alcance])
-  const tiposElegidos = tipoGrafico === 'ambos' ? [TIPO_ACTIMIST, TIPO_LINEA] : [tipoGrafico]
+  const ryd = useMemo(() => resumenPorTipo(alcance, TIPO_RYD), [alcance])
+  const tiposElegidos = tipoGrafico === 'ambos' ? TODOS_LOS_TIPOS : [tipoGrafico]
   const clientes = useMemo(
-    () => topClientesPorServicio(alcance, tipoGrafico === 'ambos' ? [TIPO_ACTIMIST, TIPO_LINEA] : [tipoGrafico], topClientes),
+    () => topClientesPorServicio(alcance, tipoGrafico === 'ambos' ? TODOS_LOS_TIPOS : [tipoGrafico], topClientes),
     [alcance, tipoGrafico, topClientes],
   )
   const totalClientes = useMemo(() => porClienteYServicio(alcance).length, [alcance])
@@ -136,6 +140,7 @@ export function SolicitudesInformesView() {
                 <div className={styles.lateral}>
                   <DonaTipoServicio tipo={TIPO_LINEA} resumen={lineaProceso} />
                   <DonaTipoServicio tipo={TIPO_ACTIMIST} resumen={actimist} />
+                  {ryd.emitidas > 0 && <DonaTipoServicio tipo={TIPO_RYD} resumen={ryd} />}
                 </div>
                 <TablaDinamica solicitudes={alcance} />
               </div>
