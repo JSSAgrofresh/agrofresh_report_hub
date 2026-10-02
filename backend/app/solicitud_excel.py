@@ -10,6 +10,7 @@ Excel en vez de JSON.
 """
 import json
 import re
+from datetime import date, datetime
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -161,6 +162,7 @@ def _grupos_exportacion(
     *,
     laboratorios: tuple[str, ...] | None = None,
     columnas_tras_solicitud: list[tuple[str, str]] | None = None,
+    generales: list[tuple[str, str]] | None = None,
 ) -> list[tuple[str, list[tuple[str, str, str]]]]:
     """Grupos de columnas de la matriz.
 
@@ -169,8 +171,22 @@ def _grupos_exportacion(
     omiten los grupos fijos de los demás (DIAGNOFRUIT, ALS): es la descarga
     de un único laboratorio, con el mismo formato que la base general.
     `columnas_tras_solicitud` agrega columnas generales (clave, etiqueta)
-    justo después de N° Solicitud.
+    justo después de N° Solicitud. `generales` (clave, etiqueta) reemplaza por
+    completo las columnas generales (lo usa la base «con muestra», que comparte
+    las suyas con la BD de Report: ver `columnas_base.py`).
     """
+    if generales is not None:
+        columnas_generales = [("general", clave, etiqueta) for clave, etiqueta in generales]
+        if laboratorios is None:
+            return [
+                ("GENERAL", columnas_generales),
+                ("QUITECA / AGROFRESH — RESIDUOS FUNGICIDAS", _grupo_fungicidas(analitos)),
+                *_GRUPOS_EXPORTACION_FIJOS_COLA,
+            ]
+        return [
+            ("GENERAL", columnas_generales),
+            (f"{' / '.join(laboratorios)} — RESIDUOS FUNGICIDAS", _grupo_fungicidas(analitos, laboratorios)),
+        ]
     generales = [("general", clave, etiqueta) for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS]
     if columnas_tras_solicitud:
         pos = next((i for i, (_, clave, _e) in enumerate(generales) if clave == "numero_solicitud"), -1) + 1
@@ -308,6 +324,7 @@ def construir_workbook_exportacion(
     laboratorios: tuple[str, ...] | None = None,
     columnas_tras_solicitud: list[tuple[str, str]] | None = None,
     titulo_hoja: str = "Solicitudes",
+    generales: list[tuple[str, str]] | None = None,
 ) -> Workbook:
     """Genera la matriz oficial horizontal: dos filas de encabezado y una
     fila por solicitud. El Excel individual llama a esta misma función, por
@@ -324,6 +341,7 @@ def construir_workbook_exportacion(
     )
     grupos_exportacion = _grupos_exportacion(
         analitos, laboratorios=laboratorios, columnas_tras_solicitud=columnas_tras_solicitud,
+        generales=generales,
     )
     columnas = [columna for _, grupo in grupos_exportacion for columna in grupo]
     # Uno por código, priorizando el analito de cromatografía (misma unidad
@@ -388,6 +406,8 @@ def construir_workbook_exportacion(
             )
             if tipo == "analito" and valor:
                 celda.font = Font(bold=True, color=VERDE_OSCURO)
+            if isinstance(valor, (date, datetime)):
+                celda.number_format = "DD-MM-YYYY"
         ws.row_dimensions[fila_idx].height = 24
 
     total_columnas = len(columnas)

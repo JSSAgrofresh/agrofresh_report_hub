@@ -338,6 +338,55 @@ def test_la_descarga_une_con_el_indice_de_solicitudes(datos_bd, cliente_http, mo
             cur.execute("DELETE FROM solicitud_archivo WHERE archivo = '__bd_test.xlsx'")
 
 
+@pytest.mark.skipif(not hay_base("solicitud_archivo"), reason="sin la tabla del índice de solicitudes (0020)")
+def test_la_bd_trae_el_cruce_el_gasto_y_la_lista_de_distribucion(datos_bd, cliente_http, monkeypatch):
+    """Las mismas columnas que la base «con muestra»: N° Muestra, recepción,
+    Gasto, ensayo y la lista de distribución de resultados."""
+    import json
+
+    from app import reportes, toma_muestras as tm
+    from app.db import conexion, cursor_dict
+
+    monkeypatch.setattr(reportes, "_correos_de_laboratorio", lambda lab: [])
+    contactos = [
+        {"email": "cliente@x.cl", "tipo": "resultado_cliente", "activo": True, "orden": 1,
+         "sold_to": "__CLIENTE_BD__", "ship_to": "__PLANTA_BD__", "especie": ""},
+        {"email": "tec@agrofresh.com", "tipo": "resultado_interno", "tipo_copia": "bcc", "activo": True, "orden": 2,
+         "sold_to": "__CLIENTE_BD__", "ship_to": "__PLANTA_BD__", "especie": ""},
+    ]
+    leer = tm._leer_config
+    monkeypatch.setattr(
+        tm, "_leer_config",
+        lambda archivo, defecto=None: contactos if archivo == "contactos_laboratorio.json" else leer(archivo, defecto),
+    )
+    datos = {**SOLICITUD_OT, "numero_solicitud": "OT-als", "campos_laboratorio": {"Gasto": "12 L", "Código de Ensayo": "E-9"}}
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "INSERT INTO solicitud_archivo (archivo, numero_solicitud, datos, codigo_muestra, cruzado_en)"
+            " VALUES ('__bd_test2.xlsx', 'OT-als', %s, 'AGF0007', '2026-09-02T18:03:00+00:00')",
+            (json.dumps(datos),),
+        )
+        cur.execute("UPDATE solicitud SET codigo_ensayo = NULL WHERE id = %s", (datos_bd["als"],))
+    try:
+        # El Excel de ALS no tiene fungicidas: se pide el de Quiteca, que sí.
+        r = cliente_http.post("/api/reportes/bd/excel", json={"solicitud_ids": [datos_bd["quiteca"], datos_bd["als"]]})
+        _, columnas, filas = _hoja(r)
+        assert [c for c in columnas if c.startswith("Lista de Distribución")] == [
+            "Lista de Distribución (Para)", "Lista de Distribución (CC)", "Lista de Distribución (CCO)",
+        ]
+        als = dict(zip(columnas, next(f for f in filas if f[columnas.index("N° Informe")] == "__INF_A__")))
+        assert als["N° Muestra"] == "AGF0007"
+        assert als["Fecha Recepción"] is not None and als["Hora Recepción"]
+        assert als["Lista de Distribución (Para)"] == "cliente@x.cl"
+        assert als["Lista de Distribución (CCO)"] == "tec@agrofresh.com"
+        quiteca = dict(zip(columnas, next(f for f in filas if f[columnas.index("N° Informe")] == "__INF_Q__")))
+        assert {"Gasto", "Código de Ensayo", "N° Ensayo"} <= set(columnas)
+        assert quiteca["Lista de Distribución (Para)"] == "cliente@x.cl"
+    finally:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute("DELETE FROM solicitud_archivo WHERE archivo = '__bd_test2.xlsx'")
+
+
 # ── Enlace por parecido, cuando el resultado llegó sin OT ────────────────
 
 def _cand(ot, lab="QUITECA", ship="DOLE PLANTA CODEGUA", esp="Palta", fecha="2026-09-23", **datos):

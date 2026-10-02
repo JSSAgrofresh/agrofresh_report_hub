@@ -1907,8 +1907,12 @@ def destinatarios_resultado_por_tipo(
     ship_to: str | None = None,
     sold_to: str | None = None,
     especie: str | None = None,
+    contactos: list[dict] | None = None,
 ) -> dict[str, list[str]]:
     """Correos de resultado separados en `to`/`cc`/`bcc`.
+
+    `contactos`: la configuración ya leída (para llamarla muchas veces sin
+    volver a leerla de R2, como hace la descarga de Excel).
 
     `resultado_cliente` → `to`. `resultado_interno` → `cc` o `bcc` según
     `tipo_copia` del contacto.
@@ -1916,7 +1920,7 @@ def destinatarios_resultado_por_tipo(
     salida: dict[str, list[str]] = {"to": [], "cc": [], "bcc": []}
     vistos: set[str] = set()
     for contacto in sorted(
-        _contactos_resultado(sold_to or "", ship_to or "", especie or ""),
+        _contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos),
         key=lambda c: c.get("orden", 0),
     ):
         if not contacto.get("activo", True):
@@ -1936,7 +1940,7 @@ def destinatarios_resultado_por_tipo(
         # los admin del Report Hub (que con lista van en CCO); los técnicos y
         # comerciales (internos) ya quedaron en copia arriba.
         salida["to"] = _para_sin_lista(_admins_de(
-            _contactos_resultado(sold_to or "", ship_to or "", especie or "")
+            _contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos)
         ))
         en_para = {d.casefold() for d in salida["to"]}
         salida["cc"] = [e for e in salida["cc"] if e.casefold() not in en_para]

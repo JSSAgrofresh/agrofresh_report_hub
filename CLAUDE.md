@@ -438,6 +438,18 @@ tocas una, toca la otra.
   vuelvas a poner. pH y ORP, si vuelven a graficarse, van en gráficos separados.
   Por ahora solo para admin: mostrárselo a clientes exige filtrar las
   cargas por cliente en el backend.
+- **Las dos bases en Excel comparten sus columnas generales** para poder cruzarlas:
+  la BD de Report (`bd_excel.py`) y «Descargar con muestra» de Ingreso al laboratorio
+  (`emitir.generar_excel_con_muestra`). **La única definición es `app/columnas_base.py`**
+  (`GENERALES_BASE`, mismo nombre y orden en las dos; `CAMPOS_FUNGICIDAS`: Gasto, Código
+  de Ensayo y N° Ensayo, que junto a Tipo Aplicación van tras los analitos en ambas).
+  Si falta una columna, se agrega ahí y sale en las dos; cada descarga llena lo que tiene
+  (la BD trae el **resultado** de cada analito; «con muestra» trae la **dosis** y un ✓ si
+  se solicitó, sin resultados). Incluye N° Muestra, Fecha/Hora Recepción (el momento del
+  cruce) y **la lista de distribución de resultados** (Para / CC / CCO, la misma regla del
+  correo, el PDF y el JSON: `calculador_listas` lee la configuración una vez). Hay pruebas
+  que comparan las dos cabeceras (`test_solicitud_excel.py`, `test_bd_excel.py`).
+  **El formato de Solicitudes (matriz masiva) no cambió.**
 - **«Descargar BD»** (solo personal interno, nunca en el portal de cliente ni
   sobre datos simulados): `POST /reportes/bd/excel`, código en `app/bd_excel.py`.
   Mismo formato que la matriz de Solicitudes (dos filas de encabezado, una fila
