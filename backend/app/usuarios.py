@@ -20,7 +20,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from . import seguridad
+from . import actividad, seguridad
 from .auth import (
     TIPOS_ACCESO,
     Usuario,
@@ -97,7 +97,7 @@ def listar_usuarios(_: Usuario = Depends(usuario_actual)) -> list[Any]:
 
 
 @router.post("", response_model=UsuarioCreadoOut)
-def crear_usuario(body: UsuarioIn, _: Usuario = Depends(solo_admin_general)) -> Any:
+def crear_usuario(body: UsuarioIn, quien: Usuario = Depends(solo_admin_general)) -> Any:
     _validar(body)
     email = _normalizar_email(body.email)
     temporal = seguridad.password_temporal()
@@ -119,7 +119,10 @@ def crear_usuario(body: UsuarioIn, _: Usuario = Depends(solo_admin_general)) -> 
                 body.modulos, body.reportes, seguridad.hashear_password(temporal),
             ),
         )
-        return UsuarioCreadoOut(usuario=usuario_de_fila(cur.fetchone()), passwordTemporal=temporal)
+        creado = usuario_de_fila(cur.fetchone())
+    actividad.registrar(quien.email, quien.nombre, "sensible", "cuenta_creada",
+                        f"creó la cuenta de {creado.nombre} ({creado.email}) como {creado.tipoAcceso}", sensible=True)
+    return UsuarioCreadoOut(usuario=creado, passwordTemporal=temporal)
 
 
 @router.put("/{usuario_id}", response_model=Usuario)
@@ -180,11 +183,15 @@ def editar_usuario(
         )
         if cambio_el_alcance:
             cerrar_sesiones_de(cur, actual["id"])
-        return usuario_de_fila(actualizado)
+        resultado = usuario_de_fila(actualizado)
+    if cambio_el_alcance:
+        actividad.registrar(quien.email, quien.nombre, "sensible", "permisos",
+                            f"cambió los permisos de {resultado.nombre} ({resultado.email})", sensible=True)
+    return resultado
 
 
 @router.post("/{usuario_id}/password-temporal", response_model=UsuarioCreadoOut)
-def regenerar_password(usuario_id: str, _: Usuario = Depends(solo_admin_general)) -> Any:
+def regenerar_password(usuario_id: str, quien: Usuario = Depends(solo_admin_general)) -> Any:
     """Para cuando alguien olvidó su contrasena. Devuelve una temporal que su
     dueno debe cambiar al entrar, y cierra sus sesiones abiertas."""
     temporal = seguridad.password_temporal()
@@ -199,7 +206,10 @@ def regenerar_password(usuario_id: str, _: Usuario = Depends(solo_admin_general)
         )
         actualizado = cur.fetchone()
         cerrar_sesiones_de(cur, fila["id"])
-        return UsuarioCreadoOut(usuario=usuario_de_fila(actualizado), passwordTemporal=temporal)
+        resultado = usuario_de_fila(actualizado)
+    actividad.registrar(quien.email, quien.nombre, "sensible", "clave_reiniciada",
+                        f"reinició la contraseña de {resultado.nombre} ({resultado.email})", sensible=True)
+    return UsuarioCreadoOut(usuario=resultado, passwordTemporal=temporal)
 
 
 @router.delete("/{usuario_id}")
@@ -212,4 +222,6 @@ def eliminar_usuario(usuario_id: str, quien: Usuario = Depends(solo_admin_genera
             raise HTTPException(400, "No puedes eliminar tu propia cuenta.")
         # Las sesiones se van con la cuenta por el ON DELETE CASCADE.
         cur.execute("DELETE FROM usuario WHERE id = %s", (fila["id"],))
-        return {"estado": "eliminado"}
+    actividad.registrar(quien.email, quien.nombre, "sensible", "cuenta_eliminada",
+                        f"eliminó la cuenta de {fila['nombre']} ({fila['email']})", sensible=True)
+    return {"estado": "eliminado"}
