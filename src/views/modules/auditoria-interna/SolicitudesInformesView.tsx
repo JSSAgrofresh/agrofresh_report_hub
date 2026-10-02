@@ -16,6 +16,7 @@ import {
   porClienteYServicio,
   resumenPorTipo,
   simularSolicitudes,
+  tipoCorto,
   topClientesPorServicio,
   totales,
   useSolicitudesAuditoria,
@@ -35,7 +36,7 @@ const TIPOS_GRAFICO: { valor: TipoGrafico; texto: string }[] = [
   { valor: 'ambos', texto: 'Todos' },
   { valor: TIPO_ACTIMIST, texto: 'Actimist' },
   { valor: TIPO_LINEA, texto: 'Línea de proceso' },
-  { valor: TIPO_RYD, texto: 'RYD' },
+  { valor: TIPO_RYD, texto: 'R&D' },
 ]
 const TODOS_LOS_TIPOS = [TIPO_ACTIMIST, TIPO_LINEA, TIPO_RYD]
 
@@ -167,7 +168,7 @@ export function SolicitudesInformesView() {
                   </>
                 }
                 tabla={{
-                  columnas: ['Cliente', ...tiposElegidos.flatMap((t) => [`${t} · análisis`, `${t} · informes`])],
+                  columnas: ['Cliente', ...tiposElegidos.flatMap((t) => [`${tipoCorto(t)} · análisis`, `${tipoCorto(t)} · informes`])],
                   filas: clientes.map((c) => [c.cliente, ...tiposElegidos.flatMap((t) => [c.tipos[t]?.analisis ?? 0, c.tipos[t]?.informes ?? 0])]),
                 }}
               >

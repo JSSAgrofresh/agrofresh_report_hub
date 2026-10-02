@@ -11,6 +11,7 @@ import {
   Tooltip,
 } from 'chart.js'
 import type { Plugin, ScriptableContext } from 'chart.js'
+import { nombreTipo, tipoCorto, tituloDonaTipo } from '@/features/auditoriaInterna'
 import type { ClienteServicio, LaboratorioResumen, Totales } from '@/features/auditoriaInterna'
 import { ESTADOS, ESTADOS_DONA, ORDEN_ESTADOS } from './estados'
 import { colorDeTipo, tonosDeTipo } from './coloresTipo'
@@ -99,17 +100,17 @@ export function DonaTipoServicio({ tipo, resumen }: { tipo: string; resumen: Tot
     pendiente: enviadas,
   }
   return (
-    <section className={styles.dona} aria-label={`Estado de las solicitudes de ${tipo}`}>
+    <section className={styles.dona} aria-label={`Estado de las solicitudes de ${nombreTipo(tipo)}`}>
       <h3>
         <span className={styles.puntoTipo} style={{ background: colorDeTipo(tipo) }} />
-        {tipo}
+        {tituloDonaTipo(tipo)}
       </h3>
       {resumen.emitidas === 0 ? (
         <p className={styles.donaVacia}>Sin solicitudes de este tipo con los filtros actuales.</p>
       ) : (
         <>
           <div className={styles.donaLienzo}>
-            <canvas ref={ref} role="img" aria-label={`${tipo}: ${Math.round(resumen.porcentajeConcretado)}% informes recibidos`} />
+            <canvas ref={ref} role="img" aria-label={`${nombreTipo(tipo)}: ${Math.round(resumen.porcentajeConcretado)}% informes recibidos`} />
             <div className={styles.donaCentro} aria-hidden="true">
               <b style={{ color: colorDeTipo(tipo) }}>{Math.round(resumen.porcentajeConcretado)}<small>%</small></b>
               <span>informes recibidos</span>
@@ -250,11 +251,11 @@ export function GraficoTotalPorLaboratorio({ laboratorios }: { laboratorios: Lab
 export function GraficoClienteServicio({ clientes, tipos }: { clientes: ClienteServicio[]; tipos: string[] }) {
   const datasets = tipos.flatMap((tipo) => [
     {
-      tipo, clave: 'analisis' as const, label: `${tipo} · análisis`,
+      tipo, clave: 'analisis' as const, label: `${tipoCorto(tipo)} · análisis`,
       data: clientes.map((c) => c.tipos[tipo]?.analisis ?? 0), color: colorDeTipo(tipo),
     },
     {
-      tipo, clave: 'informes' as const, label: `${tipo} · informes`,
+      tipo, clave: 'informes' as const, label: `${tipoCorto(tipo)} · informes`,
       data: clientes.map((c) => c.tipos[tipo]?.informes ?? 0), color: `${colorDeTipo(tipo)}66`,
     },
   ])
@@ -354,7 +355,7 @@ export function LeyendaTipos({ tipos }: { tipos: string[] }) {
             <span className={styles.muestra} style={{ background: colorDeTipo(t) }} />
             <span className={styles.muestra} style={{ background: `${colorDeTipo(t)}66` }} />
           </span>
-          {t}
+          {tipoCorto(t)}
           <em>análisis · informes</em>
         </li>
       ))}

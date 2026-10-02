@@ -91,3 +91,11 @@ describe('simularSolicitudes', () => {
     expect(simularSolicitudes(50, hoy)).toEqual(simularSolicitudes(50, hoy))
   })
 })
+
+describe('áreas de la tabla', () => {
+  it('Operaciones separa Línea de proceso y Actimist; R&D es solo RYD', async () => {
+    const { TIPOS_DE_AREA } = await import('./pivote')
+    expect(TIPOS_DE_AREA.operaciones).toEqual(['Línea de proceso', 'Actimist'])
+    expect(TIPOS_DE_AREA.rd).toEqual(['RYD'])
+  })
+})

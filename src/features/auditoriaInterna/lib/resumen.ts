@@ -71,6 +71,19 @@ export const TIPO_LINEA = 'Línea de proceso'
 export const TIPO_RYD = 'RYD'
 export const SIN_TIPO = 'Sin tipo'
 
+/** Nombre oficial del área de R&D. El valor guardado en las solicitudes sigue
+ * siendo «RYD» (`TIPO_RYD`); este es solo el nombre con que se muestra. */
+export const NOMBRE_RYD = 'Investigación y Desarrollo AgroFresh (R&D)'
+/** Cómo se llama un tipo de servicio en pantalla. */
+export const nombreTipo = (tipo: string) => (tipo === TIPO_RYD ? NOMBRE_RYD : tipo)
+/** Nombre corto para ejes y leyendas: «R&D». */
+export const tipoCorto = (tipo: string) => (tipo === TIPO_RYD ? 'R&D' : tipo)
+/** Título de la dona de un tipo: «Informes de línea de proceso», «Informes de Actimist»… */
+export function tituloDonaTipo(tipo: string): string {
+  if (tipo === TIPO_LINEA) return 'Informes de línea de proceso'
+  return `Informes de ${nombreTipo(tipo)}`
+}
+
 function plano(s: string | null | undefined): string {
   return (s ?? '').normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
 }
