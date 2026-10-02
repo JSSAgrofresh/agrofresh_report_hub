@@ -425,68 +425,8 @@ thead .colPeriodo {
   }
 }
 
-/* ── áreas: Operaciones (grande) y R&D (chico, como continuación del título) ── */
-.areas {
-  display: flex;
-  align-items: stretch;
-  border-bottom: 2px solid var(--color-border);
-  margin: calc(var(--space-2) * -1) 0 0;
-}
-
-.area {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  padding: var(--space-2) var(--space-4);
-  margin-bottom: -2px;
-  border-bottom: 4px solid transparent;
+.nota {
+  margin-top: auto;
+  font-size: 12px;
   color: var(--color-text-faint);
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
-}
-
-.area:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: -2px;
-}
-
-.areaOperaciones {
-  flex: 1 1 auto;
-  text-align: left;
-  font-size: 20px;
-  color: #3f7a57;
-}
-
-.areaRd {
-  flex: 0 0 auto;
-  min-width: 25%;
-  text-align: center;
-  font-size: 13px;
-  border-left: 1px solid var(--color-border);
-  color: #b86a1e;
-}
-
-.area:hover {
-  background: var(--color-surface-muted, #f1f4ee);
-}
-
-.areaOperaciones.areaActiva {
-  border-bottom-color: #1f8a5b;
-  background: rgba(31, 138, 91, 0.1);
-  color: #14664a;
-}
-
-.areaRd.areaActiva {
-  border-bottom-color: #c4620a;
-  background: rgba(196, 98, 10, 0.12);
-  color: #9a4d08;
-}
-
-.areaOperaciones:not(.areaActiva),
-.areaRd:not(.areaActiva) {
-  opacity: 0.75;
 }

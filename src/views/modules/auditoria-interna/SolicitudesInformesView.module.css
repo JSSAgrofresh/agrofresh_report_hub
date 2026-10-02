@@ -415,7 +415,7 @@
   display: grid;
   grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
   gap: var(--space-3);
-  align-items: start;
+  align-items: stretch; /* la tabla llega hasta abajo, a la altura de las donas */
 }
 
 .lateral {
