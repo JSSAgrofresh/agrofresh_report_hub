@@ -402,3 +402,34 @@ def test_sin_lista_de_linea_de_proceso_no_cambia_con_los_correos_de_actimist():
     solo_report_hub = [_c(40, "agrofreshreporthub@gmail.com", "resultado_cliente")]
     assert tm.solicitud_sin_lista(_datos("Línea de proceso"), solo_report_hub) is False
     assert tm.solicitud_sin_lista(_datos("Actimist"), [{**solo_report_hub[0], "servicio": "actimist"}]) is True
+
+
+def test_la_dinamica_deja_el_sold_to_solo_en_su_primera_fila():
+    """Las filas sin Sold To son del Sold To de más arriba (así exporta Excel una
+    dinámica). Antes se saltaban y entraba un solo Ship To por cliente."""
+    filas = la.leer_excel(_excel([
+        (423890, "DAVID DEL CURTO SA", 1608658, "UNIFRUTTI REQUINOA LTDA"),
+        (None, None, 1861025, "AURORA AUSTRALIS SA"),
+        (None, None, 10005580, "UNIFRUTTI LINDEROS"),
+        (424064, "SOCIEDAD AGRICOLA EL PORVENIR SA", 424064, "SOCIEDAD AGRICOLA EL PORVENIR SA"),
+        (None, None, 10005599, "DAVID DEL CURTO CURICO"),
+    ]))
+    assert [(f["sold_to"], f["codigo_sold"], f["ship_to"]) for f in filas] == [
+        ("DAVID DEL CURTO SA", "423890", "UNIFRUTTI REQUINOA LTDA"),
+        ("DAVID DEL CURTO SA", "423890", "AURORA AUSTRALIS SA"),
+        ("DAVID DEL CURTO SA", "423890", "UNIFRUTTI LINDEROS"),
+        ("SOCIEDAD AGRICOLA EL PORVENIR SA", "424064", "SOCIEDAD AGRICOLA EL PORVENIR SA"),
+        ("SOCIEDAD AGRICOLA EL PORVENIR SA", "424064", "DAVID DEL CURTO CURICO"),
+    ]
+    plan = la.planear(filas, [], [])
+    assert len(plan["clientes_nuevos"]) == 2 and len(plan["plantas_nuevas"]) == 5
+
+
+def test_reimportar_la_dinamica_completa_lo_que_faltaba():
+    """Lo cargado con el lector viejo (un Ship To por Sold To) se completa sin duplicar."""
+    filas = [_fila(1, "1", "A", "10", "PA1"), _fila(2, "1", "A", "11", "PA2"), _fila(3, "1", "A", "12", "PA3")]
+    plan = la.planear(filas, [{"id": 5, "nombre": "A", "codigo_sap": "1"}],
+                      [{"id": 1, "cliente_id": 5, "nombre": "PA1", "codigo_sap": "10"}])
+    assert plan["clientes_nuevos"] == []
+    assert [p["nombre"] for p in plan["plantas_nuevas"]] == ["PA2", "PA3"]
+    assert all(p["cliente_clave"] == 5 for p in plan["plantas_nuevas"])

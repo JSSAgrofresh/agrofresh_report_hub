@@ -240,7 +240,10 @@ casos en `test_servicio_actimist.py` y `servicio.test.ts`).
   (sin la 0049 dan 503 con aviso). En **Listados**, Sold To y Ship To tienen el
   selector «Tipo de servicio»; Especie y Variedad son comunes. Actimist se carga
   con «Importar Excel» (muestra el plan y escribe solo al confirmar; nunca borra
-  ni modifica) o con `scripts/cargar_listado_actimist.py`.
+  ni modifica) o con `scripts/cargar_listado_actimist.py`. Lee la dinámica del
+  Planner tal cual: **una fila con Ship To y sin Sold To es del Sold To de más
+  arriba** (la dinámica lo escribe solo una vez). Volver a importar completa lo
+  que falte sin duplicar (son 320 Sold To y 747 Ship To).
 - **Formulario**: el Sold To pide primero el Tipo de Aplicación y sale del
   listado de ese servicio; al cambiar de Actimist a otro (o al revés) se vacían
   Sold To y Ship To. Si el listado de Actimist no se puede leer, el campo lo
