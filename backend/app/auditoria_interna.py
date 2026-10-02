@@ -44,10 +44,6 @@ router = APIRouter(prefix="/api/auditoria-interna", tags=["auditoria-interna"])
 MODULO = "auditoria_interna"
 MAX_PDF_BYTES = 25 * 1024 * 1024
 
-# El laboratorio propio no manda informe externo: su resultado entra por el GC
-# (Emitir -> subir a la base). Auditar "informes recibidos" no le aplica.
-_LABORATORIOS_INTERNOS = {"agrofresh"}
-
 
 def puede_auditoria(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
     if usuario.tipoAcceso == "admin_general":
@@ -93,10 +89,6 @@ def errores_r2():
     except BotoCoreError as exc:
         logger.exception("No se pudo hablar con R2 (auditoría)")
         raise HTTPException(502, f"No se pudo conectar con R2: {exc}")
-
-
-def _es_interno(laboratorio: str | None) -> bool:
-    return (laboratorio or "").strip().lower() in _LABORATORIOS_INTERNOS
 
 
 def _zona() -> ZoneInfo | None:
@@ -157,7 +149,7 @@ def solicitudes_abiertas() -> list[dict]:
             ORDER BY sa.creado_en DESC
             """
         )
-        filas = [f for f in cur.fetchall() if not _es_interno(f["laboratorio"])]
+        filas = cur.fetchall()
     return [
         {
             **f,
@@ -311,7 +303,7 @@ def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
             ORDER BY sa.creado_en DESC
             """
         )
-        filas = [f for f in cur.fetchall() if not _es_interno(f["laboratorio"])]
+        filas = cur.fetchall()
     salida = []
     for f in filas:
         tiene_pdf = f["informe_id"] is not None
