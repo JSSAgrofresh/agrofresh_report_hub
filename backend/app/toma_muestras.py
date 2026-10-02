@@ -1828,12 +1828,8 @@ def _sample_identification(datos: dict) -> str:
     `N° solicitud - Posición muestreo - Fecha muestreo`. Siempre las tres partes,
     en ese orden, para que el PDF de vuelta se lea con un patrón fijo. Una parte
     vacía queda como «—» (igual que en `campos_laboratorio`), nunca se omite."""
-    partes = (
-        datos.get("numero_solicitud"),
-        datos.get("posicion_muestreo"),
-        _iso_a_ddmmyyyy(datos.get("fecha_muestreo")),
-    )
-    return " - ".join(str(p).strip() if p and str(p).strip() else "—" for p in partes)
+    partes = mail_templates.rotulacion_partes(datos)
+    return " - ".join(partes[k] for k in ("numero_solicitud", "posicion_muestreo", "fecha_muestreo_dmy"))
 
 
 def _generar_json_solicitud(datos: dict) -> bytes:
