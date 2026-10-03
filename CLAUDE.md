@@ -114,6 +114,7 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/congelar_criterios_verificaciones.py` | Congela los criterios de los días de verificación guardados antes de la 0040 (`--param clave=valor` con los valores viejos) |
 | `scripts/vaciar_reportes.py` | Borra los datos de Report (solicitud, resultado, producto_aplicado, pendientes). Deja Listados y analitos. Pide escribir "SI" |
 | `scripts/reintentar_pendientes_ingesta.py` | Reprocesa las filas pendientes y descarta las que siguen sin Ship To válido (respaldo en `logs/`) |
+| `scripts/limpiar_duplicados_accutab.py` | Borra reportes de Post Venta y carpetas `accutab/mail/` duplicados por la ingesta de correo (deja uno por correo) |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
 Hay ~9 scripts en `backend/scripts/` que fueron migraciones de una sola vez
@@ -613,6 +614,14 @@ tocas una, toca la otra.
 ---
 
 ## Trampas conocidas (nos costaron tiempo)
+
+- **Gmail no quita por IMAP la etiqueta de la carpeta abierta.** `accutab_mail_ingest.py`
+  abre `ACCUTAB_PENDIENTE`; un `-X-GM-LABELS` sobre esa etiqueta responde OK y no hace
+  nada, así que cada corrida volvía a subir todos los correos (`AGROFRESH_DEMO (1307)`,
+  cientos de reportes repetidos en Post Venta). Ahora se saca con `\Deleted` + `EXPUNGE`
+  (en una carpeta de etiqueta solo quita esa etiqueta) y cada correo queda anotado por su
+  Message-ID en R2 `accutab/_control/procesados.json`: anotado = no se vuelve a subir.
+  Tras desplegar el arreglo, la primera corrida va con `--solo-marcar`.
 
 - **Finales de línea mezclados.** `emitir.py`, `toma_muestras.py` y
   `listados.py` son CRLF; otros son LF. Edítalos en binario con un patrón
