@@ -417,6 +417,22 @@ export function SolicitudesView() {
         </button>
       )}
 
+      {resumen.ot_revisar > 0 && (
+        <button
+          type="button"
+          className={`${styles.avisoSinReport} ${styles.avisoOt} ${vistaActiva === 'ot_revisar' ? styles.avisoOtActivo : ''}`}
+          onClick={() => elegirVista('ot_revisar')}
+          aria-pressed={vistaActiva === 'ot_revisar'}
+        >
+          <IconoAlerta width={16} height={16} />
+          <span>
+            <b>{plural(resumen.ot_revisar, 'informe tiene', 'informes tienen')}</b> la OT por revisar: el informe no dice esa OT,
+            o no calzan planta, especie o fecha de muestreo.
+          </span>
+          <span className={styles.avisoAccion}>{vistaActiva === 'ot_revisar' ? 'Ver todas' : 'Ver cuáles'}</span>
+        </button>
+      )}
+
       <section className={styles.tablaCard} aria-label="Solicitudes">
         {/* Barra: buscador, filtros y descargas */}
         <div className={styles.barra}>

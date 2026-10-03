@@ -65,6 +65,7 @@ export { enviaSoloSegunTipo } from './lib/envioAutomatico'
 export type {
   Solicitud,
   InformeSolicitud,
+  VerificacionOt,
   SolicitudInput,
   ReanalisisInput,
   EstadoSolicitudesPrueba,
@@ -101,5 +102,6 @@ export {
   chipsDeFiltros,
   resumenVistas,
   vistaDeEstados,
+  otPorRevisar,
 } from './lib/filtrosSolicitudes'
 export type { EstadoFiltro, FiltrosSolicitudes, OpcionesFiltros, VistaRapida } from './lib/filtrosSolicitudes'

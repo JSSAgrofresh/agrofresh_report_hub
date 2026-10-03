@@ -89,10 +89,14 @@ def entorno(monkeypatch):
     monkeypatch.setattr(mod, "conexion", _conexion)
     monkeypatch.setattr(mod, "cursor_dict", _cursor)
     estado["en_report"] = []
+    estado["detalle"] = []
     monkeypatch.setattr(mod, "_filas", lambda cur, sql: {
         mod._SQL_AUDITORIA: estado["auditoria"], mod._SQL_REPORT: estado["report"],
-        mod._SQL_INFORMES_EN_REPORT: estado["en_report"],
+        mod._SQL_INFORMES_EN_REPORT: estado["en_report"], mod._SQL_REPORT_DETALLE: estado["detalle"],
     }[sql])
+    monkeypatch.setattr(mod, "_solicitudes_visibles_datos", lambda u: [
+        (a, n, {"ship_to": "DOLE PLANTA CODEGUA", "especie": "Palta", "fecha_muestreo": "2026-09-23"})
+        for a, n in estado["visibles"]])
     monkeypatch.setattr(mod, "_solicitudes_visibles", lambda u: estado["visibles"])
     monkeypatch.setattr(mod.r2a, "disponible", lambda: True)
     monkeypatch.setattr(mod.r2a, "descargar", lambda k: estado["descargas"].append(("aud", k)) or b"%PDF-aud")
@@ -110,6 +114,16 @@ class TestEndpoints:
         assert r.status_code == 200
         assert r.json()["a.xlsx"]["nro_informe"] == "2026-1885-PC"
         assert r.json()["a.xlsx"]["en_report"] is True
+        # Sin el detalle de Report no se puede comprobar la OT: queda sin confirmar.
+        assert r.json()["a.xlsx"]["verificacion"]["estado"] == "sin_confirmar"
+
+    def test_listado_verifica_la_ot_con_lo_que_dice_el_informe(self, entorno):
+        entorno["auditoria"] = [aud(archivo="a.xlsx")]
+        entorno["en_report"] = [{"nro": "2026-1885-PC"}]
+        entorno["detalle"] = [{"nro_solicitud": "2026-1885-PC", "referencia": "OT-QUI0047",
+                               "planta": "Dole Planta Codegua", "especie": "PALTA", "fecha_muestreo": "2026-09-23"}]
+        v = cliente.get("/api/toma-muestras/solicitudes-informes").json()["a.xlsx"]["verificacion"]
+        assert v == {"estado": "confirmada", "motivos": []}
 
     def test_pdf_de_converter(self, entorno):
         entorno["auditoria"] = [aud(archivo="a.xlsx")]
@@ -377,3 +391,49 @@ def test_script_corregir_ot_solo_escribe_con_aplicar(monkeypatch, capsys, tmp_pa
         ("solicitud", ("OT-QUI0025", "2026-1885-PC")),
     ]
     assert list((tmp_path / "logs").glob("corregir_ot_2026-1885-PC_*.json"))
+
+
+
+class TestVerificar:
+    """¿El informe está bien cruzado con su OT? Lo dice el propio informe."""
+
+    DATOS = {"ship_to": "DOLE PLANTA CODEGUA", "especie": "Palta", "fecha_muestreo": "2026-09-23"}
+
+    def fila(self, **extra):
+        f = {"nro_solicitud": "2026-1885-PC", "referencia": "OT-QUI0025", "planta": "DOLE PLANTA CODEGUA",
+             "especie": "Palta", "fecha_muestreo": "2026-09-23"}
+        f.update(extra)
+        return {"2026-1885-PC": [f]}
+
+    def test_confirmada(self):
+        assert mod.verificar("OT-QUI0025", self.DATOS, ["2026-1885-PC"], self.fila()) == {"estado": "confirmada", "motivos": []}
+
+    def test_el_informe_dice_otra_ot(self):
+        """El caso real: 2026-1885-PC quedó en OT-QUI0024 y el PDF decía OT-QUI0025."""
+        v = mod.verificar("OT-QUI0024", self.DATOS, ["2026-1885-PC"], self.fila())
+        assert v["estado"] == "revisar"
+        assert "el informe dice OT-QUI0025" in v["motivos"][0]
+
+    def test_no_calza_especie_ni_fecha(self):
+        datos = {**self.DATOS, "especie": "Mandarina", "fecha_muestreo": "2026-09-22"}
+        v = mod.verificar("OT-QUI0025", datos, ["2026-1885-PC"], self.fila())
+        assert v["estado"] == "revisar"
+        assert any("especie distinta" in m for m in v["motivos"])
+        assert any("fecha de muestreo distinta" in m for m in v["motivos"])
+
+    def test_sin_ot_en_el_informe_no_se_puede_confirmar(self):
+        v = mod.verificar("OT-QUI0025", self.DATOS, ["2026-1885-PC"], self.fila(referencia=""))
+        assert v["estado"] == "sin_confirmar"
+
+    def test_sin_report_no_se_puede_confirmar(self):
+        assert mod.verificar("OT-QUI0025", self.DATOS, ["2026-1885-PC"], {})["estado"] == "sin_confirmar"
+
+    def test_tildes_y_mayusculas_no_cuentan(self):
+        datos = {**self.DATOS, "ship_to": "dole  planta codegüa"}
+        assert mod.verificar("ot-qui0025", datos, ["2026-1885-pc"], self.fila())["estado"] == "confirmada"
+
+    def test_agrofresh_varios_viales_todos_con_su_ot(self):
+        filas = {"AGF-1": [{"nro_solicitud": "AGF-1", "referencia": "OT-AGF0050", "planta": "X", "especie": "Palta", "fecha_muestreo": None}],
+                 "AGF-2": [{"nro_solicitud": "AGF-2", "referencia": "OT-AGF0050", "planta": "X", "especie": "Palta", "fecha_muestreo": None}]}
+        datos = {"ship_to": "X", "especie": "Palta", "fecha_muestreo": "2026-09-23"}
+        assert mod.verificar("OT-AGF0050", datos, ["AGF-1", "AGF-2"], filas)["estado"] == "confirmada"
