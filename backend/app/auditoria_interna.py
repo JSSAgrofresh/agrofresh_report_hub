@@ -168,6 +168,10 @@ async def subir_informe(
     sold_to: str = Form(""),
     nro_informe: str = Form(""),
     archivo_solicitud: str = Form(""),
+    # El OT que viene impreso en el PDF («N° Solicitud: OT-…»). Si existe en el
+    # sistema, MANDA sobre `archivo_solicitud` (la elección del desplegable):
+    # elegir a mano fue lo que dejó informes en la OT equivocada.
+    ot_informe: str = Form(""),
     fecha_envio: str = Form(""),
     fecha: str = Form(""),
     analisis: str = Form(""),
@@ -207,6 +211,15 @@ async def subir_informe(
 
     with conexion() as conn, cursor_dict(conn) as cur:
         numero_ot = None
+        ot_pdf = ot_informe.strip()
+        if ot_pdf:
+            cur.execute(
+                "SELECT archivo FROM solicitud_archivo WHERE upper(btrim(numero_solicitud)) = upper(%s) LIMIT 1",
+                (ot_pdf,),
+            )
+            fila = cur.fetchone()
+            if fila is not None:
+                ot = fila["archivo"]
         if ot:
             cur.execute("SELECT numero_solicitud FROM solicitud_archivo WHERE archivo = %s", (ot,))
             fila = cur.fetchone()
