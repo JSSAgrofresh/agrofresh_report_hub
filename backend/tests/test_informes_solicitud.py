@@ -231,3 +231,55 @@ class TestInformesParaZip:
     def test_nombre_sin_caracteres_raros(self):
         assert mod.nombre_en_zip("OT-1", "2026/18:85", "x.pdf") == "OT-1 - Informe 2026_18_85.pdf"
         assert mod.nombre_en_zip("OT-1", None, "ORIGINAL.pdf") == "OT-1 - ORIGINAL.pdf"
+
+
+def test_script_cruce_informes_explica_la_diferencia(monkeypatch, capsys):
+    """24 OT con informe vs 22 informes en Report: el script dice por qué."""
+    from scripts import cruce_informes as sc
+
+    class Cur:
+        def __init__(self):
+            self.ultimo = None
+
+        def execute(self, sql, *a):
+            self.ultimo = sql
+
+        def fetchall(self):
+            if "FROM solicitud_archivo" in self.ultimo:
+                return [
+                    {"archivo": "a.xlsx", "numero_solicitud": "OT-QUI1", "laboratorio": "QUITECA"},
+                    {"archivo": "b.xlsx", "numero_solicitud": "OT-QUI2", "laboratorio": "QUITECA"},
+                    {"archivo": "c.xlsx", "numero_solicitud": "OT-QUI3", "laboratorio": "QUITECA"},
+                    {"archivo": "d.xlsx", "numero_solicitud": "OT-ALS1", "laboratorio": "ALS"},
+                ]
+            return [
+                {"id": 1, "nro_solicitud": "2026-1", "referencia": "", "laboratorio": "Quiteca"},
+                {"id": 2, "nro_solicitud": "2026-9", "referencia": "", "laboratorio": "Quiteca"},
+                {"id": 3, "nro_solicitud": "2026-4", "referencia": "", "laboratorio": "Quiteca"},
+            ]
+
+    @contextmanager
+    def con(escribir=True):
+        yield None
+
+    @contextmanager
+    def cur_dict(conn):
+        yield Cur()
+
+    monkeypatch.setattr(sc, "conexion", con)
+    monkeypatch.setattr(sc, "cursor_dict", cur_dict)
+    filas = {
+        sc._SQL_AUDITORIA: [aud(archivo="a.xlsx", nro="2026-1"), aud(archivo="b.xlsx", nro="2026-1", id_=2),
+                            aud(archivo="c.xlsx", nro="2026-3", id_=3), aud(archivo="d.xlsx", nro="2026-4", id_=4)],
+        sc._SQL_REPORT: [],
+        sc._SQL_INFORMES_EN_REPORT: [{"nro": "2026-1"}, {"nro": "2026-4"}],
+    }
+    monkeypatch.setattr(sc, "_filas", lambda cur, sql: filas[sql])
+    assert sc.main(["--lab", "Quiteca"]) == 0
+    out = capsys.readouterr().out
+    assert "OT con informe : 3" in out and "informes        : 3" in out
+    assert "OT-QUI3  →  informe 2026-3" in out          # A: sin Report
+    assert "informe 2026-1  →  OT-QUI1, OT-QUI2" in out  # B: un informe, dos OT
+    assert "2026-9  (Quiteca, sin OT)" in out          # C: en Report sin OT
+    sc.main([])
+    assert "OT-ALS1 (ALS)  →  informe 2026-4 (Quiteca)" in capsys.readouterr().out  # D
