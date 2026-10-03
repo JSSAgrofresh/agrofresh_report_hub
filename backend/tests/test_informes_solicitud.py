@@ -14,7 +14,7 @@ cliente = TestClient(app)
 
 def aud(archivo=None, numero=None, nro="2026-1885-PC", id_=1, nombre="informe.pdf"):
     return {"id": id_, "archivo_solicitud": archivo, "numero_solicitud": numero, "nro_informe": nro,
-            "nombre_archivo": nombre, "r2_key": f"Quiteca/x/{nombre}", "subido_en": None}
+            "nombre_archivo": nombre, "r2_key": f"Quiteca/x/{nombre}", "subido_en": None, "laboratorio": "Quiteca"}
 
 
 def rep(ref, nro, id_=10):
@@ -276,6 +276,7 @@ def test_script_cruce_informes_explica_la_diferencia(monkeypatch, capsys):
                             aud(archivo="c.xlsx", nro="2026-3", id_=3), aud(archivo="d.xlsx", nro="2026-4", id_=4)],
         sc._SQL_REPORT: [],
         sc._SQL_INFORMES_EN_REPORT: [{"nro": "2026-1"}, {"nro": "2026-4"}],
+        sc._SQL_PENDIENTES: [{"informe": "2026-7", "laboratorio": "Quiteca"}],
     }
     monkeypatch.setattr(sc, "_filas", lambda cur, sql: filas[sql])
     assert sc.main(["--lab", "Quiteca"]) == 0
@@ -287,8 +288,50 @@ def test_script_cruce_informes_explica_la_diferencia(monkeypatch, capsys):
     assert "OT-QUI1: DOLE CODEGUA · Palta · muestreo 2026-09-30  [lo dice el PDF + elegida en Converter]  ✓ CALZA" in out
     assert "OT-QUI2: GESEX · Naranja · muestreo 2026-09-29  [elegida en Converter]\n" in out
     assert "2026-9  (Quiteca, sin OT)" in out          # C: en Report sin OT
+    # E: cada informe, confirmado o para revisar (y por qué)
+    assert "✓ OK       2026-1" not in out  # 2026-1 está en dos OT
+    assert "⚠ REVISAR  2026-1           → OT-QUI1, OT-QUI2" in out and "(en varias OT)" in out
+    assert "⚠ REVISAR  2026-9           → —" in out and "(sin OT)" in out
+    # F: los PDF que tiene el sistema y los que quedaron en pendientes
+    assert "F. PDFs guardados por Converter: 4" in out
+    assert "2026-3           informe.pdf   ← sin resultados en Report" in out
+    assert "2026-7  (Quiteca)" in out
     sc.main([])
     assert "OT-ALS1 (ALS)  →  informe 2026-4 (Quiteca)" in capsys.readouterr().out  # D
+
+
+def test_script_cruce_informe_confirmado(monkeypatch, capsys):
+    """Un informe con una sola OT, que el PDF confirma y que calza, sale OK."""
+    from scripts import cruce_informes as sc
+
+    class Cur:
+        def execute(self, sql, *a):
+            self.sql = sql
+
+        def fetchall(self):
+            if "FROM solicitud_archivo" in self.sql:
+                return [{"archivo": "a.xlsx", "numero_solicitud": "OT-QUI1", "laboratorio": "QUITECA",
+                         "ship_to": "DOLE", "especie": "Palta", "fecha_muestreo": "2026-09-30"}]
+            return [{"id": 1, "nro_solicitud": "2026-1", "referencia": "OT-QUI1", "laboratorio": "Quiteca",
+                     "planta": "DOLE", "especie": "Palta", "fecha_muestreo": "2026-09-30"}]
+
+    @contextmanager
+    def con(escribir=True):
+        yield None
+
+    @contextmanager
+    def cur_dict(conn):
+        yield Cur()
+
+    monkeypatch.setattr(sc, "conexion", con)
+    monkeypatch.setattr(sc, "cursor_dict", cur_dict)
+    filas = {sc._SQL_AUDITORIA: [aud(archivo="a.xlsx", nro="2026-1")], sc._SQL_REPORT: [{"id": 1, "nro_solicitud": "2026-1", "referencia": "OT-QUI1"}],
+             sc._SQL_INFORMES_EN_REPORT: [{"nro": "2026-1"}], sc._SQL_PENDIENTES: []}
+    monkeypatch.setattr(sc, "_filas", lambda cur, sql: filas[sql])
+    sc.main(["--lab", "Quiteca"])
+    out = capsys.readouterr().out
+    assert "✓ OK       2026-1           → OT-QUI1" in out
+    assert "→ 1 confirmados, 0 para revisar" in out
 
 
 def test_script_corregir_ot_solo_escribe_con_aplicar(monkeypatch, capsys, tmp_path):

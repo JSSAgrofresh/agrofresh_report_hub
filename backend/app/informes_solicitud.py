@@ -121,7 +121,7 @@ def _filas(cur, sql: str) -> list[dict]:
 
 
 _SQL_AUDITORIA = (
-    "SELECT id, archivo_solicitud, numero_solicitud, nro_informe, nombre_archivo, r2_key, subido_en"
+    "SELECT id, archivo_solicitud, numero_solicitud, nro_informe, nombre_archivo, r2_key, subido_en, laboratorio"
     " FROM informe_auditoria ORDER BY subido_en ASC, id ASC"
 )
 # Los N° de informe de Converter que ya tienen resultados en Report.
