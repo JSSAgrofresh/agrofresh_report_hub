@@ -413,6 +413,11 @@
   font-size: 13px;
   color: var(--color-text);
   line-height: 1.4;
+  /* Un correo largo se parte dentro de la pastilla en vez de empujar la
+     pantalla hacia el costado en el celular. */
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .tipoDestinatario {

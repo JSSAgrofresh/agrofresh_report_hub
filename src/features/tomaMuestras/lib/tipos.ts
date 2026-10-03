@@ -20,7 +20,8 @@ export interface Solicitud {
   numero_orden: string | null
   kilos_procesados: number | null
   producto_utilizado: string | null
-  /** Lo que se eligió de verdad; `producto_utilizado` dice MIXTO si son más de 2. */
+  /** Lo que se eligió de verdad; `producto_utilizado` dice MIXTO si son 2 o más
+   * (o más de 2 en las solicitudes anteriores, sin `mixto_desde_2`). */
   productos_lista?: string[]
   tipo_muestra: string | null
   fecha_muestreo: string | null
@@ -46,6 +47,9 @@ export interface Solicitud {
   /** Solicitud de prueba: folio de su propia serie (OTP-DIAG0001), nunca se
    * envía sola y su correo dice "(PRUEBA)". Ausente = false. */
   es_prueba?: boolean
+  /** Creada con la regla nueva: dice MIXTO desde 2 productos. Ausente = la regla
+   * de antes (MIXTO desde 3); lo ya emitido no se reescribe. */
+  mixto_desde_2?: boolean
   /** Los resultados no tienen a nadie del cliente en Para (para su Sold To,
    * Ship To y especie): rige el respaldo, solo Jorge y Claudia. Lo calcula el
    * backend con los contactos de hoy; no se guarda. */
@@ -80,7 +84,8 @@ export interface ReanalisisInput {
   numero_orden: string | null
   kilos_procesados: number | null
   producto_utilizado: string | null
-  /** Lo que se eligió de verdad; `producto_utilizado` dice MIXTO si son más de 2. */
+  /** Lo que se eligió de verdad; `producto_utilizado` dice MIXTO si son 2 o más
+   * (o más de 2 en las solicitudes anteriores, sin `mixto_desde_2`). */
   productos_lista?: string[]
   tipo_muestra: string | null
   fecha_muestreo: string | null
@@ -106,6 +111,7 @@ export type SolicitudInput = Omit<
   | 'solicitud_original_archivo'
   | 'motivo_reanalisis'
   | 'es_prueba'
+  | 'mixto_desde_2'
 >
 
 /** Metadatos de un campo general del formulario (§3): el conjunto de

@@ -49,11 +49,11 @@ class TestCuentaDeAgroFresh:
     """Para la gente de AgroFresh el parámetro sigue siendo un filtro normal:
     su trabajo es justamente mirar a todos los clientes."""
 
-    @pytest.mark.parametrize("tipo", ["admin_general", "admin_area", "muestreador"])
+    @pytest.mark.parametrize("tipo", ["admin_general", "admin_area", "muestreador", "analista", "gerencia"])
     def test_el_filtro_pedido_se_respeta(self, tipo):
         assert alcance_de_datos(cuenta(tipo), "AGRICOM S.A.", "Planta 1") == ("AGRICOM S.A.", "Planta 1")
 
-    @pytest.mark.parametrize("tipo", ["admin_general", "admin_area", "muestreador"])
+    @pytest.mark.parametrize("tipo", ["admin_general", "admin_area", "muestreador", "analista", "gerencia"])
     def test_sin_filtro_ve_todo(self, tipo):
         assert alcance_de_datos(cuenta(tipo), None, None) == (None, None)
 
@@ -64,5 +64,5 @@ def test_todo_tipo_de_acceso_esta_cubierto():
     todo" por omisión, que es como se filtran los datos sin que nadie lo
     note."""
     from app.auth import TIPOS_ACCESO
-    cubiertos = {"cliente", "admin_general", "admin_area", "muestreador"}
+    cubiertos = {"cliente", "admin_general", "admin_area", "muestreador", "analista", "gerencia"}
     assert set(TIPOS_ACCESO) == cubiertos

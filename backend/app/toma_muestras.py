@@ -403,16 +403,28 @@ def _recorrer_solicitudes_en_disco():
                 yield actual, nombre, os.path.splitext(nombre)[0]
 
 
-MAX_PRODUCTOS_VISIBLES = 2
+# Cuántos productos se muestran por su nombre antes de decir «MIXTO».
+# Las solicitudes creadas desde el cambio llevan la marca `mixto_desde_2`: con
+# 2 o más productos dicen MIXTO. Las anteriores (sin la marca) siguen con la
+# regla con que se emitieron: hasta 2 por nombre, 3 o más MIXTO. Lo ya emitido
+# no se reescribe.
+MAX_PRODUCTOS_VISIBLES = 1
+MAX_PRODUCTOS_VISIBLES_ANTES = 2
+MARCA_MIXTO_DESDE_2 = "mixto_desde_2"
 PRODUCTO_MIXTO = "MIXTO"
 
 
-def normalizar_productos(producto_utilizado: str | None, lista: list[str]) -> tuple[str | None, list[str]]:
+def normalizar_productos(
+    producto_utilizado: str | None, lista: list[str], mixto_desde_2: bool = False,
+) -> tuple[str | None, list[str]]:
     """Cuántos productos se ven en el Excel, el PDF, el JSON y el correo.
 
-    Con hasta 2 productos se muestran tal cual; con 3 o más todo dice «MIXTO».
-    La lista completa de lo que se eligió se conserva aparte
-    (`productos_lista`) para poder editar la solicitud y para uso interno."""
+    Con `mixto_desde_2` (solicitudes nuevas): 1 producto se muestra tal cual y
+    con 2 o más todo dice «MIXTO». Sin la marca (las de antes): hasta 2 tal
+    cual y con 3 o más «MIXTO». La lista completa de lo que se eligió se
+    conserva aparte (`productos_lista`) para poder editar la solicitud y para
+    uso interno."""
+    tope = MAX_PRODUCTOS_VISIBLES if mixto_desde_2 else MAX_PRODUCTOS_VISIBLES_ANTES
     if not lista and producto_utilizado:
         lista = producto_utilizado.split(",")
     limpia: list[str] = []
@@ -422,8 +434,17 @@ def normalizar_productos(producto_utilizado: str | None, lista: list[str]) -> tu
             limpia.append(nombre)
     if not limpia:
         return producto_utilizado, []
-    visible = PRODUCTO_MIXTO if len(limpia) > MAX_PRODUCTOS_VISIBLES else ", ".join(limpia)
+    visible = PRODUCTO_MIXTO if len(limpia) > tope else ", ".join(limpia)
     return visible, limpia
+
+
+def _aplicar_regla_mixto(datos: dict) -> None:
+    """Recalcula el producto a la vista con la regla que le toca a ESTA
+    solicitud (según su marca), sobre lo que va a quedar guardado."""
+    datos["producto_utilizado"], datos["productos_lista"] = normalizar_productos(
+        datos.get("producto_utilizado"), list(datos.get("productos_lista") or []),
+        bool(datos.get(MARCA_MIXTO_DESDE_2)),
+    )
 
 
 class SolicitudIn(BaseModel):
@@ -464,8 +485,10 @@ class SolicitudIn(BaseModel):
 
     @model_validator(mode="after")
     def _productos_visibles(self):
+        # Al leer (`Solicitud`) manda la marca guardada; al recibir un formulario
+        # no hay marca, y la regla definitiva se aplica al guardar.
         self.producto_utilizado, self.productos_lista = normalizar_productos(
-            self.producto_utilizado, self.productos_lista
+            self.producto_utilizado, self.productos_lista, bool(getattr(self, "mixto_desde_2", False))
         )
         return self
 
@@ -506,6 +529,10 @@ class Solicitud(SolicitudIn):
     # asunto y no aparece en el Ingreso al laboratorio ni en reanálisis. Vive
     # en `datos` (Excel `_data` + jsonb del índice): no necesita migración.
     es_prueba: bool = False
+    # Con 2 o más productos dice «MIXTO» (solicitudes creadas desde ese
+    # cambio). Sin la marca, la regla de antes: MIXTO desde 3. Ver
+    # `normalizar_productos`.
+    mixto_desde_2: bool = False
     # ¿Los resultados de esta solicitud NO tienen lista de distribución al
     # cliente (para este Sold To, Ship To y especie)? Entonces rige la regla
     # de respaldo: Para = solo Jorge y Claudia. No se guarda: el listado lo
@@ -892,6 +919,10 @@ def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends
     # Editar no cambia el formato del PDF: una solicitud antigua sigue como era.
     if datos_actuales.get("pdf_solo_analisis"):
         datos["pdf_solo_analisis"] = True
+    # Tampoco cambia la regla de MIXTO: una solicitud antigua sigue con la suya.
+    if datos_actuales.get(MARCA_MIXTO_DESDE_2):
+        datos[MARCA_MIXTO_DESDE_2] = True
+    _aplicar_regla_mixto(datos)
     if datos_actuales.get("es_prueba"):
         # Editar no le quita la marca: sigue siendo de prueba.
         datos["es_prueba"] = True
@@ -934,7 +965,10 @@ def _guardar_solicitud_nueva(
         # Solo las solicitudes creadas desde ahora usan el PDF «solo análisis» de
         # ALS y Diagnofruit; las anteriores (sin esta marca) conservan su tabla.
         pdf_solo_analisis=True,
+        # Y dicen «MIXTO» desde 2 productos (las anteriores, desde 3).
+        mixto_desde_2=True,
     )
+    _aplicar_regla_mixto(datos)
     if es_prueba:
         datos["es_prueba"] = True
     nombre_archivo = f"{numero}.xlsx"
@@ -1007,7 +1041,11 @@ def cruzar_con_muestra(
             "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.",
         ) from e
     _exigir_acceso(usuario, datos_actuales)
-    if body.codigo_muestra is None and usuario.email.lower() != _SUPER_ADMIN_EMAIL:
+    # Vacío o solo espacios también deshace el cruce (`indice_solicitudes.cruzar`
+    # lo normaliza a None): la regla se mira sobre lo normalizado, si no, mandar
+    # "" saltaba el resguardo.
+    quita_la_muestra = not (body.codigo_muestra or "").strip()
+    if quita_la_muestra and usuario.email.lower() != _SUPER_ADMIN_EMAIL:
         # Quitar la muestra de una solicitud es solo del administrador principal.
         raise HTTPException(403, "Solo el administrador principal puede quitar una muestra.")
     try:
@@ -1339,8 +1377,10 @@ class ReanalisisIn(BaseModel):
 
     @model_validator(mode="after")
     def _productos_visibles(self):
+        # Al leer (`Solicitud`) manda la marca guardada; al recibir un formulario
+        # no hay marca, y la regla definitiva se aplica al guardar.
         self.producto_utilizado, self.productos_lista = normalizar_productos(
-            self.producto_utilizado, self.productos_lista
+            self.producto_utilizado, self.productos_lista, bool(getattr(self, "mixto_desde_2", False))
         )
         return self
 
@@ -1435,10 +1475,12 @@ def crear_reanalisis(
         enviada=False,
         enviado_en=None,
         pdf_solo_analisis=True,
+        mixto_desde_2=True,
         tipo_solicitud="REANALISIS",
         solicitud_original_archivo=archivo_base,
         motivo_reanalisis=motivo,
     )
+    _aplicar_regla_mixto(datos)
 
     # 4. Generar y guardar el Excel
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
@@ -2129,7 +2171,10 @@ def _iso_a_ddmmyyyy(valor: object) -> object:
     return valor
 
 
-_CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en", "sin_lista_distribucion", "pdf_solo_analisis"}
+_CAMPOS_INTERNOS = {
+    "archivo", "enviada", "enviado_en", "creado_en", "sin_lista_distribucion", "pdf_solo_analisis",
+    "mixto_desde_2",
+}
 
 
 def _sample_identification(datos: dict) -> str:

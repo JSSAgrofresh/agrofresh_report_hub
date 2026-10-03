@@ -120,8 +120,8 @@ class TestEndpointSoloLectura:
         )
         salida = tm.resultados_de_ship_to(LAB, "A")
         assert [c.model_dump() for c in salida] == [
-            {"nombre": "Cliente 1", "email": "cliente@dole.cl", "tipo": "resultado_cliente", "tipo_copia": "cc"},
-            {"nombre": "Jorge", "email": "oculta@agrofresh.com", "tipo": "resultado_interno", "tipo_copia": "bcc"},
+            {"nombre": "Cliente 1", "email": "cliente@dole.cl", "tipo": "resultado_cliente", "tipo_copia": "cc", "especie": ""},
+            {"nombre": "Jorge", "email": "oculta@agrofresh.com", "tipo": "resultado_interno", "tipo_copia": "bcc", "especie": ""},
         ]
 
     def test_ship_to_sin_configurar_devuelve_vacio_o_la_global(self, monkeypatch):
