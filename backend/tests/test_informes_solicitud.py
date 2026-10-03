@@ -54,6 +54,14 @@ class TestAsociar:
         r = mod.asociar([("a.xlsx", "OT-1")], [aud(archivo="a.xlsx", nro="VIEJO"), aud(archivo="a.xlsx", nro="NUEVO", id_=2)], [])
         assert r["a.xlsx"]["nro_informe"] == "NUEVO"
 
+    def test_quiteca_en_report_por_su_numero_de_informe(self):
+        """Quiteca llega a Report con SU N° de informe, a veces sin el OT:
+        igual cuenta como en Report (la misma regla de Auditoría interna)."""
+        r = mod.asociar([("a.xlsx", "OT-QUI0039")], [aud(archivo="a.xlsx", nro="2026-1878-pc")], [], {"2026-1878-PC"})
+        assert r["a.xlsx"]["en_report"] is True
+        r = mod.asociar([("a.xlsx", "OT-QUI0039")], [aud(archivo="a.xlsx", nro="2026-1878-PC")], [], {"OTRO"})
+        assert r["a.xlsx"]["en_report"] is False
+
     def test_solicitud_sin_numero_no_se_cruza_con_report(self):
         assert mod.asociar([("a.xlsx", "")], [], [rep("", "X")]) == {}
 
@@ -80,7 +88,11 @@ def entorno(monkeypatch):
 
     monkeypatch.setattr(mod, "conexion", _conexion)
     monkeypatch.setattr(mod, "cursor_dict", _cursor)
-    monkeypatch.setattr(mod, "_filas", lambda cur, sql: estado["auditoria"] if sql == mod._SQL_AUDITORIA else estado["report"])
+    estado["en_report"] = []
+    monkeypatch.setattr(mod, "_filas", lambda cur, sql: {
+        mod._SQL_AUDITORIA: estado["auditoria"], mod._SQL_REPORT: estado["report"],
+        mod._SQL_INFORMES_EN_REPORT: estado["en_report"],
+    }[sql])
     monkeypatch.setattr(mod, "_solicitudes_visibles", lambda u: estado["visibles"])
     monkeypatch.setattr(mod.r2a, "disponible", lambda: True)
     monkeypatch.setattr(mod.r2a, "descargar", lambda k: estado["descargas"].append(("aud", k)) or b"%PDF-aud")
@@ -93,9 +105,11 @@ def entorno(monkeypatch):
 class TestEndpoints:
     def test_listado(self, entorno):
         entorno["auditoria"] = [aud(archivo="a.xlsx")]
+        entorno["en_report"] = [{"nro": "2026-1885-PC"}]
         r = cliente.get("/api/toma-muestras/solicitudes-informes")
         assert r.status_code == 200
         assert r.json()["a.xlsx"]["nro_informe"] == "2026-1885-PC"
+        assert r.json()["a.xlsx"]["en_report"] is True
 
     def test_pdf_de_converter(self, entorno):
         entorno["auditoria"] = [aud(archivo="a.xlsx")]

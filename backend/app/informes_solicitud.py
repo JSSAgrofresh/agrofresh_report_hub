@@ -49,6 +49,7 @@ def asociar(
     solicitudes: Iterable[tuple[str, str]],
     auditoria: list[dict],
     report: list[dict],
+    informes_en_report: set[str] | None = None,
 ) -> dict[str, dict]:
     """{archivo: informe} para las solicitudes (archivo, numero_solicitud) que
     tienen informe. Lógica pura: las filas ya vienen de la base.
@@ -56,7 +57,12 @@ def asociar(
     `auditoria`: filas de informe_auditoria (id, archivo_solicitud,
     numero_solicitud, nro_informe, nombre_archivo, subido_en).
     `report`: filas de solicitud (id, nro_solicitud, referencia).
+    `informes_en_report`: los N° de informe (en mayúsculas) que ya están en
+    Report como `solicitud.nro_solicitud`. Es como Quiteca llega a Report: con
+    SU N° de informe y, en los informes viejos, sin el OT en `referencia`.
+    Auditoría interna usa la misma regla.
     """
+    informes_en_report = informes_en_report or set()
     aud_por_archivo: dict[str, dict] = {}
     aud_por_numero: dict[str, dict] = {}
     # La más reciente gana: las filas vienen ordenadas de la más vieja a la más nueva.
@@ -94,7 +100,9 @@ def asociar(
             # Con PDF de Converter es seguro que hay PDF; solo con Report se
             # busca al abrirlo (puede no haber).
             "pdf_guardado": aud is not None,
-            "en_report": bool(rep),
+            "en_report": bool(rep) or (
+                aud is not None and _limpio(aud.get("nro_informe")).upper() in informes_en_report
+            ),
         }
     return salida
 
@@ -115,6 +123,12 @@ def _filas(cur, sql: str) -> list[dict]:
 _SQL_AUDITORIA = (
     "SELECT id, archivo_solicitud, numero_solicitud, nro_informe, nombre_archivo, r2_key, subido_en"
     " FROM informe_auditoria ORDER BY subido_en ASC, id ASC"
+)
+# Los N° de informe de Converter que ya tienen resultados en Report.
+_SQL_INFORMES_EN_REPORT = (
+    "SELECT DISTINCT upper(btrim(i.nro_informe)) AS nro FROM informe_auditoria i"
+    " JOIN solicitud s ON upper(btrim(s.nro_solicitud)) = upper(btrim(i.nro_informe))"
+    " WHERE i.nro_informe IS NOT NULL"
 )
 _SQL_REPORT = (
     "SELECT id, nro_solicitud, referencia FROM solicitud"
@@ -141,7 +155,8 @@ def informes_de_solicitudes(usuario: Usuario = Depends(solo_interno)) -> dict[st
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         auditoria = _filas(cur, _SQL_AUDITORIA)
         report = _filas(cur, _SQL_REPORT)
-    return asociar(visibles, auditoria, report)
+        en_report = {f["nro"] for f in _filas(cur, _SQL_INFORMES_EN_REPORT)}
+    return asociar(visibles, auditoria, report, en_report)
 
 
 @router.get("/solicitudes/{archivo}/informe/pdf")

@@ -393,7 +393,9 @@ por eso «Con informe» puede dar más que el conteo de Report (filas en Ingesta
 listado: si falla, el listado sale igual; y `/solicitudes/{archivo}/informe/pdf`). Una
 solicitud llega a su informe por el PDF de Converter con su OT (`informe_auditoria`) o
 por los resultados de Report cuyo `referencia` es el OT (así llegan los propios de
-AgroFresh, uno por vial). **No se adivina por parecido**. El PDF sale de auditoría o, si
+AgroFresh, uno por vial). **No se adivina por parecido**. «En Report» = resultados con el OT en `referencia` **o** el N°
+de informe de Converter como `solicitud.nro_solicitud` (así llega Quiteca; misma regla que
+Auditoría interna; antes solo se miraba el OT y marcaba «Sin Report» de más). El PDF sale de auditoría o, si
 no, de Storage → Informes (`ficha_informe._buscar_pdf`); sin PDF el visor lo avisa.
 Solo interno, y un muestreador solo ve los de sus solicitudes.
 
