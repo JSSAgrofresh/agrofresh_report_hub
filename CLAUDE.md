@@ -286,9 +286,13 @@ admin del Report Hub (cargo «Admin»: `agrofreshreporthub@gmail.com`…), que
 con lista van en CCO: **sin lista pasan de CCO a Para** (`_para_sin_lista`;
 igual en el JSON y el PDF). Se actualizan con
 `scripts/importar_contactos_resultado.py --sincronizar-internos` y se revisan con
-`scripts/auditar_contactos_resultado.py`. La misma regla rige para «Destinatarios de resultados» del PDF y del JSON cuando el Ship To no tiene contacto de resultado a clientes. **Productos**: con más de 2, el Excel, el
+`scripts/auditar_contactos_resultado.py`. La misma regla rige para «Destinatarios de resultados» del PDF y del JSON cuando el Ship To no tiene contacto de resultado a clientes. **Productos**: con **2 o más**, el Excel, el
 PDF, el JSON y el correo dicen `MIXTO` (`producto_utilizado`); la lista real va
-en `productos_lista` (`normalizar_productos`). No
+en `productos_lista` (`normalizar_productos`). Vale para todo tipo de servicio, y
+**solo para las solicitudes creadas desde ese cambio**: llevan la marca
+`mixto_desde_2` en sus datos (al crear, en prueba y reanálisis; editar la
+conserva). Las anteriores, sin la marca, siguen con su regla (MIXTO desde 3) al
+leerlas, editarlas y en su PDF (`test_productos_mixto.py`). No
 confundir con `tipo_copia`, que es de los contactos de **resultados**.
 
 **«Sin lista de distribución»** (chip morado en Toma de muestras → Solicitudes,

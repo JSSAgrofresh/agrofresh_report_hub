@@ -633,6 +633,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   }
 
   const esCromatografia = laboratorio === 'QUITECA' || laboratorio === 'AGROFRESH'
+  // Desde cuántos productos dice MIXTO: las nuevas, desde 2. Una solicitud
+  // anterior que se edita conserva su regla (desde 3): lo emitido no se reescribe.
+  const maxProductosVisibles = modo === 'editar' && solicitudOriginal && !solicitudOriginal.mixto_desde_2 ? 2 : 1
   const esLineaProceso = tipoAplicacionSel === TIPO_LINEA_PROCESO
   const esActimist = tipoAplicacionSel === TIPO_ACTIMIST
   const esRYD = tipoAplicacionSel === TIPO_RYD
@@ -922,8 +925,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         (esLineaProceso || esRYD) && general.kilos_procesados?.trim()
           ? Number(general.kilos_procesados)
           : null,
-      // Con más de dos productos el backend deja «MIXTO» a la vista y guarda
-      // aparte la lista completa.
+      // Con 2 o más productos el backend deja «MIXTO» a la vista y guarda
+      // aparte la lista completa (las solicitudes anteriores: desde 3).
       producto_utilizado: productosSeleccionados.join(', ') || null,
       productos_lista: productosSeleccionados,
       tipo_muestra: general.tipo_muestra?.trim() || null,
@@ -1218,10 +1221,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               ))}
             </div>
           )}
-          {productosSeleccionados.length > 2 && (
+          {productosSeleccionados.length > maxProductosVisibles && (
             <p className={styles.ayudaCampo}>
-              Con más de 2 productos, el Excel, el PDF y el correo dirán <strong>MIXTO</strong>; la
-              lista completa queda guardada en la solicitud.
+              Con {maxProductosVisibles === 1 ? '2 o más productos' : 'más de 2 productos'}, el Excel, el PDF
+              y el correo dirán <strong>MIXTO</strong>; la lista completa queda guardada en la solicitud.
             </p>
           )}
         </div>
