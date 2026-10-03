@@ -167,6 +167,18 @@
   text-underline-offset: 3px;
 }
 
+/* Aviso: informes con la OT por revisar (mismo molde, en rojo) */
+.avisoOt {
+  border-color: #f3c2bd;
+  background: #fdecea;
+  color: #8a1f17;
+}
+
+.avisoOtActivo {
+  border-color: #a3261c;
+  box-shadow: 0 0 0 1px #a3261c inset;
+}
+
 /* ── Tarjeta de la tabla ── */
 .tablaCard {
   min-width: 0;
@@ -925,6 +937,35 @@
   color: #8a5a00;
   background: #fff4dc;
   border: 1px solid #f0d9a4;
+}
+
+.otConfirmada {
+  margin-left: 4px;
+  font-weight: 800;
+  color: #1e7a3c;
+}
+
+.chipOtRevisar,
+.chipOtSinConfirmar {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.chipOtRevisar {
+  color: #a3261c;
+  background: #fdecea;
+  border: 1px solid #f3c2bd;
+}
+
+.chipOtSinConfirmar {
+  color: var(--color-text-muted, #5b6470);
+  background: #f1f3f5;
+  border: 1px solid #dde1e6;
 }
 
 .sinInforme {

@@ -68,6 +68,15 @@ export interface InformeSolicitud {
   /** Hay PDF subido por Converter; si es false, el PDF se busca al abrirlo y puede no estar. */
   pdf_guardado: boolean
   en_report: boolean
+  /** ¿La OT está bien cruzada? La confirma el «N° Solicitud: OT-…» impreso en
+   * el informe (referencia en Report) y que planta, especie y fecha de muestreo
+   * calcen con la solicitud. */
+  verificacion?: VerificacionOt
+}
+
+export interface VerificacionOt {
+  estado: 'confirmada' | 'revisar' | 'sin_confirmar'
+  motivos: string[]
 }
 
 /** Envío automático al guardar: regla general + una propia por tipo de aplicación. */
