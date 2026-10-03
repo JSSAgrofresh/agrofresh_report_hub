@@ -531,7 +531,7 @@ export function SolicitudesView() {
               </span>
             </span>
             <div className={styles.seleccionAcciones}>
-              <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('pdf', () => descargarPdfsZip([...seleccionadas]))}>
+              <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('pdf', () => descargarPdfsZip([...seleccionadas]))} title="Si alguna tiene informe, el zip trae dos carpetas: Solicitudes e Informes">
                 <IconoPdf width={15} height={15} />
                 {trabajando === 'pdf' ? 'Generando…' : 'PDF (.zip)'}
               </button>
