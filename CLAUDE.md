@@ -142,19 +142,24 @@ test de una solicitud sin la marca.
 
 Este proyecto no se da por listo con "debería funcionar":
 
-- **Backend**: `cd backend && python -m pytest -q`. Hay ~600 tests. Los que
-  necesitan Postgres se saltan solos si no hay base.
+- **Backend**: `cd backend && python -m pytest -q` (`pytest.ini` limita la corrida
+  a `tests/`). **Las pruebas NUNCA tocan servicios reales** (`tests/conftest.py`):
+  vacía R2, Gmail y Resend y APAGA la base, aunque el `.env` apunte a
+  producción. Antes, correr `pytest` en el servidor de la oficina habría borrado
+  el índice de solicitudes (`DELETE FROM solicitud_archivo`), reiniciado los
+  folios y pisado `contactos_laboratorio.json` en R2. Sin base, las pruebas que
+  la necesitan se saltan solas. Para correrlas, en una base APARTE creada con las
+  migraciones y con «prueba» o «test» en el nombre:
+  `AGROFRESH_BD_PRUEBAS=agrofresh_pruebas pytest` (en PowerShell,
+  `$env:AGROFRESH_BD_PRUEBAS = "agrofresh_pruebas"`). Con base pasan las ~1.590;
+  **no hay pruebas que fallen de base**: si una falla, algo se rompió.
 - **Frontend**: `npx vitest run`, `npm run build`, `npm run lint`.
   Los tipos se revisan con `npm run build` (o `npm run typecheck`), que corre
   `tsc -b`. **`npx tsc --noEmit` no sirve**: no mira los archivos de test, así
   que un error de tipos ahí pasa limpio acá y bota el deploy de Vercel.
-  El lint tiene **14 errores de línea base preexistentes** (casi todos
-  `set-state-in-effect`); si salen 14, está bien. Si salen 15, algo nuevo lo rompió.
-- En backend hay **4 tests que ya fallan** en la rama (`test_alcance_datos`,
-  `test_envio_solicitud_correo`, `test_resultados_ship_to`,
-  `test_verificaciones::test_detector_con_metodo_equivocado`) y
-  `test_correo_error_gmail.py` no importa. Corre `pytest tests` (no la raíz:
-  `scripts/borrar_lab_test.py` se recoge y corta la corrida).
+  El lint tiene **13 errores de línea base preexistentes** (casi todos
+  `set-state-in-effect`, más 3 de `only-export-components` en
+  `SelectorIconoUsuario.tsx`); si salen 13, está bien. Si salen 14, algo nuevo lo rompió.
 - **Cambios visuales**: se comprueban en un navegador real con Playwright
   (`executablePath: '/opt/pw-browsers/chromium'`), no solo con tests.
 - Al escribir un test para un bug, **rompe el arreglo a propósito** y confirma
@@ -281,9 +286,13 @@ admin del Report Hub (cargo «Admin»: `agrofreshreporthub@gmail.com`…), que
 con lista van en CCO: **sin lista pasan de CCO a Para** (`_para_sin_lista`;
 igual en el JSON y el PDF). Se actualizan con
 `scripts/importar_contactos_resultado.py --sincronizar-internos` y se revisan con
-`scripts/auditar_contactos_resultado.py`. La misma regla rige para «Destinatarios de resultados» del PDF y del JSON cuando el Ship To no tiene contacto de resultado a clientes. **Productos**: con más de 2, el Excel, el
+`scripts/auditar_contactos_resultado.py`. La misma regla rige para «Destinatarios de resultados» del PDF y del JSON cuando el Ship To no tiene contacto de resultado a clientes. **Productos**: con **2 o más**, el Excel, el
 PDF, el JSON y el correo dicen `MIXTO` (`producto_utilizado`); la lista real va
-en `productos_lista` (`normalizar_productos`). No
+en `productos_lista` (`normalizar_productos`). Vale para todo tipo de servicio, y
+**solo para las solicitudes creadas desde ese cambio**: llevan la marca
+`mixto_desde_2` en sus datos (al crear, en prueba y reanálisis; editar la
+conserva). Las anteriores, sin la marca, siguen con su regla (MIXTO desde 3) al
+leerlas, editarlas y en su PDF (`test_productos_mixto.py`). No
 confundir con `tipo_copia`, que es de los contactos de **resultados**.
 
 **«Sin lista de distribución»** (chip morado en Toma de muestras → Solicitudes,
@@ -720,6 +729,13 @@ tocas una, toca la otra.
   falsa necesita `--use-fake-device-for-media-stream
   --use-file-for-fake-video-capture=x.y4m` (con `.mjpeg` no carga el archivo y
   da cuadros verdes), con el código sin escalar a medias.
+- **Un 401 cierra la sesión.** `client.ts` toma cualquier 401 como «sesión
+  vencida» y saca a la persona. Nunca respondas 401 por otra cosa: una clave de
+  Gmail rechazada responde 503 (`correo._enviar_smtp`), si no, quien envía una
+  solicitud queda fuera del sistema (`test_correo_error_gmail.py`).
+- **Quitar la muestra con «» vacío.** `indice_solicitudes.cruzar` toma `""` o
+  espacios igual que `None`; el resguardo de «solo el administrador principal»
+  tiene que mirar el valor normalizado, no solo `is None`.
 - **En Windows falta `tzdata`**: sin él `zoneinfo` no encuentra las zonas.
   Está declarado en `requirements.txt`.
 

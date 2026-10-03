@@ -30,6 +30,17 @@ from app.db import conexion, cursor_dict  # noqa: E402
 # cubren esa regla (tiene la suya propia en test_acceso_solicitudes.py), así
 # que usan una cuenta interna cualquiera que no le tuerza nada al cuerpo.
 ADMIN = Usuario(id="1", email="admin@agrofresh.com", nombre="Admin", tipoAcceso="admin_general")
+# Eliminar una solicitud es solo del administrador principal.
+PRINCIPAL = Usuario(id="2", email="jorge.sandoval@agrofresh.com", nombre="Jorge", tipoAcceso="admin_general")
+
+# Lo que el índice suma por su cuenta (columnas, no parte del archivo): el cruce
+# con la muestra, sus pesos y quién lo hizo, y los datos de reanálisis. Una
+# solicitud recién creada los trae vacíos o con su valor por defecto.
+EXTRAS_DEL_INDICE = {
+    "codigo_muestra": None, "recepcion_en": None, "cruzado_por": None, "cruzado_por_nombre": None,
+    "peso_muestra": None, "peso_muestra_extraido": None, "unidad_peso": "kg",
+    "tipo_solicitud": "CONVENCIONAL", "solicitud_original_archivo": None, "motivo_reanalisis": None,
+}
 
 
 def _limpiar_folios_por_laboratorio(cur) -> None:
@@ -119,7 +130,7 @@ class TestCrear:
         tm.crear_solicitud(cuerpo(), usuario=ADMIN)
         por_indice = dict(tm.leer_todas_las_solicitudes())["OT-0001.xlsx"]
         por_archivo = dict(tm._leer_todas_desde_archivos())["OT-0001.xlsx"]
-        assert por_indice == {**por_archivo, "codigo_muestra": None, "recepcion_en": None}
+        assert por_indice == {**por_archivo, **EXTRAS_DEL_INDICE}
 
     def test_conserva_los_analitos_solicitados(self, limpio):
         """Es lo que usa Emitir informe para cruzar con el resultado del GC."""
@@ -251,8 +262,12 @@ class TestBccDelMuestreador:
         tm.enviar_solicitud_por_correo(
             "OT-0001.xlsx", tm.EnvioSolicitudIn(destinatario="lab@laboratorio.cl"), usuario=usuario_a
         )
-        assert capturado["destinatario"] == "lab@laboratorio.cl"
-        assert capturado["bcc"] == ["ana@agrofresh.com"]
+        # Sin lista del laboratorio también van los de respaldo (Jorge y Claudia):
+        # lo que importa acá es que lo escrito llega y Ana va en copia oculta.
+        para = [d.strip() for d in capturado["destinatario"].split(",")]
+        assert "lab@laboratorio.cl" in para
+        assert "ana@agrofresh.com" in capturado["bcc"]
+        assert "ana@agrofresh.com" not in para
 
     def test_no_duplica_si_ya_esta_entre_los_destinatarios(self, limpio, monkeypatch):
         """Si el correo del muestreador ya quedó como destinatario normal
@@ -297,7 +312,7 @@ class TestEliminar:
         """Si quedara anotada, el listado mostraría una solicitud cuyo archivo
         ya no existe, y abrirla daría 404 sin explicación."""
         tm.crear_solicitud(cuerpo(), usuario=ADMIN)
-        tm.eliminar_solicitud("OT-0001.xlsx")
+        tm.eliminar_solicitud("OT-0001.xlsx", usuario=PRINCIPAL)
         assert indice.buscar("OT-0001.xlsx") is None
         assert tm.leer_todas_las_solicitudes() == []
 

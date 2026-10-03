@@ -22,7 +22,10 @@ pytestmark = pytest.mark.skipif(
 from fastapi import HTTPException  # noqa: E402
 
 from app import config, correo, toma_muestras as tm  # noqa: E402
+from app.auth import Usuario  # noqa: E402
 from app.db import conexion, cursor_dict  # noqa: E402
+
+ADMIN = Usuario(id="1", email="admin@agrofresh.com", nombre="Admin", tipoAcceso="admin_general")
 
 
 @pytest.fixture
@@ -59,7 +62,12 @@ def enviar_simulado(monkeypatch):
     """Reemplaza el envío real de correo (necesita credenciales de Gmail que
     no existen en pruebas) por uno que solo anota que se llamó."""
     llamadas: list[tuple] = []
-    monkeypatch.setattr(correo, "enviar", lambda *a, **k: llamadas.append(a))
+    def _enviar(destinatario, *a, **k):
+        llamadas.append((destinatario, *a))
+        to = [d.strip() for d in str(destinatario).split(",") if d.strip()]
+        return correo.ResultadoEnvio(to=to, cc=k.get("cc") or [], bcc=k.get("bcc") or [])
+
+    monkeypatch.setattr(correo, "enviar", _enviar)
     return llamadas
 
 
@@ -67,10 +75,10 @@ def enviar_simulado(monkeypatch):
 
 
 def test_una_solicitud_no_enviada_se_puede_editar(limpio):
-    creada = tm.crear_solicitud(_cuerpo())
+    creada = tm.crear_solicitud(_cuerpo(), usuario=ADMIN)
     assert creada.enviada is False
 
-    editada = tm.editar_solicitud(creada.archivo, _cuerpo(especie="Manzanas"))
+    editada = tm.editar_solicitud(creada.archivo, _cuerpo(especie="Manzanas"), usuario=ADMIN)
 
     assert editada.especie == "Manzanas"
     assert editada.enviada is False
@@ -80,9 +88,9 @@ def test_una_solicitud_no_enviada_se_puede_editar(limpio):
 
 
 def test_editar_conserva_el_mismo_folio_y_archivo(limpio):
-    creada = tm.crear_solicitud(_cuerpo())
+    creada = tm.crear_solicitud(_cuerpo(), usuario=ADMIN)
 
-    editada = tm.editar_solicitud(creada.archivo, _cuerpo(especie="Manzanas", variedad="Fuji"))
+    editada = tm.editar_solicitud(creada.archivo, _cuerpo(especie="Manzanas", variedad="Fuji"), usuario=ADMIN)
 
     assert editada.archivo == creada.archivo
     assert editada.numero_solicitud == creada.numero_solicitud
@@ -90,12 +98,12 @@ def test_editar_conserva_el_mismo_folio_y_archivo(limpio):
     assert editada.creado_en == creada.creado_en
 
     # Y no aparece una segunda solicitud en el listado.
-    todas = tm.listar_solicitudes()
+    todas = tm.listar_solicitudes(usuario=ADMIN)
     assert len([s for s in todas if s.numero_solicitud == creada.numero_solicitud]) == 1
 
 
 def test_editar_actualiza_los_analitos_y_dosis(limpio):
-    creada = tm.crear_solicitud(_cuerpo())
+    creada = tm.crear_solicitud(_cuerpo(), usuario=ADMIN)
 
     editada = tm.editar_solicitud(
         creada.archivo,
@@ -106,63 +114,63 @@ def test_editar_actualiza_los_analitos_y_dosis(limpio):
                 "Tebuconazol (ppm)": "8",
                 "Tipo Aplicación": "Actimist",
             },
-        ),
-    )
+        ), usuario=ADMIN)
 
     assert editada.analitos_solicitados == ["FDL", "TEBU"]
     assert editada.campos_laboratorio["Fludioxonil (ppm)"] == "30"
     assert editada.campos_laboratorio["Tebuconazol (ppm)"] == "8"
 
     # Lo escrito queda de verdad en el archivo, no solo en la respuesta.
-    releida = tm.obtener_solicitud(creada.archivo)
+    releida = tm.obtener_solicitud(creada.archivo, usuario=ADMIN)
     assert releida.analitos_solicitados == ["FDL", "TEBU"]
     assert releida.campos_laboratorio["Tebuconazol (ppm)"] == "8"
 
 
-# --- CASO 5/6: solicitud enviada -> editar deja de estar disponible --------
+# --- CASO 5/6: una solicitud enviada SE PUEDE editar ------------------------
+# Regla vigente (ver `Solicitud.enviada` en toma_muestras.py): se edita en
+# cualquier momento, incluso después de enviada, y editar la vuelve a dejar
+# como no enviada para que el envío automático la mande de nuevo.
 
 
-def test_una_solicitud_enviada_no_se_puede_editar(limpio, enviar_simulado):
-    creada = tm.crear_solicitud(_cuerpo())
-    tm.enviar_solicitud_por_correo(creada.archivo, tm.EnvioSolicitudIn(destinatario="destino@example.com"))
+def test_una_solicitud_enviada_se_puede_editar_y_vuelve_a_pendiente(limpio, enviar_simulado):
+    creada = tm.crear_solicitud(_cuerpo(), usuario=ADMIN)
+    tm.enviar_solicitud_por_correo(creada.archivo, tm.EnvioSolicitudIn(destinatario="destino@example.com"), usuario=ADMIN)
+    assert tm.obtener_solicitud(creada.archivo, usuario=ADMIN).enviada is True
 
-    with pytest.raises(HTTPException) as e:
-        tm.editar_solicitud(creada.archivo, _cuerpo(especie="Otra cosa"))
-    assert e.value.status_code == 409
+    editada = tm.editar_solicitud(creada.archivo, _cuerpo(especie="Otra cosa"), usuario=ADMIN)
 
-    # Y lo que había quedó intacto: el rechazo no alcanzó a escribir nada.
-    releida = tm.obtener_solicitud(creada.archivo)
-    assert releida.especie == "Cerezas"
-
-
-# --- CASO 7: solicitud enviada -> no se puede reenviar ----------------------
+    assert editada.numero_solicitud == creada.numero_solicitud   # mismo folio
+    releida = tm.obtener_solicitud(creada.archivo, usuario=ADMIN)
+    assert releida.especie == "Otra cosa"
+    assert releida.enviada is False
 
 
-def test_una_solicitud_enviada_no_se_puede_reenviar(limpio, enviar_simulado):
-    creada = tm.crear_solicitud(_cuerpo())
-    tm.enviar_solicitud_por_correo(creada.archivo, tm.EnvioSolicitudIn(destinatario="destino@example.com"))
-    assert len(enviar_simulado) == 1
+# --- CASO 7: una solicitud enviada se puede REENVIAR --------------------------
+# La pantalla ofrece «Reenviar por correo». El reenvío sale de verdad y la
+# solicitud sigue marcada como enviada.
 
-    with pytest.raises(HTTPException) as e:
-        tm.enviar_solicitud_por_correo(creada.archivo, tm.EnvioSolicitudIn(destinatario="otro@example.com"))
-    assert e.value.status_code == 409
 
-    # No se disparó un segundo correo.
-    assert len(enviar_simulado) == 1
+def test_una_solicitud_enviada_se_puede_reenviar(limpio, enviar_simulado):
+    creada = tm.crear_solicitud(_cuerpo(), usuario=ADMIN)
+    tm.enviar_solicitud_por_correo(creada.archivo, tm.EnvioSolicitudIn(destinatario="destino@example.com"), usuario=ADMIN)
+    tm.enviar_solicitud_por_correo(creada.archivo, tm.EnvioSolicitudIn(destinatario="otro@example.com"), usuario=ADMIN)
+
+    assert len(enviar_simulado) == 2
+    assert tm.obtener_solicitud(creada.archivo, usuario=ADMIN).enviada is True
 
 
 def test_enviar_marca_la_solicitud_como_enviada(limpio, enviar_simulado):
-    creada = tm.crear_solicitud(_cuerpo())
+    creada = tm.crear_solicitud(_cuerpo(), usuario=ADMIN)
     assert creada.enviada is False
 
-    tm.enviar_solicitud_por_correo(creada.archivo, tm.EnvioSolicitudIn(destinatario="destino@example.com"))
+    tm.enviar_solicitud_por_correo(creada.archivo, tm.EnvioSolicitudIn(destinatario="destino@example.com"), usuario=ADMIN)
 
-    releida = tm.obtener_solicitud(creada.archivo)
+    releida = tm.obtener_solicitud(creada.archivo, usuario=ADMIN)
     assert releida.enviada is True
     assert releida.enviado_en is not None
 
 
 def test_editar_una_solicitud_que_no_existe_avisa(limpio):
     with pytest.raises(HTTPException) as e:
-        tm.editar_solicitud("no-existe.xlsx", _cuerpo())
+        tm.editar_solicitud("no-existe.xlsx", _cuerpo(), usuario=ADMIN)
     assert e.value.status_code == 404
