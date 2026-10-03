@@ -42,9 +42,11 @@ import {
   filtrarSolicitudes,
   hayFiltros,
   listarTiposAplicacion,
-  opcionesDe,
+  claveFiltrosGuardados,
+  guardarFiltros,
+  leerFiltros,
+  opcionesAcumuladas,
   resumenVistas,
-  tipoAplicacionDe,
   vistaDeEstados,
 } from '@/features/tomaMuestras'
 import type {
@@ -111,7 +113,23 @@ export function SolicitudesView() {
   // Botón "Solicitud de prueba": lo decide el backend (una sola cuenta).
   const [puedeCrearPruebas, setPuedeCrearPruebas] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filtros, setFiltros] = useState<FiltrosSolicitudes>(FILTROS_VACIOS)
+  // Los filtros se guardan (por cuenta) y vuelven al entrar de nuevo, pero
+  // vencen solos tras una jornada sin tocarlos (`leerFiltros`).
+  const claveGuardado = claveFiltrosGuardados(user?.email)
+  const [filtros, setFiltros] = useState<FiltrosSolicitudes>(() => {
+    try {
+      return leerFiltros(localStorage, claveGuardado, Date.now())
+    } catch {
+      return FILTROS_VACIOS
+    }
+  })
+  useEffect(() => {
+    try {
+      guardarFiltros(localStorage, claveGuardado, filtros, Date.now())
+    } catch {
+      /* sin almacenamiento (modo privado): solo no se recuerdan */
+    }
+  }, [filtros, claveGuardado])
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(leerFiltrosAbiertos)
   // PDF de la solicitud / del informe del laboratorio que se está mirando.
   const [pdfAbierto, setPdfAbierto] = useState<Solicitud | null>(null)
@@ -216,8 +234,9 @@ export function SolicitudesView() {
     })
   }
 
-  // Las opciones de las listas salen de las solicitudes ya cargadas.
-  const opciones = useMemo(() => opcionesDe(solicitudes ?? [], filtros), [solicitudes, filtros])
+  // Los filtros se acumulan: cada lista ofrece (y cuenta) solo lo que queda
+  // con los demás filtros puestos.
+  const { opciones, conteo } = useMemo(() => opcionesAcumuladas(solicitudes ?? [], filtros), [solicitudes, filtros])
   const hayFiltrosActivos = hayFiltros(filtros)
   const chips = useMemo(() => chipsDeFiltros(filtros), [filtros])
 
@@ -234,27 +253,6 @@ export function SolicitudesView() {
   )
   const vistaActiva = vistaDeEstados(filtros.estado)
 
-  // Cuántas solicitudes trae cada opción, sobre todas las cargadas.
-  const conteo = useMemo(() => {
-    const por = (f: (s: Solicitud) => string | null | undefined) => {
-      const m = new Map<string, number>()
-      for (const s of solicitudes ?? []) {
-        const v = f(s)
-        if (v) m.set(v, (m.get(v) ?? 0) + 1)
-      }
-      return (o: string) => m.get(o) ?? 0
-    }
-    return {
-      laboratorio: por((s) => s.laboratorio),
-      soldTo: por((s) => s.sold_to),
-      shipTo: por((s) => s.ship_to),
-      especie: por((s) => s.especie),
-      tipoAplicacion: por(tipoAplicacionDe),
-      lineaProceso: por((s) => s.linea_proceso),
-      tipoMuestra: por((s) => s.tipo_muestra),
-      nombreMuestreador: por((s) => s.nombre_muestreador),
-    }
-  }, [solicitudes])
 
   // Limpiar la selección cuando cambian los filtros o la lista base.
   useEffect(() => { setSeleccionadas(new Set()) }, [filtros, solicitudes])
@@ -518,6 +516,9 @@ export function SolicitudesView() {
             <button type="button" className={styles.limpiar} onClick={() => setFiltros(FILTROS_VACIOS)}>
               Limpiar todo
             </button>
+            <span className={styles.notaGuardado} title="Siguen puestos si sales y vuelves. Se borran solos tras 8 horas sin cambiarlos.">
+              Guardados por 8 h
+            </span>
           </div>
         )}
 

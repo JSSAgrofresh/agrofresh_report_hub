@@ -383,6 +383,10 @@ informes «sin Report», una tarjeta con buscador + «Filtros» (panel plegable,
 Excel, chips de filtros activos (`chipsDeFiltros`), tabla con acciones de ícono (clic en la
 fila abre la solicitud) y tarjetas en celular. El envío automático quedó abajo, plegado. Sin
 gráficos a propósito. Bajo 1180 px el informe pasa a la columna Estado; bajo 760 px, tarjetas.
+Los filtros **se acumulan** (`opcionesAcumuladas`: cada lista ofrece y cuenta solo lo que
+queda con los demás filtros; lo marcado sigue aunque quede en 0) y **se guardan por cuenta**
+en `localStorage` (`claveFiltrosGuardados`): vuelven al entrar de nuevo y **vencen a las 8 h**
+del último cambio (`VIGENCIA_FILTROS_MS`, `leerFiltros` descarta lo vencido o dañado).
 
 **Informe de cada solicitud** (columna Informe): el N°
 de informe del laboratorio en un chip azul que abre el PDF en el visor; Estado filtra
