@@ -375,6 +375,17 @@ y Estado se marcan **de a varios** (`MultiSelectFiltro`; lógica pura en
 cualquiera de los marcados; entre filtros, todos. En Estado, Enviada/Pendiente
 son alternativas y «Sin lista de distribución» se suma como condición.
 
+**Informe de cada solicitud** (Toma de muestras → Solicitudes, debajo del estado): el N°
+de informe del laboratorio en un chip azul que abre el PDF en el visor; Estado filtra
+también «Con informe» / «Sin informe» y el buscador encuentra por N° de informe. Backend:
+`app/informes_solicitud.py` (`GET /toma-muestras/solicitudes-informes`, aparte del
+listado: si falla, el listado sale igual; y `/solicitudes/{archivo}/informe/pdf`). Una
+solicitud llega a su informe por el PDF de Converter con su OT (`informe_auditoria`) o
+por los resultados de Report cuyo `referencia` es el OT (así llegan los propios de
+AgroFresh, uno por vial). **No se adivina por parecido**. El PDF sale de auditoría o, si
+no, de Storage → Informes (`ficha_informe._buscar_pdf`); sin PDF el visor lo avisa.
+Solo interno, y un muestreador solo ve los de sus solicitudes.
+
 ## Ingreso al laboratorio: corregir un cruce
 
 En la tabla de solicitudes de **Ingreso al laboratorio** cada fila cruzada trae el

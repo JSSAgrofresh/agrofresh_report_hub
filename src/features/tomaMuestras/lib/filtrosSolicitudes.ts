@@ -1,8 +1,9 @@
 import type { Solicitud } from './tipos'
 
 /** Estados que se pueden marcar en el filtro. Enviada y Pendiente son excluyentes
- * entre sí; «Sin lista de distribución» es otra cosa (a quién va el correo). */
-export type EstadoFiltro = 'enviada' | 'pendiente' | 'sin_lista'
+ * entre sí; «Sin lista de distribución» es otra cosa (a quién va el correo).
+ * «Con informe» y «Sin informe» también son alternativas entre sí. */
+export type EstadoFiltro = 'enviada' | 'pendiente' | 'sin_lista' | 'con_informe' | 'sin_informe'
 
 /** Los filtros de la lista de solicitudes. Los que son listas se pueden marcar
  * de a varios: dentro de un mismo filtro vale cualquiera de los marcados; entre
@@ -66,15 +67,18 @@ export function tipoAplicacionDe(s: Solicitud): string {
   return s.campos_laboratorio['Tipo Aplicación'] ?? ''
 }
 
-/** «Enviada» y «Pendiente» son alternativas (vale cualquiera de las marcadas);
- * «Sin lista de distribución» se suma como condición: Pendiente + Sin lista =
- * las pendientes que van a Jorge y Claudia. */
+/** Tres grupos que se suman como condiciones: envío (Enviada / Pendiente,
+ * alternativas), informe (Con / Sin informe, alternativas) y «Sin lista de
+ * distribución». Pendiente + Sin lista = las pendientes que van a Jorge y
+ * Claudia; Enviada + Sin informe = las que esperan el informe del laboratorio. */
 function cumpleEstado(s: Solicitud, estados: EstadoFiltro[]): boolean {
   if (estados.length === 0) return true
   if (estados.includes('sin_lista') && !s.sin_lista_distribucion) return false
-  const envio = estados.filter((e) => e !== 'sin_lista')
-  if (envio.length === 0) return true
-  return envio.some((e) => (e === 'enviada' ? s.enviada : !s.enviada))
+  const envio = estados.filter((e) => e === 'enviada' || e === 'pendiente')
+  if (envio.length && !envio.some((e) => (e === 'enviada' ? s.enviada : !s.enviada))) return false
+  const informe = estados.filter((e) => e === 'con_informe' || e === 'sin_informe')
+  if (informe.length && !informe.some((e) => (e === 'con_informe' ? Boolean(s.informe) : !s.informe))) return false
+  return true
 }
 
 export function filtrarSolicitudes(solicitudes: Solicitud[], f: FiltrosSolicitudes): Solicitud[] {
@@ -86,7 +90,7 @@ export function filtrarSolicitudes(solicitudes: Solicitud[], f: FiltrosSolicitud
       const pajar = sinTildes(
         [
           s.numero_solicitud, s.sold_to, s.ship_to, s.especie, s.variedad, s.laboratorio,
-          s.generado_por, s.tipo_muestra, tipoAplicacionDe(s),
+          s.generado_por, s.tipo_muestra, tipoAplicacionDe(s), ...(s.informe?.numeros ?? []),
         ].join(' '),
       )
       if (!claves.every((c) => pajar.includes(c))) return false

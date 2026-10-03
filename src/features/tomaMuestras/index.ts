@@ -7,6 +7,9 @@ export {
   descargarExcelSolicitud,
   descargarPdfSolicitud,
   abrirPdfSolicitud,
+  listarInformesDeSolicitudes,
+  abrirPdfInformeSolicitud,
+  descargarPdfInformeSolicitud,
   descargarJsonSolicitud,
   descargarTodasLasSolicitudes,
   enviarCorreoPrueba,
@@ -61,6 +64,7 @@ export {
 export { enviaSoloSegunTipo } from './lib/envioAutomatico'
 export type {
   Solicitud,
+  InformeSolicitud,
   SolicitudInput,
   ReanalisisInput,
   EstadoSolicitudesPrueba,

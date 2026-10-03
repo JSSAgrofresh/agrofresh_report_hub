@@ -15,6 +15,7 @@ from .admin_panel import router as admin_panel_router
 from .correcciones import router as correcciones_router
 from .listas_distribucion import router as listas_distribucion_router
 from .ficha_informe import router as ficha_informe_router
+from .informes_solicitud import router as informes_solicitud_router
 from .correo import router as correo_router
 from .catalogo import router as catalogo_router
 from .emitir import router as emitir_router
@@ -118,6 +119,7 @@ for _router in (
     correcciones_router,
     listas_distribucion_router,
     ficha_informe_router,
+    informes_solicitud_router,
     catalogo_router,
     postventa_router,
     storage_router,
