@@ -12,8 +12,20 @@ Flujo:
      d. Para archivos .zip: extrae y sube cada entrada preservando la ruta
         interna (PH/, ORP/, etc.).
      e. Sube todos los archivos a R2 bajo accutab/mail/<carpeta>/.
-     f. Solo si todo subio bien, aplica la etiqueta ACCUTAB_PROCESADO.
+     f. Solo si todo subio bien, anota el correo en el registro de
+        procesados (R2, `accutab/_control/procesados.json`) y lo pasa de
+        ACCUTAB_PENDIENTE a ACCUTAB_PROCESADO.
   3. Imprime resumen al terminar.
+
+Un correo ya anotado en el registro NO se vuelve a subir aunque siga con la
+etiqueta ACCUTAB_PENDIENTE: solo se le corrige la etiqueta. Antes la unica
+defensa era la etiqueta, Gmail no la quitaba y cada corrida volvia a subir
+todos los correos (carpetas "AGROFRESH_DEMO (582)", "(583)"... y un reporte
+duplicado en Post Venta por cada uno).
+
+Primera corrida tras ese arreglo (los pendientes ya se subieron antes):
+    .venv\\Scripts\\python.exe scripts\\accutab_mail_ingest.py --solo-marcar
+anota y saca de pendientes todo lo que hay, sin subir nada.
 
 Uso (Windows Task Scheduler o manual):
     cd backend
@@ -30,8 +42,10 @@ Variables de entorno requeridas (en backend/.env):
 
 from __future__ import annotations
 
+import argparse
 import email
 import email.policy
+import hashlib
 import imaplib
 import io
 import json
@@ -66,6 +80,8 @@ from app.accutab_parser import calcular_estadisticas, parsear_archivos_csv  # no
 LABEL_PROCESADO = "ACCUTAB_PROCESADO"
 LABEL_PENDIENTE = "ACCUTAB_PENDIENTE"
 R2_PREFIX = "accutab/mail/"
+# Fuera de accutab/mail para que Storage no lo muestre como un correo mas.
+R2_REGISTRO_PROCESADOS = "accutab/_control/procesados.json"
 BATCH_SIZE = 100
 MAX_WORKERS = 4          # subidas paralelas a R2 por email
 IMAP_HOST = "imap.gmail.com"
@@ -147,11 +163,12 @@ def _listar_pendientes(imap: imaplib.IMAP4_SSL) -> list[bytes]:
     return data[0].split()[:BATCH_SIZE]
 
 
-def _obtener_mensaje(imap: imaplib.IMAP4_SSL, uid: bytes) -> EmailMessage:
+def _obtener_mensaje(imap: imaplib.IMAP4_SSL, uid: bytes) -> tuple[EmailMessage, bytes]:
     typ, data = imap.uid("FETCH", uid, "(BODY.PEEK[])")
     if typ != "OK" or not data or not isinstance(data[0], tuple):
         raise RuntimeError(f"No se pudo descargar el correo uid={uid.decode()}")
-    return email.message_from_bytes(data[0][1], policy=email.policy.default)  # type: ignore[return-value]
+    crudo = data[0][1]
+    return email.message_from_bytes(crudo, policy=email.policy.default), crudo  # type: ignore[return-value]
 
 
 def _asunto_mensaje(mensaje: EmailMessage) -> str:
@@ -172,14 +189,52 @@ def _adjuntos(mensaje: EmailMessage) -> list[tuple[str, bytes]]:
     return salida
 
 
+def _identificador(mensaje: EmailMessage, crudo: bytes) -> str:
+    """Identifica un correo para no subirlo dos veces: su Message-ID o, si no
+    trae, un hash del correo completo."""
+    mid = str(mensaje.get("Message-ID", "") or "").strip()
+    if mid:
+        return mid
+    return "sha256:" + hashlib.sha256(crudo).hexdigest()
+
+
 def _marcar_procesado(imap: imaplib.IMAP4_SSL, uid: bytes) -> None:
-    """Pone ACCUTAB_PROCESADO y quita ACCUTAB_PENDIENTE (extension X-GM-LABELS de Gmail)."""
+    """Pone ACCUTAB_PROCESADO y saca el correo de ACCUTAB_PENDIENTE.
+
+    La carpeta abierta es ACCUTAB_PENDIENTE. Quitarle esa misma etiqueta con
+    `-X-GM-LABELS` no surte efecto aunque Gmail responda OK (por eso los
+    correos se reprocesaban). En Gmail, borrar + EXPUNGE dentro de una carpeta
+    de etiqueta solo quita ESA etiqueta: el correo sigue en "Todos" y en
+    ACCUTAB_PROCESADO, que se pone antes.
+    """
     typ, _ = imap.uid("STORE", uid, "+X-GM-LABELS", f'("{LABEL_PROCESADO}")')
     if typ != "OK":
         raise RuntimeError("No se pudo aplicar la etiqueta ACCUTAB_PROCESADO")
-    typ, _ = imap.uid("STORE", uid, "-X-GM-LABELS", f'("{LABEL_PENDIENTE}")')
+    typ, _ = imap.uid("STORE", uid, "+FLAGS", "(\\Deleted)")
     if typ != "OK":
-        raise RuntimeError("No se pudo quitar la etiqueta ACCUTAB_PENDIENTE")
+        raise RuntimeError("No se pudo sacar el correo de ACCUTAB_PENDIENTE")
+    imap.expunge()
+    typ, data = imap.uid("SEARCH", None, f"UID {uid.decode()}")
+    if typ == "OK" and data and data[0] and uid in data[0].split():
+        raise RuntimeError("Gmail no saco el correo de ACCUTAB_PENDIENTE")
+
+
+# ---------------------------------------------------------------------------
+# Registro de correos ya procesados (R2)
+# ---------------------------------------------------------------------------
+
+def _leer_procesados() -> dict[str, dict]:
+    datos = _r2.leer_json(R2_REGISTRO_PROCESADOS, {})
+    return datos if isinstance(datos, dict) else {}
+
+
+def _anotar_procesado(procesados: dict[str, dict], ident: str, asunto: str, carpeta: str) -> None:
+    procesados[ident] = {
+        "asunto": asunto[:200],
+        "carpeta": carpeta,
+        "procesado_en": datetime.now(tz=timezone.utc).isoformat(),
+    }
+    _r2.escribir_json(R2_REGISTRO_PROCESADOS, procesados)
 
 
 # ---------------------------------------------------------------------------
@@ -297,18 +352,33 @@ def _procesar_email(
     imap: imaplib.IMAP4_SSL,
     uid: bytes,
     carpetas_existentes: set[str],
+    procesados: dict[str, dict],
+    solo_marcar: bool = False,
 ) -> dict:
     """
     Procesa un email AccuTab. Devuelve un dict de resumen con:
-      - msg_id, asunto, carpeta, archivos_subidos, ok, error
+      - msg_id, asunto, carpeta, archivos_subidos, ok, error, repetido
+
+    Si el correo ya esta en `procesados` (o `solo_marcar`), no sube nada:
+    solo lo anota y le corrige la etiqueta.
     """
     msg_id = uid.decode()
-    resultado: dict = {"msg_id": msg_id, "asunto": "", "carpeta": "", "archivos_subidos": [], "ok": False, "error": "", "reporte": False}
+    resultado: dict = {"msg_id": msg_id, "asunto": "", "carpeta": "", "archivos_subidos": [], "ok": False, "error": "", "reporte": False, "repetido": False}
 
     try:
-        mensaje = _obtener_mensaje(imap, uid)
+        mensaje, crudo = _obtener_mensaje(imap, uid)
         asunto = _asunto_mensaje(mensaje)
         resultado["asunto"] = asunto
+        ident = _identificador(mensaje, crudo)
+
+        if ident in procesados or solo_marcar:
+            if ident not in procesados:
+                _anotar_procesado(procesados, ident, asunto, "")
+            _marcar_procesado(imap, uid)
+            resultado["repetido"] = True
+            resultado["ok"] = True
+            log.info("YA  [%s] ya estaba subido: solo se saca de pendientes.", asunto[:60])
+            return resultado
 
         nombre_base = sanitizar_nombre(asunto)
         carpeta = _nombre_unico(nombre_base, carpetas_existentes)
@@ -347,9 +417,11 @@ def _procesar_email(
 
         resultado["archivos_subidos"] = archivos_subidos
 
-        _generar_reporte(asunto, todos_contenidos)
-        resultado["reporte"] = True
+        resultado["reporte"] = _generar_reporte(asunto, todos_contenidos)
 
+        # Se anota ANTES de tocar la etiqueta: si la etiqueta falla, la
+        # proxima corrida lo reconoce y no lo vuelve a subir.
+        _anotar_procesado(procesados, ident, asunto, carpeta)
         _marcar_procesado(imap, uid)
 
         resultado["ok"] = True
@@ -366,8 +438,15 @@ def _procesar_email(
 # Punto de entrada
 # ---------------------------------------------------------------------------
 
-def main() -> int:
-    log.info("=== AccuTab Mail Ingest ===")
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Ingesta de correos AccuTab desde Gmail a R2.")
+    ap.add_argument(
+        "--solo-marcar", action="store_true",
+        help="No sube nada: anota los pendientes como ya procesados y los saca "
+             "de ACCUTAB_PENDIENTE. Para la primera corrida tras el arreglo.",
+    )
+    args = ap.parse_args(argv)
+    log.info("=== AccuTab Mail Ingest ===%s", " (solo marcar)" if args.solo_marcar else "")
 
     if not _r2.disponible():
         log.error("R2 no esta configurado. Verifica R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET en .env")
@@ -380,7 +459,7 @@ def main() -> int:
         return 1
 
     try:
-        return _ejecutar(imap)
+        return _ejecutar(imap, solo_marcar=args.solo_marcar)
     finally:
         try:
             imap.logout()
@@ -388,7 +467,7 @@ def main() -> int:
             pass
 
 
-def _ejecutar(imap: imaplib.IMAP4_SSL) -> int:
+def _ejecutar(imap: imaplib.IMAP4_SSL, solo_marcar: bool = False) -> int:
     _asegurar_label(imap, LABEL_PROCESADO)
     _asegurar_label(imap, LABEL_PENDIENTE)
 
@@ -412,18 +491,22 @@ def _ejecutar(imap: imaplib.IMAP4_SSL) -> int:
         log.info("Nada que procesar.")
         return 0
 
+    procesados = _leer_procesados()
+
     resultados = []
     for msg_id in ids:
-        r = _procesar_email(imap, msg_id, carpetas_existentes)
+        r = _procesar_email(imap, msg_id, carpetas_existentes, procesados, solo_marcar)
         resultados.append(r)
 
     # Resumen
-    ok = [r for r in resultados if r["ok"]]
+    repetidos = [r for r in resultados if r["ok"] and r["repetido"]]
+    ok = [r for r in resultados if r["ok"] and not r["repetido"]]
     err = [r for r in resultados if not r["ok"]]
     total_archivos = sum(len(r["archivos_subidos"]) for r in ok)
 
     log.info("=== Resumen ===")
     log.info("  Procesados OK : %d", len(ok))
+    log.info("  Ya subidos    : %d (solo se sacaron de pendientes)", len(repetidos))
     log.info("  Con errores   : %d", len(err))
     log.info("  Archivos en R2: %d", total_archivos)
     if err:
