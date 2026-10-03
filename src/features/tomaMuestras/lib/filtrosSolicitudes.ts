@@ -258,3 +258,92 @@ export function chipsDeFiltros(f: FiltrosSolicitudes): { clave: ClaveFiltro; tex
   }
   return chips
 }
+
+export type ClaveLista = keyof OpcionesFiltros
+
+const VALOR_DE: Record<ClaveLista, (s: Solicitud) => string | null | undefined> = {
+  laboratorio: (s) => s.laboratorio,
+  soldTo: (s) => s.sold_to,
+  shipTo: (s) => s.ship_to,
+  especie: (s) => s.especie,
+  tipoAplicacion: tipoAplicacionDe,
+  lineaProceso: (s) => s.linea_proceso,
+  tipoMuestra: (s) => s.tipo_muestra,
+  nombreMuestreador: (s) => s.nombre_muestreador,
+}
+
+/** Las listas de los filtros se ACUMULAN: cada lista ofrece solo lo que queda
+ * con todos los OTROS filtros puestos (si eliges QUITECA, Sold To muestra solo
+ * clientes con solicitudes de QUITECA), con cuántas trae cada opción. Lo que
+ * ya está marcado sigue en la lista aunque quede en 0, para poder desmarcarlo. */
+export function opcionesAcumuladas(
+  solicitudes: Solicitud[],
+  f: FiltrosSolicitudes,
+): { opciones: OpcionesFiltros; conteo: Record<ClaveLista, (o: string) => number> } {
+  const opciones = {} as OpcionesFiltros
+  const conteo = {} as Record<ClaveLista, (o: string) => number>
+  for (const clave of Object.keys(VALOR_DE) as ClaveLista[]) {
+    const base = filtrarSolicitudes(solicitudes, { ...f, [clave]: [] })
+    const n = new Map<string, number>()
+    for (const s of base) {
+      const v = VALOR_DE[clave](s)
+      if (v) n.set(v, (n.get(v) ?? 0) + 1)
+    }
+    for (const marcado of f[clave]) if (!n.has(marcado)) n.set(marcado, 0)
+    opciones[clave] = [...n.keys()].filter(Boolean).sort((a, b) => a.localeCompare(b, 'es'))
+    conteo[clave] = (o: string) => n.get(o) ?? 0
+  }
+  return { opciones, conteo }
+}
+
+/** Cuánto duran los filtros guardados: una jornada desde el último cambio. */
+export const VIGENCIA_FILTROS_MS = 8 * 60 * 60 * 1000
+
+interface Almacen {
+  getItem(clave: string): string | null
+  setItem(clave: string, valor: string): void
+  removeItem(clave: string): void
+}
+
+export function claveFiltrosGuardados(email: string | null | undefined): string {
+  return `agrofresh.solicitudes.filtros.${(email ?? '').trim().toLowerCase() || 'anonimo'}`
+}
+
+/** Guarda los filtros con la hora; sin filtros, borra lo guardado. */
+export function guardarFiltros(almacen: Almacen, clave: string, f: FiltrosSolicitudes, ahora: number): void {
+  if (!hayFiltros(f)) {
+    almacen.removeItem(clave)
+    return
+  }
+  almacen.setItem(clave, JSON.stringify({ guardado: ahora, filtros: f }))
+}
+
+/** Los filtros guardados si todavía están vigentes; si vencieron o están
+ * dañados, se borran y se parte limpio. Solo se toman las claves conocidas,
+ * con su tipo: algo viejo o editado a mano no puede romper la pantalla. */
+export function leerFiltros(almacen: Almacen, clave: string, ahora: number): FiltrosSolicitudes {
+  const crudo = almacen.getItem(clave)
+  if (!crudo) return FILTROS_VACIOS
+  try {
+    const { guardado, filtros } = JSON.parse(crudo) as { guardado: number; filtros: Partial<FiltrosSolicitudes> }
+    if (typeof guardado !== 'number' || ahora - guardado > VIGENCIA_FILTROS_MS || ahora < guardado) {
+      almacen.removeItem(clave)
+      return FILTROS_VACIOS
+    }
+    const salida = { ...FILTROS_VACIOS }
+    for (const k of Object.keys(FILTROS_VACIOS) as (keyof FiltrosSolicitudes)[]) {
+      const v = filtros?.[k]
+      if (Array.isArray(FILTROS_VACIOS[k])) {
+        if (Array.isArray(v) && v.every((x) => typeof x === 'string')) (salida as Record<string, unknown>)[k] = v
+      } else if (typeof v === 'string') {
+        (salida as Record<string, unknown>)[k] = v
+      }
+    }
+    if (!['', 'solo', 'sin'].includes(salida.prueba)) salida.prueba = ''
+    salida.estado = salida.estado.filter((e) => e in ETIQUETA_ESTADO)
+    return salida
+  } catch {
+    almacen.removeItem(clave)
+    return FILTROS_VACIOS
+  }
+}

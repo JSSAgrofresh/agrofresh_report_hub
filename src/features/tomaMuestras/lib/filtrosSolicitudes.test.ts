@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ESTADOS_DE_VISTA, FILTROS_VACIOS, chipsDeFiltros, filtrarSolicitudes, hayFiltros, opcionesDe, resumenVistas, vistaDeEstados,
+  ESTADOS_DE_VISTA, FILTROS_VACIOS, VIGENCIA_FILTROS_MS, chipsDeFiltros, claveFiltrosGuardados, guardarFiltros, leerFiltros, opcionesAcumuladas, filtrarSolicitudes, hayFiltros, opcionesDe, resumenVistas, vistaDeEstados,
 } from './filtrosSolicitudes'
 import type { EstadoFiltro, FiltrosSolicitudes, VistaRapida } from './filtrosSolicitudes'
 import type { Solicitud } from './tipos'
@@ -142,5 +142,59 @@ describe('vistas rápidas de Solicitudes e informes', () => {
       'Desde: 01-10-2026', 'Laboratorio: QUITECA, ALS', 'Estado: Con informe', 'Pruebas: sin las de prueba',
     ])
     expect(chipsDeFiltros(FILTROS_VACIOS)).toEqual([])
+  })
+})
+
+describe('los filtros se acumulan', () => {
+  it('cada lista ofrece solo lo que queda con los otros filtros', () => {
+    const { opciones, conteo } = opcionesAcumuladas(DATOS, f({ laboratorio: ['ALS'] }))
+    expect(opciones.soldTo).toEqual(['MULTIFRUTA SA'])
+    expect(conteo.soldTo('MULTIFRUTA SA')).toBe(1)
+    // La propia lista no se achica con su filtro: se pueden marcar más.
+    expect(opciones.laboratorio).toEqual(['ALS', 'DIAGNOFRUIT', 'QUITECA'])
+    expect(conteo.laboratorio('QUITECA')).toBe(2)
+  })
+
+  it('lo marcado sigue en la lista aunque quede en 0', () => {
+    const { opciones, conteo } = opcionesAcumuladas(DATOS, f({ laboratorio: ['ALS'], especie: ['Palta'] }))
+    expect(opciones.especie).toContain('Palta')
+    expect(conteo.especie('Palta')).toBe(0)
+  })
+})
+
+describe('filtros guardados', () => {
+  const almacen = () => {
+    const m = new Map<string, string>()
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k), m }
+  }
+  const clave = claveFiltrosGuardados('Ana@AgroFresh.com')
+
+  it('vuelven al entrar de nuevo', () => {
+    const a = almacen()
+    guardarFiltros(a, clave, f({ laboratorio: ['QUITECA'], estado: ['con_informe'] }), 1000)
+    expect(leerFiltros(a, clave, 1000 + 60_000)).toEqual(f({ laboratorio: ['QUITECA'], estado: ['con_informe'] }))
+  })
+
+  it('no son infinitos: vencen y se borran', () => {
+    const a = almacen()
+    guardarFiltros(a, clave, f({ laboratorio: ['QUITECA'] }), 1000)
+    expect(leerFiltros(a, clave, 1000 + VIGENCIA_FILTROS_MS + 1)).toEqual(FILTROS_VACIOS)
+    expect(a.m.size).toBe(0)
+  })
+
+  it('son de cada cuenta', () => {
+    expect(claveFiltrosGuardados('ana@agrofresh.com')).toBe(clave)
+    expect(claveFiltrosGuardados('otro@agrofresh.com')).not.toBe(clave)
+  })
+
+  it('sin filtros no queda nada guardado; algo dañado no rompe', () => {
+    const a = almacen()
+    guardarFiltros(a, clave, f({ laboratorio: ['QUITECA'] }), 1000)
+    guardarFiltros(a, clave, FILTROS_VACIOS, 2000)
+    expect(a.m.size).toBe(0)
+    a.setItem(clave, '{roto')
+    expect(leerFiltros(a, clave, 3000)).toEqual(FILTROS_VACIOS)
+    a.setItem(clave, JSON.stringify({ guardado: 3000, filtros: { laboratorio: 'no-es-lista', estado: ['inventado', 'enviada'], prueba: 'x' } }))
+    expect(leerFiltros(a, clave, 3000)).toEqual(f({ estado: ['enviada'] }))
   })
 })
