@@ -403,6 +403,13 @@ AgroFresh, uno por vial). **No se adivina por parecido**. «En Report» = result
 de informe de Converter como `solicitud.nro_solicitud` (así llega Quiteca; misma regla que
 Auditoría interna; antes solo se miraba el OT y marcaba «Sin Report» de más). El PDF sale de auditoría o, si
 no, de Storage → Informes (`ficha_informe._buscar_pdf`); sin PDF el visor lo avisa.
+**Cada informe dice si su OT está bien cruzada** (`informes_solicitud.verificar`, campo
+`verificacion` de `/solicitudes-informes`): ✓ en el chip = el informe trae impresa esa
+misma OT («N° Solicitud: OT-…», la `referencia` en Report) y calzan planta, especie y fecha
+de muestreo; **«OT por revisar»** (rojo) = el informe dice otra OT o algo no calza (el
+motivo sale al pasar el mouse); **«OT sin confirmar»** (gris) = ya está en Report pero el
+informe no trae la OT. Si aún no hay resultados en Report no se repite: basta «Sin Report».
+Aviso rojo arriba + filtro Estado «OT por revisar» (`otPorRevisar` en `filtrosSolicitudes.ts`).
 Solo interno, y un muestreador solo ve los de sus solicitudes.
 **Zip de PDF** (selección → «PDF (.zip)», `POST /toma-muestras/solicitudes/pdf-zip`): si al
 menos una tiene informe con PDF, el zip lleva **`Solicitudes/`** e **`Informes/`**

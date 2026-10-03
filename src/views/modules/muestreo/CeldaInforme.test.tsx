@@ -29,4 +29,27 @@ describe('CeldaInforme', () => {
     render(<CeldaInforme s={sol(inf({ en_report: false }))} onAbrir={() => {}} />)
     expect(screen.getByText('Sin Report')).toHaveAttribute('title', expect.stringContaining('Filas pendientes'))
   })
+
+  it('marca con ✓ la OT que el informe confirma', () => {
+    render(<CeldaInforme s={sol(inf({ verificacion: { estado: 'confirmada', motivos: [] } }))} onAbrir={() => {}} />)
+    expect(screen.getByLabelText('OT confirmada')).toBeInTheDocument()
+    expect(screen.queryByText('OT por revisar')).toBeNull()
+  })
+
+  it('avisa la OT por revisar con el motivo', () => {
+    const v = { estado: 'revisar' as const, motivos: ['el informe dice OT-QUI0039'] }
+    render(<CeldaInforme s={sol(inf({ verificacion: v }))} onAbrir={() => {}} />)
+    expect(screen.getByText('OT por revisar')).toHaveAttribute('title', 'el informe dice OT-QUI0039')
+    expect(screen.queryByLabelText('OT confirmada')).toBeNull()
+  })
+
+  it('sin confirmar: solo lo avisa si ya está en Report (si no, basta «Sin Report»)', () => {
+    const v = { estado: 'sin_confirmar' as const, motivos: ['el informe no trae la OT'] }
+    const { unmount } = render(<CeldaInforme s={sol(inf({ verificacion: v }))} onAbrir={() => {}} />)
+    expect(screen.getByText('OT sin confirmar')).toBeInTheDocument()
+    unmount()
+    render(<CeldaInforme s={sol(inf({ en_report: false, verificacion: v }))} onAbrir={() => {}} />)
+    expect(screen.queryByText('OT sin confirmar')).toBeNull()
+    expect(screen.getByText('Sin Report')).toBeInTheDocument()
+  })
 })

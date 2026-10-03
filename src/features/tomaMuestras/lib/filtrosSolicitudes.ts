@@ -3,7 +3,7 @@ import type { Solicitud } from './tipos'
 /** Estados que se pueden marcar en el filtro. Enviada y Pendiente son excluyentes
  * entre sí; «Sin lista de distribución» es otra cosa (a quién va el correo).
  * «Con informe» y «Sin informe» también son alternativas entre sí. */
-export type EstadoFiltro = 'enviada' | 'pendiente' | 'sin_lista' | 'con_informe' | 'sin_informe' | 'sin_report'
+export type EstadoFiltro = 'enviada' | 'pendiente' | 'sin_lista' | 'con_informe' | 'sin_informe' | 'sin_report' | 'ot_revisar'
 
 /** Los filtros de la lista de solicitudes. Los que son listas se pueden marcar
  * de a varios: dentro de un mismo filtro vale cualquiera de los marcados; entre
@@ -71,11 +71,21 @@ export function tipoAplicacionDe(s: Solicitud): string {
  * alternativas), informe (Con / Sin informe, alternativas) y «Sin lista de
  * distribución». Pendiente + Sin lista = las pendientes que van a Jorge y
  * Claudia; Enviada + Sin informe = las que esperan el informe del laboratorio. */
+/** El informe tiene la OT por revisar: no calza con lo que dice el informe, o
+ * sus resultados ya están en Report y el informe no trae la OT para confirmarla
+ * (si aún no están en Report, eso ya lo avisa «Sin Report»). */
+export function otPorRevisar(s: Solicitud): boolean {
+  const v = s.informe?.verificacion
+  if (!v) return false
+  return v.estado === 'revisar' || (v.estado === 'sin_confirmar' && Boolean(s.informe?.en_report))
+}
+
 function cumpleEstado(s: Solicitud, estados: EstadoFiltro[]): boolean {
   if (estados.length === 0) return true
   if (estados.includes('sin_lista') && !s.sin_lista_distribucion) return false
   // Tiene informe (PDF subido) pero sus resultados no entraron a Report.
   if (estados.includes('sin_report') && !(s.informe && !s.informe.en_report)) return false
+  if (estados.includes('ot_revisar') && !otPorRevisar(s)) return false
   const envio = estados.filter((e) => e === 'enviada' || e === 'pendiente')
   if (envio.length && !envio.some((e) => (e === 'enviada' ? s.enviada : !s.enviada))) return false
   const informe = estados.filter((e) => e === 'con_informe' || e === 'sin_informe')
@@ -168,7 +178,7 @@ export function opcionesDe(solicitudes: Solicitud[], f: FiltrosSolicitudes): Opc
 
 /** Las vistas rápidas de arriba de Solicitudes e informes: cada indicador es
  * también un filtro de un clic (el filtro Estado con esos valores). */
-export type VistaRapida = 'todas' | 'pendientes' | 'enviadas' | 'esperando' | 'con_informe' | 'sin_report'
+export type VistaRapida = 'todas' | 'pendientes' | 'enviadas' | 'esperando' | 'con_informe' | 'sin_report' | 'ot_revisar'
 
 export const ESTADOS_DE_VISTA: Record<VistaRapida, EstadoFiltro[]> = {
   todas: [],
@@ -178,6 +188,7 @@ export const ESTADOS_DE_VISTA: Record<VistaRapida, EstadoFiltro[]> = {
   esperando: ['enviada', 'sin_informe'],
   con_informe: ['con_informe'],
   sin_report: ['sin_report'],
+  ot_revisar: ['ot_revisar'],
 }
 
 /** Qué vista rápida corresponde al filtro Estado de ahora (null = una
@@ -192,7 +203,7 @@ export function vistaDeEstados(estados: EstadoFiltro[]): VistaRapida | null {
 
 /** Cuántas solicitudes hay en cada vista rápida. */
 export function resumenVistas(lista: Solicitud[]): Record<VistaRapida, number> {
-  const r: Record<VistaRapida, number> = { todas: 0, pendientes: 0, enviadas: 0, esperando: 0, con_informe: 0, sin_report: 0 }
+  const r: Record<VistaRapida, number> = { todas: 0, pendientes: 0, enviadas: 0, esperando: 0, con_informe: 0, sin_report: 0, ot_revisar: 0 }
   for (const s of lista) {
     r.todas += 1
     if (s.enviada) r.enviadas += 1
@@ -200,6 +211,7 @@ export function resumenVistas(lista: Solicitud[]): Record<VistaRapida, number> {
     if (s.informe) r.con_informe += 1
     if (s.enviada && !s.informe) r.esperando += 1
     if (s.informe && !s.informe.en_report) r.sin_report += 1
+    if (otPorRevisar(s)) r.ot_revisar += 1
   }
   return r
 }
@@ -211,6 +223,7 @@ export const ETIQUETA_ESTADO: Record<EstadoFiltro, string> = {
   con_informe: 'Con informe',
   sin_informe: 'Sin informe',
   sin_report: 'Informe sin Report',
+  ot_revisar: 'OT por revisar',
 }
 
 type ClaveFiltro = Exclude<keyof FiltrosSolicitudes, 'busqueda'>

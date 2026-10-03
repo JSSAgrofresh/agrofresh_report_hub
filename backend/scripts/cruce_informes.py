@@ -34,6 +34,14 @@ from app.informes_solicitud import (  # noqa: E402
 )
 
 
+# Filas de informes de Converter que no entraron a Report (Sold To / Ship To que
+# no calzó con Listados): quedan en Ingesta de Datos → Filas pendientes.
+_SQL_PENDIENTES = (
+    "SELECT DISTINCT fila->>'Informe' AS informe, fila->>'Laboratorio' AS laboratorio"
+    " FROM pendiente_revision WHERE origen = 'converter'"
+)
+
+
 def _norm(t) -> str:
     return str(t or "").strip().upper()
 
@@ -59,6 +67,7 @@ def main(argv: list[str] | None = None) -> int:
             " FROM solicitud s LEFT JOIN planta p ON p.id = s.planta_id ORDER BY s.nro_solicitud"
         )
         informes_report = cur.fetchall()
+        pendientes = _filas(cur, _SQL_PENDIENTES)
 
     lab_de_ot = {s["archivo"]: s for s in solicitudes}
     asociados = asociar([(s["archivo"], s["numero_solicitud"]) for s in solicitudes], auditoria, report, en_report)
@@ -125,6 +134,55 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\nD. OT de un laboratorio con informe de otro: {len(d)}")
     for ot, l_ot, n, l_inf in d:
         print(f"   {ot} ({l_ot})  →  informe {n} ({l_inf})")
+
+    # E. Verificación de CADA informe: su OT tiene que estar confirmada por el
+    #    PDF (el «N° Solicitud: OT-…» que queda como referencia en Report) y
+    #    calzar en planta, especie y fecha de muestreo con la OT.
+    ots_de: dict[str, list[str]] = defaultdict(list)
+    for x, i in asociados.items():
+        for n in i["numeros"]:
+            ots_de[_norm(n)].append(lab_de_ot[x]["numero_solicitud"])
+    revisar = []
+    ok = 0
+    print("\nE. Verificación informe por informe:")
+    for f in sorted(informes_en_report, key=lambda f: _norm(f["nro_solicitud"])):
+        n = _norm(f["nro_solicitud"])
+        ots = ots_de.get(n, [])
+        sol = ot_por_numero.get(ots[0], {}) if len(ots) == 1 else {}
+        motivos = []
+        if not ots:
+            motivos.append("sin OT")
+        elif len(ots) > 1:
+            motivos.append("en varias OT")
+        else:
+            if _norm(f.get("referencia")) != _norm(ots[0]):
+                motivos.append("el PDF no confirma la OT" if not _norm(f.get("referencia")) else f"el PDF dice {f.get('referencia')}")
+            for campo_ot, campo_inf, nombre in (("ship_to", "planta", "planta"), ("especie", "especie", "especie")):
+                if _norm(sol.get(campo_ot)) != _norm(f.get(campo_inf)):
+                    motivos.append(f"{nombre} distinta")
+            if str(sol.get("fecha_muestreo") or "") != str(f.get("fecha_muestreo") or ""):
+                motivos.append("fecha de muestreo distinta")
+        estado = "✓ OK     " if not motivos else "⚠ REVISAR"
+        if motivos:
+            revisar.append(n)
+        else:
+            ok += 1
+        print(f"   {estado}  {f['nro_solicitud']:<16} → {', '.join(ots) or '—':<12}  {f.get('planta') or '¿?'} · "
+              f"{f.get('especie') or '¿?'} · {f.get('fecha_muestreo') or '¿?'}" + (f"   ({'; '.join(motivos)})" if motivos else ""))
+    print(f"   → {ok} confirmados, {len(revisar)} para revisar")
+
+    # F. PDFs subidos por Converter: compara con los archivos que tienes.
+    #    Subir dos veces el MISMO informe no duplica: queda uno (se reemplaza).
+    pdfs = [a for a in auditoria if del_lab(a.get("laboratorio"))]
+    en_report_nros = {_norm(f["nro_solicitud"]) for f in informes_report}
+    print(f"\nF. PDFs guardados por Converter: {len(pdfs)} (uno por N° de informe)")
+    for a in sorted(pdfs, key=lambda a: _norm(a.get("nro_informe"))):
+        marca = "" if _norm(a.get("nro_informe")) in en_report_nros else "   ← sin resultados en Report"
+        print(f"   {a.get('nro_informe') or '(sin N°)':<16} {a.get('nombre_archivo')}{marca}")
+    pend = [p for p in pendientes if del_lab(p.get("laboratorio"))]
+    print(f"\n   Informes con filas en Ingesta → Filas pendientes: {len(pend)}")
+    for p_ in pend:
+        print(f"   {p_.get('informe') or '(sin N°)'}  ({p_.get('laboratorio')})")
     print()
     return 0
 

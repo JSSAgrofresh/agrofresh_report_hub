@@ -107,6 +107,54 @@ def asociar(
     return salida
 
 
+def _comparable(valor: Any) -> str:
+    """Para comparar planta, especie y fecha: sin tildes, mayúsculas ni espacios de más."""
+    import unicodedata
+
+    t = unicodedata.normalize("NFKD", _limpio(valor)).encode("ascii", "ignore").decode()
+    return " ".join(t.upper().split())
+
+
+def verificar(ot: str, datos_ot: dict, numeros: list[str], report_por_nro: dict[str, list[dict]]) -> dict:
+    """¿Está bien cruzado el informe con ESTA OT? El informe trae su OT impresa
+    («N° Solicitud: OT-…» en Quiteca; el OT de origen en los de AgroFresh) y
+    queda en Report como `referencia`. Además planta, especie y fecha de
+    muestreo del informe tienen que ser las de la OT.
+
+    Devuelve {estado, motivos}:
+      «confirmada»    el informe dice esta OT y todo calza.
+      «revisar»       el informe dice OTRA OT, o no calza planta/especie/fecha.
+      «sin_confirmar» el informe no trae OT (o aún no está en Report): no se
+                      puede comprobar, quedó por la elección en Converter.
+    """
+    motivos_revisar: list[str] = []
+    motivos_sin: list[str] = []
+    for n in numeros:
+        filas = report_por_nro.get(_limpio(n).upper(), [])
+        if not filas:
+            motivos_sin.append(f"{n}: aún sin resultados en Report para comprobar la OT")
+            continue
+        refs = {_limpio(f.get("referencia")).upper() for f in filas} - {""}
+        if _limpio(ot).upper() not in refs:
+            if refs:
+                motivos_revisar.append(f"{n}: el informe dice {', '.join(sorted(refs))}")
+            else:
+                motivos_sin.append(f"{n}: el informe no trae la OT")
+        f = filas[0]
+        for campo_ot, campo_inf, nombre in (("ship_to", "planta", "planta"), ("especie", "especie", "especie")):
+            a, b = _comparable(datos_ot.get(campo_ot)), _comparable(f.get(campo_inf))
+            if a and b and a != b:
+                motivos_revisar.append(f"{n}: {nombre} distinta ({f.get(campo_inf)})")
+        fa, fb = _limpio(datos_ot.get("fecha_muestreo"))[:10], _limpio(f.get("fecha_muestreo"))[:10]
+        if fa and fb and fa != fb:
+            motivos_revisar.append(f"{n}: fecha de muestreo distinta ({fb})")
+    if motivos_revisar:
+        return {"estado": "revisar", "motivos": motivos_revisar + motivos_sin}
+    if motivos_sin:
+        return {"estado": "sin_confirmar", "motivos": motivos_sin}
+    return {"estado": "confirmada", "motivos": []}
+
+
 def _filas(cur, sql: str) -> list[dict]:
     """Una consulta que tolera que su tabla no exista todavía en el servidor."""
     try:
@@ -121,7 +169,7 @@ def _filas(cur, sql: str) -> list[dict]:
 
 
 _SQL_AUDITORIA = (
-    "SELECT id, archivo_solicitud, numero_solicitud, nro_informe, nombre_archivo, r2_key, subido_en"
+    "SELECT id, archivo_solicitud, numero_solicitud, nro_informe, nombre_archivo, r2_key, subido_en, laboratorio"
     " FROM informe_auditoria ORDER BY subido_en ASC, id ASC"
 )
 # Los N° de informe de Converter que ya tienen resultados en Report.
@@ -130,33 +178,57 @@ _SQL_INFORMES_EN_REPORT = (
     " JOIN solicitud s ON upper(btrim(s.nro_solicitud)) = upper(btrim(i.nro_informe))"
     " WHERE i.nro_informe IS NOT NULL"
 )
+# Lo que dice cada informe en Report (su OT impresa y su planta, especie y
+# fecha), para comprobar el cruce. Solo los informes que tienen algo que ver
+# con una OT: los de Converter y los que traen referencia.
+_SQL_REPORT_DETALLE = (
+    "SELECT s.nro_solicitud, s.referencia, s.especie, s.fecha_muestreo,"
+    " COALESCE(p.nombre, s.ship_to_raw) AS planta"
+    " FROM solicitud s LEFT JOIN planta p ON p.id = s.planta_id"
+    " WHERE (s.referencia IS NOT NULL AND btrim(s.referencia) <> '')"
+    " OR upper(btrim(s.nro_solicitud)) IN"
+    " (SELECT upper(btrim(nro_informe)) FROM informe_auditoria WHERE nro_informe IS NOT NULL)"
+)
 _SQL_REPORT = (
     "SELECT id, nro_solicitud, referencia FROM solicitud"
     " WHERE referencia IS NOT NULL AND btrim(referencia) <> '' ORDER BY id ASC"
 )
 
 
-def _solicitudes_visibles(usuario: Usuario) -> list[tuple[str, str]]:
+def _solicitudes_visibles_datos(usuario: Usuario) -> list[tuple[str, str, dict]]:
     # Importado acá: toma_muestras es grande y no depende de este módulo.
     from .toma_muestras import _es_propia, leer_todas_las_solicitudes
 
     return [
-        (nombre, _limpio(datos.get("numero_solicitud")))
+        (nombre, _limpio(datos.get("numero_solicitud")), datos)
         for nombre, datos in leer_todas_las_solicitudes()
         if _es_propia(usuario, datos)
     ]
 
 
+def _solicitudes_visibles(usuario: Usuario) -> list[tuple[str, str]]:
+    return [(a, n) for a, n, _ in _solicitudes_visibles_datos(usuario)]
+
+
 @router.get("/solicitudes-informes")
 def informes_de_solicitudes(usuario: Usuario = Depends(solo_interno)) -> dict[str, dict]:
-    """{archivo: {nro_informe, numeros, pdf_guardado, en_report}} de las
-    solicitudes visibles que ya tienen informe."""
-    visibles = _solicitudes_visibles(usuario)
+    """{archivo: {nro_informe, numeros, pdf_guardado, en_report, verificacion}}
+    de las solicitudes visibles que ya tienen informe."""
+    visibles = _solicitudes_visibles_datos(usuario)
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         auditoria = _filas(cur, _SQL_AUDITORIA)
         report = _filas(cur, _SQL_REPORT)
         en_report = {f["nro"] for f in _filas(cur, _SQL_INFORMES_EN_REPORT)}
-    return asociar(visibles, auditoria, report, en_report)
+        detalle = _filas(cur, _SQL_REPORT_DETALLE)
+    salida = asociar([(a, n) for a, n, _ in visibles], auditoria, report, en_report)
+    # ¿Cada informe está bien cruzado con su OT? (lo que dice el propio informe)
+    por_nro: dict[str, list[dict]] = {}
+    for f in detalle:
+        por_nro.setdefault(_limpio(f.get("nro_solicitud")).upper(), []).append(f)
+    for archivo, numero, datos in visibles:
+        if archivo in salida:
+            salida[archivo]["verificacion"] = verificar(numero, datos, salida[archivo]["numeros"], por_nro)
+    return salida
 
 
 def _ubicar_pdf(cur, archivo: str, numero: str, auditoria: list[dict], report: list[dict]) -> dict | None:

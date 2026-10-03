@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ESTADOS_DE_VISTA, FILTROS_VACIOS, VIGENCIA_FILTROS_MS, chipsDeFiltros, claveFiltrosGuardados, guardarFiltros, leerFiltros, opcionesAcumuladas, filtrarSolicitudes, hayFiltros, opcionesDe, resumenVistas, vistaDeEstados,
+  ESTADOS_DE_VISTA, FILTROS_VACIOS, VIGENCIA_FILTROS_MS, chipsDeFiltros, claveFiltrosGuardados, guardarFiltros, leerFiltros, opcionesAcumuladas, filtrarSolicitudes, hayFiltros, opcionesDe, otPorRevisar, resumenVistas, vistaDeEstados,
 } from './filtrosSolicitudes'
 import type { EstadoFiltro, FiltrosSolicitudes, VistaRapida } from './filtrosSolicitudes'
 import type { Solicitud } from './tipos'
@@ -120,7 +120,7 @@ describe('vistas rápidas de Solicitudes e informes', () => {
   ]
 
   it('cuenta cada vista', () => {
-    expect(resumenVistas(datos)).toEqual({ todas: 4, pendientes: 1, enviadas: 3, esperando: 1, con_informe: 2, sin_report: 1 })
+    expect(resumenVistas(datos)).toEqual({ todas: 4, pendientes: 1, enviadas: 3, esperando: 1, con_informe: 2, sin_report: 1, ot_revisar: 0 })
   })
 
   it('cada vista filtra lo mismo que cuenta', () => {
@@ -142,6 +142,27 @@ describe('vistas rápidas de Solicitudes e informes', () => {
       'Desde: 01-10-2026', 'Laboratorio: QUITECA, ALS', 'Estado: Con informe', 'Pruebas: sin las de prueba',
     ])
     expect(chipsDeFiltros(FILTROS_VACIOS)).toEqual([])
+  })
+})
+
+describe('OT por revisar', () => {
+  const inf = { nro_informe: 'X', numeros: ['X'], pdf_guardado: true, en_report: true }
+  const ver = (estado: 'confirmada' | 'revisar' | 'sin_confirmar', en_report = true) =>
+    ({ ...inf, en_report, verificacion: { estado, motivos: [] } })
+  const datos = [
+    sol('OK', { enviada: true, informe: ver('confirmada') }),
+    sol('MAL', { enviada: true, informe: ver('revisar') }),
+    sol('SIN_OT', { enviada: true, informe: ver('sin_confirmar') }),
+    // Sin resultados en Report: ya lo marca «Sin Report», no se repite acá.
+    sol('SIN_REPORT', { enviada: true, informe: ver('sin_confirmar', false) }),
+    sol('VIEJO', { enviada: true, informe: inf }),
+  ]
+
+  it('marca las que no calzan y las que el informe no confirma', () => {
+    expect(datos.filter(otPorRevisar).map((s) => s.numero_solicitud)).toEqual(['MAL', 'SIN_OT'])
+    expect(resumenVistas(datos).ot_revisar).toBe(2)
+    expect(filtrarSolicitudes(datos, f({ estado: ['ot_revisar'] })).map((s) => s.numero_solicitud)).toEqual(['MAL', 'SIN_OT'])
+    expect(vistaDeEstados(['ot_revisar'])).toBe('ot_revisar')
   })
 })
 
