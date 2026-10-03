@@ -402,6 +402,11 @@ de informe de Converter como `solicitud.nro_solicitud` (así llega Quiteca; mism
 Auditoría interna; antes solo se miraba el OT y marcaba «Sin Report» de más). El PDF sale de auditoría o, si
 no, de Storage → Informes (`ficha_informe._buscar_pdf`); sin PDF el visor lo avisa.
 Solo interno, y un muestreador solo ve los de sus solicitudes.
+**Zip de PDF** (selección → «PDF (.zip)», `POST /toma-muestras/solicitudes/pdf-zip`): si al
+menos una tiene informe con PDF, el zip lleva **`Solicitudes/`** e **`Informes/`**
+(«OT-QUI0047 - Informe 2026-1885-PC.pdf»; `informes_solicitud.informes_para_zip`, nunca
+lanza: si la base o R2 fallan, sale solo con las solicitudes). Sin informes, plano como antes.
+Las cuentas `cliente` nunca reciben informes en el zip.
 
 ## Ingreso al laboratorio: corregir un cruce
 
