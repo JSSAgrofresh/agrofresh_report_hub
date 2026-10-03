@@ -66,6 +66,23 @@ describe('filtros de solicitudes con varias opciones', () => {
     expect(numeros(filtrarSolicitudes(DATOS, f({ estado: ['enviada', 'sin_lista'] })))).toEqual(['D'])
   })
 
+  it('Estado: Con informe y Sin informe son alternativas y se suman al envío', () => {
+    const inf = { nro_informe: '2026-1885-PC', numeros: ['2026-1885-PC'], pdf_guardado: true, en_report: true }
+    const datos = [
+      sol('A', { enviada: true, informe: inf }),
+      sol('B', { enviada: true, informe: null }),
+      sol('C', { enviada: false }),
+    ]
+    expect(numeros(filtrarSolicitudes(datos, f({ estado: ['con_informe'] })))).toEqual(['A'])
+    expect(numeros(filtrarSolicitudes(datos, f({ estado: ['sin_informe'] })))).toEqual(['B', 'C'])
+    expect(filtrarSolicitudes(datos, f({ estado: ['con_informe', 'sin_informe'] }))).toHaveLength(3)
+    // Enviada + Sin informe: las que esperan el informe del laboratorio.
+    expect(numeros(filtrarSolicitudes(datos, f({ estado: ['enviada', 'sin_informe'] })))).toEqual(['B'])
+    expect(filtrarSolicitudes(datos, f({ estado: ['pendiente', 'con_informe'] }))).toHaveLength(0)
+    // El buscador también encuentra por N° de informe.
+    expect(numeros(filtrarSolicitudes(datos, f({ busqueda: '1885-pc' })))).toEqual(['A'])
+  })
+
   it('los filtros de texto siguen funcionando junto a las listas', () => {
     expect(numeros(filtrarSolicitudes(DATOS, f({ variedad: 'gal', laboratorio: ['ALS'] })))).toEqual(['B'])
     expect(numeros(filtrarSolicitudes(DATOS, f({ busqueda: 'multifruta' })))).toEqual(['B'])

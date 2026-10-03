@@ -18,6 +18,9 @@ import {
   descargarPdfsZip,
   descargarPdfSolicitud,
   abrirPdfSolicitud,
+  listarInformesDeSolicitudes,
+  abrirPdfInformeSolicitud,
+  descargarPdfInformeSolicitud,
   enviarSolicitudPorCorreo,
   estadoSolicitudesPrueba,
   FILTROS_VACIOS,
@@ -31,6 +34,7 @@ import type { ConfigEnvioAutomatico, EstadoFiltro, FiltrosSolicitudes, OpcionCon
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { VistaPrevia } from '@/views/modules/storage/VistaPrevia'
 import { EstadoSolicitud } from './EstadoSolicitud'
+import { CeldaInforme } from './CeldaInforme'
 import { EliminarConClave } from '@/components/ui/EliminarConClave'
 import styles from './SolicitudesView.module.css'
 
@@ -41,6 +45,8 @@ const ETIQUETA_DE: Record<EstadoFiltro, string> = {
   enviada: 'Enviada',
   pendiente: 'Pendiente',
   sin_lista: 'Sin lista de distribución',
+  con_informe: 'Con informe',
+  sin_informe: 'Sin informe',
 }
 const ETIQUETAS_ESTADO = Object.values(ETIQUETA_DE)
 const ESTADO_DE = Object.fromEntries(
@@ -61,6 +67,8 @@ export function SolicitudesView() {
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
   // Solicitud cuyo PDF se está mirando en pantalla (mismo visor que Storage).
   const [pdfAbierto, setPdfAbierto] = useState<Solicitud | null>(null)
+  // Solicitud cuyo INFORME del laboratorio se está mirando.
+  const [informeAbierto, setInformeAbierto] = useState<Solicitud | null>(null)
 
   // Toggle de envío automático (solo visible para admin_general)
   // Una regla general y una por tipo de aplicación (Actimist, Línea de proceso…).
@@ -128,8 +136,13 @@ export function SolicitudesView() {
 
   const refrescar = useCallback(async () => {
     try {
-      const resultado = await listarSolicitudes()
-      setSolicitudes(resultado)
+      // Los informes vienen aparte: si esa consulta falla, el listado sale
+      // igual, solo sin la columna Informe llena.
+      const [resultado, informes] = await Promise.all([
+        listarSolicitudes(),
+        listarInformesDeSolicitudes().catch(() => ({}) as Record<string, never>),
+      ])
+      setSolicitudes(resultado.map((s) => ({ ...s, informe: informes[s.archivo] ?? null })))
       setError(null)
     } catch {
       setError('No se pudo conectar con el backend.')
@@ -646,7 +659,7 @@ export function SolicitudesView() {
                     <th>Laboratorio</th>
                     <th>Cliente / Planta</th>
                     <th>Especie</th>
-                    <th>Estado</th>
+                    <th>Estado / Informe</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -683,7 +696,10 @@ export function SolicitudesView() {
                       </td>
                       <td>{s.especie ?? '—'}</td>
                       <td>
-                        <EstadoSolicitud s={s} />
+                        <div className={styles.estadoEInforme}>
+                          <EstadoSolicitud s={s} />
+                          {s.informe && <CeldaInforme s={s} onAbrir={setInformeAbierto} />}
+                        </div>
                       </td>
                       <td className={styles.acciones}>
                         <button
@@ -757,6 +773,12 @@ export function SolicitudesView() {
                       <span className={styles.tarjetaLabel}>Tipo muestra</span>
                       <span className={styles.tarjetaValor}>{s.tipo_muestra ?? '—'}</span>
                     </div>
+                    <div>
+                      <span className={styles.tarjetaLabel}>Informe</span>
+                      <span className={styles.tarjetaValor}>
+                        <CeldaInforme s={s} onAbrir={setInformeAbierto} />
+                      </span>
+                    </div>
                   </div>
                   <div className={styles.tarjetaPie}>
                     <button
@@ -795,6 +817,25 @@ export function SolicitudesView() {
           abrir={abrirPdfSolicitud}
           onDescargar={() => void descargarPdfSolicitud(pdfAbierto.archivo)}
           onCerrar={() => setPdfAbierto(null)}
+        />
+      )}
+      {informeAbierto && (
+        <VistaPrevia
+          entrada={{
+            nombre: `Informe ${informeAbierto.informe?.nro_informe ?? informeAbierto.numero_solicitud}.pdf`,
+            ruta: informeAbierto.archivo,
+            tipo: 'archivo',
+            tamano_bytes: null,
+            modificado: '',
+          }}
+          abrir={abrirPdfInformeSolicitud}
+          onDescargar={() =>
+            void descargarPdfInformeSolicitud(
+              informeAbierto.archivo,
+              `${informeAbierto.informe?.nro_informe ?? informeAbierto.numero_solicitud}.pdf`,
+            )
+          }
+          onCerrar={() => setInformeAbierto(null)}
         />
       )}
     </div>

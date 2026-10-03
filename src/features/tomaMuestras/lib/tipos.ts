@@ -54,6 +54,20 @@ export interface Solicitud {
    * Ship To y especie): rige el respaldo, solo Jorge y Claudia. Lo calcula el
    * backend con los contactos de hoy; no se guarda. */
   sin_lista_distribucion?: boolean | null
+  /** El informe del laboratorio, si ya llegó (lo agrega la pantalla desde
+   * `/toma-muestras/solicitudes-informes`; null/ausente = sin informe). */
+  informe?: InformeSolicitud | null
+}
+
+/** El informe de una solicitud: el PDF subido por Converter con su OT y/o los
+ * resultados en Report que traen el OT. */
+export interface InformeSolicitud {
+  nro_informe: string | null
+  /** Todos los N° de informe (AgroFresh sube uno por vial). */
+  numeros: string[]
+  /** Hay PDF subido por Converter; si es false, el PDF se busca al abrirlo y puede no estar. */
+  pdf_guardado: boolean
+  en_report: boolean
 }
 
 /** Envío automático al guardar: regla general + una propia por tipo de aplicación. */

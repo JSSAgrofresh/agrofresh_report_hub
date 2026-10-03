@@ -17,6 +17,7 @@ import type {
   ProductoConfig,
   ProductoInput,
   EstadoSolicitudesPrueba,
+  InformeSolicitud,
   ReanalisisInput,
   Solicitud,
   SolicitudInput,
@@ -86,6 +87,20 @@ export function descargarPdfSolicitud(archivo: string) {
     `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/pdf`,
     `${archivo}.pdf`,
   )
+}
+
+/** {archivo: informe} de las solicitudes que ya tienen informe del laboratorio. */
+export function listarInformesDeSolicitudes() {
+  return httpClient.get<Record<string, InformeSolicitud>>('/toma-muestras/solicitudes-informes')
+}
+
+/** El PDF del informe del laboratorio, como blob para el visor. */
+export function abrirPdfInformeSolicitud(archivo: string) {
+  return httpClient.getArchivoConNombre(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/informe/pdf`)
+}
+
+export function descargarPdfInformeSolicitud(archivo: string, nombre: string) {
+  return descargarArchivo(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/informe/pdf`, nombre)
 }
 
 /** El PDF como blob, para mostrarlo en pantalla sin guardarlo en disco. */
