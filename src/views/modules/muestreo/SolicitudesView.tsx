@@ -47,6 +47,7 @@ const ETIQUETA_DE: Record<EstadoFiltro, string> = {
   sin_lista: 'Sin lista de distribución',
   con_informe: 'Con informe',
   sin_informe: 'Sin informe',
+  sin_report: 'Informe sin Report',
 }
 const ETIQUETAS_ESTADO = Object.values(ETIQUETA_DE)
 const ESTADO_DE = Object.fromEntries(

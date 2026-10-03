@@ -3,7 +3,7 @@ import type { Solicitud } from './tipos'
 /** Estados que se pueden marcar en el filtro. Enviada y Pendiente son excluyentes
  * entre sí; «Sin lista de distribución» es otra cosa (a quién va el correo).
  * «Con informe» y «Sin informe» también son alternativas entre sí. */
-export type EstadoFiltro = 'enviada' | 'pendiente' | 'sin_lista' | 'con_informe' | 'sin_informe'
+export type EstadoFiltro = 'enviada' | 'pendiente' | 'sin_lista' | 'con_informe' | 'sin_informe' | 'sin_report'
 
 /** Los filtros de la lista de solicitudes. Los que son listas se pueden marcar
  * de a varios: dentro de un mismo filtro vale cualquiera de los marcados; entre
@@ -74,6 +74,8 @@ export function tipoAplicacionDe(s: Solicitud): string {
 function cumpleEstado(s: Solicitud, estados: EstadoFiltro[]): boolean {
   if (estados.length === 0) return true
   if (estados.includes('sin_lista') && !s.sin_lista_distribucion) return false
+  // Tiene informe (PDF subido) pero sus resultados no entraron a Report.
+  if (estados.includes('sin_report') && !(s.informe && !s.informe.en_report)) return false
   const envio = estados.filter((e) => e === 'enviada' || e === 'pendiente')
   if (envio.length && !envio.some((e) => (e === 'enviada' ? s.enviada : !s.enviada))) return false
   const informe = estados.filter((e) => e === 'con_informe' || e === 'sin_informe')

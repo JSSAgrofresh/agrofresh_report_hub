@@ -79,6 +79,9 @@ describe('filtros de solicitudes con varias opciones', () => {
     // Enviada + Sin informe: las que esperan el informe del laboratorio.
     expect(numeros(filtrarSolicitudes(datos, f({ estado: ['enviada', 'sin_informe'] })))).toEqual(['B'])
     expect(filtrarSolicitudes(datos, f({ estado: ['pendiente', 'con_informe'] }))).toHaveLength(0)
+    // «Informe sin Report»: tiene PDF pero sus resultados no están en Report.
+    const sinReport = sol('E', { enviada: true, informe: { ...inf, en_report: false } })
+    expect(numeros(filtrarSolicitudes([...datos, sinReport], f({ estado: ['sin_report'] })))).toEqual(['E'])
     // El buscador también encuentra por N° de informe.
     expect(numeros(filtrarSolicitudes(datos, f({ busqueda: '1885-pc' })))).toEqual(['A'])
   })

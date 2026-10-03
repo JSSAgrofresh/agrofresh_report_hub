@@ -16,9 +16,19 @@ export function CeldaInforme({ s, onAbrir }: { s: Solicitud; onAbrir: (s: Solici
     inf.pdf_guardado ? 'Clic para ver el PDF' : 'Clic para buscar el PDF',
   ].join(' · ')
   return (
-    <button type="button" className={styles.chipInforme} title={titulo} onClick={() => onAbrir(s)}>
-      <span aria-hidden="true">📄</span> {numero}
-      {extra}
-    </button>
+    <span className={styles.informeYAviso}>
+      <button type="button" className={styles.chipInforme} title={titulo} onClick={() => onAbrir(s)}>
+        <span aria-hidden="true">📄</span> {numero}
+        {extra}
+      </button>
+      {!inf.en_report && (
+        <span
+          className={styles.chipSinReport}
+          title="El PDF del informe se subió, pero sus resultados no están en Report: revisa Ingesta de Datos → Filas pendientes (Sold To / Ship To que no calzó con Listados)."
+        >
+          Sin Report
+        </span>
+      )}
+    </span>
   )
 }

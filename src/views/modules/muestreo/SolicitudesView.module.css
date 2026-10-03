@@ -814,3 +814,23 @@
   align-items: flex-start;
   gap: 4px;
 }
+
+.informeYAviso {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Hay PDF del informe, pero sus resultados no entraron a Report. */
+.chipSinReport {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+  color: #8a5a00;
+  background: #fff4dc;
+  border: 1px solid #f0d9a4;
+}

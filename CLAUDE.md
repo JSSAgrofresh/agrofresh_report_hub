@@ -377,7 +377,9 @@ son alternativas y «Sin lista de distribución» se suma como condición.
 
 **Informe de cada solicitud** (Toma de muestras → Solicitudes, debajo del estado): el N°
 de informe del laboratorio en un chip azul que abre el PDF en el visor; Estado filtra
-también «Con informe» / «Sin informe» y el buscador encuentra por N° de informe. Backend:
+también «Con informe» / «Sin informe» / «Informe sin Report» y el buscador encuentra por N° de informe.
+Si hay PDF pero sus resultados no están en Report, el chip lleva al lado «Sin Report» (amarillo):
+por eso «Con informe» puede dar más que el conteo de Report (filas en Ingesta → Filas pendientes). Backend:
 `app/informes_solicitud.py` (`GET /toma-muestras/solicitudes-informes`, aparte del
 listado: si falla, el listado sale igual; y `/solicitudes/{archivo}/informe/pdf`). Una
 solicitud llega a su informe por el PDF de Converter con su OT (`informe_auditoria`) o
