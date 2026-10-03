@@ -762,35 +762,57 @@ class PdfZipIn(BaseModel):
 @router.post("/solicitudes/pdf-zip")
 def descargar_pdfs_zip(body: PdfZipIn, usuario: Usuario = Depends(usuario_actual)) -> Response:
     """Los PDF de varias solicitudes en un solo .zip. Respeta el acceso de cada
-    una (las que la sesión no puede ver se omiten) y va en nombres únicos."""
+    una (las que la sesión no puede ver se omiten) y va en nombres únicos.
+    Si alguna ya tiene informe del laboratorio, van en dos carpetas:
+    Solicitudes/ y Informes/ (`informes_solicitud.informes_para_zip`)."""
     archivos = list(dict.fromkeys(body.archivos))
     if len(archivos) > MAX_PDF_ZIP:
         raise HTTPException(413, f"Son demasiadas solicitudes de una vez (máximo {MAX_PDF_ZIP}).")
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     analisis_config = _leer_config("analisis_laboratorio.json", [])
-    salida = io.BytesIO()
-    generados = 0
-    with zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as z:
-        for archivo in archivos:
-            try:
-                if r2.disponible():
-                    data, ext = _descargar_solicitud_r2(archivo)
-                    datos = _leer_solicitud_bytes(data, ext)
-                    numero = os.path.splitext(os.path.basename(archivo))[0]
-                else:
-                    ruta = _ruta_archivo(archivo)
-                    numero = os.path.splitext(os.path.basename(ruta))[0]
-                    datos = _leer_solicitud_archivo(ruta)
-                if not _es_propia(usuario, datos):
-                    continue
-                datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
-                z.writestr(f"{numero}.pdf", generar_pdf_solicitud(datos_pdf, analitos_config, analisis_config))
-                generados += 1
-            except HTTPException:
+    # PDF de cada solicitud: (archivo, N° de solicitud, nombre en el zip, bytes).
+    pdfs: list[tuple[str, str, str, bytes]] = []
+    for archivo in archivos:
+        try:
+            if r2.disponible():
+                data, ext = _descargar_solicitud_r2(archivo)
+                datos = _leer_solicitud_bytes(data, ext)
+                numero = os.path.splitext(os.path.basename(archivo))[0]
+            else:
+                ruta = _ruta_archivo(archivo)
+                numero = os.path.splitext(os.path.basename(ruta))[0]
+                datos = _leer_solicitud_archivo(ruta)
+            if not _es_propia(usuario, datos):
                 continue
-    if generados == 0:
+            datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
+            pdfs.append((
+                archivo,
+                str(datos.get("numero_solicitud") or numero),
+                f"{numero}.pdf",
+                generar_pdf_solicitud(datos_pdf, analitos_config, analisis_config),
+            ))
+        except HTTPException:
+            continue
+    if not pdfs:
         raise HTTPException(404, "No se pudo generar ningún PDF de la selección.")
-    nombre = f"Solicitudes_PDF_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+
+    # Si al menos una tiene informe del laboratorio, el zip lleva dos carpetas:
+    # Solicitudes/ e Informes/. Si ninguna tiene, sale como siempre (plano).
+    # Los informes son solo para personal interno.
+    informes: list[tuple[str, bytes]] = []
+    if usuario.tipoAcceso != "cliente":
+        from .informes_solicitud import informes_para_zip
+
+        informes = informes_para_zip([(archivo, numero) for archivo, numero, _, _ in pdfs])
+    carpeta = "Solicitudes/" if informes else ""
+    salida = io.BytesIO()
+    with zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as z:
+        for _, _, nombre_pdf, contenido in pdfs:
+            z.writestr(f"{carpeta}{nombre_pdf}", contenido)
+        for nombre_informe, contenido in informes:
+            z.writestr(f"Informes/{nombre_informe}", contenido)
+    prefijo = "Solicitudes_e_informes" if informes else "Solicitudes_PDF"
+    nombre = f"{prefijo}_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
     return Response(
         content=salida.getvalue(),
         media_type="application/zip",

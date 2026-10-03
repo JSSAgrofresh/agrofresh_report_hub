@@ -159,6 +159,80 @@ def informes_de_solicitudes(usuario: Usuario = Depends(solo_interno)) -> dict[st
     return asociar(visibles, auditoria, report, en_report)
 
 
+def _ubicar_pdf(cur, archivo: str, numero: str, auditoria: list[dict], report: list[dict]) -> dict | None:
+    """Dónde está el PDF del informe de una solicitud: {origen, nombre, clave}."""
+    # 1. El PDF que se subió por Converter con esta OT (la más reciente queda al final).
+    aud = None
+    for fila in auditoria:
+        if _limpio(fila.get("archivo_solicitud")) == archivo or (
+            not _limpio(fila.get("archivo_solicitud"))
+            and numero and _limpio(fila.get("numero_solicitud")).upper() == numero.upper()
+        ):
+            aud = fila
+    if aud:
+        return {"origen": "auditoria", "nombre": aud["nombre_archivo"], "clave": aud["r2_key"]}
+    # 2. Si no, el de los resultados en Report (como la ficha de Report).
+    for fila in report:
+        if not numero or _limpio(fila.get("referencia")).upper() != numero.upper():
+            continue
+        sol = _solicitud(cur, fila["id"])
+        pdf = _buscar_pdf(cur, sol) if sol else None
+        if pdf:
+            return pdf
+    return None
+
+
+def _bajar_pdf(pdf: dict) -> bytes | None:
+    if pdf["origen"] == "auditoria":
+        return r2a.descargar(pdf["clave"]) if r2a.disponible() else None
+    return r2.descargar(pdf["clave"])
+
+
+def nombre_en_zip(numero: str, nro_informe: str | None, nombre_original: str) -> str:
+    """«OT-QUI0047 - Informe 2026-1885-PC.pdf»: se reconoce de qué solicitud es."""
+    seguro = lambda t: "".join("_" if c in '<>:"/\\|?*' else c for c in t).strip()  # noqa: E731
+    base = seguro(numero) or "solicitud"
+    if nro_informe:
+        return f"{base} - Informe {seguro(nro_informe)}.pdf"
+    return f"{base} - {seguro(nombre_original) or 'informe.pdf'}"
+
+
+def informes_para_zip(pares: list[tuple[str, str]]) -> list[tuple[str, bytes]]:
+    """Los PDF de informe de estas solicitudes (archivo, N° OT), como
+    (nombre dentro del zip, bytes). Las que no tienen informe o cuyo PDF no
+    está guardado se saltan. Nunca lanza: si la base o R2 fallan, el zip sale
+    igual, solo con las solicitudes."""
+    salida: list[tuple[str, bytes]] = []
+    usados: set[str] = set()
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            auditoria = _filas(cur, _SQL_AUDITORIA)
+            report = _filas(cur, _SQL_REPORT)
+            asociados = asociar(pares, auditoria, report)
+            for archivo, numero in pares:
+                info = asociados.get(archivo)
+                if not info:
+                    continue
+                try:
+                    pdf = _ubicar_pdf(cur, archivo, numero, auditoria, report)
+                    datos = _bajar_pdf(pdf) if pdf else None
+                except Exception:
+                    logger.exception("No se pudo bajar el informe de %s para el zip", archivo)
+                    continue
+                if not datos:
+                    continue
+                nombre = nombre_en_zip(numero, info.get("nro_informe"), pdf["nombre"])
+                n = 2
+                while nombre.lower() in usados:
+                    nombre = nombre[:-4] + f" ({n}).pdf"
+                    n += 1
+                usados.add(nombre.lower())
+                salida.append((nombre, datos))
+    except Exception:
+        logger.exception("No se pudieron agregar los informes al zip")
+    return salida
+
+
 @router.get("/solicitudes/{archivo}/informe/pdf")
 def pdf_informe_de_solicitud(archivo: str, usuario: Usuario = Depends(solo_interno)) -> Response:
     visibles = dict(_solicitudes_visibles(usuario))
@@ -172,25 +246,7 @@ def pdf_informe_de_solicitud(archivo: str, usuario: Usuario = Depends(solo_inter
         if archivo not in asociar([(archivo, numero)], auditoria, report):
             raise HTTPException(404, "Esta solicitud todavía no tiene informe.")
 
-        # 1. El PDF que se subió por Converter con esta OT.
-        aud = None
-        for fila in auditoria:
-            if _limpio(fila.get("archivo_solicitud")) == archivo or (
-                not _limpio(fila.get("archivo_solicitud"))
-                and numero and _limpio(fila.get("numero_solicitud")).upper() == numero.upper()
-            ):
-                aud = fila  # la más reciente queda al final
-        pdf = {"origen": "auditoria", "nombre": aud["nombre_archivo"], "clave": aud["r2_key"]} if aud else None
-
-        # 2. Si no, el de los resultados en Report (como la ficha de Report).
-        if pdf is None:
-            for fila in report:
-                if _limpio(fila.get("referencia")).upper() != numero.upper():
-                    continue
-                sol = _solicitud(cur, fila["id"])
-                pdf = _buscar_pdf(cur, sol) if sol else None
-                if pdf:
-                    break
+        pdf = _ubicar_pdf(cur, archivo, numero, auditoria, report)
 
     if pdf is None:
         raise HTTPException(404, "El informe está en Report, pero no tiene un PDF guardado.")

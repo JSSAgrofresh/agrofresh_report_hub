@@ -159,3 +159,75 @@ def test_muestreador_solo_ve_sus_solicitudes(monkeypatch):
     ])
     assert mod._solicitudes_visibles(cuenta("muestreador")) == [("mia.xlsx", "OT-1")]
     assert len(mod._solicitudes_visibles(cuenta("admin_general"))) == 2
+
+
+# ---------------------------------------------------------------------------
+# Zip de PDF: con al menos un informe, carpetas Solicitudes/ e Informes/
+# ---------------------------------------------------------------------------
+
+import io
+import zipfile
+
+from app import toma_muestras
+
+
+@pytest.fixture
+def zip_simulado(monkeypatch):
+    monkeypatch.setattr(toma_muestras.r2, "disponible", lambda: False)
+    monkeypatch.setattr(toma_muestras, "_ruta_archivo", lambda a: f"/x/{a}")
+    monkeypatch.setattr(toma_muestras, "_leer_solicitud_archivo", lambda ruta: {"numero_solicitud": ruta.rsplit("/", 1)[-1].split(".")[0]})
+    monkeypatch.setattr(toma_muestras, "_datos_pdf_con_destinatarios_resultados", lambda d: d)
+    monkeypatch.setattr(toma_muestras, "generar_pdf_solicitud", lambda d, a, b: b"%PDF-sol-" + d["numero_solicitud"].encode())
+    monkeypatch.setattr(toma_muestras, "_leer_config", lambda n, d: d)
+    app.dependency_overrides[usuario_actual] = lambda: cuenta()
+    yield monkeypatch
+    app.dependency_overrides.clear()
+
+
+def _nombres_zip(r):
+    assert r.status_code == 200, r.text
+    return sorted(zipfile.ZipFile(io.BytesIO(r.content)).namelist())
+
+
+class TestZip:
+    def test_con_un_informe_van_dos_carpetas(self, zip_simulado):
+        pedidos = []
+
+        def informes(pares):
+            pedidos.append(pares)
+            return [("OT-QUI0047 - Informe 2026-1885-PC.pdf", b"%PDF-inf")]
+
+        zip_simulado.setattr(mod, "informes_para_zip", informes)
+        r = cliente.post("/api/toma-muestras/solicitudes/pdf-zip", json={"archivos": ["OT-QUI0047.xlsx", "OT-QUI0046.xlsx"]})
+        assert _nombres_zip(r) == [
+            "Informes/OT-QUI0047 - Informe 2026-1885-PC.pdf",
+            "Solicitudes/OT-QUI0046.pdf",
+            "Solicitudes/OT-QUI0047.pdf",
+        ]
+        assert pedidos == [[("OT-QUI0047.xlsx", "OT-QUI0047"), ("OT-QUI0046.xlsx", "OT-QUI0046")]]
+        assert "Solicitudes_e_informes" in r.headers["content-disposition"]
+
+    def test_sin_informes_sale_como_siempre(self, zip_simulado):
+        zip_simulado.setattr(mod, "informes_para_zip", lambda pares: [])
+        r = cliente.post("/api/toma-muestras/solicitudes/pdf-zip", json={"archivos": ["OT-QUI0046.xlsx"]})
+        assert _nombres_zip(r) == ["OT-QUI0046.pdf"]
+        assert "Solicitudes_PDF" in r.headers["content-disposition"]
+
+
+class TestInformesParaZip:
+    def test_baja_los_que_tienen_pdf_y_salta_el_resto(self, entorno, monkeypatch):
+        entorno["auditoria"] = [aud(archivo="a.xlsx", nro="2026-1885-PC"), aud(archivo="b.xlsx", nro="2026-1886-PC", id_=2, nombre="b.pdf")]
+        monkeypatch.setattr(mod.r2a, "descargar", lambda k: None if k.endswith("b.pdf") else b"%PDF")
+        r = mod.informes_para_zip([("a.xlsx", "OT-1"), ("b.xlsx", "OT-2"), ("c.xlsx", "OT-3")])
+        assert r == [("OT-1 - Informe 2026-1885-PC.pdf", b"%PDF")]
+
+    def test_si_la_base_falla_no_rompe_el_zip(self, monkeypatch):
+        def boom(*a, **k):
+            raise RuntimeError("sin base")
+
+        monkeypatch.setattr(mod, "conexion", boom)
+        assert mod.informes_para_zip([("a.xlsx", "OT-1")]) == []
+
+    def test_nombre_sin_caracteres_raros(self):
+        assert mod.nombre_en_zip("OT-1", "2026/18:85", "x.pdf") == "OT-1 - Informe 2026_18_85.pdf"
+        assert mod.nombre_en_zip("OT-1", None, "ORIGINAL.pdf") == "OT-1 - ORIGINAL.pdf"
