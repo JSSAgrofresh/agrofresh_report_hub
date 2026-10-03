@@ -1007,7 +1007,11 @@ def cruzar_con_muestra(
             "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.",
         ) from e
     _exigir_acceso(usuario, datos_actuales)
-    if body.codigo_muestra is None and usuario.email.lower() != _SUPER_ADMIN_EMAIL:
+    # Vacío o solo espacios también deshace el cruce (`indice_solicitudes.cruzar`
+    # lo normaliza a None): la regla se mira sobre lo normalizado, si no, mandar
+    # "" saltaba el resguardo.
+    quita_la_muestra = not (body.codigo_muestra or "").strip()
+    if quita_la_muestra and usuario.email.lower() != _SUPER_ADMIN_EMAIL:
         # Quitar la muestra de una solicitud es solo del administrador principal.
         raise HTTPException(403, "Solo el administrador principal puede quitar una muestra.")
     try:
