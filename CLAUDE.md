@@ -118,6 +118,7 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/cargar_listado_actimist.py` | Carga el listado de Actimist (Sold To / Ship To) desde la dinámica del Planner (`--aplicar` para escribir). Lo mismo desde Listados → Actimist → Importar Excel |
 | `scripts/reintentar_pendientes_ingesta.py` | Reprocesa las filas pendientes y descarta las que siguen sin Ship To válido (respaldo en `logs/`) |
 | `scripts/limpiar_duplicados_accutab.py` | Borra reportes de Post Venta y carpetas `accutab/mail/` duplicados por la ingesta de correo (deja uno por correo) |
+| `scripts/cruce_informes.py` | Solo lee: explica por qué «Solicitudes e informes» (OT con informe) y Report (informes) no dan el mismo número (`--lab Quiteca`) |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
 Hay ~9 scripts en `backend/scripts/` que fueron migraciones de una sola vez
