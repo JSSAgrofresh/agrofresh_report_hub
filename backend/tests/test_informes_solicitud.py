@@ -247,13 +247,16 @@ def test_script_cruce_informes_explica_la_diferencia(monkeypatch, capsys):
         def fetchall(self):
             if "FROM solicitud_archivo" in self.ultimo:
                 return [
-                    {"archivo": "a.xlsx", "numero_solicitud": "OT-QUI1", "laboratorio": "QUITECA"},
-                    {"archivo": "b.xlsx", "numero_solicitud": "OT-QUI2", "laboratorio": "QUITECA"},
+                    {"archivo": "a.xlsx", "numero_solicitud": "OT-QUI1", "laboratorio": "QUITECA",
+                     "ship_to": "DOLE CODEGUA", "especie": "Palta", "fecha_muestreo": "2026-09-30"},
+                    {"archivo": "b.xlsx", "numero_solicitud": "OT-QUI2", "laboratorio": "QUITECA",
+                     "ship_to": "GESEX", "especie": "Naranja", "fecha_muestreo": "2026-09-29"},
                     {"archivo": "c.xlsx", "numero_solicitud": "OT-QUI3", "laboratorio": "QUITECA"},
                     {"archivo": "d.xlsx", "numero_solicitud": "OT-ALS1", "laboratorio": "ALS"},
                 ]
             return [
-                {"id": 1, "nro_solicitud": "2026-1", "referencia": "", "laboratorio": "Quiteca"},
+                {"id": 1, "nro_solicitud": "2026-1", "referencia": "OT-QUI1", "laboratorio": "Quiteca",
+                 "planta": "DOLE CODEGUA", "especie": "Palta", "fecha_muestreo": "2026-09-30"},
                 {"id": 2, "nro_solicitud": "2026-9", "referencia": "", "laboratorio": "Quiteca"},
                 {"id": 3, "nro_solicitud": "2026-4", "referencia": "", "laboratorio": "Quiteca"},
             ]
@@ -280,6 +283,54 @@ def test_script_cruce_informes_explica_la_diferencia(monkeypatch, capsys):
     assert "OT con informe : 3" in out and "informes        : 3" in out
     assert "OT-QUI3  →  informe 2026-3" in out          # A: sin Report
     assert "informe 2026-1  →  OT-QUI1, OT-QUI2" in out  # B: un informe, dos OT
+    # De dónde viene cada asociación y cuál calza con el informe:
+    assert "OT-QUI1: DOLE CODEGUA · Palta · muestreo 2026-09-30  [lo dice el PDF + elegida en Converter]  ✓ CALZA" in out
+    assert "OT-QUI2: GESEX · Naranja · muestreo 2026-09-29  [elegida en Converter]\n" in out
     assert "2026-9  (Quiteca, sin OT)" in out          # C: en Report sin OT
     sc.main([])
     assert "OT-ALS1 (ALS)  →  informe 2026-4 (Quiteca)" in capsys.readouterr().out  # D
+
+
+def test_script_corregir_ot_solo_escribe_con_aplicar(monkeypatch, capsys, tmp_path):
+    from scripts import corregir_ot_informe as sc
+
+    escritos = []
+
+    class Cur:
+        def execute(self, sql, params=()):
+            self.sql = sql
+            if sql.startswith("UPDATE"):
+                escritos.append((sql.split()[1], params))
+
+        def fetchone(self):
+            return {"archivo": "OT-QUI0025.xlsx", "numero_solicitud": "OT-QUI0025", "laboratorio": "QUITECA",
+                    "ship_to": "X", "especie": "Palta", "fecha_muestreo": "2026-09-30"}
+
+        def fetchall(self):
+            if "informe_auditoria" in self.sql:
+                return [{"id": 7, "archivo_solicitud": "OT-QUI0024.xlsx", "numero_solicitud": "OT-QUI0024", "laboratorio": "Quiteca"}]
+            return [{"id": 9, "nro_solicitud": "2026-1885-PC", "referencia": "OT-QUI0025", "laboratorio": "Quiteca"}]
+
+    @contextmanager
+    def con(escribir=True):
+        yield None
+
+    @contextmanager
+    def cur_dict(conn):
+        yield Cur()
+
+    monkeypatch.setattr(sc, "conexion", con)
+    monkeypatch.setattr(sc, "cursor_dict", cur_dict)
+    monkeypatch.setattr(sc, "_BACKEND", tmp_path / "backend")
+    (tmp_path / "backend").mkdir()
+
+    assert sc.main(["--informe", "2026-1885-PC", "--ot", "ot-qui0025"]) == 0
+    assert escritos == []
+    assert "OT OT-QUI0024 (OT-QUI0024.xlsx)  →  OT-QUI0025" in capsys.readouterr().out
+
+    assert sc.main(["--informe", "2026-1885-PC", "--ot", "OT-QUI0025", "--aplicar"]) == 0
+    assert escritos == [
+        ("informe_auditoria", ("OT-QUI0025.xlsx", "OT-QUI0025", "2026-1885-PC")),
+        ("solicitud", ("OT-QUI0025", "2026-1885-PC")),
+    ]
+    assert list((tmp_path / "logs").glob("corregir_ot_2026-1885-PC_*.json"))

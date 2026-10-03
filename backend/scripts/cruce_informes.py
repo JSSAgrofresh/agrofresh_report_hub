@@ -45,12 +45,19 @@ def main(argv: list[str] | None = None) -> int:
     lab = _norm(args.lab)
 
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT archivo, numero_solicitud, laboratorio FROM solicitud_archivo ORDER BY numero_solicitud")
+        cur.execute(
+            "SELECT archivo, numero_solicitud, laboratorio, ship_to, especie, fecha_muestreo"
+            " FROM solicitud_archivo ORDER BY numero_solicitud"
+        )
         solicitudes = cur.fetchall()
         auditoria = _filas(cur, _SQL_AUDITORIA)
         report = _filas(cur, _SQL_REPORT)
         en_report = {f["nro"] for f in _filas(cur, _SQL_INFORMES_EN_REPORT)}
-        cur.execute("SELECT id, nro_solicitud, referencia, laboratorio FROM solicitud ORDER BY nro_solicitud")
+        cur.execute(
+            "SELECT s.id, s.nro_solicitud, s.referencia, s.laboratorio, s.especie, s.fecha_muestreo,"
+            " COALESCE(p.nombre, s.ship_to_raw) AS planta"
+            " FROM solicitud s LEFT JOIN planta p ON p.id = s.planta_id ORDER BY s.nro_solicitud"
+        )
         informes_report = cur.fetchall()
 
     lab_de_ot = {s["archivo"]: s for s in solicitudes}
@@ -79,8 +86,25 @@ def main(argv: list[str] | None = None) -> int:
             por_numero[_norm(n)].append(lab_de_ot[x]["numero_solicitud"])
     b = {n: ots for n, ots in por_numero.items() if len(ots) > 1}
     print(f"\nB. Un mismo N° de informe asociado a más de una OT: {len(b)}")
+    ot_por_numero = {s["numero_solicitud"]: s for s in solicitudes}
+    info_report = {_norm(f["nro_solicitud"]): f for f in informes_report}
     for n, ots in b.items():
-        print(f"   informe {n}  →  {', '.join(ots)}")
+        inf = info_report.get(n)
+        print(f"\n   informe {n}  →  {', '.join(ots)}")
+        if inf:
+            print(f"      el informe es de: {inf.get('planta') or '¿?'} · {inf.get('especie') or '¿?'} · muestreo {inf.get('fecha_muestreo') or '¿?'}")
+        for ot in ots:
+            fuentes = []
+            if inf and _norm(inf.get("referencia")) == _norm(ot):
+                fuentes.append("lo dice el PDF")
+            if any(_norm(a.get("nro_informe")) == n and (
+                    a.get("archivo_solicitud") == ot_por_numero.get(ot, {}).get("archivo")
+                    or _norm(a.get("numero_solicitud")) == _norm(ot)) for a in auditoria):
+                fuentes.append("elegida en Converter")
+            sol = ot_por_numero.get(ot, {})
+            calza = inf is not None and _norm(sol.get("ship_to")) == _norm(inf.get("planta")) and _norm(sol.get("especie")) == _norm(inf.get("especie")) and str(sol.get("fecha_muestreo") or "") == str(inf.get("fecha_muestreo") or "")
+            print(f"      {ot}: {sol.get('ship_to') or '¿?'} · {sol.get('especie') or '¿?'} · muestreo {sol.get('fecha_muestreo') or '¿?'}"
+                  f"  [{' + '.join(fuentes) or 'otra vía'}]{'  ✓ CALZA' if calza else ''}")
 
     # C. Informes en Report sin OT
     asociados_nros = {_norm(n) for i in asociados.values() for n in i["numeros"]}
