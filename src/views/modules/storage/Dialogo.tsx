@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 import styles from './Dialogo.module.css'
 
@@ -23,13 +24,15 @@ export function Dialogo({ titulo, ancho = 'normal', onCerrar, children, pie }: D
     return () => window.removeEventListener('keydown', alTeclear)
   }, [onCerrar])
 
-  return (
+  // Al body: ver Modal.tsx (un `transform` en un ancestro atrapa el `fixed`).
+  return createPortal(
     <div className={styles.fondo} onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}>
       <div className={`${styles.ventana} ${ancho === 'amplio' ? styles.amplia : ''}`} role="dialog" aria-modal="true" aria-label={titulo}>
         <h2 className={styles.titulo}>{titulo}</h2>
         <div className={styles.cuerpo}>{children}</div>
         {pie && <div className={styles.pie}>{pie}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

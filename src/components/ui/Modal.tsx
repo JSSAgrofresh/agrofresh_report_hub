@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 import { IconoCerrar } from './iconosAccion'
 import styles from './Modal.module.css'
@@ -32,7 +33,10 @@ export function Modal({ titulo, subtitulo, onCerrar, children, pie, ancho = 'nor
     }
   }, [onCerrar])
 
-  return (
+  // Al body: dentro de un elemento con `transform` (una fila animada de una
+  // tabla) un `position: fixed` queda atrapado en ese elemento y el diálogo se
+  // dibuja recortado dentro de la fila.
+  return createPortal(
     <div className={styles.fondo} onClick={onCerrar}>
       <div
         ref={cuerpo}
@@ -55,6 +59,7 @@ export function Modal({ titulo, subtitulo, onCerrar, children, pie, ancho = 'nor
         <div className={styles.cuerpo}>{children}</div>
         {pie && <footer className={styles.pie}>{pie}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

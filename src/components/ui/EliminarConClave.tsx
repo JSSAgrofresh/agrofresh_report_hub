@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { verificarClave } from '@/features/auth/api/authApi'
 import { Modal } from './Modal'
 import styles from './EliminarConClave.module.css'
@@ -13,6 +13,8 @@ interface EliminarConClaveProps {
   /** Lo que se hace una vez que la clave fue correcta. */
   onConfirmar: () => Promise<void> | void
   className?: string
+  /** Con ícono, el botón muestra solo el ícono (la etiqueta queda como nombre accesible y tooltip). */
+  icono?: ReactNode
 }
 
 /**
@@ -20,7 +22,7 @@ interface EliminarConClaveProps {
  * contraseña de quien lo aprieta antes de hacer nada. Pensado para lo que solo
  * el administrador principal puede hacer y no se deshace.
  */
-export function EliminarConClave({ etiqueta, titulo, descripcion, onConfirmar, className }: EliminarConClaveProps) {
+export function EliminarConClave({ etiqueta, titulo, descripcion, onConfirmar, className, icono }: EliminarConClaveProps) {
   const [abierto, setAbierto] = useState(false)
   const [clave, setClave] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -58,8 +60,14 @@ export function EliminarConClave({ etiqueta, titulo, descripcion, onConfirmar, c
 
   return (
     <>
-      <button type="button" className={`${styles.punteado} ${className ?? ''}`} onClick={() => setAbierto(true)}>
-        {etiqueta}
+      <button
+        type="button"
+        className={`${icono ? styles.icono : styles.punteado} ${className ?? ''}`}
+        onClick={() => setAbierto(true)}
+        aria-label={icono ? etiqueta : undefined}
+        title={icono ? etiqueta : undefined}
+      >
+        {icono ?? etiqueta}
       </button>
       {abierto && (
         <Modal

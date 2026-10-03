@@ -60,3 +60,23 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* Variante de solo ícono (filas de tablas). */
+.icono {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px dashed transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-faint);
+  cursor: pointer;
+}
+
+.icono:hover,
+.icono:focus-visible {
+  border-color: rgba(176, 39, 31, 0.45);
+  background: rgba(176, 39, 31, 0.07);
+  color: var(--color-danger);
+}
