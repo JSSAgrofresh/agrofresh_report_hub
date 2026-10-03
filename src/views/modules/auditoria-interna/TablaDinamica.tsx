@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { LABS_PIVOTE, TIPOS_PIVOTE, camposTituloTabla, pivotePorMes } from '@/features/auditoriaInterna'
+import { LABS_PIVOTE, camposTituloTabla, contarFueraDeTabla, pivotePorMes, tipoCorto } from '@/features/auditoriaInterna'
 import type { CeldaLab, FilaPivote, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { colorDeTipo } from './coloresTipo'
 import styles from './TablaDinamica.module.css'
@@ -41,8 +41,18 @@ function Reparto({ c }: { c: CeldaLab }) {
  * grupos (Línea de proceso, Actimist), cada uno con la cantidad de Quiteca y de
  * Agrofresh y cómo se reparten en %. El cambio mes ↔ semana desliza las filas.
  */
-export function TablaDinamica({ solicitudes, filtros }: { solicitudes: SolicitudAuditoria[]; filtros: FiltrosSolicitudes }) {
+export function TablaDinamica({
+  solicitudes,
+  filtros,
+  tipos,
+}: {
+  solicitudes: SolicitudAuditoria[]
+  filtros: FiltrosSolicitudes
+  /** Los grupos de columnas que se muestran (según el área elegida). */
+  tipos: readonly string[]
+}) {
   const pivote = useMemo(() => pivotePorMes(solicitudes), [solicitudes])
+  const fuera = useMemo(() => contarFueraDeTabla(solicitudes, tipos), [solicitudes, tipos])
   const [mes, setMes] = useState<string | null>(null)
   const [sentido, setSentido] = useState<'entra' | 'vuelve'>('entra')
 
@@ -69,7 +79,7 @@ export function TablaDinamica({ solicitudes, filtros }: { solicitudes: Solicitud
   }, [enSemanas])
 
   const maximos = Object.fromEntries(
-    TIPOS_PIVOTE.map((t) => [
+    tipos.map((t) => [
       t,
       {
         quiteca: Math.max(0, ...filas.map((f) => f.tipos[t].quiteca)),
@@ -130,22 +140,22 @@ export function TablaDinamica({ solicitudes, filtros }: { solicitudes: Solicitud
             <thead>
               <tr>
                 <th rowSpan={2} className={styles.colPeriodo} scope="col">{enSemanas ? 'Semana' : 'Mes'}</th>
-                {TIPOS_PIVOTE.map((t) => (
+                {tipos.map((t) => (
                   <th key={t} colSpan={3} scope="colgroup" className={styles.grupo} style={{ '--tipo': colorDeTipo(t) } as CSSProperties}>
-                    <span>{t}</span>
+                    <span>{tipoCorto(t)}</span>
                     <small>{nf.format(totales[t].total)} análisis</small>
                   </th>
                 ))}
               </tr>
               <tr>
-                {TIPOS_PIVOTE.map((t) => (
-                  <ColumnasLab key={t} tipo={t} />
+                {tipos.map((t) => (
+                  <ColumnasLab key={t} tipo={tipoCorto(t)} />
                 ))}
               </tr>
             </thead>
             <tbody key={mesActual?.clave ?? 'meses'} className={sentido === 'entra' ? styles.entra : styles.vuelve}>
               {filas.map((f, i) => {
-                const vacia = TIPOS_PIVOTE.every((t) => f.tipos[t].total === 0)
+                const vacia = tipos.every((t) => f.tipos[t].total === 0)
                 const clicable = !enSemanas && !vacia
                 return (
                   <tr
@@ -169,7 +179,7 @@ export function TablaDinamica({ solicitudes, filtros }: { solicitudes: Solicitud
                         </span>
                       )}
                     </th>
-                    {TIPOS_PIVOTE.map((t) => (
+                    {tipos.map((t) => (
                       <CeldasTipo key={t} c={f.tipos[t]} max={maximos[t]} />
                     ))}
                   </tr>
@@ -179,13 +189,18 @@ export function TablaDinamica({ solicitudes, filtros }: { solicitudes: Solicitud
             <tfoot>
               <tr>
                 <th scope="row" className={styles.colPeriodo}>{enSemanas ? `Total ${mesActual?.etiqueta}` : 'Total'}</th>
-                {TIPOS_PIVOTE.map((t) => (
+                {tipos.map((t) => (
                   <CeldasTipo key={t} c={totales[t]} max={null} />
                 ))}
               </tr>
             </tfoot>
           </table>
         </div>
+      )}
+      {fuera > 0 && (
+        <p className={styles.nota}>
+          {nf.format(fuera)} solicitud{fuera === 1 ? '' : 'es'} de estos tipos no entra{fuera === 1 ? '' : 'n'} acá porque son de otro laboratorio (solo se cuentan Quiteca y Agrofresh) o no tienen fecha; sí están en las donas.
+        </p>
       )}
     </section>
   )

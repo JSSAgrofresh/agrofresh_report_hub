@@ -11,7 +11,7 @@ export const ESTADOS: Record<
   { texto: string; corto: string; color: string; tinta: string; fondo: string; descripcion: string }
 > = {
   concretada: {
-    texto: 'Informes Recibidos',
+    texto: 'Informes recibidos',
     corto: 'Concretada',
     color: '#1b7f5c',
     tinta: '#14664a',
@@ -38,7 +38,7 @@ export const ESTADOS: Record<
 
 export const ORDEN_ESTADOS: EstadoSolicitud[] = ['concretada', 'sin_report', 'pendiente']
 
-/** Los estados que muestran las donas y la cifra de arriba: Informes Recibidos y
+/** Los estados que muestran las donas y la cifra de arriba: Informes recibidos y
  * Solicitudes enviadas. «PDF sin Report» no se muestra aparte: se suma a las
  * solicitudes enviadas (aún sin informe concretado), así el total no cambia. */
 export const ESTADOS_DONA: EstadoSolicitud[] = ['concretada', 'pendiente']

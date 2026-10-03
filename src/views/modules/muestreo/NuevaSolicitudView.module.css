@@ -413,6 +413,11 @@
   font-size: 13px;
   color: var(--color-text);
   line-height: 1.4;
+  /* Un correo largo se parte dentro de la pastilla en vez de empujar la
+     pantalla hacia el costado en el celular. */
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .tipoDestinatario {
@@ -542,4 +547,25 @@
   align-self: flex-start;
   padding: 6px 10px;
   color: var(--color-primary);
+}
+
+/* Bajo el Sold To: de qué listado salen los clientes (solo Actimist). */
+.listadoServicio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+
+.avisoListado {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  background: #fdf3e7;
+  color: var(--color-warning);
+  font-size: 11.5px;
+  line-height: 1.4;
 }

@@ -16,14 +16,17 @@ import {
   porClienteYServicio,
   resumenPorTipo,
   simularSolicitudes,
+  tipoCorto,
+  tiposDeArea,
   topClientesPorServicio,
   totales,
   useSolicitudesAuditoria,
 } from '@/features/auditoriaInterna'
-import type { FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
+import type { AreaPivote, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { DonaTipoServicio, GraficoClienteServicio, LeyendaTipos, TarjetaGrafico } from './Graficos'
 import { altoClienteServicio } from './coloresTipo'
 import { PanelFiltros } from './PanelFiltros'
+import { SelectorArea } from './SelectorArea'
 import { ResumenConcretadas } from './ResumenConcretadas'
 import { TablaDinamica } from './TablaDinamica'
 import styles from './SolicitudesInformesView.module.css'
@@ -35,7 +38,7 @@ const TIPOS_GRAFICO: { valor: TipoGrafico; texto: string }[] = [
   { valor: 'ambos', texto: 'Todos' },
   { valor: TIPO_ACTIMIST, texto: 'Actimist' },
   { valor: TIPO_LINEA, texto: 'Línea de proceso' },
-  { valor: TIPO_RYD, texto: 'RYD' },
+  { valor: TIPO_RYD, texto: 'R&D' },
 ]
 const TODOS_LOS_TIPOS = [TIPO_ACTIMIST, TIPO_LINEA, TIPO_RYD]
 
@@ -54,6 +57,8 @@ export function SolicitudesInformesView() {
   }
 
   const [filtros, setFiltros] = useState<FiltrosSolicitudes>({ ...FILTROS_VACIOS })
+  // null = ver todo (lo predeterminado)
+  const [area, setArea] = useState<AreaPivote | null>(null)
   const [tipoGrafico, setTipoGrafico] = useState<TipoGrafico>('ambos')
   const [topClientes, setTopClientes] = useState(10)
 
@@ -136,13 +141,14 @@ export function SolicitudesInformesView() {
             </div>
           ) : (
             <>
+              <SelectorArea area={area} onChange={setArea} />
               <div className={styles.panel}>
                 <div className={styles.lateral}>
-                  <DonaTipoServicio tipo={TIPO_LINEA} resumen={lineaProceso} />
-                  <DonaTipoServicio tipo={TIPO_ACTIMIST} resumen={actimist} />
-                  {ryd.emitidas > 0 && <DonaTipoServicio tipo={TIPO_RYD} resumen={ryd} />}
+                  {area !== 'rd' && <DonaTipoServicio tipo={TIPO_LINEA} resumen={lineaProceso} />}
+                  {area !== 'rd' && <DonaTipoServicio tipo={TIPO_ACTIMIST} resumen={actimist} />}
+                  {(area === 'rd' || (area === null && ryd.emitidas > 0)) && <DonaTipoServicio tipo={TIPO_RYD} resumen={ryd} />}
                 </div>
-                <TablaDinamica solicitudes={alcance} filtros={filtros} />
+                <TablaDinamica solicitudes={alcance} filtros={filtros} tipos={tiposDeArea(area)} />
               </div>
 
               <TarjetaGrafico
@@ -167,7 +173,7 @@ export function SolicitudesInformesView() {
                   </>
                 }
                 tabla={{
-                  columnas: ['Cliente', ...tiposElegidos.flatMap((t) => [`${t} · análisis`, `${t} · informes`])],
+                  columnas: ['Cliente', ...tiposElegidos.flatMap((t) => [`${tipoCorto(t)} · análisis`, `${tipoCorto(t)} · informes`])],
                   filas: clientes.map((c) => [c.cliente, ...tiposElegidos.flatMap((t) => [c.tipos[t]?.analisis ?? 0, c.tipos[t]?.informes ?? 0])]),
                 }}
               >

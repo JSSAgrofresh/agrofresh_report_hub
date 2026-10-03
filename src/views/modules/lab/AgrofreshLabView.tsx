@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 import { ROUTES } from '@/constants/routes'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/features/auth'
+import { CORREO_MAESTRO, esAdminGeneral } from '@/features/usuarios'
 import { HttpError } from '@/services/http/client'
 import {
   cruzarConMuestra,
@@ -39,6 +41,9 @@ import styles from './AgrofreshLabView.module.css'
  */
 export function AgrofreshLabView() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  // Quitar una muestra es solo del administrador principal.
+  const puedeQuitarCruce = user ? esAdminGeneral(user) && user.email === CORREO_MAESTRO : false
   const [solicitudes, setSolicitudes] = useState<Solicitud[] | null>(null)
   const [errorSolicitudes, setErrorSolicitudes] = useState<string | null>(null)
   const [sinSolicitudes, setSinSolicitudes] = useState(false)
@@ -160,10 +165,8 @@ export function AgrofreshLabView() {
               solicitudes={solicitudes}
               onVerFicha={setSolicitudEnFicha}
               onCruceEditado={refrescarSolicitudes}
-              onQuitarCruce={(s) => {
-                if (!confirm(`¿Quitar la muestra ${s.codigo_muestra} de esta solicitud?`)) return
-                void cruzar(s, null)
-              }}
+              puedeQuitarCruce={puedeQuitarCruce}
+              onQuitarCruce={(s) => cruzar(s, null)}
             />
           </>
         )}

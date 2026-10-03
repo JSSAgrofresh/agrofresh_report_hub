@@ -13,10 +13,12 @@ function sol(n: number, codigo: string | null): Solicitud {
 
 const editarCruce = vi.fn()
 const obtenerFotoCruce = vi.fn()
+const guardarPesoExtraido = vi.fn()
 vi.mock('@/features/emitir', async (orig) => ({
   ...(await orig<typeof import('@/features/emitir')>()),
   editarCruce: (a: string, d: unknown) => editarCruce(a, d),
   obtenerFotoCruce: (a: string) => obtenerFotoCruce(a),
+  guardarPesoExtraido: (a: string, p: number) => guardarPesoExtraido(a, p),
 }))
 
 const props = { onVerFicha: vi.fn(), onQuitarCruce: vi.fn(), onCruceEditado: vi.fn() }
@@ -100,5 +102,34 @@ describe('TablaSolicitudes · corregir cruce y foto', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Editar cruce' }))
     fireEvent.change(screen.getByLabelText(/Peso/), { target: { value: '0' } })
     expect(screen.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled()
+  })
+})
+
+describe('TablaSolicitudes · segundo peso (muestra extraída)', () => {
+  const cruzadaSinPeso = { ...sol(7, 'AGF0007'), peso_muestra: 10, unidad_peso: 'kg' }
+
+  it('pide el segundo peso solo en las filas cruzadas y lo guarda', async () => {
+    guardarPesoExtraido.mockReset().mockResolvedValue({})
+    render(<TablaSolicitudes solicitudes={[cruzadaSinPeso, sol(8, null)]} {...props} />)
+    const inputs = screen.getAllByLabelText(/Segundo peso/)
+    expect(inputs).toHaveLength(1)
+    fireEvent.change(inputs[0], { target: { value: '5.025' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar segundo peso' }))
+    await waitFor(() => expect(guardarPesoExtraido).toHaveBeenCalledWith('OT-AGF7.xlsx', 5.025))
+  })
+
+  it('la fila pasa a verde fuerte cuando el peso ya está guardado', () => {
+    const { container } = render(
+      <TablaSolicitudes solicitudes={[cruzadaSinPeso, { ...sol(9, 'AGF0009'), peso_muestra_extraido: 5.1 }]} {...props} />,
+    )
+    const filas = container.querySelectorAll('tbody tr')
+    expect(filas[0].className).toMatch(/lista/)
+    expect(filas[0].className).not.toMatch(/listaCompleta/)
+    expect(filas[1].className).toMatch(/listaCompleta/)
+  })
+
+  it('«Quitar muestra» no aparece sin permiso', () => {
+    render(<TablaSolicitudes solicitudes={[cruzadaSinPeso]} {...props} />)
+    expect(screen.queryByRole('button', { name: 'Quitar muestra' })).toBeNull()
   })
 })
