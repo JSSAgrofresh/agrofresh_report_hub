@@ -92,5 +92,10 @@ export {
   hayFiltros,
   opcionesDe,
   tipoAplicacionDe,
+  ESTADOS_DE_VISTA,
+  ETIQUETA_ESTADO,
+  chipsDeFiltros,
+  resumenVistas,
+  vistaDeEstados,
 } from './lib/filtrosSolicitudes'
-export type { EstadoFiltro, FiltrosSolicitudes, OpcionesFiltros } from './lib/filtrosSolicitudes'
+export type { EstadoFiltro, FiltrosSolicitudes, OpcionesFiltros, VistaRapida } from './lib/filtrosSolicitudes'

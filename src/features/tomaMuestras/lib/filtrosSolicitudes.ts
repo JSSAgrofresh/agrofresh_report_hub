@@ -165,3 +165,96 @@ export function opcionesDe(solicitudes: Solicitud[], f: FiltrosSolicitudes): Opc
     nombreMuestreador: ordenar(conjuntos.nombreMuestreador),
   }
 }
+
+/** Las vistas rápidas de arriba de Solicitudes e informes: cada indicador es
+ * también un filtro de un clic (el filtro Estado con esos valores). */
+export type VistaRapida = 'todas' | 'pendientes' | 'enviadas' | 'esperando' | 'con_informe' | 'sin_report'
+
+export const ESTADOS_DE_VISTA: Record<VistaRapida, EstadoFiltro[]> = {
+  todas: [],
+  pendientes: ['pendiente'],
+  enviadas: ['enviada'],
+  // Ya salieron al laboratorio y el informe todavía no vuelve.
+  esperando: ['enviada', 'sin_informe'],
+  con_informe: ['con_informe'],
+  sin_report: ['sin_report'],
+}
+
+/** Qué vista rápida corresponde al filtro Estado de ahora (null = una
+ * combinación hecha a mano en el panel de filtros). */
+export function vistaDeEstados(estados: EstadoFiltro[]): VistaRapida | null {
+  const clave = [...estados].sort().join('|')
+  for (const [vista, valores] of Object.entries(ESTADOS_DE_VISTA) as [VistaRapida, EstadoFiltro[]][]) {
+    if ([...valores].sort().join('|') === clave) return vista
+  }
+  return null
+}
+
+/** Cuántas solicitudes hay en cada vista rápida. */
+export function resumenVistas(lista: Solicitud[]): Record<VistaRapida, number> {
+  const r: Record<VistaRapida, number> = { todas: 0, pendientes: 0, enviadas: 0, esperando: 0, con_informe: 0, sin_report: 0 }
+  for (const s of lista) {
+    r.todas += 1
+    if (s.enviada) r.enviadas += 1
+    else r.pendientes += 1
+    if (s.informe) r.con_informe += 1
+    if (s.enviada && !s.informe) r.esperando += 1
+    if (s.informe && !s.informe.en_report) r.sin_report += 1
+  }
+  return r
+}
+
+export const ETIQUETA_ESTADO: Record<EstadoFiltro, string> = {
+  enviada: 'Enviada',
+  pendiente: 'Pendiente',
+  sin_lista: 'Sin lista de distribución',
+  con_informe: 'Con informe',
+  sin_informe: 'Sin informe',
+  sin_report: 'Informe sin Report',
+}
+
+type ClaveFiltro = Exclude<keyof FiltrosSolicitudes, 'busqueda'>
+
+const NOMBRE_FILTRO: Record<ClaveFiltro, string> = {
+  fechaDesde: 'Desde',
+  fechaHasta: 'Hasta',
+  numeroSolicitud: 'N°',
+  solicitante: 'Solicitante',
+  variedad: 'Variedad',
+  laboratorio: 'Laboratorio',
+  soldTo: 'Sold To',
+  shipTo: 'Ship To',
+  especie: 'Especie',
+  tipoAplicacion: 'Tipo de aplicación',
+  lineaProceso: 'Línea de proceso',
+  tipoMuestra: 'Tipo muestra',
+  nombreMuestreador: 'Muestreador',
+  estado: 'Estado',
+  prueba: 'Pruebas',
+}
+
+function fechaCorta(iso: string): string {
+  const [a, m, d] = iso.split('-')
+  return a && m && d ? `${d}-${m}-${a}` : iso
+}
+
+/** Los filtros puestos (sin el buscador, que se ve en su caja), como chips
+ * que se quitan de a uno. */
+export function chipsDeFiltros(f: FiltrosSolicitudes): { clave: ClaveFiltro; texto: string }[] {
+  const chips: { clave: ClaveFiltro; texto: string }[] = []
+  for (const clave of Object.keys(NOMBRE_FILTRO) as ClaveFiltro[]) {
+    const v = f[clave]
+    if (Array.isArray(v)) {
+      if (v.length === 0) continue
+      const valores = clave === 'estado' ? (v as EstadoFiltro[]).map((e) => ETIQUETA_ESTADO[e]) : (v as string[])
+      chips.push({ clave, texto: `${NOMBRE_FILTRO[clave]}: ${valores.join(', ')}` })
+    } else if (v.trim()) {
+      const texto =
+        clave === 'fechaDesde' || clave === 'fechaHasta' ? fechaCorta(v)
+          : clave === 'prueba' ? (v === 'solo' ? 'solo de prueba' : 'sin las de prueba')
+            : v
+      chips.push({ clave, texto: `${NOMBRE_FILTRO[clave]}: ${texto}` })
+    }
+  }
+  return chips
+}

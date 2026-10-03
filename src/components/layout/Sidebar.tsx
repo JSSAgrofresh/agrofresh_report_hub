@@ -342,13 +342,13 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
               <p className={styles.seccion}>Toma de muestras</p>
               <NavLink
                 to={ROUTES.tomaMuestras}
-                title="Solicitudes"
+                title="Solicitudes e informes"
                 end
                 onClick={onCerrar}
                 className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
               >
                 <IconFrasco className={styles.navIcono} />
-                <span className={styles.etiqueta}>Solicitudes</span>
+                <span className={styles.etiqueta}>Solicitudes e informes</span>
               </NavLink>
               <NavLink
                 to={ROUTES.tomaMuestrasNueva}

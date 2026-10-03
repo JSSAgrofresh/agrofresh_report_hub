@@ -158,9 +158,9 @@ Este proyecto no se da por listo con "debería funcionar":
   Los tipos se revisan con `npm run build` (o `npm run typecheck`), que corre
   `tsc -b`. **`npx tsc --noEmit` no sirve**: no mira los archivos de test, así
   que un error de tipos ahí pasa limpio acá y bota el deploy de Vercel.
-  El lint tiene **13 errores de línea base preexistentes** (casi todos
+  El lint tiene **12 errores de línea base preexistentes** (casi todos
   `set-state-in-effect`, más 3 de `only-export-components` en
-  `SelectorIconoUsuario.tsx`); si salen 13, está bien. Si salen 14, algo nuevo lo rompió.
+  `SelectorIconoUsuario.tsx`); si salen 12, está bien. Si salen 13, algo nuevo lo rompió.
 - **Cambios visuales**: se comprueban en un navegador real con Playwright
   (`executablePath: '/opt/pw-browsers/chromium'`), no solo con tests.
 - Al escribir un test para un bug, **rompe el arreglo a propósito** y confirma
@@ -375,7 +375,16 @@ y Estado se marcan **de a varios** (`MultiSelectFiltro`; lógica pura en
 cualquiera de los marcados; entre filtros, todos. En Estado, Enviada/Pendiente
 son alternativas y «Sin lista de distribución» se suma como condición.
 
-**Informe de cada solicitud** (Toma de muestras → Solicitudes, debajo del estado): el N°
+**Toma de muestras → «Solicitudes e informes»** (antes «Solicitudes», `SolicitudesView`):
+cuatro indicadores arriba que son también filtros de un clic (Solicitudes, Por enviar,
+Esperando informe, Con informe; `resumenVistas`/`ESTADOS_DE_VISTA` en
+`filtrosSolicitudes.ts`, cuentan con todos los filtros menos Estado), aviso amarillo si hay
+informes «sin Report», una tarjeta con buscador + «Filtros» (panel plegable, se recuerda) +
+Excel, chips de filtros activos (`chipsDeFiltros`), tabla con acciones de ícono (clic en la
+fila abre la solicitud) y tarjetas en celular. El envío automático quedó abajo, plegado. Sin
+gráficos a propósito. Bajo 1180 px el informe pasa a la columna Estado; bajo 760 px, tarjetas.
+
+**Informe de cada solicitud** (columna Informe): el N°
 de informe del laboratorio en un chip azul que abre el PDF en el visor; Estado filtra
 también «Con informe» / «Sin informe» / «Informe sin Report» y el buscador encuentra por N° de informe.
 Si hay PDF pero sus resultados no están en Report, el chip lleva al lado «Sin Report» (amarillo):
@@ -699,6 +708,10 @@ tocas una, toca la otra.
   Message-ID en R2 `accutab/_control/procesados.json`: anotado = no se vuelve a subir.
   Tras desplegar el arreglo, la primera corrida va con `--solo-marcar`.
 
+- **Un `transform` en un ancestro atrapa el `position: fixed`.** Las filas de
+  Solicitudes se animaban con `transform` y el diálogo de Eliminar salía recortado
+  dentro de la fila. `Modal` y `Dialogo` (Storage) se dibujan con `createPortal` en
+  `document.body` (`Modal.test.tsx`); las animaciones de filas, solo con opacidad.
 - **Finales de línea mezclados.** `emitir.py`, `toma_muestras.py` y
   `listados.py` son CRLF; otros son LF. Edítalos en binario con un patrón
   tolerante a `\r?\n`, o el reemplazo no calza.

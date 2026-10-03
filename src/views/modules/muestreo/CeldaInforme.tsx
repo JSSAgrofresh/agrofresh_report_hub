@@ -7,7 +7,7 @@ import styles from './SolicitudesView.module.css'
  * Informes y, si no está, el visor lo avisa. */
 export function CeldaInforme({ s, onAbrir }: { s: Solicitud; onAbrir: (s: Solicitud) => void }) {
   const inf = s.informe
-  if (!inf) return <span className={styles.sinInforme}>—</span>
+  if (!inf) return <span className={styles.sinInforme}>{s.enviada ? 'Esperando' : '—'}</span>
   const numero = inf.nro_informe ?? 'Ver informe'
   const extra = inf.numeros.length > 1 ? ` +${inf.numeros.length - 1}` : ''
   const titulo = [

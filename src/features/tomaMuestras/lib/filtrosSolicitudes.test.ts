@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { FILTROS_VACIOS, filtrarSolicitudes, hayFiltros, opcionesDe } from './filtrosSolicitudes'
-import type { FiltrosSolicitudes } from './filtrosSolicitudes'
+import {
+  ESTADOS_DE_VISTA, FILTROS_VACIOS, chipsDeFiltros, filtrarSolicitudes, hayFiltros, opcionesDe, resumenVistas, vistaDeEstados,
+} from './filtrosSolicitudes'
+import type { EstadoFiltro, FiltrosSolicitudes, VistaRapida } from './filtrosSolicitudes'
 import type { Solicitud } from './tipos'
 
 function sol(n: string, extra: Partial<Solicitud> = {}): Solicitud {
@@ -105,5 +107,40 @@ describe('filtros de solicitudes con varias opciones', () => {
     expect(hayFiltros(f({ laboratorio: ['ALS'] }))).toBe(true)
     expect(hayFiltros(f({ estado: ['sin_lista'] }))).toBe(true)
     expect(hayFiltros(f({ solicitante: '  ' }))).toBe(false)
+  })
+})
+
+describe('vistas rápidas de Solicitudes e informes', () => {
+  const inf = { nro_informe: 'X', numeros: ['X'], pdf_guardado: true, en_report: true }
+  const datos = [
+    sol('A', { enviada: false }),
+    sol('B', { enviada: true }),
+    sol('C', { enviada: true, informe: inf }),
+    sol('D', { enviada: true, informe: { ...inf, en_report: false } }),
+  ]
+
+  it('cuenta cada vista', () => {
+    expect(resumenVistas(datos)).toEqual({ todas: 4, pendientes: 1, enviadas: 3, esperando: 1, con_informe: 2, sin_report: 1 })
+  })
+
+  it('cada vista filtra lo mismo que cuenta', () => {
+    const r = resumenVistas(datos)
+    for (const [vista, estados] of Object.entries(ESTADOS_DE_VISTA) as [VistaRapida, EstadoFiltro[]][]) {
+      expect(filtrarSolicitudes(datos, f({ estado: estados })), vista).toHaveLength(r[vista])
+    }
+  })
+
+  it('reconoce la vista del filtro Estado, sin importar el orden', () => {
+    expect(vistaDeEstados([])).toBe('todas')
+    expect(vistaDeEstados(['sin_informe', 'enviada'])).toBe('esperando')
+    expect(vistaDeEstados(['pendiente', 'sin_lista'])).toBeNull()
+  })
+
+  it('arma un chip por filtro puesto, sin el buscador', () => {
+    const chips = chipsDeFiltros(f({ busqueda: 'dole', laboratorio: ['QUITECA', 'ALS'], estado: ['con_informe'], fechaDesde: '2026-10-01', prueba: 'sin' }))
+    expect(chips.map((c) => c.texto)).toEqual([
+      'Desde: 01-10-2026', 'Laboratorio: QUITECA, ALS', 'Estado: Con informe', 'Pruebas: sin las de prueba',
+    ])
+    expect(chipsDeFiltros(FILTROS_VACIOS)).toEqual([])
   })
 })

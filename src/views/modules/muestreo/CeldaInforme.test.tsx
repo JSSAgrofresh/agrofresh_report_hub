@@ -9,9 +9,12 @@ const inf = (extra: Partial<InformeSolicitud> = {}): InformeSolicitud => ({
 const sol = (informe: InformeSolicitud | null) => ({ numero_solicitud: 'OT-QUI0047', informe }) as Solicitud
 
 describe('CeldaInforme', () => {
-  it('sin informe muestra una raya', () => {
-    render(<CeldaInforme s={sol(null)} onAbrir={() => {}} />)
+  it('sin informe: una raya, o «Esperando» si ya se envió', () => {
+    const { unmount } = render(<CeldaInforme s={sol(null)} onAbrir={() => {}} />)
     expect(screen.getByText('—')).toBeInTheDocument()
+    unmount()
+    render(<CeldaInforme s={{ ...sol(null), enviada: true }} onAbrir={() => {}} />)
+    expect(screen.getByText('Esperando')).toBeInTheDocument()
   })
 
   it('con informe muestra el N° y el clic abre el PDF', () => {
