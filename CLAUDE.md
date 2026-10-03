@@ -609,6 +609,12 @@ tocas una, toca la otra.
   (OT)" con sugerencia (laboratorio + planta + fecha de muestreo) que la
   persona confirma. También ahí se escribe a mano la fecha y hora de envío
   (opcional; se edita después).
+  **Si el PDF trae la OT** («N° Solicitud: OT-…», Quiteca la escribe) **esa manda**:
+  Converter la muestra fija («OT-… (del informe)», sin desplegable) y nunca adivina
+  por planta y fecha, aunque la OT ya tenga otro informe; el servidor recibe
+  `ot_informe` y la prefiere sobre `archivo_solicitud`. Adivinar dejó informes en la
+  OT equivocada (2026-1878-PC en OT-QUI0039…; se corrigió con `corregir_ot_informe.py`).
+  Pruebas: `converterAmarre.test.ts`, `TestOtDelInforme`.
 - **Concretada** = tiene PDF guardado **y** sus resultados ya están en Report
   (`solicitud.nro_solicitud = informe_auditoria.nro_informe`). PDF sin Report
   se muestra aparte en las donas y los gráficos, y en la tabla como «Pendiente»

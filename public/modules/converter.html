@@ -1681,11 +1681,14 @@ const mismoTexto = (a, b) => !!a && !!b && plano(a) === plano(b);
 function sugerirOT(inf, tomadas){
   if(!abiertas) return "";
   const d = inf.datos, fecha = aISO(d["Fecha Muestreo"]);
-  // Si el PDF trae nuestro OT (Quiteca lo escribe en «N° Solicitud»), es el
-  // amarre más seguro: se toma tal cual, sin adivinar por planta y fecha.
+  // Si el PDF trae nuestro OT (Quiteca lo escribe en «N° Solicitud»), ESA es
+  // la OT y punto: NUNCA se adivina por planta y fecha. Antes, si la OT del PDF
+  // no estaba entre las abiertas (otro informe la tenía tomada por error), se
+  // caía a adivinar y el error se arrastraba a la OT siguiente (así quedaron
+  // 2026-1878-PC en OT-QUI0039 y 2026-1886-PC en OT-QUI0033).
   if(d["OT"]){
-    const exacta = abiertas.find(o => !tomadas.has(o.archivo) && plano(o.numero_solicitud || "") === plano(d["OT"]));
-    if(exacta) return exacta.archivo;
+    const exacta = abiertas.find(o => plano(o.numero_solicitud || "") === plano(d["OT"]));
+    return exacta ? exacta.archivo : "";
   }
   const libres = abiertas.filter(o => !tomadas.has(o.archivo) && mismoLab(d["Laboratorio"], o.laboratorio));
   const porPlanta = libres.filter(o => mismoTexto(d["Ship To"], o.ship_to));
@@ -1728,7 +1731,19 @@ function pintarAmarre(ok){
     });
 
     const tdOt = tr.insertCell(); tdOt.className = "amarre";
-    if(esPropio(inf)){
+    if(!esPropio(inf) && inf.datos["OT"]){
+      // El informe dice a qué OT pertenece: no se elige a mano. El servidor
+      // también lo respeta (recibe `ot_informe` y lo prefiere).
+      tdOt.textContent = inf.datos["OT"] + " (del informe)";
+      const abierta = (abiertas || []).some(o => plano(o.numero_solicitud || "") === plano(inf.datos["OT"]));
+      if(abiertas !== null && !abierta){
+        const nota = document.createElement("div");
+        nota.className = "pie"; nota.style.marginTop = "3px";
+        nota.textContent = "Esta OT ya tiene un informe asociado: el sistema la amarra igual al OT que dice el PDF.";
+        tdOt.appendChild(nota);
+      }
+    }
+    else if(esPropio(inf)){
       // El informe propio ya viaja atado a su solicitud por el N° OT del PDF, y
       // las solicitudes de AgroFresh no se ofrecen aquí (Auditoría no las audita).
       tdOt.textContent = inf.datos["OT"] ? inf.datos["OT"] + " (del informe)" : "—";
@@ -1790,6 +1805,8 @@ async function subirPdfs(ok){
     fd.append("sold_to", inf.datos["Sold To"] || "");
     fd.append("nro_informe", inf.datos["N° Solicitud"] || "");
     fd.append("archivo_solicitud", inf.ot || "");
+    // El OT impreso en el PDF: el servidor lo prefiere sobre la elección de arriba.
+    fd.append("ot_informe", inf.datos["OT"] || "");
     // Para Storage → Informes: planta / fecha de muestreo / tipo de análisis / laboratorio.
     fd.append("fecha", aISO(inf.datos["Fecha Muestreo"]) || inf.datos["Fecha Muestreo"] || "");
     fd.append("analisis", inf.datos["Tipo de servicio"] || "");
