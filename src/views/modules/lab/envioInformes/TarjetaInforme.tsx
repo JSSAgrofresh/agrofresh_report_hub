@@ -83,9 +83,9 @@ export function TarjetaInforme({
       </div>
 
       {aviso && informe.estado !== 'enviado' && <p className={styles.informeAviso}>{aviso}</p>}
-      {!bloqueo && informe.plan?.sin_lista && informe.estado === 'listo' && (
+      {informe.plan?.origen === 'planta' && informe.estado === 'listo' && (
         <p className={styles.informeAviso}>
-          Esta solicitud no tiene lista de distribución del cliente: va a la lista de respaldo ({informe.para.join(', ')}).
+          No encontré la solicitud de este informe: la lista sale del Sold To y el Ship To leídos del PDF.
         </p>
       )}
       {informe.estado === 'error' && informe.mensaje && <p className={styles.informeError}>{informe.mensaje}</p>}

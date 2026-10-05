@@ -86,50 +86,88 @@ def _enviar(usuario=None, **campos):
 
 # --- A quién va ------------------------------------------------------------
 
-def test_para_es_solo_la_lista_de_esa_planta(entorno):
-    plan = ei.plan_destinatarios("DOLE", "SAN FERNANDO")
-    assert plan["to"] == ["cliente1@dole.cl", "cliente2@dole.cl"]
-    assert plan["sin_lista"] is False
+def _solicitud_dole(**extra):
+    return {
+        "numero_solicitud": "OT-AGF0001", "laboratorio": "AGROFRESH", "sold_to": "DOLE", "ship_to": "SAN FERNANDO",
+        "especie": "", "campos_laboratorio": {"Tipo Aplicación": "Línea de proceso"}, **extra,
+    }
 
 
-def test_no_entra_el_respaldo_global_ni_otro_cliente_ni_los_internos(entorno):
-    para = ei.plan_destinatarios("DOLE", "SAN FERNANDO")["to"]
-    for ajeno in ("global@respaldo.cl", "solo_ship@otro.cl", "otro_cliente@otro.cl",
-                  "tecnico@agrofresh.com", "comercial@agrofresh.com", "inactivo@dole.cl"):
-        assert ajeno not in para
+def test_la_lista_es_tal_cual_la_de_la_solicitud_mas_las_copias_ocultas_del_modulo(entorno):
+    from app import toma_muestras as tm
+
+    sol = _solicitud_dole()
+    detalle = tm._datos_pdf_con_destinatarios_resultados(sol)["destinatarios_resultados_detalle"]
+    assert detalle["para"] == ["cliente1@dole.cl", "cliente2@dole.cl"]   # lo que dice la solicitud
+    plan = ei.plan_desde_solicitud(sol)
+    # Para, CC y CCO de la solicitud, sin tocar...
+    assert plan["to"] == detalle["para"]
+    assert plan["cc"] == detalle["cc"] == ["comercial@agrofresh.com"]
+    assert plan["bcc"][: len(detalle["bcc"])] == detalle["bcc"] == ["tecnico@agrofresh.com"]
+    # ...y las copias ocultas del módulo agregadas al final
+    assert plan["bcc"] == ["tecnico@agrofresh.com", "psalazar@agrofresh.com", "jorge.sandoval@agrofresh.com"]
+    assert plan["sin_lista"] is False and plan["origen"] == "solicitud"
 
 
-def test_las_copias_son_las_internas_del_modulo_y_no_las_de_la_planta(entorno):
-    plan = ei.plan_destinatarios("DOLE", "SAN FERNANDO")
-    assert plan["cc"] == []
-    assert plan["bcc"] == ["psalazar@agrofresh.com", "jorge.sandoval@agrofresh.com"]
-    # ni Claudia ni la lista interna de la planta
+def test_lo_que_no_es_de_la_lista_de_esa_solicitud_no_entra(entorno):
+    plan = ei.plan_desde_solicitud(_solicitud_dole())
     todos = plan["to"] + plan["cc"] + plan["bcc"]
-    assert not any("cguerrero" in e.lower() for e in todos)
-    assert "tecnico@agrofresh.com" not in todos
+    for ajeno in ("global@respaldo.cl", "solo_ship@otro.cl", "otro_cliente@otro.cl", "inactivo@dole.cl"):
+        assert ajeno not in todos
 
 
-def test_con_especie_vale_su_lista_y_sin_especie_la_general(entorno):
-    assert ei.lista_del_cliente("DOLE", "SAN FERNANDO", "Cereza") == ["cereza@dole.cl"]
-    # una especie sin lista propia cae en la general, nunca en la de otra especie
-    assert ei.lista_del_cliente("DOLE", "SAN FERNANDO", "cerezas") == ["cliente1@dole.cl", "cliente2@dole.cl"]
-    assert ei.lista_del_cliente("DOLE", "SAN FERNANDO", "Uva") == ["cliente1@dole.cl", "cliente2@dole.cl"]
-    assert ei.especies_con_lista("DOLE", "SAN FERNANDO") == ["Cereza", "Manzana"]
+def test_con_especie_vale_la_lista_de_esa_especie(entorno):
+    assert ei.plan_desde_solicitud(_solicitud_dole(especie="Cereza"))["to"] == ["cereza@dole.cl"]
+    assert ei.plan_desde_solicitud(_solicitud_dole(especie="Uva"))["to"] == ["cliente1@dole.cl", "cliente2@dole.cl"]
 
 
-def test_planta_sin_lista_se_avisa(entorno):
-    plan = ei.plan_destinatarios("DOLE", "LONTUE")
-    assert plan["to"] == [] and plan["sin_lista"] is True
+def test_sin_lista_del_cliente_el_para_queda_vacio_y_no_se_usa_el_respaldo(entorno):
+    from app import toma_muestras as tm
+
+    # sin el contacto «global» de respaldo histórico que trae la fixture
+    config_store.escribir("contactos_laboratorio.json", [_contacto("cliente1@dole.cl")])
+    plan = ei.plan_desde_solicitud(_solicitud_dole(ship_to="LONTUE"))
+    assert plan["sin_lista"] is True and plan["to"] == []
+    # el respaldo de la solicitud (Jorge, Claudia, Report Hub) no entra: el informe va al cliente.
+    # (Jorge sí queda en copia oculta, pero por las copias del módulo, no como respaldo.)
+    todos = [e.casefold() for e in plan["to"] + plan["cc"] + plan["bcc"]]
+    assert tm.DESTINATARIOS_SIN_LISTA[1].casefold() not in todos          # Claudia
+    assert "agrofreshreporthub@gmail.com" not in todos
+
+
+def test_el_servicio_decide_la_lista_igual_que_en_la_solicitud(entorno):
+    config_store.escribir("contactos_laboratorio.json", [
+        _contacto("lp@dole.cl"),
+        {**_contacto("act@dole.cl"), "servicio": "actimist"},
+        {**_contacto("eco@dole.cl"), "servicio": "ecofog"},
+    ])
+    assert ei.plan_destinatarios("DOLE", "SAN FERNANDO")["to"] == ["lp@dole.cl"]
+    assert "act@dole.cl" in ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="Actimist")["to"]
+    assert "lp@dole.cl" not in ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="Actimist")["to"]
+    assert ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="ecofog")["to"] == ["eco@dole.cl"]
+    assert ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="RYD")["to"] == ["lp@dole.cl"]
+
+
+def test_sin_n_de_solicitud_la_lista_sale_igual_por_sold_to_y_ship_to(entorno):
+    por_planta = ei.plan_destinatarios("DOLE", "SAN FERNANDO")
+    por_solicitud = ei.plan_desde_solicitud(_solicitud_dole())
+    assert {k: por_planta[k] for k in ("to", "cc", "bcc")} == {k: por_solicitud[k] for k in ("to", "cc", "bcc")}
+    assert por_planta["origen"] == "planta"
+
+
+def test_las_copias_internas_se_suman_a_las_de_la_solicitud_sin_repetir(entorno):
+    ei.guardar_internos(
+        ei.InternosIn(cc=["comercial@agrofresh.com", "nuevo@agrofresh.com"], bcc=["tecnico@agrofresh.com", "paz@agrofresh.com"]),
+        _usuario(),
+    )
+    plan = ei.plan_desde_solicitud(_solicitud_dole())
+    assert plan["cc"] == ["comercial@agrofresh.com", "nuevo@agrofresh.com"]      # el comercial no se repite
+    assert plan["bcc"] == ["tecnico@agrofresh.com", "paz@agrofresh.com"]         # el técnico tampoco
 
 
 def test_nadie_va_dos_veces():
     r = ei.repartir(["a@x.cl", "B@x.cl"], ["b@x.cl", "c@x.cl"], ["C@x.cl", "A@x.cl", "d@x.cl"])
     assert r == {"to": ["a@x.cl", "B@x.cl"], "cc": ["c@x.cl"], "bcc": ["d@x.cl"]}
-
-
-def test_nombres_con_tildes_y_mayusculas_calzan(entorno):
-    config_store.escribir("contactos_laboratorio.json", [_contacto("a@x.cl", sold_to="Frutícola Ñuble S.A.", ship_to="Chillán")])
-    assert ei.lista_del_cliente("FRUTICOLA NUBLE S.A.", "CHILLAN") == ["a@x.cl"]
 
 
 # --- Modo --------------------------------------------------------------------
@@ -369,7 +407,7 @@ def test_el_template_de_informes_no_toca_el_de_solicitudes(entorno):
 def test_copias_internas(entorno):
     out = ei.guardar_internos(ei.InternosIn(cc=[" a@x.cl ", "A@x.cl"], bcc=["psalazar@agrofresh.com"]), _usuario())
     assert out["internos"] == {"cc": ["a@x.cl"], "bcc": ["psalazar@agrofresh.com"]}
-    assert ei.plan_destinatarios("DOLE", "SAN FERNANDO")["cc"] == ["a@x.cl"]
+    assert "a@x.cl" in ei.plan_destinatarios("DOLE", "SAN FERNANDO")["cc"]
     with pytest.raises(HTTPException):
         ei.guardar_internos(ei.InternosIn(bcc=["roto"]), _usuario())
 
@@ -457,18 +495,6 @@ def test_el_servicio_sale_del_tipo_de_aplicacion():
     assert il.datos_de_informe("TIPO APLICACIÓN\nRYD\nESPECIE\nUva")["servicio"] == ""
 
 
-def test_la_lista_es_la_del_servicio_del_informe(entorno):
-    config_store.escribir("contactos_laboratorio.json", [
-        _contacto("lp@dole.cl"),
-        {**_contacto("act@dole.cl"), "servicio": "actimist"},
-        {**_contacto("eco@dole.cl"), "servicio": "ecofog"},
-    ])
-    assert ei.lista_del_cliente("DOLE", "SAN FERNANDO") == ["lp@dole.cl"]
-    assert ei.lista_del_cliente("DOLE", "SAN FERNANDO", servicio="Actimist") == ["act@dole.cl"]
-    assert ei.lista_del_cliente("DOLE", "SAN FERNANDO", servicio="ecofog") == ["eco@dole.cl"]
-    assert ei.lista_del_cliente("DOLE", "SAN FERNANDO", servicio="RYD") == ["lp@dole.cl"]
-
-
 def _subir(*pdfs, usuario=None):
     archivos = [UploadFile(file=io.BytesIO(c), filename=n) for n, c in pdfs]
     return asyncio.run(ei.analizar_informes(archivos=archivos, usuario=usuario or _usuario()))
@@ -490,7 +516,10 @@ def test_analizar_varios_informes_cada_uno_con_su_lista(entorno):
     uno, dos, tres, malo, txt = out["items"]
     assert uno["leido"] and uno["sold_to"] == "MULTIFRUTA SA" and uno["plan"]["to"] == ["a@multifruta.cl"]
     assert dos["plan"]["to"] == ["b@dole.cl"] and dos["especie"] == "Cereza"
-    assert tres["leido"] and tres["plan"]["sin_lista"] is True and tres["plan"]["to"] == []
+    from app import toma_muestras as tm
+
+    assert tres["leido"] and tres["plan"]["sin_lista"] is True
+    assert tres["plan"]["to"] == []   # no hay cliente a quien enviar: hay que escribirlo
     assert not malo["leido"] and malo["error"]
     assert not txt["leido"] and "PDF" in txt["error"]
     assert entorno == []  # analizar no envía nada
@@ -662,20 +691,25 @@ def test_el_informe_va_a_la_lista_de_su_solicitud(entorno, monkeypatch):
     plan = item["plan"]
     assert plan["to"] == ["cliente@multifruta.cl", "otro@multifruta.cl"] and plan["origen"] == "solicitud"
     assert plan["sin_lista"] is False
-    # copias: las del módulo, no el técnico de la planta
+    # tal cual la solicitud (con su técnico en copia oculta) y, al final, las copias del módulo
+    assert plan["cc"] == ["tecnico@agrofresh.com"]   # el técnico de la planta, como lo dice la solicitud
     assert plan["bcc"] == ["psalazar@agrofresh.com", "jorge.sandoval@agrofresh.com"]
-    assert "tecnico@agrofresh.com" not in plan["to"] + plan["cc"] + plan["bcc"]
 
 
-def test_una_solicitud_sin_lista_usa_el_respaldo_y_avisa(entorno, monkeypatch):
+def test_una_solicitud_sin_lista_no_manda_el_informe_al_respaldo(entorno, monkeypatch):
     pytest.importorskip("pypdf")
     from app import toma_muestras as tm
 
     config_store.escribir("contactos_laboratorio.json", [])
     monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [("OT-AGF0075.xlsx", _solicitud())])
     plan = _subir(("i.pdf", _pdf_informe()))["items"][0]["plan"]
-    assert plan["sin_lista"] is True
-    assert plan["to"] == [e for e in tm.DESTINATARIOS_SIN_LISTA]  # lo que dice la solicitud
+    assert plan["sin_lista"] is True and plan["to"] == []
+
+
+def test_sin_cliente_en_para_el_servidor_tampoco_envia(entorno):
+    with pytest.raises(HTTPException) as exc:
+        _enviar(para="[]")
+    assert exc.value.status_code == 400 and entorno == []
 
 
 def test_el_servicio_de_la_solicitud_elige_su_lista(entorno, monkeypatch):

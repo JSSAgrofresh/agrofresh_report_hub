@@ -57,7 +57,7 @@ export function etiquetaServicio(servicio: string): string {
 export function motivoBloqueo(inf: Informe): string | null {
   if (inf.estado === 'enviado') return 'Ya se envió'
   if (!inf.soldTo || !inf.shipTo) return 'No se leyeron el Sold To y el Ship To'
-  if (!inf.para.length) return 'Sin lista de distribución: escribe un correo en Para'
+  if (!inf.para.length) return 'Sin lista de distribución del cliente: escribe a quién enviarlo en Para'
   const malo = [...inf.para, ...inf.cc, ...inf.bcc].find((c) => !esCorreoValido(c))
   if (malo) return `Correo inválido: ${malo}`
   return null

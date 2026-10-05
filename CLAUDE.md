@@ -210,20 +210,18 @@ front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
   (`POST /desbloquear`, 403 si no es él o la clave falla; vale solo mientras la
   pantalla siga abierta). El servidor además rechaza otro laboratorio a quien no
   sea el principal.
-- **La lista sale de la SOLICITUD del informe.** El PDF trae su N° de solicitud
-  (`OT-AGF0075`, etiqueta «N° SOLICITUD» o escrito en cualquier parte): con él se
-  busca la solicitud en el sistema y de ahí salen Sold To, Ship To, especie,
-  servicio y el Para = su «Destinatarios de resultados» (`plan_desde_solicitud`, la
-  misma regla del PDF y el JSON de la solicitud, incluida la de «sin lista»: si no
-  tiene lista del cliente, el Para es el respaldo y la tarjeta lo avisa).
-  Solo si el PDF no trae N° o la solicitud no existe, se cae a lo leído del PDF:
-  la lista de «Resultado a clientes» de esa planta y de su servicio (mismo Sold To
-  y Ship To; con especie vale la de esa especie y si no hay, la general; sin los
-  respaldos de la solicitud: ni el contacto global ni «solo Ship To»).
-  **No** agrega los técnicos ni comerciales de la lista interna de la planta. Las copias internas son las del módulo (`internos`, hoy Paz y
-  Jorge en copia oculta, editables desde la pantalla): **la forma final de CC/CCO
-  queda en stand-by**, se define con el laboratorio. Nada de esto escribe en
-  `contactos_laboratorio.json`.
+- **La lista sale de la SOLICITUD del informe, TAL CUAL, y se le SUMAN copias
+  ocultas.** El PDF trae su N° de solicitud (`OT-AGF0075`, etiqueta «N° SOLICITUD» o
+  escrito en cualquier parte): con él se busca la solicitud y de ahí salen Sold To,
+  Ship To, especie, servicio y su «Destinatarios de resultados» completo (Para, CC
+  y CCO, `plan_desde_solicitud`: la MISMA función que arma el PDF y el JSON de la
+  solicitud, con su servicio y los permanentes de Actimist). **Si la solicitud no
+  tiene lista del cliente, el Para queda VACÍO** (el informe va al cliente, no al
+  respaldo de Jorge y Claudia) y la tarjeta no deja enviar hasta escribir a quién). Encima se agregan las copias del módulo (`internos`, hoy Paz y Jorge en
+  CCO, editables; también admite CC), sin repetir a nadie. Si el PDF no trae N° o
+  la solicitud no existe, se arma la misma lista con el Sold To / Ship To / servicio
+  leídos del PDF (`plan_destinatarios`) y la tarjeta lo dice. **La forma final de
+  las copias queda en stand-by.** Nada de esto escribe en `contactos_laboratorio.json`.
 - **La plantilla es única y predeterminada** (clave `predeterminado` en
   `templates_mail_informes.json`; el código ya admite una propia por servicio,
   `linea_proceso` / `actimist` / `ecofog`, que se usa si existe y si no cae a la
