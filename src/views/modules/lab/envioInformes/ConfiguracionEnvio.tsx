@@ -6,6 +6,7 @@ import {
   guardarInternos,
   guardarTemplateInforme,
   obtenerTemplateInforme,
+  PLANTILLA_PREDETERMINADA,
 } from '@/features/envioInformes'
 import type { EstadoEnvio, Internos } from '@/features/envioInformes'
 import { HttpError } from '@/services/http/client'
@@ -14,21 +15,16 @@ import styles from './EnvioInformes.module.css'
 
 interface ConfiguracionEnvioProps {
   estado: EstadoEnvio
-  laboratorio: string
-  /** Laboratorio fijo: cambiarlo lo habilita solo el administrador principal. */
-  bloqueado: boolean
-  onLaboratorio: (laboratorio: string) => void
   onEstado: (estado: EstadoEnvio) => void
-  onPedirClave: () => void
 }
 
 type Pestana = 'plantilla' | 'internos'
 
 /** Lo que Paz puede configurar sin pedirle nada a nadie: la plantilla del
- * correo de cada laboratorio (el mismo editor de Administración → Laboratorios)
+ * correo (el mismo editor de Administración → Laboratorios)
  * y las copias internas que se proponen en cada envío. */
 export function ConfiguracionEnvio({
-  estado, laboratorio, bloqueado, onLaboratorio, onEstado, onPedirClave,
+  estado, onEstado,
 }: ConfiguracionEnvioProps) {
   const [pestana, setPestana] = useState<Pestana>('plantilla')
   const [error, setError] = useState<string | null>(null)
@@ -80,26 +76,16 @@ export function ConfiguracionEnvio({
 
       {pestana === 'plantilla' ? (
         <div className={styles.configCuerpo}>
-          <label className={styles.campoSelect}>
-            <span>Laboratorio</span>
-            <select value={laboratorio} disabled={bloqueado} onChange={(e) => onLaboratorio(e.target.value)}>
-              {estado.laboratorios.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
-          </label>
-          {bloqueado && (
-            <button type="button" className={styles.enlace} onClick={onPedirClave}>
-              Habilitar con clave
-            </button>
-          )}
           <p className={styles.ayudaCampo}>
-            Es la plantilla única de todos los informes. Para cambiar un correo en particular usa «Editar este
-            correo» en el informe. Las variables se reemplazan con los datos de la planta y del archivo.
+            Es la plantilla predeterminada: la usan todos los informes. Más adelante podrá haber una por servicio
+            (Línea de proceso, Actimist…). Para cambiar un correo en particular usa «Editar este correo» en el
+            informe. Las variables se reemplazan con los datos de la planta y del archivo.
           </p>
           <div className={adminStyles.templatePanel}>
             <TemplateMailEditor
-              clave={laboratorio}
-              cargar={() => obtenerTemplateInforme(laboratorio)}
-              guardar={(datos) => guardarTemplateInforme(laboratorio, datos)}
+              clave={PLANTILLA_PREDETERMINADA}
+              cargar={() => obtenerTemplateInforme(PLANTILLA_PREDETERMINADA)}
+              guardar={(datos) => guardarTemplateInforme(PLANTILLA_PREDETERMINADA, datos)}
               onError={setError}
             />
           </div>

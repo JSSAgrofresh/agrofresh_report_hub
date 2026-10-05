@@ -224,7 +224,11 @@ front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
   Jorge en copia oculta, editables desde la pantalla): **la forma final de CC/CCO
   queda en stand-by**, se define con el laboratorio. Nada de esto escribe en
   `contactos_laboratorio.json`.
-- **La plantilla es única** (`templates_mail_informes.json`, se edita en
+- **La plantilla es única y predeterminada** (clave `predeterminado` en
+  `templates_mail_informes.json`; el código ya admite una propia por servicio,
+  `linea_proceso` / `actimist` / `ecofog`, que se usa si existe y si no cae a la
+  predeterminada, pero hoy no hay pantalla para crearlas; lo guardado por
+  laboratorio en la primera versión, `AGROFRESH`, sigue valiendo). Se edita en
   Configuración con `TemplateMailEditor`, el MISMO editor de Administración →
   Laboratorios; `mail_templates.py` comparte el marco del correo, `_layout`, con
   solicitudes y reanálisis: los correos ya emitidos salen igual,

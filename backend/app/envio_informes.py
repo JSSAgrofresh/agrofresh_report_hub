@@ -295,6 +295,8 @@ class DatosEnvio(BaseModel):
     sold_to: str
     ship_to: str
     especie: str = ""
+    # Servicio del informe (`''` Línea de proceso, `actimist`, `ecofog`): elige la plantilla.
+    servicio: str = ""
     asunto: str | None = None
     cuerpo: str | None = None
     para: list[str] = Field(default_factory=list)
@@ -346,9 +348,9 @@ def armar_correo(
     }
     # Lo que la plantilla da por sí sola: es el punto de partida que la pantalla
     # muestra editable, sin el «(PRUEBA)» ni el aviso.
-    asunto_base, texto_base = mail_templates.textos_informe(laboratorio, valores)
+    asunto_base, texto_base = mail_templates.textos_informe(valores, servicio=datos.servicio)
     asunto, texto, html, imagenes = mail_templates.renderizar_informe(
-        laboratorio, valores, asunto=datos.asunto, cuerpo=datos.cuerpo, aviso=aviso,
+        valores, servicio=datos.servicio, asunto=datos.asunto, cuerpo=datos.cuerpo, aviso=aviso,
     )
     if modo == MODO_PRUEBA:
         asunto = f"(PRUEBA) {asunto}"
@@ -567,17 +569,25 @@ class TemplateIn(BaseModel):
     cuerpo: str
 
 
-@router.get("/template/{laboratorio}")
-def obtener_template(laboratorio: str, usuario: Usuario = Depends(acceso)) -> dict:
-    return mail_templates.obtener_informe(_exigir_laboratorio(laboratorio))
+def _exigir_clave_plantilla(clave: str) -> str:
+    if clave not in mail_templates.CLAVES_INFORME:
+        raise HTTPException(400, f"Plantilla desconocida: {clave}")
+    return clave
 
 
-@router.put("/template/{laboratorio}")
-def guardar_template(laboratorio: str, body: TemplateIn, usuario: Usuario = Depends(acceso)) -> dict:
-    laboratorio = _exigir_laboratorio(laboratorio)
+@router.get("/template/{clave}")
+def obtener_template(clave: str, usuario: Usuario = Depends(acceso)) -> dict:
+    """La plantilla del correo. Hoy hay una sola para todos, la «predeterminado»;
+    otra clave (un servicio) devuelve la suya si la tiene y, si no, la predeterminada."""
+    return mail_templates.obtener_informe(_exigir_clave_plantilla(clave))
+
+
+@router.put("/template/{clave}")
+def guardar_template(clave: str, body: TemplateIn, usuario: Usuario = Depends(acceso)) -> dict:
+    clave = _exigir_clave_plantilla(clave)
     if not body.asunto.strip() or not body.cuerpo.strip():
         raise HTTPException(400, "El asunto y el cuerpo son obligatorios.")
-    return mail_templates.guardar_informe(laboratorio, body.asunto, body.cuerpo)
+    return mail_templates.guardar_informe(clave, body.asunto, body.cuerpo)
 
 
 class VistaPreviaIn(DatosEnvio):
@@ -684,6 +694,7 @@ async def enviar_informe(
     sold_to: str = Form(...),
     ship_to: str = Form(...),
     especie: str = Form(""),
+    servicio: str = Form(""),
     asunto: str = Form(""),
     cuerpo: str = Form(""),
     para: str = Form("[]"),
@@ -693,7 +704,7 @@ async def enviar_informe(
     usuario: Usuario = Depends(acceso),
 ) -> dict[str, Any]:
     datos = DatosEnvio(
-        laboratorio=laboratorio, sold_to=sold_to, ship_to=ship_to, especie=especie,
+        laboratorio=laboratorio, sold_to=sold_to, ship_to=ship_to, especie=especie, servicio=servicio,
         asunto=asunto or None, cuerpo=cuerpo or None,
         para=_lista_json(para, "Para"), cc=_lista_json(cc, "CC"), bcc=_lista_json(bcc, "CCO"),
     )

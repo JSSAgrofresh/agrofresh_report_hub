@@ -77,7 +77,7 @@ def _archivo(nombre="informe.pdf", contenido=PDF) -> UploadFile:
 
 def _enviar(usuario=None, **campos):
     base = dict(
-        laboratorio="AGROFRESH", sold_to="DOLE", ship_to="SAN FERNANDO", especie="", asunto="", cuerpo="",
+        laboratorio="AGROFRESH", sold_to="DOLE", ship_to="SAN FERNANDO", especie="", servicio="", asunto="", cuerpo="",
         para='["cliente1@dole.cl"]', cc="[]", bcc="[]", archivos=[_archivo()], usuario=usuario or _usuario(),
     )
     base.update(campos)
@@ -206,7 +206,7 @@ def test_el_texto_y_el_asunto_escritos_a_mano_mandan(entorno):
 
 
 def test_sin_texto_usa_la_plantilla_del_laboratorio(entorno):
-    mail_templates.guardar_informe("AGROFRESH", "Hola {ship_to}", "Informe {cantidad_informes} de {sold_to} por {enviado_por}")
+    mail_templates.guardar_informe("predeterminado", "Hola {ship_to}", "Informe {cantidad_informes} de {sold_to} por {enviado_por}")
     _enviar()
     envio = entorno[0]
     assert envio["asunto"] == "(PRUEBA) Hola SAN FERNANDO"
@@ -322,22 +322,47 @@ def test_la_vista_previa_trae_el_punto_de_partida_sin_prueba_ni_aviso(entorno):
     assert "DOLE — SAN FERNANDO" in out["texto_base"] and "CORREO DE PRUEBA" not in out["texto_base"]
 
 
-def test_template_por_laboratorio_con_variables_validas(entorno):
-    t = ei.obtener_template("AGROFRESH", _usuario())
+def test_la_plantilla_es_una_sola_predeterminada(entorno):
+    t = ei.obtener_template("predeterminado", _usuario())
     assert "{sold_to}" in t["asunto"] and "fecha_envio" in t["variables"]
-    guardado = ei.guardar_template("AGROFRESH", ei.TemplateIn(asunto="A {ship_to}", cuerpo="B {laboratorio}"), _usuario())
+    guardado = ei.guardar_template("predeterminado", ei.TemplateIn(asunto="A {ship_to}", cuerpo="B {laboratorio}"), _usuario())
     assert guardado["asunto"] == "A {ship_to}"
-    assert ei.obtener_template("QUITECA", _usuario())["asunto"] == mail_templates.ASUNTO_INFORME  # otro lab: el de siempre
+    # los servicios sin plantilla propia usan la predeterminada
+    for clave in ("actimist", "ecofog", "linea_proceso"):
+        assert ei.obtener_template(clave, _usuario())["asunto"] == "A {ship_to}"
+        assert ei.obtener_template(clave, _usuario())["propia"] is False
     with pytest.raises(HTTPException) as exc:
-        ei.guardar_template("AGROFRESH", ei.TemplateIn(asunto="{numero_solicitud}", cuerpo="x"), _usuario())
+        ei.guardar_template("predeterminado", ei.TemplateIn(asunto="{numero_solicitud}", cuerpo="x"), _usuario())
     assert exc.value.status_code == 400
     with pytest.raises(HTTPException):
-        ei.guardar_template("AGROFRESH", ei.TemplateIn(asunto=" ", cuerpo="x"), _usuario())
+        ei.guardar_template("predeterminado", ei.TemplateIn(asunto=" ", cuerpo="x"), _usuario())
+    with pytest.raises(HTTPException) as exc:
+        ei.obtener_template("QUITECA", _usuario())
+    assert exc.value.status_code == 400
+
+
+def test_un_servicio_puede_tener_su_plantilla_y_los_demas_siguen_con_la_predeterminada(entorno):
+    mail_templates.guardar_informe("predeterminado", "General {ship_to}", "G")
+    ei.guardar_template("actimist", ei.TemplateIn(asunto="Actimist {ship_to}", cuerpo="Texto Actimist"), _usuario())
+    _enviar(servicio="actimist")
+    assert entorno[0]["asunto"] == "(PRUEBA) Actimist SAN FERNANDO"
+    asunto, texto, _, _ = mail_templates.renderizar_informe({"ship_to": "X"}, servicio="Actimist")
+    assert asunto == "Actimist X" and texto == "Texto Actimist"
+    asunto, texto, _, _ = mail_templates.renderizar_informe({"ship_to": "X"}, servicio="")
+    assert asunto == "General X" and texto == "G"
+    asunto, _, _, _ = mail_templates.renderizar_informe({"ship_to": "X"}, servicio="ecofog")
+    assert asunto == "General X"
+
+
+def test_lo_guardado_por_laboratorio_en_la_primera_version_sigue_valiendo(entorno):
+    config_store.escribir("templates_mail_informes.json", [{"laboratorio": "AGROFRESH", "asunto": "Viejo {ship_to}", "cuerpo": "V"}])
+    assert mail_templates.obtener_informe()["asunto"] == "Viejo {ship_to}"
+    assert mail_templates.renderizar_informe({"ship_to": "X"})[0] == "Viejo X"
 
 
 def test_el_template_de_informes_no_toca_el_de_solicitudes(entorno):
     antes = mail_templates.obtener("AGROFRESH")
-    mail_templates.guardar_informe("AGROFRESH", "X", "Y")
+    mail_templates.guardar_informe("predeterminado", "X", "Y")
     assert mail_templates.obtener("AGROFRESH") == antes
 
 
