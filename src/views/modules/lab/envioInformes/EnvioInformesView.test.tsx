@@ -154,7 +154,7 @@ describe('EnvioInformesView', () => {
     const { container } = pantalla()
     await subir(container, 'a.pdf', 'b.pdf')
 
-    expect(await screen.findByText(/Sin lista de distribución: escribe un correo en Para/)).toBeTruthy()
+    expect(await screen.findByText(/Sin lista de distribución del cliente: escribe a quién enviarlo en Para/)).toBeTruthy()
     // el que sí tiene lista se puede enviar solo
     expect(screen.getByRole('button', { name: 'Enviar prueba' })).toBeEnabled()
     expect(screen.getByText(/1 sin revisar/)).toBeTruthy()
@@ -280,19 +280,19 @@ describe('EnvioInformesView', () => {
     expect(await screen.findByRole('button', { name: /Sistema en producción/ })).toBeTruthy()
   })
 
-  it('muestra la solicitud de la que sale la lista y avisa si usa el respaldo', async () => {
+  it('muestra la solicitud de la que sale la lista; sin lista del cliente no deja enviar', async () => {
     api.analizarInformes.mockResolvedValue({
       disponible: true,
-      items: [lectura('a.pdf', 'SAN FERNANDO', ['jorge@x.cl', 'claudia@x.cl'], {
+      items: [lectura('a.pdf', 'SAN FERNANDO', [], {
         numero_solicitud: 'OT-AGF0075', solicitud: 'OT-AGF0075.xlsx',
-        plan: { to: ['jorge@x.cl', 'claudia@x.cl'], cc: [], bcc: [], sin_lista: true, especies: [], origen: 'solicitud' },
+        plan: { to: [], cc: ['t@x.cl'], bcc: [], sin_lista: true, especies: [], origen: 'solicitud' },
       })],
     })
     const { container } = pantalla()
     await subir(container, 'a.pdf')
     expect(await screen.findByText(/OT-AGF0075 · DOLE · SAN FERNANDO/)).toBeTruthy()
-    expect(screen.getByText(/no tiene lista de distribución del cliente: va a la lista de respaldo/)).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Enviar prueba' })).toBeEnabled()
+    expect(screen.getAllByText(/Sin lista de distribución del cliente/).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Enviar prueba' })).toBeDisabled()
   })
 
   describe('eliminar del historial', () => {

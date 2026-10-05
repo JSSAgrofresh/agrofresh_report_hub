@@ -9,7 +9,8 @@ Reglas (decisión del usuario, 05-10-2026):
 
   - **La lista de distribución es la de la SOLICITUD del informe, tal cual**: Para,
     Copia y Copia oculta que lleva su PDF y su JSON (`plan_desde_solicitud`, con la
-    misma función, su servicio y su regla de «sin lista»). Encima se SUMAN las
+    misma función y su servicio). Sin lista del cliente el Para queda VACÍO (el
+    informe va al cliente, no al respaldo de la solicitud) y no se envía hasta escribirlo. Encima se SUMAN las
     copias internas de este módulo (`internos`: hoy Paz y Jorge en copia oculta,
     editables). Nada de esto toca la base ni los contactos de los laboratorios.
   - **Modo prueba / producción**. Parte siempre en PRUEBA: todo lo que se envía
@@ -191,12 +192,16 @@ def plan_desde_solicitud(datos: dict, internos: dict[str, list[str]] | None = No
 
     internos = internos if internos is not None else leer_config()["internos"]
     detalle = tm._datos_pdf_con_destinatarios_resultados(datos)["destinatarios_resultados_detalle"]
+    sin_lista = tm.solicitud_sin_lista(datos)
+    # Esto es el informe del laboratorio, que va al CLIENTE. Sin lista del cliente, el
+    # respaldo de una solicitud (Jorge, Claudia, Report Hub) no sirve: queda el Para
+    # vacío y no se envía hasta que alguien escriba a quién.
     plan = repartir(
-        detalle["para"],
+        [] if sin_lista else detalle["para"],
         [*detalle["cc"], *internos.get("cc", [])],
         [*detalle["bcc"], *internos.get("bcc", [])],
     )
-    return {**plan, "sin_lista": tm.solicitud_sin_lista(datos), "especies": [], "origen": "solicitud"}
+    return {**plan, "sin_lista": sin_lista, "especies": [], "origen": "solicitud"}
 
 
 _TIPO_DE_SERVICIO = {"actimist": "Actimist", "ecofog": "Ecofog"}

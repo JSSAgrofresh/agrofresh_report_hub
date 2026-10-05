@@ -121,15 +121,18 @@ def test_con_especie_vale_la_lista_de_esa_especie(entorno):
     assert ei.plan_desde_solicitud(_solicitud_dole(especie="Uva"))["to"] == ["cliente1@dole.cl", "cliente2@dole.cl"]
 
 
-def test_sin_lista_del_cliente_rige_el_respaldo_de_la_solicitud_y_se_avisa(entorno):
+def test_sin_lista_del_cliente_el_para_queda_vacio_y_no_se_usa_el_respaldo(entorno):
     from app import toma_muestras as tm
 
     # sin el contacto «global» de respaldo histórico que trae la fixture
     config_store.escribir("contactos_laboratorio.json", [_contacto("cliente1@dole.cl")])
     plan = ei.plan_desde_solicitud(_solicitud_dole(ship_to="LONTUE"))
-    assert plan["sin_lista"] is True
-    detalle = tm._datos_pdf_con_destinatarios_resultados(_solicitud_dole(ship_to="LONTUE"))["destinatarios_resultados_detalle"]
-    assert plan["to"] == detalle["para"] and plan["to"]          # el mismo respaldo (Jorge, Claudia…)
+    assert plan["sin_lista"] is True and plan["to"] == []
+    # el respaldo de la solicitud (Jorge, Claudia, Report Hub) no entra: el informe va al cliente.
+    # (Jorge sí queda en copia oculta, pero por las copias del módulo, no como respaldo.)
+    todos = [e.casefold() for e in plan["to"] + plan["cc"] + plan["bcc"]]
+    assert tm.DESTINATARIOS_SIN_LISTA[1].casefold() not in todos          # Claudia
+    assert "agrofreshreporthub@gmail.com" not in todos
 
 
 def test_el_servicio_decide_la_lista_igual_que_en_la_solicitud(entorno):
@@ -516,7 +519,7 @@ def test_analizar_varios_informes_cada_uno_con_su_lista(entorno):
     from app import toma_muestras as tm
 
     assert tres["leido"] and tres["plan"]["sin_lista"] is True
-    assert tres["plan"]["to"] == tm.DESTINATARIOS_SIN_LISTA   # lo que dice una solicitud sin lista
+    assert tres["plan"]["to"] == []   # no hay cliente a quien enviar: hay que escribirlo
     assert not malo["leido"] and malo["error"]
     assert not txt["leido"] and "PDF" in txt["error"]
     assert entorno == []  # analizar no envía nada
@@ -693,15 +696,20 @@ def test_el_informe_va_a_la_lista_de_su_solicitud(entorno, monkeypatch):
     assert plan["bcc"] == ["psalazar@agrofresh.com", "jorge.sandoval@agrofresh.com"]
 
 
-def test_una_solicitud_sin_lista_usa_el_respaldo_y_avisa(entorno, monkeypatch):
+def test_una_solicitud_sin_lista_no_manda_el_informe_al_respaldo(entorno, monkeypatch):
     pytest.importorskip("pypdf")
     from app import toma_muestras as tm
 
     config_store.escribir("contactos_laboratorio.json", [])
     monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [("OT-AGF0075.xlsx", _solicitud())])
     plan = _subir(("i.pdf", _pdf_informe()))["items"][0]["plan"]
-    assert plan["sin_lista"] is True
-    assert plan["to"] == [e for e in tm.DESTINATARIOS_SIN_LISTA]  # lo que dice la solicitud
+    assert plan["sin_lista"] is True and plan["to"] == []
+
+
+def test_sin_cliente_en_para_el_servidor_tampoco_envia(entorno):
+    with pytest.raises(HTTPException) as exc:
+        _enviar(para="[]")
+    assert exc.value.status_code == 400 and entorno == []
 
 
 def test_el_servicio_de_la_solicitud_elige_su_lista(entorno, monkeypatch):

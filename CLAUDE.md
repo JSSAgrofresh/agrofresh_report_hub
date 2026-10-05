@@ -215,9 +215,9 @@ front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
   escrito en cualquier parte): con él se busca la solicitud y de ahí salen Sold To,
   Ship To, especie, servicio y su «Destinatarios de resultados» completo (Para, CC
   y CCO, `plan_desde_solicitud`: la MISMA función que arma el PDF y el JSON de la
-  solicitud, con su servicio, los permanentes de Actimist y su regla de «sin
-  lista»: si no tiene lista del cliente, el Para es el respaldo y la tarjeta lo
-  avisa). Encima se agregan las copias del módulo (`internos`, hoy Paz y Jorge en
+  solicitud, con su servicio y los permanentes de Actimist). **Si la solicitud no
+  tiene lista del cliente, el Para queda VACÍO** (el informe va al cliente, no al
+  respaldo de Jorge y Claudia) y la tarjeta no deja enviar hasta escribir a quién). Encima se agregan las copias del módulo (`internos`, hoy Paz y Jorge en
   CCO, editables; también admite CC), sin repetir a nadie. Si el PDF no trae N° o
   la solicitud no existe, se arma la misma lista con el Sold To / Ship To / servicio
   leídos del PDF (`plan_destinatarios`) y la tarjeta lo dice. **La forma final de
