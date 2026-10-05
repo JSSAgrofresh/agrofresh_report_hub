@@ -254,6 +254,30 @@ def plan_destinatarios(
     }
 
 
+def plan_desde_solicitud(datos: dict, internos: dict[str, list[str]] | None = None) -> dict[str, Any]:
+    """A quién va el informe según SU SOLICITUD: el Para es el «Destinatarios de
+    resultados» de esa solicitud (el mismo que lleva su PDF y su JSON, con su
+    servicio y su regla de «sin lista»). Las copias son las internas del módulo."""
+    from . import toma_muestras as tm
+
+    internos = internos if internos is not None else leer_config()["internos"]
+    detalle = tm._datos_pdf_con_destinatarios_resultados(datos)["destinatarios_resultados_detalle"]
+    plan = repartir(detalle["para"], internos.get("cc", []), internos.get("bcc", []))
+    return {**plan, "sin_lista": tm.solicitud_sin_lista(datos), "especies": [], "origen": "solicitud"}
+
+
+def _solicitudes_por_numero() -> dict[str, tuple[str, dict]]:
+    """Las solicitudes del sistema por su N° (OT-AGF0075), en mayúsculas."""
+    from . import toma_muestras as tm
+
+    salida: dict[str, tuple[str, dict]] = {}
+    for archivo, datos in tm.leer_todas_las_solicitudes():
+        numero = str(datos.get("numero_solicitud") or "").strip().upper()
+        if numero:
+            salida.setdefault(numero, (archivo, datos))
+    return salida
+
+
 # ---------------------------------------------------------------------------
 # Armado del correo
 # ---------------------------------------------------------------------------
@@ -460,13 +484,14 @@ async def analizar_informes(
         raise HTTPException(400, f"Son demasiados informes: el máximo es {MAX_INFORMES_LOTE} por vez.")
     contactos = config_store.leer(ARCHIVO_CONTACTOS, [])
     internos = leer_config()["internos"]
+    solicitudes: dict[str, tuple[str, dict]] | None = None  # se lee una vez, y solo si hace falta
     items: list[dict[str, Any]] = []
     disponible = True
     for archivo in archivos:
         nombre = os.path.basename((archivo.filename or "").replace("\\", "/")).strip()
         item: dict[str, Any] = {
             "nombre": nombre, "leido": False, "error": None, "sold_to": "", "ship_to": "", "especie": "",
-            "tipo_aplicacion": "", "numero_solicitud": "", "servicio": "", "plan": None,
+            "tipo_aplicacion": "", "numero_solicitud": "", "servicio": "", "plan": None, "solicitud": None,
         }
         contenido = await archivo.read()
         if not contenido.lstrip()[:5].startswith(b"%PDF"):
@@ -484,6 +509,31 @@ async def analizar_informes(
                 logger.warning("No se pudo leer el PDF %s", nombre, exc_info=True)
                 item["error"] = "No se pudo leer el PDF."
             else:
+                # Lo principal: el N° de solicitud del informe. La solicitud trae su
+                # Sold To, Ship To, especie, servicio y su lista de distribución.
+                encontrada = None
+                if datos["numero_solicitud"]:
+                    if solicitudes is None:
+                        try:
+                            solicitudes = _solicitudes_por_numero()
+                        except Exception:
+                            logger.warning("No se pudieron leer las solicitudes.", exc_info=True)
+                            solicitudes = {}
+                    encontrada = solicitudes.get(datos["numero_solicitud"].strip().upper())
+                if encontrada:
+                    from .servicios import servicio_de_datos
+
+                    archivo_sol, sol = encontrada
+                    datos["sold_to"] = str(sol.get("sold_to") or "").strip()
+                    datos["ship_to"] = str(sol.get("ship_to") or "").strip()
+                    datos["especie"] = str(sol.get("especie") or "").strip()
+                    datos["servicio"] = servicio_de_datos(sol)
+                    item["solicitud"] = archivo_sol
+                    item.update(datos)
+                    item["leido"] = True
+                    item["plan"] = plan_desde_solicitud(sol, internos)
+                    items.append(item)
+                    continue
                 if not (datos["sold_to"] and datos["ship_to"]):
                     # Respaldo: un Sold To + Ship To que el sistema ya conoce, escrito en el texto.
                     pares = sorted({

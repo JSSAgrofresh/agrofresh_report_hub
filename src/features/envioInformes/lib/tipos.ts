@@ -24,6 +24,8 @@ export interface PlanDestinatarios {
   cc: string[]
   bcc: string[]
   sin_lista: boolean
+  /** `solicitud` = la lista de la solicitud del informe; si no, la de la planta. */
+  origen?: 'solicitud'
   /** Especies para las que la planta tiene lista propia. */
   especies: string[]
 }
@@ -40,6 +42,8 @@ export interface LecturaInforme {
   numero_solicitud: string
   /** `''` (Línea de proceso), `actimist` o `ecofog`. */
   servicio: string
+  /** Archivo de la solicitud (OT) a la que pertenece el informe, si se encontró. */
+  solicitud: string | null
   plan: PlanDestinatarios | null
 }
 
