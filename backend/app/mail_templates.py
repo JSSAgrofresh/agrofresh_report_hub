@@ -432,7 +432,7 @@ def renderizar_informe(
 ) -> tuple[str, str, str, list[ImagenInline]]:
     """Arma el correo de un informe (asunto, texto, html y logo)."""
     asunto_final, texto = textos_informe(datos, servicio=servicio, asunto=asunto, cuerpo=cuerpo)
-    html, imagenes = html_de_texto(texto, "Informe de Resultados", SUBTITULO_INFORME, aviso)
+    html, imagenes = html_de_texto(texto, "Informe de Ensayo", SUBTITULO_INFORME, aviso)
     if aviso:
         texto = f"{aviso}\n\n{texto}"
     return asunto_final, texto, html, imagenes
