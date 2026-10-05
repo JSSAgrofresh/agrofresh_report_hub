@@ -197,21 +197,37 @@ front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
   quien lo hace (403 si se equivoca, **no 401**: un 401 cierra la sesión en el
   navegador); volver a prueba no la pide. La configuración (`envio_informes.json`,
   en `_config/` como los demás mantenedores) guarda el modo y las copias internas.
-- **Para = la lista de «Resultado a clientes» de ESA planta** (mismo Sold To y
-  mismo Ship To; con especie vale la lista de esa especie y si no hay, la
-  general). **No** usa los respaldos de la solicitud (ni el contacto global ni
-  «solo Ship To»): un informe de un cliente nunca debe caer en la lista de otro.
+- **Se suben uno o varios PDF y cada uno es un correo aparte** («Enviar todos» los
+  manda de golpe, uno tras otro; si uno falla, los demás igual salen y ese queda
+  para reintentar). De cada PDF de AgroFresh (`informe_pdf.py`) se **lee** el
+  Sold To, el Ship To, la especie y el Tipo Aplicación (`app/informe_lectura.py`,
+  con `pypdf`: **hay que instalarlo en el servidor**, `requirements.txt`; sin él
+  la pantalla avisa y no se cae). Nadie los elige a mano: el sistema los usa para
+  escoger la lista. `POST /analizar` solo lee y propone, no envía.
+- **El laboratorio es siempre AGROFRESH** (`LABORATORIO_FIJO`) y los datos leídos
+  del PDF **no se editan**: solo el administrador principal
+  (`jorge.sandoval@agrofresh.com`, `_SUPER_ADMIN_EMAIL`) con su clave los habilita
+  (`POST /desbloquear`, 403 si no es él o la clave falla; vale solo mientras la
+  pantalla siga abierta). El servidor además rechaza otro laboratorio a quien no
+  sea el principal.
+- **Para = la lista de «Resultado a clientes» de ESA planta Y DE SU SERVICIO**
+  (mismo Sold To y Ship To; el servicio sale del Tipo Aplicación del PDF: Línea de
+  proceso, Actimist o Ecofog, cada uno con su lista, ver `servicios.py`). Con
+  especie vale la lista de esa especie y si no hay, la general. **No** usa los
+  respaldos de la solicitud (ni el contacto global ni «solo Ship To»): un informe
+  de un cliente nunca debe caer en la lista de otro.
   **No** agrega los técnicos, comerciales, Jorge ni Claudia de la lista interna
   de la planta. Las copias internas son las del módulo (`internos`, hoy Paz y
   Jorge en copia oculta, editables desde la pantalla): **la forma final de CC/CCO
   queda en stand-by**, se define con el laboratorio. Nada de esto escribe en
   `contactos_laboratorio.json`.
-- Paz puede corregir Para / CC / CCO, el asunto y el texto **solo para ese
-  envío**. El template por laboratorio (`templates_mail_informes.json`) es el
-  punto de partida y se edita ahí mismo con `TemplateMailEditor`, el MISMO editor
-  de Administración → Laboratorios (`mail_templates.py` comparte el marco del
-  correo, `_layout`, con solicitudes y reanálisis: los correos ya emitidos salen
-  igual, `tests/test_mail_templates_marco.py` lo compara con la salida de antes).
+- **La plantilla es única** (`templates_mail_informes.json`, se edita en
+  Configuración con `TemplateMailEditor`, el MISMO editor de Administración →
+  Laboratorios; `mail_templates.py` comparte el marco del correo, `_layout`, con
+  solicitudes y reanálisis: los correos ya emitidos salen igual,
+  `tests/test_mail_templates_marco.py` lo compara con la salida de antes). Para
+  cambiar UN correo, «Editar este correo» en su tarjeta: Para / CC / CCO, asunto y
+  texto **solo de ese informe**.
 - La vista previa la arma el backend con el mismo código del envío
   (`armar_correo`): lo que se ve es lo que sale.
 - Adjuntos: PDF, Excel, CSV, ZIP, imágenes y DOCX; 15 por correo, 20 MB cada uno
@@ -221,8 +237,8 @@ front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
   General → Actividad como «informes».
 - Acceso: admin general y quien tenga `agrofresh_lab` (`puede_usar`, espejo de
   `modulosPredeterminados`). Gerencia y clientes no.
-- Pendiente a futuro: leer Sold To / Ship To desde el PDF (hoy se eligen a mano;
-  necesita una librería de lectura de PDF en el servidor) y definir las copias.
+- Pendiente a futuro: definir las copias (CC/CCO) y leer también los informes de
+  otros laboratorios (hoy solo el PDF propio de AgroFresh).
 
 Backend: `app/verificaciones.py` (+ `verificaciones_excel.py`), tablas `verif_*`
 de la migración 0026. Frontend: `src/features/verificaciones/`,

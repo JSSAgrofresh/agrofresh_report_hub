@@ -12,6 +12,8 @@ export interface EstadoEnvio {
   destinatarios_prueba: string[]
   internos: Internos
   laboratorios: string[]
+  /** El laboratorio con el que se envía por ahora; cambiarlo lo habilita solo el administrador principal. */
+  laboratorio_fijo: string
   modo_cambiado_por: string | null
   modo_cambiado_en: string | null
 }
@@ -24,6 +26,27 @@ export interface PlanDestinatarios {
   sin_lista: boolean
   /** Especies para las que la planta tiene lista propia. */
   especies: string[]
+}
+
+/** Lo que se leyó de un PDF: de ahí salen Sold To, Ship To, especie y el servicio. */
+export interface LecturaInforme {
+  nombre: string
+  leido: boolean
+  error: string | null
+  sold_to: string
+  ship_to: string
+  especie: string
+  tipo_aplicacion: string
+  numero_solicitud: string
+  /** `''` (Línea de proceso), `actimist` o `ecofog`. */
+  servicio: string
+  plan: PlanDestinatarios | null
+}
+
+export interface AnalisisLote {
+  /** `false` si el servidor no tiene instalada la lectura de PDF. */
+  disponible: boolean
+  items: LecturaInforme[]
 }
 
 export interface Reparto {
