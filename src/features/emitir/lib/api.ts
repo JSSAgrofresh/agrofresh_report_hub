@@ -4,6 +4,7 @@ import type {
   DetalleGC,
   FilaCruce,
   FilaSubida,
+  Fortificado,
   InformeConfig,
   Solicitud,
 } from './tipos'
@@ -139,3 +140,20 @@ export function listarActividadLab(params?: {
   return httpClient.get<ActividadLab[]>(`/toma-muestras/actividad${q ? `?${q}` : ''}`)
 }
 
+
+/** Fortificados: no tienen solicitud, solo N°, peso extraído (g) y cuándo ingresaron. */
+export function listarFortificados() {
+  return httpClient.get<Fortificado[]>('/fortificados')
+}
+
+export function crearFortificado(numero: string, peso: number) {
+  return httpClient.post<Fortificado>('/fortificados', { numero, peso })
+}
+
+export function corregirFortificado(id: number, numero: string, peso: number) {
+  return httpClient.put<Fortificado>(`/fortificados/${id}`, { numero, peso })
+}
+
+export function borrarFortificado(id: number) {
+  return httpClient.delete<void>(`/fortificados/${id}`)
+}

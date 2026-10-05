@@ -83,6 +83,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0044_auditoria_interna.sql
 .venv\Scripts\python.exe scripts\migrar.py 0045_correcciones_converter.sql
 .venv\Scripts\python.exe scripts\migrar.py 0047_actividad_usuario.sql
+.venv\Scripts\python.exe scripts\migrar.py 0051_fortificados.sql
 .venv\Scripts\python.exe scripts\migrar.py 0048_peso_extraido.sql
 .venv\Scripts\python.exe scripts\migrar.py 0049_listado_actimist.sql
 .venv\Scripts\python.exe scripts\migrar.py 0050_listado_ecofog.sql
@@ -433,6 +434,20 @@ menos una tiene informe con PDF, el zip lleva **`Solicitudes/`** e **`Informes/`
 («OT-QUI0047 - Informe 2026-1885-PC.pdf»; `informes_solicitud.informes_para_zip`, nunca
 lanza: si la base o R2 fallan, sale solo con las solicitudes). Sin informes, plano como antes.
 Las cuentas `cliente` nunca reciben informes en el zip.
+
+## Ingreso al laboratorio: estándar y fortificados
+
+La tabla de **Ingreso al laboratorio** tiene dos pestañas (reemplazan a Todas / Con
+muestra / Sin muestra): **Ingreso estándar** (la tabla de siempre, solicitudes cruzadas
+con su muestra) e **Ingreso fortificados** (`TablaFortificados.tsx`): un fortificado no
+tiene solicitud, se anota su **N° de fortificado** y el **peso extraído** (g, tal cual la
+balanza) y el servidor pone la **fecha y hora de ingreso** (hora de Chile). Backend:
+`app/fortificados.py` (`/api/fortificados`: listar, crear, corregir N°/peso; borrar solo
+admin general y en pantalla solo la cuenta maestra con clave), tabla `fortificado`
+(migración 0051; el N° no se repite sin importar mayúsculas). **«Descargar base (Excel)»**
+(`/emitir/cromatografia/excel-con-muestra`) baja un libro de dos hojas: **Estándar** (la base
+de siempre) y **Fortificados**, que el servidor lee de su propia tabla. Sin la 0051 la
+descarga sigue saliendo (hoja vacía) y la pestaña avisa que falta la migración.
 
 ## Ingreso al laboratorio: corregir un cruce
 
