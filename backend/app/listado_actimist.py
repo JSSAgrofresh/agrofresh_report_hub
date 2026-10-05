@@ -14,7 +14,8 @@ Se hace en dos pasos, como los scripts que escriben en la base:
   2. `aplicar` crea solo lo que el plan marcó como nuevo, en UNA transacción.
 
 Reglas:
-  - Solo toca `cliente_actimist` / `planta_actimist`. El listado de Línea de
+  - Solo toca `cliente_actimist` / `planta_actimist` (o las de Ecofog, que son
+    una copia con otro nombre: `servicio`). El listado de Línea de
     proceso (`cliente` / `planta`) no se lee ni se escribe.
   - Un Sold To se reconoce primero por su código SAP y, si no lo tiene, por el
     nombre (sin mayúsculas, tildes ni espacios repetidos). Nunca se duplica.
@@ -30,9 +31,14 @@ import re
 import unicodedata
 from typing import Any
 
-from .servicios import TABLAS, ACTIMIST
+from .servicios import TABLAS, ACTIMIST, clave_servicio
 
 TABLA_CLIENTES, TABLA_PLANTAS = TABLAS[ACTIMIST]
+
+
+def _tablas(servicio: str) -> tuple[str, str]:
+    """Tablas del listado de Actimist o de Ecofog (misma forma, tablas aparte)."""
+    return TABLAS[clave_servicio(servicio) or ACTIMIST]
 
 _ENCABEZADOS = {
     "sold_num": "sold to number",
@@ -221,27 +227,29 @@ def planear(filas: list[dict], clientes: list[dict], plantas: list[dict]) -> dic
 # Con la base
 # ---------------------------------------------------------------------------
 
-def leer_actual(cur) -> tuple[list[dict], list[dict]]:
-    cur.execute(f"SELECT id, nombre, codigo_sap FROM {TABLA_CLIENTES}")
+def leer_actual(cur, servicio: str = ACTIMIST) -> tuple[list[dict], list[dict]]:
+    tc, tp = _tablas(servicio)
+    cur.execute(f"SELECT id, nombre, codigo_sap FROM {tc}")
     clientes = [dict(r) for r in cur.fetchall()]
-    cur.execute(f"SELECT id, cliente_id, nombre, codigo_sap FROM {TABLA_PLANTAS}")
+    cur.execute(f"SELECT id, cliente_id, nombre, codigo_sap FROM {tp}")
     plantas = [dict(r) for r in cur.fetchall()]
     return clientes, plantas
 
 
-def aplicar(cur, plan: dict) -> dict[str, int]:
+def aplicar(cur, plan: dict, servicio: str = ACTIMIST) -> dict[str, int]:
     """Crea lo nuevo del plan. Va dentro de la transacción de quien llama."""
+    tc, tp = _tablas(servicio)
     ids: dict[Any, int] = {}
     for c in plan["clientes_nuevos"]:
         cur.execute(
-            f"INSERT INTO {TABLA_CLIENTES} (nombre, codigo_sap, activo) VALUES (%s, %s, TRUE) RETURNING id",
+            f"INSERT INTO {tc} (nombre, codigo_sap, activo) VALUES (%s, %s, TRUE) RETURNING id",
             (c["nombre"], c["codigo_sap"]),
         )
         ids[c["clave"]] = cur.fetchone()["id"]
     for p in plan["plantas_nuevas"]:
         cliente_id = ids.get(p["cliente_clave"], p["cliente_clave"])
         cur.execute(
-            f"INSERT INTO {TABLA_PLANTAS} (cliente_id, nombre, codigo_sap, activo) VALUES (%s, %s, %s, TRUE)",
+            f"INSERT INTO {tp} (cliente_id, nombre, codigo_sap, activo) VALUES (%s, %s, %s, TRUE)",
             (cliente_id, p["nombre"], p["codigo_sap"]),
         )
     return {"clientes": len(plan["clientes_nuevos"]), "plantas": len(plan["plantas_nuevas"])}

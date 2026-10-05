@@ -431,7 +431,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
           <p>Antes de guardar se deja un respaldo de las listas actuales. Lo que está en amarillo o no aceptaste no se toca.</p>
           <p className={styles.servicioGuardar}>
             Solo cambia la lista de <EtiquetaServicio servicio={servicio} />
-            {aCrear > 0 && <> y su listado de plantas</>}. La de {ETIQUETA_SERVICIO[servicio === 'actimist' ? 'linea' : 'actimist']} queda igual.
+            {aCrear > 0 && <> y su listado de plantas</>}. Las de los demás servicios quedan igual.
           </p>
           {errorGuardar && <p className={styles.errorTexto} role="alert">{errorGuardar}</p>}
         </Modal>

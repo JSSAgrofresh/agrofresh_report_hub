@@ -1,14 +1,14 @@
 import { httpClient } from '@/services/http/client'
-import type { Servicio } from '@/lib/servicio'
+import type { Servicio, ServicioConListado } from '@/lib/servicio'
 import type { Cliente, ClienteInput, Planta, PlantaInput, PlanImportacionActimist } from './tipos'
 
 /**
  * Cada servicio tiene su listado: Línea de proceso en `/catalogo` (el de
  * siempre, que también leen Ingesta, Converter y Report) y Actimist en
- * `/catalogo/actimist`. Sin servicio, todo va al de Línea de proceso.
+ * `/catalogo/actimist`; Ecofog (copia de Actimist) en `/catalogo/ecofog`. Sin servicio, todo va al de Línea de proceso.
  */
 function base(servicio: Servicio = 'linea') {
-  return servicio === 'actimist' ? '/catalogo/actimist' : '/catalogo'
+  return servicio === 'linea' ? '/catalogo' : `/catalogo/${servicio}`
 }
 
 export function listarClientes(servicio: Servicio = 'linea') {
@@ -35,15 +35,15 @@ export function editarPlanta(id: number, datos: PlantaInput, servicio: Servicio 
   return httpClient.put<{ estado: string }>(`${base(servicio)}/plantas/${id}`, datos)
 }
 
-/** Borra Sold To (con sus Ship To) o Ship To del listado de Actimist. */
-export function eliminarLoteActimist(tipo: 'sold_to' | 'ship_to', ids: number[]) {
-  return httpClient.post<{ eliminados: number }>('/catalogo/actimist/eliminar-lote', { tipo, ids })
+/** Borra Sold To (con sus Ship To) o Ship To del listado de Actimist o de Ecofog. */
+export function eliminarLoteActimist(tipo: 'sold_to' | 'ship_to', ids: number[], servicio: ServicioConListado = 'actimist') {
+  return httpClient.post<{ eliminados: number }>(`/catalogo/${servicio}/eliminar-lote`, { tipo, ids })
 }
 
 /** Carga Sold To / Ship To de Actimist desde la dinámica del Planner. Sin
  * `aplicar` solo devuelve qué haría (no escribe). */
-export function importarListadoActimist(archivo: File, aplicar: boolean) {
+export function importarListadoActimist(archivo: File, aplicar: boolean, servicio: ServicioConListado = 'actimist') {
   const datos = new FormData()
   datos.append('archivo', archivo)
-  return httpClient.upload<PlanImportacionActimist>(`/catalogo/actimist/importar?aplicar=${aplicar}`, datos)
+  return httpClient.upload<PlanImportacionActimist>(`/catalogo/${servicio}/importar?aplicar=${aplicar}`, datos)
 }

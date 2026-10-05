@@ -45,7 +45,7 @@ from pydantic import BaseModel, Field
 from . import config_store
 from .auth import Usuario, solo_admin_general
 from .listados import clave_normalizada as _clave_esp
-from .servicios import ACTIMIST, clave_servicio, es_del_servicio, tablas
+from .servicios import clave_servicio, es_del_servicio, es_servicio_con_listado, tablas
 
 logger = logging.getLogger(__name__)
 
@@ -392,8 +392,8 @@ def _contacto(id_: int, sold_to: str, ship_to: str, especie: str, email: str, ti
     }
     # Los de Línea de proceso quedan como siempre (sin la llave); los de
     # Actimist llevan su marca.
-    if clave_servicio(servicio) == ACTIMIST:
-        contacto["servicio"] = ACTIMIST
+    if es_servicio_con_listado(servicio):
+        contacto["servicio"] = clave_servicio(servicio)
     return contacto
 
 
@@ -718,7 +718,7 @@ def exportar(todas: bool = False, servicio: str = "", _: Usuario = Depends(solo_
     if todas:
         lis = _listados(servicio) or {}
         vacias = [par for k, par in lis.items() if k not in estado]
-    sufijo = "_actimist" if servicio == ACTIMIST else ""
+    sufijo = f"_{servicio}" if es_servicio_con_listado(servicio) else ""
     nombre = f"listas_distribucion{sufijo}_{datetime.now():%Y-%m-%d}.xlsx"
     return Response(
         construir_excel(estado, vacias),

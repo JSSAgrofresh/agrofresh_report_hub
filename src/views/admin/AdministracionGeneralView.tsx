@@ -18,6 +18,7 @@ import { IconoActualizar, IconoAlerta, IconoBuscar, IconoCerrar, IconoPapelera }
 import { Modal } from '@/components/ui/Modal'
 import { ListasPanel } from './listas/ListasPanel'
 import { SelectorServicio } from '@/components/ui/SelectorServicio'
+import { SERVICIOS_CON_LISTADO } from '@/lib/servicio'
 import type { Servicio } from '@/lib/servicio'
 import { ActividadPanel } from './panel/ActividadPanel'
 import { ResumenPanel } from './panel/ResumenPanel'
@@ -57,7 +58,7 @@ export function AdministracionGeneralView() {
   // Cada tipo de servicio tiene su lista de distribución. Los dos paneles se
   // conservan montados: cambiar de servicio no pierde lo que no se guardó.
   const [servicioListas, setServicioListas] = useState<Servicio>('linea')
-  const [actimistVisitada, setActimistVisitada] = useState(false)
+  const [visitadas, setVisitadas] = useState<Set<Servicio>>(new Set())
   const [personaElegida, setPersonaElegida] = useState<string | null>(null)
   const [abiertas, setAbiertas] = useState<Set<number>>(new Set())
   const [ampliarTodas, setAmpliarTodas] = useState(false)
@@ -160,15 +161,18 @@ export function AdministracionGeneralView() {
             <SelectorServicio
               etiqueta="Lista de distribución de"
               valor={servicioListas}
-              onChange={(s) => { if (s === 'actimist') setActimistVisitada(true); setServicioListas(s) }}
+              onChange={(s) => { setVisitadas((v) => new Set(v).add(s)); setServicioListas(s) }}
               detalle={{
                 linea: 'La de siempre, por planta y especie.',
                 actimist: 'Plantas del listado de Actimist. Sin clientes, van Jorge, el Report Hub, Carlos y Cristian.',
+                ecofog: 'Plantas del listado de Ecofog (copia de Actimist). Sin clientes, van Jorge, el Report Hub, Carlos y Cristian.',
               }}
             />
           </div>
           <div hidden={servicioListas !== 'linea'}><ListasPanel servicio="linea" /></div>
-          {actimistVisitada && <div hidden={servicioListas !== 'actimist'}><ListasPanel servicio="actimist" /></div>}
+          {SERVICIOS_CON_LISTADO.filter((s) => visitadas.has(s)).map((s) => (
+            <div key={s} hidden={servicioListas !== s}><ListasPanel servicio={s} /></div>
+          ))}
         </div>
       )}
 

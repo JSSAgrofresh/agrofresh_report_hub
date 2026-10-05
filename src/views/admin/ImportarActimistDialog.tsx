@@ -5,9 +5,13 @@ import { EtiquetaServicio } from '@/components/ui/SelectorServicio'
 import { IconoAlerta, IconoExcel } from '@/components/ui/iconosAccion'
 import { importarListadoActimist } from '@/features/catalogo'
 import type { PlanImportacionActimist } from '@/features/catalogo'
+import { ETIQUETA_SERVICIO } from '@/lib/servicio'
+import type { ServicioConListado } from '@/lib/servicio'
 import styles from './ImportarActimistDialog.module.css'
 
 interface Props {
+  /** Listado donde se carga: Actimist o Ecofog (copia, con tablas aparte). */
+  servicio?: ServicioConListado
   onCerrar: () => void
   /** Se llama después de cargar, para refrescar el listado. */
   onCargado: () => void
@@ -29,7 +33,8 @@ type Paso =
  * escribir nada- y recién al confirmar crea lo nuevo. Nunca modifica ni borra
  * lo que ya está, y no toca el listado de Línea de proceso.
  */
-export function ImportarActimistDialog({ onCerrar, onCargado }: Props) {
+export function ImportarActimistDialog({ servicio = 'actimist', onCerrar, onCargado }: Props) {
+  const nombre = ETIQUETA_SERVICIO[servicio]
   const entrada = useRef<HTMLInputElement>(null)
   const [paso, setPaso] = useState<Paso>({ tipo: 'elegir' })
   const [error, setError] = useState<string | null>(null)
@@ -39,7 +44,7 @@ export function ImportarActimistDialog({ onCerrar, onCargado }: Props) {
     setError(null)
     setPaso({ tipo: 'revisando', archivo })
     try {
-      const plan = await importarListadoActimist(archivo, false)
+      const plan = await importarListadoActimist(archivo, false, servicio)
       setPaso({ tipo: 'plan', archivo, plan })
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : 'No se pudo leer el archivo.')
@@ -52,7 +57,7 @@ export function ImportarActimistDialog({ onCerrar, onCargado }: Props) {
     setError(null)
     setPaso({ tipo: 'cargando', archivo: paso.archivo, plan: paso.plan })
     try {
-      const hecho = await importarListadoActimist(paso.archivo, true)
+      const hecho = await importarListadoActimist(paso.archivo, true, servicio)
       setPaso({ tipo: 'listo', plan: hecho })
       onCargado()
     } catch (e) {
@@ -86,7 +91,7 @@ export function ImportarActimistDialog({ onCerrar, onCargado }: Props) {
 
   return (
     <Modal
-      titulo="Importar listado de Actimist"
+      titulo={`Importar listado de ${nombre}`}
       subtitulo={paso.tipo === 'elegir' ? 'Dinámica del Planner: Sold to Number, Sold to Name, Ship to Number y Ship to Name.' : ('archivo' in paso ? paso.archivo.name : undefined)}
       onCerrar={onCerrar}
       ancho="grande"
@@ -94,8 +99,8 @@ export function ImportarActimistDialog({ onCerrar, onCargado }: Props) {
     >
       <div className={styles.cuerpo}>
         <div className={styles.encabezado}>
-          <EtiquetaServicio servicio="actimist" />
-          <span>Solo se escribe en el listado de Actimist. El de Línea de proceso no se toca.</span>
+          <EtiquetaServicio servicio={servicio} />
+          <span>Solo se escribe en el listado de {nombre}. El de Línea de proceso no se toca.</span>
         </div>
 
         {error && (
@@ -135,7 +140,7 @@ export function ImportarActimistDialog({ onCerrar, onCargado }: Props) {
             {paso.tipo === 'listo' && (
               <div className={styles.exito} role="status">
                 Listo: se crearon {nf.format(plan.creados?.clientes ?? 0)} Sold To y{' '}
-                {nf.format(plan.creados?.plantas ?? 0)} Ship To en el listado de Actimist.
+                {nf.format(plan.creados?.plantas ?? 0)} Ship To en el listado de {nombre}.
               </div>
             )}
 

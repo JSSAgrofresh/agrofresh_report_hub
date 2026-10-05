@@ -48,11 +48,11 @@ from .db import conexion, cursor_dict
 from .notificaciones import notificar
 from .listados import clave_normalizada as _clave_esp
 from .servicios import (
-    ACTIMIST,
-    PARA_SIN_LISTA_ACTIMIST,
-    PERMANENTES_ACTIMIST,
+    PARA_SIN_LISTA_SERVICIO,
+    PERMANENTES_SERVICIO,
     clave_servicio,
     es_del_servicio,
+    es_servicio_con_listado,
     servicio_de_datos,
 )
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
@@ -1780,7 +1780,7 @@ def _para_sin_lista(admins: list[str], servicio: str = "") -> list[str]:
     de CCO a Para.
 
     Actimist tiene su propio respaldo: Jorge y el Report Hub (sin Claudia)."""
-    base = PARA_SIN_LISTA_ACTIMIST if clave_servicio(servicio) == ACTIMIST else DESTINATARIOS_SIN_LISTA
+    base = PARA_SIN_LISTA_SERVICIO.get(clave_servicio(servicio), DESTINATARIOS_SIN_LISTA)
     salida: list[str] = []
     vistos: set[str] = set()
     for e in [*base, *admins]:
@@ -1805,8 +1805,8 @@ def solicitud_sin_lista(datos: dict, contactos: list[dict] | None = None) -> boo
     copia, no son la lista del cliente."""
     servicio = servicio_de_datos(datos)
     propios = {c.casefold() for c in DESTINATARIOS_SIN_LISTA}
-    if servicio == ACTIMIST:
-        propios |= {c.casefold() for c in (*PARA_SIN_LISTA_ACTIMIST, *PERMANENTES_ACTIMIST)}
+    if es_servicio_con_listado(servicio):
+        propios |= {c.casefold() for c in (*PARA_SIN_LISTA_SERVICIO[servicio], *PERMANENTES_SERVICIO[servicio])}
     for c in _contactos_resultado(
         str(datos.get("sold_to") or ""), str(datos.get("ship_to") or ""), str(datos.get("especie") or ""),
         contactos, servicio=servicio,
@@ -1862,7 +1862,7 @@ def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[s
         if c.get("tipo") == "resultado_interno" and c.get("activo", True) and c.get("email")
     ]
     internos.sort(key=lambda c: c.get("orden", 0))
-    if servicio == ACTIMIST:
+    if es_servicio_con_listado(servicio):
         return _contactos_solicitud_actimist(por_envio, internos, datos)
     para = por_envio["to"] or _para_sin_lista(_admins_de(internos))
     en_para = {e.casefold() for e in para}
@@ -1879,7 +1879,7 @@ def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[s
 def _contactos_solicitud_actimist(
     por_envio: dict[str, list[str]], internos: list[dict], datos: dict
 ) -> dict[str, list[str]]:
-    """El correo de una solicitud ACTIMIST.
+    """El correo de una solicitud ACTIMIST (y ECOFOG, que es su copia).
 
     - El laboratorio recibe como siempre (sus contactos de solicitud).
     - Jorge y el Report Hub van siempre: en Para si el laboratorio no tiene
@@ -1889,14 +1889,15 @@ def _contactos_solicitud_actimist(
     - Técnicos y comerciales: los de la lista de distribución de ACTIMIST
       (hoy vacía). Nunca los de Línea de proceso.
     """
+    servicio = servicio_de_datos(datos)
     para = list(por_envio["to"])
     ocultas = list(por_envio["bcc"])
     if para:
-        ocultas.extend(PARA_SIN_LISTA_ACTIMIST)
+        ocultas.extend(PARA_SIN_LISTA_SERVICIO[servicio])
     else:
-        para = list(PARA_SIN_LISTA_ACTIMIST)
+        para = list(PARA_SIN_LISTA_SERVICIO[servicio])
     if not datos.get("es_prueba"):
-        para.extend(PERMANENTES_ACTIMIST)
+        para.extend(PERMANENTES_SERVICIO[servicio])
     copias = [*por_envio["cc"], *(c["email"] for c in internos if c.get("tipo_copia") != "bcc")]
     ocultas.extend(c["email"] for c in internos if c.get("tipo_copia") == "bcc")
 
@@ -2107,16 +2108,16 @@ def destinatarios_resultado_por_tipo(
         en_para = {d.casefold() for d in salida["to"]}
         salida["cc"] = [e for e in salida["cc"] if e.casefold() not in en_para]
         salida["bcc"] = [e for e in salida["bcc"] if e.casefold() not in en_para]
-    if clave_servicio(servicio) == ACTIMIST:
-        salida["cc"] = _con_permanentes_actimist(salida["to"], salida["cc"], salida["bcc"])
+    if es_servicio_con_listado(servicio):
+        salida["cc"] = _con_permanentes_actimist(salida["to"], salida["cc"], salida["bcc"], servicio)
     return salida
 
 
-def _con_permanentes_actimist(para: list[str], cc: list[str], bcc: list[str]) -> list[str]:
-    """Los referentes de Actimist van en copia de todo resultado Actimist,
-    salvo que ya estén en otra parte del correo."""
+def _con_permanentes_actimist(para: list[str], cc: list[str], bcc: list[str], servicio: str) -> list[str]:
+    """Los referentes del servicio (Actimist o Ecofog) van en copia de todo
+    resultado de ese servicio, salvo que ya estén en otra parte del correo."""
     ya = {e.casefold() for e in (*para, *cc, *bcc)}
-    return [*cc, *(e for e in PERMANENTES_ACTIMIST if e.casefold() not in ya)]
+    return [*cc, *(e for e in PERMANENTES_SERVICIO[clave_servicio(servicio)] if e.casefold() not in ya)]
 
 
 class ContactoResultadoOut(BaseModel):
@@ -2280,8 +2281,8 @@ def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
         respaldo = {d.casefold() for d in para}
         cc = [e for e in cc if e.casefold() not in respaldo]
         bcc = [e for e in bcc if e.casefold() not in respaldo]
-    if servicio == ACTIMIST:
-        cc = _con_permanentes_actimist(para, cc, bcc)
+    if es_servicio_con_listado(servicio):
+        cc = _con_permanentes_actimist(para, cc, bcc, servicio)
     datos_pdf["destinatarios_resultados_detalle"] = {"para": para, "cc": cc, "bcc": bcc}
     return datos_pdf
 
@@ -2727,6 +2728,7 @@ def _crud_opciones(nombre_archivo: str, defecto: list[dict]):
 _TIPOS_APLICACION_DEFECTO: list[dict] = [
     {"id": 1, "nombre": "Actimist", "activo": True, "orden": 1},
     {"id": 2, "nombre": "Línea de proceso", "activo": True, "orden": 2},
+    {"id": 3, "nombre": "Ecofog", "activo": True, "orden": 3},
 ]
 _listar_tipos, _crear_tipo, _editar_tipo, _eliminar_tipo = _crud_opciones(
     "tipos_aplicacion.json", _TIPOS_APLICACION_DEFECTO
@@ -2780,6 +2782,7 @@ class CampoTipoAplicacionIn(BaseModel):
 
 _CAMPOS_TIPO_APLICACION_DEFECTO: list[dict] = [
     {"id": 4, "ambito": "Actimist", "clave": "gasto", "etiqueta": "Gasto", "tipo": "number", "requerido": False, "activo": True, "orden": 2},
+    {"id": 5, "ambito": "Ecofog", "clave": "gasto", "etiqueta": "Gasto", "tipo": "number", "requerido": False, "activo": True, "orden": 2},
 ]
 
 # Campos que se sembraron alguna vez y que el sistema ya no usa. Se borran del

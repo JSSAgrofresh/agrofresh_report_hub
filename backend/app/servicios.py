@@ -1,5 +1,5 @@
 """
-Tipo de servicio de una solicitud: Línea de proceso o Actimist.
+Tipo de servicio de una solicitud: Línea de proceso, Actimist o Ecofog.
 
 Cada servicio tiene su propio listado de Sold To / Ship To y su propia lista de
 distribución. Todo lo que existía antes de separarlos es de **Línea de
@@ -11,6 +11,11 @@ como antes.
 |-------------------|--------------------------------------|------------------------|
 | Línea de proceso  | `cliente` · `planta`                 | vacío (los de siempre) |
 | Actimist          | `cliente_actimist` · `planta_actimist` (0049) | `"actimist"`  |
+| Ecofog            | `cliente_ecofog` · `planta_ecofog` (0050)     | `"ecofog"`    |
+
+Ecofog es una copia de Actimist en todo (formulario, listado, lista de
+distribución, respaldos y referentes): cada regla de Actimist se pregunta con
+`es_servicio_con_listado`, y los datos propios de cada uno viven aparte.
 
 Ingesta, Converter y Report siguen leyendo SOLO `cliente`/`planta`: el listado
 de Actimist lo usa por ahora únicamente el formulario de la solicitud.
@@ -23,14 +28,16 @@ from typing import Any
 
 LINEA_PROCESO = ""
 ACTIMIST = "actimist"
-SERVICIOS = (LINEA_PROCESO, ACTIMIST)
-ETIQUETA = {LINEA_PROCESO: "Línea de proceso", ACTIMIST: "Actimist"}
+ECOFOG = "ecofog"
+SERVICIOS = (LINEA_PROCESO, ACTIMIST, ECOFOG)
+ETIQUETA = {LINEA_PROCESO: "Línea de proceso", ACTIMIST: "Actimist", ECOFOG: "Ecofog"}
 
 # Tablas del listado de cada servicio. Son nombres fijos (nunca vienen del
 # usuario), así que se pueden poner en el SQL sin riesgo.
 TABLAS: dict[str, tuple[str, str]] = {
     LINEA_PROCESO: ("cliente", "planta"),
     ACTIMIST: ("cliente_actimist", "planta_actimist"),
+    ECOFOG: ("cliente_ecofog", "planta_ecofog"),
 }
 
 # Actimist: quién recibe SIEMPRE. Sin lista del cliente, Para = estos dos
@@ -39,6 +46,11 @@ PARA_SIN_LISTA_ACTIMIST = ["JORGE.SANDOVAL@AGROFRESH.COM", "AGROFRESHREPORTHUB@G
 # Referentes de producto de Actimist: van en toda solicitud Actimist real
 # (las de prueba no) y en copia de sus resultados.
 PERMANENTES_ACTIMIST = ["CJIMENEZ@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM"]
+# Ecofog parte con los mismos respaldos y referentes que Actimist (copia).
+PARA_SIN_LISTA_ECOFOG = list(PARA_SIN_LISTA_ACTIMIST)
+PERMANENTES_ECOFOG = list(PERMANENTES_ACTIMIST)
+PARA_SIN_LISTA_SERVICIO = {ACTIMIST: PARA_SIN_LISTA_ACTIMIST, ECOFOG: PARA_SIN_LISTA_ECOFOG}
+PERMANENTES_SERVICIO = {ACTIMIST: PERMANENTES_ACTIMIST, ECOFOG: PERMANENTES_ECOFOG}
 
 
 def _norm(texto: Any) -> str:
@@ -48,10 +60,17 @@ def _norm(texto: Any) -> str:
 
 
 def clave_servicio(valor: Any) -> str:
-    """«Actimist», «ACTIMIST », «actimist» → `actimist`. Todo lo demás
-    (vacío, «Línea de proceso», «RYD», un valor desconocido) → Línea de
-    proceso, que es lo que regía antes de separar los servicios."""
-    return ACTIMIST if _norm(valor) == ACTIMIST else LINEA_PROCESO
+    """«Actimist», «ACTIMIST », «actimist» → `actimist`; «Ecofog» → `ecofog`.
+    Todo lo demás (vacío, «Línea de proceso», «RYD», un valor desconocido) →
+    Línea de proceso, que es lo que regía antes de separar los servicios."""
+    n = _norm(valor)
+    return n if n in (ACTIMIST, ECOFOG) else LINEA_PROCESO
+
+
+def es_servicio_con_listado(servicio: Any) -> bool:
+    """¿Es un servicio con listado y lista propios (todo menos Línea de
+    proceso)? Actimist y Ecofog siguen las mismas reglas."""
+    return clave_servicio(servicio) != LINEA_PROCESO
 
 
 def servicio_de_datos(datos: dict | None) -> str:
