@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api/actividad", tags=["actividad"])
 MODULOS: list[tuple[str, str]] = [
     ("/modulos/toma-muestras", "Toma de muestras"),
     ("/modulos/agrofresh-lab/verificaciones", "Verificaciones"),
+    ("/modulos/agrofresh-lab/envio-informes", "Envío de informes"),
     ("/modulos/agrofresh-lab", "AgroFresh Lab"),
     ("/modulos/ingesta", "Ingesta de datos"),
     ("/modulos/convertidor", "Converter"),

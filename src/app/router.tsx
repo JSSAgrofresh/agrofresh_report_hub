@@ -15,6 +15,7 @@ import { AgrofreshLabHubView } from '@/views/modules/lab/AgrofreshLabHubView'
 import { VerificacionesView } from '@/views/modules/lab/verificaciones/VerificacionesView'
 import { VerificacionesHistoricoView } from '@/views/modules/lab/verificaciones/VerificacionesHistoricoView'
 import { CriteriosView } from '@/views/modules/lab/verificaciones/CriteriosView'
+import { EnvioInformesView } from '@/views/modules/lab/envioInformes/EnvioInformesView'
 import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { StorageView } from '@/views/modules/storage/StorageView'
 import { AuditoriaInternaHubView } from '@/views/modules/auditoria-interna/AuditoriaInternaHubView'
@@ -82,6 +83,7 @@ export const router = createBrowserRouter([
                 element: <VerificacionesHistoricoView />,
               },
               { path: ROUTES.agrofreshLabVerificacionesCriterios, element: <CriteriosView /> },
+              { path: ROUTES.agrofreshLabEnvioInformes, element: <EnvioInformesView /> },
             ],
           },
           {

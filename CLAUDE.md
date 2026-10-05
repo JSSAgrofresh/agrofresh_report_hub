@@ -83,6 +83,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0044_auditoria_interna.sql
 .venv\Scripts\python.exe scripts\migrar.py 0045_correcciones_converter.sql
 .venv\Scripts\python.exe scripts\migrar.py 0047_actividad_usuario.sql
+.venv\Scripts\python.exe scripts\migrar.py 0048_envio_informes.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -159,17 +160,56 @@ Este proyecto no se da por listo con "debería funcionar":
 
 ---
 
-## AgroFresh Lab tiene dos módulos adentro
+## AgroFresh Lab tiene tres módulos adentro
 
-`/modulos/agrofresh-lab` es un **hub** (dos tarjetas), no una pantalla:
+`/modulos/agrofresh-lab` es un **hub** (tres tarjetas), no una pantalla:
 
 | Módulo | Ruta | Qué es |
 |---|---|---|
 | Ingreso al laboratorio | `/modulos/agrofresh-lab/ingreso` | Lo de siempre: recibir la muestra, cruzarla con su solicitud y subir el resultado del GC. No cambió. |
 | Verificaciones diarias | `/modulos/agrofresh-lab/verificaciones` | REG-03: reemplaza el Excel con macros del control diario de equipos. |
+| Envío de informes | `/modulos/agrofresh-lab/envio-informes` | Paz sube el PDF del laboratorio, elige Sold To y Ship To y se envía a la lista de distribución del cliente. |
 
-Los dos comparten el permiso `agrofresh_lab`; editar los criterios
+Los tres comparten el permiso `agrofresh_lab`; editar los criterios
 (`/verificaciones/criterios`) sí exige admin general.
+
+**Envío de informes** (`app/envio_informes.py`, prefijo `/api/envio-informes`;
+front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
+
+- **Modo prueba / producción.** Un botón arriba dice «Sistema en prueba» o
+  «Sistema en producción» y lo cambia. **Siempre parte en prueba** (sin archivo
+  de configuración = prueba). En prueba todo sale SOLO a `DESTINATARIOS_PRUEBA`
+  (Paz y Jorge), con «(PRUEBA)» en el asunto y un aviso arriba del correo que
+  dice a quién habría ido de verdad. Pasar a producción pide la contraseña de
+  quien lo hace (403 si se equivoca, **no 401**: un 401 cierra la sesión en el
+  navegador); volver a prueba no la pide. La configuración (`envio_informes.json`,
+  en `_config/` como los demás mantenedores) guarda el modo y las copias internas.
+- **Para = la lista de «Resultado a clientes» de ESA planta** (mismo Sold To y
+  mismo Ship To; con especie vale la lista de esa especie y si no hay, la
+  general). **No** usa los respaldos de la solicitud (ni el contacto global ni
+  «solo Ship To»): un informe de un cliente nunca debe caer en la lista de otro.
+  **No** agrega los técnicos, comerciales, Jorge ni Claudia de la lista interna
+  de la planta. Las copias internas son las del módulo (`internos`, hoy Paz y
+  Jorge en copia oculta, editables desde la pantalla): **la forma final de CC/CCO
+  queda en stand-by**, se define con el laboratorio. Nada de esto escribe en
+  `contactos_laboratorio.json`.
+- Paz puede corregir Para / CC / CCO, el asunto y el texto **solo para ese
+  envío**. El template por laboratorio (`templates_mail_informes.json`) es el
+  punto de partida y se edita ahí mismo con `TemplateMailEditor`, el MISMO editor
+  de Administración → Laboratorios (`mail_templates.py` comparte el marco del
+  correo, `_layout`, con solicitudes y reanálisis: los correos ya emitidos salen
+  igual, `tests/test_mail_templates_marco.py` lo compara con la salida de antes).
+- La vista previa la arma el backend con el mismo código del envío
+  (`armar_correo`): lo que se ve es lo que sale.
+- Adjuntos: PDF, Excel, CSV, ZIP, imágenes y DOCX; 15 por correo, 20 MB cada uno
+  y 24 MB en total. Un PDF debe empezar por `%PDF`.
+- Historial en `envio_informe_log` (migración 0048, best-effort: sin la tabla el
+  envío igual sale y la pantalla avisa). Aparece también en Administración
+  General → Actividad como «informes».
+- Acceso: admin general y quien tenga `agrofresh_lab` (`puede_usar`, espejo de
+  `modulosPredeterminados`). Gerencia y clientes no.
+- Pendiente a futuro: leer Sold To / Ship To desde el PDF (hoy se eligen a mano;
+  necesita una librería de lectura de PDF en el servidor) y definir las copias.
 
 Backend: `app/verificaciones.py` (+ `verificaciones_excel.py`), tablas `verif_*`
 de la migración 0026. Frontend: `src/features/verificaciones/`,

@@ -1,4 +1,5 @@
-"""Plantillas configurables para el correo de solicitudes de análisis."""
+"""Plantillas configurables para los correos del sistema: solicitudes de análisis,
+reanálisis y envío de informes a clientes."""
 import logging
 import os
 import re
@@ -105,76 +106,105 @@ def _logo_bytes() -> bytes | None:
         return None
 
 
-def obtener(laboratorio: str) -> dict:
-    items = config_store.leer(ARCHIVO, [])
+def _logo_html(logo: bytes | None) -> str:
+    return (
+        f'<img src="cid:{LOGO_CONTENT_ID}" alt="AgroFresh" width="132" height="53" '
+        f'style="display:block;border:0;">'
+        if logo else
+        '<span style="color:#ffffff;font-size:17px;font-weight:700;">AgroFresh</span>'
+    )
+
+
+def _layout(titulo: str, intermedio: list[str], cuerpo_html: str, logo: bytes | None) -> str:
+    """El marco común de todos los correos del sistema: franja verde con el
+    logo, título, el bloque propio de cada tipo (`intermedio`), el texto y el
+    pie. Las solicitudes, los reanálisis y los informes comparten SOLO esto: si
+    se cambia la marca se cambia acá y no en tres copias."""
+    bloque = "".join(f"\n        {item}" for item in intermedio)
+    return f"""
+<div style="background:{_FONDO_TENUE};padding:28px 12px;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;border-collapse:collapse;background:#ffffff;border-radius:12px;overflow:hidden;">
+    <tr>
+      <td style="background:{_VERDE_OSCURO};padding:24px 28px;">{_logo_html(logo)}</td>
+    </tr>
+    <tr>
+      <td style="padding:30px 28px 26px;">
+        <h1 style="margin:0 0 3px;color:{_VERDE_OSCURO};font-size:19px;font-weight:700;">{titulo}</h1>{bloque}
+        <div style="color:{_TEXTO};font-size:14px;line-height:1.65;">{cuerpo_html}</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:{_FONDO_TENUE};padding:14px 28px;border-top:1px solid {_BORDE};">
+        <p style="margin:0;color:{_TEXTO_TENUE};font-size:11px;">Enviado automáticamente por AgroFresh Report Hub.</p>
+      </td>
+    </tr>
+  </table>
+</div>
+""".strip()
+
+
+def _validar_texto(texto: str, permitidas: list[str]) -> None:
+    try:
+        usadas = {
+            nombre for _, nombre, _, _ in Formatter().parse(texto)
+            if nombre is not None
+        }
+    except ValueError as exc:
+        raise HTTPException(400, f"Template inválido: {exc}") from exc
+    desconocidas = sorted(usadas - set(permitidas))
+    if desconocidas:
+        raise HTTPException(400, f"Variables desconocidas: {', '.join(desconocidas)}")
+
+
+def _obtener_template(
+    archivo: str, laboratorio: str, asunto_defecto: str, cuerpo_defecto: str, variables: list[str],
+) -> dict:
+    items = config_store.leer(archivo, [])
     actual = next((i for i in items if i.get("laboratorio") == laboratorio), None)
     return {
         "laboratorio": laboratorio,
-        "asunto": (actual or {}).get("asunto") or ASUNTO_DEFECTO,
-        "cuerpo": (actual or {}).get("cuerpo") or CUERPO_DEFECTO,
-        "variables": VARIABLES,
+        "asunto": (actual or {}).get("asunto") or asunto_defecto,
+        "cuerpo": (actual or {}).get("cuerpo") or cuerpo_defecto,
+        "variables": variables,
     }
+
+
+def _guardar_template(archivo: str, laboratorio: str, asunto: str, cuerpo: str, variables: list[str]) -> dict:
+    _validar_texto(asunto, variables)
+    _validar_texto(cuerpo, variables)
+    items = config_store.leer(archivo, [])
+    nuevo = {"laboratorio": laboratorio, "asunto": asunto.strip(), "cuerpo": cuerpo.strip()}
+    items = [nuevo if i.get("laboratorio") == laboratorio else i for i in items]
+    if not any(i.get("laboratorio") == laboratorio for i in items):
+        items.append(nuevo)
+    config_store.escribir(archivo, items)
+    return {**nuevo, "variables": variables}
+
+
+def obtener(laboratorio: str) -> dict:
+    return _obtener_template(ARCHIVO, laboratorio, ASUNTO_DEFECTO, CUERPO_DEFECTO, VARIABLES)
 
 
 def validar(texto: str) -> None:
-    try:
-        usadas = {
-            nombre for _, nombre, _, _ in Formatter().parse(texto)
-            if nombre is not None
-        }
-    except ValueError as exc:
-        raise HTTPException(400, f"Template inválido: {exc}") from exc
-    desconocidas = sorted(usadas - set(VARIABLES))
-    if desconocidas:
-        raise HTTPException(400, f"Variables desconocidas: {', '.join(desconocidas)}")
+    _validar_texto(texto, VARIABLES)
 
 
 def guardar(laboratorio: str, asunto: str, cuerpo: str) -> dict:
-    validar(asunto)
-    validar(cuerpo)
-    items = config_store.leer(ARCHIVO, [])
-    nuevo = {"laboratorio": laboratorio, "asunto": asunto.strip(), "cuerpo": cuerpo.strip()}
-    items = [nuevo if i.get("laboratorio") == laboratorio else i for i in items]
-    if not any(i.get("laboratorio") == laboratorio for i in items):
-        items.append(nuevo)
-    config_store.escribir(ARCHIVO, items)
-    return {**nuevo, "variables": VARIABLES}
+    return _guardar_template(ARCHIVO, laboratorio, asunto, cuerpo, VARIABLES)
 
 
 def obtener_reanalisis(laboratorio: str) -> dict:
-    items = config_store.leer(ARCHIVO_REANALISIS, [])
-    actual = next((i for i in items if i.get("laboratorio") == laboratorio), None)
-    return {
-        "laboratorio": laboratorio,
-        "asunto": (actual or {}).get("asunto") or ASUNTO_REANALISIS,
-        "cuerpo": (actual or {}).get("cuerpo") or CUERPO_REANALISIS,
-        "variables": VARIABLES_REANALISIS,
-    }
+    return _obtener_template(
+        ARCHIVO_REANALISIS, laboratorio, ASUNTO_REANALISIS, CUERPO_REANALISIS, VARIABLES_REANALISIS,
+    )
 
 
 def validar_reanalisis(texto: str) -> None:
-    try:
-        usadas = {
-            nombre for _, nombre, _, _ in Formatter().parse(texto)
-            if nombre is not None
-        }
-    except ValueError as exc:
-        raise HTTPException(400, f"Template inválido: {exc}") from exc
-    desconocidas = sorted(usadas - set(VARIABLES_REANALISIS))
-    if desconocidas:
-        raise HTTPException(400, f"Variables desconocidas: {', '.join(desconocidas)}")
+    _validar_texto(texto, VARIABLES_REANALISIS)
 
 
 def guardar_reanalisis(laboratorio: str, asunto: str, cuerpo: str) -> dict:
-    validar_reanalisis(asunto)
-    validar_reanalisis(cuerpo)
-    items = config_store.leer(ARCHIVO_REANALISIS, [])
-    nuevo = {"laboratorio": laboratorio, "asunto": asunto.strip(), "cuerpo": cuerpo.strip()}
-    items = [nuevo if i.get("laboratorio") == laboratorio else i for i in items]
-    if not any(i.get("laboratorio") == laboratorio for i in items):
-        items.append(nuevo)
-    config_store.escribir(ARCHIVO_REANALISIS, items)
-    return {**nuevo, "variables": VARIABLES_REANALISIS}
+    return _guardar_template(ARCHIVO_REANALISIS, laboratorio, asunto, cuerpo, VARIABLES_REANALISIS)
 
 
 def renderizar(laboratorio: str, datos: dict) -> tuple[str, str, str, list[ImagenInline]]:
@@ -191,34 +221,11 @@ def renderizar(laboratorio: str, datos: dict) -> tuple[str, str, str, list[Image
     cuerpo_html = escape(texto).replace("\n", "<br>")
 
     logo = _logo_bytes()
-    logo_html = (
-        f'<img src="cid:{LOGO_CONTENT_ID}" alt="AgroFresh" width="132" height="53" '
-        f'style="display:block;border:0;">'
-        if logo else
-        f'<span style="color:#ffffff;font-size:17px;font-weight:700;">AgroFresh</span>'
+    sub = (
+        f'<p style="margin:0 0 20px;color:{_VERDE};font-weight:700;font-size:14.5px;">Solicitud {escape(numero)}</p>'
+        if numero else '<div style="margin-bottom:20px;"></div>'
     )
-
-    html = f"""
-<div style="background:{_FONDO_TENUE};padding:28px 12px;font-family:Arial,Helvetica,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;border-collapse:collapse;background:#ffffff;border-radius:12px;overflow:hidden;">
-    <tr>
-      <td style="background:{_VERDE_OSCURO};padding:24px 28px;">{logo_html}</td>
-    </tr>
-    <tr>
-      <td style="padding:30px 28px 26px;">
-        <h1 style="margin:0 0 3px;color:{_VERDE_OSCURO};font-size:19px;font-weight:700;">Solicitud de Análisis</h1>
-        {f'<p style="margin:0 0 20px;color:{_VERDE};font-weight:700;font-size:14.5px;">Solicitud {escape(numero)}</p>' if numero else '<div style="margin-bottom:20px;"></div>'}
-        <div style="color:{_TEXTO};font-size:14px;line-height:1.65;">{cuerpo_html}</div>
-      </td>
-    </tr>
-    <tr>
-      <td style="background:{_FONDO_TENUE};padding:14px 28px;border-top:1px solid {_BORDE};">
-        <p style="margin:0;color:{_TEXTO_TENUE};font-size:11px;">Enviado automáticamente por AgroFresh Report Hub.</p>
-      </td>
-    </tr>
-  </table>
-</div>
-""".strip()
+    html = _layout("Solicitud de Análisis", [sub], cuerpo_html, logo)
 
     imagenes = [ImagenInline(LOGO_CONTENT_ID, logo)] if logo else []
     return asunto, texto, html, imagenes
@@ -248,39 +255,105 @@ def renderizar_reanalisis(laboratorio: str, datos: dict) -> tuple[str, str, str,
     cuerpo_html = escape(texto).replace("\n", "<br>")
 
     logo = _logo_bytes()
-    logo_html = (
-        f'<img src="cid:{LOGO_CONTENT_ID}" alt="AgroFresh" width="132" height="53" '
-        f'style="display:block;border:0;">'
-        if logo else
-        f'<span style="color:#ffffff;font-size:17px;font-weight:700;">AgroFresh</span>'
-    )
-
-    html = f"""
-<div style="background:{_FONDO_TENUE};padding:28px 12px;font-family:Arial,Helvetica,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;border-collapse:collapse;background:#ffffff;border-radius:12px;overflow:hidden;">
-    <tr>
-      <td style="background:{_VERDE_OSCURO};padding:24px 28px;">{logo_html}</td>
-    </tr>
-    <tr>
-      <td style="padding:30px 28px 26px;">
-        <h1 style="margin:0 0 3px;color:{_VERDE_OSCURO};font-size:19px;font-weight:700;">Solicitud de Reanálisis</h1>
-        {f'<p style="margin:0 0 6px;color:{_VERDE};font-weight:700;font-size:14.5px;">Reanálisis {escape(numero)}</p>' if numero else '<div style="margin-bottom:20px;"></div>'}
-        <p style="margin:0 0 20px;color:#c0392b;font-size:13px;font-weight:600;">Esta solicitud es un REANÁLISIS de la muestra original.</p>
-        <div style="background:#fff8f0;border:1px solid #f5c6a0;border-radius:6px;padding:12px 16px;margin-bottom:20px;">
-          <p style="margin:0 0 4px;color:{_TEXTO};font-size:13px;"><strong>Motivo del reanálisis:</strong> {escape(motivo)}</p>
-          <p style="margin:0;color:{_TEXTO_TENUE};font-size:12px;">Solicitud original: {escape(numero_original)}</p>
-        </div>
-        <div style="color:{_TEXTO};font-size:14px;line-height:1.65;">{cuerpo_html}</div>
-      </td>
-    </tr>
-    <tr>
-      <td style="background:{_FONDO_TENUE};padding:14px 28px;border-top:1px solid {_BORDE};">
-        <p style="margin:0;color:{_TEXTO_TENUE};font-size:11px;">Enviado automáticamente por AgroFresh Report Hub.</p>
-      </td>
-    </tr>
-  </table>
-</div>
-""".strip()
+    intermedio = [
+        f'<p style="margin:0 0 6px;color:{_VERDE};font-weight:700;font-size:14.5px;">Reanálisis {escape(numero)}</p>'
+        if numero else '<div style="margin-bottom:20px;"></div>',
+        '<p style="margin:0 0 20px;color:#c0392b;font-size:13px;font-weight:600;">Esta solicitud es un REANÁLISIS de la muestra original.</p>',
+        '<div style="background:#fff8f0;border:1px solid #f5c6a0;border-radius:6px;padding:12px 16px;margin-bottom:20px;">\n'
+        f'          <p style="margin:0 0 4px;color:{_TEXTO};font-size:13px;"><strong>Motivo del reanálisis:</strong> {escape(motivo)}</p>\n'
+        f'          <p style="margin:0;color:{_TEXTO_TENUE};font-size:12px;">Solicitud original: {escape(numero_original)}</p>\n'
+        '        </div>',
+    ]
+    html = _layout("Solicitud de Reanálisis", intermedio, cuerpo_html, logo)
 
     imagenes = [ImagenInline(LOGO_CONTENT_ID, logo)] if logo else []
     return asunto, texto, html, imagenes
+
+
+# ---------------------------------------------------------------------------
+# Envío de informes a clientes (AgroFresh Lab → Envío de informes)
+# ---------------------------------------------------------------------------
+
+ARCHIVO_INFORMES = "templates_mail_informes.json"
+
+VARIABLES_INFORMES = [
+    "laboratorio", "sold_to", "ship_to", "especie", "fecha_envio", "enviado_por",
+    "cantidad_informes", "nombre_archivo",
+]
+
+ASUNTO_INFORME = "[AgroFresh] Informe de resultados — {sold_to} — {ship_to}"
+CUERPO_INFORME = """Estimados,
+
+Adjuntamos el informe de resultados de {laboratorio} correspondiente a {sold_to} — {ship_to}.
+
+Fecha de envío: {fecha_envio}
+
+Quedamos atentos a cualquier consulta.
+
+Saludos,
+AgroFresh"""
+
+
+def obtener_informe(laboratorio: str) -> dict:
+    return _obtener_template(
+        ARCHIVO_INFORMES, laboratorio, ASUNTO_INFORME, CUERPO_INFORME, VARIABLES_INFORMES,
+    )
+
+
+def guardar_informe(laboratorio: str, asunto: str, cuerpo: str) -> dict:
+    return _guardar_template(ARCHIVO_INFORMES, laboratorio, asunto, cuerpo, VARIABLES_INFORMES)
+
+
+def valores_informe(datos: dict) -> dict[str, str]:
+    """Los valores que reemplazan a las variables del template del informe."""
+    return {variable: str(datos.get(variable) or "—") for variable in VARIABLES_INFORMES}
+
+
+def html_de_texto(
+    texto: str, titulo: str, subtitulo: str = "", aviso: str = "",
+) -> tuple[str, list[ImagenInline]]:
+    """El texto ya escrito, dentro del marco del correo (logo, colores y pie).
+    `aviso`, si lo hay, va destacado arriba del texto -el correo de prueba lo
+    usa para decir a quién habría ido de verdad-."""
+    logo = _logo_bytes()
+    intermedio: list[str] = []
+    if subtitulo:
+        intermedio.append(
+            f'<p style="margin:0 0 20px;color:{_VERDE};font-weight:700;font-size:14.5px;">{escape(subtitulo)}</p>'
+        )
+    else:
+        intermedio.append('<div style="margin-bottom:20px;"></div>')
+    if aviso:
+        aviso_html = escape(aviso).replace("\n", "<br>")
+        intermedio.append(
+            '<div style="background:#fff8e1;border:1px solid #e8c32e;border-radius:6px;padding:12px 16px;margin-bottom:20px;'
+            f'color:{_TEXTO};font-size:12.5px;line-height:1.55;">{aviso_html}</div>'
+        )
+    html = _layout(escape(titulo), intermedio, escape(texto).replace("\n", "<br>"), logo)
+    return html, ([ImagenInline(LOGO_CONTENT_ID, logo)] if logo else [])
+
+
+def textos_informe(
+    laboratorio: str, datos: dict, *, asunto: str | None = None, cuerpo: str | None = None,
+) -> tuple[str, str]:
+    """Asunto y texto del informe. Parten del template del laboratorio, pero
+    quien envía puede haberlos corregido antes de mandar: si llegan `asunto` o
+    `cuerpo` ya escritos, valen ellos y no se vuelven a formatear (una llave
+    suelta en lo escrito a mano no debe romper el envío)."""
+    template = obtener_informe(laboratorio)
+    valores = valores_informe(datos)
+    asunto_final = asunto if asunto is not None and asunto.strip() else template["asunto"].format_map(valores)
+    texto = cuerpo if cuerpo is not None and cuerpo.strip() else template["cuerpo"].format_map(valores)
+    return asunto_final, texto
+
+
+def renderizar_informe(
+    laboratorio: str, datos: dict, *, asunto: str | None = None, cuerpo: str | None = None, aviso: str = "",
+) -> tuple[str, str, str, list[ImagenInline]]:
+    """Arma el correo de un informe (asunto, texto, html y logo)."""
+    asunto_final, texto = textos_informe(laboratorio, datos, asunto=asunto, cuerpo=cuerpo)
+    planta = " — ".join(p for p in (str(datos.get("sold_to") or "").strip(), str(datos.get("ship_to") or "").strip()) if p)
+    html, imagenes = html_de_texto(texto, "Informe de Resultados", planta, aviso)
+    if aviso:
+        texto = f"{aviso}\n\n{texto}"
+    return asunto_final, texto, html, imagenes
