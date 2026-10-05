@@ -80,18 +80,12 @@ function partirPosiciones(texto: string | null | undefined): string[] {
  * "Fruta ", "FRUTA") que había que homogenizar después. */
 const TIPOS_DE_MUESTRA = ['Fruta', 'Agua', 'Pulpa']
 
-/** Campos que solo son obligatorios dentro de un Tipo de Aplicación. El
- * mantenedor de campos generales solo tiene un sí/no global, así que estas
- * dos reglas se resuelven acá y se ignora su `requerido` configurado. */
-const REQUERIDO_SOLO_EN: Record<string, string> = {
-  posicion_muestreo: TIPO_ACTIMIST,
-}
-
 /** Obligatorios pase lo que pase, sin importar el Tipo de Aplicación. */
 const SIEMPRE_REQUERIDO = new Set(['fecha_muestreo'])
 
-/** Nunca obligatorio, aunque el mantenedor lo marque. */
-const NUNCA_REQUERIDO = new Set(['kilos_procesados'])
+/** Nunca obligatorio, aunque el mantenedor lo marque. Posición Muestreo es
+ * opcional en todos los tipos y, en Actimist, además es de texto libre. */
+const NUNCA_REQUERIDO = new Set(['kilos_procesados', 'posicion_muestreo'])
 
 /** Campos de "Información de la muestra" comunes a cualquier Tipo de
  * Aplicación (§4). Línea Proceso / N° Cámara+N° Orden son exclusivos de
@@ -770,8 +764,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   function esRequerido(campo: CampoConfig): boolean {
     if (NUNCA_REQUERIDO.has(campo.clave)) return false
     if (SIEMPRE_REQUERIDO.has(campo.clave)) return true
-    const soloEn = REQUERIDO_SOLO_EN[campo.clave]
-    if (soloEn) return tipoAplicacionSel === soloEn
     return campo.requerido
   }
 
@@ -1019,7 +1011,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       campo.clave === 'posicion_muestreo'
         ? posicionesDeMuestreo(general.especie, general.tipo_muestra)
         : null
-    if (campo.clave === 'posicion_muestreo' && opcionesPosicion && !esRYDAgrofresh) {
+    if (campo.clave === 'posicion_muestreo' && opcionesPosicion && !esRYDAgrofresh && !esActimist) {
       const actual = general.posicion_muestreo ?? ''
       return (
         <label className={styles.campo} key={campo.clave}>

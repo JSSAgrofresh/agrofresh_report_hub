@@ -647,6 +647,17 @@ describe('NuevaSolicitudView — RYD de AgroFresh', () => {
     expect(screen.queryByText('N° Ensayo')).toBeNull()
   })
 
+  it('en Actimist Posición Muestreo es texto libre y no obligatorio', async () => {
+    mockConfigRyd()
+    montarNueva()
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+
+    expect(screen.queryByText('Posición Muestreo *')).toBeNull()
+    expect(screen.getByText('Posición Muestreo')).toBeTruthy()
+    expect(screen.queryByRole('combobox', { name: /Posición Muestreo/ })).toBeNull()
+  })
+
   it('al editar precarga las posiciones y guarda ensayo y posiciones unidas por coma', async () => {
     actualizarSolicitud.mockClear()
     mockConfigRyd()
