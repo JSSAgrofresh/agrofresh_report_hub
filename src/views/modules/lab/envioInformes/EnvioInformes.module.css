@@ -909,3 +909,9 @@
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }
+
+.celdaAccion {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}

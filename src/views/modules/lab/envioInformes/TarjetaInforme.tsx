@@ -32,6 +32,8 @@ export function TarjetaInforme({
 }: TarjetaInformeProps) {
   const [abierto, setAbierto] = useState(false)
   const bloqueo = motivoBloqueo(informe)
+  // Si no se pudo leer, la causa (falta pypdf, PDF escaneado…) es más útil que el aviso genérico.
+  const aviso = !informe.soldTo && informe.lectura.error ? informe.lectura.error : bloqueo
   const plantasDelCliente = plantas.filter((p) => p.cliente_nombre === informe.soldTo).map((p) => p.nombre)
   const leido = !!informe.soldTo && !!informe.shipTo
   const editado = informe.asunto !== null || informe.cuerpo !== null
@@ -80,7 +82,7 @@ export function TarjetaInforme({
         </div>
       </div>
 
-      {bloqueo && informe.estado !== 'enviado' && <p className={styles.informeAviso}>{bloqueo}</p>}
+      {aviso && informe.estado !== 'enviado' && <p className={styles.informeAviso}>{aviso}</p>}
       {informe.estado === 'error' && informe.mensaje && <p className={styles.informeError}>{informe.mensaje}</p>}
       {informe.estado === 'enviado' && informe.mensaje && <p className={styles.informeOk}>{informe.mensaje}</p>}
 

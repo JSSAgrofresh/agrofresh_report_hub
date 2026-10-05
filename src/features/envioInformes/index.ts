@@ -1,6 +1,7 @@
 export {
   analizarInformes,
   desbloquearEdicion,
+  eliminarRegistroEnvio,
   obtenerEstadoEnvio,
   cambiarModoEnvio,
   guardarInternos,

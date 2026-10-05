@@ -89,11 +89,33 @@ def datos_de_informe(texto: str) -> dict[str, str]:
     return datos
 
 
-def leer_pdf(contenido: bytes) -> dict[str, str]:
+def buscar_por_nombres(texto: str, pares: list[tuple[str, str]]) -> tuple[str, str] | None:
+    """Respaldo cuando las etiquetas no se reconocen: busca en el texto un par
+    (Sold To, Ship To) que el sistema ya conoce. Vale solo si hay UNA coincidencia
+    clara (la de nombres más largos); con empate, no se adivina."""
+    plano = " " + re.sub(r"[^A-Z0-9]+", " ", _norm(texto)) + " "
+    mejores: list[tuple[int, tuple[str, str]]] = []
+    for sold, ship in pares:
+        s, h = (re.sub(r"[^A-Z0-9]+", " ", _norm(x)).strip() for x in (sold, ship))
+        if s and h and f" {s} " in plano and f" {h} " in plano:
+            mejores.append((len(s) + len(h), (sold, ship)))
+    if not mejores:
+        return None
+    mejores.sort(key=lambda m: -m[0])
+    if len(mejores) > 1 and mejores[0][0] == mejores[1][0] and mejores[0][1] != mejores[1][1]:
+        return None
+    return mejores[0][1]
+
+
+def texto_de_pdf(contenido: bytes) -> str:
     try:
         from pypdf import PdfReader
     except ImportError as exc:  # pragma: no cover - depende del servidor
         raise LecturaNoDisponible("Falta instalar pypdf en el servidor.") from exc
     lector = PdfReader(io.BytesIO(contenido))
-    texto = "\n".join((p.extract_text() or "") for p in lector.pages[:3])
-    return datos_de_informe(texto)
+    return "\n".join((p.extract_text() or "") for p in lector.pages[:3])
+
+
+def leer_pdf(contenido: bytes) -> dict[str, str]:
+    datos = datos_de_informe(texto_de_pdf(contenido))
+    return datos

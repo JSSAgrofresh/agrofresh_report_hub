@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '@/features/auth'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -67,6 +68,8 @@ function mensajeDe(e: unknown, defecto: string): string {
  * Jorge— o en producción —llega al cliente—; siempre parte en prueba.
  */
 export function EnvioInformesView() {
+  const { user } = useAuth()
+  const esPrincipal = user?.tipoAcceso === 'admin_general' && user.email.toLowerCase() === 'jorge.sandoval@agrofresh.com'
   const [estado, setEstado] = useState<EstadoEnvio | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [exito, setExito] = useState<string | null>(null)
@@ -382,7 +385,7 @@ export function EnvioInformesView() {
 
       <section className={styles.historial}>
         <h2>Últimos envíos</h2>
-        <HistorialEnvios historial={historial} />
+        <HistorialEnvios historial={historial} puedeEliminar={esPrincipal} onCambio={recargarHistorial} />
       </section>
 
       {pidiendoClave && (
