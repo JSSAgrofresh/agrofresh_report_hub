@@ -297,14 +297,54 @@ Saludos,
 AgroFresh"""
 
 
-def obtener_informe(laboratorio: str) -> dict:
-    return _obtener_template(
-        ARCHIVO_INFORMES, laboratorio, ASUNTO_INFORME, CUERPO_INFORME, VARIABLES_INFORMES,
-    )
+# Plantillas del correo del informe. Hoy hay UNA para todos —la predeterminada—;
+# más adelante cada servicio puede tener la suya (Línea de proceso, Actimist,
+# Ecofog) y, mientras no la tenga, usa la predeterminada. Se guardan en el mismo
+# archivo de siempre; el campo `laboratorio` de cada entrada guarda la clave.
+CLAVE_PREDETERMINADA = "predeterminado"
+CLAVES_INFORME = (CLAVE_PREDETERMINADA, "linea_proceso", "actimist", "ecofog")
+_CLAVE_LEGADA = "AGROFRESH"  # la primera versión guardaba por laboratorio
 
 
-def guardar_informe(laboratorio: str, asunto: str, cuerpo: str) -> dict:
-    return _guardar_template(ARCHIVO_INFORMES, laboratorio, asunto, cuerpo, VARIABLES_INFORMES)
+def clave_de_servicio(servicio: object) -> str:
+    """La clave de plantilla de un servicio: «actimist», «ecofog» o «linea_proceso»."""
+    from .servicios import clave_servicio
+
+    return clave_servicio(servicio) or "linea_proceso"
+
+
+def _entrada_informe(clave: str) -> dict | None:
+    items = config_store.leer(ARCHIVO_INFORMES, [])
+    return next((i for i in items if i.get("laboratorio") == clave and i.get("asunto") and i.get("cuerpo")), None)
+
+
+def obtener_informe(clave: str = CLAVE_PREDETERMINADA) -> dict:
+    """La plantilla de `clave` para editarla. Si esa clave no tiene la suya
+    (`propia: False`), trae la predeterminada, que es la que se usaría."""
+    propia = _entrada_informe(clave)
+    if propia is None and clave == CLAVE_PREDETERMINADA:
+        propia = _entrada_informe(_CLAVE_LEGADA)
+    base = propia or _entrada_informe(CLAVE_PREDETERMINADA) or _entrada_informe(_CLAVE_LEGADA)
+    return {
+        "laboratorio": clave,
+        "clave": clave,
+        "asunto": (base or {}).get("asunto") or ASUNTO_INFORME,
+        "cuerpo": (base or {}).get("cuerpo") or CUERPO_INFORME,
+        "variables": VARIABLES_INFORMES,
+        "propia": propia is not None or clave == CLAVE_PREDETERMINADA,
+    }
+
+
+def guardar_informe(clave: str, asunto: str, cuerpo: str) -> dict:
+    guardada = _guardar_template(ARCHIVO_INFORMES, clave, asunto, cuerpo, VARIABLES_INFORMES)
+    return {**guardada, "clave": clave, "propia": True}
+
+
+def plantilla_para(servicio: object = "") -> dict:
+    """La plantilla que rige para un servicio: la suya si la tiene, si no la predeterminada."""
+    clave = clave_de_servicio(servicio)
+    propia = _entrada_informe(clave)
+    return obtener_informe(clave if propia else CLAVE_PREDETERMINADA)
 
 
 def valores_informe(datos: dict) -> dict[str, str]:
@@ -374,13 +414,13 @@ def html_de_texto(
 
 
 def textos_informe(
-    laboratorio: str, datos: dict, *, asunto: str | None = None, cuerpo: str | None = None,
+    datos: dict, *, servicio: object = "", asunto: str | None = None, cuerpo: str | None = None,
 ) -> tuple[str, str]:
-    """Asunto y texto del informe. Parten del template del laboratorio, pero
-    quien envía puede haberlos corregido antes de mandar: si llegan `asunto` o
-    `cuerpo` ya escritos, valen ellos y no se vuelven a formatear (una llave
-    suelta en lo escrito a mano no debe romper el envío)."""
-    template = obtener_informe(laboratorio)
+    """Asunto y texto del informe. Parten de la plantilla del servicio (o la
+    predeterminada), pero quien envía puede haberlos corregido antes de mandar:
+    si llegan `asunto` o `cuerpo` ya escritos, valen ellos y no se vuelven a
+    formatear (una llave suelta en lo escrito a mano no debe romper el envío)."""
+    template = plantilla_para(servicio)
     valores = valores_informe(datos)
     asunto_final = asunto if asunto is not None and asunto.strip() else template["asunto"].format_map(valores)
     texto = cuerpo if cuerpo is not None and cuerpo.strip() else template["cuerpo"].format_map(valores)
@@ -388,10 +428,10 @@ def textos_informe(
 
 
 def renderizar_informe(
-    laboratorio: str, datos: dict, *, asunto: str | None = None, cuerpo: str | None = None, aviso: str = "",
+    datos: dict, *, servicio: object = "", asunto: str | None = None, cuerpo: str | None = None, aviso: str = "",
 ) -> tuple[str, str, str, list[ImagenInline]]:
     """Arma el correo de un informe (asunto, texto, html y logo)."""
-    asunto_final, texto = textos_informe(laboratorio, datos, asunto=asunto, cuerpo=cuerpo)
+    asunto_final, texto = textos_informe(datos, servicio=servicio, asunto=asunto, cuerpo=cuerpo)
     html, imagenes = html_de_texto(texto, "Informe de Resultados", SUBTITULO_INFORME, aviso)
     if aviso:
         texto = f"{aviso}\n\n{texto}"

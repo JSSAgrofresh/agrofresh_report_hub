@@ -3,6 +3,7 @@ export {
   desbloquearEdicion,
   eliminarRegistroEnvio,
   obtenerEstadoEnvio,
+  PLANTILLA_PREDETERMINADA,
   cambiarModoEnvio,
   guardarInternos,
   obtenerPlanDestinatarios,

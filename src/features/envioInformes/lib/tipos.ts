@@ -64,6 +64,8 @@ export interface DatosCorreo {
   sold_to: string
   ship_to: string
   especie: string
+  /** Servicio del informe: elige la plantilla (hoy todos usan la predeterminada). */
+  servicio: string
   asunto: string | null
   cuerpo: string | null
   para: string[]

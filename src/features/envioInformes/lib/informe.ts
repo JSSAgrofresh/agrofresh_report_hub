@@ -73,6 +73,7 @@ export function datosCorreo(inf: Informe, laboratorio: string): DatosCorreo {
     sold_to: inf.soldTo,
     ship_to: inf.shipTo,
     especie: inf.especie,
+    servicio: inf.servicio,
     asunto: inf.asunto,
     cuerpo: inf.cuerpo,
     para: inf.para,

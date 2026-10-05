@@ -44,12 +44,15 @@ export function desbloquearEdicion(password: string) {
   return httpClient.post<{ ok: boolean }>(`${BASE}/desbloquear`, { password })
 }
 
-export function obtenerTemplateInforme(laboratorio: string) {
-  return httpClient.get<TemplateMail>(`${BASE}/template/${encodeURIComponent(laboratorio)}`)
+/** Hoy hay una sola plantilla para todos: la clave `predeterminado`. */
+export const PLANTILLA_PREDETERMINADA = 'predeterminado'
+
+export function obtenerTemplateInforme(clave: string = PLANTILLA_PREDETERMINADA) {
+  return httpClient.get<TemplateMail>(`${BASE}/template/${encodeURIComponent(clave)}`)
 }
 
-export function guardarTemplateInforme(laboratorio: string, datos: { asunto: string; cuerpo: string }) {
-  return httpClient.put<TemplateMail>(`${BASE}/template/${encodeURIComponent(laboratorio)}`, datos)
+export function guardarTemplateInforme(clave: string, datos: { asunto: string; cuerpo: string }) {
+  return httpClient.put<TemplateMail>(`${BASE}/template/${encodeURIComponent(clave)}`, datos)
 }
 
 export function vistaPreviaInforme(datos: DatosCorreo, nombresAdjuntos: string[]) {
@@ -62,6 +65,7 @@ export function enviarInforme(datos: DatosCorreo, archivos: File[]) {
   form.append('sold_to', datos.sold_to)
   form.append('ship_to', datos.ship_to)
   form.append('especie', datos.especie)
+  form.append('servicio', datos.servicio)
   form.append('asunto', datos.asunto ?? '')
   form.append('cuerpo', datos.cuerpo ?? '')
   form.append('para', JSON.stringify(datos.para))

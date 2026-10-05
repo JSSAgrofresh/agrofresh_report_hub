@@ -33,7 +33,7 @@ def test_solicitud_y_reanalisis_salen_igual_que_antes(sin_config):
 
 
 def test_el_informe_es_sobrio_y_las_solicitudes_siguen_con_su_franja(sin_config):
-    _, _, html, imagenes = m.renderizar_informe("AGROFRESH", {"sold_to": "DOLE", "ship_to": "SAN FERNANDO"})
+    _, _, html, imagenes = m.renderizar_informe({"sold_to": "DOLE", "ship_to": "SAN FERNANDO"})
     solicitud = m.renderizar("AGROFRESH", {"numero_solicitud": "OT-1"})[2]
     # el informe: sin franja verde, con el logo, el título en mayúsculas y la planta
     assert "#24391a" not in html and "#6dad3c" not in html
@@ -48,5 +48,5 @@ def test_el_informe_es_sobrio_y_las_solicitudes_siguen_con_su_franja(sin_config)
 
 
 def test_el_texto_del_informe_se_escapa_en_el_html(sin_config):
-    _, _, html, _ = m.renderizar_informe("AGROFRESH", {}, cuerpo="<script>alert(1)</script>\nlínea 2")
+    _, _, html, _ = m.renderizar_informe({}, cuerpo="<script>alert(1)</script>\nlínea 2")
     assert "<script>" not in html and "&lt;script&gt;" in html and "<br>" in html
