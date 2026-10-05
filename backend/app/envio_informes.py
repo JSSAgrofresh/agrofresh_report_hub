@@ -475,7 +475,8 @@ async def analizar_informes(
             item["error"] = f"Pesa más de {MAX_BYTES_ADJUNTO // (1024 * 1024)} MB."
         else:
             try:
-                datos = informe_lectura.leer_pdf(contenido)
+                texto = informe_lectura.texto_de_pdf(contenido)
+                datos = informe_lectura.datos_de_informe(texto)
             except informe_lectura.LecturaNoDisponible as exc:
                 disponible = False
                 item["error"] = str(exc)
@@ -483,6 +484,15 @@ async def analizar_informes(
                 logger.warning("No se pudo leer el PDF %s", nombre, exc_info=True)
                 item["error"] = "No se pudo leer el PDF."
             else:
+                if not (datos["sold_to"] and datos["ship_to"]):
+                    # Respaldo: un Sold To + Ship To que el sistema ya conoce, escrito en el texto.
+                    pares = sorted({
+                        (str(c.get("sold_to") or "").strip(), str(c.get("ship_to") or "").strip())
+                        for c in contactos if c.get("sold_to") and c.get("ship_to")
+                    })
+                    hallado = informe_lectura.buscar_por_nombres(texto, pares)
+                    if hallado:
+                        datos["sold_to"], datos["ship_to"] = hallado
                 item.update(datos)
                 if datos["sold_to"] and datos["ship_to"]:
                     item["leido"] = True
@@ -491,7 +501,13 @@ async def analizar_informes(
                         servicio=datos["servicio"],
                     )
                 else:
-                    item["error"] = "No encontré el Sold To y el Ship To en este PDF. ¿Es un informe de AgroFresh?"
+                    logger.warning(
+                        "No se encontró Sold To / Ship To en %s. Texto leído (inicio): %r", nombre, texto[:600],
+                    )
+                    item["error"] = (
+                        "No encontré el Sold To y el Ship To en este PDF"
+                        + (" (no trae texto: ¿es una imagen escaneada?)." if not texto.strip() else ". ¿Es un informe de AgroFresh?")
+                    )
         items.append(item)
     return {"disponible": disponible, "items": items}
 
