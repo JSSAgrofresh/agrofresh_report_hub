@@ -88,3 +88,16 @@ def test_resultados_ecofog_usan_su_lista(contactos):
     r = tm.destinatarios_resultado_por_tipo("", LONTUE, DOLE, "Manzana", servicio="ecofog")
     assert "ecofog@dole.cl" in _minus(r["to"]) and "actimist@dole.cl" not in _minus(r["to"])
     assert set(_minus(PERMANENTES_ECOFOG)) <= set(_minus(r["cc"] + r["to"] + r["bcc"]))
+
+
+def test_ecofog_se_agrega_a_los_tipos_de_aplicacion_ya_guardados(monkeypatch):
+    guardado = [{"id": 1, "nombre": "Actimist", "activo": True, "orden": 1},
+                {"id": 2, "nombre": "Línea de proceso", "activo": True, "orden": 2},
+                {"id": 3, "nombre": "RYD", "activo": True, "orden": 3}]
+    escrito = {}
+    monkeypatch.setattr(tm, "_leer_config", lambda nombre, defecto: list(guardado))
+    monkeypatch.setattr(tm, "_escribir_config", lambda nombre, items: escrito.update(items=items))
+    nombres = [t.nombre for t in tm._listar_tipos()]
+    assert nombres == ["Actimist", "Línea de proceso", "RYD", "Ecofog"]
+    assert [i["id"] for i in escrito["items"]] == [1, 2, 3, 4]      # no pisa ids
+    assert len({n.casefold() for n in nombres}) == 4

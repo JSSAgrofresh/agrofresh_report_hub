@@ -2689,13 +2689,26 @@ class OpcionIn(BaseModel):
 _siguiente_id = config_store.siguiente_id
 
 
-def _crud_opciones(nombre_archivo: str, defecto: list[dict]):
+def _crud_opciones(nombre_archivo: str, defecto: list[dict], oficiales: tuple[str, ...] = ()):
     """Fábrica de los 4 endpoints CRUD de un mantenedor simple tipo
     OpcionConfig (tipos de aplicación / líneas de proceso comparten
-    exactamente la misma forma)."""
+    exactamente la misma forma).
+
+    `oficiales`: nombres que el sistema necesita que existan (p. ej. un tipo de
+    servicio nuevo). Si el archivo guardado antes de que existieran no los
+    trae, se agregan al listar, para no depender de que alguien los cree a mano."""
 
     def listar() -> list[OpcionConfig]:
-        return [OpcionConfig(**o) for o in _leer_config(nombre_archivo, defecto)]
+        items = _leer_config(nombre_archivo, defecto)
+        existentes = {str(o.get("nombre", "")).strip().casefold() for o in items}
+        faltan = [d for d in defecto if d["nombre"] in oficiales and d["nombre"].casefold() not in existentes]
+        if faltan:
+            for d in faltan:
+                nuevo = dict(d)
+                nuevo["id"] = _siguiente_id(items)
+                items.append(nuevo)
+            _escribir_config(nombre_archivo, items)
+        return [OpcionConfig(**o) for o in items]
 
     def crear(body: OpcionIn) -> OpcionConfig:
         items = _leer_config(nombre_archivo, defecto)
@@ -2731,7 +2744,7 @@ _TIPOS_APLICACION_DEFECTO: list[dict] = [
     {"id": 3, "nombre": "Ecofog", "activo": True, "orden": 3},
 ]
 _listar_tipos, _crear_tipo, _editar_tipo, _eliminar_tipo = _crud_opciones(
-    "tipos_aplicacion.json", _TIPOS_APLICACION_DEFECTO
+    "tipos_aplicacion.json", _TIPOS_APLICACION_DEFECTO, oficiales=("Ecofog",)
 )
 router.get("/config/tipos-aplicacion")(_listar_tipos)
 router.post("/config/tipos-aplicacion", dependencies=_SOLO_ADMIN_CONFIG)(_crear_tipo)
