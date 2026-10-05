@@ -4,7 +4,7 @@ import type { LecturaInforme } from './tipos'
 
 const lectura = (extra: Partial<LecturaInforme> = {}): LecturaInforme => ({
   nombre: 'a.pdf', leido: true, error: null, sold_to: 'MULTIFRUTA SA', ship_to: 'GESEX PLANTA FATIMA',
-  especie: 'Naranja', tipo_aplicacion: 'Línea de proceso', numero_solicitud: 'OT-AGF0075', servicio: '',
+  especie: 'Naranja', tipo_aplicacion: 'Línea de proceso', numero_solicitud: 'OT-AGF0075', servicio: '', solicitud: null,
   plan: { to: ['a@x.cl'], cc: [], bcc: ['p@x.cl'], sin_lista: false, especies: [] }, ...extra,
 })
 const pdf = (nombre = 'a.pdf', tam = 3) => new File(['x'.repeat(tam)], nombre, { type: 'application/pdf' })

@@ -50,7 +50,7 @@ const estado = (modo: 'prueba' | 'produccion' = 'prueba'): EstadoEnvio => ({
 
 const lectura = (nombre: string, ship: string, para: string[], extra: Partial<LecturaInforme> = {}): LecturaInforme => ({
   nombre, leido: true, error: null, sold_to: 'DOLE', ship_to: ship, especie: 'Naranja', tipo_aplicacion: 'Línea de proceso',
-  numero_solicitud: 'OT-1', servicio: '',
+  numero_solicitud: 'OT-1', servicio: '', solicitud: null,
   plan: { to: para, cc: [], bcc: ['psalazar@agrofresh.com'], sin_lista: para.length === 0, especies: [] }, ...extra,
 })
 
@@ -275,6 +275,21 @@ describe('EnvioInformesView', () => {
 
     await waitFor(() => expect(api.cambiarModoEnvio).toHaveBeenCalledWith('produccion', 'clave'))
     expect(await screen.findByRole('button', { name: /Sistema en producción/ })).toBeTruthy()
+  })
+
+  it('muestra la solicitud de la que sale la lista y avisa si usa el respaldo', async () => {
+    api.analizarInformes.mockResolvedValue({
+      disponible: true,
+      items: [lectura('a.pdf', 'SAN FERNANDO', ['jorge@x.cl', 'claudia@x.cl'], {
+        numero_solicitud: 'OT-AGF0075', solicitud: 'OT-AGF0075.xlsx',
+        plan: { to: ['jorge@x.cl', 'claudia@x.cl'], cc: [], bcc: [], sin_lista: true, especies: [], origen: 'solicitud' },
+      })],
+    })
+    const { container } = pantalla()
+    await subir(container, 'a.pdf')
+    expect(await screen.findByText(/OT-AGF0075 · DOLE · SAN FERNANDO/)).toBeTruthy()
+    expect(screen.getByText(/no tiene lista de distribución del cliente: va a la lista de respaldo/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Enviar prueba' })).toBeEnabled()
   })
 
   describe('eliminar del historial', () => {
