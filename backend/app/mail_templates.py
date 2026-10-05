@@ -284,17 +284,18 @@ VARIABLES_INFORMES = [
     "cantidad_informes", "nombre_archivo",
 ]
 
-ASUNTO_INFORME = "[AgroFresh] Informe de resultados — {sold_to} — {ship_to}"
+ASUNTO_INFORME = "[AgroFresh] Informe de ensayo — {sold_to} — {ship_to}"
 CUERPO_INFORME = """Estimados,
 
-Adjuntamos el informe de resultados de {laboratorio} correspondiente a {sold_to} — {ship_to}.
+Junto con saludar, adjuntamos el informe de ensayo correspondiente a {sold_to} — {ship_to}.
 
-Fecha de envío: {fecha_envio}
+Ante cualquier duda o consulta sobre el informe, pueden contactar a:
 
-Quedamos atentos a cualquier consulta.
+Paz Salazar
+psalazar@agrofresh.com
 
-Saludos,
-AgroFresh"""
+Saludos cordiales,
+Laboratorio de Cromatografía AgroFresh"""
 
 
 # Plantillas del correo del informe. Hoy hay UNA para todos —la predeterminada—;
