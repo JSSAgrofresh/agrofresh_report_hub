@@ -310,7 +310,6 @@ function EditorColumnas({
                     style={{ width: 200 }}
                     value={nuevaEtiqueta}
                     placeholder="Nombre de la columna"
-                    // eslint-disable-next-line jsx-a11y/no-autofocus
                     autoFocus
                     onChange={(e) => setNuevaEtiqueta(e.target.value)}
                     onKeyDown={(e) => {

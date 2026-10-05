@@ -415,3 +415,7 @@
   color: var(--color-primary-hover);
   cursor: pointer;
 }
+
+.servicioListas {
+  margin-bottom: var(--space-4);
+}

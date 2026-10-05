@@ -83,6 +83,8 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0044_auditoria_interna.sql
 .venv\Scripts\python.exe scripts\migrar.py 0045_correcciones_converter.sql
 .venv\Scripts\python.exe scripts\migrar.py 0047_actividad_usuario.sql
+.venv\Scripts\python.exe scripts\migrar.py 0048_peso_extraido.sql
+.venv\Scripts\python.exe scripts\migrar.py 0049_listado_actimist.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -113,7 +115,11 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/copiar_bcc_contacto.py` | Pone a alguien en copia oculta de resultados en todas las plantas donde ya está otra persona (`--lista` para ver quiénes) |
 | `scripts/congelar_criterios_verificaciones.py` | Congela los criterios de los días de verificación guardados antes de la 0040 (`--param clave=valor` con los valores viejos) |
 | `scripts/vaciar_reportes.py` | Borra los datos de Report (solicitud, resultado, producto_aplicado, pendientes). Deja Listados y analitos. Pide escribir "SI" |
+| `scripts/cargar_listado_actimist.py` | Carga el listado de Actimist (Sold To / Ship To) desde la dinámica del Planner (`--aplicar` para escribir). Lo mismo desde Listados → Actimist → Importar Excel |
 | `scripts/reintentar_pendientes_ingesta.py` | Reprocesa las filas pendientes y descarta las que siguen sin Ship To válido (respaldo en `logs/`) |
+| `scripts/limpiar_duplicados_accutab.py` | Borra reportes de Post Venta y carpetas `accutab/mail/` duplicados por la ingesta de correo (deja uno por correo) |
+| `scripts/cruce_informes.py` | Solo lee: explica por qué «Solicitudes e informes» (OT con informe) y Report (informes) no dan el mismo número (`--lab Quiteca`) |
+| `scripts/corregir_ot_informe.py` | Deja un informe en UNA sola OT (`--informe 2026-1885-PC --ot OT-QUI0025`): corrige Converter y la `referencia` de Report; respaldo en `logs/` |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
 Hay ~9 scripts en `backend/scripts/` que fueron migraciones de una sola vez
@@ -139,19 +145,24 @@ test de una solicitud sin la marca.
 
 Este proyecto no se da por listo con "debería funcionar":
 
-- **Backend**: `cd backend && python -m pytest -q`. Hay ~600 tests. Los que
-  necesitan Postgres se saltan solos si no hay base.
+- **Backend**: `cd backend && python -m pytest -q` (`pytest.ini` limita la corrida
+  a `tests/`). **Las pruebas NUNCA tocan servicios reales** (`tests/conftest.py`):
+  vacía R2, Gmail y Resend y APAGA la base, aunque el `.env` apunte a
+  producción. Antes, correr `pytest` en el servidor de la oficina habría borrado
+  el índice de solicitudes (`DELETE FROM solicitud_archivo`), reiniciado los
+  folios y pisado `contactos_laboratorio.json` en R2. Sin base, las pruebas que
+  la necesitan se saltan solas. Para correrlas, en una base APARTE creada con las
+  migraciones y con «prueba» o «test» en el nombre:
+  `AGROFRESH_BD_PRUEBAS=agrofresh_pruebas pytest` (en PowerShell,
+  `$env:AGROFRESH_BD_PRUEBAS = "agrofresh_pruebas"`). Con base pasan las ~1.590;
+  **no hay pruebas que fallen de base**: si una falla, algo se rompió.
 - **Frontend**: `npx vitest run`, `npm run build`, `npm run lint`.
   Los tipos se revisan con `npm run build` (o `npm run typecheck`), que corre
   `tsc -b`. **`npx tsc --noEmit` no sirve**: no mira los archivos de test, así
   que un error de tipos ahí pasa limpio acá y bota el deploy de Vercel.
-  El lint tiene **14 errores de línea base preexistentes** (casi todos
-  `set-state-in-effect`); si salen 14, está bien. Si salen 15, algo nuevo lo rompió.
-- En backend hay **4 tests que ya fallan** en la rama (`test_alcance_datos`,
-  `test_envio_solicitud_correo`, `test_resultados_ship_to`,
-  `test_verificaciones::test_detector_con_metodo_equivocado`) y
-  `test_correo_error_gmail.py` no importa. Corre `pytest tests` (no la raíz:
-  `scripts/borrar_lab_test.py` se recoge y corta la corrida).
+  El lint tiene **12 errores de línea base preexistentes** (casi todos
+  `set-state-in-effect`, más 3 de `only-export-components` en
+  `SelectorIconoUsuario.tsx`); si salen 12, está bien. Si salen 13, algo nuevo lo rompió.
 - **Cambios visuales**: se comprueban en un navegador real con Playwright
   (`executablePath: '/opt/pw-browsers/chromium'`), no solo con tests.
 - Al escribir un test para un bug, **rompe el arreglo a propósito** y confirma
@@ -222,6 +233,46 @@ la ciudad ("SAN FERNANDO") vale la planta que la contiene, si es una sola
 `converter.html`). "0" o "-" en esos cuatro campos es "sin dato". El Converter
 lee Listados en vivo de la base al abrirse.
 
+## Dos servicios: Línea de proceso y Actimist
+
+Cada tipo de servicio tiene **su listado de Sold To / Ship To y su lista de
+distribución**. Todo lo que existía antes es de **Línea de proceso**, que es el
+valor por defecto: un contacto sin `servicio`, una solicitud sin «Tipo
+Aplicación» o una RYD siguen exactamente igual. La regla vive en
+`app/servicios.py` (`clave_servicio`, espejo en `src/lib/servicio.ts`; mismos
+casos en `test_servicio_actimist.py` y `servicio.test.ts`).
+
+- **Listado** (migración 0049): Línea de proceso = `cliente`/`planta` (sin
+  cambios); Actimist = `cliente_actimist`/`planta_actimist`. Un cliente que está
+  en los dos existe en las dos tablas, sin choque. Rutas `/api/catalogo/actimist/...`
+  (sin la 0049 dan 503 con aviso). En **Listados**, Sold To y Ship To tienen el
+  selector «Tipo de servicio»; Especie y Variedad son comunes. Actimist se carga
+  con «Importar Excel» (muestra el plan y escribe solo al confirmar; nunca borra
+  ni modifica) o con `scripts/cargar_listado_actimist.py`. Lee la dinámica del
+  Planner tal cual: **una fila con Ship To y sin Sold To es del Sold To de más
+  arriba** (la dinámica lo escribe solo una vez). Volver a importar completa lo
+  que falte sin duplicar (son 320 Sold To y 747 Ship To).
+- **Formulario**: el Sold To pide primero el Tipo de Aplicación y sale del
+  listado de ese servicio; al cambiar de Actimist a otro (o al revés) se vacían
+  Sold To y Ship To. Si el listado de Actimist no se puede leer, el campo lo
+  avisa y Línea de proceso sigue igual.
+- **Contactos**: cada contacto lleva `servicio` (vacío = Línea de proceso,
+  `"actimist"`). `_contactos_resultado(..., servicio=)` filtra ANTES de todo, así
+  que Actimist nunca cae en contactos ni respaldos de Línea de proceso. Editar un
+  contacto desde Laboratorios no borra su `servicio` (`crud_router(conservar=)`).
+- **Actimist sin lista**: Para = Jorge y el Report Hub (`PARA_SIN_LISTA_ACTIMIST`,
+  sin Claudia); con lista del laboratorio, esos dos van en CCO. **Carlos Jiménez y
+  Cristian Valenzuela** (`PERMANENTES_ACTIMIST`) van en Para de toda solicitud
+  Actimist real (las de prueba no) y en copia de sus resultados. Toda solicitud
+  Actimist sale hoy con el chip «Sin lista de distribución»: es lo esperado.
+- **Listas de distribución** (Administración General): selector de servicio; cada
+  panel lee, exporta, compara y guarda SOLO su servicio (`?servicio=`), y una
+  planta nueva se crea en el listado de ese servicio.
+- **Pendiente (no hecho)**: Ingesta, Converter y Report siguen leyendo SOLO el
+  listado de Línea de proceso. Falta que la Ingesta/Converter busquen en el
+  listado del tipo de servicio del informe y que Report muestre Actimist solo
+  cuando se habilite con un botón en Administración General.
+
 ## Correo de la solicitud: quién lo recibe
 
 Los contactos de **Laboratorios → Contacto laboratorio** (`tipo: solicitud`)
@@ -238,9 +289,13 @@ admin del Report Hub (cargo «Admin»: `agrofreshreporthub@gmail.com`…), que
 con lista van en CCO: **sin lista pasan de CCO a Para** (`_para_sin_lista`;
 igual en el JSON y el PDF). Se actualizan con
 `scripts/importar_contactos_resultado.py --sincronizar-internos` y se revisan con
-`scripts/auditar_contactos_resultado.py`. La misma regla rige para «Destinatarios de resultados» del PDF y del JSON cuando el Ship To no tiene contacto de resultado a clientes. **Productos**: con más de 2, el Excel, el
+`scripts/auditar_contactos_resultado.py`. La misma regla rige para «Destinatarios de resultados» del PDF y del JSON cuando el Ship To no tiene contacto de resultado a clientes. **Productos**: con **2 o más**, el Excel, el
 PDF, el JSON y el correo dicen `MIXTO` (`producto_utilizado`); la lista real va
-en `productos_lista` (`normalizar_productos`). No
+en `productos_lista` (`normalizar_productos`). Vale para todo tipo de servicio, y
+**solo para las solicitudes creadas desde ese cambio**: llevan la marca
+`mixto_desde_2` en sus datos (al crear, en prueba y reanálisis; editar la
+conserva). Las anteriores, sin la marca, siguen con su regla (MIXTO desde 3) al
+leerlas, editarlas y en su PDF (`test_productos_mixto.py`). No
 confundir con `tipo_copia`, que es de los contactos de **resultados**.
 
 **«Sin lista de distribución»** (chip morado en Toma de muestras → Solicitudes,
@@ -322,6 +377,46 @@ y Estado se marcan **de a varios** (`MultiSelectFiltro`; lógica pura en
 cualquiera de los marcados; entre filtros, todos. En Estado, Enviada/Pendiente
 son alternativas y «Sin lista de distribución» se suma como condición.
 
+**Toma de muestras → «Solicitudes e informes»** (antes «Solicitudes», `SolicitudesView`):
+cuatro indicadores arriba que son también filtros de un clic (Solicitudes, Por enviar,
+Esperando informe, Con informe; `resumenVistas`/`ESTADOS_DE_VISTA` en
+`filtrosSolicitudes.ts`, cuentan con todos los filtros menos Estado), aviso amarillo si hay
+informes «sin Report», una tarjeta con buscador + «Filtros» (panel plegable, se recuerda) +
+Excel, chips de filtros activos (`chipsDeFiltros`), tabla con acciones de ícono (clic en la
+fila abre la solicitud) y tarjetas en celular. El envío automático quedó abajo, plegado. Sin
+gráficos a propósito. Bajo 1180 px el informe pasa a la columna Estado; bajo 760 px, tarjetas.
+Los filtros **se acumulan** (`opcionesAcumuladas`: cada lista ofrece y cuenta solo lo que
+queda con los demás filtros; lo marcado sigue aunque quede en 0) y **se guardan por cuenta**
+en `localStorage` (`claveFiltrosGuardados`): vuelven al entrar de nuevo y **vencen a las 8 h**
+del último cambio (`VIGENCIA_FILTROS_MS`, `leerFiltros` descarta lo vencido o dañado).
+
+**Informe de cada solicitud** (columna Informe): el N°
+de informe del laboratorio en un chip azul que abre el PDF en el visor; Estado filtra
+también «Con informe» / «Sin informe» / «Informe sin Report» y el buscador encuentra por N° de informe.
+Si hay PDF pero sus resultados no están en Report, el chip lleva al lado «Sin Report» (amarillo):
+por eso «Con informe» puede dar más que el conteo de Report (filas en Ingesta → Filas pendientes). Backend:
+`app/informes_solicitud.py` (`GET /toma-muestras/solicitudes-informes`, aparte del
+listado: si falla, el listado sale igual; y `/solicitudes/{archivo}/informe/pdf`). Una
+solicitud llega a su informe por el PDF de Converter con su OT (`informe_auditoria`) o
+por los resultados de Report cuyo `referencia` es el OT (así llegan los propios de
+AgroFresh, uno por vial). **No se adivina por parecido**. «En Report» = resultados con el OT en `referencia` **o** el N°
+de informe de Converter como `solicitud.nro_solicitud` (así llega Quiteca; misma regla que
+Auditoría interna; antes solo se miraba el OT y marcaba «Sin Report» de más). El PDF sale de auditoría o, si
+no, de Storage → Informes (`ficha_informe._buscar_pdf`); sin PDF el visor lo avisa.
+**Cada informe dice si su OT está bien cruzada** (`informes_solicitud.verificar`, campo
+`verificacion` de `/solicitudes-informes`): ✓ en el chip = el informe trae impresa esa
+misma OT («N° Solicitud: OT-…», la `referencia` en Report) y calzan planta, especie y fecha
+de muestreo; **«OT por revisar»** (rojo) = el informe dice otra OT o algo no calza (el
+motivo sale al pasar el mouse); **«OT sin confirmar»** (gris) = ya está en Report pero el
+informe no trae la OT. Si aún no hay resultados en Report no se repite: basta «Sin Report».
+Aviso rojo arriba + filtro Estado «OT por revisar» (`otPorRevisar` en `filtrosSolicitudes.ts`).
+Solo interno, y un muestreador solo ve los de sus solicitudes.
+**Zip de PDF** (selección → «PDF (.zip)», `POST /toma-muestras/solicitudes/pdf-zip`): si al
+menos una tiene informe con PDF, el zip lleva **`Solicitudes/`** e **`Informes/`**
+(«OT-QUI0047 - Informe 2026-1885-PC.pdf»; `informes_solicitud.informes_para_zip`, nunca
+lanza: si la base o R2 fallan, sale solo con las solicitudes). Sin informes, plano como antes.
+Las cuentas `cliente` nunca reciben informes en el zip.
+
 ## Ingreso al laboratorio: corregir un cruce
 
 En la tabla de solicitudes de **Ingreso al laboratorio** cada fila cruzada trae el
@@ -336,6 +431,17 @@ antes y el después; la foto anterior se conserva, solo deja de ser la activa.
 `cruzado_por_nombre` y `tiene_foto` (antes no traía el peso y la columna Peso salía
 siempre «—»). **Las fotos se bajan con `FotoCruce`** (blob con el token): un
 `<img src>` directo al backend no lleva la sesión y da 401.
+
+**Segundo peso (muestra extraída, g)** (migración 0048, columnas `peso_extraido*` de
+`solicitud_archivo`): se anota en la tabla de Ingreso de muestras apenas la fila está
+cruzada (`PUT /toma-muestras/solicitudes/{archivo}/peso-extraido`, queda en
+`lab_actividad`). La fila es verde tenue al cruzar y verde fuerte con el peso guardado.
+Sale en «Descargar con muestra», en la BD de Report (`Peso Muestra Extraída (g)`, está en
+`GENERALES_BASE`) y en el informe; la sección 2 (Resultados del GC) ya no lo pide, solo lo
+lee. Descruzar lo borra. Sin la 0048 corrida todo sigue y el peso sale vacío (503 al guardar).
+**Quitar muestra** (descruzar) y **Eliminar solicitud** son solo de
+`jorge.sandoval@agrofresh.com`: botón de marco punteado que pide la contraseña
+(`components/ui/EliminarConClave`, `/auth/verificar-clave`); el backend lo exige también.
 
 ## Solicitudes de prueba
 
@@ -510,6 +616,12 @@ tocas una, toca la otra.
   (OT)" con sugerencia (laboratorio + planta + fecha de muestreo) que la
   persona confirma. También ahí se escribe a mano la fecha y hora de envío
   (opcional; se edita después).
+  **Si el PDF trae la OT** («N° Solicitud: OT-…», Quiteca la escribe) **esa manda**:
+  Converter la muestra fija («OT-… (del informe)», sin desplegable) y nunca adivina
+  por planta y fecha, aunque la OT ya tenga otro informe; el servidor recibe
+  `ot_informe` y la prefiere sobre `archivo_solicitud`. Adivinar dejó informes en la
+  OT equivocada (2026-1878-PC en OT-QUI0039…; se corrigió con `corregir_ot_informe.py`).
+  Pruebas: `converterAmarre.test.ts`, `TestOtDelInforme`.
 - **Concretada** = tiene PDF guardado **y** sus resultados ya están en Report
   (`solicitud.nro_solicitud = informe_auditoria.nro_informe`). PDF sin Report
   se muestra aparte en las donas y los gráficos, y en la tabla como «Pendiente»
@@ -614,6 +726,18 @@ tocas una, toca la otra.
 
 ## Trampas conocidas (nos costaron tiempo)
 
+- **Gmail no quita por IMAP la etiqueta de la carpeta abierta.** `accutab_mail_ingest.py`
+  abre `ACCUTAB_PENDIENTE`; un `-X-GM-LABELS` sobre esa etiqueta responde OK y no hace
+  nada, así que cada corrida volvía a subir todos los correos (`AGROFRESH_DEMO (1307)`,
+  cientos de reportes repetidos en Post Venta). Ahora se saca con `\Deleted` + `EXPUNGE`
+  (en una carpeta de etiqueta solo quita esa etiqueta) y cada correo queda anotado por su
+  Message-ID en R2 `accutab/_control/procesados.json`: anotado = no se vuelve a subir.
+  Tras desplegar el arreglo, la primera corrida va con `--solo-marcar`.
+
+- **Un `transform` en un ancestro atrapa el `position: fixed`.** Las filas de
+  Solicitudes se animaban con `transform` y el diálogo de Eliminar salía recortado
+  dentro de la fila. `Modal` y `Dialogo` (Storage) se dibujan con `createPortal` en
+  `document.body` (`Modal.test.tsx`); las animaciones de filas, solo con opacidad.
 - **Finales de línea mezclados.** `emitir.py`, `toma_muestras.py` y
   `listados.py` son CRLF; otros son LF. Edítalos en binario con un patrón
   tolerante a `\r?\n`, o el reemplazo no calza.
@@ -666,6 +790,13 @@ tocas una, toca la otra.
   falsa necesita `--use-fake-device-for-media-stream
   --use-file-for-fake-video-capture=x.y4m` (con `.mjpeg` no carga el archivo y
   da cuadros verdes), con el código sin escalar a medias.
+- **Un 401 cierra la sesión.** `client.ts` toma cualquier 401 como «sesión
+  vencida» y saca a la persona. Nunca respondas 401 por otra cosa: una clave de
+  Gmail rechazada responde 503 (`correo._enviar_smtp`), si no, quien envía una
+  solicitud queda fuera del sistema (`test_correo_error_gmail.py`).
+- **Quitar la muestra con «» vacío.** `indice_solicitudes.cruzar` toma `""` o
+  espacios igual que `None`; el resguardo de «solo el administrador principal»
+  tiene que mirar el valor normalizado, no solo `is None`.
 - **En Windows falta `tzdata`**: sin él `zoneinfo` no encuentra las zonas.
   Está declarado en `requirements.txt`.
 
@@ -678,14 +809,18 @@ pendiente**, en orden de importancia:
 
 1. ~~El túnel Cloudflare~~ **resuelto**: `estado.ps1` lo reporta como servicio
    `Running` (25-09-2026), igual que el backend (tarea programada).
-2. **Etapa 4 del módulo AgroFresh Lab → Ingreso al laboratorio**: botón
+2. **Actimist en Ingesta, Converter y Report** (ver «Dos servicios»): buscar el
+   Sold To / Ship To en el listado del servicio del informe y un botón en
+   Administración General para mostrar Actimist en Report (hasta entonces, solo
+   Línea de proceso).
+3. **Etapa 4 del módulo AgroFresh Lab → Ingreso al laboratorio**: botón
    "Procesar" → modal con el listado de informes → guardar en R2 (ojo: `informes/`
    ya es el espacio Informes, con su orden planta/fecha/análisis/laboratorio) →
    tabla abajo para descargarlos todos o de a uno.
-3. **`sembrar_catalogo_analitos.py --aplicar`** en el servidor: 14 analitos
+4. **`sembrar_catalogo_analitos.py --aplicar`** en el servidor: 14 analitos
    por crear. `DFN` hay que crearlo a mano (la app no conoce su nombre).
-4. **Los límites residuales están vacíos.** Son decisión del laboratorio y se
+5. **Los límites residuales están vacíos.** Son decisión del laboratorio y se
    cargan en Report → Gestionar analitos. **Nunca los inventes.**
-5. Diferidos por decisión del usuario: paginar `/api/reportes/datos` y migrar
+6. Diferidos por decisión del usuario: paginar `/api/reportes/datos` y migrar
    los ~14 mantenedores JSON a tablas.
-6. Opcional: activar compresión gzip (una línea, ~96% menos de payload).
+7. Opcional: activar compresión gzip (una línea, ~96% menos de payload).

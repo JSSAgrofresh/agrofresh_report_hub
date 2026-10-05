@@ -17,6 +17,7 @@ import type {
   ProductoConfig,
   ProductoInput,
   EstadoSolicitudesPrueba,
+  InformeSolicitud,
   ReanalisisInput,
   Solicitud,
   SolicitudInput,
@@ -88,6 +89,20 @@ export function descargarPdfSolicitud(archivo: string) {
   )
 }
 
+/** {archivo: informe} de las solicitudes que ya tienen informe del laboratorio. */
+export function listarInformesDeSolicitudes() {
+  return httpClient.get<Record<string, InformeSolicitud>>('/toma-muestras/solicitudes-informes')
+}
+
+/** El PDF del informe del laboratorio, como blob para el visor. */
+export function abrirPdfInformeSolicitud(archivo: string) {
+  return httpClient.getArchivoConNombre(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/informe/pdf`)
+}
+
+export function descargarPdfInformeSolicitud(archivo: string, nombre: string) {
+  return descargarArchivo(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/informe/pdf`, nombre)
+}
+
 /** El PDF como blob, para mostrarlo en pantalla sin guardarlo en disco. */
 export function abrirPdfSolicitud(archivo: string) {
   return httpClient.getArchivoConNombre(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/pdf`)
@@ -143,13 +158,15 @@ export function destinatariosDeSolicitud(archivo: string) {
  * Para usar en el formulario antes de que exista el archivo de la solicitud. */
 export function destinatariosParaLaboratorio(
   laboratorio: string,
-  contexto: { sold_to?: string; ship_to?: string; especie?: string } = {},
+  contexto: { sold_to?: string; ship_to?: string; especie?: string; tipo_aplicacion?: string } = {},
 ) {
+  // El Tipo Aplicación decide la lista de distribución (Actimist tiene la suya).
   const params = new URLSearchParams({
     laboratorio,
     sold_to: contexto.sold_to ?? '',
     ship_to: contexto.ship_to ?? '',
     especie: contexto.especie ?? '',
+    tipo_aplicacion: contexto.tipo_aplicacion ?? '',
   })
   return httpClient.get<{ destinatarios: string[]; cc?: string[]; bcc?: string[] }>(
     `/toma-muestras/config/destinatarios-solicitud?${params.toString()}`,
@@ -179,8 +196,9 @@ export function resultadosDeShipTo(
   shipTo: string,
   soldTo: string = '',
   especie: string = '',
+  tipoAplicacion: string = '',
 ) {
-  const qs = new URLSearchParams({ laboratorio, ship_to: shipTo, sold_to: soldTo, especie })
+  const qs = new URLSearchParams({ laboratorio, ship_to: shipTo, sold_to: soldTo, especie, tipo_aplicacion: tipoAplicacion })
   return httpClient.get<ContactoResultado[]>(`/toma-muestras/config/resultados-ship-to?${qs.toString()}`)
 }
 

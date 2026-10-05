@@ -7,6 +7,9 @@ export {
   descargarExcelSolicitud,
   descargarPdfSolicitud,
   abrirPdfSolicitud,
+  listarInformesDeSolicitudes,
+  abrirPdfInformeSolicitud,
+  descargarPdfInformeSolicitud,
   descargarJsonSolicitud,
   descargarTodasLasSolicitudes,
   enviarCorreoPrueba,
@@ -61,6 +64,8 @@ export {
 export { enviaSoloSegunTipo } from './lib/envioAutomatico'
 export type {
   Solicitud,
+  InformeSolicitud,
+  VerificacionOt,
   SolicitudInput,
   ReanalisisInput,
   EstadoSolicitudesPrueba,
@@ -88,5 +93,15 @@ export {
   hayFiltros,
   opcionesDe,
   tipoAplicacionDe,
+  ESTADOS_DE_VISTA,
+  claveFiltrosGuardados,
+  guardarFiltros,
+  leerFiltros,
+  opcionesAcumuladas,
+  ETIQUETA_ESTADO,
+  chipsDeFiltros,
+  resumenVistas,
+  vistaDeEstados,
+  otPorRevisar,
 } from './lib/filtrosSolicitudes'
-export type { EstadoFiltro, FiltrosSolicitudes, OpcionesFiltros } from './lib/filtrosSolicitudes'
+export type { EstadoFiltro, FiltrosSolicitudes, OpcionesFiltros, VistaRapida } from './lib/filtrosSolicitudes'

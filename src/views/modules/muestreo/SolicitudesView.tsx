@@ -1,10 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
-import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { ResumenHero } from '@/components/ui/ResumenHero'
+import { Modal } from '@/components/ui/Modal'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
+import { EliminarConClave } from '@/components/ui/EliminarConClave'
+import {
+  IconoActualizar,
+  IconoAlerta,
+  IconoBuscar,
+  IconoCerrar,
+  IconoExcel,
+  IconoOjo,
+  IconoPapelera,
+  IconoPdf,
+} from '@/components/ui/iconosAccion'
 import { useAuth } from '@/features/auth'
 import { esAdminGeneral } from '@/features/usuarios'
 import { ROUTES, rutaTomaMuestrasDetalle } from '@/constants/routes'
@@ -18,33 +30,77 @@ import {
   descargarPdfsZip,
   descargarPdfSolicitud,
   abrirPdfSolicitud,
+  listarInformesDeSolicitudes,
+  abrirPdfInformeSolicitud,
+  descargarPdfInformeSolicitud,
   enviarSolicitudPorCorreo,
   estadoSolicitudesPrueba,
+  ESTADOS_DE_VISTA,
+  ETIQUETA_ESTADO,
   FILTROS_VACIOS,
+  chipsDeFiltros,
   filtrarSolicitudes,
   hayFiltros,
   listarTiposAplicacion,
-  opcionesDe,
-  tipoAplicacionDe,
+  claveFiltrosGuardados,
+  guardarFiltros,
+  leerFiltros,
+  opcionesAcumuladas,
+  resumenVistas,
+  vistaDeEstados,
 } from '@/features/tomaMuestras'
-import type { ConfigEnvioAutomatico, EstadoFiltro, FiltrosSolicitudes, OpcionConfig, Solicitud } from '@/features/tomaMuestras'
-import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
+import type {
+  ConfigEnvioAutomatico,
+  EstadoFiltro,
+  FiltrosSolicitudes,
+  OpcionConfig,
+  Solicitud,
+  VistaRapida,
+} from '@/features/tomaMuestras'
 import { VistaPrevia } from '@/views/modules/storage/VistaPrevia'
 import { EstadoSolicitud } from './EstadoSolicitud'
+import { CeldaInforme } from './CeldaInforme'
 import styles from './SolicitudesView.module.css'
 
 type ListaFiltro =
   | 'laboratorio' | 'soldTo' | 'shipTo' | 'especie' | 'tipoAplicacion' | 'lineaProceso' | 'tipoMuestra' | 'nombreMuestreador'
 
-const ETIQUETA_DE: Record<EstadoFiltro, string> = {
-  enviada: 'Enviada',
-  pendiente: 'Pendiente',
-  sin_lista: 'Sin lista de distribución',
-}
-const ETIQUETAS_ESTADO = Object.values(ETIQUETA_DE)
+const ETIQUETAS_ESTADO = Object.values(ETIQUETA_ESTADO)
 const ESTADO_DE = Object.fromEntries(
-  (Object.entries(ETIQUETA_DE) as [EstadoFiltro, string][]).map(([k, v]) => [v, k]),
+  (Object.entries(ETIQUETA_ESTADO) as [EstadoFiltro, string][]).map(([k, v]) => [v, k]),
 ) as Record<string, EstadoFiltro>
+
+const nf = new Intl.NumberFormat('es-CL')
+
+/** Los indicadores de arriba. Cada uno es también un filtro de un clic. */
+const VISTAS: { vista: VistaRapida; texto: string; ayuda: string; tono: string }[] = [
+  { vista: 'todas', texto: 'Solicitudes', ayuda: 'Todas las registradas', tono: 'neutro' },
+  { vista: 'pendientes', texto: 'Por enviar', ayuda: 'Todavía no salen al laboratorio', tono: 'ambar' },
+  { vista: 'esperando', texto: 'Esperando informe', ayuda: 'Enviadas, sin informe aún', tono: 'azul' },
+  { vista: 'con_informe', texto: 'Con informe', ayuda: 'El laboratorio ya respondió', tono: 'verde' },
+]
+
+const CLAVE_FILTROS_ABIERTOS = 'agrofresh.solicitudes.filtros.abiertos'
+
+function leerFiltrosAbiertos(): boolean {
+  try {
+    return localStorage.getItem(CLAVE_FILTROS_ABIERTOS) === '1'
+  } catch {
+    return false
+  }
+}
+
+function guardarFiltrosAbiertos(v: boolean) {
+  try {
+    localStorage.setItem(CLAVE_FILTROS_ABIERTOS, v ? '1' : '0')
+  } catch {
+    /* solo se pierde recordar la preferencia */
+  }
+}
+
+function plural(n: number, uno: string, varios: string) {
+  return `${nf.format(n)} ${n === 1 ? uno : varios}`
+}
 
 export function SolicitudesView() {
   const { user } = useAuth()
@@ -53,25 +109,44 @@ export function SolicitudesView() {
   const puedeEliminar = esAdmin && user?.email === 'jorge.sandoval@agrofresh.com'
 
   const [solicitudes, setSolicitudes] = useState<Solicitud[] | null>(null)
+  const [cargando, setCargando] = useState(false)
   // Botón "Solicitud de prueba": lo decide el backend (una sola cuenta).
   const [puedeCrearPruebas, setPuedeCrearPruebas] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filtros, setFiltros] = useState<FiltrosSolicitudes>(FILTROS_VACIOS)
-  const [mostrarFiltros, setMostrarFiltros] = useState(false)
-  // Solicitud cuyo PDF se está mirando en pantalla (mismo visor que Storage).
+  // Los filtros se guardan (por cuenta) y vuelven al entrar de nuevo, pero
+  // vencen solos tras una jornada sin tocarlos (`leerFiltros`).
+  const claveGuardado = claveFiltrosGuardados(user?.email)
+  const [filtros, setFiltros] = useState<FiltrosSolicitudes>(() => {
+    try {
+      return leerFiltros(localStorage, claveGuardado, Date.now())
+    } catch {
+      return FILTROS_VACIOS
+    }
+  })
+  useEffect(() => {
+    try {
+      guardarFiltros(localStorage, claveGuardado, filtros, Date.now())
+    } catch {
+      /* sin almacenamiento (modo privado): solo no se recuerdan */
+    }
+  }, [filtros, claveGuardado])
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(leerFiltrosAbiertos)
+  // PDF de la solicitud / del informe del laboratorio que se está mirando.
   const [pdfAbierto, setPdfAbierto] = useState<Solicitud | null>(null)
+  const [informeAbierto, setInformeAbierto] = useState<Solicitud | null>(null)
 
-  // Toggle de envío automático (solo visible para admin_general)
-  // Una regla general y una por tipo de aplicación (Actimist, Línea de proceso…).
+  // Envío automático (solo admin general): una regla general y una por tipo.
   const [envioAutomatico, setEnvioAutomatico] = useState<ConfigEnvioAutomatico | null>(null)
   const [tiposAplicacion, setTiposAplicacion] = useState<OpcionConfig[]>([])
-  // Qué regla se está por cambiar: null = la general, texto = ese tipo.
+  // Qué regla se está por cambiar: null = ninguna; tipo null = la general.
   const [reglaACambiar, setReglaACambiar] = useState<{ tipo: string | null } | null>(null)
-  const modalAbierto = reglaACambiar !== null
   const [password, setPassword] = useState('')
   const [errorModal, setErrorModal] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
-  const inputPasswordRef = useRef<HTMLInputElement>(null)
+
+  const [avisoMasivo, setAvisoMasivo] = useState<string | null>(null)
+  const [trabajando, setTrabajando] = useState<null | 'pdf' | 'excel' | 'enviar'>(null)
+  const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     estadoSolicitudesPrueba()
@@ -81,24 +156,33 @@ export function SolicitudesView() {
 
   useEffect(() => {
     if (!esAdmin) return
-    obtenerEnvioAutomatico()
-      .then(setEnvioAutomatico)
-      .catch(() => {})
+    obtenerEnvioAutomatico().then(setEnvioAutomatico).catch(() => {})
     listarTiposAplicacion()
       .then((t) => setTiposAplicacion(t.filter((x) => x.activo)))
       .catch(() => setTiposAplicacion([]))
   }, [esAdmin])
 
-  useEffect(() => {
-    if (modalAbierto) {
-      setPassword('')
-      setErrorModal(null)
-      setTimeout(() => inputPasswordRef.current?.focus(), 50)
+  const refrescar = useCallback(async () => {
+    setCargando(true)
+    try {
+      // Los informes vienen aparte: si esa consulta falla, el listado sale
+      // igual, solo sin los informes.
+      const [resultado, informes] = await Promise.all([
+        listarSolicitudes(),
+        listarInformesDeSolicitudes().catch(() => ({}) as Record<string, never>),
+      ])
+      setSolicitudes(resultado.map((s) => ({ ...s, informe: informes[s.archivo] ?? null })))
+      setError(null)
+    } catch {
+      setError('No se pudo conectar con el backend.')
+    } finally {
+      setCargando(false)
     }
-  }, [modalAbierto])
+  }, [])
 
-  const [avisoMasivo, setAvisoMasivo] = useState<string | null>(null)
-  const [trabajando, setTrabajando] = useState<null | 'pdf' | 'excel' | 'enviar'>(null)
+  useEffect(() => {
+    void refrescar()
+  }, [refrescar])
 
   // Lo que rige HOY para un tipo (o para la regla general si tipo es null).
   function reglaVigente(tipo: string | null): boolean {
@@ -106,15 +190,19 @@ export function SolicitudesView() {
     return (tipo ? envioAutomatico.por_tipo?.[tipo] : undefined) ?? envioAutomatico.activo
   }
 
-  async function confirmarCambio(heredar = false) {
-    if (envioAutomatico === null || reglaACambiar === null) return
+  function abrirCambioRegla(tipo: string | null) {
+    setPassword('')
+    setErrorModal(null)
+    setReglaACambiar({ tipo })
+  }
+
+  async function confirmarCambio() {
+    if (envioAutomatico === null || reglaACambiar === null || !password) return
     const { tipo } = reglaACambiar
     setGuardando(true)
     setErrorModal(null)
     try {
-      const res = await actualizarEnvioAutomatico(!reglaVigente(tipo), password, {
-        ...(tipo ? { tipo, heredar } : {}),
-      })
+      const res = await actualizarEnvioAutomatico(!reglaVigente(tipo), password, tipo ? { tipo, heredar: false } : {})
       setEnvioAutomatico(res)
       setReglaACambiar(null)
     } catch (e: unknown) {
@@ -125,91 +213,57 @@ export function SolicitudesView() {
     }
   }
 
-  const refrescar = useCallback(async () => {
-    try {
-      const resultado = await listarSolicitudes()
-      setSolicitudes(resultado)
-      setError(null)
-    } catch {
-      setError('No se pudo conectar con el backend.')
-    }
-  }, [])
-
-  useEffect(() => {
-    refrescar()
-  }, [refrescar])
-
+  /** La confirmación con contraseña la pide `EliminarConClave`; si esto falla, el diálogo lo avisa. */
   async function onEliminar(solicitud: Solicitud) {
-    if (
-      !confirm(
-        `¿Eliminar la solicitud "${solicitud.numero_solicitud}"? Esta acción no se puede deshacer.`,
-      )
-    )
-      return
-    try {
-      await eliminarSolicitud(solicitud.archivo)
-      await refrescar()
-    } catch {
-      setError('No se pudo eliminar la solicitud.')
-    }
+    await eliminarSolicitud(solicitud.archivo)
+    await refrescar()
   }
 
-  function actualizarFiltro(campo: 'fechaDesde' | 'fechaHasta' | 'numeroSolicitud' | 'busqueda' | 'solicitante' | 'variedad', valor: string) {
-    setFiltros((f) => ({ ...f, [campo]: valor }))
+  function cambiarFiltro<K extends keyof FiltrosSolicitudes>(clave: K, valor: FiltrosSolicitudes[K]) {
+    setFiltros((f) => ({ ...f, [clave]: valor }))
   }
 
   function marcar(campo: ListaFiltro, valores: string[]) {
-    setFiltros((f) => ({ ...f, [campo]: valores }))
+    cambiarFiltro(campo, valores)
   }
 
-  // Las opciones de las listas se derivan de las solicitudes ya cargadas
-  // (una sola carga, sin volver a leer todos los Excel por cada filtro).
-  const opciones = useMemo(() => opcionesDe(solicitudes ?? [], filtros), [solicitudes, filtros])
+  function alternarFiltros() {
+    setFiltrosAbiertos((v) => {
+      guardarFiltrosAbiertos(!v)
+      return !v
+    })
+  }
 
+  // Los filtros se acumulan: cada lista ofrece (y cuenta) solo lo que queda
+  // con los demás filtros puestos.
+  const { opciones, conteo } = useMemo(() => opcionesAcumuladas(solicitudes ?? [], filtros), [solicitudes, filtros])
   const hayFiltrosActivos = hayFiltros(filtros)
+  const chips = useMemo(() => chipsDeFiltros(filtros), [filtros])
 
   const solicitudesFiltradas = useMemo(
     () => (solicitudes ? filtrarSolicitudes(solicitudes, filtros) : null),
     [solicitudes, filtros],
   )
 
-  // Cuántas solicitudes trae cada opción, sobre todas las cargadas.
-  const conteo = useMemo(() => {
-    const por = (f: (s: Solicitud) => string | null | undefined) => {
-      const m = new Map<string, number>()
-      for (const s of solicitudes ?? []) {
-        const v = f(s)
-        if (v) m.set(v, (m.get(v) ?? 0) + 1)
-      }
-      return (o: string) => m.get(o) ?? 0
-    }
-    return {
-      laboratorio: por((s) => s.laboratorio),
-      soldTo: por((s) => s.sold_to),
-      shipTo: por((s) => s.ship_to),
-      especie: por((s) => s.especie),
-      tipoAplicacion: por(tipoAplicacionDe),
-      lineaProceso: por((s) => s.linea_proceso),
-      tipoMuestra: por((s) => s.tipo_muestra),
-      nombreMuestreador: por((s) => s.nombre_muestreador),
-    }
-  }, [solicitudes])
+  // Los indicadores cuentan con TODOS los demás filtros, menos el de estado:
+  // así cada uno dice cuántas verías al apretarlo.
+  const resumen = useMemo(
+    () => resumenVistas(solicitudes ? filtrarSolicitudes(solicitudes, { ...filtros, estado: [] }) : []),
+    [solicitudes, filtros],
+  )
+  const vistaActiva = vistaDeEstados(filtros.estado)
 
-  const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
 
-  // Limpiar selección cuando cambian los filtros o la lista base
+  // Limpiar la selección cuando cambian los filtros o la lista base.
   useEffect(() => { setSeleccionadas(new Set()) }, [filtros, solicitudes])
 
-  const archivosVisibles = (solicitudesFiltradas ?? []).map((s) => s.archivo)
+  const visibles = solicitudesFiltradas ?? []
+  const archivosVisibles = visibles.map((s) => s.archivo)
   const todasMarcadas = archivosVisibles.length > 0 && archivosVisibles.every((a) => seleccionadas.has(a))
   const algunaMarcada = archivosVisibles.some((a) => seleccionadas.has(a))
 
   function toggleTodas() {
-    if (todasMarcadas) {
-      setSeleccionadas(new Set())
-    } else {
-      setSeleccionadas(new Set(archivosVisibles))
-    }
+    setSeleccionadas(todasMarcadas ? new Set() : new Set(archivosVisibles))
   }
 
   function toggleUna(archivo: string) {
@@ -221,20 +275,14 @@ export function SolicitudesView() {
     })
   }
 
-  const filasSeleccionadas = (solicitudesFiltradas ?? []).filter((x) => seleccionadas.has(x.archivo))
+  const filasSeleccionadas = visibles.filter((x) => seleccionadas.has(x.archivo))
   const pendientesSel = filasSeleccionadas.filter((x) => !x.enviada)
 
-  const archivosAExportar = seleccionadas.size > 0
-    ? [...seleccionadas]
-    : hayFiltrosActivos
-      ? archivosVisibles
-      : undefined
-
-  const etiquetaBotonExport = seleccionadas.size > 0
-    ? `Descargar seleccionadas (${seleccionadas.size})`
-    : hayFiltrosActivos
-      ? `Descargar filtradas (${solicitudesFiltradas?.length ?? 0})`
-      : 'Descargar todas las solicitudes'
+  // Sin selección, el Excel baja lo filtrado (o todo, si no hay filtros).
+  const archivosAExportar = seleccionadas.size > 0 ? [...seleccionadas] : hayFiltrosActivos ? archivosVisibles : undefined
+  const etiquetaExcel = seleccionadas.size > 0
+    ? `Excel (${seleccionadas.size})`
+    : hayFiltrosActivos ? `Excel filtrado (${visibles.length})` : 'Descargar Excel'
 
   async function correr(tarea: 'pdf' | 'excel' | 'enviar', fn: () => Promise<void>) {
     setTrabajando(tarea)
@@ -247,9 +295,6 @@ export function SolicitudesView() {
       setTrabajando(null)
     }
   }
-
-  // Sin selección, el PDF masivo baja lo que se ve (con o sin filtros).
-  const archivosParaPdf = seleccionadas.size > 0 ? [...seleccionadas] : archivosVisibles
 
   async function enviarPendientes() {
     const n = pendientesSel.length
@@ -275,367 +320,277 @@ export function SolicitudesView() {
     })
   }
 
-  const totalEnviadas = (solicitudesFiltradas ?? []).filter((x) => x.enviada).length
-  const totalPendientes = (solicitudesFiltradas?.length ?? 0) - totalEnviadas
-  const totalSinLista = (solicitudesFiltradas ?? []).filter((x) => x.sin_lista_distribucion).length
+  function elegirVista(vista: VistaRapida) {
+    // Volver a apretar la vista activa la quita.
+    cambiarFiltro('estado', vistaActiva === vista && vista !== 'todas' ? [] : ESTADOS_DE_VISTA[vista])
+  }
+
+  // Clic en la fila = abrir la solicitud (salvo que el clic sea en un control).
+  function abrirFila(e: MouseEvent | KeyboardEvent, s: Solicitud) {
+    if ((e.target as HTMLElement).closest('button, a, input, label')) return
+    navigate(rutaTomaMuestrasDetalle(s.archivo))
+  }
+
+  const reglasEnvio = envioAutomatico
+    ? [...tiposAplicacion.map((t) => ({ tipo: t.nombre as string | null, nombre: t.nombre })), { tipo: null, nombre: 'General' }]
+    : []
+  const resumenEnvio = envioAutomatico
+    ? `General ${envioAutomatico.activo ? 'activo' : 'apagado'}` +
+      (tiposAplicacion.length ? ` · ${tiposAplicacion.filter((t) => reglaVigente(t.nombre)).length} de ${tiposAplicacion.length} tipos se envían solos` : '')
+    : ''
 
   return (
-    <div>
+    <div className={styles.pagina}>
       <Header
-        title="Solicitudes de análisis"
-        description="Listado de todas las solicitudes registradas."
+        title="Solicitudes e informes"
+        description="Cada solicitud de análisis, su envío al laboratorio y el informe que vuelve."
         acciones={
-          <div className={styles.accionesCabecera}>
-            <button
-              type="button"
-              className={styles.botonDescargaTodas}
-              disabled={(solicitudesFiltradas?.length ?? 0) === 0 && seleccionadas.size === 0}
-              onClick={() => void descargarTodasLasSolicitudes(archivosAExportar)}
-            >
-              {etiquetaBotonExport}
-            </button>
+          <>
+            <Button variant="secondary" onClick={() => void refrescar()} disabled={cargando} className={styles.botonConIcono} title="Volver a cargar">
+              <IconoActualizar className={cargando ? styles.girando : undefined} width={16} height={16} />
+              <span className={styles.ocultarMovil}>{cargando ? 'Actualizando…' : 'Actualizar'}</span>
+            </Button>
             {puedeCrearPruebas && (
               <Button variant="secondary" onClick={() => navigate(ROUTES.tomaMuestrasNuevaPrueba)}>
-                + Solicitud de prueba
+                + Prueba
               </Button>
             )}
             <Button onClick={() => navigate(ROUTES.tomaMuestrasNueva)}>+ Nueva solicitud</Button>
-          </div>
+          </>
         }
       />
 
-      {solicitudesFiltradas && solicitudesFiltradas.length > 0 && (
-        <div className={styles.heroSolicitudes}>
-          <ResumenHero
-            etiqueta="Solicitudes enviadas"
-            porcentaje={(totalEnviadas / solicitudesFiltradas.length) * 100}
-            cifra={totalEnviadas}
-            cifraSub={`de ${solicitudesFiltradas.length} registradas`}
-            descripcion="Las que ya salieron por correo al laboratorio."
-            ariaLabel="Resumen de solicitudes enviadas"
-            segmentos={[
-              { clave: 'enviadas', texto: 'Enviadas', n: totalEnviadas, color: '#1b7f5c', tinta: '#14664a', fondo: 'rgba(27, 127, 92, 0.12)' },
-              { clave: 'pendientes', texto: 'Pendientes', n: totalPendientes, color: '#d08a00', tinta: '#8a5a00', fondo: 'rgba(208, 138, 0, 0.13)' },
-            ]}
-          />
+      {error && (
+        <div className={styles.errorCaja} role="alert">
+          <IconoAlerta />
+          <span>{error}</span>
+          <Button variant="secondary" onClick={() => void refrescar()}>Reintentar</Button>
         </div>
       )}
 
-      {esAdmin && envioAutomatico !== null && (
-        <Card>
-          <div className={styles.configArchivos}>
-            <p className={styles.configArchivosTitulo}>Envío automático al guardar, por tipo de aplicación</p>
-            <div className={styles.configArchivosFilas}>
-              {tiposAplicacion.map((t) => {
-                const propia = envioAutomatico.por_tipo?.[t.nombre]
-                const activo = reglaVigente(t.nombre)
-                return (
-                  <div className={styles.configArchivosFila} key={t.id}>
-                    <span className={styles.configArchivosNombre}>{t.nombre}</span>
-                    <button
-                      type="button"
-                      onClick={() => setReglaACambiar({ tipo: t.nombre })}
-                      className={`${styles.toggle} ${activo ? styles.toggleOn : styles.toggleOff}`}
-                      title={`${activo ? 'Desactivar' : 'Activar'} envío automático de ${t.nombre}`}
-                      aria-label={`Envío automático de ${t.nombre}`}
-                      aria-pressed={activo}
-                    >
-                      <span className={styles.toggleCirculo} />
-                    </button>
-                    <span className={styles.configArchivosEstado}>
-                      {activo
-                        ? 'Al guardar se envía de inmediato por correo'
-                        : 'Al guardar queda pendiente — se envía manualmente'}
-                      {propia === undefined && ' (según la regla general)'}
-                    </span>
-                  </div>
-                )
-              })}
-              <div className={styles.configArchivosFila}>
-                <span className={styles.configArchivosNombre}>General</span>
-                <button
-                  type="button"
-                  onClick={() => setReglaACambiar({ tipo: null })}
-                  className={`${styles.toggle} ${envioAutomatico.activo ? styles.toggleOn : styles.toggleOff}`}
-                  title={envioAutomatico.activo ? 'Desactivar la regla general' : 'Activar la regla general'}
-                  aria-label="Envío automático general"
-                  aria-pressed={envioAutomatico.activo}
-                >
-                  <span className={styles.toggleCirculo} />
-                </button>
-                <span className={styles.configArchivosEstado}>
-                  Rige para los tipos sin regla propia y para solicitudes sin tipo
-                </span>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
+      {/* Indicadores = filtros rápidos */}
+      <section className={styles.indicadores} aria-label="Resumen">
+        {VISTAS.map((v) => {
+          const n = resumen[v.vista]
+          const activo = vistaActiva === v.vista && (v.vista !== 'todas' || filtros.estado.length === 0)
+          return (
+            <button
+              key={v.vista}
+              type="button"
+              className={`${styles.indicador} ${styles[`tono_${v.tono}`]} ${activo ? styles.indicadorActivo : ''}`}
+              aria-pressed={activo}
+              onClick={() => elegirVista(v.vista)}
+              title={v.ayuda}
+            >
+              <span className={styles.indicadorTexto}>{v.texto}</span>
+              <strong className={styles.indicadorCifra}>
+                {solicitudes ? nf.format(n) : <Skeleton style={{ width: 44, height: 26 }} />}
+              </strong>
+              <span className={styles.indicadorAyuda}>
+                {solicitudes && v.vista !== 'todas' && resumen.todas > 0 ? (
+                  <>
+                    {Math.round((n / resumen.todas) * 100)}%
+                    <span className={styles.ayudaLarga}> · {v.ayuda.toLowerCase()}</span>
+                  </>
+                ) : (
+                  <span className={styles.ayudaLarga}>{v.ayuda}</span>
+                )}
+              </span>
+            </button>
+          )
+        })}
+      </section>
 
-      {modalAbierto && (
-        <div className={styles.overlay}>
-          <div className={styles.modalCambio}>
-            <p className={styles.modalTitulo}>
-              {reglaVigente(reglaACambiar?.tipo ?? null) ? 'Desactivar' : 'Activar'} envío automático
-              {reglaACambiar?.tipo ? ` — ${reglaACambiar.tipo}` : ' — regla general'}
-            </p>
-            <p className={styles.modalDescripcion}>
-              {reglaVigente(reglaACambiar?.tipo ?? null)
-                ? 'Estas solicitudes quedarán pendientes hasta que las envíes manualmente.'
-                : 'Estas solicitudes se enviarán por correo al momento de guardarlas.'}
-              {' '}Ingresa tu contraseña para confirmar.
-            </p>
-            <input
-              ref={inputPasswordRef}
-              type="password"
-              className={styles.modalInput}
-              placeholder="Tu contraseña"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void confirmarCambio()}
-            />
-            {errorModal && <p className={styles.modalError}>{errorModal}</p>}
-            <div className={styles.modalAcciones}>
-              <button
-                type="button"
-                className={styles.modalBotonCancelar}
-                onClick={() => setReglaACambiar(null)}
-                disabled={guardando}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className={styles.modalBotonConfirmar}
-                onClick={() => void confirmarCambio()}
-                disabled={guardando || !password}
-              >
-                {guardando ? 'Guardando…' : 'Confirmar cambio'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <Card>
-        {error && <p className={styles.error}>{error}</p>}
-
-        <div className={styles.cabeceraTabla}>
-          <p className={styles.contador}>
-            {solicitudesFiltradas
-              ? `${solicitudesFiltradas.length} de ${solicitudes?.length ?? 0}`
-              : '…'}{' '}
-            solicitud
-            {(solicitudesFiltradas?.length ?? 0) === 1 ? '' : 'es'}
-          </p>
-          <button
-            type="button"
-            className={styles.boton}
-            onClick={() => setMostrarFiltros((m) => !m)}
-          >
-            {mostrarFiltros ? 'Ocultar filtros' : 'Mostrar filtros'}
-          </button>
-        </div>
-
-        <div className={styles.barraBusqueda}>
-          <input
-            type="search"
-            className={styles.buscador}
-            placeholder="Buscar por N°, cliente, planta, especie, tipo…"
-            value={filtros.busqueda}
-            onChange={(e) => actualizarFiltro('busqueda', e.target.value)}
-            aria-label="Buscar solicitudes"
-          />
-          <span className={styles.resumenEstados}>
-            <span className={styles.chipEnviada}>{totalEnviadas} enviada{totalEnviadas === 1 ? '' : 's'}</span>
-            <span className={styles.chipPendiente}>{totalPendientes} pendiente{totalPendientes === 1 ? '' : 's'}</span>
-            {totalSinLista > 0 && (
-              <span className={styles.chipSinLista}>{totalSinLista} sin lista de distribución</span>
-            )}
+      {resumen.sin_report > 0 && (
+        <button
+          type="button"
+          className={`${styles.avisoSinReport} ${vistaActiva === 'sin_report' ? styles.avisoSinReportActivo : ''}`}
+          onClick={() => elegirVista('sin_report')}
+          aria-pressed={vistaActiva === 'sin_report'}
+        >
+          <IconoAlerta width={16} height={16} />
+          <span>
+            <b>{plural(resumen.sin_report, 'informe tiene', 'informes tienen')}</b> PDF pero sus resultados no están en Report
+            (revisa Ingesta de Datos → Filas pendientes).
           </span>
-        </div>
+          <span className={styles.avisoAccion}>{vistaActiva === 'sin_report' ? 'Ver todas' : 'Ver cuáles'}</span>
+        </button>
+      )}
 
-        {seleccionadas.size > 0 && (
-          <div className={styles.barraSeleccion} role="region" aria-label="Acciones sobre la selección">
-            <strong className={styles.contadorSel}>
-              {seleccionadas.size} seleccionada{seleccionadas.size === 1 ? '' : 's'}
-            </strong>
-            <span className={styles.detalleSel}>
-              {filasSeleccionadas.length - pendientesSel.length} enviada{filasSeleccionadas.length - pendientesSel.length === 1 ? '' : 's'} · {pendientesSel.length} pendiente{pendientesSel.length === 1 ? '' : 's'}
-            </span>
+      {resumen.ot_revisar > 0 && (
+        <button
+          type="button"
+          className={`${styles.avisoSinReport} ${styles.avisoOt} ${vistaActiva === 'ot_revisar' ? styles.avisoOtActivo : ''}`}
+          onClick={() => elegirVista('ot_revisar')}
+          aria-pressed={vistaActiva === 'ot_revisar'}
+        >
+          <IconoAlerta width={16} height={16} />
+          <span>
+            <b>{plural(resumen.ot_revisar, 'informe tiene', 'informes tienen')}</b> la OT por revisar: el informe no dice esa OT,
+            o no calzan planta, especie o fecha de muestreo.
+          </span>
+          <span className={styles.avisoAccion}>{vistaActiva === 'ot_revisar' ? 'Ver todas' : 'Ver cuáles'}</span>
+        </button>
+      )}
+
+      <section className={styles.tablaCard} aria-label="Solicitudes">
+        {/* Barra: buscador, filtros y descargas */}
+        <div className={styles.barra}>
+          <label className={styles.buscar}>
+            <IconoBuscar className={styles.lupa} width={15} height={15} />
+            <input
+              type="search"
+              placeholder="Buscar N°, informe, cliente, planta, especie…"
+              value={filtros.busqueda}
+              onChange={(e) => cambiarFiltro('busqueda', e.target.value)}
+              aria-label="Buscar solicitudes"
+            />
+          </label>
+          <div className={styles.barraAcciones}>
             <button
               type="button"
-              className={styles.botonBarra}
-              disabled={trabajando !== null}
-              onClick={() => void correr('pdf', () => descargarPdfsZip(archivosParaPdf))}
+              className={`${styles.botonFiltros} ${filtrosAbiertos ? styles.botonFiltrosAbierto : ''}`}
+              aria-expanded={filtrosAbiertos}
+              onClick={alternarFiltros}
             >
-              {trabajando === 'pdf' ? 'Generando PDF…' : 'Descargar PDF (.zip)'}
+              Filtros
+              {chips.length > 0 && <span className={styles.contadorFiltros}>{chips.length}</span>}
             </button>
             <button
               type="button"
-              className={styles.botonBarra}
-              disabled={trabajando !== null}
-              onClick={() => void correr('excel', () => descargarTodasLasSolicitudes([...seleccionadas]))}
+              className={styles.botonSecundario}
+              disabled={visibles.length === 0 && seleccionadas.size === 0}
+              onClick={() => void descargarTodasLasSolicitudes(archivosAExportar)}
+              title="Descarga la matriz de solicitudes en Excel"
             >
-              Descargar Excel
-            </button>
-            <button
-              type="button"
-              className={styles.botonBarra}
-              disabled={trabajando !== null || pendientesSel.length === 0}
-              onClick={() => void enviarPendientes()}
-            >
-              {trabajando === 'enviar' ? 'Enviando…' : `Enviar pendientes (${pendientesSel.length})`}
-            </button>
-            {archivosVisibles.length > seleccionadas.size && (
-              <button type="button" className={styles.botonBarraSuave} onClick={() => setSeleccionadas(new Set(archivosVisibles))}>
-                Seleccionar las {archivosVisibles.length} visibles
-              </button>
-            )}
-            <button type="button" className={styles.botonBarraSuave} onClick={() => setSeleccionadas(new Set())}>
-              Quitar selección
+              <IconoExcel width={15} height={15} />
+              <span>{etiquetaExcel}</span>
             </button>
           </div>
-        )}
-        {avisoMasivo && <p className={styles.avisoMasivo} role="status">{avisoMasivo}</p>}
+        </div>
 
-        {mostrarFiltros && (
-          <div className={styles.filtros}>
-            <label className={styles.campoFiltro}>
-              <span>Fecha desde</span>
-              <input
-                type="date"
-                value={filtros.fechaDesde}
-                onChange={(e) => actualizarFiltro('fechaDesde', e.target.value)}
-              />
+        {filtrosAbiertos && (
+          <div className={styles.panelFiltros}>
+            <label className={styles.campo}>
+              <span>Desde</span>
+              <input type="date" value={filtros.fechaDesde} onChange={(e) => cambiarFiltro('fechaDesde', e.target.value)} />
             </label>
-            <label className={styles.campoFiltro}>
-              <span>Fecha hasta</span>
-              <input
-                type="date"
-                value={filtros.fechaHasta}
-                onChange={(e) => actualizarFiltro('fechaHasta', e.target.value)}
-              />
+            <label className={styles.campo}>
+              <span>Hasta</span>
+              <input type="date" value={filtros.fechaHasta} onChange={(e) => cambiarFiltro('fechaHasta', e.target.value)} />
             </label>
-            <label className={styles.campoFiltro}>
-              <span>N° Solicitud</span>
-              <input
-                value={filtros.numeroSolicitud}
-                onChange={(e) => actualizarFiltro('numeroSolicitud', e.target.value)}
-              />
+            <MultiSelectFiltro etiqueta="Laboratorio" opciones={opciones.laboratorio} valores={filtros.laboratorio} onChange={(v) => marcar('laboratorio', v)} conteoDe={conteo.laboratorio} />
+            <MultiSelectFiltro etiqueta="Estado" opciones={ETIQUETAS_ESTADO} valores={filtros.estado.map((e) => ETIQUETA_ESTADO[e])} onChange={(v) => cambiarFiltro('estado', v.map((x) => ESTADO_DE[x]))} />
+            <MultiSelectFiltro etiqueta="Sold To" opciones={opciones.soldTo} valores={filtros.soldTo} onChange={(v) => marcar('soldTo', v)} conteoDe={conteo.soldTo} />
+            <MultiSelectFiltro etiqueta="Ship To" opciones={opciones.shipTo} valores={filtros.shipTo} onChange={(v) => marcar('shipTo', v)} conteoDe={conteo.shipTo} />
+            <MultiSelectFiltro etiqueta="Especie" opciones={opciones.especie} valores={filtros.especie} onChange={(v) => marcar('especie', v)} conteoDe={conteo.especie} />
+            <MultiSelectFiltro etiqueta="Tipo de aplicación" opciones={opciones.tipoAplicacion} valores={filtros.tipoAplicacion} onChange={(v) => marcar('tipoAplicacion', v)} conteoDe={conteo.tipoAplicacion} />
+            <MultiSelectFiltro etiqueta="Línea de proceso" opciones={opciones.lineaProceso} valores={filtros.lineaProceso} onChange={(v) => marcar('lineaProceso', v)} conteoDe={conteo.lineaProceso} />
+            <MultiSelectFiltro etiqueta="Tipo muestra" opciones={opciones.tipoMuestra} valores={filtros.tipoMuestra} onChange={(v) => marcar('tipoMuestra', v)} conteoDe={conteo.tipoMuestra} />
+            <MultiSelectFiltro etiqueta="Muestreador" opciones={opciones.nombreMuestreador} valores={filtros.nombreMuestreador} onChange={(v) => marcar('nombreMuestreador', v)} conteoDe={conteo.nombreMuestreador} />
+            <label className={styles.campo}>
+              <span>N° solicitud</span>
+              <input value={filtros.numeroSolicitud} onChange={(e) => cambiarFiltro('numeroSolicitud', e.target.value)} placeholder="OT-…" />
             </label>
-            <MultiSelectFiltro
-              etiqueta="Laboratorio"
-              opciones={opciones.laboratorio}
-              valores={filtros.laboratorio}
-              onChange={(v) => marcar('laboratorio', v)}
-              conteoDe={conteo.laboratorio}
-            />
-            <MultiSelectFiltro
-              etiqueta="Tipo de Aplicación"
-              opciones={opciones.tipoAplicacion}
-              valores={filtros.tipoAplicacion}
-              onChange={(v) => marcar('tipoAplicacion', v)}
-              conteoDe={conteo.tipoAplicacion}
-            />
-            <MultiSelectFiltro
-              etiqueta="Línea de Proceso"
-              opciones={opciones.lineaProceso}
-              valores={filtros.lineaProceso}
-              onChange={(v) => marcar('lineaProceso', v)}
-              conteoDe={conteo.lineaProceso}
-            />
-            <label className={styles.campoFiltro}>
+            <label className={styles.campo}>
               <span>Solicitante</span>
-              <input
-                value={filtros.solicitante}
-                onChange={(e) => actualizarFiltro('solicitante', e.target.value)}
-              />
+              <input value={filtros.solicitante} onChange={(e) => cambiarFiltro('solicitante', e.target.value)} />
             </label>
-            <MultiSelectFiltro
-              etiqueta="Sold To"
-              opciones={opciones.soldTo}
-              valores={filtros.soldTo}
-              onChange={(v) => marcar('soldTo', v)}
-              conteoDe={conteo.soldTo}
-            />
-            <MultiSelectFiltro
-              etiqueta="Ship To"
-              opciones={opciones.shipTo}
-              valores={filtros.shipTo}
-              onChange={(v) => marcar('shipTo', v)}
-              conteoDe={conteo.shipTo}
-            />
-            <MultiSelectFiltro
-              etiqueta="Especie"
-              opciones={opciones.especie}
-              valores={filtros.especie}
-              onChange={(v) => marcar('especie', v)}
-              conteoDe={conteo.especie}
-            />
-            <label className={styles.campoFiltro}>
+            <label className={styles.campo}>
               <span>Variedad</span>
-              <input
-                value={filtros.variedad}
-                onChange={(e) => actualizarFiltro('variedad', e.target.value)}
-              />
+              <input value={filtros.variedad} onChange={(e) => cambiarFiltro('variedad', e.target.value)} />
             </label>
-            <MultiSelectFiltro
-              etiqueta="Tipo Muestra"
-              opciones={opciones.tipoMuestra}
-              valores={filtros.tipoMuestra}
-              onChange={(v) => marcar('tipoMuestra', v)}
-              conteoDe={conteo.tipoMuestra}
-            />
-            <MultiSelectFiltro
-              etiqueta="Nombre Muestreador"
-              opciones={opciones.nombreMuestreador}
-              valores={filtros.nombreMuestreador}
-              onChange={(v) => marcar('nombreMuestreador', v)}
-              conteoDe={conteo.nombreMuestreador}
-            />
-            <MultiSelectFiltro
-              etiqueta="Estado"
-              opciones={ETIQUETAS_ESTADO}
-              valores={filtros.estado.map((e) => ETIQUETA_DE[e])}
-              onChange={(v) => setFiltros((f) => ({ ...f, estado: v.map((x) => ESTADO_DE[x]) }))}
-            />
-            <label className={styles.campoFiltro}>
+            <label className={styles.campo}>
               <span>Solicitudes de prueba</span>
-              <select
-                value={filtros.prueba}
-                onChange={(e) =>
-                  setFiltros((f) => ({ ...f, prueba: e.target.value as FiltrosSolicitudes['prueba'] }))
-                }
-              >
+              <select value={filtros.prueba} onChange={(e) => cambiarFiltro('prueba', e.target.value as FiltrosSolicitudes['prueba'])}>
                 <option value="">Todas</option>
                 <option value="solo">Solo de prueba</option>
                 <option value="sin">Sin las de prueba</option>
               </select>
             </label>
-            {hayFiltrosActivos && (
-              <button
-                type="button"
-                className={styles.botonLimpiar}
-                onClick={() => setFiltros(FILTROS_VACIOS)}
-              >
-                Limpiar filtros
-              </button>
-            )}
           </div>
         )}
 
+        {(chips.length > 0 || filtros.busqueda) && (
+          <div className={styles.chipsFila}>
+            <ul className={styles.chips} aria-label="Filtros aplicados">
+              {chips.map((c) => (
+                <li key={c.clave}>
+                  <button
+                    type="button"
+                    className={styles.chipFiltro}
+                    aria-label={`Quitar filtro: ${c.texto}`}
+                    title="Quitar este filtro"
+                    onClick={() => cambiarFiltro(c.clave, FILTROS_VACIOS[c.clave])}
+                  >
+                    {c.texto}
+                    <IconoCerrar width={12} height={12} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button type="button" className={styles.limpiar} onClick={() => setFiltros(FILTROS_VACIOS)}>
+              Limpiar todo
+            </button>
+            <span className={styles.notaGuardado} title="Siguen puestos si sales y vuelves. Se borran solos tras 8 horas sin cambiarlos.">
+              Guardados por 8 h
+            </span>
+          </div>
+        )}
+
+        {seleccionadas.size > 0 && (
+          <div className={styles.barraSeleccion} role="region" aria-label="Acciones sobre la selección">
+            <span className={styles.seleccionTexto}>
+              <strong>{plural(seleccionadas.size, 'seleccionada', 'seleccionadas')}</strong>
+              <span>
+                {filasSeleccionadas.length - pendientesSel.length} enviada{filasSeleccionadas.length - pendientesSel.length === 1 ? '' : 's'} · {pendientesSel.length} pendiente{pendientesSel.length === 1 ? '' : 's'}
+              </span>
+            </span>
+            <div className={styles.seleccionAcciones}>
+              <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('pdf', () => descargarPdfsZip([...seleccionadas]))} title="Si alguna tiene informe, el zip trae dos carpetas: Solicitudes e Informes">
+                <IconoPdf width={15} height={15} />
+                {trabajando === 'pdf' ? 'Generando…' : 'PDF (.zip)'}
+              </button>
+              <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('excel', () => descargarTodasLasSolicitudes([...seleccionadas]))}>
+                <IconoExcel width={15} height={15} />
+                Excel
+              </button>
+              <button type="button" className={styles.botonSelPrincipal} disabled={trabajando !== null || pendientesSel.length === 0} onClick={() => void enviarPendientes()}>
+                {trabajando === 'enviar' ? 'Enviando…' : `Enviar pendientes (${pendientesSel.length})`}
+              </button>
+              <button type="button" className={styles.botonSelSuave} onClick={() => setSeleccionadas(new Set())}>
+                Quitar selección
+              </button>
+            </div>
+          </div>
+        )}
+        {avisoMasivo && <p className={styles.avisoMasivo} role="status">{avisoMasivo}</p>}
+
+        <div className={styles.conteoFila}>
+          <span>
+            {solicitudesFiltradas
+              ? hayFiltrosActivos
+                ? `${plural(visibles.length, 'solicitud', 'solicitudes')} de ${nf.format(solicitudes?.length ?? 0)}`
+                : plural(visibles.length, 'solicitud', 'solicitudes')
+              : 'Cargando…'}
+          </span>
+        </div>
+
         {solicitudesFiltradas === null ? (
-          <p className={styles.estado}>Cargando…</p>
-        ) : solicitudesFiltradas.length === 0 ? (
-          <p className={styles.estado}>
-            {hayFiltrosActivos
-              ? 'Ninguna solicitud coincide con los filtros.'
-              : 'Todavía no hay solicitudes registradas.'}
-          </p>
+          <div className={styles.esqueletos} aria-busy="true">
+            {[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} style={{ height: 44 }} />)}
+          </div>
+        ) : visibles.length === 0 ? (
+          <div className={styles.vacio}>
+            <IconoBuscar width={26} height={26} />
+            <h3>{hayFiltrosActivos ? 'Nada coincide con los filtros' : 'Todavía no hay solicitudes'}</h3>
+            <p>{hayFiltrosActivos ? 'Prueba con otra combinación o limpia los filtros.' : 'Crea la primera con «+ Nueva solicitud».'}</p>
+            {hayFiltrosActivos && <Button variant="secondary" onClick={() => setFiltros(FILTROS_VACIOS)}>Limpiar filtros</Button>}
+          </div>
         ) : (
-          <div className={styles.contenedorListado}>
-            <div className={styles.tablaCaja}>
+          <>
+            {/* Escritorio: tabla */}
+            <div className={styles.tablaScroll}>
               <table className={styles.tabla}>
                 <thead>
                   <tr>
@@ -649,26 +604,25 @@ export function SolicitudesView() {
                         aria-label="Seleccionar todas"
                       />
                     </th>
-                    <th>N° Solicitud</th>
-                    <th>Fecha</th>
-                    <th>Laboratorio</th>
-                    <th>Cliente / Planta</th>
-                    <th>Especie</th>
-                    <th>Estado</th>
-                    <th></th>
+                    <th>Solicitud</th>
+                    <th>Cliente / planta</th>
+                    <th className={styles.colEspecie}>Especie</th>
+                    <th>
+                      <span className={styles.soloAncho}>Envío</span>
+                      <span className={styles.soloAngosto}>Estado</span>
+                    </th>
+                    <th className={styles.colInforme}>Informe</th>
+                    <th className={styles.colAcciones}><span className={styles.sr}>Acciones</span></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {solicitudesFiltradas.map((s, idx) => (
+                  {visibles.map((s) => (
                     <tr
                       key={s.archivo}
-                      style={{ '--n': idx } as CSSProperties}
-                      className={[
-                        s.enviada ? styles.filaEnviada : '',
-                        seleccionadas.has(s.archivo) ? styles.filaSeleccionada : '',
-                      ].filter(Boolean).join(' ') || undefined}
+                      className={seleccionadas.has(s.archivo) ? styles.filaSeleccionada : undefined}
+                      onClick={(e) => abrirFila(e, s)}
                     >
-                      <td className={styles.colCheck} onClick={(e) => e.stopPropagation()}>
+                      <td className={styles.colCheck}>
                         <input
                           type="checkbox"
                           className={styles.checkbox}
@@ -677,37 +631,48 @@ export function SolicitudesView() {
                           aria-label={`Seleccionar ${s.numero_solicitud}`}
                         />
                       </td>
-                      <td className={styles.nombre}>
-                        {s.numero_solicitud}
-                        {s.es_prueba && <span className={styles.etiquetaPrueba}>PRUEBA</span>}
-                      </td>
-                      <td>{formatDateCL(s.fecha_solicitud)}</td>
                       <td>
-                        <span className={styles.etiquetaLaboratorio}>{s.laboratorio}</span>
+                        <span className={styles.numero}>
+                          {s.numero_solicitud}
+                          {s.es_prueba && <span className={styles.etiquetaPrueba}>Prueba</span>}
+                        </span>
+                        <span className={styles.secundario}>
+                          {formatDateCL(s.fecha_solicitud)} · <span className={styles.laboratorio}>{s.laboratorio}</span>
+                        </span>
                       </td>
-                      <td className={styles.clientePlanta}>
-                        <span className={styles.clientePrincipal}>{s.ship_to ?? s.sold_to}</span>
-                        {s.ship_to && <span className={styles.clienteSecundario}>{s.sold_to}</span>}
+                      <td className={styles.colCliente}>
+                        <span className={styles.principal}>{s.ship_to ?? s.sold_to}</span>
+                        {s.ship_to && <span className={styles.secundario}>{s.sold_to}</span>}
                       </td>
-                      <td>{s.especie ?? '—'}</td>
+                      <td className={styles.colEspecie}>{s.especie ?? '—'}</td>
                       <td>
-                        <EstadoSolicitud s={s} />
+                        <div className={styles.estadoCelda}>
+                          <EstadoSolicitud s={s} />
+                          {/* En pantallas medianas el informe va acá, bajo el envío. */}
+                          <span className={styles.soloAngosto}>
+                            <CeldaInforme s={s} onAbrir={setInformeAbierto} />
+                          </span>
+                        </div>
                       </td>
-                      <td className={styles.acciones}>
-                        <button
-                          className={styles.boton}
-                          onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}
-                        >
-                          Ver
-                        </button>
-                        <button className={styles.boton} onClick={() => setPdfAbierto(s)}>
-                          PDF
-                        </button>
-                        {puedeEliminar && (
-                          <button className={styles.botonEliminar} onClick={() => onEliminar(s)}>
-                            Eliminar
+                      <td className={styles.colInforme}><CeldaInforme s={s} onAbrir={setInformeAbierto} /></td>
+                      <td className={styles.colAcciones}>
+                        <div className={styles.acciones}>
+                          <button type="button" className={styles.botonIcono} title="Ver solicitud" aria-label={`Ver ${s.numero_solicitud}`} onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}>
+                            <IconoOjo width={17} height={17} />
                           </button>
-                        )}
+                          <button type="button" className={styles.botonIcono} title="PDF de la solicitud" aria-label={`PDF de ${s.numero_solicitud}`} onClick={() => setPdfAbierto(s)}>
+                            <IconoPdf width={17} height={17} />
+                          </button>
+                          {puedeEliminar && (
+                            <EliminarConClave
+                              etiqueta="Eliminar"
+                              icono={<IconoPapelera width={16} height={16} />}
+                              titulo={`Eliminar la solicitud ${s.numero_solicitud}`}
+                              descripcion="Se borra para siempre y no se puede deshacer."
+                              onConfirmar={() => onEliminar(s)}
+                            />
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -715,88 +680,152 @@ export function SolicitudesView() {
               </table>
             </div>
 
-            <div className={styles.tarjetas}>
-              {solicitudesFiltradas.map((s) => (
-                <div
-                  className={[
-                    styles.tarjeta,
-                    s.enviada ? styles.tarjetaEnviada : '',
-                    seleccionadas.has(s.archivo) ? styles.tarjetaSeleccionada : '',
-                  ].filter(Boolean).join(' ')}
+            {/* Celular: tarjetas */}
+            <ul className={styles.tarjetas}>
+              {visibles.map((s) => (
+                <li
                   key={s.archivo}
+                  className={`${styles.tarjeta} ${seleccionadas.has(s.archivo) ? styles.tarjetaSeleccionada : ''}`}
+                  onClick={(e) => abrirFila(e, s)}
                 >
-                  <div className={styles.tarjetaCabecera}>
-                    <div className={styles.tarjetaCabeceraIzq}>
-                      <input
-                        type="checkbox"
-                        className={styles.checkbox}
-                        checked={seleccionadas.has(s.archivo)}
-                        onChange={() => toggleUna(s.archivo)}
-                        aria-label={`Seleccionar ${s.numero_solicitud}`}
-                      />
-                      <div>
-                        <div className={styles.tarjetaId}>
-                          {s.numero_solicitud}
-                          {s.es_prueba && <span className={styles.etiquetaPrueba}>PRUEBA</span>}
-                        </div>
-                        <div className={styles.tarjetaFecha}>{formatDateCL(s.fecha_solicitud)}</div>
-                      </div>
-                    </div>
-                    <span className={styles.etiquetaLaboratorio}>{s.laboratorio}</span>
-                    <EstadoSolicitud s={s} />
+                  <div className={styles.tarjetaCab}>
+                    <input
+                      type="checkbox"
+                      className={styles.checkbox}
+                      checked={seleccionadas.has(s.archivo)}
+                      onChange={() => toggleUna(s.archivo)}
+                      aria-label={`Seleccionar ${s.numero_solicitud}`}
+                    />
+                    <span className={styles.numero}>
+                      {s.numero_solicitud}
+                      {s.es_prueba && <span className={styles.etiquetaPrueba}>Prueba</span>}
+                    </span>
+                    <span className={styles.tarjetaFecha}>{formatDateCL(s.fecha_solicitud)}</span>
                   </div>
-                  <div className={styles.tarjetaGrilla}>
-                    <div>
-                      <span className={styles.tarjetaLabel}>Sold To</span>
-                      <span className={styles.tarjetaValor}>{s.sold_to}</span>
-                    </div>
-                    <div>
-                      <span className={styles.tarjetaLabel}>Ship To</span>
-                      <span className={styles.tarjetaValor}>{s.ship_to ?? '—'}</span>
-                    </div>
-                    <div>
-                      <span className={styles.tarjetaLabel}>Especie</span>
-                      <span className={styles.tarjetaValor}>{s.especie ?? '—'}</span>
-                    </div>
-                    <div>
-                      <span className={styles.tarjetaLabel}>Tipo muestra</span>
-                      <span className={styles.tarjetaValor}>{s.tipo_muestra ?? '—'}</span>
-                    </div>
+                  <span className={styles.principal}>{s.ship_to ?? s.sold_to}</span>
+                  <span className={styles.secundario}>
+                    <span className={styles.laboratorio}>{s.laboratorio}</span>
+                    {s.especie ? ` · ${s.especie}` : ''}
+                  </span>
+                  <div className={styles.tarjetaEstados}>
+                    <EstadoSolicitud s={s} />
+                    <CeldaInforme s={s} onAbrir={setInformeAbierto} />
                   </div>
                   <div className={styles.tarjetaPie}>
-                    <button
-                      className={styles.botonTarjetaVer}
-                      onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}
-                    >
-                      Ver
+                    <button type="button" className={styles.botonTarjeta} onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}>
+                      <IconoOjo width={16} height={16} /> Ver
                     </button>
-                    <button className={styles.botonTarjetaVer} onClick={() => setPdfAbierto(s)}>
-                      PDF
+                    <button type="button" className={styles.botonTarjeta} onClick={() => setPdfAbierto(s)}>
+                      <IconoPdf width={16} height={16} /> PDF
                     </button>
                     {puedeEliminar && (
-                      <button className={styles.botonTarjetaEliminar} onClick={() => onEliminar(s)}>
-                        Eliminar
-                      </button>
+                      <EliminarConClave
+                        etiqueta="Eliminar"
+                        icono={<IconoPapelera width={16} height={16} />}
+                        titulo={`Eliminar la solicitud ${s.numero_solicitud}`}
+                        descripcion="Se borra para siempre y no se puede deshacer."
+                        onConfirmar={() => onEliminar(s)}
+                      />
                     )}
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
-          </div>
+            </ul>
+          </>
         )}
-      </Card>
+      </section>
+
+      {/* Envío automático: abajo y plegado; se cambia poco. */}
+      {esAdmin && envioAutomatico !== null && (
+        <details className={styles.ajustes}>
+          <summary>
+            <span className={styles.ajustesTitulo}>Envío automático al guardar</span>
+            <span className={styles.ajustesResumen}>{resumenEnvio}</span>
+          </summary>
+          <ul className={styles.reglas}>
+            {reglasEnvio.map((r) => {
+              const activo = reglaVigente(r.tipo)
+              const heredada = r.tipo !== null && envioAutomatico.por_tipo?.[r.tipo] === undefined
+              return (
+                <li key={r.nombre} className={styles.regla}>
+                  <span className={styles.reglaNombre}>{r.nombre}</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={activo}
+                    aria-label={`Envío automático: ${r.nombre}`}
+                    className={`${styles.interruptor} ${activo ? styles.interruptorOn : ''}`}
+                    onClick={() => abrirCambioRegla(r.tipo)}
+                  >
+                    <span />
+                  </button>
+                  <span className={styles.reglaEstado}>
+                    {r.tipo === null
+                      ? 'Rige para los tipos sin regla propia y para solicitudes sin tipo'
+                      : activo ? 'Se envía por correo al guardar' : 'Queda pendiente: se envía a mano'}
+                    {heredada && ' (según la general)'}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </details>
+      )}
+
+      {reglaACambiar && (
+        <Modal
+          titulo={`${reglaVigente(reglaACambiar.tipo) ? 'Desactivar' : 'Activar'} envío automático`}
+          subtitulo={reglaACambiar.tipo ?? 'Regla general'}
+          onCerrar={() => !guardando && setReglaACambiar(null)}
+          pie={
+            <>
+              <Button variant="secondary" onClick={() => setReglaACambiar(null)} disabled={guardando}>Cancelar</Button>
+              <Button onClick={() => void confirmarCambio()} disabled={guardando || !password}>
+                {guardando ? 'Guardando…' : 'Confirmar'}
+              </Button>
+            </>
+          }
+        >
+          <form className={styles.formClave} onSubmit={(e) => { e.preventDefault(); void confirmarCambio() }}>
+            <p>
+              {reglaVigente(reglaACambiar.tipo)
+                ? 'Estas solicitudes quedarán pendientes hasta que las envíes a mano.'
+                : 'Estas solicitudes se enviarán por correo al momento de guardarlas.'}
+            </p>
+            <label>
+              Tu contraseña
+              <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </label>
+            {errorModal && <p role="alert" className={styles.errorTexto}>{errorModal}</p>}
+          </form>
+        </Modal>
+      )}
+
       {pdfAbierto && (
         <VistaPrevia
+          entrada={{ nombre: `${pdfAbierto.numero_solicitud}.pdf`, ruta: pdfAbierto.archivo, tipo: 'archivo', tamano_bytes: null, modificado: '' }}
+          abrir={abrirPdfSolicitud}
+          onDescargar={() => void descargarPdfSolicitud(pdfAbierto.archivo)}
+          onCerrar={() => setPdfAbierto(null)}
+        />
+      )}
+      {informeAbierto && (
+        <VistaPrevia
           entrada={{
-            nombre: `${pdfAbierto.numero_solicitud}.pdf`,
-            ruta: pdfAbierto.archivo,
+            nombre: `Informe ${informeAbierto.informe?.nro_informe ?? informeAbierto.numero_solicitud}.pdf`,
+            ruta: informeAbierto.archivo,
             tipo: 'archivo',
             tamano_bytes: null,
             modificado: '',
           }}
-          abrir={abrirPdfSolicitud}
-          onDescargar={() => void descargarPdfSolicitud(pdfAbierto.archivo)}
-          onCerrar={() => setPdfAbierto(null)}
+          abrir={abrirPdfInformeSolicitud}
+          onDescargar={() =>
+            void descargarPdfInformeSolicitud(
+              informeAbierto.archivo,
+              `${informeAbierto.informe?.nro_informe ?? informeAbierto.numero_solicitud}.pdf`,
+            )
+          }
+          onCerrar={() => setInformeAbierto(null)}
         />
       )}
     </div>

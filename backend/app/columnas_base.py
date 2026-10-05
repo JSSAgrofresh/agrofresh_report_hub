@@ -30,6 +30,7 @@ GENERALES_BASE: list[tuple[str, str]] = [
     ("fecha_entrada", "Fecha Entrada"),
     ("fecha_recepcion", "Fecha Recepción"),
     ("hora_recepcion", "Hora Recepción"),
+    ("peso_extraido", "Peso Muestra Extraída (g)"),
     ("fecha_informe", "Fecha Informe"),
     ("fecha_analisis", "Fecha Análisis"),
     ("hora_muestreo", "Hora Muestreo"),
@@ -94,23 +95,28 @@ def partir_recepcion(recepcion_en: str | None) -> tuple[str | None, str | None]:
     return _partir_recepcion(recepcion_en)
 
 
-def calculador_listas(contactos: list[dict] | None = None) -> Callable[[Any, Any, Any], dict[str, str]]:
+def calculador_listas(contactos: list[dict] | None = None) -> Callable[..., dict[str, str]]:
     """Lista de distribución de RESULTADOS de un (Sold To, Ship To, especie), como
     {lista_para, lista_cc, lista_cco}: los correos separados por «; ». Es la
     misma regla que el correo de resultados, el PDF y el JSON.
 
+    El cuarto argumento, opcional, es el tipo de servicio (Tipo Aplicación):
+    Actimist tiene su propia lista; sin él rige la de Línea de proceso.
+
     Lee la configuración UNA vez (viene de R2) y recuerda cada combinación:
     cientos de filas comparten pocas."""
+    from .servicios import clave_servicio
     from .toma_muestras import _leer_config, destinatarios_resultado_por_tipo
 
     if contactos is None:
         contactos = _leer_config("contactos_laboratorio.json", [])
-    memoria: dict[tuple[str, str, str], dict[str, str]] = {}
+    memoria: dict[tuple[str, str, str, str], dict[str, str]] = {}
 
-    def calcular(sold_to: Any, ship_to: Any, especie: Any) -> dict[str, str]:
-        clave = (str(sold_to or "").strip(), str(ship_to or "").strip(), str(especie or "").strip())
+    def calcular(sold_to: Any, ship_to: Any, especie: Any, servicio: Any = None) -> dict[str, str]:
+        clave = (str(sold_to or "").strip(), str(ship_to or "").strip(), str(especie or "").strip(),
+                 clave_servicio(servicio))
         if clave not in memoria:
-            d = destinatarios_resultado_por_tipo("", clave[1], clave[0], clave[2], contactos)
+            d = destinatarios_resultado_por_tipo("", clave[1], clave[0], clave[2], contactos, servicio=clave[3])
             memoria[clave] = {
                 "lista_para": "; ".join(d["to"]),
                 "lista_cc": "; ".join(d["cc"]),
@@ -125,6 +131,7 @@ def fila_desde_campos(
     campos: dict[str, str],
     *,
     codigo_muestra: str | None = None,
+    peso_extraido: float | None = None,
     fecha_recepcion: str | None = None,
     hora_recepcion: str | None = None,
     listas: Callable[[Any, Any, Any], dict[str, str]] | None = None,
@@ -135,6 +142,7 @@ def fila_desde_campos(
     for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS:
         fila[_RENOMBRE.get(clave, clave)] = campos.get(etiqueta) or None
     fila["codigo_muestra"] = codigo_muestra
+    fila["peso_extraido"] = peso_extraido
     fila["fecha_recepcion"] = a_fecha(fecha_recepcion)
     fila["hora_recepcion"] = hora_recepcion
     fila["csg_packing"] = campos.get("Código del Packing") or None
@@ -151,5 +159,5 @@ def fila_desde_campos(
         fila["mes"] = f.month
         fila["temporada"] = f.year
     if listas:
-        fila.update(listas(fila.get("sold_to"), fila.get("ship_to"), fila.get("especie")))
+        fila.update(listas(fila.get("sold_to"), fila.get("ship_to"), fila.get("especie"), fila.get("tipo_servicio")))
     return fila

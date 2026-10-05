@@ -47,6 +47,14 @@ from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .notificaciones import notificar
 from .listados import clave_normalizada as _clave_esp
+from .servicios import (
+    ACTIMIST,
+    PARA_SIN_LISTA_ACTIMIST,
+    PERMANENTES_ACTIMIST,
+    clave_servicio,
+    es_del_servicio,
+    servicio_de_datos,
+)
 from .solicitud_excel import construir_workbook, construir_workbook_exportacion, leer_datos_workbook
 from .toma_muestras_pdf import generar_pdf_solicitud
 
@@ -395,16 +403,28 @@ def _recorrer_solicitudes_en_disco():
                 yield actual, nombre, os.path.splitext(nombre)[0]
 
 
-MAX_PRODUCTOS_VISIBLES = 2
+# Cuántos productos se muestran por su nombre antes de decir «MIXTO».
+# Las solicitudes creadas desde el cambio llevan la marca `mixto_desde_2`: con
+# 2 o más productos dicen MIXTO. Las anteriores (sin la marca) siguen con la
+# regla con que se emitieron: hasta 2 por nombre, 3 o más MIXTO. Lo ya emitido
+# no se reescribe.
+MAX_PRODUCTOS_VISIBLES = 1
+MAX_PRODUCTOS_VISIBLES_ANTES = 2
+MARCA_MIXTO_DESDE_2 = "mixto_desde_2"
 PRODUCTO_MIXTO = "MIXTO"
 
 
-def normalizar_productos(producto_utilizado: str | None, lista: list[str]) -> tuple[str | None, list[str]]:
+def normalizar_productos(
+    producto_utilizado: str | None, lista: list[str], mixto_desde_2: bool = False,
+) -> tuple[str | None, list[str]]:
     """Cuántos productos se ven en el Excel, el PDF, el JSON y el correo.
 
-    Con hasta 2 productos se muestran tal cual; con 3 o más todo dice «MIXTO».
-    La lista completa de lo que se eligió se conserva aparte
-    (`productos_lista`) para poder editar la solicitud y para uso interno."""
+    Con `mixto_desde_2` (solicitudes nuevas): 1 producto se muestra tal cual y
+    con 2 o más todo dice «MIXTO». Sin la marca (las de antes): hasta 2 tal
+    cual y con 3 o más «MIXTO». La lista completa de lo que se eligió se
+    conserva aparte (`productos_lista`) para poder editar la solicitud y para
+    uso interno."""
+    tope = MAX_PRODUCTOS_VISIBLES if mixto_desde_2 else MAX_PRODUCTOS_VISIBLES_ANTES
     if not lista and producto_utilizado:
         lista = producto_utilizado.split(",")
     limpia: list[str] = []
@@ -414,8 +434,17 @@ def normalizar_productos(producto_utilizado: str | None, lista: list[str]) -> tu
             limpia.append(nombre)
     if not limpia:
         return producto_utilizado, []
-    visible = PRODUCTO_MIXTO if len(limpia) > MAX_PRODUCTOS_VISIBLES else ", ".join(limpia)
+    visible = PRODUCTO_MIXTO if len(limpia) > tope else ", ".join(limpia)
     return visible, limpia
+
+
+def _aplicar_regla_mixto(datos: dict) -> None:
+    """Recalcula el producto a la vista con la regla que le toca a ESTA
+    solicitud (según su marca), sobre lo que va a quedar guardado."""
+    datos["producto_utilizado"], datos["productos_lista"] = normalizar_productos(
+        datos.get("producto_utilizado"), list(datos.get("productos_lista") or []),
+        bool(datos.get(MARCA_MIXTO_DESDE_2)),
+    )
 
 
 class SolicitudIn(BaseModel):
@@ -456,8 +485,10 @@ class SolicitudIn(BaseModel):
 
     @model_validator(mode="after")
     def _productos_visibles(self):
+        # Al leer (`Solicitud`) manda la marca guardada; al recibir un formulario
+        # no hay marca, y la regla definitiva se aplica al guardar.
         self.producto_utilizado, self.productos_lista = normalizar_productos(
-            self.producto_utilizado, self.productos_lista
+            self.producto_utilizado, self.productos_lista, bool(getattr(self, "mixto_desde_2", False))
         )
         return self
 
@@ -477,6 +508,8 @@ class Solicitud(SolicitudIn):
     codigo_muestra: str | None = None
     # Datos del cruce completo (migración 0033)
     peso_muestra: float | None = None
+    # Segundo peso (muestra extraída, g), anotado en Ingreso al laboratorio.
+    peso_muestra_extraido: float | None = None
     unidad_peso: str = "kg"
     cruzado_por: str | None = None
     cruzado_por_nombre: str | None = None
@@ -496,6 +529,10 @@ class Solicitud(SolicitudIn):
     # asunto y no aparece en el Ingreso al laboratorio ni en reanálisis. Vive
     # en `datos` (Excel `_data` + jsonb del índice): no necesita migración.
     es_prueba: bool = False
+    # Con 2 o más productos dice «MIXTO» (solicitudes creadas desde ese
+    # cambio). Sin la marca, la regla de antes: MIXTO desde 3. Ver
+    # `normalizar_productos`.
+    mixto_desde_2: bool = False
     # ¿Los resultados de esta solicitud NO tienen lista de distribución al
     # cliente (para este Sold To, Ship To y especie)? Entonces rige la regla
     # de respaldo: Para = solo Jorge y Claudia. No se guarda: el listado lo
@@ -725,35 +762,57 @@ class PdfZipIn(BaseModel):
 @router.post("/solicitudes/pdf-zip")
 def descargar_pdfs_zip(body: PdfZipIn, usuario: Usuario = Depends(usuario_actual)) -> Response:
     """Los PDF de varias solicitudes en un solo .zip. Respeta el acceso de cada
-    una (las que la sesión no puede ver se omiten) y va en nombres únicos."""
+    una (las que la sesión no puede ver se omiten) y va en nombres únicos.
+    Si alguna ya tiene informe del laboratorio, van en dos carpetas:
+    Solicitudes/ y Informes/ (`informes_solicitud.informes_para_zip`)."""
     archivos = list(dict.fromkeys(body.archivos))
     if len(archivos) > MAX_PDF_ZIP:
         raise HTTPException(413, f"Son demasiadas solicitudes de una vez (máximo {MAX_PDF_ZIP}).")
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
     analisis_config = _leer_config("analisis_laboratorio.json", [])
-    salida = io.BytesIO()
-    generados = 0
-    with zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as z:
-        for archivo in archivos:
-            try:
-                if r2.disponible():
-                    data, ext = _descargar_solicitud_r2(archivo)
-                    datos = _leer_solicitud_bytes(data, ext)
-                    numero = os.path.splitext(os.path.basename(archivo))[0]
-                else:
-                    ruta = _ruta_archivo(archivo)
-                    numero = os.path.splitext(os.path.basename(ruta))[0]
-                    datos = _leer_solicitud_archivo(ruta)
-                if not _es_propia(usuario, datos):
-                    continue
-                datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
-                z.writestr(f"{numero}.pdf", generar_pdf_solicitud(datos_pdf, analitos_config, analisis_config))
-                generados += 1
-            except HTTPException:
+    # PDF de cada solicitud: (archivo, N° de solicitud, nombre en el zip, bytes).
+    pdfs: list[tuple[str, str, str, bytes]] = []
+    for archivo in archivos:
+        try:
+            if r2.disponible():
+                data, ext = _descargar_solicitud_r2(archivo)
+                datos = _leer_solicitud_bytes(data, ext)
+                numero = os.path.splitext(os.path.basename(archivo))[0]
+            else:
+                ruta = _ruta_archivo(archivo)
+                numero = os.path.splitext(os.path.basename(ruta))[0]
+                datos = _leer_solicitud_archivo(ruta)
+            if not _es_propia(usuario, datos):
                 continue
-    if generados == 0:
+            datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
+            pdfs.append((
+                archivo,
+                str(datos.get("numero_solicitud") or numero),
+                f"{numero}.pdf",
+                generar_pdf_solicitud(datos_pdf, analitos_config, analisis_config),
+            ))
+        except HTTPException:
+            continue
+    if not pdfs:
         raise HTTPException(404, "No se pudo generar ningún PDF de la selección.")
-    nombre = f"Solicitudes_PDF_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+
+    # Si al menos una tiene informe del laboratorio, el zip lleva dos carpetas:
+    # Solicitudes/ e Informes/. Si ninguna tiene, sale como siempre (plano).
+    # Los informes son solo para personal interno.
+    informes: list[tuple[str, bytes]] = []
+    if usuario.tipoAcceso != "cliente":
+        from .informes_solicitud import informes_para_zip
+
+        informes = informes_para_zip([(archivo, numero) for archivo, numero, _, _ in pdfs])
+    carpeta = "Solicitudes/" if informes else ""
+    salida = io.BytesIO()
+    with zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as z:
+        for _, _, nombre_pdf, contenido in pdfs:
+            z.writestr(f"{carpeta}{nombre_pdf}", contenido)
+        for nombre_informe, contenido in informes:
+            z.writestr(f"Informes/{nombre_informe}", contenido)
+    prefijo = "Solicitudes_e_informes" if informes else "Solicitudes_PDF"
+    nombre = f"{prefijo}_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
     return Response(
         content=salida.getvalue(),
         media_type="application/zip",
@@ -882,6 +941,10 @@ def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends
     # Editar no cambia el formato del PDF: una solicitud antigua sigue como era.
     if datos_actuales.get("pdf_solo_analisis"):
         datos["pdf_solo_analisis"] = True
+    # Tampoco cambia la regla de MIXTO: una solicitud antigua sigue con la suya.
+    if datos_actuales.get(MARCA_MIXTO_DESDE_2):
+        datos[MARCA_MIXTO_DESDE_2] = True
+    _aplicar_regla_mixto(datos)
     if datos_actuales.get("es_prueba"):
         # Editar no le quita la marca: sigue siendo de prueba.
         datos["es_prueba"] = True
@@ -924,7 +987,10 @@ def _guardar_solicitud_nueva(
         # Solo las solicitudes creadas desde ahora usan el PDF «solo análisis» de
         # ALS y Diagnofruit; las anteriores (sin esta marca) conservan su tabla.
         pdf_solo_analisis=True,
+        # Y dicen «MIXTO» desde 2 productos (las anteriores, desde 3).
+        mixto_desde_2=True,
     )
+    _aplicar_regla_mixto(datos)
     if es_prueba:
         datos["es_prueba"] = True
     nombre_archivo = f"{numero}.xlsx"
@@ -997,6 +1063,13 @@ def cruzar_con_muestra(
             "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.",
         ) from e
     _exigir_acceso(usuario, datos_actuales)
+    # Vacío o solo espacios también deshace el cruce (`indice_solicitudes.cruzar`
+    # lo normaliza a None): la regla se mira sobre lo normalizado, si no, mandar
+    # "" saltaba el resguardo.
+    quita_la_muestra = not (body.codigo_muestra or "").strip()
+    if quita_la_muestra and usuario.email.lower() != _SUPER_ADMIN_EMAIL:
+        # Quitar la muestra de una solicitud es solo del administrador principal.
+        raise HTTPException(403, "Solo el administrador principal puede quitar una muestra.")
     try:
         indice_solicitudes.cruzar(archivo, body.codigo_muestra)
     except indice_solicitudes.MuestraYaUsada as e:
@@ -1006,11 +1079,37 @@ def cruzar_con_muestra(
             404,
             "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.",
         ) from e
-    if body.codigo_muestra is None:
-        # Registrar anulación de cruce en historial (best-effort)
-        pass
     datos = indice_solicitudes.buscar(archivo)
     return Solicitud(archivo=archivo, **datos)
+
+
+class PesoExtraidoIn(BaseModel):
+    peso: float
+
+
+@router.put("/solicitudes/{archivo}/peso-extraido", response_model=Solicitud)
+def guardar_peso_extraido(
+    archivo: str,
+    body: PesoExtraidoIn,
+    usuario: Usuario = Depends(usuario_actual),
+) -> Any:
+    """Anota el segundo peso (muestra extraída, en gramos) de una solicitud ya
+    cruzada. Se puede corregir; el antes y el después quedan en el historial."""
+    if not (body.peso > 0):
+        raise HTTPException(400, "El peso debe ser mayor a cero.")
+    datos_actuales = indice_solicitudes.buscar(archivo)
+    if datos_actuales is None:
+        raise HTTPException(404, "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.")
+    _exigir_acceso(usuario, datos_actuales)
+    try:
+        indice_solicitudes.guardar_peso_extraido(archivo, body.peso, usuario.email, usuario.nombre)
+    except indice_solicitudes.SinCruce as e:
+        raise HTTPException(409, "Esa solicitud todavía no tiene muestra: primero se cruza.") from e
+    except indice_solicitudes.SinPesoExtraido as e:
+        raise HTTPException(503, "Falta correr la migración 0048_peso_extraido.sql en el servidor.") from e
+    except KeyError as e:
+        raise HTTPException(404, "Esa solicitud no está en el índice. Corre scripts/indexar_solicitudes.py.") from e
+    return Solicitud(archivo=archivo, **indice_solicitudes.buscar(archivo))
 
 
 # Prefijo R2 para fotos del cruce (separado de las fotos de la solicitud)
@@ -1300,8 +1399,10 @@ class ReanalisisIn(BaseModel):
 
     @model_validator(mode="after")
     def _productos_visibles(self):
+        # Al leer (`Solicitud`) manda la marca guardada; al recibir un formulario
+        # no hay marca, y la regla definitiva se aplica al guardar.
         self.producto_utilizado, self.productos_lista = normalizar_productos(
-            self.producto_utilizado, self.productos_lista
+            self.producto_utilizado, self.productos_lista, bool(getattr(self, "mixto_desde_2", False))
         )
         return self
 
@@ -1396,10 +1497,12 @@ def crear_reanalisis(
         enviada=False,
         enviado_en=None,
         pdf_solo_analisis=True,
+        mixto_desde_2=True,
         tipo_solicitud="REANALISIS",
         solicitud_original_archivo=archivo_base,
         motivo_reanalisis=motivo,
     )
+    _aplicar_regla_mixto(datos)
 
     # 4. Generar y guardar el Excel
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
@@ -1671,13 +1774,16 @@ def _admins_de(contactos: list[dict]) -> list[str]:
     ]
 
 
-def _para_sin_lista(admins: list[str]) -> list[str]:
+def _para_sin_lista(admins: list[str], servicio: str = "") -> list[str]:
     """Para cuando no hay lista de distribución: Jorge y Claudia, más los admin
     del Report Hub. Con lista, esos mismos van en copia oculta; sin lista pasan
-    de CCO a Para."""
+    de CCO a Para.
+
+    Actimist tiene su propio respaldo: Jorge y el Report Hub (sin Claudia)."""
+    base = PARA_SIN_LISTA_ACTIMIST if clave_servicio(servicio) == ACTIMIST else DESTINATARIOS_SIN_LISTA
     salida: list[str] = []
     vistos: set[str] = set()
-    for e in [*DESTINATARIOS_SIN_LISTA, *admins]:
+    for e in [*base, *admins]:
         if e.casefold() not in vistos:
             vistos.add(e.casefold())
             salida.append(e)
@@ -1697,10 +1803,13 @@ def solicitud_sin_lista(datos: dict, contactos: list[dict] | None = None) -> boo
     nadie (rige el respaldo, Para = Jorge y Claudia) o los únicos en Para son
     ellos mismos. Los técnicos y comerciales (internos) no cuentan: van en
     copia, no son la lista del cliente."""
+    servicio = servicio_de_datos(datos)
     propios = {c.casefold() for c in DESTINATARIOS_SIN_LISTA}
+    if servicio == ACTIMIST:
+        propios |= {c.casefold() for c in (*PARA_SIN_LISTA_ACTIMIST, *PERMANENTES_ACTIMIST)}
     for c in _contactos_resultado(
         str(datos.get("sold_to") or ""), str(datos.get("ship_to") or ""), str(datos.get("especie") or ""),
-        contactos,
+        contactos, servicio=servicio,
     ):
         email = str(c.get("email") or "").strip()
         if (
@@ -1717,13 +1826,14 @@ def _calculador_sin_lista(contactos: list[dict]):
     """`solicitud_sin_lista` con los contactos ya leídos y memoria por
     (Sold To, Ship To, especie): cientos de solicitudes comparten pocas
     combinaciones."""
-    memoria: dict[tuple[str, str, str], bool] = {}
+    memoria: dict[tuple[str, str, str, str], bool] = {}
 
     def calcular(datos: dict) -> bool:
         clave = (
             str(datos.get("sold_to") or "").strip(),
             str(datos.get("ship_to") or "").strip(),
             _clave_esp(str(datos.get("especie") or "")),
+            servicio_de_datos(datos),
         )
         if clave not in memoria:
             memoria[clave] = solicitud_sin_lista(datos, contactos)
@@ -1743,13 +1853,17 @@ def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[s
     if datos.get("es_prueba") and str(laboratorio).strip().upper() == "QUITECA":
         return {"to": list(DESTINATARIOS_PRUEBA_QUITECA), "cc": [], "bcc": []}
     por_envio = contactos_de_solicitud_por_envio(laboratorio)
+    servicio = servicio_de_datos(datos)
     internos = [
         c for c in _contactos_resultado(
-            str(datos.get("sold_to") or ""), str(datos.get("ship_to") or ""), str(datos.get("especie") or "")
+            str(datos.get("sold_to") or ""), str(datos.get("ship_to") or ""), str(datos.get("especie") or ""),
+            servicio=servicio,
         )
         if c.get("tipo") == "resultado_interno" and c.get("activo", True) and c.get("email")
     ]
     internos.sort(key=lambda c: c.get("orden", 0))
+    if servicio == ACTIMIST:
+        return _contactos_solicitud_actimist(por_envio, internos, datos)
     para = por_envio["to"] or _para_sin_lista(_admins_de(internos))
     en_para = {e.casefold() for e in para}
     return {
@@ -1760,6 +1874,45 @@ def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[s
             if e.casefold() not in en_para
         ],
     }
+
+
+def _contactos_solicitud_actimist(
+    por_envio: dict[str, list[str]], internos: list[dict], datos: dict
+) -> dict[str, list[str]]:
+    """El correo de una solicitud ACTIMIST.
+
+    - El laboratorio recibe como siempre (sus contactos de solicitud).
+    - Jorge y el Report Hub van siempre: en Para si el laboratorio no tiene
+      lista; si la tiene, en copia oculta.
+    - Carlos Jiménez y Cristian Valenzuela (referentes de Actimist) van en
+      Para en toda solicitud real; en las de prueba no.
+    - Técnicos y comerciales: los de la lista de distribución de ACTIMIST
+      (hoy vacía). Nunca los de Línea de proceso.
+    """
+    para = list(por_envio["to"])
+    ocultas = list(por_envio["bcc"])
+    if para:
+        ocultas.extend(PARA_SIN_LISTA_ACTIMIST)
+    else:
+        para = list(PARA_SIN_LISTA_ACTIMIST)
+    if not datos.get("es_prueba"):
+        para.extend(PERMANENTES_ACTIMIST)
+    copias = [*por_envio["cc"], *(c["email"] for c in internos if c.get("tipo_copia") != "bcc")]
+    ocultas.extend(c["email"] for c in internos if c.get("tipo_copia") == "bcc")
+
+    vistos: set[str] = set()
+
+    def sin_repetir(lista: list[str]) -> list[str]:
+        salida: list[str] = []
+        for e in lista:
+            clave = str(e or "").strip().casefold()
+            if clave and clave not in vistos:
+                vistos.add(clave)
+                salida.append(str(e).strip())
+        return salida
+
+    para = sin_repetir(para)
+    return {"to": para, "cc": sin_repetir(copias), "bcc": sin_repetir(ocultas)}
 
 
 def contactos_de_solicitud(laboratorio: str) -> list[str]:
@@ -1833,7 +1986,8 @@ def _contactos_resultado_nivel(
 
 
 def _contactos_resultado(
-    sold_to: str, ship_to: str, especie: str, contactos: list[dict] | None = None
+    sold_to: str, ship_to: str, especie: str, contactos: list[dict] | None = None,
+    servicio: str = "",
 ) -> list[dict]:
     """Contactos de resultado de una combinación (sold_to, ship_to, especie).
 
@@ -1841,9 +1995,14 @@ def _contactos_resultado(
     Los internos -comerciales y técnicos- NO dependen de la especie: toda planta
     los trae siempre, aunque la solicitud sea de una especie para la que el
     cliente no tiene correos propios.
+
+    Cada servicio tiene su propia lista: Actimist solo ve contactos con
+    `servicio: actimist`; Línea de proceso (`servicio` vacío, el valor por
+    defecto) ve los de siempre. Nunca se cruzan, tampoco en los respaldos.
     """
     if contactos is None:
         contactos = _leer_config("contactos_laboratorio.json", [])
+    contactos = [c for c in contactos if es_del_servicio(c, servicio)]
     base = _contactos_resultado_nivel(sold_to, ship_to, especie, contactos)
     tienen = {
         str(c.get("email") or "").strip().casefold()
@@ -1908,8 +2067,11 @@ def destinatarios_resultado_por_tipo(
     sold_to: str | None = None,
     especie: str | None = None,
     contactos: list[dict] | None = None,
+    servicio: str = "",
 ) -> dict[str, list[str]]:
     """Correos de resultado separados en `to`/`cc`/`bcc`.
+
+    `servicio`: la lista de distribución que rige (vacío = Línea de proceso).
 
     `contactos`: la configuración ya leída (para llamarla muchas veces sin
     volver a leerla de R2, como hace la descarga de Excel).
@@ -1920,7 +2082,7 @@ def destinatarios_resultado_por_tipo(
     salida: dict[str, list[str]] = {"to": [], "cc": [], "bcc": []}
     vistos: set[str] = set()
     for contacto in sorted(
-        _contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos),
+        _contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos, servicio=servicio),
         key=lambda c: c.get("orden", 0),
     ):
         if not contacto.get("activo", True):
@@ -1940,12 +2102,21 @@ def destinatarios_resultado_por_tipo(
         # los admin del Report Hub (que con lista van en CCO); los técnicos y
         # comerciales (internos) ya quedaron en copia arriba.
         salida["to"] = _para_sin_lista(_admins_de(
-            _contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos)
-        ))
+            _contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos, servicio=servicio)
+        ), servicio)
         en_para = {d.casefold() for d in salida["to"]}
         salida["cc"] = [e for e in salida["cc"] if e.casefold() not in en_para]
         salida["bcc"] = [e for e in salida["bcc"] if e.casefold() not in en_para]
+    if clave_servicio(servicio) == ACTIMIST:
+        salida["cc"] = _con_permanentes_actimist(salida["to"], salida["cc"], salida["bcc"])
     return salida
+
+
+def _con_permanentes_actimist(para: list[str], cc: list[str], bcc: list[str]) -> list[str]:
+    """Los referentes de Actimist van en copia de todo resultado Actimist,
+    salvo que ya estén en otra parte del correo."""
+    ya = {e.casefold() for e in (*para, *cc, *bcc)}
+    return [*cc, *(e for e in PERMANENTES_ACTIMIST if e.casefold() not in ya)]
 
 
 class ContactoResultadoOut(BaseModel):
@@ -1966,14 +2137,20 @@ def destinatarios_para_laboratorio(
     sold_to: str = "",
     ship_to: str = "",
     especie: str = "",
+    tipo_aplicacion: str = "",
     _: Usuario = Depends(usuario_actual),
 ) -> dict[str, list[str]]:
     """Contactos configurados para recibir solicitudes de un laboratorio.
     Lo usa el formulario antes de crear la solicitud, cuando aún no hay archivo.
     Si el laboratorio no tiene lista, devuelve la de respaldo (ver
-    `contactos_de_solicitud_de`), que depende del Ship To."""
+    `contactos_de_solicitud_de`), que depende del Ship To y del Tipo Aplicación
+    (Actimist tiene su propia lista)."""
     por_envio = contactos_de_solicitud_de(
-        laboratorio, {"sold_to": sold_to, "ship_to": ship_to, "especie": especie}
+        laboratorio,
+        {
+            "sold_to": sold_to, "ship_to": ship_to, "especie": especie,
+            "campos_laboratorio": {"Tipo Aplicación": tipo_aplicacion},
+        },
     )
     return {"destinatarios": por_envio["to"], "cc": por_envio["cc"], "bcc": por_envio["bcc"]}
 
@@ -1984,10 +2161,12 @@ def resultados_de_ship_to(
     ship_to: str = "",
     sold_to: str = "",
     especie: str = "",
+    tipo_aplicacion: str = "",
 ) -> list[ContactoResultadoOut]:
     """Configuración de "Resultado a clientes" vigente para una combinación
-    (sold_to, ship_to, especie). Nueva solicitud la muestra de solo lectura."""
-    contactos = _contactos_resultado(sold_to, ship_to, especie)
+    (sold_to, ship_to, especie) y el servicio del Tipo Aplicación. Nueva
+    solicitud la muestra de solo lectura."""
+    contactos = _contactos_resultado(sold_to, ship_to, especie, servicio=clave_servicio(tipo_aplicacion))
     return [
         ContactoResultadoOut(
             nombre=str(c.get("nombre") or ""),
@@ -2014,7 +2193,10 @@ def _iso_a_ddmmyyyy(valor: object) -> object:
     return valor
 
 
-_CAMPOS_INTERNOS = {"archivo", "enviada", "enviado_en", "creado_en", "sin_lista_distribucion", "pdf_solo_analisis"}
+_CAMPOS_INTERNOS = {
+    "archivo", "enviada", "enviado_en", "creado_en", "sin_lista_distribucion", "pdf_solo_analisis",
+    "mixto_desde_2",
+}
 
 
 def _sample_identification(datos: dict) -> str:
@@ -2033,7 +2215,9 @@ def _generar_json_solicitud(datos: dict) -> bytes:
     ship_to = str(datos.get("ship_to") or "")
     sold_to = str(datos.get("sold_to") or "")
     especie = str(datos.get("especie") or "")
-    correos_resultado = destinatarios_resultado_por_tipo(lab, ship_to, sold_to, especie)
+    correos_resultado = destinatarios_resultado_por_tipo(
+        lab, ship_to, sold_to, especie, servicio=servicio_de_datos(datos)
+    )
     email_muestreador = _normalizar_correo(datos.get("email_solicitante"))
     datos_limpios = {
         k: (_iso_a_ddmmyyyy(v) if k in _CAMPOS_FECHA else v)
@@ -2062,7 +2246,8 @@ def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
     sold_to = str(datos.get("sold_to") or "")
     ship_to = str(datos.get("ship_to") or "")
     especie = str(datos.get("especie") or "")
-    contactos = _contactos_resultado(sold_to, ship_to, especie)
+    servicio = servicio_de_datos(datos)
+    contactos = _contactos_resultado(sold_to, ship_to, especie, servicio=servicio)
     activos = [c for c in sorted(contactos, key=lambda c: c.get("orden", 0)) if c.get("activo", True) and c.get("email")]
     # Lista plana legacy (se conserva por si alguien la usa)
     vistos: set[str] = set()
@@ -2091,10 +2276,12 @@ def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
             cc.append(e)
     if not para:
         # Misma regla de respaldo que `destinatarios_resultado_por_tipo`.
-        para = _para_sin_lista(_admins_de(activos))
+        para = _para_sin_lista(_admins_de(activos), servicio)
         respaldo = {d.casefold() for d in para}
         cc = [e for e in cc if e.casefold() not in respaldo]
         bcc = [e for e in bcc if e.casefold() not in respaldo]
+    if servicio == ACTIMIST:
+        cc = _con_permanentes_actimist(para, cc, bcc)
     datos_pdf["destinatarios_resultados_detalle"] = {"para": para, "cc": cc, "bcc": bcc}
     return datos_pdf
 
@@ -2261,12 +2448,11 @@ def enviar_solicitud_por_correo(
         {"to": [], "cc": [], "bcc": []} if solo_a_estos
         else contactos_de_solicitud_de(lab, datos)
     )
+    # Toda solicitud Actimist real lleva a sus dos referentes de producto
+    # (Carlos Jiménez y Cristian Valenzuela): ya vienen en Para desde
+    # `contactos_de_solicitud_de`. Las de prueba no, para no llenarles la
+    # bandeja con correos de ensayo.
     candidatos = list(por_envio["to"])
-    # Toda solicitud Actimist copia a estos dos referentes de producto; las
-    # de prueba no, para no llenarles la bandeja con correos de ensayo.
-    tipo_aplicacion = str(datos.get("campos_laboratorio", {}).get("Tipo Aplicación") or "")
-    if tipo_aplicacion == "Actimist" and not datos.get("es_prueba"):
-        candidatos = candidatos + ["CJIMENEZ@AGROFRESH.COM", "CGUERRERO@AGROFRESH.COM"]
     if body.destinatario and body.destinatario.strip():
         candidatos.append(body.destinatario.strip())
     candidatos.extend(body.destinatarios_adicionales)

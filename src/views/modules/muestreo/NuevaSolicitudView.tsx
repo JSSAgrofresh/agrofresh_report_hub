@@ -5,9 +5,11 @@ import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
+import { EtiquetaServicio } from '@/components/ui/SelectorServicio'
 import { IconFrasco } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
-import { listarClientes, listarPlantas } from '@/features/catalogo'
+import { servicioDeTipoAplicacion } from '@/lib/servicio'
+import { listarClientes, listarPlantas, mensajeCatalogo } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import { useAuth } from '@/features/auth'
 import { listarAnalisis } from '@/features/laboratorios'
@@ -189,6 +191,13 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
 
   const [clientesDisponibles, setClientesDisponibles] = useState<string[]>([])
   const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
+  // Actimist tiene su propio listado de Sold To / Ship To. Si no se puede leer
+  // (backend sin actualizar o sin la migración 0049) se avisa en el campo y
+  // Línea de proceso sigue funcionando igual.
+  const [clientesActimist, setClientesActimist] = useState<string[]>([])
+  const [plantasActimist, setPlantasActimist] = useState<Planta[]>([])
+  const [errorListadoActimist, setErrorListadoActimist] = useState<string | null>(null)
+  const [listadoActimistListo, setListadoActimistListo] = useState(false)
   const [especiesDisponibles, setEspeciesDisponibles] = useState<ValorLista[]>([])
   const [variedadesDisponibles, setVariedadesDisponibles] = useState<string[]>([])
 
@@ -272,6 +281,13 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     listarPlantas()
       .then((plantas) => setPlantasDisponibles(plantas.filter((p) => p.activo)))
       .catch(() => setPlantasDisponibles([]))
+    Promise.all([listarClientes('actimist'), listarPlantas('actimist')])
+      .then(([clientes, plantas]) => {
+        setClientesActimist(clientes.filter((c) => c.activo).map((c) => c.nombre))
+        setPlantasActimist(plantas.filter((p) => p.activo))
+      })
+      .catch((e: unknown) => setErrorListadoActimist(mensajeCatalogo(e, 'actimist')))
+      .finally(() => setListadoActimistListo(true))
     listarEspeciesActivas()
       .then((es) => setEspeciesDisponibles(es.filter((e) => e.es_estandar)))
       .catch(() => setEspeciesDisponibles([]))
@@ -404,6 +420,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       sold_to: soldTo,
       ship_to: shipTo,
       especie: general.especie ?? '',
+      tipo_aplicacion: tipoAplicacionSel,
     })
       .then((r) => {
         if (!vigente) return
@@ -412,7 +429,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       })
       .catch(() => { if (vigente) setContactosSolicitud([]) })
     return () => { vigente = false }
-  }, [laboratorio, soldTo, shipTo, general.especie])
+  }, [laboratorio, soldTo, shipTo, general.especie, tipoAplicacionSel])
 
   // Apenas hay Laboratorio + Ship To, se muestra cómo va a salir el
   // resultado de ese Ship To (si ya tiene configuración propia en
@@ -422,7 +439,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   useEffect(() => {
     if (!laboratorio || !shipTo) return
     let vigente = true
-    resultadosDeShipTo(laboratorio, shipTo, soldTo, general.especie ?? '')
+    resultadosDeShipTo(laboratorio, shipTo, soldTo, general.especie ?? '', tipoAplicacionSel)
       .then((contactos) => {
         if (vigente) setResultadosShipTo(contactos)
       })
@@ -432,9 +449,16 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     return () => {
       vigente = false
     }
-  }, [laboratorio, shipTo, soldTo, general.especie])
+  }, [laboratorio, shipTo, soldTo, general.especie, tipoAplicacionSel])
 
-  const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === soldTo)
+  // Cada tipo de servicio tiene su listado de Sold To / Ship To: Actimist usa
+  // el suyo; Línea de proceso, RYD y cualquier otro, el de siempre.
+  const servicioListado = servicioDeTipoAplicacion(tipoAplicacionSel)
+  const listadoActimist = servicioListado === 'actimist'
+  const opcionesSoldTo = listadoActimist ? clientesActimist : clientesDisponibles
+  const plantasDelCliente = (listadoActimist ? plantasActimist : plantasDisponibles).filter(
+    (p) => p.cliente_nombre === soldTo,
+  )
   const laboratoriosActivos = laboratoriosConfig
     .filter((l) => l.activo)
     .sort((a, b) => a.orden - b.orden)
@@ -603,6 +627,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   }
 
   const esCromatografia = laboratorio === 'QUITECA' || laboratorio === 'AGROFRESH'
+  // Desde cuántos productos dice MIXTO: las nuevas, desde 2. Una solicitud
+  // anterior que se edita conserva su regla (desde 3): lo emitido no se reescribe.
+  const maxProductosVisibles = modo === 'editar' && solicitudOriginal && !solicitudOriginal.mixto_desde_2 ? 2 : 1
   const esLineaProceso = tipoAplicacionSel === TIPO_LINEA_PROCESO
   const esActimist = tipoAplicacionSel === TIPO_ACTIMIST
   const esRYD = tipoAplicacionSel === TIPO_RYD
@@ -663,6 +690,12 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     // Aplicación anterior (Línea Proceso vs N° Cámara/N° Orden, campos
     // adicionales, analitos y producto) no deben quedar con valores de un
     // tipo que ya no aplica.
+    // Al pasar de un listado a otro (Actimist ↔ Línea de proceso) el Sold To y
+    // el Ship To elegidos pueden no existir en el nuevo: se vacían.
+    if (servicioDeTipoAplicacion(v) !== servicioDeTipoAplicacion(tipoAplicacionSel)) {
+      setSoldTo('')
+      setShipTo('')
+    }
     setTipoAplicacionSel(v)
     limpiarDatosRYD()
     setValoresTipoAplicacion({})
@@ -884,8 +917,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         (esLineaProceso || esRYD) && general.kilos_procesados?.trim()
           ? Number(general.kilos_procesados)
           : null,
-      // Con más de dos productos el backend deja «MIXTO» a la vista y guarda
-      // aparte la lista completa.
+      // Con 2 o más productos el backend deja «MIXTO» a la vista y guarda
+      // aparte la lista completa (las solicitudes anteriores: desde 3).
       producto_utilizado: productosSeleccionados.join(', ') || null,
       productos_lista: productosSeleccionados,
       tipo_muestra: general.tipo_muestra?.trim() || null,
@@ -981,15 +1014,34 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       )
     }
     if (campo.clave === 'sold_to') {
+      const sinTipo = !tipoAplicacionSel
+      const actimistNoDisponible = listadoActimist && listadoActimistListo && !!errorListadoActimist
+      const actimistVacio =
+        listadoActimist && listadoActimistListo && !errorListadoActimist && clientesActimist.length === 0
       return (
         <div className={styles.campo} key={campo.clave}>
           <BuscableSelect
             etiqueta={`${campo.etiqueta}${requerido ? ' *' : ''}`}
-            opciones={clientesDisponibles}
+            opciones={opcionesSoldTo}
             valor={soldTo}
             onChange={alElegirSoldTo}
-            placeholderTodos="— elegir cliente —"
+            placeholderTodos={sinTipo ? '— elige primero el Tipo de Aplicación —' : '— elegir cliente —'}
+            disabled={sinTipo}
           />
+          {listadoActimist && (
+            <small className={styles.listadoServicio}>
+              <EtiquetaServicio servicio="actimist" />
+              <span>Clientes de su listado</span>
+            </small>
+          )}
+          {actimistNoDisponible && (
+            <small className={styles.avisoListado} role="alert">{errorListadoActimist}</small>
+          )}
+          {actimistVacio && (
+            <small className={styles.avisoListado} role="alert">
+              El listado de Actimist todavía no tiene clientes. Se carga en Listados → Sold To → Actimist.
+            </small>
+          )}
         </div>
       )
     }
@@ -1161,10 +1213,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               ))}
             </div>
           )}
-          {productosSeleccionados.length > 2 && (
+          {productosSeleccionados.length > maxProductosVisibles && (
             <p className={styles.ayudaCampo}>
-              Con más de 2 productos, el Excel, el PDF y el correo dirán <strong>MIXTO</strong>; la
-              lista completa queda guardada en la solicitud.
+              Con {maxProductosVisibles === 1 ? '2 o más productos' : 'más de 2 productos'}, el Excel, el PDF
+              y el correo dirán <strong>MIXTO</strong>; la lista completa queda guardada en la solicitud.
             </p>
           )}
         </div>

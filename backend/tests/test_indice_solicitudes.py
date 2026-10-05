@@ -49,6 +49,15 @@ def limpiar():
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("DELETE FROM solicitud_archivo WHERE archivo LIKE %s", (f"{PREFIJO}%",))
 
+# Lo que el índice suma por su cuenta (columnas, no parte del archivo): el cruce
+# con la muestra, sus pesos y quién lo hizo, y los datos de reanálisis. Una
+# solicitud recién creada los trae vacíos o con su valor por defecto.
+EXTRAS_DEL_INDICE = {
+    "codigo_muestra": None, "recepcion_en": None, "cruzado_por": None, "cruzado_por_nombre": None,
+    "peso_muestra": None, "peso_muestra_extraido": None, "unidad_peso": "kg",
+    "tipo_solicitud": "CONVENCIONAL", "solicitud_original_archivo": None, "motivo_reanalisis": None,
+}
+
 
 def guardar(archivo: str, datos: dict) -> None:
     with conexion() as conn, cursor_dict(conn) as cur:
@@ -67,7 +76,7 @@ class TestGuardarYLeer:
         datos = solicitud("ZZ-TEST-1")
         guardar(f"{PREFIJO}1.xlsx", datos)
         recuperada = indice.buscar(f"{PREFIJO}1.xlsx")
-        assert recuperada == {**datos, "codigo_muestra": None, "recepcion_en": None}
+        assert recuperada == {**datos, **EXTRAS_DEL_INDICE}
 
     def test_conserva_lo_anidado(self):
         """`campos_laboratorio` y `analitos_solicitados` son lo que usa Emitir

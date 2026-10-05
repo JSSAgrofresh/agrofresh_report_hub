@@ -165,3 +165,122 @@ class TestContentType:
     def test_mayusculas(self):
         from scripts.accutab_mail_ingest import _content_type
         assert _content_type("DATOS.CSV") == "text/csv"
+
+
+# ---------------------------------------------------------------------------
+# Un correo no se sube dos veces (bug: Gmail no lo sacaba de PENDIENTE y cada
+# corrida volvia a subir todos: "AGROFRESH_DEMO (582)", "(583)"...)
+# ---------------------------------------------------------------------------
+
+from email.message import EmailMessage as _EmailMessage
+
+
+def _correo(message_id: str = "<demo-1@accutab>") -> bytes:
+    m = _EmailMessage()
+    m["Subject"] = "AGROFRESH_DEMO"
+    m["Message-ID"] = message_id
+    m.set_content("datos")
+    m.add_attachment(b"Date,Time,pH,ORP\n2026-10-01,10:00,7.1,650\n",
+                     maintype="text", subtype="csv", filename="datos.csv")
+    return m.as_bytes()
+
+
+class _GmailFalso:
+    """IMAP minimo de Gmail sobre la carpeta ACCUTAB_PENDIENTE. Como el Gmail
+    real, ignora `-X-GM-LABELS` sobre la etiqueta de la carpeta abierta: el
+    correo solo sale con \\Deleted + EXPUNGE."""
+
+    def __init__(self, correos: dict[bytes, bytes]):
+        self.pendientes = dict(correos)
+        self.borrados: set[bytes] = set()
+        self.etiquetas: dict[bytes, set[str]] = {u: set() for u in correos}
+
+    def uid(self, cmd, *args):
+        if cmd == "FETCH":
+            return "OK", [(b"x", self.pendientes[args[0]])]
+        if cmd == "STORE":
+            uid, op, valor = args
+            if op == "+X-GM-LABELS":
+                self.etiquetas[uid].add(valor.strip('()"'))
+            elif op == "+FLAGS" and "Deleted" in valor:
+                self.borrados.add(uid)
+            return "OK", [b""]
+        if cmd == "SEARCH":
+            if args[1] == "ALL":
+                return "OK", [b" ".join(self.pendientes)]
+            uid = args[1].split()[1].encode()
+            return "OK", [uid if uid in self.pendientes else b""]
+        raise AssertionError(cmd)
+
+    def expunge(self):
+        for u in self.borrados:
+            self.pendientes.pop(u, None)
+        self.borrados.clear()
+        return "OK", [b""]
+
+
+@pytest.fixture
+def entorno(monkeypatch, tmp_path):
+    from scripts import accutab_mail_ingest as mod
+    subidos: list[str] = []
+    r2_json: dict[str, object] = {}
+    monkeypatch.setattr(mod._r2, "subir", lambda k, d, ct="": subidos.append(k))
+    monkeypatch.setattr(mod._r2, "leer_json", lambda k, d: r2_json.get(k, d))
+    monkeypatch.setattr(mod._r2, "escribir_json", lambda k, d: r2_json.__setitem__(k, json.loads(json.dumps(d))))
+    monkeypatch.setattr(mod.config, "STORAGE_DIR", str(tmp_path))
+    return mod, subidos, r2_json
+
+
+import json  # noqa: E402
+
+
+class TestNoReprocesa:
+    def test_procesa_y_saca_de_pendientes(self, entorno):
+        mod, subidos, r2_json = entorno
+        gmail = _GmailFalso({b"1": _correo()})
+        r = mod._procesar_email(gmail, b"1", set(), mod._leer_procesados())
+        assert r["ok"] and not r["repetido"] and r["reporte"] is True
+        assert subidos == ["accutab/mail/AGROFRESH_DEMO/datos.csv"]
+        assert gmail.pendientes == {}
+        assert mod.LABEL_PROCESADO in gmail.etiquetas[b"1"]
+        assert "<demo-1@accutab>" in r2_json[mod.R2_REGISTRO_PROCESADOS]
+
+    def test_correo_ya_anotado_no_se_vuelve_a_subir(self, entorno, tmp_path):
+        mod, subidos, _ = entorno
+        mod._procesar_email(_GmailFalso({b"1": _correo()}), b"1", set(), mod._leer_procesados())
+        # Sigue en PENDIENTE (como pasaba con Gmail): la segunda corrida lo ve.
+        gmail = _GmailFalso({b"1": _correo()})
+        r = mod._procesar_email(gmail, b"1", {"AGROFRESH_DEMO"}, mod._leer_procesados())
+        assert r["ok"] and r["repetido"]
+        assert len(subidos) == 1  # nada de "AGROFRESH_DEMO (2)"
+        assert len(list((tmp_path / "Accutab").iterdir())) == 1  # un solo reporte
+        assert gmail.pendientes == {}
+
+    def test_si_falla_la_etiqueta_igual_queda_anotado(self, entorno, monkeypatch):
+        mod, subidos, _ = entorno
+        gmail = _GmailFalso({b"1": _correo()})
+        monkeypatch.setattr(gmail, "expunge", lambda: ("OK", [b""]))  # Gmail no lo saca
+        r = mod._procesar_email(gmail, b"1", set(), mod._leer_procesados())
+        assert not r["ok"] and "PENDIENTE" in r["error"]
+        r2 = mod._procesar_email(_GmailFalso({b"1": _correo()}), b"1", {"AGROFRESH_DEMO"}, mod._leer_procesados())
+        assert r2["repetido"] and len(subidos) == 1
+
+    def test_solo_marcar_no_sube_nada(self, entorno, tmp_path):
+        mod, subidos, r2_json = entorno
+        gmail = _GmailFalso({b"1": _correo("<a@x>"), b"2": _correo("<b@x>")})
+        procesados = mod._leer_procesados()
+        for uid in (b"1", b"2"):
+            assert mod._procesar_email(gmail, uid, set(), procesados, solo_marcar=True)["ok"]
+        assert subidos == []
+        assert not (tmp_path / "Accutab").exists() or not any((tmp_path / "Accutab").iterdir())
+        assert gmail.pendientes == {}
+        assert set(r2_json[mod.R2_REGISTRO_PROCESADOS]) == {"<a@x>", "<b@x>"}
+
+    def test_correos_distintos_se_suben_los_dos(self, entorno):
+        mod, subidos, _ = entorno
+        gmail = _GmailFalso({b"1": _correo("<a@x>"), b"2": _correo("<b@x>")})
+        procesados = mod._leer_procesados()
+        existentes: set[str] = set()
+        for uid in (b"1", b"2"):
+            mod._procesar_email(gmail, uid, existentes, procesados)
+        assert subidos == ["accutab/mail/AGROFRESH_DEMO/datos.csv", "accutab/mail/AGROFRESH_DEMO (2)/datos.csv"]

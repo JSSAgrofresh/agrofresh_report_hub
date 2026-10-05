@@ -182,8 +182,11 @@ def _enviar_smtp(
             smtp.login(config.GMAIL_ACCOUNT, config.GMAIL_APP_PASSWORD)
             smtp.sendmail(config.GMAIL_ACCOUNT, sobre_destinatarios, msg.as_bytes())
     except smtplib.SMTPAuthenticationError:
+        # 503 y NO 401: el frontend toma cualquier 401 como «sesión vencida» y
+        # saca a la persona del sistema. Una clave de Gmail mala es un problema
+        # de configuración del servidor, no de la sesión de quien envía.
         raise HTTPException(
-            401,
+            503,
             "Credenciales SMTP invalidas. Verifica GMAIL_APP_PASSWORD en el .env "
             "(generala en myaccount.google.com/apppasswords).",
         )

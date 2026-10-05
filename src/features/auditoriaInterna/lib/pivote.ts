@@ -11,6 +11,16 @@ export const LABS_PIVOTE: { clave: ClaveLab; texto: string }[] = [
 /** Orden de los grupos de la tabla: primero Línea de proceso, luego Actimist y RYD. */
 export const TIPOS_PIVOTE = [TIPO_LINEA, TIPO_ACTIMIST, TIPO_RYD] as const
 
+/** Las dos áreas de la tabla: Operaciones (Línea de proceso y Actimist, cada
+ * uno aparte) y R&D (solo lo suyo, sin esa separación). */
+export type AreaPivote = 'operaciones' | 'rd'
+export const TIPOS_DE_AREA: Record<AreaPivote, readonly string[]> = {
+  operaciones: [TIPO_LINEA, TIPO_ACTIMIST],
+  rd: [TIPO_RYD],
+}
+/** Sin área elegida («ver todo») se muestran los tres tipos. */
+export const tiposDeArea = (area: AreaPivote | null): readonly string[] => (area ? TIPOS_DE_AREA[area] : TIPOS_PIVOTE)
+
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
@@ -179,4 +189,11 @@ export function pivotePorMes(solicitudes: SolicitudAuditoria[]): Pivote {
     }
   }
   return { meses, semanas, totales: aCeldas(total) }
+}
+
+/** Cuántas solicitudes de esos tipos NO entran en la tabla: la tabla solo cuenta
+ * Quiteca y Agrofresh y exige fecha; las donas cuentan todos los laboratorios.
+ * Es la explicación de por qué los totales de la dona y de la tabla difieren. */
+export function contarFueraDeTabla(solicitudes: SolicitudAuditoria[], tipos: readonly string[]): number {
+  return solicitudes.filter((s) => tipos.includes(tipoServicioDe(s)) && !(claveLab(s) && diaDeSolicitud(s))).length
 }

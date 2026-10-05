@@ -41,6 +41,27 @@ describe('ListasPanel', () => {
     expect(within(tabla).getByText('⚠ Falta')).toBeInTheDocument()
   })
 
+  it('cada servicio lee y guarda SU lista (Línea de proceso por defecto)', async () => {
+    const { unmount } = render(<ListasPanel />)
+    await screen.findByRole('region', { name: 'Tabla de listas de distribución' })
+    expect(api.obtenerEstado).toHaveBeenLastCalledWith(false, 'linea')
+    unmount()
+
+    render(<ListasPanel servicio="actimist" />)
+    fireEvent.click(await screen.findByRole('button', { name: /PLANTA DOS · Técnico a cargo: vacía/ }))
+    expect(api.obtenerEstado).toHaveBeenLastCalledWith(false, 'actimist')
+    const campo = screen.getByLabelText('Agregar correos')
+    fireEvent.change(campo, { target: { value: 'tec.actimist@agrofresh.com' } })
+    fireEvent.keyDown(campo, { key: 'Enter' })
+    fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
+    fireEvent.click(screen.getByRole('button', { name: /Guardar 1 cambio/ }))
+    const dialogo = await screen.findByRole('dialog')
+    expect(dialogo).toHaveTextContent(/lista de Actimist/)
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Guardar' }))
+    await waitFor(() => expect(api.aplicarListas).toHaveBeenCalledTimes(1))
+    expect(api.aplicarListas.mock.calls[0][1]).toBe('actimist')
+  })
+
   it('un cambio hecho a mano queda aceptado y solo ese viaja al guardar', async () => {
     render(<ListasPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /PLANTA DOS · Técnico a cargo: vacía/ }))

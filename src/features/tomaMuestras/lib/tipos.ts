@@ -20,7 +20,8 @@ export interface Solicitud {
   numero_orden: string | null
   kilos_procesados: number | null
   producto_utilizado: string | null
-  /** Lo que se eligió de verdad; `producto_utilizado` dice MIXTO si son más de 2. */
+  /** Lo que se eligió de verdad; `producto_utilizado` dice MIXTO si son 2 o más
+   * (o más de 2 en las solicitudes anteriores, sin `mixto_desde_2`). */
   productos_lista?: string[]
   tipo_muestra: string | null
   fecha_muestreo: string | null
@@ -46,10 +47,36 @@ export interface Solicitud {
   /** Solicitud de prueba: folio de su propia serie (OTP-DIAG0001), nunca se
    * envía sola y su correo dice "(PRUEBA)". Ausente = false. */
   es_prueba?: boolean
+  /** Creada con la regla nueva: dice MIXTO desde 2 productos. Ausente = la regla
+   * de antes (MIXTO desde 3); lo ya emitido no se reescribe. */
+  mixto_desde_2?: boolean
   /** Los resultados no tienen a nadie del cliente en Para (para su Sold To,
    * Ship To y especie): rige el respaldo, solo Jorge y Claudia. Lo calcula el
    * backend con los contactos de hoy; no se guarda. */
   sin_lista_distribucion?: boolean | null
+  /** El informe del laboratorio, si ya llegó (lo agrega la pantalla desde
+   * `/toma-muestras/solicitudes-informes`; null/ausente = sin informe). */
+  informe?: InformeSolicitud | null
+}
+
+/** El informe de una solicitud: el PDF subido por Converter con su OT y/o los
+ * resultados en Report que traen el OT. */
+export interface InformeSolicitud {
+  nro_informe: string | null
+  /** Todos los N° de informe (AgroFresh sube uno por vial). */
+  numeros: string[]
+  /** Hay PDF subido por Converter; si es false, el PDF se busca al abrirlo y puede no estar. */
+  pdf_guardado: boolean
+  en_report: boolean
+  /** ¿La OT está bien cruzada? La confirma el «N° Solicitud: OT-…» impreso en
+   * el informe (referencia en Report) y que planta, especie y fecha de muestreo
+   * calcen con la solicitud. */
+  verificacion?: VerificacionOt
+}
+
+export interface VerificacionOt {
+  estado: 'confirmada' | 'revisar' | 'sin_confirmar'
+  motivos: string[]
 }
 
 /** Envío automático al guardar: regla general + una propia por tipo de aplicación. */
@@ -80,7 +107,8 @@ export interface ReanalisisInput {
   numero_orden: string | null
   kilos_procesados: number | null
   producto_utilizado: string | null
-  /** Lo que se eligió de verdad; `producto_utilizado` dice MIXTO si son más de 2. */
+  /** Lo que se eligió de verdad; `producto_utilizado` dice MIXTO si son 2 o más
+   * (o más de 2 en las solicitudes anteriores, sin `mixto_desde_2`). */
   productos_lista?: string[]
   tipo_muestra: string | null
   fecha_muestreo: string | null
@@ -106,6 +134,7 @@ export type SolicitudInput = Omit<
   | 'solicitud_original_archivo'
   | 'motivo_reanalisis'
   | 'es_prueba'
+  | 'mixto_desde_2'
 >
 
 /** Metadatos de un campo general del formulario (§3): el conjunto de

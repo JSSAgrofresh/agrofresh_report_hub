@@ -29,6 +29,8 @@ from app.db import conexion, cursor_dict  # noqa: E402
 # `email_solicitante` cuando es un muestreador (ver test_acceso_solicitudes.py).
 # Acá no se prueba esa regla, así que basta una cuenta interna cualquiera.
 ADMIN = Usuario(id="1", email="admin@agrofresh.com", nombre="Admin", tipoAcceso="admin_general")
+# Quitar una muestra es solo del administrador principal.
+PRINCIPAL = Usuario(id="2", email="jorge.sandoval@agrofresh.com", nombre="Jorge", tipoAcceso="admin_general")
 
 
 @pytest.fixture
@@ -46,8 +48,10 @@ def dos_solicitudes(tmp_path, monkeypatch):
         cur.execute("DELETE FROM solicitud_archivo")
 
 
-def cruzar(archivo, codigo):
-    return tm.cruzar_con_muestra(archivo, tm.CruceIn(codigo_muestra=codigo))
+def cruzar(archivo, codigo, usuario=None):
+    if usuario is None:
+        usuario = PRINCIPAL if not (codigo or "").strip() else ADMIN
+    return tm.cruzar_con_muestra(archivo, tm.CruceIn(codigo_muestra=codigo), usuario=usuario)
 
 
 def test_una_solicitud_nueva_no_tiene_muestra(dos_solicitudes):
@@ -97,6 +101,18 @@ def test_deshacer_el_cruce(dos_solicitudes, vacio):
     primera, _ = dos_solicitudes
     cruzar(primera.archivo, "ZZ-VIAL-1")
     assert cruzar(primera.archivo, vacio).codigo_muestra is None
+
+
+@pytest.mark.parametrize("vacio", [None, "", "   "])
+def test_solo_el_principal_quita_una_muestra(dos_solicitudes, vacio):
+    """Mandar "" o espacios también quita la muestra: la regla tiene que mirar
+    eso, no solo None (antes "" pasaba el resguardo y cualquiera descruzaba)."""
+    primera, _ = dos_solicitudes
+    cruzar(primera.archivo, "ZZ-VIAL-1")
+    with pytest.raises(HTTPException) as e:
+        cruzar(primera.archivo, vacio, usuario=ADMIN)
+    assert e.value.status_code == 403
+    assert indice.buscar(primera.archivo)["codigo_muestra"] == "ZZ-VIAL-1"
 
 
 def test_una_solicitud_que_no_existe_avisa(dos_solicitudes):
