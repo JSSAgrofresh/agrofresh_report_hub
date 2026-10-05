@@ -37,8 +37,8 @@ def test_el_informe_es_sobrio_y_las_solicitudes_siguen_con_su_franja(sin_config)
     solicitud = m.renderizar("AGROFRESH", {"numero_solicitud": "OT-1"})[2]
     # el informe: sin franja verde, con el logo, el título en mayúsculas y la planta
     assert "#24391a" not in html and "#6dad3c" not in html
-    assert "INFORME DE RESULTADOS" in html and "Laboratorio de Cromatografía" in html
-    assert html.index("INFORME DE RESULTADOS") < html.index("Laboratorio de Cromatografía")
+    assert "INFORME DE ENSAYO" in html and "Laboratorio de Cromatografía" in html
+    assert html.index("INFORME DE ENSAYO") < html.index("Laboratorio de Cromatografía")
     assert "DOLE — SAN FERNANDO" in html  # la planta va en el texto del correo
     assert f"cid:{m.LOGO_CONTENT_ID}" in html
     assert [i.content_id for i in imagenes] == [m.LOGO_CONTENT_ID]
