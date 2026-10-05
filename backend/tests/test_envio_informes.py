@@ -356,7 +356,7 @@ def test_la_vista_previa_trae_el_punto_de_partida_sin_prueba_ni_aviso(entorno):
     )
     assert out["asunto"] == "(PRUEBA) Lo que escribió Paz" and out["texto"].endswith("Texto de Paz")
     # la base sigue siendo la de la plantilla, con las variables ya puestas
-    assert out["asunto_base"] == "[AgroFresh] Informe de resultados — DOLE — SAN FERNANDO"
+    assert out["asunto_base"] == "[AgroFresh] Informe de ensayo — DOLE — SAN FERNANDO"
     assert "DOLE — SAN FERNANDO" in out["texto_base"] and "CORREO DE PRUEBA" not in out["texto_base"]
 
 
