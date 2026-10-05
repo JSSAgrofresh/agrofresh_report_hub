@@ -12,6 +12,12 @@
   --servicio-borde: #c3d8ef;
 }
 
+.ecofog {
+  --servicio: #0f7d62;
+  --servicio-suave: #e6f6f1;
+  --servicio-borde: #b5e2d4;
+}
+
 .contenedor {
   display: flex;
   flex-direction: column;

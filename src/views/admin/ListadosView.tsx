@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/Button'
 import { EtiquetaServicio, SelectorServicio } from '@/components/ui/SelectorServicio'
 import { IconoAlerta } from '@/components/ui/iconosAccion'
 import { cn } from '@/lib/cn'
-import { ETIQUETA_SERVICIO } from '@/lib/servicio'
-import type { Servicio } from '@/lib/servicio'
+import { ETIQUETA_SERVICIO, tieneListadoPropio } from '@/lib/servicio'
+import type { Servicio, ServicioConListado } from '@/lib/servicio'
 import {
   ClienteForm,
   ClientesTable,
@@ -44,6 +44,7 @@ const ETIQUETA_PESTANA: Record<Pestana, string> = {
 const USO_SERVICIO: Record<Servicio, string> = {
   linea: 'El de siempre. Lo usan Ingesta, Converter, Report y las solicitudes de Línea de proceso.',
   actimist: 'Lo usan las solicitudes con Tipo de Aplicación Actimist.',
+  ecofog: 'Lo usan las solicitudes con Tipo de Aplicación Ecofog.',
 }
 
 export function ListadosView() {
@@ -53,7 +54,8 @@ export function ListadosView() {
   const [servicio, setServicio] = useState<Servicio>('linea')
   const catalogoLinea = useCatalogo('linea')
   const catalogoActimist = useCatalogo('actimist')
-  const catalogo = servicio === 'actimist' ? catalogoActimist : catalogoLinea
+  const catalogoEcofog = useCatalogo('ecofog')
+  const catalogo = servicio === 'actimist' ? catalogoActimist : servicio === 'ecofog' ? catalogoEcofog : catalogoLinea
   const { clientes, plantas, cargando, error, refrescar: refrescarCatalogo, crearCliente, editarCliente, crearPlanta, editarPlanta } =
     catalogo
   const [pestana, setPestana] = useState<Pestana>('clientes')
@@ -65,7 +67,8 @@ export function ListadosView() {
 
   const tipoListado: TipoListado | null = pestana === 'especie' || pestana === 'variedad' ? pestana : null
   const esCatalogo = pestana === 'clientes' || pestana === 'plantas'
-  const esActimist = esCatalogo && servicio === 'actimist'
+  // Actimist y Ecofog siguen las mismas reglas (listado propio, importar del Planner).
+  const esActimist = esCatalogo && tieneListadoPropio(servicio)
   const [especieSeleccionadaId, setEspecieSeleccionadaId] = useState<number | null>(null)
 
   // Variedad siempre necesita una Especie elegida primero -por eso son dos
@@ -205,9 +208,9 @@ export function ListadosView() {
     const tipo = pestana === 'clientes' ? 'sold_to' : pestana === 'plantas' ? 'ship_to' : pestana
     if (esActimist) {
       try {
-        await eliminarLoteActimist(pestana === 'clientes' ? 'sold_to' : 'ship_to', ids)
+        await eliminarLoteActimist(pestana === 'clientes' ? 'sold_to' : 'ship_to', ids, servicio as ServicioConListado)
         await refrescarCatalogo()
-      } catch { window.alert('No se pudieron eliminar del listado de Actimist.') }
+      } catch { window.alert(`No se pudieron eliminar del listado de ${ETIQUETA_SERVICIO[servicio]}.`) }
       return
     }
     try {
@@ -243,13 +246,14 @@ export function ListadosView() {
                   conteos={{
                     linea: catalogoLinea.error ? null : pestana === 'clientes' ? catalogoLinea.clientes.length : catalogoLinea.plantas.length,
                     actimist: catalogoActimist.error ? null : pestana === 'clientes' ? catalogoActimist.clientes.length : catalogoActimist.plantas.length,
+                    ecofog: catalogoEcofog.error ? null : pestana === 'clientes' ? catalogoEcofog.clientes.length : catalogoEcofog.plantas.length,
                   }}
                   detalle={USO_SERVICIO}
                 />
               </div>
             ) : (
               <p className={styles.notaCompartida}>
-                {ETIQUETA_PESTANA[pestana]} es la misma para Línea de proceso y Actimist.
+                {ETIQUETA_PESTANA[pestana]} es la misma para todos los tipos de servicio.
               </p>
             )}
             <div className={styles.tabs}>
@@ -368,10 +372,10 @@ export function ListadosView() {
             {!esCatalogo && listado.error && <p className={styles.estadoError}>{listado.error}</p>}
             {esActimist && !cargando && !error && clientes.length === 0 && (
               <div className={styles.vacioServicio}>
-                <EtiquetaServicio servicio="actimist" />
-                <strong>El listado de Actimist está vacío</strong>
+                <EtiquetaServicio servicio={servicio} />
+                <strong>El listado de {ETIQUETA_SERVICIO[servicio]} está vacío</strong>
                 <span>Cárgalo desde la dinámica del Planner: verás qué se crea antes de guardar.</span>
-                <Button onClick={() => setPanel({ modo: 'importarActimist' })}>Importar Excel de Actimist</Button>
+                <Button onClick={() => setPanel({ modo: 'importarActimist' })}>Importar Excel de {ETIQUETA_SERVICIO[servicio]}</Button>
               </div>
             )}
 
@@ -424,8 +428,9 @@ export function ListadosView() {
             )}
             {panel.modo === 'importarActimist' && (
               <ImportarActimistDialog
+                servicio={tieneListadoPropio(servicio) ? servicio : 'actimist'}
                 onCerrar={() => setPanel({ modo: 'lista' })}
-                onCargado={() => void catalogoActimist.refrescar()}
+                onCargado={() => void (servicio === 'ecofog' ? catalogoEcofog : catalogoActimist).refrescar()}
               />
             )}
           </>
