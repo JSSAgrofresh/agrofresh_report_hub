@@ -1,4 +1,7 @@
+import { EliminarConClave } from '@/components/ui/EliminarConClave'
+import { IconoPapelera } from '@/components/ui/iconosAccion'
 import { fechaHora } from '@/lib/fechaHoraChile'
+import { eliminarRegistroEnvio } from '@/features/envioInformes'
 import type { Historial, RegistroEnvio } from '@/features/envioInformes'
 import styles from './EnvioInformes.module.css'
 
@@ -9,7 +12,14 @@ function resumenDestino(r: RegistroEnvio): string {
 
 /** Los últimos envíos, con a quién se PIDIÓ enviar y si salió de verdad o fue
  * una prueba. Sin la migración 0052 no hay registro y se dice. */
-export function HistorialEnvios({ historial }: { historial: Historial | null }) {
+interface HistorialEnviosProps {
+  historial: Historial | null
+  /** Solo el administrador principal borra, de a uno y con su clave. */
+  puedeEliminar?: boolean
+  onCambio?: () => void
+}
+
+export function HistorialEnvios({ historial, puedeEliminar, onCambio }: HistorialEnviosProps) {
   if (!historial) return <p className={styles.vacio}>Cargando historial…</p>
   if (!historial.disponible) {
     return (
@@ -32,6 +42,7 @@ export function HistorialEnvios({ historial }: { historial: Historial | null }) 
             <th>Archivos</th>
             <th>Destino</th>
             <th>Estado</th>
+            {puedeEliminar && <th aria-label="Acciones" />}
           </tr>
         </thead>
         <tbody>
@@ -55,6 +66,17 @@ export function HistorialEnvios({ historial }: { historial: Historial | null }) 
                   <span className={`${styles.estado} ${styles.estadoOk}`}>Enviado</span>
                 )}
               </td>
+              {puedeEliminar && (
+                <td className={styles.celdaAccion}>
+                  <EliminarConClave
+                    etiqueta="Eliminar registro"
+                    icono={<IconoPapelera />}
+                    titulo="Eliminar este registro"
+                    descripcion={`${r.ship_to ?? 'Envío'} · ${fechaHora(r.creado_en)}. Solo se borra del historial; el correo ya enviado no se puede recuperar. No se puede deshacer.`}
+                    onConfirmar={async () => { await eliminarRegistroEnvio(r.id); onCambio?.() }}
+                  />
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

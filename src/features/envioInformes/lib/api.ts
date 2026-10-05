@@ -74,3 +74,8 @@ export function enviarInforme(datos: DatosCorreo, archivos: File[]) {
 export function historialEnvios(limite = 40) {
   return httpClient.get<Historial>(`${BASE}/historial?limite=${limite}`)
 }
+
+/** Solo el administrador principal; la pantalla pide además su contraseña. */
+export function eliminarRegistroEnvio(id: number) {
+  return httpClient.delete<{ estado: string }>(`${BASE}/historial/${id}`)
+}

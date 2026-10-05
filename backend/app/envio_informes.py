@@ -475,7 +475,8 @@ async def analizar_informes(
             item["error"] = f"Pesa más de {MAX_BYTES_ADJUNTO // (1024 * 1024)} MB."
         else:
             try:
-                datos = informe_lectura.leer_pdf(contenido)
+                texto = informe_lectura.texto_de_pdf(contenido)
+                datos = informe_lectura.datos_de_informe(texto)
             except informe_lectura.LecturaNoDisponible as exc:
                 disponible = False
                 item["error"] = str(exc)
@@ -483,6 +484,15 @@ async def analizar_informes(
                 logger.warning("No se pudo leer el PDF %s", nombre, exc_info=True)
                 item["error"] = "No se pudo leer el PDF."
             else:
+                if not (datos["sold_to"] and datos["ship_to"]):
+                    # Respaldo: un Sold To + Ship To que el sistema ya conoce, escrito en el texto.
+                    pares = sorted({
+                        (str(c.get("sold_to") or "").strip(), str(c.get("ship_to") or "").strip())
+                        for c in contactos if c.get("sold_to") and c.get("ship_to")
+                    })
+                    hallado = informe_lectura.buscar_por_nombres(texto, pares)
+                    if hallado:
+                        datos["sold_to"], datos["ship_to"] = hallado
                 item.update(datos)
                 if datos["sold_to"] and datos["ship_to"]:
                     item["leido"] = True
@@ -491,7 +501,13 @@ async def analizar_informes(
                         servicio=datos["servicio"],
                     )
                 else:
-                    item["error"] = "No encontré el Sold To y el Ship To en este PDF. ¿Es un informe de AgroFresh?"
+                    logger.warning(
+                        "No se encontró Sold To / Ship To en %s. Texto leído (inicio): %r", nombre, texto[:600],
+                    )
+                    item["error"] = (
+                        "No encontré el Sold To y el Ship To en este PDF"
+                        + (" (no trae texto: ¿es una imagen escaneada?)." if not texto.strip() else ". ¿Es un informe de AgroFresh?")
+                    )
         items.append(item)
     return {"disponible": disponible, "items": items}
 
@@ -687,3 +703,28 @@ def historial(limite: int = 40, usuario: Usuario = Depends(acceso)) -> dict[str,
         return {"disponible": False, "items": []}
     items = [{**f, "creado_en": f["creado_en"].isoformat()} for f in filas]
     return {"disponible": True, "items": items}
+
+
+@router.delete("/historial/{registro_id}")
+def eliminar_registro(registro_id: int, usuario: Usuario = Depends(acceso)) -> dict[str, str]:
+    """Borra UN registro del historial. Solo el administrador principal (en la
+    pantalla pide además su contraseña) y de a uno: no hay borrado en lote."""
+    if not es_principal(usuario):
+        raise HTTPException(403, "Solo el administrador principal puede eliminar registros del historial.")
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                "DELETE FROM envio_informe_log WHERE id = %s RETURNING asunto, creado_en", (registro_id,)
+            )
+            fila = cur.fetchone()
+    except Exception as exc:
+        logger.warning("No se pudo borrar el registro %s de envio_informe_log.", registro_id, exc_info=True)
+        raise HTTPException(503, "No se pudo borrar: el historial no está disponible (¿falta la migración 0052?).") from exc
+    if fila is None:
+        raise HTTPException(404, "Ese registro ya no existe.")
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "envio_informe_registro_eliminado",
+        f"eliminó un registro del historial de envío de informes ({fila['asunto'] or 'sin asunto'})",
+        sensible=True,
+    )
+    return {"estado": "eliminado"}

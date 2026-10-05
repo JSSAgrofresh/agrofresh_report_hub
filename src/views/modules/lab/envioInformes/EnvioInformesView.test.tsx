@@ -16,12 +16,20 @@ const api = vi.hoisted(() => ({
   guardarInternos: vi.fn(),
   obtenerTemplateInforme: vi.fn(),
   guardarTemplateInforme: vi.fn(),
+  eliminarRegistroEnvio: vi.fn(),
 }))
 
 vi.mock('@/features/envioInformes', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/features/envioInformes')>()),
   ...api,
 }))
+
+const sesion = vi.hoisted(() => ({
+  user: { email: 'paz@agrofresh.com', tipoAcceso: 'admin_area' } as { email: string; tipoAcceso: string },
+}))
+vi.mock('@/features/auth', () => ({ useAuth: () => ({ user: sesion.user }) }))
+const verificarClave = vi.hoisted(() => vi.fn())
+vi.mock('@/features/auth/api/authApi', () => ({ verificarClave }))
 
 vi.mock('@/features/catalogo', () => ({
   listarClientes: vi.fn().mockResolvedValue([{ id: 1, nombre: 'DOLE', activo: true }]),
@@ -76,6 +84,7 @@ async function subir(container: HTMLElement, ...nombres: string[]) {
 describe('EnvioInformesView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    sesion.user = { email: 'paz@agrofresh.com', tipoAcceso: 'admin_area' }
     api.obtenerEstadoEnvio.mockResolvedValue(estado())
     api.analizarInformes.mockResolvedValue({
       disponible: true,
@@ -266,5 +275,49 @@ describe('EnvioInformesView', () => {
 
     await waitFor(() => expect(api.cambiarModoEnvio).toHaveBeenCalledWith('produccion', 'clave'))
     expect(await screen.findByRole('button', { name: /Sistema en producción/ })).toBeTruthy()
+  })
+
+  describe('eliminar del historial', () => {
+    const registro = {
+      id: 7, creado_en: '2026-10-05T17:23:00Z', usuario_nombre: 'Jorge Sandoval', modo: 'prueba', laboratorio: 'AGROFRESH',
+      sold_to: 'A.G. SERVICIOS SPA', ship_to: 'PLANTA GARCES MALLOA', especie: '', asunto: 'x', para: ['a@x.cl'], cc: [], bcc: [],
+      enviado_to: ['psalazar@agrofresh.com'], adjuntos: [{ nombre: '801496_Pest (3).pdf', bytes: 10 }], exitoso: true, error: null,
+    }
+
+    it('Paz y los demás ven el historial pero no pueden borrarlo', async () => {
+      api.historialEnvios.mockResolvedValue({ disponible: true, items: [registro] })
+      pantalla()
+      expect(await screen.findByText('PLANTA GARCES MALLOA')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Eliminar registro' })).toBeNull()
+    })
+
+    it('el administrador principal borra uno con su clave, y se recarga el historial', async () => {
+      sesion.user = { email: 'Jorge.Sandoval@agrofresh.com', tipoAcceso: 'admin_general' }
+      api.historialEnvios.mockResolvedValue({ disponible: true, items: [registro] })
+      api.eliminarRegistroEnvio.mockResolvedValue({ estado: 'eliminado' })
+      verificarClave.mockResolvedValue(undefined)
+      pantalla()
+      fireEvent.click(await screen.findByRole('button', { name: 'Eliminar registro' }))
+      const dialogo = await screen.findByRole('dialog')
+      fireEvent.change(within(dialogo).getByPlaceholderText('Tu contraseña'), { target: { value: 'clave' } })
+      fireEvent.click(within(dialogo).getByRole('button', { name: 'Eliminar registro' }))
+
+      await waitFor(() => expect(api.eliminarRegistroEnvio).toHaveBeenCalledWith(7))
+      expect(verificarClave).toHaveBeenCalledWith('clave')
+      await waitFor(() => expect(api.historialEnvios).toHaveBeenCalledTimes(2))
+    })
+
+    it('con una clave incorrecta no se borra nada', async () => {
+      sesion.user = { email: 'jorge.sandoval@agrofresh.com', tipoAcceso: 'admin_general' }
+      api.historialEnvios.mockResolvedValue({ disponible: true, items: [registro] })
+      verificarClave.mockRejectedValue(new Error('no'))
+      pantalla()
+      fireEvent.click(await screen.findByRole('button', { name: 'Eliminar registro' }))
+      const dialogo = await screen.findByRole('dialog')
+      fireEvent.change(within(dialogo).getByPlaceholderText('Tu contraseña'), { target: { value: 'mala' } })
+      fireEvent.click(within(dialogo).getByRole('button', { name: 'Eliminar registro' }))
+      expect(await within(dialogo).findByText('Contraseña incorrecta.')).toBeTruthy()
+      expect(api.eliminarRegistroEnvio).not.toHaveBeenCalled()
+    })
   })
 })

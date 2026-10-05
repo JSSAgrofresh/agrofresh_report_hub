@@ -232,7 +232,7 @@ front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
   (`armar_correo`): lo que se ve es lo que sale.
 - Adjuntos: PDF, Excel, CSV, ZIP, imágenes y DOCX; 15 por correo, 20 MB cada uno
   y 24 MB en total. Un PDF debe empezar por `%PDF`.
-- Historial en `envio_informe_log` (migración 0052, best-effort: sin la tabla el
+- Historial en `envio_informe_log`; **solo el administrador principal borra registros, de a uno y con su clave** (`DELETE /historial/{id}`, `EliminarConClave`; queda como cambio sensible en Actividad) (migración 0052, best-effort: sin la tabla el
   envío igual sale y la pantalla avisa). Aparece también en Administración
   General → Actividad como «informes».
 - Acceso: admin general y quien tenga `agrofresh_lab` (`puede_usar`, espejo de
