@@ -39,10 +39,11 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from . import actividad, config_store, correo, mail_templates, seguridad
+from . import actividad, config_store, correo, informe_lectura, mail_templates, seguridad
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .listados import clave_normalizada
+from .servicios import clave_servicio
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,11 @@ router = APIRouter(prefix="/api/envio-informes", tags=["envio-informes"])
 ARCHIVO_CONFIG = "envio_informes.json"
 ARCHIVO_CONTACTOS = "contactos_laboratorio.json"
 MODULO_LAB = "agrofresh_lab"
+
+# El laboratorio es siempre AGROFRESH (por ahora). Cambiarlo, o corregir a mano
+# el Sold To / Ship To / especie que se lee del PDF, solo lo habilita el
+# administrador principal con su clave.
+LABORATORIO_FIJO = "AGROFRESH"
 
 MODO_PRUEBA = "prueba"
 MODO_PRODUCCION = "produccion"
@@ -89,6 +95,13 @@ def puede_usar(usuario: Usuario) -> bool:
     if usuario.tipoAcceso == "analista":
         return True
     return usuario.tipoAcceso == "admin_area" and usuario.area in ("cromatografia", "ryd")
+
+
+def es_principal(usuario: Usuario) -> bool:
+    """El administrador principal: el único que puede habilitar lo bloqueado."""
+    from . import toma_muestras as tm
+
+    return usuario.tipoAcceso == "admin_general" and usuario.email.strip().lower() == tm._SUPER_ADMIN_EMAIL
 
 
 def acceso(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
@@ -161,15 +174,20 @@ def _exigir_laboratorio(laboratorio: str) -> str:
 # A quién va
 # ---------------------------------------------------------------------------
 
-def _contactos_cliente(sold_to: str, ship_to: str, contactos: list[dict]) -> list[dict]:
+def _contactos_cliente(
+    sold_to: str, ship_to: str, contactos: list[dict], servicio: str = "",
+) -> list[dict]:
     """Los contactos de «Resultado a clientes» activos de UNA planta: mismo Sold
-    To y mismo Ship To, sin tildes ni mayúsculas. Nada de respaldos."""
+    To y mismo Ship To, sin tildes ni mayúsculas, y del MISMO servicio (Línea de
+    proceso, Actimist o Ecofog: cada uno tiene su propia lista). Nada de respaldos."""
     st, sh = clave_normalizada(sold_to), clave_normalizada(ship_to)
+    serv = clave_servicio(servicio)
     if not st or not sh:
         return []
     return [
         c for c in contactos
         if c.get("tipo") == "resultado_cliente"
+        and clave_servicio(c.get("servicio")) == serv
         and c.get("activo", True)
         and str(c.get("email") or "").strip()
         and clave_normalizada(c.get("sold_to") or "") == st
@@ -177,12 +195,14 @@ def _contactos_cliente(sold_to: str, ship_to: str, contactos: list[dict]) -> lis
     ]
 
 
-def especies_con_lista(sold_to: str, ship_to: str, contactos: list[dict] | None = None) -> list[str]:
+def especies_con_lista(
+    sold_to: str, ship_to: str, contactos: list[dict] | None = None, servicio: str = "",
+) -> list[str]:
     """Especies para las que esta planta tiene lista propia (las que se pueden elegir)."""
     if contactos is None:
         contactos = config_store.leer(ARCHIVO_CONTACTOS, [])
     vistas: dict[str, str] = {}
-    for c in _contactos_cliente(sold_to, ship_to, contactos):
+    for c in _contactos_cliente(sold_to, ship_to, contactos, servicio):
         especie = str(c.get("especie") or "").strip()
         if especie:
             vistas.setdefault(clave_normalizada(especie), especie)
@@ -191,12 +211,13 @@ def especies_con_lista(sold_to: str, ship_to: str, contactos: list[dict] | None 
 
 def lista_del_cliente(
     sold_to: str, ship_to: str, especie: str = "", contactos: list[dict] | None = None,
+    servicio: str = "",
 ) -> list[str]:
     """El Para de la planta. Si hay una lista para la especie, vale esa; si no,
     la que no distingue especie. Sin especie elegida, solo la general."""
     if contactos is None:
         contactos = config_store.leer(ARCHIVO_CONTACTOS, [])
-    pool = _contactos_cliente(sold_to, ship_to, contactos)
+    pool = _contactos_cliente(sold_to, ship_to, contactos, servicio)
     esp = clave_normalizada(especie or "")
     elegidos = [c for c in pool if esp and clave_normalizada(c.get("especie") or "") == esp]
     if not elegidos:
@@ -217,19 +238,19 @@ def repartir(para: list[str], cc: list[str], bcc: list[str]) -> dict[str, list[s
 
 def plan_destinatarios(
     sold_to: str, ship_to: str, especie: str = "", contactos: list[dict] | None = None,
-    internos: dict[str, list[str]] | None = None,
+    internos: dict[str, list[str]] | None = None, servicio: str = "",
 ) -> dict[str, Any]:
     """Lo que el sistema propone para esta planta: Para del cliente y las copias
     internas del módulo. Paz lo puede cambiar antes de enviar."""
     if contactos is None:
         contactos = config_store.leer(ARCHIVO_CONTACTOS, [])
     internos = internos if internos is not None else leer_config()["internos"]
-    para = lista_del_cliente(sold_to, ship_to, especie, contactos)
+    para = lista_del_cliente(sold_to, ship_to, especie, contactos, servicio)
     plan = repartir(para, internos.get("cc", []), internos.get("bcc", []))
     return {
         **plan,
         "sin_lista": not para,
-        "especies": especies_con_lista(sold_to, ship_to, contactos),
+        "especies": especies_con_lista(sold_to, ship_to, contactos, servicio),
     }
 
 
@@ -273,6 +294,8 @@ def armar_correo(
 ) -> dict[str, Any]:
     """Todo lo que se va a mandar, sin mandarlo: lo usan la vista previa y el envío."""
     laboratorio = _exigir_laboratorio(datos.laboratorio)
+    if laboratorio != LABORATORIO_FIJO and not es_principal(usuario):
+        raise HTTPException(403, f"Por ahora los informes se envían solo con {LABORATORIO_FIJO}.")
     sold_to, ship_to = datos.sold_to.strip(), datos.ship_to.strip()
     if not sold_to or not ship_to:
         raise HTTPException(400, "Elige el Sold To y el Ship To.")
@@ -333,6 +356,7 @@ def estado(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
         "destinatarios_prueba": DESTINATARIOS_PRUEBA,
         "internos": cfg["internos"],
         "laboratorios": _laboratorios(),
+        "laboratorio_fijo": LABORATORIO_FIJO,
         "modo_cambiado_por": cfg["modo_cambiado_por"],
         "modo_cambiado_en": cfg["modo_cambiado_en"],
     }
@@ -399,10 +423,77 @@ def guardar_internos(body: InternosIn, usuario: Usuario = Depends(acceso)) -> di
 
 @router.get("/lista")
 def lista_de_distribucion(
-    sold_to: str, ship_to: str, especie: str = "", usuario: Usuario = Depends(acceso),
+    sold_to: str, ship_to: str, especie: str = "", servicio: str = "", usuario: Usuario = Depends(acceso),
 ) -> dict[str, Any]:
-    """Lo que se propone para esta planta y especie. Solo lee."""
-    return plan_destinatarios(sold_to, ship_to, especie)
+    """Lo que se propone para esta planta, especie y servicio. Solo lee."""
+    return plan_destinatarios(sold_to, ship_to, especie, servicio=servicio)
+
+
+class DesbloqueoIn(BaseModel):
+    password: str
+
+
+@router.post("/desbloquear")
+def desbloquear_edicion(body: DesbloqueoIn, usuario: Usuario = Depends(acceso)) -> dict[str, bool]:
+    """Habilita, solo en la pantalla de quien lo pide, el laboratorio y los datos
+    leídos del PDF (Sold To, Ship To, especie). Solo el administrador principal,
+    con su contraseña. 403 y no 401: un 401 cierra la sesión en el navegador."""
+    if not es_principal(usuario):
+        raise HTTPException(403, "Solo el administrador principal puede habilitar esta edición.")
+    if not _clave_correcta(usuario, body.password):
+        raise HTTPException(403, "Contraseña incorrecta.")
+    return {"ok": True}
+
+
+MAX_INFORMES_LOTE = 30
+
+
+@router.post("/analizar")
+async def analizar_informes(
+    archivos: list[UploadFile] = File(...), usuario: Usuario = Depends(acceso),
+) -> dict[str, Any]:
+    """Lee cada PDF (Sold To, Ship To, especie, tipo de aplicación) y propone su
+    lista de distribución. No envía nada: es lo que la pantalla muestra al subir."""
+    if not archivos:
+        raise HTTPException(400, "Sube al menos un informe.")
+    if len(archivos) > MAX_INFORMES_LOTE:
+        raise HTTPException(400, f"Son demasiados informes: el máximo es {MAX_INFORMES_LOTE} por vez.")
+    contactos = config_store.leer(ARCHIVO_CONTACTOS, [])
+    internos = leer_config()["internos"]
+    items: list[dict[str, Any]] = []
+    disponible = True
+    for archivo in archivos:
+        nombre = os.path.basename((archivo.filename or "").replace("\\", "/")).strip()
+        item: dict[str, Any] = {
+            "nombre": nombre, "leido": False, "error": None, "sold_to": "", "ship_to": "", "especie": "",
+            "tipo_aplicacion": "", "numero_solicitud": "", "servicio": "", "plan": None,
+        }
+        contenido = await archivo.read()
+        if not contenido.lstrip()[:5].startswith(b"%PDF"):
+            item["error"] = "No es un PDF válido."
+        elif len(contenido) > MAX_BYTES_ADJUNTO:
+            item["error"] = f"Pesa más de {MAX_BYTES_ADJUNTO // (1024 * 1024)} MB."
+        else:
+            try:
+                datos = informe_lectura.leer_pdf(contenido)
+            except informe_lectura.LecturaNoDisponible as exc:
+                disponible = False
+                item["error"] = str(exc)
+            except Exception:
+                logger.warning("No se pudo leer el PDF %s", nombre, exc_info=True)
+                item["error"] = "No se pudo leer el PDF."
+            else:
+                item.update(datos)
+                if datos["sold_to"] and datos["ship_to"]:
+                    item["leido"] = True
+                    item["plan"] = plan_destinatarios(
+                        datos["sold_to"], datos["ship_to"], datos["especie"], contactos, internos,
+                        servicio=datos["servicio"],
+                    )
+                else:
+                    item["error"] = "No encontré el Sold To y el Ship To en este PDF. ¿Es un informe de AgroFresh?"
+        items.append(item)
+    return {"disponible": disponible, "items": items}
 
 
 class TemplateIn(BaseModel):

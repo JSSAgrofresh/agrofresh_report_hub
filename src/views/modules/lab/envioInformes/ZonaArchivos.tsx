@@ -1,88 +1,61 @@
 import { useRef, useState } from 'react'
 import type { DragEvent } from 'react'
-import { tamanoLegible } from '@/features/envioInformes'
 import { IconUpload } from '@/components/ui/icons'
 import styles from './EnvioInformes.module.css'
 
 interface ZonaArchivosProps {
-  archivos: File[]
-  onChange: (archivos: File[]) => void
+  onAgregar: (archivos: File[]) => void
   deshabilitado?: boolean
+  leyendo?: boolean
 }
 
-const ACEPTADOS = '.pdf,.xlsx,.xls,.csv,.zip,.png,.jpg,.jpeg,.docx'
-
-/** Arrastrar o elegir los archivos del informe. Un PDF repetido (mismo nombre y
- * tamaño) no se agrega dos veces. */
-export function ZonaArchivos({ archivos, onChange, deshabilitado }: ZonaArchivosProps) {
+/** Arrastrar o elegir los PDF de los informes. Se pueden soltar varios de una
+ * vez: cada uno se lee y queda como un correo aparte. */
+export function ZonaArchivos({ onAgregar, deshabilitado, leyendo }: ZonaArchivosProps) {
   const entrada = useRef<HTMLInputElement>(null)
   const [encima, setEncima] = useState(false)
-
-  function agregar(nuevos: FileList | File[]) {
-    const lista = [...archivos]
-    for (const f of Array.from(nuevos)) {
-      if (!lista.some((x) => x.name === f.name && x.size === f.size)) lista.push(f)
-    }
-    onChange(lista)
-  }
+  const bloqueada = deshabilitado || leyendo
 
   function alSoltar(e: DragEvent<HTMLDivElement>) {
     e.preventDefault()
     setEncima(false)
-    if (!deshabilitado && e.dataTransfer.files.length) agregar(e.dataTransfer.files)
+    if (!bloqueada && e.dataTransfer.files.length) onAgregar(Array.from(e.dataTransfer.files))
   }
 
   return (
-    <div>
-      <div
-        className={`${styles.zona} ${encima ? styles.zonaEncima : ''}`}
-        onDragOver={(e) => { e.preventDefault(); if (!deshabilitado) setEncima(true) }}
-        onDragLeave={() => setEncima(false)}
-        onDrop={alSoltar}
+    <div
+      className={`${styles.zona} ${encima ? styles.zonaEncima : ''}`}
+      onDragOver={(e) => { e.preventDefault(); if (!bloqueada) setEncima(true) }}
+      onDragLeave={() => setEncima(false)}
+      onDrop={alSoltar}
+    >
+      <IconUpload className={styles.zonaIcono} aria-hidden="true" />
+      <p className={styles.zonaTitulo}>
+        {leyendo ? 'Leyendo los informes…' : 'Arrastra aquí los informes en PDF'}
+      </p>
+      <p className={styles.zonaAyuda}>
+        Puedes subir varios a la vez. De cada uno se leen el Sold To, el Ship To y la especie para elegir la lista.
+      </p>
+      <button
+        type="button"
+        className={styles.botonSecundario}
+        disabled={bloqueada}
+        onClick={() => entrada.current?.click()}
       >
-        <IconUpload className={styles.zonaIcono} aria-hidden="true" />
-        <p className={styles.zonaTitulo}>Arrastra aquí el informe del laboratorio</p>
-        <p className={styles.zonaAyuda}>PDF principalmente; también Excel, imágenes o ZIP. Hasta 20 MB cada uno.</p>
-        <button
-          type="button"
-          className={styles.botonSecundario}
-          disabled={deshabilitado}
-          onClick={() => entrada.current?.click()}
-        >
-          Elegir archivos
-        </button>
-        <input
-          ref={entrada}
-          type="file"
-          multiple
-          accept={ACEPTADOS}
-          hidden
-          aria-label="Archivos del informe"
-          onChange={(e) => {
-            if (e.target.files) agregar(e.target.files)
-            e.target.value = ''
-          }}
-        />
-      </div>
-      {archivos.length > 0 && (
-        <ul className={styles.archivos}>
-          {archivos.map((f) => (
-            <li key={`${f.name}-${f.size}`} className={styles.archivo}>
-              <span className={styles.archivoTipo}>{(f.name.split('.').pop() ?? '').toUpperCase().slice(0, 4)}</span>
-              <span className={styles.archivoNombre}>{f.name}</span>
-              <span className={styles.archivoPeso}>{tamanoLegible(f.size)}</span>
-              <button
-                type="button"
-                className={styles.chipQuitar}
-                onClick={() => onChange(archivos.filter((x) => x !== f))}
-                aria-label={`Quitar ${f.name}`}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+        Elegir archivos
+      </button>
+      <input
+        ref={entrada}
+        type="file"
+        multiple
+        accept=".pdf,application/pdf"
+        hidden
+        aria-label="Informes en PDF"
+        onChange={(e) => {
+          if (e.target.files) onAgregar(Array.from(e.target.files))
+          e.target.value = ''
+        }}
+      />
     </div>
   )
 }
