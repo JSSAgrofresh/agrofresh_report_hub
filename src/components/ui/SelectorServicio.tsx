@@ -15,8 +15,8 @@ interface SelectorServicioProps {
 }
 
 /**
- * Elige entre Línea de proceso y Actimist. Cada servicio lleva siempre el mismo
- * color en toda la app (violeta y azul, como en Auditoría interna), para que
+ * Elige entre Línea de proceso, Actimist y Ecofog. Cada servicio lleva siempre el mismo
+ * color en toda la app (violeta, azul y verde azulado), para que
  * se sepa de un vistazo en qué lista se está trabajando.
  */
 export function SelectorServicio({ valor, onChange, conteos, detalle, etiqueta = 'Tipo de servicio' }: SelectorServicioProps) {

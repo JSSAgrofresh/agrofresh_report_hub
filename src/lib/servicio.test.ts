@@ -7,6 +7,8 @@ describe('servicioDeTipoAplicacion', () => {
     ['Actimist', 'actimist'],
     ['ACTIMIST ', 'actimist'],
     ['actimist', 'actimist'],
+    ['Ecofog', 'ecofog'],
+    ['ECOFOG ', 'ecofog'],
     ['Línea de proceso', 'linea'],
     ['RYD', 'linea'],
     ['', 'linea'],
@@ -22,5 +24,6 @@ describe('parametroServicio', () => {
   it('Línea de proceso va vacío, como antes de separar los servicios', () => {
     expect(parametroServicio('linea')).toBe('')
     expect(parametroServicio('actimist')).toBe('actimist')
+    expect(parametroServicio('ecofog')).toBe('ecofog')
   })
 })

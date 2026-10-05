@@ -8,7 +8,13 @@ import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { EtiquetaServicio } from '@/components/ui/SelectorServicio'
 import { IconFrasco } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
-import { servicioDeTipoAplicacion } from '@/lib/servicio'
+import {
+  ETIQUETA_SERVICIO,
+  SERVICIOS_CON_LISTADO,
+  servicioDeTipoAplicacion,
+  tieneListadoPropio,
+} from '@/lib/servicio'
+import type { ServicioConListado } from '@/lib/servicio'
 import { listarClientes, listarPlantas, mensajeCatalogo } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import { useAuth } from '@/features/auth'
@@ -55,6 +61,8 @@ const SOLICITANTE_FIJO = 'AGROFRESH'
 
 const TIPO_LINEA_PROCESO = 'Línea de proceso'
 const TIPO_ACTIMIST = 'Actimist'
+/** Ecofog es copia de Actimist: mismos campos (N° Cámara / N° Orden, posición libre). */
+const TIPO_ECOFOG = 'Ecofog'
 const TIPO_RYD = 'RYD'
 /** Largo máximo de la observación (el backend lo exige también). */
 const OBSERVACION_MAX = 50
@@ -194,10 +202,13 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // Actimist tiene su propio listado de Sold To / Ship To. Si no se puede leer
   // (backend sin actualizar o sin la migración 0049) se avisa en el campo y
   // Línea de proceso sigue funcionando igual.
-  const [clientesActimist, setClientesActimist] = useState<string[]>([])
-  const [plantasActimist, setPlantasActimist] = useState<Planta[]>([])
-  const [errorListadoActimist, setErrorListadoActimist] = useState<string | null>(null)
-  const [listadoActimistListo, setListadoActimistListo] = useState(false)
+  // Ecofog (copia de Actimist) tiene el suyo, con la misma lógica.
+  const [listadosPropios, setListadosPropios] = useState<
+    Record<ServicioConListado, { clientes: string[]; plantas: Planta[]; error: string | null; listo: boolean }>
+  >({
+    actimist: { clientes: [], plantas: [], error: null, listo: false },
+    ecofog: { clientes: [], plantas: [], error: null, listo: false },
+  })
   const [especiesDisponibles, setEspeciesDisponibles] = useState<ValorLista[]>([])
   const [variedadesDisponibles, setVariedadesDisponibles] = useState<string[]>([])
 
@@ -281,13 +292,19 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     listarPlantas()
       .then((plantas) => setPlantasDisponibles(plantas.filter((p) => p.activo)))
       .catch(() => setPlantasDisponibles([]))
-    Promise.all([listarClientes('actimist'), listarPlantas('actimist')])
-      .then(([clientes, plantas]) => {
-        setClientesActimist(clientes.filter((c) => c.activo).map((c) => c.nombre))
-        setPlantasActimist(plantas.filter((p) => p.activo))
-      })
-      .catch((e: unknown) => setErrorListadoActimist(mensajeCatalogo(e, 'actimist')))
-      .finally(() => setListadoActimistListo(true))
+    SERVICIOS_CON_LISTADO.forEach((servicio) => {
+      const guardar = (parcial: Partial<(typeof listadosPropios)[ServicioConListado]>) =>
+        setListadosPropios((l) => ({ ...l, [servicio]: { ...l[servicio], ...parcial } }))
+      Promise.all([listarClientes(servicio), listarPlantas(servicio)])
+        .then(([clientes, plantas]) =>
+          guardar({
+            clientes: clientes.filter((c) => c.activo).map((c) => c.nombre),
+            plantas: plantas.filter((p) => p.activo),
+          }),
+        )
+        .catch((e: unknown) => guardar({ error: mensajeCatalogo(e, servicio) }))
+        .finally(() => guardar({ listo: true }))
+    })
     listarEspeciesActivas()
       .then((es) => setEspeciesDisponibles(es.filter((e) => e.es_estandar)))
       .catch(() => setEspeciesDisponibles([]))
@@ -454,9 +471,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // Cada tipo de servicio tiene su listado de Sold To / Ship To: Actimist usa
   // el suyo; Línea de proceso, RYD y cualquier otro, el de siempre.
   const servicioListado = servicioDeTipoAplicacion(tipoAplicacionSel)
-  const listadoActimist = servicioListado === 'actimist'
-  const opcionesSoldTo = listadoActimist ? clientesActimist : clientesDisponibles
-  const plantasDelCliente = (listadoActimist ? plantasActimist : plantasDisponibles).filter(
+  const esServicioCamara = tipoAplicacionSel === TIPO_ACTIMIST || tipoAplicacionSel === TIPO_ECOFOG
+  const listadoPropio = tieneListadoPropio(servicioListado) ? listadosPropios[servicioListado] : null
+  const opcionesSoldTo = listadoPropio ? listadoPropio.clientes : clientesDisponibles
+  const plantasDelCliente = (listadoPropio ? listadoPropio.plantas : plantasDisponibles).filter(
     (p) => p.cliente_nombre === soldTo,
   )
   const laboratoriosActivos = laboratoriosConfig
@@ -478,7 +496,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             (c.clave === 'sold_to' || c.clave === 'ship_to')
           ),
       ),
-    [camposActivos, tipoAplicacionSel],
+    [camposActivos, tipoAplicacionSel, esServicioCamara],
   )
   const camposMuestraVisibles = useMemo(
     () =>
@@ -496,7 +514,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           return tipoAplicacionSel === TIPO_LINEA_PROCESO || tipoAplicacionSel === TIPO_RYD
         }
         if (c.clave === 'numero_camara' || c.clave === 'numero_orden')
-          return tipoAplicacionSel === TIPO_ACTIMIST
+          return esServicioCamara
         return true
       }),
     [camposActivos, tipoAplicacionSel],
@@ -631,7 +649,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // anterior que se edita conserva su regla (desde 3): lo emitido no se reescribe.
   const maxProductosVisibles = modo === 'editar' && solicitudOriginal && !solicitudOriginal.mixto_desde_2 ? 2 : 1
   const esLineaProceso = tipoAplicacionSel === TIPO_LINEA_PROCESO
-  const esActimist = tipoAplicacionSel === TIPO_ACTIMIST
+  const esActimist = esServicioCamara
   const esRYD = tipoAplicacionSel === TIPO_RYD
   // RYD pide datos extra solo para AgroFresh: los otros laboratorios siguen
   // con el formulario de siempre.
@@ -1015,9 +1033,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     }
     if (campo.clave === 'sold_to') {
       const sinTipo = !tipoAplicacionSel
-      const actimistNoDisponible = listadoActimist && listadoActimistListo && !!errorListadoActimist
+      const nombreServicio = ETIQUETA_SERVICIO[servicioListado]
+      const actimistNoDisponible = !!listadoPropio && listadoPropio.listo && !!listadoPropio.error
       const actimistVacio =
-        listadoActimist && listadoActimistListo && !errorListadoActimist && clientesActimist.length === 0
+        !!listadoPropio && listadoPropio.listo && !listadoPropio.error && listadoPropio.clientes.length === 0
       return (
         <div className={styles.campo} key={campo.clave}>
           <BuscableSelect
@@ -1028,18 +1047,18 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             placeholderTodos={sinTipo ? '— elige primero el Tipo de Aplicación —' : '— elegir cliente —'}
             disabled={sinTipo}
           />
-          {listadoActimist && (
+          {listadoPropio && (
             <small className={styles.listadoServicio}>
-              <EtiquetaServicio servicio="actimist" />
+              <EtiquetaServicio servicio={servicioListado} />
               <span>Clientes de su listado</span>
             </small>
           )}
           {actimistNoDisponible && (
-            <small className={styles.avisoListado} role="alert">{errorListadoActimist}</small>
+            <small className={styles.avisoListado} role="alert">{listadoPropio?.error}</small>
           )}
           {actimistVacio && (
             <small className={styles.avisoListado} role="alert">
-              El listado de Actimist todavía no tiene clientes. Se carga en Listados → Sold To → Actimist.
+              El listado de {nombreServicio} todavía no tiene clientes. Se carga en Listados → Sold To → {nombreServicio}.
             </small>
           )}
         </div>

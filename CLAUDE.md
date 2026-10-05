@@ -85,6 +85,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0047_actividad_usuario.sql
 .venv\Scripts\python.exe scripts\migrar.py 0048_peso_extraido.sql
 .venv\Scripts\python.exe scripts\migrar.py 0049_listado_actimist.sql
+.venv\Scripts\python.exe scripts\migrar.py 0050_listado_ecofog.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -233,7 +234,23 @@ la ciudad ("SAN FERNANDO") vale la planta que la contiene, si es una sola
 `converter.html`). "0" o "-" en esos cuatro campos es "sin dato". El Converter
 lee Listados en vivo de la base al abrirse.
 
-## Dos servicios: Línea de proceso y Actimist
+## Tres servicios: Línea de proceso, Actimist y Ecofog
+
+**Ecofog es una copia de Actimist** (pedido del usuario, 05-10-2026): mismo formulario
+(N° Cámara/N° Orden, Posición Muestreo libre y opcional, Gasto), mismas reglas de correo
+(Jorge + Report Hub, referentes Carlos y Cristian: `PARA_SIN_LISTA_ECOFOG` y
+`PERMANENTES_ECOFOG` parten iguales a los de Actimist y se pueden separar) y su propio
+listado (`cliente_ecofog`/`planta_ecofog`, migración **0050**, que arranca como COPIA del
+listado de Actimist) y su propia lista de distribución (`servicio: "ecofog"`). Todo lo que
+es «Actimist y Ecofog» se pregunta con `es_servicio_con_listado` (`servicios.py`, espejo
+`tieneListadoPropio` en `src/lib/servicio.ts`); las rutas del listado son
+`/api/catalogo/{actimist|ecofog}/...`. **Falta**: Auditoría interna cuenta Ecofog como Línea de
+proceso (no tiene dona propia); Ingesta, Converter y Report no lo leen (igual que Actimist).
+Para que aparezca en el formulario hay que tener «Ecofog» en Tipos de aplicación (el
+mantenedor lo guarda en R2; el valor por defecto ya lo trae, pero si ya hay un archivo
+guardado se agrega a mano).
+
+(Lo que sigue describe el diseño con Actimist; vale igual para Ecofog.)
 
 Cada tipo de servicio tiene **su listado de Sold To / Ship To y su lista de
 distribución**. Todo lo que existía antes es de **Línea de proceso**, que es el

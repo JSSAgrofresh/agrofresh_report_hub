@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { HttpError } from '@/services/http/client'
+import { ETIQUETA_SERVICIO } from '@/lib/servicio'
 import type { Servicio } from '@/lib/servicio'
 import * as api from '../lib/api'
 import type { Cliente, ClienteInput, Planta, PlantaInput } from '../lib/tipos'
@@ -70,9 +71,10 @@ export function useCatalogo(servicio: Servicio = 'linea') {
  * el backend viejo (404: todavía no conoce el listado) y la migración sin
  * correr (503), que son los dos casos esperables al publicar. */
 export function mensajeCatalogo(e: unknown, servicio: Servicio): string {
-  if (servicio === 'actimist' && e instanceof HttpError) {
-    if (e.status === 404) return 'El servidor todavía no tiene el listado de Actimist: falta actualizar y reiniciar el backend.'
-    if (e.status === 503) return e.message || 'Falta correr la migración 0049 en el servidor para usar el listado de Actimist.'
+  if (servicio !== 'linea' && e instanceof HttpError) {
+    const nombre = ETIQUETA_SERVICIO[servicio]
+    if (e.status === 404) return `El servidor todavía no tiene el listado de ${nombre}: falta actualizar y reiniciar el backend.`
+    if (e.status === 503) return e.message || `Falta correr la migración ${servicio === 'ecofog' ? '0050' : '0049'} en el servidor para usar el listado de ${nombre}.`
   }
   return 'No se pudo conectar con el backend.'
 }

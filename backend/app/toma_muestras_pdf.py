@@ -286,7 +286,7 @@ def _construir_elementos(
     # los que no aplicaban al tipo de aplicación real de esa solicitud.
     tipo_aplicacion = campos_lab.get('Tipo Aplicación') or ''
     es_linea_proceso = tipo_aplicacion == 'Línea de proceso'
-    es_actimist = tipo_aplicacion == 'Actimist'
+    es_actimist = tipo_aplicacion in ('Actimist', 'Ecofog')
     muestra = [
         ('Tipo muestra', datos.get('tipo_muestra')), ('Tipo aplicación', tipo_aplicacion),
         ('Especie', datos.get('especie')), ('Variedad', datos.get('variedad')),
