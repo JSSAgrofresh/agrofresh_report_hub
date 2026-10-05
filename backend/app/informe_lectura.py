@@ -85,6 +85,10 @@ def parsear_texto(texto: str) -> dict[str, str]:
 def datos_de_informe(texto: str) -> dict[str, str]:
     """`parsear_texto` más el servicio que corresponde al tipo de aplicación."""
     datos = parsear_texto(texto)
+    if not datos["numero_solicitud"]:
+        # Respaldo: el N° de solicitud (OT-AGF0075, OT-QUI0025…) escrito en cualquier parte.
+        m = re.search(r"\bOT-[A-Z]{2,6}\d{3,6}\b", (texto or "").upper())
+        datos["numero_solicitud"] = m.group(0) if m else ""
     datos["servicio"] = clave_servicio(datos["tipo_aplicacion"])
     return datos
 

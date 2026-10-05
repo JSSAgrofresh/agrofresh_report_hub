@@ -210,14 +210,17 @@ front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
   (`POST /desbloquear`, 403 si no es él o la clave falla; vale solo mientras la
   pantalla siga abierta). El servidor además rechaza otro laboratorio a quien no
   sea el principal.
-- **Para = la lista de «Resultado a clientes» de ESA planta Y DE SU SERVICIO**
-  (mismo Sold To y Ship To; el servicio sale del Tipo Aplicación del PDF: Línea de
-  proceso, Actimist o Ecofog, cada uno con su lista, ver `servicios.py`). Con
-  especie vale la lista de esa especie y si no hay, la general. **No** usa los
-  respaldos de la solicitud (ni el contacto global ni «solo Ship To»): un informe
-  de un cliente nunca debe caer en la lista de otro.
-  **No** agrega los técnicos, comerciales, Jorge ni Claudia de la lista interna
-  de la planta. Las copias internas son las del módulo (`internos`, hoy Paz y
+- **La lista sale de la SOLICITUD del informe.** El PDF trae su N° de solicitud
+  (`OT-AGF0075`, etiqueta «N° SOLICITUD» o escrito en cualquier parte): con él se
+  busca la solicitud en el sistema y de ahí salen Sold To, Ship To, especie,
+  servicio y el Para = su «Destinatarios de resultados» (`plan_desde_solicitud`, la
+  misma regla del PDF y el JSON de la solicitud, incluida la de «sin lista»: si no
+  tiene lista del cliente, el Para es el respaldo y la tarjeta lo avisa).
+  Solo si el PDF no trae N° o la solicitud no existe, se cae a lo leído del PDF:
+  la lista de «Resultado a clientes» de esa planta y de su servicio (mismo Sold To
+  y Ship To; con especie vale la de esa especie y si no hay, la general; sin los
+  respaldos de la solicitud: ni el contacto global ni «solo Ship To»).
+  **No** agrega los técnicos ni comerciales de la lista interna de la planta. Las copias internas son las del módulo (`internos`, hoy Paz y
   Jorge en copia oculta, editables desde la pantalla): **la forma final de CC/CCO
   queda en stand-by**, se define con el laboratorio. Nada de esto escribe en
   `contactos_laboratorio.json`.

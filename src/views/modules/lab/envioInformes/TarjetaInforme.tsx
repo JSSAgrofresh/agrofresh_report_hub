@@ -59,7 +59,7 @@ export function TarjetaInforme({
             <span className={styles.archivoNombre}>{informe.archivo.name}</span>
             <span className={styles.informeLectura}>
               {leido
-                ? `${informe.soldTo} · ${informe.shipTo}${informe.especie ? ` · ${informe.especie}` : ''} · ${etiquetaServicio(informe.servicio)}`
+                ? `${informe.lectura.solicitud ? `${informe.lectura.numero_solicitud} · ` : ''}${informe.soldTo} · ${informe.shipTo}${informe.especie ? ` · ${informe.especie}` : ''} · ${etiquetaServicio(informe.servicio)}`
                 : 'No se pudo leer el Sold To y el Ship To'}
               {' · '}{tamanoLegible(informe.archivo.size)}
             </span>
@@ -83,6 +83,11 @@ export function TarjetaInforme({
       </div>
 
       {aviso && informe.estado !== 'enviado' && <p className={styles.informeAviso}>{aviso}</p>}
+      {!bloqueo && informe.plan?.sin_lista && informe.estado === 'listo' && (
+        <p className={styles.informeAviso}>
+          Esta solicitud no tiene lista de distribución del cliente: va a la lista de respaldo ({informe.para.join(', ')}).
+        </p>
+      )}
       {informe.estado === 'error' && informe.mensaje && <p className={styles.informeError}>{informe.mensaje}</p>}
       {informe.estado === 'enviado' && informe.mensaje && <p className={styles.informeOk}>{informe.mensaje}</p>}
 

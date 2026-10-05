@@ -607,3 +607,76 @@ def test_analizar_usa_el_respaldo_y_explica_cuando_no_hay_texto(entorno, monkeyp
     monkeypatch.setattr(il, "texto_de_pdf", lambda c: "")
     vacio = _subir(("b.pdf", PDF))["items"][0]
     assert not vacio["leido"] and "escaneada" in vacio["error"]
+
+
+# --- Por el N° de solicitud del informe ------------------------------------------
+
+def _solicitud(numero="OT-AGF0075", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA", especie="Naranja",
+               tipo="Línea de proceso"):
+    return {
+        "numero_solicitud": numero, "laboratorio": "AGROFRESH", "sold_to": sold_to, "ship_to": ship_to,
+        "especie": especie, "campos_laboratorio": {"Tipo Aplicación": tipo},
+    }
+
+
+def test_el_informe_va_a_la_lista_de_su_solicitud(entorno, monkeypatch):
+    pytest.importorskip("pypdf")
+    from app import toma_muestras as tm
+
+    config_store.escribir("contactos_laboratorio.json", [
+        _contacto("cliente@multifruta.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA", orden=1),
+        _contacto("otro@multifruta.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA", orden=2),
+        _contacto("tecnico@agrofresh.com", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA",
+                  tipo="resultado_interno"),
+    ])
+    monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [("OT-AGF0075.xlsx", _solicitud())])
+    # El PDF trae OTRO Sold To / Ship To en sus etiquetas: manda la solicitud.
+    item = _subir(("i.pdf", _pdf_informe(sold_to="LO QUE DIGA", ship_to="EL PDF")))["items"][0]
+    assert item["leido"] and item["numero_solicitud"] == "OT-AGF0075" and item["solicitud"] == "OT-AGF0075.xlsx"
+    assert (item["sold_to"], item["ship_to"], item["especie"]) == ("MULTIFRUTA SA", "GESEX PLANTA FATIMA", "Naranja")
+    plan = item["plan"]
+    assert plan["to"] == ["cliente@multifruta.cl", "otro@multifruta.cl"] and plan["origen"] == "solicitud"
+    assert plan["sin_lista"] is False
+    # copias: las del módulo, no el técnico de la planta
+    assert plan["bcc"] == ["psalazar@agrofresh.com", "jorge.sandoval@agrofresh.com"]
+    assert "tecnico@agrofresh.com" not in plan["to"] + plan["cc"] + plan["bcc"]
+
+
+def test_una_solicitud_sin_lista_usa_el_respaldo_y_avisa(entorno, monkeypatch):
+    pytest.importorskip("pypdf")
+    from app import toma_muestras as tm
+
+    config_store.escribir("contactos_laboratorio.json", [])
+    monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [("OT-AGF0075.xlsx", _solicitud())])
+    plan = _subir(("i.pdf", _pdf_informe()))["items"][0]["plan"]
+    assert plan["sin_lista"] is True
+    assert plan["to"] == [e for e in tm.DESTINATARIOS_SIN_LISTA]  # lo que dice la solicitud
+
+
+def test_el_servicio_de_la_solicitud_elige_su_lista(entorno, monkeypatch):
+    pytest.importorskip("pypdf")
+    from app import toma_muestras as tm
+
+    config_store.escribir("contactos_laboratorio.json", [
+        {**_contacto("act@m.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA"), "servicio": "actimist"},
+        _contacto("lp@m.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA"),
+    ])
+    monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [("a.xlsx", _solicitud(tipo="Actimist"))])
+    item = _subir(("i.pdf", _pdf_informe()))["items"][0]
+    assert item["servicio"] == "actimist" and "act@m.cl" in item["plan"]["to"] and "lp@m.cl" not in item["plan"]["to"]
+
+
+def test_si_la_solicitud_no_existe_se_cae_a_lo_leido_del_pdf(entorno, monkeypatch):
+    pytest.importorskip("pypdf")
+    from app import toma_muestras as tm
+
+    config_store.escribir("contactos_laboratorio.json", [_contacto("a@m.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA")])
+    monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [])
+    item = _subir(("i.pdf", _pdf_informe()))["items"][0]
+    assert item["leido"] and item["solicitud"] is None and item["plan"]["to"] == ["a@m.cl"]
+
+
+def test_el_numero_de_solicitud_se_encuentra_aunque_no_tenga_etiqueta():
+    from app import informe_lectura as il
+
+    assert il.datos_de_informe("Informe\nreferencia OT-QUI0025 de la planta")["numero_solicitud"] == "OT-QUI0025"
