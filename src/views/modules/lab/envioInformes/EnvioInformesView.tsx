@@ -1,45 +1,47 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/Button'
-import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { Modal } from '@/components/ui/Modal'
 import { ROUTES } from '@/constants/routes'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import {
+  analizarInformes,
+  datosCorreo,
+  enviable,
   enviarInforme,
-  esCorreoValido,
   historialEnvios,
+  motivoBloqueo,
+  nuevoInforme,
   obtenerEstadoEnvio,
   obtenerPlanDestinatarios,
+  sinRepetidos,
   vistaPreviaInforme,
 } from '@/features/envioInformes'
-import type {
-  DatosCorreo,
-  EstadoEnvio,
-  Historial,
-  PlanDestinatarios,
-  VistaPrevia,
-} from '@/features/envioInformes'
+import type { EstadoEnvio, Historial, Informe, VistaPrevia } from '@/features/envioInformes'
 import { HttpError } from '@/services/http/client'
 import { ConfiguracionEnvio } from './ConfiguracionEnvio'
+import { DesbloqueoEdicion } from './DesbloqueoEdicion'
 import { HistorialEnvios } from './HistorialEnvios'
-import { ListaCorreos } from './ListaCorreos'
 import { ModoSistema } from './ModoSistema'
+import { TarjetaInforme } from './TarjetaInforme'
 import { ZonaArchivos } from './ZonaArchivos'
 import styles from './EnvioInformes.module.css'
 
-function Paso({ numero, titulo, ayuda, children }: { numero: number; titulo: string; ayuda?: string; children: ReactNode }) {
+function Paso({ numero, titulo, ayuda, acciones, children }: {
+  numero: number; titulo: string; ayuda?: string; acciones?: ReactNode; children: ReactNode
+}) {
   return (
     <section className={styles.paso}>
       <header className={styles.pasoCabecera}>
         <span className={styles.pasoNumero} aria-hidden="true">{numero}</span>
-        <div>
+        <div className={styles.pasoTextos}>
           <h2 className={styles.pasoTitulo}>{titulo}</h2>
           {ayuda && <p className={styles.pasoAyuda}>{ayuda}</p>}
         </div>
+        {acciones}
       </header>
       <div className={styles.pasoCuerpo}>{children}</div>
     </section>
@@ -53,39 +55,38 @@ function mensajeDe(e: unknown, defecto: string): string {
 /**
  * AgroFresh Lab → Envío de informes.
  *
- * Paz sube el PDF que entregó el laboratorio, elige Sold To y Ship To, y el
- * sistema propone la lista de distribución del cliente (la de Resultado a
- * clientes de esa planta). Todo se puede corregir antes de enviar. El botón de
- * arriba dice si el sistema está en prueba —todo llega solo a Paz y Jorge— o en
- * producción —llega al cliente—; siempre parte en prueba.
+ * Paz sube los PDF que entregó el laboratorio —uno o varios—. De cada uno se leen
+ * el Sold To, el Ship To y la especie, y con eso el sistema elige solo la lista de
+ * distribución. Cada PDF es un correo aparte, con la plantilla única; si hace
+ * falta se corrige solo ese correo. «Enviar todos» los manda de una vez.
+ *
+ * El laboratorio es siempre AGROFRESH y los datos leídos del PDF no se editan:
+ * solo el administrador principal, con su clave, lo habilita.
+ *
+ * El botón de arriba dice si el sistema está en prueba —todo llega solo a Paz y
+ * Jorge— o en producción —llega al cliente—; siempre parte en prueba.
  */
 export function EnvioInformesView() {
   const [estado, setEstado] = useState<EstadoEnvio | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [exito, setExito] = useState<string | null>(null)
 
-  const [laboratorio, setLaboratorio] = useState('')
   const [clientes, setClientes] = useState<string[]>([])
   const [plantas, setPlantas] = useState<Planta[]>([])
-  const [soldTo, setSoldTo] = useState('')
-  const [shipTo, setShipTo] = useState('')
-  const [especie, setEspecie] = useState('')
-  // La lista propuesta se guarda con la combinación para la que se pidió: así
-  // «cargando» y «sin plan» se deducen, sin tocar estado dentro del efecto.
-  const [planCargado, setPlanCargado] = useState<{ clave: string; plan: PlanDestinatarios } | null>(null)
-
-  const [para, setPara] = useState<string[]>([])
-  const [cc, setCc] = useState<string[]>([])
-  const [bcc, setBcc] = useState<string[]>([])
-  const [archivos, setArchivos] = useState<File[]>([])
-  const [asuntoManual, setAsuntoManual] = useState<string | null>(null)
-  const [cuerpoManual, setCuerpoManual] = useState<string | null>(null)
-
-  const [vistaCargada, setVistaCargada] = useState<{ clave: string; vista: VistaPrevia } | null>(null)
-  const [errorVista, setErrorVista] = useState<string | null>(null)
+  const [informes, setInformes] = useState<Informe[]>([])
+  const [seleccionId, setSeleccionId] = useState<string | null>(null)
+  const [leyendo, setLeyendo] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
+  const [pidiendoClave, setPidiendoClave] = useState(false)
+  const [desbloqueado, setDesbloqueado] = useState(false)
+  const [laboratorio, setLaboratorio] = useState('AGROFRESH')
+
+  const [vistaCargada, setVistaCargada] = useState<{ id: string; vista: VistaPrevia } | null>(null)
+  const [errorVista, setErrorVista] = useState<string | null>(null)
   const [historial, setHistorial] = useState<Historial | null>(null)
+
+  const peticionPlan = useRef<Record<string, number>>({})
 
   const recargarHistorial = useCallback(() => {
     historialEnvios()
@@ -97,7 +98,7 @@ export function EnvioInformesView() {
     obtenerEstadoEnvio()
       .then((e) => {
         setEstado(e)
-        setLaboratorio((actual) => actual || (e.laboratorios.includes('QUITECA') ? 'QUITECA' : e.laboratorios[0] ?? ''))
+        setLaboratorio(e.laboratorio_fijo)
       })
       .catch((e) => setError(mensajeDe(e, 'No se pudo cargar el módulo. ¿Tienes acceso a AgroFresh Lab?')))
     listarClientes()
@@ -109,137 +110,124 @@ export function EnvioInformesView() {
     recargarHistorial()
   }, [recargarHistorial])
 
-  const plantasDelCliente = useMemo(
-    () => plantas.filter((p) => p.cliente_nombre === soldTo).map((p) => p.nombre),
-    [plantas, soldTo],
-  )
+  const actualizar = useCallback((id: string, parcial: Partial<Informe>) => {
+    setInformes((lista) => lista.map((i) => (i.id === id ? { ...i, ...parcial } : i)))
+  }, [])
 
-  // Las copias internas viajan en la lista propuesta: si cambian (y solo si cambian),
-  // se vuelve a pedir. Cambiar de modo no debe borrar lo que Paz ya editó.
-  const claveInternos = JSON.stringify(estado?.internos ?? null)
+  async function agregar(archivos: File[]) {
+    const nuevos = sinRepetidos(informes, archivos)
+    if (!nuevos.length) return
+    setLeyendo(true)
+    setError(null)
+    setExito(null)
+    try {
+      const lote = await analizarInformes(nuevos)
+      if (!lote.disponible) {
+        setError('El servidor todavía no puede leer PDF (falta instalar pypdf). Avísale al administrador.')
+      }
+      const creados = nuevos.map((archivo, i) => nuevoInforme(archivo, lote.items[i]))
+      setInformes((lista) => [...lista, ...creados])
+      setSeleccionId((actual) => actual ?? creados[0]?.id ?? null)
+    } catch (e) {
+      setError(mensajeDe(e, 'No se pudieron leer los informes. Intenta de nuevo.'))
+    } finally {
+      setLeyendo(false)
+    }
+  }
 
-  const clavePlan = soldTo && shipTo ? JSON.stringify([soldTo, shipTo, especie, claveInternos]) : ''
-  const plan = planCargado && planCargado.clave === clavePlan ? planCargado.plan : null
-  const cargandoPlan = !!clavePlan && !plan
+  function quitar(id: string) {
+    setInformes((lista) => lista.filter((i) => i.id !== id))
+    setSeleccionId((actual) => (actual === id ? null : actual))
+  }
 
-  // La lista que propone el sistema para esta planta y especie.
-  useEffect(() => {
-    if (!clavePlan) return
-    let vigente = true
-    obtenerPlanDestinatarios(soldTo, shipTo, especie)
-      .then((p) => {
-        if (!vigente) return
-        setPlanCargado({ clave: clavePlan, plan: p })
-        setPara(p.to)
-        setCc(p.cc)
-        setBcc(p.bcc)
-        // Una planta con una sola lista, y por especie: no hay nada que elegir.
-        if (!especie && p.to.length === 0 && p.especies.length === 1) setEspecie(p.especies[0])
+  // Solo con la edición habilitada: otro Sold To / Ship To / especie para ESTE informe.
+  function cambiarDatos(id: string, soldTo: string, shipTo: string, especie: string) {
+    const inf = informes.find((i) => i.id === id)
+    actualizar(id, { soldTo, shipTo, especie })
+    if (!inf || !soldTo || !shipTo) return
+    const turno = (peticionPlan.current[id] ?? 0) + 1
+    peticionPlan.current[id] = turno
+    obtenerPlanDestinatarios(soldTo, shipTo, especie, inf.servicio)
+      .then((plan) => {
+        if (peticionPlan.current[id] !== turno) return
+        actualizar(id, { plan, para: plan.to, cc: plan.cc, bcc: plan.bcc })
       })
-      .catch((e) => {
-        if (vigente) setError(mensajeDe(e, 'No se pudo leer la lista de distribución de esta planta.'))
-      })
-    return () => { vigente = false }
-  }, [clavePlan, soldTo, shipTo, especie])
+      .catch((e) => setError(mensajeDe(e, 'No se pudo leer la lista de distribución de esa planta.')))
+  }
 
-  const nombresArchivos = useMemo(() => archivos.map((a) => a.name), [archivos])
-
-  const datos: DatosCorreo = useMemo(
-    () => ({
-      laboratorio, sold_to: soldTo, ship_to: shipTo, especie,
-      asunto: asuntoManual, cuerpo: cuerpoManual, para, cc, bcc,
-    }),
-    [laboratorio, soldTo, shipTo, especie, asuntoManual, cuerpoManual, para, cc, bcc],
+  const seleccionado = informes.find((i) => i.id === seleccionId) ?? null
+  const claveVista = seleccionado
+    ? JSON.stringify([seleccionado.id, seleccionado.soldTo, seleccionado.shipTo, seleccionado.especie])
+    : ''
+  const datosVista = useMemo(
+    () => (seleccionado ? datosCorreo(seleccionado, laboratorio) : null),
+    [seleccionado, laboratorio],
   )
-
-  // La vista previa se pide al backend: es el MISMO armado que usa el envío,
-  // así que lo que se ve es lo que sale. Con una pausa para no pedirla por cada letra.
+  const nombreVista = seleccionado?.archivo.name
   const modo = estado?.modo
-  const claveVista = laboratorio && soldTo && shipTo ? JSON.stringify([laboratorio, soldTo, shipTo]) : ''
-  const vista = vistaCargada && vistaCargada.clave === claveVista ? vistaCargada.vista : null
+
+  // La vista previa la arma el backend con el MISMO código del envío: lo que se
+  // ve es lo que sale. Con una pausa para no pedirla por cada letra.
   useEffect(() => {
-    if (!claveVista) return
+    if (!datosVista || !nombreVista || !datosVista.sold_to || !datosVista.ship_to) return
     let vigente = true
+    const id = seleccionId ?? ''
     const espera = setTimeout(() => {
-      vistaPreviaInforme(datos, nombresArchivos)
-        .then((v) => { if (vigente) { setVistaCargada({ clave: claveVista, vista: v }); setErrorVista(null) } })
+      vistaPreviaInforme(datosVista, [nombreVista])
+        .then((v) => { if (vigente) { setVistaCargada({ id, vista: v }); setErrorVista(null) } })
         .catch((e) => { if (vigente) setErrorVista(mensajeDe(e, 'No se pudo armar la vista previa.')) })
     }, 350)
     return () => { vigente = false; clearTimeout(espera) }
-  }, [datos, nombresArchivos, claveVista, modo])
+    // claveVista ya resume lo que cambia la plantilla; modo cambia el aviso de prueba.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datosVista, nombreVista, seleccionId, claveVista, modo])
 
-  function vaciarDestinatarios() {
-    setPara([])
-    setCc([])
-    setBcc([])
-  }
+  const vista = vistaCargada && vistaCargada.id === seleccionId ? vistaCargada.vista : null
 
-  function elegirSoldTo(valor: string) {
-    setSoldTo(valor)
-    setShipTo('')
-    setEspecie('')
-    vaciarDestinatarios()
-    setAsuntoManual(null)
-    setCuerpoManual(null)
-  }
+  const listos = informes.filter(enviable)
+  const pendientes = informes.filter((i) => i.estado !== 'enviado')
+  const enProduccion = estado?.modo === 'produccion'
+  const hayEnviados = informes.some((i) => i.estado === 'enviado')
 
-  function elegirShipTo(valor: string) {
-    setShipTo(valor)
-    setEspecie('')
-    vaciarDestinatarios()
-  }
-
-  const correosMalos = [...para, ...cc, ...bcc].filter((c) => !esCorreoValido(c))
-  const faltantes: string[] = []
-  if (!archivos.length) faltantes.push('sube el archivo del informe')
-  if (!soldTo) faltantes.push('elige el Sold To')
-  else if (!shipTo) faltantes.push('elige el Ship To')
-  else if (!para.length) faltantes.push('escribe al menos un correo en Para')
-  if (correosMalos.length) faltantes.push(`corrige: ${correosMalos.join(', ')}`)
-  const puedeEnviar = faltantes.length === 0 && !enviando && !!estado
-
-  const listaEditada =
-    !!plan &&
-    (JSON.stringify(para) !== JSON.stringify(plan.to) ||
-      JSON.stringify(cc) !== JSON.stringify(plan.cc) ||
-      JSON.stringify(bcc) !== JSON.stringify(plan.bcc))
-
-  function limpiarEnvio() {
-    setArchivos([])
-    setSoldTo('')
-    setShipTo('')
-    setEspecie('')
-    vaciarDestinatarios()
-    setAsuntoManual(null)
-    setCuerpoManual(null)
-  }
-
-  async function enviar() {
+  async function enviarTodos() {
     setConfirmando(false)
     setEnviando(true)
     setError(null)
     setExito(null)
-    try {
-      const r = await enviarInforme(datos, archivos)
-      setExito(r.ok)
-      limpiarEnvio()
-      recargarHistorial()
-    } catch (e) {
-      setError(mensajeDe(e, 'No se pudo enviar el informe. Intenta de nuevo.'))
-      recargarHistorial()
-    } finally {
-      setEnviando(false)
+    let bien = 0
+    let mal = 0
+    let ultimo = ''
+    for (const inf of informes.filter(enviable)) {
+      actualizar(inf.id, { estado: 'enviando', mensaje: null })
+      try {
+        const r = await enviarInforme(datosCorreo(inf, laboratorio), [inf.archivo])
+        bien += 1
+        ultimo = r.ok
+        actualizar(inf.id, { estado: 'enviado', mensaje: r.ok })
+      } catch (e) {
+        mal += 1
+        actualizar(inf.id, { estado: 'error', mensaje: mensajeDe(e, 'No se pudo enviar este informe.') })
+      }
     }
+    setEnviando(false)
+    recargarHistorial()
+    if (bien === 1 && mal === 0) setExito(ultimo)
+    else if (bien > 0) setExito(`${bien} ${bien === 1 ? 'informe enviado' : 'informes enviados'}${mal ? `, ${mal} con error` : ''}.`)
+    if (mal > 0 && bien === 0) setError('No se pudo enviar ningún informe. Revisa el mensaje de cada uno.')
   }
 
-  const enProduccion = estado?.modo === 'produccion'
-  const hayEspecies = !!plan && plan.especies.length > 0
+  const motivos = pendientes.map((i) => motivoBloqueo(i)).filter(Boolean)
+  const etiquetaEnviar = enviando
+    ? 'Enviando…'
+    : enProduccion
+      ? `Enviar a clientes${listos.length > 1 ? ` (${listos.length})` : ''}`
+      : `Enviar prueba${listos.length > 1 ? ` (${listos.length})` : ''}`
 
   return (
     <div className={styles.vista}>
       <Header
         title="Envío de informes"
-        description="Sube el informe del laboratorio, elige la planta y envíalo a su lista de distribución."
+        description="Sube los informes del laboratorio: el sistema lee la planta y los envía a su lista de distribución."
         acciones={
           <>
             <Link to={ROUTES.agrofreshLab} className={styles.volver}>← AgroFresh Lab</Link>
@@ -264,110 +252,56 @@ export function EnvioInformesView() {
 
       <div className={styles.espacio}>
         <div className={styles.columna}>
-          <Paso numero={1} titulo="Informe" ayuda="El archivo que entregó el laboratorio. Puedes subir varios en un mismo correo.">
-            <ZonaArchivos archivos={archivos} onChange={setArchivos} deshabilitado={enviando} />
-          </Paso>
-
-          <Paso numero={2} titulo="Cliente y planta" ayuda="Con el Sold To y el Ship To se busca la lista de distribución.">
-            <div className={styles.rejilla}>
-              <label className={styles.campoSelect}>
-                <span>Laboratorio</span>
-                <select value={laboratorio} onChange={(e) => setLaboratorio(e.target.value)}>
-                  {(estado?.laboratorios ?? []).map((l) => <option key={l} value={l}>{l}</option>)}
-                </select>
-              </label>
-              <BuscableSelect
-                etiqueta="Sold To"
-                opciones={clientes}
-                valor={soldTo}
-                onChange={elegirSoldTo}
-                placeholderTodos="— elegir cliente —"
-              />
-              <BuscableSelect
-                etiqueta="Ship To"
-                opciones={plantasDelCliente}
-                valor={shipTo}
-                onChange={elegirShipTo}
-                placeholderTodos={soldTo ? '— elegir planta —' : '— elige primero Sold To —'}
-                disabled={!soldTo}
-              />
-              {hayEspecies && (
-                <label className={styles.campoSelect}>
-                  <span>Especie de la lista</span>
-                  <select value={especie} onChange={(e) => setEspecie(e.target.value)}>
-                    <option value="">Lista general</option>
-                    {plan!.especies.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </label>
-              )}
-            </div>
-            {hayEspecies && !especie && plan!.sin_lista && (
-              <p className={styles.aviso}>
-                Esta planta tiene listas por especie y ninguna general. Elige la especie del informe.
-              </p>
-            )}
-          </Paso>
-
           <Paso
-            numero={3}
-            titulo="Destinatarios"
-            ayuda="Lo que propone el sistema. Puedes quitar, agregar o pegar correos; el cambio vale solo para este envío."
+            numero={1}
+            titulo="Informes"
+            ayuda="Sube uno o varios PDF. Cada uno se envía como un correo aparte."
+            acciones={
+              <span className={styles.laboratorioFijo} title="Por ahora el laboratorio es siempre AGROFRESH">
+                <span aria-hidden="true">🔒</span> Laboratorio: <strong>{laboratorio}</strong>
+              </span>
+            }
           >
-            {soldTo && shipTo && plan?.sin_lista && !cargandoPlan && para.length === 0 && (
-              <p className={styles.aviso}>
-                Esta planta no tiene lista de distribución de resultados. Escribe los correos en Para o elige otra
-                planta{hayEspecies ? ' o especie' : ''}.
-              </p>
-            )}
-            <ListaCorreos
-              etiqueta="Para"
-              valor={para}
-              onChange={setPara}
-              alerta={!!soldTo && !!shipTo && para.length === 0}
-              ayuda={soldTo && shipTo ? 'Lista de distribución de la planta.' : 'Elige el Sold To y el Ship To para cargar la lista.'}
-            />
-            <ListaCorreos etiqueta="Copia (CC)" valor={cc} onChange={setCc} />
-            <ListaCorreos etiqueta="Copia oculta (CCO)" valor={bcc} onChange={setBcc} />
-            {listaEditada && plan && (
-              <button
-                type="button"
-                className={styles.enlace}
-                onClick={() => { setPara(plan.to); setCc(plan.cc); setBcc(plan.bcc) }}
-              >
-                Volver a la lista del sistema
-              </button>
-            )}
+            <ZonaArchivos onAgregar={(a) => void agregar(a)} deshabilitado={enviando} leyendo={leyendo} />
           </Paso>
 
-          <Paso numero={4} titulo="Mensaje" ayuda="Parte con la plantilla del laboratorio. Edítalo aquí solo para este envío.">
-            <label className={styles.campoTexto}>
-              <span>Asunto</span>
-              <input
-                value={asuntoManual ?? vista?.asunto_base ?? ''}
-                disabled={!vista}
-                placeholder="Elige Sold To y Ship To"
-                onChange={(e) => setAsuntoManual(e.target.value)}
-              />
-            </label>
-            <label className={styles.campoTexto}>
-              <span>Texto del correo</span>
-              <textarea
-                rows={9}
-                value={cuerpoManual ?? vista?.texto_base ?? ''}
-                disabled={!vista}
-                onChange={(e) => setCuerpoManual(e.target.value)}
-              />
-            </label>
-            {(asuntoManual !== null || cuerpoManual !== null) && (
-              <button
-                type="button"
-                className={styles.enlace}
-                onClick={() => { setAsuntoManual(null); setCuerpoManual(null) }}
-              >
-                Volver a la plantilla
-              </button>
-            )}
-          </Paso>
+          {informes.length > 0 && (
+            <Paso
+              numero={2}
+              titulo={`Revisar y enviar (${informes.length})`}
+              ayuda="Elige un informe para ver su correo. El Sold To, el Ship To y la especie se leen del PDF para escoger la lista."
+              acciones={hayEnviados ? (
+                <button
+                  type="button"
+                  className={styles.enlace}
+                  onClick={() => setInformes((l) => l.filter((i) => i.estado !== 'enviado'))}
+                >
+                  Quitar los enviados
+                </button>
+              ) : undefined}
+            >
+              <ul className={styles.informes}>
+                {informes.map((inf) => (
+                  <TarjetaInforme
+                    key={inf.id}
+                    informe={inf}
+                    seleccionado={inf.id === seleccionId}
+                    desbloqueado={desbloqueado}
+                    clientes={clientes}
+                    plantas={plantas}
+                    asuntoBase={inf.id === seleccionId && vista ? vista.asunto_base : ''}
+                    textoBase={inf.id === seleccionId && vista ? vista.texto_base : ''}
+                    ocupado={enviando}
+                    onSeleccionar={() => setSeleccionId(inf.id)}
+                    onCambio={(p) => actualizar(inf.id, p)}
+                    onDatos={(s, sh, e) => cambiarDatos(inf.id, s, sh, e)}
+                    onQuitar={() => quitar(inf.id)}
+                    onPedirClave={() => setPidiendoClave(true)}
+                  />
+                ))}
+              </ul>
+            </Paso>
+          )}
         </div>
 
         <aside className={styles.columnaDer} aria-label="Vista previa del correo">
@@ -378,14 +312,14 @@ export function EnvioInformesView() {
                 {enProduccion ? 'Producción' : 'Prueba'}
               </span>
             </header>
-            {vista ? (
+            {vista && seleccionado ? (
               <>
                 <dl className={styles.cabecerasCorreo}>
                   <dt>Para</dt><dd>{vista.efectivos.to.join(', ') || '—'}</dd>
                   {vista.efectivos.cc.length > 0 && (<><dt>CC</dt><dd>{vista.efectivos.cc.join(', ')}</dd></>)}
                   {vista.efectivos.bcc.length > 0 && (<><dt>CCO</dt><dd>{vista.efectivos.bcc.join(', ')}</dd></>)}
                   <dt>Asunto</dt><dd className={styles.asuntoVista}>{vista.asunto}</dd>
-                  <dt>Adjuntos</dt><dd>{nombresArchivos.length ? nombresArchivos.join(', ') : 'Aún no hay archivos'}</dd>
+                  <dt>Adjunto</dt><dd>{seleccionado.archivo.name}</dd>
                 </dl>
                 <iframe
                   className={styles.marcoCorreo}
@@ -396,30 +330,37 @@ export function EnvioInformesView() {
               </>
             ) : (
               <p className={styles.vacio}>
-                {errorVista ?? 'Elige el Sold To y el Ship To para ver cómo saldrá el correo.'}
+                {errorVista ?? (informes.length
+                  ? 'Elige un informe para ver cómo saldrá su correo.'
+                  : 'Sube un informe para ver cómo saldrá el correo.')}
               </p>
             )}
           </div>
 
           <div className={styles.barraEnvio}>
             <div className={styles.resumenEnvio}>
-              {puedeEnviar ? (
+              {listos.length > 0 ? (
                 <p>
-                  {enProduccion ? 'Saldrá a ' : 'Se probará con '}
-                  <strong>{(vista?.efectivos.to.length ?? para.length)} {(vista?.efectivos.to.length ?? para.length) === 1 ? 'destinatario' : 'destinatarios'}</strong>
-                  {' · '}
-                  <strong>{archivos.length} {archivos.length === 1 ? 'archivo' : 'archivos'}</strong>
+                  {enProduccion ? 'Saldrán ' : 'Se probarán '}
+                  <strong>{listos.length} {listos.length === 1 ? 'informe' : 'informes'}</strong>
+                  {pendientes.length > listos.length && (
+                    <span className={styles.faltan}> · {pendientes.length - listos.length} sin revisar</span>
+                  )}
                 </p>
               ) : (
-                <p className={styles.faltan}>Para enviar: {faltantes.join('; ')}.</p>
+                <p className={styles.faltan}>
+                  {informes.length === 0
+                    ? 'Para enviar: sube al menos un informe.'
+                    : motivos[0] ?? 'No hay informes listos para enviar.'}
+                </p>
               )}
             </div>
             <Button
-              onClick={() => (enProduccion ? setConfirmando(true) : void enviar())}
-              disabled={!puedeEnviar}
+              onClick={() => (enProduccion ? setConfirmando(true) : void enviarTodos())}
+              disabled={listos.length === 0 || enviando || !estado}
               className={styles.botonEnviar}
             >
-              {enviando ? 'Enviando…' : enProduccion ? 'Enviar a clientes' : 'Enviar prueba'}
+              {etiquetaEnviar}
             </Button>
           </div>
         </aside>
@@ -431,8 +372,10 @@ export function EnvioInformesView() {
           <ConfiguracionEnvio
             estado={estado}
             laboratorio={laboratorio}
+            bloqueado={!desbloqueado}
             onLaboratorio={setLaboratorio}
             onEstado={setEstado}
+            onPedirClave={() => setPidiendoClave(true)}
           />
         </details>
       )}
@@ -442,26 +385,35 @@ export function EnvioInformesView() {
         <HistorialEnvios historial={historial} />
       </section>
 
+      {pidiendoClave && (
+        <DesbloqueoEdicion
+          onCerrar={() => setPidiendoClave(false)}
+          onDesbloqueado={() => { setDesbloqueado(true); setPidiendoClave(false) }}
+        />
+      )}
+
       {confirmando && (
         <Modal
-          titulo="Enviar a clientes"
-          subtitulo="El sistema está en producción: este correo llegará a las personas de abajo."
+          titulo={`Enviar ${listos.length === 1 ? 'a clientes' : `${listos.length} informes a clientes`}`}
+          subtitulo="El sistema está en producción: cada correo llegará a las personas que se indican."
           onCerrar={() => setConfirmando(false)}
           pie={
             <>
               <Button variant="secondary" onClick={() => setConfirmando(false)}>Cancelar</Button>
-              <Button onClick={() => void enviar()}>Enviar a clientes</Button>
+              <Button onClick={() => void enviarTodos()}>Enviar a clientes</Button>
             </>
           }
         >
-          <dl className={styles.confirmacion}>
-            <dt>Planta</dt><dd>{soldTo} · {shipTo}{especie ? ` · ${especie}` : ''}</dd>
-            <dt>Para</dt><dd>{para.join(', ')}</dd>
-            {cc.length > 0 && (<><dt>CC</dt><dd>{cc.join(', ')}</dd></>)}
-            {bcc.length > 0 && (<><dt>CCO</dt><dd>{bcc.join(', ')}</dd></>)}
-            <dt>Asunto</dt><dd>{vista?.asunto}</dd>
-            <dt>Archivos</dt><dd>{nombresArchivos.join(', ')}</dd>
-          </dl>
+          <ul className={styles.resumenConfirmacion}>
+            {listos.map((i) => (
+              <li key={i.id}>
+                <strong>{i.shipTo}</strong> <span className={styles.celdaSub}>{i.soldTo}{i.especie ? ` · ${i.especie}` : ''}</span>
+                <span className={styles.confirmaPara}>Para: {i.para.join(', ')}</span>
+                {i.cc.length > 0 && <span className={styles.confirmaPara}>CC: {i.cc.join(', ')}</span>}
+                {i.bcc.length > 0 && <span className={styles.confirmaPara}>CCO: {i.bcc.join(', ')}</span>}
+              </li>
+            ))}
+          </ul>
         </Modal>
       )}
     </div>

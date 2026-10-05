@@ -1,5 +1,6 @@
 import { httpClient } from '@/services/http/client'
 import type {
+  AnalisisLote,
   DatosCorreo,
   EstadoEnvio,
   Historial,
@@ -26,9 +27,21 @@ export function guardarInternos(internos: Internos) {
   return httpClient.put<EstadoEnvio>(`${BASE}/internos`, internos)
 }
 
-export function obtenerPlanDestinatarios(soldTo: string, shipTo: string, especie: string) {
-  const qs = new URLSearchParams({ sold_to: soldTo, ship_to: shipTo, especie })
+export function obtenerPlanDestinatarios(soldTo: string, shipTo: string, especie: string, servicio = '') {
+  const qs = new URLSearchParams({ sold_to: soldTo, ship_to: shipTo, especie, servicio })
   return httpClient.get<PlanDestinatarios>(`${BASE}/lista?${qs.toString()}`)
+}
+
+/** Lee cada PDF (Sold To, Ship To, especie, servicio) y propone su lista. No envía nada. */
+export function analizarInformes(archivos: File[]) {
+  const form = new FormData()
+  for (const archivo of archivos) form.append('archivos', archivo, archivo.name)
+  return httpClient.upload<AnalisisLote>(`${BASE}/analizar`, form)
+}
+
+/** Solo el administrador principal, con su contraseña. */
+export function desbloquearEdicion(password: string) {
+  return httpClient.post<{ ok: boolean }>(`${BASE}/desbloquear`, { password })
 }
 
 export function obtenerTemplateInforme(laboratorio: string) {

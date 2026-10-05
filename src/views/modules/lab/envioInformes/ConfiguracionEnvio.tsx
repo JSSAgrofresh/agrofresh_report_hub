@@ -15,8 +15,11 @@ import styles from './EnvioInformes.module.css'
 interface ConfiguracionEnvioProps {
   estado: EstadoEnvio
   laboratorio: string
+  /** Laboratorio fijo: cambiarlo lo habilita solo el administrador principal. */
+  bloqueado: boolean
   onLaboratorio: (laboratorio: string) => void
   onEstado: (estado: EstadoEnvio) => void
+  onPedirClave: () => void
 }
 
 type Pestana = 'plantilla' | 'internos'
@@ -24,7 +27,9 @@ type Pestana = 'plantilla' | 'internos'
 /** Lo que Paz puede configurar sin pedirle nada a nadie: la plantilla del
  * correo de cada laboratorio (el mismo editor de Administración → Laboratorios)
  * y las copias internas que se proponen en cada envío. */
-export function ConfiguracionEnvio({ estado, laboratorio, onLaboratorio, onEstado }: ConfiguracionEnvioProps) {
+export function ConfiguracionEnvio({
+  estado, laboratorio, bloqueado, onLaboratorio, onEstado, onPedirClave,
+}: ConfiguracionEnvioProps) {
   const [pestana, setPestana] = useState<Pestana>('plantilla')
   const [error, setError] = useState<string | null>(null)
   const [internos, setInternos] = useState<Internos>(estado.internos)
@@ -77,13 +82,18 @@ export function ConfiguracionEnvio({ estado, laboratorio, onLaboratorio, onEstad
         <div className={styles.configCuerpo}>
           <label className={styles.campoSelect}>
             <span>Laboratorio</span>
-            <select value={laboratorio} onChange={(e) => onLaboratorio(e.target.value)}>
+            <select value={laboratorio} disabled={bloqueado} onChange={(e) => onLaboratorio(e.target.value)}>
               {estado.laboratorios.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </label>
+          {bloqueado && (
+            <button type="button" className={styles.enlace} onClick={onPedirClave}>
+              Habilitar con clave
+            </button>
+          )}
           <p className={styles.ayudaCampo}>
-            Es el punto de partida de cada correo de este laboratorio. Antes de enviar puedes corregir el asunto y el
-            texto solo para ese envío. Las variables se reemplazan con los datos de la planta y del archivo.
+            Es la plantilla única de todos los informes. Para cambiar un correo en particular usa «Editar este
+            correo» en el informe. Las variables se reemplazan con los datos de la planta y del archivo.
           </p>
           <div className={adminStyles.templatePanel}>
             <TemplateMailEditor

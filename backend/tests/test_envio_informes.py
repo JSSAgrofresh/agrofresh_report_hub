@@ -379,3 +379,139 @@ def test_acceso_rechaza_con_403():
     with pytest.raises(HTTPException) as exc:
         ei.acceso(_usuario("gerencia", None))
     assert exc.value.status_code == 403
+
+
+# --- Lectura del PDF, servicio y bloqueo ---------------------------------------
+
+def _pdf_informe(sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA", especie="Naranja",
+                 tipo="Línea de proceso") -> bytes:
+    from app.informe_pdf import generar_informe_pdf
+
+    campos = {
+        "Solicitante": "AGROFRESH", "Sold To (Nombre)": sold_to, "Ship To (Nombre)": ship_to,
+        "N° Solicitud": "OT-AGF0075", "Generado Por": "X", "Fecha Solicitud": "01-10-2026",
+        "Tipo Muestra": "Fruta", "Tipo Aplicación": tipo, "Especie": especie, "Variedad": "Navel",
+    }
+    return generar_informe_pdf(campos, [], {}, None, None, "F1", "A", "B", "C", "D")
+
+
+def test_el_texto_del_informe_da_sold_to_ship_to_especie_y_tipo():
+    from app import informe_lectura as il
+
+    texto = (
+        "Identificación de la Solicitud\nSOLICITANTE\nAGROFRESH\nN° SOLICITUD\nOT-AGF0075\nSOLD TO\nMULTIFRUTA SA\n"
+        "GENERADO POR\nX\nSHIP TO\nGESEX PLANTA FATIMA\nFECHA SOLICITUD\n01-10-2026\n"
+        "TIPO APLICACIÓN\nLínea de proceso\nMUESTREADOR\n—\nESPECIE\nNaranja\nFECHA MUESTREO\n—\n"
+    )
+    d = il.datos_de_informe(texto)
+    assert d["sold_to"] == "MULTIFRUTA SA" and d["ship_to"] == "GESEX PLANTA FATIMA"
+    assert d["especie"] == "Naranja" and d["tipo_aplicacion"] == "Línea de proceso"
+    assert d["numero_solicitud"] == "OT-AGF0075" and d["servicio"] == ""
+
+
+def test_valores_vacios_y_en_la_misma_linea():
+    from app import informe_lectura as il
+
+    d = il.parsear_texto("SOLD TO ACME SA\nSHIP TO\n—\nESPECIE\nFECHA MUESTREO\n—")
+    assert d["sold_to"] == "ACME SA"          # «SOLD TO ACME SA» en una sola línea
+    assert d["ship_to"] == ""                 # «—» es sin dato
+    assert d["especie"] == ""                 # lo que sigue es otra etiqueta, no su valor
+
+
+def test_un_valor_largo_partido_en_dos_lineas():
+    from app import informe_lectura as il
+
+    d = il.parsear_texto("SHIP TO\nCOMERCIALIZADORA GARATE HERMANOS\nPLANTA CODEGUA\nFECHA SOLICITUD\n01-10-2026")
+    assert d["ship_to"] == "COMERCIALIZADORA GARATE HERMANOS PLANTA CODEGUA"
+
+
+def test_el_servicio_sale_del_tipo_de_aplicacion():
+    from app import informe_lectura as il
+
+    assert il.datos_de_informe("TIPO APLICACIÓN\nActimist\nESPECIE\nUva")["servicio"] == "actimist"
+    assert il.datos_de_informe("TIPO APLICACIÓN\nRYD\nESPECIE\nUva")["servicio"] == ""
+
+
+def test_la_lista_es_la_del_servicio_del_informe(entorno):
+    config_store.escribir("contactos_laboratorio.json", [
+        _contacto("lp@dole.cl"),
+        {**_contacto("act@dole.cl"), "servicio": "actimist"},
+        {**_contacto("eco@dole.cl"), "servicio": "ecofog"},
+    ])
+    assert ei.lista_del_cliente("DOLE", "SAN FERNANDO") == ["lp@dole.cl"]
+    assert ei.lista_del_cliente("DOLE", "SAN FERNANDO", servicio="Actimist") == ["act@dole.cl"]
+    assert ei.lista_del_cliente("DOLE", "SAN FERNANDO", servicio="ecofog") == ["eco@dole.cl"]
+    assert ei.lista_del_cliente("DOLE", "SAN FERNANDO", servicio="RYD") == ["lp@dole.cl"]
+
+
+def _subir(*pdfs, usuario=None):
+    archivos = [UploadFile(file=io.BytesIO(c), filename=n) for n, c in pdfs]
+    return asyncio.run(ei.analizar_informes(archivos=archivos, usuario=usuario or _usuario()))
+
+
+def test_analizar_varios_informes_cada_uno_con_su_lista(entorno):
+    pytest.importorskip("pypdf")
+    config_store.escribir("contactos_laboratorio.json", [
+        _contacto("a@multifruta.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA"),
+        _contacto("b@dole.cl"),
+    ])
+    out = _subir(
+        ("uno.pdf", _pdf_informe()),
+        ("dos.pdf", _pdf_informe(sold_to="DOLE", ship_to="SAN FERNANDO", especie="Cereza")),
+        ("tres.pdf", _pdf_informe(sold_to="OTRO", ship_to="SIN LISTA")),
+        ("malo.pdf", b"%PDF-1.4 vacio"),
+        ("texto.txt", b"hola"),
+    )
+    uno, dos, tres, malo, txt = out["items"]
+    assert uno["leido"] and uno["sold_to"] == "MULTIFRUTA SA" and uno["plan"]["to"] == ["a@multifruta.cl"]
+    assert dos["plan"]["to"] == ["b@dole.cl"] and dos["especie"] == "Cereza"
+    assert tres["leido"] and tres["plan"]["sin_lista"] is True and tres["plan"]["to"] == []
+    assert not malo["leido"] and malo["error"]
+    assert not txt["leido"] and "PDF" in txt["error"]
+    assert entorno == []  # analizar no envía nada
+
+
+def test_analizar_sin_archivos_o_de_mas(entorno, monkeypatch):
+    with pytest.raises(HTTPException):
+        _subir()
+    monkeypatch.setattr(ei, "MAX_INFORMES_LOTE", 1)
+    with pytest.raises(HTTPException):
+        _subir(("a.pdf", PDF), ("b.pdf", PDF))
+
+
+def test_sin_pypdf_se_avisa_y_no_se_cae(entorno, monkeypatch):
+    from app import informe_lectura as il
+
+    def falta(_):
+        raise il.LecturaNoDisponible("Falta instalar pypdf en el servidor.")
+
+    monkeypatch.setattr(il, "leer_pdf", falta)
+    out = _subir(("a.pdf", PDF))
+    assert out["disponible"] is False and "pypdf" in out["items"][0]["error"]
+
+
+PRINCIPAL = dict(email="jorge.sandoval@agrofresh.com", nombre="Jorge", tipo="admin_general", area=None)
+
+
+def _principal() -> Usuario:
+    return Usuario(id="1", email=PRINCIPAL["email"], nombre="Jorge", tipoAcceso="admin_general")
+
+
+def test_solo_el_principal_con_su_clave_desbloquea(entorno, monkeypatch):
+    monkeypatch.setattr(ei, "_clave_correcta", lambda usuario, password: password == "buena")
+    for quien in (_usuario(), _usuario("admin_general", None)):  # Paz, y otro admin general
+        with pytest.raises(HTTPException) as exc:
+            ei.desbloquear_edicion(ei.DesbloqueoIn(password="buena"), quien)
+        assert exc.value.status_code == 403
+    with pytest.raises(HTTPException) as exc:
+        ei.desbloquear_edicion(ei.DesbloqueoIn(password="mala"), _principal())
+    assert exc.value.status_code == 403 and "Contraseña" in exc.value.detail
+    assert ei.desbloquear_edicion(ei.DesbloqueoIn(password="buena"), _principal()) == {"ok": True}
+
+
+def test_otro_laboratorio_solo_lo_envia_el_principal(entorno):
+    with pytest.raises(HTTPException) as exc:
+        _enviar(laboratorio="QUITECA")
+    assert exc.value.status_code == 403 and entorno == []
+    _enviar(laboratorio="QUITECA", usuario=_principal())
+    assert len(entorno) == 1

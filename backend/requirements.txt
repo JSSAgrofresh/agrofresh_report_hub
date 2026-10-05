@@ -18,3 +18,4 @@ tzdata>=2024.1; sys_platform == "win32"
 # openpyxl la necesita para medir el logo que va en el Excel del detalle
 # del GC. Sin ella el Excel sale igual, pero sin logo.
 pillow>=10.0
+pypdf>=4.0
