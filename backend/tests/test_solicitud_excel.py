@@ -365,9 +365,14 @@ def test_excel_con_muestra_lleva_los_fortificados_en_su_propia_hoja(monkeypatch)
     wb = openpyxl.load_workbook(io.BytesIO(asyncio.run(_leer())))
     assert wb.sheetnames == ["Estándar", "Fortificados"]
     ws = wb["Fortificados"]
-    assert [c.value for c in ws[1]] == ["N° Fortificado", "Peso extraído (g)", "Fecha ingreso", "Hora ingreso"]
-    assert [c.value for c in ws[2]] == ["F-001", 10.0086, "05-10-2026", "09:13"]
-    assert [c.value for c in ws[3]] == ["F-002", 9.9, "06-10-2026", "16:42"]
+    assert [c.value for c in ws[2]] == ["N° Fortificado", "Peso extraído (g)", "Fecha ingreso", "Hora ingreso"]
+    assert [c.value for c in ws[3]] == ["F-001", 10.0086, "05-10-2026", "09:13"]
+    assert [c.value for c in ws[4]] == ["F-002", 9.9, "06-10-2026", "16:42"]
+    # Mismo diseño que la hoja Estándar: encabezado verde oscuro, banda y filtro.
+    assert ws["A2"].fill.fgColor.rgb.endswith("3D6B1F") and ws["A2"].font.color.rgb.endswith("FFFFFF")
+    assert ws["A1"].fill.fgColor.rgb.endswith("EBF5E1")
+    assert wb["Estándar"]["A2"].fill.fgColor.rgb == ws["A2"].fill.fgColor.rgb
+    assert ws.auto_filter.ref == "A2:D4" and not ws.tables
     # La hoja estándar sigue siendo la de siempre.
     assert wb["Estándar"]["A2"].value is not None
 
@@ -385,4 +390,4 @@ def test_excel_con_muestra_sin_fortificados_deja_la_hoja_con_encabezados_y_una_f
         return b"".join([c async for c in r.body_iterator])
 
     wb = openpyxl.load_workbook(io.BytesIO(asyncio.run(_leer())))
-    assert [c.value for c in wb["Fortificados"][2]] == [None] * 4
+    assert [c.value for c in wb["Fortificados"][3]] == [None] * 4

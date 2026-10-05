@@ -33,6 +33,9 @@ from .informe_pdf import generar_informe_pdf
 from .laboratorios import _leer_analitos as _leer_analitos_lab
 from .mapeo import LABORATORIO_CATALOGO, calcular_semana
 from .solicitud_excel import (
+    VERDE_CLARO,
+    VERDE_OSCURO,
+    _BORDE_COMPLETO,
     CAMPOS_GENERALES_ETIQUETAS,
     _analitos_fungicidas,
     _valor_guardado,
@@ -1385,23 +1388,54 @@ class FilaConMuestraIn(BaseModel):
 
 def _agregar_hoja_fortificados(wb: openpyxl.Workbook, filas: list[dict]) -> None:
     """Segunda hoja de la base: los fortificados ingresados (N°, peso extraído,
-    fecha y hora de ingreso). Va como tabla de Excel, que ya trae su filtro: no se
-    le pone autofiltro aparte (el archivo saldría roto)."""
+    fecha y hora de ingreso). Mismo diseño que la hoja Estándar (banda verde
+    arriba, encabezado verde oscuro con filtro, bordes, sin cuadrícula). Lleva
+    autofiltro y NO tabla de Excel: las dos juntas dejan el archivo roto."""
     ws = wb.create_sheet("Fortificados")
     encabezados = ["N° Fortificado", "Peso extraído (g)", "Fecha ingreso", "Hora ingreso"]
-    ws.append(encabezados)
-    for f in filas:
-        anio, mes, dia = (f["fecha_ingreso"] or "--").split("-") if f.get("fecha_ingreso") else ("", "", "")
-        fecha = f"{dia}-{mes}-{anio}" if anio else ""
-        ws.append([f["numero"], f["peso_extraido"], fecha, f.get("hora_ingreso") or ""])
-    for col in range(1, len(encabezados) + 1):
+    n = len(encabezados)
+
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n)
+    for col in range(1, n + 1):
+        celda = ws.cell(row=1, column=col)
+        celda.fill = PatternFill("solid", fgColor=VERDE_CLARO)
+        celda.border = _BORDE_COMPLETO
+    banda = ws.cell(row=1, column=1, value="FORTIFICADOS")
+    banda.font = Font(bold=True, size=10, color=VERDE_OSCURO)
+    banda.alignment = Alignment(horizontal="center", vertical="center")
+
+    for col, texto in enumerate(encabezados, start=1):
+        c = ws.cell(row=2, column=col, value=texto)
+        c.font = Font(bold=True, size=9, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor=VERDE_OSCURO)
+        c.border = _BORDE_COMPLETO
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 36
+
+    for i, f in enumerate(filas, start=3):
+        fecha = ""
+        if f.get("fecha_ingreso"):
+            anio, mes, dia = f["fecha_ingreso"].split("-")
+            fecha = f"{dia}-{mes}-{anio}"
+        for col, valor in enumerate([f["numero"], f["peso_extraido"], fecha, f.get("hora_ingreso") or ""], start=1):
+            c = ws.cell(row=i, column=col, value=valor if valor != "" else None)
+            c.border = _BORDE_COMPLETO
+            c.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+        ws.cell(row=i, column=2).number_format = "0.0000"
+        ws.row_dimensions[i].height = 24
+
+    for col in range(1, n + 1):
         ws.column_dimensions[get_column_letter(col)].width = 20
-    for fila in ws.iter_rows(min_row=2, min_col=2, max_col=2):
-        fila[0].number_format = "0.0000"
-    ws.freeze_panes = "A2"
-    tabla = Table(displayName="TablaFortificados", ref=f"A1:D{max(len(filas) + 1, 2)}")  # Excel no admite una tabla sin fila de datos
-    tabla.tableStyleInfo = TableStyleInfo(name="TableStyleMedium4", showRowStripes=True)
-    ws.add_table(tabla)
+    ultima = max(2, ws.max_row)
+    ws.freeze_panes = "A3"
+    ws.auto_filter.ref = f"A2:{ws.cell(row=ultima, column=n).coordinate}"
+    ws.sheet_view.showGridLines = False
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.page_setup.orientation = "landscape"
+    ws.print_title_rows = "1:2"
 
 
 @router.post("/excel-con-muestra")
