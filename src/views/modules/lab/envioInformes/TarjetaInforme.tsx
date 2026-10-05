@@ -88,6 +88,11 @@ export function TarjetaInforme({
           Esta solicitud no tiene lista de distribución del cliente: va a la lista de respaldo ({informe.para.join(', ')}).
         </p>
       )}
+      {informe.plan?.origen === 'planta' && informe.estado === 'listo' && (
+        <p className={styles.informeAviso}>
+          No encontré la solicitud de este informe: la lista sale del Sold To y el Ship To leídos del PDF.
+        </p>
+      )}
       {informe.estado === 'error' && informe.mensaje && <p className={styles.informeError}>{informe.mensaje}</p>}
       {informe.estado === 'enviado' && informe.mensaje && <p className={styles.informeOk}>{informe.mensaje}</p>}
 

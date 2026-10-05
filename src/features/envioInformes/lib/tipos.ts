@@ -24,8 +24,8 @@ export interface PlanDestinatarios {
   cc: string[]
   bcc: string[]
   sin_lista: boolean
-  /** `solicitud` = la lista de la solicitud del informe; si no, la de la planta. */
-  origen?: 'solicitud'
+  /** `solicitud` = la lista de la solicitud del informe; `planta` = la que daría una solicitud de ese Sold To / Ship To. */
+  origen?: 'solicitud' | 'planta'
   /** Especies para las que la planta tiene lista propia. */
   especies: string[]
 }

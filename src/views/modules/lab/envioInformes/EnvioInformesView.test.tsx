@@ -121,7 +121,10 @@ describe('EnvioInformesView', () => {
 
     await waitFor(() => expect(api.enviarInforme).toHaveBeenCalledTimes(2))
     const [primero, segundo] = api.enviarInforme.mock.calls
-    expect(primero[0]).toMatchObject({ laboratorio: 'AGROFRESH', ship_to: 'SAN FERNANDO', para: ['a@dole.cl'] })
+    // Para, CC y CCO tal como los propuso el sistema (la lista de la solicitud más las copias del módulo)
+    expect(primero[0]).toMatchObject({
+      laboratorio: 'AGROFRESH', ship_to: 'SAN FERNANDO', para: ['a@dole.cl'], cc: [], bcc: ['psalazar@agrofresh.com'],
+    })
     expect(segundo[0]).toMatchObject({ ship_to: 'LONTUE', para: ['b@dole.cl', 'b2@dole.cl'] })
     expect(primero[1].map((f: File) => f.name)).toEqual(['a.pdf'])
     expect(await screen.findByText('2 informes enviados.')).toBeTruthy()

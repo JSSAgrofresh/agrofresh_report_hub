@@ -1,20 +1,17 @@
 """
 AgroFresh Lab → Envío de informes.
 
-Paz sube el PDF de un informe, elige el Sold To y el Ship To, y el sistema lo
-manda por correo a la lista de distribución de resultados de esa planta, con
-la plantilla del laboratorio.
+Paz sube el PDF de un informe, el sistema lo reconoce por su N° de solicitud y lo
+manda por correo a la lista de distribución de resultados de esa solicitud, con
+la plantilla del correo.
 
 Reglas (decisión del usuario, 05-10-2026):
 
-  - **Para** = los contactos de «Resultado a clientes» de ESA planta (la lista de
-    Línea de proceso). Se buscan por Sold To + Ship To + especie, sin los
-    respaldos de la solicitud (ni el global ni «solo Ship To»): un informe de un
-    cliente nunca debe caer en la lista de otro.
-  - **No** se agregan los técnicos, comerciales, Jorge ni Claudia de la lista
-    interna de la planta. Las copias internas son las de este módulo
-    (`internos`: hoy Paz y Jorge en copia oculta, editables) y no tocan la base
-    ni los contactos de los laboratorios.
+  - **La lista de distribución es la de la SOLICITUD del informe, tal cual**: Para,
+    Copia y Copia oculta que lleva su PDF y su JSON (`plan_desde_solicitud`, con la
+    misma función, su servicio y su regla de «sin lista»). Encima se SUMAN las
+    copias internas de este módulo (`internos`: hoy Paz y Jorge en copia oculta,
+    editables). Nada de esto toca la base ni los contactos de los laboratorios.
   - **Modo prueba / producción**. Parte siempre en PRUEBA: todo lo que se envía
     llega solo a `DESTINATARIOS_PRUEBA`, con «(PRUEBA)» en el asunto y un aviso
     arriba que dice a quién habría ido de verdad. Pasar a producción pide la
@@ -174,58 +171,6 @@ def _exigir_laboratorio(laboratorio: str) -> str:
 # A quién va
 # ---------------------------------------------------------------------------
 
-def _contactos_cliente(
-    sold_to: str, ship_to: str, contactos: list[dict], servicio: str = "",
-) -> list[dict]:
-    """Los contactos de «Resultado a clientes» activos de UNA planta: mismo Sold
-    To y mismo Ship To, sin tildes ni mayúsculas, y del MISMO servicio (Línea de
-    proceso, Actimist o Ecofog: cada uno tiene su propia lista). Nada de respaldos."""
-    st, sh = clave_normalizada(sold_to), clave_normalizada(ship_to)
-    serv = clave_servicio(servicio)
-    if not st or not sh:
-        return []
-    return [
-        c for c in contactos
-        if c.get("tipo") == "resultado_cliente"
-        and clave_servicio(c.get("servicio")) == serv
-        and c.get("activo", True)
-        and str(c.get("email") or "").strip()
-        and clave_normalizada(c.get("sold_to") or "") == st
-        and clave_normalizada(c.get("ship_to") or "") == sh
-    ]
-
-
-def especies_con_lista(
-    sold_to: str, ship_to: str, contactos: list[dict] | None = None, servicio: str = "",
-) -> list[str]:
-    """Especies para las que esta planta tiene lista propia (las que se pueden elegir)."""
-    if contactos is None:
-        contactos = config_store.leer(ARCHIVO_CONTACTOS, [])
-    vistas: dict[str, str] = {}
-    for c in _contactos_cliente(sold_to, ship_to, contactos, servicio):
-        especie = str(c.get("especie") or "").strip()
-        if especie:
-            vistas.setdefault(clave_normalizada(especie), especie)
-    return sorted(vistas.values(), key=str.casefold)
-
-
-def lista_del_cliente(
-    sold_to: str, ship_to: str, especie: str = "", contactos: list[dict] | None = None,
-    servicio: str = "",
-) -> list[str]:
-    """El Para de la planta. Si hay una lista para la especie, vale esa; si no,
-    la que no distingue especie. Sin especie elegida, solo la general."""
-    if contactos is None:
-        contactos = config_store.leer(ARCHIVO_CONTACTOS, [])
-    pool = _contactos_cliente(sold_to, ship_to, contactos, servicio)
-    esp = clave_normalizada(especie or "")
-    elegidos = [c for c in pool if esp and clave_normalizada(c.get("especie") or "") == esp]
-    if not elegidos:
-        elegidos = [c for c in pool if not clave_normalizada(c.get("especie") or "")]
-    elegidos.sort(key=lambda c: c.get("orden", 0))
-    return _limpiar_correos([c["email"] for c in elegidos])
-
-
 def repartir(para: list[str], cc: list[str], bcc: list[str]) -> dict[str, list[str]]:
     """Nadie va dos veces: quien está en Para no se repite en copia, ni en oculta."""
     para = _limpiar_correos(para)
@@ -236,34 +181,39 @@ def repartir(para: list[str], cc: list[str], bcc: list[str]) -> dict[str, list[s
     return {"to": para, "cc": cc, "bcc": bcc}
 
 
-def plan_destinatarios(
-    sold_to: str, ship_to: str, especie: str = "", contactos: list[dict] | None = None,
-    internos: dict[str, list[str]] | None = None, servicio: str = "",
-) -> dict[str, Any]:
-    """Lo que el sistema propone para esta planta: Para del cliente y las copias
-    internas del módulo. Paz lo puede cambiar antes de enviar."""
-    if contactos is None:
-        contactos = config_store.leer(ARCHIVO_CONTACTOS, [])
-    internos = internos if internos is not None else leer_config()["internos"]
-    para = lista_del_cliente(sold_to, ship_to, especie, contactos, servicio)
-    plan = repartir(para, internos.get("cc", []), internos.get("bcc", []))
-    return {
-        **plan,
-        "sin_lista": not para,
-        "especies": especies_con_lista(sold_to, ship_to, contactos, servicio),
-    }
-
-
 def plan_desde_solicitud(datos: dict, internos: dict[str, list[str]] | None = None) -> dict[str, Any]:
-    """A quién va el informe según SU SOLICITUD: el Para es el «Destinatarios de
-    resultados» de esa solicitud (el mismo que lleva su PDF y su JSON, con su
-    servicio y su regla de «sin lista»). Las copias son las internas del módulo."""
+    """A quién va el informe: la lista de distribución de resultados de SU
+    SOLICITUD, TAL CUAL —Para, Copia y Copia oculta, con su servicio y su regla de
+    «sin lista»: la misma función que arma el PDF y el JSON de la solicitud
+    (`_datos_pdf_con_destinatarios_resultados`)—, MÁS las copias internas del
+    módulo (`internos`), que se suman a las de la solicitud."""
     from . import toma_muestras as tm
 
     internos = internos if internos is not None else leer_config()["internos"]
     detalle = tm._datos_pdf_con_destinatarios_resultados(datos)["destinatarios_resultados_detalle"]
-    plan = repartir(detalle["para"], internos.get("cc", []), internos.get("bcc", []))
+    plan = repartir(
+        detalle["para"],
+        [*detalle["cc"], *internos.get("cc", [])],
+        [*detalle["bcc"], *internos.get("bcc", [])],
+    )
     return {**plan, "sin_lista": tm.solicitud_sin_lista(datos), "especies": [], "origen": "solicitud"}
+
+
+_TIPO_DE_SERVICIO = {"actimist": "Actimist", "ecofog": "Ecofog"}
+
+
+def plan_destinatarios(
+    sold_to: str, ship_to: str, especie: str = "", internos: dict[str, list[str]] | None = None,
+    servicio: str = "",
+) -> dict[str, Any]:
+    """La misma lista que daría una solicitud con ese Sold To, Ship To, especie y
+    servicio. Sirve cuando el informe no trae N° de solicitud (o la solicitud no
+    existe) y para corregir a mano esos datos. Paz puede cambiarla antes de enviar."""
+    datos = {
+        "sold_to": sold_to, "ship_to": ship_to, "especie": especie,
+        "campos_laboratorio": {"Tipo Aplicación": _TIPO_DE_SERVICIO.get(clave_servicio(servicio), "Línea de proceso")},
+    }
+    return {**plan_desde_solicitud(datos, internos), "origen": "planta"}
 
 
 def _solicitudes_por_numero() -> dict[str, tuple[str, dict]]:
@@ -549,8 +499,7 @@ async def analizar_informes(
                 if datos["sold_to"] and datos["ship_to"]:
                     item["leido"] = True
                     item["plan"] = plan_destinatarios(
-                        datos["sold_to"], datos["ship_to"], datos["especie"], contactos, internos,
-                        servicio=datos["servicio"],
+                        datos["sold_to"], datos["ship_to"], datos["especie"], internos, servicio=datos["servicio"],
                     )
                 else:
                     logger.warning(
