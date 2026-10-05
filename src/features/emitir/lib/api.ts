@@ -4,6 +4,7 @@ import type {
   DetalleGC,
   FilaCruce,
   FilaSubida,
+  Fortificado,
   InformeConfig,
   Solicitud,
 } from './tipos'
@@ -44,6 +45,14 @@ export function cruzarConMuestra(archivo: string, codigoMuestra: string | null) 
   )
 }
 
+/** Anota (o corrige) el segundo peso: el de la muestra extraída, en gramos. */
+export function guardarPesoExtraido(archivo: string, peso: number) {
+  return httpClient.put<Solicitud>(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/peso-extraido`,
+    { peso },
+  )
+}
+
 export function descargarExcelCruce(filas: FilaCruce[]) {
   return httpClient.postArchivo('/emitir/cromatografia/excel', filas)
 }
@@ -55,6 +64,7 @@ export function descargarExcelConMuestra(solicitudes: Solicitud[]) {
     codigo_muestra: s.codigo_muestra ?? null,
     fecha_recepcion: s.fecha_recepcion ?? null,
     hora_recepcion: s.hora_recepcion ?? null,
+    peso_muestra_extraido: s.peso_muestra_extraido ?? null,
   }))
   return httpClient.postArchivo('/emitir/cromatografia/excel-con-muestra', filas)
 }
@@ -130,3 +140,20 @@ export function listarActividadLab(params?: {
   return httpClient.get<ActividadLab[]>(`/toma-muestras/actividad${q ? `?${q}` : ''}`)
 }
 
+
+/** Fortificados: no tienen solicitud, solo N°, peso extraído (g) y cuándo ingresaron. */
+export function listarFortificados() {
+  return httpClient.get<Fortificado[]>('/fortificados')
+}
+
+export function crearFortificado(numero: string, peso: number) {
+  return httpClient.post<Fortificado>('/fortificados', { numero, peso })
+}
+
+export function corregirFortificado(id: number, numero: string, peso: number) {
+  return httpClient.put<Fortificado>(`/fortificados/${id}`, { numero, peso })
+}
+
+export function borrarFortificado(id: number) {
+  return httpClient.delete<void>(`/fortificados/${id}`)
+}

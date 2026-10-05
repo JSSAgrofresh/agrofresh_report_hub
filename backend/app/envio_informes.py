@@ -497,7 +497,7 @@ def _registrar_envio(
     exitoso: bool, mensaje_id: str | None, error: str | None,
 ) -> None:
     """Best-effort a propósito, como `envio_solicitud_log`: si la base falla, o falta
-    la migración 0048, el envío que ya salió no se oculta ni se tumba."""
+    la migración 0052, el envío que ya salió no se oculta ni se tumba."""
     try:
         with conexion() as conn, cursor_dict(conn) as cur:
             cur.execute(
@@ -578,7 +578,7 @@ async def enviar_informe(
 
 @router.get("/historial")
 def historial(limite: int = 40, usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
-    """Los últimos envíos. Sin la migración 0048 devuelve `disponible: false`."""
+    """Los últimos envíos. Sin la migración 0052 devuelve `disponible: false`."""
     limite = max(1, min(limite, 200))
     try:
         with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
@@ -592,7 +592,7 @@ def historial(limite: int = 40, usuario: Usuario = Depends(acceso)) -> dict[str,
             )
             filas = cur.fetchall()
     except Exception:
-        logger.warning("No se pudo leer envio_informe_log (¿falta la migración 0048?).", exc_info=True)
+        logger.warning("No se pudo leer envio_informe_log (¿falta la migración 0052?).", exc_info=True)
         return {"disponible": False, "items": []}
     items = [{**f, "creado_en": f["creado_en"].isoformat()} for f in filas]
     return {"disponible": True, "items": items}

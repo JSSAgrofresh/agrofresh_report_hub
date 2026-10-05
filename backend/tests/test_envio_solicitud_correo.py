@@ -146,17 +146,16 @@ def test_direccion_invalida_en_contactos_no_pasa_silenciosa(solicitud_guardada):
     assert "no-es-un-correo" in str(exc.value.detail)
 
 
-def test_no_se_puede_reenviar_una_solicitud_ya_enviada(solicitud_guardada, correo_capturado):
+@_necesita_base
+def test_una_solicitud_ya_enviada_se_puede_reenviar(solicitud_guardada, correo_capturado):
+    """La pantalla ofrece «Reenviar por correo»: el reenvío sale de verdad."""
     archivo, datos = solicitud_guardada
     datos["enviada"] = True
     wb = construir_workbook(datos, tm.ANALITOS_DEFECTO)
     wb.save(tm._ruta_archivo(archivo))
 
-    from fastapi import HTTPException
-    with pytest.raises(HTTPException) as exc:
-        tm.enviar_solicitud_por_correo(archivo, tm.EnvioSolicitudIn(), usuario=_usuario())
-    assert exc.value.status_code == 409
-    assert correo_capturado == []
+    tm.enviar_solicitud_por_correo(archivo, tm.EnvioSolicitudIn(), usuario=_usuario())
+    assert len(correo_capturado) == 1
 
 
 # ── Copias configuradas en Contacto laboratorio ─────────────────────────────

@@ -53,6 +53,8 @@ export interface Solicitud {
   /** Peso de la muestra física, registrado al cruzar (migración 0033). */
   peso_muestra?: number | null
   unidad_peso?: string | null
+  /** Segundo peso (muestra extraída, g), anotado después del cruce. */
+  peso_muestra_extraido?: number | null
   /** Usuario que hizo el cruce (email y nombre, del token del servidor). */
   cruzado_por?: string | null
   cruzado_por_nombre?: string | null
@@ -238,4 +240,16 @@ export interface FilaSubida {
   estado: 'creada' | 'ya_existia' | 'error'
   folio: string | null
   mensaje: string | null
+}
+
+/** Un fortificado ingresado al laboratorio (no tiene solicitud). */
+export interface Fortificado {
+  id: number
+  numero: string
+  /** Gramos de la muestra extraída. */
+  peso_extraido: number
+  /** "YYYY-MM-DD" y "HH:MM", hora de Chile; los pone el servidor al ingresar. */
+  fecha_ingreso: string
+  hora_ingreso: string
+  ingresado_por?: string | null
 }

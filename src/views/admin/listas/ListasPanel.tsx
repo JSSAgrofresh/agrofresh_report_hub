@@ -3,6 +3,9 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { IconoAlerta, IconoBuscar, IconoCerrar } from '@/components/ui/iconosAccion'
+import { EtiquetaServicio } from '@/components/ui/SelectorServicio'
+import { ETIQUETA_SERVICIO } from '@/lib/servicio'
+import type { Servicio } from '@/lib/servicio'
 import {
   ETIQUETA_FILTRO_TABLA, INFO_CAMPO, aCambios, aplicarListas, claveCelda, clavePlanta, coincideFiltro, coincideTexto,
   compararListas, desdeComparacion, diffLista, exportarListas, filaVacia, indicadores, listaDe, mismaLista, obtenerEstado, plantaNueva,
@@ -32,7 +35,7 @@ const FILTROS_CON_NUEVAS: FiltroTabla[] = ['todas', 'cambios']
  * edita a mano o se importa un Excel, y todo lo que cambia queda en amarillo
  * hasta aceptarlo o rechazarlo. Recién al guardar se escribe, con respaldo.
  */
-export function ListasPanel() {
+export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}) {
   const entrada = useRef<HTMLInputElement>(null)
   const [estado, setEstado] = useState<EstadoListas | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -58,11 +61,11 @@ export function ListasPanel() {
 
   useEffect(() => {
     let cancelado = false
-    obtenerEstado(incluirSinLista)
+    obtenerEstado(incluirSinLista, servicio)
       .then((e) => { if (!cancelado) { setEstado(e); setError(null) } })
       .catch((e: unknown) => { if (!cancelado) setError(mensaje(e, 'No se pudieron cargar las listas.')) })
     return () => { cancelado = true }
-  }, [incluirSinLista, recarga])
+  }, [incluirSinLista, recarga, servicio])
 
   const ind = useMemo(() => (estado ? indicadores(estado) : null), [estado])
   const conCambios = useMemo(() => new Set(Object.values(propuestas).map((p) => p.plantaClave)), [propuestas])
@@ -207,7 +210,7 @@ export function ListasPanel() {
   async function exportar() {
     setExportando(true)
     setError(null)
-    try { await exportarListas(incluirSinLista) } catch (e) { setError(mensaje(e, 'No se pudo exportar el Excel.')) } finally { setExportando(false) }
+    try { await exportarListas(incluirSinLista, servicio) } catch (e) { setError(mensaje(e, 'No se pudo exportar el Excel.')) } finally { setExportando(false) }
   }
 
   async function importar(file: File) {
@@ -216,7 +219,7 @@ export function ListasPanel() {
     setError(null)
     setHecho(null)
     try {
-      const resultado = await compararListas(file)
+      const resultado = await compararListas(file, servicio)
       const { propuestas: nuevasProps, nuevas: nuevasPlantas } = desdeComparacion(estado, resultado)
       // lo que ya aceptaste a mano no se pisa
       setPropuestas((p) => {
@@ -242,8 +245,8 @@ export function ListasPanel() {
     setGuardando(true)
     setErrorGuardar(null)
     try {
-      const resultado = await aplicarListas(aCambios(estado, propuestas, nuevas))
-      const fresco = await obtenerEstado(incluirSinLista)
+      const resultado = await aplicarListas(aCambios(estado, propuestas, nuevas), servicio)
+      const fresco = await obtenerEstado(incluirSinLista, servicio)
       const porClave = new Map(fresco.filas.map((f) => [clavePlanta(f.sold_to, f.ship_to), f]))
       setEstado(fresco)
       setPropuestas((p) => Object.fromEntries(Object.entries(p).filter(([, q]) => {
@@ -410,7 +413,7 @@ export function ListasPanel() {
 
       {confirmando && (
         <Modal
-          titulo="¿Guardar los cambios aceptados?"
+          titulo={`¿Guardar los cambios en la lista de ${ETIQUETA_SERVICIO[servicio]}?`}
           onCerrar={() => !guardando && setConfirmando(false)}
           pie={
             <>
@@ -426,6 +429,10 @@ export function ListasPanel() {
           </p>
           {aCrear > 0 && <p>Además se {aCrear === 1 ? 'creará 1 planta' : `crearán ${aCrear} plantas`} en <b>Listados</b> (con su cliente si es nuevo), para que las solicitudes las encuentren.</p>}
           <p>Antes de guardar se deja un respaldo de las listas actuales. Lo que está en amarillo o no aceptaste no se toca.</p>
+          <p className={styles.servicioGuardar}>
+            Solo cambia la lista de <EtiquetaServicio servicio={servicio} />
+            {aCrear > 0 && <> y su listado de plantas</>}. Las de los demás servicios quedan igual.
+          </p>
           {errorGuardar && <p className={styles.errorTexto} role="alert">{errorGuardar}</p>}
         </Modal>
       )}

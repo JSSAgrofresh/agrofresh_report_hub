@@ -403,3 +403,68 @@ class TestZip:
         como(cuenta("admin_general"))
         r = self._zip(["Quiteca/Dole/a.pdf"])
         assert r.status_code == 502 and "token de R2" in r.json()["detail"]
+
+
+class TestOtDelInforme:
+    """La OT impresa en el PDF («N° Solicitud: OT-…») manda sobre la que se
+    eligió en el desplegable de Converter. Elegir a mano dejó 2026-1885-PC en
+    OT-QUI0024 cuando el PDF decía OT-QUI0025."""
+
+    def _subir(self, monkeypatch, como, **form):
+        from contextlib import contextmanager
+
+        from app import auditoria_interna as ai
+
+        insertados = []
+        solicitudes = {"OT-QUI0024": "OT-QUI0024.xlsx", "OT-QUI0025": "OT-QUI0025.xlsx"}
+
+        class Cur:
+            def execute(self, sql, params=()):
+                self.sql, self.params = sql, params
+                if sql.strip().startswith("INSERT"):
+                    insertados.append(params)
+
+            def fetchone(self):
+                if "upper(btrim(numero_solicitud))" in self.sql:
+                    a = solicitudes.get(self.params[0].upper())
+                    return {"archivo": a} if a else None
+                if "WHERE archivo = %s" in self.sql:
+                    n = self.params[0].removesuffix(".xlsx")
+                    return {"numero_solicitud": n} if self.params[0] in solicitudes.values() else None
+                if "INSERT" in self.sql:
+                    return {"id": 1}
+                return None
+
+        @contextmanager
+        def con(escribir=True):
+            yield None
+
+        @contextmanager
+        def cur_dict(conn):
+            yield Cur()
+
+        monkeypatch.setattr(ai, "conexion", con)
+        monkeypatch.setattr(ai, "cursor_dict", cur_dict)
+        monkeypatch.setattr(ai.r2a, "disponible", lambda: True)
+        monkeypatch.setattr(ai.r2a, "existe", lambda k: False)
+        monkeypatch.setattr(ai.r2a, "subir", lambda k, d: None)
+        monkeypatch.setattr(ai.informes_storage, "guardar", lambda *a, **k: "informes/x.pdf")
+        como(cuenta("admin_general"))
+        r = cliente.post(
+            "/api/auditoria-interna/informes",
+            data={"laboratorio": "Quiteca", "ship_to": "DOLE PLANTA CODEGUA", "nro_informe": "2026-1885-PC", **form},
+            files={"archivo": ("x.pdf", b"%PDF-1.4", "application/pdf")},
+        )
+        assert r.status_code == 200, r.text
+        return insertados[0][:2]  # (archivo_solicitud, numero_solicitud)
+
+    def test_la_ot_del_pdf_gana_a_la_elegida(self, monkeypatch, como):
+        assert self._subir(monkeypatch, como, archivo_solicitud="OT-QUI0024.xlsx", ot_informe="OT-QUI0025") == (
+            "OT-QUI0025.xlsx", "OT-QUI0025")
+
+    def test_sin_ot_en_el_pdf_vale_la_elegida(self, monkeypatch, como):
+        assert self._subir(monkeypatch, como, archivo_solicitud="OT-QUI0024.xlsx") == ("OT-QUI0024.xlsx", "OT-QUI0024")
+
+    def test_ot_del_pdf_que_no_existe_no_rompe(self, monkeypatch, como):
+        assert self._subir(monkeypatch, como, archivo_solicitud="OT-QUI0024.xlsx", ot_informe="OT-QUI9999") == (
+            "OT-QUI0024.xlsx", "OT-QUI0024")

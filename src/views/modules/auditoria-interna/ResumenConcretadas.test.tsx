@@ -5,9 +5,9 @@ import { ResumenConcretadas } from './ResumenConcretadas'
 const totales = { emitidas: 55, concretadas: 11, sinReport: 3, pendientes: 41, porcentajeConcretado: 20 }
 
 describe('ResumenConcretadas', () => {
-  it('muestra solo Informes Recibidos y Solicitudes enviadas, sin «PDF sin Report»', () => {
+  it('muestra solo Informes recibidos y Solicitudes enviadas, sin «PDF sin Report»', () => {
     render(<ResumenConcretadas totales={totales} />)
-    expect(screen.getByText('Informes Recibidos')).toBeTruthy()
+    expect(screen.getByText('Informes recibidos')).toBeTruthy()
     expect(screen.getByText('Solicitudes enviadas')).toBeTruthy()
     expect(screen.queryByText('PDF sin Report')).toBeNull()
     expect(screen.queryByText('Concretadas')).toBeNull()

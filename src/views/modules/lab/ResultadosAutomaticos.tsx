@@ -32,7 +32,14 @@ export function ResultadosAutomaticos({
   const [procesando, setProcesando] = useState<'pdf' | 'excel' | 'bd' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [resultadoSubida, setResultadoSubida] = useState<FilaSubida[] | null>(null)
-  const [pesosExtraidos, setPesosExtraidos] = useState<Record<string, number | undefined>>({})
+  // Lo que se digita acá manda; si no se tocó, vale el peso ya guardado en la solicitud
+  // (el que se anota en la tabla de Ingreso de muestras).
+  const [pesosEditados, setPesosEditados] = useState<Record<string, number | undefined>>({})
+  const pesosExtraidos = useMemo(() => {
+    const r: Record<string, number | undefined> = {}
+    for (const s of solicitudes) r[s.archivo] = s.archivo in pesosEditados ? pesosEditados[s.archivo] : (s.peso_muestra_extraido ?? undefined)
+    return r
+  }, [solicitudes, pesosEditados])
 
   const cruces = useMemo(
     () => construirCrucesAutomaticos(solicitudes, muestras),
@@ -51,7 +58,7 @@ export function ResultadosAutomaticos({
 
   function setPesoExtraido(archivo: string, valor: string) {
     const num = parseFloat(valor)
-    setPesosExtraidos((prev) => ({ ...prev, [archivo]: isNaN(num) ? undefined : num }))
+    setPesosEditados((prev) => ({ ...prev, [archivo]: isNaN(num) ? undefined : num }))
   }
 
   function filas() {

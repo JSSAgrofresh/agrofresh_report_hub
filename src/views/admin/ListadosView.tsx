@@ -2,10 +2,15 @@ import { useMemo, useRef, useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { EtiquetaServicio, SelectorServicio } from '@/components/ui/SelectorServicio'
+import { IconoAlerta } from '@/components/ui/iconosAccion'
 import { cn } from '@/lib/cn'
+import { ETIQUETA_SERVICIO, tieneListadoPropio } from '@/lib/servicio'
+import type { Servicio, ServicioConListado } from '@/lib/servicio'
 import {
   ClienteForm,
   ClientesTable,
+  eliminarLoteActimist,
   PlantaForm,
   PlantasTable,
   useCatalogo,
@@ -13,6 +18,7 @@ import {
 import type { Cliente, ClienteInput, Planta, PlantaInput } from '@/features/catalogo'
 import { eliminarListadoLote, HomogenizarPanel, importarListado, importarMaestroListados, ValorListaForm, ValorListaTable, descargarListados, useListado } from '@/features/listados'
 import type { TipoListado, ValorLista, ValorListaInput } from '@/features/listados'
+import { ImportarActimistDialog } from './ImportarActimistDialog'
 import styles from './ListadosView.module.css'
 
 type Pestana = 'clientes' | 'plantas' | 'especie' | 'variedad'
@@ -25,6 +31,7 @@ type Panel =
   | { modo: 'nuevoValor' }
   | { modo: 'editarValor'; valor: ValorLista }
   | { modo: 'homogenizar' }
+  | { modo: 'importarActimist' }
 
 const ETIQUETA_PESTANA: Record<Pestana, string> = {
   clientes: 'Sold To',
@@ -33,10 +40,24 @@ const ETIQUETA_PESTANA: Record<Pestana, string> = {
   variedad: 'Variedad',
 }
 
+/** Qué usa cada listado de Sold To / Ship To (se muestra bajo el selector). */
+const USO_SERVICIO: Record<Servicio, string> = {
+  linea: 'El de siempre. Lo usan Ingesta, Converter, Report y las solicitudes de Línea de proceso.',
+  actimist: 'Lo usan las solicitudes con Tipo de Aplicación Actimist.',
+  ecofog: 'Lo usan las solicitudes con Tipo de Aplicación Ecofog.',
+}
+
 export function ListadosView() {
   const maestroRef = useRef<HTMLInputElement>(null)
+  // Sold To / Ship To tienen un listado por tipo de servicio. Especie y
+  // Variedad son las mismas para los dos.
+  const [servicio, setServicio] = useState<Servicio>('linea')
+  const catalogoLinea = useCatalogo('linea')
+  const catalogoActimist = useCatalogo('actimist')
+  const catalogoEcofog = useCatalogo('ecofog')
+  const catalogo = servicio === 'actimist' ? catalogoActimist : servicio === 'ecofog' ? catalogoEcofog : catalogoLinea
   const { clientes, plantas, cargando, error, refrescar: refrescarCatalogo, crearCliente, editarCliente, crearPlanta, editarPlanta } =
-    useCatalogo()
+    catalogo
   const [pestana, setPestana] = useState<Pestana>('clientes')
   const [busqueda, setBusqueda] = useState('')
   const [panel, setPanel] = useState<Panel>({ modo: 'lista' })
@@ -45,6 +66,9 @@ export function ListadosView() {
   const archivoRef = useRef<HTMLInputElement>(null)
 
   const tipoListado: TipoListado | null = pestana === 'especie' || pestana === 'variedad' ? pestana : null
+  const esCatalogo = pestana === 'clientes' || pestana === 'plantas'
+  // Actimist y Ecofog siguen las mismas reglas (listado propio, importar del Planner).
+  const esActimist = esCatalogo && tieneListadoPropio(servicio)
   const [especieSeleccionadaId, setEspecieSeleccionadaId] = useState<number | null>(null)
 
   // Variedad siempre necesita una Especie elegida primero -por eso son dos
@@ -99,8 +123,8 @@ export function ListadosView() {
         await crearCliente(datos)
       }
       setPanel({ modo: 'lista' })
-    } catch {
-      setErrorGuardado('No se pudo guardar el Sold To. Revisa que el backend esté corriendo.')
+    } catch (e) {
+      setErrorGuardado(mensajeGuardado(e, 'Sold To'))
     } finally {
       setGuardando(false)
     }
@@ -116,8 +140,8 @@ export function ListadosView() {
         await crearPlanta(datos)
       }
       setPanel({ modo: 'lista' })
-    } catch {
-      setErrorGuardado('No se pudo guardar el Ship To. Revisa que el backend esté corriendo.')
+    } catch (e) {
+      setErrorGuardado(mensajeGuardado(e, 'Ship To'))
     } finally {
       setGuardando(false)
     }
@@ -153,6 +177,12 @@ export function ListadosView() {
     }
   }
 
+  function mensajeGuardado(e: unknown, que: string) {
+    // El backend explica los choques (nombre repetido) con un 409 claro.
+    if (e instanceof Error && e.message && /Ya hay|ya tiene|no está/.test(e.message)) return e.message
+    return `No se pudo guardar el ${que}. Revisa que el backend esté corriendo.`
+  }
+
   async function importarArchivo(archivo: File) {
     const tipo = pestana === 'clientes' ? 'sold_to' : pestana === 'plantas' ? 'ship_to' : pestana
     try {
@@ -173,8 +203,16 @@ export function ListadosView() {
 
   async function eliminarFiltrados() {
     const ids = pestana === 'clientes' ? clientesFiltrados.map((x) => x.id) : pestana === 'plantas' ? plantasFiltradas.map((x) => x.id) : valoresFiltrados.map((x) => x.id)
-    if (!ids.length || !window.confirm(`¿Eliminar los ${ids.length} resultados visibles del filtro actual?`)) return
+    const donde = esCatalogo ? ` del listado de ${ETIQUETA_SERVICIO[servicio]}` : ''
+    if (!ids.length || !window.confirm(`¿Eliminar los ${ids.length} resultados visibles del filtro actual${donde}?`)) return
     const tipo = pestana === 'clientes' ? 'sold_to' : pestana === 'plantas' ? 'ship_to' : pestana
+    if (esActimist) {
+      try {
+        await eliminarLoteActimist(pestana === 'clientes' ? 'sold_to' : 'ship_to', ids, servicio as ServicioConListado)
+        await refrescarCatalogo()
+      } catch { window.alert(`No se pudieron eliminar del listado de ${ETIQUETA_SERVICIO[servicio]}.`) }
+      return
+    }
     try {
       await eliminarListadoLote(tipo, ids)
       if (pestana === 'clientes' || pestana === 'plantas') await refrescarCatalogo(); else await listado.refrescar()
@@ -187,17 +225,37 @@ export function ListadosView() {
         title="Listados"
         description="Fuente estandarizada de Sold To, Ship To, Especie y Variedad. El resto de la app lee sus valores activos desde acá."
         acciones={
-          <>
-            <input ref={maestroRef} type="file" accept=".xlsx,.xls" hidden onChange={(e) => { const archivo = e.target.files?.[0]; if (archivo) void importarMaestro(archivo) }} />
-            <Button onClick={() => maestroRef.current?.click()}>Importar maestro</Button>
-            <button type="button" className={styles.botonDescarga} onClick={() => void descargarListados()}>Descargar Excel</button>
-          </>
+          esActimist ? undefined : (
+            <>
+              <input ref={maestroRef} type="file" accept=".xlsx,.xls" hidden onChange={(e) => { const archivo = e.target.files?.[0]; if (archivo) void importarMaestro(archivo) }} />
+              <Button onClick={() => maestroRef.current?.click()}>Importar maestro</Button>
+              <button type="button" className={styles.botonDescarga} onClick={() => void descargarListados()}>Descargar Excel</button>
+            </>
+          )
         }
       />
 
       <Card>
-        {panel.modo === 'lista' ? (
+        {panel.modo === 'lista' || panel.modo === 'importarActimist' ? (
           <>
+            {esCatalogo ? (
+              <div className={styles.servicio}>
+                <SelectorServicio
+                  valor={servicio}
+                  onChange={(s) => { setServicio(s); setBusqueda('') }}
+                  conteos={{
+                    linea: catalogoLinea.error ? null : pestana === 'clientes' ? catalogoLinea.clientes.length : catalogoLinea.plantas.length,
+                    actimist: catalogoActimist.error ? null : pestana === 'clientes' ? catalogoActimist.clientes.length : catalogoActimist.plantas.length,
+                    ecofog: catalogoEcofog.error ? null : pestana === 'clientes' ? catalogoEcofog.clientes.length : catalogoEcofog.plantas.length,
+                  }}
+                  detalle={USO_SERVICIO}
+                />
+              </div>
+            ) : (
+              <p className={styles.notaCompartida}>
+                {ETIQUETA_PESTANA[pestana]} es la misma para todos los tipos de servicio.
+              </p>
+            )}
             <div className={styles.tabs}>
               {(['clientes', 'plantas', 'especie', 'variedad'] as Pestana[]).map((p) => (
                 <button
@@ -264,9 +322,16 @@ export function ListadosView() {
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
               />
+              {esCatalogo && <EtiquetaServicio servicio={servicio} className={styles.chipServicio} />}
               <div className={styles.accionesHeader}>
                 <input ref={archivoRef} type="file" accept=".xlsx" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void importarArchivo(f); e.currentTarget.value = '' }} />
-                <Button variant="secondary" disabled={pestana === 'variedad' && !especieSeleccionadaId} onClick={() => archivoRef.current?.click()}>Importar Excel</Button>
+                <Button
+                  variant="secondary"
+                  disabled={pestana === 'variedad' && !especieSeleccionadaId}
+                  onClick={() => (esActimist ? setPanel({ modo: 'importarActimist' }) : archivoRef.current?.click())}
+                >
+                  Importar Excel
+                </Button>
                 <Button variant="secondary" onClick={() => void eliminarFiltrados()}>Eliminar en masa</Button>
                 {tipoListado && (
                   <Button
@@ -297,11 +362,24 @@ export function ListadosView() {
             {(pestana === 'clientes' || pestana === 'plantas' ? cargando : listado.cargando) && (
               <p className={styles.estado}>Cargando…</p>
             )}
-            {(pestana === 'clientes' || pestana === 'plantas' ? error : listado.error) && (
-              <p className={styles.estadoError}>{pestana === 'clientes' || pestana === 'plantas' ? error : listado.error}</p>
+            {esCatalogo && error && (
+              <div className={esActimist ? styles.avisoServicio : styles.estadoError} role="alert">
+                {esActimist && <IconoAlerta width={18} height={18} />}
+                <span>{error}</span>
+                <Button variant="secondary" onClick={() => void refrescarCatalogo()}>Reintentar</Button>
+              </div>
+            )}
+            {!esCatalogo && listado.error && <p className={styles.estadoError}>{listado.error}</p>}
+            {esActimist && !cargando && !error && clientes.length === 0 && (
+              <div className={styles.vacioServicio}>
+                <EtiquetaServicio servicio={servicio} />
+                <strong>El listado de {ETIQUETA_SERVICIO[servicio]} está vacío</strong>
+                <span>Cárgalo desde la dinámica del Planner: verás qué se crea antes de guardar.</span>
+                <Button onClick={() => setPanel({ modo: 'importarActimist' })}>Importar Excel de {ETIQUETA_SERVICIO[servicio]}</Button>
+              </div>
             )}
 
-            {pestana === 'clientes' && !cargando && !error && (
+            {pestana === 'clientes' && !cargando && !error && !(esActimist && clientes.length === 0) && (
               <>
                 {clientesFiltrados.length > TOPE && (
                   <p className={styles.notaTope}>
@@ -317,7 +395,7 @@ export function ListadosView() {
               </>
             )}
 
-            {pestana === 'plantas' && !cargando && !error && (
+            {pestana === 'plantas' && !cargando && !error && !(esActimist && clientes.length === 0) && (
               <>
                 {plantasFiltradas.length > TOPE && (
                   <p className={styles.notaTope}>
@@ -348,9 +426,17 @@ export function ListadosView() {
                 />
               </>
             )}
+            {panel.modo === 'importarActimist' && (
+              <ImportarActimistDialog
+                servicio={tieneListadoPropio(servicio) ? servicio : 'actimist'}
+                onCerrar={() => setPanel({ modo: 'lista' })}
+                onCargado={() => void (servicio === 'ecofog' ? catalogoEcofog : catalogoActimist).refrescar()}
+              />
+            )}
           </>
         ) : panel.modo === 'nuevoCliente' || panel.modo === 'editarCliente' ? (
           <>
+            <p className={styles.dondeSeGuarda}>Se guarda en el listado de <EtiquetaServicio servicio={servicio} /></p>
             {errorGuardado && <p className={styles.estadoError}>{errorGuardado}</p>}
             <ClienteForm
               cliente={panel.modo === 'editarCliente' ? panel.cliente : undefined}
@@ -361,6 +447,7 @@ export function ListadosView() {
           </>
         ) : panel.modo === 'nuevaPlanta' || panel.modo === 'editarPlanta' ? (
           <>
+            <p className={styles.dondeSeGuarda}>Se guarda en el listado de <EtiquetaServicio servicio={servicio} /></p>
             {errorGuardado && <p className={styles.estadoError}>{errorGuardado}</p>}
             <PlantaForm
               planta={panel.modo === 'editarPlanta' ? panel.planta : undefined}

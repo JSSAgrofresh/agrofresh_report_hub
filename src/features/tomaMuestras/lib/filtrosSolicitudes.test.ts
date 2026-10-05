@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { FILTROS_VACIOS, filtrarSolicitudes, hayFiltros, opcionesDe } from './filtrosSolicitudes'
-import type { FiltrosSolicitudes } from './filtrosSolicitudes'
+import {
+  ESTADOS_DE_VISTA, FILTROS_VACIOS, VIGENCIA_FILTROS_MS, chipsDeFiltros, claveFiltrosGuardados, guardarFiltros, leerFiltros, opcionesAcumuladas, filtrarSolicitudes, hayFiltros, opcionesDe, otPorRevisar, resumenVistas, vistaDeEstados,
+} from './filtrosSolicitudes'
+import type { EstadoFiltro, FiltrosSolicitudes, VistaRapida } from './filtrosSolicitudes'
 import type { Solicitud } from './tipos'
 
 function sol(n: string, extra: Partial<Solicitud> = {}): Solicitud {
@@ -66,6 +68,26 @@ describe('filtros de solicitudes con varias opciones', () => {
     expect(numeros(filtrarSolicitudes(DATOS, f({ estado: ['enviada', 'sin_lista'] })))).toEqual(['D'])
   })
 
+  it('Estado: Con informe y Sin informe son alternativas y se suman al envío', () => {
+    const inf = { nro_informe: '2026-1885-PC', numeros: ['2026-1885-PC'], pdf_guardado: true, en_report: true }
+    const datos = [
+      sol('A', { enviada: true, informe: inf }),
+      sol('B', { enviada: true, informe: null }),
+      sol('C', { enviada: false }),
+    ]
+    expect(numeros(filtrarSolicitudes(datos, f({ estado: ['con_informe'] })))).toEqual(['A'])
+    expect(numeros(filtrarSolicitudes(datos, f({ estado: ['sin_informe'] })))).toEqual(['B', 'C'])
+    expect(filtrarSolicitudes(datos, f({ estado: ['con_informe', 'sin_informe'] }))).toHaveLength(3)
+    // Enviada + Sin informe: las que esperan el informe del laboratorio.
+    expect(numeros(filtrarSolicitudes(datos, f({ estado: ['enviada', 'sin_informe'] })))).toEqual(['B'])
+    expect(filtrarSolicitudes(datos, f({ estado: ['pendiente', 'con_informe'] }))).toHaveLength(0)
+    // «Informe sin Report»: tiene PDF pero sus resultados no están en Report.
+    const sinReport = sol('E', { enviada: true, informe: { ...inf, en_report: false } })
+    expect(numeros(filtrarSolicitudes([...datos, sinReport], f({ estado: ['sin_report'] })))).toEqual(['E'])
+    // El buscador también encuentra por N° de informe.
+    expect(numeros(filtrarSolicitudes(datos, f({ busqueda: '1885-pc' })))).toEqual(['A'])
+  })
+
   it('los filtros de texto siguen funcionando junto a las listas', () => {
     expect(numeros(filtrarSolicitudes(DATOS, f({ variedad: 'gal', laboratorio: ['ALS'] })))).toEqual(['B'])
     expect(numeros(filtrarSolicitudes(DATOS, f({ busqueda: 'multifruta' })))).toEqual(['B'])
@@ -85,5 +107,115 @@ describe('filtros de solicitudes con varias opciones', () => {
     expect(hayFiltros(f({ laboratorio: ['ALS'] }))).toBe(true)
     expect(hayFiltros(f({ estado: ['sin_lista'] }))).toBe(true)
     expect(hayFiltros(f({ solicitante: '  ' }))).toBe(false)
+  })
+})
+
+describe('vistas rápidas de Solicitudes e informes', () => {
+  const inf = { nro_informe: 'X', numeros: ['X'], pdf_guardado: true, en_report: true }
+  const datos = [
+    sol('A', { enviada: false }),
+    sol('B', { enviada: true }),
+    sol('C', { enviada: true, informe: inf }),
+    sol('D', { enviada: true, informe: { ...inf, en_report: false } }),
+  ]
+
+  it('cuenta cada vista', () => {
+    expect(resumenVistas(datos)).toEqual({ todas: 4, pendientes: 1, enviadas: 3, esperando: 1, con_informe: 2, sin_report: 1, ot_revisar: 0 })
+  })
+
+  it('cada vista filtra lo mismo que cuenta', () => {
+    const r = resumenVistas(datos)
+    for (const [vista, estados] of Object.entries(ESTADOS_DE_VISTA) as [VistaRapida, EstadoFiltro[]][]) {
+      expect(filtrarSolicitudes(datos, f({ estado: estados })), vista).toHaveLength(r[vista])
+    }
+  })
+
+  it('reconoce la vista del filtro Estado, sin importar el orden', () => {
+    expect(vistaDeEstados([])).toBe('todas')
+    expect(vistaDeEstados(['sin_informe', 'enviada'])).toBe('esperando')
+    expect(vistaDeEstados(['pendiente', 'sin_lista'])).toBeNull()
+  })
+
+  it('arma un chip por filtro puesto, sin el buscador', () => {
+    const chips = chipsDeFiltros(f({ busqueda: 'dole', laboratorio: ['QUITECA', 'ALS'], estado: ['con_informe'], fechaDesde: '2026-10-01', prueba: 'sin' }))
+    expect(chips.map((c) => c.texto)).toEqual([
+      'Desde: 01-10-2026', 'Laboratorio: QUITECA, ALS', 'Estado: Con informe', 'Pruebas: sin las de prueba',
+    ])
+    expect(chipsDeFiltros(FILTROS_VACIOS)).toEqual([])
+  })
+})
+
+describe('OT por revisar', () => {
+  const inf = { nro_informe: 'X', numeros: ['X'], pdf_guardado: true, en_report: true }
+  const ver = (estado: 'confirmada' | 'revisar' | 'sin_confirmar', en_report = true) =>
+    ({ ...inf, en_report, verificacion: { estado, motivos: [] } })
+  const datos = [
+    sol('OK', { enviada: true, informe: ver('confirmada') }),
+    sol('MAL', { enviada: true, informe: ver('revisar') }),
+    sol('SIN_OT', { enviada: true, informe: ver('sin_confirmar') }),
+    // Sin resultados en Report: ya lo marca «Sin Report», no se repite acá.
+    sol('SIN_REPORT', { enviada: true, informe: ver('sin_confirmar', false) }),
+    sol('VIEJO', { enviada: true, informe: inf }),
+  ]
+
+  it('marca las que no calzan y las que el informe no confirma', () => {
+    expect(datos.filter(otPorRevisar).map((s) => s.numero_solicitud)).toEqual(['MAL', 'SIN_OT'])
+    expect(resumenVistas(datos).ot_revisar).toBe(2)
+    expect(filtrarSolicitudes(datos, f({ estado: ['ot_revisar'] })).map((s) => s.numero_solicitud)).toEqual(['MAL', 'SIN_OT'])
+    expect(vistaDeEstados(['ot_revisar'])).toBe('ot_revisar')
+  })
+})
+
+describe('los filtros se acumulan', () => {
+  it('cada lista ofrece solo lo que queda con los otros filtros', () => {
+    const { opciones, conteo } = opcionesAcumuladas(DATOS, f({ laboratorio: ['ALS'] }))
+    expect(opciones.soldTo).toEqual(['MULTIFRUTA SA'])
+    expect(conteo.soldTo('MULTIFRUTA SA')).toBe(1)
+    // La propia lista no se achica con su filtro: se pueden marcar más.
+    expect(opciones.laboratorio).toEqual(['ALS', 'DIAGNOFRUIT', 'QUITECA'])
+    expect(conteo.laboratorio('QUITECA')).toBe(2)
+  })
+
+  it('lo marcado sigue en la lista aunque quede en 0', () => {
+    const { opciones, conteo } = opcionesAcumuladas(DATOS, f({ laboratorio: ['ALS'], especie: ['Palta'] }))
+    expect(opciones.especie).toContain('Palta')
+    expect(conteo.especie('Palta')).toBe(0)
+  })
+})
+
+describe('filtros guardados', () => {
+  const almacen = () => {
+    const m = new Map<string, string>()
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k), m }
+  }
+  const clave = claveFiltrosGuardados('Ana@AgroFresh.com')
+
+  it('vuelven al entrar de nuevo', () => {
+    const a = almacen()
+    guardarFiltros(a, clave, f({ laboratorio: ['QUITECA'], estado: ['con_informe'] }), 1000)
+    expect(leerFiltros(a, clave, 1000 + 60_000)).toEqual(f({ laboratorio: ['QUITECA'], estado: ['con_informe'] }))
+  })
+
+  it('no son infinitos: vencen y se borran', () => {
+    const a = almacen()
+    guardarFiltros(a, clave, f({ laboratorio: ['QUITECA'] }), 1000)
+    expect(leerFiltros(a, clave, 1000 + VIGENCIA_FILTROS_MS + 1)).toEqual(FILTROS_VACIOS)
+    expect(a.m.size).toBe(0)
+  })
+
+  it('son de cada cuenta', () => {
+    expect(claveFiltrosGuardados('ana@agrofresh.com')).toBe(clave)
+    expect(claveFiltrosGuardados('otro@agrofresh.com')).not.toBe(clave)
+  })
+
+  it('sin filtros no queda nada guardado; algo dañado no rompe', () => {
+    const a = almacen()
+    guardarFiltros(a, clave, f({ laboratorio: ['QUITECA'] }), 1000)
+    guardarFiltros(a, clave, FILTROS_VACIOS, 2000)
+    expect(a.m.size).toBe(0)
+    a.setItem(clave, '{roto')
+    expect(leerFiltros(a, clave, 3000)).toEqual(FILTROS_VACIOS)
+    a.setItem(clave, JSON.stringify({ guardado: 3000, filtros: { laboratorio: 'no-es-lista', estado: ['inventado', 'enviada'], prueba: 'x' } }))
+    expect(leerFiltros(a, clave, 3000)).toEqual(f({ estado: ['enviada'] }))
   })
 })

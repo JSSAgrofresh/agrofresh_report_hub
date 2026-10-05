@@ -91,3 +91,27 @@ describe('simularSolicitudes', () => {
     expect(simularSolicitudes(50, hoy)).toEqual(simularSolicitudes(50, hoy))
   })
 })
+
+describe('áreas de la tabla', () => {
+  it('Operaciones separa Línea de proceso y Actimist; R&D es solo RYD', async () => {
+    const { TIPOS_DE_AREA } = await import('./pivote')
+    expect(TIPOS_DE_AREA.operaciones).toEqual(['Línea de proceso', 'Actimist'])
+    expect(TIPOS_DE_AREA.rd).toEqual(['RYD'])
+  })
+})
+
+describe('contarFueraDeTabla', () => {
+  it('cuenta lo que las donas ven y la tabla no: otro laboratorio o sin fecha', async () => {
+    const { contarFueraDeTabla } = await import('./pivote')
+    const lp = { tipo_servicio: 'Línea de proceso' }
+    const r = contarFueraDeTabla(
+      [
+        sol({ ...lp, emitida_en: '2026-01-06T09:00:00' }),
+        sol({ ...lp, laboratorio: 'ALS', emitida_en: '2026-01-06T09:00:00' }),
+        sol({ ...lp, emitida_en: null, fecha_solicitud: null }),
+      ],
+      ['Línea de proceso'],
+    )
+    expect(r).toBe(2)
+  })
+})

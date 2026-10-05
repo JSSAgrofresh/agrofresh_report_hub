@@ -15,10 +15,12 @@ from .admin_panel import router as admin_panel_router
 from .correcciones import router as correcciones_router
 from .listas_distribucion import router as listas_distribucion_router
 from .ficha_informe import router as ficha_informe_router
+from .informes_solicitud import router as informes_solicitud_router
 from .correo import router as correo_router
 from .envio_informes import router as envio_informes_router
 from .catalogo import router as catalogo_router
 from .emitir import router as emitir_router
+from .fortificados import router as fortificados_router
 from .homogenizar_datos import router as homogenizar_router
 from .ingest import router as ingest_router
 from .laboratorios import router as laboratorios_router
@@ -119,10 +121,12 @@ for _router in (
     correcciones_router,
     listas_distribucion_router,
     ficha_informe_router,
+    informes_solicitud_router,
     catalogo_router,
     postventa_router,
     storage_router,
     emitir_router,
+    fortificados_router,
     toma_muestras_router,
     laboratorios_router,
     correo_router,

@@ -5,9 +5,17 @@ import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
+import { EtiquetaServicio } from '@/components/ui/SelectorServicio'
 import { IconFrasco } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
-import { listarClientes, listarPlantas } from '@/features/catalogo'
+import {
+  ETIQUETA_SERVICIO,
+  SERVICIOS_CON_LISTADO,
+  servicioDeTipoAplicacion,
+  tieneListadoPropio,
+} from '@/lib/servicio'
+import type { ServicioConListado } from '@/lib/servicio'
+import { listarClientes, listarPlantas, mensajeCatalogo } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import { useAuth } from '@/features/auth'
 import { listarAnalisis } from '@/features/laboratorios'
@@ -53,6 +61,8 @@ const SOLICITANTE_FIJO = 'AGROFRESH'
 
 const TIPO_LINEA_PROCESO = 'Línea de proceso'
 const TIPO_ACTIMIST = 'Actimist'
+/** Ecofog es copia de Actimist: mismos campos (N° Cámara / N° Orden, posición libre). */
+const TIPO_ECOFOG = 'Ecofog'
 const TIPO_RYD = 'RYD'
 /** Largo máximo de la observación (el backend lo exige también). */
 const OBSERVACION_MAX = 50
@@ -80,18 +90,12 @@ function partirPosiciones(texto: string | null | undefined): string[] {
  * "Fruta ", "FRUTA") que había que homogenizar después. */
 const TIPOS_DE_MUESTRA = ['Fruta', 'Agua', 'Pulpa']
 
-/** Campos que solo son obligatorios dentro de un Tipo de Aplicación. El
- * mantenedor de campos generales solo tiene un sí/no global, así que estas
- * dos reglas se resuelven acá y se ignora su `requerido` configurado. */
-const REQUERIDO_SOLO_EN: Record<string, string> = {
-  posicion_muestreo: TIPO_ACTIMIST,
-}
-
 /** Obligatorios pase lo que pase, sin importar el Tipo de Aplicación. */
 const SIEMPRE_REQUERIDO = new Set(['fecha_muestreo'])
 
-/** Nunca obligatorio, aunque el mantenedor lo marque. */
-const NUNCA_REQUERIDO = new Set(['kilos_procesados'])
+/** Nunca obligatorio, aunque el mantenedor lo marque. Posición Muestreo es
+ * opcional en todos los tipos y, en Actimist, además es de texto libre. */
+const NUNCA_REQUERIDO = new Set(['kilos_procesados', 'posicion_muestreo'])
 
 /** Campos de "Información de la muestra" comunes a cualquier Tipo de
  * Aplicación (§4). Línea Proceso / N° Cámara+N° Orden son exclusivos de
@@ -195,6 +199,16 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
 
   const [clientesDisponibles, setClientesDisponibles] = useState<string[]>([])
   const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
+  // Actimist tiene su propio listado de Sold To / Ship To. Si no se puede leer
+  // (backend sin actualizar o sin la migración 0049) se avisa en el campo y
+  // Línea de proceso sigue funcionando igual.
+  // Ecofog (copia de Actimist) tiene el suyo, con la misma lógica.
+  const [listadosPropios, setListadosPropios] = useState<
+    Record<ServicioConListado, { clientes: string[]; plantas: Planta[]; error: string | null; listo: boolean }>
+  >({
+    actimist: { clientes: [], plantas: [], error: null, listo: false },
+    ecofog: { clientes: [], plantas: [], error: null, listo: false },
+  })
   const [especiesDisponibles, setEspeciesDisponibles] = useState<ValorLista[]>([])
   const [variedadesDisponibles, setVariedadesDisponibles] = useState<string[]>([])
 
@@ -278,6 +292,19 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     listarPlantas()
       .then((plantas) => setPlantasDisponibles(plantas.filter((p) => p.activo)))
       .catch(() => setPlantasDisponibles([]))
+    SERVICIOS_CON_LISTADO.forEach((servicio) => {
+      const guardar = (parcial: Partial<(typeof listadosPropios)[ServicioConListado]>) =>
+        setListadosPropios((l) => ({ ...l, [servicio]: { ...l[servicio], ...parcial } }))
+      Promise.all([listarClientes(servicio), listarPlantas(servicio)])
+        .then(([clientes, plantas]) =>
+          guardar({
+            clientes: clientes.filter((c) => c.activo).map((c) => c.nombre),
+            plantas: plantas.filter((p) => p.activo),
+          }),
+        )
+        .catch((e: unknown) => guardar({ error: mensajeCatalogo(e, servicio) }))
+        .finally(() => guardar({ listo: true }))
+    })
     listarEspeciesActivas()
       .then((es) => setEspeciesDisponibles(es.filter((e) => e.es_estandar)))
       .catch(() => setEspeciesDisponibles([]))
@@ -410,6 +437,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       sold_to: soldTo,
       ship_to: shipTo,
       especie: general.especie ?? '',
+      tipo_aplicacion: tipoAplicacionSel,
     })
       .then((r) => {
         if (!vigente) return
@@ -418,7 +446,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       })
       .catch(() => { if (vigente) setContactosSolicitud([]) })
     return () => { vigente = false }
-  }, [laboratorio, soldTo, shipTo, general.especie])
+  }, [laboratorio, soldTo, shipTo, general.especie, tipoAplicacionSel])
 
   // Apenas hay Laboratorio + Ship To, se muestra cómo va a salir el
   // resultado de ese Ship To (si ya tiene configuración propia en
@@ -428,7 +456,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   useEffect(() => {
     if (!laboratorio || !shipTo) return
     let vigente = true
-    resultadosDeShipTo(laboratorio, shipTo, soldTo, general.especie ?? '')
+    resultadosDeShipTo(laboratorio, shipTo, soldTo, general.especie ?? '', tipoAplicacionSel)
       .then((contactos) => {
         if (vigente) setResultadosShipTo(contactos)
       })
@@ -438,9 +466,17 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     return () => {
       vigente = false
     }
-  }, [laboratorio, shipTo, soldTo, general.especie])
+  }, [laboratorio, shipTo, soldTo, general.especie, tipoAplicacionSel])
 
-  const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === soldTo)
+  // Cada tipo de servicio tiene su listado de Sold To / Ship To: Actimist usa
+  // el suyo; Línea de proceso, RYD y cualquier otro, el de siempre.
+  const servicioListado = servicioDeTipoAplicacion(tipoAplicacionSel)
+  const esServicioCamara = tipoAplicacionSel === TIPO_ACTIMIST || tipoAplicacionSel === TIPO_ECOFOG
+  const listadoPropio = tieneListadoPropio(servicioListado) ? listadosPropios[servicioListado] : null
+  const opcionesSoldTo = listadoPropio ? listadoPropio.clientes : clientesDisponibles
+  const plantasDelCliente = (listadoPropio ? listadoPropio.plantas : plantasDisponibles).filter(
+    (p) => p.cliente_nombre === soldTo,
+  )
   const laboratoriosActivos = laboratoriosConfig
     .filter((l) => l.activo)
     .sort((a, b) => a.orden - b.orden)
@@ -460,7 +496,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             (c.clave === 'sold_to' || c.clave === 'ship_to')
           ),
       ),
-    [camposActivos, tipoAplicacionSel],
+    [camposActivos, tipoAplicacionSel, esServicioCamara],
   )
   const camposMuestraVisibles = useMemo(
     () =>
@@ -478,7 +514,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           return tipoAplicacionSel === TIPO_LINEA_PROCESO || tipoAplicacionSel === TIPO_RYD
         }
         if (c.clave === 'numero_camara' || c.clave === 'numero_orden')
-          return tipoAplicacionSel === TIPO_ACTIMIST
+          return esServicioCamara
         return true
       }),
     [camposActivos, tipoAplicacionSel],
@@ -609,8 +645,11 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   }
 
   const esCromatografia = laboratorio === 'QUITECA' || laboratorio === 'AGROFRESH'
+  // Desde cuántos productos dice MIXTO: las nuevas, desde 2. Una solicitud
+  // anterior que se edita conserva su regla (desde 3): lo emitido no se reescribe.
+  const maxProductosVisibles = modo === 'editar' && solicitudOriginal && !solicitudOriginal.mixto_desde_2 ? 2 : 1
   const esLineaProceso = tipoAplicacionSel === TIPO_LINEA_PROCESO
-  const esActimist = tipoAplicacionSel === TIPO_ACTIMIST
+  const esActimist = esServicioCamara
   const esRYD = tipoAplicacionSel === TIPO_RYD
   // RYD pide datos extra solo para AgroFresh: los otros laboratorios siguen
   // con el formulario de siempre.
@@ -669,6 +708,12 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     // Aplicación anterior (Línea Proceso vs N° Cámara/N° Orden, campos
     // adicionales, analitos y producto) no deben quedar con valores de un
     // tipo que ya no aplica.
+    // Al pasar de un listado a otro (Actimist ↔ Línea de proceso) el Sold To y
+    // el Ship To elegidos pueden no existir en el nuevo: se vacían.
+    if (servicioDeTipoAplicacion(v) !== servicioDeTipoAplicacion(tipoAplicacionSel)) {
+      setSoldTo('')
+      setShipTo('')
+    }
     setTipoAplicacionSel(v)
     limpiarDatosRYD()
     setValoresTipoAplicacion({})
@@ -770,8 +815,6 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   function esRequerido(campo: CampoConfig): boolean {
     if (NUNCA_REQUERIDO.has(campo.clave)) return false
     if (SIEMPRE_REQUERIDO.has(campo.clave)) return true
-    const soloEn = REQUERIDO_SOLO_EN[campo.clave]
-    if (soloEn) return tipoAplicacionSel === soloEn
     return campo.requerido
   }
 
@@ -892,8 +935,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         (esLineaProceso || esRYD) && general.kilos_procesados?.trim()
           ? Number(general.kilos_procesados)
           : null,
-      // Con más de dos productos el backend deja «MIXTO» a la vista y guarda
-      // aparte la lista completa.
+      // Con 2 o más productos el backend deja «MIXTO» a la vista y guarda
+      // aparte la lista completa (las solicitudes anteriores: desde 3).
       producto_utilizado: productosSeleccionados.join(', ') || null,
       productos_lista: productosSeleccionados,
       tipo_muestra: general.tipo_muestra?.trim() || null,
@@ -989,15 +1032,35 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       )
     }
     if (campo.clave === 'sold_to') {
+      const sinTipo = !tipoAplicacionSel
+      const nombreServicio = ETIQUETA_SERVICIO[servicioListado]
+      const actimistNoDisponible = !!listadoPropio && listadoPropio.listo && !!listadoPropio.error
+      const actimistVacio =
+        !!listadoPropio && listadoPropio.listo && !listadoPropio.error && listadoPropio.clientes.length === 0
       return (
         <div className={styles.campo} key={campo.clave}>
           <BuscableSelect
             etiqueta={`${campo.etiqueta}${requerido ? ' *' : ''}`}
-            opciones={clientesDisponibles}
+            opciones={opcionesSoldTo}
             valor={soldTo}
             onChange={alElegirSoldTo}
-            placeholderTodos="— elegir cliente —"
+            placeholderTodos={sinTipo ? '— elige primero el Tipo de Aplicación —' : '— elegir cliente —'}
+            disabled={sinTipo}
           />
+          {listadoPropio && (
+            <small className={styles.listadoServicio}>
+              <EtiquetaServicio servicio={servicioListado} />
+              <span>Clientes de su listado</span>
+            </small>
+          )}
+          {actimistNoDisponible && (
+            <small className={styles.avisoListado} role="alert">{listadoPropio?.error}</small>
+          )}
+          {actimistVacio && (
+            <small className={styles.avisoListado} role="alert">
+              El listado de {nombreServicio} todavía no tiene clientes. Se carga en Listados → Sold To → {nombreServicio}.
+            </small>
+          )}
         </div>
       )
     }
@@ -1019,7 +1082,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       campo.clave === 'posicion_muestreo'
         ? posicionesDeMuestreo(general.especie, general.tipo_muestra)
         : null
-    if (campo.clave === 'posicion_muestreo' && opcionesPosicion && !esRYDAgrofresh) {
+    if (campo.clave === 'posicion_muestreo' && opcionesPosicion && !esRYDAgrofresh && !esActimist) {
       const actual = general.posicion_muestreo ?? ''
       return (
         <label className={styles.campo} key={campo.clave}>
@@ -1169,10 +1232,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               ))}
             </div>
           )}
-          {productosSeleccionados.length > 2 && (
+          {productosSeleccionados.length > maxProductosVisibles && (
             <p className={styles.ayudaCampo}>
-              Con más de 2 productos, el Excel, el PDF y el correo dirán <strong>MIXTO</strong>; la
-              lista completa queda guardada en la solicitud.
+              Con {maxProductosVisibles === 1 ? '2 o más productos' : 'más de 2 productos'}, el Excel, el PDF
+              y el correo dirán <strong>MIXTO</strong>; la lista completa queda guardada en la solicitud.
             </p>
           )}
         </div>

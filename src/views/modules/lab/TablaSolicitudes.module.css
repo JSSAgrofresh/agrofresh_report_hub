@@ -94,6 +94,42 @@
   background: #eef6e5;
 }
 
+/* Con el segundo peso ya guardado: el verde sube de intensidad. */
+.listaCompleta td {
+  background: #cfe6b8;
+}
+
+.listaCompleta .muestra {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.listaCompleta .chip { background: #fff; }
+
+.pesoExtraido {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inputPeso {
+  width: 96px;
+  padding: 4px 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-family: var(--font-mono, monospace);
+  text-align: right;
+  background: #fff;
+}
+
+.inputPeso:focus { outline: 2px solid var(--color-primary); border-color: transparent; }
+
+.errorPeso {
+  font-size: 11px;
+  color: var(--color-danger, #b3261e);
+}
+
 .lista .muestra {
   color: var(--color-primary);
   font-weight: 700;
@@ -211,3 +247,89 @@
   margin: 0 auto;
   object-fit: contain;
 }
+
+/* Botón «tiket» para guardar el segundo peso. */
+.tiket,
+.tiketPendiente {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  border: 1px solid var(--color-border-strong);
+  background: #fff;
+  color: var(--color-text-faint);
+}
+
+.tiketPendiente {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.tiket:disabled {
+  cursor: default;
+  color: var(--color-primary);
+  background: #eef6e5;
+}
+
+/* Botones de la barra: verdes y distintivos (la descarga de la base y los PDF). */
+.botonVerde,
+.botonVerdeSuave {
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-primary);
+}
+
+.botonVerde {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.botonVerde:hover:not(:disabled) { filter: brightness(0.92); }
+
+.botonVerdeSuave {
+  background: #eef6e5;
+  color: var(--color-primary);
+}
+
+.botonVerdeSuave:hover:not(:disabled) { background: #dcecc8; }
+
+.botonVerde:disabled,
+.botonVerdeSuave:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Ingreso de fortificados */
+.nuevoFortificado {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  background: #eef6e5;
+  border: 1px solid #cfe6b8;
+  border-radius: var(--radius-md);
+}
+
+.inputNumero,
+.inputPesoAncho {
+  padding: 6px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: #fff;
+}
+
+.inputNumero { min-width: 150px; font-weight: 600; }
+.inputPesoAncho { width: 190px; font-family: var(--font-mono, monospace); text-align: right; }
+
+.inputNumero:focus,
+.inputPesoAncho:focus { outline: 2px solid var(--color-primary); border-color: transparent; }

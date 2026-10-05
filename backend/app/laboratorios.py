@@ -134,6 +134,9 @@ class Contacto(BaseModel):
     # solicitud (ver ENVIOS_SOLICITUD). Los contactos anteriores no lo traen
     # y quedan en "para", que es como siempre se enviaron.
     envio: str = "para"
+    # Lista de distribución a la que pertenece: vacío = Línea de proceso (todos
+    # los contactos de antes), "actimist" = la lista de Actimist. Ver servicios.py.
+    servicio: str = ""
     activo: bool = True
     orden: int = 0
 
@@ -149,11 +152,16 @@ class ContactoIn(BaseModel):
     especie: str = ""
     tipo_copia: str = "cc"
     envio: str = "para"
+    servicio: str = ""
     activo: bool = True
     orden: int = 0
 
 
-config_store.crud_router(router, "/contactos", "contactos_laboratorio.json", Contacto, ContactoIn, [])
+# `servicio` se conserva al editar si la pantalla no lo manda: así un contacto
+# de Actimist editado desde Laboratorios no pasa a Línea de proceso sin aviso.
+config_store.crud_router(
+    router, "/contactos", "contactos_laboratorio.json", Contacto, ContactoIn, [], conservar=("servicio",)
+)
 
 
 # ---------------------------------------------------------------------------

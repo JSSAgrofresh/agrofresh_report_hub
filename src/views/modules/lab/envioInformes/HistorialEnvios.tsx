@@ -8,13 +8,13 @@ function resumenDestino(r: RegistroEnvio): string {
 }
 
 /** Los últimos envíos, con a quién se PIDIÓ enviar y si salió de verdad o fue
- * una prueba. Sin la migración 0048 no hay registro y se dice. */
+ * una prueba. Sin la migración 0052 no hay registro y se dice. */
 export function HistorialEnvios({ historial }: { historial: Historial | null }) {
   if (!historial) return <p className={styles.vacio}>Cargando historial…</p>
   if (!historial.disponible) {
     return (
       <p className={styles.vacio}>
-        El historial todavía no está activo: falta aplicar la migración 0048 en el servidor. Los envíos funcionan igual.
+        El historial todavía no está activo: falta aplicar la migración 0052 en el servidor. Los envíos funcionan igual.
       </p>
     )
   }

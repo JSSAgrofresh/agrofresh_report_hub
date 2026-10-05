@@ -9,10 +9,15 @@ export {
   guardarConfiguracionInforme,
   subirCruceABaseDeDatos,
   cruzarConMuestra,
+  guardarPesoExtraido,
   cruzarCompleto,
   editarCruce,
   obtenerFotoCruce,
   listarActividadLab,
+  listarFortificados,
+  crearFortificado,
+  corregirFortificado,
+  borrarFortificado,
 } from './lib/api'
 export {
   buscarPorCodigoVial,
@@ -23,6 +28,6 @@ export {
 export type {
   CampoCabeceraGC, CategoriaGC, DetalleGC, MuestraGCDetalle, MuestraGC,
   RegionGC, ResultadoAnalito, Solicitud, FilaCruce, InformeConfig, FilaSubida,
-  ActividadLab, TipoMuestra, ConfigTipoMuestra,
+  ActividadLab, Fortificado, TipoMuestra, ConfigTipoMuestra,
 } from './lib/tipos'
 export { CONFIG_TIPOS_MUESTRA } from './lib/tipos'

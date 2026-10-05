@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, Query
 from . import config_store
 from .auth import Usuario, solo_admin_general
 from .db import conexion, cursor_dict
-from .listas_distribucion import ARCHIVO_CONTACTOS, _listados, estado_desde_contactos, estado_para_tabla
+from .listas_distribucion import ARCHIVO_CONTACTOS, _listados, del_servicio, estado_desde_contactos, estado_para_tabla
 
 logger = logging.getLogger(__name__)
 
@@ -281,7 +281,8 @@ def resumen(dias: int = Query(30, ge=7, le=180), _: Usuario = Depends(solo_admin
         """SELECT count(*) AS n FROM informe_auditoria i
            WHERE i.subido_en < now() - interval '7 days'
              AND NOT EXISTS (SELECT 1 FROM solicitud s WHERE s.nro_solicitud = i.nro_informe)""") or [{"n": 0}])[0]["n"]
-    tabla = estado_para_tabla(estado_desde_contactos(config_store.leer(ARCHIVO_CONTACTOS, [])), _listados())
+    # Cobertura de la lista de Línea de proceso (la de Actimist todavía no lleva clientes).
+    tabla = estado_para_tabla(estado_desde_contactos(del_servicio(config_store.leer(ARCHIVO_CONTACTOS, []))), _listados())
     filas_p = tabla["filas"]
     sin_tecnico = sum(1 for f in filas_p if not f["tecnico"])
     sin_comercial = sum(1 for f in filas_p if not f["comercial"])

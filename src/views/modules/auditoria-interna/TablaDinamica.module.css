@@ -424,3 +424,9 @@ thead .colPeriodo {
     animation: none;
   }
 }
+
+.nota {
+  margin-top: auto;
+  font-size: 12px;
+  color: var(--color-text-faint);
+}
