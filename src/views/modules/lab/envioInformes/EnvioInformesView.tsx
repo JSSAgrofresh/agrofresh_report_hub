@@ -374,11 +374,7 @@ export function EnvioInformesView() {
           <summary>Configuración: plantilla del correo y copias internas</summary>
           <ConfiguracionEnvio
             estado={estado}
-            laboratorio={laboratorio}
-            bloqueado={!desbloqueado}
-            onLaboratorio={setLaboratorio}
             onEstado={setEstado}
-            onPedirClave={() => setPidiendoClave(true)}
           />
         </details>
       )}
