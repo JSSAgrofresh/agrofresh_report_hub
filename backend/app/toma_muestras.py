@@ -2606,9 +2606,8 @@ _CAMPOS_GENERALES_DEFECTO: list[dict] = [
     {"clave": "linea_proceso", "etiqueta": "Línea Proceso", "tipo": "select", "requerido": True, "activo": True, "orden": 8},
     {"clave": "numero_camara", "etiqueta": "N° Cámara", "tipo": "text", "requerido": True, "activo": True, "orden": 9},
     {"clave": "numero_orden", "etiqueta": "N° Orden", "tipo": "text", "requerido": True, "activo": True, "orden": 10},
-    # Posición Muestreo es obligatorio solo en un Tipo de Aplicación
-    # (Actimist). Ese matiz no cabe en el mantenedor, que solo tiene un
-    # sí/no: la regla vive en el formulario (`REQUERIDO_SOLO_EN` en
+    # Posición Muestreo nunca es obligatorio (en Actimist es además
+    # texto libre). Ese matiz no cabe en el mantenedor: la regla vive en el formulario (`NUNCA_REQUERIDO` en
     # NuevaSolicitudView) y acá queda en False para que el mantenedor no
     # prometa una obligatoriedad que no aplica siempre. Los códigos CSG
     # (Productor/Packing) nunca son obligatorios y solo se muestran en Línea
