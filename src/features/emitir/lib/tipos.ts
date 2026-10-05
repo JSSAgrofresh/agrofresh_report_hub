@@ -241,3 +241,15 @@ export interface FilaSubida {
   folio: string | null
   mensaje: string | null
 }
+
+/** Un fortificado ingresado al laboratorio (no tiene solicitud). */
+export interface Fortificado {
+  id: number
+  numero: string
+  /** Gramos de la muestra extraída. */
+  peso_extraido: number
+  /** "YYYY-MM-DD" y "HH:MM", hora de Chile; los pone el servidor al ingresar. */
+  fecha_ingreso: string
+  hora_ingreso: string
+  ingresado_por?: string | null
+}

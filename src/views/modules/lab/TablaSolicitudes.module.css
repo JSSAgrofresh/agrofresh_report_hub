@@ -274,3 +274,62 @@
   color: var(--color-primary);
   background: #eef6e5;
 }
+
+/* Botones de la barra: verdes y distintivos (la descarga de la base y los PDF). */
+.botonVerde,
+.botonVerdeSuave {
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-primary);
+}
+
+.botonVerde {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.botonVerde:hover:not(:disabled) { filter: brightness(0.92); }
+
+.botonVerdeSuave {
+  background: #eef6e5;
+  color: var(--color-primary);
+}
+
+.botonVerdeSuave:hover:not(:disabled) { background: #dcecc8; }
+
+.botonVerde:disabled,
+.botonVerdeSuave:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Ingreso de fortificados */
+.nuevoFortificado {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  background: #eef6e5;
+  border: 1px solid #cfe6b8;
+  border-radius: var(--radius-md);
+}
+
+.inputNumero,
+.inputPesoAncho {
+  padding: 6px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: #fff;
+}
+
+.inputNumero { min-width: 150px; font-weight: 600; }
+.inputPesoAncho { width: 190px; font-family: var(--font-mono, monospace); text-align: right; }
+
+.inputNumero:focus,
+.inputPesoAncho:focus { outline: 2px solid var(--color-primary); border-color: transparent; }

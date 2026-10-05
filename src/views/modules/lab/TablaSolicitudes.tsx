@@ -8,6 +8,7 @@ import type { Solicitud } from '@/features/emitir'
 import { TipoMuestraChip } from './TipoMuestraChip'
 import { FotoCruce } from './FotoCruce'
 import { EditarCruceModal } from './EditarCruceModal'
+import { TablaFortificados } from './TablaFortificados'
 import styles from './TablaSolicitudes.module.css'
 
 
@@ -22,13 +23,13 @@ function formatearFecha(iso: string | null | undefined): string {
 /** Lo máximo que acepta el backend en un solo .zip (`MAX_PDF_ZIP`). */
 const PDFS_POR_ZIP = 200
 
-type Filtro = 'todas' | 'cruzadas' | 'pendientes'
+/** Los dos ingresos al laboratorio: la muestra con solicitud y el fortificado. */
+type Modo = 'estandar' | 'fortificados'
 
 
-const ETIQUETA: Record<Filtro, string> = {
-  todas: 'Todas',
-  cruzadas: 'Con muestra',
-  pendientes: 'Sin muestra',
+const ETIQUETA: Record<Modo, string> = {
+  estandar: 'Ingreso estándar',
+  fortificados: 'Ingreso fortificados',
 }
 
 
@@ -111,7 +112,7 @@ function PesoExtraido({ solicitud, onGuardado }: { solicitud: Solicitud; onGuard
 export function TablaSolicitudes({ solicitudes, onVerFicha, puedeQuitarCruce = false, onQuitarCruce, onCruceEditado }: TablaSolicitudesProps) {
   const [enFoto, setEnFoto] = useState<Solicitud | null>(null)
   const [enEdicion, setEnEdicion] = useState<Solicitud | null>(null)
-  const [filtro, setFiltro] = useState<Filtro>('todas')
+  const [modo, setModo] = useState<Modo>('estandar')
   const [buscar, setBuscar] = useState('')
   const [dialogoPdf, setDialogoPdf] = useState(false)
   const [bajandoPdf, setBajandoPdf] = useState(false)
@@ -123,10 +124,12 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, puedeQuitarCruce = f
   )
 
 
-  async function descargarConMuestra() {
+  /** La base en Excel: hoja «Estándar» con las muestras cruzadas y hoja
+   * «Fortificados» (esa la lee el servidor de su propia tabla). */
+  async function descargarBase() {
     const solicitudesCruzadas = (solicitudes ?? []).filter((s) => s.codigo_muestra)
     try {
-      guardarBlob(await descargarExcelConMuestra(solicitudesCruzadas), 'solicitudes_con_muestra.xlsx')
+      guardarBlob(await descargarExcelConMuestra(solicitudesCruzadas), 'base_ingreso_laboratorio.xlsx')
     } catch {
       alert('No se pudo generar el Excel. Intenta de nuevo.')
     }
@@ -156,27 +159,24 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, puedeQuitarCruce = f
   }
 
   const visibles = useMemo(() => {
-    let lista = filtrarPorFolio(solicitudes ?? [], buscar)
-    if (filtro === 'cruzadas') lista = lista.filter((s) => s.codigo_muestra)
-    if (filtro === 'pendientes') lista = lista.filter((s) => !s.codigo_muestra)
-    return lista
-  }, [solicitudes, buscar, filtro])
+    return filtrarPorFolio(solicitudes ?? [], buscar)
+  }, [solicitudes, buscar])
 
 
   return (
     <>
       <div className={styles.barra}>
         <div className={styles.filtros} role="tablist">
-          {(Object.keys(ETIQUETA) as Filtro[]).map((f) => (
+          {(Object.keys(ETIQUETA) as Modo[]).map((m) => (
             <button
-              key={f}
+              key={m}
               type="button"
               role="tab"
-              aria-selected={filtro === f}
-              className={filtro === f ? styles.filtroActivo : styles.filtro}
-              onClick={() => setFiltro(f)}
+              aria-selected={modo === m}
+              className={modo === m ? styles.filtroActivo : styles.filtro}
+              onClick={() => setModo(m)}
             >
-              {ETIQUETA[f]}
+              {ETIQUETA[m]}
             </button>
           ))}
         </div>
@@ -184,27 +184,29 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, puedeQuitarCruce = f
           className={styles.buscar}
           value={buscar}
           onChange={(e) => setBuscar(e.target.value)}
-          placeholder="Buscar por folio"
+          placeholder={modo === 'estandar' ? 'Buscar por folio' : 'Buscar por N° de fortificado'}
         />
         <button
           type="button"
-          className={styles.boton}
-          onClick={() => void descargarConMuestra()}
-          disabled={cruzadas === 0}
+          className={styles.botonVerde}
+          onClick={() => void descargarBase()}
+          title="Excel con dos hojas: la base estándar y los fortificados"
         >
-          Descargar con muestra
+          Descargar base (Excel)
         </button>
         <button
           type="button"
-          className={styles.boton}
+          className={styles.botonVerdeSuave}
           onClick={() => setDialogoPdf(true)}
           disabled={(solicitudes?.length ?? 0) === 0}
         >
           Descargar PDFs
         </button>
-        <span className={styles.conteo}>
-          {cruzadas} de {solicitudes?.length ?? 0} con muestra
-        </span>
+        {modo === 'estandar' && (
+          <span className={styles.conteo}>
+            {cruzadas} de {solicitudes?.length ?? 0} con muestra
+          </span>
+        )}
       </div>
 
 
@@ -275,6 +277,9 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, puedeQuitarCruce = f
         </Modal>
       )}
 
+      {modo === 'fortificados' ? (
+        <TablaFortificados buscar={buscar} puedeBorrar={puedeQuitarCruce} />
+      ) : (
       <div className={styles.tablaCaja}>
         <table className={styles.tabla}>
           <thead>
@@ -368,13 +373,14 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, puedeQuitarCruce = f
                     ? 'Cargando…'
                     : buscar
                       ? `Sin resultados para “${buscar}”.`
-                      : 'No hay solicitudes en este estado.'}
+                      : 'No hay solicitudes.'}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      )}
     </>
   )
 }

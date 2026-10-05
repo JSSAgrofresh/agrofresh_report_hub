@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from . import columnas_base, indice_solicitudes, informes_storage
+from . import columnas_base, fortificados, indice_solicitudes, informes_storage
 from . import r2
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
@@ -1383,9 +1383,31 @@ class FilaConMuestraIn(BaseModel):
     peso_muestra_extraido: float | None = None
 
 
+def _agregar_hoja_fortificados(wb: openpyxl.Workbook, filas: list[dict]) -> None:
+    """Segunda hoja de la base: los fortificados ingresados (N°, peso extraído,
+    fecha y hora de ingreso). Va como tabla de Excel, que ya trae su filtro: no se
+    le pone autofiltro aparte (el archivo saldría roto)."""
+    ws = wb.create_sheet("Fortificados")
+    encabezados = ["N° Fortificado", "Peso extraído (g)", "Fecha ingreso", "Hora ingreso"]
+    ws.append(encabezados)
+    for f in filas:
+        anio, mes, dia = (f["fecha_ingreso"] or "--").split("-") if f.get("fecha_ingreso") else ("", "", "")
+        fecha = f"{dia}-{mes}-{anio}" if anio else ""
+        ws.append([f["numero"], f["peso_extraido"], fecha, f.get("hora_ingreso") or ""])
+    for col in range(1, len(encabezados) + 1):
+        ws.column_dimensions[get_column_letter(col)].width = 20
+    for fila in ws.iter_rows(min_row=2, min_col=2, max_col=2):
+        fila[0].number_format = "0.0000"
+    ws.freeze_panes = "A2"
+    tabla = Table(displayName="TablaFortificados", ref=f"A1:D{max(len(filas) + 1, 2)}")  # Excel no admite una tabla sin fila de datos
+    tabla.tableStyleInfo = TableStyleInfo(name="TableStyleMedium4", showRowStripes=True)
+    ws.add_table(tabla)
+
+
 @router.post("/excel-con-muestra")
 def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingResponse:
-    """Base de las solicitudes de AgroFresh ya cruzadas con su muestra.
+    """Base de Ingreso al laboratorio, en dos hojas: «Estándar» (las solicitudes de
+    AgroFresh ya cruzadas con su muestra) y «Fortificados» (los ingresados aparte).
 
     Lleva las MISMAS columnas generales que la BD de Report, con el mismo
     nombre y orden (ver `columnas_base.py`; incluye N° Muestra, la recepción y la
@@ -1418,15 +1440,16 @@ def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingRespons
         _leer_analitos_lab(),
         laboratorios=("AGROFRESH",),
         generales=columnas_base.GENERALES_BASE,
-        titulo_hoja="Con muestra",
+        titulo_hoja="Estándar",
     )
+    _agregar_hoja_fortificados(wb, fortificados.listar_para_excel())
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": 'attachment; filename="solicitudes_con_muestra.xlsx"'},
+        headers={"Content-Disposition": 'attachment; filename="base_ingreso_laboratorio.xlsx"'},
     )
 
 
