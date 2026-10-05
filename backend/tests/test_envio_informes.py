@@ -515,3 +515,69 @@ def test_otro_laboratorio_solo_lo_envia_el_principal(entorno):
     assert exc.value.status_code == 403 and entorno == []
     _enviar(laboratorio="QUITECA", usuario=_principal())
     assert len(entorno) == 1
+
+
+# --- Eliminar un registro del historial -------------------------------------------
+
+class _CursorFalso:
+    def __init__(self, fila):
+        self.fila, self.sql = fila, []
+
+    def execute(self, sql, params=()):
+        self.sql.append((sql, params))
+
+    def fetchone(self):
+        return self.fila
+
+
+def _con_cursor(monkeypatch, fila):
+    import contextlib
+
+    cur = _CursorFalso(fila)
+
+    @contextlib.contextmanager
+    def conexion(*a, **k):
+        yield object()
+
+    @contextlib.contextmanager
+    def cursor_dict(conn):
+        yield cur
+
+    monkeypatch.setattr(ei, "conexion", conexion)
+    monkeypatch.setattr(ei, "cursor_dict", cursor_dict)
+    monkeypatch.setattr(ei.actividad, "registrar", lambda *a, **k: cur.sql.append(("actividad", a)))
+    return cur
+
+
+def test_solo_el_principal_elimina_un_registro(entorno, monkeypatch):
+    cur = _con_cursor(monkeypatch, {"asunto": "x", "creado_en": None})
+    for quien in (_usuario(), _usuario("admin_general", None)):
+        with pytest.raises(HTTPException) as exc:
+            ei.eliminar_registro(5, quien)
+        assert exc.value.status_code == 403
+    assert cur.sql == []  # ni siquiera se tocó la base
+    assert ei.eliminar_registro(5, _principal()) == {"estado": "eliminado"}
+    sentencia, params = cur.sql[0]
+    assert sentencia.startswith("DELETE FROM envio_informe_log WHERE id = %s") and params == (5,)
+    assert cur.sql[1][0] == "actividad"   # queda anotado como cambio sensible
+
+
+def test_eliminar_algo_que_no_existe_es_404(entorno, monkeypatch):
+    _con_cursor(monkeypatch, None)
+    with pytest.raises(HTTPException) as exc:
+        ei.eliminar_registro(99, _principal())
+    assert exc.value.status_code == 404
+
+
+def test_sin_la_tabla_eliminar_avisa_en_vez_de_caerse(entorno, monkeypatch):
+    import contextlib
+
+    @contextlib.contextmanager
+    def sin_base(*a, **k):
+        raise RuntimeError("no existe la tabla")
+        yield
+
+    monkeypatch.setattr(ei, "conexion", sin_base)
+    with pytest.raises(HTTPException) as exc:
+        ei.eliminar_registro(1, _principal())
+    assert exc.value.status_code == 503

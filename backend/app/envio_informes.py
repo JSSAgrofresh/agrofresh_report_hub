@@ -687,3 +687,28 @@ def historial(limite: int = 40, usuario: Usuario = Depends(acceso)) -> dict[str,
         return {"disponible": False, "items": []}
     items = [{**f, "creado_en": f["creado_en"].isoformat()} for f in filas]
     return {"disponible": True, "items": items}
+
+
+@router.delete("/historial/{registro_id}")
+def eliminar_registro(registro_id: int, usuario: Usuario = Depends(acceso)) -> dict[str, str]:
+    """Borra UN registro del historial. Solo el administrador principal (en la
+    pantalla pide además su contraseña) y de a uno: no hay borrado en lote."""
+    if not es_principal(usuario):
+        raise HTTPException(403, "Solo el administrador principal puede eliminar registros del historial.")
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                "DELETE FROM envio_informe_log WHERE id = %s RETURNING asunto, creado_en", (registro_id,)
+            )
+            fila = cur.fetchone()
+    except Exception as exc:
+        logger.warning("No se pudo borrar el registro %s de envio_informe_log.", registro_id, exc_info=True)
+        raise HTTPException(503, "No se pudo borrar: el historial no está disponible (¿falta la migración 0052?).") from exc
+    if fila is None:
+        raise HTTPException(404, "Ese registro ya no existe.")
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "envio_informe_registro_eliminado",
+        f"eliminó un registro del historial de envío de informes ({fila['asunto'] or 'sin asunto'})",
+        sensible=True,
+    )
+    return {"estado": "eliminado"}
