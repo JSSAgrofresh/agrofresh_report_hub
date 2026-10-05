@@ -278,7 +278,8 @@ Regla de dependencia (`README.md`): `views` → `features`+`components`; `featur
   "Gestionar analitos" (matriz de límites por especie/tipo_servicio) visible para
   admin_general/admin_area.
 - **AgroFresh Lab** — `AgrofreshLabHubView.tsx` (hub) → `AgrofreshLabView.tsx`
-  (Ingreso al laboratorio) y el módulo de Verificaciones diarias (ver §6b).
+  (Ingreso al laboratorio), el módulo de Verificaciones diarias (ver §6b) y
+  `envioInformes/EnvioInformesView.tsx` (Envío de informes: ver CLAUDE.md).
 - **Reports hub** — `ReportesHubView.tsx` (cards: Laboratorio, Post Venta, Emitir reporte) →
   `EmitirReporteHubView.tsx` (card: Reporte análisis cromatografía) →
   `CromatografiaEmitirView.tsx` (ver §6).

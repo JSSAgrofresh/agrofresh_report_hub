@@ -1,0 +1,766 @@
+/* Envío de informes: un espacio de trabajo en dos columnas. A la izquierda lo
+   que se prepara, en el orden en que se hace; a la derecha, el correo tal como
+   saldrá y el botón de enviar, que se queda a la vista al bajar. */
+.vista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.volver {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  padding: 7px 4px;
+}
+
+.volver:hover {
+  color: var(--color-primary-hover);
+}
+
+/* ── El botón de modo ─────────────────────────────────────────────── */
+.modo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.modo:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.modo:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.modoPunto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.modoPrueba {
+  background: #fdf1dc;
+  border-color: #ecc27a;
+  color: #8a4b0b;
+}
+
+.modoProduccion {
+  background: var(--color-primary);
+  border-color: var(--color-primary-hover);
+  color: #fff;
+}
+
+.modoProduccion .modoPunto {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+}
+
+.bandaPrueba,
+.bandaProduccion {
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.bandaPrueba {
+  background: #fdf1dc;
+  border: 1px solid #ecc27a;
+  color: #6f3c08;
+}
+
+.bandaProduccion {
+  background: #eef6e5;
+  border: 1px solid #b9d99a;
+  color: #2f5d12;
+}
+
+.exito,
+.error,
+.aviso {
+  margin: 0;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.exito {
+  background: #e7f4e4;
+  border: 1px solid #a8d4a2;
+  color: #1f5b21;
+  font-weight: 600;
+}
+
+.error {
+  background: #fbeceb;
+  border: 1px solid #efb9b5;
+  color: var(--color-danger);
+}
+
+.aviso {
+  background: #fdf1dc;
+  border: 1px solid #ecc27a;
+  color: #6f3c08;
+}
+
+/* ── Espacio de trabajo ───────────────────────────────────────────── */
+.espacio {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .espacio {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: var(--space-5);
+  }
+
+  .columnaDer {
+    position: sticky;
+    top: var(--space-4);
+  }
+}
+
+.columna,
+.columnaDer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.paso {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.pasoCabecera {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.pasoNumero {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+.pasoTitulo {
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+.pasoAyuda {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+  max-width: 62ch;
+}
+
+.pasoCuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--space-3);
+}
+
+/* ── Campos ───────────────────────────────────────────────────────── */
+.campoSelect,
+.campoTexto,
+.campoModal {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.campoSelect > span,
+.campoTexto > span,
+.campoModal > span,
+.etiquetaCampo {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.campoSelect select,
+.campoTexto input,
+.campoTexto textarea,
+.campoModal input {
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+  background: #fff;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+.campoTexto textarea {
+  resize: vertical;
+  line-height: 1.55;
+  min-height: 150px;
+}
+
+.campoSelect select:focus,
+.campoTexto input:focus,
+.campoTexto textarea:focus,
+.campoModal input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 0;
+  border-color: var(--color-primary);
+}
+
+.campoTexto input:disabled,
+.campoTexto textarea:disabled {
+  background: var(--color-bg);
+  color: var(--color-text-faint);
+}
+
+.ayudaCampo {
+  font-size: 12px;
+  color: var(--color-text-faint);
+  max-width: 70ch;
+}
+
+.enlace {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── Lista de correos (chips) ─────────────────────────────────────── */
+.campoCorreos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.etiquetaCampo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.contador {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border-radius: 999px;
+  padding: 0 7px;
+  line-height: 18px;
+}
+
+.cajaCorreos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-height: 42px;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.cajaCorreos:focus-within {
+  outline: 2px solid var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.cajaAlerta {
+  border-color: #e0a95a;
+  background: #fffaf0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  background: #eef6e5;
+  border: 1px solid #cfe5b8;
+  color: #2f5d12;
+  border-radius: 999px;
+  padding: 2px 4px 2px 10px;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.chipMalo {
+  background: #fbeceb;
+  border-color: #efb9b5;
+  color: var(--color-danger);
+}
+
+.chipQuitar {
+  border: none;
+  background: transparent;
+  color: inherit;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.chipQuitar:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.entradaCorreo {
+  flex: 1 1 160px;
+  min-width: 140px;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 13.5px;
+  background: transparent;
+  padding: 4px 2px;
+}
+
+/* ── Zona de archivos ─────────────────────────────────────────────── */
+.zona {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  padding: var(--space-5) var(--space-4);
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.zonaEncima {
+  border-color: var(--color-primary);
+  background: #eef6e5;
+}
+
+.zonaIcono {
+  width: 30px;
+  height: 30px;
+  color: var(--color-primary-hover);
+}
+
+.zonaTitulo {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.zonaAyuda {
+  font-size: 12px;
+  color: var(--color-text-faint);
+  margin-bottom: var(--space-2);
+}
+
+.botonSecundario {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  background: #fff;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.botonSecundario:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.archivos {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.archivo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 7px 8px 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  min-width: 0;
+}
+
+.archivoTipo {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: #b0271f;
+  border-radius: 4px;
+  padding: 3px 5px;
+  flex-shrink: 0;
+}
+
+.archivoNombre {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.archivoPeso {
+  font-size: 12px;
+  color: var(--color-text-faint);
+  flex-shrink: 0;
+}
+
+/* ── Vista previa y barra de envío ────────────────────────────────── */
+.vistaPrevia {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.vistaCabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.vistaCabecera h2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.etiquetaModo {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.etiquetaPrueba {
+  background: #fdf1dc;
+  color: #8a4b0b;
+}
+
+.etiquetaProduccion {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.cabecerasCorreo,
+.confirmacion {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 4px var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: 12.5px;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.cabecerasCorreo dt,
+.confirmacion dt {
+  color: var(--color-text-faint);
+  font-weight: 600;
+}
+
+.cabecerasCorreo dd,
+.confirmacion dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.asuntoVista {
+  font-weight: 700;
+}
+
+.confirmacion {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  grid-template-columns: 80px minmax(0, 1fr);
+}
+
+.marcoCorreo {
+  display: block;
+  width: 100%;
+  height: 560px;
+  border: none;
+  background: #f6f7f3;
+}
+
+.barraEnvio {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.resumenEnvio {
+  flex: 1 1 220px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.faltan {
+  color: var(--color-text-faint);
+}
+
+.botonEnviar {
+  min-width: 170px;
+  padding-block: 10px;
+}
+
+.vacio {
+  padding: var(--space-5) var(--space-4);
+  font-size: 13.5px;
+  color: var(--color-text-faint);
+  text-align: center;
+}
+
+.modalTexto {
+  font-size: 14px;
+  line-height: 1.55;
+  margin-bottom: var(--space-3);
+}
+
+/* ── Configuración (plegable) ─────────────────────────────────────── */
+.plegable {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.plegable > summary {
+  cursor: pointer;
+  padding: var(--space-3) var(--space-5);
+  font-size: 14px;
+  font-weight: 700;
+  list-style-position: inside;
+}
+
+.plegable[open] > summary {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.configuracion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.pestanas {
+  display: flex;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pestana,
+.pestanaActiva {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 12px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.pestanaActiva {
+  color: var(--color-primary-hover);
+  border-bottom-color: var(--color-primary);
+}
+
+.configCuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 760px;
+}
+
+.accionesConfig {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.guardado {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-ok);
+}
+
+/* ── Historial ────────────────────────────────────────────────────── */
+.historial {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.historial h2 {
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+.tablaScroll {
+  overflow-x: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tabla th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  font-weight: 700;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.tabla tr:last-child td {
+  border-bottom: none;
+}
+
+.celdaFecha {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.celdaPlanta {
+  display: block;
+  font-weight: 600;
+}
+
+.celdaSub {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-faint);
+}
+
+.estado {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.estadoOk {
+  background: #e7f4e4;
+  color: #1f5b21;
+}
+
+.estadoPrueba {
+  background: #fdf1dc;
+  color: #8a4b0b;
+}
+
+.estadoError {
+  background: #fbeceb;
+  color: var(--color-danger);
+}
+
+@media (max-width: 640px) {
+  .paso {
+    padding: var(--space-4);
+  }
+
+  .marcoCorreo {
+    height: 460px;
+  }
+
+  .botonEnviar {
+    width: 100%;
+  }
+}

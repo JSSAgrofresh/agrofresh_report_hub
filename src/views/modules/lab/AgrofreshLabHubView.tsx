@@ -1,6 +1,6 @@
 import { Header } from '@/components/layout/Header'
 import { OpcionCard } from '@/components/ui/OpcionCard'
-import { IconFrasco, IconVerificar } from '@/components/ui/icons'
+import { IconCorreo, IconFrasco, IconVerificar } from '@/components/ui/icons'
 import { ROUTES } from '@/constants/routes'
 import styles from '@/components/ui/OpcionCard.module.css'
 
@@ -10,7 +10,8 @@ import styles from '@/components/ui/OpcionCard.module.css'
  * Lo que había —recibir la muestra, cruzarla con su solicitud y subir el
  * resultado del GC— es ahora «Ingreso al laboratorio», y no cambió nada. Al
  * lado entra «Verificaciones diarias», el control de equipos que se hacía en
- * un Excel con macros.
+ * un Excel con macros, y «Envío de informes», donde se mandan a los clientes
+ * los PDF que entrega el laboratorio.
  *
  * Mismo patrón que el hub de Report: el módulo y su permiso siguen siendo uno
  * solo (`agrofresh_lab`); esto es la puerta de entrada, no una capa nueva de
@@ -35,6 +36,12 @@ export function AgrofreshLabHubView() {
           titulo="Verificaciones diarias"
           descripcion="micropipetas, balanza, temperaturas, gases, inyector y detector, con su histórico."
           ruta={ROUTES.agrofreshLabVerificaciones}
+        />
+        <OpcionCard
+          icono={<IconCorreo />}
+          titulo="Envío de informes"
+          descripcion="Sube el PDF del laboratorio, elige Sold To y Ship To y envíalo a la lista de distribución del cliente."
+          ruta={ROUTES.agrofreshLabEnvioInformes}
         />
       </div>
     </div>

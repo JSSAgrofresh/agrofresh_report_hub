@@ -197,6 +197,14 @@ def leer_eventos(desde: datetime) -> list[dict]:
         ev.append(_ev(f["subido_en"], f["subido_por_email"], f["subido_por_nombre"], "informes", "informe_subido",
                       f"subió el informe {f['nro_informe'] or ''} de {f['laboratorio'] or ''}".strip()))
     for f in _filas(
+        """SELECT creado_en, usuario_email, usuario_nombre, modo, laboratorio, ship_to, exitoso
+           FROM envio_informe_log WHERE creado_en >= %(d)s LIMIT %(n)s""", {**p, "n": TOPE_POR_FUENTE}):
+        prueba = " (prueba)" if f["modo"] == "prueba" else ""
+        ev.append(_ev(f["creado_en"], f["usuario_email"], f["usuario_nombre"], "informes",
+                      "informe_enviado" if f["exitoso"] else "informe_envio_fallido",
+                      ("envió" if f["exitoso"] else "intentó enviar (falló)")
+                      + f" un informe de {f['laboratorio'] or ''} a {f['ship_to'] or 'un cliente'}{prueba}"))
+    for f in _filas(
         """SELECT creado_en, email, nombre, categoria, accion, modulo, detalle, sensible
            FROM actividad_usuario WHERE creado_en >= %(d)s ORDER BY creado_en DESC LIMIT %(n)s""", {**p, "n": TOPE_POR_FUENTE}):
         texto = {"login": "inició sesión", "login_fallido": "intento de ingreso fallido"}.get(f["accion"]) or f["detalle"] or f["accion"]

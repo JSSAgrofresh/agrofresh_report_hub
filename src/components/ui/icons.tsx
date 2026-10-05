@@ -250,6 +250,15 @@ export function IconEmitir(props: IconProps) {
   )
 }
 
+export function IconCorreo(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="5.5" width="18" height="13" rx="2" />
+      <path d="M3.5 7l8.5 6 8.5-6" />
+    </svg>
+  )
+}
+
 export function IconCandado(props: IconProps) {
   return (
     <svg {...base} {...props}>
