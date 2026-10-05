@@ -276,6 +276,9 @@ def renderizar_reanalisis(laboratorio: str, datos: dict) -> tuple[str, str, str,
 
 ARCHIVO_INFORMES = "templates_mail_informes.json"
 
+# Va siempre debajo del título del correo del informe.
+SUBTITULO_INFORME = "Laboratorio de Cromatografía"
+
 VARIABLES_INFORMES = [
     "laboratorio", "sold_to", "ship_to", "especie", "fecha_envio", "enviado_por",
     "cantidad_informes", "nombre_archivo",
@@ -389,8 +392,7 @@ def renderizar_informe(
 ) -> tuple[str, str, str, list[ImagenInline]]:
     """Arma el correo de un informe (asunto, texto, html y logo)."""
     asunto_final, texto = textos_informe(laboratorio, datos, asunto=asunto, cuerpo=cuerpo)
-    planta = " — ".join(p for p in (str(datos.get("sold_to") or "").strip(), str(datos.get("ship_to") or "").strip()) if p)
-    html, imagenes = html_de_texto(texto, "Informe de Resultados", planta, aviso)
+    html, imagenes = html_de_texto(texto, "Informe de Resultados", SUBTITULO_INFORME, aviso)
     if aviso:
         texto = f"{aviso}\n\n{texto}"
     return asunto_final, texto, html, imagenes
