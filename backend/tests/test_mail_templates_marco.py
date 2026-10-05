@@ -32,14 +32,17 @@ def test_solicitud_y_reanalisis_salen_igual_que_antes(sin_config):
         assert actual == json.load(f)
 
 
-def test_el_informe_usa_el_mismo_marco(sin_config):
+def test_el_informe_es_sobrio_y_las_solicitudes_siguen_con_su_franja(sin_config):
     _, _, html, imagenes = m.renderizar_informe("AGROFRESH", {"sold_to": "DOLE", "ship_to": "SAN FERNANDO"})
     solicitud = m.renderizar("AGROFRESH", {"numero_solicitud": "OT-1"})[2]
-    # misma franja de marca y mismo pie
-    for fragmento in ("background:#24391a", "Enviado automáticamente por AgroFresh Report Hub.", "max-width:600px"):
-        assert fragmento in html and fragmento in solicitud
-    assert "Informe de Resultados" in html and "DOLE — SAN FERNANDO" in html
+    # el informe: sin franja verde, con el logo, el título en mayúsculas y la planta
+    assert "#24391a" not in html and "#6dad3c" not in html
+    assert "INFORME DE RESULTADOS" in html and "DOLE — SAN FERNANDO" in html
+    assert f"cid:{m.LOGO_CONTENT_ID}" in html
     assert [i.content_id for i in imagenes] == [m.LOGO_CONTENT_ID]
+    assert "Enviado automáticamente por AgroFresh Report Hub." in html
+    # la solicitud no cambió
+    assert "background:#24391a" in solicitud
 
 
 def test_el_texto_del_informe_se_escapa_en_el_html(sin_config):

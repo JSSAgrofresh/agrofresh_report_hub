@@ -309,27 +309,64 @@ def valores_informe(datos: dict) -> dict[str, str]:
     return {variable: str(datos.get(variable) or "—") for variable in VARIABLES_INFORMES}
 
 
+def _layout_sobrio(titulo: str, subtitulo: str, aviso_html: str, cuerpo_html: str, logo: bytes | None) -> str:
+    """El correo del informe, a la manera del informe mismo: logo a la izquierda,
+    título en mayúsculas centrado, una línea fina debajo y texto negro sobre
+    blanco. Sin franja de color. Es solo de los informes: las solicitudes y los
+    reanálisis siguen con `_layout`."""
+    logo_html = (
+        f'<img src="cid:{LOGO_CONTENT_ID}" alt="AgroFresh" width="120" height="48" style="display:block;border:0;">'
+        if logo else '<span style="font-size:17px;font-weight:700;color:#7aa93c;">AgroFresh</span>'
+    )
+    sub = (
+        f'<div style="font-size:12px;color:{_TEXTO};margin-top:4px;">{subtitulo}</div>' if subtitulo else ""
+    )
+    return f"""
+<div style="background:{_FONDO_TENUE};padding:28px 12px;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;border-collapse:collapse;background:#ffffff;border:1px solid {_BORDE};">
+    <tr>
+      <td style="padding:22px 28px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+          <tr>
+            <td width="120" valign="middle">{logo_html}</td>
+            <td align="center" valign="middle" style="padding-left:12px;">
+              <div style="font-size:17px;font-weight:700;color:#111111;letter-spacing:.02em;">{titulo}</div>{sub}
+            </td>
+            <td width="120"></td>
+          </tr>
+        </table>
+        <div style="border-bottom:1.5px solid #111111;margin-top:14px;"></div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:14px 28px 26px;">{aviso_html}
+        <div style="color:#111111;font-size:14px;line-height:1.65;">{cuerpo_html}</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:12px 28px;border-top:1px solid {_BORDE};">
+        <p style="margin:0;color:{_TEXTO_TENUE};font-size:11px;">Enviado automáticamente por AgroFresh Report Hub.</p>
+      </td>
+    </tr>
+  </table>
+</div>
+""".strip()
+
+
 def html_de_texto(
     texto: str, titulo: str, subtitulo: str = "", aviso: str = "",
 ) -> tuple[str, list[ImagenInline]]:
-    """El texto ya escrito, dentro del marco del correo (logo, colores y pie).
+    """El texto ya escrito, dentro del marco sobrio del correo del informe.
     `aviso`, si lo hay, va destacado arriba del texto -el correo de prueba lo
     usa para decir a quién habría ido de verdad-."""
     logo = _logo_bytes()
-    intermedio: list[str] = []
-    if subtitulo:
-        intermedio.append(
-            f'<p style="margin:0 0 20px;color:{_VERDE};font-weight:700;font-size:14.5px;">{escape(subtitulo)}</p>'
-        )
-    else:
-        intermedio.append('<div style="margin-bottom:20px;"></div>')
+    aviso_html = ""
     if aviso:
-        aviso_html = escape(aviso).replace("\n", "<br>")
-        intermedio.append(
-            '<div style="background:#fff8e1;border:1px solid #e8c32e;border-radius:6px;padding:12px 16px;margin-bottom:20px;'
-            f'color:{_TEXTO};font-size:12.5px;line-height:1.55;">{aviso_html}</div>'
+        aviso_html = (
+            '<div style="background:#fff8e1;border:1px solid #e8c32e;padding:10px 14px;margin-bottom:16px;'
+            f'color:{_TEXTO};font-size:12.5px;line-height:1.55;">{escape(aviso).replace(chr(10), "<br>")}</div>'
         )
-    html = _layout(escape(titulo), intermedio, escape(texto).replace("\n", "<br>"), logo)
+    html = _layout_sobrio(escape(titulo).upper(), escape(subtitulo), aviso_html, escape(texto).replace("\n", "<br>"), logo)
     return html, ([ImagenInline(LOGO_CONTENT_ID, logo)] if logo else [])
 
 
