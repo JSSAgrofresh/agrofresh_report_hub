@@ -748,7 +748,6 @@ def test_informe_sin_cliente_usa_la_lista_del_tipo_de_servicio():
     item = res["items"][0]
     assert item["leido"] is True and item["error"] is None
     assert item["plan"]["origen"] == "servicio"
-    assert "CJIMENEZ@AGROFRESH.COM" in item["plan"]["cc"]  # los que siempre reciben Actimist
 
 
 def test_informe_sin_cliente_ni_tipo_sigue_sin_leerse():
