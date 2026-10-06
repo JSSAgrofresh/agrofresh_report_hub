@@ -289,3 +289,15 @@ def test_ryd_tiene_su_propia_lista_y_no_toca_la_de_linea():
     ryd = [c for c in nuevos if c.get("servicio") == "ryd"]
     assert {c["email"] for c in ryd} == {"com.ryd@agrofresh.com", "cli.ryd@x.cl"}
     assert [c for c in nuevos if not c.get("servicio")] == contactos        # Línea intacta
+
+
+def test_cada_lista_dice_a_quien_manda_siempre_aunque_no_tenga_plantas():
+    from app.servicios import fijos_de_lista
+    for lista, para in (("actimist", ["CJIMENEZ@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM"]),
+                        ("ecofog", ["CJIMENEZ@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM"]),
+                        ("ryd", ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"])):
+        f = ld._fijos_para_pantalla(lista)
+        assert f["para"] == para == fijos_de_lista(lista)["para"]
+        assert f["cc"] == ["JORGE.SANDOVAL@AGROFRESH.COM", "AGROFRESHREPORTHUB@GMAIL.COM"] and f["respaldo"] == []
+    linea = ld._fijos_para_pantalla("")
+    assert linea["para"] == [] and linea["cc"] == [] and "CGUERRERO@AGROFRESH.COM" in linea["respaldo"]

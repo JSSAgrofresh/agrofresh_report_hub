@@ -45,7 +45,7 @@ from pydantic import BaseModel, Field
 from . import config_store
 from .auth import Usuario, solo_admin_general
 from .listados import clave_normalizada as _clave_esp
-from .servicios import clave_lista, es_del_servicio, tablas
+from .servicios import clave_lista, es_del_servicio, fijos_de_lista, tablas
 
 logger = logging.getLogger(__name__)
 
@@ -717,6 +717,16 @@ class CambiosIn(BaseModel):
     cambios: list[dict] = Field(default_factory=list, max_length=2000)
 
 
+def _fijos_para_pantalla(servicio: str) -> dict:
+    """Lo que recibe cada solicitud de esa lista aunque no tenga plantas cargadas.
+    Línea de proceso no tiene fijos: solo su respaldo, que rige cuando la planta no
+    tiene lista del cliente."""
+    from .toma_muestras import DESTINATARIOS_SIN_LISTA
+
+    fijos = fijos_de_lista(servicio)
+    return {**fijos, "respaldo": [] if servicio else list(DESTINATARIOS_SIN_LISTA)}
+
+
 @router.get("/estado")
 def estado_actual(
     sin_lista: bool = False, servicio: str = "", _: Usuario = Depends(solo_admin_general)
@@ -727,6 +737,7 @@ def estado_actual(
     resultado = estado_para_tabla(estado, _listados(servicio), sin_lista)
     resultado["clientes"] = _clientes_listados(servicio)
     resultado["servicio"] = servicio
+    resultado["fijos"] = _fijos_para_pantalla(servicio)
     return resultado
 
 

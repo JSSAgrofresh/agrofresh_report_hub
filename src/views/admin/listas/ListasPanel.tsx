@@ -18,6 +18,7 @@ import { DialogoAgregarPlanta } from './DialogoAgregarPlanta'
 import type { DatosPlanta } from './DialogoAgregarPlanta'
 import { EditorCelda } from './EditorCelda'
 import type { EditorAbierto } from './EditorCelda'
+import { FijosDeLista } from './FijosDeLista'
 import { IndicadoresListas } from './IndicadoresListas'
 import { TablaListas } from './TablaListas'
 import type { Destino } from './TablaListas'
@@ -284,6 +285,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribuci
 
   return (
     <div className={styles.panel}>
+      {estado.fijos && <FijosDeLista fijos={estado.fijos} servicio={servicio} />}
       <IndicadoresListas ind={ind} resumen={estado.resumen} filtro={filtro} onFiltro={(f) => {
         if (f === 'sin_lista_listados') setIncluirSinLista(true)
         setFiltro(f)
@@ -416,7 +418,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribuci
       {filasFiltradas.length === 0 && nuevasVisibles.length === 0 ? (
         <div className={styles.vacio}>
           <h3>{estado.filas.length === 0 ? 'Aún no hay listas cargadas' : 'Ninguna planta coincide con el filtro'}</h3>
-          <p>{estado.filas.length === 0 ? 'Importa el Excel maestro o agrega una planta.' : 'Prueba quitando los filtros o buscando de otra forma.'}</p>
+          <p>{estado.filas.length === 0 ? (servicio === 'linea' ? 'Importa el Excel maestro o agrega una planta.' : 'Mientras no cargues plantas, cada solicitud sale solo con los destinatarios de arriba. Importa un Excel o agrega una planta para sumar los del cliente.') : 'Prueba quitando los filtros o buscando de otra forma.'}</p>
         </div>
       ) : (
         <>

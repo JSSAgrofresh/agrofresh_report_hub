@@ -65,6 +65,8 @@ MARCA_RESPALDO_RYD = "respaldo_ryd"
 # preguntas distintas: `clave_servicio` (¿qué listado?) y `clave_lista` (¿qué lista
 # de distribución?). Una RYD usa su lista solo si lleva la marca `respaldo_ryd`.
 RYD = "ryd"
+# Jorge y el sistema (Report Hub) van SIEMPRE en copia en Actimist, Ecofog y RYD.
+COPIA_FIJA = ["JORGE.SANDOVAL@AGROFRESH.COM", "AGROFRESHREPORTHUB@GMAIL.COM"]
 
 
 def _norm(texto: Any) -> str:
@@ -130,3 +132,16 @@ def es_del_servicio(contacto: dict, servicio: str) -> bool:
 def tablas(servicio: Any) -> tuple[str, str]:
     """(tabla de clientes, tabla de plantas) del listado de ese servicio."""
     return TABLAS[clave_servicio(servicio)]
+
+
+def fijos_de_lista(lista: Any) -> dict[str, list[str]]:
+    """Quién recibe SIEMPRE en esa lista, tenga o no plantas cargadas:
+    Actimist y Ecofog → Para Carlos y Cristian; RYD → Para Carla y Fran; en las tres,
+    Jorge y el Report Hub en Copia. Línea de proceso no tiene fijos (su respaldo solo
+    rige cuando la planta no tiene lista del cliente)."""
+    l = clave_lista(lista)
+    if l == RYD:
+        return {"para": list(RYD_COPIAS), "cc": list(COPIA_FIJA)}
+    if l in PERMANENTES_SERVICIO:
+        return {"para": list(PERMANENTES_SERVICIO[l]), "cc": list(COPIA_FIJA)}
+    return {"para": [], "cc": []}
