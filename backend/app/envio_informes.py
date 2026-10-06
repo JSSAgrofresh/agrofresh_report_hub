@@ -535,19 +535,20 @@ async def analizar_informes(
                             solicitudes = {}
                     encontrada = solicitudes.get(datos["numero_solicitud"].strip().upper())
                 if encontrada:
+                    # La solicitud solo se usa por su CÓDIGO, para completar lo que el PDF no trae
+                    # (Sold To, Ship To, especie, tipo de servicio). La lista de distribución sale
+                    # SIEMPRE de las listas del sistema, no de lo que guardó la solicitud.
                     from .servicios import servicio_de_datos
 
                     archivo_sol, sol = encontrada
-                    datos["sold_to"] = str(sol.get("sold_to") or "").strip()
-                    datos["ship_to"] = str(sol.get("ship_to") or "").strip()
-                    datos["especie"] = str(sol.get("especie") or "").strip()
-                    datos["servicio"] = servicio_de_datos(sol)
                     item["solicitud"] = archivo_sol
-                    item.update(datos)
-                    item["leido"] = True
-                    item["plan"] = plan_desde_solicitud(sol, internos)
-                    items.append(item)
-                    continue
+                    for campo in ("sold_to", "ship_to", "especie"):
+                        if not datos[campo]:
+                            datos[campo] = str(sol.get(campo) or "").strip()
+                    if not datos["tipo_aplicacion"]:
+                        campos_sol = sol.get("campos_laboratorio")
+                        datos["tipo_aplicacion"] = str((campos_sol or {}).get("Tipo Aplicación") or "").strip() if isinstance(campos_sol, dict) else ""
+                        datos["servicio"] = servicio_de_datos(sol)
                 if not (datos["sold_to"] and datos["ship_to"]):
                     # Respaldo: un Sold To + Ship To que el sistema ya conoce, escrito en el texto.
                     pares = sorted({

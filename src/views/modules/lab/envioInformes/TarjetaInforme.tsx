@@ -83,7 +83,7 @@ export function TarjetaInforme({
       </div>
 
       {aviso && informe.estado !== 'enviado' && <p className={styles.informeAviso}>{aviso}</p>}
-      {informe.plan?.origen === 'planta' && informe.estado === 'listo' && (
+      {informe.plan?.origen === 'planta' && !informe.lectura.solicitud && informe.estado === 'listo' && (
         <p className={styles.informeAviso}>
           No encontré la solicitud de este informe: la lista sale del Sold To y el Ship To leídos del PDF.
         </p>
