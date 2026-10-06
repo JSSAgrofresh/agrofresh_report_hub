@@ -535,19 +535,22 @@ async def analizar_informes(
                             solicitudes = {}
                     encontrada = solicitudes.get(datos["numero_solicitud"].strip().upper())
                 if encontrada:
-                    # La solicitud solo se usa por su CÓDIGO, para completar lo que el PDF no trae
-                    # (Sold To, Ship To, especie, tipo de servicio). La lista de distribución sale
-                    # SIEMPRE de las listas del sistema, no de lo que guardó la solicitud.
+                    # La OT del informe manda: con ella se busca la solicitud y de ahí salen las llaves
+                    # (Sold To, Ship To, especie, servicio), porque el texto del PDF puede venir mal
+                    # escrito. Con esas llaves se consulta el listado interno de contactos (la misma
+                    # función que usa la solicitud). Lo que la solicitud no tenga, queda como lo leyó el PDF.
                     from .servicios import servicio_de_datos
 
                     archivo_sol, sol = encontrada
                     item["solicitud"] = archivo_sol
                     for campo in ("sold_to", "ship_to", "especie"):
-                        if not datos[campo]:
-                            datos[campo] = str(sol.get(campo) or "").strip()
-                    if not datos["tipo_aplicacion"]:
-                        campos_sol = sol.get("campos_laboratorio")
-                        datos["tipo_aplicacion"] = str((campos_sol or {}).get("Tipo Aplicación") or "").strip() if isinstance(campos_sol, dict) else ""
+                        valor = str(sol.get(campo) or "").strip()
+                        if valor:
+                            datos[campo] = valor
+                    campos_sol = sol.get("campos_laboratorio")
+                    tipo_sol = str((campos_sol or {}).get("Tipo Aplicación") or "").strip() if isinstance(campos_sol, dict) else ""
+                    if tipo_sol:
+                        datos["tipo_aplicacion"] = tipo_sol
                         datos["servicio"] = servicio_de_datos(sol)
                 if not (datos["sold_to"] and datos["ship_to"]):
                     # Respaldo: un Sold To + Ship To que el sistema ya conoce, escrito en el texto.
