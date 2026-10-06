@@ -124,7 +124,7 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/limpiar_duplicados_accutab.py` | Borra reportes de Post Venta y carpetas `accutab/mail/` duplicados por la ingesta de correo (deja uno por correo) |
 | `scripts/cruce_informes.py` | Solo lee: explica por qué «Solicitudes e informes» (OT con informe) y Report (informes) no dan el mismo número (`--lab Quiteca`) |
 | `scripts/completar_desde_pdf_quiteca.py` | Completa los informes de Quiteca ya cargados leyendo su PDF guardado: N° de muestra, hora de muestreo y fechas de análisis/informe (solo lo vacío; necesita la 0053 y `pypdf`; `--aplicar` para escribir, respaldo en `logs/`) |
-| `scripts/generar_informes_accutab.py` | Genera el informe PDF de las cargas de Post Venta que ya estaban guardadas sin él, **saltando las demo** (`--aplicar` para escribir; sin eso solo cuenta) |
+| `scripts/generar_informes_accutab.py` | Genera el informe PDF de las cargas de Post Venta que ya estaban guardadas sin él, **saltando las demo** (`--aplicar` para escribir; sin eso solo cuenta; `--rehacer` rehace también los que el sistema ya había generado, nunca el PDF que adjuntó Trace) |
 | `scripts/ordenar_r2_accutab.py` | Ordena en R2 las carpetas viejas de Accutab (`accutab/mail/<asunto>/`) a `<CLIENTE>/<FECHA>/Datos <hora>/` (`--aplicar` para mover; sin eso solo cuenta) |
 | `scripts/corregir_ot_informe.py` | Deja un informe en UNA sola OT (`--informe 2026-1885-PC --ot OT-QUI0025`): corrige Converter y la `referencia` de Report; respaldo en `logs/` |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
@@ -394,8 +394,9 @@ solicitud**: viene de R2 y el listado pasó a tardar 6 s; se lee una vez
 ## Post Venta: informes de Accu-Tab (Trace + correo)
 
 Toda carga (la manual de Trace o la automática del correo) termina con su **informe
-PDF, que se genera solo** (`app/accutab_informe.py`: datos, estadísticas y un gráfico de
-pH y otro de ORP; si Trace adjunta el suyo se respeta). Quedan en disco
+PDF, que se genera solo** (`app/accutab_informe.py`: **el mismo informe que imprime Trace**, mismo
+encabezado con logo, cajas Identificación/Registros/Datos/Rango y el gráfico único de pH y mV
+con dos ejes — si cambias el informe de `trace.html`, cámbialo también ahí; si Trace adjunta el suyo se respeta). Quedan en disco
 (`Storage/Accutab/<marca>/informe.pdf` + `registro.json`, lo que lee Post Venta) y en R2
 **ordenados por cliente y fecha, no una carpeta por reporte**:
 `accutab/mail/<CLIENTE>/<AAAA-MM-DD>/Informe <HH-MM-SS>.pdf` y, al lado,
