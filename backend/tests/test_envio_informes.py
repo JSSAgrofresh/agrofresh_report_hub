@@ -742,6 +742,18 @@ def test_el_numero_de_solicitud_se_encuentra_aunque_no_tenga_etiqueta():
     assert il.datos_de_informe("Informe\nreferencia OT-QUI0025 de la planta")["numero_solicitud"] == "OT-QUI0025"
 
 
+def test_informe_sin_cliente_usa_la_lista_del_tipo_de_servicio():
+    """RYD / ensayos propios: el PDF trae «—» en Sold To y Ship To; manda el servicio."""
+    res = _subir(("AGF2026-13.pdf", _pdf_informe(sold_to="", ship_to="", tipo="Actimist")))
+    item = res["items"][0]
+    assert item["leido"] is True and item["error"] is None
+    assert item["plan"]["origen"] == "servicio"
+
+
+def test_informe_sin_cliente_ni_tipo_sigue_sin_leerse():
+    res = _subir(("a.pdf", _pdf_informe(sold_to="", ship_to="", tipo="")))
+    assert res["items"][0]["leido"] is False and res["items"][0]["plan"] is None
+
 def test_informe_ryd_sin_lista_va_a_carla_y_fran(entorno):
     config_store.escribir("contactos_laboratorio.json", [])
     sol = _solicitud_dole(campos_laboratorio={"Tipo Aplicación": "RYD"}, respaldo_ryd=True)

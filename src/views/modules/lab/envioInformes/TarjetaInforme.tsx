@@ -35,7 +35,7 @@ export function TarjetaInforme({
   // Si no se pudo leer, la causa (falta pypdf, PDF escaneado…) es más útil que el aviso genérico.
   const aviso = !informe.soldTo && informe.lectura.error ? informe.lectura.error : bloqueo
   const plantasDelCliente = plantas.filter((p) => p.cliente_nombre === informe.soldTo).map((p) => p.nombre)
-  const leido = !!informe.soldTo && !!informe.shipTo
+  const leido = (!!informe.soldTo && !!informe.shipTo) || !!informe.plan
   const editado = informe.asunto !== null || informe.cuerpo !== null
 
   function alternar() {
@@ -59,7 +59,7 @@ export function TarjetaInforme({
             <span className={styles.archivoNombre}>{informe.archivo.name}</span>
             <span className={styles.informeLectura}>
               {leido
-                ? `${informe.lectura.solicitud ? `${informe.lectura.numero_solicitud} · ` : ''}${informe.soldTo} · ${informe.shipTo}${informe.especie ? ` · ${informe.especie}` : ''} · ${etiquetaServicio(informe.servicio)}`
+                ? `${informe.lectura.solicitud ? `${informe.lectura.numero_solicitud} · ` : ''}${informe.soldTo ? `${informe.soldTo} · ${informe.shipTo} · ` : 'Sin cliente en el PDF · '}${informe.especie ? `${informe.especie} · ` : ''}${etiquetaServicio(informe.servicio)}`
                 : 'No se pudo leer el Sold To y el Ship To'}
               {' · '}{tamanoLegible(informe.archivo.size)}
             </span>
@@ -86,6 +86,11 @@ export function TarjetaInforme({
       {informe.plan?.origen === 'planta' && informe.estado === 'listo' && (
         <p className={styles.informeAviso}>
           No encontré la solicitud de este informe: la lista sale del Sold To y el Ship To leídos del PDF.
+        </p>
+      )}
+      {informe.plan?.origen === 'servicio' && informe.estado === 'listo' && (
+        <p className={styles.informeAviso}>
+          El PDF no trae Sold To ni Ship To: la lista sale del tipo de servicio ({etiquetaServicio(informe.servicio)}).
         </p>
       )}
       {informe.estado === 'error' && informe.mensaje && <p className={styles.informeError}>{informe.mensaje}</p>}
