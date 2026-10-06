@@ -30,7 +30,13 @@ def es_demo(registro: dict) -> bool:
     return any("demo" in str(registro.get(k) or "").lower() for k in ("cliente", "equipo", "planta"))
 
 
-def procesar(aplicar: bool) -> dict[str, int]:
+def hecho_por_el_sistema(registro: dict) -> bool:
+    """El PDF lo generó el servidor (correo, o Trace sin PDF propio): se puede rehacer.
+    Un PDF que adjuntó Trace NO se toca."""
+    return bool(registro.get("informe_generado")) or registro.get("origen") == "email"
+
+
+def procesar(aplicar: bool, rehacer: bool = False) -> dict[str, int]:
     cuenta = {"generados": 0, "demo": 0, "ya_tenian": 0, "sin_datos": 0, "errores": 0}
     raiz = _raiz_accutab()
     for marca in sorted(os.listdir(raiz)):
@@ -41,8 +47,9 @@ def procesar(aplicar: bool) -> dict[str, int]:
             with open(ruta_json, encoding="utf-8") as f:
                 registro = json.load(f)
             if registro.get("tiene_pdf") and os.path.isfile(os.path.join(raiz, marca, ARCHIVO_PDF)):
-                cuenta["ya_tenian"] += 1
-                continue
+                if not (rehacer and hecho_por_el_sistema(registro)):
+                    cuenta["ya_tenian"] += 1
+                    continue
             if es_demo(registro):
                 cuenta["demo"] += 1
                 continue
@@ -60,7 +67,8 @@ def procesar(aplicar: bool) -> dict[str, int]:
             para_r2["cliente"] = registro.get("cliente") or accutab_informe.cliente_desde_asunto(registro.get("equipo"))
             claves = accutab_informe.archivar_en_r2(para_r2, marca, pdf, None)
             registro["tiene_pdf"] = True
-            registro["r2_claves"] = list(registro.get("r2_claves") or []) + claves
+            registro["informe_generado"] = True
+            registro["r2_claves"] = list(dict.fromkeys(list(registro.get("r2_claves") or []) + claves))
             with open(ruta_json, "w", encoding="utf-8") as f:
                 json.dump(registro, f, ensure_ascii=False)
             cuenta["generados"] += 1
@@ -73,8 +81,11 @@ def procesar(aplicar: bool) -> dict[str, int]:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Genera los informes PDF faltantes de Post Venta (sin las demo).")
     ap.add_argument("--aplicar", action="store_true", help="Escribe los PDF (sin esto solo cuenta).")
+    ap.add_argument("--rehacer", action="store_true",
+                    help="Tambien vuelve a generar los que ya tenian un informe hecho por el sistema "
+                         "(no toca los PDF que adjunto Trace).")
     args = ap.parse_args()
-    c = procesar(args.aplicar)
+    c = procesar(args.aplicar, args.rehacer)
     print(f"Carpeta: {_raiz_accutab()}  (STORAGE_DIR={config.STORAGE_DIR})")
     print(f"{'Generados' if args.aplicar else 'Se generarian'}: {c['generados']}")
     print(f"Saltadas por ser demo: {c['demo']} · ya tenian informe: {c['ya_tenian']} · sin datos: {c['sin_datos']} · errores: {c['errores']}")

@@ -27,3 +27,16 @@ def test_genera_las_que_no_son_demo_y_solo_con_aplicar(tmp_path, monkeypatch):
     assert json.loads((real / "registro.json").read_text())["tiene_pdf"] is True
     assert not (demo / "informe.pdf").exists()
     assert gen.procesar(True)["generados"] == 0  # idempotente
+
+
+def test_rehacer_vuelve_a_generar_los_del_sistema_pero_no_el_pdf_de_trace(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "STORAGE_DIR", str(tmp_path))
+    correo = _carga(tmp_path, "2026-10-01_10-00-00", cliente="DOLE", origen="email", tiene_pdf=True)
+    trace = _carga(tmp_path, "2026-10-01_10-00-01", cliente="DOLE", origen="manual", tiene_pdf=True)
+    (correo / "informe.pdf").write_bytes(b"viejo")
+    (trace / "informe.pdf").write_bytes(b"de Trace")
+    assert gen.procesar(True)["generados"] == 0  # sin --rehacer no los toca
+    c = gen.procesar(True, rehacer=True)
+    assert c["generados"] == 1 and c["ya_tenian"] == 1
+    assert (correo / "informe.pdf").read_bytes().startswith(b"%PDF")
+    assert (trace / "informe.pdf").read_bytes() == b"de Trace"
