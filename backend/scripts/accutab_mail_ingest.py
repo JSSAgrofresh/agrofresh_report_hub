@@ -347,6 +347,7 @@ def _generar_reporte(
         with open(os.path.join(destino, "informe.pdf"), "wb") as f:
             f.write(pdf)
         registro["tiene_pdf"] = True
+        registro["informe_generado"] = True
         registro["r2_claves"] += accutab_informe.archivar_en_r2(registro, marca, pdf, None)
     with open(os.path.join(destino, ARCHIVO_REGISTRO), "w", encoding="utf-8") as f:
         json.dump(registro, f, ensure_ascii=False)

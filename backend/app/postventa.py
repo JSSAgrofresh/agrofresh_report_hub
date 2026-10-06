@@ -186,6 +186,7 @@ def guardar_registro(datos: RegistroIn) -> dict[str, Any]:
             with open(os.path.join(destino, ARCHIVO_PDF), "wb") as f:
                 f.write(pdf_bytes)
             registro["tiene_pdf"] = True
+            registro["informe_generado"] = not datos.pdf_b64  # lo hizo el servidor, no Trace
         originales = {}
         for nombre in nombres_guardados:
             with open(os.path.join(destino, CARPETA_ORIGINALES, nombre), "rb") as f:
@@ -271,6 +272,7 @@ def generar_informe(carpeta: str) -> dict[str, Any]:
     para_r2 = dict(registro)
     para_r2["cliente"] = registro.get("cliente") or accutab_informe.cliente_desde_asunto(registro.get("equipo"))
     registro["tiene_pdf"] = True
+    registro["informe_generado"] = True
     registro["r2_claves"] = list(dict.fromkeys(list(registro.get("r2_claves") or [])
                                                + accutab_informe.archivar_en_r2(para_r2, carpeta, pdf, None)))
     with open(ruta_json, "w", encoding="utf-8") as f:
