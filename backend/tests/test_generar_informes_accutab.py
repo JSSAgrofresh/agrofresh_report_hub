@@ -15,18 +15,18 @@ def _carga(tmp, marca, **extra):
     return d
 
 
-def test_genera_las_que_no_son_demo_y_solo_con_aplicar(tmp_path, monkeypatch):
+def test_sin_demo_salta_las_demo_y_solo_escribe_con_aplicar(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "STORAGE_DIR", str(tmp_path))
     real = _carga(tmp_path, "2026-10-01_10-00-00", cliente="DOLE")
     demo = _carga(tmp_path, "2026-10-01_10-00-01", equipo="AGROFRESH_DEMO (12)")
-    assert gen.procesar(False)["generados"] == 1
+    assert gen.procesar(False, sin_demo=True)["generados"] == 1
     assert not (real / "informe.pdf").exists()  # sin --aplicar no escribe
-    c = gen.procesar(True)
+    c = gen.procesar(True, sin_demo=True)
     assert c["generados"] == 1 and c["demo"] == 1
     assert (real / "informe.pdf").read_bytes().startswith(b"%PDF")
     assert json.loads((real / "registro.json").read_text())["tiene_pdf"] is True
     assert not (demo / "informe.pdf").exists()
-    assert gen.procesar(True)["generados"] == 0  # idempotente
+    assert gen.procesar(True, sin_demo=True)["generados"] == 0  # idempotente
 
 
 def test_rehacer_vuelve_a_generar_los_del_sistema_pero_no_el_pdf_de_trace(tmp_path, monkeypatch):
@@ -40,3 +40,29 @@ def test_rehacer_vuelve_a_generar_los_del_sistema_pero_no_el_pdf_de_trace(tmp_pa
     assert c["generados"] == 1 and c["ya_tenian"] == 1
     assert (correo / "informe.pdf").read_bytes().startswith(b"%PDF")
     assert (trace / "informe.pdf").read_bytes() == b"de Trace"
+
+
+def test_por_defecto_genera_tambien_las_demo_en_la_fecha_en_que_llegaron(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "STORAGE_DIR", str(tmp_path))
+    subidos = []
+    monkeypatch.setattr("app.r2.disponible", lambda: True)
+    monkeypatch.setattr("app.r2.subir", lambda k, d, ct="": subidos.append(k))
+    demo = _carga(tmp_path, "2026-08-28_09-15-00", origen="email", equipo="AGROFRESH_DEMO (12)")
+    c = gen.procesar(True)
+    assert c["generados"] == 1 and c["demo"] == 0
+    assert (demo / "informe.pdf").read_bytes().startswith(b"%PDF")
+    # la carpeta lleva la fecha de llegada (la de la carga), no la de hoy
+    assert subidos == ["accutab/mail/AGROFRESH_DEMO/2026-08-28/Informe 09-15-00.pdf"]
+
+
+def test_por_defecto_genera_tambien_las_demo_en_la_fecha_en_que_llegaron(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "STORAGE_DIR", str(tmp_path))
+    subidos = []
+    monkeypatch.setattr("app.r2.disponible", lambda: True)
+    monkeypatch.setattr("app.r2.subir", lambda k, d, ct="": subidos.append(k))
+    demo = _carga(tmp_path, "2026-08-28_09-15-00", origen="email", equipo="AGROFRESH_DEMO (12)")
+    c = gen.procesar(True)
+    assert c["generados"] == 1 and c["demo"] == 0
+    assert (demo / "informe.pdf").read_bytes().startswith(b"%PDF")
+    # la carpeta lleva la fecha de llegada (la de la carga), no la de hoy
+    assert subidos == ["accutab/mail/AGROFRESH_DEMO/2026-08-28/Informe 09-15-00.pdf"]
