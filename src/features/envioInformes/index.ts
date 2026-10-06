@@ -13,7 +13,10 @@ export {
   vistaPreviaInforme,
   enviarInforme,
   historialEnvios,
+  obtenerAvisoClientes,
+  enviarPruebaAviso,
 } from './lib/api'
+export type { AvisoClientes } from './lib/api'
 export { esCorreoValido, quitarCorreo, separarCorreos, sumarCorreos, tamanoLegible } from './lib/correos'
 export type {
   AnalisisLote,

@@ -535,19 +535,23 @@ async def analizar_informes(
                             solicitudes = {}
                     encontrada = solicitudes.get(datos["numero_solicitud"].strip().upper())
                 if encontrada:
+                    # La OT del informe manda: con ella se busca la solicitud y de ahí salen las llaves
+                    # (Sold To, Ship To, especie, servicio), porque el texto del PDF puede venir mal
+                    # escrito. Con esas llaves se consulta el listado interno de contactos (la misma
+                    # función que usa la solicitud). Lo que la solicitud no tenga, queda como lo leyó el PDF.
                     from .servicios import servicio_de_datos
 
                     archivo_sol, sol = encontrada
-                    datos["sold_to"] = str(sol.get("sold_to") or "").strip()
-                    datos["ship_to"] = str(sol.get("ship_to") or "").strip()
-                    datos["especie"] = str(sol.get("especie") or "").strip()
-                    datos["servicio"] = servicio_de_datos(sol)
                     item["solicitud"] = archivo_sol
-                    item.update(datos)
-                    item["leido"] = True
-                    item["plan"] = plan_desde_solicitud(sol, internos)
-                    items.append(item)
-                    continue
+                    for campo in ("sold_to", "ship_to", "especie"):
+                        valor = str(sol.get(campo) or "").strip()
+                        if valor:
+                            datos[campo] = valor
+                    campos_sol = sol.get("campos_laboratorio")
+                    tipo_sol = str((campos_sol or {}).get("Tipo Aplicación") or "").strip() if isinstance(campos_sol, dict) else ""
+                    if tipo_sol:
+                        datos["tipo_aplicacion"] = tipo_sol
+                        datos["servicio"] = servicio_de_datos(sol)
                 if not (datos["sold_to"] and datos["ship_to"]):
                     # Respaldo: un Sold To + Ship To que el sistema ya conoce, escrito en el texto.
                     pares = sorted({
@@ -568,7 +572,8 @@ async def analizar_informes(
                     # Sin cliente en el PDF (RYD, ensayos propios): lo dice el tipo de servicio.
                     item["leido"] = True
                     item["plan"] = {
-                        **plan_destinatarios("", "", datos["especie"], internos, servicio=datos["servicio"]),
+                        **plan_destinatarios("", "", datos["especie"], internos, servicio=datos["servicio"],
+                                           tipo_aplicacion=datos["tipo_aplicacion"]),
                         "origen": "servicio",
                     }
                 else:
@@ -611,6 +616,55 @@ def guardar_template(clave: str, body: TemplateIn, usuario: Usuario = Depends(ac
 
 class VistaPreviaIn(DatosEnvio):
     nombres_adjuntos: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Aviso a clientes: «de ahora en adelante los informes salen por el Report Hub»
+# ---------------------------------------------------------------------------
+
+ASUNTO_AVISO = "[AgroFresh] Envío automático de informes de análisis"
+TITULO_AVISO = "Aviso a clientes"
+TEXTO_AVISO = (
+    "Estimados clientes:\n\n"
+    "Junto con saludar, les informamos que, a partir de ahora, utilizaremos AgroFresh Report Hub "
+    "para automatizar el envío de sus informes de análisis.\n\n"
+    "Los informes se enviarán desde agrofreshreporthub@gmail.com. Les agradeceremos agregar esta "
+    "dirección a sus contactos o remitentes seguros para evitar bloqueos o que los correos lleguen "
+    "a la carpeta de correo no deseado.\n\n"
+    "Ante cualquier consulta sobre los informes recibidos, pueden responder al mismo correo, "
+    "manteniendo en copia a jorge.sandoval@agrofresh.com.\n\n"
+    "Muchas gracias por su apoyo.\n\n"
+    "Saludos,"
+)
+
+
+@router.get("/aviso")
+def aviso_a_clientes(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+    """El aviso de bienvenida tal como lo vería un cliente. Solo lee: no envía nada."""
+    html, imagenes = mail_templates.html_de_texto(TEXTO_AVISO, TITULO_AVISO, "AgroFresh Report Hub")
+    return {
+        "asunto": ASUNTO_AVISO,
+        "texto": TEXTO_AVISO,
+        "html": _html_para_pantalla(html, imagenes),
+        "destinatarios_prueba": list(DESTINATARIOS_PRUEBA),
+    }
+
+
+@router.post("/aviso/enviar-prueba")
+def enviar_prueba_del_aviso(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+    """Manda el aviso SOLO a Paz y Jorge, con «(PRUEBA)» en el asunto, estando el sistema en
+    prueba o en producción. El envío a clientes no existe todavía."""
+    aviso = "CORREO DE PRUEBA. Así verán el aviso los clientes. Este correo llegó solo a Paz y a Jorge."
+    html, imagenes = mail_templates.html_de_texto(TEXTO_AVISO, TITULO_AVISO, "AgroFresh Report Hub", aviso)
+    resultado = correo.enviar(
+        ", ".join(DESTINATARIOS_PRUEBA), f"(PRUEBA) {ASUNTO_AVISO}", html, f"{aviso}\n\n{TEXTO_AVISO}", [],
+        cc=[], bcc=[], imagenes_inline=imagenes,
+    )
+    actividad.registrar(
+        usuario.email, usuario.nombre, "informes", "envio_aviso_prueba",
+        f"envió la prueba del aviso a clientes a {', '.join(resultado.to)}",
+    )
+    return {"ok": f"Prueba enviada a {', '.join(resultado.to)}. No salió nada a clientes.", "to": resultado.to}
 
 
 @router.post("/vista-previa")
