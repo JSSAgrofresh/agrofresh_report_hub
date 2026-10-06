@@ -22,12 +22,13 @@ import { SERVICIOS_CON_LISTADO } from '@/lib/servicio'
 import type { Servicio } from '@/lib/servicio'
 import { ActividadPanel } from './panel/ActividadPanel'
 import { ResumenPanel } from './panel/ResumenPanel'
+import { SeguimientoPanel } from './panel/SeguimientoPanel'
 import { fechaHora } from '@/lib/fechaHoraChile'
 import styles from './AdministracionGeneralView.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
-type Pestana = 'resumen' | 'actividad' | 'correcciones' | 'listas'
+type Pestana = 'resumen' | 'actividad' | 'seguimiento' | 'correcciones' | 'listas'
 
 /**
  * Administración General: lo que solo ve y toca el admin general.
@@ -117,6 +118,8 @@ export function AdministracionGeneralView() {
             ? 'Panel de control: cómo va la operación, qué hace cada persona y qué necesita tu atención. Solo lo ve el administrador general.'
             : pestana === 'actividad'
             ? 'Qué hace cada persona: acciones, ingresos y visitas a cada módulo, con su historial.'
+            : pestana === 'seguimiento'
+            ? 'Seguimiento del equipo: quién viene en alza o en baja, cuándo se usa el sistema y qué módulos trabaja cada persona.'
             : pestana === 'correcciones'
             ? 'Historial de correcciones del Converter: lo que aprendió cada vez que alguien corrigió a mano un Sold To, Ship To, especie o variedad. Si el mismo texto vuelve a llegar, se corrige solo.'
             : 'Listas de distribución de resultados: exporta lo que hay, edítalo en Excel, súbelo y confirma cada cambio antes de que se guarde.'
@@ -138,6 +141,9 @@ export function AdministracionGeneralView() {
         <button type="button" role="tab" aria-selected={pestana === 'actividad'} className={pestana === 'actividad' ? styles.pestanaActiva : ''} onClick={() => setPestana('actividad')}>
           Actividad
         </button>
+        <button type="button" role="tab" aria-selected={pestana === 'seguimiento'} className={pestana === 'seguimiento' ? styles.pestanaActiva : ''} onClick={() => setPestana('seguimiento')}>
+          Seguimiento
+        </button>
         <button type="button" role="tab" aria-selected={pestana === 'listas'} className={pestana === 'listas' ? styles.pestanaActiva : ''} onClick={() => { setListasVisitada(true); setPestana('listas') }}>
           Listas de distribución
         </button>
@@ -152,6 +158,7 @@ export function AdministracionGeneralView() {
           onVerPersona={(email) => { setPersonaElegida(email); setPestana('actividad') }}
         />
       )}
+      {pestana === 'seguimiento' && <SeguimientoPanel onVerPersona={(email) => { setPersonaElegida(email); setPestana('actividad') }} />}
       {pestana === 'actividad' && <ActividadPanel emailInicial={personaElegida} onCambiarEmail={setPersonaElegida} />}
 
       {/* Se monta al visitarla y se conserva: cambiar de pestaña no pierde los cambios sin guardar. */}

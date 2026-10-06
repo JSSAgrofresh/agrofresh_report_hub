@@ -106,6 +106,39 @@ export function leerActividad(opts: { dias: number; email?: string; categoria?: 
   return httpClient.get<ActividadPanel>(`/admin-panel/actividad?${p.toString()}`)
 }
 
+export type EstadoPersona = 'activa' | 'en_alza' | 'en_baja' | 'nueva' | 'dormida' | 'nunca_ingreso'
+
+export interface PersonaSeguimiento {
+  email: string
+  nombre: string
+  tipo: string
+  area: string | null
+  acciones: number
+  previas: number
+  variacion_pct: number | null
+  dias_activos: number
+  por_dia_activo: number
+  visitas: number
+  accesos: number
+  por_categoria: Partial<Record<CategoriaActividad, number>>
+  ultima_actividad: string | null
+  creada: string | null
+  estado: EstadoPersona
+}
+
+export interface Seguimiento {
+  dias: number
+  resumen: Record<EstadoPersona, number>
+  personas: PersonaSeguimiento[]
+  /** 7 filas (lunes a domingo) de 24 horas, en hora de Chile. */
+  mapa: number[][]
+  adopcion: { modulo: string; categoria: string; personas: number; de: number; pct: number; acciones: number }[]
+}
+
+export function leerSeguimiento(dias: number) {
+  return httpClient.get<Seguimiento>(`/admin-panel/seguimiento?dias=${dias}`)
+}
+
 /** El navegador avisa que abrió una pantalla. Si falla no importa. */
 export function avisarVisita(ruta: string) {
   return httpClient.post<{ registrada: boolean }>('/actividad/visita', { ruta })
@@ -172,4 +205,48 @@ export function nivelSalud(puntaje: number): 'bueno' | 'regular' | 'malo' {
 /** Total de acciones de un día (suma todas las categorías de trabajo). */
 export function totalDia(p: PuntoSerie): number {
   return p.solicitudes + p.cargas + p.verificaciones + p.laboratorio + p.otros
+}
+
+export const ETIQUETA_ESTADO: Record<EstadoPersona, { texto: string; tono: 'verde' | 'ambar' | 'rojo' | 'azul' | 'gris'; ayuda: string }> = {
+  activa: { texto: 'Activa', tono: 'verde', ayuda: 'Usa el sistema con normalidad.' },
+  en_alza: { texto: 'En alza', tono: 'verde', ayuda: 'Hace bastante más que en el período anterior.' },
+  en_baja: { texto: 'En baja', tono: 'ambar', ayuda: 'Hace menos de la mitad que en el período anterior.' },
+  nueva: { texto: 'Nueva', tono: 'azul', ayuda: 'Cuenta creada en este período.' },
+  dormida: { texto: 'Dormida', tono: 'rojo', ayuda: 'Sin actividad hace más de 30 días.' },
+  nunca_ingreso: { texto: 'Nunca ingresó', tono: 'rojo', ayuda: 'Tiene cuenta pero jamás entró al sistema.' },
+}
+
+export const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+
+/** Intensidad 0-4 de una celda del mapa de calor, relativa al máximo. */
+export function nivelCalor(valor: number, max: number): 0 | 1 | 2 | 3 | 4 {
+  if (valor <= 0 || max <= 0) return 0
+  const f = valor / max
+  return f > 0.75 ? 4 : f > 0.5 ? 3 : f > 0.25 ? 2 : 1
+}
+
+export const COLOR_CALOR = ['#eef3e8', '#d3e6c1', '#a9d082', '#6dad3c', '#3d6b1f']
+
+/** El día y la hora con más uso, y el total de la franja de oficina (8-18 h, lunes a viernes). */
+export function horasPico(mapa: number[][]): { dia: string; hora: number; total: number } | null {
+  let mejor: { dia: string; hora: number; total: number } | null = null
+  mapa.forEach((fila, d) =>
+    fila.forEach((v, h) => {
+      if (v > (mejor?.total ?? 0)) mejor = { dia: DIAS_SEMANA[d], hora: h, total: v }
+    }),
+  )
+  return mejor
+}
+
+/** Cuánto del uso cae fuera del horario de oficina (antes de las 8, desde las 19 o fin de semana), en %. */
+export function usoFueraDeHorario(mapa: number[][]): number | null {
+  let total = 0
+  let fuera = 0
+  mapa.forEach((fila, d) =>
+    fila.forEach((v, h) => {
+      total += v
+      if (d >= 5 || h < 8 || h >= 19) fuera += v
+    }),
+  )
+  return total ? Math.round((fuera * 100) / total) : null
 }
