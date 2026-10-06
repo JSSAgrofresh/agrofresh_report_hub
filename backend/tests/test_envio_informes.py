@@ -846,3 +846,25 @@ def test_sin_ot_conocida_se_usan_las_llaves_del_pdf(entorno, monkeypatch):
     monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [])
     item = _subir(("i.pdf", _pdf_informe()))["items"][0]
     assert item["plan"]["to"] == ["pdf@m.cl"] and item["solicitud"] is None
+
+
+# --- Aviso a clientes ------------------------------------------------------------
+
+def test_el_aviso_a_clientes_se_puede_ver_sin_enviar_nada(entorno):
+    r = ei.aviso_a_clientes(usuario=_usuario())
+    assert "agrofreshreporthub@gmail.com" in r["texto"] and "jorge.sandoval@agrofresh.com" in r["texto"]
+    assert r["texto"].startswith("Estimados clientes:") and r["texto"].endswith("Saludos,")
+    assert "AVISO A CLIENTES" in r["html"] and r["destinatarios_prueba"] == ei.DESTINATARIOS_PRUEBA
+    assert entorno == []   # nada salió
+
+
+@pytest.mark.parametrize("modo", ["prueba", "produccion"])
+def test_la_prueba_del_aviso_va_solo_a_paz_y_jorge_en_cualquier_modo(entorno, modo):
+    cfg = ei.leer_config()
+    ei._guardar_config({**cfg, "modo": modo})
+    r = ei.enviar_prueba_del_aviso(usuario=_usuario())
+    assert len(entorno) == 1
+    enviado = entorno[0]
+    assert enviado["to"] == ei.DESTINATARIOS_PRUEBA and enviado["cc"] == [] and enviado["bcc"] == []
+    assert enviado["asunto"].startswith("(PRUEBA) ")
+    assert r["to"] == ei.DESTINATARIOS_PRUEBA
