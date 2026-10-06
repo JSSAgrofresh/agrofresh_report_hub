@@ -678,6 +678,61 @@ def asegurar_planta(cur, sold_to: str, ship_to: str, codigo_sold: str | None = N
             "cliente_creado": cliente_creado, "planta_creada": planta_creada}
 
 
+def listas_con_el_mismo_listado(servicio: str = "") -> set[str]:
+    """Las listas de distribución que comparten el listado de plantas de ésta
+    (Línea de proceso y RYD usan el mismo; Actimist y Ecofog, cada uno el suyo)."""
+    t = tablas(servicio)
+    return {lista for lista in ("", "ryd", "actimist", "ecofog") if tablas(lista) == t}
+
+
+def renombrar_planta_listados(cur, servicio: str, sold_to: str, ship_viejo: str, ship_nuevo: str) -> dict:
+    """Cambia el nombre de una planta (Ship To) en Listados, conservando su id: lo que
+    cuelga de ella (Report, códigos SAP) la sigue. El cliente no se toca."""
+    t_cliente, t_planta = tablas(servicio)
+    ship_nuevo = re.sub(r"\s+", " ", ship_nuevo or "").strip()
+    if not ship_nuevo:
+        raise ValueError("Falta el nombre nuevo de la planta.")
+    cur.execute(f"SELECT id, nombre FROM {t_cliente}")
+    cliente = next((c for c in cur.fetchall() if norm(c["nombre"]) == norm(sold_to)), None)
+    if cliente is None:
+        raise ValueError(f"El cliente «{sold_to}» no está en Listados.")
+    cur.execute(f"SELECT id, nombre FROM {t_planta} WHERE cliente_id = %s", (cliente["id"],))
+    plantas = cur.fetchall()
+    vieja = next((p for p in plantas if norm(p["nombre"]) == norm(ship_viejo)), None)
+    if vieja is None:
+        raise ValueError(f"La planta «{ship_viejo}» no está en Listados.")
+    if any(p["id"] != vieja["id"] and norm(p["nombre"]) == norm(ship_nuevo) for p in plantas):
+        raise ValueError(f"Ya existe en Listados una planta «{ship_nuevo}» de {cliente['nombre']}.")
+    cur.execute(f"UPDATE {t_planta} SET nombre = %s WHERE id = %s", (ship_nuevo, vieja["id"]))
+    return {"sold_to": cliente["nombre"], "de": vieja["nombre"], "a": ship_nuevo}
+
+
+def renombrar_en_contactos(
+    contactos: list[dict], sold_to: str, ship_viejo: str, ship_nuevo: str, servicio: str = "",
+) -> tuple[list[dict], int]:
+    """Le pone el nombre nuevo a la planta en las listas de distribución que comparten su
+    listado, SIN perder a nadie de su lista. Falla si ya hay una planta con ese nombre en
+    las listas (habría que fundir dos listas, y eso se decide a mano)."""
+    listas = listas_con_el_mismo_listado(servicio)
+
+    def de_esas_listas(c: dict) -> bool:
+        return c.get("tipo") in ("resultado_cliente", "resultado_interno") and clave_lista(c.get("servicio")) in listas
+
+    ship_nuevo = re.sub(r"\s+", " ", ship_nuevo or "").strip()
+    clave_vieja, clave_nueva = clave_planta(sold_to, ship_viejo), clave_planta(sold_to, ship_nuevo)
+    if clave_vieja != clave_nueva and any(
+        de_esas_listas(c) and clave_planta(c.get("sold_to"), c.get("ship_to")) == clave_nueva for c in contactos
+    ):
+        raise ValueError(f"Ya hay una planta «{ship_nuevo}» en las listas de distribución.")
+    nuevos = [dict(c) for c in contactos]
+    cambiados = 0
+    for c in nuevos:
+        if de_esas_listas(c) and clave_planta(c.get("sold_to"), c.get("ship_to")) == clave_vieja:
+            c["ship_to"] = ship_nuevo
+            cambiados += 1
+    return nuevos, cambiados
+
+
 # ---------------------------------------------------------------------------
 # Endpoints (solo admin general)
 # ---------------------------------------------------------------------------
@@ -784,7 +839,9 @@ def aplicar_cambios(datos: CambiosIn, servicio: str = "", usuario: Usuario = Dep
     if not datos.cambios:
         raise HTTPException(400, "No hay cambios confirmados para aplicar.")
     creados = {"clientes": 0, "plantas": 0}
-    for it in datos.cambios:
+    renombres = [c for c in datos.cambios if c.get("tipo") == "planta_renombrar"]
+    cambios = [c for c in datos.cambios if c.get("tipo") != "planta_renombrar"]
+    for it in cambios:
         if it.get("tipo") == "planta_nueva" and it.get("crear_en_listados"):
             fila = it.get("fila") or {}
             try:
@@ -806,8 +863,28 @@ def aplicar_cambios(datos: CambiosIn, servicio: str = "", usuario: Usuario = Dep
     actuales = config_store.leer(ARCHIVO_CONTACTOS, [])
     respaldo = f"contactos_laboratorio_respaldo_{datetime.now():%Y%m%d_%H%M%S}.json"
     config_store.escribir(respaldo, actuales)
-    nuevos, hechos = aplicar(actuales, datos.cambios, servicio)
+    # Los cambios de nombre van PRIMERO: lo que se cambie después en esa planta ya la
+    # busca por su nombre nuevo. Se valida todo contra las listas antes de tocar Listados.
+    renombradas: list[dict] = []
+    base = actuales
+    for it in renombres:
+        p, nuevo = it.get("planta") or {}, it.get("nuevo") or {}
+        try:
+            base, _ = renombrar_en_contactos(base, p.get("sold_to", ""), p.get("ship_to", ""), nuevo.get("ship_to", ""), servicio)
+            from .db import conexion, cursor_dict
+
+            with conexion() as conn, cursor_dict(conn) as cur:
+                renombradas.append(renombrar_planta_listados(
+                    cur, servicio, p.get("sold_to", ""), p.get("ship_to", ""), nuevo.get("ship_to", "")))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except Exception as exc:
+            logger.exception("No se pudo cambiar el nombre de la planta en Listados")
+            raise HTTPException(500, f"No se pudo cambiar el nombre de la planta en Listados: {exc}") from exc
+    nuevos, hechos = aplicar(base, cambios, servicio)
+    hechos["aplicados"] += len(renombradas)
+    hechos["plantas"] += len(renombradas)
     config_store.escribir(ARCHIVO_CONTACTOS, nuevos)
     logger.info("Listas de distribución (%s): %s aplicó %d cambios en %d plantas (respaldo %s)",
                 servicio or "linea", usuario.email, hechos["aplicados"], hechos["plantas"], respaldo)
-    return {**hechos, "respaldo": respaldo, "listados_creados": creados}
+    return {**hechos, "respaldo": respaldo, "listados_creados": creados, "renombradas": renombradas}
