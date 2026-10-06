@@ -301,3 +301,57 @@ def test_cada_lista_dice_a_quien_manda_siempre_aunque_no_tenga_plantas():
         assert f["cc"] == ["JORGE.SANDOVAL@AGROFRESH.COM", "AGROFRESHREPORTHUB@GMAIL.COM"] and f["respaldo"] == []
     linea = ld._fijos_para_pantalla("")
     assert linea["para"] == [] and linea["cc"] == [] and "CGUERRERO@AGROFRESH.COM" in linea["respaldo"]
+
+
+# --- cambiar el nombre de una planta sin perder su lista -------------------
+
+def _lista_losonjera():
+    mala = [_c(40 + i, c["tipo"], c["email"], cargo=c["cargo"], copia=c["tipo_copia"], sold="AGUA SANTA S.A", ship="PLANTA LOSONJERA")
+            for i, c in enumerate(_sistema())]
+    ryd = [{**c, "id": 60 + i, "servicio": "ryd"} for i, c in enumerate(mala)]
+    actimist = [{**c, "id": 80 + i, "servicio": "actimist"} for i, c in enumerate(mala)]
+    return _sistema() + mala + ryd + actimist
+
+
+def test_renombrar_conserva_la_lista_y_alcanza_a_las_listas_que_comparten_el_listado():
+    contactos = _lista_losonjera()
+    nuevos, n = ld.renombrar_en_contactos(contactos, "AGUA SANTA S.A", "PLANTA LOSONJERA", "PLANTA LISONJERA", "")
+    assert n == 2 * len(_sistema())                              # Línea de proceso + RYD (mismo listado)
+    de = lambda lista, ship: sorted(c["email"] for c in nuevos if c.get("servicio", "") == lista and c["ship_to"] == ship)
+    assert de("", "PLANTA LISONJERA") == sorted(c["email"] for c in _sistema())   # nadie se perdió
+    assert de("ryd", "PLANTA LISONJERA") and not de("", "PLANTA LOSONJERA")
+    assert de("actimist", "PLANTA LOSONJERA") and not de("actimist", "PLANTA LISONJERA")   # Actimist tiene su listado
+    assert {c["ship_to"] for c in nuevos if c["ship_to"] == "PLANTA UNO"}                    # otras plantas intactas
+    assert len(nuevos) == len(contactos)
+
+
+def test_renombrar_a_un_nombre_que_ya_tiene_lista_se_rechaza():
+    contactos = _lista_losonjera() + [_c(99, "resultado_cliente", "x@x.cl", sold="AGUA SANTA S.A", ship="PLANTA LISONJERA")]
+    with pytest.raises(ValueError, match="Ya hay una planta"):
+        ld.renombrar_en_contactos(contactos, "AGUA SANTA S.A", "PLANTA LOSONJERA", "PLANTA LISONJERA", "")
+
+
+class _CurRenombrar:
+    def __init__(self, clientes, plantas):
+        self.clientes, self.plantas, self.ultimo, self.actualizado = clientes, plantas, [], None
+
+    def execute(self, sql, params=None):
+        if sql.startswith("SELECT id, nombre FROM cliente"):
+            self.ultimo = self.clientes
+        elif sql.startswith("SELECT id, nombre FROM planta"):
+            self.ultimo = self.plantas
+        elif sql.startswith("UPDATE planta"):
+            self.actualizado = params
+
+    def fetchall(self):
+        return self.ultimo
+
+
+def test_renombrar_en_listados_cambia_el_nombre_de_la_misma_planta():
+    cur = _CurRenombrar([{"id": 1, "nombre": "AGUA SANTA S.A"}], [{"id": 7, "nombre": "PLANTA LOSONJERA"}, {"id": 8, "nombre": "PLANTA OTRA"}])
+    r = ld.renombrar_planta_listados(cur, "", "agua santa s.a", "planta losonjera", "PLANTA  LISONJERA")
+    assert cur.actualizado == ("PLANTA LISONJERA", 7) and r["de"] == "PLANTA LOSONJERA"
+    with pytest.raises(ValueError, match="Ya existe"):
+        ld.renombrar_planta_listados(cur, "", "AGUA SANTA S.A", "PLANTA LOSONJERA", "planta otra")
+    with pytest.raises(ValueError, match="no está en Listados"):
+        ld.renombrar_planta_listados(cur, "", "AGUA SANTA S.A", "PLANTA FANTASMA", "X")

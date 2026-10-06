@@ -148,3 +148,19 @@ describe('indicadores y filtros', () => {
     expect(listaGeneral((c) => sinCli.clientes[c])).toBeNull()
   })
 })
+
+
+describe('cambiar el nombre de una planta', () => {
+  it('el cambio de nombre va primero y lo demás de esa planta ya usa el nombre nuevo', () => {
+    const e = estado([fila({ ship_to: 'PLANTA LOSONJERA' })])
+    const k = clavePlanta('CLI SA', 'PLANTA LOSONJERA')
+    const f = e.filas[0]
+    const p = proponer({}, f, 'tecnico', ['nuevo@agrofresh.com'], 'excel', 'aceptada')
+    const renombres = { [k]: { de: { sold_to: 'CLI SA', ship_to: 'PLANTA LOSONJERA' }, a: 'PLANTA LISONJERA' } }
+    const cambios = aCambios(e, p, [], [], renombres)
+    expect(cambios[0]).toMatchObject({ tipo: 'planta_renombrar', planta: { ship_to: 'PLANTA LOSONJERA' }, nuevo: { ship_to: 'PLANTA LISONJERA' } })
+    expect(cambios[1]).toMatchObject({ tipo: 'campo', campo: 'tecnico', planta: { sold_to: 'CLI SA', ship_to: 'PLANTA LISONJERA' } })
+    expect(resumenRevision({}, [], e, [], renombres).aceptadas).toBe(1)
+    expect(aCambios(e, {}, [], [], {})).toEqual([])
+  })
+})

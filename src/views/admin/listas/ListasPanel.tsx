@@ -12,7 +12,7 @@ import {
   propuestasDeFila, proponer, resumenRevision, valorMostrado,
 } from '@/features/listasDistribucion'
 import type {
-  CampoLista, EstadoListas, FiltroTabla, PlantaLista, PlantaNueva, PlantaRetirada, Propuestas, ResultadoAplicar, ResultadoComparacion,
+  CampoLista, EstadoListas, FiltroTabla, PlantaLista, PlantaNueva, PlantaRetirada, Propuestas, Renombres, ResultadoAplicar, ResultadoComparacion,
 } from '@/features/listasDistribucion'
 import { DialogoAgregarPlanta } from './DialogoAgregarPlanta'
 import type { DatosPlanta } from './DialogoAgregarPlanta'
@@ -46,6 +46,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribuci
   const [propuestas, setPropuestas] = useState<Propuestas>({})
   const [nuevas, setNuevas] = useState<PlantaNueva[]>([])
   const [retiradas, setRetiradas] = useState<PlantaRetirada[]>([])
+  const [renombres, setRenombres] = useState<Renombres>({})
   const [separadas, setSeparadas] = useState<Set<string>>(new Set())
   const [filtro, setFiltro] = useState<FiltroTabla>('todas')
   const [texto, setTexto] = useState('')
@@ -70,10 +71,10 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribuci
   }, [incluirSinLista, recarga, servicio])
 
   const ind = useMemo(() => (estado ? indicadores(estado) : null), [estado])
-  const conCambios = useMemo(() => new Set(Object.values(propuestas).map((p) => p.plantaClave)), [propuestas])
+  const conCambios = useMemo(() => new Set([...Object.values(propuestas).map((p) => p.plantaClave), ...Object.keys(renombres)]), [propuestas, renombres])
   const revision = useMemo(
-    () => (estado ? resumenRevision(propuestas, nuevas, estado, retiradas) : { pendientes: 0, aceptadas: 0, agregan: 0, quitan: 0, ajustes: 0 }),
-    [estado, propuestas, nuevas, retiradas],
+    () => (estado ? resumenRevision(propuestas, nuevas, estado, retiradas, renombres) : { pendientes: 0, aceptadas: 0, agregan: 0, quitan: 0, ajustes: 0 }),
+    [estado, propuestas, nuevas, retiradas, renombres],
   )
   const filasFiltradas = useMemo(
     () => (estado?.filas ?? []).filter((f) => coincideFiltro(f, filtro, conCambios) && coincideTexto(f, texto, propuestas)),
@@ -173,6 +174,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribuci
     setPropuestas({})
     setNuevas([])
     setRetiradas([])
+    setRenombres({})
     setImportado(null)
   }
 
@@ -190,6 +192,20 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribuci
       const renombrada = plantaNueva({ ...n.fila, sold_to: destino.sold_to, ship_to: destino.ship_to }, n.origen, n.estado, true, [])
       setNuevas((ns) => ns.map((x) => (x.id === id ? { ...renombrada, crearEnListados: false } : x)))
     }
+  }
+
+  /** El nombre del Excel es el correcto: se le cambia el nombre a la planta de Listados (conservando su
+   * lista) y lo que traía el Excel queda como propuestas amarillas sobre ella. */
+  function renombrarSugerencia(id: string, destino: PlantaLista) {
+    const n = nuevas.find((x) => x.id === id)
+    if (!n || !estado) return
+    const fila = estado.filas.find((f) => clavePlanta(f.sold_to, f.ship_to) === clavePlanta(destino.sold_to, destino.ship_to))
+    if (!fila) return
+    const nuevasProps = propuestasDeFila(n.fila, fila).map((q) => ({ ...q, estado: n.estado }))
+    setPropuestas((p) => ({ ...p, ...Object.fromEntries(nuevasProps.map((q) => [q.clave, q])) }))
+    setNuevas((ns) => ns.filter((x) => x.id !== id))
+    setRenombres((r) => ({ ...r, [clavePlanta(fila.sold_to, fila.ship_to)]: { de: { sold_to: fila.sold_to, ship_to: fila.ship_to }, a: n.ship_to } }))
+    setFiltro('cambios')
   }
 
   function agregarPlanta(d: DatosPlanta) {
@@ -249,7 +265,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribuci
     setGuardando(true)
     setErrorGuardar(null)
     try {
-      const resultado = await aplicarListas(aCambios(estado, propuestas, nuevas, retiradas), servicio)
+      const resultado = await aplicarListas(aCambios(estado, propuestas, nuevas, retiradas, renombres), servicio)
       const fresco = await obtenerEstado(incluirSinLista, servicio)
       const porClave = new Map(fresco.filas.map((f) => [clavePlanta(f.sold_to, f.ship_to), f]))
       setEstado(fresco)
@@ -260,6 +276,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribuci
       })))
       setNuevas((ns) => ns.filter((n) => n.estado !== 'aceptada'))
       setRetiradas((rs) => rs.filter((r) => !r.quitar))
+      setRenombres({})
       setHecho(resultado)
       setConfirmando(false)
     } catch (e) {
@@ -435,6 +452,10 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribuci
             onQuitarNueva={(id) => setNuevas((ns) => ns.filter((n) => n.id !== id))}
             onCrearEnListados={(id, crear) => setNuevas((ns) => ns.map((n) => (n.id === id ? { ...n, crearEnListados: crear } : n)))}
             onUsarSugerencia={usarSugerencia}
+            renombres={renombres}
+            puedeRenombrar={(s) => estado.filas.some((f) => clavePlanta(f.sold_to, f.ship_to) === clavePlanta(s.sold_to, s.ship_to))}
+            onRenombrar={renombrarSugerencia}
+            onDeshacerRenombre={(k) => setRenombres((r) => { const { [k]: _quitada, ...resto } = r; return resto })}
           />
           <p className={styles.pie}>
             Mostrando {nf.format(Math.min(limite, filasFiltradas.length))} de {nf.format(filasFiltradas.length)} plantas
@@ -462,6 +483,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribuci
             {revision.quitan > 0 && <>, <b className={styles.rojo}>{nf.format(revision.quitan)} {revision.quitan === 1 ? 'correo quitado' : 'correos quitados'}</b></>}
             {revision.ajustes > 0 && <>, {nf.format(revision.ajustes)} {revision.ajustes === 1 ? 'ajuste' : 'ajustes'} de copia</>}.
           </p>
+          {Object.keys(renombres).length > 0 && <p>Se cambiará el nombre de <b>{Object.keys(renombres).length}</b> {Object.keys(renombres).length === 1 ? 'planta' : 'plantas'} en Listados y en las listas, <b>sin perder su lista</b>: {Object.values(renombres).map((r) => `«${r.de.ship_to}» → «${r.a}»`).join(' · ')}.</p>}
           {aQuitar > 0 && <p><b className={styles.rojo}>Se quitará la lista completa de {nf.format(aQuitar)} {aQuitar === 1 ? 'planta' : 'plantas'}</b> que ya no vienen en el Excel (queda el respaldo para volver atrás).</p>}
           {aCrear > 0 && <p>Además se {aCrear === 1 ? 'creará 1 planta' : `crearán ${aCrear} plantas`} en <b>Listados</b> (con su cliente si es nuevo), para que las solicitudes las encuentren.</p>}
           <p>Antes de guardar se deja un respaldo de las listas actuales. Lo que está en amarillo o no aceptaste no se toca.</p>
