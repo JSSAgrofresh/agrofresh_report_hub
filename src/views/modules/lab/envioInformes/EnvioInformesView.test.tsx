@@ -42,6 +42,7 @@ const estado = (modo: 'prueba' | 'produccion' = 'prueba'): EstadoEnvio => ({
   modo,
   destinatarios_prueba: ['psalazar@agrofresh.com', 'jorge.sandoval@agrofresh.com'],
   internos: { cc: [], bcc: ['psalazar@agrofresh.com'] },
+  encabezado: { titulo: 'Informe de Ensayo', subtitulo: 'Laboratorio de Cromatografía' },
   laboratorios: ['QUITECA', 'AGROFRESH'],
   laboratorio_fijo: 'AGROFRESH',
   modo_cambiado_por: null,
