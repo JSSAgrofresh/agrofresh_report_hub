@@ -389,6 +389,22 @@ se guarda. **No leas la configuración de contactos dentro de un bucle por
 solicitud**: viene de R2 y el listado pasó a tardar 6 s; se lee una vez
 (`_calculador_sin_lista`).
 
+## Post Venta: informes de Accu-Tab (Trace + correo)
+
+Toda carga (la manual de Trace o la automática del correo) termina con su **informe
+PDF, que se genera solo** (`app/accutab_informe.py`: datos, estadísticas y un gráfico de
+pH y otro de ORP; si Trace adjunta el suyo se respeta). Quedan en disco
+(`Storage/Accutab/<marca>/informe.pdf` + `registro.json`, lo que lee Post Venta) y en R2
+**ordenados por cliente y fecha, no una carpeta por reporte**:
+`accutab/mail/<CLIENTE>/<AAAA-MM-DD>/Informe <HH-MM-SS>.pdf` y, al lado,
+`Datos <HH-MM-SS>/<archivos del equipo>`. En el correo el cliente sale del asunto sin el
+contador «(1307)» (`cliente_desde_asunto`). `registro.json` guarda `r2_claves` para que
+**borrar** una carga quite también lo de R2. Lo archivado antes de este orden
+(`accutab/mail/<asunto>/`) queda como estaba. Reportes de Post Venta filtra por Sold To,
+Ship To, **Posición de muestreo** (= «Ubicación del equipo» de Trace, `ubicacion`), equipo y
+período; la lista permite **marcar varios y eliminarlos** (`POST /postventa/registros/eliminar`).
+Se quitó a pedido el conteo de cargas (tarjeta y contadores).
+
 ## Storage: explorador y permisos por carpeta
 
 `/modulos/storage` tiene un árbol lateral con tres espacios: **Archivos del
@@ -509,8 +525,9 @@ balanza) y el servidor pone la **fecha y hora de ingreso** (hora de Chile). Back
 `app/fortificados.py` (`/api/fortificados`: listar, crear, corregir N°/peso; borrar solo
 admin general y en pantalla solo la cuenta maestra con clave), tabla `fortificado`
 (migración 0051; el N° no se repite sin importar mayúsculas). **«Descargar base (Excel)»**
-(`/emitir/cromatografia/excel-con-muestra`) baja un libro de dos hojas: **Estándar** (la base
-de siempre) y **Fortificados**, que el servidor lee de su propia tabla. Sin la 0051 la
+(`/emitir/cromatografia/excel-con-muestra`) baja un libro de UNA hoja, **BD**: las solicitudes cruzadas y, debajo, los
+fortificados (el servidor los lee de su propia tabla; llenan N° Muestra, Peso Muestra
+Extraída, Fecha y Hora Recepción). Sin la 0051 la
 descarga sigue saliendo (hoja vacía) y la pestaña avisa que falta la migración.
 
 ## Ingreso al laboratorio: corregir un cruce
