@@ -60,6 +60,11 @@ PERMANENTES_SERVICIO = {ACTIMIST: PERMANENTES_ACTIMIST, ECOFOG: PERMANENTES_ECOF
 # este cambio): las RYD anteriores conservan a Claudia.
 RYD_COPIAS = ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
 MARCA_RESPALDO_RYD = "respaldo_ryd"
+# RYD tiene su PROPIA lista de distribución (contactos con `servicio: "ryd"`), pero
+# comparte el listado de Sold To / Ship To de Línea de proceso. Por eso hay dos
+# preguntas distintas: `clave_servicio` (¿qué listado?) y `clave_lista` (¿qué lista
+# de distribución?). Una RYD usa su lista solo si lleva la marca `respaldo_ryd`.
+RYD = "ryd"
 
 
 def _norm(texto: Any) -> str:
@@ -90,6 +95,19 @@ def usa_respaldo_ryd(datos: dict | None) -> bool:
     return bool((datos or {}).get(MARCA_RESPALDO_RYD)) and es_tipo_ryd(datos)
 
 
+def clave_lista(valor: Any) -> str:
+    """La lista de distribución de un valor: `actimist`, `ecofog`, `ryd` o vacío
+    (Línea de proceso). A diferencia de `clave_servicio`, reconoce RYD."""
+    n = _norm(valor)
+    return n if n in (ACTIMIST, ECOFOG, RYD) else LINEA_PROCESO
+
+
+def lista_de_datos(datos: dict | None) -> str:
+    """La lista de distribución de una solicitud: la de su servicio, o la de RYD si
+    es RYD con la marca `respaldo_ryd` (las RYD anteriores siguen en Línea de proceso)."""
+    return RYD if usa_respaldo_ryd(datos) else servicio_de_datos(datos)
+
+
 def es_servicio_con_listado(servicio: Any) -> bool:
     """¿Es un servicio con listado y lista propios (todo menos Línea de
     proceso)? Actimist y Ecofog siguen las mismas reglas."""
@@ -105,8 +123,8 @@ def servicio_de_datos(datos: dict | None) -> str:
 
 
 def es_del_servicio(contacto: dict, servicio: str) -> bool:
-    """¿Este contacto es de ese servicio? Sin `servicio` = Línea de proceso."""
-    return clave_servicio(contacto.get("servicio")) == clave_servicio(servicio)
+    """¿Este contacto es de esa lista? Sin `servicio` = Línea de proceso."""
+    return clave_lista(contacto.get("servicio")) == clave_lista(servicio)
 
 
 def tablas(servicio: Any) -> tuple[str, str]:

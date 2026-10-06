@@ -8,7 +8,7 @@
  */
 import { httpClient } from '@/services/http/client'
 import { parametroServicio } from '@/lib/servicio'
-import type { Servicio } from '@/lib/servicio'
+import type { ListaDistribucion } from '@/lib/servicio'
 import type { CambioLista, FilaLista, PlantaLista, ResultadoComparacion } from './listasDistribucion'
 
 export const CATEGORIAS = [
@@ -63,7 +63,7 @@ export interface EstadoListas {
 }
 
 /** Cada tipo de servicio tiene su lista: `servicio` vacío = Línea de proceso. */
-export function obtenerEstado(incluirSinLista: boolean, servicio: Servicio = 'linea') {
+export function obtenerEstado(incluirSinLista: boolean, servicio: ListaDistribucion = 'linea') {
   const qs = new URLSearchParams({ sin_lista: String(incluirSinLista), servicio: parametroServicio(servicio) })
   return httpClient.get<EstadoListas>(`/listas-distribucion/estado?${qs.toString()}`)
 }
