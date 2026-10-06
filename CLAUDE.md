@@ -824,6 +824,9 @@ tocas una, toca la otra.
   `planta_quitar` y, al guardar (con respaldo), `aplicar` borra toda la lista de esa planta
   en ese servicio (cliente, comercial, técnico y admin); **Listados no se toca**. Un Excel
   sin filas no ofrece nada.
+  Los cinco recuadros de cobertura de arriba explican qué cuentan en un globito que aparece suave al pasar
+  el mouse, enfocar o tocar (`IndicadoresListas`; «Plantas con lista» compara con las plantas activas de
+  Listados; el % de los otros cuatro se mide sobre las plantas con lista).
   Reemplaza a los scripts `importar_contactos_resultado.py` /
   `auditar_contactos_resultado.py` para el uso diario. El panel se mantiene montado al
   cambiar de pestaña para no perder cambios sin guardar.
