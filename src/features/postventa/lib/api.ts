@@ -73,6 +73,11 @@ export function eliminarCargasTrace(carpetas: string[]) {
   return httpClient.post<{ borradas: string[]; fallidas: string[] }>('/postventa/registros/eliminar', { carpetas })
 }
 
+/** Genera el informe PDF de una carga que todavía no lo tiene. */
+export function generarInformeCarga(carpeta: string) {
+  return httpClient.post<{ ok: boolean }>(`/postventa/registros/${encodeURIComponent(carpeta)}/informe`, {})
+}
+
 export function descargarPdfCarga(carpeta: string) {
   return descargarArchivo(`/postventa/registros/${encodeURIComponent(carpeta)}/pdf`, `${carpeta}.pdf`)
 }

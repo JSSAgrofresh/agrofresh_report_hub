@@ -23,6 +23,7 @@ import {
   eliminarCargaTrace,
   eliminarCargasTrace,
   fechaDeCarpeta,
+  generarInformeCarga,
   listarCargasTrace,
   descargarOriginalCarga,
   descargarPdfCarga,
@@ -196,6 +197,8 @@ export function PostVentaView() {
   const [verMasFilas, setVerMasFilas] = useState(false)
   const [filtro, setFiltro] = useState<FiltroCargas>(FILTRO_CARGAS_VACIO)
   const [marcadas, setMarcadas] = useState<Set<string>>(new Set())
+  const [verTodosInformes, setVerTodosInformes] = useState(false)
+  const [generando, setGenerando] = useState<string | null>(null)
   const detalleRef = useRef<HTMLDivElement | null>(null)
   const cargasFiltradas = useMemo(() => filtrarCargas(cargas ?? [], filtro), [cargas, filtro])
 
@@ -298,6 +301,19 @@ export function PostVentaView() {
     })
   }
 
+  async function generarInforme(carpeta: string) {
+    setGenerando(carpeta)
+    try {
+      await generarInformeCarga(carpeta)
+      await recargarLista()
+      setDetalle(null)
+    } catch (err) {
+      setError(mensaje(err, 'No se pudo generar el informe.'))
+    } finally {
+      setGenerando(null)
+    }
+  }
+
   function marcarTodas() {
     setMarcadas(todasMarcadas ? new Set() : new Set(cargasFiltradas.map((c) => c.carpeta)))
   }
@@ -367,34 +383,99 @@ export function PostVentaView() {
           filtro={filtro}
           onFiltro={setFiltro}
         />
-        <div className={styles.layout} ref={detalleRef}>
-          <Card className={styles.panelLista}>
-            <h2 className={styles.tituloPanel}>Informes guardados</h2>
-            <div className={styles.barraSeleccion}>
-              <label className={styles.marcarTodos}>
-                <input type="checkbox" checked={todasMarcadas} onChange={marcarTodas} />
-                Marcar todos
-              </label>
-              <button
-                type="button"
-                className={styles.botonEliminarVarios}
-                disabled={marcadasVisibles.length === 0}
-                onClick={() => void borrarMarcadas()}
-              >
-                Eliminar{marcadasVisibles.length ? ` (${marcadasVisibles.length})` : ''}
+        <Card className={styles.informes} aria-label="Informes">
+          <div className={styles.informesCabecera}>
+            <div>
+              <h2 className={styles.informesTitulo}>Informes</h2>
+              <p className={styles.informesNota}>
+                Un informe PDF por carga, con los mismos filtros de arriba. Marca los que quieras sacar del sistema.
+              </p>
+            </div>
+            <button
+              type="button"
+              className={styles.botonEliminarVarios}
+              disabled={marcadasVisibles.length === 0}
+              onClick={() => void borrarMarcadas()}
+            >
+              Eliminar seleccionados{marcadasVisibles.length ? ` (${marcadasVisibles.length})` : ''}
+            </button>
+          </div>
+          <div className={styles.tablaEnvoltorio}>
+            <table className={styles.tabla}>
+              <thead>
+                <tr>
+                  <th>
+                    <input
+                      type="checkbox"
+                      aria-label="Marcar todos los informes que se ven"
+                      checked={todasMarcadas}
+                      onChange={marcarTodas}
+                    />
+                  </th>
+                  <th>Fecha</th>
+                  <th>Sold To</th>
+                  <th>Ship To</th>
+                  <th>Posición de muestreo</th>
+                  <th>Equipo</th>
+                  <th>Informe</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cargasFiltradas.slice(0, verTodosInformes ? undefined : 25).map((c) => (
+                  <tr key={c.carpeta}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`Marcar informe del ${fechaDeCarpeta(c.carpeta)}`}
+                        checked={marcadas.has(c.carpeta)}
+                        onChange={() => alternar(c.carpeta)}
+                      />
+                    </td>
+                    <td>
+                      <button type="button" className={styles.enlaceBoton} onClick={() => setSeleccionada(c.carpeta)}>
+                        {fechaDeCarpeta(c.carpeta)}
+                      </button>
+                    </td>
+                    <td>{c.cliente ?? '—'}</td>
+                    <td>{c.planta ?? '—'}</td>
+                    <td>{c.ubicacion ?? '—'}</td>
+                    <td>{c.equipo ? formatearEquipo(c.equipo) : '—'}</td>
+                    <td>
+                      {c.tiene_pdf ? (
+                        <button type="button" className={styles.enlaceBoton} onClick={() => void descargarPdfCarga(c.carpeta)}>
+                          Descargar PDF
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.enlaceBoton}
+                          disabled={generando === c.carpeta}
+                          onClick={() => void generarInforme(c.carpeta)}
+                        >
+                          {generando === c.carpeta ? 'Generando…' : 'Generar informe'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {cargasFiltradas.length > 25 && (
+            <div className={styles.tablaFooter}>
+              <button type="button" className={styles.botonVerMas} onClick={() => setVerTodosInformes((v) => !v)}>
+                {verTodosInformes ? 'Mostrar menos' : 'Ver todos los informes'}
               </button>
             </div>
+          )}
+        </Card>
+        <div className={styles.layout} ref={detalleRef}>
+          <Card className={styles.panelLista}>
+            <h2 className={styles.tituloPanel}>Cargas</h2>
             <div className={styles.lista}>
               {cargasFiltradas.length === 0 && <p className={styles.listaVacia}>Ningún informe con estos filtros.</p>}
               {cargasFiltradas.map((c) => (
                 <div key={c.carpeta} className={styles.itemFila}>
-                  <input
-                    type="checkbox"
-                    className={styles.casilla}
-                    aria-label={`Marcar informe del ${fechaDeCarpeta(c.carpeta)}`}
-                    checked={marcadas.has(c.carpeta)}
-                    onChange={() => alternar(c.carpeta)}
-                  />
                 <button
                   type="button"
                   className={`${styles.itemCarga} ${c.carpeta === seleccionada ? styles.itemActivo : ''} ${c.origen === 'email' ? styles.itemEmail : styles.itemManual}`}

@@ -73,3 +73,10 @@ def test_eliminar_varios_sin_nada_es_400(storage):
     with pytest.raises(HTTPException) as e:
         postventa.eliminar_varios(postventa.EliminarVariosIn(carpetas=[]))
     assert e.value.status_code == 400
+
+
+def test_generar_informe_de_una_carga_ya_guardada(storage):
+    r = _guardar()
+    os.remove(storage / "Accutab" / r["carpeta"] / "informe.pdf")
+    assert postventa.generar_informe(r["carpeta"]) == {"ok": True, "tiene_pdf": True}
+    assert (storage / "Accutab" / r["carpeta"] / "informe.pdf").read_bytes().startswith(b"%PDF")
