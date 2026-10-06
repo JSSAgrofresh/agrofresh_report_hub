@@ -19,7 +19,7 @@ export {
   restaurarAviso,
   enviarPruebaAviso,
 } from './lib/api'
-export type { AvisoClientes, DatosAviso } from './lib/api'
+export type { AvisoClientes, DatosAviso, PlantillaAviso } from './lib/api'
 export { esCorreoValido, quitarCorreo, separarCorreos, sumarCorreos, tamanoLegible } from './lib/correos'
 export type {
   AnalisisLote,

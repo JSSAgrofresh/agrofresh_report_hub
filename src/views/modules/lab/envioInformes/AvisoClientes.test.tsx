@@ -11,9 +11,16 @@ const api = vi.hoisted(() => ({
 }))
 vi.mock('@/features/envioInformes', () => api)
 
-const original = { asunto: 'Asunto original', titulo: 'Aviso a clientes', subtitulo: 'AgroFresh Report Hub', texto: 'Estimados clientes:' }
+const original = {
+  asunto: 'Asunto original', titulo: 'Aviso a clientes', subtitulo: 'AgroFresh Report Hub', texto: 'Estimados clientes:',
+  plantilla: 'estandar',
+}
+const plantillas = [
+  { clave: 'estandar', nombre: 'Estándar', descripcion: 'Sobria', miniatura: 'data:image/png;base64,AAAA' },
+  { clave: 'azul', nombre: 'Azul', descripcion: 'Portada azul', miniatura: 'data:image/png;base64,BBBB' },
+]
 const aviso = (extra = {}) => ({
-  ...original, html: '<p>original</p>', original, personalizado: false,
+  ...original, html: '<p>original</p>', original, personalizado: false, plantillas,
   destinatarios_prueba: ['psalazar@agrofresh.com', 'jorge.sandoval@agrofresh.com'], ...extra,
 })
 
@@ -78,5 +85,24 @@ describe('AvisoClientes', () => {
     render(<AvisoClientes />)
     expect(await screen.findByText(/hacer git pull y reiniciar el backend/)).toBeTruthy()
     expect(screen.getByDisplayValue('Asunto')).toBeTruthy()
+  })
+
+  it('elige una plantilla, actualiza la vista previa y la guarda con el aviso', async () => {
+    api.guardarAviso.mockResolvedValue(aviso({ plantilla: 'azul', personalizado: true }))
+    render(<AvisoClientes />)
+    const azul = await screen.findByRole('radio', { name: /Azul/ })
+    expect(screen.getByRole('radio', { name: /Estándar/ }).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(azul)
+    expect(azul.getAttribute('aria-checked')).toBe('true')
+    await waitFor(() => expect(api.vistaPreviaAviso).toHaveBeenCalledWith(expect.objectContaining({ plantilla: 'azul' })))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+    await waitFor(() => expect(api.guardarAviso).toHaveBeenCalledWith(expect.objectContaining({ plantilla: 'azul' })))
+  })
+
+  it('con un backend sin plantillas no muestra el selector y no se cae', async () => {
+    api.obtenerAvisoClientes.mockResolvedValue(aviso({ plantillas: undefined, plantilla: undefined }))
+    render(<AvisoClientes />)
+    expect(await screen.findByDisplayValue('Asunto original')).toBeTruthy()
+    expect(screen.queryByRole('radiogroup')).toBeNull()
   })
 })

@@ -904,3 +904,44 @@ def test_la_prueba_manda_lo_que_se_esta_escribiendo_solo_a_paz_y_jorge(entorno):
     ei.enviar_prueba_del_aviso(_aviso_editado(), usuario=_usuario())
     assert entorno[0]["asunto"] == "(PRUEBA) Nuevo asunto" and entorno[0]["to"] == ei.DESTINATARIOS_PRUEBA
     assert "Hola a todos" in entorno[0]["html"] and ei.aviso_a_clientes(usuario=_usuario())["personalizado"] is False
+
+
+# --- Aviso a clientes: plantillas ---------------------------------------------------
+
+def test_el_aviso_ofrece_las_plantillas_y_parte_en_estandar(entorno):
+    r = ei.aviso_a_clientes(usuario=_usuario())
+    assert r["plantilla"] == "estandar" and len(r["plantillas"]) == 7
+    assert r["plantillas"][0]["clave"] == "estandar" and r["plantillas"][0]["miniatura"].startswith("data:image/png")
+
+
+def test_la_plantilla_elegida_se_guarda_se_ve_y_viaja_en_la_prueba(entorno):
+    r = ei.guardar_aviso(_aviso_editado(plantilla="verde_foto"), usuario=_usuario())
+    assert r["plantilla"] == "verde_foto" and r["personalizado"] is True and "data:image/jpeg;base64" in r["html"]
+    ei.enviar_prueba_del_aviso(usuario=_usuario())
+    assert "cid:agrofresh-banner-aviso" in entorno[0]["html"]
+    # restaurar vuelve a estándar
+    assert ei.restaurar_aviso(usuario=_usuario())["plantilla"] == "estandar"
+
+
+def test_la_prueba_usa_la_plantilla_que_se_esta_viendo_aunque_no_este_guardada(entorno):
+    ei.enviar_prueba_del_aviso(_aviso_editado(plantilla="marino"), usuario=_usuario())
+    assert "cid:agrofresh-banner-aviso" in entorno[0]["html"]
+    assert ei.aviso_a_clientes(usuario=_usuario())["plantilla"] == "estandar"
+
+
+def test_una_plantilla_inexistente_no_se_guarda(entorno):
+    with pytest.raises(HTTPException) as exc:
+        ei.guardar_aviso(_aviso_editado(plantilla="no_existe"), usuario=_usuario())
+    assert exc.value.status_code == 400
+
+
+def test_un_aviso_guardado_antes_de_las_plantillas_sigue_valiendo_como_estandar(entorno):
+    cfg = ei.leer_config()
+    ei._guardar_config({**cfg, "aviso": {"asunto": "Viejo", "titulo": "T", "subtitulo": "", "texto": "Texto viejo"}})
+    r = ei.aviso_a_clientes(usuario=_usuario())
+    assert r["asunto"] == "Viejo" and r["plantilla"] == "estandar"
+
+
+def test_la_vista_previa_con_plantilla_desconocida_no_falla(entorno):
+    r = ei.vista_previa_del_aviso(_aviso_editado(plantilla="no_existe"), usuario=_usuario())
+    assert "Hola a todos" in r["html"]
