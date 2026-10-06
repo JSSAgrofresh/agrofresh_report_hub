@@ -131,6 +131,102 @@ def serie_diaria(eventos: list[dict], desde: datetime, hasta: datetime) -> list[
     return list(filas.values())
 
 
+# ── Seguimiento de personas (piezas puras) ────────────────────────────────
+
+CATEGORIAS_USO = (*CATEGORIAS_TRABAJO, "acceso", "visita")
+
+
+def mapa_calor(eventos: list[dict]) -> list[list[int]]:
+    """Cuánto se usa el sistema según el día de la semana (lunes=0) y la hora de
+    Chile: 7 filas de 24 horas. Cuenta trabajo, ingresos y visitas; no los intentos fallidos."""
+    mapa = [[0] * 24 for _ in range(7)]
+    for e in eventos:
+        if not e["t"] or e["categoria"] not in CATEGORIAS_USO or e["accion"] == "login_fallido":
+            continue
+        local = e["t"].astimezone(ZONA)
+        mapa[local.weekday()][local.hour] += 1
+    return mapa
+
+
+def estado_persona(
+    *,
+    acciones: int,
+    previas: int,
+    ultima: datetime | None,
+    nunca: bool,
+    creada: datetime | None,
+    desde: datetime,
+    ahora: datetime,
+) -> str:
+    """Cómo viene cada cuenta: nunca_ingreso, dormida, nueva, en_baja, en_alza o activa."""
+    if nunca:
+        return "nunca_ingreso"
+    if ultima is None or ultima < ahora - timedelta(days=30):
+        return "dormida"
+    if creada and creada >= desde:
+        return "nueva"
+    if previas >= 5 and acciones < previas * 0.5:
+        return "en_baja"
+    if previas >= 3 and acciones >= previas * 1.5:
+        return "en_alza"
+    return "activa"
+
+
+def seguimiento_personas(
+    actual: list[dict],
+    anterior: list[dict],
+    usuarios: list[dict],
+    ultimo_uso: dict,
+    desde: datetime,
+    ahora: datetime,
+) -> list[dict]:
+    """Por cuenta interna: acciones contra el período anterior, días en que usó el
+    sistema, módulos en que trabaja y su estado (ver `estado_persona`)."""
+    r_act = resumen_por_usuario(actual)
+    r_prev = resumen_por_usuario(anterior)
+    dias_activos: dict[str, set] = defaultdict(set)
+    for e in actual:
+        if e["email"] and e["t"] and e["categoria"] in CATEGORIAS_USO and e["accion"] != "login_fallido":
+            dias_activos[e["email"]].add(e["t"].astimezone(ZONA).date())
+    filas = []
+    for u in usuarios:
+        if u["tipo_acceso"] == "cliente":
+            continue
+        k = u["email"].lower()
+        a, p = r_act.get(k), r_prev.get(k)
+        acciones = a["acciones"] if a else 0
+        previas = p["acciones"] if p else 0
+        ultima = max([x for x in (a["ultima"] if a else None, p["ultima"] if p else None, ultimo_uso.get(u["id"])) if x], default=None)
+        nunca = ultima is None and not (a or p)
+        n_dias = len(dias_activos.get(k, ()))
+        filas.append({
+            "email": u["email"], "nombre": u["nombre"], "tipo": u["tipo_acceso"], "area": u["area"],
+            "acciones": acciones, "previas": previas, "variacion_pct": variacion(acciones, previas),
+            "dias_activos": n_dias, "por_dia_activo": round(acciones / n_dias, 1) if n_dias else 0,
+            "visitas": a["visitas"] if a else 0, "accesos": a["accesos"] if a else 0,
+            "por_categoria": dict(a["por_categoria"]) if a else {},
+            "ultima_actividad": _iso(ultima), "creada": _iso(u.get("creado_en")),
+            "estado": estado_persona(acciones=acciones, previas=previas, ultima=ultima, nunca=nunca,
+                                     creada=u.get("creado_en"), desde=desde, ahora=ahora),
+        })
+    filas.sort(key=lambda f: (-f["acciones"], f["nombre"] or ""))
+    return filas
+
+
+def adopcion_por_modulo(personas: list[dict]) -> list[dict]:
+    """Qué parte del equipo trabaja en cada módulo: personas con al menos una acción / cuentas internas."""
+    total = len(personas)
+    salida = []
+    for cat in CATEGORIAS_TRABAJO:
+        quienes = [p for p in personas if p["por_categoria"].get(cat)]
+        salida.append({
+            "modulo": ETIQUETA_CATEGORIA[cat], "categoria": cat, "personas": len(quienes), "de": total,
+            "pct": round(100 * len(quienes) / total) if total else 0,
+            "acciones": sum(p["por_categoria"].get(cat, 0) for p in personas),
+        })
+    return salida
+
+
 # ── Lectura de fuentes ───────────────────────────────────────────────────
 
 def _filas(sql: str, params: tuple | dict = ()) -> list[dict]:
@@ -385,4 +481,24 @@ def actividad(
             "acciones": ficha["acciones"], "accesos": ficha["accesos"], "visitas": ficha["visitas"],
             "ultima": _iso(ficha["ultima"]),
         },
+    }
+
+
+@router.get("/seguimiento")
+def seguimiento(dias: int = Query(30, ge=7, le=180), _: Usuario = Depends(solo_admin_general)) -> dict:
+    """Seguimiento del equipo: cómo viene cada persona, cuándo se usa el sistema y
+    qué módulos usa cada quien. Todo se compara contra el período anterior."""
+    ahora = datetime.now(timezone.utc)
+    desde = ahora - timedelta(days=dias)
+    eventos = leer_eventos(desde - timedelta(days=dias))
+    actual = [e for e in eventos if e["t"] and e["t"] >= desde]
+    anterior = [e for e in eventos if e["t"] and e["t"] < desde]
+    personas = seguimiento_personas(actual, anterior, _usuarios(), _ultimo_uso(), desde, ahora)
+    conteo = Counter(p["estado"] for p in personas)
+    return {
+        "dias": dias,
+        "resumen": {k: conteo.get(k, 0) for k in ("activa", "en_alza", "en_baja", "nueva", "dormida", "nunca_ingreso")},
+        "personas": personas,
+        "mapa": mapa_calor(actual),
+        "adopcion": adopcion_por_modulo(personas),
     }

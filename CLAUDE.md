@@ -18,7 +18,8 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
     por PR desde la rama de desarrollo, cuando el usuario decide publicarlos.
 - **Da los comandos de PowerShell completos y exactos**, con la ruta puesta.
   Nunca "reinicia el backend" a secas.
-- **No crees PR** salvo que se pida explícitamente.
+- **Cada vez que termines un cambio, publícalo de una**: commit y push a la rama de desarrollo, PR a `main` y fusión (regla del usuario, 06-10-2026), para que en el servidor solo haga falta `git pull origin main` y reiniciar el backend. Avisa siempre si el cambio trae migración y dalo con el comando exacto.
+  **Formato del aviso final** (pedido del usuario): publica un **Artifact** con una tarjeta (título «Listo para publicar», pasos con ✓ Merge listo y Manual para Pull, Script y Reiniciar backend, y una casilla de código con botón «Copiar»), actualizando siempre el MISMO artifact: **https://claude.ai/artifact/A1q3w9WBh2Zc3sStYRuYDE** (el usuario trabaja en chats distintos y lo deja abierto en una pestaña: en un chat nuevo, léelo con `action: "read"` y publica con ese `url`, nunca crees otro), y en el chat solo el enlace y una línea. El script va solo como `.venv\Scripts\python.exe scripts\migrar.py NNNN_nombre.sql`, **sin `cd backend`** (el usuario tiene una PowerShell abierta ya dentro de `backend`). Sin migración, se omite el paso del script.
 
 ### Reglas de seguridad (no negociables)
 
@@ -122,6 +123,9 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/reintentar_pendientes_ingesta.py` | Reprocesa las filas pendientes y descarta las que siguen sin Ship To válido (respaldo en `logs/`) |
 | `scripts/limpiar_duplicados_accutab.py` | Borra reportes de Post Venta y carpetas `accutab/mail/` duplicados por la ingesta de correo (deja uno por correo) |
 | `scripts/cruce_informes.py` | Solo lee: explica por qué «Solicitudes e informes» (OT con informe) y Report (informes) no dan el mismo número (`--lab Quiteca`) |
+| `scripts/completar_desde_pdf_quiteca.py` | Completa los informes de Quiteca ya cargados leyendo su PDF guardado: N° de muestra, hora de muestreo y fechas de análisis/informe (solo lo vacío; necesita la 0053 y `pypdf`; `--aplicar` para escribir, respaldo en `logs/`) |
+| `scripts/generar_informes_accutab.py` | Genera el informe PDF de las cargas de Post Venta que ya estaban guardadas sin él, **con las demo incluidas** (`--sin-demo` las salta; en R2 van a la fecha de LLEGADA de la carga, no la de hoy; `--aplicar` para escribir; sin eso solo cuenta; `--rehacer` rehace también los que el sistema ya había generado, nunca el PDF que adjuntó Trace) |
+| `scripts/ordenar_r2_accutab.py` | Ordena en R2 las carpetas viejas de Accutab (`accutab/mail/<asunto>/`) a `<CLIENTE>/<FECHA>/Datos <hora>/` (`--aplicar` para mover; sin eso solo cuenta) |
 | `scripts/corregir_ot_informe.py` | Deja un informe en UNA sola OT (`--informe 2026-1885-PC --ot OT-QUI0025`): corrige Converter y la `referencia` de Report; respaldo en `logs/` |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
@@ -233,6 +237,7 @@ front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
   `tests/test_mail_templates_marco.py` lo compara con la salida de antes). Para
   cambiar UN correo, «Editar este correo» en su tarjeta: Para / CC / CCO, asunto y
   texto **solo de ese informe**.
+- **El encabezado del correo** (título «INFORME DE ENSAYO» arriba, subtítulo «Laboratorio de Cromatografía» debajo) se edita en Configuración → «Encabezado» (`PUT /encabezado`, guardado en `envio_informes.json` bajo `encabezado`; título obligatorio, subtítulo vacío = sin línea). Vale para todos los correos de informe; el título se escribe en mayúsculas.
 - La vista previa la arma el backend con el mismo código del envío
   (`armar_correo`): lo que se ve es lo que sale.
 - Adjuntos: PDF, Excel, CSV, ZIP, imágenes y DOCX; 15 por correo, 20 MB cada uno
@@ -395,6 +400,30 @@ se guarda. **No leas la configuración de contactos dentro de un bucle por
 solicitud**: viene de R2 y el listado pasó a tardar 6 s; se lee una vez
 (`_calculador_sin_lista`).
 
+## Post Venta: informes de Accu-Tab (Trace + correo)
+
+Toda carga (la manual de Trace o la automática del correo) termina con su **informe
+PDF, que se genera solo** (`app/accutab_informe.py`: **el mismo informe que imprime Trace**, mismo
+encabezado con logo, cajas Identificación/Registros/Datos/Rango y el gráfico único de pH y mV
+con dos ejes — si cambias el informe de `trace.html`, cámbialo también ahí; si Trace adjunta el suyo se respeta). Quedan en disco
+(`Storage/Accutab/<marca>/informe.pdf` + `registro.json`, lo que lee Post Venta) y en R2
+**ordenados por cliente y fecha, no una carpeta por reporte**:
+`accutab/mail/<CLIENTE>/<AAAA-MM-DD>/Informe <HH-MM-SS>.pdf` y, al lado,
+`Datos <HH-MM-SS>/<archivos del equipo>`. En el correo el cliente sale del asunto sin el
+contador «(1307)» (`cliente_desde_asunto`). `registro.json` guarda `r2_claves` para que
+**borrar** una carga quite también lo de R2. Lo archivado antes de este orden
+(`accutab/mail/<asunto>/`) queda como estaba. Reportes de Post Venta filtra por Sold To,
+Ship To, **Posición de muestreo** (= «Ubicación del equipo» de Trace, `ubicacion`), equipo y
+período; arriba de la lista de cargas hay una tabla **«Informes»** (fecha, Sold To, Ship To, posición, equipo, PDF: «Descargar PDF» o «Generar informe» si la carga no lo tiene, `POST /postventa/registros/{carpeta}/informe`) donde se **marcan varios y se eliminan** (`POST /postventa/registros/eliminar`).
+La tabla «Informes» va **al final** de la pantalla y se pagina de a 10. Se quitó a pedido el conteo de cargas (tarjeta y contadores).
+**Portal de cliente**: una cuenta `cliente` del área Post Venta ve «Tus informes Accu-Tab»
+(`InformesAccutabCliente`: tarjetas por mes, «Ver informe» y «Descargar PDF», filtro de período y
+posición). Backend: `router_cliente` de `postventa.py` (`/api/postventa/cliente/informes` y `/{carpeta}/pdf`,
+incluido con `CON_SESION`, no `SOLO_AGROFRESH`): solo informes con PDF de SU cliente (y su Ship To si la
+cuenta es de sucursal), sin tildes ni mayúsculas ni `_`; lo que pida por parámetro se descarta
+(`alcance_de_datos`); un cliente sin cliente asignado no ve nada. Las cargas del correo se reconocen por
+el asunto (`_cliente_de`). El resto de `/api/postventa` sigue cerrado a clientes.
+
 ## Storage: explorador y permisos por carpeta
 
 `/modulos/storage` tiene un árbol lateral con tres espacios: **Archivos del
@@ -515,8 +544,9 @@ balanza) y el servidor pone la **fecha y hora de ingreso** (hora de Chile). Back
 `app/fortificados.py` (`/api/fortificados`: listar, crear, corregir N°/peso; borrar solo
 admin general y en pantalla solo la cuenta maestra con clave), tabla `fortificado`
 (migración 0051; el N° no se repite sin importar mayúsculas). **«Descargar base (Excel)»**
-(`/emitir/cromatografia/excel-con-muestra`) baja un libro de dos hojas: **Estándar** (la base
-de siempre) y **Fortificados**, que el servidor lee de su propia tabla. Sin la 0051 la
+(`/emitir/cromatografia/excel-con-muestra`) baja un libro de UNA hoja, **BD**: las solicitudes cruzadas y, debajo, los
+fortificados (el servidor los lee de su propia tabla; llenan N° Muestra, Peso Muestra
+Extraída, Fecha y Hora Recepción). Sin la 0051 la
 descarga sigue saliendo (hoja vacía) y la pestaña avisa que falta la migración.
 
 ## Ingreso al laboratorio: corregir un cruce
@@ -775,10 +805,13 @@ tocas una, toca la otra.
   Reemplaza a los scripts `importar_contactos_resultado.py` /
   `auditar_contactos_resultado.py` para el uso diario. El panel se mantiene montado al
   cambiar de pestaña para no perder cambios sin guardar.
-- **Panel de Administración General** (pestañas **Resumen** y **Actividad**, las
+- **Panel de Administración General** (pestañas **Resumen**, **Actividad** y **Seguimiento**, las
   primeras; solo admin general; `app/admin_panel.py`, prefijo `/api/admin-panel`;
-  front en `views/admin/panel/` y `features/adminPanel/`). Tema oscuro verde
-  AgroFresh **solo dentro del panel** (variables `--p-*` en `PanelAdmin.module.css`).
+  front en `views/admin/panel/` y `features/adminPanel/`). Tema **claro**, igual al resto de la app
+  (las variables `--p-*` de `PanelAdmin.module.css` apuntan a los tokens de la app; no vuelvas al oscuro, se pidió
+  expresamente). **Seguimiento** (`GET /api/admin-panel/seguimiento`, `SeguimientoPanel.tsx`): estado de cada cuenta
+  interna (activa / en alza / en baja / nueva / dormida / nunca ingresó, `estado_persona`) contra el período
+  anterior, días activos, mapa de calor día×hora (hora de Chile), adopción por módulo y matriz persona×módulo.
   Resumen: KPIs (usuarios activos, solicitudes, informes concretados %, días
   solicitud→informe por laboratorio, salud de datos 0–100 con sus descuentos a la
   vista), actividad por día, uso por módulo, actividad por persona, cambios

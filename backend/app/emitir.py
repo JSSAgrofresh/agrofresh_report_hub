@@ -1382,66 +1382,15 @@ class FilaConMuestraIn(BaseModel):
     codigo_muestra: str | None = None
     fecha_recepcion: str | None = None
     hora_recepcion: str | None = None
-    # Segundo peso (g), anotado después del cruce.
+    # Primer peso (el de la muestra, anotado al cruzar) y segundo peso (g, extraída).
+    peso_muestra: float | None = None
     peso_muestra_extraido: float | None = None
-
-
-def _agregar_hoja_fortificados(wb: openpyxl.Workbook, filas: list[dict]) -> None:
-    """Segunda hoja de la base: los fortificados ingresados (N°, peso extraído,
-    fecha y hora de ingreso). Mismo diseño que la hoja Estándar (banda verde
-    arriba, encabezado verde oscuro con filtro, bordes, sin cuadrícula). Lleva
-    autofiltro y NO tabla de Excel: las dos juntas dejan el archivo roto."""
-    ws = wb.create_sheet("Fortificados")
-    encabezados = ["N° Fortificado", "Peso extraído (g)", "Fecha ingreso", "Hora ingreso"]
-    n = len(encabezados)
-
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n)
-    for col in range(1, n + 1):
-        celda = ws.cell(row=1, column=col)
-        celda.fill = PatternFill("solid", fgColor=VERDE_CLARO)
-        celda.border = _BORDE_COMPLETO
-    banda = ws.cell(row=1, column=1, value="FORTIFICADOS")
-    banda.font = Font(bold=True, size=10, color=VERDE_OSCURO)
-    banda.alignment = Alignment(horizontal="center", vertical="center")
-
-    for col, texto in enumerate(encabezados, start=1):
-        c = ws.cell(row=2, column=col, value=texto)
-        c.font = Font(bold=True, size=9, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor=VERDE_OSCURO)
-        c.border = _BORDE_COMPLETO
-        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    ws.row_dimensions[1].height = 28
-    ws.row_dimensions[2].height = 36
-
-    for i, f in enumerate(filas, start=3):
-        fecha = ""
-        if f.get("fecha_ingreso"):
-            anio, mes, dia = f["fecha_ingreso"].split("-")
-            fecha = f"{dia}-{mes}-{anio}"
-        for col, valor in enumerate([f["numero"], f["peso_extraido"], fecha, f.get("hora_ingreso") or ""], start=1):
-            c = ws.cell(row=i, column=col, value=valor if valor != "" else None)
-            c.border = _BORDE_COMPLETO
-            c.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-        ws.cell(row=i, column=2).number_format = "0.0000"
-        ws.row_dimensions[i].height = 24
-
-    for col in range(1, n + 1):
-        ws.column_dimensions[get_column_letter(col)].width = 20
-    ultima = max(2, ws.max_row)
-    ws.freeze_panes = "A3"
-    ws.auto_filter.ref = f"A2:{ws.cell(row=ultima, column=n).coordinate}"
-    ws.sheet_view.showGridLines = False
-    ws.sheet_properties.pageSetUpPr.fitToPage = True
-    ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 0
-    ws.page_setup.orientation = "landscape"
-    ws.print_title_rows = "1:2"
 
 
 @router.post("/excel-con-muestra")
 def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingResponse:
-    """Base de Ingreso al laboratorio, en dos hojas: «Estándar» (las solicitudes de
-    AgroFresh ya cruzadas con su muestra) y «Fortificados» (los ingresados aparte).
+    """Base de Ingreso al laboratorio, en una sola hoja «BD»: las solicitudes de
+    AgroFresh ya cruzadas con su muestra y, debajo, los fortificados ingresados.
 
     Lleva las MISMAS columnas generales que la BD de Report, con el mismo
     nombre y orden (ver `columnas_base.py`; incluye N° Muestra, la recepción y la
@@ -1458,6 +1407,7 @@ def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingRespons
         datos = columnas_base.fila_desde_campos(
             fila.campos,
             codigo_muestra=fila.codigo_muestra,
+            peso=fila.peso_muestra,
             peso_extraido=fila.peso_muestra_extraido,
             fecha_recepcion=fila.fecha_recepcion,
             hora_recepcion=fila.hora_recepcion,
@@ -1469,14 +1419,26 @@ def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingRespons
         datos["campos_laboratorio"] = fila.campos
         solicitudes.append(datos)
 
+    # Los fortificados van en la misma hoja, tras las solicitudes: su N° en «N° Muestra»,
+    # el peso extraído, y la fecha y hora de ingreso como recepción.
+    for f in fortificados.listar_para_excel():
+        datos = {
+            "codigo_muestra": f["numero"],
+            "peso_extraido": f["peso_extraido"],
+            "fecha_recepcion": columnas_base.a_fecha(f.get("fecha_ingreso")),
+            "hora_recepcion": f.get("hora_ingreso") or None,
+            "analitos_solicitados": [],
+            "campos_laboratorio": {},
+        }
+        solicitudes.append(datos)
+
     wb = construir_workbook_exportacion(
         solicitudes,
         _leer_analitos_lab(),
         laboratorios=("AGROFRESH",),
         generales=columnas_base.GENERALES_BASE,
-        titulo_hoja="Estándar",
+        titulo_hoja="BD",
     )
-    _agregar_hoja_fortificados(wb, fortificados.listar_para_excel())
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)

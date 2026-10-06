@@ -757,3 +757,21 @@ def test_informe_ryd_sin_solicitud_lleva_el_respaldo_de_ryd(entorno):
     config_store.escribir("contactos_laboratorio.json", [])
     plan = ei.plan_destinatarios("DOLE", "SAN FERNANDO", tipo_aplicacion="RYD")
     assert plan["to"] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
+
+
+
+def test_el_encabezado_del_correo_se_puede_cambiar_y_por_defecto_es_el_de_siempre():
+    from app import mail_templates
+
+    def encabezado(**kw):
+        _, _, html, _ = mail_templates.renderizar_informe({"sold_to": "A", "ship_to": "B"}, **kw)
+        ini = html.index("letter-spacing")
+        return html[ini:html.index("</table>", ini)]
+
+    por_defecto = encabezado()
+    assert "INFORME DE ENSAYO" in por_defecto and "Laboratorio de Cromatografía" in por_defecto
+    nuevo = encabezado(titulo="Informe de Resultados", subtitulo="Otro texto")
+    assert "INFORME DE RESULTADOS" in nuevo and "Otro texto" in nuevo
+    assert "INFORME DE ENSAYO" not in nuevo and "Laboratorio de Cromatografía" not in nuevo
+    sin_sub = encabezado(subtitulo="")
+    assert "INFORME DE ENSAYO" in sin_sub and "Laboratorio de Cromatografía" not in sin_sub
