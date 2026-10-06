@@ -433,3 +433,44 @@ def test_reimportar_la_dinamica_completa_lo_que_faltaba():
     assert plan["clientes_nuevos"] == []
     assert [p["nombre"] for p in plan["plantas_nuevas"]] == ["PA2", "PA3"]
     assert all(p["cliente_clave"] == 5 for p in plan["plantas_nuevas"])
+
+
+# ---------------------------------------------------------------------------
+# RYD: el respaldo es Carla y Fran, no Claudia (solo solicitudes con la marca)
+# ---------------------------------------------------------------------------
+
+def test_ryd_sin_lista_va_para_jorge_carla_y_fran_sin_claudia(contactos):
+    contactos["lista"] = []
+    r = tm.contactos_de_solicitud_de("QUITECA", _datos("RYD", respaldo_ryd=True))
+    para = _minus(r["to"])
+    assert para == ["jorge.sandoval@agrofresh.com", "ccaceres@agrofresh.com", "fgonzalez@agrofresh.com"]
+    assert "cguerrero@agrofresh.com" not in para
+
+
+def test_ryd_anterior_sin_marca_sigue_con_claudia(contactos):
+    """Lo ya emitido no se reescribe: sin la marca, el respaldo es el de siempre."""
+    contactos["lista"] = []
+    r = tm.contactos_de_solicitud_de("QUITECA", _datos("RYD"))
+    assert _minus(r["to"]) == _minus(tm.DESTINATARIOS_SIN_LISTA)
+
+
+def test_marca_en_linea_de_proceso_no_cambia_nada(contactos):
+    contactos["lista"] = []
+    r = tm.contactos_de_solicitud_de("QUITECA", _datos("Línea de proceso", respaldo_ryd=True))
+    assert _minus(r["to"]) == _minus(tm.DESTINATARIOS_SIN_LISTA)
+
+
+def test_resultados_de_ryd_sin_lista_y_su_pdf_llevan_a_carla_y_fran(contactos):
+    contactos["lista"] = []
+    r = tm.destinatarios_resultado_por_tipo("", LONTUE, DOLE, "Manzana", [], ryd=True)
+    assert "ccaceres@agrofresh.com" in _minus(r["to"]) and "cguerrero@agrofresh.com" not in _minus(r["to"])
+    pdf = tm._datos_pdf_con_destinatarios_resultados(_datos("RYD", respaldo_ryd=True))
+    assert "fgonzalez@agrofresh.com" in _minus(pdf["destinatarios_resultados_detalle"]["para"])
+    viejo = tm._datos_pdf_con_destinatarios_resultados(_datos("RYD"))
+    assert "cguerrero@agrofresh.com" in _minus(viejo["destinatarios_resultados_detalle"]["para"])
+
+
+def test_ryd_con_solo_carla_y_fran_no_cuenta_como_lista_del_cliente(contactos):
+    solo = [_c(40, "ccaceres@agrofresh.com", "resultado_cliente")]
+    assert tm.solicitud_sin_lista(_datos("RYD", respaldo_ryd=True), solo) is True
+    assert tm.solicitud_sin_lista(_datos("RYD"), solo) is False   # sin marca, como antes

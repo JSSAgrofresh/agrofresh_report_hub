@@ -50,6 +50,9 @@ from .listados import clave_normalizada as _clave_esp
 from .servicios import (
     PARA_SIN_LISTA_SERVICIO,
     PERMANENTES_SERVICIO,
+    RYD_COPIAS,
+    MARCA_RESPALDO_RYD,
+    usa_respaldo_ryd,
     clave_servicio,
     es_del_servicio,
     es_servicio_con_listado,
@@ -533,6 +536,9 @@ class Solicitud(SolicitudIn):
     # cambio). Sin la marca, la regla de antes: MIXTO desde 3. Ver
     # `normalizar_productos`.
     mixto_desde_2: bool = False
+    # RYD: el respaldo (sin lista del cliente) es Carla y Fran en vez de Claudia.
+    # Solo las solicitudes creadas desde ese cambio; ver `servicios.RYD_COPIAS`.
+    respaldo_ryd: bool = False
     # ¿Los resultados de esta solicitud NO tienen lista de distribución al
     # cliente (para este Sold To, Ship To y especie)? Entonces rige la regla
     # de respaldo: Para = solo Jorge y Claudia. No se guarda: el listado lo
@@ -944,6 +950,8 @@ def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends
     # Tampoco cambia la regla de MIXTO: una solicitud antigua sigue con la suya.
     if datos_actuales.get(MARCA_MIXTO_DESDE_2):
         datos[MARCA_MIXTO_DESDE_2] = True
+    if datos_actuales.get(MARCA_RESPALDO_RYD):
+        datos[MARCA_RESPALDO_RYD] = True
     _aplicar_regla_mixto(datos)
     if datos_actuales.get("es_prueba"):
         # Editar no le quita la marca: sigue siendo de prueba.
@@ -989,6 +997,8 @@ def _guardar_solicitud_nueva(
         pdf_solo_analisis=True,
         # Y dicen «MIXTO» desde 2 productos (las anteriores, desde 3).
         mixto_desde_2=True,
+        # Y su respaldo, si es RYD, es Carla y Fran (no Claudia).
+        respaldo_ryd=True,
     )
     _aplicar_regla_mixto(datos)
     if es_prueba:
@@ -1498,6 +1508,7 @@ def crear_reanalisis(
         enviado_en=None,
         pdf_solo_analisis=True,
         mixto_desde_2=True,
+        respaldo_ryd=True,
         tipo_solicitud="REANALISIS",
         solicitud_original_archivo=archivo_base,
         motivo_reanalisis=motivo,
@@ -1774,13 +1785,16 @@ def _admins_de(contactos: list[dict]) -> list[str]:
     ]
 
 
-def _para_sin_lista(admins: list[str], servicio: str = "") -> list[str]:
+def _para_sin_lista(admins: list[str], servicio: str = "", ryd: bool = False) -> list[str]:
     """Para cuando no hay lista de distribución: Jorge y Claudia, más los admin
     del Report Hub. Con lista, esos mismos van en copia oculta; sin lista pasan
     de CCO a Para.
 
-    Actimist tiene su propio respaldo: Jorge y el Report Hub (sin Claudia)."""
+    Actimist tiene su propio respaldo: Jorge y el Report Hub (sin Claudia).
+    RYD (`ryd`): Jorge, Carla y Fran (sin Claudia)."""
     base = PARA_SIN_LISTA_SERVICIO.get(clave_servicio(servicio), DESTINATARIOS_SIN_LISTA)
+    if ryd and clave_servicio(servicio) not in PARA_SIN_LISTA_SERVICIO:
+        base = [DESTINATARIOS_SIN_LISTA[0], *RYD_COPIAS]
     salida: list[str] = []
     vistos: set[str] = set()
     for e in [*base, *admins]:
@@ -1805,6 +1819,8 @@ def solicitud_sin_lista(datos: dict, contactos: list[dict] | None = None) -> boo
     copia, no son la lista del cliente."""
     servicio = servicio_de_datos(datos)
     propios = {c.casefold() for c in DESTINATARIOS_SIN_LISTA}
+    if usa_respaldo_ryd(datos):
+        propios |= {c.casefold() for c in RYD_COPIAS}
     if es_servicio_con_listado(servicio):
         propios |= {c.casefold() for c in (*PARA_SIN_LISTA_SERVICIO[servicio], *PERMANENTES_SERVICIO[servicio])}
     for c in _contactos_resultado(
@@ -1826,7 +1842,7 @@ def _calculador_sin_lista(contactos: list[dict]):
     """`solicitud_sin_lista` con los contactos ya leídos y memoria por
     (Sold To, Ship To, especie): cientos de solicitudes comparten pocas
     combinaciones."""
-    memoria: dict[tuple[str, str, str, str], bool] = {}
+    memoria: dict[tuple[str, str, str, str, bool], bool] = {}
 
     def calcular(datos: dict) -> bool:
         clave = (
@@ -1834,6 +1850,7 @@ def _calculador_sin_lista(contactos: list[dict]):
             str(datos.get("ship_to") or "").strip(),
             _clave_esp(str(datos.get("especie") or "")),
             servicio_de_datos(datos),
+            usa_respaldo_ryd(datos),
         )
         if clave not in memoria:
             memoria[clave] = solicitud_sin_lista(datos, contactos)
@@ -1864,7 +1881,7 @@ def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[s
     internos.sort(key=lambda c: c.get("orden", 0))
     if es_servicio_con_listado(servicio):
         return _contactos_solicitud_actimist(por_envio, internos, datos)
-    para = por_envio["to"] or _para_sin_lista(_admins_de(internos))
+    para = por_envio["to"] or _para_sin_lista(_admins_de(internos), ryd=usa_respaldo_ryd(datos))
     en_para = {e.casefold() for e in para}
     return {
         "to": para,
@@ -2069,6 +2086,7 @@ def destinatarios_resultado_por_tipo(
     especie: str | None = None,
     contactos: list[dict] | None = None,
     servicio: str = "",
+    ryd: bool = False,
 ) -> dict[str, list[str]]:
     """Correos de resultado separados en `to`/`cc`/`bcc`.
 
@@ -2104,7 +2122,7 @@ def destinatarios_resultado_por_tipo(
         # comerciales (internos) ya quedaron en copia arriba.
         salida["to"] = _para_sin_lista(_admins_de(
             _contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos, servicio=servicio)
-        ), servicio)
+        ), servicio, ryd)
         en_para = {d.casefold() for d in salida["to"]}
         salida["cc"] = [e for e in salida["cc"] if e.casefold() not in en_para]
         salida["bcc"] = [e for e in salida["bcc"] if e.casefold() not in en_para]
@@ -2196,7 +2214,7 @@ def _iso_a_ddmmyyyy(valor: object) -> object:
 
 _CAMPOS_INTERNOS = {
     "archivo", "enviada", "enviado_en", "creado_en", "sin_lista_distribucion", "pdf_solo_analisis",
-    "mixto_desde_2",
+    "mixto_desde_2", "respaldo_ryd",
 }
 
 
@@ -2217,7 +2235,7 @@ def _generar_json_solicitud(datos: dict) -> bytes:
     sold_to = str(datos.get("sold_to") or "")
     especie = str(datos.get("especie") or "")
     correos_resultado = destinatarios_resultado_por_tipo(
-        lab, ship_to, sold_to, especie, servicio=servicio_de_datos(datos)
+        lab, ship_to, sold_to, especie, servicio=servicio_de_datos(datos), ryd=usa_respaldo_ryd(datos)
     )
     email_muestreador = _normalizar_correo(datos.get("email_solicitante"))
     datos_limpios = {
@@ -2277,7 +2295,7 @@ def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
             cc.append(e)
     if not para:
         # Misma regla de respaldo que `destinatarios_resultado_por_tipo`.
-        para = _para_sin_lista(_admins_de(activos), servicio)
+        para = _para_sin_lista(_admins_de(activos), servicio, usa_respaldo_ryd(datos))
         respaldo = {d.casefold() for d in para}
         cc = [e for e in cc if e.casefold() not in respaldo]
         bcc = [e for e in bcc if e.casefold() not in respaldo]

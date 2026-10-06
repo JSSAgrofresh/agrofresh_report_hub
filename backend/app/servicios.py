@@ -53,6 +53,15 @@ PARA_SIN_LISTA_SERVICIO = {ACTIMIST: PARA_SIN_LISTA_ACTIMIST, ECOFOG: PARA_SIN_L
 PERMANENTES_SERVICIO = {ACTIMIST: PERMANENTES_ACTIMIST, ECOFOG: PERMANENTES_ECOFOG}
 
 
+# RYD (ensayos de AgroFresh) no es un servicio con listado propio: usa el de
+# Línea de proceso. Lo único distinto es el respaldo: donde Línea de proceso
+# lleva a Claudia, RYD lleva a Carla y Fran (más Jorge, que va siempre).
+# Solo vale para las solicitudes con la marca `respaldo_ryd` (las creadas desde
+# este cambio): las RYD anteriores conservan a Claudia.
+RYD_COPIAS = ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
+MARCA_RESPALDO_RYD = "respaldo_ryd"
+
+
 def _norm(texto: Any) -> str:
     t = unicodedata.normalize("NFKD", str(texto or ""))
     t = "".join(c for c in t if not unicodedata.combining(c))
@@ -65,6 +74,20 @@ def clave_servicio(valor: Any) -> str:
     Línea de proceso, que es lo que regía antes de separar los servicios."""
     n = _norm(valor)
     return n if n in (ACTIMIST, ECOFOG) else LINEA_PROCESO
+
+
+def es_tipo_ryd(datos: dict | None) -> bool:
+    """¿El «Tipo Aplicación» de la solicitud es RYD?"""
+    datos = datos or {}
+    campos = datos.get("campos_laboratorio") or {}
+    tipo = campos.get("Tipo Aplicación") if isinstance(campos, dict) else None
+    return _norm(tipo or datos.get("tipo_aplicacion") or "") == "ryd"
+
+
+def usa_respaldo_ryd(datos: dict | None) -> bool:
+    """¿Rige el respaldo de RYD (Carla y Fran)? Solo en RYD con la marca
+    `respaldo_ryd`, puesta al crear: las anteriores siguen con Claudia."""
+    return bool((datos or {}).get(MARCA_RESPALDO_RYD)) and es_tipo_ryd(datos)
 
 
 def es_servicio_con_listado(servicio: Any) -> bool:

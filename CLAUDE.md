@@ -359,6 +359,15 @@ casos en `test_servicio_actimist.py` y `servicio.test.ts`).
 
 ## Correo de la solicitud: quién lo recibe
 
+**RYD tiene su propio respaldo.** Donde Línea de proceso usa a Claudia (sin lista
+de distribución), una solicitud RYD usa a **Carla y Fran** (`RYD_COPIAS` en
+`servicios.py`: `ccaceres@` y `fgonzalez@agrofresh.com`), más Jorge. Vale en el
+correo, el PDF, el JSON, el chip «Sin lista» y el **Envío de informes** (un
+informe RYD sin lista va Para a Carla y Fran, no queda vacío). **Solo para las
+solicitudes con la marca `respaldo_ryd`** (puesta al crear y en reanálisis; editar
+la conserva): las RYD anteriores siguen con Claudia. RYD no tiene listado propio.
+Pendiente: la columna de lista del Excel base (`columnas_base`) aún no distingue RYD.
+
 Los contactos de **Laboratorios → Contacto laboratorio** (`tipo: solicitud`)
 llevan el campo `envio`: `para` (sin valor = `para`, como los antiguos), `cc` o
 `bcc`. `contactos_de_solicitud_por_envio` los reparte; el creador de la
@@ -793,6 +802,13 @@ tocas una, toca la otra.
   **crean también en Listados** (cliente y planta, con los códigos SAP si el Excel
   los trae; `asegurar_planta` reusa lo que ya existe sin duplicar) al guardar.
   `GET /estado` alimenta la tabla; `/excel` exporta; `/comparar` solo compara.
+  **Plantas que el Excel ya no trae** (base actualizada con menos Sold To / Ship To):
+  importar NUNCA las borra. `/comparar` devuelve `retiradas` y la pantalla muestra una
+  tarjeta roja «N plantas del sistema no vienen en tu Excel» con una casilla por planta
+  (todas desmarcadas) y «Marcar todas / Desmarcar todas». Las marcadas viajan como cambio
+  `planta_quitar` y, al guardar (con respaldo), `aplicar` borra toda la lista de esa planta
+  en ese servicio (cliente, comercial, técnico y admin); **Listados no se toca**. Un Excel
+  sin filas no ofrece nada.
   Reemplaza a los scripts `importar_contactos_resultado.py` /
   `auditar_contactos_resultado.py` para el uso diario. El panel se mantiene montado al
   cambiar de pestaña para no perder cambios sin guardar.
