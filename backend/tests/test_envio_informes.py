@@ -821,9 +821,10 @@ def test_informe_ryd_sin_cliente_va_a_carla_y_fran():
     assert [e.upper() for e in plan["to"]] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
 
 
-def test_la_lista_sale_de_las_listas_con_lo_que_dice_el_informe_no_de_la_solicitud(entorno, monkeypatch):
-    """El PDF manda: su Sold To, Ship To, especie y servicio eligen la lista, aunque la OT
-    exista y diga otra cosa. De la solicitud no se toma nada que el PDF ya traiga."""
+def test_la_lista_sale_del_listado_interno_por_las_llaves_del_informe(entorno, monkeypatch):
+    """Ni el PDF ni la solicitud traen correos: la lista sale SIEMPRE del listado interno de
+    contactos (el mismo que usa la solicitud). Del informe solo se toman las llaves (Sold To,
+    Ship To, especie, servicio); la solicitud, por su OT, solo completa llaves que falten."""
     pytest.importorskip("pypdf")
     from app import toma_muestras as tm
 
