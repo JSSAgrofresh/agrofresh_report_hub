@@ -812,3 +812,10 @@ def test_solicitud_anterior_a_las_reglas_nuevas_igual_envia_a_los_referentes():
     assert "CJIMENEZ@AGROFRESH.COM" in plan["to"] and "CVALENZUELA@AGROFRESH.COM" in plan["to"]
     assert "CJIMENEZ@AGROFRESH.COM" not in plan["cc"] and plan["sin_lista"] is False
     assert datos == {k: v for k, v in datos.items()}  # no se modifica la solicitud
+
+
+def test_informe_ryd_sin_cliente_va_a_carla_y_fran():
+    res = _subir(("AGF2026-13.pdf", _pdf_informe(sold_to="", ship_to="", tipo="RYD")))
+    plan = res["items"][0]["plan"]
+    assert plan["origen"] == "servicio"
+    assert [e.upper() for e in plan["to"]] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]

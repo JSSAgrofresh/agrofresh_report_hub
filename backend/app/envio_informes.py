@@ -568,7 +568,8 @@ async def analizar_informes(
                     # Sin cliente en el PDF (RYD, ensayos propios): lo dice el tipo de servicio.
                     item["leido"] = True
                     item["plan"] = {
-                        **plan_destinatarios("", "", datos["especie"], internos, servicio=datos["servicio"]),
+                        **plan_destinatarios("", "", datos["especie"], internos, servicio=datos["servicio"],
+                                           tipo_aplicacion=datos["tipo_aplicacion"]),
                         "origen": "servicio",
                     }
                 else:
