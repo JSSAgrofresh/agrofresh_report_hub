@@ -53,6 +53,9 @@ from .servicios import (
     RYD_COPIAS,
     MARCA_RESPALDO_RYD,
     usa_respaldo_ryd,
+    lista_de_datos,
+    clave_lista,
+    es_tipo_ryd,
     clave_servicio,
     es_del_servicio,
     es_servicio_con_listado,
@@ -1845,6 +1848,7 @@ def solicitud_sin_lista(datos: dict, contactos: list[dict] | None = None) -> boo
     ellos mismos. Los técnicos y comerciales (internos) no cuentan: van en
     copia, no son la lista del cliente."""
     servicio = servicio_de_datos(datos)
+    lista = lista_de_datos(datos)
     propios = {c.casefold() for c in DESTINATARIOS_SIN_LISTA}
     if usa_respaldo_ryd(datos):
         propios |= {c.casefold() for c in RYD_COPIAS}
@@ -1852,7 +1856,7 @@ def solicitud_sin_lista(datos: dict, contactos: list[dict] | None = None) -> boo
         propios |= {c.casefold() for c in (*PARA_SIN_LISTA_SERVICIO[servicio], *PERMANENTES_SERVICIO[servicio])}
     for c in _contactos_resultado(
         str(datos.get("sold_to") or ""), str(datos.get("ship_to") or ""), str(datos.get("especie") or ""),
-        contactos, servicio=servicio,
+        contactos, servicio=lista,
     ):
         email = str(c.get("email") or "").strip()
         if (
@@ -1901,7 +1905,7 @@ def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[s
     internos = [
         c for c in _contactos_resultado(
             str(datos.get("sold_to") or ""), str(datos.get("ship_to") or ""), str(datos.get("especie") or ""),
-            servicio=servicio,
+            servicio=lista_de_datos(datos),
         )
         if c.get("tipo") == "resultado_interno" and c.get("activo", True) and c.get("email")
     ]
@@ -2132,6 +2136,7 @@ def destinatarios_resultado_por_tipo(
     """
     salida: dict[str, list[str]] = {"to": [], "cc": [], "bcc": []}
     vistos: set[str] = set()
+    ryd = ryd or clave_lista(servicio) == "ryd"      # la lista de RYD lleva sus destinatarios
     for contacto in sorted(
         _contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos, servicio=servicio),
         key=lambda c: c.get("orden", 0),
@@ -2206,6 +2211,8 @@ def destinatarios_para_laboratorio(
         {
             "sold_to": sold_to, "ship_to": ship_to, "especie": especie,
             "campos_laboratorio": {"Tipo Aplicación": tipo_aplicacion},
+            # lo que se cree desde ahora lleva la marca de RYD (su propia lista)
+            MARCA_RESPALDO_RYD: True,
         },
     )
     return {"destinatarios": por_envio["to"], "cc": por_envio["cc"], "bcc": por_envio["bcc"]}
@@ -2222,7 +2229,8 @@ def resultados_de_ship_to(
     """Configuración de "Resultado a clientes" vigente para una combinación
     (sold_to, ship_to, especie) y el servicio del Tipo Aplicación. Nueva
     solicitud la muestra de solo lectura."""
-    contactos = _contactos_resultado(sold_to, ship_to, especie, servicio=clave_servicio(tipo_aplicacion))
+    lista = "ryd" if es_tipo_ryd({"tipo_aplicacion": tipo_aplicacion}) else clave_servicio(tipo_aplicacion)
+    contactos = _contactos_resultado(sold_to, ship_to, especie, servicio=lista)
     return [
         ContactoResultadoOut(
             nombre=str(c.get("nombre") or ""),
@@ -2272,7 +2280,7 @@ def _generar_json_solicitud(datos: dict) -> bytes:
     sold_to = str(datos.get("sold_to") or "")
     especie = str(datos.get("especie") or "")
     correos_resultado = destinatarios_resultado_por_tipo(
-        lab, ship_to, sold_to, especie, servicio=servicio_de_datos(datos), ryd=usa_respaldo_ryd(datos)
+        lab, ship_to, sold_to, especie, servicio=lista_de_datos(datos)
     )
     email_muestreador = _normalizar_correo(datos.get("email_solicitante"))
     datos_limpios = {
@@ -2303,7 +2311,7 @@ def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
     ship_to = str(datos.get("ship_to") or "")
     especie = str(datos.get("especie") or "")
     servicio = servicio_de_datos(datos)
-    contactos = _contactos_resultado(sold_to, ship_to, especie, servicio=servicio)
+    contactos = _contactos_resultado(sold_to, ship_to, especie, servicio=lista_de_datos(datos))
     activos = [c for c in sorted(contactos, key=lambda c: c.get("orden", 0)) if c.get("activo", True) and c.get("email")]
     # Lista plana legacy (se conserva por si alguien la usa)
     vistos: set[str] = set()

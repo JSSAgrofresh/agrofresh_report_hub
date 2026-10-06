@@ -439,15 +439,40 @@ def test_reimportar_la_dinamica_completa_lo_que_faltaba():
 # RYD: el respaldo es Carla y Fran, no Claudia (solo solicitudes con la marca)
 # ---------------------------------------------------------------------------
 
+RYD_LISTA = [
+    _c(60, "cliente.ryd@dole.cl", "resultado_cliente", servicio="ryd"),
+    _c(61, "tec.ryd@agrofresh.com", "resultado_interno", cargo="Técnico", tipo_copia="bcc", servicio="ryd"),
+    _c(62, "com.ryd@agrofresh.com", "resultado_interno", cargo="Comercial", tipo_copia="cc", servicio="ryd"),
+    _c(63, "cguerrero@agrofresh.com", "resultado_interno", cargo="Admin", tipo_copia="bcc", servicio="ryd"),
+]
+
+
 def test_ryd_va_para_carla_y_fran_y_jorge_en_copia_sin_claudia_ni_admin(contactos):
-    contactos["lista"] = LINEA   # la planta trae técnico, comercial y un admin en copia oculta
+    contactos["lista"] = LINEA + RYD_LISTA
     r = tm.contactos_de_solicitud_de("QUITECA", _datos("RYD", respaldo_ryd=True))
     assert _minus(r["to"]) == ["ccaceres@agrofresh.com", "fgonzalez@agrofresh.com"]
-    assert _minus(r["cc"])[0] == "jorge.sandoval@agrofresh.com" and "comercial@agrofresh.com" in _minus(r["cc"])
+    assert _minus(r["cc"]) == ["jorge.sandoval@agrofresh.com", "com.ryd@agrofresh.com"]
+    assert _minus(r["bcc"]) == ["tec.ryd@agrofresh.com"]
     todos = _minus(r["to"] + r["cc"] + r["bcc"])
-    assert "cguerrero@agrofresh.com" not in todos and "admin@agrofresh.com" not in todos
-    assert "tecnico@agrofresh.com" in _minus(r["bcc"])
+    assert "cguerrero@agrofresh.com" not in todos           # el admin de la lista RYD tampoco
+    assert not any(e in todos for e in ("tecnico@agrofresh.com", "comercial@agrofresh.com", "admin@agrofresh.com"))
     assert len(todos) == len(set(todos))                       # nadie dos veces
+
+
+def test_cada_lista_es_solo_suya_ryd_no_mezcla_con_linea(contactos):
+    contactos["lista"] = LINEA + RYD_LISTA
+    ryd = {c["email"] for c in tm._contactos_resultado(DOLE, LONTUE, "Manzana", contactos["lista"], servicio="ryd")}
+    linea = {c["email"] for c in tm._contactos_resultado(DOLE, LONTUE, "Manzana", contactos["lista"], servicio="")}
+    assert ryd == {c["email"] for c in RYD_LISTA} and linea == {c["email"] for c in LINEA}
+    # una solicitud RYD sin la marca (anterior) sigue leyendo la lista de Línea de proceso
+    vieja = tm.contactos_de_solicitud_de("QUITECA", _datos("RYD"))
+    assert "comercial@agrofresh.com" in _minus(vieja["cc"]) and "com.ryd@agrofresh.com" not in _minus(vieja["cc"])
+
+
+def test_la_lista_de_ryd_cuenta_como_lista_del_cliente(contactos):
+    contactos["lista"] = LINEA + RYD_LISTA
+    assert tm.solicitud_sin_lista(_datos("RYD", respaldo_ryd=True), contactos["lista"]) is False
+    assert tm.solicitud_sin_lista(_datos("RYD", respaldo_ryd=True), LINEA) is True   # solo Línea cargada
 
 
 def test_ryd_con_lista_del_laboratorio_suma_a_carla_y_fran_en_para(contactos):

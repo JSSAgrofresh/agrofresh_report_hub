@@ -45,7 +45,7 @@ from pydantic import BaseModel, Field
 from . import config_store
 from .auth import Usuario, solo_admin_general
 from .listados import clave_normalizada as _clave_esp
-from .servicios import clave_servicio, es_del_servicio, es_servicio_con_listado, tablas
+from .servicios import clave_lista, es_del_servicio, tablas
 
 logger = logging.getLogger(__name__)
 
@@ -401,8 +401,8 @@ def _contacto(id_: int, sold_to: str, ship_to: str, especie: str, email: str, ti
     }
     # Los de Línea de proceso quedan como siempre (sin la llave); los de
     # Actimist llevan su marca.
-    if es_servicio_con_listado(servicio):
-        contacto["servicio"] = clave_servicio(servicio)
+    if clave_lista(servicio):
+        contacto["servicio"] = clave_lista(servicio)
     return contacto
 
 
@@ -451,7 +451,7 @@ def aplicar(contactos: list[dict], cambios: list[dict], servicio: str = "") -> t
     `contactos` es la configuración COMPLETA (todos los servicios), pero solo
     se tocan los del `servicio` pedido: los de la otra lista quedan intactos.
     """
-    servicio = clave_servicio(servicio)
+    servicio = clave_lista(servicio)
     nuevos = [dict(c) for c in contactos]
     sig_id = max((c.get("id", 0) for c in nuevos), default=0) + 1
     hechos = {"aplicados": 0, "plantas": set(), "ignorados": []}
@@ -722,7 +722,7 @@ def estado_actual(
     sin_lista: bool = False, servicio: str = "", _: Usuario = Depends(solo_admin_general)
 ) -> dict:
     """Lo que el sistema tiene hoy, una fila por planta: la base de la tabla dinámica."""
-    servicio = clave_servicio(servicio)
+    servicio = clave_lista(servicio)
     estado = estado_desde_contactos(del_servicio(config_store.leer(ARCHIVO_CONTACTOS, []), servicio))
     resultado = estado_para_tabla(estado, _listados(servicio), sin_lista)
     resultado["clientes"] = _clientes_listados(servicio)
@@ -732,13 +732,13 @@ def estado_actual(
 
 @router.get("/excel")
 def exportar(todas: bool = False, servicio: str = "", _: Usuario = Depends(solo_admin_general)) -> Response:
-    servicio = clave_servicio(servicio)
+    servicio = clave_lista(servicio)
     estado = estado_desde_contactos(del_servicio(config_store.leer(ARCHIVO_CONTACTOS, []), servicio))
     vacias: list[tuple[str, str]] = []
     if todas:
         lis = _listados(servicio) or {}
         vacias = [par for k, par in lis.items() if k not in estado]
-    sufijo = f"_{servicio}" if es_servicio_con_listado(servicio) else ""
+    sufijo = f"_{servicio}" if servicio else ""
     nombre = f"listas_distribucion{sufijo}_{datetime.now():%Y-%m-%d}.xlsx"
     return Response(
         construir_excel(estado, vacias),
@@ -751,7 +751,7 @@ def exportar(todas: bool = False, servicio: str = "", _: Usuario = Depends(solo_
 async def comparar_excel(
     archivo: UploadFile = File(...), servicio: str = "", _: Usuario = Depends(solo_admin_general)
 ) -> dict:
-    servicio = clave_servicio(servicio)
+    servicio = clave_lista(servicio)
     contenido = await archivo.read()
     if len(contenido) > 15 * 1024 * 1024:
         raise HTTPException(413, "El archivo pesa más de 15 MB.")
@@ -769,7 +769,7 @@ async def comparar_excel(
 
 @router.post("/aplicar")
 def aplicar_cambios(datos: CambiosIn, servicio: str = "", usuario: Usuario = Depends(solo_admin_general)) -> dict:
-    servicio = clave_servicio(servicio)
+    servicio = clave_lista(servicio)
     if not datos.cambios:
         raise HTTPException(400, "No hay cambios confirmados para aplicar.")
     creados = {"clientes": 0, "plantas": 0}

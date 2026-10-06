@@ -277,3 +277,15 @@ def test_quitar_una_planta_de_linea_de_proceso_no_toca_actimist():
 
 def test_excel_sin_filas_no_ofrece_quitar_nada():
     assert ld.comparar(ld.estado_desde_contactos(_dos_plantas()), [])["retiradas"] == []
+
+
+def test_ryd_tiene_su_propia_lista_y_no_toca_la_de_linea():
+    contactos = _sistema()
+    fila = _fila(comercial=["com.ryd@agrofresh.com"], clientes={c: ["cli.ryd@x.cl"] for c in ld.CATEGORIAS})
+    estado_ryd = ld.estado_desde_contactos(ld.del_servicio(contactos, "ryd"))
+    assert estado_ryd == {}                                    # Línea de proceso no se cuela en RYD
+    cambios = ld.comparar(estado_ryd, [fila], {ld.clave_planta("CLI SA", "PLANTA UNO"): ("CLI SA", "PLANTA UNO")})["cambios"]
+    nuevos, _ = ld.aplicar(contactos, cambios, "ryd")
+    ryd = [c for c in nuevos if c.get("servicio") == "ryd"]
+    assert {c["email"] for c in ryd} == {"com.ryd@agrofresh.com", "cli.ryd@x.cl"}
+    assert [c for c in nuevos if not c.get("servicio")] == contactos        # Línea intacta
