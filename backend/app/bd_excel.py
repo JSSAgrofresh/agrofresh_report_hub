@@ -111,6 +111,7 @@ DESDE_SOLICITUD: dict[str, str] = {
     "email_laboratorio": "email_laboratorio",
     "csg_packing": "csg_packing",
     "codigo_muestra": "codigo_muestra",
+    "peso": "peso_muestra",
     "peso_extraido": "peso_muestra_extraido",
 }
 
