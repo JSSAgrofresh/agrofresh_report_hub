@@ -1382,7 +1382,8 @@ class FilaConMuestraIn(BaseModel):
     codigo_muestra: str | None = None
     fecha_recepcion: str | None = None
     hora_recepcion: str | None = None
-    # Segundo peso (g), anotado después del cruce.
+    # Primer peso (el de la muestra, anotado al cruzar) y segundo peso (g, extraída).
+    peso_muestra: float | None = None
     peso_muestra_extraido: float | None = None
 
 
@@ -1458,6 +1459,7 @@ def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingRespons
         datos = columnas_base.fila_desde_campos(
             fila.campos,
             codigo_muestra=fila.codigo_muestra,
+            peso=fila.peso_muestra,
             peso_extraido=fila.peso_muestra_extraido,
             fecha_recepcion=fila.fecha_recepcion,
             hora_recepcion=fila.hora_recepcion,

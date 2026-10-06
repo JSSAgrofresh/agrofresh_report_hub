@@ -598,7 +598,7 @@ function leerQuiteca(texto, inf){
   if(cta) obs.push("Cuenta: " + cta);
   if(informeN) obs.push("Informe Quiteca N° " + informeN[1]);
   m = texto.match(/Muestra N°\s*(\d+)/);
-  if(m) obs.push("Muestra N° " + m[1]);
+  if(m){ obs.push("Muestra N° " + m[1]); d["N° Muestra"] = m[1]; }
   d["Observación"] = obs.join(" · ") || null;
 
   m = texto.match(/N°\s*ORDEN\s*:?\s*(\d+)/i);
@@ -1566,6 +1566,7 @@ function filaCruda(inf){
     "Fecha Informe": aISO(d["Fecha Informe"]),
     "Fecha Análisis": aISO(d["Fecha Análisis"]),
     "N° Solicitud": d["OT"],
+    "N° Muestra": d["N° Muestra"] || null,
     "SOLD TO": d["Sold To"],
     "SHIP TO": d["Ship To"],
     "CROP": d["Especie"],

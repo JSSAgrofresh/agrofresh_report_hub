@@ -376,7 +376,8 @@ def test_la_bd_trae_el_cruce_el_gasto_y_la_lista_de_distribucion(datos_bd, clien
         ]
         als = dict(zip(columnas, next(f for f in filas if f[columnas.index("N° Informe")] == "__INF_A__")))
         assert als["N° Muestra"] == "AGF0007"
-        assert als["Fecha Recepción"] is not None and als["Hora Recepción"]
+        # Recepción y pesos son del laboratorio propio: la BD de Report no los lleva.
+        assert not {"Fecha Recepción", "Hora Recepción", "Peso", "Peso Muestra Extraída (g)"} & set(columnas)
         assert als["Lista de Distribución (Para)"] == "cliente@x.cl"
         assert als["Lista de Distribución (CCO)"] == "tec@agrofresh.com"
         quiteca = dict(zip(columnas, next(f for f in filas if f[columnas.index("N° Informe")] == "__INF_Q__")))

@@ -276,7 +276,9 @@ def renderizar_reanalisis(laboratorio: str, datos: dict) -> tuple[str, str, str,
 
 ARCHIVO_INFORMES = "templates_mail_informes.json"
 
-# Va siempre debajo del título del correo del informe.
+# Título y subtítulo del encabezado del correo del informe. Son los valores de
+# partida: se cambian desde Envío de informes → Configuración → Encabezado.
+TITULO_INFORME = "Informe de Ensayo"
 SUBTITULO_INFORME = "Laboratorio de Cromatografía"
 
 VARIABLES_INFORMES = [
@@ -430,10 +432,17 @@ def textos_informe(
 
 def renderizar_informe(
     datos: dict, *, servicio: object = "", asunto: str | None = None, cuerpo: str | None = None, aviso: str = "",
+    titulo: str | None = None, subtitulo: str | None = None,
 ) -> tuple[str, str, str, list[ImagenInline]]:
-    """Arma el correo de un informe (asunto, texto, html y logo)."""
+    """Arma el correo de un informe (asunto, texto, html y logo). `titulo` y
+    `subtitulo` son los del encabezado; sin ellos valen los de siempre."""
     asunto_final, texto = textos_informe(datos, servicio=servicio, asunto=asunto, cuerpo=cuerpo)
-    html, imagenes = html_de_texto(texto, "Informe de Ensayo", SUBTITULO_INFORME, aviso)
+    html, imagenes = html_de_texto(
+        texto,
+        TITULO_INFORME if titulo is None else titulo,
+        SUBTITULO_INFORME if subtitulo is None else subtitulo,
+        aviso,
+    )
     if aviso:
         texto = f"{aviso}\n\n{texto}"
     return asunto_final, texto, html, imagenes

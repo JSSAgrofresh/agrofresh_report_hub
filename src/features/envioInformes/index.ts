@@ -6,6 +6,7 @@ export {
   PLANTILLA_PREDETERMINADA,
   cambiarModoEnvio,
   guardarInternos,
+  guardarEncabezado,
   obtenerPlanDestinatarios,
   obtenerTemplateInforme,
   guardarTemplateInforme,
@@ -17,6 +18,7 @@ export { esCorreoValido, quitarCorreo, separarCorreos, sumarCorreos, tamanoLegib
 export type {
   AnalisisLote,
   DatosCorreo,
+  Encabezado,
   LecturaInforme,
   EstadoEnvio,
   Historial,

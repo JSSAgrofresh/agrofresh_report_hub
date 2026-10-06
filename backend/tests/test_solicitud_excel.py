@@ -282,7 +282,9 @@ def test_la_base_con_muestra_y_la_bd_de_report_tienen_las_mismas_columnas_genera
     )["BD"]
     esperadas = [etiqueta for _, etiqueta in GENERALES_BASE]
     assert _generales(ws_muestra) == esperadas
-    assert _generales(bd) == esperadas
+    # La BD de Report es la misma lista sin lo que solo tiene el laboratorio propio.
+    solo_lab = {"Peso", "Peso Muestra Extraída (g)", "Fecha Recepción", "Hora Recepción"}
+    assert _generales(bd) == [e for e in esperadas if e not in solo_lab]
 
 
 def test_las_dos_bases_traen_los_mismos_campos_del_grupo_de_fungicidas():
@@ -391,3 +393,19 @@ def test_excel_con_muestra_sin_fortificados_deja_la_hoja_con_encabezados_y_una_f
 
     wb = openpyxl.load_workbook(io.BytesIO(asyncio.run(_leer())))
     assert [c.value for c in wb["Fortificados"][3]] == [None] * 4
+
+
+def test_excel_con_muestra_trae_el_peso_y_ordena_las_fechas():
+    from app.emitir import FilaConMuestraIn
+
+    ws = _endpoint_con_muestra([FilaConMuestraIn(
+        campos={"N° Solicitud": "OT-AGF0051"}, analitos_solicitados=[],
+        codigo_muestra="AGF0002", peso_muestra=10.5, peso_muestra_extraido=10.0025,
+    )])
+    headers = [ws.cell(row=2, column=c).value for c in range(1, ws.max_column + 1)]
+    fila = dict(zip(headers, [ws.cell(row=3, column=c).value for c in range(1, ws.max_column + 1)]))
+    assert fila["Peso"] == 10.5
+    assert fila["Peso Muestra Extraída (g)"] == 10.0025
+    assert headers.index("Fecha Muestreo") < headers.index("Fecha Solicitud")
+    assert headers.index("Fecha Análisis") < headers.index("Fecha Informe")
+    assert headers.index("Hora Recepción") < headers.index("Peso") < headers.index("Peso Muestra Extraída (g)")

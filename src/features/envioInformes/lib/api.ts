@@ -2,6 +2,7 @@ import { httpClient } from '@/services/http/client'
 import type {
   AnalisisLote,
   DatosCorreo,
+  Encabezado,
   EstadoEnvio,
   Historial,
   Internos,
@@ -25,6 +26,10 @@ export function cambiarModoEnvio(modo: ModoEnvio, password?: string) {
 
 export function guardarInternos(internos: Internos) {
   return httpClient.put<EstadoEnvio>(`${BASE}/internos`, internos)
+}
+
+export function guardarEncabezado(encabezado: Encabezado) {
+  return httpClient.put<EstadoEnvio>(`${BASE}/encabezado`, encabezado)
 }
 
 export function obtenerPlanDestinatarios(soldTo: string, shipTo: string, especie: string, servicio = '') {

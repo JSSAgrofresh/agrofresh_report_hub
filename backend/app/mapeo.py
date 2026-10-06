@@ -310,6 +310,8 @@ def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
         # se guarda como referencia libre, igual que "Reference/s" del formato viejo.
         "referencia": elegir(texto(fila, "Reference/s"), texto(fila, "N° Solicitud")),
         "referencia_proceso": texto(fila, "Referencia reporte proceso+O:T"),
+        # N° de muestra que imprime el laboratorio (Quiteca: «Muestra N° 85930»).
+        "codigo_muestra": texto(fila, "N° Muestra"),
         "producto_utilizado": texto(fila, "Producto Utilizado"),
         "generado_por": texto(fila, "Generado Por"),
         "email_solicitante": texto(fila, "Email Solicitante"),

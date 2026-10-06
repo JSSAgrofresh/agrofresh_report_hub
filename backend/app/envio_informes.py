@@ -140,7 +140,15 @@ def leer_config() -> dict[str, Any]:
     if not isinstance(cfg, dict):
         cfg = {}
     internos = cfg.get("internos") if isinstance(cfg.get("internos"), dict) else None
+    enc = cfg.get("encabezado") if isinstance(cfg.get("encabezado"), dict) else {}
+    titulo = enc.get("titulo")
+    subtitulo = enc.get("subtitulo")
     return {
+        "encabezado": {
+            "titulo": titulo.strip() if isinstance(titulo, str) and titulo.strip() else mail_templates.TITULO_INFORME,
+            # Un subtítulo vacío es válido (sin línea de abajo); solo si nunca se guardó vale el de siempre.
+            "subtitulo": subtitulo.strip() if isinstance(subtitulo, str) else mail_templates.SUBTITULO_INFORME,
+        },
         "modo": MODO_PRODUCCION if cfg.get("modo") == MODO_PRODUCCION else MODO_PRUEBA,
         "internos": {
             "cc": _limpiar_correos((internos or INTERNOS_DEFECTO).get("cc")),
@@ -304,8 +312,10 @@ def armar_correo(
     # Lo que la plantilla da por sí sola: es el punto de partida que la pantalla
     # muestra editable, sin el «(PRUEBA)» ni el aviso.
     asunto_base, texto_base = mail_templates.textos_informe(valores, servicio=datos.servicio)
+    encabezado = leer_config()["encabezado"]
     asunto, texto, html, imagenes = mail_templates.renderizar_informe(
         valores, servicio=datos.servicio, asunto=datos.asunto, cuerpo=datos.cuerpo, aviso=aviso,
+        titulo=encabezado["titulo"], subtitulo=encabezado["subtitulo"],
     )
     if modo == MODO_PRUEBA:
         asunto = f"(PRUEBA) {asunto}"
@@ -336,6 +346,7 @@ def estado(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
         "modo": cfg["modo"],
         "destinatarios_prueba": DESTINATARIOS_PRUEBA,
         "internos": cfg["internos"],
+        "encabezado": cfg["encabezado"],
         "laboratorios": _laboratorios(),
         "laboratorio_fijo": LABORATORIO_FIJO,
         "modo_cambiado_por": cfg["modo_cambiado_por"],
@@ -397,6 +408,30 @@ def guardar_internos(body: InternosIn, usuario: Usuario = Depends(acceso)) -> di
     actividad.registrar(
         usuario.email, usuario.nombre, "sensible", "envio_informes_internos",
         f"cambió las copias internas del envío de informes (CC {len(internos['cc'])}, CCO {len(internos['bcc'])})",
+        sensible=True,
+    )
+    return estado(usuario)
+
+
+class EncabezadoIn(BaseModel):
+    titulo: str
+    subtitulo: str = ""
+
+
+@router.put("/encabezado")
+def guardar_encabezado(body: EncabezadoIn, usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+    """Título (arriba, en mayúsculas) y subtítulo (debajo) del encabezado del correo."""
+    titulo, subtitulo = body.titulo.strip(), body.subtitulo.strip()
+    if not titulo:
+        raise HTTPException(400, "El título es obligatorio.")
+    if len(titulo) > 80 or len(subtitulo) > 120:
+        raise HTTPException(400, "El título admite hasta 80 caracteres y el subtítulo hasta 120.")
+    cfg = leer_config()
+    cfg["encabezado"] = {"titulo": titulo, "subtitulo": subtitulo}
+    _guardar_config(cfg)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "envio_informes_encabezado",
+        "cambió el encabezado del correo del envío de informes",
         sensible=True,
     )
     return estado(usuario)
