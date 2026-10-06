@@ -253,6 +253,31 @@ def descargar_original(carpeta: str, nombre: str) -> FileResponse:
     return FileResponse(ruta, filename=seguro)
 
 
+@router.post("/registros/{carpeta}/informe")
+def generar_informe(carpeta: str) -> dict[str, Any]:
+    """Genera (o vuelve a generar) el informe PDF de una carga ya guardada, en el
+    servidor y en R2 por cliente y fecha."""
+    ruta = _carpeta_registro(carpeta)
+    ruta_json = os.path.join(ruta, ARCHIVO_REGISTRO)
+    if not os.path.isfile(ruta_json):
+        raise HTTPException(404, "Esa carga no tiene datos guardados.")
+    with open(ruta_json, encoding="utf-8") as f:
+        registro = json.load(f)
+    if not registro.get("filas"):
+        raise HTTPException(400, "Esa carga no tiene mediciones: no hay nada que informar.")
+    pdf = accutab_informe.generar_pdf(registro)
+    with open(os.path.join(ruta, ARCHIVO_PDF), "wb") as f:
+        f.write(pdf)
+    para_r2 = dict(registro)
+    para_r2["cliente"] = registro.get("cliente") or accutab_informe.cliente_desde_asunto(registro.get("equipo"))
+    registro["tiene_pdf"] = True
+    registro["r2_claves"] = list(dict.fromkeys(list(registro.get("r2_claves") or [])
+                                               + accutab_informe.archivar_en_r2(para_r2, carpeta, pdf, None)))
+    with open(ruta_json, "w", encoding="utf-8") as f:
+        json.dump(registro, f, ensure_ascii=False)
+    return {"ok": True, "tiene_pdf": True}
+
+
 def _borrar_carga(carpeta: str) -> None:
     """Quita la carga del servidor y, si se archivó, su informe y datos de R2."""
     ruta = _carpeta_registro(carpeta)

@@ -3,6 +3,7 @@ export {
   verCargaTrace,
   eliminarCargaTrace,
   eliminarCargasTrace,
+  generarInformeCarga,
   descargarPdfCarga,
   descargarOriginalCarga,
   fechaDeCarpeta,

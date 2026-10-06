@@ -125,6 +125,7 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/cruce_informes.py` | Solo lee: explica por qué «Solicitudes e informes» (OT con informe) y Report (informes) no dan el mismo número (`--lab Quiteca`) |
 | `scripts/completar_desde_pdf_quiteca.py` | Completa los informes de Quiteca ya cargados leyendo su PDF guardado: N° de muestra, hora de muestreo y fechas de análisis/informe (solo lo vacío; necesita la 0053 y `pypdf`; `--aplicar` para escribir, respaldo en `logs/`) |
 | `scripts/generar_informes_accutab.py` | Genera el informe PDF de las cargas de Post Venta que ya estaban guardadas sin él, **saltando las demo** (`--aplicar` para escribir; sin eso solo cuenta) |
+| `scripts/ordenar_r2_accutab.py` | Ordena en R2 las carpetas viejas de Accutab (`accutab/mail/<asunto>/`) a `<CLIENTE>/<FECHA>/Datos <hora>/` (`--aplicar` para mover; sin eso solo cuenta) |
 | `scripts/corregir_ot_informe.py` | Deja un informe en UNA sola OT (`--informe 2026-1885-PC --ot OT-QUI0025`): corrige Converter y la `referencia` de Report; respaldo en `logs/` |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
@@ -403,7 +404,7 @@ contador «(1307)» (`cliente_desde_asunto`). `registro.json` guarda `r2_claves`
 **borrar** una carga quite también lo de R2. Lo archivado antes de este orden
 (`accutab/mail/<asunto>/`) queda como estaba. Reportes de Post Venta filtra por Sold To,
 Ship To, **Posición de muestreo** (= «Ubicación del equipo» de Trace, `ubicacion`), equipo y
-período; la lista permite **marcar varios y eliminarlos** (`POST /postventa/registros/eliminar`).
+período; arriba de la lista de cargas hay una tabla **«Informes»** (fecha, Sold To, Ship To, posición, equipo, PDF: «Descargar PDF» o «Generar informe» si la carga no lo tiene, `POST /postventa/registros/{carpeta}/informe`) donde se **marcan varios y se eliminan** (`POST /postventa/registros/eliminar`).
 Se quitó a pedido el conteo de cargas (tarjeta y contadores).
 
 ## Storage: explorador y permisos por carpeta

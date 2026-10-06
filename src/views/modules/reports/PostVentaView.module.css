@@ -531,3 +531,28 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+.informes {
+  margin-bottom: var(--space-4, 1rem);
+  padding: 1rem 1.1rem;
+}
+
+.informesCabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.informesTitulo {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.informesNota {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+}
