@@ -18,7 +18,7 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
     por PR desde la rama de desarrollo, cuando el usuario decide publicarlos.
 - **Da los comandos de PowerShell completos y exactos**, con la ruta puesta.
   Nunca "reinicia el backend" a secas.
-- **No crees PR** salvo que se pida explícitamente.
+- **Cada vez que termines un cambio, publícalo de una**: commit y push a la rama de desarrollo, PR a `main` y fusión (regla del usuario, 06-10-2026), para que en el servidor solo haga falta `git pull origin main` y reiniciar el backend. Avisa siempre si el cambio trae migración y dalo con el comando exacto.
 
 ### Reglas de seguridad (no negociables)
 
