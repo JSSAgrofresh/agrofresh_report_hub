@@ -798,3 +798,17 @@ def test_informe_actimist_sin_lista_va_a_carlos_y_cristian_con_jorge_y_el_sistem
     assert [e.casefold() for e in plan["to"]] == ["cjimenez@agrofresh.com", "cvalenzuela@agrofresh.com"]
     assert plan["sin_lista"] is False
     assert [e.casefold() for e in plan["cc"]] == ["jorge.sandoval@agrofresh.com", "agrofreshreporthub@gmail.com"]
+
+
+def test_solicitud_anterior_a_las_reglas_nuevas_igual_envia_a_los_referentes():
+    """Una solicitud Ecofog vieja (sin la marca de respaldo) y sin lista del cliente:
+    el informe va a Carlos y Cristian en Para, y Jorge/Report Hub en Copia."""
+    datos = {
+        "sold_to": "SIN LISTA SA", "ship_to": "PLANTA X", "especie": "Manzana",
+        "campos_laboratorio": {"Tipo Aplicación": "Ecofog"},
+    }
+    assert "respaldo_ryd" not in datos
+    plan = ei.plan_desde_solicitud(datos, {"cc": [], "bcc": []})
+    assert "CJIMENEZ@AGROFRESH.COM" in plan["to"] and "CVALENZUELA@AGROFRESH.COM" in plan["to"]
+    assert "CJIMENEZ@AGROFRESH.COM" not in plan["cc"] and plan["sin_lista"] is False
+    assert datos == {k: v for k, v in datos.items()}  # no se modifica la solicitud

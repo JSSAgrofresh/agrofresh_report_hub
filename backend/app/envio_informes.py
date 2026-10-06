@@ -199,6 +199,12 @@ def plan_desde_solicitud(datos: dict, internos: dict[str, list[str]] | None = No
     from . import toma_muestras as tm
 
     internos = internos if internos is not None else leer_config()["internos"]
+    # El informe se envía AHORA: lleva las reglas vigentes de la lista (referentes en Para,
+    # Jorge y el Report Hub en Copia) aunque la solicitud sea anterior a esas reglas. La
+    # solicitud ya emitida no se toca: la marca va solo en esta copia.
+    # RYD sí respeta su marca: una RYD anterior sigue como Línea de proceso.
+    if not es_tipo_ryd(datos):
+        datos = {**datos, MARCA_RESPALDO_RYD: True}
     detalle = tm._datos_pdf_con_destinatarios_resultados(datos)["destinatarios_resultados_detalle"]
     sin_lista = tm.solicitud_sin_lista(datos)
     # Esto es el informe del laboratorio, que va al CLIENTE. Sin lista del cliente, el
