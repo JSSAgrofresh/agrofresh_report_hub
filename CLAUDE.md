@@ -802,6 +802,13 @@ tocas una, toca la otra.
   **crean también en Listados** (cliente y planta, con los códigos SAP si el Excel
   los trae; `asegurar_planta` reusa lo que ya existe sin duplicar) al guardar.
   `GET /estado` alimenta la tabla; `/excel` exporta; `/comparar` solo compara.
+  **Plantas que el Excel ya no trae** (base actualizada con menos Sold To / Ship To):
+  importar NUNCA las borra. `/comparar` devuelve `retiradas` y la pantalla muestra una
+  tarjeta roja «N plantas del sistema no vienen en tu Excel» con una casilla por planta
+  (todas desmarcadas) y «Marcar todas / Desmarcar todas». Las marcadas viajan como cambio
+  `planta_quitar` y, al guardar (con respaldo), `aplicar` borra toda la lista de esa planta
+  en ese servicio (cliente, comercial, técnico y admin); **Listados no se toca**. Un Excel
+  sin filas no ofrece nada.
   Reemplaza a los scripts `importar_contactos_resultado.py` /
   `auditar_contactos_resultado.py` para el uso diario. El panel se mantiene montado al
   cambiar de pestaña para no perder cambios sin guardar.
