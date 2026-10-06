@@ -1387,6 +1387,40 @@ class FilaConMuestraIn(BaseModel):
     peso_muestra_extraido: float | None = None
 
 
+def _analitos_con_solicitados(analitos: list[dict], solicitados_por_fila: list[list[str]]) -> list[dict]:
+    """Catálogo de analitos + los que alguna fila pidió y el catálogo de AGROFRESH
+    no trae (laboratorio escrito distinto, analito inactivo o ausente). Sin esto,
+    un analito pedido (p. ej. DPA) se veía en pantalla pero no tenía columna en
+    el Excel. Usa el nombre que ya tenga ese código en otro laboratorio."""
+    propios = {
+        str(a.get("codigo") or "").upper()
+        for a in analitos
+        if str(a.get("laboratorio") or "").upper() == "AGROFRESH" and a.get("activo", True)
+    }
+    # Los del catálogo con el laboratorio escrito en otra capitalización cuentan como propios.
+    normalizados = [
+        {**a, "laboratorio": "AGROFRESH"} if str(a.get("laboratorio") or "").upper() == "AGROFRESH" else a
+        for a in analitos
+    ]
+    extra: list[dict] = []
+    for solicitados in solicitados_por_fila:
+        for codigo in solicitados or []:
+            clave = str(codigo).upper()
+            if not clave or clave in propios:
+                continue
+            propios.add(clave)
+            conocido = next((a for a in analitos if str(a.get("codigo") or "").upper() == clave), None)
+            extra.append({
+                "laboratorio": "AGROFRESH",
+                "codigo": str(codigo),
+                "nombre": (conocido or {}).get("nombre") or str(codigo),
+                "unidad": (conocido or {}).get("unidad") or "",
+                "activo": True,
+                "orden": 1000 + len(extra),
+            })
+    return normalizados + extra
+
+
 @router.post("/excel-con-muestra")
 def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingResponse:
     """Base de Ingreso al laboratorio, en una sola hoja «BD»: las solicitudes de
@@ -1434,7 +1468,7 @@ def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingRespons
 
     wb = construir_workbook_exportacion(
         solicitudes,
-        _leer_analitos_lab(),
+        _analitos_con_solicitados(_leer_analitos_lab(), [f.analitos_solicitados for f in filas]),
         laboratorios=("AGROFRESH",),
         generales=columnas_base.GENERALES_BASE,
         titulo_hoja="BD",
