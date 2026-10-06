@@ -359,6 +359,13 @@ casos en `test_servicio_actimist.py` y `servicio.test.ts`).
 
 ## Correo de la solicitud: quién lo recibe
 
+**RYD tiene su PROPIA lista de distribución** (cuarta opción en Administración General → Listas de
+distribución; contactos con `servicio: "ryd"`, `clave_lista`/`lista_de_datos` en `servicios.py`,
+`ListaDistribucion` en `src/lib/servicio.ts`). Comparte el **listado** de Sold To / Ship To de Línea
+de proceso (sin migración; `clave_servicio("ryd")` sigue siendo Línea de proceso), pero sus contactos
+nunca se cruzan con los de Línea: una solicitud RYD con la marca `respaldo_ryd` solo lee la lista RYD
+(en el correo, PDF, JSON, chip «Sin lista» y Envío de informes). Las RYD sin la marca siguen leyendo la de Línea.
+
 **RYD tiene sus propios destinatarios.** En una solicitud RYD (y sus resultados, PDF y JSON)
 **Para = Carla y Fran** (`RYD_COPIAS` en `servicios.py`: `ccaceres@` y `fgonzalez@agrofresh.com`),
 sumados a la lista del laboratorio o del cliente si existe; **Jorge va en Copia**; y **no va nadie

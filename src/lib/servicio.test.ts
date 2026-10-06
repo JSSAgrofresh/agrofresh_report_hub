@@ -25,5 +25,6 @@ describe('parametroServicio', () => {
     expect(parametroServicio('linea')).toBe('')
     expect(parametroServicio('actimist')).toBe('actimist')
     expect(parametroServicio('ecofog')).toBe('ecofog')
+    expect(parametroServicio('ryd')).toBe('ryd')   // la lista de RYD es aparte, el listado sigue siendo el de Línea
   })
 })

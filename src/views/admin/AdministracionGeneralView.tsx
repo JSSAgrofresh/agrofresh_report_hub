@@ -18,8 +18,8 @@ import { IconoActualizar, IconoAlerta, IconoBuscar, IconoCerrar, IconoPapelera }
 import { Modal } from '@/components/ui/Modal'
 import { ListasPanel } from './listas/ListasPanel'
 import { SelectorServicio } from '@/components/ui/SelectorServicio'
-import { SERVICIOS_CON_LISTADO } from '@/lib/servicio'
-import type { Servicio } from '@/lib/servicio'
+import { LISTAS } from '@/lib/servicio'
+import type { ListaDistribucion } from '@/lib/servicio'
 import { ActividadPanel } from './panel/ActividadPanel'
 import { ResumenPanel } from './panel/ResumenPanel'
 import { SeguimientoPanel } from './panel/SeguimientoPanel'
@@ -58,8 +58,8 @@ export function AdministracionGeneralView() {
   const [listasVisitada, setListasVisitada] = useState(false)
   // Cada tipo de servicio tiene su lista de distribución. Los dos paneles se
   // conservan montados: cambiar de servicio no pierde lo que no se guardó.
-  const [servicioListas, setServicioListas] = useState<Servicio>('linea')
-  const [visitadas, setVisitadas] = useState<Set<Servicio>>(new Set())
+  const [servicioListas, setServicioListas] = useState<ListaDistribucion>('linea')
+  const [visitadas, setVisitadas] = useState<Set<ListaDistribucion>>(new Set())
   const [personaElegida, setPersonaElegida] = useState<string | null>(null)
   const [abiertas, setAbiertas] = useState<Set<number>>(new Set())
   const [ampliarTodas, setAmpliarTodas] = useState(false)
@@ -168,16 +168,18 @@ export function AdministracionGeneralView() {
             <SelectorServicio
               etiqueta="Lista de distribución de"
               valor={servicioListas}
+              opciones={LISTAS}
               onChange={(s) => { setVisitadas((v) => new Set(v).add(s)); setServicioListas(s) }}
               detalle={{
                 linea: 'La de siempre, por planta y especie.',
                 actimist: 'Plantas del listado de Actimist. Sin clientes, van Jorge, el Report Hub, Carlos y Cristian.',
                 ecofog: 'Plantas del listado de Ecofog (copia de Actimist). Sin clientes, van Jorge, el Report Hub, Carlos y Cristian.',
+                ryd: 'Su propia lista, con las plantas de Línea de proceso. Siempre van Carla y Fran en Para y Jorge en copia.',
               }}
             />
           </div>
           <div hidden={servicioListas !== 'linea'}><ListasPanel servicio="linea" /></div>
-          {SERVICIOS_CON_LISTADO.filter((s) => visitadas.has(s)).map((s) => (
+          {LISTAS.filter((s) => s !== 'linea' && visitadas.has(s)).map((s) => (
             <div key={s} hidden={servicioListas !== s}><ListasPanel servicio={s} /></div>
           ))}
         </div>

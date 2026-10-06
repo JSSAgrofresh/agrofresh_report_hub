@@ -4,8 +4,8 @@ import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { IconoAlerta, IconoBuscar, IconoCerrar } from '@/components/ui/iconosAccion'
 import { EtiquetaServicio } from '@/components/ui/SelectorServicio'
-import { ETIQUETA_SERVICIO } from '@/lib/servicio'
-import type { Servicio } from '@/lib/servicio'
+import { ETIQUETA_LISTA } from '@/lib/servicio'
+import type { ListaDistribucion } from '@/lib/servicio'
 import {
   ETIQUETA_FILTRO_TABLA, INFO_CAMPO, aCambios, aplicarListas, claveCelda, clavePlanta, coincideFiltro, coincideTexto,
   compararListas, desdeComparacion, diffLista, exportarListas, filaVacia, indicadores, listaDe, mismaLista, obtenerEstado, plantaNueva,
@@ -35,7 +35,7 @@ const FILTROS_CON_NUEVAS: FiltroTabla[] = ['todas', 'cambios']
  * edita a mano o se importa un Excel, y todo lo que cambia queda en amarillo
  * hasta aceptarlo o rechazarlo. Recién al guardar se escribe, con respaldo.
  */
-export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}) {
+export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribucion } = {}) {
   const entrada = useRef<HTMLInputElement>(null)
   const [estado, setEstado] = useState<EstadoListas | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -446,7 +446,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
 
       {confirmando && (
         <Modal
-          titulo={`¿Guardar los cambios en la lista de ${ETIQUETA_SERVICIO[servicio]}?`}
+          titulo={`¿Guardar los cambios en la lista de ${ETIQUETA_LISTA[servicio]}?`}
           onCerrar={() => !guardando && setConfirmando(false)}
           pie={
             <>

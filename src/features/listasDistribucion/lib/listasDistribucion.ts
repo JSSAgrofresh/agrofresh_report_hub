@@ -1,7 +1,7 @@
 import { httpClient } from '@/services/http/client'
 import { descargarArchivo } from '@/services/http/descargar'
 import { parametroServicio } from '@/lib/servicio'
-import type { Servicio } from '@/lib/servicio'
+import type { ListaDistribucion } from '@/lib/servicio'
 
 export interface PlantaLista {
   sold_to: string
@@ -67,7 +67,7 @@ export interface ResultadoAplicar {
 
 // Todas llevan el servicio: cada uno tiene su lista y guardar en uno nunca
 // toca el otro (Línea de proceso va con `servicio` vacío, como antes).
-export function exportarListas(incluirPlantasSinLista: boolean, servicio: Servicio = 'linea') {
+export function exportarListas(incluirPlantasSinLista: boolean, servicio: ListaDistribucion = 'linea') {
   const p = parametroServicio(servicio)
   return descargarArchivo(
     `/listas-distribucion/excel?todas=${incluirPlantasSinLista}&servicio=${p}`,
@@ -75,7 +75,7 @@ export function exportarListas(incluirPlantasSinLista: boolean, servicio: Servic
   )
 }
 
-export function compararListas(archivo: File, servicio: Servicio = 'linea') {
+export function compararListas(archivo: File, servicio: ListaDistribucion = 'linea') {
   const datos = new FormData()
   datos.append('archivo', archivo)
   return httpClient.upload<ResultadoComparacion>(
@@ -83,7 +83,7 @@ export function compararListas(archivo: File, servicio: Servicio = 'linea') {
   )
 }
 
-export function aplicarListas(cambios: CambioLista[], servicio: Servicio = 'linea') {
+export function aplicarListas(cambios: CambioLista[], servicio: ListaDistribucion = 'linea') {
   return httpClient.post<ResultadoAplicar>(
     `/listas-distribucion/aplicar?servicio=${parametroServicio(servicio)}`, { cambios },
   )
