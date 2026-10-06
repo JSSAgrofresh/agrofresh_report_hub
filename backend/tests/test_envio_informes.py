@@ -821,18 +821,28 @@ def test_informe_ryd_sin_cliente_va_a_carla_y_fran():
     assert [e.upper() for e in plan["to"]] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
 
 
-def test_la_lista_sale_de_las_listas_con_lo_que_dice_el_informe_no_de_la_solicitud(entorno, monkeypatch):
-    """El PDF manda: su Sold To, Ship To, especie y servicio eligen la lista, aunque la OT
-    exista y diga otra cosa. De la solicitud no se toma nada que el PDF ya traiga."""
+def test_con_la_ot_las_llaves_salen_de_la_solicitud_y_la_lista_del_listado_interno(entorno, monkeypatch):
+    """El PDF puede traer mal escrito el Sold To / Ship To: si trae la OT, manda la solicitud
+    para las llaves, y los correos salen SIEMPRE del listado interno de contactos."""
     pytest.importorskip("pypdf")
     from app import toma_muestras as tm
 
     config_store.escribir("contactos_laboratorio.json", [
-        _contacto("pdf@m.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA"),
-        _contacto("sol@m.cl", sold_to="OTRO SA", ship_to="OTRA PLANTA"),
+        _contacto("ok@m.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA"),
+        _contacto("mal@m.cl", sold_to="MULTIFRUTA", ship_to="FATIMA"),   # lo que el PDF escribió mal
     ])
-    sol = {**_solicitud(), "sold_to": "OTRO SA", "ship_to": "OTRA PLANTA", "es_prueba": True}
+    sol = {**_solicitud(), "es_prueba": True}   # una marca de la solicitud no cambia la lista
     monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [("a.xlsx", sol)])
+    item = _subir(("i.pdf", _pdf_informe(sold_to="MULTIFRUTA", ship_to="FATIMA")))["items"][0]
+    assert item["plan"]["to"] == ["ok@m.cl"] and item["sold_to"] == "MULTIFRUTA SA"
+    assert item["plan"]["origen"] == "planta" and item["solicitud"] == "a.xlsx"
+
+
+def test_sin_ot_conocida_se_usan_las_llaves_del_pdf(entorno, monkeypatch):
+    pytest.importorskip("pypdf")
+    from app import toma_muestras as tm
+
+    config_store.escribir("contactos_laboratorio.json", [_contacto("pdf@m.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA")])
+    monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [])
     item = _subir(("i.pdf", _pdf_informe()))["items"][0]
-    assert item["plan"]["to"] == ["pdf@m.cl"] and item["sold_to"] == "MULTIFRUTA SA"
-    assert item["plan"]["origen"] == "planta"
+    assert item["plan"]["to"] == ["pdf@m.cl"] and item["solicitud"] is None
