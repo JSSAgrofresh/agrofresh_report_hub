@@ -53,6 +53,8 @@ from .servicios import (
     RYD_COPIAS,
     MARCA_RESPALDO_RYD,
     usa_respaldo_ryd,
+    fijos_de_lista,
+    COPIA_FIJA,
     lista_de_datos,
     clave_lista,
     es_tipo_ryd,
@@ -1804,27 +1806,37 @@ def _para_sin_lista(admins: list[str], servicio: str = "") -> list[str]:
     return salida
 
 
-def _con_destinatarios_ryd(
-    para: list[str], cc: list[str], bcc: list[str], admins: list[str],
+def _con_destinatarios_fijos(
+    para: list[str], cc: list[str], bcc: list[str], lista: str, admins: list[str] = (), nuevo: bool = True,
 ) -> tuple[list[str], list[str], list[str]]:
-    """Quién recibe una solicitud (o sus resultados) RYD con el respaldo de RYD:
-    Carla y Fran en Para (más lo que ya hubiera para el laboratorio o el cliente),
-    Jorge en Copia, y NADIE más del equipo Admin (ni Claudia ni el Report Hub).
-    Nadie va dos veces."""
-    jorge = DESTINATARIOS_SIN_LISTA[0]
-    fuera = {e.casefold() for e in (*DESTINATARIOS_SIN_LISTA, *admins)}
+    """Aplica los fijos de la lista (Actimist, Ecofog o RYD): sus referentes en Para
+    —más lo que ya hubiera para el laboratorio o el cliente—, y Jorge y el Report Hub
+    en Copia. En RYD, además, no va nadie más del equipo Admin (ni Claudia).
+    Nadie va dos veces.
+
+    `nuevo=False` (solicitudes anteriores, sin la marca `respaldo_ryd`) deja a Actimist y
+    Ecofog como eran: el respaldo (Jorge y el Report Hub) en Para si no hay lista del
+    cliente, y los referentes en Copia."""
+    if not nuevo:
+        ya = {e.casefold() for e in (*para, *cc, *bcc)}
+        extra = [e for e in PERMANENTES_SERVICIO.get(clave_lista(lista), []) if e.casefold() not in ya]
+        return list(para), [*cc, *extra], list(bcc)
+    fijos = fijos_de_lista(lista)
+    fuera: set[str] = set()
+    if clave_lista(lista) == "ryd":
+        fuera = {e.casefold() for e in (*DESTINATARIOS_SIN_LISTA, *admins)}
     vistos: set[str] = set()
 
-    def limpiar(lista: list[str], inicio: list[str] = ()) -> list[str]:
+    def limpiar(lista_: list[str], inicio: list[str] = ()) -> list[str]:
         salida: list[str] = []
-        for e in [*inicio, *(x for x in lista if str(x).casefold() not in fuera)]:
+        for e in [*inicio, *(x for x in lista_ if str(x).casefold() not in fuera)]:
             clave = str(e).strip().casefold()
             if clave and clave not in vistos:
                 vistos.add(clave)
                 salida.append(str(e).strip())
         return salida
 
-    return limpiar(para, RYD_COPIAS), limpiar(cc, [jorge]), limpiar(bcc)
+    return limpiar(para, fijos["para"]), limpiar(cc, fijos["cc"]), limpiar(bcc)
 
 
 def _solo_del_cliente(para: list[str], admins: list[str], servicio: str = "") -> list[str]:
@@ -1850,8 +1862,8 @@ def solicitud_sin_lista(datos: dict, contactos: list[dict] | None = None) -> boo
     servicio = servicio_de_datos(datos)
     lista = lista_de_datos(datos)
     propios = {c.casefold() for c in DESTINATARIOS_SIN_LISTA}
-    if usa_respaldo_ryd(datos):
-        propios |= {c.casefold() for c in RYD_COPIAS}
+    fijos = fijos_de_lista(lista)
+    propios |= {c.casefold() for c in (*fijos["para"], *fijos["cc"])}
     if es_servicio_con_listado(servicio):
         propios |= {c.casefold() for c in (*PARA_SIN_LISTA_SERVICIO[servicio], *PERMANENTES_SERVICIO[servicio])}
     for c in _contactos_resultado(
@@ -1910,11 +1922,14 @@ def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[s
         if c.get("tipo") == "resultado_interno" and c.get("activo", True) and c.get("email")
     ]
     internos.sort(key=lambda c: c.get("orden", 0))
-    if es_servicio_con_listado(servicio):
-        return _contactos_solicitud_actimist(por_envio, internos, datos)
+    lista = lista_de_datos(datos)
+    if lista and not datos.get(MARCA_RESPALDO_RYD):
+        return _contactos_solicitud_actimist(por_envio, internos, datos)     # anterior a las reglas nuevas
+    if lista:
+        return _contactos_solicitud_con_fijos(por_envio, internos, datos, lista)
     para = por_envio["to"] or _para_sin_lista(_admins_de(internos))
     en_para = {e.casefold() for e in para}
-    salida = {
+    return {
         "to": para,
         "cc": [*por_envio["cc"], *(c["email"] for c in internos if c.get("tipo_copia") != "bcc")],
         "bcc": [
@@ -1922,26 +1937,14 @@ def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[s
             if e.casefold() not in en_para
         ],
     }
-    if usa_respaldo_ryd(datos):
-        salida["to"], salida["cc"], salida["bcc"] = _con_destinatarios_ryd(
-            por_envio["to"], salida["cc"], salida["bcc"], _admins_de(internos),
-        )
-    return salida
 
 
 def _contactos_solicitud_actimist(
     por_envio: dict[str, list[str]], internos: list[dict], datos: dict
 ) -> dict[str, list[str]]:
-    """El correo de una solicitud ACTIMIST (y ECOFOG, que es su copia).
-
-    - El laboratorio recibe como siempre (sus contactos de solicitud).
-    - Jorge y el Report Hub van siempre: en Para si el laboratorio no tiene
-      lista; si la tiene, en copia oculta.
-    - Carlos Jiménez y Cristian Valenzuela (referentes de Actimist) van en
-      Para en toda solicitud real; en las de prueba no.
-    - Técnicos y comerciales: los de la lista de distribución de ACTIMIST
-      (hoy vacía). Nunca los de Línea de proceso.
-    """
+    """El correo de una solicitud ACTIMIST o ECOFOG ANTERIOR a las reglas nuevas (sin la
+    marca `respaldo_ryd`): Jorge y el Report Hub en Para si el laboratorio no tiene lista
+    (si la tiene, en CCO) y los referentes en Para en las reales. No se reescribe."""
     servicio = servicio_de_datos(datos)
     para = list(por_envio["to"])
     ocultas = list(por_envio["bcc"])
@@ -1953,7 +1956,6 @@ def _contactos_solicitud_actimist(
         para.extend(PERMANENTES_SERVICIO[servicio])
     copias = [*por_envio["cc"], *(c["email"] for c in internos if c.get("tipo_copia") != "bcc")]
     ocultas.extend(c["email"] for c in internos if c.get("tipo_copia") == "bcc")
-
     vistos: set[str] = set()
 
     def sin_repetir(lista: list[str]) -> list[str]:
@@ -1967,6 +1969,43 @@ def _contactos_solicitud_actimist(
 
     para = sin_repetir(para)
     return {"to": para, "cc": sin_repetir(copias), "bcc": sin_repetir(ocultas)}
+
+
+def _contactos_solicitud_con_fijos(
+    por_envio: dict[str, list[str]], internos: list[dict], datos: dict, lista: str,
+) -> dict[str, list[str]]:
+    """El correo de una solicitud ACTIMIST, ECOFOG o RYD.
+
+    - El laboratorio recibe como siempre (sus contactos de solicitud).
+    - Los referentes de la lista van en Para (Actimist y Ecofog: Carlos y Cristian;
+      RYD: Carla y Fran) y Jorge con el Report Hub en Copia (`fijos_de_lista`).
+    - Una solicitud de PRUEBA no escribe a los referentes: va Para a Jorge y el
+      Report Hub (o al laboratorio, con ellos en copia oculta).
+    - Técnicos y comerciales: los de la lista de distribución de ESA lista (hoy
+      vacía). Nunca los de otra.
+    """
+    copias = [*por_envio["cc"], *(c["email"] for c in internos if c.get("tipo_copia") != "bcc")]
+    ocultas = [*por_envio["bcc"], *(c["email"] for c in internos if c.get("tipo_copia") == "bcc")]
+    if datos.get("es_prueba"):
+        para = list(por_envio["to"])
+        if para:
+            ocultas.extend(COPIA_FIJA)
+        else:
+            para = list(COPIA_FIJA)
+        vistos: set[str] = set()
+        salida: list[list[str]] = []
+        for grupo in (para, copias, ocultas):
+            nuevo: list[str] = []
+            for e in grupo:
+                clave = str(e or "").strip().casefold()
+                if clave and clave not in vistos:
+                    vistos.add(clave)
+                    nuevo.append(str(e).strip())
+            salida.append(nuevo)
+        return {"to": salida[0], "cc": salida[1], "bcc": salida[2]}
+    admins = _admins_de(internos) if lista == "ryd" else []
+    para, cc, bcc = _con_destinatarios_fijos(por_envio["to"], copias, ocultas, lista, admins)
+    return {"to": para, "cc": cc, "bcc": bcc}
 
 
 def contactos_de_solicitud(laboratorio: str) -> list[str]:
@@ -2123,6 +2162,7 @@ def destinatarios_resultado_por_tipo(
     contactos: list[dict] | None = None,
     servicio: str = "",
     ryd: bool = False,
+    nuevo: bool = True,
 ) -> dict[str, list[str]]:
     """Correos de resultado separados en `to`/`cc`/`bcc`.
 
@@ -2136,7 +2176,7 @@ def destinatarios_resultado_por_tipo(
     """
     salida: dict[str, list[str]] = {"to": [], "cc": [], "bcc": []}
     vistos: set[str] = set()
-    ryd = ryd or clave_lista(servicio) == "ryd"      # la lista de RYD lleva sus destinatarios
+    lista = clave_lista(servicio) or ("ryd" if ryd else "")
     for contacto in sorted(
         _contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos, servicio=servicio),
         key=lambda c: c.get("orden", 0),
@@ -2163,21 +2203,13 @@ def destinatarios_resultado_por_tipo(
         en_para = {d.casefold() for d in salida["to"]}
         salida["cc"] = [e for e in salida["cc"] if e.casefold() not in en_para]
         salida["bcc"] = [e for e in salida["bcc"] if e.casefold() not in en_para]
-    if es_servicio_con_listado(servicio):
-        salida["cc"] = _con_permanentes_actimist(salida["to"], salida["cc"], salida["bcc"], servicio)
-    if ryd:
-        admins = _admins_de(_contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos, servicio=servicio))
-        salida["to"], salida["cc"], salida["bcc"] = _con_destinatarios_ryd(
-            _solo_del_cliente(salida["to"], admins, servicio), salida["cc"], salida["bcc"], admins,
+    if lista:
+        admins = _admins_de(_contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos, servicio=lista))
+        salida["to"], salida["cc"], salida["bcc"] = _con_destinatarios_fijos(
+            _solo_del_cliente(salida["to"], admins, servicio) if nuevo else salida["to"],
+            salida["cc"], salida["bcc"], lista, admins, nuevo,
         )
     return salida
-
-
-def _con_permanentes_actimist(para: list[str], cc: list[str], bcc: list[str], servicio: str) -> list[str]:
-    """Los referentes del servicio (Actimist o Ecofog) van en copia de todo
-    resultado de ese servicio, salvo que ya estén en otra parte del correo."""
-    ya = {e.casefold() for e in (*para, *cc, *bcc)}
-    return [*cc, *(e for e in PERMANENTES_SERVICIO[clave_servicio(servicio)] if e.casefold() not in ya)]
 
 
 class ContactoResultadoOut(BaseModel):
@@ -2280,7 +2312,7 @@ def _generar_json_solicitud(datos: dict) -> bytes:
     sold_to = str(datos.get("sold_to") or "")
     especie = str(datos.get("especie") or "")
     correos_resultado = destinatarios_resultado_por_tipo(
-        lab, ship_to, sold_to, especie, servicio=lista_de_datos(datos)
+        lab, ship_to, sold_to, especie, servicio=lista_de_datos(datos), nuevo=bool(datos.get(MARCA_RESPALDO_RYD)),
     )
     email_muestreador = _normalizar_correo(datos.get("email_solicitante"))
     datos_limpios = {
@@ -2344,11 +2376,13 @@ def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
         respaldo = {d.casefold() for d in para}
         cc = [e for e in cc if e.casefold() not in respaldo]
         bcc = [e for e in bcc if e.casefold() not in respaldo]
-    if es_servicio_con_listado(servicio):
-        cc = _con_permanentes_actimist(para, cc, bcc, servicio)
-    if usa_respaldo_ryd(datos):
+    lista = lista_de_datos(datos)
+    if lista:
         admins = _admins_de(activos)
-        para, cc, bcc = _con_destinatarios_ryd(_solo_del_cliente(para, admins, servicio), cc, bcc, admins)
+        nuevo = bool(datos.get(MARCA_RESPALDO_RYD))
+        para, cc, bcc = _con_destinatarios_fijos(
+            _solo_del_cliente(para, admins, servicio) if nuevo else para, cc, bcc, lista, admins, nuevo,
+        )
     datos_pdf["destinatarios_resultados_detalle"] = {"para": para, "cc": cc, "bcc": bcc}
     return datos_pdf
 

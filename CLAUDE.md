@@ -366,15 +366,22 @@ de proceso (sin migración; `clave_servicio("ryd")` sigue siendo Línea de proce
 nunca se cruzan con los de Línea: una solicitud RYD con la marca `respaldo_ryd` solo lee la lista RYD
 (en el correo, PDF, JSON, chip «Sin lista» y Envío de informes). Las RYD sin la marca siguen leyendo la de Línea.
 
-**RYD tiene sus propios destinatarios.** En una solicitud RYD (y sus resultados, PDF y JSON)
-**Para = Carla y Fran** (`RYD_COPIAS` en `servicios.py`: `ccaceres@` y `fgonzalez@agrofresh.com`),
-sumados a la lista del laboratorio o del cliente si existe; **Jorge va en Copia**; y **no va nadie
-más del equipo Admin** (ni Claudia ni el Report Hub), tengan lista o no (`_con_destinatarios_ryd`).
-Técnicos y comerciales de la planta siguen como siempre. En el **Envío de informes**, un informe RYD
-sin lista va Para a Carla y Fran (no queda vacío), con Jorge en Copia. **Solo para las solicitudes
-con la marca `respaldo_ryd`** (puesta al crear y en reanálisis; editar la conserva): las RYD
-anteriores siguen con Claudia. RYD no tiene listado propio.
-Pendiente: la columna de lista del Excel base (`columnas_base`) aún no distingue RYD.
+**Destinatarios fijos de Actimist, Ecofog y RYD** (`fijos_de_lista` en `servicios.py`; cada lista de
+Administración General los muestra arriba, aunque no tenga plantas cargadas): **Actimist y Ecofog →
+Para Carlos Jiménez y Cristian Valenzuela; RYD → Para Carla y Fran** (`ccaceres@` y `fgonzalez@agrofresh.com`);
+en las tres, **Jorge y el Report Hub en Copia** (`COPIA_FIJA`), y si la planta tiene lista del cliente o del
+laboratorio, sus correos se SUMAN al Para. En RYD no va nadie más del equipo Admin (ni Claudia). Vale en el
+correo, PDF, JSON, chip «Sin lista» y Envío de informes (un informe sin lista del cliente va Para a los
+referentes, no queda vacío). Una solicitud de **prueba** no escribe a los referentes: va Para a Jorge y el
+Report Hub. **Solo para las solicitudes con la marca `respaldo_ryd`** (nombre histórico: hoy significa «creada
+con las reglas nuevas de las listas»; se pone al crear y en reanálisis, y editar la conserva): las anteriores
+siguen como eran (Actimist/Ecofog con Jorge y el Report Hub en Para y los referentes en copia; RYD leyendo la
+lista de Línea de proceso con Claudia). Línea de proceso no cambió.
+RYD tiene su PROPIA lista de contactos (`servicio: "ryd"`, `clave_lista`/`lista_de_datos`, tipo
+`ListaDistribucion` en `src/lib/servicio.ts`) pero comparte el **listado** de plantas de Línea de proceso
+(sin migración; `clave_servicio("ryd")` sigue siendo Línea de proceso). Sus contactos nunca se cruzan con
+los de Línea.
+Pendiente: la columna de lista del Excel base (`columnas_base`) aún no distingue RYD ni la marca.
 
 Los contactos de **Laboratorios → Contacto laboratorio** (`tipo: solicitud`)
 llevan el campo `envio`: `para` (sin valor = `para`, como los antiguos), `cc` o

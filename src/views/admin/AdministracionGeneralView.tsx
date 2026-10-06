@@ -172,9 +172,9 @@ export function AdministracionGeneralView() {
               onChange={(s) => { setVisitadas((v) => new Set(v).add(s)); setServicioListas(s) }}
               detalle={{
                 linea: 'La de siempre, por planta y especie.',
-                actimist: 'Plantas del listado de Actimist. Sin clientes, van Jorge, el Report Hub, Carlos y Cristian.',
-                ecofog: 'Plantas del listado de Ecofog (copia de Actimist). Sin clientes, van Jorge, el Report Hub, Carlos y Cristian.',
-                ryd: 'Su propia lista, con las plantas de Línea de proceso. Siempre van Carla y Fran en Para y Jorge en copia.',
+                actimist: 'Plantas del listado de Actimist. Siempre: Para Carlos y Cristian; en copia, Jorge y el Report Hub.',
+                ecofog: 'Plantas del listado de Ecofog (copia de Actimist). Siempre: Para Carlos y Cristian; en copia, Jorge y el Report Hub.',
+                ryd: 'Su propia lista, con las plantas de Línea de proceso. Siempre: Para Carla y Fran; en copia, Jorge y el Report Hub.',
               }}
             />
           </div>

@@ -41,7 +41,7 @@ from . import actividad, config_store, correo, informe_lectura, mail_templates, 
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .listados import clave_normalizada
-from .servicios import MARCA_RESPALDO_RYD, RYD_COPIAS, clave_servicio, es_tipo_ryd, usa_respaldo_ryd
+from .servicios import MARCA_RESPALDO_RYD, clave_servicio, es_tipo_ryd, fijos_de_lista, lista_de_datos
 
 logger = logging.getLogger(__name__)
 
@@ -205,9 +205,11 @@ def plan_desde_solicitud(datos: dict, internos: dict[str, list[str]] | None = No
     # respaldo de una solicitud (Jorge, Claudia, Report Hub) no sirve: queda el Para
     # vacío y no se envía hasta que alguien escriba a quién.
     para = [] if sin_lista else detalle["para"]
-    if sin_lista and usa_respaldo_ryd(datos):
-        # RYD no tiene cliente al que escribir: el informe va a Carla y Fran.
-        para, sin_lista = list(RYD_COPIAS), False
+    fijos = fijos_de_lista(lista_de_datos(datos))["para"]
+    if sin_lista and fijos and datos.get(MARCA_RESPALDO_RYD) and not datos.get("es_prueba"):
+        # Actimist, Ecofog y RYD: sin lista del cliente, el informe va a sus referentes
+        # (Carlos y Cristian, o Carla y Fran), no queda vacío.
+        para, sin_lista = list(fijos), False
     plan = repartir(
         para,
         [*detalle["cc"], *internos.get("cc", [])],
@@ -233,7 +235,7 @@ def plan_destinatarios(
         "campos_laboratorio": {
             "Tipo Aplicación": "RYD" if ryd else _TIPO_DE_SERVICIO.get(clave_servicio(servicio), "Línea de proceso"),
         },
-        MARCA_RESPALDO_RYD: ryd,
+        MARCA_RESPALDO_RYD: True,      # un informe que se envía ahora lleva las reglas nuevas de la lista
     }
     return {**plan_desde_solicitud(datos, internos), "origen": "planta"}
 

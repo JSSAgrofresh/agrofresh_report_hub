@@ -56,8 +56,17 @@ export interface FilaEstado {
   sin_contactos: boolean
 }
 
+/** Lo que recibe una solicitud de esa lista aunque no tenga plantas cargadas. */
+export interface FijosLista {
+  para: string[]
+  cc: string[]
+  /** solo Línea de proceso: va Para si la planta no tiene lista del cliente */
+  respaldo: string[]
+}
+
 export interface EstadoListas {
   filas: FilaEstado[]
+  fijos?: FijosLista
   clientes: string[]
   resumen: { plantas_con_lista: number; plantas_listados: number | null; listados_sin_lista: number | null }
 }
