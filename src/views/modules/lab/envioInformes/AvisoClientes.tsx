@@ -14,6 +14,7 @@ function mensajeDe(e: unknown, defecto: string): string {
 // Con un backend anterior a esta versión el aviso llega sin título ni subtítulo: nunca `undefined`.
 const datosDe = (a: DatosAviso): DatosAviso => ({
   asunto: a.asunto ?? '', titulo: a.titulo ?? '', subtitulo: a.subtitulo ?? '', texto: a.texto ?? '',
+  plantilla: a.plantilla ?? 'estandar',
 })
 const iguales = (a: DatosAviso, b: DatosAviso) => JSON.stringify(datosDe(a)) === JSON.stringify(datosDe(b))
 
@@ -92,6 +93,27 @@ export function AvisoClientes() {
   return (
     <div className={styles.configuracion}>
       {error && <p className={styles.informeError}>{error}</p>}
+      {guardado.plantillas && guardado.plantillas.length > 0 && (
+        <div>
+          <span className={styles.etiquetaCampo}>Plantilla</span>
+          <div className={styles.plantillas} role="radiogroup" aria-label="Plantilla del aviso">
+            {guardado.plantillas.map((p) => (
+              <button
+                key={p.clave}
+                type="button"
+                role="radio"
+                aria-checked={edit.plantilla === p.clave}
+                className={edit.plantilla === p.clave ? styles.plantillaActiva : styles.plantilla}
+                title={p.descripcion}
+                onClick={() => cambiar('plantilla', p.clave)}
+              >
+                {p.miniatura && <img src={p.miniatura} alt="" />}
+                <span>{p.nombre}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className={styles.rejilla}>
         <label className={styles.campoTexto}>
           <span>Asunto</span>
@@ -109,6 +131,10 @@ export function AvisoClientes() {
       <label className={styles.campoTexto}>
         <span>Texto del correo</span>
         <textarea value={edit.texto} rows={14} onChange={(e) => cambiar('texto', e.target.value)} />
+        <small className={styles.ayudaFormato}>
+          Formato: <code>**negrita**</code>, listas con <code>- </code> al inicio de la línea y títulos con <code># </code>.
+          Una línea en blanco separa los párrafos.
+        </small>
       </label>
 
       <iframe className={styles.marcoCorreo} title="Vista previa del aviso a clientes" sandbox="" srcDoc={html} />

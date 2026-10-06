@@ -94,6 +94,16 @@ export interface DatosAviso {
   titulo: string
   subtitulo: string
   texto: string
+  /** Clave de la plantilla visual (`estandar`, `azul`…). */
+  plantilla: string
+}
+
+export interface PlantillaAviso {
+  clave: string
+  nombre: string
+  descripcion: string
+  /** Imagen en miniatura como `data:` URI. */
+  miniatura: string
 }
 
 export interface AvisoClientes extends DatosAviso {
@@ -101,6 +111,8 @@ export interface AvisoClientes extends DatosAviso {
   original: DatosAviso
   personalizado: boolean
   destinatarios_prueba: string[]
+  /** Faltan en un backend anterior a las plantillas. */
+  plantillas?: PlantillaAviso[]
 }
 
 /** El aviso de bienvenida a clientes, tal como lo verían. Solo lee. */
