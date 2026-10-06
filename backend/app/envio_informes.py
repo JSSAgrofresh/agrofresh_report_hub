@@ -199,6 +199,12 @@ def plan_desde_solicitud(datos: dict, internos: dict[str, list[str]] | None = No
     from . import toma_muestras as tm
 
     internos = internos if internos is not None else leer_config()["internos"]
+    # El informe se envía AHORA: lleva las reglas vigentes de la lista (referentes en Para,
+    # Jorge y el Report Hub en Copia) aunque la solicitud sea anterior a esas reglas. La
+    # solicitud ya emitida no se toca: la marca va solo en esta copia.
+    # RYD sí respeta su marca: una RYD anterior sigue como Línea de proceso.
+    if not es_tipo_ryd(datos):
+        datos = {**datos, MARCA_RESPALDO_RYD: True}
     detalle = tm._datos_pdf_con_destinatarios_resultados(datos)["destinatarios_resultados_detalle"]
     sin_lista = tm.solicitud_sin_lista(datos)
     # Esto es el informe del laboratorio, que va al CLIENTE. Sin lista del cliente, el
@@ -297,8 +303,13 @@ def armar_correo(
     if laboratorio != LABORATORIO_FIJO and not es_principal(usuario):
         raise HTTPException(403, f"Por ahora los informes se envían solo con {LABORATORIO_FIJO}.")
     sold_to, ship_to = datos.sold_to.strip(), datos.ship_to.strip()
-    if not sold_to or not ship_to:
+    if bool(sold_to) != bool(ship_to):
         raise HTTPException(400, "Elige el Sold To y el Ship To.")
+    if not sold_to:
+        # Informe sin cliente (p. ej. RYD): la lista sale del tipo de servicio y el correo
+        # nombra el servicio y la especie en vez de un cliente.
+        sold_to = _TIPO_DE_SERVICIO.get(clave_servicio(datos.servicio), "Línea de proceso")
+        ship_to = datos.especie.strip() or "Sin planta"
     for campo, lista in (("Para", datos.para), ("CC", datos.cc), ("CCO", datos.bcc)):
         _exigir_correos_validos(_limpiar_correos(lista), campo)
 
@@ -524,19 +535,20 @@ async def analizar_informes(
                             solicitudes = {}
                     encontrada = solicitudes.get(datos["numero_solicitud"].strip().upper())
                 if encontrada:
+                    # La solicitud solo se usa por su CÓDIGO, para completar lo que el PDF no trae
+                    # (Sold To, Ship To, especie, tipo de servicio). La lista de distribución sale
+                    # SIEMPRE de las listas del sistema, no de lo que guardó la solicitud.
                     from .servicios import servicio_de_datos
 
                     archivo_sol, sol = encontrada
-                    datos["sold_to"] = str(sol.get("sold_to") or "").strip()
-                    datos["ship_to"] = str(sol.get("ship_to") or "").strip()
-                    datos["especie"] = str(sol.get("especie") or "").strip()
-                    datos["servicio"] = servicio_de_datos(sol)
                     item["solicitud"] = archivo_sol
-                    item.update(datos)
-                    item["leido"] = True
-                    item["plan"] = plan_desde_solicitud(sol, internos)
-                    items.append(item)
-                    continue
+                    for campo in ("sold_to", "ship_to", "especie"):
+                        if not datos[campo]:
+                            datos[campo] = str(sol.get(campo) or "").strip()
+                    if not datos["tipo_aplicacion"]:
+                        campos_sol = sol.get("campos_laboratorio")
+                        datos["tipo_aplicacion"] = str((campos_sol or {}).get("Tipo Aplicación") or "").strip() if isinstance(campos_sol, dict) else ""
+                        datos["servicio"] = servicio_de_datos(sol)
                 if not (datos["sold_to"] and datos["ship_to"]):
                     # Respaldo: un Sold To + Ship To que el sistema ya conoce, escrito en el texto.
                     pares = sorted({
@@ -553,6 +565,14 @@ async def analizar_informes(
                         datos["sold_to"], datos["ship_to"], datos["especie"], internos, servicio=datos["servicio"],
                         tipo_aplicacion=datos["tipo_aplicacion"],
                     )
+                elif datos["tipo_aplicacion"]:
+                    # Sin cliente en el PDF (RYD, ensayos propios): lo dice el tipo de servicio.
+                    item["leido"] = True
+                    item["plan"] = {
+                        **plan_destinatarios("", "", datos["especie"], internos, servicio=datos["servicio"],
+                                           tipo_aplicacion=datos["tipo_aplicacion"]),
+                        "origen": "servicio",
+                    }
                 else:
                     logger.warning(
                         "No se encontró Sold To / Ship To en %s. Texto leído (inicio): %r", nombre, texto[:600],

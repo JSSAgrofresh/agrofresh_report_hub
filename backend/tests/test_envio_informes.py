@@ -685,12 +685,12 @@ def test_el_informe_va_a_la_lista_de_su_solicitud(entorno, monkeypatch):
                   tipo="resultado_interno"),
     ])
     monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [("OT-AGF0075.xlsx", _solicitud())])
-    # El PDF trae OTRO Sold To / Ship To en sus etiquetas: manda la solicitud.
-    item = _subir(("i.pdf", _pdf_informe(sold_to="LO QUE DIGA", ship_to="EL PDF")))["items"][0]
+    # El PDF no trae Sold To / Ship To: la solicitud solo los aporta por su CÓDIGO (OT).
+    item = _subir(("i.pdf", _pdf_informe(sold_to="", ship_to="")))["items"][0]
     assert item["leido"] and item["numero_solicitud"] == "OT-AGF0075" and item["solicitud"] == "OT-AGF0075.xlsx"
     assert (item["sold_to"], item["ship_to"], item["especie"]) == ("MULTIFRUTA SA", "GESEX PLANTA FATIMA", "Naranja")
     plan = item["plan"]
-    assert plan["to"] == ["cliente@multifruta.cl", "otro@multifruta.cl"] and plan["origen"] == "solicitud"
+    assert plan["to"] == ["cliente@multifruta.cl", "otro@multifruta.cl"] and plan["origen"] == "planta"
     assert plan["sin_lista"] is False
     # tal cual la solicitud (con su técnico en copia oculta) y, al final, las copias del módulo
     assert plan["cc"] == ["tecnico@agrofresh.com"]   # el técnico de la planta, como lo dice la solicitud
@@ -722,7 +722,7 @@ def test_el_servicio_de_la_solicitud_elige_su_lista(entorno, monkeypatch):
         _contacto("lp@m.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA"),
     ])
     monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [("a.xlsx", _solicitud(tipo="Actimist"))])
-    item = _subir(("i.pdf", _pdf_informe()))["items"][0]
+    item = _subir(("i.pdf", _pdf_informe(tipo="")))["items"][0]   # el PDF no dice el servicio: lo da la OT
     assert item["servicio"] == "actimist" and "act@m.cl" in item["plan"]["to"] and "lp@m.cl" not in item["plan"]["to"]
 
 
@@ -741,6 +741,18 @@ def test_el_numero_de_solicitud_se_encuentra_aunque_no_tenga_etiqueta():
 
     assert il.datos_de_informe("Informe\nreferencia OT-QUI0025 de la planta")["numero_solicitud"] == "OT-QUI0025"
 
+
+def test_informe_sin_cliente_usa_la_lista_del_tipo_de_servicio():
+    """RYD / ensayos propios: el PDF trae «—» en Sold To y Ship To; manda el servicio."""
+    res = _subir(("AGF2026-13.pdf", _pdf_informe(sold_to="", ship_to="", tipo="Actimist")))
+    item = res["items"][0]
+    assert item["leido"] is True and item["error"] is None
+    assert item["plan"]["origen"] == "servicio"
+
+
+def test_informe_sin_cliente_ni_tipo_sigue_sin_leerse():
+    res = _subir(("a.pdf", _pdf_informe(sold_to="", ship_to="", tipo="")))
+    assert res["items"][0]["leido"] is False and res["items"][0]["plan"] is None
 
 def test_informe_ryd_sin_lista_va_a_carla_y_fran(entorno):
     config_store.escribir("contactos_laboratorio.json", [])
@@ -786,3 +798,41 @@ def test_informe_actimist_sin_lista_va_a_carlos_y_cristian_con_jorge_y_el_sistem
     assert [e.casefold() for e in plan["to"]] == ["cjimenez@agrofresh.com", "cvalenzuela@agrofresh.com"]
     assert plan["sin_lista"] is False
     assert [e.casefold() for e in plan["cc"]] == ["jorge.sandoval@agrofresh.com", "agrofreshreporthub@gmail.com"]
+
+
+def test_solicitud_anterior_a_las_reglas_nuevas_igual_envia_a_los_referentes():
+    """Una solicitud Ecofog vieja (sin la marca de respaldo) y sin lista del cliente:
+    el informe va a Carlos y Cristian en Para, y Jorge/Report Hub en Copia."""
+    datos = {
+        "sold_to": "SIN LISTA SA", "ship_to": "PLANTA X", "especie": "Manzana",
+        "campos_laboratorio": {"Tipo Aplicación": "Ecofog"},
+    }
+    assert "respaldo_ryd" not in datos
+    plan = ei.plan_desde_solicitud(datos, {"cc": [], "bcc": []})
+    assert "CJIMENEZ@AGROFRESH.COM" in plan["to"] and "CVALENZUELA@AGROFRESH.COM" in plan["to"]
+    assert "CJIMENEZ@AGROFRESH.COM" not in plan["cc"] and plan["sin_lista"] is False
+    assert datos == {k: v for k, v in datos.items()}  # no se modifica la solicitud
+
+
+def test_informe_ryd_sin_cliente_va_a_carla_y_fran():
+    res = _subir(("AGF2026-13.pdf", _pdf_informe(sold_to="", ship_to="", tipo="RYD")))
+    plan = res["items"][0]["plan"]
+    assert plan["origen"] == "servicio"
+    assert [e.upper() for e in plan["to"]] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
+
+
+def test_la_lista_sale_de_las_listas_con_lo_que_dice_el_informe_no_de_la_solicitud(entorno, monkeypatch):
+    """El PDF manda: su Sold To, Ship To, especie y servicio eligen la lista, aunque la OT
+    exista y diga otra cosa. De la solicitud no se toma nada que el PDF ya traiga."""
+    pytest.importorskip("pypdf")
+    from app import toma_muestras as tm
+
+    config_store.escribir("contactos_laboratorio.json", [
+        _contacto("pdf@m.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA"),
+        _contacto("sol@m.cl", sold_to="OTRO SA", ship_to="OTRA PLANTA"),
+    ])
+    sol = {**_solicitud(), "sold_to": "OTRO SA", "ship_to": "OTRA PLANTA", "es_prueba": True}
+    monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [("a.xlsx", sol)])
+    item = _subir(("i.pdf", _pdf_informe()))["items"][0]
+    assert item["plan"]["to"] == ["pdf@m.cl"] and item["sold_to"] == "MULTIFRUTA SA"
+    assert item["plan"]["origen"] == "planta"
