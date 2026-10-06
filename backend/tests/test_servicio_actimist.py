@@ -439,12 +439,28 @@ def test_reimportar_la_dinamica_completa_lo_que_faltaba():
 # RYD: el respaldo es Carla y Fran, no Claudia (solo solicitudes con la marca)
 # ---------------------------------------------------------------------------
 
-def test_ryd_sin_lista_va_para_jorge_carla_y_fran_sin_claudia(contactos):
-    contactos["lista"] = []
+def test_ryd_va_para_carla_y_fran_y_jorge_en_copia_sin_claudia_ni_admin(contactos):
+    contactos["lista"] = LINEA   # la planta trae técnico, comercial y un admin en copia oculta
     r = tm.contactos_de_solicitud_de("QUITECA", _datos("RYD", respaldo_ryd=True))
-    para = _minus(r["to"])
-    assert para == ["jorge.sandoval@agrofresh.com", "ccaceres@agrofresh.com", "fgonzalez@agrofresh.com"]
-    assert "cguerrero@agrofresh.com" not in para
+    assert _minus(r["to"]) == ["ccaceres@agrofresh.com", "fgonzalez@agrofresh.com"]
+    assert _minus(r["cc"])[0] == "jorge.sandoval@agrofresh.com" and "comercial@agrofresh.com" in _minus(r["cc"])
+    todos = _minus(r["to"] + r["cc"] + r["bcc"])
+    assert "cguerrero@agrofresh.com" not in todos and "admin@agrofresh.com" not in todos
+    assert "tecnico@agrofresh.com" in _minus(r["bcc"])
+    assert len(todos) == len(set(todos))                       # nadie dos veces
+
+
+def test_ryd_con_lista_del_laboratorio_suma_a_carla_y_fran_en_para(contactos):
+    contactos["lista"] = []
+    import app.toma_muestras as t
+    t_por_envio = t.contactos_de_solicitud_por_envio
+    t.contactos_de_solicitud_por_envio = lambda lab: {"to": ["lab@quiteca.cl"], "cc": [], "bcc": []}
+    try:
+        r = t.contactos_de_solicitud_de("QUITECA", _datos("RYD", respaldo_ryd=True))
+    finally:
+        t.contactos_de_solicitud_por_envio = t_por_envio
+    assert _minus(r["to"]) == ["ccaceres@agrofresh.com", "fgonzalez@agrofresh.com", "lab@quiteca.cl"]
+    assert _minus(r["cc"]) == ["jorge.sandoval@agrofresh.com"]
 
 
 def test_ryd_anterior_sin_marca_sigue_con_claudia(contactos):
@@ -463,9 +479,11 @@ def test_marca_en_linea_de_proceso_no_cambia_nada(contactos):
 def test_resultados_de_ryd_sin_lista_y_su_pdf_llevan_a_carla_y_fran(contactos):
     contactos["lista"] = []
     r = tm.destinatarios_resultado_por_tipo("", LONTUE, DOLE, "Manzana", [], ryd=True)
-    assert "ccaceres@agrofresh.com" in _minus(r["to"]) and "cguerrero@agrofresh.com" not in _minus(r["to"])
-    pdf = tm._datos_pdf_con_destinatarios_resultados(_datos("RYD", respaldo_ryd=True))
-    assert "fgonzalez@agrofresh.com" in _minus(pdf["destinatarios_resultados_detalle"]["para"])
+    assert _minus(r["to"]) == ["ccaceres@agrofresh.com", "fgonzalez@agrofresh.com"]
+    assert _minus(r["cc"]) == ["jorge.sandoval@agrofresh.com"]
+    pdf = tm._datos_pdf_con_destinatarios_resultados(_datos("RYD", respaldo_ryd=True))["destinatarios_resultados_detalle"]
+    assert _minus(pdf["para"]) == ["ccaceres@agrofresh.com", "fgonzalez@agrofresh.com"]
+    assert _minus(pdf["cc"]) == ["jorge.sandoval@agrofresh.com"]
     viejo = tm._datos_pdf_con_destinatarios_resultados(_datos("RYD"))
     assert "cguerrero@agrofresh.com" in _minus(viejo["destinatarios_resultados_detalle"]["para"])
 

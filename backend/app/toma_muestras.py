@@ -1785,16 +1785,13 @@ def _admins_de(contactos: list[dict]) -> list[str]:
     ]
 
 
-def _para_sin_lista(admins: list[str], servicio: str = "", ryd: bool = False) -> list[str]:
+def _para_sin_lista(admins: list[str], servicio: str = "") -> list[str]:
     """Para cuando no hay lista de distribución: Jorge y Claudia, más los admin
     del Report Hub. Con lista, esos mismos van en copia oculta; sin lista pasan
     de CCO a Para.
 
-    Actimist tiene su propio respaldo: Jorge y el Report Hub (sin Claudia).
-    RYD (`ryd`): Jorge, Carla y Fran (sin Claudia)."""
+    Actimist tiene su propio respaldo: Jorge y el Report Hub (sin Claudia)."""
     base = PARA_SIN_LISTA_SERVICIO.get(clave_servicio(servicio), DESTINATARIOS_SIN_LISTA)
-    if ryd and clave_servicio(servicio) not in PARA_SIN_LISTA_SERVICIO:
-        base = [DESTINATARIOS_SIN_LISTA[0], *RYD_COPIAS]
     salida: list[str] = []
     vistos: set[str] = set()
     for e in [*base, *admins]:
@@ -1802,6 +1799,36 @@ def _para_sin_lista(admins: list[str], servicio: str = "", ryd: bool = False) ->
             vistos.add(e.casefold())
             salida.append(e)
     return salida
+
+
+def _con_destinatarios_ryd(
+    para: list[str], cc: list[str], bcc: list[str], admins: list[str],
+) -> tuple[list[str], list[str], list[str]]:
+    """Quién recibe una solicitud (o sus resultados) RYD con el respaldo de RYD:
+    Carla y Fran en Para (más lo que ya hubiera para el laboratorio o el cliente),
+    Jorge en Copia, y NADIE más del equipo Admin (ni Claudia ni el Report Hub).
+    Nadie va dos veces."""
+    jorge = DESTINATARIOS_SIN_LISTA[0]
+    fuera = {e.casefold() for e in (*DESTINATARIOS_SIN_LISTA, *admins)}
+    vistos: set[str] = set()
+
+    def limpiar(lista: list[str], inicio: list[str] = ()) -> list[str]:
+        salida: list[str] = []
+        for e in [*inicio, *(x for x in lista if str(x).casefold() not in fuera)]:
+            clave = str(e).strip().casefold()
+            if clave and clave not in vistos:
+                vistos.add(clave)
+                salida.append(str(e).strip())
+        return salida
+
+    return limpiar(para, RYD_COPIAS), limpiar(cc, [jorge]), limpiar(bcc)
+
+
+def _solo_del_cliente(para: list[str], admins: list[str], servicio: str = "") -> list[str]:
+    """El Para sin el respaldo: si es solo Jorge, Claudia y los admin (no hay lista
+    del cliente), no queda nada; si hay lista del cliente, queda tal cual."""
+    propios = {e.casefold() for e in _para_sin_lista(admins, servicio)}
+    return [] if {e.casefold() for e in para} <= propios else list(para)
 
 
 # Las solicitudes de prueba de Quiteca NUNCA van a los contactos reales del
@@ -1881,9 +1908,9 @@ def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[s
     internos.sort(key=lambda c: c.get("orden", 0))
     if es_servicio_con_listado(servicio):
         return _contactos_solicitud_actimist(por_envio, internos, datos)
-    para = por_envio["to"] or _para_sin_lista(_admins_de(internos), ryd=usa_respaldo_ryd(datos))
+    para = por_envio["to"] or _para_sin_lista(_admins_de(internos))
     en_para = {e.casefold() for e in para}
-    return {
+    salida = {
         "to": para,
         "cc": [*por_envio["cc"], *(c["email"] for c in internos if c.get("tipo_copia") != "bcc")],
         "bcc": [
@@ -1891,6 +1918,11 @@ def contactos_de_solicitud_de(laboratorio: str, datos: dict) -> dict[str, list[s
             if e.casefold() not in en_para
         ],
     }
+    if usa_respaldo_ryd(datos):
+        salida["to"], salida["cc"], salida["bcc"] = _con_destinatarios_ryd(
+            por_envio["to"], salida["cc"], salida["bcc"], _admins_de(internos),
+        )
+    return salida
 
 
 def _contactos_solicitud_actimist(
@@ -2122,12 +2154,17 @@ def destinatarios_resultado_por_tipo(
         # comerciales (internos) ya quedaron en copia arriba.
         salida["to"] = _para_sin_lista(_admins_de(
             _contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos, servicio=servicio)
-        ), servicio, ryd)
+        ), servicio)
         en_para = {d.casefold() for d in salida["to"]}
         salida["cc"] = [e for e in salida["cc"] if e.casefold() not in en_para]
         salida["bcc"] = [e for e in salida["bcc"] if e.casefold() not in en_para]
     if es_servicio_con_listado(servicio):
         salida["cc"] = _con_permanentes_actimist(salida["to"], salida["cc"], salida["bcc"], servicio)
+    if ryd:
+        admins = _admins_de(_contactos_resultado(sold_to or "", ship_to or "", especie or "", contactos, servicio=servicio))
+        salida["to"], salida["cc"], salida["bcc"] = _con_destinatarios_ryd(
+            _solo_del_cliente(salida["to"], admins, servicio), salida["cc"], salida["bcc"], admins,
+        )
     return salida
 
 
@@ -2295,12 +2332,15 @@ def _datos_pdf_con_destinatarios_resultados(datos: dict) -> dict:
             cc.append(e)
     if not para:
         # Misma regla de respaldo que `destinatarios_resultado_por_tipo`.
-        para = _para_sin_lista(_admins_de(activos), servicio, usa_respaldo_ryd(datos))
+        para = _para_sin_lista(_admins_de(activos), servicio)
         respaldo = {d.casefold() for d in para}
         cc = [e for e in cc if e.casefold() not in respaldo]
         bcc = [e for e in bcc if e.casefold() not in respaldo]
     if es_servicio_con_listado(servicio):
         cc = _con_permanentes_actimist(para, cc, bcc, servicio)
+    if usa_respaldo_ryd(datos):
+        admins = _admins_de(activos)
+        para, cc, bcc = _con_destinatarios_ryd(_solo_del_cliente(para, admins, servicio), cc, bcc, admins)
     datos_pdf["destinatarios_resultados_detalle"] = {"para": para, "cc": cc, "bcc": bcc}
     return datos_pdf
 
