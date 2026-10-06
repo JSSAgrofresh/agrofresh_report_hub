@@ -237,7 +237,7 @@ _CONSULTA_BD = """
         s.referencia AS nro_solicitud,
         s.laboratorio,
         s.fecha_solicitud, s.fecha_muestreo, s.fecha_entrada, s.fecha_recepcion, s.fecha_informe, s.fecha_analisis,
-        s.hora_muestreo,
+        s.hora_muestreo, {codigo_muestra},
         s.codigo_ensayo, s.nro_ensayo,
         COALESCE(s.semana_muestreo, date_part('week', COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis))::int) AS semana,
         COALESCE(s.mes, date_part('month', COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis))::int) AS mes,
@@ -350,7 +350,13 @@ def filas_de_bd(
     if ids is not None:
         filtro_ids = "AND s.id = ANY(%(ids)s)"
         params = {**params, "ids": ids}
-    cur.execute(_CONSULTA_BD.format(filtro_alcance=filtro_alcance, filtro_ids=filtro_ids), params)
+    from .ingest import columna_solicitud_existe
+
+    codigo_muestra = "s.codigo_muestra" if columna_solicitud_existe(cur, "codigo_muestra") else "NULL AS codigo_muestra"
+    cur.execute(
+        _CONSULTA_BD.format(filtro_alcance=filtro_alcance, filtro_ids=filtro_ids, codigo_muestra=codigo_muestra),
+        params,
+    )
     filas = [dict(f) for f in cur.fetchall()]
     por_id = {f["id"]: f for f in filas}
     for f in filas:

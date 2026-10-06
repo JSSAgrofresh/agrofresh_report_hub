@@ -282,7 +282,9 @@ def test_la_base_con_muestra_y_la_bd_de_report_tienen_las_mismas_columnas_genera
     )["BD"]
     esperadas = [etiqueta for _, etiqueta in GENERALES_BASE]
     assert _generales(ws_muestra) == esperadas
-    assert _generales(bd) == esperadas
+    # La BD de Report es la misma lista sin lo que solo tiene el laboratorio propio.
+    solo_lab = {"Peso", "Peso Muestra Extraída (g)", "Fecha Recepción", "Hora Recepción"}
+    assert _generales(bd) == [e for e in esperadas if e not in solo_lab]
 
 
 def test_las_dos_bases_traen_los_mismos_campos_del_grupo_de_fungicidas():

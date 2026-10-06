@@ -24,7 +24,7 @@ from typing import Any
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
-from .columnas_base import CAMPOS_FUNGICIDAS, GENERALES_BASE, a_fecha, partir_recepcion
+from .columnas_base import CAMPOS_FUNGICIDAS, GENERALES_BASE, a_fecha
 from .solicitud_excel import (
     _BORDE_COMPLETO,
     VERDE_CLARO,
@@ -33,10 +33,12 @@ from .solicitud_excel import (
     _grupos_exportacion,
 )
 
-# Columnas generales de la BD: son las MISMAS que las de la base «con muestra» de
-# AgroFresh Lab, con el mismo nombre y orden, para poder cruzarlas (ver
-# `columnas_base.py`, que es la única definición).
-GENERALES_BD = GENERALES_BASE
+# Columnas generales de la BD: las de la base «con muestra» de AgroFresh Lab, con el
+# mismo nombre y orden, para poder cruzarlas (ver `columnas_base.py`, que es la única
+# definición), SIN las que solo existen en el laboratorio propio: los dos pesos y la
+# recepción de la muestra. Los laboratorios externos no entregan esos datos.
+SOLO_LABORATORIO_PROPIO = {"peso", "peso_extraido", "fecha_recepcion", "hora_recepcion"}
+GENERALES_BD = [g for g in GENERALES_BASE if g[0] not in SOLO_LABORATORIO_PROPIO]
 
 # La ingesta guarda algunos analitos con un código y el catálogo de Toma de
 # muestras usa otro para el MISMO analito (mapeo.py vs ANALITOS_DEFECTO). Sin
@@ -111,8 +113,6 @@ DESDE_SOLICITUD: dict[str, str] = {
     "email_laboratorio": "email_laboratorio",
     "csg_packing": "csg_packing",
     "codigo_muestra": "codigo_muestra",
-    "peso": "peso_muestra",
-    "peso_extraido": "peso_muestra_extraido",
 }
 
 _FECHAS_BD = {
@@ -171,12 +171,6 @@ def completar_fila(fila: dict[str, Any], datos: dict | None, correos_laboratorio
     if _vacio(fila.get("email_laboratorio")) and correos_laboratorio:
         fila["email_laboratorio"] = "; ".join(correos_laboratorio)
     if datos:
-        # La recepción es el momento del cruce con la muestra (Ingreso al laboratorio).
-        dia, hora = partir_recepcion(datos.get("recepcion_en"))
-        if _vacio(fila.get("fecha_recepcion")) and dia:
-            fila["fecha_recepcion"] = dia
-        if _vacio(fila.get("hora_recepcion")) and hora:
-            fila["hora_recepcion"] = hora
         # Gasto y datos del ensayo: la base solo trae el ensayo; el resto está en la solicitud.
         campos = datos.get("campos_laboratorio") or {}
         for clave, etiqueta in CAMPOS_FUNGICIDAS:

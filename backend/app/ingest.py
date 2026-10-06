@@ -508,6 +508,16 @@ def _resolver_listados(
     return motivos
 
 
+def columna_solicitud_existe(cur, columna: str) -> bool:
+    """¿Ya se corrió la migración que agrega esta columna a `solicitud`?"""
+    cur.execute(
+        "SELECT 1 AS ok FROM information_schema.columns WHERE table_name = 'solicitud' "
+        "AND column_name = %s AND table_schema = ANY(current_schemas(false))",
+        (columna,),
+    )
+    return cur.fetchone() is not None
+
+
 def _insertar_pendiente(cur, origen: str, fila: dict[str, Any], motivos: list, carga_id: int | None) -> None:
     if carga_id is None:
         cur.execute(
@@ -578,6 +588,8 @@ def _procesar_filas(
         " fecha_informe, fecha_analisis, referencia FROM solicitud"
     )
     solicitudes_existentes: dict[str, dict] = {r["nro_solicitud"]: r for r in cur.fetchall()}
+    # N° de muestra del laboratorio (migración 0053): sin ella se carga igual, sin ese dato.
+    con_codigo_muestra = columna_solicitud_existe(cur, "codigo_muestra")
 
     detalle: list[dict[str, Any]] = []
     advertencias: list[str] = []
@@ -811,6 +823,8 @@ def _procesar_filas(
                 # Diferir INSERT: acumular y hacer un solo execute_values al
                 # final del loop en vez de N INSERTs individuales con RETURNING.
                 datos = {**sol, "planta_id": planta_id, "origen": origen}
+                if not con_codigo_muestra:
+                    datos.pop("codigo_muestra", None)
                 if carga_id is not None:
                     datos["carga_id"] = carga_id
                 nro = sol["nro_solicitud"]
@@ -874,6 +888,11 @@ def _procesar_filas(
                             sol.get("mes"),
                             solicitud_id,
                         ),
+                    )
+                if escribir and con_codigo_muestra and sol.get("codigo_muestra"):
+                    cur.execute(
+                        "UPDATE solicitud SET codigo_muestra = %s WHERE id = %s AND codigo_muestra IS NULL",
+                        (sol["codigo_muestra"], solicitud_id),
                     )
                 # Acumular para batch insert (solicitudes existentes ya tienen ID real).
                 for p in productos_resueltos:
