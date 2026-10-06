@@ -868,3 +868,39 @@ def test_la_prueba_del_aviso_va_solo_a_paz_y_jorge_en_cualquier_modo(entorno, mo
     assert enviado["to"] == ei.DESTINATARIOS_PRUEBA and enviado["cc"] == [] and enviado["bcc"] == []
     assert enviado["asunto"].startswith("(PRUEBA) ")
     assert r["to"] == ei.DESTINATARIOS_PRUEBA
+
+
+def _aviso_editado(**extra):
+    return ei.AvisoIn(**{"asunto": "Nuevo asunto", "titulo": "Mi título", "subtitulo": "", "texto": "Hola a todos", **extra})
+
+
+def test_el_aviso_se_edita_se_guarda_y_se_restaura(entorno):
+    r = ei.guardar_aviso(_aviso_editado(), usuario=_usuario())
+    assert r["asunto"] == "Nuevo asunto" and r["texto"] == "Hola a todos" and r["subtitulo"] == "" and r["personalizado"] is True
+    assert "MI TÍTULO" in r["html"] and "Hola a todos" in r["html"]
+    # otro guardado de la configuración (el modo) NO pierde el aviso editado
+    ei._guardar_config({**ei.leer_config(), "modo": "produccion"})
+    assert ei.aviso_a_clientes(usuario=_usuario())["asunto"] == "Nuevo asunto"
+    # restaurar vuelve al original
+    r = ei.restaurar_aviso(usuario=_usuario())
+    assert r["personalizado"] is False and r["texto"] == ei.TEXTO_AVISO and r["asunto"] == ei.ASUNTO_AVISO
+
+
+@pytest.mark.parametrize("campo", ["asunto", "titulo", "texto"])
+def test_el_aviso_no_se_guarda_con_un_campo_obligatorio_vacio(entorno, campo):
+    with pytest.raises(HTTPException) as exc:
+        ei.guardar_aviso(_aviso_editado(**{campo: "   "}), usuario=_usuario())
+    assert exc.value.status_code == 400
+    assert ei.aviso_a_clientes(usuario=_usuario())["personalizado"] is False
+
+
+def test_la_vista_previa_del_aviso_no_guarda_nada(entorno):
+    r = ei.vista_previa_del_aviso(_aviso_editado(texto="Borrador"), usuario=_usuario())
+    assert "Borrador" in r["html"]
+    assert ei.aviso_a_clientes(usuario=_usuario())["personalizado"] is False
+
+
+def test_la_prueba_manda_lo_que_se_esta_escribiendo_solo_a_paz_y_jorge(entorno):
+    ei.enviar_prueba_del_aviso(_aviso_editado(), usuario=_usuario())
+    assert entorno[0]["asunto"] == "(PRUEBA) Nuevo asunto" and entorno[0]["to"] == ei.DESTINATARIOS_PRUEBA
+    assert "Hola a todos" in entorno[0]["html"] and ei.aviso_a_clientes(usuario=_usuario())["personalizado"] is False
