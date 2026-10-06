@@ -72,8 +72,10 @@ describe('AvisoClientes', () => {
   it('«Restaurar el original» vuelve al texto original', async () => {
     api.obtenerAvisoClientes.mockResolvedValue(aviso({ asunto: 'Editado', personalizado: true }))
     api.restaurarAviso.mockResolvedValue(aviso())
+    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<AvisoClientes />)
     fireEvent.click(await screen.findByRole('button', { name: 'Restaurar el original' }))
+    expect(confirmar).toHaveBeenCalledTimes(1)
     expect(await screen.findByDisplayValue('Asunto original')).toBeTruthy()
     expect(api.restaurarAviso).toHaveBeenCalledTimes(1)
   })
@@ -104,5 +106,69 @@ describe('AvisoClientes', () => {
     render(<AvisoClientes />)
     expect(await screen.findByDisplayValue('Asunto original')).toBeTruthy()
     expect(screen.queryByRole('radiogroup')).toBeNull()
+  })
+
+  it('la vista previa que llega se ve de verdad en el iframe y el iframe va aislado (sandbox)', async () => {
+    render(<AvisoClientes />)
+    const marco = await screen.findByTitle('Vista previa del aviso a clientes') as HTMLIFrameElement
+    expect(marco.getAttribute('sandbox')).toBe('')
+    expect(marco.getAttribute('srcdoc')).toBe('<p>original</p>')
+    fireEvent.change(screen.getByDisplayValue('Asunto original'), { target: { value: 'Otro' } })
+    await waitFor(() => expect(marco.getAttribute('srcdoc')).toBe('<p>borrador</p>'))
+  })
+
+  it('al volver a lo guardado repone el correo guardado, aunque llegue una vista previa vieja', async () => {
+    let resolver: (v: { html: string }) => void = () => undefined
+    api.vistaPreviaAviso.mockReturnValue(new Promise((r) => { resolver = r }))
+    render(<AvisoClientes />)
+    const marco = await screen.findByTitle('Vista previa del aviso a clientes') as HTMLIFrameElement
+    const campo = screen.getByDisplayValue('Asunto original')
+    fireEvent.change(campo, { target: { value: 'Cambiado' } })
+    await waitFor(() => expect(api.vistaPreviaAviso).toHaveBeenCalled())
+    fireEvent.change(campo, { target: { value: 'Asunto original' } })     // vuelve a lo guardado
+    resolver({ html: '<p>VIEJA</p>' })                                    // la respuesta atrasada no debe pisarlo
+    await waitFor(() => expect(marco.getAttribute('srcdoc')).toBe('<p>original</p>'))
+    await new Promise((r) => setTimeout(r, 30))
+    expect(marco.getAttribute('srcdoc')).toBe('<p>original</p>')
+  })
+
+  it('un error al probar se ve junto a los botones y avisa si falla la vista previa', async () => {
+    api.enviarPruebaAviso.mockRejectedValue(new Error('x'))
+    render(<AvisoClientes />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Probar el aviso' }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/No se pudo enviar la prueba/)
+    api.vistaPreviaAviso.mockRejectedValue(new Error('x'))
+    fireEvent.change(screen.getByDisplayValue('Asunto original'), { target: { value: 'Otro' } })
+    expect(await screen.findByText(/No se pudo actualizar la vista previa/)).toBeTruthy()
+  })
+
+  it('mientras se guarda no se puede seguir escribiendo (no se pierde lo escrito)', async () => {
+    let terminar: (v: unknown) => void = () => undefined
+    api.guardarAviso.mockReturnValue(new Promise((r) => { terminar = r }))
+    render(<AvisoClientes />)
+    fireEvent.change(await screen.findByDisplayValue('Asunto original'), { target: { value: 'Nuevo' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+    await waitFor(() => expect((screen.getByDisplayValue('Nuevo') as HTMLInputElement).disabled).toBe(true))
+    terminar(aviso({ asunto: 'Nuevo', personalizado: true }))
+    await waitFor(() => expect((screen.getByDisplayValue('Nuevo') as HTMLInputElement).disabled).toBe(false))
+  })
+
+  it('«Restaurar el original» no hace nada si se cancela la confirmación', async () => {
+    api.obtenerAvisoClientes.mockResolvedValue(aviso({ asunto: 'Editado', personalizado: true }))
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    render(<AvisoClientes />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Restaurar el original' }))
+    expect(api.restaurarAviso).not.toHaveBeenCalled()
+  })
+
+  it('el selector de plantillas se maneja con el teclado (flechas)', async () => {
+    render(<AvisoClientes />)
+    const estandar = await screen.findByRole('radio', { name: /Estándar/ })
+    expect(estandar.getAttribute('tabindex')).toBe('0')
+    expect(screen.getByRole('radio', { name: /Azul/ }).getAttribute('tabindex')).toBe('-1')
+    fireEvent.keyDown(estandar, { key: 'ArrowRight' })
+    expect(screen.getByRole('radio', { name: /Azul/ }).getAttribute('aria-checked')).toBe('true')
+    fireEvent.keyDown(screen.getByRole('radio', { name: /Azul/ }), { key: 'ArrowLeft' })
+    expect(screen.getByRole('radio', { name: /Estándar/ }).getAttribute('aria-checked')).toBe('true')
   })
 })

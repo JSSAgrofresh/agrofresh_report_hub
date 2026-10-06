@@ -79,3 +79,49 @@ def test_sin_la_imagen_del_encabezado_el_correo_sale_igual(monkeypatch):
     monkeypatch.setattr(ma, "_leer", lambda nombre: None)
     html, imagenes = ma.html_de_aviso(TEXTO, "T", "", "", "azul")
     assert imagenes == [] and "cid:" not in html and "Estimados" not in html and "Hola" in html
+
+
+@pytest.mark.parametrize("clave", [c for c, p in ma.PLANTILLAS.items() if p["banner"]])
+def test_outlook_de_escritorio_recibe_una_tabla_de_600_px(clave):
+    """Outlook (motor Word) ignora max-width: una tabla fantasma solo para él contiene el correo."""
+    html, _ = ma.html_de_aviso(TEXTO, "T", "", "", clave)
+    assert html.count("<!--[if mso]>") == 2 and 'width="600" align="center"' in html
+    assert html.index("<!--[if mso]><table") < html.index("max-width:600px") < html.index("<!--[if mso]></td></tr></table>")
+
+
+@pytest.mark.parametrize("clave", [c for c, p in ma.PLANTILLAS.items() if p["banner"]])
+def test_la_barra_de_acento_mide_4_px_tambien_en_outlook(clave):
+    html, _ = ma.html_de_aviso(TEXTO, "T", "", "", clave)
+    assert "line-height:4px;mso-line-height-rule:exactly" in html
+
+
+def test_un_enlace_largo_no_ensancha_el_correo():
+    largo = "https://agrofresh-report-hub.vercel.app/modulos/report/informes/2026-1885-PC"
+    html, _ = ma.html_de_aviso(f"Mira {largo}\n\n- {largo}\n\n# {largo}", "T", "", "", "azul")
+    assert html.count("overflow-wrap:anywhere") >= 4          # párrafo, elemento de lista, subtítulo y título
+
+
+def test_los_jpeg_no_son_progresivos_porque_outlook_de_escritorio_no_los_pinta():
+    for clave, p in ma.PLANTILLAS.items():
+        if p.get("formato") == "jpg":
+            datos = open(os.path.join(ma.RUTA_ASSETS, f"banner_{clave}.jpg"), "rb").read()
+            assert b"\xff\xc2" not in datos and b"\xff\xc0" in datos
+
+
+def test_los_encabezados_pesan_poco_para_un_envio_masivo():
+    for clave, p in ma.PLANTILLAS.items():
+        if p["banner"]:
+            ruta = os.path.join(ma.RUTA_ASSETS, f"banner_{clave}.{p.get('formato', 'png')}")
+            assert os.path.getsize(ruta) < 120 * 1024, clave
+
+
+def test_el_pie_de_todas_las_plantillas_se_lee(clave=None):
+    def luminancia(h):
+        r, g, b = (int(h[i:i + 2], 16) / 255 for i in (1, 3, 5))
+        f = lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+
+    for clave, p in ma.PLANTILLAS.items():
+        if p["banner"]:
+            a, b = sorted((luminancia(p["pie_fondo"]), luminancia(p["pie_texto"])), reverse=True)
+            assert (a + 0.05) / (b + 0.05) >= 4.5, f"contraste bajo en el pie de {clave}"
