@@ -796,10 +796,13 @@ tocas una, toca la otra.
   Reemplaza a los scripts `importar_contactos_resultado.py` /
   `auditar_contactos_resultado.py` para el uso diario. El panel se mantiene montado al
   cambiar de pestaña para no perder cambios sin guardar.
-- **Panel de Administración General** (pestañas **Resumen** y **Actividad**, las
+- **Panel de Administración General** (pestañas **Resumen**, **Actividad** y **Seguimiento**, las
   primeras; solo admin general; `app/admin_panel.py`, prefijo `/api/admin-panel`;
-  front en `views/admin/panel/` y `features/adminPanel/`). Tema oscuro verde
-  AgroFresh **solo dentro del panel** (variables `--p-*` en `PanelAdmin.module.css`).
+  front en `views/admin/panel/` y `features/adminPanel/`). Tema **claro**, igual al resto de la app
+  (las variables `--p-*` de `PanelAdmin.module.css` apuntan a los tokens de la app; no vuelvas al oscuro, se pidió
+  expresamente). **Seguimiento** (`GET /api/admin-panel/seguimiento`, `SeguimientoPanel.tsx`): estado de cada cuenta
+  interna (activa / en alza / en baja / nueva / dormida / nunca ingresó, `estado_persona`) contra el período
+  anterior, días activos, mapa de calor día×hora (hora de Chile), adopción por módulo y matriz persona×módulo.
   Resumen: KPIs (usuarios activos, solicitudes, informes concretados %, días
   solicitud→informe por laboratorio, salud de datos 0–100 con sus descuentos a la
   vista), actividad por día, uso por módulo, actividad por persona, cambios
