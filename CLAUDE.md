@@ -824,6 +824,16 @@ tocas una, toca la otra.
   `planta_quitar` y, al guardar (con respaldo), `aplicar` borra toda la lista de esa planta
   en ese servicio (cliente, comercial, técnico y admin); **Listados no se toca**. Un Excel
   sin filas no ofrece nada.
+  **Cambiar el nombre de una planta** (el Excel trae el nombre bien escrito y Listados lo tiene mal, p. ej.
+  LOSONJERA → LISONJERA): en la tarjeta «Planta nueva», junto a cada sugerencia, «Es la misma: cambiarle el
+  nombre a «…»» (solo si esa planta ya tiene lista). Viaja como cambio `planta_renombrar` y va PRIMERO al
+  guardar: cambia `planta.nombre` en Listados (mismo id, así Report y los códigos SAP la siguen; el cliente no se
+  toca) y el `ship_to` de sus contactos en TODAS las listas que comparten ese listado (Línea de proceso y RYD
+  juntas; Actimist y Ecofog cada una la suya), sin perder a nadie; lo que traía el Excel queda como propuestas
+  amarillas sobre ella. Se rechaza si ya hay una planta con ese nombre (habría que fundir dos listas). **Ojo:**
+  las solicitudes ya emitidas guardan el nombre viejo como texto, así que al reabrirlas su lista de
+  distribución se busca por ese nombre y ya no la encuentra (cae en el respaldo); el respaldo de contactos
+  anterior queda en `contactos_laboratorio_respaldo_<fecha>.json` y el nombre anterior en la respuesta (`renombradas`).
   Los cinco recuadros de cobertura de arriba explican qué cuentan en un globito que aparece suave al pasar
   el mouse, enfocar o tocar (`IndicadoresListas`; «Plantas con lista» compara con las plantas activas de
   Listados; el % de los otros cuatro se mide sobre las plantas con lista).

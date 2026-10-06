@@ -24,8 +24,9 @@ export interface FilaLista {
 export interface CambioLista {
   id: string
   /** campo: agregar/quitar correos de un rol o categoría; copia: ajustar a CC/CCO; planta_nueva: planta sin listas aún;
-   *  planta_quitar: sacar toda la lista de una planta que la base nueva ya no trae */
-  tipo: 'campo' | 'copia' | 'planta_nueva' | 'planta_quitar'
+   *  planta_quitar: sacar toda la lista de una planta que la base nueva ya no trae;
+   *  planta_renombrar: cambiarle el nombre (`nuevo.ship_to`) en Listados y en las listas, sin perder su lista */
+  tipo: 'campo' | 'copia' | 'planta_nueva' | 'planta_quitar' | 'planta_renombrar'
   planta: PlantaLista
   campo: string
   etiqueta: string
@@ -36,6 +37,8 @@ export interface CambioLista {
   /** plantas de Listados con un nombre parecido (solo en planta_nueva con aviso) */
   sugerencias?: PlantaLista[]
   fila: FilaLista | null
+  /** solo planta_renombrar: el nombre nuevo */
+  nuevo?: PlantaLista
   /** solo planta_nueva: crear también el cliente y la planta en Listados */
   crear_en_listados?: boolean
 }
@@ -63,6 +66,7 @@ export interface ResultadoAplicar {
   ignorados: string[]
   respaldo: string
   listados_creados?: { clientes: number; plantas: number }
+  renombradas?: { sold_to: string; de: string; a: string }[]
 }
 
 // Todas llevan el servicio: cada uno tiene su lista y guardar en uno nunca

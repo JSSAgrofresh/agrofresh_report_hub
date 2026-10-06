@@ -226,6 +226,17 @@ export function plantaNueva(
   }
 }
 
+/** Cambiar el nombre de una planta (el del Excel es el correcto) conservando su lista. */
+export interface Renombre {
+  /** la planta como está hoy en Listados y en las listas */
+  de: PlantaLista
+  /** el nombre nuevo (Ship To) */
+  a: string
+}
+
+/** Por la clave de la planta con su nombre de hoy. */
+export type Renombres = Record<string, Renombre>
+
 /** Una planta del sistema que el Excel importado ya no trae. `quitar` = el usuario marcó quitarle la lista. */
 export interface PlantaRetirada {
   id: string
@@ -286,6 +297,7 @@ export interface ResumenRevision {
 
 export function resumenRevision(
   propuestas: Propuestas, nuevas: PlantaNueva[], estado: EstadoListas, retiradas: PlantaRetirada[] = [],
+  renombres: Renombres = {},
 ): ResumenRevision {
   const porClave = new Map(estado.filas.map((f) => [clavePlanta(f.sold_to, f.ship_to), f]))
   const r: ResumenRevision = { pendientes: 0, aceptadas: 0, agregan: 0, quitan: 0, ajustes: 0 }
@@ -309,19 +321,28 @@ export function resumenRevision(
   }
   // quitar la lista de una planta es un cambio aceptado (nunca pendiente: se marca a propósito)
   r.aceptadas += retiradas.filter((x) => x.quitar).length
+  r.aceptadas += Object.keys(renombres).length      // cambiar un nombre también se acepta al elegirlo
   return r
 }
 
 /** Los cambios aceptados, en el formato que entiende el servidor. */
 export function aCambios(
   estado: EstadoListas, propuestas: Propuestas, nuevas: PlantaNueva[], retiradas: PlantaRetirada[] = [],
+  renombres: Renombres = {},
 ): CambioLista[] {
   const porClave = new Map(estado.filas.map((f) => [clavePlanta(f.sold_to, f.ship_to), f]))
   const cambios: CambioLista[] = []
+  // Los cambios de nombre van primero: lo demás de esa planta ya la busca por su nombre nuevo.
+  for (const [k, r] of Object.entries(renombres)) {
+    cambios.push({
+      id: `${k}|renombrar`, tipo: 'planta_renombrar', planta: r.de, nuevo: { sold_to: r.de.sold_to, ship_to: r.a }, campo: 'planta',
+      etiqueta: 'Cambiar el nombre de la planta', agregar: [], quitar: [], corregir: [], aviso: null, fila: null,
+    })
+  }
   for (const p of Object.values(propuestas)) {
     const fila = porClave.get(p.plantaClave)
     if (p.estado !== 'aceptada' || !fila) continue
-    const planta = { sold_to: fila.sold_to, ship_to: fila.ship_to }
+    const planta = { sold_to: fila.sold_to, ship_to: renombres[p.plantaClave]?.a ?? fila.ship_to }
     const { agregar, quitar } = diffLista(listaDe(fila, p.campo), p.nuevo)
     if (agregar.length || quitar.length) {
       cambios.push({ id: p.clave, tipo: 'campo', planta, campo: p.campo, etiqueta: INFO_CAMPO[p.campo].titulo, agregar, quitar, corregir: [], aviso: null, fila: null })

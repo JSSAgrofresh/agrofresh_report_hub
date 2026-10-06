@@ -3,7 +3,7 @@ import { IconoAlerta } from '@/components/ui/iconosAccion'
 import {
   CAMPOS_INTERNOS, CATEGORIAS, ETIQUETA_VIA, INFO_CAMPO, clavePlanta, claveCelda, listaDe, listaGeneral, valorMostrado,
 } from '@/features/listasDistribucion'
-import type { CampoLista, FilaEstado, PlantaLista, PlantaNueva, Propuestas } from '@/features/listasDistribucion'
+import type { CampoLista, FilaEstado, PlantaLista, PlantaNueva, Propuestas, Renombres } from '@/features/listasDistribucion'
 import { CeldaLista } from './CeldaLista'
 import styles from './TablaListas.module.css'
 
@@ -24,12 +24,17 @@ interface Props {
   onQuitarNueva: (id: string) => void
   onCrearEnListados: (id: string, crear: boolean) => void
   onUsarSugerencia: (id: string, planta: PlantaLista) => void
+  renombres: Renombres
+  /** ¿esa planta de Listados ya tiene lista? Solo entonces se le puede cambiar el nombre aquí. */
+  puedeRenombrar: (planta: PlantaLista) => boolean
+  onRenombrar: (id: string, planta: PlantaLista) => void
+  onDeshacerRenombre: (plantaClave: string) => void
 }
 
 /** La tabla dinámica: una fila por planta, una columna por rol y por especie. */
 export function TablaListas({
   filas, nuevas, propuestas, separadas, onEditar, onAceptar, onRechazar, onSeparar,
-  onAceptarNueva, onQuitarNueva, onCrearEnListados, onUsarSugerencia,
+  onAceptarNueva, onQuitarNueva, onCrearEnListados, onUsarSugerencia, renombres, puedeRenombrar, onRenombrar, onDeshacerRenombre,
 }: Props) {
   return (
     <div className={styles.scroll} role="region" aria-label="Tabla de listas de distribución" tabIndex={0}>
@@ -78,9 +83,17 @@ export function TablaListas({
                         <span className={styles.sugerencias}>
                           ¿Es una de estas?
                           {n.sugerencias.map((s) => (
-                            <button key={s.sold_to + s.ship_to} type="button" onClick={() => onUsarSugerencia(n.id, s)} title={`Usar el nombre de Listados: ${s.ship_to} (${s.sold_to})`}>
-                              Usar «{s.ship_to}» <i>{s.sold_to}</i>
-                            </button>
+                            <span key={s.sold_to + s.ship_to} className={styles.sugerencia}>
+                              <button type="button" onClick={() => onUsarSugerencia(n.id, s)} title={`Usar el nombre de Listados: ${s.ship_to} (${s.sold_to})`}>
+                                Usar «{s.ship_to}» <i>{s.sold_to}</i>
+                              </button>
+                              {puedeRenombrar(s) && (
+                                <button type="button" className={styles.renombrar} onClick={() => onRenombrar(n.id, s)}
+                                  title={`Cambia «${s.ship_to}» por «${n.ship_to}» en Listados y en las listas, sin perder su lista de distribución`}>
+                                  Es la misma: cambiarle el nombre a «{n.ship_to}»
+                                </button>
+                              )}
+                            </span>
                           ))}
                         </span>
                       )}
@@ -134,6 +147,12 @@ export function TablaListas({
                     </span>
                   )}
                   {f.sin_contactos && <span className={styles.sinLista}>En Listados, sin lista</span>}
+                  {renombres[k] && (
+                    <span className={styles.renombrando}>
+                      Se cambiará el nombre a <b>«{renombres[k].a}»</b> al guardar, con su lista.
+                      <button type="button" onClick={() => onDeshacerRenombre(k)}>Deshacer</button>
+                    </span>
+                  )}
                   {!separada && (general || vacias) && (
                     <button type="button" className={styles.separar} onClick={() => onSeparar(k)}>▸ Separar por especie</button>
                   )}
