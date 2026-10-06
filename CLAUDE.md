@@ -406,7 +406,14 @@ contador «(1307)» (`cliente_desde_asunto`). `registro.json` guarda `r2_claves`
 (`accutab/mail/<asunto>/`) queda como estaba. Reportes de Post Venta filtra por Sold To,
 Ship To, **Posición de muestreo** (= «Ubicación del equipo» de Trace, `ubicacion`), equipo y
 período; arriba de la lista de cargas hay una tabla **«Informes»** (fecha, Sold To, Ship To, posición, equipo, PDF: «Descargar PDF» o «Generar informe» si la carga no lo tiene, `POST /postventa/registros/{carpeta}/informe`) donde se **marcan varios y se eliminan** (`POST /postventa/registros/eliminar`).
-Se quitó a pedido el conteo de cargas (tarjeta y contadores).
+La tabla «Informes» va **al final** de la pantalla y se pagina de a 10. Se quitó a pedido el conteo de cargas (tarjeta y contadores).
+**Portal de cliente**: una cuenta `cliente` del área Post Venta ve «Tus informes Accu-Tab»
+(`InformesAccutabCliente`: tarjetas por mes, «Ver informe» y «Descargar PDF», filtro de período y
+posición). Backend: `router_cliente` de `postventa.py` (`/api/postventa/cliente/informes` y `/{carpeta}/pdf`,
+incluido con `CON_SESION`, no `SOLO_AGROFRESH`): solo informes con PDF de SU cliente (y su Ship To si la
+cuenta es de sucursal), sin tildes ni mayúsculas ni `_`; lo que pida por parámetro se descarta
+(`alcance_de_datos`); un cliente sin cliente asignado no ve nada. Las cargas del correo se reconocen por
+el asunto (`_cliente_de`). El resto de `/api/postventa` sigue cerrado a clientes.
 
 ## Storage: explorador y permisos por carpeta
 

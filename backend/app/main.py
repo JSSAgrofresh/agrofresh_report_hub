@@ -26,6 +26,7 @@ from .ingest import router as ingest_router
 from .laboratorios import router as laboratorios_router
 from .listados import router as listados_router
 from .postventa import router as postventa_router
+from .postventa import router_cliente as postventa_cliente_router
 from .reportes import router as reportes_router
 from .storage import router as storage_router
 from .toma_muestras import router as toma_muestras_router
@@ -104,6 +105,7 @@ CON_SESION = [Depends(usuario_actual)]
 SOLO_AGROFRESH = [Depends(solo_interno)]
 
 app.include_router(reportes_router, dependencies=CON_SESION)
+app.include_router(postventa_cliente_router, dependencies=CON_SESION)
 
 # Los listados de especie y variedad son la excepción: una cuenta de cliente
 # necesita leerlos para que los desplegables de Especie y Variedad de su

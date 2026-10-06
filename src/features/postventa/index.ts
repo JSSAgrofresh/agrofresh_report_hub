@@ -5,6 +5,9 @@ export {
   eliminarCargasTrace,
   generarInformeCarga,
   descargarPdfCarga,
+  listarInformesCliente,
+  verPdfCliente,
+  descargarPdfCliente,
   descargarOriginalCarga,
   fechaDeCarpeta,
 } from './lib/api'

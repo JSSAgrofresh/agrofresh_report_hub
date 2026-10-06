@@ -80,3 +80,43 @@ def test_generar_informe_de_una_carga_ya_guardada(storage):
     os.remove(storage / "Accutab" / r["carpeta"] / "informe.pdf")
     assert postventa.generar_informe(r["carpeta"]) == {"ok": True, "tiene_pdf": True}
     assert (storage / "Accutab" / r["carpeta"] / "informe.pdf").read_bytes().startswith(b"%PDF")
+
+
+# ── Portal de cliente ───────────────────────────────────────────────────
+
+from app.auth import Usuario
+
+
+def _cuenta(tipo="cliente", cliente="Dole", planta=None):
+    return Usuario(id="1", email="x@y.cl", nombre="X", tipoAcceso=tipo, clienteNombre=cliente, plantaNombre=planta)
+
+
+def test_cliente_solo_ve_sus_informes_con_pdf(storage):
+    a = _guardar()["carpeta"]
+    otro = postventa.guardar_registro(postventa.RegistroIn(cliente="AGRICOM", planta="X", filas=FILAS, estadisticas=EST))["carpeta"]
+    lista = postventa.informes_del_cliente(cliente="AGRICOM", planta=None, usuario=_cuenta(cliente="dole"))
+    assert [r["carpeta"] for r in lista] == [a]  # lo pedido se descarta: manda su cuenta; sin tildes ni mayúsculas
+    with pytest.raises(HTTPException) as e:
+        postventa.pdf_del_cliente(otro, _cuenta(cliente="Dole"))
+    assert e.value.status_code == 404
+    assert postventa.pdf_del_cliente(a, _cuenta(cliente="Dole")).path.endswith("informe.pdf")
+
+
+def test_cuenta_de_sucursal_solo_ve_su_ship_to(storage):
+    _guardar()  # planta DOLE LONTUE
+    assert postventa.informes_del_cliente(None, None, _cuenta(cliente="DOLE", planta="Dole Lontué")) != []
+    assert postventa.informes_del_cliente(None, None, _cuenta(cliente="DOLE", planta="Dole Molina")) == []
+
+
+def test_cliente_sin_cliente_asignado_no_ve_nada(storage):
+    _guardar()
+    assert postventa.informes_del_cliente(None, None, _cuenta(cliente=None)) == []
+
+
+def test_las_cargas_del_correo_se_reconocen_por_el_asunto(storage):
+    d = storage / "Accutab" / "2026-10-01_10-00-00"
+    d.mkdir(parents=True)
+    (d / "informe.pdf").write_bytes(b"%PDF")
+    (d / "registro.json").write_text('{"origen":"email","equipo":"AGROFRESH_DEMO (12)","filas":[{}],"tiene_pdf":true}')
+    r = postventa.informes_del_cliente(None, None, _cuenta(cliente="Agrofresh Demo"))
+    assert [x["cliente"] for x in r] == ["AGROFRESH_DEMO"]

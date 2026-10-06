@@ -4,6 +4,7 @@ import { AREAS } from '@/constants/areas'
 import { EstadoModulo } from '@/components/ui/EstadoModulo'
 import { AreaHero, fondoParaEspecie } from '@/features/dashboard'
 import type { Usuario } from '@/features/usuarios'
+import { InformesAccutabCliente } from '@/views/modules/reports/InformesAccutabCliente'
 import { ReporteView } from '@/views/modules/reports/ReporteView'
 
 export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario: Usuario }) {
@@ -33,6 +34,8 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
 
       {area === 'cromatografia' ? (
         <ReporteView clienteFijo={cliente} plantaFija={usuario.plantaNombre} onCropChange={setEspecieFiltrada} />
+      ) : area === 'postventa' ? (
+        <InformesAccutabCliente />
       ) : (
         <EstadoModulo
           etiqueta="Próximamente"
