@@ -11,8 +11,9 @@ function mensajeDe(e: unknown, defecto: string): string {
   return e instanceof HttpError ? e.message : defecto
 }
 
+// Con un backend anterior a esta versión el aviso llega sin título ni subtítulo: nunca `undefined`.
 const datosDe = (a: DatosAviso): DatosAviso => ({
-  asunto: a.asunto, titulo: a.titulo, subtitulo: a.subtitulo, texto: a.texto,
+  asunto: a.asunto ?? '', titulo: a.titulo ?? '', subtitulo: a.subtitulo ?? '', texto: a.texto ?? '',
 })
 const iguales = (a: DatosAviso, b: DatosAviso) => JSON.stringify(datosDe(a)) === JSON.stringify(datosDe(b))
 
@@ -30,7 +31,11 @@ export function AvisoClientes() {
   const turno = useRef(0)
 
   function cargar(a: Aviso) {
-    setGuardado(a)
+    if (a.titulo === undefined) {
+      // Backend viejo (sin edición del aviso): se avisa en vez de dejar la pantalla rota.
+      setError('El servidor todavía no tiene la versión nueva del aviso: hay que hacer git pull y reiniciar el backend.')
+    }
+    setGuardado({ ...a, destinatarios_prueba: a.destinatarios_prueba ?? [] })
     setEdit(datosDe(a))
     setHtml(a.html)
   }

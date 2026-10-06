@@ -70,4 +70,13 @@ describe('AvisoClientes', () => {
     expect(await screen.findByDisplayValue('Asunto original')).toBeTruthy()
     expect(api.restaurarAviso).toHaveBeenCalledTimes(1)
   })
+
+  it('con un backend viejo (sin título ni subtítulo) no se cae y avisa que falta actualizar', async () => {
+    api.obtenerAvisoClientes.mockResolvedValue({
+      asunto: 'Asunto', texto: 'Texto', html: '<p>x</p>', destinatarios_prueba: ['a@x.cl'],
+    })
+    render(<AvisoClientes />)
+    expect(await screen.findByText(/hacer git pull y reiniciar el backend/)).toBeTruthy()
+    expect(screen.getByDisplayValue('Asunto')).toBeTruthy()
+  })
 })
