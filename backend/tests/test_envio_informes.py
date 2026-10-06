@@ -739,3 +739,21 @@ def test_el_numero_de_solicitud_se_encuentra_aunque_no_tenga_etiqueta():
     from app import informe_lectura as il
 
     assert il.datos_de_informe("Informe\nreferencia OT-QUI0025 de la planta")["numero_solicitud"] == "OT-QUI0025"
+
+
+def test_informe_ryd_sin_lista_va_a_carla_y_fran(entorno):
+    config_store.escribir("contactos_laboratorio.json", [])
+    sol = _solicitud_dole(campos_laboratorio={"Tipo Aplicación": "RYD"}, respaldo_ryd=True)
+    plan = ei.plan_desde_solicitud(sol)
+    assert plan["to"] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
+    assert plan["sin_lista"] is False
+    assert "cguerrero@agrofresh.com" not in [e.casefold() for e in plan["to"] + plan["cc"] + plan["bcc"]]
+    # una RYD anterior (sin marca) sigue como Línea de proceso: Para vacío
+    vieja = ei.plan_desde_solicitud(_solicitud_dole(campos_laboratorio={"Tipo Aplicación": "RYD"}))
+    assert vieja["to"] == [] and vieja["sin_lista"] is True
+
+
+def test_informe_ryd_sin_solicitud_lleva_el_respaldo_de_ryd(entorno):
+    config_store.escribir("contactos_laboratorio.json", [])
+    plan = ei.plan_destinatarios("DOLE", "SAN FERNANDO", tipo_aplicacion="RYD")
+    assert plan["to"] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]

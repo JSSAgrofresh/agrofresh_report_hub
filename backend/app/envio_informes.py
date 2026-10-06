@@ -41,7 +41,7 @@ from . import actividad, config_store, correo, informe_lectura, mail_templates, 
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .listados import clave_normalizada
-from .servicios import clave_servicio
+from .servicios import MARCA_RESPALDO_RYD, RYD_COPIAS, clave_servicio, es_tipo_ryd, usa_respaldo_ryd
 
 logger = logging.getLogger(__name__)
 
@@ -196,8 +196,12 @@ def plan_desde_solicitud(datos: dict, internos: dict[str, list[str]] | None = No
     # Esto es el informe del laboratorio, que va al CLIENTE. Sin lista del cliente, el
     # respaldo de una solicitud (Jorge, Claudia, Report Hub) no sirve: queda el Para
     # vacío y no se envía hasta que alguien escriba a quién.
+    para = [] if sin_lista else detalle["para"]
+    if sin_lista and usa_respaldo_ryd(datos):
+        # RYD no tiene cliente al que escribir: el informe va a Carla y Fran.
+        para, sin_lista = list(RYD_COPIAS), False
     plan = repartir(
-        [] if sin_lista else detalle["para"],
+        para,
         [*detalle["cc"], *internos.get("cc", [])],
         [*detalle["bcc"], *internos.get("bcc", [])],
     )
@@ -209,14 +213,19 @@ _TIPO_DE_SERVICIO = {"actimist": "Actimist", "ecofog": "Ecofog"}
 
 def plan_destinatarios(
     sold_to: str, ship_to: str, especie: str = "", internos: dict[str, list[str]] | None = None,
-    servicio: str = "",
+    servicio: str = "", tipo_aplicacion: str = "",
 ) -> dict[str, Any]:
     """La misma lista que daría una solicitud con ese Sold To, Ship To, especie y
     servicio. Sirve cuando el informe no trae N° de solicitud (o la solicitud no
-    existe) y para corregir a mano esos datos. Paz puede cambiarla antes de enviar."""
+    existe) y para corregir a mano esos datos. Paz puede cambiarla antes de enviar.
+    Un informe RYD (`tipo_aplicacion`) lleva el respaldo de RYD."""
+    ryd = es_tipo_ryd({"tipo_aplicacion": tipo_aplicacion})
     datos = {
         "sold_to": sold_to, "ship_to": ship_to, "especie": especie,
-        "campos_laboratorio": {"Tipo Aplicación": _TIPO_DE_SERVICIO.get(clave_servicio(servicio), "Línea de proceso")},
+        "campos_laboratorio": {
+            "Tipo Aplicación": "RYD" if ryd else _TIPO_DE_SERVICIO.get(clave_servicio(servicio), "Línea de proceso"),
+        },
+        MARCA_RESPALDO_RYD: ryd,
     }
     return {**plan_desde_solicitud(datos, internos), "origen": "planta"}
 
@@ -505,6 +514,7 @@ async def analizar_informes(
                     item["leido"] = True
                     item["plan"] = plan_destinatarios(
                         datos["sold_to"], datos["ship_to"], datos["especie"], internos, servicio=datos["servicio"],
+                        tipo_aplicacion=datos["tipo_aplicacion"],
                     )
                 else:
                     logger.warning(

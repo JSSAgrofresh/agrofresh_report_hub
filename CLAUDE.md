@@ -354,6 +354,15 @@ casos en `test_servicio_actimist.py` y `servicio.test.ts`).
 
 ## Correo de la solicitud: quién lo recibe
 
+**RYD tiene su propio respaldo.** Donde Línea de proceso usa a Claudia (sin lista
+de distribución), una solicitud RYD usa a **Carla y Fran** (`RYD_COPIAS` en
+`servicios.py`: `ccaceres@` y `fgonzalez@agrofresh.com`), más Jorge. Vale en el
+correo, el PDF, el JSON, el chip «Sin lista» y el **Envío de informes** (un
+informe RYD sin lista va Para a Carla y Fran, no queda vacío). **Solo para las
+solicitudes con la marca `respaldo_ryd`** (puesta al crear y en reanálisis; editar
+la conserva): las RYD anteriores siguen con Claudia. RYD no tiene listado propio.
+Pendiente: la columna de lista del Excel base (`columnas_base`) aún no distingue RYD.
+
 Los contactos de **Laboratorios → Contacto laboratorio** (`tipo: solicitud`)
 llevan el campo `envio`: `para` (sin valor = `para`, como los antiguos), `cc` o
 `bcc`. `contactos_de_solicitud_por_envio` los reparte; el creador de la
