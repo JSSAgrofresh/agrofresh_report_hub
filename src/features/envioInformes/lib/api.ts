@@ -88,3 +88,20 @@ export function historialEnvios(limite = 40) {
 export function eliminarRegistroEnvio(id: number) {
   return httpClient.delete<{ estado: string }>(`${BASE}/historial/${id}`)
 }
+
+export interface AvisoClientes {
+  asunto: string
+  texto: string
+  html: string
+  destinatarios_prueba: string[]
+}
+
+/** El aviso de bienvenida a clientes, tal como lo verían. Solo lee. */
+export function obtenerAvisoClientes() {
+  return httpClient.get<AvisoClientes>(`${BASE}/aviso`)
+}
+
+/** Lo manda SOLO a Paz y Jorge, con «(PRUEBA)» en el asunto. */
+export function enviarPruebaAviso() {
+  return httpClient.post<{ ok: string; to: string[] }>(`${BASE}/aviso/enviar-prueba`, {})
+}

@@ -618,6 +618,55 @@ class VistaPreviaIn(DatosEnvio):
     nombres_adjuntos: list[str] = Field(default_factory=list)
 
 
+# ---------------------------------------------------------------------------
+# Aviso a clientes: «de ahora en adelante los informes salen por el Report Hub»
+# ---------------------------------------------------------------------------
+
+ASUNTO_AVISO = "[AgroFresh] Envío automático de informes de análisis"
+TITULO_AVISO = "Aviso a clientes"
+TEXTO_AVISO = (
+    "Estimados clientes:\n\n"
+    "Junto con saludar, les informamos que, a partir de ahora, utilizaremos AgroFresh Report Hub "
+    "para automatizar el envío de sus informes de análisis.\n\n"
+    "Los informes se enviarán desde agrofreshreporthub@gmail.com. Les agradeceremos agregar esta "
+    "dirección a sus contactos o remitentes seguros para evitar bloqueos o que los correos lleguen "
+    "a la carpeta de correo no deseado.\n\n"
+    "Ante cualquier consulta sobre los informes recibidos, pueden responder al mismo correo, "
+    "manteniendo en copia a jorge.sandoval@agrofresh.com.\n\n"
+    "Muchas gracias por su apoyo.\n\n"
+    "Saludos,"
+)
+
+
+@router.get("/aviso")
+def aviso_a_clientes(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+    """El aviso de bienvenida tal como lo vería un cliente. Solo lee: no envía nada."""
+    html, imagenes = mail_templates.html_de_texto(TEXTO_AVISO, TITULO_AVISO, "AgroFresh Report Hub")
+    return {
+        "asunto": ASUNTO_AVISO,
+        "texto": TEXTO_AVISO,
+        "html": _html_para_pantalla(html, imagenes),
+        "destinatarios_prueba": list(DESTINATARIOS_PRUEBA),
+    }
+
+
+@router.post("/aviso/enviar-prueba")
+def enviar_prueba_del_aviso(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+    """Manda el aviso SOLO a Paz y Jorge, con «(PRUEBA)» en el asunto, estando el sistema en
+    prueba o en producción. El envío a clientes no existe todavía."""
+    aviso = "CORREO DE PRUEBA. Así verán el aviso los clientes. Este correo llegó solo a Paz y a Jorge."
+    html, imagenes = mail_templates.html_de_texto(TEXTO_AVISO, TITULO_AVISO, "AgroFresh Report Hub", aviso)
+    resultado = correo.enviar(
+        ", ".join(DESTINATARIOS_PRUEBA), f"(PRUEBA) {ASUNTO_AVISO}", html, f"{aviso}\n\n{TEXTO_AVISO}", [],
+        cc=[], bcc=[], imagenes_inline=imagenes,
+    )
+    actividad.registrar(
+        usuario.email, usuario.nombre, "informes", "envio_aviso_prueba",
+        f"envió la prueba del aviso a clientes a {', '.join(resultado.to)}",
+    )
+    return {"ok": f"Prueba enviada a {', '.join(resultado.to)}. No salió nada a clientes.", "to": resultado.to}
+
+
 @router.post("/vista-previa")
 def vista_previa(body: VistaPreviaIn, usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
     """El correo tal como saldría, con la plantilla y lo que Paz lleva corregido."""
