@@ -41,7 +41,7 @@ from . import actividad, config_store, correo, informe_lectura, mail_templates, 
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .listados import clave_normalizada
-from .servicios import clave_servicio
+from .servicios import MARCA_RESPALDO_RYD, clave_servicio, es_tipo_ryd, fijos_de_lista, lista_de_datos
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +140,15 @@ def leer_config() -> dict[str, Any]:
     if not isinstance(cfg, dict):
         cfg = {}
     internos = cfg.get("internos") if isinstance(cfg.get("internos"), dict) else None
+    enc = cfg.get("encabezado") if isinstance(cfg.get("encabezado"), dict) else {}
+    titulo = enc.get("titulo")
+    subtitulo = enc.get("subtitulo")
     return {
+        "encabezado": {
+            "titulo": titulo.strip() if isinstance(titulo, str) and titulo.strip() else mail_templates.TITULO_INFORME,
+            # Un subtítulo vacío es válido (sin línea de abajo); solo si nunca se guardó vale el de siempre.
+            "subtitulo": subtitulo.strip() if isinstance(subtitulo, str) else mail_templates.SUBTITULO_INFORME,
+        },
         "modo": MODO_PRODUCCION if cfg.get("modo") == MODO_PRODUCCION else MODO_PRUEBA,
         "internos": {
             "cc": _limpiar_correos((internos or INTERNOS_DEFECTO).get("cc")),
@@ -196,8 +204,14 @@ def plan_desde_solicitud(datos: dict, internos: dict[str, list[str]] | None = No
     # Esto es el informe del laboratorio, que va al CLIENTE. Sin lista del cliente, el
     # respaldo de una solicitud (Jorge, Claudia, Report Hub) no sirve: queda el Para
     # vacío y no se envía hasta que alguien escriba a quién.
+    para = [] if sin_lista else detalle["para"]
+    fijos = fijos_de_lista(lista_de_datos(datos))["para"]
+    if sin_lista and fijos and datos.get(MARCA_RESPALDO_RYD) and not datos.get("es_prueba"):
+        # Actimist, Ecofog y RYD: sin lista del cliente, el informe va a sus referentes
+        # (Carlos y Cristian, o Carla y Fran), no queda vacío.
+        para, sin_lista = list(fijos), False
     plan = repartir(
-        [] if sin_lista else detalle["para"],
+        para,
         [*detalle["cc"], *internos.get("cc", [])],
         [*detalle["bcc"], *internos.get("bcc", [])],
     )
@@ -209,14 +223,19 @@ _TIPO_DE_SERVICIO = {"actimist": "Actimist", "ecofog": "Ecofog"}
 
 def plan_destinatarios(
     sold_to: str, ship_to: str, especie: str = "", internos: dict[str, list[str]] | None = None,
-    servicio: str = "",
+    servicio: str = "", tipo_aplicacion: str = "",
 ) -> dict[str, Any]:
     """La misma lista que daría una solicitud con ese Sold To, Ship To, especie y
     servicio. Sirve cuando el informe no trae N° de solicitud (o la solicitud no
-    existe) y para corregir a mano esos datos. Paz puede cambiarla antes de enviar."""
+    existe) y para corregir a mano esos datos. Paz puede cambiarla antes de enviar.
+    Un informe RYD (`tipo_aplicacion`) lleva el respaldo de RYD."""
+    ryd = es_tipo_ryd({"tipo_aplicacion": tipo_aplicacion})
     datos = {
         "sold_to": sold_to, "ship_to": ship_to, "especie": especie,
-        "campos_laboratorio": {"Tipo Aplicación": _TIPO_DE_SERVICIO.get(clave_servicio(servicio), "Línea de proceso")},
+        "campos_laboratorio": {
+            "Tipo Aplicación": "RYD" if ryd else _TIPO_DE_SERVICIO.get(clave_servicio(servicio), "Línea de proceso"),
+        },
+        MARCA_RESPALDO_RYD: True,      # un informe que se envía ahora lleva las reglas nuevas de la lista
     }
     return {**plan_desde_solicitud(datos, internos), "origen": "planta"}
 
@@ -309,8 +328,10 @@ def armar_correo(
     # Lo que la plantilla da por sí sola: es el punto de partida que la pantalla
     # muestra editable, sin el «(PRUEBA)» ni el aviso.
     asunto_base, texto_base = mail_templates.textos_informe(valores, servicio=datos.servicio)
+    encabezado = leer_config()["encabezado"]
     asunto, texto, html, imagenes = mail_templates.renderizar_informe(
         valores, servicio=datos.servicio, asunto=datos.asunto, cuerpo=datos.cuerpo, aviso=aviso,
+        titulo=encabezado["titulo"], subtitulo=encabezado["subtitulo"],
     )
     if modo == MODO_PRUEBA:
         asunto = f"(PRUEBA) {asunto}"
@@ -341,6 +362,7 @@ def estado(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
         "modo": cfg["modo"],
         "destinatarios_prueba": DESTINATARIOS_PRUEBA,
         "internos": cfg["internos"],
+        "encabezado": cfg["encabezado"],
         "laboratorios": _laboratorios(),
         "laboratorio_fijo": LABORATORIO_FIJO,
         "modo_cambiado_por": cfg["modo_cambiado_por"],
@@ -402,6 +424,30 @@ def guardar_internos(body: InternosIn, usuario: Usuario = Depends(acceso)) -> di
     actividad.registrar(
         usuario.email, usuario.nombre, "sensible", "envio_informes_internos",
         f"cambió las copias internas del envío de informes (CC {len(internos['cc'])}, CCO {len(internos['bcc'])})",
+        sensible=True,
+    )
+    return estado(usuario)
+
+
+class EncabezadoIn(BaseModel):
+    titulo: str
+    subtitulo: str = ""
+
+
+@router.put("/encabezado")
+def guardar_encabezado(body: EncabezadoIn, usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+    """Título (arriba, en mayúsculas) y subtítulo (debajo) del encabezado del correo."""
+    titulo, subtitulo = body.titulo.strip(), body.subtitulo.strip()
+    if not titulo:
+        raise HTTPException(400, "El título es obligatorio.")
+    if len(titulo) > 80 or len(subtitulo) > 120:
+        raise HTTPException(400, "El título admite hasta 80 caracteres y el subtítulo hasta 120.")
+    cfg = leer_config()
+    cfg["encabezado"] = {"titulo": titulo, "subtitulo": subtitulo}
+    _guardar_config(cfg)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "envio_informes_encabezado",
+        "cambió el encabezado del correo del envío de informes",
         sensible=True,
     )
     return estado(usuario)
@@ -510,6 +556,7 @@ async def analizar_informes(
                     item["leido"] = True
                     item["plan"] = plan_destinatarios(
                         datos["sold_to"], datos["ship_to"], datos["especie"], internos, servicio=datos["servicio"],
+                        tipo_aplicacion=datos["tipo_aplicacion"],
                     )
                 elif datos["tipo_aplicacion"]:
                     # Sin cliente en el PDF (RYD, ensayos propios): lo dice el tipo de servicio.

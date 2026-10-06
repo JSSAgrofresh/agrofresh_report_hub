@@ -4,20 +4,21 @@ import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { IconoAlerta, IconoBuscar, IconoCerrar } from '@/components/ui/iconosAccion'
 import { EtiquetaServicio } from '@/components/ui/SelectorServicio'
-import { ETIQUETA_SERVICIO } from '@/lib/servicio'
-import type { Servicio } from '@/lib/servicio'
+import { ETIQUETA_LISTA } from '@/lib/servicio'
+import type { ListaDistribucion } from '@/lib/servicio'
 import {
   ETIQUETA_FILTRO_TABLA, INFO_CAMPO, aCambios, aplicarListas, claveCelda, clavePlanta, coincideFiltro, coincideTexto,
   compararListas, desdeComparacion, diffLista, exportarListas, filaVacia, indicadores, listaDe, mismaLista, obtenerEstado, plantaNueva,
   propuestasDeFila, proponer, resumenRevision, valorMostrado,
 } from '@/features/listasDistribucion'
 import type {
-  CampoLista, EstadoListas, FiltroTabla, PlantaLista, PlantaNueva, Propuestas, ResultadoAplicar, ResultadoComparacion,
+  CampoLista, EstadoListas, FiltroTabla, PlantaLista, PlantaNueva, PlantaRetirada, Propuestas, Renombres, ResultadoAplicar, ResultadoComparacion,
 } from '@/features/listasDistribucion'
 import { DialogoAgregarPlanta } from './DialogoAgregarPlanta'
 import type { DatosPlanta } from './DialogoAgregarPlanta'
 import { EditorCelda } from './EditorCelda'
 import type { EditorAbierto } from './EditorCelda'
+import { FijosDeLista } from './FijosDeLista'
 import { IndicadoresListas } from './IndicadoresListas'
 import { TablaListas } from './TablaListas'
 import type { Destino } from './TablaListas'
@@ -35,7 +36,7 @@ const FILTROS_CON_NUEVAS: FiltroTabla[] = ['todas', 'cambios']
  * edita a mano o se importa un Excel, y todo lo que cambia queda en amarillo
  * hasta aceptarlo o rechazarlo. Recién al guardar se escribe, con respaldo.
  */
-export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}) {
+export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribucion } = {}) {
   const entrada = useRef<HTMLInputElement>(null)
   const [estado, setEstado] = useState<EstadoListas | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -44,6 +45,8 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
 
   const [propuestas, setPropuestas] = useState<Propuestas>({})
   const [nuevas, setNuevas] = useState<PlantaNueva[]>([])
+  const [retiradas, setRetiradas] = useState<PlantaRetirada[]>([])
+  const [renombres, setRenombres] = useState<Renombres>({})
   const [separadas, setSeparadas] = useState<Set<string>>(new Set())
   const [filtro, setFiltro] = useState<FiltroTabla>('todas')
   const [texto, setTexto] = useState('')
@@ -68,10 +71,10 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
   }, [incluirSinLista, recarga, servicio])
 
   const ind = useMemo(() => (estado ? indicadores(estado) : null), [estado])
-  const conCambios = useMemo(() => new Set(Object.values(propuestas).map((p) => p.plantaClave)), [propuestas])
+  const conCambios = useMemo(() => new Set([...Object.values(propuestas).map((p) => p.plantaClave), ...Object.keys(renombres)]), [propuestas, renombres])
   const revision = useMemo(
-    () => (estado ? resumenRevision(propuestas, nuevas, estado) : { pendientes: 0, aceptadas: 0, agregan: 0, quitan: 0, ajustes: 0 }),
-    [estado, propuestas, nuevas],
+    () => (estado ? resumenRevision(propuestas, nuevas, estado, retiradas, renombres) : { pendientes: 0, aceptadas: 0, agregan: 0, quitan: 0, ajustes: 0 }),
+    [estado, propuestas, nuevas, retiradas, renombres],
   )
   const filasFiltradas = useMemo(
     () => (estado?.filas ?? []).filter((f) => coincideFiltro(f, filtro, conCambios) && coincideTexto(f, texto, propuestas)),
@@ -170,6 +173,8 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
   const descartarTodo = () => {
     setPropuestas({})
     setNuevas([])
+    setRetiradas([])
+    setRenombres({})
     setImportado(null)
   }
 
@@ -187,6 +192,20 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
       const renombrada = plantaNueva({ ...n.fila, sold_to: destino.sold_to, ship_to: destino.ship_to }, n.origen, n.estado, true, [])
       setNuevas((ns) => ns.map((x) => (x.id === id ? { ...renombrada, crearEnListados: false } : x)))
     }
+  }
+
+  /** El nombre del Excel es el correcto: se le cambia el nombre a la planta de Listados (conservando su
+   * lista) y lo que traía el Excel queda como propuestas amarillas sobre ella. */
+  function renombrarSugerencia(id: string, destino: PlantaLista) {
+    const n = nuevas.find((x) => x.id === id)
+    if (!n || !estado) return
+    const fila = estado.filas.find((f) => clavePlanta(f.sold_to, f.ship_to) === clavePlanta(destino.sold_to, destino.ship_to))
+    if (!fila) return
+    const nuevasProps = propuestasDeFila(n.fila, fila).map((q) => ({ ...q, estado: n.estado }))
+    setPropuestas((p) => ({ ...p, ...Object.fromEntries(nuevasProps.map((q) => [q.clave, q])) }))
+    setNuevas((ns) => ns.filter((x) => x.id !== id))
+    setRenombres((r) => ({ ...r, [clavePlanta(fila.sold_to, fila.ship_to)]: { de: { sold_to: fila.sold_to, ship_to: fila.ship_to }, a: n.ship_to } }))
+    setFiltro('cambios')
   }
 
   function agregarPlanta(d: DatosPlanta) {
@@ -220,7 +239,8 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
     setHecho(null)
     try {
       const resultado = await compararListas(file, servicio)
-      const { propuestas: nuevasProps, nuevas: nuevasPlantas } = desdeComparacion(estado, resultado)
+      const { propuestas: nuevasProps, nuevas: nuevasPlantas, retiradas: plantasRetiradas } = desdeComparacion(estado, resultado)
+      setRetiradas(plantasRetiradas)
       // lo que ya aceptaste a mano no se pisa
       setPropuestas((p) => {
         const sig = { ...nuevasProps }
@@ -245,7 +265,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
     setGuardando(true)
     setErrorGuardar(null)
     try {
-      const resultado = await aplicarListas(aCambios(estado, propuestas, nuevas), servicio)
+      const resultado = await aplicarListas(aCambios(estado, propuestas, nuevas, retiradas, renombres), servicio)
       const fresco = await obtenerEstado(incluirSinLista, servicio)
       const porClave = new Map(fresco.filas.map((f) => [clavePlanta(f.sold_to, f.ship_to), f]))
       setEstado(fresco)
@@ -255,6 +275,8 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
         return !(f && mismaLista(listaDe(f, q.campo), q.nuevo) && q.ajustarCopia.length === 0)
       })))
       setNuevas((ns) => ns.filter((n) => n.estado !== 'aceptada'))
+      setRetiradas((rs) => rs.filter((r) => !r.quitar))
+      setRenombres({})
       setHecho(resultado)
       setConfirmando(false)
     } catch (e) {
@@ -265,6 +287,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
   }
 
   const aCrear = nuevas.filter((n) => n.estado === 'aceptada' && n.crearEnListados).length
+  const aQuitar = retiradas.filter((r) => r.quitar).length
 
   if (error && !estado) {
     return (
@@ -279,6 +302,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
 
   return (
     <div className={styles.panel}>
+      {estado.fijos && <FijosDeLista fijos={estado.fijos} servicio={servicio} />}
       <IndicadoresListas ind={ind} resumen={estado.resumen} filtro={filtro} onFiltro={(f) => {
         if (f === 'sin_lista_listados') setIncluirSinLista(true)
         setFiltro(f)
@@ -356,6 +380,34 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
         </div>
       )}
 
+      {retiradas.length > 0 && (
+        <details className={styles.retiradas} open>
+          <summary>
+            <IconoAlerta width={14} height={14} /> {nf.format(retiradas.length)} {retiradas.length === 1 ? 'planta del sistema no viene' : 'plantas del sistema no vienen'} en tu Excel
+            {aQuitar > 0 && <> · <b>{nf.format(aQuitar)} marcada{aQuitar === 1 ? '' : 's'} para quitar</b></>}
+          </summary>
+          <p>
+            Importar nunca borra plantas. Si tu base nueva es la verdad, marca las que ya no existen y se les quitará toda su lista
+            (cliente, comercial, técnico y admin) al guardar. Las que no marques quedan como están. Listados no se toca.
+          </p>
+          <div className={styles.retiradasAcciones}>
+            <button type="button" className={styles.atajo} onClick={() => setRetiradas((rs) => rs.map((r) => ({ ...r, quitar: true })))}>Marcar todas</button>
+            <button type="button" className={styles.atajo} onClick={() => setRetiradas((rs) => rs.map((r) => ({ ...r, quitar: false })))}>Desmarcar todas</button>
+          </div>
+          <ul>
+            {retiradas.map((r) => (
+              <li key={r.id}>
+                <label>
+                  <input type="checkbox" checked={r.quitar} aria-label={`Quitar la lista de ${r.ship_to}`}
+                    onChange={(e) => setRetiradas((rs) => rs.map((x) => (x.id === r.id ? { ...x, quitar: e.target.checked } : x)))} />
+                  <b>{r.ship_to}</b> <span>{r.sold_to}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
       {hayRevision && (
         <div className={styles.revision} role="region" aria-label="Revisión de cambios">
           <span className={styles.contador}>
@@ -383,7 +435,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
       {filasFiltradas.length === 0 && nuevasVisibles.length === 0 ? (
         <div className={styles.vacio}>
           <h3>{estado.filas.length === 0 ? 'Aún no hay listas cargadas' : 'Ninguna planta coincide con el filtro'}</h3>
-          <p>{estado.filas.length === 0 ? 'Importa el Excel maestro o agrega una planta.' : 'Prueba quitando los filtros o buscando de otra forma.'}</p>
+          <p>{estado.filas.length === 0 ? (servicio === 'linea' ? 'Importa el Excel maestro o agrega una planta.' : 'Mientras no cargues plantas, cada solicitud sale solo con los destinatarios de arriba. Importa un Excel o agrega una planta para sumar los del cliente.') : 'Prueba quitando los filtros o buscando de otra forma.'}</p>
         </div>
       ) : (
         <>
@@ -400,6 +452,10 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
             onQuitarNueva={(id) => setNuevas((ns) => ns.filter((n) => n.id !== id))}
             onCrearEnListados={(id, crear) => setNuevas((ns) => ns.map((n) => (n.id === id ? { ...n, crearEnListados: crear } : n)))}
             onUsarSugerencia={usarSugerencia}
+            renombres={renombres}
+            puedeRenombrar={(s) => estado.filas.some((f) => clavePlanta(f.sold_to, f.ship_to) === clavePlanta(s.sold_to, s.ship_to))}
+            onRenombrar={renombrarSugerencia}
+            onDeshacerRenombre={(k) => setRenombres((r) => { const { [k]: _quitada, ...resto } = r; return resto })}
           />
           <p className={styles.pie}>
             Mostrando {nf.format(Math.min(limite, filasFiltradas.length))} de {nf.format(filasFiltradas.length)} plantas
@@ -413,7 +469,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
 
       {confirmando && (
         <Modal
-          titulo={`¿Guardar los cambios en la lista de ${ETIQUETA_SERVICIO[servicio]}?`}
+          titulo={`¿Guardar los cambios en la lista de ${ETIQUETA_LISTA[servicio]}?`}
           onCerrar={() => !guardando && setConfirmando(false)}
           pie={
             <>
@@ -427,6 +483,8 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
             {revision.quitan > 0 && <>, <b className={styles.rojo}>{nf.format(revision.quitan)} {revision.quitan === 1 ? 'correo quitado' : 'correos quitados'}</b></>}
             {revision.ajustes > 0 && <>, {nf.format(revision.ajustes)} {revision.ajustes === 1 ? 'ajuste' : 'ajustes'} de copia</>}.
           </p>
+          {Object.keys(renombres).length > 0 && <p>Se cambiará el nombre de <b>{Object.keys(renombres).length}</b> {Object.keys(renombres).length === 1 ? 'planta' : 'plantas'} en Listados y en las listas, <b>sin perder su lista</b>: {Object.values(renombres).map((r) => `«${r.de.ship_to}» → «${r.a}»`).join(' · ')}.</p>}
+          {aQuitar > 0 && <p><b className={styles.rojo}>Se quitará la lista completa de {nf.format(aQuitar)} {aQuitar === 1 ? 'planta' : 'plantas'}</b> que ya no vienen en el Excel (queda el respaldo para volver atrás).</p>}
           {aCrear > 0 && <p>Además se {aCrear === 1 ? 'creará 1 planta' : `crearán ${aCrear} plantas`} en <b>Listados</b> (con su cliente si es nuevo), para que las solicitudes las encuentren.</p>}
           <p>Antes de guardar se deja un respaldo de las listas actuales. Lo que está en amarillo o no aceptaste no se toca.</p>
           <p className={styles.servicioGuardar}>

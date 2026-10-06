@@ -144,7 +144,8 @@ def test_el_servicio_decide_la_lista_igual_que_en_la_solicitud(entorno):
     assert ei.plan_destinatarios("DOLE", "SAN FERNANDO")["to"] == ["lp@dole.cl"]
     assert "act@dole.cl" in ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="Actimist")["to"]
     assert "lp@dole.cl" not in ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="Actimist")["to"]
-    assert ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="ecofog")["to"] == ["eco@dole.cl"]
+    eco = ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="ecofog")["to"]
+    assert eco == ["CJIMENEZ@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM", "eco@dole.cl"]   # referentes + su lista
     assert ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="RYD")["to"] == ["lp@dole.cl"]
 
 
@@ -753,3 +754,48 @@ def test_informe_sin_cliente_usa_la_lista_del_tipo_de_servicio():
 def test_informe_sin_cliente_ni_tipo_sigue_sin_leerse():
     res = _subir(("a.pdf", _pdf_informe(sold_to="", ship_to="", tipo="")))
     assert res["items"][0]["leido"] is False and res["items"][0]["plan"] is None
+
+def test_informe_ryd_sin_lista_va_a_carla_y_fran(entorno):
+    config_store.escribir("contactos_laboratorio.json", [])
+    sol = _solicitud_dole(campos_laboratorio={"Tipo Aplicación": "RYD"}, respaldo_ryd=True)
+    plan = ei.plan_desde_solicitud(sol)
+    assert [e.upper() for e in plan["to"]] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
+    assert plan["sin_lista"] is False
+    assert [e.casefold() for e in plan["cc"]] == ["jorge.sandoval@agrofresh.com", "agrofreshreporthub@gmail.com"]  # Jorge y el sistema en copia
+    assert "cguerrero@agrofresh.com" not in [e.casefold() for e in plan["to"] + plan["cc"] + plan["bcc"]]
+    # una RYD anterior (sin marca) sigue como Línea de proceso: Para vacío
+    vieja = ei.plan_desde_solicitud(_solicitud_dole(campos_laboratorio={"Tipo Aplicación": "RYD"}))
+    assert vieja["to"] == [] and vieja["sin_lista"] is True
+
+
+def test_informe_ryd_sin_solicitud_lleva_el_respaldo_de_ryd(entorno):
+    config_store.escribir("contactos_laboratorio.json", [])
+    plan = ei.plan_destinatarios("DOLE", "SAN FERNANDO", tipo_aplicacion="RYD")
+    assert plan["to"] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
+
+
+
+def test_el_encabezado_del_correo_se_puede_cambiar_y_por_defecto_es_el_de_siempre():
+    from app import mail_templates
+
+    def encabezado(**kw):
+        _, _, html, _ = mail_templates.renderizar_informe({"sold_to": "A", "ship_to": "B"}, **kw)
+        ini = html.index("letter-spacing")
+        return html[ini:html.index("</table>", ini)]
+
+    por_defecto = encabezado()
+    assert "INFORME DE ENSAYO" in por_defecto and "Laboratorio de Cromatografía" in por_defecto
+    nuevo = encabezado(titulo="Informe de Resultados", subtitulo="Otro texto")
+    assert "INFORME DE RESULTADOS" in nuevo and "Otro texto" in nuevo
+    assert "INFORME DE ENSAYO" not in nuevo and "Laboratorio de Cromatografía" not in nuevo
+    sin_sub = encabezado(subtitulo="")
+    assert "INFORME DE ENSAYO" in sin_sub and "Laboratorio de Cromatografía" not in sin_sub
+
+
+def test_informe_actimist_sin_lista_va_a_carlos_y_cristian_con_jorge_y_el_sistema_en_copia(entorno):
+    config_store.escribir("contactos_laboratorio.json", [])
+    sol = _solicitud_dole(campos_laboratorio={"Tipo Aplicación": "Actimist"}, respaldo_ryd=True)
+    plan = ei.plan_desde_solicitud(sol)
+    assert [e.casefold() for e in plan["to"]] == ["cjimenez@agrofresh.com", "cvalenzuela@agrofresh.com"]
+    assert plan["sin_lista"] is False
+    assert [e.casefold() for e in plan["cc"]] == ["jorge.sandoval@agrofresh.com", "agrofreshreporthub@gmail.com"]

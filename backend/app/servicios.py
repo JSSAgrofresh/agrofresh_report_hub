@@ -53,6 +53,22 @@ PARA_SIN_LISTA_SERVICIO = {ACTIMIST: PARA_SIN_LISTA_ACTIMIST, ECOFOG: PARA_SIN_L
 PERMANENTES_SERVICIO = {ACTIMIST: PERMANENTES_ACTIMIST, ECOFOG: PERMANENTES_ECOFOG}
 
 
+# RYD (ensayos de AgroFresh) no es un servicio con listado propio: usa el de
+# Línea de proceso. Lo único distinto es el respaldo: donde Línea de proceso
+# lleva a Claudia, RYD lleva a Carla y Fran (más Jorge, que va siempre).
+# Solo vale para las solicitudes con la marca `respaldo_ryd` (las creadas desde
+# este cambio): las RYD anteriores conservan a Claudia.
+RYD_COPIAS = ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
+MARCA_RESPALDO_RYD = "respaldo_ryd"
+# RYD tiene su PROPIA lista de distribución (contactos con `servicio: "ryd"`), pero
+# comparte el listado de Sold To / Ship To de Línea de proceso. Por eso hay dos
+# preguntas distintas: `clave_servicio` (¿qué listado?) y `clave_lista` (¿qué lista
+# de distribución?). Una RYD usa su lista solo si lleva la marca `respaldo_ryd`.
+RYD = "ryd"
+# Jorge y el sistema (Report Hub) van SIEMPRE en copia en Actimist, Ecofog y RYD.
+COPIA_FIJA = ["JORGE.SANDOVAL@AGROFRESH.COM", "AGROFRESHREPORTHUB@GMAIL.COM"]
+
+
 def _norm(texto: Any) -> str:
     t = unicodedata.normalize("NFKD", str(texto or ""))
     t = "".join(c for c in t if not unicodedata.combining(c))
@@ -65,6 +81,33 @@ def clave_servicio(valor: Any) -> str:
     Línea de proceso, que es lo que regía antes de separar los servicios."""
     n = _norm(valor)
     return n if n in (ACTIMIST, ECOFOG) else LINEA_PROCESO
+
+
+def es_tipo_ryd(datos: dict | None) -> bool:
+    """¿El «Tipo Aplicación» de la solicitud es RYD?"""
+    datos = datos or {}
+    campos = datos.get("campos_laboratorio") or {}
+    tipo = campos.get("Tipo Aplicación") if isinstance(campos, dict) else None
+    return _norm(tipo or datos.get("tipo_aplicacion") or "") == "ryd"
+
+
+def usa_respaldo_ryd(datos: dict | None) -> bool:
+    """¿Rige el respaldo de RYD (Carla y Fran)? Solo en RYD con la marca
+    `respaldo_ryd`, puesta al crear: las anteriores siguen con Claudia."""
+    return bool((datos or {}).get(MARCA_RESPALDO_RYD)) and es_tipo_ryd(datos)
+
+
+def clave_lista(valor: Any) -> str:
+    """La lista de distribución de un valor: `actimist`, `ecofog`, `ryd` o vacío
+    (Línea de proceso). A diferencia de `clave_servicio`, reconoce RYD."""
+    n = _norm(valor)
+    return n if n in (ACTIMIST, ECOFOG, RYD) else LINEA_PROCESO
+
+
+def lista_de_datos(datos: dict | None) -> str:
+    """La lista de distribución de una solicitud: la de su servicio, o la de RYD si
+    es RYD con la marca `respaldo_ryd` (las RYD anteriores siguen en Línea de proceso)."""
+    return RYD if usa_respaldo_ryd(datos) else servicio_de_datos(datos)
 
 
 def es_servicio_con_listado(servicio: Any) -> bool:
@@ -82,10 +125,23 @@ def servicio_de_datos(datos: dict | None) -> str:
 
 
 def es_del_servicio(contacto: dict, servicio: str) -> bool:
-    """¿Este contacto es de ese servicio? Sin `servicio` = Línea de proceso."""
-    return clave_servicio(contacto.get("servicio")) == clave_servicio(servicio)
+    """¿Este contacto es de esa lista? Sin `servicio` = Línea de proceso."""
+    return clave_lista(contacto.get("servicio")) == clave_lista(servicio)
 
 
 def tablas(servicio: Any) -> tuple[str, str]:
     """(tabla de clientes, tabla de plantas) del listado de ese servicio."""
     return TABLAS[clave_servicio(servicio)]
+
+
+def fijos_de_lista(lista: Any) -> dict[str, list[str]]:
+    """Quién recibe SIEMPRE en esa lista, tenga o no plantas cargadas:
+    Actimist y Ecofog → Para Carlos y Cristian; RYD → Para Carla y Fran; en las tres,
+    Jorge y el Report Hub en Copia. Línea de proceso no tiene fijos (su respaldo solo
+    rige cuando la planta no tiene lista del cliente)."""
+    l = clave_lista(lista)
+    if l == RYD:
+        return {"para": list(RYD_COPIAS), "cc": list(COPIA_FIJA)}
+    if l in PERMANENTES_SERVICIO:
+        return {"para": list(PERMANENTES_SERVICIO[l]), "cc": list(COPIA_FIJA)}
+    return {"para": [], "cc": []}
