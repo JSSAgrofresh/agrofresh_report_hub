@@ -19,6 +19,7 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
 - **Da los comandos de PowerShell completos y exactos**, con la ruta puesta.
   Nunca "reinicia el backend" a secas.
 - **Cada vez que termines un cambio, publícalo de una**: commit y push a la rama de desarrollo, PR a `main` y fusión (regla del usuario, 06-10-2026), para que en el servidor solo haga falta `git pull origin main` y reiniciar el backend. Avisa siempre si el cambio trae migración y dalo con el comando exacto.
+  **Formato del aviso final, corto** (pedido del usuario): «merge listo», «pull manual», «backend reset manual» y, solo si hay migración, «script manual» con su línea `.venv\Scripts\python.exe scripts\migrar.py NNNN_nombre.sql`. Sin explicaciones largas.
 
 ### Reglas de seguridad (no negociables)
 
