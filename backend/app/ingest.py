@@ -585,7 +585,7 @@ def _procesar_filas(
     # por fila del Excel (4000+ filas = 4000+ round-trips a Neon, muy lento).
     cur.execute(
         "SELECT nro_solicitud, id, sold_to_raw, ship_to_raw, planta_id, fecha_muestreo, fecha_entrada,"
-        " fecha_informe, fecha_analisis, referencia FROM solicitud"
+        " fecha_informe, fecha_analisis, referencia, hora_muestreo FROM solicitud"
     )
     solicitudes_existentes: dict[str, dict] = {r["nro_solicitud"]: r for r in cur.fetchall()}
     # N° de muestra del laboratorio (migración 0053): sin ella se carga igual, sin ese dato.
@@ -857,6 +857,7 @@ def _procesar_filas(
                     or (existente.get("fecha_informe") is None and sol.get("fecha_informe"))
                     or (existente.get("fecha_analisis") is None and sol.get("fecha_analisis"))
                     or (existente.get("referencia") is None and sol.get("referencia"))
+                    or (not existente.get("hora_muestreo") and sol.get("hora_muestreo"))
                 ):
                     # Solicitud que ya existe pero le faltaba Sold To/Ship To/planta_id
                     # o fechas (típico en re-ingesta del formato BD que la primera vez
@@ -872,6 +873,7 @@ def _procesar_filas(
                         "fecha_informe = COALESCE(fecha_informe, %s), "
                         "fecha_analisis = COALESCE(fecha_analisis, %s), "
                         "referencia = COALESCE(referencia, %s), "
+                        "hora_muestreo = COALESCE(NULLIF(btrim(hora_muestreo), ''), %s), "
                         "semana_muestreo = COALESCE(semana_muestreo, %s), "
                         "mes = COALESCE(mes, %s) "
                         "WHERE id = %s",
@@ -884,6 +886,7 @@ def _procesar_filas(
                             sol.get("fecha_informe"),
                             sol.get("fecha_analisis"),
                             sol.get("referencia"),
+                            sol.get("hora_muestreo"),
                             sol.get("semana_muestreo"),
                             sol.get("mes"),
                             solicitud_id,
