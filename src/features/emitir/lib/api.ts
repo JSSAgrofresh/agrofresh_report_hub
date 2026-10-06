@@ -65,6 +65,8 @@ export function descargarExcelConMuestra(solicitudes: Solicitud[]) {
     fecha_recepcion: s.fecha_recepcion ?? null,
     hora_recepcion: s.hora_recepcion ?? null,
     peso_muestra_extraido: s.peso_muestra_extraido ?? null,
+    peso_muestra: s.peso_muestra ?? null,
+    unidad_peso: s.unidad_peso ?? null,
   }))
   return httpClient.postArchivo('/emitir/cromatografia/excel-con-muestra', filas)
 }
