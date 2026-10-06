@@ -37,7 +37,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from . import actividad, config_store, correo, informe_lectura, mail_templates, seguridad
+from . import actividad, config_store, correo, informe_lectura, mail_aviso, mail_templates, seguridad
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .listados import clave_normalizada
@@ -645,10 +645,12 @@ class AvisoIn(BaseModel):
     titulo: str
     subtitulo: str = ""
     texto: str
+    plantilla: str = mail_aviso.PLANTILLA_DEFECTO
 
 
 _AVISO_ORIGINAL = {
     "asunto": ASUNTO_AVISO, "titulo": TITULO_AVISO, "subtitulo": "AgroFresh Report Hub", "texto": TEXTO_AVISO,
+    "plantilla": mail_aviso.PLANTILLA_DEFECTO,
 }
 
 
@@ -660,18 +662,24 @@ def _aviso_vigente() -> dict[str, str]:
         valor = guardado.get(campo)
         if isinstance(valor, str) and (valor.strip() or campo == "subtitulo"):
             vigente[campo] = valor
+    vigente["plantilla"] = mail_aviso.clave_plantilla(guardado.get("plantilla"))
     return vigente
 
 
 def _html_aviso(aviso: dict[str, str], texto_aviso: str = "") -> tuple[str, list[correo.ImagenInline]]:
-    return mail_templates.html_de_texto(aviso["texto"], aviso["titulo"], aviso["subtitulo"], texto_aviso)
+    return mail_aviso.html_de_aviso(
+        aviso["texto"], aviso["titulo"], aviso["subtitulo"], texto_aviso, aviso.get("plantilla", ""),
+    )
 
 
 def _validar_aviso(body: AvisoIn) -> dict[str, str]:
     aviso = {
         "asunto": body.asunto.strip(), "titulo": body.titulo.strip(),
         "subtitulo": body.subtitulo.strip(), "texto": body.texto.strip(),
+        "plantilla": body.plantilla.strip() or mail_aviso.PLANTILLA_DEFECTO,
     }
+    if aviso["plantilla"] not in mail_aviso.PLANTILLAS:
+        raise HTTPException(400, "Esa plantilla no existe.")
     if not aviso["asunto"] or not aviso["titulo"] or not aviso["texto"]:
         raise HTTPException(400, "El asunto, el título y el texto son obligatorios.")
     if len(aviso["asunto"]) > 200 or len(aviso["titulo"]) > 80 or len(aviso["subtitulo"]) > 120:
@@ -688,6 +696,7 @@ def _respuesta_aviso() -> dict[str, Any]:
         **vigente,
         "html": _html_para_pantalla(html, imagenes),
         "original": dict(_AVISO_ORIGINAL),
+        "plantillas": mail_aviso.catalogo(),
         "personalizado": vigente != _AVISO_ORIGINAL,
         "destinatarios_prueba": list(DESTINATARIOS_PRUEBA),
     }
@@ -704,6 +713,7 @@ def vista_previa_del_aviso(body: AvisoIn, usuario: Usuario = Depends(acceso)) ->
     """Cómo se vería lo que se está escribiendo, sin guardarlo."""
     html, imagenes = _html_aviso({
         "asunto": body.asunto, "titulo": body.titulo or " ", "subtitulo": body.subtitulo.strip(), "texto": body.texto,
+        "plantilla": body.plantilla,
     })
     return {"html": _html_para_pantalla(html, imagenes)}
 
@@ -742,7 +752,7 @@ def enviar_prueba_del_aviso(body: AvisoIn | None = None, usuario: Usuario = Depe
     nota = "CORREO DE PRUEBA. Así verán el aviso los clientes. Este correo llegó solo a Paz y a Jorge."
     html, imagenes = _html_aviso(aviso, nota)
     resultado = correo.enviar(
-        ", ".join(DESTINATARIOS_PRUEBA), f"(PRUEBA) {aviso['asunto']}", html, f"{nota}\n\n{aviso['texto']}", [],
+        ", ".join(DESTINATARIOS_PRUEBA), f"(PRUEBA) {aviso['asunto']}", html, f"{nota}\n\n{mail_aviso.texto_plano(aviso['texto'])}", [],
         cc=[], bcc=[], imagenes_inline=imagenes,
     )
     actividad.registrar(
