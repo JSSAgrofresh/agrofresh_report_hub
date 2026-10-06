@@ -99,11 +99,33 @@ def _bajada(base: Image.Image, cx: int, cy: int, px: int, color: tuple[int, int,
 
 # --------------------------------------------------------------------------- limpiar portadas
 
+def _direcciones(etiqueta: np.ndarray, valido: np.ndarray) -> list[float]:
+    """Las dos inclinaciones (dx por cada dy) de los bordes de la portada, medidas sobre los puntos
+    que no son texto: la que más veces deja el mismo color a 24 px hacia arriba y hacia abajo."""
+    h, w = etiqueta.shape
+    paso = 24
+    puntos = []
+    for s in np.arange(-0.60, 0.601, 0.01):
+        dx = int(round(s * paso))
+        y0, y1 = 0, h - paso
+        arriba = etiqueta[y0:y1, max(0, -dx):w - max(0, dx)]
+        abajo = etiqueta[y0 + paso:y1 + paso, max(0, dx):w - max(0, -dx)]
+        va = valido[y0:y1, max(0, -dx):w - max(0, dx)] & valido[y0 + paso:y1 + paso, max(0, dx):w - max(0, -dx)]
+        puntos.append(((arriba == abajo) & va).sum() / max(1, va.sum()))
+    puntos = np.array(puntos)
+    s1 = -0.60 + 0.01 * int(puntos.argmax())
+    puntos[max(0, int(puntos.argmax()) - 12):int(puntos.argmax()) + 13] = 0     # otra dirección distinta
+    s2 = -0.60 + 0.01 * int(puntos.argmax())
+    return [s1, s2]
+
+
 def _limpiar(ruta: str, paleta: list[str], x0: float = 0.18, x1: float = 0.82, y0: float = 0.17,
-             umbral: int = 8, borde: int = 3, x0_abajo: float | None = None) -> Image.Image:
-    """Borra los textos de ejemplo de una portada: dentro de la zona de textos, todo punto que
-    no sea de la paleta (letras y su borde suavizado) toma el color de sus vecinos."""
-    a = np.array(Image.open(ruta).convert("RGB")).astype(int)
+             umbral: int = 8, borde: int = 3, x0_abajo: float | None = None, radio: int = 2) -> Image.Image:
+    """Borra los textos de ejemplo de una portada. Dentro de la zona de textos, todo punto que no
+    sea de la paleta (letras y su borde suavizado) se vuelve a pintar: primero con el color de sus
+    vecinos y, donde un borde diagonal cruza el texto, siguiendo la inclinación del borde hacia
+    arriba y hacia abajo hasta dar con color de portada, así el borde sigue siendo una recta."""
+    a = np.array(Image.open(ruta).convert("RGB")).astype(int)[1:-1, 1:-1]   # sin el borde de la captura
     h, w, _ = a.shape
     pal = np.array([_hex(c) for c in paleta])
     dist = np.abs(a[:, :, None, :] - pal[None, None, :, :]).sum(axis=3).min(axis=2)
@@ -111,42 +133,71 @@ def _limpiar(ruta: str, paleta: list[str], x0: float = 0.18, x1: float = 0.82, y
     zona[int(h * y0):, int(w * x0):int(w * x1)] = True
     if x0_abajo is not None:  # más a la izquierda desde donde empieza la bajada (la foto no llega ahí)
         zona[int(h * 0.62):, int(w * x0_abajo):int(w * x1)] = True
-    valido = ~(zona & (dist > umbral))
-    # Se agranda lo inválido para llevarse también el borde suavizado de las letras.
-    malo = ~valido
-    for _ in range(borde):
+    malo = zona & (dist > umbral)
+    for _ in range(borde):  # se agranda para llevarse también el borde suavizado de las letras
         m = malo.copy()
         m[1:, :] |= malo[:-1, :]; m[:-1, :] |= malo[1:, :]; m[:, 1:] |= malo[:, :-1]; m[:, :-1] |= malo[:, 1:]
         malo = m & zona
     valido = ~malo
-    a = a.copy()
-    for _ in range(80):
-        if valido.all():
+    d_todos = np.abs(a[:, :, None, :] - pal[None, None, :, :]).sum(axis=3)
+    etiqueta = d_todos.argmin(axis=2)
+
+    # 1) Relleno por vecinos (respaldo).
+    rell = a.copy()
+    v = valido.copy()
+    for _ in range(120):
+        if v.all():
             break
-        nuevo_valido = valido.copy()
+        nuevo = v.copy()
         for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
-            vec = np.roll(valido, (dy, dx), axis=(0, 1))
-            col = np.roll(a, (dy, dx), axis=(0, 1))
-            toma = (~nuevo_valido) & vec
-            a[toma] = col[toma]
-            nuevo_valido |= toma
-        valido = nuevo_valido
-    # Dentro de la zona cada punto se lleva al color de paleta más cercano: así no queda ningún
-    # resto suave de las letras ni el «ruido» del WebP, solo colores planos como en la portada.
-    d2 = np.abs(a[:, :, None, :] - pal[None, None, :, :]).sum(axis=3)
-    etiqueta = d2.argmin(axis=2)
-    # Un filtro de moda (el color que más se repite alrededor) alisa las mellas que dejan las letras
-    # en los bordes diagonales; los bordes rectos no se alteran. Se calcula con sumas acumuladas.
-    radio = 9
-    votos = np.zeros((len(pal), h, w), np.int32)
-    for k in range(len(pal)):
-        uno = np.pad((etiqueta == k).astype(np.int32), radio + 1, mode="edge")
-        acum = uno.cumsum(axis=0).cumsum(axis=1)
-        v = (acum[2 * radio + 1:, 2 * radio + 1:] - acum[:-2 * radio - 1, 2 * radio + 1:]
-             - acum[2 * radio + 1:, :-2 * radio - 1] + acum[:-2 * radio - 1, :-2 * radio - 1])
-        votos[k] = v[:h, :w]
-    etiqueta = votos.argmax(axis=0)
-    plano = pal[etiqueta]
+            vec = np.roll(v, (dy, dx), axis=(0, 1))
+            col = np.roll(rell, (dy, dx), axis=(0, 1))
+            toma = (~nuevo) & vec
+            rell[toma] = col[toma]
+            nuevo |= toma
+        v = nuevo
+    etiqueta_rell = d_todos.argmin(axis=2) if False else np.abs(rell[:, :, None, :] - pal[None, None, :, :]).sum(axis=3).argmin(axis=2)
+
+    # 2) Siguiendo los bordes: por cada dirección, el color que hay arriba y abajo; si coincide, es ese.
+    final = np.where(valido, etiqueta, etiqueta_rell)
+    dirs = _direcciones(etiqueta, valido)
+    ys, xs = np.where(malo)
+    for y, x in zip(ys, xs):
+        mejor = None
+        for s in dirs:
+            colores = []
+            pasos = 0
+            for sentido in (-1, 1):
+                yy, xx = y, float(x)
+                color = None
+                for k in range(1, 260):
+                    yy = y + sentido * k
+                    xx = x + sentido * k * s
+                    xi = int(round(xx))
+                    if yy < 0 or yy >= h or xi < 0 or xi >= w:
+                        break
+                    if valido[yy, xi]:
+                        color = etiqueta[yy, xi]
+                        pasos += k
+                        break
+                colores.append(color)
+            if colores[0] is not None and colores[0] == colores[1]:
+                if mejor is None or pasos < mejor[0]:
+                    mejor = (pasos, colores[0])
+        if mejor is not None:
+            final[y, x] = mejor[1]
+
+    # 3) Un filtro de moda chico quita los puntos sueltos que hayan quedado.
+    if radio > 0:
+        votos = np.zeros((len(pal), h, w), np.int32)
+        for k in range(len(pal)):
+            uno = np.pad((final == k).astype(np.int32), radio + 1, mode="edge")
+            acum = uno.cumsum(axis=0).cumsum(axis=1)
+            vv = (acum[2 * radio + 1:, 2 * radio + 1:] - acum[:-2 * radio - 1, 2 * radio + 1:]
+                  - acum[2 * radio + 1:, :-2 * radio - 1] + acum[:-2 * radio - 1, :-2 * radio - 1])
+            votos[k] = vv[:h, :w]
+        final = np.where(zona, votos.argmax(axis=0), final)
+    plano = pal[final]
     a = np.where(zona[..., None], plano, a)
     return Image.fromarray(a.astype(np.uint8), "RGB")
 
@@ -157,9 +208,13 @@ def _a_ancho(img: Image.Image) -> Image.Image:
 
 # --------------------------------------------------------------------------- encabezados
 
+RADIO_MODA = 2
+
+
 def _con_marca(ruta: str, paleta: list[str], recorte: tuple[float, float], logo_color: bool,
                color_bajada: tuple[int, int, int], alto: int = 340) -> Image.Image:
-    limpia = _a_ancho(_limpiar(os.path.join(FUENTES, ruta), paleta))
+    # Zona completa (todo el ancho y alto): así no quedan costuras donde empezaba la zona de textos.
+    limpia = _a_ancho(_limpiar(os.path.join(FUENTES, ruta), paleta, x0=0.0, x1=1.0, y0=0.0, radio=RADIO_MODA))
     # `recorte[0]` = 0 → desde arriba; 1 → desde el borde de abajo.
     y = round(recorte[0] * (limpia.height - alto))
     banda = limpia.crop((0, y, ANCHO, y + alto))
@@ -270,7 +325,7 @@ def main() -> None:
         if clave in FOTOGRAFICAS:
             # Con foto, el PNG pesa casi medio MB y viaja en cada correo: va como JPEG.
             ruta = os.path.join(ASSETS, f"banner_{clave}.jpg")
-            banner.save(ruta, quality=86, optimize=True, progressive=True)
+            banner.save(ruta, quality=86, optimize=True, progressive=False)  # Outlook de escritorio no pinta JPEG progresivos
         else:
             ruta = os.path.join(ASSETS, f"banner_{clave}.png")
             banner.save(ruta, optimize=True)
