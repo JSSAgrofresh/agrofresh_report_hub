@@ -745,8 +745,9 @@ def test_informe_ryd_sin_lista_va_a_carla_y_fran(entorno):
     config_store.escribir("contactos_laboratorio.json", [])
     sol = _solicitud_dole(campos_laboratorio={"Tipo Aplicación": "RYD"}, respaldo_ryd=True)
     plan = ei.plan_desde_solicitud(sol)
-    assert plan["to"] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
+    assert [e.upper() for e in plan["to"]] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
     assert plan["sin_lista"] is False
+    assert [e.casefold() for e in plan["cc"]] == ["jorge.sandoval@agrofresh.com"]     # Jorge en copia
     assert "cguerrero@agrofresh.com" not in [e.casefold() for e in plan["to"] + plan["cc"] + plan["bcc"]]
     # una RYD anterior (sin marca) sigue como Línea de proceso: Para vacío
     vieja = ei.plan_desde_solicitud(_solicitud_dole(campos_laboratorio={"Tipo Aplicación": "RYD"}))
