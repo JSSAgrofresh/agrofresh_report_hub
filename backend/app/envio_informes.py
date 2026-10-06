@@ -278,8 +278,13 @@ def armar_correo(
     if laboratorio != LABORATORIO_FIJO and not es_principal(usuario):
         raise HTTPException(403, f"Por ahora los informes se envían solo con {LABORATORIO_FIJO}.")
     sold_to, ship_to = datos.sold_to.strip(), datos.ship_to.strip()
-    if not sold_to or not ship_to:
+    if bool(sold_to) != bool(ship_to):
         raise HTTPException(400, "Elige el Sold To y el Ship To.")
+    if not sold_to:
+        # Informe sin cliente (p. ej. RYD): la lista sale del tipo de servicio y el correo
+        # nombra el servicio y la especie en vez de un cliente.
+        sold_to = _TIPO_DE_SERVICIO.get(clave_servicio(datos.servicio), "Línea de proceso")
+        ship_to = datos.especie.strip() or "Sin planta"
     for campo, lista in (("Para", datos.para), ("CC", datos.cc), ("CCO", datos.bcc)):
         _exigir_correos_validos(_limpiar_correos(lista), campo)
 
@@ -506,6 +511,13 @@ async def analizar_informes(
                     item["plan"] = plan_destinatarios(
                         datos["sold_to"], datos["ship_to"], datos["especie"], internos, servicio=datos["servicio"],
                     )
+                elif datos["tipo_aplicacion"]:
+                    # Sin cliente en el PDF (RYD, ensayos propios): lo dice el tipo de servicio.
+                    item["leido"] = True
+                    item["plan"] = {
+                        **plan_destinatarios("", "", datos["especie"], internos, servicio=datos["servicio"]),
+                        "origen": "servicio",
+                    }
                 else:
                     logger.warning(
                         "No se encontró Sold To / Ship To en %s. Texto leído (inicio): %r", nombre, texto[:600],
