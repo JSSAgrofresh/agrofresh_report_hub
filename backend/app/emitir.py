@@ -1382,17 +1382,9 @@ class FilaConMuestraIn(BaseModel):
     codigo_muestra: str | None = None
     fecha_recepcion: str | None = None
     hora_recepcion: str | None = None
-    # Segundo peso (g), anotado después del cruce.
-    peso_muestra_extraido: float | None = None
-    # Peso de la muestra al cruzarla, con su unidad (kg por defecto).
+    # Primer peso (el de la muestra, anotado al cruzar) y segundo peso (g, extraída).
     peso_muestra: float | None = None
-    unidad_peso: str | None = None
-
-
-def _peso_en_kg(peso: float | None, unidad: str | None) -> float | None:
-    if peso is None:
-        return None
-    return round(peso / 1000, 6) if (unidad or "kg").strip().lower() == "g" else peso
+    peso_muestra_extraido: float | None = None
 
 
 @router.post("/excel-con-muestra")
@@ -1415,8 +1407,8 @@ def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingRespons
         datos = columnas_base.fila_desde_campos(
             fila.campos,
             codigo_muestra=fila.codigo_muestra,
+            peso=fila.peso_muestra,
             peso_extraido=fila.peso_muestra_extraido,
-            peso_muestra=_peso_en_kg(fila.peso_muestra, fila.unidad_peso),
             fecha_recepcion=fila.fecha_recepcion,
             hora_recepcion=fila.hora_recepcion,
             listas=listas,

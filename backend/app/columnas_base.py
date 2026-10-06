@@ -25,14 +25,14 @@ GENERALES_BASE: list[tuple[str, str]] = [
     ("nro_informe", "N° Informe"),
     ("nro_solicitud", "N° Solicitud"),
     ("codigo_muestra", "N° Muestra"),
-    ("fecha_solicitud", "Fecha Solicitud"),
     ("fecha_muestreo", "Fecha Muestreo"),
+    ("fecha_solicitud", "Fecha Solicitud"),
     ("fecha_recepcion", "Fecha Recepción"),
     ("hora_recepcion", "Hora Recepción"),
-    ("peso_muestra", "Peso (Kg)"),
+    ("peso", "Peso (Kg)"),
     ("peso_extraido", "Peso Muestra Extraída (g)"),
-    ("fecha_informe", "Fecha Informe"),
     ("fecha_analisis", "Fecha Análisis"),
+    ("fecha_informe", "Fecha Informe"),
     ("hora_muestreo", "Hora Muestreo"),
     ("semana", "Semana"),
     ("mes", "Mes"),
@@ -131,8 +131,8 @@ def fila_desde_campos(
     campos: dict[str, str],
     *,
     codigo_muestra: str | None = None,
+    peso: float | None = None,
     peso_extraido: float | None = None,
-    peso_muestra: float | None = None,
     fecha_recepcion: str | None = None,
     hora_recepcion: str | None = None,
     listas: Callable[[Any, Any, Any], dict[str, str]] | None = None,
@@ -143,8 +143,8 @@ def fila_desde_campos(
     for clave, etiqueta in CAMPOS_GENERALES_ETIQUETAS:
         fila[_RENOMBRE.get(clave, clave)] = campos.get(etiqueta) or None
     fila["codigo_muestra"] = codigo_muestra
+    fila["peso"] = peso
     fila["peso_extraido"] = peso_extraido
-    fila["peso_muestra"] = peso_muestra
     fila["fecha_recepcion"] = a_fecha(fecha_recepcion)
     fila["hora_recepcion"] = hora_recepcion
     fila["csg_packing"] = campos.get("Código del Packing") or None

@@ -739,3 +739,20 @@ def test_el_numero_de_solicitud_se_encuentra_aunque_no_tenga_etiqueta():
     from app import informe_lectura as il
 
     assert il.datos_de_informe("Informe\nreferencia OT-QUI0025 de la planta")["numero_solicitud"] == "OT-QUI0025"
+
+
+def test_el_encabezado_del_correo_se_puede_cambiar_y_por_defecto_es_el_de_siempre():
+    from app import mail_templates
+
+    def encabezado(**kw):
+        _, _, html, _ = mail_templates.renderizar_informe({"sold_to": "A", "ship_to": "B"}, **kw)
+        ini = html.index("letter-spacing")
+        return html[ini:html.index("</table>", ini)]
+
+    por_defecto = encabezado()
+    assert "INFORME DE ENSAYO" in por_defecto and "Laboratorio de Cromatografía" in por_defecto
+    nuevo = encabezado(titulo="Informe de Resultados", subtitulo="Otro texto")
+    assert "INFORME DE RESULTADOS" in nuevo and "Otro texto" in nuevo
+    assert "INFORME DE ENSAYO" not in nuevo and "Laboratorio de Cromatografía" not in nuevo
+    sin_sub = encabezado(subtitulo="")
+    assert "INFORME DE ENSAYO" in sin_sub and "Laboratorio de Cromatografía" not in sin_sub
