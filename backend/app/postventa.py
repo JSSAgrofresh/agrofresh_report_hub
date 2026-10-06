@@ -22,16 +22,22 @@ import logging
 import os
 import re
 import shutil
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import accutab_informe, config
+from .auth import Usuario, alcance_de_datos, usuario_actual
 
 router = APIRouter(prefix="/api/postventa", tags=["postventa"])
+# Lo que ve una cuenta de CLIENTE: solo los informes con PDF de su Sold To (y su
+# Ship To, si la cuenta es de una sucursal). Va aparte porque `router` es solo
+# para personal de AgroFresh.
+router_cliente = APIRouter(prefix="/api/postventa/cliente", tags=["postventa-cliente"])
 
 CARPETA_ACCUTAB = "Accutab"
 ARCHIVO_REGISTRO = "registro.json"
@@ -98,6 +104,23 @@ def _decodificar(b64: str, etiqueta: str) -> bytes:
     return datos
 
 
+def _cliente_de(registro: dict[str, Any]) -> str | None:
+    """El cliente de la carga. Las del correo no lo guardaron: sale del asunto
+    (guardado en `equipo`), sin el contador «(1307)»."""
+    if registro.get("cliente"):
+        return registro["cliente"]
+    if registro.get("origen") == "email" and registro.get("equipo"):
+        return accutab_informe.cliente_desde_asunto(registro["equipo"])
+    return None
+
+
+def _clave(texto: str | None) -> str:
+    """Para comparar nombres de cliente: sin tildes, mayúsculas ni guiones bajos."""
+    base = unicodedata.normalize("NFKD", texto or "")
+    sin_tildes = "".join(c for c in base if not unicodedata.combining(c))
+    return " ".join(sin_tildes.replace("_", " ").casefold().split())
+
+
 def _resumen(carpeta: str, registro: dict[str, Any]) -> dict[str, Any]:
     """Lo justo para pintar una fila de la lista, sin cargar todas las filas."""
     est = registro.get("estadisticas") or {}
@@ -106,7 +129,7 @@ def _resumen(carpeta: str, registro: dict[str, Any]) -> dict[str, Any]:
     return {
         "carpeta": carpeta,
         "guardado_en": registro.get("guardado_en"),
-        "cliente": registro.get("cliente"),
+        "cliente": _cliente_de(registro),
         "planta": registro.get("planta"),
         "ubicacion": registro.get("ubicacion"),
         "especie": registro.get("especie"),
@@ -317,3 +340,43 @@ def eliminar_varios(datos: EliminarVariosIn) -> dict[str, Any]:
         except HTTPException:
             fallidas.append(carpeta)
     return {"borradas": borradas, "fallidas": fallidas}
+
+
+# ── Portal de cliente ───────────────────────────────────────────────────
+
+def _informes_de(usuario: Usuario, cliente: str | None, planta: str | None) -> list[dict[str, Any]]:
+    cliente, planta = alcance_de_datos(usuario, cliente, planta)
+    if usuario.tipoAcceso == "cliente" and not cliente:
+        return []  # una cuenta de cliente sin cliente asignado no ve nada, nunca «todo»
+    salida = []
+    for r in listar_registros():
+        if not r["tiene_pdf"]:
+            continue
+        if cliente and _clave(r["cliente"]) != _clave(cliente):
+            continue
+        if planta and _clave(r["planta"]) != _clave(planta):
+            continue
+        salida.append(r)
+    return salida
+
+
+@router_cliente.get("/informes")
+def informes_del_cliente(
+    cliente: str | None = None,
+    planta: str | None = None,
+    usuario: Usuario = Depends(usuario_actual),
+) -> list[dict[str, Any]]:
+    """Los informes con PDF del cliente de la sesión, del más nuevo al más antiguo."""
+    return _informes_de(usuario, cliente, planta)
+
+
+@router_cliente.get("/informes/{carpeta}/pdf")
+def pdf_del_cliente(
+    carpeta: str,
+    usuario: Usuario = Depends(usuario_actual),
+) -> FileResponse:
+    permitidas = {r["carpeta"] for r in _informes_de(usuario, None, None)}
+    if carpeta not in permitidas:
+        raise HTTPException(404, "Ese informe no existe.")
+    return FileResponse(os.path.join(_carpeta_registro(carpeta), ARCHIVO_PDF), media_type="application/pdf",
+                        filename=f"Informe_Accutab_{carpeta}.pdf")

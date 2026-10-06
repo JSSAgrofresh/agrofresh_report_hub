@@ -78,6 +78,23 @@ export function generarInformeCarga(carpeta: string) {
   return httpClient.post<{ ok: boolean }>(`/postventa/registros/${encodeURIComponent(carpeta)}/informe`, {})
 }
 
+/** Portal de cliente: los informes con PDF de la cuenta (el servidor acota por su cliente y sucursal). */
+export function listarInformesCliente() {
+  return httpClient.get<ResumenCargaTrace[]>('/postventa/cliente/informes')
+}
+
+/** Abre el PDF en una pestaña nueva (lleva el token, por eso no es un enlace directo). */
+export async function verPdfCliente(carpeta: string): Promise<void> {
+  const { blob } = await httpClient.getArchivoConNombre(`/postventa/cliente/informes/${encodeURIComponent(carpeta)}/pdf`)
+  const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+  window.open(url, '_blank', 'noopener')
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+export function descargarPdfCliente(carpeta: string) {
+  return descargarArchivo(`/postventa/cliente/informes/${encodeURIComponent(carpeta)}/pdf`, `Informe_Accutab_${carpeta}.pdf`)
+}
+
 export function descargarPdfCarga(carpeta: string) {
   return descargarArchivo(`/postventa/registros/${encodeURIComponent(carpeta)}/pdf`, `${carpeta}.pdf`)
 }
