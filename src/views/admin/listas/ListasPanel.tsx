@@ -12,7 +12,7 @@ import {
   propuestasDeFila, proponer, resumenRevision, valorMostrado,
 } from '@/features/listasDistribucion'
 import type {
-  CampoLista, EstadoListas, FiltroTabla, PlantaLista, PlantaNueva, Propuestas, ResultadoAplicar, ResultadoComparacion,
+  CampoLista, EstadoListas, FiltroTabla, PlantaLista, PlantaNueva, PlantaRetirada, Propuestas, ResultadoAplicar, ResultadoComparacion,
 } from '@/features/listasDistribucion'
 import { DialogoAgregarPlanta } from './DialogoAgregarPlanta'
 import type { DatosPlanta } from './DialogoAgregarPlanta'
@@ -44,6 +44,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
 
   const [propuestas, setPropuestas] = useState<Propuestas>({})
   const [nuevas, setNuevas] = useState<PlantaNueva[]>([])
+  const [retiradas, setRetiradas] = useState<PlantaRetirada[]>([])
   const [separadas, setSeparadas] = useState<Set<string>>(new Set())
   const [filtro, setFiltro] = useState<FiltroTabla>('todas')
   const [texto, setTexto] = useState('')
@@ -70,8 +71,8 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
   const ind = useMemo(() => (estado ? indicadores(estado) : null), [estado])
   const conCambios = useMemo(() => new Set(Object.values(propuestas).map((p) => p.plantaClave)), [propuestas])
   const revision = useMemo(
-    () => (estado ? resumenRevision(propuestas, nuevas, estado) : { pendientes: 0, aceptadas: 0, agregan: 0, quitan: 0, ajustes: 0 }),
-    [estado, propuestas, nuevas],
+    () => (estado ? resumenRevision(propuestas, nuevas, estado, retiradas) : { pendientes: 0, aceptadas: 0, agregan: 0, quitan: 0, ajustes: 0 }),
+    [estado, propuestas, nuevas, retiradas],
   )
   const filasFiltradas = useMemo(
     () => (estado?.filas ?? []).filter((f) => coincideFiltro(f, filtro, conCambios) && coincideTexto(f, texto, propuestas)),
@@ -170,6 +171,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
   const descartarTodo = () => {
     setPropuestas({})
     setNuevas([])
+    setRetiradas([])
     setImportado(null)
   }
 
@@ -220,7 +222,8 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
     setHecho(null)
     try {
       const resultado = await compararListas(file, servicio)
-      const { propuestas: nuevasProps, nuevas: nuevasPlantas } = desdeComparacion(estado, resultado)
+      const { propuestas: nuevasProps, nuevas: nuevasPlantas, retiradas: plantasRetiradas } = desdeComparacion(estado, resultado)
+      setRetiradas(plantasRetiradas)
       // lo que ya aceptaste a mano no se pisa
       setPropuestas((p) => {
         const sig = { ...nuevasProps }
@@ -245,7 +248,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
     setGuardando(true)
     setErrorGuardar(null)
     try {
-      const resultado = await aplicarListas(aCambios(estado, propuestas, nuevas), servicio)
+      const resultado = await aplicarListas(aCambios(estado, propuestas, nuevas, retiradas), servicio)
       const fresco = await obtenerEstado(incluirSinLista, servicio)
       const porClave = new Map(fresco.filas.map((f) => [clavePlanta(f.sold_to, f.ship_to), f]))
       setEstado(fresco)
@@ -255,6 +258,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
         return !(f && mismaLista(listaDe(f, q.campo), q.nuevo) && q.ajustarCopia.length === 0)
       })))
       setNuevas((ns) => ns.filter((n) => n.estado !== 'aceptada'))
+      setRetiradas((rs) => rs.filter((r) => !r.quitar))
       setHecho(resultado)
       setConfirmando(false)
     } catch (e) {
@@ -265,6 +269,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
   }
 
   const aCrear = nuevas.filter((n) => n.estado === 'aceptada' && n.crearEnListados).length
+  const aQuitar = retiradas.filter((r) => r.quitar).length
 
   if (error && !estado) {
     return (
@@ -356,6 +361,34 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
         </div>
       )}
 
+      {retiradas.length > 0 && (
+        <details className={styles.retiradas} open>
+          <summary>
+            <IconoAlerta width={14} height={14} /> {nf.format(retiradas.length)} {retiradas.length === 1 ? 'planta del sistema no viene' : 'plantas del sistema no vienen'} en tu Excel
+            {aQuitar > 0 && <> · <b>{nf.format(aQuitar)} marcada{aQuitar === 1 ? '' : 's'} para quitar</b></>}
+          </summary>
+          <p>
+            Importar nunca borra plantas. Si tu base nueva es la verdad, marca las que ya no existen y se les quitará toda su lista
+            (cliente, comercial, técnico y admin) al guardar. Las que no marques quedan como están. Listados no se toca.
+          </p>
+          <div className={styles.retiradasAcciones}>
+            <button type="button" className={styles.atajo} onClick={() => setRetiradas((rs) => rs.map((r) => ({ ...r, quitar: true })))}>Marcar todas</button>
+            <button type="button" className={styles.atajo} onClick={() => setRetiradas((rs) => rs.map((r) => ({ ...r, quitar: false })))}>Desmarcar todas</button>
+          </div>
+          <ul>
+            {retiradas.map((r) => (
+              <li key={r.id}>
+                <label>
+                  <input type="checkbox" checked={r.quitar} aria-label={`Quitar la lista de ${r.ship_to}`}
+                    onChange={(e) => setRetiradas((rs) => rs.map((x) => (x.id === r.id ? { ...x, quitar: e.target.checked } : x)))} />
+                  <b>{r.ship_to}</b> <span>{r.sold_to}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
       {hayRevision && (
         <div className={styles.revision} role="region" aria-label="Revisión de cambios">
           <span className={styles.contador}>
@@ -427,6 +460,7 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: Servicio } = {}
             {revision.quitan > 0 && <>, <b className={styles.rojo}>{nf.format(revision.quitan)} {revision.quitan === 1 ? 'correo quitado' : 'correos quitados'}</b></>}
             {revision.ajustes > 0 && <>, {nf.format(revision.ajustes)} {revision.ajustes === 1 ? 'ajuste' : 'ajustes'} de copia</>}.
           </p>
+          {aQuitar > 0 && <p><b className={styles.rojo}>Se quitará la lista completa de {nf.format(aQuitar)} {aQuitar === 1 ? 'planta' : 'plantas'}</b> que ya no vienen en el Excel (queda el respaldo para volver atrás).</p>}
           {aCrear > 0 && <p>Además se {aCrear === 1 ? 'creará 1 planta' : `crearán ${aCrear} plantas`} en <b>Listados</b> (con su cliente si es nuevo), para que las solicitudes las encuentren.</p>}
           <p>Antes de guardar se deja un respaldo de las listas actuales. Lo que está en amarillo o no aceptaste no se toca.</p>
           <p className={styles.servicioGuardar}>

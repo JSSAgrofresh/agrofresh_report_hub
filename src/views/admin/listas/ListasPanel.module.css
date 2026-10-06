@@ -266,3 +266,53 @@
   font-size: 12.5px;
   color: var(--color-text-muted);
 }
+
+.retiradas {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: #fdecea;
+  border: 1px solid #f2b8b5;
+  font-size: 13.5px;
+}
+
+.retiradas summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.retiradas p {
+  margin: 8px 0;
+}
+
+.retiradasAcciones {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: 6px;
+}
+
+.retiradas ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 220px;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 2px var(--space-4);
+}
+
+.retiradas li label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.retiradas li span {
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+}

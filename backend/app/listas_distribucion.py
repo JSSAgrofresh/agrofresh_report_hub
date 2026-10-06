@@ -366,8 +366,17 @@ def comparar(
 
     claves_excel = {clave_planta(f["sold_to"], f["ship_to"]) for f in filas}
     solo_sistema = [f"{e['ship_to']} ({e['sold_to']})" for k, e in estado.items() if k not in claves_excel]
+    # Las plantas que el sistema tiene y el Excel ya no trae: se OFRECEN para quitar
+    # su lista (cambio `planta_quitar`), nunca se quitan solas. Con un Excel sin
+    # filas no se ofrece nada: no es una base «actualizada», es un archivo vacío.
+    retiradas = [
+        {"planta": {"sold_to": e["sold_to"], "ship_to": e["ship_to"]}}
+        for k, e in sorted(estado.items(), key=lambda kv: (norm(kv[1]["sold_to"]), norm(kv[1]["ship_to"])))
+        if filas and k not in claves_excel
+    ]
     return {
         "cambios": cambios,
+        "retiradas": retiradas,
         "resumen": {
             "plantas_excel": len(filas),
             "plantas_sin_cambios": sin_cambios,
@@ -470,6 +479,17 @@ def aplicar(contactos: list[dict], cambios: list[dict], servicio: str = "") -> t
             agregar = [e for e in (it.get("agregar") or []) if _EMAIL_RE.match(str(e))]
             quitar = {str(e).casefold() for e in (it.get("quitar") or [])}
             corregir = {str(e).casefold() for e in (it.get("corregir") or [])}
+
+            if tipo == "planta_quitar":
+                # La planta ya no existe en la base nueva: se va su lista de distribución
+                # (cliente, comercial, técnico y admin). Listados no se toca.
+                if not existentes:
+                    hechos["ignorados"].append(f"{ship_to}: ya no tenía lista; nada que quitar.")
+                    continue
+                nuevos[:] = [c for c in nuevos if not de_la_planta(c)]
+                hechos["aplicados"] += 1
+                hechos["plantas"].add(clave)
+                continue
 
             if tipo == "planta_nueva":
                 if existentes:

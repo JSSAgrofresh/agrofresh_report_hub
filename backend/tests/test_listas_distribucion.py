@@ -236,3 +236,44 @@ def test_el_excel_trae_los_codigos_sap_si_los_hay():
     wb.save(buf)
     filas, _ = ld.leer_filas_excel(buf.getvalue())
     assert (filas[0]["codigo_sold"], filas[0]["codigo_ship"]) == ("10001", "20002")
+
+
+# --- plantas que el Excel nuevo ya no trae ---------------------------------
+
+def _dos_plantas():
+    otra = [_c(10 + i, c["tipo"], c["email"], cargo=c["cargo"], copia=c["tipo_copia"], sold="OTRO SA", ship="PLANTA DOS")
+            for i, c in enumerate(_sistema())]
+    return _sistema() + otra
+
+
+def test_planta_que_no_viene_en_el_excel_se_ofrece_para_quitar_pero_no_se_quita_sola():
+    contactos = _dos_plantas()
+    r = ld.comparar(ld.estado_desde_contactos(contactos), [_fila(clientes={c: ["cli@x.cl"] for c in ld.CATEGORIAS})])
+    assert r["retiradas"] == [{"planta": {"sold_to": "OTRO SA", "ship_to": "PLANTA DOS"}}]
+    assert all(c["tipo"] != "planta_quitar" for c in r["cambios"])
+    nuevos, _ = ld.aplicar(contactos, r["cambios"])      # sin confirmar nada, nadie se va
+    assert {c["ship_to"] for c in nuevos} == {"PLANTA UNO", "PLANTA DOS"}
+
+
+def test_confirmar_quitar_borra_toda_la_lista_de_esa_planta_y_solo_de_esa():
+    contactos = _dos_plantas()
+    cambio = {"id": "x", "tipo": "planta_quitar", "planta": {"sold_to": "OTRO SA", "ship_to": "PLANTA DOS"},
+              "campo": "planta", "agregar": [], "quitar": [], "corregir": []}
+    nuevos, hechos = ld.aplicar(contactos, [cambio])
+    assert {c["ship_to"] for c in nuevos} == {"PLANTA UNO"} and len(nuevos) == len(_sistema())
+    assert hechos["aplicados"] == 1 and hechos["plantas"] == 1
+    # quitar algo que ya no está no falla
+    _, otra = ld.aplicar(nuevos, [cambio])
+    assert otra["aplicados"] == 0 and otra["ignorados"]
+
+
+def test_quitar_una_planta_de_linea_de_proceso_no_toca_actimist():
+    contactos = _dos_plantas() + [{**_c(99, "resultado_cliente", "act@x.cl", sold="OTRO SA", ship="PLANTA DOS"), "servicio": "actimist"}]
+    cambio = {"id": "x", "tipo": "planta_quitar", "planta": {"sold_to": "OTRO SA", "ship_to": "PLANTA DOS"},
+              "campo": "planta", "agregar": [], "quitar": [], "corregir": []}
+    nuevos, _ = ld.aplicar(contactos, [cambio], "")
+    assert [c["email"] for c in nuevos if c.get("servicio") == "actimist"] == ["act@x.cl"]
+
+
+def test_excel_sin_filas_no_ofrece_quitar_nada():
+    assert ld.comparar(ld.estado_desde_contactos(_dos_plantas()), [])["retiradas"] == []

@@ -23,8 +23,9 @@ export interface FilaLista {
 /** Un cambio que se puede confirmar o dejar de lado, independiente de los demás. */
 export interface CambioLista {
   id: string
-  /** campo: agregar/quitar correos de un rol o categoría; copia: ajustar a CC/CCO; planta_nueva: planta sin listas aún */
-  tipo: 'campo' | 'copia' | 'planta_nueva'
+  /** campo: agregar/quitar correos de un rol o categoría; copia: ajustar a CC/CCO; planta_nueva: planta sin listas aún;
+   *  planta_quitar: sacar toda la lista de una planta que la base nueva ya no trae */
+  tipo: 'campo' | 'copia' | 'planta_nueva' | 'planta_quitar'
   planta: PlantaLista
   campo: string
   etiqueta: string
@@ -51,6 +52,8 @@ export interface ResumenComparacion {
 
 export interface ResultadoComparacion {
   cambios: CambioLista[]
+  /** plantas del sistema que el Excel no trae: se ofrecen para quitar su lista, nunca se quitan solas */
+  retiradas?: { planta: PlantaLista }[]
   resumen: ResumenComparacion
 }
 

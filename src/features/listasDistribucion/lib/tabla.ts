@@ -217,9 +217,18 @@ export function plantaNueva(
   }
 }
 
+/** Una planta del sistema que el Excel importado ya no trae. `quitar` = el usuario marcó quitarle la lista. */
+export interface PlantaRetirada {
+  id: string
+  sold_to: string
+  ship_to: string
+  quitar: boolean
+}
+
 export interface PropuestasImportadas {
   propuestas: Propuestas
   nuevas: PlantaNueva[]
+  retiradas: PlantaRetirada[]
 }
 
 /** Convierte la respuesta de «comparar» en celdas amarillas y plantas nuevas. */
@@ -248,7 +257,10 @@ export function desdeComparacion(estado: EstadoListas, comparacion: ResultadoCom
       }
     }
   }
-  return { propuestas, nuevas }
+  const retiradas: PlantaRetirada[] = (comparacion.retiradas ?? []).map((r) => ({
+    id: clavePlanta(r.planta.sold_to, r.planta.ship_to), sold_to: r.planta.sold_to, ship_to: r.planta.ship_to, quitar: false,
+  }))
+  return { propuestas, nuevas, retiradas }
 }
 
 // ---------------------------------------------------------------------------
@@ -263,7 +275,9 @@ export interface ResumenRevision {
   ajustes: number
 }
 
-export function resumenRevision(propuestas: Propuestas, nuevas: PlantaNueva[], estado: EstadoListas): ResumenRevision {
+export function resumenRevision(
+  propuestas: Propuestas, nuevas: PlantaNueva[], estado: EstadoListas, retiradas: PlantaRetirada[] = [],
+): ResumenRevision {
   const porClave = new Map(estado.filas.map((f) => [clavePlanta(f.sold_to, f.ship_to), f]))
   const r: ResumenRevision = { pendientes: 0, aceptadas: 0, agregan: 0, quitan: 0, ajustes: 0 }
   for (const p of Object.values(propuestas)) {
@@ -284,11 +298,15 @@ export function resumenRevision(propuestas: Propuestas, nuevas: PlantaNueva[], e
       r.agregan += CAMPOS.reduce((t, c) => t + listaDe(n.fila, c).length, 0)
     }
   }
+  // quitar la lista de una planta es un cambio aceptado (nunca pendiente: se marca a propósito)
+  r.aceptadas += retiradas.filter((x) => x.quitar).length
   return r
 }
 
 /** Los cambios aceptados, en el formato que entiende el servidor. */
-export function aCambios(estado: EstadoListas, propuestas: Propuestas, nuevas: PlantaNueva[]): CambioLista[] {
+export function aCambios(
+  estado: EstadoListas, propuestas: Propuestas, nuevas: PlantaNueva[], retiradas: PlantaRetirada[] = [],
+): CambioLista[] {
   const porClave = new Map(estado.filas.map((f) => [clavePlanta(f.sold_to, f.ship_to), f]))
   const cambios: CambioLista[] = []
   for (const p of Object.values(propuestas)) {
@@ -309,6 +327,13 @@ export function aCambios(estado: EstadoListas, propuestas: Propuestas, nuevas: P
       id: `${n.id}|nueva`, tipo: 'planta_nueva', planta: { sold_to: n.sold_to, ship_to: n.ship_to }, campo: 'planta',
       etiqueta: 'Planta nueva', agregar: [], quitar: [], corregir: [], aviso: null, crear_en_listados: n.crearEnListados,
       fila: { ...n.fila, sold_to: n.sold_to, ship_to: n.ship_to },
+    })
+  }
+  for (const r of retiradas) {
+    if (!r.quitar) continue
+    cambios.push({
+      id: `${r.id}|quitar`, tipo: 'planta_quitar', planta: { sold_to: r.sold_to, ship_to: r.ship_to }, campo: 'planta',
+      etiqueta: 'Quitar la lista de la planta', agregar: [], quitar: [], corregir: [], aviso: null, fila: null,
     })
   }
   return cambios

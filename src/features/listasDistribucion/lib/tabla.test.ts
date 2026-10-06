@@ -95,6 +95,27 @@ describe('aceptar y guardar', () => {
   })
 })
 
+describe('plantas que el Excel ya no trae', () => {
+  const comparacion = { cambios: [], resumen: {} as never, retiradas: [{ planta: { sold_to: 'OTRO SA', ship_to: 'PLANTA DOS' } }] }
+
+  it('se ofrecen desmarcadas: importar solo no quita nada', () => {
+    const { retiradas } = desdeComparacion(estado([fila()]), comparacion)
+    expect(retiradas).toEqual([{ id: clavePlanta('OTRO SA', 'PLANTA DOS'), sold_to: 'OTRO SA', ship_to: 'PLANTA DOS', quitar: false }])
+    expect(aCambios(estado([fila()]), {}, [], retiradas)).toEqual([])
+    expect(desdeComparacion(estado([fila()]), { cambios: [], resumen: {} as never }).retiradas).toEqual([])
+  })
+
+  it('solo las marcadas viajan al servidor y cuentan como cambio aceptado', () => {
+    const e = estado([fila()])
+    const [r] = desdeComparacion(e, comparacion).retiradas
+    const cambios = aCambios(e, {}, [], [{ ...r, quitar: true }])
+    expect(cambios).toHaveLength(1)
+    expect(cambios[0]).toMatchObject({ tipo: 'planta_quitar', planta: { sold_to: 'OTRO SA', ship_to: 'PLANTA DOS' } })
+    expect(resumenRevision({}, [], e, [{ ...r, quitar: true }]).aceptadas).toBe(1)
+    expect(resumenRevision({}, [], e, [r]).aceptadas).toBe(0)
+  })
+})
+
 describe('indicadores y filtros', () => {
   const buena = fila()
   const sinTec = fila({ ship_to: 'DOS', tecnico: [] })
