@@ -156,6 +156,8 @@ def leer_config() -> dict[str, Any]:
         },
         "modo_cambiado_por": cfg.get("modo_cambiado_por"),
         "modo_cambiado_en": cfg.get("modo_cambiado_en"),
+        # El aviso a clientes que se editó a mano (vacío = el original). Se conserva al guardar lo demás.
+        "aviso": cfg.get("aviso") if isinstance(cfg.get("aviso"), dict) else {},
     }
 
 
@@ -638,26 +640,109 @@ TEXTO_AVISO = (
 )
 
 
-@router.get("/aviso")
-def aviso_a_clientes(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
-    """El aviso de bienvenida tal como lo vería un cliente. Solo lee: no envía nada."""
-    html, imagenes = mail_templates.html_de_texto(TEXTO_AVISO, TITULO_AVISO, "AgroFresh Report Hub")
+class AvisoIn(BaseModel):
+    asunto: str
+    titulo: str
+    subtitulo: str = ""
+    texto: str
+
+
+_AVISO_ORIGINAL = {
+    "asunto": ASUNTO_AVISO, "titulo": TITULO_AVISO, "subtitulo": "AgroFresh Report Hub", "texto": TEXTO_AVISO,
+}
+
+
+def _aviso_vigente() -> dict[str, str]:
+    """El aviso que vale hoy: lo guardado a mano sobre el original."""
+    guardado = leer_config()["aviso"]
+    vigente = dict(_AVISO_ORIGINAL)
+    for campo in vigente:
+        valor = guardado.get(campo)
+        if isinstance(valor, str) and (valor.strip() or campo == "subtitulo"):
+            vigente[campo] = valor
+    return vigente
+
+
+def _html_aviso(aviso: dict[str, str], texto_aviso: str = "") -> tuple[str, list[correo.ImagenInline]]:
+    return mail_templates.html_de_texto(aviso["texto"], aviso["titulo"], aviso["subtitulo"], texto_aviso)
+
+
+def _validar_aviso(body: AvisoIn) -> dict[str, str]:
+    aviso = {
+        "asunto": body.asunto.strip(), "titulo": body.titulo.strip(),
+        "subtitulo": body.subtitulo.strip(), "texto": body.texto.strip(),
+    }
+    if not aviso["asunto"] or not aviso["titulo"] or not aviso["texto"]:
+        raise HTTPException(400, "El asunto, el título y el texto son obligatorios.")
+    if len(aviso["asunto"]) > 200 or len(aviso["titulo"]) > 80 or len(aviso["subtitulo"]) > 120:
+        raise HTTPException(400, "El asunto admite hasta 200 caracteres, el título 80 y el subtítulo 120.")
+    if len(aviso["texto"]) > 8000:
+        raise HTTPException(400, "El texto admite hasta 8.000 caracteres.")
+    return aviso
+
+
+def _respuesta_aviso() -> dict[str, Any]:
+    vigente = _aviso_vigente()
+    html, imagenes = _html_aviso(vigente)
     return {
-        "asunto": ASUNTO_AVISO,
-        "texto": TEXTO_AVISO,
+        **vigente,
         "html": _html_para_pantalla(html, imagenes),
+        "original": dict(_AVISO_ORIGINAL),
+        "personalizado": vigente != _AVISO_ORIGINAL,
         "destinatarios_prueba": list(DESTINATARIOS_PRUEBA),
     }
 
 
+@router.get("/aviso")
+def aviso_a_clientes(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+    """El aviso de bienvenida tal como lo vería un cliente. Solo lee: no envía nada."""
+    return _respuesta_aviso()
+
+
+@router.post("/aviso/vista-previa")
+def vista_previa_del_aviso(body: AvisoIn, usuario: Usuario = Depends(acceso)) -> dict[str, str]:
+    """Cómo se vería lo que se está escribiendo, sin guardarlo."""
+    html, imagenes = _html_aviso({
+        "asunto": body.asunto, "titulo": body.titulo or " ", "subtitulo": body.subtitulo.strip(), "texto": body.texto,
+    })
+    return {"html": _html_para_pantalla(html, imagenes)}
+
+
+@router.put("/aviso")
+def guardar_aviso(body: AvisoIn, usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+    cfg = leer_config()
+    cfg["aviso"] = _validar_aviso(body)
+    _guardar_config(cfg)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "envio_informes_aviso",
+        "editó el aviso a clientes del envío de informes", sensible=True,
+    )
+    return _respuesta_aviso()
+
+
+@router.delete("/aviso")
+def restaurar_aviso(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+    """Vuelve al texto original."""
+    cfg = leer_config()
+    cfg["aviso"] = {}
+    _guardar_config(cfg)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "envio_informes_aviso",
+        "restauró el aviso a clientes del envío de informes al texto original", sensible=True,
+    )
+    return _respuesta_aviso()
+
+
 @router.post("/aviso/enviar-prueba")
-def enviar_prueba_del_aviso(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+def enviar_prueba_del_aviso(body: AvisoIn | None = None, usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
     """Manda el aviso SOLO a Paz y Jorge, con «(PRUEBA)» en el asunto, estando el sistema en
-    prueba o en producción. El envío a clientes no existe todavía."""
-    aviso = "CORREO DE PRUEBA. Así verán el aviso los clientes. Este correo llegó solo a Paz y a Jorge."
-    html, imagenes = mail_templates.html_de_texto(TEXTO_AVISO, TITULO_AVISO, "AgroFresh Report Hub", aviso)
+    prueba o en producción. Si llega lo que se está escribiendo se prueba eso (sin guardarlo);
+    si no, el aviso vigente. El envío a clientes no existe todavía."""
+    aviso = _validar_aviso(body) if body is not None else _aviso_vigente()
+    nota = "CORREO DE PRUEBA. Así verán el aviso los clientes. Este correo llegó solo a Paz y a Jorge."
+    html, imagenes = _html_aviso(aviso, nota)
     resultado = correo.enviar(
-        ", ".join(DESTINATARIOS_PRUEBA), f"(PRUEBA) {ASUNTO_AVISO}", html, f"{aviso}\n\n{TEXTO_AVISO}", [],
+        ", ".join(DESTINATARIOS_PRUEBA), f"(PRUEBA) {aviso['asunto']}", html, f"{nota}\n\n{aviso['texto']}", [],
         cc=[], bcc=[], imagenes_inline=imagenes,
     )
     actividad.registrar(

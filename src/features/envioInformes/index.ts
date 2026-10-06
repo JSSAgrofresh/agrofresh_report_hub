@@ -14,9 +14,12 @@ export {
   enviarInforme,
   historialEnvios,
   obtenerAvisoClientes,
+  vistaPreviaAviso,
+  guardarAviso,
+  restaurarAviso,
   enviarPruebaAviso,
 } from './lib/api'
-export type { AvisoClientes } from './lib/api'
+export type { AvisoClientes, DatosAviso } from './lib/api'
 export { esCorreoValido, quitarCorreo, separarCorreos, sumarCorreos, tamanoLegible } from './lib/correos'
 export type {
   AnalisisLote,

@@ -89,10 +89,17 @@ export function eliminarRegistroEnvio(id: number) {
   return httpClient.delete<{ estado: string }>(`${BASE}/historial/${id}`)
 }
 
-export interface AvisoClientes {
+export interface DatosAviso {
   asunto: string
+  titulo: string
+  subtitulo: string
   texto: string
+}
+
+export interface AvisoClientes extends DatosAviso {
   html: string
+  original: DatosAviso
+  personalizado: boolean
   destinatarios_prueba: string[]
 }
 
@@ -101,7 +108,21 @@ export function obtenerAvisoClientes() {
   return httpClient.get<AvisoClientes>(`${BASE}/aviso`)
 }
 
-/** Lo manda SOLO a Paz y Jorge, con «(PRUEBA)» en el asunto. */
-export function enviarPruebaAviso() {
-  return httpClient.post<{ ok: string; to: string[] }>(`${BASE}/aviso/enviar-prueba`, {})
+/** Cómo se vería lo que se está escribiendo, sin guardarlo. */
+export function vistaPreviaAviso(datos: DatosAviso) {
+  return httpClient.post<{ html: string }>(`${BASE}/aviso/vista-previa`, datos)
+}
+
+export function guardarAviso(datos: DatosAviso) {
+  return httpClient.put<AvisoClientes>(`${BASE}/aviso`, datos)
+}
+
+/** Vuelve al texto original. */
+export function restaurarAviso() {
+  return httpClient.delete<AvisoClientes>(`${BASE}/aviso`)
+}
+
+/** Lo que se está escribiendo (guardado o no) sale SOLO a Paz y Jorge, con «(PRUEBA)». */
+export function enviarPruebaAviso(datos: DatosAviso) {
+  return httpClient.post<{ ok: string; to: string[] }>(`${BASE}/aviso/enviar-prueba`, datos)
 }
