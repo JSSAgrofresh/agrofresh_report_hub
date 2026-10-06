@@ -2,6 +2,7 @@ export {
   listarCargasTrace,
   verCargaTrace,
   eliminarCargaTrace,
+  eliminarCargasTrace,
   descargarPdfCarga,
   descargarOriginalCarga,
   fechaDeCarpeta,

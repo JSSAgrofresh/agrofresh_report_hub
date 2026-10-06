@@ -3,6 +3,7 @@ Tests unitarios para accutab_mail_ingest.py.
 No requieren conexion a Gmail ni a R2.
 """
 import io
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -224,6 +225,7 @@ def entorno(monkeypatch, tmp_path):
     from scripts import accutab_mail_ingest as mod
     subidos: list[str] = []
     r2_json: dict[str, object] = {}
+    monkeypatch.setattr(mod._r2, "disponible", lambda: True)
     monkeypatch.setattr(mod._r2, "subir", lambda k, d, ct="": subidos.append(k))
     monkeypatch.setattr(mod._r2, "leer_json", lambda k, d: r2_json.get(k, d))
     monkeypatch.setattr(mod._r2, "escribir_json", lambda k, d: r2_json.__setitem__(k, json.loads(json.dumps(d))))
@@ -240,7 +242,10 @@ class TestNoReprocesa:
         gmail = _GmailFalso({b"1": _correo()})
         r = mod._procesar_email(gmail, b"1", set(), mod._leer_procesados())
         assert r["ok"] and not r["repetido"] and r["reporte"] is True
-        assert subidos == ["accutab/mail/AGROFRESH_DEMO/datos.csv"]
+        assert len(subidos) == 2  # los datos del equipo y el informe PDF, ordenados por cliente y fecha
+        datos, informe = sorted(subidos, key=lambda k: k.endswith(".pdf"))
+        assert re.fullmatch(r"accutab/mail/AGROFRESH_DEMO/\d{4}-\d{2}-\d{2}/Datos \d{2}-\d{2}-\d{2}/datos\.csv", datos)
+        assert re.fullmatch(r"accutab/mail/AGROFRESH_DEMO/\d{4}-\d{2}-\d{2}/Informe \d{2}-\d{2}-\d{2}\.pdf", informe)
         assert gmail.pendientes == {}
         assert mod.LABEL_PROCESADO in gmail.etiquetas[b"1"]
         assert "<demo-1@accutab>" in r2_json[mod.R2_REGISTRO_PROCESADOS]
@@ -252,7 +257,7 @@ class TestNoReprocesa:
         gmail = _GmailFalso({b"1": _correo()})
         r = mod._procesar_email(gmail, b"1", {"AGROFRESH_DEMO"}, mod._leer_procesados())
         assert r["ok"] and r["repetido"]
-        assert len(subidos) == 1  # nada de "AGROFRESH_DEMO (2)"
+        assert len(subidos) == 2  # los de la primera vez, nada nuevo
         assert len(list((tmp_path / "Accutab").iterdir())) == 1  # un solo reporte
         assert gmail.pendientes == {}
 
@@ -263,7 +268,7 @@ class TestNoReprocesa:
         r = mod._procesar_email(gmail, b"1", set(), mod._leer_procesados())
         assert not r["ok"] and "PENDIENTE" in r["error"]
         r2 = mod._procesar_email(_GmailFalso({b"1": _correo()}), b"1", {"AGROFRESH_DEMO"}, mod._leer_procesados())
-        assert r2["repetido"] and len(subidos) == 1
+        assert r2["repetido"] and len(subidos) == 2
 
     def test_solo_marcar_no_sube_nada(self, entorno, tmp_path):
         mod, subidos, r2_json = entorno
@@ -283,4 +288,5 @@ class TestNoReprocesa:
         existentes: set[str] = set()
         for uid in (b"1", b"2"):
             mod._procesar_email(gmail, uid, existentes, procesados)
-        assert subidos == ["accutab/mail/AGROFRESH_DEMO/datos.csv", "accutab/mail/AGROFRESH_DEMO (2)/datos.csv"]
+        assert len([k for k in subidos if k.endswith("datos.csv")]) == 2
+        assert len(set(subidos)) == 4  # dos correos, dos informes: nada se pisa

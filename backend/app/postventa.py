@@ -18,6 +18,7 @@ duplica acá.
 """
 import base64
 import json
+import logging
 import os
 import re
 import shutil
@@ -28,7 +29,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import config
+from . import accutab_informe, config
 
 router = APIRouter(prefix="/api/postventa", tags=["postventa"])
 
@@ -107,6 +108,8 @@ def _resumen(carpeta: str, registro: dict[str, Any]) -> dict[str, Any]:
         "guardado_en": registro.get("guardado_en"),
         "cliente": registro.get("cliente"),
         "planta": registro.get("planta"),
+        "ubicacion": registro.get("ubicacion"),
+        "especie": registro.get("especie"),
         "equipo": registro.get("equipo"),
         "responsable": registro.get("responsable"),
         "n_registros": len(registro.get("filas") or []),
@@ -154,11 +157,10 @@ def guardar_registro(datos: RegistroIn) -> dict[str, Any]:
                     f.write(_decodificar(adj.contenido_b64, nombre))
                 nombres_guardados.append(nombre)
 
-        tiene_pdf = False
+        # El informe se emite siempre: si Trace no adjuntó el suyo, se genera.
+        pdf_bytes: bytes | None = None
         if datos.pdf_b64:
-            with open(os.path.join(destino, ARCHIVO_PDF), "wb") as f:
-                f.write(_decodificar(datos.pdf_b64, "Informe PDF"))
-            tiene_pdf = True
+            pdf_bytes = _decodificar(datos.pdf_b64, "Informe PDF")
 
         registro = {
             "guardado_en": datetime.now(tz=timezone.utc).isoformat(),
@@ -172,8 +174,23 @@ def guardar_registro(datos: RegistroIn) -> dict[str, Any]:
             "estadisticas": datos.estadisticas,
             "filas": datos.filas,
             "archivos": nombres_guardados,
-            "tiene_pdf": tiene_pdf,
+            "tiene_pdf": False,
+            "origen": "manual",
         }
+        if pdf_bytes is None:
+            try:
+                pdf_bytes = accutab_informe.generar_pdf(registro)
+            except Exception:  # noqa: BLE001
+                logging.getLogger(__name__).exception("No se pudo generar el informe PDF de %s", marca)
+        if pdf_bytes:
+            with open(os.path.join(destino, ARCHIVO_PDF), "wb") as f:
+                f.write(pdf_bytes)
+            registro["tiene_pdf"] = True
+        originales = {}
+        for nombre in nombres_guardados:
+            with open(os.path.join(destino, CARPETA_ORIGINALES, nombre), "rb") as f:
+                originales[nombre] = f.read()
+        registro["r2_claves"] = accutab_informe.archivar_en_r2(registro, marca, pdf_bytes, originales)
         with open(os.path.join(destino, ARCHIVO_REGISTRO), "w", encoding="utf-8") as f:
             json.dump(registro, f, ensure_ascii=False)
     except Exception:
@@ -236,7 +253,40 @@ def descargar_original(carpeta: str, nombre: str) -> FileResponse:
     return FileResponse(ruta, filename=seguro)
 
 
+def _borrar_carga(carpeta: str) -> None:
+    """Quita la carga del servidor y, si se archivó, su informe y datos de R2."""
+    ruta = _carpeta_registro(carpeta)
+    claves: list[str] = []
+    try:
+        with open(os.path.join(ruta, ARCHIVO_REGISTRO), encoding="utf-8") as f:
+            claves = list(json.load(f).get("r2_claves") or [])
+    except (OSError, json.JSONDecodeError):
+        pass
+    shutil.rmtree(ruta)
+    accutab_informe.borrar_de_r2(claves)
+
+
 @router.delete("/registros/{carpeta}")
 def eliminar_registro(carpeta: str) -> dict[str, bool]:
-    shutil.rmtree(_carpeta_registro(carpeta))
+    _borrar_carga(carpeta)
     return {"ok": True}
+
+
+class EliminarVariosIn(BaseModel):
+    carpetas: list[str]
+
+
+@router.post("/registros/eliminar")
+def eliminar_varios(datos: EliminarVariosIn) -> dict[str, Any]:
+    """Borra varias cargas de una vez. Cada una se valida aparte: una que ya no
+    existe no impide borrar las demás."""
+    if not datos.carpetas:
+        raise HTTPException(400, "No se eligió ninguna carga.")
+    borradas, fallidas = [], []
+    for carpeta in dict.fromkeys(datos.carpetas):
+        try:
+            _borrar_carga(carpeta)
+            borradas.append(carpeta)
+        except HTTPException:
+            fallidas.append(carpeta)
+    return {"borradas": borradas, "fallidas": fallidas}

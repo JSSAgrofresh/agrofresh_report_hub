@@ -36,6 +36,9 @@ export interface ResumenCargaTrace {
   guardado_en: string | null
   cliente: string | null
   planta: string | null
+  /** Posición de muestreo (línea o sector donde está el equipo). */
+  ubicacion?: string | null
+  especie?: string | null
   equipo: string | null
   responsable: string | null
   n_registros: number
@@ -63,6 +66,11 @@ export function verCargaTrace(carpeta: string) {
 
 export function eliminarCargaTrace(carpeta: string) {
   return httpClient.delete<{ ok: boolean }>(`/postventa/registros/${encodeURIComponent(carpeta)}`)
+}
+
+/** Borra varias cargas de una vez; devuelve las que se borraron y las que no existían. */
+export function eliminarCargasTrace(carpetas: string[]) {
+  return httpClient.post<{ borradas: string[]; fallidas: string[] }>('/postventa/registros/eliminar', { carpetas })
 }
 
 export function descargarPdfCarga(carpeta: string) {

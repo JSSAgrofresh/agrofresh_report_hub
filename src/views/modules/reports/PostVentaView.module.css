@@ -478,3 +478,56 @@
     radial-gradient(520px 120px at 0% 0%, rgba(74, 173, 224, 0.12), transparent 65%),
     var(--color-surface);
 }
+
+.itemFila {
+  display: flex;
+  align-items: stretch;
+}
+
+.itemFila .itemCarga {
+  flex: 1;
+  min-width: 0;
+}
+
+.casilla {
+  flex: none;
+  align-self: center;
+  margin: 0 0 0 0.6rem;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.barraSeleccion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 12px;
+}
+
+.marcarTodos {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.botonEliminarVarios {
+  border: 1px solid #c0392b;
+  background: #fff;
+  color: #c0392b;
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.6rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.botonEliminarVarios:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
