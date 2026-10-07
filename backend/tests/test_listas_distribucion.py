@@ -136,10 +136,12 @@ def test_lee_la_hoja_del_maestro_y_avisa_de_textos_que_no_son_correo():
                None, None, None, None, None, None, "OK"])
     ws.append([2, 2, "NO", 2, "CLI SA", 2, "PLANTA NO VIGENTE", None, None, None, None, None, None,
                None, None, None, None, None, None, "OK"])
+    ws.append([3, 3, None, 3, "CLI SA", 3, "PLANTA SIN MARCA", None, None, None, None, None, None,
+               None, None, None, None, None, None, "OK"])  # vigente vacío: cuenta, solo "NO" la saca
     buf = io.BytesIO()
     wb.save(buf)
     filas, avisos = ld.leer_filas_excel(buf.getvalue())
-    assert len(filas) == 1 and filas[0]["admin"] == ["a@x.cl"] and filas[0]["comercial"] == []
+    assert len(filas) == 2 and filas[0]["admin"] == ["a@x.cl"] and filas[0]["comercial"] == []
     assert filas[0]["clientes"]["Manzana y Pera"] == ["m@x.cl"]
     assert any("cguerrero" in a for a in avisos)
 
