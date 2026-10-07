@@ -5,8 +5,8 @@ import {
 } from '@/features/envioInformes'
 import type { AvisoClientes as Aviso, DatosAviso, EstadoEnvio } from '@/features/envioInformes'
 import { HttpError } from '@/services/http/client'
-import { ListaCorreos } from './ListaCorreos'
-import styles from './EnvioInformes.module.css'
+import { ListaCorreos } from '@/views/modules/lab/envioInformes/ListaCorreos'
+import styles from '@/views/modules/lab/envioInformes/EnvioInformes.module.css'
 
 function mensajeDe(e: unknown, defecto: string): string {
   return e instanceof HttpError ? e.message : defecto
