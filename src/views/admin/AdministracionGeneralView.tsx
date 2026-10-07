@@ -16,6 +16,7 @@ import type { CampoCorreccion, CorreccionConverter } from '@/features/correccion
 import { Indicador } from '@/components/ui/Indicador'
 import { IconoActualizar, IconoAlerta, IconoBuscar, IconoCerrar, IconoPapelera } from '@/components/ui/iconosAccion'
 import { Modal } from '@/components/ui/Modal'
+import { AvisoClientes } from './avisos/AvisoClientes'
 import { ListasPanel } from './listas/ListasPanel'
 import { SelectorServicio } from '@/components/ui/SelectorServicio'
 import { LISTAS } from '@/lib/servicio'
@@ -28,7 +29,7 @@ import styles from './AdministracionGeneralView.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
-type Pestana = 'resumen' | 'actividad' | 'seguimiento' | 'correcciones' | 'listas'
+type Pestana = 'resumen' | 'actividad' | 'seguimiento' | 'correcciones' | 'listas' | 'avisos'
 
 /**
  * Administración General: lo que solo ve y toca el admin general.
@@ -122,6 +123,8 @@ export function AdministracionGeneralView() {
             ? 'Seguimiento del equipo: quién viene en alza o en baja, cuándo se usa el sistema y qué módulos trabaja cada persona.'
             : pestana === 'correcciones'
             ? 'Historial de correcciones del Converter: lo que aprendió cada vez que alguien corrigió a mano un Sold To, Ship To, especie o variedad. Si el mismo texto vuelve a llegar, se corrige solo.'
+            : pestana === 'avisos'
+            ? 'Avisos a clientes: el correo con que se les comunica algo desde el Report Hub. Se edita con vista previa y se prueba solo a los destinatarios de prueba.'
             : 'Listas de distribución de resultados: exporta lo que hay, edítalo en Excel, súbelo y confirma cada cambio antes de que se guarde.'
         }
         acciones={
@@ -146,6 +149,9 @@ export function AdministracionGeneralView() {
         </button>
         <button type="button" role="tab" aria-selected={pestana === 'listas'} className={pestana === 'listas' ? styles.pestanaActiva : ''} onClick={() => { setListasVisitada(true); setPestana('listas') }}>
           Listas de distribución
+        </button>
+        <button type="button" role="tab" aria-selected={pestana === 'avisos'} className={pestana === 'avisos' ? styles.pestanaActiva : ''} onClick={() => setPestana('avisos')}>
+          Avisos a clientes
         </button>
         <button type="button" role="tab" aria-selected={pestana === 'correcciones'} className={pestana === 'correcciones' ? styles.pestanaActiva : ''} onClick={() => setPestana('correcciones')}>
           Correcciones del Converter
@@ -183,6 +189,13 @@ export function AdministracionGeneralView() {
             <div key={s} hidden={servicioListas !== s}><ListasPanel servicio={s} /></div>
           ))}
         </div>
+      )}
+
+      {pestana === 'avisos' && (
+        <section className={styles.avisos} aria-label="Aviso a clientes">
+          <h2 className={styles.avisoTitulo}>Aviso a clientes: «ahora los informes salen por el Report Hub»</h2>
+          <AvisoClientes />
+        </section>
       )}
 
       {pestana === 'correcciones' && <>

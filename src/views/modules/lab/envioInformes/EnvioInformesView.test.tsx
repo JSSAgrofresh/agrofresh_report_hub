@@ -17,11 +17,6 @@ const api = vi.hoisted(() => ({
   obtenerTemplateInforme: vi.fn(),
   guardarTemplateInforme: vi.fn(),
   eliminarRegistroEnvio: vi.fn(),
-  obtenerAvisoClientes: vi.fn().mockResolvedValue({ asunto: 'a', titulo: 't', subtitulo: '', texto: 't', plantilla: 'estandar', html: '<p>t</p>', original: {}, personalizado: false, destinatarios_prueba: [] }),
-  vistaPreviaAviso: vi.fn(),
-  guardarAviso: vi.fn(),
-  restaurarAviso: vi.fn(),
-  enviarPruebaAviso: vi.fn(),
 }))
 
 vi.mock('@/features/envioInformes', async (importOriginal) => ({

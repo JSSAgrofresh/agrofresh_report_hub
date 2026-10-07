@@ -23,7 +23,6 @@ import {
 } from '@/features/envioInformes'
 import type { EstadoEnvio, Historial, Informe, VistaPrevia } from '@/features/envioInformes'
 import { HttpError } from '@/services/http/client'
-import { AvisoClientes } from './AvisoClientes'
 import { ConfiguracionEnvio } from './ConfiguracionEnvio'
 import { DesbloqueoEdicion } from './DesbloqueoEdicion'
 import { HistorialEnvios } from './HistorialEnvios'
@@ -379,11 +378,6 @@ export function EnvioInformesView() {
           />
         </details>
       )}
-
-      <details className={styles.plegable}>
-        <summary>Aviso a clientes: «ahora los informes salen por el Report Hub»</summary>
-        <AvisoClientes onEstado={setEstado} />
-      </details>
 
       <section className={styles.historial}>
         <h2>Últimos envíos</h2>
