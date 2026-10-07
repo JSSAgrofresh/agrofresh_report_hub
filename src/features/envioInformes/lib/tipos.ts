@@ -78,6 +78,8 @@ export interface DatosCorreo {
   para: string[]
   cc: string[]
   bcc: string[]
+  /** Archivo de la solicitud (OT) del informe, si se encontró: amarra el envío a ella. */
+  solicitud?: string
 }
 
 export interface VistaPrevia {

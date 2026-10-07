@@ -79,6 +79,7 @@ export function datosCorreo(inf: Informe, laboratorio: string): DatosCorreo {
     para: inf.para,
     cc: inf.cc,
     bcc: inf.bcc,
+    solicitud: inf.lectura.solicitud ?? '',
   }
 }
 
