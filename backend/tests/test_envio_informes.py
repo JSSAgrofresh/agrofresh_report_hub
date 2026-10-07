@@ -852,7 +852,10 @@ def test_sin_ot_conocida_se_usan_las_llaves_del_pdf(entorno, monkeypatch):
 
 def test_el_aviso_a_clientes_se_puede_ver_sin_enviar_nada(entorno):
     r = ei.aviso_a_clientes(usuario=_usuario())
-    assert "agrofreshreporthub@gmail.com" in r["texto"] and "jorge.sandoval@agrofresh.com" in r["texto"]
+    assert "agrofreshreporthub@gmail.com" in r["texto"]
+    # Las dudas sobre los informes van a Paz.
+    assert "duda o consulta relacionada con los informes recibidos" in r["texto"] and "psalazar@agrofresh.com" in r["texto"]
+    assert "jorge.sandoval" not in r["texto"]
     assert r["texto"].startswith("Estimados clientes:") and r["texto"].endswith("Saludos,")
     assert "AVISO A CLIENTES" in r["html"] and r["destinatarios_prueba"] == ei.DESTINATARIOS_PRUEBA
     assert entorno == []   # nada salió

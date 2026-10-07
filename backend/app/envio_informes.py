@@ -633,8 +633,8 @@ TEXTO_AVISO = (
     "Los informes se enviarán desde agrofreshreporthub@gmail.com. Les agradeceremos agregar esta "
     "dirección a sus contactos o remitentes seguros para evitar bloqueos o que los correos lleguen "
     "a la carpeta de correo no deseado.\n\n"
-    "Ante cualquier consulta sobre los informes recibidos, pueden responder al mismo correo, "
-    "manteniendo en copia a jorge.sandoval@agrofresh.com.\n\n"
+    "Ante cualquier duda o consulta relacionada con los informes recibidos, pueden contactar a "
+    "Paz Salazar al correo psalazar@agrofresh.com.\n\n"
     "Muchas gracias por su apoyo.\n\n"
     "Saludos,"
 )
