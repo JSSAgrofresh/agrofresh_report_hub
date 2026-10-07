@@ -30,6 +30,7 @@ import json
 import logging
 import mimetypes
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -150,6 +151,8 @@ def leer_config() -> dict[str, Any]:
             "subtitulo": subtitulo.strip() if isinstance(subtitulo, str) else mail_templates.SUBTITULO_INFORME,
         },
         "modo": MODO_PRODUCCION if cfg.get("modo") == MODO_PRODUCCION else MODO_PRUEBA,
+        # A quién llega todo lo que se envía en modo prueba (y la prueba del aviso). Editable.
+        "destinatarios_prueba": _limpiar_correos(cfg["destinatarios_prueba"] if isinstance(cfg.get("destinatarios_prueba"), list) else []) or list(DESTINATARIOS_PRUEBA),
         "internos": {
             "cc": _limpiar_correos((internos or INTERNOS_DEFECTO).get("cc")),
             "bcc": _limpiar_correos((internos or INTERNOS_DEFECTO).get("bcc")),
@@ -317,7 +320,7 @@ def armar_correo(
 
     reales = repartir(datos.para, datos.cc, datos.bcc)
     if modo == MODO_PRUEBA:
-        efectivos = {"to": list(DESTINATARIOS_PRUEBA), "cc": [], "bcc": []}
+        efectivos = {"to": leer_config()["destinatarios_prueba"], "cc": [], "bcc": []}
         aviso = _aviso_de_prueba(reales)
     else:
         efectivos = reales
@@ -368,7 +371,7 @@ def estado(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
     cfg = leer_config()
     return {
         "modo": cfg["modo"],
-        "destinatarios_prueba": DESTINATARIOS_PRUEBA,
+        "destinatarios_prueba": cfg["destinatarios_prueba"],
         "internos": cfg["internos"],
         "encabezado": cfg["encabezado"],
         "laboratorios": _laboratorios(),
@@ -418,6 +421,30 @@ def cambiar_modo(body: ModoIn, usuario: Usuario = Depends(acceso)) -> dict[str, 
 class InternosIn(BaseModel):
     cc: list[str] = Field(default_factory=list)
     bcc: list[str] = Field(default_factory=list)
+
+
+class PruebaIn(BaseModel):
+    destinatarios: list[str] = Field(default_factory=list, max_length=10)
+
+
+@router.put("/prueba")
+def guardar_destinatarios_prueba(body: PruebaIn, usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+    """A quién llega TODO lo que se envía en modo prueba (informes y la prueba del aviso)."""
+    lista: list[str] = []
+    for v in body.destinatarios:
+        lista.extend(t for t in re.split(r"[;,\s]+", str(v or "")) if t)
+    lista = _limpiar_correos(lista)
+    if not lista:
+        raise HTTPException(400, "Debe haber al menos un correo para las pruebas.")
+    _exigir_correos_validos(lista, "destinatarios de prueba")
+    cfg = leer_config()
+    cfg["destinatarios_prueba"] = lista
+    _guardar_config(cfg)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "envio_informes_destinatarios_prueba",
+        f"cambió los destinatarios de prueba del envío de informes ({len(lista)})", sensible=True,
+    )
+    return estado(usuario)
 
 
 @router.put("/internos")
@@ -698,7 +725,7 @@ def _respuesta_aviso() -> dict[str, Any]:
         "original": dict(_AVISO_ORIGINAL),
         "plantillas": mail_aviso.catalogo(),
         "personalizado": vigente != _AVISO_ORIGINAL,
-        "destinatarios_prueba": list(DESTINATARIOS_PRUEBA),
+        "destinatarios_prueba": leer_config()["destinatarios_prueba"],
     }
 
 
@@ -749,10 +776,11 @@ def enviar_prueba_del_aviso(body: AvisoIn | None = None, usuario: Usuario = Depe
     prueba o en producción. Si llega lo que se está escribiendo se prueba eso (sin guardarlo);
     si no, el aviso vigente. El envío a clientes no existe todavía."""
     aviso = _validar_aviso(body) if body is not None else _aviso_vigente()
-    nota = "CORREO DE PRUEBA. Así verán el aviso los clientes. Este correo llegó solo a Paz y a Jorge."
+    destinatarios = leer_config()["destinatarios_prueba"]
+    nota = "CORREO DE PRUEBA. Así verán el aviso los clientes. Este correo llegó solo a las direcciones de prueba, no a clientes."
     html, imagenes = _html_aviso(aviso, nota)
     resultado = correo.enviar(
-        ", ".join(DESTINATARIOS_PRUEBA), f"(PRUEBA) {aviso['asunto']}", html, f"{nota}\n\n{mail_aviso.texto_plano(aviso['texto'])}", [],
+        ", ".join(destinatarios), f"(PRUEBA) {aviso['asunto']}", html, f"{nota}\n\n{mail_aviso.texto_plano(aviso['texto'])}", [],
         cc=[], bcc=[], imagenes_inline=imagenes,
     )
     actividad.registrar(
