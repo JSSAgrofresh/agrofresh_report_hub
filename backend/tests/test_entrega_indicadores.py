@@ -68,3 +68,12 @@ def test_acceso_ver_con_auditoria_y_guardar_solo_admin_general():
         assert c.get("/api/auditoria-interna/plazos").status_code == 403
     finally:
         app.dependency_overrides.clear()
+
+
+def test_iso_acepta_fechas_guardadas_como_texto():
+    # solicitud_archivo.creado_en es TEXT (migración 0020): no tiene isoformat()
+    from datetime import datetime, timezone
+    from app.entrega_indicadores import _iso
+    assert _iso("2026-10-01T10:00:00+00:00") == "2026-10-01T10:00:00+00:00"
+    assert _iso(datetime(2026, 10, 1, tzinfo=timezone.utc)).startswith("2026-10-01")
+    assert _iso(None) is None and _iso("") is None
