@@ -92,4 +92,18 @@ describe('Ingreso de fortificados', () => {
     await abrirFortificados()
     expect(screen.queryByRole('button', { name: 'Borrar' })).toBeNull()
   })
+
+  it('se ordena por N° de menor a mayor (con números reales) y «Como se ingresaron» devuelve el orden original', async () => {
+    const mk = (id: number, numero: string): Fortificado => ({ ...F1, id, numero })
+    listarFortificados.mockResolvedValue([mk(1, 'AGF-I0026'), mk(2, 'AGF-I0003'), mk(3, 'AGF-I0010')])
+    await abrirFortificados()
+    const numeros = () => screen.getAllByLabelText(/^N° de fortificado AGF/).map((i) => (i as HTMLInputElement).value)
+    expect(numeros()).toEqual(['AGF-I0026', 'AGF-I0003', 'AGF-I0010'])
+    fireEvent.click(screen.getByRole('button', { name: 'N° de menor a mayor' }))
+    expect(numeros()).toEqual(['AGF-I0003', 'AGF-I0010', 'AGF-I0026'])
+    fireEvent.click(screen.getByRole('button', { name: 'N° de mayor a menor' }))
+    expect(numeros()).toEqual(['AGF-I0026', 'AGF-I0010', 'AGF-I0003'])
+    fireEvent.click(screen.getByRole('button', { name: 'Como se ingresaron' }))
+    expect(numeros()).toEqual(['AGF-I0026', 'AGF-I0003', 'AGF-I0010'])
+  })
 })
