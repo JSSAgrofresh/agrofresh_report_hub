@@ -257,7 +257,7 @@ def leer_filas_excel(contenido: bytes) -> tuple[list[dict], list[str]]:
         ship_to = str(celda("ship_to") or "").strip()
         if not sold_to and not ship_to:
             continue
-        if "vigente" in columnas and norm(str(celda("vigente") or "")) != "si":
+        if "vigente" in columnas and norm(str(celda("vigente") or "")) == "no":
             continue
         clave = clave_planta(sold_to, ship_to)
         if clave in vistos:
