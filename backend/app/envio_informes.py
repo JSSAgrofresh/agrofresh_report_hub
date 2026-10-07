@@ -39,7 +39,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from . import actividad, config_store, correo, informe_lectura, mail_aviso, mail_templates, seguridad
-from .auth import Usuario, usuario_actual
+from .auth import Usuario, solo_admin_general, usuario_actual
 from .db import conexion, cursor_dict
 from .listados import clave_normalizada
 from .servicios import MARCA_RESPALDO_RYD, clave_servicio, es_tipo_ryd, fijos_de_lista, lista_de_datos
@@ -428,7 +428,7 @@ class PruebaIn(BaseModel):
 
 
 @router.put("/prueba")
-def guardar_destinatarios_prueba(body: PruebaIn, usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+def guardar_destinatarios_prueba(body: PruebaIn, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
     """A quién llega TODO lo que se envía en modo prueba (informes y la prueba del aviso)."""
     lista: list[str] = []
     for v in body.destinatarios:
@@ -730,13 +730,13 @@ def _respuesta_aviso() -> dict[str, Any]:
 
 
 @router.get("/aviso")
-def aviso_a_clientes(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+def aviso_a_clientes(usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
     """El aviso de bienvenida tal como lo vería un cliente. Solo lee: no envía nada."""
     return _respuesta_aviso()
 
 
 @router.post("/aviso/vista-previa")
-def vista_previa_del_aviso(body: AvisoIn, usuario: Usuario = Depends(acceso)) -> dict[str, str]:
+def vista_previa_del_aviso(body: AvisoIn, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, str]:
     """Cómo se vería lo que se está escribiendo, sin guardarlo."""
     html, imagenes = _html_aviso({
         "asunto": body.asunto, "titulo": body.titulo or " ", "subtitulo": body.subtitulo.strip(), "texto": body.texto,
@@ -746,7 +746,7 @@ def vista_previa_del_aviso(body: AvisoIn, usuario: Usuario = Depends(acceso)) ->
 
 
 @router.put("/aviso")
-def guardar_aviso(body: AvisoIn, usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+def guardar_aviso(body: AvisoIn, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
     cfg = leer_config()
     cfg["aviso"] = _validar_aviso(body)
     _guardar_config(cfg)
@@ -758,7 +758,7 @@ def guardar_aviso(body: AvisoIn, usuario: Usuario = Depends(acceso)) -> dict[str
 
 
 @router.delete("/aviso")
-def restaurar_aviso(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+def restaurar_aviso(usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
     """Vuelve al texto original."""
     cfg = leer_config()
     cfg["aviso"] = {}
@@ -771,7 +771,7 @@ def restaurar_aviso(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
 
 
 @router.post("/aviso/enviar-prueba")
-def enviar_prueba_del_aviso(body: AvisoIn | None = None, usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+def enviar_prueba_del_aviso(body: AvisoIn | None = None, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
     """Manda el aviso SOLO a Paz y Jorge, con «(PRUEBA)» en el asunto, estando el sistema en
     prueba o en producción. Si llega lo que se está escribiendo se prueba eso (sin guardarlo);
     si no, el aviso vigente. El envío a clientes no existe todavía."""
