@@ -383,6 +383,8 @@ RYD tiene su PROPIA lista de contactos (`servicio: "ryd"`, `clave_lista`/`lista_
 `ListaDistribucion` en `src/lib/servicio.ts`) pero comparte el **listado** de plantas de Línea de proceso
 (sin migración; `clave_servicio("ryd")` sigue siendo Línea de proceso). Sus contactos nunca se cruzan con
 los de Línea.
+**Esos destinatarios fijos se editan** en Administración General → Listas de distribución (botón «Editar» del recuadro «Siempre reciben»; solo admin general): `PUT`/`DELETE /api/listas-distribucion/fijos?servicio=` guarda en `listas_fijos.json` (`_config/`, `servicios.guardar_fijos`) y «Restaurar los originales» vuelve a los de fábrica (`fijos_originales`). `fijos_de_lista` es lo que lee TODO (correo, PDF, JSON, chip «Sin lista», Envío de informes), con una **memoria de 15 s por proceso** (se consulta por cada solicitud y viene de R2; el guardado la invalida, pero con 4 workers otro puede tardar hasta 15 s en verlo). Para no puede quedar vacío (cae a los de fábrica). **Ojo:** cambiarlos cambia también lo que se ve al reabrir solicitudes ya emitidas con la marca `respaldo_ryd` (igual que cambiar un contacto); los correos ya enviados no se reenvían. Las solicitudes de PRUEBA siguen yendo a Jorge y el Report Hub (`COPIA_FIJA`, constante). Línea de proceso no tiene fijos.
+En **Envío de informes** un informe SIN Sold To / Ship To (RYD) toma los fijos de su tipo de servicio, y uno con planta pero sin correos cargados (Actimist, Ecofog, RYD) también (`plan_destinatarios`; `tests/test_fijos_editables.py`).
 Pendiente: la columna de lista del Excel base (`columnas_base`) aún no distingue RYD ni la marca.
 
 Los contactos de **Laboratorios → Contacto laboratorio** (`tipo: solicitud`)

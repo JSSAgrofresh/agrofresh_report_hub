@@ -134,14 +134,109 @@ def tablas(servicio: Any) -> tuple[str, str]:
     return TABLAS[clave_servicio(servicio)]
 
 
-def fijos_de_lista(lista: Any) -> dict[str, list[str]]:
-    """Quién recibe SIEMPRE en esa lista, tenga o no plantas cargadas:
-    Actimist y Ecofog → Para Carlos y Cristian; RYD → Para Carla y Fran; en las tres,
-    Jorge y el Report Hub en Copia. Línea de proceso no tiene fijos (su respaldo solo
-    rige cuando la planta no tiene lista del cliente)."""
+# Los fijos que trae el sistema. El administrador general puede cambiarlos desde Administración
+# General → Listas de distribución; lo que guarda queda en `ARCHIVO_FIJOS` y manda sobre estos.
+ARCHIVO_FIJOS = "listas_fijos.json"
+_SEGUNDOS_CACHE = 15.0
+_cache_fijos: dict[str, Any] = {"clave": None, "hasta": 0.0, "datos": {}}
+
+
+def fijos_originales(lista: Any) -> dict[str, list[str]]:
+    """Los fijos de fábrica: Actimist y Ecofog → Para Carlos y Cristian; RYD → Para Carla y Fran; en
+    las tres, Jorge y el Report Hub en Copia. Línea de proceso no tiene (su respaldo solo rige cuando
+    la planta no tiene lista del cliente)."""
     l = clave_lista(lista)
     if l == RYD:
         return {"para": list(RYD_COPIAS), "cc": list(COPIA_FIJA)}
     if l in PERMANENTES_SERVICIO:
         return {"para": list(PERMANENTES_SERVICIO[l]), "cc": list(COPIA_FIJA)}
     return {"para": [], "cc": []}
+
+
+def tiene_fijos(lista: Any) -> bool:
+    """¿Esta lista tiene destinatarios fijos que se puedan editar? (Línea de proceso no.)"""
+    return clave_lista(lista) != LINEA_PROCESO
+
+
+def _sin_repetidos(correos: Any) -> list[str]:
+    salida: list[str] = []
+    vistos: set[str] = set()
+    for c in correos if isinstance(correos, list) else []:
+        email = str(c or "").strip()
+        if email and email.casefold() not in vistos:
+            vistos.add(email.casefold())
+            salida.append(email)
+    return salida
+
+
+def _guardados() -> dict[str, Any]:
+    """Lo que el administrador cambió. Se lee con una memoria de pocos segundos: estas reglas se
+    consultan por cada solicitud y la configuración viene de R2 (no leerla dentro de un bucle)."""
+    import time
+
+    from . import config, config_store, r2
+
+    clave = (config.STORAGE_DIR, bool(r2.disponible()))
+    ahora = time.monotonic()
+    if _cache_fijos["clave"] == clave and ahora < _cache_fijos["hasta"]:
+        return _cache_fijos["datos"]
+    try:
+        datos = config_store.leer(ARCHIVO_FIJOS, {})  # type: ignore[arg-type]
+        datos = datos if isinstance(datos, dict) else {}
+        vigencia = _SEGUNDOS_CACHE
+    except Exception:  # un fallo de R2 no puede tumbar el correo de una solicitud: rigen los de fábrica
+        datos, vigencia = {}, 3.0
+    _cache_fijos.update(clave=clave, hasta=ahora + vigencia, datos=datos)
+    return datos
+
+
+def invalidar_fijos() -> None:
+    _cache_fijos.update(clave=None, hasta=0.0, datos={})
+
+
+def fijos_personalizados(lista: Any) -> bool:
+    """¿Esta lista tiene fijos guardados a mano (distintos de los de fábrica)?"""
+    l = clave_lista(lista)
+    g = _guardados().get(l)
+    return tiene_fijos(l) and isinstance(g, dict) and fijos_de_lista(l) != fijos_originales(l)
+
+
+def fijos_de_lista(lista: Any) -> dict[str, list[str]]:
+    """Quién recibe SIEMPRE en esa lista, tenga o no plantas cargadas. Son los de fábrica
+    (`fijos_originales`) salvo que el administrador general los haya cambiado."""
+    l = clave_lista(lista)
+    if not tiene_fijos(l):
+        return {"para": [], "cc": []}
+    g = _guardados().get(l)
+    if isinstance(g, dict) and isinstance(g.get("para"), list) and isinstance(g.get("cc"), list):
+        para = _sin_repetidos(g["para"])
+        if para:  # sin nadie en Para no hay «siempre reciben»: se cae a los de fábrica
+            return {"para": para, "cc": _sin_repetidos(g["cc"])}
+    return fijos_originales(l)
+
+
+def guardar_fijos(lista: Any, para: list[str], cc: list[str]) -> dict[str, list[str]]:
+    """Guarda los fijos de una lista (el que llama ya validó los correos). Devuelve lo vigente."""
+    from . import config_store
+
+    l = clave_lista(lista)
+    if not tiene_fijos(l):
+        raise ValueError("Línea de proceso no tiene destinatarios fijos.")
+    datos = dict(config_store.leer(ARCHIVO_FIJOS, {}))  # type: ignore[arg-type]
+    datos[l] = {"para": _sin_repetidos(para), "cc": _sin_repetidos(cc)}
+    config_store.escribir(ARCHIVO_FIJOS, datos)  # type: ignore[arg-type]
+    invalidar_fijos()
+    return fijos_de_lista(l)
+
+
+def restaurar_fijos(lista: Any) -> dict[str, list[str]]:
+    """Vuelve a los fijos de fábrica de esa lista."""
+    from . import config_store
+
+    l = clave_lista(lista)
+    datos = dict(config_store.leer(ARCHIVO_FIJOS, {}))  # type: ignore[arg-type]
+    if l in datos:
+        datos.pop(l)
+        config_store.escribir(ARCHIVO_FIJOS, datos)  # type: ignore[arg-type]
+    invalidar_fijos()
+    return fijos_de_lista(l)
