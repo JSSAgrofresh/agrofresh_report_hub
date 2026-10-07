@@ -91,6 +91,7 @@ def test_el_panel_es_solo_del_admin_general():
             c = TestClient(app)
             assert c.get("/api/admin-panel/resumen").status_code == 403, tipo
             assert c.get("/api/admin-panel/actividad").status_code == 403, tipo
+            assert c.get("/api/admin-panel/seguimiento").status_code == 403, tipo
     finally:
         app.dependency_overrides.clear()
 
@@ -101,3 +102,52 @@ def test_las_cuentas_cliente_no_registran_visitas():
         assert TestClient(app).post("/api/actividad/visita", json={"ruta": "/modulos/reportes"}).status_code == 403
     finally:
         app.dependency_overrides.clear()
+
+
+# ── Seguimiento ──────────────────────────────────────────────────────────
+
+from app.admin_panel import adopcion_por_modulo, estado_persona, mapa_calor, seguimiento_personas  # noqa: E402
+
+_AHORA = datetime(2026, 10, 6, 15, 0, tzinfo=timezone.utc)
+_DESDE = _AHORA - timedelta(days=30)
+
+
+def _e(email, categoria, hace_dias, accion="x", hora=15):
+    t = (_AHORA - timedelta(days=hace_dias)).replace(hour=hora)
+    return {"t": t, "email": email, "nombre": email, "categoria": categoria, "accion": accion, "texto": "", "modulo": None}
+
+
+def test_mapa_calor_usa_dia_y_hora_de_chile_y_no_cuenta_fallidos():
+    # lunes 5-10-2026 15:00 UTC = 12:00 en Chile (UTC-3)
+    m = mapa_calor([_e("a", "solicitudes", 1), _e("a", "acceso", 1, "login_fallido")])
+    assert len(m) == 7 and all(len(f) == 24 for f in m)
+    assert m[0][12] == 1 and sum(map(sum, m)) == 1
+
+
+def test_estado_persona():
+    kw = dict(desde=_DESDE, ahora=_AHORA, creada=_DESDE - timedelta(days=90))
+    ult = _AHORA - timedelta(days=2)
+    assert estado_persona(acciones=0, previas=0, ultima=None, nunca=True, **kw) == "nunca_ingreso"
+    assert estado_persona(acciones=0, previas=0, ultima=_AHORA - timedelta(days=45), nunca=False, **kw) == "dormida"
+    assert estado_persona(acciones=2, previas=10, ultima=ult, nunca=False, **kw) == "en_baja"
+    assert estado_persona(acciones=9, previas=4, ultima=ult, nunca=False, **kw) == "en_alza"
+    assert estado_persona(acciones=5, previas=6, ultima=ult, nunca=False, **kw) == "activa"
+    assert estado_persona(acciones=1, previas=0, ultima=ult, nunca=False, desde=_DESDE, ahora=_AHORA,
+                          creada=_DESDE + timedelta(days=3)) == "nueva"
+
+
+def test_seguimiento_personas_compara_con_el_periodo_anterior_y_deja_fuera_a_los_clientes():
+    usuarios = [
+        {"id": 1, "email": "ana@x.cl", "nombre": "Ana", "tipo_acceso": "admin_area", "area": "cromatografia", "creado_en": _DESDE - timedelta(days=200)},
+        {"id": 2, "email": "luis@x.cl", "nombre": "Luis", "tipo_acceso": "admin_area", "area": None, "creado_en": _DESDE - timedelta(days=200)},
+        {"id": 3, "email": "cli@x.cl", "nombre": "Cli", "tipo_acceso": "cliente", "area": None, "creado_en": _DESDE - timedelta(days=200)},
+    ]
+    actual = [_e("ana@x.cl", "solicitudes", 1), _e("ana@x.cl", "solicitudes", 1), _e("ana@x.cl", "verificaciones", 3)]
+    anterior = [_e("ana@x.cl", "solicitudes", 40)]
+    filas = seguimiento_personas(actual, anterior, usuarios, {}, _DESDE, _AHORA)
+    assert [f["email"] for f in filas] == ["ana@x.cl", "luis@x.cl"]
+    ana = filas[0]
+    assert ana["acciones"] == 3 and ana["previas"] == 1 and ana["dias_activos"] == 2 and ana["por_dia_activo"] == 1.5
+    assert filas[1]["estado"] == "nunca_ingreso"
+    ad = {a["categoria"]: a for a in adopcion_por_modulo(filas)}
+    assert ad["solicitudes"]["personas"] == 1 and ad["solicitudes"]["pct"] == 50 and ad["solicitudes"]["acciones"] == 2

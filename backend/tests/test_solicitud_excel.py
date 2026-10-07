@@ -282,7 +282,9 @@ def test_la_base_con_muestra_y_la_bd_de_report_tienen_las_mismas_columnas_genera
     )["BD"]
     esperadas = [etiqueta for _, etiqueta in GENERALES_BASE]
     assert _generales(ws_muestra) == esperadas
-    assert _generales(bd) == esperadas
+    # La BD de Report es la misma lista sin lo que solo tiene el laboratorio propio.
+    solo_lab = {"Peso (Kg)", "Peso Muestra Extraída (g)", "Fecha Recepción", "Hora Recepción"}
+    assert _generales(bd) == [e for e in esperadas if e not in solo_lab]
 
 
 def test_las_dos_bases_traen_los_mismos_campos_del_grupo_de_fungicidas():
@@ -345,7 +347,7 @@ def test_excel_con_muestra_trae_el_peso_extraido_en_su_columna():
     assert valores(None)["Peso Muestra Extraída (g)"] is None
 
 
-def test_excel_con_muestra_lleva_los_fortificados_en_su_propia_hoja(monkeypatch):
+def test_excel_con_muestra_lleva_los_fortificados_en_la_misma_hoja_bd(monkeypatch):
     import asyncio
 
     from app import fortificados
@@ -353,31 +355,30 @@ def test_excel_con_muestra_lleva_los_fortificados_en_su_propia_hoja(monkeypatch)
 
     monkeypatch.setattr(fortificados, "listar_para_excel", lambda: [
         {"id": 1, "numero": "F-001", "peso_extraido": 10.0086, "fecha_ingreso": "2026-10-05", "hora_ingreso": "09:13"},
-        {"id": 2, "numero": "F-002", "peso_extraido": 9.9, "fecha_ingreso": "2026-10-06", "hora_ingreso": "16:42"},
     ])
 
     async def _leer():
         r = generar_excel_con_muestra([FilaConMuestraIn(
             campos={"N° Solicitud": "OT-AGF0050"}, analitos_solicitados=[], codigo_muestra="AGF0001",
+            peso_muestra=1.392,
         )])
         return b"".join([c async for c in r.body_iterator])
 
     wb = openpyxl.load_workbook(io.BytesIO(asyncio.run(_leer())))
-    assert wb.sheetnames == ["Estándar", "Fortificados"]
-    ws = wb["Fortificados"]
-    assert [c.value for c in ws[2]] == ["N° Fortificado", "Peso extraído (g)", "Fecha ingreso", "Hora ingreso"]
-    assert [c.value for c in ws[3]] == ["F-001", 10.0086, "05-10-2026", "09:13"]
-    assert [c.value for c in ws[4]] == ["F-002", 9.9, "06-10-2026", "16:42"]
-    # Mismo diseño que la hoja Estándar: encabezado verde oscuro, banda y filtro.
-    assert ws["A2"].fill.fgColor.rgb.endswith("3D6B1F") and ws["A2"].font.color.rgb.endswith("FFFFFF")
-    assert ws["A1"].fill.fgColor.rgb.endswith("EBF5E1")
-    assert wb["Estándar"]["A2"].fill.fgColor.rgb == ws["A2"].fill.fgColor.rgb
-    assert ws.auto_filter.ref == "A2:D4" and not ws.tables
-    # La hoja estándar sigue siendo la de siempre.
-    assert wb["Estándar"]["A2"].value is not None
+    assert wb.sheetnames == ["BD"]
+    ws = wb["BD"]
+    headers = [c.value for c in ws[2]]
+    assert "Fecha Entrada" not in headers and "Peso (Kg)" in headers
+    def fila(n):
+        return dict(zip(headers, [c.value for c in ws[n]]))
+    assert fila(3)["N° Muestra"] == "AGF0001" and fila(3)["Peso (Kg)"] == 1.392
+    f = fila(4)
+    assert f["N° Muestra"] == "F-001" and f["Peso Muestra Extraída (g)"] == 10.0086
+    assert str(f["Fecha Recepción"])[:10] == "2026-10-05" and f["Hora Recepción"] == "09:13"
+    assert f["N° Solicitud"] is None and not ws.tables
 
 
-def test_excel_con_muestra_sin_fortificados_deja_la_hoja_con_encabezados_y_una_fila_vacia(monkeypatch):
+def test_excel_con_muestra_sin_fortificados_solo_trae_las_solicitudes(monkeypatch):
     import asyncio
 
     from app import fortificados
@@ -390,4 +391,20 @@ def test_excel_con_muestra_sin_fortificados_deja_la_hoja_con_encabezados_y_una_f
         return b"".join([c async for c in r.body_iterator])
 
     wb = openpyxl.load_workbook(io.BytesIO(asyncio.run(_leer())))
-    assert [c.value for c in wb["Fortificados"][3]] == [None] * 4
+    assert wb.sheetnames == ["BD"]
+
+
+def test_excel_con_muestra_trae_el_peso_y_ordena_las_fechas():
+    from app.emitir import FilaConMuestraIn
+
+    ws = _endpoint_con_muestra([FilaConMuestraIn(
+        campos={"N° Solicitud": "OT-AGF0051"}, analitos_solicitados=[],
+        codigo_muestra="AGF0002", peso_muestra=10.5, peso_muestra_extraido=10.0025,
+    )])
+    headers = [ws.cell(row=2, column=c).value for c in range(1, ws.max_column + 1)]
+    fila = dict(zip(headers, [ws.cell(row=3, column=c).value for c in range(1, ws.max_column + 1)]))
+    assert fila["Peso (Kg)"] == 10.5
+    assert fila["Peso Muestra Extraída (g)"] == 10.0025
+    assert headers.index("Fecha Muestreo") < headers.index("Fecha Solicitud")
+    assert headers.index("Fecha Análisis") < headers.index("Fecha Informe")
+    assert headers.index("Hora Recepción") < headers.index("Peso (Kg)") < headers.index("Peso Muestra Extraída (g)")

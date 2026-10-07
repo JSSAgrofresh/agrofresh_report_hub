@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { IconoAlerta } from '@/components/ui/iconosAccion'
 import { ETIQUETA_FILTRO_TABLA } from '@/features/listasDistribucion'
 import type { EstadoListas, FiltroTabla, Indicadores } from '@/features/listasDistribucion'
@@ -21,10 +22,22 @@ const ALERTAS: { filtro: Exclude<FiltroTabla, 'todas' | 'cambios'>; ayuda: strin
   { filtro: 'sin_lista_listados', ayuda: 'Plantas de Listados que todavía no tienen ningún contacto.' },
 ]
 
-function Cobertura({ titulo, ayuda, n, de }: { titulo: string; ayuda: string; n: number; de: number }) {
-  const pct = de > 0 ? Math.round((n / de) * 100) : 0
+/** Globito que aparece suave al pasar el mouse (o enfocar con el teclado / tocar) sobre un recuadro. */
+function Explicacion({ id, alineado, children }: { id: string; alineado?: 'derecha'; children: React.ReactNode }) {
   return (
-    <div className={styles.tile} role="group" aria-label={titulo}>
+    <div id={id} role="tooltip" className={`${styles.detalle} ${alineado === 'derecha' ? styles.detalleDerecha : ''}`}>
+      {children}
+    </div>
+  )
+}
+
+function Cobertura({ titulo, ayuda, que, n, de, alineado }: {
+  titulo: string; ayuda: string; que: string; n: number; de: number; alineado?: 'derecha'
+}) {
+  const pct = de > 0 ? Math.round((n / de) * 100) : 0
+  const id = useId()
+  return (
+    <div className={styles.tile} role="group" aria-label={titulo} tabIndex={0} aria-describedby={id}>
       <span className={styles.titulo}>{titulo}</span>
       <span className={styles.numero}>
         {nf.format(n)} <small>de {nf.format(de)}</small>
@@ -33,16 +46,22 @@ function Cobertura({ titulo, ayuda, n, de }: { titulo: string; ayuda: string; n:
         <div className={styles.relleno} style={{ width: `${pct}%` }} />
       </div>
       <span className={styles.ayuda}>{pct}% · {ayuda}</span>
+      <Explicacion id={id} alineado={alineado}>
+        <b>{titulo}</b>
+        <span>{que}</span>
+        <span>El porcentaje se mide sobre las plantas con lista.</span>
+      </Explicacion>
     </div>
   )
 }
 
 /** El panel de arriba: qué tan completas están las listas y dónde mirar primero. */
 export function IndicadoresListas({ ind, resumen, filtro, onFiltro }: Props) {
+  const idPlantas = useId()
   return (
     <section className={styles.panel} aria-label="Estado de las listas de distribución">
       <div className={styles.tiles}>
-        <div className={styles.tile} role="group" aria-label="Plantas con lista">
+        <div className={styles.tile} role="group" aria-label="Plantas con lista" tabIndex={0} aria-describedby={idPlantas}>
           <span className={styles.titulo}>Plantas con lista</span>
           <span className={styles.numero}>{nf.format(ind.plantas)}</span>
           <span className={styles.ayuda}>
@@ -50,11 +69,22 @@ export function IndicadoresListas({ ind, resumen, filtro, onFiltro }: Props) {
               ? `de ${nf.format(resumen.plantas_listados)} en Listados reciben el correo de resultados`
               : 'reciben el correo de resultados'}
           </span>
+          <Explicacion id={idPlantas}>
+            <b>Plantas con lista</b>
+            <span>
+              Plantas que tienen al menos un contacto de resultados cargado (cliente, comercial, técnico o admin).
+              Se compara con las plantas activas del listado oficial (Sold To / Ship To).
+            </span>
+          </Explicacion>
         </div>
-        <Cobertura titulo="Correos del cliente · Para" ayuda="reciben los resultados" n={ind.conCliente} de={ind.plantas} />
-        <Cobertura titulo="Comercial · Copia" ayuda="tienen ejecutivo en copia" n={ind.conComercial} de={ind.plantas} />
-        <Cobertura titulo="Técnico · Copia oculta" ayuda="tienen técnico asignado" n={ind.conTecnico} de={ind.plantas} />
-        <Cobertura titulo="Admin Report Hub · Copia oculta" ayuda="incluyen al sistema" n={ind.conAdmin} de={ind.plantas} />
+        <Cobertura titulo="Correos del cliente · Para" ayuda="reciben los resultados" n={ind.conCliente} de={ind.plantas}
+          que="De las plantas con lista, cuántas tienen al menos un correo del cliente en alguna especie. Esos correos van en Para." />
+        <Cobertura titulo="Comercial · Copia" ayuda="tienen ejecutivo en copia" n={ind.conComercial} de={ind.plantas}
+          que="Plantas con ejecutivo comercial. Va en copia visible." />
+        <Cobertura titulo="Técnico · Copia oculta" ayuda="tienen técnico asignado" n={ind.conTecnico} de={ind.plantas} alineado="derecha"
+          que="Plantas con técnico asignado. Va en copia oculta." />
+        <Cobertura titulo="Admin Report Hub · Copia oculta" ayuda="incluyen al sistema" n={ind.conAdmin} de={ind.plantas} alineado="derecha"
+          que="Plantas que incluyen a Jorge, Claudia y el correo del sistema. Van en copia oculta." />
       </div>
 
       <div className={styles.alertas}>

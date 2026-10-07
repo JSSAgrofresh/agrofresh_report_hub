@@ -242,7 +242,7 @@ export function ListadosView() {
               <div className={styles.servicio}>
                 <SelectorServicio
                   valor={servicio}
-                  onChange={(s) => { setServicio(s); setBusqueda('') }}
+                  onChange={(s) => { if (s === 'ryd') return; setServicio(s); setBusqueda('') }}
                   conteos={{
                     linea: catalogoLinea.error ? null : pestana === 'clientes' ? catalogoLinea.clientes.length : catalogoLinea.plantas.length,
                     actimist: catalogoActimist.error ? null : pestana === 'clientes' ? catalogoActimist.clientes.length : catalogoActimist.plantas.length,
