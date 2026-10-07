@@ -81,6 +81,7 @@ export function enviarInforme(datos: DatosCorreo, archivos: File[]) {
   form.append('para', JSON.stringify(datos.para))
   form.append('cc', JSON.stringify(datos.cc))
   form.append('bcc', JSON.stringify(datos.bcc))
+  form.append('solicitud', datos.solicitud ?? '')
   for (const archivo of archivos) form.append('archivos', archivo, archivo.name)
   return httpClient.upload<ResultadoEnvio>(`${BASE}/enviar`, form)
 }

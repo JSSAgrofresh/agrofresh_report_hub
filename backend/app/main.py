@@ -27,6 +27,7 @@ from .laboratorios import router as laboratorios_router
 from .listados import router as listados_router
 from .postventa import router as postventa_router
 from .postventa import router_cliente as postventa_cliente_router
+from .entrega_indicadores import router as entrega_indicadores_router
 from .reportes import router as reportes_router
 from .storage import router as storage_router
 from .toma_muestras import router as toma_muestras_router
@@ -118,6 +119,7 @@ for _router in (
     ingest_router,
     auditoria_router,
     auditoria_interna_router,
+    entrega_indicadores_router,
     actividad_router,
     admin_panel_router,
     correcciones_router,
