@@ -89,6 +89,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0049_listado_actimist.sql
 .venv\Scripts\python.exe scripts\migrar.py 0050_listado_ecofog.sql
 .venv\Scripts\python.exe scripts\migrar.py 0052_envio_informes.sql
+.venv\Scripts\python.exe scripts\migrar.py 0054_envio_informe_solicitud.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -417,6 +418,26 @@ sea que rige la regla de «solo Jorge y Claudia» (también si ellos dos son los
 se guarda. **No leas la configuración de contactos dentro de un bucle por
 solicitud**: viene de R2 y el listado pasó a tardar 6 s; se lee una vez
 (`_calculador_sin_lista`).
+
+## Indicadores de entrega (Auditoría interna) y fuera de rango (Report)
+
+**Lead time y Cumplimiento** viven en «Solicitudes e informes» (`IndicadoresEntrega.tsx`,
+lógica pura en `features/auditoriaInterna/lib/entrega.ts`; backend `app/entrega_indicadores.py`:
+`GET /api/auditoria-interna/hitos`, `GET/PUT /plazos`). Cada número sale de fechas reales:
+emitida (`solicitud_archivo.creado_en`), enviada al lab (`envio_solicitud_log` exitoso), informe
+(`informe_auditoria.fecha_envio`, si no `subido_en`), Report (`carga_datos.creado_en`, unido por
+`solicitud.nro_solicitud = informe.nro_informe`) y cliente (`envio_informe_log` en modo producción,
+enlazado por `archivo_solicitud`, **migración 0054**; los envíos anteriores no tienen enlace).
+- **Entregado** se define en las reglas: `concretado` (PDF + Report; por defecto, sirve con todo el
+  historial) o `cliente`. Lead time = fin − emitida (días corridos), mediana y P90; las abiertas se
+  informan aparte; las que tienen hitos antes de la emisión se excluyen.
+- **Cumplimiento** = a tiempo ÷ (a tiempo + tarde + vencidas sin entregar). «Aún en plazo» y «sin
+  plazo» no cuentan. Los **plazos por laboratorio** (`plazos_entrega.json`) los carga el admin
+  general; no se inventa ninguno (sin plazos, estado vacío).
+**Fuera de rango** (`views/modules/reports/FueraDeRango.tsx`, lógica en `features/reportes/lib/fueraDeRango.ts`)
+solo en la Vista por límite de control: criterio «Límite del analito» (límite residual; sin límite ≠ dentro)
+o «Límite de control» (promedio ± σ, mín. 3 por analito); parte en el primero si hay límites cargados.
+% = (sobre+bajo) ÷ evaluados; «Ver por» Analito / Cliente / Laboratorio / Servicio.
 
 ## Post Venta: informes de Accu-Tab (Trace + correo)
 

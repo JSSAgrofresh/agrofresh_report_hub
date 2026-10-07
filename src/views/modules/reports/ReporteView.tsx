@@ -1,3 +1,4 @@
+import FueraDeRango from './FueraDeRango'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import {
@@ -1548,6 +1549,10 @@ export function ReporteView({
                   <canvas ref={mainRef} />
                 </div>
               </Card>
+
+              {vistaControl && !esDiagnofruit && (
+                <FueraDeRango observaciones={filtradas} analitos={analitosVista} limites={limitesVista} sigma={sigma} />
+              )}
 
               <div className={styles.grid2Iguales}>
                 <Card className={styles.panel}>

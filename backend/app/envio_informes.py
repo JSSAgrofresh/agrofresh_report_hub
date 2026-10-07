@@ -858,28 +858,39 @@ def _registrar_envio(
     *, usuario: Usuario, modo: str, armado: dict[str, Any], datos: DatosEnvio,
     adjuntos: list[correo.Adjunto], enviado: dict[str, list[str]],
     exitoso: bool, mensaje_id: str | None, error: str | None,
+    archivo_solicitud: str = "",
 ) -> None:
     """Best-effort a propósito, como `envio_solicitud_log`: si la base falla, o falta
-    la migración 0052, el envío que ya salió no se oculta ni se tumba."""
+    la migración 0052, el envío que ya salió no se oculta ni se tumba.
+
+    Con la migración 0054 el envío queda amarrado a su solicitud (lo usa Auditoría
+    interna para medir el lead time hasta el cliente); sin ella se guarda igual, sin amarre."""
+    valores = (
+        usuario.email, usuario.nombre, modo, armado["laboratorio"], datos.sold_to.strip(),
+        datos.ship_to.strip(), datos.especie.strip(), armado["asunto"],
+        json.dumps(armado["reales"]["to"]), json.dumps(armado["reales"]["cc"]),
+        json.dumps(armado["reales"]["bcc"]),
+        json.dumps(enviado["to"]), json.dumps(enviado["cc"]), json.dumps(enviado["bcc"]),
+        json.dumps([{"nombre": a.nombre, "bytes": len(a.contenido)} for a in adjuntos]),
+        exitoso, mensaje_id, error,
+    )
+    base = """
+        INSERT INTO envio_informe_log
+            (usuario_email, usuario_nombre, modo, laboratorio, sold_to, ship_to, especie, asunto,
+             para, cc, bcc, enviado_to, enviado_cc, enviado_bcc, adjuntos, exitoso, mensaje_id, error{extra})
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s{marcas})
+    """
+    archivo_solicitud = (archivo_solicitud or "").strip()
+    if archivo_solicitud:
+        try:
+            with conexion() as conn, cursor_dict(conn) as cur:
+                cur.execute(base.format(extra=", archivo_solicitud", marcas=", %s"), (*valores, archivo_solicitud))
+            return
+        except Exception:
+            logger.warning("Sin la migración 0054 el envío no queda amarrado a su solicitud.", exc_info=True)
     try:
         with conexion() as conn, cursor_dict(conn) as cur:
-            cur.execute(
-                """
-                INSERT INTO envio_informe_log
-                    (usuario_email, usuario_nombre, modo, laboratorio, sold_to, ship_to, especie, asunto,
-                     para, cc, bcc, enviado_to, enviado_cc, enviado_bcc, adjuntos, exitoso, mensaje_id, error)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    usuario.email, usuario.nombre, modo, armado["laboratorio"], datos.sold_to.strip(),
-                    datos.ship_to.strip(), datos.especie.strip(), armado["asunto"],
-                    json.dumps(armado["reales"]["to"]), json.dumps(armado["reales"]["cc"]),
-                    json.dumps(armado["reales"]["bcc"]),
-                    json.dumps(enviado["to"]), json.dumps(enviado["cc"]), json.dumps(enviado["bcc"]),
-                    json.dumps([{"nombre": a.nombre, "bytes": len(a.contenido)} for a in adjuntos]),
-                    exitoso, mensaje_id, error,
-                ),
-            )
+            cur.execute(base.format(extra="", marcas=""), valores)
     except Exception:
         logger.exception("No se pudo registrar el envío de informe en envio_informe_log (exitoso=%s)", exitoso)
 
@@ -896,6 +907,8 @@ async def enviar_informe(
     para: str = Form("[]"),
     cc: str = Form("[]"),
     bcc: str = Form("[]"),
+    # Archivo de la solicitud (OT) que se leyó del PDF, si se encontró: amarra el envío a ella.
+    solicitud: str = Form(""),
     archivos: list[UploadFile] = File(...),
     usuario: Usuario = Depends(acceso),
 ) -> dict[str, Any]:
@@ -925,6 +938,7 @@ async def enviar_informe(
         _registrar_envio(
             usuario=usuario, modo=modo, armado=armado, datos=datos, adjuntos=adjuntos,
             enviado=efectivos, exitoso=False, mensaje_id=None, error=str(exc.detail),
+            archivo_solicitud=solicitud,
         )
         raise
 
@@ -932,6 +946,7 @@ async def enviar_informe(
     _registrar_envio(
         usuario=usuario, modo=modo, armado=armado, datos=datos, adjuntos=adjuntos,
         enviado=enviado, exitoso=True, mensaje_id=resultado.mensaje_id, error=None,
+        archivo_solicitud=solicitud,
     )
     if modo == MODO_PRUEBA:
         mensaje = f"Prueba enviada a {', '.join(resultado.to)}. No salió nada al cliente."
