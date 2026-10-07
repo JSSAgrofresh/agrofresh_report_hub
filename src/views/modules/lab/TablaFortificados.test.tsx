@@ -57,6 +57,21 @@ describe('Ingreso de fortificados', () => {
     await waitFor(() => expect(listarFortificados).toHaveBeenCalledTimes(2))
   })
 
+  it('el N° se escanea (lector o cámara): al terminar el código pasa al peso y Enter ingresa', async () => {
+    await abrirFortificados()
+    vi.useFakeTimers()
+    const campo = screen.getByLabelText('N° de fortificado nuevo')
+    expect(screen.getByRole('button', { name: 'Abrir cámara para escanear' })).toBeInTheDocument()
+    for (const parcial of ['F', 'F-', 'F-0', 'F-00', 'F-003']) fireEvent.change(campo, { target: { value: parcial } })
+    vi.advanceTimersByTime(80)
+    vi.useRealTimers()
+    const peso = screen.getByLabelText(/Peso extraído del fortificado nuevo/)
+    expect(document.activeElement).toBe(peso)
+    fireEvent.change(peso, { target: { value: '9.5' } })
+    fireEvent.keyDown(peso, { key: 'Enter' })
+    await waitFor(() => expect(crearFortificado).toHaveBeenCalledWith('F-003', 9.5))
+  })
+
   it('un peso en cero no se puede ingresar', async () => {
     await abrirFortificados()
     fireEvent.change(screen.getByLabelText('N° de fortificado nuevo'), { target: { value: 'F-009' } })
