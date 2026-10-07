@@ -302,7 +302,13 @@ export function ListasPanel({ servicio = 'linea' }: { servicio?: ListaDistribuci
 
   return (
     <div className={styles.panel}>
-      {estado.fijos && <FijosDeLista fijos={estado.fijos} servicio={servicio} />}
+      {estado.fijos && (
+        <FijosDeLista
+          fijos={estado.fijos}
+          servicio={servicio}
+          onCambio={(fijos) => setEstado((e) => (e ? { ...e, fijos } : e))}
+        />
+      )}
       <IndicadoresListas ind={ind} resumen={estado.resumen} filtro={filtro} onFiltro={(f) => {
         if (f === 'sin_lista_listados') setIncluirSinLista(true)
         setFiltro(f)
