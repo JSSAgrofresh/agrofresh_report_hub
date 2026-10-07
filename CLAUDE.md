@@ -195,8 +195,7 @@ front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
 
 - **Modo prueba / producción.** Un botón arriba dice «Sistema en prueba» o
   «Sistema en producción» y lo cambia. **Siempre parte en prueba** (sin archivo
-  de configuración = prueba). En prueba todo sale SOLO a `DESTINATARIOS_PRUEBA`
-  (Paz y Jorge), con «(PRUEBA)» en el asunto y un aviso arriba del correo que
+  de configuración = prueba). En prueba todo sale SOLO a los **destinatarios de prueba** (parten en `DESTINATARIOS_PRUEBA`: Paz y Jorge; se cambian en el aviso a clientes → «Las pruebas llegan a», `PUT /prueba`, guardados en `envio_informes.json` bajo `destinatarios_prueba`; valen para TODO el modo prueba, informes incluidos), con «(PRUEBA)» en el asunto y un aviso arriba del correo que
   dice a quién habría ido de verdad. Pasar a producción pide la contraseña de
   quien lo hace (403 si se equivoca, **no 401**: un 401 cierra la sesión en el
   navegador); volver a prueba no la pide. La configuración (`envio_informes.json`,

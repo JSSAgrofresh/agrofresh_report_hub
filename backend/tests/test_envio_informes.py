@@ -948,3 +948,45 @@ def test_un_aviso_guardado_antes_de_las_plantillas_sigue_valiendo_como_estandar(
 def test_la_vista_previa_con_plantilla_desconocida_no_falla(entorno):
     r = ei.vista_previa_del_aviso(_aviso_editado(plantilla="no_existe"), usuario=_usuario())
     assert "Hola a todos" in r["html"]
+
+
+# --- Destinatarios de prueba editables ---------------------------------------------------
+
+def test_los_destinatarios_de_prueba_parten_con_paz_y_jorge(entorno):
+    assert ei.estado(usuario=_usuario())["destinatarios_prueba"] == ei.DESTINATARIOS_PRUEBA
+    assert ei.aviso_a_clientes(usuario=_usuario())["destinatarios_prueba"] == ei.DESTINATARIOS_PRUEBA
+
+
+def test_se_pueden_cambiar_y_rigen_en_el_modo_prueba_y_en_la_prueba_del_aviso(entorno):
+    r = ei.guardar_destinatarios_prueba(ei.PruebaIn(destinatarios=["nuevo@agrofresh.com; Otro@agrofresh.com", "nuevo@AGROFRESH.com"]), usuario=_usuario())
+    assert r["destinatarios_prueba"] == ["nuevo@agrofresh.com", "Otro@agrofresh.com"]
+    assert ei.aviso_a_clientes(usuario=_usuario())["destinatarios_prueba"] == ["nuevo@agrofresh.com", "Otro@agrofresh.com"]
+    ei.enviar_prueba_del_aviso(usuario=_usuario())
+    assert entorno[-1]["to"] == ["nuevo@agrofresh.com", "Otro@agrofresh.com"]
+    # un informe en modo prueba también sale solo a ellos
+    armado = ei.armar_correo(ei.DatosEnvio(laboratorio="AGROFRESH", sold_to="DOLE", ship_to="SAN FERNANDO",
+                                           para=["cliente@dole.cl"]), _usuario(), ei.MODO_PRUEBA, [])
+    assert armado["efectivos"]["to"] == ["nuevo@agrofresh.com", "Otro@agrofresh.com"]
+    assert armado["reales"]["to"] == ["cliente@dole.cl"]
+
+
+def test_cambiar_los_destinatarios_de_prueba_no_pierde_el_resto_de_la_configuracion(entorno):
+    ei._guardar_config({**ei.leer_config(), "modo": "produccion"})
+    ei.guardar_destinatarios_prueba(ei.PruebaIn(destinatarios=["a@agrofresh.com"]), usuario=_usuario())
+    cfg = ei.leer_config()
+    assert cfg["modo"] == "produccion" and cfg["destinatarios_prueba"] == ["a@agrofresh.com"]
+    ei.guardar_internos(ei.InternosIn(cc=[], bcc=["x@agrofresh.com"]), usuario=_usuario())
+    assert ei.leer_config()["destinatarios_prueba"] == ["a@agrofresh.com"]
+
+
+@pytest.mark.parametrize("lista", [[], ["  "], ["sin-arroba"], ["a@x.cl", "roto@"]])
+def test_los_destinatarios_de_prueba_se_validan(entorno, lista):
+    with pytest.raises(HTTPException) as exc:
+        ei.guardar_destinatarios_prueba(ei.PruebaIn(destinatarios=lista), usuario=_usuario())
+    assert exc.value.status_code == 400
+    assert ei.leer_config()["destinatarios_prueba"] == ei.DESTINATARIOS_PRUEBA
+
+
+def test_un_valor_danado_en_el_archivo_cae_a_paz_y_jorge(entorno):
+    ei._guardar_config({**ei.leer_config(), "destinatarios_prueba": "roto"})
+    assert ei.leer_config()["destinatarios_prueba"] == ei.DESTINATARIOS_PRUEBA

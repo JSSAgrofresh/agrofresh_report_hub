@@ -382,7 +382,7 @@ export function EnvioInformesView() {
 
       <details className={styles.plegable}>
         <summary>Aviso a clientes: «ahora los informes salen por el Report Hub»</summary>
-        <AvisoClientes />
+        <AvisoClientes onEstado={setEstado} />
       </details>
 
       <section className={styles.historial}>
