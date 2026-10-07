@@ -62,6 +62,12 @@ export interface FijosLista {
   cc: string[]
   /** solo Línea de proceso: va Para si la planta no tiene lista del cliente */
   respaldo: string[]
+  /** Actimist, Ecofog y RYD se pueden editar; Línea de proceso no tiene fijos (faltan en un backend anterior) */
+  editable?: boolean
+  /** los que trae el sistema, para «Restaurar» */
+  original?: { para: string[]; cc: string[] }
+  /** hay fijos guardados a mano distintos de los originales */
+  personalizado?: boolean
 }
 
 export interface EstadoListas {

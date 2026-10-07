@@ -42,10 +42,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from . import config_store
+from . import actividad, config_store
 from .auth import Usuario, solo_admin_general
 from .listados import clave_normalizada as _clave_esp
-from .servicios import clave_lista, es_del_servicio, fijos_de_lista, tablas
+from .servicios import (
+    clave_lista, es_del_servicio, fijos_de_lista, fijos_originales, fijos_personalizados, guardar_fijos,
+    restaurar_fijos, tablas, tiene_fijos,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -779,7 +782,13 @@ def _fijos_para_pantalla(servicio: str) -> dict:
     from .toma_muestras import DESTINATARIOS_SIN_LISTA
 
     fijos = fijos_de_lista(servicio)
-    return {**fijos, "respaldo": [] if servicio else list(DESTINATARIOS_SIN_LISTA)}
+    return {
+        **fijos,
+        "respaldo": [] if servicio else list(DESTINATARIOS_SIN_LISTA),
+        "editable": tiene_fijos(servicio),
+        "original": fijos_originales(servicio),
+        "personalizado": fijos_personalizados(servicio),
+    }
 
 
 @router.get("/estado")
@@ -794,6 +803,61 @@ def estado_actual(
     resultado["servicio"] = servicio
     resultado["fijos"] = _fijos_para_pantalla(servicio)
     return resultado
+
+
+class FijosIn(BaseModel):
+    para: list[str] = Field(default_factory=list, max_length=50)
+    cc: list[str] = Field(default_factory=list, max_length=50)
+
+
+def _exigir_lista_con_fijos(servicio: str) -> str:
+    lista = clave_lista(servicio)
+    if not tiene_fijos(lista):
+        raise HTTPException(400, "Línea de proceso no tiene destinatarios fijos: elige Actimist, Ecofog o RYD.")
+    return lista
+
+
+def _correos_validos(valores: list[str], campo: str) -> list[str]:
+    salida: list[str] = []
+    for v in valores:
+        for trozo in re.split(r"[;,\s]+", str(v or "")):
+            if not trozo:
+                continue
+            if not _EMAIL_RE.match(trozo):
+                raise HTTPException(400, f"«{trozo}» no es un correo válido ({campo}).")
+            salida.append(trozo)
+    return salida
+
+
+@router.put("/fijos")
+def guardar_destinatarios_fijos(
+    datos: FijosIn, servicio: str = "", usuario: Usuario = Depends(solo_admin_general),
+) -> dict:
+    """Cambia a quién va SIEMPRE el correo de esa lista (Para y Copia), tenga o no la planta lista
+    cargada. Rige en el correo, el PDF y el JSON de las solicitudes nuevas y en el Envío de informes."""
+    lista = _exigir_lista_con_fijos(servicio)
+    para = _correos_validos(datos.para, "Para")
+    cc = _correos_validos(datos.cc, "Copia")
+    if not para:
+        raise HTTPException(400, "Debe haber al menos un correo en Para: son los que «siempre reciben».")
+    guardar_fijos(lista, para, cc)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "listas_fijos",
+        f"cambió los destinatarios fijos de la lista {lista} (Para {len(para)}, Copia {len(cc)})", sensible=True,
+    )
+    return _fijos_para_pantalla(lista)
+
+
+@router.delete("/fijos")
+def restaurar_destinatarios_fijos(servicio: str = "", usuario: Usuario = Depends(solo_admin_general)) -> dict:
+    """Vuelve a los destinatarios fijos que trae el sistema."""
+    lista = _exigir_lista_con_fijos(servicio)
+    restaurar_fijos(lista)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "listas_fijos",
+        f"restauró los destinatarios fijos de la lista {lista} a los originales", sensible=True,
+    )
+    return _fijos_para_pantalla(lista)
 
 
 @router.get("/excel")

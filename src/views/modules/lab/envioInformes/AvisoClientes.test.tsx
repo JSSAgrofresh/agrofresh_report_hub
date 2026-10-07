@@ -3,13 +3,17 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { AvisoClientes } from './AvisoClientes'
 
 const api = vi.hoisted(() => ({
+  guardarDestinatariosPrueba: vi.fn(),
   obtenerAvisoClientes: vi.fn(),
   vistaPreviaAviso: vi.fn(),
   guardarAviso: vi.fn(),
   restaurarAviso: vi.fn(),
   enviarPruebaAviso: vi.fn(),
 }))
-vi.mock('@/features/envioInformes', () => api)
+vi.mock('@/features/envioInformes', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/envioInformes')>()),
+  ...api,
+}))
 
 const original = {
   asunto: 'Asunto original', titulo: 'Aviso a clientes', subtitulo: 'AgroFresh Report Hub', texto: 'Estimados clientes:',
@@ -37,7 +41,8 @@ describe('AvisoClientes', () => {
     expect(screen.getByDisplayValue('Aviso a clientes')).toBeTruthy()
     expect(screen.getByDisplayValue('AgroFresh Report Hub')).toBeTruthy()
     expect(screen.getByDisplayValue('Estimados clientes:')).toBeTruthy()
-    expect(screen.getByText(/solo a psalazar@agrofresh.com y jorge.sandoval@agrofresh.com/)).toBeTruthy()
+    expect(screen.getByLabelText('Quitar psalazar@agrofresh.com')).toBeTruthy()
+    expect(screen.getByLabelText('Quitar jorge.sandoval@agrofresh.com')).toBeTruthy()
     expect(api.enviarPruebaAviso).not.toHaveBeenCalled()
     expect((screen.getByRole('button', { name: 'Guardar cambios' }) as HTMLButtonElement).disabled).toBe(true)
   })
@@ -170,5 +175,38 @@ describe('AvisoClientes', () => {
     expect(screen.getByRole('radio', { name: /Azul/ }).getAttribute('aria-checked')).toBe('true')
     fireEvent.keyDown(screen.getByRole('radio', { name: /Azul/ }), { key: 'ArrowLeft' })
     expect(screen.getByRole('radio', { name: /Estándar/ }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('los destinatarios de prueba se cambian aquí, se guardan y se avisa al resto de la pantalla', async () => {
+    const estado = { destinatarios_prueba: ['psalazar@agrofresh.com', 'nuevo@agrofresh.com'] }
+    api.guardarDestinatariosPrueba.mockResolvedValue(estado)
+    const onEstado = vi.fn()
+    render(<AvisoClientes onEstado={onEstado} />)
+    await screen.findByDisplayValue('Asunto original')
+    expect(screen.queryByRole('button', { name: 'Guardar destinatarios de prueba' })).toBeNull()   // sin cambios
+    fireEvent.click(screen.getByLabelText('Quitar jorge.sandoval@agrofresh.com'))
+    const campo = screen.getByPlaceholderText('Agregar otro…')
+    fireEvent.change(campo, { target: { value: 'nuevo@agrofresh.com' } })
+    fireEvent.keyDown(campo, { key: 'Enter' })
+    // con cambios sin guardar no se puede probar: iría a los de antes
+    expect((screen.getByRole('button', { name: 'Probar el aviso' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar destinatarios de prueba' }))
+    await waitFor(() => expect(api.guardarDestinatariosPrueba).toHaveBeenCalledWith(['psalazar@agrofresh.com', 'nuevo@agrofresh.com']))
+    await waitFor(() => expect(onEstado).toHaveBeenCalledWith(estado))
+    expect(await screen.findByText('Destinatarios de prueba guardados.')).toBeInTheDocument()
+    expect((screen.getByRole('button', { name: 'Probar el aviso' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('no deja guardar destinatarios de prueba vacíos ni mal escritos', async () => {
+    render(<AvisoClientes />)
+    await screen.findByDisplayValue('Asunto original')
+    const campo = screen.getByPlaceholderText('Agregar otro…')
+    fireEvent.change(campo, { target: { value: 'sin-arroba' } })
+    fireEvent.keyDown(campo, { key: 'Enter' })
+    expect((screen.getByRole('button', { name: 'Guardar destinatarios de prueba' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByLabelText('Quitar sin-arroba'))
+    fireEvent.click(screen.getByLabelText('Quitar psalazar@agrofresh.com'))
+    fireEvent.click(screen.getByLabelText('Quitar jorge.sandoval@agrofresh.com'))
+    expect((screen.getByRole('button', { name: 'Guardar destinatarios de prueba' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })

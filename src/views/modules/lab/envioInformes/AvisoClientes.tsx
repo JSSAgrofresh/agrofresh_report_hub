@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import {
-  enviarPruebaAviso, guardarAviso, obtenerAvisoClientes, restaurarAviso, vistaPreviaAviso,
+  enviarPruebaAviso, esCorreoValido, guardarAviso, guardarDestinatariosPrueba, obtenerAvisoClientes, restaurarAviso, vistaPreviaAviso,
 } from '@/features/envioInformes'
-import type { AvisoClientes as Aviso, DatosAviso } from '@/features/envioInformes'
+import type { AvisoClientes as Aviso, DatosAviso, EstadoEnvio } from '@/features/envioInformes'
 import { HttpError } from '@/services/http/client'
+import { ListaCorreos } from './ListaCorreos'
 import styles from './EnvioInformes.module.css'
 
 function mensajeDe(e: unknown, defecto: string): string {
@@ -16,13 +17,20 @@ const datosDe = (a: DatosAviso): DatosAviso => ({
   asunto: a.asunto ?? '', titulo: a.titulo ?? '', subtitulo: a.subtitulo ?? '', texto: a.texto ?? '',
   plantilla: a.plantilla ?? 'estandar',
 })
+const mismosCorreos = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((x, i) => x.toLowerCase() === b[i].toLowerCase())
 const iguales = (a: DatosAviso, b: DatosAviso) => JSON.stringify(datosDe(a)) === JSON.stringify(datosDe(b))
 
 /** El aviso de bienvenida a clientes: se edita por completo (asunto, título, subtítulo y texto),
  * se ve tal como llegaría mientras se escribe, se guarda o se restaura al original, y se puede
  * mandar una prueba a Paz y Jorge con lo que está en pantalla. El envío a los clientes todavía
  * no existe a propósito. */
-export function AvisoClientes() {
+interface AvisoClientesProps {
+  /** Se llama con el estado del módulo cuando cambian los destinatarios de prueba (lo muestra el resto de la pantalla). */
+  onEstado?: (estado: EstadoEnvio) => void
+}
+
+export function AvisoClientes({ onEstado }: AvisoClientesProps = {}) {
   const [guardado, setGuardado] = useState<Aviso | null>(null)
   const [edit, setEdit] = useState<DatosAviso | null>(null)
   // Vista previa de lo que se está escribiendo (solo vale mientras haya cambios sin guardar).
@@ -31,6 +39,8 @@ export function AvisoClientes() {
   // Aviso fijo cuando el servidor es anterior a esta versión (no se borra con el resto de mensajes).
   const [avisoServidor, setAvisoServidor] = useState<string | null>(null)
   const [vistaFalla, setVistaFalla] = useState(false)
+  // A quién llegan las pruebas (valen para todo el modo prueba del módulo, no solo para este aviso).
+  const [pruebas, setPruebas] = useState<string[]>([])
   const [ocupado, setOcupado] = useState(false)
   const [resultado, setResultado] = useState<string | null>(null)
   const turno = useRef(0)
@@ -45,6 +55,7 @@ export function AvisoClientes() {
     setEdit(datosDe(a))
     setBorrador(null)
     setVistaFalla(false)
+    setPruebas(a.destinatarios_prueba ?? [])
   }
 
   useEffect(() => {
@@ -99,6 +110,7 @@ export function AvisoClientes() {
   }
 
   const sinCambios = iguales(edit, guardado)
+  const pruebasSinGuardar = !mismosCorreos(pruebas, guardado.destinatarios_prueba)
   const html = sinCambios ? guardado.html : (borrador ?? guardado.html)
   const vacio = !edit.asunto.trim() || !edit.titulo.trim() || !edit.texto.trim()
 
@@ -163,12 +175,39 @@ export function AvisoClientes() {
 
       <iframe className={styles.marcoCorreo} title="Vista previa del aviso a clientes" sandbox="" srcDoc={html} />
 
+      <div className={styles.pruebasAviso}>
+        <ListaCorreos
+          etiqueta="Las pruebas llegan a"
+          ayuda="Rige para todo lo que se envía en modo prueba (también los informes), no solo para este aviso."
+          valor={pruebas}
+          onChange={setPruebas}
+          deshabilitado={ocupado}
+          alerta={pruebas.length === 0}
+        />
+        {pruebasSinGuardar && (
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={ocupado || pruebas.length === 0 || pruebas.some((c) => !esCorreoValido(c))}
+            onClick={() => ejecutar(async () => {
+              const estado = await guardarDestinatariosPrueba(pruebas)
+              setGuardado((g) => (g ? { ...g, destinatarios_prueba: estado.destinatarios_prueba } : g))
+              setPruebas(estado.destinatarios_prueba)
+              onEstado?.(estado)
+              setResultado('Destinatarios de prueba guardados.')
+            }, 'No se pudieron guardar los destinatarios de prueba.')}
+          >
+            Guardar destinatarios de prueba
+          </Button>
+        )}
+      </div>
+
       <div className={styles.barraEnvio}>
         <span className={styles.vacio}>
           {sinCambios
             ? (guardado.personalizado ? 'Guardado.' : 'Es el texto original.')
             : 'Hay cambios sin guardar.'}{' '}
-          La prueba sale solo a {guardado.destinatarios_prueba.join(' y ')}. El envío a clientes aún no está habilitado.
+          La prueba sale solo a los destinatarios de prueba de arriba. El envío a clientes aún no está habilitado.
         </span>
         <div className={styles.informeAcciones}>
           {guardado.personalizado && (
@@ -198,7 +237,8 @@ export function AvisoClientes() {
           </Button>
           <Button
             type="button"
-            disabled={ocupado || vacio}
+            disabled={ocupado || vacio || pruebasSinGuardar}
+            title={pruebasSinGuardar ? 'Guarda primero los destinatarios de prueba' : undefined}
             onClick={() => ejecutar(async () => {
               const r = await enviarPruebaAviso(edit)
               setResultado(r.ok)

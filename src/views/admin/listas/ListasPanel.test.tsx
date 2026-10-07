@@ -7,6 +7,8 @@ const api = vi.hoisted(() => ({
   compararListas: vi.fn(),
   aplicarListas: vi.fn(),
   exportarListas: vi.fn(),
+  guardarFijos: vi.fn(),
+  restaurarFijos: vi.fn(),
 }))
 vi.mock('@/features/listasDistribucion', async (original) => ({ ...(await original<typeof import('@/features/listasDistribucion')>()), ...api }))
 
@@ -154,5 +156,26 @@ describe('ListasPanel', () => {
     expect(api.aplicarListas.mock.calls[0][0][0]).toMatchObject({
       tipo: 'planta_renombrar', planta: { ship_to: 'PLANTA UNO' }, nuevo: { ship_to: 'PLANTA LISONJERA' },
     })
+  })
+
+  it('los destinatarios fijos de la lista se editan en el panel y quedan vigentes al guardar', async () => {
+    const fijos = {
+      para: ['CJIMENEZ@AGROFRESH.COM'], cc: ['JORGE.SANDOVAL@AGROFRESH.COM'], respaldo: [], editable: true,
+      original: { para: ['CJIMENEZ@AGROFRESH.COM'], cc: ['JORGE.SANDOVAL@AGROFRESH.COM'] }, personalizado: false,
+    }
+    api.obtenerEstado.mockResolvedValue({ ...estado, fijos })
+    api.guardarFijos.mockResolvedValue({ ...fijos, para: ['otro@agrofresh.com'], personalizado: true })
+    render(<ListasPanel servicio="ecofog" />)
+    const caja = await screen.findByRole('region', { name: 'Destinatarios de Ecofog' })
+    fireEvent.click(within(caja).getByRole('button', { name: 'Editar' }))
+    fireEvent.click(screen.getByLabelText('Quitar CJIMENEZ@AGROFRESH.COM'))
+    const [campo] = screen.getAllByPlaceholderText(/nombre@empresa.cl|Agregar otro/)
+    fireEvent.change(campo, { target: { value: 'otro@agrofresh.com' } })
+    fireEvent.keyDown(campo, { key: 'Enter' })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    await waitFor(() => expect(api.guardarFijos).toHaveBeenCalledWith('ecofog', { para: ['otro@agrofresh.com'], cc: ['JORGE.SANDOVAL@AGROFRESH.COM'] }))
+    const nueva = await screen.findByRole('region', { name: 'Destinatarios de Ecofog' })
+    expect(within(nueva).getByTitle('otro@agrofresh.com')).toBeInTheDocument()
+    expect(within(nueva).getByText('editado')).toBeInTheDocument()
   })
 })

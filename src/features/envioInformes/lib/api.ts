@@ -28,6 +28,11 @@ export function guardarInternos(internos: Internos) {
   return httpClient.put<EstadoEnvio>(`${BASE}/internos`, internos)
 }
 
+/** A quién llega TODO lo que se envía en modo prueba (informes y la prueba del aviso). */
+export function guardarDestinatariosPrueba(destinatarios: string[]) {
+  return httpClient.put<EstadoEnvio>(`${BASE}/prueba`, { destinatarios })
+}
+
 export function guardarEncabezado(encabezado: Encabezado) {
   return httpClient.put<EstadoEnvio>(`${BASE}/encabezado`, encabezado)
 }

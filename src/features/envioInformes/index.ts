@@ -7,6 +7,7 @@ export {
   cambiarModoEnvio,
   guardarInternos,
   guardarEncabezado,
+  guardarDestinatariosPrueba,
   obtenerPlanDestinatarios,
   obtenerTemplateInforme,
   guardarTemplateInforme,

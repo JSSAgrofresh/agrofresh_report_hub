@@ -2,6 +2,7 @@ import { httpClient } from '@/services/http/client'
 import { descargarArchivo } from '@/services/http/descargar'
 import { parametroServicio } from '@/lib/servicio'
 import type { ListaDistribucion } from '@/lib/servicio'
+import type { FijosLista } from './tabla'
 
 export interface PlantaLista {
   sold_to: string
@@ -67,6 +68,16 @@ export interface ResultadoAplicar {
   respaldo: string
   listados_creados?: { clientes: number; plantas: number }
   renombradas?: { sold_to: string; de: string; a: string }[]
+}
+
+/** Cambia a quién va SIEMPRE el correo de esa lista (Para y Copia). Solo Actimist, Ecofog y RYD. */
+export function guardarFijos(servicio: ListaDistribucion, datos: { para: string[]; cc: string[] }) {
+  return httpClient.put<FijosLista>(`/listas-distribucion/fijos?servicio=${parametroServicio(servicio)}`, datos)
+}
+
+/** Vuelve a los destinatarios fijos que trae el sistema. */
+export function restaurarFijos(servicio: ListaDistribucion) {
+  return httpClient.delete<FijosLista>(`/listas-distribucion/fijos?servicio=${parametroServicio(servicio)}`)
 }
 
 // Todas llevan el servicio: cada uno tiene su lista y guardar en uno nunca
