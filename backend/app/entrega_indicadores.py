@@ -45,7 +45,10 @@ PLAZO_MAXIMO = 365
 
 
 def _iso(t) -> str | None:
-    return t.isoformat() if t is not None else None
+    if t is None or t == "":
+        return None
+    # algunas columnas guardan la fecha como texto (p. ej. creado_en o fecha_envio)
+    return t.isoformat() if hasattr(t, "isoformat") else str(t)
 
 
 def _clave_lab(laboratorio: str | None) -> str:
