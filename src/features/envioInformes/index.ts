@@ -6,17 +6,26 @@ export {
   PLANTILLA_PREDETERMINADA,
   cambiarModoEnvio,
   guardarInternos,
+  guardarEncabezado,
+  guardarDestinatariosPrueba,
   obtenerPlanDestinatarios,
   obtenerTemplateInforme,
   guardarTemplateInforme,
   vistaPreviaInforme,
   enviarInforme,
   historialEnvios,
+  obtenerAvisoClientes,
+  vistaPreviaAviso,
+  guardarAviso,
+  restaurarAviso,
+  enviarPruebaAviso,
 } from './lib/api'
+export type { AvisoClientes, DatosAviso, PlantillaAviso } from './lib/api'
 export { esCorreoValido, quitarCorreo, separarCorreos, sumarCorreos, tamanoLegible } from './lib/correos'
 export type {
   AnalisisLote,
   DatosCorreo,
+  Encabezado,
   LecturaInforme,
   EstadoEnvio,
   Historial,

@@ -18,19 +18,26 @@ duplica acá.
 """
 import base64
 import json
+import logging
 import os
 import re
 import shutil
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import config
+from . import accutab_informe, config
+from .auth import Usuario, alcance_de_datos, usuario_actual
 
 router = APIRouter(prefix="/api/postventa", tags=["postventa"])
+# Lo que ve una cuenta de CLIENTE: solo los informes con PDF de su Sold To (y su
+# Ship To, si la cuenta es de una sucursal). Va aparte porque `router` es solo
+# para personal de AgroFresh.
+router_cliente = APIRouter(prefix="/api/postventa/cliente", tags=["postventa-cliente"])
 
 CARPETA_ACCUTAB = "Accutab"
 ARCHIVO_REGISTRO = "registro.json"
@@ -97,6 +104,23 @@ def _decodificar(b64: str, etiqueta: str) -> bytes:
     return datos
 
 
+def _cliente_de(registro: dict[str, Any]) -> str | None:
+    """El cliente de la carga. Las del correo no lo guardaron: sale del asunto
+    (guardado en `equipo`), sin el contador «(1307)»."""
+    if registro.get("cliente"):
+        return registro["cliente"]
+    if registro.get("origen") == "email" and registro.get("equipo"):
+        return accutab_informe.cliente_desde_asunto(registro["equipo"])
+    return None
+
+
+def _clave(texto: str | None) -> str:
+    """Para comparar nombres de cliente: sin tildes, mayúsculas ni guiones bajos."""
+    base = unicodedata.normalize("NFKD", texto or "")
+    sin_tildes = "".join(c for c in base if not unicodedata.combining(c))
+    return " ".join(sin_tildes.replace("_", " ").casefold().split())
+
+
 def _resumen(carpeta: str, registro: dict[str, Any]) -> dict[str, Any]:
     """Lo justo para pintar una fila de la lista, sin cargar todas las filas."""
     est = registro.get("estadisticas") or {}
@@ -105,8 +129,10 @@ def _resumen(carpeta: str, registro: dict[str, Any]) -> dict[str, Any]:
     return {
         "carpeta": carpeta,
         "guardado_en": registro.get("guardado_en"),
-        "cliente": registro.get("cliente"),
+        "cliente": _cliente_de(registro),
         "planta": registro.get("planta"),
+        "ubicacion": registro.get("ubicacion"),
+        "especie": registro.get("especie"),
         "equipo": registro.get("equipo"),
         "responsable": registro.get("responsable"),
         "n_registros": len(registro.get("filas") or []),
@@ -154,11 +180,10 @@ def guardar_registro(datos: RegistroIn) -> dict[str, Any]:
                     f.write(_decodificar(adj.contenido_b64, nombre))
                 nombres_guardados.append(nombre)
 
-        tiene_pdf = False
+        # El informe se emite siempre: si Trace no adjuntó el suyo, se genera.
+        pdf_bytes: bytes | None = None
         if datos.pdf_b64:
-            with open(os.path.join(destino, ARCHIVO_PDF), "wb") as f:
-                f.write(_decodificar(datos.pdf_b64, "Informe PDF"))
-            tiene_pdf = True
+            pdf_bytes = _decodificar(datos.pdf_b64, "Informe PDF")
 
         registro = {
             "guardado_en": datetime.now(tz=timezone.utc).isoformat(),
@@ -172,8 +197,24 @@ def guardar_registro(datos: RegistroIn) -> dict[str, Any]:
             "estadisticas": datos.estadisticas,
             "filas": datos.filas,
             "archivos": nombres_guardados,
-            "tiene_pdf": tiene_pdf,
+            "tiene_pdf": False,
+            "origen": "manual",
         }
+        if pdf_bytes is None:
+            try:
+                pdf_bytes = accutab_informe.generar_pdf(registro)
+            except Exception:  # noqa: BLE001
+                logging.getLogger(__name__).exception("No se pudo generar el informe PDF de %s", marca)
+        if pdf_bytes:
+            with open(os.path.join(destino, ARCHIVO_PDF), "wb") as f:
+                f.write(pdf_bytes)
+            registro["tiene_pdf"] = True
+            registro["informe_generado"] = not datos.pdf_b64  # lo hizo el servidor, no Trace
+        originales = {}
+        for nombre in nombres_guardados:
+            with open(os.path.join(destino, CARPETA_ORIGINALES, nombre), "rb") as f:
+                originales[nombre] = f.read()
+        registro["r2_claves"] = accutab_informe.archivar_en_r2(registro, marca, pdf_bytes, originales)
         with open(os.path.join(destino, ARCHIVO_REGISTRO), "w", encoding="utf-8") as f:
             json.dump(registro, f, ensure_ascii=False)
     except Exception:
@@ -236,7 +277,106 @@ def descargar_original(carpeta: str, nombre: str) -> FileResponse:
     return FileResponse(ruta, filename=seguro)
 
 
+@router.post("/registros/{carpeta}/informe")
+def generar_informe(carpeta: str) -> dict[str, Any]:
+    """Genera (o vuelve a generar) el informe PDF de una carga ya guardada, en el
+    servidor y en R2 por cliente y fecha."""
+    ruta = _carpeta_registro(carpeta)
+    ruta_json = os.path.join(ruta, ARCHIVO_REGISTRO)
+    if not os.path.isfile(ruta_json):
+        raise HTTPException(404, "Esa carga no tiene datos guardados.")
+    with open(ruta_json, encoding="utf-8") as f:
+        registro = json.load(f)
+    if not registro.get("filas"):
+        raise HTTPException(400, "Esa carga no tiene mediciones: no hay nada que informar.")
+    pdf = accutab_informe.generar_pdf(registro)
+    with open(os.path.join(ruta, ARCHIVO_PDF), "wb") as f:
+        f.write(pdf)
+    para_r2 = dict(registro)
+    para_r2["cliente"] = registro.get("cliente") or accutab_informe.cliente_desde_asunto(registro.get("equipo"))
+    registro["tiene_pdf"] = True
+    registro["informe_generado"] = True
+    registro["r2_claves"] = list(dict.fromkeys(list(registro.get("r2_claves") or [])
+                                               + accutab_informe.archivar_en_r2(para_r2, carpeta, pdf, None)))
+    with open(ruta_json, "w", encoding="utf-8") as f:
+        json.dump(registro, f, ensure_ascii=False)
+    return {"ok": True, "tiene_pdf": True}
+
+
+def _borrar_carga(carpeta: str) -> None:
+    """Quita la carga del servidor y, si se archivó, su informe y datos de R2."""
+    ruta = _carpeta_registro(carpeta)
+    claves: list[str] = []
+    try:
+        with open(os.path.join(ruta, ARCHIVO_REGISTRO), encoding="utf-8") as f:
+            claves = list(json.load(f).get("r2_claves") or [])
+    except (OSError, json.JSONDecodeError):
+        pass
+    shutil.rmtree(ruta)
+    accutab_informe.borrar_de_r2(claves)
+
+
 @router.delete("/registros/{carpeta}")
 def eliminar_registro(carpeta: str) -> dict[str, bool]:
-    shutil.rmtree(_carpeta_registro(carpeta))
+    _borrar_carga(carpeta)
     return {"ok": True}
+
+
+class EliminarVariosIn(BaseModel):
+    carpetas: list[str]
+
+
+@router.post("/registros/eliminar")
+def eliminar_varios(datos: EliminarVariosIn) -> dict[str, Any]:
+    """Borra varias cargas de una vez. Cada una se valida aparte: una que ya no
+    existe no impide borrar las demás."""
+    if not datos.carpetas:
+        raise HTTPException(400, "No se eligió ninguna carga.")
+    borradas, fallidas = [], []
+    for carpeta in dict.fromkeys(datos.carpetas):
+        try:
+            _borrar_carga(carpeta)
+            borradas.append(carpeta)
+        except HTTPException:
+            fallidas.append(carpeta)
+    return {"borradas": borradas, "fallidas": fallidas}
+
+
+# ── Portal de cliente ───────────────────────────────────────────────────
+
+def _informes_de(usuario: Usuario, cliente: str | None, planta: str | None) -> list[dict[str, Any]]:
+    cliente, planta = alcance_de_datos(usuario, cliente, planta)
+    if usuario.tipoAcceso == "cliente" and not cliente:
+        return []  # una cuenta de cliente sin cliente asignado no ve nada, nunca «todo»
+    salida = []
+    for r in listar_registros():
+        if not r["tiene_pdf"]:
+            continue
+        if cliente and _clave(r["cliente"]) != _clave(cliente):
+            continue
+        if planta and _clave(r["planta"]) != _clave(planta):
+            continue
+        salida.append(r)
+    return salida
+
+
+@router_cliente.get("/informes")
+def informes_del_cliente(
+    cliente: str | None = None,
+    planta: str | None = None,
+    usuario: Usuario = Depends(usuario_actual),
+) -> list[dict[str, Any]]:
+    """Los informes con PDF del cliente de la sesión, del más nuevo al más antiguo."""
+    return _informes_de(usuario, cliente, planta)
+
+
+@router_cliente.get("/informes/{carpeta}/pdf")
+def pdf_del_cliente(
+    carpeta: str,
+    usuario: Usuario = Depends(usuario_actual),
+) -> FileResponse:
+    permitidas = {r["carpeta"] for r in _informes_de(usuario, None, None)}
+    if carpeta not in permitidas:
+        raise HTTPException(404, "Ese informe no existe.")
+    return FileResponse(os.path.join(_carpeta_registro(carpeta), ARCHIVO_PDF), media_type="application/pdf",
+                        filename=f"Informe_Accutab_{carpeta}.pdf")

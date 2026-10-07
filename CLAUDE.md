@@ -18,7 +18,9 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
     por PR desde la rama de desarrollo, cuando el usuario decide publicarlos.
 - **Da los comandos de PowerShell completos y exactos**, con la ruta puesta.
   Nunca "reinicia el backend" a secas.
-- **No crees PR** salvo que se pida explícitamente.
+- **Cada vez que termines un cambio, publícalo de una**: commit y push a la rama de desarrollo, PR a `main` y fusión (regla del usuario, 06-10-2026), para que en el servidor solo haga falta `git pull origin main` y reiniciar el backend. Avisa siempre si el cambio trae migración y dalo con el comando exacto.
+  **OBLIGATORIO, SIN QUE LO PIDA, en CADA entrega (aunque sea chica):** al terminar, publica/actualiza el Artifact de abajo con el pull, la migración (si hay) y el reinicio del backend. No cierres el turno sin haberlo hecho: el usuario lo reclamó el 07-10-2026 cuando se olvidó.
+  **Formato del aviso final** (pedido del usuario): publica un **Artifact** con una tarjeta (título «Listo para publicar», pasos con ✓ Merge listo y Manual para Pull, Script y Reiniciar backend, y una casilla de código con botón «Copiar»), actualizando siempre el MISMO artifact: **https://claude.ai/artifact/A1q3w9WBh2Zc3sStYRuYDE** (el usuario trabaja en chats distintos y lo deja abierto en una pestaña: en un chat nuevo, léelo con `action: "read"` y publica con ese `url`, nunca crees otro), y en el chat solo el enlace y una línea. **La tarjeta lleva una insignia «Actualización #N»** (con fecha y hora de Chile; `data-n` en el HTML) **y un color que rota** (verde, azul, violeta, naranja, rosa, turquesa: el color es `N mod 6`) para que se note a simple vista que es una versión nueva: al publicar, lee el `data-n` del artifact, súmale 1 y cambia el color según el nuevo N. El script va solo como `.venv\Scripts\python.exe scripts\migrar.py NNNN_nombre.sql`, **sin `cd backend`** (el usuario tiene una PowerShell abierta ya dentro de `backend`). Sin migración, se omite el paso del script.
 
 ### Reglas de seguridad (no negociables)
 
@@ -88,6 +90,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0049_listado_actimist.sql
 .venv\Scripts\python.exe scripts\migrar.py 0050_listado_ecofog.sql
 .venv\Scripts\python.exe scripts\migrar.py 0052_envio_informes.sql
+.venv\Scripts\python.exe scripts\migrar.py 0054_envio_informe_solicitud.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -122,6 +125,9 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/reintentar_pendientes_ingesta.py` | Reprocesa las filas pendientes y descarta las que siguen sin Ship To válido (respaldo en `logs/`) |
 | `scripts/limpiar_duplicados_accutab.py` | Borra reportes de Post Venta y carpetas `accutab/mail/` duplicados por la ingesta de correo (deja uno por correo) |
 | `scripts/cruce_informes.py` | Solo lee: explica por qué «Solicitudes e informes» (OT con informe) y Report (informes) no dan el mismo número (`--lab Quiteca`) |
+| `scripts/completar_desde_pdf_quiteca.py` | Completa los informes de Quiteca ya cargados leyendo su PDF guardado: N° de muestra, hora de muestreo y fechas de análisis/informe (solo lo vacío; necesita la 0053 y `pypdf`; `--aplicar` para escribir, respaldo en `logs/`) |
+| `scripts/generar_informes_accutab.py` | Genera el informe PDF de las cargas de Post Venta que ya estaban guardadas sin él, **con las demo incluidas** (`--sin-demo` las salta; en R2 van a la fecha de LLEGADA de la carga, no la de hoy; `--aplicar` para escribir; sin eso solo cuenta; `--rehacer` rehace también los que el sistema ya había generado, nunca el PDF que adjuntó Trace) |
+| `scripts/ordenar_r2_accutab.py` | Ordena en R2 las carpetas viejas de Accutab (`accutab/mail/<asunto>/`) a `<CLIENTE>/<FECHA>/Datos <hora>/` (`--aplicar` para mover; sin eso solo cuenta) |
 | `scripts/corregir_ot_informe.py` | Deja un informe en UNA sola OT (`--informe 2026-1885-PC --ot OT-QUI0025`): corrige Converter y la `referencia` de Report; respaldo en `logs/` |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
@@ -191,8 +197,7 @@ front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
 
 - **Modo prueba / producción.** Un botón arriba dice «Sistema en prueba» o
   «Sistema en producción» y lo cambia. **Siempre parte en prueba** (sin archivo
-  de configuración = prueba). En prueba todo sale SOLO a `DESTINATARIOS_PRUEBA`
-  (Paz y Jorge), con «(PRUEBA)» en el asunto y un aviso arriba del correo que
+  de configuración = prueba). En prueba todo sale SOLO a los **destinatarios de prueba** (parten en `DESTINATARIOS_PRUEBA`: Paz y Jorge; se cambian en el aviso a clientes → «Las pruebas llegan a», `PUT /prueba`, guardados en `envio_informes.json` bajo `destinatarios_prueba`; valen para TODO el modo prueba, informes incluidos), con «(PRUEBA)» en el asunto y un aviso arriba del correo que
   dice a quién habría ido de verdad. Pasar a producción pide la contraseña de
   quien lo hace (403 si se equivoca, **no 401**: un 401 cierra la sesión en el
   navegador); volver a prueba no la pide. La configuración (`envio_informes.json`,
@@ -233,6 +238,9 @@ front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
   `tests/test_mail_templates_marco.py` lo compara con la salida de antes). Para
   cambiar UN correo, «Editar este correo» en su tarjeta: Para / CC / CCO, asunto y
   texto **solo de ese informe**.
+- **El encabezado del correo** (título «INFORME DE ENSAYO» arriba, subtítulo «Laboratorio de Cromatografía» debajo) se edita en Configuración → «Encabezado» (`PUT /encabezado`, guardado en `envio_informes.json` bajo `encabezado`; título obligatorio, subtítulo vacío = sin línea). Vale para todos los correos de informe; el título se escribe en mayúsculas.
+- **Aviso a clientes** («ahora los informes salen por el Report Hub»; vive en **Administración General → pestaña «Avisos a clientes»**, `views/admin/avisos/AvisoClientes.tsx`, ya NO en el módulo Envío de informes; sus endpoints `/api/envio-informes/aviso*` y `PUT /prueba` son solo admin general; idea a futuro del usuario: varios avisos/tareas, cada uno con su audiencia, p. ej. envío de credenciales a cada Ship To con sus usuarios): asunto, título, subtítulo y texto **editables**, con vista previa en vivo, «Guardar cambios» (queda en `envio_informes.json` bajo `aviso`; `leer_config` lo conserva al guardar modo/copias), «Restaurar el original» (pide confirmación) y «Probar el aviso», que manda lo que se ve SOLO a Paz y Jorge con «(PRUEBA)» (en cualquier modo). **El envío a los clientes NO existe todavía** (falta decidir la audiencia). El texto admite `**negrita**`, listas con `- ` y títulos con `# `; todo se escapa (nada de HTML).
+- **Plantillas del aviso** (`app/mail_aviso.py`, siete: estándar, corporativa, clara amarillo/verde, azul, marino, verde con foto; el selector trae miniaturas). «Estándar» es el correo sobrio de siempre (`mail_templates._layout_sobrio`, que sigue siendo el de los informes y no cambia). Las demás llevan un encabezado de imagen por Content-ID, título, texto y pie. Las imágenes están **ya generadas** en `backend/app/correo_assets/` (`banner_<clave>.png|jpg`, `mini_<clave>.png`) y viajan por git; `backend/scripts/generar_assets_correo.py` (necesita numpy; el servidor NO lo corre) las rehace desde las portadas de marca de `correo_assets/fuentes/` borrando sus textos de ejemplo. El JPEG de la foto NO debe ser progresivo (Outlook de escritorio no lo pinta). Lo que pide Outlook de escritorio ya está resuelto (tabla fantasma de 600 px con `<!--[if mso]>`, barra de 4 px con `mso-line-height-rule`); pruebas en `tests/test_mail_aviso.py`. Las puntas de algunos triángulos del fondo quedan algo redondeadas donde estaba el texto de ejemplo (a 600 px casi no se nota). Pendiente: usar las plantillas también en los correos de informe.
 - La vista previa la arma el backend con el mismo código del envío
   (`armar_correo`): lo que se ve es lo que sale.
 - Adjuntos: PDF, Excel, CSV, ZIP, imágenes y DOCX; 15 por correo, 20 MB cada uno
@@ -354,6 +362,32 @@ casos en `test_servicio_actimist.py` y `servicio.test.ts`).
 
 ## Correo de la solicitud: quién lo recibe
 
+**RYD tiene su PROPIA lista de distribución** (cuarta opción en Administración General → Listas de
+distribución; contactos con `servicio: "ryd"`, `clave_lista`/`lista_de_datos` en `servicios.py`,
+`ListaDistribucion` en `src/lib/servicio.ts`). Comparte el **listado** de Sold To / Ship To de Línea
+de proceso (sin migración; `clave_servicio("ryd")` sigue siendo Línea de proceso), pero sus contactos
+nunca se cruzan con los de Línea: una solicitud RYD con la marca `respaldo_ryd` solo lee la lista RYD
+(en el correo, PDF, JSON, chip «Sin lista» y Envío de informes). Las RYD sin la marca siguen leyendo la de Línea.
+
+**Destinatarios fijos de Actimist, Ecofog y RYD** (`fijos_de_lista` en `servicios.py`; cada lista de
+Administración General los muestra arriba, aunque no tenga plantas cargadas): **Actimist y Ecofog →
+Para Carlos Jiménez y Cristian Valenzuela; RYD → Para Carla y Fran** (`ccaceres@` y `fgonzalez@agrofresh.com`);
+en las tres, **Jorge y el Report Hub en Copia** (`COPIA_FIJA`), y si la planta tiene lista del cliente o del
+laboratorio, sus correos se SUMAN al Para. En RYD no va nadie más del equipo Admin (ni Claudia). Vale en el
+correo, PDF, JSON, chip «Sin lista» y Envío de informes (un informe sin lista del cliente va Para a los
+referentes, no queda vacío). Una solicitud de **prueba** no escribe a los referentes: va Para a Jorge y el
+Report Hub. **Solo para las solicitudes con la marca `respaldo_ryd`** (nombre histórico: hoy significa «creada
+con las reglas nuevas de las listas»; se pone al crear y en reanálisis, y editar la conserva): las anteriores
+siguen como eran (Actimist/Ecofog con Jorge y el Report Hub en Para y los referentes en copia; RYD leyendo la
+lista de Línea de proceso con Claudia). Línea de proceso no cambió.
+RYD tiene su PROPIA lista de contactos (`servicio: "ryd"`, `clave_lista`/`lista_de_datos`, tipo
+`ListaDistribucion` en `src/lib/servicio.ts`) pero comparte el **listado** de plantas de Línea de proceso
+(sin migración; `clave_servicio("ryd")` sigue siendo Línea de proceso). Sus contactos nunca se cruzan con
+los de Línea.
+**Esos destinatarios fijos se editan** en Administración General → Listas de distribución (botón «Editar» del recuadro «Siempre reciben»; solo admin general): `PUT`/`DELETE /api/listas-distribucion/fijos?servicio=` guarda en `listas_fijos.json` (`_config/`, `servicios.guardar_fijos`) y «Restaurar los originales» vuelve a los de fábrica (`fijos_originales`). `fijos_de_lista` es lo que lee TODO (correo, PDF, JSON, chip «Sin lista», Envío de informes), con una **memoria de 15 s por proceso** (se consulta por cada solicitud y viene de R2; el guardado la invalida, pero con 4 workers otro puede tardar hasta 15 s en verlo). Para no puede quedar vacío (cae a los de fábrica). **Ojo:** cambiarlos cambia también lo que se ve al reabrir solicitudes ya emitidas con la marca `respaldo_ryd` (igual que cambiar un contacto); los correos ya enviados no se reenvían. Las solicitudes de PRUEBA siguen yendo a Jorge y el Report Hub (`COPIA_FIJA`, constante). Línea de proceso no tiene fijos.
+En **Envío de informes** un informe SIN Sold To / Ship To (RYD) toma los fijos de su tipo de servicio, y uno con planta pero sin correos cargados (Actimist, Ecofog, RYD) también (`plan_destinatarios`; `tests/test_fijos_editables.py`).
+Pendiente: la columna de lista del Excel base (`columnas_base`) aún no distingue RYD ni la marca.
+
 Los contactos de **Laboratorios → Contacto laboratorio** (`tipo: solicitud`)
 llevan el campo `envio`: `para` (sin valor = `para`, como los antiguos), `cc` o
 `bcc`. `contactos_de_solicitud_por_envio` los reparte; el creador de la
@@ -385,6 +419,50 @@ sea que rige la regla de «solo Jorge y Claudia» (también si ellos dos son los
 se guarda. **No leas la configuración de contactos dentro de un bucle por
 solicitud**: viene de R2 y el listado pasó a tardar 6 s; se lee una vez
 (`_calculador_sin_lista`).
+
+## Indicadores de entrega (Auditoría interna) y fuera de rango (Report)
+
+**Lead time y Cumplimiento** viven en «Solicitudes e informes» (`IndicadoresEntrega.tsx`,
+lógica pura en `features/auditoriaInterna/lib/entrega.ts`; backend `app/entrega_indicadores.py`:
+`GET /api/auditoria-interna/hitos`, `GET/PUT /plazos`). Cada número sale de fechas reales:
+emitida (`solicitud_archivo.creado_en`), enviada al lab (`envio_solicitud_log` exitoso), informe
+(`informe_auditoria.fecha_envio`, si no `subido_en`), Report (`carga_datos.creado_en`, unido por
+`solicitud.nro_solicitud = informe.nro_informe`) y cliente (`envio_informe_log` en modo producción,
+enlazado por `archivo_solicitud`, **migración 0054**; los envíos anteriores no tienen enlace).
+- **Entregado** se define en las reglas: `concretado` (PDF + Report; por defecto, sirve con todo el
+  historial) o `cliente`. Lead time = fin − emitida (días corridos), mediana y P90; las abiertas se
+  informan aparte; las que tienen hitos antes de la emisión se excluyen.
+- **Cumplimiento** = a tiempo ÷ (a tiempo + tarde + vencidas sin entregar). «Aún en plazo» y «sin
+  plazo» no cuentan. Los **plazos por laboratorio** (`plazos_entrega.json`) los carga el admin
+  general; no se inventa ninguno (sin plazos, estado vacío).
+**Fuera de rango** (`views/modules/reports/FueraDeRango.tsx`, lógica en `features/reportes/lib/fueraDeRango.ts`)
+solo en la Vista por límite de control: criterio «Límite del analito» (límite residual; sin límite ≠ dentro)
+o «Límite de control» (promedio ± σ, mín. 3 por analito); parte en el primero si hay límites cargados.
+% = (sobre+bajo) ÷ evaluados; «Ver por» Analito / Cliente / Laboratorio / Servicio.
+
+## Post Venta: informes de Accu-Tab (Trace + correo)
+
+Toda carga (la manual de Trace o la automática del correo) termina con su **informe
+PDF, que se genera solo** (`app/accutab_informe.py`: **el mismo informe que imprime Trace**, mismo
+encabezado con logo, cajas Identificación/Registros/Datos/Rango y el gráfico único de pH y mV
+con dos ejes — si cambias el informe de `trace.html`, cámbialo también ahí; si Trace adjunta el suyo se respeta). Quedan en disco
+(`Storage/Accutab/<marca>/informe.pdf` + `registro.json`, lo que lee Post Venta) y en R2
+**ordenados por cliente y fecha, no una carpeta por reporte**:
+`accutab/mail/<CLIENTE>/<AAAA-MM-DD>/Informe <HH-MM-SS>.pdf` y, al lado,
+`Datos <HH-MM-SS>/<archivos del equipo>`. En el correo el cliente sale del asunto sin el
+contador «(1307)» (`cliente_desde_asunto`). `registro.json` guarda `r2_claves` para que
+**borrar** una carga quite también lo de R2. Lo archivado antes de este orden
+(`accutab/mail/<asunto>/`) queda como estaba. Reportes de Post Venta filtra por Sold To,
+Ship To, **Posición de muestreo** (= «Ubicación del equipo» de Trace, `ubicacion`), equipo y
+período; arriba de la lista de cargas hay una tabla **«Informes»** (fecha, Sold To, Ship To, posición, equipo, PDF: «Descargar PDF» o «Generar informe» si la carga no lo tiene, `POST /postventa/registros/{carpeta}/informe`) donde se **marcan varios y se eliminan** (`POST /postventa/registros/eliminar`).
+La tabla «Informes» va **al final** de la pantalla y se pagina de a 10. Se quitó a pedido el conteo de cargas (tarjeta y contadores).
+**Portal de cliente**: una cuenta `cliente` del área Post Venta ve «Tus informes Accu-Tab»
+(`InformesAccutabCliente`: tarjetas por mes, «Ver informe» y «Descargar PDF», filtro de período y
+posición). Backend: `router_cliente` de `postventa.py` (`/api/postventa/cliente/informes` y `/{carpeta}/pdf`,
+incluido con `CON_SESION`, no `SOLO_AGROFRESH`): solo informes con PDF de SU cliente (y su Ship To si la
+cuenta es de sucursal), sin tildes ni mayúsculas ni `_`; lo que pida por parámetro se descarta
+(`alcance_de_datos`); un cliente sin cliente asignado no ve nada. Las cargas del correo se reconocen por
+el asunto (`_cliente_de`). El resto de `/api/postventa` sigue cerrado a clientes.
 
 ## Storage: explorador y permisos por carpeta
 
@@ -506,8 +584,9 @@ balanza) y el servidor pone la **fecha y hora de ingreso** (hora de Chile). Back
 `app/fortificados.py` (`/api/fortificados`: listar, crear, corregir N°/peso; borrar solo
 admin general y en pantalla solo la cuenta maestra con clave), tabla `fortificado`
 (migración 0051; el N° no se repite sin importar mayúsculas). **«Descargar base (Excel)»**
-(`/emitir/cromatografia/excel-con-muestra`) baja un libro de dos hojas: **Estándar** (la base
-de siempre) y **Fortificados**, que el servidor lee de su propia tabla. Sin la 0051 la
+(`/emitir/cromatografia/excel-con-muestra`) baja un libro de UNA hoja, **BD**: las solicitudes cruzadas y, debajo, los
+fortificados (el servidor los lee de su propia tabla; llenan N° Muestra, Peso Muestra
+Extraída, Fecha y Hora Recepción). Sin la 0051 la
 descarga sigue saliendo (hoja vacía) y la pestaña avisa que falta la migración.
 
 ## Ingreso al laboratorio: corregir un cruce
@@ -763,13 +842,36 @@ tocas una, toca la otra.
   **crean también en Listados** (cliente y planta, con los códigos SAP si el Excel
   los trae; `asegurar_planta` reusa lo que ya existe sin duplicar) al guardar.
   `GET /estado` alimenta la tabla; `/excel` exporta; `/comparar` solo compara.
+  **Plantas que el Excel ya no trae** (base actualizada con menos Sold To / Ship To):
+  importar NUNCA las borra. `/comparar` devuelve `retiradas` y la pantalla muestra una
+  tarjeta roja «N plantas del sistema no vienen en tu Excel» con una casilla por planta
+  (todas desmarcadas) y «Marcar todas / Desmarcar todas». Las marcadas viajan como cambio
+  `planta_quitar` y, al guardar (con respaldo), `aplicar` borra toda la lista de esa planta
+  en ese servicio (cliente, comercial, técnico y admin); **Listados no se toca**. Un Excel
+  sin filas no ofrece nada.
+  **Cambiar el nombre de una planta** (el Excel trae el nombre bien escrito y Listados lo tiene mal, p. ej.
+  LOSONJERA → LISONJERA): en la tarjeta «Planta nueva», junto a cada sugerencia, «Es la misma: cambiarle el
+  nombre a «…»» (solo si esa planta ya tiene lista). Viaja como cambio `planta_renombrar` y va PRIMERO al
+  guardar: cambia `planta.nombre` en Listados (mismo id, así Report y los códigos SAP la siguen; el cliente no se
+  toca) y el `ship_to` de sus contactos en TODAS las listas que comparten ese listado (Línea de proceso y RYD
+  juntas; Actimist y Ecofog cada una la suya), sin perder a nadie; lo que traía el Excel queda como propuestas
+  amarillas sobre ella. Se rechaza si ya hay una planta con ese nombre (habría que fundir dos listas). **Ojo:**
+  las solicitudes ya emitidas guardan el nombre viejo como texto, así que al reabrirlas su lista de
+  distribución se busca por ese nombre y ya no la encuentra (cae en el respaldo); el respaldo de contactos
+  anterior queda en `contactos_laboratorio_respaldo_<fecha>.json` y el nombre anterior en la respuesta (`renombradas`).
+  Los cinco recuadros de cobertura de arriba explican qué cuentan en un globito que aparece suave al pasar
+  el mouse, enfocar o tocar (`IndicadoresListas`; «Plantas con lista» compara con las plantas activas de
+  Listados; el % de los otros cuatro se mide sobre las plantas con lista).
   Reemplaza a los scripts `importar_contactos_resultado.py` /
   `auditar_contactos_resultado.py` para el uso diario. El panel se mantiene montado al
   cambiar de pestaña para no perder cambios sin guardar.
-- **Panel de Administración General** (pestañas **Resumen** y **Actividad**, las
+- **Panel de Administración General** (pestañas **Resumen**, **Actividad** y **Seguimiento**, las
   primeras; solo admin general; `app/admin_panel.py`, prefijo `/api/admin-panel`;
-  front en `views/admin/panel/` y `features/adminPanel/`). Tema oscuro verde
-  AgroFresh **solo dentro del panel** (variables `--p-*` en `PanelAdmin.module.css`).
+  front en `views/admin/panel/` y `features/adminPanel/`). Tema **claro**, igual al resto de la app
+  (las variables `--p-*` de `PanelAdmin.module.css` apuntan a los tokens de la app; no vuelvas al oscuro, se pidió
+  expresamente). **Seguimiento** (`GET /api/admin-panel/seguimiento`, `SeguimientoPanel.tsx`): estado de cada cuenta
+  interna (activa / en alza / en baja / nueva / dormida / nunca ingresó, `estado_persona`) contra el período
+  anterior, días activos, mapa de calor día×hora (hora de Chile), adopción por módulo y matriz persona×módulo.
   Resumen: KPIs (usuarios activos, solicitudes, informes concretados %, días
   solicitud→informe por laboratorio, salud de datos 0–100 con sus descuentos a la
   vista), actividad por día, uso por módulo, actividad por persona, cambios

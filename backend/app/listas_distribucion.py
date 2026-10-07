@@ -42,10 +42,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from . import config_store
+from . import actividad, config_store
 from .auth import Usuario, solo_admin_general
 from .listados import clave_normalizada as _clave_esp
-from .servicios import clave_servicio, es_del_servicio, es_servicio_con_listado, tablas
+from .servicios import (
+    clave_lista, es_del_servicio, fijos_de_lista, fijos_originales, fijos_personalizados, guardar_fijos,
+    restaurar_fijos, tablas, tiene_fijos,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -366,8 +369,17 @@ def comparar(
 
     claves_excel = {clave_planta(f["sold_to"], f["ship_to"]) for f in filas}
     solo_sistema = [f"{e['ship_to']} ({e['sold_to']})" for k, e in estado.items() if k not in claves_excel]
+    # Las plantas que el sistema tiene y el Excel ya no trae: se OFRECEN para quitar
+    # su lista (cambio `planta_quitar`), nunca se quitan solas. Con un Excel sin
+    # filas no se ofrece nada: no es una base «actualizada», es un archivo vacío.
+    retiradas = [
+        {"planta": {"sold_to": e["sold_to"], "ship_to": e["ship_to"]}}
+        for k, e in sorted(estado.items(), key=lambda kv: (norm(kv[1]["sold_to"]), norm(kv[1]["ship_to"])))
+        if filas and k not in claves_excel
+    ]
     return {
         "cambios": cambios,
+        "retiradas": retiradas,
         "resumen": {
             "plantas_excel": len(filas),
             "plantas_sin_cambios": sin_cambios,
@@ -392,8 +404,8 @@ def _contacto(id_: int, sold_to: str, ship_to: str, especie: str, email: str, ti
     }
     # Los de Línea de proceso quedan como siempre (sin la llave); los de
     # Actimist llevan su marca.
-    if es_servicio_con_listado(servicio):
-        contacto["servicio"] = clave_servicio(servicio)
+    if clave_lista(servicio):
+        contacto["servicio"] = clave_lista(servicio)
     return contacto
 
 
@@ -442,7 +454,7 @@ def aplicar(contactos: list[dict], cambios: list[dict], servicio: str = "") -> t
     `contactos` es la configuración COMPLETA (todos los servicios), pero solo
     se tocan los del `servicio` pedido: los de la otra lista quedan intactos.
     """
-    servicio = clave_servicio(servicio)
+    servicio = clave_lista(servicio)
     nuevos = [dict(c) for c in contactos]
     sig_id = max((c.get("id", 0) for c in nuevos), default=0) + 1
     hechos = {"aplicados": 0, "plantas": set(), "ignorados": []}
@@ -470,6 +482,17 @@ def aplicar(contactos: list[dict], cambios: list[dict], servicio: str = "") -> t
             agregar = [e for e in (it.get("agregar") or []) if _EMAIL_RE.match(str(e))]
             quitar = {str(e).casefold() for e in (it.get("quitar") or [])}
             corregir = {str(e).casefold() for e in (it.get("corregir") or [])}
+
+            if tipo == "planta_quitar":
+                # La planta ya no existe en la base nueva: se va su lista de distribución
+                # (cliente, comercial, técnico y admin). Listados no se toca.
+                if not existentes:
+                    hechos["ignorados"].append(f"{ship_to}: ya no tenía lista; nada que quitar.")
+                    continue
+                nuevos[:] = [c for c in nuevos if not de_la_planta(c)]
+                hechos["aplicados"] += 1
+                hechos["plantas"].add(clave)
+                continue
 
             if tipo == "planta_nueva":
                 if existentes:
@@ -658,6 +681,61 @@ def asegurar_planta(cur, sold_to: str, ship_to: str, codigo_sold: str | None = N
             "cliente_creado": cliente_creado, "planta_creada": planta_creada}
 
 
+def listas_con_el_mismo_listado(servicio: str = "") -> set[str]:
+    """Las listas de distribución que comparten el listado de plantas de ésta
+    (Línea de proceso y RYD usan el mismo; Actimist y Ecofog, cada uno el suyo)."""
+    t = tablas(servicio)
+    return {lista for lista in ("", "ryd", "actimist", "ecofog") if tablas(lista) == t}
+
+
+def renombrar_planta_listados(cur, servicio: str, sold_to: str, ship_viejo: str, ship_nuevo: str) -> dict:
+    """Cambia el nombre de una planta (Ship To) en Listados, conservando su id: lo que
+    cuelga de ella (Report, códigos SAP) la sigue. El cliente no se toca."""
+    t_cliente, t_planta = tablas(servicio)
+    ship_nuevo = re.sub(r"\s+", " ", ship_nuevo or "").strip()
+    if not ship_nuevo:
+        raise ValueError("Falta el nombre nuevo de la planta.")
+    cur.execute(f"SELECT id, nombre FROM {t_cliente}")
+    cliente = next((c for c in cur.fetchall() if norm(c["nombre"]) == norm(sold_to)), None)
+    if cliente is None:
+        raise ValueError(f"El cliente «{sold_to}» no está en Listados.")
+    cur.execute(f"SELECT id, nombre FROM {t_planta} WHERE cliente_id = %s", (cliente["id"],))
+    plantas = cur.fetchall()
+    vieja = next((p for p in plantas if norm(p["nombre"]) == norm(ship_viejo)), None)
+    if vieja is None:
+        raise ValueError(f"La planta «{ship_viejo}» no está en Listados.")
+    if any(p["id"] != vieja["id"] and norm(p["nombre"]) == norm(ship_nuevo) for p in plantas):
+        raise ValueError(f"Ya existe en Listados una planta «{ship_nuevo}» de {cliente['nombre']}.")
+    cur.execute(f"UPDATE {t_planta} SET nombre = %s WHERE id = %s", (ship_nuevo, vieja["id"]))
+    return {"sold_to": cliente["nombre"], "de": vieja["nombre"], "a": ship_nuevo}
+
+
+def renombrar_en_contactos(
+    contactos: list[dict], sold_to: str, ship_viejo: str, ship_nuevo: str, servicio: str = "",
+) -> tuple[list[dict], int]:
+    """Le pone el nombre nuevo a la planta en las listas de distribución que comparten su
+    listado, SIN perder a nadie de su lista. Falla si ya hay una planta con ese nombre en
+    las listas (habría que fundir dos listas, y eso se decide a mano)."""
+    listas = listas_con_el_mismo_listado(servicio)
+
+    def de_esas_listas(c: dict) -> bool:
+        return c.get("tipo") in ("resultado_cliente", "resultado_interno") and clave_lista(c.get("servicio")) in listas
+
+    ship_nuevo = re.sub(r"\s+", " ", ship_nuevo or "").strip()
+    clave_vieja, clave_nueva = clave_planta(sold_to, ship_viejo), clave_planta(sold_to, ship_nuevo)
+    if clave_vieja != clave_nueva and any(
+        de_esas_listas(c) and clave_planta(c.get("sold_to"), c.get("ship_to")) == clave_nueva for c in contactos
+    ):
+        raise ValueError(f"Ya hay una planta «{ship_nuevo}» en las listas de distribución.")
+    nuevos = [dict(c) for c in contactos]
+    cambiados = 0
+    for c in nuevos:
+        if de_esas_listas(c) and clave_planta(c.get("sold_to"), c.get("ship_to")) == clave_vieja:
+            c["ship_to"] = ship_nuevo
+            cambiados += 1
+    return nuevos, cambiados
+
+
 # ---------------------------------------------------------------------------
 # Endpoints (solo admin general)
 # ---------------------------------------------------------------------------
@@ -697,28 +775,100 @@ class CambiosIn(BaseModel):
     cambios: list[dict] = Field(default_factory=list, max_length=2000)
 
 
+def _fijos_para_pantalla(servicio: str) -> dict:
+    """Lo que recibe cada solicitud de esa lista aunque no tenga plantas cargadas.
+    Línea de proceso no tiene fijos: solo su respaldo, que rige cuando la planta no
+    tiene lista del cliente."""
+    from .toma_muestras import DESTINATARIOS_SIN_LISTA
+
+    fijos = fijos_de_lista(servicio)
+    return {
+        **fijos,
+        "respaldo": [] if servicio else list(DESTINATARIOS_SIN_LISTA),
+        "editable": tiene_fijos(servicio),
+        "original": fijos_originales(servicio),
+        "personalizado": fijos_personalizados(servicio),
+    }
+
+
 @router.get("/estado")
 def estado_actual(
     sin_lista: bool = False, servicio: str = "", _: Usuario = Depends(solo_admin_general)
 ) -> dict:
     """Lo que el sistema tiene hoy, una fila por planta: la base de la tabla dinámica."""
-    servicio = clave_servicio(servicio)
+    servicio = clave_lista(servicio)
     estado = estado_desde_contactos(del_servicio(config_store.leer(ARCHIVO_CONTACTOS, []), servicio))
     resultado = estado_para_tabla(estado, _listados(servicio), sin_lista)
     resultado["clientes"] = _clientes_listados(servicio)
     resultado["servicio"] = servicio
+    resultado["fijos"] = _fijos_para_pantalla(servicio)
     return resultado
+
+
+class FijosIn(BaseModel):
+    para: list[str] = Field(default_factory=list, max_length=50)
+    cc: list[str] = Field(default_factory=list, max_length=50)
+
+
+def _exigir_lista_con_fijos(servicio: str) -> str:
+    lista = clave_lista(servicio)
+    if not tiene_fijos(lista):
+        raise HTTPException(400, "Línea de proceso no tiene destinatarios fijos: elige Actimist, Ecofog o RYD.")
+    return lista
+
+
+def _correos_validos(valores: list[str], campo: str) -> list[str]:
+    salida: list[str] = []
+    for v in valores:
+        for trozo in re.split(r"[;,\s]+", str(v or "")):
+            if not trozo:
+                continue
+            if not _EMAIL_RE.match(trozo):
+                raise HTTPException(400, f"«{trozo}» no es un correo válido ({campo}).")
+            salida.append(trozo)
+    return salida
+
+
+@router.put("/fijos")
+def guardar_destinatarios_fijos(
+    datos: FijosIn, servicio: str = "", usuario: Usuario = Depends(solo_admin_general),
+) -> dict:
+    """Cambia a quién va SIEMPRE el correo de esa lista (Para y Copia), tenga o no la planta lista
+    cargada. Rige en el correo, el PDF y el JSON de las solicitudes nuevas y en el Envío de informes."""
+    lista = _exigir_lista_con_fijos(servicio)
+    para = _correos_validos(datos.para, "Para")
+    cc = _correos_validos(datos.cc, "Copia")
+    if not para:
+        raise HTTPException(400, "Debe haber al menos un correo en Para: son los que «siempre reciben».")
+    guardar_fijos(lista, para, cc)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "listas_fijos",
+        f"cambió los destinatarios fijos de la lista {lista} (Para {len(para)}, Copia {len(cc)})", sensible=True,
+    )
+    return _fijos_para_pantalla(lista)
+
+
+@router.delete("/fijos")
+def restaurar_destinatarios_fijos(servicio: str = "", usuario: Usuario = Depends(solo_admin_general)) -> dict:
+    """Vuelve a los destinatarios fijos que trae el sistema."""
+    lista = _exigir_lista_con_fijos(servicio)
+    restaurar_fijos(lista)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "listas_fijos",
+        f"restauró los destinatarios fijos de la lista {lista} a los originales", sensible=True,
+    )
+    return _fijos_para_pantalla(lista)
 
 
 @router.get("/excel")
 def exportar(todas: bool = False, servicio: str = "", _: Usuario = Depends(solo_admin_general)) -> Response:
-    servicio = clave_servicio(servicio)
+    servicio = clave_lista(servicio)
     estado = estado_desde_contactos(del_servicio(config_store.leer(ARCHIVO_CONTACTOS, []), servicio))
     vacias: list[tuple[str, str]] = []
     if todas:
         lis = _listados(servicio) or {}
         vacias = [par for k, par in lis.items() if k not in estado]
-    sufijo = f"_{servicio}" if es_servicio_con_listado(servicio) else ""
+    sufijo = f"_{servicio}" if servicio else ""
     nombre = f"listas_distribucion{sufijo}_{datetime.now():%Y-%m-%d}.xlsx"
     return Response(
         construir_excel(estado, vacias),
@@ -731,7 +881,7 @@ def exportar(todas: bool = False, servicio: str = "", _: Usuario = Depends(solo_
 async def comparar_excel(
     archivo: UploadFile = File(...), servicio: str = "", _: Usuario = Depends(solo_admin_general)
 ) -> dict:
-    servicio = clave_servicio(servicio)
+    servicio = clave_lista(servicio)
     contenido = await archivo.read()
     if len(contenido) > 15 * 1024 * 1024:
         raise HTTPException(413, "El archivo pesa más de 15 MB.")
@@ -749,11 +899,13 @@ async def comparar_excel(
 
 @router.post("/aplicar")
 def aplicar_cambios(datos: CambiosIn, servicio: str = "", usuario: Usuario = Depends(solo_admin_general)) -> dict:
-    servicio = clave_servicio(servicio)
+    servicio = clave_lista(servicio)
     if not datos.cambios:
         raise HTTPException(400, "No hay cambios confirmados para aplicar.")
     creados = {"clientes": 0, "plantas": 0}
-    for it in datos.cambios:
+    renombres = [c for c in datos.cambios if c.get("tipo") == "planta_renombrar"]
+    cambios = [c for c in datos.cambios if c.get("tipo") != "planta_renombrar"]
+    for it in cambios:
         if it.get("tipo") == "planta_nueva" and it.get("crear_en_listados"):
             fila = it.get("fila") or {}
             try:
@@ -775,8 +927,28 @@ def aplicar_cambios(datos: CambiosIn, servicio: str = "", usuario: Usuario = Dep
     actuales = config_store.leer(ARCHIVO_CONTACTOS, [])
     respaldo = f"contactos_laboratorio_respaldo_{datetime.now():%Y%m%d_%H%M%S}.json"
     config_store.escribir(respaldo, actuales)
-    nuevos, hechos = aplicar(actuales, datos.cambios, servicio)
+    # Los cambios de nombre van PRIMERO: lo que se cambie después en esa planta ya la
+    # busca por su nombre nuevo. Se valida todo contra las listas antes de tocar Listados.
+    renombradas: list[dict] = []
+    base = actuales
+    for it in renombres:
+        p, nuevo = it.get("planta") or {}, it.get("nuevo") or {}
+        try:
+            base, _ = renombrar_en_contactos(base, p.get("sold_to", ""), p.get("ship_to", ""), nuevo.get("ship_to", ""), servicio)
+            from .db import conexion, cursor_dict
+
+            with conexion() as conn, cursor_dict(conn) as cur:
+                renombradas.append(renombrar_planta_listados(
+                    cur, servicio, p.get("sold_to", ""), p.get("ship_to", ""), nuevo.get("ship_to", "")))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except Exception as exc:
+            logger.exception("No se pudo cambiar el nombre de la planta en Listados")
+            raise HTTPException(500, f"No se pudo cambiar el nombre de la planta en Listados: {exc}") from exc
+    nuevos, hechos = aplicar(base, cambios, servicio)
+    hechos["aplicados"] += len(renombradas)
+    hechos["plantas"] += len(renombradas)
     config_store.escribir(ARCHIVO_CONTACTOS, nuevos)
     logger.info("Listas de distribución (%s): %s aplicó %d cambios en %d plantas (respaldo %s)",
                 servicio or "linea", usuario.email, hechos["aplicados"], hechos["plantas"], respaldo)
-    return {**hechos, "respaldo": respaldo, "listados_creados": creados}
+    return {**hechos, "respaldo": respaldo, "listados_creados": creados, "renombradas": renombradas}

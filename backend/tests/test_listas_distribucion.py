@@ -238,3 +238,122 @@ def test_el_excel_trae_los_codigos_sap_si_los_hay():
     wb.save(buf)
     filas, _ = ld.leer_filas_excel(buf.getvalue())
     assert (filas[0]["codigo_sold"], filas[0]["codigo_ship"]) == ("10001", "20002")
+
+
+# --- plantas que el Excel nuevo ya no trae ---------------------------------
+
+def _dos_plantas():
+    otra = [_c(10 + i, c["tipo"], c["email"], cargo=c["cargo"], copia=c["tipo_copia"], sold="OTRO SA", ship="PLANTA DOS")
+            for i, c in enumerate(_sistema())]
+    return _sistema() + otra
+
+
+def test_planta_que_no_viene_en_el_excel_se_ofrece_para_quitar_pero_no_se_quita_sola():
+    contactos = _dos_plantas()
+    r = ld.comparar(ld.estado_desde_contactos(contactos), [_fila(clientes={c: ["cli@x.cl"] for c in ld.CATEGORIAS})])
+    assert r["retiradas"] == [{"planta": {"sold_to": "OTRO SA", "ship_to": "PLANTA DOS"}}]
+    assert all(c["tipo"] != "planta_quitar" for c in r["cambios"])
+    nuevos, _ = ld.aplicar(contactos, r["cambios"])      # sin confirmar nada, nadie se va
+    assert {c["ship_to"] for c in nuevos} == {"PLANTA UNO", "PLANTA DOS"}
+
+
+def test_confirmar_quitar_borra_toda_la_lista_de_esa_planta_y_solo_de_esa():
+    contactos = _dos_plantas()
+    cambio = {"id": "x", "tipo": "planta_quitar", "planta": {"sold_to": "OTRO SA", "ship_to": "PLANTA DOS"},
+              "campo": "planta", "agregar": [], "quitar": [], "corregir": []}
+    nuevos, hechos = ld.aplicar(contactos, [cambio])
+    assert {c["ship_to"] for c in nuevos} == {"PLANTA UNO"} and len(nuevos) == len(_sistema())
+    assert hechos["aplicados"] == 1 and hechos["plantas"] == 1
+    # quitar algo que ya no está no falla
+    _, otra = ld.aplicar(nuevos, [cambio])
+    assert otra["aplicados"] == 0 and otra["ignorados"]
+
+
+def test_quitar_una_planta_de_linea_de_proceso_no_toca_actimist():
+    contactos = _dos_plantas() + [{**_c(99, "resultado_cliente", "act@x.cl", sold="OTRO SA", ship="PLANTA DOS"), "servicio": "actimist"}]
+    cambio = {"id": "x", "tipo": "planta_quitar", "planta": {"sold_to": "OTRO SA", "ship_to": "PLANTA DOS"},
+              "campo": "planta", "agregar": [], "quitar": [], "corregir": []}
+    nuevos, _ = ld.aplicar(contactos, [cambio], "")
+    assert [c["email"] for c in nuevos if c.get("servicio") == "actimist"] == ["act@x.cl"]
+
+
+def test_excel_sin_filas_no_ofrece_quitar_nada():
+    assert ld.comparar(ld.estado_desde_contactos(_dos_plantas()), [])["retiradas"] == []
+
+
+def test_ryd_tiene_su_propia_lista_y_no_toca_la_de_linea():
+    contactos = _sistema()
+    fila = _fila(comercial=["com.ryd@agrofresh.com"], clientes={c: ["cli.ryd@x.cl"] for c in ld.CATEGORIAS})
+    estado_ryd = ld.estado_desde_contactos(ld.del_servicio(contactos, "ryd"))
+    assert estado_ryd == {}                                    # Línea de proceso no se cuela en RYD
+    cambios = ld.comparar(estado_ryd, [fila], {ld.clave_planta("CLI SA", "PLANTA UNO"): ("CLI SA", "PLANTA UNO")})["cambios"]
+    nuevos, _ = ld.aplicar(contactos, cambios, "ryd")
+    ryd = [c for c in nuevos if c.get("servicio") == "ryd"]
+    assert {c["email"] for c in ryd} == {"com.ryd@agrofresh.com", "cli.ryd@x.cl"}
+    assert [c for c in nuevos if not c.get("servicio")] == contactos        # Línea intacta
+
+
+def test_cada_lista_dice_a_quien_manda_siempre_aunque_no_tenga_plantas():
+    from app.servicios import fijos_de_lista
+    for lista, para in (("actimist", ["CJIMENEZ@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM"]),
+                        ("ecofog", ["CJIMENEZ@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM"]),
+                        ("ryd", ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"])):
+        f = ld._fijos_para_pantalla(lista)
+        assert f["para"] == para == fijos_de_lista(lista)["para"]
+        assert f["cc"] == ["JORGE.SANDOVAL@AGROFRESH.COM", "AGROFRESHREPORTHUB@GMAIL.COM"] and f["respaldo"] == []
+    linea = ld._fijos_para_pantalla("")
+    assert linea["para"] == [] and linea["cc"] == [] and "CGUERRERO@AGROFRESH.COM" in linea["respaldo"]
+
+
+# --- cambiar el nombre de una planta sin perder su lista -------------------
+
+def _lista_losonjera():
+    mala = [_c(40 + i, c["tipo"], c["email"], cargo=c["cargo"], copia=c["tipo_copia"], sold="AGUA SANTA S.A", ship="PLANTA LOSONJERA")
+            for i, c in enumerate(_sistema())]
+    ryd = [{**c, "id": 60 + i, "servicio": "ryd"} for i, c in enumerate(mala)]
+    actimist = [{**c, "id": 80 + i, "servicio": "actimist"} for i, c in enumerate(mala)]
+    return _sistema() + mala + ryd + actimist
+
+
+def test_renombrar_conserva_la_lista_y_alcanza_a_las_listas_que_comparten_el_listado():
+    contactos = _lista_losonjera()
+    nuevos, n = ld.renombrar_en_contactos(contactos, "AGUA SANTA S.A", "PLANTA LOSONJERA", "PLANTA LISONJERA", "")
+    assert n == 2 * len(_sistema())                              # Línea de proceso + RYD (mismo listado)
+    de = lambda lista, ship: sorted(c["email"] for c in nuevos if c.get("servicio", "") == lista and c["ship_to"] == ship)
+    assert de("", "PLANTA LISONJERA") == sorted(c["email"] for c in _sistema())   # nadie se perdió
+    assert de("ryd", "PLANTA LISONJERA") and not de("", "PLANTA LOSONJERA")
+    assert de("actimist", "PLANTA LOSONJERA") and not de("actimist", "PLANTA LISONJERA")   # Actimist tiene su listado
+    assert {c["ship_to"] for c in nuevos if c["ship_to"] == "PLANTA UNO"}                    # otras plantas intactas
+    assert len(nuevos) == len(contactos)
+
+
+def test_renombrar_a_un_nombre_que_ya_tiene_lista_se_rechaza():
+    contactos = _lista_losonjera() + [_c(99, "resultado_cliente", "x@x.cl", sold="AGUA SANTA S.A", ship="PLANTA LISONJERA")]
+    with pytest.raises(ValueError, match="Ya hay una planta"):
+        ld.renombrar_en_contactos(contactos, "AGUA SANTA S.A", "PLANTA LOSONJERA", "PLANTA LISONJERA", "")
+
+
+class _CurRenombrar:
+    def __init__(self, clientes, plantas):
+        self.clientes, self.plantas, self.ultimo, self.actualizado = clientes, plantas, [], None
+
+    def execute(self, sql, params=None):
+        if sql.startswith("SELECT id, nombre FROM cliente"):
+            self.ultimo = self.clientes
+        elif sql.startswith("SELECT id, nombre FROM planta"):
+            self.ultimo = self.plantas
+        elif sql.startswith("UPDATE planta"):
+            self.actualizado = params
+
+    def fetchall(self):
+        return self.ultimo
+
+
+def test_renombrar_en_listados_cambia_el_nombre_de_la_misma_planta():
+    cur = _CurRenombrar([{"id": 1, "nombre": "AGUA SANTA S.A"}], [{"id": 7, "nombre": "PLANTA LOSONJERA"}, {"id": 8, "nombre": "PLANTA OTRA"}])
+    r = ld.renombrar_planta_listados(cur, "", "agua santa s.a", "planta losonjera", "PLANTA  LISONJERA")
+    assert cur.actualizado == ("PLANTA LISONJERA", 7) and r["de"] == "PLANTA LOSONJERA"
+    with pytest.raises(ValueError, match="Ya existe"):
+        ld.renombrar_planta_listados(cur, "", "AGUA SANTA S.A", "PLANTA LOSONJERA", "planta otra")
+    with pytest.raises(ValueError, match="no está en Listados"):
+        ld.renombrar_planta_listados(cur, "", "AGUA SANTA S.A", "PLANTA FANTASMA", "X")

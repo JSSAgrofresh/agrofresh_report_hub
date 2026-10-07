@@ -30,6 +30,7 @@ import json
 import logging
 import mimetypes
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -37,11 +38,11 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from . import actividad, config_store, correo, informe_lectura, mail_templates, seguridad
-from .auth import Usuario, usuario_actual
+from . import actividad, config_store, correo, informe_lectura, mail_aviso, mail_templates, seguridad
+from .auth import Usuario, solo_admin_general, usuario_actual
 from .db import conexion, cursor_dict
 from .listados import clave_normalizada
-from .servicios import clave_servicio
+from .servicios import MARCA_RESPALDO_RYD, clave_servicio, es_tipo_ryd, fijos_de_lista, lista_de_datos
 
 logger = logging.getLogger(__name__)
 
@@ -140,14 +141,26 @@ def leer_config() -> dict[str, Any]:
     if not isinstance(cfg, dict):
         cfg = {}
     internos = cfg.get("internos") if isinstance(cfg.get("internos"), dict) else None
+    enc = cfg.get("encabezado") if isinstance(cfg.get("encabezado"), dict) else {}
+    titulo = enc.get("titulo")
+    subtitulo = enc.get("subtitulo")
     return {
+        "encabezado": {
+            "titulo": titulo.strip() if isinstance(titulo, str) and titulo.strip() else mail_templates.TITULO_INFORME,
+            # Un subtítulo vacío es válido (sin línea de abajo); solo si nunca se guardó vale el de siempre.
+            "subtitulo": subtitulo.strip() if isinstance(subtitulo, str) else mail_templates.SUBTITULO_INFORME,
+        },
         "modo": MODO_PRODUCCION if cfg.get("modo") == MODO_PRODUCCION else MODO_PRUEBA,
+        # A quién llega todo lo que se envía en modo prueba (y la prueba del aviso). Editable.
+        "destinatarios_prueba": _limpiar_correos(cfg["destinatarios_prueba"] if isinstance(cfg.get("destinatarios_prueba"), list) else []) or list(DESTINATARIOS_PRUEBA),
         "internos": {
             "cc": _limpiar_correos((internos or INTERNOS_DEFECTO).get("cc")),
             "bcc": _limpiar_correos((internos or INTERNOS_DEFECTO).get("bcc")),
         },
         "modo_cambiado_por": cfg.get("modo_cambiado_por"),
         "modo_cambiado_en": cfg.get("modo_cambiado_en"),
+        # El aviso a clientes que se editó a mano (vacío = el original). Se conserva al guardar lo demás.
+        "aviso": cfg.get("aviso") if isinstance(cfg.get("aviso"), dict) else {},
     }
 
 
@@ -191,13 +204,25 @@ def plan_desde_solicitud(datos: dict, internos: dict[str, list[str]] | None = No
     from . import toma_muestras as tm
 
     internos = internos if internos is not None else leer_config()["internos"]
+    # El informe se envía AHORA: lleva las reglas vigentes de la lista (referentes en Para,
+    # Jorge y el Report Hub en Copia) aunque la solicitud sea anterior a esas reglas. La
+    # solicitud ya emitida no se toca: la marca va solo en esta copia.
+    # RYD sí respeta su marca: una RYD anterior sigue como Línea de proceso.
+    if not es_tipo_ryd(datos):
+        datos = {**datos, MARCA_RESPALDO_RYD: True}
     detalle = tm._datos_pdf_con_destinatarios_resultados(datos)["destinatarios_resultados_detalle"]
     sin_lista = tm.solicitud_sin_lista(datos)
     # Esto es el informe del laboratorio, que va al CLIENTE. Sin lista del cliente, el
     # respaldo de una solicitud (Jorge, Claudia, Report Hub) no sirve: queda el Para
     # vacío y no se envía hasta que alguien escriba a quién.
+    para = [] if sin_lista else detalle["para"]
+    fijos = fijos_de_lista(lista_de_datos(datos))["para"]
+    if sin_lista and fijos and datos.get(MARCA_RESPALDO_RYD) and not datos.get("es_prueba"):
+        # Actimist, Ecofog y RYD: sin lista del cliente, el informe va a sus referentes
+        # (Carlos y Cristian, o Carla y Fran), no queda vacío.
+        para, sin_lista = list(fijos), False
     plan = repartir(
-        [] if sin_lista else detalle["para"],
+        para,
         [*detalle["cc"], *internos.get("cc", [])],
         [*detalle["bcc"], *internos.get("bcc", [])],
     )
@@ -209,14 +234,19 @@ _TIPO_DE_SERVICIO = {"actimist": "Actimist", "ecofog": "Ecofog"}
 
 def plan_destinatarios(
     sold_to: str, ship_to: str, especie: str = "", internos: dict[str, list[str]] | None = None,
-    servicio: str = "",
+    servicio: str = "", tipo_aplicacion: str = "",
 ) -> dict[str, Any]:
     """La misma lista que daría una solicitud con ese Sold To, Ship To, especie y
     servicio. Sirve cuando el informe no trae N° de solicitud (o la solicitud no
-    existe) y para corregir a mano esos datos. Paz puede cambiarla antes de enviar."""
+    existe) y para corregir a mano esos datos. Paz puede cambiarla antes de enviar.
+    Un informe RYD (`tipo_aplicacion`) lleva el respaldo de RYD."""
+    ryd = es_tipo_ryd({"tipo_aplicacion": tipo_aplicacion})
     datos = {
         "sold_to": sold_to, "ship_to": ship_to, "especie": especie,
-        "campos_laboratorio": {"Tipo Aplicación": _TIPO_DE_SERVICIO.get(clave_servicio(servicio), "Línea de proceso")},
+        "campos_laboratorio": {
+            "Tipo Aplicación": "RYD" if ryd else _TIPO_DE_SERVICIO.get(clave_servicio(servicio), "Línea de proceso"),
+        },
+        MARCA_RESPALDO_RYD: True,      # un informe que se envía ahora lleva las reglas nuevas de la lista
     }
     return {**plan_desde_solicitud(datos, internos), "origen": "planta"}
 
@@ -278,14 +308,19 @@ def armar_correo(
     if laboratorio != LABORATORIO_FIJO and not es_principal(usuario):
         raise HTTPException(403, f"Por ahora los informes se envían solo con {LABORATORIO_FIJO}.")
     sold_to, ship_to = datos.sold_to.strip(), datos.ship_to.strip()
-    if not sold_to or not ship_to:
+    if bool(sold_to) != bool(ship_to):
         raise HTTPException(400, "Elige el Sold To y el Ship To.")
+    if not sold_to:
+        # Informe sin cliente (p. ej. RYD): la lista sale del tipo de servicio y el correo
+        # nombra el servicio y la especie en vez de un cliente.
+        sold_to = _TIPO_DE_SERVICIO.get(clave_servicio(datos.servicio), "Línea de proceso")
+        ship_to = datos.especie.strip() or "Sin planta"
     for campo, lista in (("Para", datos.para), ("CC", datos.cc), ("CCO", datos.bcc)):
         _exigir_correos_validos(_limpiar_correos(lista), campo)
 
     reales = repartir(datos.para, datos.cc, datos.bcc)
     if modo == MODO_PRUEBA:
-        efectivos = {"to": list(DESTINATARIOS_PRUEBA), "cc": [], "bcc": []}
+        efectivos = {"to": leer_config()["destinatarios_prueba"], "cc": [], "bcc": []}
         aviso = _aviso_de_prueba(reales)
     else:
         efectivos = reales
@@ -304,8 +339,10 @@ def armar_correo(
     # Lo que la plantilla da por sí sola: es el punto de partida que la pantalla
     # muestra editable, sin el «(PRUEBA)» ni el aviso.
     asunto_base, texto_base = mail_templates.textos_informe(valores, servicio=datos.servicio)
+    encabezado = leer_config()["encabezado"]
     asunto, texto, html, imagenes = mail_templates.renderizar_informe(
         valores, servicio=datos.servicio, asunto=datos.asunto, cuerpo=datos.cuerpo, aviso=aviso,
+        titulo=encabezado["titulo"], subtitulo=encabezado["subtitulo"],
     )
     if modo == MODO_PRUEBA:
         asunto = f"(PRUEBA) {asunto}"
@@ -334,8 +371,9 @@ def estado(usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
     cfg = leer_config()
     return {
         "modo": cfg["modo"],
-        "destinatarios_prueba": DESTINATARIOS_PRUEBA,
+        "destinatarios_prueba": cfg["destinatarios_prueba"],
         "internos": cfg["internos"],
+        "encabezado": cfg["encabezado"],
         "laboratorios": _laboratorios(),
         "laboratorio_fijo": LABORATORIO_FIJO,
         "modo_cambiado_por": cfg["modo_cambiado_por"],
@@ -385,6 +423,30 @@ class InternosIn(BaseModel):
     bcc: list[str] = Field(default_factory=list)
 
 
+class PruebaIn(BaseModel):
+    destinatarios: list[str] = Field(default_factory=list, max_length=10)
+
+
+@router.put("/prueba")
+def guardar_destinatarios_prueba(body: PruebaIn, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
+    """A quién llega TODO lo que se envía en modo prueba (informes y la prueba del aviso)."""
+    lista: list[str] = []
+    for v in body.destinatarios:
+        lista.extend(t for t in re.split(r"[;,\s]+", str(v or "")) if t)
+    lista = _limpiar_correos(lista)
+    if not lista:
+        raise HTTPException(400, "Debe haber al menos un correo para las pruebas.")
+    _exigir_correos_validos(lista, "destinatarios de prueba")
+    cfg = leer_config()
+    cfg["destinatarios_prueba"] = lista
+    _guardar_config(cfg)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "envio_informes_destinatarios_prueba",
+        f"cambió los destinatarios de prueba del envío de informes ({len(lista)})", sensible=True,
+    )
+    return estado(usuario)
+
+
 @router.put("/internos")
 def guardar_internos(body: InternosIn, usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
     """Las copias internas que se proponen en cada envío (por ahora, copia oculta)."""
@@ -397,6 +459,30 @@ def guardar_internos(body: InternosIn, usuario: Usuario = Depends(acceso)) -> di
     actividad.registrar(
         usuario.email, usuario.nombre, "sensible", "envio_informes_internos",
         f"cambió las copias internas del envío de informes (CC {len(internos['cc'])}, CCO {len(internos['bcc'])})",
+        sensible=True,
+    )
+    return estado(usuario)
+
+
+class EncabezadoIn(BaseModel):
+    titulo: str
+    subtitulo: str = ""
+
+
+@router.put("/encabezado")
+def guardar_encabezado(body: EncabezadoIn, usuario: Usuario = Depends(acceso)) -> dict[str, Any]:
+    """Título (arriba, en mayúsculas) y subtítulo (debajo) del encabezado del correo."""
+    titulo, subtitulo = body.titulo.strip(), body.subtitulo.strip()
+    if not titulo:
+        raise HTTPException(400, "El título es obligatorio.")
+    if len(titulo) > 80 or len(subtitulo) > 120:
+        raise HTTPException(400, "El título admite hasta 80 caracteres y el subtítulo hasta 120.")
+    cfg = leer_config()
+    cfg["encabezado"] = {"titulo": titulo, "subtitulo": subtitulo}
+    _guardar_config(cfg)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "envio_informes_encabezado",
+        "cambió el encabezado del correo del envío de informes",
         sensible=True,
     )
     return estado(usuario)
@@ -478,19 +564,23 @@ async def analizar_informes(
                             solicitudes = {}
                     encontrada = solicitudes.get(datos["numero_solicitud"].strip().upper())
                 if encontrada:
+                    # La OT del informe manda: con ella se busca la solicitud y de ahí salen las llaves
+                    # (Sold To, Ship To, especie, servicio), porque el texto del PDF puede venir mal
+                    # escrito. Con esas llaves se consulta el listado interno de contactos (la misma
+                    # función que usa la solicitud). Lo que la solicitud no tenga, queda como lo leyó el PDF.
                     from .servicios import servicio_de_datos
 
                     archivo_sol, sol = encontrada
-                    datos["sold_to"] = str(sol.get("sold_to") or "").strip()
-                    datos["ship_to"] = str(sol.get("ship_to") or "").strip()
-                    datos["especie"] = str(sol.get("especie") or "").strip()
-                    datos["servicio"] = servicio_de_datos(sol)
                     item["solicitud"] = archivo_sol
-                    item.update(datos)
-                    item["leido"] = True
-                    item["plan"] = plan_desde_solicitud(sol, internos)
-                    items.append(item)
-                    continue
+                    for campo in ("sold_to", "ship_to", "especie"):
+                        valor = str(sol.get(campo) or "").strip()
+                        if valor:
+                            datos[campo] = valor
+                    campos_sol = sol.get("campos_laboratorio")
+                    tipo_sol = str((campos_sol or {}).get("Tipo Aplicación") or "").strip() if isinstance(campos_sol, dict) else ""
+                    if tipo_sol:
+                        datos["tipo_aplicacion"] = tipo_sol
+                        datos["servicio"] = servicio_de_datos(sol)
                 if not (datos["sold_to"] and datos["ship_to"]):
                     # Respaldo: un Sold To + Ship To que el sistema ya conoce, escrito en el texto.
                     pares = sorted({
@@ -505,7 +595,16 @@ async def analizar_informes(
                     item["leido"] = True
                     item["plan"] = plan_destinatarios(
                         datos["sold_to"], datos["ship_to"], datos["especie"], internos, servicio=datos["servicio"],
+                        tipo_aplicacion=datos["tipo_aplicacion"],
                     )
+                elif datos["tipo_aplicacion"]:
+                    # Sin cliente en el PDF (RYD, ensayos propios): lo dice el tipo de servicio.
+                    item["leido"] = True
+                    item["plan"] = {
+                        **plan_destinatarios("", "", datos["especie"], internos, servicio=datos["servicio"],
+                                           tipo_aplicacion=datos["tipo_aplicacion"]),
+                        "origen": "servicio",
+                    }
                 else:
                     logger.warning(
                         "No se encontró Sold To / Ship To en %s. Texto leído (inicio): %r", nombre, texto[:600],
@@ -546,6 +645,149 @@ def guardar_template(clave: str, body: TemplateIn, usuario: Usuario = Depends(ac
 
 class VistaPreviaIn(DatosEnvio):
     nombres_adjuntos: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Aviso a clientes: «de ahora en adelante los informes salen por el Report Hub»
+# ---------------------------------------------------------------------------
+
+ASUNTO_AVISO = "[AgroFresh] Envío automático de informes de análisis"
+TITULO_AVISO = "Aviso a clientes"
+TEXTO_AVISO = (
+    "Estimados clientes:\n\n"
+    "Junto con saludar, les informamos que, a partir de ahora, utilizaremos AgroFresh Report Hub "
+    "para automatizar el envío de sus informes de análisis.\n\n"
+    "Los informes se enviarán desde agrofreshreporthub@gmail.com. Les agradeceremos agregar esta "
+    "dirección a sus contactos o remitentes seguros para evitar bloqueos o que los correos lleguen "
+    "a la carpeta de correo no deseado.\n\n"
+    "Ante cualquier duda o consulta relacionada con los informes recibidos, pueden contactar a "
+    "Paz Salazar al correo psalazar@agrofresh.com.\n\n"
+    "Muchas gracias por su apoyo.\n\n"
+    "Saludos,"
+)
+
+
+class AvisoIn(BaseModel):
+    asunto: str
+    titulo: str
+    subtitulo: str = ""
+    texto: str
+    plantilla: str = mail_aviso.PLANTILLA_DEFECTO
+
+
+_AVISO_ORIGINAL = {
+    "asunto": ASUNTO_AVISO, "titulo": TITULO_AVISO, "subtitulo": "AgroFresh Report Hub", "texto": TEXTO_AVISO,
+    "plantilla": mail_aviso.PLANTILLA_DEFECTO,
+}
+
+
+def _aviso_vigente() -> dict[str, str]:
+    """El aviso que vale hoy: lo guardado a mano sobre el original."""
+    guardado = leer_config()["aviso"]
+    vigente = dict(_AVISO_ORIGINAL)
+    for campo in vigente:
+        valor = guardado.get(campo)
+        if isinstance(valor, str) and (valor.strip() or campo == "subtitulo"):
+            vigente[campo] = valor
+    vigente["plantilla"] = mail_aviso.clave_plantilla(guardado.get("plantilla"))
+    return vigente
+
+
+def _html_aviso(aviso: dict[str, str], texto_aviso: str = "") -> tuple[str, list[correo.ImagenInline]]:
+    return mail_aviso.html_de_aviso(
+        aviso["texto"], aviso["titulo"], aviso["subtitulo"], texto_aviso, aviso.get("plantilla", ""),
+    )
+
+
+def _validar_aviso(body: AvisoIn) -> dict[str, str]:
+    aviso = {
+        "asunto": body.asunto.strip(), "titulo": body.titulo.strip(),
+        "subtitulo": body.subtitulo.strip(), "texto": body.texto.strip(),
+        "plantilla": body.plantilla.strip() or mail_aviso.PLANTILLA_DEFECTO,
+    }
+    if aviso["plantilla"] not in mail_aviso.PLANTILLAS:
+        raise HTTPException(400, "Esa plantilla no existe.")
+    if not aviso["asunto"] or not aviso["titulo"] or not aviso["texto"]:
+        raise HTTPException(400, "El asunto, el título y el texto son obligatorios.")
+    if len(aviso["asunto"]) > 200 or len(aviso["titulo"]) > 80 or len(aviso["subtitulo"]) > 120:
+        raise HTTPException(400, "El asunto admite hasta 200 caracteres, el título 80 y el subtítulo 120.")
+    if len(aviso["texto"]) > 8000:
+        raise HTTPException(400, "El texto admite hasta 8.000 caracteres.")
+    return aviso
+
+
+def _respuesta_aviso() -> dict[str, Any]:
+    vigente = _aviso_vigente()
+    html, imagenes = _html_aviso(vigente)
+    return {
+        **vigente,
+        "html": _html_para_pantalla(html, imagenes),
+        "original": dict(_AVISO_ORIGINAL),
+        "plantillas": mail_aviso.catalogo(),
+        "personalizado": vigente != _AVISO_ORIGINAL,
+        "destinatarios_prueba": leer_config()["destinatarios_prueba"],
+    }
+
+
+@router.get("/aviso")
+def aviso_a_clientes(usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
+    """El aviso de bienvenida tal como lo vería un cliente. Solo lee: no envía nada."""
+    return _respuesta_aviso()
+
+
+@router.post("/aviso/vista-previa")
+def vista_previa_del_aviso(body: AvisoIn, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, str]:
+    """Cómo se vería lo que se está escribiendo, sin guardarlo."""
+    html, imagenes = _html_aviso({
+        "asunto": body.asunto, "titulo": body.titulo or " ", "subtitulo": body.subtitulo.strip(), "texto": body.texto,
+        "plantilla": body.plantilla,
+    })
+    return {"html": _html_para_pantalla(html, imagenes)}
+
+
+@router.put("/aviso")
+def guardar_aviso(body: AvisoIn, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
+    cfg = leer_config()
+    cfg["aviso"] = _validar_aviso(body)
+    _guardar_config(cfg)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "envio_informes_aviso",
+        "editó el aviso a clientes del envío de informes", sensible=True,
+    )
+    return _respuesta_aviso()
+
+
+@router.delete("/aviso")
+def restaurar_aviso(usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
+    """Vuelve al texto original."""
+    cfg = leer_config()
+    cfg["aviso"] = {}
+    _guardar_config(cfg)
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "envio_informes_aviso",
+        "restauró el aviso a clientes del envío de informes al texto original", sensible=True,
+    )
+    return _respuesta_aviso()
+
+
+@router.post("/aviso/enviar-prueba")
+def enviar_prueba_del_aviso(body: AvisoIn | None = None, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
+    """Manda el aviso SOLO a Paz y Jorge, con «(PRUEBA)» en el asunto, estando el sistema en
+    prueba o en producción. Si llega lo que se está escribiendo se prueba eso (sin guardarlo);
+    si no, el aviso vigente. El envío a clientes no existe todavía."""
+    aviso = _validar_aviso(body) if body is not None else _aviso_vigente()
+    destinatarios = leer_config()["destinatarios_prueba"]
+    nota = "CORREO DE PRUEBA. Así verán el aviso los clientes. Este correo llegó solo a las direcciones de prueba, no a clientes."
+    html, imagenes = _html_aviso(aviso, nota)
+    resultado = correo.enviar(
+        ", ".join(destinatarios), f"(PRUEBA) {aviso['asunto']}", html, f"{nota}\n\n{mail_aviso.texto_plano(aviso['texto'])}", [],
+        cc=[], bcc=[], imagenes_inline=imagenes,
+    )
+    actividad.registrar(
+        usuario.email, usuario.nombre, "informes", "envio_aviso_prueba",
+        f"envió la prueba del aviso a clientes a {', '.join(resultado.to)}",
+    )
+    return {"ok": f"Prueba enviada a {', '.join(resultado.to)}. No salió nada a clientes.", "to": resultado.to}
 
 
 @router.post("/vista-previa")
@@ -616,28 +858,39 @@ def _registrar_envio(
     *, usuario: Usuario, modo: str, armado: dict[str, Any], datos: DatosEnvio,
     adjuntos: list[correo.Adjunto], enviado: dict[str, list[str]],
     exitoso: bool, mensaje_id: str | None, error: str | None,
+    archivo_solicitud: str = "",
 ) -> None:
     """Best-effort a propósito, como `envio_solicitud_log`: si la base falla, o falta
-    la migración 0052, el envío que ya salió no se oculta ni se tumba."""
+    la migración 0052, el envío que ya salió no se oculta ni se tumba.
+
+    Con la migración 0054 el envío queda amarrado a su solicitud (lo usa Auditoría
+    interna para medir el lead time hasta el cliente); sin ella se guarda igual, sin amarre."""
+    valores = (
+        usuario.email, usuario.nombre, modo, armado["laboratorio"], datos.sold_to.strip(),
+        datos.ship_to.strip(), datos.especie.strip(), armado["asunto"],
+        json.dumps(armado["reales"]["to"]), json.dumps(armado["reales"]["cc"]),
+        json.dumps(armado["reales"]["bcc"]),
+        json.dumps(enviado["to"]), json.dumps(enviado["cc"]), json.dumps(enviado["bcc"]),
+        json.dumps([{"nombre": a.nombre, "bytes": len(a.contenido)} for a in adjuntos]),
+        exitoso, mensaje_id, error,
+    )
+    base = """
+        INSERT INTO envio_informe_log
+            (usuario_email, usuario_nombre, modo, laboratorio, sold_to, ship_to, especie, asunto,
+             para, cc, bcc, enviado_to, enviado_cc, enviado_bcc, adjuntos, exitoso, mensaje_id, error{extra})
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s{marcas})
+    """
+    archivo_solicitud = (archivo_solicitud or "").strip()
+    if archivo_solicitud:
+        try:
+            with conexion() as conn, cursor_dict(conn) as cur:
+                cur.execute(base.format(extra=", archivo_solicitud", marcas=", %s"), (*valores, archivo_solicitud))
+            return
+        except Exception:
+            logger.warning("Sin la migración 0054 el envío no queda amarrado a su solicitud.", exc_info=True)
     try:
         with conexion() as conn, cursor_dict(conn) as cur:
-            cur.execute(
-                """
-                INSERT INTO envio_informe_log
-                    (usuario_email, usuario_nombre, modo, laboratorio, sold_to, ship_to, especie, asunto,
-                     para, cc, bcc, enviado_to, enviado_cc, enviado_bcc, adjuntos, exitoso, mensaje_id, error)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    usuario.email, usuario.nombre, modo, armado["laboratorio"], datos.sold_to.strip(),
-                    datos.ship_to.strip(), datos.especie.strip(), armado["asunto"],
-                    json.dumps(armado["reales"]["to"]), json.dumps(armado["reales"]["cc"]),
-                    json.dumps(armado["reales"]["bcc"]),
-                    json.dumps(enviado["to"]), json.dumps(enviado["cc"]), json.dumps(enviado["bcc"]),
-                    json.dumps([{"nombre": a.nombre, "bytes": len(a.contenido)} for a in adjuntos]),
-                    exitoso, mensaje_id, error,
-                ),
-            )
+            cur.execute(base.format(extra="", marcas=""), valores)
     except Exception:
         logger.exception("No se pudo registrar el envío de informe en envio_informe_log (exitoso=%s)", exitoso)
 
@@ -654,6 +907,8 @@ async def enviar_informe(
     para: str = Form("[]"),
     cc: str = Form("[]"),
     bcc: str = Form("[]"),
+    # Archivo de la solicitud (OT) que se leyó del PDF, si se encontró: amarra el envío a ella.
+    solicitud: str = Form(""),
     archivos: list[UploadFile] = File(...),
     usuario: Usuario = Depends(acceso),
 ) -> dict[str, Any]:
@@ -683,6 +938,7 @@ async def enviar_informe(
         _registrar_envio(
             usuario=usuario, modo=modo, armado=armado, datos=datos, adjuntos=adjuntos,
             enviado=efectivos, exitoso=False, mensaje_id=None, error=str(exc.detail),
+            archivo_solicitud=solicitud,
         )
         raise
 
@@ -690,6 +946,7 @@ async def enviar_informe(
     _registrar_envio(
         usuario=usuario, modo=modo, armado=armado, datos=datos, adjuntos=adjuntos,
         enviado=enviado, exitoso=True, mensaje_id=resultado.mensaje_id, error=None,
+        archivo_solicitud=solicitud,
     )
     if modo == MODO_PRUEBA:
         mensaje = f"Prueba enviada a {', '.join(resultado.to)}. No salió nada al cliente."
