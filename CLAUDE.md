@@ -598,6 +598,16 @@ motivo sale al pasar el mouse); **«OT sin confirmar»** (gris) = ya está en Re
 informe no trae la OT. Si aún no hay resultados en Report no se repite: basta «Sin Report».
 Aviso rojo arriba + filtro Estado «OT por revisar» (`otPorRevisar` en `filtrosSolicitudes.ts`).
 Solo interno, y un muestreador solo ve los de sus solicitudes.
+**Quitar el informe de una solicitud** (botón ✕ punteado de la fila, solo en las que tienen informe; **solo el
+administrador principal y con su contraseña, revisada TAMBIÉN en el servidor**: `confirmar_clave.exigir_principal_con_clave`,
+403 si falla, nunca 401): `POST /toma-muestras/solicitudes/{archivo}/quitar-informe` (`informes_solicitud.quitar_informe`).
+Borra TODO lo que trajo ese informe, para poder volver a subirlo con el Converter: el registro de Report con sus
+resultados y productos (cascada), las filas pendientes con ese N° de informe, el registro de `informe_auditoria` y los PDF
+(Auditoría y la copia de Storage → Informes; un PDF que no se pueda borrar de R2 se avisa y no deshace lo borrado). Los
+informes se reconocen como en el listado (PDF de Converter con su OT, o Report con `referencia` = OT), nunca por
+parecido. La solicitud de Toma de muestras no se toca y queda como cambio sensible en Actividad. **Si agregas otra
+acción destructiva solo del principal, revisa la clave en el servidor con `confirmar_clave`.** Pruebas:
+`tests/test_quitar_informe.py`, `SolicitudesView.quitarInforme.test.tsx`.
 **Zip de PDF** (selección → «PDF (.zip)», `POST /toma-muestras/solicitudes/pdf-zip`): si al
 menos una tiene informe con PDF, el zip lleva **`Solicitudes/`** e **`Informes/`**
 («OT-QUI0047 - Informe 2026-1885-PC.pdf»; `informes_solicitud.informes_para_zip`, nunca

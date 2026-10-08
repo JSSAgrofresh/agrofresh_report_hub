@@ -51,6 +51,26 @@ export function eliminarSolicitud(archivo: string) {
   )
 }
 
+export interface InformeQuitado {
+  estado: string
+  informes: string[]
+  solicitudes_report: number
+  resultados: number
+  productos: number
+  pendientes: number
+  pdf_borrados: number
+  pdf_no_borrados: number
+}
+
+/** Quita el informe de una solicitud y todo lo que trajo (Report, pendientes y PDF) para poder volver a
+ * subirlo. Solo el administrador principal; el servidor vuelve a revisar su contraseña. */
+export function quitarInformeDeSolicitud(archivo: string, password: string) {
+  return httpClient.post<InformeQuitado>(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/quitar-informe`,
+    { password },
+  )
+}
+
 /** Si la cuenta puede crear solicitudes de prueba. */
 export function estadoSolicitudesPrueba() {
   return httpClient.get<EstadoSolicitudesPrueba>('/toma-muestras/solicitudes-prueba/estado')

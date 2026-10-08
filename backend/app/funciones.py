@@ -24,7 +24,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from . import actividad, config_store, seguridad
+from . import actividad, config_store, confirmar_clave
 from .auth import Usuario, solo_admin_general
 from .db import conexion, cursor_dict
 
@@ -170,16 +170,11 @@ class ServicioReportIn(BaseModel):
 
 
 def _es_principal(usuario: Usuario) -> bool:
-    from .toma_muestras import _SUPER_ADMIN_EMAIL
-
-    return usuario.tipoAcceso == "admin_general" and usuario.email.strip().lower() == _SUPER_ADMIN_EMAIL
+    return confirmar_clave.es_principal(usuario)
 
 
 def _clave_correcta(usuario: Usuario, password: str | None) -> bool:
-    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT password_hash FROM usuario WHERE id = %s", (usuario.id,))
-        fila = cur.fetchone()
-    return bool(fila and seguridad.verificar_password(password or "", fila.get("password_hash")))
+    return confirmar_clave.clave_correcta(usuario, password)
 
 
 @router.put("/report")
