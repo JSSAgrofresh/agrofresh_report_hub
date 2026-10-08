@@ -1,0 +1,116 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.titulo {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.texto {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--color-text-muted, inherit);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.lista {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.fila:first-child {
+  border-top: 0;
+}
+
+.nombre {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.nombre small {
+  display: block;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.estado {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.encendido {
+  background: var(--color-success-soft, #dff3e4);
+  color: var(--color-success, #1d7a3a);
+}
+
+.apagado {
+  background: var(--color-surface-2, #eceff1);
+  color: var(--color-text-muted, #5b6770);
+}
+
+.aviso {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft, #fff4d6);
+  font-size: 0.88rem;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 0.88rem;
+}
+
+.pie {
+  margin: 0;
+  font-size: 0.82rem;
+  opacity: 0.7;
+}
+
+.campoClave {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: var(--space-3);
+  font-size: 0.88rem;
+}
+
+.campoClave input {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font: inherit;
+}

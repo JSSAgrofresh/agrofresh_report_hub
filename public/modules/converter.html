@@ -382,12 +382,31 @@ function compacto(s){
 /* Listados en vivo, leídos de la base al abrir el Converter (ver
    cargarListados más abajo). La copia de CATALOGOS pegada arriba es una foto
    vieja de Listados: solo se usa si la base no responde. */
-const LISTADOS = {enVivo: false, plantasPorCliente: {}, variedadesPorEspecie: {}};
+const LISTADOS = {enVivo: false, plantasPorCliente: {}, variedadesPorEspecie: {}, servicios: {}};
+
+/* Actimist y Ecofog tienen su propio listado de Sold To / Ship To; Línea de
+   proceso y RYD usan el de siempre. El servicio sale del «Tipo Aplicación» del
+   informe (misma regla que servicios.clave_servicio del backend). */
+function servicioDe(inf){
+  const t = plano((inf && inf.datos && inf.datos["Tipo Aplicación"]) || "");
+  return (t === "actimist" || t === "ecofog") ? t : "";
+}
+const ETIQUETA_SERVICIO = {actimist: "Actimist", ecofog: "Ecofog"};
+function listadoDe(inf){
+  const sv = servicioDe(inf);
+  return sv ? (LISTADOS.servicios[sv] || {cargado: false, sold_to: [], plantasPorCliente: {}}) : null;
+}
 
 /* Valores oficiales que corresponden a un campo DE ESTE informe: el Ship To
    solo puede ser una planta de su Sold To, y la Variedad una de su Especie
    (misma jerarquía que usa el backend al cargar, ver ingest._resolver_listados). */
 function oficialesPara(campo, inf){
+  const propio = listadoDe(inf);
+  if(propio && (campo === "sold_to" || campo === "ship_to")){
+    // El listado del servicio, nunca el de Línea de proceso: sin él no hay nada que calce.
+    if(campo === "sold_to") return propio.sold_to;
+    return propio.plantasPorCliente[inf.datos["Sold To"]] || [...new Set(Object.values(propio.plantasPorCliente).flat())];
+  }
   if(campo === "ship_to"){
     const plantas = LISTADOS.plantasPorCliente[inf && inf.datos["Sold To"]];
     if(plantas) return plantas;
@@ -588,7 +607,8 @@ function leerQuiteca(texto, inf){
      FOGGER o ACTIMIST son el mismo tratamiento (se homogeniza como "Actimist"
      para no duplicar estados); cualquier otro tratamiento es "Linea de Proceso".
      Regla confirmada por Jorge Sandoval. */
-  d["Tipo Aplicación"] = campo(texto, "Tratamiento", "Línea de Proceso");
+  d["Tipo Aplicación"] = campo(texto, "Tipo Aplicaci[óo]n", "C[óo]d\\. productor")
+                      || campo(texto, "Tratamiento", "Línea de Proceso");
   const tratamientoPlano = plano(d["Tipo Aplicación"] || "");
   const esActimist = tratamientoPlano.includes("fogger") || tratamientoPlano.includes("actimist");
   d["Tipo de servicio"] = esActimist ? "Actimist" : "Linea de Proceso";
@@ -1036,7 +1056,8 @@ function revisarCatalogo(inf){
     delete inf.manual[col];
     if(inf.crudos[col]) inf.datos[col] = inf.crudos[col];
     else delete inf.datos[col];
-    const deUnCliente = col === "Ship To" && !!LISTADOS.plantasPorCliente[inf.datos["Sold To"]];
+    const plantasDelServicio = (listadoDe(inf) || LISTADOS).plantasPorCliente;
+    const deUnCliente = col === "Ship To" && !!plantasDelServicio[inf.datos["Sold To"]];
     let r = homogenizar(CAMPOS_CAT[col], inf.datos[col], oficiales, deUnCliente);
     // Lo que el sistema aprendió de una corrección anterior. Solo se aplica si
     // el valor guardado sigue siendo válido para ESTE informe (p. ej. la planta
@@ -1452,7 +1473,8 @@ async function aprender(inf, campoNombre, valorElegido){
   try{
     const r = await fetch(API_BASE + "/correcciones", {
       method: "POST", headers: {"Content-Type": "application/json", ...autorizacion()},
-      body: JSON.stringify({campo, contexto, valor_crudo: crudo, valor_oficial: valorElegido, archivo: inf.archivo}),
+      body: JSON.stringify({campo, contexto, valor_crudo: crudo, valor_oficial: valorElegido, archivo: inf.archivo,
+                            servicio: servicioDe(inf)}),
     });
     if(!r.ok){
       let det = ""; try{ det = (await r.json()).detail || ""; }catch(e){}
@@ -1543,9 +1565,36 @@ async function cargarListados(){
       "Se usa una copia guardada, que puede no tener los Sold To / Ship To más nuevos.";
     aviso.style.color = "var(--error)";
   }
+  await cargarListadosDeServicio(aviso);
   // los informes que ya estaban cargados se revisan de nuevo con los listados reales
   informes.filter(i => i.laboratorio).forEach(revisarCatalogo);
   pintar();
+}
+
+/* Sold To / Ship To de Actimist y de Ecofog, cada uno de su listado. Si uno no
+   se puede leer, los informes de ese servicio quedan «fuera de catálogo» (nunca
+   se validan contra Línea de proceso) y el aviso de arriba lo dice. */
+async function cargarListadosDeServicio(aviso){
+  const orden = (a, b) => a.localeCompare(b, "es");
+  const partes = [];
+  for(const sv of Object.keys(ETIQUETA_SERVICIO)){
+    try{
+      const [clientes, plantas] = await Promise.all([
+        leerApi("/catalogo/" + sv + "/clientes"), leerApi("/catalogo/" + sv + "/plantas"),
+      ]);
+      const activos = clientes.filter(c => c.activo).map(c => c.nombre);
+      const porCliente = {};
+      plantas.filter(p => p.activo && activos.includes(p.cliente_nombre)).forEach(p =>
+        (porCliente[p.cliente_nombre] = porCliente[p.cliente_nombre] || []).push(p.nombre));
+      for(const c in porCliente) porCliente[c].sort(orden);
+      LISTADOS.servicios[sv] = {cargado: true, sold_to: activos.slice().sort(orden), plantasPorCliente: porCliente};
+      partes.push(ETIQUETA_SERVICIO[sv] + ": " + activos.length + " Sold To, " + Object.values(porCliente).flat().length + " Ship To");
+    }catch(err){
+      LISTADOS.servicios[sv] = {cargado: false, sold_to: [], plantasPorCliente: {}, error: err.message};
+      partes.push("⚠ no se pudo leer el listado de " + ETIQUETA_SERVICIO[sv] + " (" + err.message + ")");
+    }
+  }
+  if(aviso && partes.length) aviso.textContent += " · " + partes.join(" · ") + ".";
 }
 
 function pintarTabla(ok){
