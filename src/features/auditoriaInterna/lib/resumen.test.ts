@@ -3,6 +3,7 @@ import {
   estadoDe,
   ordenarSolicitudes,
   porClienteYServicio,
+  porGrupoYLaboratorio,
   porLaboratorio,
   resumenPorTipo,
   solicitudesACsv,
@@ -201,5 +202,39 @@ describe('solicitudesACsv', () => {
   })
   it('no queda nada de demora', () => {
     expect(solicitudesACsv([sol()]).toLowerCase()).not.toContain('demora')
+  })
+})
+
+describe('porGrupoYLaboratorio', () => {
+  const lista = [
+    sol({ laboratorio: 'Quiteca', sold_to: 'Dole', informe, en_report: true, concretada: true }),
+    sol({ laboratorio: 'QUITECA', sold_to: 'Dole' }),
+    sol({ laboratorio: 'Agrofresh', sold_to: 'Dole', concretada: true }),
+    sol({ laboratorio: 'ALS', sold_to: 'Copefrut' }),
+    sol({ laboratorio: 'Otro lab', sold_to: 'Copefrut' }),
+  ]
+
+  it('cuenta análisis e informes por laboratorio, sin importar mayúsculas', () => {
+    const [dole] = porGrupoYLaboratorio(lista, 'cliente', 0)
+    expect(dole.grupo).toBe('Dole')
+    expect(dole.total).toBe(3)
+    expect(dole.labs.QUITECA).toEqual({ analisis: 2, informes: 1 })
+    expect(dole.labs.AGROFRESH).toEqual({ analisis: 1, informes: 1 })
+  })
+
+  it('deja fuera los laboratorios que no son los cuatro', () => {
+    const grupos = porGrupoYLaboratorio(lista, 'cliente', 0)
+    expect(grupos.find((g) => g.grupo === 'Copefrut')?.total).toBe(1)
+  })
+
+  it('agrupa por Ship To con su Sold To al lado', () => {
+    const [g] = porGrupoYLaboratorio([sol({ ship_to: 'Chillán', sold_to: 'Dole' })], 'planta', 0)
+    expect(g.grupo).toBe('Chillán · Dole')
+  })
+
+  it('agrupa por especie y por tipo de servicio, y respeta el límite', () => {
+    expect(porGrupoYLaboratorio(lista, 'especie', 0)[0].grupo).toBe('Cerezas')
+    expect(porGrupoYLaboratorio(lista, 'tipo', 0)[0].grupo).toBe('Actimist')
+    expect(porGrupoYLaboratorio(lista, 'cliente', 1)).toHaveLength(1)
   })
 })

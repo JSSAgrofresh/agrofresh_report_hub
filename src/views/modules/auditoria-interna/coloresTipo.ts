@@ -24,7 +24,15 @@ export const TONOS_TIPO: Record<string, { concretada: string; sin_report: string
 const TONOS_GRIS = { concretada: '#5b665f', sin_report: '#8a958e', pendiente: '#b3bbb6' }
 export const tonosDeTipo = (tipo: string) => TONOS_TIPO[tipo] ?? TONOS_GRIS
 
-/** Alto del gráfico por cliente: crece con la cantidad de clientes y de barras. */
-export function altoClienteServicio(nClientes: number, nTipos: number): number {
-  return Math.max(200, nClientes * (nTipos * 2 * 14 + 16) + 40)
+/** Un color por laboratorio en el gráfico por grupo (distintos a los de tipo de servicio). */
+export const COLOR_LAB: Record<string, string> = {
+  QUITECA: '#0e7490',
+  AGROFRESH: '#4d7c0f',
+  ALS: '#b45309',
+  DIAGNOFRUIT: '#9d174d',
+}
+
+/** Alto del gráfico por grupo: cuatro barras (una por laboratorio) por fila. */
+export function altoGrupoLaboratorio(nGrupos: number): number {
+  return Math.max(240, nGrupos * (4 * 15 + 22) + 40)
 }
