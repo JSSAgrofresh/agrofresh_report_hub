@@ -7,24 +7,24 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { IconoActualizar, IconoAlerta, IconoBuscar } from '@/components/ui/iconosAccion'
 import {
   FILTROS_VACIOS,
+  LABORATORIOS_GRAFICO,
+  NOMBRE_LAB,
   TIPO_ACTIMIST,
   TIPO_LINEA,
   TIPO_RYD,
   contarFiltros,
   filtrarSolicitudes,
   opcionesDeFiltros,
-  porClienteYServicio,
+  porGrupoYLaboratorio,
   resumenPorTipo,
   simularSolicitudes,
-  tipoCorto,
   tiposDeArea,
-  topClientesPorServicio,
   totales,
   useSolicitudesAuditoria,
 } from '@/features/auditoriaInterna'
-import type { AreaPivote, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
-import { DonaTipoServicio, GraficoClienteServicio, LeyendaTipos, TarjetaGrafico } from './Graficos'
-import { altoClienteServicio } from './coloresTipo'
+import type { AreaPivote, DimensionGrafico, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
+import { DonaTipoServicio, GraficoGrupoLaboratorio, LeyendaLaboratorios, TarjetaGrafico } from './Graficos'
+import { altoGrupoLaboratorio } from './coloresTipo'
 import { PanelFiltros } from './PanelFiltros'
 import { SelectorArea } from './SelectorArea'
 import { ResumenConcretadas } from './ResumenConcretadas'
@@ -33,14 +33,12 @@ import styles from './SolicitudesInformesView.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
-type TipoGrafico = 'ambos' | typeof TIPO_ACTIMIST | typeof TIPO_LINEA | typeof TIPO_RYD
-const TIPOS_GRAFICO: { valor: TipoGrafico; texto: string }[] = [
-  { valor: 'ambos', texto: 'Todos' },
-  { valor: TIPO_ACTIMIST, texto: 'Actimist' },
-  { valor: TIPO_LINEA, texto: 'Línea de proceso' },
-  { valor: TIPO_RYD, texto: 'R&D' },
+const DIMENSIONES: { valor: DimensionGrafico; texto: string; plural: string }[] = [
+  { valor: 'cliente', texto: 'Sold To', plural: 'Sold To' },
+  { valor: 'planta', texto: 'Ship To', plural: 'Ship To' },
+  { valor: 'especie', texto: 'Especie', plural: 'especies' },
+  { valor: 'tipo', texto: 'Tipo de servicio', plural: 'tipos de servicio' },
 ]
-const TODOS_LOS_TIPOS = [TIPO_ACTIMIST, TIPO_LINEA, TIPO_RYD]
 
 export function SolicitudesInformesView() {
   const { user } = useAuth()
@@ -59,7 +57,9 @@ export function SolicitudesInformesView() {
   const [filtros, setFiltros] = useState<FiltrosSolicitudes>({ ...FILTROS_VACIOS })
   // null = ver todo (lo predeterminado)
   const [area, setArea] = useState<AreaPivote | null>(null)
-  const [tipoGrafico, setTipoGrafico] = useState<TipoGrafico>('ambos')
+  const [dimension, setDimension] = useState<DimensionGrafico>('cliente')
+  // Filtros propios del gráfico por grupo, encima de los del panel.
+  const [filtroGrafico, setFiltroGrafico] = useState({ cliente: '', planta: '', especie: '', tipo: '' })
   const [topClientes, setTopClientes] = useState(10)
 
   const opciones = useMemo(() => opcionesDeFiltros(todas ?? [], filtros), [todas, filtros])
@@ -70,12 +70,14 @@ export function SolicitudesInformesView() {
   const actimist = useMemo(() => resumenPorTipo(alcance, TIPO_ACTIMIST), [alcance])
   const lineaProceso = useMemo(() => resumenPorTipo(alcance, TIPO_LINEA), [alcance])
   const ryd = useMemo(() => resumenPorTipo(alcance, TIPO_RYD), [alcance])
-  const tiposElegidos = tipoGrafico === 'ambos' ? TODOS_LOS_TIPOS : [tipoGrafico]
-  const clientes = useMemo(
-    () => topClientesPorServicio(alcance, tipoGrafico === 'ambos' ? TODOS_LOS_TIPOS : [tipoGrafico], topClientes),
-    [alcance, tipoGrafico, topClientes],
-  )
-  const totalClientes = useMemo(() => porClienteYServicio(alcance).length, [alcance])
+  const filtrosGrafico = useMemo(() => ({ ...FILTROS_VACIOS, ...filtroGrafico }), [filtroGrafico])
+  const opcionesGrafico = useMemo(() => opcionesDeFiltros(alcance, filtrosGrafico), [alcance, filtrosGrafico])
+  const alcanceGrafico = useMemo(() => filtrarSolicitudes(alcance, filtrosGrafico, { estado: true }), [alcance, filtrosGrafico])
+  const grupos = useMemo(() => porGrupoYLaboratorio(alcanceGrafico, dimension, topClientes), [alcanceGrafico, dimension, topClientes])
+  const totalGrupos = useMemo(() => porGrupoYLaboratorio(alcanceGrafico, dimension, 0).length, [alcanceGrafico, dimension])
+  const cambiarFiltroGrafico = (clave: keyof typeof filtroGrafico, valor: string) =>
+    setFiltroGrafico((f) => ({ ...f, [clave]: valor, ...(clave === 'cliente' ? { planta: '' } : {}) }))
+  const nombreDimension = DIMENSIONES.find((d) => d.valor === dimension)!
 
   const hayFiltros = contarFiltros(filtros) > 0
   const primeraCarga = !todas && !error
@@ -152,20 +154,54 @@ export function SolicitudesInformesView() {
               </div>
 
               <TarjetaGrafico
-                titulo="Análisis e informes por cliente"
-                subtitulo={`Análisis pedidos y informes concretados, por tipo de servicio · ${clientes.length} de ${nf.format(totalClientes)} clientes`}
-                alto={altoClienteServicio(clientes.length, tiposElegidos.length)}
-                leyenda={<LeyendaTipos tipos={tiposElegidos} />}
+                titulo={`Análisis e informes por ${nombreDimension.texto}`}
+                subtitulo={`Análisis pedidos e informes concretados en los 4 laboratorios · ${grupos.length} de ${nf.format(totalGrupos)} ${nombreDimension.plural}`}
+                alto={altoGrupoLaboratorio(grupos.length)}
+                leyenda={
+                  <>
+                    <div className={styles.filtrosGrafico}>
+                      <label>
+                        Sold To
+                        <select className={styles.selectChico} value={filtroGrafico.cliente} onChange={(e) => cambiarFiltroGrafico('cliente', e.target.value)}>
+                          <option value="">Todos</option>
+                          {opcionesGrafico.clientes.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        Ship To
+                        <select className={styles.selectChico} value={filtroGrafico.planta} onChange={(e) => cambiarFiltroGrafico('planta', e.target.value)}>
+                          <option value="">Todos</option>
+                          {opcionesGrafico.plantas.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        Especie
+                        <select className={styles.selectChico} value={filtroGrafico.especie} onChange={(e) => cambiarFiltroGrafico('especie', e.target.value)}>
+                          <option value="">Todas</option>
+                          {opcionesGrafico.especies.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        Tipo de servicio
+                        <select className={styles.selectChico} value={filtroGrafico.tipo} onChange={(e) => cambiarFiltroGrafico('tipo', e.target.value)}>
+                          <option value="">Todos</option>
+                          {opcionesGrafico.tipos.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <LeyendaLaboratorios />
+                  </>
+                }
                 controles={
                   <>
-                    <div className={styles.segmentadoChico} role="group" aria-label="Tipo de servicio">
-                      {TIPOS_GRAFICO.map((t) => (
-                        <button key={t.valor} type="button" aria-pressed={tipoGrafico === t.valor} className={tipoGrafico === t.valor ? styles.segActivo : ''} onClick={() => setTipoGrafico(t.valor)}>
-                          {t.texto}
+                    <div className={styles.segmentadoChico} role="group" aria-label="Agrupar por">
+                      {DIMENSIONES.map((d) => (
+                        <button key={d.valor} type="button" aria-pressed={dimension === d.valor} className={dimension === d.valor ? styles.segActivo : ''} onClick={() => setDimension(d.valor)}>
+                          {d.texto}
                         </button>
                       ))}
                     </div>
-                    <select className={styles.selectChico} aria-label="Cuántos clientes mostrar" value={topClientes} onChange={(e) => setTopClientes(Number(e.target.value))}>
+                    <select className={styles.selectChico} aria-label="Cuántos mostrar" value={topClientes} onChange={(e) => setTopClientes(Number(e.target.value))}>
                       <option value={10}>Top 10</option>
                       <option value={20}>Top 20</option>
                       <option value={0}>Todos</option>
@@ -173,14 +209,14 @@ export function SolicitudesInformesView() {
                   </>
                 }
                 tabla={{
-                  columnas: ['Cliente', ...tiposElegidos.flatMap((t) => [`${tipoCorto(t)} · análisis`, `${tipoCorto(t)} · informes`])],
-                  filas: clientes.map((c) => [c.cliente, ...tiposElegidos.flatMap((t) => [c.tipos[t]?.analisis ?? 0, c.tipos[t]?.informes ?? 0])]),
+                  columnas: [nombreDimension.texto, ...LABORATORIOS_GRAFICO.flatMap((l) => [`${NOMBRE_LAB[l]} · análisis`, `${NOMBRE_LAB[l]} · informes`])],
+                  filas: grupos.map((g) => [g.grupo, ...LABORATORIOS_GRAFICO.flatMap((l) => [g.labs[l]?.analisis ?? 0, g.labs[l]?.informes ?? 0])]),
                 }}
               >
-                {clientes.length > 0 ? (
-                  <GraficoClienteServicio clientes={clientes} tipos={tiposElegidos} />
+                {grupos.length > 0 ? (
+                  <GraficoGrupoLaboratorio grupos={grupos} />
                 ) : (
-                  <p className={styles.sinDatosGrafico}>No hay solicitudes de este tipo con los filtros actuales.</p>
+                  <p className={styles.sinDatosGrafico}>No hay solicitudes con los filtros actuales.</p>
                 )}
               </TarjetaGrafico>
             </>
