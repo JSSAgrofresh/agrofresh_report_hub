@@ -623,6 +623,24 @@ describe('NuevaSolicitudView — RYD de AgroFresh', () => {
     )
   }
 
+  it('un ensayo (RYD) admite una observación de hasta 500 caracteres; los demás tipos, 50', async () => {
+    mockConfigRyd()
+    montarNueva()
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+    const campo = (await screen.findByLabelText(/Observación/)) as HTMLTextAreaElement
+    expect(campo.maxLength).toBe(50)
+    expect(screen.getByText('0/50 caracteres')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'RYD' } })
+    expect((screen.getByLabelText(/Observación/) as HTMLTextAreaElement).maxLength).toBe(500)
+    expect(screen.getByText('0/500 caracteres')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText(/Observación/), { target: { value: 'T2 R2 - '.repeat(40) } })
+    expect(screen.getByText('320/500 caracteres')).toBeTruthy()
+  })
+
   it('pide código y N° de ensayo y permite varias posiciones solo en RYD + AgroFresh', async () => {
     mockConfigRyd()
     montarNueva()

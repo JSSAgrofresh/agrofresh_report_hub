@@ -64,8 +64,10 @@ const TIPO_ACTIMIST = 'Actimist'
 /** Ecofog es copia de Actimist: mismos campos (N° Cámara / N° Orden, posición libre). */
 const TIPO_ECOFOG = 'Ecofog'
 const TIPO_RYD = 'RYD'
-/** Largo máximo de la observación (el backend lo exige también). */
+/** Largo máximo de la observación (el backend lo exige también): un ensayo (RYD) describe más, hasta 500. */
 const OBSERVACION_MAX = 50
+const OBSERVACION_MAX_ENSAYO = 500
+const topeObservacion = (tipoAplicacion: string) => (tipoAplicacion === TIPO_RYD ? OBSERVACION_MAX_ENSAYO : OBSERVACION_MAX)
 const LAB_AGROFRESH = 'AGROFRESH'
 
 /** Claves con las que RYD de AgroFresh guarda sus dos datos de ensayo en
@@ -858,8 +860,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       return
     }
 
-    if ((general.observacion ?? '').length > OBSERVACION_MAX) {
-      setError(`La observación no puede pasar de ${OBSERVACION_MAX} caracteres.`)
+    if ((general.observacion ?? '').length > topeObservacion(tipoAplicacionSel)) {
+      setError(`La observación no puede pasar de ${topeObservacion(tipoAplicacionSel)} caracteres.`)
       return
     }
     if (!laboratorio) {
@@ -1250,16 +1252,16 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           <textarea
             className={styles.textarea}
             rows={3}
-            maxLength={esObservacion ? OBSERVACION_MAX : undefined}
+            maxLength={esObservacion ? topeObservacion(tipoAplicacionSel) : undefined}
             value={general[campo.clave] ?? ''}
             onChange={(e) => actualizarGeneral(campo.clave, e.target.value)}
           />
           {esObservacion && (
             <small
-              className={cn(styles.contador, largo >= OBSERVACION_MAX && styles.contadorLleno)}
+              className={cn(styles.contador, largo >= topeObservacion(tipoAplicacionSel) && styles.contadorLleno)}
               aria-live="polite"
             >
-              {largo}/{OBSERVACION_MAX} caracteres
+              {largo}/{topeObservacion(tipoAplicacionSel)} caracteres
             </small>
           )}
         </label>

@@ -645,6 +645,14 @@ lee. Descruzar lo borra. Sin la 0048 corrida todo sigue y el peso sale vacío (5
 `jorge.sandoval@agrofresh.com`: botón de marco punteado que pide la contraseña
 (`components/ui/EliminarConClave`, `/auth/verificar-clave`); el backend lo exige también.
 
+## Observación de la solicitud: 50 caracteres, 500 en un ensayo
+
+La observación del formulario de solicitud tiene tope de **50 caracteres**; un **ensayo** (Tipo Aplicación **RYD**) admite
+hasta **500** (`toma_muestras.tope_observacion`, `OBSERVACION_MAX`/`OBSERVACION_MAX_ENSAYO`; espejo en
+`NuevaSolicitudView.tsx`, `topeObservacion`, con su contador). El tope solo rige al **crear o editar** (`SolicitudIn`); al
+leer (`Solicitud`) no se exige, así lo ya emitido no cambia ni sale del listado. El PDF la dibuja con `Paragraph`
+(envuelve, sigue en una página). Pruebas: `tests/test_observacion_ensayo.py`, `NuevaSolicitudView.test.tsx`.
+
 ## Solicitudes de prueba
 
 Las pruebas llevan **su propia serie de folios**, `OTP-<prefijo><NNNN>` (OTP-DIAG0001,
