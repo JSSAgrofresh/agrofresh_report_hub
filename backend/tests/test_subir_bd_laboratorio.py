@@ -13,6 +13,8 @@ import os
 import sys
 from contextlib import contextmanager
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import emitir  # noqa: E402
@@ -85,3 +87,49 @@ def test_la_solicitud_se_guarda_con_ese_mismo_laboratorio(monkeypatch):
     insert = next((q, p) for q, p in cur.consultas if q.startswith("INSERT INTO solicitud"))
     columnas = [c.strip() for c in insert[0].split("(", 1)[1].split(")", 1)[0].split(",")]
     assert insert[1][columnas.index("laboratorio")] == "Agrofresh"
+
+
+class _CursorConServicio(_CursorFalso):
+    """Como el de siempre, pero con la migración 0055 corrida (existe `solicitud.servicio`)."""
+
+    def fetchone(self):
+        if "information_schema.columns" in self._ultima:
+            return {"ok": 1}
+        return super().fetchone()
+
+
+def _columna(cur, nombre):
+    insert = next((q, p) for q, p in cur.consultas if q.startswith("INSERT INTO solicitud"))
+    columnas = [c.strip() for c in insert[0].split("(", 1)[1].split(")", 1)[0].split(",")]
+    return (columnas, insert[1]) if nombre in columnas else (columnas, None)
+
+
+@pytest.mark.parametrize("tipo, esperado", [("RYD", "ryd"), ("Actimist", "actimist"), ("Ecofog", "ecofog"), ("Línea de proceso", None)])
+def test_lo_que_sube_ingreso_al_laboratorio_queda_marcado_con_su_servicio(monkeypatch, tipo, esperado):
+    cur = _CursorConServicio()
+
+    @contextmanager
+    def conexion(escribir=False):
+        yield object()
+
+    @contextmanager
+    def cursor_dict(_conn):
+        yield cur
+
+    monkeypatch.setattr(emitir, "conexion", conexion)
+    monkeypatch.setattr(emitir, "cursor_dict", cursor_dict)
+    fila = emitir.FilaCruceIn(
+        campos={"N° Solicitud": "OT-AGF0050", "Sold To (Nombre)": "AGROFRESH", "Ship To (Nombre)": "ENSAYO",
+                "Fecha Muestreo": "24-09-2026", "Tipo Aplicación": tipo},
+        analitos_solicitados=["FDL"], resultados_por_codigo={"FDL": 1.0}, codigo_vial="GCNPD2",
+    )
+    emitir.subir_bd([fila])
+    columnas, valores = _columna(cur, "servicio")
+    assert "servicio" in columnas
+    assert valores[columnas.index("servicio")] == esperado
+
+
+def test_sin_la_migracion_0055_se_sube_igual_sin_servicio(monkeypatch):
+    cur = _subir(monkeypatch)
+    columnas, _ = _columna(cur, "servicio")
+    assert "servicio" not in columnas

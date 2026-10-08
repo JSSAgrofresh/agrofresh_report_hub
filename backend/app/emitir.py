@@ -42,6 +42,7 @@ from .solicitud_excel import (
     construir_workbook_exportacion,
 )
 from .solicitud_parser import parsear_solicitudes_html
+from .servicios import clave_lista
 from .storage import _carpeta_raiz as _carpeta_raiz_storage, _nombre_seguro
 from .toma_muestras import leer_solicitudes_de
 
@@ -1649,6 +1650,9 @@ def subir_bd(filas: list[FilaCruceIn]) -> list[FilaSubidaOut]:
             con_folio.append((fila, nro_original, planta_id))
 
         if con_folio:
+            from .ingest import columna_solicitud_existe
+
+            con_servicio = columna_solicitud_existe(cur, "servicio")
             folios = _asignar_folios(cur, len(con_folio))
             for (fila, nro_original, planta_id), folio in zip(con_folio, folios):
                 fecha_muestreo = _fecha_ddmmyyyy(fila.campos.get("Fecha Muestreo"))
@@ -1683,6 +1687,10 @@ def subir_bd(filas: list[FilaCruceIn]) -> list[FilaSubidaOut]:
                     "mes": fecha_muestreo.month if fecha_muestreo else None,
                     "origen": "emitir_cromatografia",
                 }
+                # Tipo de servicio (migración 0055): Report muestra solo los servicios que el administrador
+                # principal encienda. NULL = Línea de proceso; lo demás: actimist, ecofog o ryd.
+                if con_servicio:
+                    datos_solicitud["servicio"] = clave_lista(fila.campos.get("Tipo Aplicación")) or None
                 columnas = list(datos_solicitud.keys())
                 placeholders = ", ".join(["%s"] * len(columnas))
                 cur.execute(

@@ -387,7 +387,13 @@ El filtro es `funciones.condicion_report(alias)` (`COALESCE(s.servicio,'') = ANY
 (`reportes._filtro_alcance`: datos, resumen, Excel y BD) más `/reportes/clientes` y los contadores de `dashboard.py`;
 vale para todos, clientes incluidos. **No** toca Auditoría interna, Solicitudes e informes ni Envío de informes: esos ven
 todo. Sin la 0055 (`solicitud.servicio`) no se filtra nada y la pantalla avisa. Lo RYD cargado antes de la 0055 tiene
-`servicio` NULL y sigue apareciendo como Línea de proceso. **Si agregas otra consulta que alimente Report, pásale
+`servicio` NULL y sigue apareciendo como Línea de proceso **hasta que se corra `scripts/clasificar_servicio_solicitudes.py`**
+(`--aplicar`; `app/clasificar_servicio.py`): deduce el servicio de lo viejo por la solicitud de Toma de muestras del informe
+(su `referencia` = OT), si no por el «Tipo Aplicación» de sus productos, si no por `tipo_servicio` = Actimist (FOGGER); lo
+que es Línea de proceso o no se puede deducir no se toca ni se pisa un servicio ya marcado. Lo que sube «Ingreso al
+laboratorio» (`emitir.subir_bd`, que guarda todo como «Cromatografía») ahora también lleva su `servicio`. El filtro «Tipo de
+servicio» (el campo viejo `tipo_servicio`: Cromatografía / Línea de proceso) **se quitó de la pantalla de Report**: mezclaba los
+informes propios de AgroFresh. **Si agregas otra consulta que alimente Report, pásale
 `funciones.condicion_report`.** Pruebas: `tests/test_servicio_listados.py`, `FuncionesPanel.test.tsx`.
 
 ## Correo de la solicitud: quién lo recibe
