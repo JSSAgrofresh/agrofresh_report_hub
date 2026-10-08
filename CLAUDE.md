@@ -91,6 +91,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0050_listado_ecofog.sql
 .venv\Scripts\python.exe scripts\migrar.py 0052_envio_informes.sql
 .venv\Scripts\python.exe scripts\migrar.py 0054_envio_informe_solicitud.sql
+.venv\Scripts\python.exe scripts\migrar.py 0055_solicitud_servicio.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -298,6 +299,21 @@ No deshace si otra carga agregó resultados a sus informes (409): primero se
 deshace la otra. Lo cargado antes de la 0042 no tiene carga y no se puede
 deshacer desde la pantalla. Sin la 0042 corrida se carga igual, sin registrar.
 
+**El Sold To / Ship To se valida contra el listado del TIPO DE SERVICIO del informe** (migración 0055,
+`solicitud.servicio`). El «Tipo Aplicación» del informe (Converter lo manda como `TIPO APP`; la Ingesta de Excel, de la
+columna «Tipo Aplicación») decide el listado: **Actimist y Ecofog** usan el suyo (`cliente_actimist`/`planta_actimist`,
+`cliente_ecofog`/`planta_ecofog`); **Línea de proceso y RYD**, el de siempre (`cliente`/`planta`). Lo de Actimist y Ecofog
+se guarda con el nombre como texto (`sold_to_raw`/`ship_to_raw`, `planta_id` NULL: nunca se enlaza ni se crea una planta de
+Línea de proceso) y `servicio` = `actimist`/`ecofog`; RYD se guarda con `servicio` = `ryd` y su planta de Línea de proceso;
+`servicio` NULL = Línea de proceso (todo lo cargado antes). Si las tablas del servicio no existen (falta la 0049/0050) la fila
+va a Filas pendientes: nunca cae en el listado de Línea de proceso. La memoria de Data Core (`mapeo_confirmado`) y el
+aprendizaje de Sold To/Ship To solo valen para Línea de proceso; `POST /correcciones` recibe el `servicio` y valida el valor
+contra el listado de ese servicio. En el Converter lo hace `servicioDe`/`listadoDe` (`cargarListadosDeServicio` lee
+`/catalogo/{actimist|ecofog}/...`; si no se puede leer, el informe queda «fuera de catálogo», no cae en Línea de proceso). El
+lector de Quiteca ahora lee «Tipo Aplicación :» (antes solo «Tratamiento :», que sigue valiendo para los informes antiguos).
+Pruebas: `tests/test_servicio_listados.py`, `converterServicio.test.ts`. **Pendiente**: el panel de Ingesta de Excel
+(homogenizador, vista previa) y Filas pendientes → sugerencias siguen sugiriendo desde Línea de proceso.
+
 El Ship To se busca **solo entre las plantas de su Sold To**. Si el Excel trae
 la ciudad ("SAN FERNANDO") vale la planta que la contiene, si es una sola
 ("DOLE PLANTA SAN FERNANDO", regla `contiene` de `homogenizador.py`, igual en
@@ -355,10 +371,24 @@ casos en `test_servicio_actimist.py` y `servicio.test.ts`).
 - **Listas de distribución** (Administración General): selector de servicio; cada
   panel lee, exporta, compara y guarda SOLO su servicio (`?servicio=`), y una
   planta nueva se crea en el listado de ese servicio.
-- **Pendiente (no hecho)**: Ingesta, Converter y Report siguen leyendo SOLO el
-  listado de Línea de proceso. Falta que la Ingesta/Converter busquen en el
-  listado del tipo de servicio del informe y que Report muestre Actimist solo
-  cuando se habilite con un botón en Administración General.
+- **Ingesta y Converter** ya buscan en el listado del tipo de servicio del informe (ver
+  «Carga de datos»). **Report** muestra solo los servicios que el administrador principal
+  encienda en Administración General → Funciones (ver abajo); de fábrica, solo Línea de proceso.
+
+## Administración General → Funciones (qué muestra Report)
+
+Pestaña «Funciones» (`views/admin/funciones/FuncionesPanel.tsx`, `app/funciones.py`, prefijo `/api/funciones`, solo
+admin general para ver). **Report muestra SOLO los tipos de servicio encendidos**: Línea de proceso, Actimist, Ecofog y RYD,
+con un botón «Mostrar / Ocultar» cada uno. **De fábrica solo Línea de proceso** (sin archivo = de fábrica, y un archivo
+dañado nunca muestra de más). **Encender o apagar solo lo hace el administrador principal
+(`jorge.sandoval@agrofresh.com`) con su contraseña, verificada en el servidor** (`PUT /report`, 403 si no es él o la
+clave falla; nunca 401). Queda en `funciones.json` (`_config/`) y como cambio sensible en Actividad.
+El filtro es `funciones.condicion_report(alias)` (`COALESCE(s.servicio,'') = ANY(...)`) y vive en un solo punto
+(`reportes._filtro_alcance`: datos, resumen, Excel y BD) más `/reportes/clientes` y los contadores de `dashboard.py`;
+vale para todos, clientes incluidos. **No** toca Auditoría interna, Solicitudes e informes ni Envío de informes: esos ven
+todo. Sin la 0055 (`solicitud.servicio`) no se filtra nada y la pantalla avisa. Lo RYD cargado antes de la 0055 tiene
+`servicio` NULL y sigue apareciendo como Línea de proceso. **Si agregas otra consulta que alimente Report, pásale
+`funciones.condicion_report`.** Pruebas: `tests/test_servicio_listados.py`, `FuncionesPanel.test.tsx`.
 
 ## Correo de la solicitud: quién lo recibe
 
@@ -1004,10 +1034,8 @@ pendiente**, en orden de importancia:
 
 1. ~~El túnel Cloudflare~~ **resuelto**: `estado.ps1` lo reporta como servicio
    `Running` (25-09-2026), igual que el backend (tarea programada).
-2. **Actimist en Ingesta, Converter y Report** (ver «Dos servicios»): buscar el
-   Sold To / Ship To en el listado del servicio del informe y un botón en
-   Administración General para mostrar Actimist en Report (hasta entonces, solo
-   Línea de proceso).
+2. ~~Actimist/Ecofog en Ingesta, Converter y Report~~ **hecho** (Funciones, 0055). Queda: el panel de
+   vista previa de la Ingesta de Excel y las sugerencias de Filas pendientes miran solo Línea de proceso.
 3. **Etapa 4 del módulo AgroFresh Lab → Ingreso al laboratorio**: botón
    "Procesar" → modal con el listado de informes → guardar en R2 (ojo: `informes/`
    ya es el espacio Informes, con su orden planta/fecha/análisis/laboratorio) →
