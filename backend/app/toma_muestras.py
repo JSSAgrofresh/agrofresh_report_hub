@@ -35,7 +35,7 @@ import os
 import re
 import zipfile
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, ClassVar
 
 import psycopg2.errors
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -455,6 +455,18 @@ def _aplicar_regla_mixto(datos: dict) -> None:
     )
 
 
+# Largo máximo de la observación de una solicitud. Un ensayo (Tipo Aplicación RYD) necesita
+# describir más (posición, repetición, condiciones): hasta 500. Todo lo demás, 50 como siempre.
+# Es solo un tope al crear o editar: las solicitudes ya emitidas no cambian.
+OBSERVACION_MAX = 50
+OBSERVACION_MAX_ENSAYO = 500
+
+
+def tope_observacion(campos_laboratorio: dict | None) -> int:
+    """500 si el «Tipo Aplicación» es RYD (ensayo); 50 en cualquier otro caso."""
+    return OBSERVACION_MAX_ENSAYO if es_tipo_ryd({"campos_laboratorio": campos_laboratorio or {}}) else OBSERVACION_MAX
+
+
 class SolicitudIn(BaseModel):
     laboratorio: str
     solicitante: str
@@ -481,7 +493,7 @@ class SolicitudIn(BaseModel):
     generado_por: str
     email_solicitante: str | None = None
     email_laboratorio: str | None = None
-    observacion: str | None = Field(default=None, max_length=50)
+    observacion: str | None = None
     # Campos propios del laboratorio elegido (etiqueta -> valor). Solo debe
     # traer los campos aplicables al `laboratorio` de esta solicitud.
     campos_laboratorio: dict[str, str] = {}
@@ -490,6 +502,18 @@ class SolicitudIn(BaseModel):
     # forma estructural (para cruzar con resultados de cromatografía) sin
     # tener que parsear las etiquetas humanas de `campos_laboratorio`.
     analitos_solicitados: list[str] = []
+
+    # El largo de la observación se exige al CREAR/EDITAR, no al leer (`Solicitud`).
+    _EXIGIR_LARGO_OBSERVACION: ClassVar[bool] = True
+
+    @model_validator(mode="after")
+    def _largo_observacion(self):
+        if not self._EXIGIR_LARGO_OBSERVACION or not self.observacion:
+            return self
+        tope = tope_observacion(self.campos_laboratorio)
+        if len(self.observacion) > tope:
+            raise ValueError(f"La observación no puede pasar de {tope} caracteres.")
+        return self
 
     @model_validator(mode="after")
     def _productos_visibles(self):
@@ -502,6 +526,7 @@ class SolicitudIn(BaseModel):
 
 
 class Solicitud(SolicitudIn):
+    _EXIGIR_LARGO_OBSERVACION: ClassVar[bool] = False
     archivo: str
     # El tope de 50 caracteres rige al CREAR/EDITAR (SolicitudIn). Al LEER no se
     # vuelve a exigir: una solicitud ya guardada con una observacion mas larga
