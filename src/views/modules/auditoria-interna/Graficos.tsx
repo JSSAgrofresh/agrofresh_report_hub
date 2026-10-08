@@ -11,10 +11,10 @@ import {
   Tooltip,
 } from 'chart.js'
 import type { Plugin, ScriptableContext } from 'chart.js'
-import { nombreTipo, tipoCorto, tituloDonaTipo } from '@/features/auditoriaInterna'
-import type { ClienteServicio, LaboratorioResumen, Totales } from '@/features/auditoriaInterna'
+import { LABORATORIOS_GRAFICO, NOMBRE_LAB, nombreTipo, tituloDonaTipo } from '@/features/auditoriaInterna'
+import type { GrupoLaboratorios, LaboratorioResumen, Totales } from '@/features/auditoriaInterna'
 import { ESTADOS, ESTADOS_DONA, ORDEN_ESTADOS } from './estados'
-import { colorDeTipo, tonosDeTipo } from './coloresTipo'
+import { COLOR_LAB, colorDeTipo, tonosDeTipo } from './coloresTipo'
 import styles from './Graficos.module.css'
 
 Chart.register(ArcElement, DoughnutController, BarController, BarElement, CategoryScale, LinearScale, Tooltip)
@@ -64,7 +64,7 @@ export function DonaTipoServicio({ tipo, resumen }: { tipo: string; resumen: Tot
       new Chart(canvas, {
         type: 'doughnut',
         data: {
-          labels: ESTADOS_DONA.map((e) => ESTADOS[e].texto),
+          labels: ['Informes recibidos', 'Sin informe aún'],
           datasets: [
             {
               data: [resumen.concretadas, enviadas],
@@ -94,11 +94,6 @@ export function DonaTipoServicio({ tipo, resumen }: { tipo: string; resumen: Tot
       }),
     [tipo, resumen.concretadas, enviadas, resumen.emitidas],
   )
-  const cantidades: Record<string, number> = {
-    concretada: resumen.concretadas,
-    sin_report: resumen.sinReport,
-    pendiente: enviadas,
-  }
   return (
     <section className={styles.dona} aria-label={`Estado de las solicitudes de ${nombreTipo(tipo)}`}>
       <h3>
@@ -120,13 +115,21 @@ export function DonaTipoServicio({ tipo, resumen }: { tipo: string; resumen: Tot
             <b>{nf.format(resumen.concretadas)}</b> de {nf.format(resumen.emitidas)} solicitudes
           </p>
           <ul className={styles.donaLeyenda}>
-            {ESTADOS_DONA.map((e) => (
-              <li key={e}>
-                <span className={styles.muestra} style={{ background: tonos[e] }} />
-                {ESTADOS[e].texto}
-                <b>{nf.format(cantidades[e])}</b>
-              </li>
-            ))}
+            <li>
+              <span className={styles.muestra} style={{ background: 'transparent', border: `2px solid ${colorDeTipo(tipo)}` }} />
+              Solicitudes hechas
+              <b>{nf.format(resumen.emitidas)}</b>
+            </li>
+            <li>
+              <span className={styles.muestra} style={{ background: tonos.concretada }} />
+              Informes recibidos
+              <b>{nf.format(resumen.concretadas)}</b>
+            </li>
+            <li>
+              <span className={styles.muestra} style={{ background: tonos.pendiente }} />
+              Sin informe aún
+              <b>{nf.format(enviadas)}</b>
+            </li>
           </ul>
         </>
       )}
@@ -243,80 +246,132 @@ export function GraficoTotalPorLaboratorio({ laboratorios }: { laboratorios: Lab
   return <canvas ref={ref} role="img" aria-label="Total de solicitudes por laboratorio, según su estado" />
 }
 
-// ── análisis vs informes por cliente y tipo de servicio ─────────────────
+// ── análisis vs informes por grupo, con los 4 laboratorios ──────────────
 
-/** Por cliente, hasta 4 barras: para cada tipo de servicio elegido, los
- * análisis pedidos (color pleno) y los informes concretados (el mismo color,
- * más claro). El número va en la punta de cada barra. */
-export function GraficoClienteServicio({ clientes, tipos }: { clientes: ClienteServicio[]; tipos: string[] }) {
-  const datasets = tipos.flatMap((tipo) => [
-    {
-      tipo, clave: 'analisis' as const, label: `${tipoCorto(tipo)} · análisis`,
-      data: clientes.map((c) => c.tipos[tipo]?.analisis ?? 0), color: colorDeTipo(tipo),
-    },
-    {
-      tipo, clave: 'informes' as const, label: `${tipoCorto(tipo)} · informes`,
-      data: clientes.map((c) => c.tipos[tipo]?.informes ?? 0), color: `${colorDeTipo(tipo)}66`,
-    },
-  ])
-  const valorEnLaPunta: Plugin<'bar'> = {
-    id: 'valorEnLaPunta',
+/** Rol de cada dataset, por su índice: el tooltip y las etiquetas lo consultan. */
+interface MetaBarra {
+  lab: string
+  rol: 'informes' | 'resto'
+}
+
+/** Escribe, dentro de cada barra, el % de informes concretados sobre lo pedido;
+ * si la barra es muy corta para el texto, va justo a su derecha. Al final de
+ * la barra va «informes / análisis». */
+function etiquetasDeLaboratorio(grupos: GrupoLaboratorios[], metas: MetaBarra[]): Plugin<'bar'> {
+  return {
+    id: 'etiquetasDeLaboratorio',
     afterDatasetsDraw(chart) {
       const { ctx } = chart
       ctx.save()
-      ctx.font = '600 11px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif'
-      ctx.fillStyle = TINTA
+      ctx.font = '600 10.5px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif'
       ctx.textBaseline = 'middle'
-      chart.data.datasets.forEach((d, di) => {
-        chart.getDatasetMeta(di).data.forEach((el, i) => {
-          const v = Number((d.data as number[])[i]) || 0
-          if (v > 0) ctx.fillText(nf.format(v), el.x + 6, el.y)
+      grupos.forEach((g, i) => {
+        LABORATORIOS_GRAFICO.forEach((lab) => {
+          const par = g.labs[lab]
+          if (!par || par.analisis === 0) return
+          const iInf = metas.findIndex((m) => m.lab === lab && m.rol === 'informes')
+          const iRes = metas.findIndex((m) => m.lab === lab && m.rol === 'resto')
+          const elInf = chart.getDatasetMeta(iInf).data[i]
+          const elRes = chart.getDatasetMeta(iRes).data[i]
+          if (!elInf || !elRes) return
+          const x0 = chart.scales.x.getPixelForValue(0)
+          const x1 = par.informes === par.analisis ? elInf.x : elRes.x
+          const y = elInf.y
+          const pct = `${Math.round((par.informes / par.analisis) * 100)}%`
+          const ancho = x1 - x0
+          if (ancho >= ctx.measureText(pct).width + 10) {
+            // Dentro: sobre lo sólido es blanco; si casi no hay sólido, tinta.
+            const solido = elInf.x - x0
+            ctx.fillStyle = par.informes > 0 && solido >= ancho / 2 ? '#fff' : TINTA
+            ctx.textAlign = 'center'
+            ctx.fillText(pct, x0 + ancho / 2, y)
+            ctx.textAlign = 'left'
+            ctx.fillStyle = TINTA_SUAVE
+            ctx.fillText(`${par.informes}/${par.analisis}`, x1 + 6, y)
+          } else {
+            ctx.fillStyle = TINTA
+            ctx.textAlign = 'left'
+            ctx.fillText(`${pct}  ${par.informes}/${par.analisis}`, x1 + 6, y)
+          }
         })
       })
       ctx.restore()
     },
   }
+}
+
+/** Por grupo (Sold To, Ship To, especie o tipo de servicio), una barra por cada
+ * uno de los cuatro laboratorios: su largo son los análisis pedidos, la parte
+ * sólida los informes concretados y el % de adentro es esa proporción. */
+export function GraficoGrupoLaboratorio({ grupos }: { grupos: GrupoLaboratorios[] }) {
+  const metas: MetaBarra[] = LABORATORIOS_GRAFICO.flatMap((lab) => [
+    { lab, rol: 'informes' as const },
+    { lab, rol: 'resto' as const },
+  ])
   const ref = useGrafico(
     (canvas) =>
       new Chart(canvas, {
         type: 'bar',
         data: {
-          labels: clientes.map((c) => c.cliente),
-          datasets: datasets.map((d) => ({
-            label: d.label,
-            data: d.data,
-            backgroundColor: d.color,
-            borderColor: SUPERFICIE,
-            borderWidth: 1,
-            borderRadius: { topLeft: 0, topRight: 4, bottomLeft: 0, bottomRight: 4 },
-            borderSkipped: false as const,
-            barThickness: 11,
-          })),
+          labels: grupos.map((g) => g.grupo),
+          datasets: metas.map((m) => {
+            const color = COLOR_LAB[m.lab]
+            return {
+              label: `${NOMBRE_LAB[m.lab]} · ${m.rol === 'informes' ? 'informes' : 'sin informe'}`,
+              data: grupos.map((g) => {
+                const par = g.labs[m.lab]
+                if (!par) return null
+                const v = m.rol === 'informes' ? par.informes : par.analisis - par.informes
+                return v > 0 ? v : null // un 0 no se dibuja (ni su borde)
+              }),
+              backgroundColor: m.rol === 'informes' ? color : `${color}40`,
+              borderColor: SUPERFICIE,
+              borderWidth: 0,
+              borderRadius: 0,
+              borderSkipped: false as const,
+              stack: m.lab,
+              barThickness: 15,
+            }
+          }),
         },
-        plugins: [valorEnLaPunta],
+        plugins: [etiquetasDeLaboratorio(grupos, metas)],
         options: {
           indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
           animation: { duration: 350 },
           interaction: { mode: 'index', intersect: false },
-          layout: { padding: { right: 30 } },
-          datasets: { bar: { categoryPercentage: 0.86, barPercentage: 0.96 } },
+          layout: { padding: { right: 64 } },
+          datasets: { bar: { categoryPercentage: 0.9, barPercentage: 1 } },
           plugins: {
             legend: { display: false },
             tooltip: {
               ...TOOLTIP,
-              callbacks: { label: (c) => ` ${nf.format(c.parsed.x ?? 0)}  ${c.dataset.label ?? ''}` },
+              // una línea por laboratorio con datos (se muestra desde la parte «informes»)
+              filter: (item) => {
+                const m = metas[item.datasetIndex]
+                return m.rol === 'informes' && (grupos[item.dataIndex]?.labs[m.lab]?.analisis ?? 0) > 0
+              },
+              callbacks: {
+                label: (c) => {
+                  const m = metas[c.datasetIndex]
+                  const par = grupos[c.dataIndex].labs[m.lab]
+                  const pct = Math.round((par.informes / par.analisis) * 100)
+                  return ` ${NOMBRE_LAB[m.lab]}: ${nf.format(par.informes)} de ${nf.format(par.analisis)} (${pct}%)`
+                },
+              },
             },
           },
           scales: {
             x: {
+              stacked: true,
               beginAtZero: true,
               border: { display: false },
               grid: { color: REJILLA, lineWidth: 1 },
               ticks: { color: TINTA_SUAVE, font: { size: 11 }, precision: 0, maxTicksLimit: 6, padding: 6 },
             },
             y: {
+              stacked: true,
               grid: { display: false },
               border: { color: REJILLA },
               ticks: { color: TINTA, font: { size: 12 } },
@@ -324,9 +379,9 @@ export function GraficoClienteServicio({ clientes, tipos }: { clientes: ClienteS
           },
         },
       }),
-    [clientes, tipos.join('|')],
+    [grupos],
   )
-  return <canvas ref={ref} role="img" aria-label="Análisis pedidos e informes concretados por cliente y tipo de servicio" />
+  return <canvas ref={ref} role="img" aria-label="Análisis pedidos e informes concretados, con su porcentaje, por laboratorio" />
 }
 
 // ── piezas comunes ──────────────────────────────────────────────────────
@@ -344,21 +399,21 @@ export function LeyendaEstados() {
   )
 }
 
-/** Leyenda del gráfico por cliente: color = tipo de servicio; pleno = análisis,
- * claro = informes. Así ningún dato depende solo del color. */
-export function LeyendaTipos({ tipos }: { tipos: string[] }) {
+/** Leyenda del gráfico por grupo: color = laboratorio; sólido = informes
+ * concretados, claro = análisis aún sin informe. Siempre salen los cuatro. */
+export function LeyendaLaboratorios() {
   return (
     <ul className={styles.leyenda} aria-label="Leyenda">
-      {tipos.map((t) => (
-        <li key={t} className={styles.leyendaTipo}>
+      {LABORATORIOS_GRAFICO.map((l) => (
+        <li key={l} className={styles.leyendaTipo}>
           <span className={styles.pareja}>
-            <span className={styles.muestra} style={{ background: colorDeTipo(t) }} />
-            <span className={styles.muestra} style={{ background: `${colorDeTipo(t)}66` }} />
+            <span className={styles.muestra} style={{ background: COLOR_LAB[l] }} />
+            <span className={styles.muestra} style={{ background: `${COLOR_LAB[l]}40` }} />
           </span>
-          {tipoCorto(t)}
-          <em>análisis · informes</em>
+          {NOMBRE_LAB[l]}
         </li>
       ))}
+      <li className={styles.leyendaTipo}><em>sólido = informes · claro = sin informe · % dentro de la barra = informes / análisis</em></li>
     </ul>
   )
 }
