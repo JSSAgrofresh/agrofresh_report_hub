@@ -21,11 +21,14 @@ from .envio_informes import router as envio_informes_router
 from .catalogo import router as catalogo_router
 from .emitir import router as emitir_router
 from .fortificados import router as fortificados_router
+from .funciones import router as funciones_router
 from .homogenizar_datos import router as homogenizar_router
 from .ingest import router as ingest_router
 from .laboratorios import router as laboratorios_router
 from .listados import router as listados_router
 from .postventa import router as postventa_router
+from .postventa import router_cliente as postventa_cliente_router
+from .entrega_indicadores import router as entrega_indicadores_router
 from .reportes import router as reportes_router
 from .storage import router as storage_router
 from .toma_muestras import router as toma_muestras_router
@@ -104,6 +107,7 @@ CON_SESION = [Depends(usuario_actual)]
 SOLO_AGROFRESH = [Depends(solo_interno)]
 
 app.include_router(reportes_router, dependencies=CON_SESION)
+app.include_router(postventa_cliente_router, dependencies=CON_SESION)
 
 # Los listados de especie y variedad son la excepción: una cuenta de cliente
 # necesita leerlos para que los desplegables de Especie y Variedad de su
@@ -116,6 +120,7 @@ for _router in (
     ingest_router,
     auditoria_router,
     auditoria_interna_router,
+    entrega_indicadores_router,
     actividad_router,
     admin_panel_router,
     correcciones_router,
@@ -127,6 +132,7 @@ for _router in (
     storage_router,
     emitir_router,
     fortificados_router,
+    funciones_router,
     toma_muestras_router,
     laboratorios_router,
     correo_router,

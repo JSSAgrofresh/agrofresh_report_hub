@@ -12,6 +12,14 @@ export type Servicio = 'linea' | 'actimist' | 'ecofog'
 
 export const SERVICIOS: Servicio[] = ['linea', 'actimist', 'ecofog']
 
+/**
+ * Lista de distribución: los tres servicios más RYD. RYD tiene su PROPIA lista de
+ * contactos (para que no se mezcle con Línea de proceso) pero comparte el listado
+ * de Sold To / Ship To de Línea de proceso, por eso NO es un `Servicio`.
+ */
+export type ListaDistribucion = Servicio | 'ryd'
+export const LISTAS: ListaDistribucion[] = ['linea', 'actimist', 'ecofog', 'ryd']
+
 /** Los servicios con listado y lista de distribución propios (todos menos Línea de proceso). */
 export type ServicioConListado = Exclude<Servicio, 'linea'>
 export const SERVICIOS_CON_LISTADO: ServicioConListado[] = ['actimist', 'ecofog']
@@ -26,6 +34,8 @@ export const ETIQUETA_SERVICIO: Record<Servicio, string> = {
   ecofog: 'Ecofog',
 }
 
+export const ETIQUETA_LISTA: Record<ListaDistribucion, string> = { ...ETIQUETA_SERVICIO, ryd: 'RYD' }
+
 function normalizar(texto: string): string {
   return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
 }
@@ -38,6 +48,6 @@ export function servicioDeTipoAplicacion(tipo: string | null | undefined): Servi
 }
 
 /** Valor del parámetro `servicio` que espera el backend (vacío = Línea de proceso). */
-export function parametroServicio(servicio: Servicio): string {
+export function parametroServicio(servicio: ListaDistribucion): string {
   return servicio === 'linea' ? '' : servicio
 }

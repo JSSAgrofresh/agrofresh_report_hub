@@ -27,6 +27,7 @@ import { DonaTipoServicio, GraficoGrupoLaboratorio, LeyendaLaboratorios, Tarjeta
 import { altoGrupoLaboratorio } from './coloresTipo'
 import { PanelFiltros } from './PanelFiltros'
 import { SelectorArea } from './SelectorArea'
+import { IndicadoresEntrega } from './IndicadoresEntrega'
 import { ResumenConcretadas } from './ResumenConcretadas'
 import { TablaDinamica } from './TablaDinamica'
 import styles from './SolicitudesInformesView.module.css'
@@ -219,6 +220,9 @@ export function SolicitudesInformesView() {
                   <p className={styles.sinDatosGrafico}>No hay solicitudes con los filtros actuales.</p>
                 )}
               </TarjetaGrafico>
+
+              {/* Los hitos son de solicitudes reales: con datos simulados no hay nada que medir. */}
+              {!simulando && <IndicadoresEntrega solicitudes={alcance} puedeEditar={puedeSimular} />}
             </>
           )}
         </div>

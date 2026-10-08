@@ -134,11 +134,22 @@ def test_actimist_no_cae_en_los_respaldos_de_linea_de_proceso():
     assert tm._contactos_resultado(DOLE, LONTUE, "Manzana", globales, servicio="actimist") == []
 
 
-def test_solicitud_actimist_sin_lista_va_a_jorge_report_hub_y_referentes(contactos):
+def test_solicitud_actimist_va_para_carlos_y_cristian_con_jorge_y_el_sistema_en_copia(contactos):
     contactos["lista"] = LINEA  # Actimist sin ningún contacto todavía
+    r = tm.contactos_de_solicitud_de("QUITECA", _datos("Actimist", respaldo_ryd=True))
+    assert _minus(r["to"]) == _minus(PERMANENTES_ACTIMIST)
+    assert _minus(r["cc"]) == _minus(PARA_SIN_LISTA_ACTIMIST)   # Jorge y el Report Hub
+    assert r["bcc"] == []        # nada de técnicos/comerciales de Línea
+
+
+def test_solicitud_actimist_anterior_sin_marca_sigue_como_era(contactos):
+    """Lo ya emitido no se reescribe: sin la marca, Jorge y el Report Hub en Para y los referentes después."""
+    contactos["lista"] = LINEA
     r = tm.contactos_de_solicitud_de("QUITECA", _datos("Actimist"))
     assert _minus(r["to"]) == _minus(PARA_SIN_LISTA_ACTIMIST + PERMANENTES_ACTIMIST)
-    assert r["cc"] == [] and r["bcc"] == []        # nada de técnicos/comerciales de Línea
+    assert r["cc"] == [] and r["bcc"] == []
+    pdf = tm._datos_pdf_con_destinatarios_resultados(_datos("Actimist"))["destinatarios_resultados_detalle"]
+    assert _minus(pdf["para"]) == _minus(PARA_SIN_LISTA_ACTIMIST) and _minus(pdf["cc"]) == _minus(PERMANENTES_ACTIMIST)
     assert "cguerrero@agrofresh.com" not in _minus(r["to"])  # Claudia no va en Actimist
 
 
@@ -152,26 +163,26 @@ def test_solicitud_actimist_con_lista_del_laboratorio(contactos):
     contactos["lista"] = LINEA + [
         {"id": 30, "laboratorio": "QUITECA", "email": "lab@quiteca.cl", "tipo": "solicitud", "activo": True},
     ]
-    r = tm.contactos_de_solicitud_de("QUITECA", _datos("Actimist"))
-    assert _minus(r["to"]) == ["lab@quiteca.cl", *_minus(PERMANENTES_ACTIMIST)]
-    assert _minus(r["bcc"]) == _minus(PARA_SIN_LISTA_ACTIMIST)   # con lista, Jorge y el Report Hub en CCO
+    r = tm.contactos_de_solicitud_de("QUITECA", _datos("Actimist", respaldo_ryd=True))
+    assert _minus(r["to"]) == [*_minus(PERMANENTES_ACTIMIST), "lab@quiteca.cl"]
+    assert _minus(r["cc"]) == _minus(PARA_SIN_LISTA_ACTIMIST)    # Jorge y el Report Hub, en copia
     # Nadie va dos veces.
     todos = _minus(r["to"] + r["cc"] + r["bcc"])
     assert len(todos) == len(set(todos))
 
 
-def test_resultados_actimist_respaldo_y_referentes_en_copia():
+def test_resultados_actimist_referentes_en_para_y_jorge_con_el_sistema_en_copia():
     r = tm.destinatarios_resultado_por_tipo("", LONTUE, DOLE, "Manzana", LINEA, servicio="actimist")
-    assert _minus(r["to"]) == _minus(PARA_SIN_LISTA_ACTIMIST)
-    assert _minus(r["cc"]) == _minus(PERMANENTES_ACTIMIST)
+    assert _minus(r["to"]) == _minus(PERMANENTES_ACTIMIST)
+    assert _minus(r["cc"]) == _minus(PARA_SIN_LISTA_ACTIMIST)
     assert r["bcc"] == []
 
 
 def test_pdf_y_json_de_actimist_usan_la_lista_de_actimist(contactos):
     contactos["lista"] = LINEA
-    detalle = tm._datos_pdf_con_destinatarios_resultados(_datos("Actimist"))["destinatarios_resultados_detalle"]
-    assert _minus(detalle["para"]) == _minus(PARA_SIN_LISTA_ACTIMIST)
-    assert _minus(detalle["cc"]) == _minus(PERMANENTES_ACTIMIST)
+    detalle = tm._datos_pdf_con_destinatarios_resultados(_datos("Actimist", respaldo_ryd=True))["destinatarios_resultados_detalle"]
+    assert _minus(detalle["para"]) == _minus(PERMANENTES_ACTIMIST)
+    assert _minus(detalle["cc"]) == _minus(PARA_SIN_LISTA_ACTIMIST)
     # Y la de Línea de proceso no cambió.
     linea = tm._datos_pdf_con_destinatarios_resultados(_datos("Línea de proceso"))["destinatarios_resultados_detalle"]
     assert linea["para"] == ["cliente@dole.cl"]
@@ -433,3 +444,87 @@ def test_reimportar_la_dinamica_completa_lo_que_faltaba():
     assert plan["clientes_nuevos"] == []
     assert [p["nombre"] for p in plan["plantas_nuevas"]] == ["PA2", "PA3"]
     assert all(p["cliente_clave"] == 5 for p in plan["plantas_nuevas"])
+
+
+# ---------------------------------------------------------------------------
+# RYD: el respaldo es Carla y Fran, no Claudia (solo solicitudes con la marca)
+# ---------------------------------------------------------------------------
+
+RYD_LISTA = [
+    _c(60, "cliente.ryd@dole.cl", "resultado_cliente", servicio="ryd"),
+    _c(61, "tec.ryd@agrofresh.com", "resultado_interno", cargo="Técnico", tipo_copia="bcc", servicio="ryd"),
+    _c(62, "com.ryd@agrofresh.com", "resultado_interno", cargo="Comercial", tipo_copia="cc", servicio="ryd"),
+    _c(63, "cguerrero@agrofresh.com", "resultado_interno", cargo="Admin", tipo_copia="bcc", servicio="ryd"),
+]
+
+
+def test_ryd_va_para_carla_y_fran_y_jorge_en_copia_sin_claudia_ni_admin(contactos):
+    contactos["lista"] = LINEA + RYD_LISTA
+    r = tm.contactos_de_solicitud_de("QUITECA", _datos("RYD", respaldo_ryd=True))
+    assert _minus(r["to"]) == ["ccaceres@agrofresh.com", "fgonzalez@agrofresh.com"]
+    assert _minus(r["cc"]) == ["jorge.sandoval@agrofresh.com", "agrofreshreporthub@gmail.com", "com.ryd@agrofresh.com"]
+    assert _minus(r["bcc"]) == ["tec.ryd@agrofresh.com"]
+    todos = _minus(r["to"] + r["cc"] + r["bcc"])
+    assert "cguerrero@agrofresh.com" not in todos           # el admin de la lista RYD tampoco
+    assert not any(e in todos for e in ("tecnico@agrofresh.com", "comercial@agrofresh.com", "admin@agrofresh.com"))
+    assert len(todos) == len(set(todos))                       # nadie dos veces
+
+
+def test_cada_lista_es_solo_suya_ryd_no_mezcla_con_linea(contactos):
+    contactos["lista"] = LINEA + RYD_LISTA
+    ryd = {c["email"] for c in tm._contactos_resultado(DOLE, LONTUE, "Manzana", contactos["lista"], servicio="ryd")}
+    linea = {c["email"] for c in tm._contactos_resultado(DOLE, LONTUE, "Manzana", contactos["lista"], servicio="")}
+    assert ryd == {c["email"] for c in RYD_LISTA} and linea == {c["email"] for c in LINEA}
+    # una solicitud RYD sin la marca (anterior) sigue leyendo la lista de Línea de proceso
+    vieja = tm.contactos_de_solicitud_de("QUITECA", _datos("RYD"))
+    assert "comercial@agrofresh.com" in _minus(vieja["cc"]) and "com.ryd@agrofresh.com" not in _minus(vieja["cc"])
+
+
+def test_la_lista_de_ryd_cuenta_como_lista_del_cliente(contactos):
+    contactos["lista"] = LINEA + RYD_LISTA
+    assert tm.solicitud_sin_lista(_datos("RYD", respaldo_ryd=True), contactos["lista"]) is False
+    assert tm.solicitud_sin_lista(_datos("RYD", respaldo_ryd=True), LINEA) is True   # solo Línea cargada
+
+
+def test_ryd_con_lista_del_laboratorio_suma_a_carla_y_fran_en_para(contactos):
+    contactos["lista"] = []
+    import app.toma_muestras as t
+    t_por_envio = t.contactos_de_solicitud_por_envio
+    t.contactos_de_solicitud_por_envio = lambda lab: {"to": ["lab@quiteca.cl"], "cc": [], "bcc": []}
+    try:
+        r = t.contactos_de_solicitud_de("QUITECA", _datos("RYD", respaldo_ryd=True))
+    finally:
+        t.contactos_de_solicitud_por_envio = t_por_envio
+    assert _minus(r["to"]) == ["ccaceres@agrofresh.com", "fgonzalez@agrofresh.com", "lab@quiteca.cl"]
+    assert _minus(r["cc"]) == ["jorge.sandoval@agrofresh.com", "agrofreshreporthub@gmail.com"]
+
+
+def test_ryd_anterior_sin_marca_sigue_con_claudia(contactos):
+    """Lo ya emitido no se reescribe: sin la marca, el respaldo es el de siempre."""
+    contactos["lista"] = []
+    r = tm.contactos_de_solicitud_de("QUITECA", _datos("RYD"))
+    assert _minus(r["to"]) == _minus(tm.DESTINATARIOS_SIN_LISTA)
+
+
+def test_marca_en_linea_de_proceso_no_cambia_nada(contactos):
+    contactos["lista"] = []
+    r = tm.contactos_de_solicitud_de("QUITECA", _datos("Línea de proceso", respaldo_ryd=True))
+    assert _minus(r["to"]) == _minus(tm.DESTINATARIOS_SIN_LISTA)
+
+
+def test_resultados_de_ryd_sin_lista_y_su_pdf_llevan_a_carla_y_fran(contactos):
+    contactos["lista"] = []
+    r = tm.destinatarios_resultado_por_tipo("", LONTUE, DOLE, "Manzana", [], ryd=True)
+    assert _minus(r["to"]) == ["ccaceres@agrofresh.com", "fgonzalez@agrofresh.com"]
+    assert _minus(r["cc"]) == ["jorge.sandoval@agrofresh.com", "agrofreshreporthub@gmail.com"]
+    pdf = tm._datos_pdf_con_destinatarios_resultados(_datos("RYD", respaldo_ryd=True))["destinatarios_resultados_detalle"]
+    assert _minus(pdf["para"]) == ["ccaceres@agrofresh.com", "fgonzalez@agrofresh.com"]
+    assert _minus(pdf["cc"]) == ["jorge.sandoval@agrofresh.com", "agrofreshreporthub@gmail.com"]
+    viejo = tm._datos_pdf_con_destinatarios_resultados(_datos("RYD"))
+    assert "cguerrero@agrofresh.com" in _minus(viejo["destinatarios_resultados_detalle"]["para"])
+
+
+def test_ryd_con_solo_carla_y_fran_no_cuenta_como_lista_del_cliente(contactos):
+    solo = [_c(40, "ccaceres@agrofresh.com", "resultado_cliente")]
+    assert tm.solicitud_sin_lista(_datos("RYD", respaldo_ryd=True), solo) is True
+    assert tm.solicitud_sin_lista(_datos("RYD"), solo) is False   # sin marca, como antes

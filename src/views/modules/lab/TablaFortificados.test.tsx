@@ -57,6 +57,21 @@ describe('Ingreso de fortificados', () => {
     await waitFor(() => expect(listarFortificados).toHaveBeenCalledTimes(2))
   })
 
+  it('el N° se escanea (lector o cámara): al terminar el código pasa al peso y Enter ingresa', async () => {
+    await abrirFortificados()
+    vi.useFakeTimers()
+    const campo = screen.getByLabelText('N° de fortificado nuevo')
+    expect(screen.getByRole('button', { name: 'Abrir cámara para escanear' })).toBeInTheDocument()
+    for (const parcial of ['F', 'F-', 'F-0', 'F-00', 'F-003']) fireEvent.change(campo, { target: { value: parcial } })
+    vi.advanceTimersByTime(80)
+    vi.useRealTimers()
+    const peso = screen.getByLabelText(/Peso extraído del fortificado nuevo/)
+    expect(document.activeElement).toBe(peso)
+    fireEvent.change(peso, { target: { value: '9.5' } })
+    fireEvent.keyDown(peso, { key: 'Enter' })
+    await waitFor(() => expect(crearFortificado).toHaveBeenCalledWith('F-003', 9.5))
+  })
+
   it('un peso en cero no se puede ingresar', async () => {
     await abrirFortificados()
     fireEvent.change(screen.getByLabelText('N° de fortificado nuevo'), { target: { value: 'F-009' } })
@@ -76,5 +91,19 @@ describe('Ingreso de fortificados', () => {
   it('«Borrar» no aparece sin permiso', async () => {
     await abrirFortificados()
     expect(screen.queryByRole('button', { name: 'Borrar' })).toBeNull()
+  })
+
+  it('se ordena por N° de menor a mayor (con números reales) y «Como se ingresaron» devuelve el orden original', async () => {
+    const mk = (id: number, numero: string): Fortificado => ({ ...F1, id, numero })
+    listarFortificados.mockResolvedValue([mk(1, 'AGF-I0026'), mk(2, 'AGF-I0003'), mk(3, 'AGF-I0010')])
+    await abrirFortificados()
+    const numeros = () => screen.getAllByLabelText(/^N° de fortificado AGF/).map((i) => (i as HTMLInputElement).value)
+    expect(numeros()).toEqual(['AGF-I0026', 'AGF-I0003', 'AGF-I0010'])
+    fireEvent.click(screen.getByRole('button', { name: 'N° de menor a mayor' }))
+    expect(numeros()).toEqual(['AGF-I0003', 'AGF-I0010', 'AGF-I0026'])
+    fireEvent.click(screen.getByRole('button', { name: 'N° de mayor a menor' }))
+    expect(numeros()).toEqual(['AGF-I0026', 'AGF-I0010', 'AGF-I0003'])
+    fireEvent.click(screen.getByRole('button', { name: 'Como se ingresaron' }))
+    expect(numeros()).toEqual(['AGF-I0026', 'AGF-I0003', 'AGF-I0010'])
   })
 })

@@ -382,12 +382,31 @@ function compacto(s){
 /* Listados en vivo, leídos de la base al abrir el Converter (ver
    cargarListados más abajo). La copia de CATALOGOS pegada arriba es una foto
    vieja de Listados: solo se usa si la base no responde. */
-const LISTADOS = {enVivo: false, plantasPorCliente: {}, variedadesPorEspecie: {}};
+const LISTADOS = {enVivo: false, plantasPorCliente: {}, variedadesPorEspecie: {}, servicios: {}};
+
+/* Actimist y Ecofog tienen su propio listado de Sold To / Ship To; Línea de
+   proceso y RYD usan el de siempre. El servicio sale del «Tipo Aplicación» del
+   informe (misma regla que servicios.clave_servicio del backend). */
+function servicioDe(inf){
+  const t = plano((inf && inf.datos && inf.datos["Tipo Aplicación"]) || "");
+  return (t === "actimist" || t === "ecofog") ? t : "";
+}
+const ETIQUETA_SERVICIO = {actimist: "Actimist", ecofog: "Ecofog"};
+function listadoDe(inf){
+  const sv = servicioDe(inf);
+  return sv ? (LISTADOS.servicios[sv] || {cargado: false, sold_to: [], plantasPorCliente: {}}) : null;
+}
 
 /* Valores oficiales que corresponden a un campo DE ESTE informe: el Ship To
    solo puede ser una planta de su Sold To, y la Variedad una de su Especie
    (misma jerarquía que usa el backend al cargar, ver ingest._resolver_listados). */
 function oficialesPara(campo, inf){
+  const propio = listadoDe(inf);
+  if(propio && (campo === "sold_to" || campo === "ship_to")){
+    // El listado del servicio, nunca el de Línea de proceso: sin él no hay nada que calce.
+    if(campo === "sold_to") return propio.sold_to;
+    return propio.plantasPorCliente[inf.datos["Sold To"]] || [...new Set(Object.values(propio.plantasPorCliente).flat())];
+  }
   if(campo === "ship_to"){
     const plantas = LISTADOS.plantasPorCliente[inf && inf.datos["Sold To"]];
     if(plantas) return plantas;
@@ -535,6 +554,8 @@ function detectar(texto){
      la solicitud (OT-...). Va primero porque también dice "Cromatografía"
      (firmantes) y "AgroFresh" (como cliente aparece en Quiteca y Corthorn). */
   if(/Solicitud de An[áa]lisis\s+N°\s*OT-/i.test(texto) && t.includes("agrofresh.com")) return "AgroFresh";
+  // Formato nuevo: «INFORME DE ANÁLISIS N° AGF2026-22», con su N° de solicitud OT-.
+  if(/INFORME DE AN[ÁA]LISIS\s+N[°º]?\s*AGF\d/i.test(texto) && /N[°º] SOLICITUD\s+OT-/i.test(texto)) return "AgroFresh";
   if(t.includes("quiteca")) return "Quiteca";
   if(t.includes("diagnofruit")) return "Diagnofruit";
   if(t.includes("corthorn") || t.includes("cromatografia")) return "ALS (Corthon)";
@@ -586,7 +607,8 @@ function leerQuiteca(texto, inf){
      FOGGER o ACTIMIST son el mismo tratamiento (se homogeniza como "Actimist"
      para no duplicar estados); cualquier otro tratamiento es "Linea de Proceso".
      Regla confirmada por Jorge Sandoval. */
-  d["Tipo Aplicación"] = campo(texto, "Tratamiento", "Línea de Proceso");
+  d["Tipo Aplicación"] = campo(texto, "Tipo Aplicaci[óo]n", "C[óo]d\\. productor")
+                      || campo(texto, "Tratamiento", "Línea de Proceso");
   const tratamientoPlano = plano(d["Tipo Aplicación"] || "");
   const esActimist = tratamientoPlano.includes("fogger") || tratamientoPlano.includes("actimist");
   d["Tipo de servicio"] = esActimist ? "Actimist" : "Linea de Proceso";
@@ -598,7 +620,7 @@ function leerQuiteca(texto, inf){
   if(cta) obs.push("Cuenta: " + cta);
   if(informeN) obs.push("Informe Quiteca N° " + informeN[1]);
   m = texto.match(/Muestra N°\s*(\d+)/);
-  if(m) obs.push("Muestra N° " + m[1]);
+  if(m){ obs.push("Muestra N° " + m[1]); d["N° Muestra"] = m[1]; }
   d["Observación"] = obs.join(" · ") || null;
 
   m = texto.match(/N°\s*ORDEN\s*:?\s*(\d+)/i);
@@ -718,7 +740,117 @@ function fechaDe(texto, etiqueta){
   return m ? aFechaLarga(m[1]) : null;
 }
 
+/* Formato nuevo del informe propio («INFORME DE ANÁLISIS N° AGF2026-22»): cinco
+   secciones numeradas, con filas de «ETIQUETA valor ETIQUETA valor». Cada fila
+   se parte por la etiqueta de su segunda columna (conocida), así un valor con
+   espacios o una observación libre no se confunde con una etiqueta. «—» = sin dato. */
+const FILAS_INFORME_AGF = {
+  1: [["N[°º] SOLICITUD","FECHA SOLICITUD"],["LABORATORIO","SOLICITANTE"],
+      ["GENERADO POR","EMAIL SOLICITANTE"],["SOLD TO",null],["SHIP TO",null]],
+  2: [["ESPECIE","VARIEDAD"],["TIPO MUESTRA","TIPO APLICACI[ÓO]N"],
+      ["L[ÍI]NEA PROCESO","POSICI[ÓO]N MUESTREO"],["PRODUCTO UTILIZADO","GASTO"],
+      ["KILOS PROCESADOS","LOTE"],["N[°º] C[ÁA]MARA","N[°º] ORDEN"],
+      ["C[ÓO]DIGO PRODUCTOR","C[ÓO]DIGO PACKING"],["C[ÓO]DIGO DE ENSAYO","N[°º] ENSAYO"],
+      ["FECHA MUESTREO","HORA MUESTREO"],["MUESTREADOR",null],["OBSERVACIONES",null]],
+  3: [["C[ÓO]D\\. INTERNO MUESTRA","FECHA AN[ÁA]LISIS"],["FECHA RECEPCI[ÓO]N",null]]
+};
+const COLUMNA_INFORME_AGF = {
+  "N° SOLICITUD":"OT","FECHA SOLICITUD":"Fecha Solicitud","SOLICITANTE":"Solicitante",
+  "GENERADO POR":"Generado Por","EMAIL SOLICITANTE":"Email Solicitante",
+  "SOLD TO":"Sold To","SHIP TO":"Ship To","ESPECIE":"Especie","VARIEDAD":"Variedad",
+  "TIPO MUESTRA":"Tipo Muestra","TIPO APLICACIÓN":"Tipo Aplicación",
+  "LÍNEA PROCESO":"Línea Proceso","POSICIÓN MUESTREO":"Posición Muestreo",
+  "PRODUCTO UTILIZADO":"Producto Utilizado","GASTO":"Gasto","KILOS PROCESADOS":"Kilos Procesados (KG)",
+  "LOTE":"Lote","N° CÁMARA":"N° Cámara","N° ORDEN":"N° Orden","CÓDIGO PRODUCTOR":"CSG",
+  "FECHA MUESTREO":"Fecha Muestreo","HORA MUESTREO":"Hora Muestreo",
+  "MUESTREADOR":"Nombre Muestreador","OBSERVACIONES":"Observación",
+  "FECHA ANÁLISIS":"Fecha Análisis","FECHA RECEPCIÓN":"Fecha entrada"
+};
+
+function esInformeAgrofreshNuevo(texto){
+  return /INFORME DE AN[ÁA]LISIS\s+N[°º]?\s*AGF\d/i.test(texto);
+}
+
+function leerAgrofreshNuevo(texto, inf){
+  const d = inf.datos;
+  d["Laboratorio"] = "Agrofresh";
+  d["Tipo de servicio"] = "Cromatografía";
+
+  const n = texto.match(/INFORME DE AN[ÁA]LISIS\s+N[°º]?\s*(AGF[\w-]+)/i);
+  if(n) d["N° Solicitud"] = n[1].toUpperCase();      // N° del informe, como el de Quiteca
+  const e = texto.match(/Emisi[óo]n:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
+  d["Fecha Informe"] = e ? aFecha(e[1], inf.avisos) : null;
+
+  const celdas = {};
+  let seccion = 0;
+  const lineas = texto.split("\n").map(l => l.trim());
+  for(let i = 0; i < lineas.length; i++){
+    const l = lineas[i];
+    const s = l.match(/^([1-5])\.\s+[A-ZÁÉÍÓÚ]/);
+    if(s){ seccion = +s[1]; continue; }
+    if(seccion === 4 || seccion === 5) break;
+    const filas = FILAS_INFORME_AGF[seccion];
+    if(!filas) continue;
+    for(const [izq, der] of filas){
+      const ri = new RegExp("^(" + izq + ")\\s*(.*)$", "i");
+      const m = l.match(ri);
+      if(!m) continue;
+      let resto = m[2];
+      let valDer = null;
+      if(der){
+        const rd = new RegExp("^(.*?)\\s*(?:^|\\s)(" + der + ")\\s*(.*)$", "i").exec(resto);
+        if(rd){ resto = rd[1]; valDer = [rd[2], rd[3]]; }
+      }
+      celdas[seccion + "|" + izq] = [m[1], resto, valDer];
+      break;
+    }
+  }
+  const poner = (etiqueta, valor) => {
+    const col = COLUMNA_INFORME_AGF[etiqueta.replace(/\s+/g," ").toUpperCase().replace("Nº","N°")];
+    const v = limpio(valor);
+    if(col && v !== null) d[col] = (col === "OT") ? v.toUpperCase() : v;
+  };
+  for(const k in celdas){
+    const [et, val, der] = celdas[k];
+    poner(et, val);
+    if(der) poner(der[0], der[1]);
+  }
+
+  // Fechas y números en el formato que usa el resto del Converter.
+  ["Fecha Solicitud","Fecha Muestreo","Fecha Análisis","Fecha entrada"].forEach(c => {
+    if(d[c]) d[c] = aFecha(d[c], inf.avisos);
+  });
+  if(d["Hora Muestreo"]) d["Hora Muestreo"] = aHora(d["Hora Muestreo"]);
+  ["Gasto","Kilos Procesados (KG)"].forEach(c => { if(d[c]) d[c] = aNumero(d[c]); });
+
+  // Analitos solicitados (con su dosis, si trae) y resultados.
+  const pedidos = [];
+  let modo = "";
+  inf.noPedidos = [];
+  for(const l of lineas){
+    if(/^\d\.\s+RECEPCI/i.test(l)) modo = "";
+    if(/^ANALITO SOLICITADO/i.test(l)){ modo = "pedidos"; continue; }
+    if(/^\d\.\s+RESULTADOS/i.test(l)){ modo = "esperando"; continue; }
+    if(modo === "esperando" && /^Analito\b/i.test(l)){ modo = "resultados"; continue; }
+    if(modo === "pedidos"){
+      if(/^\d\./.test(l)){ modo = ""; continue; }
+      const r = l.match(/^(\S.*?)\s+(—|-|[\d.,]+(?:\s*\S+)?)$/);
+      if(r && limpio(r[2])) pedidos.push(r[1] + " " + r[2]);
+    }else if(modo === "resultados"){
+      if(/^Resultados expresados/i.test(l) || /^DECLARACIONES/i.test(l)) break;
+      const r = l.match(/^([A-Za-zÁÉÍÓÚñÑ][A-Za-zÁÉÍÓÚñÑ0-9 .\-()]*?)\s+(ND|<?\s?[\d.,]+)$/);
+      if(r) guardar(inf, r[1], r[2].replace(/\s+/g,""));
+    }
+  }
+  if(pedidos.length) inf.dosis = pedidos.join(" · ");
+}
+
 function leerAgrofresh(texto, inf){
+  if(esInformeAgrofreshNuevo(texto)) return leerAgrofreshNuevo(texto, inf);
+  return leerAgrofreshAntiguo(texto, inf);
+}
+
+function leerAgrofreshAntiguo(texto, inf){
   const d = inf.datos;
   // Tal cual lo guarda la base para el laboratorio propio: la carga busca cada
   // analito por (código, laboratorio) EXACTO, y el catálogo de analitos de
@@ -924,7 +1056,8 @@ function revisarCatalogo(inf){
     delete inf.manual[col];
     if(inf.crudos[col]) inf.datos[col] = inf.crudos[col];
     else delete inf.datos[col];
-    const deUnCliente = col === "Ship To" && !!LISTADOS.plantasPorCliente[inf.datos["Sold To"]];
+    const plantasDelServicio = (listadoDe(inf) || LISTADOS).plantasPorCliente;
+    const deUnCliente = col === "Ship To" && !!plantasDelServicio[inf.datos["Sold To"]];
     let r = homogenizar(CAMPOS_CAT[col], inf.datos[col], oficiales, deUnCliente);
     // Lo que el sistema aprendió de una corrección anterior. Solo se aplica si
     // el valor guardado sigue siendo válido para ESTE informe (p. ej. la planta
@@ -1340,7 +1473,8 @@ async function aprender(inf, campoNombre, valorElegido){
   try{
     const r = await fetch(API_BASE + "/correcciones", {
       method: "POST", headers: {"Content-Type": "application/json", ...autorizacion()},
-      body: JSON.stringify({campo, contexto, valor_crudo: crudo, valor_oficial: valorElegido, archivo: inf.archivo}),
+      body: JSON.stringify({campo, contexto, valor_crudo: crudo, valor_oficial: valorElegido, archivo: inf.archivo,
+                            servicio: servicioDe(inf)}),
     });
     if(!r.ok){
       let det = ""; try{ det = (await r.json()).detail || ""; }catch(e){}
@@ -1431,9 +1565,36 @@ async function cargarListados(){
       "Se usa una copia guardada, que puede no tener los Sold To / Ship To más nuevos.";
     aviso.style.color = "var(--error)";
   }
+  await cargarListadosDeServicio(aviso);
   // los informes que ya estaban cargados se revisan de nuevo con los listados reales
   informes.filter(i => i.laboratorio).forEach(revisarCatalogo);
   pintar();
+}
+
+/* Sold To / Ship To de Actimist y de Ecofog, cada uno de su listado. Si uno no
+   se puede leer, los informes de ese servicio quedan «fuera de catálogo» (nunca
+   se validan contra Línea de proceso) y el aviso de arriba lo dice. */
+async function cargarListadosDeServicio(aviso){
+  const orden = (a, b) => a.localeCompare(b, "es");
+  const partes = [];
+  for(const sv of Object.keys(ETIQUETA_SERVICIO)){
+    try{
+      const [clientes, plantas] = await Promise.all([
+        leerApi("/catalogo/" + sv + "/clientes"), leerApi("/catalogo/" + sv + "/plantas"),
+      ]);
+      const activos = clientes.filter(c => c.activo).map(c => c.nombre);
+      const porCliente = {};
+      plantas.filter(p => p.activo && activos.includes(p.cliente_nombre)).forEach(p =>
+        (porCliente[p.cliente_nombre] = porCliente[p.cliente_nombre] || []).push(p.nombre));
+      for(const c in porCliente) porCliente[c].sort(orden);
+      LISTADOS.servicios[sv] = {cargado: true, sold_to: activos.slice().sort(orden), plantasPorCliente: porCliente};
+      partes.push(ETIQUETA_SERVICIO[sv] + ": " + activos.length + " Sold To, " + Object.values(porCliente).flat().length + " Ship To");
+    }catch(err){
+      LISTADOS.servicios[sv] = {cargado: false, sold_to: [], plantasPorCliente: {}, error: err.message};
+      partes.push("⚠ no se pudo leer el listado de " + ETIQUETA_SERVICIO[sv] + " (" + err.message + ")");
+    }
+  }
+  if(aviso && partes.length) aviso.textContent += " · " + partes.join(" · ") + ".";
 }
 
 function pintarTabla(ok){
@@ -1566,6 +1727,7 @@ function filaCruda(inf){
     "Fecha Informe": aISO(d["Fecha Informe"]),
     "Fecha Análisis": aISO(d["Fecha Análisis"]),
     "N° Solicitud": d["OT"],
+    "N° Muestra": d["N° Muestra"] || null,
     "SOLD TO": d["Sold To"],
     "SHIP TO": d["Ship To"],
     "CROP": d["Especie"],
