@@ -95,6 +95,27 @@ describe('aceptar y guardar', () => {
   })
 })
 
+describe('plantas que el Excel ya no trae', () => {
+  const comparacion = { cambios: [], resumen: {} as never, retiradas: [{ planta: { sold_to: 'OTRO SA', ship_to: 'PLANTA DOS' } }] }
+
+  it('se ofrecen desmarcadas: importar solo no quita nada', () => {
+    const { retiradas } = desdeComparacion(estado([fila()]), comparacion)
+    expect(retiradas).toEqual([{ id: clavePlanta('OTRO SA', 'PLANTA DOS'), sold_to: 'OTRO SA', ship_to: 'PLANTA DOS', quitar: false }])
+    expect(aCambios(estado([fila()]), {}, [], retiradas)).toEqual([])
+    expect(desdeComparacion(estado([fila()]), { cambios: [], resumen: {} as never }).retiradas).toEqual([])
+  })
+
+  it('solo las marcadas viajan al servidor y cuentan como cambio aceptado', () => {
+    const e = estado([fila()])
+    const [r] = desdeComparacion(e, comparacion).retiradas
+    const cambios = aCambios(e, {}, [], [{ ...r, quitar: true }])
+    expect(cambios).toHaveLength(1)
+    expect(cambios[0]).toMatchObject({ tipo: 'planta_quitar', planta: { sold_to: 'OTRO SA', ship_to: 'PLANTA DOS' } })
+    expect(resumenRevision({}, [], e, [{ ...r, quitar: true }]).aceptadas).toBe(1)
+    expect(resumenRevision({}, [], e, [r]).aceptadas).toBe(0)
+  })
+})
+
 describe('indicadores y filtros', () => {
   const buena = fila()
   const sinTec = fila({ ship_to: 'DOS', tecnico: [] })
@@ -125,5 +146,21 @@ describe('indicadores y filtros', () => {
     const dist = fila({ clientes: { ...buena.clientes, Kiwi: ['otro@x.cl'] } })
     expect(listaGeneral((c) => dist.clientes[c])).toBeNull()
     expect(listaGeneral((c) => sinCli.clientes[c])).toBeNull()
+  })
+})
+
+
+describe('cambiar el nombre de una planta', () => {
+  it('el cambio de nombre va primero y lo demás de esa planta ya usa el nombre nuevo', () => {
+    const e = estado([fila({ ship_to: 'PLANTA LOSONJERA' })])
+    const k = clavePlanta('CLI SA', 'PLANTA LOSONJERA')
+    const f = e.filas[0]
+    const p = proponer({}, f, 'tecnico', ['nuevo@agrofresh.com'], 'excel', 'aceptada')
+    const renombres = { [k]: { de: { sold_to: 'CLI SA', ship_to: 'PLANTA LOSONJERA' }, a: 'PLANTA LISONJERA' } }
+    const cambios = aCambios(e, p, [], [], renombres)
+    expect(cambios[0]).toMatchObject({ tipo: 'planta_renombrar', planta: { ship_to: 'PLANTA LOSONJERA' }, nuevo: { ship_to: 'PLANTA LISONJERA' } })
+    expect(cambios[1]).toMatchObject({ tipo: 'campo', campo: 'tecnico', planta: { sold_to: 'CLI SA', ship_to: 'PLANTA LISONJERA' } })
+    expect(resumenRevision({}, [], e, [], renombres).aceptadas).toBe(1)
+    expect(aCambios(e, {}, [], [], {})).toEqual([])
   })
 })

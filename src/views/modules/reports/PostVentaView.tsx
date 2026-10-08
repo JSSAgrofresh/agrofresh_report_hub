@@ -21,7 +21,9 @@ import {
   FILTRO_CARGAS_VACIO,
   filtrarCargas,
   eliminarCargaTrace,
+  eliminarCargasTrace,
   fechaDeCarpeta,
+  generarInformeCarga,
   listarCargasTrace,
   descargarOriginalCarga,
   descargarPdfCarga,
@@ -31,6 +33,8 @@ import type { CargaTrace, EstadisticaSerie, FiltroCargas, ResumenCargaTrace } fr
 import { HttpError } from '@/services/http/client'
 import { PostVentaResumen } from './PostVentaResumen'
 import styles from './PostVentaView.module.css'
+
+const POR_PAGINA = 10
 
 Chart.register(CategoryScale, LinearScale, LineController, LineElement, PointElement, Filler, Legend, Tooltip)
 
@@ -194,8 +198,13 @@ export function PostVentaView() {
   const [error, setError] = useState<string | null>(null)
   const [verMasFilas, setVerMasFilas] = useState(false)
   const [filtro, setFiltro] = useState<FiltroCargas>(FILTRO_CARGAS_VACIO)
+  const [marcadas, setMarcadas] = useState<Set<string>>(new Set())
+  const [paginaInformes, setPaginaInformes] = useState(0)
+  const [generando, setGenerando] = useState<string | null>(null)
   const detalleRef = useRef<HTMLDivElement | null>(null)
   const cargasFiltradas = useMemo(() => filtrarCargas(cargas ?? [], filtro), [cargas, filtro])
+  const ultimaPagina = Math.max(0, Math.ceil(cargasFiltradas.length / POR_PAGINA) - 1)
+  if (paginaInformes > ultimaPagina) setPaginaInformes(ultimaPagina)
 
   const mensaje = (err: unknown, alterno: string) =>
     err instanceof HttpError ? `El backend respondió con un error (${err.status}).` : alterno
@@ -282,6 +291,60 @@ export function PostVentaView() {
     }
   }
 
+  // Solo cuentan las marcadas que siguen a la vista: si un filtro esconde una,
+  // no se borra a escondidas.
+  const marcadasVisibles = cargasFiltradas.filter((c) => marcadas.has(c.carpeta)).map((c) => c.carpeta)
+  const todasMarcadas = cargasFiltradas.length > 0 && marcadasVisibles.length === cargasFiltradas.length
+
+  function alternar(carpeta: string) {
+    setMarcadas((previas) => {
+      const nuevas = new Set(previas)
+      if (nuevas.has(carpeta)) nuevas.delete(carpeta)
+      else nuevas.add(carpeta)
+      return nuevas
+    })
+  }
+
+  async function generarInforme(carpeta: string) {
+    setGenerando(carpeta)
+    try {
+      await generarInformeCarga(carpeta)
+      await recargarLista()
+      setDetalle(null)
+    } catch (err) {
+      setError(mensaje(err, 'No se pudo generar el informe.'))
+    } finally {
+      setGenerando(null)
+    }
+  }
+
+  function marcarTodas() {
+    setMarcadas(todasMarcadas ? new Set() : new Set(cargasFiltradas.map((c) => c.carpeta)))
+  }
+
+  async function borrarMarcadas() {
+    const n = marcadasVisibles.length
+    if (
+      !n ||
+      !window.confirm(
+        `¿Eliminar ${n} informe${n === 1 ? '' : 's'} del sistema? Se borran del servidor y de Storage, y no se puede deshacer.`,
+      )
+    )
+      return
+    try {
+      const r = await eliminarCargasTrace(marcadasVisibles)
+      setMarcadas(new Set())
+      if (seleccionada && r.borradas.includes(seleccionada)) {
+        setSeleccionada(null)
+        setDetalle(null)
+      }
+      if (r.fallidas.length) setError(`${r.fallidas.length} informe(s) ya no existían.`)
+      await recargarLista()
+    } catch (err) {
+      setError(mensaje(err, 'No se pudieron eliminar los informes.'))
+    }
+  }
+
   if (cargas === null) {
     return (
       <div>
@@ -326,15 +389,12 @@ export function PostVentaView() {
         />
         <div className={styles.layout} ref={detalleRef}>
           <Card className={styles.panelLista}>
-            <h2 className={styles.tituloPanel}>
-              Cargas guardadas ({cargasFiltradas.length}
-              {cargasFiltradas.length !== cargas.length ? ` de ${cargas.length}` : ''})
-            </h2>
+            <h2 className={styles.tituloPanel}>Cargas</h2>
             <div className={styles.lista}>
-              {cargasFiltradas.length === 0 && <p className={styles.listaVacia}>Ninguna carga con estos filtros.</p>}
+              {cargasFiltradas.length === 0 && <p className={styles.listaVacia}>Ningún informe con estos filtros.</p>}
               {cargasFiltradas.map((c) => (
+                <div key={c.carpeta} className={styles.itemFila}>
                 <button
-                  key={c.carpeta}
                   type="button"
                   className={`${styles.itemCarga} ${c.carpeta === seleccionada ? styles.itemActivo : ''} ${c.origen === 'email' ? styles.itemEmail : styles.itemManual}`}
                   onClick={() => setSeleccionada(c.carpeta)}
@@ -350,15 +410,16 @@ export function PostVentaView() {
                       ? formatearEquipo(c.equipo)
                       : [c.cliente, c.planta].filter(Boolean).join(' · ') || 'Sin datos del informe'}
                   </div>
-                  {(c.cliente || c.planta) && c.equipo && (
+                  {(c.cliente || c.planta || c.ubicacion) && c.equipo && (
                     <div className={styles.itemCliente}>
-                      {[c.cliente, c.planta].filter(Boolean).join(' · ')}
+                      {[c.cliente, c.planta, c.ubicacion].filter(Boolean).join(' · ')}
                     </div>
                   )}
                   <div className={styles.itemMetricas}>
                     {c.n_registros.toLocaleString('es-CL')} reg · pH {num(c.ph_promedio)} · {num(c.mv_promedio, 0)} mV
                   </div>
                 </button>
+                </div>
               ))}
             </div>
           </Card>
@@ -527,6 +588,108 @@ export function PostVentaView() {
             </div>
           ) : null}
         </div>
+        <Card className={styles.informes} aria-label="Informes">
+          <div className={styles.informesCabecera}>
+            <div>
+              <h2 className={styles.informesTitulo}>Informes</h2>
+              <p className={styles.informesNota}>
+                Un informe PDF por carga, con los mismos filtros de arriba. Marca los que quieras sacar del sistema.
+              </p>
+            </div>
+            <button
+              type="button"
+              className={styles.botonEliminarVarios}
+              disabled={marcadasVisibles.length === 0}
+              onClick={() => void borrarMarcadas()}
+            >
+              Eliminar seleccionados{marcadasVisibles.length ? ` (${marcadasVisibles.length})` : ''}
+            </button>
+          </div>
+          <div className={styles.tablaEnvoltorio}>
+            <table className={styles.tabla}>
+              <thead>
+                <tr>
+                  <th>
+                    <input
+                      type="checkbox"
+                      aria-label="Marcar todos los informes que se ven"
+                      checked={todasMarcadas}
+                      onChange={marcarTodas}
+                    />
+                  </th>
+                  <th>Fecha</th>
+                  <th>Sold To</th>
+                  <th>Ship To</th>
+                  <th>Posición de muestreo</th>
+                  <th>Equipo</th>
+                  <th>Informe</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cargasFiltradas.slice(paginaInformes * POR_PAGINA, (paginaInformes + 1) * POR_PAGINA).map((c) => (
+                  <tr key={c.carpeta}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`Marcar informe del ${fechaDeCarpeta(c.carpeta)}`}
+                        checked={marcadas.has(c.carpeta)}
+                        onChange={() => alternar(c.carpeta)}
+                      />
+                    </td>
+                    <td>
+                      <button type="button" className={styles.enlaceBoton} onClick={() => setSeleccionada(c.carpeta)}>
+                        {fechaDeCarpeta(c.carpeta)}
+                      </button>
+                    </td>
+                    <td>{c.cliente ?? '—'}</td>
+                    <td>{c.planta ?? '—'}</td>
+                    <td>{c.ubicacion ?? '—'}</td>
+                    <td>{c.equipo ? formatearEquipo(c.equipo) : '—'}</td>
+                    <td>
+                      {c.tiene_pdf ? (
+                        <button type="button" className={styles.enlaceBoton} onClick={() => void descargarPdfCarga(c.carpeta)}>
+                          Descargar PDF
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.enlaceBoton}
+                          disabled={generando === c.carpeta}
+                          onClick={() => void generarInforme(c.carpeta)}
+                        >
+                          {generando === c.carpeta ? 'Generando…' : 'Generar informe'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {cargasFiltradas.length > POR_PAGINA && (
+            <div className={styles.paginador}>
+              <button
+                type="button"
+                className={styles.botonVerMas}
+                disabled={paginaInformes === 0}
+                onClick={() => setPaginaInformes((p) => Math.max(0, p - 1))}
+              >
+                ← Anteriores
+              </button>
+              <span>
+                Página {paginaInformes + 1} de {Math.ceil(cargasFiltradas.length / POR_PAGINA)}
+              </span>
+              <button
+                type="button"
+                className={styles.botonVerMas}
+                disabled={(paginaInformes + 1) * POR_PAGINA >= cargasFiltradas.length}
+                onClick={() => setPaginaInformes((p) => p + 1)}
+              >
+                Siguientes →
+              </button>
+            </div>
+          )}
+        </Card>
         </>
       )}
     </div>

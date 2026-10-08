@@ -7,10 +7,17 @@ export interface Internos {
   bcc: string[]
 }
 
+/** Título (arriba, en mayúsculas en el correo) y subtítulo del encabezado del correo. */
+export interface Encabezado {
+  titulo: string
+  subtitulo: string
+}
+
 export interface EstadoEnvio {
   modo: ModoEnvio
   destinatarios_prueba: string[]
   internos: Internos
+  encabezado: Encabezado
   laboratorios: string[]
   /** El laboratorio con el que se envía por ahora; cambiarlo lo habilita solo el administrador principal. */
   laboratorio_fijo: string
@@ -25,7 +32,7 @@ export interface PlanDestinatarios {
   bcc: string[]
   sin_lista: boolean
   /** `solicitud` = la lista de la solicitud del informe; `planta` = la que daría una solicitud de ese Sold To / Ship To. */
-  origen?: 'solicitud' | 'planta'
+  origen?: 'solicitud' | 'planta' | 'servicio'
   /** Especies para las que la planta tiene lista propia. */
   especies: string[]
 }
@@ -71,6 +78,8 @@ export interface DatosCorreo {
   para: string[]
   cc: string[]
   bcc: string[]
+  /** Archivo de la solicitud (OT) del informe, si se encontró: amarra el envío a ella. */
+  solicitud?: string
 }
 
 export interface VistaPrevia {
