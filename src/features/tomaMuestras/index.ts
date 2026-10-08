@@ -4,6 +4,7 @@ export {
   crearSolicitud,
   actualizarSolicitud,
   eliminarSolicitud,
+  quitarInformeDeSolicitud,
   descargarExcelSolicitud,
   descargarPdfSolicitud,
   abrirPdfSolicitud,
