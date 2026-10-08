@@ -33,6 +33,7 @@ import json
 import logging
 import os
 import re
+import unicodedata
 import zipfile
 from datetime import datetime, timezone
 from typing import Any, ClassVar
@@ -455,16 +456,25 @@ def _aplicar_regla_mixto(datos: dict) -> None:
     )
 
 
-# Largo máximo de la observación de una solicitud. Un ensayo (Tipo Aplicación RYD) necesita
-# describir más (posición, repetición, condiciones): hasta 500. Todo lo demás, 50 como siempre.
-# Es solo un tope al crear o editar: las solicitudes ya emitidas no cambian.
+# Largo máximo de la observación de una solicitud: 50. Las solicitudes de ENSAYO (Sold To AGROFRESH y
+# Ship To ENSAYO, de cualquier tipo de servicio) describen más: hasta 500. Es solo un tope al crear o
+# editar: las solicitudes ya emitidas no cambian.
 OBSERVACION_MAX = 50
 OBSERVACION_MAX_ENSAYO = 500
 
 
-def tope_observacion(campos_laboratorio: dict | None) -> int:
-    """500 si el «Tipo Aplicación» es RYD (ensayo); 50 en cualquier otro caso."""
-    return OBSERVACION_MAX_ENSAYO if es_tipo_ryd({"campos_laboratorio": campos_laboratorio or {}}) else OBSERVACION_MAX
+def _sin_tildes(valor: str | None) -> str:
+    t = unicodedata.normalize("NFKD", str(valor or ""))
+    return " ".join("".join(c for c in t if not unicodedata.combining(c)).split()).casefold()
+
+
+def es_ensayo(sold_to: str | None, ship_to: str | None) -> bool:
+    """Sold To AGROFRESH y Ship To ENSAYO (sin importar mayúsculas ni tildes; «ENSAYOS» también vale)."""
+    return _sin_tildes(sold_to) == "agrofresh" and _sin_tildes(ship_to).startswith("ensayo")
+
+
+def tope_observacion(sold_to: str | None, ship_to: str | None) -> int:
+    return OBSERVACION_MAX_ENSAYO if es_ensayo(sold_to, ship_to) else OBSERVACION_MAX
 
 
 class SolicitudIn(BaseModel):
@@ -510,7 +520,7 @@ class SolicitudIn(BaseModel):
     def _largo_observacion(self):
         if not self._EXIGIR_LARGO_OBSERVACION or not self.observacion:
             return self
-        tope = tope_observacion(self.campos_laboratorio)
+        tope = tope_observacion(self.sold_to, self.ship_to)
         if len(self.observacion) > tope:
             raise ValueError(f"La observación no puede pasar de {tope} caracteres.")
         return self

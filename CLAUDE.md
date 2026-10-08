@@ -647,11 +647,14 @@ lee. Descruzar lo borra. Sin la 0048 corrida todo sigue y el peso sale vacío (5
 
 ## Observación de la solicitud: 50 caracteres, 500 en un ensayo
 
-La observación del formulario de solicitud tiene tope de **50 caracteres**; un **ensayo** (Tipo Aplicación **RYD**) admite
-hasta **500** (`toma_muestras.tope_observacion`, `OBSERVACION_MAX`/`OBSERVACION_MAX_ENSAYO`; espejo en
-`NuevaSolicitudView.tsx`, `topeObservacion`, con su contador). El tope solo rige al **crear o editar** (`SolicitudIn`); al
-leer (`Solicitud`) no se exige, así lo ya emitido no cambia ni sale del listado. El PDF la dibuja con `Paragraph`
-(envuelve, sigue en una página). Pruebas: `tests/test_observacion_ensayo.py`, `NuevaSolicitudView.test.tsx`.
+La observación del formulario de solicitud tiene tope de **50 caracteres**; una solicitud de **ensayo** admite hasta
+**500**. Es ensayo la que tiene **Sold To AGROFRESH y Ship To ENSAYO** (sin importar mayúsculas ni tildes; «ENSAYOS» también
+vale), **de cualquier tipo de servicio**: lo decide el Sold To / Ship To, no el Tipo Aplicación
+(`toma_muestras.es_ensayo`/`tope_observacion`; espejo en `features/tomaMuestras/lib/observacion.ts`, usado por
+`NuevaSolicitudView` con su contador: si cambias uno, cambia el otro y sus pruebas). Por eso hay que tener el Sold To
+AGROFRESH con Ship To ENSAYO en el listado de cada servicio. El tope solo rige al **crear o editar** (`SolicitudIn`); al leer
+(`Solicitud`) no se exige, así lo ya emitido no cambia ni sale del listado. El PDF la dibuja con `Paragraph` (envuelve y
+sigue en una página). Pruebas: `tests/test_observacion_ensayo.py`, `observacion.test.ts`, `NuevaSolicitudView.test.tsx`.
 
 ## Solicitudes de prueba
 
