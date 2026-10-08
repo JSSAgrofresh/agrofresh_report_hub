@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .auth import Usuario, alcance_de_datos, solo_interno, usuario_actual
+from . import funciones
 from .db import conexion, cursor_dict
 
 router = APIRouter(prefix="/api/reportes", tags=["reportes"])
@@ -56,7 +57,7 @@ def _filtro_alcance(
     usuario: Usuario,
     cliente: str | None,
     planta: str | None,
-) -> tuple[str, dict[str, str]]:
+) -> tuple[str, dict[str, Any]]:
     """El `AND ...` que acota una consulta a lo que esta sesión puede ver.
 
     El filtro se arma SIEMPRE acá y nunca a partir del parámetro crudo: para
@@ -66,7 +67,13 @@ def _filtro_alcance(
     """
     cliente, planta = alcance_de_datos(usuario, cliente, planta)
     condiciones = []
-    params: dict[str, str] = {}
+    params: dict[str, Any] = {}
+    # Report muestra solo los tipos de servicio encendidos en Administración
+    # General → Funciones (de fábrica, solo Línea de proceso). Vale para todos.
+    condicion_servicio, params_servicio = funciones.condicion_report("s")
+    if condicion_servicio:
+        condiciones.append(condicion_servicio[len("AND "):])
+        params.update(params_servicio)
     if cliente:
         condiciones.append("COALESCE(c.nombre, s.sold_to_raw) = %(cliente)s")
         params["cliente"] = cliente
@@ -453,17 +460,19 @@ def clientes(_: Usuario = Depends(solo_interno)) -> list[str]:
 
     Cerrado a las cuentas de cliente: la lista completa revela quiénes son
     clientes de AgroFresh, que no es asunto de ninguno de ellos."""
+    condicion_servicio, params_servicio = funciones.condicion_report("s")
     with conexion(escribir=False) as conn:
         with cursor_dict(conn) as cur:
             cur.execute(
-                """
+                f"""
                 SELECT DISTINCT COALESCE(c.nombre, s.sold_to_raw) AS cliente
                 FROM solicitud s
                 LEFT JOIN planta p ON p.id = s.planta_id
                 LEFT JOIN cliente c ON c.id = p.cliente_id
-                WHERE s.vigente AND COALESCE(c.nombre, s.sold_to_raw) IS NOT NULL
+                WHERE s.vigente AND COALESCE(c.nombre, s.sold_to_raw) IS NOT NULL {condicion_servicio}
                 ORDER BY 1
-                """
+                """,
+                params_servicio,
             )
             return [fila["cliente"] for fila in cur.fetchall()]
 
