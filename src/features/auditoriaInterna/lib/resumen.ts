@@ -168,7 +168,7 @@ export const NOMBRE_LAB: Record<string, string> = {
 }
 
 /** La clave del laboratorio (QUITECA, AGROFRESH, ALS o DIAGNOFRUIT), o null si es otro. */
-export function claveLaboratorio(s: SolicitudAuditoria): string | null {
+export function claveLabGrafico(s: SolicitudAuditoria): string | null {
   const l = plano(s.laboratorio).toUpperCase()
   return (LABORATORIOS_GRAFICO as readonly string[]).includes(l) ? l : null
 }
@@ -208,7 +208,7 @@ export function porGrupoYLaboratorio(
 ): GrupoLaboratorios[] {
   const por = new Map<string, GrupoLaboratorios>()
   for (const s of solicitudes) {
-    const lab = claveLaboratorio(s)
+    const lab = claveLabGrafico(s)
     if (!lab) continue
     const grupo = grupoDe(s, dimension)
     const g = por.get(grupo) ?? { grupo, total: 0, labs: {} }
