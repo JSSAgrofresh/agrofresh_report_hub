@@ -623,6 +623,16 @@ describe('NuevaSolicitudView — RYD de AgroFresh', () => {
     )
   }
 
+  it('el tipo de servicio no cambia el tope de la observación: RYD con otro Sold To / Ship To sigue en 50', async () => {
+    mockConfigRyd()
+    montarNueva()
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'RYD' } })
+    expect((await screen.findByLabelText(/Observación/) as HTMLTextAreaElement).maxLength).toBe(50)
+    expect(screen.getByText('0/50 caracteres')).toBeTruthy()
+  })
+
   it('pide código y N° de ensayo y permite varias posiciones solo en RYD + AgroFresh', async () => {
     mockConfigRyd()
     montarNueva()

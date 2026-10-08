@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
+import { topeObservacion } from '@/features/tomaMuestras/lib/observacion'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
@@ -64,8 +65,6 @@ const TIPO_ACTIMIST = 'Actimist'
 /** Ecofog es copia de Actimist: mismos campos (N° Cámara / N° Orden, posición libre). */
 const TIPO_ECOFOG = 'Ecofog'
 const TIPO_RYD = 'RYD'
-/** Largo máximo de la observación (el backend lo exige también). */
-const OBSERVACION_MAX = 50
 const LAB_AGROFRESH = 'AGROFRESH'
 
 /** Claves con las que RYD de AgroFresh guarda sus dos datos de ensayo en
@@ -858,8 +857,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       return
     }
 
-    if ((general.observacion ?? '').length > OBSERVACION_MAX) {
-      setError(`La observación no puede pasar de ${OBSERVACION_MAX} caracteres.`)
+    if ((general.observacion ?? '').length > topeObservacion(soldTo, shipTo)) {
+      setError(`La observación no puede pasar de ${topeObservacion(soldTo, shipTo)} caracteres.`)
       return
     }
     if (!laboratorio) {
@@ -1250,16 +1249,16 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           <textarea
             className={styles.textarea}
             rows={3}
-            maxLength={esObservacion ? OBSERVACION_MAX : undefined}
+            maxLength={esObservacion ? topeObservacion(soldTo, shipTo) : undefined}
             value={general[campo.clave] ?? ''}
             onChange={(e) => actualizarGeneral(campo.clave, e.target.value)}
           />
           {esObservacion && (
             <small
-              className={cn(styles.contador, largo >= OBSERVACION_MAX && styles.contadorLleno)}
+              className={cn(styles.contador, largo >= topeObservacion(soldTo, shipTo) && styles.contadorLleno)}
               aria-live="polite"
             >
-              {largo}/{OBSERVACION_MAX} caracteres
+              {largo}/{topeObservacion(soldTo, shipTo)} caracteres
             </small>
           )}
         </label>
