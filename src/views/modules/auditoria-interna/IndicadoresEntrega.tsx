@@ -68,6 +68,16 @@ function Spark({ valores, formato }: { valores: (number | null)[]; formato: (v: 
   )
 }
 
+/** Un «i» que explica al pasar el mouse, al enfocar con el teclado o al tocar. */
+function Ayuda({ children, etiqueta = 'Más información' }: { children: React.ReactNode; etiqueta?: string }) {
+  return (
+    <span className={styles.ayuda} tabIndex={0} role="note" aria-label={etiqueta}>
+      <span aria-hidden="true">i</span>
+      <span className={styles.burbuja} role="tooltip">{children}</span>
+    </span>
+  )
+}
+
 function copiar(filas: string[][], boton: HTMLButtonElement) {
   const texto = filas.map((f) => f.join('\t')).join('\n')
   const original = boton.textContent
@@ -248,12 +258,12 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
       <section className={`${styles.tarjeta} ${styles.reglas}`} aria-labelledby="ie-reglas">
         <header className={styles.cabecera}>
           <div>
-            <span className={styles.sobre}>Reglas del cálculo · valen para lead time y cumplimiento</span>
+            <span className={styles.sobre}>
+              Reglas del cálculo
+              <Ayuda>Valen para lead time y cumplimiento. Son las dos únicas cosas que se discuten; todo lo demás es aritmética sobre fechas que el sistema ya guarda.</Ayuda>
+            </span>
             <h3 id="ie-reglas">Qué cuenta como entregado y cuánto plazo hay</h3>
-            <p>
-              Son las dos únicas cosas que se discuten; todo lo demás es aritmética sobre fechas que el sistema ya guarda.
-              {!puedeEditar && ' Solo el administrador general puede cambiarlas.'}
-            </p>
+            {!puedeEditar && <p>Solo el administrador general puede cambiarlas.</p>}
           </div>
           <div className={styles.campo}>
             <span className={styles.sobre}>«Entregado» es</span>
@@ -265,7 +275,10 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
           </div>
         </header>
         <div>
-          <span className={styles.sobre}>Plazo comprometido, en días desde que se emitió la solicitud</span>
+          <span className={styles.sobre}>
+            Plazo comprometido
+            <Ayuda>En días, contados desde que se emitió la solicitud.</Ayuda>
+          </span>
           <div className={styles.plazos}>
             {labs.map((l) => (
               <label key={l} className={styles.plazo} htmlFor={`plazo-${l}`}>
@@ -331,29 +344,46 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
               <div className={styles.tile}>
                 <span className={styles.et}>Lead time mediano</span>
                 <span className={styles.gr}>{f1(lead.p50)}<small>días</small></span>
-                <span className={styles.ap}>la mitad de las solicitudes tarda menos que esto</span>
+                <span className={styles.ap}>
+                  la mitad tarda menos
+                  <Ayuda>
+                    <b>Se usa la mediana y no el promedio</b> porque unas pocas solicitudes muy atrasadas inflan el promedio. Aquí el promedio sería {f1(lead.promedio)} d contra una mediana de {f1(lead.p50)} d.
+                  </Ayuda>
+                </span>
                 <Spark valores={serie.map((p: PuntoMes) => p.p50)} formato={(v) => `${f1(v)} d`} />
               </div>
               <div className={styles.tile}>
                 <span className={styles.et}>Casos lentos (P90)</span>
                 <span className={styles.gr}>{f1(lead.p90)}<small>días</small></span>
-                <span className={styles.ap}>9 de cada 10 se entregan en este tiempo o menos</span>
+                <span className={styles.ap}>
+                  9 de cada 10, o menos
+                  <Ayuda>Es el percentil 90: cuánto tardan los casos lentos.</Ayuda>
+                </span>
               </div>
               <div className={styles.tile}>
-                <span className={styles.et}>Cuello de botella</span>
+                <span className={styles.et}>
+                  Cuello de botella
+                  <Ayuda>El tramo que más pesa en el tiempo total. Los tramos son: solicitud → envío al lab, envío → informe del lab e informe → Report.</Ayuda>
+                </span>
                 <span className={`${styles.gr} ${styles.grTexto}`}>{cuello ? cuello.tramo.nombre : '—'}</span>
-                <span className={styles.ap}>{cuello ? `${f1(cuello.tramo.valor)} d · ${pc(cuello.pct)} del total${labElegido ? ` · ${labElegido}` : ''}` : 'Faltan fechas de envío para medir los tramos'}</span>
+                <span className={styles.ap}>{cuello ? `${f1(cuello.tramo.valor)} d · ${pc(cuello.pct)}${labElegido ? ` · ${labElegido}` : ''}` : 'Faltan fechas de envío'}</span>
               </div>
               <div className={styles.tile}>
                 <span className={styles.et}>Aún abiertas</span>
                 <span className={styles.gr}>{nf.format(lead.abiertas)}</span>
-                <span className={styles.ap}>{lead.abiertas ? `edad mediana ${f1(lead.edadMedianaAbiertas)} d · no entran al cálculo` : 'ninguna'}</span>
+                <span className={styles.ap}>
+                  {lead.abiertas ? `edad mediana ${f1(lead.edadMedianaAbiertas)} d` : 'ninguna'}
+                  <Ayuda>No entran al cálculo: una solicitud abierta todavía no tiene lead time. Dejarla fuera haría que el número se vea mejor de lo que es, por eso se informa aparte.</Ayuda>
+                </span>
               </div>
             </div>
 
             <div className={styles.dos}>
               <div className={styles.columna}>
-                <span className={styles.sobre}>Rango típico por laboratorio · toca uno para ver su desglose</span>
+                <span className={styles.sobre}>
+                  Rango por laboratorio
+                  <Ayuda>Toca uno para ver su desglose por tramo. La barra azul es el 50 % central de las solicitudes y la línea negra, la mediana.</Ayuda>
+                </span>
                 <div className={styles.cajas}>
                   {[...(todosCaja ? [todosCaja] : []), ...cajas].map((c) => {
                     const nombre = c.lab || 'Todos'
@@ -388,7 +418,10 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
               </div>
 
               <div className={styles.columna}>
-                <span className={styles.sobre}>Desglose por tramo · {labElegido || 'Todos'} · {estadistico === 0.5 ? 'mediana' : 'percentil 90'}</span>
+                <span className={styles.sobre}>
+                  Desglose por tramo · {labElegido || 'Todos'} · {estadistico === 0.5 ? 'mediana' : 'P90'}
+                  <Ayuda>Los tramos no suman exactamente el total: el total se calcula sobre cada solicitud completa.</Ayuda>
+                </span>
                 {desglose.every((t) => t.n === 0) ? (
                   <p className={styles.vacio}>No hay solicitudes con las fechas necesarias para medir los tramos.</p>
                 ) : (
@@ -400,7 +433,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
                           <span className={styles.nom}>
                             <i className={styles.punto} style={{ background: COLOR_TRAMO[t.clave] }} />
                             {t.nombre}
-                            <small>{cuello?.tramo.clave === t.clave ? 'cuello de botella · ' : ''}{nf.format(t.n)} solicitudes con este tramo completo</small>
+                            <small>{cuello?.tramo.clave === t.clave ? 'cuello de botella · ' : ''}{nf.format(t.n)} solicitudes</small>
                           </span>
                           <b>{t.n ? `${f1(t.valor)} d` : '—'}</b>
                           <span className={styles.pctTramo}>{t.n && suma ? pc((t.valor / suma) * 100) : ''}</span>
@@ -408,7 +441,6 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
                         </div>
                       ))
                     })()}
-                    <p className={styles.pie}>Los tramos no suman exactamente el total: el total se calcula sobre cada solicitud completa.</p>
                   </div>
                 )}
               </div>
@@ -416,43 +448,19 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
           </>
         )}
 
-        <details className={styles.como} open>
-          <summary>¿Cómo se calcula este número?</summary>
-          <div>
-            <p>
-              <b>Fórmula.</b> Para cada solicitud: <code>lead time = fecha en que quedó «{textoFin}» − fecha en que se emitió la solicitud</code>,
-              en días corridos. El número grande es la <b>mediana</b> de las solicitudes ya entregadas.
-            </p>
-            <div className={styles.cal}>
-              <div><b>{nf.format(lead.total)}</b>solicitudes del alcance (filtros de la página, sin solicitudes de prueba)</div>
-              <div><b>{nf.format(lead.entregadas)}</b>entran al cálculo: ya llegaron a «{textoFin}»</div>
-              <div><b>{nf.format(lead.abiertas)}</b>quedan fuera: siguen abiertas (se informan aparte)</div>
-              {lead.excluidas > 0 && <div><b>{nf.format(lead.excluidas)}</b>quedan fuera: tienen una fecha anterior a la emisión</div>}
-            </div>
-            <p>
-              <b>Por qué la mediana y no el promedio.</b> Unas pocas solicitudes muy atrasadas inflan el promedio y no representan lo normal.
-              La mediana dice qué tarda lo típico y el P90 cuánto tardan los lentos. Aquí el promedio sería {f1(lead.promedio)} d contra una mediana de {f1(lead.p50)} d.
-            </p>
-            <p>
-              <b>Qué no cuenta.</b> Una solicitud abierta todavía no tiene lead time; dejarla fuera hace que el número se vea mejor de lo que es,
-              por eso se informa aparte ({nf.format(lead.abiertas)}, edad mediana {f1(lead.edadMedianaAbiertas)} d).
-            </p>
-            <p><b>De dónde sale cada fecha</b></p>
-            <ol>
-              <li>Solicitud emitida: cuándo se creó la solicitud en el sistema.</li>
-              <li>Enviada al laboratorio: el primer envío exitoso del correo de la solicitud.</li>
-              <li>
-                Informe recibido: la «fecha de envío» que anotó una persona al subir el PDF y, si no la hay, el momento en que se subió
-                {lead.entregadas ? ` (${nf.format(lead.conFechaAnotada)} de ${nf.format(lead.entregadas)} tienen fecha anotada)` : ''}.
-              </li>
-              <li>
-                Resultados en Report: cuándo se hizo la carga de datos
-                {lead.sinFechaReport ? `; en ${nf.format(lead.sinFechaReport)} no hay fecha de carga (cargas antiguas) y se usó la del informe` : ''}.
-              </li>
-              {definicion === 'cliente' && <li>Enviado al cliente: el primer envío exitoso en modo producción desde «Envío de informes», amarrado a la solicitud.</li>}
-            </ol>
-          </div>
-        </details>
+        <p className={styles.formula}>
+          <span><b>Lead time</b> = «{textoFin}» − emisión, en días corridos</span>
+          <span>{nf.format(lead.entregadas)} de {nf.format(lead.total)} solicitudes entran al cálculo</span>
+          <Ayuda etiqueta="Cómo se calcula el lead time">
+            <b>Qué entra.</b> {nf.format(lead.total)} solicitudes del alcance (filtros de la página, sin pruebas): {nf.format(lead.entregadas)} ya llegaron a «{textoFin}» y {nf.format(lead.abiertas)} siguen abiertas
+            {lead.excluidas > 0 ? `; ${nf.format(lead.excluidas)} quedan fuera por tener una fecha anterior a la emisión` : ''}.
+            <br />
+            <b>De dónde sale cada fecha.</b> Emisión: cuándo se creó la solicitud. Envío al lab: el primer envío exitoso del correo.
+            Informe: la «fecha de envío» anotada al subir el PDF o, si no, cuando se subió{lead.entregadas ? ` (${nf.format(lead.conFechaAnotada)} de ${nf.format(lead.entregadas)} tienen fecha anotada)` : ''}.
+            Report: cuándo se hizo la carga de datos{lead.sinFechaReport ? `; en ${nf.format(lead.sinFechaReport)} no hay fecha de carga y se usó la del informe` : ''}.
+            {definicion === 'cliente' && ' Cliente: el primer envío en modo producción desde «Envío de informes», amarrado a la solicitud.'}
+          </Ayuda>
+        </p>
 
         <details className={styles.como}>
           <summary>Ver las solicitudes que hay detrás <span className={styles.chip}>{nf.format(filasLead.length)}</span></summary>
@@ -504,7 +512,10 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
               <div className={styles.tile}>
                 <span className={styles.et}>Aún en plazo</span>
                 <span className={styles.gr}>{nf.format(cum.plazo)}</span>
-                <span className={styles.ap}>todavía no vencen: no suben ni bajan el %{cum.sinPlazo ? ` · ${nf.format(cum.sinPlazo)} sin plazo de su laboratorio` : ''}</span>
+                <span className={styles.ap}>
+                  todavía no vencen{cum.sinPlazo ? ` · ${nf.format(cum.sinPlazo)} sin plazo` : ''}
+                  <Ayuda>No suben ni bajan el %: se dejan fuera para no premiar ni castigar lo que todavía no se puede juzgar.</Ayuda>
+                </span>
               </div>
             </div>
 
@@ -522,7 +533,10 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
 
             <div className={styles.dos}>
               <div className={styles.columna}>
-                <span className={styles.sobre}>Por laboratorio · toca uno para filtrar los registros</span>
+                <span className={styles.sobre}>
+                  Por laboratorio
+                  <Ayuda>Toca uno para filtrar los registros de abajo.</Ayuda>
+                </span>
                 <div className={styles.cajas}>
                   {porLab.map(({ lab, plazo, r, total }) => (
                     <button key={lab} type="button" className={styles.caja} style={{ gridTemplateColumns: '104px minmax(0,1fr) 58px' }} aria-pressed={labCum === lab} onClick={() => setLabCum(labCum === lab ? '' : lab)}>
@@ -543,7 +557,10 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
                 </div>
               </div>
               <div className={styles.columna}>
-                <span className={styles.sobre}>¿Y si el plazo fuera otro?</span>
+                <span className={styles.sobre}>
+                  ¿Y si el plazo fuera otro?
+                  <Ayuda>Sirve para defender el plazo: si un día más mueve mucho el %, el plazo está mal puesto o el proceso está al límite.</Ayuda>
+                </span>
                 <div className={styles.sens}>
                   {sens.map((s) => (
                     <div key={s.delta} className={s.delta === 0 ? styles.sensActual : undefined}>
@@ -552,32 +569,24 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
                     </div>
                   ))}
                 </div>
-                <p className={styles.pie}>Sirve para defender el plazo: si un día más mueve mucho el %, el plazo está mal puesto o el proceso está al límite.</p>
               </div>
             </div>
           </>
         )}
 
-        <details className={styles.como} open>
-          <summary>¿Cómo se calcula este número?</summary>
-          <div>
-            <p><b>Fórmula.</b> <code>cumplimiento = entregadas a tiempo ÷ (a tiempo + entregadas tarde + vencidas sin entregar)</code></p>
-            <div className={styles.cal}>
-              <div><b>{nf.format(cum.cumplio + cum.tarde + cum.vencida + cum.plazo + cum.sinPlazo + cum.excluidas)}</b>solicitudes del alcance (sin solicitudes de prueba)</div>
-              <div><b>{nf.format(cum.vencidas)}</b>cuentan: ya debían estar entregadas</div>
-              <div><b>{nf.format(cum.plazo)}</b>no cuentan todavía: su plazo no ha vencido</div>
-              {cum.sinPlazo > 0 && <div><b>{nf.format(cum.sinPlazo)}</b>no se juzgan: su laboratorio no tiene plazo cargado</div>}
-              {cum.excluidas > 0 && <div><b>{nf.format(cum.excluidas)}</b>quedan fuera: tienen una fecha anterior a la emisión</div>}
-            </div>
-            <ol>
-              <li><b>A tiempo:</b> llegó a «{textoFin}» dentro del plazo de su laboratorio, contado desde que se emitió la solicitud.</li>
-              <li><b>Entregada tarde:</b> llegó, pero después del plazo.</li>
-              <li><b>Vencida sin entregar:</b> no ha llegado y ya pasó su plazo. Cuenta como incumplida desde el día siguiente al vencimiento; si se entrega después, pasa a «entregada tarde».</li>
-              <li><b>Aún en plazo:</b> no ha llegado y el plazo no vence. Se deja fuera para no premiar ni castigar lo que todavía no se puede juzgar.</li>
-            </ol>
-            <p><b>Qué mueve el número.</b> Solo dos reglas, las dos a la vista arriba: qué cuenta como «entregado» y el plazo de cada laboratorio. La tabla de sensibilidad muestra cuánto cambia el % si el plazo se mueve.</p>
-          </div>
-        </details>
+        <p className={styles.formula}>
+          <span><b>Cumplimiento</b> = a tiempo ÷ (a tiempo + tarde + vencidas sin entregar)</span>
+          <span>{nf.format(cum.vencidas)} ya vencidas cuentan</span>
+          <Ayuda etiqueta="Cómo se calcula el cumplimiento">
+            <b>A tiempo:</b> llegó a «{textoFin}» dentro del plazo de su laboratorio, contado desde la emisión.
+            <br /><b>Entregada tarde:</b> llegó, pero después del plazo.
+            <br /><b>Vencida sin entregar:</b> no llegó y ya pasó su plazo; cuenta como incumplida desde el día siguiente (si se entrega después, pasa a «tarde»).
+            <br /><b>Aún en plazo:</b> {nf.format(cum.plazo)}, no cuentan todavía.
+            {cum.sinPlazo > 0 && <><br /><b>Sin plazo:</b> {nf.format(cum.sinPlazo)}, su laboratorio no tiene plazo cargado.</>}
+            {cum.excluidas > 0 && <><br /><b>Fuera:</b> {nf.format(cum.excluidas)} con una fecha anterior a la emisión.</>}
+            <br />Solo mueven el número dos reglas, a la vista arriba: qué cuenta como «entregado» y el plazo de cada laboratorio.
+          </Ayuda>
+        </p>
 
         <details className={styles.como}>
           <summary>Ver las solicitudes que hay detrás <span className={styles.chip}>{nf.format(filasCum.length)}</span></summary>
