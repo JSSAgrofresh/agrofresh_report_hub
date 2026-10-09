@@ -181,6 +181,60 @@ def actividad() -> dict[str, Any]:
     }
 
 
+def _serie_30_dias(filas: list[dict], clave: str = "dia") -> list[dict]:
+    """Rellena con ceros los días sin movimiento: el gráfico no puede saltarse fechas."""
+    from datetime import date, timedelta
+    por_dia = {r[clave]: r["n"] for r in filas}
+    hoy = date.today()
+    return [
+        {"dia": (d := hoy - timedelta(days=29 - i)).isoformat(), "n": int(por_dia.get(d, 0))}
+        for i in range(30)
+    ]
+
+
+@router.get("/series")
+def series() -> dict[str, Any]:
+    """Series para los gráficos del Panel general: solicitudes por día, por laboratorio y por especie, y los
+    últimos 30 días de verificaciones. Todo respeta lo que Report muestra (Funciones). Cada bloque se lee
+    aparte: si uno falla, los demás igual salen."""
+    resultado: dict[str, Any] = {"por_dia": [], "por_laboratorio": [], "por_especie": [], "verificaciones": []}
+    filtro, params = _cs("solicitud")
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        try:
+            cur.execute(f"""
+                SELECT fecha_entrada AS dia, count(*) AS n FROM solicitud
+                WHERE vigente AND fecha_entrada >= CURRENT_DATE - INTERVAL '29 days'
+                  AND fecha_entrada <= CURRENT_DATE {filtro}
+                GROUP BY fecha_entrada
+            """, params)
+            resultado["por_dia"] = _serie_30_dias(cur.fetchall())
+        except Exception:
+            conn.rollback()
+        for clave, col in (("por_laboratorio", "laboratorio"), ("por_especie", "especie")):
+            try:
+                cur.execute(f"""
+                    SELECT COALESCE(NULLIF(trim({col}), ''), 'Sin dato') AS nombre, count(*) AS n
+                    FROM solicitud
+                    WHERE vigente AND fecha_entrada >= CURRENT_DATE - INTERVAL '90 days' {filtro}
+                    GROUP BY 1 ORDER BY n DESC, nombre
+                """, params)
+                resultado[clave] = [{"nombre": r["nombre"], "n": int(r["n"])} for r in cur.fetchall()]
+            except Exception:
+                conn.rollback()
+        try:
+            cur.execute("""
+                SELECT fecha, resultado FROM verif_registro
+                WHERE fecha >= CURRENT_DATE - INTERVAL '29 days' ORDER BY fecha
+            """)
+            resultado["verificaciones"] = [
+                {"fecha": r["fecha"].isoformat(), "resultado": r["resultado"] or "Sin datos"}
+                for r in cur.fetchall()
+            ]
+        except Exception:
+            conn.rollback()
+    return resultado
+
+
 @router.get("/actividad-area")
 def actividad_area(area: str = Query(..., description="'cromatografia' o 'postventa'")) -> dict[str, Any]:
     """Snapshot de actividad específico para el panel de un admin de área.

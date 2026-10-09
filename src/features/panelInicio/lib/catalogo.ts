@@ -11,7 +11,7 @@ import { AREAS } from '@/constants/areas'
  * `w` y `h` son el tamaño al arrastrarlo a la grilla (unidades de 12 columnas); `minW`/`minH` el mínimo al achicarlo.
  */
 export type Audiencia = 'interno' | 'cliente'
-export type GrupoWidget = 'Módulos' | 'Indicadores' | 'Paneles de actividad' | 'Portal de cliente'
+export type GrupoWidget = 'Títulos por área' | 'Destacados' | 'Gráficos' | 'Módulos' | 'Indicadores' | 'Paneles de actividad' | 'Portal de cliente'
 
 export interface WidgetDef {
   id: string
@@ -42,7 +42,27 @@ const modulos: WidgetDef[] = MODULOS.map((m) => ({
   moduloId: m.id,
 }))
 
+const titulos: WidgetDef[] = [
+  { id: 'titulo:general', nombre: 'Título · General', descripcion: 'Separador con título para ordenar el panel por secciones.' },
+  ...(['cromatografia', 'postventa', 'ryd', 'toma_muestras'] as AreaId[]).map((a) => ({
+    id: `titulo:${a}`,
+    nombre: `Título · ${AREAS[a].nombre}`,
+    descripcion: `Separador con el color de ${AREAS[a].nombre}: agrupa debajo lo que es de esa área.`,
+  })),
+].map((t) => ({ ...t, grupo: 'Títulos por área' as const, audiencia: 'interno' as const, w: 12, h: 1, minW: 3, minH: 1 }))
+
+const visuales: WidgetDef[] = [
+  { id: 'hero:bienvenida', nombre: 'Bienvenida', descripcion: 'Saludo con la fecha y lo pendiente de hoy.', grupo: 'Destacados', audiencia: 'interno', w: 12, h: 3, minW: 4, minH: 2 },
+  { id: 'carrusel:novedades', nombre: 'Carrusel de novedades', descripcion: 'Pasa solo por solicitudes, Converter, verificación y Post Venta (se detiene al pasar el mouse).', grupo: 'Destacados', audiencia: 'interno', w: 4, h: 4, minW: 3, minH: 3 },
+  { id: 'grafico:actividad', nombre: 'Solicitudes por día', descripcion: 'Curva de los últimos 30 días; al pasar el mouse muestra cada día.', grupo: 'Gráficos', audiencia: 'interno', w: 8, h: 4, minW: 4, minH: 3 },
+  { id: 'grafico:laboratorios', nombre: 'Por laboratorio', descripcion: 'Barras con las solicitudes de los últimos 90 días por laboratorio.', grupo: 'Gráficos', audiencia: 'interno', w: 4, h: 4, minW: 3, minH: 3 },
+  { id: 'grafico:especies', nombre: 'Por especie', descripcion: 'Dona con la mezcla de especies de los últimos 90 días.', grupo: 'Gráficos', audiencia: 'interno', w: 4, h: 4, minW: 3, minH: 3 },
+  { id: 'grafico:verificaciones', nombre: 'Verificaciones del mes', descripcion: 'Un cuadro por día: aceptable, no aceptable o sin registro.', grupo: 'Gráficos', audiencia: 'interno', w: 4, h: 3, minW: 3, minH: 3 },
+]
+
 export const WIDGETS: WidgetDef[] = [
+  ...visuales,
+  ...titulos,
   ...modulos,
   { id: 'kpi:solicitudes', nombre: 'Solicitudes en la base', descripcion: 'Cuántos registros vigentes hay.', grupo: 'Indicadores', audiencia: 'interno', w: 3, h: 2, minW: 2, minH: 2 },
   { id: 'kpi:semana', nombre: 'Ingresadas esta semana', descripcion: 'Solicitudes de los últimos 7 días.', grupo: 'Indicadores', audiencia: 'interno', w: 3, h: 2, minW: 2, minH: 2 },

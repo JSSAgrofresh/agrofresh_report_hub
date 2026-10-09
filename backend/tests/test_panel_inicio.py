@@ -78,3 +78,23 @@ def test_las_rutas_estan_y_exigen_sesion():
     assert c.get("/api/panel-inicio/config").status_code == 401
     assert c.put("/api/panel-inicio/config", json={"clave": "tipo:cliente", "piezas": []}).status_code == 401
     assert c.delete("/api/panel-inicio/config?clave=tipo:cliente").status_code == 401
+
+
+def test_los_widgets_graficos_y_titulos_pasan_la_validacion():
+    ids = ["hero:bienvenida", "carrusel:novedades", "grafico:actividad", "grafico:verificaciones",
+           "titulo:general", "titulo:cromatografia", "titulo:toma_muestras"]
+    piezas = [Pieza(id=i, x=0, y=n, w=12, h=1) for n, i in enumerate(ids)]
+    assert pi.validar_piezas(piezas, solo_cliente=False) == []
+
+
+def test_los_widgets_graficos_no_se_guardan_para_clientes():
+    piezas = [Pieza(id="grafico:actividad", x=0, y=0, w=8, h=4)]
+    assert pi.validar_piezas(piezas, solo_cliente=True) != []
+
+
+def test_la_serie_de_30_dias_rellena_con_ceros():
+    from datetime import date
+    from app import dashboard
+    serie = dashboard._serie_30_dias([{"dia": date.today(), "n": 3}])
+    assert len(serie) == 30
+    assert serie[-1]["n"] == 3 and sum(p["n"] for p in serie) == 3

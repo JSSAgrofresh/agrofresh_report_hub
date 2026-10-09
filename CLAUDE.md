@@ -499,6 +499,7 @@ diseño de partida y «Restaurar el panel original» borra el diseño. **Sin mig
   filtra al leer y rechaza guardar otros en un diseño de clientes).
 - **Reglas de la grilla** en un solo lugar puro, `features/panelInicio/lib/grilla.ts`, espejo de `validar_piezas` (backend): 12 columnas, sin
   pisarse, sin salirse. Pruebas: `grilla.test.ts`, `tests/test_panel_inicio.py`, `PanelInicioEditor.test.tsx`.
+- **Panel visual** (pedido del usuario, 09-10-2026): widgets gráficos nuevos `hero:bienvenida`, `carrusel:novedades`, `grafico:actividad|laboratorios|especies|verificaciones` y títulos por área `titulo:general|cromatografia|postventa|ryd|toma_muestras` (grupos «Destacados», «Gráficos», «Títulos por área»). Datos reales de `GET /api/dashboard/series` (solo interno, respeta Funciones). Dibujo en `views/dashboard/graficos.tsx`, lógica pura en `features/dashboard/lib/graficos.ts` (colores de serie en orden fijo validados, 4 + «Otras» gris). Los KPI de solicitudes llevan sparkline. «Empezar con el panel visual» (`BASE_VISUAL`) en el editor. Todos internos: un widget nuevo va en `catalogo.ts`, `dibujar()` y `TONO` del editor. Pruebas: `graficos.test.ts`, `test_panel_inicio.py`.
 - **Pendiente**: widgets propios de clientes (hoy solo el encabezado, el Report completo y los informes Accu-Tab); el panel de un `admin_area` usa los
   mismos widgets internos (su `AreaDashboardView` no está partido en widgets); en el celular los widgets se apilan en orden de lectura.
 
