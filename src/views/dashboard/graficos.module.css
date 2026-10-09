@@ -1,0 +1,123 @@
+/* Widgets gráficos del Panel general. Tarjetas con el mismo marco que los demás bloques. */
+.tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  height: 100%;
+  min-height: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.tarjeta:hover { box-shadow: 0 6px 22px rgba(22, 32, 27, 0.08); }
+.cab { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.titulo { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: 0.02em; color: var(--color-text); }
+.sub { font-size: 11.5px; color: var(--color-text-faint); }
+.vacio { margin: auto; font-size: 13px; color: var(--color-text-faint); text-align: center; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── Línea / área ─────────────────────────────────────────────── */
+.lienzo { position: relative; flex: 1; min-height: 120px; }
+.lienzo svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.grilla { stroke: var(--color-border); stroke-width: 1; }
+.eje { font-size: 10.5px; fill: var(--color-text-faint); font-variant-numeric: tabular-nums; }
+.tip {
+  position: absolute; z-index: 2; pointer-events: none; transform: translate(-50%, -100%);
+  padding: 6px 9px; border-radius: 8px; background: var(--color-text); color: #fff;
+  font-size: 12px; line-height: 1.3; white-space: nowrap; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.tip b { font-variant-numeric: tabular-nums; }
+.dibujo { animation: trazo 0.9s ease-out both; }
+@keyframes trazo { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ── Dona ─────────────────────────────────────────────────────── */
+.dona { display: flex; align-items: center; gap: 16px; flex: 1; min-height: 0; flex-wrap: wrap; justify-content: center; }
+.donaSvg { width: 132px; height: 132px; flex: none; }
+.donaNum { font-size: 22px; font-weight: 800; fill: var(--color-text); font-variant-numeric: tabular-nums; }
+.donaEtq { font-size: 10px; fill: var(--color-text-faint); }
+.arco { transition: stroke-width 0.15s ease, opacity 0.15s ease; cursor: pointer; }
+.leyenda { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 110px; }
+.leyendaFila {
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--color-text-muted);
+  padding: 2px 6px; border-radius: 6px; cursor: default; min-width: 0;
+}
+.leyendaFila[data-activa='true'] { background: var(--color-bg); }
+.punto { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.leyendaNombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leyendaVal { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--color-text); }
+
+/* ── Barras horizontales ──────────────────────────────────────── */
+.barras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; flex: 1; justify-content: center; }
+.barraFila { display: grid; grid-template-columns: minmax(70px, 34%) minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 12px; }
+.barraNombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-muted); }
+.barraPista { height: 10px; border-radius: 0 5px 5px 0; background: var(--color-bg); }
+.barra { height: 100%; border-radius: 0 5px 5px 0; background: #1C7FA6; transform-origin: left; animation: crece 0.7s ease-out both; }
+.barraFila:hover .barra { filter: brightness(1.12); }
+@keyframes crece { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.barraVal { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--color-text); min-width: 2ch; text-align: right; }
+
+/* ── Tira de verificaciones ───────────────────────────────────── */
+.tira { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.celdaV {
+  aspect-ratio: 1; border-radius: 5px; display: grid; place-items: center; font-size: 11px; font-weight: 800;
+  border: 0; padding: 0; cursor: default; color: #fff;
+}
+.celdaV[data-estado='ok'] { background: var(--color-ok); }
+.celdaV[data-estado='mal'] { background: var(--color-danger); }
+.celdaV[data-estado='sin'] { background: #9AA3A0; }
+.celdaV[data-estado='falta'] { background: var(--color-bg); border: 1px dashed var(--color-border-strong); color: transparent; }
+.celdaV:hover, .celdaV:focus-visible { outline: 2px solid var(--color-text); outline-offset: 1px; }
+.notas { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--color-text-muted); }
+.nota { display: inline-flex; align-items: center; gap: 5px; }
+
+/* ── Carrusel ─────────────────────────────────────────────────── */
+.carrusel { position: relative; overflow: hidden; padding: 0; }
+.pista { display: flex; height: 100%; transition: transform 0.55s cubic-bezier(0.22, 0.8, 0.28, 1); }
+.slide { flex: 0 0 100%; min-width: 0; padding: 18px 22px 40px; display: flex; flex-direction: column; gap: 8px; color: #fff; }
+.slide[data-tono='verde'] { background: linear-gradient(135deg, #3A8A52, #1E5930); }
+.slide[data-tono='azul'] { background: linear-gradient(135deg, #1C7FA6, #124D63); }
+.slide[data-tono='violeta'] { background: linear-gradient(135deg, #7B5EA7, #4A3567); }
+.slide[data-tono='naranja'] { background: linear-gradient(135deg, #B8651A, #7A3F0C); }
+.slideTag { align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: rgba(255, 255, 255, 0.2); }
+.slideNum { font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.slideTitulo { font-size: 14px; font-weight: 700; opacity: 0.95; }
+.slideLista { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; opacity: 0.95; }
+.slideLista li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mandos { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.punta { width: 8px; height: 8px; border-radius: 50%; border: 0; padding: 0; background: rgba(255, 255, 255, 0.45); cursor: pointer; transition: width 0.2s ease, background 0.2s ease; }
+.punta[aria-current='true'] { width: 22px; border-radius: 4px; background: #fff; }
+.flecha { position: absolute; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border-radius: 50%; border: 0; cursor: pointer; background: rgba(255, 255, 255, 0.22); color: #fff; font-size: 16px; line-height: 1; opacity: 0; transition: opacity 0.2s ease; }
+.carrusel:hover .flecha, .flecha:focus-visible { opacity: 1; }
+.flecha:hover { background: rgba(255, 255, 255, 0.4); }
+.izq { left: 8px; } .der { right: 8px; }
+
+/* ── Bienvenida ───────────────────────────────────────────────── */
+.hero {
+  position: relative; overflow: hidden; border-radius: 16px; padding: 22px 26px; height: 100%;
+  display: flex; flex-direction: column; justify-content: center; gap: 6px; color: #fff;
+  background: linear-gradient(120deg, #1E5930 0%, #3A8A52 45%, #1C7FA6 100%);
+}
+.hero::after {
+  content: ''; position: absolute; right: -60px; top: -80px; width: 280px; height: 280px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 70%);
+}
+.heroSaludo { margin: 0; font-size: clamp(1.3rem, 3vw, 1.9rem); font-weight: 800; }
+.heroFecha { margin: 0; font-size: 13px; opacity: 0.85; text-transform: capitalize; }
+.heroChips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; position: relative; z-index: 1; }
+.chip { font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 999px; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(2px); }
+
+/* ── Título de área ───────────────────────────────────────────── */
+.area { display: flex; align-items: center; gap: 12px; height: 100%; padding: 0 4px; border-bottom: 2px solid var(--tono); }
+.areaBarra { width: 6px; align-self: stretch; margin: 12px 0; border-radius: 3px; background: var(--tono); }
+.areaTitulo { margin: 0; font-size: clamp(1.1rem, 2.4vw, 1.5rem); font-weight: 800; color: var(--color-text); }
+.areaSub { margin: 0; font-size: 12.5px; color: var(--color-text-faint); }
+
+/* ── Sparkline de los indicadores ─────────────────────────────── */
+.spark { width: 100%; height: 34px; margin-top: auto; display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dibujo, .barra { animation: none; }
+  .pista, .tarjeta, .arco { transition: none; }
+}

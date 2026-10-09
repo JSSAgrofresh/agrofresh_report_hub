@@ -124,3 +124,22 @@ export interface ActividadArea {
   verificaciones_recientes: VerificacionArea[]
   trace_recientes: TraceReciente[]
 }
+
+// ── Series del Panel general (gráficos) ───────────────────────────────
+
+export interface PuntoDia {
+  dia: string
+  n: number
+}
+
+export interface PuntoNombre {
+  nombre: string
+  n: number
+}
+
+export interface SeriesDashboard {
+  por_dia: PuntoDia[]
+  por_laboratorio: PuntoNombre[]
+  por_especie: PuntoNombre[]
+  verificaciones: { fecha: string; resultado: string }[]
+}

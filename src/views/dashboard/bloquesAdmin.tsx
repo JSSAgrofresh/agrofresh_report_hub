@@ -1,6 +1,7 @@
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 import type { ConverterReciente, SolicitudReciente, TraceReciente, UsuarioActivo, VerificacionReciente } from '@/features/dashboard'
+import { Sparkline } from './graficos'
 import styles from './AdminGeneralDashboardView.module.css'
 
 /** Los bloques del Panel general. Viven aparte para que el panel de siempre y los diseños que arma el admin
@@ -65,12 +66,13 @@ function SkeletonBloque() {
   )
 }
 
-export function KpiCard({ valor, etiqueta, sub, destaca }: { valor: number | string; etiqueta: string; sub?: string; destaca?: boolean }) {
+export function KpiCard({ valor, etiqueta, sub, destaca, spark }: { valor: number | string; etiqueta: string; sub?: string; destaca?: boolean; spark?: number[] }) {
   return (
     <Card className={styles.kpi}>
       <p className={`${styles.kpiValor} ${destaca ? styles.kpiDestaca : ''}`}>{valor}</p>
       <p className={styles.kpiEtiqueta}>{etiqueta}</p>
       {sub && <p className={styles.kpiSub}>{sub}</p>}
+      {spark && <Sparkline datos={spark} />}
     </Card>
   )
 }
