@@ -506,3 +506,14 @@ def test_la_descarga_enlaza_por_parecido_cuando_el_resultado_no_trae_ot(datos_bd
     finally:
         with conexion() as conn, cursor_dict(conn) as cur:
             cur.execute("DELETE FROM solicitud_archivo WHERE archivo LIKE '\\_\\_bd\\_par%'")
+
+
+def test_la_recepcion_de_agrofresh_sale_del_cruce_y_la_de_quiteca_de_su_informe():
+    # AgroFresh: la base no la trae, se toma del cruce con la muestra.
+    agro = {"laboratorio": "AGROFRESH"}
+    bd_excel.completar_fila(agro, {"recepcion_en": "2026-10-08T15:34:00+00:00"})
+    assert agro["hora_recepcion"] and agro["fecha_recepcion"]
+    # Quiteca: ya la trae la base (leída de su PDF); el cruce nunca la pisa.
+    quiteca = {"laboratorio": "Quiteca", "fecha_recepcion": "06-10-2026", "hora_recepcion": "10:08"}
+    bd_excel.completar_fila(quiteca, {"recepcion_en": "2026-10-08T15:34:00+00:00"})
+    assert quiteca["hora_recepcion"] == "10:08"
