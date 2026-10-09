@@ -111,6 +111,21 @@ def buscar_por_nombres(texto: str, pares: list[tuple[str, str]]) -> tuple[str, s
     return mejores[0][1]
 
 
+def texto_quiteca(contenido: bytes) -> str:
+    """Texto de un informe de Quiteca con cada dato junto a su etiqueta.
+
+    El modo normal de `pypdf` suelta los valores lejos de sus etiquetas («Fecha de Recepción :»
+    por un lado y «01-10-2026 15:10» más abajo); el modo `layout` respeta las filas del papel.
+    Se junta el espaciado de columnas para que las etiquetas queden separadas por un espacio."""
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:  # pragma: no cover - depende del servidor
+        raise LecturaNoDisponible("Falta instalar pypdf en el servidor.") from exc
+    lector = PdfReader(io.BytesIO(contenido))
+    paginas = (p.extract_text(extraction_mode="layout") or "" for p in lector.pages[:3])
+    return "\n".join(re.sub(r"[ \t]+", " ", t) for t in paginas)
+
+
 def texto_de_pdf(contenido: bytes) -> str:
     try:
         from pypdf import PdfReader
