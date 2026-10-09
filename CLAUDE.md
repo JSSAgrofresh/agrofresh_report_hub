@@ -1,5 +1,19 @@
 # AgroFresh Report Hub — contexto para Claude
 
+> ## ⚡ PRIMERO DE TODO: si el primer mensaje del chat es `start`
+> (también `/start`, `Start` o `inicio`). El usuario trabaja en muchos chats cortos para ahorrar tokens y
+> **necesita que lo primero que se abra sea el aviso de despliegue**, con la última actualización en que quedaron.
+> Haz esto **antes que cualquier otra cosa**, sin preguntar y sin empezar otra tarea:
+> 1. Lee el Artifact **https://claude.ai/artifact/A1q3w9WBh2Zc3sStYRuYDE** con `Artifact` `action: "read"`
+>    (es la versión vigente: la que dejó el último chat). Anota el `data-n` de `<div class="version">` (la «Actualización #N»)
+>    y los pasos del servidor que trae (los `<li class="manual">` y los bloques `<h3>` de comandos: pull, migración,
+>    reinicio, script).
+> 2. Ábrelo con `Artifact` `action: "open"` sobre ese mismo `url` (así queda a la vista en el panel).
+> 3. Responde en español con **UNA línea**: el enlace, «Actualización #N» y qué pasos manuales del servidor quedan
+>    (o «nada que hacer en el servidor»). Nada más.
+> **No lo republiques, no crees otro artifact y no empieces nada más** hasta que el usuario pida algo.
+> Lo mismo hace el comando `.claude/commands/start.md`. Si `open` falla, igual da el enlace y el número.
+
 Este archivo se lee solo al empezar cada sesión. Si algo acá quedó viejo,
 corrígelo: es la memoria del proyecto entre conversaciones.
 
@@ -22,9 +36,7 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
   **OBLIGATORIO, SIN QUE LO PIDA, en CADA entrega (aunque sea chica):** al terminar, publica/actualiza el Artifact de abajo con el pull, la migración (si hay) y el reinicio del backend. No cierres el turno sin haberlo hecho: el usuario lo reclamó el 07-10-2026 cuando se olvidó.
   **Formato del aviso final** (pedido del usuario): publica un **Artifact** con una tarjeta (título «Listo para publicar», pasos con ✓ Merge listo y Manual para Pull, Script y Reiniciar backend, y una casilla de código con botón «Copiar»), actualizando siempre el MISMO artifact: **https://claude.ai/artifact/A1q3w9WBh2Zc3sStYRuYDE** (el usuario trabaja en chats distintos y lo deja abierto en una pestaña: en un chat nuevo, léelo con `action: "read"` y publica con ese `url`, nunca crees otro), y en el chat solo el enlace y una línea. **La tarjeta lleva una insignia «Actualización #N»** (con fecha y hora de Chile; `data-n` en el HTML) **y un color que rota** (verde, azul, violeta, naranja, rosa, turquesa: el color es `N mod 6`) para que se note a simple vista que es una versión nueva: al publicar, lee el `data-n` del artifact, súmale 1 y cambia el color según el nuevo N. **Los comandos van SEPARADOS por consola, cada bloque con su propio botón «Copiar» y en el orden en que se corren** (el usuario tiene una consola para el pull, otra para el backend y otra para los `.venv`): 1) consola de pull (`git checkout main`, `git pull origin main`); 2) consola `.venv`: migración; 3) consola del backend: Stop/Start-ScheduledTask; 4) consola `.venv`: scripts. Nunca todo junto en una sola casilla. El script va solo como `.venv\Scripts\python.exe scripts\migrar.py NNNN_nombre.sql`, **sin `cd backend`** (el usuario tiene una PowerShell abierta ya dentro de `backend`). Sin migración, se omite el paso del script.
 
-- **Si el primer mensaje del chat es `start`** (o `/start`, `inicio`): no empieces nada. Lee el Artifact de despliegue de
-  arriba (`action: "read"`), ábrelo (`action: "open"`) y responde con UNA línea: el enlace, la actualización «#N» y los
-  pasos que trae. Es lo mismo que hace el comando `.claude/commands/start.md`. No lo republiques ni crees otro.
+- **`start` al empezar un chat**: ver el recuadro del principio de este archivo (abre el aviso de despliegue).
 
 ### Reglas de seguridad (no negociables)
 
