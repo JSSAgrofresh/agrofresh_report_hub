@@ -34,6 +34,7 @@ from .storage import router as storage_router
 from .toma_muestras import router as toma_muestras_router
 from .usuarios import router as usuarios_router
 from .verificaciones import router as verificaciones_router
+from .panel_inicio import router as panel_inicio_router
 from .datacore import router as datacore_router
 from .dashboard import router as dashboard_router
 from .homogenizador_ingesta import router as homogenizador_ingesta_router
@@ -108,6 +109,9 @@ SOLO_AGROFRESH = [Depends(solo_interno)]
 
 app.include_router(reportes_router, dependencies=CON_SESION)
 app.include_router(postventa_cliente_router, dependencies=CON_SESION)
+# El diseño del Panel general lo lee cualquier cuenta (clientes incluidos: el servidor les filtra a lo suyo);
+# editarlo es solo del admin general y se exige adentro de cada endpoint.
+app.include_router(panel_inicio_router, dependencies=CON_SESION)
 
 # Los listados de especie y variedad son la excepción: una cuenta de cliente
 # necesita leerlos para que los desplegables de Especie y Variedad de su
