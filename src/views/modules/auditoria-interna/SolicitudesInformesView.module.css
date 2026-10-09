@@ -564,3 +564,24 @@ th.colAnalitos {
   color: #9a3412;
   font-size: 13px;
 }
+
+.filtrosGrafico {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.filtrosGrafico label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+}
+
+.filtrosGrafico select {
+  max-width: 220px;
+}

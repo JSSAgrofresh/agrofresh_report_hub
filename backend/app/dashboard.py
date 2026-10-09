@@ -21,8 +21,13 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 
-from . import config
+from . import config, funciones
 from .db import conexion, cursor_dict
+
+def _cs(alias: str) -> tuple[str, dict[str, Any]]:
+    """Solo los tipos de servicio que Report muestra (Administración General → Funciones)."""
+    return funciones.condicion_report(alias)
+
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -101,17 +106,17 @@ def actividad() -> dict[str, Any]:
         ]
 
         # Últimas solicitudes de laboratorio.
-        cur.execute("""
+        cur.execute(f"""
             SELECT s.id, s.nro_solicitud, s.fecha_entrada,
                    s.especie, s.variedad, s.laboratorio,
                    c.nombre AS cliente, p.nombre AS planta
             FROM solicitud s
             LEFT JOIN planta p   ON p.id = s.planta_id
             LEFT JOIN cliente c  ON c.id = p.cliente_id
-            WHERE s.vigente
+            WHERE s.vigente {_cs('s')[0]}
             ORDER BY s.fecha_entrada DESC NULLS LAST, s.id DESC
             LIMIT 6
-        """)
+        """, _cs("s")[1])
         solicitudes_recientes = [
             {
                 "id": r["id"],
@@ -143,13 +148,13 @@ def actividad() -> dict[str, Any]:
         ]
 
         # Métricas globales.
-        cur.execute("SELECT count(*) AS total FROM solicitud WHERE vigente")
+        cur.execute(f"SELECT count(*) AS total FROM solicitud WHERE vigente {_cs('solicitud')[0]}", _cs("solicitud")[1])
         total_solicitudes = cur.fetchone()["total"]
 
-        cur.execute("""
+        cur.execute(f"""
             SELECT count(*) AS total FROM solicitud
-            WHERE vigente AND fecha_entrada >= CURRENT_DATE - INTERVAL '7 days'
-        """)
+            WHERE vigente AND fecha_entrada >= CURRENT_DATE - INTERVAL '7 days' {_cs('solicitud')[0]}
+        """, _cs("solicitud")[1])
         esta_semana = cur.fetchone()["total"]
 
         cur.execute("SELECT count(*) AS total FROM pendiente_revision")
@@ -187,13 +192,13 @@ def actividad_area(area: str = Query(..., description="'cromatografia' o 'postve
     """
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         # ── Métricas comunes ──────────────────────────────────────────
-        cur.execute("SELECT count(*) AS total FROM solicitud WHERE vigente")
+        cur.execute(f"SELECT count(*) AS total FROM solicitud WHERE vigente {_cs('solicitud')[0]}", _cs("solicitud")[1])
         total_solicitudes = cur.fetchone()["total"]
 
-        cur.execute("""
+        cur.execute(f"""
             SELECT count(*) AS total FROM solicitud
-            WHERE vigente AND fecha_entrada >= CURRENT_DATE - INTERVAL '7 days'
-        """)
+            WHERE vigente AND fecha_entrada >= CURRENT_DATE - INTERVAL '7 days' {_cs('solicitud')[0]}
+        """, _cs("solicitud")[1])
         solicitudes_semana = cur.fetchone()["total"]
 
         cur.execute("""
@@ -208,7 +213,7 @@ def actividad_area(area: str = Query(..., description="'cromatografia' o 'postve
         verificacion_hoy = cur.fetchone()["total"] > 0
 
         # ── Solicitudes recientes con quién las envió ─────────────────
-        cur.execute("""
+        cur.execute(f"""
             SELECT
                 s.id,
                 s.nro_solicitud,
@@ -229,11 +234,11 @@ def actividad_area(area: str = Query(..., description="'cromatografia' o 'postve
             FROM solicitud s
             LEFT JOIN planta  p ON p.id = s.planta_id
             LEFT JOIN cliente c ON c.id = p.cliente_id
-            WHERE s.vigente
+            WHERE s.vigente {_cs('s')[0]}
               AND s.fecha_entrada >= CURRENT_DATE - INTERVAL '14 days'
             ORDER BY s.fecha_entrada DESC, s.id DESC
             LIMIT 10
-        """)
+        """, _cs("s")[1])
         solicitudes_recientes = [
             {
                 "id": r["id"],

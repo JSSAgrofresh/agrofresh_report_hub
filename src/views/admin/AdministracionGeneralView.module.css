@@ -419,3 +419,15 @@
 .servicioListas {
   margin-bottom: var(--space-4);
 }
+
+.avisos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.avisoTitulo {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}

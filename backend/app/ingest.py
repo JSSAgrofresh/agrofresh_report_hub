@@ -3,6 +3,7 @@ import json
 from difflib import SequenceMatcher
 from typing import Any
 
+import psycopg2.errors
 from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg2.extras import execute_values
 from pydantic import BaseModel
@@ -14,6 +15,7 @@ from .db import conexion, cursor_dict
 from .estructura_excel import validar_estructura
 from .homogenizador import Homogenizador
 from .listados import clave_normalizada
+from .servicios import LINEA_PROCESO, TABLAS, clave_lista, clave_servicio, es_servicio_con_listado
 from .notificaciones import insertar_notif
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
@@ -329,6 +331,39 @@ def _mapa_variedades_huerfanas(cur) -> dict[str, tuple[str, int]]:
     return {r["valor_normalizado"]: (r["valor"], r["id"]) for r in cur.fetchall()}
 
 
+def _tipo_aplicacion_de_fila(fila: dict[str, Any]) -> str | None:
+    """El «Tipo Aplicación» que trae la fila (Converter lo manda como «TIPO APP»)."""
+    return mapeo.elegir(mapeo.texto(fila, "TIPO APP"), mapeo.texto(fila, "Tipo Aplicación"))
+
+
+def _mapas_del_servicio(cur, base: dict[str, Any], servicio: str) -> dict[str, Any]:
+    """Los mapas de `base` con el Sold To / Ship To del listado de ese servicio.
+
+    Actimist y Ecofog tienen su propio listado (`cliente_actimist`/`planta_actimist`,
+    `cliente_ecofog`/`planta_ecofog`). Especie y variedad son comunes. Los mapeos
+    confirmados a mano en Data Core apuntan a ids de `cliente`/`planta`, así que acá
+    no valen. Si las tablas del servicio no existen (falta la 0049/0050) el listado
+    queda vacío y la fila va a Filas pendientes con su motivo: nunca se cae en el
+    listado de Línea de proceso, que sería guardar la fila en la planta equivocada."""
+    tabla_cliente, tabla_planta = TABLAS[servicio]
+    clientes: dict[str, tuple[str, int]] = {}
+    plantas: dict[int, dict[str, tuple[str, int]]] = {}
+    try:
+        cur.execute("SAVEPOINT listado_servicio")
+        cur.execute(f"SELECT id, nombre FROM {tabla_cliente} WHERE activo")
+        clientes = {clave_normalizada_empresa(r["nombre"]): (r["nombre"], r["id"]) for r in cur.fetchall()}
+        cur.execute(
+            f"SELECT p.id, p.cliente_id, p.nombre FROM {tabla_planta} p "
+            f"JOIN {tabla_cliente} c ON c.id = p.cliente_id WHERE p.activo AND c.activo"
+        )
+        for r in cur.fetchall():
+            plantas.setdefault(r["cliente_id"], {})[clave_normalizada_empresa(r["nombre"])] = (r["nombre"], r["id"])
+        cur.execute("RELEASE SAVEPOINT listado_servicio")
+    except psycopg2.errors.UndefinedTable:
+        cur.execute("ROLLBACK TO SAVEPOINT listado_servicio")
+    return {**base, "clientes": clientes, "plantas": plantas, "mapeos_sold_to": {}, "mapeos_ship_to": {}}
+
+
 def _cargar_mapas_listados(cur) -> dict[str, Any]:
     return {
         "clientes": _mapa_clientes(cur),
@@ -508,6 +543,16 @@ def _resolver_listados(
     return motivos
 
 
+def columna_solicitud_existe(cur, columna: str) -> bool:
+    """¿Ya se corrió la migración que agrega esta columna a `solicitud`?"""
+    cur.execute(
+        "SELECT 1 AS ok FROM information_schema.columns WHERE table_name = 'solicitud' "
+        "AND column_name = %s AND table_schema = ANY(current_schemas(false))",
+        (columna,),
+    )
+    return cur.fetchone() is not None
+
+
 def _insertar_pendiente(cur, origen: str, fila: dict[str, Any], motivos: list, carga_id: int | None) -> None:
     if carga_id is None:
         cur.execute(
@@ -569,15 +614,28 @@ def _procesar_filas(
     }
     catalogos = _cargar_catalogos(cur)
     mapas_listados = _cargar_mapas_listados(cur)
+    # Listado de Sold To / Ship To según el «Tipo Aplicación» de cada fila: Línea de
+    # proceso y RYD usan el de siempre; Actimist y Ecofog, el suyo (se cargan al pedirlos).
+    mapas_por_servicio: dict[str, dict[str, Any]] = {LINEA_PROCESO: mapas_listados}
+
+    def _mapas_de(servicio: str) -> dict[str, Any]:
+        if servicio not in mapas_por_servicio:
+            mapas_por_servicio[servicio] = _mapas_del_servicio(cur, mapas_listados, servicio)
+        return mapas_por_servicio[servicio]
+
     analitos_mapa, analitos_primero = _cargar_analitos(cur)
 
     # Pre-carga todas las solicitudes existentes en memoria para evitar una query
     # por fila del Excel (4000+ filas = 4000+ round-trips a Neon, muy lento).
     cur.execute(
         "SELECT nro_solicitud, id, sold_to_raw, ship_to_raw, planta_id, fecha_muestreo, fecha_entrada,"
-        " fecha_informe, fecha_analisis, referencia FROM solicitud"
+        " fecha_informe, fecha_analisis, referencia, hora_muestreo FROM solicitud"
     )
     solicitudes_existentes: dict[str, dict] = {r["nro_solicitud"]: r for r in cur.fetchall()}
+    # N° de muestra del laboratorio (migración 0053): sin ella se carga igual, sin ese dato.
+    con_codigo_muestra = columna_solicitud_existe(cur, "codigo_muestra")
+    # Tipo de servicio de la solicitud (migración 0055): sin ella se carga igual, sin ese dato.
+    con_servicio = columna_solicitud_existe(cur, "servicio")
 
     detalle: list[dict[str, Any]] = []
     advertencias: list[str] = []
@@ -688,7 +746,10 @@ def _procesar_filas(
         # quedarse en NULL para siempre o -peor- crear un cliente/sucursal nuevo a
         # partir de texto crudo sin pasar por Listados.
         adopciones: list[dict[str, Any]] = []
-        motivos_listados = _resolver_listados(sol, mapas_listados, adopciones)
+        tipo_aplicacion_fila = _tipo_aplicacion_de_fila(fila)
+        servicio_listado = clave_servicio(tipo_aplicacion_fila)
+        con_listado_propio = es_servicio_con_listado(servicio_listado)
+        motivos_listados = _resolver_listados(sol, _mapas_de(servicio_listado), adopciones)
         campos_no_resueltos = {m["campo"] for m in motivos_listados}
 
         # Vincular la variedad huérfana a su especie es un cambio de maestro, no
@@ -755,6 +816,10 @@ def _procesar_filas(
 
         cliente_id = None
         nombre_cliente = sol["sold_to_raw"]
+        # Actimist y Ecofog: el Sold To / Ship To ya se validó contra SU listado y se
+        # guarda como texto; nunca se enlaza (ni se crea) un cliente o planta de Línea de proceso.
+        if con_listado_propio:
+            permitir_resolver_cliente = False
         if nombre_cliente and permitir_resolver_cliente:
             if nombre_cliente in clientes_cache:
                 cliente_id = clientes_cache[nombre_cliente]
@@ -811,6 +876,11 @@ def _procesar_filas(
                 # Diferir INSERT: acumular y hacer un solo execute_values al
                 # final del loop en vez de N INSERTs individuales con RETURNING.
                 datos = {**sol, "planta_id": planta_id, "origen": origen}
+                if not con_codigo_muestra:
+                    datos.pop("codigo_muestra", None)
+                if con_servicio:
+                    # NULL = Línea de proceso; lo demás: 'actimist', 'ecofog' o 'ryd'.
+                    datos["servicio"] = clave_lista(tipo_aplicacion_fila) or None
                 if carga_id is not None:
                     datos["carga_id"] = carga_id
                 nro = sol["nro_solicitud"]
@@ -843,6 +913,7 @@ def _procesar_filas(
                     or (existente.get("fecha_informe") is None and sol.get("fecha_informe"))
                     or (existente.get("fecha_analisis") is None and sol.get("fecha_analisis"))
                     or (existente.get("referencia") is None and sol.get("referencia"))
+                    or (not existente.get("hora_muestreo") and sol.get("hora_muestreo"))
                 ):
                     # Solicitud que ya existe pero le faltaba Sold To/Ship To/planta_id
                     # o fechas (típico en re-ingesta del formato BD que la primera vez
@@ -858,6 +929,7 @@ def _procesar_filas(
                         "fecha_informe = COALESCE(fecha_informe, %s), "
                         "fecha_analisis = COALESCE(fecha_analisis, %s), "
                         "referencia = COALESCE(referencia, %s), "
+                        "hora_muestreo = COALESCE(NULLIF(btrim(hora_muestreo), ''), %s), "
                         "semana_muestreo = COALESCE(semana_muestreo, %s), "
                         "mes = COALESCE(mes, %s) "
                         "WHERE id = %s",
@@ -870,10 +942,16 @@ def _procesar_filas(
                             sol.get("fecha_informe"),
                             sol.get("fecha_analisis"),
                             sol.get("referencia"),
+                            sol.get("hora_muestreo"),
                             sol.get("semana_muestreo"),
                             sol.get("mes"),
                             solicitud_id,
                         ),
+                    )
+                if escribir and con_codigo_muestra and sol.get("codigo_muestra"):
+                    cur.execute(
+                        "UPDATE solicitud SET codigo_muestra = %s WHERE id = %s AND codigo_muestra IS NULL",
+                        (sol["codigo_muestra"], solicitud_id),
                     )
                 # Acumular para batch insert (solicitudes existentes ya tienen ID real).
                 for p in productos_resueltos:
@@ -1387,9 +1465,13 @@ def _recordar_correcciones(cur, fila_original: dict[str, Any], correcciones: dic
     mapeo_confirmado; Especie/Variedad reusan valor_lista -ver
     _recordar_valor_lista-. Nunca falla la aprobación si algo no calza acá:
     en el peor caso, simplemente no se aprende nada de esa fila."""
-    sol = mapeo.mapear_solicitud({str(k).strip(): v for k, v in fila_original.items()})
+    fila_limpia = {str(k).strip(): v for k, v in fila_original.items()}
+    sol = mapeo.mapear_solicitud(fila_limpia)
+    # La memoria de Sold To / Ship To apunta a ids de `cliente`/`planta` (Línea de proceso):
+    # lo de Actimist y Ecofog tiene su propio listado y no se aprende acá.
+    del_listado_propio = es_servicio_con_listado(_tipo_aplicacion_de_fila(fila_limpia))
 
-    if correcciones.get("sold_to_raw"):
+    if correcciones.get("sold_to_raw") and not del_listado_propio:
         crudo = sol.get("sold_to_raw")
         clave = clave_normalizada_empresa(crudo) if crudo else ""
         if crudo and clave and clave != clave_normalizada_empresa(correcciones["sold_to_raw"]):
@@ -1402,7 +1484,7 @@ def _recordar_correcciones(cur, fila_original: dict[str, Any], correcciones: dic
                     (crudo, clave, cliente["id"]),
                 )
 
-    if correcciones.get("ship_to_raw"):
+    if correcciones.get("ship_to_raw") and not del_listado_propio:
         crudo = sol.get("ship_to_raw")
         sold_to_oficial = correcciones.get("sold_to_raw") or sol.get("sold_to_raw")
         clave = clave_normalizada_empresa(crudo) if crudo else ""

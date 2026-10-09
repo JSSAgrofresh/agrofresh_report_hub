@@ -156,6 +156,73 @@ export function topClientesPorServicio(
   return limite > 0 ? con.slice(0, limite) : con
 }
 
+// ── por grupo y laboratorio (los 4 laboratorios) ────────────────────────
+
+/** Los cuatro laboratorios que siempre se muestran, aunque no tengan datos. */
+export const LABORATORIOS_GRAFICO = ['QUITECA', 'AGROFRESH', 'ALS', 'DIAGNOFRUIT'] as const
+export const NOMBRE_LAB: Record<string, string> = {
+  QUITECA: 'Quiteca',
+  AGROFRESH: 'AgroFresh',
+  ALS: 'ALS',
+  DIAGNOFRUIT: 'Diagnofruit',
+}
+
+/** La clave del laboratorio (QUITECA, AGROFRESH, ALS o DIAGNOFRUIT), o null si es otro. */
+export function claveLabGrafico(s: SolicitudAuditoria): string | null {
+  const l = plano(s.laboratorio).toUpperCase()
+  return (LABORATORIOS_GRAFICO as readonly string[]).includes(l) ? l : null
+}
+
+export type DimensionGrafico = 'cliente' | 'planta' | 'especie' | 'tipo'
+
+export const SIN_ESPECIE = 'Sin especie'
+export const SIN_SHIP_TO = 'Sin Ship To'
+
+/** El grupo (fila del gráfico) al que pertenece una solicitud. Un Ship To va
+ * con su Sold To, porque dos clientes pueden tener una planta con el mismo nombre. */
+export function grupoDe(s: SolicitudAuditoria, dimension: DimensionGrafico): string {
+  const soldTo = (s.sold_to ?? '').trim() || SIN_CLIENTE
+  switch (dimension) {
+    case 'cliente': return soldTo
+    case 'planta': return `${(s.ship_to ?? '').trim() || SIN_SHIP_TO} · ${soldTo}`
+    case 'especie': return (s.especie ?? '').trim() || SIN_ESPECIE
+    case 'tipo': return tipoServicioDe(s)
+  }
+}
+
+export interface GrupoLaboratorios {
+  grupo: string
+  /** solicitudes del grupo en los 4 laboratorios */
+  total: number
+  /** por laboratorio: análisis pedidos e informes concretados */
+  labs: Record<string, ParAnalisisInformes>
+}
+
+/** Por Sold To, Ship To, especie o tipo de servicio: análisis pedidos e informes
+ * concretados de CADA uno de los cuatro laboratorios. Más solicitudes primero;
+ * `limite` 0 = todos. Las solicitudes de otro laboratorio no entran. */
+export function porGrupoYLaboratorio(
+  solicitudes: SolicitudAuditoria[],
+  dimension: DimensionGrafico,
+  limite: number,
+): GrupoLaboratorios[] {
+  const por = new Map<string, GrupoLaboratorios>()
+  for (const s of solicitudes) {
+    const lab = claveLabGrafico(s)
+    if (!lab) continue
+    const grupo = grupoDe(s, dimension)
+    const g = por.get(grupo) ?? { grupo, total: 0, labs: {} }
+    const par = g.labs[lab] ?? { analisis: 0, informes: 0 }
+    par.analisis++
+    if (s.concretada) par.informes++
+    g.labs[lab] = par
+    g.total++
+    por.set(grupo, g)
+  }
+  const orden = [...por.values()].sort((a, b) => b.total - a.total || a.grupo.localeCompare(b.grupo, 'es'))
+  return limite > 0 ? orden.slice(0, limite) : orden
+}
+
 // ── orden ───────────────────────────────────────────────────────────────
 
 /** `emitida` no es una columna: es el orden de partida (lo más reciente arriba). */

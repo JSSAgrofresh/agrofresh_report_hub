@@ -1,3 +1,4 @@
+import FueraDeRango from './FueraDeRango'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import {
@@ -1263,7 +1264,7 @@ export function ReporteView({
             </div>
 
             <div className={styles.filtros}>
-              {/* Filtros principales primero: Laboratorio, Sold To, Ship To, Tipo de servicio, Especie —
+              {/* Filtros principales primero: Laboratorio, Sold To, Ship To, Especie —
                   son los que definen qué tipo de reporte/límites corresponde mostrar. El resto va después.
                   Cada opción lleva entre paréntesis cuántas solicitudes trae con los demás filtros puestos. */}
               <label className={styles.filtro}>
@@ -1297,15 +1298,9 @@ export function ReporteView({
                   />
                 </>
               )}
-              <label className={styles.filtro}>
-                <span>Tipo de servicio</span>
-                <select value={filtros.tipoServicio} onChange={(e) => actualizarFiltro('tipoServicio', e.target.value)}>
-                  <option value="">Todos</option>
-                  {opciones.tiposServicio.map((o) => (
-                    <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
-                  ))}
-                </select>
-              </label>
+              {/* Sin filtro «Tipo de servicio»: Report muestra solo los servicios que el administrador principal
+                  enciende en Administración General → Funciones (de fábrica, solo Línea de proceso), y ese
+                  campo traía valores viejos («Cromatografía») que mezclaban los informes propios de AgroFresh. */}
               <label className={styles.filtro}>
                 <span>Especie</span>
                 <select value={filtros.crop} onChange={(e) => cambiarCrop(e.target.value)}>
@@ -1548,6 +1543,10 @@ export function ReporteView({
                   <canvas ref={mainRef} />
                 </div>
               </Card>
+
+              {vistaControl && !esDiagnofruit && (
+                <FueraDeRango observaciones={filtradas} analitos={analitosVista} limites={limitesVista} sigma={sigma} />
+              )}
 
               <div className={styles.grid2Iguales}>
                 <Card className={styles.panel}>

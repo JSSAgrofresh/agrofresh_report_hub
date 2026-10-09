@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   borrarFortificado,
   corregirFortificado,
@@ -8,6 +8,7 @@ import {
 import type { Fortificado } from '@/features/emitir'
 import { HttpError } from '@/services/http/client'
 import { EliminarConClave } from '@/components/ui/EliminarConClave'
+import { Escaner } from './Escaner'
 import styles from './TablaSolicitudes.module.css'
 
 
@@ -20,6 +21,25 @@ function formatearFecha(iso: string): string {
 function leerPeso(texto: string): number | null {
   const n = parseFloat(texto.replace(',', '.'))
   return Number.isFinite(n) && n > 0 ? n : null
+}
+
+/** Cómo se muestra la lista: tal cual se ingresó (como la entrega el servidor) o
+ * por N°, de menor a mayor y al revés. El orden por N° no cambia lo guardado. */
+type Orden = 'ingreso' | 'menor' | 'mayor'
+
+const ORDENES: { valor: Orden; etiqueta: string }[] = [
+  { valor: 'ingreso', etiqueta: 'Como se ingresaron' },
+  { valor: 'menor', etiqueta: 'N° de menor a mayor' },
+  { valor: 'mayor', etiqueta: 'N° de mayor a menor' },
+]
+
+/** «AGF-I0002» antes que «AGF-I0010»: compara los números como números. */
+function ordenarPorNumero(lista: Fortificado[], orden: Orden): Fortificado[] {
+  if (orden === 'ingreso') return lista
+  const signo = orden === 'menor' ? 1 : -1
+  return [...lista].sort(
+    (a, b) => signo * a.numero.localeCompare(b.numero, 'es', { numeric: true, sensitivity: 'base' }),
+  )
 }
 
 function mensaje(e: unknown, defecto: string): string {
@@ -57,14 +77,17 @@ function FilaFortificado({
   return (
     <tr className={styles.listaCompleta}>
       <td>
-        <input
+        <div className={styles.numeroConCodigo}>
+          <span className={styles.codigoBarras} aria-hidden="true">▌▏▌▌▏▌</span>
+          <input
           className={styles.inputNumero}
           aria-label={`N° de fortificado ${fortificado.numero}`}
           value={numero}
           disabled={guardando}
           onChange={(e) => setNumero(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && void guardar()}
-        />
+          />
+        </div>
       </td>
       <td>
         <div className={styles.pesoExtraido}>
@@ -124,6 +147,9 @@ export function TablaFortificados({
   const [peso, setPeso] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [errorNuevo, setErrorNuevo] = useState<string | null>(null)
+  const [reinicio, setReinicio] = useState(0)
+  const [orden, setOrden] = useState<Orden>('ingreso')
+  const campoPeso = useRef<HTMLInputElement>(null)
 
   const cargar = useCallback(async () => {
     try {
@@ -151,6 +177,7 @@ export function TablaFortificados({
       await crearFortificado(numero, pesoNum)
       setNumero('')
       setPeso('')
+      setReinicio((r) => r + 1)
       await cargar()
     } catch (e) {
       setErrorNuevo(mensaje(e, 'No se pudo guardar el fortificado.'))
@@ -161,23 +188,30 @@ export function TablaFortificados({
 
   const visibles = useMemo(() => {
     const q = buscar.trim().toLowerCase()
-    return (lista ?? []).filter((f) => !q || f.numero.toLowerCase().includes(q))
-  }, [lista, buscar])
+    const filtrados = (lista ?? []).filter((f) => !q || f.numero.toLowerCase().includes(q))
+    return ordenarPorNumero(filtrados, orden)
+  }, [lista, buscar, orden])
 
   return (
     <>
-      <form
-        className={styles.nuevoFortificado}
-        onSubmit={(e) => { e.preventDefault(); void ingresar() }}
-      >
-        <input
-          className={styles.inputNumero}
-          placeholder="N° de fortificado"
-          aria-label="N° de fortificado nuevo"
-          value={numero}
-          disabled={guardando}
-          onChange={(e) => setNumero(e.target.value)}
-        />
+      <div className={styles.nuevoFortificado}>
+        {/* El N° se puede escanear (lector o cámara) o escribir, como el N° de muestra. */}
+        <div className={styles.escanerNumero}>
+          <Escaner
+            buscar={(t) => (t.trim() ? { codigo: t.trim() } : null)}
+            onEncontrado={(f) => { setNumero(f.codigo); campoPeso.current?.focus() }}
+            onTexto={setNumero}
+            onLimpiar={() => setNumero('')}
+            placeholder="N° de fortificado nuevo"
+            mensajeNoEncontrado={() => ''}
+            resuelto={numero.trim() !== ''}
+            deshabilitado={guardando}
+            reinicio={reinicio}
+            tomarFocoAlReiniciar
+            esperaFinEscaneoMs={80}
+            tituloCamara="Escanear N° de fortificado"
+          />
+        </div>
         <input
           type="number"
           inputMode="decimal"
@@ -186,18 +220,40 @@ export function TablaFortificados({
           placeholder="Peso extraído, ej. 10.0086"
           aria-label="Peso extraído del fortificado nuevo en gramos"
           className={styles.inputPesoAncho}
+          ref={campoPeso}
           value={peso}
           disabled={guardando}
           onChange={(e) => setPeso(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void ingresar() } }}
         />
         <span className={styles.unidad}>g</span>
-        <button type="submit" className={styles.botonVerde} disabled={!puedeIngresar}>
+        <button
+          type="button"
+          className={styles.botonVerde}
+          disabled={!puedeIngresar}
+          onClick={() => void ingresar()}
+        >
           {guardando ? 'Guardando…' : 'Ingresar fortificado'}
         </button>
         {errorNuevo && <span className={styles.errorPeso} role="alert">{errorNuevo}</span>}
-      </form>
+      </div>
 
       {errorCarga && <p className={styles.errorPeso} role="alert">{errorCarga}</p>}
+
+      <div className={styles.ordenFortificados} role="group" aria-label="Orden de la lista">
+        <span className={styles.ordenTitulo}>Ordenar:</span>
+        {ORDENES.map((o) => (
+          <button
+            key={o.valor}
+            type="button"
+            className={orden === o.valor ? styles.ordenActivo : styles.ordenBoton}
+            aria-pressed={orden === o.valor}
+            onClick={() => setOrden(o.valor)}
+          >
+            {o.etiqueta}
+          </button>
+        ))}
+      </div>
 
       <div className={styles.tablaCaja}>
         <table className={styles.tabla}>
