@@ -35,3 +35,32 @@ def test_lee_la_fecha_y_la_hora_de_recepcion():
     assert r["fecha_recepcion"] == date(2026, 10, 6) and r["hora_recepcion"] == "10:08"
     assert r["fecha_analisis"] == date(2026, 10, 7)
     assert leer_quiteca("Fecha de Recepción : 06-10-2026")["hora_recepcion"] is None
+
+
+def test_un_pdf_real_con_los_valores_lejos_de_su_etiqueta_se_lee_con_el_modo_layout():
+    """En los PDF de Quiteca el texto sale desordenado (la etiqueta «Fecha de Recepción :» por un
+    lado y «01-10-2026 15:10» después de otras líneas). `texto_quiteca` respeta las filas del papel."""
+    import io
+    from datetime import date
+
+    from reportlab.pdfgen import canvas
+
+    from app.informe_lectura import texto_de_pdf, texto_quiteca
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf)
+    c.setFont("Helvetica", 10)
+    # Primero los valores y al final las etiquetas, como los deja el generador de Quiteca.
+    c.drawString(430, 700, "01-10-2026")
+    c.drawString(520, 700, "15:10")
+    c.drawString(430, 650, "01-10-2026")
+    c.drawString(40, 700, "Identificación de la Muestra  N°85920")
+    c.drawString(330, 700, "Fecha de Recepción :")
+    c.drawString(40, 650, "Resultados de la Muestra  N°85920")
+    c.drawString(330, 650, "Fecha de Análisis")
+    c.save()
+    d = leer_quiteca(texto_quiteca(buf.getvalue()))
+    assert d["codigo_muestra"] == "85920"
+    assert d["fecha_recepcion"] == date(2026, 10, 1) and d["hora_recepcion"] == "15:10"
+    assert d["fecha_analisis"] == date(2026, 10, 1)
+    assert "texto_de_pdf" and texto_de_pdf  # el lector del Envío de informes no cambia

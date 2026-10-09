@@ -32,7 +32,7 @@ from app import r2  # noqa: E402
 from app import r2_auditoria as r2a  # noqa: E402
 from app.db import conexion, cursor_dict  # noqa: E402
 from app.ficha_informe import _buscar_pdf  # noqa: E402
-from app.informe_lectura import texto_de_pdf  # noqa: E402
+from app.informe_lectura import texto_quiteca  # noqa: E402
 from app.ingest import columna_solicitud_existe  # noqa: E402
 from app.quiteca_pdf import leer_quiteca  # noqa: E402
 
@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             try:
                 datos = r2a.descargar(pdf["clave"]) if pdf["origen"] == "auditoria" else r2.descargar(pdf["clave"])
-                leido = leer_quiteca(texto_de_pdf(datos)) if datos else {}
+                leido = leer_quiteca(texto_quiteca(datos)) if datos else {}
             except Exception as exc:  # un PDF dañado no frena a los demás
                 print(f"  {nro}: no se pudo leer el PDF ({exc})")
                 continue
