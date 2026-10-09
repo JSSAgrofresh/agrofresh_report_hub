@@ -38,7 +38,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from . import actividad, config_store, correo, informe_lectura, mail_aviso, mail_templates, seguridad
+from . import actividad, config_store, correo, informe_lectura, lab_secciones, mail_aviso, mail_templates, seguridad
 from .auth import Usuario, solo_admin_general, usuario_actual
 from .db import conexion, cursor_dict
 from .listados import clave_normalizada
@@ -89,6 +89,8 @@ def puede_usar(usuario: Usuario) -> bool:
         return True
     if usuario.tipoAcceso in ("cliente", "gerencia", "muestreador"):
         return False
+    if not lab_secciones.permite(usuario, lab_secciones.LAB_ENVIO):
+        return False  # el admin le ocultó «Envío de informes» dentro de AgroFresh Lab
     if usuario.modulos is not None:
         return MODULO_LAB in usuario.modulos
     if usuario.tipoAcceso == "analista":

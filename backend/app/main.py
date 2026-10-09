@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from . import config
+from . import config, lab_secciones
 from .auth import router as auth_router, solo_interno, usuario_actual
 from .auditoria import reparar_tablas_omitidas_post_promocion, router as auditoria_router
 from .auditoria_interna import router as auditoria_interna_router
@@ -139,13 +139,16 @@ for _router in (
     envio_informes_router,
     usuarios_router,
     homogenizar_router,
-    verificaciones_router,
     datacore_router,
     dashboard_router,
     homogenizador_ingesta_router,
     notificaciones_router,
 ):
     app.include_router(_router, dependencies=SOLO_AGROFRESH)
+
+# Verificaciones diarias es una sección de AgroFresh Lab que el administrador puede ocultar a
+# una cuenta (`lab_secciones`): además de ser de AgroFresh, la cuenta tiene que tener la sección.
+app.include_router(verificaciones_router, dependencies=[*SOLO_AGROFRESH, lab_secciones.exigir(lab_secciones.LAB_VERIFICACIONES)])
 
 
 @app.get("/api/salud")

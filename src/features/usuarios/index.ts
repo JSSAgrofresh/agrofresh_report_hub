@@ -13,9 +13,13 @@ export {
   modulosPredeterminados,
   reportesPredeterminados,
   MODULO_TOMA_MUESTRAS,
+  LAB_SECCIONES,
+  esSeccionLab,
+  puedeVerSeccionLab,
+  seccionesLabPermitidas,
 } from './permisos'
 export { ClaveTemporalAviso } from './components/ClaveTemporalAviso'
 export { UsuarioForm } from './components/UsuarioForm'
 export { UsuariosTable } from './components/UsuariosTable'
 export type { TipoAcceso, Usuario } from './types'
-export type { ReporteId } from './permisos'
+export type { ReporteId, LabSeccionId } from './permisos'

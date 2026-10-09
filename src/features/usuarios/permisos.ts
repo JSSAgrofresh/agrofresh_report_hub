@@ -75,6 +75,31 @@ export function modulosPermitidos(usuario: Usuario): ModuloInfo[] {
   return MODULOS.filter((m) => idsPermitidos.includes(m.id))
 }
 
+/** Las tres puertas de AgroFresh Lab. El administrador general puede dejar a una cuenta con solo algunas
+ * (Usuarios → «Secciones de AgroFresh Lab»). **Sin migración**: las elegidas viajan en la misma lista
+ * `modulos` con estos ids; si no hay ninguno en la lista, la cuenta ve las tres, como siempre.
+ * Espejo de `app/lab_secciones.py` (mismos casos en `permisos.test.ts` y `tests/test_lab_secciones.py`). */
+export const LAB_SECCIONES = [
+  { id: 'lab_ingreso', nombre: 'Ingreso al laboratorio', descripcion: 'Recibir la muestra, cruzarla con su solicitud y subir el resultado del GC.' },
+  { id: 'lab_verificaciones', nombre: 'Verificaciones diarias', descripcion: 'Control diario de equipos (REG-03) y su histórico.' },
+  { id: 'lab_envio', nombre: 'Envío de informes', descripcion: 'Enviar los PDF del laboratorio a la lista de distribución del cliente.' },
+] as const
+
+export type LabSeccionId = (typeof LAB_SECCIONES)[number]['id']
+
+export const esSeccionLab = (id: string): boolean => LAB_SECCIONES.some((s) => s.id === id)
+
+export function seccionesLabPermitidas(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): LabSeccionId[] {
+  const todas = LAB_SECCIONES.map((s) => s.id)
+  if (usuario.tipoAcceso === 'admin_general' || usuario.tipoAcceso === 'gerencia') return todas
+  const elegidas = todas.filter((id) => (usuario.modulos ?? []).includes(id))
+  return elegidas.length > 0 ? elegidas : todas
+}
+
+export function puedeVerSeccionLab(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>, seccion: LabSeccionId): boolean {
+  return seccionesLabPermitidas(usuario).includes(seccion)
+}
+
 export function puedeVerModulo(usuario: Usuario, moduloId: string): boolean {
   return modulosPermitidos(usuario).some((m) => m.id === moduloId)
 }
