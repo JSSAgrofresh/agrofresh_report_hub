@@ -24,7 +24,7 @@ from typing import Any
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
-from .columnas_base import CAMPOS_FUNGICIDAS, GENERALES_BASE, a_fecha
+from .columnas_base import CAMPOS_FUNGICIDAS, GENERALES_BASE, a_fecha, partir_recepcion
 from .solicitud_excel import (
     _BORDE_COMPLETO,
     VERDE_CLARO,
@@ -181,6 +181,14 @@ def completar_fila(fila: dict[str, Any], datos: dict | None, correos_laboratorio
             "analitos_solicitados": list(datos.get("analitos_solicitados") or []),
             "campos_laboratorio": dict(datos.get("campos_laboratorio") or {}),
         }
+        # La recepción es el momento del cruce con la muestra (Ingreso al laboratorio):
+        # así llega la de AgroFresh. Quiteca y los demás la traen en su informe y ya vienen
+        # en la base; el cruce solo rellena lo que ella dejó vacío.
+        dia, hora = partir_recepcion(datos.get("recepcion_en"))
+        if _vacio(fila.get("fecha_recepcion")) and dia:
+            fila["fecha_recepcion"] = dia
+        if _vacio(fila.get("hora_recepcion")) and hora:
+            fila["hora_recepcion"] = hora
         # Gasto y datos del ensayo: la base solo trae el ensayo; el resto está en la solicitud.
         campos = datos.get("campos_laboratorio") or {}
         for clave, etiqueta in CAMPOS_FUNGICIDAS:

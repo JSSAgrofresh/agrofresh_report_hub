@@ -53,10 +53,12 @@ def _fecha_larga(t: str) -> date | None:
 
 
 def leer_quiteca(texto: str) -> dict[str, object]:
-    """{codigo_muestra, hora_muestreo, fecha_analisis, fecha_informe}; None en lo que no está."""
+    """{codigo_muestra, hora_muestreo, fecha_recepcion, hora_recepcion, fecha_analisis, fecha_informe};
+    None en lo que no está."""
     texto = texto or ""
     salida: dict[str, object] = {
-        "codigo_muestra": None, "hora_muestreo": None, "fecha_analisis": None, "fecha_informe": None,
+        "codigo_muestra": None, "hora_muestreo": None, "fecha_recepcion": None, "hora_recepcion": None,
+        "fecha_analisis": None, "fecha_informe": None,
     }
     # «Identificación de la Muestra N° 85849» (o «Muestra N°85849»).
     m = re.search(r"Muestra\s*N\s*[°º.]*\s*(\d+)", texto, re.I)
@@ -69,6 +71,15 @@ def leer_quiteca(texto: str) -> dict[str, object]:
         m = re.search(r"\bHora\s*:?\s*(\d{1,2}):(\d{2})", texto, re.I)
     if m and int(m[1]) < 24 and int(m[2]) < 60:
         salida["hora_muestreo"] = f"{int(m[1]):02d}:{m[2]}"
+
+    # «Fecha de Recepción : 06-10-2026   10:08»
+    m = re.search(
+        r"Fecha\s+de\s+Recepci[óo]n\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?", texto, re.I,
+    )
+    if m:
+        salida["fecha_recepcion"] = _fecha_numerica(m[1])
+        if m[2] and int(m[2]) < 24 and int(m[3]) < 60:
+            salida["hora_recepcion"] = f"{int(m[2]):02d}:{m[3]}"
 
     m = re.search(r"Fecha\s+de\s+An[áa]lisis\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})", texto, re.I)
     if m:
