@@ -517,3 +517,12 @@ def test_la_recepcion_de_agrofresh_sale_del_cruce_y_la_de_quiteca_de_su_informe(
     quiteca = {"laboratorio": "Quiteca", "fecha_recepcion": "06-10-2026", "hora_recepcion": "10:08"}
     bd_excel.completar_fila(quiteca, {"recepcion_en": "2026-10-08T15:34:00+00:00"})
     assert quiteca["hora_recepcion"] == "10:08"
+
+
+def test_la_consulta_de_la_bd_trae_el_n_de_muestra_y_ninguna_columna_queda_en_un_comentario():
+    from app import reportes
+
+    sql = reportes._CONSULTA_BD.format(filtro_alcance="", filtro_ids="", codigo_muestra="s.codigo_muestra")
+    assert "s.codigo_muestra" in sql
+    # Un «--» a mitad de línea se come lo que sigue (así se perdió el N° de muestra de Quiteca).
+    assert all("--" not in linea for linea in sql.splitlines())
