@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { RequireAdminGeneral, RequireAuth, RequireModulo, RequireReanalisis, RequireReporte, RequireTomaMuestras } from '@/features/auth'
+import { RequireAdminGeneral, RequireAuth, RequireModulo, RequireReanalisis, RequireReporte, RequireSeccionLab, RequireTomaMuestras } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
 import { LoginView } from '@/views/login/LoginView'
 import { DashboardView } from '@/views/dashboard/DashboardView'
@@ -76,14 +76,26 @@ export const router = createBrowserRouter([
               // El hub es la puerta; los dos módulos de adentro comparten el
               // mismo permiso, igual que las tarjetas del hub de Report.
               { path: ROUTES.agrofreshLab, element: <AgrofreshLabHubView /> },
-              { path: ROUTES.agrofreshLabIngreso, element: <AgrofreshLabView /> },
-              { path: ROUTES.agrofreshLabVerificaciones, element: <VerificacionesView /> },
+              // Cada sección se puede ocultar a una cuenta (Usuarios → Secciones de AgroFresh Lab).
               {
-                path: ROUTES.agrofreshLabVerificacionesHistorico,
-                element: <VerificacionesHistoricoView />,
+                element: <RequireSeccionLab seccion="lab_ingreso" />,
+                children: [{ path: ROUTES.agrofreshLabIngreso, element: <AgrofreshLabView /> }],
               },
-              { path: ROUTES.agrofreshLabVerificacionesCriterios, element: <CriteriosView /> },
-              { path: ROUTES.agrofreshLabEnvioInformes, element: <EnvioInformesView /> },
+              {
+                element: <RequireSeccionLab seccion="lab_verificaciones" />,
+                children: [
+                  { path: ROUTES.agrofreshLabVerificaciones, element: <VerificacionesView /> },
+                  {
+                    path: ROUTES.agrofreshLabVerificacionesHistorico,
+                    element: <VerificacionesHistoricoView />,
+                  },
+                  { path: ROUTES.agrofreshLabVerificacionesCriterios, element: <CriteriosView /> },
+                ],
+              },
+              {
+                element: <RequireSeccionLab seccion="lab_envio" />,
+                children: [{ path: ROUTES.agrofreshLabEnvioInformes, element: <EnvioInformesView /> }],
+              },
             ],
           },
           {

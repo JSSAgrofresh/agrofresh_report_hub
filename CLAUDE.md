@@ -209,6 +209,15 @@ Este proyecto no se da por listo con "debería funcionar":
 Los tres comparten el permiso `agrofresh_lab`; editar los criterios
 (`/verificaciones/criterios`) sí exige admin general.
 
+**Secciones por cuenta** (pedido del usuario, 09-10-2026: a algunos admin de toma de muestras les salía «Verificaciones»): en
+Administración → Usuarios, al activar AgroFresh Lab sale «Secciones de AgroFresh Lab» con una casilla por puerta (Ingreso,
+Verificaciones, Envío). **Sin migración**: las elegidas viajan en la misma lista `modulos` con ids `lab_ingreso`,
+`lab_verificaciones`, `lab_envio`; **ninguno en la lista = las tres** (como siempre), alguno = solo esos; admin general y gerencia
+ven todo. Front: `LAB_SECCIONES`/`seccionesLabPermitidas`/`puedeVerSeccionLab` (`features/usuarios/permisos.ts`), `RequireSeccionLab`
+en el router y las tarjetas del hub. Backend (espejo, `app/lab_secciones.py`): `verificaciones_router` lleva `lab_secciones.exigir(...)` (403)
+y `envio_informes.puede_usar` la respeta; **Ingreso al laboratorio solo se oculta en pantalla** (sus endpoints los comparte Toma de
+muestras). Pruebas: `tests/test_lab_secciones.py`, `permisos.test.ts`, `UsuarioForm.test.tsx`, `AgrofreshLabHubView.test.tsx`.
+
 **Envío de informes** (`app/envio_informes.py`, prefijo `/api/envio-informes`;
 front en `views/modules/lab/envioInformes/` y `features/envioInformes/`):
 

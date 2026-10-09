@@ -8,7 +8,14 @@ import { MODULOS } from '@/constants/modules'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import { CORREO_MAESTRO } from '../api/usuariosStore'
-import { MODULO_TOMA_MUESTRAS, modulosPredeterminados, reportesPredeterminados } from '../permisos'
+import {
+  LAB_SECCIONES,
+  MODULO_TOMA_MUESTRAS,
+  esSeccionLab,
+  modulosPredeterminados,
+  reportesPredeterminados,
+  seccionesLabPermitidas,
+} from '../permisos'
 import type { ReporteId } from '../permisos'
 import type { TipoAcceso, Usuario } from '../types'
 import styles from './UsuarioForm.module.css'
@@ -45,8 +52,13 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [area, setArea] = useState<AreaId | ''>(usuario?.area ?? '')
   const [clienteNombre, setClienteNombre] = useState(usuario?.clienteNombre ?? '')
   const [plantaNombre, setPlantaNombre] = useState(usuario?.plantaNombre ?? '')
+  // Las secciones de AgroFresh Lab viajan en la misma lista que los módulos (sin migración), pero acá
+  // se editan aparte: `modulos` solo lleva módulos y `labSecciones` las puertas de AgroFresh Lab.
   const [modulos, setModulos] = useState<string[]>(
-    usuario?.modulos ?? modulosPredeterminados(usuario ?? { tipoAcceso: 'admin_area' }),
+    (usuario?.modulos ?? modulosPredeterminados(usuario ?? { tipoAcceso: 'admin_area' })).filter((id) => !esSeccionLab(id)),
+  )
+  const [labSecciones, setLabSecciones] = useState<string[]>(
+    usuario ? seccionesLabPermitidas({ tipoAcceso: usuario.tipoAcceso, modulos: usuario.modulos }) : LAB_SECCIONES.map((s) => s.id),
   )
   const [reportes, setReportes] = useState<ReporteId[]>(
     usuario?.reportes ?? reportesPredeterminados(usuario ?? { tipoAcceso: 'admin_area' }),
@@ -88,6 +100,15 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       return
     }
 
+    if (configuraPermisos && modulos.includes('agrofresh_lab') && labSecciones.length === 0) {
+      setError('Elige al menos una sección de AgroFresh Lab o desactiva el módulo.')
+      return
+    }
+    // Todas marcadas = como siempre (no se guarda nada); si falta alguna, se guardan las elegidas.
+    const todasLab = labSecciones.length === LAB_SECCIONES.length
+    const modulosFinal =
+      modulos.includes('agrofresh_lab') && !todasLab ? [...modulos, ...labSecciones] : modulos
+
     onGuardar({
       nombre: nombre.trim(),
       email: email.trim(),
@@ -95,7 +116,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       area: requiereArea ? (area as AreaId) : undefined,
       clienteNombre: requiereCliente ? clienteNombre.trim() : undefined,
       plantaNombre: requiereCliente && plantaNombre.trim() ? plantaNombre.trim() : undefined,
-      modulos: configuraPermisos ? modulos : undefined,
+      modulos: configuraPermisos ? modulosFinal : undefined,
       reportes: configuraPermisos && modulos.includes('reports') ? reportes : undefined,
     })
   }
@@ -104,6 +125,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
     setTipoAcceso(nuevoTipo)
     const base = { tipoAcceso: nuevoTipo, area: area || undefined }
     setModulos(modulosPredeterminados(base))
+    setLabSecciones(LAB_SECCIONES.map((s) => s.id))
     setReportes(reportesPredeterminados(base))
   }
 
@@ -111,7 +133,12 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
     setArea(nuevaArea)
     const base = { tipoAcceso, area: nuevaArea || undefined }
     setModulos(modulosPredeterminados(base))
+    setLabSecciones(LAB_SECCIONES.map((s) => s.id))
     setReportes(reportesPredeterminados(base))
+  }
+
+  function alternarSeccionLab(id: string) {
+    setLabSecciones((actuales) => (actuales.includes(id) ? actuales.filter((a) => a !== id) : [...actuales, id]))
   }
 
   function alternarModulo(id: string) {
@@ -247,6 +274,30 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
               </label>
             ))}
           </div>
+
+          {modulos.includes('agrofresh_lab') && (
+            <div className={styles.subpermisos}>
+              <h3>Secciones de AgroFresh Lab</h3>
+              <p className={styles.notaChica}>
+                Marca solo lo que esta cuenta debe ver. Con las tres marcadas ve todo AgroFresh Lab, como siempre.
+              </p>
+              <div className={styles.permisosGrid}>
+                {LAB_SECCIONES.map((seccion) => (
+                  <label className={styles.permisoOpcion} key={seccion.id}>
+                    <input
+                      type="checkbox"
+                      checked={labSecciones.includes(seccion.id)}
+                      onChange={() => alternarSeccionLab(seccion.id)}
+                    />
+                    <span>
+                      <strong>{seccion.nombre}</strong>
+                      <small>{seccion.descripcion}</small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {modulos.includes('reports') && (
             <div className={styles.subpermisos}>
