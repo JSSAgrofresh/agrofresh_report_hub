@@ -110,7 +110,7 @@ def test_un_analito_sin_columna_en_el_formato_no_se_pierde():
 
 
 def test_sin_resultados_solo_quedan_las_columnas_generales():
-    wb = bd_excel.construir_workbook_bd([_fila()], ANALITOS_DEFECTO)
+    wb = bd_excel.construir_workbook_bd([_fila(laboratorio="ALS")], ANALITOS_DEFECTO)
     columnas, bandas = _encabezados(wb)
     assert bandas == ["GENERAL"]
     assert columnas[:2] == ["N° Informe", "N° Solicitud"]
@@ -242,25 +242,31 @@ def _banda_fungicidas(filas):
     return next(b for b in bandas if "FUNGICIDAS" in b)
 
 
-def test_la_banda_de_fungicidas_nombra_solo_el_laboratorio_que_hay():
+BANDA_FIJA = "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+
+
+def test_el_grupo_de_fungicidas_sale_siempre_completo_y_con_la_misma_banda():
+    """Formato fijo: se pega sobre la planilla de referencia, así que las columnas no
+    dependen de qué laboratorio o qué analitos traiga la descarga."""
     quiteca = _fila(laboratorio="QUITECA", resultados={"FDL": {"valor": 1, "nombre": "F"}})
     agro = _fila(laboratorio="Agrofresh", resultados={"IMZ": {"valor": 2, "nombre": "I"}})
-    assert _banda_fungicidas([quiteca]) == "QUITECA — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
-    assert _banda_fungicidas([agro]) == "AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
-    assert _banda_fungicidas([quiteca, agro]) == "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+    vacia = _fila(laboratorio="AGROFRESH")
+    esperado = None
+    for filas in ([quiteca], [agro], [quiteca, agro], [vacia]):
+        wb = bd_excel.construir_workbook_bd(filas, ANALITOS_DEFECTO)
+        columnas, bandas = _encabezados(wb)
+        assert BANDA_FIJA in bandas
+        esperado = esperado or columnas
+        assert columnas == esperado
+    for cod in ("FDL", "IMZ", "PYR", "TEBU", "AZOX", "TBZ", "DPA"):
+        assert {f"{cod} Solicitado", f"{cod} Dosis", cod} <= set(esperado)
+    assert "Fecha Recepción" in esperado and "Hora Recepción" in esperado
 
 
-def test_un_laboratorio_sin_resultados_de_fungicidas_no_entra_en_la_banda():
-    quiteca = _fila(laboratorio="QUITECA", resultados={"FDL": {"valor": 1, "nombre": "F"}})
-    agua_agro = _fila(laboratorio="AGROFRESH", resultados={"ECOLI": {"valor": 3, "nombre": "E"}})
-    assert _banda_fungicidas([quiteca, agua_agro]) == "QUITECA — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
-
-
-def test_laboratorio_combinado_o_desconocido_usa_el_rotulo_de_los_dos():
-    combinada = _fila(laboratorio="Quiteca / AgroFresh", resultados={"FDL": {"valor": 1, "nombre": "F"}})
-    otra = _fila(laboratorio="???", resultados={"FDL": {"valor": 1, "nombre": "F"}})
-    assert _banda_fungicidas([combinada]) == "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
-    assert _banda_fungicidas([otra]) == "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+def test_un_laboratorio_sin_fungicidas_no_arrastra_el_grupo():
+    agua = _fila(laboratorio="ALS", resultados={"ECOLI": {"valor": 3, "nombre": "E"}})
+    _, bandas = _encabezados(bd_excel.construir_workbook_bd([agua], ANALITOS_DEFECTO))
+    assert not any("FUNGICIDAS" in b for b in bandas)
 
 
 # ── Lo que la base no trae se completa desde la solicitud ────────────────
@@ -397,8 +403,9 @@ def test_la_bd_trae_el_cruce_el_gasto_y_la_lista_de_distribucion(datos_bd, clien
         ]
         als = dict(zip(columnas, next(f for f in filas if f[columnas.index("N° Informe")] == "__INF_A__")))
         assert als["N° Muestra"] == "AGF0007"
-        # Recepción y pesos son del laboratorio propio: la BD de Report no los lleva.
-        assert not {"Fecha Recepción", "Hora Recepción", "Peso", "Peso Muestra Extraída (g)"} & set(columnas)
+        # La recepción va siempre (formato fijo); los pesos son del laboratorio propio y no van.
+        assert {"Fecha Recepción", "Hora Recepción"} <= set(columnas)
+        assert not {"Peso", "Peso Muestra Extraída (g)"} & set(columnas)
         assert als["Lista de Distribución (Para)"] == "cliente@x.cl"
         assert als["Lista de Distribución (CCO)"] == "tec@agrofresh.com"
         quiteca = dict(zip(columnas, next(f for f in filas if f[columnas.index("N° Informe")] == "__INF_Q__")))
