@@ -35,9 +35,10 @@ from .solicitud_excel import (
 
 # Columnas generales de la BD: las de la base «con muestra» de AgroFresh Lab, con el
 # mismo nombre y orden, para poder cruzarlas (ver `columnas_base.py`, que es la única
-# definición), SIN las que solo existen en el laboratorio propio: los dos pesos y la
-# recepción de la muestra. Los laboratorios externos no entregan esos datos.
-SOLO_LABORATORIO_PROPIO = {"peso", "peso_extraido", "fecha_recepcion", "hora_recepcion"}
+# definición), SIN los dos pesos, que solo existen en el laboratorio propio. La
+# recepción SÍ va siempre: la BD tiene un formato fijo (el de la planilla de
+# referencia) y se pega tal cual sobre ella; lo que el laboratorio no trae queda vacío.
+SOLO_LABORATORIO_PROPIO = {"peso", "peso_extraido"}
 GENERALES_BD = [g for g in GENERALES_BASE if g[0] not in SOLO_LABORATORIO_PROPIO]
 
 # La ingesta guarda algunos analitos con un código y el catálogo de Toma de
@@ -66,6 +67,9 @@ def titulo_fungicidas(laboratorios: set[str]) -> str:
     presentes = [nombre for nombre in ("QUITECA", "AGROFRESH") if nombre in laboratorios]
     rotulo = " / ".join(presentes) if presentes else _PREFIJO_FUNGICIDAS
     return f"{rotulo} — {TITULO_FUNGICIDAS_BASE}"
+
+
+_TITULO_FUNGICIDAS_FIJO = f"{_PREFIJO_FUNGICIDAS} — {TITULO_FUNGICIDAS_BASE}"
 
 
 def _laboratorios_de(valor: Any) -> set[str]:
@@ -275,6 +279,12 @@ def columnas_de_bd(
                 con_dosis.add(cod)
 
     etiquetas_fila = {etiqueta: clave for clave, etiqueta in CAMPOS_FUNGICIDAS}
+    # Formato fijo: si la descarga trae algo de Quiteca/AgroFresh, el grupo de fungicidas
+    # sale COMPLETO (todos los analitos, tengan o no dato) para que las columnas calcen
+    # siempre con la planilla de referencia. Con un filtro de ingredientes, solo esos.
+    fungicida_fijo = permitidos is None and any(
+        _laboratorios_de(f.get("laboratorio")) or f.get("solicitados") for f in filas
+    )
     grupos: list[tuple[str, list[Columna]]] = [
         ("GENERAL", [("general", clave, etiqueta) for clave, etiqueta in GENERALES_BD])
     ]
@@ -289,13 +299,13 @@ def columnas_de_bd(
                 conocidos.add(clave)
                 if es_fungicidas:
                     # Un analito pedido sigue teniendo su columna de resultado, aunque aún no llegue.
-                    if clave in con_resultado or clave in con_solicitado or clave in con_dosis:
+                    if fungicida_fijo or clave in con_resultado or clave in con_solicitado or clave in con_dosis:
                         resultados.append((tipo, clave, etiqueta))
                 elif clave in con_resultado:
                     elegidas.append((tipo, clave, etiqueta))
             elif tipo == "analito_dosis":
                 if es_fungicidas:
-                    if clave in con_dosis or clave in con_solicitado or clave in con_resultado:
+                    if fungicida_fijo or clave in con_dosis or clave in con_solicitado or clave in con_resultado:
                         pares.append(("analito_solicitado", clave, f"{clave} Solicitado"))
                         pares.append((tipo, clave, etiqueta))
                 elif clave in con_dosis:
@@ -320,7 +330,7 @@ def columnas_de_bd(
                 )
                 if tiene:
                     labs |= _laboratorios_de(fila.get("laboratorio"))
-            titulo = titulo_fungicidas(labs)
+            titulo = _TITULO_FUNGICIDAS_FIJO if fungicida_fijo else titulo_fungicidas(labs)
         if elegidas:
             grupos.append((titulo, elegidas))
 
