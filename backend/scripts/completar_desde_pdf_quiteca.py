@@ -10,7 +10,7 @@ subirlos por Converter: este script los lee y completa SOLO lo que está vacío
 Primero mira y muestra qué haría; escribe solo con --aplicar. Antes de aplicar
 deja un respaldo de lo que había en logs/.
 
-Requiere la migración 0053 (columna codigo_muestra) y pypdf instalado.
+Requiere las migraciones 0053 (codigo_muestra) y 0056 (hora_recepcion) y pypdf instalado.
 
 Uso:
     .venv\\Scripts\\python.exe scripts\\completar_desde_pdf_quiteca.py
@@ -36,7 +36,7 @@ from app.informe_lectura import texto_de_pdf  # noqa: E402
 from app.ingest import columna_solicitud_existe  # noqa: E402
 from app.quiteca_pdf import leer_quiteca  # noqa: E402
 
-_CAMPOS = ("codigo_muestra", "hora_muestreo", "fecha_analisis", "fecha_informe")
+_CAMPOS = ("codigo_muestra", "hora_muestreo", "fecha_recepcion", "hora_recepcion", "fecha_analisis", "fecha_informe")
 
 
 def _vacio(v) -> bool:
@@ -52,6 +52,9 @@ def main(argv: list[str] | None = None) -> int:
         if not columna_solicitud_existe(cur, "codigo_muestra"):
             print("\nFalta la migración 0053 (columna codigo_muestra). Córrela y vuelve a intentar.\n")
             return 1
+        if not columna_solicitud_existe(cur, "hora_recepcion"):
+            print("\nFalta la migración 0056 (columna hora_recepcion). Córrela y vuelve a intentar.\n")
+            return 1
         cur.execute(
             """
             SELECT s.*, COALESCE(c.nombre, s.sold_to_raw) AS cliente, COALESCE(p.nombre, s.ship_to_raw) AS planta
@@ -60,7 +63,8 @@ def main(argv: list[str] | None = None) -> int:
               LEFT JOIN cliente c ON c.id = p.cliente_id
              WHERE s.vigente AND lower(btrim(s.laboratorio)) = 'quiteca'
                AND (s.codigo_muestra IS NULL OR s.hora_muestreo IS NULL OR btrim(s.hora_muestreo) = ''
-                    OR s.fecha_analisis IS NULL OR s.fecha_informe IS NULL)
+                    OR s.fecha_analisis IS NULL OR s.fecha_informe IS NULL
+                    OR s.fecha_recepcion IS NULL OR s.hora_recepcion IS NULL OR btrim(s.hora_recepcion) = '')
              ORDER BY s.id
             """
         )

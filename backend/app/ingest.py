@@ -629,13 +629,15 @@ def _procesar_filas(
     # por fila del Excel (4000+ filas = 4000+ round-trips a Neon, muy lento).
     cur.execute(
         "SELECT nro_solicitud, id, sold_to_raw, ship_to_raw, planta_id, fecha_muestreo, fecha_entrada,"
-        " fecha_informe, fecha_analisis, referencia, hora_muestreo FROM solicitud"
+        " fecha_informe, fecha_analisis, referencia, hora_muestreo, fecha_recepcion FROM solicitud"
     )
     solicitudes_existentes: dict[str, dict] = {r["nro_solicitud"]: r for r in cur.fetchall()}
     # N° de muestra del laboratorio (migración 0053): sin ella se carga igual, sin ese dato.
     con_codigo_muestra = columna_solicitud_existe(cur, "codigo_muestra")
     # Tipo de servicio de la solicitud (migración 0055): sin ella se carga igual, sin ese dato.
     con_servicio = columna_solicitud_existe(cur, "servicio")
+    # Hora de recepción (migración 0056): sin ella se carga igual, sin ese dato.
+    con_hora_recepcion = columna_solicitud_existe(cur, "hora_recepcion")
 
     detalle: list[dict[str, Any]] = []
     advertencias: list[str] = []
@@ -878,6 +880,8 @@ def _procesar_filas(
                 datos = {**sol, "planta_id": planta_id, "origen": origen}
                 if not con_codigo_muestra:
                     datos.pop("codigo_muestra", None)
+                if not con_hora_recepcion:
+                    datos.pop("hora_recepcion", None)
                 if con_servicio:
                     # NULL = Línea de proceso; lo demás: 'actimist', 'ecofog' o 'ryd'.
                     datos["servicio"] = clave_lista(tipo_aplicacion_fila) or None
@@ -914,6 +918,7 @@ def _procesar_filas(
                     or (existente.get("fecha_analisis") is None and sol.get("fecha_analisis"))
                     or (existente.get("referencia") is None and sol.get("referencia"))
                     or (not existente.get("hora_muestreo") and sol.get("hora_muestreo"))
+                    or (existente.get("fecha_recepcion") is None and sol.get("fecha_recepcion"))
                 ):
                     # Solicitud que ya existe pero le faltaba Sold To/Ship To/planta_id
                     # o fechas (típico en re-ingesta del formato BD que la primera vez
@@ -930,6 +935,7 @@ def _procesar_filas(
                         "fecha_analisis = COALESCE(fecha_analisis, %s), "
                         "referencia = COALESCE(referencia, %s), "
                         "hora_muestreo = COALESCE(NULLIF(btrim(hora_muestreo), ''), %s), "
+                        "fecha_recepcion = COALESCE(fecha_recepcion, %s), "
                         "semana_muestreo = COALESCE(semana_muestreo, %s), "
                         "mes = COALESCE(mes, %s) "
                         "WHERE id = %s",
@@ -943,10 +949,16 @@ def _procesar_filas(
                             sol.get("fecha_analisis"),
                             sol.get("referencia"),
                             sol.get("hora_muestreo"),
+                            sol.get("fecha_recepcion"),
                             sol.get("semana_muestreo"),
                             sol.get("mes"),
                             solicitud_id,
                         ),
+                    )
+                if escribir and con_hora_recepcion and sol.get("hora_recepcion"):
+                    cur.execute(
+                        "UPDATE solicitud SET hora_recepcion = %s WHERE id = %s AND (hora_recepcion IS NULL OR btrim(hora_recepcion) = '')",
+                        (sol["hora_recepcion"], solicitud_id),
                     )
                 if escribir and con_codigo_muestra and sol.get("codigo_muestra"):
                     cur.execute(

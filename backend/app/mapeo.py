@@ -286,6 +286,8 @@ def mapear_solicitud(fila: dict[str, Any]) -> dict[str, Any]:
         "fecha_analisis": fecha_analisis,
         "fecha_informe": fecha_informe,
         "hora_muestreo": texto(fila, "Hora Muestreo"),
+        "fecha_recepcion": elegir(parse_fecha(fila.get("Fecha Recepción")), parse_fecha(fila.get("Fecha Recepcion"))),
+        "hora_recepcion": elegir(texto(fila, "Hora Recepción"), texto(fila, "Hora Recepcion")),
         # La base real exporta "SOLD TO" / "SHIP TO"; "Cliente" / "Sucursal" y
         # "Sold To" / "Ship To" (plantilla nueva) se dejan como alias.
         "sold_to_raw": sin_relleno(elegir(texto(fila, "SOLD TO"), texto(fila, "Cliente"), texto(fila, "Sold To"))),

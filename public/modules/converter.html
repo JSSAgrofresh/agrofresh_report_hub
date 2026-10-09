@@ -589,6 +589,10 @@ function leerQuiteca(texto, inf){
   d["Fecha Muestreo"]  = aFecha(campo(texto, "Fecha de Muestreo", "Hora"), inf.avisos);
   d["Fecha entrada"]   = aFecha(campo(texto, "Fecha de Recepción"), inf.avisos);
   d["Hora Muestreo"]   = aHora(campo(texto, "Hora"));
+  /* Recepción en el laboratorio: «Fecha de Recepción : 06-10-2026   10:08». */
+  d["Fecha Recepción"] = d["Fecha entrada"];
+  const hr = texto.match(/Fecha de Recepci[óo]n\s*:?\s*\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+(\d{1,2}):(\d{2})/i);
+  d["Hora Recepción"]  = hr && +hr[1] < 24 && +hr[2] < 60 ? String(hr[1]).padStart(2, "0") + ":" + hr[2] : null;
   /* Fecha de Análisis: arriba a la derecha de la tabla de resultados. Fecha
      Informe: al pie, escrita con letras ("25 de septiembre de 2026"). */
   const fa = texto.match(/Fecha de An[áa]lisis\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
@@ -1724,6 +1728,8 @@ function filaCruda(inf){
     "Fecha \nSolicitud": aISO(d["Fecha Solicitud"]),
     "Fecha de muestreo": aISO(d["Fecha Muestreo"]),
     "Fecha entrada": aISO(d["Fecha entrada"]),
+    "Fecha Recepción": aISO(d["Fecha Recepción"]),
+    "Hora Recepción": d["Hora Recepción"] || null,
     "Fecha Informe": aISO(d["Fecha Informe"]),
     "Fecha Análisis": aISO(d["Fecha Análisis"]),
     "N° Solicitud": d["OT"],
