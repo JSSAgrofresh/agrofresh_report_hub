@@ -20,6 +20,31 @@ export const BASE_INTERNO: Pieza[] = [
   { id: 'panel:verificaciones', x: 6, y: 13, w: 6, h: 5 },
 ]
 
+/** El panel visual: bienvenida, gráficos y carrusel arriba, y las áreas ordenadas con sus títulos. */
+export const BASE_VISUAL: Pieza[] = [
+  { id: 'hero:bienvenida', x: 0, y: 0, w: 12, h: 3 },
+  { id: 'kpi:solicitudes', x: 0, y: 3, w: 3, h: 2 },
+  { id: 'kpi:semana', x: 3, y: 3, w: 3, h: 2 },
+  { id: 'kpi:converter', x: 6, y: 3, w: 3, h: 2 },
+  { id: 'kpi:verificacion', x: 9, y: 3, w: 3, h: 2 },
+  { id: 'grafico:actividad', x: 0, y: 5, w: 8, h: 4 },
+  { id: 'carrusel:novedades', x: 8, y: 5, w: 4, h: 4 },
+  { id: 'grafico:laboratorios', x: 0, y: 9, w: 4, h: 4 },
+  { id: 'grafico:especies', x: 4, y: 9, w: 4, h: 4 },
+  { id: 'grafico:verificaciones', x: 8, y: 9, w: 4, h: 4 },
+  { id: 'titulo:cromatografia', x: 0, y: 13, w: 12, h: 1 },
+  { id: 'modulo:ingesta', x: 0, y: 14, w: 3, h: 3 },
+  { id: 'modulo:converter', x: 3, y: 14, w: 3, h: 3 },
+  { id: 'modulo:reports', x: 6, y: 14, w: 3, h: 3 },
+  { id: 'modulo:agrofresh_lab', x: 9, y: 14, w: 3, h: 3 },
+  { id: 'titulo:postventa', x: 0, y: 17, w: 12, h: 1 },
+  { id: 'modulo:trace', x: 0, y: 18, w: 3, h: 3 },
+  { id: 'panel:trace', x: 3, y: 18, w: 5, h: 3 },
+  { id: 'titulo:general', x: 0, y: 21, w: 12, h: 1 },
+  { id: 'panel:solicitudes', x: 0, y: 22, w: 6, h: 5 },
+  { id: 'panel:usuarios_activos', x: 6, y: 22, w: 6, h: 5 },
+]
+
 export const BASE_CLIENTE_CROMATOGRAFIA: Pieza[] = [
   { id: 'cliente:encabezado', x: 0, y: 0, w: 12, h: 3 },
   { id: 'cliente:reporte', x: 0, y: 3, w: 12, h: 12 },

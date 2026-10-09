@@ -4,6 +4,7 @@ import {
   MAX_FILAS,
   agregar,
   baseParaClave,
+  BASE_VISUAL,
   celdaBajo,
   claveDeCuenta,
   compactar,
@@ -27,6 +28,9 @@ import styles from './PanelInicioEditor.module.css'
 
 /** Un color por grupo de widgets, el mismo en la paleta y en el tablero. */
 const TONO: Record<GrupoWidget, string> = {
+  'Títulos por área': '#16201b',
+  Destacados: '#D9822B',
+  Gráficos: '#1C7FA6',
   Módulos: '#3A8A52',
   Indicadores: '#C28A12',
   'Paneles de actividad': '#1C7FA6',
@@ -344,6 +348,12 @@ export function PanelInicioEditor() {
     setAviso({ tono: 'info', texto: 'Cargué el panel de siempre. Muévelo, quítale lo que sobre o agrégale lo que falte.' })
   }
 
+  function empezarConElVisual() {
+    const ids = new Set(catalogo.map((w) => w.id))
+    setPiezas(BASE_VISUAL.filter((p) => ids.has(p.id)))
+    setAviso({ tono: 'info', texto: 'Cargué el panel visual con gráficos, carrusel y títulos por área. Cámbialo a tu gusto.' })
+  }
+
   if (cargando) return <p className={styles.nota}>Cargando el panel de inicio…</p>
   if (errorCarga) return <p className={styles.aviso} data-tono="error" role="alert">{errorCarga}</p>
 
@@ -417,6 +427,9 @@ export function PanelInicioEditor() {
                 <div className={styles.vacio}>
                   <span>Este panel está vacío.<br />Arrastra un widget desde la derecha hasta aquí.</span>
                   <button type="button" className={styles.boton} onClick={empezarConElDeSiempre}>Empezar con el panel de siempre</button>
+                  {objetivo?.audiencia !== 'cliente' && (
+                    <button type="button" className={styles.boton} onClick={empezarConElVisual}>Empezar con el panel visual</button>
+                  )}
                 </div>
               )}
 
