@@ -19,6 +19,7 @@ import { Modal } from '@/components/ui/Modal'
 import { AvisoClientes } from './avisos/AvisoClientes'
 import { FuncionesPanel } from './funciones/FuncionesPanel'
 import { ListasPanel } from './listas/ListasPanel'
+import { PanelInicioEditor } from './panelInicio/PanelInicioEditor'
 import { SelectorServicio } from '@/components/ui/SelectorServicio'
 import { LISTAS } from '@/lib/servicio'
 import type { ListaDistribucion } from '@/lib/servicio'
@@ -30,7 +31,7 @@ import styles from './AdministracionGeneralView.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
-type Pestana = 'resumen' | 'actividad' | 'seguimiento' | 'correcciones' | 'listas' | 'avisos' | 'funciones'
+type Pestana = 'resumen' | 'actividad' | 'seguimiento' | 'correcciones' | 'listas' | 'avisos' | 'funciones' | 'panelInicio'
 
 /**
  * Administración General: lo que solo ve y toca el admin general.
@@ -126,6 +127,8 @@ export function AdministracionGeneralView() {
             ? 'Historial de correcciones del Converter: lo que aprendió cada vez que alguien corrigió a mano un Sold To, Ship To, especie o variedad. Si el mismo texto vuelve a llegar, se corrige solo.'
             : pestana === 'funciones'
             ? 'Funciones: interruptores del sistema que solo mueve el administrador principal, con su contraseña. Hoy: qué tipos de servicio muestra Report.'
+            : pestana === 'panelInicio'
+            ? 'Panel de inicio: arma, como un tablero, qué widgets ve cada tipo de cuenta o cada cuenta en su pantalla de inicio. Arrastra, suelta y guarda.'
             : pestana === 'avisos'
             ? 'Avisos a clientes: el correo con que se les comunica algo desde el Report Hub. Se edita con vista previa y se prueba solo a los destinatarios de prueba.'
             : 'Listas de distribución de resultados: exporta lo que hay, edítalo en Excel, súbelo y confirma cada cambio antes de que se guarde.'
@@ -155,6 +158,9 @@ export function AdministracionGeneralView() {
         </button>
         <button type="button" role="tab" aria-selected={pestana === 'avisos'} className={pestana === 'avisos' ? styles.pestanaActiva : ''} onClick={() => setPestana('avisos')}>
           Avisos a clientes
+        </button>
+        <button type="button" role="tab" aria-selected={pestana === 'panelInicio'} className={pestana === 'panelInicio' ? styles.pestanaActiva : ''} onClick={() => setPestana('panelInicio')}>
+          Panel de inicio
         </button>
         <button type="button" role="tab" aria-selected={pestana === 'funciones'} className={pestana === 'funciones' ? styles.pestanaActiva : ''} onClick={() => setPestana('funciones')}>
           Funciones
@@ -198,6 +204,8 @@ export function AdministracionGeneralView() {
       )}
 
       {pestana === 'funciones' && <FuncionesPanel />}
+
+      {pestana === 'panelInicio' && <PanelInicioEditor />}
 
       {pestana === 'avisos' && (
         <section className={styles.avisos} aria-label="Aviso a clientes">
