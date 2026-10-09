@@ -481,6 +481,27 @@ se guarda. **No leas la configuración de contactos dentro de un bucle por
 solicitud**: viene de R2 y el listado pasó a tardar 6 s; se lee una vez
 (`_calculador_sin_lista`).
 
+## Panel de inicio editable (Administración General → «Panel de inicio»)
+
+El admin general arma, como un tablero, qué widgets ve cada **tipo de cuenta** o cada **cuenta en particular** en su Panel general
+(pedido del usuario, 09-10-2026). Tablero de **12 columnas** (celdas cuadradas en el editor, filas de 72 px que crecen en la pantalla
+real); la paleta de widgets va al costado, se arrastran al tablero (verde = cabe, rojo = no hay espacio y se dice con quién se pisa),
+se mueven, se agrandan con la esquina (o botones, o Shift+flechas), «Acomodar» junta huecos, «Empezar con el panel de siempre» carga el
+diseño de partida y «Restaurar el panel original» borra el diseño. **Sin migración**: se guarda en `panel_inicio.json` (`_config/`).
+- **Claves** (`app/panel_inicio.py`): `usuario:<id>` gana a `tipo:<tipo>:<area>` y esa a `tipo:<tipo>`; sin diseño propio la cuenta ve su
+  panel de siempre (`AdminGeneralDashboardView` / `AreaDashboardView` / `ClienteDashboardView`, que **no cambiaron**). Si el diseño no se
+  puede leer, también: personalizar nunca deja a nadie sin panel. `DashboardView` pide `GET /api/panel-inicio/mio` (cualquier cuenta);
+  editar (`GET/PUT/DELETE /config`) es solo admin general y queda como cambio sensible en Actividad.
+- **Widgets** (`features/panelInicio/lib/catalogo.ts`, ids `grupo:nombre`): tarjetas de módulo (`modulo:<id>`, solo se dibujan a quien tenga
+  el módulo), 4 indicadores (`kpi:*`), 5 paneles de actividad (`panel:*`) y, para clientes, `cliente:encabezado|reporte|accutab`. Se dibujan en
+  `views/dashboard/PanelPersonalizado.tsx` con los MISMOS bloques del panel de siempre (`bloquesAdmin.tsx`). **Un widget nuevo se agrega en
+  el catálogo, en `dibujar()` y, si es de cliente, con prefijo `cliente:`.** Las cuentas `cliente` solo reciben widgets `cliente:*` (el servidor los
+  filtra al leer y rechaza guardar otros en un diseño de clientes).
+- **Reglas de la grilla** en un solo lugar puro, `features/panelInicio/lib/grilla.ts`, espejo de `validar_piezas` (backend): 12 columnas, sin
+  pisarse, sin salirse. Pruebas: `grilla.test.ts`, `tests/test_panel_inicio.py`, `PanelInicioEditor.test.tsx`.
+- **Pendiente**: widgets propios de clientes (hoy solo el encabezado, el Report completo y los informes Accu-Tab); el panel de un `admin_area` usa los
+  mismos widgets internos (su `AreaDashboardView` no está partido en widgets); en el celular los widgets se apilan en orden de lectura.
+
 ## Indicadores de entrega (Auditoría interna) y fuera de rango (Report)
 
 **Lead time y Cumplimiento** viven en «Solicitudes e informes» (`IndicadoresEntrega.tsx`,
