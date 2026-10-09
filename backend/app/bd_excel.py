@@ -170,6 +170,12 @@ def completar_fila(fila: dict[str, Any], datos: dict | None, correos_laboratorio
     if _vacio(fila.get("email_laboratorio")) and correos_laboratorio:
         fila["email_laboratorio"] = "; ".join(correos_laboratorio)
     if datos:
+        # Qué analitos se pidieron y con qué dosis (campos_laboratorio): la base no lo
+        # guarda para las solicitudes que no pasaron por la ingesta con dosis.
+        fila["_solicitud"] = {
+            "analitos_solicitados": list(datos.get("analitos_solicitados") or []),
+            "campos_laboratorio": dict(datos.get("campos_laboratorio") or {}),
+        }
         # La recepción es el momento del cruce con la muestra (Ingreso al laboratorio).
         dia, hora = partir_recepcion(datos.get("recepcion_en"))
         if _vacio(fila.get("fecha_recepcion")) and dia:
@@ -192,6 +198,33 @@ def completar_fila(fila: dict[str, Any], datos: dict | None, correos_laboratorio
                 fila["temporada"] = f.year
                 break
 
+
+
+def completar_solicitados(filas: list[dict[str, Any]], analitos: list[dict]) -> None:
+    """Pone en cada fila `solicitados` (códigos de formato que la solicitud pidió) y
+    completa `dosis` con la que anotó la solicitud cuando la base no la trae.
+    La dosis de la base manda; la «Solicitado» sin dosis anotada no es una dosis."""
+    from .solicitud_excel import _analitos_fungicidas, _valor_guardado
+
+    catalogo = _analitos_fungicidas(analitos)
+    for fila in filas:
+        sol = fila.get("_solicitud") or {}
+        pedidos = {codigo_de_formato(c) for c in sol.get("analitos_solicitados") or []}
+        fila["solicitados"] = pedidos
+        campos = sol.get("campos_laboratorio") or {}
+        if not campos:
+            continue
+        dosis = dict(fila.get("dosis") or {})
+        ya = {codigo_de_formato(k) for k in dosis}
+        for a in catalogo:
+            cod = codigo_de_formato(a.get("codigo"))
+            if cod in pedidos and cod not in ya:
+                v = _valor_guardado(campos, a)
+                if v and v != "Solicitado":
+                    dosis[cod] = v
+        fila["dosis"] = dosis
+        if _vacio(fila.get("tipo_aplicacion")) and not _vacio(campos.get("Tipo Aplicación")):
+            fila["tipo_aplicacion"] = campos["Tipo Aplicación"]
 
 
 def codigo_de_formato(codigo: str | None) -> str:
@@ -231,7 +264,11 @@ def columnas_de_bd(
     permitidos = {codigo_de_formato(i) for i in ingredientes} if ingredientes else None
     con_resultado: dict[str, str] = {}   # código de formato -> nombre (por si cae en «Otros»)
     con_dosis: set[str] = set()
+    con_solicitado: set[str] = set()
     for fila in filas:
+        for cod in fila.get("solicitados") or ():
+            if permitidos is None or cod in permitidos:
+                con_solicitado.add(cod)
         for codigo, res in (fila.get("resultados") or {}).items():
             cod = codigo_de_formato(codigo)
             if permitidos is not None and cod not in permitidos:
@@ -249,29 +286,43 @@ def columnas_de_bd(
     conocidos: set[str] = set()
     for titulo, columnas in _grupos_exportacion(analitos)[1:]:  # [0] es el GENERAL de Solicitudes
         elegidas: list[Columna] = []
+        pares: list[Columna] = []       # fungicidas: «X Solicitado» y «X Dosis» de cada analito
+        resultados: list[Columna] = []  # fungicidas: los resultados, juntos tras los pares
         es_fungicidas = titulo.startswith(_PREFIJO_FUNGICIDAS)
         for tipo, clave, etiqueta in columnas:
             if tipo == "analito":
                 conocidos.add(clave)
-                if clave in con_resultado:
+                if es_fungicidas:
+                    # Un analito pedido sigue teniendo su columna de resultado, aunque aún no llegue.
+                    if clave in con_resultado or clave in con_solicitado or clave in con_dosis:
+                        resultados.append((tipo, clave, etiqueta))
+                elif clave in con_resultado:
                     elegidas.append((tipo, clave, etiqueta))
             elif tipo == "analito_dosis":
-                if clave in con_dosis:
+                if es_fungicidas:
+                    if clave in con_dosis or clave in con_solicitado or clave in con_resultado:
+                        pares.append(("analito_solicitado", clave, f"{clave} Solicitado"))
+                        pares.append((tipo, clave, etiqueta))
+                elif clave in con_dosis:
                     elegidas.append((tipo, clave, etiqueta))
             elif tipo == "campo" and etiqueta not in _CAMPOS_OMITIDOS:
                 # Tipo Aplicación, Gasto y el ensayo van siempre que el grupo tenga
                 # analitos: son las mismas columnas que la base «con muestra».
-                if not any(t in ("analito", "analito_dosis") for t, _, _ in elegidas):
+                if not any(t in ("analito", "analito_dosis") for t, _, _ in [*elegidas, *pares, *resultados]):
                     continue
                 if etiqueta == "Tipo Aplicación":
                     elegidas.append(("tipo_aplicacion", clave, etiqueta))
                 elif etiqueta in etiquetas_fila:
                     elegidas.append(("dato_fila", etiquetas_fila[etiqueta], etiqueta))
+        elegidas = [*elegidas, *pares, *resultados]
         if elegidas and es_fungicidas:
             codigos = {clave for _, clave, _ in elegidas}
             labs: set[str] = set()
             for fila in filas:
-                tiene = any(codigo_de_formato(c) in codigos for c in list(fila.get("resultados") or {}) + list(fila.get("dosis") or {}))
+                tiene = any(
+                    codigo_de_formato(c) in codigos
+                    for c in [*(fila.get("resultados") or {}), *(fila.get("dosis") or {}), *(fila.get("solicitados") or ())]
+                )
                 if tiene:
                     labs |= _laboratorios_de(fila.get("laboratorio"))
             titulo = titulo_fungicidas(labs)
@@ -303,6 +354,7 @@ def construir_workbook_bd(
         posicion=lambda f: f.get("posicion_muestreo"),
         con_posicion=lambda f, p: {**f, "posicion_muestreo": p},
     )
+    completar_solicitados(filas, analitos)
     wb = Workbook()
     ws = wb.active
     ws.title = "BD"
@@ -341,13 +393,15 @@ def construir_workbook_bd(
                 valor = _numero((resultados.get(clave) or {}).get("valor"))
             elif tipo == "analito_dosis":
                 valor = _numero(dosis.get(clave))
+            elif tipo == "analito_solicitado":
+                valor = "✓" if clave in (fila.get("solicitados") or ()) else None
             elif tipo == "dato_fila":  # Gasto, Código de Ensayo, N° Ensayo
                 valor = _valor_celda(fila.get(clave))
             else:  # tipo_aplicacion
                 valor = fila.get("tipo_aplicacion")
             celda = ws.cell(row=fila_idx, column=col, value=valor if valor not in (None, "") else None)
             celda.border = _BORDE_COMPLETO
-            es_dato = tipo in ("analito", "analito_dosis")
+            es_dato = tipo in ("analito", "analito_dosis", "analito_solicitado")
             celda.alignment = Alignment(horizontal="center" if es_dato else "left", vertical="center")
             if tipo == "analito" and valor is not None:
                 celda.font = Font(bold=True, color=VERDE_OSCURO)

@@ -53,7 +53,7 @@ def test_solo_salen_los_grupos_y_analitos_que_tienen_datos():
     assert bandas == ["GENERAL", "ALS — MICROBIOLOGÍA AGUA (FSMA)"]
 
 
-def test_el_resultado_va_donde_en_solicitudes_iba_el_check_y_la_dosis_al_lado():
+def test_cada_analito_lleva_solicitado_y_dosis_y_los_resultados_van_juntos_al_final():
     wb = bd_excel.construir_workbook_bd([FUNGICIDA], ANALITOS_DEFECTO)
     columnas, _ = _encabezados(wb)
     ws = wb["BD"]
@@ -61,9 +61,30 @@ def test_el_resultado_va_donde_en_solicitudes_iba_el_check_y_la_dosis_al_lado():
     assert fila["FDL"] == 0.42 and fila["FDL Dosis"] == 5
     assert fila["IMZ"] == 1.5
     assert fila["Tipo Aplicación"] == "Línea de proceso"
-    assert "✓" not in fila.values()
-    # FDL y su dosis quedan pegadas, como en el formato de Solicitudes
-    assert columnas.index("FDL Dosis") == columnas.index("FDL") + 1
+    # «X Solicitado» y «X Dosis» van pegadas, y los resultados quedan tras todas ellas
+    assert columnas.index("FDL Dosis") == columnas.index("FDL Solicitado") + 1
+    assert columnas.index("IMZ Dosis") < columnas.index("FDL") < columnas.index("IMZ")
+
+
+def test_la_solicitud_aporta_el_solicitado_y_la_dosis_que_la_base_no_trae():
+    fila = _fila(
+        laboratorio="AGROFRESH",
+        resultados={"FDL": {"valor": 0.23, "nombre": "Fludioxonil"}},
+        _solicitud={
+            "analitos_solicitados": ["FDL", "IMZ"],
+            "campos_laboratorio": {"Fludioxonil (ppm)": "250cc/100L", "Tipo Aplicación": "Línea de proceso"},
+        },
+    )
+    analitos = [{"codigo": "FDL", "nombre": "Fludioxonil", "laboratorio": "AGROFRESH", "unidad": "ppm", "orden": 1},
+                {"codigo": "IMZ", "nombre": "Imazalil", "laboratorio": "AGROFRESH", "unidad": "ppm", "orden": 2}]
+    wb = bd_excel.construir_workbook_bd([fila], analitos)
+    columnas, _ = _encabezados(wb)
+    valores = dict(zip(columnas, [c.value for c in wb["BD"][3]]))
+    assert valores["FDL Solicitado"] == "✓" and valores["IMZ Solicitado"] == "✓"
+    assert valores["FDL Dosis"] == "250cc/100L"
+    assert valores["IMZ Dosis"] is None          # pedido, pero sin dosis anotada
+    assert valores["FDL"] == 0.23 and valores["IMZ"] is None
+    assert valores["Tipo Aplicación"] == "Línea de proceso"
 
 
 def test_un_texto_como_menor_que_se_conserva():
