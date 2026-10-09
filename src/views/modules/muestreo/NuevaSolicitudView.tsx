@@ -982,13 +982,19 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         setError(err.message)
         return
       }
-      setError(
-        modo === 'editar'
-          ? 'No se pudo guardar la edición. Revisa que el backend esté corriendo.'
-          : modo === 'reanalisis'
-            ? 'No se pudo crear el reanálisis. Verifica que el backend esté corriendo y que no exista ya un reanálisis para esta solicitud.'
-            : 'No se pudo crear la solicitud. Revisa que el backend esté corriendo.',
-      )
+      const accion =
+        modo === 'editar' ? 'No se pudo guardar la edición' : modo === 'reanalisis' ? 'No se pudo crear el reanálisis' : 'No se pudo crear la solicitud'
+      if (err instanceof HttpError) {
+        // El servidor SÍ respondió: se dice qué respondió, en vez de culpar siempre al backend.
+        setError(
+          err.status >= 500
+            ? `${accion}: el servidor tuvo un problema (error ${err.status}). Intenta de nuevo en un minuto y, si sigue, avisa con este número. ${err.message}`
+            : `${accion}: ${err.message} (error ${err.status})`,
+        )
+      } else {
+        // No hubo respuesta: sin señal, el túnel o el backend caído, o se cortó la conexión.
+        setError(`${accion}: no hay conexión con el servidor. Revisa tu señal e intenta de nuevo; si todo lo demás funciona, el backend puede estar apagado.`)
+      }
     } finally {
       setGuardando(false)
     }
