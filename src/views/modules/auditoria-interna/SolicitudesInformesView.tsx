@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '@/features/auth'
 import { esAdminGeneral } from '@/features/usuarios'
-import { Header } from '@/components/layout/Header'
+import { AREAS } from '@/constants/areas'
+import { AreaHero } from '@/features/dashboard'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { IconoActualizar, IconoAlerta, IconoBuscar } from '@/components/ui/iconosAccion'
@@ -28,6 +29,7 @@ import { altoClienteServicio } from './coloresTipo'
 import { PanelFiltros } from './PanelFiltros'
 import { SelectorArea } from './SelectorArea'
 import { ResumenConcretadas } from './ResumenConcretadas'
+import { InformesPorLaboratorio } from './InformesPorLaboratorio'
 import { TablaDinamica } from './TablaDinamica'
 import styles from './SolicitudesInformesView.module.css'
 
@@ -82,28 +84,28 @@ export function SolicitudesInformesView() {
 
   return (
     <div className={styles.pagina}>
-      <Header
-        title="Solicitudes e informes"
-        description="Las solicitudes que emitimos y cuáles ya están concretadas: con su PDF guardado y sus resultados en Report."
-        acciones={
-          <>
-          {puedeSimular && (
-            <Button
-              variant="secondary"
-              onClick={() => setSimulacion(simulando ? null : simularSolicitudes(1000))}
-              aria-pressed={simulando}
-              title="Muestra 1.000 solicitudes inventadas para probar cómo se ve el panel. No se guarda nada."
-            >
-              {simulando ? '✕ Salir de la simulación' : '🧪 Simular 1.000 datos'}
-            </Button>
-          )}
-          <Button variant="secondary" onClick={refrescar} disabled={cargando} className={styles.botonActualizar}>
-            <IconoActualizar className={cargando ? styles.girando : undefined} width={16} height={16} />
-            {cargando ? 'Actualizando…' : 'Actualizar'}
-          </Button>
-          </>
-        }
+      <AreaHero
+        compacto
+        area={{ ...AREAS.cromatografia, nombre: 'Auditoría interna' }}
+        titulo="Solicitudes e informes"
+        descripcion="Las solicitudes que emitimos y cuáles ya están concretadas: con su PDF guardado y sus resultados en Report."
       />
+      <div className={styles.acciones}>
+        {puedeSimular && (
+          <Button
+            variant="secondary"
+            onClick={() => setSimulacion(simulando ? null : simularSolicitudes(1000))}
+            aria-pressed={simulando}
+            title="Muestra 1.000 solicitudes inventadas para probar cómo se ve el panel. No se guarda nada."
+          >
+            {simulando ? '✕ Salir de la simulación' : '🧪 Simular 1.000 datos'}
+          </Button>
+        )}
+        <Button variant="secondary" onClick={refrescar} disabled={cargando} className={styles.botonActualizar}>
+          <IconoActualizar className={cargando ? styles.girando : undefined} width={16} height={16} />
+          {cargando ? 'Actualizando…' : 'Actualizar'}
+        </Button>
+      </div>
 
       {simulando && (
         <div className={styles.avisoSim} role="status">
@@ -129,8 +131,9 @@ export function SolicitudesInformesView() {
 
       {todas && (
         <div className={cargando && !simulando ? styles.recargando : styles.contenido}>
-          <ResumenConcretadas totales={tot} />
           <PanelFiltros filtros={filtros} onChange={(f) => setFiltros(f)} opciones={opciones} datos={todas} />
+          <ResumenConcretadas totales={tot} />
+          <InformesPorLaboratorio solicitudes={alcance} />
 
           {tot.emitidas === 0 ? (
             <div className={styles.vacio}>
