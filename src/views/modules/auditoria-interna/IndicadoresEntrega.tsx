@@ -4,9 +4,10 @@ import {
   cajaTodos,
   cajasPorLaboratorio,
   claveLaboratorio,
-  cuelloDeBotella,
+  RECEPCION_ESTIMADA_DIAS,
+  clavePlazoAnalisis,
+  cumplimientoPorAnalisis,
   cumplimientoPorLab,
-  desgloseTramos,
   evaluarTodas,
   resumenCumplimiento,
   resumenLeadTime,
@@ -16,16 +17,13 @@ import {
 } from '@/features/auditoriaInterna'
 import type { Definicion, EvaluadaEntrega, PuntoMes, SolicitudAuditoria, Veredicto } from '@/features/auditoriaInterna'
 import { formatDateCL } from '@/lib/locale'
+import { FlujogramaLeadTime } from './FlujogramaLeadTime'
 import styles from './IndicadoresEntrega.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 const f1 = (v: number | null | undefined) =>
   v == null || Number.isNaN(v) ? '—' : v.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 const pc = (v: number | null | undefined) => (v == null ? '—' : `${Math.round(v)} %`)
-
-/** Un color por tramo, el mismo en todo el bloque. Validados juntos (CVD ΔE ≥ 18); el
- * tramo siempre se nombra en la leyenda y en el desglose, el color no lleva el dato solo. */
-const COLOR_TRAMO: Record<string, string> = { envio: '#1C7FA6', laboratorio: '#c9741f', report: '#7a5fc4', cliente: '#3d8f2a' }
 
 const VEREDICTO: Record<Veredicto, { texto: string; tono: string }> = {
   cumplio: { texto: 'A tiempo', tono: 'bueno' },
@@ -108,7 +106,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
   const [borrador, setBorrador] = useState<{ entregado: Definicion; plazos: Record<string, string> } | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [errorGuardar, setErrorGuardar] = useState<string | null>(null)
-  const [estadistico, setEstadistico] = useState<0.5 | 0.9>(0.5)
+  const [vistaCum, setVistaCum] = useState<'laboratorio' | 'analisis'>('laboratorio')
   const [labElegido, setLabElegido] = useState('')
   const [labCum, setLabCum] = useState('')
   const [filtroVer, setFiltroVer] = useState<'' | 'atrasada' | Veredicto>('')
@@ -118,9 +116,30 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
   const labs = useMemo(() => {
     const s = new Set<string>()
     solicitudes.forEach((x) => { if (claveLaboratorio(x.laboratorio)) s.add(claveLaboratorio(x.laboratorio)) })
-    Object.keys(reglas?.plazos ?? {}).forEach((l) => s.add(l))
+    Object.keys(reglas?.plazos ?? {}).forEach((k) => s.add(k.split('|')[0]))
     return [...s].sort()
   }, [solicitudes, reglas])
+  // Los análisis que se han pedido a cada laboratorio: cada uno puede tener su propio plazo.
+  const analitosPorLab = useMemo(() => {
+    const por = new Map<string, Set<string>>()
+    solicitudes.forEach((x) => {
+      const lab = claveLaboratorio(x.laboratorio)
+      if (!lab) return
+      const set = por.get(lab) ?? new Set<string>()
+      ;(x.analitos ?? []).forEach((a) => { if (a.trim()) set.add(a.trim().toUpperCase()) })
+      por.set(lab, set)
+    })
+    Object.keys(reglas?.plazos ?? {}).forEach((k) => {
+      const [lab, analito] = k.split('|')
+      if (analito) por.set(lab, (por.get(lab) ?? new Set<string>()).add(analito))
+    })
+    return new Map([...por.entries()].map(([lab, set]) => [lab, [...set].sort()]))
+  }, [solicitudes, reglas])
+  // Todas las claves de plazo editables: «LAB» y «LAB|ANALITO».
+  const claves = useMemo(
+    () => labs.flatMap((l) => [l, ...(analitosPorLab.get(l) ?? []).map((a) => clavePlazoAnalisis(l, a))]),
+    [labs, analitosPorLab],
+  )
 
   // Lo que se calcula: lo guardado, o el borrador si el admin está probando otros valores.
   const definicion: Definicion = borrador?.entregado ?? reglas?.entregado ?? 'concretado'
@@ -143,11 +162,12 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
   const lead = useMemo(() => resumenLeadTime(ev), [ev])
   const cajas = useMemo(() => cajasPorLaboratorio(ev, plazos), [ev, plazos])
   const todosCaja = useMemo(() => cajaTodos(ev), [ev])
-  const desglose = useMemo(() => desgloseTramos(ev, definicion, estadistico, labElegido || undefined), [ev, definicion, estadistico, labElegido])
-  const cuello = useMemo(() => cuelloDeBotella(desglose), [desglose])
+  const evFlujo = useMemo(() => (labElegido ? ev.filter((e) => claveLaboratorio(e.sol.laboratorio) === labElegido) : ev), [ev, labElegido])
   const serie = useMemo(() => seriePorMes(ev), [ev])
   const cum = useMemo(() => resumenCumplimiento(ev), [ev])
   const porLab = useMemo(() => cumplimientoPorLab(ev), [ev])
+  const porAnalisis = useMemo(() => cumplimientoPorAnalisis(ev), [ev])
+  const cumPorLab = useMemo(() => new Map(porLab.map((x) => [x.lab, x])), [porLab])
   const sens = useMemo(() => sensibilidad(ev, [-2, 0, 2, 5]), [ev])
 
   if (error) {
@@ -160,12 +180,12 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
   const sucio =
     borrador != null &&
     (borrador.entregado !== reglas.entregado ||
-      labs.some((l) => (borrador.plazos[l] ?? '') !== String(reglas.plazos[l] ?? '')))
+      claves.some((k) => (borrador.plazos[k] ?? '') !== String(reglas.plazos[k] ?? '')))
 
   function editar(cambio: Partial<{ entregado: Definicion; plazos: Record<string, string> }>) {
     const base = borrador ?? {
       entregado: reglas?.entregado ?? 'concretado',
-      plazos: Object.fromEntries(labs.map((l) => [l, String(reglas?.plazos[l] ?? '')])),
+      plazos: Object.fromEntries(claves.map((k) => [k, String(reglas?.plazos[k] ?? '')])),
     }
     setBorrador({ ...base, ...cambio, plazos: { ...base.plazos, ...(cambio.plazos ?? {}) } })
   }
@@ -176,9 +196,9 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
     setErrorGuardar(null)
     try {
       const p: Record<string, number | null> = {}
-      labs.forEach((l) => {
-        const n = Number(borrador.plazos[l])
-        p[l] = borrador.plazos[l] && Number.isInteger(n) ? n : null
+      claves.forEach((k) => {
+        const n = Number(borrador.plazos[k])
+        p[k] = borrador.plazos[k] && Number.isInteger(n) ? n : null
       })
       await guardar(borrador.entregado, p)
       setBorrador(null)
@@ -208,7 +228,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
     ['Informe', (e) => dia(e.hitos?.informe)],
     ['En Report', (e) => dia(e.hitos?.report)],
     ['Al cliente', (e) => dia(e.hitos?.cliente)],
-    ['Lead time', (e) => (e.dias != null ? `${f1(e.dias)} d` : `abierta (${Math.floor(e.edad)} d)`), true],
+    ['Lead time', (e) => (e.dias != null ? `${f1(e.dias)} d háb.` : `abierta (${f1(e.edad)} d háb.)`), true],
   ]
   const filasCum = ev
     .filter((e) => (!labCum || claveLaboratorio(e.sol.laboratorio) === labCum))
@@ -221,8 +241,8 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
     ['Cliente', (e) => e.sol.sold_to ?? '—'],
     ['Emitida', (e) => dia(e.sol.emitida_en)],
     ['Entregada', (e) => (e.fin != null ? formatDateCL(new Date(e.fin)) : '—')],
-    ['Plazo', (e) => (e.plazo != null ? `${e.plazo} d` : '—'), true],
-    ['Días', (e) => (e.dias != null ? f1(e.dias) : `${Math.floor(e.edad)} (abierta)`), true],
+    ['Plazo', (e) => (e.plazo != null ? `${e.plazo} d háb.${e.analisis ? ` (${e.analisis})` : ''}` : '—'), true],
+    ['Días háb.', (e) => (e.dias != null ? f1(e.dias) : `${f1(e.edad)} (abierta)`), true],
     ['Resultado', (e) => VEREDICTO[e.veredicto].texto],
   ]
 
@@ -254,85 +274,121 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
 
   return (
     <div className={styles.bloque}>
-      {/* ───────── Reglas ───────── */}
-      <section className={`${styles.tarjeta} ${styles.reglas}`} aria-labelledby="ie-reglas">
-        <header className={styles.cabecera}>
-          <div>
-            <span className={styles.sobre}>
-              Reglas del cálculo
-              <Ayuda>Valen para lead time y cumplimiento. Son las dos únicas cosas que se discuten; todo lo demás es aritmética sobre fechas que el sistema ya guarda.</Ayuda>
-            </span>
-            <h3 id="ie-reglas">Qué cuenta como entregado y cuánto plazo hay</h3>
-            {!puedeEditar && <p>Solo el administrador general puede cambiarlas.</p>}
-          </div>
-          <div className={styles.campo}>
-            <span className={styles.sobre}>«Entregado» es</span>
-            <div className={styles.segmentado} role="group" aria-label="Definición de entregado">
-              {([['concretado', 'PDF + Report'], ['cliente', 'Enviado al cliente']] as const).map(([v, t]) => (
-                <button key={v} type="button" aria-pressed={definicion === v} disabled={!puedeEditar} onClick={() => editar({ entregado: v })}>{t}</button>
+      {/* ───────── Supuesto (lo ve todo el mundo) ───────── */}
+      <p className={styles.supuesto} role="note">
+        <b>Estimado, no medido.</b> No sabemos cuándo el laboratorio pasa a retirar las muestras, así que se supone que las recibe{' '}
+        {RECEPCION_ESTIMADA_DIAS} día después de emitida la solicitud (emitida el lunes 1, recepcionada el martes 2). Desde ahí corren los
+        tiempos y plazos de abajo, en <b>días hábiles</b> (lunes a viernes, sin feriados). Todo cálculo de esta pantalla está sujeto a ese supuesto.
+      </p>
+
+      {/* ───────── Configuración (solo el administrador general) ───────── */}
+      {puedeEditar && (
+        <details className={`${styles.tarjeta} ${styles.config}`}>
+          <summary>
+            <span>Configuración de plazos</span>
+            <small>solo la ve el administrador general</small>
+          </summary>
+          <div className={styles.configCuerpo}>
+            <div className={styles.campo}>
+              <span className={styles.sobre}>
+                «Entregado» es
+                <Ayuda>Vale para el lead time y el cumplimiento.</Ayuda>
+              </span>
+              <div className={styles.segmentado} role="group" aria-label="Definición de entregado">
+                {([['concretado', 'PDF + Report'], ['cliente', 'Enviado al cliente']] as const).map(([v, t]) => (
+                  <button key={v} type="button" aria-pressed={definicion === v} onClick={() => editar({ entregado: v })}>{t}</button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <span className={styles.sobre}>
+                Plazo prometido, en días hábiles
+                <Ayuda>
+                  Cuenta desde la recepción estimada (emisión + {RECEPCION_ESTIMADA_DIAS} día), solo lunes a viernes. Cada laboratorio tiene un plazo general
+                  y, si un análisis tarda distinto, su propio plazo: gana el análisis más lento de la solicitud.
+                </Ayuda>
+              </span>
+              {labs.map((l) => (
+                <div key={l} className={styles.configLab}>
+                  <label className={styles.plazo} htmlFor={`plazo-${l}`}>
+                    <b>{l}</b> · plazo general
+                    <span>
+                      <input
+                        id={`plazo-${l}`}
+                        type="number"
+                        min={1}
+                        max={365}
+                        inputMode="numeric"
+                        placeholder="—"
+                        value={borrador ? borrador.plazos[l] ?? '' : String(reglas.plazos[l] ?? '')}
+                        onChange={(e) => editar({ plazos: { [l]: e.target.value } })}
+                      />{' '}
+                      <small>d háb.</small>
+                    </span>
+                  </label>
+                  {(analitosPorLab.get(l) ?? []).length > 0 && (
+                    <div className={styles.analitosPlazo}>
+                      <small>Plazo propio por análisis (vacío = rige el general)</small>
+                      <div className={styles.plazos}>
+                        {(analitosPorLab.get(l) ?? []).map((a) => {
+                          const k = clavePlazoAnalisis(l, a)
+                          return (
+                            <label key={k} className={styles.plazo} htmlFor={`plazo-${k}`}>
+                              {a}
+                              <span>
+                                <input
+                                  id={`plazo-${k}`}
+                                  type="number"
+                                  min={1}
+                                  max={365}
+                                  inputMode="numeric"
+                                  placeholder="—"
+                                  value={borrador ? borrador.plazos[k] ?? '' : String(reglas.plazos[k] ?? '')}
+                                  onChange={(e) => editar({ plazos: { [k]: e.target.value } })}
+                                />{' '}
+                                <small>d</small>
+                              </span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
-          </div>
-        </header>
-        <div>
-          <span className={styles.sobre}>
-            Plazo comprometido
-            <Ayuda>En días, contados desde que se emitió la solicitud.</Ayuda>
-          </span>
-          <div className={styles.plazos}>
-            {labs.map((l) => (
-              <label key={l} className={styles.plazo} htmlFor={`plazo-${l}`}>
-                {l}
-                <span>
-                  <input
-                    id={`plazo-${l}`}
-                    type="number"
-                    min={1}
-                    max={365}
-                    inputMode="numeric"
-                    placeholder="—"
-                    disabled={!puedeEditar}
-                    value={borrador ? borrador.plazos[l] ?? '' : String(reglas.plazos[l] ?? '')}
-                    onChange={(e) => editar({ plazos: { [l]: e.target.value } })}
-                  />{' '}
-                  <small>d</small>
+
+            {sucio && (
+              <div className={styles.borrador} role="status">
+                <span>Estás viendo una <b>prueba sin guardar</b>: los números de abajo ya usan estos valores.</span>
+                <span className={styles.accionesBorrador}>
+                  <Button variant="ghost" onClick={() => { setBorrador(null); setErrorGuardar(null) }}>Descartar</Button>
+                  <Button onClick={() => void guardarReglas()} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar plazos'}</Button>
                 </span>
-              </label>
-            ))}
+              </div>
+            )}
+            {errorGuardar && <p className={styles.error} role="alert">{errorGuardar}</p>}
+            {reglas.cambiado_en && (
+              <p className={styles.pie}>Última vez guardados por {reglas.cambiado_por ?? '—'} el {formatDateCL(reglas.cambiado_en)}.</p>
+            )}
+            {sinAmarre && (
+              <p className={styles.aviso} role="note">
+                Todavía ningún envío a clientes está amarrado a su solicitud (
+                {calidad?.envios_a_clientes != null ? `${calidad.envios_a_clientes} enviados` : 'sin envíos'}). Los nuevos desde «Envío de informes» sí quedan
+                amarrados, siempre que se haya corrido la migración 0054; con «PDF + Report» el cálculo ya funciona con todo el historial.
+              </p>
+            )}
           </div>
-        </div>
-        {sucio && (
-          <div className={styles.borrador} role="status">
-            <span>Estás viendo una <b>prueba sin guardar</b>: los números de abajo ya usan estos valores.</span>
-            <span className={styles.accionesBorrador}>
-              <Button variant="ghost" onClick={() => { setBorrador(null); setErrorGuardar(null) }}>Descartar</Button>
-              <Button onClick={() => void guardarReglas()} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar reglas'}</Button>
-            </span>
-          </div>
-        )}
-        {errorGuardar && <p className={styles.error} role="alert">{errorGuardar}</p>}
-        {reglas.cambiado_en && (
-          <p className={styles.pie}>Última vez guardadas por {reglas.cambiado_por ?? '—'} el {formatDateCL(reglas.cambiado_en)}.</p>
-        )}
-        {sinAmarre && (
-          <p className={styles.aviso} role="note">
-            Todavía ningún envío a clientes está amarrado a su solicitud (
-            {calidad?.envios_a_clientes != null ? `${calidad.envios_a_clientes} enviados` : 'sin envíos'}). Los nuevos desde «Envío de informes» sí quedan
-            amarrados, siempre que se haya corrido la migración 0054; con «PDF + Report» el cálculo ya funciona con todo el historial.
-          </p>
-        )}
-      </section>
+        </details>
+      )}
 
       {/* ───────── Lead time ───────── */}
       <section className={styles.tarjeta} aria-labelledby="ie-lead">
         <header className={styles.cabecera}>
           <div>
             <span className={styles.sobre}>Indicador</span>
-            <h3 id="ie-lead">Lead time: de la solicitud a lo entregado</h3>
-          </div>
-          <div className={styles.segmentado} role="group" aria-label="Estadístico del desglose">
-            <button type="button" aria-pressed={estadistico === 0.5} onClick={() => setEstadistico(0.5)}>Mediana</button>
-            <button type="button" aria-pressed={estadistico === 0.9} onClick={() => setEstadistico(0.9)}>Percentil 90</button>
+            <h3 id="ie-lead">Lead time: de la recepción estimada a lo entregado</h3>
           </div>
         </header>
 
@@ -343,7 +399,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
             <div className={styles.tiles}>
               <div className={styles.tile}>
                 <span className={styles.et}>Lead time mediano</span>
-                <span className={styles.gr}>{f1(lead.p50)}<small>días</small></span>
+                <span className={styles.gr}>{f1(lead.p50)}<small>días háb.</small></span>
                 <span className={styles.ap}>
                   la mitad tarda menos
                   <Ayuda>
@@ -354,25 +410,17 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
               </div>
               <div className={styles.tile}>
                 <span className={styles.et}>Casos lentos (P90)</span>
-                <span className={styles.gr}>{f1(lead.p90)}<small>días</small></span>
+                <span className={styles.gr}>{f1(lead.p90)}<small>días háb.</small></span>
                 <span className={styles.ap}>
                   9 de cada 10, o menos
                   <Ayuda>Es el percentil 90: cuánto tardan los casos lentos.</Ayuda>
                 </span>
               </div>
               <div className={styles.tile}>
-                <span className={styles.et}>
-                  Cuello de botella
-                  <Ayuda>El tramo que más pesa en el tiempo total. Los tramos son: solicitud → envío al lab, envío → informe del lab e informe → Report.</Ayuda>
-                </span>
-                <span className={`${styles.gr} ${styles.grTexto}`}>{cuello ? cuello.tramo.nombre : '—'}</span>
-                <span className={styles.ap}>{cuello ? `${f1(cuello.tramo.valor)} d · ${pc(cuello.pct)}${labElegido ? ` · ${labElegido}` : ''}` : 'Faltan fechas de envío'}</span>
-              </div>
-              <div className={styles.tile}>
                 <span className={styles.et}>Aún abiertas</span>
                 <span className={styles.gr}>{nf.format(lead.abiertas)}</span>
                 <span className={styles.ap}>
-                  {lead.abiertas ? `edad mediana ${f1(lead.edadMedianaAbiertas)} d` : 'ninguna'}
+                  {lead.abiertas ? `llevan ${f1(lead.edadMedianaAbiertas)} d háb. (mediana)` : 'ninguna'}
                   <Ayuda>No entran al cálculo: una solicitud abierta todavía no tiene lead time. Dejarla fuera haría que el número se vea mejor de lo que es, por eso se informa aparte.</Ayuda>
                 </span>
               </div>
@@ -382,7 +430,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
               <div className={styles.columna}>
                 <span className={styles.sobre}>
                   Rango por laboratorio
-                  <Ayuda>Toca uno para ver su desglose por tramo. La barra azul es el 50 % central de las solicitudes y la línea negra, la mediana.</Ayuda>
+                  <Ayuda>Toca uno para ver su flujo y sus solicitudes más abajo. El cuerpo de la barra es el 50 % central de las solicitudes entregadas, el bigote va del percentil 10 al 90, la línea es la mediana y la marca vertical, el plazo prometido. Todo en días hábiles desde la recepción estimada.</Ayuda>
                 </span>
                 <div className={styles.cajas}>
                   {[...(todosCaja ? [todosCaja] : []), ...cajas].map((c) => {
@@ -396,7 +444,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
                         aria-label={`${nombre}: mediana ${f1(c.p50)} días, ${c.n} entregadas`}
                         onClick={() => setLabElegido(labElegido === c.lab ? '' : c.lab)}
                       >
-                        <span className={styles.nom}>{nombre}<small>{nf.format(c.n)} entregadas</small></span>
+                        <span className={styles.nom}>{nombre}<small>{nf.format(c.n)} entregadas{(() => { const p = cumPorLab.get(c.lab)?.r.pct; return p != null ? ` · ${Math.round(p)} % a tiempo` : '' })()}</small></span>
                         <span className={styles.pista}>
                           <i className={styles.eje} />
                           <i className={styles.bigote} style={{ left: x(c.p10), width: `${((c.p90 - c.p10) / tope) * 100}%` }} />
@@ -404,58 +452,35 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
                           <i className={styles.mediana} style={{ left: x(c.p50) }} />
                           {c.plazo != null && <i className={styles.plazoMarca} style={{ left: x(c.plazo) }} title={`Plazo ${c.plazo} d`} />}
                         </span>
-                        <span className={styles.val}>{f1(c.p50)} d<small>P90 {f1(c.p90)}</small></span>
+                        <span className={styles.val}>{f1(c.p50)} d<small>P90 {f1(c.p90)} · háb.</small></span>
                       </button>
                     )
                   })}
-                  <div className={styles.escala} aria-hidden="true"><span /><div><span>0</span><span>{tope / 2} d</span><span>{tope} d</span></div><span /></div>
+                  <div className={styles.escala} aria-hidden="true"><span /><div><span>0</span><span>{tope / 2} d háb.</span><span>{tope} d háb.</span></div><span /></div>
                 </div>
                 <div className={styles.leyenda}>
                   <span><i className={styles.lCuerpo} />50 % central (P25–P75)</span>
+                  <span>bigote: P10–P90</span>
                   <span><i className={styles.lMed} />mediana</span>
-                  {hayPlazos && <span><i className={styles.lPlazo} />plazo comprometido</span>}
+                  {hayPlazos && <span><i className={styles.lPlazo} />plazo general del laboratorio</span>}
                 </div>
               </div>
 
               <div className={styles.columna}>
-                <span className={styles.sobre}>
-                  Desglose por tramo · {labElegido || 'Todos'} · {estadistico === 0.5 ? 'mediana' : 'P90'}
-                  <Ayuda>Los tramos no suman exactamente el total: el total se calcula sobre cada solicitud completa.</Ayuda>
-                </span>
-                {desglose.every((t) => t.n === 0) ? (
-                  <p className={styles.vacio}>No hay solicitudes con las fechas necesarias para medir los tramos.</p>
-                ) : (
-                  <div>
-                    {(() => {
-                      const suma = desglose.reduce((s, t) => s + t.valor, 0)
-                      return desglose.map((t) => (
-                        <div key={t.clave} className={styles.tramo}>
-                          <span className={styles.nom}>
-                            <i className={styles.punto} style={{ background: COLOR_TRAMO[t.clave] }} />
-                            {t.nombre}
-                            <small>{cuello?.tramo.clave === t.clave ? 'cuello de botella · ' : ''}{nf.format(t.n)} solicitudes</small>
-                          </span>
-                          <b>{t.n ? `${f1(t.valor)} d` : '—'}</b>
-                          <span className={styles.pctTramo}>{t.n && suma ? pc((t.valor / suma) * 100) : ''}</span>
-                          <div className={styles.barra}><i style={{ width: `${suma ? (t.valor / suma) * 100 : 0}%`, background: COLOR_TRAMO[t.clave] }} /></div>
-                        </div>
-                      ))
-                    })()}
-                  </div>
-                )}
+                <FlujogramaLeadTime ev={evFlujo} titulo={labElegido || 'Todos los laboratorios'} />
               </div>
             </div>
           </>
         )}
 
         <p className={styles.formula}>
-          <span><b>Lead time</b> = «{textoFin}» − emisión, en días corridos</span>
+          <span><b>Lead time</b> = «{textoFin}» − recepción estimada (emisión + {RECEPCION_ESTIMADA_DIAS} día), en días hábiles</span>
           <span>{nf.format(lead.entregadas)} de {nf.format(lead.total)} solicitudes entran al cálculo</span>
           <Ayuda etiqueta="Cómo se calcula el lead time">
             <b>Qué entra.</b> {nf.format(lead.total)} solicitudes del alcance (filtros de la página, sin pruebas): {nf.format(lead.entregadas)} ya llegaron a «{textoFin}» y {nf.format(lead.abiertas)} siguen abiertas
             {lead.excluidas > 0 ? `; ${nf.format(lead.excluidas)} quedan fuera por tener una fecha anterior a la emisión` : ''}.
             <br />
-            <b>De dónde sale cada fecha.</b> Emisión: cuándo se creó la solicitud. Envío al lab: el primer envío exitoso del correo.
+            <b>De dónde sale cada fecha.</b> Emisión: cuándo se creó la solicitud; la recepción en el laboratorio se estima {RECEPCION_ESTIMADA_DIAS} día después (no la conocemos).
             Informe: la «fecha de envío» anotada al subir el PDF o, si no, cuando se subió{lead.entregadas ? ` (${nf.format(lead.conFechaAnotada)} de ${nf.format(lead.entregadas)} tienen fecha anotada)` : ''}.
             Report: cuándo se hizo la carga de datos{lead.sinFechaReport ? `; en ${nf.format(lead.sinFechaReport)} no hay fecha de carga y se usó la del informe` : ''}.
             {definicion === 'cliente' && ' Cliente: el primer envío en modo producción desde «Envío de informes», amarrado a la solicitud.'}
@@ -487,7 +512,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
 
         {!hayPlazos ? (
           <p className={styles.vacio}>
-            Para calcular el cumplimiento hace falta el plazo de cada laboratorio. {puedeEditar ? 'Escríbelos arriba, en «Reglas del cálculo».' : 'Pídele al administrador general que los cargue.'}
+            Para calcular el cumplimiento hace falta el plazo de cada laboratorio o análisis. {puedeEditar ? 'Escríbelos arriba, en «Configuración de plazos».' : 'Pídele al administrador general que los cargue.'}
             {' '}No se asume ninguno.
           </p>
         ) : (
@@ -502,7 +527,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
               <div className={styles.tile}>
                 <span className={styles.et}>Entregadas a tiempo</span>
                 <span className={`${styles.gr} ${styles.bueno}`}>{nf.format(cum.cumplio)}</span>
-                <span className={styles.ap}>dentro del plazo de su laboratorio</span>
+                <span className={styles.ap}>dentro del plazo de su análisis</span>
               </div>
               <div className={styles.tile}>
                 <span className={styles.et}>Atrasadas</span>
@@ -533,15 +558,28 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
 
             <div className={styles.dos}>
               <div className={styles.columna}>
-                <span className={styles.sobre}>
-                  Por laboratorio
-                  <Ayuda>Toca uno para filtrar los registros de abajo.</Ayuda>
-                </span>
+                <div className={styles.cabVista}>
+                  <span className={styles.sobre}>
+                    {vistaCum === 'laboratorio' ? 'Por laboratorio' : 'Por análisis'}
+                    <Ayuda>
+                      {vistaCum === 'laboratorio'
+                        ? 'Toca uno para filtrar los registros de abajo.'
+                        : 'Agrupa cada solicitud por el análisis que fija su plazo (el más lento de los que pidió). «Plazo general» son las que usan el plazo del laboratorio.'}
+                    </Ayuda>
+                  </span>
+                  <div className={styles.segmentado} role="group" aria-label="Agrupar cumplimiento por">
+                    <button type="button" aria-pressed={vistaCum === 'laboratorio'} onClick={() => setVistaCum('laboratorio')}>Laboratorio</button>
+                    <button type="button" aria-pressed={vistaCum === 'analisis'} onClick={() => { setVistaCum('analisis'); setLabCum('') }}>Análisis</button>
+                  </div>
+                </div>
                 <div className={styles.cajas}>
-                  {porLab.map(({ lab, plazo, r, total }) => (
-                    <button key={lab} type="button" className={styles.caja} style={{ gridTemplateColumns: '104px minmax(0,1fr) 58px' }} aria-pressed={labCum === lab} onClick={() => setLabCum(labCum === lab ? '' : lab)}>
-                      <span className={styles.nom}>{lab}<small>{plazo != null ? `plazo ${plazo} d · ${nf.format(r.vencidas)} vencidas` : 'sin plazo cargado'}</small></span>
-                      <span className={styles.apilada} role="img" aria-label={`${lab}: ${r.cumplio} a tiempo, ${r.tarde + r.vencida} atrasadas, ${r.plazo + r.sinPlazo} sin juzgar`}>
+                  {(vistaCum === 'laboratorio'
+                    ? porLab.map(({ lab, plazo, r, total }) => ({ clave: lab, nombre: lab, plazo, r, total, activo: labCum === lab, elegible: true }))
+                    : porAnalisis.map((x) => ({ clave: x.etiqueta, nombre: x.etiqueta, plazo: x.plazo, r: x.r, total: x.total, activo: false, elegible: false }))
+                  ).map(({ clave, nombre, plazo, r, total, activo, elegible }) => (
+                    <button key={clave} type="button" className={styles.caja} style={{ gridTemplateColumns: '120px minmax(0,1fr) 58px', cursor: elegible ? 'pointer' : 'default' }} aria-pressed={elegible ? activo : undefined} onClick={() => elegible && setLabCum(labCum === clave ? '' : clave)}>
+                      <span className={styles.nom}>{nombre}<small>{plazo != null ? `plazo ${plazo} d háb. · ${nf.format(r.vencidas)} vencidas` : 'sin plazo cargado'}</small></span>
+                      <span className={styles.apilada} role="img" aria-label={`${nombre}: ${r.cumplio} a tiempo, ${r.tarde + r.vencida} atrasadas, ${r.plazo + r.sinPlazo} sin juzgar`}>
                         <span style={{ width: `${(r.cumplio / total) * 100}%`, background: '#1b7f5c' }} title={`A tiempo: ${r.cumplio}`} />
                         <span style={{ width: `${((r.tarde + r.vencida) / total) * 100}%`, background: 'var(--color-danger)' }} title={`Atrasadas: ${r.tarde + r.vencida}`} />
                         <span className={styles.sinJuzgar} style={{ width: `${((r.plazo + r.sinPlazo + r.excluidas) / total) * 100}%` }} title={`Sin juzgar: ${r.plazo + r.sinPlazo + r.excluidas}`} />
@@ -559,13 +597,13 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
               <div className={styles.columna}>
                 <span className={styles.sobre}>
                   ¿Y si el plazo fuera otro?
-                  <Ayuda>Sirve para defender el plazo: si un día más mueve mucho el %, el plazo está mal puesto o el proceso está al límite.</Ayuda>
+                  <Ayuda>Sirve para defender el plazo: si un día hábil más mueve mucho el %, el plazo está mal puesto o el proceso está al límite.</Ayuda>
                 </span>
                 <div className={styles.sens}>
                   {sens.map((s) => (
                     <div key={s.delta} className={s.delta === 0 ? styles.sensActual : undefined}>
                       <b>{s.pct == null ? '—' : `${Math.round(s.pct)} %`}</b>
-                      <span>{s.delta === 0 ? 'plazos actuales' : `${s.delta > 0 ? '+' : '−'}${Math.abs(s.delta)} días de plazo`}</span>
+                      <span>{s.delta === 0 ? 'plazos actuales' : `${s.delta > 0 ? '+' : '−'}${Math.abs(s.delta)} días háb. de plazo`}</span>
                     </div>
                   ))}
                 </div>
@@ -578,13 +616,13 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
           <span><b>Cumplimiento</b> = a tiempo ÷ (a tiempo + tarde + vencidas sin entregar)</span>
           <span>{nf.format(cum.vencidas)} ya vencidas cuentan</span>
           <Ayuda etiqueta="Cómo se calcula el cumplimiento">
-            <b>A tiempo:</b> llegó a «{textoFin}» dentro del plazo de su laboratorio, contado desde la emisión.
+            <b>A tiempo:</b> llegó a «{textoFin}» dentro del plazo de su análisis (o el general de su laboratorio), en días hábiles desde la recepción estimada (emisión + {RECEPCION_ESTIMADA_DIAS} día).
             <br /><b>Entregada tarde:</b> llegó, pero después del plazo.
             <br /><b>Vencida sin entregar:</b> no llegó y ya pasó su plazo; cuenta como incumplida desde el día siguiente (si se entrega después, pasa a «tarde»).
             <br /><b>Aún en plazo:</b> {nf.format(cum.plazo)}, no cuentan todavía.
-            {cum.sinPlazo > 0 && <><br /><b>Sin plazo:</b> {nf.format(cum.sinPlazo)}, su laboratorio no tiene plazo cargado.</>}
+            {cum.sinPlazo > 0 && <><br /><b>Sin plazo:</b> {nf.format(cum.sinPlazo)}, su laboratorio y sus análisis no tienen plazo cargado.</>}
             {cum.excluidas > 0 && <><br /><b>Fuera:</b> {nf.format(cum.excluidas)} con una fecha anterior a la emisión.</>}
-            <br />Solo mueven el número dos reglas, a la vista arriba: qué cuenta como «entregado» y el plazo de cada laboratorio.
+            <br />Solo mueven el número dos reglas: qué cuenta como «entregado» y el plazo de cada laboratorio o análisis, que fija el administrador general.
           </Ayuda>
         </p>
 

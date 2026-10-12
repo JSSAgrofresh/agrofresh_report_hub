@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Hitos } from '@/features/auditoriaInterna'
 import type { SolicitudAuditoria } from '@/features/auditoriaInterna'
@@ -6,7 +6,7 @@ import type { SolicitudAuditoria } from '@/features/auditoriaInterna'
 const d = (dia: number) => `2026-09-${String(dia).padStart(2, '0')}T12:00:00Z`
 const sol = (archivo: string, p: Partial<SolicitudAuditoria> = {}): SolicitudAuditoria => ({
   archivo, numero_solicitud: archivo, laboratorio: 'QUITECA', sold_to: 'A', ship_to: 'B', especie: null, variedad: null,
-  tipo_servicio: null, analitos: [], fecha_solicitud: null, fecha_muestreo: null, emitida_en: d(1),
+  tipo_servicio: null, analitos: ['FDL'], fecha_solicitud: null, fecha_muestreo: null, emitida_en: d(1),
   informe: null, en_report: false, concretada: false, ...p,
 })
 const hit = (archivo: string, p: Partial<Hitos>): Hitos => ({
@@ -19,11 +19,11 @@ vi.mock('@/features/auditoriaInterna', async (original) => {
     ...real,
     useEntrega: () => ({
       hitos: new Map([
-        ['1', hit('1', { informe: d(6) })],
+        ['1', hit('1', { informe: d(6), observado: d(9), observado_por: ['DOLE · LONTUE'] })],
         ['2', hit('2', { informe: d(8) })],
       ]),
       calidad: null,
-      reglas: { entregado: 'concretado', plazos: { QUITECA: 12 }, cambiado_por: null, cambiado_en: null },
+      reglas: { entregado: 'concretado', plazos: { QUITECA: 12, 'QUITECA|FDL': 8 }, cambiado_por: null, cambiado_en: null },
       error: null,
       guardar: vi.fn(),
     }),
@@ -33,13 +33,12 @@ vi.mock('@/features/auditoriaInterna', async (original) => {
 import { IndicadoresEntrega } from './IndicadoresEntrega'
 
 describe('IndicadoresEntrega', () => {
-  const solicitudes = [sol('1', { concretada: true }), sol('2', { concretada: true }), sol('3')]
+  const solicitudes = [sol('1', { concretada: true, en_report: true }), sol('2', { concretada: true }), sol('3')]
 
   it('ya no trae el bloque largo «¿Cómo se calcula este número?»: la explicación va en globitos', () => {
     render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar={false} />)
     expect(screen.queryByText('¿Cómo se calcula este número?')).toBeNull()
     expect(screen.queryByText(/Por qué la mediana y no el promedio/)).toBeNull()
-    // la explicación sigue ahí, en un globito que se abre al pasar el mouse o enfocar
     const globitos = screen.getAllByRole('tooltip', { hidden: true })
     expect(globitos.some((g) => /mediana y no el promedio/.test(g.textContent ?? ''))).toBe(true)
     expect(globitos.some((g) => /percentil 90/.test(g.textContent ?? ''))).toBe(true)
@@ -49,5 +48,55 @@ describe('IndicadoresEntrega', () => {
     render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar={false} />)
     expect(screen.getAllByText(/entran al cálculo/).length).toBeGreaterThan(0)
     expect(screen.getByText(/Lead time/, { selector: 'b' })).toBeTruthy()
+  })
+
+  it('avisa a todos que la recepción es un estimado de 1 día y que se cuenta en días hábiles', () => {
+    render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar={false} />)
+    const aviso = screen.getByRole('note', { name: '' })
+    expect(aviso.textContent).toMatch(/Estimado, no medido/)
+    expect(aviso.textContent).toMatch(/1 día después de emitida/)
+    expect(aviso.textContent).toMatch(/días hábiles/)
+  })
+
+  it('«Cuello de botella», «Reglas del cálculo» y el desglose por tramo ya no existen', () => {
+    render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar />)
+    expect(screen.queryByText(/Cuello de botella/i)).toBeNull()
+    expect(screen.queryByText(/Reglas del cálculo/i)).toBeNull()
+    expect(screen.queryByText(/Desglose por tramo/i)).toBeNull()
+  })
+
+  it('la configuración de plazos solo la ve el administrador general', () => {
+    const { unmount } = render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar={false} />)
+    expect(screen.queryByText('Configuración de plazos')).toBeNull()
+    expect(screen.queryByLabelText(/plazo general/i)).toBeNull()
+    unmount()
+    render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar />)
+    expect(screen.getByText('Configuración de plazos')).toBeTruthy()
+    // plazo general del laboratorio y plazo propio del análisis FDL
+    expect(screen.getByLabelText(/QUITECA\s*· plazo general/i)).toBeTruthy()
+    expect((screen.getByLabelText(/^FDL\b/) as HTMLInputElement).value).toBe('8')
+  })
+
+  it('el flujograma muestra los puntos, con informe al cliente e informe en el sistema al mismo nivel', () => {
+    render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar={false} />)
+    for (const t of ['Solicitud emitida', 'Recepcionada por el laboratorio', 'En análisis', 'Informe recibido del laboratorio',
+      'Informe enviado al cliente', 'Informe cargado al sistema', 'Reporte observado']) {
+      expect(screen.getAllByText(t).length).toBeGreaterThan(0)
+    }
+    expect(screen.getByText('estimado')).toBeTruthy()
+  })
+
+  it('al tocar «Reporte observado» se ve qué clientes ya vieron su informe', () => {
+    render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /Reporte observado/ }))
+    const detalle = screen.getByRole('heading', { name: /Reporte observado · 1/ }).parentElement as HTMLElement
+    expect(within(detalle).getByText(/DOLE · LONTUE/)).toBeTruthy()
+  })
+
+  it('el cumplimiento se puede ver por análisis', () => {
+    render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Análisis' }))
+    expect(screen.getByText('Por análisis')).toBeTruthy()
+    expect(screen.getAllByText(/QUITECA · FDL/).length).toBeGreaterThan(0)
   })
 })

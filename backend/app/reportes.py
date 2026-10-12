@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .auth import Usuario, alcance_de_datos, solo_interno, usuario_actual
-from . import funciones
+from . import funciones, informe_visto
 from .db import conexion, cursor_dict
 
 router = APIRouter(prefix="/api/reportes", tags=["reportes"])
@@ -150,6 +150,8 @@ def datos(
                 params,
             )
             total_solicitudes = cur.fetchone()["total"]
+    # «Reporte observado»: si es un cliente, queda anotado qué solicitudes vio (nunca falla).
+    informe_visto.registrar(usuario, (f.get("solicitud_id") for f in filas))
     return {"filas": filas, "total": len(filas), "total_solicitudes": total_solicitudes}
 
 

@@ -77,3 +77,23 @@ def test_iso_acepta_fechas_guardadas_como_texto():
     assert _iso("2026-10-01T10:00:00+00:00") == "2026-10-01T10:00:00+00:00"
     assert _iso(datetime(2026, 10, 1, tzinfo=timezone.utc)).startswith("2026-10-01")
     assert _iso(None) is None and _iso("") is None
+
+
+def test_plazos_por_analito_se_normalizan_y_validan():
+    ok = ent.validar_reglas(ent.ReglasIn(entregado="concretado", plazos={" als |hongos ": 5, "ALS": 10, "QUITECA|FDL": None}))
+    assert ok["plazos"] == {"ALS|HONGOS": 5, "ALS": 10}
+    for malo in ({"ALS|": 5}, {"|HONGOS": 5}, {"ALS|HONGOS": 0}):
+        with pytest.raises(HTTPException):
+            ent.validar_reglas(ent.ReglasIn(entregado="concretado", plazos=malo))
+
+
+def test_reporte_observado_se_une_por_n_de_informe():
+    base = [
+        {"archivo": "a.xlsx", "emitida": T(1), "subido_en": T(10), "fecha_envio": None, "nro_informe": "2026-1", "en_report": True},
+        {"archivo": "b.xlsx", "emitida": T(2), "subido_en": None, "fecha_envio": None, "nro_informe": None, "en_report": False},
+    ]
+    h = ent.armar_hitos(base, {}, {}, {}, {"2026-1": {"t": T(12), "por": ["DOLE · LONTUE"]}})
+    assert h[0]["observado"] == T(12).isoformat() and h[0]["observado_por"] == ["DOLE · LONTUE"]
+    assert h[1]["observado"] is None and h[1]["observado_por"] == []
+    # sin la tabla (None) todo queda vacío
+    assert ent.armar_hitos(base, {}, {}, {})[0]["observado"] is None

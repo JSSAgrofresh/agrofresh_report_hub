@@ -108,6 +108,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0052_envio_informes.sql
 .venv\Scripts\python.exe scripts\migrar.py 0054_envio_informe_solicitud.sql
 .venv\Scripts\python.exe scripts\migrar.py 0055_solicitud_servicio.sql
+.venv\Scripts\python.exe scripts\migrar.py 0057_informe_visto.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -510,14 +511,36 @@ lógica pura en `features/auditoriaInterna/lib/entrega.ts`; backend `app/entrega
 `GET /api/auditoria-interna/hitos`, `GET/PUT /plazos`). Cada número sale de fechas reales:
 emitida (`solicitud_archivo.creado_en`), enviada al lab (`envio_solicitud_log` exitoso), informe
 (`informe_auditoria.fecha_envio`, si no `subido_en`), Report (`carga_datos.creado_en`, unido por
-`solicitud.nro_solicitud = informe.nro_informe`) y cliente (`envio_informe_log` en modo producción,
-enlazado por `archivo_solicitud`, **migración 0054**; los envíos anteriores no tienen enlace).
-- **Entregado** se define en las reglas: `concretado` (PDF + Report; por defecto, sirve con todo el
-  historial) o `cliente`. Lead time = fin − emitida (días corridos), mediana y P90; las abiertas se
-  informan aparte; las que tienen hitos antes de la emisión se excluyen.
-- **Cumplimiento** = a tiempo ÷ (a tiempo + tarde + vencidas sin entregar). «Aún en plazo» y «sin
-  plazo» no cuentan. Los **plazos por laboratorio** (`plazos_entrega.json`) los carga el admin
-  general; no se inventa ninguno (sin plazos, estado vacío).
+`solicitud.nro_solicitud = informe.nro_informe`), cliente (`envio_informe_log` en modo producción,
+enlazado por `archivo_solicitud`, **migración 0054**; los envíos anteriores no tienen enlace) y
+**observado** (`informe_visto`, **migración 0057**: la primera vez que una cuenta `cliente` cargó sus
+resultados en Report; lo anota `reportes.datos` vía `informe_visto.registrar`, que nunca lanza y solo cuenta
+cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
+- **Único supuesto (pedido del usuario, 12-10-2026): la recepción en el laboratorio se ESTIMA 24 horas
+  después de emitida la solicitud** (`RECEPCION_ESTIMADA_DIAS = 1`; no sabemos cuándo retiran las muestras).
+  Desde ahí corren TODOS los tiempos y plazos, **en días hábiles** (lunes a viernes, **sin feriados**: `diasHabiles`,
+  con fracción). Un aviso amarillo «Estimado, no medido» lo dice a todos, arriba del bloque. Si algún día se
+  piden feriados, va en `diasHabiles` (un solo punto).
+- **Entregado** se define en la configuración: `concretado` (PDF + Report; por defecto) o `cliente`. Lead time = fin −
+  recepción estimada (mediana y P90); las abiertas se informan aparte; las que tienen hitos antes de la emisión se excluyen.
+- **Plazos en días hábiles por laboratorio Y por análisis** (`plazos_entrega.json`): claves `LAB` y `LAB|ANALITO`
+  (`clavePlazoAnalisis`). A cada solicitud la rige su análisis MÁS LENTO: cada análisis pedido usa el suyo y, si no
+  tiene, el general del laboratorio (`plazoDe`; `analisis` dice cuál fijó el plazo). Sin plazo cargado no se juzga,
+  nunca se asume uno. **Los plazos guardados antes de este cambio estaban en días corridos y ahora se leen como
+  hábiles: conviene revisarlos.**
+- **La configuración (entregado + plazos) SOLO la ve el administrador general** (desplegable «Configuración de
+  plazos», `puedeEditar`); los demás no ven ni el panel ni los inputs. Se quitaron a pedido: el «Cuello de
+  botella», la tarjeta «Reglas del cálculo» visible para todos y el «Desglose por tramo»: **no los vuelvas a poner**.
+- **Flujograma del lead time** (`FlujogramaLeadTime.tsx`, reemplaza al desglose por tramo): puntos de arriba hacia
+  abajo (emitida → recepción estimada → en análisis con su plazo → informe recibido → [informe enviado al cliente |
+  informe cargado al sistema, al mismo nivel] → reporte observado). Cada punto se enciende por sus hitos
+  (`alcanzados`, `nodoActual`, `resumenFlujo`); con todas las solicitudes muestra cuántas llegaron y cuántas están
+  hoy ahí (clic = lista; en «Reporte observado», qué clientes), y con «Ver» una sola, su recorrido con fechas.
+- **Rango por laboratorio** (caja P25–P75 con bigote P10–P90, mediana, plazo y % a tiempo; clic = filtra flujo y
+  registros) y **Cumplimiento** (por laboratorio o por análisis, con sensibilidad) usan esos plazos.
+- **Cumplimiento** = a tiempo ÷ (a tiempo + tarde + vencidas sin entregar). «Aún en plazo» y «sin plazo» no cuentan.
+- Pruebas: `entrega.test.ts` (corren igual en cualquier zona horaria), `IndicadoresEntrega.test.tsx`,
+  `test_entrega_indicadores.py`, `test_informe_visto.py`.
 **Fuera de rango** (`views/modules/reports/FueraDeRango.tsx`, lógica en `features/reportes/lib/fueraDeRango.ts`)
 solo en la Vista por límite de control: criterio «Límite del analito» (límite residual; sin límite ≠ dentro)
 o «Límite de control» (promedio ± σ, mín. 3 por analito); parte en el primero si hay límites cargados.
