@@ -87,8 +87,9 @@ export function SolicitudesInformesView() {
   return (
     <div className={styles.pagina}>
       <AuditoriaHero
-        titulo="Solicitudes e informes"
-        descripcion="Las solicitudes que emitimos y cuáles ya están concretadas: con su PDF guardado y sus resultados en Report."
+        etiqueta="Control de solicitudes e informes"
+        titulo="Auditoría interna"
+        descripcion="Lo que pedimos a los laboratorios y los informes que vuelven: cuáles ya están concretados, con su PDF guardado y sus resultados en Report."
       />
       <div className={styles.acciones}>
         {puedeSimular && (
