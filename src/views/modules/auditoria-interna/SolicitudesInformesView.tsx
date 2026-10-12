@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '@/features/auth'
 import { esAdminGeneral } from '@/features/usuarios'
-import { AREAS } from '@/constants/areas'
-import { AreaHero } from '@/features/dashboard'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { IconoActualizar, IconoAlerta, IconoBuscar } from '@/components/ui/iconosAccion'
@@ -26,6 +24,7 @@ import {
 import type { AreaPivote, DimensionGrafico, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { DonaTipoServicio, GraficoGrupoLaboratorio, LeyendaLaboratorios, TarjetaGrafico } from './Graficos'
 import { altoGrupoLaboratorio } from './coloresTipo'
+import { AuditoriaHero } from './AuditoriaHero'
 import { PanelFiltros } from './PanelFiltros'
 import { SelectorArea } from './SelectorArea'
 import { IndicadoresEntrega } from './IndicadoresEntrega'
@@ -87,9 +86,7 @@ export function SolicitudesInformesView() {
 
   return (
     <div className={styles.pagina}>
-      <AreaHero
-        compacto
-        area={{ ...AREAS.cromatografia, nombre: 'Auditoría interna' }}
+      <AuditoriaHero
         titulo="Solicitudes e informes"
         descripcion="Las solicitudes que emitimos y cuáles ya están concretadas: con su PDF guardado y sus resultados en Report."
       />
