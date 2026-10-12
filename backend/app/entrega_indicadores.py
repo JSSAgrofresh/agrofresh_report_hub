@@ -16,11 +16,19 @@ inventar ninguna fecha:
 Las solicitudes de prueba nunca entran. Cada fuente se lee por separado: si a una
 le falta su migración, el resto sigue y ese hito queda vacío.
 
+  observado  primera vez que una cuenta de cliente vio sus resultados en Report
+             (informe_visto, migración 0057; lo anotan las cargas de Report de cada cliente)
+
 Dos reglas editables, que guarda el admin general (`plazos_entrega.json`):
   - qué cuenta como «entregado»: `concretado` (PDF + resultados en Report) o `cliente`
     (el informe salió al cliente);
-  - el plazo comprometido, en días, de cada laboratorio. Sin plazo cargado no se calcula
-    cumplimiento: nunca se asume uno.
+  - el plazo comprometido, en DÍAS HÁBILES (lunes a viernes, sin feriados), de cada
+    laboratorio (`LAB`) y, si el análisis tiene su propio tiempo, de cada análisis de
+    ese laboratorio (`LAB|ANALITO`). Sin plazo cargado no se calcula cumplimiento: nunca
+    se asume uno.
+El plazo corre desde la RECEPCIÓN ESTIMADA en el laboratorio: 24 horas después de emitida
+la solicitud (no sabemos cuándo pasan a retirar las muestras). Esa cuenta vive en la
+pantalla (`entrega.ts`), y todo cálculo está sujeto a ese supuesto.
 """
 from __future__ import annotations
 
@@ -55,6 +63,15 @@ def _clave_lab(laboratorio: str | None) -> str:
     return (laboratorio or "").strip().upper()
 
 
+def _clave_plazo(clave: str | None) -> str | None:
+    """`LAB` o `LAB|ANALITO` en mayúsculas y sin espacios sobrantes; None si no es válida."""
+    lab, sep, analito = (clave or "").partition("|")
+    lab, analito = _clave_lab(lab), analito.strip().upper()
+    if not lab or (sep and not analito):
+        return None
+    return f"{lab}|{analito}" if sep else lab
+
+
 # ── Reglas (plazos y definición de «entregado») ──────────────────────────
 
 def leer_reglas() -> dict[str, Any]:
@@ -66,9 +83,10 @@ def leer_reglas() -> dict[str, Any]:
         cfg = {}
     plazos: dict[str, int] = {}
     crudos = cfg.get("plazos") if isinstance(cfg.get("plazos"), dict) else {}
-    for lab, dias in crudos.items():
-        if isinstance(dias, int) and not isinstance(dias, bool) and 1 <= dias <= PLAZO_MAXIMO and _clave_lab(lab):
-            plazos[_clave_lab(lab)] = dias
+    for clave, dias in crudos.items():
+        k = _clave_plazo(clave)
+        if k and isinstance(dias, int) and not isinstance(dias, bool) and 1 <= dias <= PLAZO_MAXIMO:
+            plazos[k] = dias
     return {
         "entregado": cfg.get("entregado") if cfg.get("entregado") in DEFINICIONES else "concretado",
         "plazos": plazos,
@@ -79,7 +97,7 @@ def leer_reglas() -> dict[str, Any]:
 
 class ReglasIn(BaseModel):
     entregado: str
-    # laboratorio -> días; null o ausente = sin plazo
+    # «LAB» o «LAB|ANALITO» -> días hábiles; null o ausente = sin plazo
     plazos: dict[str, int | None] = Field(default_factory=dict)
 
 
@@ -87,14 +105,15 @@ def validar_reglas(body: ReglasIn) -> dict[str, Any]:
     if body.entregado not in DEFINICIONES:
         raise HTTPException(400, "«Entregado» debe ser «concretado» (PDF + Report) o «cliente» (enviado al cliente).")
     plazos: dict[str, int] = {}
-    for lab, dias in body.plazos.items():
+    for clave, dias in body.plazos.items():
         if dias is None:
             continue
-        if not _clave_lab(lab):
-            raise HTTPException(400, "Falta el nombre del laboratorio.")
+        k = _clave_plazo(clave)
+        if k is None:
+            raise HTTPException(400, "Falta el nombre del laboratorio o del análisis.")
         if not 1 <= dias <= PLAZO_MAXIMO:
-            raise HTTPException(400, f"El plazo de {lab} debe estar entre 1 y {PLAZO_MAXIMO} días.")
-        plazos[_clave_lab(lab)] = dias
+            raise HTTPException(400, f"El plazo de {clave} debe estar entre 1 y {PLAZO_MAXIMO} días hábiles.")
+        plazos[k] = dias
     return {"entregado": body.entregado, "plazos": plazos}
 
 
@@ -132,6 +151,7 @@ def armar_hitos(
     enviadas: dict[str, Any],
     reports: dict[str, Any],
     clientes: dict[str, Any],
+    observados: dict[str, dict] | None = None,
 ) -> list[dict]:
     """Une las fuentes por solicitud. Función pura: se prueba sin base."""
     salida = []
@@ -149,6 +169,9 @@ def armar_hitos(
             "report": _iso(reports.get(nro)) if nro else None,
             "en_report": bool(f.get("en_report")),
             "cliente": _iso(clientes.get(f["archivo"])),
+            # Reporte observado: la primera vez que un cliente vio sus resultados, y quiénes.
+            "observado": _iso((observados or {}).get(nro, {}).get("t")) if nro else None,
+            "observado_por": list((observados or {}).get(nro, {}).get("por") or []) if nro else [],
         })
     return salida
 
@@ -188,12 +211,24 @@ def hitos(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
         WHERE exitoso AND modo = 'produccion' AND archivo_solicitud IS NOT NULL
         GROUP BY archivo_solicitud
         """)
+    observados = {
+        f["nro"]: {"t": f["t"], "por": f["por"]}
+        for f in _filas(
+            """
+            SELECT s.nro_solicitud AS nro, min(v.primera_vez) AS t,
+                   array_agg(DISTINCT coalesce(nullif(v.cliente, ''), v.usuario_email)
+                             || CASE WHEN v.planta IS NOT NULL AND v.planta <> '' THEN ' · ' || v.planta ELSE '' END) AS por
+            FROM informe_visto v JOIN solicitud s ON s.id = v.solicitud_id
+            WHERE s.nro_solicitud IS NOT NULL
+            GROUP BY s.nro_solicitud
+            """) or []
+    }
     # Calidad del dato: ¿cuántos envíos a clientes se pueden amarrar a una solicitud?
     totales = _filas("SELECT count(*) AS n FROM envio_informe_log WHERE exitoso AND modo = 'produccion'")
     amarrados = _filas(
         "SELECT count(*) AS n FROM envio_informe_log WHERE exitoso AND modo = 'produccion' AND archivo_solicitud IS NOT NULL")
     return {
-        "hitos": armar_hitos(base, enviadas, reports, {f["archivo"]: f["t"] for f in filas_cliente or []}),
+        "hitos": armar_hitos(base, enviadas, reports, {f["archivo"]: f["t"] for f in filas_cliente or []}, observados),
         "calidad": {
             "envios_a_clientes": totales[0]["n"] if totales else None,
             # None = falta la migración 0054: todavía no se puede amarrar ningún envío.
