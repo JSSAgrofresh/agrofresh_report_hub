@@ -531,13 +531,15 @@ cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
 - **La configuración (entregado + plazos) SOLO la ve el administrador general** (desplegable «Configuración de
   plazos», `puedeEditar`); los demás no ven ni el panel ni los inputs. Se quitaron a pedido: el «Cuello de
   botella», la tarjeta «Reglas del cálculo» visible para todos y el «Desglose por tramo»: **no los vuelvas a poner**.
-- **Flujograma del lead time** (`FlujogramaLeadTime.tsx`, reemplaza al desglose por tramo): puntos de arriba hacia
-  abajo (emitida → recepción estimada → en análisis con su plazo → informe recibido → [informe enviado al cliente |
-  informe cargado al sistema, al mismo nivel] → reporte observado). Cada punto se enciende por sus hitos
-  (`alcanzados`, `nodoActual`, `resumenFlujo`); con todas las solicitudes muestra cuántas llegaron y cuántas están
-  hoy ahí (clic = lista; en «Reporte observado», qué clientes), y con «Ver» una sola, su recorrido con fechas.
-- **Rango por laboratorio** (caja P25–P75 con bigote P10–P90, mediana, plazo y % a tiempo; clic = filtra flujo y
-  registros) y **Cumplimiento** (por laboratorio o por análisis, con sensibilidad) usan esos plazos.
+- **Flujograma del lead time** (`FlujogramaLeadTime.tsx`, reemplaza al desglose por tramo): a la izquierda los puntos de
+  arriba hacia abajo (emitida → recepción estimada → en análisis con su plazo → informe recibido → [informe enviado al
+  cliente | informe cargado al sistema, al mismo nivel] → reporte observado) y a la derecha un panel con la lista del
+  punto que se toque. Cada punto se enciende por sus hitos (`alcanzados`, `nodoActual`, `resumenFlujo`); con todas las
+  solicitudes muestra cuántas llegaron y cuántas están hoy ahí (en «Reporte observado», qué clientes), y con «Ver» una
+  sola, su recorrido con fechas. Trae su propio filtro de laboratorio.
+- **Se quitó «Rango por laboratorio»** (la caja P25–P75): se veía mal y ya lo cubren las tarjetas «Informes vs.
+  solicitudes por laboratorio» de arriba. **No lo vuelvas a poner.** **«Cumplimiento del entregable» quedó en un
+  desplegable cerrado al final** (por laboratorio o por análisis, con sensibilidad): el usuario le restó importancia.
 - **Cumplimiento** = a tiempo ÷ (a tiempo + tarde + vencidas sin entregar). «Aún en plazo» y «sin plazo» no cuentan.
 - Pruebas: `entrega.test.ts` (corren igual en cualquier zona horaria), `IndicadoresEntrega.test.tsx`,
   `test_entrega_indicadores.py`, `test_informe_visto.py`.

@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import {
-  cajaTodos,
-  cajasPorLaboratorio,
   claveLaboratorio,
   RECEPCION_ESTIMADA_DIAS,
   clavePlazoAnalisis,
@@ -160,14 +158,11 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
   const hayPlazos = Object.keys(plazos).length > 0
 
   const lead = useMemo(() => resumenLeadTime(ev), [ev])
-  const cajas = useMemo(() => cajasPorLaboratorio(ev, plazos), [ev, plazos])
-  const todosCaja = useMemo(() => cajaTodos(ev), [ev])
   const evFlujo = useMemo(() => (labElegido ? ev.filter((e) => claveLaboratorio(e.sol.laboratorio) === labElegido) : ev), [ev, labElegido])
   const serie = useMemo(() => seriePorMes(ev), [ev])
   const cum = useMemo(() => resumenCumplimiento(ev), [ev])
   const porLab = useMemo(() => cumplimientoPorLab(ev), [ev])
   const porAnalisis = useMemo(() => cumplimientoPorAnalisis(ev), [ev])
-  const cumPorLab = useMemo(() => new Map(porLab.map((x) => [x.lab, x])), [porLab])
   const sens = useMemo(() => sensibilidad(ev, [-2, 0, 2, 5]), [ev])
 
   if (error) {
@@ -210,9 +205,6 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
   }
 
   const textoFin = definicion === 'cliente' ? 'Enviado al cliente' : 'PDF + resultados en Report'
-  const maxCaja = Math.max(10, todosCaja?.p90 ?? 0, ...cajas.map((c) => c.p90), ...cajas.map((c) => c.plazo ?? 0))
-  const tope = Math.ceil(maxCaja / 5) * 5
-  const x = (v: number) => `${(v / tope) * 100}%`
   const sinAmarre = definicion === 'cliente' && calidad != null && calidad.envios_amarrados === 0
 
   // ── registros ──
@@ -426,50 +418,12 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
               </div>
             </div>
 
-            <div className={styles.dos}>
-              <div className={styles.columna}>
-                <span className={styles.sobre}>
-                  Rango por laboratorio
-                  <Ayuda>Toca uno para ver su flujo y sus solicitudes más abajo. El cuerpo de la barra es el 50 % central de las solicitudes entregadas, el bigote va del percentil 10 al 90, la línea es la mediana y la marca vertical, el plazo prometido. Todo en días hábiles desde la recepción estimada.</Ayuda>
-                </span>
-                <div className={styles.cajas}>
-                  {[...(todosCaja ? [todosCaja] : []), ...cajas].map((c) => {
-                    const nombre = c.lab || 'Todos'
-                    return (
-                      <button
-                        key={nombre}
-                        type="button"
-                        className={styles.caja}
-                        aria-pressed={labElegido === c.lab}
-                        aria-label={`${nombre}: mediana ${f1(c.p50)} días, ${c.n} entregadas`}
-                        onClick={() => setLabElegido(labElegido === c.lab ? '' : c.lab)}
-                      >
-                        <span className={styles.nom}>{nombre}<small>{nf.format(c.n)} entregadas{(() => { const p = cumPorLab.get(c.lab)?.r.pct; return p != null ? ` · ${Math.round(p)} % a tiempo` : '' })()}</small></span>
-                        <span className={styles.pista}>
-                          <i className={styles.eje} />
-                          <i className={styles.bigote} style={{ left: x(c.p10), width: `${((c.p90 - c.p10) / tope) * 100}%` }} />
-                          <i className={styles.cuerpo} style={{ left: x(c.p25), width: `${Math.max(0.8, ((c.p75 - c.p25) / tope) * 100)}%` }} />
-                          <i className={styles.mediana} style={{ left: x(c.p50) }} />
-                          {c.plazo != null && <i className={styles.plazoMarca} style={{ left: x(c.plazo) }} title={`Plazo ${c.plazo} d`} />}
-                        </span>
-                        <span className={styles.val}>{f1(c.p50)} d<small>P90 {f1(c.p90)} · háb.</small></span>
-                      </button>
-                    )
-                  })}
-                  <div className={styles.escala} aria-hidden="true"><span /><div><span>0</span><span>{tope / 2} d háb.</span><span>{tope} d háb.</span></div><span /></div>
-                </div>
-                <div className={styles.leyenda}>
-                  <span><i className={styles.lCuerpo} />50 % central (P25–P75)</span>
-                  <span>bigote: P10–P90</span>
-                  <span><i className={styles.lMed} />mediana</span>
-                  {hayPlazos && <span><i className={styles.lPlazo} />plazo general del laboratorio</span>}
-                </div>
-              </div>
-
-              <div className={styles.columna}>
-                <FlujogramaLeadTime ev={evFlujo} titulo={labElegido || 'Todos los laboratorios'} />
-              </div>
-            </div>
+            <FlujogramaLeadTime
+              ev={evFlujo}
+              laboratorios={labs}
+              lab={labElegido}
+              onLab={setLabElegido}
+            />
           </>
         )}
 
@@ -502,13 +456,12 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
       </section>
 
       {/* ───────── Cumplimiento ───────── */}
-      <section className={styles.tarjeta} aria-labelledby="ie-cum">
-        <header className={styles.cabecera}>
-          <div>
-            <span className={styles.sobre}>Indicador</span>
-            <h3 id="ie-cum">Cumplimiento del entregable</h3>
-          </div>
-        </header>
+      <details className={`${styles.tarjeta} ${styles.config}`}>
+        <summary>
+          <span>Cumplimiento del entregable</span>
+          <small>qué parte llegó dentro del plazo, por laboratorio y por análisis</small>
+        </summary>
+        <div className={styles.configCuerpo}>
 
         {!hayPlazos ? (
           <p className={styles.vacio}>
@@ -641,8 +594,8 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
             {tabla(filasCum, colsCum, verTodasCum, () => setVerTodasCum((v) => !v))}
           </div>
         </details>
-      </section>
+        </div>
+      </details>
     </div>
   )
 }
-

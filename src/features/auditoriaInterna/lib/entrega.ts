@@ -217,17 +217,6 @@ export const promedio = (v: number[]) => (v.length ? v.reduce((a, b) => a + b, 0
 
 // ── lead time ────────────────────────────────────────────────────────────
 
-export interface CajaLab {
-  lab: string
-  n: number
-  p10: number
-  p25: number
-  p50: number
-  p75: number
-  p90: number
-  plazo: number | null
-}
-
 export interface ResumenLeadTime {
   /** solicitudes del alcance */
   total: number
@@ -264,35 +253,6 @@ export function resumenLeadTime(ev: EvaluadaEntrega[]): ResumenLeadTime {
     sinFechaReport: entregadas.filter((e) => e.sinFechaReport).length,
     conFechaAnotada: entregadas.filter((e) => e.hitos?.informe_fuente === 'fecha_envio').length,
   }
-}
-
-function caja(lab: string, d: number[], plazo: number | null): CajaLab {
-  return {
-    lab, n: d.length, plazo,
-    p10: percentil(d, 0.1) as number, p25: percentil(d, 0.25) as number, p50: percentil(d, 0.5) as number,
-    p75: percentil(d, 0.75) as number, p90: percentil(d, 0.9) as number,
-  }
-}
-
-const diasEntregadas = (ev: EvaluadaEntrega[]) => ev.filter((e) => e.entregada && e.dias != null).map((e) => e.dias as number)
-
-/** La caja de todas las entregadas juntas (lab vacío), o null si no hay ninguna. */
-export function cajaTodos(ev: EvaluadaEntrega[]): CajaLab | null {
-  const d = diasEntregadas(ev)
-  return d.length ? caja('', d, null) : null
-}
-
-/** Una caja por laboratorio (con al menos una entregada), de más a menos solicitudes. */
-export function cajasPorLaboratorio(ev: EvaluadaEntrega[], plazos: Record<string, number>): CajaLab[] {
-  const por = new Map<string, number[]>()
-  for (const e of ev) {
-    if (!e.entregada || e.dias == null) continue
-    const lab = claveLaboratorio(e.sol.laboratorio) || 'SIN LABORATORIO'
-    por.set(lab, [...(por.get(lab) ?? []), e.dias])
-  }
-  return [...por.entries()]
-    .map(([lab, d]) => caja(lab, d, plazos[lab] ?? null))
-    .sort((a, b) => b.n - a.n || a.lab.localeCompare(b.lab))
 }
 
 // ── cumplimiento ─────────────────────────────────────────────────────────
