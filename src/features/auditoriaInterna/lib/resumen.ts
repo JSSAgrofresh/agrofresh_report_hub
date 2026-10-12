@@ -64,6 +64,15 @@ export function porLaboratorio(solicitudes: SolicitudAuditoria[]): LaboratorioRe
     .sort((a, b) => a.laboratorio.localeCompare(b.laboratorio, 'es'))
 }
 
+/** Las solicitudes que aún no tienen informe del laboratorio (ni PDF guardado),
+ * las más antiguas primero. Un PDF sin Report ya cuenta como informe recibido. */
+export function pendientesDeInforme(solicitudes: SolicitudAuditoria[]): SolicitudAuditoria[] {
+  const clave = (s: SolicitudAuditoria) => s.emitida_en ?? s.fecha_solicitud ?? ''
+  return solicitudes
+    .filter((s) => !s.informe)
+    .sort((a, b) => clave(a).localeCompare(clave(b)))
+}
+
 // ── tipo de servicio ────────────────────────────────────────────────────
 
 export const TIPO_ACTIMIST = 'Actimist'
