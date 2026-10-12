@@ -11,6 +11,7 @@
 }
 
 .tile {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -115,4 +116,63 @@
 
 .alerta.activa {
   box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+
+.tile:focus-visible {
+  outline: 2px solid var(--color-primary, #3d6b21);
+  outline-offset: 2px;
+}
+
+/* Globito de explicación: aparece suave con el mouse, el foco o el toque. */
+.detalle {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(300px, 80vw);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 28px rgba(20, 32, 26, 0.18);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-text);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease, visibility 0s linear 180ms;
+}
+
+.detalle b {
+  font-size: 12.5px;
+}
+
+.detalle span {
+  color: var(--color-text-muted);
+}
+
+.detalleDerecha {
+  left: auto;
+  right: 0;
+}
+
+.tile:hover .detalle,
+.tile:focus .detalle,
+.tile:focus-within .detalle {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition-delay: 120ms, 120ms, 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detalle {
+    transition: none;
+    transform: none;
+  }
 }

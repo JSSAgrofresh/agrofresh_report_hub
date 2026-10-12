@@ -11,7 +11,9 @@ Flujo:
      c. Descarga todos los adjuntos (.csv, .zip, .xlsx, .pdf, ...).
      d. Para archivos .zip: extrae y sube cada entrada preservando la ruta
         interna (PH/, ORP/, etc.).
-     e. Sube todos los archivos a R2 bajo accutab/mail/<carpeta>/.
+     e. Sube los archivos a R2 ordenados por cliente y fecha:
+        accutab/mail/<CLIENTE>/<AAAA-MM-DD>/Datos <HH-MM-SS>/ y, al lado,
+        el informe PDF que se genera solo (Informe <HH-MM-SS>.pdf).
      f. Solo si todo subio bien, anota el correo en el registro de
         procesados (R2, `accutab/_control/procesados.json`) y lo pasa de
         ACCUTAB_PENDIENTE a ACCUTAB_PROCESADO.
@@ -52,6 +54,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import sys
 import unicodedata
 import zipfile
@@ -69,6 +72,7 @@ _BACKEND = _HERE.parent
 if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
+from app import accutab_informe  # noqa: E402
 from app import config  # noqa: E402  (importacion post-sys.path)
 from app import r2 as _r2  # noqa: E402
 from app.accutab_parser import calcular_estadisticas, parsear_archivos_csv  # noqa: E402
@@ -101,17 +105,7 @@ _CHARS_INVALIDOS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _ESPACIOS_MULTIPLES = re.compile(r"\s+")
 
 
-def sanitizar_nombre(texto: str) -> str:
-    """Convierte un asunto de correo en nombre de carpeta seguro para R2 y Windows."""
-    # Normalizar Unicode (acentos → ASCII cuando sea posible)
-    normalizado = unicodedata.normalize("NFKD", texto)
-    sin_combining = "".join(c for c in normalizado if unicodedata.category(c) != "Mn")
-    # Reemplazar caracteres invalidos
-    limpio = _CHARS_INVALIDOS.sub("_", sin_combining)
-    # Colapsar espacios/guiones bajos multiples
-    limpio = _ESPACIOS_MULTIPLES.sub(" ", limpio).strip()
-    # Truncar (R2 admite hasta 1024 bytes, dejar margen para el sufijo)
-    return limpio[:200] or "sin_asunto"
+sanitizar_nombre = accutab_informe.sanitizar_nombre
 
 
 def _nombre_unico(base: str, existentes: set[str]) -> str:
@@ -297,15 +291,8 @@ def _raiz_accutab() -> str:
     return ruta
 
 
-def _generar_reporte(asunto: str, archivos: dict[str, bytes]) -> bool:
-    """Parsea los CSV adjuntos y crea un registro.json en Storage/Accutab/
-    para que aparezca en el dashboard de Post Venta."""
-    filas = parsear_archivos_csv(archivos)
-    if not filas:
-        log.info("  No se pudo parsear datos pH/ORP de los adjuntos — sin reporte.")
-        return False
-
-    estadisticas = calcular_estadisticas(filas)
+def _reservar_carpeta() -> tuple[str, str]:
+    """Reserva la carpeta del reporte en Storage/Accutab y devuelve (marca, ruta)."""
     raiz = _raiz_accutab()
     momento = datetime.now()
     for _ in range(60):
@@ -313,17 +300,34 @@ def _generar_reporte(asunto: str, archivos: dict[str, bytes]) -> bool:
         destino = os.path.join(raiz, marca)
         try:
             os.makedirs(destino)
-            break
+            return marca, destino
         except FileExistsError:
             momento += timedelta(seconds=1)
-    else:
-        log.error("  No se pudo reservar carpeta para el reporte.")
+    raise RuntimeError("No se pudo reservar carpeta para el reporte.")
+
+
+def _generar_reporte(
+    asunto: str,
+    archivos: dict[str, bytes],
+    cliente: str,
+    marca: str,
+    destino: str,
+    claves_datos: list[str],
+) -> bool:
+    """Parsea los CSV adjuntos, crea el registro.json en Storage/Accutab/ para
+    Post Venta y genera SOLO el informe PDF (disco y R2, por cliente y fecha)."""
+    filas = parsear_archivos_csv(archivos)
+    if not filas:
+        log.info("  No se pudo parsear datos pH/ORP de los adjuntos — sin reporte.")
+        shutil.rmtree(destino, ignore_errors=True)
         return False
 
+    estadisticas = calcular_estadisticas(filas)
     registro = {
         "guardado_en": datetime.now(tz=timezone.utc).isoformat(),
-        "cliente": None,
+        "cliente": cliente,
         "planta": None,
+        "ubicacion": None,
         "equipo": asunto[:120] if asunto else None,
         "responsable": None,
         "limites": None,
@@ -332,15 +336,27 @@ def _generar_reporte(asunto: str, archivos: dict[str, bytes]) -> bool:
         "archivos": [],
         "tiene_pdf": False,
         "origen": "email",
+        "r2_claves": list(claves_datos),
     }
-    ruta_json = os.path.join(destino, ARCHIVO_REGISTRO)
-    with open(ruta_json, "w", encoding="utf-8") as f:
+    try:
+        pdf = accutab_informe.generar_pdf(registro)
+    except Exception:  # noqa: BLE001
+        log.exception("  No se pudo generar el informe PDF.")
+        pdf = None
+    if pdf:
+        with open(os.path.join(destino, "informe.pdf"), "wb") as f:
+            f.write(pdf)
+        registro["tiene_pdf"] = True
+        registro["informe_generado"] = True
+        registro["r2_claves"] += accutab_informe.archivar_en_r2(registro, marca, pdf, None)
+    with open(os.path.join(destino, ARCHIVO_REGISTRO), "w", encoding="utf-8") as f:
         json.dump(registro, f, ensure_ascii=False)
 
-    log.info("  Reporte creado: %s (%d filas, pH=%.2f, mV=%.0f)",
+    log.info("  Reporte creado: %s (%d filas, pH=%.2f, mV=%.0f, informe PDF=%s)",
              marca, len(filas),
              estadisticas["ph"]["prom"] or 0,
-             estadisticas["mv"]["prom"] or 0)
+             estadisticas["mv"]["prom"] or 0,
+             "si" if pdf else "no")
     return True
 
 
@@ -365,6 +381,7 @@ def _procesar_email(
     msg_id = uid.decode()
     resultado: dict = {"msg_id": msg_id, "asunto": "", "carpeta": "", "archivos_subidos": [], "ok": False, "error": "", "reporte": False, "repetido": False}
 
+    destino: str | None = None
     try:
         mensaje, crudo = _obtener_mensaje(imap, uid)
         asunto = _asunto_mensaje(mensaje)
@@ -380,8 +397,12 @@ def _procesar_email(
             log.info("YA  [%s] ya estaba subido: solo se saca de pendientes.", asunto[:60])
             return resultado
 
-        nombre_base = sanitizar_nombre(asunto)
-        carpeta = _nombre_unico(nombre_base, carpetas_existentes)
+        # Orden en R2: cliente / fecha / datos del correo. La hora de la marca
+        # distingue los correos del mismo cliente en el mismo dia.
+        cliente = accutab_informe.cliente_desde_asunto(asunto)
+        marca, destino = _reservar_carpeta()
+        fecha, hora = marca.split("_", 1)
+        carpeta = f"{cliente}/{fecha}/Datos {hora}"
         carpetas_existentes.add(carpeta)
         resultado["carpeta"] = carpeta
         carpeta_r2 = f"{R2_PREFIX}{carpeta}/"
@@ -417,7 +438,7 @@ def _procesar_email(
 
         resultado["archivos_subidos"] = archivos_subidos
 
-        resultado["reporte"] = _generar_reporte(asunto, todos_contenidos)
+        resultado["reporte"] = _generar_reporte(asunto, todos_contenidos, cliente, marca, destino, archivos_subidos)
 
         # Se anota ANTES de tocar la etiqueta: si la etiqueta falla, la
         # proxima corrida lo reconoce y no lo vuelve a subir.
@@ -428,6 +449,9 @@ def _procesar_email(
         log.info("OK  [%s] → %s (%d archivo/s, reporte=%s)", asunto[:60], carpeta, len(archivos_subidos), resultado["reporte"])
 
     except Exception as exc:
+        # Una carpeta reservada sin registro confundiria a Post Venta: se limpia.
+        if destino and not os.path.isfile(os.path.join(destino, ARCHIVO_REGISTRO)):
+            shutil.rmtree(destino, ignore_errors=True)
         resultado["error"] = str(exc)
         log.error("ERR [%s] %s: %s", resultado.get("asunto", msg_id)[:60], msg_id, exc)
 
@@ -471,17 +495,7 @@ def _ejecutar(imap: imaplib.IMAP4_SSL, solo_marcar: bool = False) -> int:
     _asegurar_label(imap, LABEL_PROCESADO)
     _asegurar_label(imap, LABEL_PENDIENTE)
 
-    # Determinar carpetas ya existentes en R2 (para deduplicacion de nombres)
-    keys_existentes = _r2.listar_keys(R2_PREFIX)
     carpetas_existentes: set[str] = set()
-    for k in keys_existentes:
-        # "accutab/mail/Nombre Carpeta/archivo.csv" → "Nombre Carpeta"
-        relativo = k[len(R2_PREFIX):]
-        partes = relativo.split("/", 1)
-        if partes[0]:
-            carpetas_existentes.add(partes[0])
-
-    log.info("Carpetas existentes en R2: %d", len(carpetas_existentes))
 
     # Listar mensajes pendientes
     ids = _listar_pendientes(imap)

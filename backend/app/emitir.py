@@ -42,6 +42,7 @@ from .solicitud_excel import (
     construir_workbook_exportacion,
 )
 from .solicitud_parser import parsear_solicitudes_html
+from .servicios import clave_lista
 from .storage import _carpeta_raiz as _carpeta_raiz_storage, _nombre_seguro
 from .toma_muestras import leer_solicitudes_de
 
@@ -1382,66 +1383,49 @@ class FilaConMuestraIn(BaseModel):
     codigo_muestra: str | None = None
     fecha_recepcion: str | None = None
     hora_recepcion: str | None = None
-    # Segundo peso (g), anotado después del cruce.
+    # Primer peso (el de la muestra, anotado al cruzar) y segundo peso (g, extraída).
+    peso_muestra: float | None = None
     peso_muestra_extraido: float | None = None
 
 
-def _agregar_hoja_fortificados(wb: openpyxl.Workbook, filas: list[dict]) -> None:
-    """Segunda hoja de la base: los fortificados ingresados (N°, peso extraído,
-    fecha y hora de ingreso). Mismo diseño que la hoja Estándar (banda verde
-    arriba, encabezado verde oscuro con filtro, bordes, sin cuadrícula). Lleva
-    autofiltro y NO tabla de Excel: las dos juntas dejan el archivo roto."""
-    ws = wb.create_sheet("Fortificados")
-    encabezados = ["N° Fortificado", "Peso extraído (g)", "Fecha ingreso", "Hora ingreso"]
-    n = len(encabezados)
-
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n)
-    for col in range(1, n + 1):
-        celda = ws.cell(row=1, column=col)
-        celda.fill = PatternFill("solid", fgColor=VERDE_CLARO)
-        celda.border = _BORDE_COMPLETO
-    banda = ws.cell(row=1, column=1, value="FORTIFICADOS")
-    banda.font = Font(bold=True, size=10, color=VERDE_OSCURO)
-    banda.alignment = Alignment(horizontal="center", vertical="center")
-
-    for col, texto in enumerate(encabezados, start=1):
-        c = ws.cell(row=2, column=col, value=texto)
-        c.font = Font(bold=True, size=9, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor=VERDE_OSCURO)
-        c.border = _BORDE_COMPLETO
-        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    ws.row_dimensions[1].height = 28
-    ws.row_dimensions[2].height = 36
-
-    for i, f in enumerate(filas, start=3):
-        fecha = ""
-        if f.get("fecha_ingreso"):
-            anio, mes, dia = f["fecha_ingreso"].split("-")
-            fecha = f"{dia}-{mes}-{anio}"
-        for col, valor in enumerate([f["numero"], f["peso_extraido"], fecha, f.get("hora_ingreso") or ""], start=1):
-            c = ws.cell(row=i, column=col, value=valor if valor != "" else None)
-            c.border = _BORDE_COMPLETO
-            c.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-        ws.cell(row=i, column=2).number_format = "0.0000"
-        ws.row_dimensions[i].height = 24
-
-    for col in range(1, n + 1):
-        ws.column_dimensions[get_column_letter(col)].width = 20
-    ultima = max(2, ws.max_row)
-    ws.freeze_panes = "A3"
-    ws.auto_filter.ref = f"A2:{ws.cell(row=ultima, column=n).coordinate}"
-    ws.sheet_view.showGridLines = False
-    ws.sheet_properties.pageSetUpPr.fitToPage = True
-    ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 0
-    ws.page_setup.orientation = "landscape"
-    ws.print_title_rows = "1:2"
+def _analitos_con_solicitados(analitos: list[dict], solicitados_por_fila: list[list[str]]) -> list[dict]:
+    """Catálogo de analitos + los que alguna fila pidió y el catálogo de AGROFRESH
+    no trae (laboratorio escrito distinto, analito inactivo o ausente). Sin esto,
+    un analito pedido (p. ej. DPA) se veía en pantalla pero no tenía columna en
+    el Excel. Usa el nombre que ya tenga ese código en otro laboratorio."""
+    propios = {
+        str(a.get("codigo") or "").upper()
+        for a in analitos
+        if str(a.get("laboratorio") or "").upper() == "AGROFRESH" and a.get("activo", True)
+    }
+    # Los del catálogo con el laboratorio escrito en otra capitalización cuentan como propios.
+    normalizados = [
+        {**a, "laboratorio": "AGROFRESH"} if str(a.get("laboratorio") or "").upper() == "AGROFRESH" else a
+        for a in analitos
+    ]
+    extra: list[dict] = []
+    for solicitados in solicitados_por_fila:
+        for codigo in solicitados or []:
+            clave = str(codigo).upper()
+            if not clave or clave in propios:
+                continue
+            propios.add(clave)
+            conocido = next((a for a in analitos if str(a.get("codigo") or "").upper() == clave), None)
+            extra.append({
+                "laboratorio": "AGROFRESH",
+                "codigo": str(codigo),
+                "nombre": (conocido or {}).get("nombre") or str(codigo),
+                "unidad": (conocido or {}).get("unidad") or "",
+                "activo": True,
+                "orden": 1000 + len(extra),
+            })
+    return normalizados + extra
 
 
 @router.post("/excel-con-muestra")
 def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingResponse:
-    """Base de Ingreso al laboratorio, en dos hojas: «Estándar» (las solicitudes de
-    AgroFresh ya cruzadas con su muestra) y «Fortificados» (los ingresados aparte).
+    """Base de Ingreso al laboratorio, en una sola hoja «BD»: las solicitudes de
+    AgroFresh ya cruzadas con su muestra y, debajo, los fortificados ingresados.
 
     Lleva las MISMAS columnas generales que la BD de Report, con el mismo
     nombre y orden (ver `columnas_base.py`; incluye N° Muestra, la recepción y la
@@ -1458,6 +1442,7 @@ def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingRespons
         datos = columnas_base.fila_desde_campos(
             fila.campos,
             codigo_muestra=fila.codigo_muestra,
+            peso=fila.peso_muestra,
             peso_extraido=fila.peso_muestra_extraido,
             fecha_recepcion=fila.fecha_recepcion,
             hora_recepcion=fila.hora_recepcion,
@@ -1469,14 +1454,26 @@ def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingRespons
         datos["campos_laboratorio"] = fila.campos
         solicitudes.append(datos)
 
+    # Los fortificados van en la misma hoja, tras las solicitudes: su N° en «N° Muestra»,
+    # el peso extraído, y la fecha y hora de ingreso como recepción.
+    for f in fortificados.listar_para_excel():
+        datos = {
+            "codigo_muestra": f["numero"],
+            "peso_extraido": f["peso_extraido"],
+            "fecha_recepcion": columnas_base.a_fecha(f.get("fecha_ingreso")),
+            "hora_recepcion": f.get("hora_ingreso") or None,
+            "analitos_solicitados": [],
+            "campos_laboratorio": {},
+        }
+        solicitudes.append(datos)
+
     wb = construir_workbook_exportacion(
         solicitudes,
-        _leer_analitos_lab(),
+        _analitos_con_solicitados(_leer_analitos_lab(), [f.analitos_solicitados for f in filas]),
         laboratorios=("AGROFRESH",),
         generales=columnas_base.GENERALES_BASE,
-        titulo_hoja="Estándar",
+        titulo_hoja="BD",
     )
-    _agregar_hoja_fortificados(wb, fortificados.listar_para_excel())
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)
@@ -1653,6 +1650,9 @@ def subir_bd(filas: list[FilaCruceIn]) -> list[FilaSubidaOut]:
             con_folio.append((fila, nro_original, planta_id))
 
         if con_folio:
+            from .ingest import columna_solicitud_existe
+
+            con_servicio = columna_solicitud_existe(cur, "servicio")
             folios = _asignar_folios(cur, len(con_folio))
             for (fila, nro_original, planta_id), folio in zip(con_folio, folios):
                 fecha_muestreo = _fecha_ddmmyyyy(fila.campos.get("Fecha Muestreo"))
@@ -1687,6 +1687,10 @@ def subir_bd(filas: list[FilaCruceIn]) -> list[FilaSubidaOut]:
                     "mes": fecha_muestreo.month if fecha_muestreo else None,
                     "origen": "emitir_cromatografia",
                 }
+                # Tipo de servicio (migración 0055): Report muestra solo los servicios que el administrador
+                # principal encienda. NULL = Línea de proceso; lo demás: actimist, ecofog o ryd.
+                if con_servicio:
+                    datos_solicitud["servicio"] = clave_lista(fila.campos.get("Tipo Aplicación")) or None
                 columnas = list(datos_solicitud.keys())
                 placeholders = ", ".join(["%s"] * len(columnas))
                 cur.execute(

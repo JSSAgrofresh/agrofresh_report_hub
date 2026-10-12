@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { modulosPermitidos, puedeVerReporte, puedeVerTomaMuestras } from './permisos'
+import { modulosPermitidos, puedeVerReporte, puedeVerSeccionLab, puedeVerTomaMuestras, seccionesLabPermitidas } from './permisos'
 import type { Usuario } from './types'
 
 const cromatografia: Usuario = {
@@ -68,5 +68,33 @@ describe('Auditoría interna: solo el admin general y a quien él designe', () =
 
   it('lo ve quien lo tenga asignado', () => {
     expect(ve({ ...cromatografia, modulos: ['reports', 'auditoria_interna'] })).toBe(true)
+  })
+})
+
+describe('secciones de AgroFresh Lab por cuenta (espejo de tests/test_lab_secciones.py)', () => {
+  const cuenta = (modulos?: string[]): Usuario => ({ ...cromatografia, modulos })
+
+  it('sin secciones elegidas ve las tres, como siempre', () => {
+    expect(seccionesLabPermitidas(cuenta(undefined))).toEqual(['lab_ingreso', 'lab_verificaciones', 'lab_envio'])
+    expect(seccionesLabPermitidas(cuenta(['agrofresh_lab', 'toma_muestras']))).toHaveLength(3)
+  })
+
+  it('con secciones elegidas ve solo esas: se puede ocultar «Verificaciones diarias»', () => {
+    const u = cuenta(['agrofresh_lab', 'lab_ingreso', 'lab_envio'])
+    expect(seccionesLabPermitidas(u)).toEqual(['lab_ingreso', 'lab_envio'])
+    expect(puedeVerSeccionLab(u, 'lab_verificaciones')).toBe(false)
+    expect(puedeVerSeccionLab(u, 'lab_ingreso')).toBe(true)
+  })
+
+  it('las secciones no se cuelan como módulos del menú', () => {
+    const u = cuenta(['agrofresh_lab', 'lab_ingreso'])
+    expect(modulosPermitidos(u).map((m) => m.id)).toEqual(['agrofresh_lab'])
+  })
+
+  it('admin general y gerencia ven siempre todo', () => {
+    const ag: Usuario = { id: '1', email: 'a@a.com', nombre: 'A', tipoAcceso: 'admin_general', modulos: ['lab_ingreso'] }
+    const ge: Usuario = { id: '2', email: 'g@a.com', nombre: 'G', tipoAcceso: 'gerencia', modulos: ['lab_ingreso'] }
+    expect(seccionesLabPermitidas(ag)).toHaveLength(3)
+    expect(seccionesLabPermitidas(ge)).toHaveLength(3)
   })
 })

@@ -36,6 +36,9 @@ export interface ResumenCargaTrace {
   guardado_en: string | null
   cliente: string | null
   planta: string | null
+  /** Posición de muestreo (línea o sector donde está el equipo). */
+  ubicacion?: string | null
+  especie?: string | null
   equipo: string | null
   responsable: string | null
   n_registros: number
@@ -63,6 +66,33 @@ export function verCargaTrace(carpeta: string) {
 
 export function eliminarCargaTrace(carpeta: string) {
   return httpClient.delete<{ ok: boolean }>(`/postventa/registros/${encodeURIComponent(carpeta)}`)
+}
+
+/** Borra varias cargas de una vez; devuelve las que se borraron y las que no existían. */
+export function eliminarCargasTrace(carpetas: string[]) {
+  return httpClient.post<{ borradas: string[]; fallidas: string[] }>('/postventa/registros/eliminar', { carpetas })
+}
+
+/** Genera el informe PDF de una carga que todavía no lo tiene. */
+export function generarInformeCarga(carpeta: string) {
+  return httpClient.post<{ ok: boolean }>(`/postventa/registros/${encodeURIComponent(carpeta)}/informe`, {})
+}
+
+/** Portal de cliente: los informes con PDF de la cuenta (el servidor acota por su cliente y sucursal). */
+export function listarInformesCliente() {
+  return httpClient.get<ResumenCargaTrace[]>('/postventa/cliente/informes')
+}
+
+/** Abre el PDF en una pestaña nueva (lleva el token, por eso no es un enlace directo). */
+export async function verPdfCliente(carpeta: string): Promise<void> {
+  const { blob } = await httpClient.getArchivoConNombre(`/postventa/cliente/informes/${encodeURIComponent(carpeta)}/pdf`)
+  const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+  window.open(url, '_blank', 'noopener')
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+export function descargarPdfCliente(carpeta: string) {
+  return descargarArchivo(`/postventa/cliente/informes/${encodeURIComponent(carpeta)}/pdf`, `Informe_Accutab_${carpeta}.pdf`)
 }
 
 export function descargarPdfCarga(carpeta: string) {

@@ -1,6 +1,7 @@
 export { useDashboardSummary } from './hooks/useDashboardSummary'
 export { useAreaDashboardSummary } from './hooks/useAreaDashboardSummary'
 export { useActividadDashboard } from './hooks/useActividadDashboard'
+export { useSeriesDashboard } from './hooks/useSeriesDashboard'
 export { useActividadAreaDashboard } from './hooks/useActividadAreaDashboard'
 export { ModuloCard } from './components/ModuloCard'
 export { AreaHero } from './components/AreaHero'
@@ -9,5 +10,6 @@ export type {
   ResumenDashboard, CargaReciente, AlertaProceso, ResumenArea, ReporteEnviado,
   ActividadDashboard, UsuarioActivo, ConverterReciente, TraceReciente,
   SolicitudReciente, VerificacionReciente, MetricasDashboard,
+  SeriesDashboard, PuntoDia, PuntoNombre,
   ActividadArea, SolicitudArea, VerificacionArea, MetricasArea,
 } from './types'

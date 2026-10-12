@@ -8,7 +8,7 @@
  */
 import { httpClient } from '@/services/http/client'
 import { parametroServicio } from '@/lib/servicio'
-import type { Servicio } from '@/lib/servicio'
+import type { ListaDistribucion } from '@/lib/servicio'
 import type { CambioLista, FilaLista, PlantaLista, ResultadoComparacion } from './listasDistribucion'
 
 export const CATEGORIAS = [
@@ -56,14 +56,29 @@ export interface FilaEstado {
   sin_contactos: boolean
 }
 
+/** Lo que recibe una solicitud de esa lista aunque no tenga plantas cargadas. */
+export interface FijosLista {
+  para: string[]
+  cc: string[]
+  /** solo Línea de proceso: va Para si la planta no tiene lista del cliente */
+  respaldo: string[]
+  /** Actimist, Ecofog y RYD se pueden editar; Línea de proceso no tiene fijos (faltan en un backend anterior) */
+  editable?: boolean
+  /** los que trae el sistema, para «Restaurar» */
+  original?: { para: string[]; cc: string[] }
+  /** hay fijos guardados a mano distintos de los originales */
+  personalizado?: boolean
+}
+
 export interface EstadoListas {
   filas: FilaEstado[]
+  fijos?: FijosLista
   clientes: string[]
   resumen: { plantas_con_lista: number; plantas_listados: number | null; listados_sin_lista: number | null }
 }
 
 /** Cada tipo de servicio tiene su lista: `servicio` vacío = Línea de proceso. */
-export function obtenerEstado(incluirSinLista: boolean, servicio: Servicio = 'linea') {
+export function obtenerEstado(incluirSinLista: boolean, servicio: ListaDistribucion = 'linea') {
   const qs = new URLSearchParams({ sin_lista: String(incluirSinLista), servicio: parametroServicio(servicio) })
   return httpClient.get<EstadoListas>(`/listas-distribucion/estado?${qs.toString()}`)
 }
@@ -217,9 +232,29 @@ export function plantaNueva(
   }
 }
 
+/** Cambiar el nombre de una planta (el del Excel es el correcto) conservando su lista. */
+export interface Renombre {
+  /** la planta como está hoy en Listados y en las listas */
+  de: PlantaLista
+  /** el nombre nuevo (Ship To) */
+  a: string
+}
+
+/** Por la clave de la planta con su nombre de hoy. */
+export type Renombres = Record<string, Renombre>
+
+/** Una planta del sistema que el Excel importado ya no trae. `quitar` = el usuario marcó quitarle la lista. */
+export interface PlantaRetirada {
+  id: string
+  sold_to: string
+  ship_to: string
+  quitar: boolean
+}
+
 export interface PropuestasImportadas {
   propuestas: Propuestas
   nuevas: PlantaNueva[]
+  retiradas: PlantaRetirada[]
 }
 
 /** Convierte la respuesta de «comparar» en celdas amarillas y plantas nuevas. */
@@ -248,7 +283,10 @@ export function desdeComparacion(estado: EstadoListas, comparacion: ResultadoCom
       }
     }
   }
-  return { propuestas, nuevas }
+  const retiradas: PlantaRetirada[] = (comparacion.retiradas ?? []).map((r) => ({
+    id: clavePlanta(r.planta.sold_to, r.planta.ship_to), sold_to: r.planta.sold_to, ship_to: r.planta.ship_to, quitar: false,
+  }))
+  return { propuestas, nuevas, retiradas }
 }
 
 // ---------------------------------------------------------------------------
@@ -263,7 +301,10 @@ export interface ResumenRevision {
   ajustes: number
 }
 
-export function resumenRevision(propuestas: Propuestas, nuevas: PlantaNueva[], estado: EstadoListas): ResumenRevision {
+export function resumenRevision(
+  propuestas: Propuestas, nuevas: PlantaNueva[], estado: EstadoListas, retiradas: PlantaRetirada[] = [],
+  renombres: Renombres = {},
+): ResumenRevision {
   const porClave = new Map(estado.filas.map((f) => [clavePlanta(f.sold_to, f.ship_to), f]))
   const r: ResumenRevision = { pendientes: 0, aceptadas: 0, agregan: 0, quitan: 0, ajustes: 0 }
   for (const p of Object.values(propuestas)) {
@@ -284,17 +325,30 @@ export function resumenRevision(propuestas: Propuestas, nuevas: PlantaNueva[], e
       r.agregan += CAMPOS.reduce((t, c) => t + listaDe(n.fila, c).length, 0)
     }
   }
+  // quitar la lista de una planta es un cambio aceptado (nunca pendiente: se marca a propósito)
+  r.aceptadas += retiradas.filter((x) => x.quitar).length
+  r.aceptadas += Object.keys(renombres).length      // cambiar un nombre también se acepta al elegirlo
   return r
 }
 
 /** Los cambios aceptados, en el formato que entiende el servidor. */
-export function aCambios(estado: EstadoListas, propuestas: Propuestas, nuevas: PlantaNueva[]): CambioLista[] {
+export function aCambios(
+  estado: EstadoListas, propuestas: Propuestas, nuevas: PlantaNueva[], retiradas: PlantaRetirada[] = [],
+  renombres: Renombres = {},
+): CambioLista[] {
   const porClave = new Map(estado.filas.map((f) => [clavePlanta(f.sold_to, f.ship_to), f]))
   const cambios: CambioLista[] = []
+  // Los cambios de nombre van primero: lo demás de esa planta ya la busca por su nombre nuevo.
+  for (const [k, r] of Object.entries(renombres)) {
+    cambios.push({
+      id: `${k}|renombrar`, tipo: 'planta_renombrar', planta: r.de, nuevo: { sold_to: r.de.sold_to, ship_to: r.a }, campo: 'planta',
+      etiqueta: 'Cambiar el nombre de la planta', agregar: [], quitar: [], corregir: [], aviso: null, fila: null,
+    })
+  }
   for (const p of Object.values(propuestas)) {
     const fila = porClave.get(p.plantaClave)
     if (p.estado !== 'aceptada' || !fila) continue
-    const planta = { sold_to: fila.sold_to, ship_to: fila.ship_to }
+    const planta = { sold_to: fila.sold_to, ship_to: renombres[p.plantaClave]?.a ?? fila.ship_to }
     const { agregar, quitar } = diffLista(listaDe(fila, p.campo), p.nuevo)
     if (agregar.length || quitar.length) {
       cambios.push({ id: p.clave, tipo: 'campo', planta, campo: p.campo, etiqueta: INFO_CAMPO[p.campo].titulo, agregar, quitar, corregir: [], aviso: null, fila: null })
@@ -309,6 +363,13 @@ export function aCambios(estado: EstadoListas, propuestas: Propuestas, nuevas: P
       id: `${n.id}|nueva`, tipo: 'planta_nueva', planta: { sold_to: n.sold_to, ship_to: n.ship_to }, campo: 'planta',
       etiqueta: 'Planta nueva', agregar: [], quitar: [], corregir: [], aviso: null, crear_en_listados: n.crearEnListados,
       fila: { ...n.fila, sold_to: n.sold_to, ship_to: n.ship_to },
+    })
+  }
+  for (const r of retiradas) {
+    if (!r.quitar) continue
+    cambios.push({
+      id: `${r.id}|quitar`, tipo: 'planta_quitar', planta: { sold_to: r.sold_to, ship_to: r.ship_to }, campo: 'planta',
+      etiqueta: 'Quitar la lista de la planta', agregar: [], quitar: [], corregir: [], aviso: null, fila: null,
     })
   }
   return cambios

@@ -1,7 +1,8 @@
 import { httpClient } from '@/services/http/client'
 import { descargarArchivo } from '@/services/http/descargar'
 import { parametroServicio } from '@/lib/servicio'
-import type { Servicio } from '@/lib/servicio'
+import type { ListaDistribucion } from '@/lib/servicio'
+import type { FijosLista } from './tabla'
 
 export interface PlantaLista {
   sold_to: string
@@ -23,8 +24,10 @@ export interface FilaLista {
 /** Un cambio que se puede confirmar o dejar de lado, independiente de los demás. */
 export interface CambioLista {
   id: string
-  /** campo: agregar/quitar correos de un rol o categoría; copia: ajustar a CC/CCO; planta_nueva: planta sin listas aún */
-  tipo: 'campo' | 'copia' | 'planta_nueva'
+  /** campo: agregar/quitar correos de un rol o categoría; copia: ajustar a CC/CCO; planta_nueva: planta sin listas aún;
+   *  planta_quitar: sacar toda la lista de una planta que la base nueva ya no trae;
+   *  planta_renombrar: cambiarle el nombre (`nuevo.ship_to`) en Listados y en las listas, sin perder su lista */
+  tipo: 'campo' | 'copia' | 'planta_nueva' | 'planta_quitar' | 'planta_renombrar'
   planta: PlantaLista
   campo: string
   etiqueta: string
@@ -35,6 +38,8 @@ export interface CambioLista {
   /** plantas de Listados con un nombre parecido (solo en planta_nueva con aviso) */
   sugerencias?: PlantaLista[]
   fila: FilaLista | null
+  /** solo planta_renombrar: el nombre nuevo */
+  nuevo?: PlantaLista
   /** solo planta_nueva: crear también el cliente y la planta en Listados */
   crear_en_listados?: boolean
 }
@@ -51,6 +56,8 @@ export interface ResumenComparacion {
 
 export interface ResultadoComparacion {
   cambios: CambioLista[]
+  /** plantas del sistema que el Excel no trae: se ofrecen para quitar su lista, nunca se quitan solas */
+  retiradas?: { planta: PlantaLista }[]
   resumen: ResumenComparacion
 }
 
@@ -60,11 +67,22 @@ export interface ResultadoAplicar {
   ignorados: string[]
   respaldo: string
   listados_creados?: { clientes: number; plantas: number }
+  renombradas?: { sold_to: string; de: string; a: string }[]
+}
+
+/** Cambia a quién va SIEMPRE el correo de esa lista (Para y Copia). Solo Actimist, Ecofog y RYD. */
+export function guardarFijos(servicio: ListaDistribucion, datos: { para: string[]; cc: string[] }) {
+  return httpClient.put<FijosLista>(`/listas-distribucion/fijos?servicio=${parametroServicio(servicio)}`, datos)
+}
+
+/** Vuelve a los destinatarios fijos que trae el sistema. */
+export function restaurarFijos(servicio: ListaDistribucion) {
+  return httpClient.delete<FijosLista>(`/listas-distribucion/fijos?servicio=${parametroServicio(servicio)}`)
 }
 
 // Todas llevan el servicio: cada uno tiene su lista y guardar en uno nunca
 // toca el otro (Línea de proceso va con `servicio` vacío, como antes).
-export function exportarListas(incluirPlantasSinLista: boolean, servicio: Servicio = 'linea') {
+export function exportarListas(incluirPlantasSinLista: boolean, servicio: ListaDistribucion = 'linea') {
   const p = parametroServicio(servicio)
   return descargarArchivo(
     `/listas-distribucion/excel?todas=${incluirPlantasSinLista}&servicio=${p}`,
@@ -72,7 +90,7 @@ export function exportarListas(incluirPlantasSinLista: boolean, servicio: Servic
   )
 }
 
-export function compararListas(archivo: File, servicio: Servicio = 'linea') {
+export function compararListas(archivo: File, servicio: ListaDistribucion = 'linea') {
   const datos = new FormData()
   datos.append('archivo', archivo)
   return httpClient.upload<ResultadoComparacion>(
@@ -80,7 +98,7 @@ export function compararListas(archivo: File, servicio: Servicio = 'linea') {
   )
 }
 
-export function aplicarListas(cambios: CambioLista[], servicio: Servicio = 'linea') {
+export function aplicarListas(cambios: CambioLista[], servicio: ListaDistribucion = 'linea') {
   return httpClient.post<ResultadoAplicar>(
     `/listas-distribucion/aplicar?servicio=${parametroServicio(servicio)}`, { cambios },
   )

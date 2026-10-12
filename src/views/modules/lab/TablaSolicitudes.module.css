@@ -319,6 +319,8 @@
   border-radius: var(--radius-md);
 }
 
+.escanerNumero { flex: 1 1 280px; min-width: 240px; }
+
 .inputNumero,
 .inputPesoAncho {
   padding: 6px 8px;
@@ -333,3 +335,35 @@
 
 .inputNumero:focus,
 .inputPesoAncho:focus { outline: 2px solid var(--color-primary); border-color: transparent; }
+
+.numeroConCodigo { display: flex; align-items: center; gap: 8px; }
+.codigoBarras {
+  font-size: 15px;
+  letter-spacing: -1px;
+  color: var(--color-text-faint);
+  user-select: none;
+}
+
+.ordenFortificados {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-2, 8px);
+}
+.ordenTitulo { font-size: 12px; color: var(--color-text-faint); }
+.ordenBoton,
+.ordenActivo {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ordenActivo {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+}

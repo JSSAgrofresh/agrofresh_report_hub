@@ -51,6 +51,19 @@ describe('filtrarCargas', () => {
     expect(filtrarCargas(cargas, FILTRO_CARGAS_VACIO, HOY)).toHaveLength(3)
   })
 
+  it('Ship To y posición de muestreo se filtran igual que el cliente', () => {
+    const lista = [
+      carga({ carpeta: '2026-09-20_10-00-00', planta: 'LONTUE', ubicacion: 'Línea 1' }),
+      carga({ carpeta: '2026-09-19_10-00-00', planta: 'Lontue', ubicacion: 'Línea 2' }),
+      carga({ carpeta: '2026-09-18_10-00-00', planta: 'Molina', ubicacion: 'Línea 1' }),
+    ]
+    expect(filtrarCargas(lista, { ...FILTRO_CARGAS_VACIO, planta: 'lontue' }, HOY)).toHaveLength(2)
+    expect(filtrarCargas(lista, { ...FILTRO_CARGAS_VACIO, ubicacion: 'línea 1' }, HOY)).toHaveLength(2)
+    expect(
+      filtrarCargas(lista, { ...FILTRO_CARGAS_VACIO, planta: 'Lontue', ubicacion: 'Línea 2' }, HOY),
+    ).toHaveLength(1)
+  })
+
   it('cliente y equipo sin importar mayúsculas', () => {
     expect(
       filtrarCargas(cargas, { ...FILTRO_CARGAS_VACIO, cliente: 'CLIENTE A' }, HOY),

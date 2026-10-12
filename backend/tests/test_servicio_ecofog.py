@@ -72,11 +72,11 @@ def test_cada_servicio_ve_solo_sus_contactos():
         assert correos == {esperado}
 
 
-def test_solicitud_ecofog_sin_lista_va_a_jorge_report_hub_y_referentes(contactos):
+def test_solicitud_ecofog_va_para_carlos_y_cristian_con_jorge_y_el_sistema_en_copia(contactos):
     contactos["lista"] = LINEA + ACT
-    r = tm.contactos_de_solicitud_de("QUITECA", _datos("Ecofog"))
-    assert _minus(r["to"]) == _minus(PARA_SIN_LISTA_ECOFOG + PERMANENTES_ECOFOG)
-    assert r["cc"] == [] and r["bcc"] == []
+    r = tm.contactos_de_solicitud_de("QUITECA", _datos("Ecofog", respaldo_ryd=True))
+    assert _minus(r["to"]) == _minus(PERMANENTES_ECOFOG)
+    assert _minus(r["cc"]) == _minus(PARA_SIN_LISTA_ECOFOG) and r["bcc"] == []
 
 
 def test_solicitud_ecofog_de_prueba_no_lleva_referentes(contactos):

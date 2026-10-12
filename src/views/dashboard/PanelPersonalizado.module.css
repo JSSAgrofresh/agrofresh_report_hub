@@ -1,0 +1,29 @@
+/* El Panel general armado por el administrador: 12 columnas, filas de 72 px que crecen si el contenido lo pide. */
+.tablero {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: minmax(72px, auto);
+  gap: 16px;
+}
+.celda {
+  grid-column: calc(var(--x) + 1) / span var(--w);
+  grid-row: calc(var(--y) + 1) / span var(--h);
+  display: flex;
+  min-width: 0;
+}
+.celda > * {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  /* En el celular se apilan en el orden en que se ven (arriba→abajo, izquierda→derecha). */
+  .tablero {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+  }
+  .celda {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    order: var(--orden);
+  }
+}

@@ -10,12 +10,17 @@ import type { ResumenCargaTrace } from './api'
 export type Periodo = 'todo' | '30' | '90' | '365'
 
 export interface FiltroCargas {
+  /** Sold To. */
   cliente: string
+  /** Ship To. */
+  planta: string
+  /** Posición de muestreo. */
+  ubicacion: string
   equipo: string
   periodo: Periodo
 }
 
-export const FILTRO_CARGAS_VACIO: FiltroCargas = { cliente: '', equipo: '', periodo: 'todo' }
+export const FILTRO_CARGAS_VACIO: FiltroCargas = { cliente: '', planta: '', ubicacion: '', equipo: '', periodo: 'todo' }
 
 /** Fecha (AAAA-MM-DD) de una carga: sale del nombre de la carpeta, que es
  * la marca de cuándo se guardó ("2026-08-24_14-32-07"); si no calza, del ISO. */
@@ -50,6 +55,8 @@ export function filtrarCargas(
   }
   return cargas.filter((c) => {
     if (f.cliente && normal(c.cliente) !== normal(f.cliente)) return false
+    if (f.planta && normal(c.planta) !== normal(f.planta)) return false
+    if (f.ubicacion && normal(c.ubicacion) !== normal(f.ubicacion)) return false
     if (f.equipo && normal(c.equipo) !== normal(f.equipo)) return false
     if (desde) {
       const fecha = fechaDeCarga(c)
@@ -62,7 +69,7 @@ export function filtrarCargas(
 /** Valores distintos de un campo (sin repetir por mayúsculas), ordenados. */
 export function opcionesDeCampo(
   cargas: ResumenCargaTrace[],
-  campo: 'cliente' | 'equipo',
+  campo: 'cliente' | 'planta' | 'ubicacion' | 'equipo',
 ): string[] {
   const porClave = new Map<string, string>()
   cargas.forEach((c) => {

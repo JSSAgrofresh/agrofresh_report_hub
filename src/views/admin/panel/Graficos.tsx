@@ -29,7 +29,7 @@ export function BarrasDiarias({ serie }: { serie: PuntoSerie[] }) {
         aria-label={`Acciones registradas por día, ${serie.length} días`}
       >
         {[0.25, 0.5, 0.75].map((f) => (
-          <line key={f} x1={0} x2={ancho} y1={base - f * 150} y2={base - f * 150} stroke="#26392e" />
+          <line key={f} x1={0} x2={ancho} y1={base - f * 150} y2={base - f * 150} stroke="#e1e5dc" />
         ))}
         {serie.map((p, i) => {
           let y = base
@@ -44,7 +44,7 @@ export function BarrasDiarias({ serie }: { serie: PuntoSerie[] }) {
                 return <rect key={k} x={x} y={y} width={gruesa} height={Math.max(1, h - 1.2)} rx={2} fill={COLOR_CATEGORIA[k] ?? '#e39a5b'} />
               })}
               {i % cadaN === 0 && (
-                <text x={x + gruesa / 2} y={186} fill="#7d8f83" fontSize={10} textAnchor="middle">
+                <text x={x + gruesa / 2} y={186} fill="#77837b" fontSize={10} textAnchor="middle">
                   {p.fecha.slice(8)}
                 </text>
               )}
@@ -71,7 +71,7 @@ export function Dona({ partes, centro }: { partes: { nombre: string; valor: numb
   return (
     <div className={styles.dona}>
       <svg viewBox="0 0 42 42" role="img" aria-label="Reparto de acciones por módulo">
-        <circle cx={21} cy={21} r={15.9} fill="none" stroke="#1c2d23" strokeWidth={6} />
+        <circle cx={21} cy={21} r={15.9} fill="none" stroke="#eef1ea" strokeWidth={6} />
         {total > 0 &&
           partes.map((p) => {
             const largo = (p.valor / total) * 100
@@ -92,7 +92,7 @@ export function Dona({ partes, centro }: { partes: { nombre: string; valor: numb
             acumulado += largo
             return el
           })}
-        <text x={21} y={23} textAnchor="middle" fill="#eaf2e6" fontSize={6.5} fontWeight={700}>
+        <text x={21} y={23} textAnchor="middle" fill="#16201b" fontSize={6.5} fontWeight={700}>
           {centro}
         </text>
       </svg>

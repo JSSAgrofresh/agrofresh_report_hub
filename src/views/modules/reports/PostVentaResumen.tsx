@@ -73,15 +73,19 @@ export function PostVentaResumen({
   onFiltro: (f: FiltroCargas) => void
 }) {
   const clientes = useMemo(() => opcionesDeCampo(todas, 'cliente'), [todas])
+  const plantas = useMemo(() => opcionesDeCampo(todas, 'planta'), [todas])
+  const posiciones = useMemo(() => opcionesDeCampo(todas, 'ubicacion'), [todas])
   const equipos = useMemo(() => opcionesDeCampo(todas, 'equipo'), [todas])
   const kpis = useMemo(() => calcularKpis(filtradas), [filtradas])
-  const hayFiltros = Boolean(filtro.cliente || filtro.equipo || filtro.periodo !== 'todo')
+  const hayFiltros = Boolean(
+    filtro.cliente || filtro.planta || filtro.ubicacion || filtro.equipo || filtro.periodo !== 'todo',
+  )
 
   return (
     <section className={styles.resumen} aria-label="Vista general">
       <div className={styles.barra}>
         <label className={styles.campo}>
-          <span>Cliente</span>
+          <span>Sold To</span>
           <select
             value={filtro.cliente}
             onChange={(e) => onFiltro({ ...filtro, cliente: e.target.value })}
@@ -90,6 +94,34 @@ export function PostVentaResumen({
             {clientes.map((c) => (
               <option key={c} value={c}>
                 {c}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={styles.campo}>
+          <span>Ship To</span>
+          <select
+            value={filtro.planta}
+            onChange={(e) => onFiltro({ ...filtro, planta: e.target.value })}
+          >
+            <option value="">Todos</option>
+            {plantas.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={styles.campo}>
+          <span>Posición de muestreo</span>
+          <select
+            value={filtro.ubicacion}
+            onChange={(e) => onFiltro({ ...filtro, ubicacion: e.target.value })}
+          >
+            <option value="">Todas</option>
+            {posiciones.map((p) => (
+              <option key={p} value={p}>
+                {p}
               </option>
             ))}
           </select>
@@ -124,15 +156,11 @@ export function PostVentaResumen({
             ))}
           </div>
         </div>
-        <span className={styles.conteo}>
-          {filtradas.length.toLocaleString('es-CL')} de {todas.length.toLocaleString('es-CL')}{' '}
-          cargas
-        </span>
         {hayFiltros && (
           <button
             type="button"
             className={styles.limpiar}
-            onClick={() => onFiltro({ cliente: '', equipo: '', periodo: 'todo' })}
+            onClick={() => onFiltro({ cliente: '', planta: '', ubicacion: '', equipo: '', periodo: 'todo' })}
           >
             Limpiar
           </button>
@@ -140,11 +168,6 @@ export function PostVentaResumen({
       </div>
 
       <div className={styles.tiles}>
-        <Tile
-          etiqueta="Cargas"
-          valor={kpis.cargas.toLocaleString('es-CL')}
-          detalle={`${kpis.porCorreo} por correo · ${kpis.cargas - kpis.porCorreo} manuales`}
-        />
         <Tile
           etiqueta="Mediciones"
           valor={kpis.mediciones.toLocaleString('es-CL')}
@@ -183,7 +206,7 @@ export function PostVentaResumen({
         />
       </div>
 
-      {filtradas.length === 0 && <Card className={styles.vacio}>No hay cargas con estos filtros.</Card>}
+      {filtradas.length === 0 && <Card className={styles.vacio}>No hay informes con estos filtros.</Card>}
     </section>
   )
 }

@@ -144,7 +144,8 @@ def test_el_servicio_decide_la_lista_igual_que_en_la_solicitud(entorno):
     assert ei.plan_destinatarios("DOLE", "SAN FERNANDO")["to"] == ["lp@dole.cl"]
     assert "act@dole.cl" in ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="Actimist")["to"]
     assert "lp@dole.cl" not in ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="Actimist")["to"]
-    assert ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="ecofog")["to"] == ["eco@dole.cl"]
+    eco = ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="ecofog")["to"]
+    assert eco == ["CJIMENEZ@AGROFRESH.COM", "CVALENZUELA@AGROFRESH.COM", "eco@dole.cl"]   # referentes + su lista
     assert ei.plan_destinatarios("DOLE", "SAN FERNANDO", servicio="RYD")["to"] == ["lp@dole.cl"]
 
 
@@ -684,12 +685,12 @@ def test_el_informe_va_a_la_lista_de_su_solicitud(entorno, monkeypatch):
                   tipo="resultado_interno"),
     ])
     monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [("OT-AGF0075.xlsx", _solicitud())])
-    # El PDF trae OTRO Sold To / Ship To en sus etiquetas: manda la solicitud.
-    item = _subir(("i.pdf", _pdf_informe(sold_to="LO QUE DIGA", ship_to="EL PDF")))["items"][0]
+    # El PDF no trae Sold To / Ship To: la solicitud solo los aporta por su CÓDIGO (OT).
+    item = _subir(("i.pdf", _pdf_informe(sold_to="", ship_to="")))["items"][0]
     assert item["leido"] and item["numero_solicitud"] == "OT-AGF0075" and item["solicitud"] == "OT-AGF0075.xlsx"
     assert (item["sold_to"], item["ship_to"], item["especie"]) == ("MULTIFRUTA SA", "GESEX PLANTA FATIMA", "Naranja")
     plan = item["plan"]
-    assert plan["to"] == ["cliente@multifruta.cl", "otro@multifruta.cl"] and plan["origen"] == "solicitud"
+    assert plan["to"] == ["cliente@multifruta.cl", "otro@multifruta.cl"] and plan["origen"] == "planta"
     assert plan["sin_lista"] is False
     # tal cual la solicitud (con su técnico en copia oculta) y, al final, las copias del módulo
     assert plan["cc"] == ["tecnico@agrofresh.com"]   # el técnico de la planta, como lo dice la solicitud
@@ -721,7 +722,7 @@ def test_el_servicio_de_la_solicitud_elige_su_lista(entorno, monkeypatch):
         _contacto("lp@m.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA"),
     ])
     monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [("a.xlsx", _solicitud(tipo="Actimist"))])
-    item = _subir(("i.pdf", _pdf_informe()))["items"][0]
+    item = _subir(("i.pdf", _pdf_informe(tipo="")))["items"][0]   # el PDF no dice el servicio: lo da la OT
     assert item["servicio"] == "actimist" and "act@m.cl" in item["plan"]["to"] and "lp@m.cl" not in item["plan"]["to"]
 
 
@@ -739,3 +740,253 @@ def test_el_numero_de_solicitud_se_encuentra_aunque_no_tenga_etiqueta():
     from app import informe_lectura as il
 
     assert il.datos_de_informe("Informe\nreferencia OT-QUI0025 de la planta")["numero_solicitud"] == "OT-QUI0025"
+
+
+def test_informe_sin_cliente_usa_la_lista_del_tipo_de_servicio():
+    """RYD / ensayos propios: el PDF trae «—» en Sold To y Ship To; manda el servicio."""
+    res = _subir(("AGF2026-13.pdf", _pdf_informe(sold_to="", ship_to="", tipo="Actimist")))
+    item = res["items"][0]
+    assert item["leido"] is True and item["error"] is None
+    assert item["plan"]["origen"] == "servicio"
+
+
+def test_informe_sin_cliente_ni_tipo_sigue_sin_leerse():
+    res = _subir(("a.pdf", _pdf_informe(sold_to="", ship_to="", tipo="")))
+    assert res["items"][0]["leido"] is False and res["items"][0]["plan"] is None
+
+def test_informe_ryd_sin_lista_va_a_carla_y_fran(entorno):
+    config_store.escribir("contactos_laboratorio.json", [])
+    sol = _solicitud_dole(campos_laboratorio={"Tipo Aplicación": "RYD"}, respaldo_ryd=True)
+    plan = ei.plan_desde_solicitud(sol)
+    assert [e.upper() for e in plan["to"]] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
+    assert plan["sin_lista"] is False
+    assert [e.casefold() for e in plan["cc"]] == ["jorge.sandoval@agrofresh.com", "agrofreshreporthub@gmail.com"]  # Jorge y el sistema en copia
+    assert "cguerrero@agrofresh.com" not in [e.casefold() for e in plan["to"] + plan["cc"] + plan["bcc"]]
+    # una RYD anterior (sin marca) sigue como Línea de proceso: Para vacío
+    vieja = ei.plan_desde_solicitud(_solicitud_dole(campos_laboratorio={"Tipo Aplicación": "RYD"}))
+    assert vieja["to"] == [] and vieja["sin_lista"] is True
+
+
+def test_informe_ryd_sin_solicitud_lleva_el_respaldo_de_ryd(entorno):
+    config_store.escribir("contactos_laboratorio.json", [])
+    plan = ei.plan_destinatarios("DOLE", "SAN FERNANDO", tipo_aplicacion="RYD")
+    assert plan["to"] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
+
+
+
+def test_el_encabezado_del_correo_se_puede_cambiar_y_por_defecto_es_el_de_siempre():
+    from app import mail_templates
+
+    def encabezado(**kw):
+        _, _, html, _ = mail_templates.renderizar_informe({"sold_to": "A", "ship_to": "B"}, **kw)
+        ini = html.index("letter-spacing")
+        return html[ini:html.index("</table>", ini)]
+
+    por_defecto = encabezado()
+    assert "INFORME DE ENSAYO" in por_defecto and "Laboratorio de Cromatografía" in por_defecto
+    nuevo = encabezado(titulo="Informe de Resultados", subtitulo="Otro texto")
+    assert "INFORME DE RESULTADOS" in nuevo and "Otro texto" in nuevo
+    assert "INFORME DE ENSAYO" not in nuevo and "Laboratorio de Cromatografía" not in nuevo
+    sin_sub = encabezado(subtitulo="")
+    assert "INFORME DE ENSAYO" in sin_sub and "Laboratorio de Cromatografía" not in sin_sub
+
+
+def test_informe_actimist_sin_lista_va_a_carlos_y_cristian_con_jorge_y_el_sistema_en_copia(entorno):
+    config_store.escribir("contactos_laboratorio.json", [])
+    sol = _solicitud_dole(campos_laboratorio={"Tipo Aplicación": "Actimist"}, respaldo_ryd=True)
+    plan = ei.plan_desde_solicitud(sol)
+    assert [e.casefold() for e in plan["to"]] == ["cjimenez@agrofresh.com", "cvalenzuela@agrofresh.com"]
+    assert plan["sin_lista"] is False
+    assert [e.casefold() for e in plan["cc"]] == ["jorge.sandoval@agrofresh.com", "agrofreshreporthub@gmail.com"]
+
+
+def test_solicitud_anterior_a_las_reglas_nuevas_igual_envia_a_los_referentes():
+    """Una solicitud Ecofog vieja (sin la marca de respaldo) y sin lista del cliente:
+    el informe va a Carlos y Cristian en Para, y Jorge/Report Hub en Copia."""
+    datos = {
+        "sold_to": "SIN LISTA SA", "ship_to": "PLANTA X", "especie": "Manzana",
+        "campos_laboratorio": {"Tipo Aplicación": "Ecofog"},
+    }
+    assert "respaldo_ryd" not in datos
+    plan = ei.plan_desde_solicitud(datos, {"cc": [], "bcc": []})
+    assert "CJIMENEZ@AGROFRESH.COM" in plan["to"] and "CVALENZUELA@AGROFRESH.COM" in plan["to"]
+    assert "CJIMENEZ@AGROFRESH.COM" not in plan["cc"] and plan["sin_lista"] is False
+    assert datos == {k: v for k, v in datos.items()}  # no se modifica la solicitud
+
+
+def test_informe_ryd_sin_cliente_va_a_carla_y_fran():
+    res = _subir(("AGF2026-13.pdf", _pdf_informe(sold_to="", ship_to="", tipo="RYD")))
+    plan = res["items"][0]["plan"]
+    assert plan["origen"] == "servicio"
+    assert [e.upper() for e in plan["to"]] == ["CCACERES@AGROFRESH.COM", "FGONZALEZ@AGROFRESH.COM"]
+
+
+def test_con_la_ot_las_llaves_salen_de_la_solicitud_y_la_lista_del_listado_interno(entorno, monkeypatch):
+    """El PDF puede traer mal escrito el Sold To / Ship To: si trae la OT, manda la solicitud
+    para las llaves, y los correos salen SIEMPRE del listado interno de contactos."""
+    pytest.importorskip("pypdf")
+    from app import toma_muestras as tm
+
+    config_store.escribir("contactos_laboratorio.json", [
+        _contacto("ok@m.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA"),
+        _contacto("mal@m.cl", sold_to="MULTIFRUTA", ship_to="FATIMA"),   # lo que el PDF escribió mal
+    ])
+    sol = {**_solicitud(), "es_prueba": True}   # una marca de la solicitud no cambia la lista
+    monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [("a.xlsx", sol)])
+    item = _subir(("i.pdf", _pdf_informe(sold_to="MULTIFRUTA", ship_to="FATIMA")))["items"][0]
+    assert item["plan"]["to"] == ["ok@m.cl"] and item["sold_to"] == "MULTIFRUTA SA"
+    assert item["plan"]["origen"] == "planta" and item["solicitud"] == "a.xlsx"
+
+
+def test_sin_ot_conocida_se_usan_las_llaves_del_pdf(entorno, monkeypatch):
+    pytest.importorskip("pypdf")
+    from app import toma_muestras as tm
+
+    config_store.escribir("contactos_laboratorio.json", [_contacto("pdf@m.cl", sold_to="MULTIFRUTA SA", ship_to="GESEX PLANTA FATIMA")])
+    monkeypatch.setattr(tm, "leer_todas_las_solicitudes", lambda: [])
+    item = _subir(("i.pdf", _pdf_informe()))["items"][0]
+    assert item["plan"]["to"] == ["pdf@m.cl"] and item["solicitud"] is None
+
+
+# --- Aviso a clientes ------------------------------------------------------------
+
+def test_el_aviso_a_clientes_se_puede_ver_sin_enviar_nada(entorno):
+    r = ei.aviso_a_clientes(usuario=_usuario())
+    assert "agrofreshreporthub@gmail.com" in r["texto"]
+    # Las dudas sobre los informes van a Paz.
+    assert "duda o consulta relacionada con los informes recibidos" in r["texto"] and "psalazar@agrofresh.com" in r["texto"]
+    assert "jorge.sandoval" not in r["texto"]
+    assert r["texto"].startswith("Estimados clientes:") and r["texto"].endswith("Saludos,")
+    assert "AVISO A CLIENTES" in r["html"] and r["destinatarios_prueba"] == ei.DESTINATARIOS_PRUEBA
+    assert entorno == []   # nada salió
+
+
+@pytest.mark.parametrize("modo", ["prueba", "produccion"])
+def test_la_prueba_del_aviso_va_solo_a_paz_y_jorge_en_cualquier_modo(entorno, modo):
+    cfg = ei.leer_config()
+    ei._guardar_config({**cfg, "modo": modo})
+    r = ei.enviar_prueba_del_aviso(usuario=_usuario())
+    assert len(entorno) == 1
+    enviado = entorno[0]
+    assert enviado["to"] == ei.DESTINATARIOS_PRUEBA and enviado["cc"] == [] and enviado["bcc"] == []
+    assert enviado["asunto"].startswith("(PRUEBA) ")
+    assert r["to"] == ei.DESTINATARIOS_PRUEBA
+
+
+def _aviso_editado(**extra):
+    return ei.AvisoIn(**{"asunto": "Nuevo asunto", "titulo": "Mi título", "subtitulo": "", "texto": "Hola a todos", **extra})
+
+
+def test_el_aviso_se_edita_se_guarda_y_se_restaura(entorno):
+    r = ei.guardar_aviso(_aviso_editado(), usuario=_usuario())
+    assert r["asunto"] == "Nuevo asunto" and r["texto"] == "Hola a todos" and r["subtitulo"] == "" and r["personalizado"] is True
+    assert "MI TÍTULO" in r["html"] and "Hola a todos" in r["html"]
+    # otro guardado de la configuración (el modo) NO pierde el aviso editado
+    ei._guardar_config({**ei.leer_config(), "modo": "produccion"})
+    assert ei.aviso_a_clientes(usuario=_usuario())["asunto"] == "Nuevo asunto"
+    # restaurar vuelve al original
+    r = ei.restaurar_aviso(usuario=_usuario())
+    assert r["personalizado"] is False and r["texto"] == ei.TEXTO_AVISO and r["asunto"] == ei.ASUNTO_AVISO
+
+
+@pytest.mark.parametrize("campo", ["asunto", "titulo", "texto"])
+def test_el_aviso_no_se_guarda_con_un_campo_obligatorio_vacio(entorno, campo):
+    with pytest.raises(HTTPException) as exc:
+        ei.guardar_aviso(_aviso_editado(**{campo: "   "}), usuario=_usuario())
+    assert exc.value.status_code == 400
+    assert ei.aviso_a_clientes(usuario=_usuario())["personalizado"] is False
+
+
+def test_la_vista_previa_del_aviso_no_guarda_nada(entorno):
+    r = ei.vista_previa_del_aviso(_aviso_editado(texto="Borrador"), usuario=_usuario())
+    assert "Borrador" in r["html"]
+    assert ei.aviso_a_clientes(usuario=_usuario())["personalizado"] is False
+
+
+def test_la_prueba_manda_lo_que_se_esta_escribiendo_solo_a_paz_y_jorge(entorno):
+    ei.enviar_prueba_del_aviso(_aviso_editado(), usuario=_usuario())
+    assert entorno[0]["asunto"] == "(PRUEBA) Nuevo asunto" and entorno[0]["to"] == ei.DESTINATARIOS_PRUEBA
+    assert "Hola a todos" in entorno[0]["html"] and ei.aviso_a_clientes(usuario=_usuario())["personalizado"] is False
+
+
+# --- Aviso a clientes: plantillas ---------------------------------------------------
+
+def test_el_aviso_ofrece_las_plantillas_y_parte_en_estandar(entorno):
+    r = ei.aviso_a_clientes(usuario=_usuario())
+    assert r["plantilla"] == "estandar" and len(r["plantillas"]) == 7
+    assert r["plantillas"][0]["clave"] == "estandar" and r["plantillas"][0]["miniatura"].startswith("data:image/png")
+
+
+def test_la_plantilla_elegida_se_guarda_se_ve_y_viaja_en_la_prueba(entorno):
+    r = ei.guardar_aviso(_aviso_editado(plantilla="verde_foto"), usuario=_usuario())
+    assert r["plantilla"] == "verde_foto" and r["personalizado"] is True and "data:image/jpeg;base64" in r["html"]
+    ei.enviar_prueba_del_aviso(usuario=_usuario())
+    assert "cid:agrofresh-banner-aviso" in entorno[0]["html"]
+    # restaurar vuelve a estándar
+    assert ei.restaurar_aviso(usuario=_usuario())["plantilla"] == "estandar"
+
+
+def test_la_prueba_usa_la_plantilla_que_se_esta_viendo_aunque_no_este_guardada(entorno):
+    ei.enviar_prueba_del_aviso(_aviso_editado(plantilla="marino"), usuario=_usuario())
+    assert "cid:agrofresh-banner-aviso" in entorno[0]["html"]
+    assert ei.aviso_a_clientes(usuario=_usuario())["plantilla"] == "estandar"
+
+
+def test_una_plantilla_inexistente_no_se_guarda(entorno):
+    with pytest.raises(HTTPException) as exc:
+        ei.guardar_aviso(_aviso_editado(plantilla="no_existe"), usuario=_usuario())
+    assert exc.value.status_code == 400
+
+
+def test_un_aviso_guardado_antes_de_las_plantillas_sigue_valiendo_como_estandar(entorno):
+    cfg = ei.leer_config()
+    ei._guardar_config({**cfg, "aviso": {"asunto": "Viejo", "titulo": "T", "subtitulo": "", "texto": "Texto viejo"}})
+    r = ei.aviso_a_clientes(usuario=_usuario())
+    assert r["asunto"] == "Viejo" and r["plantilla"] == "estandar"
+
+
+def test_la_vista_previa_con_plantilla_desconocida_no_falla(entorno):
+    r = ei.vista_previa_del_aviso(_aviso_editado(plantilla="no_existe"), usuario=_usuario())
+    assert "Hola a todos" in r["html"]
+
+
+# --- Destinatarios de prueba editables ---------------------------------------------------
+
+def test_los_destinatarios_de_prueba_parten_con_paz_y_jorge(entorno):
+    assert ei.estado(usuario=_usuario())["destinatarios_prueba"] == ei.DESTINATARIOS_PRUEBA
+    assert ei.aviso_a_clientes(usuario=_usuario())["destinatarios_prueba"] == ei.DESTINATARIOS_PRUEBA
+
+
+def test_se_pueden_cambiar_y_rigen_en_el_modo_prueba_y_en_la_prueba_del_aviso(entorno):
+    r = ei.guardar_destinatarios_prueba(ei.PruebaIn(destinatarios=["nuevo@agrofresh.com; Otro@agrofresh.com", "nuevo@AGROFRESH.com"]), usuario=_usuario())
+    assert r["destinatarios_prueba"] == ["nuevo@agrofresh.com", "Otro@agrofresh.com"]
+    assert ei.aviso_a_clientes(usuario=_usuario())["destinatarios_prueba"] == ["nuevo@agrofresh.com", "Otro@agrofresh.com"]
+    ei.enviar_prueba_del_aviso(usuario=_usuario())
+    assert entorno[-1]["to"] == ["nuevo@agrofresh.com", "Otro@agrofresh.com"]
+    # un informe en modo prueba también sale solo a ellos
+    armado = ei.armar_correo(ei.DatosEnvio(laboratorio="AGROFRESH", sold_to="DOLE", ship_to="SAN FERNANDO",
+                                           para=["cliente@dole.cl"]), _usuario(), ei.MODO_PRUEBA, [])
+    assert armado["efectivos"]["to"] == ["nuevo@agrofresh.com", "Otro@agrofresh.com"]
+    assert armado["reales"]["to"] == ["cliente@dole.cl"]
+
+
+def test_cambiar_los_destinatarios_de_prueba_no_pierde_el_resto_de_la_configuracion(entorno):
+    ei._guardar_config({**ei.leer_config(), "modo": "produccion"})
+    ei.guardar_destinatarios_prueba(ei.PruebaIn(destinatarios=["a@agrofresh.com"]), usuario=_usuario())
+    cfg = ei.leer_config()
+    assert cfg["modo"] == "produccion" and cfg["destinatarios_prueba"] == ["a@agrofresh.com"]
+    ei.guardar_internos(ei.InternosIn(cc=[], bcc=["x@agrofresh.com"]), usuario=_usuario())
+    assert ei.leer_config()["destinatarios_prueba"] == ["a@agrofresh.com"]
+
+
+@pytest.mark.parametrize("lista", [[], ["  "], ["sin-arroba"], ["a@x.cl", "roto@"]])
+def test_los_destinatarios_de_prueba_se_validan(entorno, lista):
+    with pytest.raises(HTTPException) as exc:
+        ei.guardar_destinatarios_prueba(ei.PruebaIn(destinatarios=lista), usuario=_usuario())
+    assert exc.value.status_code == 400
+    assert ei.leer_config()["destinatarios_prueba"] == ei.DESTINATARIOS_PRUEBA
+
+
+def test_un_valor_danado_en_el_archivo_cae_a_paz_y_jorge(entorno):
+    ei._guardar_config({**ei.leer_config(), "destinatarios_prueba": "roto"})
+    assert ei.leer_config()["destinatarios_prueba"] == ei.DESTINATARIOS_PRUEBA

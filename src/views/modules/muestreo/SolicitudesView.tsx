@@ -23,6 +23,7 @@ import { ROUTES, rutaTomaMuestrasDetalle } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
 import {
   eliminarSolicitud,
+  quitarInformeDeSolicitud,
   listarSolicitudes,
   descargarTodasLasSolicitudes,
   obtenerEnvioAutomatico,
@@ -162,6 +163,7 @@ export function SolicitudesView() {
       .catch(() => setTiposAplicacion([]))
   }, [esAdmin])
 
+  const [resumenQuitado, setResumenQuitado] = useState<string | null>(null)
   const refrescar = useCallback(async () => {
     setCargando(true)
     try {
@@ -211,6 +213,18 @@ export function SolicitudesView() {
     } finally {
       setGuardando(false)
     }
+  }
+
+  /** Quitar el informe de una solicitud y todo lo que trajo, para volver a subirlo. El servidor revisa la clave. */
+  async function onQuitarInforme(solicitud: Solicitud, clave: string) {
+    const r = await quitarInformeDeSolicitud(solicitud.archivo, clave)
+    setResumenQuitado(
+      `Informe ${r.informes.join(', ') || ''} quitado de ${solicitud.numero_solicitud}: ${r.resultados} resultados y ` +
+        `${r.solicitudes_report} registro(s) de Report borrados` +
+        (r.pendientes ? `, ${r.pendientes} fila(s) pendiente(s)` : '') +
+        (r.pdf_no_borrados ? `. ${r.pdf_no_borrados} PDF no se pudo borrar del almacenamiento: avisa a sistemas.` : '. Ya puedes subirlo de nuevo.'),
+    )
+    await refrescar()
   }
 
   /** La confirmación con contraseña la pide `EliminarConClave`; si esto falla, el diálogo lo avisa. */
@@ -359,6 +373,13 @@ export function SolicitudesView() {
           </>
         }
       />
+
+      {resumenQuitado && (
+        <p className={styles.avisoMasivo} role="status">
+          {resumenQuitado}{' '}
+          <button type="button" className={styles.avisoAccion} onClick={() => setResumenQuitado(null)}>Cerrar</button>
+        </p>
+      )}
 
       {error && (
         <div className={styles.errorCaja} role="alert">
@@ -663,6 +684,15 @@ export function SolicitudesView() {
                           <button type="button" className={styles.botonIcono} title="PDF de la solicitud" aria-label={`PDF de ${s.numero_solicitud}`} onClick={() => setPdfAbierto(s)}>
                             <IconoPdf width={17} height={17} />
                           </button>
+                          {puedeEliminar && s.informe && (
+                            <EliminarConClave
+                              etiqueta="Quitar informe"
+                              icono={<IconoCerrar width={16} height={16} />}
+                              titulo={`Quitar el informe de ${s.numero_solicitud}`}
+                              descripcion="Borra el informe y todo lo que trajo (resultados en Report, filas pendientes y sus PDF) para poder subirlo de nuevo. La solicitud no se toca."
+                              onConfirmar={(clave) => onQuitarInforme(s, clave)}
+                            />
+                          )}
                           {puedeEliminar && (
                             <EliminarConClave
                               etiqueta="Eliminar"
@@ -718,6 +748,15 @@ export function SolicitudesView() {
                     <button type="button" className={styles.botonTarjeta} onClick={() => setPdfAbierto(s)}>
                       <IconoPdf width={16} height={16} /> PDF
                     </button>
+                    {puedeEliminar && s.informe && (
+                      <EliminarConClave
+                        etiqueta="Quitar informe"
+                        icono={<IconoCerrar width={16} height={16} />}
+                        titulo={`Quitar el informe de ${s.numero_solicitud}`}
+                        descripcion="Borra el informe y todo lo que trajo (resultados en Report, filas pendientes y sus PDF) para poder subirlo de nuevo. La solicitud no se toca."
+                        onConfirmar={(clave) => onQuitarInforme(s, clave)}
+                      />
+                    )}
                     {puedeEliminar && (
                       <EliminarConClave
                         etiqueta="Eliminar"

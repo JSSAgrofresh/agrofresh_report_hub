@@ -75,6 +75,19 @@ describe('lector de informes de Quiteca', () => {
     expect(leer().inf.datos['Fecha Informe']).toBe('25-09-2026')
   })
 
+  it('lee el N° de muestra de «Identificación de la Muestra» y lo manda como «N° Muestra»', () => {
+    const { inf, fila } = leer()
+    expect(inf.datos['N° Muestra']).toBe('85849')
+    expect(fila['N° Muestra']).toBe('85849')
+  })
+
+  it('lee la fecha y la hora de recepción y las manda al backend', () => {
+    const { inf, fila } = leer()
+    expect(inf.datos['Hora Recepción']).toBe('14:00')
+    expect(fila['Fecha Recepción']).toBe('2026-09-24')
+    expect(fila['Hora Recepción']).toBe('14:00')
+  })
+
   it('lee el OT del campo «N° Solicitud»', () => {
     expect(leer().inf.datos['OT']).toBe('OT-QUI0022')
   })

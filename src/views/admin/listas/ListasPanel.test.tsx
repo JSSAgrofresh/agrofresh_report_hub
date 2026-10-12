@@ -7,6 +7,8 @@ const api = vi.hoisted(() => ({
   compararListas: vi.fn(),
   aplicarListas: vi.fn(),
   exportarListas: vi.fn(),
+  guardarFijos: vi.fn(),
+  restaurarFijos: vi.fn(),
 }))
 vi.mock('@/features/listasDistribucion', async (original) => ({ ...(await original<typeof import('@/features/listasDistribucion')>()), ...api }))
 
@@ -133,5 +135,47 @@ describe('ListasPanel', () => {
     expect(await screen.findByText('Planta nueva')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /Crearla también en Listados/ })).toBeChecked()
     expect(screen.getByRole('button', { name: /Usar «PLANTA LISONJERAS»/ })).toBeInTheDocument()
+  })
+  it('cambiarle el nombre a una planta con lista: queda marcado y viaja primero al guardar, con la lista intacta', async () => {
+    api.compararListas.mockResolvedValue({
+      cambios: [{
+        id: 'n', tipo: 'planta_nueva', planta: { sold_to: 'CLI SA', ship_to: 'PLANTA LISONJERA' }, campo: 'planta', etiqueta: '', agregar: [], quitar: [], corregir: [],
+        aviso: 'No existe', sugerencias: [{ sold_to: 'CLI SA', ship_to: 'PLANTA UNO' }],
+        fila: { sold_to: 'CLI SA', ship_to: 'PLANTA LISONJERA', admin: [], comercial: [], tecnico: [], clientes: todas([]) },
+      }],
+      resumen: { plantas_excel: 1, plantas_sin_cambios: 0, plantas_con_cambios: 1, cambios: 1, plantas_solo_sistema: 0, solo_sistema: [] },
+    })
+    render(<ListasPanel />)
+    await screen.findByRole('region', { name: 'Tabla de listas de distribución' })
+    fireEvent.change(screen.getByLabelText('Importar Excel'), { target: { files: [new File(['x'], 'm.xlsx')] } })
+    fireEvent.click(await screen.findByRole('button', { name: /Es la misma: cambiarle el nombre a «PLANTA LISONJERA»/ }))
+    expect(await screen.findByText(/Se cambiará el nombre a/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Guardar 1 cambio/ }))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Guardar' }))
+    await waitFor(() => expect(api.aplicarListas).toHaveBeenCalled())
+    expect(api.aplicarListas.mock.calls[0][0][0]).toMatchObject({
+      tipo: 'planta_renombrar', planta: { ship_to: 'PLANTA UNO' }, nuevo: { ship_to: 'PLANTA LISONJERA' },
+    })
+  })
+
+  it('los destinatarios fijos de la lista se editan en el panel y quedan vigentes al guardar', async () => {
+    const fijos = {
+      para: ['CJIMENEZ@AGROFRESH.COM'], cc: ['JORGE.SANDOVAL@AGROFRESH.COM'], respaldo: [], editable: true,
+      original: { para: ['CJIMENEZ@AGROFRESH.COM'], cc: ['JORGE.SANDOVAL@AGROFRESH.COM'] }, personalizado: false,
+    }
+    api.obtenerEstado.mockResolvedValue({ ...estado, fijos })
+    api.guardarFijos.mockResolvedValue({ ...fijos, para: ['otro@agrofresh.com'], personalizado: true })
+    render(<ListasPanel servicio="ecofog" />)
+    const caja = await screen.findByRole('region', { name: 'Destinatarios de Ecofog' })
+    fireEvent.click(within(caja).getByRole('button', { name: 'Editar' }))
+    fireEvent.click(screen.getByLabelText('Quitar CJIMENEZ@AGROFRESH.COM'))
+    const [campo] = screen.getAllByPlaceholderText(/nombre@empresa.cl|Agregar otro/)
+    fireEvent.change(campo, { target: { value: 'otro@agrofresh.com' } })
+    fireEvent.keyDown(campo, { key: 'Enter' })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    await waitFor(() => expect(api.guardarFijos).toHaveBeenCalledWith('ecofog', { para: ['otro@agrofresh.com'], cc: ['JORGE.SANDOVAL@AGROFRESH.COM'] }))
+    const nueva = await screen.findByRole('region', { name: 'Destinatarios de Ecofog' })
+    expect(within(nueva).getByTitle('otro@agrofresh.com')).toBeInTheDocument()
+    expect(within(nueva).getByText('editado')).toBeInTheDocument()
   })
 })

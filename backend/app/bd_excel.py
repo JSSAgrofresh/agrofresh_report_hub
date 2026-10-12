@@ -33,10 +33,13 @@ from .solicitud_excel import (
     _grupos_exportacion,
 )
 
-# Columnas generales de la BD: son las MISMAS que las de la base «con muestra» de
-# AgroFresh Lab, con el mismo nombre y orden, para poder cruzarlas (ver
-# `columnas_base.py`, que es la única definición).
-GENERALES_BD = GENERALES_BASE
+# Columnas generales de la BD: las de la base «con muestra» de AgroFresh Lab, con el
+# mismo nombre y orden, para poder cruzarlas (ver `columnas_base.py`, que es la única
+# definición), SIN los dos pesos, que solo existen en el laboratorio propio. La
+# recepción SÍ va siempre: la BD tiene un formato fijo (el de la planilla de
+# referencia) y se pega tal cual sobre ella; lo que el laboratorio no trae queda vacío.
+SOLO_LABORATORIO_PROPIO = {"peso", "peso_extraido"}
+GENERALES_BD = [g for g in GENERALES_BASE if g[0] not in SOLO_LABORATORIO_PROPIO]
 
 # La ingesta guarda algunos analitos con un código y el catálogo de Toma de
 # muestras usa otro para el MISMO analito (mapeo.py vs ANALITOS_DEFECTO). Sin
@@ -64,6 +67,9 @@ def titulo_fungicidas(laboratorios: set[str]) -> str:
     presentes = [nombre for nombre in ("QUITECA", "AGROFRESH") if nombre in laboratorios]
     rotulo = " / ".join(presentes) if presentes else _PREFIJO_FUNGICIDAS
     return f"{rotulo} — {TITULO_FUNGICIDAS_BASE}"
+
+
+_TITULO_FUNGICIDAS_FIJO = f"{_PREFIJO_FUNGICIDAS} — {TITULO_FUNGICIDAS_BASE}"
 
 
 def _laboratorios_de(valor: Any) -> set[str]:
@@ -111,7 +117,6 @@ DESDE_SOLICITUD: dict[str, str] = {
     "email_laboratorio": "email_laboratorio",
     "csg_packing": "csg_packing",
     "codigo_muestra": "codigo_muestra",
-    "peso_extraido": "peso_muestra_extraido",
 }
 
 _FECHAS_BD = {
@@ -170,7 +175,15 @@ def completar_fila(fila: dict[str, Any], datos: dict | None, correos_laboratorio
     if _vacio(fila.get("email_laboratorio")) and correos_laboratorio:
         fila["email_laboratorio"] = "; ".join(correos_laboratorio)
     if datos:
-        # La recepción es el momento del cruce con la muestra (Ingreso al laboratorio).
+        # Qué analitos se pidieron y con qué dosis (campos_laboratorio): la base no lo
+        # guarda para las solicitudes que no pasaron por la ingesta con dosis.
+        fila["_solicitud"] = {
+            "analitos_solicitados": list(datos.get("analitos_solicitados") or []),
+            "campos_laboratorio": dict(datos.get("campos_laboratorio") or {}),
+        }
+        # La recepción es el momento del cruce con la muestra (Ingreso al laboratorio):
+        # así llega la de AgroFresh. Quiteca y los demás la traen en su informe y ya vienen
+        # en la base; el cruce solo rellena lo que ella dejó vacío.
         dia, hora = partir_recepcion(datos.get("recepcion_en"))
         if _vacio(fila.get("fecha_recepcion")) and dia:
             fila["fecha_recepcion"] = dia
@@ -192,6 +205,33 @@ def completar_fila(fila: dict[str, Any], datos: dict | None, correos_laboratorio
                 fila["temporada"] = f.year
                 break
 
+
+
+def completar_solicitados(filas: list[dict[str, Any]], analitos: list[dict]) -> None:
+    """Pone en cada fila `solicitados` (códigos de formato que la solicitud pidió) y
+    completa `dosis` con la que anotó la solicitud cuando la base no la trae.
+    La dosis de la base manda; la «Solicitado» sin dosis anotada no es una dosis."""
+    from .solicitud_excel import _analitos_fungicidas, _valor_guardado
+
+    catalogo = _analitos_fungicidas(analitos)
+    for fila in filas:
+        sol = fila.get("_solicitud") or {}
+        pedidos = {codigo_de_formato(c) for c in sol.get("analitos_solicitados") or []}
+        fila["solicitados"] = pedidos
+        campos = sol.get("campos_laboratorio") or {}
+        if not campos:
+            continue
+        dosis = dict(fila.get("dosis") or {})
+        ya = {codigo_de_formato(k) for k in dosis}
+        for a in catalogo:
+            cod = codigo_de_formato(a.get("codigo"))
+            if cod in pedidos and cod not in ya:
+                v = _valor_guardado(campos, a)
+                if v and v != "Solicitado":
+                    dosis[cod] = v
+        fila["dosis"] = dosis
+        if _vacio(fila.get("tipo_aplicacion")) and not _vacio(campos.get("Tipo Aplicación")):
+            fila["tipo_aplicacion"] = campos["Tipo Aplicación"]
 
 
 def codigo_de_formato(codigo: str | None) -> str:
@@ -231,7 +271,11 @@ def columnas_de_bd(
     permitidos = {codigo_de_formato(i) for i in ingredientes} if ingredientes else None
     con_resultado: dict[str, str] = {}   # código de formato -> nombre (por si cae en «Otros»)
     con_dosis: set[str] = set()
+    con_solicitado: set[str] = set()
     for fila in filas:
+        for cod in fila.get("solicitados") or ():
+            if permitidos is None or cod in permitidos:
+                con_solicitado.add(cod)
         for codigo, res in (fila.get("resultados") or {}).items():
             cod = codigo_de_formato(codigo)
             if permitidos is not None and cod not in permitidos:
@@ -243,38 +287,58 @@ def columnas_de_bd(
                 con_dosis.add(cod)
 
     etiquetas_fila = {etiqueta: clave for clave, etiqueta in CAMPOS_FUNGICIDAS}
+    # Formato fijo: si la descarga trae algo de Quiteca/AgroFresh, el grupo de fungicidas
+    # sale COMPLETO (todos los analitos, tengan o no dato) para que las columnas calcen
+    # siempre con la planilla de referencia. Con un filtro de ingredientes, solo esos.
+    fungicida_fijo = permitidos is None and any(
+        _laboratorios_de(f.get("laboratorio")) or f.get("solicitados") for f in filas
+    )
     grupos: list[tuple[str, list[Columna]]] = [
         ("GENERAL", [("general", clave, etiqueta) for clave, etiqueta in GENERALES_BD])
     ]
     conocidos: set[str] = set()
     for titulo, columnas in _grupos_exportacion(analitos)[1:]:  # [0] es el GENERAL de Solicitudes
         elegidas: list[Columna] = []
+        pares: list[Columna] = []       # fungicidas: «X Solicitado» y «X Dosis» de cada analito
+        resultados: list[Columna] = []  # fungicidas: los resultados, juntos tras los pares
         es_fungicidas = titulo.startswith(_PREFIJO_FUNGICIDAS)
         for tipo, clave, etiqueta in columnas:
             if tipo == "analito":
                 conocidos.add(clave)
-                if clave in con_resultado:
+                if es_fungicidas:
+                    # Un analito pedido sigue teniendo su columna de resultado, aunque aún no llegue.
+                    if fungicida_fijo or clave in con_resultado or clave in con_solicitado or clave in con_dosis:
+                        resultados.append((tipo, clave, etiqueta))
+                elif clave in con_resultado:
                     elegidas.append((tipo, clave, etiqueta))
             elif tipo == "analito_dosis":
-                if clave in con_dosis:
+                if es_fungicidas:
+                    if fungicida_fijo or clave in con_dosis or clave in con_solicitado or clave in con_resultado:
+                        pares.append(("analito_solicitado", clave, f"{clave} Solicitado"))
+                        pares.append((tipo, clave, etiqueta))
+                elif clave in con_dosis:
                     elegidas.append((tipo, clave, etiqueta))
             elif tipo == "campo" and etiqueta not in _CAMPOS_OMITIDOS:
                 # Tipo Aplicación, Gasto y el ensayo van siempre que el grupo tenga
                 # analitos: son las mismas columnas que la base «con muestra».
-                if not any(t in ("analito", "analito_dosis") for t, _, _ in elegidas):
+                if not any(t in ("analito", "analito_dosis") for t, _, _ in [*elegidas, *pares, *resultados]):
                     continue
                 if etiqueta == "Tipo Aplicación":
                     elegidas.append(("tipo_aplicacion", clave, etiqueta))
                 elif etiqueta in etiquetas_fila:
                     elegidas.append(("dato_fila", etiquetas_fila[etiqueta], etiqueta))
+        elegidas = [*elegidas, *pares, *resultados]
         if elegidas and es_fungicidas:
             codigos = {clave for _, clave, _ in elegidas}
             labs: set[str] = set()
             for fila in filas:
-                tiene = any(codigo_de_formato(c) in codigos for c in list(fila.get("resultados") or {}) + list(fila.get("dosis") or {}))
+                tiene = any(
+                    codigo_de_formato(c) in codigos
+                    for c in [*(fila.get("resultados") or {}), *(fila.get("dosis") or {}), *(fila.get("solicitados") or ())]
+                )
                 if tiene:
                     labs |= _laboratorios_de(fila.get("laboratorio"))
-            titulo = titulo_fungicidas(labs)
+            titulo = _TITULO_FUNGICIDAS_FIJO if fungicida_fijo else titulo_fungicidas(labs)
         if elegidas:
             grupos.append((titulo, elegidas))
 
@@ -303,6 +367,7 @@ def construir_workbook_bd(
         posicion=lambda f: f.get("posicion_muestreo"),
         con_posicion=lambda f, p: {**f, "posicion_muestreo": p},
     )
+    completar_solicitados(filas, analitos)
     wb = Workbook()
     ws = wb.active
     ws.title = "BD"
@@ -341,13 +406,15 @@ def construir_workbook_bd(
                 valor = _numero((resultados.get(clave) or {}).get("valor"))
             elif tipo == "analito_dosis":
                 valor = _numero(dosis.get(clave))
+            elif tipo == "analito_solicitado":
+                valor = "✓" if clave in (fila.get("solicitados") or ()) else None
             elif tipo == "dato_fila":  # Gasto, Código de Ensayo, N° Ensayo
                 valor = _valor_celda(fila.get(clave))
             else:  # tipo_aplicacion
                 valor = fila.get("tipo_aplicacion")
             celda = ws.cell(row=fila_idx, column=col, value=valor if valor not in (None, "") else None)
             celda.border = _BORDE_COMPLETO
-            es_dato = tipo in ("analito", "analito_dosis")
+            es_dato = tipo in ("analito", "analito_dosis", "analito_solicitado")
             celda.alignment = Alignment(horizontal="center" if es_dato else "left", vertical="center")
             if tipo == "analito" and valor is not None:
                 celda.font = Font(bold=True, color=VERDE_OSCURO)

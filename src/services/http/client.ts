@@ -36,8 +36,19 @@ async function pedir(path: string, init: RequestInit = {}): Promise<Response> {
 async function fallar(response: Response, path: string): Promise<never> {
   let detalle = ''
   try {
-    const body = await response.json() as { detail?: string }
-    detalle = typeof body.detail === 'string' ? body.detail : ''
+    const body = await response.json() as { detail?: unknown }
+    if (typeof body.detail === 'string') {
+      detalle = body.detail
+    } else if (Array.isArray(body.detail)) {
+      // Validación de FastAPI (422): una lista de {loc, msg}. Se junta para poder leer QUÉ campo falló.
+      detalle = body.detail
+        .map((d: { loc?: unknown[]; msg?: string }) => {
+          const campo = Array.isArray(d.loc) ? d.loc.filter((x) => x !== 'body').join('.') : ''
+          return campo ? `${campo}: ${d.msg ?? 'inválido'}` : (d.msg ?? '')
+        })
+        .filter(Boolean)
+        .join('; ')
+    }
   } catch { /* el backend no siempre devuelve JSON */ }
   throw new HttpError(response.status, detalle || `Request failed: ${response.status} ${path}`)
 }

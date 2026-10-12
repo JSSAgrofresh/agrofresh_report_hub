@@ -1,24 +1,23 @@
 /* Panel oscuro de Administración General: verde AgroFresh sobre fondo profundo.
    Las variables viven acá para que el resto de la app no cambie. */
 .panel {
-  --p-bg: #0f1a14;
-  --p-s: #16241c;
-  --p-s2: #1c2d23;
-  --p-b: #26392e;
-  --p-t: #eaf2e6;
-  --p-m: #a9b8ad;
-  --p-f: #7d8f83;
+  /* Mismos tonos que el resto de la app (superficie blanca, verde de marca). */
+  --p-bg: transparent;
+  --p-s: var(--color-surface);
+  --p-s2: var(--color-bg);
+  --p-b: var(--color-border);
+  --p-t: var(--color-text);
+  --p-m: var(--color-text-muted);
+  --p-f: var(--color-text-faint);
   --p-verde: #6dad3c;
-  --p-verde-claro: #9bd36a;
-  --p-rojo: #e5655b;
-  --p-ambar: #e8c32e;
+  --p-verde-oscuro: #3d6b1f;
+  --p-verde-claro: #3d6b1f;
+  --p-rojo: #c0392b;
+  --p-ambar: #b07d00;
 
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 18px;
-  border-radius: var(--radius-lg);
-  background: var(--p-bg);
   color: var(--p-t);
 }
 
@@ -65,13 +64,13 @@
 }
 
 .periodo button[aria-pressed='true'] {
-  background: var(--p-verde);
-  color: #0b1a0f;
+  background: var(--p-verde-oscuro);
+  color: #fff;
 }
 
 .kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(165px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -80,7 +79,8 @@
   padding: 15px 17px;
   background: var(--p-s);
   border: 1px solid var(--p-b);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .card h3 {
@@ -333,9 +333,9 @@ button.alerta:hover { outline: 1px solid var(--p-verde); }
 }
 
 .chip[aria-pressed='true'] {
-  background: var(--p-verde);
-  border-color: var(--p-verde);
-  color: #0b1a0f;
+  background: var(--p-verde-oscuro);
+  border-color: var(--p-verde-oscuro);
+  color: #fff;
 }
 
 .ficha {
@@ -378,4 +378,143 @@ button.alerta:hover { outline: 1px solid var(--p-verde); }
   .dosCol {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.kpis .card {
+  border-left: 4px solid var(--p-verde);
+}
+
+/* ── Seguimiento ── */
+.mapa {
+  display: grid;
+  grid-template-columns: 34px repeat(24, minmax(0, 1fr));
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--p-f);
+  align-items: center;
+}
+
+.mapa .celda {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: #eef3e8;
+}
+
+.mapa .hora {
+  text-align: center;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.tabla th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--p-f);
+  border-bottom: 1px solid var(--p-b);
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--p-b);
+  vertical-align: middle;
+}
+
+.tabla tr:last-child td {
+  border-bottom: 0;
+}
+
+.tabla button.fila {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+}
+
+.tabla button.fila:hover {
+  color: var(--p-verde-oscuro);
+}
+
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.etiqueta {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--p-s2);
+  color: var(--p-m);
+  white-space: nowrap;
+}
+
+.etiqueta.verde { background: #e6f0dc; color: #2f5a16; }
+.etiqueta.ambar { background: #fff3d6; color: #8a5a00; }
+.etiqueta.rojo { background: #fbe3df; color: #a1291d; }
+.etiqueta.azul { background: #e3f0fa; color: #1b5f8c; }
+
+.intensidad {
+  display: inline-block;
+  min-width: 28px;
+  padding: 3px 0;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.adopcion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.adopcion .linea {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 90px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.adopcion .pista {
+  height: 8px;
+  border-radius: 9px;
+  background: var(--p-s2);
+  overflow: hidden;
+}
+
+.adopcion .pista i {
+  display: block;
+  height: 100%;
+  background: var(--p-verde);
+}
+
+.kpiBoton {
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.kpiBoton[aria-pressed='true'] {
+  outline: 2px solid var(--p-verde-oscuro);
 }

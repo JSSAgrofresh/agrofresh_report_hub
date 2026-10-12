@@ -24,6 +24,8 @@ import unicodedata
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from . import servicios
+
 from .auth import Usuario, solo_admin_general, usuario_actual
 from .db import conexion, cursor_dict
 
@@ -46,6 +48,9 @@ class CorreccionIn(BaseModel):
     valor_crudo: str
     valor_oficial: str
     archivo: str | None = None
+    # «Tipo Aplicación» del informe: dice contra qué listado se valida el valor
+    # (Actimist y Ecofog tienen el suyo; vacío o cualquier otro = Línea de proceso).
+    servicio: str = ""
 
 
 class UsoIn(BaseModel):
@@ -88,11 +93,13 @@ def guardar_correccion(body: CorreccionIn, usuario: Usuario = Depends(usuario_ac
     with conexion() as conn, cursor_dict(conn) as cur:
         # Solo se aprende hacia valores que existen: un typo en el destino
         # dejaría una asociación que apunta a la nada.
+        tabla_cliente, tabla_planta = servicios.tablas(body.servicio)   # tablas fijas, no del usuario
         if body.campo == "sold_to":
-            cur.execute("SELECT 1 FROM cliente WHERE nombre = %s", (oficial,))
+            cur.execute(f"SELECT 1 FROM {tabla_cliente} WHERE nombre = %s", (oficial,))
         elif body.campo == "ship_to":
             cur.execute(
-                "SELECT 1 FROM planta p JOIN cliente c ON c.id = p.cliente_id WHERE p.nombre = %s AND c.nombre = %s",
+                f"SELECT 1 FROM {tabla_planta} p JOIN {tabla_cliente} c ON c.id = p.cliente_id "
+                "WHERE p.nombre = %s AND c.nombre = %s",
                 (oficial, contexto),
             )
         else:

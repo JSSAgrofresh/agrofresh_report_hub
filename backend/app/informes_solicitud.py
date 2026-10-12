@@ -29,12 +29,14 @@ import psycopg2.errors
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
-from . import r2
+from pydantic import BaseModel
+
+from . import actividad, confirmar_clave, informes_storage, r2
 from . import r2_auditoria as r2a
 from .auditoria_interna import _exigir_r2, errores_r2
 from .auth import Usuario, solo_interno
 from .db import conexion, cursor_dict
-from .ficha_informe import _buscar_pdf, _disposicion_inline, _solicitud
+from .ficha_informe import _buscar_pdf, _disposicion_inline, _solicitud, elegir_clave
 
 logger = logging.getLogger(__name__)
 
@@ -333,3 +335,148 @@ def pdf_informe_de_solicitud(archivo: str, usuario: Usuario = Depends(solo_inter
         media_type="application/pdf",
         headers={"Content-Disposition": _disposicion_inline(pdf["nombre"]), "Cache-Control": "private, max-age=300"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Quitar el informe de una solicitud (solo el administrador principal, con su clave)
+
+class QuitarInformeIn(BaseModel):
+    password: str | None = None
+
+
+def _como_lista(valores) -> list[str]:
+    return sorted({_limpio(v).upper() for v in valores if _limpio(v)})
+
+
+def quitar_informe_de_solicitud(cur, archivo: str) -> dict[str, Any]:
+    """Borra de la base TODO lo que trajo el informe de esta solicitud: sus resultados y productos
+    en Report (con la solicitud de Report que los agrupa), sus filas pendientes y el registro de su PDF
+    en Auditoría. La solicitud de Toma de muestras no se toca. Devuelve lo borrado y las claves de R2
+    de los PDF, que se borran aparte (R2 no es transaccional).
+
+    Un informe se reconoce igual que en el listado de Solicitudes: el PDF de Converter con su OT
+    (`informe_auditoria`) o los resultados de Report cuya `referencia` es el OT. Nunca por parecido."""
+    cur.execute("SELECT numero_solicitud, sold_to, ship_to FROM solicitud_archivo WHERE archivo = %s", (archivo,))
+    sol = cur.fetchone()
+    if not sol:
+        raise HTTPException(404, "Solicitud no encontrada.")
+    ot = _limpio(sol["numero_solicitud"]).upper()
+
+    if ot:
+        cur.execute(
+            "SELECT id, nro_informe, r2_key, laboratorio FROM informe_auditoria"
+            " WHERE archivo_solicitud = %(a)s"
+            "    OR (COALESCE(btrim(archivo_solicitud), '') = '' AND upper(btrim(numero_solicitud)) = %(ot)s)",
+            {"a": archivo, "ot": ot},
+        )
+    else:
+        cur.execute(
+            "SELECT id, nro_informe, r2_key, laboratorio FROM informe_auditoria WHERE archivo_solicitud = %s", (archivo,)
+        )
+    auditoria = cur.fetchall()
+    nros = _como_lista(a["nro_informe"] for a in auditoria)
+
+    cur.execute(
+        "SELECT id, nro_solicitud FROM solicitud"
+        " WHERE (%(ot)s <> '' AND upper(btrim(referencia)) = %(ot)s)"
+        "    OR upper(btrim(nro_solicitud)) = ANY(%(nros)s)",
+        {"ot": ot, "nros": nros},
+    )
+    en_report = cur.fetchall()
+    nros = _como_lista([*nros, *(f["nro_solicitud"] for f in en_report)])
+    if not auditoria and not en_report:
+        raise HTTPException(404, "Esta solicitud no tiene informe que quitar.")
+
+    ids = [f["id"] for f in en_report]
+    cur.execute("SELECT count(*) AS n FROM resultado WHERE solicitud_id = ANY(%s)", (ids,))
+    resultados = cur.fetchone()["n"]
+    cur.execute("SELECT count(*) AS n FROM producto_aplicado WHERE solicitud_id = ANY(%s)", (ids,))
+    productos = cur.fetchone()["n"]
+    # resultado y producto_aplicado cuelgan de la solicitud con ON DELETE CASCADE.
+    cur.execute("DELETE FROM solicitud WHERE id = ANY(%s)", (ids,))
+    pendientes = 0
+    if nros:
+        try:
+            cur.execute("SAVEPOINT quitar_pendientes")
+            cur.execute(
+                "DELETE FROM pendiente_revision WHERE upper(btrim(fila->>'Informe')) = ANY(%(n)s)"
+                " OR upper(btrim(fila->>'N° Informe')) = ANY(%(n)s)",
+                {"n": nros},
+            )
+            pendientes = cur.rowcount
+            cur.execute("RELEASE SAVEPOINT quitar_pendientes")
+        except psycopg2.errors.UndefinedTable:
+            cur.execute("ROLLBACK TO SAVEPOINT quitar_pendientes")
+    cur.execute("DELETE FROM informe_auditoria WHERE id = ANY(%s)", ([a["id"] for a in auditoria],))
+    return {
+        "numeros": nros,
+        "solicitudes_report": len(ids),
+        "resultados": resultados,
+        "productos": productos,
+        "pendientes": pendientes,
+        "pdf_auditoria": [a["r2_key"] for a in auditoria if a.get("r2_key")],
+        "planta": _limpio(sol["ship_to"]),
+        "cliente": _limpio(sol["sold_to"]),
+    }
+
+
+def _borrar_pdf(clave: str, auditoria: bool) -> bool:
+    try:
+        (r2a.eliminar if auditoria else r2.eliminar)(clave)
+        return True
+    except Exception:  # noqa: BLE001 - un PDF que no se pudo borrar no deshace lo que ya se borró
+        logger.exception("No se pudo borrar el PDF %s de R2", clave)
+        return False
+
+
+@router.post("/solicitudes/{archivo}/quitar-informe")
+def quitar_informe(archivo: str, body: QuitarInformeIn, usuario: Usuario = Depends(solo_interno)) -> dict[str, Any]:
+    """Quita el informe de una solicitud y todo lo que trajo (Report, pendientes y PDF), para poder
+    volver a subirlo. Solo el administrador principal, con su contraseña revisada acá."""
+    confirmar_clave.exigir_principal_con_clave(usuario, body.password, "quitar un informe")
+    with conexion() as conn, cursor_dict(conn) as cur:
+        r = quitar_informe_de_solicitud(cur, archivo)
+
+    # Los PDF van después de confirmada la base. Auditoría guarda su clave; la copia de Storage → Informes
+    # no, así que se busca en la carpeta de su planta por N° de informe (misma regla que la ficha).
+    pdf_borrados = 0
+    pdf_fallidos = 0
+    for clave in r["pdf_auditoria"]:
+        if r2a.disponible():
+            if _borrar_pdf(clave, True):
+                pdf_borrados += 1
+            else:
+                pdf_fallidos += 1
+    if r2.disponible() and r["planta"]:
+        planta = informes_storage.carpeta_planta(r["planta"], r["cliente"])
+        prefijo = f"{informes_storage.RAIZ}/{informes_storage.segmento_seguro(planta, 'Sin planta')}/"
+        try:
+            claves = r2.listar_keys(prefijo)
+        except Exception:  # noqa: BLE001
+            logger.exception("No se pudo listar %s en R2", prefijo)
+            claves = []
+        for nro in r["numeros"]:
+            clave = elegir_clave(claves, nro)
+            if clave:
+                if _borrar_pdf(clave, False):
+                    pdf_borrados += 1
+                else:
+                    pdf_fallidos += 1
+                claves = [k for k in claves if k != clave]
+
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "informe_quitado",
+        f"quitó el informe {', '.join(r['numeros']) or '(sin N°)'} de la solicitud {archivo}: "
+        f"{r['resultados']} resultados y {r['solicitudes_report']} registro(s) de Report",
+        sensible=True,
+    )
+    return {
+        "estado": "quitado",
+        "informes": r["numeros"],
+        "solicitudes_report": r["solicitudes_report"],
+        "resultados": r["resultados"],
+        "productos": r["productos"],
+        "pendientes": r["pendientes"],
+        "pdf_borrados": pdf_borrados,
+        "pdf_no_borrados": pdf_fallidos,
+    }

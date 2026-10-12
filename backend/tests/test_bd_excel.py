@@ -53,7 +53,7 @@ def test_solo_salen_los_grupos_y_analitos_que_tienen_datos():
     assert bandas == ["GENERAL", "ALS — MICROBIOLOGÍA AGUA (FSMA)"]
 
 
-def test_el_resultado_va_donde_en_solicitudes_iba_el_check_y_la_dosis_al_lado():
+def test_cada_analito_lleva_solicitado_y_dosis_y_los_resultados_van_juntos_al_final():
     wb = bd_excel.construir_workbook_bd([FUNGICIDA], ANALITOS_DEFECTO)
     columnas, _ = _encabezados(wb)
     ws = wb["BD"]
@@ -61,9 +61,30 @@ def test_el_resultado_va_donde_en_solicitudes_iba_el_check_y_la_dosis_al_lado():
     assert fila["FDL"] == 0.42 and fila["FDL Dosis"] == 5
     assert fila["IMZ"] == 1.5
     assert fila["Tipo Aplicación"] == "Línea de proceso"
-    assert "✓" not in fila.values()
-    # FDL y su dosis quedan pegadas, como en el formato de Solicitudes
-    assert columnas.index("FDL Dosis") == columnas.index("FDL") + 1
+    # «X Solicitado» y «X Dosis» van pegadas, y los resultados quedan tras todas ellas
+    assert columnas.index("FDL Dosis") == columnas.index("FDL Solicitado") + 1
+    assert columnas.index("IMZ Dosis") < columnas.index("FDL") < columnas.index("IMZ")
+
+
+def test_la_solicitud_aporta_el_solicitado_y_la_dosis_que_la_base_no_trae():
+    fila = _fila(
+        laboratorio="AGROFRESH",
+        resultados={"FDL": {"valor": 0.23, "nombre": "Fludioxonil"}},
+        _solicitud={
+            "analitos_solicitados": ["FDL", "IMZ"],
+            "campos_laboratorio": {"Fludioxonil (ppm)": "250cc/100L", "Tipo Aplicación": "Línea de proceso"},
+        },
+    )
+    analitos = [{"codigo": "FDL", "nombre": "Fludioxonil", "laboratorio": "AGROFRESH", "unidad": "ppm", "orden": 1},
+                {"codigo": "IMZ", "nombre": "Imazalil", "laboratorio": "AGROFRESH", "unidad": "ppm", "orden": 2}]
+    wb = bd_excel.construir_workbook_bd([fila], analitos)
+    columnas, _ = _encabezados(wb)
+    valores = dict(zip(columnas, [c.value for c in wb["BD"][3]]))
+    assert valores["FDL Solicitado"] == "✓" and valores["IMZ Solicitado"] == "✓"
+    assert valores["FDL Dosis"] == "250cc/100L"
+    assert valores["IMZ Dosis"] is None          # pedido, pero sin dosis anotada
+    assert valores["FDL"] == 0.23 and valores["IMZ"] is None
+    assert valores["Tipo Aplicación"] == "Línea de proceso"
 
 
 def test_un_texto_como_menor_que_se_conserva():
@@ -89,7 +110,7 @@ def test_un_analito_sin_columna_en_el_formato_no_se_pierde():
 
 
 def test_sin_resultados_solo_quedan_las_columnas_generales():
-    wb = bd_excel.construir_workbook_bd([_fila()], ANALITOS_DEFECTO)
+    wb = bd_excel.construir_workbook_bd([_fila(laboratorio="ALS")], ANALITOS_DEFECTO)
     columnas, bandas = _encabezados(wb)
     assert bandas == ["GENERAL"]
     assert columnas[:2] == ["N° Informe", "N° Solicitud"]
@@ -221,25 +242,31 @@ def _banda_fungicidas(filas):
     return next(b for b in bandas if "FUNGICIDAS" in b)
 
 
-def test_la_banda_de_fungicidas_nombra_solo_el_laboratorio_que_hay():
+BANDA_FIJA = "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+
+
+def test_el_grupo_de_fungicidas_sale_siempre_completo_y_con_la_misma_banda():
+    """Formato fijo: se pega sobre la planilla de referencia, así que las columnas no
+    dependen de qué laboratorio o qué analitos traiga la descarga."""
     quiteca = _fila(laboratorio="QUITECA", resultados={"FDL": {"valor": 1, "nombre": "F"}})
     agro = _fila(laboratorio="Agrofresh", resultados={"IMZ": {"valor": 2, "nombre": "I"}})
-    assert _banda_fungicidas([quiteca]) == "QUITECA — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
-    assert _banda_fungicidas([agro]) == "AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
-    assert _banda_fungicidas([quiteca, agro]) == "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+    vacia = _fila(laboratorio="AGROFRESH")
+    esperado = None
+    for filas in ([quiteca], [agro], [quiteca, agro], [vacia]):
+        wb = bd_excel.construir_workbook_bd(filas, ANALITOS_DEFECTO)
+        columnas, bandas = _encabezados(wb)
+        assert BANDA_FIJA in bandas
+        esperado = esperado or columnas
+        assert columnas == esperado
+    for cod in ("FDL", "IMZ", "PYR", "TEBU", "AZOX", "TBZ", "DPA"):
+        assert {f"{cod} Solicitado", f"{cod} Dosis", cod} <= set(esperado)
+    assert "Fecha Recepción" in esperado and "Hora Recepción" in esperado
 
 
-def test_un_laboratorio_sin_resultados_de_fungicidas_no_entra_en_la_banda():
-    quiteca = _fila(laboratorio="QUITECA", resultados={"FDL": {"valor": 1, "nombre": "F"}})
-    agua_agro = _fila(laboratorio="AGROFRESH", resultados={"ECOLI": {"valor": 3, "nombre": "E"}})
-    assert _banda_fungicidas([quiteca, agua_agro]) == "QUITECA — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
-
-
-def test_laboratorio_combinado_o_desconocido_usa_el_rotulo_de_los_dos():
-    combinada = _fila(laboratorio="Quiteca / AgroFresh", resultados={"FDL": {"valor": 1, "nombre": "F"}})
-    otra = _fila(laboratorio="???", resultados={"FDL": {"valor": 1, "nombre": "F"}})
-    assert _banda_fungicidas([combinada]) == "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
-    assert _banda_fungicidas([otra]) == "QUITECA / AGROFRESH — ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
+def test_un_laboratorio_sin_fungicidas_no_arrastra_el_grupo():
+    agua = _fila(laboratorio="ALS", resultados={"ECOLI": {"valor": 3, "nombre": "E"}})
+    _, bandas = _encabezados(bd_excel.construir_workbook_bd([agua], ANALITOS_DEFECTO))
+    assert not any("FUNGICIDAS" in b for b in bandas)
 
 
 # ── Lo que la base no trae se completa desde la solicitud ────────────────
@@ -376,7 +403,9 @@ def test_la_bd_trae_el_cruce_el_gasto_y_la_lista_de_distribucion(datos_bd, clien
         ]
         als = dict(zip(columnas, next(f for f in filas if f[columnas.index("N° Informe")] == "__INF_A__")))
         assert als["N° Muestra"] == "AGF0007"
-        assert als["Fecha Recepción"] is not None and als["Hora Recepción"]
+        # La recepción va siempre (formato fijo); los pesos son del laboratorio propio y no van.
+        assert {"Fecha Recepción", "Hora Recepción"} <= set(columnas)
+        assert not {"Peso", "Peso Muestra Extraída (g)"} & set(columnas)
         assert als["Lista de Distribución (Para)"] == "cliente@x.cl"
         assert als["Lista de Distribución (CCO)"] == "tec@agrofresh.com"
         quiteca = dict(zip(columnas, next(f for f in filas if f[columnas.index("N° Informe")] == "__INF_Q__")))
@@ -477,3 +506,23 @@ def test_la_descarga_enlaza_por_parecido_cuando_el_resultado_no_trae_ot(datos_bd
     finally:
         with conexion() as conn, cursor_dict(conn) as cur:
             cur.execute("DELETE FROM solicitud_archivo WHERE archivo LIKE '\\_\\_bd\\_par%'")
+
+
+def test_la_recepcion_de_agrofresh_sale_del_cruce_y_la_de_quiteca_de_su_informe():
+    # AgroFresh: la base no la trae, se toma del cruce con la muestra.
+    agro = {"laboratorio": "AGROFRESH"}
+    bd_excel.completar_fila(agro, {"recepcion_en": "2026-10-08T15:34:00+00:00"})
+    assert agro["hora_recepcion"] and agro["fecha_recepcion"]
+    # Quiteca: ya la trae la base (leída de su PDF); el cruce nunca la pisa.
+    quiteca = {"laboratorio": "Quiteca", "fecha_recepcion": "06-10-2026", "hora_recepcion": "10:08"}
+    bd_excel.completar_fila(quiteca, {"recepcion_en": "2026-10-08T15:34:00+00:00"})
+    assert quiteca["hora_recepcion"] == "10:08"
+
+
+def test_la_consulta_de_la_bd_trae_el_n_de_muestra_y_ninguna_columna_queda_en_un_comentario():
+    from app import reportes
+
+    sql = reportes._CONSULTA_BD.format(filtro_alcance="", filtro_ids="", codigo_muestra="s.codigo_muestra")
+    assert "s.codigo_muestra" in sql
+    # Un «--» a mitad de línea se come lo que sigue (así se perdió el N° de muestra de Quiteca).
+    assert all("--" not in linea for linea in sql.splitlines())

@@ -10,8 +10,8 @@ interface EliminarConClaveProps {
   /** Título y detalle del diálogo de confirmación. */
   titulo: string
   descripcion: string
-  /** Lo que se hace una vez que la clave fue correcta. */
-  onConfirmar: () => Promise<void> | void
+  /** Lo que se hace una vez que la clave fue correcta. Recibe la clave por si el servidor también la revisa. */
+  onConfirmar: (clave: string) => Promise<void> | void
   className?: string
   /** Con ícono, el botón muestra solo el ícono (la etiqueta queda como nombre accesible y tooltip). */
   icono?: ReactNode
@@ -48,7 +48,7 @@ export function EliminarConClave({ etiqueta, titulo, descripcion, onConfirmar, c
       return
     }
     try {
-      await onConfirmar()
+      await onConfirmar(clave)
       setAbierto(false)
       setClave('')
     } catch {

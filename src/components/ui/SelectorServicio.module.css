@@ -18,6 +18,12 @@
   --servicio-borde: #b5e2d4;
 }
 
+.ryd {
+  --servicio: #c4620a;
+  --servicio-suave: #fdf0e3;
+  --servicio-borde: #f0c9a3;
+}
+
 .contenedor {
   display: flex;
   flex-direction: column;

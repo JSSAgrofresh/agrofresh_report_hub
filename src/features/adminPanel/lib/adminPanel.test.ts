@@ -41,3 +41,35 @@ describe('totalDia', () => {
     expect(totalDia({ fecha: '2026-10-01', solicitudes: 3, cargas: 2, verificaciones: 1, laboratorio: 4, otros: 5 })).toBe(15)
   })
 })
+
+import { horasPico, nivelCalor, usoFueraDeHorario } from './adminPanel'
+
+describe('seguimiento', () => {
+  const vacio = () => Array.from({ length: 7 }, () => Array<number>(24).fill(0))
+
+  it('nivelCalor es relativo al máximo', () => {
+    expect(nivelCalor(0, 10)).toBe(0)
+    expect(nivelCalor(2, 10)).toBe(1)
+    expect(nivelCalor(5, 10)).toBe(2)
+    expect(nivelCalor(7, 10)).toBe(3)
+    expect(nivelCalor(10, 10)).toBe(4)
+    expect(nivelCalor(3, 0)).toBe(0)
+  })
+
+  it('horasPico encuentra la franja con más uso', () => {
+    const m = vacio()
+    m[1][11] = 9
+    m[3][15] = 4
+    expect(horasPico(m)).toEqual({ dia: 'Martes', hora: 11, total: 9 })
+    expect(horasPico(vacio())).toBeNull()
+  })
+
+  it('usoFueraDeHorario cuenta noches y fines de semana', () => {
+    const m = vacio()
+    m[0][10] = 6 // lunes 10 h: en horario
+    m[5][10] = 2 // sábado
+    m[2][21] = 2 // miércoles 21 h
+    expect(usoFueraDeHorario(m)).toBe(40)
+    expect(usoFueraDeHorario(vacio())).toBeNull()
+  })
+})
