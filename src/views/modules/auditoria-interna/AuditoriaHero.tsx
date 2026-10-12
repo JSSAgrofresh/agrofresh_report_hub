@@ -3,7 +3,7 @@ import styles from './AuditoriaHero.module.css'
 /** Banner propio de Auditoría interna: en vez de la foto de una fruta, un
  * motivo de control: hojas con su visto bueno, una lupa y una cuadrícula
  * de fondo. Todo en SVG/CSS, sin imágenes que cargar. */
-export function AuditoriaHero({ titulo, descripcion }: { titulo: string; descripcion: string }) {
+export function AuditoriaHero({ etiqueta, titulo, descripcion }: { etiqueta: string; titulo: string; descripcion: string }) {
   return (
     <div className={styles.hero}>
       <svg className={styles.arte} viewBox="0 0 420 120" preserveAspectRatio="xMaxYMid slice" aria-hidden="true" focusable="false">
@@ -35,7 +35,7 @@ export function AuditoriaHero({ titulo, descripcion }: { titulo: string; descrip
           <path d="M28 28l16 16" strokeWidth="6" />
         </g>
       </svg>
-      <span className={styles.etiqueta}>Auditoría interna</span>
+      <span className={styles.etiqueta}>{etiqueta}</span>
       <h1 className={styles.titulo}>{titulo}</h1>
       <p className={styles.descripcion}>{descripcion}</p>
     </div>
