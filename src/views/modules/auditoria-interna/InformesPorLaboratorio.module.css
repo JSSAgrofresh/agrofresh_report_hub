@@ -1,0 +1,97 @@
+.tarjeta {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e3e8e5);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-top: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cabecera h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.cabecera p,
+.vacio {
+  font-size: 13px;
+  color: var(--color-text-muted, #5b6b62);
+}
+
+.subtitulo {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-top: var(--space-2);
+}
+
+.scroll {
+  max-height: 360px;
+  overflow: auto;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tabla th,
+.tabla td {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--color-border, #e3e8e5);
+}
+
+.tabla th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted, #5b6b62);
+  position: sticky;
+  top: 0;
+  background: var(--color-surface, #fff);
+}
+
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.activa {
+  background: rgba(27, 127, 92, 0.08);
+}
+
+.labBoton {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+.barra {
+  display: inline-block;
+  width: 120px;
+  max-width: 40vw;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.08);
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+.barra > span {
+  display: block;
+  height: 100%;
+  background: #1b7f5c;
+}
+
+.pct {
+  margin-left: 8px;
+  font-variant-numeric: tabular-nums;
+}

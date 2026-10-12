@@ -13,6 +13,8 @@ interface AreaHeroProps {
    * cereza, ver tinteDeFoto) y, si la foto no tiene tono propio, del color de
    * marca del área. */
   tinte?: string
+  /** Versión baja del banner (pantallas de trabajo con mucho contenido debajo). */
+  compacto?: boolean
 }
 
 /**
@@ -20,7 +22,7 @@ interface AreaHeroProps {
  * detrás de un degradado del color de marca, para que nunca compita con la
  * legibilidad del texto ni con las tarjetas que van debajo.
  */
-export function AreaHero({ area, titulo, descripcion, fondo, tinte }: AreaHeroProps) {
+export function AreaHero({ area, titulo, descripcion, fondo, tinte, compacto }: AreaHeroProps) {
   const imagen = fondo ?? area.fondo
   const oscuro = tinte ?? tinteDeFoto(imagen) ?? area.colorOscuro
   const estilo: CSSProperties = {
@@ -31,7 +33,7 @@ export function AreaHero({ area, titulo, descripcion, fondo, tinte }: AreaHeroPr
   }
 
   return (
-    <div className={styles.hero} style={estilo}>
+    <div className={`${styles.hero} ${compacto ? styles.compacto : ''}`} style={estilo}>
       <span className={styles.etiqueta}>{area.nombre}</span>
       <h1 className={styles.titulo}>{titulo}</h1>
       <p className={styles.descripcion}>{descripcion}</p>

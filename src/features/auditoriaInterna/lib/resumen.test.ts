@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   estadoDe,
   ordenarSolicitudes,
+  pendientesDeInforme,
   porClienteYServicio,
   porGrupoYLaboratorio,
   porLaboratorio,
@@ -202,6 +203,18 @@ describe('solicitudesACsv', () => {
   })
   it('no queda nada de demora', () => {
     expect(solicitudesACsv([sol()]).toLowerCase()).not.toContain('demora')
+  })
+})
+
+describe('pendientesDeInforme', () => {
+  it('lista solo las que no tienen informe, las más antiguas primero', () => {
+    const informe = { id: 1, nro_informe: 'X', nombre_archivo: 'x.pdf', ruta: 'x.pdf', cargado_en: null, fecha_envio: null }
+    const lista = pendientesDeInforme([
+      sol({ archivo: 'b', emitida_en: '2026-10-05T10:00:00' }),
+      sol({ archivo: 'c', informe, emitida_en: '2026-10-01T10:00:00' }),
+      sol({ archivo: 'a', emitida_en: '2026-10-02T10:00:00' }),
+    ])
+    expect(lista.map((s) => s.archivo)).toEqual(['a', 'b'])
   })
 })
 

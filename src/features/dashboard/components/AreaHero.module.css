@@ -60,3 +60,17 @@
     font-size: 1.4rem;
   }
 }
+
+.compacto {
+  min-height: 96px;
+  padding: var(--space-4) var(--space-6);
+  gap: 3px;
+}
+
+.compacto .titulo {
+  font-size: 1.35rem;
+}
+
+.compacto .descripcion {
+  font-size: 12.5px;
+}
