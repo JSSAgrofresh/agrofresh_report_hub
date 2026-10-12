@@ -87,11 +87,14 @@ describe('IndicadoresEntrega', () => {
     expect(screen.getByText('estimado')).toBeTruthy()
   })
 
-  it('al tocar «Reporte observado» se ve qué clientes ya vieron su informe', () => {
+  it('al tocar «Reporte observado» se abre un modal con los clientes que ya vieron su informe', () => {
     render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar={false} />)
+    expect(screen.queryByRole('dialog')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Reporte observado/ }))
-    const detalle = screen.getByRole('heading', { name: /Reporte observado · 1/ }).parentElement as HTMLElement
-    expect(within(detalle).getByText(/DOLE · LONTUE/)).toBeTruthy()
+    const modal = screen.getByRole('dialog', { name: /Reporte observado · 1/ })
+    expect(within(modal).getByText(/DOLE · LONTUE/)).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('el flujo se puede filtrar por laboratorio', () => {

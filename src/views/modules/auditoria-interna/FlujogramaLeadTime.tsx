@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { RECEPCION_ESTIMADA_DIAS, alcanzados, claveLaboratorio, nodoActual, resumenFlujo } from '@/features/auditoriaInterna'
 import type { EvaluadaEntrega, NodoFlujo } from '@/features/auditoriaInterna'
+import { Modal } from '@/components/ui/Modal'
 import { formatDateCL } from '@/lib/locale'
 import styles from './FlujogramaLeadTime.module.css'
 
@@ -60,6 +61,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
   const [abierto, setAbierto] = useState<NodoFlujo | null>(null)
   const [elegida, setElegida] = useState('')
   const [verTodas, setVerTodas] = useState(false)
+  const cerrar = useCallback(() => { setAbierto(null); setVerTodas(false) }, [])
 
   const delLab = useMemo(
     () => (lab ? ev.filter((e) => claveLaboratorio(e.sol.laboratorio) === lab) : ev),
@@ -177,78 +179,74 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         </div>
       </div>
 
-      <div className={styles.dos}>
-        <div className={styles.columna}>
-          {nodo('emitida')}
-          <i className={styles.hilo} aria-hidden="true" />
-          {nodo('recepcion')}
-          <i className={styles.hilo} aria-hidden="true" />
-          {nodo('analisis')}
-          {!una && pasadasDePlazo > 0 && (
-            <p className={styles.alerta}>{nf.format(pasadasDePlazo)} {pasadasDePlazo === 1 ? 'solicitud ya pasó' : 'solicitudes ya pasaron'} su plazo sin informe</p>
-          )}
-          <i className={styles.hilo} aria-hidden="true" />
-          {nodo('informe')}
-          <i className={styles.hilo} aria-hidden="true" />
-          <div className={styles.mismoNivel}>
-            {nodo('cliente')}
-            {nodo('sistema')}
-          </div>
-          <i className={styles.hilo} aria-hidden="true" />
-          {nodo('observado')}
-        </div>
+      {una && (
+        <p className={styles.resumenUna}>
+          <b>{etiquetaSolicitud(una)}</b> · {una.sol.laboratorio ?? '—'} · {una.sol.sold_to ?? '—'}{una.sol.ship_to ? ` · ${una.sol.ship_to}` : ''}
+          <br />
+          {una.plazo != null ? `Plazo ${una.plazo} d hábiles${una.analisis ? ` (${una.analisis})` : ''}` : 'Sin plazo cargado'}
+          {' · '}{una.entregada && una.dias != null ? `entregada en ${f1(una.dias)} d háb.` : `lleva ${f1(una.edad)} d háb.`}
+        </p>
+      )}
+      {!una && <p className={styles.pista}>Toca un punto para ver las solicitudes que están ahí. En «Reporte observado» verás qué clientes ya vieron su informe.</p>}
 
-        <aside className={styles.detalle} aria-live="polite">
-          {una ? (
-            <>
-              <h4>{etiquetaSolicitud(una)}</h4>
-              <p className={styles.resumenUna}>
-                {una.sol.laboratorio ?? '—'} · {una.sol.sold_to ?? '—'}{una.sol.ship_to ? ` · ${una.sol.ship_to}` : ''}
-              </p>
-              <p className={styles.resumenUna}>
-                {una.plazo != null ? `Plazo ${una.plazo} d hábiles${una.analisis ? ` (${una.analisis})` : ''}` : 'Sin plazo cargado'}
-                {' · '}{una.entregada && una.dias != null ? `entregada en ${f1(una.dias)} d háb.` : `lleva ${f1(una.edad)} d háb.`}
-              </p>
-            </>
-          ) : !abierto ? (
-            <p className={styles.vacio}>Toca un punto del flujo para ver las solicitudes que están ahí. En «Reporte observado» verás qué clientes ya vieron su informe.</p>
+      <div className={styles.columna}>
+        {nodo('emitida')}
+        <i className={styles.hilo} aria-hidden="true" />
+        {nodo('recepcion')}
+        <i className={styles.hilo} aria-hidden="true" />
+        {nodo('analisis')}
+        {!una && pasadasDePlazo > 0 && (
+          <p className={styles.alerta}>{nf.format(pasadasDePlazo)} {pasadasDePlazo === 1 ? 'solicitud ya pasó' : 'solicitudes ya pasaron'} su plazo sin informe</p>
+        )}
+        <i className={styles.hilo} aria-hidden="true" />
+        {nodo('informe')}
+        <i className={styles.hilo} aria-hidden="true" />
+        <div className={styles.mismoNivel}>
+          {nodo('cliente')}
+          {nodo('sistema')}
+        </div>
+        <i className={styles.hilo} aria-hidden="true" />
+        {nodo('observado')}
+      </div>
+
+      {abierto && !una && (
+        <Modal
+          titulo={`${PUNTOS[abierto].titulo} · ${nf.format(lista.length)}`}
+          subtitulo={lab ? `Laboratorio ${lab}` : 'Todos los laboratorios'}
+          onCerrar={cerrar}
+        >
+          {lista.length === 0 ? (
+            <p className={styles.vacio}>
+              {abierto === 'observado'
+                ? 'Todavía ningún cliente abrió sus resultados en Report (o falta correr la migración 0057).'
+                : 'No hay solicitudes en este punto.'}
+            </p>
           ) : (
             <>
-              <h4>{PUNTOS[abierto].titulo} · {nf.format(lista.length)}</h4>
-              {lista.length === 0 ? (
-                <p className={styles.vacio}>
-                  {abierto === 'observado'
-                    ? 'Todavía ningún cliente abrió sus resultados en Report (o falta correr la migración 0057).'
-                    : 'No hay solicitudes en este punto.'}
-                </p>
-              ) : (
-                <>
-                  <ul>
-                    {mostrar.map((e) => (
-                      <li key={e.sol.archivo}>
-                        <b>{etiquetaSolicitud(e)}</b>
-                        <span>{e.sol.laboratorio ?? '—'} · {e.sol.sold_to ?? '—'}{e.sol.ship_to ? ` · ${e.sol.ship_to}` : ''}</span>
-                        <small>
-                          {abierto === 'observado'
-                            ? `${fecha(e.hitos?.observado)} · ${(e.hitos?.observado_por ?? []).join(', ') || '—'}`
-                            : abierto === 'cliente' || abierto === 'sistema'
-                              ? fecha(abierto === 'cliente' ? e.hitos?.cliente : e.hitos?.report)
-                              : textoPlazo(e)}
-                        </small>
-                      </li>
-                    ))}
-                  </ul>
-                  {lista.length > 12 && (
-                    <button type="button" className={styles.mas} onClick={() => setVerTodas((v) => !v)}>
-                      {verTodas ? 'Mostrar menos' : `Ver las ${nf.format(lista.length)}`}
-                    </button>
-                  )}
-                </>
+              <ul className={styles.lista}>
+                {mostrar.map((e) => (
+                  <li key={e.sol.archivo}>
+                    <b>{etiquetaSolicitud(e)}</b>
+                    <span>{e.sol.laboratorio ?? '—'} · {e.sol.sold_to ?? '—'}{e.sol.ship_to ? ` · ${e.sol.ship_to}` : ''}</span>
+                    <small>
+                      {abierto === 'observado'
+                        ? `${fecha(e.hitos?.observado)} · ${(e.hitos?.observado_por ?? []).join(', ') || '—'}`
+                        : abierto === 'cliente' || abierto === 'sistema'
+                          ? fecha(abierto === 'cliente' ? e.hitos?.cliente : e.hitos?.report)
+                          : textoPlazo(e)}
+                    </small>
+                  </li>
+                ))}
+              </ul>
+              {lista.length > 12 && (
+                <button type="button" className={styles.mas} onClick={() => setVerTodas((v) => !v)}>
+                  {verTodas ? 'Mostrar menos' : `Ver las ${nf.format(lista.length)}`}
+                </button>
               )}
             </>
           )}
-        </aside>
-      </div>
+        </Modal>
+      )}
     </div>
   )
 }
