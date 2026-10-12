@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   alcanzados,
-  cajasPorLaboratorio,
   cumplimientoPorAnalisis,
   diasHabiles,
   evaluar,
@@ -181,12 +180,6 @@ describe('resúmenes', () => {
     expect(s.map((x) => x.delta)).toEqual([-2, 0, 5])
     expect(s[0].pct).toBeLessThanOrEqual(s[1].pct as number)
     expect(s[2].pct).toBeGreaterThanOrEqual(s[1].pct as number)
-  })
-  it('cajas por laboratorio', () => {
-    const c = cajasPorLaboratorio(ev, { QUITECA: 5 })
-    expect(c).toHaveLength(1)
-    expect(c[0]).toMatchObject({ lab: 'QUITECA', n: 2, plazo: 5 })
-    expect(c[0].p50).toBeCloseTo(6.5, 6)
   })
   it('cumplimiento por análisis: agrupa por el análisis que fijó el plazo', () => {
     const ev2 = evaluarTodas(lista, hitos, 'concretado', { QUITECA: 5, 'QUITECA|FDL': 8 }, AHORA)

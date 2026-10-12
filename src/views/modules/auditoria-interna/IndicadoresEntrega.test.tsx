@@ -58,9 +58,10 @@ describe('IndicadoresEntrega', () => {
     expect(aviso.textContent).toMatch(/días hábiles/)
   })
 
-  it('«Cuello de botella», «Reglas del cálculo» y el desglose por tramo ya no existen', () => {
+  it('«Cuello de botella», «Rango por laboratorio», «Reglas del cálculo» y el desglose por tramo ya no existen', () => {
     render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar />)
     expect(screen.queryByText(/Cuello de botella/i)).toBeNull()
+    expect(screen.queryByText(/Rango por laboratorio/i)).toBeNull()
     expect(screen.queryByText(/Reglas del cálculo/i)).toBeNull()
     expect(screen.queryByText(/Desglose por tramo/i)).toBeNull()
   })
@@ -91,6 +92,23 @@ describe('IndicadoresEntrega', () => {
     fireEvent.click(screen.getByRole('button', { name: /Reporte observado/ }))
     const detalle = screen.getByRole('heading', { name: /Reporte observado · 1/ }).parentElement as HTMLElement
     expect(within(detalle).getByText(/DOLE · LONTUE/)).toBeTruthy()
+  })
+
+  it('el flujo se puede filtrar por laboratorio', () => {
+    render(<IndicadoresEntrega solicitudes={[...solicitudes, sol('4', { laboratorio: 'ALS' })]} puedeEditar={false} />)
+    const select = screen.getByLabelText('Laboratorio del flujo') as HTMLSelectElement
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['', 'ALS', 'QUITECA'])
+    fireEvent.change(select, { target: { value: 'ALS' } })
+    expect(screen.getAllByText('1 solicitud llegó').length).toBeGreaterThan(0)
+  })
+
+  it('el cumplimiento queda en un desplegable cerrado, sin protagonismo', () => {
+    const { container } = render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar={false} />)
+    const resumen = screen.getByText('Cumplimiento del entregable')
+    const detalles = resumen.closest('details') as HTMLDetailsElement
+    expect(detalles).toBeTruthy()
+    expect(detalles.open).toBe(false)
+    expect(container.querySelectorAll('details').length).toBeGreaterThan(0)
   })
 
   it('el cumplimiento se puede ver por análisis', () => {
