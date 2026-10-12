@@ -531,12 +531,14 @@ cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
 - **La configuración (entregado + plazos) SOLO la ve el administrador general** (desplegable «Configuración de
   plazos», `puedeEditar`); los demás no ven ni el panel ni los inputs. Se quitaron a pedido: el «Cuello de
   botella», la tarjeta «Reglas del cálculo» visible para todos y el «Desglose por tramo»: **no los vuelvas a poner**.
-- **Flujograma del lead time** (`FlujogramaLeadTime.tsx`, reemplaza al desglose por tramo): a la izquierda los puntos de
-  arriba hacia abajo (emitida → recepción estimada → en análisis con su plazo → informe recibido → [informe enviado al
-  cliente | informe cargado al sistema, al mismo nivel] → reporte observado) y a la derecha un panel con la lista del
-  punto que se toque. Cada punto se enciende por sus hitos (`alcanzados`, `nodoActual`, `resumenFlujo`); con todas las
-  solicitudes muestra cuántas llegaron y cuántas están hoy ahí (en «Reporte observado», qué clientes), y con «Ver» una
-  sola, su recorrido con fechas. Trae su propio filtro de laboratorio.
+- **Flujograma del lead time** (`FlujogramaLeadTime.tsx`, reemplaza al desglose por tramo): una sola columna **centrada**
+  con los puntos de arriba hacia abajo (emitida → recepción estimada → en análisis con su plazo → informe recibido →
+  [informe enviado al cliente | informe cargado al sistema, al mismo nivel] → reporte observado). **El detalle de un punto
+  se abre en un modal** (`components/ui/Modal`; el usuario no quiso un panel al lado: «no todo es tan desabrido»), con la
+  lista de solicitudes de ese punto (en «Reporte observado», qué clientes). Cada punto se enciende por sus hitos
+  (`alcanzados`, `nodoActual`, `resumenFlujo`); con todas las solicitudes muestra cuántas llegaron y cuántas están hoy ahí, y
+  con «Ver» una sola, su recorrido con fechas. Trae su propio filtro de laboratorio. El `onCerrar` del Modal tiene que ser
+  estable (`useCallback`): si cambia en cada render, el modal vuelve a enfocarse solo.
 - **Se quitó «Rango por laboratorio»** (la caja P25–P75): se veía mal y ya lo cubren las tarjetas «Informes vs.
   solicitudes por laboratorio» de arriba. **No lo vuelvas a poner.** **«Cumplimiento del entregable» quedó en un
   desplegable cerrado al final** (por laboratorio o por análisis, con sensibilidad): el usuario le restó importancia.
