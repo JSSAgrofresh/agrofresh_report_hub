@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { listarClientes } from '@/features/catalogo'
 import { clientesSinAnalisis, porClienteResiduosFsmaFito } from '@/features/auditoriaInterna'
-import type { CeldaCliente, SolicitudAuditoria } from '@/features/auditoriaInterna'
+import type { CeldaCliente, DimensionGrafico, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { COLOR_LAB } from './coloresTipo'
 import styles from './AnalisisPorCliente.module.css'
 
@@ -18,14 +18,25 @@ function Celda({ c, color }: { c: CeldaCliente; color: string }) {
 }
 
 /**
- * Cada cliente hacia abajo, el que más análisis lleva primero, con el detalle: residuales
- * (AgroFresh y Quiteca), FSMA y FITO, más su total, los entregables y el %. Los clientes del
- * listado que todavía no tienen ningún análisis salen al final, apagados.
+ * El cuerpo del gráfico «Análisis por laboratorio · top Sold To»: cada cliente hacia abajo, el que más
+ * análisis lleva primero, con el detalle: residuales (AgroFresh y Quiteca), FSMA y FITO, más su total,
+ * los entregables y el %. Los clientes del listado que todavía no tienen ningún análisis salen al final,
+ * apagados (solo cuando se agrupa por Sold To).
  * «Entregables» = lo que cada comercial concretó de cada análisis para cada planta: ese dato
  * se carga aparte (plan de entregables), por ahora queda en blanco.
  */
-export function AnalisisPorCliente({ solicitudes }: { solicitudes: SolicitudAuditoria[] }) {
-  const filas = useMemo(() => porClienteResiduosFsmaFito(solicitudes), [solicitudes])
+export function AnalisisPorCliente({
+  solicitudes,
+  dimension = 'cliente',
+  limite = 0,
+}: {
+  solicitudes: SolicitudAuditoria[]
+  dimension?: DimensionGrafico
+  /** cuántas filas mostrar (0 = todas) */
+  limite?: number
+}) {
+  const todas = useMemo(() => porClienteResiduosFsmaFito(solicitudes, dimension), [solicitudes, dimension])
+  const filas = useMemo(() => (limite > 0 ? todas.slice(0, limite) : todas), [todas, limite])
   const [listado, setListado] = useState<string[]>([])
   const [verApagados, setVerApagados] = useState(false)
 
@@ -37,17 +48,14 @@ export function AnalisisPorCliente({ solicitudes }: { solicitudes: SolicitudAudi
       .catch(() => undefined)
     return () => { cancelado = true }
   }, [])
-  const apagados = useMemo(() => clientesSinAnalisis(listado, filas), [listado, filas])
+  const apagados = useMemo(() => (dimension === 'cliente' ? clientesSinAnalisis(listado, todas) : []), [listado, todas, dimension])
 
   return (
-    <section className={styles.tarjeta} aria-label="Análisis por cliente">
-      <header>
-        <h3>Análisis por cliente</h3>
-        <p>
-          {nf.format(filas.length)} clientes con análisis, de más a menos
-          {apagados.length > 0 && ` · ${nf.format(apagados.length)} del listado todavía sin ninguno`}
-        </p>
-      </header>
+    <section className={styles.cuerpoGrafico} aria-label="Análisis por cliente">
+      <p className={styles.resumen}>
+        {nf.format(todas.length)} con análisis{limite > 0 && todas.length > limite ? `, mostrando los ${nf.format(limite)} primeros` : ', de más a menos'}
+        {apagados.length > 0 && ` · ${nf.format(apagados.length)} del listado todavía sin ninguno`}
+      </p>
 
       <div className={styles.tabla} role="table" aria-label="Análisis por cliente">
         <div className={`${styles.fila} ${styles.cabecera}`} role="row">
