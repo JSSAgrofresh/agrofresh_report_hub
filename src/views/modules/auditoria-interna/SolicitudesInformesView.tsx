@@ -21,7 +21,7 @@ import {
   useSolicitudesAuditoria,
 } from '@/features/auditoriaInterna'
 import type { AreaPivote, DimensionGrafico, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
-import { DonaTipoServicio, LeyendaLaboratorios, TarjetaGrafico } from './Graficos'
+import { DonaTipoServicio, TarjetaGrafico } from './Graficos'
 import { AuditoriaHero } from './AuditoriaHero'
 import { PanelFiltros } from './PanelFiltros'
 import { SelectorArea } from './SelectorArea'
@@ -159,7 +159,6 @@ export function SolicitudesInformesView() {
 
               <TarjetaGrafico
                 titulo={`Análisis por laboratorio · top ${nombreDimension.plural}`}
-                subtitulo={`Residuales (AgroFresh y Quiteca), FSMA y FITO por ${nombreDimension.texto} · de más a menos · ${topClientes ? `top ${topClientes}` : 'todos'}`}
                 leyenda={
                   <>
                     <div className={styles.filtrosGrafico}>
@@ -192,7 +191,6 @@ export function SolicitudesInformesView() {
                         </select>
                       </label>
                     </div>
-                    <LeyendaLaboratorios />
                   </>
                 }
                 controles={
