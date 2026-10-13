@@ -15,6 +15,17 @@
   flex: 1;
   min-width: 0;
 }
+@media (max-width: 1100px) {
+  /* En tablet los widgets angostos se ensanchan a media pantalla (mínimo 6 de 12 columnas) y se acomodan solos. */
+  .tablero {
+    grid-auto-flow: row dense;
+  }
+  .celda {
+    grid-column: span clamp(6, var(--w), 12);
+    grid-row: auto;
+    order: var(--orden);
+  }
+}
 @media (max-width: 760px) {
   /* En el celular se apilan en el orden en que se ven (arriba→abajo, izquierda→derecha). */
   .tablero {
