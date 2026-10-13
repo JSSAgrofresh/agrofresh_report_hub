@@ -334,6 +334,39 @@ export function sensibilidad(ev: EvaluadaEntrega[], deltas: number[]): { delta: 
   })
 }
 
+// ── atraso: cuánto se pasaron del plazo ──────────────────────────────────
+
+/** Días hábiles que una solicitud se pasó de su plazo: lo que tardó de más (entregada tarde)
+ * o lo que lleva de más sin entregar (vencida). null si no está atrasada. */
+export function atrasoDe(e: EvaluadaEntrega): number | null {
+  if (e.plazo == null) return null
+  if (e.veredicto === 'tarde' && e.dias != null) return Math.max(0, e.dias - e.plazo)
+  if (e.veredicto === 'vencida') return Math.max(0, e.edad - e.plazo)
+  return null
+}
+
+export interface ResumenAtraso {
+  /** solicitudes atrasadas (tarde + vencidas) */
+  n: number
+  /** mediana y máximo del atraso, en días hábiles; null si no hay atrasadas */
+  mediana: number | null
+  maximo: number | null
+}
+
+export function resumenAtraso(ev: EvaluadaEntrega[]): ResumenAtraso {
+  const v = ev.map(atrasoDe).filter((x): x is number => x != null)
+  return { n: v.length, mediana: percentil(v, 0.5), maximo: v.length ? Math.max(...v) : null }
+}
+
+/** Las `n` solicitudes más pasadas de su plazo (las que siguen sin entregar, primero si empatan). */
+export function peoresAtrasos(ev: EvaluadaEntrega[], n: number): { e: EvaluadaEntrega; atraso: number }[] {
+  return ev
+    .map((e) => ({ e, atraso: atrasoDe(e) }))
+    .filter((x): x is { e: EvaluadaEntrega; atraso: number } => x.atraso != null && x.atraso > 0)
+    .sort((a, b) => b.atraso - a.atraso || Number(b.e.veredicto === 'vencida') - Number(a.e.veredicto === 'vencida'))
+    .slice(0, n)
+}
+
 // ── series por mes ───────────────────────────────────────────────────────
 
 export interface PuntoMes {

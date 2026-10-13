@@ -107,19 +107,19 @@ describe('IndicadoresEntrega', () => {
     expect(screen.getAllByText('1 solicitud llegó').length).toBeGreaterThan(0)
   })
 
-  it('el cumplimiento queda en un desplegable cerrado, sin protagonismo', () => {
-    const { container } = render(<IndicadoresEntrega solicitudes={solicitudes} />)
-    const resumen = screen.getByText('Cumplimiento del entregable')
-    const detalles = resumen.closest('details') as HTMLDetailsElement
-    expect(detalles).toBeTruthy()
-    expect(detalles.open).toBe(false)
-    expect(container.querySelectorAll('details').length).toBeGreaterThan(0)
+  it('el cumplimiento está a la vista y responde sus preguntas en orden', () => {
+    render(<IndicadoresEntrega solicitudes={solicitudes} />)
+    const sec = within(screen.getByRole('region', { name: 'Cumplimiento del entregable' }))
+    expect(sec.getByText('¿Entregamos dentro del plazo prometido?')).toBeTruthy()
+    expect(sec.getByText('Atraso mediano')).toBeTruthy()
+    expect(sec.getByText('¿Dónde se incumple?')).toBeTruthy()
+    expect(sec.getByText('¿Mejora o empeora?')).toBeTruthy()
+    expect(sec.getByText('Las más pasadas de su plazo')).toBeTruthy()
   })
 
   it('el cumplimiento se puede ver por análisis', () => {
     render(<IndicadoresEntrega solicitudes={solicitudes} />)
     fireEvent.click(screen.getByRole('button', { name: 'Análisis' }))
-    expect(screen.getByText('Por análisis')).toBeTruthy()
     expect(screen.getAllByText(/QUITECA · FDL/).length).toBeGreaterThan(0)
   })
 })
