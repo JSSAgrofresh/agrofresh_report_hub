@@ -38,3 +38,39 @@ describe('el botón «Subir» pregunta antes de seguir', () => {
     expect(html).toContain('actualizar_existentes: !!actualizar')
   })
 })
+
+describe('revisión automática apenas se cargan los PDF', () => {
+  type Inf = { archivo: string; laboratorio: string; existe?: unknown }
+  const armar = (informes: Inf[], detalle: unknown[]) => {
+    const ini = html.indexOf('let revisionExisten')
+    const fin = html.indexOf('function pintarAvisoExisten')
+    expect(ini).toBeGreaterThan(0)
+    const tanda = html.slice(html.indexOf('function existentesDeLaTanda'), html.indexOf('/* ===== fin tanda'))
+    const llamadas: string[] = []
+    const f = new Function(
+      'informes', 'llamarIngest', 'filaCruda', 'pintar',
+      `${tanda}\n${html.slice(ini, fin)}\nreturn revisarExistentes`,
+    )(
+      informes,
+      async (ruta: string) => { llamadas.push(ruta); return { detalle } },
+      (i: Inf) => ({ Informe: i.archivo }),
+      () => llamadas.push('pintar'),
+    ) as () => Promise<void>
+    return { f, llamadas }
+  }
+
+  it('marca los que ya existen y no escribe nada (solo la revisión previa)', async () => {
+    const informes: Inf[] = [{ archivo: 'a.pdf', laboratorio: 'Quiteca' }, { archivo: 'b.pdf', laboratorio: 'Quiteca' }]
+    const { f, llamadas } = armar(informes, [{ fila: 3, ya_existia: true, resultados_actuales: 5 }])
+    await f()
+    expect(informes[0].existe).toBeNull()
+    expect(informes[1].existe).toBeTruthy()
+    expect(llamadas).toEqual(['preview', 'pintar'])
+  })
+
+  it('se dispara al terminar de leer los PDF y el aviso ofrece quitarlos', () => {
+    expect(html).toMatch(/pintar\(\);\n  }\n  revisarExistentes\(\);\n}/)
+    expect(html).toContain('Quitar los ')
+    expect(html).toContain('YA EXISTE')
+  })
+})

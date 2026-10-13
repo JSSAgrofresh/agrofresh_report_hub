@@ -353,7 +353,7 @@ Pruebas: `tests/test_servicio_listados.py`, `converterServicio.test.ts`. **Pendi
 `actualizar_existentes: true` a `/ingest/confirmar` → `_procesar_filas(actualizar=True)`: los datos del archivo reemplazan a los
 guardados —un dato vacío nunca borra uno existente— y resultado/producto_aplicado se hacen `ON CONFLICT DO UPDATE`, conservando su
 `carga_id`; **«Deshacer carga» no revierte lo actualizado**), «Sacarlos de la tanda» (los quita de la subida, de la tabla y de los PDF) o
-Cancelar. Sin respuesta «actualizar» el comportamiento de siempre: solo se completa lo que falte. Pruebas:
+Cancelar. Sin respuesta «actualizar» el comportamiento de siempre: solo se completa lo que falte. **Además, apenas se leen los PDF** (`revisarExistentes`, al final de `cargar`) se llama a `/ingest/preview` y cada informe que ya existe queda con la etiqueta «YA EXISTE» y un aviso amarillo con «Quitar los N que ya existen» / «Dejarlos (decido al subir)»; al subir se vuelve a preguntar. Pruebas:
 `converterExistentes.test.ts`, `tests/test_ingest_actualizar_existentes.py`.
 
 El Ship To se busca **solo entre las plantas de su Sold To**. Si el Excel trae
