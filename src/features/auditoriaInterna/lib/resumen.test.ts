@@ -6,6 +6,7 @@ import {
   porClienteYServicio,
   clientesSinAnalisis,
   porClienteResiduosFsmaFito,
+  soloAnalisis,
   porGrupoYLaboratorio,
   porLaboratorioYAnalisis,
   porLaboratorio,
@@ -317,5 +318,25 @@ describe('porClienteResiduosFsmaFito', () => {
   it('los clientes del listado sin análisis salen aparte, sin repetir ni importar tildes o mayúsculas', () => {
     const con = porClienteResiduosFsmaFito(lista)
     expect(clientesSinAnalisis(['DOLE', 'Zeta', 'ÁGRICOLA', 'agricola', 'multi', ' '], con)).toEqual(['ÁGRICOLA', 'Zeta'])
+  })
+
+  it('soloAnalisis deja solo lo elegido: recalcula el total, saca a los que se quedan sin nada y reordena', () => {
+    const f = porClienteResiduosFsmaFito([
+      ...lista,
+      sol({ laboratorio: 'ALS', sold_to: 'Dole' }), sol({ laboratorio: 'ALS', sold_to: 'Dole' }),
+      sol({ laboratorio: 'ALS', sold_to: 'SoloFsma' }), sol({ laboratorio: 'ALS', sold_to: 'SoloFsma' }),
+      sol({ laboratorio: 'ALS', sold_to: 'SoloFsma' }), sol({ laboratorio: 'ALS', sold_to: 'SoloFsma' }),
+    ])
+    expect(f.map((x) => x.cliente)).toEqual(['Dole', 'SoloFsma', 'Multi']) // con todo: Dole 6, SoloFsma 4, Multi 1
+    const res = soloAnalisis(f, ['residuales'])
+    expect(res.map((x) => x.cliente)).toEqual(['Dole']) // los demás no tienen residuales
+    expect(res[0]).toMatchObject({ total: 3, informes: 2, fsma: { n: 0, informes: 0 }, fito: { n: 0, informes: 0 } })
+    const fsma = soloAnalisis(f, ['fsma'])
+    expect(fsma.map((x) => [x.cliente, x.total])).toEqual([['SoloFsma', 4], ['Dole', 3]])
+  })
+
+  it('con los tres análisis visibles devuelve las filas tal cual', () => {
+    const f = porClienteResiduosFsmaFito(lista)
+    expect(soloAnalisis(f, ['residuales', 'fsma', 'fito'])).toBe(f)
   })
 })

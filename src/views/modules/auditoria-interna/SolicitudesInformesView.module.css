@@ -593,3 +593,72 @@ th.colAnalitos {
 .filtrosGrafico select {
   max-width: 220px;
 }
+
+/* Gráfico por cliente: todos los controles en una sola barra (filtros · agrupar · cuántos · análisis). */
+.barraGrafico {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.barraGrafico .filtrosGrafico {
+  margin-bottom: 0;
+  gap: var(--space-2);
+}
+
+.barraGrafico .filtrosGrafico select {
+  max-width: 150px;
+}
+
+.grupoBarra {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+}
+
+.separadorBarra {
+  align-self: stretch;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.chipsAnalisis {
+  display: flex;
+  gap: 6px;
+}
+
+.chipAnalisis {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-faint);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.chipAnalisis:hover {
+  opacity: 1;
+}
+
+.chipAnalisisOn {
+  border-color: var(--tono);
+  background: color-mix(in srgb, var(--tono) 14%, white);
+  color: var(--tono);
+  opacity: 1;
+}
+
+@media (max-width: 760px) {
+  .separadorBarra {
+    display: none;
+  }
+}

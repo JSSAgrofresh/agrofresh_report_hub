@@ -337,6 +337,34 @@ export function porClienteResiduosFsmaFito(solicitudes: SolicitudAuditoria[], di
   return [...por.values()].sort((a, b) => b.total - a.total || a.cliente.localeCompare(b.cliente, 'es'))
 }
 
+/** Los tres análisis que se pueden mostrar u ocultar en el gráfico por cliente (Residuales = AgroFresh + Quiteca). */
+export type AnalisisVisible = 'residuales' | 'fsma' | 'fito'
+export const ANALISIS_VISIBLES: AnalisisVisible[] = ['residuales', 'fsma', 'fito']
+
+/** Deja solo los análisis elegidos: lo oculto se pone en cero, el total de cada cliente se recalcula con lo que queda,
+ * los que se quedan sin nada desaparecen y el orden vuelve a ser «el que más lleva, primero». */
+export function soloAnalisis(filas: FilaClienteAnalisis[], visibles: AnalisisVisible[]): FilaClienteAnalisis[] {
+  if (ANALISIS_VISIBLES.every((a) => visibles.includes(a))) return filas
+  const con = (c: CeldaCliente, ver: boolean): CeldaCliente => (ver ? c : celda())
+  const res = visibles.includes('residuales')
+  return filas
+    .map((f) => {
+      const agrofresh = con(f.agrofresh, res)
+      const quiteca = con(f.quiteca, res)
+      const fsma = con(f.fsma, visibles.includes('fsma'))
+      const fito = con(f.fito, visibles.includes('fito'))
+      const partes = [agrofresh, quiteca, fsma, fito]
+      return {
+        ...f,
+        agrofresh, quiteca, fsma, fito,
+        total: partes.reduce((n, c) => n + c.n, 0),
+        informes: partes.reduce((n, c) => n + c.informes, 0),
+      }
+    })
+    .filter((f) => f.total > 0)
+    .sort((a, b) => b.total - a.total || a.cliente.localeCompare(b.cliente, 'es'))
+}
+
 /** Los clientes del listado que todavía no tienen ningún análisis, en orden alfabético. */
 export function clientesSinAnalisis(todos: string[], conAnalisis: FilaClienteAnalisis[]): string[] {
   const norm = (t: string) => plano(t)
