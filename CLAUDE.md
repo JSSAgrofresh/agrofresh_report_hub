@@ -939,7 +939,7 @@ tocas una, toca la otra.
 
 ## Auditoría Interna (módulo nuevo)
 
-`/modulos/auditoria-interna` es un hub con tres tarjetas:
+`/modulos/auditoria-interna` es un hub con tres tarjetas (**todas las pantallas de Auditoría interna usan hasta 1840 px de ancho**, no los 1280 px del resto de la app: `AppLayout` pone la clase `.ancho` si la ruta empieza por `ROUTES.auditoriaInterna`; los paneles del gráfico por análisis usan `auto-fit` para repartirse todo el ancho):
 
 | Pantalla | Qué es |
 |---|---|
