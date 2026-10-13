@@ -17,8 +17,8 @@ interface Props {
 }
 
 const DEFINICIONES: { v: Definicion; titulo: string; detalle: string }[] = [
-  { v: 'concretado', titulo: 'PDF + Report', detalle: 'Está entregada cuando el informe está guardado y sus resultados ya se ven en Report.' },
-  { v: 'cliente', titulo: 'Enviado al cliente', detalle: 'Está entregada cuando el informe se marcó como enviado al cliente.' },
+  { v: 'concretado', titulo: 'PDF + Report', detalle: 'Está entregado cuando el informe está guardado y sus resultados ya se ven en Report.' },
+  { v: 'cliente', titulo: 'Enviado al cliente', detalle: 'Está entregado cuando el informe se marcó como enviado al cliente.' },
 ]
 
 /**
@@ -93,7 +93,7 @@ export function ConfiguracionEntrega({ reglas, labs, analisisPorLab, guardar, on
     >
       <div className={styles.cuerpo}>
         <section>
-          <h3>¿Cuándo está entregada una solicitud?</h3>
+          <h3>¿Cuándo está entregado un informe?</h3>
           <div className={styles.opciones} role="radiogroup" aria-label="Definición de entregado">
             {DEFINICIONES.map((d) => (
               <label key={d.v} className={`${styles.opcion} ${entregado === d.v ? styles.activa : ''}`}>
@@ -111,7 +111,7 @@ export function ConfiguracionEntrega({ reglas, labs, analisisPorLab, guardar, on
           <h3>Plazo prometido, en días hábiles</h3>
           <p className={styles.nota}>
             Cuenta desde la recepción estimada (emisión + {RECEPCION_ESTIMADA_DIAS} día), solo de lunes a viernes. Cada laboratorio tiene un plazo general
-            y, si un tipo de análisis tarda distinto (FSMA, residuos en fruta, patógenos…), su propio plazo: gana el análisis más lento de la solicitud. Vacío = no se juzga.
+            y, si un tipo de análisis tarda distinto (FSMA, residuos en fruta, patógenos…), su propio plazo: gana el análisis más lento de la solicitud del informe. Vacío = no se juzga.
           </p>
           {labs.map((l) => (
             <div key={l} className={styles.lab}>
