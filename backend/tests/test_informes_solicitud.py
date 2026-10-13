@@ -93,6 +93,7 @@ def entorno(monkeypatch):
     monkeypatch.setattr(mod, "_filas", lambda cur, sql: {
         mod._SQL_AUDITORIA: estado["auditoria"], mod._SQL_REPORT: estado["report"],
         mod._SQL_INFORMES_EN_REPORT: estado["en_report"], mod._SQL_REPORT_DETALLE: estado["detalle"],
+        mod._SQL_ENVIO_CLIENTE: estado.get("envio_cliente", []),
     }[sql])
     monkeypatch.setattr(mod, "_solicitudes_visibles_datos", lambda u: [
         (a, n, {"ship_to": "DOLE PLANTA CODEGUA", "especie": "Palta", "fecha_muestreo": "2026-09-23"})
@@ -116,6 +117,12 @@ class TestEndpoints:
         assert r.json()["a.xlsx"]["en_report"] is True
         # Sin el detalle de Report no se puede comprobar la OT: queda sin confirmar.
         assert r.json()["a.xlsx"]["verificacion"]["estado"] == "sin_confirmar"
+
+    def test_listado_trae_la_marca_de_enviado_al_cliente(self, entorno):
+        from datetime import datetime
+        entorno["auditoria"] = [aud(archivo="a.xlsx")]
+        entorno["envio_cliente"] = [{"archivo": "a.xlsx", "enviado_en": datetime(2026, 10, 5, 9, 0)}]
+        assert cliente.get("/api/toma-muestras/solicitudes-informes").json()["a.xlsx"]["envio_cliente"] == "2026-10-05T09:00:00"
 
     def test_listado_verifica_la_ot_con_lo_que_dice_el_informe(self, entorno):
         entorno["auditoria"] = [aud(archivo="a.xlsx")]

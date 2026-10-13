@@ -42,6 +42,18 @@ export function CeldaInforme({ s, onAbrir }: { s: Solicitud; onAbrir: (s: Solici
           {v.estado === 'revisar' ? 'OT por revisar' : 'OT sin confirmar'}
         </span>
       )}
+      {inf.envio_cliente ? (
+        <span
+          className={styles.chipEnviadoCliente}
+          title={`Marcado como enviado al cliente el ${new Date(inf.envio_cliente).toLocaleDateString('es-CL')}`}
+        >
+          Enviado al cliente
+        </span>
+      ) : (
+        <span className={styles.chipSinEnvioCliente} title="Nadie lo ha marcado como enviado al cliente">
+          Sin envío a cliente
+        </span>
+      )}
       {!inf.en_report && (
         <span
           className={styles.chipSinReport}
