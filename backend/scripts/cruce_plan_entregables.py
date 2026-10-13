@@ -15,6 +15,7 @@ al comercial en la lista, se busca entre todas las plantas y se avisa.
 Uso (desde la carpeta backend):
   .venv\\Scripts\\python.exe scripts\\cruce_plan_entregables.py "C:\\ruta\\carpeta con los Entregables_*.xlsx"
   .venv\\Scripts\\python.exe scripts\\cruce_plan_entregables.py "C:\\ruta\\Entregables_JCL.xlsx" "C:\\ruta\\Entregables_LA.xlsx"
+  .venv\\Scripts\\python.exe scripts\\cruce_plan_entregables.py "C:\\ruta\\Entregables_unificados.xlsx"   (el Excel unificado de todos)
 Si un comercial sale mal identificado:
   --comercial "R. TRAVERSO=rtraverso@agrofresh.com"
 """
@@ -37,7 +38,7 @@ from openpyxl.utils import get_column_letter  # noqa: E402
 from app import config_store  # noqa: E402
 from app.listas_distribucion import ARCHIVO_CONTACTOS, del_servicio, estado_desde_contactos  # noqa: E402
 from app.plan_cruce import correos_de_comercial, normalizar, plantas_de, proponer  # noqa: E402
-from app.plan_entregables import leer_plan  # noqa: E402
+from app.plan_entregables import leer_planes  # noqa: E402
 
 CARPETA_LOGS = os.path.join(BACKEND_DIR.parent, "logs")
 COLORES = {"Igual": "E3F4E6", "Probable": "EAF4D9", "Varias": "FFF3D6", "Revisar": "FFF3D6", "Sin candidato": "F9DADA"}
@@ -81,9 +82,9 @@ def main() -> int:
 
     planes = []
     for ruta in _archivos(args.rutas):
-        plan = leer_plan(ruta, os.path.basename(ruta))
-        planes.append(plan)
-        print(f"  {os.path.basename(ruta)}: {plan['comercial']} · {len(plan['filas'])} filas · {len(plan['descuadres'])} descuadres")
+        for plan in leer_planes(ruta, os.path.basename(ruta)):
+            planes.append(plan)
+            print(f"  {os.path.basename(ruta)}: {plan['comercial']} · {len(plan['filas'])} filas · {len(plan['descuadres'])} descuadres")
 
     wb = Workbook()
     ws = wb.active

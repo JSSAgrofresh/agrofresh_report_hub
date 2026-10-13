@@ -114,3 +114,41 @@ def leer_plan(ruta_o_buffer: Any, nombre_archivo: str = "") -> dict[str, Any]:
         if total is not None and int(total) != suma:
             descuadres.append({"fila_excel": r, "cliente_plan": planta, "servicio": servicio_txt, "total_excel": int(total), "suma_semanas": suma})
     return {"comercial": comercial, "filas": filas, "semanas": list(semanas.values()), "descuadres": descuadres}
+
+
+# ── el Excel unificado (una tabla larga con todos los comerciales) ──
+
+HOJA_UNIFICADA = "Entregables"
+_COLUMNAS_UNIFICADAS = ("Comercial", "Cliente (como en el plan)", "Línea", "Servicio", "Servicio (original)", "Semana", "Desde", "Hasta", "Cantidad", "Archivo", "Fila en el Excel")
+
+
+def _es_unificado(wb) -> bool:
+    if HOJA_UNIFICADA not in wb.sheetnames:
+        return False
+    fila = [str(c.value or "").strip() for c in wb[HOJA_UNIFICADA][1]]
+    return tuple(fila[: len(_COLUMNAS_UNIFICADAS)]) == _COLUMNAS_UNIFICADAS
+
+
+def leer_planes(ruta_o_buffer: Any, nombre_archivo: str = "") -> list[dict[str, Any]]:
+    """Lee un Excel de plan y devuelve UN plan por comercial: el de cada comercial por separado
+    (un plan) o el Excel unificado de todos (uno por comercial que trae)."""
+    wb = openpyxl.load_workbook(ruta_o_buffer, data_only=True)
+    if not _es_unificado(wb):
+        if hasattr(ruta_o_buffer, "seek"):
+            ruta_o_buffer.seek(0)
+        return [leer_plan(ruta_o_buffer, nombre_archivo)]
+    por_comercial: dict[str, dict[str, Any]] = {}
+    for f in wb[HOJA_UNIFICADA].iter_rows(min_row=2, values_only=True):
+        if not f[0] or not f[1] or f[8] in (None, ""):
+            continue
+        comercial = str(f[0]).strip()
+        plan = por_comercial.setdefault(comercial, {"comercial": comercial, "filas": [], "semanas": [], "descuadres": []})
+        semana = str(f[5]).strip()
+        if semana not in plan["semanas"]:
+            plan["semanas"].append(semana)
+        plan["filas"].append({
+            "comercial": comercial, "archivo": str(f[9] or nombre_archivo), "cliente_plan": str(f[1]).strip(), "linea": str(f[2] or ""),
+            "servicio_original": str(f[4] or ""), "servicio": str(f[3] or ""), "semana": semana,
+            "semana_desde": str(f[6] or ""), "semana_hasta": str(f[7] or ""), "cantidad": int(f[8]), "fila_excel": f[10],
+        })
+    return list(por_comercial.values())
