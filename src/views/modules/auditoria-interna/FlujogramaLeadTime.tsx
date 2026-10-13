@@ -32,6 +32,17 @@ const PUNTOS: Record<NodoFlujo, Punto> = {
 
 const ENCADENA: NodoFlujo[] = ['emitida', 'recepcion', 'analisis', 'informe']
 
+/** Filtros del listado «Estado de cada solicitud». */
+type FiltroEstado = 'sin_informe' | 'vencidas' | 'sin_cliente' | 'sin_report' | 'completas' | 'todas'
+const FILTROS_ESTADO: { clave: FiltroEstado; texto: string; cumple: (e: EvaluadaEntrega) => boolean }[] = [
+  { clave: 'sin_informe', texto: 'Sin informe', cumple: (e) => !alcanzados(e).informe && !alcanzados(e).sistema },
+  { clave: 'vencidas', texto: 'Pasaron su plazo', cumple: (e) => e.veredicto === 'vencida' },
+  { clave: 'sin_cliente', texto: 'Informe sin enviar al cliente', cumple: (e) => alcanzados(e).informe && !alcanzados(e).cliente },
+  { clave: 'sin_report', texto: 'Informe sin Report', cumple: (e) => alcanzados(e).informe && !alcanzados(e).sistema },
+  { clave: 'completas', texto: 'Completas', cumple: (e) => alcanzados(e).sistema && alcanzados(e).cliente },
+  { clave: 'todas', texto: 'Todas', cumple: () => true },
+]
+
 const etiquetaSolicitud = (e: EvaluadaEntrega) => e.sol.numero_solicitud ?? e.sol.archivo
 
 /** Lo que dice una solicitud de su avance dentro del plazo. */
@@ -61,6 +72,9 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
   const [abierto, setAbierto] = useState<NodoFlujo | null>(null)
   const [elegida, setElegida] = useState('')
   const [verTodas, setVerTodas] = useState(false)
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('sin_informe')
+  const [busca, setBusca] = useState('')
+  const [verTodasEstado, setVerTodasEstado] = useState(false)
   const cerrar = useCallback(() => { setAbierto(null); setVerTodas(false) }, [])
 
   const delLab = useMemo(
@@ -152,6 +166,20 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
     )
   }
 
+  const conteoEstado = useMemo(
+    () => Object.fromEntries(FILTROS_ESTADO.map((f) => [f.clave, validas.filter(f.cumple).length])) as Record<FiltroEstado, number>,
+    [validas],
+  )
+  const filasEstado = useMemo(() => {
+    const cumple = FILTROS_ESTADO.find((f) => f.clave === filtroEstado)!.cumple
+    const q = busca.trim().toLowerCase()
+    return validas
+      .filter(cumple)
+      .filter((e) => !q || [etiquetaSolicitud(e), e.sol.laboratorio, e.sol.sold_to, e.sol.ship_to].join(' ').toLowerCase().includes(q))
+      .sort((a, b) => b.edad - a.edad)
+  }, [validas, filtroEstado, busca])
+  const filasMostradas = verTodasEstado ? filasEstado : filasEstado.slice(0, 15)
+
   const lista = abierto ? dePunto(abierto) : []
   const mostrar = verTodas ? lista : lista.slice(0, 12)
 
@@ -208,6 +236,51 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         <i className={styles.hilo} aria-hidden="true" />
         {nodo('observado')}
       </div>
+
+      {!una && (
+        <section className={styles.estados} aria-label="Estado de cada solicitud">
+          <h4>Estado de cada solicitud</h4>
+          <div className={styles.chips}>
+            {FILTROS_ESTADO.map((f) => (
+              <button
+                key={f.clave}
+                type="button"
+                className={styles.chipFiltro}
+                aria-pressed={filtroEstado === f.clave}
+                onClick={() => { setFiltroEstado(f.clave); setVerTodasEstado(false) }}
+              >
+                {f.texto} <b>{nf.format(conteoEstado[f.clave])}</b>
+              </button>
+            ))}
+          </div>
+          <input
+            type="search"
+            className={styles.buscaEstado}
+            placeholder="Buscar N°, laboratorio, cliente o planta…"
+            value={busca}
+            onChange={(e) => { setBusca(e.target.value); setVerTodasEstado(false) }}
+            aria-label="Buscar solicitud"
+          />
+          {filasEstado.length === 0 ? (
+            <p className={styles.vacio}>Ninguna solicitud con este estado.</p>
+          ) : (
+            <ul className={styles.lista}>
+              {filasMostradas.map((e) => (
+                <li key={e.sol.archivo}>
+                  <b>{etiquetaSolicitud(e)}</b>
+                  <span>{e.sol.laboratorio ?? '—'} · {e.sol.sold_to ?? '—'}{e.sol.ship_to ? ` · ${e.sol.ship_to}` : ''}</span>
+                  <small>{PUNTOS[nodoActual(e)].titulo} · {textoPlazo(e)}</small>
+                </li>
+              ))}
+            </ul>
+          )}
+          {filasEstado.length > 15 && (
+            <button type="button" className={styles.mas} onClick={() => setVerTodasEstado((v) => !v)}>
+              {verTodasEstado ? 'Mostrar menos' : `Ver las ${nf.format(filasEstado.length)}`}
+            </button>
+          )}
+        </section>
+      )}
 
       {abierto && !una && (
         <Modal
