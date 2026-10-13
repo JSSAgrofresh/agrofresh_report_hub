@@ -211,6 +211,12 @@ def hitos(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
         WHERE exitoso AND modo = 'produccion' AND archivo_solicitud IS NOT NULL
         GROUP BY archivo_solicitud
         """)
+    clientes = {f["archivo"]: f["t"] for f in filas_cliente or []}
+    # Marcas hechas a mano (Converter o Solicitudes e informes): vale la fecha más antigua.
+    for f in _filas("SELECT archivo, enviado_en AS t FROM envio_cliente_manual") or []:
+        previo = clientes.get(f["archivo"])
+        if previo is None or f["t"] < previo:
+            clientes[f["archivo"]] = f["t"]
     observados = {
         f["nro"]: {"t": f["t"], "por": f["por"]}
         for f in _filas(
@@ -228,7 +234,7 @@ def hitos(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
     amarrados = _filas(
         "SELECT count(*) AS n FROM envio_informe_log WHERE exitoso AND modo = 'produccion' AND archivo_solicitud IS NOT NULL")
     return {
-        "hitos": armar_hitos(base, enviadas, reports, {f["archivo"]: f["t"] for f in filas_cliente or []}, observados),
+        "hitos": armar_hitos(base, enviadas, reports, clientes, observados),
         "calidad": {
             "envios_a_clientes": totales[0]["n"] if totales else None,
             # None = falta la migración 0054: todavía no se puede amarrar ningún envío.

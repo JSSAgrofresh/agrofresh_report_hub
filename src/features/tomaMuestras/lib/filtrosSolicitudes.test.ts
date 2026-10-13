@@ -120,7 +120,7 @@ describe('vistas rápidas de Solicitudes e informes', () => {
   ]
 
   it('cuenta cada vista', () => {
-    expect(resumenVistas(datos)).toEqual({ todas: 4, pendientes: 1, enviadas: 3, esperando: 1, con_informe: 2, sin_report: 1, ot_revisar: 0 })
+    expect(resumenVistas(datos)).toEqual({ todas: 4, pendientes: 1, enviadas: 3, esperando: 1, con_informe: 2, sin_report: 1, ot_revisar: 0, sin_envio: 2 })
   })
 
   it('cada vista filtra lo mismo que cuenta', () => {
@@ -163,6 +163,21 @@ describe('OT por revisar', () => {
     expect(resumenVistas(datos).ot_revisar).toBe(2)
     expect(filtrarSolicitudes(datos, f({ estado: ['ot_revisar'] })).map((s) => s.numero_solicitud)).toEqual(['MAL', 'SIN_OT'])
     expect(vistaDeEstados(['ot_revisar'])).toBe('ot_revisar')
+  })
+})
+
+describe('informe enviado al cliente (marca a mano)', () => {
+  const inf = { nro_informe: 'X', numeros: ['X'], pdf_guardado: true, en_report: true }
+  const datos = [
+    sol('ENVIADO', { enviada: true, informe: { ...inf, envio_cliente: '2026-10-05T09:00:00' } }),
+    sol('SIN_MARCA', { enviada: true, informe: inf }),
+    sol('SIN_INFORME', { enviada: true }),
+  ]
+
+  it('solo cuenta los informes sin marca; sin informe no aplica', () => {
+    expect(resumenVistas(datos).sin_envio).toBe(1)
+    expect(filtrarSolicitudes(datos, f({ estado: ['sin_envio'] })).map((s) => s.numero_solicitud)).toEqual(['SIN_MARCA'])
+    expect(vistaDeEstados(['sin_envio'])).toBe('sin_envio')
   })
 })
 

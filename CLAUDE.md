@@ -517,6 +517,14 @@ enlazado por `archivo_solicitud`, **migración 0054**; los envíos anteriores no
 **observado** (`informe_visto`, **migración 0057**: la primera vez que una cuenta `cliente` cargó sus
 resultados en Report; lo anota `reportes.datos` vía `informe_visto.registrar`, que nunca lanza y solo cuenta
 cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
+- **«Enviado al cliente» también se marca a mano** (pedido del usuario, 13-10-2026; migración **0058**, tabla
+  `envio_cliente_manual`, `app/envio_cliente.py`, prefijo `/api/envio-cliente`): el hito `cliente` es la fecha MÁS ANTIGUA entre el
+  envío real de «Envío de informes» y la marca manual. Dos puertas: en **Converter**, la casilla «Enviado al cliente» de cada informe
+  (`enviado_cliente` en `POST /auditoria-interna/informes`; los que se suben SIN marcar abren un modal con su tipo de servicio y
+  lista de distribución, `GET /envio-cliente/contexto?ot=`), y en **Solicitudes e informes**, seleccionar → «Marcar enviado al
+  cliente» (fecha opcional) / «Quitar envío», con chip «Enviado al cliente» / «Sin envío a cliente» en la celda del informe y el
+  filtro Estado «Informe sin envío a cliente». Sin la 0058 todo sigue y marcar responde 503. **«Reporte observado» NO se marca a
+  mano**: solo se enciende cuando una cuenta `cliente` carga sus resultados en Report (0057).
 - **Único supuesto (pedido del usuario, 12-10-2026): la recepción en el laboratorio se ESTIMA 24 horas
   después de emitida la solicitud** (`RECEPCION_ESTIMADA_DIAS = 1`; no sabemos cuándo retiran las muestras).
   Desde ahí corren TODOS los tiempos y plazos, **en días hábiles** (lunes a viernes, **sin feriados**: `diasHabiles`,
