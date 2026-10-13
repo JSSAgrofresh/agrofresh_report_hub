@@ -1083,6 +1083,8 @@ class SolicitudOut(BaseModel):
     unidad_peso: str | None = None
     # Segundo peso (g): se anota después del cruce y se usa en el informe y el Excel.
     peso_muestra_extraido: float | None = None
+    # Peso hueso (g), anotado igual que el extraído (migración 0060).
+    peso_hueso: float | None = None
     cruzado_por_nombre: str | None = None
     tiene_foto: bool = False
 
@@ -1172,6 +1174,7 @@ def listar_solicitudes() -> list[SolicitudOut]:
                 peso_muestra=datos.get("peso_muestra"),
                 unidad_peso=datos.get("unidad_peso"),
                 peso_muestra_extraido=datos.get("peso_muestra_extraido"),
+                peso_hueso=datos.get("peso_hueso"),
                 cruzado_por_nombre=datos.get("cruzado_por_nombre"),
                 tiene_foto=nombre in con_foto,
             )
@@ -1222,6 +1225,7 @@ def solicitud_por_numero(numero: str) -> SolicitudOut:
             peso_muestra=datos.get("peso_muestra"),
             unidad_peso=datos.get("unidad_peso"),
             peso_muestra_extraido=datos.get("peso_muestra_extraido"),
+                peso_hueso=datos.get("peso_hueso"),
             cruzado_por_nombre=datos.get("cruzado_por_nombre"),
             tiene_foto=nombre in indice_solicitudes.archivos_con_foto(),
         )

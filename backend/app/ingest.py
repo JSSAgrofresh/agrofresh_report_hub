@@ -112,6 +112,10 @@ class CargaRequest(BaseModel):
     origen: str = "ingest"
     # Nombre del archivo o de los PDF, solo para el historial de cargas.
     archivo: str | None = None
+    # Qué hacer con los informes que YA existen en el sistema (mismo N° Informe):
+    # False = solo se completa lo que les falte (nunca se pisa nada);
+    # True  = «subir y actualizar»: los datos del archivo reemplazan a los guardados.
+    actualizar_existentes: bool = False
 
 
 def _cliente_id(cur, nombre: str, escribir: bool) -> tuple[int | None, bool]:
@@ -593,6 +597,7 @@ def _procesar_filas(
     overrides: dict[str, Any] | None = None,
     acumular_detalle: bool = True,
     carga_id: int | None = None,
+    actualizar: bool = False,
 ) -> dict[str, Any]:
     # En operaciones de lote masivo (aprobar/reintentar 13.000+ pendientes) solo
     # se usa el resumen: acumular un dict de detalle y un string de advertencia
@@ -600,6 +605,8 @@ def _procesar_filas(
     resumen = {
         "solicitudes_nuevas": 0,
         "solicitudes_existentes": 0,
+        # Existentes a las que se les reemplazaron los datos (modo «subir y actualizar»).
+        "solicitudes_actualizadas": 0,
         "clientes_nuevos": 0,
         "plantas_nuevas": 0,
         "productos_aplicados": 0,
@@ -907,7 +914,42 @@ def _procesar_filas(
                         r["valor_num"], r["valor_texto"],
                     ))
             else:
-                if (
+                if actualizar:
+                    # «Subir y actualizar»: lo que trae el archivo reemplaza lo guardado; un
+                    # dato que el archivo NO trae (vacío) nunca borra el que ya estaba.
+                    cur.execute(
+                        "UPDATE solicitud SET "
+                        "sold_to_raw = COALESCE(%s, sold_to_raw), "
+                        "ship_to_raw = COALESCE(%s, ship_to_raw), "
+                        "planta_id = COALESCE(%s, planta_id), "
+                        "fecha_muestreo = COALESCE(%s, fecha_muestreo), "
+                        "fecha_entrada = COALESCE(%s, fecha_entrada), "
+                        "fecha_informe = COALESCE(%s, fecha_informe), "
+                        "fecha_analisis = COALESCE(%s, fecha_analisis), "
+                        "referencia = COALESCE(%s, referencia), "
+                        "hora_muestreo = COALESCE(NULLIF(btrim(%s), ''), hora_muestreo), "
+                        "fecha_recepcion = COALESCE(%s, fecha_recepcion), "
+                        "semana_muestreo = COALESCE(%s, semana_muestreo), "
+                        "mes = COALESCE(%s, mes) "
+                        "WHERE id = %s",
+                        (
+                            sol["sold_to_raw"] if "sold_to_raw" not in campos_no_resueltos else None,
+                            sol["ship_to_raw"] if "ship_to_raw" not in campos_no_resueltos else None,
+                            planta_id,
+                            sol.get("fecha_muestreo"),
+                            sol.get("fecha_entrada"),
+                            sol.get("fecha_informe"),
+                            sol.get("fecha_analisis"),
+                            sol.get("referencia"),
+                            sol.get("hora_muestreo"),
+                            sol.get("fecha_recepcion"),
+                            sol.get("semana_muestreo"),
+                            sol.get("mes"),
+                            solicitud_id,
+                        ),
+                    )
+                    resumen["solicitudes_actualizadas"] += 1
+                elif (
                     existente["sold_to_raw"] is None or existente["ship_to_raw"] is None
                     or existente["planta_id"] is None
                     or existente.get("fecha_muestreo") is None or existente.get("fecha_entrada") is None
@@ -957,12 +999,14 @@ def _procesar_filas(
                     )
                 if escribir and con_hora_recepcion and sol.get("hora_recepcion"):
                     cur.execute(
-                        "UPDATE solicitud SET hora_recepcion = %s WHERE id = %s AND (hora_recepcion IS NULL OR btrim(hora_recepcion) = '')",
+                        "UPDATE solicitud SET hora_recepcion = %s WHERE id = %s"
+                        + ("" if actualizar else " AND (hora_recepcion IS NULL OR btrim(hora_recepcion) = '')"),
                         (sol["hora_recepcion"], solicitud_id),
                     )
                 if escribir and con_codigo_muestra and sol.get("codigo_muestra"):
                     cur.execute(
-                        "UPDATE solicitud SET codigo_muestra = %s WHERE id = %s AND codigo_muestra IS NULL",
+                        "UPDATE solicitud SET codigo_muestra = %s WHERE id = %s"
+                        + ("" if actualizar else " AND codigo_muestra IS NULL"),
                         (sol["codigo_muestra"], solicitud_id),
                     )
                 # Acumular para batch insert (solicitudes existentes ya tienen ID real).
@@ -1033,7 +1077,12 @@ def _procesar_filas(
                 f"""INSERT INTO producto_aplicado
                    (solicitud_id, analito_id, analito_raw, producto_raw, dosis, tipo_aplicacion, linea_proceso, gasto{col_carga})
                    VALUES %s
-                   ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
+                   ON CONFLICT (solicitud_id, analito_id) """ + (
+                    """DO UPDATE SET analito_raw = EXCLUDED.analito_raw, producto_raw = EXCLUDED.producto_raw,
+                       dosis = EXCLUDED.dosis, tipo_aplicacion = EXCLUDED.tipo_aplicacion,
+                       linea_proceso = EXCLUDED.linea_proceso, gasto = EXCLUDED.gasto"""
+                    if actualizar else "DO NOTHING"
+                ),
                 [con_carga(t) for t in productos_batch],
                 page_size=500,
             )
@@ -1042,10 +1091,27 @@ def _procesar_filas(
                 cur,
                 f"""INSERT INTO resultado (solicitud_id, analito_id, analito_raw, valor_num, valor_texto{col_carga})
                    VALUES %s
-                   ON CONFLICT (solicitud_id, analito_id) DO NOTHING""",
+                   ON CONFLICT (solicitud_id, analito_id) """ + (
+                    """DO UPDATE SET analito_raw = EXCLUDED.analito_raw, valor_num = EXCLUDED.valor_num,
+                       valor_texto = EXCLUDED.valor_texto"""
+                    if actualizar else "DO NOTHING"
+                ),
                 [con_carga(t) for t in resultados_batch],
                 page_size=500,
             )
+
+    # Cuántos resultados tiene hoy cada informe que ya existía: la pantalla lo muestra al
+    # preguntar si se sube y actualiza o se saca de la tanda.
+    ids_existentes = [d["solicitud_id"] for d in detalle if d.get("ya_existia") and d.get("solicitud_id")]
+    if ids_existentes:
+        cur.execute(
+            "SELECT solicitud_id, COUNT(*) AS n FROM resultado WHERE solicitud_id = ANY(%s) GROUP BY solicitud_id",
+            (ids_existentes,),
+        )
+        por_id = {r["solicitud_id"]: r["n"] for r in cur.fetchall()}
+        for d in detalle:
+            if d.get("ya_existia") and d.get("solicitud_id"):
+                d["resultados_actuales"] = int(por_id.get(d["solicitud_id"], 0))
 
     return {"resumen": resumen, "detalle": detalle, "advertencias": advertencias}
 
@@ -1076,7 +1142,10 @@ def confirmar(payload: CargaRequest, usuario: Usuario = Depends(usuario_actual))
         with cursor_dict(conn) as cur:
             nombre_quien = usuario.nombre or usuario.email
             carga_id = crear_carga(cur, payload.origen, payload.archivo, len(payload.filas), nombre_quien)
-            resultado = _procesar_filas(cur, payload.filas, escribir=True, origen=payload.origen, carga_id=carga_id)
+            resultado = _procesar_filas(
+                cur, payload.filas, escribir=True, origen=payload.origen, carga_id=carga_id,
+                actualizar=payload.actualizar_existentes,
+            )
             resultado["carga_id"] = carga_id
             r = resultado["resumen"]
             insertar_notif(
@@ -1085,6 +1154,7 @@ def confirmar(payload: CargaRequest, usuario: Usuario = Depends(usuario_actual))
                 resumen=(
                     f"{nombre_quien} cargó {len(payload.filas)} fila(s) desde {payload.origen!r}: "
                     f"{r['solicitudes_nuevas']} solicitud(es) nueva(s), {r['resultados']} resultado(s)"
+                    + (f", {r['solicitudes_actualizadas']} actualizada(s)" if r.get("solicitudes_actualizadas") else "")
                     + (f", {r['pendientes_revision']} pendiente(s) de revisión." if r["pendientes_revision"] else ".")
                 ),
                 creado_por=nombre_quien,

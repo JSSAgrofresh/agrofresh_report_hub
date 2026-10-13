@@ -9,6 +9,7 @@ import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import { CORREO_MAESTRO } from '../api/usuariosStore'
 import {
+  LAB_CRITERIOS,
   LAB_SECCIONES,
   MODULO_TOMA_MUESTRAS,
   esSeccionLab,
@@ -60,6 +61,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [labSecciones, setLabSecciones] = useState<string[]>(
     usuario ? seccionesLabPermitidas({ tipoAcceso: usuario.tipoAcceso, modulos: usuario.modulos }) : LAB_SECCIONES.map((s) => s.id),
   )
+  const [editaCriterios, setEditaCriterios] = useState<boolean>(usuario?.modulos?.includes(LAB_CRITERIOS) ?? false)
   const [reportes, setReportes] = useState<ReporteId[]>(
     usuario?.reportes ?? reportesPredeterminados(usuario ?? { tipoAcceso: 'admin_area' }),
   )
@@ -106,8 +108,9 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
     }
     // Todas marcadas = como siempre (no se guarda nada); si falta alguna, se guardan las elegidas.
     const todasLab = labSecciones.length === LAB_SECCIONES.length
+    const modulosLab = modulos.includes('agrofresh_lab') && !todasLab ? [...modulos, ...labSecciones] : modulos
     const modulosFinal =
-      modulos.includes('agrofresh_lab') && !todasLab ? [...modulos, ...labSecciones] : modulos
+      modulos.includes('agrofresh_lab') && editaCriterios ? [...modulosLab, LAB_CRITERIOS] : modulosLab
 
     onGuardar({
       nombre: nombre.trim(),
@@ -281,6 +284,17 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
               <p className={styles.notaChica}>
                 Marca solo lo que esta cuenta debe ver. Con las tres marcadas ve todo AgroFresh Lab, como siempre.
               </p>
+              <label className={styles.permisoOpcion}>
+                <input
+                  type="checkbox"
+                  checked={editaCriterios}
+                  onChange={() => setEditaCriterios((v) => !v)}
+                />
+                <span>
+                  <strong>Modificar criterios (control de equipos)</strong>
+                  <small>Puede cambiar tolerancias, parámetros y catálogos en la pantalla Criterios del control diario. Sin esto solo los ve.</small>
+                </span>
+              </label>
               <div className={styles.permisosGrid}>
                 {LAB_SECCIONES.map((seccion) => (
                   <label className={styles.permisoOpcion} key={seccion.id}>

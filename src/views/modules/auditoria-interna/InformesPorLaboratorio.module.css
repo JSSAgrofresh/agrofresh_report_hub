@@ -187,3 +187,33 @@
   text-align: right !important;
   font-variant-numeric: tabular-nums;
 }
+
+/* Listado de pendientes plegable */
+.plegable {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.plegable .subtitulo { margin: 0; flex: 1; }
+.chevron { font-size: 10px; color: var(--color-text-faint); }
+
+.accionPlegable {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+  padding: 3px 12px;
+  border: 1px solid var(--color-primary);
+  border-radius: 999px;
+}
+
+.plegable:hover .accionPlegable { background: rgba(109, 173, 60, 0.12); }
+.plegable:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; border-radius: 6px; }

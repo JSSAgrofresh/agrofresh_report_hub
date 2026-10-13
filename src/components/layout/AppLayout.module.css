@@ -18,6 +18,11 @@
   animation: aparecer 0.25s ease;
 }
 
+/* Pantallas de tableros (Auditoría interna): aprovechan pantallas grandes. */
+.ancho {
+  max-width: 1840px;
+}
+
 @keyframes aparecer {
   from {
     opacity: 0;

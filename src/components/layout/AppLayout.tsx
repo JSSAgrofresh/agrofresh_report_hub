@@ -5,6 +5,7 @@ import { MobileTopbar } from './MobileTopbar'
 import { LoadingBar } from './LoadingBar'
 import { avisarVisita } from '@/features/adminPanel'
 import { useAuth } from '@/features/auth'
+import { ROUTES } from '@/constants/routes'
 import { useApilarTablas } from '@/lib/apilarTablas'
 import styles from './AppLayout.module.css'
 
@@ -29,7 +30,8 @@ export function AppLayout() {
       <MobileTopbar onAbrirMenu={() => setMenuAbierto(true)} />
       <div className={styles.cuerpo}>
         <Sidebar abierto={menuAbierto} onCerrar={() => setMenuAbierto(false)} />
-        <main className={styles.content} ref={contenido}>
+        {/* Auditoría interna son tableros anchos: usa todo el ancho de la pantalla, no solo 1280 px. */}
+        <main className={`${styles.content} ${pathname.startsWith(ROUTES.auditoriaInterna) ? styles.ancho : ''}`} ref={contenido}>
           <Outlet />
         </main>
       </div>

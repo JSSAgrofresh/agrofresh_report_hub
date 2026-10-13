@@ -13,9 +13,11 @@ export {
   modulosPredeterminados,
   reportesPredeterminados,
   MODULO_TOMA_MUESTRAS,
+  LAB_CRITERIOS,
   LAB_SECCIONES,
   esSeccionLab,
   puedeVerSeccionLab,
+  puedeEditarCriteriosLab,
   seccionesLabPermitidas,
 } from './permisos'
 export { ClaveTemporalAviso } from './components/ClaveTemporalAviso'

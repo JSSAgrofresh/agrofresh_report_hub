@@ -126,6 +126,9 @@ def _fila_a_par(fila: dict) -> tuple[str, dict]:
     # Segundo peso (migración 0048): el de la muestra extraída, en gramos.
     extraido = fila.get("peso_extraido")
     datos["peso_muestra_extraido"] = float(extraido) if extraido is not None else None
+    # Peso hueso (migración 0060), también en gramos.
+    hueso = fila.get("peso_hueso")
+    datos["peso_hueso"] = float(hueso) if hueso is not None else None
     # Campos de reanálisis (migración 0038): presentes solo cuando la columna existe.
     datos.setdefault("tipo_solicitud", fila.get("tipo_solicitud") or "CONVENCIONAL")
     datos.setdefault("solicitud_original_archivo", fila.get("solicitud_original_archivo"))
@@ -182,6 +185,27 @@ def _detectar_peso_extraido() -> bool:
     return _tiene_peso_extraido
 
 
+# Columnas de la migración 0060 (peso hueso). Misma idea: sin la migración, el peso sale vacío.
+_COLUMNAS_PESO_HUESO = ("peso_hueso", "peso_hueso_en", "peso_hueso_por_nombre")
+_tiene_peso_hueso: bool | None = None
+
+
+def _detectar_peso_hueso() -> bool:
+    global _tiene_peso_hueso
+    if _tiene_peso_hueso is not None:
+        return _tiene_peso_hueso
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM information_schema.columns"
+                " WHERE table_name = 'solicitud_archivo' AND column_name = 'peso_hueso'"
+            )
+            _tiene_peso_hueso = bool(cur.fetchone()["n"])
+    except Exception:
+        _tiene_peso_hueso = False
+    return _tiene_peso_hueso
+
+
 def _select_cruce() -> str:
     base = ", ".join(_COLUMNAS_CRUCE)
     if _detectar_columnas_reanalisis():
@@ -189,8 +213,12 @@ def _select_cruce() -> str:
     else:
         base += ", " + ", ".join(f"NULL AS {c}" for c in _COLUMNAS_REANALISIS)
     if _detectar_peso_extraido():
-        return base + ", " + ", ".join(_COLUMNAS_PESO_EXTRAIDO)
-    return base + ", " + ", ".join(f"NULL AS {c}" for c in _COLUMNAS_PESO_EXTRAIDO)
+        base += ", " + ", ".join(_COLUMNAS_PESO_EXTRAIDO)
+    else:
+        base += ", " + ", ".join(f"NULL AS {c}" for c in _COLUMNAS_PESO_EXTRAIDO)
+    if _detectar_peso_hueso():
+        return base + ", " + ", ".join(_COLUMNAS_PESO_HUESO)
+    return base + ", " + ", ".join(f"NULL AS {c}" for c in _COLUMNAS_PESO_HUESO)
 
 
 def listar(laboratorio: str | None = None) -> list[tuple[str, dict]]:
@@ -407,6 +435,12 @@ def cruzar(archivo: str, codigo_muestra: str | None) -> None:
             cur.execute(
                 "UPDATE solicitud_archivo SET peso_extraido = NULL, peso_extraido_en = NULL,"
                 " peso_extraido_por_nombre = NULL WHERE archivo = %s",
+                (archivo,),
+            )
+        if codigo is None and _detectar_peso_hueso():
+            cur.execute(
+                "UPDATE solicitud_archivo SET peso_hueso = NULL, peso_hueso_en = NULL,"
+                " peso_hueso_por_nombre = NULL WHERE archivo = %s",
                 (archivo,),
             )
 
@@ -696,6 +730,48 @@ def guardar_peso_extraido(archivo: str, peso: float, usuario_email: str, usuario
                 "peso_extraido", archivo, datos_sol.get("numero_solicitud"), antes["codigo_muestra"],
                 datos_sol.get("tipo_muestra"), usuario_email, usuario_nombre,
                 Json({"peso_extraido_g": peso, "antes": previo}),
+            ),
+        )
+    return previo
+
+
+class SinPesoHueso(Exception):
+    """La migración 0060 todavía no se corrió."""
+
+
+def guardar_peso_hueso(archivo: str, peso: float, usuario_email: str, usuario_nombre: str) -> float | None:
+    """Anota (o corrige) el peso hueso de una solicitud ya cruzada, en gramos.
+    Deja el antes y el después en el historial. Devuelve el valor anterior."""
+    if not _detectar_peso_hueso():
+        raise SinPesoHueso(archivo)
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "SELECT codigo_muestra, peso_hueso, datos FROM solicitud_archivo WHERE archivo = %s FOR UPDATE",
+            (archivo,),
+        )
+        antes = cur.fetchone()
+        if antes is None:
+            raise KeyError(archivo)
+        if not antes["codigo_muestra"]:
+            raise SinCruce(archivo)
+        cur.execute(
+            "UPDATE solicitud_archivo SET peso_hueso = %s, peso_hueso_en = now(),"
+            " peso_hueso_por_nombre = %s WHERE archivo = %s",
+            (peso, usuario_nombre, archivo),
+        )
+        previo = float(antes["peso_hueso"]) if antes["peso_hueso"] is not None else None
+        datos_sol = antes["datos"] if isinstance(antes["datos"], dict) else {}
+        cur.execute(
+            """
+            INSERT INTO lab_actividad
+                (accion, archivo, numero_solicitud, codigo_muestra, tipo_muestra,
+                 usuario_email, usuario_nombre, detalle, resultado)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'ok')
+            """,
+            (
+                "peso_hueso", archivo, datos_sol.get("numero_solicitud"), antes["codigo_muestra"],
+                datos_sol.get("tipo_muestra"), usuario_email, usuario_nombre,
+                Json({"peso_hueso_g": peso, "antes": previo}),
             ),
         )
     return previo

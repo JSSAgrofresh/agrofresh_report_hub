@@ -24,7 +24,7 @@ Dos reglas editables, que guarda el admin general (`plazos_entrega.json`):
     (el informe salió al cliente);
   - el plazo comprometido, en DÍAS HÁBILES (lunes a viernes, sin feriados), de cada
     laboratorio (`LAB`) y, si el análisis tiene su propio tiempo, de cada análisis de
-    ese laboratorio (`LAB|ANALITO`). Sin plazo cargado no se calcula cumplimiento: nunca
+    ese laboratorio (`LAB|ANÁLISIS`: el nombre del Análisis, no del analito). Sin plazo cargado no se calcula cumplimiento: nunca
     se asume uno.
 El plazo corre desde la RECEPCIÓN ESTIMADA en el laboratorio: 24 horas después de emitida
 la solicitud (no sabemos cuándo pasan a retirar las muestras). Esa cuenta vive en la
@@ -39,7 +39,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from . import config_store
-from .auditoria_interna import puede_auditoria
+from .auditoria_interna import SQL_INFORME_EN_REPORT, puede_auditoria
 from .auth import Usuario, solo_admin_general
 from .db import conexion, cursor_dict
 
@@ -64,7 +64,7 @@ def _clave_lab(laboratorio: str | None) -> str:
 
 
 def _clave_plazo(clave: str | None) -> str | None:
-    """`LAB` o `LAB|ANALITO` en mayúsculas y sin espacios sobrantes; None si no es válida."""
+    """`LAB` o `LAB|ANÁLISIS` en mayúsculas y sin espacios sobrantes; None si no es válida."""
     lab, sep, analito = (clave or "").partition("|")
     lab, analito = _clave_lab(lab), analito.strip().upper()
     if not lab or (sep and not analito):
@@ -97,7 +97,7 @@ def leer_reglas() -> dict[str, Any]:
 
 class ReglasIn(BaseModel):
     entregado: str
-    # «LAB» o «LAB|ANALITO» -> días hábiles; null o ausente = sin plazo
+    # «LAB» o «LAB|ANÁLISIS» -> días hábiles; null o ausente = sin plazo
     plazos: dict[str, int | None] = Field(default_factory=dict)
 
 
@@ -186,21 +186,32 @@ def hitos(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
     """Los hitos de cada solicitud real (sin pruebas), para medir lead time y cumplimiento."""
     base = _filas(
         """
-        SELECT sa.archivo, sa.creado_en AS emitida, ia.subido_en, ia.fecha_envio, ia.nro_informe,
-               (ia.id IS NOT NULL AND EXISTS (
+        SELECT sa.archivo, sa.creado_en AS emitida,
+               COALESCE(ia.subido_en, rp.cargado_en) AS subido_en, ia.fecha_envio,
+               COALESCE(ia.nro_informe, rp.nro_solicitud) AS nro_informe,
+               ((ia.id IS NOT NULL AND EXISTS (
                     SELECT 1 FROM solicitud s WHERE s.nro_solicitud = ia.nro_informe
-               )) AS en_report
+               )) OR rp.nro_solicitud IS NOT NULL) AS en_report
         FROM solicitud_archivo sa
         LEFT JOIN LATERAL (
             SELECT * FROM informe_auditoria i
             WHERE i.archivo_solicitud = sa.archivo
             ORDER BY i.subido_en DESC LIMIT 1
         ) ia ON true
+        """ + SQL_INFORME_EN_REPORT + """
         WHERE coalesce(sa.datos->>'es_prueba', '') <> 'true'
         """
     )
     if base is None:
         raise HTTPException(503, "No se pudieron leer las solicitudes.")
+    # Fecha de envío anotada a mano de informes que no pasan por Converter (migración 0061): sin la
+    # tabla, o sin fila, no cambia nada. Solo vale si el informe no trae una fecha propia.
+    manuales = {f["archivo"]: f["fecha_envio"] for f in _filas("SELECT archivo, fecha_envio FROM informe_fecha_manual") or []}
+    for f in base:
+        if f["archivo"] in manuales and f.get("fecha_envio") is None:
+            f["fecha_envio"] = manuales[f["archivo"]]
+            if f.get("subido_en") is None:
+                f["subido_en"] = manuales[f["archivo"]]
     enviadas = {f["archivo"]: f["t"] for f in _filas(
         "SELECT archivo, min(creado_en) AS t FROM envio_solicitud_log WHERE exitoso GROUP BY archivo") or []}
     reports = {f["nro"]: f["t"] for f in _filas(

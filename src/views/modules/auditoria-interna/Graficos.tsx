@@ -12,7 +12,7 @@ import {
 } from 'chart.js'
 import type { Plugin, ScriptableContext } from 'chart.js'
 import { LABORATORIOS_GRAFICO, NOMBRE_LAB, nombreTipo, tituloDonaTipo } from '@/features/auditoriaInterna'
-import type { GrupoLaboratorios, LaboratorioResumen, Totales } from '@/features/auditoriaInterna'
+import type { LaboratorioResumen, PanelAnalisis, Totales } from '@/features/auditoriaInterna'
 import { ESTADOS, ESTADOS_DONA, ORDEN_ESTADOS } from './estados'
 import { COLOR_LAB, colorDeTipo, tonosDeTipo } from './coloresTipo'
 import styles from './Graficos.module.css'
@@ -248,172 +248,113 @@ export function GraficoTotalPorLaboratorio({ laboratorios }: { laboratorios: Lab
 
 // ── análisis vs informes por grupo, con los 4 laboratorios ──────────────
 
-/** Rol de cada dataset, por su índice: el tooltip y las etiquetas lo consultan. */
-interface MetaBarra {
-  lab: string
-  rol: 'informes' | 'resto'
-}
-
-/** Escribe, dentro de cada barra, el % de informes concretados sobre lo pedido;
- * si la barra es muy corta para el texto, va justo a su derecha. Al final de
- * la barra va «informes / análisis». */
-function etiquetasDeLaboratorio(grupos: GrupoLaboratorios[], metas: MetaBarra[]): Plugin<'bar'> {
-  return {
-    id: 'etiquetasDeLaboratorio',
-    afterDatasetsDraw(chart) {
-      const { ctx } = chart
-      ctx.save()
-      ctx.font = '600 10.5px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif'
-      ctx.textBaseline = 'middle'
-      grupos.forEach((g, i) => {
-        LABORATORIOS_GRAFICO.forEach((lab) => {
-          const par = g.labs[lab]
-          if (!par || par.analisis === 0) return
-          const iInf = metas.findIndex((m) => m.lab === lab && m.rol === 'informes')
-          const iRes = metas.findIndex((m) => m.lab === lab && m.rol === 'resto')
-          const elInf = chart.getDatasetMeta(iInf).data[i]
-          const elRes = chart.getDatasetMeta(iRes).data[i]
-          if (!elInf || !elRes) return
-          const x0 = chart.scales.x.getPixelForValue(0)
-          const x1 = par.informes === par.analisis ? elInf.x : elRes.x
-          const y = elInf.y
-          const pct = `${Math.round((par.informes / par.analisis) * 100)}%`
-          const ancho = x1 - x0
-          if (ancho >= ctx.measureText(pct).width + 10) {
-            // Dentro: sobre lo sólido es blanco; si casi no hay sólido, tinta.
-            const solido = elInf.x - x0
-            ctx.fillStyle = par.informes > 0 && solido >= ancho / 2 ? '#fff' : TINTA
-            ctx.textAlign = 'center'
-            ctx.fillText(pct, x0 + ancho / 2, y)
-            ctx.textAlign = 'left'
-            ctx.fillStyle = TINTA_SUAVE
-            ctx.fillText(`${par.informes}/${par.analisis}`, x1 + 6, y)
-          } else {
-            ctx.fillStyle = TINTA
-            ctx.textAlign = 'left'
-            ctx.fillText(`${pct}  ${par.informes}/${par.analisis}`, x1 + 6, y)
-          }
-        })
-      })
-      ctx.restore()
-    },
-  }
-}
-
-/** Por grupo (Sold To, Ship To, especie o tipo de servicio), una barra por cada
- * uno de los cuatro laboratorios: su largo son los análisis pedidos, la parte
- * sólida los informes concretados y el % de adentro es esa proporción. */
-export function GraficoGrupoLaboratorio({ grupos }: { grupos: GrupoLaboratorios[] }) {
-  const metas: MetaBarra[] = LABORATORIOS_GRAFICO.flatMap((lab) => [
-    { lab, rol: 'informes' as const },
-    { lab, rol: 'resto' as const },
-  ])
-  const ref = useGrafico(
-    (canvas) =>
-      new Chart(canvas, {
-        type: 'bar',
-        data: {
-          labels: grupos.map((g) => g.grupo),
-          datasets: metas.map((m) => {
-            const color = COLOR_LAB[m.lab]
-            return {
-              label: `${NOMBRE_LAB[m.lab]} · ${m.rol === 'informes' ? 'informes' : 'sin informe'}`,
-              data: grupos.map((g) => {
-                const par = g.labs[m.lab]
-                if (!par) return null
-                const v = m.rol === 'informes' ? par.informes : par.analisis - par.informes
-                return v > 0 ? v : null // un 0 no se dibuja (ni su borde)
-              }),
-              backgroundColor: m.rol === 'informes' ? color : `${color}40`,
-              borderColor: SUPERFICIE,
-              borderWidth: 0,
-              borderRadius: 0,
-              borderSkipped: false as const,
-              stack: m.lab,
-              barThickness: 15,
-            }
-          }),
-        },
-        plugins: [etiquetasDeLaboratorio(grupos, metas)],
-        options: {
-          indexAxis: 'y',
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 350 },
-          interaction: { mode: 'index', intersect: false },
-          layout: { padding: { right: 64 } },
-          datasets: { bar: { categoryPercentage: 0.9, barPercentage: 1 } },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              ...TOOLTIP,
-              // una línea por laboratorio con datos (se muestra desde la parte «informes»)
-              filter: (item) => {
-                const m = metas[item.datasetIndex]
-                return m.rol === 'informes' && (grupos[item.dataIndex]?.labs[m.lab]?.analisis ?? 0) > 0
-              },
-              callbacks: {
-                label: (c) => {
-                  const m = metas[c.datasetIndex]
-                  const par = grupos[c.dataIndex].labs[m.lab]
-                  const pct = Math.round((par.informes / par.analisis) * 100)
-                  return ` ${NOMBRE_LAB[m.lab]}: ${nf.format(par.informes)} de ${nf.format(par.analisis)} (${pct}%)`
-                },
-              },
-            },
-          },
-          scales: {
-            x: {
-              stacked: true,
-              beginAtZero: true,
-              border: { display: false },
-              grid: { color: REJILLA, lineWidth: 1 },
-              ticks: { color: TINTA_SUAVE, font: { size: 11 }, precision: 0, maxTicksLimit: 6, padding: 6 },
-            },
-            y: {
-              stacked: true,
-              grid: { display: false },
-              border: { color: REJILLA },
-              ticks: { color: TINTA, font: { size: 12 } },
-            },
-          },
-        },
-      }),
-    [grupos],
-  )
-  return <canvas ref={ref} role="img" aria-label="Análisis pedidos e informes concretados, con su porcentaje, por laboratorio" />
-}
-
-// ── piezas comunes ──────────────────────────────────────────────────────
-
-export function LeyendaEstados() {
+/** Un panel por laboratorio y análisis (ALS · FSMA, Quiteca · Análisis de residuos en fruta…) con
+ * sus mejores clientes: cuántos análisis pidió cada uno y cuántos ya tienen informe. */
+export function GraficoAnalisisPorLaboratorio({ paneles, nombre }: { paneles: PanelAnalisis[]; nombre: string }) {
   return (
-    <ul className={styles.leyenda} aria-label="Leyenda de estados">
-      {ORDEN_ESTADOS.map((e) => (
-        <li key={e}>
-          <span className={styles.muestra} style={{ background: ESTADOS[e].color }} />
-          {ESTADOS[e].texto}
-        </li>
-      ))}
-    </ul>
+    <div className={styles.paneles}>
+      {paneles.map((p) => {
+        const color = COLOR_LAB[p.laboratorio] ?? '#6b7770'
+        const maximo = Math.max(1, ...p.filas.map((f) => f.analisis))
+        return (
+          <section key={`${p.laboratorio}|${p.analisis}`} className={styles.panelAnalisis} style={{ borderTopColor: color }} aria-label={`${NOMBRE_LAB[p.laboratorio] ?? p.laboratorio}: ${p.analisis}`}>
+            <header>
+              <span className={styles.laboratorio}>
+                <i style={{ background: color }} />
+                {NOMBRE_LAB[p.laboratorio] ?? p.laboratorio}
+              </span>
+              <h4>{p.analisis}</h4>
+              <p>
+                <b>{nf.format(p.total)}</b> análisis pedidos · <b>{nf.format(p.informes)}</b> con informe
+              </p>
+            </header>
+            <ol>
+              {p.filas.map((f, i) => (
+                <li key={f.grupo} className={i < 3 ? styles.top : undefined}>
+                  <span className={styles.puesto} data-puesto={i < 3 ? i + 1 : undefined}>{i + 1}</span>
+                  <span className={styles.nombreFila} title={f.grupo}>{f.grupo}</span>
+                  <span
+                    className={styles.pistaAnalisis}
+                    style={{ width: `${(f.analisis / maximo) * 100}%`, background: `${color}30` }}
+                    role="img"
+                    aria-label={`${f.grupo}: ${f.informes} de ${f.analisis} con informe`}
+                  >
+                    <span style={{ width: `${(f.informes / f.analisis) * 100}%`, background: color }} />
+                  </span>
+                  <span className={styles.contador}>
+                    <b>{nf.format(f.analisis)}</b>
+                    <small>{f.informes} con informe</small>
+                  </span>
+                </li>
+              ))}
+            </ol>
+            {p.nGrupos > p.filas.length && (
+              <p className={styles.masFilas}>y {nf.format(p.nGrupos - p.filas.length)} {nombre.toLowerCase()} más</p>
+            )}
+          </section>
+        )
+      })}
+    </div>
   )
 }
 
-/** Leyenda del gráfico por grupo: color = laboratorio; sólido = informes
- * concretados, claro = análisis aún sin informe. Siempre salen los cuatro. */
+/** La misma información en tabla: laboratorio · análisis · grupo, con sus análisis e informes. */
+export function TablaGrupoLaboratorio({ paneles, nombre }: { paneles: PanelAnalisis[]; nombre: string }) {
+  return (
+    <div className={styles.tablaGrupo}>
+      <table>
+        <thead>
+          <tr>
+            <th>Laboratorio</th>
+            <th>Análisis</th>
+            <th>{nombre}</th>
+            <th className={styles.num}>Análisis pedidos</th>
+            <th className={styles.num}>Con informe</th>
+            <th>Avance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {paneles.flatMap((p) =>
+            p.filas.map((f, i) => {
+              const color = COLOR_LAB[p.laboratorio] ?? '#6b7770'
+              const pct = Math.round((f.informes / f.analisis) * 100)
+              return (
+                <tr key={`${p.laboratorio}|${p.analisis}|${f.grupo}`} className={i === 0 ? styles.inicioPanel : undefined}>
+                  <td>{i === 0 && <><span className={styles.puntoLab} style={{ background: color }} />{NOMBRE_LAB[p.laboratorio] ?? p.laboratorio}</>}</td>
+                  <td className={styles.analisisTabla}>{i === 0 ? p.analisis : ''}</td>
+                  <th scope="row" title={f.grupo}>{f.grupo}</th>
+                  <td className={styles.num}><b>{nf.format(f.analisis)}</b></td>
+                  <td className={styles.num}>{nf.format(f.informes)}</td>
+                  <td>
+                    <span className={styles.celdaLab}>
+                      <span className={styles.pista} style={{ background: `${color}26` }}>
+                        <span className={styles.relleno} style={{ width: `${pct}%`, background: color }} />
+                      </span>
+                      {pct}%
+                    </span>
+                  </td>
+                </tr>
+              )
+            }),
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** Leyenda del gráfico por análisis: color = laboratorio; barra llena = informes
+ * concretados, clara = análisis aún sin informe. Siempre salen los cuatro. */
 export function LeyendaLaboratorios() {
   return (
     <ul className={styles.leyenda} aria-label="Leyenda">
       {LABORATORIOS_GRAFICO.map((l) => (
         <li key={l} className={styles.leyendaTipo}>
-          <span className={styles.pareja}>
-            <span className={styles.muestra} style={{ background: COLOR_LAB[l] }} />
-            <span className={styles.muestra} style={{ background: `${COLOR_LAB[l]}40` }} />
-          </span>
+          <span className={styles.muestra} style={{ background: COLOR_LAB[l] }} />
           {NOMBRE_LAB[l]}
         </li>
       ))}
-      <li className={styles.leyendaTipo}><em>sólido = informes · claro = sin informe · % dentro de la barra = informes / análisis</em></li>
+      <li className={styles.leyendaTipo}><em>AgroFresh y Quiteca = residuales · ALS = FSMA · Diagnofruit = FITO</em></li>
     </ul>
   )
 }
@@ -427,15 +368,19 @@ export function TarjetaGrafico({
   tabla,
   leyenda,
   controles,
+  vistaTabla,
   children,
 }: {
   titulo: string
-  subtitulo: string
-  alto: number
+  subtitulo?: string
+  /** Sin `alto`, el contenido manda (listas); con él, el lienzo de un gráfico. */
+  alto?: number
   tabla: { columnas: string[]; filas: (string | number)[][] }
   leyenda: ReactNode
   /** botones propios del gráfico (por ejemplo, el tipo de servicio) */
   controles?: ReactNode
+  /** Si viene, reemplaza la tabla genérica al pulsar «Ver tabla». */
+  vistaTabla?: ReactNode
   children: ReactNode
 }) {
   const [verTabla, setVerTabla] = useState(false)
@@ -444,7 +389,7 @@ export function TarjetaGrafico({
       <header className={styles.cabecera}>
         <div>
           <h3>{titulo}</h3>
-          <p>{subtitulo}</p>
+          {subtitulo && <p>{subtitulo}</p>}
         </div>
         <div className={styles.acciones}>
           {controles}
@@ -454,8 +399,10 @@ export function TarjetaGrafico({
         </div>
       </header>
       {leyenda}
-      {verTabla ? (
-        <div className={styles.tablaCaja} style={{ maxHeight: Math.min(alto, 420) }}>
+      {verTabla && vistaTabla ? (
+        vistaTabla
+      ) : verTabla ? (
+        <div className={styles.tablaCaja} style={{ maxHeight: Math.min(alto ?? 420, 420) }}>
           <table className={styles.tabla}>
             <thead>
               <tr>{tabla.columnas.map((c, i) => <th key={c} className={i ? styles.num : undefined}>{c}</th>)}</tr>
@@ -468,7 +415,7 @@ export function TarjetaGrafico({
           </table>
         </div>
       ) : (
-        <div className={styles.lienzo} style={{ height: alto }}>{children}</div>
+        <div className={styles.lienzo} style={alto ? { height: alto } : undefined}>{children}</div>
       )}
     </section>
   )

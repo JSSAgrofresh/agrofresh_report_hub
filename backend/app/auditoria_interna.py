@@ -300,6 +300,77 @@ def _iso(valor) -> str | None:
     return valor.isoformat() if valor is not None else None
 
 
+# Informe de una solicitud que NO pasó por Converter (los propios de AgroFresh): sus resultados están
+# en Report y traen el OT de la solicitud en `referencia`. Solo se mira si no hay PDF de Converter.
+# Se usa con el alias `sa` (solicitud_archivo) e `ia` (informe_auditoria).
+SQL_INFORME_EN_REPORT = """
+            LEFT JOIN LATERAL (
+                SELECT s.nro_solicitud, cd.creado_en AS cargado_en
+                FROM solicitud s LEFT JOIN carga_datos cd ON cd.id = s.carga_id
+                WHERE ia.id IS NULL
+                  AND s.referencia IS NOT NULL AND btrim(s.referencia) <> ''
+                  AND upper(btrim(s.referencia)) = upper(btrim(sa.numero_solicitud))
+                ORDER BY s.id LIMIT 1
+            ) rp ON true"""
+
+
+def analisis_de_solicitud(laboratorio: str | None, codigos: list, analitos: list[dict], analisis: list[dict]) -> list[str]:
+    """Los nombres de los Análisis (ej. «FSMA», «ANÁLISIS DE RESIDUOS EN FRUTA») que pidió una solicitud.
+
+    Sus analitos (códigos) se buscan en el catálogo del laboratorio y cada uno cuenta para el
+    PRIMER análisis activo del laboratorio que lo incluya, por orden: el mismo criterio del
+    checklist de la solicitud y de su PDF. Sin catálogo o sin coincidencia, lista vacía."""
+    lab = (laboratorio or "").strip().upper()
+    if not lab:
+        return []
+    ids = {}
+    for a in analitos:
+        if str(a.get("laboratorio") or "").strip().upper() == lab:
+            ids[str(a.get("codigo") or "").strip().upper()] = a.get("id")
+    del_lab = sorted(
+        (x for x in analisis if str(x.get("laboratorio") or "").strip().upper() == lab and x.get("activo", True)),
+        key=lambda x: x.get("orden", 0),
+    )
+    nombres: list[str] = []
+    for codigo in codigos:
+        analito_id = ids.get(str(codigo).strip().upper())
+        if analito_id is None:
+            continue
+        for x in del_lab:
+            if any(i.get("analito_id") == analito_id for i in x.get("analitos", [])):
+                nombre = str(x.get("nombre") or "").strip()
+                if nombre and nombre not in nombres:
+                    nombres.append(nombre)
+                break
+    return nombres
+
+
+def _fechas_envio_manuales() -> dict:
+    """Fecha de envío anotada a mano de informes que no pasan por Converter (migración 0061).
+    Sin la tabla, vacío."""
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute("SELECT archivo, fecha_envio FROM informe_fecha_manual")
+            return {f["archivo"]: f["fecha_envio"] for f in cur.fetchall()}
+    except Exception:  # noqa: BLE001 - falta la migración: todo sigue como antes
+        return {}
+
+
+def _catalogos_de_analisis() -> tuple[list[dict], list[dict]]:
+    """Analitos y Análisis configurados (mantenedor de Laboratorios). Si no se pueden leer,
+    vacíos: la pantalla agrupa entonces como «Sin análisis definido»."""
+    try:
+        from . import config_store, toma_muestras
+
+        return (
+            config_store.leer("analitos.json", toma_muestras.ANALITOS_DEFECTO),
+            config_store.leer("analisis_laboratorio.json", []),
+        )
+    except Exception:  # noqa: BLE001 - un catálogo ilegible no puede tumbar el listado
+        logging.getLogger(__name__).exception("No se pudo leer el catálogo de análisis")
+        return [], []
+
+
 @router.get("/solicitudes")
 def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
     """Las solicitudes emitidas por el sistema, con su informe (si tiene) y si
@@ -314,22 +385,29 @@ def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
                    sa.datos->'analitos_solicitados' AS analitos,
                    ia.id AS informe_id, ia.nro_informe, ia.nombre_archivo, ia.r2_key,
                    ia.fecha_envio, ia.subido_en,
-                   (ia.id IS NOT NULL AND EXISTS (
+                   rp.nro_solicitud AS report_nro, rp.cargado_en AS report_cargado_en,
+                   ((ia.id IS NOT NULL AND EXISTS (
                         SELECT 1 FROM solicitud s WHERE s.nro_solicitud = ia.nro_informe
-                   )) AS en_report
+                   )) OR rp.nro_solicitud IS NOT NULL) AS en_report
             FROM solicitud_archivo sa
             LEFT JOIN LATERAL (
                 SELECT * FROM informe_auditoria i
                 WHERE i.archivo_solicitud = sa.archivo
                 ORDER BY i.subido_en DESC LIMIT 1
             ) ia ON true
+            """ + SQL_INFORME_EN_REPORT + """
             ORDER BY sa.creado_en DESC
             """
         )
         filas = cur.fetchall()
+    analitos_cat, analisis_cat = _catalogos_de_analisis()
+    manuales = _fechas_envio_manuales()
     salida = []
     for f in filas:
         tiene_pdf = f["informe_id"] is not None
+        # Los informes propios de AgroFresh no pasan por Converter: llegan a Report con el OT en
+        # `referencia`. Esos también cuentan como informe recibido (si no, salían como pendientes).
+        solo_report = not tiene_pdf and f.get("report_nro") is not None
         salida.append({
             "archivo": f["archivo"],
             "numero_solicitud": f["numero_solicitud"],
@@ -340,6 +418,10 @@ def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
             "variedad": f["variedad"],
             "tipo_servicio": (f["tipo_servicio"] or "").strip() or None,
             "analitos": [str(a) for a in f["analitos"]] if isinstance(f["analitos"], list) else [],
+            # Los Análisis que pidió (FSMA, residuos en fruta, patógenos…), por el catálogo del laboratorio.
+            "analisis": analisis_de_solicitud(
+                f["laboratorio"], f["analitos"] if isinstance(f["analitos"], list) else [], analitos_cat, analisis_cat,
+            ),
             "fecha_solicitud": _iso(f["fecha_solicitud"]),
             "fecha_muestreo": _iso(f["fecha_muestreo"]),
             "emitida_en": f["creado_en"],
@@ -350,9 +432,16 @@ def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
                 "ruta": f["r2_key"],
                 "cargado_en": _iso(f["subido_en"]),
                 "fecha_envio": _iso(f["fecha_envio"]),
-            } if tiene_pdf else None,
+            } if tiene_pdf else {
+                "id": None,
+                "nro_informe": f["report_nro"],
+                "nombre_archivo": None,
+                "ruta": None,
+                "cargado_en": _iso(f.get("report_cargado_en")),
+                "fecha_envio": _iso(manuales.get(f["archivo"])),
+            } if solo_report else None,
             "en_report": bool(f["en_report"]),
-            "concretada": tiene_pdf and bool(f["en_report"]),
+            "concretada": (tiene_pdf or solo_report) and bool(f["en_report"]),
         })
     return salida
 
