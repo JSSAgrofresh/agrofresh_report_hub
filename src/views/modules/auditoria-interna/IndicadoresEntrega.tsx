@@ -220,7 +220,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
         </header>
 
         {lead.entregadas === 0 ? (
-          <p className={styles.vacio}>Todavía no hay solicitudes entregadas con estos filtros ({nf.format(lead.abiertas)} siguen abiertas).</p>
+          <p className={styles.vacio}>Todavía no hay informes entregados con estos filtros ({nf.format(lead.abiertas)} siguen pendientes).</p>
         ) : (
           <>
             <div className={styles.tiles}>
@@ -230,7 +230,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
                 <span className={styles.ap}>
                   la mitad tarda menos
                   <Ayuda>
-                    <b>Se usa la mediana y no el promedio</b> porque unas pocas solicitudes muy atrasadas inflan el promedio. Aquí el promedio sería {f1(lead.promedio)} d contra una mediana de {f1(lead.p50)} d.
+                    <b>Se usa la mediana y no el promedio</b> porque unos pocos informes muy atrasados inflan el promedio. Aquí el promedio sería {f1(lead.promedio)} d contra una mediana de {f1(lead.p50)} d.
                   </Ayuda>
                 </span>
                 <Spark valores={serie.map((p: PuntoMes) => p.p50)} formato={(v) => `${f1(v)} d`} />
@@ -248,7 +248,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
                 <span className={styles.gr}>{nf.format(lead.abiertas)}</span>
                 <span className={styles.ap}>
                   {lead.abiertas ? `llevan ${f1(lead.edadMedianaAbiertas)} d háb. (mediana)` : 'ninguna'}
-                  <Ayuda>No entran al cálculo: una solicitud abierta todavía no tiene lead time. Dejarla fuera haría que el número se vea mejor de lo que es, por eso se informa aparte.</Ayuda>
+                  <Ayuda>No entran al cálculo: un informe pendiente todavía no tiene lead time. Dejarlo fuera haría que el número se vea mejor de lo que es, por eso se informa aparte.</Ayuda>
                 </span>
               </div>
             </div>
@@ -264,9 +264,9 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
 
         <p className={styles.formula}>
           <span><b>Lead time</b> = «{textoFin}» − recepción estimada (emisión + {RECEPCION_ESTIMADA_DIAS} día), en días hábiles</span>
-          <span>{nf.format(lead.entregadas)} de {nf.format(lead.total)} solicitudes entran al cálculo</span>
+          <span>{nf.format(lead.entregadas)} de {nf.format(lead.total)} informes entran al cálculo</span>
           <Ayuda etiqueta="Cómo se calcula el lead time">
-            <b>Qué entra.</b> {nf.format(lead.total)} solicitudes del alcance (filtros de la página, sin pruebas): {nf.format(lead.entregadas)} ya llegaron a «{textoFin}» y {nf.format(lead.abiertas)} siguen abiertas
+            <b>Qué entra.</b> {nf.format(lead.total)} informes del alcance (uno por solicitud; filtros de la página, sin pruebas): {nf.format(lead.entregadas)} ya llegaron a «{textoFin}» y {nf.format(lead.abiertas)} siguen pendientes
             {lead.excluidas > 0 ? `; ${nf.format(lead.excluidas)} quedan fuera por tener una fecha anterior a la emisión` : ''}.
             <br />
             <b>De dónde sale cada fecha.</b> Emisión: cuándo se creó la solicitud; la recepción en el laboratorio se estima {RECEPCION_ESTIMADA_DIAS} día después (no la conocemos).
@@ -277,7 +277,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
         </p>
 
         <details className={styles.como}>
-          <summary>Ver las solicitudes que hay detrás <span className={styles.chip}>{nf.format(filasLead.length)}</span></summary>
+          <summary>Ver los informes que hay detrás <span className={styles.chip}>{nf.format(filasLead.length)}</span></summary>
           <div>
             <div className={styles.fl}>
               <span className={styles.pie}>De la más lenta a la más rápida.</span>
@@ -334,7 +334,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
         </p>
 
         <details className={styles.como}>
-          <summary>Ver las solicitudes que hay detrás <span className={styles.chip}>{nf.format(filasCum.length)}</span></summary>
+          <summary>Ver los informes que hay detrás <span className={styles.chip}>{nf.format(filasCum.length)}</span></summary>
           <div>
             <div className={styles.fl}>
               {([['', 'Todas'], ['atrasada', 'Atrasadas'], ['cumplio', 'A tiempo'], ['plazo', 'En plazo']] as const).map(([v, t]) => (

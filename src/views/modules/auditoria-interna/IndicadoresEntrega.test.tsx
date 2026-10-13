@@ -126,7 +126,7 @@ describe('IndicadoresEntrega', () => {
     render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar />)
     fireEvent.click(screen.getByRole('button', { name: /Pasos de la entrega/ }))
     const modal = within(screen.getByRole('dialog', { name: 'Pasos de la entrega' }))
-    expect(modal.getByText('¿Cuándo está entregada una solicitud?')).toBeTruthy()
+    expect(modal.getByText('¿Cuándo está entregado un informe?')).toBeTruthy()
     expect(modal.getByLabelText(/QUITECA\s*· plazo general/i)).toBeTruthy()
     expect((modal.getByLabelText(/^FDL/) as HTMLInputElement).value).toBe("8")
   })
