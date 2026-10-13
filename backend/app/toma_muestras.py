@@ -623,19 +623,16 @@ def _exigir_acceso(usuario: Usuario, datos: dict) -> None:
 
 
 def _puede_crear_reanalisis(usuario: Usuario) -> bool:
-    """Solo admin_general, admin_area (cualquier área) y quien tenga la función `toma_reanalisis` pueden crear reanálisis.
-
-    Gerencia, analistas, clientes y muestreadores no tienen acceso: un
-    reanálisis implica decisiones de laboratorio que esos roles no toman.
+    """Solo el admin_general y quien tenga la función suelta `toma_reanalisis`, que el administrador general
+    asigna cuenta por cuenta (Usuarios → Toma de muestras → «Crear reanálisis»). Ningún tipo de cuenta la trae
+    por sí solo: un reanálisis implica decisiones de laboratorio que se dan a personas concretas.
     """
-    return usuario.tipoAcceso in ("admin_general", "admin_area") or permisos_funciones.tiene(
-        usuario, permisos_funciones.TOMA_REANALISIS
-    )
+    return permisos_funciones.tiene(usuario, permisos_funciones.TOMA_REANALISIS)
 
 
 def _exigir_puede_reanalisis(usuario: Usuario) -> None:
     if not _puede_crear_reanalisis(usuario):
-        raise HTTPException(403, "Solo administradores pueden crear solicitudes de reanálisis.")
+        raise HTTPException(403, "Tu cuenta no tiene asignada la función de crear solicitudes de reanálisis.")
 
 
 def _leer_todas_desde_archivos() -> list[tuple[str, dict]]:

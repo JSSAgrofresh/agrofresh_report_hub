@@ -24,8 +24,8 @@ describe('AreaHero', () => {
     expect(degradado()).not.toContain(rgb(AREAS.cromatografia.colorOscuro))
   })
 
-  it('también en R y D, que usa la misma foto con color morado', () => {
-    render(<AreaHero area={AREAS.ryd} titulo="R y D" descripcion="d" />)
+  it('también en R&D, que usa la misma foto con color morado', () => {
+    render(<AreaHero area={AREAS.ryd} titulo="R&D" descripcion="d" />)
     expect(degradado()).toContain(rgb(TINTE_CEREZA))
   })
 

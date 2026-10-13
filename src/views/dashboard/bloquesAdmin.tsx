@@ -36,7 +36,7 @@ function areaLabel(area: string | null): string {
   const mapa: Record<string, string> = {
     cromatografia: 'Cromatografía',
     postventa: 'Post Venta',
-    ryd: 'R y D',
+    ryd: 'R&D',
     toma_muestras: 'Toma de Muestras',
   }
   return mapa[area] ?? area

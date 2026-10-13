@@ -147,9 +147,10 @@ export function puedeFirmarVerificaciones(usuario: Pick<Usuario, 'tipoAcceso' | 
   )
 }
 
-/** Admin general, admin de área y quien tenga la función `toma_reanalisis` pueden crear reanálisis. */
+/** Crear reanálisis: el admin general y quien tenga la función `toma_reanalisis`, que el administrador general
+ * asigna cuenta por cuenta. Ningún tipo de cuenta la trae por sí solo. */
 export function puedeCrearReanalisis(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
-  return usuario.tipoAcceso === 'admin_general' || usuario.tipoAcceso === 'admin_area' || tieneFuncion(usuario, 'toma_reanalisis')
+  return tieneFuncion(usuario, 'toma_reanalisis')
 }
 
 /** Qué ve una cuenta de cliente. Un cliente no pertenece a un área: el administrador le asigna qué ve. Las cuentas
