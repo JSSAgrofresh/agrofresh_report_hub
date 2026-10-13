@@ -294,6 +294,64 @@ export function porLaboratorioYAnalisis(
     })
 }
 
+// ── por cliente: residuales (AgroFresh / Quiteca), FSMA y FITO ───────────
+
+export interface CeldaCliente {
+  /** análisis pedidos */
+  n: number
+  /** con informe concretado */
+  informes: number
+}
+
+export interface FilaClienteAnalisis {
+  cliente: string
+  /** análisis pedidos en total y los concretados */
+  total: number
+  informes: number
+  agrofresh: CeldaCliente
+  quiteca: CeldaCliente
+  fsma: CeldaCliente
+  fito: CeldaCliente
+}
+
+const celda = (): CeldaCliente => ({ n: 0, informes: 0 })
+
+/** Una fila por cliente (Sold To) con lo que se le analizó: residuales en AgroFresh y en Quiteca,
+ * FSMA (ALS) y FITO (Diagnofruit). El que más análisis lleva, primero. */
+export function porClienteResiduosFsmaFito(solicitudes: SolicitudAuditoria[]): FilaClienteAnalisis[] {
+  const por = new Map<string, FilaClienteAnalisis>()
+  for (const s of solicitudes) {
+    const lab = claveLabGrafico(s)
+    const cliente = (s.sold_to ?? '').trim()
+    if (!lab || !cliente) continue
+    const f = por.get(cliente) ?? { cliente, total: 0, informes: 0, agrofresh: celda(), quiteca: celda(), fsma: celda(), fito: celda() }
+    const c = lab === 'AGROFRESH' ? f.agrofresh : lab === 'QUITECA' ? f.quiteca : lab === 'ALS' ? f.fsma : f.fito
+    c.n++
+    f.total++
+    if (s.concretada) {
+      c.informes++
+      f.informes++
+    }
+    por.set(cliente, f)
+  }
+  return [...por.values()].sort((a, b) => b.total - a.total || a.cliente.localeCompare(b.cliente, 'es'))
+}
+
+/** Los clientes del listado que todavía no tienen ningún análisis, en orden alfabético. */
+export function clientesSinAnalisis(todos: string[], conAnalisis: FilaClienteAnalisis[]): string[] {
+  const norm = (t: string) => plano(t)
+  const hechos = new Set(conAnalisis.map((f) => norm(f.cliente)))
+  const vistos = new Set<string>()
+  const salida: string[] = []
+  for (const nombre of todos) {
+    const k = norm(nombre)
+    if (!k || hechos.has(k) || vistos.has(k)) continue
+    vistos.add(k)
+    salida.push(nombre.trim())
+  }
+  return salida.sort((a, b) => a.localeCompare(b, 'es'))
+}
+
 // ── orden ───────────────────────────────────────────────────────────────
 
 /** `emitida` no es una columna: es el orden de partida (lo más reciente arriba). */

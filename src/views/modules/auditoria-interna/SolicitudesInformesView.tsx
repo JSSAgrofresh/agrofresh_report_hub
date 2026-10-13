@@ -17,7 +17,6 @@ import {
   resumenPorTipo,
   simularSolicitudes,
   tipoServicioDe,
-  tiposDeArea,
   totales,
   useSolicitudesAuditoria,
 } from '@/features/auditoriaInterna'
@@ -29,7 +28,7 @@ import { SelectorArea } from './SelectorArea'
 import { IndicadoresEntrega } from './IndicadoresEntrega'
 import { ResumenConcretadas } from './ResumenConcretadas'
 import { InformesPorLaboratorio } from './InformesPorLaboratorio'
-import { TablaDinamica } from './TablaDinamica'
+import { AnalisisPorCliente } from './AnalisisPorCliente'
 import styles from './SolicitudesInformesView.module.css'
 
 
@@ -154,7 +153,7 @@ export function SolicitudesInformesView() {
                   {area !== 'rd' && <DonaTipoServicio tipo={TIPO_ACTIMIST} resumen={actimist} />}
                   {(area === 'rd' || (area === null && ryd.emitidas > 0)) && <DonaTipoServicio tipo={TIPO_RYD} resumen={ryd} />}
                 </div>
-                <TablaDinamica solicitudes={alcance} filtros={filtros} tipos={tiposDeArea(area)} />
+                <AnalisisPorCliente solicitudes={alcanceCliente} />
               </div>
 
               <TarjetaGrafico
