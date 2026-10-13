@@ -647,3 +647,19 @@ button.nodo:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .nodo, .ficha { animation: none; transition: none; }
 }
+
+/* Pantallas grandes: el flujo y su tabla aprovechan el ancho disponible. */
+@media (min-width: 1500px) {
+  .disposicion {
+    grid-template-columns: minmax(0, 760px) 400px;
+  }
+
+  .columna,
+  .ficha {
+    max-width: 760px;
+  }
+
+  .tablaScroll {
+    max-height: 640px;
+  }
+}

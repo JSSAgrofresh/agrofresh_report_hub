@@ -448,8 +448,10 @@
 /* ── un panel por laboratorio y análisis ── */
 .paneles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+  /* auto-fit: los paneles se reparten TODO el ancho (4 paneles = 4 columnas si caben). */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: var(--space-3);
+  align-items: start;
 }
 
 .panelAnalisis {
