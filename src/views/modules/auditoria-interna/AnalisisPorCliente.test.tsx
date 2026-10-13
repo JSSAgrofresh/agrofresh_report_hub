@@ -22,19 +22,15 @@ describe('AnalisisPorCliente', () => {
     sol('QUITECA', 'MULTIFRUTA'),
   ]
 
-  it('cada cliente es un bloque de filas: Residuales con su desglose por laboratorio y su %, FSMA y FITO', () => {
+  it('cada cliente tiene una fila por análisis: Residuales con AgroFresh y Quiteca en columnas (cantidad y %), FSMA y FITO', () => {
     render(<AnalisisPorCliente solicitudes={lista} />)
     const filas = screen.getAllByRole('row').slice(2)
-    // DOLE: Residuales, AgroFresh, Quiteca, FSMA, FITO
+    // DOLE: Residuales, FSMA, FITO
     expect(within(filas[0]).getByText('DOLE CHILE S.A.')).toBeTruthy()
     expect(within(filas[0]).getByText('Residuales')).toBeTruthy()
-    expect(within(filas[0]).getByText('2')).toBeTruthy()
-    expect(within(filas[1]).getByText('AgroFresh')).toBeTruthy()
-    expect(within(filas[1]).getByText('50%')).toBeTruthy()
-    expect(within(filas[2]).getByText('Quiteca')).toBeTruthy()
-    expect(within(filas[2]).getByText('50%')).toBeTruthy()
-    expect(within(filas[3]).getByText('FSMA')).toBeTruthy()
-    expect(within(filas[4]).getByText('FITO')).toBeTruthy()
+    expect(within(filas[0]).getAllByText('50%')).toHaveLength(2)
+    expect(within(filas[1]).getByText('FSMA')).toBeTruthy()
+    expect(within(filas[2]).getByText('FITO')).toBeTruthy()
     expect(screen.getByText('MULTIFRUTA')).toBeTruthy()
     expect(screen.getByText('Entregables')).toBeTruthy()
   })
