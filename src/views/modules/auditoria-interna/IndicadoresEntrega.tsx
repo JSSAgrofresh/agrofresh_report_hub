@@ -437,7 +437,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
             <b>De dónde sale cada fecha.</b> Emisión: cuándo se creó la solicitud; la recepción en el laboratorio se estima {RECEPCION_ESTIMADA_DIAS} día después (no la conocemos).
             Informe: la «fecha de envío» anotada al subir el PDF o, si no, cuando se subió{lead.entregadas ? ` (${nf.format(lead.conFechaAnotada)} de ${nf.format(lead.entregadas)} tienen fecha anotada)` : ''}.
             Report: cuándo se hizo la carga de datos{lead.sinFechaReport ? `; en ${nf.format(lead.sinFechaReport)} no hay fecha de carga y se usó la del informe` : ''}.
-            {definicion === 'cliente' && ' Cliente: el primer envío en modo producción desde «Envío de informes», amarrado a la solicitud.'}
+            {definicion === 'cliente' && ' Cliente: la fecha del check «enviado al cliente» marcado a mano.'}
           </Ayuda>
         </p>
 
