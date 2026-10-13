@@ -12,7 +12,7 @@ import {
 } from 'chart.js'
 import type { Plugin, ScriptableContext } from 'chart.js'
 import { LABORATORIOS_GRAFICO, NOMBRE_LAB, nombreTipo, tituloDonaTipo } from '@/features/auditoriaInterna'
-import type { GrupoLaboratorios, LaboratorioResumen, Totales } from '@/features/auditoriaInterna'
+import type { LaboratorioResumen, PanelAnalisis, Totales } from '@/features/auditoriaInterna'
 import { ESTADOS, ESTADOS_DONA, ORDEN_ESTADOS } from './estados'
 import { COLOR_LAB, colorDeTipo, tonosDeTipo } from './coloresTipo'
 import styles from './Graficos.module.css'
@@ -248,118 +248,103 @@ export function GraficoTotalPorLaboratorio({ laboratorios }: { laboratorios: Lab
 
 // ── análisis vs informes por grupo, con los 4 laboratorios ──────────────
 
-/** Por grupo (Sold To, Ship To, especie o tipo de servicio), una tarjeta con una
- * barra de avance por cada laboratorio que tuvo análisis: lo lleno son los informes
- * concretados sobre lo pedido. Solo salen los laboratorios con datos. */
-export function GraficoGrupoLaboratorio({ grupos }: { grupos: GrupoLaboratorios[] }) {
+/** Un panel por laboratorio y análisis (ALS · FSMA, Quiteca · Análisis de residuos en fruta…) con
+ * sus mejores clientes: cuántos análisis pidió cada uno y cuántos ya tienen informe. */
+export function GraficoAnalisisPorLaboratorio({ paneles, nombre }: { paneles: PanelAnalisis[]; nombre: string }) {
   return (
-    <ul className={styles.grupos} aria-label="Análisis pedidos e informes concretados, por laboratorio">
-      {grupos.map((g, i) => {
-        const labs = LABORATORIOS_GRAFICO.filter((l) => (g.labs[l]?.analisis ?? 0) > 0)
-        const informes = labs.reduce((n, l) => n + g.labs[l].informes, 0)
-        const pedidos = labs.reduce((n, l) => n + g.labs[l].analisis, 0)
+    <div className={styles.paneles}>
+      {paneles.map((p) => {
+        const color = COLOR_LAB[p.laboratorio] ?? '#6b7770'
+        const maximo = Math.max(1, ...p.filas.map((f) => f.analisis))
         return (
-          <li key={g.grupo} className={`${styles.grupo} ${i < 3 ? styles.podio : ''}`} data-puesto={i < 3 ? i + 1 : undefined}>
+          <section key={`${p.laboratorio}|${p.analisis}`} className={styles.panelAnalisis} style={{ borderTopColor: color }} aria-label={`${NOMBRE_LAB[p.laboratorio] ?? p.laboratorio}: ${p.analisis}`}>
             <header>
-              {i < 3 && <span className={styles.medalla} title={`Puesto ${i + 1} por solicitudes`}>{i + 1}</span>}
-              <strong title={g.grupo}>{g.grupo}</strong>
-              <span>{nf.format(informes)} de {nf.format(pedidos)} con informe</span>
+              <span className={styles.laboratorio}>
+                <i style={{ background: color }} />
+                {NOMBRE_LAB[p.laboratorio] ?? p.laboratorio}
+              </span>
+              <h4>{p.analisis}</h4>
+              <p>
+                <b>{nf.format(p.total)}</b> análisis pedidos · <b>{nf.format(p.informes)}</b> con informe
+              </p>
             </header>
-            {labs.map((l) => {
-              const par = g.labs[l]
-              const pct = Math.round((par.informes / par.analisis) * 100)
-              return (
-                <div key={l} className={styles.filaLab}>
-                  <span className={styles.nombreLab}>{NOMBRE_LAB[l]}</span>
-                  <div
-                    className={styles.pista}
-                    style={{ background: `${COLOR_LAB[l]}26` }}
+            <ol>
+              {p.filas.map((f, i) => (
+                <li key={f.grupo} className={i < 3 ? styles.top : undefined}>
+                  <span className={styles.puesto} data-puesto={i < 3 ? i + 1 : undefined}>{i + 1}</span>
+                  <span className={styles.nombreFila} title={f.grupo}>{f.grupo}</span>
+                  <span
+                    className={styles.pistaAnalisis}
+                    style={{ width: `${(f.analisis / maximo) * 100}%`, background: `${color}30` }}
                     role="img"
-                    aria-label={`${NOMBRE_LAB[l]}: ${par.informes} de ${par.analisis} informes concretados (${pct}%)`}
+                    aria-label={`${f.grupo}: ${f.informes} de ${f.analisis} con informe`}
                   >
-                    <div className={styles.relleno} style={{ width: `${pct}%`, background: COLOR_LAB[l] }} />
-                  </div>
-                  <span className={styles.cifra}>
-                    <b>{pct}%</b> <small>{par.informes}/{par.analisis}</small>
+                    <span style={{ width: `${(f.informes / f.analisis) * 100}%`, background: color }} />
                   </span>
-                </div>
-              )
-            })}
-          </li>
+                  <span className={styles.contador}>
+                    <b>{nf.format(f.analisis)}</b>
+                    <small>{f.informes} con informe</small>
+                  </span>
+                </li>
+              ))}
+            </ol>
+            {p.nGrupos > p.filas.length && (
+              <p className={styles.masFilas}>y {nf.format(p.nGrupos - p.filas.length)} {nombre.toLowerCase()} más</p>
+            )}
+          </section>
         )
       })}
-    </ul>
+    </div>
   )
 }
 
-// ── piezas comunes ──────────────────────────────────────────────────────
-
-export function LeyendaEstados() {
-  return (
-    <ul className={styles.leyenda} aria-label="Leyenda de estados">
-      {ORDEN_ESTADOS.map((e) => (
-        <li key={e}>
-          <span className={styles.muestra} style={{ background: ESTADOS[e].color }} />
-          {ESTADOS[e].texto}
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-/** La misma información en tabla: una fila por grupo, una celda con barra por laboratorio. */
-export function TablaGrupoLaboratorio({ grupos, nombre }: { grupos: GrupoLaboratorios[]; nombre: string }) {
+/** La misma información en tabla: laboratorio · análisis · grupo, con sus análisis e informes. */
+export function TablaGrupoLaboratorio({ paneles, nombre }: { paneles: PanelAnalisis[]; nombre: string }) {
   return (
     <div className={styles.tablaGrupo}>
       <table>
         <thead>
           <tr>
-            <th>#</th>
+            <th>Laboratorio</th>
+            <th>Análisis</th>
             <th>{nombre}</th>
+            <th className={styles.num}>Análisis pedidos</th>
             <th className={styles.num}>Con informe</th>
-            {LABORATORIOS_GRAFICO.map((l) => (
-              <th key={l}>
-                <span className={styles.puntoLab} style={{ background: COLOR_LAB[l] }} />
-                {NOMBRE_LAB[l]}
-              </th>
-            ))}
+            <th>Avance</th>
           </tr>
         </thead>
         <tbody>
-          {grupos.map((g, i) => {
-            const informes = LABORATORIOS_GRAFICO.reduce((n, l) => n + (g.labs[l]?.informes ?? 0), 0)
-            const pedidos = LABORATORIOS_GRAFICO.reduce((n, l) => n + (g.labs[l]?.analisis ?? 0), 0)
-            return (
-              <tr key={g.grupo} className={i < 3 ? styles.filaPodio : undefined}>
-                <td className={styles.puesto}>{i < 3 ? <span className={styles.medalla}>{i + 1}</span> : i + 1}</td>
-                <th scope="row" title={g.grupo}>{g.grupo}</th>
-                <td className={styles.num}><b>{nf.format(informes)}</b> / {nf.format(pedidos)}</td>
-                {LABORATORIOS_GRAFICO.map((l) => {
-                  const par = g.labs[l]
-                  if (!par || par.analisis === 0) return <td key={l} className={styles.vacia}>—</td>
-                  const pct = Math.round((par.informes / par.analisis) * 100)
-                  return (
-                    <td key={l}>
-                      <span className={styles.celdaLab}>
-                        <span className={styles.pista} style={{ background: `${COLOR_LAB[l]}26` }}>
-                          <span className={styles.relleno} style={{ width: `${pct}%`, background: COLOR_LAB[l] }} />
-                        </span>
-                        <b>{par.informes}</b>/{par.analisis}
+          {paneles.flatMap((p) =>
+            p.filas.map((f, i) => {
+              const color = COLOR_LAB[p.laboratorio] ?? '#6b7770'
+              const pct = Math.round((f.informes / f.analisis) * 100)
+              return (
+                <tr key={`${p.laboratorio}|${p.analisis}|${f.grupo}`} className={i === 0 ? styles.inicioPanel : undefined}>
+                  <td>{i === 0 && <><span className={styles.puntoLab} style={{ background: color }} />{NOMBRE_LAB[p.laboratorio] ?? p.laboratorio}</>}</td>
+                  <td className={styles.analisisTabla}>{i === 0 ? p.analisis : ''}</td>
+                  <th scope="row" title={f.grupo}>{f.grupo}</th>
+                  <td className={styles.num}><b>{nf.format(f.analisis)}</b></td>
+                  <td className={styles.num}>{nf.format(f.informes)}</td>
+                  <td>
+                    <span className={styles.celdaLab}>
+                      <span className={styles.pista} style={{ background: `${color}26` }}>
+                        <span className={styles.relleno} style={{ width: `${pct}%`, background: color }} />
                       </span>
-                    </td>
-                  )
-                })}
-              </tr>
-            )
-          })}
+                      {pct}%
+                    </span>
+                  </td>
+                </tr>
+              )
+            }),
+          )}
         </tbody>
       </table>
     </div>
   )
 }
 
-/** Leyenda del gráfico por grupo: color = laboratorio; sólido = informes
- * concretados, claro = análisis aún sin informe. Siempre salen los cuatro. */
+/** Leyenda del gráfico por análisis: color = laboratorio; barra llena = informes
+ * concretados, clara = análisis aún sin informe. Siempre salen los cuatro. */
 export function LeyendaLaboratorios() {
   return (
     <ul className={styles.leyenda} aria-label="Leyenda">
@@ -372,7 +357,7 @@ export function LeyendaLaboratorios() {
           {NOMBRE_LAB[l]}
         </li>
       ))}
-      <li className={styles.leyendaTipo}><em>barra llena = informes concretados · vacía = aún sin informe</em></li>
+      <li className={styles.leyendaTipo}><em>largo = análisis pedidos · lleno = con informe</em></li>
     </ul>
   )
 }

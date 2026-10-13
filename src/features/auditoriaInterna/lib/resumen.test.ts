@@ -5,6 +5,7 @@ import {
   pendientesDeInforme,
   porClienteYServicio,
   porGrupoYLaboratorio,
+  porLaboratorioYAnalisis,
   porLaboratorio,
   resumenPorTipo,
   solicitudesACsv,
@@ -249,5 +250,46 @@ describe('porGrupoYLaboratorio', () => {
     expect(porGrupoYLaboratorio(lista, 'especie', 0)[0].grupo).toBe('Cerezas')
     expect(porGrupoYLaboratorio(lista, 'tipo', 0)[0].grupo).toBe('Actimist')
     expect(porGrupoYLaboratorio(lista, 'cliente', 1)).toHaveLength(1)
+  })
+})
+
+describe('porLaboratorioYAnalisis', () => {
+  const lista = [
+    sol({ laboratorio: 'ALS', sold_to: 'Dole', analisis: ['FSMA'], concretada: true }),
+    sol({ laboratorio: 'ALS', sold_to: 'Dole', analisis: ['FSMA'] }),
+    sol({ laboratorio: 'ALS', sold_to: 'Multi', analisis: ['FSMA'] }),
+    sol({ laboratorio: 'Quiteca', sold_to: 'Dole', analisis: ['ANÁLISIS DE RESIDUOS EN FRUTA'], concretada: true }),
+    sol({ laboratorio: 'Diagnofruit', sold_to: 'Dole', analisis: ['CUANTIFICACIÓN DE PATÓGENOS'] }),
+    sol({ laboratorio: 'Quiteca', sold_to: 'Multi', analisis: [] }),
+    sol({ laboratorio: 'Otro lab', sold_to: 'Dole', analisis: ['X'] }),
+  ]
+
+  it('un panel por laboratorio y análisis, en el orden de los laboratorios, con sus clientes de mayor a menor', () => {
+    const p = porLaboratorioYAnalisis(lista, 'cliente', 0)
+    expect(p.map((x) => `${x.laboratorio}|${x.analisis}`)).toEqual([
+      'QUITECA|ANÁLISIS DE RESIDUOS EN FRUTA',
+      'QUITECA|Sin análisis definido',
+      'ALS|FSMA',
+      'DIAGNOFRUIT|CUANTIFICACIÓN DE PATÓGENOS',
+    ])
+    const als = p[2]
+    expect(als.total).toBe(3)
+    expect(als.informes).toBe(1)
+    expect(als.filas).toEqual([
+      { grupo: 'Dole', analisis: 2, informes: 1 },
+      { grupo: 'Multi', analisis: 1, informes: 0 },
+    ])
+  })
+
+  it('el top recorta las filas pero no los totales', () => {
+    const als = porLaboratorioYAnalisis(lista, 'cliente', 1).find((x) => x.laboratorio === 'ALS')!
+    expect(als.filas).toHaveLength(1)
+    expect(als.total).toBe(3)
+    expect(als.nGrupos).toBe(2)
+  })
+
+  it('una solicitud que pidió dos análisis cuenta en cada uno', () => {
+    const p = porLaboratorioYAnalisis([sol({ laboratorio: 'Quiteca', analisis: ['A', 'B'] })], 'cliente', 0)
+    expect(p.map((x) => x.analisis)).toEqual(['A', 'B'])
   })
 })
