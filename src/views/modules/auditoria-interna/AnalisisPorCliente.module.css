@@ -189,3 +189,21 @@
 .tabla .colAnalisis { width: auto; min-width: 0; }
 .tabla .gEntregable { width: auto; min-width: 0; }
 .subs th { top: 0; position: static; }
+
+/* Reparto final: ocupa todo el ancho con columnas proporcionales (sin huecos ni nombres cortados de más) */
+.caja { width: 100%; }
+.tabla { width: 100%; table-layout: fixed; }
+.tabla .colCliente, .tabla tbody .cliente, .tabla tfoot .cliente { width: auto; min-width: 0; max-width: none; }
+.cliente span { max-width: calc(100% - 34px); }
+.cliente { white-space: normal; }
+.tabla th, .tabla td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tabla .cliente { white-space: normal; }
+.totalCliente { margin-left: 28px; }
+.tabla td.pct { text-align: center; }
+@media (max-width: 760px) {
+  .tabla { table-layout: auto; min-width: 640px; }
+}
+
+/* La cantidad y su % quedan pegados, en la misma línea del laboratorio */
+.tabla td.cant { text-align: right; padding-right: 4px; }
+.tabla td.pct, .tabla td.pctVacio { text-align: left; padding-left: 4px; }
