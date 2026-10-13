@@ -175,6 +175,8 @@ async def subir_informe(
     fecha_envio: str = Form(""),
     fecha: str = Form(""),
     analisis: str = Form(""),
+    # «Envío a cliente» de Converter: el informe ya salió al cliente (no es una prueba interna).
+    enviado_cliente: str = Form(""),
     usuario: Usuario = Depends(usuario_actual),
 ) -> dict:
     """Guarda el PDF en <laboratorio>/<ship to>/ (la carpeta se crea sola con el
@@ -281,7 +283,15 @@ async def subir_informe(
             r2a.eliminar(previo["r2_key"])
         except Exception:
             logger.exception("No se pudo borrar el PDF anterior %s", previo["r2_key"])
-    return {"id": nuevo_id, "ruta": key, "ruta_informes": ruta_informes}
+    marcado = False
+    if ot and enviado_cliente.strip().lower() in ("1", "true", "si", "sí"):
+        try:
+            from . import envio_cliente
+            with conexion(escribir=True) as conn, conn.cursor() as cur:
+                marcado = envio_cliente.marcar(cur, [ot], usuario, "converter", envio) > 0
+        except Exception:
+            logger.exception("No se pudo marcar %s como enviado al cliente (¿falta la migración 0058?)", ot)
+    return {"id": nuevo_id, "ruta": key, "ruta_informes": ruta_informes, "enviado_cliente": marcado}
 
 
 # ── Panel ───────────────────────────────────────────────────────────────

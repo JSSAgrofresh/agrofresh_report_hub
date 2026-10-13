@@ -34,6 +34,8 @@ import {
   listarInformesDeSolicitudes,
   abrirPdfInformeSolicitud,
   descargarPdfInformeSolicitud,
+  marcarEnviadoCliente,
+  desmarcarEnviadoCliente,
   enviarSolicitudPorCorreo,
   estadoSolicitudesPrueba,
   ESTADOS_DE_VISTA,
@@ -146,8 +148,9 @@ export function SolicitudesView() {
   const [guardando, setGuardando] = useState(false)
 
   const [avisoMasivo, setAvisoMasivo] = useState<string | null>(null)
-  const [trabajando, setTrabajando] = useState<null | 'pdf' | 'excel' | 'enviar'>(null)
+  const [trabajando, setTrabajando] = useState<null | 'pdf' | 'excel' | 'enviar' | 'marcar'>(null)
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
+  const [fechaEnvioCliente, setFechaEnvioCliente] = useState('')
 
   useEffect(() => {
     estadoSolicitudesPrueba()
@@ -298,7 +301,7 @@ export function SolicitudesView() {
     ? `Excel (${seleccionadas.size})`
     : hayFiltrosActivos ? `Excel filtrado (${visibles.length})` : 'Descargar Excel'
 
-  async function correr(tarea: 'pdf' | 'excel' | 'enviar', fn: () => Promise<void>) {
+  async function correr(tarea: 'pdf' | 'excel' | 'enviar' | 'marcar', fn: () => Promise<void>) {
     setTrabajando(tarea)
     setAvisoMasivo(null)
     try {
@@ -308,6 +311,21 @@ export function SolicitudesView() {
     } finally {
       setTrabajando(null)
     }
+  }
+
+  /** Deja las seleccionadas que tienen informe como «enviado al cliente» (o les quita la marca). */
+  async function marcarEnvioCliente(marcar: boolean) {
+    const archivos = filasSeleccionadas.filter((x) => x.informe).map((x) => x.archivo)
+    if (archivos.length === 0) return
+    await correr('marcar', async () => {
+      if (marcar) {
+        await marcarEnviadoCliente(archivos, fechaEnvioCliente ? new Date(`${fechaEnvioCliente}T12:00:00`).toISOString() : undefined)
+      } else {
+        await desmarcarEnviadoCliente(archivos)
+      }
+      await refrescar()
+      setAvisoMasivo(`${plural(archivos.length, 'solicitud', 'solicitudes')} ${marcar ? 'marcada(s) como enviada(s) al cliente' : 'sin marca de envío al cliente'}.`)
+    })
   }
 
   async function enviarPendientes() {
@@ -454,6 +472,22 @@ export function SolicitudesView() {
         </button>
       )}
 
+      {resumen.sin_envio > 0 && (
+        <button
+          type="button"
+          className={`${styles.avisoSinReport} ${vistaActiva === 'sin_envio' ? styles.avisoSinReportActivo : ''}`}
+          onClick={() => elegirVista('sin_envio')}
+          aria-pressed={vistaActiva === 'sin_envio'}
+        >
+          <IconoAlerta width={16} height={16} />
+          <span>
+            <b>{plural(resumen.sin_envio, 'informe', 'informes')}</b> sin marcar como enviado al cliente.
+            Selecciónalos y usa «Marcar enviado al cliente» para los que ya salieron.
+          </span>
+          <span className={styles.avisoAccion}>{vistaActiva === 'sin_envio' ? 'Ver todas' : 'Ver cuáles'}</span>
+        </button>
+      )}
+
       <section className={styles.tablaCard} aria-label="Solicitudes">
         {/* Barra: buscador, filtros y descargas */}
         <div className={styles.barra}>
@@ -578,6 +612,21 @@ export function SolicitudesView() {
               </button>
               <button type="button" className={styles.botonSelPrincipal} disabled={trabajando !== null || pendientesSel.length === 0} onClick={() => void enviarPendientes()}>
                 {trabajando === 'enviar' ? 'Enviando…' : `Enviar pendientes (${pendientesSel.length})`}
+              </button>
+              <input
+                type="date"
+                className={styles.fechaEnvio}
+                value={fechaEnvioCliente}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setFechaEnvioCliente(e.target.value)}
+                aria-label="Fecha en que se envió el informe al cliente (opcional)"
+                title="Fecha en que se envió el informe al cliente (opcional; sin fecha queda la de hoy)"
+              />
+              <button type="button" className={styles.botonSel} disabled={trabajando !== null || !filasSeleccionadas.some((x) => x.informe)} onClick={() => void marcarEnvioCliente(true)} title="Deja anotado que el informe de estas solicitudes ya se entregó al cliente">
+                {trabajando === 'marcar' ? 'Guardando…' : 'Marcar enviado al cliente'}
+              </button>
+              <button type="button" className={styles.botonSelSuave} disabled={trabajando !== null || !filasSeleccionadas.some((x) => x.informe?.envio_cliente)} onClick={() => void marcarEnvioCliente(false)}>
+                Quitar envío
               </button>
               <button type="button" className={styles.botonSelSuave} onClick={() => setSeleccionadas(new Set())}>
                 Quitar selección

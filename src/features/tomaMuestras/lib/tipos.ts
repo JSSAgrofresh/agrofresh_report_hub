@@ -72,6 +72,8 @@ export interface InformeSolicitud {
    * el informe (referencia en Report) y que planta, especie y fecha de muestreo
    * calcen con la solicitud. */
   verificacion?: VerificacionOt
+  /** Cuándo se marcó el informe como enviado al cliente (a mano, desde Converter o desde esta pantalla). */
+  envio_cliente?: string | null
 }
 
 export interface VerificacionOt {

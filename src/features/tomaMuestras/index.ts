@@ -26,6 +26,8 @@ export {
   crearSolicitudReanalisis,
   estadoSolicitudesPrueba,
   crearSolicitudPrueba,
+  marcarEnviadoCliente,
+  desmarcarEnviadoCliente,
 } from './lib/api'
 export {
   listarCamposConfig,

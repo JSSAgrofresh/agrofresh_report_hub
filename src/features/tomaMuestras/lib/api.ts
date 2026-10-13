@@ -71,6 +71,15 @@ export function quitarInformeDeSolicitud(archivo: string, password: string) {
   )
 }
 
+/** Marca solicitudes como «informe enviado al cliente». `fecha` (ISO, opcional): cuándo salió de verdad; sin ella, hoy. */
+export function marcarEnviadoCliente(archivos: string[], fecha?: string) {
+  return httpClient.post<{ marcadas: number }>('/envio-cliente/marcar', { archivos, fecha: fecha || null })
+}
+
+export function desmarcarEnviadoCliente(archivos: string[]) {
+  return httpClient.post<{ desmarcadas: number }>('/envio-cliente/desmarcar', { archivos })
+}
+
 /** Si la cuenta puede crear solicitudes de prueba. */
 export function estadoSolicitudesPrueba() {
   return httpClient.get<EstadoSolicitudesPrueba>('/toma-muestras/solicitudes-prueba/estado')

@@ -16,6 +16,7 @@ from .correcciones import router as correcciones_router
 from .listas_distribucion import router as listas_distribucion_router
 from .ficha_informe import router as ficha_informe_router
 from .informes_solicitud import router as informes_solicitud_router
+from .envio_cliente import router as envio_cliente_router
 from .correo import router as correo_router
 from .envio_informes import router as envio_informes_router
 from .catalogo import router as catalogo_router
@@ -131,6 +132,7 @@ for _router in (
     listas_distribucion_router,
     ficha_informe_router,
     informes_solicitud_router,
+    envio_cliente_router,
     catalogo_router,
     postventa_router,
     storage_router,

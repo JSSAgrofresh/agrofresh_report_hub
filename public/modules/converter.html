@@ -152,6 +152,14 @@ table.uni td.amarre{white-space:normal;min-width:260px}
 select.ot,input.envio{font-family:var(--ui);font-size:13px;padding:6px 8px;border:1px solid var(--borde-f);
   border-radius:6px;background:var(--sup);color:var(--tinta);max-width:100%}
 select.ot.sugerida{border-color:var(--verde-osc);background:#F2F8EC}
+.mvel{position:fixed;inset:0;background:rgba(20,30,20,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.mcaja{background:#fff;border-radius:12px;max-width:620px;width:100%;max-height:85vh;overflow:auto;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.mcaja h3{margin:0 0 6px;font-size:17px}
+.mcaja .it{border:1px solid var(--borde-f);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:13px}
+.mcaja .it b{display:block;margin-bottom:3px}
+.mcaja .acc{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.envcli{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.envcli button{background:none;border:0;padding:0;color:var(--verde-osc);text-decoration:underline;cursor:pointer;font-size:12px;text-align:left}
 @media (max-width:760px){ .labs{flex-direction:column} }
 </style>
 </head>
@@ -1795,6 +1803,16 @@ $("btnSubir").onclick = async () => {
       "\nSi ya los habías subido, no se duplican: el PDF se reemplaza en su mismo lugar." +
       "\n\n¿Confirmar la carga a la base de datos?";
     if(!confirm(msg)){ pie.textContent = "Carga cancelada."; btn.disabled = false; return; }
+    // Los que NO se marcan como enviados al cliente (pruebas internas): se muestra su servicio y lista.
+    const sinEnvio = ok.filter(i => !i.enviado && !esPropio(i) && (i.ot || i.datos["OT"]));
+    if(sinEnvio.length){
+      pie.textContent = "Leyendo el servicio y la lista de los informes sin envío…";
+      const items = await Promise.all(sinEnvio.map(async i => ({titulo: i.archivo, ctx: await contextoEnvio(i.ot || i.datos["OT"])})));
+      const sigue = await new Promise(res => mostrarModal(
+        sinEnvio.length + " informe(s) NO se marcarán como enviados al cliente", items, res,
+        "Quedarán cargados en el sistema pero sin envío al cliente (prueba interna). Si ya salieron, vuelve y marca «Enviado al cliente»."));
+      if(!sigue){ pie.textContent = "Carga cancelada."; btn.disabled = false; return; }
+    }
     pie.textContent = "Subiendo a la base de datos…";
     const conf = await llamarIngest("confirmar", filas, archivos);
     const c = conf.resumen;
@@ -1887,7 +1905,7 @@ function pintarAmarre(ok){
   });
 
   const cab = tabla.createTHead().insertRow();
-  ["Informe", "Laboratorio", "Ship To", "Solicitud (OT)", "Fecha y hora de envío"].forEach(t => {
+  ["Informe", "Laboratorio", "Ship To", "Solicitud (OT)", "Fecha y hora de envío", "Envío a cliente"].forEach(t => {
     const th = document.createElement("th"); th.textContent = t; cab.appendChild(th);
   });
   const cuerpo = tabla.createTBody();
@@ -1949,7 +1967,63 @@ function pintarAmarre(ok){
     inp.type = "datetime-local"; inp.className = "envio"; inp.value = inf.envio || "";
     inp.onchange = () => { inf.envio = inp.value; };
     tdEnvio.appendChild(inp);
+
+    // «Envío a cliente»: deja el informe marcado como enviado en el sistema. Sin marcar = prueba interna.
+    const tdCli = tr.insertCell();
+    const caja = document.createElement("div"); caja.className = "envcli";
+    const lab = document.createElement("label");
+    const chk = document.createElement("input");
+    chk.type = "checkbox"; chk.checked = !!inf.enviado;
+    chk.onchange = () => { inf.enviado = chk.checked; };
+    lab.appendChild(chk); lab.appendChild(document.createTextNode(" Enviado al cliente"));
+    caja.appendChild(lab);
+    const ref = inf.ot || inf.datos["OT"];
+    if(ref && !esPropio(inf)){
+      const ver = document.createElement("button");
+      ver.type = "button"; ver.textContent = "Ver servicio y lista";
+      ver.onclick = async () => { const c = await contextoEnvio(ref); mostrarModal("Servicio y lista de distribución", [{titulo: inf.archivo, ctx: c}], null); };
+      caja.appendChild(ver);
+    }
+    tdCli.appendChild(caja);
   });
+}
+
+/* Tipo de servicio y lista de distribución de la solicitud (null si no se puede leer). */
+async function contextoEnvio(ref){
+  try{
+    const r = await fetch(API_BASE + "/envio-cliente/contexto?ot=" + encodeURIComponent(ref), {headers: autorizacion()});
+    return r.ok ? await r.json() : null;
+  }catch(e){ return null; }
+}
+
+/* Modal simple. `onDecidir` null = solo informativo (Cerrar); si no, recibe true/false (Subir igual / Volver). */
+function mostrarModal(titulo, items, onDecidir, intro){
+  const vel = document.createElement("div"); vel.className = "mvel";
+  const caja = document.createElement("div"); caja.className = "mcaja";
+  const h = document.createElement("h3"); h.textContent = titulo; caja.appendChild(h);
+  if(intro){ const p = document.createElement("div"); p.className = "pie"; p.textContent = intro; caja.appendChild(p); }
+  items.forEach(({titulo: t, ctx}) => {
+    const it = document.createElement("div"); it.className = "it";
+    const b = document.createElement("b"); b.textContent = t; it.appendChild(b);
+    const l = (txt) => { const d = document.createElement("div"); d.textContent = txt; it.appendChild(d); };
+    if(!ctx){ l("No se pudo leer la solicitud de este informe (sin OT amarrada)."); }
+    else{
+      l("Tipo de servicio: " + ctx.servicio);
+      l("Sold To / Ship To: " + (ctx.sold_to || "—") + " / " + (ctx.ship_to || "—"));
+      l(ctx.sin_lista ? "Lista de distribución: la planta no tiene lista del cliente cargada." :
+        "Para: " + (ctx.para.join(", ") || "—"));
+      if(ctx.cc.length) l("Copia: " + ctx.cc.join(", "));
+    }
+    caja.appendChild(it);
+  });
+  const acc = document.createElement("div"); acc.className = "acc";
+  const cerrar = (v) => { vel.remove(); if(onDecidir) onDecidir(v); };
+  const mk = (txt, v) => { const bt = document.createElement("button"); bt.type = "button"; bt.textContent = txt; bt.onclick = () => cerrar(v); return bt; };
+  if(onDecidir){ acc.appendChild(mk("Volver", false)); acc.appendChild(mk("Subir sin marcar como enviado", true)); }
+  else acc.appendChild(mk("Cerrar", null));
+  caja.appendChild(acc); vel.appendChild(caja);
+  vel.onclick = (e) => { if(e.target === vel) cerrar(onDecidir ? false : null); };
+  document.body.appendChild(vel);
 }
 
 $("btnEnvioTodos").onclick = () => {
@@ -1978,6 +2052,7 @@ async function subirPdfs(ok){
     fd.append("fecha", aISO(inf.datos["Fecha Muestreo"]) || inf.datos["Fecha Muestreo"] || "");
     fd.append("analisis", inf.datos["Tipo de servicio"] || "");
     fd.append("fecha_envio", inf.envio ? new Date(inf.envio).toISOString() : "");
+    fd.append("enviado_cliente", inf.enviado ? "1" : "");
     try{
       const r = await fetch(API_BASE + "/auditoria-interna/informes", {method: "POST", headers: autorizacion(), body: fd});
       if(!r.ok){

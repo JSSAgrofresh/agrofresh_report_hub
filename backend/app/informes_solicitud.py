@@ -170,6 +170,7 @@ def _filas(cur, sql: str) -> list[dict]:
         return []
 
 
+_SQL_ENVIO_CLIENTE = "SELECT archivo, enviado_en FROM envio_cliente_manual"
 _SQL_AUDITORIA = (
     "SELECT id, archivo_solicitud, numero_solicitud, nro_informe, nombre_archivo, r2_key, subido_en, laboratorio"
     " FROM informe_auditoria ORDER BY subido_en ASC, id ASC"
@@ -222,6 +223,7 @@ def informes_de_solicitudes(usuario: Usuario = Depends(solo_interno)) -> dict[st
         report = _filas(cur, _SQL_REPORT)
         en_report = {f["nro"] for f in _filas(cur, _SQL_INFORMES_EN_REPORT)}
         detalle = _filas(cur, _SQL_REPORT_DETALLE)
+        manuales = {f["archivo"]: f["enviado_en"] for f in _filas(cur, _SQL_ENVIO_CLIENTE)}
     salida = asociar([(a, n) for a, n, _ in visibles], auditoria, report, en_report)
     # ¿Cada informe está bien cruzado con su OT? (lo que dice el propio informe)
     por_nro: dict[str, list[dict]] = {}
@@ -229,6 +231,7 @@ def informes_de_solicitudes(usuario: Usuario = Depends(solo_interno)) -> dict[st
         por_nro.setdefault(_limpio(f.get("nro_solicitud")).upper(), []).append(f)
     for archivo, numero, datos in visibles:
         if archivo in salida:
+            salida[archivo]["envio_cliente"] = manuales[archivo].isoformat() if archivo in manuales else None
             salida[archivo]["verificacion"] = verificar(numero, datos, salida[archivo]["numeros"], por_nro)
     return salida
 

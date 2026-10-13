@@ -3,7 +3,7 @@ import type { Solicitud } from './tipos'
 /** Estados que se pueden marcar en el filtro. Enviada y Pendiente son excluyentes
  * entre sí; «Sin lista de distribución» es otra cosa (a quién va el correo).
  * «Con informe» y «Sin informe» también son alternativas entre sí. */
-export type EstadoFiltro = 'enviada' | 'pendiente' | 'sin_lista' | 'con_informe' | 'sin_informe' | 'sin_report' | 'ot_revisar'
+export type EstadoFiltro = 'enviada' | 'pendiente' | 'sin_lista' | 'con_informe' | 'sin_informe' | 'sin_report' | 'ot_revisar' | 'sin_envio'
 
 /** Los filtros de la lista de solicitudes. Los que son listas se pueden marcar
  * de a varios: dentro de un mismo filtro vale cualquiera de los marcados; entre
@@ -86,6 +86,8 @@ function cumpleEstado(s: Solicitud, estados: EstadoFiltro[]): boolean {
   // Tiene informe (PDF subido) pero sus resultados no entraron a Report.
   if (estados.includes('sin_report') && !(s.informe && !s.informe.en_report)) return false
   if (estados.includes('ot_revisar') && !otPorRevisar(s)) return false
+  // Tiene informe y nadie lo marcó como enviado al cliente.
+  if (estados.includes('sin_envio') && !(s.informe && !s.informe.envio_cliente)) return false
   const envio = estados.filter((e) => e === 'enviada' || e === 'pendiente')
   if (envio.length && !envio.some((e) => (e === 'enviada' ? s.enviada : !s.enviada))) return false
   const informe = estados.filter((e) => e === 'con_informe' || e === 'sin_informe')
@@ -178,7 +180,7 @@ export function opcionesDe(solicitudes: Solicitud[], f: FiltrosSolicitudes): Opc
 
 /** Las vistas rápidas de arriba de Solicitudes e informes: cada indicador es
  * también un filtro de un clic (el filtro Estado con esos valores). */
-export type VistaRapida = 'todas' | 'pendientes' | 'enviadas' | 'esperando' | 'con_informe' | 'sin_report' | 'ot_revisar'
+export type VistaRapida = 'todas' | 'pendientes' | 'enviadas' | 'esperando' | 'con_informe' | 'sin_report' | 'ot_revisar' | 'sin_envio'
 
 export const ESTADOS_DE_VISTA: Record<VistaRapida, EstadoFiltro[]> = {
   todas: [],
@@ -189,6 +191,7 @@ export const ESTADOS_DE_VISTA: Record<VistaRapida, EstadoFiltro[]> = {
   con_informe: ['con_informe'],
   sin_report: ['sin_report'],
   ot_revisar: ['ot_revisar'],
+  sin_envio: ['sin_envio'],
 }
 
 /** Qué vista rápida corresponde al filtro Estado de ahora (null = una
@@ -203,7 +206,7 @@ export function vistaDeEstados(estados: EstadoFiltro[]): VistaRapida | null {
 
 /** Cuántas solicitudes hay en cada vista rápida. */
 export function resumenVistas(lista: Solicitud[]): Record<VistaRapida, number> {
-  const r: Record<VistaRapida, number> = { todas: 0, pendientes: 0, enviadas: 0, esperando: 0, con_informe: 0, sin_report: 0, ot_revisar: 0 }
+  const r: Record<VistaRapida, number> = { todas: 0, pendientes: 0, enviadas: 0, esperando: 0, con_informe: 0, sin_report: 0, ot_revisar: 0, sin_envio: 0 }
   for (const s of lista) {
     r.todas += 1
     if (s.enviada) r.enviadas += 1
@@ -212,6 +215,7 @@ export function resumenVistas(lista: Solicitud[]): Record<VistaRapida, number> {
     if (s.enviada && !s.informe) r.esperando += 1
     if (s.informe && !s.informe.en_report) r.sin_report += 1
     if (otPorRevisar(s)) r.ot_revisar += 1
+    if (s.informe && !s.informe.envio_cliente) r.sin_envio += 1
   }
   return r
 }
@@ -224,6 +228,7 @@ export const ETIQUETA_ESTADO: Record<EstadoFiltro, string> = {
   sin_informe: 'Sin informe',
   sin_report: 'Informe sin Report',
   ot_revisar: 'OT por revisar',
+  sin_envio: 'Informe sin envío a cliente',
 }
 
 type ClaveFiltro = Exclude<keyof FiltrosSolicitudes, 'busqueda'>
