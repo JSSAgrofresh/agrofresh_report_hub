@@ -1,0 +1,18 @@
+.wrap { display: flex; flex-direction: column; gap: var(--space-4); }
+.titulo { margin: 0; font-size: 1.5rem; }
+.nota { margin: 4px 0 0; color: var(--color-text-faint); font-size: 13.5px; }
+.migas { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-bottom: 12px; font-size: 13.5px; color: var(--color-text-muted); }
+.migas button { border: 0; background: none; padding: 2px 4px; font: inherit; color: var(--color-primary-hover); cursor: pointer; border-radius: 6px; }
+.migas button:disabled { color: var(--color-text); font-weight: 700; cursor: default; }
+.migas button:not(:disabled):hover { background: rgba(109, 173, 60, 0.12); }
+.lista { list-style: none; margin: 0; padding: 0; }
+.fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 4px; border-bottom: 1px solid var(--color-border); }
+.fila:last-child { border-bottom: 0; }
+.carpeta { border: 0; background: none; font: inherit; font-weight: 600; cursor: pointer; text-align: left; padding: 0; flex: 1; }
+.carpeta:hover { color: var(--color-primary-hover); }
+.archivo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acciones { display: flex; gap: 8px; flex: none; }
+.acciones button { font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 12px; color: var(--color-primary-hover); background: #fff; border: 1.5px solid var(--color-primary); border-radius: 999px; cursor: pointer; }
+.acciones button:hover { background: rgba(109, 173, 60, 0.12); }
+.error { color: #c0392b; font-size: 13px; }
+.vacio { margin: 8px 0; color: var(--color-text-muted); font-size: 13.5px; }

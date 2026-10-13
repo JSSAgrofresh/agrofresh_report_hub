@@ -13,6 +13,9 @@ export {
   guardarPermisos,
   resumenPermisos,
   buscar,
+  listarInformesCliente,
+  descargarInformeCliente,
+  verInformeCliente,
 } from './lib/api'
 export type {
   EntradaStorage,
