@@ -152,6 +152,7 @@ def armar_hitos(
     reports: dict[str, Any],
     clientes: dict[str, Any],
     observados: dict[str, dict] | None = None,
+    origen_cliente: dict[str, str] | None = None,
 ) -> list[dict]:
     """Une las fuentes por solicitud. Función pura: se prueba sin base."""
     salida = []
@@ -169,6 +170,8 @@ def armar_hitos(
             "report": _iso(reports.get(nro)) if nro else None,
             "en_report": bool(f.get("en_report")),
             "cliente": _iso(clientes.get(f["archivo"])),
+            # De dónde sale: «envio» (Envío de informes, producción) o «manual: <quién lo marcó>».
+            "cliente_origen": (origen_cliente or {}).get(f["archivo"]),
             # Reporte observado: la primera vez que un cliente vio sus resultados, y quiénes.
             "observado": _iso((observados or {}).get(nro, {}).get("t")) if nro else None,
             "observado_por": list((observados or {}).get(nro, {}).get("por") or []) if nro else [],
@@ -212,11 +215,13 @@ def hitos(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
         GROUP BY archivo_solicitud
         """)
     clientes = {f["archivo"]: f["t"] for f in filas_cliente or []}
+    origen = {a: "envio" for a in clientes}
     # Marcas hechas a mano (Converter o Solicitudes e informes): vale la fecha más antigua.
-    for f in _filas("SELECT archivo, enviado_en AS t FROM envio_cliente_manual") or []:
+    for f in _filas("SELECT archivo, enviado_en AS t, marcado_por FROM envio_cliente_manual") or []:
         previo = clientes.get(f["archivo"])
         if previo is None or f["t"] < previo:
             clientes[f["archivo"]] = f["t"]
+            origen[f["archivo"]] = f"manual: {f.get('marcado_por') or '—'}"
     observados = {
         f["nro"]: {"t": f["t"], "por": f["por"]}
         for f in _filas(
@@ -234,7 +239,7 @@ def hitos(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
     amarrados = _filas(
         "SELECT count(*) AS n FROM envio_informe_log WHERE exitoso AND modo = 'produccion' AND archivo_solicitud IS NOT NULL")
     return {
-        "hitos": armar_hitos(base, enviadas, reports, clientes, observados),
+        "hitos": armar_hitos(base, enviadas, reports, clientes, observados, origen),
         "calidad": {
             "envios_a_clientes": totales[0]["n"] if totales else None,
             # None = falta la migración 0054: todavía no se puede amarrar ningún envío.
