@@ -545,6 +545,7 @@ cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
   tiene, el general del laboratorio (`plazoDe`; `analisis` dice cuál fijó el plazo). Sin plazo cargado no se juzga,
   nunca se asume uno. **Los plazos guardados antes de este cambio estaban en días corridos y ahora se leen como
   hábiles: conviene revisarlos.**
+- **(13-10-2026, pedido del usuario) Se quitaron de la pantalla el aviso amarillo «Estimado, no medido» y el panel «Configuración de plazos»**: los plazos y la definición de «entregado» siguen vigentes (`plazos_entrega.json`, `GET/PUT /plazos`) pero ya no hay dónde editarlos en la UI; no los vuelvas a poner sin que lo pidan. Lo que sigue describe cómo era:
 - **La configuración (entregado + plazos) SOLO la ve el administrador general** (desplegable «Configuración de
   plazos», `puedeEditar`); los demás no ven ni el panel ni los inputs. Se quitaron a pedido: el «Cuello de
   botella», la tarjeta «Reglas del cálculo» visible para todos y el «Desglose por tramo»: **no los vuelvas a poner**.
@@ -933,7 +934,7 @@ tocas una, toca la otra.
 
 | Pantalla | Qué es |
 |---|---|
-| Solicitudes e informes | Solicitudes emitidas (`solicitud_archivo`) vs informes recibidos: filtros ocultables (como Report), barras de **solicitudes por laboratorio** (apiladas por estado), **dos donas, una por tipo de servicio** (Actimist en azul, Línea de proceso en violeta; el estado se lee por el tono y los números van en la leyenda), barras de **análisis vs informes por cliente** con botón Ambos / Actimist / Línea de proceso, y una tabla (laboratorio · solicitud · informe · cliente/planta · tipo de análisis · analitos · estado)). Los filtros principales son Cliente y Sucursal (Ship To); los analitos son un desplegable con casilleros, punto de color y conteo, igual que «Ingrediente activo» de Report (`MultiSelectFiltro`). El ícono del informe muestra al pasar el mouse emitida / cargada / enviada. |
+| Solicitudes e informes | Solicitudes emitidas (`solicitud_archivo`) vs informes recibidos: filtros ocultables (como Report), barras de **solicitudes por laboratorio** (apiladas por estado), **dos donas, una por tipo de servicio** (Actimist en azul, Línea de proceso en violeta; el estado se lee por el tono y los números van en la leyenda), gráfico **«Análisis e informes por Sold To»** (desde 13-10-2026: tarjetas con barras de avance por laboratorio, SIN RYD y sin solicitudes sin Sold To; RYD va aparte), y una tabla (laboratorio · solicitud · informe · cliente/planta · tipo de análisis · analitos · estado)). Los filtros principales son Cliente y Sucursal (Ship To); los analitos son un desplegable con casilleros, punto de color y conteo, igual que «Ingrediente activo» de Report (`MultiSelectFiltro`). El ícono del informe muestra al pasar el mouse emitida / cargada / enviada. |
 | Carpetas de auditoría | Navegador de la carpeta **`auditoria/`** dentro del bucket de siempre (`agrofresh-storage`): `<laboratorio>/<ship to>/<archivo>.pdf`. Las carpetas nacen con el primer PDF. En una carpeta se marcan uno, varios o todos los informes y se bajan juntos en un **.zip** (`POST /carpetas/zip`, tope 300 archivos / 400 MB). |
 | Vista por límite de control | El gráfico que antes era una pestaña de Report. Es `ReporteView` con `vistaControl`; en Report ya no existe. |
 

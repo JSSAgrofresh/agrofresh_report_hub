@@ -1,9 +1,7 @@
 import { useMemo, useState } from 'react'
-import { Button } from '@/components/ui/Button'
 import {
   claveLaboratorio,
   RECEPCION_ESTIMADA_DIAS,
-  clavePlazoAnalisis,
   cumplimientoPorAnalisis,
   cumplimientoPorLab,
   evaluarTodas,
@@ -98,12 +96,9 @@ const dia = (iso: string | null | undefined) => (iso ? formatDateCL(iso) : '—'
  * de solicitudes que hay detrás. Las dos únicas reglas que se discuten (qué es
  * «entregado» y el plazo de cada laboratorio) están arriba, a la vista.
  */
-export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: SolicitudAuditoria[]; puedeEditar: boolean }) {
-  const { hitos, calidad, reglas, error, guardar } = useEntrega()
+export function IndicadoresEntrega({ solicitudes }: { solicitudes: SolicitudAuditoria[] }) {
+  const { hitos, reglas, error } = useEntrega()
   const [ahora] = useState(() => Date.now())
-  const [borrador, setBorrador] = useState<{ entregado: Definicion; plazos: Record<string, string> } | null>(null)
-  const [guardando, setGuardando] = useState(false)
-  const [errorGuardar, setErrorGuardar] = useState<string | null>(null)
   const [vistaCum, setVistaCum] = useState<'laboratorio' | 'analisis'>('laboratorio')
   const [labElegido, setLabElegido] = useState('')
   const [labCum, setLabCum] = useState('')
@@ -117,39 +112,9 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
     Object.keys(reglas?.plazos ?? {}).forEach((k) => s.add(k.split('|')[0]))
     return [...s].sort()
   }, [solicitudes, reglas])
-  // Los análisis que se han pedido a cada laboratorio: cada uno puede tener su propio plazo.
-  const analitosPorLab = useMemo(() => {
-    const por = new Map<string, Set<string>>()
-    solicitudes.forEach((x) => {
-      const lab = claveLaboratorio(x.laboratorio)
-      if (!lab) return
-      const set = por.get(lab) ?? new Set<string>()
-      ;(x.analitos ?? []).forEach((a) => { if (a.trim()) set.add(a.trim().toUpperCase()) })
-      por.set(lab, set)
-    })
-    Object.keys(reglas?.plazos ?? {}).forEach((k) => {
-      const [lab, analito] = k.split('|')
-      if (analito) por.set(lab, (por.get(lab) ?? new Set<string>()).add(analito))
-    })
-    return new Map([...por.entries()].map(([lab, set]) => [lab, [...set].sort()]))
-  }, [solicitudes, reglas])
-  // Todas las claves de plazo editables: «LAB» y «LAB|ANALITO».
-  const claves = useMemo(
-    () => labs.flatMap((l) => [l, ...(analitosPorLab.get(l) ?? []).map((a) => clavePlazoAnalisis(l, a))]),
-    [labs, analitosPorLab],
-  )
-
-  // Lo que se calcula: lo guardado, o el borrador si el admin está probando otros valores.
-  const definicion: Definicion = borrador?.entregado ?? reglas?.entregado ?? 'concretado'
-  const plazos = useMemo(() => {
-    if (!borrador) return reglas?.plazos ?? {}
-    const p: Record<string, number> = {}
-    Object.entries(borrador.plazos).forEach(([l, v]) => {
-      const n = Number(v)
-      if (Number.isInteger(n) && n >= 1 && n <= 365) p[l] = n
-    })
-    return p
-  }, [borrador, reglas])
+  // Lo que se calcula: lo guardado en la configuración (ya no se edita desde esta pantalla).
+  const definicion: Definicion = reglas?.entregado ?? 'concretado'
+  const plazos = useMemo(() => reglas?.plazos ?? {}, [reglas])
 
   const ev = useMemo(
     () => (hitos ? evaluarTodas(solicitudes, hitos, definicion, plazos, ahora) : []),
@@ -172,40 +137,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
     return <p className={styles.cargando} aria-busy="true">Calculando lead time y cumplimiento…</p>
   }
 
-  const sucio =
-    borrador != null &&
-    (borrador.entregado !== reglas.entregado ||
-      claves.some((k) => (borrador.plazos[k] ?? '') !== String(reglas.plazos[k] ?? '')))
-
-  function editar(cambio: Partial<{ entregado: Definicion; plazos: Record<string, string> }>) {
-    const base = borrador ?? {
-      entregado: reglas?.entregado ?? 'concretado',
-      plazos: Object.fromEntries(claves.map((k) => [k, String(reglas?.plazos[k] ?? '')])),
-    }
-    setBorrador({ ...base, ...cambio, plazos: { ...base.plazos, ...(cambio.plazos ?? {}) } })
-  }
-
-  async function guardarReglas() {
-    if (!borrador) return
-    setGuardando(true)
-    setErrorGuardar(null)
-    try {
-      const p: Record<string, number | null> = {}
-      claves.forEach((k) => {
-        const n = Number(borrador.plazos[k])
-        p[k] = borrador.plazos[k] && Number.isInteger(n) ? n : null
-      })
-      await guardar(borrador.entregado, p)
-      setBorrador(null)
-    } catch (e) {
-      setErrorGuardar(e instanceof Error ? e.message : 'No se pudieron guardar las reglas.')
-    } finally {
-      setGuardando(false)
-    }
-  }
-
   const textoFin = definicion === 'cliente' ? 'Enviado al cliente' : 'PDF + resultados en Report'
-  const sinAmarre = definicion === 'cliente' && calidad != null && calidad.envios_amarrados === 0
 
   // ── registros ──
   const filasLead = [...ev]
@@ -266,115 +198,6 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
 
   return (
     <div className={styles.bloque}>
-      {/* ───────── Supuesto (lo ve todo el mundo) ───────── */}
-      <p className={styles.supuesto} role="note">
-        <b>Estimado, no medido.</b> No sabemos cuándo el laboratorio pasa a retirar las muestras, así que se supone que las recibe{' '}
-        {RECEPCION_ESTIMADA_DIAS} día después de emitida la solicitud (emitida el lunes 1, recepcionada el martes 2). Desde ahí corren los
-        tiempos y plazos de abajo, en <b>días hábiles</b> (lunes a viernes, sin feriados). Todo cálculo de esta pantalla está sujeto a ese supuesto.
-      </p>
-
-      {/* ───────── Configuración (solo el administrador general) ───────── */}
-      {puedeEditar && (
-        <details className={`${styles.tarjeta} ${styles.config}`}>
-          <summary>
-            <span>Configuración de plazos</span>
-            <small>solo la ve el administrador general</small>
-          </summary>
-          <div className={styles.configCuerpo}>
-            <div className={styles.campo}>
-              <span className={styles.sobre}>
-                «Entregado» es
-                <Ayuda>Vale para el lead time y el cumplimiento.</Ayuda>
-              </span>
-              <div className={styles.segmentado} role="group" aria-label="Definición de entregado">
-                {([['concretado', 'PDF + Report'], ['cliente', 'Enviado al cliente']] as const).map(([v, t]) => (
-                  <button key={v} type="button" aria-pressed={definicion === v} onClick={() => editar({ entregado: v })}>{t}</button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <span className={styles.sobre}>
-                Plazo prometido, en días hábiles
-                <Ayuda>
-                  Cuenta desde la recepción estimada (emisión + {RECEPCION_ESTIMADA_DIAS} día), solo lunes a viernes. Cada laboratorio tiene un plazo general
-                  y, si un análisis tarda distinto, su propio plazo: gana el análisis más lento de la solicitud.
-                </Ayuda>
-              </span>
-              {labs.map((l) => (
-                <div key={l} className={styles.configLab}>
-                  <label className={styles.plazo} htmlFor={`plazo-${l}`}>
-                    <b>{l}</b> · plazo general
-                    <span>
-                      <input
-                        id={`plazo-${l}`}
-                        type="number"
-                        min={1}
-                        max={365}
-                        inputMode="numeric"
-                        placeholder="—"
-                        value={borrador ? borrador.plazos[l] ?? '' : String(reglas.plazos[l] ?? '')}
-                        onChange={(e) => editar({ plazos: { [l]: e.target.value } })}
-                      />{' '}
-                      <small>d háb.</small>
-                    </span>
-                  </label>
-                  {(analitosPorLab.get(l) ?? []).length > 0 && (
-                    <div className={styles.analitosPlazo}>
-                      <small>Plazo propio por análisis (vacío = rige el general)</small>
-                      <div className={styles.plazos}>
-                        {(analitosPorLab.get(l) ?? []).map((a) => {
-                          const k = clavePlazoAnalisis(l, a)
-                          return (
-                            <label key={k} className={styles.plazo} htmlFor={`plazo-${k}`}>
-                              {a}
-                              <span>
-                                <input
-                                  id={`plazo-${k}`}
-                                  type="number"
-                                  min={1}
-                                  max={365}
-                                  inputMode="numeric"
-                                  placeholder="—"
-                                  value={borrador ? borrador.plazos[k] ?? '' : String(reglas.plazos[k] ?? '')}
-                                  onChange={(e) => editar({ plazos: { [k]: e.target.value } })}
-                                />{' '}
-                                <small>d</small>
-                              </span>
-                            </label>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {sucio && (
-              <div className={styles.borrador} role="status">
-                <span>Estás viendo una <b>prueba sin guardar</b>: los números de abajo ya usan estos valores.</span>
-                <span className={styles.accionesBorrador}>
-                  <Button variant="ghost" onClick={() => { setBorrador(null); setErrorGuardar(null) }}>Descartar</Button>
-                  <Button onClick={() => void guardarReglas()} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar plazos'}</Button>
-                </span>
-              </div>
-            )}
-            {errorGuardar && <p className={styles.error} role="alert">{errorGuardar}</p>}
-            {reglas.cambiado_en && (
-              <p className={styles.pie}>Última vez guardados por {reglas.cambiado_por ?? '—'} el {formatDateCL(reglas.cambiado_en)}.</p>
-            )}
-            {sinAmarre && (
-              <p className={styles.aviso} role="note">
-                Todavía ningún envío a clientes está amarrado a su solicitud (
-                {calidad?.envios_a_clientes != null ? `${calidad.envios_a_clientes} enviados` : 'sin envíos'}). Los nuevos desde «Envío de informes» sí quedan
-                amarrados, siempre que se haya corrido la migración 0054; con «PDF + Report» el cálculo ya funciona con todo el historial.
-              </p>
-            )}
-          </div>
-        </details>
-      )}
-
       {/* ───────── Lead time ───────── */}
       <section className={styles.tarjeta} aria-labelledby="ie-lead">
         <header className={styles.cabecera}>
@@ -465,7 +288,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar }: { solicitudes: 
 
         {!hayPlazos ? (
           <p className={styles.vacio}>
-            Para calcular el cumplimiento hace falta el plazo de cada laboratorio o análisis. {puedeEditar ? 'Escríbelos arriba, en «Configuración de plazos».' : 'Pídele al administrador general que los cargue.'}
+            Para calcular el cumplimiento hace falta el plazo de cada laboratorio o análisis. Pídele al administrador general que los cargue.
             {' '}No se asume ninguno.
           </p>
         ) : (
