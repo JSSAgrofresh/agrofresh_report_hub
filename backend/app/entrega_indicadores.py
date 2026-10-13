@@ -24,7 +24,7 @@ Dos reglas editables, que guarda el admin general (`plazos_entrega.json`):
     (el informe salió al cliente);
   - el plazo comprometido, en DÍAS HÁBILES (lunes a viernes, sin feriados), de cada
     laboratorio (`LAB`) y, si el análisis tiene su propio tiempo, de cada análisis de
-    ese laboratorio (`LAB|ANALITO`). Sin plazo cargado no se calcula cumplimiento: nunca
+    ese laboratorio (`LAB|ANÁLISIS`: el nombre del Análisis, no del analito). Sin plazo cargado no se calcula cumplimiento: nunca
     se asume uno.
 El plazo corre desde la RECEPCIÓN ESTIMADA en el laboratorio: 24 horas después de emitida
 la solicitud (no sabemos cuándo pasan a retirar las muestras). Esa cuenta vive en la
@@ -64,7 +64,7 @@ def _clave_lab(laboratorio: str | None) -> str:
 
 
 def _clave_plazo(clave: str | None) -> str | None:
-    """`LAB` o `LAB|ANALITO` en mayúsculas y sin espacios sobrantes; None si no es válida."""
+    """`LAB` o `LAB|ANÁLISIS` en mayúsculas y sin espacios sobrantes; None si no es válida."""
     lab, sep, analito = (clave or "").partition("|")
     lab, analito = _clave_lab(lab), analito.strip().upper()
     if not lab or (sep and not analito):
@@ -97,7 +97,7 @@ def leer_reglas() -> dict[str, Any]:
 
 class ReglasIn(BaseModel):
     entregado: str
-    # «LAB» o «LAB|ANALITO» -> días hábiles; null o ausente = sin plazo
+    # «LAB» o «LAB|ANÁLISIS» -> días hábiles; null o ausente = sin plazo
     plazos: dict[str, int | None] = Field(default_factory=dict)
 
 
