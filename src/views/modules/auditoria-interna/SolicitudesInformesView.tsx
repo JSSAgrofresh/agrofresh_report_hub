@@ -6,7 +6,6 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { IconoActualizar, IconoAlerta, IconoBuscar } from '@/components/ui/iconosAccion'
 import {
   FILTROS_VACIOS,
-  LABORATORIOS_GRAFICO,
   NOMBRE_LAB,
   TIPO_ACTIMIST,
   TIPO_LINEA,
@@ -14,7 +13,7 @@ import {
   contarFiltros,
   filtrarSolicitudes,
   opcionesDeFiltros,
-  porGrupoYLaboratorio,
+  porLaboratorioYAnalisis,
   resumenPorTipo,
   simularSolicitudes,
   tipoServicioDe,
@@ -23,7 +22,7 @@ import {
   useSolicitudesAuditoria,
 } from '@/features/auditoriaInterna'
 import type { AreaPivote, DimensionGrafico, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
-import { DonaTipoServicio, GraficoGrupoLaboratorio, LeyendaLaboratorios, TablaGrupoLaboratorio, TarjetaGrafico } from './Graficos'
+import { DonaTipoServicio, GraficoAnalisisPorLaboratorio, LeyendaLaboratorios, TablaGrupoLaboratorio, TarjetaGrafico } from './Graficos'
 import { AuditoriaHero } from './AuditoriaHero'
 import { PanelFiltros } from './PanelFiltros'
 import { SelectorArea } from './SelectorArea'
@@ -33,7 +32,6 @@ import { InformesPorLaboratorio } from './InformesPorLaboratorio'
 import { TablaDinamica } from './TablaDinamica'
 import styles from './SolicitudesInformesView.module.css'
 
-const nf = new Intl.NumberFormat('es-CL')
 
 const DIMENSIONES: { valor: DimensionGrafico; texto: string; plural: string }[] = [
   { valor: 'cliente', texto: 'Sold To', plural: 'Sold To' },
@@ -80,8 +78,7 @@ export function SolicitudesInformesView() {
   )
   const opcionesGrafico = useMemo(() => opcionesDeFiltros(alcanceCliente, filtrosGrafico), [alcanceCliente, filtrosGrafico])
   const alcanceGrafico = useMemo(() => filtrarSolicitudes(alcanceCliente, filtrosGrafico, { estado: true }), [alcanceCliente, filtrosGrafico])
-  const grupos = useMemo(() => porGrupoYLaboratorio(alcanceGrafico, dimension, topClientes), [alcanceGrafico, dimension, topClientes])
-  const totalGrupos = useMemo(() => porGrupoYLaboratorio(alcanceGrafico, dimension, 0).length, [alcanceGrafico, dimension])
+  const paneles = useMemo(() => porLaboratorioYAnalisis(alcanceGrafico, dimension, topClientes), [alcanceGrafico, dimension, topClientes])
   const cambiarFiltroGrafico = (clave: keyof typeof filtroGrafico, valor: string) =>
     setFiltroGrafico((f) => ({ ...f, [clave]: valor, ...(clave === 'cliente' ? { planta: '' } : {}) }))
   const nombreDimension = DIMENSIONES.find((d) => d.valor === dimension)!
@@ -161,8 +158,8 @@ export function SolicitudesInformesView() {
               </div>
 
               <TarjetaGrafico
-                titulo={`Análisis e informes por ${nombreDimension.texto}`}
-                subtitulo={`Análisis pedidos e informes concretados en los 4 laboratorios · ${grupos.length} de ${nf.format(totalGrupos)} ${nombreDimension.plural}`}
+                titulo={`Análisis por laboratorio · top ${nombreDimension.plural}`}
+                subtitulo={`Análisis pedidos e informes concretados en los 4 laboratorios · ${paneles.length} análisis · top ${topClientes || 'todos'} por ${nombreDimension.texto}`}
                 leyenda={
                   <>
                     <div className={styles.filtrosGrafico}>
@@ -214,14 +211,14 @@ export function SolicitudesInformesView() {
                     </select>
                   </>
                 }
-                vistaTabla={<TablaGrupoLaboratorio grupos={grupos} nombre={nombreDimension.texto} />}
+                vistaTabla={<TablaGrupoLaboratorio paneles={paneles} nombre={nombreDimension.texto} />}
                 tabla={{
-                  columnas: [nombreDimension.texto, ...LABORATORIOS_GRAFICO.flatMap((l) => [`${NOMBRE_LAB[l]} · análisis`, `${NOMBRE_LAB[l]} · informes`])],
-                  filas: grupos.map((g) => [g.grupo, ...LABORATORIOS_GRAFICO.flatMap((l) => [g.labs[l]?.analisis ?? 0, g.labs[l]?.informes ?? 0])]),
+                  columnas: ['Laboratorio', 'Análisis', nombreDimension.texto, 'Análisis pedidos', 'Con informe'],
+                  filas: paneles.flatMap((p) => p.filas.map((f) => [NOMBRE_LAB[p.laboratorio] ?? p.laboratorio, p.analisis, f.grupo, f.analisis, f.informes])),
                 }}
               >
-                {grupos.length > 0 ? (
-                  <GraficoGrupoLaboratorio grupos={grupos} />
+                {paneles.length > 0 ? (
+                  <GraficoAnalisisPorLaboratorio paneles={paneles} nombre={nombreDimension.plural} />
                 ) : (
                   <p className={styles.sinDatosGrafico}>No hay solicitudes con los filtros actuales.</p>
                 )}
