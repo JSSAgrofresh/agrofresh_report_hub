@@ -374,6 +374,7 @@ _CONSULTA_BD = """
         s.fecha_solicitud, s.fecha_muestreo, s.fecha_entrada, s.fecha_recepcion, s.fecha_informe, s.fecha_analisis,
         s.hora_muestreo,
         to_jsonb(s) ->> 'hora_recepcion' AS hora_recepcion,
+        to_jsonb(s) ->> 'servicio' AS servicio,
         {codigo_muestra},
         s.codigo_ensayo, s.nro_ensayo,
         COALESCE(date_part('week', s.fecha_muestreo)::int, s.semana_muestreo, date_part('week', COALESCE(s.fecha_entrada, s.fecha_informe, s.fecha_analisis))::int) AS semana,
@@ -468,8 +469,17 @@ def _completar_con_solicitudes(cur, filas: list[dict[str, Any]], correos_laborat
             correos[lab] = correos_laboratorio(lab)
         completar_fila(f, datos, correos.get(lab))
         # Lista de distribución de resultados (misma regla que el correo, el PDF y el JSON).
-        # El tipo de servicio decide la lista: Actimist tiene la suya.
-        f.update(listas(f.get("sold_to"), f.get("ship_to"), f.get("especie"), f.get("tipo_servicio")))
+        # El servicio decide la lista (Actimist, Ecofog, RYD o Línea de proceso): primero el «Tipo
+        # Aplicación» de la solicitud, si no el `servicio` de la base (0055). El `tipo_servicio` viejo
+        # (Cromatografía / Línea de proceso) nunca decía el servicio, por eso todo caía en Línea de proceso.
+        campos = (datos or {}).get("campos_laboratorio") or {}
+        servicio = (
+            (campos.get("Tipo Aplicación") if isinstance(campos, dict) else None)
+            or (datos or {}).get("tipo_aplicacion")
+            or f.get("servicio")
+            or f.get("tipo_servicio")
+        )
+        f.update(listas(f.get("sold_to"), f.get("ship_to"), f.get("especie"), servicio))
 
 
 def filas_de_bd(
