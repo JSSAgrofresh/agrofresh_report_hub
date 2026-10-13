@@ -332,9 +332,19 @@ def test_lo_que_no_hay_en_ningun_lado_queda_vacio_sin_romper():
     assert wb["BD"].max_row == 3
 
 
-def test_n_orden_ya_no_es_una_columna():
+def test_n_orden_es_una_columna_y_sale_de_la_solicitud():
     columnas, _ = _encabezados(bd_excel.construir_workbook_bd([_fila()], ANALITOS_DEFECTO))
-    assert "N° Orden" not in columnas
+    assert "N° Orden" in columnas and columnas.index("N° Orden") == columnas.index("N° Cámara") + 1
+    # En la base, nro_orden de AgroFresh es el código del vial: manda el N° Orden de la solicitud.
+    fila = _fila(laboratorio="AGROFRESH", numero_orden="VIAL-9", numero_camara=None)
+    bd_excel.completar_fila(fila, {"numero_orden": "800354800", "numero_camara": "C2"}, None)
+    assert fila["numero_orden"] == "800354800" and fila["numero_camara"] == "C2"
+    sin = _fila(laboratorio="AGROFRESH", numero_orden="VIAL-9")
+    bd_excel.completar_fila(sin, {}, None)
+    assert sin["numero_orden"] is None
+    otro = _fila(laboratorio="Quiteca", numero_orden="123")
+    bd_excel.completar_fila(otro, None, None)
+    assert otro["numero_orden"] == "123"
 
 
 @pytest.mark.skipif(not hay_base("solicitud_archivo"), reason="sin la tabla del índice de solicitudes (0020)")
@@ -526,3 +536,19 @@ def test_la_consulta_de_la_bd_trae_el_n_de_muestra_y_ninguna_columna_queda_en_un
     assert "s.codigo_muestra" in sql
     # Un «--» a mitad de línea se come lo que sigue (así se perdió el N° de muestra de Quiteca).
     assert all("--" not in linea for linea in sql.splitlines())
+
+
+def test_base_con_muestra_lleva_n_camara_y_n_orden_de_actimist():
+    from app import columnas_base
+    from app.solicitud_excel import construir_workbook_exportacion
+
+    fila = columnas_base.fila_desde_campos({"N° Cámara": "C7", "N° Orden": "800354800", "Tipo Aplicación": "Actimist"}, codigo_muestra="AGF0001")
+    assert fila["numero_camara"] == "C7" and fila["numero_orden"] == "800354800"
+    wb = construir_workbook_exportacion(
+        [{**fila, "analitos_solicitados": [], "campos_laboratorio": {}}], ANALITOS_DEFECTO,
+        laboratorios=("AGROFRESH",), generales=columnas_base.GENERALES_BASE, titulo_hoja="BD",
+    )
+    ws = wb["BD"]
+    cab = [c.value for c in ws[2]]
+    assert ws.cell(row=3, column=cab.index("N° Orden") + 1).value == "800354800"
+    assert ws.cell(row=3, column=cab.index("N° Cámara") + 1).value == "C7"

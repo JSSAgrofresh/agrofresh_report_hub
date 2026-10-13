@@ -50,6 +50,7 @@ GENERALES_BASE: list[tuple[str, str]] = [
     ("lote", "Lote"),
     ("posicion_muestreo", "Posición Muestreo"),
     ("numero_camara", "N° Cámara"),
+    ("numero_orden", "N° Orden"),
     ("kilos_procesados", "Kilos Procesados (KG)"),
     ("producto_utilizado", "Producto Utilizado"),
     ("tipo_muestra", "Tipo Muestra"),
