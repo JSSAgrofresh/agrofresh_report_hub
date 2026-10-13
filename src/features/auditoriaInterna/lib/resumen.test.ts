@@ -4,6 +4,8 @@ import {
   ordenarSolicitudes,
   pendientesDeInforme,
   porClienteYServicio,
+  clientesSinAnalisis,
+  porClienteResiduosFsmaFito,
   porGrupoYLaboratorio,
   porLaboratorioYAnalisis,
   porLaboratorio,
@@ -291,5 +293,29 @@ describe('porLaboratorioYAnalisis', () => {
   it('una solicitud que pidió dos análisis cuenta en cada uno', () => {
     const p = porLaboratorioYAnalisis([sol({ laboratorio: 'Quiteca', analisis: ['A', 'B'] })], 'cliente', 0)
     expect(p.map((x) => x.analisis)).toEqual(['A', 'B'])
+  })
+})
+
+describe('porClienteResiduosFsmaFito', () => {
+  const lista = [
+    sol({ laboratorio: 'Agrofresh', sold_to: 'Dole', concretada: true }),
+    sol({ laboratorio: 'Quiteca', sold_to: 'Dole' }),
+    sol({ laboratorio: 'Quiteca', sold_to: 'Dole', concretada: true }),
+    sol({ laboratorio: 'ALS', sold_to: 'Dole' }),
+    sol({ laboratorio: 'Diagnofruit', sold_to: 'Multi' }),
+    sol({ laboratorio: 'Otro', sold_to: 'Dole' }),
+    sol({ laboratorio: 'Quiteca', sold_to: null }),
+  ]
+
+  it('una fila por cliente con residuales (AgroFresh y Quiteca), FSMA y FITO; el que más lleva, primero', () => {
+    const f = porClienteResiduosFsmaFito(lista)
+    expect(f.map((x) => x.cliente)).toEqual(['Dole', 'Multi'])
+    expect(f[0]).toMatchObject({ total: 4, informes: 2, agrofresh: { n: 1, informes: 1 }, quiteca: { n: 2, informes: 1 }, fsma: { n: 1, informes: 0 }, fito: { n: 0, informes: 0 } })
+    expect(f[1].fito.n).toBe(1)
+  })
+
+  it('los clientes del listado sin análisis salen aparte, sin repetir ni importar tildes o mayúsculas', () => {
+    const con = porClienteResiduosFsmaFito(lista)
+    expect(clientesSinAnalisis(['DOLE', 'Zeta', 'ÁGRICOLA', 'agricola', 'multi', ' '], con)).toEqual(['ÁGRICOLA', 'Zeta'])
   })
 })
