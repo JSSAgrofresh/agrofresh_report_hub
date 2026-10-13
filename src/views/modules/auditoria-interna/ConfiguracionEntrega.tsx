@@ -10,8 +10,8 @@ interface Props {
   reglas: ReglasEntrega
   /** laboratorios (mayúsculas) */
   labs: string[]
-  /** los análisis (analitos) que se han pedido a cada laboratorio: cada uno puede tener su propio plazo */
-  analitosPorLab: Map<string, string[]>
+  /** los Análisis (FSMA, residuos en fruta…) que se han pedido a cada laboratorio: cada uno puede tener su propio plazo */
+  analisisPorLab: Map<string, string[]>
   guardar: (entregado: Definicion, plazos: Record<string, number | null>) => Promise<unknown>
   onCerrar: () => void
 }
@@ -26,10 +26,10 @@ const DEFINICIONES: { v: Definicion; titulo: string; detalle: string }[] = [
  * hábiles) de cada laboratorio y, si hace falta, de cada análisis. Solo la abre el administrador
  * general (el servidor lo exige también). Sin plazo cargado no se juzga: nunca se asume uno.
  */
-export function ConfiguracionEntrega({ reglas, labs, analitosPorLab, guardar, onCerrar }: Props) {
+export function ConfiguracionEntrega({ reglas, labs, analisisPorLab, guardar, onCerrar }: Props) {
   const claves = useMemo(
-    () => labs.flatMap((l) => [l, ...(analitosPorLab.get(l) ?? []).map((a) => clavePlazoAnalisis(l, a))]),
-    [labs, analitosPorLab],
+    () => labs.flatMap((l) => [l, ...(analisisPorLab.get(l) ?? []).map((a) => clavePlazoAnalisis(l, a))]),
+    [labs, analisisPorLab],
   )
   const [entregado, setEntregado] = useState<Definicion>(reglas.entregado)
   const [plazos, setPlazos] = useState<Record<string, string>>(
@@ -111,16 +111,16 @@ export function ConfiguracionEntrega({ reglas, labs, analitosPorLab, guardar, on
           <h3>Plazo prometido, en días hábiles</h3>
           <p className={styles.nota}>
             Cuenta desde la recepción estimada (emisión + {RECEPCION_ESTIMADA_DIAS} día), solo de lunes a viernes. Cada laboratorio tiene un plazo general
-            y, si un análisis tarda distinto, su propio plazo: gana el análisis más lento de la solicitud. Vacío = no se juzga.
+            y, si un tipo de análisis tarda distinto (FSMA, residuos en fruta, patógenos…), su propio plazo: gana el análisis más lento de la solicitud. Vacío = no se juzga.
           </p>
           {labs.map((l) => (
             <div key={l} className={styles.lab}>
               <div className={styles.general}>{campo(l, `${l} · plazo general`, 'd háb.')}</div>
-              {(analitosPorLab.get(l) ?? []).length > 0 && (
+              {(analisisPorLab.get(l) ?? []).length > 0 && (
                 <div className={styles.analisis}>
                   <small>Plazo propio por análisis (vacío = rige el general)</small>
                   <div className={styles.grilla}>
-                    {(analitosPorLab.get(l) ?? []).map((a) => campo(clavePlazoAnalisis(l, a), a, 'd'))}
+                    {(analisisPorLab.get(l) ?? []).map((a) => campo(clavePlazoAnalisis(l, a), a, 'd háb.'))}
                   </div>
                 </div>
               )}
