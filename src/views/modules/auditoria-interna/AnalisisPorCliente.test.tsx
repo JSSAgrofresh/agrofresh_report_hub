@@ -24,11 +24,12 @@ describe('AnalisisPorCliente', () => {
 
   it('cada cliente hacia abajo (el que más lleva primero) con residuales, FSMA, FITO y total', () => {
     render(<AnalisisPorCliente solicitudes={lista} />)
-    const filas = screen.getAllByRole('row').slice(1)
+    const filas = screen.getAllByRole('row').slice(2)
     expect(within(filas[0]).getByText('DOLE CHILE S.A.')).toBeTruthy()
     expect(within(filas[0]).getByText('4')).toBeTruthy() // total
     expect(within(filas[1]).getByText('MULTIFRUTA')).toBeTruthy()
     expect(screen.getByText('Entregables')).toBeTruthy()
+    expect(screen.getByText(/^Residuales/)).toBeTruthy()
   })
 
   it('los clientes del listado sin ningún análisis salen apagados al final, solo si se piden', async () => {
@@ -37,8 +38,8 @@ describe('AnalisisPorCliente', () => {
     expect(screen.queryByText('Alfa Ltda')).toBeNull()
     fireEvent.click(boton)
     await waitFor(() => expect(screen.getByText('Alfa Ltda')).toBeTruthy())
-    const filas = screen.getAllByRole('row')
-    expect(filas[filas.length - 1].className).toMatch(/apagado/)
+    const apagadas = screen.getAllByRole('row').filter((r) => /apagado/.test(r.className))
+    expect(apagadas).toHaveLength(2)
     expect(screen.queryByText('Inactivo SA')).toBeNull()
   })
 })
