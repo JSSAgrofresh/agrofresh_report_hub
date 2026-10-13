@@ -6,7 +6,7 @@ import openpyxl
 
 from app.listas_distribucion import estado_desde_contactos
 from app.plan_cruce import correos_de_comercial, plantas_de, proponer
-from app.plan_entregables import categoria_servicio, leer_plan, lunes_de_semana
+from app.plan_entregables import categoria_servicio, leer_plan, leer_planes, lunes_de_semana
 
 
 def _excel(filas, semanas=("W45", "W46", "W47"), total_pie=True) -> io.BytesIO:
@@ -127,3 +127,28 @@ class TestCruce:
     def test_una_coincidencia_solo_del_sold_to_se_revisa_no_se_da_por_buena(self):
         r = proponer("GREENEX", [("GREENEX SPA", "")])
         assert r["estado"] == "Revisar" and r["propuesta"] is None
+
+
+class TestUnificado:
+    def _unificado(self) -> io.BytesIO:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Entregables"
+        ws.append(["Comercial", "Cliente (como en el plan)", "Línea", "Servicio", "Servicio (original)", "Semana", "Desde", "Hasta", "Cantidad", "Archivo", "Fila en el Excel"])
+        ws.append(["JC Labarca", "DOLE LONTUE", "L1", "Residuales", "Residuales L1", "W45", "2026-11-02", "2026-11-08", 2, "Entregables_JCL.xlsx", 6])
+        ws.append(["JC Labarca", "DOLE LONTUE", "L1", "Residuales", "Residuales L1", "W46", "2026-11-09", "2026-11-15", 3, "Entregables_JCL.xlsx", 6])
+        ws.append(["R. TRAVERSO", "PRIZE", "", "Residuales", "Residuales", "W45", "2026-11-02", "2026-11-08", 1, "Entregables_RT.xlsx", 6])
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf
+
+    def test_el_excel_unificado_se_separa_por_comercial(self):
+        planes = leer_planes(self._unificado())
+        assert [p["comercial"] for p in planes] == ["JC Labarca", "R. TRAVERSO"]
+        assert [(f["cliente_plan"], f["semana"], f["cantidad"]) for f in planes[0]["filas"]] == [("DOLE LONTUE", "W45", 2), ("DOLE LONTUE", "W46", 3)]
+        assert planes[0]["semanas"] == ["W45", "W46"]
+
+    def test_un_plan_individual_sigue_leyendose_como_antes(self):
+        planes = leer_planes(_excel([("DOLE LONTUE", "Residuales L1", [1, 2, None], 3)]))
+        assert len(planes) == 1 and planes[0]["comercial"] == "JC Labarca" and len(planes[0]["filas"]) == 2
