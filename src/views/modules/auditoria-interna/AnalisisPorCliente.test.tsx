@@ -45,4 +45,19 @@ describe('AnalisisPorCliente', () => {
     expect(apagadas).toHaveLength(2)
     expect(screen.queryByText('Inactivo SA')).toBeNull()
   })
+
+  it('con solo Residuales visibles: sin filas de FSMA ni FITO, el total cuenta solo lo visible y salen del ranking los que no tienen residuales', () => {
+    const conFsma = [...lista, sol('ALS', 'SOLO FSMA'), sol('ALS', 'SOLO FSMA'), sol('ALS', 'SOLO FSMA')]
+    render(<AnalisisPorCliente solicitudes={conFsma} analisis={['residuales']} />)
+    expect(screen.queryByText('FSMA')).toBeNull()
+    expect(screen.queryByText('FITO')).toBeNull()
+    expect(screen.queryByText('SOLO FSMA')).toBeNull() // su único análisis está oculto
+    expect(screen.getByText('2 análisis')).toBeTruthy() // DOLE: 2 residuales (antes 4)
+    expect(screen.getByText('1 análisis')).toBeTruthy() // MULTIFRUTA
+  })
+
+  it('los clientes sin ningún análisis del listado no cambian por ocultar un análisis', async () => {
+    render(<AnalisisPorCliente solicitudes={lista} analisis={['residuales']} />)
+    expect(await screen.findByRole('button', { name: /Mostrar los 2 clientes sin análisis/ })).toBeTruthy()
+  })
 })
