@@ -106,8 +106,9 @@ describe('IndicadoresEntrega', () => {
     expect(filas()).toHaveLength(1)
     fireEvent.click(zona.getByRole('button', { name: /Todas/ }))
     fireEvent.click(zona.getByRole('button', { name: '3' }))
-    // el flujo pasa a mostrar solo esa solicitud
-    expect(screen.getByText(/Volver a ver todas las solicitudes/)).toBeTruthy()
+    // el flujo pasa a mostrar solo esa solicitud, con su encabezado (Sold To, Ship To y fechas)
+    expect(screen.getByText('← todas')).toBeTruthy()
+    expect(screen.getByText('Pendiente')).toBeTruthy()
     expect(screen.queryByText(/solicitudes llegaron/)).toBeNull()
   })
 
