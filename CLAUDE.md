@@ -679,8 +679,12 @@ espejo en `explorador.ts` con los mismos casos en los dos tests). Lo que
 `_archivar_informe` guardó antes bajo `informes/<SOLD TO>/<fecha>/<folio>.pdf`
 sigue ahí con ese orden viejo. **El prefijo `informes/` ya es de este espacio**:
 la «Etapa 4» de Ingreso al laboratorio tiene que usar otra raíz o este mismo orden.
-Pendiente: que cada cliente vea sus informes (hoy Storage no es accesible a
-cuentas `cliente`).
+**Portal de cliente (13-10-2026)**: una cuenta `cliente` que entra a Storage ve SOLO la carpeta de su Ship To
+(`app/informes_cliente.py`, prefijo `/api/informes-cliente`, `CON_SESION`; front `InformesClienteView`, que `StorageView` usa en vez
+del explorador): una cuenta de sucursal ve su planta y una de Sold To las plantas de su cliente, resueltas con `carpeta_planta` (la misma
+que crea las carpetas). Solo lista y baja PDF dentro de `informes/<su planta>/`; lo demás da 404 y un interno usa el Storage de siempre.
+En **Report** una cuenta de cliente también ve en el encabezado su Ship To (o Sold To) y no le salen los filtros Sold To / Ship To
+(`ReporteLaboratorioView` le pasa `clienteFijo`/`plantaFija`). Pruebas: `tests/test_informes_cliente.py`, `InformesClienteView.test.tsx`.
 
 **Filtros de Solicitudes (Toma de muestras)**: Laboratorio, Sold To, Ship To,
 Especie, Tipo de aplicación, Línea de proceso, Tipo muestra, Nombre muestreador

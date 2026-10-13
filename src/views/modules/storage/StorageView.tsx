@@ -8,6 +8,7 @@ import { Avisos } from './Avisos'
 import { BusquedaGlobal } from './BusquedaGlobal'
 import { Explorador } from './Explorador'
 import { IconoCarpeta } from './IconoArchivo'
+import { InformesClienteView } from './InformesClienteView'
 import { PanelPermisos } from './PanelPermisos'
 import styles from './StorageView.module.css'
 
@@ -16,7 +17,7 @@ interface PermisosAbiertos {
   ruta: string
 }
 
-export function StorageView() {
+function ExploradorStorage() {
   const { user } = useAuth()
   const [espacioId, setEspacioId] = useState<Espacio['id']>('local')
   const [ruta, setRuta] = useState('')
@@ -157,4 +158,10 @@ export function StorageView() {
       <Avisos avisos={avisos} onQuitar={quitar} />
     </div>
   )
+}
+
+/** La ruta de Storage: una cuenta de cliente ve solo los informes de su Ship To; el resto, el explorador de siempre. */
+export function StorageView() {
+  const { user } = useAuth()
+  return user?.tipoAcceso === 'cliente' ? <InformesClienteView /> : <ExploradorStorage />
 }
