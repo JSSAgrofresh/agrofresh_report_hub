@@ -372,7 +372,7 @@ export function TarjetaGrafico({
   children,
 }: {
   titulo: string
-  subtitulo: string
+  subtitulo?: string
   /** Sin `alto`, el contenido manda (listas); con él, el lienzo de un gráfico. */
   alto?: number
   tabla: { columnas: string[]; filas: (string | number)[][] }
@@ -389,7 +389,7 @@ export function TarjetaGrafico({
       <header className={styles.cabecera}>
         <div>
           <h3>{titulo}</h3>
-          <p>{subtitulo}</p>
+          {subtitulo && <p>{subtitulo}</p>}
         </div>
         <div className={styles.acciones}>
           {controles}

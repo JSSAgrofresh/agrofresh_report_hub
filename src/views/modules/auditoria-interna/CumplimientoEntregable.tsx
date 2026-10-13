@@ -67,20 +67,16 @@ function agrupar(ev: EvaluadaEntrega[], por: 'laboratorio' | 'analisis'): Grupo[
  *  1. ¿Cumplimos?            → cifra principal y reparto de TODAS las solicitudes.
  *  2. ¿Cuánto nos pasamos?   → atraso mediano y máximo, en días hábiles.
  *  3. ¿Dónde se incumple?    → ranking de peor a mejor, por laboratorio o por análisis.
- *  4. ¿Mejora o empeora?     → cumplimiento por mes de emisión, y las solicitudes más pasadas.
+ *  4. ¿Mejora o empeora?     → cumplimiento por mes de emisión, y los informes más pasados.
  */
 export function CumplimientoEntregable({
   ev,
   serie,
   textoFin,
-  labElegido,
-  onLab,
 }: {
   ev: EvaluadaEntrega[]
   serie: PuntoMes[]
   textoFin: string
-  labElegido: string
-  onLab: (lab: string) => void
 }) {
   const [por, setPor] = useState<'laboratorio' | 'analisis'>('laboratorio')
   const cum = useMemo(() => resumenCumplimiento(ev), [ev])
@@ -115,8 +111,8 @@ export function CumplimientoEntregable({
           <Anillo pct={cum.pct} />
           <span className={styles.frase}>
             {cum.vencidas === 0
-              ? 'Todavía no vence ninguna solicitud.'
-              : <><b>{nf.format(cum.cumplio)}</b> de <b>{nf.format(cum.vencidas)}</b> solicitudes que ya vencieron llegaron a «{textoFin}» a tiempo.</>}
+              ? 'Todavía no vence ningún informe.'
+              : <><b>{nf.format(cum.cumplio)}</b> de <b>{nf.format(cum.vencidas)}</b> informes que ya vencieron llegaron a «{textoFin}» a tiempo.</>}
           </span>
         </div>
         <div className={styles.reparto}>
@@ -165,23 +161,16 @@ export function CumplimientoEntregable({
             <h4>¿Dónde se incumple?</h4>
             <div className={styles.segmentado} role="group" aria-label="Agrupar cumplimiento por">
               <button type="button" aria-pressed={por === 'laboratorio'} onClick={() => setPor('laboratorio')}>Laboratorio</button>
-              <button type="button" aria-pressed={por === 'analisis'} onClick={() => { setPor('analisis'); onLab('') }}>Análisis</button>
+              <button type="button" aria-pressed={por === 'analisis'} onClick={() => setPor('analisis')}>Análisis</button>
             </div>
           </header>
-          <p className={styles.sub}>De peor a mejor cumplimiento.{por === 'laboratorio' ? ' Toca uno para filtrar las solicitudes de abajo.' : ''}</p>
+          <p className={styles.sub}>De peor a mejor cumplimiento.</p>
           <ol>
             {ranking.map((g) => {
               const t = Math.max(1, g.r.cumplio + g.r.tarde + g.r.vencida + g.r.plazo + g.r.sinPlazo)
-              const activo = por === 'laboratorio' && labElegido === g.clave
               return (
                 <li key={g.clave}>
-                  <button
-                    type="button"
-                    className={`${styles.fila} ${activo ? styles.activa : ''}`}
-                    aria-pressed={por === 'laboratorio' ? activo : undefined}
-                    disabled={por !== 'laboratorio'}
-                    onClick={() => onLab(activo ? '' : g.clave)}
-                  >
+                  <div className={styles.fila}>
                     <span className={styles.nombre}>
                       <b>{g.nombre}</b>
                       <small>{g.detalle} · {nf.format(g.r.vencidas)} vencidas{g.a.n ? ` · se pasan ${f1(g.a.mediana)} d` : ''}</small>
@@ -193,7 +182,7 @@ export function CumplimientoEntregable({
                       <span className={styles.sinJuzgar} style={{ width: `${((g.r.plazo + g.r.sinPlazo) / t) * 100}%` }} />
                     </span>
                     <b className={`${styles.valor} ${tono(g.r.pct)}`}>{g.r.pct == null ? '—' : `${Math.round(g.r.pct)} %`}</b>
-                  </button>
+                  </div>
                 </li>
               )
             })}
@@ -204,13 +193,13 @@ export function CumplimientoEntregable({
           {/* 4a ── ¿Mejora o empeora? */}
           <section aria-label="Evolución por mes">
             <h4>¿Mejora o empeora?</h4>
-            <p className={styles.sub}>Cumplimiento por mes en que se emitió la solicitud.</p>
+            <p className={styles.sub}>Cumplimiento por mes en que se emitió la solicitud del informe.</p>
             {serie.length === 0 ? (
               <p className={styles.nota}>Aún no hay meses con datos.</p>
             ) : (
               <div className={styles.meses}>
                 {serie.map((p) => (
-                  <div key={p.mes} className={styles.mes} title={`${nombreMes(p.mes)}: ${p.pct == null ? 'faltan datos (menos de 3 vencidas)' : `${Math.round(p.pct)} %`} · ${p.n} solicitudes`}>
+                  <div key={p.mes} className={styles.mes} title={`${nombreMes(p.mes)}: ${p.pct == null ? 'faltan datos (menos de 3 vencidas)' : `${Math.round(p.pct)} %`} · ${p.n} informes`}>
                     <b className={tono(p.pct)}>{p.pct == null ? '—' : `${Math.round(p.pct)}%`}</b>
                     <span className={styles.columna}>
                       <i className={p.pct == null ? styles.sinDato : undefined} style={{ height: `${p.pct == null ? 6 : Math.max(6, p.pct)}%`, opacity: 0.35 + 0.65 * (p.n / maxMes) }} />
@@ -224,10 +213,10 @@ export function CumplimientoEntregable({
           </section>
 
           {/* 4b ── Las más pasadas */}
-          <section aria-label="Las solicitudes más pasadas de su plazo">
+          <section aria-label="Los informes más pasados de su plazo">
             <h4>Las más pasadas de su plazo</h4>
             {peores.length === 0 ? (
-              <p className={styles.nota}>Ninguna solicitud atrasada.</p>
+              <p className={styles.nota}>Ningún informe atrasado.</p>
             ) : (
               <ol className={styles.peores}>
                 {peores.map(({ e, atraso: a }) => (

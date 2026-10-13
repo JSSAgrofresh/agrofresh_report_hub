@@ -360,3 +360,7 @@
 .atraso > div:first-child { border-left-color: #b0271f; }
 .atraso > div:last-child { border-left-color: #b4531f; }
 .barra { background: #e6ece3; }
+
+/* Las filas del ranking ya no son botones */
+.fila { cursor: default; }
+.fila:hover { border-color: var(--color-border); background: var(--color-surface, #fff); }

@@ -3,7 +3,6 @@ import {
   claveLaboratorio,
   RECEPCION_ESTIMADA_DIAS,
   evaluarTodas,
-  resumenCumplimiento,
   resumenLeadTime,
   seriePorMes,
   useEntrega,
@@ -100,10 +99,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
   const cerrarConfig = useCallback(() => setConfigAbierta(false), [])
   const [ahora] = useState(() => Date.now())
   const [labElegido, setLabElegido] = useState('')
-  const [labCum, setLabCum] = useState('')
-  const [filtroVer, setFiltroVer] = useState<'' | 'atrasada' | Veredicto>('')
   const [verTodasLead, setVerTodasLead] = useState(false)
-  const [verTodasCum, setVerTodasCum] = useState(false)
 
   const labs = useMemo(() => {
     const s = new Set<string>()
@@ -140,7 +136,6 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
   const lead = useMemo(() => resumenLeadTime(ev), [ev])
   const evFlujo = useMemo(() => (labElegido ? ev.filter((e) => claveLaboratorio(e.sol.laboratorio) === labElegido) : ev), [ev, labElegido])
   const serie = useMemo(() => seriePorMes(ev), [ev])
-  const cum = useMemo(() => resumenCumplimiento(ev), [ev])
 
   if (error) {
     return <p className={styles.error} role="alert">{error}</p>
@@ -166,22 +161,6 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
     ['Al cliente', (e) => dia(e.hitos?.cliente)],
     ['Lead time', (e) => (e.dias != null ? `${f1(e.dias)} d háb.` : `abierta (${f1(e.edad)} d háb.)`), true],
   ]
-  const filasCum = ev
-    .filter((e) => (!labCum || claveLaboratorio(e.sol.laboratorio) === labCum))
-    .filter((e) => !filtroVer || (filtroVer === 'atrasada' ? e.veredicto === 'tarde' || e.veredicto === 'vencida' : e.veredicto === filtroVer))
-  const orden: Record<Veredicto, number> = { vencida: 0, tarde: 1, plazo: 2, sin_plazo: 3, cumplio: 4, excluida: 5 }
-  filasCum.sort((a, b) => orden[a.veredicto] - orden[b.veredicto] || (b.dias ?? b.edad) - (a.dias ?? a.edad))
-  const colsCum: [string, (e: EvaluadaEntrega) => string, boolean?][] = [
-    ['Solicitud', (e) => e.sol.numero_solicitud ?? e.sol.archivo],
-    ['Laboratorio', (e) => e.sol.laboratorio ?? '—'],
-    ['Cliente', (e) => e.sol.sold_to ?? '—'],
-    ['Emitida', (e) => dia(e.sol.emitida_en)],
-    ['Entregada', (e) => (e.fin != null ? formatDateCL(new Date(e.fin)) : '—')],
-    ['Plazo', (e) => (e.plazo != null ? `${e.plazo} d háb.${e.analisis ? ` (${e.analisis})` : ''}` : '—'), true],
-    ['Días háb.', (e) => (e.dias != null ? f1(e.dias) : `${f1(e.edad)} (abierta)`), true],
-    ['Resultado', (e) => VEREDICTO[e.veredicto].texto],
-  ]
-
   const tabla = (filas: EvaluadaEntrega[], cols: typeof colsLead, ver: boolean, alternar: () => void) => (
     <>
       <div className={styles.cajaTabla}>
@@ -220,7 +199,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
         </header>
 
         {lead.entregadas === 0 ? (
-          <p className={styles.vacio}>Todavía no hay solicitudes entregadas con estos filtros ({nf.format(lead.abiertas)} siguen abiertas).</p>
+          <p className={styles.vacio}>Todavía no hay informes entregados con estos filtros ({nf.format(lead.abiertas)} siguen pendientes).</p>
         ) : (
           <>
             <div className={styles.tiles}>
@@ -230,7 +209,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
                 <span className={styles.ap}>
                   la mitad tarda menos
                   <Ayuda>
-                    <b>Se usa la mediana y no el promedio</b> porque unas pocas solicitudes muy atrasadas inflan el promedio. Aquí el promedio sería {f1(lead.promedio)} d contra una mediana de {f1(lead.p50)} d.
+                    <b>Se usa la mediana y no el promedio</b> porque unos pocos informes muy atrasados inflan el promedio. Aquí el promedio sería {f1(lead.promedio)} d contra una mediana de {f1(lead.p50)} d.
                   </Ayuda>
                 </span>
                 <Spark valores={serie.map((p: PuntoMes) => p.p50)} formato={(v) => `${f1(v)} d`} />
@@ -248,7 +227,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
                 <span className={styles.gr}>{nf.format(lead.abiertas)}</span>
                 <span className={styles.ap}>
                   {lead.abiertas ? `llevan ${f1(lead.edadMedianaAbiertas)} d háb. (mediana)` : 'ninguna'}
-                  <Ayuda>No entran al cálculo: una solicitud abierta todavía no tiene lead time. Dejarla fuera haría que el número se vea mejor de lo que es, por eso se informa aparte.</Ayuda>
+                  <Ayuda>No entran al cálculo: un informe pendiente todavía no tiene lead time. Dejarlo fuera haría que el número se vea mejor de lo que es, por eso se informa aparte.</Ayuda>
                 </span>
               </div>
             </div>
@@ -264,9 +243,9 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
 
         <p className={styles.formula}>
           <span><b>Lead time</b> = «{textoFin}» − recepción estimada (emisión + {RECEPCION_ESTIMADA_DIAS} día), en días hábiles</span>
-          <span>{nf.format(lead.entregadas)} de {nf.format(lead.total)} solicitudes entran al cálculo</span>
+          <span>{nf.format(lead.entregadas)} de {nf.format(lead.total)} informes entran al cálculo</span>
           <Ayuda etiqueta="Cómo se calcula el lead time">
-            <b>Qué entra.</b> {nf.format(lead.total)} solicitudes del alcance (filtros de la página, sin pruebas): {nf.format(lead.entregadas)} ya llegaron a «{textoFin}» y {nf.format(lead.abiertas)} siguen abiertas
+            <b>Qué entra.</b> {nf.format(lead.total)} informes del alcance (uno por solicitud; filtros de la página, sin pruebas): {nf.format(lead.entregadas)} ya llegaron a «{textoFin}» y {nf.format(lead.abiertas)} siguen pendientes
             {lead.excluidas > 0 ? `; ${nf.format(lead.excluidas)} quedan fuera por tener una fecha anterior a la emisión` : ''}.
             <br />
             <b>De dónde sale cada fecha.</b> Emisión: cuándo se creó la solicitud; la recepción en el laboratorio se estima {RECEPCION_ESTIMADA_DIAS} día después (no la conocemos).
@@ -277,7 +256,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
         </p>
 
         <details className={styles.como}>
-          <summary>Ver las solicitudes que hay detrás <span className={styles.chip}>{nf.format(filasLead.length)}</span></summary>
+          <summary>Ver los informes que hay detrás <span className={styles.chip}>{nf.format(filasLead.length)}</span></summary>
           <div>
             <div className={styles.fl}>
               <span className={styles.pie}>De la más lenta a la más rápida.</span>
@@ -316,38 +295,8 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
             {' '}No se asume ninguno.
           </p>
         ) : (
-          <CumplimientoEntregable ev={ev} serie={serie} textoFin={textoFin} labElegido={labCum} onLab={setLabCum} />
+          <CumplimientoEntregable ev={ev} serie={serie} textoFin={textoFin} />
         )}
-
-        <p className={styles.formula}>
-          <span><b>Cumplimiento</b> = a tiempo ÷ (a tiempo + tarde + vencidas sin entregar)</span>
-          <span>{nf.format(cum.vencidas)} ya vencidas cuentan</span>
-          <Ayuda etiqueta="Cómo se calcula el cumplimiento">
-            <b>A tiempo:</b> llegó a «{textoFin}» dentro del plazo de su análisis (o el general de su laboratorio), en días hábiles desde la recepción estimada (emisión + {RECEPCION_ESTIMADA_DIAS} día).
-            <br /><b>Entregada tarde:</b> llegó, pero después del plazo.
-            <br /><b>Vencida sin entregar:</b> no llegó y ya pasó su plazo; cuenta como incumplida desde el día siguiente (si se entrega después, pasa a «tarde»).
-            <br /><b>Aún en plazo:</b> {nf.format(cum.plazo)}, no cuentan todavía.
-            {cum.sinPlazo > 0 && <><br /><b>Sin plazo:</b> {nf.format(cum.sinPlazo)}, su laboratorio y sus análisis no tienen plazo cargado.</>}
-            {cum.excluidas > 0 && <><br /><b>Fuera:</b> {nf.format(cum.excluidas)} con una fecha anterior a la emisión.</>}
-            <br />Solo mueven el número dos reglas: qué cuenta como «entregado» y el plazo de cada laboratorio o análisis, que fija el administrador general.
-          </Ayuda>
-        </p>
-
-        <details className={styles.como}>
-          <summary>Ver las solicitudes que hay detrás <span className={styles.chip}>{nf.format(filasCum.length)}</span></summary>
-          <div>
-            <div className={styles.fl}>
-              {([['', 'Todas'], ['atrasada', 'Atrasadas'], ['cumplio', 'A tiempo'], ['plazo', 'En plazo']] as const).map(([v, t]) => (
-                <button key={v} type="button" className={styles.mini} aria-pressed={filtroVer === v} onClick={() => setFiltroVer(v)}>{t}</button>
-              ))}
-              {labCum && <span className={styles.chip}>{labCum}</span>}
-              <button type="button" className={styles.copiar} onClick={(e) => copiar([colsCum.map((c) => c[0]), ...filasCum.map((r) => colsCum.map((c) => c[1](r)))], e.currentTarget)}>
-                Copiar tabla
-              </button>
-            </div>
-            {tabla(filasCum, colsCum, verTodasCum, () => setVerTodasCum((v) => !v))}
-          </div>
-        </details>
       </section>
     </div>
   )

@@ -60,12 +60,6 @@ export function AnalisisPorCliente({
 
   return (
     <section className={styles.cuerpoGrafico} aria-label="Análisis por cliente">
-      <p className={styles.resumen}>
-        {nf.format(todas.length)} con análisis{limite > 0 && todas.length > limite ? `, mostrando los ${nf.format(limite)} primeros` : ', de más a menos'}
-        {apagados.length > 0 && ` · ${nf.format(apagados.length)} del listado todavía sin ninguno`}
-        {' · el número son los análisis pedidos y ✓ cuántos ya tienen informe'}
-      </p>
-
       <div className={styles.caja}>
         <table className={styles.tabla}>
           <thead>

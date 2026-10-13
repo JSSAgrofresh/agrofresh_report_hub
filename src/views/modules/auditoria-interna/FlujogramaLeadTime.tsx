@@ -85,7 +85,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
   const resumen = useMemo(() => resumenFlujo(delLab), [delLab])
   const una = elegida ? validas.find((e) => e.sol.archivo === elegida) ?? null : null
 
-  // El rango de plazos prometidos de las solicitudes que están en análisis hoy.
+  // El rango de plazos prometidos de los informes que están en análisis hoy.
   const plazosEnAnalisis = validas.filter((e) => nodoActual(e) === 'analisis' && e.plazo != null).map((e) => e.plazo as number)
   const rangoPlazo = plazosEnAnalisis.length
     ? Math.min(...plazosEnAnalisis) === Math.max(...plazosEnAnalisis)
@@ -117,13 +117,16 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
       }
     }
     const r = resumen[n]
+    // Los tres primeros puntos son de la solicitud; del cuarto en adelante, lo que cuenta es el informe.
+    const cosa = n === 'emitida' || n === 'recepcion' || n === 'analisis' ? 'solicitud' : 'informe'
+    const plural = cosa === 'solicitud' ? 'solicitudes' : 'informes'
     return {
-      cifra: `${nf.format(r.alcanzaron)} ${r.alcanzaron === 1 ? 'solicitud llegó' : 'solicitudes llegaron'}`,
+      cifra: `${nf.format(r.alcanzaron)} ${r.alcanzaron === 1 ? `${cosa} llegó` : `${plural} llegaron`}`,
       extra: n === 'analisis' && rangoPlazo ? `plazo prometido: ${rangoPlazo}` : null,
       fechaNodo: null,
       on: r.alcanzaron > 0,
       aqui: r.ahoraAqui > 0,
-      ahora: r.ahoraAqui > 0 ? `${nf.format(r.ahoraAqui)} ${r.ahoraAqui === 1 ? 'solicitud está aquí hoy' : 'solicitudes están aquí hoy'}` : null,
+      ahora: r.ahoraAqui > 0 ? `${nf.format(r.ahoraAqui)} ${r.ahoraAqui === 1 ? `${cosa} está aquí hoy` : `${plural} están aquí hoy`}` : null,
     }
   }
 
@@ -178,7 +181,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
           <label className={styles.selector}>
             <span>Ver</span>
             <select value={elegida} onChange={(e) => setElegida(e.target.value)} aria-label="Ver una solicitud">
-              <option value="">Todas las solicitudes</option>
+              <option value="">Todos los informes</option>
               {[...validas]
                 .sort((a, b) => etiquetaSolicitud(a).localeCompare(etiquetaSolicitud(b), 'es', { numeric: true }))
                 .map((e) => <option key={e.sol.archivo} value={e.sol.archivo}>{etiquetaSolicitud(e)} · {e.sol.laboratorio ?? '—'}</option>)}
@@ -211,7 +214,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
           <>
             <span className={styles.fichaTitulo}>
               {lab || 'Todos los laboratorios'}
-              <small>{nf.format(validas.length)} solicitudes · elige una OT de la tabla para ver su recorrido</small>
+              <small>{nf.format(validas.length)} informes (uno por OT) · elige una OT de la tabla para ver su recorrido</small>
             </span>
           </>
         )}
@@ -224,7 +227,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         <i className={styles.hilo} aria-hidden="true" />
         {nodo('analisis')}
         {!una && pasadasDePlazo > 0 && (
-          <p className={styles.alerta}>{nf.format(pasadasDePlazo)} {pasadasDePlazo === 1 ? 'solicitud ya pasó' : 'solicitudes ya pasaron'} su plazo sin informe</p>
+          <p className={styles.alerta}>{nf.format(pasadasDePlazo)} {pasadasDePlazo === 1 ? 'informe ya pasó' : 'informes ya pasaron'} su plazo sin llegar</p>
         )}
         <i className={styles.hilo} aria-hidden="true" />
         {nodo('informe')}
@@ -239,7 +242,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         </div>
       <section className={styles.panelTabla} aria-label="Estado de cada solicitud">
         <div className={styles.panelCab}>
-          <h4>Solicitudes</h4>
+          <h4>Informe de cada OT</h4>
           <input
             type="search"
             className={styles.buscaEstado}
@@ -269,7 +272,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
             </thead>
             <tbody>
               {filasEstado.length === 0 && (
-                <tr><td colSpan={5} className={styles.vacio}>Ninguna solicitud con este estado.</td></tr>
+                <tr><td colSpan={5} className={styles.vacio}>Ningún informe con este estado.</td></tr>
               )}
               {filasEstado.map((e) => {
                 const a = alcanzados(e)
