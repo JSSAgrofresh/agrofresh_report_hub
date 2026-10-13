@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { descargarExcelConMuestra, filtrarPorFolio, guardarPesoExtraido } from '@/features/emitir'
+import { descargarExcelConMuestra, filtrarPorFolio, guardarPesoExtraido, guardarPesoHueso } from '@/features/emitir'
 import { EliminarConClave } from '@/components/ui/EliminarConClave'
 import { descargarPdfsZip } from '@/features/tomaMuestras'
 import { Modal } from '@/components/ui/Modal'
@@ -56,7 +56,43 @@ interface TablaSolicitudesProps {
  * está cruzada y queda guardado en la solicitud; se puede corregir después.
  */
 function PesoExtraido({ solicitud, onGuardado }: { solicitud: Solicitud; onGuardado: () => void | Promise<void> }) {
-  const guardado = solicitud.peso_muestra_extraido ?? null
+  return (
+    <PesoEditable
+      solicitud={solicitud}
+      onGuardado={onGuardado}
+      guardado={solicitud.peso_muestra_extraido ?? null}
+      guardarFn={guardarPesoExtraido}
+      nombre="Segundo peso"
+    />
+  )
+}
+
+/** El peso hueso (g): se anota igual que el extraído, apenas la muestra está cruzada. */
+function PesoHueso({ solicitud, onGuardado }: { solicitud: Solicitud; onGuardado: () => void | Promise<void> }) {
+  return (
+    <PesoEditable
+      solicitud={solicitud}
+      onGuardado={onGuardado}
+      guardado={solicitud.peso_hueso ?? null}
+      guardarFn={guardarPesoHueso}
+      nombre="peso hueso"
+    />
+  )
+}
+
+function PesoEditable({
+  solicitud,
+  onGuardado,
+  guardado,
+  guardarFn,
+  nombre,
+}: {
+  solicitud: Solicitud
+  onGuardado: () => void | Promise<void>
+  guardado: number | null
+  guardarFn: (archivo: string, peso: number) => Promise<unknown>
+  nombre: string
+}) {
   const [borrador, setBorrador] = useState(guardado === null ? '' : String(guardado))
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -69,7 +105,7 @@ function PesoExtraido({ solicitud, onGuardado }: { solicitud: Solicitud; onGuard
     setGuardando(true)
     setError(null)
     try {
-      await guardarPesoExtraido(solicitud.archivo, numero)
+      await guardarFn(solicitud.archivo, numero)
       await onGuardado()
     } catch {
       setError('No se pudo guardar.')
@@ -86,7 +122,7 @@ function PesoExtraido({ solicitud, onGuardado }: { solicitud: Solicitud; onGuard
         step="0.0001"
         min="0"
         placeholder="ej. 5.0250"
-        aria-label={`Segundo peso (extraído) de ${solicitud.codigo_muestra ?? solicitud.archivo} en gramos`}
+        aria-label={`${nombre} de ${solicitud.codigo_muestra ?? solicitud.archivo} en gramos`}
         className={styles.inputPeso}
         value={borrador}
         disabled={guardando}
@@ -99,8 +135,8 @@ function PesoExtraido({ solicitud, onGuardado }: { solicitud: Solicitud; onGuard
         className={cambio ? styles.tiketPendiente : styles.tiket}
         onClick={() => void guardar()}
         disabled={!cambio || guardando}
-        title={guardado !== null && !cambio ? 'Guardado' : 'Guardar el segundo peso'}
-        aria-label="Guardar segundo peso"
+        title={guardado !== null && !cambio ? 'Guardado' : `Guardar: ${nombre.toLowerCase()}`}
+        aria-label={`Guardar ${nombre.toLowerCase()}`}
       >
         {guardando ? '…' : '✓'}
       </button>
@@ -289,6 +325,7 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, puedeQuitarCruce = f
               <th>N° Muestra</th>
               <th>Peso</th>
               <th>Peso extraído</th>
+              <th>Peso hueso</th>
               <th>Foto</th>
               <th>Fecha recepción</th>
               <th>Hora recepción</th>
@@ -320,6 +357,13 @@ export function TablaSolicitudes({ solicitudes, onVerFicha, puedeQuitarCruce = f
                 <td>
                   {s.codigo_muestra ? (
                     <PesoExtraido key={`${s.archivo}|${s.peso_muestra_extraido ?? ''}`} solicitud={s} onGuardado={onCruceEditado} />
+                  ) : (
+                    <span className={styles.pendiente}>—</span>
+                  )}
+                </td>
+                <td>
+                  {s.codigo_muestra ? (
+                    <PesoHueso key={`${s.archivo}|h|${s.peso_hueso ?? ''}`} solicitud={s} onGuardado={onCruceEditado} />
                   ) : (
                     <span className={styles.pendiente}>—</span>
                   )}

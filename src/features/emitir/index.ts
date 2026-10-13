@@ -10,6 +10,7 @@ export {
   subirCruceABaseDeDatos,
   cruzarConMuestra,
   guardarPesoExtraido,
+  guardarPesoHueso,
   cruzarCompleto,
   editarCruce,
   obtenerFotoCruce,

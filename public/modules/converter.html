@@ -152,6 +152,9 @@ table.uni td.amarre{white-space:normal;min-width:260px}
 select.ot,input.envio{font-family:var(--ui);font-size:13px;padding:6px 8px;border:1px solid var(--borde-f);
   border-radius:6px;background:var(--sup);color:var(--tinta);max-width:100%}
 select.ot.sugerida{border-color:var(--verde-osc);background:#F2F8EC}
+.avisoExisten{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#fff4dc;border:1px solid #f0d9a4;color:#6b4a00;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:13px}
+.avisoExisten .acc{display:flex;gap:8px;flex-wrap:wrap}
+.tag.existe{background:#fff4dc;color:#8a5a00;border:1px solid #f0d9a4}
 .mvel{position:fixed;inset:0;background:rgba(20,30,20,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
 .mcaja{background:#fff;border-radius:12px;max-width:620px;width:100%;max-height:85vh;overflow:auto;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
 .mcaja h3{margin:0 0 6px;font-size:17px}
@@ -1179,6 +1182,7 @@ function esc(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); 
 function pintar(){
   const cont = $("fichas");
   cont.innerHTML = "";
+  pintarAvisoExisten(cont);
   informes.forEach((inf, i) => {
     const bloq = inf.avisos.some(a => /no se reconoce|no tiene texto|no se encontr/i.test(a));
     const d = document.createElement("div");
@@ -1211,6 +1215,7 @@ function pintar(){
     d.innerHTML =
       '<div class="cab"><span class="fl">&#9656;</span><b>' + esc(inf.archivo) + "</b>" +
       '<span class="tag ' + cls + '">' + esc(inf.laboratorio || "NO RECONOCIDO") + "</span>" +
+      (inf.existe ? '<span class="tag existe" title="Este N° de informe ya está cargado en el sistema">YA EXISTE</span>' : "") +
       '<span class="meta">' + nRes + " resultado(s) · " +
       Object.keys(inf.datos).length + " campo(s)</span></div>" +
       '<div class="cuerpo">' + cuerpo + "</div>";
@@ -1623,6 +1628,48 @@ function pintarTabla(ok){
     " celda(s) con dato · las columnas vacías quedan para completar a mano";
 }
 
+/* ============ ¿ya existen en el sistema? ============ */
+// Apenas se leen los PDF se pregunta al servidor (revisión previa, no escribe nada) cuáles de estos
+// informes ya están cargados, para sacarlos antes de subir algo de más.
+let revisionExisten = 0, avisoExistenCerrado = false;
+async function revisarExistentes(){
+  const ok = informes.filter(i => i.laboratorio);
+  const mia = ++revisionExisten;
+  if(!ok.length) return;
+  try{
+    const prev = await llamarIngest("preview", ok.map(filaCruda));
+    if(mia !== revisionExisten) return;   // llegó otra carga mientras tanto: manda la última
+    const hay = new Map(existentesDeLaTanda(prev.detalle, ok).map(e => [e.inf, e.d]));
+    informes.forEach(i => { i.existe = hay.get(i) || null; });
+    avisoExistenCerrado = false;
+    pintar();
+  }catch(e){ /* sin revisión previa: se vuelve a preguntar al subir */ }
+}
+
+function pintarAvisoExisten(cont){
+  const ya = informes.filter(i => i.existe);
+  if(!ya.length || avisoExistenCerrado) return;
+  const caja = document.createElement("div");
+  caja.className = "avisoExisten";
+  const t = document.createElement("div");
+  t.innerHTML = "<b>" + ya.length + " de " + informes.length + " informe(s) ya existen en el sistema</b>" +
+    "<br>Si los subes de nuevo no se duplican, pero se te preguntará si quieres actualizar sus datos. " +
+    "Si solo querías subir lo nuevo, quítalos ahora.";
+  caja.appendChild(t);
+  const acc = document.createElement("div"); acc.className = "acc";
+  const quitar = document.createElement("button"); quitar.type = "button"; quitar.className = "btn";
+  quitar.textContent = "Quitar los " + ya.length + " que ya existen";
+  quitar.onclick = () => {
+    for(let k = informes.length - 1; k >= 0; k--) if(informes[k].existe) informes.splice(k, 1);
+    pintar();
+  };
+  const dejar = document.createElement("button"); dejar.type = "button"; dejar.className = "btn sec";
+  dejar.textContent = "Dejarlos (decido al subir)";
+  dejar.onclick = () => { avisoExistenCerrado = true; pintar(); };
+  acc.appendChild(quitar); acc.appendChild(dejar); caja.appendChild(acc);
+  cont.appendChild(caja);
+}
+
 /* ============ carga ============ */
 async function cargar(lista){
   const pend = Array.from(lista).filter(f => /\.pdf$/i.test(f.name));
@@ -1646,6 +1693,7 @@ async function cargar(lista){
     }
     pintar();
   }
+  revisarExistentes();
 }
 
 $("btnSel").onclick = () => $("input").click();
@@ -1761,12 +1809,12 @@ function filaCruda(inf){
   return f;
 }
 
-async function llamarIngest(ruta, filas, archivo){
+async function llamarIngest(ruta, filas, archivo, actualizar){
   const resp = await fetch(API_BASE + "/ingest/" + ruta, {
     method: "POST",
     headers: {"Content-Type": "application/json", ...autorizacion()},
     // el nombre de los PDF va al historial de cargas de Ingesta de Datos
-    body: JSON.stringify({filas, origen: "converter", archivo}),
+    body: JSON.stringify({filas, origen: "converter", archivo, actualizar_existentes: !!actualizar}),
   });
   if(!resp.ok){
     let detalle = "";
@@ -1776,22 +1824,97 @@ async function llamarIngest(ruta, filas, archivo){
   return resp.json();
 }
 
+/* ===== tanda: informes que ya existen en el sistema ===== */
+// De la revisión previa del servidor (`detalle`), los informes de la tanda cuyo N° Informe ya está
+// cargado. La fila del servidor es la posición del informe + 2 (la 1 es el encabezado).
+function existentesDeLaTanda(detalle, ok){
+  return (detalle || [])
+    .filter(d => d && d.ya_existia && !d.omitida && Number.isInteger(d.fila) && ok[d.fila - 2])
+    .map(d => ({inf: ok[d.fila - 2], d}));
+}
+/* ===== fin tanda ===== */
+
+/* Pregunta qué hacer con los que ya existen. Devuelve "actualizar", "saltar" o null (cancelar). */
+function preguntarExistentes(existentes, total){
+  return new Promise(res => {
+    const vel = document.createElement("div"); vel.className = "mvel";
+    const caja = document.createElement("div"); caja.className = "mcaja";
+    const h = document.createElement("h3");
+    h.textContent = existentes.length === 1 ? "1 informe ya existe en el sistema" : existentes.length + " informes ya existen en el sistema";
+    caja.appendChild(h);
+    const intro = document.createElement("div"); intro.className = "pie";
+    intro.textContent = "De los " + total + " que estás subiendo, estos ya estaban cargados (mismo N° de informe). " +
+      "¿Qué hago con ellos?";
+    caja.appendChild(intro);
+    existentes.slice(0, 12).forEach(({inf, d}) => {
+      const it = document.createElement("div"); it.className = "it";
+      const b = document.createElement("b"); b.textContent = (inf.datos["N° Solicitud"] || d.nro_solicitud || inf.archivo);
+      it.appendChild(b);
+      const l = (txt) => { const x = document.createElement("div"); x.textContent = txt; it.appendChild(x); };
+      l((d.cliente || "—") + " / " + (d.planta || "—"));
+      l("Ya tiene " + (d.resultados_actuales ?? "?") + " resultado(s) guardados; este archivo trae " + d.resultados + ".");
+      caja.appendChild(it);
+    });
+    if(existentes.length > 12){
+      const m = document.createElement("div"); m.className = "pie"; m.textContent = "… y " + (existentes.length - 12) + " más.";
+      caja.appendChild(m);
+    }
+    const expl = document.createElement("div"); expl.className = "pie";
+    expl.textContent = "«Subir y actualizar» reemplaza los datos guardados por los de este archivo. " +
+      "«Sacarlos de la tanda» los quita de esta subida y solo sube lo nuevo (el PDF tampoco se vuelve a guardar).";
+    caja.appendChild(expl);
+    const acc = document.createElement("div"); acc.className = "acc";
+    const cerrar = (v) => { vel.remove(); res(v); };
+    const mk = (txt, v, clase) => { const bt = document.createElement("button"); bt.type = "button"; bt.textContent = txt; if(clase) bt.className = clase; bt.onclick = () => cerrar(v); return bt; };
+    acc.appendChild(mk("Cancelar", null));
+    acc.appendChild(mk("Sacarlos de la tanda", "saltar"));
+    acc.appendChild(mk("Subir y actualizar los datos", "actualizar", "btn"));
+    caja.appendChild(acc); vel.appendChild(caja);
+    vel.onclick = (e) => { if(e.target === vel) cerrar(null); };
+    document.body.appendChild(vel);
+  });
+}
+
 $("btnSubir").onclick = async () => {
-  const ok = informes.filter(i => i.laboratorio);
+  let ok = informes.filter(i => i.laboratorio);
   if(!ok.length) return;
-  const filas = ok.map(filaCruda);
-  const archivos = ok.map(i => i.archivo).join(", ");
+  let filas = ok.map(filaCruda);
+  let archivos = ok.map(i => i.archivo).join(", ");
   const pie = $("pieSubir");
   const btn = $("btnSubir");
   btn.disabled = true;
   pie.className = "pie";
   pie.textContent = "Revisando contra la base de datos…";
   try{
-    const prev = await llamarIngest("preview", filas);
+    let prev = await llamarIngest("preview", filas);
+    // ¿Alguno de los informes ya está en el sistema? Se pregunta ANTES de seguir.
+    let actualizar = false;
+    const existentes = existentesDeLaTanda(prev.detalle, ok);
+    if(existentes.length){
+      const eleccion = await preguntarExistentes(existentes, ok.length);
+      if(!eleccion){ pie.textContent = "Carga cancelada."; btn.disabled = false; return; }
+      if(eleccion === "saltar"){
+        const fuera = new Set(existentes.map(e => e.inf));
+        for(let k = informes.length - 1; k >= 0; k--) if(fuera.has(informes[k])) informes.splice(k, 1);
+        ok = ok.filter(i => !fuera.has(i));
+        pintar();
+        if(!ok.length){
+          pie.className = "pie resultado ok";
+          pie.textContent = "No queda nada por subir: todos los informes ya estaban en el sistema.";
+          btn.disabled = false; return;
+        }
+        filas = ok.map(filaCruda);
+        archivos = ok.map(i => i.archivo).join(", ");
+        prev = await llamarIngest("preview", filas);
+      }else{
+        actualizar = true;
+      }
+    }
     const r = prev.resumen;
     const msg = "Se van a cargar " + filas.length + " informe(s): " +
       r.solicitudes_nuevas + " solicitud(es) nueva(s), " +
-      r.solicitudes_existentes + " ya existente(s) (se completan analitos que le falten), " +
+      (actualizar ? r.solicitudes_existentes + " ya existente(s) que se ACTUALIZAN con los datos de este archivo, "
+                  : r.solicitudes_existentes + " ya existente(s) (se completan analitos que le falten), ") +
       r.resultados + " resultado(s), " + r.clientes_nuevos + " cliente(s) nuevo(s), " +
       r.plantas_nuevas + " sucursal(es) nueva(s)." +
       (r.pendientes_revision ? "\n\n⛔ " + r.pendientes_revision + " fila(s) traen un Sold To, Ship To, especie " +
@@ -1814,10 +1937,11 @@ $("btnSubir").onclick = async () => {
       if(!sigue){ pie.textContent = "Carga cancelada."; btn.disabled = false; return; }
     }
     pie.textContent = "Subiendo a la base de datos…";
-    const conf = await llamarIngest("confirmar", filas, archivos);
+    const conf = await llamarIngest("confirmar", filas, archivos, actualizar);
     const c = conf.resumen;
     const base = "✔ Cargado: " + c.solicitudes_nuevas + " solicitud(es) nueva(s), " +
-      c.solicitudes_existentes + " completada(s), " + c.resultados + " resultado(s) en total." +
+      (actualizar ? c.solicitudes_actualizadas + " actualizada(s), " : c.solicitudes_existentes + " completada(s), ") +
+      c.resultados + " resultado(s) en total." +
       (c.pendientes_revision ? " ⛔ " + c.pendientes_revision + " quedaron en Ingesta de Datos → Pendientes." : "");
     const usos = ok.flatMap(i => i.usadas || []);
     if(usos.length)   // cuántas veces el sistema corrigió solo con lo que aprendió
