@@ -2,24 +2,21 @@ import { useMemo, useState } from 'react'
 import {
   claveLaboratorio,
   RECEPCION_ESTIMADA_DIAS,
-  cumplimientoPorAnalisis,
-  cumplimientoPorLab,
   evaluarTodas,
   resumenCumplimiento,
   resumenLeadTime,
-  sensibilidad,
   seriePorMes,
   useEntrega,
 } from '@/features/auditoriaInterna'
 import type { Definicion, EvaluadaEntrega, PuntoMes, SolicitudAuditoria, Veredicto } from '@/features/auditoriaInterna'
 import { formatDateCL } from '@/lib/locale'
+import { CumplimientoEntregable } from './CumplimientoEntregable'
 import { FlujogramaLeadTime } from './FlujogramaLeadTime'
 import styles from './IndicadoresEntrega.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 const f1 = (v: number | null | undefined) =>
   v == null || Number.isNaN(v) ? '—' : v.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-const pc = (v: number | null | undefined) => (v == null ? '—' : `${Math.round(v)} %`)
 
 const VEREDICTO: Record<Veredicto, { texto: string; tono: string }> = {
   cumplio: { texto: 'A tiempo', tono: 'bueno' },
@@ -99,7 +96,6 @@ const dia = (iso: string | null | undefined) => (iso ? formatDateCL(iso) : '—'
 export function IndicadoresEntrega({ solicitudes }: { solicitudes: SolicitudAuditoria[] }) {
   const { hitos, reglas, error } = useEntrega()
   const [ahora] = useState(() => Date.now())
-  const [vistaCum, setVistaCum] = useState<'laboratorio' | 'analisis'>('laboratorio')
   const [labElegido, setLabElegido] = useState('')
   const [labCum, setLabCum] = useState('')
   const [filtroVer, setFiltroVer] = useState<'' | 'atrasada' | Veredicto>('')
@@ -126,9 +122,6 @@ export function IndicadoresEntrega({ solicitudes }: { solicitudes: SolicitudAudi
   const evFlujo = useMemo(() => (labElegido ? ev.filter((e) => claveLaboratorio(e.sol.laboratorio) === labElegido) : ev), [ev, labElegido])
   const serie = useMemo(() => seriePorMes(ev), [ev])
   const cum = useMemo(() => resumenCumplimiento(ev), [ev])
-  const porLab = useMemo(() => cumplimientoPorLab(ev), [ev])
-  const porAnalisis = useMemo(() => cumplimientoPorAnalisis(ev), [ev])
-  const sens = useMemo(() => sensibilidad(ev, [-2, 0, 2, 5]), [ev])
 
   if (error) {
     return <p className={styles.error} role="alert">{error}</p>
@@ -279,12 +272,14 @@ export function IndicadoresEntrega({ solicitudes }: { solicitudes: SolicitudAudi
       </section>
 
       {/* ───────── Cumplimiento ───────── */}
-      <details className={`${styles.tarjeta} ${styles.config}`}>
-        <summary>
-          <span>Cumplimiento del entregable</span>
-          <small>qué parte llegó dentro del plazo, por laboratorio y por análisis</small>
-        </summary>
-        <div className={styles.configCuerpo}>
+      <section className={styles.tarjeta} aria-labelledby="ie-cum">
+        <header className={styles.cabecera}>
+          <div>
+            <span className={styles.sobre}>Indicador</span>
+            <h3 id="ie-cum">Cumplimiento del entregable</h3>
+          </div>
+          <small>qué parte llegó dentro del plazo prometido, dónde falla y cómo evoluciona</small>
+        </header>
 
         {!hayPlazos ? (
           <p className={styles.vacio}>
@@ -292,100 +287,7 @@ export function IndicadoresEntrega({ solicitudes }: { solicitudes: SolicitudAudi
             {' '}No se asume ninguno.
           </p>
         ) : (
-          <>
-            <div className={styles.tiles}>
-              <div className={styles.tile}>
-                <span className={styles.et}>Cumplimiento</span>
-                <span className={`${styles.gr} ${cum.pct == null ? '' : cum.pct >= 90 ? styles.bueno : cum.pct >= 75 ? styles.regular : styles.malo}`}>{cum.pct == null ? '—' : Math.round(cum.pct)}<small>%</small></span>
-                <span className={styles.ap}>{nf.format(cum.cumplio)} de {nf.format(cum.vencidas)} entregables que ya vencieron</span>
-                <Spark valores={serie.map((p) => p.pct)} formato={(v) => `${Math.round(v)} %`} />
-              </div>
-              <div className={styles.tile}>
-                <span className={styles.et}>Entregadas a tiempo</span>
-                <span className={`${styles.gr} ${styles.bueno}`}>{nf.format(cum.cumplio)}</span>
-                <span className={styles.ap}>dentro del plazo de su análisis</span>
-              </div>
-              <div className={styles.tile}>
-                <span className={styles.et}>Atrasadas</span>
-                <span className={`${styles.gr} ${styles.malo}`}>{nf.format(cum.tarde + cum.vencida)}</span>
-                <span className={styles.ap}>{nf.format(cum.tarde)} entregadas tarde · {nf.format(cum.vencida)} vencidas sin entregar</span>
-              </div>
-              <div className={styles.tile}>
-                <span className={styles.et}>Aún en plazo</span>
-                <span className={styles.gr}>{nf.format(cum.plazo)}</span>
-                <span className={styles.ap}>
-                  todavía no vencen{cum.sinPlazo ? ` · ${nf.format(cum.sinPlazo)} sin plazo` : ''}
-                  <Ayuda>No suben ni bajan el %: se dejan fuera para no premiar ni castigar lo que todavía no se puede juzgar.</Ayuda>
-                </span>
-              </div>
-            </div>
-
-            <div className={styles.ecuacion} aria-label="Fórmula con las cifras reales">
-              <div className={styles.termino}><b className={styles.bueno}>{nf.format(cum.cumplio)}</b><span>entregadas a tiempo</span></div>
-              <span className={styles.op}>÷</span><span className={styles.op}>(</span>
-              <div className={styles.termino}><b className={styles.bueno}>{nf.format(cum.cumplio)}</b><span>a tiempo</span></div>
-              <span className={styles.op}>+</span>
-              <div className={styles.termino}><b className={styles.malo}>{nf.format(cum.tarde)}</b><span>entregadas tarde</span></div>
-              <span className={styles.op}>+</span>
-              <div className={styles.termino}><b className={styles.malo}>{nf.format(cum.vencida)}</b><span>vencidas sin entregar</span></div>
-              <span className={styles.op}>)</span><span className={styles.op}>=</span>
-              <div className={styles.termino}><b>{cum.pct == null ? '—' : `${f1(cum.pct)} %`}</b><span>cumplimiento</span></div>
-            </div>
-
-            <div className={styles.dos}>
-              <div className={styles.columna}>
-                <div className={styles.cabVista}>
-                  <span className={styles.sobre}>
-                    {vistaCum === 'laboratorio' ? 'Por laboratorio' : 'Por análisis'}
-                    <Ayuda>
-                      {vistaCum === 'laboratorio'
-                        ? 'Toca uno para filtrar los registros de abajo.'
-                        : 'Agrupa cada solicitud por el análisis que fija su plazo (el más lento de los que pidió). «Plazo general» son las que usan el plazo del laboratorio.'}
-                    </Ayuda>
-                  </span>
-                  <div className={styles.segmentado} role="group" aria-label="Agrupar cumplimiento por">
-                    <button type="button" aria-pressed={vistaCum === 'laboratorio'} onClick={() => setVistaCum('laboratorio')}>Laboratorio</button>
-                    <button type="button" aria-pressed={vistaCum === 'analisis'} onClick={() => { setVistaCum('analisis'); setLabCum('') }}>Análisis</button>
-                  </div>
-                </div>
-                <div className={styles.cajas}>
-                  {(vistaCum === 'laboratorio'
-                    ? porLab.map(({ lab, plazo, r, total }) => ({ clave: lab, nombre: lab, plazo, r, total, activo: labCum === lab, elegible: true }))
-                    : porAnalisis.map((x) => ({ clave: x.etiqueta, nombre: x.etiqueta, plazo: x.plazo, r: x.r, total: x.total, activo: false, elegible: false }))
-                  ).map(({ clave, nombre, plazo, r, total, activo, elegible }) => (
-                    <button key={clave} type="button" className={styles.caja} style={{ gridTemplateColumns: '120px minmax(0,1fr) 58px', cursor: elegible ? 'pointer' : 'default' }} aria-pressed={elegible ? activo : undefined} onClick={() => elegible && setLabCum(labCum === clave ? '' : clave)}>
-                      <span className={styles.nom}>{nombre}<small>{plazo != null ? `plazo ${plazo} d háb. · ${nf.format(r.vencidas)} vencidas` : 'sin plazo cargado'}</small></span>
-                      <span className={styles.apilada} role="img" aria-label={`${nombre}: ${r.cumplio} a tiempo, ${r.tarde + r.vencida} atrasadas, ${r.plazo + r.sinPlazo} sin juzgar`}>
-                        <span style={{ width: `${(r.cumplio / total) * 100}%`, background: '#1b7f5c' }} title={`A tiempo: ${r.cumplio}`} />
-                        <span style={{ width: `${((r.tarde + r.vencida) / total) * 100}%`, background: 'var(--color-danger)' }} title={`Atrasadas: ${r.tarde + r.vencida}`} />
-                        <span className={styles.sinJuzgar} style={{ width: `${((r.plazo + r.sinPlazo + r.excluidas) / total) * 100}%` }} title={`Sin juzgar: ${r.plazo + r.sinPlazo + r.excluidas}`} />
-                      </span>
-                      <span className={`${styles.val} ${r.pct != null && r.pct < 75 ? styles.malo : ''}`}>{pc(r.pct)}</span>
-                    </button>
-                  ))}
-                </div>
-                <div className={styles.leyenda}>
-                  <span><i style={{ background: '#1b7f5c' }} />A tiempo</span>
-                  <span><i style={{ background: 'var(--color-danger)' }} />Atrasadas</span>
-                  <span><i className={styles.lSinJuzgar} />Aún en plazo o sin plazo</span>
-                </div>
-              </div>
-              <div className={styles.columna}>
-                <span className={styles.sobre}>
-                  ¿Y si el plazo fuera otro?
-                  <Ayuda>Sirve para defender el plazo: si un día hábil más mueve mucho el %, el plazo está mal puesto o el proceso está al límite.</Ayuda>
-                </span>
-                <div className={styles.sens}>
-                  {sens.map((s) => (
-                    <div key={s.delta} className={s.delta === 0 ? styles.sensActual : undefined}>
-                      <b>{s.pct == null ? '—' : `${Math.round(s.pct)} %`}</b>
-                      <span>{s.delta === 0 ? 'plazos actuales' : `${s.delta > 0 ? '+' : '−'}${Math.abs(s.delta)} días háb. de plazo`}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </>
+          <CumplimientoEntregable ev={ev} serie={serie} textoFin={textoFin} labElegido={labCum} onLab={setLabCum} />
         )}
 
         <p className={styles.formula}>
@@ -417,8 +319,7 @@ export function IndicadoresEntrega({ solicitudes }: { solicitudes: SolicitudAudi
             {tabla(filasCum, colsCum, verTodasCum, () => setVerTodasCum((v) => !v))}
           </div>
         </details>
-        </div>
-      </details>
+      </section>
     </div>
   )
 }

@@ -513,3 +513,137 @@ button.nodo:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .latido { animation: none; }
 }
+
+/* ── más flow: nodos, hilos y tabla lateral ── */
+.nodo {
+  border-radius: 14px;
+  padding: 12px 14px;
+  border-style: dashed;
+  background: #fafbfa;
+  opacity: 0.7;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+  animation: aparece 0.35s ease both;
+}
+
+.on {
+  border-style: solid;
+  background: linear-gradient(135deg, #f1faf5, #fff 70%);
+  box-shadow: 0 1px 3px rgba(20, 70, 50, 0.08);
+}
+
+button.nodo:hover,
+button.nodo:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(20, 70, 50, 0.14);
+}
+
+.aqui {
+  box-shadow: 0 0 0 3px rgba(27, 127, 92, 0.18), 0 6px 18px rgba(20, 70, 50, 0.12);
+}
+
+.marca {
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+}
+
+.on .marca {
+  box-shadow: 0 0 0 4px rgba(27, 127, 92, 0.14);
+}
+
+.titulo { font-size: 14px; }
+
+.hilo {
+  width: 3px;
+  height: 18px;
+  margin-left: 25px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(to bottom, #b9c5be 0 4px, transparent 4px 7px);
+}
+
+.on + .hilo {
+  background: linear-gradient(to bottom, #1b7f5c, #7cc3a6);
+}
+
+.ficha {
+  border-radius: 14px;
+  border: 1px solid rgba(27, 127, 92, 0.3);
+  background: linear-gradient(135deg, #eaf5ef, #fff 65%);
+  box-shadow: 0 1px 4px rgba(20, 70, 50, 0.08);
+  animation: aparece 0.3s ease both;
+}
+
+.fichaTitulo { font-size: 18px; }
+
+.panelTabla {
+  border-radius: 14px;
+  box-shadow: 0 1px 4px rgba(20, 70, 50, 0.08);
+}
+
+.panelCab {
+  padding: 12px;
+  gap: 8px;
+  background: linear-gradient(180deg, #f6faf7, #fff);
+}
+
+.buscaEstado {
+  height: 32px;
+  border-radius: 999px;
+  padding: 0 12px;
+}
+
+.buscaEstado:focus-visible { outline: 2px solid #1b7f5c; outline-offset: 1px; }
+
+.chipFiltro {
+  padding: 3px 10px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.chipFiltro:hover { background: #f1faf5; }
+
+.tabla th,
+.tabla td { padding: 7px 8px; }
+
+.tabla tbody tr:nth-child(even) { background: #fafcfb; }
+
+.tabla tbody tr { transition: background 0.12s; }
+
+.punto { width: 11px; height: 11px; }
+
+.puntoSi {
+  background: #1b7f5c;
+  box-shadow: 0 0 0 3px rgba(27, 127, 92, 0.15);
+}
+
+.plazoCelda {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plazoPista {
+  display: inline-block;
+  width: 38px;
+  height: 6px;
+  border-radius: 999px;
+  background: #e3e8e5;
+  overflow: hidden;
+}
+
+.plazoPista i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.plazoBueno { background: #1b7f5c; }
+.plazoCorre { background: #8aa79a; }
+.plazoMalo { background: #b3261e; }
+
+@keyframes aparece {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nodo, .ficha { animation: none; transition: none; }
+}

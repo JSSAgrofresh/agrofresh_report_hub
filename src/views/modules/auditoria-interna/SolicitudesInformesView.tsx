@@ -23,7 +23,7 @@ import {
   useSolicitudesAuditoria,
 } from '@/features/auditoriaInterna'
 import type { AreaPivote, DimensionGrafico, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
-import { DonaTipoServicio, GraficoGrupoLaboratorio, LeyendaLaboratorios, TarjetaGrafico } from './Graficos'
+import { DonaTipoServicio, GraficoGrupoLaboratorio, LeyendaLaboratorios, TablaGrupoLaboratorio, TarjetaGrafico } from './Graficos'
 import { AuditoriaHero } from './AuditoriaHero'
 import { PanelFiltros } from './PanelFiltros'
 import { SelectorArea } from './SelectorArea'
@@ -214,6 +214,7 @@ export function SolicitudesInformesView() {
                     </select>
                   </>
                 }
+                vistaTabla={<TablaGrupoLaboratorio grupos={grupos} nombre={nombreDimension.texto} />}
                 tabla={{
                   columnas: [nombreDimension.texto, ...LABORATORIOS_GRAFICO.flatMap((l) => [`${NOMBRE_LAB[l]} · análisis`, `${NOMBRE_LAB[l]} · informes`])],
                   filas: grupos.map((g) => [g.grupo, ...LABORATORIOS_GRAFICO.flatMap((l) => [g.labs[l]?.analisis ?? 0, g.labs[l]?.informes ?? 0])]),

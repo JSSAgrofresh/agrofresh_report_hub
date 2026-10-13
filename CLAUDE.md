@@ -560,6 +560,7 @@ cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
 - **Se quitó «Rango por laboratorio»** (la caja P25–P75): se veía mal y ya lo cubren las tarjetas «Informes vs.
   solicitudes por laboratorio» de arriba. **No lo vuelvas a poner.** **«Cumplimiento del entregable» quedó en un
   desplegable cerrado al final** (por laboratorio o por análisis, con sensibilidad): el usuario le restó importancia.
+- **Cumplimiento del entregable, reestructurado (13-10-2026, `CumplimientoEntregable.tsx`)**: ya NO es un desplegable; responde en orden ¿Entregamos a tiempo? (cifra + reparto de todas las solicitudes), ¿cuánto nos pasamos? (atraso mediano/máximo, `atrasoDe` en `entrega.ts`), ¿dónde se incumple? (ranking peor→mejor por laboratorio o análisis), ¿mejora o empeora? (por mes de emisión) y las 5 más pasadas; la sensibilidad quedó como nota. Las tarjetas del gráfico por Sold To resaltan el top 3 (medalla) y su vista de tabla es propia (`TablaGrupoLaboratorio`).
 - **Cumplimiento** = a tiempo ÷ (a tiempo + tarde + vencidas sin entregar). «Aún en plazo» y «sin plazo» no cuentan.
 - Pruebas: `entrega.test.ts` (corren igual en cualquier zona horaria), `IndicadoresEntrega.test.tsx`,
   `test_entrega_indicadores.py`, `test_informe_visto.py`.

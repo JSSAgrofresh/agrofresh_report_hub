@@ -287,7 +287,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
                 <th title="Informe recibido del laboratorio">Inf.</th>
                 <th title="Informe enviado al cliente">Cli.</th>
                 <th title="Resultados cargados en Report">Rep.</th>
-                <th>Plazo</th>
+                <th>Plazo (d háb.)</th>
               </tr>
             </thead>
             <tbody>
@@ -310,8 +310,22 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
                     <td>{punto(a.informe)}</td>
                     <td>{punto(a.cliente)}</td>
                     <td>{punto(a.sistema)}</td>
-                    <td className={e.veredicto === 'vencida' || e.veredicto === 'tarde' ? styles.tarde : undefined}>
-                      {e.plazo == null ? '—' : `${f1(e.entregada && e.dias != null ? e.dias : e.edad)}/${e.plazo}`}
+                    <td>
+                      {e.plazo == null ? '—' : (() => {
+                        const usado = e.entregada && e.dias != null ? e.dias : e.edad
+                        const atrasada = e.veredicto === 'vencida' || e.veredicto === 'tarde'
+                        return (
+                          <span className={styles.plazoCelda} title={`${f1(usado)} de ${e.plazo} días hábiles`}>
+                            <span className={styles.plazoPista}>
+                              <i
+                                className={atrasada ? styles.plazoMalo : e.veredicto === 'cumplio' ? styles.plazoBueno : styles.plazoCorre}
+                                style={{ width: `${Math.min(100, (usado / e.plazo) * 100)}%` }}
+                              />
+                            </span>
+                            <span className={atrasada ? styles.tarde : undefined}>{f1(usado)}/{e.plazo}</span>
+                          </span>
+                        )
+                      })()}
                     </td>
                   </tr>
                 )
