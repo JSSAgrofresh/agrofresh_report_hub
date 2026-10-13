@@ -39,7 +39,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from . import config_store
-from .auditoria_interna import puede_auditoria
+from .auditoria_interna import SQL_INFORME_EN_REPORT, puede_auditoria
 from .auth import Usuario, solo_admin_general
 from .db import conexion, cursor_dict
 
@@ -186,16 +186,19 @@ def hitos(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
     """Los hitos de cada solicitud real (sin pruebas), para medir lead time y cumplimiento."""
     base = _filas(
         """
-        SELECT sa.archivo, sa.creado_en AS emitida, ia.subido_en, ia.fecha_envio, ia.nro_informe,
-               (ia.id IS NOT NULL AND EXISTS (
+        SELECT sa.archivo, sa.creado_en AS emitida,
+               COALESCE(ia.subido_en, rp.cargado_en) AS subido_en, ia.fecha_envio,
+               COALESCE(ia.nro_informe, rp.nro_solicitud) AS nro_informe,
+               ((ia.id IS NOT NULL AND EXISTS (
                     SELECT 1 FROM solicitud s WHERE s.nro_solicitud = ia.nro_informe
-               )) AS en_report
+               )) OR rp.nro_solicitud IS NOT NULL) AS en_report
         FROM solicitud_archivo sa
         LEFT JOIN LATERAL (
             SELECT * FROM informe_auditoria i
             WHERE i.archivo_solicitud = sa.archivo
             ORDER BY i.subido_en DESC LIMIT 1
         ) ia ON true
+        """ + SQL_INFORME_EN_REPORT + """
         WHERE coalesce(sa.datos->>'es_prueba', '') <> 'true'
         """
     )

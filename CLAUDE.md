@@ -967,6 +967,7 @@ tocas una, toca la otra.
   `ot_informe` y la prefiere sobre `archivo_solicitud`. Adivinar dejó informes en la
   OT equivocada (2026-1878-PC en OT-QUI0039…; se corrigió con `corregir_ot_informe.py`).
   Pruebas: `converterAmarre.test.ts`, `TestOtDelInforme`.
+- **Informes propios de AgroFresh (13-10-2026)**: no pasan por Converter, así que no tienen `informe_auditoria`; llegan a Report con el OT en `referencia`. `auditoria_interna.SQL_INFORME_EN_REPORT` los reconoce (en `/solicitudes` y en `/hitos`): cuentan como informe recibido y concretado (su `informe.id` es null). Antes salían como «Pendientes de informe». **Si agregas otra consulta que cuente informes por solicitud, reúsala.**
 - **Concretada** = tiene PDF guardado **y** sus resultados ya están en Report
   (`solicitud.nro_solicitud = informe_auditoria.nro_informe`). PDF sin Report
   se muestra aparte en las donas y los gráficos, y en la tabla como «Pendiente»

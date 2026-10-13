@@ -300,6 +300,20 @@ def _iso(valor) -> str | None:
     return valor.isoformat() if valor is not None else None
 
 
+# Informe de una solicitud que NO pasó por Converter (los propios de AgroFresh): sus resultados están
+# en Report y traen el OT de la solicitud en `referencia`. Solo se mira si no hay PDF de Converter.
+# Se usa con el alias `sa` (solicitud_archivo) e `ia` (informe_auditoria).
+SQL_INFORME_EN_REPORT = """
+            LEFT JOIN LATERAL (
+                SELECT s.nro_solicitud, cd.creado_en AS cargado_en
+                FROM solicitud s LEFT JOIN carga_datos cd ON cd.id = s.carga_id
+                WHERE ia.id IS NULL
+                  AND s.referencia IS NOT NULL AND btrim(s.referencia) <> ''
+                  AND upper(btrim(s.referencia)) = upper(btrim(sa.numero_solicitud))
+                ORDER BY s.id LIMIT 1
+            ) rp ON true"""
+
+
 @router.get("/solicitudes")
 def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
     """Las solicitudes emitidas por el sistema, con su informe (si tiene) y si
@@ -314,15 +328,17 @@ def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
                    sa.datos->'analitos_solicitados' AS analitos,
                    ia.id AS informe_id, ia.nro_informe, ia.nombre_archivo, ia.r2_key,
                    ia.fecha_envio, ia.subido_en,
-                   (ia.id IS NOT NULL AND EXISTS (
+                   rp.nro_solicitud AS report_nro, rp.cargado_en AS report_cargado_en,
+                   ((ia.id IS NOT NULL AND EXISTS (
                         SELECT 1 FROM solicitud s WHERE s.nro_solicitud = ia.nro_informe
-                   )) AS en_report
+                   )) OR rp.nro_solicitud IS NOT NULL) AS en_report
             FROM solicitud_archivo sa
             LEFT JOIN LATERAL (
                 SELECT * FROM informe_auditoria i
                 WHERE i.archivo_solicitud = sa.archivo
                 ORDER BY i.subido_en DESC LIMIT 1
             ) ia ON true
+            """ + SQL_INFORME_EN_REPORT + """
             ORDER BY sa.creado_en DESC
             """
         )
@@ -330,6 +346,9 @@ def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
     salida = []
     for f in filas:
         tiene_pdf = f["informe_id"] is not None
+        # Los informes propios de AgroFresh no pasan por Converter: llegan a Report con el OT en
+        # `referencia`. Esos también cuentan como informe recibido (si no, salían como pendientes).
+        solo_report = not tiene_pdf and f.get("report_nro") is not None
         salida.append({
             "archivo": f["archivo"],
             "numero_solicitud": f["numero_solicitud"],
@@ -350,9 +369,16 @@ def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
                 "ruta": f["r2_key"],
                 "cargado_en": _iso(f["subido_en"]),
                 "fecha_envio": _iso(f["fecha_envio"]),
-            } if tiene_pdf else None,
+            } if tiene_pdf else {
+                "id": None,
+                "nro_informe": f["report_nro"],
+                "nombre_archivo": None,
+                "ruta": None,
+                "cargado_en": _iso(f.get("report_cargado_en")),
+                "fecha_envio": None,
+            } if solo_report else None,
             "en_report": bool(f["en_report"]),
-            "concretada": tiene_pdf and bool(f["en_report"]),
+            "concretada": (tiene_pdf or solo_report) and bool(f["en_report"]),
         })
     return salida
 
