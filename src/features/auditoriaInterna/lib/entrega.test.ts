@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  atrasoDe,
+  peoresAtrasos,
+  resumenAtraso,
   alcanzados,
   cumplimientoPorAnalisis,
   diasHabiles,
@@ -15,7 +18,7 @@ import {
   seriePorMes,
   veredictoDe,
 } from './entrega'
-import type { Hitos } from './entrega'
+import type { EvaluadaEntrega, Hitos } from './entrega'
 import type { SolicitudAuditoria } from './tipos'
 
 // Septiembre 2026: el 1 es martes; 5-6, 12-13, 19-20 y 26-27 son fin de semana. Octubre: el 1 es jueves.
@@ -216,5 +219,25 @@ describe('resúmenes', () => {
     const recien = evaluar(sol({ archivo: 'x', emitida_en: new Date(AHORA - 3 * 3600_000).toISOString() }), null, 'concretado', { QUITECA: 5 }, AHORA)
     expect(recien.recibida).toBe(false)
     expect(nodoActual(recien)).toBe('emitida')
+  })
+})
+
+describe('atraso: cuánto se pasó cada solicitud de su plazo', () => {
+  const e = (veredicto: EvaluadaEntrega['veredicto'], plazo: number | null, dias: number | null, edad: number) =>
+    ({ veredicto, plazo, dias, edad, entregada: dias != null, sol: {} }) as unknown as EvaluadaEntrega
+
+  it('tarde: lo que tardó de más; vencida: lo que lleva de más; el resto no tiene atraso', () => {
+    expect(atrasoDe(e('tarde', 3, 5.5, 6))).toBe(2.5)
+    expect(atrasoDe(e('vencida', 3, null, 4))).toBe(1)
+    expect(atrasoDe(e('cumplio', 3, 2, 2))).toBeNull()
+    expect(atrasoDe(e('plazo', 3, null, 1))).toBeNull()
+    expect(atrasoDe(e('sin_plazo', null, null, 9))).toBeNull()
+  })
+
+  it('resume y ordena los peores atrasos', () => {
+    const lista = [e('tarde', 3, 5, 5), e('vencida', 3, null, 9), e('cumplio', 3, 1, 1), e('tarde', 2, 3, 3)]
+    expect(resumenAtraso(lista)).toEqual({ n: 3, mediana: 2, maximo: 6 })
+    expect(peoresAtrasos(lista, 2).map((x) => x.atraso)).toEqual([6, 2])
+    expect(resumenAtraso([e('cumplio', 3, 1, 1)])).toEqual({ n: 0, mediana: null, maximo: null })
   })
 })

@@ -315,3 +315,132 @@
 @media (prefers-reduced-motion: reduce) {
   .relleno { transition: none; }
 }
+
+/* ── podio: las tres primeras tarjetas resaltan ── */
+.podio {
+  border-color: rgba(27, 127, 92, 0.45);
+  background: linear-gradient(180deg, #f1faf5, #fff 55%);
+  box-shadow: 0 2px 8px rgba(20, 70, 50, 0.1);
+}
+
+.podio[data-puesto='1'] {
+  border-color: #c9962b;
+  background: linear-gradient(180deg, #fff8e6, #fff 55%);
+  box-shadow: 0 4px 14px rgba(180, 130, 20, 0.2);
+}
+
+.podio[data-puesto='1'] header strong { font-size: 14.5px; }
+
+.grupo header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: center;
+}
+
+.grupo header span:not(.medalla) { grid-column: 2; }
+
+.medalla {
+  grid-row: 1 / span 2;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: #1b7f5c;
+}
+
+[data-puesto='1'] .medalla, .filaPodio:nth-child(1) .medalla { background: #c9962b; }
+[data-puesto='2'] .medalla, .filaPodio:nth-child(2) .medalla { background: #7b8794; }
+[data-puesto='3'] .medalla, .filaPodio:nth-child(3) .medalla { background: #a8693a; }
+
+.grupo { transition: box-shadow 0.2s, transform 0.2s; }
+.grupo:hover { box-shadow: 0 4px 12px rgba(20, 70, 50, 0.12); }
+
+/* ── vista de tabla del gráfico por grupo ── */
+.tablaGrupo {
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  overflow: auto;
+  max-height: 560px;
+  box-shadow: 0 1px 4px rgba(20, 70, 50, 0.06);
+}
+
+.tablaGrupo table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+}
+
+.tablaGrupo thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: #f1f5f2;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.tablaGrupo td,
+.tablaGrupo tbody th {
+  padding: 9px 12px;
+  text-align: left;
+  font-weight: 500;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.tablaGrupo tbody th {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.tablaGrupo tbody tr { transition: background 0.12s; }
+.tablaGrupo tbody tr:hover { background: #f1faf5; }
+.tablaGrupo tbody tr:last-child td,
+.tablaGrupo tbody tr:last-child th { border-bottom: none; }
+
+.filaPodio { background: #fbfdfb; }
+
+.tablaGrupo .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.puesto { width: 40px; color: var(--color-text-faint); font-variant-numeric: tabular-nums; }
+.vacia { color: var(--color-text-faint); }
+
+.puntoLab {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.celdaLab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.celdaLab .pista { flex: 0 0 64px; }
+
+.grupo header .medalla {
+  color: #fff;
+  font-size: 12px;
+}
+
+.pista { display: block; }
+.relleno { display: block; }

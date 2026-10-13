@@ -254,13 +254,14 @@ export function GraficoTotalPorLaboratorio({ laboratorios }: { laboratorios: Lab
 export function GraficoGrupoLaboratorio({ grupos }: { grupos: GrupoLaboratorios[] }) {
   return (
     <ul className={styles.grupos} aria-label="Análisis pedidos e informes concretados, por laboratorio">
-      {grupos.map((g) => {
+      {grupos.map((g, i) => {
         const labs = LABORATORIOS_GRAFICO.filter((l) => (g.labs[l]?.analisis ?? 0) > 0)
         const informes = labs.reduce((n, l) => n + g.labs[l].informes, 0)
         const pedidos = labs.reduce((n, l) => n + g.labs[l].analisis, 0)
         return (
-          <li key={g.grupo} className={styles.grupo}>
+          <li key={g.grupo} className={`${styles.grupo} ${i < 3 ? styles.podio : ''}`} data-puesto={i < 3 ? i + 1 : undefined}>
             <header>
+              {i < 3 && <span className={styles.medalla} title={`Puesto ${i + 1} por solicitudes`}>{i + 1}</span>}
               <strong title={g.grupo}>{g.grupo}</strong>
               <span>{nf.format(informes)} de {nf.format(pedidos)} con informe</span>
             </header>
@@ -306,6 +307,57 @@ export function LeyendaEstados() {
   )
 }
 
+/** La misma información en tabla: una fila por grupo, una celda con barra por laboratorio. */
+export function TablaGrupoLaboratorio({ grupos, nombre }: { grupos: GrupoLaboratorios[]; nombre: string }) {
+  return (
+    <div className={styles.tablaGrupo}>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>{nombre}</th>
+            <th className={styles.num}>Con informe</th>
+            {LABORATORIOS_GRAFICO.map((l) => (
+              <th key={l}>
+                <span className={styles.puntoLab} style={{ background: COLOR_LAB[l] }} />
+                {NOMBRE_LAB[l]}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {grupos.map((g, i) => {
+            const informes = LABORATORIOS_GRAFICO.reduce((n, l) => n + (g.labs[l]?.informes ?? 0), 0)
+            const pedidos = LABORATORIOS_GRAFICO.reduce((n, l) => n + (g.labs[l]?.analisis ?? 0), 0)
+            return (
+              <tr key={g.grupo} className={i < 3 ? styles.filaPodio : undefined}>
+                <td className={styles.puesto}>{i < 3 ? <span className={styles.medalla}>{i + 1}</span> : i + 1}</td>
+                <th scope="row" title={g.grupo}>{g.grupo}</th>
+                <td className={styles.num}><b>{nf.format(informes)}</b> / {nf.format(pedidos)}</td>
+                {LABORATORIOS_GRAFICO.map((l) => {
+                  const par = g.labs[l]
+                  if (!par || par.analisis === 0) return <td key={l} className={styles.vacia}>—</td>
+                  const pct = Math.round((par.informes / par.analisis) * 100)
+                  return (
+                    <td key={l}>
+                      <span className={styles.celdaLab}>
+                        <span className={styles.pista} style={{ background: `${COLOR_LAB[l]}26` }}>
+                          <span className={styles.relleno} style={{ width: `${pct}%`, background: COLOR_LAB[l] }} />
+                        </span>
+                        <b>{par.informes}</b>/{par.analisis}
+                      </span>
+                    </td>
+                  )
+                })}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 /** Leyenda del gráfico por grupo: color = laboratorio; sólido = informes
  * concretados, claro = análisis aún sin informe. Siempre salen los cuatro. */
 export function LeyendaLaboratorios() {
@@ -334,6 +386,7 @@ export function TarjetaGrafico({
   tabla,
   leyenda,
   controles,
+  vistaTabla,
   children,
 }: {
   titulo: string
@@ -344,6 +397,8 @@ export function TarjetaGrafico({
   leyenda: ReactNode
   /** botones propios del gráfico (por ejemplo, el tipo de servicio) */
   controles?: ReactNode
+  /** Si viene, reemplaza la tabla genérica al pulsar «Ver tabla». */
+  vistaTabla?: ReactNode
   children: ReactNode
 }) {
   const [verTabla, setVerTabla] = useState(false)
@@ -362,7 +417,9 @@ export function TarjetaGrafico({
         </div>
       </header>
       {leyenda}
-      {verTabla ? (
+      {verTabla && vistaTabla ? (
+        vistaTabla
+      ) : verTabla ? (
         <div className={styles.tablaCaja} style={{ maxHeight: Math.min(alto ?? 420, 420) }}>
           <table className={styles.tabla}>
             <thead>
