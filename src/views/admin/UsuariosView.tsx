@@ -1,15 +1,18 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import {
   ClaveTemporalAviso,
+  contarPorGrupo,
+  filtrarUsuarios,
+  GRUPOS_USUARIOS,
   regenerarPassword,
   UsuarioForm,
   UsuariosTable,
   useUsuarios,
 } from '@/features/usuarios'
-import type { Usuario, UsuarioCreado } from '@/features/usuarios'
+import type { GrupoUsuarios, Usuario, UsuarioCreado } from '@/features/usuarios'
 import styles from './UsuariosView.module.css'
 
 type Panel = { modo: 'lista' } | { modo: 'nuevo' } | { modo: 'editar'; usuario: Usuario }
@@ -17,6 +20,11 @@ type Panel = { modo: 'lista' } | { modo: 'nuevo' } | { modo: 'editar'; usuario: 
 export function UsuariosView() {
   const { usuarios, cargando, crear, actualizar, eliminar } = useUsuarios()
   const [panel, setPanel] = useState<Panel>({ modo: 'lista' })
+  const [grupo, setGrupo] = useState<GrupoUsuarios>('todos')
+  const [texto, setTexto] = useState('')
+  const conteo = useMemo(() => contarPorGrupo(usuarios), [usuarios])
+  const visibles = useMemo(() => filtrarUsuarios(usuarios, grupo, texto), [usuarios, grupo, texto])
+  const hayFiltro = grupo !== 'todos' || texto.trim() !== ''
   // La contraseña recién generada. Se muestra una sola vez: el sistema guarda
   // su huella, no la contraseña, así que ni el backend puede repetirla.
   const [claveNueva, setClaveNueva] = useState<UsuarioCreado | null>(null)
@@ -69,15 +77,47 @@ export function UsuariosView() {
         {panel.modo === 'lista' ? (
           <>
             <div className={styles.cabeceraTabla}>
-              <p className={styles.contador}>
-                {cargando
-                  ? 'Cargando usuarios…'
-                  : `${usuarios.length} usuario${usuarios.length === 1 ? '' : 's'}`}
-              </p>
+              <div className={styles.buscador}>
+                <input
+                  type="search"
+                  value={texto}
+                  onChange={(e) => setTexto(e.target.value)}
+                  placeholder="Buscar por nombre, correo o cliente…"
+                  aria-label="Buscar usuarios"
+                />
+              </div>
               <Button onClick={() => setPanel({ modo: 'nuevo' })}>Nuevo usuario</Button>
             </div>
+            <div className={styles.filtros} role="group" aria-label="Filtrar por tipo de cuenta">
+              {GRUPOS_USUARIOS.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  aria-pressed={grupo === g.id}
+                  className={`${styles.filtro} ${grupo === g.id ? styles.filtroActivo : ''}`}
+                  disabled={g.id !== 'todos' && conteo[g.id] === 0}
+                  onClick={() => setGrupo(g.id)}
+                >
+                  {g.texto}
+                  <b>{conteo[g.id]}</b>
+                </button>
+              ))}
+            </div>
+            <p className={styles.contador} aria-live="polite">
+              {cargando
+                ? 'Cargando usuarios…'
+                : hayFiltro
+                  ? `${visibles.length} de ${usuarios.length} usuarios`
+                  : `${usuarios.length} usuario${usuarios.length === 1 ? '' : 's'}`}
+              {hayFiltro && (
+                <button type="button" className={styles.limpiar} onClick={() => { setGrupo('todos'); setTexto('') }}>
+                  Quitar filtros
+                </button>
+              )}
+            </p>
             <UsuariosTable
-              usuarios={usuarios}
+              usuarios={visibles}
+              vacio={hayFiltro ? 'Ningún usuario coincide con el filtro.' : undefined}
               onEditar={(usuario) => setPanel({ modo: 'editar', usuario })}
               onEliminar={onEliminar}
               onRestablecer={onRestablecer}
