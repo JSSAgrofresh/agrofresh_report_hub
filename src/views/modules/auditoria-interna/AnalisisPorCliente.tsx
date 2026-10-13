@@ -24,10 +24,10 @@ const pct = (v: number) => `${Math.round(v * 100)}%`
 
 /** Cantidad de un laboratorio en una pastilla de su color y, en la columna de al lado, su % del total de residuales. */
 function CeldasLab({ c, total, color }: { c: CeldaCliente; total: number; color: string }) {
-  if (c.n === 0) return <><td className={styles.cero}>–</td><td className={styles.cero}>–</td></>
+  if (c.n === 0) return <><td className={`${styles.cero} ${styles.cant}`}>–</td><td className={`${styles.cero} ${styles.pctVacio}`}>–</td></>
   return (
     <>
-      <td title={`${c.informes} de ${c.n} con informe`}><b className={styles.pastilla} style={{ color, background: `${color}1f` }}>{nf.format(c.n)}</b></td>
+      <td className={styles.cant} title={`${c.informes} de ${c.n} con informe`}><b className={styles.pastilla} style={{ color, background: `${color}1f` }}>{nf.format(c.n)}</b></td>
       <td className={styles.pct}>{pct(c.n / total)}</td>
     </>
   )
@@ -100,6 +100,14 @@ export function AnalisisPorCliente({
     <section className={styles.cuerpoGrafico} aria-label="Análisis por cliente">
       <div className={styles.caja}>
         <table className={styles.tabla}>
+          <colgroup>
+            <col style={{ width: '23%' }} />
+            <col style={{ width: '12%' }} />
+            <col style={{ width: '9%' }} />
+            <col style={{ width: '9.5%' }} /><col style={{ width: '9.5%' }} />
+            <col style={{ width: '9.5%' }} /><col style={{ width: '9.5%' }} />
+            <col style={{ width: '9.5%' }} /><col style={{ width: '9.5%' }} />
+          </colgroup>
           <thead>
             <tr className={styles.grupos}>
               <th rowSpan={2} className={styles.colCliente}>{dimension === 'cliente' ? 'Cliente' : 'Grupo'}</th>
