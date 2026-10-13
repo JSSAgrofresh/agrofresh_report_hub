@@ -28,11 +28,7 @@ import type { Registro, Seccion as SeccionId } from '@/features/verificaciones'
 import { Veredicto, VeredictoDia } from './componentes'
 import styles from './Verificaciones.module.css'
 
-import type { AreaId } from '@/constants/areas'
-
-const PUEDE_FIRMAR = (tipoAcceso: string, area?: AreaId) =>
-  tipoAcceso === 'admin_general' ||
-  (tipoAcceso === 'admin_area' && area === 'cromatografia')
+import { puedeFirmarVerificaciones } from '@/features/usuarios'
 
 Chart.register(CategoryScale, LinearScale, LineController, LineElement, PointElement, Filler, Tooltip)
 
@@ -159,7 +155,7 @@ export function VerificacionesHistoricoView() {
 
   const puedeFirmar =
     usuario !== null &&
-    PUEDE_FIRMAR(usuario.tipoAcceso, usuario.area)
+    puedeFirmarVerificaciones(usuario)
 
   function abrirFirma(fecha: string, e: React.MouseEvent) {
     e.stopPropagation()

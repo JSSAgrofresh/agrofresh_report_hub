@@ -2,11 +2,15 @@ import type { AreaId } from '@/constants/areas'
 import { AREAS } from '@/constants/areas'
 import { EstadoModulo } from '@/components/ui/EstadoModulo'
 import { AreaHero, fondoParaEspecie } from '@/features/dashboard'
+import { vistaDeCliente } from '@/features/usuarios'
 import type { Usuario } from '@/features/usuarios'
 import { InformesAccutabCliente } from '@/views/modules/reports/InformesAccutabCliente'
 import { AccesosCliente } from './AccesosCliente'
 
+/** Un cliente no pertenece a un área: ve lo que el administrador le asignó (Report, Storage y/o informes Accu-Tab).
+ * `area` solo da el encabezado y los colores. */
 export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario: Usuario }) {
+  const ve = vistaDeCliente(usuario)
   const config = AREAS[area]
   const cliente = usuario.clienteNombre ?? usuario.nombre
   // Si la cuenta está acotada a una sucursal (Ship To) específica, el
@@ -15,7 +19,7 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
   const titulo = usuario.plantaNombre ?? cliente
   // Temporada de cereza: el fondo del encabezado es el de cereza. El Report ya NO se incrusta acá (tiene su
   // propia entrada en el menú): el panel de un cliente lo arma el administrador (Panel de inicio).
-  const fondoHero = area === 'cromatografia' ? fondoParaEspecie(null, config.fondo) : undefined
+  const fondoHero = ve.report || area === 'cromatografia' ? fondoParaEspecie(null, config.fondo) : undefined
 
   return (
     <div>
@@ -27,11 +31,9 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
         tinte={fondoHero?.tinte}
       />
 
-      {area === 'cromatografia' ? (
-        <AccesosCliente usuario={usuario} />
-      ) : area === 'postventa' ? (
-        <InformesAccutabCliente />
-      ) : (
+      {(ve.report || ve.storage) && <AccesosCliente usuario={usuario} />}
+      {ve.accutab && <InformesAccutabCliente />}
+      {!ve.report && !ve.storage && !ve.accutab && (
         <EstadoModulo
           etiqueta="Próximamente"
           titulo="Tus reportes están en camino"

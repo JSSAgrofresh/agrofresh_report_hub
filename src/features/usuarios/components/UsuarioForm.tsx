@@ -4,21 +4,14 @@ import { Button } from '@/components/ui/Button'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { LISTA_AREAS } from '@/constants/areas'
 import type { AreaId } from '@/constants/areas'
-import { MODULOS } from '@/constants/modules'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import { CORREO_MAESTRO } from '../api/usuariosStore'
-import {
-  LAB_CRITERIOS,
-  LAB_SECCIONES,
-  MODULO_TOMA_MUESTRAS,
-  esSeccionLab,
-  modulosPredeterminados,
-  reportesPredeterminados,
-  seccionesLabPermitidas,
-} from '../permisos'
-import type { ReporteId } from '../permisos'
+import { cuentaDesdeSeleccion, seleccionDesdeCuenta, seleccionTotal, validarSeleccion } from '../catalogoPermisos'
+import { modulosPredeterminados, reportesPredeterminados, vistaDeCliente } from '../permisos'
+import type { VistaCliente } from '../permisos'
 import type { TipoAcceso, Usuario } from '../types'
+import { SelectorPermisos } from './SelectorPermisos'
 import styles from './UsuarioForm.module.css'
 
 interface UsuarioFormProps {
@@ -27,23 +20,22 @@ interface UsuarioFormProps {
   onCancelar: () => void
 }
 
-const TIPOS: { valor: TipoAcceso; etiqueta: string }[] = [
-  { valor: 'admin_general', etiqueta: 'Administrador general' },
-  { valor: 'gerencia', etiqueta: 'Gerencia (solo lectura)' },
-  { valor: 'admin_area', etiqueta: 'Administrador de área' },
-  { valor: 'analista', etiqueta: 'Analista de Cromatografía' },
-  { valor: 'cliente', etiqueta: 'Cliente' },
-  { valor: 'muestreador', etiqueta: 'Muestreador' },
+const TIPOS: { valor: TipoAcceso; etiqueta: string; descripcion: string }[] = [
+  { valor: 'admin_general', etiqueta: 'Administrador general', descripcion: 'Todo el sistema, incluida la administración.' },
+  { valor: 'gerencia', etiqueta: 'Gerencia', descripcion: 'Ve todo (menos Auditoría interna), solo lectura.' },
+  { valor: 'admin_area', etiqueta: 'Administrador de área', descripcion: 'Gestiona un área. Los accesos se eligen abajo.' },
+  { valor: 'analista', etiqueta: 'Analista de laboratorio', descripcion: 'Trabaja en el laboratorio. Los accesos se eligen abajo.' },
+  { valor: 'muestreador', etiqueta: 'Muestreador', descripcion: 'Crea y ve solo sus solicitudes de muestreo.' },
+  { valor: 'cliente', etiqueta: 'Cliente', descripcion: 'Portal externo: solo ve sus propios datos.' },
 ]
 
-const REPORTES: { id: ReporteId; nombre: string; descripcion: string }[] = [
-  {
-    id: 'laboratorio',
-    nombre: 'Reporte de laboratorio',
-    descripcion: 'Consulta y gráficos de Cromatografía.',
-  },
-  { id: 'postventa', nombre: 'Postventa', descripcion: 'Histórico e informes de Trace.' },
+const CLIENTE_VE: { id: keyof VistaCliente; nombre: string; descripcion: string }[] = [
+  { id: 'report', nombre: 'Report de laboratorio', descripcion: 'Resultados y gráficos de sus análisis de Cromatografía.' },
+  { id: 'storage', nombre: 'Storage', descripcion: 'Sus informes en PDF, en carpetas (solo lectura).' },
+  { id: 'accutab', nombre: 'Informes Accu-Tab', descripcion: 'Informes de los equipos Accu-Tab (Post Venta) en su panel.' },
 ]
+
+const tipoEtiqueta = (t: TipoAcceso) => TIPOS.find((x) => x.valor === t)?.etiqueta ?? t
 
 export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps) {
   const esMaestro = usuario?.email === CORREO_MAESTRO
@@ -53,35 +45,29 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [area, setArea] = useState<AreaId | ''>(usuario?.area ?? '')
   const [clienteNombre, setClienteNombre] = useState(usuario?.clienteNombre ?? '')
   const [plantaNombre, setPlantaNombre] = useState(usuario?.plantaNombre ?? '')
-  // Las secciones de AgroFresh Lab viajan en la misma lista que los módulos (sin migración), pero acá
-  // se editan aparte: `modulos` solo lleva módulos y `labSecciones` las puertas de AgroFresh Lab.
-  const [modulos, setModulos] = useState<string[]>(
-    (usuario?.modulos ?? modulosPredeterminados(usuario ?? { tipoAcceso: 'admin_area' })).filter((id) => !esSeccionLab(id)),
+  const [clienteVe, setClienteVe] = useState<VistaCliente>(
+    usuario?.tipoAcceso === 'cliente' ? vistaDeCliente(usuario) : { report: true, storage: false, accutab: false },
   )
-  const [labSecciones, setLabSecciones] = useState<string[]>(
-    usuario ? seccionesLabPermitidas({ tipoAcceso: usuario.tipoAcceso, modulos: usuario.modulos }) : LAB_SECCIONES.map((s) => s.id),
-  )
-  const [editaCriterios, setEditaCriterios] = useState<boolean>(usuario?.modulos?.includes(LAB_CRITERIOS) ?? false)
-  const [reportes, setReportes] = useState<ReporteId[]>(
-    usuario?.reportes ?? reportesPredeterminados(usuario ?? { tipoAcceso: 'admin_area' }),
-  )
+  // Una sola lista con todo lo que la cuenta puede hacer (módulos, secciones y funciones sueltas).
+  const [seleccion, setSeleccion] = useState<string[]>(() => plantilla(usuario?.tipoAcceso ?? 'admin_area', usuario?.area, usuario))
   const [error, setError] = useState<string | null>(null)
   const [clientesDisponibles, setClientesDisponibles] = useState<string[]>([])
   const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
 
-  const requiereArea = tipoAcceso === 'admin_area' || tipoAcceso === 'analista' || tipoAcceso === 'cliente'
-  const requiereCliente = tipoAcceso === 'cliente'
-  const configuraPermisos = tipoAcceso !== 'admin_general' && tipoAcceso !== 'gerencia' && !esMaestro
+  const esCliente = tipoAcceso === 'cliente'
+  const veTodo = tipoAcceso === 'admin_general' || tipoAcceso === 'gerencia'
+  const requiereArea = tipoAcceso === 'admin_area' || tipoAcceso === 'analista'
+  const configuraPermisos = !esCliente && !veTodo && !esMaestro
 
   useEffect(() => {
-    if (!requiereCliente) return
+    if (!esCliente) return
     listarClientes()
       .then((clientes) => setClientesDisponibles(clientes.map((c) => c.nombre)))
       .catch(() => setClientesDisponibles([]))
     listarPlantas()
       .then(setPlantasDisponibles)
       .catch(() => setPlantasDisponibles([]))
-  }, [requiereCliente])
+  }, [esCliente])
 
   const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === clienteNombre)
 
@@ -93,67 +79,50 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       setError('Selecciona un área.')
       return
     }
-    if (requiereCliente && !clienteNombre.trim()) {
+    if (esCliente && !clienteNombre.trim()) {
       setError('Ingresa el nombre del cliente.')
       return
     }
-    if (configuraPermisos && modulos.includes('reports') && reportes.length === 0) {
-      setError('Selecciona al menos una sección de Report o desactiva el módulo Report.')
+    if (esCliente && !clienteVe.report && !clienteVe.storage && !clienteVe.accutab) {
+      setError('Elige qué ve el cliente: Report, Storage y/o informes Accu-Tab.')
       return
     }
-
-    if (configuraPermisos && modulos.includes('agrofresh_lab') && labSecciones.length === 0) {
-      setError('Elige al menos una sección de AgroFresh Lab o desactiva el módulo.')
+    const falla = configuraPermisos ? validarSeleccion(seleccion) : null
+    if (falla) {
+      setError(falla)
       return
     }
-    // Todas marcadas = como siempre (no se guarda nada); si falta alguna, se guardan las elegidas.
-    const todasLab = labSecciones.length === LAB_SECCIONES.length
-    const modulosLab = modulos.includes('agrofresh_lab') && !todasLab ? [...modulos, ...labSecciones] : modulos
-    const modulosFinal =
-      modulos.includes('agrofresh_lab') && editaCriterios ? [...modulosLab, LAB_CRITERIOS] : modulosLab
+    const permisos = configuraPermisos ? cuentaDesdeSeleccion(seleccion) : undefined
 
     onGuardar({
       nombre: nombre.trim(),
       email: email.trim(),
       tipoAcceso,
+      // Un cliente no pertenece a un área: el servidor deduce la que guarda de lo que ve.
       area: requiereArea ? (area as AreaId) : undefined,
-      clienteNombre: requiereCliente ? clienteNombre.trim() : undefined,
-      plantaNombre: requiereCliente && plantaNombre.trim() ? plantaNombre.trim() : undefined,
-      modulos: configuraPermisos ? modulosFinal : undefined,
-      reportes: configuraPermisos && modulos.includes('reports') ? reportes : undefined,
+      clienteNombre: esCliente ? clienteNombre.trim() : undefined,
+      plantaNombre: esCliente && plantaNombre.trim() ? plantaNombre.trim() : undefined,
+      modulos: esCliente
+        ? [clienteVe.report && 'reports', clienteVe.storage && 'storage'].filter((m): m is string => !!m)
+        : permisos?.modulos,
+      reportes: esCliente
+        ? [clienteVe.report && 'laboratorio', clienteVe.accutab && 'postventa'].filter((r): r is 'laboratorio' | 'postventa' => !!r)
+        : permisos?.reportes,
     })
   }
 
   function cambiarTipoAcceso(nuevoTipo: TipoAcceso) {
     setTipoAcceso(nuevoTipo)
-    const base = { tipoAcceso: nuevoTipo, area: area || undefined }
-    setModulos(modulosPredeterminados(base))
-    setLabSecciones(LAB_SECCIONES.map((s) => s.id))
-    setReportes(reportesPredeterminados(base))
+    setSeleccion(plantilla(nuevoTipo, area || undefined))
   }
 
   function cambiarArea(nuevaArea: AreaId | '') {
     setArea(nuevaArea)
-    const base = { tipoAcceso, area: nuevaArea || undefined }
-    setModulos(modulosPredeterminados(base))
-    setLabSecciones(LAB_SECCIONES.map((s) => s.id))
-    setReportes(reportesPredeterminados(base))
+    setSeleccion(plantilla(tipoAcceso, nuevaArea || undefined))
   }
 
-  function alternarSeccionLab(id: string) {
-    setLabSecciones((actuales) => (actuales.includes(id) ? actuales.filter((a) => a !== id) : [...actuales, id]))
-  }
-
-  function alternarModulo(id: string) {
-    setModulos((actuales) =>
-      actuales.includes(id) ? actuales.filter((actual) => actual !== id) : [...actuales, id],
-    )
-  }
-
-  function alternarReporte(id: ReporteId) {
-    setReportes((actuales) =>
-      actuales.includes(id) ? actuales.filter((actual) => actual !== id) : [...actuales, id],
-    )
+  function alternarClienteVe(id: keyof VistaCliente) {
+    setClienteVe((actuales) => ({ ...actuales, [id]: !actuales[id] }))
   }
 
   function alElegirCliente(v: string) {
@@ -163,177 +132,150 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
 
   return (
     <form className={styles.form} onSubmit={onSubmit}>
-      <div className={styles.fila}>
-        <label className={styles.campo}>
-          <span>Nombre</span>
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} required />
-        </label>
-        <label className={styles.campo}>
-          <span>Correo</span>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="nombre@agrofresh.com"
-            required
-          />
-        </label>
-      </div>
+      <section className={styles.bloque}>
+        <h3 className={styles.titulo}><b>1</b> Quién es</h3>
+        <div className={styles.fila}>
+          <label className={styles.campo}>
+            <span>Nombre</span>
+            <input value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+          </label>
+          <label className={styles.campo}>
+            <span>Correo</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="nombre@agrofresh.com"
+              required
+            />
+          </label>
+        </div>
+      </section>
 
-      <label className={styles.campo}>
-        <span>Tipo de acceso</span>
-        <select
-          value={tipoAcceso}
-          disabled={esMaestro}
-          onChange={(e) => cambiarTipoAcceso(e.target.value as TipoAcceso)}
-        >
+      <section className={styles.bloque}>
+        <h3 className={styles.titulo}><b>2</b> Tipo de cuenta</h3>
+        <p className={styles.notaChica}>El tipo decide qué puede hacer y ver en el sistema.</p>
+        <div className={styles.tipos} role="radiogroup" aria-label="Tipo de cuenta">
           {TIPOS.map((t) => (
-            <option key={t.valor} value={t.valor}>
-              {t.etiqueta}
-            </option>
+            <label className={styles.tipo} key={t.valor}>
+              <input
+                type="radio"
+                name="tipoAcceso"
+                value={t.valor}
+                checked={tipoAcceso === t.valor}
+                disabled={esMaestro}
+                onChange={() => cambiarTipoAcceso(t.valor)}
+              />
+              <span>
+                <strong>{t.etiqueta}</strong>
+                <small>{t.descripcion}</small>
+              </span>
+            </label>
           ))}
-        </select>
-      </label>
-
-      {esMaestro && (
-        <p className={styles.nota}>Este es el usuario maestro: su acceso no se puede cambiar.</p>
-      )}
-
-      {requiereArea && !esMaestro && (
-        <label className={styles.campo}>
-          <span>Área</span>
-          <select value={area} onChange={(e) => cambiarArea(e.target.value as AreaId)}>
-            <option value="">— elegir —</option>
-            {LISTA_AREAS.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.nombre}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-
-      {requiereCliente && !esMaestro && (
-        <div className={styles.campo}>
-          <BuscableSelect
-            etiqueta="Sold To (cliente)"
-            opciones={
-              clienteNombre && !clientesDisponibles.includes(clienteNombre)
-                ? [clienteNombre, ...clientesDisponibles]
-                : clientesDisponibles
-            }
-            valor={clienteNombre}
-            onChange={alElegirCliente}
-            placeholderTodos="— elegir cliente —"
-          />
-          <p className={styles.notaChica}>
-            Se elige del catálogo oficial de Sold To (sección Listados).
-          </p>
         </div>
-      )}
+        {esMaestro && <p className={styles.nota}>Este es el usuario maestro: su acceso no se puede cambiar.</p>}
+      </section>
 
-      {requiereCliente && !esMaestro && clienteNombre && (
-        <div className={styles.campo}>
-          <BuscableSelect
-            etiqueta="Sucursal (Ship To) — opcional"
-            opciones={plantasDelCliente.map((p) => p.nombre)}
-            valor={plantaNombre}
-            onChange={setPlantaNombre}
-            placeholderTodos="— cuenta para todo el Sold To —"
-          />
-          <p className={styles.notaChica}>
-            {plantasDelCliente.length === 0
-              ? 'Este cliente no tiene sucursales cargadas en Listados: la cuenta ve todo el Sold To.'
-              : 'Si eliges una sucursal, la cuenta ve solo esa planta (ej. "Dole Codegua"). Si la dejas vacía, ve todo el Sold To.'}
-          </p>
-        </div>
-      )}
-
-      {configuraPermisos && (
-        <fieldset className={styles.permisos}>
-          <legend>Módulos permitidos</legend>
-          <p className={styles.notaChica}>
-            El usuario solo verá y podrá abrir las opciones seleccionadas.
-          </p>
-          <div className={styles.permisosGrid}>
-            {[
-              ...MODULOS.map((m) => ({ id: m.id, nombre: m.nombre, descripcion: m.descripcion })),
-              {
-                id: MODULO_TOMA_MUESTRAS,
-                nombre: 'Toma de solicitudes',
-                descripcion: 'Listado, creación y detalle de solicitudes de análisis.',
-              },
-            ].map((modulo) => (
-              <label className={styles.permisoOpcion} key={modulo.id}>
-                <input
-                  type="checkbox"
-                  checked={modulos.includes(modulo.id)}
-                  onChange={() => alternarModulo(modulo.id)}
-                />
-                <span>
-                  <strong>{modulo.nombre}</strong>
-                  <small>{modulo.descripcion}</small>
-                </span>
-              </label>
-            ))}
+      {esCliente && !esMaestro && (
+        <section className={styles.bloque}>
+          <h3 className={styles.titulo}><b>3</b> Qué cliente es y qué ve</h3>
+          <div className={styles.campo}>
+            <BuscableSelect
+              etiqueta="Sold To (cliente)"
+              opciones={
+                clienteNombre && !clientesDisponibles.includes(clienteNombre)
+                  ? [clienteNombre, ...clientesDisponibles]
+                  : clientesDisponibles
+              }
+              valor={clienteNombre}
+              onChange={alElegirCliente}
+              placeholderTodos="— elegir cliente —"
+            />
+            <p className={styles.notaChica}>Se elige del catálogo oficial de Sold To (sección Listados).</p>
           </div>
 
-          {modulos.includes('agrofresh_lab') && (
-            <div className={styles.subpermisos}>
-              <h3>Secciones de AgroFresh Lab</h3>
+          {clienteNombre && (
+            <div className={styles.campo}>
+              <BuscableSelect
+                etiqueta="Sucursal (Ship To) — opcional"
+                opciones={plantasDelCliente.map((p) => p.nombre)}
+                valor={plantaNombre}
+                onChange={setPlantaNombre}
+                placeholderTodos="— cuenta para todo el Sold To —"
+              />
               <p className={styles.notaChica}>
-                Marca solo lo que esta cuenta debe ver. Con las tres marcadas ve todo AgroFresh Lab, como siempre.
+                {plantasDelCliente.length === 0
+                  ? 'Este cliente no tiene sucursales cargadas en Listados: la cuenta ve todo el Sold To.'
+                  : 'Si eliges una sucursal, la cuenta ve solo esa planta (ej. "Dole Codegua"). Si la dejas vacía, ve todo el Sold To.'}
               </p>
-              <label className={styles.permisoOpcion}>
-                <input
-                  type="checkbox"
-                  checked={editaCriterios}
-                  onChange={() => setEditaCriterios((v) => !v)}
-                />
-                <span>
-                  <strong>Modificar criterios (control de equipos)</strong>
-                  <small>Puede cambiar tolerancias, parámetros y catálogos en la pantalla Criterios del control diario. Sin esto solo los ve.</small>
-                </span>
-              </label>
-              <div className={styles.permisosGrid}>
-                {LAB_SECCIONES.map((seccion) => (
-                  <label className={styles.permisoOpcion} key={seccion.id}>
-                    <input
-                      type="checkbox"
-                      checked={labSecciones.includes(seccion.id)}
-                      onChange={() => alternarSeccionLab(seccion.id)}
-                    />
-                    <span>
-                      <strong>{seccion.nombre}</strong>
-                      <small>{seccion.descripcion}</small>
-                    </span>
-                  </label>
-                ))}
-              </div>
             </div>
           )}
 
-          {modulos.includes('reports') && (
-            <div className={styles.subpermisos}>
-              <h3>Secciones de Report</h3>
-              <div className={styles.permisosGrid}>
-                {REPORTES.map((reporte) => (
-                  <label className={styles.permisoOpcion} key={reporte.id}>
-                    <input
-                      type="checkbox"
-                      checked={reportes.includes(reporte.id)}
-                      onChange={() => alternarReporte(reporte.id)}
-                    />
-                    <span>
-                      <strong>{reporte.nombre}</strong>
-                      <small>{reporte.descripcion}</small>
-                    </span>
-                  </label>
+          <fieldset className={styles.permisos}>
+            <legend>Qué ve este cliente</legend>
+            <p className={styles.notaChica}>
+              Un cliente no pertenece a un área: tú eliges qué le muestras. Solo verá sus propios datos.
+            </p>
+            <div className={styles.permisosGrid}>
+              {CLIENTE_VE.map((c) => (
+                <label className={styles.permisoOpcion} key={c.id}>
+                  <input type="checkbox" checked={clienteVe[c.id]} onChange={() => alternarClienteVe(c.id)} />
+                  <span>
+                    <strong>{c.nombre}</strong>
+                    <small>{c.descripcion}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </section>
+      )}
+
+      {!esCliente && !esMaestro && (
+        <section className={styles.bloque}>
+          <h3 className={styles.titulo}><b>3</b> Qué puede hacer</h3>
+
+          {requiereArea && (
+            <label className={styles.campo}>
+              <span>Área</span>
+              <select value={area} onChange={(e) => cambiarArea(e.target.value as AreaId)}>
+                <option value="">— elegir —</option>
+                {LISTA_AREAS.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nombre}
+                  </option>
                 ))}
-              </div>
+              </select>
+              <p className={styles.notaChica}>Define su panel de inicio y con qué accesos parte la lista de abajo.</p>
+            </label>
+          )}
+
+          {veTodo ? (
+            <p className={styles.nota}>
+              {tipoAcceso === 'admin_general'
+                ? 'El administrador general tiene todo, incluida la administración.'
+                : 'Gerencia ve todo menos Auditoría interna, y no puede modificar datos.'}
+            </p>
+          ) : (
+            <div className={styles.plantilla}>
+              <p>
+                Partiste con los accesos típicos de <strong>{tipoEtiqueta(tipoAcceso)}</strong>. Marca o quita lo que necesites:
+                esta cuenta tendrá exactamente lo que quede marcado.
+              </p>
+              <button type="button" onClick={() => setSeleccion(plantilla(tipoAcceso, area || undefined))}>
+                Volver a lo típico
+              </button>
             </div>
           )}
-        </fieldset>
+
+          <SelectorPermisos
+            valor={veTodo ? seleccionTotal(tipoAcceso as 'admin_general' | 'gerencia') : seleccion}
+            onChange={setSeleccion}
+            tipo={tipoAcceso}
+            area={area || undefined}
+            soloLectura={veTodo}
+          />
+        </section>
       )}
 
       {error && <p className={styles.error}>{error}</p>}
@@ -346,4 +288,11 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       </div>
     </form>
   )
+}
+
+/** Con qué parte la lista: lo que ya tiene la cuenta si se está editando y no cambió de tipo; si no, lo típico del tipo. */
+function plantilla(tipo: TipoAcceso, area?: AreaId, actual?: Usuario): string[] {
+  const base = { tipoAcceso: tipo, area }
+  const cuenta = actual && actual.tipoAcceso === tipo && actual.area === area ? actual : { ...base, modulos: undefined, reportes: undefined }
+  return seleccionDesdeCuenta(cuenta, modulosPredeterminados(base), reportesPredeterminados(base))
 }

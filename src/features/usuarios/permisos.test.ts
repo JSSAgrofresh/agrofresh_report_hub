@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { modulosPermitidos, puedeEditarCriteriosLab, puedeVerReporte, puedeVerSeccionLab, puedeVerTomaMuestras, seccionesLabPermitidas } from './permisos'
+import {
+  etiquetaAcceso,
+  modulosPermitidos,
+  puedeCrearReanalisis,
+  puedeEditarCriteriosLab,
+  puedeFirmarVerificaciones,
+  puedeVerReporte,
+  puedeVerSeccionLab,
+  puedeVerTomaMuestras,
+  seccionesLabPermitidas,
+  tieneFuncion,
+  vistaDeCliente,
+} from './permisos'
 import type { Usuario } from './types'
 
 const cromatografia: Usuario = {
@@ -106,5 +118,56 @@ describe('secciones de AgroFresh Lab por cuenta (espejo de tests/test_lab_seccio
     const ge: Usuario = { id: '2', email: 'g@a.com', nombre: 'G', tipoAcceso: 'gerencia', modulos: ['lab_ingreso'] }
     expect(seccionesLabPermitidas(ag)).toHaveLength(3)
     expect(seccionesLabPermitidas(ge)).toHaveLength(3)
+  })
+})
+
+describe('mini funciones asignables (espejo de test_permisos_funciones.py)', () => {
+  const u = (tipoAcceso: Usuario['tipoAcceso'], modulos?: string[], area?: Usuario['area']) =>
+    ({ id: '1', email: 'x@agrofresh.com', nombre: 'X', tipoAcceso, area, modulos }) as Usuario
+
+  it('el administrador general las tiene todas; gerencia y clientes ninguna', () => {
+    for (const f of ['lab_criterios', 'verif_firmar', 'toma_reanalisis'] as const) {
+      expect(tieneFuncion(u('admin_general'), f)).toBe(true)
+      expect(tieneFuncion(u('gerencia', ['lab_criterios', 'verif_firmar', 'toma_reanalisis']), f)).toBe(false)
+      expect(tieneFuncion(u('cliente', ['lab_criterios']), f)).toBe(false)
+    }
+  })
+
+  it('el resto solo tiene lo que se le marcó', () => {
+    const cuenta = u('analista', ['agrofresh_lab', 'lab_criterios'])
+    expect(puedeEditarCriteriosLab(cuenta)).toBe(true)
+    expect(tieneFuncion(cuenta, 'verif_firmar')).toBe(false)
+    expect(puedeEditarCriteriosLab(u('analista'))).toBe(false)
+  })
+
+  it('firmar: admin general, admin de Cromatografía o quien tenga la función', () => {
+    expect(puedeFirmarVerificaciones(u('admin_area', undefined, 'cromatografia'))).toBe(true)
+    expect(puedeFirmarVerificaciones(u('admin_area', undefined, 'ryd'))).toBe(false)
+    expect(puedeFirmarVerificaciones(u('analista', ['verif_firmar']))).toBe(true)
+  })
+
+  it('el reanálisis se puede dar a una cuenta concreta (igual que en el servidor)', () => {
+    expect(puedeCrearReanalisis(u('analista', ['agrofresh_lab']))).toBe(false)
+    expect(puedeCrearReanalisis(u('analista', ['toma_reanalisis']))).toBe(true)
+    expect(puedeCrearReanalisis(u('admin_area'))).toBe(true)
+    expect(puedeCrearReanalisis(u('gerencia', ['toma_reanalisis']))).toBe(false)
+  })
+
+  it('un cliente ve lo que se le asignó; las cuentas antiguas conservan lo de su área', () => {
+    expect(vistaDeCliente({ area: 'postventa', modulos: ['reports', 'storage'], reportes: ['laboratorio', 'postventa'] })).toEqual({
+      report: true, storage: true, accutab: true,
+    })
+    expect(vistaDeCliente({ area: 'postventa' })).toEqual({ report: false, storage: false, accutab: true })
+    expect(vistaDeCliente({ area: 'cromatografia' })).toEqual({ report: true, storage: false, accutab: false })
+    expect(etiquetaAcceso(u('cliente') as Usuario)).toBe('Cliente · Report')
+    expect(etiquetaAcceso({ ...u('cliente', ['reports', 'storage']), reportes: ['laboratorio', 'postventa'] })).toBe(
+      'Cliente · Report + Storage + Accu-Tab',
+    )
+  })
+
+  it('el Report de Post Venta es interno: un cliente nunca lo abre aunque tenga «postventa»', () => {
+    const cliente = { ...u('cliente', ['reports']), reportes: ['laboratorio', 'postventa'] } as Usuario
+    expect(puedeVerReporte(cliente, 'laboratorio')).toBe(true)
+    expect(puedeVerReporte(cliente, 'postventa')).toBe(false)
   })
 })
