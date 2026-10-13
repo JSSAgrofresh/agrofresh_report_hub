@@ -4,10 +4,10 @@
   gap: var(--space-4);
 }
 
-.bueno { color: #14664a; }
-.regular { color: #9a6a00; }
-.malo { color: #a3261c; }
-.aviso { color: #a85b10; }
+.bueno { color: #4f8a26; }
+.regular { color: #9a7400; }
+.malo { color: #b0271f; }
+.aviso { color: #9a7400; }
 
 .hero {
   display: grid;
@@ -16,7 +16,8 @@
   padding: var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg, 14px);
-  background: linear-gradient(135deg, #f6faf7, #fff 60%);
+  background: linear-gradient(135deg, rgba(109, 173, 60, 0.12), #fff 55%);
+  border-left: 5px solid #6dad3c;
 }
 
 .cifra {
@@ -214,8 +215,8 @@
 }
 
 .fila:disabled { cursor: default; }
-.fila:not(:disabled):hover { border-color: #1b7f5c; background: #f6faf7; }
-.activa { border-color: #1b7f5c; background: #eaf5ef; box-shadow: 0 0 0 3px rgba(27, 127, 92, 0.14); }
+.fila:not(:disabled):hover { border-color: #6dad3c; background: rgba(109, 173, 60, 0.08); }
+.activa { border-color: #4f8a26; background: rgba(109, 173, 60, 0.14); box-shadow: 0 0 0 3px rgba(109, 173, 60, 0.22); }
 
 .nombre {
   display: flex;
@@ -237,7 +238,7 @@
 .apilada span { display: block; transition: width 0.5s ease; }
 
 .sinJuzgar {
-  background: repeating-linear-gradient(135deg, #cdd5d0 0 4px, #e6ebe8 4px 8px);
+  background: repeating-linear-gradient(135deg, #b7c4ba 0 4px, #dfe6df 4px 8px);
 }
 
 .valor {
@@ -291,7 +292,7 @@
   display: block;
   width: 100%;
   border-radius: 8px 8px 0 0;
-  background: #1b7f5c;
+  background: #6dad3c;
   transition: height 0.5s ease;
 }
 
@@ -313,7 +314,8 @@
   align-items: center;
   padding: 6px 10px;
   border-radius: 8px;
-  background: #faf3f2;
+  background: rgba(176, 39, 31, 0.07);
+  border-left: 3px solid #b0271f;
   font-size: 12.5px;
 }
 
@@ -344,8 +346,17 @@
 
 .sens b { font-size: 15px; font-variant-numeric: tabular-nums; }
 .sens small { font-size: 11px; color: var(--color-text-muted, #5b6b62); }
-.sens .actual { border-color: #1b7f5c; background: #eaf5ef; }
+.sens .actual { border-color: #4f8a26; background: rgba(109, 173, 60, 0.14); }
 
 @media (prefers-reduced-motion: reduce) {
   .barra span, .apilada span, .columna i { transition: none; }
 }
+
+.anillo { width: 132px; height: 132px; margin: 4px 0; }
+.anilloTexto { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* Tarjetas de atraso: acento de marca a la izquierda */
+.atraso > div { border-left: 4px solid #e8c32e; }
+.atraso > div:first-child { border-left-color: #b0271f; }
+.atraso > div:last-child { border-left-color: #b4531f; }
+.barra { background: #e6ece3; }

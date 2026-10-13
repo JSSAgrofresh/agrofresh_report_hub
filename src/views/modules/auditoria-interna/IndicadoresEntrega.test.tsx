@@ -74,13 +74,9 @@ describe('IndicadoresEntrega', () => {
     expect(screen.getByText('estimado')).toBeTruthy()
   })
 
-  it('al tocar «Reporte observado» se abre un modal con los clientes que ya vieron su informe', () => {
+  it('los puntos del flujo no son botones: la tabla del costado es la que se usa', () => {
     render(<IndicadoresEntrega solicitudes={solicitudes} />)
-    expect(screen.queryByRole('dialog')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /Reporte observado/ }))
-    const modal = screen.getByRole('dialog', { name: /Reporte observado · 1/ })
-    expect(within(modal).getByText(/DOLE · LONTUE/)).toBeTruthy()
-    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('button', { name: /Reporte observado/ })).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
@@ -121,5 +117,17 @@ describe('IndicadoresEntrega', () => {
     render(<IndicadoresEntrega solicitudes={solicitudes} />)
     fireEvent.click(screen.getByRole('button', { name: 'Análisis' }))
     expect(screen.getAllByText(/QUITECA · FDL/).length).toBeGreaterThan(0)
+  })
+
+  it('el botón «Pasos de la entrega» es solo del administrador y abre los plazos', () => {
+    const { unmount } = render(<IndicadoresEntrega solicitudes={solicitudes} />)
+    expect(screen.queryByRole('button', { name: /Pasos de la entrega/ })).toBeNull()
+    unmount()
+    render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar />)
+    fireEvent.click(screen.getByRole('button', { name: /Pasos de la entrega/ }))
+    const modal = within(screen.getByRole('dialog', { name: 'Pasos de la entrega' }))
+    expect(modal.getByText('¿Cuándo está entregada una solicitud?')).toBeTruthy()
+    expect(modal.getByLabelText(/QUITECA\s*· plazo general/i)).toBeTruthy()
+    expect((modal.getByLabelText(/^FDL/) as HTMLInputElement).value).toBe("8")
   })
 })

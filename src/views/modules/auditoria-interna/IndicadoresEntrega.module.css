@@ -836,3 +836,28 @@
   justify-content: space-between;
   gap: var(--space-2);
 }
+
+/* Encabezado del cumplimiento con el botón solo para el administrador */
+.cabAcciones {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.botonConfig {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 14px;
+  color: var(--color-primary-hover);
+  background: #fff;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.botonConfig:hover { background: rgba(109, 173, 60, 0.12); }
+.botonConfig:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
