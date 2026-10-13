@@ -135,6 +135,10 @@ export function descargarInformeCliente(ruta: string) {
   return descargarArchivo(`/informes-cliente/descargar?ruta=${encodeURIComponent(ruta)}`, ruta.split('/').pop() || 'informe.pdf')
 }
 
+export function abrirInformeCliente(ruta: string) {
+  return httpClient.getArchivoConNombre(`/informes-cliente/descargar?ruta=${encodeURIComponent(ruta)}`)
+}
+
 export async function verInformeCliente(ruta: string): Promise<void> {
   const { blob } = await httpClient.getArchivoConNombre(`/informes-cliente/descargar?ruta=${encodeURIComponent(ruta)}`)
   const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))

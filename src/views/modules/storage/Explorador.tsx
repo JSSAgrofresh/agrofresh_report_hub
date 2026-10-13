@@ -301,7 +301,7 @@ export function Explorador({
                 Vista previa
               </button>
             )}
-            {e.tipo === 'carpeta' && (
+            {e.tipo === 'carpeta' && espacio.id !== 'cliente' && (
               <button type="button" role="menuitem" onClick={() => { setMenu(null); onAlternarFavorito(e.ruta, e.nombre) }}>
                 Fijar en favoritos
               </button>
@@ -365,7 +365,7 @@ export function Explorador({
               </button>
             </span>
           ))}
-          {ruta !== espacio.raiz && (
+          {ruta !== espacio.raiz && espacio.id !== 'cliente' && (
           <button
             type="button"
             className={cn(styles.estrella, esFavorito && styles.estrellaOn)}
@@ -578,7 +578,7 @@ export function Explorador({
       <p className={styles.ayuda}>
         {puedeSubir || puedeCrear
           ? 'Arrastra archivos para subirlos o elementos a una carpeta para moverlos. Atajos: F2 renombra, Supr elimina, / busca en todo Storage.'
-          : 'Haz clic en un archivo para ver su vista previa. Atajo: / busca en todo Storage.'}
+          : (espacio.id === 'cliente' ? 'Haz clic en un archivo para ver su vista previa.' : 'Haz clic en un archivo para ver su vista previa. Atajo: / busca en todo Storage.')}
       </p>
 
       {estado?.tipo === 'carpeta' && (

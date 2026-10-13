@@ -16,6 +16,7 @@ export {
   listarInformesCliente,
   descargarInformeCliente,
   verInformeCliente,
+  abrirInformeCliente,
 } from './lib/api'
 export type {
   EntradaStorage,
@@ -28,6 +29,7 @@ export type {
 export {
   CARPETA_LABORATORIO,
   ESPACIOS,
+  ESPACIO_CLIENTE,
   TIPO_MOVER,
   carpetaDe,
   espacioDeRuta,

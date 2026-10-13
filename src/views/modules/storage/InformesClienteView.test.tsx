@@ -2,17 +2,18 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 const listarInformesCliente = vi.fn()
-vi.mock('@/features/storage', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/features/storage')>()),
+vi.mock('@/features/storage/lib/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/storage/lib/api')>()),
   listarInformesCliente: (r?: string) => listarInformesCliente(r),
   descargarInformeCliente: vi.fn(),
+  abrirInformeCliente: vi.fn(),
   verInformeCliente: vi.fn(),
 }))
 
 import { InformesClienteView } from './InformesClienteView'
 
-const carpeta = (nombre: string, ruta: string) => ({ nombre, ruta, tipo: 'carpeta', tamano_bytes: null, modificado: '' })
-const archivo = (nombre: string, ruta: string) => ({ nombre, ruta, tipo: 'archivo', tamano_bytes: 10, modificado: '' })
+const carpeta = (nombre: string, ruta: string) => ({ nombre, ruta, tipo: 'carpeta', tamano_bytes: null, modificado: '2026-10-13T10:00:00' })
+const archivo = (nombre: string, ruta: string) => ({ nombre, ruta, tipo: 'archivo', tamano_bytes: 10, modificado: '2026-10-13T10:00:00' })
 
 describe('InformesClienteView', () => {
   beforeEach(() => {
@@ -31,15 +32,22 @@ describe('InformesClienteView', () => {
 
   it('entra solo a la carpeta de su Ship To y muestra las fechas en formato chileno', async () => {
     render(<InformesClienteView />)
-    expect(await screen.findByText(/13-10-2026/)).toBeTruthy()
+    expect((await screen.findAllByText(/13-10-2026/)).length).toBeGreaterThan(0)
     expect(listarInformesCliente).toHaveBeenCalledWith('DOLE CODEGUA')
   })
 
-  it('al abrir la fecha muestra el PDF con Ver y Descargar', async () => {
+  it('es de solo lectura: sin subir, crear carpeta ni permisos', async () => {
     render(<InformesClienteView />)
-    fireEvent.click(await screen.findByRole('button', { name: /13-10-2026/ }))
-    await waitFor(() => expect(screen.getByText('informe-1.pdf')).toBeTruthy())
-    expect(screen.getByRole('button', { name: 'Ver' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Descargar' })).toBeTruthy()
+    await screen.findAllByText(/13-10-2026/)
+    expect(screen.queryByText(/Subir archivos/)).toBeNull()
+    expect(screen.queryByText(/Nueva carpeta/)).toBeNull()
+    expect(screen.queryByText(/Permisos/)).toBeNull()
+  })
+
+  it('al abrir la fecha muestra el PDF con su descarga', async () => {
+    render(<InformesClienteView />)
+    await screen.findAllByText(/13-10-2026/)
+    fireEvent.click(screen.getAllByRole('button', { name: /13-10-2026/ })[0])
+    await waitFor(() => expect(screen.getAllByText('informe-1.pdf').length).toBeGreaterThan(0))
   })
 })

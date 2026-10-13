@@ -6,7 +6,7 @@ import type { EntradaStorage } from './tipos'
  * parte de lo que hay: renombrar o mover a mano dejaría rotas las solicitudes
  * o los informes que apuntan a esas rutas. */
 export interface Espacio {
-  id: 'local' | 'solicitudes' | 'accutab' | 'laboratorio' | 'informes'
+  id: 'local' | 'solicitudes' | 'accutab' | 'laboratorio' | 'informes' | 'cliente'
   etiqueta: string
   descripcion: string
   r2: boolean
@@ -64,6 +64,16 @@ export const ESPACIOS: Espacio[] = [
     acento: '#7c4dbd',
   },
 ]
+
+/** El único espacio de una cuenta de cliente: sus informes (solo lectura; el servidor lo acota a su Ship To). */
+export const ESPACIO_CLIENTE: Espacio = {
+  id: 'cliente',
+  etiqueta: 'Mis informes',
+  descripcion: 'Los informes de laboratorio de tu sucursal, ordenados por fecha de muestreo.',
+  r2: true,
+  raiz: '',
+  acento: '#7c4dbd',
+}
 
 /** Tipo con el que viaja lo que se arrastra (lista de rutas en JSON). */
 export const TIPO_MOVER = 'application/x-storage-rutas'
