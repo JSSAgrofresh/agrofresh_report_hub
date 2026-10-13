@@ -167,3 +167,15 @@
 .cifra { font-size: 14px; }
 .pct { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--color-text-muted); }
 .tabla tfoot .cliente { background: #f1f4ef; vertical-align: top; }
+
+/* Compacto: la tabla ocupa solo lo que necesita, sin estirar la columna del cliente */
+.caja { width: fit-content; max-width: 100%; }
+.tabla { width: auto; }
+.tabla th, .tabla td { padding: 3px 10px; }
+.colCliente, .tabla tbody .cliente, .tabla tfoot .cliente { width: 250px; min-width: 250px; max-width: 250px; }
+.cliente span { max-width: 190px; }
+.colAnalisis { width: 130px; min-width: 130px; }
+.valor { width: 150px; min-width: 150px; }
+.lineaLab { padding-left: 20px !important; }
+.totalCliente { margin-left: 28px; }
+.tabla .gEntregable { width: 64px; min-width: 64px; }
