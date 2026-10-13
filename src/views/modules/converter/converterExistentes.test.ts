@@ -69,7 +69,7 @@ describe('revisión automática apenas se cargan los PDF', () => {
   })
 
   it('se dispara al terminar de leer los PDF y el aviso ofrece quitarlos', () => {
-    expect(html).toMatch(/pintar\(\);\n  }\n  revisarExistentes\(\);\n}/)
+    expect(html).toMatch(/pintar\(\);\n[ ]{2}}\n[ ]{2}revisarExistentes\(\);\n}/)
     expect(html).toContain('Quitar los ')
     expect(html).toContain('YA EXISTE')
   })

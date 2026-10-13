@@ -204,6 +204,14 @@ def hitos(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
     )
     if base is None:
         raise HTTPException(503, "No se pudieron leer las solicitudes.")
+    # Fecha de envío anotada a mano de informes que no pasan por Converter (migración 0061): sin la
+    # tabla, o sin fila, no cambia nada. Solo vale si el informe no trae una fecha propia.
+    manuales = {f["archivo"]: f["fecha_envio"] for f in _filas("SELECT archivo, fecha_envio FROM informe_fecha_manual") or []}
+    for f in base:
+        if f["archivo"] in manuales and f.get("fecha_envio") is None:
+            f["fecha_envio"] = manuales[f["archivo"]]
+            if f.get("subido_en") is None:
+                f["subido_en"] = manuales[f["archivo"]]
     enviadas = {f["archivo"]: f["t"] for f in _filas(
         "SELECT archivo, min(creado_en) AS t FROM envio_solicitud_log WHERE exitoso GROUP BY archivo") or []}
     reports = {f["nro"]: f["t"] for f in _filas(
