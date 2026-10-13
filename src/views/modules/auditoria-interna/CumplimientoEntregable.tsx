@@ -17,7 +17,26 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
 const nombreMes = (mes: string) => `${MESES[Number(mes.slice(5, 7)) - 1] ?? mes} ${mes.slice(2, 4)}`
 const etiquetaSolicitud = (e: EvaluadaEntrega) => e.sol.numero_solicitud ?? e.sol.archivo
 
-const COLOR = { cumplio: '#1b7f5c', tarde: '#d9822b', vencida: '#b3261e' }
+// Paleta de la marca: verde = a tiempo, amarillo = tarde, rojo = vencida sin entregar.
+const COLOR = { cumplio: '#6dad3c', tarde: '#e8c32e', vencida: '#b0271f' }
+const COLOR_TINTA = { bueno: '#4f8a26', regular: '#9a7400', malo: '#b0271f' }
+const R = 52
+const CIRC = 2 * Math.PI * R
+
+/** Anillo con el % de cumplimiento; el color sigue al nivel (verde / amarillo / rojo), nunca solo a la posición. */
+function Anillo({ pct }: { pct: number | null }) {
+  const color = pct == null ? '#c9d1ca' : pct >= 90 ? COLOR.cumplio : pct >= 75 ? COLOR.tarde : COLOR.vencida
+  const tinta = pct == null ? '#6b7a72' : pct >= 90 ? COLOR_TINTA.bueno : pct >= 75 ? COLOR_TINTA.regular : COLOR_TINTA.malo
+  return (
+    <svg className={styles.anillo} viewBox="0 0 120 120" role="img" aria-label={pct == null ? 'Sin cumplimiento calculable' : `${Math.round(pct)}% de cumplimiento`}>
+      <circle cx="60" cy="60" r={R} fill="none" stroke="#e6ece3" strokeWidth="13" />
+      {pct != null && (
+        <circle cx="60" cy="60" r={R} fill="none" stroke={color} strokeWidth="13" strokeLinecap="round" strokeDasharray={`${(pct / 100) * CIRC} ${CIRC}`} transform="rotate(-90 60 60)" />
+      )}
+      <text x="60" y="68" textAnchor="middle" className={styles.anilloTexto} fill={tinta}>{pct == null ? '—' : `${Math.round(pct)}%`}</text>
+    </svg>
+  )
+}
 
 interface Grupo {
   clave: string
@@ -82,8 +101,8 @@ export function CumplimientoEntregable({
     { clave: 'cumplio', texto: 'A tiempo', n: cum.cumplio, color: COLOR.cumplio },
     { clave: 'tarde', texto: 'Entregadas tarde', n: cum.tarde, color: COLOR.tarde },
     { clave: 'vencida', texto: 'Vencidas sin entregar', n: cum.vencida, color: COLOR.vencida },
-    { clave: 'plazo', texto: 'Aún en plazo', n: cum.plazo, color: '#9aa7a0' },
-    { clave: 'sin_plazo', texto: 'Sin plazo cargado', n: cum.sinPlazo, color: '#d5dbd7' },
+    { clave: 'plazo', texto: 'Aún en plazo', n: cum.plazo, color: '#9fb0a3' },
+    { clave: 'sin_plazo', texto: 'Sin plazo cargado', n: cum.sinPlazo, color: '#d9dfd9' },
   ]
   const maxMes = Math.max(1, ...serie.map((p) => p.n))
 
@@ -93,7 +112,7 @@ export function CumplimientoEntregable({
       <div className={styles.hero}>
         <div className={styles.cifra}>
           <span className={styles.pregunta}>¿Entregamos dentro del plazo prometido?</span>
-          <b className={`${styles.pct} ${tono(cum.pct)}`}>{cum.pct == null ? '—' : Math.round(cum.pct)}<small>%</small></b>
+          <Anillo pct={cum.pct} />
           <span className={styles.frase}>
             {cum.vencidas === 0
               ? 'Todavía no vence ninguna solicitud.'
