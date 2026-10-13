@@ -13,6 +13,7 @@ import {
   filtrarSolicitudes,
   opcionesDeFiltros,
   porClienteResiduosFsmaFito,
+  soloAnalisis,
   resumenPorTipo,
   simularSolicitudes,
   tiposDeArea,
@@ -20,7 +21,7 @@ import {
   totales,
   useSolicitudesAuditoria,
 } from '@/features/auditoriaInterna'
-import type { AreaPivote, DimensionGrafico, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
+import type { AnalisisVisible, AreaPivote, DimensionGrafico, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { DonaTipoServicio, TarjetaGrafico } from './Graficos'
 import { AuditoriaHero } from './AuditoriaHero'
 import { PanelFiltros } from './PanelFiltros'
@@ -29,15 +30,23 @@ import { IndicadoresEntrega } from './IndicadoresEntrega'
 import { ResumenConcretadas } from './ResumenConcretadas'
 import { InformesPorLaboratorio } from './InformesPorLaboratorio'
 import { AnalisisPorCliente } from './AnalisisPorCliente'
+import { COLOR_LAB } from './coloresTipo'
 import { TablaDinamica } from './TablaDinamica'
 import styles from './SolicitudesInformesView.module.css'
 
 
-const DIMENSIONES: { valor: DimensionGrafico; texto: string; plural: string }[] = [
+/** Los botones de análisis del gráfico por cliente: se prenden y apagan para ver solo lo que interesa. */
+const ANALISIS_BOTONES: { clave: AnalisisVisible; texto: string; color: string; ayuda: string }[] = [
+  { clave: 'residuales', texto: 'Residuales', color: COLOR_LAB.AGROFRESH, ayuda: 'AgroFresh y Quiteca' },
+  { clave: 'fsma', texto: 'FSMA', color: COLOR_LAB.ALS, ayuda: 'ALS' },
+  { clave: 'fito', texto: 'FITO', color: COLOR_LAB.DIAGNOFRUIT, ayuda: 'Diagnofruit' },
+]
+
+const DIMENSIONES: { valor: DimensionGrafico; texto: string; plural: string; corto?: string }[] = [
   { valor: 'cliente', texto: 'Sold To', plural: 'Sold To' },
   { valor: 'planta', texto: 'Ship To', plural: 'Ship To' },
   { valor: 'especie', texto: 'Especie', plural: 'especies' },
-  { valor: 'tipo', texto: 'Tipo de servicio', plural: 'tipos de servicio' },
+  { valor: 'tipo', texto: 'Tipo de servicio', plural: 'tipos de servicio', corto: 'Tipo' },
 ]
 
 export function SolicitudesInformesView() {
@@ -61,6 +70,10 @@ export function SolicitudesInformesView() {
   // Filtros propios del gráfico por grupo, encima de los del panel.
   const [filtroGrafico, setFiltroGrafico] = useState({ cliente: '', planta: '', especie: '', tipo: '' })
   const [topClientes, setTopClientes] = useState(10)
+  const [analisisVisibles, setAnalisisVisibles] = useState<AnalisisVisible[]>(['residuales', 'fsma', 'fito'])
+  // Siempre queda al menos uno prendido: sin ninguno no habría nada que mirar.
+  const alternarAnalisis = (a: AnalisisVisible) =>
+    setAnalisisVisibles((v) => (v.includes(a) ? (v.length > 1 ? v.filter((x) => x !== a) : v) : [...v, a]))
 
   const opciones = useMemo(() => opcionesDeFiltros(todas ?? [], filtros), [todas, filtros])
 
@@ -78,7 +91,10 @@ export function SolicitudesInformesView() {
   )
   const opcionesGrafico = useMemo(() => opcionesDeFiltros(alcanceCliente, filtrosGrafico), [alcanceCliente, filtrosGrafico])
   const alcanceGrafico = useMemo(() => filtrarSolicitudes(alcanceCliente, filtrosGrafico, { estado: true }), [alcanceCliente, filtrosGrafico])
-  const filasTabla = useMemo(() => porClienteResiduosFsmaFito(alcanceGrafico, dimension).slice(0, topClientes > 0 ? topClientes : undefined), [alcanceGrafico, dimension, topClientes])
+  const filasTabla = useMemo(
+    () => soloAnalisis(porClienteResiduosFsmaFito(alcanceGrafico, dimension), analisisVisibles).slice(0, topClientes > 0 ? topClientes : undefined),
+    [alcanceGrafico, dimension, topClientes, analisisVisibles],
+  )
   const cambiarFiltroGrafico = (clave: keyof typeof filtroGrafico, valor: string) =>
     setFiltroGrafico((f) => ({ ...f, [clave]: valor, ...(clave === 'cliente' ? { planta: '' } : {}) }))
   const nombreDimension = DIMENSIONES.find((d) => d.valor === dimension)!
@@ -160,7 +176,7 @@ export function SolicitudesInformesView() {
               <TarjetaGrafico
                 titulo={`Análisis por laboratorio · top ${nombreDimension.plural}`}
                 leyenda={
-                  <>
+                  <div className={styles.barraGrafico}>
                     <div className={styles.filtrosGrafico}>
                       <label>
                         Sold To
@@ -191,23 +207,48 @@ export function SolicitudesInformesView() {
                         </select>
                       </label>
                     </div>
-                  </>
-                }
-                controles={
-                  <>
-                    <div className={styles.segmentadoChico} role="group" aria-label="Agrupar por">
-                      {DIMENSIONES.map((d) => (
-                        <button key={d.valor} type="button" aria-pressed={dimension === d.valor} className={dimension === d.valor ? styles.segActivo : ''} onClick={() => setDimension(d.valor)}>
-                          {d.texto}
-                        </button>
-                      ))}
+                    <span className={styles.separadorBarra} aria-hidden="true" />
+                    <div className={styles.grupoBarra}>
+                      <span>Agrupar por</span>
+                      <div className={styles.segmentadoChico} role="group" aria-label="Agrupar por">
+                        {DIMENSIONES.map((d) => (
+                          <button key={d.valor} type="button" aria-pressed={dimension === d.valor} className={dimension === d.valor ? styles.segActivo : ''} onClick={() => setDimension(d.valor)}>
+                            {d.corto ?? d.texto}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <select className={styles.selectChico} aria-label="Cuántos mostrar" value={topClientes} onChange={(e) => setTopClientes(Number(e.target.value))}>
-                      <option value={10}>Top 10</option>
-                      <option value={20}>Top 20</option>
-                      <option value={0}>Todos</option>
-                    </select>
-                  </>
+                    <div className={styles.grupoBarra}>
+                      <span>Mostrar</span>
+                      <select className={styles.selectChico} aria-label="Cuántos mostrar" value={topClientes} onChange={(e) => setTopClientes(Number(e.target.value))}>
+                        <option value={10}>Top 10</option>
+                        <option value={20}>Top 20</option>
+                        <option value={0}>Todos</option>
+                      </select>
+                    </div>
+                    <span className={styles.separadorBarra} aria-hidden="true" />
+                    <div className={styles.grupoBarra}>
+                      <span>Análisis</span>
+                      <div className={styles.chipsAnalisis} role="group" aria-label="Análisis a mostrar">
+                        {ANALISIS_BOTONES.map((a) => {
+                          const activo = analisisVisibles.includes(a.clave)
+                          return (
+                            <button
+                              key={a.clave}
+                              type="button"
+                              aria-pressed={activo}
+                              title={activo ? `Ocultar ${a.texto} (${a.ayuda})` : `Mostrar ${a.texto} (${a.ayuda})`}
+                              className={`${styles.chipAnalisis} ${activo ? styles.chipAnalisisOn : ''}`}
+                              style={{ '--tono': a.color } as React.CSSProperties}
+                              onClick={() => alternarAnalisis(a.clave)}
+                            >
+                              {a.texto}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 }
                 tabla={{
                   columnas: [nombreDimension.texto, 'AgroFresh', 'Quiteca', 'FSMA', 'FITO', 'Total', 'Con informe'],
@@ -215,7 +256,7 @@ export function SolicitudesInformesView() {
                 }}
               >
                 {filasTabla.length > 0 ? (
-                  <AnalisisPorCliente solicitudes={alcanceGrafico} dimension={dimension} limite={topClientes} />
+                  <AnalisisPorCliente solicitudes={alcanceGrafico} dimension={dimension} limite={topClientes} analisis={analisisVisibles} />
                 ) : (
                   <p className={styles.sinDatosGrafico}>No hay solicitudes con los filtros actuales.</p>
                 )}

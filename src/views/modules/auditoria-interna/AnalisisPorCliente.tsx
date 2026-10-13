@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { listarClientes } from '@/features/catalogo'
-import { clientesSinAnalisis, porClienteResiduosFsmaFito } from '@/features/auditoriaInterna'
-import type { CeldaCliente, DimensionGrafico, SolicitudAuditoria } from '@/features/auditoriaInterna'
+import { ANALISIS_VISIBLES, clientesSinAnalisis, porClienteResiduosFsmaFito, soloAnalisis } from '@/features/auditoriaInterna'
+import type { AnalisisVisible, CeldaCliente, DimensionGrafico, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { COLOR_LAB } from './coloresTipo'
 import styles from './AnalisisPorCliente.module.css'
 
@@ -71,13 +71,18 @@ export function AnalisisPorCliente({
   solicitudes,
   dimension = 'cliente',
   limite = 0,
+  analisis = ANALISIS_VISIBLES,
 }: {
   solicitudes: SolicitudAuditoria[]
   dimension?: DimensionGrafico
   /** cuántas filas mostrar (0 = todas) */
   limite?: number
+  /** qué análisis se ven (por defecto los tres); el total y el orden de cada cliente cuentan solo lo visible */
+  analisis?: AnalisisVisible[]
 }) {
-  const todas = useMemo(() => porClienteResiduosFsmaFito(solicitudes, dimension), [solicitudes, dimension])
+  // Sin filtrar por análisis: sirve para saber qué clientes del listado no tienen NINGÚN análisis.
+  const crudas = useMemo(() => porClienteResiduosFsmaFito(solicitudes, dimension), [solicitudes, dimension])
+  const todas = useMemo(() => soloAnalisis(crudas, analisis), [crudas, analisis])
   const filas = useMemo(() => (limite > 0 ? todas.slice(0, limite) : todas), [todas, limite])
   const [listado, setListado] = useState<string[]>([])
   const [verApagados, setVerApagados] = useState(false)
@@ -90,7 +95,7 @@ export function AnalisisPorCliente({
       .catch(() => undefined)
     return () => { cancelado = true }
   }, [])
-  const apagados = useMemo(() => (dimension === 'cliente' ? clientesSinAnalisis(listado, todas) : []), [listado, todas, dimension])
+  const apagados = useMemo(() => (dimension === 'cliente' ? clientesSinAnalisis(listado, crudas) : []), [listado, crudas, dimension])
 
   const suma = (f: (x: (typeof filas)[number]) => CeldaCliente) => filas.reduce((n, x) => n + f(x).n, 0)
   const nFsma = suma((x) => x.fsma)
