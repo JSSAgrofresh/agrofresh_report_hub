@@ -12,6 +12,7 @@ import { modulosPermitidos } from '@/features/usuarios'
 import type { Usuario } from '@/features/usuarios'
 import { InformesAccutabCliente } from '@/views/modules/reports/InformesAccutabCliente'
 import { ReporteView } from '@/views/modules/reports/ReporteView'
+import { AccesosCliente } from './AccesosCliente'
 import { CarruselNovedades, GraficoActividad, GraficoBarras, GraficoDona, HeroBienvenida, TiraVerificaciones, TituloArea } from './graficos'
 import { ConverterPanel, KpiCard, SolicitudesPanel, TracePanel, UsuariosActivos, VerificacionesPanel } from './bloquesAdmin'
 import styles from './PanelPersonalizado.module.css'
@@ -84,6 +85,8 @@ function dibujar(id: string, c: Contexto): ReactNode {
         />
       )
     }
+    case 'cliente:accesos':
+      return <AccesosCliente usuario={c.usuario} />
     case 'cliente:reporte':
       return <ReporteView clienteFijo={c.usuario.clienteNombre ?? c.usuario.nombre} plantaFija={c.usuario.plantaNombre} onCropChange={c.setEspecie} />
     case 'cliente:accutab':

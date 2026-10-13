@@ -19,7 +19,6 @@ import {
 import {
   IconConverter,
   IconDataCore,
-  IconDatabase,
   IconEmitir,
   IconAdminGeneral,
   IconAuditoria,
@@ -438,11 +437,6 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
         </nav>
 
         <div className={styles.pie}>
-          <div className={styles.estadoBd}>
-            <IconDatabase className={styles.estadoBdIcono} />
-            <span>Base de datos: pendiente</span>
-          </div>
-
           <div className={styles.usuario}>
             {/* Zona avatar + popover: un div wrapper para el clic-fuera */}
             <div ref={avatarZonaRef} style={{ position: 'relative', flexShrink: 0 }}>

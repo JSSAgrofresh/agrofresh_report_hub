@@ -1,11 +1,10 @@
-import { useState } from 'react'
 import type { AreaId } from '@/constants/areas'
 import { AREAS } from '@/constants/areas'
 import { EstadoModulo } from '@/components/ui/EstadoModulo'
 import { AreaHero, fondoParaEspecie } from '@/features/dashboard'
 import type { Usuario } from '@/features/usuarios'
 import { InformesAccutabCliente } from '@/views/modules/reports/InformesAccutabCliente'
-import { ReporteView } from '@/views/modules/reports/ReporteView'
+import { AccesosCliente } from './AccesosCliente'
 
 export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario: Usuario }) {
   const config = AREAS[area]
@@ -14,13 +13,9 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
   // encabezado muestra esa sucursal -ej. "Dole Codegua"- en vez del Sold To
   // completo, para que quede claro qué alcance tiene la cuenta.
   const titulo = usuario.plantaNombre ?? cliente
-  // Temporada de cereza: mientras no haya un filtro de especie activo (o la
-  // fruta filtrada todavía no tenga foto propia), el fondo del encabezado
-  // es el de cereza -se actualiza en vivo según lo que el cliente filtre en Report-.
-  const [especieFiltrada, setEspecieFiltrada] = useState<string | null>(null)
-  // El velo del encabezado toma el tono de la foto de la fruta -verde en pera,
-  // azul en arándano, rojo en cereza-, no el color de marca del área.
-  const fondoHero = area === 'cromatografia' ? fondoParaEspecie(especieFiltrada, config.fondo) : undefined
+  // Temporada de cereza: el fondo del encabezado es el de cereza. El Report ya NO se incrusta acá (tiene su
+  // propia entrada en el menú): el panel de un cliente lo arma el administrador (Panel de inicio).
+  const fondoHero = area === 'cromatografia' ? fondoParaEspecie(null, config.fondo) : undefined
 
   return (
     <div>
@@ -33,7 +28,7 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
       />
 
       {area === 'cromatografia' ? (
-        <ReporteView clienteFijo={cliente} plantaFija={usuario.plantaNombre} onCropChange={setEspecieFiltrada} />
+        <AccesosCliente usuario={usuario} />
       ) : area === 'postventa' ? (
         <InformesAccutabCliente />
       ) : (

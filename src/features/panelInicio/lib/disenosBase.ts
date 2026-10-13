@@ -47,7 +47,7 @@ export const BASE_VISUAL: Pieza[] = [
 
 export const BASE_CLIENTE_CROMATOGRAFIA: Pieza[] = [
   { id: 'cliente:encabezado', x: 0, y: 0, w: 12, h: 3 },
-  { id: 'cliente:reporte', x: 0, y: 3, w: 12, h: 12 },
+  { id: 'cliente:accesos', x: 0, y: 3, w: 12, h: 4 },
 ]
 
 export const BASE_CLIENTE_POSTVENTA: Pieza[] = [
