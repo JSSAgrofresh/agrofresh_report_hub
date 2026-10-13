@@ -435,8 +435,7 @@ listas que la cuenta ya tenía (`modulos`, `reportes`).
   acciones del administrador principal: solo el administrador general, nunca se reparten (no existen como id). **Un módulo o sección nueva se agrega
   en `CATEGORIAS`** (y, si es una función suelta, en `FUNCIONES`/`MODULOS_VALIDOS` del backend).
 - **Funciones sueltas** (ids en `modulos`; se asignan a propósito, marcar al padre no las da): `lab_criterios` («Modificar los criterios» de las
-  verificaciones; nació en `lab_secciones.py`, 403 en `/api/verificaciones/config/*`), `verif_firmar` (firmar la revisión del día, además de admin general y admin de Cromatografía) y `toma_reanalisis` (crear reanálisis, además de
-  admin general y admin de área). Admin general las tiene todas; gerencia y clientes ninguna. Guardas: `RequireFuncion` (front), `permisos_funciones.exigir`
+  verificaciones; nació en `lab_secciones.py`, 403 en `/api/verificaciones/config/*`), `verif_firmar` (firmar la revisión del día, además de admin general y admin de Cromatografía) y `toma_reanalisis` (crear reanálisis: **ningún tipo de cuenta la trae sola**, ni siquiera admin de área —13-10-2026, pedido del usuario—; la da el admin general cuenta por cuenta). Admin general las tiene todas; gerencia y clientes ninguna. Guardas: `RequireFuncion` (front), `permisos_funciones.exigir`
   (back). Pruebas: `tests/test_permisos_funciones.py`, `catalogoPermisos.test.ts`, `permisos.test.ts`, `UsuarioForm.test.tsx`.
 
 ## Administración General → Funciones (qué muestra Report)

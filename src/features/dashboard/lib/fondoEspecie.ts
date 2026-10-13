@@ -59,7 +59,7 @@ export const TINTE_CEREZA = '#6E2029'
 /**
  * Tinte que corresponde a una foto de fondo por lo que muestra, sin importar el
  * área. El velo sigue a la fruta: cerezas con velo verde (Cromatografía) o
- * morado (R y D) se ven mal. Devuelve `undefined` para fotos sin tinte propio
+ * morado (R&D) se ven mal. Devuelve `undefined` para fotos sin tinte propio
  * (ej. la de Accu-Tab), que siguen usando el color de marca del área.
  */
 export function tinteDeFoto(imagen: string | undefined): string | undefined {

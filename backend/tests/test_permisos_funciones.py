@@ -56,7 +56,9 @@ def test_el_reanalisis_se_puede_dar_a_una_cuenta_concreta():
 
     assert not tm._puede_crear_reanalisis(_u("analista", modulos=["agrofresh_lab"]))
     assert tm._puede_crear_reanalisis(_u("analista", modulos=[pf.TOMA_REANALISIS]))
-    assert tm._puede_crear_reanalisis(_u("admin_area"))
+    assert not tm._puede_crear_reanalisis(_u("admin_area"))  # ningún tipo de cuenta la trae sola
+    assert tm._puede_crear_reanalisis(_u("admin_area", modulos=[pf.TOMA_REANALISIS]))
+    assert tm._puede_crear_reanalisis(_u("admin_general"))
     assert not tm._puede_crear_reanalisis(_u("gerencia", modulos=[pf.TOMA_REANALISIS]))
 
 

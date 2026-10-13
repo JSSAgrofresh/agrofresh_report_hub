@@ -76,8 +76,7 @@ export const CATEGORIAS: Categoria[] = [
       { id: 'toma_muestras', nombre: 'Toma de solicitudes', descripcion: 'Listado, creación y detalle de solicitudes de análisis.' },
       {
         id: 'toma_reanalisis', padre: 'toma_muestras', extra: true, nombre: 'Crear reanálisis',
-        descripcion: 'Pedir un reanálisis de una muestra ya analizada.',
-        incluidoPor: (tipo) => tipo === 'admin_area',
+        descripcion: 'Pedir un reanálisis de una muestra ya analizada. Se asigna cuenta por cuenta: ningún tipo de cuenta la trae sola.',
       },
     ],
   },
