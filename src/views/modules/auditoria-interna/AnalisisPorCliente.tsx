@@ -22,35 +22,37 @@ function lineasDe(x: Cuatro): Linea[] {
 
 const pct = (v: number) => `${Math.round(v * 100)}%`
 
-/** Cantidad de un laboratorio en una pastilla de su color y, en la columna de al lado, su % del total de residuales. */
-function CeldasLab({ c, total, color }: { c: CeldaCliente; total: number; color: string }) {
-  if (c.n === 0) return <><td className={`${styles.cero} ${styles.cant}`}>–</td><td className={`${styles.cero} ${styles.pctVacio}`}>–</td></>
+/** Un laboratorio en la misma línea de Residuales: su nombre, la cantidad y el % del total de residuales, sobre un fondo de su color. */
+function CeldasLab({ nombre, c, total, color }: { nombre: string; c: CeldaCliente; total: number; color: string }) {
+  const fondo = { background: `${color}1f` }
+  const vacio = c.n === 0
   return (
     <>
-      <td className={styles.cant} title={`${c.informes} de ${c.n} con informe`}><b className={styles.pastilla} style={{ color, background: `${color}1f` }}>{nf.format(c.n)}</b></td>
-      <td className={styles.pct}>{pct(c.n / total)}</td>
+      <td className={styles.labNombre} style={{ ...fondo, color }}>{nombre}</td>
+      <td className={styles.labCant} style={fondo} title={`${c.informes} de ${c.n} con informe`}>{vacio ? '–' : nf.format(c.n)}</td>
+      <td className={styles.labPct} style={fondo}>{vacio ? '–' : pct(c.n / total)}</td>
     </>
   )
 }
 
-/** Las celdas de una línea: análisis, total (con ✓ de informes), reparto por laboratorio (residuales) y entregables. */
+/** Las celdas de una línea: análisis, reparto por laboratorio (residuales, en la misma línea), total (con ✓ de informes) y entregables. */
 function CeldasLinea({ l }: { l: Linea }) {
   return (
     <>
       <th scope="row" className={styles.lineaGrupo} style={{ color: l.color }}>
         {l.nombre}{l.sub && <small>{l.sub}</small>}
       </th>
+      {l.labs ? (
+        <>
+          <CeldasLab nombre="AGROFRESH" c={l.labs.agf} total={l.c.n} color={COLOR_LAB.AGROFRESH} />
+          <CeldasLab nombre="QUITECA" c={l.labs.qui} total={l.c.n} color={COLOR_LAB.QUITECA} />
+        </>
+      ) : (
+        <td colSpan={6} className={styles.cero}>{l.sub}</td>
+      )}
       <td className={styles.valor} title={`${l.c.informes} de ${l.c.n} con informe`}>
         <b className={styles.cifra}>{nf.format(l.c.n)}</b><small>{l.c.informes}✓</small>
       </td>
-      {l.labs ? (
-        <>
-          <CeldasLab c={l.labs.agf} total={l.c.n} color={COLOR_LAB.AGROFRESH} />
-          <CeldasLab c={l.labs.qui} total={l.c.n} color={COLOR_LAB.QUITECA} />
-        </>
-      ) : (
-        <td colSpan={4} className={styles.cero}>{l.sub}</td>
-      )}
       <td className={styles.pendienteDato} title="Se cargará con el plan de entregables de los comerciales">—</td>
       <td className={styles.pendienteDato}>—</td>
     </>
@@ -101,25 +103,24 @@ export function AnalisisPorCliente({
       <div className={styles.caja}>
         <table className={styles.tabla}>
           <colgroup>
-            <col style={{ width: '23%' }} />
-            <col style={{ width: '12%' }} />
+            <col style={{ width: '22%' }} />
+            <col style={{ width: '11%' }} />
+            <col style={{ width: '10%' }} /><col style={{ width: '5%' }} /><col style={{ width: '6%' }} />
+            <col style={{ width: '10%' }} /><col style={{ width: '5%' }} /><col style={{ width: '6%' }} />
             <col style={{ width: '9%' }} />
-            <col style={{ width: '9.5%' }} /><col style={{ width: '9.5%' }} />
-            <col style={{ width: '9.5%' }} /><col style={{ width: '9.5%' }} />
-            <col style={{ width: '9.5%' }} /><col style={{ width: '9.5%' }} />
+            <col style={{ width: '8%' }} /><col style={{ width: '8%' }} />
           </colgroup>
           <thead>
             <tr className={styles.grupos}>
               <th rowSpan={2} className={styles.colCliente}>{dimension === 'cliente' ? 'Cliente' : 'Grupo'}</th>
               <th rowSpan={2} className={styles.colAnalisis}>Análisis</th>
+              <th colSpan={6} className={styles.gResiduales}>Laboratorio · cantidad y % del total de residuales</th>
               <th rowSpan={2} className={styles.gTotal}>Total</th>
-              <th colSpan={2} className={styles.gResiduales}>AgroFresh</th>
-              <th colSpan={2} className={styles.gQuiteca}>Quiteca</th>
               <th colSpan={2} className={styles.gEntregable}>Entregables</th>
             </tr>
             <tr className={styles.subs}>
-              <th>Cant.</th><th>%</th>
-              <th>Cant.</th><th>%</th>
+              <th>Lab.</th><th>Cant.</th><th>%</th>
+              <th>Lab.</th><th>Cant.</th><th>%</th>
               <th className={styles.gEntregable} title="Lo que cada comercial concretó de cada análisis para cada planta (se carga aparte)">Cant.</th>
               <th className={styles.gEntregable}>%</th>
             </tr>
@@ -148,7 +149,7 @@ export function AnalisisPorCliente({
               {apagados.map((nombre) => (
                 <tr key={nombre} className={styles.apagado}>
                   <th scope="row" className={styles.cliente}><em>·</em><span title={nombre}>{nombre}</span></th>
-                  <td colSpan={8}><span className={styles.cero}>Sin análisis</span></td>
+                  <td colSpan={10}><span className={styles.cero}>Sin análisis</span></td>
                 </tr>
               ))}
             </tbody>
