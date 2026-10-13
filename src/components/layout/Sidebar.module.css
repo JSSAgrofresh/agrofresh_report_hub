@@ -269,23 +269,6 @@
   border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-.estadoBd {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.55);
-  font-family: var(--font-mono);
-  padding-left: 2px;
-}
-
-.estadoBdIcono {
-  width: 13px;
-  height: 13px;
-  color: var(--color-accent);
-  flex-shrink: 0;
-}
-
 .usuario {
   display: flex;
   align-items: center;
@@ -427,22 +410,16 @@
   .colapsada .etiqueta,
   .colapsada .seccion,
   .colapsada .estadoPill,
-  .colapsada .usuarioInfo,
-  .colapsada .estadoBd span {
+  .colapsada .usuarioInfo {
     display: none;
   }
 
   .colapsada .navLink,
-  .colapsada .estadoBd,
   .colapsada .usuario {
     justify-content: center;
     gap: 0;
     padding-left: 0;
     padding-right: 0;
-  }
-
-  .colapsada .estadoBd {
-    font-size: 0;   /* el texto es un nodo suelto, no un elemento */
   }
 
   .colapsada .salir {

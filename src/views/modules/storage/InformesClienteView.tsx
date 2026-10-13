@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { IconoArchivo, IconoCarpeta } from './IconoArchivo'
 import { descargarInformeCliente, listarInformesCliente, verInformeCliente } from '@/features/storage'
 import type { EntradaStorage } from '@/features/storage'
 import styles from './InformesClienteView.module.css'
@@ -44,6 +45,8 @@ export function InformesClienteView() {
   }, [ruta])
 
   const partes = ruta.split('/').filter(Boolean)
+  const carpetas = (entradas ?? []).filter((e) => e.tipo === 'carpeta')
+  const archivos = (entradas ?? []).filter((e) => e.tipo !== 'carpeta')
 
   return (
     <section className={styles.wrap} aria-label="Tus informes">
@@ -75,25 +78,34 @@ export function InformesClienteView() {
         ) : entradas.length === 0 && !error ? (
           <p className={styles.vacio}>Todavía no hay informes en esta carpeta.</p>
         ) : (
-          <ul className={styles.lista}>
-            {entradas.map((e) => (
-              <li key={e.ruta} className={styles.fila}>
-                {e.tipo === 'carpeta' ? (
-                  <button type="button" className={styles.carpeta} onClick={() => { setEntradas(null); setRuta(e.ruta) }}>
-                    <span aria-hidden="true">📁</span> {nombreVisible(e.nombre)}
-                  </button>
-                ) : (
-                  <>
-                    <span className={styles.archivo}><span aria-hidden="true">📄</span> {e.nombre}</span>
+          <>
+            {carpetas.length > 0 && (
+              <ul className={styles.carpetas}>
+                {carpetas.map((e) => (
+                  <li key={e.ruta}>
+                    <button type="button" className={styles.tarjetaCarpeta} onClick={() => { setEntradas(null); setRuta(e.ruta) }}>
+                      <IconoCarpeta grande />
+                      <span className={styles.nombreCarpeta}>{nombreVisible(e.nombre)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {archivos.length > 0 && (
+              <ul className={styles.archivos}>
+                {archivos.map((e) => (
+                  <li key={e.ruta} className={styles.fila}>
+                    <IconoArchivo nombre={e.nombre} />
+                    <span className={styles.archivo} title={e.nombre}>{e.nombre}</span>
                     <span className={styles.acciones}>
                       <button type="button" onClick={() => void verInformeCliente(e.ruta)}>Ver</button>
                       <button type="button" onClick={() => void descargarInformeCliente(e.ruta)}>Descargar</button>
                     </span>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </Card>
     </section>

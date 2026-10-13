@@ -2,7 +2,8 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 const listarInformesCliente = vi.fn()
-vi.mock('@/features/storage', () => ({
+vi.mock('@/features/storage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/storage')>()),
   listarInformesCliente: (r?: string) => listarInformesCliente(r),
   descargarInformeCliente: vi.fn(),
   verInformeCliente: vi.fn(),

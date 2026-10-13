@@ -1,18 +1,36 @@
-.wrap { display: flex; flex-direction: column; gap: var(--space-4); }
+.wrap { display: flex; flex-direction: column; gap: var(--space-4); width: 100%; min-width: 0; }
 .titulo { margin: 0; font-size: 1.5rem; }
 .nota { margin: 4px 0 0; color: var(--color-text-faint); font-size: 13.5px; }
-.migas { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-bottom: 12px; font-size: 13.5px; color: var(--color-text-muted); }
-.migas button { border: 0; background: none; padding: 2px 4px; font: inherit; color: var(--color-primary-hover); cursor: pointer; border-radius: 6px; }
+
+/* Ruta: una píldora con cada nivel */
+.migas { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: var(--space-4); padding: 6px 10px; background: var(--color-bg, #f5f6f2); border: 1px solid var(--color-border); border-radius: 999px; font-size: 13.5px; color: var(--color-text-muted); width: fit-content; max-width: 100%; }
+.migas button { border: 0; background: none; padding: 3px 8px; font: inherit; color: var(--color-primary-hover); cursor: pointer; border-radius: 999px; }
 .migas button:disabled { color: var(--color-text); font-weight: 700; cursor: default; }
-.migas button:not(:disabled):hover { background: rgba(109, 173, 60, 0.12); }
-.lista { list-style: none; margin: 0; padding: 0; }
-.fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 4px; border-bottom: 1px solid var(--color-border); }
-.fila:last-child { border-bottom: 0; }
-.carpeta { border: 0; background: none; font: inherit; font-weight: 600; cursor: pointer; text-align: left; padding: 0; flex: 1; }
-.carpeta:hover { color: var(--color-primary-hover); }
-.archivo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.migas button:not(:disabled):hover { background: rgba(109, 173, 60, 0.14); }
+
+/* Carpetas: tarjetas en rejilla que se reparte todo el ancho */
+.carpetas { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: var(--space-3); }
+.tarjetaCarpeta { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 12px 16px; font: inherit; color: var(--color-text); cursor: pointer; background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-lg, 14px); transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+.tarjetaCarpeta:hover { transform: translateY(-2px); border-color: var(--color-primary); box-shadow: 0 8px 20px rgba(31, 58, 18, 0.12); }
+.tarjetaCarpeta:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.nombreCarpeta { font-weight: 700; font-size: 14.5px; text-align: center; overflow-wrap: anywhere; }
+
+/* Informes: una fila por PDF */
+.archivos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.carpetas + .archivos { margin-top: var(--space-4); }
+.fila { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-md, 12px); }
+.fila:hover { border-color: var(--color-primary); }
+.archivo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 14px; }
 .acciones { display: flex; gap: 8px; flex: none; }
-.acciones button { font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 12px; color: var(--color-primary-hover); background: #fff; border: 1.5px solid var(--color-primary); border-radius: 999px; cursor: pointer; }
+.acciones button { font: inherit; font-size: 12.5px; font-weight: 600; padding: 6px 14px; color: var(--color-primary-hover); background: #fff; border: 1.5px solid var(--color-primary); border-radius: 999px; cursor: pointer; }
 .acciones button:hover { background: rgba(109, 173, 60, 0.12); }
 .error { color: #c0392b; font-size: 13px; }
 .vacio { margin: 8px 0; color: var(--color-text-muted); font-size: 13.5px; }
+
+@media (max-width: 560px) {
+  .fila { flex-wrap: wrap; }
+  .archivo { flex-basis: calc(100% - 52px); }
+  .acciones { width: 100%; }
+  .acciones button { flex: 1; }
+  .carpetas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

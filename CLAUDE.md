@@ -683,7 +683,7 @@ la «Etapa 4» de Ingreso al laboratorio tiene que usar otra raíz o este mismo 
 (`app/informes_cliente.py`, prefijo `/api/informes-cliente`, `CON_SESION`; front `InformesClienteView`, que `StorageView` usa en vez
 del explorador): una cuenta de sucursal ve su planta y una de Sold To las plantas de su cliente, resueltas con `carpeta_planta` (la misma
 que crea las carpetas). Solo lista y baja PDF dentro de `informes/<su planta>/`; lo demás da 404 y un interno usa el Storage de siempre.
-En **Report** una cuenta de cliente también ve en el encabezado su Ship To (o Sold To) y no le salen los filtros Sold To / Ship To
+**Panel general de un cliente (13-10-2026)**: ya NO incrusta el Report (está en el menú); por defecto lleva el encabezado y `AccesosCliente` (tarjetas de Report y Storage; widget `cliente:accesos`, el panel lo arma el administrador y `cliente:reporte` sigue disponible en el editor). **Storage y Auditoría interna usan todo el ancho** (`.ancho` en `AppLayout`); la vista del cliente muestra carpetas como tarjetas en rejilla. Se quitó la insignia «Base de datos: pendiente» de la barra lateral. En **Report** una cuenta de cliente también ve en el encabezado su Ship To (o Sold To) y no le salen los filtros Sold To / Ship To
 (`ReporteLaboratorioView` le pasa `clienteFijo`/`plantaFija`). Pruebas: `tests/test_informes_cliente.py`, `InformesClienteView.test.tsx`.
 
 **Filtros de Solicitudes (Toma de muestras)**: Laboratorio, Sold To, Ship To,
