@@ -73,14 +73,10 @@ export function CumplimientoEntregable({
   ev,
   serie,
   textoFin,
-  labElegido,
-  onLab,
 }: {
   ev: EvaluadaEntrega[]
   serie: PuntoMes[]
   textoFin: string
-  labElegido: string
-  onLab: (lab: string) => void
 }) {
   const [por, setPor] = useState<'laboratorio' | 'analisis'>('laboratorio')
   const cum = useMemo(() => resumenCumplimiento(ev), [ev])
@@ -165,23 +161,16 @@ export function CumplimientoEntregable({
             <h4>¿Dónde se incumple?</h4>
             <div className={styles.segmentado} role="group" aria-label="Agrupar cumplimiento por">
               <button type="button" aria-pressed={por === 'laboratorio'} onClick={() => setPor('laboratorio')}>Laboratorio</button>
-              <button type="button" aria-pressed={por === 'analisis'} onClick={() => { setPor('analisis'); onLab('') }}>Análisis</button>
+              <button type="button" aria-pressed={por === 'analisis'} onClick={() => setPor('analisis')}>Análisis</button>
             </div>
           </header>
-          <p className={styles.sub}>De peor a mejor cumplimiento.{por === 'laboratorio' ? ' Toca uno para filtrar los informes de abajo.' : ''}</p>
+          <p className={styles.sub}>De peor a mejor cumplimiento.</p>
           <ol>
             {ranking.map((g) => {
               const t = Math.max(1, g.r.cumplio + g.r.tarde + g.r.vencida + g.r.plazo + g.r.sinPlazo)
-              const activo = por === 'laboratorio' && labElegido === g.clave
               return (
                 <li key={g.clave}>
-                  <button
-                    type="button"
-                    className={`${styles.fila} ${activo ? styles.activa : ''}`}
-                    aria-pressed={por === 'laboratorio' ? activo : undefined}
-                    disabled={por !== 'laboratorio'}
-                    onClick={() => onLab(activo ? '' : g.clave)}
-                  >
+                  <div className={styles.fila}>
                     <span className={styles.nombre}>
                       <b>{g.nombre}</b>
                       <small>{g.detalle} · {nf.format(g.r.vencidas)} vencidas{g.a.n ? ` · se pasan ${f1(g.a.mediana)} d` : ''}</small>
@@ -193,7 +182,7 @@ export function CumplimientoEntregable({
                       <span className={styles.sinJuzgar} style={{ width: `${((g.r.plazo + g.r.sinPlazo) / t) * 100}%` }} />
                     </span>
                     <b className={`${styles.valor} ${tono(g.r.pct)}`}>{g.r.pct == null ? '—' : `${Math.round(g.r.pct)} %`}</b>
-                  </button>
+                  </div>
                 </li>
               )
             })}
