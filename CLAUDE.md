@@ -937,7 +937,7 @@ tocas una, toca la otra.
   letras). Volver a subir un informe ya cargado completa esos tres datos si
   estaban vacíos (`ingest.py`, solo con COALESCE: nunca pisa un valor). Reglas del laboratorio: **Solicitante = AGROFRESH siempre**, Temporada =
   año de la muestra, Email Laboratorio = contactos del laboratorio (Para y CC)
-  separados por «;», y **N° Orden vuelve a ser columna** (13-10-2026, pedido del usuario: las dos bases deben traer TODOS los campos de la solicitud; sale de la solicitud, porque en la base `nro_orden` de AgroFresh es el código del vial). Lo que no está en ningún lado
+  separados por «;», y **N° Orden vuelve a ser columna** (13-10-2026, pedido del usuario: las dos bases deben traer TODOS los campos de la solicitud; sale de la solicitud, porque en la base `nro_orden` de AgroFresh es el código del vial) y su `observacion` es el producto, así que en los informes propios manda la observación de la solicitud). Lo que no está en ningún lado
   queda vacío. Sin la tabla del índice (0020) la descarga sigue funcionando.
   La banda de fungicidas nombra solo los laboratorios presentes (`titulo_fungicidas`):
   «QUITECA — ANÁLISIS DE RESIDUOS DE FUNGICIDAS», o «QUITECA / AGROFRESH — …» si están los dos.
