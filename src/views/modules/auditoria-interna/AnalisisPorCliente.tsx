@@ -7,36 +7,50 @@ import styles from './AnalisisPorCliente.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
-type Linea = { clave: string; nombre: string; sub?: string; c: CeldaCliente; color: string; nivel: 'grupo' | 'lab'; pct?: number }
+type Linea = { clave: string; nombre: string; sub?: string; c: CeldaCliente; color: string; labs?: { agf: CeldaCliente; qui: CeldaCliente } }
+type Cuatro = { agrofresh: CeldaCliente; quiteca: CeldaCliente; fsma: CeldaCliente; fito: CeldaCliente }
 
-/** Las líneas de un cliente (o del total): Residuales con su desglose por laboratorio y su %, FSMA y FITO. Solo lo que tiene análisis. */
-function lineasDe(x: { agrofresh: CeldaCliente; quiteca: CeldaCliente; fsma: CeldaCliente; fito: CeldaCliente }): Linea[] {
+/** Las líneas de un cliente (o del total): Residuales (con su reparto entre AgroFresh y Quiteca), FSMA y FITO. Solo lo que tiene análisis. */
+function lineasDe(x: Cuatro): Linea[] {
   const res: CeldaCliente = { n: x.agrofresh.n + x.quiteca.n, informes: x.agrofresh.informes + x.quiteca.informes }
   const out: Linea[] = []
-  if (res.n > 0) {
-    out.push({ clave: 'res', nombre: 'Residuales', c: res, color: '#4d7c0f', nivel: 'grupo' })
-    if (x.agrofresh.n > 0) out.push({ clave: 'agf', nombre: 'AgroFresh', c: x.agrofresh, color: COLOR_LAB.AGROFRESH, nivel: 'lab', pct: x.agrofresh.n / res.n })
-    if (x.quiteca.n > 0) out.push({ clave: 'qui', nombre: 'Quiteca', c: x.quiteca, color: COLOR_LAB.QUITECA, nivel: 'lab', pct: x.quiteca.n / res.n })
-  }
-  if (x.fsma.n > 0) out.push({ clave: 'fsma', nombre: 'FSMA', sub: 'ALS', c: x.fsma, color: COLOR_LAB.ALS, nivel: 'grupo' })
-  if (x.fito.n > 0) out.push({ clave: 'fito', nombre: 'FITO', sub: 'Diagnofruit', c: x.fito, color: COLOR_LAB.DIAGNOFRUIT, nivel: 'grupo' })
+  if (res.n > 0) out.push({ clave: 'res', nombre: 'Residuales', c: res, color: '#4d7c0f', labs: { agf: x.agrofresh, qui: x.quiteca } })
+  if (x.fsma.n > 0) out.push({ clave: 'fsma', nombre: 'FSMA', sub: 'ALS', c: x.fsma, color: COLOR_LAB.ALS })
+  if (x.fito.n > 0) out.push({ clave: 'fito', nombre: 'FITO', sub: 'Diagnofruit', c: x.fito, color: COLOR_LAB.DIAGNOFRUIT })
   return out
 }
 
 const pct = (v: number) => `${Math.round(v * 100)}%`
 
-/** Las celdas de una línea: análisis, total (con ✓ de informes y, en un laboratorio, su % de los residuales) y entregables. */
+/** Cantidad de un laboratorio en una pastilla de su color y, en la columna de al lado, su % del total de residuales. */
+function CeldasLab({ c, total, color }: { c: CeldaCliente; total: number; color: string }) {
+  if (c.n === 0) return <><td className={styles.cero}>–</td><td className={styles.cero}>–</td></>
+  return (
+    <>
+      <td title={`${c.informes} de ${c.n} con informe`}><b className={styles.pastilla} style={{ color, background: `${color}1f` }}>{nf.format(c.n)}</b></td>
+      <td className={styles.pct}>{pct(c.n / total)}</td>
+    </>
+  )
+}
+
+/** Las celdas de una línea: análisis, total (con ✓ de informes), reparto por laboratorio (residuales) y entregables. */
 function CeldasLinea({ l }: { l: Linea }) {
   return (
     <>
-      <th scope="row" className={l.nivel === 'lab' ? styles.lineaLab : styles.lineaGrupo} style={{ color: l.color }}>
+      <th scope="row" className={styles.lineaGrupo} style={{ color: l.color }}>
         {l.nombre}{l.sub && <small>{l.sub}</small>}
       </th>
       <td className={styles.valor} title={`${l.c.informes} de ${l.c.n} con informe`}>
-        <b className={l.nivel === 'lab' ? styles.pastilla : styles.cifra} style={l.nivel === 'lab' ? { color: l.color, background: `${l.color}1f` } : undefined}>{nf.format(l.c.n)}</b>
-        {l.pct !== undefined && <span className={styles.pct}>{pct(l.pct)}</span>}
-        <small>{l.c.informes}✓</small>
+        <b className={styles.cifra}>{nf.format(l.c.n)}</b><small>{l.c.informes}✓</small>
       </td>
+      {l.labs ? (
+        <>
+          <CeldasLab c={l.labs.agf} total={l.c.n} color={COLOR_LAB.AGROFRESH} />
+          <CeldasLab c={l.labs.qui} total={l.c.n} color={COLOR_LAB.QUITECA} />
+        </>
+      ) : (
+        <td colSpan={4} className={styles.cero}>{l.sub}</td>
+      )}
       <td className={styles.pendienteDato} title="Se cargará con el plan de entregables de los comerciales">—</td>
       <td className={styles.pendienteDato}>—</td>
     </>
@@ -45,7 +59,7 @@ function CeldasLinea({ l }: { l: Linea }) {
 
 /**
  * El cuerpo del gráfico «Análisis por laboratorio · top Sold To»: cada cliente hacia abajo, el que más
- * análisis lleva primero, con el detalle: un bloque de filas por análisis (Residuales con su desglose por laboratorio y su % del total de residuales, FSMA y FITO),
+ * análisis lleva primero, con el detalle: una fila por análisis (Residuales con su reparto por laboratorio en columnas, cantidad y % del total de residuales, FSMA y FITO),
  * con su total, los entregables y el %. Los clientes del listado que todavía no tienen ningún análisis salen al final,
  * apagados (solo cuando se agrupa por Sold To).
  * «Entregables» = lo que cada comercial concretó de cada análisis para cada planta: ese dato
@@ -88,13 +102,16 @@ export function AnalisisPorCliente({
         <table className={styles.tabla}>
           <thead>
             <tr className={styles.grupos}>
-              <th className={styles.colCliente}>{dimension === 'cliente' ? 'Cliente' : 'Grupo'}</th>
-              <th className={styles.colAnalisis}>Análisis</th>
-              <th className={styles.gTotal}>Total</th>
+              <th rowSpan={2} className={styles.colCliente}>{dimension === 'cliente' ? 'Cliente' : 'Grupo'}</th>
+              <th rowSpan={2} className={styles.colAnalisis}>Análisis</th>
+              <th rowSpan={2} className={styles.gTotal}>Total</th>
+              <th colSpan={2} className={styles.gResiduales}>AgroFresh</th>
+              <th colSpan={2} className={styles.gQuiteca}>Quiteca</th>
               <th colSpan={2} className={styles.gEntregable}>Entregables</th>
             </tr>
             <tr className={styles.subs}>
-              <th /><th /><th />
+              <th>Cant.</th><th>%</th>
+              <th>Cant.</th><th>%</th>
               <th className={styles.gEntregable} title="Lo que cada comercial concretó de cada análisis para cada planta (se carga aparte)">Cant.</th>
               <th className={styles.gEntregable}>%</th>
             </tr>
@@ -104,7 +121,7 @@ export function AnalisisPorCliente({
             return (
               <tbody key={f.cliente} className={styles.bloque}>
                 {ls.map((l, j) => (
-                  <tr key={l.clave} className={l.nivel === 'lab' ? styles.filaLab : styles.filaGrupo}>
+                  <tr key={l.clave} className={styles.filaGrupo}>
                     {j === 0 && (
                       <th scope="rowgroup" rowSpan={ls.length} className={styles.cliente}>
                         <em className={i < 3 ? styles.podio : undefined} data-puesto={i < 3 ? i + 1 : undefined}>{i + 1}</em>
@@ -123,7 +140,7 @@ export function AnalisisPorCliente({
               {apagados.map((nombre) => (
                 <tr key={nombre} className={styles.apagado}>
                   <th scope="row" className={styles.cliente}><em>·</em><span title={nombre}>{nombre}</span></th>
-                  <td colSpan={4}><span className={styles.cero}>Sin análisis</span></td>
+                  <td colSpan={8}><span className={styles.cero}>Sin análisis</span></td>
                 </tr>
               ))}
             </tbody>
@@ -138,7 +155,7 @@ export function AnalisisPorCliente({
                   fito: { n: nFito, informes: filas.reduce((n, x) => n + x.fito.informes, 0) },
                 })
                 return tot.map((l, j) => (
-                  <tr key={l.clave} className={l.nivel === 'lab' ? styles.filaLab : styles.filaGrupo}>
+                  <tr key={l.clave} className={styles.filaGrupo}>
                     {j === 0 && <th scope="rowgroup" rowSpan={tot.length} className={styles.cliente}>Total<small className={styles.totalCliente}>{nf.format(nTotal)} análisis · {nInformes}✓</small></th>}
                     <CeldasLinea l={l} />
                   </tr>
