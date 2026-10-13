@@ -38,8 +38,8 @@ const FILTROS_ESTADO: { clave: FiltroEstado; texto: string; cumple: (e: Evaluada
   { clave: 'todas', texto: 'Todas', cumple: () => true },
   { clave: 'sin_informe', texto: 'Sin informe', cumple: (e) => !alcanzados(e).informe && !alcanzados(e).sistema },
   { clave: 'vencidas', texto: 'Pasaron su plazo', cumple: (e) => e.veredicto === 'vencida' },
-  { clave: 'sin_cliente', texto: 'Informe sin enviar al cliente', cumple: (e) => alcanzados(e).informe && !alcanzados(e).cliente },
-  { clave: 'sin_report', texto: 'Informe sin Report', cumple: (e) => alcanzados(e).informe && !alcanzados(e).sistema },
+  { clave: 'sin_cliente', texto: 'Sin enviar al cliente', cumple: (e) => alcanzados(e).informe && !alcanzados(e).cliente },
+  { clave: 'sin_report', texto: 'Sin Report', cumple: (e) => alcanzados(e).informe && !alcanzados(e).sistema },
   { clave: 'completas', texto: 'Completas', cumple: (e) => alcanzados(e).sistema && alcanzados(e).cliente },
 ]
 
@@ -205,19 +205,35 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         </div>
       </div>
 
-      <div className={styles.cuerpo}>
+      <div className={styles.disposicion}>
         <div className={styles.flujoCol}>
-      {una && (
-        <p className={styles.resumenUna}>
-          <b>{etiquetaSolicitud(una)}</b> · {una.sol.laboratorio ?? '—'} · {una.sol.sold_to ?? '—'}{una.sol.ship_to ? ` · ${una.sol.ship_to}` : ''}
-          <br />
-          {una.plazo != null ? `Plazo ${una.plazo} d hábiles${una.analisis ? ` (${una.analisis})` : ''}` : 'Sin plazo cargado'}
-          {' · '}{una.entregada && una.dias != null ? `entregada en ${f1(una.dias)} d háb.` : `lleva ${f1(una.edad)} d háb.`}
-          <br />
-          <button type="button" className={styles.mas} onClick={() => setElegida('')}>← Volver a ver todas las solicitudes</button>
-        </p>
-      )}
-      {!una && <p className={styles.pista}>Toca un punto para ver las solicitudes que están ahí, o elige una solicitud de la tabla para ver su recorrido.</p>}
+      <header className={styles.ficha}>
+        {una ? (
+          <>
+            <span className={styles.fichaTitulo}>
+              {etiquetaSolicitud(una)}
+              <small>{una.sol.laboratorio ?? '—'}</small>
+              <button type="button" className={styles.mas} onClick={() => setElegida('')}>← todas</button>
+            </span>
+            <span className={styles.fichaLinea}>
+              <span>Sold To <b>{una.sol.sold_to ?? '—'}</b></span>
+              <span>Ship To <b>{una.sol.ship_to ?? '—'}</b></span>
+            </span>
+            <span className={styles.fichaLinea}>
+              <span>Solicitud <b>{fecha(una.sol.fecha_solicitud ?? una.sol.emitida_en)}</b></span>
+              <span>Informe {una.hitos?.informe ? <b>{fecha(una.hitos.informe)}</b> : <em className={styles.pendiente}>Pendiente</em>}</span>
+              <span>{una.plazo != null ? `Plazo ${una.plazo} d háb.` : 'Sin plazo'} · {una.entregada && una.dias != null ? `entregada en ${f1(una.dias)} d` : `lleva ${f1(una.edad)} d`}</span>
+            </span>
+          </>
+        ) : (
+          <>
+            <span className={styles.fichaTitulo}>
+              {lab || 'Todos los laboratorios'}
+              <small>{nf.format(validas.length)} solicitudes · toca un punto del flujo o elige una OT de la tabla</small>
+            </span>
+          </>
+        )}
+      </header>
 
       <div className={styles.columna}>
         {nodo('emitida')}
@@ -241,11 +257,11 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         </div>
       <section className={styles.panelTabla} aria-label="Estado de cada solicitud">
         <div className={styles.panelCab}>
-          <h4>Estado de cada solicitud</h4>
+          <h4>Solicitudes</h4>
           <input
             type="search"
             className={styles.buscaEstado}
-            placeholder="Buscar N°, laboratorio, cliente o planta…"
+            placeholder="Buscar OT, cliente o planta…"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             aria-label="Buscar solicitud"
@@ -262,40 +278,35 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
           <table className={styles.tabla}>
             <thead>
               <tr>
-                <th>Solicitud</th>
-                <th>Cliente · planta</th>
-                <th title="Informe recibido del laboratorio">Informe</th>
-                <th title="Informe enviado al cliente">Cliente</th>
-                <th title="Resultados cargados en Report">Report</th>
+                <th>OT</th>
+                <th title="Informe recibido del laboratorio">Inf.</th>
+                <th title="Informe enviado al cliente">Cli.</th>
+                <th title="Resultados cargados en Report">Rep.</th>
                 <th>Plazo</th>
               </tr>
             </thead>
             <tbody>
               {filasEstado.length === 0 && (
-                <tr><td colSpan={6} className={styles.vacio}>Ninguna solicitud con este estado.</td></tr>
+                <tr><td colSpan={5} className={styles.vacio}>Ninguna solicitud con este estado.</td></tr>
               )}
               {filasEstado.map((e) => {
                 const a = alcanzados(e)
-                const marca = (v: boolean) => <span className={v ? styles.si : styles.no} aria-label={v ? 'sí' : 'no'}>{v ? '✓' : '—'}</span>
+                const punto = (v: boolean) => <span className={`${styles.punto} ${v ? styles.puntoSi : styles.puntoNo}`} role="img" aria-label={v ? 'sí' : 'no'} />
+                const alternar = () => { setElegida(elegida === e.sol.archivo ? '' : e.sol.archivo); setAbierto(null) }
                 return (
                   <tr
                     key={e.sol.archivo}
                     className={`${styles.fila} ${elegida === e.sol.archivo ? styles.filaElegida : ''}`}
-                    onClick={() => { setElegida(elegida === e.sol.archivo ? '' : e.sol.archivo); setAbierto(null) }}
+                    onClick={alternar}
                     aria-selected={elegida === e.sol.archivo}
+                    title={`${e.sol.laboratorio ?? ''} · ${e.sol.sold_to ?? ''} · ${e.sol.ship_to ?? ''}`}
                   >
-                    <td>
-                      <button type="button" className={styles.celdaBoton} onClick={(ev) => { ev.stopPropagation(); setElegida(elegida === e.sol.archivo ? '' : e.sol.archivo); setAbierto(null) }}>
-                        {etiquetaSolicitud(e)}
-                      </button>
-                      <small>{e.sol.laboratorio ?? '—'}</small>
-                    </td>
-                    <td>{e.sol.sold_to ?? '—'}<small>{e.sol.ship_to ?? ''}</small></td>
-                    <td>{marca(a.informe)}</td>
-                    <td>{marca(a.cliente)}</td>
-                    <td>{marca(a.sistema)}</td>
+                    <td><button type="button" className={styles.celdaBoton} onClick={(ev) => { ev.stopPropagation(); alternar() }}>{etiquetaSolicitud(e)}</button></td>
+                    <td>{punto(a.informe)}</td>
+                    <td>{punto(a.cliente)}</td>
+                    <td>{punto(a.sistema)}</td>
                     <td className={e.veredicto === 'vencida' || e.veredicto === 'tarde' ? styles.tarde : undefined}>
-                      {e.plazo == null ? '—' : `${f1(e.entregada && e.dias != null ? e.dias : e.edad)} / ${e.plazo} d`}
+                      {e.plazo == null ? '—' : `${f1(e.entregada && e.dias != null ? e.dias : e.edad)}/${e.plazo}`}
                     </td>
                   </tr>
                 )
