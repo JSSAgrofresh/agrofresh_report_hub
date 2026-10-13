@@ -60,7 +60,7 @@ function CeldasLinea({ l }: { l: Linea }) {
 }
 
 /**
- * El cuerpo del gráfico «Análisis por laboratorio · top Sold To»: cada cliente hacia abajo, el que más
+ * El cuerpo del gráfico «Análisis por cliente»: cada cliente hacia abajo, el que más
  * análisis lleva primero, con el detalle: una fila por análisis (Residuales con su reparto por laboratorio en columnas, cantidad y % del total de residuales, FSMA y FITO),
  * con su total, los entregables y el %. Los clientes del listado que todavía no tienen ningún análisis salen al final,
  * apagados (solo cuando se agrupa por Sold To).
