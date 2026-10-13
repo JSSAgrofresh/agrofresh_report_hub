@@ -147,6 +147,7 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/generar_informes_accutab.py` | Genera el informe PDF de las cargas de Post Venta que ya estaban guardadas sin él, **con las demo incluidas** (`--sin-demo` las salta; en R2 van a la fecha de LLEGADA de la carga, no la de hoy; `--aplicar` para escribir; sin eso solo cuenta; `--rehacer` rehace también los que el sistema ya había generado, nunca el PDF que adjuntó Trace) |
 | `scripts/ordenar_r2_accutab.py` | Ordena en R2 las carpetas viejas de Accutab (`accutab/mail/<asunto>/`) a `<CLIENTE>/<FECHA>/Datos <hora>/` (`--aplicar` para mover; sin eso solo cuenta) |
 | `scripts/corregir_ot_informe.py` | Deja un informe en UNA sola OT (`--informe 2026-1885-PC --ot OT-QUI0025`): corrige Converter y la `referencia` de Report; respaldo en `logs/` |
+| `scripts/cruce_plan_entregables.py` | Solo lee: cruza los clientes de los planes de entregables de los comerciales (`Entregables_*.xlsx`) con las plantas de la lista de distribución de Línea de proceso, buscando cada cliente solo entre las plantas de SU comercial; deja un Excel en `logs/` (cruce, plantas sin plan, comerciales). Acepta una carpeta o los archivos; `--comercial "R. TRAVERSO=rtraverso@agrofresh.com"` fija un comercial mal identificado |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
 Hay ~9 scripts en `backend/scripts/` que fueron migraciones de una sola vez
@@ -549,6 +550,21 @@ cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
 solo en la Vista por límite de control: criterio «Límite del analito» (límite residual; sin límite ≠ dentro)
 o «Límite de control» (promedio ± σ, mín. 3 por analito); parte en el primero si hay límites cargados.
 % = (sobre+bajo) ÷ evaluados; «Ver por» Analito / Cliente / Laboratorio / Servicio.
+
+## Plan de entregables de los comerciales (en construcción)
+
+Cada comercial (Labarca, Allende, Traverso, Suarez) tiene un Excel «Plan Servicio de Análisis & Entrega de Información»:
+cliente (por planta) × servicio (Residuales, Patologías, Microbiología, Entrega de registros, FSMA) × semana (W41…W02 de la
+temporada de cerezas 2026-27), con cuántos análisis se prometen. Hoy son 74 clientes y 4.322 análisis. **Lo leen
+`app/plan_entregables.py` (tabla larga cliente × servicio × semana) y `app/plan_cruce.py` (cruce con las plantas)**, sin escribir
+nada. Los TOTAL de esos Excel NO son confiables (Suarez: la suma se salta la primera semana; Traverso: totales escritos a mano;
+Allende: totales que se saltan filas): **manda la suma de las semanas**, y `leer_plan` devuelve los `descuadres`.
+**Los nombres del plan no son los de Listados** («DOLE LONTUE», «VERFRUT RAPEL» contra «SOCIEDAD AGRICOLA EL PORVENIR»…): solo 13 de 74
+son iguales a un Ship To y ninguno a un Sold To. Por eso el cruce se acota a las plantas que la lista de distribución le asigna a
+ese comercial y **solo propone**: una persona confirma el nombre oficial (`proponer` nunca da por buena una coincidencia que viene
+solo del Sold To). **Pendiente** (decisiones del usuario sin responder): qué se compara contra el plan en el gráfico «Análisis e
+informes por Sold To» (informes concretados o solicitudes), de qué laboratorio sale cada servicio, y la tabla en la base de datos
+con su carga desde Administración General. Pruebas: `tests/test_plan_entregables.py`.
 
 ## Post Venta: informes de Accu-Tab (Trace + correo)
 
