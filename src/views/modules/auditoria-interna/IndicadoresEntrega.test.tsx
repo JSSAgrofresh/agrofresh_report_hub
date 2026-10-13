@@ -6,7 +6,7 @@ import type { SolicitudAuditoria } from '@/features/auditoriaInterna'
 const d = (dia: number) => `2026-09-${String(dia).padStart(2, '0')}T12:00:00Z`
 const sol = (archivo: string, p: Partial<SolicitudAuditoria> = {}): SolicitudAuditoria => ({
   archivo, numero_solicitud: archivo, laboratorio: 'QUITECA', sold_to: 'A', ship_to: 'B', especie: null, variedad: null,
-  tipo_servicio: null, analitos: ['FDL'], fecha_solicitud: null, fecha_muestreo: null, emitida_en: d(1),
+  tipo_servicio: null, analitos: ['FDL'], analisis: ['FDL'], fecha_solicitud: null, fecha_muestreo: null, emitida_en: d(1),
   informe: null, en_report: false, concretada: false, ...p,
 })
 const hit = (archivo: string, p: Partial<Hitos>): Hitos => ({

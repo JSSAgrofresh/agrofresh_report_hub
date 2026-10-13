@@ -74,9 +74,9 @@ export const DIA_MS = 86_400_000
 
 export const claveLaboratorio = (lab: string | null | undefined) => (lab ?? '').trim().toUpperCase()
 
-/** Clave de un plazo por análisis: «LAB|ANALITO». */
-export const clavePlazoAnalisis = (lab: string | null | undefined, analito: string) =>
-  `${claveLaboratorio(lab)}|${analito.trim().toUpperCase()}`
+/** Clave de un plazo por análisis: «LAB|ANÁLISIS» (el nombre del Análisis, ej. «FSMA», «ANÁLISIS DE RESIDUOS EN FRUTA»). */
+export const clavePlazoAnalisis = (lab: string | null | undefined, analisis: string) =>
+  `${claveLaboratorio(lab)}|${analisis.trim().toUpperCase()}`
 
 /** Días hábiles (lunes a viernes, sin feriados) entre dos momentos, con fracción: 12 horas
  * de un martes son 0,5. Un fin de semana no suma. */
@@ -103,7 +103,10 @@ export function plazoDe(sol: SolicitudAuditoria, plazos: Record<string, number>)
   const general = plazos[claveLaboratorio(sol.laboratorio)] ?? null
   let dias: number | null = null
   let analisis: string | null = null
-  for (const a of sol.analitos ?? []) {
+  // Los Análisis que pidió (según el catálogo de su laboratorio); si no se pudieron deducir
+  // (solicitudes antiguas), se miran sus analitos como antes.
+  const pedidos = (sol.analisis ?? []).filter((a) => a.trim())
+  for (const a of pedidos.length ? pedidos : sol.analitos ?? []) {
     const propio = plazos[clavePlazoAnalisis(sol.laboratorio, a)]
     const v = propio ?? general
     if (v == null) continue

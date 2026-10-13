@@ -111,14 +111,14 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
     Object.keys(reglas?.plazos ?? {}).forEach((k) => s.add(k.split('|')[0]))
     return [...s].sort()
   }, [solicitudes, reglas])
-  // Los análisis (analitos) que se han pedido a cada laboratorio: cada uno puede tener su propio plazo.
-  const analitosPorLab = useMemo(() => {
+  // Los Análisis (FSMA, residuos en fruta, patógenos…) que se han pedido a cada laboratorio: cada uno puede tener su propio plazo.
+  const analisisPorLab = useMemo(() => {
     const por = new Map<string, Set<string>>()
     solicitudes.forEach((x) => {
       const lab = claveLaboratorio(x.laboratorio)
       if (!lab) return
       const set = por.get(lab) ?? new Set<string>()
-      ;(x.analitos ?? []).forEach((a) => { if (a.trim()) set.add(a.trim().toUpperCase()) })
+      ;(x.analisis ?? []).forEach((a) => { if (a.trim()) set.add(a.trim().toUpperCase()) })
       por.set(lab, set)
     })
     Object.keys(reglas?.plazos ?? {}).forEach((k) => {
@@ -307,7 +307,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
           </div>
         </header>
         {puedeEditar && configAbierta && (
-          <ConfiguracionEntrega reglas={reglas} labs={labs} analitosPorLab={analitosPorLab} guardar={guardar} onCerrar={cerrarConfig} />
+          <ConfiguracionEntrega reglas={reglas} labs={labs} analisisPorLab={analisisPorLab} guardar={guardar} onCerrar={cerrarConfig} />
         )}
 
         {!hayPlazos ? (

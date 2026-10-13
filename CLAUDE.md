@@ -548,7 +548,7 @@ cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
   piden feriados, va en `diasHabiles` (un solo punto).
 - **Entregado** se define en la configuración: `concretado` (PDF + Report; por defecto) o `cliente`. Lead time = fin −
   recepción estimada (mediana y P90); las abiertas se informan aparte; las que tienen hitos antes de la emisión se excluyen.
-- **Plazos en días hábiles por laboratorio Y por análisis** (`plazos_entrega.json`): claves `LAB` y `LAB|ANALITO`
+- **Plazos en días hábiles por laboratorio Y por ANÁLISIS (13-10-2026: el Análisis —FSMA, Análisis de residuos en fruta, Cuantificación de patógenos—, NO el analito)** (`plazos_entrega.json`): claves `LAB` y `LAB|ANÁLISIS` (nombre en mayúsculas; `plazoDe` mira `sol.analisis`, que el backend deduce del catálogo del laboratorio; sin él cae a los analitos como antes)
   (`clavePlazoAnalisis`). A cada solicitud la rige su análisis MÁS LENTO: cada análisis pedido usa el suyo y, si no
   tiene, el general del laboratorio (`plazoDe`; `analisis` dice cuál fijó el plazo). Sin plazo cargado no se juzga,
   nunca se asume uno. **Los plazos guardados antes de este cambio estaban en días corridos y ahora se leen como

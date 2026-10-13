@@ -62,6 +62,21 @@ describe('diasHabiles', () => {
   })
 })
 
+describe('plazoDe por análisis', () => {
+  const plazos = { ALS: 3, 'ALS|FSMA': 6, 'DIAGNOFRUIT|CUANTIFICACIÓN DE PATÓGENOS (QPCR)': 9 }
+
+  it('usa el plazo del Análisis pedido y no el de sus analitos', () => {
+    const s = sol({ archivo: 'a', laboratorio: 'ALS', analisis: ['FSMA (E. Coli)'], analitos: ['COLIF100'] })
+    expect(plazoDe(s, plazos)).toEqual({ dias: 3, analisis: null })
+    expect(plazoDe({ ...s, analisis: ['fsma'] }, plazos)).toEqual({ dias: 6, analisis: 'FSMA' })
+  })
+
+  it('manda el Análisis más lento y, sin plazo propio, rige el general del laboratorio', () => {
+    const s = sol({ archivo: 'b', laboratorio: 'Diagnofruit', analisis: ['Cuantificación de Patógenos (qPCR)'] })
+    expect(plazoDe(s, plazos)).toEqual({ dias: 9, analisis: 'CUANTIFICACIÓN DE PATÓGENOS (QPCR)' })
+  })
+})
+
 describe('plazoDe', () => {
   const plazos = { QUITECA: 5, 'QUITECA|FDL': 8, 'QUITECA|TBZ': 3 }
   it('manda el análisis más lento de la solicitud', () => {
