@@ -25,7 +25,7 @@ const PUNTOS: Record<NodoFlujo, Punto> = {
   },
   analisis: { titulo: 'En análisis', detalle: 'Corre el plazo prometido, en días hábiles' },
   informe: { titulo: 'Informe recibido del laboratorio', detalle: 'PDF guardado en Auditoría interna' },
-  cliente: { titulo: 'Informe enviado al cliente', detalle: 'Desde «Envío de informes», en producción' },
+  cliente: { titulo: 'Informe enviado al cliente', detalle: 'Solo lo marcado como enviado (Converter o Solicitudes e informes)' },
   sistema: { titulo: 'Informe cargado al sistema', detalle: 'Resultados ya visibles en Report' },
   observado: { titulo: 'Reporte observado', detalle: 'Los resultados ya están en Report para el cliente' },
 }
@@ -131,7 +131,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
       fechaNodo: null,
       on: r.alcanzaron > 0,
       aqui: r.ahoraAqui > 0,
-      ahora: r.ahoraAqui > 0 ? `${nf.format(r.ahoraAqui)} ${r.ahoraAqui === 1 ? 'está aquí hoy' : 'están aquí hoy'}` : null,
+      ahora: r.ahoraAqui > 0 ? `${nf.format(r.ahoraAqui)} ${r.ahoraAqui === 1 ? 'solicitud está aquí hoy' : 'solicitudes están aquí hoy'}` : null,
     }
   }
 
@@ -141,6 +141,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
     const clave = `${styles.nodo} ${t.on ? styles.on : ''} ${t.aqui ? styles.aqui : ''} ${abierto === n && !una ? styles.elegido : ''}`
     const contenido = (
       <>
+        {t.aqui && <span className={styles.latido} role="img" aria-label={t.ahora ?? 'Aquí está hoy'} title={t.ahora ?? 'Aquí está hoy'} />}
         <span className={styles.marca} aria-hidden="true">{t.on ? '✓' : ''}</span>
         <span className={styles.cuerpo}>
           <span className={styles.titulo}>
@@ -151,8 +152,6 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
           {t.fechaNodo && <span className={styles.fecha}>{t.fechaNodo}{p.estimado ? ' (estimada)' : ''}</span>}
           {t.cifra && <span className={styles.cifra}>{t.cifra}</span>}
           {t.extra && <span className={styles.extra}>{t.extra}</span>}
-          {t.ahora && <span className={styles.ahora}>{t.ahora}</span>}
-          {una && t.aqui && <span className={styles.ahora}>está aquí hoy</span>}
         </span>
       </>
     )
