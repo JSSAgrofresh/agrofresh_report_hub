@@ -58,3 +58,20 @@ def test_sin_pdf_ni_resultados_sigue_pendiente(monkeypatch):
 def test_con_pdf_de_converter_nada_cambia(monkeypatch):
     s = _listar(monkeypatch, [_fila(informe_id=7, nro_informe="2026-1-PC", nombre_archivo="x.pdf", r2_key="Q/x.pdf", en_report=True)])[0][0]
     assert s["informe"]["id"] == 7 and s["concretada"] is True
+
+
+def test_analisis_de_la_solicitud_por_el_catalogo_del_laboratorio():
+    analitos = [
+        {"id": 1, "laboratorio": "ALS", "codigo": "COLIF100"}, {"id": 2, "laboratorio": "ALS", "codigo": "ECOLI100"},
+        {"id": 3, "laboratorio": "QUITECA", "codigo": "FDL"}, {"id": 4, "laboratorio": "QUITECA", "codigo": "IMZ"},
+    ]
+    analisis = [
+        {"laboratorio": "ALS", "nombre": "FSMA", "activo": True, "orden": 1, "analitos": [{"analito_id": 1}, {"analito_id": 2}]},
+        {"laboratorio": "QUITECA", "nombre": "ANÁLISIS DE RESIDUOS EN FRUTA", "activo": True, "orden": 1,
+         "analitos": [{"analito_id": 3}, {"analito_id": 4}]},
+    ]
+    f = auditoria_interna.analisis_de_solicitud
+    assert f("als", ["COLIF100", "ECOLI100"], analitos, analisis) == ["FSMA"]
+    assert f("QUITECA", ["FDL", "IMZ"], analitos, analisis) == ["ANÁLISIS DE RESIDUOS EN FRUTA"]
+    assert f("QUITECA", ["NO_EXISTE"], analitos, analisis) == []
+    assert f(None, ["FDL"], analitos, analisis) == []

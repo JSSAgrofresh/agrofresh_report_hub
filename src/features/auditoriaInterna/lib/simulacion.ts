@@ -68,6 +68,7 @@ export function simularSolicitudes(n = 1000, hoy: Date = new Date(), semilla = 2
       variedad: e.variedad,
       tipo_servicio: azar() < 0.62 ? 'Línea de proceso' : 'Actimist',
       analitos: ANALITOS.filter(() => azar() < 0.45).slice(0, 4),
+      analisis: ['ANÁLISIS DE RESIDUOS EN FRUTA'],
       fecha_solicitud: emitida.slice(0, 10),
       fecha_muestreo: emitida.slice(0, 10),
       emitida_en: emitida,
