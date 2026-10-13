@@ -428,6 +428,7 @@ listas que la cuenta ya tenía (`modulos`, `reportes`).
   (`MODULOS_CLIENTE` = reports, storage). Un cliente nunca abre el Report de Post Venta (`puedeVerReporte`). El servidor deduce el `area` que guarda de lo que ve (compatibilidad con
   el panel de inicio `tipo:cliente:<area>`) y descarta lo incoherente (`permisos_funciones.normalizar_cuenta`). Las cuentas de cliente
   antiguas, sin `reportes`, siguen viendo lo de su área (`vistaDeCliente`).
+- **Lista de usuarios (13-10-2026)**: buscador (nombre, correo, cliente o sucursal; sin tildes) + botones de filtro por tipo de cuenta con su conteo (Todos, Admin general, Gerencia, Admin de área, Analistas, Muestreadores, Clientes; `features/usuarios/lib/lista.ts`: `filtrarUsuarios`, `contarPorGrupo`, `resumenAccesos`), avatar con iniciales y color del área/tipo, columna «Qué ve» con chips y el cliente bajo el correo. Pruebas: `lista.test.ts`, `UsuariosTable.test.tsx`, `UsuariosView.test.tsx`.
 - **Catálogo por categoría** (`features/usuarios/catalogoPermisos.ts`, espejo de `app/permisos_funciones.py`): Data Core, Resultados y auditoría,
   AgroFresh Lab, Toma de muestras, Archivos; «Marcar todo» por categoría; los permisos cuelgan unos de otros (quitar al padre quita a los hijos).
   Abajo, **«Administración» bloqueada**: Usuarios, Listados, Laboratorios, Notificaciones, Administración General, Configuración de muestreo y las

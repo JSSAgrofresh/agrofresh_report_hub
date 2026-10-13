@@ -23,6 +23,8 @@ export {
   puedeEditarCriteriosLab,
   seccionesLabPermitidas,
 } from './permisos'
+export { contarPorGrupo, filtrarUsuarios, GRUPOS_USUARIOS, iniciales, resumenAccesos } from './lib/lista'
+export type { GrupoUsuarios } from './lib/lista'
 export { ClaveTemporalAviso } from './components/ClaveTemporalAviso'
 export { UsuarioForm } from './components/UsuarioForm'
 export { UsuariosTable } from './components/UsuariosTable'
