@@ -9,8 +9,8 @@
    --------------------------------------------------------------------------- */
 
 .wrap {
-  max-width: 1180px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 /* --- Barra de herramientas --- */

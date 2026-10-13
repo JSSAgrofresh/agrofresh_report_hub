@@ -10,8 +10,8 @@
    --------------------------------------------------------------------------- */
 
 .wrap {
-  max-width: 1240px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 /* --- Barra de estado del día --- */

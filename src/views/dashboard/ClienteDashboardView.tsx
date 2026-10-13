@@ -1,32 +1,25 @@
-import { useState } from 'react'
 import type { AreaId } from '@/constants/areas'
 import { AREAS } from '@/constants/areas'
 import { EstadoModulo } from '@/components/ui/EstadoModulo'
 import { AreaHero, fondoParaEspecie } from '@/features/dashboard'
-import { reportesDeCliente } from '@/features/usuarios'
+import { vistaDeCliente } from '@/features/usuarios'
 import type { Usuario } from '@/features/usuarios'
 import { InformesAccutabCliente } from '@/views/modules/reports/InformesAccutabCliente'
-import { ReporteView } from '@/views/modules/reports/ReporteView'
+import { AccesosCliente } from './AccesosCliente'
 
-/** Un cliente no pertenece a un área: ve lo que el administrador le asignó (Report de laboratorio y/o informes
- * Accu-Tab). `area` solo da el encabezado y los colores; si ve las dos cosas, se muestran las dos. */
+/** Un cliente no pertenece a un área: ve lo que el administrador le asignó (Report, Storage y/o informes Accu-Tab).
+ * `area` solo da el encabezado y los colores. */
 export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario: Usuario }) {
-  const ve = reportesDeCliente(usuario)
-  const veReport = ve.includes('laboratorio')
-  const veAccutab = ve.includes('postventa')
+  const ve = vistaDeCliente(usuario)
   const config = AREAS[area]
   const cliente = usuario.clienteNombre ?? usuario.nombre
   // Si la cuenta está acotada a una sucursal (Ship To) específica, el
   // encabezado muestra esa sucursal -ej. "Dole Codegua"- en vez del Sold To
   // completo, para que quede claro qué alcance tiene la cuenta.
   const titulo = usuario.plantaNombre ?? cliente
-  // Temporada de cereza: mientras no haya un filtro de especie activo (o la
-  // fruta filtrada todavía no tenga foto propia), el fondo del encabezado
-  // es el de cereza -se actualiza en vivo según lo que el cliente filtre en Report-.
-  const [especieFiltrada, setEspecieFiltrada] = useState<string | null>(null)
-  // El velo del encabezado toma el tono de la foto de la fruta -verde en pera,
-  // azul en arándano, rojo en cereza-, no el color de marca del área.
-  const fondoHero = veReport ? fondoParaEspecie(especieFiltrada, config.fondo) : undefined
+  // Temporada de cereza: el fondo del encabezado es el de cereza. El Report ya NO se incrusta acá (tiene su
+  // propia entrada en el menú): el panel de un cliente lo arma el administrador (Panel de inicio).
+  const fondoHero = ve.report || area === 'cromatografia' ? fondoParaEspecie(null, config.fondo) : undefined
 
   return (
     <div>
@@ -38,11 +31,9 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
         tinte={fondoHero?.tinte}
       />
 
-      {veReport && (
-        <ReporteView clienteFijo={cliente} plantaFija={usuario.plantaNombre} onCropChange={setEspecieFiltrada} />
-      )}
-      {veAccutab && <InformesAccutabCliente />}
-      {!veReport && !veAccutab && (
+      {(ve.report || ve.storage) && <AccesosCliente usuario={usuario} />}
+      {ve.accutab && <InformesAccutabCliente />}
+      {!ve.report && !ve.storage && !ve.accutab && (
         <EstadoModulo
           etiqueta="Próximamente"
           titulo="Tus reportes están en camino"

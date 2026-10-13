@@ -28,7 +28,7 @@ function useAncho<T extends HTMLElement>(): [React.RefObject<T | null>, number] 
   return [ref, ancho]
 }
 
-function Tarjeta({ titulo, sub, children }: { titulo: string; sub?: string; children: ReactNode }) {
+export function Tarjeta({ titulo, sub, children }: { titulo: string; sub?: string; children: ReactNode }) {
   return (
     <section className={styles.tarjeta} aria-label={titulo}>
       <div className={styles.cab}>
@@ -40,7 +40,7 @@ function Tarjeta({ titulo, sub, children }: { titulo: string; sub?: string; chil
   )
 }
 
-function Cargando({ cargando, hay, children }: { cargando: boolean; hay: boolean; children: ReactNode }) {
+export function Cargando({ cargando, hay, children }: { cargando: boolean; hay: boolean; children: ReactNode }) {
   if (cargando) return <p className={styles.vacio}>Cargando…</p>
   if (!hay) return <p className={styles.vacio}>Todavía no hay datos para mostrar.</p>
   return <>{children}</>

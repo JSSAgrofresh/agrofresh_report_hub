@@ -8,17 +8,19 @@ secciones de AgroFresh Lab (`lab_secciones.py`). Espejo de `src/features/usuario
   · Administrador general: las tiene todas.
   · Gerencia y clientes: ninguna (son de escritura; gerencia es solo lectura).
   · El resto: solo las que el administrador le marcó.
+
+«Modificar criterios» (`lab_criterios`) nació en `lab_secciones.py` (`puede_editar_criterios`) y se reusa tal cual.
 """
 from __future__ import annotations
 
 from fastapi import Depends, HTTPException
 
 from .auth import Usuario, usuario_actual
+from .lab_secciones import LAB_CRITERIOS
 
-VERIF_CRITERIOS = "verif_criterios"
 VERIF_FIRMAR = "verif_firmar"
 TOMA_REANALISIS = "toma_reanalisis"
-FUNCIONES = (VERIF_CRITERIOS, VERIF_FIRMAR, TOMA_REANALISIS)
+FUNCIONES = (LAB_CRITERIOS, VERIF_FIRMAR, TOMA_REANALISIS)
 
 # Todo lo que puede viajar en `modulos`: módulos, puertas de AgroFresh Lab y mini funciones.
 MODULOS_VALIDOS = frozenset(
@@ -49,25 +51,38 @@ def exigir(funcion: str, mensaje: str):
     return _revisar
 
 
+MODULOS_CLIENTE = ("reports", "storage")
+
+
 def normalizar_cuenta(
     tipo: str, area: str | None, modulos: list[str] | None, reportes: list[str] | None
 ) -> tuple[str | None, list[str] | None, list[str] | None]:
     """Deja `area`, `modulos` y `reportes` coherentes con el tipo de cuenta. Devuelve (area, modulos, reportes).
 
-    · Una cuenta de **cliente** no pertenece a un área: solo se le asigna qué ve (`reportes`: Report de
-      laboratorio y/o informes Accu-Tab). Nunca lleva módulos internos. El área que se guarda se deduce
-      de lo que ve (compatibilidad con el panel de inicio por tipo).
+    · Una cuenta de **cliente** no pertenece a un área: se le asigna qué ve. Solo puede llevar los módulos
+      `reports` (Report de laboratorio) y `storage` (sus informes), y en `reportes` `laboratorio` (con `reports`)
+      y `postventa` (= sus informes Accu-Tab en el panel). Nunca lleva módulos internos. El área que se guarda se
+      deduce de lo que ve (compatibilidad con el panel de inicio por tipo). Sin ninguna lista (llamada antigua) se
+      toma lo que daba su área.
     · Administrador general y gerencia no guardan módulos (ven todo, o todo menos Auditoría).
     · El resto: solo ids conocidos; los de administración (Usuarios, Listados…) no existen como permiso.
     """
-    reps = [r for r in (reportes or []) if r in REPORTES_VALIDOS]
-    reps = [r for r in REPORTES_VALIDOS if r in reps]
+    reps = [r for r in REPORTES_VALIDOS if r in (reportes or [])]
     if tipo == "cliente":
-        if not reps:
-            reps = {"cromatografia": ["laboratorio"], "postventa": ["postventa"]}.get(area or "", [])
-        if not reps:
-            raise HTTPException(400, "Elige qué ve el cliente: Report de laboratorio y/o informes Accu-Tab.")
-        return ("cromatografia" if "laboratorio" in reps else "postventa"), None, reps
+        if modulos is None and reportes is None:
+            if area == "postventa":
+                reps, mods = ["postventa"], []
+            else:
+                reps, mods = (["laboratorio"], ["reports"]) if area == "cromatografia" else ([], [])
+        else:
+            mods = [m for m in MODULOS_CLIENTE if m in (modulos or [])]
+            if "reports" in mods and "laboratorio" not in reps:
+                reps = ["laboratorio", *reps]
+            if "reports" not in mods:
+                reps = [r for r in reps if r != "laboratorio"]
+        if not mods and not reps:
+            raise HTTPException(400, "Elige qué ve el cliente: Report, Storage y/o informes Accu-Tab.")
+        return ("postventa" if reps == ["postventa"] and not mods else "cromatografia"), mods, reps
     if tipo in ("admin_general", "gerencia"):
         return None, None, None
     # Lo que no existe (ids viejos) se descarta; lo reservado al administrador general nunca está en la lista.

@@ -121,3 +121,27 @@ export function abrirArchivo(r2: boolean, ruta: string) {
     : `/storage/descargar?ruta=${encodeURIComponent(ruta)}`
   return httpClient.getArchivoConNombre(path)
 }
+
+// ---------------------------------------------------------------------------
+// Portal de cliente: solo los informes de su Ship To
+// ---------------------------------------------------------------------------
+
+export function listarInformesCliente(ruta = '') {
+  const query = ruta ? `?ruta=${encodeURIComponent(ruta)}` : ''
+  return httpClient.get<ListadoStorage>(`/informes-cliente/listar${query}`)
+}
+
+export function descargarInformeCliente(ruta: string) {
+  return descargarArchivo(`/informes-cliente/descargar?ruta=${encodeURIComponent(ruta)}`, ruta.split('/').pop() || 'informe.pdf')
+}
+
+export function abrirInformeCliente(ruta: string) {
+  return httpClient.getArchivoConNombre(`/informes-cliente/descargar?ruta=${encodeURIComponent(ruta)}`)
+}
+
+export async function verInformeCliente(ruta: string): Promise<void> {
+  const { blob } = await httpClient.getArchivoConNombre(`/informes-cliente/descargar?ruta=${encodeURIComponent(ruta)}`)
+  const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+  window.open(url, '_blank', 'noopener')
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}

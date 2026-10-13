@@ -8,8 +8,8 @@ import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
 import { CORREO_MAESTRO } from '../api/usuariosStore'
 import { cuentaDesdeSeleccion, seleccionDesdeCuenta, seleccionTotal, validarSeleccion } from '../catalogoPermisos'
-import { modulosPredeterminados, reportesDeCliente, reportesPredeterminados } from '../permisos'
-import type { ReporteId } from '../permisos'
+import { modulosPredeterminados, reportesPredeterminados, vistaDeCliente } from '../permisos'
+import type { VistaCliente } from '../permisos'
 import type { TipoAcceso, Usuario } from '../types'
 import { SelectorPermisos } from './SelectorPermisos'
 import styles from './UsuarioForm.module.css'
@@ -29,9 +29,10 @@ const TIPOS: { valor: TipoAcceso; etiqueta: string; descripcion: string }[] = [
   { valor: 'cliente', etiqueta: 'Cliente', descripcion: 'Portal externo: solo ve sus propios datos.' },
 ]
 
-const CLIENTE_VE: { id: ReporteId; nombre: string; descripcion: string }[] = [
-  { id: 'laboratorio', nombre: 'Report de laboratorio', descripcion: 'Resultados y gráficos de sus análisis de Cromatografía.' },
-  { id: 'postventa', nombre: 'Informes Accu-Tab', descripcion: 'Informes de los equipos Accu-Tab (Post Venta).' },
+const CLIENTE_VE: { id: keyof VistaCliente; nombre: string; descripcion: string }[] = [
+  { id: 'report', nombre: 'Report de laboratorio', descripcion: 'Resultados y gráficos de sus análisis de Cromatografía.' },
+  { id: 'storage', nombre: 'Storage', descripcion: 'Sus informes en PDF, en carpetas (solo lectura).' },
+  { id: 'accutab', nombre: 'Informes Accu-Tab', descripcion: 'Informes de los equipos Accu-Tab (Post Venta) en su panel.' },
 ]
 
 const tipoEtiqueta = (t: TipoAcceso) => TIPOS.find((x) => x.valor === t)?.etiqueta ?? t
@@ -44,8 +45,8 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [area, setArea] = useState<AreaId | ''>(usuario?.area ?? '')
   const [clienteNombre, setClienteNombre] = useState(usuario?.clienteNombre ?? '')
   const [plantaNombre, setPlantaNombre] = useState(usuario?.plantaNombre ?? '')
-  const [clienteVe, setClienteVe] = useState<ReporteId[]>(
-    usuario?.tipoAcceso === 'cliente' ? reportesDeCliente(usuario) : ['laboratorio'],
+  const [clienteVe, setClienteVe] = useState<VistaCliente>(
+    usuario?.tipoAcceso === 'cliente' ? vistaDeCliente(usuario) : { report: true, storage: false, accutab: false },
   )
   // Una sola lista con todo lo que la cuenta puede hacer (módulos, secciones y funciones sueltas).
   const [seleccion, setSeleccion] = useState<string[]>(() => plantilla(usuario?.tipoAcceso ?? 'admin_area', usuario?.area, usuario))
@@ -82,8 +83,8 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       setError('Ingresa el nombre del cliente.')
       return
     }
-    if (esCliente && clienteVe.length === 0) {
-      setError('Elige qué ve el cliente: Report de laboratorio y/o informes Accu-Tab.')
+    if (esCliente && !clienteVe.report && !clienteVe.storage && !clienteVe.accutab) {
+      setError('Elige qué ve el cliente: Report, Storage y/o informes Accu-Tab.')
       return
     }
     const falla = configuraPermisos ? validarSeleccion(seleccion) : null
@@ -101,8 +102,12 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       area: requiereArea ? (area as AreaId) : undefined,
       clienteNombre: esCliente ? clienteNombre.trim() : undefined,
       plantaNombre: esCliente && plantaNombre.trim() ? plantaNombre.trim() : undefined,
-      modulos: permisos?.modulos,
-      reportes: esCliente ? clienteVe : permisos?.reportes,
+      modulos: esCliente
+        ? [clienteVe.report && 'reports', clienteVe.storage && 'storage'].filter((m): m is string => !!m)
+        : permisos?.modulos,
+      reportes: esCliente
+        ? [clienteVe.report && 'laboratorio', clienteVe.accutab && 'postventa'].filter((r): r is 'laboratorio' | 'postventa' => !!r)
+        : permisos?.reportes,
     })
   }
 
@@ -116,8 +121,8 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
     setSeleccion(plantilla(tipoAcceso, nuevaArea || undefined))
   }
 
-  function alternarClienteVe(id: ReporteId) {
-    setClienteVe((actuales) => (actuales.includes(id) ? actuales.filter((a) => a !== id) : [...actuales, id]))
+  function alternarClienteVe(id: keyof VistaCliente) {
+    setClienteVe((actuales) => ({ ...actuales, [id]: !actuales[id] }))
   }
 
   function alElegirCliente(v: string) {
@@ -214,7 +219,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
             <div className={styles.permisosGrid}>
               {CLIENTE_VE.map((c) => (
                 <label className={styles.permisoOpcion} key={c.id}>
-                  <input type="checkbox" checked={clienteVe.includes(c.id)} onChange={() => alternarClienteVe(c.id)} />
+                  <input type="checkbox" checked={clienteVe[c.id]} onChange={() => alternarClienteVe(c.id)} />
                   <span>
                     <strong>{c.nombre}</strong>
                     <small>{c.descripcion}</small>

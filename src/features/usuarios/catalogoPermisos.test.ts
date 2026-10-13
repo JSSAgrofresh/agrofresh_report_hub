@@ -34,7 +34,7 @@ describe('catálogo de permisos', () => {
   })
 
   it('los criterios de las verificaciones son una función suelta que se puede asignar', () => {
-    const criterios = CATEGORIAS.flatMap((c) => c.permisos).find((p) => p.id === 'verif_criterios')!
+    const criterios = CATEGORIAS.flatMap((c) => c.permisos).find((p) => p.id === 'lab_criterios')!
     expect(criterios.padre).toBe('lab_verificaciones')
     expect(criterios.extra).toBe(true)
   })
@@ -44,18 +44,18 @@ describe('marcar y desmarcar respetando la jerarquía', () => {
   it('al marcar un módulo se dan sus secciones normales, no las funciones sueltas', () => {
     const sel = alternarPermiso([], 'agrofresh_lab')
     expect(sel).toEqual(expect.arrayContaining(['agrofresh_lab', 'lab_ingreso', 'lab_verificaciones', 'lab_envio']))
-    expect(sel).not.toContain('verif_criterios')
+    expect(sel).not.toContain('lab_criterios')
     expect(sel).not.toContain('verif_firmar')
   })
 
   it('marcar una función suelta marca también a sus padres', () => {
-    expect(alternarPermiso([], 'verif_criterios')).toEqual(['agrofresh_lab', 'lab_verificaciones', 'verif_criterios'])
+    expect(alternarPermiso([], 'lab_criterios')).toEqual(['agrofresh_lab', 'lab_verificaciones', 'lab_criterios'])
   })
 
   it('quitar una sección quita sus funciones; quitar el módulo quita todo lo de adentro', () => {
     const todo = marcarCategoria([], 'lab', true)
-    expect(todo).toContain('verif_criterios')
-    expect(alternarPermiso(todo, 'lab_verificaciones')).not.toContain('verif_criterios')
+    expect(todo).toContain('lab_criterios')
+    expect(alternarPermiso(todo, 'lab_verificaciones')).not.toContain('lab_criterios')
     expect(alternarPermiso(todo, 'agrofresh_lab')).toEqual([])
   })
 
@@ -83,18 +83,18 @@ describe('de la cuenta al selector y de vuelta', () => {
   })
 
   it('guarda las funciones sueltas en `modulos` y las secciones de Report en `reportes`', () => {
-    const r = cuentaDesdeSeleccion(['reports', 'reporte:postventa', 'agrofresh_lab', 'lab_ingreso', 'lab_verificaciones', 'lab_envio', 'verif_criterios'])
-    expect(r.modulos).toEqual(['reports', 'agrofresh_lab', 'verif_criterios'])
+    const r = cuentaDesdeSeleccion(['reports', 'reporte:postventa', 'agrofresh_lab', 'lab_ingreso', 'lab_verificaciones', 'lab_envio', 'lab_criterios'])
+    expect(r.modulos).toEqual(['reports', 'agrofresh_lab', 'lab_criterios'])
     expect(r.reportes).toEqual(['postventa'])
   })
 
   it('una cuenta que ya tiene funciones sueltas las conserva al reabrirla', () => {
     const sel = seleccionDesdeCuenta(
-      { tipoAcceso: 'analista', area: 'cromatografia', modulos: ['agrofresh_lab', 'verif_criterios'] },
+      { tipoAcceso: 'analista', area: 'cromatografia', modulos: ['agrofresh_lab', 'lab_criterios'] },
       [],
       [],
     )
-    expect(sel).toContain('verif_criterios')
+    expect(sel).toContain('lab_criterios')
     expect(sel).toContain('lab_ingreso') // ninguna puerta elegida = las tres
   })
 
@@ -108,7 +108,7 @@ describe('de la cuenta al selector y de vuelta', () => {
     expect(seleccionTotal('admin_general')).toEqual(IDS_PERMISOS)
     const g = seleccionTotal('gerencia')
     expect(g).not.toContain('auditoria_interna')
-    expect(g).not.toContain('verif_criterios')
+    expect(g).not.toContain('lab_criterios')
     expect(g).toContain('storage')
   })
 })

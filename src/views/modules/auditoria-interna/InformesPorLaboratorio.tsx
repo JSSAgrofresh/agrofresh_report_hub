@@ -48,6 +48,8 @@ export function InformesPorLaboratorio({ solicitudes }: { solicitudes: Solicitud
   const { user } = useAuth()
   const navegar = useNavigate()
   const [abierto, setAbierto] = useState<string | null>(null)
+  // El listado de pendientes parte plegado: solo se despliega si se pide.
+  const [verLista, setVerLista] = useState(false)
   const filas = useMemo(
     () => porLaboratorio(solicitudes).map((l) => ({ ...l, informes: l.concretadas + l.sinReport })),
     [solicitudes],
@@ -96,7 +98,7 @@ export function InformesPorLaboratorio({ solicitudes }: { solicitudes: Solicitud
                 {l.pendientes > 0 ? <><b>{nf.format(l.pendientes)}</b> pendientes de informe</> : 'Sin pendientes'}
               </p>
               <div className={styles.acciones}>
-                <button type="button" className={styles.enlace} aria-pressed={activo} onClick={() => setAbierto(activo ? null : l.laboratorio)}>
+                <button type="button" className={styles.enlace} aria-pressed={activo} onClick={() => { setAbierto(activo ? null : l.laboratorio); setVerLista(!activo) }}>
                   {activo ? 'Ver todos' : 'Listar pendientes'}
                 </button>
                 <button type="button" className={styles.botonDetalle} disabled={l.pendientes === 0} onClick={() => verDetalle(l.laboratorio)}>
@@ -109,10 +111,14 @@ export function InformesPorLaboratorio({ solicitudes }: { solicitudes: Solicitud
       </div>
 
       <div className={styles.listaCard}>
-        <h3 className={styles.subtitulo}>
-          Pendientes de informe{abierto ? ` · ${abierto}` : ''} ({nf.format(visibles.length)})
-        </h3>
-        {visibles.length === 0 ? (
+        <button type="button" className={styles.plegable} aria-expanded={verLista} onClick={() => setVerLista((v) => !v)}>
+          <span className={styles.subtitulo}>
+            Pendientes de informe{abierto ? ` · ${abierto}` : ''} ({nf.format(visibles.length)})
+          </span>
+          <span className={styles.chevron} aria-hidden="true">{verLista ? '▲' : '▼'}</span>
+          <span className={styles.accionPlegable}>{verLista ? 'Ocultar' : 'Mostrar'}</span>
+        </button>
+        {!verLista ? null : visibles.length === 0 ? (
           <p className={styles.vacio}>No hay solicitudes pendientes de informe.</p>
         ) : (
           <div className={styles.scroll}>

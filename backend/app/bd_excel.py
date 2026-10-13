@@ -172,6 +172,18 @@ def completar_fila(fila: dict[str, Any], datos: dict | None, correos_laboratorio
     for clave, clave_solicitud in DESDE_SOLICITUD.items():
         if _vacio(fila.get(clave)) and datos and not _vacio(datos.get(clave_solicitud)):
             fila[clave] = datos[clave_solicitud]
+    # N° Orden (Actimist y Ecofog): lo escribe la solicitud. En la base, `nro_orden` de los informes
+    # propios de AgroFresh guarda el código del vial, no el N° Orden: ahí manda la solicitud.
+    # Observación: la subida de AgroFresh guarda ahí el producto, no la observación de la solicitud.
+    if datos and "AGROFRESH" in _laboratorios_de(fila.get("laboratorio")):
+        fila["observacion"] = datos.get("observacion") or None
+    elif datos and _vacio(fila.get("observacion")) and not _vacio(datos.get("observacion")):
+        fila["observacion"] = datos["observacion"]
+    orden = (datos or {}).get("numero_orden")
+    if not _vacio(orden):
+        fila["numero_orden"] = orden
+    elif "AGROFRESH" in _laboratorios_de(fila.get("laboratorio")):
+        fila["numero_orden"] = None
     if _vacio(fila.get("email_laboratorio")) and correos_laboratorio:
         fila["email_laboratorio"] = "; ".join(correos_laboratorio)
     if datos:

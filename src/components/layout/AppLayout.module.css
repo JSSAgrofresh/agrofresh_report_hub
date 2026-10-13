@@ -13,7 +13,8 @@
   flex: 1;
   min-width: 0;
   padding: var(--space-6);
-  max-width: 1280px;
+  /* Todo el ancho de la pantalla (tope solo en monitores enormes). */
+  max-width: 2400px;
   width: 100%;
   animation: aparecer 0.25s ease;
 }

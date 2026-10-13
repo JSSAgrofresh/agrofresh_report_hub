@@ -4,17 +4,22 @@ import { Header } from '@/components/layout/Header'
 import { AREAS } from '@/constants/areas'
 import type { AreaId } from '@/constants/areas'
 import { MODULOS } from '@/constants/modules'
-import { AreaHero, ModuloCard, fondoParaEspecie, useActividadDashboard, useSeriesDashboard } from '@/features/dashboard'
-import type { ActividadDashboard, SeriesDashboard } from '@/features/dashboard'
+import { AreaHero, ModuloCard, fondoParaEspecie, useActividadDashboard, usePanelCliente, useSeriesDashboard } from '@/features/dashboard'
+import type { ActividadDashboard, PanelCliente, SeriesDashboard } from '@/features/dashboard'
 import { widgetPorId } from '@/features/panelInicio'
 import type { Pieza } from '@/features/panelInicio'
 import { modulosPermitidos } from '@/features/usuarios'
 import type { Usuario } from '@/features/usuarios'
 import { InformesAccutabCliente } from '@/views/modules/reports/InformesAccutabCliente'
 import { ReporteView } from '@/views/modules/reports/ReporteView'
+import { AccesosCliente } from './AccesosCliente'
+import { InformesPorMes, SaludoCliente, UltimoInformeCliente } from './graficosCliente'
 import { CarruselNovedades, GraficoActividad, GraficoBarras, GraficoDona, HeroBienvenida, TiraVerificaciones, TituloArea } from './graficos'
 import { ConverterPanel, KpiCard, SolicitudesPanel, TracePanel, UsuariosActivos, VerificacionesPanel } from './bloquesAdmin'
 import styles from './PanelPersonalizado.module.css'
+
+/** Los widgets de cliente que leen `/reportes/panel-cliente`. */
+const CON_DATOS_CLIENTE = ['cliente:saludo', 'cliente:ultimo_informe', 'cliente:informes_mes', 'cliente:especies', 'cliente:analitos']
 
 interface Contexto {
   usuario: Usuario
@@ -22,6 +27,8 @@ interface Contexto {
   cargando: boolean
   series: SeriesDashboard | null
   cargandoSeries: boolean
+  panelCliente: PanelCliente | null
+  cargandoCliente: boolean
   especie: string | null
   setEspecie: (e: string | null) => void
 }
@@ -84,6 +91,18 @@ function dibujar(id: string, c: Contexto): ReactNode {
         />
       )
     }
+    case 'cliente:saludo':
+      return <SaludoCliente nombre={c.usuario.plantaNombre ?? c.usuario.clienteNombre ?? c.usuario.nombre} datos={c.panelCliente} cargando={c.cargandoCliente} />
+    case 'cliente:ultimo_informe':
+      return <UltimoInformeCliente datos={c.panelCliente} cargando={c.cargandoCliente} />
+    case 'cliente:informes_mes':
+      return <InformesPorMes datos={c.panelCliente} cargando={c.cargandoCliente} />
+    case 'cliente:especies':
+      return <GraficoDona titulo="Informes por especie" unidad="informes" datos={c.panelCliente?.por_especie ?? []} cargando={c.cargandoCliente} />
+    case 'cliente:analitos':
+      return <GraficoBarras titulo="Análisis más medidos" sub="resultados por analito" datos={c.panelCliente?.por_analito ?? []} cargando={c.cargandoCliente} />
+    case 'cliente:accesos':
+      return <AccesosCliente usuario={c.usuario} />
     case 'cliente:reporte':
       return <ReporteView clienteFijo={c.usuario.clienteNombre ?? c.usuario.nombre} plantaFija={c.usuario.plantaNombre} onCropChange={c.setEspecie} />
     case 'cliente:accutab':
@@ -103,7 +122,9 @@ function Tablero({ usuario, piezas, actividad, cargando }: { usuario: Usuario; p
   const [especie, setEspecie] = useState<string | null>(null)
   const usaSeries = piezas.some((p) => p.id.startsWith('grafico:') || p.id === 'kpi:solicitudes' || p.id === 'kpi:semana')
   const { series, status: estadoSeries } = useSeriesDashboard(usaSeries)
-  const ctx: Contexto = { usuario, actividad, cargando, series, cargandoSeries: estadoSeries === 'loading', especie, setEspecie }
+  const usaCliente = piezas.some((p) => CON_DATOS_CLIENTE.includes(p.id))
+  const { datos: panelCliente, status: estadoCliente } = usePanelCliente(usaCliente)
+  const ctx: Contexto = { usuario, actividad, cargando, series, cargandoSeries: estadoSeries === 'loading', panelCliente, cargandoCliente: estadoCliente === 'loading', especie, setEspecie }
   const ordenadas = [...piezas].sort((a, b) => a.y - b.y || a.x - b.x)
   return (
     <div className={styles.tablero}>

@@ -1,7 +1,6 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { RECEPCION_ESTIMADA_DIAS, alcanzados, claveLaboratorio, nodoActual, resumenFlujo } from '@/features/auditoriaInterna'
 import type { EvaluadaEntrega, NodoFlujo } from '@/features/auditoriaInterna'
-import { Modal } from '@/components/ui/Modal'
 import { formatDateCL } from '@/lib/locale'
 import styles from './FlujogramaLeadTime.module.css'
 
@@ -30,7 +29,6 @@ const PUNTOS: Record<NodoFlujo, Punto> = {
   observado: { titulo: 'Reporte observado', detalle: 'Los resultados ya están en Report para el cliente' },
 }
 
-const ENCADENA: NodoFlujo[] = ['emitida', 'recepcion', 'analisis', 'informe']
 
 /** Filtros del listado «Estado de cada solicitud». */
 type FiltroEstado = 'sin_informe' | 'vencidas' | 'sin_cliente' | 'sin_report' | 'completas' | 'todas'
@@ -75,12 +73,9 @@ interface Props {
  * observado» se enciende cuando el informe ya está en Report (y anota qué clientes lo abrieron).
  */
 export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
-  const [abierto, setAbierto] = useState<NodoFlujo | null>(null)
   const [elegida, setElegida] = useState('')
-  const [verTodas, setVerTodas] = useState(false)
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('todas')
   const [busca, setBusca] = useState('')
-  const cerrar = useCallback(() => { setAbierto(null); setVerTodas(false) }, [])
 
   const delLab = useMemo(
     () => (lab ? ev.filter((e) => claveLaboratorio(e.sol.laboratorio) === lab) : ev),
@@ -90,10 +85,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
   const resumen = useMemo(() => resumenFlujo(delLab), [delLab])
   const una = elegida ? validas.find((e) => e.sol.archivo === elegida) ?? null : null
 
-  // Los cuatro primeros puntos listan lo que está AHÍ hoy; los últimos, todo lo que ya llegó.
-  const dePunto = (n: NodoFlujo) => validas.filter((e) => (ENCADENA.includes(n) ? nodoActual(e) === n : alcanzados(e)[n]))
-
-  // El rango de plazos prometidos de las solicitudes que están en análisis hoy.
+  // El rango de plazos prometidos de los informes que están en análisis hoy.
   const plazosEnAnalisis = validas.filter((e) => nodoActual(e) === 'analisis' && e.plazo != null).map((e) => e.plazo as number)
   const rangoPlazo = plazosEnAnalisis.length
     ? Math.min(...plazosEnAnalisis) === Math.max(...plazosEnAnalisis)
@@ -125,20 +117,23 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
       }
     }
     const r = resumen[n]
+    // Los tres primeros puntos son de la solicitud; del cuarto en adelante, lo que cuenta es el informe.
+    const cosa = n === 'emitida' || n === 'recepcion' || n === 'analisis' ? 'solicitud' : 'informe'
+    const plural = cosa === 'solicitud' ? 'solicitudes' : 'informes'
     return {
-      cifra: `${nf.format(r.alcanzaron)} ${r.alcanzaron === 1 ? 'solicitud llegó' : 'solicitudes llegaron'}`,
+      cifra: `${nf.format(r.alcanzaron)} ${r.alcanzaron === 1 ? `${cosa} llegó` : `${plural} llegaron`}`,
       extra: n === 'analisis' && rangoPlazo ? `plazo prometido: ${rangoPlazo}` : null,
       fechaNodo: null,
       on: r.alcanzaron > 0,
       aqui: r.ahoraAqui > 0,
-      ahora: r.ahoraAqui > 0 ? `${nf.format(r.ahoraAqui)} ${r.ahoraAqui === 1 ? 'solicitud está aquí hoy' : 'solicitudes están aquí hoy'}` : null,
+      ahora: r.ahoraAqui > 0 ? `${nf.format(r.ahoraAqui)} ${r.ahoraAqui === 1 ? `${cosa} está aquí hoy` : `${plural} están aquí hoy`}` : null,
     }
   }
 
   const nodo = (n: NodoFlujo) => {
     const p = PUNTOS[n]
     const t = estadoNodo(n)
-    const clave = `${styles.nodo} ${t.on ? styles.on : ''} ${t.aqui ? styles.aqui : ''} ${abierto === n && !una ? styles.elegido : ''}`
+    const clave = `${styles.nodo} ${t.on ? styles.on : ''} ${t.aqui ? styles.aqui : ''}`
     const contenido = (
       <>
         {t.aqui && <span className={styles.latido} role="img" aria-label={t.ahora ?? 'Aquí está hoy'} title={t.ahora ?? 'Aquí está hoy'} />}
@@ -155,19 +150,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         </span>
       </>
     )
-    return una ? (
-      <div key={n} className={clave}>{contenido}</div>
-    ) : (
-      <button
-        key={n}
-        type="button"
-        className={clave}
-        aria-expanded={abierto === n}
-        onClick={() => { setAbierto(abierto === n ? null : n); setVerTodas(false) }}
-      >
-        {contenido}
-      </button>
-    )
+    return <div key={n} className={clave}>{contenido}</div>
   }
 
   const conteoEstado = useMemo(
@@ -182,9 +165,6 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
       .filter((e) => !q || [etiquetaSolicitud(e), e.sol.laboratorio, e.sol.sold_to, e.sol.ship_to].join(' ').toLowerCase().includes(q))
       .sort((a, b) => b.edad - a.edad)
   }, [validas, filtroEstado, busca])
-  
-  const lista = abierto ? dePunto(abierto) : []
-  const mostrar = verTodas ? lista : lista.slice(0, 12)
 
   return (
     <div className={styles.flujo}>
@@ -193,15 +173,15 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         <div className={styles.filtros}>
           <label className={styles.selector}>
             <span>Laboratorio</span>
-            <select value={lab} onChange={(e) => { onLab(e.target.value); setElegida(''); setAbierto(null) }} aria-label="Laboratorio del flujo">
+            <select value={lab} onChange={(e) => { onLab(e.target.value); setElegida('') }} aria-label="Laboratorio del flujo">
               <option value="">Todos</option>
               {laboratorios.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </label>
           <label className={styles.selector}>
             <span>Ver</span>
-            <select value={elegida} onChange={(e) => { setElegida(e.target.value); setAbierto(null) }} aria-label="Ver una solicitud">
-              <option value="">Todas las solicitudes</option>
+            <select value={elegida} onChange={(e) => setElegida(e.target.value)} aria-label="Ver una solicitud">
+              <option value="">Todos los informes</option>
               {[...validas]
                 .sort((a, b) => etiquetaSolicitud(a).localeCompare(etiquetaSolicitud(b), 'es', { numeric: true }))
                 .map((e) => <option key={e.sol.archivo} value={e.sol.archivo}>{etiquetaSolicitud(e)} · {e.sol.laboratorio ?? '—'}</option>)}
@@ -234,7 +214,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
           <>
             <span className={styles.fichaTitulo}>
               {lab || 'Todos los laboratorios'}
-              <small>{nf.format(validas.length)} solicitudes · toca un punto del flujo o elige una OT de la tabla</small>
+              <small>{nf.format(validas.length)} informes (uno por OT) · elige una OT de la tabla para ver su recorrido</small>
             </span>
           </>
         )}
@@ -247,7 +227,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         <i className={styles.hilo} aria-hidden="true" />
         {nodo('analisis')}
         {!una && pasadasDePlazo > 0 && (
-          <p className={styles.alerta}>{nf.format(pasadasDePlazo)} {pasadasDePlazo === 1 ? 'solicitud ya pasó' : 'solicitudes ya pasaron'} su plazo sin informe</p>
+          <p className={styles.alerta}>{nf.format(pasadasDePlazo)} {pasadasDePlazo === 1 ? 'informe ya pasó' : 'informes ya pasaron'} su plazo sin llegar</p>
         )}
         <i className={styles.hilo} aria-hidden="true" />
         {nodo('informe')}
@@ -262,7 +242,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         </div>
       <section className={styles.panelTabla} aria-label="Estado de cada solicitud">
         <div className={styles.panelCab}>
-          <h4>Solicitudes</h4>
+          <h4>Informe de cada OT</h4>
           <input
             type="search"
             className={styles.buscaEstado}
@@ -287,17 +267,17 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
                 <th title="Informe recibido del laboratorio">Inf.</th>
                 <th title="Informe enviado al cliente">Cli.</th>
                 <th title="Resultados cargados en Report">Rep.</th>
-                <th>Plazo</th>
+                <th>Plazo (d háb.)</th>
               </tr>
             </thead>
             <tbody>
               {filasEstado.length === 0 && (
-                <tr><td colSpan={5} className={styles.vacio}>Ninguna solicitud con este estado.</td></tr>
+                <tr><td colSpan={5} className={styles.vacio}>Ningún informe con este estado.</td></tr>
               )}
               {filasEstado.map((e) => {
                 const a = alcanzados(e)
                 const punto = (v: boolean) => <span className={`${styles.punto} ${v ? styles.puntoSi : styles.puntoNo}`} role="img" aria-label={v ? 'sí' : 'no'} />
-                const alternar = () => { setElegida(elegida === e.sol.archivo ? '' : e.sol.archivo); setAbierto(null) }
+                const alternar = () => { setElegida(elegida === e.sol.archivo ? '' : e.sol.archivo) }
                 return (
                   <tr
                     key={e.sol.archivo}
@@ -310,8 +290,22 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
                     <td>{punto(a.informe)}</td>
                     <td>{punto(a.cliente)}</td>
                     <td>{punto(a.sistema)}</td>
-                    <td className={e.veredicto === 'vencida' || e.veredicto === 'tarde' ? styles.tarde : undefined}>
-                      {e.plazo == null ? '—' : `${f1(e.entregada && e.dias != null ? e.dias : e.edad)}/${e.plazo}`}
+                    <td>
+                      {e.plazo == null ? '—' : (() => {
+                        const usado = e.entregada && e.dias != null ? e.dias : e.edad
+                        const atrasada = e.veredicto === 'vencida' || e.veredicto === 'tarde'
+                        return (
+                          <span className={styles.plazoCelda} title={`${f1(usado)} de ${e.plazo} días hábiles`}>
+                            <span className={styles.plazoPista}>
+                              <i
+                                className={atrasada ? styles.plazoMalo : e.veredicto === 'cumplio' ? styles.plazoBueno : styles.plazoCorre}
+                                style={{ width: `${Math.min(100, (usado / e.plazo) * 100)}%` }}
+                              />
+                            </span>
+                            <span className={atrasada ? styles.tarde : undefined}>{f1(usado)}/{e.plazo}</span>
+                          </span>
+                        )
+                      })()}
                     </td>
                   </tr>
                 )
@@ -322,44 +316,6 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
       </section>
       </div>
 
-      {abierto && !una && (
-        <Modal
-          titulo={`${PUNTOS[abierto].titulo} · ${nf.format(lista.length)}`}
-          subtitulo={lab ? `Laboratorio ${lab}` : 'Todos los laboratorios'}
-          onCerrar={cerrar}
-        >
-          {lista.length === 0 ? (
-            <p className={styles.vacio}>
-              {abierto === 'observado'
-                ? 'Todavía no hay informes cargados en Report para los clientes.'
-                : 'No hay solicitudes en este punto.'}
-            </p>
-          ) : (
-            <>
-              <ul className={styles.lista}>
-                {mostrar.map((e) => (
-                  <li key={e.sol.archivo}>
-                    <b>{etiquetaSolicitud(e)}</b>
-                    <span>{e.sol.laboratorio ?? '—'} · {e.sol.sold_to ?? '—'}{e.sol.ship_to ? ` · ${e.sol.ship_to}` : ''}</span>
-                    <small>
-                      {abierto === 'observado'
-                        ? `${fecha(e.hitos?.observado ?? e.hitos?.report)} · ${(e.hitos?.observado_por ?? []).length ? `Visto por ${(e.hitos?.observado_por ?? []).join(', ')}` : 'Disponible en Report'}`
-                        : abierto === 'cliente' || abierto === 'sistema'
-                          ? fecha(abierto === 'cliente' ? e.hitos?.cliente : e.hitos?.report)
-                          : textoPlazo(e)}
-                    </small>
-                  </li>
-                ))}
-              </ul>
-              {lista.length > 12 && (
-                <button type="button" className={styles.mas} onClick={() => setVerTodas((v) => !v)}>
-                  {verTodas ? 'Mostrar menos' : `Ver las ${nf.format(lista.length)}`}
-                </button>
-              )}
-            </>
-          )}
-        </Modal>
-      )}
     </div>
   )
 }

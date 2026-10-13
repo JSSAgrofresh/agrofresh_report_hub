@@ -3,14 +3,14 @@ import {
   etiquetaAcceso,
   modulosPermitidos,
   puedeCrearReanalisis,
-  puedeEditarCriterios,
+  puedeEditarCriteriosLab,
   puedeFirmarVerificaciones,
   puedeVerReporte,
   puedeVerSeccionLab,
   puedeVerTomaMuestras,
-  reportesDeCliente,
   seccionesLabPermitidas,
   tieneFuncion,
+  vistaDeCliente,
 } from './permisos'
 import type { Usuario } from './types'
 
@@ -103,6 +103,16 @@ describe('secciones de AgroFresh Lab por cuenta (espejo de tests/test_lab_seccio
     expect(modulosPermitidos(u).map((m) => m.id)).toEqual(['agrofresh_lab'])
   })
 
+  it('«Modificar criterios» es un permiso aparte: no recorta las secciones', () => {
+    const u = cuenta(['agrofresh_lab', 'lab_criterios'])
+    expect(seccionesLabPermitidas(u)).toHaveLength(3)
+    expect(puedeEditarCriteriosLab(u)).toBe(true)
+    expect(puedeEditarCriteriosLab(cuenta(['agrofresh_lab']))).toBe(false)
+    expect(puedeEditarCriteriosLab({ ...cromatografia, tipoAcceso: 'gerencia', modulos: ['agrofresh_lab'] })).toBe(false)
+    expect(puedeEditarCriteriosLab({ ...cromatografia, tipoAcceso: 'admin_general', modulos: undefined })).toBe(true)
+    expect(modulosPermitidos(u).map((m) => m.id)).toEqual(['agrofresh_lab'])
+  })
+
   it('admin general y gerencia ven siempre todo', () => {
     const ag: Usuario = { id: '1', email: 'a@a.com', nombre: 'A', tipoAcceso: 'admin_general', modulos: ['lab_ingreso'] }
     const ge: Usuario = { id: '2', email: 'g@a.com', nombre: 'G', tipoAcceso: 'gerencia', modulos: ['lab_ingreso'] }
@@ -116,18 +126,18 @@ describe('mini funciones asignables (espejo de test_permisos_funciones.py)', () 
     ({ id: '1', email: 'x@agrofresh.com', nombre: 'X', tipoAcceso, area, modulos }) as Usuario
 
   it('el administrador general las tiene todas; gerencia y clientes ninguna', () => {
-    for (const f of ['verif_criterios', 'verif_firmar', 'toma_reanalisis'] as const) {
+    for (const f of ['lab_criterios', 'verif_firmar', 'toma_reanalisis'] as const) {
       expect(tieneFuncion(u('admin_general'), f)).toBe(true)
-      expect(tieneFuncion(u('gerencia', ['verif_criterios', 'verif_firmar', 'toma_reanalisis']), f)).toBe(false)
-      expect(tieneFuncion(u('cliente', ['verif_criterios']), f)).toBe(false)
+      expect(tieneFuncion(u('gerencia', ['lab_criterios', 'verif_firmar', 'toma_reanalisis']), f)).toBe(false)
+      expect(tieneFuncion(u('cliente', ['lab_criterios']), f)).toBe(false)
     }
   })
 
   it('el resto solo tiene lo que se le marcó', () => {
-    const cuenta = u('analista', ['agrofresh_lab', 'verif_criterios'])
-    expect(puedeEditarCriterios(cuenta)).toBe(true)
+    const cuenta = u('analista', ['agrofresh_lab', 'lab_criterios'])
+    expect(puedeEditarCriteriosLab(cuenta)).toBe(true)
     expect(tieneFuncion(cuenta, 'verif_firmar')).toBe(false)
-    expect(puedeEditarCriterios(u('analista'))).toBe(false)
+    expect(puedeEditarCriteriosLab(u('analista'))).toBe(false)
   })
 
   it('firmar: admin general, admin de Cromatografía o quien tenga la función', () => {
@@ -144,10 +154,20 @@ describe('mini funciones asignables (espejo de test_permisos_funciones.py)', () 
   })
 
   it('un cliente ve lo que se le asignó; las cuentas antiguas conservan lo de su área', () => {
-    expect(reportesDeCliente({ area: 'postventa', reportes: ['laboratorio', 'postventa'] })).toEqual(['laboratorio', 'postventa'])
-    expect(reportesDeCliente({ area: 'postventa' })).toEqual(['postventa'])
-    expect(reportesDeCliente({ area: 'cromatografia' })).toEqual(['laboratorio'])
+    expect(vistaDeCliente({ area: 'postventa', modulos: ['reports', 'storage'], reportes: ['laboratorio', 'postventa'] })).toEqual({
+      report: true, storage: true, accutab: true,
+    })
+    expect(vistaDeCliente({ area: 'postventa' })).toEqual({ report: false, storage: false, accutab: true })
+    expect(vistaDeCliente({ area: 'cromatografia' })).toEqual({ report: true, storage: false, accutab: false })
     expect(etiquetaAcceso(u('cliente') as Usuario)).toBe('Cliente · Report')
-    expect(etiquetaAcceso({ ...u('cliente'), reportes: ['laboratorio', 'postventa'] })).toBe('Cliente · Report + Accu-Tab')
+    expect(etiquetaAcceso({ ...u('cliente', ['reports', 'storage']), reportes: ['laboratorio', 'postventa'] })).toBe(
+      'Cliente · Report + Storage + Accu-Tab',
+    )
+  })
+
+  it('el Report de Post Venta es interno: un cliente nunca lo abre aunque tenga «postventa»', () => {
+    const cliente = { ...u('cliente', ['reports']), reportes: ['laboratorio', 'postventa'] } as Usuario
+    expect(puedeVerReporte(cliente, 'laboratorio')).toBe(true)
+    expect(puedeVerReporte(cliente, 'postventa')).toBe(false)
   })
 })

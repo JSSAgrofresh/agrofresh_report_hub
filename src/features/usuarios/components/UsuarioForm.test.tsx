@@ -71,9 +71,9 @@ describe('UsuarioForm: permisos por categoría y funciones sueltas', () => {
   })
 
   it('se puede asignar «Editar los criterios» a una cuenta y viaja en `modulos`', () => {
-    const onGuardar = guardar(cuenta, () => fireEvent.click(screen.getByRole('checkbox', { name: /Editar los criterios/ })))
+    const onGuardar = guardar(cuenta, () => fireEvent.click(screen.getByRole('checkbox', { name: /Modificar los criterios/ })))
     const { modulos } = onGuardar.mock.calls[0][0] as { modulos: string[] }
-    expect(modulos).toContain('verif_criterios')
+    expect(modulos).toContain('lab_criterios')
   })
 
   it('«Marcar todo» de una categoría marca sus permisos', () => {
@@ -92,15 +92,16 @@ describe('UsuarioForm: permisos por categoría y funciones sueltas', () => {
     expect(screen.queryByLabelText('Área')).toBeNull()
     expect((screen.getByRole('checkbox', { name: /Report de laboratorio/ }) as HTMLInputElement).checked).toBe(true)
     expect((screen.getByRole('checkbox', { name: /Informes Accu-Tab/ }) as HTMLInputElement).checked).toBe(false)
+    expect((screen.getByRole('checkbox', { name: /Storage/ }) as HTMLInputElement).checked).toBe(false)
   })
 
-  it('guardar un cliente con las dos vistas no manda área ni módulos', () => {
+  it('guardar un cliente con Report y Accu-Tab no manda área y solo lleva módulos de cliente', () => {
     const cliente: Usuario = { id: '5', email: 'c@dole.com', nombre: 'Dole', tipoAcceso: 'cliente', clienteNombre: 'DOLE CHILE S.A.' }
     const onGuardar = guardar(cliente, () => fireEvent.click(screen.getByRole('checkbox', { name: /Informes Accu-Tab/ })))
     const datos = onGuardar.mock.calls[0][0] as Omit<Usuario, 'id'>
     expect(datos.reportes).toEqual(['laboratorio', 'postventa'])
+    expect(datos.modulos).toEqual(['reports'])
     expect(datos.area).toBeUndefined()
-    expect(datos.modulos).toBeUndefined()
   })
 
   it('no deja guardar un cliente sin nada que ver', () => {

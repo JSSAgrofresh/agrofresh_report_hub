@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AREAS } from '@/constants/areas'
+import { useAuth } from '@/features/auth'
 import { AreaHero, fondoParaEspecie } from '@/features/dashboard'
 import { ReporteView } from './ReporteView'
 
@@ -8,10 +9,29 @@ import { ReporteView } from './ReporteView'
  * ellos. La foto y su degradado siguen a la especie filtrada, y el título al
  * Sold To elegido. */
 export function ReporteLaboratorioView() {
+  const { user } = useAuth()
   const config = AREAS.cromatografia
   const [especie, setEspecie] = useState('')
   const [cliente, setCliente] = useState('')
   const fondo = fondoParaEspecie(especie, config.fondo)
+
+  // Una cuenta de cliente entra por esta misma ruta: su encabezado lleva SU sucursal (o su Sold To) y los filtros de
+  // Sold To / Ship To no salen, porque sus datos ya vienen acotados desde el servidor.
+  if (user?.tipoAcceso === 'cliente') {
+    const soldTo = user.clienteNombre ?? user.nombre
+    return (
+      <div>
+        <AreaHero
+          area={config}
+          titulo={user.plantaNombre ?? soldTo}
+          descripcion={`Portal de cliente · ${config.nombre}. Acceso exclusivo a tus datos.`}
+          fondo={fondo.imagen}
+          tinte={fondo.tinte}
+        />
+        <ReporteView clienteFijo={soldTo} plantaFija={user.plantaNombre} onCropChange={setEspecie} />
+      </div>
+    )
+  }
 
   return (
     <div>

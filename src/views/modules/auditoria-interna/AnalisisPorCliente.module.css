@@ -1,0 +1,215 @@
+.cuerpoGrafico {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.resumen { margin: 0; font-size: 12.5px; color: var(--color-text-muted); }
+
+.caja {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  overflow: auto;
+  background: #fff;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla th,
+.tabla td {
+  padding: 5px 10px;
+  text-align: center;
+  border-bottom: 1px solid #e9eee7;
+  white-space: nowrap;
+}
+
+/* Bandas de título por análisis, como en la tabla de arriba: tab de color con su nombre y su cantidad */
+.grupos th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 8px 10px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  border-top: 3px solid var(--c, #9aa5a0);
+  border-bottom: 0;
+  background: var(--f, #f1f4ef);
+  color: var(--c, #3a4a40);
+}
+
+.grupos small { margin-left: 6px; font-size: 10.5px; font-weight: 500; color: var(--color-text-muted); }
+
+.gResiduales { --c: #4d7c0f; --f: #edf4e4; border-radius: 10px 10px 0 0; }
+.gFsma { --c: #b45309; --f: #fbeee0; border-radius: 10px 10px 0 0; }
+.gFito { --c: #9d174d; --f: #f9e4ee; border-radius: 10px 10px 0 0; }
+.gTotal { --c: #26352c; --f: #e8ede6; }
+.gEntregable { --c: #6b7a72; --f: #eef0ee; }
+
+.subs th {
+  position: sticky;
+  top: 33px;
+  z-index: 2;
+  padding: 3px 10px 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #f7f9f6;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.subs .gEntregable { background: #f7f9f6; color: var(--color-text-muted); }
+
+.colCliente { text-align: left !important; min-width: 220px; background: #f1f4ef; border-top: 3px solid #c9d1c8 !important; }
+
+.cliente {
+  text-align: left !important;
+  font-weight: 600;
+  max-width: 340px;
+}
+
+.cliente span {
+  display: inline-block;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.cliente em {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  border-radius: 50%;
+  vertical-align: middle;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: #eef2ec;
+}
+
+.podio { color: #fff !important; }
+.podio[data-puesto='1'] { background: #c9962b !important; }
+.podio[data-puesto='2'] { background: #7b8794 !important; }
+.podio[data-puesto='3'] { background: #a8693a !important; }
+
+.celda { display: inline-flex; align-items: center; gap: 5px; }
+
+.pastilla {
+  min-width: 34px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.celda small, .total small { font-size: 10.5px; color: var(--color-text-faint); }
+.total { background: #f7f9f6; }
+.total b { font-size: 14px; margin-right: 4px; }
+.cero, .pendienteDato { color: #b3bdb6; }
+
+.tabla tbody tr:hover td,
+.tabla tbody tr:hover th { background: rgba(109, 173, 60, 0.07); }
+
+.tabla tbody tr:hover .total { background: rgba(109, 173, 60, 0.12); }
+
+.tabla tfoot th,
+.tabla tfoot td {
+  border-top: 2px solid var(--color-border-strong, #c3cec8);
+  border-bottom: 0;
+  background: #f1f4ef;
+  font-weight: 700;
+}
+
+/* Clientes del listado todavía sin análisis: apagados */
+.apagado th,
+.apagado td { background: #f4f6f3; color: #9aa5a0; }
+.apagado .cliente span { font-weight: 500; color: #8a968f; }
+.apagado .cliente em { background: transparent; }
+
+.alternar {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 14px;
+  color: var(--color-primary-hover);
+  background: #fff;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.alternar:hover { background: rgba(109, 173, 60, 0.12); }
+.vacio { margin: 10px 12px; font-size: 13px; color: var(--color-text-muted); }
+
+/* Un bloque de filas por cliente: una fila por análisis y, bajo Residuales, un renglón por laboratorio con su % */
+.bloque > tr:last-child > * { border-bottom: 1px solid var(--color-border); }
+.colAnalisis { text-align: left !important; min-width: 130px; background: #f1f4ef; border-top: 3px solid #c9d1c8 !important; }
+.totalCliente { display: block; margin: 2px 0 0 28px; font-size: 10.5px; font-weight: 500; color: var(--color-text-faint); }
+.cliente { vertical-align: top; background: #fff; border-right: 1px solid #e9eee7; }
+.lineaGrupo { text-align: left !important; font-weight: 700; }
+.lineaGrupo small { margin-left: 6px; font-size: 10.5px; font-weight: 500; color: var(--color-text-muted); }
+.lineaLab { text-align: left !important; padding-left: 28px !important; font-weight: 600; font-size: 12px; }
+.filaLab th, .filaLab td { border-bottom-color: #f1f4ef; }
+.valor { text-align: right !important; }
+.valor small { margin-left: 6px; font-size: 10.5px; color: var(--color-text-faint); }
+.cifra { font-size: 14px; }
+.pct { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--color-text-muted); }
+.tabla tfoot .cliente { background: #f1f4ef; vertical-align: top; }
+
+/* Compacto: la tabla ocupa solo lo que necesita, sin estirar la columna del cliente */
+.caja { width: fit-content; max-width: 100%; }
+.tabla { width: auto; }
+.tabla th, .tabla td { padding: 3px 10px; }
+.colCliente, .tabla tbody .cliente, .tabla tfoot .cliente { width: 250px; min-width: 250px; max-width: 250px; }
+.cliente span { max-width: 190px; }
+.colAnalisis { width: 130px; min-width: 130px; }
+.valor { width: 150px; min-width: 150px; }
+.lineaLab { padding-left: 20px !important; }
+.totalCliente { margin-left: 28px; }
+.tabla .gEntregable { width: 64px; min-width: 64px; }
+
+/* Compacto de verdad: la tabla se ajusta a su contenido y los laboratorios van en columnas */
+.tabla { width: max-content; }
+.gQuiteca { --c: #0e7490; --f: #e3f1f5; border-radius: 10px 10px 0 0; }
+.tabla td.pct { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--color-text-muted); }
+.tabla .valor { text-align: center !important; width: auto; min-width: 0; }
+.tabla .colCliente, .tabla tbody .cliente, .tabla tfoot .cliente { width: auto; min-width: 0; max-width: 260px; }
+.tabla .colAnalisis { width: auto; min-width: 0; }
+.tabla .gEntregable { width: auto; min-width: 0; }
+.subs th { top: 0; position: static; }
+
+/* Reparto final: ocupa todo el ancho con columnas proporcionales (sin huecos ni nombres cortados de más) */
+.caja { width: 100%; }
+.tabla { width: 100%; table-layout: fixed; }
+.tabla .colCliente, .tabla tbody .cliente, .tabla tfoot .cliente { width: auto; min-width: 0; max-width: none; }
+.cliente span { max-width: calc(100% - 34px); }
+.cliente { white-space: normal; }
+.tabla th, .tabla td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tabla .cliente { white-space: normal; }
+.totalCliente { margin-left: 28px; }
+.tabla td.pct { text-align: center; }
+@media (max-width: 760px) {
+  .tabla { table-layout: auto; min-width: 640px; }
+}
+
+/* La cantidad y su % quedan pegados, en la misma línea del laboratorio */
+.tabla td.cant { text-align: right; padding-right: 4px; }
+.tabla td.pct, .tabla td.pctVacio { text-align: left; padding-left: 4px; }
+
+/* Residuales en una sola línea: el laboratorio, su cantidad y su % sobre un fondo de su color */
+.tabla td.labNombre { text-align: left; padding-left: 12px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; border-bottom-color: #fff; }
+.tabla td.labCant { text-align: center; font-weight: 700; border-bottom-color: #fff; }
+.tabla td.labPct { text-align: center; font-size: 12px; color: var(--color-text-muted); border-bottom-color: #fff; }
+.tabla td.cero { text-align: center; }

@@ -87,7 +87,15 @@ export const LAB_SECCIONES = [
 
 export type LabSeccionId = (typeof LAB_SECCIONES)[number]['id']
 
-export const esSeccionLab = (id: string): boolean => LAB_SECCIONES.some((s) => s.id === id)
+/** Permiso aparte (no es una puerta): modificar los criterios de las verificaciones diarias. Viaja en `modulos`
+ * y no recorta las secciones. Espejo de `puede_editar_criterios` en `app/lab_secciones.py`. */
+export const LAB_CRITERIOS = 'lab_criterios'
+
+export const esSeccionLab = (id: string): boolean => id === LAB_CRITERIOS || LAB_SECCIONES.some((s) => s.id === id)
+
+export function puedeEditarCriteriosLab(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
+  return usuario.tipoAcceso === 'admin_general' || (usuario.modulos ?? []).includes(LAB_CRITERIOS)
+}
 
 export function seccionesLabPermitidas(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): LabSeccionId[] {
   const todas = LAB_SECCIONES.map((s) => s.id)
@@ -106,6 +114,8 @@ export function puedeVerModulo(usuario: Usuario, moduloId: string): boolean {
 
 export function puedeVerReporte(usuario: Usuario, reporte: ReporteId): boolean {
   if (!puedeVerModulo(usuario, 'reports')) return false
+  // «Postventa» de un cliente son sus informes Accu-Tab en el panel; el Report de Post Venta es interno.
+  if (usuario.tipoAcceso === 'cliente' && reporte === 'postventa') return false
   if (tieneAccesoTotal(usuario)) return true
   return (usuario.reportes ?? reportesPredeterminados(usuario)).includes(reporte)
 }
@@ -120,17 +130,12 @@ export function puedeVerTomaMuestras(usuario: Usuario): boolean {
 /** «Mini funciones» que el administrador general reparte a cuentas concretas (Usuarios → permisos). Sin
  * migración: viajan en `modulos`. Espejo de `app/permisos_funciones.py` (mismos casos en `permisos.test.ts` y
  * `tests/test_permisos_funciones.py`). El administrador general las tiene todas; gerencia y clientes ninguna. */
-export type FuncionId = 'verif_criterios' | 'verif_firmar' | 'toma_reanalisis'
+export type FuncionId = 'lab_criterios' | 'verif_firmar' | 'toma_reanalisis'
 
 export function tieneFuncion(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>, funcion: FuncionId): boolean {
   if (usuario.tipoAcceso === 'admin_general') return true
   if (usuario.tipoAcceso === 'gerencia' || usuario.tipoAcceso === 'cliente') return false
   return (usuario.modulos ?? []).includes(funcion)
-}
-
-/** Editar los Criterios de las verificaciones diarias. */
-export function puedeEditarCriterios(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
-  return tieneFuncion(usuario, 'verif_criterios')
 }
 
 /** Firmar la revisión de un día de verificaciones: admin general, admin de Cromatografía o quien tenga la función. */
@@ -147,11 +152,23 @@ export function puedeCrearReanalisis(usuario: Pick<Usuario, 'tipoAcceso' | 'modu
   return usuario.tipoAcceso === 'admin_general' || usuario.tipoAcceso === 'admin_area' || tieneFuncion(usuario, 'toma_reanalisis')
 }
 
-/** Qué ve una cuenta de cliente. Un cliente no pertenece a un área: se le asigna qué ve. Las cuentas antiguas
- * (sin lista) conservan lo que daba su área: Cromatografía = Report, Post Venta = informes Accu-Tab. */
-export function reportesDeCliente(usuario: Pick<Usuario, 'area' | 'reportes'>): ReporteId[] {
-  if (usuario.reportes && usuario.reportes.length > 0) return usuario.reportes
-  return usuario.area === 'postventa' ? ['postventa'] : ['laboratorio']
+/** Qué ve una cuenta de cliente. Un cliente no pertenece a un área: el administrador le asigna qué ve. Las cuentas
+ * antiguas (sin lista) conservan lo que daba su área: Cromatografía = Report, Post Venta = informes Accu-Tab. */
+export interface VistaCliente {
+  /** Report de laboratorio (módulo `reports`). */
+  report: boolean
+  /** Informes Accu-Tab en su panel (`reportes` con `postventa`). */
+  accutab: boolean
+  /** Sus informes en Storage (módulo `storage`). */
+  storage: boolean
+}
+
+export function vistaDeCliente(usuario: Pick<Usuario, 'area' | 'modulos' | 'reportes'>): VistaCliente {
+  return {
+    report: usuario.modulos ? usuario.modulos.includes('reports') : usuario.area !== 'postventa',
+    accutab: usuario.reportes ? usuario.reportes.includes('postventa') : usuario.area === 'postventa',
+    storage: (usuario.modulos ?? []).includes('storage'),
+  }
 }
 
 export function etiquetaAcceso(usuario: Usuario): string {
@@ -160,8 +177,9 @@ export function etiquetaAcceso(usuario: Usuario): string {
   if (usuario.tipoAcceso === 'admin_area' && usuario.area)
     return `Admin · ${AREAS[usuario.area].nombre}`
   if (usuario.tipoAcceso === 'cliente') {
-    const ve = reportesDeCliente(usuario)
-    return `Cliente · ${ve.map((r) => (r === 'postventa' ? 'Accu-Tab' : 'Report')).join(' + ')}`
+    const v = vistaDeCliente(usuario)
+    const ve = [v.report && 'Report', v.storage && 'Storage', v.accutab && 'Accu-Tab'].filter(Boolean)
+    return ve.length > 0 ? `Cliente · ${ve.join(' + ')}` : 'Cliente'
   }
   if (usuario.tipoAcceso === 'analista' && usuario.area)
     return `Analista · ${AREAS[usuario.area].nombre}`

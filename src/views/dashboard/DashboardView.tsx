@@ -1,6 +1,6 @@
 import { useAuth } from '@/features/auth'
 import { useMiDiseno } from '@/features/panelInicio'
-import { reportesDeCliente } from '@/features/usuarios'
+import { vistaDeCliente } from '@/features/usuarios'
 import { AdminGeneralDashboardView } from './AdminGeneralDashboardView'
 import { AreaDashboardView } from './AreaDashboardView'
 import { ClienteDashboardView } from './ClienteDashboardView'
@@ -19,7 +19,8 @@ export function DashboardView() {
   if (user.tipoAcceso === 'admin_area' && user.area) return <AreaDashboardView area={user.area} usuario={user} />
   if (user.tipoAcceso === 'cliente') {
     // Un cliente no tiene área propia: el encabezado se toma de lo que ve.
-    const area = reportesDeCliente(user).includes('laboratorio') ? 'cromatografia' : 'postventa'
+    const v = vistaDeCliente(user)
+    const area = v.accutab && !v.report ? 'postventa' : 'cromatografia'
     return <ClienteDashboardView area={area} usuario={user} />
   }
 

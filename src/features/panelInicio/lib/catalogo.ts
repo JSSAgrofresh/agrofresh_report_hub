@@ -74,6 +74,12 @@ export const WIDGETS: WidgetDef[] = [
   { id: 'panel:solicitudes', nombre: 'Últimas solicitudes', descripcion: 'Las solicitudes más recientes.', grupo: 'Paneles de actividad', audiencia: 'interno', w: 6, h: 5, minW: 4, minH: 3 },
   { id: 'panel:verificaciones', nombre: 'Verificaciones diarias', descripcion: 'El estado de las últimas verificaciones.', grupo: 'Paneles de actividad', audiencia: 'interno', w: 6, h: 5, minW: 4, minH: 3 },
   { id: 'cliente:encabezado', nombre: 'Encabezado con foto', descripcion: 'El nombre del cliente sobre la foto de la fruta.', grupo: 'Portal de cliente', audiencia: 'cliente', w: 12, h: 3, minW: 6, minH: 2 },
+  { id: 'cliente:saludo', nombre: 'Saludo y análisis realizados', descripcion: 'Saludo con el nombre de la planta y cuántos informes y resultados lleva.', grupo: 'Portal de cliente', audiencia: 'cliente', w: 12, h: 3, minW: 4, minH: 2 },
+  { id: 'cliente:ultimo_informe', nombre: 'Último informe', descripcion: 'Fecha, especie y laboratorio del informe más reciente de su planta.', grupo: 'Portal de cliente', audiencia: 'cliente', w: 4, h: 4, minW: 3, minH: 3 },
+  { id: 'cliente:informes_mes', nombre: 'Informes por mes', descripcion: 'Cuántos informes de su planta hubo cada mes, los últimos 12.', grupo: 'Portal de cliente', audiencia: 'cliente', w: 4, h: 4, minW: 3, minH: 3 },
+  { id: 'cliente:especies', nombre: 'Informes por especie', descripcion: 'Dona con la mezcla de especies analizadas en su planta.', grupo: 'Portal de cliente', audiencia: 'cliente', w: 4, h: 4, minW: 3, minH: 3 },
+  { id: 'cliente:analitos', nombre: 'Análisis más medidos', descripcion: 'Los analitos con más resultados en su planta.', grupo: 'Portal de cliente', audiencia: 'cliente', w: 6, h: 4, minW: 3, minH: 3 },
+  { id: 'cliente:accesos', nombre: 'Accesos (Report y Storage)', descripcion: 'Tarjetas para abrir sus módulos.', grupo: 'Portal de cliente', audiencia: 'cliente', w: 12, h: 4, minW: 4, minH: 3 },
   { id: 'cliente:reporte', nombre: 'Reporte de residuos', descripcion: 'Resultados, gráficos y descargas de SUS muestras.', grupo: 'Portal de cliente', audiencia: 'cliente', w: 12, h: 12, minW: 8, minH: 6, area: 'cromatografia' },
   { id: 'cliente:accutab', nombre: 'Informes Accu-Tab', descripcion: 'Los informes de sus equipos, con descarga.', grupo: 'Portal de cliente', audiencia: 'cliente', w: 12, h: 8, minW: 6, minH: 4, area: 'postventa' },
 ]

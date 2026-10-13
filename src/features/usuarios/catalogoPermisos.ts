@@ -64,7 +64,7 @@ export const CATEGORIAS: Categoria[] = [
         descripcion: 'Dejar su firma en un día de verificaciones ya revisado.',
         incluidoPor: (tipo, area) => tipo === 'admin_area' && area === 'cromatografia',
       },
-      { id: 'verif_criterios', padre: 'lab_verificaciones', extra: true, nombre: 'Editar los criterios', descripcion: 'Cambiar equipos, tolerancias, columnas y factores de las verificaciones.' },
+      { id: 'lab_criterios', padre: 'lab_verificaciones', extra: true, nombre: 'Modificar los criterios', descripcion: 'Cambiar tolerancias, parámetros, equipos y catálogos en la pantalla Criterios del control diario. Sin esto solo los ve.' },
       { id: 'lab_envio', padre: 'agrofresh_lab', nombre: 'Envío de informes', descripcion: 'Enviar los PDF del laboratorio a la lista de distribución del cliente.' },
     ],
   },

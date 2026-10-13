@@ -121,3 +121,23 @@
   .dibujo, .barra { animation: none; }
   .pista, .tarjeta, .arco { transition: none; }
 }
+
+/* ── Panel del cliente ────────────────────────────────────────── */
+.cifras { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 10px; position: relative; z-index: 1; }
+.cifra { display: flex; flex-direction: column; line-height: 1.1; }
+.cifra b { font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 800; }
+.cifra span { font-size: 12px; opacity: 0.88; }
+.ultimoFecha { margin: 0; font-size: clamp(1.3rem, 3vw, 1.8rem); font-weight: 800; color: var(--color-text); }
+.ultimoDetalle { margin: 0; font-size: 13.5px; color: var(--color-text-muted); }
+.ultimoLista { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.ultimoLista li { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--color-border); padding-bottom: 5px; }
+.ultimoLista span { color: var(--color-text-faint); }
+.ultimoLista b { text-align: right; overflow-wrap: anywhere; }
+.ultimoEnlace { margin-top: auto; align-self: flex-start; font-size: 12.5px; font-weight: 700; color: var(--color-primary-hover); text-decoration: none; }
+.ultimoEnlace:hover { text-decoration: underline; }
+.meses { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: end; gap: 6px; flex: 1; min-height: 130px; padding-top: 8px; }
+.mes { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; min-width: 0; }
+.mesN { font-size: 11px; font-weight: 700; color: var(--color-text-muted); }
+.mesBarra { width: 100%; max-width: 34px; min-height: 3px; border-radius: 5px 5px 2px 2px; background: #1C7FA6; transition: height 0.3s ease; }
+.mesBarraVacia { background: var(--color-border); }
+.mesNombre { font-size: 10.5px; color: var(--color-text-faint); text-transform: capitalize; white-space: nowrap; }

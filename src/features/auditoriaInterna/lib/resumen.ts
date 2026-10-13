@@ -232,6 +232,126 @@ export function porGrupoYLaboratorio(
   return limite > 0 ? orden.slice(0, limite) : orden
 }
 
+// ── por laboratorio, por análisis y por grupo (top clientes) ─────────────
+
+export const SIN_ANALISIS = 'Sin análisis definido'
+
+export interface FilaPanelAnalisis {
+  grupo: string
+  /** análisis pedidos de este grupo en este laboratorio y análisis */
+  analisis: number
+  informes: number
+}
+
+/** Un panel del gráfico: UN análisis de UN laboratorio (ej. ALS · FSMA) con sus mejores clientes. */
+export interface PanelAnalisis {
+  laboratorio: string
+  analisis: string
+  /** todos los análisis pedidos y sus informes concretados, sin recortar por el top */
+  total: number
+  informes: number
+  /** cuántos grupos (clientes) hay en total, aunque se muestren solo los primeros */
+  nGrupos: number
+  filas: FilaPanelAnalisis[]
+}
+
+/** Por laboratorio y por análisis, los grupos (Sold To, Ship To…) con más análisis pedidos y
+ * cuántos tienen informe. Una solicitud que pidió dos análisis cuenta en cada uno. `limite` 0 = todos. */
+export function porLaboratorioYAnalisis(
+  solicitudes: SolicitudAuditoria[],
+  dimension: DimensionGrafico,
+  limite: number,
+): PanelAnalisis[] {
+  const paneles = new Map<string, { laboratorio: string; analisis: string; grupos: Map<string, FilaPanelAnalisis> }>()
+  for (const s of solicitudes) {
+    const lab = claveLabGrafico(s)
+    if (!lab) continue
+    const grupo = grupoDe(s, dimension)
+    const nombres = (s.analisis ?? []).filter((n) => n.trim())
+    for (const analisis of nombres.length ? nombres : [SIN_ANALISIS]) {
+      const clave = `${lab}|${analisis}`
+      const p = paneles.get(clave) ?? { laboratorio: lab, analisis, grupos: new Map() }
+      const fila = p.grupos.get(grupo) ?? { grupo, analisis: 0, informes: 0 }
+      fila.analisis++
+      if (s.concretada) fila.informes++
+      p.grupos.set(grupo, fila)
+      paneles.set(clave, p)
+    }
+  }
+  const ordenLab = (l: string) => (LABORATORIOS_GRAFICO as readonly string[]).indexOf(l)
+  return [...paneles.values()]
+    .sort((a, b) => ordenLab(a.laboratorio) - ordenLab(b.laboratorio) || a.analisis.localeCompare(b.analisis, 'es'))
+    .map((p) => {
+      const todas = [...p.grupos.values()].sort((a, b) => b.analisis - a.analisis || a.grupo.localeCompare(b.grupo, 'es'))
+      return {
+        laboratorio: p.laboratorio,
+        analisis: p.analisis,
+        total: todas.reduce((n, f) => n + f.analisis, 0),
+        informes: todas.reduce((n, f) => n + f.informes, 0),
+        nGrupos: todas.length,
+        filas: limite > 0 ? todas.slice(0, limite) : todas,
+      }
+    })
+}
+
+// ── por cliente: residuales (AgroFresh / Quiteca), FSMA y FITO ───────────
+
+export interface CeldaCliente {
+  /** análisis pedidos */
+  n: number
+  /** con informe concretado */
+  informes: number
+}
+
+export interface FilaClienteAnalisis {
+  cliente: string
+  /** análisis pedidos en total y los concretados */
+  total: number
+  informes: number
+  agrofresh: CeldaCliente
+  quiteca: CeldaCliente
+  fsma: CeldaCliente
+  fito: CeldaCliente
+}
+
+const celda = (): CeldaCliente => ({ n: 0, informes: 0 })
+
+/** Una fila por cliente (o por Ship To, especie o tipo de servicio, según `dimension`) con lo que se le analizó: residuales en AgroFresh y en Quiteca,
+ * FSMA (ALS) y FITO (Diagnofruit). El que más análisis lleva, primero. */
+export function porClienteResiduosFsmaFito(solicitudes: SolicitudAuditoria[], dimension: DimensionGrafico = 'cliente'): FilaClienteAnalisis[] {
+  const por = new Map<string, FilaClienteAnalisis>()
+  for (const s of solicitudes) {
+    const lab = claveLabGrafico(s)
+    const cliente = dimension === 'cliente' ? (s.sold_to ?? '').trim() : grupoDe(s, dimension)
+    if (!lab || !cliente) continue
+    const f = por.get(cliente) ?? { cliente, total: 0, informes: 0, agrofresh: celda(), quiteca: celda(), fsma: celda(), fito: celda() }
+    const c = lab === 'AGROFRESH' ? f.agrofresh : lab === 'QUITECA' ? f.quiteca : lab === 'ALS' ? f.fsma : f.fito
+    c.n++
+    f.total++
+    if (s.concretada) {
+      c.informes++
+      f.informes++
+    }
+    por.set(cliente, f)
+  }
+  return [...por.values()].sort((a, b) => b.total - a.total || a.cliente.localeCompare(b.cliente, 'es'))
+}
+
+/** Los clientes del listado que todavía no tienen ningún análisis, en orden alfabético. */
+export function clientesSinAnalisis(todos: string[], conAnalisis: FilaClienteAnalisis[]): string[] {
+  const norm = (t: string) => plano(t)
+  const hechos = new Set(conAnalisis.map((f) => norm(f.cliente)))
+  const vistos = new Set<string>()
+  const salida: string[] = []
+  for (const nombre of todos) {
+    const k = norm(nombre)
+    if (!k || hechos.has(k) || vistos.has(k)) continue
+    vistos.add(k)
+    salida.push(nombre.trim())
+  }
+  return salida.sort((a, b) => a.localeCompare(b, 'es'))
+}
+
 // ── orden ───────────────────────────────────────────────────────────────
 
 /** `emitida` no es una columna: es el orden de partida (lo más reciente arriba). */

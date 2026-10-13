@@ -91,7 +91,7 @@ export const router = createBrowserRouter([
                   },
                   // Editar los criterios es una función suelta: la asigna el administrador general.
                   {
-                    element: <RequireFuncion funcion="verif_criterios" />,
+                    element: <RequireFuncion funcion="lab_criterios" />,
                     children: [{ path: ROUTES.agrofreshLabVerificacionesCriterios, element: <CriteriosView /> }],
                   },
                 ],

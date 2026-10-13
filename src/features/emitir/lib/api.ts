@@ -53,6 +53,14 @@ export function guardarPesoExtraido(archivo: string, peso: number) {
   )
 }
 
+/** Anota (o corrige) el peso hueso, en gramos. */
+export function guardarPesoHueso(archivo: string, peso: number) {
+  return httpClient.put<Solicitud>(
+    `/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/peso-hueso`,
+    { peso },
+  )
+}
+
 export function descargarExcelCruce(filas: FilaCruce[]) {
   return httpClient.postArchivo('/emitir/cromatografia/excel', filas)
 }

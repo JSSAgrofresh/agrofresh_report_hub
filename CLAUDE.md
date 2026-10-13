@@ -208,8 +208,15 @@ Este proyecto no se da por listo con "debería funcionar":
 | Verificaciones diarias | `/modulos/agrofresh-lab/verificaciones` | REG-03: reemplaza el Excel con macros del control diario de equipos. |
 | Envío de informes | `/modulos/agrofresh-lab/envio-informes` | Paz sube el PDF del laboratorio, elige Sold To y Ship To y se envía a la lista de distribución del cliente. |
 
-Los tres comparten el permiso `agrofresh_lab`; editar los criterios
-(`/verificaciones/criterios`) sí exige admin general.
+Los tres comparten el permiso `agrofresh_lab`. **Modificar los criterios** (`/verificaciones/criterios`) es un permiso aparte
+(13-10-2026): casilla «Modificar criterios» en Administración → Usuarios (bajo «Secciones de AgroFresh Lab»), guardada como
+`lab_criterios` en `modulos` (sin migración; NO cuenta como sección, no recorta las tres puertas). Lo tienen el admin general y
+quien tenga la casilla; sin ella el botón Criterios no sale, la ruta redirige y el servidor responde 403
+(`lab_secciones.exigir_edicion_criterios` en todos los PUT/POST/DELETE de `/config`; ojo: antes cualquier cuenta interna con la
+sección podía editar). Espejo: `puedeEditarCriteriosLab` (`permisos.ts`).
+**Peso hueso** (migración **0060**, columnas `peso_hueso*` de `solicitud_archivo`): tercer peso (g) de la tabla de Ingreso al laboratorio,
+se anota como el peso extraído (`PUT /toma-muestras/solicitudes/{archivo}/peso-hueso`, queda en `lab_actividad`; descruzar lo borra).
+**Pendiente**: aún no sale en el Excel «con muestra», la BD de Report ni el informe.
 
 **Secciones por cuenta** (pedido del usuario, 09-10-2026: a algunos admin de toma de muestras les salía «Verificaciones»): en
 Administración → Usuarios, al activar AgroFresh Lab sale «Secciones de AgroFresh Lab» con una casilla por puerta (Ingreso,
@@ -341,6 +348,14 @@ lector de Quiteca ahora lee «Tipo Aplicación :» (antes solo «Tratamiento :»
 Pruebas: `tests/test_servicio_listados.py`, `converterServicio.test.ts`. **Pendiente**: el panel de Ingesta de Excel
 (homogenizador, vista previa) y Filas pendientes → sugerencias siguen sugiriendo desde Línea de proceso.
 
+**Informes que ya existen (13-10-2026)**: al «Subir a la base de datos», el Converter mira la revisión previa (`/ingest/preview`,
+`detalle[].ya_existia`) y, si algún N° de informe ya está cargado, pregunta: «Subir y actualizar los datos» (manda
+`actualizar_existentes: true` a `/ingest/confirmar` → `_procesar_filas(actualizar=True)`: los datos del archivo reemplazan a los
+guardados —un dato vacío nunca borra uno existente— y resultado/producto_aplicado se hacen `ON CONFLICT DO UPDATE`, conservando su
+`carga_id`; **«Deshacer carga» no revierte lo actualizado**), «Sacarlos de la tanda» (los quita de la subida, de la tabla y de los PDF) o
+Cancelar. Sin respuesta «actualizar» el comportamiento de siempre: solo se completa lo que falte. **Además, apenas se leen los PDF** (`revisarExistentes`, al final de `cargar`) se llama a `/ingest/preview` y cada informe que ya existe queda con la etiqueta «YA EXISTE» y un aviso amarillo con «Quitar los N que ya existen» / «Dejarlos (decido al subir)»; al subir se vuelve a preguntar. Pruebas:
+`converterExistentes.test.ts`, `tests/test_ingest_actualizar_existentes.py`.
+
 El Ship To se busca **solo entre las plantas de su Sold To**. Si el Excel trae
 la ciudad ("SAN FERNANDO") vale la planta que la contiene, si es una sola
 ("DOLE PLANTA SAN FERNANDO", regla `contiene` de `homogenizador.py`, igual en
@@ -408,21 +423,20 @@ Administración → Usuarios → formulario en tres pasos (Quién es · Tipo de 
 listas que la cuenta ya tenía (`modulos`, `reportes`).
 - **El tipo decide el alcance.** Administrador general (todo) y Gerencia (todo menos Auditoría interna, solo lectura) se ven marcados y
   bloqueados; Administrador de área, Analista y Muestreador parten de una **plantilla típica** (`modulosPredeterminados`) y se ajustan con
-  casillas («Volver a lo típico» la restaura); **Cliente no tiene área**: se elige su Sold To / Ship To y **qué ve** (Report de laboratorio
-  y/o informes Accu-Tab = `reportes`), y nunca lleva módulos internos. El servidor deduce el `area` que guarda de lo que ve (compatibilidad con
+  casillas («Volver a lo típico» la restaura); **Cliente no tiene área**: se elige su Sold To / Ship To y **qué ve** (Report de laboratorio =
+  módulo `reports` + `reportes: laboratorio`; Storage = módulo `storage`; informes Accu-Tab en su panel = `reportes: postventa`), y nunca lleva módulos internos
+  (`MODULOS_CLIENTE` = reports, storage). Un cliente nunca abre el Report de Post Venta (`puedeVerReporte`). El servidor deduce el `area` que guarda de lo que ve (compatibilidad con
   el panel de inicio `tipo:cliente:<area>`) y descarta lo incoherente (`permisos_funciones.normalizar_cuenta`). Las cuentas de cliente
-  antiguas, sin `reportes`, siguen viendo lo de su área (`reportesDeCliente`).
+  antiguas, sin `reportes`, siguen viendo lo de su área (`vistaDeCliente`).
 - **Catálogo por categoría** (`features/usuarios/catalogoPermisos.ts`, espejo de `app/permisos_funciones.py`): Data Core, Resultados y auditoría,
   AgroFresh Lab, Toma de muestras, Archivos; «Marcar todo» por categoría; los permisos cuelgan unos de otros (quitar al padre quita a los hijos).
   Abajo, **«Administración» bloqueada**: Usuarios, Listados, Laboratorios, Notificaciones, Administración General, Configuración de muestreo y las
   acciones del administrador principal: solo el administrador general, nunca se reparten (no existen como id). **Un módulo o sección nueva se agrega
   en `CATEGORIAS`** (y, si es una función suelta, en `FUNCIONES`/`MODULOS_VALIDOS` del backend).
-- **Funciones sueltas** (ids en `modulos`; se asignan a propósito, marcar al padre no las da): `verif_criterios` (editar los Criterios de las
-  verificaciones: **ahora SÍ lo exige el servidor**, 403 en `/api/verificaciones/config/*`; antes cualquier cuenta con Verificaciones podía),
-  `verif_firmar` (firmar la revisión del día, además de admin general y admin de Cromatografía) y `toma_reanalisis` (crear reanálisis, además de
+- **Funciones sueltas** (ids en `modulos`; se asignan a propósito, marcar al padre no las da): `lab_criterios` («Modificar los criterios» de las
+  verificaciones; nació en `lab_secciones.py`, 403 en `/api/verificaciones/config/*`), `verif_firmar` (firmar la revisión del día, además de admin general y admin de Cromatografía) y `toma_reanalisis` (crear reanálisis, además de
   admin general y admin de área). Admin general las tiene todas; gerencia y clientes ninguna. Guardas: `RequireFuncion` (front), `permisos_funciones.exigir`
   (back). Pruebas: `tests/test_permisos_funciones.py`, `catalogoPermisos.test.ts`, `permisos.test.ts`, `UsuarioForm.test.tsx`.
-  **Ojo al desplegar:** las cuentas que hoy editan Criterios sin ser admin general pierden ese acceso hasta que se les marque «Editar los criterios».
 
 ## Administración General → Funciones (qué muestra Report)
 
@@ -524,7 +538,8 @@ diseño de partida y «Restaurar el panel original» borra el diseño. **Sin mig
 - **Reglas de la grilla** en un solo lugar puro, `features/panelInicio/lib/grilla.ts`, espejo de `validar_piezas` (backend): 12 columnas, sin
   pisarse, sin salirse. Pruebas: `grilla.test.ts`, `tests/test_panel_inicio.py`, `PanelInicioEditor.test.tsx`.
 - **Panel visual** (pedido del usuario, 09-10-2026): widgets gráficos nuevos `hero:bienvenida`, `carrusel:novedades`, `grafico:actividad|laboratorios|especies|verificaciones` y títulos por área `titulo:general|cromatografia|postventa|ryd|toma_muestras` (grupos «Destacados», «Gráficos», «Títulos por área»). Datos reales de `GET /api/dashboard/series` (solo interno, respeta Funciones). Dibujo en `views/dashboard/graficos.tsx`, lógica pura en `features/dashboard/lib/graficos.ts` (colores de serie en orden fijo validados, 4 + «Otras» gris). Los KPI de solicitudes llevan sparkline. «Empezar con el panel visual» (`BASE_VISUAL`) en el editor. Todos internos: un widget nuevo va en `catalogo.ts`, `dibujar()` y `TONO` del editor. Pruebas: `graficos.test.ts`, `test_panel_inicio.py`.
-- **Pendiente**: widgets propios de clientes (hoy solo el encabezado, el Report completo y los informes Accu-Tab); el panel de un `admin_area` usa los
+- **Widgets de cliente con datos propios (13-10-2026)**: `cliente:saludo` (saludo con el nombre de la planta + informes y resultados medidos), `cliente:ultimo_informe`, `cliente:informes_mes`, `cliente:especies`, `cliente:analitos` y `cliente:accesos`. Leen `GET /api/reportes/panel-cliente` (`reportes.panel_cliente`), acotado por la sesión con `_filtro_alcance` (nunca por parámetro; respeta Funciones). Código: `views/dashboard/graficosCliente.tsx`, hook `usePanelCliente`; `BASE_CLIENTE_CROMATOGRAFIA` los trae todos. Pruebas: `tests/test_panel_cliente.py` (cada consulta lleva el filtro de su planta), `graficosCliente.test.tsx`. **Un widget de cliente nuevo**: catálogo + `dibujar()` + `CON_DATOS_CLIENTE` si lee ese endpoint.
+- **Pendiente**: más widgets de cliente (p. ej. resultados fuera de rango, cuando haya límites cargados) y el de Post Venta; el panel de un `admin_area` usa los
   mismos widgets internos (su `AreaDashboardView` no está partido en widgets); en el celular los widgets se apilan en orden de lectura.
 
 ## Indicadores de entrega (Auditoría interna) y fuera de rango (Report)
@@ -555,15 +570,16 @@ cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
   piden feriados, va en `diasHabiles` (un solo punto).
 - **Entregado** se define en la configuración: `concretado` (PDF + Report; por defecto) o `cliente`. Lead time = fin −
   recepción estimada (mediana y P90); las abiertas se informan aparte; las que tienen hitos antes de la emisión se excluyen.
-- **Plazos en días hábiles por laboratorio Y por análisis** (`plazos_entrega.json`): claves `LAB` y `LAB|ANALITO`
+- **Plazos en días hábiles por laboratorio Y por ANÁLISIS (13-10-2026: el Análisis —FSMA, Análisis de residuos en fruta, Cuantificación de patógenos—, NO el analito)** (`plazos_entrega.json`): claves `LAB` y `LAB|ANÁLISIS` (nombre en mayúsculas; `plazoDe` mira `sol.analisis`, que el backend deduce del catálogo del laboratorio; sin él cae a los analitos como antes)
   (`clavePlazoAnalisis`). A cada solicitud la rige su análisis MÁS LENTO: cada análisis pedido usa el suyo y, si no
   tiene, el general del laboratorio (`plazoDe`; `analisis` dice cuál fijó el plazo). Sin plazo cargado no se juzga,
   nunca se asume uno. **Los plazos guardados antes de este cambio estaban en días corridos y ahora se leen como
   hábiles: conviene revisarlos.**
+- **(13-10-2026, pedido del usuario) Se quitaron de la pantalla el aviso amarillo «Estimado, no medido» y el panel «Configuración de plazos»**: los plazos y la definición de «entregado» siguen vigentes (`plazos_entrega.json`, `GET/PUT /plazos`) pero ya no hay dónde editarlos en la UI; no los vuelvas a poner sin que lo pidan. Lo que sigue describe cómo era:
 - **La configuración (entregado + plazos) SOLO la ve el administrador general** (desplegable «Configuración de
   plazos», `puedeEditar`); los demás no ven ni el panel ni los inputs. Se quitaron a pedido: el «Cuello de
   botella», la tarjeta «Reglas del cálculo» visible para todos y el «Desglose por tramo»: **no los vuelvas a poner**.
-- **Flujograma del lead time** (`FlujogramaLeadTime.tsx`, reemplaza al desglose por tramo): una sola columna **centrada**
+- **Nitidez del flujograma**: los nodos encendidos van opacos, con borde sólido y texto oscuro; los pendientes, punteados. Ojo con el orden del CSS: `.nodo{opacity}` declarado después de `.on` lavaba todo el flujo (pasó el 13-10-2026). **Flujograma del lead time** (`FlujogramaLeadTime.tsx`, reemplaza al desglose por tramo): una sola columna **centrada**
   con los puntos de arriba hacia abajo (emitida → recepción estimada → en análisis con su plazo → informe recibido →
   [informe enviado al cliente | informe cargado al sistema, al mismo nivel] → reporte observado). **El detalle de un punto
   se abre en un modal** (`components/ui/Modal`; el usuario no quiso un panel al lado: «no todo es tan desabrido»), con la
@@ -574,6 +590,10 @@ cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
 - **Se quitó «Rango por laboratorio»** (la caja P25–P75): se veía mal y ya lo cubren las tarjetas «Informes vs.
   solicitudes por laboratorio» de arriba. **No lo vuelvas a poner.** **«Cumplimiento del entregable» quedó en un
   desplegable cerrado al final** (por laboratorio o por análisis, con sensibilidad): el usuario le restó importancia.
+- **Cumplimiento del entregable, reestructurado (13-10-2026, `CumplimientoEntregable.tsx`)**: ya NO es un desplegable; responde en orden ¿Entregamos a tiempo? (cifra + reparto de todas las solicitudes), ¿cuánto nos pasamos? (atraso mediano/máximo, `atrasoDe` en `entrega.ts`), ¿dónde se incumple? (ranking peor→mejor por laboratorio o análisis), ¿mejora o empeora? (por mes de emisión) y las 5 más pasadas; la sensibilidad quedó como nota. Las tarjetas del gráfico por Sold To resaltan el top 3 (medalla) y su vista de tabla es propia (`TablaGrupoLaboratorio`).
+- **(13-10-2026) Cumplimiento con la paleta de la marca** (verde #6dad3c = a tiempo, amarillo #e8c32e = tarde, rojo #b0271f = vencida) y un botón **«⚙ Pasos de la entrega»** dentro del mismo, **solo para el administrador general** (`puedeEditar`; `ConfiguracionEntrega.tsx`): qué cuenta como entregado y los plazos por laboratorio/análisis (`PUT /plazos`, ya exigía admin general). Es el único lugar donde se editan; el panel «Configuración de plazos» de antes sigue sin existir. **Los puntos del flujograma ya NO se tocan** (se quitó el modal de «solicitudes de este punto»: la tabla del costado es la que se usa). **«Pendientes de informe» (Informes vs. solicitudes por laboratorio) parte plegado.**
+- **Lo que se mide son INFORMES, no solicitudes (13-10-2026, pedido del usuario)**: la solicitud existe apenas se crea; lo que se entrega (y puede atrasarse) es su informe. Los textos de Lead time, Cumplimiento y el flujograma hablan de «informes entregados / pendientes / atrasados» (los tres primeros puntos del flujo —emitida, recepción, en análisis— siguen siendo de la solicitud). El cálculo no cambió: se cuenta una unidad por OT, así que una OT con varios informes (uno por vial) cuenta una vez.
+- **Quitado a pedido (13-10-2026)**: los subtítulos del gráfico «Análisis por laboratorio · top Sold To» (subtítulo de la tarjeta, leyenda de colores y la línea de resumen) y el pie del Cumplimiento (la fórmula con su globito y «Ver los informes que hay detrás»); las filas del ranking de cumplimiento ya no filtran nada. **No los vuelvas a poner.**
 - **Cumplimiento** = a tiempo ÷ (a tiempo + tarde + vencidas sin entregar). «Aún en plazo» y «sin plazo» no cuentan.
 - Pruebas: `entrega.test.ts` (corren igual en cualquier zona horaria), `IndicadoresEntrega.test.tsx`,
   `test_entrega_indicadores.py`, `test_informe_visto.py`.
@@ -681,8 +701,12 @@ espejo en `explorador.ts` con los mismos casos en los dos tests). Lo que
 `_archivar_informe` guardó antes bajo `informes/<SOLD TO>/<fecha>/<folio>.pdf`
 sigue ahí con ese orden viejo. **El prefijo `informes/` ya es de este espacio**:
 la «Etapa 4» de Ingreso al laboratorio tiene que usar otra raíz o este mismo orden.
-Pendiente: que cada cliente vea sus informes (hoy Storage no es accesible a
-cuentas `cliente`).
+**Portal de cliente (13-10-2026)**: una cuenta `cliente` que entra a Storage ve SOLO la carpeta de su Ship To
+(`app/informes_cliente.py`, prefijo `/api/informes-cliente`, `CON_SESION`; front `InformesClienteView` (13-10-2026: el MISMO explorador del personal —`ArbolCarpetas` + `Explorador`— sobre el espacio `ESPACIO_CLIENTE`, solo lectura: `operaciones()` lo apunta a `/informes-cliente/*` y `puedeEscribir=false`; sin favoritos ni búsqueda global),, que `StorageView` usa en vez
+del explorador): una cuenta de sucursal ve su planta y una de Sold To las plantas de su cliente, resueltas con `carpeta_planta` (la misma
+que crea las carpetas). Solo lista y baja PDF dentro de `informes/<su planta>/`; lo demás da 404 y un interno usa el Storage de siempre.
+**Panel general de un cliente (13-10-2026)**: ya NO incrusta el Report (está en el menú); por defecto lleva el encabezado y `AccesosCliente` (tarjetas de Report y Storage; widget `cliente:accesos`, el panel lo arma el administrador y `cliente:reporte` sigue disponible en el editor). **Storage y Auditoría interna usan todo el ancho** (`.ancho` en `AppLayout`); la vista del cliente muestra carpetas como tarjetas en rejilla. Se quitó la insignia «Base de datos: pendiente» de la barra lateral. En **Report** una cuenta de cliente también ve en el encabezado su Ship To (o Sold To) y no le salen los filtros Sold To / Ship To
+(`ReporteLaboratorioView` le pasa `clienteFijo`/`plantaFija`). Pruebas: `tests/test_informes_cliente.py`, `InformesClienteView.test.tsx`.
 
 **Filtros de Solicitudes (Toma de muestras)**: Laboratorio, Sold To, Ship To,
 Especie, Tipo de aplicación, Línea de proceso, Tipo muestra, Nombre muestreador
@@ -935,7 +959,7 @@ tocas una, toca la otra.
   letras). Volver a subir un informe ya cargado completa esos tres datos si
   estaban vacíos (`ingest.py`, solo con COALESCE: nunca pisa un valor). Reglas del laboratorio: **Solicitante = AGROFRESH siempre**, Temporada =
   año de la muestra, Email Laboratorio = contactos del laboratorio (Para y CC)
-  separados por «;», y **N° Orden ya no existe**. Lo que no está en ningún lado
+  separados por «;», y **N° Orden vuelve a ser columna** (13-10-2026, pedido del usuario: las dos bases deben traer TODOS los campos de la solicitud; sale de la solicitud, porque en la base `nro_orden` de AgroFresh es el código del vial) y su `observacion` es el producto, así que en los informes propios manda la observación de la solicitud). Lo que no está en ningún lado
   queda vacío. Sin la tabla del índice (0020) la descarga sigue funcionando.
   La banda de fungicidas nombra solo los laboratorios presentes (`titulo_fungicidas`):
   «QUITECA — ANÁLISIS DE RESIDUOS DE FUNGICIDAS», o «QUITECA / AGROFRESH — …» si están los dos.
@@ -944,14 +968,15 @@ tocas una, toca la otra.
 
 ## Auditoría Interna (módulo nuevo)
 
-`/modulos/auditoria-interna` es un hub con tres tarjetas:
+`/modulos/auditoria-interna` es un hub con tres tarjetas (**todas las pantallas de Auditoría interna usan hasta 1840 px de ancho**, no los 1280 px del resto de la app: `AppLayout` pone la clase `.ancho` si la ruta empieza por `ROUTES.auditoriaInterna`; los paneles del gráfico por análisis usan `auto-fit` para repartirse todo el ancho):
 
 | Pantalla | Qué es |
 |---|---|
-| Solicitudes e informes | Solicitudes emitidas (`solicitud_archivo`) vs informes recibidos: filtros ocultables (como Report), barras de **solicitudes por laboratorio** (apiladas por estado), **dos donas, una por tipo de servicio** (Actimist en azul, Línea de proceso en violeta; el estado se lee por el tono y los números van en la leyenda), barras de **análisis vs informes por cliente** con botón Ambos / Actimist / Línea de proceso, y una tabla (laboratorio · solicitud · informe · cliente/planta · tipo de análisis · analitos · estado)). Los filtros principales son Cliente y Sucursal (Ship To); los analitos son un desplegable con casilleros, punto de color y conteo, igual que «Ingrediente activo» de Report (`MultiSelectFiltro`). El ícono del informe muestra al pasar el mouse emitida / cargada / enviada. |
+| Solicitudes e informes | Solicitudes emitidas (`solicitud_archivo`) vs informes recibidos: filtros ocultables (como Report), barras de **solicitudes por laboratorio** (apiladas por estado), **dos donas, una por tipo de servicio** (Actimist en azul, Línea de proceso en violeta; el estado se lee por el tono y los números van en la leyenda), gráfico **«Análisis por laboratorio · top Sold To»** (desde 13-10-2026: un panel por laboratorio Y por análisis —ALS · FSMA, Quiteca/AgroFresh · Análisis de residuos en fruta, Diagnofruit · Cuantificación de patógenos— con sus mejores clientes y el contador de análisis de cada uno; el análisis sale del catálogo del laboratorio: `auditoria_interna.analisis_de_solicitud`, campo `analisis` de `/solicitudes`, mismo criterio «primer análisis que incluya el analito» del checklist; `porLaboratorioYAnalisis`; SIN RYD y sin solicitudes sin Sold To), y una tabla (laboratorio · solicitud · informe · cliente/planta · tipo de análisis · analitos · estado)). Los filtros principales son Cliente y Sucursal (Ship To); los analitos son un desplegable con casilleros, punto de color y conteo, igual que «Ingrediente activo» de Report (`MultiSelectFiltro`). El ícono del informe muestra al pasar el mouse emitida / cargada / enviada. |
 | Carpetas de auditoría | Navegador de la carpeta **`auditoria/`** dentro del bucket de siempre (`agrofresh-storage`): `<laboratorio>/<ship to>/<archivo>.pdf`. Las carpetas nacen con el primer PDF. En una carpeta se marcan uno, varios o todos los informes y se bajan juntos en un **.zip** (`POST /carpetas/zip`, tope 300 archivos / 400 MB). |
 | Vista por límite de control | El gráfico que antes era una pestaña de Report. Es `ReporteView` con `vistaControl`; en Report ya no existe. |
 
+- **El gráfico «Análisis por laboratorio · top Sold To» (13-10-2026) es una lista por cliente** (`AnalisisPorCliente.tsx`, dentro de su `TarjetaGrafico` con los mismos filtros, botones Sold To/Ship To/Especie/Tipo de servicio, Top y «Ver tabla»): cada cliente hacia abajo, el que más análisis lleva primero, con residuales (AgroFresh y Quiteca), FSMA (= ALS) y FITO (= Diagnofruit), su total y las columnas **Entregables y %**, que quedan en «—» hasta que se cargue el **plan de entregables de los comerciales** (entregable = lo que cada comercial concretó de cada análisis para cada planta). Los clientes del listado (`/catalogo/clientes`, activos) sin ningún análisis salen apagados al final, detrás de un botón (solo agrupando por Sold To). Deja fuera RYD y las solicitudes sin Sold To. Lógica pura: `porClienteResiduosFsmaFito` y `clientesSinAnalisis` en `resumen.ts`. **La tabla dinámica «Análisis por mes» (`TablaDinamica`) NO se toca: sigue donde estaba, junto a las donas** (un error del 13-10-2026 la había reemplazado). Los paneles por laboratorio y análisis (`GraficoAnalisisPorLaboratorio`) quedaron sin uso.
 - **Permiso `auditoria_interna`**: solo el admin general y a quien él asigne.
   Gerencia NO lo ve (ni en el menú ni en el panel de inicio). Backend:
   `puede_auditoria` en `app/auditoria_interna.py`. Nótese que el prefijo es
@@ -972,6 +997,8 @@ tocas una, toca la otra.
   `ot_informe` y la prefiere sobre `archivo_solicitud`. Adivinar dejó informes en la
   OT equivocada (2026-1878-PC en OT-QUI0039…; se corrigió con `corregir_ot_informe.py`).
   Pruebas: `converterAmarre.test.ts`, `TestOtDelInforme`.
+- **Informes propios de AgroFresh (13-10-2026)**: no pasan por Converter, así que no tienen `informe_auditoria`; llegan a Report con el OT en `referencia`. `auditoria_interna.SQL_INFORME_EN_REPORT` los reconoce (en `/solicitudes` y en `/hitos`): cuentan como informe recibido y concretado (su `informe.id` es null). Antes salían como «Pendientes de informe». **Si agregas otra consulta que cuente informes por solicitud, reúsala.**
+- **Fecha de envío a mano para informes propios (migración 0061, tabla `informe_fecha_manual`, una fila por `solicitud_archivo.archivo`)**: un informe de AgroFresh no tiene fila en `informe_auditoria`, así que no tenía dónde guardar su «Fecha y hora de envío». `entrega_indicadores.hitos` y `auditoria_interna.listar_solicitudes` la usan como fecha del informe (y del envío) solo si el informe no trae una propia; sin la tabla no cambia nada. La migración deja OT-AGF0050 en 30-09-2026 08:06 (hora de Chile). Para otra OT: insertar una fila igual.
 - **Concretada** = tiene PDF guardado **y** sus resultados ya están en Report
   (`solicitud.nro_solicitud = informe_auditoria.nro_informe`). PDF sin Report
   se muestra aparte en las donas y los gráficos, y en la tabla como «Pendiente»
