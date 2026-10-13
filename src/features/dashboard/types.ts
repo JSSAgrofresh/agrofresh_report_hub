@@ -143,3 +143,24 @@ export interface SeriesDashboard {
   por_especie: PuntoNombre[]
   verificaciones: { fecha: string; resultado: string }[]
 }
+
+/** Cifras del Panel general de un cliente: solo de su planta (el servidor las acota por su sesión). */
+export interface PanelCliente {
+  informes: number
+  mediciones: number
+  analitos: number
+  especies: number
+  ultimos_30_dias: number
+  ultimo: {
+    informe: string | null
+    solicitud: string | null
+    laboratorio: string | null
+    especie: string | null
+    variedad: string | null
+    fecha: string | null
+  } | null
+  /** `dia` trae el mes como «AAAA-MM». */
+  por_mes: PuntoDia[]
+  por_especie: PuntoNombre[]
+  por_analito: PuntoNombre[]
+}
