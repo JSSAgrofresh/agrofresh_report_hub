@@ -47,7 +47,12 @@ export const BASE_VISUAL: Pieza[] = [
 
 export const BASE_CLIENTE_CROMATOGRAFIA: Pieza[] = [
   { id: 'cliente:encabezado', x: 0, y: 0, w: 12, h: 3 },
-  { id: 'cliente:accesos', x: 0, y: 3, w: 12, h: 4 },
+  { id: 'cliente:saludo', x: 0, y: 3, w: 12, h: 3 },
+  { id: 'cliente:ultimo_informe', x: 0, y: 6, w: 4, h: 4 },
+  { id: 'cliente:informes_mes', x: 4, y: 6, w: 4, h: 4 },
+  { id: 'cliente:especies', x: 8, y: 6, w: 4, h: 4 },
+  { id: 'cliente:analitos', x: 0, y: 10, w: 6, h: 4 },
+  { id: 'cliente:accesos', x: 6, y: 10, w: 6, h: 4 },
 ]
 
 export const BASE_CLIENTE_POSTVENTA: Pieza[] = [

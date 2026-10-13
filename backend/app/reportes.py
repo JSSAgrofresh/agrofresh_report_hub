@@ -1,5 +1,6 @@
 import io
 import re
+from datetime import date
 from typing import Any
 
 import openpyxl
@@ -115,6 +116,131 @@ def resumen(usuario: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
             )
             registros_ultima_semana = cur.fetchone()["total"]
     return {"total_solicitudes": total_solicitudes, "registros_ultima_semana": registros_ultima_semana}
+
+
+_MESES_PANEL = 12
+
+
+def _meses_recientes(hoy: date, cuantos: int) -> list[str]:
+    """Los últimos `cuantos` meses como «AAAA-MM», del más antiguo al actual."""
+    salida: list[str] = []
+    y, m = hoy.year, hoy.month
+    for _ in range(cuantos):
+        salida.append(f"{y:04d}-{m:02d}")
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+    return list(reversed(salida))
+
+
+@router.get("/panel-cliente")
+def panel_cliente(usuario: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
+    """Cifras del Panel general de un cliente: SOLO de su planta (o de su Sold To, según su cuenta).
+
+    El alcance sale de la sesión (`_filtro_alcance`), nunca de un parámetro, y respeta lo que Report muestra
+    (Funciones). Cada bloque se lee aparte: si uno falla, los demás igual salen."""
+    filtro, params = _filtro_alcance(usuario, None, None)
+    desde = """
+        FROM solicitud s
+        LEFT JOIN planta p ON p.id = s.planta_id
+        LEFT JOIN cliente c ON c.id = p.cliente_id
+    """
+    fecha = "COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis)"
+    salida: dict[str, Any] = {
+        "informes": 0, "mediciones": 0, "analitos": 0, "especies": 0, "ultimos_30_dias": 0,
+        "ultimo": None, "por_mes": [], "por_especie": [], "por_analito": [],
+    }
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        try:
+            cur.execute(
+                f"""
+                SELECT count(*) AS informes,
+                       count(*) FILTER (WHERE {fecha} >= CURRENT_DATE - INTERVAL '30 days') AS recientes,
+                       count(DISTINCT NULLIF(trim(s.especie), '')) AS especies
+                {desde} WHERE s.vigente {filtro}
+                """,
+                params,
+            )
+            r = cur.fetchone()
+            salida.update(informes=int(r["informes"]), ultimos_30_dias=int(r["recientes"]), especies=int(r["especies"]))
+        except Exception:
+            conn.rollback()
+        try:
+            cur.execute(
+                f"""
+                SELECT count(*) AS mediciones, count(DISTINCT COALESCE(a.codigo, r.analito_raw)) AS analitos
+                {desde}
+                JOIN resultado r ON r.solicitud_id = s.id
+                LEFT JOIN analito a ON a.id = r.analito_id
+                WHERE s.vigente {filtro}
+                """,
+                params,
+            )
+            r = cur.fetchone()
+            salida.update(mediciones=int(r["mediciones"]), analitos=int(r["analitos"]))
+        except Exception:
+            conn.rollback()
+        try:
+            cur.execute(
+                f"""
+                SELECT s.nro_solicitud, s.referencia, s.laboratorio, s.especie, s.variedad, {fecha} AS fecha
+                {desde} WHERE s.vigente {filtro} AND {fecha} IS NOT NULL
+                ORDER BY {fecha} DESC, s.id DESC LIMIT 1
+                """,
+                params,
+            )
+            r = cur.fetchone()
+            if r:
+                salida["ultimo"] = {
+                    "informe": r["nro_solicitud"], "solicitud": r["referencia"], "laboratorio": r["laboratorio"],
+                    "especie": r["especie"], "variedad": r["variedad"],
+                    "fecha": r["fecha"].isoformat() if r["fecha"] else None,
+                }
+        except Exception:
+            conn.rollback()
+        try:
+            meses = _meses_recientes(date.today(), _MESES_PANEL)
+            cur.execute(
+                f"""
+                SELECT to_char({fecha}, 'YYYY-MM') AS mes, count(*) AS n
+                {desde} WHERE s.vigente {filtro} AND {fecha} >= %(desde_mes)s
+                GROUP BY 1
+                """,
+                {**params, "desde_mes": date.fromisoformat(meses[0] + "-01")},
+            )
+            por_mes = {r["mes"]: int(r["n"]) for r in cur.fetchall()}
+            salida["por_mes"] = [{"dia": m, "n": por_mes.get(m, 0)} for m in meses]
+        except Exception:
+            conn.rollback()
+        try:
+            cur.execute(
+                f"""
+                SELECT COALESCE(NULLIF(trim(s.especie), ''), 'Sin dato') AS nombre, count(*) AS n
+                {desde} WHERE s.vigente {filtro}
+                GROUP BY 1 ORDER BY n DESC, nombre LIMIT 8
+                """,
+                params,
+            )
+            salida["por_especie"] = [{"nombre": r["nombre"], "n": int(r["n"])} for r in cur.fetchall()]
+        except Exception:
+            conn.rollback()
+        try:
+            cur.execute(
+                f"""
+                SELECT COALESCE(a.nombre, a.codigo, r.analito_raw) AS nombre, count(*) AS n
+                {desde}
+                JOIN resultado r ON r.solicitud_id = s.id
+                LEFT JOIN analito a ON a.id = r.analito_id
+                WHERE s.vigente {filtro} AND COALESCE(a.nombre, a.codigo, r.analito_raw) IS NOT NULL
+                GROUP BY 1 ORDER BY n DESC, nombre LIMIT 8
+                """,
+                params,
+            )
+            salida["por_analito"] = [{"nombre": r["nombre"], "n": int(r["n"])} for r in cur.fetchall()]
+        except Exception:
+            conn.rollback()
+    return salida
+
 
 
 @router.get("/datos")
