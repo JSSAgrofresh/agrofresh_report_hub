@@ -42,11 +42,11 @@ const ANALISIS_BOTONES: { clave: AnalisisVisible; texto: string; color: string; 
   { clave: 'fito', texto: 'FITO', color: COLOR_LAB.DIAGNOFRUIT, ayuda: 'Diagnofruit' },
 ]
 
-const DIMENSIONES: { valor: DimensionGrafico; texto: string; plural: string; corto?: string }[] = [
-  { valor: 'cliente', texto: 'Sold To', plural: 'Sold To' },
-  { valor: 'planta', texto: 'Ship To', plural: 'Ship To' },
-  { valor: 'especie', texto: 'Especie', plural: 'especies' },
-  { valor: 'tipo', texto: 'Tipo de servicio', plural: 'tipos de servicio', corto: 'Tipo' },
+const DIMENSIONES: { valor: DimensionGrafico; texto: string; por: string; corto?: string }[] = [
+  { valor: 'cliente', texto: 'Sold To', por: 'cliente' },
+  { valor: 'planta', texto: 'Ship To', por: 'Ship To' },
+  { valor: 'especie', texto: 'Especie', por: 'especie' },
+  { valor: 'tipo', texto: 'Tipo de servicio', por: 'tipo de servicio', corto: 'Tipo' },
 ]
 
 export function SolicitudesInformesView() {
@@ -174,7 +174,7 @@ export function SolicitudesInformesView() {
               </div>
 
               <TarjetaGrafico
-                titulo={`Análisis por laboratorio · top ${nombreDimension.plural}`}
+                titulo={`Análisis por ${nombreDimension.por}`}
                 leyenda={
                   <div className={styles.barraGrafico}>
                     <div className={styles.filtrosGrafico}>
