@@ -316,13 +316,13 @@ export interface FilaClienteAnalisis {
 
 const celda = (): CeldaCliente => ({ n: 0, informes: 0 })
 
-/** Una fila por cliente (Sold To) con lo que se le analizó: residuales en AgroFresh y en Quiteca,
+/** Una fila por cliente (o por Ship To, especie o tipo de servicio, según `dimension`) con lo que se le analizó: residuales en AgroFresh y en Quiteca,
  * FSMA (ALS) y FITO (Diagnofruit). El que más análisis lleva, primero. */
-export function porClienteResiduosFsmaFito(solicitudes: SolicitudAuditoria[]): FilaClienteAnalisis[] {
+export function porClienteResiduosFsmaFito(solicitudes: SolicitudAuditoria[], dimension: DimensionGrafico = 'cliente'): FilaClienteAnalisis[] {
   const por = new Map<string, FilaClienteAnalisis>()
   for (const s of solicitudes) {
     const lab = claveLabGrafico(s)
-    const cliente = (s.sold_to ?? '').trim()
+    const cliente = dimension === 'cliente' ? (s.sold_to ?? '').trim() : grupoDe(s, dimension)
     if (!lab || !cliente) continue
     const f = por.get(cliente) ?? { cliente, total: 0, informes: 0, agrofresh: celda(), quiteca: celda(), fsma: celda(), fito: celda() }
     const c = lab === 'AGROFRESH' ? f.agrofresh : lab === 'QUITECA' ? f.quiteca : lab === 'ALS' ? f.fsma : f.fito

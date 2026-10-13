@@ -350,14 +350,11 @@ export function LeyendaLaboratorios() {
     <ul className={styles.leyenda} aria-label="Leyenda">
       {LABORATORIOS_GRAFICO.map((l) => (
         <li key={l} className={styles.leyendaTipo}>
-          <span className={styles.pareja}>
-            <span className={styles.muestra} style={{ background: COLOR_LAB[l] }} />
-            <span className={styles.muestra} style={{ background: `${COLOR_LAB[l]}40` }} />
-          </span>
+          <span className={styles.muestra} style={{ background: COLOR_LAB[l] }} />
           {NOMBRE_LAB[l]}
         </li>
       ))}
-      <li className={styles.leyendaTipo}><em>largo = análisis pedidos · lleno = con informe</em></li>
+      <li className={styles.leyendaTipo}><em>AgroFresh y Quiteca = residuales · ALS = FSMA · Diagnofruit = FITO</em></li>
     </ul>
   )
 }
