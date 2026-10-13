@@ -30,8 +30,8 @@ export function AppLayout() {
       <MobileTopbar onAbrirMenu={() => setMenuAbierto(true)} />
       <div className={styles.cuerpo}>
         <Sidebar abierto={menuAbierto} onCerrar={() => setMenuAbierto(false)} />
-        {/* Auditoría interna son tableros anchos: usa todo el ancho de la pantalla, no solo 1280 px. */}
-        <main className={`${styles.content} ${pathname.startsWith(ROUTES.auditoriaInterna) ? styles.ancho : ''}`} ref={contenido}>
+        {/* Auditoría interna y Storage son pantallas anchas: usa todo el ancho de la pantalla, no solo 1280 px. */}
+        <main className={`${styles.content} ${pathname.startsWith(ROUTES.auditoriaInterna) || pathname.startsWith(ROUTES.storage) ? styles.ancho : ''}`} ref={contenido}>
           <Outlet />
         </main>
       </div>
