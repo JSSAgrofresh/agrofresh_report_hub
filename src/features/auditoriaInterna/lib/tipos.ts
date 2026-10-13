@@ -1,9 +1,10 @@
 export interface InformeAuditoria {
-  id: number
+  /** null = informe propio de AgroFresh: no pasó por Converter, sus resultados están en Report con el OT */
+  id: number | null
   /** N° del informe según el laboratorio (= N° de solicitud en Report) */
   nro_informe: string | null
-  nombre_archivo: string
-  ruta: string
+  nombre_archivo: string | null
+  ruta: string | null
   /** cuándo se subió a la base y al bucket (lo pone el sistema) */
   cargado_en: string | null
   /** cuándo se envió el informe (lo ingresa una persona; puede estar vacío) */
