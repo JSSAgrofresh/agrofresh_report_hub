@@ -97,14 +97,18 @@ describe('IndicadoresEntrega', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('debajo del flujograma lista el estado de cada solicitud, por defecto las que aún no tienen informe', () => {
+  it('a un costado del flujograma hay una tabla con todas las solicitudes; al elegir una, el flujo se adapta a ella', () => {
     render(<IndicadoresEntrega solicitudes={solicitudes} puedeEditar={false} />)
     const zona = within(screen.getByRole('region', { name: 'Estado de cada solicitud' }))
-    expect(zona.getAllByRole('listitem').map((li) => li.textContent)).toEqual([expect.stringContaining('3')])
+    const filas = () => zona.getAllByRole('row').slice(1)
+    expect(filas()).toHaveLength(3)
+    fireEvent.click(zona.getByRole('button', { name: /Sin informe/ }))
+    expect(filas()).toHaveLength(1)
     fireEvent.click(zona.getByRole('button', { name: /Todas/ }))
-    expect(zona.getAllByRole('listitem')).toHaveLength(3)
-    fireEvent.click(zona.getByRole('button', { name: /Informe sin enviar al cliente/ }))
-    expect(zona.getAllByRole('listitem')).toHaveLength(2)
+    fireEvent.click(zona.getByRole('button', { name: '3' }))
+    // el flujo pasa a mostrar solo esa solicitud
+    expect(screen.getByText(/Volver a ver todas las solicitudes/)).toBeTruthy()
+    expect(screen.queryByText(/solicitudes llegaron/)).toBeNull()
   })
 
   it('el flujo se puede filtrar por laboratorio', () => {

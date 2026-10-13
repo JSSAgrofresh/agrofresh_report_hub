@@ -35,12 +35,12 @@ const ENCADENA: NodoFlujo[] = ['emitida', 'recepcion', 'analisis', 'informe']
 /** Filtros del listado «Estado de cada solicitud». */
 type FiltroEstado = 'sin_informe' | 'vencidas' | 'sin_cliente' | 'sin_report' | 'completas' | 'todas'
 const FILTROS_ESTADO: { clave: FiltroEstado; texto: string; cumple: (e: EvaluadaEntrega) => boolean }[] = [
+  { clave: 'todas', texto: 'Todas', cumple: () => true },
   { clave: 'sin_informe', texto: 'Sin informe', cumple: (e) => !alcanzados(e).informe && !alcanzados(e).sistema },
   { clave: 'vencidas', texto: 'Pasaron su plazo', cumple: (e) => e.veredicto === 'vencida' },
   { clave: 'sin_cliente', texto: 'Informe sin enviar al cliente', cumple: (e) => alcanzados(e).informe && !alcanzados(e).cliente },
   { clave: 'sin_report', texto: 'Informe sin Report', cumple: (e) => alcanzados(e).informe && !alcanzados(e).sistema },
   { clave: 'completas', texto: 'Completas', cumple: (e) => alcanzados(e).sistema && alcanzados(e).cliente },
-  { clave: 'todas', texto: 'Todas', cumple: () => true },
 ]
 
 const etiquetaSolicitud = (e: EvaluadaEntrega) => e.sol.numero_solicitud ?? e.sol.archivo
@@ -72,9 +72,8 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
   const [abierto, setAbierto] = useState<NodoFlujo | null>(null)
   const [elegida, setElegida] = useState('')
   const [verTodas, setVerTodas] = useState(false)
-  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('sin_informe')
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('todas')
   const [busca, setBusca] = useState('')
-  const [verTodasEstado, setVerTodasEstado] = useState(false)
   const cerrar = useCallback(() => { setAbierto(null); setVerTodas(false) }, [])
 
   const delLab = useMemo(
@@ -178,8 +177,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
       .filter((e) => !q || [etiquetaSolicitud(e), e.sol.laboratorio, e.sol.sold_to, e.sol.ship_to].join(' ').toLowerCase().includes(q))
       .sort((a, b) => b.edad - a.edad)
   }, [validas, filtroEstado, busca])
-  const filasMostradas = verTodasEstado ? filasEstado : filasEstado.slice(0, 15)
-
+  
   const lista = abierto ? dePunto(abierto) : []
   const mostrar = verTodas ? lista : lista.slice(0, 12)
 
@@ -207,15 +205,19 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         </div>
       </div>
 
+      <div className={styles.cuerpo}>
+        <div className={styles.flujoCol}>
       {una && (
         <p className={styles.resumenUna}>
           <b>{etiquetaSolicitud(una)}</b> · {una.sol.laboratorio ?? '—'} · {una.sol.sold_to ?? '—'}{una.sol.ship_to ? ` · ${una.sol.ship_to}` : ''}
           <br />
           {una.plazo != null ? `Plazo ${una.plazo} d hábiles${una.analisis ? ` (${una.analisis})` : ''}` : 'Sin plazo cargado'}
           {' · '}{una.entregada && una.dias != null ? `entregada en ${f1(una.dias)} d háb.` : `lleva ${f1(una.edad)} d háb.`}
+          <br />
+          <button type="button" className={styles.mas} onClick={() => setElegida('')}>← Volver a ver todas las solicitudes</button>
         </p>
       )}
-      {!una && <p className={styles.pista}>Toca un punto para ver las solicitudes que están ahí. En «Reporte observado» verás cuáles ya están en Report y qué clientes ya los abrieron.</p>}
+      {!una && <p className={styles.pista}>Toca un punto para ver las solicitudes que están ahí, o elige una solicitud de la tabla para ver su recorrido.</p>}
 
       <div className={styles.columna}>
         {nodo('emitida')}
@@ -236,51 +238,73 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         <i className={styles.hilo} aria-hidden="true" />
         {nodo('observado')}
       </div>
-
-      {!una && (
-        <section className={styles.estados} aria-label="Estado de cada solicitud">
+        </div>
+      <section className={styles.panelTabla} aria-label="Estado de cada solicitud">
+        <div className={styles.panelCab}>
           <h4>Estado de cada solicitud</h4>
-          <div className={styles.chips}>
-            {FILTROS_ESTADO.map((f) => (
-              <button
-                key={f.clave}
-                type="button"
-                className={styles.chipFiltro}
-                aria-pressed={filtroEstado === f.clave}
-                onClick={() => { setFiltroEstado(f.clave); setVerTodasEstado(false) }}
-              >
-                {f.texto} <b>{nf.format(conteoEstado[f.clave])}</b>
-              </button>
-            ))}
-          </div>
           <input
             type="search"
             className={styles.buscaEstado}
             placeholder="Buscar N°, laboratorio, cliente o planta…"
             value={busca}
-            onChange={(e) => { setBusca(e.target.value); setVerTodasEstado(false) }}
+            onChange={(e) => setBusca(e.target.value)}
             aria-label="Buscar solicitud"
           />
-          {filasEstado.length === 0 ? (
-            <p className={styles.vacio}>Ninguna solicitud con este estado.</p>
-          ) : (
-            <ul className={styles.lista}>
-              {filasMostradas.map((e) => (
-                <li key={e.sol.archivo}>
-                  <b>{etiquetaSolicitud(e)}</b>
-                  <span>{e.sol.laboratorio ?? '—'} · {e.sol.sold_to ?? '—'}{e.sol.ship_to ? ` · ${e.sol.ship_to}` : ''}</span>
-                  <small>{PUNTOS[nodoActual(e)].titulo} · {textoPlazo(e)}</small>
-                </li>
-              ))}
-            </ul>
-          )}
-          {filasEstado.length > 15 && (
-            <button type="button" className={styles.mas} onClick={() => setVerTodasEstado((v) => !v)}>
-              {verTodasEstado ? 'Mostrar menos' : `Ver las ${nf.format(filasEstado.length)}`}
-            </button>
-          )}
-        </section>
-      )}
+          <div className={styles.chips}>
+            {FILTROS_ESTADO.map((f) => (
+              <button key={f.clave} type="button" className={styles.chipFiltro} aria-pressed={filtroEstado === f.clave} onClick={() => setFiltroEstado(f.clave)}>
+                {f.texto} <b>{nf.format(conteoEstado[f.clave])}</b>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className={styles.tablaScroll}>
+          <table className={styles.tabla}>
+            <thead>
+              <tr>
+                <th>Solicitud</th>
+                <th>Cliente · planta</th>
+                <th title="Informe recibido del laboratorio">Informe</th>
+                <th title="Informe enviado al cliente">Cliente</th>
+                <th title="Resultados cargados en Report">Report</th>
+                <th>Plazo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filasEstado.length === 0 && (
+                <tr><td colSpan={6} className={styles.vacio}>Ninguna solicitud con este estado.</td></tr>
+              )}
+              {filasEstado.map((e) => {
+                const a = alcanzados(e)
+                const marca = (v: boolean) => <span className={v ? styles.si : styles.no} aria-label={v ? 'sí' : 'no'}>{v ? '✓' : '—'}</span>
+                return (
+                  <tr
+                    key={e.sol.archivo}
+                    className={`${styles.fila} ${elegida === e.sol.archivo ? styles.filaElegida : ''}`}
+                    onClick={() => { setElegida(elegida === e.sol.archivo ? '' : e.sol.archivo); setAbierto(null) }}
+                    aria-selected={elegida === e.sol.archivo}
+                  >
+                    <td>
+                      <button type="button" className={styles.celdaBoton} onClick={(ev) => { ev.stopPropagation(); setElegida(elegida === e.sol.archivo ? '' : e.sol.archivo); setAbierto(null) }}>
+                        {etiquetaSolicitud(e)}
+                      </button>
+                      <small>{e.sol.laboratorio ?? '—'}</small>
+                    </td>
+                    <td>{e.sol.sold_to ?? '—'}<small>{e.sol.ship_to ?? ''}</small></td>
+                    <td>{marca(a.informe)}</td>
+                    <td>{marca(a.cliente)}</td>
+                    <td>{marca(a.sistema)}</td>
+                    <td className={e.veredicto === 'vencida' || e.veredicto === 'tarde' ? styles.tarde : undefined}>
+                      {e.plazo == null ? '—' : `${f1(e.entregada && e.dias != null ? e.dias : e.edad)} / ${e.plazo} d`}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      </div>
 
       {abierto && !una && (
         <Modal
