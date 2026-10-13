@@ -152,3 +152,18 @@
 
 .alternar:hover { background: rgba(109, 173, 60, 0.12); }
 .vacio { margin: 10px 12px; font-size: 13px; color: var(--color-text-muted); }
+
+/* Un bloque de filas por cliente: una fila por análisis y, bajo Residuales, un renglón por laboratorio con su % */
+.bloque > tr:last-child > * { border-bottom: 1px solid var(--color-border); }
+.colAnalisis { text-align: left !important; min-width: 130px; background: #f1f4ef; border-top: 3px solid #c9d1c8 !important; }
+.totalCliente { display: block; margin: 2px 0 0 28px; font-size: 10.5px; font-weight: 500; color: var(--color-text-faint); }
+.cliente { vertical-align: top; background: #fff; border-right: 1px solid #e9eee7; }
+.lineaGrupo { text-align: left !important; font-weight: 700; }
+.lineaGrupo small { margin-left: 6px; font-size: 10.5px; font-weight: 500; color: var(--color-text-muted); }
+.lineaLab { text-align: left !important; padding-left: 28px !important; font-weight: 600; font-size: 12px; }
+.filaLab th, .filaLab td { border-bottom-color: #f1f4ef; }
+.valor { text-align: right !important; }
+.valor small { margin-left: 6px; font-size: 10.5px; color: var(--color-text-faint); }
+.cifra { font-size: 14px; }
+.pct { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--color-text-muted); }
+.tabla tfoot .cliente { background: #f1f4ef; vertical-align: top; }

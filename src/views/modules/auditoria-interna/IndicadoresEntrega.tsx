@@ -208,9 +208,6 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
                 <span className={styles.gr}>{f1(lead.p50)}<small>días háb.</small></span>
                 <span className={styles.ap}>
                   la mitad tarda menos
-                  <Ayuda>
-                    <b>Se usa la mediana y no el promedio</b> porque unos pocos informes muy atrasados inflan el promedio. Aquí el promedio sería {f1(lead.promedio)} d contra una mediana de {f1(lead.p50)} d.
-                  </Ayuda>
                 </span>
                 <Spark valores={serie.map((p: PuntoMes) => p.p50)} formato={(v) => `${f1(v)} d`} />
               </div>

@@ -40,7 +40,7 @@ describe('IndicadoresEntrega', () => {
     expect(screen.queryByText('¿Cómo se calcula este número?')).toBeNull()
     expect(screen.queryByText(/Por qué la mediana y no el promedio/)).toBeNull()
     const globitos = screen.getAllByRole('tooltip', { hidden: true })
-    expect(globitos.some((g) => /mediana y no el promedio/.test(g.textContent ?? ''))).toBe(true)
+    expect(globitos.some((g) => /mediana y no el promedio/.test(g.textContent ?? ''))).toBe(false)
     expect(globitos.some((g) => /percentil 90/.test(g.textContent ?? ''))).toBe(true)
   })
 

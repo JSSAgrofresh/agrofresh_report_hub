@@ -7,21 +7,46 @@ import styles from './AnalisisPorCliente.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
-/** El número de análisis pedidos en una pastilla del color del laboratorio; ✓ = cuántos ya tienen informe. */
-function Celda({ c, color }: { c: CeldaCliente; color: string }) {
-  if (c.n === 0) return <span className={styles.cero}>–</span>
+type Linea = { clave: string; nombre: string; sub?: string; c: CeldaCliente; color: string; nivel: 'grupo' | 'lab'; pct?: number }
+
+/** Las líneas de un cliente (o del total): Residuales con su desglose por laboratorio y su %, FSMA y FITO. Solo lo que tiene análisis. */
+function lineasDe(x: { agrofresh: CeldaCliente; quiteca: CeldaCliente; fsma: CeldaCliente; fito: CeldaCliente }): Linea[] {
+  const res: CeldaCliente = { n: x.agrofresh.n + x.quiteca.n, informes: x.agrofresh.informes + x.quiteca.informes }
+  const out: Linea[] = []
+  if (res.n > 0) {
+    out.push({ clave: 'res', nombre: 'Residuales', c: res, color: '#4d7c0f', nivel: 'grupo' })
+    if (x.agrofresh.n > 0) out.push({ clave: 'agf', nombre: 'AgroFresh', c: x.agrofresh, color: COLOR_LAB.AGROFRESH, nivel: 'lab', pct: x.agrofresh.n / res.n })
+    if (x.quiteca.n > 0) out.push({ clave: 'qui', nombre: 'Quiteca', c: x.quiteca, color: COLOR_LAB.QUITECA, nivel: 'lab', pct: x.quiteca.n / res.n })
+  }
+  if (x.fsma.n > 0) out.push({ clave: 'fsma', nombre: 'FSMA', sub: 'ALS', c: x.fsma, color: COLOR_LAB.ALS, nivel: 'grupo' })
+  if (x.fito.n > 0) out.push({ clave: 'fito', nombre: 'FITO', sub: 'Diagnofruit', c: x.fito, color: COLOR_LAB.DIAGNOFRUIT, nivel: 'grupo' })
+  return out
+}
+
+const pct = (v: number) => `${Math.round(v * 100)}%`
+
+/** Las celdas de una línea: análisis, total (con ✓ de informes y, en un laboratorio, su % de los residuales) y entregables. */
+function CeldasLinea({ l }: { l: Linea }) {
   return (
-    <span className={styles.celda} title={`${c.informes} de ${c.n} con informe`}>
-      <b className={styles.pastilla} style={{ color, background: `${color}1f` }}>{nf.format(c.n)}</b>
-      <small>{c.informes}✓</small>
-    </span>
+    <>
+      <th scope="row" className={l.nivel === 'lab' ? styles.lineaLab : styles.lineaGrupo} style={{ color: l.color }}>
+        {l.nombre}{l.sub && <small>{l.sub}</small>}
+      </th>
+      <td className={styles.valor} title={`${l.c.informes} de ${l.c.n} con informe`}>
+        <b className={l.nivel === 'lab' ? styles.pastilla : styles.cifra} style={l.nivel === 'lab' ? { color: l.color, background: `${l.color}1f` } : undefined}>{nf.format(l.c.n)}</b>
+        {l.pct !== undefined && <span className={styles.pct}>{pct(l.pct)}</span>}
+        <small>{l.c.informes}✓</small>
+      </td>
+      <td className={styles.pendienteDato} title="Se cargará con el plan de entregables de los comerciales">—</td>
+      <td className={styles.pendienteDato}>—</td>
+    </>
   )
 }
 
 /**
  * El cuerpo del gráfico «Análisis por laboratorio · top Sold To»: cada cliente hacia abajo, el que más
- * análisis lleva primero, con el detalle: residuales (AgroFresh y Quiteca), FSMA y FITO, más su total,
- * los entregables y el %. Los clientes del listado que todavía no tienen ningún análisis salen al final,
+ * análisis lleva primero, con el detalle: un bloque de filas por análisis (Residuales con su desglose por laboratorio y su % del total de residuales, FSMA y FITO),
+ * con su total, los entregables y el %. Los clientes del listado que todavía no tienen ningún análisis salen al final,
  * apagados (solo cuando se agrupa por Sold To).
  * «Entregables» = lo que cada comercial concretó de cada análisis para cada planta: ese dato
  * se carga aparte (plan de entregables), por ahora queda en blanco.
@@ -52,7 +77,6 @@ export function AnalisisPorCliente({
   const apagados = useMemo(() => (dimension === 'cliente' ? clientesSinAnalisis(listado, todas) : []), [listado, todas, dimension])
 
   const suma = (f: (x: (typeof filas)[number]) => CeldaCliente) => filas.reduce((n, x) => n + f(x).n, 0)
-  const nRes = suma((x) => x.agrofresh) + suma((x) => x.quiteca)
   const nFsma = suma((x) => x.fsma)
   const nFito = suma((x) => x.fito)
   const nTotal = filas.reduce((n, x) => n + x.total, 0)
@@ -64,64 +88,62 @@ export function AnalisisPorCliente({
         <table className={styles.tabla}>
           <thead>
             <tr className={styles.grupos}>
-              <th rowSpan={2} className={styles.colCliente}>{dimension === 'cliente' ? 'Cliente' : 'Grupo'}</th>
-              <th colSpan={2} className={styles.gResiduales}>Residuales <small>{nf.format(nRes)} análisis</small></th>
-              <th className={styles.gFsma}>FSMA <small>{nf.format(nFsma)}</small></th>
-              <th className={styles.gFito}>FITO <small>{nf.format(nFito)}</small></th>
-              <th rowSpan={2} className={styles.gTotal}>Total</th>
+              <th className={styles.colCliente}>{dimension === 'cliente' ? 'Cliente' : 'Grupo'}</th>
+              <th className={styles.colAnalisis}>Análisis</th>
+              <th className={styles.gTotal}>Total</th>
               <th colSpan={2} className={styles.gEntregable}>Entregables</th>
             </tr>
             <tr className={styles.subs}>
-              <th style={{ color: COLOR_LAB.AGROFRESH }}>AgroFresh</th>
-              <th style={{ color: COLOR_LAB.QUITECA }}>Quiteca</th>
-              <th style={{ color: COLOR_LAB.ALS }}>ALS</th>
-              <th style={{ color: COLOR_LAB.DIAGNOFRUIT }}>Diagnofruit</th>
+              <th /><th /><th />
               <th className={styles.gEntregable} title="Lo que cada comercial concretó de cada análisis para cada planta (se carga aparte)">Cant.</th>
               <th className={styles.gEntregable}>%</th>
             </tr>
           </thead>
-          <tbody>
-            {filas.map((f, i) => (
-              <tr key={f.cliente}>
-                <th scope="row" className={styles.cliente}>
-                  <em className={i < 3 ? styles.podio : undefined} data-puesto={i < 3 ? i + 1 : undefined}>{i + 1}</em>
-                  <span title={f.cliente}>{f.cliente}</span>
-                </th>
-                <td><Celda c={f.agrofresh} color={COLOR_LAB.AGROFRESH} /></td>
-                <td><Celda c={f.quiteca} color={COLOR_LAB.QUITECA} /></td>
-                <td><Celda c={f.fsma} color={COLOR_LAB.ALS} /></td>
-                <td><Celda c={f.fito} color={COLOR_LAB.DIAGNOFRUIT} /></td>
-                <td className={styles.total}><b>{nf.format(f.total)}</b><small>{f.informes}✓</small></td>
-                <td className={styles.pendienteDato} title="Se cargará con el plan de entregables de los comerciales">—</td>
-                <td className={styles.pendienteDato}>—</td>
-              </tr>
-            ))}
-            {verApagados &&
-              apagados.map((nombre) => (
+          {filas.map((f, i) => {
+            const ls = lineasDe(f)
+            return (
+              <tbody key={f.cliente} className={styles.bloque}>
+                {ls.map((l, j) => (
+                  <tr key={l.clave} className={l.nivel === 'lab' ? styles.filaLab : styles.filaGrupo}>
+                    {j === 0 && (
+                      <th scope="rowgroup" rowSpan={ls.length} className={styles.cliente}>
+                        <em className={i < 3 ? styles.podio : undefined} data-puesto={i < 3 ? i + 1 : undefined}>{i + 1}</em>
+                        <span title={f.cliente}>{f.cliente}</span>
+                        <small className={styles.totalCliente}>{nf.format(f.total)} análisis · {f.informes}✓</small>
+                      </th>
+                    )}
+                    <CeldasLinea l={l} />
+                  </tr>
+                ))}
+              </tbody>
+            )
+          })}
+          {verApagados && (
+            <tbody>
+              {apagados.map((nombre) => (
                 <tr key={nombre} className={styles.apagado}>
                   <th scope="row" className={styles.cliente}><em>·</em><span title={nombre}>{nombre}</span></th>
-                  <td><span className={styles.cero}>–</span></td>
-                  <td><span className={styles.cero}>–</span></td>
-                  <td><span className={styles.cero}>–</span></td>
-                  <td><span className={styles.cero}>–</span></td>
-                  <td className={styles.total}><b>0</b></td>
-                  <td className={styles.pendienteDato}>—</td>
-                  <td className={styles.pendienteDato}>—</td>
+                  <td colSpan={4}><span className={styles.cero}>Sin análisis</span></td>
                 </tr>
               ))}
-          </tbody>
+            </tbody>
+          )}
           {filas.length > 0 && (
             <tfoot>
-              <tr>
-                <th scope="row" className={styles.cliente}>Total</th>
-                <td><Celda c={{ n: suma((x) => x.agrofresh), informes: filas.reduce((n, x) => n + x.agrofresh.informes, 0) }} color={COLOR_LAB.AGROFRESH} /></td>
-                <td><Celda c={{ n: suma((x) => x.quiteca), informes: filas.reduce((n, x) => n + x.quiteca.informes, 0) }} color={COLOR_LAB.QUITECA} /></td>
-                <td><Celda c={{ n: nFsma, informes: filas.reduce((n, x) => n + x.fsma.informes, 0) }} color={COLOR_LAB.ALS} /></td>
-                <td><Celda c={{ n: nFito, informes: filas.reduce((n, x) => n + x.fito.informes, 0) }} color={COLOR_LAB.DIAGNOFRUIT} /></td>
-                <td className={styles.total}><b>{nf.format(nTotal)}</b><small>{nInformes}✓</small></td>
-                <td className={styles.pendienteDato}>—</td>
-                <td className={styles.pendienteDato}>—</td>
-              </tr>
+              {(() => {
+                const tot = lineasDe({
+                  agrofresh: { n: suma((x) => x.agrofresh), informes: filas.reduce((n, x) => n + x.agrofresh.informes, 0) },
+                  quiteca: { n: suma((x) => x.quiteca), informes: filas.reduce((n, x) => n + x.quiteca.informes, 0) },
+                  fsma: { n: nFsma, informes: filas.reduce((n, x) => n + x.fsma.informes, 0) },
+                  fito: { n: nFito, informes: filas.reduce((n, x) => n + x.fito.informes, 0) },
+                })
+                return tot.map((l, j) => (
+                  <tr key={l.clave} className={l.nivel === 'lab' ? styles.filaLab : styles.filaGrupo}>
+                    {j === 0 && <th scope="rowgroup" rowSpan={tot.length} className={styles.cliente}>Total<small className={styles.totalCliente}>{nf.format(nTotal)} análisis · {nInformes}✓</small></th>}
+                    <CeldasLinea l={l} />
+                  </tr>
+                ))
+              })()}
             </tfoot>
           )}
         </table>
