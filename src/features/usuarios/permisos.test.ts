@@ -149,7 +149,9 @@ describe('mini funciones asignables (espejo de test_permisos_funciones.py)', () 
   it('el reanálisis se puede dar a una cuenta concreta (igual que en el servidor)', () => {
     expect(puedeCrearReanalisis(u('analista', ['agrofresh_lab']))).toBe(false)
     expect(puedeCrearReanalisis(u('analista', ['toma_reanalisis']))).toBe(true)
-    expect(puedeCrearReanalisis(u('admin_area'))).toBe(true)
+    expect(puedeCrearReanalisis(u('admin_area'))).toBe(false) // ningún tipo de cuenta la trae sola
+    expect(puedeCrearReanalisis(u('admin_area', ['toma_reanalisis']))).toBe(true)
+    expect(puedeCrearReanalisis(u('admin_general'))).toBe(true)
     expect(puedeCrearReanalisis(u('gerencia', ['toma_reanalisis']))).toBe(false)
   })
 

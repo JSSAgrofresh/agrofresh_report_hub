@@ -34,7 +34,7 @@ export const AREAS: Record<AreaId, AreaConfig> = {
   },
   ryd: {
     id: 'ryd',
-    nombre: 'R y D',
+    nombre: 'R&D',
     colorPrimario: '#7B5EA7',
     colorOscuro: '#4A3567',
     fondo: backgroundLab,
