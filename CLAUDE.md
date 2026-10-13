@@ -557,7 +557,7 @@ cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
 - **La configuración (entregado + plazos) SOLO la ve el administrador general** (desplegable «Configuración de
   plazos», `puedeEditar`); los demás no ven ni el panel ni los inputs. Se quitaron a pedido: el «Cuello de
   botella», la tarjeta «Reglas del cálculo» visible para todos y el «Desglose por tramo»: **no los vuelvas a poner**.
-- **Flujograma del lead time** (`FlujogramaLeadTime.tsx`, reemplaza al desglose por tramo): una sola columna **centrada**
+- **Nitidez del flujograma**: los nodos encendidos van opacos, con borde sólido y texto oscuro; los pendientes, punteados. Ojo con el orden del CSS: `.nodo{opacity}` declarado después de `.on` lavaba todo el flujo (pasó el 13-10-2026). **Flujograma del lead time** (`FlujogramaLeadTime.tsx`, reemplaza al desglose por tramo): una sola columna **centrada**
   con los puntos de arriba hacia abajo (emitida → recepción estimada → en análisis con su plazo → informe recibido →
   [informe enviado al cliente | informe cargado al sistema, al mismo nivel] → reporte observado). **El detalle de un punto
   se abre en un modal** (`components/ui/Modal`; el usuario no quiso un panel al lado: «no todo es tan desabrido»), con la
@@ -968,6 +968,7 @@ tocas una, toca la otra.
   OT equivocada (2026-1878-PC en OT-QUI0039…; se corrigió con `corregir_ot_informe.py`).
   Pruebas: `converterAmarre.test.ts`, `TestOtDelInforme`.
 - **Informes propios de AgroFresh (13-10-2026)**: no pasan por Converter, así que no tienen `informe_auditoria`; llegan a Report con el OT en `referencia`. `auditoria_interna.SQL_INFORME_EN_REPORT` los reconoce (en `/solicitudes` y en `/hitos`): cuentan como informe recibido y concretado (su `informe.id` es null). Antes salían como «Pendientes de informe». **Si agregas otra consulta que cuente informes por solicitud, reúsala.**
+- **Fecha de envío a mano para informes propios (migración 0061, tabla `informe_fecha_manual`, una fila por `solicitud_archivo.archivo`)**: un informe de AgroFresh no tiene fila en `informe_auditoria`, así que no tenía dónde guardar su «Fecha y hora de envío». `entrega_indicadores.hitos` y `auditoria_interna.listar_solicitudes` la usan como fecha del informe (y del envío) solo si el informe no trae una propia; sin la tabla no cambia nada. La migración deja OT-AGF0050 en 30-09-2026 08:06 (hora de Chile). Para otra OT: insertar una fila igual.
 - **Concretada** = tiene PDF guardado **y** sus resultados ya están en Report
   (`solicitud.nro_solicitud = informe_auditoria.nro_informe`). PDF sin Report
   se muestra aparte en las donas y los gráficos, y en la tabla como «Pendiente»

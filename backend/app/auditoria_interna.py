@@ -345,6 +345,17 @@ def analisis_de_solicitud(laboratorio: str | None, codigos: list, analitos: list
     return nombres
 
 
+def _fechas_envio_manuales() -> dict:
+    """Fecha de envío anotada a mano de informes que no pasan por Converter (migración 0061).
+    Sin la tabla, vacío."""
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute("SELECT archivo, fecha_envio FROM informe_fecha_manual")
+            return {f["archivo"]: f["fecha_envio"] for f in cur.fetchall()}
+    except Exception:  # noqa: BLE001 - falta la migración: todo sigue como antes
+        return {}
+
+
 def _catalogos_de_analisis() -> tuple[list[dict], list[dict]]:
     """Analitos y Análisis configurados (mantenedor de Laboratorios). Si no se pueden leer,
     vacíos: la pantalla agrupa entonces como «Sin análisis definido»."""
@@ -390,6 +401,7 @@ def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
         )
         filas = cur.fetchall()
     analitos_cat, analisis_cat = _catalogos_de_analisis()
+    manuales = _fechas_envio_manuales()
     salida = []
     for f in filas:
         tiene_pdf = f["informe_id"] is not None
@@ -426,7 +438,7 @@ def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
                 "nombre_archivo": None,
                 "ruta": None,
                 "cargado_en": _iso(f.get("report_cargado_en")),
-                "fecha_envio": None,
+                "fecha_envio": _iso(manuales.get(f["archivo"])),
             } if solo_report else None,
             "en_report": bool(f["en_report"]),
             "concretada": (tiene_pdf or solo_report) and bool(f["en_report"]),

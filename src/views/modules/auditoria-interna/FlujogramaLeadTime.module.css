@@ -663,3 +663,94 @@ button.nodo:focus-visible {
     max-height: 640px;
   }
 }
+
+/* ── nitidez (HD): sin opacidad que lave el texto, bordes y contrastes firmes ── */
+.flujo {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.nodo {
+  opacity: 1;
+  border: 1.5px dashed #b4c0b9;
+  background: #fafbfa;
+  box-shadow: none;
+}
+
+.nodo .titulo { color: #4b5a52; }
+.nodo .cuerpo small { color: #5b6b62; }
+
+.on,
+.aqui {
+  opacity: 1;
+  border: 1.5px solid #2f8f6b;
+  border-left-width: 5px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 40, 28, 0.12), 0 4px 12px rgba(15, 40, 28, 0.07);
+}
+
+.aqui {
+  box-shadow: 0 0 0 3px rgba(27, 127, 92, 0.22), 0 6px 16px rgba(15, 40, 28, 0.14);
+}
+
+.on .titulo,
+.aqui .titulo {
+  color: #0f1f17;
+  font-size: 14.5px;
+}
+
+.on .cuerpo small,
+.aqui .cuerpo small {
+  color: #34443b;
+}
+
+.on .fecha,
+.on .cifra,
+.aqui .fecha,
+.aqui .cifra {
+  color: #0f1f17;
+  font-weight: 700;
+}
+
+.on .extra,
+.aqui .extra {
+  color: #34443b;
+}
+
+.marca {
+  border-width: 2px;
+}
+
+.on .marca {
+  background: #1b7f5c;
+  border-color: #1b7f5c;
+  box-shadow: 0 0 0 4px rgba(27, 127, 92, 0.16);
+}
+
+.hilo {
+  width: 3px;
+  background: repeating-linear-gradient(to bottom, #9fb0a6 0 4px, transparent 4px 7px);
+}
+
+.on + .hilo {
+  background: #2f8f6b;
+}
+
+.ficha {
+  background: #ffffff;
+  border: 1.5px solid #2f8f6b;
+}
+
+.fichaTitulo { color: #0f1f17; }
+.fichaLinea { color: #34443b; }
+
+.panelTabla {
+  border: 1.5px solid #c3cec8;
+  background: #ffffff;
+}
+
+.panelCab { background: #f4f8f5; }
+.tabla td { color: #0f1f17; }
+.tabla th { background: #e9f0ec; color: #34443b; }
+.chipFiltro { border-color: #9fb0a6; color: #1d2a22; }
+.puntoNo { border-color: #8d9d94; }
