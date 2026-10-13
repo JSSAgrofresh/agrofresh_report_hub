@@ -55,6 +55,8 @@ export interface Solicitud {
   unidad_peso?: string | null
   /** Segundo peso (muestra extraída, g), anotado después del cruce. */
   peso_muestra_extraido?: number | null
+  /** Peso hueso (g), anotado igual que el extraído (migración 0060). */
+  peso_hueso?: number | null
   /** Usuario que hizo el cruce (email y nombre, del token del servidor). */
   cruzado_por?: string | null
   cruzado_por_nombre?: string | null

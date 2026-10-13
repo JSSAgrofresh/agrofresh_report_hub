@@ -48,3 +48,21 @@ def test_verificaciones_queda_con_su_dependencia_y_sigue_cerrada_sin_sesion():
 
     rutas = [p for p in app.openapi()["paths"] if p.startswith("/api/verificaciones")]
     assert rutas
+
+
+def test_modificar_criterios_es_un_permiso_aparte_de_las_secciones():
+    """`lab_criterios` viaja en `modulos` pero NO cuenta como sección elegida:
+    no recorta las tres puertas (espejo de `puedeEditarCriteriosLab` en permisos.test.ts)."""
+    u = _u(modulos=["agrofresh_lab", ls.LAB_CRITERIOS])
+    assert ls.secciones_de(u) == ls.SECCIONES
+    assert ls.puede_editar_criterios(u)
+    assert not ls.puede_editar_criterios(_u(modulos=["agrofresh_lab"]))
+    assert not ls.puede_editar_criterios(_u(tipo="gerencia", modulos=["agrofresh_lab"]))
+    assert ls.puede_editar_criterios(_u(tipo="admin_general", modulos=None))
+
+
+def test_editar_criterios_sin_permiso_es_403_y_no_401():
+    with pytest.raises(HTTPException) as e:
+        ls.exigir_edicion_criterios(_u(modulos=["agrofresh_lab"]))
+    assert e.value.status_code == 403
+    assert ls.exigir_edicion_criterios(_u(modulos=[ls.LAB_CRITERIOS]))

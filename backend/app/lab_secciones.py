@@ -22,6 +22,10 @@ LAB_VERIFICACIONES = "lab_verificaciones"
 LAB_ENVIO = "lab_envio"
 SECCIONES = (LAB_INGRESO, LAB_VERIFICACIONES, LAB_ENVIO)
 
+# Permiso aparte (no es una puerta): quién puede MODIFICAR los criterios de las verificaciones diarias.
+# Viaja en la misma lista `modulos`, así que no suma ni quita secciones. Admin general siempre puede.
+LAB_CRITERIOS = "lab_criterios"
+
 
 def secciones_de(usuario: Usuario) -> tuple[str, ...]:
     """Las secciones que la cuenta puede abrir dentro de AgroFresh Lab."""
@@ -33,6 +37,17 @@ def secciones_de(usuario: Usuario) -> tuple[str, ...]:
 
 def permite(usuario: Usuario, seccion: str) -> bool:
     return seccion in secciones_de(usuario)
+
+
+def puede_editar_criterios(usuario: Usuario) -> bool:
+    return usuario.tipoAcceso == "admin_general" or LAB_CRITERIOS in (usuario.modulos or [])
+
+
+def exigir_edicion_criterios(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
+    """403 (nunca 401) a quien no tiene el permiso «Modificar criterios»."""
+    if not puede_editar_criterios(usuario):
+        raise HTTPException(403, "Tu cuenta no tiene permiso para modificar los criterios de las verificaciones.")
+    return usuario
 
 
 def exigir(seccion: str):

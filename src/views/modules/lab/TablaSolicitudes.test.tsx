@@ -14,11 +14,13 @@ function sol(n: number, codigo: string | null): Solicitud {
 const editarCruce = vi.fn()
 const obtenerFotoCruce = vi.fn()
 const guardarPesoExtraido = vi.fn()
+const guardarPesoHueso = vi.fn()
 vi.mock('@/features/emitir', async (orig) => ({
   ...(await orig<typeof import('@/features/emitir')>()),
   editarCruce: (a: string, d: unknown) => editarCruce(a, d),
   obtenerFotoCruce: (a: string) => obtenerFotoCruce(a),
   guardarPesoExtraido: (a: string, p: number) => guardarPesoExtraido(a, p),
+  guardarPesoHueso: (a: string, p: number) => guardarPesoHueso(a, p),
 }))
 
 const props = { onVerFicha: vi.fn(), onQuitarCruce: vi.fn(), onCruceEditado: vi.fn() }
@@ -116,6 +118,18 @@ describe('TablaSolicitudes · segundo peso (muestra extraída)', () => {
     fireEvent.change(inputs[0], { target: { value: '5.025' } })
     fireEvent.click(screen.getByRole('button', { name: 'Guardar segundo peso' }))
     await waitFor(() => expect(guardarPesoExtraido).toHaveBeenCalledWith('OT-AGF7.xlsx', 5.025))
+  })
+
+  it('el peso hueso se anota aparte, solo en filas cruzadas, y no toca el peso extraído', async () => {
+    guardarPesoHueso.mockReset().mockResolvedValue({})
+    guardarPesoExtraido.mockReset().mockResolvedValue({})
+    render(<TablaSolicitudes solicitudes={[cruzadaSinPeso, sol(8, null)]} {...props} />)
+    const inputs = screen.getAllByLabelText(/^peso hueso de/)
+    expect(inputs).toHaveLength(1)
+    fireEvent.change(inputs[0], { target: { value: '1.2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar peso hueso' }))
+    await waitFor(() => expect(guardarPesoHueso).toHaveBeenCalledWith('OT-AGF7.xlsx', 1.2))
+    expect(guardarPesoExtraido).not.toHaveBeenCalled()
   })
 
   it('la fila pasa a verde fuerte cuando el peso ya está guardado', () => {
