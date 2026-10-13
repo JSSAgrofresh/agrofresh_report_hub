@@ -204,6 +204,8 @@ describe('resúmenes', () => {
     expect(alcanzados(uno)).toMatchObject({ emitida: true, recepcion: true, informe: true, cliente: true, sistema: true, observado: true })
     // «cliente» y «sistema» van al mismo nivel: haber llegado a uno no activa el otro
     expect(alcanzados(dos)).toMatchObject({ cliente: false, sistema: false })
+    // «Reporte observado»: basta con que el informe esté en Report, aunque ningún cliente lo haya abierto
+    expect(alcanzados({ ...uno, hitos: { ...uno.hitos!, observado: null } }).observado).toBe(true)
     const r = resumenFlujo(ev)
     expect(r.emitida.alcanzaron).toBe(4)
     expect(r.informe.alcanzaron).toBe(2)

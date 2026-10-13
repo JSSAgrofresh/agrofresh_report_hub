@@ -27,10 +27,21 @@ const PUNTOS: Record<NodoFlujo, Punto> = {
   informe: { titulo: 'Informe recibido del laboratorio', detalle: 'PDF guardado en Auditoría interna' },
   cliente: { titulo: 'Informe enviado al cliente', detalle: 'Desde «Envío de informes», en producción' },
   sistema: { titulo: 'Informe cargado al sistema', detalle: 'Resultados ya visibles en Report' },
-  observado: { titulo: 'Reporte observado', detalle: 'El cliente vio sus resultados en Report por primera vez' },
+  observado: { titulo: 'Reporte observado', detalle: 'Los resultados ya están en Report para el cliente' },
 }
 
 const ENCADENA: NodoFlujo[] = ['emitida', 'recepcion', 'analisis', 'informe']
+
+/** Filtros del listado «Estado de cada solicitud». */
+type FiltroEstado = 'sin_informe' | 'vencidas' | 'sin_cliente' | 'sin_report' | 'completas' | 'todas'
+const FILTROS_ESTADO: { clave: FiltroEstado; texto: string; cumple: (e: EvaluadaEntrega) => boolean }[] = [
+  { clave: 'sin_informe', texto: 'Sin informe', cumple: (e) => !alcanzados(e).informe && !alcanzados(e).sistema },
+  { clave: 'vencidas', texto: 'Pasaron su plazo', cumple: (e) => e.veredicto === 'vencida' },
+  { clave: 'sin_cliente', texto: 'Informe sin enviar al cliente', cumple: (e) => alcanzados(e).informe && !alcanzados(e).cliente },
+  { clave: 'sin_report', texto: 'Informe sin Report', cumple: (e) => alcanzados(e).informe && !alcanzados(e).sistema },
+  { clave: 'completas', texto: 'Completas', cumple: (e) => alcanzados(e).sistema && alcanzados(e).cliente },
+  { clave: 'todas', texto: 'Todas', cumple: () => true },
+]
 
 const etiquetaSolicitud = (e: EvaluadaEntrega) => e.sol.numero_solicitud ?? e.sol.archivo
 
@@ -55,12 +66,15 @@ interface Props {
  * solicitudes del punto que se toque. Con todas las solicitudes muestra cuántas pasaron por
  * cada punto y cuántas están ahí hoy; al elegir una sola, su propio recorrido con fechas.
  * Informe enviado al cliente e informe cargado al sistema van al mismo nivel. «Reporte
- * observado» sale de la primera vez que un cliente abre sus resultados en Report.
+ * observado» se enciende cuando el informe ya está en Report (y anota qué clientes lo abrieron).
  */
 export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
   const [abierto, setAbierto] = useState<NodoFlujo | null>(null)
   const [elegida, setElegida] = useState('')
   const [verTodas, setVerTodas] = useState(false)
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('sin_informe')
+  const [busca, setBusca] = useState('')
+  const [verTodasEstado, setVerTodasEstado] = useState(false)
   const cerrar = useCallback(() => { setAbierto(null); setVerTodas(false) }, [])
 
   const delLab = useMemo(
@@ -94,7 +108,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         informe: fecha(h?.informe),
         cliente: fecha(h?.cliente),
         sistema: fecha(h?.report),
-        observado: fecha(h?.observado),
+        observado: fecha(h?.observado ?? h?.report),
       }
       return {
         cifra: null as string | null,
@@ -152,6 +166,20 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
     )
   }
 
+  const conteoEstado = useMemo(
+    () => Object.fromEntries(FILTROS_ESTADO.map((f) => [f.clave, validas.filter(f.cumple).length])) as Record<FiltroEstado, number>,
+    [validas],
+  )
+  const filasEstado = useMemo(() => {
+    const cumple = FILTROS_ESTADO.find((f) => f.clave === filtroEstado)!.cumple
+    const q = busca.trim().toLowerCase()
+    return validas
+      .filter(cumple)
+      .filter((e) => !q || [etiquetaSolicitud(e), e.sol.laboratorio, e.sol.sold_to, e.sol.ship_to].join(' ').toLowerCase().includes(q))
+      .sort((a, b) => b.edad - a.edad)
+  }, [validas, filtroEstado, busca])
+  const filasMostradas = verTodasEstado ? filasEstado : filasEstado.slice(0, 15)
+
   const lista = abierto ? dePunto(abierto) : []
   const mostrar = verTodas ? lista : lista.slice(0, 12)
 
@@ -187,7 +215,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
           {' · '}{una.entregada && una.dias != null ? `entregada en ${f1(una.dias)} d háb.` : `lleva ${f1(una.edad)} d háb.`}
         </p>
       )}
-      {!una && <p className={styles.pista}>Toca un punto para ver las solicitudes que están ahí. En «Reporte observado» verás qué clientes ya vieron su informe.</p>}
+      {!una && <p className={styles.pista}>Toca un punto para ver las solicitudes que están ahí. En «Reporte observado» verás cuáles ya están en Report y qué clientes ya los abrieron.</p>}
 
       <div className={styles.columna}>
         {nodo('emitida')}
@@ -209,6 +237,51 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         {nodo('observado')}
       </div>
 
+      {!una && (
+        <section className={styles.estados} aria-label="Estado de cada solicitud">
+          <h4>Estado de cada solicitud</h4>
+          <div className={styles.chips}>
+            {FILTROS_ESTADO.map((f) => (
+              <button
+                key={f.clave}
+                type="button"
+                className={styles.chipFiltro}
+                aria-pressed={filtroEstado === f.clave}
+                onClick={() => { setFiltroEstado(f.clave); setVerTodasEstado(false) }}
+              >
+                {f.texto} <b>{nf.format(conteoEstado[f.clave])}</b>
+              </button>
+            ))}
+          </div>
+          <input
+            type="search"
+            className={styles.buscaEstado}
+            placeholder="Buscar N°, laboratorio, cliente o planta…"
+            value={busca}
+            onChange={(e) => { setBusca(e.target.value); setVerTodasEstado(false) }}
+            aria-label="Buscar solicitud"
+          />
+          {filasEstado.length === 0 ? (
+            <p className={styles.vacio}>Ninguna solicitud con este estado.</p>
+          ) : (
+            <ul className={styles.lista}>
+              {filasMostradas.map((e) => (
+                <li key={e.sol.archivo}>
+                  <b>{etiquetaSolicitud(e)}</b>
+                  <span>{e.sol.laboratorio ?? '—'} · {e.sol.sold_to ?? '—'}{e.sol.ship_to ? ` · ${e.sol.ship_to}` : ''}</span>
+                  <small>{PUNTOS[nodoActual(e)].titulo} · {textoPlazo(e)}</small>
+                </li>
+              ))}
+            </ul>
+          )}
+          {filasEstado.length > 15 && (
+            <button type="button" className={styles.mas} onClick={() => setVerTodasEstado((v) => !v)}>
+              {verTodasEstado ? 'Mostrar menos' : `Ver las ${nf.format(filasEstado.length)}`}
+            </button>
+          )}
+        </section>
+      )}
+
       {abierto && !una && (
         <Modal
           titulo={`${PUNTOS[abierto].titulo} · ${nf.format(lista.length)}`}
@@ -218,7 +291,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
           {lista.length === 0 ? (
             <p className={styles.vacio}>
               {abierto === 'observado'
-                ? 'Todavía ningún cliente abrió sus resultados en Report (o falta correr la migración 0057).'
+                ? 'Todavía no hay informes cargados en Report para los clientes.'
                 : 'No hay solicitudes en este punto.'}
             </p>
           ) : (
@@ -230,7 +303,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
                     <span>{e.sol.laboratorio ?? '—'} · {e.sol.sold_to ?? '—'}{e.sol.ship_to ? ` · ${e.sol.ship_to}` : ''}</span>
                     <small>
                       {abierto === 'observado'
-                        ? `${fecha(e.hitos?.observado)} · ${(e.hitos?.observado_por ?? []).join(', ') || '—'}`
+                        ? `${fecha(e.hitos?.observado ?? e.hitos?.report)} · ${(e.hitos?.observado_por ?? []).length ? `Visto por ${(e.hitos?.observado_por ?? []).join(', ')}` : 'Disponible en Report'}`
                         : abierto === 'cliente' || abierto === 'sistema'
                           ? fecha(abierto === 'cliente' ? e.hitos?.cliente : e.hitos?.report)
                           : textoPlazo(e)}

@@ -376,7 +376,8 @@ export function alcanzados(e: EvaluadaEntrega): Record<NodoFlujo, boolean> {
     informe: h?.informe != null,
     cliente: h?.cliente != null,
     sistema: Boolean(e.sol.en_report) || h?.report != null,
-    observado: Boolean(h?.observado),
+    // Disponible para el cliente: ya está en Report (aunque nadie lo haya abierto todavía) o un cliente ya lo vio.
+    observado: Boolean(e.sol.en_report) || h?.report != null || Boolean(h?.observado),
   }
 }
 

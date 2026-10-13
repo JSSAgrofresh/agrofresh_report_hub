@@ -271,3 +271,50 @@ button.nodo:focus-visible {
   text-decoration: underline dotted;
   color: inherit;
 }
+
+.estados {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border, #e3e8e5);
+}
+
+.estados h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.chipFiltro {
+  border: 1px solid var(--color-border-strong, #c9d3cd);
+  background: var(--color-surface, #fff);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.chipFiltro[aria-pressed='true'] {
+  background: #e8f5e9;
+  border-color: #2e7d32;
+  color: #1b5e20;
+  font-weight: 600;
+}
+
+.buscaEstado {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--color-border-strong, #c9d3cd);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+}

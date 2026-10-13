@@ -523,8 +523,9 @@ cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
   (`enviado_cliente` en `POST /auditoria-interna/informes`; los que se suben SIN marcar abren un modal con su tipo de servicio y
   lista de distribución, `GET /envio-cliente/contexto?ot=`), y en **Solicitudes e informes**, seleccionar → «Marcar enviado al
   cliente» (fecha opcional) / «Quitar envío», con chip «Enviado al cliente» / «Sin envío a cliente» en la celda del informe y el
-  filtro Estado «Informe sin envío a cliente». Sin la 0058 todo sigue y marcar responde 503. **«Reporte observado» NO se marca a
-  mano**: solo se enciende cuando una cuenta `cliente` carga sus resultados en Report (0057).
+  filtro Estado «Informe sin envío a cliente». Sin la 0058 todo sigue y marcar responde 503. **«Reporte observado» se enciende cuando el informe
+  ya está en Report** (disponible para el cliente; 13-10-2026, pedido del usuario: todo informe del sistema está en Report); además anota qué
+  cuentas `cliente` lo abrieron (0057), pero ya no depende de eso.
 - **Único supuesto (pedido del usuario, 12-10-2026): la recepción en el laboratorio se ESTIMA 24 horas
   después de emitida la solicitud** (`RECEPCION_ESTIMADA_DIAS = 1`; no sabemos cuándo retiran las muestras).
   Desde ahí corren TODOS los tiempos y plazos, **en días hábiles** (lunes a viernes, **sin feriados**: `diasHabiles`,
@@ -546,7 +547,7 @@ cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
   se abre en un modal** (`components/ui/Modal`; el usuario no quiso un panel al lado: «no todo es tan desabrido»), con la
   lista de solicitudes de ese punto (en «Reporte observado», qué clientes). Cada punto se enciende por sus hitos
   (`alcanzados`, `nodoActual`, `resumenFlujo`); con todas las solicitudes muestra cuántas llegaron y cuántas están hoy ahí, y
-  con «Ver» una sola, su recorrido con fechas. Trae su propio filtro de laboratorio. El `onCerrar` del Modal tiene que ser
+  con «Ver» una sola, su recorrido con fechas. Trae su propio filtro de laboratorio. Bajo el flujo va **«Estado de cada solicitud»** (13-10-2026, pedido del usuario): filtros Sin informe (parte ahí) / Pasaron su plazo / Informe sin enviar al cliente / Informe sin Report / Completas / Todas, con buscador, y para cada solicitud el punto donde está hoy. El `onCerrar` del Modal tiene que ser
   estable (`useCallback`): si cambia en cada render, el modal vuelve a enfocarse solo.
 - **Se quitó «Rango por laboratorio»** (la caja P25–P75): se veía mal y ya lo cubren las tarjetas «Informes vs.
   solicitudes por laboratorio» de arriba. **No lo vuelvas a poner.** **«Cumplimiento del entregable» quedó en un
