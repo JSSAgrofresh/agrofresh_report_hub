@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   claveLaboratorio,
   RECEPCION_ESTIMADA_DIAS,
@@ -10,6 +10,7 @@ import {
 } from '@/features/auditoriaInterna'
 import type { Definicion, EvaluadaEntrega, PuntoMes, SolicitudAuditoria, Veredicto } from '@/features/auditoriaInterna'
 import { formatDateCL } from '@/lib/locale'
+import { ConfiguracionEntrega } from './ConfiguracionEntrega'
 import { CumplimientoEntregable } from './CumplimientoEntregable'
 import { FlujogramaLeadTime } from './FlujogramaLeadTime'
 import styles from './IndicadoresEntrega.module.css'
@@ -93,8 +94,10 @@ const dia = (iso: string | null | undefined) => (iso ? formatDateCL(iso) : '—'
  * de solicitudes que hay detrás. Las dos únicas reglas que se discuten (qué es
  * «entregado» y el plazo de cada laboratorio) están arriba, a la vista.
  */
-export function IndicadoresEntrega({ solicitudes }: { solicitudes: SolicitudAuditoria[] }) {
-  const { hitos, reglas, error } = useEntrega()
+export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solicitudes: SolicitudAuditoria[]; puedeEditar?: boolean }) {
+  const { hitos, reglas, error, guardar } = useEntrega()
+  const [configAbierta, setConfigAbierta] = useState(false)
+  const cerrarConfig = useCallback(() => setConfigAbierta(false), [])
   const [ahora] = useState(() => Date.now())
   const [labElegido, setLabElegido] = useState('')
   const [labCum, setLabCum] = useState('')
@@ -107,6 +110,22 @@ export function IndicadoresEntrega({ solicitudes }: { solicitudes: SolicitudAudi
     solicitudes.forEach((x) => { if (claveLaboratorio(x.laboratorio)) s.add(claveLaboratorio(x.laboratorio)) })
     Object.keys(reglas?.plazos ?? {}).forEach((k) => s.add(k.split('|')[0]))
     return [...s].sort()
+  }, [solicitudes, reglas])
+  // Los análisis (analitos) que se han pedido a cada laboratorio: cada uno puede tener su propio plazo.
+  const analitosPorLab = useMemo(() => {
+    const por = new Map<string, Set<string>>()
+    solicitudes.forEach((x) => {
+      const lab = claveLaboratorio(x.laboratorio)
+      if (!lab) return
+      const set = por.get(lab) ?? new Set<string>()
+      ;(x.analitos ?? []).forEach((a) => { if (a.trim()) set.add(a.trim().toUpperCase()) })
+      por.set(lab, set)
+    })
+    Object.keys(reglas?.plazos ?? {}).forEach((k) => {
+      const [lab, analito] = k.split('|')
+      if (analito) por.set(lab, (por.get(lab) ?? new Set<string>()).add(analito))
+    })
+    return new Map([...por.entries()].map(([lab, set]) => [lab, [...set].sort()]))
   }, [solicitudes, reglas])
   // Lo que se calcula: lo guardado en la configuración (ya no se edita desde esta pantalla).
   const definicion: Definicion = reglas?.entregado ?? 'concretado'
@@ -278,8 +297,18 @@ export function IndicadoresEntrega({ solicitudes }: { solicitudes: SolicitudAudi
             <span className={styles.sobre}>Indicador</span>
             <h3 id="ie-cum">Cumplimiento del entregable</h3>
           </div>
-          <small>qué parte llegó dentro del plazo prometido, dónde falla y cómo evoluciona</small>
+          <div className={styles.cabAcciones}>
+            <small>qué parte llegó dentro del plazo prometido, dónde falla y cómo evoluciona</small>
+            {puedeEditar && (
+              <button type="button" className={styles.botonConfig} onClick={() => setConfigAbierta(true)}>
+                ⚙ Pasos de la entrega
+              </button>
+            )}
+          </div>
         </header>
+        {puedeEditar && configAbierta && (
+          <ConfiguracionEntrega reglas={reglas} labs={labs} analitosPorLab={analitosPorLab} guardar={guardar} onCerrar={cerrarConfig} />
+        )}
 
         {!hayPlazos ? (
           <p className={styles.vacio}>

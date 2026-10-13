@@ -225,7 +225,7 @@ export function SolicitudesInformesView() {
               </TarjetaGrafico>
 
               {/* Los hitos son de solicitudes reales: con datos simulados no hay nada que medir. */}
-              {!simulando && <IndicadoresEntrega solicitudes={alcance} />}
+              {!simulando && <IndicadoresEntrega solicitudes={alcance} puedeEditar={puedeSimular} />}
             </>
           )}
         </div>
