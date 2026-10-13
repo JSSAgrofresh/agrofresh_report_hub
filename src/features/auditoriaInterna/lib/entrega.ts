@@ -28,6 +28,8 @@ export interface Hitos {
   cliente: string | null
   /** primera vez que un cliente vio sus resultados en Report (null = nadie, o falta la migración 0057) */
   observado?: string | null
+  /** de dónde sale la fecha de «enviado al cliente»: «envio» o «manual: quien lo marcó» */
+  cliente_origen?: string | null
   /** qué clientes los vieron («DOLE · LONTUE») */
   observado_por?: string[]
 }
