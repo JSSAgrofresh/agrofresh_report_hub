@@ -348,6 +348,14 @@ lector de Quiteca ahora lee «Tipo Aplicación :» (antes solo «Tratamiento :»
 Pruebas: `tests/test_servicio_listados.py`, `converterServicio.test.ts`. **Pendiente**: el panel de Ingesta de Excel
 (homogenizador, vista previa) y Filas pendientes → sugerencias siguen sugiriendo desde Línea de proceso.
 
+**Informes que ya existen (13-10-2026)**: al «Subir a la base de datos», el Converter mira la revisión previa (`/ingest/preview`,
+`detalle[].ya_existia`) y, si algún N° de informe ya está cargado, pregunta: «Subir y actualizar los datos» (manda
+`actualizar_existentes: true` a `/ingest/confirmar` → `_procesar_filas(actualizar=True)`: los datos del archivo reemplazan a los
+guardados —un dato vacío nunca borra uno existente— y resultado/producto_aplicado se hacen `ON CONFLICT DO UPDATE`, conservando su
+`carga_id`; **«Deshacer carga» no revierte lo actualizado**), «Sacarlos de la tanda» (los quita de la subida, de la tabla y de los PDF) o
+Cancelar. Sin respuesta «actualizar» el comportamiento de siempre: solo se completa lo que falte. Pruebas:
+`converterExistentes.test.ts`, `tests/test_ingest_actualizar_existentes.py`.
+
 El Ship To se busca **solo entre las plantas de su Sold To**. Si el Excel trae
 la ciudad ("SAN FERNANDO") vale la planta que la contiene, si es una sola
 ("DOLE PLANTA SAN FERNANDO", regla `contiene` de `homogenizador.py`, igual en
