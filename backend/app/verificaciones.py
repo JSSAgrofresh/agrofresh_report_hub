@@ -41,7 +41,8 @@ from psycopg2.errors import ForeignKeyViolation, UndefinedTable
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from .auth import Usuario, solo_admin_general, solo_interno, usuario_actual
+from . import permisos_funciones
+from .auth import Usuario, solo_admin_general, usuario_actual
 from .db import conexion, cursor_dict
 from .notificaciones import insertar_notif
 
@@ -63,6 +64,12 @@ NO = "No"
 NA = "N.A."
 
 EMAIL_SUPERADMIN_VERIFICACIONES = "jorge.sandoval@agrofresh.com"
+
+# Editar Criterios (equipos, tolerancias, columnas): el administrador general y quien él designe.
+editar_criterios = permisos_funciones.exigir(
+    permisos_funciones.VERIF_CRITERIOS,
+    "Editar los criterios de las verificaciones es una función que el administrador general debe asignarte.",
+)
 
 
 def _es_superadmin_verificaciones(usuario: Usuario) -> bool:
@@ -792,7 +799,7 @@ def _crud(ruta: str, tabla: str, modelo, modelo_in, columnas: tuple[str, ...]) -
             return [modelo(**_normalizar(dict(f))) for f in cur.fetchall()]
 
     @router.post(ruta, response_model=modelo, name=f"crear_{tabla}")
-    def crear(datos: modelo_in, _: Usuario = Depends(solo_interno)):  # type: ignore[misc]
+    def crear(datos: modelo_in, _: Usuario = Depends(editar_criterios)):  # type: ignore[misc]
         valores = [getattr(datos, c) for c in columnas]
         with conexion() as conn, cursor_dict(conn) as cur:
             cur.execute(
@@ -801,7 +808,7 @@ def _crud(ruta: str, tabla: str, modelo, modelo_in, columnas: tuple[str, ...]) -
             return modelo(**_normalizar(dict(cur.fetchone())))
 
     @router.put(f"{ruta}/{{id}}", response_model=modelo, name=f"actualizar_{tabla}")
-    def actualizar(id: int, datos: modelo_in, _: Usuario = Depends(solo_interno)):  # type: ignore[misc]
+    def actualizar(id: int, datos: modelo_in, _: Usuario = Depends(editar_criterios)):  # type: ignore[misc]
         valores = [getattr(datos, c) for c in columnas]
         with conexion() as conn, cursor_dict(conn) as cur:
             cur.execute(f"UPDATE {tabla} SET {asignaciones} WHERE id = %s RETURNING *", [*valores, id])
@@ -811,7 +818,7 @@ def _crud(ruta: str, tabla: str, modelo, modelo_in, columnas: tuple[str, ...]) -
             return modelo(**_normalizar(dict(fila)))
 
     @router.delete(f"{ruta}/{{id}}", name=f"eliminar_{tabla}")
-    def eliminar(id: int, _: Usuario = Depends(solo_interno)) -> dict:  # type: ignore[misc]
+    def eliminar(id: int, _: Usuario = Depends(editar_criterios)) -> dict:  # type: ignore[misc]
         with conexion() as conn, cursor_dict(conn) as cur:
             try:
                 cur.execute(f"DELETE FROM {tabla} WHERE id = %s", [id])
@@ -859,7 +866,7 @@ _crud("/config/metodos", "verif_metodo", Metodo, MetodoIn, ("nombre", "orden", "
 
 @router.put("/config/columnas/{seccion}/{clave}", response_model=ColumnaConfig)
 def actualizar_columna_config(
-    seccion: str, clave: str, datos: ColumnaConfigIn, _: Usuario = Depends(solo_interno)
+    seccion: str, clave: str, datos: ColumnaConfigIn, _: Usuario = Depends(editar_criterios)
 ) -> ColumnaConfig:
     """Sobreescribe la etiqueta, la unidad o la visibilidad de una columna de
     un catálogo. NULL en etiqueta o unidad = volver al valor por defecto."""
@@ -881,7 +888,7 @@ def actualizar_columna_config(
 
 @router.post("/config/parametros", response_model=Parametro, status_code=201)
 def crear_parametro(
-    datos: ParametroNuevoIn, _: Usuario = Depends(solo_interno)
+    datos: ParametroNuevoIn, _: Usuario = Depends(editar_criterios)
 ) -> Parametro:
     clave = datos.clave.strip()
     if not clave:
@@ -904,7 +911,7 @@ def crear_parametro(
 
 @router.delete("/config/parametros/{clave}", status_code=204)
 def eliminar_parametro(
-    clave: str, _: Usuario = Depends(solo_interno)
+    clave: str, _: Usuario = Depends(editar_criterios)
 ) -> None:
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("DELETE FROM verif_parametro WHERE clave = %s RETURNING clave", [clave])
@@ -914,7 +921,7 @@ def eliminar_parametro(
 
 @router.put("/config/parametros/{clave}", response_model=Parametro)
 def actualizar_parametro(
-    clave: str, datos: ParametroIn, _: Usuario = Depends(solo_interno)
+    clave: str, datos: ParametroIn, _: Usuario = Depends(editar_criterios)
 ) -> Parametro:
     """Actualiza valor y, opcionalmente, descripción y unidad del parámetro."""
     sets = ["valor = %s"]
@@ -939,7 +946,7 @@ def actualizar_parametro(
 
 @router.post("/config/tabla-z", response_model=FactorZ, status_code=201)
 def crear_factor_z(
-    datos: FactorZNuevoIn, _: Usuario = Depends(solo_interno)
+    datos: FactorZNuevoIn, _: Usuario = Depends(editar_criterios)
 ) -> FactorZ:
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("SELECT 1 FROM verif_agua_z WHERE temperatura = %s", [datos.temperatura])
@@ -954,7 +961,7 @@ def crear_factor_z(
 
 @router.delete("/config/tabla-z/{temperatura}", status_code=204)
 def eliminar_factor_z(
-    temperatura: int, _: Usuario = Depends(solo_interno)
+    temperatura: int, _: Usuario = Depends(editar_criterios)
 ) -> None:
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("DELETE FROM verif_agua_z WHERE temperatura = %s RETURNING temperatura", [temperatura])
@@ -964,7 +971,7 @@ def eliminar_factor_z(
 
 @router.put("/config/tabla-z/{temperatura}", response_model=FactorZ)
 def actualizar_factor_z(
-    temperatura: int, datos: FactorZIn, _: Usuario = Depends(solo_interno)
+    temperatura: int, datos: FactorZIn, _: Usuario = Depends(editar_criterios)
 ) -> FactorZ:
     """Actualiza el factor Z para una temperatura dada."""
     with conexion() as conn, cursor_dict(conn) as cur:
@@ -1786,9 +1793,10 @@ def firmar_registro(fecha: date, body: FirmarIn, quien: Usuario = Depends(usuari
     es_admin_croma = (
         quien.tipoAcceso == "admin_general"
         or (quien.tipoAcceso == "admin_area" and getattr(quien, "area", None) == "cromatografia")
+        or permisos_funciones.tiene(quien, permisos_funciones.VERIF_FIRMAR)
     )
     if not es_admin_croma:
-        raise HTTPException(403, "Solo el administrador general o de cromatografía puede firmar.")
+        raise HTTPException(403, "Solo el administrador general, de cromatografía o quien tenga la función de firmar puede firmar.")
     nombre_quien = quien.nombre or quien.email
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(

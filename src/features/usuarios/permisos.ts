@@ -117,9 +117,41 @@ export function puedeVerTomaMuestras(usuario: Usuario): boolean {
   return (usuario.modulos ?? modulosPredeterminados(usuario)).includes(MODULO_TOMA_MUESTRAS)
 }
 
-/** Solo admin_general y admin_area pueden crear reanálisis. */
-export function puedeCrearReanalisis(usuario: Usuario): boolean {
-  return usuario.tipoAcceso === 'admin_general' || usuario.tipoAcceso === 'admin_area'
+/** «Mini funciones» que el administrador general reparte a cuentas concretas (Usuarios → permisos). Sin
+ * migración: viajan en `modulos`. Espejo de `app/permisos_funciones.py` (mismos casos en `permisos.test.ts` y
+ * `tests/test_permisos_funciones.py`). El administrador general las tiene todas; gerencia y clientes ninguna. */
+export type FuncionId = 'verif_criterios' | 'verif_firmar' | 'toma_reanalisis'
+
+export function tieneFuncion(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>, funcion: FuncionId): boolean {
+  if (usuario.tipoAcceso === 'admin_general') return true
+  if (usuario.tipoAcceso === 'gerencia' || usuario.tipoAcceso === 'cliente') return false
+  return (usuario.modulos ?? []).includes(funcion)
+}
+
+/** Editar los Criterios de las verificaciones diarias. */
+export function puedeEditarCriterios(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
+  return tieneFuncion(usuario, 'verif_criterios')
+}
+
+/** Firmar la revisión de un día de verificaciones: admin general, admin de Cromatografía o quien tenga la función. */
+export function puedeFirmarVerificaciones(usuario: Pick<Usuario, 'tipoAcceso' | 'area' | 'modulos'>): boolean {
+  return (
+    usuario.tipoAcceso === 'admin_general' ||
+    (usuario.tipoAcceso === 'admin_area' && usuario.area === 'cromatografia') ||
+    tieneFuncion(usuario, 'verif_firmar')
+  )
+}
+
+/** Admin general, admin de área y quien tenga la función `toma_reanalisis` pueden crear reanálisis. */
+export function puedeCrearReanalisis(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
+  return usuario.tipoAcceso === 'admin_general' || usuario.tipoAcceso === 'admin_area' || tieneFuncion(usuario, 'toma_reanalisis')
+}
+
+/** Qué ve una cuenta de cliente. Un cliente no pertenece a un área: se le asigna qué ve. Las cuentas antiguas
+ * (sin lista) conservan lo que daba su área: Cromatografía = Report, Post Venta = informes Accu-Tab. */
+export function reportesDeCliente(usuario: Pick<Usuario, 'area' | 'reportes'>): ReporteId[] {
+  if (usuario.reportes && usuario.reportes.length > 0) return usuario.reportes
+  return usuario.area === 'postventa' ? ['postventa'] : ['laboratorio']
 }
 
 export function etiquetaAcceso(usuario: Usuario): string {
@@ -127,8 +159,10 @@ export function etiquetaAcceso(usuario: Usuario): string {
   if (usuario.tipoAcceso === 'gerencia') return 'Gerencia'
   if (usuario.tipoAcceso === 'admin_area' && usuario.area)
     return `Admin · ${AREAS[usuario.area].nombre}`
-  if (usuario.tipoAcceso === 'cliente' && usuario.area)
-    return `Cliente · ${AREAS[usuario.area].nombre}`
+  if (usuario.tipoAcceso === 'cliente') {
+    const ve = reportesDeCliente(usuario)
+    return `Cliente · ${ve.map((r) => (r === 'postventa' ? 'Accu-Tab' : 'Report')).join(' + ')}`
+  }
   if (usuario.tipoAcceso === 'analista' && usuario.area)
     return `Analista · ${AREAS[usuario.area].nombre}`
   if (usuario.tipoAcceso === 'muestreador') return 'Muestreador'

@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { RequireAdminGeneral, RequireAuth, RequireModulo, RequireReanalisis, RequireReporte, RequireSeccionLab, RequireTomaMuestras } from '@/features/auth'
+import { RequireAdminGeneral, RequireAuth, RequireFuncion, RequireModulo, RequireReanalisis, RequireReporte, RequireSeccionLab, RequireTomaMuestras } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
 import { LoginView } from '@/views/login/LoginView'
 import { DashboardView } from '@/views/dashboard/DashboardView'
@@ -89,7 +89,11 @@ export const router = createBrowserRouter([
                     path: ROUTES.agrofreshLabVerificacionesHistorico,
                     element: <VerificacionesHistoricoView />,
                   },
-                  { path: ROUTES.agrofreshLabVerificacionesCriterios, element: <CriteriosView /> },
+                  // Editar los criterios es una función suelta: la asigna el administrador general.
+                  {
+                    element: <RequireFuncion funcion="verif_criterios" />,
+                    children: [{ path: ROUTES.agrofreshLabVerificacionesCriterios, element: <CriteriosView /> }],
+                  },
                 ],
               },
               {

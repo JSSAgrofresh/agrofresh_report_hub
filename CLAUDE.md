@@ -402,6 +402,28 @@ casos en `test_servicio_actimist.py` y `servicio.test.ts`).
   «Carga de datos»). **Report** muestra solo los servicios que el administrador principal
   encienda en Administración General → Funciones (ver abajo); de fábrica, solo Línea de proceso.
 
+## Usuarios: tipo de cuenta, categorías y funciones sueltas (pedido del usuario, 13-10-2026)
+
+Administración → Usuarios → formulario en tres pasos (Quién es · Tipo de cuenta · Qué puede hacer). **Sin migración**: todo viaja en las
+listas que la cuenta ya tenía (`modulos`, `reportes`).
+- **El tipo decide el alcance.** Administrador general (todo) y Gerencia (todo menos Auditoría interna, solo lectura) se ven marcados y
+  bloqueados; Administrador de área, Analista y Muestreador parten de una **plantilla típica** (`modulosPredeterminados`) y se ajustan con
+  casillas («Volver a lo típico» la restaura); **Cliente no tiene área**: se elige su Sold To / Ship To y **qué ve** (Report de laboratorio
+  y/o informes Accu-Tab = `reportes`), y nunca lleva módulos internos. El servidor deduce el `area` que guarda de lo que ve (compatibilidad con
+  el panel de inicio `tipo:cliente:<area>`) y descarta lo incoherente (`permisos_funciones.normalizar_cuenta`). Las cuentas de cliente
+  antiguas, sin `reportes`, siguen viendo lo de su área (`reportesDeCliente`).
+- **Catálogo por categoría** (`features/usuarios/catalogoPermisos.ts`, espejo de `app/permisos_funciones.py`): Data Core, Resultados y auditoría,
+  AgroFresh Lab, Toma de muestras, Archivos; «Marcar todo» por categoría; los permisos cuelgan unos de otros (quitar al padre quita a los hijos).
+  Abajo, **«Administración» bloqueada**: Usuarios, Listados, Laboratorios, Notificaciones, Administración General, Configuración de muestreo y las
+  acciones del administrador principal: solo el administrador general, nunca se reparten (no existen como id). **Un módulo o sección nueva se agrega
+  en `CATEGORIAS`** (y, si es una función suelta, en `FUNCIONES`/`MODULOS_VALIDOS` del backend).
+- **Funciones sueltas** (ids en `modulos`; se asignan a propósito, marcar al padre no las da): `verif_criterios` (editar los Criterios de las
+  verificaciones: **ahora SÍ lo exige el servidor**, 403 en `/api/verificaciones/config/*`; antes cualquier cuenta con Verificaciones podía),
+  `verif_firmar` (firmar la revisión del día, además de admin general y admin de Cromatografía) y `toma_reanalisis` (crear reanálisis, además de
+  admin general y admin de área). Admin general las tiene todas; gerencia y clientes ninguna. Guardas: `RequireFuncion` (front), `permisos_funciones.exigir`
+  (back). Pruebas: `tests/test_permisos_funciones.py`, `catalogoPermisos.test.ts`, `permisos.test.ts`, `UsuarioForm.test.tsx`.
+  **Ojo al desplegar:** las cuentas que hoy editan Criterios sin ser admin general pierden ese acceso hasta que se les marque «Editar los criterios».
+
 ## Administración General → Funciones (qué muestra Report)
 
 Pestaña «Funciones» (`views/admin/funciones/FuncionesPanel.tsx`, `app/funciones.py`, prefijo `/api/funciones`, solo

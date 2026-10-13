@@ -43,7 +43,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
-from . import actividad, auth, config, config_store, correo, indice_solicitudes, mail_templates, r2, seguridad
+from . import actividad, auth, config, config_store, correo, indice_solicitudes, mail_templates, permisos_funciones, r2, seguridad
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .notificaciones import notificar
@@ -621,12 +621,14 @@ def _exigir_acceso(usuario: Usuario, datos: dict) -> None:
 
 
 def _puede_crear_reanalisis(usuario: Usuario) -> bool:
-    """Solo admin_general y admin_area (cualquier área) pueden crear reanálisis.
+    """Solo admin_general, admin_area (cualquier área) y quien tenga la función `toma_reanalisis` pueden crear reanálisis.
 
     Gerencia, analistas, clientes y muestreadores no tienen acceso: un
     reanálisis implica decisiones de laboratorio que esos roles no toman.
     """
-    return usuario.tipoAcceso in ("admin_general", "admin_area")
+    return usuario.tipoAcceso in ("admin_general", "admin_area") or permisos_funciones.tiene(
+        usuario, permisos_funciones.TOMA_REANALISIS
+    )
 
 
 def _exigir_puede_reanalisis(usuario: Usuario) -> None:

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { UsuarioForm } from './UsuarioForm'
 import type { Usuario } from '../types'
@@ -55,5 +55,66 @@ describe('UsuarioForm: secciones de AgroFresh Lab', () => {
     })
     expect(onGuardar).not.toHaveBeenCalled()
     expect(screen.getByText(/al menos una sección de AgroFresh Lab/)).toBeTruthy()
+  })
+})
+
+describe('UsuarioForm: permisos por categoría y funciones sueltas', () => {
+  it('muestra todo por categoría y deja bloqueado lo que es solo del administrador general', () => {
+    render(<UsuarioForm usuario={cuenta} onGuardar={() => {}} onCancelar={() => {}} />)
+    for (const n of ['Data Core', 'Resultados y auditoría', 'AgroFresh Lab', 'Toma de muestras', 'Archivos']) {
+      expect(screen.getByRole('region', { name: n })).toBeTruthy()
+    }
+    const reservada = screen.getByRole('region', { name: 'Solo administrador general' })
+    expect(reservada.textContent).toMatch(/Usuarios y permisos/)
+    expect(reservada.textContent).toMatch(/Administración General/)
+    expect(reservada.querySelectorAll('input')).toHaveLength(0) // no hay casillas: no se pueden repartir
+  })
+
+  it('se puede asignar «Editar los criterios» a una cuenta y viaja en `modulos`', () => {
+    const onGuardar = guardar(cuenta, () => fireEvent.click(screen.getByRole('checkbox', { name: /Editar los criterios/ })))
+    const { modulos } = onGuardar.mock.calls[0][0] as { modulos: string[] }
+    expect(modulos).toContain('verif_criterios')
+  })
+
+  it('«Marcar todo» de una categoría marca sus permisos', () => {
+    const onGuardar = guardar(
+      { ...cuenta, modulos: [] },
+      () => fireEvent.click(within(screen.getByRole('region', { name: 'Data Core' })).getByRole('button', { name: 'Marcar todo' })),
+    )
+    const { modulos } = onGuardar.mock.calls[0][0] as { modulos: string[] }
+    expect(modulos).toEqual(expect.arrayContaining(['ingesta', 'trace', 'converter']))
+  })
+
+  it('un cliente no tiene área ni módulos: solo se elige qué ve', () => {
+    const cliente: Usuario = { id: '5', email: 'c@dole.com', nombre: 'Dole', tipoAcceso: 'cliente', clienteNombre: 'DOLE CHILE S.A.' }
+    render(<UsuarioForm usuario={cliente} onGuardar={() => {}} onCancelar={() => {}} />)
+    expect(screen.queryByRole('region', { name: 'Data Core' })).toBeNull()
+    expect(screen.queryByLabelText('Área')).toBeNull()
+    expect((screen.getByRole('checkbox', { name: /Report de laboratorio/ }) as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByRole('checkbox', { name: /Informes Accu-Tab/ }) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('guardar un cliente con las dos vistas no manda área ni módulos', () => {
+    const cliente: Usuario = { id: '5', email: 'c@dole.com', nombre: 'Dole', tipoAcceso: 'cliente', clienteNombre: 'DOLE CHILE S.A.' }
+    const onGuardar = guardar(cliente, () => fireEvent.click(screen.getByRole('checkbox', { name: /Informes Accu-Tab/ })))
+    const datos = onGuardar.mock.calls[0][0] as Omit<Usuario, 'id'>
+    expect(datos.reportes).toEqual(['laboratorio', 'postventa'])
+    expect(datos.area).toBeUndefined()
+    expect(datos.modulos).toBeUndefined()
+  })
+
+  it('no deja guardar un cliente sin nada que ver', () => {
+    const cliente: Usuario = { id: '5', email: 'c@dole.com', nombre: 'Dole', tipoAcceso: 'cliente', clienteNombre: 'DOLE CHILE S.A.' }
+    const onGuardar = guardar(cliente, () => fireEvent.click(screen.getByRole('checkbox', { name: /Report de laboratorio/ })))
+    expect(onGuardar).not.toHaveBeenCalled()
+    expect(screen.getByText(/Elige qué ve el cliente/)).toBeTruthy()
+  })
+
+  it('administrador general y gerencia ven todo sin poder cambiarlo', () => {
+    render(<UsuarioForm usuario={{ ...cuenta, tipoAcceso: 'gerencia', area: undefined }} onGuardar={() => {}} onCancelar={() => {}} />)
+    const box = screen.getByRole('checkbox', { name: /Storage/ }) as HTMLInputElement
+    expect(box.checked).toBe(true)
+    expect(box.disabled).toBe(true)
+    expect((screen.getByRole('checkbox', { name: /Auditoría Interna/ }) as HTMLInputElement).checked).toBe(false)
   })
 })

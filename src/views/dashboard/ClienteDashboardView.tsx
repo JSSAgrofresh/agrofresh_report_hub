@@ -3,11 +3,17 @@ import type { AreaId } from '@/constants/areas'
 import { AREAS } from '@/constants/areas'
 import { EstadoModulo } from '@/components/ui/EstadoModulo'
 import { AreaHero, fondoParaEspecie } from '@/features/dashboard'
+import { reportesDeCliente } from '@/features/usuarios'
 import type { Usuario } from '@/features/usuarios'
 import { InformesAccutabCliente } from '@/views/modules/reports/InformesAccutabCliente'
 import { ReporteView } from '@/views/modules/reports/ReporteView'
 
+/** Un cliente no pertenece a un área: ve lo que el administrador le asignó (Report de laboratorio y/o informes
+ * Accu-Tab). `area` solo da el encabezado y los colores; si ve las dos cosas, se muestran las dos. */
 export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario: Usuario }) {
+  const ve = reportesDeCliente(usuario)
+  const veReport = ve.includes('laboratorio')
+  const veAccutab = ve.includes('postventa')
   const config = AREAS[area]
   const cliente = usuario.clienteNombre ?? usuario.nombre
   // Si la cuenta está acotada a una sucursal (Ship To) específica, el
@@ -20,7 +26,7 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
   const [especieFiltrada, setEspecieFiltrada] = useState<string | null>(null)
   // El velo del encabezado toma el tono de la foto de la fruta -verde en pera,
   // azul en arándano, rojo en cereza-, no el color de marca del área.
-  const fondoHero = area === 'cromatografia' ? fondoParaEspecie(especieFiltrada, config.fondo) : undefined
+  const fondoHero = veReport ? fondoParaEspecie(especieFiltrada, config.fondo) : undefined
 
   return (
     <div>
@@ -32,11 +38,11 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
         tinte={fondoHero?.tinte}
       />
 
-      {area === 'cromatografia' ? (
+      {veReport && (
         <ReporteView clienteFijo={cliente} plantaFija={usuario.plantaNombre} onCropChange={setEspecieFiltrada} />
-      ) : area === 'postventa' ? (
-        <InformesAccutabCliente />
-      ) : (
+      )}
+      {veAccutab && <InformesAccutabCliente />}
+      {!veReport && !veAccutab && (
         <EstadoModulo
           etiqueta="Próximamente"
           titulo="Tus reportes están en camino"

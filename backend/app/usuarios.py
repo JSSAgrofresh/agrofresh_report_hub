@@ -20,7 +20,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from . import actividad, seguridad
+from . import actividad, permisos_funciones, seguridad
 from .auth import (
     TIPOS_ACCESO,
     Usuario,
@@ -73,6 +73,11 @@ def _validar(body: UsuarioIn) -> None:
     # filtro se tomara del navegador, lo vería todo-. No puede existir.
     if body.tipoAcceso == "cliente" and not (body.clienteNombre or "").strip():
         raise HTTPException(400, "Una cuenta de tipo cliente necesita un cliente asignado.")
+    # Coherencia entre el tipo de cuenta y lo que se le reparte (un cliente no tiene área ni módulos
+    # internos; nadie recibe permisos que no existen o que son solo del administrador general).
+    body.area, body.modulos, body.reportes = permisos_funciones.normalizar_cuenta(
+        body.tipoAcceso, body.area, body.modulos, body.reportes
+    )
 
 
 def _fila_por_id(cur, usuario_id: str) -> dict:
