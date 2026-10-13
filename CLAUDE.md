@@ -208,8 +208,15 @@ Este proyecto no se da por listo con "debería funcionar":
 | Verificaciones diarias | `/modulos/agrofresh-lab/verificaciones` | REG-03: reemplaza el Excel con macros del control diario de equipos. |
 | Envío de informes | `/modulos/agrofresh-lab/envio-informes` | Paz sube el PDF del laboratorio, elige Sold To y Ship To y se envía a la lista de distribución del cliente. |
 
-Los tres comparten el permiso `agrofresh_lab`; editar los criterios
-(`/verificaciones/criterios`) sí exige admin general.
+Los tres comparten el permiso `agrofresh_lab`. **Modificar los criterios** (`/verificaciones/criterios`) es un permiso aparte
+(13-10-2026): casilla «Modificar criterios» en Administración → Usuarios (bajo «Secciones de AgroFresh Lab»), guardada como
+`lab_criterios` en `modulos` (sin migración; NO cuenta como sección, no recorta las tres puertas). Lo tienen el admin general y
+quien tenga la casilla; sin ella el botón Criterios no sale, la ruta redirige y el servidor responde 403
+(`lab_secciones.exigir_edicion_criterios` en todos los PUT/POST/DELETE de `/config`; ojo: antes cualquier cuenta interna con la
+sección podía editar). Espejo: `puedeEditarCriteriosLab` (`permisos.ts`).
+**Peso hueso** (migración **0060**, columnas `peso_hueso*` de `solicitud_archivo`): tercer peso (g) de la tabla de Ingreso al laboratorio,
+se anota como el peso extraído (`PUT /toma-muestras/solicitudes/{archivo}/peso-hueso`, queda en `lab_actividad`; descruzar lo borra).
+**Pendiente**: aún no sale en el Excel «con muestra», la BD de Report ni el informe.
 
 **Secciones por cuenta** (pedido del usuario, 09-10-2026: a algunos admin de toma de muestras les salía «Verificaciones»): en
 Administración → Usuarios, al activar AgroFresh Lab sale «Secciones de AgroFresh Lab» con una casilla por puerta (Ingreso,

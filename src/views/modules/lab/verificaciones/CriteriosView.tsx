@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/features/auth'
+import { puedeEditarCriteriosLab } from '@/features/usuarios'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -1108,6 +1110,13 @@ function SeccionInyector({
 // ---------------------------------------------------------------------------
 
 export function CriteriosView() {
+  const { user } = useAuth()
+  // Solo quien tiene el permiso «Modificar criterios» (y el admin general) entra; el servidor lo exige también.
+  if (user && !puedeEditarCriteriosLab(user)) return <Navigate to={ROUTES.agrofreshLabVerificaciones} replace />
+  return <CriteriosContenido />
+}
+
+function CriteriosContenido() {
   const navigate = useNavigate()
   const [config, setConfig] = useState<ConfigVerificaciones | null>(null)
   const [error, setError] = useState<string | null>(null)
