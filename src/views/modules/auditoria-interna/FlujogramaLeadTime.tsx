@@ -45,6 +45,12 @@ const FILTROS_ESTADO: { clave: FiltroEstado; texto: string; cumple: (e: Evaluada
 
 const etiquetaSolicitud = (e: EvaluadaEntrega) => e.sol.numero_solicitud ?? e.sol.archivo
 
+/** Cómo sabemos que el informe salió al cliente. */
+function origenCliente(o: string | null | undefined) {
+  if (!o) return null
+  return o === 'envio' ? 'Enviado desde «Envío de informes»' : `Marcado a mano por ${o.replace(/^manual:\s*/, '')}`
+}
+
 /** Lo que dice una solicitud de su avance dentro del plazo. */
 function textoPlazo(e: EvaluadaEntrega) {
   if (e.plazo == null) return 'sin plazo cargado'
@@ -111,7 +117,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
       }
       return {
         cifra: null as string | null,
-        extra: n === 'analisis' ? textoPlazo(una) : n === 'observado' && h?.observado_por?.length ? h.observado_por.join(' · ') : null,
+        extra: n === 'analisis' ? textoPlazo(una) : n === 'cliente' && h?.cliente ? origenCliente(h.cliente_origen) : n === 'observado' && h?.observado_por?.length ? h.observado_por.join(' · ') : null,
         fechaNodo: a[n] ? fechas[n] : null,
         on: a[n],
         aqui: nodoActual(una) === n,
