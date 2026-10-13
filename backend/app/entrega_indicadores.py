@@ -10,8 +10,8 @@ inventar ninguna fecha:
   informe   cuándo llegó el informe: la «fecha de envío» que anotó una persona al
             subir el PDF, y si no la hay, el momento en que se subió (informe_auditoria)
   report    cuándo se cargaron sus resultados (carga_datos, por solicitud.carga_id)
-  cliente   primer envío exitoso en PRODUCCIÓN desde «Envío de informes» (envio_informe_log,
-            amarrado a la solicitud desde la migración 0054; lo anterior no tiene amarre)
+  cliente   SOLO el check manual «enviado al cliente» (envio_cliente_manual: Converter o
+            Solicitudes e informes). El log de «Envío de informes» no cuenta.
 
 Las solicitudes de prueba nunca entran. Cada fuente se lee por separado: si a una
 le falta su migración, el resto sigue y ese hito queda vacío.
@@ -208,15 +208,11 @@ def hitos(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
         WHERE s.nro_solicitud IS NOT NULL AND cd.deshecha_en IS NULL
         GROUP BY s.nro_solicitud
         """) or []}
-    filas_cliente = _filas(
-        """
-        SELECT archivo_solicitud AS archivo, min(creado_en) AS t FROM envio_informe_log
-        WHERE exitoso AND modo = 'produccion' AND archivo_solicitud IS NOT NULL
-        GROUP BY archivo_solicitud
-        """)
-    clientes = {f["archivo"]: f["t"] for f in filas_cliente or []}
-    origen = {a: "envio" for a in clientes}
-    # Marcas hechas a mano (Converter o Solicitudes e informes): vale la fecha más antigua.
+    # «Enviado al cliente» tiene UNA sola fuente de verdad: el check que una persona marca a mano
+    # (Converter al subir, o Solicitudes e informes después). Un envío hecho desde «Envío de
+    # informes» NO cuenta por sí solo: no se asume nada.
+    clientes: dict[str, Any] = {}
+    origen: dict[str, str] = {}
     for f in _filas("SELECT archivo, enviado_en AS t, marcado_por FROM envio_cliente_manual") or []:
         previo = clientes.get(f["archivo"])
         if previo is None or f["t"] < previo:
@@ -234,15 +230,7 @@ def hitos(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
             GROUP BY s.nro_solicitud
             """) or []
     }
-    # Calidad del dato: ¿cuántos envíos a clientes se pueden amarrar a una solicitud?
-    totales = _filas("SELECT count(*) AS n FROM envio_informe_log WHERE exitoso AND modo = 'produccion'")
-    amarrados = _filas(
-        "SELECT count(*) AS n FROM envio_informe_log WHERE exitoso AND modo = 'produccion' AND archivo_solicitud IS NOT NULL")
     return {
         "hitos": armar_hitos(base, enviadas, reports, clientes, observados, origen),
-        "calidad": {
-            "envios_a_clientes": totales[0]["n"] if totales else None,
-            # None = falta la migración 0054: todavía no se puede amarrar ningún envío.
-            "envios_amarrados": None if filas_cliente is None or amarrados is None else amarrados[0]["n"],
-        },
+        "calidad": {"envios_a_clientes": None, "envios_amarrados": None},
     }

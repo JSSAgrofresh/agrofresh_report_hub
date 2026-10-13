@@ -25,7 +25,7 @@ const PUNTOS: Record<NodoFlujo, Punto> = {
   },
   analisis: { titulo: 'En análisis', detalle: 'Corre el plazo prometido, en días hábiles' },
   informe: { titulo: 'Informe recibido del laboratorio', detalle: 'PDF guardado en Auditoría interna' },
-  cliente: { titulo: 'Informe enviado al cliente', detalle: 'Desde «Envío de informes», en producción' },
+  cliente: { titulo: 'Informe enviado al cliente', detalle: 'Solo lo marcado como enviado (Converter o Solicitudes e informes)' },
   sistema: { titulo: 'Informe cargado al sistema', detalle: 'Resultados ya visibles en Report' },
   observado: { titulo: 'Reporte observado', detalle: 'Los resultados ya están en Report para el cliente' },
 }
