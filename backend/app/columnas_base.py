@@ -101,12 +101,15 @@ def calculador_listas(contactos: list[dict] | None = None) -> Callable[..., dict
     {lista_para, lista_cc, lista_cco}: los correos separados por «; ». Es la
     misma regla que el correo de resultados, el PDF y el JSON.
 
-    El cuarto argumento, opcional, es el tipo de servicio (Tipo Aplicación):
-    Actimist tiene su propia lista; sin él rige la de Línea de proceso.
+    El cuarto argumento, opcional, es el tipo de servicio (Tipo Aplicación o `servicio`):
+    Actimist, Ecofog y RYD tienen cada uno su lista y sus destinatarios fijos; sin él (o con
+    Línea de proceso) rige la de Línea de proceso. Es una base de consulta, no un documento
+    emitido: lleva SIEMPRE las reglas vigentes de cada lista (en RYD, Carla y Fran en Para;
+    Jorge y el Report Hub en Copia; nunca Claudia).
 
     Lee la configuración UNA vez (viene de R2) y recuerda cada combinación:
     cientos de filas comparten pocas."""
-    from .servicios import clave_servicio
+    from .servicios import clave_lista
     from .toma_muestras import _leer_config, destinatarios_resultado_por_tipo
 
     if contactos is None:
@@ -115,7 +118,7 @@ def calculador_listas(contactos: list[dict] | None = None) -> Callable[..., dict
 
     def calcular(sold_to: Any, ship_to: Any, especie: Any, servicio: Any = None) -> dict[str, str]:
         clave = (str(sold_to or "").strip(), str(ship_to or "").strip(), str(especie or "").strip(),
-                 clave_servicio(servicio))
+                 clave_lista(servicio))
         if clave not in memoria:
             d = destinatarios_resultado_por_tipo("", clave[1], clave[0], clave[2], contactos, servicio=clave[3])
             memoria[clave] = {
