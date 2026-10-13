@@ -27,7 +27,7 @@ const PUNTOS: Record<NodoFlujo, Punto> = {
   informe: { titulo: 'Informe recibido del laboratorio', detalle: 'PDF guardado en Auditoría interna' },
   cliente: { titulo: 'Informe enviado al cliente', detalle: 'Desde «Envío de informes», en producción' },
   sistema: { titulo: 'Informe cargado al sistema', detalle: 'Resultados ya visibles en Report' },
-  observado: { titulo: 'Reporte observado', detalle: 'El cliente vio sus resultados en Report por primera vez' },
+  observado: { titulo: 'Reporte observado', detalle: 'Los resultados ya están en Report para el cliente' },
 }
 
 const ENCADENA: NodoFlujo[] = ['emitida', 'recepcion', 'analisis', 'informe']
@@ -55,7 +55,7 @@ interface Props {
  * solicitudes del punto que se toque. Con todas las solicitudes muestra cuántas pasaron por
  * cada punto y cuántas están ahí hoy; al elegir una sola, su propio recorrido con fechas.
  * Informe enviado al cliente e informe cargado al sistema van al mismo nivel. «Reporte
- * observado» sale de la primera vez que un cliente abre sus resultados en Report.
+ * observado» se enciende cuando el informe ya está en Report (y anota qué clientes lo abrieron).
  */
 export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
   const [abierto, setAbierto] = useState<NodoFlujo | null>(null)
@@ -94,7 +94,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
         informe: fecha(h?.informe),
         cliente: fecha(h?.cliente),
         sistema: fecha(h?.report),
-        observado: fecha(h?.observado),
+        observado: fecha(h?.observado ?? h?.report),
       }
       return {
         cifra: null as string | null,
@@ -187,7 +187,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
           {' · '}{una.entregada && una.dias != null ? `entregada en ${f1(una.dias)} d háb.` : `lleva ${f1(una.edad)} d háb.`}
         </p>
       )}
-      {!una && <p className={styles.pista}>Toca un punto para ver las solicitudes que están ahí. En «Reporte observado» verás qué clientes ya vieron su informe.</p>}
+      {!una && <p className={styles.pista}>Toca un punto para ver las solicitudes que están ahí. En «Reporte observado» verás cuáles ya están en Report y qué clientes ya los abrieron.</p>}
 
       <div className={styles.columna}>
         {nodo('emitida')}
@@ -218,7 +218,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
           {lista.length === 0 ? (
             <p className={styles.vacio}>
               {abierto === 'observado'
-                ? 'Todavía ningún cliente abrió sus resultados en Report (o falta correr la migración 0057).'
+                ? 'Todavía no hay informes cargados en Report para los clientes.'
                 : 'No hay solicitudes en este punto.'}
             </p>
           ) : (
@@ -230,7 +230,7 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
                     <span>{e.sol.laboratorio ?? '—'} · {e.sol.sold_to ?? '—'}{e.sol.ship_to ? ` · ${e.sol.ship_to}` : ''}</span>
                     <small>
                       {abierto === 'observado'
-                        ? `${fecha(e.hitos?.observado)} · ${(e.hitos?.observado_por ?? []).join(', ') || '—'}`
+                        ? `${fecha(e.hitos?.observado ?? e.hitos?.report)} · ${(e.hitos?.observado_por ?? []).length ? `Visto por ${(e.hitos?.observado_por ?? []).join(', ')}` : 'Disponible en Report'}`
                         : abierto === 'cliente' || abierto === 'sistema'
                           ? fecha(abierto === 'cliente' ? e.hitos?.cliente : e.hitos?.report)
                           : textoPlazo(e)}
