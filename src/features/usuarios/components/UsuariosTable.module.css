@@ -21,9 +21,10 @@
 }
 
 .tabla td {
-  padding: 10px var(--space-3);
+  padding: 11px var(--space-3);
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
+  vertical-align: middle;
 }
 
 .tabla tbody tr:last-child td {
@@ -34,18 +35,81 @@
   background: var(--color-bg);
 }
 
+.persona {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.avatar {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.datos {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
 .nombre {
   font-weight: 600;
 }
 
+.tipo {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.accesos {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
+}
+
+.acceso,
+.accesoMas {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.accesoMas {
+  cursor: help;
+}
+
+.sinDato {
+  color: var(--color-text-faint);
+}
+
 .correo {
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 
 .cliente {
   color: var(--color-text-muted);
+  font-size: 12px;
 }
 
 .planta {
@@ -55,11 +119,13 @@
 
 .acciones {
   display: flex;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-1, 4px);
   justify-content: flex-end;
 }
 
 .boton,
+.botonSuave,
 .botonEliminar {
   font-size: 12.5px;
   font-weight: 600;
@@ -71,8 +137,22 @@
   color: var(--color-primary-hover);
 }
 
+.boton {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+}
+
 .boton:hover {
   background: #eef6e5;
+}
+
+.botonSuave {
+  color: var(--color-text-muted);
+}
+
+.botonSuave:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
 .botonEliminar {
