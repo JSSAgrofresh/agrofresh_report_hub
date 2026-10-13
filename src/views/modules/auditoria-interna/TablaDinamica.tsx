@@ -89,12 +89,12 @@ export function TablaDinamica({
   )
 
   return (
-    <section className={styles.tarjeta} aria-label="Análisis por mes y por semana">
+    <section className={styles.tarjeta} aria-label="Análisis por tipo de servicio y laboratorio">
       <header className={styles.cabecera}>
         <div className={styles.titulos}>
           <nav className={styles.migas} aria-label="Ubicación">
             <button type="button" onClick={volver} disabled={!enSemanas} className={enSemanas ? styles.migaLink : styles.migaActual}>
-              Por mes
+              Por servicio
             </button>
             {mesActual && (
               <>
@@ -103,7 +103,7 @@ export function TablaDinamica({
               </>
             )}
           </nav>
-          <h3>{mesActual ? `Semanas de ${mesActual.etiqueta}` : 'Análisis por mes'}</h3>
+          <h3>{mesActual ? `Semanas de ${mesActual.etiqueta}` : 'Análisis por tipo de servicio y laboratorio'}</h3>
           <p className={styles.alcance} aria-label="Filtros de la tabla">
             {camposTituloTabla(filtros).map((c, i) => (
               <span key={i}>{c}</span>
