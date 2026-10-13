@@ -6,22 +6,22 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { IconoActualizar, IconoAlerta, IconoBuscar } from '@/components/ui/iconosAccion'
 import {
   FILTROS_VACIOS,
-  NOMBRE_LAB,
   TIPO_ACTIMIST,
   TIPO_LINEA,
   TIPO_RYD,
   contarFiltros,
   filtrarSolicitudes,
   opcionesDeFiltros,
-  porLaboratorioYAnalisis,
+  porClienteResiduosFsmaFito,
   resumenPorTipo,
   simularSolicitudes,
+  tiposDeArea,
   tipoServicioDe,
   totales,
   useSolicitudesAuditoria,
 } from '@/features/auditoriaInterna'
 import type { AreaPivote, DimensionGrafico, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
-import { DonaTipoServicio, GraficoAnalisisPorLaboratorio, LeyendaLaboratorios, TablaGrupoLaboratorio, TarjetaGrafico } from './Graficos'
+import { DonaTipoServicio, LeyendaLaboratorios, TarjetaGrafico } from './Graficos'
 import { AuditoriaHero } from './AuditoriaHero'
 import { PanelFiltros } from './PanelFiltros'
 import { SelectorArea } from './SelectorArea'
@@ -29,6 +29,7 @@ import { IndicadoresEntrega } from './IndicadoresEntrega'
 import { ResumenConcretadas } from './ResumenConcretadas'
 import { InformesPorLaboratorio } from './InformesPorLaboratorio'
 import { AnalisisPorCliente } from './AnalisisPorCliente'
+import { TablaDinamica } from './TablaDinamica'
 import styles from './SolicitudesInformesView.module.css'
 
 
@@ -77,7 +78,7 @@ export function SolicitudesInformesView() {
   )
   const opcionesGrafico = useMemo(() => opcionesDeFiltros(alcanceCliente, filtrosGrafico), [alcanceCliente, filtrosGrafico])
   const alcanceGrafico = useMemo(() => filtrarSolicitudes(alcanceCliente, filtrosGrafico, { estado: true }), [alcanceCliente, filtrosGrafico])
-  const paneles = useMemo(() => porLaboratorioYAnalisis(alcanceGrafico, dimension, topClientes), [alcanceGrafico, dimension, topClientes])
+  const filasTabla = useMemo(() => porClienteResiduosFsmaFito(alcanceGrafico, dimension).slice(0, topClientes > 0 ? topClientes : undefined), [alcanceGrafico, dimension, topClientes])
   const cambiarFiltroGrafico = (clave: keyof typeof filtroGrafico, valor: string) =>
     setFiltroGrafico((f) => ({ ...f, [clave]: valor, ...(clave === 'cliente' ? { planta: '' } : {}) }))
   const nombreDimension = DIMENSIONES.find((d) => d.valor === dimension)!
@@ -153,12 +154,12 @@ export function SolicitudesInformesView() {
                   {area !== 'rd' && <DonaTipoServicio tipo={TIPO_ACTIMIST} resumen={actimist} />}
                   {(area === 'rd' || (area === null && ryd.emitidas > 0)) && <DonaTipoServicio tipo={TIPO_RYD} resumen={ryd} />}
                 </div>
-                <AnalisisPorCliente solicitudes={alcanceCliente} />
+                <TablaDinamica solicitudes={alcance} filtros={filtros} tipos={tiposDeArea(area)} />
               </div>
 
               <TarjetaGrafico
                 titulo={`Análisis por laboratorio · top ${nombreDimension.plural}`}
-                subtitulo={`Análisis pedidos e informes concretados en los 4 laboratorios · ${paneles.length} análisis · top ${topClientes || 'todos'} por ${nombreDimension.texto}`}
+                subtitulo={`Residuales (AgroFresh y Quiteca), FSMA y FITO por ${nombreDimension.texto} · de más a menos · ${topClientes ? `top ${topClientes}` : 'todos'}`}
                 leyenda={
                   <>
                     <div className={styles.filtrosGrafico}>
@@ -210,14 +211,13 @@ export function SolicitudesInformesView() {
                     </select>
                   </>
                 }
-                vistaTabla={<TablaGrupoLaboratorio paneles={paneles} nombre={nombreDimension.texto} />}
                 tabla={{
-                  columnas: ['Laboratorio', 'Análisis', nombreDimension.texto, 'Análisis pedidos', 'Con informe'],
-                  filas: paneles.flatMap((p) => p.filas.map((f) => [NOMBRE_LAB[p.laboratorio] ?? p.laboratorio, p.analisis, f.grupo, f.analisis, f.informes])),
+                  columnas: [nombreDimension.texto, 'AgroFresh', 'Quiteca', 'FSMA', 'FITO', 'Total', 'Con informe'],
+                  filas: filasTabla.map((f) => [f.cliente, f.agrofresh.n, f.quiteca.n, f.fsma.n, f.fito.n, f.total, f.informes]),
                 }}
               >
-                {paneles.length > 0 ? (
-                  <GraficoAnalisisPorLaboratorio paneles={paneles} nombre={nombreDimension.plural} />
+                {filasTabla.length > 0 ? (
+                  <AnalisisPorCliente solicitudes={alcanceGrafico} dimension={dimension} limite={topClientes} />
                 ) : (
                   <p className={styles.sinDatosGrafico}>No hay solicitudes con los filtros actuales.</p>
                 )}
