@@ -22,8 +22,13 @@ def test_hitos_une_las_fuentes_y_prefiere_la_fecha_que_anoto_una_persona():
     h = ent.armar_hitos(base, {"a.xlsx": T(1, 18)}, {"2026-1": T(11)}, {"a.xlsx": T(14)})
     a, b, c = h
     assert a["informe"] == T(8).isoformat() and a["informe_fuente"] == "fecha_envio"
-    assert a["enviada"] == T(1, 18).isoformat() and a["report"] == T(11).isoformat() and a["cliente"] == T(14).isoformat()
+    assert a["enviada"] == T(1, 18).isoformat() and a["report"] == T(11).isoformat()
+    # Con el check puesto, «enviado al cliente» toma la fecha de envío anotada, no la del día del check.
+    assert a["cliente"] == T(8).isoformat()
     assert b["informe"] == T(12).isoformat() and b["informe_fuente"] == "carga" and b["report"] is None
+    # Sin fecha anotada vale la del check; sin check no hay envío, aunque el informe tenga fecha.
+    h2 = ent.armar_hitos(base, {}, {}, {"b.xlsx": T(15)})
+    assert h2[0]["cliente"] is None and h2[1]["cliente"] == T(15).isoformat()
     # Sin informe no hay hito de informe ni de Report, aunque otra solicitud tenga fechas.
     assert c["informe"] is None and c["informe_fuente"] is None and c["report"] is None and not c["en_report"]
 

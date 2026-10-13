@@ -169,7 +169,9 @@ def armar_hitos(
             "informe_fuente": None if not tiene_informe else ("fecha_envio" if f.get("fecha_envio") else "carga"),
             "report": _iso(reports.get(nro)) if nro else None,
             "en_report": bool(f.get("en_report")),
-            "cliente": _iso(clientes.get(f["archivo"])),
+            # Con el check puesto, la fecha de envío es la que se anotó junto al informe («Fecha y hora
+            # de envío»); solo si no hay, la del momento en que se marcó.
+            "cliente": _iso((f.get("fecha_envio") or clientes[f["archivo"]]) if f["archivo"] in clientes else None),
             # De dónde sale: «envio» (Envío de informes, producción) o «manual: <quién lo marcó>».
             "cliente_origen": (origen_cliente or {}).get(f["archivo"]),
             # Reporte observado: la primera vez que un cliente vio sus resultados, y quiénes.
