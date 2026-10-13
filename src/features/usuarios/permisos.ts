@@ -87,7 +87,15 @@ export const LAB_SECCIONES = [
 
 export type LabSeccionId = (typeof LAB_SECCIONES)[number]['id']
 
-export const esSeccionLab = (id: string): boolean => LAB_SECCIONES.some((s) => s.id === id)
+/** Permiso aparte (no es una puerta): modificar los criterios de las verificaciones diarias. Viaja en `modulos`
+ * y no recorta las secciones. Espejo de `puede_editar_criterios` en `app/lab_secciones.py`. */
+export const LAB_CRITERIOS = 'lab_criterios'
+
+export const esSeccionLab = (id: string): boolean => id === LAB_CRITERIOS || LAB_SECCIONES.some((s) => s.id === id)
+
+export function puedeEditarCriteriosLab(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
+  return usuario.tipoAcceso === 'admin_general' || (usuario.modulos ?? []).includes(LAB_CRITERIOS)
+}
 
 export function seccionesLabPermitidas(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): LabSeccionId[] {
   const todas = LAB_SECCIONES.map((s) => s.id)

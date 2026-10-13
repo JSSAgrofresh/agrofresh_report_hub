@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { modulosPermitidos, puedeVerReporte, puedeVerSeccionLab, puedeVerTomaMuestras, seccionesLabPermitidas } from './permisos'
+import { modulosPermitidos, puedeEditarCriteriosLab, puedeVerReporte, puedeVerSeccionLab, puedeVerTomaMuestras, seccionesLabPermitidas } from './permisos'
 import type { Usuario } from './types'
 
 const cromatografia: Usuario = {
@@ -88,6 +88,16 @@ describe('secciones de AgroFresh Lab por cuenta (espejo de tests/test_lab_seccio
 
   it('las secciones no se cuelan como módulos del menú', () => {
     const u = cuenta(['agrofresh_lab', 'lab_ingreso'])
+    expect(modulosPermitidos(u).map((m) => m.id)).toEqual(['agrofresh_lab'])
+  })
+
+  it('«Modificar criterios» es un permiso aparte: no recorta las secciones', () => {
+    const u = cuenta(['agrofresh_lab', 'lab_criterios'])
+    expect(seccionesLabPermitidas(u)).toHaveLength(3)
+    expect(puedeEditarCriteriosLab(u)).toBe(true)
+    expect(puedeEditarCriteriosLab(cuenta(['agrofresh_lab']))).toBe(false)
+    expect(puedeEditarCriteriosLab({ ...cromatografia, tipoAcceso: 'gerencia', modulos: ['agrofresh_lab'] })).toBe(false)
+    expect(puedeEditarCriteriosLab({ ...cromatografia, tipoAcceso: 'admin_general', modulos: undefined })).toBe(true)
     expect(modulosPermitidos(u).map((m) => m.id)).toEqual(['agrofresh_lab'])
   })
 
