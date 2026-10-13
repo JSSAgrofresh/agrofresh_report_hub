@@ -31,8 +31,3 @@ export const COLOR_LAB: Record<string, string> = {
   ALS: '#b45309',
   DIAGNOFRUIT: '#9d174d',
 }
-
-/** Alto del gráfico por grupo: cuatro barras (una por laboratorio) por fila. */
-export function altoGrupoLaboratorio(nGrupos: number): number {
-  return Math.max(240, nGrupos * (4 * 15 + 22) + 40)
-}

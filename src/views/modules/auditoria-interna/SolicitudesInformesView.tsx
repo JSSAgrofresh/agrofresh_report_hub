@@ -17,13 +17,13 @@ import {
   porGrupoYLaboratorio,
   resumenPorTipo,
   simularSolicitudes,
+  tipoServicioDe,
   tiposDeArea,
   totales,
   useSolicitudesAuditoria,
 } from '@/features/auditoriaInterna'
 import type { AreaPivote, DimensionGrafico, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { DonaTipoServicio, GraficoGrupoLaboratorio, LeyendaLaboratorios, TarjetaGrafico } from './Graficos'
-import { altoGrupoLaboratorio } from './coloresTipo'
 import { AuditoriaHero } from './AuditoriaHero'
 import { PanelFiltros } from './PanelFiltros'
 import { SelectorArea } from './SelectorArea'
@@ -73,8 +73,13 @@ export function SolicitudesInformesView() {
   const lineaProceso = useMemo(() => resumenPorTipo(alcance, TIPO_LINEA), [alcance])
   const ryd = useMemo(() => resumenPorTipo(alcance, TIPO_RYD), [alcance])
   const filtrosGrafico = useMemo(() => ({ ...FILTROS_VACIOS, ...filtroGrafico }), [filtroGrafico])
-  const opcionesGrafico = useMemo(() => opcionesDeFiltros(alcance, filtrosGrafico), [alcance, filtrosGrafico])
-  const alcanceGrafico = useMemo(() => filtrarSolicitudes(alcance, filtrosGrafico, { estado: true }), [alcance, filtrosGrafico])
+  // Este gráfico no lleva RYD (es de AgroFresh, va aparte) ni solicitudes sin Sold To.
+  const alcanceCliente = useMemo(
+    () => alcance.filter((s) => tipoServicioDe(s) !== TIPO_RYD && (s.sold_to ?? '').trim() !== ''),
+    [alcance],
+  )
+  const opcionesGrafico = useMemo(() => opcionesDeFiltros(alcanceCliente, filtrosGrafico), [alcanceCliente, filtrosGrafico])
+  const alcanceGrafico = useMemo(() => filtrarSolicitudes(alcanceCliente, filtrosGrafico, { estado: true }), [alcanceCliente, filtrosGrafico])
   const grupos = useMemo(() => porGrupoYLaboratorio(alcanceGrafico, dimension, topClientes), [alcanceGrafico, dimension, topClientes])
   const totalGrupos = useMemo(() => porGrupoYLaboratorio(alcanceGrafico, dimension, 0).length, [alcanceGrafico, dimension])
   const cambiarFiltroGrafico = (clave: keyof typeof filtroGrafico, valor: string) =>
@@ -158,7 +163,6 @@ export function SolicitudesInformesView() {
               <TarjetaGrafico
                 titulo={`Análisis e informes por ${nombreDimension.texto}`}
                 subtitulo={`Análisis pedidos e informes concretados en los 4 laboratorios · ${grupos.length} de ${nf.format(totalGrupos)} ${nombreDimension.plural}`}
-                alto={altoGrupoLaboratorio(grupos.length)}
                 leyenda={
                   <>
                     <div className={styles.filtrosGrafico}>
@@ -223,7 +227,7 @@ export function SolicitudesInformesView() {
               </TarjetaGrafico>
 
               {/* Los hitos son de solicitudes reales: con datos simulados no hay nada que medir. */}
-              {!simulando && <IndicadoresEntrega solicitudes={alcance} puedeEditar={puedeSimular} />}
+              {!simulando && <IndicadoresEntrega solicitudes={alcance} />}
             </>
           )}
         </div>
