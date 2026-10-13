@@ -29,18 +29,18 @@ function CeldasLab({ nombre, c, total, color }: { nombre: string; c: CeldaClient
   return (
     <>
       <td className={styles.labNombre} style={{ ...fondo, color }}>{nombre}</td>
-      <td className={styles.labCant} style={fondo} title={`${c.informes} de ${c.n} con informe`}>{vacio ? '–' : nf.format(c.n)}</td>
+      <td className={styles.labCant} style={fondo} >{vacio ? '–' : nf.format(c.n)}</td>
       <td className={styles.labPct} style={fondo}>{vacio ? '–' : pct(c.n / total)}</td>
     </>
   )
 }
 
-/** Las celdas de una línea: análisis, reparto por laboratorio (residuales, en la misma línea), total (con ✓ de informes) y entregables. */
+/** Las celdas de una línea: análisis, reparto por laboratorio (residuales, en la misma línea), total y entregables. */
 function CeldasLinea({ l }: { l: Linea }) {
   return (
     <>
       <th scope="row" className={styles.lineaGrupo} style={{ color: l.color }}>
-        {l.nombre}{l.sub && <small>{l.sub}</small>}
+        {l.nombre}
       </th>
       {l.labs ? (
         <>
@@ -50,8 +50,8 @@ function CeldasLinea({ l }: { l: Linea }) {
       ) : (
         <td colSpan={6} className={styles.cero}>{l.sub}</td>
       )}
-      <td className={styles.valor} title={`${l.c.informes} de ${l.c.n} con informe`}>
-        <b className={styles.cifra}>{nf.format(l.c.n)}</b><small>{l.c.informes}✓</small>
+      <td className={styles.valor} >
+        <b className={styles.cifra}>{nf.format(l.c.n)}</b>
       </td>
       <td className={styles.pendienteDato} title="Se cargará con el plan de entregables de los comerciales">—</td>
       <td className={styles.pendienteDato}>—</td>
@@ -96,7 +96,6 @@ export function AnalisisPorCliente({
   const nFsma = suma((x) => x.fsma)
   const nFito = suma((x) => x.fito)
   const nTotal = filas.reduce((n, x) => n + x.total, 0)
-  const nInformes = filas.reduce((n, x) => n + x.informes, 0)
 
   return (
     <section className={styles.cuerpoGrafico} aria-label="Análisis por cliente">
@@ -135,7 +134,7 @@ export function AnalisisPorCliente({
                       <th scope="rowgroup" rowSpan={ls.length} className={styles.cliente}>
                         <em className={i < 3 ? styles.podio : undefined} data-puesto={i < 3 ? i + 1 : undefined}>{i + 1}</em>
                         <span title={f.cliente}>{f.cliente}</span>
-                        <small className={styles.totalCliente}>{nf.format(f.total)} análisis · {f.informes}✓</small>
+                        <small className={styles.totalCliente}>{nf.format(f.total)} análisis</small>
                       </th>
                     )}
                     <CeldasLinea l={l} />
@@ -165,7 +164,7 @@ export function AnalisisPorCliente({
                 })
                 return tot.map((l, j) => (
                   <tr key={l.clave} className={styles.filaGrupo}>
-                    {j === 0 && <th scope="rowgroup" rowSpan={tot.length} className={styles.cliente}>Total<small className={styles.totalCliente}>{nf.format(nTotal)} análisis · {nInformes}✓</small></th>}
+                    {j === 0 && <th scope="rowgroup" rowSpan={tot.length} className={styles.cliente}>Total<small className={styles.totalCliente}>{nf.format(nTotal)} análisis</small></th>}
                     <CeldasLinea l={l} />
                   </tr>
                 ))
