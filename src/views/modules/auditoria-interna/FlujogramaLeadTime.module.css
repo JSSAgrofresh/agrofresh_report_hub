@@ -272,14 +272,41 @@ button.nodo:focus-visible {
   color: inherit;
 }
 
-.estados {
-  margin-top: 20px;
-  padding-top: 14px;
-  border-top: 1px solid var(--color-border, #e3e8e5);
+.cuerpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3, 16px);
+  align-items: start;
 }
 
-.estados h4 {
-  margin: 0 0 8px;
+@media (min-width: 1100px) {
+  .cuerpo {
+    grid-template-columns: minmax(0, 600px) minmax(0, 1fr);
+  }
+}
+
+.flujoCol {
+  min-width: 0;
+}
+
+.panelTabla {
+  min-width: 0;
+  border: 1px solid var(--color-border-strong, #c9d3cd);
+  border-radius: 12px;
+  background: var(--color-surface, #fff);
+  overflow: hidden;
+}
+
+.panelCab {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border, #e3e8e5);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panelCab h4 {
+  margin: 0;
   font-size: 14px;
 }
 
@@ -287,16 +314,15 @@ button.nodo:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 10px;
 }
 
 .chipFiltro {
   border: 1px solid var(--color-border-strong, #c9d3cd);
   background: var(--color-surface, #fff);
   border-radius: 999px;
-  padding: 4px 12px;
+  padding: 3px 10px;
   font: inherit;
-  font-size: 12.5px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -312,9 +338,95 @@ button.nodo:focus-visible {
   box-sizing: border-box;
   height: 34px;
   padding: 0 10px;
-  margin-bottom: 8px;
   border: 1px solid var(--color-border-strong, #c9d3cd);
   border-radius: 8px;
   font: inherit;
   font-size: 13px;
+}
+
+.tablaScroll {
+  max-height: 640px;
+  overflow: auto;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.tabla th,
+.tabla td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--color-border, #e3e8e5);
+  border-right: 1px solid var(--color-border, #e3e8e5);
+  text-align: left;
+  vertical-align: top;
+}
+
+.tabla th:last-child,
+.tabla td:last-child {
+  border-right: 0;
+}
+
+.tabla th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f1f5f2;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted, #5b6b62);
+}
+
+.tabla td small {
+  display: block;
+  color: var(--color-text-muted, #5b6b62);
+  font-size: 11.5px;
+}
+
+.tabla th:nth-child(n + 3),
+.tabla td:nth-child(n + 3) {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.fila {
+  cursor: pointer;
+}
+
+.fila:hover {
+  background: rgba(27, 127, 92, 0.06);
+}
+
+.filaElegida,
+.filaElegida:hover {
+  background: rgba(27, 127, 92, 0.14);
+  box-shadow: inset 3px 0 0 #1b7f5c;
+}
+
+.celdaBoton {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.si {
+  color: #1b7f5c;
+  font-weight: 700;
+}
+
+.no {
+  color: var(--color-text-faint, #9aa7a0);
+}
+
+.tarde {
+  color: #a3261c;
+  font-weight: 600;
 }
