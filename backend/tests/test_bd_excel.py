@@ -552,3 +552,19 @@ def test_base_con_muestra_lleva_n_camara_y_n_orden_de_actimist():
     cab = [c.value for c in ws[2]]
     assert ws.cell(row=3, column=cab.index("N° Orden") + 1).value == "800354800"
     assert ws.cell(row=3, column=cab.index("N° Cámara") + 1).value == "C7"
+
+
+def test_observacion_de_la_solicitud_en_informes_propios():
+    # emitir.subir_bd guarda el producto en `observacion`: en la BD manda la observación de la solicitud.
+    propio = _fila(laboratorio="Agrofresh", observacion="TECTO 500 SC")
+    bd_excel.completar_fila(propio, {"observacion": "Quality"}, None)
+    assert propio["observacion"] == "Quality"
+    sin = _fila(laboratorio="Agrofresh", observacion="TECTO 500 SC")
+    bd_excel.completar_fila(sin, {}, None)
+    assert sin["observacion"] is None
+    quiteca = _fila(laboratorio="Quiteca", observacion=None)
+    bd_excel.completar_fila(quiteca, {"observacion": "Muestra fría"}, None)
+    assert quiteca["observacion"] == "Muestra fría"
+    con_dato = _fila(laboratorio="Quiteca", observacion="del informe")
+    bd_excel.completar_fila(con_dato, {"observacion": "otra"}, None)
+    assert con_dato["observacion"] == "del informe"
