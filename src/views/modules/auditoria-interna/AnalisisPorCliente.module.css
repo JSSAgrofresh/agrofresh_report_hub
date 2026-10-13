@@ -179,3 +179,31 @@
 .lineaLab { padding-left: 20px !important; }
 .totalCliente { margin-left: 28px; }
 .tabla .gEntregable { width: 64px; min-width: 64px; }
+
+/* Compacto de verdad: la tabla se ajusta a su contenido y los laboratorios van en columnas */
+.tabla { width: max-content; }
+.gQuiteca { --c: #0e7490; --f: #e3f1f5; border-radius: 10px 10px 0 0; }
+.tabla td.pct { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--color-text-muted); }
+.tabla .valor { text-align: center !important; width: auto; min-width: 0; }
+.tabla .colCliente, .tabla tbody .cliente, .tabla tfoot .cliente { width: auto; min-width: 0; max-width: 260px; }
+.tabla .colAnalisis { width: auto; min-width: 0; }
+.tabla .gEntregable { width: auto; min-width: 0; }
+.subs th { top: 0; position: static; }
+
+/* Reparto final: ocupa todo el ancho con columnas proporcionales (sin huecos ni nombres cortados de más) */
+.caja { width: 100%; }
+.tabla { width: 100%; table-layout: fixed; }
+.tabla .colCliente, .tabla tbody .cliente, .tabla tfoot .cliente { width: auto; min-width: 0; max-width: none; }
+.cliente span { max-width: calc(100% - 34px); }
+.cliente { white-space: normal; }
+.tabla th, .tabla td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tabla .cliente { white-space: normal; }
+.totalCliente { margin-left: 28px; }
+.tabla td.pct { text-align: center; }
+@media (max-width: 760px) {
+  .tabla { table-layout: auto; min-width: 640px; }
+}
+
+/* La cantidad y su % quedan pegados, en la misma línea del laboratorio */
+.tabla td.cant { text-align: right; padding-right: 4px; }
+.tabla td.pct, .tabla td.pctVacio { text-align: left; padding-left: 4px; }
