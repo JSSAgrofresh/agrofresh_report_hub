@@ -41,6 +41,7 @@ from psycopg2.errors import ForeignKeyViolation, UndefinedTable
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from . import permisos_funciones
 from .auth import Usuario, solo_admin_general, usuario_actual
 from .lab_secciones import exigir_edicion_criterios
 from .db import conexion, cursor_dict
@@ -1787,9 +1788,10 @@ def firmar_registro(fecha: date, body: FirmarIn, quien: Usuario = Depends(usuari
     es_admin_croma = (
         quien.tipoAcceso == "admin_general"
         or (quien.tipoAcceso == "admin_area" and getattr(quien, "area", None) == "cromatografia")
+        or permisos_funciones.tiene(quien, permisos_funciones.VERIF_FIRMAR)
     )
     if not es_admin_croma:
-        raise HTTPException(403, "Solo el administrador general o de cromatografía puede firmar.")
+        raise HTTPException(403, "Solo el administrador general, de cromatografía o quien tenga la función de firmar puede firmar.")
     nombre_quien = quien.nombre or quien.email
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute(

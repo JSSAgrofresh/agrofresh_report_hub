@@ -1,0 +1,90 @@
+"""Las «mini funciones» que el administrador general reparte a cuentas concretas.
+
+Son permisos sueltos dentro de un módulo (p. ej. editar los Criterios de las verificaciones diarias).
+**Sin migración**: viajan en la misma lista `modulos` de la cuenta, con ids propios, igual que las
+secciones de AgroFresh Lab (`lab_secciones.py`). Espejo de `src/features/usuarios/permisos.ts`
+(mismos casos en `tests/test_permisos_funciones.py` y `permisos.test.ts`).
+
+  · Administrador general: las tiene todas.
+  · Gerencia y clientes: ninguna (son de escritura; gerencia es solo lectura).
+  · El resto: solo las que el administrador le marcó.
+
+«Modificar criterios» (`lab_criterios`) nació en `lab_secciones.py` (`puede_editar_criterios`) y se reusa tal cual.
+"""
+from __future__ import annotations
+
+from fastapi import Depends, HTTPException
+
+from .auth import Usuario, usuario_actual
+from .lab_secciones import LAB_CRITERIOS
+
+VERIF_FIRMAR = "verif_firmar"
+TOMA_REANALISIS = "toma_reanalisis"
+FUNCIONES = (LAB_CRITERIOS, VERIF_FIRMAR, TOMA_REANALISIS)
+
+# Todo lo que puede viajar en `modulos`: módulos, puertas de AgroFresh Lab y mini funciones.
+MODULOS_VALIDOS = frozenset(
+    {
+        "ingesta", "trace", "converter", "reports", "agrofresh_lab", "auditoria_interna", "storage",
+        "toma_muestras", "lab_ingreso", "lab_verificaciones", "lab_envio", *FUNCIONES,
+    }
+)
+REPORTES_VALIDOS = ("laboratorio", "postventa")
+
+
+def tiene(usuario: Usuario, funcion: str) -> bool:
+    if usuario.tipoAcceso == "admin_general":
+        return True
+    if usuario.tipoAcceso in ("gerencia", "cliente"):
+        return False
+    return funcion in (usuario.modulos or [])
+
+
+def exigir(funcion: str, mensaje: str):
+    """Dependencia de FastAPI: 403 (nunca 401: un 401 cierra la sesión en el navegador)."""
+
+    def _revisar(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
+        if not tiene(usuario, funcion):
+            raise HTTPException(403, mensaje)
+        return usuario
+
+    return _revisar
+
+
+MODULOS_CLIENTE = ("reports", "storage")
+
+
+def normalizar_cuenta(
+    tipo: str, area: str | None, modulos: list[str] | None, reportes: list[str] | None
+) -> tuple[str | None, list[str] | None, list[str] | None]:
+    """Deja `area`, `modulos` y `reportes` coherentes con el tipo de cuenta. Devuelve (area, modulos, reportes).
+
+    · Una cuenta de **cliente** no pertenece a un área: se le asigna qué ve. Solo puede llevar los módulos
+      `reports` (Report de laboratorio) y `storage` (sus informes), y en `reportes` `laboratorio` (con `reports`)
+      y `postventa` (= sus informes Accu-Tab en el panel). Nunca lleva módulos internos. El área que se guarda se
+      deduce de lo que ve (compatibilidad con el panel de inicio por tipo). Sin ninguna lista (llamada antigua) se
+      toma lo que daba su área.
+    · Administrador general y gerencia no guardan módulos (ven todo, o todo menos Auditoría).
+    · El resto: solo ids conocidos; los de administración (Usuarios, Listados…) no existen como permiso.
+    """
+    reps = [r for r in REPORTES_VALIDOS if r in (reportes or [])]
+    if tipo == "cliente":
+        if modulos is None and reportes is None:
+            if area == "postventa":
+                reps, mods = ["postventa"], []
+            else:
+                reps, mods = (["laboratorio"], ["reports"]) if area == "cromatografia" else ([], [])
+        else:
+            mods = [m for m in MODULOS_CLIENTE if m in (modulos or [])]
+            if "reports" in mods and "laboratorio" not in reps:
+                reps = ["laboratorio", *reps]
+            if "reports" not in mods:
+                reps = [r for r in reps if r != "laboratorio"]
+        if not mods and not reps:
+            raise HTTPException(400, "Elige qué ve el cliente: Report, Storage y/o informes Accu-Tab.")
+        return ("postventa" if reps == ["postventa"] and not mods else "cromatografia"), mods, reps
+    if tipo in ("admin_general", "gerencia"):
+        return None, None, None
+    # Lo que no existe (ids viejos) se descarta; lo reservado al administrador general nunca está en la lista.
+    limpios = [m for m in dict.fromkeys(modulos) if m in MODULOS_VALIDOS] if modulos is not None else None
+    return area, limpios, (reps if reportes is not None else None)
