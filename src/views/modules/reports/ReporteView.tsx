@@ -67,6 +67,7 @@ import {
   obtenerDatosReporte,
   opcionesDe,
   pedidoBd,
+  informeFueraDeRango,
   proximaHoraProgramada,
   tituloGrafico,
   useActualizacionProgramada,
@@ -265,6 +266,7 @@ export function ReporteView({
   const wrapStyle = { '--acento': acento } as CSSProperties
 
   const [filas, setFilas] = useState<FilaReporte[] | null>(null)
+  const [soloFuera, setSoloFuera] = useState(false)
   const [totalSolicitudes, setTotalSolicitudes] = useState(0)
   const [analitos, setAnalitos] = useState<Analito[]>([])
   const [limites, setLimites] = useState<LimiteAnalito[]>([])
@@ -617,7 +619,12 @@ export function ReporteView({
   // Gráfico central: una columna por informe (la fecha se repite tantas veces
   // como informes haya ese día) y sus analitos uno sobre otro según el ppm,
   // cada uno con su color. Nunca se promedia.
-  const informes = useMemo(() => informesConPuntos(filtradas), [filtradas])
+  const informesTodos = useMemo(() => informesConPuntos(filtradas), [filtradas])
+  // «Solo fuera de rango» (Límites residuales): el gráfico deja solo los informes con algún analito fuera de su franja.
+  const informes = useMemo(
+    () => (limitesTabla && soloFuera ? informesTodos.filter(informeFueraDeRango) : informesTodos),
+    [informesTodos, limitesTabla, soloFuera],
+  )
   const analitosGraficados = useMemo(
     () => [...new Set(informes.flatMap((i) => i.puntos.map((p) => p.ingrediente as string)))].sort((a, b) => a.localeCompare(b, 'es')),
     [informes],
@@ -1771,12 +1778,22 @@ export function ReporteView({
                 )}
               </div>
 
-              {limitesTabla && <InformesFueraDeRango informes={informes} />}
+              {limitesTabla && <InformesFueraDeRango informes={informesTodos} />}
 
               <Card className={styles.panel}>
                 <h3>
                   <span className={styles.h3Izq}>{tituloPrincipal}</span>
                   <span className={styles.hintClic}>clic en un punto para ver el informe</span>
+                  {limitesTabla && (
+                    <button
+                      type="button"
+                      className={`${styles.soloFuera} ${soloFuera ? styles.soloFueraOn : ''}`}
+                      aria-pressed={soloFuera}
+                      onClick={() => setSoloFuera((v) => !v)}
+                    >
+                      Solo fuera de rango
+                    </button>
+                  )}
                 </h3>
                 <div className={styles.chartboxGrande}>
                   <canvas ref={mainRef} />

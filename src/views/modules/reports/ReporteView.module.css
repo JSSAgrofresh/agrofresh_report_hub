@@ -983,3 +983,30 @@
     height: 440px;
   }
 }
+
+.soloFuera {
+  margin-left: auto;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface, #fff);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.soloFuera:hover {
+  border-color: var(--color-danger, #b0271f);
+  color: var(--color-danger, #b0271f);
+}
+
+.soloFueraOn,
+.soloFueraOn:hover {
+  background: var(--color-danger, #b0271f);
+  border-color: var(--color-danger, #b0271f);
+  color: #fff;
+}

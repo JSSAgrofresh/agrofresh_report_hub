@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { InformeConPuntos } from './graficoResiduales'
 import type { Observacion } from './tipos'
-import { desvioResidual, limitesDeEspecie, limitesDeInforme, posicionResidual, resumenResidual } from './limitesResiduales'
+import { desvioResidual, limitesDeEspecie, informeFueraDeRango, limitesDeInforme, posicionResidual, resumenResidual } from './limitesResiduales'
 
 const punto = (ingrediente: string, ppm: number | null): Observacion => ({ ingrediente, ppm }) as Observacion
 const informe = (id: number, ...puntos: Observacion[]): InformeConPuntos => ({ solicitudId: id, nroSolicitud: `OT-${id}`, fecha: '2026-10-01', puntos })
@@ -68,5 +68,18 @@ describe('resumenResidual', () => {
     expect(r).toMatchObject({ informes: 3, informesEvaluados: 2, informesSinLimite: 1, informesFuera: 1, informesSobre: 1, informesBajo: 0 })
     const fdl = r.porAnalito[0]
     expect(fdl.rangos).toEqual([{ min: 0.7, max: 3 }, { min: 0.7, max: 5 }])
+  })
+})
+
+describe('informeFueraDeRango', () => {
+  const clem = (ing: string, ppm: number | null) => ({ ingrediente: ing, ppm, crop: 'Clementina' }) as Observacion
+  it('es verdadero si UN analito queda sobre o bajo la franja de su especie', () => {
+    expect(informeFueraDeRango(informe(1, clem('FDL', 1), clem('PYR', 2)))).toBe(false)
+    expect(informeFueraDeRango(informe(2, clem('FDL', 3.5)))).toBe(true)
+    expect(informeFueraDeRango(informe(3, clem('FDL', 1), clem('PYR', 0.5)))).toBe(true)
+  })
+  it('sin límite en la tabla o sin valor no cuenta como fuera', () => {
+    expect(informeFueraDeRango(informe(4, clem('TEBU', 99), clem('IMZ', null)))).toBe(false)
+    expect(informeFueraDeRango(informe(5, { ingrediente: 'FDL', ppm: 99, crop: 'Especie rara' } as Observacion))).toBe(false)
   })
 })
