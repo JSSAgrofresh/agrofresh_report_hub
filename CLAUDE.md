@@ -909,6 +909,8 @@ tocas una, toca la otra.
 
 ## Report: tablero y simulación
 
+- **Elegir una Variedad completa su Especie (14-10-2026, filtros de un solo valor del Report normal)**: si no hay especie elegida y la variedad pertenece a una sola, se pone sola (`especiesDeVariedad` en `features/reportes/lib/filtros.ts`, igual que Sold To al elegir sucursal); si está en varias, no se toca. Los filtros de varios valores (Vista de límites) no lo hacen.
+
 - Admin y cliente ven Report con el mismo encabezado con foto (`AreaHero`):
   la foto sigue a la especie filtrada. El admin entra por
   `ReporteLaboratorioView`; el cliente, por `ClienteDashboardView`.

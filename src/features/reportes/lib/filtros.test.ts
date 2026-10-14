@@ -6,6 +6,7 @@ import {
   claveFiltro,
   clientesDeSucursal,
   contarFiltrosActivos,
+  especiesDeVariedad,
   opcionesDe,
 } from './filtros'
 
@@ -81,6 +82,23 @@ describe('filtro Sold To / Ship To', () => {
   it('clientesDeSucursal: dice a qué clientes pertenece una sucursal', () => {
     expect(clientesDeSucursal(DATOS, 'Codegua')).toEqual(['Dole Chile S.A.'])
     expect(clientesDeSucursal(DATOS, 'planta rancagua').sort()).toEqual(['A.G. SERVICIOS SPA', 'Frutícola Sur'])
+  })
+})
+
+describe('especiesDeVariedad', () => {
+  const D = [
+    obs({ crop: 'Manzana', variedad: 'Gala' }),
+    obs({ crop: 'MANZANA', variedad: 'gala' }),
+    obs({ crop: 'Manzana', variedad: 'Fuji' }),
+    obs({ crop: 'Pera', variedad: 'Fuji' }),
+    obs({ crop: null, variedad: 'Hass' }),
+  ]
+  it('una variedad de una sola especie devuelve esa especie (sin duplicar por mayúsculas)', () => {
+    expect(especiesDeVariedad(D, 'Gala')).toEqual(['MANZANA'])
+  })
+  it('una variedad en varias especies devuelve todas; sin especie conocida, ninguna', () => {
+    expect(especiesDeVariedad(D, 'Fuji').sort()).toEqual(['Manzana', 'Pera'])
+    expect(especiesDeVariedad(D, 'Hass')).toEqual([])
   })
 })
 

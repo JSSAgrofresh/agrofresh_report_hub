@@ -41,6 +41,7 @@ import {
   calcularLimitesControl,
   claveFiltro,
   clientesDeSucursal,
+  especiesDeVariedad,
   colorDeIngrediente,
   colorEspecieMarca,
   contarFiltrosActivos,
@@ -1216,6 +1217,14 @@ export function ReporteView({
     }))
   }
 
+  function cambiarVariedad(valor: string) {
+    setFiltros((prev) => {
+      // Elegir una variedad sin especie completa la especie si la variedad es de una sola.
+      const especies = valor && !prev.crop ? especiesDeVariedad(observaciones, valor) : []
+      return { ...prev, variedad: valor, crop: especies.length === 1 ? especies[0] : prev.crop }
+    })
+  }
+
   function quitarFiltro(campo: keyof Filtros) {
     if (campo === 'cliente') cambiarCliente('')
     else if (campo === 'crop') cambiarCrop('')
@@ -1520,7 +1529,7 @@ export function ReporteView({
                   </label>
                   <label className={styles.filtro}>
                     <span>Variedad</span>
-                    <select value={filtros.variedad} onChange={(e) => actualizarFiltro('variedad', e.target.value)}>
+                    <select value={filtros.variedad} onChange={(e) => cambiarVariedad(e.target.value)}>
                       <option value="">Todas</option>
                       {opciones.variedades.map((o) => (
                         <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>

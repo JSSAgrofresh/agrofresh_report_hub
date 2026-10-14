@@ -33,6 +33,7 @@ export {
   aplicarFiltros,
   claveFiltro,
   clientesDeSucursal,
+  especiesDeVariedad,
   contarFiltrosActivos,
   mismoValor,
   opcionesDe,
