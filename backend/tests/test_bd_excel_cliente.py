@@ -82,3 +82,14 @@ def test_un_cliente_sin_cliente_ni_sucursal_no_baja_nada(llamar):
     with pytest.raises(HTTPException) as e:
         llamar(_usuario(cliente=None, planta=None))
     assert e.value.status_code == 403
+
+
+def test_la_ruta_vieja_del_historial_ya_baja_el_mismo_formato(monkeypatch, llamar):
+    """Un navegador con la pantalla vieja abierta llama a /datos/excel: tampoco debe recibir el Excel plano de antes."""
+    resp = reportes.datos_excel(None, None, _usuario())
+    async def leer():
+        return b"".join([c async for c in resp.body_iterator])
+    ws = openpyxl.load_workbook(io.BytesIO(asyncio.run(leer())))["BD"]
+    cols = [c.value for c in ws[2]]
+    assert "N° Informe" in cols and "Lista de Distribución (CCO)" in cols and "Ingrediente" not in cols
+    assert dict(zip(cols, [c.value for c in ws[3]]))["Lista de Distribución (CCO)"] is None
