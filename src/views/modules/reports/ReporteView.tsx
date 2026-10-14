@@ -1,5 +1,6 @@
 import FueraDeRango from './FueraDeRango'
 import { InformesFueraDeRango } from './InformesFueraDeRango'
+import type { DatasetFranja } from '@/features/reportes/lib/resaltarFranja'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import {
@@ -50,6 +51,7 @@ import {
   informesConPuntos,
   limitesDeEspecie,
   posicionResidual,
+  resaltarFranja,
   trazarCurvaSuave,
   listarAnalitos,
   solicitudesPor,
@@ -74,6 +76,7 @@ import type {
 import { AnalitosAdminModal } from './AnalitosAdminModal'
 import { DetalleObservacionesModal } from './DetalleObservacionesModal'
 import { DescargaBdDialogo } from './DescargaBdDialogo'
+import { GraficosPorAnalito } from './GraficosPorAnalito'
 import styles from './ReporteView.module.css'
 
 Chart.register(
@@ -555,6 +558,7 @@ export function ReporteView({
   const mainRef = useRef<HTMLCanvasElement>(null)
   const diagnoBarRef = useRef<HTMLCanvasElement>(null)
   const mainChart = useRef<Chart | null>(null)
+  const analitoResaltado = useRef<string | null>(null)
   const diagnoBarChart = useRef<Chart | null>(null)
 
   const colorOk = cssVar('--color-ok', '#2f7d32')
@@ -564,6 +568,11 @@ export function ReporteView({
   const colorBorder = cssVar('--color-border', '#e1e5dc')
   const colorSuperficie = cssVar('--color-surface', '#ffffff')
   const colorTexto = cssVar('--color-text', '#1b2a20')
+
+  const coloresGraficos = useMemo(
+    () => ({ borde: colorBorder, superficie: colorSuperficie, texto: colorTexto, suave: colorMuted, peligro: colorDanger }),
+    [colorBorder, colorSuperficie, colorTexto, colorMuted, colorDanger],
+  )
 
   // Gráfico central: una columna por informe (la fecha se repite tantas veces
   // como informes haya ese día) y sus analitos uno sobre otro según el ppm,
@@ -767,6 +776,18 @@ export function ReporteView({
         maintainAspectRatio: false,
         // Por columna: basta pasar el mouse cerca para ver la guía y todos los analitos del informe.
         interaction: { mode: 'index', intersect: false },
+        // Con franjas fijas: al pasar sobre un punto se resaltan mucho las líneas de límite de SU analito y se apagan las demás.
+        onHover: (evt, _elementos, chart) => {
+          if (!limitesTabla) return
+          const punto = chart
+            .getElementsAtEventForMode(evt as unknown as Event, 'nearest', { intersect: true }, true)
+            .find((h) => h.datasetIndex < nAnalitos)
+          const analito = punto ? analitosGraficados[punto.datasetIndex] : null
+          if (analito === analitoResaltado.current) return
+          analitoResaltado.current = analito
+          resaltarFranja(chart.data.datasets as unknown as DatasetFranja[], nAnalitos, analito, colorDeIngrediente)
+          chart.update('none')
+        },
         plugins: {
           legend: {
             position: 'bottom',
@@ -1593,6 +1614,30 @@ export function ReporteView({
 
               {limitesTabla && <InformesFueraDeRango informes={informes} especie={filtros.crop} limites={limitesDeTabla} />}
 
+              {limitesTabla && (
+                <GraficosPorAnalito
+                  informes={informes}
+                  analitos={analitosGraficados}
+                  limites={limitesDeTabla}
+                  unidad={unidad}
+                  colores={coloresGraficos}
+                  onAbrir={(inf) =>
+                    setDetalle({ titulo: `${inf.nroSolicitud} · ${inf.fecha ? formatDateCL(inf.fecha) : 'Sin fecha'}`, filas: inf.puntos })
+                  }
+                />
+              )}
+
+              {limitesTabla ? (
+                <details className={styles.desplegable}>
+                  <summary>
+                    <span>{tituloPrincipal}</span>
+                    <small>todos los analitos juntos</small>
+                  </summary>
+                  <div className={styles.chartboxGrande}>
+                    <canvas ref={mainRef} />
+                  </div>
+                </details>
+              ) : (
               <Card className={styles.panel}>
                 <h3>
                   <span className={styles.h3Izq}>{tituloPrincipal}</span>
@@ -1602,6 +1647,7 @@ export function ReporteView({
                   <canvas ref={mainRef} />
                 </div>
               </Card>
+              )}
 
               {vistaControl && !esDiagnofruit && (
                 <FueraDeRango observaciones={filtradas} analitos={analitosVista} limites={limitesVista} sigma={sigma} />
