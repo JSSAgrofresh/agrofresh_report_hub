@@ -88,6 +88,13 @@ export function limitesDeInforme(inf: InformeConPuntos): Record<string, RangoRes
   return limitesDeEspecie(especieDeInforme(inf))
 }
 
+/** El informe tiene al menos un analito sobre el máximo o bajo el mínimo de la tabla de SU especie. */
+export function informeFueraDeRango(inf: InformeConPuntos): boolean {
+  const lim = limitesDeInforme(inf)
+  if (!lim) return false
+  return inf.puntos.some((p) => p.ppm != null && !!p.ingrediente && (posicionResidual(p.ingrediente, p.ppm, lim) ?? 'dentro') !== 'dentro')
+}
+
 export interface FilaAnalitoResidual {
   codigo: string
   /** Rangos distintos que rigieron a este analito (uno por especie con tabla; casi siempre uno o dos). */
