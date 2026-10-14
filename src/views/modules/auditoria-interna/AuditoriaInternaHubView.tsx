@@ -29,8 +29,8 @@ export function AuditoriaInternaHubView() {
         />
         <OpcionCard
           icono={<IconTrendingUp />}
-          titulo="Vista por límite de control"
-          descripcion="Límites dinámicos (promedio ± N desviaciones) sobre los resultados de la base."
+          titulo="Vista de límites"
+          descripcion="Resultados contra los límites residuales del laboratorio o contra límites de control (promedio ± N desviaciones)."
           ruta={ROUTES.auditoriaInternaLimiteControl}
         />
       </div>

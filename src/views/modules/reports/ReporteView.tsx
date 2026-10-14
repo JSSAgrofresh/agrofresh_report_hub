@@ -1,4 +1,5 @@
 import FueraDeRango from './FueraDeRango'
+import { InformesFueraDeRango } from './InformesFueraDeRango'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import {
@@ -47,6 +48,8 @@ import {
   describirFiltros,
   generarDatosSimulados,
   informesConPuntos,
+  limitesDeEspecie,
+  posicionResidual,
   trazarCurvaSuave,
   listarAnalitos,
   solicitudesPor,
@@ -225,12 +228,21 @@ export function ReporteView({
   plantaFija,
   onCropChange,
   vistaControl = false,
+  limitesTabla = false,
+  selectorModo,
+  sinEncabezado = false,
   onClienteChange,
 }: {
   clienteFijo?: string
   plantaFija?: string
   onCropChange?: (crop: string) => void
   vistaControl?: boolean
+  /** «Vista de límites» en modo Límites residuales: franjas FIJAS (tabla del laboratorio, por especie) y el recuadro de informes fuera de rango. */
+  limitesTabla?: boolean
+  /** El selector «Límites residuales / Límites de control»; va arriba de los filtros, a la izquierda. */
+  selectorModo?: ReactNode
+  /** La pantalla ya trae su propio encabezado: no se dibuja el título de Report. */
+  sinEncabezado?: boolean
   onClienteChange?: (cliente: string) => void
 } = {}) {
   const { user } = useAuth()
@@ -533,6 +545,8 @@ export function ReporteView({
   }, [analitoSeleccionado, limitesVista, filtros.crop, filtros.tipoServicio])
 
   const limitesActivos = vista === 'residual' ? limiteResidual : limitesControl
+  // Modo «Límites residuales» de la Vista de límites: las franjas salen de la tabla fija, según la especie elegida.
+  const limitesDeTabla = useMemo(() => (limitesTabla ? limitesDeEspecie(filtros.crop) : null), [limitesTabla, filtros.crop])
   const unidad = analitoSeleccionado?.unidad ?? 'ppm'
 
   const nota = `Límites dinámicos: promedio ± ${sigma} × desviación estándar de las ${valores.length.toLocaleString('es-CL')} observación(es) filtradas.`
@@ -559,7 +573,7 @@ export function ReporteView({
     () => [...new Set(informes.flatMap((i) => i.puntos.map((p) => p.ingrediente as string)))].sort((a, b) => a.localeCompare(b, 'es')),
     [informes],
   )
-  const tituloPrincipal = tituloGrafico(filtros, !clienteFijo, vistaControl ? 'Límites de control' : 'Residuales')
+  const tituloPrincipal = tituloGrafico(filtros, !clienteFijo, vistaControl ? 'Límites de control' : limitesTabla ? 'Límites residuales' : 'Residuales')
 
   useEffect(() => {
     if (!mainRef.current) return
@@ -585,17 +599,43 @@ export function ReporteView({
         pointHoverRadius: 10,
         pointHitRadius: 10,
         pointBackgroundColor: color,
-        pointBorderColor: colorSuperficie,
-        pointBorderWidth: 2,
+        // Fuera de su franja (solo en la Vista de límites con tabla): aro rojo.
+        pointBorderColor: informes.map((i) => {
+          const p = i.puntos.find((x) => x.ingrediente === ingrediente)
+          return limitesDeTabla && p?.ppm != null && (posicionResidual(ingrediente, p.ppm, limitesDeTabla) ?? 'dentro') !== 'dentro' ? colorDanger : colorSuperficie
+        }),
+        pointBorderWidth: informes.map((i) => {
+          const p = i.puntos.find((x) => x.ingrediente === ingrediente)
+          return limitesDeTabla && p?.ppm != null && (posicionResidual(ingrediente, p.ppm, limitesDeTabla) ?? 'dentro') !== 'dentro' ? 3.5 : 2
+        }),
         pointHoverBackgroundColor: color,
         pointHoverBorderColor: colorSuperficie,
         pointHoverBorderWidth: 2.5,
       }
     })
 
+    // Franjas fijas de la tabla: una pareja de líneas (mín y máx) por analito, de su mismo color.
+    if (limitesDeTabla) {
+      analitosGraficados.forEach((ingrediente) => {
+        const r = limitesDeTabla[ingrediente]
+        if (!r) return
+        ;([['mín', r.min], ['máx', r.max]] as const).forEach(([lado, valor]) =>
+          datasets.push({
+            label: `${ingrediente} ${lado}`,
+            data: informes.map(() => valor),
+            borderColor: `${colorDeIngrediente(ingrediente)}99`,
+            borderDash: [6, 4],
+            borderWidth: 1.4,
+            pointRadius: 0,
+            pointHitRadius: 0,
+          }),
+        )
+      })
+    }
+
     // Las líneas de límite solo tienen sentido con un único analito (residual)
     // o en la vista por límite de control, que es global.
-    if (vistaControl || nAnalitos === 1) {
+    if (vistaControl || (nAnalitos === 1 && !limitesTabla)) {
       const lineas: [string, number | null, string, number[]][] = [
         ['Límite superior', limitesActivos.superior, colorWarning, [6, 4]],
         ['Límite central', limitesActivos.central, colorMuted, [2, 3]],
@@ -735,7 +775,10 @@ export function ReporteView({
               usePointStyle: true,
               font: { size: 11 },
               // Una línea de límite sin valor no dibuja nada: tampoco va en la leyenda.
-              filter: (item, data) => (data.datasets[item.datasetIndex ?? 0]?.data ?? []).some((v) => v != null),
+              filter: (item, data) =>
+                (data.datasets[item.datasetIndex ?? 0]?.data ?? []).some((v) => v != null) &&
+                // Las franjas fijas (dos líneas por analito) no van en la leyenda: llevan el color de su analito.
+                !(limitesTabla && (item.datasetIndex ?? 0) >= nAnalitos),
             },
           },
           tooltip: {
@@ -790,6 +833,9 @@ export function ReporteView({
     informes,
     analitosGraficados,
     vistaControl,
+    limitesTabla,
+    limitesDeTabla,
+    colorDanger,
     limitesActivos.superior,
     limitesActivos.central,
     limitesActivos.inferior,
@@ -1126,7 +1172,7 @@ export function ReporteView({
   return (
     <div className={styles.wrap} style={wrapStyle}>
       <div className={styles.cabecera}>
-        <Header
+        {!sinEncabezado && <Header
           title={vistaControl ? 'Vista por límite de control' : clienteFijo ? `Report · ${clienteFijo}` : 'Report'}
           description={
             vistaControl
@@ -1135,7 +1181,7 @@ export function ReporteView({
                 ? `Control de residuos de ${clienteFijo}: límites residuales desde la base de datos.`
                 : 'Control de residuos: límites residuales desde la base de datos.'
           }
-        />
+        />}
         <div className={styles.accionesCabecera}>
           {clienteFijo && (
             <Button variant="secondary" onClick={descargarDatos} disabled={descargandoDatos}>
@@ -1232,18 +1278,21 @@ export function ReporteView({
         </Card>
       ) : filasVista ? (
         <>
-          {vistaControl && !esDiagnofruit && (
+          {(selectorModo || (vistaControl && !esDiagnofruit)) && (
             <div className={styles.toolbar}>
-              <div className={styles.sigmaControl}>
-                <span>N° desviaciones</span>
-                <select value={sigma} onChange={(e) => setSigma(Number(e.target.value))}>
-                  {[1, 2, 3, 4].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {selectorModo}
+              {vistaControl && !esDiagnofruit && (
+                <div className={styles.sigmaControl}>
+                  <span>N° desviaciones</span>
+                  <select value={sigma} onChange={(e) => setSigma(Number(e.target.value))}>
+                    {[1, 2, 3, 4].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
 
@@ -1484,6 +1533,14 @@ export function ReporteView({
                   {nota}
                 </p>
               )}
+              {limitesTabla && (
+                <p className={styles.nota}>
+                  <span className={styles.notaIcono} aria-hidden="true">i</span>
+                  {limitesDeTabla
+                    ? `Franjas fijas tomadas de la tabla de límites residuales para ${filtros.crop}. No se recalculan con los datos.`
+                    : 'Elige una especie en los filtros para ver las franjas de la tabla de límites residuales.'}
+                </p>
+              )}
 
               <div className={`${styles.statsResiduales} ${vistaControl ? styles.conLimites : ''}`}>
                 <Kpi
@@ -1533,6 +1590,8 @@ export function ReporteView({
                   </Kpi>
                 )}
               </div>
+
+              {limitesTabla && <InformesFueraDeRango informes={informes} especie={filtros.crop} limites={limitesDeTabla} />}
 
               <Card className={styles.panel}>
                 <h3>
