@@ -64,7 +64,7 @@ function VistaPrevia({ archivo }: { archivo: ArchivoEntrada }) {
 
   if (error) return <p className={styles.errorTexto} role="alert">{error}</p>
   if (!url) return <div className={styles.cargandoVisor}><Skeleton style={{ width: '100%', height: '100%' }} /></div>
-  return <iframe className={styles.visor} src={url} title={`Vista previa de ${archivo.nombre}`} />
+  return <iframe className={styles.visor} src={`${url}#view=FitH`} title={`Vista previa de ${archivo.nombre}`} />
 }
 
 function FormRenombrar({ archivo, onListo, onCerrar }: { archivo: ArchivoEntrada; onListo: () => void; onCerrar: () => void }) {
