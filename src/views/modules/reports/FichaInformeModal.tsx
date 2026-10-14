@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { formatDateCL, formatDateTimeCL, formatDecimalCL } from '@/lib/locale'
 import { guardarBlob } from '@/services/http/descargar'
 import {
@@ -17,6 +18,8 @@ interface Props {
   analitos: Analito[]
   limites: LimiteAnalito[]
   onCerrar: () => void
+  /** Vista de límites: gráficos por analito de este informe. Con ellos, el detalle (resultados y datos) va plegado debajo. */
+  graficos?: ReactNode
 }
 
 const ETIQUETA_ESTADO: Record<EstadoResultado, string> = {
@@ -83,7 +86,7 @@ function rangoLimite(l: LimiteResuelto): string {
   return l.max != null ? `≤ ${f(l.max)}` : `≥ ${f(l.min as number)}`
 }
 
-export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCerrar }: Props) {
+export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCerrar, graficos }: Props) {
   const [ficha, setFicha] = useState<FichaInforme | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [urlPdf, setUrlPdf] = useState<string | null>(null)
@@ -197,6 +200,11 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
         {ficha && sol && (
           <div className={styles.cuerpo}>
             <div className={styles.columnaPrincipal}>
+              {graficos}
+              {graficos ? (
+                <details className={styles.detallePlegado}>
+                  <summary>Detalle del informe <small>resultados y datos</small></summary>
+                  <div className={styles.detalleCuerpo}>
               <div className={styles.tarjetas}>
                 <div className={styles.tarjeta}>
                   <span>Analitos</span>
@@ -289,6 +297,104 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
                   </p>
                 )}
               </section>
+                  </div>
+                </details>
+              ) : (
+                <>
+              <div className={styles.tarjetas}>
+                <div className={styles.tarjeta}>
+                  <span>Analitos</span>
+                  <strong>{filas.length}</strong>
+                </div>
+                <div className={styles.tarjeta}>
+                  <span>Promedio</span>
+                  <strong>{promedio != null ? `${formatDecimalCL(promedio, 4)} ppm` : '—'}</strong>
+                </div>
+                <div className={`${styles.tarjeta} ${sobre ? styles.tarjetaAlerta : ''}`}>
+                  <span>Sobre el límite</span>
+                  <strong>{sobre}</strong>
+                </div>
+              </div>
+
+              <section>
+                <h4 className={styles.seccion}>Resultados</h4>
+                {filas.length === 0 ? (
+                  <p className={styles.vacio}>Este informe no tiene resultados cargados.</p>
+                ) : (
+                  <div className={styles.tablaScroll}>
+                    <table className={styles.tabla}>
+                      <thead>
+                        <tr>
+                          <th>Analito</th>
+                          <th className={styles.num}>Resultado</th>
+                          <th>Producto</th>
+                          <th className={styles.num}>Dosis</th>
+                          <th>Límite</th>
+                          <th>Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filas.map(({ r, limite, estado }, i) => (
+                          <tr key={`${r.codigo}-${i}`}>
+                            <td>
+                              <span className={styles.codigo}>{r.codigo}</span>
+                              {r.nombre && r.nombre !== r.codigo && <span className={styles.nombre}>{r.nombre}</span>}
+                            </td>
+                            <td className={styles.num}>
+                              {r.valor_num != null ? (
+                                <>
+                                  <strong>{formatDecimalCL(r.valor_num, 4)}</strong> <span className={styles.unidad}>{r.unidad}</span>
+                                </>
+                              ) : (
+                                <span className={styles.sinValor}>{r.valor_texto ?? '—'}</span>
+                              )}
+                            </td>
+                            <td>{r.producto ?? '—'}</td>
+                            <td className={styles.num}>{r.dosis != null ? String(r.dosis) : '—'}</td>
+                            <td>{rangoLimite(limite)}</td>
+                            <td>
+                              <span className={`${styles.estado} ${styles[`estado_${estado}`]}`}>{ETIQUETA_ESTADO[estado]}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+
+              <section>
+                <h4 className={styles.seccion}>Datos del informe</h4>
+                <dl className={styles.datos}>
+                  {datos.map(([c, etiqueta, esFecha]) => (
+                    <div key={c}>
+                      <dt>{etiqueta}</dt>
+                      <dd>{esFecha ? textoDeFecha(String(sol[c])) : String(sol[c])}</dd>
+                    </div>
+                  ))}
+                  {datosToma.map(([c, etiqueta]) => (
+                    <div key={`toma-${c}`}>
+                      <dt>{etiqueta}</dt>
+                      <dd>{String(ficha.toma?.[c])}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {observaciones.length > 0 && (
+                  <p className={styles.observaciones}>
+                    <strong>Observaciones:</strong> {observaciones.join(' · ')}
+                  </p>
+                )}
+                {ficha.carga && (
+                  <p className={styles.carga}>
+                    Cargado {ficha.carga.creado_en ? `el ${formatDateTimeCL(ficha.carga.creado_en)}` : ''}
+                    {ficha.carga.creado_por ? ` por ${ficha.carga.creado_por}` : ''}
+                    {ficha.carga.archivo ? ` · ${ficha.carga.archivo}` : ''}
+                    {ficha.carga.origen ? ` (${ficha.carga.origen})` : ''}
+                  </p>
+                )}
+              </section>
+                </>
+              )}
             </div>
 
             <aside className={styles.columnaPdf}>

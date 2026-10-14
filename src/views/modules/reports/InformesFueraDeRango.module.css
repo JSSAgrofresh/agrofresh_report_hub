@@ -26,3 +26,13 @@
 .barra { display: inline-block; width: 90px; height: 7px; margin-right: 8px; vertical-align: middle; background: var(--color-border); border-radius: 4px; overflow: hidden; }
 .barra > span { display: block; height: 100%; border-radius: 4px; }
 @media (max-width: 860px) { .tarjeta { grid-template-columns: minmax(0, 1fr); } }
+.desglose { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin: 6px 0 0; }
+.desglose div { padding: 7px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); }
+.desglose dt { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-faint); }
+.desglose dd { margin: 2px 0 0; font-size: 12px; color: var(--color-text-faint); font-variant-numeric: tabular-nums; }
+.desglose dd b { font-size: 1.2rem; color: var(--color-text); }
+.sobre { border-left: 3px solid var(--color-danger) !important; }
+.bajo { border-left: 3px solid #1c7fa6 !important; }
+.cSobre { color: var(--color-danger); font-weight: 700; }
+.cBajo { color: #1c7fa6; font-weight: 700; }
+.tabla tfoot td { padding-top: 8px; border-top: 2px solid var(--color-border); font-weight: 800; }

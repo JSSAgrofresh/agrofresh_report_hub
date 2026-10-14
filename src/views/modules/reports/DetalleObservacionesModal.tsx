@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { formatDateCL, formatDecimalCL } from '@/lib/locale'
 import type { Analito, LimiteAnalito, Observacion } from '@/features/reportes'
 import { FichaInformeModal } from './FichaInformeModal'
@@ -10,14 +11,14 @@ interface DetalleObservacionesModalProps {
   filas: Observacion[]
   onCerrar: () => void
   /** Solo personal interno: abre la ficha completa con vista previa del PDF. */
-  fichaCompleta?: { analitos: Analito[]; limites: LimiteAnalito[] }
+  fichaCompleta?: { analitos: Analito[]; limites: LimiteAnalito[]; graficos?: ReactNode }
 }
 
 export function DetalleObservacionesModal({ titulo, filas, onCerrar, fichaCompleta }: DetalleObservacionesModalProps) {
   const ids = new Set(filas.map((o) => o.solicitudId))
   const [unico] = ids
   if (fichaCompleta && ids.size === 1 && unico != null && unico > 0) {
-    return <FichaInformeModal solicitudId={unico} titulo={titulo} analitos={fichaCompleta.analitos} limites={fichaCompleta.limites} onCerrar={onCerrar} />
+    return <FichaInformeModal solicitudId={unico} titulo={titulo} analitos={fichaCompleta.analitos} limites={fichaCompleta.limites} onCerrar={onCerrar} graficos={fichaCompleta.graficos} />
   }
 
   const conPpm = filas.filter((o): o is Observacion & { ppm: number } => o.ppm != null)

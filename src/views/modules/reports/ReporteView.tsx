@@ -49,9 +49,16 @@ import {
   describirFiltros,
   generarDatosSimulados,
   informesConPuntos,
+  CAMPOS_MULTI,
+  MULTI_VACIOS,
+  chipsMulti,
+  contarMulti,
+  cumpleMulti,
+  especieDeInforme,
   limitesDeEspecie,
   posicionResidual,
   resaltarFranja,
+  tituloLimites,
   trazarCurvaSuave,
   listarAnalitos,
   solicitudesPor,
@@ -65,6 +72,8 @@ import {
   useActualizacionProgramada,
 } from '@/features/reportes'
 import type {
+  CampoMulti,
+  FiltrosMulti,
   Analito,
   DatosSimulados,
   FilaReporte,
@@ -232,6 +241,7 @@ export function ReporteView({
   onCropChange,
   vistaControl = false,
   limitesTabla = false,
+  filtrosMultiples = false,
   selectorModo,
   sinEncabezado = false,
   onClienteChange,
@@ -242,6 +252,8 @@ export function ReporteView({
   vistaControl?: boolean
   /** «Vista de límites» en modo Límites residuales: franjas FIJAS (tabla del laboratorio, por especie) y el recuadro de informes fuera de rango. */
   limitesTabla?: boolean
+  /** Vista de límites: Laboratorio, Sold To, Ship To, Especie, Variedad, Semana y Mes admiten varios valores a la vez. */
+  filtrosMultiples?: boolean
   /** El selector «Límites residuales / Límites de control»; va arriba de los filtros, a la izquierda. */
   selectorModo?: ReactNode
   /** La pantalla ya trae su propio encabezado: no se dibuja el título de Report. */
@@ -263,6 +275,8 @@ export function ReporteView({
   const vista: Vista = vistaControl ? 'control' : 'residual'
   const [sigma, setSigma] = useState(2)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
+  // Filtros de varios valores (solo «Vista de límites»): vacío = todos.
+  const [multi, setMulti] = useState<FiltrosMulti>(MULTI_VACIOS)
   // Especie y Variedad de los filtros salen de Listados -la fuente de verdad
   // oficial-, no de lo que ya haya cargado en el reporte: así el filtro
   // ofrece todo lo que existe de verdad, no solo lo que por casualidad ya
@@ -412,27 +426,46 @@ export function ReporteView({
     const de = (
       campo: Parameters<typeof opcionesDe>[1],
       config: Parameters<typeof opcionesDe>[2] = {},
-    ): OpcionFiltro[] => opcionesDe(aplicarFiltros(observaciones, filtros, campo), campo, config)
+    ): OpcionFiltro[] => {
+      const base = aplicarFiltros(observaciones, filtros, campo)
+      if (!filtrosMultiples) return opcionesDe(base, campo, config)
+      const propio = (CAMPOS_MULTI as readonly string[]).includes(campo) ? (campo as CampoMulti) : undefined
+      return opcionesDe(base.filter((o) => cumpleMulti(o, multi, propio)), campo, config)
+    }
+    // En la vista de límites lo elegido son listas; en Report, un solo valor.
+    const elegidos = (c: CampoMulti, escalar: string) => (filtrosMultiples ? multi[c] : [escalar])
     return {
       ingredientes: de('ingredientes', { seleccionados: filtros.ingredientes }),
-      clientes: de('cliente', { seleccionados: [filtros.cliente] }),
-      plantas: de('planta', { seleccionados: [filtros.planta] }),
+      clientes: de('cliente', { seleccionados: elegidos('cliente', filtros.cliente) }),
+      plantas: de('planta', { seleccionados: elegidos('planta', filtros.planta) }),
       tiposServicio: de('tipoServicio', { formatear: capitalizarPrimeraLetra, seleccionados: [filtros.tipoServicio] }),
-      laboratorios: de('laboratorio', { formatear: capitalizarPrimeraLetra, seleccionados: [filtros.laboratorio] }),
-      crops: de('crop', { canonicos: especiesOficiales.map((e) => e.valor), seleccionados: [filtros.crop] }),
-      variedades: de('variedad', { canonicos: variedadesOficiales, seleccionados: [filtros.variedad] }),
-      semanas: de('semana', { orden: 'numero', seleccionados: [filtros.semana] }),
-      meses: de('mes', { orden: 'numero', seleccionados: [filtros.mes] }),
+      laboratorios: de('laboratorio', { formatear: capitalizarPrimeraLetra, seleccionados: elegidos('laboratorio', filtros.laboratorio) }),
+      crops: de('crop', { canonicos: especiesOficiales.map((e) => e.valor), seleccionados: elegidos('crop', filtros.crop) }),
+      variedades: de('variedad', { canonicos: variedadesOficiales, seleccionados: elegidos('variedad', filtros.variedad) }),
+      semanas: de('semana', { orden: 'numero', seleccionados: elegidos('semana', filtros.semana) }),
+      meses: de('mes', { orden: 'numero', seleccionados: elegidos('mes', filtros.mes) }),
     }
-  }, [observaciones, filtros, especiesOficiales, variedadesOficiales])
+  }, [observaciones, filtros, multi, filtrosMultiples, especiesOficiales, variedadesOficiales])
 
   const conteoPorValor = useMemo(() => {
     const mapa = (lista: OpcionFiltro[]) => new Map(lista.map((o) => [o.valor, o.conteo]))
-    return { clientes: mapa(opciones.clientes), plantas: mapa(opciones.plantas), ingredientes: mapa(opciones.ingredientes) }
+    return {
+      clientes: mapa(opciones.clientes),
+      plantas: mapa(opciones.plantas),
+      ingredientes: mapa(opciones.ingredientes),
+      laboratorios: mapa(opciones.laboratorios),
+      crops: mapa(opciones.crops),
+      variedades: mapa(opciones.variedades),
+      semanas: mapa(opciones.semanas),
+      meses: mapa(opciones.meses),
+    }
   }, [opciones])
 
-  const filtradas = useMemo(() => aplicarFiltros(observaciones, filtros), [observaciones, filtros])
-  const nFiltros = contarFiltrosActivos(filtros)
+  const filtradas = useMemo(() => {
+    const base = aplicarFiltros(observaciones, filtros)
+    return filtrosMultiples ? base.filter((o) => cumpleMulti(o, multi)) : base
+  }, [observaciones, filtros, multi, filtrosMultiples])
+  const nFiltros = contarFiltrosActivos(filtros) + (filtrosMultiples ? contarMulti(multi) : 0)
 
   const registrosFiltrados = useMemo(() => new Set(filtradas.map((o) => o.solicitudId)).size, [filtradas])
 
@@ -441,7 +474,9 @@ export function ReporteView({
   // que el gráfico de línea/dona de las otras vistas no tiene nada que
   // comparar. Acá se muestra una tabla ancha en vez de eso: una fila por
   // solicitud (fecha + zona de muestreo) y una columna por analito.
-  const esDiagnofruit = Boolean(filtros.laboratorio) && mismoValor(filtros.laboratorio, 'Diagnofruit')
+  const esDiagnofruit = filtrosMultiples
+    ? multi.laboratorio.length === 1 && mismoValor(multi.laboratorio[0], 'Diagnofruit')
+    : Boolean(filtros.laboratorio) && mismoValor(filtros.laboratorio, 'Diagnofruit')
 
   const gruposDiagnofruit = useMemo(() => {
     if (!esDiagnofruit) return []
@@ -549,7 +584,12 @@ export function ReporteView({
 
   const limitesActivos = vista === 'residual' ? limiteResidual : limitesControl
   // Modo «Límites residuales» de la Vista de límites: las franjas salen de la tabla fija, según la especie elegida.
-  const limitesDeTabla = useMemo(() => (limitesTabla ? limitesDeEspecie(filtros.crop) : null), [limitesTabla, filtros.crop])
+  // Franjas del gráfico grande: solo con UNA especie elegida (cada especie tiene las suyas). La evaluación de «fuera de rango»
+  // no las necesita: juzga cada informe con los límites de su propia especie.
+  const limitesDeTabla = useMemo(
+    () => (limitesTabla && multi.crop.length === 1 ? limitesDeEspecie(multi.crop[0]) : null),
+    [limitesTabla, multi.crop],
+  )
   const unidad = analitoSeleccionado?.unidad ?? 'ppm'
 
   const nota = `Límites dinámicos: promedio ± ${sigma} × desviación estándar de las ${valores.length.toLocaleString('es-CL')} observación(es) filtradas.`
@@ -582,7 +622,9 @@ export function ReporteView({
     () => [...new Set(informes.flatMap((i) => i.puntos.map((p) => p.ingrediente as string)))].sort((a, b) => a.localeCompare(b, 'es')),
     [informes],
   )
-  const tituloPrincipal = tituloGrafico(filtros, !clienteFijo, vistaControl ? 'Límites de control' : limitesTabla ? 'Límites residuales' : 'Residuales')
+  const tituloPrincipal = filtrosMultiples
+    ? tituloLimites(vistaControl ? 'Límites de control' : 'Límites residuales', multi, filtros.ingredientes)
+    : tituloGrafico(filtros, !clienteFijo, vistaControl ? 'Límites de control' : 'Residuales')
 
   useEffect(() => {
     if (!mainRef.current) return
@@ -611,11 +653,11 @@ export function ReporteView({
         // Fuera de su franja (solo en la Vista de límites con tabla): aro rojo.
         pointBorderColor: informes.map((i) => {
           const p = i.puntos.find((x) => x.ingrediente === ingrediente)
-          return limitesDeTabla && p?.ppm != null && (posicionResidual(ingrediente, p.ppm, limitesDeTabla) ?? 'dentro') !== 'dentro' ? colorDanger : colorSuperficie
+          return limitesTabla && p?.ppm != null && (posicionResidual(ingrediente, p.ppm, limitesDeEspecie(p.crop) ?? {}) ?? 'dentro') !== 'dentro' ? colorDanger : colorSuperficie
         }),
         pointBorderWidth: informes.map((i) => {
           const p = i.puntos.find((x) => x.ingrediente === ingrediente)
-          return limitesDeTabla && p?.ppm != null && (posicionResidual(ingrediente, p.ppm, limitesDeTabla) ?? 'dentro') !== 'dentro' ? 3.5 : 2
+          return limitesTabla && p?.ppm != null && (posicionResidual(ingrediente, p.ppm, limitesDeEspecie(p.crop) ?? {}) ?? 'dentro') !== 'dentro' ? 3.5 : 2
         }),
         pointHoverBackgroundColor: color,
         pointHoverBorderColor: colorSuperficie,
@@ -1087,6 +1129,45 @@ export function ReporteView({
 
   function aplicarRango(rango: RangoFechas | null) {
     setFiltros((prev) => ({ ...prev, rango, semana: rango ? '' : prev.semana, mes: rango ? '' : prev.mes }))
+    if (filtrosMultiples && rango) setMulti((prev) => ({ ...prev, semana: [], mes: [] }))
+  }
+
+  // Filtros de varios valores. Semana/Mes y el calendario siguen siendo excluyentes.
+  function cambiarMulti(campo: CampoMulti, valores: string[]) {
+    setMulti((prev) => ({ ...prev, [campo]: valores }))
+    if ((campo === 'semana' || campo === 'mes') && valores.length > 0) setFiltros((prev) => ({ ...prev, rango: null }))
+  }
+
+  /** Vista de límites, al abrir un informe: un gráfico por cada analito de ESE informe, con su historial (los informes de la misma
+   * especie con los filtros puestos), la franja de su especie y el punto de este informe resaltado. */
+  function graficosDelDetalle(): ReactNode {
+    if (!limitesTabla || !detalle) return undefined
+    const ids = new Set(detalle.filas.map((o) => o.solicitudId))
+    const [unico] = ids
+    const inf = ids.size === 1 ? informes.find((i) => i.solicitudId === unico) : undefined
+    if (!inf) return undefined
+    const especie = especieDeInforme(inf)
+    const mismos = informes.filter((i) => mismoValor(especieDeInforme(i), especie))
+    const analitosDelInforme = [...new Set(inf.puntos.map((p) => p.ingrediente as string))].sort((a, b) => a.localeCompare(b, 'es'))
+    return (
+      <GraficosPorAnalito
+        informes={mismos}
+        analitos={analitosDelInforme}
+        limites={limitesDeEspecie(especie)}
+        unidad={unidad}
+        colores={coloresGraficos}
+        destacado={inf.solicitudId}
+        titulo={`Gráfico por analito${especie ? ` · ${especie}` : ''} · el punto grande es este informe`}
+        onAbrir={(otro) => setDetalle({ titulo: `${otro.nroSolicitud} · ${otro.fecha ? formatDateCL(otro.fecha) : 'Sin fecha'}`, filas: otro.puntos })}
+      />
+    )
+  }
+
+  const formatosMulti = { mes: nombreMes, semana: (v: string) => `Semana ${v}` }
+
+  function limpiarTodosLosFiltros() {
+    setFiltros(FILTROS_VACIOS)
+    setMulti(MULTI_VACIOS)
   }
 
   function cambiarCliente(valor: string) {
@@ -1112,6 +1193,10 @@ export function ReporteView({
   }
 
   function cambiarCrop(valor: string) {
+    if (filtrosMultiples) {
+      setMulti((prev) => ({ ...prev, crop: valor ? [valor] : [] }))
+      return
+    }
     setFiltros((prev) => ({
       ...prev,
       crop: valor,
@@ -1134,7 +1219,7 @@ export function ReporteView({
   function alternarSimulacion() {
     // Los filtros de los datos reales no sirven para los simulados (y al
     // revés): se parte limpio en los dos sentidos.
-    setFiltros(FILTROS_VACIOS)
+    limpiarTodosLosFiltros()
     setDetalle(null)
     setSimulacion(simulando ? null : generarDatosSimulados(1000, Math.floor(Math.random() * 1e9)))
   }
@@ -1160,7 +1245,7 @@ export function ReporteView({
   const puedeDescargarBd = !clienteFijo && !simulando && user.tipoAcceso !== 'cliente'
 
   async function bajarBd(acotada: boolean) {
-    const chips = chipsDeFiltros(filtros, false)
+    const chips = [...chipsDeFiltros(filtros, false), ...(filtrosMultiples ? chipsMulti(multi, formatosMulti) : [])]
     setDescargandoBd(true)
     try {
       const { blob, nombre } = await descargarBdExcel(pedidoBd(filtradas, filtros, acotada, describirFiltros(chips)))
@@ -1186,7 +1271,7 @@ export function ReporteView({
   }
 
   function limpiarYBajarBdCompleta() {
-    setFiltros(FILTROS_VACIOS)
+    limpiarTodosLosFiltros()
     void bajarBd(false)
   }
 
@@ -1252,7 +1337,7 @@ export function ReporteView({
 
       {avisoBd && (
         <DescargaBdDialogo
-          chips={chipsDeFiltros(filtros, false)}
+          chips={[...chipsDeFiltros(filtros, false), ...(filtrosMultiples ? chipsMulti(multi, formatosMulti).map((c) => ({ ...c, campo: c.campo as keyof Filtros })) : [])]}
           solicitudesFiltradas={registrosFiltrados}
           solicitudesTotales={totalVista}
           descargando={descargandoBd}
@@ -1327,7 +1412,7 @@ export function ReporteView({
                 {registrosFiltrados.toLocaleString('es-CL')} de {totalVista.toLocaleString('es-CL')} solicitudes
               </span>
               {nFiltros > 0 && (
-                <button className={styles.limpiar} onClick={() => setFiltros(FILTROS_VACIOS)}>
+                <button className={styles.limpiar} onClick={limpiarTodosLosFiltros}>
                   Limpiar filtros
                 </button>
               )}
@@ -1337,20 +1422,48 @@ export function ReporteView({
               {/* Filtros principales primero: Laboratorio, Sold To, Ship To, Especie —
                   son los que definen qué tipo de reporte/límites corresponde mostrar. El resto va después.
                   Cada opción lleva entre paréntesis cuántas solicitudes trae con los demás filtros puestos. */}
-              <label className={styles.filtro}>
-                <span>Laboratorio</span>
-                <select value={filtros.laboratorio} onChange={(e) => actualizarFiltro('laboratorio', e.target.value)}>
-                  <option value="">Todos</option>
-                  {opciones.laboratorios.map((o) => (
-                    <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
-                  ))}
-                </select>
-              </label>
+              {filtrosMultiples ? (
+                <MultiSelectFiltro
+                  etiqueta="Laboratorio"
+                  opciones={opciones.laboratorios.map((o) => o.valor)}
+                  valores={multi.laboratorio}
+                  onChange={(v) => cambiarMulti('laboratorio', v)}
+                  conteoDe={(v) => conteoPorValor.laboratorios.get(v)}
+                />
+              ) : (
+                <label className={styles.filtro}>
+                  <span>Laboratorio</span>
+                  <select value={filtros.laboratorio} onChange={(e) => actualizarFiltro('laboratorio', e.target.value)}>
+                    <option value="">Todos</option>
+                    {opciones.laboratorios.map((o) => (
+                      <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
               {/* Para cuentas de cliente (clienteFijo) los datos ya vienen acotados desde
                   el backend a ese Sold To/Ship To: mostrar estos dos filtros no aportaría
                   nada (siempre habría un solo valor posible) y solo confundiría. Se
                   mantienen para admin general/admin de área, que sí navegan entre clientes. */}
-              {!clienteFijo && (
+              {!clienteFijo && filtrosMultiples && (
+                <>
+                  <MultiSelectFiltro
+                    etiqueta="Cliente (Sold To)"
+                    opciones={opciones.clientes.map((o) => o.valor)}
+                    valores={multi.cliente}
+                    onChange={(v) => cambiarMulti('cliente', v)}
+                    conteoDe={(v) => conteoPorValor.clientes.get(v)}
+                  />
+                  <MultiSelectFiltro
+                    etiqueta="Sucursal (Ship To)"
+                    opciones={opciones.plantas.map((o) => o.valor)}
+                    valores={multi.planta}
+                    onChange={(v) => cambiarMulti('planta', v)}
+                    conteoDe={(v) => conteoPorValor.plantas.get(v)}
+                  />
+                </>
+              )}
+              {!clienteFijo && !filtrosMultiples && (
                 <>
                   <BuscableSelect
                     etiqueta="Cliente (Sold To)"
@@ -1371,24 +1484,45 @@ export function ReporteView({
               {/* Sin filtro «Tipo de servicio»: Report muestra solo los servicios que el administrador principal
                   enciende en Administración General → Funciones (de fábrica, solo Línea de proceso), y ese
                   campo traía valores viejos («Cromatografía») que mezclaban los informes propios de AgroFresh. */}
-              <label className={styles.filtro}>
-                <span>Especie</span>
-                <select value={filtros.crop} onChange={(e) => cambiarCrop(e.target.value)}>
-                  <option value="">Todas</option>
-                  {opciones.crops.map((o) => (
-                    <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
-                  ))}
-                </select>
-              </label>
-              <label className={styles.filtro}>
-                <span>Variedad</span>
-                <select value={filtros.variedad} onChange={(e) => actualizarFiltro('variedad', e.target.value)}>
-                  <option value="">Todas</option>
-                  {opciones.variedades.map((o) => (
-                    <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
-                  ))}
-                </select>
-              </label>
+              {filtrosMultiples ? (
+                <>
+                  <MultiSelectFiltro
+                    etiqueta="Especie"
+                    opciones={opciones.crops.map((o) => o.valor)}
+                    valores={multi.crop}
+                    onChange={(v) => cambiarMulti('crop', v)}
+                    conteoDe={(v) => conteoPorValor.crops.get(v)}
+                  />
+                  <MultiSelectFiltro
+                    etiqueta="Variedad"
+                    opciones={opciones.variedades.map((o) => o.valor)}
+                    valores={multi.variedad}
+                    onChange={(v) => cambiarMulti('variedad', v)}
+                    conteoDe={(v) => conteoPorValor.variedades.get(v)}
+                  />
+                </>
+              ) : (
+                <>
+                  <label className={styles.filtro}>
+                    <span>Especie</span>
+                    <select value={filtros.crop} onChange={(e) => cambiarCrop(e.target.value)}>
+                      <option value="">Todas</option>
+                      {opciones.crops.map((o) => (
+                        <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className={styles.filtro}>
+                    <span>Variedad</span>
+                    <select value={filtros.variedad} onChange={(e) => actualizarFiltro('variedad', e.target.value)}>
+                      <option value="">Todas</option>
+                      {opciones.variedades.map((o) => (
+                        <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
 
               <MultiSelectFiltro
                 etiqueta="Ingrediente Activo"
@@ -1398,35 +1532,61 @@ export function ReporteView({
                 colorDe={colorDeIngrediente}
                 conteoDe={(v) => conteoPorValor.ingredientes.get(v)}
               />
-              <label className={styles.filtro}>
-                <span>Semana</span>
-                <select value={filtros.semana} onChange={(e) => actualizarSemana(e.target.value)} disabled={Boolean(filtros.rango)}>
-                  <option value="">Todas</option>
-                  {opciones.semanas.map((o) => (
-                    <option key={o.valor} value={o.valor}>{textoOpcion(o, (v) => `Semana ${v}`)}</option>
-                  ))}
-                </select>
-              </label>
-              <label className={styles.filtro}>
-                <span>Mes</span>
-                <select value={filtros.mes} onChange={(e) => actualizarMes(e.target.value)} disabled={Boolean(filtros.rango)}>
-                  <option value="">Todos</option>
-                  {opciones.meses.map((o) => (
-                    <option key={o.valor} value={o.valor}>{textoOpcion(o, nombreMes)}</option>
-                  ))}
-                </select>
-              </label>
+              {filtrosMultiples ? (
+                <>
+                  <MultiSelectFiltro
+                    etiqueta="Semana"
+                    opciones={opciones.semanas.map((o) => o.valor)}
+                    valores={multi.semana}
+                    onChange={(v) => cambiarMulti('semana', v)}
+                    conteoDe={(v) => conteoPorValor.semanas.get(v)}
+                    formatear={formatosMulti.semana}
+                  />
+                  <MultiSelectFiltro
+                    etiqueta="Mes"
+                    opciones={opciones.meses.map((o) => o.valor)}
+                    valores={multi.mes}
+                    onChange={(v) => cambiarMulti('mes', v)}
+                    conteoDe={(v) => conteoPorValor.meses.get(v)}
+                    formatear={formatosMulti.mes}
+                  />
+                </>
+              ) : (
+                <>
+                  <label className={styles.filtro}>
+                    <span>Semana</span>
+                    <select value={filtros.semana} onChange={(e) => actualizarSemana(e.target.value)} disabled={Boolean(filtros.rango)}>
+                      <option value="">Todas</option>
+                      {opciones.semanas.map((o) => (
+                        <option key={o.valor} value={o.valor}>{textoOpcion(o, (v) => `Semana ${v}`)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className={styles.filtro}>
+                    <span>Mes</span>
+                    <select value={filtros.mes} onChange={(e) => actualizarMes(e.target.value)} disabled={Boolean(filtros.rango)}>
+                      <option value="">Todos</option>
+                      {opciones.meses.map((o) => (
+                        <option key={o.valor} value={o.valor}>{textoOpcion(o, nombreMes)}</option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
               <CalendarioRango etiqueta="Rango de fechas" valor={filtros.rango} onChange={aplicarRango} />
             </div>
 
             {nFiltros > 0 && (
               <div className={styles.chips} aria-label="Filtros aplicados">
-                {chipsDeFiltros(filtros, Boolean(clienteFijo)).map((chip) => (
+                {[
+                  ...chipsDeFiltros(filtros, Boolean(clienteFijo)).map((c) => ({ ...c, quitar: () => quitarFiltro(c.campo) })),
+                  ...(filtrosMultiples ? chipsMulti(multi, formatosMulti).map((c) => ({ ...c, quitar: () => cambiarMulti(c.campo, []) })) : []),
+                ].map((chip) => (
                   <button
                     key={chip.campo}
                     type="button"
                     className={styles.chip}
-                    onClick={() => quitarFiltro(chip.campo)}
+                    onClick={chip.quitar}
                     title={`Quitar filtro ${chip.etiqueta}`}
                   >
                     <span className={styles.chipEtiqueta}>{chip.etiqueta}:</span> {chip.valor}
@@ -1558,8 +1718,8 @@ export function ReporteView({
                 <p className={styles.nota}>
                   <span className={styles.notaIcono} aria-hidden="true">i</span>
                   {limitesDeTabla
-                    ? `Franjas fijas tomadas de la tabla de límites residuales para ${filtros.crop}. No se recalculan con los datos.`
-                    : 'Elige una especie en los filtros para ver las franjas de la tabla de límites residuales.'}
+                    ? `Franjas fijas tomadas de la tabla de límites residuales para ${multi.crop[0]}. No se recalculan con los datos.`
+                    : 'Las franjas del gráfico se dibujan al elegir UNA especie. El recuadro «Informes fuera de rango» no la necesita: evalúa cada informe con los límites de su propia especie.'}
                 </p>
               )}
 
@@ -1612,32 +1772,8 @@ export function ReporteView({
                 )}
               </div>
 
-              {limitesTabla && <InformesFueraDeRango informes={informes} especie={filtros.crop} limites={limitesDeTabla} />}
+              {limitesTabla && <InformesFueraDeRango informes={informes} />}
 
-              {limitesTabla && (
-                <GraficosPorAnalito
-                  informes={informes}
-                  analitos={analitosGraficados}
-                  limites={limitesDeTabla}
-                  unidad={unidad}
-                  colores={coloresGraficos}
-                  onAbrir={(inf) =>
-                    setDetalle({ titulo: `${inf.nroSolicitud} · ${inf.fecha ? formatDateCL(inf.fecha) : 'Sin fecha'}`, filas: inf.puntos })
-                  }
-                />
-              )}
-
-              {limitesTabla ? (
-                <details className={styles.desplegable}>
-                  <summary>
-                    <span>{tituloPrincipal}</span>
-                    <small>todos los analitos juntos</small>
-                  </summary>
-                  <div className={styles.chartboxGrande}>
-                    <canvas ref={mainRef} />
-                  </div>
-                </details>
-              ) : (
               <Card className={styles.panel}>
                 <h3>
                   <span className={styles.h3Izq}>{tituloPrincipal}</span>
@@ -1647,7 +1783,6 @@ export function ReporteView({
                   <canvas ref={mainRef} />
                 </div>
               </Card>
-              )}
 
               {vistaControl && !esDiagnofruit && (
                 <FueraDeRango observaciones={filtradas} analitos={analitosVista} limites={limitesVista} sigma={sigma} />
@@ -1677,7 +1812,7 @@ export function ReporteView({
                               type="button"
                               disabled={e.otras}
                               onClick={() => cambiarCrop(e.valor)}
-                              className={mismoValor(filtros.crop, e.valor) ? styles.leyendaActiva : undefined}
+                              className={(filtrosMultiples ? multi.crop.some((c) => mismoValor(c, e.valor)) : mismoValor(filtros.crop, e.valor)) ? styles.leyendaActiva : undefined}
                             >
                               <i style={{ background: e.color }} />
                               <span className={styles.leyendaNombre}>{e.valor}</span>
@@ -1717,7 +1852,7 @@ export function ReporteView({
           titulo={detalle.titulo}
           filas={detalle.filas}
           onCerrar={() => setDetalle(null)}
-          fichaCompleta={puedeDescargarBd ? { analitos: analitosVista, limites: limitesVista } : undefined}
+          fichaCompleta={puedeDescargarBd ? { analitos: analitosVista, limites: limitesVista, graficos: graficosDelDetalle() } : undefined}
         />
       )}
     </div>

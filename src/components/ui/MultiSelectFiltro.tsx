@@ -10,9 +10,11 @@ interface MultiSelectFiltroProps {
   colorDe?: (opcion: string) => string
   /** Opcional: un número al lado de cada opción (ej. cuántos registros trae). */
   conteoDe?: (opcion: string) => number | undefined
+  /** Opcional: cómo se escribe cada opción (el valor guardado no cambia; ej. 9 → «Septiembre»). */
+  formatear?: (opcion: string) => string
 }
 
-export function MultiSelectFiltro({ etiqueta, opciones, valores, onChange, colorDe, conteoDe }: MultiSelectFiltroProps) {
+export function MultiSelectFiltro({ etiqueta, opciones, valores, onChange, colorDe, conteoDe, formatear = (v) => v }: MultiSelectFiltroProps) {
   const [abierto, setAbierto] = useState(false)
 
   function alternar(o: string) {
@@ -20,7 +22,7 @@ export function MultiSelectFiltro({ etiqueta, opciones, valores, onChange, color
   }
 
   const textoBoton =
-    valores.length === 0 ? 'Todos' : valores.length === 1 ? valores[0] : `${valores.length} seleccionados`
+    valores.length === 0 ? 'Todos' : valores.length === 1 ? formatear(valores[0]) : `${valores.length} seleccionados`
 
   return (
     <div className={styles.contenedor}>
@@ -49,7 +51,7 @@ export function MultiSelectFiltro({ etiqueta, opciones, valores, onChange, color
                 <label key={o} className={styles.opcion}>
                   <input type="checkbox" checked={valores.includes(o)} onChange={() => alternar(o)} />
                   {colorDe && <span className={styles.puntoColor} style={{ background: colorDe(o) }} />}
-                  <span>{o}</span>
+                  <span>{formatear(o)}</span>
                   {conteoDe && conteoDe(o) !== undefined && (
                     <span className={styles.conteo}>{conteoDe(o)?.toLocaleString('es-CL')}</span>
                   )}

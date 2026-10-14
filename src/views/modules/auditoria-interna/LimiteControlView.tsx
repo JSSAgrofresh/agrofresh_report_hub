@@ -27,6 +27,7 @@ export function LimiteControlView() {
       <ReporteView
         vistaControl={modo === 'control'}
         limitesTabla={modo === 'residuales'}
+        filtrosMultiples
         sinEncabezado
         selectorModo={
           <div className={styles.selector} role="group" aria-label="Tipo de límite">

@@ -607,12 +607,18 @@ tarjetas de arriba y el gráfico va **«Informes fuera de rango»** (`InformesFu
 franja, % del total y por analito su límite, resultados fuera, % fuera, desvío promedio y mayor desvío (con signo). Esa tabla es independiente de los límites de
 Report → Gestionar analitos. **Para cambiar un límite se edita `LIMITES_RESIDUALES`** (nunca se inventan: salen de la tabla del laboratorio). Pruebas:
 `limitesResiduales.test.ts`, `InformesFueraDeRango.test.tsx`, `LimiteControlView.test.tsx`.
-**Vista de límites, gráficos (14-10-2026)**: en modo Límites residuales el espacio principal es **un gráfico por analito** (`GraficosPorAnalito.tsx`: cada uno con su franja fija —relleno suave
-entre mín y máx más dos líneas punteadas— y su propia escala, así un analito alto no se pierde; en una caja con scroll de 72 vh; primero los que más resultados fuera de rango tienen; cabecera con el límite
-y «N de M fuera de rango»). El gráfico con **todos los analitos juntos** quedó en un desplegable CERRADO debajo (`<details>`). **Al pasar el mouse sobre un punto se resaltan mucho las líneas de límite de SU
-analito** (en ambos tipos de gráfico; en el grande `resaltarFranja`, que apaga las de los demás); el clic abre el mismo modal del informe. **Ojo con Chart.js y TypeScript**: crear `new Chart(canvas, {type:'line',...})`
-con la config literal en un archivo nuevo rompió `npm run build` en OTROS archivos (error de variancia `Chart<"doughnut"…>` no asignable a `Chart<keyof ChartTypeRegistry…>`, depende del orden en que TS revisa los
-archivos); se evita tipando la config como `ChartConfiguration` (genérico por defecto) antes de pasarla a `new Chart`. Pruebas: `GraficosPorAnalito.test.tsx` (con Chart.js simulado), `resaltarFranja.test.ts`.
+**Vista de límites, versión del 14-10-2026 (tarde)**: (1) **Filtros de varios valores** (`filtrosMultiples` en `ReporteView`; lógica pura en `features/reportes/lib/filtrosMultiples.ts`:
+`FiltrosMulti`, `cumpleMulti`, `tituloLimites`): Laboratorio, Sold To, Ship To, Especie, Variedad, Semana y Mes son `MultiSelectFiltro` (uno o varios; vacío = todos), en los dos modos; Report conserva los suyos de un solo valor.
+Las opciones se acotan entre sí y cada una trae su conteo; los chips de abajo quitan cada uno. (2) **El título del gráfico principal sale de los filtros** («Límites residuales - DOLE - Manzana, Pera - FDL»; más de 3 valores se cuentan: «4 clientes»).
+(3) **«Informes fuera de rango» ya NO pide elegir especie**: cada informe se juzga con los límites de SU especie (`limitesDeInforme` / `resumenResidual(informes, fuente)`); muestra, con conteo y %, los informes fuera de rango,
+**sobre el límite y bajo el límite**, y por analito: evaluados, sobre, bajo, fuera, desvío promedio y mayor desvío (con fila Total); un analito con rangos distintos por especie dice «según especie». Los informes cuya especie no está
+en la tabla no se evalúan y se avisa. Las franjas del gráfico grande solo se dibujan con UNA especie elegida; los aros rojos de los puntos se calculan siempre por la especie de cada punto. (4) **La página sigue con su gráfico
+único de siempre** (con hover que resalta la franja de su analito: `resaltarFranja`); **los gráficos por analito viven DENTRO del modal** que se abre al hacer clic en un punto (`GraficosPorAnalito.tsx` pasado como `graficos` a
+`FichaInformeModal`): un gráfico por cada analito de ese informe, con el historial de los informes de la misma especie, la franja de su especie y el punto de ese informe más grande; en una caja con scroll; y el detalle
+del informe (resultados y datos) queda en un `<details>` plegado debajo. Al pasar el mouse sobre un punto de esos gráficos se resalta la franja de su analito; el clic en otro punto abre ese informe.
+**Ojo con Chart.js y TypeScript**: crear `new Chart(canvas, {type:'line',...})` con la config literal en un archivo nuevo rompió `npm run build` en OTROS archivos (error de variancia `Chart<"doughnut"…>` no asignable
+a `Chart<keyof ChartTypeRegistry…>`, depende del orden en que TS revisa los archivos); se evita tipando la config como `ChartConfiguration` (genérico por defecto) antes de pasarla a `new Chart`.
+Pruebas: `filtrosMultiples.test.ts`, `limitesResiduales.test.ts`, `InformesFueraDeRango.test.tsx`, `GraficosPorAnalito.test.tsx` (Chart.js simulado), `resaltarFranja.test.ts`, `LimiteControlView.test.tsx`.
 **Fuera de rango** (`views/modules/reports/FueraDeRango.tsx`, lógica en `features/reportes/lib/fueraDeRango.ts`)
 solo en la Vista por límite de control: criterio «Límite del analito» (límite residual; sin límite ≠ dentro)
 o «Límite de control» (promedio ± σ, mín. 3 por analito); parte en el primero si hay límites cargados.
