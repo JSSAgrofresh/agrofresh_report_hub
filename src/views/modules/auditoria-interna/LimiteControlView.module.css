@@ -1,0 +1,9 @@
+.pagina { display: flex; flex-direction: column; gap: var(--space-4); }
+.selector { display: inline-flex; gap: 4px; padding: 4px; background: var(--color-surface-sunken, #e4e9ec); border-radius: 12px; }
+.selector button {
+  font: inherit; font-weight: 700; font-size: 13.5px; padding: 9px 18px; border: 0; border-radius: 9px;
+  background: transparent; color: var(--color-text-muted, #4a5b68); cursor: pointer;
+}
+.selector button:hover { color: var(--color-text); }
+.selector button:focus-visible { outline: 2px solid #14577a; outline-offset: 2px; }
+.selector button.activo { background: #14577a; color: #fff; box-shadow: 0 2px 6px rgba(20, 87, 122, 0.35); }

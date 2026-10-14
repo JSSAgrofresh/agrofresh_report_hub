@@ -598,6 +598,15 @@ cuentas cliente; sin la 0057 no hay datos y el flujograma lo dice).
 - **Cumplimiento** = a tiempo ÷ (a tiempo + tarde + vencidas sin entregar). «Aún en plazo» y «sin plazo» no cuentan.
 - Pruebas: `entrega.test.ts` (corren igual en cualquier zona horaria), `IndicadoresEntrega.test.tsx`,
   `test_entrega_indicadores.py`, `test_informe_visto.py`.
+**Vista de límites** (14-10-2026; antes «Vista por límite de control», `LimiteControlView.tsx`, ruta de siempre): encabezado azul (`AuditoriaHero tono="azul"`) y,
+arriba de los filtros, el selector **Límites residuales / Límites de control** (parte en residuales). Es el mismo `ReporteView` con `limitesTabla` (residuales) o
+`vistaControl` (control, igual que antes: promedio ± N σ y su tarjeta «Resultados fuera de rango»). **Límites residuales** dibuja franjas FIJAS (mín y máx de
+cada analito, de su color) tomadas de la tabla estática `features/reportes/lib/limitesResiduales.ts` (`LIMITES_RESIDUALES`, por especie × analito; «NA» = sin franja),
+según la **especie** filtrada (sin especie, o una que la tabla no trae, no hay franjas y se avisa); los puntos fuera de su franja llevan aro rojo, y entre las
+tarjetas de arriba y el gráfico va **«Informes fuera de rango»** (`InformesFueraDeRango.tsx`, solo en este modo): cuántos informes tienen AL MENOS un analito fuera de su
+franja, % del total y por analito su límite, resultados fuera, % fuera, desvío promedio y mayor desvío (con signo). Esa tabla es independiente de los límites de
+Report → Gestionar analitos. **Para cambiar un límite se edita `LIMITES_RESIDUALES`** (nunca se inventan: salen de la tabla del laboratorio). Pruebas:
+`limitesResiduales.test.ts`, `InformesFueraDeRango.test.tsx`, `LimiteControlView.test.tsx`.
 **Fuera de rango** (`views/modules/reports/FueraDeRango.tsx`, lógica en `features/reportes/lib/fueraDeRango.ts`)
 solo en la Vista por límite de control: criterio «Límite del analito» (límite residual; sin límite ≠ dentro)
 o «Límite de control» (promedio ± σ, mín. 3 por analito); parte en el primero si hay límites cargados.
