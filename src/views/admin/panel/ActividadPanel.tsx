@@ -20,6 +20,11 @@ const FILTROS: { id: string; etiqueta: string }[] = [
   { id: 'verificaciones', etiqueta: 'Verificaciones' },
   { id: 'laboratorio', etiqueta: 'Laboratorio' },
   { id: 'informes', etiqueta: 'Informes' },
+  { id: 'report', etiqueta: 'Report' },
+  { id: 'storage', etiqueta: 'Storage' },
+  { id: 'postventa', etiqueta: 'Post Venta' },
+  { id: 'administracion', etiqueta: 'Administración' },
+  { id: 'otros', etiqueta: 'Otros' },
   { id: 'acceso', etiqueta: 'Accesos' },
   { id: 'sensible', etiqueta: 'Cambios sensibles' },
 ]

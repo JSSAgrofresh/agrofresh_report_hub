@@ -1161,6 +1161,7 @@ tocas una, toca la otra.
   pero el resto funciona. **Si agregas una acción nueva de una persona, anótala en
   una tabla y súmala a `leer_eventos`.** Pruebas: `tests/test_admin_panel.py`,
   `adminPanel.test.ts`.
+- **Actividad automática (14-10-2026, pedido del usuario: «medir TODO lo que se hace»)**: `app/actividad_auto.py` + middleware `RegistroActividad` (`main.py`) anotan en `actividad_usuario` (sin migración nueva) toda llamada exitosa (<400) POST/PUT/PATCH/DELETE de la API, más descargas (GET en `DESCARGAS`), con un texto en español por regla (`REGLAS`) y una regla genérica por módulo (`_POR_PREFIJO`) para lo que no tenga. Lo que ya registra otra fuente (solicitudes, cargas, verificaciones, envíos, usuarios…) está en `OMITIR` para no duplicar; los DELETE van como «Cambios sensibles». Categorías nuevas: Report, Storage, Post Venta, Administración, Otros (filtros del historial, Seguimiento y colores). **Solo desde que se instaló**: lo hecho antes no deja huella y no se puede reconstruir. **Una acción nueva de la API se anota sola; si quieres un texto propio, agrega su regla en `REGLAS`.** Pruebas: `tests/test_actividad_auto.py`.
 - **El Converter aprende de las correcciones a mano** (`app/correcciones.py`,
   tabla `correccion_converter`, migración 0045). Los cuatro desplegables del
   catálogo son ahora un **buscador** (sin tildes ni mayúsculas, flechas y
