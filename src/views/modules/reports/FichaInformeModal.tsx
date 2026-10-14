@@ -449,7 +449,7 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
                 </button>
               </div>
             </div>
-            <iframe className={styles.visorMarco} title="Informe completo" src={urlPdf} />
+            <iframe className={styles.visorMarco} title="Informe completo" src={`${urlPdf}#view=FitH&navpanes=0`} />
           </div>
         </div>
       )}
