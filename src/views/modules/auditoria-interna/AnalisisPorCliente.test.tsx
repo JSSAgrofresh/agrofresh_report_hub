@@ -32,7 +32,8 @@ describe('AnalisisPorCliente', () => {
     expect(within(filas[1]).getByText('FSMA')).toBeTruthy()
     expect(within(filas[2]).getByText('FITO')).toBeTruthy()
     expect(screen.getByText('MULTIFRUTA')).toBeTruthy()
-    expect(screen.getByText('Entregables')).toBeTruthy()
+    // sin plan cargado, las columnas de entregables no aparecen
+    expect(screen.queryByText('Entregables')).toBeNull()
   })
 
   it('los clientes del listado sin ningún análisis salen apagados al final, solo si se piden', async () => {
@@ -59,5 +60,33 @@ describe('AnalisisPorCliente', () => {
   it('los clientes sin ningún análisis del listado no cambian por ocultar un análisis', async () => {
     render(<AnalisisPorCliente solicitudes={lista} analisis={['residuales']} />)
     expect(await screen.findByRole('button', { name: /Mostrar los 2 clientes sin análisis/ })).toBeTruthy()
+  })
+
+  describe('Entregables (plan de los comerciales)', () => {
+    const plan = new Map([['DOLE CHILE SA', { sold_to: 'DOLE CHILE S.A.', residuales: 8, fsma: 0, fito: 0, plantas: [{ planta: 'DOLE LONTUE', servicio: 'residuales' as const, cantidad: 8 }] }]])
+
+    it('por Sold To: Cant. es lo prometido y % es lo llevado ÷ lo prometido (solo en la fila que el plan trae)', () => {
+      render(<AnalisisPorCliente solicitudes={lista} plan={plan} />)
+      expect(screen.getByText('Entregables')).toBeTruthy()
+      const dole = screen.getAllByRole('row').slice(2)[0]
+      // DOLE lleva 2 residuales (AgroFresh 1 + Quiteca 1) de 8 prometidos = 25%
+      expect(within(dole).getByTitle('Análisis prometidos en la temporada (plan de entregables)').textContent).toBe('8')
+      expect(within(dole).getByText('25%', { selector: 'td' })).toBeTruthy()
+      // FSMA no está en el plan: queda en guion
+      const fsma = screen.getAllByRole('row').slice(2)[1]
+      expect(within(fsma).getAllByText('—').length).toBe(2)
+    })
+
+    it('muestra las plantas del plan al abrir el detalle', () => {
+      render(<AnalisisPorCliente solicitudes={lista} plan={plan} />)
+      expect(screen.queryByText(/DOLE LONTUE/)).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: /Ver las 1 del plan/ }))
+      expect(screen.getByText(/DOLE LONTUE/)).toBeTruthy()
+    })
+
+    it('por Ship To, especie o tipo el cálculo se esconde', () => {
+      render(<AnalisisPorCliente solicitudes={lista} plan={plan} dimension="planta" />)
+      expect(screen.queryByText('Entregables')).toBeNull()
+    })
   })
 })

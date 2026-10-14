@@ -23,6 +23,7 @@ from .catalogo import router as catalogo_router
 from .emitir import router as emitir_router
 from .fortificados import router as fortificados_router
 from .funciones import router as funciones_router
+from .plan_carga import router as plan_carga_router
 from .homogenizar_datos import router as homogenizar_router
 from .ingest import router as ingest_router
 from .laboratorios import router as laboratorios_router
@@ -141,6 +142,7 @@ for _router in (
     emitir_router,
     fortificados_router,
     funciones_router,
+    plan_carga_router,
     toma_muestras_router,
     laboratorios_router,
     correo_router,

@@ -2,21 +2,23 @@ import { useEffect, useMemo, useState } from 'react'
 import { listarClientes } from '@/features/catalogo'
 import { ANALISIS_VISIBLES, clientesSinAnalisis, porClienteResiduosFsmaFito, soloAnalisis } from '@/features/auditoriaInterna'
 import type { AnalisisVisible, CeldaCliente, DimensionGrafico, SolicitudAuditoria } from '@/features/auditoriaInterna'
+import { avancePlan, cantidadPlan, normalizarNombre } from '@/features/planEntregables'
+import type { ClientePlan, FilaPlan } from '@/features/planEntregables'
 import { COLOR_LAB } from './coloresTipo'
 import styles from './AnalisisPorCliente.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
-type Linea = { clave: string; nombre: string; sub?: string; c: CeldaCliente; color: string; labs?: { agf: CeldaCliente; qui: CeldaCliente } }
+type Linea = { clave: string; plan?: FilaPlan; nombre: string; sub?: string; c: CeldaCliente; color: string; labs?: { agf: CeldaCliente; qui: CeldaCliente } }
 type Cuatro = { agrofresh: CeldaCliente; quiteca: CeldaCliente; fsma: CeldaCliente; fito: CeldaCliente }
 
 /** Las líneas de un cliente (o del total): Residuales (con su reparto entre AgroFresh y Quiteca), FSMA y FITO. Solo lo que tiene análisis. */
 function lineasDe(x: Cuatro): Linea[] {
   const res: CeldaCliente = { n: x.agrofresh.n + x.quiteca.n, informes: x.agrofresh.informes + x.quiteca.informes }
   const out: Linea[] = []
-  if (res.n > 0) out.push({ clave: 'res', nombre: 'Residuales', c: res, color: '#4d7c0f', labs: { agf: x.agrofresh, qui: x.quiteca } })
-  if (x.fsma.n > 0) out.push({ clave: 'fsma', nombre: 'FSMA', sub: 'ALS', c: x.fsma, color: COLOR_LAB.ALS })
-  if (x.fito.n > 0) out.push({ clave: 'fito', nombre: 'FITO', sub: 'Diagnofruit', c: x.fito, color: COLOR_LAB.DIAGNOFRUIT })
+  if (res.n > 0) out.push({ clave: 'res', nombre: 'Residuales', c: res, color: '#4d7c0f', plan: 'residuales', labs: { agf: x.agrofresh, qui: x.quiteca } })
+  if (x.fsma.n > 0) out.push({ clave: 'fsma', nombre: 'FSMA', sub: 'ALS', c: x.fsma, color: COLOR_LAB.ALS, plan: 'fsma' })
+  if (x.fito.n > 0) out.push({ clave: 'fito', nombre: 'FITO', sub: 'Diagnofruit', c: x.fito, color: COLOR_LAB.DIAGNOFRUIT, plan: 'fito' })
   return out
 }
 
@@ -36,7 +38,8 @@ function CeldasLab({ nombre, c, total, color }: { nombre: string; c: CeldaClient
 }
 
 /** Las celdas de una línea: análisis, reparto por laboratorio (residuales, en la misma línea), total y entregables. */
-function CeldasLinea({ l }: { l: Linea }) {
+function CeldasLinea({ l, entregable }: { l: Linea; entregable?: { cant: number | null; hechos: number } | false }) {
+  const avance = entregable ? avancePlan(entregable.hechos, entregable.cant) : null
   return (
     <>
       <th scope="row" className={styles.lineaGrupo} style={{ color: l.color }}>
@@ -53,8 +56,20 @@ function CeldasLinea({ l }: { l: Linea }) {
       <td className={styles.valor} >
         <b className={styles.cifra}>{nf.format(l.c.n)}</b>
       </td>
-      <td className={styles.pendienteDato} title="Se cargará con el plan de entregables de los comerciales">—</td>
-      <td className={styles.pendienteDato}>—</td>
+      {entregable !== undefined && entregable !== false && (
+        <>
+          {entregable.cant === null ? (
+            <td className={styles.pendienteDato} title="El plan de entregables no trae este análisis para este cliente">—</td>
+          ) : (
+            <td className={styles.valor} title="Análisis prometidos en la temporada (plan de entregables)"><b className={styles.cifra}>{nf.format(entregable.cant)}</b></td>
+          )}
+          {avance === null ? (
+            <td className={styles.pendienteDato}>—</td>
+          ) : (
+            <td className={styles.pct} title={`${nf.format(entregable.hechos)} de ${nf.format(entregable.cant ?? 0)} prometidos`}>{pct(avance)}</td>
+          )}
+        </>
+      )}
     </>
   )
 }
@@ -72,6 +87,7 @@ export function AnalisisPorCliente({
   dimension = 'cliente',
   limite = 0,
   analisis = ANALISIS_VISIBLES,
+  plan = null,
 }: {
   solicitudes: SolicitudAuditoria[]
   dimension?: DimensionGrafico
@@ -79,7 +95,18 @@ export function AnalisisPorCliente({
   limite?: number
   /** qué análisis se ven (por defecto los tres); el total y el orden de cada cliente cuentan solo lo visible */
   analisis?: AnalisisVisible[]
+  /** Lo prometido por Sold To (plan de entregables). Solo se usa agrupando por Sold To: por Ship To, especie o tipo no se calcula y las columnas se esconden. */
+  plan?: Map<string, ClientePlan> | null
 }) {
+  const conPlan = dimension === 'cliente' && plan !== null
+  const planDe = (cliente: string) => plan?.get(normalizarNombre(cliente))
+  const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
+  const alternarPlantas = (cliente: string) =>
+    setAbiertos((prev) => {
+      const sig = new Set(prev)
+      if (!sig.delete(cliente)) sig.add(cliente)
+      return sig
+    })
   // Sin filtrar por análisis: sirve para saber qué clientes del listado no tienen NINGÚN análisis.
   const crudas = useMemo(() => porClienteResiduosFsmaFito(solicitudes, dimension), [solicitudes, dimension])
   const todas = useMemo(() => soloAnalisis(crudas, analisis), [crudas, analisis])
@@ -101,6 +128,23 @@ export function AnalisisPorCliente({
   const nFsma = suma((x) => x.fsma)
   const nFito = suma((x) => x.fito)
   const nTotal = filas.reduce((n, x) => n + x.total, 0)
+  /** Entregables de una fila del gráfico: lo prometido y lo hecho, contando solo los clientes que el plan trae. */
+  const entregableDe = (f: (typeof filas)[number], l: Linea) => {
+    const cant = l.plan ? cantidadPlan(planDe(f.cliente), l.plan) : null
+    return { cant, hechos: l.c.n }
+  }
+  const entregableTotal = (l: Linea) => {
+    let cant = 0
+    let hechos = 0
+    for (const f of filas) {
+      const c = l.plan ? cantidadPlan(planDe(f.cliente), l.plan) : null
+      if (c === null) continue
+      cant += c
+      const x = l.plan === 'residuales' ? f.agrofresh.n + f.quiteca.n : l.plan === 'fsma' ? f.fsma.n : f.fito.n
+      hechos += x
+    }
+    return { cant: cant > 0 ? cant : null, hechos }
+  }
 
   return (
     <section className={styles.cuerpoGrafico} aria-label="Análisis por cliente">
@@ -112,7 +156,7 @@ export function AnalisisPorCliente({
             <col style={{ width: '10%' }} /><col style={{ width: '5%' }} /><col style={{ width: '6%' }} />
             <col style={{ width: '10%' }} /><col style={{ width: '5%' }} /><col style={{ width: '6%' }} />
             <col style={{ width: '9%' }} />
-            <col style={{ width: '8%' }} /><col style={{ width: '8%' }} />
+            {conPlan && <><col style={{ width: '8%' }} /><col style={{ width: '8%' }} /></>}
           </colgroup>
           <thead>
             <tr className={styles.grupos}>
@@ -120,13 +164,13 @@ export function AnalisisPorCliente({
               <th rowSpan={2} className={styles.colAnalisis}>Análisis</th>
               <th colSpan={6} className={styles.gResiduales}>Laboratorio · cantidad y % del total de residuales</th>
               <th rowSpan={2} className={styles.gTotal}>Total</th>
-              <th colSpan={2} className={styles.gEntregable}>Entregables</th>
+              {conPlan && <th colSpan={2} className={styles.gEntregable}>Entregables</th>}
             </tr>
             <tr className={styles.subs}>
               <th>Lab.</th><th>Cant.</th><th>%</th>
               <th>Lab.</th><th>Cant.</th><th>%</th>
-              <th className={styles.gEntregable} title="Lo que cada comercial concretó de cada análisis para cada planta (se carga aparte)">Cant.</th>
-              <th className={styles.gEntregable}>%</th>
+              {conPlan && <th className={styles.gEntregable} title="Análisis prometidos en la temporada, según el plan de entregables de los comerciales">Cant.</th>}
+              {conPlan && <th className={styles.gEntregable} title="Lo que llevamos ÷ lo prometido">%</th>}
             </tr>
           </thead>
           {filas.map((f, i) => {
@@ -140,11 +184,26 @@ export function AnalisisPorCliente({
                         <em className={i < 3 ? styles.podio : undefined} data-puesto={i < 3 ? i + 1 : undefined}>{i + 1}</em>
                         <span title={f.cliente}>{f.cliente}</span>
                         <small className={styles.totalCliente}>{nf.format(f.total)} análisis</small>
+                        {conPlan && (planDe(f.cliente)?.plantas.length ?? 0) > 0 && (
+                          <button type="button" className={styles.verPlantas} aria-expanded={abiertos.has(f.cliente)} onClick={() => alternarPlantas(f.cliente)}>
+                            {abiertos.has(f.cliente) ? 'Ocultar' : 'Ver'} las {planDe(f.cliente)?.plantas.length} del plan
+                          </button>
+                        )}
                       </th>
                     )}
-                    <CeldasLinea l={l} />
+                    <CeldasLinea l={l} entregable={conPlan && entregableDe(f, l)} />
                   </tr>
                 ))}
+                {conPlan && abiertos.has(f.cliente) && (
+                  <tr className={styles.filaPlantas}>
+                    <td colSpan={10}>
+                      <span className={styles.plantasTitulo}>Prometido por planta del plan</span>
+                      {planDe(f.cliente)?.plantas.map((p, k) => (
+                        <span key={k} className={styles.planta}>{p.planta} · {p.servicio === 'residuales' ? 'Residuales' : p.servicio === 'fsma' ? 'FSMA' : p.servicio === 'fito' ? 'FITO' : 'Otro'} <b>{nf.format(p.cantidad)}</b></span>
+                      ))}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             )
           })}
@@ -153,7 +212,7 @@ export function AnalisisPorCliente({
               {apagados.map((nombre) => (
                 <tr key={nombre} className={styles.apagado}>
                   <th scope="row" className={styles.cliente}><em>·</em><span title={nombre}>{nombre}</span></th>
-                  <td colSpan={10}><span className={styles.cero}>Sin análisis</span></td>
+                  <td colSpan={conPlan ? 10 : 8}><span className={styles.cero}>Sin análisis</span></td>
                 </tr>
               ))}
             </tbody>
@@ -170,7 +229,7 @@ export function AnalisisPorCliente({
                 return tot.map((l, j) => (
                   <tr key={l.clave} className={styles.filaGrupo}>
                     {j === 0 && <th scope="rowgroup" rowSpan={tot.length} className={styles.cliente}>Total<small className={styles.totalCliente}>{nf.format(nTotal)} análisis</small></th>}
-                    <CeldasLinea l={l} />
+                    <CeldasLinea l={l} entregable={conPlan && entregableTotal(l)} />
                   </tr>
                 ))
               })()}

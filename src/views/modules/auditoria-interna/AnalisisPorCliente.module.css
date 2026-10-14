@@ -213,3 +213,22 @@
 .tabla td.labCant { text-align: center; font-weight: 700; border-bottom-color: #fff; }
 .tabla td.labPct { text-align: center; font-size: 12px; color: var(--color-text-muted); border-bottom-color: #fff; }
 .tabla td.cero { text-align: center; }
+
+/* Entregables: lo prometido por planta del plan, bajo el cliente */
+.verPlantas {
+  display: block;
+  margin: 4px 0 0 28px;
+  padding: 0;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.filaPlantas td { background: #f7f9f6; text-align: left; padding: 6px 12px; font-size: 11.5px; }
+.plantasTitulo { margin-right: 10px; font-weight: 700; color: var(--color-text-muted); }
+.planta { display: inline-block; margin: 2px 8px 2px 0; padding: 1px 8px; background: #fff; border: 1px solid var(--color-border); border-radius: 999px; }
+.planta b { margin-left: 4px; }
