@@ -29,6 +29,7 @@ import { SelectorArea } from './SelectorArea'
 import { IndicadoresEntrega } from './IndicadoresEntrega'
 import { ResumenConcretadas } from './ResumenConcretadas'
 import { InformesPorLaboratorio } from './InformesPorLaboratorio'
+import { usePlanEntregables } from '@/features/planEntregables'
 import { AnalisisPorCliente } from './AnalisisPorCliente'
 import { COLOR_LAB } from './coloresTipo'
 import { TablaDinamica } from './TablaDinamica'
@@ -70,6 +71,9 @@ export function SolicitudesInformesView() {
   // Filtros propios del gráfico por grupo, encima de los del panel.
   const [filtroGrafico, setFiltroGrafico] = useState({ cliente: '', planta: '', especie: '', tipo: '' })
   const [topClientes, setTopClientes] = useState(10)
+  const plan = usePlanEntregables()
+  // El plan es por Sold To: con un Ship To, especie o tipo elegidos el avance no se puede calcular y se esconde.
+  const hayFiltroPlanta = filtroGrafico.planta !== '' || filtroGrafico.especie !== '' || filtroGrafico.tipo !== ''
   const [analisisVisibles, setAnalisisVisibles] = useState<AnalisisVisible[]>(['residuales', 'fsma', 'fito'])
   // Siempre queda al menos uno prendido: sin ninguno no habría nada que mirar.
   const alternarAnalisis = (a: AnalisisVisible) =>
@@ -256,7 +260,7 @@ export function SolicitudesInformesView() {
                 }}
               >
                 {filasTabla.length > 0 ? (
-                  <AnalisisPorCliente solicitudes={alcanceGrafico} dimension={dimension} limite={topClientes} analisis={analisisVisibles} />
+                  <AnalisisPorCliente solicitudes={alcanceGrafico} dimension={dimension} limite={topClientes} analisis={analisisVisibles} plan={hayFiltroPlanta ? null : plan} />
                 ) : (
                   <p className={styles.sinDatosGrafico}>No hay solicitudes con los filtros actuales.</p>
                 )}

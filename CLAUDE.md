@@ -617,6 +617,19 @@ solo del Sold To). **Pendiente** (decisiones del usuario sin responder): qué se
 informes por Sold To» (informes concretados o solicitudes), de qué laboratorio sale cada servicio, y la tabla en la base de datos
 con su carga desde Administración General. Pruebas: `tests/test_plan_entregables.py`.
 
+**Carga al sistema y columnas «Entregables»** (13-10-2026, migración **0062**, tabla `plan_entregable`; `app/plan_carga.py`, prefijo
+`/api/plan-entregables`; front `features/planEntregables/`, pestaña **Administración General → Plan de entregables**, solo admin general):
+se sube el Excel ya homogenizado (columnas SOLD TO, COMERCIAL, SERVICIO, TOTAL, NOMBRE EN EL PLAN; el Sold To es el OFICIAL de Listados),
+primero `/analizar` (solo cuenta, no escribe) y `/confirmar` (reemplaza el plan de la temporada `TEMPORADA`). Un Sold To que no existe en
+Listados no se carga y se lista para corregirlo. Servicio → fila del gráfico: Residuales → Residuales, Patologías/Fitopatológico → FITO,
+Microbiología/FSMA → FSMA, «Entrega de registros» se guarda como «otro» y no se muestra. **Se carga por Sold To, nunca por Ship To**
+(repartir por planta es adivinar): `planta_plan` es el nombre tal como lo escribió el comercial. En «Análisis por cliente» (Auditoría
+interna) **Cant. = suma de lo prometido del Sold To en esa fila y % = lo que llevamos ÷ lo prometido** (puede pasar de 100%); un botón
+«Ver las N del plan» abre lo prometido por planta. **Las dos columnas se esconden** al agrupar por Ship To, Especie o Tipo y cuando el filtro
+del gráfico trae planta, especie o tipo. Sin plan cargado (o sin la 0062) no salen. El Total de abajo suma solo los clientes que el plan trae.
+Pruebas: `tests/test_plan_carga.py`, `plan.test.ts`, `AnalisisPorCliente.test.tsx`. **Pendiente**: 9 clientes del plan sin Sold To oficial
+(Copefrut Central, DDC, Exportadora Yucay, Mace, Merex, Neptuno, San Lus de Trapiche, Victoria, Zur Grup): entran cuando se corrija su nombre y se vuelva a subir.
+
 ## Post Venta: informes de Accu-Tab (Trace + correo)
 
 Toda carga (la manual de Trace o la automática del correo) termina con su **informe
