@@ -86,7 +86,7 @@ export function VistaPrevia({ entrada, abrir, onDescargar, onCerrar }: VistaPrev
       ) : contenido.url && tipo.vista === 'imagen' ? (
         <img className={styles.imagen} src={contenido.url} alt={entrada.nombre} />
       ) : contenido.url ? (
-        <iframe className={styles.pdf} src={contenido.url} title={entrada.nombre} />
+        <iframe className={styles.pdf} src={`${contenido.url}#view=FitH`} title={entrada.nombre} />
       ) : (
         <>
           <pre className={styles.texto}>{contenido.texto}</pre>
