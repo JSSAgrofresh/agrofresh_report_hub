@@ -1861,28 +1861,22 @@ export function ReporteView({
               )}
 
               {limitesTabla ? (
-                <div className={styles.grid2Iguales}>
+                <div className={styles.grid1a3}>
                   <Card className={styles.panel}>
                     <h3>
-                      <span>{especieUnica ? `Resultados por analito · ${especieUnica}` : 'Informes por especie · fuera de rango'}</span>
-                      <span className={styles.hintClic}>
-                        {soloFuera ? 'solo fuera de rango' : 'tramo fuerte = fuera, tenue = dentro'} · clic para ver cuánto se pasaron
-                      </span>
+                      <span>{especieUnica ? `Por analito · ${especieUnica}` : 'Por especie'}</span>
+                      <span className={styles.hintClic}>{soloFuera ? 'solo fuera de rango' : 'fuerte = fuera · tenue = dentro'}</span>
                     </h3>
                     <DonaFueraDeRango informes={informesTodos} soloFuera={soloFuera} especieFiltrada={especieUnica} onElegirEspecie={cambiarCrop} />
                   </Card>
                   <Card className={styles.panel}>
                     <h3>
-                      <span>Resultados por cliente</span>
+                      <span>Fuera de rango por cliente</span>
                       <span className={styles.hintClic}>
-                        {soloFuera ? 'solo fuera de rango' : 'ordenado por informes fuera de rango'} · clic en un cliente para filtrar
+                        {soloFuera ? 'solo fuera de rango' : 'ordenado por informes fuera de rango'} · clic en el cliente: por semana · clic en la barra: cuánto se pasaron
                       </span>
                     </h3>
-                    <ResultadosPorCliente
-                      informes={informesTodos}
-                      soloFuera={soloFuera}
-                      onElegirCliente={(c) => (filtrosMultiples ? cambiarMulti('cliente', [c]) : cambiarCliente(c))}
-                    />
+                    <ResultadosPorCliente informes={informesTodos} soloFuera={soloFuera} />
                   </Card>
                 </div>
               ) : (

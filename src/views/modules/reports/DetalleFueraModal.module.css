@@ -1,0 +1,13 @@
+.vacio { margin: var(--space-3) 0; font-size: 13px; color: var(--color-text-muted, #666); }
+.pestanas { display: flex; gap: 6px; margin-bottom: var(--space-3, 12px); }
+.pestanas button { font: inherit; font-size: 12px; padding: 4px 12px; border-radius: 99px; border: 1px solid var(--color-border, #ddd); background: transparent; color: var(--color-text-muted, #666); cursor: pointer; }
+.pestanas button.pestanaOn { background: #222; border-color: #222; color: #fff; }
+.tablaCaja { max-height: 55vh; overflow: auto; }
+.tabla { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tabla th { position: sticky; top: 0; background: var(--color-surface, #fff); text-align: left; font-size: 10.5px; text-transform: uppercase; color: var(--color-text-muted, #888); padding: 6px; border-bottom: 1px solid var(--color-border, #e5e3da); }
+.tabla td { padding: 6px; border-bottom: 1px solid var(--color-border-soft, #f0eee6); }
+.punto { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.sobre { color: #c0392b; font-weight: 700; }
+.bajo { color: #2d8fc4; font-weight: 700; }
+
+.cuerpoModal { padding: 14px 20px 18px; }
