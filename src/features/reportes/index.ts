@@ -34,6 +34,7 @@ export {
   claveFiltro,
   clientesDeSucursal,
   especiesDeVariedad,
+  laboratorioBase,
   contarFiltrosActivos,
   mismoValor,
   opcionesDe,
@@ -52,3 +53,5 @@ export type { RangoResidual, ResumenResidual, FilaAnalitoResidual, FuenteLimites
 export { resaltarFranja } from './lib/resaltarFranja'
 export { CAMPOS_MULTI, MULTI_VACIOS, ETIQUETAS_MULTI, cumpleMulti, contarMulti, chipsMulti, tituloLimites, valorMulti } from './lib/filtrosMultiples'
 export type { CampoMulti, FiltrosMulti } from './lib/filtrosMultiples'
+export { laboratorioTabular } from './lib/laboratorios'
+export type { LaboratorioTabular } from './lib/laboratorios'
