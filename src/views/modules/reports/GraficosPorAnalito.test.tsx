@@ -30,4 +30,11 @@ describe('GraficosPorAnalito', () => {
     render(<GraficosPorAnalito informes={informes} analitos={['IMZ']} limites={limitesDeEspecie('Manzana')} unidad="ppm" colores={colores} onAbrir={() => {}} />)
     expect(screen.getByText('Sin límite en la tabla para esta especie')).toBeTruthy()
   })
+
+  it('con un solo informe dibuja solo sus resultados: un gráfico por analito y «1 de 1»', () => {
+    render(<GraficosPorAnalito informes={[informes[1]]} analitos={['FDL', 'PYR']} limites={limitesDeEspecie('Clementina')} unidad="ppm" colores={colores} onAbrir={() => {}} />)
+    expect(screen.getAllByRole('article')).toHaveLength(2)
+    expect(screen.getAllByText('1 de 1 fuera de rango')).toHaveLength(2) // FDL sobre y PYR bajo, cada uno con su único resultado
+    expect(screen.queryByText(/de 3 fuera de rango/)).toBeNull()
+  })
 })

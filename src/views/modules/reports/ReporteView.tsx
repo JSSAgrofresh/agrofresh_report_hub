@@ -1138,8 +1138,8 @@ export function ReporteView({
     if ((campo === 'semana' || campo === 'mes') && valores.length > 0) setFiltros((prev) => ({ ...prev, rango: null }))
   }
 
-  /** Vista de límites, al abrir un informe: un gráfico por cada analito de ESE informe, con su historial (los informes de la misma
-   * especie con los filtros puestos), la franja de su especie y el punto de este informe resaltado. */
+  /** Vista de límites, al abrir un informe: un gráfico por cada analito de ESE informe, solo con sus propios resultados
+   * (nada de otros informes) contra la franja de su especie. */
   function graficosDelDetalle(): ReactNode {
     if (!limitesTabla || !detalle) return undefined
     const ids = new Set(detalle.filas.map((o) => o.solicitudId))
@@ -1147,17 +1147,16 @@ export function ReporteView({
     const inf = ids.size === 1 ? informes.find((i) => i.solicitudId === unico) : undefined
     if (!inf) return undefined
     const especie = especieDeInforme(inf)
-    const mismos = informes.filter((i) => mismoValor(especieDeInforme(i), especie))
     const analitosDelInforme = [...new Set(inf.puntos.map((p) => p.ingrediente as string))].sort((a, b) => a.localeCompare(b, 'es'))
     return (
       <GraficosPorAnalito
-        informes={mismos}
+        informes={[inf]}
         analitos={analitosDelInforme}
         limites={limitesDeEspecie(especie)}
         unidad={unidad}
         colores={coloresGraficos}
         destacado={inf.solicitudId}
-        titulo={`Gráfico por analito${especie ? ` · ${especie}` : ''} · el punto grande es este informe`}
+        titulo={`Resultados de este informe por analito${especie ? ` · ${especie}` : ''}`}
         onAbrir={(otro) => setDetalle({ titulo: `${otro.nroSolicitud} · ${otro.fecha ? formatDateCL(otro.fecha) : 'Sin fecha'}`, filas: otro.puntos })}
       />
     )

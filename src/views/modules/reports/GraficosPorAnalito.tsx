@@ -34,9 +34,11 @@ interface Props {
 
 /** Un informe con el resultado de un analito (los informes que no lo traen se dejan fuera). */
 function puntosDe(informes: InformeConPuntos[], codigo: string) {
-  return informes
-    .map((inf) => ({ inf, ppm: inf.puntos.find((p) => p.ingrediente === codigo)?.ppm ?? null }))
-    .filter((x): x is { inf: InformeConPuntos; ppm: number } => x.ppm != null)
+  return informes.flatMap((inf) =>
+    inf.puntos
+      .filter((p) => p.ingrediente === codigo && p.ppm != null)
+      .map((p) => ({ inf, ppm: p.ppm as number })),
+  )
 }
 
 function GraficoAnalito({
@@ -62,7 +64,16 @@ function GraficoAnalito({
 
   useEffect(() => {
     if (!ref.current) return
-    const etiquetas = puntos.map((p) => (p.inf.fecha ? formatDateCL(p.inf.fecha) : 'Sin fecha'))
+    const veces = new Map<number, number>()
+    puntos.forEach((p) => veces.set(p.inf.solicitudId, (veces.get(p.inf.solicitudId) ?? 0) + 1))
+    const visto = new Map<number, number>()
+    const etiquetas = puntos.map((p) => {
+      const fecha = p.inf.fecha ? formatDateCL(p.inf.fecha) : 'Sin fecha'
+      if ((veces.get(p.inf.solicitudId) ?? 0) < 2) return fecha
+      const n = (visto.get(p.inf.solicitudId) ?? 0) + 1
+      visto.set(p.inf.solicitudId, n)
+      return `${fecha} · ${n}`
+    })
     const inicioDeFecha = etiquetas.map((e, i) => i === 0 || e !== etiquetas[i - 1])
     const lim = limite ? { [codigo]: limite } : null
     const fueraDe = (ppm: number) => (lim ? (posicionResidual(codigo, ppm, lim) ?? 'dentro') !== 'dentro' : false)
@@ -115,6 +126,7 @@ function GraficoAnalito({
         },
         scales: {
           x: {
+            offset: true,
             ticks: { autoSkip: false, font: { size: 10 }, maxRotation: 90, minRotation: 90, callback: (_v, i) => (inicioDeFecha[i] ? etiquetas[i] : '') },
             grid: { display: true, color: (c) => (inicioDeFecha[c.index] ? colores.borde : 'transparent') },
           },
