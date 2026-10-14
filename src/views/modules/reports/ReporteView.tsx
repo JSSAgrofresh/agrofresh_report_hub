@@ -875,6 +875,10 @@ export function ReporteView({
               boxWidth: 10,
               usePointStyle: true,
               font: { size: 11 },
+              // El marcador toma el borde del PRIMER punto del analito: si ese punto está fuera de rango (aro rojo),
+              // la leyenda mostraba el analito con un aro rojo. Aquí va siempre limpio, del color del analito.
+              generateLabels: (chart) =>
+                Chart.defaults.plugins.legend.labels.generateLabels(chart).map((l) => ({ ...l, strokeStyle: l.fillStyle, lineWidth: 0 })),
               // Una línea de límite sin valor no dibuja nada: tampoco va en la leyenda.
               filter: (item, data) =>
                 (data.datasets[item.datasetIndex ?? 0]?.data ?? []).some((v) => v != null) &&
