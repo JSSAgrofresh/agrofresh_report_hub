@@ -17,7 +17,7 @@ import styles from './PanelAdmin.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 const PERIODOS = [7, 30, 90]
-const MODULOS: CategoriaActividad[] = ['solicitudes', 'cargas', 'verificaciones', 'laboratorio', 'informes']
+const MODULOS: CategoriaActividad[] = ['solicitudes', 'cargas', 'verificaciones', 'laboratorio', 'informes', 'report', 'storage', 'postventa', 'administracion']
 const ESTADOS: EstadoPersona[] = ['en_baja', 'dormida', 'nunca_ingreso', 'nueva', 'en_alza', 'activa']
 
 function variacion(v: number | null, previas: number): string {

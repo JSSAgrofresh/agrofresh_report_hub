@@ -6,6 +6,11 @@ export type CategoriaActividad =
   | 'verificaciones'
   | 'laboratorio'
   | 'informes'
+  | 'report'
+  | 'storage'
+  | 'postventa'
+  | 'administracion'
+  | 'otros'
   | 'acceso'
   | 'sensible'
   | 'visita'
@@ -152,6 +157,11 @@ export const ETIQUETA_CATEGORIA: Record<CategoriaActividad, string> = {
   verificaciones: 'Verificaciones',
   laboratorio: 'AgroFresh Lab',
   informes: 'Informes',
+  report: 'Report',
+  storage: 'Storage',
+  postventa: 'Post Venta',
+  administracion: 'Administración',
+  otros: 'Otros',
   acceso: 'Accesos',
   sensible: 'Cambios sensibles',
   visita: 'Visitas',
@@ -164,6 +174,11 @@ export const COLOR_CATEGORIA: Record<string, string> = {
   verificaciones: '#e8c32e',
   laboratorio: '#a58be8',
   informes: '#e39a5b',
+  report: '#2f8f83',
+  storage: '#8a6d3b',
+  postventa: '#d46fa3',
+  administracion: '#4b5fa8',
+  otros: '#9aa59e',
   acceso: '#77837b',
   sensible: '#e5655b',
   visita: '#77837b',

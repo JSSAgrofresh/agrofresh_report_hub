@@ -39,11 +39,17 @@ ETIQUETA_CATEGORIA = {
     "verificaciones": "Verificaciones",
     "laboratorio": "AgroFresh Lab",
     "informes": "Auditoría / Informes",
+    "report": "Report",
+    "storage": "Storage",
+    "postventa": "Post Venta",
+    "administracion": "Administración",
+    "otros": "Otros",
     "acceso": "Accesos",
     "sensible": "Cambios sensibles",
 }
 # lo que cuenta como "trabajo" en el gráfico y el ranking (no accesos ni visitas)
-CATEGORIAS_TRABAJO = ("solicitudes", "cargas", "verificaciones", "laboratorio", "informes")
+CATEGORIAS_TRABAJO = ("solicitudes", "cargas", "verificaciones", "laboratorio", "informes",
+                      "report", "storage", "postventa", "administracion", "otros")
 SERIE = ("solicitudes", "cargas", "verificaciones", "laboratorio")
 
 
