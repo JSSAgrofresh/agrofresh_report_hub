@@ -9,7 +9,7 @@
   margin: 0 0 var(--space-3); font-size: 13.5px; font-weight: 700; color: var(--color-text-muted);
 }
 .hint { font-size: 11px; font-weight: 500; font-style: italic; color: var(--color-text-faint); }
-.scroll { display: flex; flex-direction: column; gap: var(--space-3); max-height: 72vh; overflow-y: auto; padding-right: var(--space-2); }
+.scroll { display: flex; flex-direction: column; gap: var(--space-3); max-height: 58vh; overflow-y: auto; padding-right: var(--space-2); }
 .tarjeta { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
 .cabecera { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-2); }
 .nombre { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 800; }

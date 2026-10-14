@@ -27,6 +27,9 @@ interface Props {
   colores: Colores
   /** Clic en un punto: abre el mismo detalle que el gráfico grande. */
   onAbrir: (informe: InformeConPuntos) => void
+  /** El informe que se está viendo: su punto va más grande y con borde oscuro. */
+  destacado?: number
+  titulo?: string
 }
 
 /** Un informe con el resultado de un analito (los informes que no lo traen se dejan fuera). */
@@ -37,7 +40,7 @@ function puntosDe(informes: InformeConPuntos[], codigo: string) {
 }
 
 function GraficoAnalito({
-  codigo, informes, limite, unidad, colores, onAbrir, fuera, evaluados,
+  codigo, informes, limite, unidad, colores, onAbrir, fuera, evaluados, destacado,
 }: {
   codigo: string
   informes: InformeConPuntos[]
@@ -47,6 +50,7 @@ function GraficoAnalito({
   onAbrir: (informe: InformeConPuntos) => void
   fuera: number
   evaluados: number
+  destacado?: number
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const alAbrir = useRef(onAbrir)
@@ -76,12 +80,12 @@ function GraficoAnalito({
             data: valores,
             showLine: false,
             borderWidth: 0,
-            pointRadius: 6,
-            pointHoverRadius: 9,
+            pointRadius: puntos.map((p) => (p.inf.solicitudId === destacado ? 10 : 6)),
+            pointHoverRadius: 11,
             pointHitRadius: 10,
             pointBackgroundColor: color,
-            pointBorderColor: valores.map((v) => (fueraDe(v) ? colores.peligro : colores.superficie)),
-            pointBorderWidth: valores.map((v) => (fueraDe(v) ? 3.5 : 2)),
+            pointBorderColor: puntos.map((p) => (fueraDe(p.ppm) ? colores.peligro : p.inf.solicitudId === destacado ? colores.texto : colores.superficie)),
+            pointBorderWidth: puntos.map((p) => (fueraDe(p.ppm) ? 3.5 : p.inf.solicitudId === destacado ? 3 : 2)),
           },
           ...(limite
             ? [
@@ -138,7 +142,7 @@ function GraficoAnalito({
     }
     const chart = new Chart(ref.current, config)
     return () => chart.destroy()
-  }, [puntos, limite, codigo, color, colores, unidad])
+  }, [puntos, limite, codigo, color, colores, unidad, destacado])
 
   return (
     <article className={styles.tarjeta} aria-label={`Gráfico de ${codigo}`}>
@@ -164,7 +168,7 @@ function GraficoAnalito({
  * Un gráfico por analito (modo Límites residuales): cada uno con su propia franja fija y su propia escala, así un
  * analito alto no se pierde entre los demás. Van en una caja con scroll; los que más resultados fuera de rango tienen, primero.
  */
-export function GraficosPorAnalito({ informes, analitos, limites, unidad, colores, onAbrir }: Props) {
+export function GraficosPorAnalito({ informes, analitos, limites, unidad, colores, onAbrir, destacado, titulo = 'Un gráfico por analito' }: Props) {
   const orden = useMemo(() => {
     const r = limites ? resumenResidual(informes, limites) : null
     const filas = analitos.map((codigo) => {
@@ -178,7 +182,7 @@ export function GraficosPorAnalito({ informes, analitos, limites, unidad, colore
   return (
     <section className={styles.contenedor} aria-label="Gráficos por analito">
       <h3 className={styles.titulo}>
-        Un gráfico por analito
+        {titulo}
         <span className={styles.hint}>pasa el mouse sobre un punto para resaltar su franja · clic para ver el informe</span>
       </h3>
       <div className={styles.scroll}>
@@ -193,6 +197,7 @@ export function GraficosPorAnalito({ informes, analitos, limites, unidad, colore
             onAbrir={onAbrir}
             fuera={o.fuera}
             evaluados={o.evaluados}
+            destacado={destacado}
           />
         ))}
       </div>

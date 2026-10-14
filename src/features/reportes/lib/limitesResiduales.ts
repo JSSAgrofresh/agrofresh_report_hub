@@ -78,10 +78,24 @@ export function desvioResidual(codigo: string, ppm: number, limites: Record<stri
   return 0
 }
 
+/** La especie de un informe (la de sus resultados; en un informe es siempre la misma). */
+export function especieDeInforme(inf: InformeConPuntos): string {
+  return inf.puntos.find((p) => p.crop && String(p.crop).trim())?.crop ?? ''
+}
+
+/** Las franjas que rigen a un informe: las de SU especie (no hace falta elegir una en los filtros). */
+export function limitesDeInforme(inf: InformeConPuntos): Record<string, RangoResidual> | null {
+  return limitesDeEspecie(especieDeInforme(inf))
+}
+
 export interface FilaAnalitoResidual {
   codigo: string
-  limite: RangoResidual
+  /** Rangos distintos que rigieron a este analito (uno por especie con tabla; casi siempre uno o dos). */
+  rangos: RangoResidual[]
   evaluados: number
+  sobre: number
+  bajo: number
+  /** sobre + bajo. */
   fuera: number
   /** Promedio del desvío absoluto de los que quedaron fuera (0 si ninguno). */
   desvioPromedio: number
@@ -90,44 +104,85 @@ export interface FilaAnalitoResidual {
 }
 
 export interface ResumenResidual {
+  /** Todos los informes que se miran. */
   informes: number
+  /** Informes que se pudieron evaluar (su especie está en la tabla y trae algún analito con límite). */
+  informesEvaluados: number
+  /** Informes sin franja: su especie no está en la tabla, o ninguno de sus analitos tiene límite. */
+  informesSinLimite: number
   /** Informes con al menos un resultado fuera de su franja. */
   informesFuera: number
+  /** Informes con al menos un resultado sobre el máximo. */
+  informesSobre: number
+  /** Informes con al menos un resultado bajo el mínimo. */
+  informesBajo: number
   porAnalito: FilaAnalitoResidual[]
 }
 
+/** Las franjas de todos los informes a la vez (una sola especie) o de cada uno según su especie. */
+export type FuenteLimites = Record<string, RangoResidual> | ((inf: InformeConPuntos) => Record<string, RangoResidual> | null)
+
 /**
- * Evalúa los informes contra las franjas. Un informe cuenta como «fuera de rango» si AL MENOS uno de sus
- * analitos con límite queda sobre el máximo o bajo el mínimo. Los analitos sin límite no se evalúan.
- * Se listan solo los analitos con límite que aparecen en los informes.
+ * Evalúa los informes contra las franjas. Cada informe se juzga con los límites de SU especie, así que no hace
+ * falta filtrar por una. Un informe cuenta como «fuera de rango» si AL MENOS uno de sus analitos con límite queda
+ * sobre el máximo (sobre) o bajo el mínimo (bajo); puede contar en los dos. Los analitos sin límite no se evalúan.
  */
-export function resumenResidual(informes: InformeConPuntos[], limites: Record<string, RangoResidual>): ResumenResidual {
+export function resumenResidual(informes: InformeConPuntos[], fuente: FuenteLimites): ResumenResidual {
+  const de = typeof fuente === 'function' ? fuente : () => fuente
+  let informesEvaluados = 0
   let informesFuera = 0
-  const acum = new Map<string, { evaluados: number; desvios: number[] }>()
+  let informesSobre = 0
+  let informesBajo = 0
+  type Acum = { evaluados: number; sobre: number; bajo: number; desvios: number[]; rangos: Map<string, RangoResidual> }
+  const acum = new Map<string, Acum>()
   for (const inf of informes) {
-    let fuera = false
+    const lim = de(inf)
+    let evaluado = false
+    let sobre = false
+    let bajo = false
     for (const p of inf.puntos) {
-      if (p.ppm == null || !p.ingrediente || !limites[p.ingrediente]) continue
-      const a = acum.get(p.ingrediente) ?? { evaluados: 0, desvios: [] }
+      if (!lim || p.ppm == null || !p.ingrediente || !lim[p.ingrediente]) continue
+      evaluado = true
+      const r = lim[p.ingrediente]
+      const a: Acum = acum.get(p.ingrediente) ?? { evaluados: 0, sobre: 0, bajo: 0, desvios: [], rangos: new Map() }
       a.evaluados += 1
-      const d = desvioResidual(p.ingrediente, p.ppm, limites)
-      if (d !== 0) {
+      a.rangos.set(`${r.min}-${r.max}`, r)
+      const d = desvioResidual(p.ingrediente, p.ppm, lim)
+      if (d > 0) {
+        a.sobre += 1
         a.desvios.push(d)
-        fuera = true
+        sobre = true
+      } else if (d < 0) {
+        a.bajo += 1
+        a.desvios.push(d)
+        bajo = true
       }
       acum.set(p.ingrediente, a)
     }
-    if (fuera) informesFuera += 1
+    if (evaluado) informesEvaluados += 1
+    if (sobre || bajo) informesFuera += 1
+    if (sobre) informesSobre += 1
+    if (bajo) informesBajo += 1
   }
-  const porAnalito = [...acum.entries()]
+  const porAnalito: FilaAnalitoResidual[] = [...acum.entries()]
     .map(([codigo, a]) => ({
       codigo,
-      limite: limites[codigo],
+      rangos: [...a.rangos.values()].sort((x, y) => x.min - y.min || x.max - y.max),
       evaluados: a.evaluados,
-      fuera: a.desvios.length,
-      desvioPromedio: a.desvios.length ? a.desvios.reduce((s, d) => s + Math.abs(d), 0) / a.desvios.length : 0,
+      sobre: a.sobre,
+      bajo: a.bajo,
+      fuera: a.sobre + a.bajo,
+      desvioPromedio: a.desvios.length ? a.desvios.reduce((t, d) => t + Math.abs(d), 0) / a.desvios.length : 0,
       mayorDesvio: a.desvios.length ? a.desvios.reduce((m, d) => (Math.abs(d) > Math.abs(m) ? d : m), 0) : 0,
     }))
     .sort((x, y) => x.codigo.localeCompare(y.codigo, 'es'))
-  return { informes: informes.length, informesFuera, porAnalito }
+  return {
+    informes: informes.length,
+    informesEvaluados,
+    informesSinLimite: informes.length - informesEvaluados,
+    informesFuera,
+    informesSobre,
+    informesBajo,
+    porAnalito,
+  }
 }
