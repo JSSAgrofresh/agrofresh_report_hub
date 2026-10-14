@@ -42,4 +42,10 @@ describe('tituloLimites', () => {
     expect(tituloLimites('Límites residuales', { ...MULTI_VACIOS, cliente: ['DOLE'], crop: ['Manzana', 'Pera'] }, ['FDL'])).toBe('Límites residuales - DOLE - Manzana, Pera - FDL')
     expect(tituloLimites('Límites de control', { ...MULTI_VACIOS, cliente: ['A', 'B', 'C', 'D'] })).toBe('Límites de control - 4 clientes')
   })
+  it('incluye la semana y el mes elegidos', () => {
+    expect(tituloLimites('Límites residuales', { ...MULTI_VACIOS, crop: ['Limón'], semana: ['39'] })).toBe('Límites residuales - Limón - Semana 39')
+    expect(tituloLimites('Límites residuales', { ...MULTI_VACIOS, semana: ['39', '40'] })).toBe('Límites residuales - Semanas 39, 40')
+    expect(tituloLimites('Límites residuales', { ...MULTI_VACIOS, semana: ['1', '2', '3', '4'] })).toBe('Límites residuales - 4 semanas')
+    expect(tituloLimites('Límites residuales', { ...MULTI_VACIOS, crop: ['Limón'], mes: ['9'] }, [], (m) => (m === '9' ? 'Septiembre' : m))).toBe('Límites residuales - Limón - Septiembre')
+  })
 })

@@ -86,16 +86,25 @@ function resumir(valores: string[], plural: string): string {
 
 /**
  * Título del gráfico principal armado con los filtros: el nombre base y, en este orden, lo elegido en
- * Sold To, Ship To, laboratorio, especie, variedad e ingredientes (estos solo si se acotaron).
- * Sin filtros queda solo el nombre base.
+ * Sold To, Ship To, laboratorio, especie, variedad, semana, mes e ingredientes (estos solo si se acotaron).
+ * Sin filtros queda solo el nombre base. `nombreMes` escribe el mes (por defecto, el número).
  */
-export function tituloLimites(base: string, m: FiltrosMulti, ingredientes: string[] = []): string {
+export function tituloLimites(
+  base: string,
+  m: FiltrosMulti,
+  ingredientes: string[] = [],
+  nombreMes: (mes: string) => string = (v) => v,
+): string {
+  const semanas =
+    m.semana.length === 0 ? '' : m.semana.length > 3 ? `${m.semana.length} semanas` : `${m.semana.length === 1 ? 'Semana' : 'Semanas'} ${m.semana.join(', ')}`
   const partes = [
     m.cliente.length ? resumir(m.cliente, PLURAL.cliente!) : '',
     m.planta.length ? resumir(m.planta, PLURAL.planta!) : '',
     m.laboratorio.length ? resumir(m.laboratorio, PLURAL.laboratorio!) : '',
     m.crop.length ? resumir(m.crop, PLURAL.crop!) : '',
     m.variedad.length ? resumir(m.variedad, PLURAL.variedad!) : '',
+    semanas,
+    m.mes.length ? resumir(m.mes.map(nombreMes), 'meses') : '',
     ingredientes.length ? ingredientes.join(', ') : '',
   ].filter((p) => p !== '')
   return [base, ...partes].join(' - ')
