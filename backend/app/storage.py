@@ -344,6 +344,16 @@ def r2_descargar(key: str, usuario: Usuario = Depends(usuario_actual)):
     filename = key.split("/")[-1] or "archivo"
     content_type = resp.get("ContentType", "application/octet-stream")
 
+    if filename.lower().endswith(".pdf"):
+        from fastapi.responses import Response as _Resp
+        from .pdf_permisos import sin_restricciones
+
+        return _Resp(
+            content=sin_restricciones(resp["Body"].read()),
+            media_type=content_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
     def _iter():
         for chunk in resp["Body"].iter_chunks(chunk_size=65536):
             yield chunk

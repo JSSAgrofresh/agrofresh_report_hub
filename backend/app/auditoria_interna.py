@@ -36,6 +36,7 @@ from . import informes_storage
 from . import r2_auditoria as r2a
 from .auth import Usuario, solo_admin_general, usuario_actual
 from .db import conexion, cursor_dict
+from .pdf_permisos import sin_restricciones
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +128,7 @@ def _disposicion(nombre: str) -> str:
 
 def _respuesta_pdf(datos: bytes, nombre: str) -> Response:
     return Response(
-        content=datos,
+        content=sin_restricciones(datos),
         media_type="application/pdf",
         headers={"Content-Disposition": _disposicion(nombre)},
     )
