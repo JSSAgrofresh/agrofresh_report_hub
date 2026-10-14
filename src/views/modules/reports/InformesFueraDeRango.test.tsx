@@ -23,7 +23,8 @@ describe('InformesFueraDeRango', () => {
     expect(screen.getByText('50,0% del total')).toBeTruthy()
     expect(screen.getByText('Sobre el límite', { selector: 'dt' }).parentElement?.textContent).toContain('1 informe · 25,0%')
     expect(screen.getByText('Bajo el límite', { selector: 'dt' }).parentElement?.textContent).toContain('1 informe · 25,0%')
-    expect(screen.getByText(/1 informe sin límite en la tabla no se evalúa/)).toBeTruthy()
+    expect(screen.queryByText(/sin límite en la tabla/)).toBeNull()
+    expect(screen.queryByText(/Cada informe se evalúa/)).toBeNull()
     const fdl = screen.getByText('FDL').closest('tr')!
     expect(within(fdl).getByText('0,70 – 5,00 ppm · según especie')).toBeTruthy()
     expect(within(fdl).getAllByText('1 · 33,3%').length).toBe(2) // sobre y fuera de rango: 1 de 3 evaluados

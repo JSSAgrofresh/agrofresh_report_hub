@@ -69,10 +69,6 @@ export function InformesFueraDeRango({ informes }: Props) {
             <dd><b>{nf.format(r.informesBajo)}</b> informe{r.informesBajo === 1 ? '' : 's'} · {pct(r.informesBajo, r.informesEvaluados)}</dd>
           </div>
         </dl>
-        <p className={styles.nota}>
-          Cada informe se evalúa con los límites de su propia especie. Cuenta como fuera de rango si al menos uno de sus analitos queda sobre el máximo o bajo el mínimo.
-          {r.informesSinLimite > 0 && ` ${nf.format(r.informesSinLimite)} informe${r.informesSinLimite === 1 ? '' : 's'} sin límite en la tabla no se evalúa${r.informesSinLimite === 1 ? '' : 'n'}.`}
-        </p>
       </div>
       <div className={styles.derecha}>
         <table className={styles.tabla}>

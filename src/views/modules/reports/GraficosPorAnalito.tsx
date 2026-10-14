@@ -100,12 +100,43 @@ function GraficoAnalito({
           },
           ...(limite
             ? [
-                { label: `${codigo} mín`, data: valores.map(() => limite.min), borderColor: `${color}99`, borderWidth: 1.4, borderDash: [6, 4], pointRadius: 0, pointHitRadius: 0 },
-                { label: `${codigo} máx`, data: valores.map(() => limite.max), borderColor: `${color}99`, borderWidth: 1.4, borderDash: [6, 4], pointRadius: 0, pointHitRadius: 0, fill: 1, backgroundColor: `${color}1a` },
+                { label: `${codigo} mín`, data: valores.map(() => limite.min), showLine: false, borderColor: `${color}99`, borderWidth: 1.4, borderDash: [6, 4], pointRadius: 0, pointHitRadius: 0 },
+                { label: `${codigo} máx`, data: valores.map(() => limite.max), showLine: false, borderColor: `${color}99`, borderWidth: 1.4, borderDash: [6, 4], pointRadius: 0, pointHitRadius: 0 },
               ]
             : []),
         ],
       },
+      // Con un solo informe una línea de Chart.js no se dibuja (necesita dos puntos): las franjas se pintan a lo ancho
+      // del área con los mismos estilos de los datasets, así el resaltado al pasar el mouse sigue funcionando.
+      plugins: limite
+        ? [
+            {
+              id: 'franjaLimite',
+              beforeDatasetsDraw: (c) => {
+                const { ctx, chartArea, scales } = c
+                const y = scales.y
+                if (!y || !chartArea) return
+                const yMin = y.getPixelForValue(limite.min)
+                const yMax = y.getPixelForValue(limite.max)
+                ctx.save()
+                ctx.fillStyle = `${color}1a`
+                ctx.fillRect(chartArea.left, yMax, chartArea.right - chartArea.left, yMin - yMax)
+                ;[1, 2].forEach((i) => {
+                  const d = c.data.datasets[i] as unknown as { borderColor?: string; borderWidth?: number; borderDash?: number[] }
+                  const py = i === 1 ? yMin : yMax
+                  ctx.beginPath()
+                  ctx.setLineDash(d.borderDash ?? [])
+                  ctx.strokeStyle = d.borderColor ?? color
+                  ctx.lineWidth = d.borderWidth ?? 1.4
+                  ctx.moveTo(chartArea.left, py)
+                  ctx.lineTo(chartArea.right, py)
+                  ctx.stroke()
+                })
+                ctx.restore()
+              },
+            },
+          ]
+        : [],
       options: {
         responsive: true,
         maintainAspectRatio: false,
