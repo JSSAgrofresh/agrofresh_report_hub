@@ -50,7 +50,6 @@ import {
   colorEspecieMarca,
   contarFiltrosActivos,
   descargarBdExcel,
-  descargarDatosExcel,
   describirFiltros,
   generarDatosSimulados,
   informesConPuntos,
@@ -298,7 +297,6 @@ export function ReporteView({
   const [variedadesOficiales, setVariedadesOficiales] = useState<string[]>([])
   const [modalAnalitos, setModalAnalitos] = useState(false)
   const [detalle, setDetalle] = useState<{ titulo: string; filas: Observacion[] } | null>(null)
-  const [descargandoDatos, setDescargandoDatos] = useState(false)
   const [avisoBd, setAvisoBd] = useState(false)
   const [descargandoBd, setDescargandoBd] = useState(false)
   // Datos de prueba (solo admin): viven en este estado y en ningún otro lado.
@@ -1273,25 +1271,12 @@ export function ReporteView({
     setSimulacion(simulando ? null : generarDatosSimulados(1000, Math.floor(Math.random() * 1e9)))
   }
 
-  async function descargarDatos() {
-    setDescargandoDatos(true)
-    try {
-      const { blob, nombre } = await descargarDatosExcel(clienteFijo, plantaFija)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = nombre ?? 'datos.xlsx'
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch {
-      setErrorMsg('No se pudo generar el Excel.')
-    } finally {
-      setDescargandoDatos(false)
-    }
-  }
-
-  // La BD completa de resultados: solo personal interno, y nunca sobre datos simulados.
-  const puedeDescargarBd = !clienteFijo && !simulando && user.tipoAcceso !== 'cliente'
+  // La BD en Excel: personal interno y cuentas de cliente (el servidor acota la del cliente a su Sold To / Ship To y le
+  // saca las columnas internas), nunca sobre datos simulados.
+  const esCuentaCliente = Boolean(clienteFijo) || user.tipoAcceso === 'cliente'
+  const puedeBajarBd = !simulando
+  // Lo demás de la BD (ficha completa del informe, con PDF y datos internos) sigue siendo solo del personal.
+  const puedeDescargarBd = !esCuentaCliente && !simulando
 
   async function bajarBd(acotada: boolean) {
     const chips = [...chipsDeFiltros(filtros, false), ...(filtrosMultiples ? chipsMulti(multi, formatosMulti) : [])]
@@ -1338,12 +1323,7 @@ export function ReporteView({
           }
         />}
         <div className={styles.accionesCabecera}>
-          {clienteFijo && (
-            <Button variant="secondary" onClick={descargarDatos} disabled={descargandoDatos}>
-              {descargandoDatos ? 'Generando…' : '⬇ Descargar mi historial (Excel)'}
-            </Button>
-          )}
-          {puedeDescargarBd && (
+          {puedeBajarBd && (
             <Button
               variant="secondary"
               onClick={pedirBd}
@@ -1351,10 +1331,12 @@ export function ReporteView({
               title={
                 nFiltros > 0
                   ? 'Descarga la BD de resultados en Excel. Hay filtros aplicados: se te avisará antes.'
-                  : 'Descarga toda la BD de resultados en Excel.'
+                  : esCuentaCliente
+                    ? 'Descarga todos tus resultados en Excel.'
+                    : 'Descarga toda la BD de resultados en Excel.'
               }
             >
-              {descargandoBd ? 'Generando…' : nFiltros > 0 ? '⬇ Descargar BD (filtrada)' : '⬇ Descargar BD'}
+              {descargandoBd ? 'Generando…' : esCuentaCliente ? (nFiltros > 0 ? '⬇ Descargar mi Excel (filtrado)' : '⬇ Descargar mi Excel') : nFiltros > 0 ? '⬇ Descargar BD (filtrada)' : '⬇ Descargar BD'}
             </Button>
           )}
           {puedeSimular && (

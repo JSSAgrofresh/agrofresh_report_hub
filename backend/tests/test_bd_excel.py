@@ -228,8 +228,10 @@ def test_un_texto_de_filtro_no_puede_ser_una_formula():
     assert _texto_seguro_excel("  ") is None
 
 
-def test_cliente_no_puede_usar_la_descarga():
-    quien = Usuario(id="9", email="c@x.cl", nombre="C", tipoAcceso="cliente", area="postventa", clienteNombre="X")
+def test_cliente_sin_cliente_ni_sucursal_asignados_no_puede_usar_la_descarga():
+    # Una cuenta de cliente SÍ puede bajar su BD (ver test_bd_excel_cliente.py), pero solo acotada a lo suyo: sin nada
+    # asignado, el filtro no acotaría y dejaría pasar todo, así que se corta.
+    quien = Usuario(id="9", email="c@x.cl", nombre="C", tipoAcceso="cliente", area="postventa")
     app.dependency_overrides[usuario_actual] = lambda: quien
     try:
         assert TestClient(app).post("/api/reportes/bd/excel", json={}).status_code == 403

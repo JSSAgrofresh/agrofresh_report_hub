@@ -555,21 +555,42 @@ def _correos_de_laboratorio(laboratorio: str) -> list[str]:
     return [*envio["to"], *envio["cc"]]
 
 
+# Columnas que son del equipo de AgroFresh y no de quien recibe el informe: correos (de quien pidió la muestra y del
+# laboratorio), listas de distribución (con sus copias ocultas) y quién generó la solicitud. A una cuenta de cliente
+# el Excel le llega con el MISMO formato, pero estas columnas vacías.
+COLUMNAS_INTERNAS = ("email_solicitante", "email_laboratorio", "lista_para", "lista_cc", "lista_cco", "generado_por")
+
+
+def ocultar_columnas_internas(filas: list[dict[str, Any]]) -> None:
+    for fila in filas:
+        for clave in COLUMNAS_INTERNAS:
+            fila[clave] = None
+
+
 @router.post("/bd/excel")
-def bd_excel(datos: BdExcelIn, usuario: Usuario = Depends(solo_interno)) -> StreamingResponse:
+def bd_excel(datos: BdExcelIn, usuario: Usuario = Depends(usuario_actual)) -> StreamingResponse:
     """Descarga la BD de resultados. Sin `solicitud_ids` baja TODO; con ellos,
     solo esas solicitudes (lo que la pantalla tiene filtrado) y con las columnas
     acotadas a lo que tienen. Un archivo filtrado lleva una hoja «Filtros
-    aplicados» avisando que no es la base completa."""
+    aplicados» avisando que no es la base completa.
+
+    Una cuenta de cliente baja el MISMO formato, pero solo de su Sold To / Ship To (lo decide la sesión, nunca lo
+    que pida el navegador) y sin las columnas internas. Una cuenta de cliente sin cliente ni sucursal asignados no
+    baja nada: sin acotar, el filtro dejaría pasar todo."""
     from datetime import date
 
     from . import config_store
     from .bd_excel import construir_workbook_bd
     from .toma_muestras import ANALITOS_DEFECTO
 
+    es_cliente = usuario.tipoAcceso == "cliente"
+    if es_cliente and not any(alcance_de_datos(usuario, None, None)):
+        raise HTTPException(403, "Tu cuenta no tiene un cliente o sucursal asignados.")
     filtro_alcance, params = _filtro_alcance(usuario, None, None)
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        filas = filas_de_bd(cur, filtro_alcance, params, datos.solicitud_ids, _correos_de_laboratorio)
+        filas = filas_de_bd(cur, filtro_alcance, params, datos.solicitud_ids, None if es_cliente else _correos_de_laboratorio)
+    if es_cliente:
+        ocultar_columnas_internas(filas)
     analitos = config_store.leer("analitos.json", ANALITOS_DEFECTO)
     filtrado = datos.solicitud_ids is not None or bool(datos.ingredientes)
     nota = None
