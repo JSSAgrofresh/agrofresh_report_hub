@@ -537,18 +537,33 @@ function campo(texto, etiqueta, hasta){
   return v || null;
 }
 
-function mapearAnalito(nombre){
+/* La unidad decide entre el analito de agua y el de alimento: «Coliformes Totales» y
+   «E. coli» existen en UFC/100 mL (agua, FSMA) y en UFC/g (alimento). Sin unidad manda el
+   nombre solo, como siempre. */
+function columnaPorUnidad(p, unidad){
+  if(!unidad) return null;
+  const agua = /100\s*ml/i.test(unidad);
+  if(/^coliformes totales/.test(p)) return agua ? "Coliformes Totales UFC/100mL" : (/ufc\/g/i.test(unidad) ? "Coliformes Totales UFC/g" : null);
+  if(/^(e\.? ?coli|escherichia coli)/.test(p)) return agua ? "E. Coli UFC/100mL" : (/ufc\/g/i.test(unidad) ? "Escherichia coli UFC/g" : null);
+  return null;
+}
+
+function mapearAnalito(nombre, unidad){
   let p = plano(nombre).replace(/\s*\(\d+\)\s*$/,"").replace(/\s*\d+\s*(g|gr|ml|mg)\b.*$/,"");
+  const porUnidad = columnaPorUnidad(p, unidad);
+  if(porUnidad) return porUnidad;
   if(ANALITOS[p]) return ANALITOS[p];
   for(const k in ANALITOS) if(p.startsWith(k) || p.includes(k)) return ANALITOS[k];
   return null;
 }
 
-function guardar(inf, nombre, valor){
-  const col = mapearAnalito(nombre);
+function guardar(inf, nombre, valor, unidad){
+  const col = mapearAnalito(nombre, unidad);
   const crudo = String(valor).trim();
-  const num = aNumero(crudo);
-  const final = num !== null ? num : crudo;   // BLD/ND se conservan tal cual
+  /* «<1», «<10», «>2400»: el laboratorio NO midió un valor, dio un límite. aNumero le quita el signo y
+     «<10 UFC/g» quedaría guardado como 10 (y se leería como detectado). Se conserva tal cual, como texto. */
+  const num = /^\s*[<>≤≥]/.test(crudo) ? null : aNumero(crudo);
+  const final = num !== null ? num : crudo;   // BLD/ND y «<x» se conservan tal cual
   if(col){
     if(inf.resultados[col] !== undefined && inf.resultados[col] !== final)
       inf.avisos.push(nombre + " aparece dos veces con valores distintos");
@@ -743,8 +758,8 @@ function leerCorthorn(texto, inf){
   d["Observación"] = obs.join(" · ") || null;
 
   texto.split("\n").forEach(l => {
-    const m = l.match(/^\s*([A-Za-zÁÉÍÓÚáéíóúñÑ\s\-()\d*]+?)\s+(mg\/kg|ug\/kg|µg\/kg|%|UFC\/g|UFC\/mL)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+|ND|<[\d.,]+)\s*$/);
-    if(m) guardar(inf, m[1], m[5]);
+    const m = l.match(/^\s*([A-Za-zÁÉÍÓÚáéíóúñÑ.\s\-()\d*]+?)\s+(mg\/kg|ug\/kg|µg\/kg|mg\/L|ug\/L|µg\/L|%|UFC\/g|UFC\/mL|UFC\/100\s?mL|NMP\/100\s?mL)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+|ND|<[\d.,]+)\s*$/i);
+    if(m) guardar(inf, m[1], m[5], m[2]);
   });
 }
 

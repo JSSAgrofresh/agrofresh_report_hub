@@ -78,6 +78,37 @@ ANALITOS_RESULTADO: dict[str, str | tuple[str, ...]] = {
     "AFLA": "Aflatoxinas Totales B1+B2+G1+G2 (µg/kg)",
 }
 
+# La ingesta guarda algunos analitos de ALS con un código y el catálogo de Toma de muestras
+# usa otro para el MISMO analito (ANALITOS_RESULTADO vs ANALITOS_DEFECTO). Es la única
+# tabla de equivalencias: la usan la descarga de BD y el enlace de resultados al catálogo.
+ALIAS_CODIGO_CATALOGO: dict[str, str] = {
+    "ECOLI": "ECOLI100",
+    "COLT": "COLIF100",
+    "HONG": "HONGOS",
+    "COLA": "COLIFG",
+    "ECOLA": "ECOLIG",
+    "ENTB": "ENTERO",
+    "CEN": "CENIZAS",
+    "AFLA": "AFLAT",
+}
+
+
+def variantes_codigo(codigo: str) -> list[str]:
+    """El código tal cual y su equivalente en el otro sistema (ECOLI <-> ECOLI100), sin repetir."""
+    c = (codigo or "").strip()
+    inverso = {v: k for k, v in ALIAS_CODIGO_CATALOGO.items()}
+    otros = [ALIAS_CODIGO_CATALOGO.get(c.upper()), inverso.get(c.upper())]
+    return list(dict.fromkeys([c, *[o for o in otros if o]]))
+
+
+def laboratorio_base(laboratorio: str | None) -> str:
+    """«ALS (Corthon)», «Als» y «ALS» son el mismo laboratorio: se compara sin mayúsculas y sin el paréntesis."""
+    lab = (laboratorio or "").strip()
+    if "(" in lab:
+        lab = lab.split("(", 1)[0]
+    return lab.strip().casefold()
+
+
 # El laboratorio propio tal cual lo guarda la base. El catálogo de analitos solo
 # tiene "Agrofresh" y "Quiteca", y la carga busca cada analito por (código,
 # laboratorio) exacto: con otro nombre el analito no se encuentra.
