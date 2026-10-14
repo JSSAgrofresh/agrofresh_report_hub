@@ -607,6 +607,12 @@ tarjetas de arriba y el gráfico va **«Informes fuera de rango»** (`InformesFu
 franja, % del total y por analito su límite, resultados fuera, % fuera, desvío promedio y mayor desvío (con signo). Esa tabla es independiente de los límites de
 Report → Gestionar analitos. **Para cambiar un límite se edita `LIMITES_RESIDUALES`** (nunca se inventan: salen de la tabla del laboratorio). Pruebas:
 `limitesResiduales.test.ts`, `InformesFueraDeRango.test.tsx`, `LimiteControlView.test.tsx`.
+**Vista de límites, gráficos (14-10-2026)**: en modo Límites residuales el espacio principal es **un gráfico por analito** (`GraficosPorAnalito.tsx`: cada uno con su franja fija —relleno suave
+entre mín y máx más dos líneas punteadas— y su propia escala, así un analito alto no se pierde; en una caja con scroll de 72 vh; primero los que más resultados fuera de rango tienen; cabecera con el límite
+y «N de M fuera de rango»). El gráfico con **todos los analitos juntos** quedó en un desplegable CERRADO debajo (`<details>`). **Al pasar el mouse sobre un punto se resaltan mucho las líneas de límite de SU
+analito** (en ambos tipos de gráfico; en el grande `resaltarFranja`, que apaga las de los demás); el clic abre el mismo modal del informe. **Ojo con Chart.js y TypeScript**: crear `new Chart(canvas, {type:'line',...})`
+con la config literal en un archivo nuevo rompió `npm run build` en OTROS archivos (error de variancia `Chart<"doughnut"…>` no asignable a `Chart<keyof ChartTypeRegistry…>`, depende del orden en que TS revisa los
+archivos); se evita tipando la config como `ChartConfiguration` (genérico por defecto) antes de pasarla a `new Chart`. Pruebas: `GraficosPorAnalito.test.tsx` (con Chart.js simulado), `resaltarFranja.test.ts`.
 **Fuera de rango** (`views/modules/reports/FueraDeRango.tsx`, lógica en `features/reportes/lib/fueraDeRango.ts`)
 solo en la Vista por límite de control: criterio «Límite del analito» (límite residual; sin límite ≠ dentro)
 o «Límite de control» (promedio ± σ, mín. 3 por analito); parte en el primero si hay límites cargados.
