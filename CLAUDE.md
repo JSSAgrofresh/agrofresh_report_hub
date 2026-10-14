@@ -653,6 +653,23 @@ del gráfico trae planta, especie o tipo. Sin plan cargado (o sin la 0062) no sa
 Pruebas: `tests/test_plan_carga.py`, `plan.test.ts`, `AnalisisPorCliente.test.tsx`. **Pendiente**: 9 clientes del plan sin Sold To oficial
 (Copefrut Central, DDC, Exportadora Yucay, Mace, Merex, Neptuno, San Lus de Trapiche, Victoria, Zur Grup): entran cuando se corrija su nombre y se vuelva a subir.
 
+## ALS y Diagnofruit (FSMA y Fito): lectura, BD y Report (14-10-2026)
+
+- **Converter**: `leerCorthorn` (ALS) y `leerDiagnofruit`; **no hay PDF real de ninguno en el repo**: `converterAlsDiagnofruit.test.ts` usa textos
+  SINTÉTICOS armados con lo que cada lector espera. Cuando llegue un informe real de cada uno, pegar su texto en ese test y ajustar el lector.
+  ALS reconoce además las unidades de agua (`UFC/100 mL`, `NMP/100 mL`, `mg/L`, `µg/L`) y el analito se elige POR UNIDAD
+  (`columnaPorUnidad`: «Coliformes Totales» y «E. coli» van a la columna de agua o a la de alimento según la unidad). **Un resultado «<1» o «>2400» se
+  guarda como TEXTO** (`guardar`): antes `aNumero` le quitaba el signo y «<10» quedaba como 10, o sea «detectado». ALS NO trae Ship To (se elige a mano).
+- **Enlace al catálogo** (`ingest._analito_id_cache`): el laboratorio se compara sin mayúsculas ni paréntesis (`mapeo.laboratorio_base`: «ALS (Corthon)» = «Als» = «ALS»)
+  y el código por su equivalente (`mapeo.ALIAS_CODIGO_CATALOGO`: ECOLI↔ECOLI100, COLT↔COLIF100, HONG↔HONGOS…, la MISMA tabla de la descarga de BD).
+  El laboratorio se sigue guardando tal como llega (`solicitud.laboratorio` = «ALS (Corthon)»): el PDF del informe se busca por él, no lo normalices al guardar.
+  **Falta en el servidor** correr `scripts/sembrar_catalogo_analitos.py --aplicar` para que existan los analitos de ALS/Diagnofruit (si no, quedan en `analito_raw`).
+- **Report**: ALS y Diagnofruit se ven **solo en tabla**, eligiendo ese laboratorio (`laboratorioTabular`, `features/reportes/lib/laboratorios.ts`; ALS lleva columna Unidad y
+  badge neutro, Diagnofruit conserva su gráfico de detecciones). **Sin elegirlos (o mezclados con otros) quedan fuera de los gráficos de residuos**
+  (`filtradas`); la BD en Excel sigue usando `filtradasTodas` y los trae.
+- **BD en Excel**: ya traía las columnas de ALS y Diagnofruit (`test_als_diagnofruit_pipeline.py` lo cubre de la columna del Converter hasta la celda).
+- **Pendiente**: Salmonella (P/A) no la lee el Converter; límites/estados de ALS (no hay decisión del laboratorio); y probar todo con PDF reales.
+
 ## Post Venta: informes de Accu-Tab (Trace + correo)
 
 Toda carga (la manual de Trace o la automática del correo) termina con su **informe

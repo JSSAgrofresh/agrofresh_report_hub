@@ -24,6 +24,7 @@ from typing import Any
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
+from .mapeo import ALIAS_CODIGO_CATALOGO
 from .columnas_base import CAMPOS_FUNGICIDAS, GENERALES_BASE, a_fecha, partir_recepcion
 from .solicitud_excel import (
     _BORDE_COMPLETO,
@@ -45,16 +46,7 @@ GENERALES_BD = [g for g in GENERALES_BASE if g[0] not in SOLO_LABORATORIO_PROPIO
 # muestras usa otro para el MISMO analito (mapeo.py vs ANALITOS_DEFECTO). Sin
 # esta tabla, el resultado de "E. Coli" caería en «Otros» en vez de en su
 # columna de siempre.
-ALIAS_CODIGO: dict[str, str] = {
-    "ECOLI": "ECOLI100",
-    "COLT": "COLIF100",
-    "HONG": "HONGOS",
-    "COLA": "COLIFG",
-    "ECOLA": "ECOLIG",
-    "ENTB": "ENTERO",
-    "CEN": "CENIZAS",
-    "AFLA": "AFLAT",
-}
+ALIAS_CODIGO = ALIAS_CODIGO_CATALOGO
 
 TITULO_FUNGICIDAS_BASE = "ANÁLISIS DE RESIDUOS DE FUNGICIDAS"
 _PREFIJO_FUNGICIDAS = "QUITECA / AGROFRESH"

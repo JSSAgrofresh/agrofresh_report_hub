@@ -9,6 +9,7 @@ from psycopg2.extras import execute_values
 from pydantic import BaseModel
 
 from . import mapeo
+from .mapeo import laboratorio_base, variantes_codigo
 from .auditoria import CAMPOS_HOMOGENIZAR
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
@@ -144,15 +145,20 @@ def _planta_id(cur, cliente_id: int | None, nombre: str, escribir: bool) -> tupl
 
 def _cargar_analitos(cur) -> dict[tuple[str, str], tuple[int, str]]:
     """(codigo, laboratorio) -> (id, laboratorio). Pre-cargado una vez para evitar
-    una query por analito por fila durante el procesamiento masivo."""
+    una query por analito por fila durante el procesamiento masivo.
+
+    Además de la clave exacta guarda una normalizada (código en mayúsculas, laboratorio sin
+    mayúsculas ni paréntesis): así «ALS (Corthon)» o «Diagnofruit» encuentran su analito."""
     cur.execute("SELECT id, codigo, laboratorio FROM analito")
     mapa: dict[tuple[str, str], tuple[int, str]] = {}
     primero: dict[str, tuple[int, str]] = {}
     for r in cur.fetchall():
-        key = (r["codigo"], r["laboratorio"])
-        mapa[key] = (r["id"], r["laboratorio"])
+        entrada = (r["id"], r["laboratorio"])
+        mapa[(r["codigo"], r["laboratorio"])] = entrada
+        mapa.setdefault((str(r["codigo"]).strip().upper(), laboratorio_base(r["laboratorio"])), entrada)
         if r["codigo"] not in primero:
-            primero[r["codigo"]] = (r["id"], r["laboratorio"])
+            primero[r["codigo"]] = entrada
+        primero.setdefault(str(r["codigo"]).strip().upper(), entrada)
     return mapa, primero
 
 
@@ -162,13 +168,16 @@ def _analito_id_cache(
     codigo: str,
     laboratorio: str | None,
 ) -> tuple[int | None, str | None]:
+    variantes = variantes_codigo(codigo)
     if laboratorio:
-        entry = mapa.get((codigo, laboratorio))
-        if entry:
-            return entry[0], None
-    fallback = primero.get(codigo)
-    if fallback:
-        return fallback[0], f"Analito {codigo}: el laboratorio '{laboratorio}' no calzó exacto, se usó el catálogo de '{fallback[1]}'"
+        for c in variantes:
+            entry = mapa.get((c, laboratorio)) or mapa.get((c.upper(), laboratorio_base(laboratorio)))
+            if entry:
+                return entry[0], None
+    for c in variantes:
+        fallback = primero.get(c) or primero.get(c.upper())
+        if fallback:
+            return fallback[0], f"Analito {codigo}: el laboratorio '{laboratorio}' no calzó exacto, se usó el catálogo de '{fallback[1]}'"
     return None, f"Analito {codigo} no está en el catálogo todavía, se guardó en analito_raw"
 
 

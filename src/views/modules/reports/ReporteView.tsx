@@ -42,6 +42,8 @@ import {
   claveFiltro,
   clientesDeSucursal,
   especiesDeVariedad,
+  laboratorioBase,
+  laboratorioTabular,
   colorDeIngrediente,
   colorEspecieMarca,
   contarFiltrosActivos,
@@ -152,6 +154,12 @@ function esDetectado(o: Observacion | undefined): boolean {
   if (o.ppm != null) return o.ppm > 0
   const texto = (o.valorTexto ?? '').trim().toLowerCase()
   return !TEXTOS_NO_DETECTADO.has(texto)
+}
+
+/** Códigos de ALS que la ingesta y el catálogo de Toma de muestras escriben distinto (espejo de mapeo.ALIAS_CODIGO_CATALOGO). */
+const CODIGOS_EQUIVALENTES: Record<string, string[]> = {
+  ECOLI: ['ECOLI100'], COLT: ['COLIF100'], HONG: ['HONGOS'], COLA: ['COLIFG'],
+  ECOLA: ['ECOLIG'], ENTB: ['ENTERO'], CEN: ['CENIZAS'], AFLA: ['AFLAT'],
 }
 
 const ETIQUETAS_FILTRO: Record<keyof Filtros, string> = {
@@ -464,10 +472,22 @@ export function ReporteView({
     }
   }, [opciones])
 
-  const filtradas = useMemo(() => {
+  // Diagnofruit y ALS no miden residuos en ppm contra una franja: se ven solo en tabla, eligiendo ese laboratorio.
+  // Sin elegirlo (o mezclados con otros) quedan fuera de los gráficos, que son de residuos.
+  const labTabular = useMemo(() => {
+    const elegidos = filtrosMultiples ? multi.laboratorio : filtros.laboratorio ? [filtros.laboratorio] : []
+    return elegidos.length === 1 ? laboratorioTabular(elegidos[0]) : null
+  }, [filtrosMultiples, multi.laboratorio, filtros.laboratorio])
+
+  // Todo lo que cumple los filtros, de cualquier laboratorio: es lo que baja la BD en Excel.
+  const filtradasTodas = useMemo(() => {
     const base = aplicarFiltros(observaciones, filtros)
     return filtrosMultiples ? base.filter((o) => cumpleMulti(o, multi)) : base
   }, [observaciones, filtros, multi, filtrosMultiples])
+  const filtradas = useMemo(
+    () => (labTabular ? filtradasTodas : filtradasTodas.filter((o) => laboratorioTabular(o.laboratorio) === null)),
+    [filtradasTodas, labTabular],
+  )
   const nFiltros = contarFiltrosActivos(filtros) + (filtrosMultiples ? contarMulti(multi) : 0)
 
   const registrosFiltrados = useMemo(() => new Set(filtradas.map((o) => o.solicitudId)).size, [filtradas])
@@ -477,19 +497,20 @@ export function ReporteView({
   // que el gráfico de línea/dona de las otras vistas no tiene nada que
   // comparar. Acá se muestra una tabla ancha en vez de eso: una fila por
   // solicitud (fecha + zona de muestreo) y una columna por analito.
-  const esDiagnofruit = filtrosMultiples
-    ? multi.laboratorio.length === 1 && mismoValor(multi.laboratorio[0], 'Diagnofruit')
-    : Boolean(filtros.laboratorio) && mismoValor(filtros.laboratorio, 'Diagnofruit')
+  const esDiagnofruit = labTabular === 'diagnofruit'
+  // ALS (FSMA, metales, microbiología de alimento) usa la misma tabla, con su unidad y sin colores de «detectado».
+  const esAls = labTabular === 'als'
+  const esTabular = esDiagnofruit || esAls
 
   const gruposDiagnofruit = useMemo(() => {
-    if (!esDiagnofruit) return []
+    if (!esTabular) return []
     const porSolicitud = new Map<
       number,
       {
         nro: string
         fecha: string | null
         zona: string | null
-        patogenos: { codigo: string; nombre: string; texto: string; detectado: boolean }[]
+        patogenos: { codigo: string; nombre: string; texto: string; detectado: boolean; unidad: string }[]
       }
     >()
     filtradas.forEach((o) => {
@@ -502,14 +523,18 @@ export function ReporteView({
       // El código del analito (LEV, BOT…) no dice nada al leerlo: se busca su
       // nombre en el catálogo de Diagnofruit y, si por algún motivo no está
       // -código nuevo sin catalogar todavía-, se muestra tal cual llegó.
-      const nombre =
-        analitosVista.find((a) => a.codigo === o.ingrediente && mismoValor(a.laboratorio, 'Diagnofruit'))?.nombre ??
-        o.ingrediente
+      // El código de la ingesta (ECOLI) y el del catálogo (ECOLI100) son el mismo analito: se busca por los dos.
+      const analito = analitosVista.find(
+        (a) =>
+          laboratorioBase(a.laboratorio) === labTabular &&
+          (a.codigo === o.ingrediente || (a.codigo && CODIGOS_EQUIVALENTES[o.ingrediente ?? '']?.includes(a.codigo))),
+      )
+      const nombre = analito?.nombre ?? o.ingrediente
       const texto = o.ppm != null ? formatDecimalCL(o.ppm, 2) : o.valorTexto ?? '—'
-      grupo.patogenos.push({ codigo: o.ingrediente, nombre, texto, detectado: esDetectado(o) })
+      grupo.patogenos.push({ codigo: o.ingrediente, nombre, texto, detectado: esDetectado(o), unidad: analito?.unidad ?? '' })
     })
     return [...porSolicitud.values()].sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''))
-  }, [esDiagnofruit, filtradas, analitosVista])
+  }, [esTabular, labTabular, filtradas, analitosVista])
 
   // El gráfico de barras de abajo es un resumen de la misma tabla, no un dato
   // aparte: cuántas muestras dieron positivo/negativo para cada patógeno, de
@@ -1263,7 +1288,7 @@ export function ReporteView({
     const chips = [...chipsDeFiltros(filtros, false), ...(filtrosMultiples ? chipsMulti(multi, formatosMulti) : [])]
     setDescargandoBd(true)
     try {
-      const { blob, nombre } = await descargarBdExcel(pedidoBd(filtradas, filtros, acotada, describirFiltros(chips)))
+      const { blob, nombre } = await descargarBdExcel(pedidoBd(filtradasTodas, filtros, acotada, describirFiltros(chips)))
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -1399,10 +1424,10 @@ export function ReporteView({
         </Card>
       ) : filasVista ? (
         <>
-          {(selectorModo || (vistaControl && !esDiagnofruit)) && (
+          {(selectorModo || (vistaControl && !esTabular)) && (
             <div className={styles.toolbar}>
               {selectorModo}
-              {vistaControl && !esDiagnofruit && (
+              {vistaControl && !esTabular && (
                 <div className={styles.sigmaControl}>
                   <span>N° desviaciones</span>
                   <select value={sigma} onChange={(e) => setSigma(Number(e.target.value))}>
@@ -1612,12 +1637,21 @@ export function ReporteView({
             )}
           </section>
 
-          {esDiagnofruit ? (
+          {esTabular ? (
             <>
               <p className={styles.nota}>
-                Diagnofruit cuantifica patógenos, cada uno en su propia unidad: no hay un único "ppm" que
-                graficar contra un límite, así que la vista principal es una tabla en vez de una línea de
-                tiempo. Respeta los mismos filtros de arriba que el resto de los reportes.
+                {esAls ? (
+                  <>
+                    ALS reporta microbiología, metales y otros análisis, cada uno en su propia unidad: no hay un único "ppm" que
+                    graficar contra un límite, así que la vista es una tabla. Respeta los mismos filtros de arriba.
+                  </>
+                ) : (
+                  <>
+                    Diagnofruit cuantifica patógenos, cada uno en su propia unidad: no hay un único "ppm" que
+                    graficar contra un límite, así que la vista principal es una tabla en vez de una línea de
+                    tiempo. Respeta los mismos filtros de arriba que el resto de los reportes.
+                  </>
+                )}
               </p>
 
               <div className={styles.stats}>
@@ -1629,13 +1663,19 @@ export function ReporteView({
                   )}
                 </Card>
                 <Card className={`${styles.statCard} ${styles.info}`}>
-                  <span className={styles.statLbl}>Patógenos analizados</span>
-                  <span className={styles.statNum}>{resumenPatogenosDiagnofruit.length}</span>
+                  <span className={styles.statLbl}>{esAls ? 'Analitos medidos' : 'Patógenos analizados'}</span>
+                  <span className={styles.statNum}>
+                    {esAls
+                      ? new Set(gruposDiagnofruit.flatMap((g) => g.patogenos.map((p) => p.codigo))).size
+                      : resumenPatogenosDiagnofruit.length}
+                  </span>
                 </Card>
-                <Card className={`${styles.statCard} ${styles.danger}`}>
-                  <span className={styles.statLbl}>Detecciones</span>
-                  <span className={styles.statNum}>{totalDetecciones.toLocaleString('es-CL')}</span>
-                </Card>
+                {esDiagnofruit && (
+                  <Card className={`${styles.statCard} ${styles.danger}`}>
+                    <span className={styles.statLbl}>Detecciones</span>
+                    <span className={styles.statNum}>{totalDetecciones.toLocaleString('es-CL')}</span>
+                  </Card>
+                )}
               </div>
 
               <Card className={styles.panel}>
@@ -1646,16 +1686,17 @@ export function ReporteView({
                   </span>
                 </h3>
                 {gruposDiagnofruit.length === 0 ? (
-                  <p className={styles.nota}>No hay resultados de Diagnofruit para estos filtros.</p>
+                  <p className={styles.nota}>No hay resultados de {esAls ? 'ALS' : 'Diagnofruit'} para estos filtros.</p>
                 ) : (
                   <div className={styles.tablaDiagnoCaja}>
                     <table className={styles.tablaDiagno}>
                       <thead>
                         <tr>
                           <th>Fecha</th>
-                          <th>Zona de muestreo</th>
-                          <th>Patógeno</th>
+                          <th>{esAls ? 'N° de informe' : 'Zona de muestreo'}</th>
+                          <th>{esAls ? 'Analito' : 'Patógeno'}</th>
                           <th>Resultado</th>
+                          {esAls && <th>Unidad</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -1667,7 +1708,7 @@ export function ReporteView({
                                   <td rowSpan={grupo.patogenos.length}>
                                     {grupo.fecha ? formatDateCL(grupo.fecha) : '—'}
                                   </td>
-                                  <td rowSpan={grupo.patogenos.length}>{grupo.zona || '—'}</td>
+                                  <td rowSpan={grupo.patogenos.length}>{esAls ? grupo.nro || '—' : grupo.zona || '—'}</td>
                                 </>
                               )}
                               <td>
@@ -1680,8 +1721,9 @@ export function ReporteView({
                                 </span>
                               </td>
                               <td>
-                                <Badge tone={p.detectado ? 'danger' : 'success'}>{p.texto}</Badge>
+                                {esAls ? <Badge tone="neutral">{p.texto}</Badge> : <Badge tone={p.detectado ? 'danger' : 'success'}>{p.texto}</Badge>}
                               </td>
+                              {esAls && <td>{p.unidad || '—'}</td>}
                             </tr>
                           )),
                         )}
@@ -1691,7 +1733,7 @@ export function ReporteView({
                 )}
               </Card>
 
-              {gruposDiagnofruit.length > 0 && (
+              {esDiagnofruit && gruposDiagnofruit.length > 0 && (
                 <div className={styles.grid2}>
                   <Card className={styles.panel}>
                     <h3>
@@ -1809,7 +1851,7 @@ export function ReporteView({
                 </div>
               </Card>
 
-              {vistaControl && !esDiagnofruit && (
+              {vistaControl && !esTabular && (
                 <FueraDeRango observaciones={filtradas} analitos={analitosVista} limites={limitesVista} sigma={sigma} />
               )}
 
