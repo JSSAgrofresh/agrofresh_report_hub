@@ -97,12 +97,32 @@
 .hero {
   position: relative; overflow: hidden; border-radius: 16px; padding: 22px 26px; height: 100%;
   display: flex; flex-direction: column; justify-content: center; gap: 6px; color: #fff;
-  background: linear-gradient(120deg, #1E5930 0%, #3A8A52 45%, #1C7FA6 100%);
+  /* El degradado de marca se desplaza muy despacio y vuelve: se ve vivo sin distraer. */
+  background: linear-gradient(120deg, #1E5930 0%, #3A8A52 30%, #1C7FA6 62%, #3A8A52 85%, #1E5930 100%);
+  background-size: 160% 100%;
+  animation: heroFlujo 30s ease-in-out infinite alternate;
 }
+/* Dos destellos de luz que respiran y derivan en sentidos opuestos. */
+.hero::before, .hero::after { content: ''; position: absolute; border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
 .hero::after {
-  content: ''; position: absolute; right: -60px; top: -80px; width: 280px; height: 280px; border-radius: 50%;
+  right: -60px; top: -80px; width: 280px; height: 280px;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 70%);
+  animation: heroDestelloA 22s ease-in-out infinite alternate;
 }
+.hero::before {
+  left: -90px; bottom: -120px; width: 320px; height: 320px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.12), transparent 70%);
+  animation: heroDestelloB 27s ease-in-out infinite alternate;
+}
+/* El texto entra con un ascenso suave, uno tras otro. */
+.hero > * { position: relative; z-index: 1; animation: heroEntra 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.hero > *:nth-child(2) { animation-delay: 0.12s; }
+.hero > *:nth-child(3) { animation-delay: 0.24s; }
+.hero > *:nth-child(4) { animation-delay: 0.36s; }
+@keyframes heroFlujo { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+@keyframes heroDestelloA { from { transform: translate(0, 0) scale(1); opacity: 0.75; } to { transform: translate(-70px, 46px) scale(1.18); opacity: 1; } }
+@keyframes heroDestelloB { from { transform: translate(0, 0) scale(1); opacity: 0.6; } to { transform: translate(90px, -34px) scale(1.12); opacity: 1; } }
+@keyframes heroEntra { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .heroSaludo { margin: 0; font-size: clamp(1.3rem, 3vw, 1.9rem); font-weight: 800; }
 .heroFecha { margin: 0; font-size: 13px; opacity: 0.85; text-transform: capitalize; }
 .heroChips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; position: relative; z-index: 1; }
@@ -119,6 +139,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .dibujo, .barra { animation: none; }
+  .hero, .hero::before, .hero::after, .hero > * { animation: none; }
   .pista, .tarjeta, .arco { transition: none; }
 }
 
