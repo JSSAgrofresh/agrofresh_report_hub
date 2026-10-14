@@ -314,40 +314,14 @@ def _nombre_archivo_datos(cliente: str | None, planta: str | None) -> str:
 
 @router.get("/datos/excel")
 def datos_excel(
-    cliente: str | None = Query(None, description="Igual que /datos: acota la descarga a este cliente."),
-    planta: str | None = Query(None, description="Igual que /datos: acota además a esta sucursal."),
+    cliente: str | None = Query(None, description="Acota la descarga a este cliente (solo personal interno)."),
+    planta: str | None = Query(None, description="Acota además a esta sucursal (solo personal interno)."),
     usuario: Usuario = Depends(usuario_actual),
 ) -> StreamingResponse:
-    """Descarga en Excel de TODO lo que existe para el cliente/sucursal pedido
-    -mismo filtro exacto que ve el portal de cliente en pantalla, nunca más
-    ni menos-, para que un cliente pueda llevarse su propio historial."""
-    # "Mismo filtro exacto" ahora lo garantiza el código y no la buena fe:
-    # pantalla y descarga pasan por la misma función.
-    cliente, planta = alcance_de_datos(usuario, cliente, planta)
-    filtro_cliente, params = _filtro_alcance(usuario, cliente, planta)
-    with conexion(escribir=False) as conn:
-        with cursor_dict(conn) as cur:
-            cur.execute(DATOS_QUERY.format(filtro_cliente=filtro_cliente), params)
-            filas = cur.fetchall()
-
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Datos"
-    for col_idx, (_clave, etiqueta) in enumerate(_ENCABEZADOS_EXCEL_DATOS, start=1):
-        ws.cell(row=1, column=col_idx, value=etiqueta)
-    for fila_idx, fila in enumerate(filas, start=2):
-        for col_idx, (clave, _etiqueta) in enumerate(_ENCABEZADOS_EXCEL_DATOS, start=1):
-            ws.cell(row=fila_idx, column=col_idx, value=fila.get(clave))
-
-    buffer = io.BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
-    nombre = _nombre_archivo_datos(cliente, planta)
-    return StreamingResponse(
-        buffer,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
-    )
+    """Ruta antigua del botón «Descargar mi historial». Ya no existe ese Excel plano: baja la MISMA BD que
+    `/bd/excel` (todo lo que esta sesión puede ver, sin filtros de pantalla), para que un navegador con la pantalla
+    vieja abierta tampoco reciba el formato de antes."""
+    return _respuesta_bd(usuario, None, None, None, cliente, planta)
 
 
 # ---------------------------------------------------------------------------
@@ -567,16 +541,16 @@ def ocultar_columnas_internas(filas: list[dict[str, Any]]) -> None:
             fila[clave] = None
 
 
-@router.post("/bd/excel")
-def bd_excel(datos: BdExcelIn, usuario: Usuario = Depends(usuario_actual)) -> StreamingResponse:
-    """Descarga la BD de resultados. Sin `solicitud_ids` baja TODO; con ellos,
-    solo esas solicitudes (lo que la pantalla tiene filtrado) y con las columnas
-    acotadas a lo que tienen. Un archivo filtrado lleva una hoja «Filtros
-    aplicados» avisando que no es la base completa.
-
-    Una cuenta de cliente baja el MISMO formato, pero solo de su Sold To / Ship To (lo decide la sesión, nunca lo
-    que pida el navegador) y sin las columnas internas. Una cuenta de cliente sin cliente ni sucursal asignados no
-    baja nada: sin acotar, el filtro dejaría pasar todo."""
+def _respuesta_bd(
+    usuario: Usuario,
+    ids: list[int] | None,
+    ingredientes: list[str] | None,
+    descripcion_filtros: str | None,
+    cliente: str | None = None,
+    planta: str | None = None,
+) -> StreamingResponse:
+    """La BD en Excel de lo que esta sesión puede ver (ver `bd_excel`). `cliente` y `planta` solo acotan al personal
+    interno; a una cuenta de cliente la acota su sesión."""
     from datetime import date
 
     from . import config_store
@@ -586,20 +560,20 @@ def bd_excel(datos: BdExcelIn, usuario: Usuario = Depends(usuario_actual)) -> St
     es_cliente = usuario.tipoAcceso == "cliente"
     if es_cliente and not any(alcance_de_datos(usuario, None, None)):
         raise HTTPException(403, "Tu cuenta no tiene un cliente o sucursal asignados.")
-    filtro_alcance, params = _filtro_alcance(usuario, None, None)
+    filtro_alcance, params = _filtro_alcance(usuario, cliente, planta)
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        filas = filas_de_bd(cur, filtro_alcance, params, datos.solicitud_ids, None if es_cliente else _correos_de_laboratorio)
+        filas = filas_de_bd(cur, filtro_alcance, params, ids, None if es_cliente else _correos_de_laboratorio)
     if es_cliente:
         ocultar_columnas_internas(filas)
     analitos = config_store.leer("analitos.json", ANALITOS_DEFECTO)
-    filtrado = datos.solicitud_ids is not None or bool(datos.ingredientes)
+    filtrado = ids is not None or bool(ingredientes)
     nota = None
     if filtrado:
-        nota = _texto_seguro_excel(datos.descripcion_filtros) or "Se aplicaron filtros en Report."
+        nota = _texto_seguro_excel(descripcion_filtros) or "Se aplicaron filtros en Report."
     wb = construir_workbook_bd(
         filas,
         analitos,
-        set(datos.ingredientes) if datos.ingredientes else None,
+        set(ingredientes) if ingredientes else None,
         nota_filtro=nota,
     )
     buffer = io.BytesIO()
@@ -611,6 +585,19 @@ def bd_excel(datos: BdExcelIn, usuario: Usuario = Depends(usuario_actual)) -> St
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
     )
+
+
+@router.post("/bd/excel")
+def bd_excel(datos: BdExcelIn, usuario: Usuario = Depends(usuario_actual)) -> StreamingResponse:
+    """Descarga la BD de resultados. Sin `solicitud_ids` baja TODO; con ellos,
+    solo esas solicitudes (lo que la pantalla tiene filtrado) y con las columnas
+    acotadas a lo que tienen. Un archivo filtrado lleva una hoja «Filtros
+    aplicados» avisando que no es la base completa.
+
+    Una cuenta de cliente baja el MISMO formato, pero solo de su Sold To / Ship To (lo decide la sesión, nunca lo
+    que pida el navegador) y sin las columnas internas. Una cuenta de cliente sin cliente ni sucursal asignados no
+    baja nada: sin acotar, el filtro dejaría pasar todo."""
+    return _respuesta_bd(usuario, datos.solicitud_ids, datos.ingredientes, datos.descripcion_filtros)
 
 
 @router.get("/clientes")
