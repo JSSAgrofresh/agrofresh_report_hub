@@ -3,14 +3,12 @@ import type { MouseEvent } from 'react'
 import { colorDeIngrediente, colorEspecieMarca } from '@/features/reportes'
 import type { InformeConPuntos } from '@/features/reportes/lib/graficoResiduales'
 import {
-  agruparPorAnalito,
   detalleFuera,
   donaPorAnalito,
   donaPorEspecie,
 } from '@/features/reportes/lib/fueraDeRangoResumen'
 import type { FilaDona } from '@/features/reportes/lib/fueraDeRangoResumen'
-import { Modal } from '@/components/ui/Modal'
-import { formatDecimalCL } from '@/lib/locale'
+import { DetalleFueraModal } from './DetalleFueraModal'
 import styles from './DonaFueraDeRango.module.css'
 
 interface Props {
@@ -71,7 +69,6 @@ export function DonaFueraDeRango({ informes, soloFuera, especieFiltrada, onElegi
 
   const [hover, setHover] = useState<{ nombre: string; x: number; y: number } | null>(null)
   const [elegido, setElegido] = useState<string | null>(null)
-  const [pestana, setPestana] = useState<'general' | 'analito'>('general')
   const caja = useRef<HTMLDivElement>(null)
 
   const alMover = (nombre: string) => (e: MouseEvent) => {
@@ -80,7 +77,6 @@ export function DonaFueraDeRango({ informes, soloFuera, especieFiltrada, onElegi
   }
   const cerrar = useCallback(() => setElegido(null), [])
   const abrir = (nombre: string) => {
-    setPestana('general')
     setElegido(nombre)
   }
 
@@ -88,7 +84,6 @@ export function DonaFueraDeRango({ informes, soloFuera, especieFiltrada, onElegi
     () => (elegido ? detalleFuera(informes, porAnalito ? { analito: elegido } : { especie: elegido }) : []),
     [elegido, informes, porAnalito],
   )
-  const agrupado = useMemo(() => agruparPorAnalito(detalle), [detalle])
 
   const tramos = visibles.map((f, i) => {
     const antes = visibles.slice(0, i).reduce((t, x) => t + medida(x), 0)
@@ -165,11 +160,12 @@ export function DonaFueraDeRango({ informes, soloFuera, especieFiltrada, onElegi
       )}
 
       {elegido && (
-        <Modal
+        <DetalleFueraModal
           titulo={`${elegido} · cuánto se pasaron`}
           subtitulo={`${detalle.length} resultado${detalle.length === 1 ? '' : 's'} fuera de rango${porAnalito && especieFiltrada ? ` en ${especieFiltrada}` : ''}`}
+          detalle={detalle}
           onCerrar={cerrar}
-          ancho="grande"
+          ocultarAnalito={porAnalito}
           pie={
             !porAnalito && onElegirEspecie ? (
               <button type="button" className={styles.accion} onClick={() => { onElegirEspecie(elegido); cerrar() }}>
@@ -177,89 +173,7 @@ export function DonaFueraDeRango({ informes, soloFuera, especieFiltrada, onElegi
               </button>
             ) : undefined
           }
-        >
-          {detalle.length === 0 ? (
-            <p className={styles.vacio}>Nada fuera de rango en {elegido}.</p>
-          ) : (
-            <div className={styles.cuerpoModal}>
-              {!porAnalito && (
-                <div className={styles.pestanas} role="tablist">
-                  <button type="button" role="tab" aria-selected={pestana === 'general'} className={pestana === 'general' ? styles.pestanaOn : undefined} onClick={() => setPestana('general')}>
-                    General · por informe
-                  </button>
-                  <button type="button" role="tab" aria-selected={pestana === 'analito'} className={pestana === 'analito' ? styles.pestanaOn : undefined} onClick={() => setPestana('analito')}>
-                    Por analito
-                  </button>
-                </div>
-              )}
-              <div className={styles.tablaCaja}>
-                {pestana === 'general' || porAnalito ? (
-                  <table className={styles.tabla}>
-                    <thead>
-                      <tr>
-                        <th>Informe</th>
-                        <th>Cliente</th>
-                        {!porAnalito && <th>Analito</th>}
-                        <th>Resultado</th>
-                        <th>Límite</th>
-                        <th>Se pasó</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detalle.map((d, i) => (
-                        <tr key={`${d.solicitudId}-${d.analito}-${i}`}>
-                          <td>{d.nroSolicitud}</td>
-                          <td>{d.cliente}</td>
-                          {!porAnalito && (
-                            <td>
-                              <i className={styles.punto} style={{ background: colorDeIngrediente(d.analito) }} />
-                              {d.analito}
-                            </td>
-                          )}
-                          <td>{formatDecimalCL(d.ppm, 2)}</td>
-                          <td>{formatDecimalCL(d.min, 2)} – {formatDecimalCL(d.max, 2)}</td>
-                          <td className={d.desvio > 0 ? styles.sobre : styles.bajo}>
-                            {d.desvio > 0 ? '+' : '−'}{formatDecimalCL(Math.abs(d.desvio), 2)} ppm
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <table className={styles.tabla}>
-                    <thead>
-                      <tr>
-                        <th>Analito</th>
-                        <th>Límite</th>
-                        <th>Fuera</th>
-                        <th>Sobre / bajo</th>
-                        <th>Desvío promedio</th>
-                        <th>Mayor desvío</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {agrupado.map((g) => (
-                        <tr key={g.analito}>
-                          <td>
-                            <i className={styles.punto} style={{ background: colorDeIngrediente(g.analito) }} />
-                            <b>{g.analito}</b>
-                          </td>
-                          <td>{formatDecimalCL(g.min, 2)} – {formatDecimalCL(g.max, 2)}</td>
-                          <td>{g.fuera}</td>
-                          <td>{g.sobre} / {g.bajo}</td>
-                          <td>± {formatDecimalCL(g.desvioPromedio, 2)} ppm</td>
-                          <td className={g.mayorDesvio > 0 ? styles.sobre : styles.bajo}>
-                            {g.mayorDesvio > 0 ? '+' : '−'}{formatDecimalCL(Math.abs(g.mayorDesvio), 2)} ppm
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          )}
-        </Modal>
+        />
       )}
     </div>
   )
