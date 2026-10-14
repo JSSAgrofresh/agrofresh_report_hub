@@ -36,6 +36,7 @@ from . import r2_auditoria as r2a
 from .auditoria_interna import _exigir_r2, errores_r2
 from .auth import Usuario, solo_interno
 from .db import conexion, cursor_dict
+from .pdf_permisos import sin_restricciones
 from .ficha_informe import _buscar_pdf, _disposicion_inline, _solicitud, elegir_clave
 
 logger = logging.getLogger(__name__)
@@ -334,7 +335,7 @@ def pdf_informe_de_solicitud(archivo: str, usuario: Usuario = Depends(solo_inter
     if datos is None:
         raise HTTPException(404, "El PDF ya no está en el almacenamiento.")
     return Response(
-        content=datos,
+        content=sin_restricciones(datos),
         media_type="application/pdf",
         headers={"Content-Disposition": _disposicion_inline(pdf["nombre"]), "Cache-Control": "private, max-age=300"},
     )

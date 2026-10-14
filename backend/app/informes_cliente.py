@@ -12,10 +12,11 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from . import r2
+from .pdf_permisos import sin_restricciones
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .informes_storage import RAIZ, carpeta_planta
@@ -136,8 +137,8 @@ def descargar(ruta: str, usuario: Usuario = Depends(usuario_actual)):
     nombre = partes[-1]
     ascii_ = nombre.encode("ascii", "ignore").decode() or "informe.pdf"
     from urllib.parse import quote
-    return StreamingResponse(
-        resp["Body"].iter_chunks(chunk_size=65536),
+    return Response(
+        content=sin_restricciones(resp["Body"].read()),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=\"{ascii_}\"; filename*=UTF-8''{quote(nombre)}"},
     )
