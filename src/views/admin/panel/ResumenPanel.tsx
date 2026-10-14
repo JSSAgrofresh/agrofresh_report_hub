@@ -35,6 +35,11 @@ const COLOR_MODULO: Record<string, string> = {
   Verificaciones: COLOR_CATEGORIA.verificaciones,
   'AgroFresh Lab': COLOR_CATEGORIA.laboratorio,
   'Auditoría / Informes': COLOR_CATEGORIA.informes,
+  Report: COLOR_CATEGORIA.report,
+  Storage: COLOR_CATEGORIA.storage,
+  'Post Venta': COLOR_CATEGORIA.postventa,
+  Administración: COLOR_CATEGORIA.administracion,
+  Otros: COLOR_CATEGORIA.otros,
 }
 
 interface Props {

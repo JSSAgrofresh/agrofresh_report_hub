@@ -1,12 +1,14 @@
+import asyncio
 import logging
 import traceback
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from . import config, lab_secciones
+from . import actividad_auto, config, lab_secciones
 from .auth import router as auth_router, solo_interno, usuario_actual
 from .auditoria import reparar_tablas_omitidas_post_promocion, router as auditoria_router
 from .auditoria_interna import router as auditoria_interna_router
@@ -73,7 +75,28 @@ class CapturaErrores(BaseHTTPMiddleware):
             return JSONResponse(status_code=500, content={"detail": f"{type(exc).__name__}: {exc}"})
 
 
+class RegistroActividad(BaseHTTPMiddleware):
+    """Anota en Actividad lo que cada persona hace en la API (ver `actividad_auto`).
+
+    Solo respuestas exitosas; la anotación corre aparte para no demorar la respuesta.
+    """
+
+    async def dispatch(self, request, call_next):
+        resp = await call_next(request)
+        try:
+            ruta = request.url.path
+            if resp.status_code < 400 and ruta.startswith("/api/"):
+                auth = request.headers.get("authorization", "")
+                if auth.lower().startswith("bearer "):
+                    asyncio.create_task(run_in_threadpool(
+                        actividad_auto.anotar, auth[7:].strip(), request.method, ruta[4:]))
+        except Exception:
+            logging.warning("No se pudo programar la anotación de actividad.", exc_info=True)
+        return resp
+
+
 app.add_middleware(CapturaErrores)
+app.add_middleware(RegistroActividad)
 
 app.add_middleware(
     CORSMiddleware,
