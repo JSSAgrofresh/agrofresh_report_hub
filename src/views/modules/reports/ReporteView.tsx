@@ -1,5 +1,7 @@
 import FueraDeRango from './FueraDeRango'
+import { DonaFueraDeRango } from './DonaFueraDeRango'
 import { InformesFueraDeRango } from './InformesFueraDeRango'
+import { ResultadosPorCliente } from './ResultadosPorCliente'
 import type { DatasetFranja } from '@/features/reportes/lib/resaltarFranja'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
@@ -489,6 +491,9 @@ export function ReporteView({
     [filtradasTodas, labTabular],
   )
   const nFiltros = contarFiltrosActivos(filtros) + (filtrosMultiples ? contarMulti(multi) : 0)
+
+  // La especie filtrada arriba, si hay UNA: la dona de la Vista de límites pasa a ser por analito.
+  const especieUnica = filtrosMultiples ? (multi.crop.length === 1 ? multi.crop[0] : null) : filtros.crop || null
 
   const registrosFiltrados = useMemo(() => new Set(filtradas.map((o) => o.solicitudId)).size, [filtradas])
 
@@ -1855,6 +1860,32 @@ export function ReporteView({
                 <FueraDeRango observaciones={filtradas} analitos={analitosVista} limites={limitesVista} sigma={sigma} />
               )}
 
+              {limitesTabla ? (
+                <div className={styles.grid2Iguales}>
+                  <Card className={styles.panel}>
+                    <h3>
+                      <span>{especieUnica ? `Resultados por analito · ${especieUnica}` : 'Informes por especie · fuera de rango'}</span>
+                      <span className={styles.hintClic}>
+                        {soloFuera ? 'solo fuera de rango' : 'tramo fuerte = fuera, tenue = dentro'} · clic para ver cuánto se pasaron
+                      </span>
+                    </h3>
+                    <DonaFueraDeRango informes={informesTodos} soloFuera={soloFuera} especieFiltrada={especieUnica} onElegirEspecie={cambiarCrop} />
+                  </Card>
+                  <Card className={styles.panel}>
+                    <h3>
+                      <span>Resultados por cliente</span>
+                      <span className={styles.hintClic}>
+                        {soloFuera ? 'solo fuera de rango' : 'ordenado por informes fuera de rango'} · clic en un cliente para filtrar
+                      </span>
+                    </h3>
+                    <ResultadosPorCliente
+                      informes={informesTodos}
+                      soloFuera={soloFuera}
+                      onElegirCliente={(c) => (filtrosMultiples ? cambiarMulti('cliente', [c]) : cambiarCliente(c))}
+                    />
+                  </Card>
+                </div>
+              ) : (
               <div className={styles.grid2Iguales}>
                 <Card className={styles.panel}>
                   <h3>
@@ -1905,6 +1936,7 @@ export function ReporteView({
                   )}
                 </Card>
               </div>
+              )}
             </>
           )}
         </>
