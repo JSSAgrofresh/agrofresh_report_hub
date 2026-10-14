@@ -189,6 +189,15 @@ export function clientesDeSucursal(obs: Observacion[], planta: string): string[]
   return [...porClave.values()]
 }
 
+/** Especies (crop) que tienen la variedad `variedad`. Si es una sola, la pantalla la completa sola al elegir la variedad. */
+export function especiesDeVariedad(obs: Observacion[], variedad: string): string[] {
+  const porClave = new Map<string, string>()
+  obs.forEach((o) => {
+    if (o.crop && mismoValor(o.variedad, variedad)) porClave.set(claveFiltro(o.crop), o.crop)
+  })
+  return [...porClave.values()]
+}
+
 /** Cuántos filtros hay puestos (el rango de fechas cuenta como uno). */
 export function contarFiltrosActivos(f: FiltrosReporte): number {
   return (
