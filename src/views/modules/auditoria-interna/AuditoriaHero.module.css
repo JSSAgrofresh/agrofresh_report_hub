@@ -13,6 +13,8 @@
   box-shadow: var(--shadow-md);
 }
 
+.azul { background: linear-gradient(110deg, #0c2f4a 0%, #14577a 55%, #1b8a94 100%); }
+
 .arte {
   position: absolute;
   inset: 0;
