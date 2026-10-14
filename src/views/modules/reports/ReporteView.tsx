@@ -623,7 +623,7 @@ export function ReporteView({
     [informes],
   )
   const tituloPrincipal = filtrosMultiples
-    ? tituloLimites(vistaControl ? 'Límites de control' : 'Límites residuales', multi, filtros.ingredientes)
+    ? tituloLimites(vistaControl ? 'Límites de control' : 'Límites residuales', multi, filtros.ingredientes, nombreMes)
     : tituloGrafico(filtros, !clienteFijo, vistaControl ? 'Límites de control' : 'Residuales')
 
   useEffect(() => {
