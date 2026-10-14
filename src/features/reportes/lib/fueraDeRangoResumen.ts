@@ -20,6 +20,8 @@ type Clase = 'sobre' | 'bajo' | 'dentro'
 interface Juzgado {
   inf: InformeConPuntos
   cliente: string
+  /** Semana de muestreo del informe (null si no la trae). */
+  semana: number | null
   especie: string
   /** Un informe con algún resultado sobre el máximo es «sobre» (aunque otro quede bajo): así cada informe cuenta una sola vez. */
   clase: Clase
@@ -49,7 +51,8 @@ function juzgar(informes: InformeConPuntos[]): Juzgado[] {
     }
     if (evaluados.length === 0) continue
     const clase: Clase = fuera.some((f) => f.desvio > 0) ? 'sobre' : fuera.length ? 'bajo' : 'dentro'
-    out.push({ inf, cliente, especie, clase, fuera, evaluados })
+    const semana = inf.puntos.find((p) => p.semana != null)?.semana ?? null
+    out.push({ inf, cliente, semana, especie, clase, fuera, evaluados })
   }
   return out
 }
@@ -64,24 +67,55 @@ export interface FilaCliente {
   total: number
 }
 
+function ordenarClientes<T extends FilaCliente>(filas: T[], nombre: (f: T) => string): T[] {
+  // Empatados en cantidad de informes fuera: primero el de mayor proporción fuera (1 de 1 antes que 1 de 30).
+  return filas.sort((a, b) => b.fuera - a.fuera || b.fuera / b.total - a.fuera / a.total || b.total - a.total || nombre(a).localeCompare(nombre(b), 'es'))
+}
+
+function sumar(mapa: Map<string, FilaCliente>, clave: string, j: Juzgado) {
+  const f = mapa.get(clave) ?? { cliente: clave, sobre: 0, bajo: 0, dentro: 0, fuera: 0, total: 0 }
+  f[j.clase] += 1
+  f.total += 1
+  f.fuera = f.sobre + f.bajo
+  mapa.set(clave, f)
+}
+
 /**
- * «Resultados por cliente»: por cada cliente, cuántos de sus informes quedaron sobre el límite, bajo el límite o
- * dentro. Va primero quien tiene MÁS informes fuera de rango (no quien tiene más informes). Con `soloFuera` se
- * sacan los «dentro» y los clientes sin ningún informe fuera de rango.
+ * «Fuera de rango por cliente»: por cada cliente, cuántos de sus informes quedaron sobre el límite, bajo el límite o
+ * dentro. Los números son SIEMPRE los reales (la barra decide si muestra el 100% de los informes o solo lo fuera de
+ * rango). Va primero quien tiene MÁS informes fuera de rango, no quien tiene más informes. Con `soloFuera` se
+ * quitan los clientes sin ningún informe fuera de rango.
  */
 export function fueraPorCliente(informes: InformeConPuntos[], soloFuera: boolean): FilaCliente[] {
   const mapa = new Map<string, FilaCliente>()
+  for (const j of juzgar(informes)) sumar(mapa, j.cliente, j)
+  let filas = [...mapa.values()]
+  if (soloFuera) filas = filas.filter((f) => f.fuera > 0)
+  return ordenarClientes(filas, (f) => f.cliente)
+}
+
+export interface FilaSemana extends FilaCliente {
+  /** Semana de muestreo; null = informes sin semana. */
+  semana: number | null
+  /** La fecha más reciente de sus informes: ordena de lo nuevo a lo viejo (una temporada cruza el año). */
+  ultimaFecha: string
+}
+
+/** Las semanas de UN cliente (se despliegan al abrirlo), de la más reciente a la más antigua. */
+export function fueraPorSemana(informes: InformeConPuntos[], cliente: string, soloFuera: boolean): FilaSemana[] {
+  const mapa = new Map<string, FilaSemana>()
   for (const j of juzgar(informes)) {
-    const f = mapa.get(j.cliente) ?? { cliente: j.cliente, sobre: 0, bajo: 0, dentro: 0, fuera: 0, total: 0 }
+    if (j.cliente !== cliente) continue
+    const clave = j.semana == null ? 'sin' : String(j.semana)
+    const f = mapa.get(clave) ?? { cliente, semana: j.semana, ultimaFecha: '', sobre: 0, bajo: 0, dentro: 0, fuera: 0, total: 0 }
     f[j.clase] += 1
     f.total += 1
     f.fuera = f.sobre + f.bajo
-    mapa.set(j.cliente, f)
+    if ((j.inf.fecha ?? '') > f.ultimaFecha) f.ultimaFecha = j.inf.fecha ?? ''
+    mapa.set(clave, f)
   }
-  let filas = [...mapa.values()]
-  if (soloFuera) filas = filas.filter((f) => f.fuera > 0).map((f) => ({ ...f, dentro: 0, total: f.fuera }))
-  // Empatados en cantidad de informes fuera: primero el de mayor proporción fuera (1 de 1 antes que 1 de 30).
-  return filas.sort((a, b) => b.fuera - a.fuera || b.fuera / b.total - a.fuera / a.total || b.total - a.total || a.cliente.localeCompare(b.cliente, 'es'))
+  const filas = [...mapa.values()].filter((f) => !soloFuera || f.fuera > 0)
+  return filas.sort((a, b) => b.ultimaFecha.localeCompare(a.ultimaFecha) || (b.semana ?? -1) - (a.semana ?? -1))
 }
 
 export interface FilaDona {
@@ -124,10 +158,12 @@ function ordenar(filas: FilaDona[]): FilaDona[] {
 }
 
 /** El detalle: cada resultado fuera de rango, el que más se pasó primero. `especie`/`analito` acotan. */
-export function detalleFuera(informes: InformeConPuntos[], acotar: { especie?: string; analito?: string } = {}): ResultadoFuera[] {
+export function detalleFuera(informes: InformeConPuntos[], acotar: { especie?: string; analito?: string; cliente?: string; semana?: number | null } = {}): ResultadoFuera[] {
   const norm = (s: string) => s.trim().toLowerCase()
   return juzgar(informes)
     .filter((j) => !acotar.especie || norm(j.especie || 'Sin especie') === norm(acotar.especie))
+    .filter((j) => !acotar.cliente || j.cliente === acotar.cliente)
+    .filter((j) => acotar.semana === undefined || j.semana === acotar.semana)
     .flatMap((j) => j.fuera)
     .filter((f) => !acotar.analito || f.analito === acotar.analito)
     .sort((a, b) => Math.abs(b.desvio) - Math.abs(a.desvio) || a.nroSolicitud.localeCompare(b.nroSolicitud, 'es', { numeric: true }))

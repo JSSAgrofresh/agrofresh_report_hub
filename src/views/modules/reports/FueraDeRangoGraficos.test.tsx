@@ -22,23 +22,51 @@ const DATOS = [
 ]
 
 describe('ResultadosPorCliente', () => {
-  it('una barra por cliente, primero el que más informes tiene fuera de rango', () => {
+  it('una barra por cliente con el % de sus informes; primero el que más informes tiene fuera de rango', () => {
     render(<ResultadosPorCliente informes={DATOS} soloFuera={false} />)
-    const filas = screen.getAllByRole('listitem').filter((li) => li.textContent?.includes('fuera'))
-    expect(filas.map((f) => f.querySelector('button')?.textContent)).toEqual(['Dole', 'Frutas', 'Sur'])
-    expect(within(filas[0]).getByText(/de 3/)).toBeTruthy()
+    const nombres = screen.getAllByRole('button', { expanded: false }).map((b) => b.textContent)
+    expect(nombres.map((n) => n?.replace('›', ''))).toEqual(['Dole', 'Frutas', 'Sur'])
+    expect(screen.getByText('2 de 3', { exact: false })).toBeTruthy()
     expect(screen.getByText('Dentro del límite')).toBeTruthy()
+    // Dole: 3 informes, 1 bajo, 1 sobre, 1 dentro: 33% cada uno.
+    const barra = screen.getByRole('button', { name: /^Dole: ver cuánto se pasaron/ })
+    expect(within(barra).getAllByText('33%')).toHaveLength(3)
   })
-  it('con «solo fuera de rango» no hay dentro ni clientes limpios', () => {
+  it('con «solo fuera de rango» no hay dentro ni clientes limpios, y la barra reparte solo lo fuera', () => {
     render(<ResultadosPorCliente informes={[...DATOS, inf('Limpio', 'Cerezas', ['FDL', 2])]} soloFuera />)
     expect(screen.queryByText('Dentro del límite')).toBeNull()
     expect(screen.queryByText('Limpio')).toBeNull()
+    const barra = screen.getByRole('button', { name: /^Dole: ver cuánto se pasaron/ })
+    expect(within(barra).getAllByText('50%')).toHaveLength(2)
+    expect(screen.getByText('2 de 3', { exact: false })).toBeTruthy()
   })
-  it('clic en un cliente lo elige', () => {
-    const elegir = vi.fn()
-    render(<ResultadosPorCliente informes={DATOS} soloFuera={false} onElegirCliente={elegir} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Sur' }))
-    expect(elegir).toHaveBeenCalledWith('Sur')
+  it('con el mouse sobre un tramo sale el conteo', () => {
+    render(<ResultadosPorCliente informes={DATOS} soloFuera={false} />)
+    const barra = screen.getByRole('button', { name: /^Dole: ver cuánto se pasaron/ })
+    fireEvent.mouseMove(within(barra).getAllByText('33%')[1], { clientX: 10, clientY: 10 })
+    expect(screen.getByRole('status').textContent).toMatch(/Sobre el límite: 1 informe \(33%\)/)
+  })
+  it('el clic en el nombre despliega las semanas de ese cliente y al abrir otro se cierra el anterior', () => {
+    const conSemana = (c: string, semana: number, v: number): InformeConPuntos => {
+      id += 1
+      return { solicitudId: id, nroSolicitud: `S-${id}`, fecha: `2026-10-${semana}`, puntos: [{ ingrediente: 'FDL', ppm: v, cliente: c, crop: 'Cerezas', semana } as Observacion] }
+    }
+    render(<ResultadosPorCliente informes={[conSemana('Dole', 41, 6), conSemana('Dole', 40, 2), conSemana('Sur', 39, 6)]} soloFuera={false} />)
+    expect(screen.queryByText('Semana 41')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Dole/, expanded: false }))
+    expect(screen.getByText('Semana 41')).toBeTruthy()
+    expect(screen.getByText('Semana 40')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Sur/, expanded: false }))
+    expect(screen.queryByText('Semana 41')).toBeNull()
+    expect(screen.getByText('Semana 39')).toBeTruthy()
+  })
+  it('el clic en la barra abre cuánto se pasaron ESE cliente, sin la columna de cliente', () => {
+    render(<ResultadosPorCliente informes={DATOS} soloFuera={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Dole: ver cuánto se pasaron/ }))
+    const dialogo = screen.getByRole('dialog')
+    expect(within(dialogo).getAllByRole('row')).toHaveLength(3) // encabezado + 2 resultados fuera de Dole
+    expect(within(dialogo).queryByText('Cliente')).toBeNull()
+    expect(within(dialogo).getByText('+1,00 ppm')).toBeTruthy()
   })
 })
 

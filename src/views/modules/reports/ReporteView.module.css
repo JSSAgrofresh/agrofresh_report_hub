@@ -1010,3 +1010,17 @@
   border-color: var(--color-danger, #b0271f);
   color: #fff;
 }
+
+/* Vista de límites: la dona ocupa 1/4 y «fuera de rango por cliente» 3/4. */
+.grid1a3 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .grid1a3 {
+    grid-template-columns: 1fr;
+  }
+}

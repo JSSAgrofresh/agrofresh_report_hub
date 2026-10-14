@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import type { InformeConPuntos } from './graficoResiduales'
 import type { Observacion } from './tipos'
-import { agruparPorAnalito, detalleFuera, donaPorAnalito, donaPorEspecie, fueraPorCliente } from './fueraDeRangoResumen'
+import { agruparPorAnalito, detalleFuera, donaPorAnalito, donaPorEspecie, fueraPorCliente, fueraPorSemana } from './fueraDeRangoResumen'
 
 // Cerezas: FDL 0,7–5 · PYR 1–4 (tabla de límites residuales).
-const punto = (ingrediente: string, ppm: number | null, cliente: string, crop = 'Cerezas') =>
-  ({ ingrediente, ppm, cliente, crop }) as Observacion
+const punto = (ingrediente: string, ppm: number | null, cliente: string, crop = 'Cerezas', semana: number | null = null) =>
+  ({ ingrediente, ppm, cliente, crop, semana }) as Observacion
 let id = 0
 const informe = (cliente: string, crop: string, ...res: [string, number | null][]): InformeConPuntos => {
   id += 1
   return { solicitudId: id, nroSolicitud: `OT-${id}`, fecha: '2026-10-01', puntos: res.map(([a, v]) => punto(a, v, cliente, crop)) }
+}
+const informeSemana = (cliente: string, semana: number, fecha: string, ppm: number): InformeConPuntos => {
+  id += 1
+  return { solicitudId: id, nroSolicitud: `OT-${id}`, fecha, puntos: [punto('FDL', ppm, cliente, 'Cerezas', semana)] }
 }
 
 const DATOS = [
@@ -33,10 +37,10 @@ describe('fueraPorCliente', () => {
     expect(f[1]).toMatchObject({ sobre: 1, bajo: 0, dentro: 2, fuera: 1, total: 3 })
     expect(f[2]).toMatchObject({ fuera: 0, total: 1 })
   })
-  it('con «solo fuera de rango» se van los dentro y los clientes sin ningún fuera', () => {
+  it('con «solo fuera de rango» se van los clientes sin ningún fuera, pero los números siguen siendo los reales (3 de 4)', () => {
     const f = fueraPorCliente(DATOS, true)
     expect(f.map((x) => x.cliente)).toEqual(['Dole', 'Sur'])
-    expect(f[0]).toMatchObject({ dentro: 0, total: 3 })
+    expect(f[0]).toMatchObject({ fuera: 3, dentro: 1, total: 4 })
   })
   it('un cliente con pocos informes pero casi todos fuera le gana a uno grande casi todo ok', () => {
     const chico = [informe('Chico', 'Cerezas', ['FDL', 6]), informe('Chico', 'Cerezas', ['FDL', 6])]
@@ -73,5 +77,28 @@ describe('detalle de lo que se pasó', () => {
     expect(fdl.mayorDesvio).toBeCloseTo(1)
     expect(fdl.desvioPromedio).toBeCloseTo((1 + 1 + 1 + 0.6) / 4)
     expect(g[0].analito).toBe('FDL')
+  })
+})
+
+describe('fueraPorSemana y detalle por cliente', () => {
+  const S = [
+    informeSemana('Dole', 41, '2026-10-08', 6),
+    informeSemana('Dole', 41, '2026-10-09', 2),
+    informeSemana('Dole', 40, '2026-10-01', 0.1),
+    informeSemana('Dole', 2, '2027-01-12', 2), // la temporada cruza el año: la semana 2 es la más reciente
+    informeSemana('Sur', 41, '2026-10-08', 6),
+  ]
+  it('las semanas de un cliente van de la más reciente a la más antigua, aunque cruce el año', () => {
+    const w = fueraPorSemana(S, 'Dole', false)
+    expect(w.map((x) => x.semana)).toEqual([2, 41, 40])
+    expect(w[1]).toMatchObject({ sobre: 1, dentro: 1, fuera: 1, total: 2 })
+  })
+  it('con «solo fuera de rango» salen solo las semanas con algo fuera', () => {
+    expect(fueraPorSemana(S, 'Dole', true).map((x) => x.semana)).toEqual([41, 40])
+  })
+  it('el detalle se acota por cliente y por semana', () => {
+    expect(detalleFuera(S, { cliente: 'Dole' })).toHaveLength(2)
+    expect(detalleFuera(S, { cliente: 'Dole', semana: 40 })).toHaveLength(1)
+    expect(detalleFuera(S, { cliente: 'Sur' })).toHaveLength(1)
   })
 })
