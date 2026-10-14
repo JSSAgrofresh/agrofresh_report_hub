@@ -18,6 +18,7 @@ import { IconoActualizar, IconoAlerta, IconoBuscar, IconoCerrar, IconoPapelera }
 import { Modal } from '@/components/ui/Modal'
 import { AvisoClientes } from './avisos/AvisoClientes'
 import { FuncionesPanel } from './funciones/FuncionesPanel'
+import { PlanEntregablesPanel } from './plan/PlanEntregablesPanel'
 import { ListasPanel } from './listas/ListasPanel'
 import { PanelInicioEditor } from './panelInicio/PanelInicioEditor'
 import { SelectorServicio } from '@/components/ui/SelectorServicio'
@@ -31,7 +32,7 @@ import styles from './AdministracionGeneralView.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
-type Pestana = 'resumen' | 'actividad' | 'seguimiento' | 'correcciones' | 'listas' | 'avisos' | 'funciones' | 'panelInicio'
+type Pestana = 'resumen' | 'actividad' | 'seguimiento' | 'correcciones' | 'listas' | 'avisos' | 'funciones' | 'panelInicio' | 'plan'
 
 /**
  * Administración General: lo que solo ve y toca el admin general.
@@ -129,6 +130,8 @@ export function AdministracionGeneralView() {
             ? 'Funciones: interruptores del sistema que solo mueve el administrador principal, con su contraseña. Hoy: qué tipos de servicio muestra Report.'
             : pestana === 'panelInicio'
             ? 'Panel de inicio: arma, como un tablero, qué widgets ve cada tipo de cuenta o cada cuenta en su pantalla de inicio. Arrastra, suelta y guarda.'
+            : pestana === 'plan'
+            ? 'Plan de entregables: sube el Excel con los análisis prometidos por cliente en la temporada. Alimenta las columnas «Entregables» de Auditoría interna.'
             : pestana === 'avisos'
             ? 'Avisos a clientes: el correo con que se les comunica algo desde el Report Hub. Se edita con vista previa y se prueba solo a los destinatarios de prueba.'
             : 'Listas de distribución de resultados: exporta lo que hay, edítalo en Excel, súbelo y confirma cada cambio antes de que se guarde.'
@@ -161,6 +164,9 @@ export function AdministracionGeneralView() {
         </button>
         <button type="button" role="tab" aria-selected={pestana === 'panelInicio'} className={pestana === 'panelInicio' ? styles.pestanaActiva : ''} onClick={() => setPestana('panelInicio')}>
           Panel de inicio
+        </button>
+        <button type="button" role="tab" aria-selected={pestana === 'plan'} className={pestana === 'plan' ? styles.pestanaActiva : ''} onClick={() => setPestana('plan')}>
+          Plan de entregables
         </button>
         <button type="button" role="tab" aria-selected={pestana === 'funciones'} className={pestana === 'funciones' ? styles.pestanaActiva : ''} onClick={() => setPestana('funciones')}>
           Funciones
@@ -204,6 +210,8 @@ export function AdministracionGeneralView() {
       )}
 
       {pestana === 'funciones' && <FuncionesPanel />}
+
+      {pestana === 'plan' && <PlanEntregablesPanel />}
 
       {pestana === 'panelInicio' && <PanelInicioEditor />}
 
