@@ -45,7 +45,7 @@
 
 .fila {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
   gap: var(--space-4);
 }
 
@@ -568,4 +568,243 @@
   color: var(--color-warning);
   font-size: 11.5px;
   line-height: 1.4;
+}
+
+/* ══ Mejora visual (solo apariencia): obligatorios claros y uso cómodo en
+   tablet y celular. El estado `data-estado` lo pone useProgresoObligatorios. ══ */
+
+/* Barra fija con el avance de los obligatorios. */
+.resumen {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  padding: 10px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: 0 2px 10px rgba(20, 35, 25, 0.08);
+  font-size: 14px;
+}
+.barra {
+  flex: 1;
+  min-width: 60px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+.barra i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--color-primary), #7cc450);
+  transition: width 0.25s ease;
+}
+
+/* El asterisco pasa a ser una etiqueta «Obligatorio». */
+.campo [data-obligatorio] {
+  font-size: 0;
+  margin-left: 7px;
+  vertical-align: 1px;
+}
+.campo [data-obligatorio]::after {
+  content: 'Obligatorio';
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 99px;
+  border: 1px solid color-mix(in srgb, #e8c32e 70%, transparent);
+  background: color-mix(in srgb, #e8c32e 18%, var(--color-surface));
+  color: var(--color-warning, #b7791f);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.campo[data-estado='listo'] [data-obligatorio]::after {
+  content: '✓ Listo';
+  border-color: transparent;
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-surface));
+  color: var(--color-primary-hover);
+}
+
+/* Sold To, Ship To, Especie y Variedad (selector con buscador) se leen igual
+   que el resto de las etiquetas. */
+.campo > div > span:first-child {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--color-text-muted);
+}
+
+/* Lo que no es obligatorio lo dice. */
+.fila > .campo:not([data-estado]):not(:has(input:disabled)):not(:has(input[readonly])) > span:first-child::after,
+.fila > .campo:not([data-estado]):not(:has(input:disabled)):not(:has(input[readonly])) > div > span:first-child::after {
+  content: 'Opcional';
+  margin-left: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--color-text-faint, var(--color-text-muted));
+}
+
+/* Controles más grandes y claros. */
+.campo input,
+.campo select {
+  min-height: 46px;
+  padding: 9px 13px;
+  border-width: 1.5px;
+  border-radius: 10px;
+}
+.campo[data-estado='falta'] input:not(:disabled),
+.campo[data-estado='falta'] select:not(:disabled) {
+  border-color: #e8c32e;
+  box-shadow: 0 0 0 3px rgba(232, 195, 46, 0.18);
+}
+.campo[data-estado='listo'] input:not(:disabled),
+.campo[data-estado='listo'] select:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-border-strong));
+}
+.campo input:disabled,
+.campo input[readonly] {
+  background: color-mix(in srgb, var(--color-border) 45%, var(--color-surface));
+  border-style: dashed;
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+.campo input:focus,
+.campo select:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 22%, transparent);
+}
+.textarea {
+  min-height: 84px;
+  padding: 11px 13px;
+  border-width: 1.5px;
+  border-radius: 10px;
+}
+
+/* Estado de cada sección, en su título. */
+.tituloSeccion[data-faltan]::after,
+.tituloSeccion[data-completo]::after {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.tituloSeccion[data-faltan]::after {
+  content: 'Faltan ' attr(data-faltan);
+  background: color-mix(in srgb, #e8c32e 18%, var(--color-surface));
+  color: var(--color-warning, #b7791f);
+}
+.tituloSeccion[data-completo]::after {
+  content: '✓ Completo';
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-surface));
+  color: var(--color-primary-hover);
+}
+
+/* Productos: botones que se tocan, se pueden elegir varios. */
+.listaChecks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.itemCheck {
+  position: relative;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: 99px;
+  background: var(--color-surface);
+  font-weight: 600;
+  transition: background 0.12s, border-color 0.12s;
+}
+.itemCheck input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.itemCheck:has(input:checked) {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-surface));
+  color: var(--color-primary-hover);
+}
+.itemCheck:has(input:checked)::before {
+  content: '✓';
+  font-weight: 800;
+}
+.itemCheck:has(input:focus-visible) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Análisis: tarjetas más cómodas de tocar. */
+.cardAnalito {
+  min-height: 58px;
+  border-width: 1.5px;
+  border-radius: 12px;
+}
+.cardAnalitoActiva {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+  box-shadow: none;
+}
+.selectorAnalito input,
+.selectorGrupo input {
+  width: 20px;
+  height: 20px;
+}
+
+/* Botones de abajo siempre a la mano. */
+.acciones {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding: 14px 0 16px;
+  background: linear-gradient(0deg, var(--color-bg) 70%, transparent);
+}
+.acciones button {
+  min-height: 46px;
+}
+
+@media (max-width: 640px) {
+  .resumen {
+    padding: 9px 12px;
+    gap: var(--space-3);
+    border-radius: 12px;
+  }
+  .campo input,
+  .campo select,
+  .textarea {
+    min-height: 50px;
+    font-size: 16px; /* evita el zoom automático de iOS al enfocar */
+  }
+  .textarea {
+    min-height: 96px;
+  }
+  .acciones button {
+    flex: 1;
+  }
+  .tituloSeccion {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barra i,
+  .itemCheck {
+    transition: none;
+  }
 }

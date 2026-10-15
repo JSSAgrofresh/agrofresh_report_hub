@@ -709,3 +709,40 @@ describe('NuevaSolicitudView — RYD de AgroFresh', () => {
     expect(payload.campos_laboratorio['N° Ensayo']).toBe('42')
   })
 })
+
+describe('NuevaSolicitudView — avance de obligatorios (solo visual)', () => {
+  function pintar() {
+    mockConfigComun()
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('cuenta los obligatorios listos y los marca a medida que se completan', async () => {
+    pintar()
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    const inicial = await screen.findByText(/obligatorios listos/)
+    const antes = Number(inicial.textContent?.match(/^(\d+) de/)?.[1])
+
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    fireEvent.change(screen.getByLabelText(/Tipo de Aplicación/), { target: { value: 'Actimist' } })
+
+    await waitFor(() => {
+      const ahora = Number(screen.getByText(/obligatorios listos/).textContent?.match(/^(\d+) de/)?.[1])
+      expect(ahora).toBeGreaterThan(antes)
+    })
+    // El campo completo queda como «listo»; el vacío, como «falta».
+    expect(screen.getByLabelText(/Laboratorio/).closest('label')?.getAttribute('data-estado')).toBe('listo')
+    expect(screen.getByText(/^Sold To/).closest('[data-estado]')?.getAttribute('data-estado')).toBe('falta')
+  })
+
+  it('no cambia lo que se guarda: el botón sigue disponible aunque falten obligatorios', async () => {
+    pintar()
+    await screen.findByText(/obligatorios listos/)
+    expect((screen.getByRole('button', { name: /^Guardar/ }) as HTMLButtonElement).disabled).toBe(false)
+  })
+})
