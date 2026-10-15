@@ -45,7 +45,7 @@ export function iniciales(nombre: string): string {
 /** Resumen corto de lo que ve una cuenta, para la columna «Qué ve»: nombres de módulo (o de lo que ve un cliente). */
 export function resumenAccesos(u: Usuario): string[] {
   if (u.tipoAcceso === 'admin_general') return ['Todo el sistema']
-  if (u.tipoAcceso === 'gerencia') return ['Todo, solo lectura']
+  if (u.tipoAcceso === 'gerencia' && u.modulos == null) return ['Todo, solo lectura']
   if (u.tipoAcceso === 'cliente') {
     const v = vistaDeCliente(u)
     return [v.report && 'Report', v.storage && 'Storage', v.accutab && 'Accu-Tab'].filter((x): x is string => !!x)

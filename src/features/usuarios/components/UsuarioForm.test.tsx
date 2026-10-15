@@ -111,11 +111,24 @@ describe('UsuarioForm: permisos por categoría y funciones sueltas', () => {
     expect(screen.getByText(/Elige qué ve el cliente/)).toBeTruthy()
   })
 
-  it('administrador general y gerencia ven todo sin poder cambiarlo', () => {
-    render(<UsuarioForm usuario={{ ...cuenta, tipoAcceso: 'gerencia', area: undefined }} onGuardar={() => {}} onCancelar={() => {}} />)
+  it('gerencia antigua (sin lista) muestra todo marcado pero editable; Auditoría interna no', () => {
+    render(<UsuarioForm usuario={{ ...cuenta, tipoAcceso: 'gerencia', area: undefined, modulos: undefined }} onGuardar={() => {}} onCancelar={() => {}} />)
+    const box = screen.getByRole('checkbox', { name: /Storage/ }) as HTMLInputElement
+    expect(box.checked).toBe(true)
+    expect(box.disabled).toBe(false)
+    expect((screen.getByRole('checkbox', { name: /Auditoría Interna/ }) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('una gerencia nueva parte sin nada marcado', () => {
+    render(<UsuarioForm onGuardar={() => {}} onCancelar={() => {}} />)
+    fireEvent.click(screen.getByRole('radio', { name: /Gerencia/ }))
+    expect((screen.getByRole('checkbox', { name: /Storage/ }) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('administrador general ve todo sin poder cambiarlo', () => {
+    render(<UsuarioForm usuario={{ ...cuenta, tipoAcceso: 'admin_general', area: undefined }} onGuardar={() => {}} onCancelar={() => {}} />)
     const box = screen.getByRole('checkbox', { name: /Storage/ }) as HTMLInputElement
     expect(box.checked).toBe(true)
     expect(box.disabled).toBe(true)
-    expect((screen.getByRole('checkbox', { name: /Auditoría Interna/ }) as HTMLInputElement).checked).toBe(false)
   })
 })
