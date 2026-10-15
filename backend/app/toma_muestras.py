@@ -925,6 +925,10 @@ def _regrabar_datos_solicitud(archivo: str, datos: dict) -> None:
 
 
 def _es_dueno_pruebas(usuario: Usuario) -> bool:
+    """La cuenta autorizada (`SOLICITUDES_PRUEBA_EMAIL`) y, desde el 15-10-2026, toda cuenta de
+    muestreador: practican con pruebas que nunca se envían solas ni gastan folios reales."""
+    if usuario.tipoAcceso == "muestreador":
+        return True
     return bool(config.SOLICITUDES_PRUEBA_EMAIL) and (
         _normalizar_correo(usuario.email) == config.SOLICITUDES_PRUEBA_EMAIL
     )
@@ -932,7 +936,7 @@ def _es_dueno_pruebas(usuario: Usuario) -> bool:
 
 def _exigir_dueno_pruebas(usuario: Usuario) -> None:
     if not _es_dueno_pruebas(usuario):
-        raise HTTPException(403, "Las solicitudes de prueba solo las puede crear su cuenta autorizada.")
+        raise HTTPException(403, "Tu cuenta no puede crear solicitudes de prueba.")
 
 
 def _siguiente_numero_prueba(laboratorio: str) -> str:
