@@ -73,6 +73,10 @@ def _cuerpo(laboratorio="QUITECA") -> tm.SolicitudIn:
 def test_solo_la_cuenta_autorizada_puede_crear_pruebas(entorno):
     assert tm.estado_solicitudes_prueba(OTRO_ADMIN) == {"permitido": False}
     assert tm.estado_solicitudes_prueba(DUENO) == {"permitido": True}
+    muestreador = Usuario(id="3", email="m@agrofresh.cl", nombre="M", tipoAcceso="muestreador")
+    assert tm.estado_solicitudes_prueba(muestreador) == {"permitido": True}
+    analista = Usuario(id="4", email="a@agrofresh.cl", nombre="A", tipoAcceso="analista")
+    assert tm.estado_solicitudes_prueba(analista) == {"permitido": False}
     with pytest.raises(HTTPException) as e:
         tm.crear_solicitud_prueba(_cuerpo(), OTRO_ADMIN)
     assert e.value.status_code == 403
