@@ -87,4 +87,24 @@ describe('BandejaNotificaciones', () => {
     fireEvent.change(await screen.findByLabelText('Buscar notificaciones'), { target: { value: 'zzz' } })
     expect(await screen.findByText('Sin resultados para «zzz».')).toBeInTheDocument()
   })
+
+  it('el aviso escrito a mano lleva la franja de marca; el del sistema no', async () => {
+    listar.mockImplementation(async () => [
+      { ...notif(1, 'Nuevo módulo', HOY.toISOString()), metadata: null },
+      notif(2, 'Verificación diaria registrada', HOY.toISOString()),
+    ])
+    pintar()
+    await screen.findByText('Nuevo módulo')
+    expect(screen.getAllByText('Aviso')).toHaveLength(1)
+
+    // Al abrirlo, el mensaje de abajo lleva el encabezado de AgroFresh.
+    fireEvent.click(screen.getByText('Nuevo módulo'))
+    expect(await screen.findByText('Science. Solutions. Sustainability.')).toBeInTheDocument()
+  })
+
+  it('al abrir una notificación del sistema no se muestra el encabezado de marca', async () => {
+    pintar()
+    fireEvent.click(await screen.findByText('Verificación diaria registrada'))
+    expect(screen.queryByText('Science. Solutions. Sustainability.')).not.toBeInTheDocument()
+  })
 })

@@ -13,6 +13,8 @@ export type TipoNotificacion =
 export interface NotificacionMetadata {
   tipo: TipoNotificacion
   fecha?: string
+  /** Notificación de prueba: solo la ve quien la mandó. */
+  prueba?: boolean
 }
 
 export interface Notificacion {

@@ -7,6 +7,7 @@ import { ROUTES } from '@/constants/routes'
 import type { CategoriaNotificacion, Notificacion } from '../types'
 import { useNotificaciones } from '../hooks/useNotificaciones'
 import { notificacionesApi } from '../api/notificacionesApi'
+import { esAvisoManual } from '../lib/aviso'
 import { fechaHoraCorta, fechaHoraLarga, palabrasDe, resaltar } from '../lib/formato'
 import styles from './BandejaNotificaciones.module.css'
 
@@ -240,12 +241,22 @@ function BandejaInterna({ onCerrar }: Props) {
           {!(q ? buscando : cargando) && visibles.map((n) => (
             <div
               key={n.id}
-              className={cn(styles.item, seleccionada?.id === n.id && styles.itemActivo)}
+              className={cn(
+                styles.item,
+                esAvisoManual(n) && styles.itemAviso,
+                seleccionada?.id === n.id && styles.itemActivo,
+              )}
               onClick={() => seleccionar(n)}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') seleccionar(n) }}
             >
+              {esAvisoManual(n) && (
+                <div className={styles.avisoFranja} aria-hidden="true">
+                  <span className={styles.marca}>Agro<i>Fresh</i></span>
+                  <span className={styles.avisoSello}>Aviso</span>
+                </div>
+              )}
               <div className={styles.itemCuerpo}>
                 <div className={styles.itemTitulo}>
                   {!esLeida(n) && <span className={styles.puntito} aria-label="No leída" />}
@@ -275,6 +286,12 @@ function BandejaInterna({ onCerrar }: Props) {
           <>
             <div className={styles.separador} />
             <div className={styles.detalle}>
+              {esAvisoManual(seleccionada) && (
+                <div className={styles.detalleMarca}>
+                  <span className={styles.marcaGrande}>Agro<i>Fresh</i></span>
+                  <span>Science. Solutions. Sustainability.</span>
+                </div>
+              )}
               <div className={styles.detalleHeader}>
                 <h2 className={styles.detalleTitulo}>{seleccionada.titulo}</h2>
                 <div className={styles.detalleMeta}>

@@ -44,6 +44,8 @@ export function NotificacionesView() {
   const [campos, setCampos] = useState<NotificacionIn>(VACIO)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
+  const [probando, setProbando] = useState(false)
+  const [avisoPrueba, setAvisoPrueba] = useState('')
 
   function cargar() {
     notificacionesApi
@@ -75,7 +77,27 @@ export function NotificacionesView() {
     setFormAbierto(true)
   }
 
+  /** Manda la notificación solo a quien la prueba: no se publica ni la ve nadie más. */
+  async function probar() {
+    if (!campos.titulo.trim() || !campos.resumen.trim()) {
+      setError('Para probar, escribe al menos el título y el resumen.')
+      return
+    }
+    setProbando(true)
+    setError('')
+    setAvisoPrueba('')
+    try {
+      await notificacionesApi.adminProbar(campos)
+      setAvisoPrueba('Prueba enviada solo a ti. Ábrela en la campana, no la ve nadie más.')
+    } catch {
+      setError('No se pudo enviar la prueba. Inténtalo de nuevo.')
+    } finally {
+      setProbando(false)
+    }
+  }
+
   function cerrarForm() {
+    setAvisoPrueba('')
     setFormAbierto(false)
     setEditando(null)
     setCampos(VACIO)
@@ -239,6 +261,10 @@ export function NotificacionesView() {
 
               <div className={styles.formAcciones}>
                 {error && <span className={styles.errorMsg}>{error}</span>}
+                {avisoPrueba && <span className={styles.avisoPrueba} role="status">{avisoPrueba}</span>}
+                <button type="button" className={styles.btnProbar} onClick={probar} disabled={probando}>
+                  {probando ? 'Enviando…' : 'Probar notificación'}
+                </button>
                 <button type="button" className={styles.btnCancelar} onClick={cerrarForm}>
                   Cancelar
                 </button>
