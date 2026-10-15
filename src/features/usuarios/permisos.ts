@@ -72,7 +72,10 @@ export function modulosPermitidos(usuario: Usuario): ModuloInfo[] {
   if (esAdminGeneral(usuario)) return MODULOS
   // Gerencia: sin lista guardada (cuentas antiguas) ve todo menos Auditoría; con lista, solo lo que se le marcó.
   if (esGerencia(usuario)) {
-    return MODULOS.filter((m) => m.id !== MODULO_AUDITORIA_INTERNA && (usuario.modulos == null || usuario.modulos.includes(m.id)))
+    // Auditoría interna solo si se le marcó a propósito; la lista antigua (sin guardar) no la incluye.
+    return MODULOS.filter((m) =>
+      usuario.modulos == null ? m.id !== MODULO_AUDITORIA_INTERNA : usuario.modulos.includes(m.id),
+    )
   }
   const idsPermitidos = usuario.modulos ?? modulosPredeterminados(usuario)
   return MODULOS.filter((m) => idsPermitidos.includes(m.id))
