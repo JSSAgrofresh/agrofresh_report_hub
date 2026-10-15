@@ -78,7 +78,7 @@ describe('Auditoría interna: solo el admin general y a quien él designe', () =
     const base: Usuario = { id: '2', email: 'g@a.com', nombre: 'G', tipoAcceso: 'gerencia' }
     expect(modulosPermitidos({ ...base, modulos: ['reports'] }).map((m) => m.id)).toEqual(['reports'])
     expect(modulosPermitidos({ ...base, modulos: [] })).toEqual([])
-    expect(modulosPermitidos({ ...base, modulos: ['auditoria_interna'] })).toEqual([])
+    expect(modulosPermitidos({ ...base, modulos: ['auditoria_interna'] }).map((m) => m.id)).toEqual(['auditoria_interna'])
   })
 
   it('un admin de área no lo ve por defecto', () => {
