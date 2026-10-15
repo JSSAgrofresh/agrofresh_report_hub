@@ -13,6 +13,9 @@ router = APIRouter(prefix="/api/notificaciones", tags=["notificaciones"])
 
 _CATEGORIAS = {"actualizacion", "sistema", "cromatografia"}
 _AUDIENCIAS = {"todos", "admin_general", "cromatografia"}
+# Tipos de cuenta a los que se puede dirigir un aviso a mano. Los clientes no
+# están: no tienen campana (el router les responde 403).
+TIPOS_DESTINO = ["admin_general", "gerencia", "admin_area", "analista", "muestreador"]
 
 
 def insertar_notif(
@@ -133,24 +136,39 @@ def tipos_de(cur, quien: Usuario) -> list[str]:
 
 
 def filtro_visibles(
-    tipos: list[str], audiencias: list[str], usuario_id: int | None = None,
+    tipos: list[str],
+    audiencias: list[str],
+    usuario_id: int | None = None,
+    tipo_acceso: str | None = None,
 ) -> tuple[str, list]:
     """Condición SQL (sobre el alias `n`) de las notificaciones que ve el usuario.
 
     El tipo decide. La audiencia solo se mira en los avisos escritos a mano,
-    que es donde el que escribe elige a quién va dirigido. Una notificación de
-    PRUEBA (`metadata.prueba`) la ve únicamente quien la mandó (`para_usuario`).
+    que es donde el que escribe elige a quién va dirigido: con los tipos de
+    cuenta elegidos (`metadata.tipos_destino`) o, en los avisos antiguos, con
+    la columna `audiencia`. Una notificación de PRUEBA (`metadata.prueba`) la
+    ve únicamente quien la mandó (`para_usuario`).
     """
     sql = (
         f"n.publicado = TRUE AND {_TIPO_SQL} = ANY(%s::text[]) "
-        f"AND ({_TIPO_SQL} <> 'anuncio' OR n.audiencia = ANY(%s::text[])) "
+        f"AND ({_TIPO_SQL} <> 'anuncio' OR CASE "
+        "WHEN jsonb_typeof(n.metadata->'tipos_destino') = 'array' "
+        "THEN jsonb_exists(n.metadata->'tipos_destino', %s) "
+        "ELSE n.audiencia = ANY(%s::text[]) END) "
         "AND (n.metadata->>'prueba' IS NULL OR n.metadata->>'para_usuario' = %s)"
     )
-    return sql, [list(tipos), list(audiencias), "" if usuario_id is None else str(usuario_id)]
+    return sql, [
+        list(tipos),
+        tipo_acceso or "",
+        list(audiencias),
+        "" if usuario_id is None else str(usuario_id),
+    ]
 
 
 def _filtro_para(cur, quien: Usuario) -> tuple[str, list]:
-    return filtro_visibles(tipos_de(cur, quien), _audiencias_para(quien), int(quien.id))
+    return filtro_visibles(
+        tipos_de(cur, quien), _audiencias_para(quien), int(quien.id), quien.tipoAcceso,
+    )
 
 
 def _row(r: dict) -> dict:
@@ -285,7 +303,23 @@ class NotificacionIn(BaseModel):
     cuerpo: str = ""
     categoria: str
     audiencia: str = "todos"
+    # A qué tipos de cuenta va (el aviso lo ve solo quien sea de alguno).
+    # Sin esto (avisos antiguos) manda `audiencia`.
+    tipos_destino: list[str] | None = None
     publicado: bool = True
+
+
+def _validar_destino(body: "NotificacionIn") -> str | None:
+    """JSON con los tipos elegidos, o None si el aviso va por `audiencia`."""
+    if body.tipos_destino is None:
+        return None
+    invalidos = [t for t in body.tipos_destino if t not in TIPOS_DESTINO]
+    if invalidos:
+        raise HTTPException(400, f"Tipo de cuenta inválido: {invalidos[0]!r}")
+    elegidos = [t for t in TIPOS_DESTINO if t in set(body.tipos_destino)]
+    if not elegidos:
+        raise HTTPException(400, "Elige al menos un tipo de cuenta para el aviso.")
+    return json.dumps({"tipos_destino": elegidos})
 
 
 @router.get("/admin/todas")
@@ -313,15 +347,16 @@ def crear(body: NotificacionIn, quien: Usuario = Depends(solo_admin_general)) ->
         raise HTTPException(400, f"Categoría inválida: {body.categoria!r}")
     if body.audiencia not in _AUDIENCIAS:
         raise HTTPException(400, f"Audiencia inválida: {body.audiencia!r}")
+    destino = _validar_destino(body)
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("""
             INSERT INTO notificacion
-                (titulo, resumen, cuerpo, categoria, audiencia, publicado, creado_por)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (titulo, resumen, cuerpo, categoria, audiencia, publicado, creado_por, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
             RETURNING id, titulo, resumen, cuerpo, categoria, audiencia,
-                      publicado, creado_en, creado_por
+                      publicado, creado_en, creado_por, metadata
         """, (body.titulo.strip(), body.resumen.strip(), body.cuerpo.strip(),
-              body.categoria, body.audiencia, body.publicado, quien.nombre))
+              body.categoria, body.audiencia, body.publicado, quien.nombre, destino))
         return {**_row(cur.fetchone()), "leidas_por": 0}
 
 
@@ -361,16 +396,19 @@ def editar(notif_id: int, body: NotificacionIn, _: Usuario = Depends(solo_admin_
         raise HTTPException(400, f"Categoría inválida: {body.categoria!r}")
     if body.audiencia not in _AUDIENCIAS:
         raise HTTPException(400, f"Audiencia inválida: {body.audiencia!r}")
+    destino = _validar_destino(body)
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("""
             UPDATE notificacion
             SET titulo=%s, resumen=%s, cuerpo=%s,
-                categoria=%s, audiencia=%s, publicado=%s
+                categoria=%s, audiencia=%s, publicado=%s,
+                metadata = CASE WHEN %s::jsonb IS NULL THEN metadata
+                                ELSE COALESCE(metadata, '{}'::jsonb) || %s::jsonb END
             WHERE id=%s
             RETURNING id, titulo, resumen, cuerpo, categoria, audiencia,
-                      publicado, creado_en, creado_por
+                      publicado, creado_en, creado_por, metadata
         """, (body.titulo.strip(), body.resumen.strip(), body.cuerpo.strip(),
-              body.categoria, body.audiencia, body.publicado, notif_id))
+              body.categoria, body.audiencia, body.publicado, destino, destino, notif_id))
         r = cur.fetchone()
         if r is None:
             raise HTTPException(404, "Notificación no encontrada.")

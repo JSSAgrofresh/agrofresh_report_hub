@@ -1,4 +1,6 @@
 export type CategoriaNotificacion = 'actualizacion' | 'sistema' | 'cromatografia'
+/** Tipos de cuenta a los que se puede dirigir un aviso (los clientes no tienen campana). */
+export type TipoCuentaDestino = 'admin_general' | 'gerencia' | 'admin_area' | 'analista' | 'muestreador'
 export type AudienciaNotificacion = 'todos' | 'admin_general' | 'cromatografia'
 
 /** Tipos de notificación (van en `metadata.tipo`; sin tipo = `anuncio`). */
@@ -15,6 +17,8 @@ export interface NotificacionMetadata {
   fecha?: string
   /** Notificación de prueba: solo la ve quien la mandó. */
   prueba?: boolean
+  /** Tipos de cuenta a los que va un aviso escrito a mano (sin esto, manda `audiencia`). */
+  tipos_destino?: TipoCuentaDestino[]
 }
 
 export interface Notificacion {
@@ -41,6 +45,8 @@ export interface NotificacionIn {
   cuerpo: string
   categoria: CategoriaNotificacion
   audiencia: AudienciaNotificacion
+  /** A quién va: el aviso lo ven solo estos tipos de cuenta. */
+  tipos_destino?: TipoCuentaDestino[]
   publicado: boolean
 }
 

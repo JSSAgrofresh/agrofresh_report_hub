@@ -18,6 +18,29 @@ def test_el_filtro_deja_pasar_pruebas_solo_a_su_dueno():
     assert n.filtro_visibles(["anuncio"], ["todos"])[1][-1] == ""
 
 
+def test_el_filtro_mira_los_tipos_de_cuenta_elegidos_en_el_aviso():
+    sql, params = n.filtro_visibles(["anuncio"], ["todos"], 7, "muestreador")
+    assert "tipos_destino" in sql
+    assert params == [["anuncio"], "muestreador", ["todos"], "7"]
+
+
+def test_los_clientes_no_son_un_destino_posible():
+    assert "cliente" not in n.TIPOS_DESTINO
+
+
+def test_valida_los_tipos_de_destino():
+    from fastapi import HTTPException
+
+    def entrada(tipos):
+        return n.NotificacionIn(titulo="t", resumen="r", categoria="sistema", tipos_destino=tipos)
+
+    assert n._validar_destino(entrada(None)) is None
+    assert n._validar_destino(entrada(["analista", "gerencia"])) == '{"tipos_destino": ["gerencia", "analista"]}'
+    for malo in (["cliente"], []):
+        with pytest.raises(HTTPException):
+            n._validar_destino(entrada(malo))
+
+
 MARCA = "[test-prueba]"
 
 con_bd = pytest.mark.skipif(
@@ -70,3 +93,22 @@ def test_cada_prueba_reemplaza_a_la_anterior(dos_admin):
     n.probar(_entrada("dos"), quien=a)
     mias = [x["titulo"] for x in n.listar(quien=a) if x["titulo"].startswith(MARCA)]
     assert mias == [f"{MARCA} dos"]
+
+
+@con_bd
+def test_el_aviso_solo_lo_ven_los_tipos_elegidos(dos_admin):
+    from app.db import conexion, cursor_dict
+
+    a, _ = dos_admin
+    n.crear(
+        n.NotificacionIn(titulo=f"{MARCA} solo analistas", resumen="r", categoria="sistema",
+                         tipos_destino=["analista"]),
+        quien=a,
+    )
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        where, params = n.filtro_visibles(["anuncio"], ["todos"], int(a.id), "muestreador")
+        cur.execute(f"SELECT 1 FROM notificacion n WHERE {where} AND n.titulo LIKE %s", (*params, MARCA + "%"))
+        assert cur.fetchone() is None
+        where, params = n.filtro_visibles(["anuncio"], ["todos"], int(a.id), "analista")
+        cur.execute(f"SELECT 1 FROM notificacion n WHERE {where} AND n.titulo LIKE %s", (*params, MARCA + "%"))
+        assert cur.fetchone() is not None
