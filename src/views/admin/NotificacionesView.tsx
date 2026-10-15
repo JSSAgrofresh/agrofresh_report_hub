@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/cn'
-import { notificacionesApi } from '@/features/notificaciones'
-import type { NotificacionAdmin, NotificacionIn, CategoriaNotificacion, AudienciaNotificacion } from '@/features/notificaciones'
+import { notificacionesApi, TIPOS_CUENTA, TODOS_LOS_TIPOS, destinoDe, resumenDestino } from '@/features/notificaciones'
+import type { NotificacionAdmin, NotificacionIn, CategoriaNotificacion, TipoCuentaDestino } from '@/features/notificaciones'
 import { SuscripcionesPanel } from './SuscripcionesPanel'
 import styles from './NotificacionesView.module.css'
 
@@ -11,18 +11,13 @@ const CATEGORIAS: { id: CategoriaNotificacion; label: string }[] = [
   { id: 'cromatografia', label: 'Cromatografía' },
 ]
 
-const AUDIENCIAS: { id: AudienciaNotificacion; label: string }[] = [
-  { id: 'todos',          label: 'Todos los usuarios internos' },
-  { id: 'admin_general',  label: 'Solo admin general' },
-  { id: 'cromatografia',  label: 'Admin de cromatografía' },
-]
-
 const VACIO: NotificacionIn = {
   titulo: '',
   resumen: '',
   cuerpo: '',
   categoria: 'actualizacion',
   audiencia: 'todos',
+  tipos_destino: [...TODOS_LOS_TIPOS],
   publicado: true,
 }
 
@@ -71,6 +66,7 @@ export function NotificacionesView() {
       cuerpo: n.cuerpo,
       categoria: n.categoria,
       audiencia: n.audiencia,
+      tipos_destino: destinoDe(n),
       publicado: n.publicado,
     })
     setError('')
@@ -81,6 +77,10 @@ export function NotificacionesView() {
   async function probar() {
     if (!campos.titulo.trim() || !campos.resumen.trim()) {
       setError('Para probar, escribe al menos el título y el resumen.')
+      return
+    }
+    if (!campos.tipos_destino?.length) {
+      setError('Elige a quién va el aviso (al menos un tipo de cuenta).')
       return
     }
     setProbando(true)
@@ -110,6 +110,10 @@ export function NotificacionesView() {
       setError('El título y el resumen son obligatorios.')
       return
     }
+    if (!campos.tipos_destino?.length) {
+      setError('Elige a quién va el aviso (al menos un tipo de cuenta).')
+      return
+    }
     setGuardando(true)
     setError('')
     try {
@@ -136,6 +140,14 @@ export function NotificacionesView() {
     } catch {
       alert('No se pudo eliminar la notificación.')
     }
+  }
+
+  function alternarDestino(id: TipoCuentaDestino) {
+    setCampos((prev) => {
+      const actuales = prev.tipos_destino ?? []
+      const tipos = actuales.includes(id) ? actuales.filter((t) => t !== id) : [...actuales, id]
+      return { ...prev, tipos_destino: TODOS_LOS_TIPOS.filter((t) => tipos.includes(t)) }
+    })
   }
 
   function set(key: keyof NotificacionIn, value: string | boolean) {
@@ -234,18 +246,31 @@ export function NotificacionesView() {
                   </select>
                 </div>
 
-                <div className={styles.campo}>
-                  <label className={styles.label}>Audiencia</label>
-                  <select
-                    className={styles.select}
-                    value={campos.audiencia}
-                    onChange={(e) => set('audiencia', e.target.value)}
-                  >
-                    {AUDIENCIAS.map((a) => (
-                      <option key={a.id} value={a.id}>{a.label}</option>
+                <fieldset className={cn(styles.campo, styles.campoFull, styles.destino)}>
+                  <legend className={styles.label}>A quién va *</legend>
+                  <div className={styles.destinoOpciones}>
+                    {TIPOS_CUENTA.map((t) => (
+                      <label key={t.id} className={styles.checkRow}>
+                        <input
+                          type="checkbox"
+                          checked={campos.tipos_destino?.includes(t.id) ?? false}
+                          onChange={() => alternarDestino(t.id)}
+                        />
+                        {t.label}
+                      </label>
                     ))}
-                  </select>
-                </div>
+                  </div>
+                  <p className={styles.destinoNota}>
+                    Los clientes no reciben avisos.{' '}
+                    <button
+                      type="button"
+                      className={styles.enlace}
+                      onClick={() => setCampos((p) => ({ ...p, tipos_destino: [...TODOS_LOS_TIPOS] }))}
+                    >
+                      Marcar todos
+                    </button>
+                  </p>
+                </fieldset>
 
                 <div className={cn(styles.campo, styles.campoFull)}>
                   <label className={styles.checkRow}>
@@ -307,7 +332,7 @@ export function NotificacionesView() {
                       </td>
                       <td>
                         <span className={styles.badgeAudiencia}>
-                          {AUDIENCIAS.find((a) => a.id === n.audiencia)?.label ?? n.audiencia}
+                          {resumenDestino(destinoDe(n))}
                         </span>
                       </td>
                       <td>
