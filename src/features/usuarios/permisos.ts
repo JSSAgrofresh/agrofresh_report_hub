@@ -70,7 +70,10 @@ export function reportesPredeterminados(
  * y quien él designe (cuentas con el módulo asignado). */
 export function modulosPermitidos(usuario: Usuario): ModuloInfo[] {
   if (esAdminGeneral(usuario)) return MODULOS
-  if (esGerencia(usuario)) return MODULOS.filter((m) => m.id !== MODULO_AUDITORIA_INTERNA)
+  // Gerencia: sin lista guardada (cuentas antiguas) ve todo menos Auditoría; con lista, solo lo que se le marcó.
+  if (esGerencia(usuario)) {
+    return MODULOS.filter((m) => m.id !== MODULO_AUDITORIA_INTERNA && (usuario.modulos == null || usuario.modulos.includes(m.id)))
+  }
   const idsPermitidos = usuario.modulos ?? modulosPredeterminados(usuario)
   return MODULOS.filter((m) => idsPermitidos.includes(m.id))
 }
@@ -116,14 +119,14 @@ export function puedeVerReporte(usuario: Usuario, reporte: ReporteId): boolean {
   if (!puedeVerModulo(usuario, 'reports')) return false
   // «Postventa» de un cliente son sus informes Accu-Tab en el panel; el Report de Post Venta es interno.
   if (usuario.tipoAcceso === 'cliente' && reporte === 'postventa') return false
-  if (tieneAccesoTotal(usuario)) return true
+  if (esAdminGeneral(usuario) || (esGerencia(usuario) && usuario.reportes == null)) return true
   return (usuario.reportes ?? reportesPredeterminados(usuario)).includes(reporte)
 }
 
 /** Acceso a la categoría "Toma de muestras": el admin general, gerencia
  * (siempre ven todo) y el rol dedicado `muestreador`. */
 export function puedeVerTomaMuestras(usuario: Usuario): boolean {
-  if (tieneAccesoTotal(usuario)) return true
+  if (esAdminGeneral(usuario) || (esGerencia(usuario) && usuario.modulos == null)) return true
   return (usuario.modulos ?? modulosPredeterminados(usuario)).includes(MODULO_TOMA_MUESTRAS)
 }
 

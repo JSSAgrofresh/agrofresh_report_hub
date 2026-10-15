@@ -64,7 +64,7 @@ def normalizar_cuenta(
       y `postventa` (= sus informes Accu-Tab en el panel). Nunca lleva módulos internos. El área que se guarda se
       deduce de lo que ve (compatibilidad con el panel de inicio por tipo). Sin ninguna lista (llamada antigua) se
       toma lo que daba su área.
-    · Administrador general y gerencia no guardan módulos (ven todo, o todo menos Auditoría).
+    · Administrador general no guarda módulos (ve todo). Gerencia sí: sin lista (cuentas antiguas) ve todo menos Auditoría; con lista, solo lo marcado.
     · El resto: solo ids conocidos; los de administración (Usuarios, Listados…) no existen como permiso.
     """
     reps = [r for r in REPORTES_VALIDOS if r in (reportes or [])]
@@ -83,7 +83,7 @@ def normalizar_cuenta(
         if not mods and not reps:
             raise HTTPException(400, "Elige qué ve el cliente: Report, Storage y/o informes Accu-Tab.")
         return ("postventa" if reps == ["postventa"] and not mods else "cromatografia"), mods, reps
-    if tipo in ("admin_general", "gerencia"):
+    if tipo == "admin_general":
         return None, None, None
     # Lo que no existe (ids viejos) se descarta; lo reservado al administrador general nunca está en la lista.
     limpios = [m for m in dict.fromkeys(modulos) if m in MODULOS_VALIDOS] if modulos is not None else None

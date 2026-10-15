@@ -88,9 +88,13 @@ def test_cliente_sin_nada_que_ver_no_puede_existir():
     assert e.value.status_code == 400
 
 
-@pytest.mark.parametrize("tipo", ["admin_general", "gerencia"])
-def test_admin_general_y_gerencia_no_guardan_modulos(tipo):
-    assert pf.normalizar_cuenta(tipo, "ryd", ["converter"], ["laboratorio"]) == (None, None, None)
+def test_admin_general_no_guarda_modulos():
+    assert pf.normalizar_cuenta("admin_general", "ryd", ["converter"], ["laboratorio"]) == (None, None, None)
+
+
+def test_gerencia_guarda_los_modulos_que_se_le_marcaron():
+    _, modulos, _ = pf.normalizar_cuenta("gerencia", None, ["reports", "usuarios"], None)
+    assert modulos == ["reports"]
 
 
 def test_el_resto_conserva_su_area_y_descarta_ids_que_no_existen():
