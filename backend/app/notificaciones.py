@@ -132,21 +132,25 @@ def tipos_de(cur, quien: Usuario) -> list[str]:
     return tipos_predeterminados(quien) if guardados is None else guardados
 
 
-def filtro_visibles(tipos: list[str], audiencias: list[str]) -> tuple[str, list]:
+def filtro_visibles(
+    tipos: list[str], audiencias: list[str], usuario_id: int | None = None,
+) -> tuple[str, list]:
     """Condición SQL (sobre el alias `n`) de las notificaciones que ve el usuario.
 
     El tipo decide. La audiencia solo se mira en los avisos escritos a mano,
-    que es donde el que escribe elige a quién va dirigido.
+    que es donde el que escribe elige a quién va dirigido. Una notificación de
+    PRUEBA (`metadata.prueba`) la ve únicamente quien la mandó (`para_usuario`).
     """
     sql = (
         f"n.publicado = TRUE AND {_TIPO_SQL} = ANY(%s::text[]) "
-        f"AND ({_TIPO_SQL} <> 'anuncio' OR n.audiencia = ANY(%s::text[]))"
+        f"AND ({_TIPO_SQL} <> 'anuncio' OR n.audiencia = ANY(%s::text[])) "
+        "AND (n.metadata->>'prueba' IS NULL OR n.metadata->>'para_usuario' = %s)"
     )
-    return sql, [list(tipos), list(audiencias)]
+    return sql, [list(tipos), list(audiencias), "" if usuario_id is None else str(usuario_id)]
 
 
 def _filtro_para(cur, quien: Usuario) -> tuple[str, list]:
-    return filtro_visibles(tipos_de(cur, quien), _audiencias_para(quien))
+    return filtro_visibles(tipos_de(cur, quien), _audiencias_para(quien), int(quien.id))
 
 
 def _row(r: dict) -> dict:
@@ -293,6 +297,7 @@ def admin_listar(_: Usuario = Depends(solo_admin_general)) -> list[dict]:
                    count(nl.usuario_id) AS leidas_por
             FROM notificacion n
             LEFT JOIN notificacion_leida nl ON nl.notificacion_id = n.id
+            WHERE n.metadata->>'prueba' IS NULL
             GROUP BY n.id
             ORDER BY n.creado_en DESC
         """)
@@ -317,6 +322,36 @@ def crear(body: NotificacionIn, quien: Usuario = Depends(solo_admin_general)) ->
                       publicado, creado_en, creado_por
         """, (body.titulo.strip(), body.resumen.strip(), body.cuerpo.strip(),
               body.categoria, body.audiencia, body.publicado, quien.nombre))
+        return {**_row(cur.fetchone()), "leidas_por": 0}
+
+
+@router.post("/prueba", status_code=201)
+def probar(body: NotificacionIn, quien: Usuario = Depends(solo_admin_general)) -> dict:
+    """Manda la notificación SOLO a quien aprieta el botón, para ver cómo queda.
+
+    Va marcada `prueba` y con `para_usuario`: nadie más la ve ni la cuenta como
+    no leída. Cada prueba reemplaza a la anterior de esa misma persona, así no
+    se acumulan. No pasa por el formulario de «Crear»: no queda en el listado
+    de avisos del administrador."""
+    if body.categoria not in _CATEGORIAS:
+        raise HTTPException(400, f"Categoría inválida: {body.categoria!r}")
+    titulo = body.titulo.strip() or "Notificación de prueba"
+    resumen = body.resumen.strip() or titulo
+    meta = {"tipo": "anuncio", "prueba": True, "para_usuario": str(int(quien.id))}
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "DELETE FROM notificacion WHERE metadata->>'prueba' IS NOT NULL "
+            "AND metadata->>'para_usuario' = %s",
+            [str(int(quien.id))],
+        )
+        cur.execute("""
+            INSERT INTO notificacion
+                (titulo, resumen, cuerpo, categoria, audiencia, publicado, creado_por, metadata)
+            VALUES (%s, %s, %s, %s, 'admin_general', TRUE, %s, %s::jsonb)
+            RETURNING id, titulo, resumen, cuerpo, categoria, audiencia,
+                      publicado, creado_en, creado_por, metadata
+        """, (titulo, resumen, body.cuerpo.strip(), body.categoria, quien.nombre,
+              json.dumps(meta)))
         return {**_row(cur.fetchone()), "leidas_por": 0}
 
 

@@ -196,6 +196,27 @@
 
 .btnCancelar:hover { background: var(--color-border); }
 
+.btnProbar {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent-dark, #4a7a1f);
+  border: 1px solid var(--color-accent);
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.btnProbar:hover { background: color-mix(in srgb, var(--color-accent) 22%, transparent); }
+.btnProbar:disabled { opacity: 0.55; cursor: default; }
+
+.avisoPrueba {
+  font-size: 12.5px;
+  color: var(--color-accent-dark, #4a7a1f);
+  flex: 1;
+}
+
 .errorMsg {
   font-size: 12.5px;
   color: #dc2626;
