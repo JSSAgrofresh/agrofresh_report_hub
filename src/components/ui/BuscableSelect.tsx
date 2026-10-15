@@ -9,6 +9,8 @@ interface BuscableSelectProps {
   onChange: (valor: string) => void
   placeholderTodos?: string
   disabled?: boolean
+  /** Marca la etiqueta con un asterisco de «obligatorio». */
+  requerido?: boolean
   /** Opcional: un número al lado de cada opción (ej. cuántos registros trae). */
   conteoDe?: (opcion: string) => number | undefined
 }
@@ -25,6 +27,7 @@ export function BuscableSelect({
   onChange,
   placeholderTodos = 'Todos',
   disabled,
+  requerido,
   conteoDe,
 }: BuscableSelectProps) {
   const [abierto, setAbierto] = useState(false)
@@ -52,7 +55,10 @@ export function BuscableSelect({
 
   return (
     <div className={styles.contenedor}>
-      <span className={styles.etiqueta}>{etiqueta}</span>
+      <span className={styles.etiqueta}>
+        {etiqueta}
+        {requerido && <span data-obligatorio="" aria-hidden="true"> *</span>}
+      </span>
       <div className={styles.caja}>
         <input
           ref={inputRef}

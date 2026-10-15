@@ -9,6 +9,7 @@ import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { EtiquetaServicio } from '@/components/ui/SelectorServicio'
 import { IconFrasco } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
+import { useProgresoObligatorios } from './useProgresoObligatorios'
 import {
   ETIQUETA_SERVICIO,
   SERVICIOS_CON_LISTADO,
@@ -1005,7 +1006,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     const etiqueta = (
       <span>
         {campo.etiqueta}
-        {requerido && <span className={styles.marcaRequerido}> *</span>}
+        {requerido && <span className={styles.marcaRequerido} data-obligatorio=""> *</span>}
       </span>
     )
 
@@ -1045,7 +1046,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       return (
         <div className={styles.campo} key={campo.clave}>
           <BuscableSelect
-            etiqueta={`${campo.etiqueta}${requerido ? ' *' : ''}`}
+            etiqueta={campo.etiqueta}
+            requerido={requerido}
             opciones={opcionesSoldTo}
             valor={soldTo}
             onChange={alElegirSoldTo}
@@ -1073,7 +1075,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       return (
         <div className={styles.campo} key={campo.clave}>
           <BuscableSelect
-            etiqueta={`${campo.etiqueta}${requerido ? ' *' : ''}`}
+            etiqueta={campo.etiqueta}
+            requerido={requerido}
             opciones={plantasDelCliente.map((p) => p.nombre)}
             valor={shipTo}
             onChange={setShipTo}
@@ -1190,7 +1193,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       return (
         <div className={styles.campo} key={campo.clave}>
           <BuscableSelect
-            etiqueta={`${campo.etiqueta}${requerido ? ' *' : ''}`}
+            etiqueta={campo.etiqueta}
+            requerido={requerido}
             opciones={especiesDisponibles.map((e) => e.valor)}
             valor={general.especie ?? ''}
             onChange={alElegirEspecie}
@@ -1203,7 +1207,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       return (
         <div className={styles.campo} key={campo.clave}>
           <BuscableSelect
-            etiqueta={`${campo.etiqueta}${requerido ? ' *' : ''}`}
+            etiqueta={campo.etiqueta}
+            requerido={requerido}
             opciones={variedadesDisponibles}
             valor={general.variedad ?? ''}
             onChange={(v) => actualizarGeneral('variedad', v)}
@@ -1282,6 +1287,11 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     )
   }
 
+  const { formRef, progreso } = useProgresoObligatorios({
+    campo: styles.campo,
+    seccion: styles.tituloSeccion,
+  })
+
   const tituloVista =
     modo === 'editar' ? 'Editar solicitud'
     : modo === 'reanalisis' ? 'Nueva solicitud de reanálisis'
@@ -1328,7 +1338,16 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         }
       />
 
-      <form onSubmit={onSubmit} className={styles.form}>
+      {progreso.total > 0 && (
+        <div className={styles.resumen} role="status" aria-live="polite">
+          <strong>{progreso.listos} de {progreso.total} obligatorios listos</strong>
+          <div className={styles.barra} aria-hidden="true">
+            <i style={{ width: `${Math.round((progreso.listos / progreso.total) * 100)}%` }} />
+          </div>
+        </div>
+      )}
+
+      <form ref={formRef} onSubmit={onSubmit} className={styles.form}>
         <Card>
           <h2 className={styles.tituloSeccion}>
             <span className={styles.numero}>1</span>
@@ -1363,7 +1382,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             </label>
             <label className={styles.campo}>
               <span>
-                Generado por<span className={styles.marcaRequerido}> *</span>
+                Generado por<span className={styles.marcaRequerido} data-obligatorio=""> *</span>
               </span>
               <input
                 value={generadoPor}
@@ -1374,7 +1393,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             </label>
             <label className={styles.campo}>
               <span>
-                Laboratorio<span className={styles.marcaRequerido}> *</span>
+                Laboratorio<span className={styles.marcaRequerido} data-obligatorio=""> *</span>
               </span>
               {modo === 'reanalisis' ? (
                 <input value={laboratorio} disabled />
@@ -1395,7 +1414,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             </label>
             <label className={styles.campo}>
               <span>
-                Tipo de Aplicación<span className={styles.marcaRequerido}> *</span>
+                Tipo de Aplicación<span className={styles.marcaRequerido} data-obligatorio=""> *</span>
               </span>
               <select
                 value={tipoAplicacionSel}
@@ -1427,7 +1446,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             <div className={styles.fila}>
               <label className={cn(styles.campo, styles.campoAncho)} style={{ gridColumn: '1 / -1' }}>
                 <span>
-                  Motivo<span className={styles.marcaRequerido}> *</span>
+                  Motivo<span className={styles.marcaRequerido} data-obligatorio=""> *</span>
                 </span>
                 <textarea
                   value={motivo}
@@ -1459,7 +1478,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                 <label className={styles.campo} key={campo.clave}>
                   <span>
                     {campo.etiqueta}
-                    {campo.requerido && <span className={styles.marcaRequerido}> *</span>}
+                    {campo.requerido && <span className={styles.marcaRequerido} data-obligatorio=""> *</span>}
                   </span>
                   <input
                     type={campo.tipo}
@@ -1534,7 +1553,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                           <span>
                             <span className={styles.mono}>{a.codigo}</span>
                             <strong>{a.nombre}</strong>
-                            {a.requerido && <span className={styles.marcaRequerido}> *</span>}
+                            {a.requerido && <span className={styles.marcaRequerido} data-obligatorio=""> *</span>}
                             {esPanelCompleto(a) && (
                               <span className={styles.notaPanelCompleto}>
                                 Incluido en el panel completo
