@@ -34,6 +34,10 @@ export const notificacionesApi = {
   adminCrear: (body: NotificacionIn) =>
     httpClient.post<NotificacionAdmin>('/notificaciones', body),
 
+  /** Manda la notificación solo a quien la prueba (no se publica). */
+  adminProbar: (body: NotificacionIn) =>
+    httpClient.post<NotificacionAdmin>('/notificaciones/prueba', body),
+
   adminEditar: (id: number, body: NotificacionIn) =>
     httpClient.put<NotificacionAdmin>(`/notificaciones/${id}`, body),
 

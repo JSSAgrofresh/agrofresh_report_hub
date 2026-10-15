@@ -600,3 +600,64 @@
     animation: none;
   }
 }
+
+/* ── Avisos escritos a mano: se distinguen de los automáticos ─────────── */
+.itemAviso {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border: 1.5px solid #e8c32e;
+  box-shadow: 0 2px 10px rgba(232, 195, 46, 0.22);
+}
+.itemAviso .itemCuerpo {
+  padding: 10px 14px 12px;
+}
+.itemAviso.itemActivo,
+.itemAviso.itemActivo:hover {
+  border-color: var(--color-primary);
+}
+.avisoFranja {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  background: linear-gradient(135deg, #0f2244, #1b3560);
+  color: #fff;
+}
+.marca {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.marca i,
+.marcaGrande i {
+  font-style: normal;
+  color: #e8c32e;
+}
+.avisoSello {
+  background: #e8c32e;
+  color: #2a2203;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+.detalleMarca {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: -16px -18px 14px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #0f2244, #1b3560);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
+}
+.marcaGrande {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
