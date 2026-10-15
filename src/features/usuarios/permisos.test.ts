@@ -74,6 +74,13 @@ describe('Auditoría interna: solo el admin general y a quien él designe', () =
     expect(modulosPermitidos(gerencia).length).toBeGreaterThan(3)
   })
 
+  it('Gerencia con lista ve solo los módulos marcados; sin lista (antigua) ve todos', () => {
+    const base: Usuario = { id: '2', email: 'g@a.com', nombre: 'G', tipoAcceso: 'gerencia' }
+    expect(modulosPermitidos({ ...base, modulos: ['reports'] }).map((m) => m.id)).toEqual(['reports'])
+    expect(modulosPermitidos({ ...base, modulos: [] })).toEqual([])
+    expect(modulosPermitidos({ ...base, modulos: ['auditoria_interna'] })).toEqual([])
+  })
+
   it('un admin de área no lo ve por defecto', () => {
     expect(ve(cromatografia)).toBe(false)
   })

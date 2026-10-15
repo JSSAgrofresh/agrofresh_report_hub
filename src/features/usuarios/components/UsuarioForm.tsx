@@ -55,7 +55,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
 
   const esCliente = tipoAcceso === 'cliente'
-  const veTodo = tipoAcceso === 'admin_general' || tipoAcceso === 'gerencia'
+  const veTodo = tipoAcceso === 'admin_general'
   const requiereArea = tipoAcceso === 'admin_area' || tipoAcceso === 'analista'
   const configuraPermisos = !esCliente && !veTodo && !esMaestro
 
@@ -254,7 +254,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
             <p className={styles.nota}>
               {tipoAcceso === 'admin_general'
                 ? 'El administrador general tiene todo, incluida la administración.'
-                : 'Gerencia ve todo menos Auditoría interna, y no puede modificar datos.'}
+                : ''}
             </p>
           ) : (
             <div className={styles.plantilla}>
@@ -269,7 +269,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
           )}
 
           <SelectorPermisos
-            valor={veTodo ? seleccionTotal(tipoAcceso as 'admin_general' | 'gerencia') : seleccion}
+            valor={veTodo ? seleccionTotal('admin_general') : seleccion}
             onChange={setSeleccion}
             tipo={tipoAcceso}
             area={area || undefined}
@@ -293,6 +293,11 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
 /** Con qué parte la lista: lo que ya tiene la cuenta si se está editando y no cambió de tipo; si no, lo típico del tipo. */
 function plantilla(tipo: TipoAcceso, area?: AreaId, actual?: Usuario): string[] {
   const base = { tipoAcceso: tipo, area }
+  // Gerencia no parte con nada marcado (se elige a mano); una cuenta antigua, sin lista, conserva todo lo que veía.
+  if (tipo === 'gerencia') {
+    if (actual && actual.tipoAcceso === 'gerencia' && actual.modulos == null) return seleccionTotal('gerencia')
+    if (!(actual && actual.tipoAcceso === 'gerencia')) return []
+  }
   const cuenta = actual && actual.tipoAcceso === tipo && actual.area === area ? actual : { ...base, modulos: undefined, reportes: undefined }
   return seleccionDesdeCuenta(cuenta, modulosPredeterminados(base), reportesPredeterminados(base))
 }
