@@ -90,6 +90,7 @@ REGLAS: list[Regla] = [
     _r("POST", r"/toma-muestras/solicitudes/(?P<n>[^/]+)/fotos", "solicitudes", "foto_subida", "subió una foto a la solicitud {n}", "Toma de muestras"),
     _r("DELETE", r"/toma-muestras/solicitudes/(?P<n>[^/]+)/fotos/[^/]+", "sensible", "foto_eliminada", "eliminó una foto de la solicitud {n}", "Toma de muestras"),
     _r("POST", r"/toma-muestras/solicitudes/pdf-zip", "solicitudes", "descarga_zip", "descargó solicitudes en PDF (.zip)", "Toma de muestras"),
+    _r("POST", r"/toma-muestras/solicitudes/json-zip", "solicitudes", "descarga_zip", "descargó solicitudes en JSON (.zip)", "Toma de muestras"),
     _r("POST", r"/toma-muestras/solicitudes/organizar-r2", "solicitudes", "organizar_r2", "reordenó las solicitudes en R2", "Toma de muestras"),
     # Ingesta / Converter / Data Core
     _r("POST", r"/ingest/pendientes/aprobar-lote", "cargas", "pendientes_aprobar", "aprobó filas pendientes en lote", "Ingesta de datos"),
