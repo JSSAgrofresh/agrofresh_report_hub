@@ -43,7 +43,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
-from . import actividad, auth, config, config_store, correo, indice_solicitudes, mail_templates, permisos_funciones, r2, seguridad
+from . import actividad, auth, config, config_store, correo, indice_solicitudes, json_als, mail_templates, permisos_funciones, r2, seguridad
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .notificaciones import notificar
@@ -1035,6 +1035,8 @@ def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends
         datos[MARCA_MIXTO_DESDE_2] = True
     if datos_actuales.get(MARCA_RESPALDO_RYD):
         datos[MARCA_RESPALDO_RYD] = True
+    if datos_actuales.get(json_als.MARCA_JSON_ALS):
+        datos[json_als.MARCA_JSON_ALS] = True
     _aplicar_regla_mixto(datos)
     if datos_actuales.get("es_prueba"):
         # Editar no le quita la marca: sigue siendo de prueba.
@@ -1083,6 +1085,7 @@ def _guardar_solicitud_nueva(
         # Y su respaldo, si es RYD, es Carla y Fran (no Claudia).
         respaldo_ryd=True,
     )
+    _marcar_json_als(datos)
     _aplicar_regla_mixto(datos)
     if es_prueba:
         datos["es_prueba"] = True
@@ -1621,6 +1624,7 @@ def crear_reanalisis(
         solicitud_original_archivo=archivo_base,
         motivo_reanalisis=motivo,
     )
+    _marcar_json_als(datos)
     _aplicar_regla_mixto(datos)
 
     # 4. Generar y guardar el Excel
@@ -2394,8 +2398,14 @@ def _iso_a_ddmmyyyy(valor: object) -> object:
 
 _CAMPOS_INTERNOS = {
     "archivo", "enviada", "enviado_en", "creado_en", "sin_lista_distribucion", "pdf_solo_analisis",
-    "mixto_desde_2", "respaldo_ryd",
+    "mixto_desde_2", "respaldo_ryd", json_als.MARCA_JSON_ALS,
 }
+
+
+def _marcar_json_als(datos: dict) -> None:
+    """Solo las solicitudes de ALS creadas desde ahora llevan el JSON con los campos de su informe."""
+    if json_als.es_als(datos.get("laboratorio")):
+        datos[json_als.MARCA_JSON_ALS] = True
 
 
 def _sample_identification(datos: dict) -> str:
@@ -2423,10 +2433,17 @@ def _generar_json_solicitud(datos: dict) -> bytes:
         for k, v in datos.items()
         if k not in _CAMPOS_INTERNOS
     }
+    if json_als.es_als(lab) and datos.get(json_als.MARCA_JSON_ALS):
+        # Formato nuevo: los campos de la cabecera del informe de ALS, y los correos al final.
+        cuerpo = json_als.construir(datos)
+    else:
+        cuerpo = {
+            **datos_limpios,
+            # Solo ALS: es quien lo copia a «Sample Identification (IN)» de su informe.
+            **({"sample_identification": _sample_identification(datos)} if lab.strip().casefold() == "als" else {}),
+        }
     salida = {
-        **datos_limpios,
-        # Solo ALS: es quien lo copia a «Sample Identification (IN)» de su informe.
-        **({"sample_identification": _sample_identification(datos)} if lab.strip().casefold() == "als" else {}),
+        **cuerpo,
         "correos": {
             "resultado_cliente": {"to": correos_resultado.get("to", [])},
             "resultado_interno": {
