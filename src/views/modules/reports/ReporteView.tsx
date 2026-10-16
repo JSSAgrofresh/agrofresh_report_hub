@@ -154,7 +154,8 @@ function esDetectado(o: Observacion | undefined): boolean {
   if (!o) return false
   if (o.ppm != null) return o.ppm > 0
   const texto = (o.valorTexto ?? '').trim().toLowerCase()
-  return !TEXTOS_NO_DETECTADO.has(texto)
+  // «<1» (ALS) es un límite: el laboratorio no encontró nada por sobre él.
+  return !TEXTOS_NO_DETECTADO.has(texto) && !texto.startsWith('<')
 }
 
 /** Códigos de ALS que la ingesta y el catálogo de Toma de muestras escriben distinto (espejo de mapeo.ALIAS_CODIGO_CATALOGO). */
