@@ -235,6 +235,26 @@ class TestZip:
         assert "Solicitudes_PDF" in r.headers["content-disposition"]
 
 
+class TestJsonZip:
+    """El JSON de la selección, uno por solicitud, con su N° en el nombre."""
+
+    def test_trae_un_json_por_solicitud(self, zip_simulado):
+        zip_simulado.setattr(toma_muestras, "_generar_json_solicitud", lambda d: b'{"n": "' + d["numero_solicitud"].encode() + b'"}')
+        r = cliente.post("/api/toma-muestras/solicitudes/json-zip", json={"archivos": ["OT-ALS0012.xlsx", "OT-ALS0013.xlsx", "OT-ALS0012.xlsx"]})
+        assert _nombres_zip(r) == ["OT-ALS0012.json", "OT-ALS0013.json"]
+        assert "Solicitudes_JSON" in r.headers["content-disposition"]
+        assert zipfile.ZipFile(io.BytesIO(r.content)).read("OT-ALS0013.json") == b'{"n": "OT-ALS0013"}'
+
+    def test_omite_las_ajenas_y_sin_ninguna_da_404(self, zip_simulado):
+        zip_simulado.setattr(toma_muestras, "_generar_json_solicitud", lambda d: b"{}")
+        zip_simulado.setattr(toma_muestras, "_es_propia", lambda usuario, datos: False)
+        r = cliente.post("/api/toma-muestras/solicitudes/json-zip", json={"archivos": ["OT-ALS0012.xlsx"]})
+        assert r.status_code == 404
+
+    def test_pide_al_menos_una(self, zip_simulado):
+        assert cliente.post("/api/toma-muestras/solicitudes/json-zip", json={"archivos": []}).status_code == 422
+
+
 class TestInformesParaZip:
     def test_baja_los_que_tienen_pdf_y_salta_el_resto(self, entorno, monkeypatch):
         entorno["auditoria"] = [aud(archivo="a.xlsx", nro="2026-1885-PC"), aud(archivo="b.xlsx", nro="2026-1886-PC", id_=2, nombre="b.pdf")]

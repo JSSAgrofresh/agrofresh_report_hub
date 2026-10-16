@@ -867,6 +867,44 @@ def descargar_pdfs_zip(body: PdfZipIn, usuario: Usuario = Depends(usuario_actual
     )
 
 
+@router.post("/solicitudes/json-zip")
+def descargar_json_zip(body: PdfZipIn, usuario: Usuario = Depends(usuario_actual)) -> Response:
+    """El JSON de varias solicitudes en un solo .zip: el mismo que viaja adjunto al
+    correo del laboratorio (`_generar_json_solicitud`). Respeta el acceso de cada una
+    (las que la sesión no puede ver se omiten) y va en nombres únicos."""
+    archivos = list(dict.fromkeys(body.archivos))
+    if len(archivos) > MAX_PDF_ZIP:
+        raise HTTPException(413, f"Son demasiadas solicitudes de una vez (máximo {MAX_PDF_ZIP}).")
+    jsons: list[tuple[str, bytes]] = []
+    for archivo in archivos:
+        try:
+            if r2.disponible():
+                data, ext = _descargar_solicitud_r2(archivo)
+                datos = _leer_solicitud_bytes(data, ext)
+                numero = os.path.splitext(os.path.basename(archivo))[0]
+            else:
+                ruta = _ruta_archivo(archivo)
+                numero = os.path.splitext(os.path.basename(ruta))[0]
+                datos = _leer_solicitud_archivo(ruta)
+            if not _es_propia(usuario, datos):
+                continue
+            jsons.append((f"{numero}.json", _generar_json_solicitud(datos)))
+        except HTTPException:
+            continue
+    if not jsons:
+        raise HTTPException(404, "No se pudo generar ningún JSON de la selección.")
+    salida = io.BytesIO()
+    with zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as z:
+        for nombre_json, contenido in jsons:
+            z.writestr(nombre_json, contenido)
+    nombre = f"Solicitudes_JSON_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+    return Response(
+        content=salida.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
 @router.get("/solicitudes/{archivo}")
 def obtener_solicitud(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     if r2.disponible():

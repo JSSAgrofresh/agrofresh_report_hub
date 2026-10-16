@@ -271,6 +271,14 @@ export async function descargarPdfsZip(archivos: string[]) {
   guardarBlob(blob, nombre ?? 'Solicitudes_PDF.zip')
 }
 
+/** El JSON de varias solicitudes en un solo .zip (el mismo que va adjunto al correo del laboratorio). */
+export async function descargarJsonZip(archivos: string[]) {
+  const { blob, nombre } = await httpClient.postArchivoConNombre('/toma-muestras/solicitudes/json-zip', {
+    archivos,
+  })
+  guardarBlob(blob, nombre ?? 'Solicitudes_JSON.zip')
+}
+
 // --- Configuración: campos generales -------------------------------------
 
 export function listarCamposConfig() {
