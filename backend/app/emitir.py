@@ -1087,6 +1087,8 @@ class SolicitudOut(BaseModel):
     peso_hueso: float | None = None
     cruzado_por_nombre: str | None = None
     tiene_foto: bool = False
+    # Solo lo llena `/solicitud-ot/{numero}`: de qué laboratorio es la solicitud.
+    laboratorio: str | None = None
 
 
 def _partir_recepcion(valor: str | None) -> tuple[str | None, str | None]:
@@ -1214,22 +1216,40 @@ def solicitud_por_numero(numero: str) -> SolicitudOut:
     for nombre, datos in leer_solicitudes_de(LABORATORIO_SOLICITUDES):
         if str(datos.get("numero_solicitud") or "").strip().upper() != buscado:
             continue
-        fecha_recepcion, hora_recepcion = _partir_recepcion(datos.get("recepcion_en"))
-        return SolicitudOut(
-            archivo=nombre,
-            campos=_mapear_solicitud_a_campos(datos),
-            analitos_solicitados=datos.get("analitos_solicitados") or [],
-            codigo_muestra=datos.get("codigo_muestra"),
-            fecha_recepcion=fecha_recepcion,
-            hora_recepcion=hora_recepcion,
-            peso_muestra=datos.get("peso_muestra"),
-            unidad_peso=datos.get("unidad_peso"),
-            peso_muestra_extraido=datos.get("peso_muestra_extraido"),
-                peso_hueso=datos.get("peso_hueso"),
-            cruzado_por_nombre=datos.get("cruzado_por_nombre"),
-            tiene_foto=nombre in indice_solicitudes.archivos_con_foto(),
-        )
+        return _solicitud_out(nombre, datos)
     raise HTTPException(404, f'No existe la solicitud "{numero}" en el sistema.')
+
+
+def _solicitud_out(nombre: str, datos: dict) -> SolicitudOut:
+    fecha_recepcion, hora_recepcion = _partir_recepcion(datos.get("recepcion_en"))
+    return SolicitudOut(
+        archivo=nombre,
+        campos=_mapear_solicitud_a_campos(datos),
+        analitos_solicitados=datos.get("analitos_solicitados") or [],
+        codigo_muestra=datos.get("codigo_muestra"),
+        fecha_recepcion=fecha_recepcion,
+        hora_recepcion=hora_recepcion,
+        peso_muestra=datos.get("peso_muestra"),
+        unidad_peso=datos.get("unidad_peso"),
+        peso_muestra_extraido=datos.get("peso_muestra_extraido"),
+        peso_hueso=datos.get("peso_hueso"),
+        cruzado_por_nombre=datos.get("cruzado_por_nombre"),
+        tiene_foto=nombre in indice_solicitudes.archivos_con_foto(),
+        laboratorio=datos.get("laboratorio"),
+    )
+
+
+@router.get("/solicitud-ot/{numero}")
+def solicitud_de_cualquier_laboratorio(numero: str) -> SolicitudOut:
+    """La solicitud con ese N° (OT-ALS0012, OT-DIAG0007...) de CUALQUIER laboratorio.
+
+    Converter la usa para completar los informes de ALS y Diagnofruit, que no
+    traen Sold To / Ship To ni la especie con el nombre oficial: los saca de la
+    solicitud que ya emitimos. `/solicitud/{numero}` sigue siendo solo de AgroFresh."""
+    hallada = indice_solicitudes.buscar_por_numero(numero)
+    if hallada is None:
+        raise HTTPException(404, f'No existe la solicitud "{numero}" en el sistema.')
+    return _solicitud_out(*hallada)
 
 
 class FilaCruceIn(BaseModel):

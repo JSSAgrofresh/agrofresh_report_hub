@@ -54,3 +54,25 @@ def test_numero_inexistente_es_404_con_mensaje_claro(monkeypatch):
 
     assert e.value.status_code == 404
     assert "OT-AGF9999" in e.value.detail
+
+
+# --- De cualquier laboratorio (ALS, Diagnofruit) -----------------------------
+
+def test_solicitud_de_cualquier_laboratorio(monkeypatch):
+    als = {**SOLICITUD, "numero_solicitud": "OT-ALS0012", "laboratorio": "ALS", "ship_to": "RENAICO"}
+    visto = {}
+    monkeypatch.setattr(emitir.indice_solicitudes, "buscar_por_numero",
+                        lambda n: visto.setdefault("n", n) and ("OT-ALS0012.xlsx", als))
+    monkeypatch.setattr(emitir.indice_solicitudes, "archivos_con_foto", lambda: set())
+
+    r = emitir.solicitud_de_cualquier_laboratorio("OT-ALS0012")
+
+    assert visto["n"] == "OT-ALS0012"
+    assert r.laboratorio == "ALS" and r.campos["Ship To (Nombre)"] == "RENAICO"
+
+
+def test_solicitud_de_cualquier_laboratorio_inexistente_es_404(monkeypatch):
+    monkeypatch.setattr(emitir.indice_solicitudes, "buscar_por_numero", lambda n: None)
+    with pytest.raises(HTTPException) as e:
+        emitir.solicitud_de_cualquier_laboratorio("OT-ALS9999")
+    assert e.value.status_code == 404
