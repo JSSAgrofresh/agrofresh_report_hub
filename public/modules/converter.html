@@ -584,6 +584,9 @@ function detectar(texto){
   if(/INFORME DE AN[ÁA]LISIS\s+N[°º]?\s*AGF\d/i.test(texto) && /N[°º] SOLICITUD\s+OT-/i.test(texto)) return "AgroFresh";
   if(t.includes("quiteca")) return "Quiteca";
   if(t.includes("diagnofruit")) return "Diagnofruit";
+  // Informe de Microbiología de ALS Food Chile (FSMA, agua): otro formato que el de Cromatografía.
+  if(t.includes("microbiologia") && (t.includes("als food") || t.includes("alsfoodchile") || t.includes("alsglobal") ||
+     (t.includes("laboratorio microbiologia") && t.includes("identificacion muestra (ni)")))) return "ALS (Corthon)";
   if(t.includes("corthorn") || t.includes("cromatografia")) return "ALS (Corthon)";
   return null;
 }
@@ -678,11 +681,21 @@ function leerDiagnofruit(texto, inf){
   const fm = [...texto.matchAll(/Fecha de muestreo:\s*([\d/\-]+)/g)].map(x=>x[1]);
   d["Fecha Muestreo"] = fm.length ? aFecha(fm[0], inf.avisos) : null;
   const fr = [...texto.matchAll(/Fecha de recepci[óo]n:\s*([\d/\-]+)/g)].map(x=>x[1]);
-  if(new Set(fr).size > 1)
-    inf.avisos.push("La fecha de recepción aparece distinta en cada página (" +
-                    fr.join(", ") + "): el informe mezcla DD/MM con MM/DD");
-  // "Fecha de recepción" es cuándo la muestra entró al laboratorio.
-  d["Fecha entrada"] = fr.length ? aFecha(fr[0], inf.avisos) : null;
+  // "Fecha de recepción" es cuándo la muestra entró al laboratorio. Diagnofruit la escribe a veces
+  // día/mes y a veces mes/día en el mismo informe («10/1/2026» y «1/10/2026»): la muestra no puede
+  // llegar ANTES de haberse tomado, así que se queda con la lectura que no queda antes del muestreo.
+  if(fr.length){
+    let rec = aFecha(fr[0], inf.avisos);
+    const dm = String(fr[0]).match(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+    if(rec && d["Fecha Muestreo"] && aISO(rec) < aISO(d["Fecha Muestreo"]) && dm){
+      const vuelta = aFecha(dm[2] + "/" + dm[1] + "/" + dm[3], null);
+      if(vuelta && aISO(vuelta) >= aISO(d["Fecha Muestreo"])){
+        inf.avisos.push("La fecha de recepción venía como " + fr[0] + " (antes del muestreo): se leyó " + vuelta + " (mes/día)");
+        rec = vuelta;
+      }
+    }
+    d["Fecha entrada"] = rec;
+  }
   // No hay un campo de "tipo de servicio" propiamente tal en este formato: se usa
   // el análisis solicitado, que es lo que más se le parece en este laboratorio.
   d["Tipo de servicio"] = campo(texto, "An[áa]lisis realizado");
@@ -693,6 +706,9 @@ function leerDiagnofruit(texto, inf){
   m = texto.match(/Nombre de muestra:\s*(.+)/);
   if(m && !/^[-\s]+$/.test(m[1])){
     const nombreMuestra = m[1].trim();
+    // «M1 - DIAG0007»: el código es el de nuestra solicitud (OT-DIAG0007).
+    const cod = nombreMuestra.match(/\b(DIAG\d+)\b/i);
+    if(cod) d["OT"] = "OT-" + cod[1].toUpperCase();
     obs.push("Muestra: " + nombreMuestra);
     // La zona de muestreo es lo que va antes del primer guion, ej. "M1" en
     // "M1 - Frutizano - Pozo vaciado". El resto es contexto de la muestra,
@@ -709,14 +725,81 @@ function leerDiagnofruit(texto, inf){
     const p = plano(l);
     if(p.startsWith("pat") && p.includes("resultado")){ dentro = true; continue; }
     if(!dentro) continue;
-    if(p.startsWith("nivel de contaminacion")) break;
+    // La tabla de niveles (Carozos / Kiwi, Óptimo, Moderado, Peligroso) viene justo debajo de los resultados.
+    if(p.startsWith("nivel") || p.startsWith("carozos") || p.startsWith("metodologia")) break;
+    // «Mayor a 100»: el laboratorio dio un tope, no un valor; se guarda como «>100» (texto).
+    const mayor = l.match(/^\s*([A-Za-zÁÉÍÓÚáéíóúñÑ\.\s]+?)\s+Mayor a\s+([\d.,]+)\s+(\S+)/i);
+    if(mayor){ guardar(inf, mayor[1], ">" + mayor[2]); continue; }
     const m = l.match(/^\s*([A-Za-zÁÉÍÓÚáéíóúñÑ\.\s]+?)\s+(BLD|ND|[\d.,]+)\s+(\S+)/);
     if(m) guardar(inf, m[1], m[2]);
   }
 }
 
+/* ---------------- ALS · MICROBIOLOGÍA (FSMA, agua) ---------------- */
+/* «dd-mm-aa hh:mm» (como lo escribe ALS) → {fecha:"dd-mm-aaaa", hora:"hh:mm"}. */
+function fechaHoraAls(txt, avisos){
+  const m = String(txt || "").match(/(\d{1,2})-(\d{1,2})-(\d{2,4})(?:\s+(\d{1,2}:\d{2}))?/);
+  return m ? {fecha: aFecha(m[1] + "-" + m[2] + "-" + m[3], avisos), hora: m[4] ? aHora(m[4]) : null} : null;
+}
+
+function leerAlsMicro(texto, inf){
+  const d = inf.datos;
+  d["Laboratorio"] = "ALS (Corthon)";
+  d["Tipo Muestra"] = "Agua";
+  // ALS no escribe el Sold To / Ship To oficiales («GREENEX-CODEGUA»): son solo una pista. Con la
+  // solicitud (su OT viene en la Identificación Muestra) se completan con los del sistema.
+  d["Sold To"] = campo(texto, "Solicitante");
+  let m = texto.match(/INFORME DE ANALISIS\s*N[ºo°]?\s*(\d+)/i);
+  if(m) d["N° Solicitud"] = m[1];          // el N° del informe, como en los demás laboratorios
+
+  // La Identificación Muestra (NI) es larga y ALS la parte en dos líneas: «… // OT-» / «ALS0007».
+  const ni = texto.match(/Identificaci[óo]n Muestra \(NI\)\s+([\s\S]+?)(?=\nMuestreo\b)/);
+  const identificacion = ni ? ni[1].replace(/\s+/g," ").trim() : "";
+  const ot = identificacion.match(/OT-\s*([A-Za-z]+\d+)/i);
+  if(ot) d["OT"] = "OT-" + ot[1].toUpperCase();
+
+  const ing = fechaHoraAls(campo(texto, "Fecha y Hora de Ingreso"), inf.avisos);
+  if(ing){ d["Fecha entrada"] = ing.fecha; d["Fecha Recepción"] = ing.fecha; d["Hora Recepción"] = ing.hora; }
+  const ini = fechaHoraAls(campo(texto, "Fecha y Hora de Inicio"), inf.avisos);
+  if(ini) d["Fecha Análisis"] = ini.fecha;
+
+  // Fecha de muestreo: el bloque «Muestreo» (dd-mm-aaaa) manda; «Fecha y Entidad de Muestreo»
+  // (dd-mm-aa hh:mm) es la segunda fuente. Si se contradicen, alguien lo tiene que ver.
+  const bloque = texto.match(/\nMuestreo\s*\n([\s\S]*?)(?=\n\s*Ensayos\b|\n\s*Lugar de muestreo)/);
+  const fMuestreo = bloque ? bloque[1].match(/Fecha\s+(\d{1,2}-\d{1,2}-\d{4})/) : null;
+  const hMuestreo = bloque ? bloque[1].match(/Horario\s+(\d{1,2}:\d{2})/) : null;
+  const entidad = fechaHoraAls((texto.match(/Fecha y Entidad de Muestreo[^\S\n]+([^\n]+)/) || [])[1], inf.avisos);
+  const delBloque = fMuestreo ? aFecha(fMuestreo[1], inf.avisos) : null;
+  if(delBloque && entidad && entidad.fecha && delBloque !== entidad.fecha)
+    inf.avisos.push("ALS dice dos fechas de muestreo: " + delBloque + " (bloque Muestreo) y " + entidad.fecha + " (Fecha y Entidad de Muestreo); se usó la primera");
+  d["Fecha Muestreo"] = delBloque || (entidad && entidad.fecha) || null;
+  d["Hora Muestreo"] = (hMuestreo && aHora(hMuestreo[1])) || (entidad && entidad.hora) || null;
+
+  const obs = ["Informe ALS N° " + (d["N° Solicitud"] || "—")];
+  const solic = campo(texto, "Solicitante");
+  if(solic) obs.push("Solicitante según ALS: " + solic);
+  if(identificacion) obs.push(identificacion);
+  d["Observación"] = obs.join(" · ");
+  if(!d["OT"]) inf.avisos.push("La Identificación Muestra no trae el N° de solicitud (OT-...): Sold To, Ship To y especie hay que elegirlos a mano.");
+
+  // Resultados: «Coliformes Totales   <método>» y, en la línea de abajo, «-   <1   UFC/ 100 mL (...)».
+  const lineas = texto.split("\n");
+  let dentro = false;
+  for(let i = 0; i < lineas.length; i++){
+    const l = lineas[i];
+    if(/^\s*Ensayos\s+Resultado/i.test(l)){ dentro = true; continue; }
+    if(!dentro) continue;
+    if(/^\s*WHOS|^\s*Los resultados/i.test(l)) break;
+    const nombre = l.match(/^([A-Za-zÁÉÍÓÚáéíóúñÑ][A-Za-zÁÉÍÓÚáéíóúñÑ.\s]+?)\s{2,}\S/);
+    const sig = lineas[i + 1] || "";
+    const r = sig.match(/^\s*-?\s+([<>≤≥]?\s*[\d.,]+|ND|No detectado)\s+((?:UFC|NMP)\/\s*(?:100\s*mL|g|mL)|mg\/(?:kg|L))/i);
+    if(nombre && r) guardar(inf, nombre[1], r[1].replace(/\s+/g,""), r[2].replace(/\s+/g," "));
+  }
+}
+
 /* ---------------- CORTHORN / ALS ---------------- */
 function leerCorthorn(texto, inf){
+  if(/LABORATORIO\s+MICROBIOLOG/i.test(texto)) return leerAlsMicro(texto, inf);
   const d = inf.datos;
   d["Laboratorio"] = "ALS (Corthon)";
   d["Sold To"]     = campo(texto, "Solicitante");
@@ -965,12 +1048,19 @@ function avisarFaltantes(inf){
   if(faltan.length) inf.avisos.push("Sin dato para: " + faltan.join(", "));
 }
 
+/* Labs cuyo informe NO trae el Sold To / Ship To / especie con el nombre oficial (ALS escribe
+   «GREENEX-CODEGUA», Diagnofruit «Gesex Planta Fátima»): ahí manda la solicitud que emitimos, que
+   se busca por la OT impresa en el informe (`/emitir/solicitud-ot`, de cualquier laboratorio). */
+const MANDA_LA_SOLICITUD = ["ALS (Corthon)", "Diagnofruit"];
+
 async function completarDesdeSolicitud(inf){
   const d = inf.datos, ot = d["OT"];
+  const generico = MANDA_LA_SOLICITUD.includes(inf.laboratorio);
   if(!ot){ inf.avisos.push("El informe no trae el N° de solicitud (OT-...): no se pudo completar desde la solicitud."); return; }
   let sol;
   try{
-    const resp = await fetch(API_BASE + "/emitir/cromatografia/solicitud/" + encodeURIComponent(ot),
+    const ruta = generico ? "/emitir/solicitud-ot/" : "/emitir/cromatografia/solicitud/";
+    const resp = await fetch(API_BASE + ruta + encodeURIComponent(ot),
                              {headers: autorizacion()});
     if(resp.status === 404){
       inf.avisos.push("No se encontró la solicitud " + ot + " en el sistema: cliente y sucursal hay que elegirlos a mano.");
@@ -987,14 +1077,24 @@ async function completarDesdeSolicitud(inf){
     const v = limpio(c[DE_SOLICITUD[col]]);
     if(v === null) continue;
     if(limpio(d[col]) === null) d[col] = v;
-    else if(["Especie","Variedad","CSG"].includes(col) && plano(d[col]) !== plano(v)){
+    else if(generico && ["Sold To","Ship To","Especie","Variedad"].includes(col)) d[col] = v;   // la solicitud manda
+    else if(["Especie","Variedad","CSG"].concat(generico ? ["Fecha Muestreo"] : []).includes(col) && plano(d[col]) !== plano(v)){
       // El informe manda, pero si contradice a la solicitud alguien tiene que verlo.
       inf.avisos.push(col + ": el informe dice «" + d[col] + "» y la solicitud «" + v + "»");
     }
   }
-  const traza = "Informe AgroFresh N° " + (d["N° Solicitud"] || "—") + " · Solicitud " + ot;
+  const traza = "Informe " + (generico ? inf.laboratorio.replace(/ \(.*$/, "") : "AgroFresh") + " N° " + (d["N° Solicitud"] || "—") + " · Solicitud " + ot;
   d["Observación"] = [limpio(d["Observación"]), traza].filter(Boolean).join(" · ");
   if(!d["Fecha entrada"] && sol.fecha_recepcion) d["Fecha entrada"] = aFecha(sol.fecha_recepcion, inf.avisos);
+  if(generico){
+    // El tipo de servicio sale del «Tipo Aplicación» de la solicitud (Actimist o Línea de proceso), igual que en Quiteca.
+    const tipo = plano(limpio(c["Tipo Aplicación"]) || "");
+    if(tipo) d["Tipo de servicio"] = (tipo.includes("actimist") || tipo.includes("fogger")) ? "Actimist" : "Linea de Proceso";
+    for(const col in CAMPOS_CAT) inf.crudos[col] = d[col];
+    revisarCatalogo(inf);
+    avisarFaltantes(inf);
+    return;   // lo pedido vs. lo informado (más abajo) es de cromatografía: aquí no aplica
+  }
 
   // Coherencia entre lo pedido y lo informado.
   const pedidos = new Set((sol.analitos_solicitados || []).map(a => a + " ppm"));
@@ -1025,6 +1125,32 @@ const EDITABLES = {
   "Tipo de servicio":["Cromatografía","Linea de Proceso","Actimist"]
 };
 const OBLIGATORIOS = ["Laboratorio","Fecha Muestreo","Especie","Fecha entrada","Tipo de servicio"];
+
+/* Un PDF de Diagnofruit trae UNA PÁGINA POR MUESTRA («M1 - DIAG0007», «M2 - DIAG0008») más una
+   última de observaciones, todas con el mismo «Reporte número». Cada muestra es un informe distinto:
+   se separan y quedan como «253522-DIAG0007». Un PDF con una sola muestra se queda como siempre. */
+function muestrasDiagnofruit(texto){
+  return texto.split(/(?=REPORTE DE RESULTADOS)/)
+    .filter(p => /Nombre de muestra:\s*(?!-+\s*$)\S/m.test(p) && /Pat[óo]geno\s+Resultado/i.test(p));
+}
+
+function analizarVarios(texto, nombreArchivo){
+  if(detectar(texto) === "Diagnofruit"){
+    const partes = muestrasDiagnofruit(texto);
+    if(partes.length > 1){
+      const reporte = (texto.match(/Reporte n[úu]mero:\s*(\S+)/) || [])[1] || "";
+      return partes.map(p => {
+        const cod = (p.match(/\b(DIAG\d+)\b/i) || [])[1];
+        const inf = analizar(p, nombreArchivo + (cod ? " · " + cod.toUpperCase() : ""));
+        if(inf.datos["N° Solicitud"] && cod) inf.datos["N° Solicitud"] = reporte + "-" + cod.toUpperCase();
+        inf.parteDe = nombreArchivo;
+        inf.avisos.unshift("El PDF trae " + partes.length + " muestras: este informe es la de " + (cod || "esta página") + ".");
+        return inf;
+      });
+    }
+  }
+  return [analizar(texto, nombreArchivo)];
+}
 
 function analizar(texto, nombreArchivo){
   const inf = {archivo:nombreArchivo, laboratorio:"", datos:{}, resultados:{},
@@ -1692,16 +1818,17 @@ async function cargar(lista){
   $("estado").textContent = "Leyendo " + pend.length + " archivo(s)…";
 
   for(const file of pend){
-    if(informes.some(i => i.archivo === file.name)){
+    if(informes.some(i => i.archivo === file.name || i.parteDe === file.name)){
       alert("«" + file.name + "» ya está cargado.");
       continue;
     }
     try{
       const buf = new Uint8Array(await file.arrayBuffer());
-      const inf = analizar(await textoDelPdf(buf), file.name);
-      if(inf.laboratorio === "AgroFresh") await completarDesdeSolicitud(inf);
-      inf.file = file;   // el PDF original: se guarda en las carpetas de auditoría al subir
-      informes.push(inf);
+      for(const inf of analizarVarios(await textoDelPdf(buf), file.name)){
+        if(inf.laboratorio === "AgroFresh" || MANDA_LA_SOLICITUD.includes(inf.laboratorio)) await completarDesdeSolicitud(inf);
+        inf.file = file;   // el PDF original: se guarda en las carpetas de auditoría al subir
+        informes.push(inf);
+      }
     }catch(err){
       informes.push({archivo: file.name, laboratorio: "", datos: {}, resultados: {},
                      sueltos: [], avisos: ["No se pudo leer el PDF: " + err.message]});

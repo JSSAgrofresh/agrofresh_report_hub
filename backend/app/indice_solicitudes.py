@@ -255,6 +255,20 @@ def buscar(archivo: str) -> dict | None:
         return _fila_a_par(fila)[1] if fila else None
 
 
+def buscar_por_numero(numero: str) -> tuple[str, dict] | None:
+    """(archivo, datos) de la solicitud con ese N° (OT-ALS0012...), de cualquier
+    laboratorio; sin importar mayúsculas ni espacios. None si no existe."""
+    sel = _select_cruce()
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            f"SELECT {sel} FROM solicitud_archivo"
+            " WHERE upper(btrim(numero_solicitud)) = %s ORDER BY creado_en DESC LIMIT 1",
+            (str(numero or "").strip().upper(),),
+        )
+        fila = cur.fetchone()
+        return _fila_a_par(fila) if fila else None
+
+
 def esta_poblado() -> bool:
     """¿Se puede usar el índice?
 
