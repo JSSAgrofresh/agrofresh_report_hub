@@ -59,6 +59,9 @@ export const IconoFlecha = (p: P & { sentido?: 'asc' | 'desc' | null }) => {
 export const IconoAlerta = (p: P) => (
   <svg {...base} {...p}><path d="M12 4.5l8.5 15h-17z" /><path d="M12 10v4.2M12 16.9v.1" /></svg>
 )
+export const IconoJson = (p: P) => (
+  <svg {...base} {...p}><path d="M9 4.5C7 4.5 7 6 7 8s0 3-2.5 4c2.5 1 2.5 2 2.5 4s0 3.5 2 3.5M15 4.5c2 0 2 1.5 2 3.5s0 3 2.5 4c-2.5 1-2.5 2-2.5 4s0 3.5-2 3.5" /></svg>
+)
 export const IconoExcel = (p: P) => (
   <svg {...base} {...p}><rect x="4.5" y="4" width="15" height="16" rx="2" /><path d="M4.5 9.5h15M4.5 14.5h15M10 4v16" /></svg>
 )

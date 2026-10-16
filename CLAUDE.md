@@ -829,6 +829,7 @@ menos una tiene informe con PDF, el zip lleva **`Solicitudes/`** e **`Informes/`
 («OT-QUI0047 - Informe 2026-1885-PC.pdf»; `informes_solicitud.informes_para_zip`, nunca
 lanza: si la base o R2 fallan, sale solo con las solicitudes). Sin informes, plano como antes.
 Las cuentas `cliente` nunca reciben informes en el zip.
+**JSON (.zip)** (selección → «JSON (.zip)», `POST /toma-muestras/solicitudes/json-zip`, 16-10-2026): el mismo JSON que va adjunto al correo del laboratorio (`_generar_json_solicitud`), uno por solicitud, nombre `OT-….json`; respeta `_es_propia` igual que el zip de PDF. Prueba: `TestJsonZip` en `tests/test_informes_solicitud.py`.
 
 ## Ingreso al laboratorio: estándar y fortificados
 

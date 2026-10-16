@@ -13,6 +13,7 @@ import {
   IconoBuscar,
   IconoCerrar,
   IconoExcel,
+  IconoJson,
   IconoOjo,
   IconoPapelera,
   IconoPdf,
@@ -29,6 +30,7 @@ import {
   obtenerEnvioAutomatico,
   actualizarEnvioAutomatico,
   descargarPdfsZip,
+  descargarJsonZip,
   descargarPdfSolicitud,
   abrirPdfSolicitud,
   listarInformesDeSolicitudes,
@@ -148,7 +150,7 @@ export function SolicitudesView() {
   const [guardando, setGuardando] = useState(false)
 
   const [avisoMasivo, setAvisoMasivo] = useState<string | null>(null)
-  const [trabajando, setTrabajando] = useState<null | 'pdf' | 'excel' | 'enviar' | 'marcar'>(null)
+  const [trabajando, setTrabajando] = useState<null | 'pdf' | 'json' | 'excel' | 'enviar' | 'marcar'>(null)
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
   const [fechaEnvioCliente, setFechaEnvioCliente] = useState('')
 
@@ -301,7 +303,7 @@ export function SolicitudesView() {
     ? `Excel (${seleccionadas.size})`
     : hayFiltrosActivos ? `Excel filtrado (${visibles.length})` : 'Descargar Excel'
 
-  async function correr(tarea: 'pdf' | 'excel' | 'enviar' | 'marcar', fn: () => Promise<void>) {
+  async function correr(tarea: 'pdf' | 'json' | 'excel' | 'enviar' | 'marcar', fn: () => Promise<void>) {
     setTrabajando(tarea)
     setAvisoMasivo(null)
     try {
@@ -605,6 +607,10 @@ export function SolicitudesView() {
               <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('pdf', () => descargarPdfsZip([...seleccionadas]))} title="Si alguna tiene informe, el zip trae dos carpetas: Solicitudes e Informes">
                 <IconoPdf width={15} height={15} />
                 {trabajando === 'pdf' ? 'Generando…' : 'PDF (.zip)'}
+              </button>
+              <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('json', () => descargarJsonZip([...seleccionadas]))} title="El mismo JSON que va adjunto al correo del laboratorio">
+                <IconoJson width={15} height={15} />
+                {trabajando === 'json' ? 'Generando…' : 'JSON (.zip)'}
               </button>
               <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('excel', () => descargarTodasLasSolicitudes([...seleccionadas]))}>
                 <IconoExcel width={15} height={15} />
