@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useAuth } from '@/features/auth'
-import { cambiarServicioReport, obtenerFunciones } from '@/features/funciones'
+import { cambiarGraficosInformes, cambiarServicioReport, obtenerFunciones } from '@/features/funciones'
 import type { EstadoFunciones, ServicioReport } from '@/features/funciones'
 import { CORREO_MAESTRO } from '@/features/usuarios'
 import { HttpError } from '@/services/http/client'
@@ -30,6 +30,8 @@ export function FuncionesPanel() {
   const [estado, setEstado] = useState<EstadoFunciones | null>(null)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [elegido, setElegido] = useState<ServicioReport | null>(null)
+  /** El valor al que se quiere pasar el interruptor de los gráficos; `null` = no se está cambiando. */
+  const [cambioGraficos, setCambioGraficos] = useState<boolean | null>(null)
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [trabajando, setTrabajando] = useState(false)
@@ -46,16 +48,21 @@ export function FuncionesPanel() {
 
   function cerrar() {
     setElegido(null)
+    setCambioGraficos(null)
     setPassword('')
     setError(null)
   }
 
   async function confirmar() {
-    if (!elegido) return
+    if (!elegido && cambioGraficos === null) return
     setTrabajando(true)
     setError(null)
     try {
-      setEstado(await cambiarServicioReport(elegido.clave, !elegido.activo, password))
+      setEstado(
+        elegido
+          ? await cambiarServicioReport(elegido.clave, !elegido.activo, password)
+          : await cambiarGraficosInformes(cambioGraficos as boolean, password),
+      )
       cerrar()
     } catch (e) {
       setError(e instanceof HttpError ? e.message : 'No se pudo cambiar. Intenta de nuevo.')
@@ -63,6 +70,26 @@ export function FuncionesPanel() {
       setTrabajando(false)
     }
   }
+
+  const graficos = estado?.graficos_informes
+  // Lo que dice el cuadro de confirmación: un servicio o el interruptor de los gráficos.
+  const confirmacion = elegido
+    ? {
+        titulo: `${elegido.activo ? 'Ocultar' : 'Mostrar'} ${elegido.etiqueta} en Report`,
+        boton: elegido.activo ? 'Ocultar' : 'Mostrar',
+        texto: elegido.activo
+          ? `Report dejará de mostrar lo de ${elegido.etiqueta}. Los datos siguen guardados.`
+          : `Report empezará a mostrar lo de ${elegido.etiqueta}, junto con los demás servicios encendidos.`,
+      }
+    : cambioGraficos !== null
+      ? {
+          titulo: `${cambioGraficos ? 'Mostrar' : 'Ocultar'} los gráficos de ALS y Diagnofruit`,
+          boton: cambioGraficos ? 'Mostrar' : 'Ocultar',
+          texto: cambioGraficos
+            ? 'Report mostrará la línea de tiempo y la serie de tiempo de ALS y Diagnofruit, además de su tabla.'
+            : 'Report dejará de mostrar los gráficos de ALS y Diagnofruit: quedará solo la tabla.',
+        }
+      : null
 
   return (
     <section className={styles.panel} aria-label="Funciones">
@@ -117,24 +144,53 @@ export function FuncionesPanel() {
         )}
       </div>
 
-      {elegido && (
+      {estado && (
+        <div className={styles.tarjeta}>
+          <h2 className={styles.titulo}>Report: gráficos de ALS y Diagnofruit</h2>
+          <p className={styles.texto}>
+            Con ALS o Diagnofruit elegido, Report puede mostrar una línea de tiempo y una serie de tiempo además de la tabla.
+            Apagados, no se ven y queda solo la tabla. Vale para todas las cuentas, clientes incluidos.
+          </p>
+          <ul className={styles.lista}>
+            <li className={styles.fila}>
+              <span className={styles.nombre}>
+                Línea de tiempo y serie de tiempo
+                <small>En «stand-by» de fábrica: se encienden cuando se quieran usar.</small>
+              </span>
+              <span className={`${styles.estado} ${graficos?.activo ? styles.encendido : styles.apagado}`}>
+                {graficos?.activo ? 'Se muestran en Report' : 'No se muestran'}
+              </span>
+              <Button
+                variant="secondary"
+                disabled={!esPrincipal}
+                title={esPrincipal ? undefined : 'Solo el administrador principal puede cambiarlo'}
+                aria-label={`${graficos?.activo ? 'Ocultar' : 'Mostrar'} los gráficos de ALS y Diagnofruit en Report`}
+                onClick={() => setCambioGraficos(!graficos?.activo)}
+              >
+                {graficos?.activo ? 'Ocultar' : 'Mostrar'}
+              </Button>
+            </li>
+          </ul>
+          {graficos?.cambiado_por && graficos.cambiado_en && (
+            <p className={styles.pie}>Último cambio: {graficos.cambiado_por}, {fechaHora(graficos.cambiado_en)}</p>
+          )}
+        </div>
+      )}
+
+      {confirmacion && (
         <Modal
-          titulo={`${elegido.activo ? 'Ocultar' : 'Mostrar'} ${elegido.etiqueta} en Report`}
+          titulo={confirmacion.titulo}
           onCerrar={cerrar}
           pie={
             <>
               <Button variant="secondary" onClick={cerrar}>Cancelar</Button>
               <Button onClick={() => void confirmar()} disabled={trabajando || !password}>
-                {trabajando ? 'Guardando…' : elegido.activo ? 'Ocultar' : 'Mostrar'}
+                {trabajando ? 'Guardando…' : confirmacion.boton}
               </Button>
             </>
           }
         >
-          <p className={styles.texto}>
-            {elegido.activo
-              ? `Report dejará de mostrar lo de ${elegido.etiqueta}. Los datos siguen guardados.`
-              : `Report empezará a mostrar lo de ${elegido.etiqueta}, junto con los demás servicios encendidos.`}
-          </p>
+          <p className={styles.texto}>{confirmacion.texto}</p>
           <label className={styles.campoClave}>
             <span>Tu contraseña, para confirmar</span>
             <input

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { FuncionesPanel } from './FuncionesPanel'
 import { HttpError } from '@/services/http/client'
 
-const api = vi.hoisted(() => ({ obtenerFunciones: vi.fn(), cambiarServicioReport: vi.fn() }))
+const api = vi.hoisted(() => ({ obtenerFunciones: vi.fn(), cambiarServicioReport: vi.fn(), cambiarGraficosInformes: vi.fn() }))
 vi.mock('@/features/funciones', () => api)
 
 const sesion = vi.hoisted(() => ({ user: { tipoAcceso: 'admin_general', email: 'jorge.sandoval@agrofresh.com' } as { tipoAcceso: string; email: string } }))
@@ -84,5 +84,38 @@ describe('FuncionesPanel', () => {
     api.obtenerFunciones.mockResolvedValue(estado(['linea_proceso'], { migracion_pendiente: true }))
     render(<FuncionesPanel />)
     expect(await screen.findByText(/Falta correr la migración 0055/)).toBeTruthy()
+  })
+
+  describe('gráficos de ALS y Diagnofruit', () => {
+    const conGraficos = (activo: boolean) => estado(['linea_proceso'], { graficos_informes: { activo, cambiado_por: null, cambiado_en: null } })
+
+    it('de fábrica no se muestran, y encenderlos pide la contraseña', async () => {
+      api.obtenerFunciones.mockResolvedValue(conGraficos(false))
+      api.cambiarGraficosInformes.mockResolvedValue(conGraficos(true))
+      render(<FuncionesPanel />)
+      expect(await screen.findByText('Línea de tiempo y serie de tiempo')).toBeTruthy()
+      expect(screen.getByText('No se muestran')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Mostrar los gráficos de ALS y Diagnofruit en Report' }))
+      expect((screen.getByRole('button', { name: 'Mostrar' }) as HTMLButtonElement).disabled).toBe(true)
+      expect(api.cambiarGraficosInformes).not.toHaveBeenCalled()
+      fireEvent.change(screen.getByLabelText('Tu contraseña, para confirmar'), { target: { value: 'mi-clave' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Mostrar' }))
+      await waitFor(() => expect(api.cambiarGraficosInformes).toHaveBeenCalledWith(true, 'mi-clave'))
+      await waitFor(() => expect(screen.getByText('Se muestran en Report')).toBeTruthy())
+    })
+
+    it('apagarlos pide la contraseña, y quien no es el principal no puede cambiarlos', async () => {
+      api.obtenerFunciones.mockResolvedValue(conGraficos(true))
+      sesion.user = { tipoAcceso: 'admin_general', email: 'otra.persona@agrofresh.com' }
+      render(<FuncionesPanel />)
+      const boton = (await screen.findByRole('button', { name: 'Ocultar los gráficos de ALS y Diagnofruit en Report' })) as HTMLButtonElement
+      expect(boton.disabled).toBe(true)
+    })
+
+    it('si el servidor no manda el estado de los gráficos, se ven apagados', async () => {
+      render(<FuncionesPanel />)
+      expect(await screen.findByText('Línea de tiempo y serie de tiempo')).toBeTruthy()
+      expect(screen.getByText('No se muestran')).toBeTruthy()
+    })
   })
 })

@@ -31,11 +31,6 @@
   overflow-x: auto;
 }
 
-.tablaCaja {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
 .svg {
   display: block;
   margin: 0 auto;
@@ -190,102 +185,10 @@
   flex-shrink: 0;
 }
 
-/* ── tabla por informe ── */
-.tabla {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-.tabla th {
-  text-align: left;
-  vertical-align: bottom;
-  padding: 10px var(--space-4);
-  background: var(--color-bg);
-  border-bottom: 1px solid var(--color-border-strong);
-  color: var(--color-text-muted);
-  font-weight: 600;
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-}
-.tabla td {
-  padding: 10px var(--space-4);
-  border-top: 1px solid var(--color-border);
-  white-space: nowrap;
-}
-.tabla tbody tr:first-child td {
-  border-top: none;
-}
-.tabla tbody tr:hover {
-  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
-}
-.fecha {
-  color: var(--color-text-muted);
-  font-weight: 600;
-}
-.detalle {
-  color: var(--color-text-muted);
-}
-.informe {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 600;
-  color: #1f4f99;
-  background: #eaf1fb;
-  border-radius: 6px;
-  padding: 3px 8px;
-}
-.cabAnalito {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.cabAnalito b {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-text);
-  letter-spacing: 0.05em;
-}
-.cabAnalito span {
-  padding-left: 17px;
-  font-size: 10.5px;
-  font-weight: 500;
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--color-text-faint);
-}
+/* El punto de color de un analito en los chips de las series. */
 .punto {
   width: 9px;
   height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
-}
-.chipNo,
-.chipSi {
-  display: inline-block;
-  min-width: 44px;
-  text-align: center;
-  border-radius: 99px;
-}
-.chipNo {
-  padding: 4px 12px;
-  font-size: 12.5px;
-  color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-border) 55%, var(--color-surface));
-}
-.chipSi {
-  padding: 3px 12px;
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--color-text);
-  background: color-mix(in srgb, var(--c) 24%, var(--color-surface));
-  border: 1px solid color-mix(in srgb, var(--c) 65%, var(--color-surface));
-}
-.pie {
-  margin-top: var(--space-3);
-  font-size: 12px;
-  color: var(--color-text-faint);
 }

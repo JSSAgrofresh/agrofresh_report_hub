@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from 'react'
+import { useMemo } from 'react'
 import { Card } from '@/components/ui/Card'
 import { IconFrasco } from '@/components/ui/icons'
 import {
@@ -16,6 +16,7 @@ import {
   type ModeloLinea,
   type ResultadoVista,
 } from '@/features/reportes/lib/lineaTiempoInformes'
+import { TablaInformes } from './TablaInformes'
 import styles from './ResultadosPorInforme.module.css'
 
 export type LaboratorioInformes = 'als' | 'diagnofruit'
@@ -381,82 +382,37 @@ function SerieDeUnidad({ modelo, unidad, conLeyenda }: { modelo: ModeloLinea; un
   )
 }
 
-/** Tabla: un informe por fila y una columna por analito, con su unidad bajo el nombre. */
-function TablaPorInforme({ modelo, nota, columnaDetalle }: { modelo: ModeloLinea; nota: string; columnaDetalle: string }) {
-  const filas = [...modelo.informes].reverse()
-  const conDetalle = modelo.informes.some((i) => i.detalle)
-  return (
-    <>
-      <div className={`${styles.marco} ${styles.tablaCaja}`}>
-        <table className={styles.tabla}>
-          <thead>
-            <tr>
-              <th>Fecha de muestreo</th>
-              <th>N° de informe</th>
-              {conDetalle && <th>{columnaDetalle}</th>}
-              {modelo.analitos.map((a) => (
-                <th key={a.codigo}>
-                  <div className={styles.cabAnalito}>
-                    <b>
-                      <i className={styles.punto} style={{ background: a.color.fill }} />
-                      {a.nombre.toUpperCase()}
-                    </b>
-                    <span>{a.unidad}</span>
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filas.map((inf, i) => (
-              <tr key={`${inf.nro}-${i}`}>
-                <td className={styles.fecha}>{inf.fechaTxt}</td>
-                <td>
-                  <span className={styles.informe}>{inf.nro}</span>
-                </td>
-                {conDetalle && <td className={styles.detalle}>{inf.detalle || '—'}</td>}
-                {modelo.analitos.map((a) => {
-                  const r = inf.porAnalito[a.codigo]
-                  return (
-                    <td key={a.codigo}>
-                      {!r ? (
-                        '—'
-                      ) : r.detectado ? (
-                        <span className={styles.chipSi} style={{ '--c': a.color.fill } as CSSProperties}>
-                          {r.texto}
-                        </span>
-                      ) : (
-                        <span className={styles.chipNo}>{r.texto}</span>
-                      )}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className={styles.pie}>{nota}</p>
-    </>
-  )
-}
-
 interface Props {
   informes: InformeVista[]
   laboratorio: LaboratorioInformes
   /** Encabezado de la columna de `detalle` de los informes (la zona de muestreo, en Diagnofruit). */
   columnaDetalle?: string
+  /**
+   * Si se muestran la línea de tiempo y la serie de tiempo (Administración General → Funciones). Apagados, de fábrica,
+   * queda solo la tabla.
+   */
+  conGraficos: boolean
 }
 
 /**
- * Lo que Report muestra cuando se elige ALS o Diagnofruit: una línea de tiempo y una serie de tiempo (ambos responden
- * «hay / no hay» y, si hay, cuánto) y debajo la tabla por informe. Los tres usan los mismos nombres, unidades, orden y colores.
+ * Lo que Report muestra cuando se elige ALS o Diagnofruit: la tabla por informe y, si el administrador principal los
+ * encendió, una línea de tiempo y una serie de tiempo (ambos responden «hay / no hay» y, si hay, cuánto) sobre ella. Los
+ * tres usan los mismos nombres, unidades, orden y colores.
  */
-export function ResultadosPorInforme({ informes, laboratorio, columnaDetalle = 'Zona de muestreo' }: Props) {
+export function ResultadosPorInforme({ informes, laboratorio, columnaDetalle = 'Zona de muestreo', conGraficos }: Props) {
   const textos = TEXTOS[laboratorio]
   const modelo = useMemo(() => modeloLinea(informes), [informes])
   const n = modelo.informes.length
   const hasta = modelo.dias.length
+  const tabla = (
+    <Card>
+      <Titulo sub="Un informe por fila. Toca un encabezado para ordenar; la búsqueda y la descarga respetan lo que ves.">
+        {conGraficos ? 'Detalle por informe' : 'Resultados por informe'}
+      </Titulo>
+      <TablaInformes modelo={modelo} nota={textos.nota} columnaDetalle={columnaDetalle} archivo={laboratorio} />
+    </Card>
+  )
+  if (!conGraficos) return <div className={styles.bloque}>{tabla}</div>
   return (
     <div className={styles.bloque}>
       <Card>
@@ -488,10 +444,7 @@ export function ResultadosPorInforme({ informes, laboratorio, columnaDetalle = '
           <SerieDeUnidad key={u || 'sin-unidad'} modelo={modelo} unidad={u} conLeyenda={k === modelo.unidades.length - 1} />
         ))}
       </Card>
-      <Card>
-        <Titulo sub="Un informe por fila, el más reciente arriba.">Detalle por informe</Titulo>
-        <TablaPorInforme modelo={modelo} nota={textos.nota} columnaDetalle={columnaDetalle} />
-      </Card>
+      {tabla}
     </div>
   )
 }
