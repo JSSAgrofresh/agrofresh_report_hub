@@ -52,6 +52,17 @@ describe('ResultadosPorInforme', () => {
     expect(titulos).toContain('496563 · 30-10-2026 · Escherichia coli: <1 UFC/100 mL')
   })
 
+  it('la leyenda «No se detectó» sale una sola vez aunque haya varias series', () => {
+    const ALIM = { codigo: 'COLA', nombre: 'Coliformes Totales', unidad: 'UFC/g', orden: 3 }
+    render(<ResultadosPorInforme laboratorio="als" informes={[{ nro: '1', fecha: '2026-10-01', resultados: [con(COLT, 5), con(ALIM, 300)] }]} />)
+    expect(screen.getAllByText('No se detectó (queda en cero)')).toHaveLength(1)
+  })
+
+  it('el día de la semana va junto a la fecha', () => {
+    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" />)
+    expect(screen.getAllByText('jueves · 1 informe').length).toBeGreaterThan(0)
+  })
+
   it('con analitos de otra unidad hay una serie de tiempo por unidad', () => {
     const ALIM = { codigo: 'COLA', nombre: 'Coliformes Totales', unidad: 'UFC/g', orden: 3 }
     render(<ResultadosPorInforme laboratorio="als" informes={[{ nro: '1', fecha: '2026-10-01', resultados: [con(COLT, 5), con(ALIM, 300)] }]} />)

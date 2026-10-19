@@ -2,9 +2,12 @@ import { useMemo, type CSSProperties } from 'react'
 import { Card } from '@/components/ui/Card'
 import { IconFrasco } from '@/components/ui/icons'
 import {
+  HUECO_CORTE,
+  X0_EJE,
   escalaBonita,
   hayCorte,
   modeloLinea,
+  pasoDeEje,
   posicionesX,
   radioDeValor,
   radioVacio,
@@ -26,14 +29,6 @@ const TEXTOS: Record<LaboratorioInformes, { vacio: string; nota: string }> = {
     vacio: 'BLD (no se detectó: bajo el límite de detección)',
     nota: '«BLD»: bajo el límite de detección del laboratorio; el patógeno no se detectó.',
   },
-}
-
-const X0 = 190
-const HUECO = 130
-
-/** Cuánto se separan los informes: con muchos, más juntos (el gráfico se desplaza hacia el lado). */
-function pasoPara(n: number): number {
-  return n <= 14 ? 90 : n <= 30 ? 64 : 50
 }
 
 const corto = (texto: string, max: number) => (texto.length > max ? `${texto.slice(0, max - 1)}…` : texto)
@@ -82,50 +77,77 @@ function Corte({ x1, x2, y, dias }: { x1: number; x2: number; y: number; dias: n
   )
 }
 
-/** Línea de tiempo: un círculo por informe y analito (vacío = no se detectó, lleno = se detectó y crece con el valor), sobre un eje de fechas. */
+/** Un color del analito con transparencia, para pistas, halos y áreas (el relleno sólido sigue siendo `fill`). */
+const tinte = (color: string, porcentaje: number) => `color-mix(in srgb, ${color} ${porcentaje}%, transparent)`
+
+/** El día de la semana junto a la fecha («jueves · 5 informes»). */
+function subDia(d: { diaSemana: string | null }, n: number): string {
+  const informes = `${n} informe${n === 1 ? '' : 's'}`
+  return d.diaSemana ? `${d.diaSemana} · ${informes}` : informes
+}
+
+/**
+ * Línea de tiempo: un círculo por informe y analito (vacío = no se detectó, lleno = se detectó y crece con el valor)
+ * sobre una vía de fechas. Cada informe es una columna; al pasar el mouse se resalta. La vía marca con un punto lleno los
+ * días en que algo se detectó.
+ */
 function LineaDeTiempo({ modelo }: { modelo: ModeloLinea }) {
-  const paso = pasoPara(modelo.informes.length)
-  const { xs, fin } = posicionesX(modelo, X0, paso, HUECO)
+  const cortes = modelo.dias.filter(hayCorte).length
+  const paso = pasoDeEje(modelo.informes.length, cortes)
+  const { xs, fin } = posicionesX(modelo, X0_EJE, paso, HUECO_CORTE)
   const maximos = maximoPorUnidad(modelo)
   const carriles = modelo.analitos.length
-  const yCarril = (k: number) => 100 + 85 * k
-  const finBandas = yCarril(carriles - 1) + 74
-  const yEje = finBandas + 80
+  const yCarril = (k: number) => 86 + 100 * k
+  const arriba = 28
+  const finBandas = yCarril(carriles - 1) + 78
+  const yEje = finBandas + 66
   const ancho = fin + 40
   const alto = yEje + 70
-  const inclinar = paso < 70
 
   return (
     <div className={styles.marco}>
       <svg
         className={styles.svg}
         viewBox={`0 0 ${ancho} ${alto}`}
-        style={{ width: '100%', minWidth: Math.round(ancho * 0.78), maxWidth: Math.round(ancho * 1.15) }}
+        style={{ width: '100%', minWidth: Math.round(ancho * 0.78), maxWidth: Math.round(ancho * 1.4) }}
         role="img"
         aria-label="Línea de tiempo de los resultados: un círculo por informe y analito"
       >
         {modelo.dias.map((d, k) => {
           const xa = xs[d.desde] - paso / 2 + 4
           const xb = xs[d.hasta] + paso / 2 - 4
-          return <rect key={`b${k}`} className={k % 2 === 0 ? styles.bandaA : styles.bandaB} x={xa} y={30} width={xb - xa} height={finBandas - 30} rx={12} />
+          return <rect key={`b${k}`} className={k % 2 === 0 ? styles.bandaA : styles.bandaB} x={xa} y={arriba} width={xb - xa} height={finBandas - arriba} rx={14} />
         })}
 
         {modelo.analitos.map((a, k) => (
           <g key={a.codigo}>
-            <line className={styles.guia} x1={X0 - 6} x2={fin} y1={yCarril(k)} y2={yCarril(k)} />
-            <circle cx={26} cy={yCarril(k)} r={7} fill={a.color.fill} />
-            <text className={`${styles.txt} ${styles.valor}`} x={42} y={yCarril(k) - 3} fontSize={13}>
-              {corto(a.nombre, 21)}
+            {modelo.dias.map((d, j) => (
+              <rect
+                key={`p${j}`}
+                x={xs[d.desde] - paso / 2 + 12}
+                y={yCarril(k) - 32}
+                width={xs[d.hasta] - xs[d.desde] + paso - 24}
+                height={64}
+                rx={32}
+                style={{ fill: tinte(a.color.fill, 13) }}
+              />
+            ))}
+            <circle cx={26} cy={yCarril(k)} r={8} fill={a.color.fill} />
+            <circle cx={26} cy={yCarril(k)} r={13} style={{ fill: tinte(a.color.fill, 22) }} />
+            <circle cx={26} cy={yCarril(k)} r={8} fill={a.color.fill} />
+            <text className={`${styles.txt} ${styles.valor}`} x={50} y={yCarril(k) - 3} fontSize={14}>
+              {corto(a.nombre, 20)}
               <title>{a.nombre}</title>
             </text>
-            <text className={styles.txtFaint} x={42} y={yCarril(k) + 14} fontSize={11}>
+            <text className={styles.txtFaint} x={50} y={yCarril(k) + 15} fontSize={11.5}>
               {a.unidad}
             </text>
           </g>
         ))}
 
         {modelo.informes.map((inf, i) => (
-          <g key={`${inf.nro}-${i}`}>
+          <g key={`${inf.nro}-${i}`} className={styles.columna}>
+            <rect className={styles.columnaFondo} x={xs[i] - paso / 2 + 3} y={arriba + 4} width={paso - 6} height={finBandas - arriba - 8} rx={12} />
             {modelo.analitos.map((a, k) => {
               const r = inf.porAnalito[a.codigo]
               if (!r) return null
@@ -135,6 +157,7 @@ function LineaDeTiempo({ modelo }: { modelo: ModeloLinea }) {
                   <title>{resumenResultado(inf, a, r)}</title>
                   {r.detectado ? (
                     <>
+                      <circle cx={xs[i]} cy={cy} r={radioDeValor(r.valor, maximos.get(a.unidad) ?? 0, r.texto) + 5} style={{ fill: tinte(a.color.fill, 24) }} />
                       <circle cx={xs[i]} cy={cy} r={radioDeValor(r.valor, maximos.get(a.unidad) ?? 0, r.texto)} fill={a.color.fill} />
                       <text x={xs[i]} y={cy + 4.5} textAnchor="middle" fontSize={12.5} fontWeight={700} fill={a.color.text}>
                         {r.texto}
@@ -151,20 +174,14 @@ function LineaDeTiempo({ modelo }: { modelo: ModeloLinea }) {
                 </g>
               )
             })}
-            <text
-              className={styles.nro}
-              x={xs[i]}
-              y={finBandas - 12}
-              textAnchor={inclinar ? 'end' : 'middle'}
-              fontSize={11}
-              transform={inclinar ? `rotate(-50 ${xs[i]} ${finBandas - 12})` : undefined}
-            >
+            <rect className={styles.pildoraInforme} x={xs[i] - 37} y={finBandas - 32} width={74} height={22} rx={11} />
+            <text className={styles.nro} x={xs[i]} y={finBandas - 17} textAnchor="middle" fontSize={11}>
               {inf.etiqueta}
             </text>
           </g>
         ))}
 
-        <text className={`${styles.txtMuted} ${styles.valor}`} x={42} y={yEje + 4} fontSize={12}>
+        <text className={`${styles.txtMuted} ${styles.valor}`} x={26} y={yEje + 5} fontSize={12.5}>
           Fecha de muestreo
         </text>
         {modelo.dias.map((d, k) => {
@@ -173,20 +190,24 @@ function LineaDeTiempo({ modelo }: { modelo: ModeloLinea }) {
           return (
             <g key={`d${k}`}>
               {d.hasta > d.desde && <line className={styles.ejeTiempo} x1={xs[d.desde]} x2={xs[d.hasta]} y1={yEje} y2={yEje} />}
-              {xs.slice(d.desde, d.hasta + 1).map((x, j) => (
-                <g key={j}>
-                  <line className={styles.guiaFina} x1={x} x2={x} y1={finBandas + 6} y2={yEje - 7} />
-                  <circle className={styles.nodo} cx={x} cy={yEje} r={5} />
-                </g>
-              ))}
-              <text className={`${styles.txt} ${styles.valor}`} x={medio} y={yEje + 30} textAnchor="middle" fontSize={13}>
+              {xs.slice(d.desde, d.hasta + 1).map((x, j) => {
+                const huboAlgo = modelo.analitos.some((a) => modelo.informes[d.desde + j].porAnalito[a.codigo]?.detectado)
+                return (
+                  <g key={j}>
+                    <line className={styles.guiaFina} x1={x} x2={x} y1={finBandas + 4} y2={yEje - 10} />
+                    {huboAlgo && <circle cx={x} cy={yEje} r={14} className={styles.nodoAro} />}
+                    <circle className={huboAlgo ? styles.nodoSi : styles.nodo} cx={x} cy={yEje} r={8} />
+                  </g>
+                )
+              })}
+              <text className={`${styles.txt} ${styles.valor}`} x={medio} y={yEje + 40} textAnchor="middle" fontSize={15}>
                 {d.etiqueta}
               </text>
-              <text className={styles.txtFaint} x={medio} y={yEje + 47} textAnchor="middle" fontSize={11}>
-                {n} informe{n === 1 ? '' : 's'}
+              <text className={styles.txtFaint} x={medio} y={yEje + 58} textAnchor="middle" fontSize={12}>
+                {subDia(d, n)}
               </text>
               {hayCorte(d) && d.diasDesdeAnterior !== null && (
-                <Corte x1={xs[d.desde - 1] + 10} x2={xs[d.desde] - 10} y={yEje} dias={d.diasDesdeAnterior} />
+                <Corte x1={xs[d.desde - 1] + 14} x2={xs[d.desde] - 14} y={yEje} dias={d.diasDesdeAnterior} />
               )}
             </g>
           )
@@ -196,61 +217,109 @@ function LineaDeTiempo({ modelo }: { modelo: ModeloLinea }) {
   )
 }
 
-/** Serie de tiempo de una unidad: el valor en el eje vertical, una línea por analito. Lo que no se detectó baja a cero. */
-function SerieDeUnidad({ modelo, unidad }: { modelo: ModeloLinea; unidad: string }) {
+/** Serie de tiempo de una unidad: el valor en el eje vertical, una línea con su área por analito. Lo que no se detectó baja a cero. */
+function SerieDeUnidad({ modelo, unidad, conLeyenda }: { modelo: ModeloLinea; unidad: string; conLeyenda: boolean }) {
   const analitos = modelo.analitos.filter((a) => a.unidad === unidad)
-  const paso = pasoPara(modelo.informes.length)
-  const { xs, fin } = posicionesX(modelo, X0, paso, HUECO)
-  const cortes = new Set(modelo.dias.filter(hayCorte).map((d) => d.desde))
+  const cortes = modelo.dias.filter(hayCorte).length
+  const paso = pasoDeEje(modelo.informes.length, cortes)
+  const { xs, fin } = posicionesX(modelo, X0_EJE, paso, HUECO_CORTE)
+  const corteAntesDe = new Set(modelo.dias.filter(hayCorte).map((d) => d.desde))
   const mayor = Math.max(0, ...modelo.informes.flatMap((i) => analitos.map((a) => i.porAnalito[a.codigo]?.valor ?? 0)))
   const escala = escalaBonita(mayor)
   const arriba = 44
-  const abajo = 244
+  const abajo = 280
   const y = (v: number) => abajo - (v / escala.max) * (abajo - arriba)
-  const yDias = abajo + 50
+  const finBandas = abajo + 46
+  const yDias = finBandas + 52
   const ancho = fin + 40
-  const alto = abajo + 82
-  const inclinar = paso < 70
+  const alto = yDias + 36
   const valorEn = (i: number, a: AnalitoLinea): number | null => {
     const r = modelo.informes[i].porAnalito[a.codigo]
     if (!r) return null
     return r.detectado ? r.valor : 0
   }
+  /** Si otro punto del mismo informe queda justo encima, el valor va debajo de su punto para que no se pisen. */
+  const etiquetaAbajo = (i: number, a: AnalitoLinea): boolean => {
+    const mio = y(valorEn(i, a) ?? 0)
+    return analitos.some((b) => {
+      if (b.codigo === a.codigo || !modelo.informes[i].porAnalito[b.codigo]?.detectado) return false
+      const otro = y(valorEn(i, b) ?? 0)
+      return otro < mio && mio - otro < 30
+    })
+  }
+  /** Tramos de informes seguidos de un analito, sin saltar un corte de eje ni un informe sin dato. */
+  const tramos = (a: AnalitoLinea): number[][] => {
+    const res: number[][] = []
+    let actual: number[] = []
+    modelo.informes.forEach((_, i) => {
+      const v = valorEn(i, a)
+      if (v === null || (corteAntesDe.has(i) && actual.length)) {
+        if (actual.length) res.push(actual)
+        actual = []
+      }
+      if (v !== null) actual.push(i)
+    })
+    if (actual.length) res.push(actual)
+    return res
+  }
 
   return (
     <div className={styles.panelUnidad}>
+      <div className={styles.leyendaSerie}>
+        <span className={styles.unidadChip}>{unidad || 'sin unidad'}</span>
+        {analitos.map((a) => (
+          <span key={a.codigo} className={styles.analitoChip}>
+            <i className={styles.punto} style={{ background: a.color.fill }} />
+            {a.nombre}
+          </span>
+        ))}
+      </div>
       <div className={styles.marco}>
         <svg
           className={styles.svg}
           viewBox={`0 0 ${ancho} ${alto}`}
-          style={{ width: '100%', minWidth: Math.round(ancho * 0.78), maxWidth: Math.round(ancho * 1.15) }}
+          style={{ width: '100%', minWidth: Math.round(ancho * 0.78), maxWidth: Math.round(ancho * 1.4) }}
           role="img"
           aria-label={`Serie de tiempo de los resultados en ${unidad}`}
         >
           {modelo.dias.map((d, k) => {
             const xa = xs[d.desde] - paso / 2 + 4
             const xb = xs[d.hasta] + paso / 2 - 4
-            return <rect key={`b${k}`} className={k % 2 === 0 ? styles.bandaA : styles.bandaB} x={xa} y={arriba - 14} width={xb - xa} height={abajo - arriba + 34} rx={12} />
+            return <rect key={`b${k}`} className={k % 2 === 0 ? styles.bandaA : styles.bandaB} x={xa} y={arriba - 18} width={xb - xa} height={finBandas - arriba + 18} rx={14} />
           })}
-          <text className={styles.txtFaint} x={24} y={arriba - 22} fontSize={11}>
-            {unidad}
-          </text>
           {escala.marcas.map((m) => (
             <g key={m}>
-              <line className={m === 0 ? styles.ejeBase : styles.rejilla} x1={X0 - 10} x2={fin} y1={y(m)} y2={y(m)} />
-              <text className={styles.txtFaint} x={X0 - 18} y={y(m) + 4} textAnchor="end" fontSize={11}>
+              <line className={m === 0 ? styles.ejeBase : styles.rejilla} x1={X0_EJE - 14} x2={fin} y1={y(m)} y2={y(m)} />
+              <text className={styles.txtFaint} x={X0_EJE - 24} y={y(m) + 4} textAnchor="end" fontSize={11.5}>
                 {m}
               </text>
             </g>
           ))}
 
+          {modelo.informes.map((inf, i) => (
+            <g key={`${inf.nro}-${i}`} className={styles.columna}>
+              <rect className={styles.columnaFondo} x={xs[i] - paso / 2 + 3} y={arriba - 14} width={paso - 6} height={finBandas - arriba + 10} rx={12} />
+              <rect className={styles.pildoraInforme} x={xs[i] - 37} y={abajo + 12} width={74} height={22} rx={11} />
+              <text className={styles.nro} x={xs[i]} y={abajo + 27} textAnchor="middle" fontSize={11}>
+                {inf.etiqueta}
+              </text>
+            </g>
+          ))}
+
           {analitos.map((a) =>
-            modelo.informes.slice(0, -1).map((_, i) => {
-              const v1 = valorEn(i, a)
-              const v2 = valorEn(i + 1, a)
-              if (v1 === null || v2 === null || cortes.has(i + 1)) return null
+            tramos(a).map((tramo, t) => {
+              const puntos = tramo.map((i) => `${xs[i].toFixed(1)},${y(valorEn(i, a) ?? 0).toFixed(1)}`)
+              const primero = xs[tramo[0]].toFixed(1)
+              const ultimo = xs[tramo[tramo.length - 1]].toFixed(1)
               return (
-                <line key={`${a.codigo}-${i}`} x1={xs[i]} y1={y(v1)} x2={xs[i + 1]} y2={y(v2)} stroke={a.color.fill} strokeWidth={3.5} strokeLinecap="round" opacity={0.9} />
+                <g key={`${a.codigo}-t${t}`}>
+                  {tramo.length > 1 && (
+                    <>
+                      <path d={`M${primero},${y(0)} L${puntos.join(' L')} L${ultimo},${y(0)} Z`} style={{ fill: tinte(a.color.fill, 16) }} />
+                      <polyline points={puntos.join(' ')} fill="none" stroke={a.color.fill} strokeWidth={4} strokeLinejoin="round" strokeLinecap="round" />
+                    </>
+                  )}
+                </g>
               )
             }),
           )}
@@ -265,8 +334,9 @@ function SerieDeUnidad({ modelo, unidad }: { modelo: ModeloLinea; unidad: string
                   <title>{resumenResultado(inf, a, r)}</title>
                   {r.detectado ? (
                     <>
-                      <circle cx={xs[i]} cy={y(v)} r={6} fill={a.color.fill} stroke="var(--color-surface)" strokeWidth={2.5} />
-                      <text className={styles.etiquetaValor} x={xs[i]} y={y(v) - 12} textAnchor="middle" fontSize={11.5}>
+                      <circle cx={xs[i]} cy={y(v)} r={9} style={{ fill: tinte(a.color.fill, 28) }} />
+                      <circle cx={xs[i]} cy={y(v)} r={6.5} fill={a.color.fill} stroke="var(--color-surface)" strokeWidth={2.5} />
+                      <text className={styles.etiquetaValor} x={xs[i]} y={etiquetaAbajo(i, a) ? y(v) + 24 : y(v) - 15} textAnchor="middle" fontSize={12}>
                         {r.texto}
                       </text>
                     </>
@@ -278,49 +348,35 @@ function SerieDeUnidad({ modelo, unidad }: { modelo: ModeloLinea; unidad: string
             }),
           )}
 
-          {modelo.informes.map((inf, i) => (
-            <text
-              key={`${inf.nro}-${i}`}
-              className={styles.nro}
-              x={xs[i]}
-              y={abajo + 18}
-              textAnchor={inclinar ? 'end' : 'middle'}
-              fontSize={10.5}
-              transform={inclinar ? `rotate(-50 ${xs[i]} ${abajo + 18})` : undefined}
-            >
-              {inf.etiqueta}
-            </text>
-          ))}
-
-          {modelo.dias.map((d, k) => (
-            <g key={`d${k}`}>
-              <line className={styles.ejeTiempo} x1={xs[d.desde] - 8} x2={xs[d.hasta] + 8} y1={yDias - 16} y2={yDias - 16} />
-              <text className={`${styles.txt} ${styles.valor}`} x={(xs[d.desde] + xs[d.hasta]) / 2} y={yDias + 4} textAnchor="middle" fontSize={13}>
-                {d.etiqueta}
-              </text>
-              {hayCorte(d) && d.diasDesdeAnterior !== null && (
-                <Corte x1={xs[d.desde - 1] + 22} x2={xs[d.desde] - 22} y={yDias - 16} dias={d.diasDesdeAnterior} />
-              )}
-            </g>
-          ))}
+          {modelo.dias.map((d, k) => {
+            const n = d.hasta - d.desde + 1
+            return (
+              <g key={`d${k}`}>
+                <line className={styles.ejeTiempo} x1={xs[d.desde] - 10} x2={xs[d.hasta] + 10} y1={yDias - 22} y2={yDias - 22} />
+                <text className={`${styles.txt} ${styles.valor}`} x={(xs[d.desde] + xs[d.hasta]) / 2} y={yDias + 2} textAnchor="middle" fontSize={15}>
+                  {d.etiqueta}
+                </text>
+                <text className={styles.txtFaint} x={(xs[d.desde] + xs[d.hasta]) / 2} y={yDias + 20} textAnchor="middle" fontSize={12}>
+                  {subDia(d, n)}
+                </text>
+                {hayCorte(d) && d.diasDesdeAnterior !== null && (
+                  <Corte x1={xs[d.desde - 1] + 24} x2={xs[d.desde] - 24} y={yDias - 22} dias={d.diasDesdeAnterior} />
+                )}
+              </g>
+            )
+          })}
         </svg>
       </div>
-      <div className={styles.leyenda}>
-        {analitos.map((a) => (
-          <span key={a.codigo}>
-            <svg width={34} height={14} aria-hidden="true">
-              <line x1={2} x2={32} y1={7} y2={7} stroke={a.color.fill} strokeWidth={4} strokeLinecap="round" />
+      {conLeyenda && (
+        <div className={styles.leyenda}>
+          <span>
+            <svg width={22} height={22} aria-hidden="true">
+              <circle className={styles.vacio} cx={11} cy={11} r={6} />
             </svg>
-            {a.nombre}
+            No se detectó (queda en cero)
           </span>
-        ))}
-        <span>
-          <svg width={22} height={22} aria-hidden="true">
-            <circle className={styles.vacio} cx={11} cy={11} r={6} />
-          </svg>
-          No se detectó (queda en cero)
-        </span>
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -428,8 +484,8 @@ export function ResultadosPorInforme({ informes, laboratorio, columnaDetalle = '
         <Titulo sub={`Las líneas unen informes consecutivos. Lo que no se detectó baja a cero. ${n} informe${n === 1 ? '' : 's'} en ${hasta} fecha${hasta === 1 ? '' : 's'} de muestreo.`}>
           Evolución de los resultados
         </Titulo>
-        {modelo.unidades.map((u) => (
-          <SerieDeUnidad key={u || 'sin-unidad'} modelo={modelo} unidad={u} />
+        {modelo.unidades.map((u, k) => (
+          <SerieDeUnidad key={u || 'sin-unidad'} modelo={modelo} unidad={u} conLeyenda={k === modelo.unidades.length - 1} />
         ))}
       </Card>
       <Card>

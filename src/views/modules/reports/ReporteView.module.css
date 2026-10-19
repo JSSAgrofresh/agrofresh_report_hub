@@ -740,34 +740,7 @@
   color: var(--color-text-muted);
 }
 
-.indicadores {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  font-size: 13px;
-}
-
-.indicadores div {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.indicadores div:last-child {
-  border-bottom: none;
-}
-
-.indicadores span {
-  color: var(--color-text-faint);
-}
-
-.indicadores b {
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── tabla dinámica (Diagnofruit) ── */
+/* ── título con ícono de los paneles de Report ── */
 .tituloConIcono {
   display: flex;
   align-items: center;
@@ -779,26 +752,6 @@
   height: 16px;
   color: var(--acento);
   flex-shrink: 0;
-}
-
-.indicadorConPunto {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-weight: 500;
-}
-
-.puntoColor {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 15%, transparent);
-}
-
-.celdaDetectada {
-  color: var(--color-danger);
-  font-weight: 700;
 }
 
 @media (max-width: 1100px) {

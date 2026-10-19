@@ -576,31 +576,14 @@ export function ReporteView({
     [gruposDiagnofruit],
   )
 
-  // El gráfico de barras de abajo es un resumen de la misma tabla, no un dato
-  // aparte: cuántas muestras dieron positivo/negativo para cada patógeno, de
-  // los que de verdad se analizaron con los filtros de arriba puestos. El
-  // color de cada patógeno es el mismo `colorDeIngrediente` que usa el resto
-  // de Report -así un mismo código siempre se ve del mismo color, esté en la
-  // tabla, en el gráfico o en el filtro "Ingrediente Activo"-.
-  const resumenPatogenosDiagnofruit = useMemo(() => {
-    if (!esDiagnofruit) return []
-    const porCodigo = new Map<string, { nombre: string; detectado: number; noDetectado: number }>()
-    gruposDiagnofruit.forEach((grupo) => {
-      grupo.patogenos.forEach((p) => {
-        const entrada = porCodigo.get(p.codigo) ?? { nombre: p.nombre, detectado: 0, noDetectado: 0 }
-        if (p.detectado) entrada.detectado += 1
-        else entrada.noDetectado += 1
-        porCodigo.set(p.codigo, entrada)
-      })
-    })
-    return [...porCodigo.entries()]
-      .map(([codigo, c]) => ({ codigo, color: colorDeIngrediente(codigo), ...c }))
-      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-  }, [esDiagnofruit, gruposDiagnofruit])
-
+  // Los números de las tarjetas de arriba: cuántos analitos distintos se midieron y cuántos resultados salieron detectados.
+  const analitosMedidos = useMemo(
+    () => new Set(gruposDiagnofruit.flatMap((g) => g.patogenos.map((p) => p.codigo))).size,
+    [gruposDiagnofruit],
+  )
   const totalDetecciones = useMemo(
-    () => resumenPatogenosDiagnofruit.reduce((acc, r) => acc + r.detectado, 0),
-    [resumenPatogenosDiagnofruit],
+    () => gruposDiagnofruit.reduce((t, g) => t + g.patogenos.filter((p) => p.detectado).length, 0),
+    [gruposDiagnofruit],
   )
 
   // Solo las filas con un ppm numérico entran a las estadísticas y los gráficos
@@ -664,12 +647,9 @@ export function ReporteView({
 
   // ── gráficos ──
   const mainRef = useRef<HTMLCanvasElement>(null)
-  const diagnoBarRef = useRef<HTMLCanvasElement>(null)
   const mainChart = useRef<Chart | null>(null)
   const analitoResaltado = useRef<string | null>(null)
-  const diagnoBarChart = useRef<Chart | null>(null)
 
-  const colorOk = cssVar('--color-ok', '#2f7d32')
   const colorDanger = cssVar('--color-danger', '#b0271f')
   const colorWarning = cssVar('--color-warning', '#b4531f')
   const colorMuted = cssVar('--color-text-faint', '#77837b')
@@ -1124,64 +1104,6 @@ export function ReporteView({
     })
     return () => ingredienteChart.current?.destroy()
   }, [promedioPorIngrediente, unidad, colorBorder])
-
-  useEffect(() => {
-    if (!esDiagnofruit || !diagnoBarRef.current) return
-    diagnoBarChart.current?.destroy()
-    diagnoBarChart.current = new Chart(diagnoBarRef.current, {
-      type: 'bar',
-      data: {
-        labels: resumenPatogenosDiagnofruit.map((r) => r.nombre),
-        datasets: [
-          {
-            label: 'Detectado',
-            data: resumenPatogenosDiagnofruit.map((r) => r.detectado),
-            backgroundColor: colorDanger,
-            borderRadius: 4,
-            maxBarThickness: 40,
-          },
-          {
-            label: 'No detectado',
-            data: resumenPatogenosDiagnofruit.map((r) => r.noDetectado),
-            backgroundColor: colorOk,
-            borderRadius: 4,
-            maxBarThickness: 40,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } } },
-        scales: {
-          y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: colorBorder }, stacked: true },
-          x: {
-            grid: { display: false },
-            stacked: true,
-            // Cada patógeno con su color representativo -el mismo que usa en la
-            // tabla de arriba y en el filtro "Ingrediente Activo"- para que se
-            // reconozca de un vistazo cuál barra es cuál sin mirar la leyenda.
-            ticks: {
-              color: (ctx) => resumenPatogenosDiagnofruit[ctx.index]?.color ?? colorMuted,
-              font: { weight: 'bold' },
-            },
-          },
-        },
-        onClick: (_evt, elements) => {
-          if (!elements.length) return
-          const { datasetIndex, index } = elements[0]
-          const fila = resumenPatogenosDiagnofruit[index]
-          if (!fila) return
-          const detectadoSel = datasetIndex === 0
-          const obs = filtradas.filter((o) => o.ingrediente === fila.codigo && esDetectado(o) === detectadoSel)
-          if (obs.length) {
-            setDetalle({ titulo: `${fila.nombre} · ${detectadoSel ? 'Detectado' : 'No detectado'}`, filas: obs })
-          }
-        },
-      },
-    })
-    return () => diagnoBarChart.current?.destroy()
-  }, [esDiagnofruit, resumenPatogenosDiagnofruit, filtradas, colorDanger, colorOk, colorBorder, colorMuted])
 
   // Los gráficos llaman a estos cambios desde sus propios efectos: se pasan
   // por ref para no recrear cada gráfico en cada render.
@@ -1692,11 +1614,7 @@ export function ReporteView({
                 </Card>
                 <Card className={`${styles.statCard} ${styles.info}`}>
                   <span className={styles.statLbl}>{esAls ? 'Analitos medidos' : 'Patógenos analizados'}</span>
-                  <span className={styles.statNum}>
-                    {esAls
-                      ? new Set(gruposDiagnofruit.flatMap((g) => g.patogenos.map((p) => p.codigo))).size
-                      : resumenPatogenosDiagnofruit.length}
-                  </span>
+                  <span className={styles.statNum}>{analitosMedidos}</span>
                 </Card>
                 {esDiagnofruit && (
                   <Card className={`${styles.statCard} ${styles.danger}`}>
@@ -1718,36 +1636,6 @@ export function ReporteView({
                   </h3>
                   <p className={styles.nota}>No hay resultados de {esAls ? 'ALS' : 'Diagnofruit'} para estos filtros.</p>
                 </Card>
-              )}
-
-              {esDiagnofruit && gruposDiagnofruit.length > 0 && (
-                <div className={styles.grid2}>
-                  <Card className={styles.panel}>
-                    <h3>
-                      Detecciones por patógeno
-                      <span className={styles.hintClic}>resumen de la tabla de arriba · clic en una barra para ver el detalle</span>
-                    </h3>
-                    <div className={styles.chartbox}>
-                      <canvas ref={diagnoBarRef} />
-                    </div>
-                  </Card>
-                  <Card className={styles.panel}>
-                    <h3>Indicadores</h3>
-                    <div className={styles.indicadores}>
-                      {resumenPatogenosDiagnofruit.map((r) => (
-                        <div key={r.codigo}>
-                          <span className={styles.indicadorConPunto}>
-                            <span className={styles.puntoColor} style={{ background: r.color, color: r.color }} />
-                            {r.nombre}
-                          </span>
-                          <b className={r.detectado > 0 ? styles.celdaDetectada : undefined}>
-                            {r.detectado} detectada{r.detectado === 1 ? '' : 's'} de {r.detectado + r.noDetectado}
-                          </b>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                </div>
               )}
             </>
           ) : (
