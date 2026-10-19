@@ -145,15 +145,40 @@ describe('UsuarioForm: cuenta de comercial', () => {
     modulos: ['reports', 'storage'], reportes: ['laboratorio'],
     plantasAsignadas: [{ clienteNombre: 'DOLE', plantaNombre: 'DOLE LONTUE' }],
   }
+  const storage = () => screen.getByRole('checkbox', { name: /^Storage/ })
+  const report = () => screen.getByRole('checkbox', { name: /^Report(?!e)/ })
 
-  it('guarda sus plantas y solo lo que abre, sin área ni permisos de administración', () => {
-    const onGuardar = guardar(comercial, () => fireEvent.click(screen.getByRole('checkbox', { name: /Storage/ })))
+  it('guarda sus plantas y solo lo que abre, sin área', () => {
+    const onGuardar = guardar(comercial, () => fireEvent.click(storage()))
     const datos = onGuardar.mock.calls[0][0] as Usuario
     expect(datos.tipoAcceso).toBe('comercial')
     expect(datos.modulos).toEqual(['reports'])
     expect(datos.reportes).toEqual(['laboratorio'])
     expect(datos.plantasAsignadas).toEqual([{ clienteNombre: 'DOLE', plantaNombre: 'DOLE LONTUE' }])
     expect(datos.area).toBeUndefined()
+  })
+
+  it('muestra el listado de módulos por categoría, pero solo deja dar lo que ya se acota a sus plantas', () => {
+    render(<UsuarioForm usuario={comercial} onGuardar={() => {}} onCancelar={() => {}} />)
+    for (const n of ['Data Core', 'Resultados y auditoría', 'AgroFresh Lab', 'Toma de muestras', 'Archivos']) {
+      expect(screen.getByRole('region', { name: n })).toBeTruthy()
+    }
+    expect((report() as HTMLInputElement).disabled).toBe(false)
+    expect((storage() as HTMLInputElement).checked).toBe(true)
+    const converter = screen.getByRole('checkbox', { name: /^Converter/ }) as HTMLInputElement
+    expect(converter.disabled).toBe(true)
+    expect(converter.checked).toBe(false)
+    expect(screen.getByText(/todavía no se pueden dar a un comercial/)).toBeTruthy()
+    expect(screen.getAllByText('aún no disponible').length).toBeGreaterThan(5)
+  })
+
+  it('«Marcar todo» nunca marca lo que no está disponible para un comercial', () => {
+    const onGuardar = guardar({ ...comercial, modulos: [], reportes: [] }, () => {
+      fireEvent.click(within(screen.getByRole('region', { name: 'Data Core' })).getByRole('button', { name: 'Marcar todo' }))
+      fireEvent.click(report())
+    })
+    const datos = onGuardar.mock.calls[0][0] as Usuario
+    expect(datos.modulos).toEqual(['reports'])
   })
 
   it('no deja guardar un comercial sin plantas', () => {
@@ -164,13 +189,14 @@ describe('UsuarioForm: cuenta de comercial', () => {
 
   it('no deja guardar un comercial que no abre nada', () => {
     const onGuardar = guardar(comercial, () => {
-      fireEvent.click(screen.getByRole('checkbox', { name: /Report de laboratorio/ }))
-      fireEvent.click(screen.getByRole('checkbox', { name: /Storage/ }))
+      fireEvent.click(report())
+      fireEvent.click(storage())
     })
     expect(onGuardar).not.toHaveBeenCalled()
+    expect(screen.getByText(/Elige qué abre el comercial/)).toBeTruthy()
   })
 
-  it('trae sus plantas de las listas de distribución y se pueden quitar', async () => {
+  it('trae sus plantas de las listas de distribución, ordenadas por cliente, y se pueden quitar', async () => {
     buscar.mockResolvedValue([
       { clienteNombre: 'DOLE', plantaNombre: 'DOLE LONTUE' },
       { clienteNombre: 'VERFRUT', plantaNombre: 'VERFRUT RAPEL' },
@@ -178,9 +204,8 @@ describe('UsuarioForm: cuenta de comercial', () => {
     const onGuardar = vi.fn()
     render(<UsuarioForm usuario={comercial} onGuardar={onGuardar} onCancelar={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: /Traer sus plantas de las listas/ }))
-    await waitFor(() => expect(screen.getByText('VERFRUT · VERFRUT RAPEL')).toBeTruthy())
-    expect(screen.getAllByText('DOLE · DOLE LONTUE')).toHaveLength(1) // sin repetir la que ya tenía
-    fireEvent.click(screen.getByRole('button', { name: 'Quitar DOLE · DOLE LONTUE' }))
+    await waitFor(() => expect(screen.getByText('2 plantas en 2 clientes')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar todo DOLE' }))
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
     expect((onGuardar.mock.calls[0][0] as Usuario).plantasAsignadas).toEqual([{ clienteNombre: 'VERFRUT', plantaNombre: 'VERFRUT RAPEL' }])
   })

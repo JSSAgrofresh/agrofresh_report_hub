@@ -189,3 +189,12 @@
     align-items: flex-start;
   }
 }
+
+.apagada {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.apagada input {
+  cursor: not-allowed;
+}
