@@ -1058,7 +1058,7 @@ function avisarFaltantes(inf){
 
 /* Labs cuyo informe NO trae el Sold To / Ship To / especie con el nombre oficial (ALS escribe
    «GREENEX-CODEGUA», Diagnofruit «Gesex Planta Fátima»): ahí manda la solicitud que emitimos, que
-   se busca por la OT impresa en el informe (`/emitir/solicitud-ot`, de cualquier laboratorio). */
+   se busca por la OT impresa en el informe (`/emitir/cromatografia/solicitud-ot`, de cualquier laboratorio). */
 const MANDA_LA_SOLICITUD = ["ALS (Corthon)", "Diagnofruit"];
 
 async function completarDesdeSolicitud(inf){
@@ -1067,7 +1067,7 @@ async function completarDesdeSolicitud(inf){
   if(!ot){ inf.avisos.push("El informe no trae el N° de solicitud (OT-...): no se pudo completar desde la solicitud."); return; }
   let sol;
   try{
-    const ruta = generico ? "/emitir/solicitud-ot/" : "/emitir/cromatografia/solicitud/";
+    const ruta = generico ? "/emitir/cromatografia/solicitud-ot/" : "/emitir/cromatografia/solicitud/";
     const resp = await fetch(API_BASE + ruta + encodeURIComponent(ot),
                              {headers: autorizacion()});
     if(resp.status === 404){
