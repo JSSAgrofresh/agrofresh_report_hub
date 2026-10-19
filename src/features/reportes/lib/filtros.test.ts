@@ -145,3 +145,12 @@ describe('contarFiltrosActivos', () => {
     ).toBe(3)
   })
 })
+
+describe('filtro Tipo de servicio', () => {
+  const o = (servicio: string | null) => ({ servicio } as Observacion)
+  it('filtra por el servicio sin importar tildes ni mayúsculas y cuenta como filtro activo', () => {
+    const f = { ...FILTROS_VACIOS, servicio: 'linea de proceso' }
+    expect(aplicarFiltros([o('Línea de proceso'), o('Actimist'), o(null)], f)).toHaveLength(1)
+    expect(contarFiltrosActivos(f)).toBe(1)
+  })
+})

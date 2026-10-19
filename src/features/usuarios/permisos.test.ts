@@ -61,7 +61,7 @@ describe('permisos configurables de usuarios', () => {
     expect(modulosPermitidos(soloReportes).map((m) => m.id)).toEqual(['reports'])
   })
 })
-describe('Auditoría interna: solo el admin general y a quien él designe', () => {
+describe('Panel de control interno: solo el admin general y a quien él designe', () => {
   const ve = (u: Usuario) => modulosPermitidos(u).some((m) => m.id === 'auditoria_interna')
 
   it('el admin general lo ve siempre', () => {

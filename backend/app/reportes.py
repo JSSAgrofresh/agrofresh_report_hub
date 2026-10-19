@@ -33,6 +33,7 @@ DATOS_QUERY = """
         COALESCE(date_part('month', s.fecha_muestreo)::int, s.mes, date_part('month', COALESCE(s.fecha_entrada, s.fecha_informe, s.fecha_analisis))::int) AS mes,
         s.temporada,
         s.tipo_servicio,
+        to_jsonb(s) ->> 'servicio' AS servicio,
         s.posicion_muestreo,
         s.codigo_ensayo,
         s.nro_ensayo,

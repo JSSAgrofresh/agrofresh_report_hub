@@ -51,3 +51,16 @@ export function servicioDeTipoAplicacion(tipo: string | null | undefined): Servi
 export function parametroServicio(servicio: ListaDistribucion): string {
   return servicio === 'linea' ? '' : servicio
 }
+
+/**
+ * El tipo de servicio de una fila de Report, escrito para mostrar («Línea de proceso», «Actimist», «Ecofog», «RYD»).
+ * Manda `solicitud.servicio` (0055); lo cargado antes no lo trae y se deduce del «Tipo Aplicación», y sin dato
+ * es Línea de proceso, como en el resto del sistema.
+ */
+export function servicioDeFila(servicio: string | null | undefined, tipoAplicacion: string | null | undefined): string {
+  const directo = normalizar(servicio ?? '')
+  if (directo === 'linea' || directo === 'actimist' || directo === 'ecofog' || directo === 'ryd') return ETIQUETA_LISTA[directo as ListaDistribucion]
+  const n = normalizar(tipoAplicacion ?? '')
+  if (n === 'actimist' || n === 'ecofog' || n === 'ryd') return ETIQUETA_LISTA[n]
+  return ETIQUETA_LISTA.linea
+}

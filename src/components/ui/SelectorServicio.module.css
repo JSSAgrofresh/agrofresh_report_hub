@@ -1,4 +1,4 @@
-/* Colores de cada servicio: los mismos en toda la app (Auditoría interna usa
+/* Colores de cada servicio: los mismos en toda la app (Panel de control interno usa
    violeta para Línea de proceso y azul para Actimist). */
 .linea {
   --servicio: #6b46c1;
