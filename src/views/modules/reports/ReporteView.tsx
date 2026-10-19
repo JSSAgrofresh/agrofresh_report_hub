@@ -28,6 +28,8 @@ import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { IconAlerta, IconArchivoPlano, IconFrasco, IconTrendingUp } from '@/components/ui/icons'
+import { valorDeTexto, type InformeAlsVista } from '@/features/reportes/lib/lineaTiempoAls'
+import { ResultadosAls } from './ResultadosAls'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import type { RangoFechas } from '@/components/ui/CalendarioRango'
@@ -516,7 +518,7 @@ export function ReporteView({
         nro: string
         fecha: string | null
         zona: string | null
-        patogenos: { codigo: string; nombre: string; texto: string; detectado: boolean; unidad: string; orden: number }[]
+        patogenos: { codigo: string; nombre: string; texto: string; detectado: boolean; unidad: string; orden: number; valor: number | null }[]
       }
     >()
     filtradas.forEach((o) => {
@@ -538,7 +540,9 @@ export function ReporteView({
       // ALS tiene su propia tabla de nombre, unidad y orden: no depende de que el catálogo esté sembrado.
       const als = esAls ? analitoAls(o.ingrediente) : null
       const nombre = als?.nombre ?? analito?.nombre ?? o.ingrediente
-      const texto = o.ppm != null ? formatDecimalCL(o.ppm, 2) : o.valorTexto ?? '—'
+      // ALS escribe sus resultados sin decimales vacíos («41», no «41,00»); Diagnofruit se queda como estaba.
+      const texto =
+        o.ppm != null ? (esAls && Number.isInteger(o.ppm) ? String(o.ppm) : formatDecimalCL(o.ppm, 2)) : o.valorTexto ?? '—'
       grupo.patogenos.push({
         codigo: o.ingrediente,
         nombre,
@@ -546,6 +550,7 @@ export function ReporteView({
         detectado: esDetectado(o),
         unidad: als?.unidad ?? analito?.unidad ?? '',
         orden: als?.orden ?? ORDEN_ALS_DESCONOCIDO,
+        valor: o.ppm ?? valorDeTexto(o.valorTexto),
       })
     })
     // Dentro de un informe los analitos van siempre en el mismo orden (antes salían como llegaban de la base).
@@ -554,6 +559,27 @@ export function ReporteView({
     }
     return [...porSolicitud.values()].sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''))
   }, [esTabular, esAls, labTabular, filtradas, analitosVista])
+
+  // Lo mismo, con la forma que usan los gráficos de ALS (línea de tiempo, serie de tiempo y tabla por informe).
+  const informesAls = useMemo<InformeAlsVista[]>(
+    () =>
+      esAls
+        ? gruposDiagnofruit.map((g) => ({
+            nro: g.nro,
+            fecha: g.fecha ? g.fecha.slice(0, 10) : null,
+            resultados: g.patogenos.map((p) => ({
+              codigo: p.codigo,
+              nombre: p.nombre,
+              unidad: p.unidad,
+              orden: p.orden,
+              texto: p.texto,
+              valor: p.valor,
+              detectado: p.detectado,
+            })),
+          }))
+        : [],
+    [esAls, gruposDiagnofruit],
+  )
 
   // El gráfico de barras de abajo es un resumen de la misma tabla, no un dato
   // aparte: cuántas muestras dieron positivo/negativo para cada patógeno, de
@@ -1685,60 +1711,65 @@ export function ReporteView({
                 )}
               </div>
 
-              <Card className={styles.panel}>
-                <h3>
-                  <span className={styles.tituloConIcono}>
-                    <IconFrasco className={styles.iconoPanel} />
-                    Resultados por solicitud
-                  </span>
-                </h3>
-                {gruposDiagnofruit.length === 0 ? (
-                  <p className={styles.nota}>No hay resultados de {esAls ? 'ALS' : 'Diagnofruit'} para estos filtros.</p>
-                ) : (
-                  <div className={styles.tablaDiagnoCaja}>
-                    <table className={styles.tablaDiagno}>
-                      <thead>
-                        <tr>
-                          <th>Fecha</th>
-                          <th>{esAls ? 'N° de informe' : 'Zona de muestreo'}</th>
-                          <th>{esAls ? 'Analito' : 'Patógeno'}</th>
-                          <th>Resultado</th>
-                          {esAls && <th>Unidad</th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {gruposDiagnofruit.map((grupo) =>
-                          grupo.patogenos.map((p, i) => (
-                            <tr key={`${grupo.nro}-${p.nombre}-${i}`}>
-                              {i === 0 && (
-                                <>
-                                  <td rowSpan={grupo.patogenos.length}>
-                                    {grupo.fecha ? formatDateCL(grupo.fecha) : '—'}
-                                  </td>
-                                  <td rowSpan={grupo.patogenos.length}>{esAls ? grupo.nro || '—' : grupo.zona || '—'}</td>
-                                </>
-                              )}
-                              <td>
-                                <span className={styles.indicadorConPunto}>
-                                  <span
-                                    className={styles.puntoColor}
-                                    style={{ background: colorDeIngrediente(p.codigo), color: colorDeIngrediente(p.codigo) }}
-                                  />
-                                  {p.nombre}
-                                </span>
-                              </td>
-                              <td>
-                                {esAls ? <Badge tone="neutral">{p.texto}</Badge> : <Badge tone={p.detectado ? 'danger' : 'success'}>{p.texto}</Badge>}
-                              </td>
-                              {esAls && <td>{p.unidad || '—'}</td>}
-                            </tr>
-                          )),
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </Card>
+              {esAls && gruposDiagnofruit.length > 0 ? (
+                <ResultadosAls informes={informesAls} />
+              ) : (
+                <Card className={styles.panel}>
+                  <h3>
+                    <span className={styles.tituloConIcono}>
+                      <IconFrasco className={styles.iconoPanel} />
+                      Resultados por solicitud
+                    </span>
+                  </h3>
+                  {gruposDiagnofruit.length === 0 ? (
+                    <p className={styles.nota}>No hay resultados de {esAls ? 'ALS' : 'Diagnofruit'} para estos filtros.</p>
+                  ) : (
+                    <div className={styles.tablaDiagnoCaja}>
+                      <table className={styles.tablaDiagno}>
+                        <thead>
+                          <tr>
+                            <th>Fecha</th>
+                            <th>{esAls ? 'N° de informe' : 'Zona de muestreo'}</th>
+                            <th>{esAls ? 'Analito' : 'Patógeno'}</th>
+                            <th>Resultado</th>
+                            {esAls && <th>Unidad</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {gruposDiagnofruit.map((grupo) =>
+                            grupo.patogenos.map((p, i) => (
+                              <tr key={`${grupo.nro}-${p.nombre}-${i}`}>
+                                {i === 0 && (
+                                  <>
+                                    <td rowSpan={grupo.patogenos.length}>
+                                      {grupo.fecha ? formatDateCL(grupo.fecha) : '—'}
+                                    </td>
+                                    <td rowSpan={grupo.patogenos.length}>{esAls ? grupo.nro || '—' : grupo.zona || '—'}</td>
+                                  </>
+                                )}
+                                <td>
+                                  <span className={styles.indicadorConPunto}>
+                                    <span
+                                      className={styles.puntoColor}
+                                      style={{ background: colorDeIngrediente(p.codigo), color: colorDeIngrediente(p.codigo) }}
+                                    />
+                                    {p.nombre}
+                                  </span>
+                                </td>
+                                <td>
+                                  {esAls ? <Badge tone="neutral">{p.texto}</Badge> : <Badge tone={p.detectado ? 'danger' : 'success'}>{p.texto}</Badge>}
+                                </td>
+                                {esAls && <td>{p.unidad || '—'}</td>}
+                              </tr>
+                            )),
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </Card>
+              )}
+
 
               {esDiagnofruit && gruposDiagnofruit.length > 0 && (
                 <div className={styles.grid2}>
