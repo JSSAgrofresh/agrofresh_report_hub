@@ -44,7 +44,7 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
 from . import actividad, auth, config, config_store, correo, indice_solicitudes, json_als, mail_templates, permisos_funciones, r2, seguridad
-from .auth import Usuario, usuario_actual
+from .auth import Usuario, planta_permitida, usuario_actual
 from .db import conexion, cursor_dict
 from .notificaciones import notificar
 from .listados import clave_normalizada as _clave_esp
@@ -608,9 +608,12 @@ def _es_propia(usuario: Usuario, datos: dict) -> bool:
     `email_solicitante`, que `crear_solicitud` fuerza siempre al correo de la
     sesión que la crea cuando es un muestreador (ver más abajo): no es un
     dato que el cliente pueda torcer mandando otro valor en el request.
+    Un comercial solo ve las solicitudes de SUS plantas (Sold To / Ship To).
     Cualquier otra cuenta interna (admin_general, admin_area) sigue viendo
     todo, igual que antes.
     """
+    if usuario.tipoAcceso == "comercial":
+        return planta_permitida(usuario, datos.get("sold_to"), datos.get("ship_to"))
     if usuario.tipoAcceso != "muestreador":
         return True
     correo_creador = _normalizar_correo(datos.get("email_solicitante"))

@@ -40,7 +40,7 @@ from pydantic import BaseModel, Field
 
 from . import config_store
 from .auditoria_interna import SQL_INFORME_EN_REPORT, puede_auditoria
-from .auth import Usuario, solo_admin_general
+from .auth import Usuario, planta_permitida, solo_admin_general
 from .db import conexion, cursor_dict
 
 logger = logging.getLogger(__name__)
@@ -182,11 +182,11 @@ def armar_hitos(
 
 
 @router.get("/hitos")
-def hitos(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
+def hitos(usuario: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
     """Los hitos de cada solicitud real (sin pruebas), para medir lead time y cumplimiento."""
     base = _filas(
         """
-        SELECT sa.archivo, sa.creado_en AS emitida,
+        SELECT sa.archivo, sa.sold_to, sa.ship_to, sa.creado_en AS emitida,
                COALESCE(ia.subido_en, rp.cargado_en) AS subido_en, ia.fecha_envio,
                COALESCE(ia.nro_informe, rp.nro_solicitud) AS nro_informe,
                ((ia.id IS NOT NULL AND EXISTS (
@@ -204,6 +204,8 @@ def hitos(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
     )
     if base is None:
         raise HTTPException(503, "No se pudieron leer las solicitudes.")
+    # Un comercial ve los hitos solo de las solicitudes de sus plantas.
+    base = [f for f in base if planta_permitida(usuario, f.get("sold_to"), f.get("ship_to"))]
     # Fecha de envío anotada a mano de informes que no pasan por Converter (migración 0061): sin la
     # tabla, o sin fila, no cambia nada. Solo vale si el informe no trae una fecha propia.
     manuales = {f["archivo"]: f["fecha_envio"] for f in _filas("SELECT archivo, fecha_envio FROM informe_fecha_manual") or []}

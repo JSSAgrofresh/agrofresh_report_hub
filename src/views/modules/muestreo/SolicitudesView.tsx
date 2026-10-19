@@ -111,6 +111,8 @@ export function SolicitudesView() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const esAdmin = Boolean(user && esAdminGeneral(user))
+  // Un comercial solo mira (y descarga) las solicitudes de sus plantas: sin crear, enviar, marcar ni abrir el detalle editable.
+  const esComercial = user?.tipoAcceso === 'comercial'
   const puedeEliminar = esAdmin && user?.email === 'jorge.sandoval@agrofresh.com'
 
   const [solicitudes, setSolicitudes] = useState<Solicitud[] | null>(null)
@@ -362,7 +364,13 @@ export function SolicitudesView() {
   // Clic en la fila = abrir la solicitud (salvo que el clic sea en un control).
   function abrirFila(e: MouseEvent | KeyboardEvent, s: Solicitud) {
     if ((e.target as HTMLElement).closest('button, a, input, label')) return
-    navigate(rutaTomaMuestrasDetalle(s.archivo))
+    verSolicitud(s)
+  }
+
+  // El detalle de una solicitud tiene acciones de edición y envío: un comercial ve directamente su PDF.
+  function verSolicitud(s: Solicitud) {
+    if (esComercial) setPdfAbierto(s)
+    else navigate(rutaTomaMuestrasDetalle(s.archivo))
   }
 
   const reglasEnvio = envioAutomatico
@@ -389,7 +397,7 @@ export function SolicitudesView() {
                 + Prueba
               </Button>
             )}
-            <Button onClick={() => navigate(ROUTES.tomaMuestrasNueva)}>+ Nueva solicitud</Button>
+            {!esComercial && <Button onClick={() => navigate(ROUTES.tomaMuestrasNueva)}>+ Nueva solicitud</Button>}
           </>
         }
       />
@@ -608,32 +616,38 @@ export function SolicitudesView() {
                 <IconoPdf width={15} height={15} />
                 {trabajando === 'pdf' ? 'Generando…' : 'PDF (.zip)'}
               </button>
-              <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('json', () => descargarJsonZip([...seleccionadas]))} title="El mismo JSON que va adjunto al correo del laboratorio">
-                <IconoJson width={15} height={15} />
-                {trabajando === 'json' ? 'Generando…' : 'JSON (.zip)'}
-              </button>
+              {!esComercial && (
+                <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('json', () => descargarJsonZip([...seleccionadas]))} title="El mismo JSON que va adjunto al correo del laboratorio">
+                  <IconoJson width={15} height={15} />
+                  {trabajando === 'json' ? 'Generando…' : 'JSON (.zip)'}
+                </button>
+              )}
               <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('excel', () => descargarTodasLasSolicitudes([...seleccionadas]))}>
                 <IconoExcel width={15} height={15} />
                 Excel
               </button>
-              <button type="button" className={styles.botonSelPrincipal} disabled={trabajando !== null || pendientesSel.length === 0} onClick={() => void enviarPendientes()}>
-                {trabajando === 'enviar' ? 'Enviando…' : `Enviar pendientes (${pendientesSel.length})`}
-              </button>
-              <input
-                type="date"
-                className={styles.fechaEnvio}
-                value={fechaEnvioCliente}
-                max={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setFechaEnvioCliente(e.target.value)}
-                aria-label="Fecha en que se envió el informe al cliente (opcional)"
-                title="Fecha en que se envió el informe al cliente (opcional; sin fecha queda la de hoy)"
-              />
-              <button type="button" className={styles.botonSel} disabled={trabajando !== null || !filasSeleccionadas.some((x) => x.informe)} onClick={() => void marcarEnvioCliente(true)} title="Deja anotado que el informe de estas solicitudes ya se entregó al cliente">
-                {trabajando === 'marcar' ? 'Guardando…' : 'Marcar enviado al cliente'}
-              </button>
-              <button type="button" className={styles.botonSelSuave} disabled={trabajando !== null || !filasSeleccionadas.some((x) => x.informe?.envio_cliente)} onClick={() => void marcarEnvioCliente(false)}>
-                Quitar envío
-              </button>
+              {!esComercial && (
+                <>
+                <button type="button" className={styles.botonSelPrincipal} disabled={trabajando !== null || pendientesSel.length === 0} onClick={() => void enviarPendientes()}>
+                  {trabajando === 'enviar' ? 'Enviando…' : `Enviar pendientes (${pendientesSel.length})`}
+                </button>
+                <input
+                  type="date"
+                  className={styles.fechaEnvio}
+                  value={fechaEnvioCliente}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setFechaEnvioCliente(e.target.value)}
+                  aria-label="Fecha en que se envió el informe al cliente (opcional)"
+                  title="Fecha en que se envió el informe al cliente (opcional; sin fecha queda la de hoy)"
+                />
+                <button type="button" className={styles.botonSel} disabled={trabajando !== null || !filasSeleccionadas.some((x) => x.informe)} onClick={() => void marcarEnvioCliente(true)} title="Deja anotado que el informe de estas solicitudes ya se entregó al cliente">
+                  {trabajando === 'marcar' ? 'Guardando…' : 'Marcar enviado al cliente'}
+                </button>
+                <button type="button" className={styles.botonSelSuave} disabled={trabajando !== null || !filasSeleccionadas.some((x) => x.informe?.envio_cliente)} onClick={() => void marcarEnvioCliente(false)}>
+                  Quitar envío
+                </button>
+                </>
+              )}
               <button type="button" className={styles.botonSelSuave} onClick={() => setSeleccionadas(new Set())}>
                 Quitar selección
               </button>
@@ -733,7 +747,7 @@ export function SolicitudesView() {
                       <td className={styles.colInforme}><CeldaInforme s={s} onAbrir={setInformeAbierto} /></td>
                       <td className={styles.colAcciones}>
                         <div className={styles.acciones}>
-                          <button type="button" className={styles.botonIcono} title="Ver solicitud" aria-label={`Ver ${s.numero_solicitud}`} onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}>
+                          <button type="button" className={styles.botonIcono} title="Ver solicitud" aria-label={`Ver ${s.numero_solicitud}`} onClick={() => verSolicitud(s)}>
                             <IconoOjo width={17} height={17} />
                           </button>
                           <button type="button" className={styles.botonIcono} title="PDF de la solicitud" aria-label={`PDF de ${s.numero_solicitud}`} onClick={() => setPdfAbierto(s)}>
@@ -797,7 +811,7 @@ export function SolicitudesView() {
                     <CeldaInforme s={s} onAbrir={setInformeAbierto} />
                   </div>
                   <div className={styles.tarjetaPie}>
-                    <button type="button" className={styles.botonTarjeta} onClick={() => navigate(rutaTomaMuestrasDetalle(s.archivo))}>
+                    <button type="button" className={styles.botonTarjeta} onClick={() => verSolicitud(s)}>
                       <IconoOjo width={16} height={16} /> Ver
                     </button>
                     <button type="button" className={styles.botonTarjeta} onClick={() => setPdfAbierto(s)}>

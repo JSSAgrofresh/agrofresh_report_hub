@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import actividad_auto, config, lab_secciones
-from .auth import router as auth_router, solo_interno, usuario_actual
+from .auth import interno_o_comercial_acotado, router as auth_router, solo_interno, usuario_actual
 from .auditoria import reparar_tablas_omitidas_post_promocion, router as auditoria_router
 from .auditoria_interna import router as auditoria_interna_router
 from .actividad import router as actividad_router
@@ -150,14 +150,11 @@ app.include_router(listados_router, dependencies=CON_SESION)
 for _router in (
     ingest_router,
     auditoria_router,
-    auditoria_interna_router,
-    entrega_indicadores_router,
     actividad_router,
     admin_panel_router,
     correcciones_router,
     listas_distribucion_router,
     ficha_informe_router,
-    informes_solicitud_router,
     envio_cliente_router,
     catalogo_router,
     postventa_router,
@@ -166,7 +163,6 @@ for _router in (
     fortificados_router,
     funciones_router,
     plan_carga_router,
-    toma_muestras_router,
     laboratorios_router,
     correo_router,
     envio_informes_router,
@@ -178,6 +174,16 @@ for _router in (
     notificaciones_router,
 ):
     app.include_router(_router, dependencies=SOLO_AGROFRESH)
+
+# Estos cuatro los puede abrir un comercial SOLO por las rutas de `auth.RUTAS_COMERCIAL` (lectura, acotada a sus plantas):
+# Toma de muestras → Solicitudes e informes y Panel de control interno. Para el resto de las cuentas, igual que antes.
+for _router in (
+    auditoria_interna_router,
+    entrega_indicadores_router,
+    informes_solicitud_router,
+    toma_muestras_router,
+):
+    app.include_router(_router, dependencies=[Depends(interno_o_comercial_acotado)])
 
 # Verificaciones diarias es una sección de AgroFresh Lab que el administrador puede ocultar a
 # una cuenta (`lab_secciones`): además de ser de AgroFresh, la cuenta tiene que tener la sección.

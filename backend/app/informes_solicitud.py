@@ -34,7 +34,7 @@ from pydantic import BaseModel
 from . import actividad, confirmar_clave, informes_storage, r2
 from . import r2_auditoria as r2a
 from .auditoria_interna import _exigir_r2, errores_r2
-from .auth import Usuario, solo_interno
+from .auth import Usuario, interno_o_comercial, solo_interno
 from .db import conexion, cursor_dict
 from .pdf_permisos import sin_restricciones
 from .ficha_informe import _buscar_pdf, _disposicion_inline, _solicitud, elegir_clave
@@ -215,7 +215,7 @@ def _solicitudes_visibles(usuario: Usuario) -> list[tuple[str, str]]:
 
 
 @router.get("/solicitudes-informes")
-def informes_de_solicitudes(usuario: Usuario = Depends(solo_interno)) -> dict[str, dict]:
+def informes_de_solicitudes(usuario: Usuario = Depends(interno_o_comercial)) -> dict[str, dict]:
     """{archivo: {nro_informe, numeros, pdf_guardado, en_report, verificacion}}
     de las solicitudes visibles que ya tienen informe."""
     visibles = _solicitudes_visibles_datos(usuario)
@@ -312,7 +312,7 @@ def informes_para_zip(pares: list[tuple[str, str]]) -> list[tuple[str, bytes]]:
 
 
 @router.get("/solicitudes/{archivo}/informe/pdf")
-def pdf_informe_de_solicitud(archivo: str, usuario: Usuario = Depends(solo_interno)) -> Response:
+def pdf_informe_de_solicitud(archivo: str, usuario: Usuario = Depends(interno_o_comercial)) -> Response:
     visibles = dict(_solicitudes_visibles(usuario))
     if archivo not in visibles:
         raise HTTPException(404, "Solicitud no encontrada.")
