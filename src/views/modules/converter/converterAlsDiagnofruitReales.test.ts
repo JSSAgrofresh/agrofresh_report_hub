@@ -359,7 +359,7 @@ describe('completar desde la solicitud (ALS y Diagnofruit)', () => {
       Especie: 'Manzana', Variedad: 'Gala', 'Tipo Aplicación': 'Línea de proceso', 'Fecha Muestreo': '30-09-2026',
     }) })
     await L.completarDesdeSolicitud(inf)
-    expect(url).toBe('/emitir/solicitud-ot/OT-ALS0012')
+    expect(url).toBe('/emitir/cromatografia/solicitud-ot/OT-ALS0012')
     expect(inf.datos).toMatchObject({
       'Sold To': 'AGRICOLA SAN CLEMENTE LIMITADA',     // manda la solicitud, no el «CENTRAL FRUTICOLA…» de ALS
       'Ship To': 'EXPORTADORA SAN CLEMENTE RENAICO',
