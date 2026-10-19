@@ -6,12 +6,13 @@ import type { Observacion } from './tipos'
  * Dentro de un filtro vale cualquiera de los marcados; entre filtros, todos.
  * Report mantiene sus filtros de un solo valor (`FiltrosReporte`); estos corren aparte.
  */
-export const CAMPOS_MULTI = ['laboratorio', 'cliente', 'planta', 'crop', 'variedad', 'semana', 'mes'] as const
+export const CAMPOS_MULTI = ['laboratorio', 'servicio', 'cliente', 'planta', 'crop', 'variedad', 'semana', 'mes'] as const
 export type CampoMulti = (typeof CAMPOS_MULTI)[number]
 export type FiltrosMulti = Record<CampoMulti, string[]>
 
 export const MULTI_VACIOS: FiltrosMulti = {
   laboratorio: [],
+  servicio: [],
   cliente: [],
   planta: [],
   crop: [],
@@ -22,6 +23,7 @@ export const MULTI_VACIOS: FiltrosMulti = {
 
 export const ETIQUETAS_MULTI: Record<CampoMulti, string> = {
   laboratorio: 'Laboratorio',
+  servicio: 'Tipo de servicio',
   cliente: 'Sold To',
   planta: 'Ship To',
   crop: 'Especie',
@@ -32,6 +34,7 @@ export const ETIQUETAS_MULTI: Record<CampoMulti, string> = {
 
 const VALOR: Record<CampoMulti, (o: Observacion) => string | number | null> = {
   laboratorio: (o) => o.laboratorio,
+  servicio: (o) => o.servicio ?? null,
   cliente: (o) => o.cliente,
   planta: (o) => o.planta,
   crop: (o) => o.crop,
@@ -73,6 +76,7 @@ export function chipsMulti(m: FiltrosMulti, formatear: Partial<Record<CampoMulti
 
 const PLURAL: Partial<Record<CampoMulti, string>> = {
   laboratorio: 'laboratorios',
+  servicio: 'servicios',
   cliente: 'clientes',
   planta: 'sucursales',
   crop: 'especies',
@@ -101,6 +105,7 @@ export function tituloLimites(
     m.cliente.length ? resumir(m.cliente, PLURAL.cliente!) : '',
     m.planta.length ? resumir(m.planta, PLURAL.planta!) : '',
     m.laboratorio.length ? resumir(m.laboratorio, PLURAL.laboratorio!) : '',
+    m.servicio.length ? resumir(m.servicio, PLURAL.servicio!) : '',
     m.crop.length ? resumir(m.crop, PLURAL.crop!) : '',
     m.variedad.length ? resumir(m.variedad, PLURAL.variedad!) : '',
     semanas,

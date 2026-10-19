@@ -1,5 +1,5 @@
 /* Solicitudes e informes (Toma de muestras). Mismo lenguaje que Report y
- * Auditoría interna: tarjetas blancas con borde suave, indicadores arriba y
+ * Panel de control interno: tarjetas blancas con borde suave, indicadores arriba y
  * una sola tabla. Sin animaciones con `transform` en las filas: un ancestro
  * con transform atrapa los elementos `position: fixed` (antes el diálogo de
  * Eliminar quedaba dibujado dentro de la fila). */

@@ -1,5 +1,5 @@
 """
-Auditoría interna contra Postgres real (se salta sola si no hay base): el
+Panel de control interno contra Postgres real (se salta sola si no hay base): el
 ciclo completo subir PDF -> panel -> concretada, con R2 simulado en memoria.
 """
 import pytest

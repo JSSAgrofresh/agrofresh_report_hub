@@ -22,7 +22,7 @@ interface UsuarioFormProps {
 
 const TIPOS: { valor: TipoAcceso; etiqueta: string; descripcion: string }[] = [
   { valor: 'admin_general', etiqueta: 'Administrador general', descripcion: 'Todo el sistema, incluida la administración.' },
-  { valor: 'gerencia', etiqueta: 'Gerencia', descripcion: 'Ve todo (menos Auditoría interna), solo lectura.' },
+  { valor: 'gerencia', etiqueta: 'Gerencia', descripcion: 'Ve todo (menos el Panel de control interno), solo lectura.' },
   { valor: 'admin_area', etiqueta: 'Administrador de área', descripcion: 'Gestiona un área. Los accesos se eligen abajo.' },
   { valor: 'analista', etiqueta: 'Analista de laboratorio', descripcion: 'Trabaja en el laboratorio. Los accesos se eligen abajo.' },
   { valor: 'muestreador', etiqueta: 'Muestreador', descripcion: 'Crea y ve solo sus solicitudes de muestreo.' },

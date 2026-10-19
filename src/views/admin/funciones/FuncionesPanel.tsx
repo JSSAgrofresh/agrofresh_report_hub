@@ -97,7 +97,7 @@ export function FuncionesPanel() {
         <h2 className={styles.titulo}>Report: tipos de servicio que se muestran</h2>
         <p className={styles.texto}>
           Report muestra solo los tipos de servicio encendidos. Lo que se cargue de los demás queda guardado y no se
-          pierde: aparece en Report cuando se enciende. Esto no cambia Auditoría interna, Solicitudes e informes ni
+          pierde: aparece en Report cuando se enciende. Esto no cambia el Panel de control interno, Solicitudes e informes ni
           Envío de informes.
         </p>
 

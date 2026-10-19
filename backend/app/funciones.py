@@ -13,7 +13,7 @@ servicios que estén encendidos acá. De fábrica, solo Línea de proceso: lo ca
 de Actimist, Ecofog y RYD queda guardado pero no aparece en Report hasta que se
 encienda.
 
-Esto NO afecta a Auditoría interna, Solicitudes e informes, Envío de informes ni a
+Esto NO afecta al Panel de control interno, Solicitudes e informes, Envío de informes ni a
 ninguna otra pantalla: solo a Report.
 """
 from __future__ import annotations

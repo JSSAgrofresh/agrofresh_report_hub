@@ -110,7 +110,7 @@ export function SolicitudesInformesView() {
     <div className={styles.pagina}>
       <AuditoriaHero
         etiqueta="Control de solicitudes e informes"
-        titulo="Auditoría interna"
+        titulo="Panel de control interno"
         descripcion="Lo que pedimos a los laboratorios y los informes que vuelven: cuáles ya están concretados, con su PDF guardado y sus resultados en Report."
       />
       <div className={styles.acciones}>

@@ -13,7 +13,7 @@ Informes en Storage: una copia de cada informe PDF, ordenada para encontrarla.
 
 El PDF se sube con su nombre: volver a pasar un informe ya guardado lo
 reemplaza en su sitio, no lo duplica (se vuelven a pasar todos por Converter).
-Es independiente de Auditoría interna (`r2_auditoria`): son dos copias con dos
+Es independiente del Panel de control interno (`r2_auditoria`): son dos copias con dos
 usos y ninguna depende de la otra.
 """
 from __future__ import annotations

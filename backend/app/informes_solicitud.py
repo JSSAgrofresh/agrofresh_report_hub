@@ -63,7 +63,7 @@ def asociar(
     `informes_en_report`: los N° de informe (en mayúsculas) que ya están en
     Report como `solicitud.nro_solicitud`. Es como Quiteca llega a Report: con
     SU N° de informe y, en los informes viejos, sin el OT en `referencia`.
-    Auditoría interna usa la misma regla.
+    Panel de control interno usa la misma regla.
     """
     informes_en_report = informes_en_report or set()
     aud_por_archivo: dict[str, dict] = {}

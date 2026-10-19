@@ -149,4 +149,20 @@ describe('Report por bloques de análisis', () => {
     const fsma = await screen.findByRole('region', { name: 'Análisis FSMA' })
     await waitFor(() => expect(within(fsma).getByRole('img', { name: /Línea de tiempo/ })).toBeTruthy())
   })
+
+  it('el filtro «Tipo de servicio» ofrece los servicios de los datos y filtra', async () => {
+    api.obtenerDatosReporte.mockResolvedValue({
+      filas: [
+        fila({ solicitud_id: 1, nro_solicitud: 'OT-AGF0001', servicio: 'actimist' }),
+        fila({ solicitud_id: 2, nro_solicitud: 'OT-AGF0002', servicio: null }),
+      ],
+      total: 2,
+      total_solicitudes: 2,
+    })
+    render(<ReporteView />)
+    const select = (await screen.findByText('Tipo de servicio', { selector: 'span' })).parentElement!.querySelector('select')!
+    expect([...select.options].map((o) => o.textContent)).toEqual(['Todos', 'Actimist (1)', 'Línea de proceso (1)'])
+    fireEvent.change(select, { target: { value: 'Actimist' } })
+    await waitFor(() => expect(screen.getByText(/1 de 2 solicitudes/)).toBeTruthy())
+  })
 })

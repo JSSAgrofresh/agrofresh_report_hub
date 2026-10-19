@@ -4,7 +4,7 @@ import { ESTADOS, ESTADOS_DONA } from './estados'
 
 const nf = new Intl.NumberFormat('es-CL')
 
-/** La cifra grande de Auditoría interna: qué parte de lo emitido ya se concretó
+/** La cifra grande del Panel de control interno: qué parte de lo emitido ya se concretó
  * y cómo se reparte entre los tres estados. */
 export function ResumenConcretadas({ totales: t }: { totales: Totales }) {
   // El PDF sin Report no se muestra aparte: cuenta como solicitud enviada.

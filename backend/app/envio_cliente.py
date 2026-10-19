@@ -3,7 +3,7 @@
 Subir un informe por Converter es el fin del ciclo en el sistema, pero el informe puede salir
 al cliente por fuera (o después). Aquí una persona lo deja anotado: al subir el informe
 (casilla «Envío a cliente» de Converter) o, para los cruces solicitud↔informe antiguos, desde
-Solicitudes e informes. Alimenta el hito `cliente` de Auditoría interna junto a los envíos
+Solicitudes e informes. Alimenta el hito `cliente` del Panel de control interno junto a los envíos
 reales de «Envío de informes» (gana la fecha más antigua).
 
 Todo tolera que falte la migración 0058: las lecturas devuelven vacío y las escrituras avisan.
