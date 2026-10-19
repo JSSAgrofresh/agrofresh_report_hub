@@ -153,6 +153,7 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/ordenar_r2_accutab.py` | Ordena en R2 las carpetas viejas de Accutab (`accutab/mail/<asunto>/`) a `<CLIENTE>/<FECHA>/Datos <hora>/` (`--aplicar` para mover; sin eso solo cuenta) |
 | `scripts/corregir_ot_informe.py` | Deja un informe en UNA sola OT (`--informe 2026-1885-PC --ot OT-QUI0025`): corrige Converter y la `referencia` de Report; respaldo en `logs/` |
 | `scripts/cruce_plan_entregables.py` | Solo lee: cruza los clientes de los planes de entregables de los comerciales (`Entregables_*.xlsx`) con las plantas de la lista de distribución de Línea de proceso, buscando cada cliente solo entre las plantas de SU comercial; deja un Excel en `logs/` (cruce, plantas sin plan, comerciales). Acepta una carpeta o los archivos; `--comercial "R. TRAVERSO=rtraverso@agrofresh.com"` fija un comercial mal identificado |
+| `scripts/crear_comerciales.py` | Crea cuentas «comercial» numeradas (`Comercial 1`, `comercial1@agrofresh.com`…) con Report y Storage, solo lectura, sin plantas y con clave temporal (`--cantidad N`; `--aplicar` para escribir; las claves se muestran UNA vez). Después se les pone nombre, correo y plantas desde Usuarios → Editar. Necesita la 0063 |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
 Hay ~9 scripts en `backend/scripts/` que fueron migraciones de una sola vez
