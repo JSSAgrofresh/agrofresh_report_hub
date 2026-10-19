@@ -22,7 +22,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -107,6 +107,23 @@ def alcance_de_datos(
     if usuario.tipoAcceso == "cliente":
         return usuario.clienteNombre, usuario.plantaNombre
     return cliente_pedido, planta_pedida
+
+
+def _plano(valor: str | None) -> str:
+    return " ".join(str(valor or "").split()).casefold()
+
+
+def planta_permitida(usuario: Usuario, sold_to: str | None, ship_to: str | None) -> bool:
+    """¿Esta cuenta puede ver una fila de ESTE Sold To / Ship To? Los demás tipos de cuenta: sí (su alcance lo decide
+    cada módulo). Un comercial solo si la planta (o todo su Sold To) está entre las que se le asignaron; sin plantas
+    asignadas, nunca. Se compara sin mayúsculas ni espacios de más."""
+    if usuario.tipoAcceso != "comercial":
+        return True
+    cli, pla = _plano(sold_to), _plano(ship_to)
+    for cliente, planta in plantas_de_comercial(usuario):
+        if _plano(cliente) == cli and (planta is None or _plano(planta) == pla):
+            return True
+    return False
 
 
 def es_comercial(usuario: Usuario) -> bool:
@@ -250,6 +267,42 @@ def solo_escribiente(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
         raise HTTPException(403, "Tu cuenta de gerencia es de solo lectura.")
     if usuario.tipoAcceso == "comercial":
         raise HTTPException(403, "Tu cuenta de comercial es de solo lectura.")
+    return usuario
+
+
+# Lo ÚNICO que un comercial puede pedir de los módulos internos acotados (Toma de muestras → Solicitudes e informes y
+# Panel de control interno), como (método, ruta). Todo lo demás de esos routers le da 403: un endpoint nuevo nace
+# cerrado para él. Cada una de estas rutas filtra por sus plantas (`planta_permitida` / `_es_propia`).
+RUTAS_COMERCIAL: frozenset[tuple[str, str]] = frozenset({
+    ("GET", "/api/toma-muestras/solicitudes"),
+    ("GET", "/api/toma-muestras/solicitudes/exportar-todo"),
+    ("GET", "/api/toma-muestras/solicitudes/{archivo}/pdf"),
+    ("POST", "/api/toma-muestras/solicitudes/pdf-zip"),
+    ("GET", "/api/toma-muestras/solicitudes-informes"),
+    ("GET", "/api/toma-muestras/solicitudes/{archivo}/informe/pdf"),
+    ("GET", "/api/auditoria-interna/solicitudes"),
+    ("GET", "/api/auditoria-interna/hitos"),
+    ("GET", "/api/auditoria-interna/plazos"),
+    ("GET", "/api/auditoria-interna/informes/{informe_id}/pdf"),
+})
+
+
+def interno_o_comercial(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
+    """Como `solo_interno`, pero deja pasar al comercial (el endpoint tiene que acotar a sus plantas)."""
+    if usuario.tipoAcceso == "cliente":
+        raise HTTPException(403, "Tu cuenta solo tiene acceso a sus propios resultados.")
+    return usuario
+
+
+def interno_o_comercial_acotado(request: Request, usuario: Usuario = Depends(usuario_actual)) -> Usuario:
+    """Puerta de los routers que un comercial puede abrir A MEDIAS: el personal interno pasa como siempre, el cliente
+    nunca, y el comercial solo por las rutas de `RUTAS_COMERCIAL`."""
+    if usuario.tipoAcceso == "cliente":
+        raise HTTPException(403, "Tu cuenta solo tiene acceso a sus propios resultados.")
+    if usuario.tipoAcceso == "comercial":
+        ruta = getattr(request.scope.get("route"), "path", None)
+        if (request.method.upper(), ruta) not in RUTAS_COMERCIAL:
+            raise HTTPException(403, "Tu cuenta de comercial es de solo lectura y solo ve lo de tus plantas.")
     return usuario
 
 

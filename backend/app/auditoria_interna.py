@@ -34,7 +34,7 @@ from pydantic import BaseModel
 
 from . import informes_storage
 from . import r2_auditoria as r2a
-from .auth import Usuario, solo_admin_general, usuario_actual
+from .auth import Usuario, planta_permitida, solo_admin_general, usuario_actual
 from .db import conexion, cursor_dict
 from .pdf_permisos import sin_restricciones
 
@@ -373,7 +373,7 @@ def _catalogos_de_analisis() -> tuple[list[dict], list[dict]]:
 
 
 @router.get("/solicitudes")
-def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
+def listar_solicitudes(usuario: Usuario = Depends(puede_auditoria)) -> list[dict]:
     """Las solicitudes emitidas por el sistema, con su informe (si tiene) y si
     ya se ven en Report. Más recientes primero."""
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
@@ -400,7 +400,8 @@ def listar_solicitudes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
             ORDER BY sa.creado_en DESC
             """
         )
-        filas = cur.fetchall()
+        # Un comercial ve solo las solicitudes de sus plantas (el resto de las cuentas, todas).
+        filas = [f for f in cur.fetchall() if planta_permitida(usuario, f["sold_to"], f["ship_to"])]
     analitos_cat, analisis_cat = _catalogos_de_analisis()
     manuales = _fechas_envio_manuales()
     salida = []
@@ -466,12 +467,17 @@ def editar_fecha_envio(informe_id: int, body: FechaEnvioIn, _: Usuario = Depends
 
 
 @router.get("/informes/{informe_id}/pdf")
-def descargar_informe(informe_id: int, _: Usuario = Depends(puede_auditoria)) -> Response:
+def descargar_informe(informe_id: int, usuario: Usuario = Depends(puede_auditoria)) -> Response:
     _exigir_r2()
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        cur.execute("SELECT r2_key, nombre_archivo FROM informe_auditoria WHERE id = %s", (informe_id,))
+        cur.execute(
+            "SELECT i.r2_key, i.nombre_archivo, sa.sold_to, sa.ship_to FROM informe_auditoria i"
+            " LEFT JOIN solicitud_archivo sa ON sa.archivo = i.archivo_solicitud WHERE i.id = %s",
+            (informe_id,),
+        )
         fila = cur.fetchone()
-    if fila is None:
+    # Un comercial solo baja informes de SUS plantas; uno sin solicitud enlazada no se sabe de quién es: no.
+    if fila is None or (usuario.tipoAcceso == "comercial" and not planta_permitida(usuario, fila["sold_to"], fila["ship_to"])):
         raise HTTPException(404, "Informe no encontrado.")
     with errores_r2():
         datos = r2a.descargar(fila["r2_key"])

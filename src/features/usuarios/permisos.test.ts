@@ -190,7 +190,7 @@ describe('cuenta de comercial', () => {
   }
 
   it('solo abre Report y Storage, aunque la lista guardada traiga más', () => {
-    expect(modulosPermitidos(comercial).map((m) => m.id).sort()).toEqual(['reports', 'storage'])
+    expect(modulosPermitidos(comercial).map((m) => m.id).sort()).toEqual(['auditoria_interna', 'reports', 'storage'])
     expect(modulosPermitidos({ ...comercial, modulos: ['storage'] }).map((m) => m.id)).toEqual(['storage'])
     expect(modulosPermitidos({ ...comercial, modulos: undefined })).toEqual([])
   })
@@ -201,6 +201,8 @@ describe('cuenta de comercial', () => {
     expect(puedeVerReporte(comercial, 'laboratorio')).toBe(true)
     expect(puedeVerReporte(comercial, 'postventa')).toBe(false)
     expect(puedeVerTomaMuestras(comercial)).toBe(false)
+    expect(puedeVerTomaMuestras({ ...comercial, modulos: ['toma_muestras'] })).toBe(true) // Solicitudes e informes
+    expect(puedeCrearReanalisis({ ...comercial, modulos: ['toma_muestras', 'toma_reanalisis'] })).toBe(false)
     expect(etiquetaAcceso(comercial)).toBe('Comercial')
   })
 })

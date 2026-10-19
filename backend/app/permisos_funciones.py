@@ -53,7 +53,7 @@ def exigir(funcion: str, mensaje: str):
 
 MODULOS_CLIENTE = ("reports", "storage")
 # Lo que se le puede dar a un comercial: solo lo que acota a sus plantas.
-MODULOS_COMERCIAL = ("reports", "storage")
+MODULOS_COMERCIAL = ("reports", "storage", "auditoria_interna", "toma_muestras")
 
 
 def normalizar_cuenta(
@@ -90,7 +90,7 @@ def normalizar_cuenta(
         # acota a sus plantas). Sin área: no pertenece a una.
         mods = [m for m in MODULOS_COMERCIAL if m in (modulos or [])]
         if not mods:
-            raise HTTPException(400, "Elige qué ve el comercial: Report y/o Storage.")
+            raise HTTPException(400, "Elige qué abre el comercial: Report, Storage, Panel de control interno y/o Solicitudes e informes.")
         return None, mods, (["laboratorio"] if "reports" in mods else [])
     if tipo == "admin_general":
         return None, None, None

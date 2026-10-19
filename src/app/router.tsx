@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { RequireAdminGeneral, RequireAuth, RequireFuncion, RequireModulo, RequireReanalisis, RequireReporte, RequireSeccionLab, RequireTomaMuestras } from '@/features/auth'
+import { RequireAdminGeneral, RequireAuth, RequireFuncion, RequireModulo, RequireNoComercial, RequireReanalisis, RequireReporte, RequireSeccionLab, RequireTomaMuestras } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
 import { LoginView } from '@/views/login/LoginView'
 import { DashboardView } from '@/views/dashboard/DashboardView'
@@ -107,7 +107,11 @@ export const router = createBrowserRouter([
             children: [
               { path: ROUTES.auditoriaInterna, element: <AuditoriaInternaHubView /> },
               { path: ROUTES.auditoriaInternaSolicitudes, element: <SolicitudesInformesView /> },
-              { path: ROUTES.auditoriaInternaCarpetas, element: <CarpetasView /> },
+              {
+                // Las carpetas de auditoría no se acotan a plantas todavía: un comercial no las abre.
+                element: <RequireNoComercial redirigirA={ROUTES.auditoriaInterna} />,
+                children: [{ path: ROUTES.auditoriaInternaCarpetas, element: <CarpetasView /> }],
+              },
               { path: ROUTES.auditoriaInternaLimiteControl, element: <LimiteControlView /> },
             ],
           },
@@ -120,10 +124,16 @@ export const router = createBrowserRouter([
             element: <RequireTomaMuestras />,
             children: [
               { path: ROUTES.tomaMuestras, element: <SolicitudesView /> },
-              { path: ROUTES.tomaMuestrasNueva, element: <NuevaSolicitudView /> },
-              { path: ROUTES.tomaMuestrasNuevaPrueba, element: <NuevaSolicitudView modo="prueba" /> },
-              { path: ROUTES.tomaMuestrasEditar, element: <NuevaSolicitudView modo="editar" /> },
-              { path: ROUTES.tomaMuestrasDetalle, element: <SolicitudDetalleView /> },
+              {
+                // Crear, editar y el detalle (con envío) no son para un comercial: solo mira la lista y los PDF.
+                element: <RequireNoComercial redirigirA={ROUTES.tomaMuestras} />,
+                children: [
+                  { path: ROUTES.tomaMuestrasNueva, element: <NuevaSolicitudView /> },
+                  { path: ROUTES.tomaMuestrasNuevaPrueba, element: <NuevaSolicitudView modo="prueba" /> },
+                  { path: ROUTES.tomaMuestrasEditar, element: <NuevaSolicitudView modo="editar" /> },
+                  { path: ROUTES.tomaMuestrasDetalle, element: <SolicitudDetalleView /> },
+                ],
+              },
             ],
           },
           {
