@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  colorDeAnalito, escalaBonita, etiquetaInforme, hayCorte, modeloLinea, posicionesX, radioDeValor, radioVacio, textoNumero, valorDeTexto,
+  colorDeAnalito, escalaBonita, etiquetaInforme, hayCorte, modeloLinea, pasoDeEje, posicionesX, radioDeValor, radioVacio, textoNumero, valorDeTexto,
   type InformeVista, type ResultadoVista,
 } from './lineaTiempoInformes'
 
@@ -30,6 +30,11 @@ describe('modeloLinea', () => {
 
   it('ordena de más antiguo a más nuevo, y dentro del día por N° (numérico)', () => {
     expect(m.informes.map((i) => i.nro)).toEqual(['496252', '496561', '496250', '496251', '496563'])
+  })
+
+  it('cada día lleva su día de la semana', () => {
+    expect(m.dias.map((d) => d.diaSemana)).toEqual(['miércoles', 'jueves', 'viernes'])
+    expect(modeloLinea([inf('1', null, 5, '<1')]).dias[0].diaSemana).toBeNull()
   })
 
   it('agrupa por día de muestreo y cuenta los días entre un día y el anterior', () => {
@@ -126,5 +131,16 @@ describe('etiquetas y números', () => {
     const m = modeloLinea([r('253522-DIAG0007', 'Pozo vaciado'), r('253521-DIAG0004', null), r('253521-DIAG0003', 'pozo vaciado')])
     expect(m.informes.map((i) => i.etiqueta)).toEqual(['DIAG0003', 'DIAG0004', 'DIAG0007'])
     expect(m.informes.map((i) => i.detalle)).toEqual(['pozo vaciado', null, 'Pozo vaciado'])
+  })
+})
+
+describe('pasoDeEje', () => {
+  it('con pocos informes los separa más, para llenar el ancho; con muchos, menos, sin bajar de un mínimo', () => {
+    expect(pasoDeEje(6, 0)).toBeGreaterThan(140)
+    expect(pasoDeEje(2, 0)).toBe(150)
+    expect(pasoDeEje(9, 1)).toBeLessThan(pasoDeEje(9, 0))
+    expect(pasoDeEje(9, 1)).toBeGreaterThanOrEqual(80)
+    expect(pasoDeEje(40, 0)).toBe(48)
+    expect(pasoDeEje(0, 0)).toBe(90)
   })
 })
