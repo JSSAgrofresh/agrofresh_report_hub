@@ -3,8 +3,6 @@ import {
   ORDEN_INICIAL,
   TAMANOS_PAGINA,
   alternarOrden,
-  analitosDe,
-  columnaAnalito,
   csvDeInformes,
   detectadosDe,
   filtrarInformes,
@@ -39,7 +37,7 @@ function descargarCsv(nombre: string, contenido: string) {
 }
 
 /**
- * Tabla por informe de ALS y Diagnofruit: un informe por fila y una columna por analito, con su unidad. Se ordena por
+ * Tabla por informe de ALS y Diagnofruit: la fecha, el informe y debajo una fila por analito con su resultado, unidad y estado. Se ordena por
  * cualquier columna, se busca por N°, zona o fecha, se pagina, resume cuántos informes tuvieron detección y se descarga
  * en CSV (lo que se ve, ordenado y filtrado, no solo la página).
  */
@@ -57,7 +55,7 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
   const pag = paginar(ordenados, pagina, tamano)
   const resumen = useMemo(() => resumenPorAnalito(filtrados, modelo.analitos), [filtrados, modelo.analitos])
   const conDeteccion = filtrados.filter((i) => detectadosDe(i) > 0).length
-  const columnas = 2 + (conDetalle ? 1 : 0) + modelo.analitos.length + 1
+  const columnas = 2 + (conDetalle ? 1 : 0) + 4
 
   function ordenarPor(col: string) {
     setOrden((o) => alternarOrden(o, col))
@@ -132,18 +130,9 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
               {encabezado('fecha', 'Fecha de muestreo')}
               {encabezado('nro', 'N° de informe')}
               {conDetalle && encabezado('detalle', columnaDetalle)}
-              {modelo.analitos.map((a) =>
-                encabezado(
-                  columnaAnalito(a.codigo),
-                  <span className={styles.cabAnalito}>
-                    <b>
-                      <i className={styles.punto} style={{ background: a.color.fill }} />
-                      {a.nombre.toUpperCase()}
-                    </b>
-                    <span>{a.unidad}</span>
-                  </span>,
-                ),
-              )}
+              <th><span className={styles.cabSimple}>Analito</span></th>
+              <th><span className={styles.cabSimple}>Resultado</span></th>
+              <th><span className={styles.cabSimple}>Unidad</span></th>
               {encabezado('estado', 'Estado')}
             </tr>
           </thead>
@@ -154,63 +143,90 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
               </tr>
             )}
             {pag.filas.map((inf, i) => {
-              const hay = detectadosDe(inf)
-              return (
-                <tr key={`${inf.nro}-${i}`}>
-                  <td className={styles.fecha}>
-                    {inf.fechaTxt}
-                    {inf.fecha && <small>{modelo.dias.find((d) => d.fecha === inf.fecha)?.diaSemana}</small>}
-                  </td>
-                  <td>
-                    <span className={styles.informe}>{inf.nro}</span>
-                  </td>
-                  {conDetalle && <td className={styles.detalle}>{inf.detalle || '—'}</td>}
-                  {modelo.analitos.map((a) => {
-                    const r = inf.porAnalito[a.codigo]
-                    return (
-                      <td key={a.codigo}>
-                        {!r ? (
-                          '—'
-                        ) : r.detectado ? (
-                          <span className={styles.chipSi} style={{ '--c': a.color.fill } as CSSProperties}>
-                            {r.texto}
-                          </span>
-                        ) : (
-                          <span className={styles.chipNo}>{r.texto}</span>
-                        )}
+              const lineas = modelo.analitos.filter((a) => inf.porAnalito[a.codigo])
+              const filas = lineas.length ? lineas : [null]
+              const primeraDelDia = i === 0 || pag.filas[i - 1].fecha !== inf.fecha
+              // Cuántas filas ocupa el día: las de este informe y las de los siguientes con la misma fecha.
+              let filasDelDia = 0
+              if (primeraDelDia) {
+                for (let j = i; j < pag.filas.length && pag.filas[j].fecha === inf.fecha; j++) {
+                  filasDelDia += Math.max(1, modelo.analitos.filter((a) => pag.filas[j].porAnalito[a.codigo]).length)
+                }
+              }
+              return filas.map((a, k) => {
+                const r = a ? inf.porAnalito[a.codigo] : null
+                const ultima = k === filas.length - 1
+                return (
+                  <tr key={`${inf.nro}-${i}-${a?.codigo ?? 'sin'}`} className={ultima ? styles.finInforme : undefined}>
+                    {k === 0 && primeraDelDia && (
+                      <td className={`${styles.fecha} ${styles.grupo}`} rowSpan={filasDelDia}>
+                        {inf.fechaTxt}
+                        {inf.fecha && <small>{modelo.dias.find((d) => d.fecha === inf.fecha)?.diaSemana}</small>}
                       </td>
-                    )
-                  })}
-                  <td>
-                    {estadoPendiente ? (
-                      <span className={styles.estadoNo} title="El estado depende de límites que este laboratorio aún no tiene definidos">Pendiente</span>
-                    ) : hay > 0 ? (
-                      <span className={styles.estadoSi} title={`${hay} de ${analitosDe(inf)} analitos detectados`}>Detectó · {hay}/{analitosDe(inf)}</span>
-                    ) : (
-                      <span className={styles.estadoNo}>No detectó</span>
                     )}
-                  </td>
-                </tr>
-              )
+                    {k === 0 && (
+                      <td className={styles.grupo} rowSpan={filas.length}>
+                        <span className={styles.informe}>{inf.nro}</span>
+                      </td>
+                    )}
+                    {conDetalle && k === 0 && (
+                      <td className={`${styles.detalle} ${styles.grupo}`} rowSpan={filas.length}>{inf.detalle || '—'}</td>
+                    )}
+                    <td>
+                      {a ? (
+                        <span className={styles.nombreAnalito}>
+                          <i className={styles.punto} style={{ background: a.color.fill }} />
+                          {a.nombre}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      {!r ? (
+                        '—'
+                      ) : r.detectado ? (
+                        <span className={styles.chipSi} style={{ '--c': a!.color.fill } as CSSProperties}>
+                          {r.texto}
+                        </span>
+                      ) : (
+                        <span className={styles.chipNo}>{r.texto}</span>
+                      )}
+                    </td>
+                    <td className={styles.unidadCelda}>{a?.unidad ?? ''}</td>
+                    <td>
+                      {!r ? (
+                        '—'
+                      ) : estadoPendiente ? (
+                        <span className={styles.estadoNo} title="El estado depende de límites que este laboratorio aún no tiene definidos">Pendiente</span>
+                      ) : r.detectado ? (
+                        <span className={styles.estadoSi}>Detectó</span>
+                      ) : (
+                        <span className={styles.estadoNo}>No detectó</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })
             })}
           </tbody>
-          {filtrados.length > 0 && (
-            <tfoot>
-              <tr>
-                <td colSpan={conDetalle ? 3 : 2}>Informes con detección por analito</td>
-                {resumen.map((r) => (
-                  <td key={r.codigo}>
-                    <b>{r.detectados}</b> de {r.total}
-                  </td>
-                ))}
-                <td>
-                  <b>{conDeteccion}</b> de {filtrados.length}
-                </td>
-              </tr>
-            </tfoot>
-          )}
         </table>
       </div>
+
+      {filtrados.length > 0 && (
+        <div className={styles.resumen}>
+          <b>Informes con detección por analito</b>
+          {modelo.analitos.map((a, k) => (
+            <span key={a.codigo}>
+              <i className={styles.punto} style={{ background: a.color.fill }} />
+              {a.nombre} <b>{resumen[k].detectados}</b> de {resumen[k].total}
+            </span>
+          ))}
+          <span>
+            Con alguna detección <b>{conDeteccion}</b> de {filtrados.length}
+          </span>
+        </div>
+      )}
 
       <div className={styles.pie}>
         <span>

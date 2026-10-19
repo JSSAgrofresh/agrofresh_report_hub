@@ -317,3 +317,66 @@
   font-size: 12px;
   color: var(--color-text-faint);
 }
+
+.cabSimple {
+  display: block;
+  padding: 11px var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.tabla tbody td.grupo {
+  vertical-align: top;
+  padding-top: 14px;
+  background: color-mix(in srgb, var(--color-bg) 60%, var(--color-surface));
+  border-right: 1px solid var(--color-border);
+}
+
+.tabla tbody tr:hover td.grupo {
+  background: color-mix(in srgb, var(--color-bg) 60%, var(--color-surface));
+}
+
+.tabla tbody tr.finInforme td {
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.nombreAnalito {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.unidadCelda {
+  color: var(--color-text-faint);
+  font-size: 12px;
+}
+
+.resumen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.resumen span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.resumen b {
+  color: var(--color-text);
+}

@@ -21,40 +21,40 @@ const filasDelCuerpo = (container: HTMLElement) => [...container.querySelectorAl
 const celdas = (fila: HTMLElement) => within(fila).getAllByRole('cell').map((c) => c.textContent)
 
 describe('tabla por informe', () => {
-  it('lleva un informe por fila (el más nuevo arriba) y una columna por analito con su unidad', () => {
+  it('muestra la fecha, el informe y debajo una fila por analito con su unidad (el más nuevo arriba)', () => {
     const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
     const columnas = within(screen.getByRole('table')).getAllByRole('columnheader').map((c) => c.textContent)
-    expect(columnas[0]).toContain('Fecha de muestreo')
-    expect(columnas[1]).toContain('N° de informe')
-    expect(columnas[2]).toContain('COLIFORMES TOTALES')
-    expect(columnas[2]).toContain('UFC/100 mL')
-    expect(columnas[3]).toContain('ESCHERICHIA COLI')
-    expect(columnas[4]).toContain('Estado')
+    expect(columnas.map((c) => c!.replace(/[↕▲▼]/g, '').trim())).toEqual(['Fecha de muestreo', 'N° de informe', 'Analito', 'Resultado', 'Unidad', 'Estado'])
     const filas = filasDelCuerpo(container)
-    expect(filas.map((f) => celdas(f)[1])).toEqual(['496563', '496251', '496252'])
-    // Coliformes primero y E. coli después, aunque el informe 496563 los traiga al revés.
-    expect(celdas(filas[1]).slice(2, 4)).toEqual(['67', '50'])
+    expect(filas).toHaveLength(6)
+    // Primera fila del informe 496563: fecha, informe, analito, resultado, unidad, estado. Coliformes primero aunque llegue al revés.
+    expect(celdas(filas[0])).toEqual(['30-10-2026viernes', '496563', 'Coliformes Totales', '<1', 'UFC/100 mL', 'Pendiente'])
+    // La segunda fila solo trae lo suyo: el informe y la fecha se estiran hacia abajo.
+    expect(celdas(filas[1])).toEqual(['Escherichia coli', '<1', 'UFC/100 mL', 'Pendiente'])
+    expect(celdas(filas[2]).slice(1, 4)).toEqual(['496251', 'Coliformes Totales', '67'])
+    expect(celdas(filas[3])[1]).toBe('50')
+    expect((container.querySelector('tbody tr td') as HTMLTableCellElement).rowSpan).toBe(2)
   })
 
-  it('lo no detectado sale como «<1», lo detectado con su valor y cada fila dice su estado', () => {
+  it('en ALS cada analito dice «Pendiente»', () => {
     const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
-    const [nueva, media] = filasDelCuerpo(container)
-    expect(within(nueva).getAllByText('<1')).toHaveLength(2)
-    expect(celdas(nueva)[4]).toBe('Pendiente')
-    expect(celdas(media)[4]).toBe('Pendiente')
+    const estados = filasDelCuerpo(container).map((f) => celdas(f).at(-1))
+    expect(estados).toEqual(Array(6).fill('Pendiente'))
   })
 
-  it('en Diagnofruit cada fila dice si detectó', () => {
+  it('en Diagnofruit cada analito dice si detectó', () => {
     const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="diagnofruit" conGraficos={false} />)
-    const [nueva, media] = filasDelCuerpo(container)
-    expect(celdas(nueva)[4]).toBe('No detectó')
-    expect(celdas(media)[4]).toBe('Detectó · 2/2')
+    const filas = filasDelCuerpo(container)
+    expect(celdas(filas[0]).at(-1)).toBe('No detectó')
+    expect(celdas(filas[2]).at(-1)).toBe('Detectó')
   })
 
-  it('el pie resume en cuántos informes se detectó cada analito', () => {
+  it('el resumen dice en cuántos informes se detectó cada analito', () => {
     render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
-    const pie = screen.getByText('Informes con detección por analito').closest('tr')!
-    expect(celdas(pie)).toEqual(['Informes con detección por analito', '2 de 3', '2 de 3', '2 de 3'])
+    const resumen = screen.getByText('Informes con detección por analito').parentElement!
+    expect(resumen.textContent).toContain('Coliformes Totales 2 de 3')
+    expect(resumen.textContent).toContain('Escherichia coli 2 de 3')
+    expect(resumen.textContent).toContain('Con alguna detección 2 de 3')
   })
 
   it('el día de la semana va bajo la fecha', () => {
@@ -64,21 +64,19 @@ describe('tabla por informe', () => {
 
   it('tocar un encabezado ordena y tocarlo otra vez lo invierte', () => {
     const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
-    const orden = () => filasDelCuerpo(container).map((f) => celdas(f)[1])
+    const orden = () => [...container.querySelectorAll('tbody [class*="informe"]')].map((e) => e.textContent)
     fireEvent.click(screen.getByRole('button', { name: /N° de informe/ }))
     expect(orden()).toEqual(['496251', '496252', '496563']) // ascendente
     fireEvent.click(screen.getByRole('button', { name: /N° de informe/ }))
     expect(orden()).toEqual(['496563', '496252', '496251'])
     expect(screen.getByRole('columnheader', { name: /N° de informe/ }).getAttribute('aria-sort')).toBe('descending')
-    fireEvent.click(screen.getByRole('button', { name: /COLIFORMES TOTALES/ }))
-    expect(orden()).toEqual(['496251', '496252', '496563']) // más valor primero
   })
 
   it('el buscador filtra por N° y avisa cuando nada calza', () => {
     const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
     const buscador = screen.getByLabelText('Buscar informe')
     fireEvent.change(buscador, { target: { value: '496563' } })
-    expect(filasDelCuerpo(container).map((f) => celdas(f)[1])).toEqual(['496563'])
+    expect([...container.querySelectorAll('tbody [class*="informe"]')].map((e) => e.textContent)).toEqual(['496563'])
     expect(screen.getByText('Mostrando 1–1 de 1 informe (de 3)')).toBeTruthy()
     fireEvent.change(buscador, { target: { value: 'zzz' } })
     expect(screen.getByText('Ningún informe calza con la búsqueda.')).toBeTruthy()
@@ -93,10 +91,10 @@ describe('tabla por informe', () => {
       resultados: [sin(COLT), sin(ECOLI)],
     }))
     const { container } = render(<ResultadosPorInforme informes={muchos} laboratorio="als" conGraficos={false} />)
-    expect(filasDelCuerpo(container)).toHaveLength(25)
+    expect(container.querySelectorAll('tbody [class*="informe"]')).toHaveLength(25)
     expect(screen.getByText('Mostrando 1–25 de 30 informes')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente →' }))
-    expect(filasDelCuerpo(container)).toHaveLength(5)
+    expect(container.querySelectorAll('tbody [class*="informe"]')).toHaveLength(5)
     expect(screen.getByText('Mostrando 26–30 de 30 informes')).toBeTruthy()
     expect(screen.getByText('Página 2 de 2')).toBeTruthy()
   })
@@ -174,19 +172,19 @@ const DIAGNO: InformeVista[] = [
 ]
 
 describe('con Diagnofruit', () => {
-  it('la tabla trae la zona de muestreo y una columna por patógeno con su unidad', () => {
+  it('la tabla trae la zona de muestreo y una fila por patógeno con su unidad', () => {
     const { container } = render(<ResultadosPorInforme informes={DIAGNO} laboratorio="diagnofruit" conGraficos={false} />)
     const columnas = within(screen.getByRole('table')).getAllByRole('columnheader').map((c) => c.textContent)
     expect(columnas[2]).toContain('Zona de muestreo')
-    expect(columnas[3]).toContain('LEVADURAS')
-    expect(columnas[3]).toContain('UFC/mL')
-    expect(columnas[4]).toContain('BOTRYTIS')
-    expect(columnas[5]).toContain('GEOTRICHUM')
     const filas = filasDelCuerpo(container)
-    // el más nuevo (por N°) arriba, y su zona; el otro sin zona queda en «—»
-    expect(celdas(filas[0])[2]).toBe('Pozo vaciado')
-    expect(celdas(filas[1])[2]).toBe('—')
-    expect(celdas(filas[1]).slice(3, 6)).toEqual(['>100', '4,66', '49,91'])
+    expect(filas).toHaveLength(6)
+    // Los dos informes son del mismo día: la fecha se estira por las seis filas y el más nuevo (por N°) va arriba.
+    expect(celdas(filas[0])).toEqual(['01-10-2026jueves', '253522-DIAG0007', 'Pozo vaciado', 'Levaduras', 'BLD', 'UFC/mL', 'No detectó'])
+    expect((container.querySelector('tbody tr td') as HTMLTableCellElement).rowSpan).toBe(6)
+    expect(celdas(filas[1])).toEqual(['Botrytis', '5,2', 'conidia/mL', 'Detectó'])
+    // el otro informe no trae zona: queda en «—»
+    expect(celdas(filas[3]).slice(0, 4)).toEqual(['253521-DIAG0003', '—', 'Levaduras', '>100'])
+    expect(celdas(filas[5]).slice(0, 2)).toEqual(['Geotrichum', '49,91'])
   })
 
   it('la nota habla de BLD, no de «<1»', () => {
