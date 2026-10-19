@@ -165,4 +165,21 @@ describe('Report por bloques de análisis', () => {
     fireEvent.change(select, { target: { value: 'Actimist' } })
     await waitFor(() => expect(screen.getByText(/1 de 2 solicitudes/)).toBeTruthy())
   })
+
+  it('el filtro «N° de línea» ofrece las líneas de los datos y filtra', async () => {
+    api.obtenerDatosReporte.mockResolvedValue({
+      filas: [
+        fila({ solicitud_id: 1, nro_solicitud: 'OT-AGF0001', nro_linea: '2' }),
+        fila({ solicitud_id: 2, nro_solicitud: 'OT-AGF0002', nro_linea: '10' }),
+        fila({ solicitud_id: 3, nro_solicitud: 'OT-AGF0003', nro_linea: null }),
+      ],
+      total: 3,
+      total_solicitudes: 3,
+    })
+    render(<ReporteView />)
+    const select = (await screen.findByText('N° de línea', { selector: 'span' })).parentElement!.querySelector('select')!
+    expect([...select.options].map((o) => o.textContent)).toEqual(['Todas', '2 (1)', '10 (1)'])
+    fireEvent.change(select, { target: { value: '10' } })
+    await waitFor(() => expect(screen.getByText(/1 de 3 solicitudes/)).toBeTruthy())
+  })
 })

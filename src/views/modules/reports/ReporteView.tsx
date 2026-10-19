@@ -162,6 +162,7 @@ const ETIQUETAS_FILTRO: Record<keyof Filtros, string> = {
   planta: 'Ship To',
   tipoServicio: 'Servicio',
   servicio: 'Tipo de servicio',
+  nroLinea: 'N° de línea',
   crop: 'Especie',
   variedad: 'Variedad',
   ingredientes: 'Ingrediente',
@@ -390,6 +391,7 @@ export function ReporteView({
         tipoAplicacion: f.tipo_aplicacion,
         tipoServicio: f.tipo_servicio,
         servicio: servicioDeFila(f.servicio, f.tipo_aplicacion),
+        nroLinea: (f.nro_linea ?? '').trim() || null,
         posicionMuestreo: f.posicion_muestreo,
         laboratorio: f.laboratorio,
         crop: f.especie,
@@ -425,6 +427,7 @@ export function ReporteView({
       ingredientes: de('ingredientes', { seleccionados: filtros.ingredientes }),
       clientes: de('cliente', { seleccionados: elegidos('cliente', filtros.cliente) }),
       plantas: de('planta', { seleccionados: elegidos('planta', filtros.planta) }),
+      lineas: de('nroLinea', { seleccionados: elegidos('nroLinea', filtros.nroLinea) }),
       servicios: de('servicio', { seleccionados: elegidos('servicio', filtros.servicio) }),
       tiposServicio: de('tipoServicio', { formatear: capitalizarPrimeraLetra, seleccionados: [filtros.tipoServicio] }),
       laboratorios: de('laboratorio', { formatear: capitalizarPrimeraLetra, seleccionados: elegidos('laboratorio', filtros.laboratorio) }),
@@ -443,6 +446,7 @@ export function ReporteView({
       ingredientes: mapa(opciones.ingredientes),
       laboratorios: mapa(opciones.laboratorios),
       servicios: mapa(opciones.servicios),
+      lineas: mapa(opciones.lineas),
       crops: mapa(opciones.crops),
       variedades: mapa(opciones.variedades),
       semanas: mapa(opciones.semanas),
@@ -1415,6 +1419,25 @@ export function ReporteView({
                   <select value={filtros.servicio} onChange={(e) => actualizarFiltro('servicio', e.target.value)}>
                     <option value="">Todos</option>
                     {opciones.servicios.map((o) => (
+                      <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {filtrosMultiples ? (
+                <MultiSelectFiltro
+                  etiqueta="N° de línea"
+                  opciones={opciones.lineas.map((o) => o.valor)}
+                  valores={multi.nroLinea}
+                  onChange={(v) => cambiarMulti('nroLinea', v)}
+                  conteoDe={(v) => conteoPorValor.lineas.get(v)}
+                />
+              ) : (
+                <label className={styles.filtro}>
+                  <span>N° de línea</span>
+                  <select value={filtros.nroLinea} onChange={(e) => actualizarFiltro('nroLinea', e.target.value)}>
+                    <option value="">Todas</option>
+                    {opciones.lineas.map((o) => (
                       <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
                     ))}
                   </select>

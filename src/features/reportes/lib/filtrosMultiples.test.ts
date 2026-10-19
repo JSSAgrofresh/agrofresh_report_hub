@@ -32,6 +32,12 @@ describe('filtros múltiples', () => {
     expect(chipsMulti({ ...MULTI_VACIOS, servicio: ['Actimist', 'RYD'] })).toEqual([{ campo: 'servicio', etiqueta: 'Tipo de servicio', valor: 'Actimist, RYD' }])
     expect(tituloLimites('Límites residuales', { ...MULTI_VACIOS, servicio: ['Actimist'] })).toBe('Límites residuales - Actimist')
   })
+  it('N° de línea: vale cualquiera de los elegidos', () => {
+    expect(cumpleMulti(o({ nroLinea: '3' }), { ...MULTI_VACIOS, nroLinea: ['2', '3'] })).toBe(true)
+    expect(cumpleMulti(o({ nroLinea: '3' }), { ...MULTI_VACIOS, nroLinea: ['1'] })).toBe(false)
+    expect(cumpleMulti(o({}), { ...MULTI_VACIOS, nroLinea: ['1'] })).toBe(false)
+    expect(tituloLimites('Límites residuales', { ...MULTI_VACIOS, nroLinea: ['2', '3'] })).toBe('Límites residuales - Línea 2, 3')
+  })
   it('cuenta y describe lo elegido', () => {
     const m = { ...MULTI_VACIOS, crop: ['Manzana', 'Pera'], cliente: ['DOLE CHILE S.A.'] }
     expect(contarMulti(m)).toBe(2)
