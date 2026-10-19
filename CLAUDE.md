@@ -38,6 +38,10 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
 
 - **`start` al empezar un chat**: ver el recuadro del principio de este archivo (abre el aviso de despliegue).
 
+### Tareas del usuario (pedido del 19-10-2026)
+
+El usuario lleva sus tareas en el Artifact **«Tareas Report Hub»**: **https://claude.ai/artifact/Jz3ax512MjvfhNgVpzkv1D** (los checks se guardan en su base; léelos con `ArtifactData` sobre ese `url`, colección `tareas`, y el lote en `config/lote`) y su resumen está en **`TAREAS.md`**. Cuando diga «guarda esto en el historial de tareas» (tras una reunión), agrega las tareas al Artifact con `ArtifactData` `batch` (campos: `num`, `grupo`, `titulo`, `detalle`, `dificultad` 1-5, `horas`, `dia` AAAA-MM-DD o null, `estado` pendiente/hecha/bloqueada, `orden`) y a `TAREAS.md`. **Siempre se parte por lo más difícil** y se reparte por día con una estimación de horas (6 h por día, el resto queda libre para investigar). Si da una fecha de entrega nueva, actualiza `config/lote`. Nunca borres tareas hechas: son el historial.
+
 ### Reglas de seguridad (no negociables)
 
 - Nunca escribas credenciales en el código.
