@@ -34,6 +34,7 @@ DATOS_QUERY = """
         s.temporada,
         s.tipo_servicio,
         to_jsonb(s) ->> 'servicio' AS servicio,
+        s.nro_linea,
         s.posicion_muestreo,
         s.codigo_ensayo,
         s.nro_ensayo,
