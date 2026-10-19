@@ -667,55 +667,52 @@ function leerQuiteca(texto, inf){
 }
 
 /* ---------------- DIAGNOFRUIT ---------------- */
+/* Una fecha de Diagnofruit. Las escribe a veces día/mes y a veces mes/día en el mismo informe
+   («Fecha de muestreo: 1/10/2026», «Fecha de recepción: 10/1/2026»): la recepción, la ejecución y el
+   informe no pueden quedar ANTES del muestreo, así que se queda con la lectura que no queda antes. */
+function fechaDiagnofruit(texto, etiqueta, nombre, desde, avisos){
+  const m = texto.match(new RegExp(etiqueta + ":\\s*([\\d/\\-]+)", "i"));
+  if(!m) return null;
+  let f = aFecha(m[1], avisos);
+  const dm = m[1].match(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+  if(f && desde && aISO(f) < aISO(desde) && dm){
+    const vuelta = aFecha(dm[2] + "/" + dm[1] + "/" + dm[3], null);
+    if(vuelta && aISO(vuelta) >= aISO(desde)){
+      avisos.push("La fecha " + nombre + " venía como " + m[1] + " (antes del muestreo): se leyó " + vuelta + " (mes/día)");
+      f = vuelta;
+    }
+  }
+  return f;
+}
+
+/* De un informe de Diagnofruit solo se usan la OT, los resultados y las fechas del propio informe (muestreo,
+   recepción, ejecución e informe). Sold To, Ship To, especie, variedad, posición y tipo de servicio salen de la
+   SOLICITUD, que se busca por la OT (completarDesdeSolicitud): lo que escribe Diagnofruit («Gesex Planta Fátima»,
+   «Especie: AGUA», «M1») no es el nombre oficial, y queda solo como pista en la observación. */
 function leerDiagnofruit(texto, inf){
   const d = inf.datos;
   d["Laboratorio"] = "Diagnofruit";
-  d["Sold To"] = campo(texto, "Cliente:");
-  d["Ship To"] = campo(texto, "Predio/planta:");
-  d["Especie"] = campo(texto, "Especie:", "Variedad:");
-  const v = campo(texto, "Variedad:");
-  d["Variedad"] = (v && plano(v).startsWith("no ")) ? null : v;
   const tipo = campo(texto, "Tipo de muestra:", "Fecha");
   d["Tipo Muestra"] = (tipo && plano(tipo).includes("agua")) ? "Agua" : tipo;
 
-  const fm = [...texto.matchAll(/Fecha de muestreo:\s*([\d/\-]+)/g)].map(x=>x[1]);
-  d["Fecha Muestreo"] = fm.length ? aFecha(fm[0], inf.avisos) : null;
-  const fr = [...texto.matchAll(/Fecha de recepci[óo]n:\s*([\d/\-]+)/g)].map(x=>x[1]);
-  // "Fecha de recepción" es cuándo la muestra entró al laboratorio. Diagnofruit la escribe a veces
-  // día/mes y a veces mes/día en el mismo informe («10/1/2026» y «1/10/2026»): la muestra no puede
-  // llegar ANTES de haberse tomado, así que se queda con la lectura que no queda antes del muestreo.
-  if(fr.length){
-    let rec = aFecha(fr[0], inf.avisos);
-    const dm = String(fr[0]).match(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
-    if(rec && d["Fecha Muestreo"] && aISO(rec) < aISO(d["Fecha Muestreo"]) && dm){
-      const vuelta = aFecha(dm[2] + "/" + dm[1] + "/" + dm[3], null);
-      if(vuelta && aISO(vuelta) >= aISO(d["Fecha Muestreo"])){
-        inf.avisos.push("La fecha de recepción venía como " + fr[0] + " (antes del muestreo): se leyó " + vuelta + " (mes/día)");
-        rec = vuelta;
-      }
-    }
-    d["Fecha entrada"] = rec;
-  }
-  // No hay un campo de "tipo de servicio" propiamente tal en este formato: se usa
-  // el análisis solicitado, que es lo que más se le parece en este laboratorio.
-  d["Tipo de servicio"] = campo(texto, "An[áa]lisis realizado");
+  d["Fecha Muestreo"] = fechaDiagnofruit(texto, "Fecha de muestreo", "de muestreo", null, inf.avisos);
+  // «Fecha de recepción» es cuándo la muestra entró al laboratorio; «ejecución», cuándo se analizó.
+  d["Fecha entrada"] = fechaDiagnofruit(texto, "Fecha de recepci[óo]n", "de recepción", d["Fecha Muestreo"], inf.avisos);
+  d["Fecha Análisis"] = fechaDiagnofruit(texto, "Fecha de ejecuci[óo]n", "de ejecución", d["Fecha Muestreo"], inf.avisos);
+  d["Fecha Informe"] = fechaDiagnofruit(texto, "Fecha de Informe", "del informe", d["Fecha Muestreo"], inf.avisos);
 
   const obs = [];
   let m = texto.match(/Reporte n[úu]mero:\s*(\S+)/);
   if(m){ obs.push("Reporte Diagnofruit N° " + m[1]); d["N° Solicitud"] = m[1]; }
   m = texto.match(/Nombre de muestra:\s*(.+)/);
-  if(m && !/^[-\s]+$/.test(m[1])){
-    const nombreMuestra = m[1].trim();
-    // «M1 - DIAG0007»: el código es el de nuestra solicitud (OT-DIAG0007).
-    const cod = nombreMuestra.match(/\b(DIAG\d+)\b/i);
-    if(cod) d["OT"] = "OT-" + cod[1].toUpperCase();
-    obs.push("Muestra: " + nombreMuestra);
-    // La zona de muestreo es lo que va antes del primer guion, ej. "M1" en
-    // "M1 - Frutizano - Pozo vaciado". El resto es contexto de la muestra,
-    // no de dónde se tomó, así que no se usa para esto.
-    const zona = nombreMuestra.split("-")[0].trim();
-    if(zona) d["Posición Muestreo"] = zona;
-  }
+  const nombreMuestra = (m && !/^[-\s]+$/.test(m[1])) ? m[1].trim() : "";
+  if(nombreMuestra) obs.push("Muestra: " + nombreMuestra);
+  // La OT es lo único que se necesita para traer el resto: «M1 - DIAG0007» → OT-DIAG0007. Normalmente va en el
+  // nombre de la muestra; si no, se busca en cualquier parte de la página.
+  const cod = (nombreMuestra.match(/\b(DIAG\d+)\b/i) || texto.match(/\b(?:OT-?\s*)?(DIAG\d+)\b/i) || [])[1];
+  if(cod) d["OT"] = "OT-" + cod.toUpperCase();
+  const planta = campo(texto, "Predio/planta:");
+  if(planta && !plano(planta).startsWith("no ")) obs.push("Planta según Diagnofruit: " + planta);
   const loc = campo(texto, "Localidad:", "U\\. prod");
   if(loc && !plano(loc).startsWith("no ")) obs.push("Localidad: " + loc);
   d["Observación"] = obs.join(" · ") || null;
