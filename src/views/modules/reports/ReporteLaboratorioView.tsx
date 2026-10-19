@@ -33,6 +33,22 @@ export function ReporteLaboratorioView() {
     )
   }
 
+  // Un comercial entra por la misma ruta: el servidor ya le deja solo los datos de sus plantas (solo lectura).
+  if (user?.tipoAcceso === 'comercial') {
+    return (
+      <div>
+        <AreaHero
+          area={config}
+          titulo={cliente || 'Tus plantas'}
+          descripcion={`Comercial · ${config.nombre}. Resultados de las plantas que tienes asignadas, solo lectura.`}
+          fondo={fondo.imagen}
+          tinte={fondo.tinte}
+        />
+        <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} />
+      </div>
+    )
+  }
+
   return (
     <div>
       <AreaHero

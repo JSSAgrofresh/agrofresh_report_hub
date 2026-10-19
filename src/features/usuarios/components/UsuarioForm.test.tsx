@@ -1,7 +1,13 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { UsuarioForm } from './UsuarioForm'
 import type { Usuario } from '../types'
+
+const { buscar } = vi.hoisted(() => ({ buscar: vi.fn() }))
+vi.mock('../api/usuariosStore', async (original) => ({
+  ...(await original<typeof import('../api/usuariosStore')>()),
+  buscarPlantasDeComercial: buscar,
+}))
 
 vi.mock('@/features/catalogo', () => ({
   listarClientes: vi.fn().mockResolvedValue([]),
@@ -130,5 +136,52 @@ describe('UsuarioForm: permisos por categoría y funciones sueltas', () => {
     const box = screen.getByRole('checkbox', { name: /Storage/ }) as HTMLInputElement
     expect(box.checked).toBe(true)
     expect(box.disabled).toBe(true)
+  })
+})
+
+describe('UsuarioForm: cuenta de comercial', () => {
+  const comercial: Usuario = {
+    id: '7', email: 'com@agrofresh.com', nombre: 'Com', tipoAcceso: 'comercial',
+    modulos: ['reports', 'storage'], reportes: ['laboratorio'],
+    plantasAsignadas: [{ clienteNombre: 'DOLE', plantaNombre: 'DOLE LONTUE' }],
+  }
+
+  it('guarda sus plantas y solo lo que abre, sin área ni permisos de administración', () => {
+    const onGuardar = guardar(comercial, () => fireEvent.click(screen.getByRole('checkbox', { name: /Storage/ })))
+    const datos = onGuardar.mock.calls[0][0] as Usuario
+    expect(datos.tipoAcceso).toBe('comercial')
+    expect(datos.modulos).toEqual(['reports'])
+    expect(datos.reportes).toEqual(['laboratorio'])
+    expect(datos.plantasAsignadas).toEqual([{ clienteNombre: 'DOLE', plantaNombre: 'DOLE LONTUE' }])
+    expect(datos.area).toBeUndefined()
+  })
+
+  it('no deja guardar un comercial sin plantas', () => {
+    const onGuardar = guardar({ ...comercial, plantasAsignadas: [] })
+    expect(onGuardar).not.toHaveBeenCalled()
+    expect(screen.getAllByText(/al menos una planta/).length).toBeGreaterThan(0)
+  })
+
+  it('no deja guardar un comercial que no abre nada', () => {
+    const onGuardar = guardar(comercial, () => {
+      fireEvent.click(screen.getByRole('checkbox', { name: /Report de laboratorio/ }))
+      fireEvent.click(screen.getByRole('checkbox', { name: /Storage/ }))
+    })
+    expect(onGuardar).not.toHaveBeenCalled()
+  })
+
+  it('trae sus plantas de las listas de distribución y se pueden quitar', async () => {
+    buscar.mockResolvedValue([
+      { clienteNombre: 'DOLE', plantaNombre: 'DOLE LONTUE' },
+      { clienteNombre: 'VERFRUT', plantaNombre: 'VERFRUT RAPEL' },
+    ])
+    const onGuardar = vi.fn()
+    render(<UsuarioForm usuario={comercial} onGuardar={onGuardar} onCancelar={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: /Traer sus plantas de las listas/ }))
+    await waitFor(() => expect(screen.getByText('VERFRUT · VERFRUT RAPEL')).toBeTruthy())
+    expect(screen.getAllByText('DOLE · DOLE LONTUE')).toHaveLength(1) // sin repetir la que ya tenía
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar DOLE · DOLE LONTUE' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect((onGuardar.mock.calls[0][0] as Usuario).plantasAsignadas).toEqual([{ clienteNombre: 'VERFRUT', plantaNombre: 'VERFRUT RAPEL' }])
   })
 })

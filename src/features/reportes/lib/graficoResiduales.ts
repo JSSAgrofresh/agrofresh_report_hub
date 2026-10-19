@@ -1,4 +1,5 @@
 import type { FiltrosReporte } from './filtros'
+import { nombreLaboratorio } from './bloquesAnalisis'
 import type { Observacion } from './tipos'
 
 /** Encabezado del gráfico principal: parte siempre con «Residuales» (o el prefijo dado) y suma lo
@@ -58,4 +59,26 @@ const PALETA_ESPECIES = ['#4f8a26', '#e8c32e', '#6dad3c', '#c9a227', '#a3cf62', 
 
 export function colorEspecieMarca(posicion: number): string | null {
   return PALETA_ESPECIES[posicion] ?? null
+}
+
+/** Laboratorio de un informe (nombre completo); un informe es de un solo laboratorio, así que basta su primer punto. */
+export function laboratorioDeInforme(inf: InformeConPuntos): string {
+  return nombreLaboratorio(inf.puntos.find((p) => p.laboratorio)?.laboratorio)
+}
+
+/** Laboratorios presentes en los informes, en orden alfabético (los informes sin laboratorio no cuentan). */
+export function laboratoriosDeInformes(informes: InformeConPuntos[]): string[] {
+  return [...new Set(informes.map(laboratorioDeInforme).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'))
+}
+
+/** Posiciones (columnas del gráfico) en las que `analito` trae valor, separadas por laboratorio: cada laboratorio
+ * es una curva aparte, para comparar el mismo analito entre laboratorios. Conserva el orden de las columnas. */
+export function columnasPorLaboratorio(informes: InformeConPuntos[], analito: string): Map<string, number[]> {
+  const grupos = new Map<string, number[]>()
+  informes.forEach((inf, idx) => {
+    if (!inf.puntos.some((p) => p.ingrediente === analito && p.ppm != null)) return
+    const lab = laboratorioDeInforme(inf)
+    grupos.set(lab, [...(grupos.get(lab) ?? []), idx])
+  })
+  return grupos
 }

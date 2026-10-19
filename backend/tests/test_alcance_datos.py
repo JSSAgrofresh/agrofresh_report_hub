@@ -64,5 +64,7 @@ def test_todo_tipo_de_acceso_esta_cubierto():
     todo" por omisión, que es como se filtran los datos sin que nadie lo
     note."""
     from app.auth import TIPOS_ACCESO
-    cubiertos = {"cliente", "admin_general", "admin_area", "muestreador", "analista", "gerencia"}
+    # «comercial» queda acotado a sus plantas en `reportes._filtro_alcance` y en `informes_cliente`
+    # (ver tests/test_comercial.py): aquí `alcance_de_datos` no decide nada por él.
+    cubiertos = {"cliente", "admin_general", "admin_area", "muestreador", "analista", "gerencia", "comercial"}
     assert set(TIPOS_ACCESO) == cubiertos

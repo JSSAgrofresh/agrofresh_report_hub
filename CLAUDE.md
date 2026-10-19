@@ -38,6 +38,10 @@ negocio) está **`PROJECT_CONTEXT.md`** en esta misma carpeta.
 
 - **`start` al empezar un chat**: ver el recuadro del principio de este archivo (abre el aviso de despliegue).
 
+### Tareas del usuario (pedido del 19-10-2026)
+
+El usuario lleva sus tareas en el Artifact **«Tareas Report Hub»**: **https://claude.ai/artifact/Jz3ax512MjvfhNgVpzkv1D** (los checks se guardan en su base; léelos con `ArtifactData` sobre ese `url`, colección `tareas`, y el lote en `config/lote`) y su resumen está en **`TAREAS.md`**. Cuando diga «guarda esto en el historial de tareas» (tras una reunión), agrega las tareas al Artifact con `ArtifactData` `batch` (campos: `num`, `grupo`, `titulo`, `detalle`, `dificultad` 1-5, `horas`, `dia` AAAA-MM-DD o null, `estado` pendiente/hecha/bloqueada, `orden`) y a `TAREAS.md`. **Siempre se parte por lo más difícil** y se reparte por día con una estimación de horas (6 h por día, el resto queda libre para investigar). Si da una fecha de entrega nueva, actualiza `config/lote`. Nunca borres tareas hechas: son el historial.
+
 ### Reglas de seguridad (no negociables)
 
 - Nunca escribas credenciales en el código.
@@ -109,6 +113,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0054_envio_informe_solicitud.sql
 .venv\Scripts\python.exe scripts\migrar.py 0055_solicitud_servicio.sql
 .venv\Scripts\python.exe scripts\migrar.py 0057_informe_visto.sql
+.venv\Scripts\python.exe scripts\migrar.py 0063_comercial_plantas.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -438,6 +443,12 @@ listas que la cuenta ya tenía (`modulos`, `reportes`).
 - **Funciones sueltas** (ids en `modulos`; se asignan a propósito, marcar al padre no las da): `lab_criterios` («Modificar los criterios» de las
   verificaciones; nació en `lab_secciones.py`, 403 en `/api/verificaciones/config/*`), `verif_firmar` (firmar la revisión del día, además de admin general y admin de Cromatografía) y `toma_reanalisis` (crear reanálisis: **ningún tipo de cuenta la trae sola**, ni siquiera admin de área —13-10-2026, pedido del usuario—; la da el admin general cuenta por cuenta). Admin general las tiene todas; gerencia y clientes ninguna. Guardas: `RequireFuncion` (front), `permisos_funciones.exigir`
   (back). Pruebas: `tests/test_permisos_funciones.py`, `catalogoPermisos.test.ts`, `permisos.test.ts`, `UsuarioForm.test.tsx`.
+
+## Cuenta «Comercial» (20-10-2026, migración **0063**, columna `usuario.plantas_asignadas` JSONB)
+
+Nuevo tipo de cuenta `comercial` (Administración → Usuarios, junto a los administradores): **solo lectura y solo sus plantas**. El administrador general le asigna una lista de `{clienteNombre, plantaNombre?}` (sin planta = todo ese Sold To; el botón «Traer sus plantas de las listas de distribución» propone las plantas donde su correo figura como Comercial: `GET /api/usuarios/plantas-de-comercial?email=`, solo propone) y marca qué abre entre **Report** y **Storage** (`MODULOS_COMERCIAL`; nada más, porque son los únicos módulos cuya API acota a sus plantas). Puede **descargar** el Excel de Report (sin columnas internas, como un cliente) y los PDF de su carpeta; no puede crear, editar, subir ni borrar nada.
+- **Cómo se hace cumplir en el servidor** (`auth.py`): `solo_interno` y `solo_escribiente` lo rechazan (403), y casi toda la API cuelga de `SOLO_AGROFRESH`, así que un router nuevo le nace cerrado. Lo que SÍ abre: `reportes` (acotado en `reportes._filtro_alcance` con las plantas de la sesión; sin plantas = `FALSE`, nunca todo; lo que pida el navegador solo acota más) e `informes_cliente` (`carpetas_permitidas`). `alcance_de_datos` no decide nada por él. **Un endpoint nuevo abierto a `CON_SESION` tiene que acotar a sus plantas** (`plantas_de_comercial(usuario)`).
+- Front: `esComercial`/`esSoloLectura`/`MODULOS_COMERCIAL` (`permisos.ts`), `UsuarioForm` (sección «Qué plantas ve y qué abre»), `StorageView` e `InformesClienteView` (la misma vista que el cliente), `ReporteLaboratorioView` (encabezado «Tus plantas»), `ClienteDashboardView` como panel de inicio. **Pendiente**: otros módulos para comerciales (Panel de control interno, Solicitudes) exigirían acotar sus APIs; los técnicos quedan aparte. Pruebas: `tests/test_comercial.py`, `permisos.test.ts`, `UsuarioForm.test.tsx`, `lista.test.ts`.
 
 ## Administración General → Funciones (qué muestra Report)
 
@@ -970,6 +981,7 @@ tocas una, toca la otra.
   tarjeta de límites residuales, % de cumplimiento, distribución de valores,
   indicadores y solicitudes por cliente: no los vuelvas a poner. La vista por
   límite de control (Panel de control interno) conserva su tarjeta de límites.
+- **Gráfico de residuales (19-10-2026, pedido del usuario)**: cada columna lleva SU fecha en el eje (ya no una por día); el mismo analito dibuja **una curva por laboratorio** (mismo color, trazo distinto: continuo, rayas, puntos; `columnasPorLaboratorio` en `graficoResiduales.ts`) con una leyenda de trazos bajo el gráfico cuando hay más de un laboratorio. Los desplegables de filtros de Report **ya no llevan el contador entre paréntesis** («Mandarina», no «Mandarina (11)»; `textoOpcion`, y se quitó `conteoDe` de los `MultiSelectFiltro` de Report; el de Solicitudes no se tocó). No los vuelvas a poner.
 - **Ficha del informe** (clic en un punto del gráfico de residuales): si todas las
   filas son de UNA solicitud y es personal interno (`puedeDescargarBd`, nunca cliente
   ni datos simulados), `DetalleObservacionesModal` abre `FichaInformeModal`: resultados

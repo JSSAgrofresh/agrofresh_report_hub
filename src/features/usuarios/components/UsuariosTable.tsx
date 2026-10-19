@@ -12,6 +12,7 @@ const COLOR_TIPO: Record<TipoAcceso, string> = {
   admin_area: '#3a8a52',
   analista: '#2e9e8a',
   muestreador: '#5b7f95',
+  comercial: '#a8642a',
   cliente: '#2467b3',
 }
 

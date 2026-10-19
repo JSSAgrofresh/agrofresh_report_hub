@@ -17,7 +17,7 @@ export function AppLayout() {
   // misma dentro de unos minutos). Las cuentas de cliente no se registran.
   const { pathname } = useLocation()
   const { user } = useAuth()
-  const esCliente = user?.tipoAcceso === 'cliente'
+  const esCliente = user?.tipoAcceso === 'cliente' || user?.tipoAcceso === 'comercial' // sin acceso a la bitácora
   useEffect(() => {
     if (!user || esCliente) return
     avisarVisita(pathname).catch(() => undefined)

@@ -6,7 +6,7 @@ secciones de AgroFresh Lab (`lab_secciones.py`). Espejo de `src/features/usuario
 (mismos casos en `tests/test_permisos_funciones.py` y `permisos.test.ts`).
 
   · Administrador general: las tiene todas.
-  · Gerencia y clientes: ninguna (son de escritura; gerencia es solo lectura).
+  · Gerencia, comerciales y clientes: ninguna (gerencia y comerciales son de solo lectura).
   · El resto: solo las que el administrador le marcó.
 
 «Modificar criterios» (`lab_criterios`) nació en `lab_secciones.py` (`puede_editar_criterios`) y se reusa tal cual.
@@ -35,7 +35,7 @@ REPORTES_VALIDOS = ("laboratorio", "postventa")
 def tiene(usuario: Usuario, funcion: str) -> bool:
     if usuario.tipoAcceso == "admin_general":
         return True
-    if usuario.tipoAcceso in ("gerencia", "cliente"):
+    if usuario.tipoAcceso in ("gerencia", "cliente", "comercial"):
         return False
     return funcion in (usuario.modulos or [])
 
@@ -52,6 +52,8 @@ def exigir(funcion: str, mensaje: str):
 
 
 MODULOS_CLIENTE = ("reports", "storage")
+# Lo que se le puede dar a un comercial: solo lo que acota a sus plantas.
+MODULOS_COMERCIAL = ("reports", "storage")
 
 
 def normalizar_cuenta(
@@ -83,6 +85,13 @@ def normalizar_cuenta(
         if not mods and not reps:
             raise HTTPException(400, "Elige qué ve el cliente: Report, Storage y/o informes Accu-Tab.")
         return ("postventa" if reps == ["postventa"] and not mods else "cromatografia"), mods, reps
+    if tipo == "comercial":
+        # Solo lectura y solo lo que el administrador le marque entre Report y Storage (los únicos módulos cuya API
+        # acota a sus plantas). Sin área: no pertenece a una.
+        mods = [m for m in MODULOS_COMERCIAL if m in (modulos or [])]
+        if not mods:
+            raise HTTPException(400, "Elige qué ve el comercial: Report y/o Storage.")
+        return None, mods, (["laboratorio"] if "reports" in mods else [])
     if tipo == "admin_general":
         return None, None, None
     # Lo que no existe (ids viejos) se descarta; lo reservado al administrador general nunca está en la lista.

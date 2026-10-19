@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  esSoloLectura,
   etiquetaAcceso,
   modulosPermitidos,
   puedeCrearReanalisis,
@@ -178,5 +179,28 @@ describe('mini funciones asignables (espejo de test_permisos_funciones.py)', () 
     const cliente = { ...u('cliente', ['reports']), reportes: ['laboratorio', 'postventa'] } as Usuario
     expect(puedeVerReporte(cliente, 'laboratorio')).toBe(true)
     expect(puedeVerReporte(cliente, 'postventa')).toBe(false)
+  })
+})
+
+describe('cuenta de comercial', () => {
+  const comercial: Usuario = {
+    id: 'com', email: 'com@agrofresh.com', nombre: 'Com', tipoAcceso: 'comercial',
+    modulos: ['reports', 'storage', 'converter', 'auditoria_interna'], reportes: ['laboratorio', 'postventa'],
+    plantasAsignadas: [{ clienteNombre: 'DOLE', plantaNombre: 'DOLE LONTUE' }],
+  }
+
+  it('solo abre Report y Storage, aunque la lista guardada traiga más', () => {
+    expect(modulosPermitidos(comercial).map((m) => m.id).sort()).toEqual(['reports', 'storage'])
+    expect(modulosPermitidos({ ...comercial, modulos: ['storage'] }).map((m) => m.id)).toEqual(['storage'])
+    expect(modulosPermitidos({ ...comercial, modulos: undefined })).toEqual([])
+  })
+
+  it('es de solo lectura, sin funciones sueltas ni Report de Post Venta', () => {
+    expect(esSoloLectura(comercial)).toBe(true)
+    expect(tieneFuncion({ ...comercial, modulos: ['toma_reanalisis'] }, 'toma_reanalisis')).toBe(false)
+    expect(puedeVerReporte(comercial, 'laboratorio')).toBe(true)
+    expect(puedeVerReporte(comercial, 'postventa')).toBe(false)
+    expect(puedeVerTomaMuestras(comercial)).toBe(false)
+    expect(etiquetaAcceso(comercial)).toBe('Comercial')
   })
 })

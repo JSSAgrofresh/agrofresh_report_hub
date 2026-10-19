@@ -16,9 +16,17 @@ export function tieneAccesoTotal(usuario: Usuario): boolean {
   return esAdminGeneral(usuario) || esGerencia(usuario)
 }
 
-export function esSoloLectura(usuario: Usuario): boolean {
-  return esGerencia(usuario)
+export function esComercial(usuario: Pick<Usuario, 'tipoAcceso'>): boolean {
+  return usuario.tipoAcceso === 'comercial'
 }
+
+/** Gerencia y comercial miran pero no modifican nada. */
+export function esSoloLectura(usuario: Usuario): boolean {
+  return esGerencia(usuario) || esComercial(usuario)
+}
+
+/** Lo único que se le puede dar a un comercial: lo que la API acota a sus plantas. Espejo de `MODULOS_COMERCIAL`. */
+export const MODULOS_COMERCIAL = ['reports', 'storage'] as const
 
 export function puedeAdministrarUsuarios(usuario: Usuario): boolean {
   return esAdminGeneral(usuario)
@@ -78,6 +86,8 @@ export function modulosPermitidos(usuario: Usuario): ModuloInfo[] {
     )
   }
   const idsPermitidos = usuario.modulos ?? modulosPredeterminados(usuario)
+  // Un comercial solo tiene Report y/o Storage, aunque la lista guardada trajera más.
+  if (esComercial(usuario)) return MODULOS.filter((m) => idsPermitidos.includes(m.id) && (MODULOS_COMERCIAL as readonly string[]).includes(m.id))
   return MODULOS.filter((m) => idsPermitidos.includes(m.id))
 }
 
@@ -121,7 +131,7 @@ export function puedeVerModulo(usuario: Usuario, moduloId: string): boolean {
 export function puedeVerReporte(usuario: Usuario, reporte: ReporteId): boolean {
   if (!puedeVerModulo(usuario, 'reports')) return false
   // «Postventa» de un cliente son sus informes Accu-Tab en el panel; el Report de Post Venta es interno.
-  if (usuario.tipoAcceso === 'cliente' && reporte === 'postventa') return false
+  if ((usuario.tipoAcceso === 'cliente' || usuario.tipoAcceso === 'comercial') && reporte === 'postventa') return false
   if (esAdminGeneral(usuario) || (esGerencia(usuario) && usuario.reportes == null)) return true
   return (usuario.reportes ?? reportesPredeterminados(usuario)).includes(reporte)
 }
@@ -140,7 +150,7 @@ export type FuncionId = 'lab_criterios' | 'verif_firmar' | 'toma_reanalisis'
 
 export function tieneFuncion(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>, funcion: FuncionId): boolean {
   if (usuario.tipoAcceso === 'admin_general') return true
-  if (usuario.tipoAcceso === 'gerencia' || usuario.tipoAcceso === 'cliente') return false
+  if (usuario.tipoAcceso === 'gerencia' || usuario.tipoAcceso === 'cliente' || usuario.tipoAcceso === 'comercial') return false
   return (usuario.modulos ?? []).includes(funcion)
 }
 
@@ -181,6 +191,7 @@ export function vistaDeCliente(usuario: Pick<Usuario, 'area' | 'modulos' | 'repo
 export function etiquetaAcceso(usuario: Usuario): string {
   if (usuario.tipoAcceso === 'admin_general') return 'Admin general'
   if (usuario.tipoAcceso === 'gerencia') return 'Gerencia'
+  if (usuario.tipoAcceso === 'comercial') return 'Comercial'
   if (usuario.tipoAcceso === 'admin_area' && usuario.area)
     return `Admin · ${AREAS[usuario.area].nombre}`
   if (usuario.tipoAcceso === 'cliente') {

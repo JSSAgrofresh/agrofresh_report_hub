@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FILTROS_VACIOS } from './filtros'
-import { colorEspecieMarca, informesConPuntos, tituloGrafico } from './graficoResiduales'
+import { colorEspecieMarca, columnasPorLaboratorio, informesConPuntos, laboratoriosDeInformes, tituloGrafico } from './graficoResiduales'
 import type { Observacion } from './tipos'
 
 function obs(p: Partial<Observacion>): Observacion {
@@ -66,5 +66,29 @@ describe('colorEspecieMarca', () => {
   it('devuelve null pasada la paleta', () => {
     expect(colorEspecieMarca(0)).toBeTruthy()
     expect(colorEspecieMarca(99)).toBeNull()
+  })
+})
+
+describe('curvas por laboratorio', () => {
+  const informes = informesConPuntos([
+    obs({ solicitudId: 1, nroSolicitud: 'A', laboratorio: 'Agrofresh', fecha: '2026-03-01', ingrediente: 'FDL' }),
+    obs({ solicitudId: 2, nroSolicitud: 'B', laboratorio: 'Quiteca', fecha: '2026-03-02', ingrediente: 'FDL' }),
+    obs({ solicitudId: 3, nroSolicitud: 'C', laboratorio: 'Agrofresh', fecha: '2026-03-03', ingrediente: 'FDL' }),
+    obs({ solicitudId: 3, nroSolicitud: 'C', laboratorio: 'Agrofresh', fecha: '2026-03-03', ingrediente: 'IMZ', ppm: null }),
+  ])
+
+  it('reparte las columnas de un analito en una curva por laboratorio', () => {
+    const g = columnasPorLaboratorio(informes, 'FDL')
+    expect([...g.keys()].sort()).toEqual(['Laboratorio AgroFresh', 'Laboratorio Quiteca'])
+    expect(g.get('Laboratorio AgroFresh')).toEqual([0, 2])
+    expect(g.get('Laboratorio Quiteca')).toEqual([1])
+  })
+
+  it('no cuenta columnas donde el analito no trae valor', () => {
+    expect(columnasPorLaboratorio(informes, 'IMZ').size).toBe(0)
+  })
+
+  it('lista los laboratorios presentes', () => {
+    expect(laboratoriosDeInformes(informes)).toEqual(['Laboratorio AgroFresh', 'Laboratorio Quiteca'])
   })
 })

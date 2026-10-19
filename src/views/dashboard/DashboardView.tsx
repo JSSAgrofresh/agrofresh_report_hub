@@ -17,6 +17,7 @@ export function DashboardView() {
 
   if (user.tipoAcceso === 'admin_general' || user.tipoAcceso === 'gerencia') return <AdminGeneralDashboardView />
   if (user.tipoAcceso === 'admin_area' && user.area) return <AreaDashboardView area={user.area} usuario={user} />
+  if (user.tipoAcceso === 'comercial') return <ClienteDashboardView area="cromatografia" usuario={user} />
   if (user.tipoAcceso === 'cliente') {
     // Un cliente no tiene área propia: el encabezado se toma de lo que ve.
     const v = vistaDeCliente(user)

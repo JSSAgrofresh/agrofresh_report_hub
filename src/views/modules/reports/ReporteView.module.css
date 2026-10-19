@@ -901,3 +901,20 @@
     grid-template-columns: 1fr;
   }
 }
+
+.leyendaLabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted, #5b665f);
+}
+
+.leyendaLab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text, #1c2420);
+}

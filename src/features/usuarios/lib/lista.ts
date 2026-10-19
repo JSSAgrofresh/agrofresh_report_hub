@@ -12,6 +12,7 @@ export const GRUPOS_USUARIOS: { id: GrupoUsuarios; texto: string }[] = [
   { id: 'admin_area', texto: 'Admin de área' },
   { id: 'analista', texto: 'Analistas' },
   { id: 'muestreador', texto: 'Muestreadores' },
+  { id: 'comercial', texto: 'Comerciales' },
   { id: 'cliente', texto: 'Clientes' },
 ]
 
@@ -19,7 +20,7 @@ const plano = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerC
 
 /** Cuántas cuentas tiene cada grupo (los números de los botones de filtro). */
 export function contarPorGrupo(usuarios: Usuario[]): Record<GrupoUsuarios, number> {
-  const out = { todos: usuarios.length, admin_general: 0, gerencia: 0, admin_area: 0, analista: 0, muestreador: 0, cliente: 0 } as Record<GrupoUsuarios, number>
+  const out = { todos: usuarios.length, admin_general: 0, gerencia: 0, admin_area: 0, analista: 0, muestreador: 0, comercial: 0, cliente: 0 } as Record<GrupoUsuarios, number>
   for (const u of usuarios) out[u.tipoAcceso]++
   return out
 }
@@ -30,7 +31,7 @@ export function filtrarUsuarios(usuarios: Usuario[], grupo: GrupoUsuarios, texto
   return usuarios.filter((u) => {
     if (grupo !== 'todos' && u.tipoAcceso !== grupo) return false
     if (palabras.length === 0) return true
-    const heno = plano([u.nombre, u.email, u.clienteNombre, u.plantaNombre].filter(Boolean).join(' '))
+    const heno = plano([u.nombre, u.email, u.clienteNombre, u.plantaNombre, ...(u.plantasAsignadas ?? []).flatMap((p) => [p.clienteNombre, p.plantaNombre])].filter(Boolean).join(' '))
     return palabras.every((p) => heno.includes(p))
   })
 }
@@ -46,6 +47,11 @@ export function iniciales(nombre: string): string {
 export function resumenAccesos(u: Usuario): string[] {
   if (u.tipoAcceso === 'admin_general') return ['Todo el sistema']
   if (u.tipoAcceso === 'gerencia' && u.modulos == null) return ['Todo, solo lectura']
+  if (u.tipoAcceso === 'comercial') {
+    const ve = (u.modulos ?? []).map((m) => (m === 'reports' ? 'Report' : m === 'storage' ? 'Storage' : '')).filter(Boolean)
+    const n = u.plantasAsignadas?.length ?? 0
+    return [...ve, `${n} ${n === 1 ? 'planta' : 'plantas'}`]
+  }
   if (u.tipoAcceso === 'cliente') {
     const v = vistaDeCliente(u)
     return [v.report && 'Report', v.storage && 'Storage', v.accutab && 'Accu-Tab'].filter((x): x is string => !!x)
