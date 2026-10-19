@@ -1,5 +1,7 @@
 import type { AreaId } from '@/constants/areas'
 import { CATEGORIAS, RESERVADOS, alternarPermiso, incluidoPorTipo, marcarCategoria } from '../catalogoPermisos'
+
+const TODOS = CATEGORIAS.flatMap((c) => c.permisos)
 import type { Permiso } from '../catalogoPermisos'
 import type { TipoAcceso } from '../types'
 import styles from './SelectorPermisos.module.css'
@@ -11,20 +13,25 @@ interface Props {
   area?: AreaId
   /** Muestra todo tal cual está, sin dejar cambiar nada (administrador general y gerencia). */
   soloLectura?: boolean
+  /** Motivo por el que un permiso no se puede dar a este tipo de cuenta (se muestra apagado y no se marca nunca);
+   * `null` = disponible. */
+  noDisponible?: (permiso: Permiso) => string | null
 }
 
-function Fila({ permiso, nivel, valor, onChange, tipo, area, soloLectura }: Props & { permiso: Permiso; nivel: number }) {
+function Fila({ permiso, nivel, valor, onChange, tipo, area, soloLectura, noDisponible }: Props & { permiso: Permiso; nivel: number }) {
   const incluido = incluidoPorTipo(permiso, tipo, area)
-  const marcado = incluido || valor.includes(permiso.id)
-  const bloqueado = soloLectura || incluido
+  const motivo = noDisponible?.(permiso) ?? null
+  const marcado = !motivo && (incluido || valor.includes(permiso.id))
+  const bloqueado = soloLectura || incluido || motivo != null
   return (
-    <label className={`${styles.fila} ${nivel > 0 ? styles.hijo : ''} ${permiso.extra ? styles.extra : ''}`}>
+    <label className={`${styles.fila} ${nivel > 0 ? styles.hijo : ''} ${permiso.extra ? styles.extra : ''} ${motivo ? styles.apagada : ''}`}>
       <input type="checkbox" checked={marcado} disabled={bloqueado} onChange={() => onChange(alternarPermiso(valor, permiso.id))} />
       <span className={styles.texto}>
         <strong>
           {permiso.nombre}
           {permiso.extra && <em className={styles.etiqueta}>función suelta</em>}
           {incluido && <em className={styles.etiquetaTipo}>incluido por su tipo de cuenta</em>}
+          {motivo && <em className={styles.etiquetaTipo} title={motivo}>aún no disponible</em>}
         </strong>
         <small>{permiso.descripcion}</small>
       </span>
@@ -32,8 +39,14 @@ function Fila({ permiso, nivel, valor, onChange, tipo, area, soloLectura }: Prop
   )
 }
 
-export function SelectorPermisos(props: Props) {
-  const { valor, onChange, soloLectura } = props
+export function SelectorPermisos(propsOriginales: Props) {
+  const { valor, soloLectura, noDisponible } = propsOriginales
+  // Lo que no se puede dar a este tipo de cuenta nunca entra en la selección, ni con «Marcar todo».
+  const onChange = (siguiente: string[]) => {
+    const permitidos = noDisponible ? siguiente.filter((id) => !noDisponible(TODOS.find((p) => p.id === id) as Permiso)) : siguiente
+    propsOriginales.onChange(permitidos)
+  }
+  const props = { ...propsOriginales, onChange }
   const hijos = (id: string) => CATEGORIAS.flatMap((c) => c.permisos).filter((p) => p.padre === id)
 
   function ramas(permiso: Permiso, nivel: number): React.ReactNode {
