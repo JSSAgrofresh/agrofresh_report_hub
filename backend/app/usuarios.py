@@ -18,6 +18,7 @@ import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from psycopg2.extras import Json
 from pydantic import BaseModel
 
 from . import actividad, permisos_funciones, seguridad
@@ -48,6 +49,7 @@ class UsuarioIn(BaseModel):
     plantaNombre: str | None = None
     modulos: list[str] | None = None
     reportes: list[str] | None = None
+    plantasAsignadas: list[dict[str, str | None]] | None = None
 
 
 class UsuarioCreadoOut(BaseModel):
@@ -73,6 +75,21 @@ def _validar(body: UsuarioIn) -> None:
     # filtro se tomara del navegador, lo vería todo-. No puede existir.
     if body.tipoAcceso == "cliente" and not (body.clienteNombre or "").strip():
         raise HTTPException(400, "Una cuenta de tipo cliente necesita un cliente asignado.")
+    # Un comercial sin plantas no vería nada: se pide al menos una (puede ser todo un Sold To).
+    if body.tipoAcceso == "comercial":
+        limpias: list[dict[str, str | None]] = []
+        vistas: set[tuple[str, str]] = set()
+        for p in body.plantasAsignadas or []:
+            cliente = str(p.get("clienteNombre") or "").strip()
+            planta = str(p.get("plantaNombre") or "").strip()
+            if cliente and (cliente.casefold(), planta.casefold()) not in vistas:
+                vistas.add((cliente.casefold(), planta.casefold()))
+                limpias.append({"clienteNombre": cliente, "plantaNombre": planta or None})
+        if not limpias:
+            raise HTTPException(400, "Una cuenta de comercial necesita al menos una planta asignada.")
+        body.plantasAsignadas = limpias
+    else:
+        body.plantasAsignadas = None
     # Coherencia entre el tipo de cuenta y lo que se le reparte (un cliente no tiene área ni módulos
     # internos; nadie recibe permisos que no existen o que son solo del administrador general).
     body.area, body.modulos, body.reportes = permisos_funciones.normalizar_cuenta(
@@ -101,6 +118,27 @@ def listar_usuarios(_: Usuario = Depends(usuario_actual)) -> list[Any]:
         return [usuario_de_fila(f) for f in cur.fetchall()]
 
 
+@router.get("/plantas-de-comercial")
+def plantas_del_comercial_en_listas(email: str, _: Usuario = Depends(solo_admin_general)) -> list[dict[str, str | None]]:
+    """Las plantas donde este correo figura como Comercial en las listas de distribución (las cuatro). Solo
+    PROPONE: el administrador revisa y guarda las que quiera en la cuenta."""
+    from . import config_store
+    from .listas_distribucion import ARCHIVO_CONTACTOS, del_servicio, estado_desde_contactos
+
+    buscado = (email or "").strip().casefold()
+    if not buscado:
+        return []
+    contactos = config_store.leer(ARCHIVO_CONTACTOS, [])
+    plantas: dict[tuple[str, str], dict[str, str | None]] = {}
+    for servicio in ("", "actimist", "ecofog", "ryd"):
+        for fila in estado_desde_contactos(del_servicio(contactos, servicio)).values():
+            if buscado in {c.casefold() for c in fila["comercial"]} and fila["sold_to"]:
+                plantas[(fila["sold_to"].casefold(), fila["ship_to"].casefold())] = {
+                    "clienteNombre": fila["sold_to"], "plantaNombre": fila["ship_to"] or None,
+                }
+    return sorted(plantas.values(), key=lambda p: (str(p["clienteNombre"]).casefold(), str(p["plantaNombre"] or "").casefold()))
+
+
 @router.post("", response_model=UsuarioCreadoOut)
 def crear_usuario(body: UsuarioIn, quien: Usuario = Depends(solo_admin_general)) -> Any:
     _validar(body)
@@ -114,14 +152,14 @@ def crear_usuario(body: UsuarioIn, quien: Usuario = Depends(solo_admin_general))
             f"""
             INSERT INTO usuario
                 (email, nombre, tipo_acceso, area, cliente_nombre, planta_nombre,
-                 modulos, reportes, password_hash, debe_cambiar)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+                 modulos, reportes, plantas_asignadas, password_hash, debe_cambiar)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
             RETURNING {_CAMPOS}
             """,
             (
                 email, body.nombre, body.tipoAcceso, body.area,
                 body.clienteNombre, body.plantaNombre,
-                body.modulos, body.reportes, seguridad.hashear_password(temporal),
+                body.modulos, body.reportes, Json(body.plantasAsignadas or []), seguridad.hashear_password(temporal),
             ),
         )
         creado = usuario_de_fila(cur.fetchone())
@@ -166,14 +204,14 @@ def editar_usuario(
             UPDATE usuario SET
                 email = %s, nombre = %s, tipo_acceso = %s, area = %s,
                 cliente_nombre = %s, planta_nombre = %s, modulos = %s, reportes = %s,
-                actualizado_en = now()
+                plantas_asignadas = %s, actualizado_en = now()
             WHERE id = %s
             RETURNING {_CAMPOS}
             """,
             (
                 email, body.nombre, body.tipoAcceso, body.area,
                 body.clienteNombre, body.plantaNombre,
-                body.modulos, body.reportes, actual["id"],
+                body.modulos, body.reportes, Json(body.plantasAsignadas or []), actual["id"],
             ),
         )
         actualizado = cur.fetchone()
@@ -184,7 +222,7 @@ def editar_usuario(
         # semana en surtir efecto.
         cambio_el_alcance = any(
             actual[col] != actualizado[col]
-            for col in ("tipo_acceso", "area", "cliente_nombre", "planta_nombre", "modulos", "reportes")
+            for col in ("tipo_acceso", "area", "cliente_nombre", "planta_nombre", "modulos", "reportes", "plantas_asignadas")
         )
         if cambio_el_alcance:
             cerrar_sesiones_de(cur, actual["id"])

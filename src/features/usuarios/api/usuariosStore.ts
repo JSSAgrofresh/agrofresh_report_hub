@@ -1,5 +1,5 @@
 import { httpClient } from '@/services/http/client'
-import type { Usuario } from '../types'
+import type { PlantaAsignada, Usuario } from '../types'
 
 /**
  * Padrón de usuarios. Vive en la tabla `usuario` del backend, no en
@@ -23,6 +23,12 @@ export interface UsuarioCreado {
 
 export function listarUsuarios(): Promise<Usuario[]> {
   return httpClient.get<Usuario[]>('/usuarios')
+}
+
+/** Las plantas donde este correo figura como Comercial en las listas de distribución. Solo propone: el administrador
+ * revisa y guarda las que quiera. */
+export function buscarPlantasDeComercial(email: string): Promise<PlantaAsignada[]> {
+  return httpClient.get<PlantaAsignada[]>(`/usuarios/plantas-de-comercial?email=${encodeURIComponent(email.trim())}`)
 }
 
 export function crearUsuario(datos: Omit<Usuario, 'id'>): Promise<UsuarioCreado> {

@@ -1159,7 +1159,7 @@ export function ReporteView({
 
   // La BD en Excel: personal interno y cuentas de cliente (el servidor acota la del cliente a su Sold To / Ship To y le
   // saca las columnas internas), nunca sobre datos simulados.
-  const esCuentaCliente = Boolean(clienteFijo) || user.tipoAcceso === 'cliente'
+  const esCuentaCliente = Boolean(clienteFijo) || user.tipoAcceso === 'cliente' || user.tipoAcceso === 'comercial'
   const puedeBajarBd = !simulando
   // Lo demás de la BD (ficha completa del informe, con PDF y datos internos) sigue siendo solo del personal.
   const puedeDescargarBd = !esCuentaCliente && !simulando

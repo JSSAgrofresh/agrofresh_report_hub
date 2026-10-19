@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from .auth import Usuario, alcance_de_datos, solo_interno, usuario_actual
+from .auth import Usuario, alcance_de_datos, es_comercial, plantas_de_comercial, solo_interno, usuario_actual
 from . import funciones, informe_visto
 from .db import conexion, cursor_dict
 
@@ -83,6 +83,17 @@ def _filtro_alcance(
     if planta:
         condiciones.append("COALESCE(p.nombre, s.ship_to_raw) = %(planta)s")
         params["planta"] = planta
+    if es_comercial(usuario):
+        # Un comercial ve SOLO sus plantas (lo decide la sesión, nunca el navegador). Sin plantas asignadas: nada.
+        alternativas = []
+        for i, (cli, pla) in enumerate(plantas_de_comercial(usuario)):
+            parte = f"COALESCE(c.nombre, s.sold_to_raw) = %(com_c{i})s"
+            params[f"com_c{i}"] = cli
+            if pla:
+                parte += f" AND COALESCE(p.nombre, s.ship_to_raw) = %(com_p{i})s"
+                params[f"com_p{i}"] = pla
+            alternativas.append(f"({parte})")
+        condiciones.append("(" + " OR ".join(alternativas) + ")" if alternativas else "FALSE")
     return ("AND " + " AND ".join(condiciones)) if condiciones else "", params
 
 
@@ -566,9 +577,12 @@ def _respuesta_bd(
     from .bd_excel import construir_workbook_bd
     from .toma_muestras import ANALITOS_DEFECTO
 
-    es_cliente = usuario.tipoAcceso == "cliente"
-    if es_cliente and not any(alcance_de_datos(usuario, None, None)):
+    # El comercial baja lo mismo que un cliente (sin columnas internas), pero de sus plantas.
+    es_cliente = usuario.tipoAcceso in ("cliente", "comercial")
+    if usuario.tipoAcceso == "cliente" and not any(alcance_de_datos(usuario, None, None)):
         raise HTTPException(403, "Tu cuenta no tiene un cliente o sucursal asignados.")
+    if es_comercial(usuario) and not plantas_de_comercial(usuario):
+        raise HTTPException(403, "Tu cuenta de comercial no tiene plantas asignadas.")
     filtro_alcance, params = _filtro_alcance(usuario, cliente, planta)
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         filas = filas_de_bd(cur, filtro_alcance, params, ids, None if es_cliente else _correos_de_laboratorio)

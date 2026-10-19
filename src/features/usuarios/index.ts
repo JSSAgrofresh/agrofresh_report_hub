@@ -1,8 +1,11 @@
 export { useUsuarios } from './hooks/useUsuarios'
-export { CORREO_MAESTRO, regenerarPassword } from './api/usuariosStore'
+export { CORREO_MAESTRO, buscarPlantasDeComercial, regenerarPassword } from './api/usuariosStore'
 export type { UsuarioCreado } from './api/usuariosStore'
 export {
   esAdminGeneral,
+  esComercial,
+  esSoloLectura,
+  MODULOS_COMERCIAL,
   etiquetaAcceso,
   modulosPermitidos,
   puedeAdministrarUsuarios,
@@ -28,5 +31,5 @@ export type { GrupoUsuarios } from './lib/lista'
 export { ClaveTemporalAviso } from './components/ClaveTemporalAviso'
 export { UsuarioForm } from './components/UsuarioForm'
 export { UsuariosTable } from './components/UsuariosTable'
-export type { TipoAcceso, Usuario } from './types'
+export type { PlantaAsignada, TipoAcceso, Usuario } from './types'
 export type { ReporteId, LabSeccionId, FuncionId } from './permisos'

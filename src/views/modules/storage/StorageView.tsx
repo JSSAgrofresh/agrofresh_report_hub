@@ -163,5 +163,5 @@ function ExploradorStorage() {
 /** La ruta de Storage: una cuenta de cliente ve solo los informes de su Ship To; el resto, el explorador de siempre. */
 export function StorageView() {
   const { user } = useAuth()
-  return user?.tipoAcceso === 'cliente' ? <InformesClienteView /> : <ExploradorStorage />
+  return user?.tipoAcceso === 'cliente' || user?.tipoAcceso === 'comercial' ? <InformesClienteView /> : <ExploradorStorage />
 }

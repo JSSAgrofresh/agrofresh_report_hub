@@ -286,3 +286,40 @@
     align-items: flex-start;
   }
 }
+
+.filaPlantas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.plantasAsignadas {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.plantasAsignadas li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  border-radius: 999px;
+  background: var(--color-surface-2, #eef3e8);
+  border: 1px solid var(--color-border, #dfe7d7);
+  font-size: 13px;
+}
+
+.plantasAsignadas li button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+  color: inherit;
+}

@@ -113,6 +113,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0054_envio_informe_solicitud.sql
 .venv\Scripts\python.exe scripts\migrar.py 0055_solicitud_servicio.sql
 .venv\Scripts\python.exe scripts\migrar.py 0057_informe_visto.sql
+.venv\Scripts\python.exe scripts\migrar.py 0063_comercial_plantas.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -442,6 +443,12 @@ listas que la cuenta ya tenía (`modulos`, `reportes`).
 - **Funciones sueltas** (ids en `modulos`; se asignan a propósito, marcar al padre no las da): `lab_criterios` («Modificar los criterios» de las
   verificaciones; nació en `lab_secciones.py`, 403 en `/api/verificaciones/config/*`), `verif_firmar` (firmar la revisión del día, además de admin general y admin de Cromatografía) y `toma_reanalisis` (crear reanálisis: **ningún tipo de cuenta la trae sola**, ni siquiera admin de área —13-10-2026, pedido del usuario—; la da el admin general cuenta por cuenta). Admin general las tiene todas; gerencia y clientes ninguna. Guardas: `RequireFuncion` (front), `permisos_funciones.exigir`
   (back). Pruebas: `tests/test_permisos_funciones.py`, `catalogoPermisos.test.ts`, `permisos.test.ts`, `UsuarioForm.test.tsx`.
+
+## Cuenta «Comercial» (20-10-2026, migración **0063**, columna `usuario.plantas_asignadas` JSONB)
+
+Nuevo tipo de cuenta `comercial` (Administración → Usuarios, junto a los administradores): **solo lectura y solo sus plantas**. El administrador general le asigna una lista de `{clienteNombre, plantaNombre?}` (sin planta = todo ese Sold To; el botón «Traer sus plantas de las listas de distribución» propone las plantas donde su correo figura como Comercial: `GET /api/usuarios/plantas-de-comercial?email=`, solo propone) y marca qué abre entre **Report** y **Storage** (`MODULOS_COMERCIAL`; nada más, porque son los únicos módulos cuya API acota a sus plantas). Puede **descargar** el Excel de Report (sin columnas internas, como un cliente) y los PDF de su carpeta; no puede crear, editar, subir ni borrar nada.
+- **Cómo se hace cumplir en el servidor** (`auth.py`): `solo_interno` y `solo_escribiente` lo rechazan (403), y casi toda la API cuelga de `SOLO_AGROFRESH`, así que un router nuevo le nace cerrado. Lo que SÍ abre: `reportes` (acotado en `reportes._filtro_alcance` con las plantas de la sesión; sin plantas = `FALSE`, nunca todo; lo que pida el navegador solo acota más) e `informes_cliente` (`carpetas_permitidas`). `alcance_de_datos` no decide nada por él. **Un endpoint nuevo abierto a `CON_SESION` tiene que acotar a sus plantas** (`plantas_de_comercial(usuario)`).
+- Front: `esComercial`/`esSoloLectura`/`MODULOS_COMERCIAL` (`permisos.ts`), `UsuarioForm` (sección «Qué plantas ve y qué abre»), `StorageView` e `InformesClienteView` (la misma vista que el cliente), `ReporteLaboratorioView` (encabezado «Tus plantas»), `ClienteDashboardView` como panel de inicio. **Pendiente**: otros módulos para comerciales (Panel de control interno, Solicitudes) exigirían acotar sus APIs; los técnicos quedan aparte. Pruebas: `tests/test_comercial.py`, `permisos.test.ts`, `UsuarioForm.test.tsx`, `lista.test.ts`.
 
 ## Administración General → Funciones (qué muestra Report)
 
