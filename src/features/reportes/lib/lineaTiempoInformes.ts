@@ -103,6 +103,8 @@ export interface DiaLinea {
   /** Posición (en `informes`) del primer y último informe de ese día. */
   desde: number
   hasta: number
+  /** «miércoles», «jueves»…; `null` en «Sin fecha». */
+  diaSemana: string | null
   /** Días de calendario desde el día anterior con muestras; `null` en el primero y en «Sin fecha». */
   diasDesdeAnterior: number | null
 }
@@ -116,6 +118,7 @@ export interface ModeloLinea {
 }
 
 const MS_DIA = 86_400_000
+const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
 function diaUtc(fecha: string): number {
   return Date.UTC(Number(fecha.slice(0, 4)), Number(fecha.slice(5, 7)) - 1, Number(fecha.slice(8, 10)))
 }
@@ -161,6 +164,7 @@ export function modeloLinea(informes: InformeVista[]): ModeloLinea {
     dias.push({
       fecha: l.fecha,
       etiqueta: l.fechaTxt,
+      diaSemana: l.fecha ? DIAS_SEMANA[new Date(diaUtc(l.fecha)).getUTCDay()] : null,
       desde: i,
       hasta: i,
       diasDesdeAnterior: l.fecha && anterior ? Math.round((diaUtc(l.fecha) - diaUtc(anterior)) / MS_DIA) : null,
@@ -199,6 +203,21 @@ export function escalaBonita(max: number): { max: number; marcas: number[] } {
   const paso = [1, 2, 5, 10].map((k) => k * pot).find((p) => p >= crudo) ?? 10 * pot
   const intervalos = Math.ceil(max / paso)
   return { max: intervalos * paso, marcas: Array.from({ length: intervalos + 1 }, (_, i) => i * paso) }
+}
+
+/** Dónde empieza el primer informe y cuánto mide el hueco de un corte de eje (en unidades del gráfico). */
+export const X0_EJE = 190
+export const HUECO_CORTE = 130
+
+/**
+ * Cuánto se separan los informes para que el gráfico llene el ancho (unas 1.120 unidades) sin amontonarse: con pocos
+ * informes se separan más, con muchos menos (y el gráfico se desplaza hacia el lado).
+ */
+export function pasoDeEje(informes: number, cortes: number, ancho = 1120): number {
+  if (informes <= 0) return 90
+  const libre = ancho - X0_EJE - 40 - cortes * HUECO_CORTE
+  const minimo = informes > 30 ? 48 : informes > 14 ? 60 : 80
+  return Math.round(Math.min(150, Math.max(minimo, libre / informes)))
 }
 
 /** Posición horizontal de cada informe: parejos, con un hueco extra donde el eje se corta. */
