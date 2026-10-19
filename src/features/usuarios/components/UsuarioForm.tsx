@@ -39,8 +39,8 @@ const CLIENTE_VE: { id: keyof VistaCliente; nombre: string; descripcion: string 
   { id: 'accutab', nombre: 'Informes Accu-Tab', descripcion: 'Informes de los equipos Accu-Tab (Post Venta) en su panel.' },
 ]
 
-/** Lo único que hoy se puede dar a un comercial: lo que la API acota a sus plantas (Report de laboratorio y Storage). */
-const DISPONIBLE_PARA_COMERCIAL = new Set(['reports', 'reporte:laboratorio', 'storage'])
+/** Lo único que hoy se puede dar a un comercial: lo que la API acota a sus plantas (Report, Storage, Panel de control interno y Solicitudes e informes). */
+const DISPONIBLE_PARA_COMERCIAL = new Set(['reports', 'reporte:laboratorio', 'storage', 'auditoria_interna', 'toma_muestras'])
 const sinPlantasAcotadas = (p: Permiso): string | null =>
   DISPONIBLE_PARA_COMERCIAL.has(p.id) ? null : 'Falta acotarlo a las plantas del comercial.'
 
@@ -141,8 +141,8 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       return
     }
     const permisos = configuraPermisos ? cuentaDesdeSeleccion(seleccion) : undefined
-    if (esComercial && !(permisos?.modulos ?? []).some((m) => m === 'reports' || m === 'storage')) {
-      setError('Elige qué abre el comercial: Report y/o Storage.')
+    if (esComercial && !(permisos?.modulos ?? []).some((m) => DISPONIBLE_PARA_COMERCIAL.has(m))) {
+      setError('Elige qué abre el comercial: al menos un módulo.')
       return
     }
 

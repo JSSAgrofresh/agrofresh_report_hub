@@ -349,15 +349,17 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                 <IconFrasco className={styles.navIcono} />
                 <span className={styles.etiqueta}>Solicitudes e informes</span>
               </NavLink>
-              <NavLink
-                to={ROUTES.tomaMuestrasNueva}
-                title="Nueva solicitud"
-                onClick={onCerrar}
-                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
-              >
-                <IconEmitir className={styles.navIcono} />
-                <span className={styles.etiqueta}>Nueva solicitud</span>
-              </NavLink>
+              {user.tipoAcceso !== 'comercial' && (
+                <NavLink
+                  to={ROUTES.tomaMuestrasNueva}
+                  title="Nueva solicitud"
+                  onClick={onCerrar}
+                  className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+                >
+                  <IconEmitir className={styles.navIcono} />
+                  <span className={styles.etiqueta}>Nueva solicitud</span>
+                </NavLink>
+              )}
               {puedeReanalisis && (
                 <NavLink
                   to={ROUTES.tomaMuestrasNuevaReanalisis}

@@ -165,6 +165,10 @@ describe('UsuarioForm: cuenta de comercial', () => {
     }
     expect((report() as HTMLInputElement).disabled).toBe(false)
     expect((storage() as HTMLInputElement).checked).toBe(true)
+    for (const n of [/^Panel de control interno/, /^Toma de solicitudes/]) {
+      expect((screen.getByRole('checkbox', { name: n }) as HTMLInputElement).disabled).toBe(false)
+    }
+    expect((screen.getByRole('checkbox', { name: /^Crear reanálisis/ }) as HTMLInputElement).disabled).toBe(true)
     const converter = screen.getByRole('checkbox', { name: /^Converter/ }) as HTMLInputElement
     expect(converter.disabled).toBe(true)
     expect(converter.checked).toBe(false)

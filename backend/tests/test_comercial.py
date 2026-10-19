@@ -23,9 +23,11 @@ PLANTAS = [
 ]
 
 
-def test_el_comercial_solo_puede_llevar_report_y_storage():
-    area, mods, reps = pf.normalizar_cuenta("comercial", "cromatografia", ["reports", "converter", "auditoria_interna", "storage"], ["postventa"])
-    assert area is None and mods == ["reports", "storage"] and reps == ["laboratorio"]
+def test_el_comercial_solo_puede_llevar_los_modulos_que_ya_se_acotan_a_sus_plantas():
+    area, mods, reps = pf.normalizar_cuenta(
+        "comercial", "cromatografia", ["reports", "converter", "auditoria_interna", "storage", "toma_muestras", "toma_reanalisis", "agrofresh_lab"], ["postventa"],
+    )
+    assert area is None and mods == ["reports", "storage", "auditoria_interna", "toma_muestras"] and reps == ["laboratorio"]
     _, mods, reps = pf.normalizar_cuenta("comercial", None, ["storage"], None)
     assert mods == ["storage"] and reps == []
 
@@ -106,3 +108,152 @@ def test_crear_un_comercial_exige_plantas_y_las_deja_limpias():
     otra = _cuenta("analista", PLANTAS)
     usuarios._validar(otra)
     assert otra.plantasAsignadas is None  # solo el comercial lleva plantas
+
+
+# ── Toma de muestras → Solicitudes e informes y Panel de control interno (solo lectura, solo sus plantas) ──
+
+from app import auditoria_interna, entrega_indicadores, toma_muestras  # noqa: E402
+from app.auth import interno_o_comercial_acotado, planta_permitida  # noqa: E402
+
+
+def test_planta_permitida_compara_sin_mayusculas_ni_espacios_y_sin_plantas_nunca():
+    c = _com(PLANTAS)
+    assert planta_permitida(c, " dole ", "dole  lontue")
+    assert not planta_permitida(c, "DOLE", "DOLE CODEGUA")  # otra planta del mismo Sold To
+    assert planta_permitida(c, "VERFRUT", "CUALQUIERA")  # sin planta asignada = todo ese Sold To
+    assert not planta_permitida(c, "AGRICOM", "DOLE LONTUE")
+    assert not planta_permitida(_com([]), "DOLE", "DOLE LONTUE")
+    muestreador = Usuario(id="3", email="m@x.cl", nombre="M", tipoAcceso="muestreador")
+    assert planta_permitida(muestreador, "CUALQUIERA", None)  # los demás tipos no los decide esta función
+
+
+def test_una_solicitud_es_visible_solo_si_es_de_sus_plantas():
+    c = _com(PLANTAS)
+    assert toma_muestras._es_propia(c, {"sold_to": "DOLE", "ship_to": "DOLE LONTUE"})
+    assert not toma_muestras._es_propia(c, {"sold_to": "DOLE", "ship_to": "DOLE CODEGUA"})
+    assert not toma_muestras._es_propia(c, {"sold_to": "OTRO", "ship_to": None})
+
+
+def test_el_listado_de_solicitudes_le_trae_solo_las_suyas(monkeypatch):
+    base = {"laboratorio": "AGROFRESH", "creado_en": "2026-10-01T10:00:00", "fecha_solicitud": "2026-10-01", "solicitante": "S", "generado_por": "G"}
+    monkeypatch.setattr(
+        toma_muestras, "leer_todas_las_solicitudes",
+        lambda *a, **k: [
+            ("a.xlsx", {**base, "numero_solicitud": "OT-1", "sold_to": "DOLE", "ship_to": "DOLE LONTUE"}),
+            ("b.xlsx", {**base, "numero_solicitud": "OT-2", "sold_to": "DOLE", "ship_to": "DOLE CODEGUA"}),
+            ("c.xlsx", {**base, "numero_solicitud": "OT-3", "sold_to": "VERFRUT", "ship_to": "VERFRUT RAPEL"}),
+            ("d.xlsx", {**base, "numero_solicitud": "OT-4", "sold_to": "AGRICOM", "ship_to": "AGRICOM 1"}),
+        ],
+    )
+    monkeypatch.setattr(toma_muestras, "_leer_config", lambda *a, **k: [])
+    app.dependency_overrides[usuario_actual] = lambda: _com(PLANTAS)
+    try:
+        r = TestClient(app).get("/api/toma-muestras/solicitudes")
+        assert r.status_code == 200, r.text
+        assert sorted(x["numero_solicitud"] for x in r.json()) == ["OT-1", "OT-3"]
+    finally:
+        app.dependency_overrides.pop(usuario_actual, None)
+
+
+def test_solo_puede_pedir_las_rutas_de_lectura_de_la_lista_blanca():
+    app.dependency_overrides[usuario_actual] = lambda: _com(PLANTAS)
+    try:
+        cli = TestClient(app)
+        cerradas = [
+            ("post", "/api/toma-muestras/solicitudes", {}),
+            ("put", "/api/toma-muestras/solicitudes/a.xlsx", {}),
+            ("delete", "/api/toma-muestras/solicitudes/a.xlsx", None),
+            ("post", "/api/toma-muestras/solicitudes/a.xlsx/enviar", {}),
+            ("post", "/api/toma-muestras/solicitudes/json-zip", {}),
+            ("get", "/api/toma-muestras/solicitudes/a.xlsx", None),
+            ("get", "/api/toma-muestras/config/campos", None),
+            ("get", "/api/toma-muestras/solicitudes/a.xlsx/destinatarios", None),
+            ("post", "/api/toma-muestras/solicitudes/a.xlsx/quitar-informe", {}),
+            ("post", "/api/auditoria-interna/informes", None),
+            ("get", "/api/auditoria-interna/carpetas", None),
+            ("delete", "/api/auditoria-interna/carpetas/archivo", None),
+            ("put", "/api/auditoria-interna/plazos", {}),
+            ("patch", "/api/auditoria-interna/informes/1/fecha-envio", {}),
+            ("post", "/api/envio-cliente/marcar", {}),
+            ("get", "/api/reportes/clientes", None),
+        ]
+        for metodo, ruta, cuerpo in cerradas:
+            r = getattr(cli, metodo)(ruta, **({"json": cuerpo} if cuerpo is not None else {}))
+            assert r.status_code == 403, (metodo, ruta, r.status_code)
+    finally:
+        app.dependency_overrides.pop(usuario_actual, None)
+
+
+def test_el_cliente_sigue_sin_poder_abrir_estos_routers():
+    cliente = Usuario(id="5", email="c@x.cl", nombre="C", tipoAcceso="cliente", clienteNombre="DOLE")
+    app.dependency_overrides[usuario_actual] = lambda: cliente
+    try:
+        cli = TestClient(app)
+        for ruta in ("/api/toma-muestras/solicitudes", "/api/toma-muestras/solicitudes-informes", "/api/auditoria-interna/solicitudes", "/api/auditoria-interna/hitos"):
+            assert cli.get(ruta).status_code == 403, ruta
+    finally:
+        app.dependency_overrides.pop(usuario_actual, None)
+
+
+class _Cursor:
+    def __init__(self, filas):
+        self.filas = filas
+
+    def execute(self, *a, **k):
+        pass
+
+    def fetchall(self):
+        return list(self.filas)
+
+    def fetchone(self):
+        return self.filas[0] if self.filas else None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _falsa_base(monkeypatch, modulo, filas):
+    import contextlib
+
+    @contextlib.contextmanager
+    def conexion(*a, **k):
+        yield object()
+
+    monkeypatch.setattr(modulo, "conexion", conexion)
+    monkeypatch.setattr(modulo, "cursor_dict", lambda conn: _Cursor(filas))
+
+
+def _fila_auditoria(archivo, sold, ship):
+    return {
+        "archivo": archivo, "numero_solicitud": "OT-" + archivo, "laboratorio": "QUITECA", "sold_to": sold, "ship_to": ship,
+        "especie": "Cereza", "fecha_solicitud": None, "fecha_muestreo": None, "creado_en": "2026-10-01T10:00:00",
+        "tipo_servicio": None, "variedad": None, "analitos": [], "informe_id": None, "nro_informe": None,
+        "nombre_archivo": None, "r2_key": None, "fecha_envio": None, "subido_en": None, "report_nro": None,
+        "report_cargado_en": None, "en_report": False,
+    }
+
+
+def test_el_panel_de_control_le_muestra_solo_las_solicitudes_de_sus_plantas(monkeypatch):
+    filas = [_fila_auditoria("1", "DOLE", "DOLE LONTUE"), _fila_auditoria("2", "DOLE", "DOLE CODEGUA"), _fila_auditoria("3", "VERFRUT", "X")]
+    _falsa_base(monkeypatch, auditoria_interna, filas)
+    monkeypatch.setattr(auditoria_interna, "_fechas_envio_manuales", lambda: {})
+    monkeypatch.setattr(auditoria_interna, "_catalogos_de_analisis", lambda: ([], []))
+    vistas = auditoria_interna.listar_solicitudes(_com(PLANTAS))
+    assert sorted(v["archivo"] for v in vistas) == ["1", "3"]
+    todo = auditoria_interna.listar_solicitudes(Usuario(id="1", email="a@x.cl", nombre="A", tipoAcceso="admin_general"))
+    assert len(todo) == 3
+
+
+def test_un_informe_de_otra_planta_o_sin_solicitud_no_se_baja(monkeypatch):
+    monkeypatch.setattr(auditoria_interna, "_exigir_r2", lambda: None)
+    for fila in (
+        {"r2_key": "k", "nombre_archivo": "a.pdf", "sold_to": "OTRO", "ship_to": "X"},
+        {"r2_key": "k", "nombre_archivo": "a.pdf", "sold_to": None, "ship_to": None},
+    ):
+        _falsa_base(monkeypatch, auditoria_interna, [fila])
+        with pytest.raises(HTTPException) as e:
+            auditoria_interna.descargar_informe(1, _com(PLANTAS))
+        assert e.value.status_code == 404

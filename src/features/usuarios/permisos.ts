@@ -26,7 +26,7 @@ export function esSoloLectura(usuario: Usuario): boolean {
 }
 
 /** Lo único que se le puede dar a un comercial: lo que la API acota a sus plantas. Espejo de `MODULOS_COMERCIAL`. */
-export const MODULOS_COMERCIAL = ['reports', 'storage'] as const
+export const MODULOS_COMERCIAL = ['reports', 'storage', 'auditoria_interna', 'toma_muestras'] as const
 
 export function puedeAdministrarUsuarios(usuario: Usuario): boolean {
   return esAdminGeneral(usuario)
