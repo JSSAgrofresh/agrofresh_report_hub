@@ -782,7 +782,12 @@ function leerAlsMicro(texto, inf){
   d["Observación"] = obs.join(" · ");
   if(!d["OT"]) inf.avisos.push("La Identificación Muestra no trae el N° de solicitud (OT-...): Sold To, Ship To y especie hay que elegirlos a mano.");
 
-  // Resultados: «Coliformes Totales   <método>» y, en la línea de abajo, «-   <1   UFC/ 100 mL (...)».
+  // Resultados: «Coliformes Totales <método>» y, en la línea de abajo, «- <1 UFC/ 100 mL (...)».
+  // pdf.js une los fragmentos con UN solo espacio (no hay columnas): el nombre termina donde empieza el
+  // método («CQ-MIC-059-D») o donde hay 2+ espacios (texto en columnas), y el resultado se busca en la
+  // misma línea o en las dos siguientes (el método de ALS ocupa varias líneas), sin pasar al ensayo siguiente.
+  const NOMBRE = /^([A-Za-zÁÉÍÓÚáéíóúñÑ.]+(?:\s[A-Za-zÁÉÍÓÚáéíóúñÑ.]+)*?)(?=\s{2,}\S|\s+[A-Z]{1,4}-[A-Z0-9]|\s*$)/;
+  const RESULTADO = /(?:^|\s)-?\s*([<>≤≥]?\s*\d[\d.,]*|ND|No detectado)\s+((?:UFC|NMP)\/\s*(?:100\s*mL|g|mL)|mg\/(?:kg|L))/i;
   const lineas = texto.split("\n");
   let dentro = false;
   for(let i = 0; i < lineas.length; i++){
@@ -790,10 +795,13 @@ function leerAlsMicro(texto, inf){
     if(/^\s*Ensayos\s+Resultado/i.test(l)){ dentro = true; continue; }
     if(!dentro) continue;
     if(/^\s*WHOS|^\s*Los resultados/i.test(l)) break;
-    const nombre = l.match(/^([A-Za-zÁÉÍÓÚáéíóúñÑ][A-Za-zÁÉÍÓÚáéíóúñÑ.\s]+?)\s{2,}\S/);
-    const sig = lineas[i + 1] || "";
-    const r = sig.match(/^\s*-?\s+([<>≤≥]?\s*[\d.,]+|ND|No detectado)\s+((?:UFC|NMP)\/\s*(?:100\s*mL|g|mL)|mg\/(?:kg|L))/i);
-    if(nombre && r) guardar(inf, nombre[1], r[1].replace(/\s+/g,""), r[2].replace(/\s+/g," "));
+    const nombre = l.match(NOMBRE);
+    if(!nombre) continue;
+    for(let k = i; k <= i + 2 && k < lineas.length; k++){
+      if(k > i && NOMBRE.test(lineas[k]) && !RESULTADO.test(lineas[k])) break;   // ya es el ensayo siguiente
+      const r = lineas[k].match(RESULTADO);
+      if(r){ guardar(inf, nombre[1], r[1].replace(/\s+/g,""), r[2].replace(/\s+/g," ")); break; }
+    }
   }
 }
 
