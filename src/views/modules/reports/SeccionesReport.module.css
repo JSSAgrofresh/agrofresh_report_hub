@@ -1,0 +1,130 @@
+/* Un bloque de Report por tipo de análisis: su cabecera, los botones de laboratorio y lo que muestra. */
+.seccion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 5px solid var(--acento, var(--color-primary));
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.titulo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.titulo h2 {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: var(--color-text);
+}
+
+.titulo span {
+  font-size: 12px;
+  color: var(--color-text-faint);
+}
+
+.botones {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.etiquetaBotones {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.boton,
+.laboratorio {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 99px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.boton {
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.boton:hover {
+  border-color: var(--acento, var(--color-primary));
+  color: var(--color-text);
+}
+
+.boton:focus-visible {
+  outline: 2px solid var(--acento, var(--color-primary));
+  outline-offset: 2px;
+}
+
+/* Elegido: el laboratorio cuyos datos se ven en el bloque. */
+.encendido {
+  border-color: var(--acento, var(--color-primary));
+  background: color-mix(in srgb, var(--acento, var(--color-primary)) 14%, var(--color-surface));
+  color: var(--color-text);
+}
+
+.punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+}
+
+.encendido .punto {
+  background: var(--acento, var(--color-primary));
+}
+
+/* El filtro de arriba dejó fuera a este laboratorio: en gris, y tocarlo quita ese filtro. */
+.gris {
+  opacity: 0.6;
+  background: var(--color-bg);
+  border-style: dashed;
+}
+
+.laboratorio {
+  border-color: var(--acento, var(--color-primary));
+  background: color-mix(in srgb, var(--acento, var(--color-primary)) 14%, var(--color-surface));
+  color: var(--color-text);
+}
+
+.tarjetas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.vacio {
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 13px;
+}
