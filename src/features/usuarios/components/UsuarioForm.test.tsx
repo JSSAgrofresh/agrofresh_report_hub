@@ -111,12 +111,12 @@ describe('UsuarioForm: permisos por categoría y funciones sueltas', () => {
     expect(screen.getByText(/Elige qué ve el cliente/)).toBeTruthy()
   })
 
-  it('gerencia antigua (sin lista) muestra todo marcado pero editable; Auditoría interna no', () => {
+  it('gerencia antigua (sin lista) muestra todo marcado pero editable; Panel de control interno no', () => {
     render(<UsuarioForm usuario={{ ...cuenta, tipoAcceso: 'gerencia', area: undefined, modulos: undefined }} onGuardar={() => {}} onCancelar={() => {}} />)
     const box = screen.getByRole('checkbox', { name: /Storage/ }) as HTMLInputElement
     expect(box.checked).toBe(true)
     expect(box.disabled).toBe(false)
-    expect((screen.getByRole('checkbox', { name: /Auditoría Interna/ }) as HTMLInputElement).checked).toBe(false)
+    expect((screen.getByRole('checkbox', { name: /Panel de control interno/ }) as HTMLInputElement).checked).toBe(false)
   })
 
   it('una gerencia nueva parte sin nada marcado', () => {

@@ -1,5 +1,5 @@
 """
-Indicadores de entrega de Auditoría interna: lead time (de la solicitud a lo
+Indicadores de entrega del Panel de control interno: lead time (de la solicitud a lo
 entregado) y cumplimiento del entregable.
 
 Todo se calcula sobre HITOS que el sistema ya guarda, uno por registro, sin

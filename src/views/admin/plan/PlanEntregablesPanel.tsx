@@ -14,7 +14,7 @@ const ETIQUETA: Record<string, string> = { residuales: 'Residuales', fsma: 'FSMA
  * Sube el Excel con lo que cada comercial prometió por cliente (SOLD TO, COMERCIAL, SERVICIO, TOTAL, NOMBRE EN EL PLAN).
  * Primero muestra qué cargaría, sin escribir nada; al confirmar reemplaza el plan de la temporada. Un Sold To que
  * no existe en Listados no se carga: se avisa para corregirlo en el Excel o en Listados.
- * Alimenta las columnas «Entregables» de Auditoría interna → «Análisis por cliente».
+ * Alimenta las columnas «Entregables» del Panel de control interno → «Análisis por cliente».
  */
 export function PlanEntregablesPanel() {
   const entrada = useRef<HTMLInputElement>(null)
@@ -68,7 +68,7 @@ export function PlanEntregablesPanel() {
         <p className={styles.texto}>
           Sube el Excel con los análisis prometidos por cliente (columnas SOLD TO, COMERCIAL, SERVICIO, TOTAL y NOMBRE EN EL PLAN).
           Antes de cargar se ve qué entraría. Cargar reemplaza el plan anterior. Los Sold To que no existan en Listados no se cargan.
-          Se usa en Auditoría interna, en «Análisis por cliente», agrupando por Sold To.
+          Se usa en el Panel de control interno, en «Análisis por cliente», agrupando por Sold To.
         </p>
         {actual?.migracion_pendiente && (
           <p className={styles.aviso} role="status">Falta correr la migración 0062 en el servidor para poder cargar el plan.</p>

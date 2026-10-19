@@ -48,7 +48,7 @@ export const CATEGORIAS: Categoria[] = [
       { id: 'reports', nombre: 'Report', descripcion: 'Control de residuos: límites residuales en tiempo real desde la base de datos.' },
       { id: ID_REPORTE('laboratorio'), padre: 'reports', nombre: 'Reporte de laboratorio', descripcion: 'Consulta y gráficos de Cromatografía.' },
       { id: ID_REPORTE('postventa'), padre: 'reports', nombre: 'Postventa', descripcion: 'Histórico e informes de Trace.' },
-      { id: 'auditoria_interna', nombre: 'Auditoría Interna', descripcion: 'Solicitudes emitidas vs. informes recibidos, carpetas de auditoría, límites de control e indicadores de entrega.' },
+      { id: 'auditoria_interna', nombre: 'Panel de control interno', descripcion: 'Solicitudes emitidas vs. informes recibidos, carpetas de auditoría, límites de control e indicadores de entrega.' },
     ],
   },
   {
@@ -188,7 +188,7 @@ export function cuentaDesdeSeleccion(seleccion: string[]): { modulos: string[]; 
 }
 
 /** Lo que se muestra marcado (sin poder cambiarlo) para quien lo ve todo: el administrador general tiene todo;
- * gerencia todo lo de lectura, menos Auditoría interna y las funciones sueltas (que son de escritura). */
+ * gerencia todo lo de lectura, menos el Panel de control interno y las funciones sueltas (que son de escritura). */
 export function seleccionTotal(tipo: 'admin_general' | 'gerencia'): string[] {
   if (tipo === 'admin_general') return [...IDS_PERMISOS]
   return TODOS.filter((p) => p.id !== 'auditoria_interna' && !p.extra).map((p) => p.id)

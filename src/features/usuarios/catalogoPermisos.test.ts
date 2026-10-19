@@ -104,7 +104,7 @@ describe('de la cuenta al selector y de vuelta', () => {
     expect(validarSeleccion(['reports', 'reporte:laboratorio'])).toBeNull()
   })
 
-  it('administrador general lo ve todo; gerencia, sin Auditoría interna ni funciones de escritura', () => {
+  it('administrador general lo ve todo; gerencia, sin Panel de control interno ni funciones de escritura', () => {
     expect(seleccionTotal('admin_general')).toEqual(IDS_PERMISOS)
     const g = seleccionTotal('gerencia')
     expect(g).not.toContain('auditoria_interna')

@@ -65,14 +65,14 @@ export function reportesPredeterminados(
 }
 
 /** Módulos que el usuario puede ver en "Funciones": todos para admin general,
- * todos menos Auditoría interna para gerencia, solo los de su área para admin
- * de área, ninguno para cliente. Auditoría interna solo la ve el admin general
+ * todos menos el Panel de control interno para gerencia, solo los de su área para admin
+ * de área, ninguno para cliente. Panel de control interno solo la ve el admin general
  * y quien él designe (cuentas con el módulo asignado). */
 export function modulosPermitidos(usuario: Usuario): ModuloInfo[] {
   if (esAdminGeneral(usuario)) return MODULOS
   // Gerencia: sin lista guardada (cuentas antiguas) ve todo menos Auditoría; con lista, solo lo que se le marcó.
   if (esGerencia(usuario)) {
-    // Auditoría interna solo si se le marcó a propósito; la lista antigua (sin guardar) no la incluye.
+    // Panel de control interno solo si se le marcó a propósito; la lista antigua (sin guardar) no la incluye.
     return MODULOS.filter((m) =>
       usuario.modulos == null ? m.id !== MODULO_AUDITORIA_INTERNA : usuario.modulos.includes(m.id),
     )

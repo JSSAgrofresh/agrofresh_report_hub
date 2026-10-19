@@ -21,7 +21,7 @@ export interface ModuloInfo {
  * como antes. */
 export const GRUPO_DATACORE = 'datacore'
 
-/** id del módulo Auditoría interna. Es el más restringido del sistema: lo ve el
+/** id del módulo Panel de control interno. Es el más restringido del sistema: lo ve el
  * admin general y solo quien él designe -ni siquiera Gerencia lo tiene por
  * defecto-. Ver features/usuarios/permisos.ts y `puede_auditoria` en el backend. */
 export const MODULO_AUDITORIA_INTERNA = 'auditoria_interna'
@@ -67,7 +67,7 @@ export const MODULOS: ModuloInfo[] = [
   },
   {
     id: MODULO_AUDITORIA_INTERNA,
-    nombre: 'Auditoría Interna',
+    nombre: 'Panel de control interno',
     descripcion: 'Panel analítico: solicitudes emitidas vs. informes recibidos, carpetas de auditoría y límites de control.',
     ruta: ROUTES.auditoriaInterna,
     estado: 'disponible',

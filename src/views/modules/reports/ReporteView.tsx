@@ -47,6 +47,7 @@ import { listarEspeciesActivas, listarValores } from '@/features/listados'
 import type { ValorLista } from '@/features/listados'
 import { HttpError } from '@/services/http/client'
 import { formatDateCL, formatDecimalCL } from '@/lib/locale'
+import { servicioDeFila } from '@/lib/servicio'
 import {
   FILTROS_VACIOS,
   aplicarFiltros,
@@ -160,6 +161,7 @@ const ETIQUETAS_FILTRO: Record<keyof Filtros, string> = {
   cliente: 'Sold To',
   planta: 'Ship To',
   tipoServicio: 'Servicio',
+  servicio: 'Tipo de servicio',
   crop: 'Especie',
   variedad: 'Variedad',
   ingredientes: 'Ingrediente',
@@ -203,7 +205,7 @@ const FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-
  * para cambiar la imagen de fondo según la especie elegida en el filtro.
  * `onClienteChange`: el encabezado del admin muestra el Sold To filtrado.
  * `vistaControl`: la vista por límite de control es un gráfico INTERNO y vive
- * solo en Auditoría interna, que monta este componente con esta bandera. Sin
+ * solo en el Panel de control interno, que monta este componente con esta bandera. Sin
  * ella -Report y portal de cliente- solo existe la vista por límite residual. */
 export function ReporteView({
   clienteFijo,
@@ -387,6 +389,7 @@ export function ReporteView({
         planta: f.planta,
         tipoAplicacion: f.tipo_aplicacion,
         tipoServicio: f.tipo_servicio,
+        servicio: servicioDeFila(f.servicio, f.tipo_aplicacion),
         posicionMuestreo: f.posicion_muestreo,
         laboratorio: f.laboratorio,
         crop: f.especie,
@@ -422,6 +425,7 @@ export function ReporteView({
       ingredientes: de('ingredientes', { seleccionados: filtros.ingredientes }),
       clientes: de('cliente', { seleccionados: elegidos('cliente', filtros.cliente) }),
       plantas: de('planta', { seleccionados: elegidos('planta', filtros.planta) }),
+      servicios: de('servicio', { seleccionados: elegidos('servicio', filtros.servicio) }),
       tiposServicio: de('tipoServicio', { formatear: capitalizarPrimeraLetra, seleccionados: [filtros.tipoServicio] }),
       laboratorios: de('laboratorio', { formatear: capitalizarPrimeraLetra, seleccionados: elegidos('laboratorio', filtros.laboratorio) }),
       crops: de('crop', { canonicos: especiesOficiales.map((e) => e.valor), seleccionados: elegidos('crop', filtros.crop) }),
@@ -438,6 +442,7 @@ export function ReporteView({
       plantas: mapa(opciones.plantas),
       ingredientes: mapa(opciones.ingredientes),
       laboratorios: mapa(opciones.laboratorios),
+      servicios: mapa(opciones.servicios),
       crops: mapa(opciones.crops),
       variedades: mapa(opciones.variedades),
       semanas: mapa(opciones.semanas),
@@ -447,7 +452,7 @@ export function ReporteView({
 
   // Report normal: los resultados van en bloques por TIPO DE ANÁLISIS, siempre hacia abajo y en este orden: análisis de
   // residuos (AgroFresh y Quiteca), análisis FSMA (ALS) y análisis de fitopatología (Diagnofruit). Sin elegir laboratorio
-  // se ven los tres; eligiendo uno, solo el suyo. La «Vista de límites» de Auditoría interna (vistaControl / limitesTabla)
+  // se ven los tres; eligiendo uno, solo el suyo. La «Vista de límites» del Panel de control interno (vistaControl / limitesTabla)
   // sigue siendo un solo gráfico de residuos, y ahí ALS y Diagnofruit solo se ven eligiéndolos (tabla).
   const modoBloques = !vistaControl && !limitesTabla
   const bloques = bloquesVisibles(filtros.laboratorio)
@@ -1394,9 +1399,27 @@ export function ReporteView({
                   />
                 </>
               )}
-              {/* Sin filtro «Tipo de servicio»: Report muestra solo los servicios que el administrador principal
-                  enciende en Administración General → Funciones (de fábrica, solo Línea de proceso), y ese
-                  campo traía valores viejos («Cromatografía») que mezclaban los informes propios de AgroFresh. */}
+              {/* «Tipo de servicio» = Línea de proceso, Actimist, Ecofog o RYD (`servicioDeFila`). Es distinto del campo viejo
+                  `tipo_servicio` («Cromatografía»), que no se ofrece. */}
+              {filtrosMultiples ? (
+                <MultiSelectFiltro
+                  etiqueta="Tipo de servicio"
+                  opciones={opciones.servicios.map((o) => o.valor)}
+                  valores={multi.servicio}
+                  onChange={(v) => cambiarMulti('servicio', v)}
+                  conteoDe={(v) => conteoPorValor.servicios.get(v)}
+                />
+              ) : (
+                <label className={styles.filtro}>
+                  <span>Tipo de servicio</span>
+                  <select value={filtros.servicio} onChange={(e) => actualizarFiltro('servicio', e.target.value)}>
+                    <option value="">Todos</option>
+                    {opciones.servicios.map((o) => (
+                      <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
               {filtrosMultiples ? (
                 <>
                   <MultiSelectFiltro

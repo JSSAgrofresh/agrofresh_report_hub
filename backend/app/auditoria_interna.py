@@ -1,5 +1,5 @@
 """
-Auditoría interna: panel de solicitudes emitidas vs. informes recibidos, y las
+Panel de control interno: panel de solicitudes emitidas vs. informes recibidos, y las
 carpetas de auditoría (bucket "auditoria" de R2) donde quedan los PDF.
 
 No confundir con `auditoria.py` (prefijo /api/auditoria), que es la auditoría
@@ -51,7 +51,7 @@ def puede_auditoria(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
         return usuario
     if usuario.tipoAcceso != "cliente" and MODULO in (usuario.modulos or []):
         return usuario
-    raise HTTPException(403, "No tienes acceso al módulo de Auditoría interna.")
+    raise HTTPException(403, "No tienes acceso al módulo del Panel de control interno.")
 
 
 def _exigir_r2() -> None:

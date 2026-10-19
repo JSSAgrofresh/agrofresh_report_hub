@@ -1,7 +1,7 @@
 import type { SolicitudAuditoria } from './tipos'
 
 /**
- * Solicitudes inventadas para ver el panel de Auditoría interna con volumen de
+ * Solicitudes inventadas para ver el panel del Panel de control interno con volumen de
  * verdad. Todo vive en memoria de la pantalla: nunca va al backend y se pierde
  * al salir, recargar o apretar «Actualizar». Los clientes llevan «(Sim.)» y las
  * solicitudes «SIM-», para que una captura nunca pase por un dato real.

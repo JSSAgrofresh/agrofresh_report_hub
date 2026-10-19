@@ -1,6 +1,6 @@
 import styles from './AuditoriaHero.module.css'
 
-/** Banner propio de Auditoría interna: en vez de la foto de una fruta, un
+/** Banner propio del Panel de control interno: en vez de la foto de una fruta, un
  * motivo de control: hojas con su visto bueno, una lupa y una cuadrícula
  * de fondo. Todo en SVG/CSS, sin imágenes que cargar. */
 export function AuditoriaHero({ etiqueta, titulo, descripcion, tono = 'verde' }: { etiqueta: string; titulo: string; descripcion: string; tono?: 'verde' | 'azul' }) {

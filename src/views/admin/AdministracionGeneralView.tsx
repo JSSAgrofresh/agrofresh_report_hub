@@ -131,7 +131,7 @@ export function AdministracionGeneralView() {
             : pestana === 'panelInicio'
             ? 'Panel de inicio: arma, como un tablero, qué widgets ve cada tipo de cuenta o cada cuenta en su pantalla de inicio. Arrastra, suelta y guarda.'
             : pestana === 'plan'
-            ? 'Plan de entregables: sube el Excel con los análisis prometidos por cliente en la temporada. Alimenta las columnas «Entregables» de Auditoría interna.'
+            ? 'Plan de entregables: sube el Excel con los análisis prometidos por cliente en la temporada. Alimenta las columnas «Entregables» del Panel de control interno.'
             : pestana === 'avisos'
             ? 'Avisos a clientes: el correo con que se les comunica algo desde el Report Hub. Se edita con vista previa y se prueba solo a los destinatarios de prueba.'
             : 'Listas de distribución de resultados: exporta lo que hay, edítalo en Excel, súbelo y confirma cada cambio antes de que se guarde.'

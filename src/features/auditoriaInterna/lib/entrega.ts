@@ -1,7 +1,7 @@
 import type { SolicitudAuditoria } from './tipos'
 
 /**
- * Lead time y cumplimiento del entregable (Auditoría interna).
+ * Lead time y cumplimiento del entregable (Panel de control interno).
  *
  * Todo sale de los HITOS que el sistema ya guarda (ver `entrega_indicadores.py`).
  * Este archivo solo hace aritmética sobre ellos, sin tocar el navegador, para que

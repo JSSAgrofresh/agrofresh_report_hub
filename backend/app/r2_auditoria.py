@@ -1,5 +1,5 @@
 """
-Cliente de R2 para las carpetas de Auditoría interna.
+Cliente de R2 para las carpetas del Panel de control interno.
 
 Las rutas que entran y salen de acá son RELATIVAS a la carpeta de auditoría
 ("Quiteca/Dole Codegua/x.pdf"); el prefijo real en el bucket ("auditoria/")

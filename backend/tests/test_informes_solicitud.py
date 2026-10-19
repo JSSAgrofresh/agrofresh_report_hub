@@ -56,7 +56,7 @@ class TestAsociar:
 
     def test_quiteca_en_report_por_su_numero_de_informe(self):
         """Quiteca llega a Report con SU N° de informe, a veces sin el OT:
-        igual cuenta como en Report (la misma regla de Auditoría interna)."""
+        igual cuenta como en Report (la misma regla del Panel de control interno)."""
         r = mod.asociar([("a.xlsx", "OT-QUI0039")], [aud(archivo="a.xlsx", nro="2026-1878-pc")], [], {"2026-1878-PC"})
         assert r["a.xlsx"]["en_report"] is True
         r = mod.asociar([("a.xlsx", "OT-QUI0039")], [aud(archivo="a.xlsx", nro="2026-1878-PC")], [], {"OTRO"})

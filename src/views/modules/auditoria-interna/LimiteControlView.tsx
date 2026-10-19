@@ -20,7 +20,7 @@ export function LimiteControlView() {
     <div className={styles.pagina}>
       <AuditoriaHero
         tono="azul"
-        etiqueta="Auditoría interna"
+        etiqueta="Panel de control interno"
         titulo="Vista de límites"
         descripcion="Compara los resultados de cada informe contra los límites residuales del laboratorio o contra los límites de control calculados con los propios datos."
       />

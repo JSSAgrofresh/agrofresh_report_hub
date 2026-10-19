@@ -31,7 +31,7 @@ MODULOS: list[tuple[str, str]] = [
     ("/modulos/datacore", "DataCore"),
     ("/modulos/reportes", "Report"),
     ("/modulos/storage", "Storage"),
-    ("/modulos/auditoria-interna", "Auditoría interna"),
+    ("/modulos/auditoria-interna", "Panel de control interno"),
     ("/admin/administracion-general", "Administración General"),
     ("/admin/usuarios", "Usuarios"),
     ("/admin/listados", "Listados"),

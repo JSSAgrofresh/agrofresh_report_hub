@@ -372,7 +372,7 @@ listado (`cliente_ecofog`/`planta_ecofog`, migración **0050**, que arranca como
 listado de Actimist) y su propia lista de distribución (`servicio: "ecofog"`). Todo lo que
 es «Actimist y Ecofog» se pregunta con `es_servicio_con_listado` (`servicios.py`, espejo
 `tieneListadoPropio` en `src/lib/servicio.ts`); las rutas del listado son
-`/api/catalogo/{actimist|ecofog}/...`. **Falta**: Auditoría interna cuenta Ecofog como Línea de
+`/api/catalogo/{actimist|ecofog}/...`. **Falta**: Panel de control interno cuenta Ecofog como Línea de
 proceso (no tiene dona propia); Ingesta, Converter y Report no lo leen (igual que Actimist).
 Para que aparezca en el formulario hay que tener «Ecofog» en Tipos de aplicación (el
 mantenedor lo guarda en R2; el valor por defecto ya lo trae, pero si ya hay un archivo
@@ -421,14 +421,14 @@ casos en `test_servicio_actimist.py` y `servicio.test.ts`).
 
 Administración → Usuarios → formulario en tres pasos (Quién es · Tipo de cuenta · Qué puede hacer). **Sin migración**: todo viaja en las
 listas que la cuenta ya tenía (`modulos`, `reportes`).
-- **El tipo decide el alcance.** Administrador general (todo) y Gerencia (todo menos Auditoría interna, solo lectura) se ven marcados y
+- **El tipo decide el alcance.** Administrador general (todo) y Gerencia (todo menos el Panel de control interno, solo lectura) se ven marcados y
   bloqueados; Administrador de área, Analista y Muestreador parten de una **plantilla típica** (`modulosPredeterminados`) y se ajustan con
   casillas («Volver a lo típico» la restaura); **Cliente no tiene área**: se elige su Sold To / Ship To y **qué ve** (Report de laboratorio =
   módulo `reports` + `reportes: laboratorio`; Storage = módulo `storage`; informes Accu-Tab en su panel = `reportes: postventa`), y nunca lleva módulos internos
   (`MODULOS_CLIENTE` = reports, storage). Un cliente nunca abre el Report de Post Venta (`puedeVerReporte`). El servidor deduce el `area` que guarda de lo que ve (compatibilidad con
   el panel de inicio `tipo:cliente:<area>`) y descarta lo incoherente (`permisos_funciones.normalizar_cuenta`). Las cuentas de cliente
   antiguas, sin `reportes`, siguen viendo lo de su área (`vistaDeCliente`).
-- **Gerencia con módulos editables (15-10-2026)**: ya no ve todo fijo. Una cuenta de gerencia **nueva parte sin nada marcado** y se le marcan los módulos como a cualquier otra (se guardan en `modulos`/`reportes`; **Auditoría interna sí se les puede marcar** —15-10-2026, antes el front la ocultaba aunque estuviera guardada—, las funciones sueltas nunca). **Las cuentas antiguas, sin lista guardada, siguen viendo todo menos Auditoría** (`modulosPermitidos`, `puedeVerReporte`, `puedeVerTomaMuestras`; en el formulario aparecen todas marcadas). Sigue siendo solo lectura. Backend: `normalizar_cuenta` ya no descarta sus módulos. Pruebas: `permisos.test.ts`, `UsuarioForm.test.tsx`, `test_permisos_funciones.py`.
+- **Gerencia con módulos editables (15-10-2026)**: ya no ve todo fijo. Una cuenta de gerencia **nueva parte sin nada marcado** y se le marcan los módulos como a cualquier otra (se guardan en `modulos`/`reportes`; **Panel de control interno sí se les puede marcar** —15-10-2026, antes el front la ocultaba aunque estuviera guardada—, las funciones sueltas nunca). **Las cuentas antiguas, sin lista guardada, siguen viendo todo menos Auditoría** (`modulosPermitidos`, `puedeVerReporte`, `puedeVerTomaMuestras`; en el formulario aparecen todas marcadas). Sigue siendo solo lectura. Backend: `normalizar_cuenta` ya no descarta sus módulos. Pruebas: `permisos.test.ts`, `UsuarioForm.test.tsx`, `test_permisos_funciones.py`.
 - **Lista de usuarios (13-10-2026)**: buscador (nombre, correo, cliente o sucursal; sin tildes) + botones de filtro por tipo de cuenta con su conteo (Todos, Admin general, Gerencia, Admin de área, Analistas, Muestreadores, Clientes; `features/usuarios/lib/lista.ts`: `filtrarUsuarios`, `contarPorGrupo`, `resumenAccesos`), avatar con iniciales y color del área/tipo, columna «Qué ve» con chips y el cliente bajo el correo. Pruebas: `lista.test.ts`, `UsuariosTable.test.tsx`, `UsuariosView.test.tsx`.
 - **Catálogo por categoría** (`features/usuarios/catalogoPermisos.ts`, espejo de `app/permisos_funciones.py`): Data Core, Resultados y auditoría,
   AgroFresh Lab, Toma de muestras, Archivos; «Marcar todo» por categoría; los permisos cuelgan unos de otros (quitar al padre quita a los hijos).
@@ -449,7 +449,7 @@ dañado nunca muestra de más). **Encender o apagar solo lo hace el administrado
 clave falla; nunca 401). Queda en `funciones.json` (`_config/`) y como cambio sensible en Actividad.
 El filtro es `funciones.condicion_report(alias)` (`COALESCE(s.servicio,'') = ANY(...)`) y vive en un solo punto
 (`reportes._filtro_alcance`: datos, resumen, Excel y BD) más `/reportes/clientes` y los contadores de `dashboard.py`;
-vale para todos, clientes incluidos. **No** toca Auditoría interna, Solicitudes e informes ni Envío de informes: esos ven
+vale para todos, clientes incluidos. **No** toca Panel de control interno, Solicitudes e informes ni Envío de informes: esos ven
 todo. Sin la 0055 (`solicitud.servicio`) no se filtra nada y la pantalla avisa. Lo RYD cargado antes de la 0055 tiene
 `servicio` NULL y sigue apareciendo como Línea de proceso **hasta que se corra `scripts/clasificar_servicio_solicitudes.py`**
 (`--aplicar`; `app/clasificar_servicio.py`): deduce el servicio de lo viejo por la solicitud de Toma de muestras del informe
@@ -460,7 +460,7 @@ servicio» (el campo viejo `tipo_servicio`: Cromatografía / Línea de proceso) 
 informes propios de AgroFresh. **Si agregas otra consulta que alimente Report, pásale
 `funciones.condicion_report`.** Pruebas: `tests/test_servicio_listados.py`, `FuncionesPanel.test.tsx`.
 
-**Report por bloques de análisis (20-10-2026, pedido del usuario)**: con «Todos» (sin elegir laboratorio) Report muestra TODO hacia abajo y en este orden: **Análisis de residuos** (Laboratorio AgroFresh y Laboratorio Quiteca), **Análisis FSMA** (Laboratorio ALS Global) y **Análisis de fitopatología** (Laboratorio Diagnofruit); cada bloque con su cabecera (`SeccionesReport.tsx`), sus indicadores y su tabla (ALS y Diagnofruit: `SeccionInformes`). Eligiendo un laboratorio en el filtro, queda solo el bloque de ese laboratorio (`bloquesVisibles`). En el bloque de residuos, los botones «Laboratorio AgroFresh / Laboratorio Quiteca» parten los dos encendidos; tocar uno deja solo ese (afecta a todo el bloque, no al filtro de arriba); con AgroFresh fijado en el filtro, Quiteca queda en gris y tocarlo QUITA el filtro de laboratorio (`alTocarBoton`). Lógica pura en `features/reportes/lib/bloquesAnalisis.ts` (nombres completos con `nombreLaboratorio`: «Laboratorio ALS Global» sale de «ALS (Corthon)», «Als», «ALS»; solo cambia lo que se ve, nunca el valor guardado) e `informesPorLab.ts` (`construirInformes`: el informe de ALS/Diagnofruit con nombre, unidad y orden fijos). **Solo vale en Report normal**: la «Vista de límites» de Auditoría interna (`vistaControl`/`limitesTabla`) sigue como un solo gráfico de residuos y ALS/Diagnofruit solo se ven allí eligiéndolos. El resumen de los filtros y la descarga de BD cuentan las solicitudes de TODOS los laboratorios (`registrosEnFiltros`); los indicadores de cada bloque, solo lo suyo. Pruebas: `ReporteView.bloques.test.tsx`, `bloquesAnalisis.test.ts`, `informesPorLab.test.ts`. **Pendiente (pedido del usuario)**: todos los filtros de Report con check (varios valores a la vez, hoy solo la Vista de límites) y los nombres completos de laboratorio en el resto del sistema (Toma de muestras, Converter, Auditoría, correos, PDF).
+**Report por bloques de análisis (20-10-2026, pedido del usuario)**: con «Todos» (sin elegir laboratorio) Report muestra TODO hacia abajo y en este orden: **Análisis de residuos** (Laboratorio AgroFresh y Laboratorio Quiteca), **Análisis FSMA** (Laboratorio ALS Global) y **Análisis de fitopatología** (Laboratorio Diagnofruit); cada bloque con su cabecera (`SeccionesReport.tsx`), sus indicadores y su tabla (ALS y Diagnofruit: `SeccionInformes`). Eligiendo un laboratorio en el filtro, queda solo el bloque de ese laboratorio (`bloquesVisibles`). En el bloque de residuos, los botones «Laboratorio AgroFresh / Laboratorio Quiteca» parten los dos encendidos; tocar uno deja solo ese (afecta a todo el bloque, no al filtro de arriba); con AgroFresh fijado en el filtro, Quiteca queda en gris y tocarlo QUITA el filtro de laboratorio (`alTocarBoton`). Lógica pura en `features/reportes/lib/bloquesAnalisis.ts` (nombres completos con `nombreLaboratorio`: «Laboratorio ALS Global» sale de «ALS (Corthon)», «Als», «ALS»; solo cambia lo que se ve, nunca el valor guardado) e `informesPorLab.ts` (`construirInformes`: el informe de ALS/Diagnofruit con nombre, unidad y orden fijos). **Solo vale en Report normal**: la «Vista de límites» del Panel de control interno (`vistaControl`/`limitesTabla`) sigue como un solo gráfico de residuos y ALS/Diagnofruit solo se ven allí eligiéndolos. El resumen de los filtros y la descarga de BD cuentan las solicitudes de TODOS los laboratorios (`registrosEnFiltros`); los indicadores de cada bloque, solo lo suyo. Pruebas: `ReporteView.bloques.test.tsx`, `bloquesAnalisis.test.ts`, `informesPorLab.test.ts`. **Pendiente (pedido del usuario)**: todos los filtros de Report con check (varios valores a la vez, hoy solo la Vista de límites) y los nombres completos de laboratorio en el resto del sistema (Toma de muestras, Converter, Auditoría, correos, PDF).
 
 **Gráficos de ALS y Diagnofruit en «stand-by» (20-10-2026)**: con ALS o Diagnofruit elegido, Report muestra SIEMPRE la tabla por informe (`TablaInformes.tsx`: un informe por fila y una columna por analito con su unidad, orden por cualquier columna, buscador, páginas, resumen «informes con detección por analito» y «Descargar CSV» de lo que se ve; lógica pura en `features/reportes/lib/tablaInformes.ts`) y, **solo si el administrador principal los enciende** en Administración General → Funciones (tarjeta «Report: gráficos de ALS y Diagnofruit», `PUT /api/funciones/graficos-informes` con su contraseña, 403 y no 401; guardado en `funciones.json` bajo `report.graficos_informes`, apagado de fábrica), la línea de tiempo y la serie de tiempo (`ResultadosPorInforme.tsx`, prop `conGraficos`). Todas las cuentas lo leen en `GET /api/reportes/vista` (los clientes también ven ALS y Diagnofruit). Cambiar un servicio de Report ya no pisa este interruptor (`cambiar_servicio_report` conserva el resto de `report`). **La tabla va en vertical (20-10-2026, pedido del usuario)**: fecha de muestreo → informe(s) → una fila por analito con Resultado, Unidad y Estado (la fecha y el informe se estiran hacia abajo con `rowSpan`); el estado es por analito: Diagnofruit «Detectó / No detectó», **ALS «Pendiente»** (no hay límites por informe). El CSV sigue siendo ancho (un informe por fila). Bajo la tabla, el resumen de detecciones por analito. **Pendiente**: estados Óptimo/Moderado/Peligroso de Diagnofruit (su informe trae una tabla de niveles por grupo de fruta; solo se conocen los de Carozos). Las tarjetas de arriba dicen «Total de informes de análisis» y «Análisis» (cada resultado de un analito en un informe es un análisis). Nombre, unidad y orden fijos de cada analito: `analitosAls.ts` y `analitosDiagnofruit.ts` (no dependen de que el catálogo esté sembrado). Pruebas: `tablaInformes.test.ts`, `ResultadosPorInforme.test.tsx`, `FuncionesPanel.test.tsx`, `tests/test_funciones_graficos.py`.
 
@@ -548,7 +548,7 @@ diseño de partida y «Restaurar el panel original» borra el diseño. **Sin mig
 - **Pendiente**: más widgets de cliente (p. ej. resultados fuera de rango, cuando haya límites cargados) y el de Post Venta; el panel de un `admin_area` usa los
   mismos widgets internos (su `AreaDashboardView` no está partido en widgets); en el celular los widgets se apilan en orden de lectura.
 
-## Indicadores de entrega (Auditoría interna) y fuera de rango (Report)
+## Indicadores de entrega (Panel de control interno) y fuera de rango (Report)
 
 **Lead time y Cumplimiento** viven en «Solicitudes e informes» (`IndicadoresEntrega.tsx`,
 lógica pura en `features/auditoriaInterna/lib/entrega.ts`; backend `app/entrega_indicadores.py`:
@@ -775,7 +775,7 @@ la «Etapa 4» de Ingreso al laboratorio tiene que usar otra raíz o este mismo 
 (`app/informes_cliente.py`, prefijo `/api/informes-cliente`, `CON_SESION`; front `InformesClienteView` (13-10-2026: el MISMO explorador del personal —`ArbolCarpetas` + `Explorador`— sobre el espacio `ESPACIO_CLIENTE`, solo lectura: `operaciones()` lo apunta a `/informes-cliente/*` y `puedeEscribir=false`; sin favoritos ni búsqueda global),, que `StorageView` usa en vez
 del explorador): una cuenta de sucursal ve su planta y una de Sold To las plantas de su cliente, resueltas con `carpeta_planta` (la misma
 que crea las carpetas). Solo lista y baja PDF dentro de `informes/<su planta>/`; lo demás da 404 y un interno usa el Storage de siempre.
-**Panel general de un cliente (13-10-2026)**: ya NO incrusta el Report (está en el menú); por defecto lleva el encabezado y `AccesosCliente` (tarjetas de Report y Storage; widget `cliente:accesos`, el panel lo arma el administrador y `cliente:reporte` sigue disponible en el editor). **Storage y Auditoría interna usan todo el ancho** (`.ancho` en `AppLayout`); la vista del cliente muestra carpetas como tarjetas en rejilla. Se quitó la insignia «Base de datos: pendiente» de la barra lateral. En **Report** una cuenta de cliente también ve en el encabezado su Ship To (o Sold To) y no le salen los filtros Sold To / Ship To
+**Panel general de un cliente (13-10-2026)**: ya NO incrusta el Report (está en el menú); por defecto lleva el encabezado y `AccesosCliente` (tarjetas de Report y Storage; widget `cliente:accesos`, el panel lo arma el administrador y `cliente:reporte` sigue disponible en el editor). **Storage y Panel de control interno usan todo el ancho** (`.ancho` en `AppLayout`); la vista del cliente muestra carpetas como tarjetas en rejilla. Se quitó la insignia «Base de datos: pendiente» de la barra lateral. En **Report** una cuenta de cliente también ve en el encabezado su Ship To (o Sold To) y no le salen los filtros Sold To / Ship To
 (`ReporteLaboratorioView` le pasa `clienteFijo`/`plantaFija`). Pruebas: `tests/test_informes_cliente.py`, `InformesClienteView.test.tsx`.
 
 **Filtros de Solicitudes (Toma de muestras)**: Laboratorio, Sold To, Ship To,
@@ -809,7 +809,7 @@ solicitud llega a su informe por el PDF de Converter con su OT (`informe_auditor
 por los resultados de Report cuyo `referencia` es el OT (así llegan los propios de
 AgroFresh, uno por vial). **No se adivina por parecido**. «En Report» = resultados con el OT en `referencia` **o** el N°
 de informe de Converter como `solicitud.nro_solicitud` (así llega Quiteca; misma regla que
-Auditoría interna; antes solo se miraba el OT y marcaba «Sin Report» de más). El PDF sale de auditoría o, si
+Panel de control interno; antes solo se miraba el OT y marcaba «Sin Report» de más). El PDF sale de auditoría o, si
 no, de Storage → Informes (`ficha_informe._buscar_pdf`); sin PDF el visor lo avisa.
 **Cada informe dice si su OT está bien cruzada** (`informes_solicitud.verificar`, campo
 `verificacion` de `/solicitudes-informes`): ✓ en el chip = el informe trae impresa esa
@@ -969,7 +969,7 @@ tocas una, toca la otra.
   «Promedio por ingrediente» (sin «ppm» en el título). Se **quitaron a pedido**:
   tarjeta de límites residuales, % de cumplimiento, distribución de valores,
   indicadores y solicitudes por cliente: no los vuelvas a poner. La vista por
-  límite de control (Auditoría interna) conserva su tarjeta de límites.
+  límite de control (Panel de control interno) conserva su tarjeta de límites.
 - **Ficha del informe** (clic en un punto del gráfico de residuales): si todas las
   filas son de UNA solicitud y es personal interno (`puedeDescargarBd`, nunca cliente
   ni datos simulados), `DetalleObservacionesModal` abre `FichaInformeModal`: resultados
@@ -1039,9 +1039,13 @@ tocas una, toca la otra.
 
 ---
 
-## Auditoría Interna (módulo nuevo)
+## Panel de control interno (módulo nuevo; antes «Auditoría interna», renombrado el 19-10-2026)
 
-`/modulos/auditoria-interna` es un hub con tres tarjetas (**todas las pantallas de Auditoría interna usan hasta 1840 px de ancho**, no los 1280 px del resto de la app: `AppLayout` pone la clase `.ancho` si la ruta empieza por `ROUTES.auditoriaInterna`; los paneles del gráfico por análisis usan `auto-fit` para repartirse todo el ancho):
+**Solo cambió el nombre que se ve**: las rutas (`/modulos/auditoria-interna`, `/api/auditoria-interna`), el permiso `auditoria_interna`, las carpetas y los archivos del código siguen con el nombre antiguo. Si el usuario dice «Auditoría interna», es este módulo.
+
+**Filtro «Tipo de servicio» (19-10-2026)**: Report y la «Vista de límites» tienen un filtro «Tipo de servicio» con Línea de proceso, Actimist, Ecofog y RYD (`Observacion.servicio`, calculado con `servicioDeFila` de `src/lib/servicio.ts`: manda `solicitud.servicio` y, sin él, el Tipo Aplicación; en Report es un desplegable, en la Vista de límites de varios valores). Es distinto del campo viejo `tipo_servicio` («Cromatografía»), que sigue sin ofrecerse. «Solicitudes e informes» ya tenía su «Tipo de servicio» (Actimist / Línea de proceso / RYD). El backend manda `servicio` en `/reportes/datos`.
+
+`/modulos/auditoria-interna` es un hub con tres tarjetas (**todas las pantallas del Panel de control interno usan hasta 1840 px de ancho**, no los 1280 px del resto de la app: `AppLayout` pone la clase `.ancho` si la ruta empieza por `ROUTES.auditoriaInterna`; los paneles del gráfico por análisis usan `auto-fit` para repartirse todo el ancho):
 
 | Pantalla | Qué es |
 |---|---|
@@ -1099,7 +1103,7 @@ tocas una, toca la otra.
 - **Administración General** (`/admin/administracion-general`, en el menú debajo de
   Notificaciones, **solo admin general**): tiene dos pestañas. **Correcciones del
   Converter** (ver abajo; las filas parten compactas y se agrandan con un clic):
-  `GET /api/correcciones` exige admin general; ni quien tiene Auditoría interna lo
+  `GET /api/correcciones` exige admin general; ni quien tiene Panel de control interno lo
   ve. **Listas de distribución** (pestaña que abre por defecto; `app/listas_distribucion.py`,
   prefijo `/api/listas-distribucion`, solo admin general) es **una tabla dinámica**:
   una fila por planta y una columna por rol (Admin Report Hub, Comercial, Técnico) y

@@ -4,13 +4,13 @@ import { IconAuditoria, IconCarpeta, IconTrendingUp } from '@/components/ui/icon
 import { ROUTES } from '@/constants/routes'
 import tarjetas from '@/components/ui/OpcionCard.module.css'
 
-/** Puerta de entrada de Auditoría interna. Un solo permiso para las tres
+/** Puerta de entrada del Panel de control interno. Un solo permiso para las tres
  * tarjetas, igual que el hub de AgroFresh Lab. */
 export function AuditoriaInternaHubView() {
   return (
     <div>
       <Header
-        title="Auditoría Interna"
+        title="Panel de control interno"
         description="Panel analítico para auditar lo que emitimos y lo que recibimos de los laboratorios."
       />
 

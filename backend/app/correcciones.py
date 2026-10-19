@@ -4,7 +4,7 @@ Historial de correcciones del Converter.
 Cuando el Converter no reconoce un Sold To, Ship To, Especie o Variedad, la
 persona elige a mano el valor oficial. Acá se guarda esa elección: la próxima
 vez que llegue el mismo texto, el Converter la aplica solo. Además es lo que se
-revisa en Auditoría interna.
+revisa en el Panel de control interno.
 
 Quién puede qué:
   - Leer las asociaciones (para que el Converter las aplique), guardar una

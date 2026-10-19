@@ -1,5 +1,5 @@
 """
-Auditoría interna: quién entra, quién edita, y que la carpeta raíz del bucket
+Panel de control interno: quién entra, quién edita, y que la carpeta raíz del bucket
 no se pueda borrar. Nada de esto toca la base ni R2: los usuarios se inyectan con
 dependency_overrides y la disponibilidad de R2 se simula.
 """
