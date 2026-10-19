@@ -161,7 +161,7 @@ describe('Report por bloques de análisis', () => {
     })
     render(<ReporteView />)
     const select = (await screen.findByText('Tipo de servicio', { selector: 'span' })).parentElement!.querySelector('select')!
-    expect([...select.options].map((o) => o.textContent)).toEqual(['Todos', 'Actimist (1)', 'Línea de proceso (1)'])
+    expect([...select.options].map((o) => o.textContent)).toEqual(['Todos', 'Actimist', 'Línea de proceso'])
     fireEvent.change(select, { target: { value: 'Actimist' } })
     await waitFor(() => expect(screen.getByText(/1 de 2 solicitudes/)).toBeTruthy())
   })
@@ -178,7 +178,7 @@ describe('Report por bloques de análisis', () => {
     })
     render(<ReporteView />)
     const select = (await screen.findByText('N° de línea', { selector: 'span' })).parentElement!.querySelector('select')!
-    expect([...select.options].map((o) => o.textContent)).toEqual(['Todas', '2 (1)', '10 (1)'])
+    expect([...select.options].map((o) => o.textContent)).toEqual(['Todas', '2', '10'])
     fireEvent.change(select, { target: { value: '10' } })
     await waitFor(() => expect(screen.getByText(/1 de 3 solicitudes/)).toBeTruthy())
   })

@@ -1,4 +1,5 @@
 import FueraDeRango from './FueraDeRango'
+import { columnasPorLaboratorio, laboratoriosDeInformes } from '@/features/reportes/lib/graficoResiduales'
 import { DonaFueraDeRango } from './DonaFueraDeRango'
 import { InformesFueraDeRango } from './InformesFueraDeRango'
 import { ResultadosPorCliente } from './ResultadosPorCliente'
@@ -139,6 +140,12 @@ function capitalizarPrimeraLetra(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
 }
 
+/** Trazo de la curva de cada laboratorio (el primero continuo, los demás con distinto punteado). */
+const TRAZOS_LABORATORIO: number[][] = [[], [7, 4], [2, 3], [10, 3, 2, 3]]
+function trazoDeLaboratorio(posicion: number): number[] {
+  return TRAZOS_LABORATORIO[Math.max(posicion, 0) % TRAZOS_LABORATORIO.length]
+}
+
 type Vista = 'residual' | 'control'
 type Estado = 'cargando' | 'ok' | 'error'
 
@@ -150,10 +157,9 @@ function nombreMes(mes: string): string {
   return MESES[Number(mes) - 1] ?? mes
 }
 
-/** Texto de una opción de un desplegable nativo: el valor y cuántas
- * solicitudes trae, para saber antes de elegir si hay algo que ver. */
+/** Texto de una opción de un desplegable nativo: solo el valor (sin contador). */
 function textoOpcion(o: OpcionFiltro, etiqueta: (v: string) => string = (v) => v): string {
-  return `${etiqueta(o.valor)} (${o.conteo.toLocaleString('es-CL')})`
+  return etiqueta(o.valor)
 }
 
 const ETIQUETAS_FILTRO: Record<keyof Filtros, string> = {
@@ -438,22 +444,6 @@ export function ReporteView({
     }
   }, [observaciones, filtros, multi, filtrosMultiples, especiesOficiales, variedadesOficiales])
 
-  const conteoPorValor = useMemo(() => {
-    const mapa = (lista: OpcionFiltro[]) => new Map(lista.map((o) => [o.valor, o.conteo]))
-    return {
-      clientes: mapa(opciones.clientes),
-      plantas: mapa(opciones.plantas),
-      ingredientes: mapa(opciones.ingredientes),
-      laboratorios: mapa(opciones.laboratorios),
-      servicios: mapa(opciones.servicios),
-      lineas: mapa(opciones.lineas),
-      crops: mapa(opciones.crops),
-      variedades: mapa(opciones.variedades),
-      semanas: mapa(opciones.semanas),
-      meses: mapa(opciones.meses),
-    }
-  }, [opciones])
-
   // Report normal: los resultados van en bloques por TIPO DE ANÁLISIS, siempre hacia abajo y en este orden: análisis de
   // residuos (AgroFresh y Quiteca), análisis FSMA (ALS) y análisis de fitopatología (Diagnofruit). Sin elegir laboratorio
   // se ven los tres; eligiendo uno, solo el suyo. La «Vista de límites» del Panel de control interno (vistaControl / limitesTabla)
@@ -607,6 +597,7 @@ export function ReporteView({
     () => [...new Set(informes.flatMap((i) => i.puntos.map((p) => p.ingrediente as string)))].sort((a, b) => a.localeCompare(b, 'es')),
     [informes],
   )
+  const laboratoriosGraficados = useMemo(() => laboratoriosDeInformes(informes), [informes])
   const tituloPrincipal = filtrosMultiples
     ? tituloLimites(vistaControl ? 'Límites de control' : 'Límites residuales', multi, filtros.ingredientes, nombreMes)
     : tituloGrafico(filtros, !clienteFijo, vistaControl ? 'Límites de control' : 'Residuales')
@@ -615,9 +606,8 @@ export function ReporteView({
     if (!mainRef.current) return
     const etiquetas = informes.map((i) => (i.fecha ? formatDateCL(i.fecha) : 'Sin fecha'))
     const nAnalitos = analitosGraficados.length
-    // Todas las fechas, cada una UNA vez: la etiqueta va en la primera columna del
-    // día y las demás columnas de ese día quedan sin texto. Esas primeras columnas
-    // también marcan el inicio de cada fecha con una línea de fondo muy suave.
+    // Cada columna (informe) lleva SU fecha en el eje, aunque se repita en el mismo día.
+    // Las primeras columnas de cada fecha además marcan su inicio con una línea de fondo muy suave.
     const inicioDeFecha = etiquetas.map((e, i) => i === 0 || e !== etiquetas[i - 1])
 
     const datasets: ChartDataset<'line', (number | null)[]>[] = analitosGraficados.map((ingrediente) => {
@@ -692,9 +682,11 @@ export function ReporteView({
 
     // Una curva tenue por analito, del mismo color que sus puntos, que une sus
     // resultados de un informe al siguiente en orden de fecha (se salta los
-    // informes donde ese analito no vino). Va DEBAJO de los puntos y de los
-    // conectores, para que se lea la tendencia sin tapar ningún dato. Es una
-    // curva monótona: pasa por cada punto y nunca se sale de los valores.
+    // informes donde ese analito no vino). Si hay más de un laboratorio, el mismo
+    // analito lleva UNA CURVA POR LABORATORIO (mismo color, trazo distinto) para
+    // compararlos. Va DEBAJO de los puntos y de los conectores, para que se lea la
+    // tendencia sin tapar ningún dato. Es una curva monótona: pasa por cada punto
+    // y nunca se sale de los valores.
     const lineasPorAnalito: Plugin<'line'> = {
       id: 'lineasPorAnalito',
       beforeDatasetsDraw(chart) {
@@ -703,16 +695,18 @@ export function ReporteView({
         ctx.globalAlpha = 0.4
         ctx.lineWidth = 1.5
         ctx.lineJoin = 'round'
-        ctx.setLineDash([])
         for (let di = 0; di < nAnalitos; di++) {
           if (!chart.isDatasetVisible(di)) continue
-          const valores = chart.data.datasets[di].data
-          const puntos = chart.getDatasetMeta(di).data.filter((_, idx) => valores[idx] != null)
-          if (puntos.length < 2) continue
+          const meta = chart.getDatasetMeta(di).data
           ctx.strokeStyle = colorDeIngrediente(analitosGraficados[di])
-          ctx.beginPath()
-          trazarCurvaSuave(ctx, puntos)
-          ctx.stroke()
+          columnasPorLaboratorio(informes, analitosGraficados[di]).forEach((columnas, lab) => {
+            const puntos = columnas.map((c) => meta[c]).filter(Boolean)
+            if (puntos.length < 2) return
+            ctx.setLineDash(trazoDeLaboratorio(laboratoriosGraficados.indexOf(lab)))
+            ctx.beginPath()
+            trazarCurvaSuave(ctx, puntos)
+            ctx.stroke()
+          })
         }
         ctx.restore()
       },
@@ -855,7 +849,7 @@ export function ReporteView({
               font: { size: 10 },
               maxRotation: 90,
               minRotation: 90,
-              callback: (_valor, i) => (inicioDeFecha[i] ? etiquetas[i] : ''),
+              callback: (_valor, i) => etiquetas[i],
             },
             grid: {
               display: true,
@@ -884,6 +878,7 @@ export function ReporteView({
   }, [
     informes,
     analitosGraficados,
+    laboratoriosGraficados,
     vistaControl,
     limitesTabla,
     limitesDeTabla,
@@ -1350,7 +1345,6 @@ export function ReporteView({
                   opciones={opciones.laboratorios.map((o) => o.valor)}
                   valores={multi.laboratorio}
                   onChange={(v) => cambiarMulti('laboratorio', v)}
-                  conteoDe={(v) => conteoPorValor.laboratorios.get(v)}
                 />
               ) : (
                 <label className={styles.filtro}>
@@ -1374,14 +1368,12 @@ export function ReporteView({
                     opciones={opciones.clientes.map((o) => o.valor)}
                     valores={multi.cliente}
                     onChange={(v) => cambiarMulti('cliente', v)}
-                    conteoDe={(v) => conteoPorValor.clientes.get(v)}
                   />
                   <MultiSelectFiltro
                     etiqueta="Sucursal (Ship To)"
                     opciones={opciones.plantas.map((o) => o.valor)}
                     valores={multi.planta}
                     onChange={(v) => cambiarMulti('planta', v)}
-                    conteoDe={(v) => conteoPorValor.plantas.get(v)}
                   />
                 </>
               )}
@@ -1392,14 +1384,12 @@ export function ReporteView({
                     opciones={opciones.clientes.map((o) => o.valor)}
                     valor={filtros.cliente}
                     onChange={cambiarCliente}
-                    conteoDe={(v) => conteoPorValor.clientes.get(v)}
                   />
                   <BuscableSelect
                     etiqueta="Sucursal (Ship To)"
                     opciones={opciones.plantas.map((o) => o.valor)}
                     valor={filtros.planta}
                     onChange={cambiarPlanta}
-                    conteoDe={(v) => conteoPorValor.plantas.get(v)}
                   />
                 </>
               )}
@@ -1411,7 +1401,6 @@ export function ReporteView({
                   opciones={opciones.servicios.map((o) => o.valor)}
                   valores={multi.servicio}
                   onChange={(v) => cambiarMulti('servicio', v)}
-                  conteoDe={(v) => conteoPorValor.servicios.get(v)}
                 />
               ) : (
                 <label className={styles.filtro}>
@@ -1430,7 +1419,6 @@ export function ReporteView({
                   opciones={opciones.lineas.map((o) => o.valor)}
                   valores={multi.nroLinea}
                   onChange={(v) => cambiarMulti('nroLinea', v)}
-                  conteoDe={(v) => conteoPorValor.lineas.get(v)}
                 />
               ) : (
                 <label className={styles.filtro}>
@@ -1450,14 +1438,12 @@ export function ReporteView({
                     opciones={opciones.crops.map((o) => o.valor)}
                     valores={multi.crop}
                     onChange={(v) => cambiarMulti('crop', v)}
-                    conteoDe={(v) => conteoPorValor.crops.get(v)}
                   />
                   <MultiSelectFiltro
                     etiqueta="Variedad"
                     opciones={opciones.variedades.map((o) => o.valor)}
                     valores={multi.variedad}
                     onChange={(v) => cambiarMulti('variedad', v)}
-                    conteoDe={(v) => conteoPorValor.variedades.get(v)}
                   />
                 </>
               ) : (
@@ -1489,7 +1475,6 @@ export function ReporteView({
                 valores={ingredientesActivos}
                 onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v.length >= todosIngredientes.length ? [] : v }))}
                 colorDe={colorDeIngrediente}
-                conteoDe={(v) => conteoPorValor.ingredientes.get(v)}
               />
               {filtrosMultiples ? (
                 <>
@@ -1498,7 +1483,6 @@ export function ReporteView({
                     opciones={opciones.semanas.map((o) => o.valor)}
                     valores={multi.semana}
                     onChange={(v) => cambiarMulti('semana', v)}
-                    conteoDe={(v) => conteoPorValor.semanas.get(v)}
                     formatear={formatosMulti.semana}
                   />
                   <MultiSelectFiltro
@@ -1506,7 +1490,6 @@ export function ReporteView({
                     opciones={opciones.meses.map((o) => o.valor)}
                     valores={multi.mes}
                     onChange={(v) => cambiarMulti('mes', v)}
-                    conteoDe={(v) => conteoPorValor.meses.get(v)}
                     formatear={formatosMulti.mes}
                   />
                 </>
@@ -1663,6 +1646,19 @@ export function ReporteView({
                 <div className={styles.chartboxGrande}>
                   <canvas ref={mainRef} />
                 </div>
+                {laboratoriosGraficados.length > 1 && (
+                  <p className={styles.leyendaLabs} aria-label="Curvas por laboratorio">
+                    Curvas por laboratorio:
+                    {laboratoriosGraficados.map((lab, i) => (
+                      <span key={lab} className={styles.leyendaLab}>
+                        <svg width="30" height="8" aria-hidden="true">
+                          <line x1="0" y1="4" x2="30" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray={trazoDeLaboratorio(i).join(' ') || undefined} />
+                        </svg>
+                        {lab}
+                      </span>
+                    ))}
+                  </p>
+                )}
               </Card>
 
               {vistaControl && !esTabular && (

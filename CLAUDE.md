@@ -970,6 +970,7 @@ tocas una, toca la otra.
   tarjeta de límites residuales, % de cumplimiento, distribución de valores,
   indicadores y solicitudes por cliente: no los vuelvas a poner. La vista por
   límite de control (Panel de control interno) conserva su tarjeta de límites.
+- **Gráfico de residuales (19-10-2026, pedido del usuario)**: cada columna lleva SU fecha en el eje (ya no una por día); el mismo analito dibuja **una curva por laboratorio** (mismo color, trazo distinto: continuo, rayas, puntos; `columnasPorLaboratorio` en `graficoResiduales.ts`) con una leyenda de trazos bajo el gráfico cuando hay más de un laboratorio. Los desplegables de filtros de Report **ya no llevan el contador entre paréntesis** («Mandarina», no «Mandarina (11)»; `textoOpcion`, y se quitó `conteoDe` de los `MultiSelectFiltro` de Report; el de Solicitudes no se tocó). No los vuelvas a poner.
 - **Ficha del informe** (clic en un punto del gráfico de residuales): si todas las
   filas son de UNA solicitud y es personal interno (`puedeDescargarBd`, nunca cliente
   ni datos simulados), `DetalleObservacionesModal` abre `FichaInformeModal`: resultados
