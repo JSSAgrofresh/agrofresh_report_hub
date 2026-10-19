@@ -10,7 +10,10 @@ import { CORREO_MAESTRO, buscarPlantasDeComercial } from '../api/usuariosStore'
 import { cuentaDesdeSeleccion, seleccionDesdeCuenta, seleccionTotal, validarSeleccion } from '../catalogoPermisos'
 import { modulosPredeterminados, reportesPredeterminados, vistaDeCliente } from '../permisos'
 import type { VistaCliente } from '../permisos'
+import type { Permiso } from '../catalogoPermisos'
 import type { PlantaAsignada, TipoAcceso, Usuario } from '../types'
+import { claveDePlanta } from '../lib/plantas'
+import { PlantasAsignadas } from './PlantasAsignadas'
 import { SelectorPermisos } from './SelectorPermisos'
 import styles from './UsuarioForm.module.css'
 
@@ -36,13 +39,10 @@ const CLIENTE_VE: { id: keyof VistaCliente; nombre: string; descripcion: string 
   { id: 'accutab', nombre: 'Informes Accu-Tab', descripcion: 'Informes de los equipos Accu-Tab (Post Venta) en su panel.' },
 ]
 
-const COMERCIAL_VE: { id: 'report' | 'storage'; nombre: string; descripcion: string }[] = [
-  { id: 'report', nombre: 'Report de laboratorio', descripcion: 'Resultados y gráficos de sus plantas; puede descargar el Excel.' },
-  { id: 'storage', nombre: 'Storage', descripcion: 'Los informes en PDF de sus plantas (solo lectura).' },
-]
-
-const claveDePlanta = (p: PlantaAsignada) => `${p.clienteNombre}\u0000${p.plantaNombre ?? ''}`.toLowerCase()
-const textoDePlanta = (p: PlantaAsignada) => (p.plantaNombre ? `${p.clienteNombre} · ${p.plantaNombre}` : `${p.clienteNombre} (todas las plantas)`)
+/** Lo único que hoy se puede dar a un comercial: lo que la API acota a sus plantas (Report de laboratorio y Storage). */
+const DISPONIBLE_PARA_COMERCIAL = new Set(['reports', 'reporte:laboratorio', 'storage'])
+const sinPlantasAcotadas = (p: Permiso): string | null =>
+  DISPONIBLE_PARA_COMERCIAL.has(p.id) ? null : 'Falta acotarlo a las plantas del comercial.'
 
 const tipoEtiqueta = (t: TipoAcceso) => TIPOS.find((x) => x.valor === t)?.etiqueta ?? t
 
@@ -57,11 +57,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [clienteVe, setClienteVe] = useState<VistaCliente>(
     usuario?.tipoAcceso === 'cliente' ? vistaDeCliente(usuario) : { report: true, storage: false, accutab: false },
   )
-  // Comercial: qué ve y de qué plantas.
-  const [comercialVe, setComercialVe] = useState({
-    report: usuario?.tipoAcceso === 'comercial' ? (usuario.modulos ?? []).includes('reports') : true,
-    storage: usuario?.tipoAcceso === 'comercial' ? (usuario.modulos ?? []).includes('storage') : true,
-  })
+  // Comercial: de qué plantas.
   const [plantasAsignadas, setPlantasAsignadas] = useState<PlantaAsignada[]>(usuario?.plantasAsignadas ?? [])
   const [comercialCliente, setComercialCliente] = useState('')
   const [comercialPlanta, setComercialPlanta] = useState('')
@@ -77,7 +73,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const esComercial = tipoAcceso === 'comercial'
   const veTodo = tipoAcceso === 'admin_general'
   const requiereArea = tipoAcceso === 'admin_area' || tipoAcceso === 'analista'
-  const configuraPermisos = !esCliente && !esComercial && !veTodo && !esMaestro
+  const configuraPermisos = !esCliente && !veTodo && !esMaestro
 
   useEffect(() => {
     if (!esCliente && !esComercial) return
@@ -139,16 +135,16 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       setError('Asigna al menos una planta al comercial.')
       return
     }
-    if (esComercial && !comercialVe.report && !comercialVe.storage) {
-      setError('Elige qué ve el comercial: Report y/o Storage.')
-      return
-    }
     const falla = configuraPermisos ? validarSeleccion(seleccion) : null
     if (falla) {
       setError(falla)
       return
     }
     const permisos = configuraPermisos ? cuentaDesdeSeleccion(seleccion) : undefined
+    if (esComercial && !(permisos?.modulos ?? []).some((m) => m === 'reports' || m === 'storage')) {
+      setError('Elige qué abre el comercial: Report y/o Storage.')
+      return
+    }
 
     onGuardar({
       nombre: nombre.trim(),
@@ -158,16 +154,12 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       area: requiereArea ? (area as AreaId) : undefined,
       clienteNombre: esCliente ? clienteNombre.trim() : undefined,
       plantaNombre: esCliente && plantaNombre.trim() ? plantaNombre.trim() : undefined,
-      modulos: esComercial
-        ? [comercialVe.report && 'reports', comercialVe.storage && 'storage'].filter((m): m is string => !!m)
-        : esCliente
-          ? [clienteVe.report && 'reports', clienteVe.storage && 'storage'].filter((m): m is string => !!m)
-          : permisos?.modulos,
-      reportes: esComercial
-        ? (comercialVe.report ? ['laboratorio'] : [])
-        : esCliente
-          ? [clienteVe.report && 'laboratorio', clienteVe.accutab && 'postventa'].filter((r): r is 'laboratorio' | 'postventa' => !!r)
-          : permisos?.reportes,
+      modulos: esCliente
+        ? [clienteVe.report && 'reports', clienteVe.storage && 'storage'].filter((m): m is string => !!m)
+        : permisos?.modulos,
+      reportes: esCliente
+        ? [clienteVe.report && 'laboratorio', clienteVe.accutab && 'postventa'].filter((r): r is 'laboratorio' | 'postventa' => !!r)
+        : permisos?.reportes,
       plantasAsignadas: esComercial ? plantasAsignadas : undefined,
     })
   }
@@ -294,9 +286,9 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
 
       {esComercial && !esMaestro && (
         <section className={styles.bloque}>
-          <h3 className={styles.titulo}><b>3</b> Qué plantas ve y qué abre</h3>
+          <h3 className={styles.titulo}><b>3</b> Qué plantas ve</h3>
           <p className={styles.notaChica}>
-            Un comercial solo mira: no puede crear, editar, subir ni borrar nada. Puede descargar el Excel de sus plantas.
+            Un comercial solo mira: no puede crear, editar, subir ni borrar nada. Puede descargar. Abajo eliges a qué módulos entra.
           </p>
 
           <div className={styles.campo}>
@@ -332,49 +324,13 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
           </div>
           {avisoListas && <p className={styles.notaChica}>{avisoListas}</p>}
 
-          {plantasAsignadas.length === 0 ? (
-            <p className={styles.notaChica}>Todavía no tiene plantas: sin ellas no vería nada.</p>
-          ) : (
-            <ul className={styles.plantasAsignadas} aria-label="Plantas asignadas">
-              {plantasAsignadas.map((p) => (
-                <li key={claveDePlanta(p)}>
-                  <span>{textoDePlanta(p)}</span>
-                  <button
-                    type="button"
-                    aria-label={`Quitar ${textoDePlanta(p)}`}
-                    onClick={() => setPlantasAsignadas((actuales) => actuales.filter((x) => claveDePlanta(x) !== claveDePlanta(p)))}
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <fieldset className={styles.permisos}>
-            <legend>Qué abre este comercial</legend>
-            <div className={styles.permisosGrid}>
-              {COMERCIAL_VE.map((c) => (
-                <label className={styles.permisoOpcion} key={c.id}>
-                  <input
-                    type="checkbox"
-                    checked={comercialVe[c.id]}
-                    onChange={() => setComercialVe((actuales) => ({ ...actuales, [c.id]: !actuales[c.id] }))}
-                  />
-                  <span>
-                    <strong>{c.nombre}</strong>
-                    <small>{c.descripcion}</small>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          <PlantasAsignadas plantas={plantasAsignadas} onChange={setPlantasAsignadas} />
         </section>
       )}
 
-      {!esCliente && !esComercial && !esMaestro && (
+      {!esCliente && !esMaestro && (
         <section className={styles.bloque}>
-          <h3 className={styles.titulo}><b>3</b> Qué puede hacer</h3>
+          <h3 className={styles.titulo}><b>{esComercial ? 4 : 3}</b> Qué puede hacer</h3>
 
           {requiereArea && (
             <label className={styles.campo}>
@@ -409,12 +365,20 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
             </div>
           )}
 
+          {esComercial && (
+            <p className={styles.notaChica}>
+              Los módulos apagados («aún no disponible») todavía no se pueden dar a un comercial: sus datos hay que acotarlos
+              primero a sus plantas, para que no vea las de otros clientes.
+            </p>
+          )}
+
           <SelectorPermisos
             valor={veTodo ? seleccionTotal('admin_general') : seleccion}
             onChange={setSeleccion}
             tipo={tipoAcceso}
             area={area || undefined}
             soloLectura={veTodo}
+            noDisponible={esComercial ? sinPlantasAcotadas : undefined}
           />
         </section>
       )}
@@ -439,6 +403,8 @@ function plantilla(tipo: TipoAcceso, area?: AreaId, actual?: Usuario): string[] 
     if (actual && actual.tipoAcceso === 'gerencia' && actual.modulos == null) return seleccionTotal('gerencia')
     if (!(actual && actual.tipoAcceso === 'gerencia')) return []
   }
+  // Un comercial nuevo parte con lo único que hoy se puede acotar a sus plantas.
+  if (tipo === 'comercial' && !(actual && actual.tipoAcceso === 'comercial')) return ['reports', 'reporte:laboratorio', 'storage']
   const cuenta = actual && actual.tipoAcceso === tipo && actual.area === area ? actual : { ...base, modulos: undefined, reportes: undefined }
   return seleccionDesdeCuenta(cuenta, modulosPredeterminados(base), reportesPredeterminados(base))
 }

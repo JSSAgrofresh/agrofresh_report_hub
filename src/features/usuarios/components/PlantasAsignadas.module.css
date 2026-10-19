@@ -1,0 +1,133 @@
+.caja {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  overflow: hidden;
+  margin-top: var(--space-3);
+}
+
+.encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+}
+
+.buscador {
+  flex: 1 1 220px;
+  max-width: 340px;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.grupos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.grupos > li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.grupos summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 9px var(--space-4);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  list-style-position: inside;
+}
+
+.grupos summary:hover {
+  background: var(--color-bg);
+}
+
+.cliente {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cuenta {
+  flex-shrink: 0;
+  min-width: 24px;
+  text-align: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.cuerpo {
+  padding: 2px var(--space-4) var(--space-3) calc(var(--space-4) + 12px);
+}
+
+.plantas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.plantas li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 4px 0;
+  font-size: 12.5px;
+  border-bottom: 1px dashed var(--color-border);
+}
+
+.plantas button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 8px;
+  color: var(--color-text-muted);
+}
+
+.plantas button:hover {
+  color: var(--color-danger, #b0271f);
+}
+
+.quitarTodas {
+  margin-top: var(--space-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.vacio {
+  margin: var(--space-3) 0 0;
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+}
