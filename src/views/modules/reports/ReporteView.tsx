@@ -46,6 +46,8 @@ import {
   especiesDeVariedad,
   laboratorioBase,
   laboratorioTabular,
+  analitoAls,
+  ORDEN_ALS_DESCONOCIDO,
   colorDeIngrediente,
   colorEspecieMarca,
   contarFiltrosActivos,
@@ -514,7 +516,7 @@ export function ReporteView({
         nro: string
         fecha: string | null
         zona: string | null
-        patogenos: { codigo: string; nombre: string; texto: string; detectado: boolean; unidad: string }[]
+        patogenos: { codigo: string; nombre: string; texto: string; detectado: boolean; unidad: string; orden: number }[]
       }
     >()
     filtradas.forEach((o) => {
@@ -533,12 +535,25 @@ export function ReporteView({
           laboratorioBase(a.laboratorio) === labTabular &&
           (a.codigo === o.ingrediente || (a.codigo && CODIGOS_EQUIVALENTES[o.ingrediente ?? '']?.includes(a.codigo))),
       )
-      const nombre = analito?.nombre ?? o.ingrediente
+      // ALS tiene su propia tabla de nombre, unidad y orden: no depende de que el catálogo esté sembrado.
+      const als = esAls ? analitoAls(o.ingrediente) : null
+      const nombre = als?.nombre ?? analito?.nombre ?? o.ingrediente
       const texto = o.ppm != null ? formatDecimalCL(o.ppm, 2) : o.valorTexto ?? '—'
-      grupo.patogenos.push({ codigo: o.ingrediente, nombre, texto, detectado: esDetectado(o), unidad: analito?.unidad ?? '' })
+      grupo.patogenos.push({
+        codigo: o.ingrediente,
+        nombre,
+        texto,
+        detectado: esDetectado(o),
+        unidad: als?.unidad ?? analito?.unidad ?? '',
+        orden: als?.orden ?? ORDEN_ALS_DESCONOCIDO,
+      })
     })
+    // Dentro de un informe los analitos van siempre en el mismo orden (antes salían como llegaban de la base).
+    if (esAls) {
+      porSolicitud.forEach((g) => g.patogenos.sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre, 'es')))
+    }
     return [...porSolicitud.values()].sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''))
-  }, [esTabular, labTabular, filtradas, analitosVista])
+  }, [esTabular, esAls, labTabular, filtradas, analitosVista])
 
   // El gráfico de barras de abajo es un resumen de la misma tabla, no un dato
   // aparte: cuántas muestras dieron positivo/negativo para cada patógeno, de
