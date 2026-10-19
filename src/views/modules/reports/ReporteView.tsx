@@ -23,13 +23,13 @@ import {
 import type { ChartDataset, Plugin, TooltipItem } from 'chart.js'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
-import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { IconAlerta, IconArchivoPlano, IconFrasco, IconTrendingUp } from '@/components/ui/icons'
-import { valorDeTexto, type InformeAlsVista } from '@/features/reportes/lib/lineaTiempoAls'
-import { ResultadosAls } from './ResultadosAls'
+import { analitoDiagnofruit } from '@/features/reportes/lib/analitosDiagnofruit'
+import { textoNumero, valorDeTexto, type InformeVista } from '@/features/reportes/lib/lineaTiempoInformes'
+import { ResultadosPorInforme } from './ResultadosPorInforme'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import type { RangoFechas } from '@/components/ui/CalendarioRango'
@@ -537,48 +537,43 @@ export function ReporteView({
           laboratorioBase(a.laboratorio) === labTabular &&
           (a.codigo === o.ingrediente || (a.codigo && CODIGOS_EQUIVALENTES[o.ingrediente ?? '']?.includes(a.codigo))),
       )
-      // ALS tiene su propia tabla de nombre, unidad y orden: no depende de que el catálogo esté sembrado.
-      const als = esAls ? analitoAls(o.ingrediente) : null
-      const nombre = als?.nombre ?? analito?.nombre ?? o.ingrediente
-      // ALS escribe sus resultados sin decimales vacíos («41», no «41,00»); Diagnofruit se queda como estaba.
-      const texto =
-        o.ppm != null ? (esAls && Number.isInteger(o.ppm) ? String(o.ppm) : formatDecimalCL(o.ppm, 2)) : o.valorTexto ?? '—'
+      // ALS y Diagnofruit tienen su propia tabla de nombre, unidad y orden: no dependen de que el catálogo esté sembrado.
+      const fijo = esAls ? analitoAls(o.ingrediente) : analitoDiagnofruit(o.ingrediente)
+      const nombre = fijo?.nombre ?? analito?.nombre ?? o.ingrediente
+      const texto = o.ppm != null ? textoNumero(o.ppm) : o.valorTexto ?? '—'
       grupo.patogenos.push({
         codigo: o.ingrediente,
         nombre,
         texto,
         detectado: esDetectado(o),
-        unidad: als?.unidad ?? analito?.unidad ?? '',
-        orden: als?.orden ?? ORDEN_ALS_DESCONOCIDO,
+        unidad: fijo?.unidad ?? analito?.unidad ?? '',
+        orden: fijo?.orden ?? ORDEN_ALS_DESCONOCIDO,
         valor: o.ppm ?? valorDeTexto(o.valorTexto),
       })
     })
     // Dentro de un informe los analitos van siempre en el mismo orden (antes salían como llegaban de la base).
-    if (esAls) {
-      porSolicitud.forEach((g) => g.patogenos.sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre, 'es')))
-    }
+    porSolicitud.forEach((g) => g.patogenos.sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre, 'es')))
     return [...porSolicitud.values()].sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''))
   }, [esTabular, esAls, labTabular, filtradas, analitosVista])
 
-  // Lo mismo, con la forma que usan los gráficos de ALS (línea de tiempo, serie de tiempo y tabla por informe).
-  const informesAls = useMemo<InformeAlsVista[]>(
+  // Lo mismo, con la forma que usan los gráficos (línea de tiempo, serie de tiempo y tabla por informe).
+  const informesTabulares = useMemo<InformeVista[]>(
     () =>
-      esAls
-        ? gruposDiagnofruit.map((g) => ({
-            nro: g.nro,
-            fecha: g.fecha ? g.fecha.slice(0, 10) : null,
-            resultados: g.patogenos.map((p) => ({
-              codigo: p.codigo,
-              nombre: p.nombre,
-              unidad: p.unidad,
-              orden: p.orden,
-              texto: p.texto,
-              valor: p.valor,
-              detectado: p.detectado,
-            })),
-          }))
-        : [],
-    [esAls, gruposDiagnofruit],
+      gruposDiagnofruit.map((g) => ({
+        nro: g.nro,
+        fecha: g.fecha ? g.fecha.slice(0, 10) : null,
+        detalle: g.zona,
+        resultados: g.patogenos.map((p) => ({
+          codigo: p.codigo,
+          nombre: p.nombre,
+          unidad: p.unidad,
+          orden: p.orden,
+          texto: p.texto,
+          valor: p.valor,
+          detectado: p.detectado,
+        })),
+      })),
+    [gruposDiagnofruit],
   )
 
   // El gráfico de barras de abajo es un resumen de la misma tabla, no un dato
@@ -1711,8 +1706,8 @@ export function ReporteView({
                 )}
               </div>
 
-              {esAls && gruposDiagnofruit.length > 0 ? (
-                <ResultadosAls informes={informesAls} />
+              {labTabular && gruposDiagnofruit.length > 0 ? (
+                <ResultadosPorInforme informes={informesTabulares} laboratorio={labTabular} />
               ) : (
                 <Card className={styles.panel}>
                   <h3>
@@ -1721,55 +1716,9 @@ export function ReporteView({
                       Resultados por solicitud
                     </span>
                   </h3>
-                  {gruposDiagnofruit.length === 0 ? (
-                    <p className={styles.nota}>No hay resultados de {esAls ? 'ALS' : 'Diagnofruit'} para estos filtros.</p>
-                  ) : (
-                    <div className={styles.tablaDiagnoCaja}>
-                      <table className={styles.tablaDiagno}>
-                        <thead>
-                          <tr>
-                            <th>Fecha</th>
-                            <th>{esAls ? 'N° de informe' : 'Zona de muestreo'}</th>
-                            <th>{esAls ? 'Analito' : 'Patógeno'}</th>
-                            <th>Resultado</th>
-                            {esAls && <th>Unidad</th>}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {gruposDiagnofruit.map((grupo) =>
-                            grupo.patogenos.map((p, i) => (
-                              <tr key={`${grupo.nro}-${p.nombre}-${i}`}>
-                                {i === 0 && (
-                                  <>
-                                    <td rowSpan={grupo.patogenos.length}>
-                                      {grupo.fecha ? formatDateCL(grupo.fecha) : '—'}
-                                    </td>
-                                    <td rowSpan={grupo.patogenos.length}>{esAls ? grupo.nro || '—' : grupo.zona || '—'}</td>
-                                  </>
-                                )}
-                                <td>
-                                  <span className={styles.indicadorConPunto}>
-                                    <span
-                                      className={styles.puntoColor}
-                                      style={{ background: colorDeIngrediente(p.codigo), color: colorDeIngrediente(p.codigo) }}
-                                    />
-                                    {p.nombre}
-                                  </span>
-                                </td>
-                                <td>
-                                  {esAls ? <Badge tone="neutral">{p.texto}</Badge> : <Badge tone={p.detectado ? 'danger' : 'success'}>{p.texto}</Badge>}
-                                </td>
-                                {esAls && <td>{p.unidad || '—'}</td>}
-                              </tr>
-                            )),
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  <p className={styles.nota}>No hay resultados de {esAls ? 'ALS' : 'Diagnofruit'} para estos filtros.</p>
                 </Card>
               )}
-
 
               {esDiagnofruit && gruposDiagnofruit.length > 0 && (
                 <div className={styles.grid2}>

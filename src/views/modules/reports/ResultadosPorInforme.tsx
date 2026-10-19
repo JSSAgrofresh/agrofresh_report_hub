@@ -7,12 +7,26 @@ import {
   modeloLinea,
   posicionesX,
   radioDeValor,
+  radioVacio,
   type AnalitoLinea,
-  type InformeAlsVista,
+  type InformeVista,
   type ModeloLinea,
-  type ResultadoAlsVista,
-} from '@/features/reportes/lib/lineaTiempoAls'
-import styles from './ResultadosAls.module.css'
+  type ResultadoVista,
+} from '@/features/reportes/lib/lineaTiempoInformes'
+import styles from './ResultadosPorInforme.module.css'
+
+export type LaboratorioInformes = 'als' | 'diagnofruit'
+
+const TEXTOS: Record<LaboratorioInformes, { vacio: string; nota: string }> = {
+  als: {
+    vacio: 'Menos de 1 (no se detectó)',
+    nota: '«<1» (o «ND»): el laboratorio no detectó el analito.',
+  },
+  diagnofruit: {
+    vacio: 'BLD (no se detectó: bajo el límite de detección)',
+    nota: '«BLD»: bajo el límite de detección del laboratorio; el patógeno no se detectó.',
+  },
+}
 
 const X0 = 190
 const HUECO = 130
@@ -24,7 +38,7 @@ function pasoPara(n: number): number {
 
 const corto = (texto: string, max: number) => (texto.length > max ? `${texto.slice(0, max - 1)}…` : texto)
 
-function resumenResultado(i: { nro: string; fechaTxt: string }, a: AnalitoLinea, r: ResultadoAlsVista | undefined): string {
+function resumenResultado(i: { nro: string; fechaTxt: string }, a: AnalitoLinea, r: ResultadoVista | undefined): string {
   return r ? `${i.nro} · ${i.fechaTxt} · ${a.nombre}: ${r.texto}${a.unidad ? ` ${a.unidad}` : ''}` : `${i.nro} · ${a.nombre}: sin dato`
 }
 
@@ -88,7 +102,7 @@ function LineaDeTiempo({ modelo }: { modelo: ModeloLinea }) {
         viewBox={`0 0 ${ancho} ${alto}`}
         style={{ width: '100%', minWidth: Math.round(ancho * 0.78), maxWidth: Math.round(ancho * 1.15) }}
         role="img"
-        aria-label="Línea de tiempo de los resultados de ALS: un círculo por informe y analito"
+        aria-label="Línea de tiempo de los resultados: un círculo por informe y analito"
       >
         {modelo.dias.map((d, k) => {
           const xa = xs[d.desde] - paso / 2 + 4
@@ -121,14 +135,14 @@ function LineaDeTiempo({ modelo }: { modelo: ModeloLinea }) {
                   <title>{resumenResultado(inf, a, r)}</title>
                   {r.detectado ? (
                     <>
-                      <circle cx={xs[i]} cy={cy} r={radioDeValor(r.valor, maximos.get(a.unidad) ?? 0)} fill={a.color.fill} />
+                      <circle cx={xs[i]} cy={cy} r={radioDeValor(r.valor, maximos.get(a.unidad) ?? 0, r.texto)} fill={a.color.fill} />
                       <text x={xs[i]} y={cy + 4.5} textAnchor="middle" fontSize={12.5} fontWeight={700} fill={a.color.text}>
                         {r.texto}
                       </text>
                     </>
                   ) : (
                     <>
-                      <circle className={styles.vacio} cx={xs[i]} cy={cy} r={8} />
+                      <circle className={styles.vacio} cx={xs[i]} cy={cy} r={radioVacio(r.texto)} />
                       <text className={styles.txtFaint} x={xs[i]} y={cy + 3.5} textAnchor="middle" fontSize={9.5}>
                         {corto(r.texto, 4)}
                       </text>
@@ -145,7 +159,7 @@ function LineaDeTiempo({ modelo }: { modelo: ModeloLinea }) {
               fontSize={11}
               transform={inclinar ? `rotate(-50 ${xs[i]} ${finBandas - 12})` : undefined}
             >
-              {inf.nro}
+              {inf.etiqueta}
             </text>
           </g>
         ))}
@@ -211,7 +225,7 @@ function SerieDeUnidad({ modelo, unidad }: { modelo: ModeloLinea; unidad: string
           viewBox={`0 0 ${ancho} ${alto}`}
           style={{ width: '100%', minWidth: Math.round(ancho * 0.78), maxWidth: Math.round(ancho * 1.15) }}
           role="img"
-          aria-label={`Serie de tiempo de los resultados de ALS en ${unidad}`}
+          aria-label={`Serie de tiempo de los resultados en ${unidad}`}
         >
           {modelo.dias.map((d, k) => {
             const xa = xs[d.desde] - paso / 2 + 4
@@ -251,8 +265,8 @@ function SerieDeUnidad({ modelo, unidad }: { modelo: ModeloLinea; unidad: string
                   <title>{resumenResultado(inf, a, r)}</title>
                   {r.detectado ? (
                     <>
-                      <circle cx={xs[i]} cy={y(v)} r={11} fill={a.color.fill} stroke="var(--color-surface)" strokeWidth={2.5} />
-                      <text x={xs[i]} y={y(v) + 4} textAnchor="middle" fontSize={11} fontWeight={700} fill={a.color.text}>
+                      <circle cx={xs[i]} cy={y(v)} r={6} fill={a.color.fill} stroke="var(--color-surface)" strokeWidth={2.5} />
+                      <text className={styles.etiquetaValor} x={xs[i]} y={y(v) - 12} textAnchor="middle" fontSize={11.5}>
                         {r.texto}
                       </text>
                     </>
@@ -274,7 +288,7 @@ function SerieDeUnidad({ modelo, unidad }: { modelo: ModeloLinea; unidad: string
               fontSize={10.5}
               transform={inclinar ? `rotate(-50 ${xs[i]} ${abajo + 18})` : undefined}
             >
-              {inf.nro}
+              {inf.etiqueta}
             </text>
           ))}
 
@@ -312,8 +326,9 @@ function SerieDeUnidad({ modelo, unidad }: { modelo: ModeloLinea; unidad: string
 }
 
 /** Tabla: un informe por fila y una columna por analito, con su unidad bajo el nombre. */
-function TablaPorInforme({ modelo }: { modelo: ModeloLinea }) {
+function TablaPorInforme({ modelo, nota, columnaDetalle }: { modelo: ModeloLinea; nota: string; columnaDetalle: string }) {
   const filas = [...modelo.informes].reverse()
+  const conDetalle = modelo.informes.some((i) => i.detalle)
   return (
     <>
       <div className={`${styles.marco} ${styles.tablaCaja}`}>
@@ -322,6 +337,7 @@ function TablaPorInforme({ modelo }: { modelo: ModeloLinea }) {
             <tr>
               <th>Fecha de muestreo</th>
               <th>N° de informe</th>
+              {conDetalle && <th>{columnaDetalle}</th>}
               {modelo.analitos.map((a) => (
                 <th key={a.codigo}>
                   <div className={styles.cabAnalito}>
@@ -342,6 +358,7 @@ function TablaPorInforme({ modelo }: { modelo: ModeloLinea }) {
                 <td>
                   <span className={styles.informe}>{inf.nro}</span>
                 </td>
+                {conDetalle && <td className={styles.detalle}>{inf.detalle || '—'}</td>}
                 {modelo.analitos.map((a) => {
                   const r = inf.porAnalito[a.codigo]
                   return (
@@ -363,20 +380,24 @@ function TablaPorInforme({ modelo }: { modelo: ModeloLinea }) {
           </tbody>
         </table>
       </div>
-      <p className={styles.pie}>«&lt;1» (o «ND»): el laboratorio no detectó el analito.</p>
+      <p className={styles.pie}>{nota}</p>
     </>
   )
 }
 
 interface Props {
-  informes: InformeAlsVista[]
+  informes: InformeVista[]
+  laboratorio: LaboratorioInformes
+  /** Encabezado de la columna de `detalle` de los informes (la zona de muestreo, en Diagnofruit). */
+  columnaDetalle?: string
 }
 
 /**
- * Lo que Report muestra cuando se elige ALS: una línea de tiempo y una serie de tiempo (ALS responde «hay / no hay» y,
- * si hay, cuánto) y debajo la tabla por informe. Los tres usan los mismos nombres, unidades, orden y colores.
+ * Lo que Report muestra cuando se elige ALS o Diagnofruit: una línea de tiempo y una serie de tiempo (ambos responden
+ * «hay / no hay» y, si hay, cuánto) y debajo la tabla por informe. Los tres usan los mismos nombres, unidades, orden y colores.
  */
-export function ResultadosAls({ informes }: Props) {
+export function ResultadosPorInforme({ informes, laboratorio, columnaDetalle = 'Zona de muestreo' }: Props) {
+  const textos = TEXTOS[laboratorio]
   const modelo = useMemo(() => modeloLinea(informes), [informes])
   const n = modelo.informes.length
   const hasta = modelo.dias.length
@@ -392,7 +413,7 @@ export function ResultadosAls({ informes }: Props) {
             <svg width={22} height={22} aria-hidden="true">
               <circle className={styles.vacio} cx={11} cy={11} r={8} />
             </svg>
-            Menos de 1 (no se detectó)
+            {textos.vacio}
           </span>
           <span>
             <svg width={46} height={30} aria-hidden="true">
@@ -413,7 +434,7 @@ export function ResultadosAls({ informes }: Props) {
       </Card>
       <Card>
         <Titulo sub="Un informe por fila, el más reciente arriba.">Detalle por informe</Titulo>
-        <TablaPorInforme modelo={modelo} />
+        <TablaPorInforme modelo={modelo} nota={textos.nota} columnaDetalle={columnaDetalle} />
       </Card>
     </div>
   )

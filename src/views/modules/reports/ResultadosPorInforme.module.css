@@ -113,6 +113,16 @@
   font-weight: 700;
 }
 
+/* El valor sobre un punto de la serie: con un halo del color del fondo para que se lea sobre las líneas. */
+.etiquetaValor {
+  fill: var(--color-text);
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--color-surface);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
 /* ── leyenda ── */
 .leyenda {
   display: flex;
@@ -166,6 +176,9 @@
 .fecha {
   color: var(--color-text-muted);
   font-weight: 600;
+}
+.detalle {
+  color: var(--color-text-muted);
 }
 .informe {
   font-family: var(--font-mono);
