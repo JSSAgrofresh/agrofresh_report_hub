@@ -44,6 +44,8 @@ function descargarCsv(nombre: string, contenido: string) {
  * en CSV (lo que se ve, ordenado y filtrado, no solo la página).
  */
 export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) {
+  // ALS no tiene límites por informe: su estado queda pendiente en todas las filas.
+  const estadoPendiente = archivo === 'als'
   const [orden, setOrden] = useState<Orden>(ORDEN_INICIAL)
   const [texto, setTexto] = useState('')
   const [pagina, setPagina] = useState(1)
@@ -115,7 +117,7 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
           onClick={() =>
             descargarCsv(
               `informes-${archivo}-${new Date().toISOString().slice(0, 10)}.csv`,
-              csvDeInformes(ordenados, modelo.analitos, conDetalle ? columnaDetalle : null),
+              csvDeInformes(ordenados, modelo.analitos, conDetalle ? columnaDetalle : null, estadoPendiente),
             )
           }
         >
@@ -180,7 +182,9 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
                     )
                   })}
                   <td>
-                    {hay > 0 ? (
+                    {estadoPendiente ? (
+                      <span className={styles.estadoNo} title="El estado depende de límites que este laboratorio aún no tiene definidos">Pendiente</span>
+                    ) : hay > 0 ? (
                       <span className={styles.estadoSi} title={`${hay} de ${analitosDe(inf)} analitos detectados`}>Detectó · {hay}/{analitosDe(inf)}</span>
                     ) : (
                       <span className={styles.estadoNo}>No detectó</span>
