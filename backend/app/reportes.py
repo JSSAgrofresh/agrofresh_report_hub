@@ -84,6 +84,13 @@ def _filtro_alcance(
     return ("AND " + " AND ".join(condiciones)) if condiciones else "", params
 
 
+@router.get("/vista")
+def vista(_: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
+    """Cómo muestra Report algunas cosas, según lo que el administrador principal encendió en Funciones.
+    Lo lee cualquier cuenta (los clientes también ven ALS y Diagnofruit)."""
+    return {"graficos_informes": funciones.graficos_informes_activos()}
+
+
 @router.get("/resumen")
 def resumen(usuario: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
     """Versión liviana para tarjetas de panel (no trae el detalle largo de /datos)."""

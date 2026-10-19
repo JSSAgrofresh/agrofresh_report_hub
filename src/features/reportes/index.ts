@@ -3,6 +3,7 @@ export {
   descargarDatosExcel,
   descargarBdExcel,
   obtenerResumenReporte,
+  obtenerVistaReport,
   obtenerFichaInforme,
   descargarPdfInforme,
   obtenerClientesReporte,

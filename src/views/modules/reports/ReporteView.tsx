@@ -73,6 +73,7 @@ import {
   listarLimites,
   mismoValor,
   obtenerDatosReporte,
+  obtenerVistaReport,
   opcionesDe,
   pedidoBd,
   informeFueraDeRango,
@@ -309,6 +310,20 @@ export function ReporteView({
   // nunca pueden mezclarse con los reales-.
   const [simulacion, setSimulacion] = useState<DatosSimulados | null>(null)
   const cambiarCropRef = useRef<(v: string) => void>(() => {})
+  // ¿Se muestran los gráficos de ALS y Diagnofruit? Lo enciende el administrador principal en Administración General →
+  // Funciones; hasta que se sepa (o si falla la lectura), apagados: queda solo la tabla.
+  const [graficosInformes, setGraficosInformes] = useState(false)
+  useEffect(() => {
+    let cancelado = false
+    obtenerVistaReport()
+      .then((v) => {
+        if (!cancelado) setGraficosInformes(v.graficos_informes === true)
+      })
+      .catch(() => {})
+    return () => {
+      cancelado = true
+    }
+  }, [])
 
   const obtenerTodo = useCallback(async () => {
     const [datos, catalogo, limitesCatalogo] = await Promise.all([
@@ -576,11 +591,9 @@ export function ReporteView({
     [gruposDiagnofruit],
   )
 
-  // Los números de las tarjetas de arriba: cuántos analitos distintos se midieron y cuántos resultados salieron detectados.
-  const analitosMedidos = useMemo(
-    () => new Set(gruposDiagnofruit.flatMap((g) => g.patogenos.map((p) => p.codigo))).size,
-    [gruposDiagnofruit],
-  )
+  // Los números de las tarjetas de arriba: cuántos análisis se hicieron (un resultado de un analito en un informe es un
+  // análisis) y cuántos salieron detectados.
+  const totalAnalisis = useMemo(() => gruposDiagnofruit.reduce((t, g) => t + g.patogenos.length, 0), [gruposDiagnofruit])
   const totalDetecciones = useMemo(
     () => gruposDiagnofruit.reduce((t, g) => t + g.patogenos.filter((p) => p.detectado).length, 0),
     [gruposDiagnofruit],
@@ -1606,15 +1619,15 @@ export function ReporteView({
 
               <div className={styles.stats}>
                 <Card className={`${styles.statCard} ${styles.destacado}`}>
-                  <span className={styles.statLbl}>Total de registros (solicitudes)</span>
+                  <span className={styles.statLbl}>Total de informes de análisis</span>
                   <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
                   {nFiltros > 0 && (
                     <span className={styles.statSub}>de {totalVista.toLocaleString('es-CL')} en total</span>
                   )}
                 </Card>
                 <Card className={`${styles.statCard} ${styles.info}`}>
-                  <span className={styles.statLbl}>{esAls ? 'Analitos medidos' : 'Patógenos analizados'}</span>
-                  <span className={styles.statNum}>{analitosMedidos}</span>
+                  <span className={styles.statLbl}>Análisis</span>
+                  <span className={styles.statNum}>{totalAnalisis.toLocaleString('es-CL')}</span>
                 </Card>
                 {esDiagnofruit && (
                   <Card className={`${styles.statCard} ${styles.danger}`}>
@@ -1625,7 +1638,7 @@ export function ReporteView({
               </div>
 
               {labTabular && gruposDiagnofruit.length > 0 ? (
-                <ResultadosPorInforme informes={informesTabulares} laboratorio={labTabular} />
+                <ResultadosPorInforme informes={informesTabulares} laboratorio={labTabular} conGraficos={graficosInformes} />
               ) : (
                 <Card className={styles.panel}>
                   <h3>

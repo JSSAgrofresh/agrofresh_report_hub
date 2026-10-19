@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { InformeVista, ResultadoVista } from '@/features/reportes/lib/lineaTiempoInformes'
 import { ResultadosPorInforme } from './ResultadosPorInforme'
+
+afterEach(cleanup)
 
 const COLT = { codigo: 'COLT', nombre: 'Coliformes Totales', unidad: 'UFC/100 mL', orden: 1 }
 const ECOLI = { codigo: 'ECOLI', nombre: 'Escherichia coli', unidad: 'UFC/100 mL', orden: 2 }
@@ -14,60 +16,140 @@ const INFORMES: InformeVista[] = [
   { nro: '496252', fecha: '2026-09-30', resultados: [con(COLT, 49), con(ECOLI, 15)] },
 ]
 
-describe('ResultadosPorInforme', () => {
-  it('la tabla lleva un informe por fila (el más nuevo arriba) y una columna por analito con su unidad', () => {
-    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" />)
-    const tabla = screen.getByRole('table')
-    const columnas = within(tabla).getAllByRole('columnheader').map((c) => c.textContent)
-    expect(columnas[0]).toBe('Fecha de muestreo')
-    expect(columnas[1]).toBe('N° de informe')
+/** Las filas del cuerpo de la tabla (sin el encabezado ni el resumen). */
+const filasDelCuerpo = (container: HTMLElement) => [...container.querySelectorAll('tbody tr')] as HTMLElement[]
+const celdas = (fila: HTMLElement) => within(fila).getAllByRole('cell').map((c) => c.textContent)
+
+describe('tabla por informe', () => {
+  it('lleva un informe por fila (el más nuevo arriba) y una columna por analito con su unidad', () => {
+    const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
+    const columnas = within(screen.getByRole('table')).getAllByRole('columnheader').map((c) => c.textContent)
+    expect(columnas[0]).toContain('Fecha de muestreo')
+    expect(columnas[1]).toContain('N° de informe')
     expect(columnas[2]).toContain('COLIFORMES TOTALES')
     expect(columnas[2]).toContain('UFC/100 mL')
     expect(columnas[3]).toContain('ESCHERICHIA COLI')
-    const filas = within(tabla).getAllByRole('row').slice(1)
-    expect(filas).toHaveLength(3)
-    expect(filas.map((f) => within(f).getAllByRole('cell')[1].textContent)).toEqual(['496563', '496251', '496252'])
+    expect(columnas[4]).toContain('Estado')
+    const filas = filasDelCuerpo(container)
+    expect(filas.map((f) => celdas(f)[1])).toEqual(['496563', '496251', '496252'])
     // Coliformes primero y E. coli después, aunque el informe 496563 los traiga al revés.
-    const ultima = within(filas[1]).getAllByRole('cell').map((c) => c.textContent)
-    expect(ultima.slice(2)).toEqual(['67', '50'])
+    expect(celdas(filas[1]).slice(2, 4)).toEqual(['67', '50'])
   })
 
-  it('lo que no se detectó sale como «<1» y lo detectado con su valor', () => {
-    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" />)
-    const fila = within(screen.getByRole('table')).getAllByRole('row')[1]
-    expect(within(fila).getAllByText('<1')).toHaveLength(2)
+  it('lo no detectado sale como «<1», lo detectado con su valor y cada fila dice su estado', () => {
+    const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
+    const [nueva, media] = filasDelCuerpo(container)
+    expect(within(nueva).getAllByText('<1')).toHaveLength(2)
+    expect(celdas(nueva)[4]).toBe('No detectó')
+    expect(celdas(media)[4]).toBe('Detectó · 2/2')
+  })
+
+  it('el pie resume en cuántos informes se detectó cada analito', () => {
+    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
+    const pie = screen.getByText('Informes con detección por analito').closest('tr')!
+    expect(celdas(pie)).toEqual(['Informes con detección por analito', '2 de 3', '2 de 3', '2 de 3'])
+  })
+
+  it('el día de la semana va bajo la fecha', () => {
+    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
+    expect(screen.getByText('jueves')).toBeTruthy()
+  })
+
+  it('tocar un encabezado ordena y tocarlo otra vez lo invierte', () => {
+    const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
+    const orden = () => filasDelCuerpo(container).map((f) => celdas(f)[1])
+    fireEvent.click(screen.getByRole('button', { name: /N° de informe/ }))
+    expect(orden()).toEqual(['496251', '496252', '496563']) // ascendente
+    fireEvent.click(screen.getByRole('button', { name: /N° de informe/ }))
+    expect(orden()).toEqual(['496563', '496252', '496251'])
+    expect(screen.getByRole('columnheader', { name: /N° de informe/ }).getAttribute('aria-sort')).toBe('descending')
+    fireEvent.click(screen.getByRole('button', { name: /COLIFORMES TOTALES/ }))
+    expect(orden()).toEqual(['496251', '496252', '496563']) // más valor primero
+  })
+
+  it('el buscador filtra por N° y avisa cuando nada calza', () => {
+    const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
+    const buscador = screen.getByLabelText('Buscar informe')
+    fireEvent.change(buscador, { target: { value: '496563' } })
+    expect(filasDelCuerpo(container).map((f) => celdas(f)[1])).toEqual(['496563'])
+    expect(screen.getByText('Mostrando 1–1 de 1 informe (de 3)')).toBeTruthy()
+    fireEvent.change(buscador, { target: { value: 'zzz' } })
+    expect(screen.getByText('Ningún informe calza con la búsqueda.')).toBeTruthy()
+    expect(screen.getByText(/^Sin informes/)).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Descargar CSV' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('pagina: 30 informes en páginas de 25', () => {
+    const muchos: InformeVista[] = Array.from({ length: 30 }, (_, i) => ({
+      nro: String(500000 + i),
+      fecha: '2026-10-01',
+      resultados: [sin(COLT), sin(ECOLI)],
+    }))
+    const { container } = render(<ResultadosPorInforme informes={muchos} laboratorio="als" conGraficos={false} />)
+    expect(filasDelCuerpo(container)).toHaveLength(25)
+    expect(screen.getByText('Mostrando 1–25 de 30 informes')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente →' }))
+    expect(filasDelCuerpo(container)).toHaveLength(5)
+    expect(screen.getByText('Mostrando 26–30 de 30 informes')).toBeTruthy()
+    expect(screen.getByText('Página 2 de 2')).toBeTruthy()
+  })
+
+  it('«Descargar CSV» baja lo que se ve, ordenado y filtrado', () => {
+    const crear = vi.fn(() => 'blob:prueba')
+    const revocar = vi.fn()
+    Object.assign(URL, { createObjectURL: crear, revokeObjectURL: revocar })
+    const clic = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar CSV' }))
+    expect(crear).toHaveBeenCalledTimes(1)
+    const blob = (crear.mock.calls[0] as unknown as [Blob])[0]
+    expect(blob.type).toContain('text/csv')
+    expect(clic).toHaveBeenCalled()
+    expect(revocar).toHaveBeenCalledWith('blob:prueba')
+    clic.mockRestore()
+  })
+})
+
+describe('gráficos apagados o encendidos', () => {
+  it('apagados (de fábrica) queda solo la tabla: ni línea de tiempo ni serie', () => {
+    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
+    expect(screen.getByRole('table')).toBeTruthy()
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(screen.getByText('Resultados por informe')).toBeTruthy()
+    expect(screen.queryByText('Evolución de los resultados')).toBeNull()
+  })
+
+  it('encendidos, la línea de tiempo y la serie van sobre la tabla', () => {
+    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos />)
+    expect(screen.getByRole('img', { name: /Línea de tiempo/ })).toBeTruthy()
+    expect(screen.getByRole('img', { name: /Serie de tiempo.*UFC\/100 mL/ })).toBeTruthy()
+    expect(screen.getByText('Detalle por informe')).toBeTruthy()
+    expect(screen.getByRole('table')).toBeTruthy()
   })
 
   it('la línea de tiempo corta el eje cuando pasan días sin muestras y dice cuántos', () => {
-    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" />)
+    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos />)
     expect(screen.getAllByText('29 días después').length).toBeGreaterThan(0)
-    expect(screen.getByRole('img', { name: /Línea de tiempo/ })).toBeTruthy()
-    expect(screen.getByRole('img', { name: /Serie de tiempo.*UFC\/100 mL/ })).toBeTruthy()
   })
 
   it('cada punto dice su informe, su fecha y su valor al pasar el mouse', () => {
-    const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" />)
+    const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos />)
     const titulos = [...container.querySelectorAll('title')].map((t) => t.textContent)
     expect(titulos).toContain('496251 · 01-10-2026 · Coliformes Totales: 67 UFC/100 mL')
     expect(titulos).toContain('496563 · 30-10-2026 · Escherichia coli: <1 UFC/100 mL')
   })
 
-  it('la leyenda «No se detectó» sale una sola vez aunque haya varias series', () => {
-    const ALIM = { codigo: 'COLA', nombre: 'Coliformes Totales', unidad: 'UFC/g', orden: 3 }
-    render(<ResultadosPorInforme laboratorio="als" informes={[{ nro: '1', fecha: '2026-10-01', resultados: [con(COLT, 5), con(ALIM, 300)] }]} />)
-    expect(screen.getAllByText('No se detectó (queda en cero)')).toHaveLength(1)
-  })
-
-  it('el día de la semana va junto a la fecha', () => {
-    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" />)
+  it('el día de la semana va junto a la fecha en la línea de tiempo', () => {
+    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos />)
     expect(screen.getAllByText('jueves · 1 informe').length).toBeGreaterThan(0)
   })
 
-  it('con analitos de otra unidad hay una serie de tiempo por unidad', () => {
+  it('con analitos de otra unidad hay una serie de tiempo por unidad y la leyenda sale una sola vez', () => {
     const ALIM = { codigo: 'COLA', nombre: 'Coliformes Totales', unidad: 'UFC/g', orden: 3 }
-    render(<ResultadosPorInforme laboratorio="als" informes={[{ nro: '1', fecha: '2026-10-01', resultados: [con(COLT, 5), con(ALIM, 300)] }]} />)
+    render(<ResultadosPorInforme laboratorio="als" conGraficos informes={[{ nro: '1', fecha: '2026-10-01', resultados: [con(COLT, 5), con(ALIM, 300)] }]} />)
     expect(screen.getByRole('img', { name: /Serie de tiempo.*UFC\/100 mL/ })).toBeTruthy()
     expect(screen.getByRole('img', { name: /Serie de tiempo.*UFC\/g/ })).toBeTruthy()
+    expect(screen.getAllByText('No se detectó (queda en cero)')).toHaveLength(1)
   })
 })
 
@@ -84,37 +166,36 @@ const DIAGNO: InformeVista[] = [
   { nro: '253521-DIAG0003', fecha: '2026-10-01', detalle: null, resultados: [hay(PAT.LEV, '>100', 100), hay(PAT.BOT, '4,66', 4.66), hay(PAT.GEO, '49,91', 49.91)] },
 ]
 
-describe('ResultadosPorInforme con Diagnofruit', () => {
+describe('con Diagnofruit', () => {
   it('la tabla trae la zona de muestreo y una columna por patógeno con su unidad', () => {
-    render(<ResultadosPorInforme informes={DIAGNO} laboratorio="diagnofruit" />)
+    const { container } = render(<ResultadosPorInforme informes={DIAGNO} laboratorio="diagnofruit" conGraficos={false} />)
     const columnas = within(screen.getByRole('table')).getAllByRole('columnheader').map((c) => c.textContent)
-    expect(columnas[2]).toBe('Zona de muestreo')
+    expect(columnas[2]).toContain('Zona de muestreo')
     expect(columnas[3]).toContain('LEVADURAS')
     expect(columnas[3]).toContain('UFC/mL')
     expect(columnas[4]).toContain('BOTRYTIS')
     expect(columnas[5]).toContain('GEOTRICHUM')
-    const filas = within(screen.getByRole('table')).getAllByRole('row').slice(1)
+    const filas = filasDelCuerpo(container)
     // el más nuevo (por N°) arriba, y su zona; el otro sin zona queda en «—»
-    expect(within(filas[0]).getAllByRole('cell')[2].textContent).toBe('Pozo vaciado')
-    expect(within(filas[1]).getAllByRole('cell')[2].textContent).toBe('—')
-    expect(within(filas[1]).getAllByRole('cell').slice(3).map((c) => c.textContent)).toEqual(['>100', '4,66', '49,91'])
+    expect(celdas(filas[0])[2]).toBe('Pozo vaciado')
+    expect(celdas(filas[1])[2]).toBe('—')
+    expect(celdas(filas[1]).slice(3, 6)).toEqual(['>100', '4,66', '49,91'])
   })
 
   it('la nota habla de BLD, no de «<1»', () => {
-    render(<ResultadosPorInforme informes={DIAGNO} laboratorio="diagnofruit" />)
+    render(<ResultadosPorInforme informes={DIAGNO} laboratorio="diagnofruit" conGraficos={false} />)
     expect(screen.getByText(/«BLD»: bajo el límite de detección/)).toBeTruthy()
     expect(screen.queryByText(/«<1»/)).toBeNull()
   })
 
-  it('hay una serie de tiempo por unidad (UFC/mL, conidia/mL y esporas/mL) y los informes se rotulan por su OT', () => {
-    const { container } = render(<ResultadosPorInforme informes={DIAGNO} laboratorio="diagnofruit" />)
+  it('con los gráficos encendidos hay una serie por unidad y los informes se rotulan por su OT', () => {
+    const { container } = render(<ResultadosPorInforme informes={DIAGNO} laboratorio="diagnofruit" conGraficos />)
     expect(screen.getByRole('img', { name: /Serie de tiempo.*UFC\/mL/ })).toBeTruthy()
     expect(screen.getByRole('img', { name: /Serie de tiempo.*conidia\/mL/ })).toBeTruthy()
     expect(screen.getByRole('img', { name: /Serie de tiempo.*esporas\/mL/ })).toBeTruthy()
     const rotulos = [...container.querySelectorAll('svg text')].map((t) => t.textContent)
     expect(rotulos).toContain('DIAG0003')
     expect(rotulos).not.toContain('253521-DIAG0003')
-    // un valor «>100» se dibuja como detectado, con su texto
     expect(rotulos).toContain('>100')
   })
 })

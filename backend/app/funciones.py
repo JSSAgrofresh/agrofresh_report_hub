@@ -2,7 +2,9 @@
 Administración General → Funciones.
 
 Interruptores del sistema que solo el administrador principal mueve, y siempre
-con su contraseña. Hoy hay uno: **qué tipos de servicio muestra Report**.
+con su contraseña. Hoy hay dos: **qué tipos de servicio muestra Report** y
+**si Report muestra los gráficos de ALS y Diagnofruit** (línea de tiempo y serie de
+tiempo; de fábrica apagados: solo se ve la tabla).
 
 Cada solicitud cargada por Ingesta o Converter lleva su tipo de servicio
 (`solicitud.servicio`, migración 0055). NULL o '' es Línea de proceso (todo lo
@@ -87,6 +89,18 @@ def servicios_en_report() -> dict[str, bool]:
     return {k: (guardado[k] if isinstance(guardado.get(k), bool) else d) for k, d in POR_DEFECTO.items()}
 
 
+def _report_guardado() -> dict[str, Any]:
+    cfg = _leer_archivo()
+    return cfg.get("report") if isinstance(cfg.get("report"), dict) else {}
+
+
+def graficos_informes_activos() -> bool:
+    """¿Report muestra la línea de tiempo y la serie de tiempo de ALS y Diagnofruit? De fábrica no:
+    solo se ve la tabla. Un archivo ausente, dañado o con un valor raro deja apagado."""
+    g = _report_guardado().get("graficos_informes")
+    return bool(isinstance(g, dict) and g.get("activo") is True)
+
+
 def valores_visibles_en_report() -> list[str]:
     """Los valores de `solicitud.servicio` que Report puede mostrar ('' = Línea de proceso)."""
     encendidos = servicios_en_report()
@@ -143,9 +157,14 @@ def condicion_report(alias: str = "s") -> tuple[str, dict[str, Any]]:
 # API
 
 def _estado() -> dict[str, Any]:
-    cfg = _leer_archivo()
-    report = cfg.get("report") if isinstance(cfg.get("report"), dict) else {}
+    report = _report_guardado()
+    graficos = report.get("graficos_informes") if isinstance(report.get("graficos_informes"), dict) else {}
     return {
+        "graficos_informes": {
+            "activo": graficos_informes_activos(),
+            "cambiado_por": graficos.get("cambiado_por"),
+            "cambiado_en": graficos.get("cambiado_en"),
+        },
         "report": {
             "servicios": [
                 {"clave": k, "etiqueta": ETIQUETAS[k], "activo": v}
@@ -192,7 +211,9 @@ def cambiar_servicio_report(body: ServicioReportIn, usuario: Usuario = Depends(s
     if actual[body.servicio] != body.activo:
         actual[body.servicio] = body.activo
         cfg = _leer_archivo()
+        # Se conserva lo demás de `report` (el interruptor de los gráficos): solo cambian los servicios.
         cfg["report"] = {
+            **_report_guardado(),
             "servicios": actual,
             "cambiado_por": usuario.nombre,
             "cambiado_en": datetime.now(timezone.utc).isoformat(),
@@ -202,6 +223,40 @@ def cambiar_servicio_report(body: ServicioReportIn, usuario: Usuario = Depends(s
         actividad.registrar(
             usuario.email, usuario.nombre, "sensible", "funciones_report",
             f"{'encendió' if body.activo else 'apagó'} {ETIQUETAS[body.servicio]} en Report",
+            sensible=True,
+        )
+    return _estado()
+
+
+class GraficosInformesIn(BaseModel):
+    activo: bool
+    password: str | None = None
+
+
+@router.put("/graficos-informes")
+def cambiar_graficos_informes(body: GraficosInformesIn, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
+    """Enciende o apaga los gráficos de ALS y Diagnofruit en Report (apagados, queda solo la tabla).
+    Solo el administrador principal y siempre con su contraseña, para encender y para apagar."""
+    if not _es_principal(usuario):
+        raise HTTPException(403, "Solo el administrador principal puede cambiar estas funciones.")
+    if not _clave_correcta(usuario, body.password):
+        # 403 y no 401: un 401 cierra la sesión de quien solo se equivocó al escribir la clave.
+        raise HTTPException(403, "Contraseña incorrecta.")
+    if graficos_informes_activos() != body.activo:
+        cfg = _leer_archivo()
+        cfg["report"] = {
+            **_report_guardado(),
+            "graficos_informes": {
+                "activo": body.activo,
+                "cambiado_por": usuario.nombre,
+                "cambiado_en": datetime.now(timezone.utc).isoformat(),
+            },
+        }
+        config_store.escribir(ARCHIVO, cfg)  # type: ignore[arg-type]
+        invalidar()
+        actividad.registrar(
+            usuario.email, usuario.nombre, "sensible", "funciones_report",
+            f"{'encendió' if body.activo else 'apagó'} los gráficos de ALS y Diagnofruit en Report",
             sensible=True,
         )
     return _estado()
