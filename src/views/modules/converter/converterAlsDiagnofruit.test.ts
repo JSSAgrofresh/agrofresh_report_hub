@@ -123,10 +123,13 @@ describe('Diagnofruit', () => {
     expect(L.detectar(DIAGNO)).toBe('Diagnofruit')
     const inf = nuevo()
     L.leerDiagnofruit(DIAGNO, inf)
-    expect(inf.datos['Sold To']).toBe('Frutizano SpA')
-    expect(inf.datos['Ship To']).toBe('Planta Rancagua')
     expect(inf.datos['N° Solicitud']).toBe('77123')
-    expect(inf.datos['Posición Muestreo']).toBe('M1')
+    // Sold To, Ship To, especie y posición salen de la solicitud (por la OT), no del PDF: acá solo quedan como pista.
+    expect(inf.datos['Sold To']).toBeUndefined()
+    expect(inf.datos['Ship To']).toBeUndefined()
+    expect(inf.datos['Especie']).toBeUndefined()
+    expect(inf.datos['Posición Muestreo']).toBeUndefined()
+    expect(inf.datos['Observación']).toContain('Planta según Diagnofruit: Planta Rancagua')
     expect(inf.resultados).toMatchObject({
       'Botrytis conidia/mL': '120',
       'Levaduras UFC/mL': 'BLD',
