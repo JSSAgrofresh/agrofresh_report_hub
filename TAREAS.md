@@ -22,4 +22,4 @@ Plan: martes 20 → 10, 9, 4; miércoles 21 → 8, 7. Los puntos 5 y 6 esperan a
 | 7 | Auditoría de informes enviados a clientes (Panel de control interno) | Pendiente |
 | 8 | Dashboard one page para clientes (la primera maqueta no gustó) | Pendiente, falta definir la dirección |
 | 9 | Tipo de análisis en la columna A de los Excel | Pendiente, falta confirmar si vale para todos |
-| 10 | Cuentas de comerciales con alcance solo a sus plantas (técnicos fuera) | Pendiente |
+| 10 | Cuentas de comerciales con alcance solo a sus plantas (técnicos fuera) | Hecha (20-10, migración 0063); falta que la pruebes |

@@ -1,6 +1,11 @@
 import type { AreaId } from '@/constants/areas'
 
-export type TipoAcceso = 'admin_general' | 'admin_area' | 'analista' | 'cliente' | 'muestreador' | 'gerencia'
+export type TipoAcceso = 'admin_general' | 'admin_area' | 'analista' | 'cliente' | 'muestreador' | 'gerencia' | 'comercial'
+
+export interface PlantaAsignada {
+  clienteNombre: string
+  plantaNombre?: string | null
+}
 
 export interface Usuario {
   id: string
@@ -20,6 +25,8 @@ export interface Usuario {
   modulos?: string[]
   /** Secciones habilitadas dentro del módulo Report. */
   reportes?: Array<'laboratorio' | 'postventa'>
+  /** Solo cuentas «comercial»: las plantas que ve (solo lectura). Sin plantaNombre = todas las de ese Sold To. */
+  plantasAsignadas?: PlantaAsignada[]
   /** La contraseña actual se la puso un administrador: hay que cambiarla
    * antes de poder usar el sistema. */
   debeCambiarPassword?: boolean

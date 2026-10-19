@@ -6,11 +6,11 @@ import { LISTA_AREAS } from '@/constants/areas'
 import type { AreaId } from '@/constants/areas'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
-import { CORREO_MAESTRO } from '../api/usuariosStore'
+import { CORREO_MAESTRO, buscarPlantasDeComercial } from '../api/usuariosStore'
 import { cuentaDesdeSeleccion, seleccionDesdeCuenta, seleccionTotal, validarSeleccion } from '../catalogoPermisos'
 import { modulosPredeterminados, reportesPredeterminados, vistaDeCliente } from '../permisos'
 import type { VistaCliente } from '../permisos'
-import type { TipoAcceso, Usuario } from '../types'
+import type { PlantaAsignada, TipoAcceso, Usuario } from '../types'
 import { SelectorPermisos } from './SelectorPermisos'
 import styles from './UsuarioForm.module.css'
 
@@ -24,6 +24,7 @@ const TIPOS: { valor: TipoAcceso; etiqueta: string; descripcion: string }[] = [
   { valor: 'admin_general', etiqueta: 'Administrador general', descripcion: 'Todo el sistema, incluida la administración.' },
   { valor: 'gerencia', etiqueta: 'Gerencia', descripcion: 'Ve todo (menos el Panel de control interno), solo lectura.' },
   { valor: 'admin_area', etiqueta: 'Administrador de área', descripcion: 'Gestiona un área. Los accesos se eligen abajo.' },
+  { valor: 'comercial', etiqueta: 'Comercial', descripcion: 'Solo lectura de las plantas que le asignes: puede mirar y descargar, nada más.' },
   { valor: 'analista', etiqueta: 'Analista de laboratorio', descripcion: 'Trabaja en el laboratorio. Los accesos se eligen abajo.' },
   { valor: 'muestreador', etiqueta: 'Muestreador', descripcion: 'Crea y ve solo sus solicitudes de muestreo.' },
   { valor: 'cliente', etiqueta: 'Cliente', descripcion: 'Portal externo: solo ve sus propios datos.' },
@@ -34,6 +35,14 @@ const CLIENTE_VE: { id: keyof VistaCliente; nombre: string; descripcion: string 
   { id: 'storage', nombre: 'Storage', descripcion: 'Sus informes en PDF, en carpetas (solo lectura).' },
   { id: 'accutab', nombre: 'Informes Accu-Tab', descripcion: 'Informes de los equipos Accu-Tab (Post Venta) en su panel.' },
 ]
+
+const COMERCIAL_VE: { id: 'report' | 'storage'; nombre: string; descripcion: string }[] = [
+  { id: 'report', nombre: 'Report de laboratorio', descripcion: 'Resultados y gráficos de sus plantas; puede descargar el Excel.' },
+  { id: 'storage', nombre: 'Storage', descripcion: 'Los informes en PDF de sus plantas (solo lectura).' },
+]
+
+const claveDePlanta = (p: PlantaAsignada) => `${p.clienteNombre}\u0000${p.plantaNombre ?? ''}`.toLowerCase()
+const textoDePlanta = (p: PlantaAsignada) => (p.plantaNombre ? `${p.clienteNombre} · ${p.plantaNombre}` : `${p.clienteNombre} (todas las plantas)`)
 
 const tipoEtiqueta = (t: TipoAcceso) => TIPOS.find((x) => x.valor === t)?.etiqueta ?? t
 
@@ -48,6 +57,16 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [clienteVe, setClienteVe] = useState<VistaCliente>(
     usuario?.tipoAcceso === 'cliente' ? vistaDeCliente(usuario) : { report: true, storage: false, accutab: false },
   )
+  // Comercial: qué ve y de qué plantas.
+  const [comercialVe, setComercialVe] = useState({
+    report: usuario?.tipoAcceso === 'comercial' ? (usuario.modulos ?? []).includes('reports') : true,
+    storage: usuario?.tipoAcceso === 'comercial' ? (usuario.modulos ?? []).includes('storage') : true,
+  })
+  const [plantasAsignadas, setPlantasAsignadas] = useState<PlantaAsignada[]>(usuario?.plantasAsignadas ?? [])
+  const [comercialCliente, setComercialCliente] = useState('')
+  const [comercialPlanta, setComercialPlanta] = useState('')
+  const [buscandoListas, setBuscandoListas] = useState(false)
+  const [avisoListas, setAvisoListas] = useState<string | null>(null)
   // Una sola lista con todo lo que la cuenta puede hacer (módulos, secciones y funciones sueltas).
   const [seleccion, setSeleccion] = useState<string[]>(() => plantilla(usuario?.tipoAcceso ?? 'admin_area', usuario?.area, usuario))
   const [error, setError] = useState<string | null>(null)
@@ -55,21 +74,50 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [plantasDisponibles, setPlantasDisponibles] = useState<Planta[]>([])
 
   const esCliente = tipoAcceso === 'cliente'
+  const esComercial = tipoAcceso === 'comercial'
   const veTodo = tipoAcceso === 'admin_general'
   const requiereArea = tipoAcceso === 'admin_area' || tipoAcceso === 'analista'
-  const configuraPermisos = !esCliente && !veTodo && !esMaestro
+  const configuraPermisos = !esCliente && !esComercial && !veTodo && !esMaestro
 
   useEffect(() => {
-    if (!esCliente) return
+    if (!esCliente && !esComercial) return
     listarClientes()
       .then((clientes) => setClientesDisponibles(clientes.map((c) => c.nombre)))
       .catch(() => setClientesDisponibles([]))
     listarPlantas()
       .then(setPlantasDisponibles)
       .catch(() => setPlantasDisponibles([]))
-  }, [esCliente])
+  }, [esCliente, esComercial])
 
-  const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === clienteNombre)
+  const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === (esComercial ? comercialCliente : clienteNombre))
+
+  function agregarPlantaComercial() {
+    if (!comercialCliente) return
+    const nueva: PlantaAsignada = { clienteNombre: comercialCliente, plantaNombre: comercialPlanta || null }
+    setPlantasAsignadas((actuales) => (actuales.some((p) => claveDePlanta(p) === claveDePlanta(nueva)) ? actuales : [...actuales, nueva]))
+    setComercialPlanta('')
+  }
+
+  async function traerDeLasListas() {
+    setAvisoListas(null)
+    setBuscandoListas(true)
+    try {
+      const halladas = await buscarPlantasDeComercial(email)
+      setPlantasAsignadas((actuales) => {
+        const vistas = new Set(actuales.map(claveDePlanta))
+        return [...actuales, ...halladas.filter((p) => !vistas.has(claveDePlanta(p)))]
+      })
+      setAvisoListas(
+        halladas.length === 0
+          ? 'Ese correo no figura como Comercial en ninguna lista de distribución.'
+          : `Se agregaron ${halladas.length} ${halladas.length === 1 ? 'planta' : 'plantas'} de las listas. Revísalas y quita las que no correspondan.`,
+      )
+    } catch {
+      setAvisoListas('No se pudieron leer las listas de distribución. Inténtalo de nuevo.')
+    } finally {
+      setBuscandoListas(false)
+    }
+  }
 
   function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -87,6 +135,14 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       setError('Elige qué ve el cliente: Report, Storage y/o informes Accu-Tab.')
       return
     }
+    if (esComercial && plantasAsignadas.length === 0) {
+      setError('Asigna al menos una planta al comercial.')
+      return
+    }
+    if (esComercial && !comercialVe.report && !comercialVe.storage) {
+      setError('Elige qué ve el comercial: Report y/o Storage.')
+      return
+    }
     const falla = configuraPermisos ? validarSeleccion(seleccion) : null
     if (falla) {
       setError(falla)
@@ -102,12 +158,17 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       area: requiereArea ? (area as AreaId) : undefined,
       clienteNombre: esCliente ? clienteNombre.trim() : undefined,
       plantaNombre: esCliente && plantaNombre.trim() ? plantaNombre.trim() : undefined,
-      modulos: esCliente
-        ? [clienteVe.report && 'reports', clienteVe.storage && 'storage'].filter((m): m is string => !!m)
-        : permisos?.modulos,
-      reportes: esCliente
-        ? [clienteVe.report && 'laboratorio', clienteVe.accutab && 'postventa'].filter((r): r is 'laboratorio' | 'postventa' => !!r)
-        : permisos?.reportes,
+      modulos: esComercial
+        ? [comercialVe.report && 'reports', comercialVe.storage && 'storage'].filter((m): m is string => !!m)
+        : esCliente
+          ? [clienteVe.report && 'reports', clienteVe.storage && 'storage'].filter((m): m is string => !!m)
+          : permisos?.modulos,
+      reportes: esComercial
+        ? (comercialVe.report ? ['laboratorio'] : [])
+        : esCliente
+          ? [clienteVe.report && 'laboratorio', clienteVe.accutab && 'postventa'].filter((r): r is 'laboratorio' | 'postventa' => !!r)
+          : permisos?.reportes,
+      plantasAsignadas: esComercial ? plantasAsignadas : undefined,
     })
   }
 
@@ -231,7 +292,87 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
         </section>
       )}
 
-      {!esCliente && !esMaestro && (
+      {esComercial && !esMaestro && (
+        <section className={styles.bloque}>
+          <h3 className={styles.titulo}><b>3</b> Qué plantas ve y qué abre</h3>
+          <p className={styles.notaChica}>
+            Un comercial solo mira: no puede crear, editar, subir ni borrar nada. Puede descargar el Excel de sus plantas.
+          </p>
+
+          <div className={styles.campo}>
+            <BuscableSelect
+              etiqueta="Sold To (cliente)"
+              opciones={clientesDisponibles}
+              valor={comercialCliente}
+              onChange={(v) => {
+                setComercialCliente(v)
+                setComercialPlanta('')
+              }}
+              placeholderTodos="— elegir cliente —"
+            />
+          </div>
+          {comercialCliente && (
+            <div className={styles.campo}>
+              <BuscableSelect
+                etiqueta="Planta (Ship To) — opcional"
+                opciones={plantasDelCliente.map((p) => p.nombre)}
+                valor={comercialPlanta}
+                onChange={setComercialPlanta}
+                placeholderTodos="— todas las plantas de este Sold To —"
+              />
+            </div>
+          )}
+          <div className={styles.filaPlantas}>
+            <button type="button" onClick={agregarPlantaComercial} disabled={!comercialCliente}>
+              Agregar planta
+            </button>
+            <button type="button" onClick={traerDeLasListas} disabled={buscandoListas || !email.trim()}>
+              {buscandoListas ? 'Buscando…' : 'Traer sus plantas de las listas de distribución'}
+            </button>
+          </div>
+          {avisoListas && <p className={styles.notaChica}>{avisoListas}</p>}
+
+          {plantasAsignadas.length === 0 ? (
+            <p className={styles.notaChica}>Todavía no tiene plantas: sin ellas no vería nada.</p>
+          ) : (
+            <ul className={styles.plantasAsignadas} aria-label="Plantas asignadas">
+              {plantasAsignadas.map((p) => (
+                <li key={claveDePlanta(p)}>
+                  <span>{textoDePlanta(p)}</span>
+                  <button
+                    type="button"
+                    aria-label={`Quitar ${textoDePlanta(p)}`}
+                    onClick={() => setPlantasAsignadas((actuales) => actuales.filter((x) => claveDePlanta(x) !== claveDePlanta(p)))}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <fieldset className={styles.permisos}>
+            <legend>Qué abre este comercial</legend>
+            <div className={styles.permisosGrid}>
+              {COMERCIAL_VE.map((c) => (
+                <label className={styles.permisoOpcion} key={c.id}>
+                  <input
+                    type="checkbox"
+                    checked={comercialVe[c.id]}
+                    onChange={() => setComercialVe((actuales) => ({ ...actuales, [c.id]: !actuales[c.id] }))}
+                  />
+                  <span>
+                    <strong>{c.nombre}</strong>
+                    <small>{c.descripcion}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </section>
+      )}
+
+      {!esCliente && !esComercial && !esMaestro && (
         <section className={styles.bloque}>
           <h3 className={styles.titulo}><b>3</b> Qué puede hacer</h3>
 

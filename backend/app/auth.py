@@ -41,7 +41,7 @@ DURACION_SESION = timedelta(days=7)
 # costaría más que todo lo demás junto.
 _GRANO_ULTIMO_USO = timedelta(hours=1)
 
-TIPOS_ACCESO = ("admin_general", "admin_area", "analista", "cliente", "muestreador", "gerencia")
+TIPOS_ACCESO = ("admin_general", "admin_area", "analista", "cliente", "muestreador", "gerencia", "comercial")
 
 # `auto_error=False` para que la falta de encabezado la conteste este módulo
 # con su propio mensaje, en vez del 403 genérico de HTTPBearer.
@@ -49,7 +49,7 @@ _bearer = HTTPBearer(auto_error=False)
 
 _CAMPOS = """
     id, email, nombre, tipo_acceso, area, cliente_nombre, planta_nombre,
-    modulos, reportes, password_hash, debe_cambiar
+    modulos, reportes, plantas_asignadas, password_hash, debe_cambiar
 """
 
 
@@ -66,6 +66,8 @@ class Usuario(BaseModel):
     plantaNombre: str | None = None
     modulos: list[str] | None = None
     reportes: list[str] | None = None
+    # Solo cuentas «comercial»: [{clienteNombre, plantaNombre?}]. Sin plantaNombre = todo ese Sold To.
+    plantasAsignadas: list[dict[str, str | None]] | None = None
     debeCambiarPassword: bool = False
 
 
@@ -80,6 +82,7 @@ def usuario_de_fila(fila: dict) -> Usuario:
         plantaNombre=fila["planta_nombre"],
         modulos=fila["modulos"],
         reportes=fila["reportes"],
+        plantasAsignadas=fila.get("plantas_asignadas") or None,
         debeCambiarPassword=fila["debe_cambiar"],
     )
 
@@ -104,6 +107,22 @@ def alcance_de_datos(
     if usuario.tipoAcceso == "cliente":
         return usuario.clienteNombre, usuario.plantaNombre
     return cliente_pedido, planta_pedida
+
+
+def es_comercial(usuario: Usuario) -> bool:
+    return usuario.tipoAcceso == "comercial"
+
+
+def plantas_de_comercial(usuario: Usuario) -> list[tuple[str, str | None]]:
+    """(Sold To, Ship To o None) que esta cuenta comercial puede ver. None en el Ship To = todo ese Sold To.
+    Vacío = no ve nada (una cuenta sin plantas asignadas nunca ve todo)."""
+    salida: list[tuple[str, str | None]] = []
+    for p in usuario.plantasAsignadas or []:
+        cliente = str(p.get("clienteNombre") or "").strip()
+        planta = str(p.get("plantaNombre") or "").strip() or None
+        if cliente:
+            salida.append((cliente, planta))
+    return salida
 
 
 # ── Freno de fuerza bruta ───────────────────────────────────────────────
@@ -212,6 +231,9 @@ def solo_interno(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
     """
     if usuario.tipoAcceso == "cliente":
         raise HTTPException(403, "Tu cuenta solo tiene acceso a sus propios resultados.")
+    # El comercial mira solo lo de sus plantas (Report y sus informes): el resto de la API le queda cerrado.
+    if usuario.tipoAcceso == "comercial":
+        raise HTTPException(403, "Tu cuenta de comercial solo ve los resultados de tus plantas.")
     return usuario
 
 
@@ -226,6 +248,8 @@ def solo_escribiente(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
         raise HTTPException(403, "Tu cuenta solo tiene acceso a sus propios resultados.")
     if usuario.tipoAcceso == "gerencia":
         raise HTTPException(403, "Tu cuenta de gerencia es de solo lectura.")
+    if usuario.tipoAcceso == "comercial":
+        raise HTTPException(403, "Tu cuenta de comercial es de solo lectura.")
     return usuario
 
 

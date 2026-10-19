@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from . import r2
 from .pdf_permisos import sin_restricciones
-from .auth import Usuario, usuario_actual
+from .auth import Usuario, plantas_de_comercial, usuario_actual
 from .db import conexion, cursor_dict
 from .informes_storage import RAIZ, carpeta_planta
 
@@ -51,6 +51,16 @@ def _plantas_del_cliente(sold_to: str) -> list[str]:
 
 def carpetas_permitidas(usuario: Usuario) -> set[str]:
     """Nombres de carpeta (en minúsculas) de `informes/` que esta cuenta puede ver. Vacío = nada."""
+    if usuario.tipoAcceso == "comercial":
+        carpetas: set[str] = set()
+        for cliente, planta in plantas_de_comercial(usuario):
+            try:
+                plantas = [planta] if planta else _plantas_del_cliente(cliente)
+            except Exception:
+                logger.exception("No se pudieron leer las plantas de %r", cliente)
+                plantas = []
+            carpetas |= {carpeta_planta(p, cliente).casefold() for p in plantas if p}
+        return carpetas
     if usuario.tipoAcceso != "cliente":
         return set()
     sold_to = (usuario.clienteNombre or "").strip()
@@ -75,7 +85,7 @@ def _partes(ruta: str) -> list[str]:
 
 
 def _exigir_alcance(partes: list[str], usuario: Usuario) -> None:
-    if usuario.tipoAcceso != "cliente":
+    if usuario.tipoAcceso not in ("cliente", "comercial"):
         raise HTTPException(403, "Esta sección es del portal de cliente.")
     if partes and partes[0].casefold() not in carpetas_permitidas(usuario):
         raise HTTPException(404, "No encontrado.")

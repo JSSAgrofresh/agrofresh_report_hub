@@ -26,7 +26,11 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
       <AreaHero
         area={config}
         titulo={titulo}
-        descripcion={`Portal de cliente · ${config.nombre}. Acceso exclusivo a tus datos.`}
+        descripcion={
+          usuario.tipoAcceso === 'comercial'
+            ? `Comercial · ${config.nombre}. Solo lectura de las plantas que tienes asignadas.`
+            : `Portal de cliente · ${config.nombre}. Acceso exclusivo a tus datos.`
+        }
         fondo={fondoHero?.imagen}
         tinte={fondoHero?.tinte}
       />
