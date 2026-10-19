@@ -14,6 +14,8 @@ export interface FiltrosReporte {
   tipoServicio: string
   /** Tipo de servicio real: Línea de proceso, Actimist, Ecofog o RYD (no confundir con `tipoServicio`, el campo viejo). */
   servicio: string
+  /** N° de línea de proceso de la solicitud (`solicitud.nro_linea`). */
+  nroLinea: string
   laboratorio: string
   crop: string
   variedad: string
@@ -29,6 +31,7 @@ export const FILTROS_VACIOS: FiltrosReporte = {
   tipoAplicacion: '',
   tipoServicio: '',
   servicio: '',
+  nroLinea: '',
   laboratorio: '',
   crop: '',
   variedad: '',
@@ -38,7 +41,7 @@ export const FILTROS_VACIOS: FiltrosReporte = {
 }
 
 /** Filtros de texto de un solo valor: los que tienen un desplegable propio. */
-export type CampoTexto = 'cliente' | 'planta' | 'tipoAplicacion' | 'tipoServicio' | 'servicio' | 'laboratorio' | 'crop' | 'variedad'
+export type CampoTexto = 'cliente' | 'planta' | 'tipoAplicacion' | 'tipoServicio' | 'servicio' | 'nroLinea' | 'laboratorio' | 'crop' | 'variedad'
 export type CampoFiltro = CampoTexto | 'ingredientes' | 'semana' | 'mes' | 'rango'
 
 /** Misma clave que `clave_normalizada` del backend (listados.py): sin
@@ -75,6 +78,8 @@ function valorDe(o: Observacion, campo: CampoTexto | 'semana' | 'mes' | 'ingredi
       return o.tipoServicio
     case 'servicio':
       return o.servicio ?? null
+    case 'nroLinea':
+      return o.nroLinea ?? null
     case 'laboratorio':
       return o.laboratorio
     case 'crop':
@@ -90,7 +95,7 @@ function valorDe(o: Observacion, campo: CampoTexto | 'semana' | 'mes' | 'ingredi
   }
 }
 
-const CAMPOS_TEXTO: CampoTexto[] = ['cliente', 'planta', 'tipoAplicacion', 'tipoServicio', 'servicio', 'laboratorio', 'crop', 'variedad']
+const CAMPOS_TEXTO: CampoTexto[] = ['cliente', 'planta', 'tipoAplicacion', 'tipoServicio', 'servicio', 'nroLinea', 'laboratorio', 'crop', 'variedad']
 
 /** ¿La observación pasa todos los filtros? `excepto` deja fuera uno: es lo que
  * se usa para armar las opciones de ese mismo desplegable (ver `opcionesDe`). */

@@ -13,6 +13,8 @@ export interface FilaReporte {
   tipo_servicio: string | null
   /** `solicitud.servicio` (0055): linea / actimist / ecofog / ryd; vacío en lo cargado antes. */
   servicio?: string | null
+  /** N° de línea de proceso (`solicitud.nro_linea`). */
+  nro_linea?: string | null
   posicion_muestreo: string | null
   cliente: string | null
   planta: string | null
@@ -93,6 +95,7 @@ export interface Observacion {
   tipoServicio: string | null
   /** «Línea de proceso», «Actimist», «Ecofog» o «RYD» (`servicioDeFila`). */
   servicio?: string | null
+  nroLinea?: string | null
   posicionMuestreo: string | null
   laboratorio: string | null
   crop: string | null
