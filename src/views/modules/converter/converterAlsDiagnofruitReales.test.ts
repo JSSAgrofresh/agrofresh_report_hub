@@ -390,3 +390,33 @@ describe('completar desde la solicitud (ALS y Diagnofruit)', () => {
     expect(inf.avisos.join(' ')).toMatch(/No se encontró la solicitud OT-ALS0010/)
   })
 })
+
+/**
+ * El Converter NO lee `pdftotext -layout`: pdf.js entrega fragmentos y `armarLineas` los une dejando UN SOLO espacio
+ * entre ellos (`replace(/\s+/g, ' ')`). Los lectores tienen que funcionar con ese texto, no solo con el de arriba
+ * (el primer informe de ALS subido de verdad quedó sin resultados porque el lector pedía 2+ espacios).
+ */
+const comoPdfJs = (t: string) =>
+  t.split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n')
+
+describe('lectura con el texto que arma pdf.js (espacios colapsados)', () => {
+  it.each([
+    ['ALS_0412', ALS_0412], ['ALS_0415', ALS_0415], ['ALS_0010', ALS_0010], ['ALS_0006', ALS_0006],
+  ])('%s: lee los mismos resultados y datos que con el texto en columnas', (_n, texto) => {
+    const base = uno(texto)
+    const real = uno(comoPdfJs(texto))
+    expect(Object.keys(base.resultados).length).toBeGreaterThan(0)
+    expect(real.resultados).toEqual(base.resultados)
+    expect(real.datos).toEqual(base.datos)
+  })
+
+  it('Diagnofruit: cada muestra trae sus resultados', () => {
+    const base = L.analizarVarios(DIAG, 'd.pdf')
+    const real = L.analizarVarios(comoPdfJs(DIAG), 'd.pdf')
+    expect(real).toHaveLength(base.length)
+    real.forEach((inf, i) => {
+      expect(inf.resultados).toEqual(base[i].resultados)
+      expect(inf.datos).toEqual(base[i].datos)
+    })
+  })
+})
