@@ -1,15 +1,20 @@
-import { formatDateCL } from '@/lib/locale'
+import { formatDateCL, formatDecimalCL } from '@/lib/locale'
 
 /**
- * Lógica pura de los gráficos de ALS en Report (línea de tiempo y serie de tiempo).
+ * Lógica pura de los gráficos de ALS y Diagnofruit en Report (línea de tiempo, serie de tiempo y tabla por informe).
  *
- * ALS no mide residuos contra un límite: cada informe dice si el analito se detectó o no («<1», «ND») y, si se
- * detectó, cuánto. Por eso los gráficos muestran «hay / no hay» y el valor cuando lo hay. No juzgan si un valor es
- * bueno o malo: no hay límites cargados para ALS y no se inventan.
+ * Ninguno de los dos mide residuos contra un límite: cada informe dice si el analito se detectó o no («<1», «ND»,
+ * «BLD») y, si se detectó, cuánto. Por eso los gráficos muestran «hay / no hay» y el valor cuando lo hay. No juzgan
+ * si un valor es bueno o malo: no hay límites cargados y no se inventan.
  */
 
+/** Un número medido como se lee en el informe: «41», «5,2», «114,02» (sin ceros de más). */
+export function textoNumero(n: number): string {
+  return Number.isInteger(n) ? String(n) : formatDecimalCL(n, 2).replace(/0$/, '')
+}
+
 /** Un resultado de un analito dentro de un informe, ya con su nombre y unidad de `analitosAls`. */
-export interface ResultadoAlsVista {
+export interface ResultadoVista {
   codigo: string
   nombre: string
   unidad: string
@@ -21,11 +26,22 @@ export interface ResultadoAlsVista {
   detectado: boolean
 }
 
-export interface InformeAlsVista {
+export interface InformeVista {
   nro: string
   /** Fecha de muestreo, `aaaa-mm-dd`. */
   fecha: string | null
-  resultados: ResultadoAlsVista[]
+  /** Un dato más del informe para la tabla (en Diagnofruit, la zona de muestreo); `null` si no hay. */
+  detalle?: string | null
+  resultados: ResultadoVista[]
+}
+
+/**
+ * Cómo se rotula un informe bajo su columna: Diagnofruit numera por reporte y muestra («253521-DIAG0003»), y de eso
+ * lo que distingue al informe es la OT («DIAG0003»). Los demás N° (ALS: «496563») quedan como están.
+ */
+export function etiquetaInforme(nro: string): string {
+  const m = nro.match(/^\d+-(.+)$/)
+  return m ? m[1] : nro
 }
 
 export interface ColorAnalito {
@@ -46,7 +62,7 @@ const PALETA: ColorAnalito[] = [
 const SIN_COLOR: ColorAnalito = { fill: '#77837b', text: '#ffffff' }
 
 /** El color depende del analito (su `orden` fijo), no de qué otros vengan en pantalla: el mismo analito siempre se ve igual. */
-export function colorDeAnalitoAls(orden: number): ColorAnalito {
+export function colorDeAnalito(orden: number): ColorAnalito {
   return orden >= 1 && orden <= PALETA.length ? PALETA[orden - 1] : SIN_COLOR
 }
 
@@ -72,10 +88,13 @@ export interface AnalitoLinea {
 
 export interface InformeLinea {
   nro: string
+  /** El rótulo corto bajo la columna (ver `etiquetaInforme`). */
+  etiqueta: string
+  detalle: string | null
   fecha: string | null
   /** `dd-mm-aaaa` o «Sin fecha». */
   fechaTxt: string
-  porAnalito: Record<string, ResultadoAlsVista>
+  porAnalito: Record<string, ResultadoVista>
 }
 
 export interface DiaLinea {
@@ -102,7 +121,7 @@ function diaUtc(fecha: string): number {
 }
 
 /** Los informes de más antiguo a más nuevo (por fecha de muestreo y, dentro del día, por N°), sus analitos y sus días. */
-export function modeloLinea(informes: InformeAlsVista[]): ModeloLinea {
+export function modeloLinea(informes: InformeVista[]): ModeloLinea {
   const ordenados = [...informes].sort((a, b) => {
     if (a.fecha !== b.fecha) {
       if (a.fecha === null) return 1
@@ -114,6 +133,8 @@ export function modeloLinea(informes: InformeAlsVista[]): ModeloLinea {
 
   const lineas: InformeLinea[] = ordenados.map((i) => ({
     nro: i.nro || '—',
+    etiqueta: etiquetaInforme(i.nro || '—'),
+    detalle: i.detalle ?? null,
     fecha: i.fecha,
     fechaTxt: i.fecha ? formatDateCL(i.fecha) : 'Sin fecha',
     porAnalito: Object.fromEntries(i.resultados.map((r) => [r.codigo, r])),
@@ -123,7 +144,7 @@ export function modeloLinea(informes: InformeAlsVista[]): ModeloLinea {
   ordenados.forEach((i) =>
     i.resultados.forEach((r) => {
       if (!porCodigo.has(r.codigo))
-        porCodigo.set(r.codigo, { codigo: r.codigo, nombre: r.nombre, unidad: r.unidad, orden: r.orden, color: colorDeAnalitoAls(r.orden) })
+        porCodigo.set(r.codigo, { codigo: r.codigo, nombre: r.nombre, unidad: r.unidad, orden: r.orden, color: colorDeAnalito(r.orden) })
     }),
   )
   const analitos = [...porCodigo.values()].sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre, 'es'))
@@ -153,10 +174,21 @@ export function hayCorte(dia: DiaLinea): boolean {
   return dia.diasDesdeAnterior !== null && dia.diasDesdeAnterior >= 2
 }
 
-/** Radio del círculo: crece con la raíz del valor (el área, con el valor) hasta `max`, el mayor de su unidad. */
-export function radioDeValor(valor: number | null, max: number): number {
-  if (valor === null || !(max > 0)) return 14
-  return 8 + 20 * Math.sqrt(Math.min(Math.max(valor, 0) / max, 1))
+/** Lo que mide el texto de un círculo (en px, con la letra de los gráficos): el círculo nunca es más chico que él. */
+const ANCHO_LETRA = 7.2
+
+/**
+ * Radio del círculo: crece con la raíz del valor (el área, con el valor) hasta `max`, el mayor de su unidad. Si se
+ * da el texto que va adentro, el círculo es al menos tan ancho como él («114,02» no cabe en uno chico).
+ */
+export function radioDeValor(valor: number | null, max: number, texto = ''): number {
+  const base = valor === null || !(max > 0) ? 14 : 8 + 20 * Math.sqrt(Math.min(Math.max(valor, 0) / max, 1))
+  return Math.max(base, (texto.length * ANCHO_LETRA) / 2 + 5)
+}
+
+/** Radio del círculo vacío (no se detectó): el justo para su texto, «<1» o «BLD». */
+export function radioVacio(texto: string): number {
+  return Math.max(8, (texto.length * 5.2) / 2 + 2.5)
 }
 
 /** Eje vertical con números redondos: hasta 4 intervalos de 1, 2 o 5 por una potencia de 10. */
