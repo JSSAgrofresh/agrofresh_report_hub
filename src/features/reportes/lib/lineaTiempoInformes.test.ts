@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
-  colorDeAnalitoAls, escalaBonita, hayCorte, modeloLinea, posicionesX, radioDeValor, valorDeTexto,
-  type InformeAlsVista, type ResultadoAlsVista,
-} from './lineaTiempoAls'
+  colorDeAnalito, escalaBonita, etiquetaInforme, hayCorte, modeloLinea, posicionesX, radioDeValor, radioVacio, textoNumero, valorDeTexto,
+  type InformeVista, type ResultadoVista,
+} from './lineaTiempoInformes'
 
 const COLT = { codigo: 'COLT', nombre: 'Coliformes Totales', unidad: 'UFC/100 mL', orden: 1 }
 const ECOLI = { codigo: 'ECOLI', nombre: 'Escherichia coli', unidad: 'UFC/100 mL', orden: 2 }
-const res = (a: typeof COLT, texto: string, valor: number | null, detectado: boolean): ResultadoAlsVista => ({ ...a, texto, valor, detectado })
-const inf = (nro: string, fecha: string | null, c: string | number, e: string | number): InformeAlsVista => ({
+const res = (a: typeof COLT, texto: string, valor: number | null, detectado: boolean): ResultadoVista => ({ ...a, texto, valor, detectado })
+const inf = (nro: string, fecha: string | null, c: string | number, e: string | number): InformeVista => ({
   nro,
   fecha,
   resultados: [
@@ -96,7 +96,35 @@ describe('escalas', () => {
     expect(radioDeValor(null, 67)).toBe(14)
   })
 
+  it('el círculo nunca es más chico que el número que lleva adentro', () => {
+    expect(radioDeValor(6.22, 114.02, '6,22')).toBeGreaterThanOrEqual((4 * 7.2) / 2)
+    expect(radioDeValor(1, 100, '114,02')).toBeGreaterThan(radioDeValor(1, 100))
+    expect(radioVacio('<1')).toBe(8)
+    expect(radioVacio('BLD')).toBeGreaterThan(radioVacio('<1'))
+  })
+
   it('un analito que la tabla no conoce sale gris, no con el color de otro', () => {
-    expect(colorDeAnalitoAls(99).fill).toBe('#77837b')
+    expect(colorDeAnalito(99).fill).toBe('#77837b')
+  })
+})
+
+describe('etiquetas y números', () => {
+  it('el rótulo de un informe de Diagnofruit es su OT; los demás N° quedan como están', () => {
+    expect(etiquetaInforme('253521-DIAG0003')).toBe('DIAG0003')
+    expect(etiquetaInforme('496563')).toBe('496563')
+  })
+
+  it('los números se leen sin ceros de más', () => {
+    expect(textoNumero(41)).toBe('41')
+    expect(textoNumero(5.2)).toBe('5,2')
+    expect(textoNumero(114.02)).toBe('114,02')
+    expect(textoNumero(0.5)).toBe('0,5')
+  })
+
+  it('el informe lleva su detalle (zona de muestreo) y los de un mismo día se ordenan por N°', () => {
+    const r = (nro: string, detalle: string | null) => ({ nro, fecha: '2026-10-01', detalle, resultados: [] })
+    const m = modeloLinea([r('253522-DIAG0007', 'Pozo vaciado'), r('253521-DIAG0004', null), r('253521-DIAG0003', 'pozo vaciado')])
+    expect(m.informes.map((i) => i.etiqueta)).toEqual(['DIAG0003', 'DIAG0004', 'DIAG0007'])
+    expect(m.informes.map((i) => i.detalle)).toEqual(['pozo vaciado', null, 'Pozo vaciado'])
   })
 })
