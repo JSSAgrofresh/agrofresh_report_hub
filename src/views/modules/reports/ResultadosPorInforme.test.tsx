@@ -40,6 +40,13 @@ describe('tabla por informe', () => {
     const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
     const [nueva, media] = filasDelCuerpo(container)
     expect(within(nueva).getAllByText('<1')).toHaveLength(2)
+    expect(celdas(nueva)[4]).toBe('Pendiente')
+    expect(celdas(media)[4]).toBe('Pendiente')
+  })
+
+  it('en Diagnofruit cada fila dice si detectó', () => {
+    const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="diagnofruit" conGraficos={false} />)
+    const [nueva, media] = filasDelCuerpo(container)
     expect(celdas(nueva)[4]).toBe('No detectó')
     expect(celdas(media)[4]).toBe('Detectó · 2/2')
   })
