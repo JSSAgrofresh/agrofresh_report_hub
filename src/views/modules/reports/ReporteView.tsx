@@ -26,10 +26,18 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
-import { IconAlerta, IconArchivoPlano, IconFrasco, IconTrendingUp } from '@/components/ui/icons'
-import { analitoDiagnofruit } from '@/features/reportes/lib/analitosDiagnofruit'
-import { textoNumero, valorDeTexto, type InformeVista } from '@/features/reportes/lib/lineaTiempoInformes'
-import { ResultadosPorInforme } from './ResultadosPorInforme'
+import { IconAlerta, IconArchivoPlano, IconTrendingUp } from '@/components/ui/icons'
+import {
+  alTocarBoton,
+  bloquesVisibles,
+  estadoBotonesResidual,
+  labResidual,
+  nombreLaboratorio,
+  type LabResidual,
+} from '@/features/reportes/lib/bloquesAnalisis'
+import { construirInformes } from '@/features/reportes/lib/informesPorLab'
+import { BotonesLabResidual, CabeceraSeccion, SeccionInformes } from './SeccionesReport'
+import { Kpi } from './Kpi'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import type { RangoFechas } from '@/components/ui/CalendarioRango'
@@ -46,10 +54,7 @@ import {
   claveFiltro,
   clientesDeSucursal,
   especiesDeVariedad,
-  laboratorioBase,
   laboratorioTabular,
-  analitoAls,
-  ORDEN_ALS_DESCONOCIDO,
   colorDeIngrediente,
   colorEspecieMarca,
   contarFiltrosActivos,
@@ -150,25 +155,6 @@ function textoOpcion(o: OpcionFiltro, etiqueta: (v: string) => string = (v) => v
   return `${etiqueta(o.valor)} (${o.conteo.toLocaleString('es-CL')})`
 }
 
-/** Para la tabla de Diagnofruit: si el patógeno se detectó en la muestra
- * (valor numérico > 0, o un texto que no sea "ND"/"0"/vacío), se resalta la
- * celda -es la lectura que le importa al laboratorio, más que el número exacto-. */
-const TEXTOS_NO_DETECTADO = new Set(['', 'nd', 'no detectado', '0', 'bld'])
-
-function esDetectado(o: Observacion | undefined): boolean {
-  if (!o) return false
-  if (o.ppm != null) return o.ppm > 0
-  const texto = (o.valorTexto ?? '').trim().toLowerCase()
-  // «<1» (ALS) es un límite: el laboratorio no encontró nada por sobre él.
-  return !TEXTOS_NO_DETECTADO.has(texto) && !texto.startsWith('<')
-}
-
-/** Códigos de ALS que la ingesta y el catálogo de Toma de muestras escriben distinto (espejo de mapeo.ALIAS_CODIGO_CATALOGO). */
-const CODIGOS_EQUIVALENTES: Record<string, string[]> = {
-  ECOLI: ['ECOLI100'], COLT: ['COLIF100'], HONG: ['HONGOS'], COLA: ['COLIFG'],
-  ECOLA: ['ECOLIG'], ENTB: ['ENTERO'], CEN: ['CENIZAS'], AFLA: ['AFLAT'],
-}
-
 const ETIQUETAS_FILTRO: Record<keyof Filtros, string> = {
   laboratorio: 'Laboratorio',
   cliente: 'Sold To',
@@ -198,48 +184,15 @@ function chipsDeFiltros(f: Filtros, clienteFijo: boolean): { campo: keyof Filtro
             : ''
           : campo === 'mes'
             ? f.mes && nombreMes(f.mes)
-            : f[campo]
+            : campo === 'laboratorio'
+              ? nombreLaboratorio(f.laboratorio)
+              : f[campo]
     if (valor) chips.push({ campo, etiqueta: ETIQUETAS_FILTRO[campo], valor })
   })
   return chips
 }
 
 const FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit' })
-
-/** Tarjeta de indicador: ícono en su pastilla de color, etiqueta, cifra y
- * una línea de contexto. `tono` colorea el ícono y el borde, nunca la cifra
- * -el texto va siempre en los tonos de texto, legible en cualquier caso-. */
-function Kpi({
-  icono,
-  tono,
-  etiqueta,
-  destacado,
-  children,
-  sub,
-}: {
-  icono: ReactNode
-  tono: string
-  etiqueta: ReactNode
-  destacado?: boolean
-  children: ReactNode
-  sub?: ReactNode
-}) {
-  return (
-    <Card
-      className={`${styles.statCard} ${destacado ? styles.destacado : ''}`}
-      style={{ '--kpi': tono } as CSSProperties}
-    >
-      <div className={styles.kpiCabeza}>
-        <span className={styles.kpiIcono} aria-hidden="true">
-          {icono}
-        </span>
-        <span className={styles.statLbl}>{etiqueta}</span>
-      </div>
-      {children}
-      {sub != null && <span className={styles.statSub}>{sub}</span>}
-    </Card>
-  )
-}
 
 /** `clienteFijo`: usado por el portal de cliente — cuando viene seteado, los
  * datos ya llegan filtrados por el backend (nunca se filtran solo en el
@@ -492,112 +445,69 @@ export function ReporteView({
     }
   }, [opciones])
 
-  // Diagnofruit y ALS no miden residuos en ppm contra una franja: se ven solo en tabla, eligiendo ese laboratorio.
-  // Sin elegirlo (o mezclados con otros) quedan fuera de los gráficos, que son de residuos.
+  // Report normal: los resultados van en bloques por TIPO DE ANÁLISIS, siempre hacia abajo y en este orden: análisis de
+  // residuos (AgroFresh y Quiteca), análisis FSMA (ALS) y análisis de fitopatología (Diagnofruit). Sin elegir laboratorio
+  // se ven los tres; eligiendo uno, solo el suyo. La «Vista de límites» de Auditoría interna (vistaControl / limitesTabla)
+  // sigue siendo un solo gráfico de residuos, y ahí ALS y Diagnofruit solo se ven eligiéndolos (tabla).
+  const modoBloques = !vistaControl && !limitesTabla
+  const bloques = bloquesVisibles(filtros.laboratorio)
+  // Los botones «Laboratorio AgroFresh / Laboratorio Quiteca» del bloque de residuos.
+  const [botonResidual, setBotonResidual] = useState<LabResidual | ''>('')
+  const botonesResidual = estadoBotonesResidual(filtros.laboratorio, botonResidual)
+
+  // Modo de la vista de límites: ALS o Diagnofruit se ven en tabla solo si es el único laboratorio elegido.
   const labTabular = useMemo(() => {
+    if (modoBloques) return null
     const elegidos = filtrosMultiples ? multi.laboratorio : filtros.laboratorio ? [filtros.laboratorio] : []
     return elegidos.length === 1 ? laboratorioTabular(elegidos[0]) : null
-  }, [filtrosMultiples, multi.laboratorio, filtros.laboratorio])
+  }, [modoBloques, filtrosMultiples, multi.laboratorio, filtros.laboratorio])
 
   // Todo lo que cumple los filtros, de cualquier laboratorio: es lo que baja la BD en Excel.
   const filtradasTodas = useMemo(() => {
     const base = aplicarFiltros(observaciones, filtros)
     return filtrosMultiples ? base.filter((o) => cumpleMulti(o, multi)) : base
   }, [observaciones, filtros, multi, filtrosMultiples])
-  const filtradas = useMemo(
-    () => (labTabular ? filtradasTodas : filtradasTodas.filter((o) => laboratorioTabular(o.laboratorio) === null)),
-    [filtradasTodas, labTabular],
-  )
+  // Lo que alimenta los gráficos de residuos. En el modo por bloques, solo los laboratorios de residuos (y el botón que
+  // esté elegido); ALS y Diagnofruit tienen su propio bloque.
+  const filtradas = useMemo(() => {
+    if (modoBloques) {
+      return filtradasTodas.filter(
+        (o) => laboratorioTabular(o.laboratorio) === null && (!botonesResidual.efectivo || labResidual(o.laboratorio) === botonesResidual.efectivo),
+      )
+    }
+    return labTabular ? filtradasTodas : filtradasTodas.filter((o) => laboratorioTabular(o.laboratorio) === null)
+  }, [filtradasTodas, labTabular, modoBloques, botonesResidual.efectivo])
   const nFiltros = contarFiltrosActivos(filtros) + (filtrosMultiples ? contarMulti(multi) : 0)
 
   // La especie filtrada arriba, si hay UNA: la dona de la Vista de límites pasa a ser por analito.
   const especieUnica = filtrosMultiples ? (multi.crop.length === 1 ? multi.crop[0] : null) : filtros.crop || null
 
   const registrosFiltrados = useMemo(() => new Set(filtradas.map((o) => o.solicitudId)).size, [filtradas])
+  // Las solicitudes que cumplen los filtros, de todos los laboratorios: es lo que cuentan el resumen de los filtros y la
+  // descarga de la BD (los indicadores de cada bloque cuentan solo lo suyo).
+  const registrosEnFiltros = useMemo(
+    () => (modoBloques ? new Set(filtradasTodas.map((o) => o.solicitudId)).size : registrosFiltrados),
+    [modoBloques, filtradasTodas, registrosFiltrados],
+  )
 
-  // Diagnofruit no reporta ppm de un residuo contra un límite: cuantifica
-  // patógenos (levaduras, botrytis, etc.), cada uno en su propia unidad, así
-  // que el gráfico de línea/dona de las otras vistas no tiene nada que
-  // comparar. Acá se muestra una tabla ancha en vez de eso: una fila por
-  // solicitud (fecha + zona de muestreo) y una columna por analito.
-  const esDiagnofruit = labTabular === 'diagnofruit'
-  // ALS (FSMA, metales, microbiología de alimento) usa la misma tabla, con su unidad y sin colores de «detectado».
-  const esAls = labTabular === 'als'
-  const esTabular = esDiagnofruit || esAls
-
-  const gruposDiagnofruit = useMemo(() => {
-    if (!esTabular) return []
-    const porSolicitud = new Map<
-      number,
-      {
-        nro: string
-        fecha: string | null
-        zona: string | null
-        patogenos: { codigo: string; nombre: string; texto: string; detectado: boolean; unidad: string; orden: number; valor: number | null }[]
-      }
-    >()
-    filtradas.forEach((o) => {
-      if (!o.ingrediente) return
-      let grupo = porSolicitud.get(o.solicitudId)
-      if (!grupo) {
-        grupo = { nro: o.nroSolicitud, fecha: o.fecha, zona: o.posicionMuestreo, patogenos: [] }
-        porSolicitud.set(o.solicitudId, grupo)
-      }
-      // El código del analito (LEV, BOT…) no dice nada al leerlo: se busca su
-      // nombre en el catálogo de Diagnofruit y, si por algún motivo no está
-      // -código nuevo sin catalogar todavía-, se muestra tal cual llegó.
-      // El código de la ingesta (ECOLI) y el del catálogo (ECOLI100) son el mismo analito: se busca por los dos.
-      const analito = analitosVista.find(
-        (a) =>
-          laboratorioBase(a.laboratorio) === labTabular &&
-          (a.codigo === o.ingrediente || (a.codigo && CODIGOS_EQUIVALENTES[o.ingrediente ?? '']?.includes(a.codigo))),
-      )
-      // ALS y Diagnofruit tienen su propia tabla de nombre, unidad y orden: no dependen de que el catálogo esté sembrado.
-      const fijo = esAls ? analitoAls(o.ingrediente) : analitoDiagnofruit(o.ingrediente)
-      const nombre = fijo?.nombre ?? analito?.nombre ?? o.ingrediente
-      const texto = o.ppm != null ? textoNumero(o.ppm) : o.valorTexto ?? '—'
-      grupo.patogenos.push({
-        codigo: o.ingrediente,
-        nombre,
-        texto,
-        detectado: esDetectado(o),
-        unidad: fijo?.unidad ?? analito?.unidad ?? '',
-        orden: fijo?.orden ?? ORDEN_ALS_DESCONOCIDO,
-        valor: o.ppm ?? valorDeTexto(o.valorTexto),
-      })
+  // Los informes de ALS y de Diagnofruit con la forma de la tabla y los gráficos, y cuántos hay sin ningún filtro.
+  const informesAls = useMemo(() => construirInformes(filtradasTodas, 'als', analitosVista), [filtradasTodas, analitosVista])
+  const informesFito = useMemo(() => construirInformes(filtradasTodas, 'diagnofruit', analitosVista), [filtradasTodas, analitosVista])
+  const informesSinFiltros = useMemo(() => {
+    const ids = { als: new Set<number>(), diagnofruit: new Set<number>() }
+    observaciones.forEach((o) => {
+      const lab = laboratorioTabular(o.laboratorio)
+      if (lab && o.ingrediente) ids[lab].add(o.solicitudId)
     })
-    // Dentro de un informe los analitos van siempre en el mismo orden (antes salían como llegaban de la base).
-    porSolicitud.forEach((g) => g.patogenos.sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre, 'es')))
-    return [...porSolicitud.values()].sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''))
-  }, [esTabular, esAls, labTabular, filtradas, analitosVista])
+    return { als: ids.als.size, diagnofruit: ids.diagnofruit.size }
+  }, [observaciones])
+  const esTabular = labTabular !== null
 
-  // Lo mismo, con la forma que usan los gráficos (línea de tiempo, serie de tiempo y tabla por informe).
-  const informesTabulares = useMemo<InformeVista[]>(
-    () =>
-      gruposDiagnofruit.map((g) => ({
-        nro: g.nro,
-        fecha: g.fecha ? g.fecha.slice(0, 10) : null,
-        detalle: g.zona,
-        resultados: g.patogenos.map((p) => ({
-          codigo: p.codigo,
-          nombre: p.nombre,
-          unidad: p.unidad,
-          orden: p.orden,
-          texto: p.texto,
-          valor: p.valor,
-          detectado: p.detectado,
-        })),
-      })),
-    [gruposDiagnofruit],
-  )
-
-  // Los números de las tarjetas de arriba: cuántos análisis se hicieron (un resultado de un analito en un informe es un
-  // análisis) y cuántos salieron detectados.
-  const totalAnalisis = useMemo(() => gruposDiagnofruit.reduce((t, g) => t + g.patogenos.length, 0), [gruposDiagnofruit])
-  const totalDetecciones = useMemo(
-    () => gruposDiagnofruit.reduce((t, g) => t + g.patogenos.filter((p) => p.detectado).length, 0),
-    [gruposDiagnofruit],
-  )
+  function tocarBotonResidual(lab: LabResidual) {
+    const r = alTocarBoton(lab, filtros.laboratorio, botonResidual)
+    setBotonResidual(r.botonElegido)
+    if (r.quitarFiltroLaboratorio) actualizarFiltro('laboratorio', '')
+  }
 
   // Solo las filas con un ppm numérico entran a las estadísticas y los gráficos
   // de valores; las que no tienen resultado (o vienen como texto tipo "ND") ya
@@ -1341,7 +1251,7 @@ export function ReporteView({
       {avisoBd && (
         <DescargaBdDialogo
           chips={[...chipsDeFiltros(filtros, false), ...(filtrosMultiples ? chipsMulti(multi, formatosMulti).map((c) => ({ ...c, campo: c.campo as keyof Filtros })) : [])]}
-          solicitudesFiltradas={registrosFiltrados}
+          solicitudesFiltradas={registrosEnFiltros}
           solicitudesTotales={totalVista}
           descargando={descargandoBd}
           onDescargarFiltrada={() => void bajarBd(true)}
@@ -1412,7 +1322,7 @@ export function ReporteView({
                 {nFiltros > 0 && <span className={styles.filtrosContador}>{nFiltros}</span>}
               </span>
               <span className={styles.filtrosResumen}>
-                {registrosFiltrados.toLocaleString('es-CL')} de {totalVista.toLocaleString('es-CL')} solicitudes
+                {registrosEnFiltros.toLocaleString('es-CL')} de {totalVista.toLocaleString('es-CL')} solicitudes
               </span>
               {nFiltros > 0 && (
                 <button className={styles.limpiar} onClick={limpiarTodosLosFiltros}>
@@ -1439,7 +1349,7 @@ export function ReporteView({
                   <select value={filtros.laboratorio} onChange={(e) => actualizarFiltro('laboratorio', e.target.value)}>
                     <option value="">Todos</option>
                     {opciones.laboratorios.map((o) => (
-                      <option key={o.valor} value={o.valor}>{textoOpcion(o)}</option>
+                      <option key={o.valor} value={o.valor}>{textoOpcion(o, nombreLaboratorio)}</option>
                     ))}
                   </select>
                 </label>
@@ -1601,57 +1511,27 @@ export function ReporteView({
           </section>
 
           {esTabular ? (
-            <>
-              <p className={styles.nota}>
-                {esAls ? (
-                  <>
-                    ALS reporta microbiología, metales y otros análisis, cada uno en su propia unidad: no hay un único "ppm" que
-                    graficar contra un límite, así que la vista es una tabla. Respeta los mismos filtros de arriba.
-                  </>
-                ) : (
-                  <>
-                    Diagnofruit cuantifica patógenos, cada uno en su propia unidad: no hay un único "ppm" que
-                    graficar contra un límite, así que la vista principal es una tabla en vez de una línea de
-                    tiempo. Respeta los mismos filtros de arriba que el resto de los reportes.
-                  </>
-                )}
-              </p>
-
-              <div className={styles.stats}>
-                <Card className={`${styles.statCard} ${styles.destacado}`}>
-                  <span className={styles.statLbl}>Total de informes de análisis</span>
-                  <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
-                  {nFiltros > 0 && (
-                    <span className={styles.statSub}>de {totalVista.toLocaleString('es-CL')} en total</span>
-                  )}
-                </Card>
-                <Card className={`${styles.statCard} ${styles.info}`}>
-                  <span className={styles.statLbl}>Análisis</span>
-                  <span className={styles.statNum}>{totalAnalisis.toLocaleString('es-CL')}</span>
-                </Card>
-                {esDiagnofruit && (
-                  <Card className={`${styles.statCard} ${styles.danger}`}>
-                    <span className={styles.statLbl}>Detecciones</span>
-                    <span className={styles.statNum}>{totalDetecciones.toLocaleString('es-CL')}</span>
-                  </Card>
-                )}
-              </div>
-
-              {labTabular && gruposDiagnofruit.length > 0 ? (
-                <ResultadosPorInforme informes={informesTabulares} laboratorio={labTabular} conGraficos={graficosInformes} />
-              ) : (
-                <Card className={styles.panel}>
-                  <h3>
-                    <span className={styles.tituloConIcono}>
-                      <IconFrasco className={styles.iconoPanel} />
-                      Resultados por solicitud
-                    </span>
-                  </h3>
-                  <p className={styles.nota}>No hay resultados de {esAls ? 'ALS' : 'Diagnofruit'} para estos filtros.</p>
-                </Card>
-              )}
-            </>
+            <SeccionInformes
+              bloque={labTabular === 'als' ? 'fsma' : 'fito'}
+              informes={labTabular === 'als' ? informesAls : informesFito}
+              totalSinFiltros={labTabular === 'als' ? informesSinFiltros.als : informesSinFiltros.diagnofruit}
+              conFiltros={nFiltros > 0}
+              conGraficos={graficosInformes}
+              acento={acento}
+            />
           ) : (
+            <>
+              {modoBloques && bloques.residuales && (
+                <CabeceraSeccion bloque="residuales" acento={acento} laboratorios={`${nombreLaboratorio('agrofresh')} · ${nombreLaboratorio('quiteca')}`}>
+                  <BotonesLabResidual
+                    efectivo={botonesResidual.efectivo}
+                    fijadoPorFiltro={botonesResidual.fijadoPorFiltro}
+                    acento={acento}
+                    onTocar={tocarBotonResidual}
+                  />
+                </CabeceraSeccion>
+              )}
+              {(!modoBloques || bloques.residuales) && (
             <>
               {vistaControl && (
                 <p className={styles.nota}>
@@ -1813,6 +1693,14 @@ export function ReporteView({
                   )}
                 </Card>
               </div>
+              )}
+                </>
+              )}
+              {modoBloques && bloques.fsma && (
+                <SeccionInformes bloque="fsma" informes={informesAls} totalSinFiltros={informesSinFiltros.als} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
+              )}
+              {modoBloques && bloques.fito && (
+                <SeccionInformes bloque="fito" informes={informesFito} totalSinFiltros={informesSinFiltros.diagnofruit} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
               )}
             </>
           )}
