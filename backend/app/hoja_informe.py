@@ -154,6 +154,21 @@ def agregar_hoja(wb: Workbook, datos: dict, listas: dict[str, list[str]] | None 
     return ws
 
 
+def convertir_al_formato_nuevo(datos: dict[str, Any]) -> dict[str, Any]:
+    """Una COPIA de la solicitud con el formato nuevo (hoja «Para el informe»), para descargar
+    el Excel de una solicitud que ya salió sin ella. Lo guardado y lo ya enviado no se tocan.
+    La lista sale con las reglas vigentes, como cuando se envía el informe
+    (`envio_informes.plan_desde_solicitud`). Otros laboratorios quedan igual."""
+    from .servicios import MARCA_RESPALDO_RYD, es_tipo_ryd
+
+    if not es_diagnofruit(datos.get("laboratorio")):
+        return datos
+    nuevo = {**datos, MARCA_HOJA_INFORME: True}
+    if not es_tipo_ryd(datos):
+        nuevo[MARCA_RESPALDO_RYD] = True
+    return nuevo
+
+
 def marcar(datos: dict[str, Any]) -> None:
     """Solo las solicitudes de Diagnofruit creadas desde ahora llevan la hoja."""
     if es_diagnofruit(datos.get("laboratorio")):
