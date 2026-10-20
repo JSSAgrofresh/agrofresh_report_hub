@@ -125,15 +125,15 @@ def agregar_hoja(wb: Workbook, datos: dict, listas: dict[str, list[str]] | None 
         "Copie cada celda verde y péguela en «OBSERVACIONES ADICIONALES» de la hoja final del informe."
     )
 
-    destino = "Hoja final → OBSERVACIONES ADICIONALES"
+    destino = "OBSERVACIONES ADICIONALES"
     filas: list[tuple[str, str, str]] = [
         ("1 · Solicitud", cadena_solicitud(datos), destino),
-        ("2 · Sold To // Ship To", sold_to_ship_to(datos), "Hoja 1 → Predio/planta"),
-        ("3 · Para", "; ".join(listas.get("para", [])), destino + " (bajo la cadena)"),
-        ("3 · CC", "; ".join(listas.get("cc", [])), destino + " (bajo la cadena)"),
-        ("3 · CCO", "; ".join(listas.get("bcc", [])), destino + " (bajo la cadena)"),
+        ("2 · Sold To // Ship To", sold_to_ship_to(datos), "Predio/planta"),
+        ("3 · Para", "; ".join(listas.get("para", [])), destino),
+        ("3 · CC", "; ".join(listas.get("cc", [])), destino),
+        ("3 · CCO", "; ".join(listas.get("bcc", [])), destino),
     ]
-    ws.cell(3, 3, "Dónde va en el informe").font = rotulo
+    ws.cell(3, 3, "Ubicación").font = rotulo
     fila = 4
     for etiqueta, texto, donde in filas:
         ws.cell(fila, 1, etiqueta).font = rotulo
