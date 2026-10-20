@@ -908,6 +908,48 @@ def descargar_json_zip(body: PdfZipIn, usuario: Usuario = Depends(usuario_actual
     )
 
 
+@router.post("/solicitudes/excel-zip")
+def descargar_excel_zip(body: PdfZipIn, usuario: Usuario = Depends(usuario_actual)) -> Response:
+    """El Excel de cada solicitud seleccionada en un solo .zip: el mismo que viaja adjunto
+    al correo del laboratorio (`construir_workbook`, con su hoja «Para el informe» si la
+    solicitud la lleva). Respeta el acceso de cada una (las que la sesión no puede ver se
+    omiten) y va en nombres únicos."""
+    archivos = list(dict.fromkeys(body.archivos))
+    if len(archivos) > MAX_PDF_ZIP:
+        raise HTTPException(413, f"Son demasiadas solicitudes de una vez (máximo {MAX_PDF_ZIP}).")
+    analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
+    excels: list[tuple[str, bytes]] = []
+    for archivo in archivos:
+        try:
+            if r2.disponible():
+                data, ext = _descargar_solicitud_r2(archivo)
+                datos = _leer_solicitud_bytes(data, ext)
+                numero = os.path.splitext(os.path.basename(archivo))[0]
+            else:
+                ruta = _ruta_archivo(archivo)
+                numero = os.path.splitext(os.path.basename(ruta))[0]
+                datos = _leer_solicitud_archivo(ruta)
+            if not _es_propia(usuario, datos):
+                continue
+            buf = io.BytesIO()
+            construir_workbook(datos, analitos_config).save(buf)
+            excels.append((f"{numero}.xlsx", buf.getvalue()))
+        except HTTPException:
+            continue
+    if not excels:
+        raise HTTPException(404, "No se pudo generar ningún Excel de la selección.")
+    salida = io.BytesIO()
+    with zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as z:
+        for nombre_excel, contenido in excels:
+            z.writestr(nombre_excel, contenido)
+    nombre = f"Solicitudes_Excel_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+    return Response(
+        content=salida.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
 @router.get("/solicitudes/{archivo}")
 def obtener_solicitud(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     if r2.disponible():

@@ -255,6 +255,35 @@ class TestJsonZip:
         assert cliente.post("/api/toma-muestras/solicitudes/json-zip", json={"archivos": []}).status_code == 422
 
 
+class TestExcelZip:
+    """El Excel de la selección, uno por solicitud, el mismo que va adjunto al correo."""
+
+    def test_trae_un_excel_por_solicitud_y_el_de_diagnofruit_lleva_su_hoja(self, zip_simulado):
+        from openpyxl import load_workbook
+        from tests.test_hoja_informe import DFN, LISTAS
+        from app import hoja_informe
+
+        zip_simulado.setattr(hoja_informe, "destinatarios", lambda datos: LISTAS)
+        zip_simulado.setattr(
+            toma_muestras, "_leer_solicitud_archivo",
+            lambda ruta: {**DFN, "numero_solicitud": ruta.rsplit("/", 1)[-1].split(".")[0]},
+        )
+        r = cliente.post("/api/toma-muestras/solicitudes/excel-zip", json={"archivos": ["OT-DIAG0012.xlsx", "OT-DIAG0013.xlsx", "OT-DIAG0012.xlsx"]})
+        assert _nombres_zip(r) == ["OT-DIAG0012.xlsx", "OT-DIAG0013.xlsx"]
+        assert "Solicitudes_Excel" in r.headers["content-disposition"]
+        libro = load_workbook(io.BytesIO(zipfile.ZipFile(io.BytesIO(r.content)).read("OT-DIAG0013.xlsx")))
+        assert "Para el informe" in libro.sheetnames
+        assert libro["Para el informe"]["B5"].value.startswith("OT-DIAG0013 // ")
+
+    def test_omite_las_ajenas_y_sin_ninguna_da_404(self, zip_simulado):
+        zip_simulado.setattr(toma_muestras, "_es_propia", lambda usuario, datos: False)
+        r = cliente.post("/api/toma-muestras/solicitudes/excel-zip", json={"archivos": ["OT-ALS0012.xlsx"]})
+        assert r.status_code == 404
+
+    def test_pide_al_menos_una(self, zip_simulado):
+        assert cliente.post("/api/toma-muestras/solicitudes/excel-zip", json={"archivos": []}).status_code == 422
+
+
 class TestInformesParaZip:
     def test_baja_los_que_tienen_pdf_y_salta_el_resto(self, entorno, monkeypatch):
         entorno["auditoria"] = [aud(archivo="a.xlsx", nro="2026-1885-PC"), aud(archivo="b.xlsx", nro="2026-1886-PC", id_=2, nombre="b.pdf")]

@@ -30,6 +30,7 @@ import {
   obtenerEnvioAutomatico,
   actualizarEnvioAutomatico,
   descargarPdfsZip,
+  descargarExcelZip,
   descargarJsonZip,
   descargarPdfSolicitud,
   abrirPdfSolicitud,
@@ -152,7 +153,7 @@ export function SolicitudesView() {
   const [guardando, setGuardando] = useState(false)
 
   const [avisoMasivo, setAvisoMasivo] = useState<string | null>(null)
-  const [trabajando, setTrabajando] = useState<null | 'pdf' | 'json' | 'excel' | 'enviar' | 'marcar'>(null)
+  const [trabajando, setTrabajando] = useState<null | 'pdf' | 'json' | 'excel' | 'excelzip' | 'enviar' | 'marcar'>(null)
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
   const [fechaEnvioCliente, setFechaEnvioCliente] = useState('')
 
@@ -305,7 +306,7 @@ export function SolicitudesView() {
     ? `Excel (${seleccionadas.size})`
     : hayFiltrosActivos ? `Excel filtrado (${visibles.length})` : 'Descargar Excel'
 
-  async function correr(tarea: 'pdf' | 'json' | 'excel' | 'enviar' | 'marcar', fn: () => Promise<void>) {
+  async function correr(tarea: 'pdf' | 'json' | 'excel' | 'excelzip' | 'enviar' | 'marcar', fn: () => Promise<void>) {
     setTrabajando(tarea)
     setAvisoMasivo(null)
     try {
@@ -626,6 +627,12 @@ export function SolicitudesView() {
                 <IconoExcel width={15} height={15} />
                 Excel
               </button>
+              {!esComercial && (
+                <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('excelzip', () => descargarExcelZip([...seleccionadas]))} title="Un Excel por solicitud, el mismo que va adjunto al correo del laboratorio">
+                  <IconoExcel width={15} height={15} />
+                  {trabajando === 'excelzip' ? 'Generando…' : 'Excel (.zip)'}
+                </button>
+              )}
               {!esComercial && (
                 <>
                 <button type="button" className={styles.botonSelPrincipal} disabled={trabajando !== null || pendientesSel.length === 0} onClick={() => void enviarPendientes()}>

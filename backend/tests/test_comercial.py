@@ -165,6 +165,7 @@ def test_solo_puede_pedir_las_rutas_de_lectura_de_la_lista_blanca():
             ("delete", "/api/toma-muestras/solicitudes/a.xlsx", None),
             ("post", "/api/toma-muestras/solicitudes/a.xlsx/enviar", {}),
             ("post", "/api/toma-muestras/solicitudes/json-zip", {}),
+            ("post", "/api/toma-muestras/solicitudes/excel-zip", {}),
             ("get", "/api/toma-muestras/solicitudes/a.xlsx", None),
             ("get", "/api/toma-muestras/config/campos", None),
             ("get", "/api/toma-muestras/solicitudes/a.xlsx/destinatarios", None),
