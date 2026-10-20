@@ -66,8 +66,9 @@ def test_hoja_con_las_tres_cosas(monkeypatch):
     assert ws["B6"].value == "a@cliente.cl; b@cliente.cl"
     assert ws["B7"].value == "cc@x.cl"
     assert ws["B8"].value is None or ws["B8"].value == ""
-    assert ws["C5"].value == "Hoja 1 → Predio/planta"
-    assert "OBSERVACIONES ADICIONALES" in ws["C4"].value
+    assert ws["C3"].value == "Ubicación"
+    assert ws["C5"].value == "Predio/planta"
+    assert [ws[f"C{n}"].value for n in (4, 6, 7, 8)] == ["OBSERVACIONES ADICIONALES"] * 4
 
 
 def test_el_excel_se_guarda_y_se_vuelve_a_leer(monkeypatch):
