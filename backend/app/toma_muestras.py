@@ -809,6 +809,11 @@ class PdfZipIn(BaseModel):
     archivos: list[str] = Field(min_length=1)
 
 
+class ExcelZipIn(PdfZipIn):
+    # «Excel zip + conversor»: las solicitudes antiguas bajan con el formato nuevo.
+    convertir: bool = False
+
+
 @router.post("/solicitudes/pdf-zip")
 def descargar_pdfs_zip(body: PdfZipIn, usuario: Usuario = Depends(usuario_actual)) -> Response:
     """Los PDF de varias solicitudes en un solo .zip. Respeta el acceso de cada
@@ -909,11 +914,12 @@ def descargar_json_zip(body: PdfZipIn, usuario: Usuario = Depends(usuario_actual
 
 
 @router.post("/solicitudes/excel-zip")
-def descargar_excel_zip(body: PdfZipIn, usuario: Usuario = Depends(usuario_actual)) -> Response:
+def descargar_excel_zip(body: ExcelZipIn, usuario: Usuario = Depends(usuario_actual)) -> Response:
     """El Excel de cada solicitud seleccionada en un solo .zip: el mismo que viaja adjunto
     al correo del laboratorio (`construir_workbook`, con su hoja «Para el informe» si la
     solicitud la lleva). Respeta el acceso de cada una (las que la sesión no puede ver se
-    omiten) y va en nombres únicos."""
+    omiten) y va en nombres únicos. Con `convertir`, las solicitudes antiguas de Diagnofruit
+    bajan con su hoja «Para el informe» (solo en la copia que se descarga)."""
     archivos = list(dict.fromkeys(body.archivos))
     if len(archivos) > MAX_PDF_ZIP:
         raise HTTPException(413, f"Son demasiadas solicitudes de una vez (máximo {MAX_PDF_ZIP}).")
@@ -931,6 +937,8 @@ def descargar_excel_zip(body: PdfZipIn, usuario: Usuario = Depends(usuario_actua
                 datos = _leer_solicitud_archivo(ruta)
             if not _es_propia(usuario, datos):
                 continue
+            if body.convertir:
+                datos = hoja_informe.convertir_al_formato_nuevo(datos)
             buf = io.BytesIO()
             construir_workbook(datos, analitos_config).save(buf)
             excels.append((f"{numero}.xlsx", buf.getvalue()))
@@ -942,7 +950,8 @@ def descargar_excel_zip(body: PdfZipIn, usuario: Usuario = Depends(usuario_actua
     with zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as z:
         for nombre_excel, contenido in excels:
             z.writestr(nombre_excel, contenido)
-    nombre = f"Solicitudes_Excel_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+    prefijo = "Solicitudes_Excel_conversor" if body.convertir else "Solicitudes_Excel"
+    nombre = f"{prefijo}_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
     return Response(
         content=salida.getvalue(),
         media_type="application/zip",
