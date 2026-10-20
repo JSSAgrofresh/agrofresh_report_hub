@@ -111,6 +111,7 @@ def agregar_hoja(wb: Workbook, datos: dict, listas: dict[str, list[str]] | None 
     ws.sheet_view.showGridLines = False
     ws.column_dimensions["A"].width = 30
     ws.column_dimensions["B"].width = 120
+    ws.column_dimensions["C"].width = 48
 
     titulo = Font(bold=True, size=13)
     rotulo = Font(bold=True)
@@ -124,20 +125,23 @@ def agregar_hoja(wb: Workbook, datos: dict, listas: dict[str, list[str]] | None 
         "Copie cada celda verde y péguela en «OBSERVACIONES ADICIONALES» de la hoja final del informe."
     )
 
-    filas: list[tuple[str, str]] = [
-        ("1 · Solicitud", cadena_solicitud(datos)),
-        ("2 · Sold To // Ship To", sold_to_ship_to(datos)),
-        ("3 · Para", "; ".join(listas.get("para", []))),
-        ("3 · CC", "; ".join(listas.get("cc", []))),
-        ("3 · CCO", "; ".join(listas.get("bcc", []))),
+    destino = "Hoja final → OBSERVACIONES ADICIONALES"
+    filas: list[tuple[str, str, str]] = [
+        ("1 · Solicitud", cadena_solicitud(datos), destino),
+        ("2 · Sold To // Ship To", sold_to_ship_to(datos), "Hoja 1 → Predio/planta"),
+        ("3 · Para", "; ".join(listas.get("para", [])), destino + " (bajo la cadena)"),
+        ("3 · CC", "; ".join(listas.get("cc", [])), destino + " (bajo la cadena)"),
+        ("3 · CCO", "; ".join(listas.get("bcc", [])), destino + " (bajo la cadena)"),
     ]
+    ws.cell(3, 3, "Dónde va en el informe").font = rotulo
     fila = 4
-    for etiqueta, texto in filas:
+    for etiqueta, texto, donde in filas:
         ws.cell(fila, 1, etiqueta).font = rotulo
         ws.cell(fila, 1).alignment = ajustar
         c = ws.cell(fila, 2, texto)
         c.fill = caja
         c.alignment = ajustar
+        ws.cell(fila, 3, donde).alignment = ajustar
         fila += 1
 
     fila += 1
