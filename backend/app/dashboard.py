@@ -19,9 +19,12 @@ import os
 import re
 from typing import Any
 
-from fastapi import APIRouter, Query
+import logging
+
+from fastapi import APIRouter, Depends, Query
 
 from . import config, funciones
+from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 
 def _cs(alias: str) -> tuple[str, dict[str, Any]]:
@@ -31,7 +34,62 @@ def _cs(alias: str) -> tuple[str, dict[str, Any]]:
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
+logger = logging.getLogger(__name__)
+
 _PATRON_CARPETA = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
+
+# Un envío fallado se sigue mostrando mientras no haya uno posterior que haya salido bien, hasta este tope de días.
+DIAS_ENVIOS_FALLIDOS = 14
+
+_SQL_FALLIDOS_SOLICITUD = f"""
+    SELECT DISTINCT ON (l.archivo)
+           l.creado_en, l.numero_solicitud AS referencia, l.laboratorio, l.usuario_nombre, l.error
+    FROM envio_solicitud_log l
+    WHERE NOT l.exitoso
+      AND l.creado_en > now() - INTERVAL '{DIAS_ENVIOS_FALLIDOS} days'
+      AND NOT EXISTS (SELECT 1 FROM envio_solicitud_log o
+                      WHERE o.archivo = l.archivo AND o.exitoso AND o.creado_en > l.creado_en)
+    ORDER BY l.archivo, l.creado_en DESC
+"""
+
+_SQL_FALLIDOS_INFORME = f"""
+    SELECT DISTINCT ON (COALESCE(l.archivo_solicitud, l.asunto, l.id::text))
+           l.creado_en, COALESCE(l.asunto, l.ship_to, 'Informe') AS referencia, l.laboratorio, l.usuario_nombre, l.error
+    FROM envio_informe_log l
+    WHERE NOT l.exitoso
+      AND l.creado_en > now() - INTERVAL '{DIAS_ENVIOS_FALLIDOS} days'
+      AND NOT EXISTS (SELECT 1 FROM envio_informe_log o
+                      WHERE o.exitoso AND o.creado_en > l.creado_en
+                        AND ((l.archivo_solicitud IS NOT NULL AND o.archivo_solicitud = l.archivo_solicitud)
+                             OR (l.archivo_solicitud IS NULL AND o.asunto = l.asunto)))
+    ORDER BY COALESCE(l.archivo_solicitud, l.asunto, l.id::text), l.creado_en DESC
+"""
+
+
+def envios_fallidos(limite: int = 8) -> list[dict[str, Any]]:
+    """Solicitudes e informes cuyo envío por correo falló y todavía no se pudo repetir con éxito (los más recientes
+    primero). Cada fuente se lee aparte y sin lanzar: si falta una tabla o una columna (migración sin correr), esa
+    fuente queda vacía y las demás siguen."""
+    salida: list[dict[str, Any]] = []
+    for tipo, sql in (("Solicitud", _SQL_FALLIDOS_SOLICITUD), ("Informe", _SQL_FALLIDOS_INFORME)):
+        try:
+            with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+                cur.execute(sql)
+                filas = cur.fetchall()
+        except Exception:
+            logger.warning("No se pudieron leer los envíos fallidos de %s.", tipo, exc_info=True)
+            continue
+        for f in filas:
+            salida.append({
+                "tipo": tipo,
+                "creado_en": f["creado_en"].isoformat() if f["creado_en"] else None,
+                "referencia": f["referencia"] or "—",
+                "laboratorio": f["laboratorio"] or "—",
+                "enviado_por": f["usuario_nombre"] or "—",
+                "error": (f["error"] or "Sin detalle")[:200],
+            })
+    salida.sort(key=lambda x: x["creado_en"] or "", reverse=True)
+    return salida[:limite]
 
 
 def _trace_recientes(limite: int) -> list[dict]:
@@ -61,8 +119,13 @@ def _trace_recientes(limite: int) -> list[dict]:
     return resultado
 
 
+def envios_fallidos_para(usuario: Usuario) -> list[dict[str, Any]]:
+    """Solo el administrador general ve los envíos fallidos (el widget es suyo); el resto, lista vacía."""
+    return envios_fallidos() if usuario.tipoAcceso == "admin_general" else []
+
+
 @router.get("/actividad")
-def actividad() -> dict[str, Any]:
+def actividad(usuario: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
     """Snapshot analítico del sistema para el panel del administrador."""
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         # Usuarios con sesión activa en la última hora (uno por cuenta).
@@ -172,6 +235,8 @@ def actividad() -> dict[str, Any]:
         "trace_recientes": _trace_recientes(5),
         "solicitudes_recientes": solicitudes_recientes,
         "verificaciones_recientes": verificaciones_recientes,
+        # Solo para el administrador general (el widget «Envíos que fallaron» es suyo): el resto no los recibe.
+        "envios_fallidos": envios_fallidos_para(usuario),
         "metricas": {
             "total_solicitudes": total_solicitudes,
             "esta_semana": esta_semana,

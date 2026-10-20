@@ -80,12 +80,23 @@ export interface MetricasDashboard {
   verificacion_hoy: boolean
 }
 
+/** Un envío por correo (solicitud o informe) que falló y no se pudo repetir con éxito. Solo lo recibe el administrador general. */
+export interface EnvioFallido {
+  tipo: 'Solicitud' | 'Informe'
+  creado_en: string | null
+  referencia: string
+  laboratorio: string
+  enviado_por: string
+  error: string
+}
+
 export interface ActividadDashboard {
   usuarios_activos: UsuarioActivo[]
   converter_recientes: ConverterReciente[]
   trace_recientes: TraceReciente[]
   solicitudes_recientes: SolicitudReciente[]
   verificaciones_recientes: VerificacionReciente[]
+  envios_fallidos?: EnvioFallido[]
   metricas: MetricasDashboard
 }
 

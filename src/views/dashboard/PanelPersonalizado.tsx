@@ -15,7 +15,7 @@ import { ReporteView } from '@/views/modules/reports/ReporteView'
 import { AccesosCliente } from './AccesosCliente'
 import { InformesPorMes, SaludoCliente, UltimoInformeCliente } from './graficosCliente'
 import { CarruselNovedades, GraficoActividad, GraficoBarras, GraficoDona, HeroBienvenida, TiraVerificaciones, TituloArea } from './graficos'
-import { ConverterPanel, KpiCard, SolicitudesPanel, TracePanel, UsuariosActivos, VerificacionesPanel } from './bloquesAdmin'
+import { ConverterPanel, EnviosFallidosPanel, KpiCard, SolicitudesPanel, TracePanel, UsuariosActivos, VerificacionesPanel } from './bloquesAdmin'
 import styles from './PanelPersonalizado.module.css'
 
 /** Los widgets de cliente que leen `/reportes/panel-cliente`. */
@@ -75,6 +75,8 @@ function dibujar(id: string, c: Contexto): ReactNode {
       return <TracePanel items={c.actividad?.trace_recientes ?? []} cargando={c.cargando} />
     case 'panel:solicitudes':
       return <SolicitudesPanel items={c.actividad?.solicitudes_recientes ?? []} cargando={c.cargando} />
+    case 'panel:envios_fallidos':
+      return <EnviosFallidosPanel items={c.actividad?.envios_fallidos ?? []} cargando={c.cargando} />
     case 'panel:verificaciones':
       return <VerificacionesPanel items={c.actividad?.verificaciones_recientes ?? []} cargando={c.cargando} />
     case 'cliente:encabezado': {

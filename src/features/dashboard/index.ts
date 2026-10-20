@@ -9,7 +9,7 @@ export { AreaHero } from './components/AreaHero'
 export { fondoParaEspecie } from './lib/fondoEspecie'
 export type {
   ResumenDashboard, CargaReciente, AlertaProceso, ResumenArea, ReporteEnviado,
-  ActividadDashboard, UsuarioActivo, ConverterReciente, TraceReciente,
+  ActividadDashboard, UsuarioActivo, ConverterReciente, EnvioFallido, TraceReciente,
   SolicitudReciente, VerificacionReciente, MetricasDashboard,
   SeriesDashboard, PuntoDia, PuntoNombre, PanelCliente,
   ActividadArea, SolicitudArea, VerificacionArea, MetricasArea,

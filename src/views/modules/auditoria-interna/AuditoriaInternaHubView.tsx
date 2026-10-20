@@ -1,15 +1,15 @@
 import { Header } from '@/components/layout/Header'
 import { useAuth } from '@/features/auth'
 import { OpcionCard } from '@/components/ui/OpcionCard'
-import { IconAuditoria, IconCarpeta, IconTrendingUp } from '@/components/ui/icons'
+import { IconAuditoria, IconCarpeta, IconCorreo, IconTrendingUp } from '@/components/ui/icons'
 import { ROUTES } from '@/constants/routes'
 import tarjetas from '@/components/ui/OpcionCard.module.css'
 
-/** Puerta de entrada del Panel de control interno. Un solo permiso para las tres
+/** Puerta de entrada del Panel de control interno. Un solo permiso para todas las
  * tarjetas, igual que el hub de AgroFresh Lab. */
 export function AuditoriaInternaHubView() {
   const { user } = useAuth()
-  // Las carpetas de auditoría no se acotan a plantas todavía: un comercial no las ve.
+  // Las carpetas de auditoría y los envíos a clientes no se acotan a plantas todavía: un comercial no los ve.
   const veCarpetas = user?.tipoAcceso !== 'comercial'
   return (
     <div>
@@ -31,6 +31,14 @@ export function AuditoriaInternaHubView() {
             titulo="Carpetas de auditoría"
             descripcion="Los PDF de los informes, ordenados por laboratorio y ship to."
             ruta={ROUTES.auditoriaInternaCarpetas}
+          />
+        )}
+        {veCarpetas && (
+          <OpcionCard
+            icono={<IconCorreo />}
+            titulo="Informes enviados a clientes"
+            descripcion="Qué informe salió, a quién, cuándo y quién lo envió, y si fue real, de prueba o marcado a mano."
+            ruta={ROUTES.auditoriaInternaEnvios}
           />
         )}
         <OpcionCard

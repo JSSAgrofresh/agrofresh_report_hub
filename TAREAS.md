@@ -19,9 +19,15 @@ Plan: martes 20 → 10, 9, 4; miércoles 21 → 8, 7. Los puntos 5 y 6 esperan a
 | 4 | Preguntar a Daniel los límites de FSMA (E. coli y coliformes) | Pendiente |
 | 5 | Dona cumple / no cumple de E. coli y coliformes | Espera al 4 |
 | 6 | Diagnofruit: rangos por especie, fruta y agua (hoy solo Carozos) | Espera al laboratorio |
-| 7 | Auditoría de informes enviados a clientes (Panel de control interno) | Pendiente |
+| 7 | Auditoría de informes enviados a clientes (Panel de control interno) | Hecha (20-10): cuarta pantalla del hub, con envíos reales, de prueba y marcados a mano |
 | 8 | Dashboard one page para clientes (la primera maqueta no gustó) | Pendiente, falta definir la dirección |
-| 9 | Tipo de análisis en la columna A de los Excel | Hecha (20-10) en la BD de Report y «Descargar con muestra»; la matriz masiva de Solicitudes no la lleva. Falta que la pruebes |
-| 10 | Cuentas de comerciales con alcance solo a sus plantas (técnicos fuera) | Hecha (20-10, migración 0063); falta que la pruebes |
+| 9 | Tipo de análisis en la columna A de los Excel | Hecha (20-10, PR 514) en la BD de Report y «Descargar con muestra»; la matriz masiva de Solicitudes no la lleva |
+| 10 | Cuentas de comerciales con alcance solo a sus plantas (técnicos fuera) | Hecha (20-10, migración 0063); las cuentas ya se ven en Usuarios |
 
-| 11 | Dar más módulos a los comerciales, acotados a sus plantas | Hecha (20-10): Panel de control interno (sin Carpetas de auditoría), Solicitudes e informes y los informes Accu-Tab (Postventa); se cerró un hueco donde un comercial veía los Accu-Tab de todos. El resto de los módulos no se acota a plantas (internos o de escritura). Falta que la pruebes con una cuenta real |
+| 11 | Dar más módulos a los comerciales, acotados a sus plantas | Hecha (20-10): Panel de control interno (sin Carpetas de auditoría), Solicitudes e informes y los informes Accu-Tab (Postventa); se cerró un hueco donde un comercial veía los Accu-Tab de todos. El resto de los módulos no se acota a plantas (internos o de escritura) |
+
+| 12 | Arreglar el envío de correo por Gmail (clave sin espacios y respaldo por Resend) | Hecha (20-10, PR 512 y 513); falta confirmar en el servidor |
+| 13 | Revocar y regenerar las claves de Gmail y Resend que se vieron en el chat | Pendiente |
+| 14 | Avisar cuando falla el envío automático | Hecha (20-10): widget «Envíos que fallaron» en el Panel de inicio, solo para el administrador general |
+| 15 | Determinar la causa exacta del corte con Google (log de envíos, otra red, aviso de Cloud) | Pendiente |
+| 16 | Correr en el servidor la migración 0047 (la 0063 y las cuentas de comerciales ya están) | Pendiente |
