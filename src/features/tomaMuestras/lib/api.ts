@@ -279,6 +279,14 @@ export async function descargarJsonZip(archivos: string[]) {
   guardarBlob(blob, nombre ?? 'Solicitudes_JSON.zip')
 }
 
+/** El Excel de cada solicitud en un solo .zip (el mismo que va adjunto al correo del laboratorio). */
+export async function descargarExcelZip(archivos: string[]) {
+  const { blob, nombre } = await httpClient.postArchivoConNombre('/toma-muestras/solicitudes/excel-zip', {
+    archivos,
+  })
+  guardarBlob(blob, nombre ?? 'Solicitudes_Excel.zip')
+}
+
 // --- Configuración: campos generales -------------------------------------
 
 export function listarCamposConfig() {

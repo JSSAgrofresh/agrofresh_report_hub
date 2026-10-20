@@ -55,6 +55,7 @@ export {
   obtenerEnvioAutomatico,
   actualizarEnvioAutomatico,
   descargarPdfsZip,
+  descargarExcelZip,
   descargarJsonZip,
   listarCategoriasAnaliticas,
   crearCategoriaAnalitica,

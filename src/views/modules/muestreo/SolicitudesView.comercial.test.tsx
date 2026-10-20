@@ -72,6 +72,7 @@ describe('Solicitudes e informes para un comercial (solo lectura)', () => {
     expect(await screen.findByRole('button', { name: /PDF \(\.zip\)/ })).toBeTruthy()
     expect(screen.getAllByRole('button', { name: /Excel/ }).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /JSON \(\.zip\)/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Excel \(\.zip\)/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /Enviar pendientes/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /Marcar enviado al cliente/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /Quitar envío/ })).toBeNull()
