@@ -59,3 +59,26 @@ export interface ContenidoCarpeta {
   carpetas: CarpetaEntrada[]
   archivos: ArchivoEntrada[]
 }
+
+/** Un informe que salió hacia un cliente: enviado por «Envío de informes» (real o de prueba) o marcado a mano. */
+export type TipoEnvio = 'real' | 'prueba' | 'manual'
+
+export interface EnvioInforme {
+  id: string
+  fecha: string | null
+  tipo: TipoEnvio
+  exitoso: boolean
+  error: string | null
+  solicitud: string | null
+  informe: string | null
+  laboratorio: string | null
+  sold_to: string | null
+  ship_to: string | null
+  especie: string | null
+  /** a quién se pidió enviar (en prueba, a un cliente aunque no salga a él) */
+  pedido_a: string[]
+  /** a quién salió de verdad (Para, CC y CCO) */
+  enviado_a: string[]
+  enviado_por: string | null
+  origen: string
+}

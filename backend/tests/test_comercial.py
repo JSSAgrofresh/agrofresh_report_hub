@@ -171,6 +171,7 @@ def test_solo_puede_pedir_las_rutas_de_lectura_de_la_lista_blanca():
             ("post", "/api/toma-muestras/solicitudes/a.xlsx/quitar-informe", {}),
             ("post", "/api/auditoria-interna/informes", None),
             ("get", "/api/auditoria-interna/carpetas", None),
+            ("get", "/api/auditoria-interna/envios-informes", None),
             ("delete", "/api/auditoria-interna/carpetas/archivo", None),
             ("put", "/api/auditoria-interna/plazos", {}),
             ("patch", "/api/auditoria-interna/informes/1/fecha-envio", {}),

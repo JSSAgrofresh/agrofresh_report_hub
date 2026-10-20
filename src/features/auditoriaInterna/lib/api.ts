@@ -1,11 +1,16 @@
 import { httpClient } from '@/services/http/client'
 import type { Definicion, ReglasEntrega, RespuestaHitos } from './entrega'
-import type { ContenidoCarpeta, SolicitudAuditoria } from './tipos'
+import type { ContenidoCarpeta, EnvioInforme, SolicitudAuditoria } from './tipos'
 
 const BASE = '/auditoria-interna'
 
 export function listarSolicitudesAuditoria() {
   return httpClient.get<SolicitudAuditoria[]>(`${BASE}/solicitudes`)
+}
+
+/** Auditoría de los informes que salieron hacia los clientes (reales, de prueba y marcados a mano). */
+export function listarEnviosInformes() {
+  return httpClient.get<EnvioInforme[]>(`${BASE}/envios-informes`)
 }
 
 /** Las fechas de cada hito de cada solicitud real (lead time y cumplimiento). */
