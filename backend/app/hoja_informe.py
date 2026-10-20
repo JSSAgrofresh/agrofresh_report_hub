@@ -111,8 +111,6 @@ def agregar_hoja(wb: Workbook, datos: dict, listas: dict[str, list[str]] | None 
     ws.sheet_view.showGridLines = False
     ws.column_dimensions["A"].width = 30
     ws.column_dimensions["B"].width = 120
-    ws.column_dimensions["C"].width = 48
-
     titulo = Font(bold=True, size=13)
     rotulo = Font(bold=True)
     caja = PatternFill("solid", fgColor="E8F3DC")
@@ -121,28 +119,31 @@ def agregar_hoja(wb: Workbook, datos: dict, listas: dict[str, list[str]] | None 
 
     ws["A1"] = "Para el informe"
     ws["A1"].font = titulo
-    ws["A2"] = (
-        "Copie cada celda verde y péguela en «OBSERVACIONES ADICIONALES» de la hoja final del informe."
-    )
+    ws["A2"] = "Copie cada celda verde y péguela donde dice el título de su bloque (hoja 1 o hoja final del informe)."
 
-    destino = "OBSERVACIONES ADICIONALES"
-    filas: list[tuple[str, str, str]] = [
-        ("1 · Solicitud", cadena_solicitud(datos), destino),
-        ("2 · Sold To // Ship To", sold_to_ship_to(datos), "Predio/planta"),
-        ("3 · Para", "; ".join(listas.get("para", [])), destino),
-        ("3 · CC", "; ".join(listas.get("cc", [])), destino),
-        ("3 · CCO", "; ".join(listas.get("bcc", [])), destino),
-    ]
-    ws.cell(3, 3, "Ubicación").font = rotulo
-    fila = 4
-    for etiqueta, texto, donde in filas:
-        ws.cell(fila, 1, etiqueta).font = rotulo
-        ws.cell(fila, 1).alignment = ajustar
-        c = ws.cell(fila, 2, texto)
-        c.fill = caja
-        c.alignment = ajustar
-        ws.cell(fila, 3, donde).alignment = ajustar
-        fila += 1
+    def bloque(fila: int, titulo_bloque: str, filas: list[tuple[str, str]]) -> int:
+        """Un título gris y, debajo, una celda verde por dato; devuelve la fila siguiente libre."""
+        for col in (1, 2):
+            ws.cell(fila, col).fill = cabecera
+        ws.cell(fila, 1, titulo_bloque).font = rotulo
+        for etiqueta, texto in filas:
+            fila += 1
+            ws.cell(fila, 1, etiqueta).font = rotulo
+            ws.cell(fila, 1).alignment = ajustar
+            c = ws.cell(fila, 2, texto)
+            c.fill = caja
+            c.alignment = ajustar
+        return fila + 1
+
+    fila = bloque(4, "A · Pegar en «Predio/planta» (hoja 1 del informe)", [
+        ("Sold To // Ship To", sold_to_ship_to(datos)),
+    ])
+    fila = bloque(fila + 1, "B · Pegar en «OBSERVACIONES ADICIONALES» (hoja final del informe)", [
+        ("Solicitud", cadena_solicitud(datos)),
+        ("Para", "; ".join(listas.get("para", []))),
+        ("CC", "; ".join(listas.get("cc", []))),
+        ("CCO", "; ".join(listas.get("bcc", []))),
+    ])
 
     fila += 1
     ws.cell(fila, 1, "Posición de cada dato de la cadena").font = rotulo
