@@ -6,6 +6,7 @@ import {
   claveFiltro,
   clientesDeSucursal,
   contarFiltrosActivos,
+  cumpleFiltros,
   especiesDeVariedad,
   opcionesDe,
 } from './filtros'
@@ -152,5 +153,22 @@ describe('filtro Tipo de servicio', () => {
     const f = { ...FILTROS_VACIOS, servicio: 'linea de proceso' }
     expect(aplicarFiltros([o('Línea de proceso'), o('Actimist'), o(null)], f)).toHaveLength(1)
     expect(contarFiltrosActivos(f)).toBe(1)
+  })
+})
+
+describe('Ingrediente Activo solo de residuos', () => {
+  const fila = (laboratorio: string, ingrediente: string) =>
+    obs({ solicitudId: 1, laboratorio, ingrediente })
+  it('los resultados de ALS y Diagnofruit ignoran el filtro de ingredientes', () => {
+    const f = { ...FILTROS_VACIOS, ingredientes: ['FDL'] }
+    expect(cumpleFiltros(fila('Agrofresh', 'IMZ'), f)).toBe(false)
+    expect(cumpleFiltros(fila('Agrofresh', 'FDL'), f)).toBe(true)
+    expect(cumpleFiltros(fila('ALS (Corthon)', 'ECOLI'), f)).toBe(true)
+    expect(cumpleFiltros(fila('Diagnofruit', 'LEV'), f)).toBe(true)
+  })
+  it('con ALS elegido como laboratorio, el filtro sí aplica a sus analitos', () => {
+    const f = { ...FILTROS_VACIOS, laboratorio: 'ALS (Corthon)', ingredientes: ['ECOLI'] }
+    expect(cumpleFiltros(fila('ALS (Corthon)', 'COLT'), f)).toBe(false)
+    expect(cumpleFiltros(fila('ALS (Corthon)', 'ECOLI'), f)).toBe(true)
   })
 })

@@ -97,13 +97,24 @@ function valorDe(o: Observacion, campo: CampoTexto | 'semana' | 'mes' | 'ingredi
 
 const CAMPOS_TEXTO: CampoTexto[] = ['cliente', 'planta', 'tipoAplicacion', 'tipoServicio', 'servicio', 'nroLinea', 'laboratorio', 'crop', 'variedad']
 
+function esLabTabular(laboratorio: string | null | undefined): boolean {
+  const base = laboratorioBase(laboratorio)
+  return base === 'diagnofruit' || base === 'als'
+}
+
+/** «Ingrediente Activo» es de los residuos: los analitos de ALS (FSMA) y Diagnofruit (fitopatología) no se mezclan con
+ * ellos. Un resultado de esos dos laboratorios ignora el filtro, salvo que el laboratorio elegido sea justamente ese. */
+export function ingredienteAplica(o: Observacion, f: Pick<FiltrosReporte, 'laboratorio'>): boolean {
+  return !esLabTabular(o.laboratorio) || esLabTabular(f.laboratorio)
+}
+
 /** ¿La observación pasa todos los filtros? `excepto` deja fuera uno: es lo que
  * se usa para armar las opciones de ese mismo desplegable (ver `opcionesDe`). */
 export function cumpleFiltros(o: Observacion, f: FiltrosReporte, excepto?: CampoFiltro): boolean {
   for (const campo of CAMPOS_TEXTO) {
     if (campo !== excepto && f[campo] && !mismoValor(valorDe(o, campo), f[campo])) return false
   }
-  if (excepto !== 'ingredientes' && f.ingredientes.length > 0) {
+  if (excepto !== 'ingredientes' && f.ingredientes.length > 0 && ingredienteAplica(o, f)) {
     if (o.ingrediente == null || !f.ingredientes.some((i) => mismoValor(i, o.ingrediente))) return false
   }
   // Semana/Mes y el calendario son excluyentes en la pantalla: solo uno de los
