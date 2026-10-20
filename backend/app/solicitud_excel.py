@@ -269,6 +269,12 @@ def construir_workbook(datos: dict, analitos: list[dict] | None = None) -> Workb
 
     # Hoja oculta con el JSON completo de la solicitud -permite reconstruir
     # la solicitud (listar/ver/eliminar) sin parsear la hoja visible.
+    # Diagnofruit: hoja con lo que debe pegar en las observaciones de su informe.
+    # Solo las solicitudes creadas con la marca; las anteriores salen como siempre.
+    from . import hoja_informe
+    if hoja_informe.lleva_hoja(datos):
+        hoja_informe.agregar_hoja(wb, datos)
+
     ws_datos = wb.create_sheet("_data")
     ws_datos.sheet_state = "hidden"
     ws_datos["A1"] = json.dumps(datos, ensure_ascii=False)
