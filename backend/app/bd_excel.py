@@ -25,7 +25,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from .mapeo import ALIAS_CODIGO_CATALOGO
-from .columnas_base import CAMPOS_FUNGICIDAS, GENERALES_BASE, a_fecha, partir_recepcion
+from .columnas_base import CAMPOS_FUNGICIDAS, GENERALES_BASE, a_fecha, partir_recepcion, tipo_de_analisis
 from .solicitud_excel import (
     _BORDE_COMPLETO,
     VERDE_CLARO,
@@ -372,6 +372,8 @@ def construir_workbook_bd(
         con_posicion=lambda f, p: {**f, "posicion_muestreo": p},
     )
     completar_solicitados(filas, analitos)
+    for f in filas:
+        f["tipo_analisis"] = tipo_de_analisis(f.get("laboratorio"))
     wb = Workbook()
     ws = wb.active
     ws.title = "BD"

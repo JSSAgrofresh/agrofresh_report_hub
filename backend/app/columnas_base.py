@@ -22,6 +22,7 @@ from .solicitud_excel import CAMPOS_GENERALES_ETIQUETAS
 
 # (clave de la fila, encabezado)
 GENERALES_BASE: list[tuple[str, str]] = [
+    ("tipo_analisis", "Tipo de Análisis"),
     ("nro_informe", "N° Informe"),
     ("nro_solicitud", "N° Solicitud"),
     ("codigo_muestra", "N° Muestra"),
@@ -63,6 +64,25 @@ GENERALES_BASE: list[tuple[str, str]] = [
     ("lista_cco", "Lista de Distribución (CCO)"),
     ("observacion", "Observación"),
 ]
+
+# Los tres tipos de análisis de Report (los mismos bloques de la pantalla), según el laboratorio.
+TIPO_ANALISIS_RESIDUOS = "Análisis de residuos"
+TIPO_ANALISIS_FSMA = "Análisis FSMA"
+TIPO_ANALISIS_FITOPATOLOGIA = "Análisis de fitopatología"
+
+
+def tipo_de_analisis(laboratorio: Any) -> str:
+    """«Análisis de residuos» (AgroFresh, Quiteca y los demás), «Análisis FSMA» (ALS) o «Análisis de
+    fitopatología» (Diagnofruit). Sin laboratorio, vacío. Es la columna A de las dos bases."""
+    base = str(laboratorio or "").split("(")[0].strip().lower()
+    if not base:
+        return ""
+    if base == "als":
+        return TIPO_ANALISIS_FSMA
+    if base == "diagnofruit":
+        return TIPO_ANALISIS_FITOPATOLOGIA
+    return TIPO_ANALISIS_RESIDUOS
+
 
 # Columnas del grupo de fungicidas que no son un analito: (clave de la fila, encabezado).
 # Van tras los analitos en las dos descargas.

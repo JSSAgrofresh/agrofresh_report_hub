@@ -113,7 +113,16 @@ def test_sin_resultados_solo_quedan_las_columnas_generales():
     wb = bd_excel.construir_workbook_bd([_fila(laboratorio="ALS")], ANALITOS_DEFECTO)
     columnas, bandas = _encabezados(wb)
     assert bandas == ["GENERAL"]
-    assert columnas[:2] == ["N° Informe", "N° Solicitud"]
+    assert columnas[:3] == ["Tipo de Análisis", "N° Informe", "N° Solicitud"]
+
+
+def test_la_columna_a_dice_el_tipo_de_analisis_segun_el_laboratorio():
+    filas = [_fila(laboratorio="Quiteca"), _fila(laboratorio="ALS (Corthon)"), _fila(laboratorio="Diagnofruit"), _fila(laboratorio="")]
+    ws = bd_excel.construir_workbook_bd(filas, ANALITOS_DEFECTO).active
+    assert ws.cell(row=2, column=1).value == "Tipo de Análisis"
+    assert [ws.cell(row=r, column=1).value for r in range(3, 7)] == [
+        "Análisis de residuos", "Análisis FSMA", "Análisis de fitopatología", None,
+    ]
 
 
 def test_la_hoja_de_aviso_solo_existe_en_una_descarga_filtrada():
