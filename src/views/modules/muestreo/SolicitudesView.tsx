@@ -153,7 +153,7 @@ export function SolicitudesView() {
   const [guardando, setGuardando] = useState(false)
 
   const [avisoMasivo, setAvisoMasivo] = useState<string | null>(null)
-  const [trabajando, setTrabajando] = useState<null | 'pdf' | 'json' | 'excel' | 'excelzip' | 'enviar' | 'marcar'>(null)
+  const [trabajando, setTrabajando] = useState<null | 'pdf' | 'json' | 'excel' | 'excelzip' | 'excelconv' | 'enviar' | 'marcar'>(null)
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
   const [fechaEnvioCliente, setFechaEnvioCliente] = useState('')
 
@@ -306,7 +306,7 @@ export function SolicitudesView() {
     ? `Excel (${seleccionadas.size})`
     : hayFiltrosActivos ? `Excel filtrado (${visibles.length})` : 'Descargar Excel'
 
-  async function correr(tarea: 'pdf' | 'json' | 'excel' | 'excelzip' | 'enviar' | 'marcar', fn: () => Promise<void>) {
+  async function correr(tarea: 'pdf' | 'json' | 'excel' | 'excelzip' | 'excelconv' | 'enviar' | 'marcar', fn: () => Promise<void>) {
     setTrabajando(tarea)
     setAvisoMasivo(null)
     try {
@@ -631,6 +631,12 @@ export function SolicitudesView() {
                 <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('excelzip', () => descargarExcelZip([...seleccionadas]))} title="Un Excel por solicitud, el mismo que va adjunto al correo del laboratorio">
                   <IconoExcel width={15} height={15} />
                   {trabajando === 'excelzip' ? 'Generando…' : 'Excel (.zip)'}
+                </button>
+              )}
+              {!esComercial && (
+                <button type="button" className={styles.botonSel} disabled={trabajando !== null} onClick={() => void correr('excelconv', () => descargarExcelZip([...seleccionadas], true))} title="Baja los Excel originales y los pasa al formato nuevo (hoja «Para el informe»). Lo ya enviado no se modifica">
+                  <IconoExcel width={15} height={15} />
+                  {trabajando === 'excelconv' ? 'Convirtiendo…' : 'Excel zip + conversor'}
                 </button>
               )}
               {!esComercial && (

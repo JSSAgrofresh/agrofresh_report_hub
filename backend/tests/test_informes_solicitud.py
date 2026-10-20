@@ -275,6 +275,33 @@ class TestExcelZip:
         assert "Para el informe" in libro.sheetnames
         assert libro["Para el informe"]["B5"].value.startswith("OT-DIAG0013 // ")
 
+    def test_el_conversor_pasa_las_antiguas_al_formato_nuevo_sin_tocar_lo_guardado(self, zip_simulado):
+        from openpyxl import load_workbook
+        from tests.test_hoja_informe import DFN, LISTAS
+        from app import hoja_informe
+
+        antigua = {k: v for k, v in DFN.items() if k != "hoja_informe_v1"}
+        zip_simulado.setattr(hoja_informe, "destinatarios", lambda datos: LISTAS)
+        zip_simulado.setattr(toma_muestras, "_leer_solicitud_archivo", lambda ruta: dict(antigua))
+
+        def hojas(r):
+            return load_workbook(io.BytesIO(zipfile.ZipFile(io.BytesIO(r.content)).read("OT-DIAG0001.xlsx"))).sheetnames
+
+        sin = cliente.post("/api/toma-muestras/solicitudes/excel-zip", json={"archivos": ["OT-DIAG0001.xlsx"]})
+        con = cliente.post("/api/toma-muestras/solicitudes/excel-zip", json={"archivos": ["OT-DIAG0001.xlsx"], "convertir": True})
+        assert "Para el informe" not in hojas(sin)
+        assert "Para el informe" in hojas(con)
+        assert "conversor" in con.headers["content-disposition"]
+        assert "hoja_informe_v1" not in antigua  # la solicitud guardada sigue sin la marca
+
+    def test_el_conversor_no_toca_a_otros_laboratorios(self, zip_simulado):
+        from openpyxl import load_workbook
+
+        zip_simulado.setattr(toma_muestras, "_leer_solicitud_archivo", lambda ruta: {"numero_solicitud": "OT-ALS0001", "laboratorio": "ALS"})
+        r = cliente.post("/api/toma-muestras/solicitudes/excel-zip", json={"archivos": ["OT-ALS0001.xlsx"], "convertir": True})
+        libro = load_workbook(io.BytesIO(zipfile.ZipFile(io.BytesIO(r.content)).read("OT-ALS0001.xlsx")))
+        assert "Para el informe" not in libro.sheetnames
+
     def test_omite_las_ajenas_y_sin_ninguna_da_404(self, zip_simulado):
         zip_simulado.setattr(toma_muestras, "_es_propia", lambda usuario, datos: False)
         r = cliente.post("/api/toma-muestras/solicitudes/excel-zip", json={"archivos": ["OT-ALS0012.xlsx"]})

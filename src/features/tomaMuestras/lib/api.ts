@@ -279,10 +279,12 @@ export async function descargarJsonZip(archivos: string[]) {
   guardarBlob(blob, nombre ?? 'Solicitudes_JSON.zip')
 }
 
-/** El Excel de cada solicitud en un solo .zip (el mismo que va adjunto al correo del laboratorio). */
-export async function descargarExcelZip(archivos: string[]) {
+/** El Excel de cada solicitud en un solo .zip (el mismo que va adjunto al correo del laboratorio).
+ * Con `convertir`, las solicitudes antiguas de Diagnofruit bajan con el formato nuevo. */
+export async function descargarExcelZip(archivos: string[], convertir = false) {
   const { blob, nombre } = await httpClient.postArchivoConNombre('/toma-muestras/solicitudes/excel-zip', {
     archivos,
+    convertir,
   })
   guardarBlob(blob, nombre ?? 'Solicitudes_Excel.zip')
 }
