@@ -61,13 +61,13 @@ def test_hoja_con_las_tres_cosas(monkeypatch):
     assert hoja_informe.NOMBRE_HOJA in wb.sheetnames
     assert wb.sheetnames[-1] == "_data"
     ws = wb[hoja_informe.NOMBRE_HOJA]
-    assert "Predio/planta" in ws["A4"].value
-    assert ws["B5"].value == "COMERCIALIZADORA GARATE HERMANOS LI // GREENEX PLANTA CODEGUA"
-    assert "OBSERVACIONES ADICIONALES" in ws["A7"].value
-    assert ws["B8"].value == hoja_informe.cadena_solicitud(DFN)
-    assert ws["B9"].value == "a@cliente.cl; b@cliente.cl"
-    assert ws["B10"].value == "cc@x.cl"
-    assert ws["B11"].value is None or ws["B11"].value == ""
+    assert "Predio/planta" in ws["A1"].value
+    assert ws["B2"].value == "COMERCIALIZADORA GARATE HERMANOS LI // GREENEX PLANTA CODEGUA"
+    assert "OBSERVACIONES ADICIONALES" in ws["A4"].value
+    assert ws["B5"].value == hoja_informe.cadena_solicitud(DFN)
+    assert ws["B6"].value == "a@cliente.cl; b@cliente.cl"
+    assert ws["B7"].value == "cc@x.cl"
+    assert ws["B8"].value is None or ws["B8"].value == ""
 
 
 def test_el_excel_se_guarda_y_se_vuelve_a_leer(monkeypatch):

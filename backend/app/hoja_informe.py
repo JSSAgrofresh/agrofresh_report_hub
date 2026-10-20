@@ -111,15 +111,10 @@ def agregar_hoja(wb: Workbook, datos: dict, listas: dict[str, list[str]] | None 
     ws.sheet_view.showGridLines = False
     ws.column_dimensions["A"].width = 30
     ws.column_dimensions["B"].width = 120
-    titulo = Font(bold=True, size=13)
     rotulo = Font(bold=True)
     caja = PatternFill("solid", fgColor="E8F3DC")
     cabecera = PatternFill("solid", fgColor="D9D9D9")
     ajustar = Alignment(wrap_text=True, vertical="top")
-
-    ws["A1"] = "Para el informe"
-    ws["A1"].font = titulo
-    ws["A2"] = "Copie cada celda verde y péguela donde dice el título de su bloque (hoja 1 o hoja final del informe)."
 
     def bloque(fila: int, titulo_bloque: str, filas: list[tuple[str, str]]) -> int:
         """Un título gris y, debajo, una celda verde por dato; devuelve la fila siguiente libre."""
@@ -135,7 +130,7 @@ def agregar_hoja(wb: Workbook, datos: dict, listas: dict[str, list[str]] | None 
             c.alignment = ajustar
         return fila + 1
 
-    fila = bloque(4, "A · Pegar en «Predio/planta» (hoja 1 del informe)", [
+    fila = bloque(1, "A · Pegar en «Predio/planta» (hoja 1 del informe)", [
         ("Sold To // Ship To", sold_to_ship_to(datos)),
     ])
     fila = bloque(fila + 1, "B · Pegar en «OBSERVACIONES ADICIONALES» (hoja final del informe)", [
