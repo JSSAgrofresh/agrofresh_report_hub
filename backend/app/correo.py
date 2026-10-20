@@ -214,7 +214,9 @@ def _enviar_resend(
     if not config.RESEND_API_KEY:
         raise HTTPException(503, "El servidor de correo no esta configurado.")
 
-    payload: dict = {"from": RESEND_FROM, "to": [destinatario], "subject": asunto, "html": cuerpo_html}
+    # `destinatario` puede traer varias direcciones separadas por coma (el «Para» de una solicitud).
+    para = [d.strip() for d in destinatario.split(",") if d.strip()]
+    payload: dict = {"from": RESEND_FROM, "to": para, "subject": asunto, "html": cuerpo_html}
     if cc:
         payload["cc"] = cc
     if bcc:
@@ -290,8 +292,16 @@ def enviar(
         raise HTTPException(400, "No hay destinatarios para enviar el correo.")
 
     if config.GMAIL_APP_PASSWORD:
-        _enviar_smtp(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos, cc, bcc, imagenes_inline)
-        mensaje_id = None
+        try:
+            _enviar_smtp(destinatario, asunto, cuerpo_html, cuerpo_texto, adjuntos, cc, bcc, imagenes_inline)
+            mensaje_id = None
+        except HTTPException as exc:
+            # Gmail falló (clave revocada, cuenta restringida, red cortada): si hay Resend, el correo sale por ahí
+            # en vez de quedar sin enviar. Sin Resend, el error de Gmail se conserva tal cual.
+            if not config.RESEND_API_KEY:
+                raise
+            logger.warning("Gmail SMTP falló (%s); el correo se envía por Resend.", exc.detail)
+            mensaje_id = _enviar_resend(destinatario, asunto, cuerpo_html, cc, bcc, adjuntos)
     elif config.RESEND_API_KEY:
         logger.warning("Gmail OAuth no configurado; usando Resend como fallback.")
         mensaje_id = _enviar_resend(destinatario, asunto, cuerpo_html, cc, bcc, adjuntos)
