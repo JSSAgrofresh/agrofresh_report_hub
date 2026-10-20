@@ -39,6 +39,7 @@ export {
   contarFiltrosActivos,
   mismoValor,
   opcionesDe,
+  ingredienteAplica,
 } from './lib/filtros'
 export type { FiltrosReporte, OpcionFiltro, CampoTexto } from './lib/filtros'
 export { generarDatosSimulados } from './lib/simulacion'

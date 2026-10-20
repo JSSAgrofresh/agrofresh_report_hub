@@ -82,6 +82,7 @@ import {
   obtenerDatosReporte,
   obtenerVistaReport,
   opcionesDe,
+  ingredienteAplica,
   pedidoBd,
   informeFueraDeRango,
   proximaHoraProgramada,
@@ -422,7 +423,9 @@ export function ReporteView({
       campo: Parameters<typeof opcionesDe>[1],
       config: Parameters<typeof opcionesDe>[2] = {},
     ): OpcionFiltro[] => {
-      const base = aplicarFiltros(observaciones, filtros, campo)
+      let base = aplicarFiltros(observaciones, filtros, campo)
+      // Ingrediente Activo ofrece solo los analitos de residuos (los de ALS y Diagnofruit tienen sus propios bloques).
+      if (campo === 'ingredientes') base = base.filter((o) => ingredienteAplica(o, filtros))
       if (!filtrosMultiples) return opcionesDe(base, campo, config)
       const propio = (CAMPOS_MULTI as readonly string[]).includes(campo) ? (campo as CampoMulti) : undefined
       return opcionesDe(base.filter((o) => cumpleMulti(o, multi, propio)), campo, config)
