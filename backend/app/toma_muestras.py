@@ -43,7 +43,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
-from . import actividad, auth, config, config_store, correo, indice_solicitudes, json_als, mail_templates, permisos_funciones, r2, seguridad
+from . import actividad, auth, config, config_store, correo, hoja_informe, indice_solicitudes, json_als, mail_templates, permisos_funciones, r2, seguridad
 from .auth import Usuario, planta_permitida, usuario_actual
 from .db import conexion, cursor_dict
 from .notificaciones import notificar
@@ -1040,6 +1040,8 @@ def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends
         datos[MARCA_RESPALDO_RYD] = True
     if datos_actuales.get(json_als.MARCA_JSON_ALS):
         datos[json_als.MARCA_JSON_ALS] = True
+    if datos_actuales.get(hoja_informe.MARCA_HOJA_INFORME):
+        datos[hoja_informe.MARCA_HOJA_INFORME] = True
     _aplicar_regla_mixto(datos)
     if datos_actuales.get("es_prueba"):
         # Editar no le quita la marca: sigue siendo de prueba.
@@ -1089,6 +1091,7 @@ def _guardar_solicitud_nueva(
         respaldo_ryd=True,
     )
     _marcar_json_als(datos)
+    hoja_informe.marcar(datos)
     _aplicar_regla_mixto(datos)
     if es_prueba:
         datos["es_prueba"] = True
@@ -1628,6 +1631,7 @@ def crear_reanalisis(
         motivo_reanalisis=motivo,
     )
     _marcar_json_als(datos)
+    hoja_informe.marcar(datos)
     _aplicar_regla_mixto(datos)
 
     # 4. Generar y guardar el Excel
@@ -2401,7 +2405,7 @@ def _iso_a_ddmmyyyy(valor: object) -> object:
 
 _CAMPOS_INTERNOS = {
     "archivo", "enviada", "enviado_en", "creado_en", "sin_lista_distribucion", "pdf_solo_analisis",
-    "mixto_desde_2", "respaldo_ryd", json_als.MARCA_JSON_ALS,
+    "mixto_desde_2", "respaldo_ryd", json_als.MARCA_JSON_ALS, hoja_informe.MARCA_HOJA_INFORME,
 }
 
 
