@@ -32,7 +32,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from . import informes_storage
+from . import auditoria_envios, informes_storage
 from . import r2_auditoria as r2a
 from .auth import Usuario, planta_permitida, solo_admin_general, usuario_actual
 from .db import conexion, cursor_dict
@@ -450,6 +450,13 @@ def listar_solicitudes(usuario: Usuario = Depends(puede_auditoria)) -> list[dict
 
 class FechaEnvioIn(BaseModel):
     fecha_envio: str | None = None
+
+
+@router.get("/envios-informes")
+def envios_de_informes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
+    """Auditoría de los informes que salieron hacia los clientes: reales, de prueba y marcados a mano. Un comercial no
+    entra (no está en la lista blanca de `auth.RUTAS_COMERCIAL`)."""
+    return auditoria_envios.listar_envios()
 
 
 @router.patch("/informes/{informe_id}/fecha-envio")

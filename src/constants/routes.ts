@@ -20,6 +20,7 @@ export const ROUTES = {
   auditoriaInternaSolicitudes: '/modulos/auditoria-interna/solicitudes',
   auditoriaInternaCarpetas: '/modulos/auditoria-interna/carpetas',
   auditoriaInternaLimiteControl: '/modulos/auditoria-interna/limite-control',
+  auditoriaInternaEnvios: '/modulos/auditoria-interna/envios-informes',
   tomaMuestras: '/modulos/toma-muestras',
   tomaMuestrasNueva: '/modulos/toma-muestras/nueva',
   tomaMuestrasNuevaPrueba: '/modulos/toma-muestras/prueba/nueva',

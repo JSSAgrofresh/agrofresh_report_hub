@@ -20,6 +20,7 @@ import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { StorageView } from '@/views/modules/storage/StorageView'
 import { AuditoriaInternaHubView } from '@/views/modules/auditoria-interna/AuditoriaInternaHubView'
 import { SolicitudesInformesView } from '@/views/modules/auditoria-interna/SolicitudesInformesView'
+import { EnviosInformesView } from '@/views/modules/auditoria-interna/EnviosInformesView'
 import { CarpetasView } from '@/views/modules/auditoria-interna/CarpetasView'
 import { LimiteControlView } from '@/views/modules/auditoria-interna/LimiteControlView'
 import { AdministracionGeneralView } from '@/views/admin/AdministracionGeneralView'
@@ -108,9 +109,12 @@ export const router = createBrowserRouter([
               { path: ROUTES.auditoriaInterna, element: <AuditoriaInternaHubView /> },
               { path: ROUTES.auditoriaInternaSolicitudes, element: <SolicitudesInformesView /> },
               {
-                // Las carpetas de auditoría no se acotan a plantas todavía: un comercial no las abre.
+                // Las carpetas de auditoría y los envíos a clientes no se acotan a plantas todavía: un comercial no los abre.
                 element: <RequireNoComercial redirigirA={ROUTES.auditoriaInterna} />,
-                children: [{ path: ROUTES.auditoriaInternaCarpetas, element: <CarpetasView /> }],
+                children: [
+                  { path: ROUTES.auditoriaInternaCarpetas, element: <CarpetasView /> },
+                  { path: ROUTES.auditoriaInternaEnvios, element: <EnviosInformesView /> },
+                ],
               },
               { path: ROUTES.auditoriaInternaLimiteControl, element: <LimiteControlView /> },
             ],

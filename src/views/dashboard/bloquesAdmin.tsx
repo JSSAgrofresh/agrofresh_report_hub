@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
-import type { ConverterReciente, SolicitudReciente, TraceReciente, UsuarioActivo, VerificacionReciente } from '@/features/dashboard'
+import type { ConverterReciente, EnvioFallido, SolicitudReciente, TraceReciente, UsuarioActivo, VerificacionReciente } from '@/features/dashboard'
 import { Sparkline } from './graficos'
 import styles from './AdminGeneralDashboardView.module.css'
 
@@ -175,6 +175,32 @@ export function SolicitudesPanel({ items, cargando }: { items: SolicitudReciente
                 <span className={styles.solicitudEspecie}>{s.especie}{s.variedad !== '—' ? ` · ${s.variedad}` : ''}</span>
                 <span className={styles.solicitudCliente}>{s.cliente} — {s.planta}</span>
               </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  )
+}
+
+export function EnviosFallidosPanel({ items, cargando }: { items: EnvioFallido[]; cargando: boolean }) {
+  return (
+    <Card className={styles.bloque}>
+      <h3 className={styles.bloqueHeader}>
+        <span className={styles.modTag} data-mod="lab">Correo</span>
+        Envíos que fallaron
+      </h3>
+      {cargando ? <SkeletonBloque /> : items.length === 0 ? (
+        <p className={styles.vacio}>Todo salió bien: no hay envíos pendientes por fallo.</p>
+      ) : (
+        <ul className={styles.feedLista}>
+          {items.map((e, i) => (
+            <li key={`${e.tipo}-${e.referencia}-${i}`} className={styles.feedFila}>
+              <span className={styles.feedDetalle}>
+                <strong>{e.referencia}</strong> · {e.tipo} · {e.laboratorio}
+                <span className={styles.envioError}>{e.error}</span>
+              </span>
+              <span className={styles.feedFecha}>{tiempoRelativo(e.creado_en)} · {e.enviado_por}</span>
             </li>
           ))}
         </ul>
