@@ -600,7 +600,7 @@ export function ReporteView({
   const laboratoriosGraficados = useMemo(() => laboratoriosDeInformes(informes), [informes])
   const tituloPrincipal = filtrosMultiples
     ? tituloLimites(vistaControl ? 'Límites de control' : 'Límites residuales', multi, filtros.ingredientes, nombreMes)
-    : tituloGrafico(filtros, !clienteFijo, vistaControl ? 'Límites de control' : 'Residuales')
+    : tituloGrafico(filtros, !clienteFijo, vistaControl ? 'Límites de control' : 'Residuales', analitosGraficados)
 
   useEffect(() => {
     if (!mainRef.current) return
