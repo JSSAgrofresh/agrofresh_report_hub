@@ -26,6 +26,12 @@ function obs(p: Partial<Observacion>): Observacion {
 }
 
 describe('tituloGrafico', () => {
+  it('con los analitos graficados, nombra solo los que se dibujan', () => {
+    const f = { ...FILTROS_VACIOS, ingredientes: ['IMZ', 'LEV', 'PEN', 'PYR', 'TBZ', 'ECOLI'] }
+    expect(tituloGrafico(f, true, 'Residuales', ['IMZ', 'PYR', 'TBZ'])).toBe('Residuales - IMZ, PYR, TBZ')
+    expect(tituloGrafico(f)).toBe('Residuales - IMZ, LEV, PEN, PYR, TBZ, ECOLI')
+  })
+
   it('sin filtros es solo «Residuales»', () => {
     expect(tituloGrafico(FILTROS_VACIOS)).toBe('Residuales')
   })
