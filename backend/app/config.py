@@ -28,7 +28,9 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 # Gmail SMTP — proveedor activo de correo saliente
 # Genera la App Password en: myaccount.google.com/apppasswords
 # Requiere verificación en 2 pasos activa en la cuenta Gmail.
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
+# Google la muestra en grupos de 4 con espacios («abcd efgh ijkl mnop»); con los espacios Gmail corta la conexión,
+# así que se leen sin ellos aunque se haya copiado tal cual.
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
 GMAIL_ACCOUNT = os.getenv("GMAIL_ACCOUNT", "agrofreshreporthub@gmail.com")
 
 # Gmail OAuth2 — para leer correos entrantes (AccuTab mail ingest)
