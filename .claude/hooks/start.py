@@ -8,6 +8,7 @@ import re
 import sys
 
 URL = "https://claude.ai/artifact/A1q3w9WBh2Zc3sStYRuYDE"
+URL_TAREAS = "https://claude.ai/artifact/Jz3ax512MjvfhNgVpzkv1D"
 
 try:
     prompt = str(json.load(sys.stdin).get("prompt", ""))
@@ -23,7 +24,9 @@ instruccion = (
     f"1) lee el Artifact {URL} con Artifact action:'read' y anota el data-n de <div class=\"version\"> "
     "(la «Actualización #N») y los pasos manuales del servidor que trae la tarjeta (pull, migración, reinicio, script); "
     f"2) ábrelo con Artifact action:'open' sobre ese mismo url (no lo republiques ni crees otro); "
-    "3) responde en español con UNA sola línea: el enlace, «Actualización #N» y qué pasos del servidor quedan "
-    "(o «nada que hacer en el servidor»). No empieces ninguna otra tarea."
+    f"3) abre también con Artifact action:'open' el Artifact «Tareas Report Hub» {URL_TAREAS} y lee con ArtifactData "
+    "(colección 'tareas' y config/lote) cuántas tareas pendientes hay y cuál toca primero; "
+    "4) responde en español con DOS líneas como máximo: (a) el enlace del despliegue, «Actualización #N» y qué pasos del servidor quedan "
+    "(o «nada que hacer en el servidor»); (b) el enlace de Tareas Report Hub, cuántas pendientes y la que toca primero. No empieces ninguna otra tarea."
 )
 print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": instruccion}}))

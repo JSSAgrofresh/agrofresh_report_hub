@@ -9,8 +9,10 @@
 >    y los pasos del servidor que trae (los `<li class="manual">` y los bloques `<h3>` de comandos: pull, migración,
 >    reinicio, script).
 > 2. Ábrelo con `Artifact` `action: "open"` sobre ese mismo `url` (así queda a la vista en el panel).
-> 3. Responde en español con **UNA línea**: el enlace, «Actualización #N» y qué pasos manuales del servidor quedan
->    (o «nada que hacer en el servidor»). Nada más.
+> 3. Abre también el Artifact **«Tareas Report Hub»** (**https://claude.ai/artifact/Jz3ax512MjvfhNgVpzkv1D**, `Artifact` `action: "open"`) y lee con `ArtifactData`
+>    (colección `tareas`, `config/lote`) cuántas tareas siguen pendientes y cuál toca primero.
+> 4. Responde en español con **DOS líneas como máximo**: (a) el enlace del despliegue, «Actualización #N» y qué pasos manuales
+>    del servidor quedan (o «nada que hacer en el servidor»); (b) el enlace de Tareas, las pendientes y la que toca primero. Nada más.
 > **No lo republiques, no crees otro artifact y no empieces nada más** hasta que el usuario pida algo.
 > Lo mismo hace el comando `.claude/commands/start.md`. Si `open` falla, igual da el enlace y el número.
 
