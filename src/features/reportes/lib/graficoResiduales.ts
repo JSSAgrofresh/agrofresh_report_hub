@@ -5,14 +5,17 @@ import type { Observacion } from './tipos'
 /** Encabezado del gráfico principal: parte siempre con «Residuales» (o el prefijo dado) y suma lo
  * que esté filtrado, en este orden: Sold To + Ship To, servicio, especie,
  * variedad e ingredientes. Los ingredientes solo salen si se acotaron: con
- * todos puestos (lo normal) no aportan nada al título. */
-export function tituloGrafico(f: FiltrosReporte, mostrarCliente = true, prefijo = 'Residuales'): string {
+ * todos puestos (lo normal) no aportan nada al título. Con `graficados` solo salen
+ * los ingredientes que de verdad se dibujan: uno marcado que no tiene datos en este
+ * gráfico (p. ej. un patógeno o un analito de ALS) no se nombra. */
+export function tituloGrafico(f: FiltrosReporte, mostrarCliente = true, prefijo = 'Residuales', graficados?: string[]): string {
+  const ingredientes = graficados ? f.ingredientes.filter((i) => graficados.includes(i)) : f.ingredientes
   const partes = [
     (mostrarCliente ? [f.cliente, f.planta] : []).filter(Boolean).join(' '),
     f.tipoServicio,
     f.crop,
     f.variedad,
-    f.ingredientes.join(', '),
+    ingredientes.join(', '),
   ].filter((p) => p.trim() !== '')
   return [prefijo, ...partes].join(' - ')
 }
