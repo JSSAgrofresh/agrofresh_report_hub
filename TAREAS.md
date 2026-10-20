@@ -14,14 +14,14 @@ Plan: martes 20 → 10, 9, 4; miércoles 21 → 8, 7. Los puntos 5 y 6 esperan a
 | N° | Tarea | Estado |
 |---|---|---|
 | 1 | Fecha en cada punto del gráfico de residuales | Hecha (19-10, PR 495) |
-| 2 | Una curva por laboratorio para el mismo analito | Hecha (19-10, PR 495) |
+| 2 | Una curva por laboratorio para el mismo analito | Hecha (19-10, PR 495); 20-10: el filtro Ingrediente Activo solo ofrece analitos de residuos (PR 511) |
 | 3 | Quitar el contador entre paréntesis de los filtros de Report | Hecha (19-10, PR 495) |
 | 4 | Preguntar a Daniel los límites de FSMA (E. coli y coliformes) | Pendiente |
 | 5 | Dona cumple / no cumple de E. coli y coliformes | Espera al 4 |
 | 6 | Diagnofruit: rangos por especie, fruta y agua (hoy solo Carozos) | Espera al laboratorio |
 | 7 | Auditoría de informes enviados a clientes (Panel de control interno) | Pendiente |
 | 8 | Dashboard one page para clientes (la primera maqueta no gustó) | Pendiente, falta definir la dirección |
-| 9 | Tipo de análisis en la columna A de los Excel | Pendiente, falta confirmar si vale para todos |
+| 9 | Tipo de análisis en la columna A de los Excel | Hecha (20-10) en la BD de Report y «Descargar con muestra»; la matriz masiva de Solicitudes no la lleva. Falta que la pruebes |
 | 10 | Cuentas de comerciales con alcance solo a sus plantas (técnicos fuera) | Hecha (20-10, migración 0063); falta que la pruebes |
 
-| 11 | Dar más módulos a los comerciales, acotados a sus plantas | En curso (20-10): hechos Panel de control interno (sin Carpetas de auditoría) y Solicitudes e informes; falta el resto |
+| 11 | Dar más módulos a los comerciales, acotados a sus plantas | Hecha (20-10): Panel de control interno (sin Carpetas de auditoría), Solicitudes e informes y los informes Accu-Tab (Postventa); se cerró un hueco donde un comercial veía los Accu-Tab de todos. El resto de los módulos no se acota a plantas (internos o de escritura). Falta que la pruebes con una cuenta real |

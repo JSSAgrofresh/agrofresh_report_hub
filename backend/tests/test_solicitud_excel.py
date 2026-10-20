@@ -224,7 +224,8 @@ def test_excel_con_muestra_usa_formato_de_la_base_solo_con_analitos_agrofresh():
     valores = dict(zip(headers, [ws.cell(row=3, column=c).value for c in range(1, ws.max_column + 1)]))
 
     # Mismas columnas generales que la BD de Report (ver columnas_base.py).
-    assert headers[:3] == ["N° Informe", "N° Solicitud", "N° Muestra"]
+    assert headers[:4] == ["Tipo de Análisis", "N° Informe", "N° Solicitud", "N° Muestra"]
+    assert valores["Tipo de Análisis"] == "Análisis de residuos"
     assert valores["N° Muestra"] == "AGF0001"
     assert valores["Fecha Recepción"] == datetime.datetime(2026, 9, 25)
     assert valores["Hora Recepción"] == "16:57"

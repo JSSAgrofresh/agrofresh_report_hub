@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app import informes_cliente, permisos_funciones as pf, reportes, usuarios
+from app import informes_cliente, permisos_funciones as pf, postventa, reportes, usuarios
 from app.auth import Usuario, solo_escribiente, solo_interno, usuario_actual
 from app.informes_storage import carpeta_planta
 from app.main import app
@@ -27,7 +27,7 @@ def test_el_comercial_solo_puede_llevar_los_modulos_que_ya_se_acotan_a_sus_plant
     area, mods, reps = pf.normalizar_cuenta(
         "comercial", "cromatografia", ["reports", "converter", "auditoria_interna", "storage", "toma_muestras", "toma_reanalisis", "agrofresh_lab"], ["postventa"],
     )
-    assert area is None and mods == ["reports", "storage", "auditoria_interna", "toma_muestras"] and reps == ["laboratorio"]
+    assert area is None and mods == ["reports", "storage", "auditoria_interna", "toma_muestras"] and reps == ["postventa"]
     _, mods, reps = pf.normalizar_cuenta("comercial", None, ["storage"], None)
     assert mods == ["storage"] and reps == []
 
@@ -258,3 +258,53 @@ def test_un_informe_de_otra_planta_o_sin_solicitud_no_se_baja(monkeypatch):
         with pytest.raises(HTTPException) as e:
             auditoria_interna.descargar_informe(1, _com(PLANTAS))
         assert e.value.status_code == 404
+
+
+# ── Informes Accu-Tab (Post Venta) del comercial ────────────────────────
+
+def _carga(carpeta, cliente, planta):
+    return {"carpeta": carpeta, "cliente": cliente, "planta": planta, "tiene_pdf": True}
+
+
+CARGAS = [
+    _carga("a", "DOLE", "DOLE LONTUE"),
+    _carga("b", "DOLE", "DOLE CODEGUA"),
+    _carga("c", "VERFRUT", None),
+    _carga("d", "AGRICOM", "AGRICOM RENGO"),
+]
+
+
+def test_un_comercial_solo_ve_los_informes_accutab_de_sus_plantas(monkeypatch):
+    monkeypatch.setattr(postventa, "listar_registros", lambda: CARGAS)
+    vistos = [r["carpeta"] for r in postventa._informes_de(_com(PLANTAS), None, None)]
+    assert vistos == ["a", "c"]  # DOLE LONTUE y todo VERFRUT; nada de DOLE CODEGUA ni de AGRICOM
+
+
+def test_lo_que_pida_por_parametro_solo_acota_mas_en_accutab(monkeypatch):
+    monkeypatch.setattr(postventa, "listar_registros", lambda: CARGAS)
+    assert postventa._informes_de(_com(PLANTAS), "AGRICOM", None) == []
+    assert [r["carpeta"] for r in postventa._informes_de(_com(PLANTAS), "VERFRUT", None)] == ["c"]
+
+
+def test_un_comercial_sin_plantas_no_ve_ningun_informe_accutab(monkeypatch):
+    monkeypatch.setattr(postventa, "listar_registros", lambda: CARGAS)
+    assert postventa._informes_de(_com([]), None, None) == []
+    assert postventa._informes_de(_com(None), None, None) == []
+
+
+def test_el_pdf_accutab_de_otra_planta_da_404(monkeypatch):
+    monkeypatch.setattr(postventa, "listar_registros", lambda: CARGAS)
+    with pytest.raises(HTTPException) as e:
+        postventa.pdf_del_cliente("d", _com(PLANTAS))
+    assert e.value.status_code == 404
+
+
+def test_el_personal_interno_sigue_viendo_todo_en_accutab(monkeypatch):
+    monkeypatch.setattr(postventa, "listar_registros", lambda: CARGAS)
+    interno = Usuario(id="1", email="a@agrofresh.com", nombre="A", tipoAcceso="admin_general")
+    assert len(postventa._informes_de(interno, None, None)) == 4
+
+
+def test_el_comercial_puede_llevar_postventa_junto_al_report():
+    _, mods, reps = pf.normalizar_cuenta("comercial", None, ["reports"], ["laboratorio", "postventa"])
+    assert mods == ["reports"] and reps == ["laboratorio", "postventa"]

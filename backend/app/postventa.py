@@ -31,7 +31,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import accutab_informe, config
-from .auth import Usuario, alcance_de_datos, usuario_actual
+from .auth import Usuario, alcance_de_datos, planta_permitida, usuario_actual
 
 router = APIRouter(prefix="/api/postventa", tags=["postventa"])
 # Lo que ve una cuenta de CLIENTE: solo los informes con PDF de su Sold To (y su
@@ -355,6 +355,9 @@ def _informes_de(usuario: Usuario, cliente: str | None, planta: str | None) -> l
         if cliente and _clave(r["cliente"]) != _clave(cliente):
             continue
         if planta and _clave(r["planta"]) != _clave(planta):
+            continue
+        # Un comercial solo ve los informes de las plantas que se le asignaron (lo que pida por parámetro solo acota más).
+        if usuario.tipoAcceso == "comercial" and not planta_permitida(usuario, r["cliente"], r["planta"]):
             continue
         salida.append(r)
     return salida

@@ -1472,6 +1472,7 @@ def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingRespons
             hora_recepcion=fila.hora_recepcion,
             listas=listas,
         )
+        datos["tipo_analisis"] = columnas_base.tipo_de_analisis(datos.get("laboratorio") or "AGROFRESH")
         datos["analitos_solicitados"] = fila.analitos_solicitados
         # Dosis, Tipo Aplicación, Gasto y datos del ensayo viajan en `campos`
         # con su etiqueta humana, igual que en campos_laboratorio.
@@ -1486,6 +1487,7 @@ def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingRespons
             "peso_extraido": f["peso_extraido"],
             "fecha_recepcion": columnas_base.a_fecha(f.get("fecha_ingreso")),
             "hora_recepcion": f.get("hora_ingreso") or None,
+            "tipo_analisis": columnas_base.TIPO_ANALISIS_RESIDUOS,
             "analitos_solicitados": [],
             "campos_laboratorio": {},
         }

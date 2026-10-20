@@ -39,8 +39,8 @@ const CLIENTE_VE: { id: keyof VistaCliente; nombre: string; descripcion: string 
   { id: 'accutab', nombre: 'Informes Accu-Tab', descripcion: 'Informes de los equipos Accu-Tab (Post Venta) en su panel.' },
 ]
 
-/** Lo único que hoy se puede dar a un comercial: lo que la API acota a sus plantas (Report, Storage, Panel de control interno y Solicitudes e informes). */
-const DISPONIBLE_PARA_COMERCIAL = new Set(['reports', 'reporte:laboratorio', 'storage', 'auditoria_interna', 'toma_muestras'])
+/** Lo único que hoy se puede dar a un comercial: lo que la API acota a sus plantas (Report de laboratorio, sus informes Accu-Tab, Storage, Panel de control interno y Solicitudes e informes). */
+const DISPONIBLE_PARA_COMERCIAL = new Set(['reports', 'reporte:laboratorio', 'reporte:postventa', 'storage', 'auditoria_interna', 'toma_muestras'])
 const sinPlantasAcotadas = (p: Permiso): string | null =>
   DISPONIBLE_PARA_COMERCIAL.has(p.id) ? null : 'Falta acotarlo a las plantas del comercial.'
 

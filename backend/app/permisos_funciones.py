@@ -86,12 +86,14 @@ def normalizar_cuenta(
             raise HTTPException(400, "Elige qué ve el cliente: Report, Storage y/o informes Accu-Tab.")
         return ("postventa" if reps == ["postventa"] and not mods else "cromatografia"), mods, reps
     if tipo == "comercial":
-        # Solo lectura y solo lo que el administrador le marque entre Report y Storage (los únicos módulos cuya API
-        # acota a sus plantas). Sin área: no pertenece a una.
+        # Solo lectura y solo lo que el administrador le marque entre Report (laboratorio y/o informes Accu-Tab), Storage, Panel de
+        # control interno y Solicitudes e informes (lo único cuya API acota a sus plantas). Sin área: no pertenece a una.
         mods = [m for m in MODULOS_COMERCIAL if m in (modulos or [])]
         if not mods:
             raise HTTPException(400, "Elige qué abre el comercial: Report, Storage, Panel de control interno y/o Solicitudes e informes.")
-        return None, mods, (["laboratorio"] if "reports" in mods else [])
+        # Con Report puede llevar el de laboratorio y/o los informes Accu-Tab (`postventa`); sin elegir, el de laboratorio.
+        reps_com = [r for r in ("laboratorio", "postventa") if r in (reportes or [])]
+        return None, mods, ((reps_com or ["laboratorio"]) if "reports" in mods else [])
     if tipo == "admin_general":
         return None, None, None
     # Lo que no existe (ids viejos) se descarta; lo reservado al administrador general nunca está en la lista.

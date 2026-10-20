@@ -176,6 +176,17 @@ describe('UsuarioForm: cuenta de comercial', () => {
     expect(screen.getAllByText('aún no disponible').length).toBeGreaterThan(5)
   })
 
+  it('puede llevar los informes Accu-Tab (Postventa) junto al Report de laboratorio', () => {
+    const postventa = () => screen.getByRole('checkbox', { name: /^Postventa/ }) as HTMLInputElement
+    const onGuardar = guardar(comercial, () => {
+      expect(postventa().disabled).toBe(false)
+      fireEvent.click(postventa())
+    })
+    const datos = onGuardar.mock.calls[0][0] as Usuario
+    expect(datos.modulos).toContain('reports')
+    expect(datos.reportes).toEqual(['laboratorio', 'postventa'])
+  })
+
   it('«Marcar todo» nunca marca lo que no está disponible para un comercial', () => {
     const onGuardar = guardar({ ...comercial, modulos: [], reportes: [] }, () => {
       fireEvent.click(within(screen.getByRole('region', { name: 'Data Core' })).getByRole('button', { name: 'Marcar todo' }))
