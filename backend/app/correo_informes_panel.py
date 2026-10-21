@@ -103,13 +103,13 @@ def estado_de_solicitud(ot: str, cargadas: set[str], correo: dict[str, list[dict
 
 
 def _incidentes(correo: list[dict], desde: datetime) -> dict[str, int]:
-    """Incidentes de envío: UNO por informe (laboratorio y N°), no uno por correo. Un informe que Quiteca mandó mal,
+    """Incidentes de envío (`por_informar`: los abiertos de los que nadie ha avisado al laboratorio): UNO por informe (laboratorio y N°), no uno por correo. Un informe que Quiteca mandó mal,
     reenvió y volvió a mandar es la misma historia. Está *abierto* si su última copia sigue en rojo y nadie lo resolvió;
     si una copia posterior llegó bien (o se resolvió a mano) queda *cerrado*, pero sigue contando como incidente del período."""
     grupos: dict[tuple[str, str], list[dict]] = {}
     for f in sorted((x for x in correo if x.get("llegada_en")), key=lambda x: x["llegada_en"]):
         grupos.setdefault((f.get("laboratorio") or "", (f.get("nro_informe") or f"#{f['id']}").strip().upper()), []).append(f)
-    incidentes = abiertos = 0
+    incidentes = abiertos = por_informar = 0
     for filas in grupos.values():
         rojas = [f for f in filas if f["estado"] == "rojo"]
         if not rojas:
@@ -119,7 +119,11 @@ def _incidentes(correo: list[dict], desde: datetime) -> dict[str, int]:
         if abierto or rojas[0]["llegada_en"] >= desde:
             incidentes += 1
             abiertos += 1 if abierto else 0
-    return {"incidentes": incidentes, "incidentes_abiertos": abiertos, "incidentes_cerrados": incidentes - abiertos}
+            # «Ya se informó» vale para el informe entero: no se vuelve a alertar si el laboratorio lo sigue mandando mal.
+            if abierto and not any(f.get("informado_en") for f in filas):
+                por_informar += 1
+    return {"incidentes": incidentes, "incidentes_abiertos": abiertos, "incidentes_cerrados": incidentes - abiertos,
+            "incidentes_por_informar": por_informar}
 
 
 def armar_panel(
@@ -228,7 +232,7 @@ def leer_panel(dias: int = 60, ahora: datetime | None = None) -> dict[str, Any]:
         )
         correo = _filas(
             cur,
-            "SELECT id, ot, nro_informe, laboratorio, llegada_en, decision, estado, resuelto_en FROM correo_informe",
+            "SELECT id, ot, nro_informe, laboratorio, llegada_en, decision, estado, resuelto_en, informado_en FROM correo_informe",
         )
         cargadas = {
             str(f["ot"]).strip().upper()

@@ -28,7 +28,7 @@ describe('ResumenIngreso', () => {
     expect(cifra('Esperando informe')).toContain('2')
     expect(cifra('Pendientes de aceptar')).toContain('4')
     expect(cifra('Incidentes de envío')).toContain('3')
-    expect(screen.getByText('2 abiertos · 1 corregido')).toBeInTheDocument()
+    expect(screen.getByText('2 abiertos · 1 corregido · 1 por informar')).toBeInTheDocument()
     expect(cifra('Aceptados')).toContain('3')
     expect(cifra('Rechazados')).toContain('1')
     expect(cifra('Informes recibidos')).toContain('9')

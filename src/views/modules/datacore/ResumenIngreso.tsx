@@ -45,7 +45,7 @@ export function ResumenIngreso({ panel, error, onIr }: Props) {
         <Indicador
           etiqueta="Incidentes de envío"
           valor={nf.format(k.incidentes)}
-          sub={`${k.incidentes_abiertos} ${k.incidentes_abiertos === 1 ? 'abierto' : 'abiertos'} · ${k.incidentes_cerrados} ${k.incidentes_cerrados === 1 ? 'corregido' : 'corregidos'}`}
+          sub={`${k.incidentes_abiertos} ${k.incidentes_abiertos === 1 ? 'abierto' : 'abiertos'} · ${k.incidentes_cerrados} ${k.incidentes_cerrados === 1 ? 'corregido' : 'corregidos'}${k.incidentes_por_informar > 0 ? ` · ${k.incidentes_por_informar} por informar` : ''}`}
           alerta={k.incidentes_abiertos > 0}
           onClick={() => onIr({ pestana: 'informes', estado: 'rojo' })}
         />
