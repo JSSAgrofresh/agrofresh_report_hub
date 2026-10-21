@@ -8,6 +8,7 @@ programada correrá cada 5 minutos cuando se encienda la revisión automática.
 Uso (PowerShell, dentro de backend):
     .venv\\Scripts\\python.exe scripts\\recibir_informes_correo.py
     .venv\\Scripts\\python.exe scripts\\recibir_informes_correo.py --dias 30
+    .venv\\Scripts\\python.exe scripts\\recibir_informes_correo.py --forzar   (si quedó una revisión colgada)
 """
 from __future__ import annotations
 
@@ -25,9 +26,10 @@ from app import correo_informes  # noqa: E402
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dias", type=int, default=correo_informes.DIAS_POR_DEFECTO, help="Cuántos días atrás mirar (14)")
+    ap.add_argument("--forzar", action="store_true", help="Da por cerrada una revisión que quedó colgada y empieza otra")
     args = ap.parse_args(argv)
     try:
-        r = correo_informes.sondear(args.dias, disparado_por="script")
+        r = correo_informes.sondear(args.dias, disparado_por="script", forzar=args.forzar)
     except Exception as exc:  # noqa: BLE001
         print(f"No se pudo revisar el correo: {exc}")
         return 2
