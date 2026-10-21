@@ -13,7 +13,7 @@ from typing import Any
 
 from psycopg2.extras import Json
 
-from . import correcciones, homogenizar_converter, ingest, quiteca_lectura, servicios
+from . import agrofresh_lectura, correcciones, homogenizar_converter, ingest, quiteca_lectura, servicios
 from .db import conexion, cursor_dict
 
 logger = logging.getLogger(__name__)
@@ -44,11 +44,24 @@ def _aprendido(campos: dict[str, str]) -> tuple[dict[str, str], list[dict[str, s
     return final, aplicadas
 
 
-def preparar(contenido: bytes, correcciones_manuales: dict[str, str] | None = None) -> dict[str, Any]:
-    """Lee el PDF y lo revisa contra Listados. No escribe nada."""
+LABORATORIOS_CARGABLES = ("Quiteca", "AgroFresh")
+
+
+def leer(contenido: bytes, laboratorio: str) -> dict[str, Any]:
+    """El mismo lector del Converter, según el laboratorio. Lanza ValueError si ese formato aún no se carga solo."""
     from .informe_lectura import texto_quiteca
 
-    lectura = quiteca_lectura.leer_quiteca(texto_quiteca(contenido))
+    texto = texto_quiteca(contenido)
+    if laboratorio == "AgroFresh":
+        if not agrofresh_lectura.es_informe_nuevo(texto):
+            raise ValueError("Este informe de AgroFresh es del formato antiguo: cárgalo con el Converter.")
+        return agrofresh_lectura.leer_agrofresh(texto)
+    return quiteca_lectura.leer_quiteca(texto)
+
+
+def preparar(contenido: bytes, correcciones_manuales: dict[str, str] | None = None, laboratorio: str = "Quiteca") -> dict[str, Any]:
+    """Lee el PDF y lo revisa contra Listados. No escribe nada."""
+    lectura = leer(contenido, laboratorio)
     d = lectura["datos"]
     leidos = {c: (d.get(n) or "").strip() for c, n in CAMPOS.items()}
     campos, aprendidos = _aprendido(leidos)
@@ -111,10 +124,10 @@ def completar_fila(fila: dict[str, Any], contenido: bytes) -> None:
     """Para un informe nuevo del correo: calcula si se puede cargar tal cual y lo deja en la fila (antes de guardarla)."""
     from . import correo_informes_lectura as lectura
 
-    if fila.get("laboratorio") != "Quiteca" or fila.get("ya_cargado"):
+    if fila.get("laboratorio") not in LABORATORIOS_CARGABLES or fila.get("ya_cargado"):
         return
     try:
-        r = preparar(contenido)
+        r = preparar(contenido, laboratorio=fila['laboratorio'])
     except Exception:  # noqa: BLE001 — un PDF raro no frena la revisión del buzón
         logger.exception("No se pudo revisar la homogeneización de %s", fila.get("nro_informe"))
         return
@@ -132,7 +145,7 @@ def completar_pendientes(limite: int = 15) -> int:
     try:
         with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
             cur.execute(
-                "SELECT id, r2_key, hallazgos FROM correo_informe WHERE decision = 'pendiente' AND laboratorio = 'Quiteca'"
+                "SELECT id, r2_key, hallazgos, laboratorio FROM correo_informe WHERE decision = 'pendiente' AND laboratorio IN ('Quiteca', 'AgroFresh')"
                 " AND NOT ya_cargado AND homogeneo IS NULL AND r2_key IS NOT NULL ORDER BY llegada_en DESC LIMIT %s", (limite,))
             filas = cur.fetchall()
     except Exception:  # noqa: BLE001 — falta la 0067
@@ -142,7 +155,7 @@ def completar_pendientes(limite: int = 15) -> int:
             datos = r2.descargar(f["r2_key"])
             if datos is None:
                 continue
-            r = preparar(datos)
+            r = preparar(datos, laboratorio=f['laboratorio'])
         except Exception:  # noqa: BLE001
             logger.exception("No se pudo revisar la homogeneización del informe %s", f["id"])
             continue
