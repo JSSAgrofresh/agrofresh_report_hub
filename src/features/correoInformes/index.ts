@@ -8,6 +8,7 @@ export {
   resolverSeguimiento,
   marcarInformado,
   aceptarInforme,
+  homogeneizacionInforme,
   aceptarVarios,
   deshacerAceptacion,
   panelIngreso,
@@ -30,9 +31,13 @@ export type {
   NivelHallazgo,
   UltimoSondeo,
   ResultadoAceptar,
+  Homogeneizacion,
+  CorreccionesHomogeneizacion,
   ResultadoLote,
 } from './lib/api'
 export { dias, semanaCorta, frasePendiente } from './lib/formato'
+export { agrupar, clasificar, CODIGO_NO_HOMOGENEO } from './lib/cola'
+export type { Bloque } from './lib/cola'
 export { ETIQUETA_ESTADO, resumenInforme, hallazgoPrincipal, compararDestinatarios, esCorreoInterno } from './lib/revision'
 export type { FilaDestinatario } from './lib/revision'
 export { filtrarSolicitudes } from './lib/solicitudes'

@@ -187,7 +187,7 @@ describe('BandejaCorreo', () => {
     aceptarInforme.mockResolvedValue({ id: INFORME_ROJO.id, resultado: 'cargado', carga_id: 5, envio_al_cliente: 'salio_mal', avisos: ['NO se marcó como enviado al cliente'] })
     render(<BandejaCorreo version={0} onCambio={() => {}} />)
     fireEvent.click(await screen.findByText('Quiteca · OT-QUI0053'))
-    fireEvent.click(await screen.findByRole('button', { name: /Aceptar y cargar a la base/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Cargar de todas formas/ }))
     await waitFor(() => expect(aceptarInforme).toHaveBeenCalledWith(INFORME_ROJO.id))
     expect(await screen.findByText(/NO se marcó como enviado/)).toBeInTheDocument()
   })

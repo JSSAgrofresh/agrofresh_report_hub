@@ -154,8 +154,29 @@ export interface ResultadoLote {
   errores: { id: number; motivo: string }[]
 }
 
-export function aceptarInforme(id: number) {
-  return httpClient.post<ResultadoAceptar>(`/correo-informes/${id}/aceptar`, {})
+/** Valores de Listados corregidos a mano antes de aceptar (lo que no se manda se queda como se leyó). */
+export type CorreccionesHomogeneizacion = Partial<Record<'sold_to' | 'ship_to' | 'especie' | 'variedad', string>>
+
+export function aceptarInforme(id: number, correcciones?: CorreccionesHomogeneizacion) {
+  return httpClient.post<ResultadoAceptar>(`/correo-informes/${id}/aceptar`, { correcciones: correcciones ?? {} })
+}
+
+export interface Homogeneizacion {
+  campos: Record<'sold_to' | 'ship_to' | 'especie' | 'variedad', string>
+  leidos: Record<'sold_to' | 'ship_to' | 'especie' | 'variedad', string>
+  aprendidos: { campo: string; antes: string; despues: string }[]
+  motivos: string[]
+  ok: boolean
+  opciones: {
+    sold_to: string[]
+    ship_to: Record<string, string[]>
+    especie: string[]
+    variedad: Record<string, string[]>
+  }
+}
+
+export function homogeneizacionInforme(id: number) {
+  return httpClient.get<Homogeneizacion>(`/correo-informes/${id}/homogeneizacion`)
 }
 
 export function aceptarVarios(ids: number[]) {

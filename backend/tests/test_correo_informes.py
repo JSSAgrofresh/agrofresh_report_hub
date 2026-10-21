@@ -107,15 +107,22 @@ def test_planta_distinta_a_la_de_la_solicitud_es_rojo():
     otra = {**MORAL, "ship_to": "FRIGORIFICO LEJANO", "sold_to": "OTRO CLIENTE SA"}
     _, filas, _ = _examinar("quiteca_1912.eml", {"OT-QUI0051": ("a.xlsx", otra)}, {"OT-QUI0051": PLAN_MORAL})
     codigos = {h["codigo"]: h["nivel"] for h in filas[0]["hallazgos"]}
-    assert codigos["ship_to_distinto"] == "rojo" and codigos["sold_to_distinto"] == "amarillo"
+    assert codigos["ship_to_distinto"] == "rojo" and codigos["sold_to_distinto"] == "info"
     assert filas[0]["estado"] == "rojo"
 
 
-def test_especie_o_fecha_distintas_son_amarillo():
+def test_especie_o_fecha_distintas_ya_no_alertan_solo_informan():
     otra = {**MORAL, "especie": "Pera", "fecha_muestreo": "01-10-2026"}
     _, filas, _ = _examinar("quiteca_1912.eml", {"OT-QUI0051": ("a.xlsx", otra)}, {"OT-QUI0051": PLAN_MORAL})
     assert {h["codigo"] for h in filas[0]["hallazgos"]} == {"especie_distinta", "fecha_muestreo_distinta"}
-    assert filas[0]["estado"] == "amarillo"
+    assert {h["nivel"] for h in filas[0]["hallazgos"]} == {"info"}
+    assert filas[0]["estado"] == "ok"      # lo que decide es la lista de destinatarios y la homogeneización con Listados
+
+
+def test_cereza_y_cerezas_son_la_misma_especie():
+    from app.correo_informes_lectura import comparar_con_solicitud
+    hallazgos = comparar_con_solicitud({"especie": "cereza", "ship_to": "X", "sold_to": "X"}, {"especie": "Cerezas", "ship_to": "X", "sold_to": "X"})
+    assert [h["codigo"] for h in hallazgos] == []
 
 
 def test_una_ot_de_otro_laboratorio_es_rojo():
