@@ -174,9 +174,27 @@ def test_un_correo_de_paz_con_tres_informes_da_tres_filas_y_no_toma_el_banner():
 
 # --- Lo que no es un informe nuevo -----------------------------------------
 
-def test_una_respuesta_reenviada_no_se_toma_como_informe():
+def test_una_respuesta_de_gente_de_agrofresh_no_se_toma_como_informe():
     motivo, filas, _ = _examinar("respuesta_quiteca_1914.eml", {}, {})
-    assert motivo == "respuesta_o_reenvio" and filas == []
+    assert motivo == "respuesta_interna" and filas == []
+
+
+def test_el_informe_corregido_que_quiteca_manda_contestando_el_hilo_si_se_toma():
+    """El laboratorio suele corregir un envío contestando el mismo hilo: con su PDF es el informe, no se descarta."""
+    m = _correo("quiteca_1912.eml")
+    for h in ("Subject", "In-Reply-To", "References"):
+        del m[h]
+    m["Subject"] = "RE: Informe Quiteca 2026-1912-PC (09/10/2026)"
+    m["In-Reply-To"] = "<hilo-original@agrofresh.com>"
+    m["References"] = "<hilo-original@agrofresh.com>"
+    assert ci.es_respuesta_o_reenvio(m)
+    motivo, filas, _ = ci.examinar_mensaje(
+        m, buscar_solicitud=lambda ot: ("a.xlsx", MORAL), plan_de=lambda d: PLAN_MORAL, ya_cargado_de=lambda leido: False)
+    assert motivo == "informes" and filas[0]["nro_informe"] == "2026-1912-PC"
+    # …pero si lo reenvía alguien de AgroFresh, no
+    del m["From"]
+    m["From"] = "Paz Salazar <psalazar@agrofresh.com>"
+    assert ci.examinar_mensaje(m)[0] == "respuesta_interna"
 
 
 def test_un_correo_nuestro_no_se_examina(monkeypatch):

@@ -70,6 +70,10 @@ def es_respuesta_o_reenvio(mensaje: EmailMessage) -> bool:
     )
 
 
+def esinterno(correo: str) -> bool:
+    return correo.rsplit("@", 1)[-1].lower() in lectura.DOMINIOS_INTERNOS
+
+
 def pdfs_del_correo(mensaje: EmailMessage) -> list[tuple[str, bytes]]:
     """Los PDF adjuntos (nombre, bytes). Las imágenes de firma y banners no cuentan."""
     salida: list[tuple[str, bytes]] = []
@@ -308,9 +312,12 @@ def examinar_mensaje(
     mensaje: EmailMessage, *, buscar_solicitud=_buscar_solicitud, plan_de=_plan_de, ya_cargado_de=_ya_cargado,
 ) -> tuple[str, list[dict[str, Any]], list[tuple[str, bytes]]]:
     """(motivo, filas, pdfs elegidos). Sin filas, `motivo` dice por qué el correo no trae informes."""
-    if es_respuesta_o_reenvio(mensaje):
-        return "respuesta_o_reenvio", [], []
     remitente = lectura.direcciones(mensaje.get("From"))
+    if es_respuesta_o_reenvio(mensaje):
+        # Un laboratorio suele mandar el informe CORREGIDO contestando el mismo hilo en que se le avisó del error: esa
+        # respuesta con su PDF sí es el informe. Solo se descartan las respuestas y reenvíos de gente de AgroFresh.
+        if not remitente or esinterno(remitente[0]):
+            return "respuesta_interna", [], []
     if remitente and remitente[0] in _propios():
         return "saliente_del_hub", [], []
     pdfs = pdfs_del_correo(mensaje)
@@ -366,7 +373,9 @@ def correr_sondeo(sondeo_id: int, dias: int, maximo: int = MAXIMO_POR_REVISION, 
                 raise RuntimeError(f"No se pudo abrir la carpeta {CARPETA} del buzón.")
             uids = _buscar_uids(imap, dias)[-maximo:]
             with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-                cur.execute("SELECT message_id FROM correo_informe_visto WHERE buzon = %s", (buzon,))
+                # Lo que antes se descartó como «respuesta o reenvío» se vuelve a mirar UNA vez (puede ser el informe
+                # corregido que el laboratorio mandó contestando el hilo); queda anotado con su motivo nuevo.
+                cur.execute("SELECT message_id FROM correo_informe_visto WHERE buzon = %s AND motivo <> 'respuesta_o_reenvio'", (buzon,))
                 conocidos = {f["message_id"] for f in cur.fetchall()}
                 cur.execute("SELECT DISTINCT message_id FROM correo_informe WHERE buzon = %s", (buzon,))
                 conocidos |= {f["message_id"] for f in cur.fetchall()}
@@ -404,7 +413,7 @@ def correr_sondeo(sondeo_id: int, dias: int, maximo: int = MAXIMO_POR_REVISION, 
                             nuevos += 1
                     cur.execute(
                         "INSERT INTO correo_informe_visto (buzon, message_id, motivo) VALUES (%s, %s, %s)"
-                        " ON CONFLICT DO NOTHING", (buzon, message_id, motivo),
+                        " ON CONFLICT (buzon, message_id) DO UPDATE SET motivo = EXCLUDED.motivo", (buzon, message_id, motivo),
                     )
                     # El avance se ve en pantalla mientras corre.
                     cur.execute("UPDATE correo_informe_sondeo SET examinados = %s, nuevos = %s WHERE id = %s",
