@@ -561,12 +561,16 @@ def ultimo_sondeo(_: Usuario = Depends(exigir_principal)) -> dict[str, Any] | No
 
 
 @router.get("/panel")
-def panel(dias: int = Query(60, ge=7, le=365), _: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+def panel(
+    dias: int = Query(60, ge=7, le=365),
+    laboratorio: list[str] = Query(default=[]),
+    _: Usuario = Depends(exigir_principal),
+) -> dict[str, Any]:
     """KPIs, solicitudes (lo que falta, lo recibido) y tendencia de la demora de los informes."""
     from . import correo_informes_panel
 
     try:
-        return correo_informes_panel.leer_panel(dias)
+        return correo_informes_panel.leer_panel(dias, laboratorios=laboratorio)
     except psycopg2.errors.UndefinedTable as exc:
         raise HTTPException(503, "Falta correr la migración 0064_correo_informe.sql en el servidor.") from exc
 

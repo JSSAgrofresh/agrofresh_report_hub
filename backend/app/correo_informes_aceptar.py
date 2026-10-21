@@ -106,7 +106,7 @@ def aceptar(informe_id: int, usuario: Usuario, correcciones: dict[str, str] | No
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         cur.execute(
             "SELECT id, laboratorio, soportado, nro_informe, ot, sold_to, ship_to, estado, decision, r2_key, pdf_nombre,"
-            " llegada_en, archivo_solicitud FROM correo_informe WHERE id = %s", (informe_id,))
+            " llegada_en, archivo_solicitud, resuelto_en FROM correo_informe WHERE id = %s", (informe_id,))
         fila = cur.fetchone()
     if not fila:
         raise HTTPException(404, "Ese informe no está en la bandeja.")
@@ -114,6 +114,9 @@ def aceptar(informe_id: int, usuario: Usuario, correcciones: dict[str, str] | No
         raise _409("Este informe ya estaba aceptado.")
     if fila["decision"] == "rechazado":
         raise _409("Este informe está rechazado: vuelve a pendiente antes de aceptarlo.")
+    if fila["estado"] == "rojo" and not fila["resuelto_en"]:
+        raise _409("Este informe salió a quien no correspondía: avisa al laboratorio y acepta la copia correcta cuando llegue "
+                   "(o márcalo como resuelto si ya quedó solucionado).")
 
     avisos: list[str] = []
     ya_cargado = correo_informes._ya_cargado({"nro_informe": fila["nro_informe"], "ot": fila["ot"]})

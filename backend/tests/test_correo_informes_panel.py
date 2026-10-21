@@ -163,3 +163,13 @@ def test_un_informe_que_ya_estaba_en_el_sistema_tambien_cuenta_en_la_demora():
                "estado": "ok", "resuelto_en": None, "informado_en": None}]
     r = P.armar_panel(sol[:1], correo, set(), AHORA, 60, {"OT-1": _t(8)})
     assert r["solicitudes"][0]["origen_fecha"] == "correo"
+
+
+def test_filtro_por_laboratorio_limita_todo_el_panel():
+    sol = [_sol("OT-1", lab="Quiteca", enviada=_t(5)), _sol("OT-2", lab="ALS (Corthon)", enviada=_t(5))]
+    fechas = {"OT-1": _t(8), "OT-2": _t(9)}
+    todo = P.armar_panel(sol, [], {"OT-1", "OT-2"}, AHORA, 60, fechas)
+    assert {c["laboratorio"] for c in todo["cajas"]} == {"Quiteca", "ALS (Corthon)"}
+    solo = P.armar_panel(sol, [], {"OT-1", "OT-2"}, AHORA, 60, fechas, ["als"])      # «ALS (Corthon)» = «ALS»
+    assert [c["laboratorio"] for c in solo["cajas"]] == ["ALS (Corthon)"]
+    assert [f["ot"] for f in solo["solicitudes"]] == ["OT-2"]

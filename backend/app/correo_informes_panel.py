@@ -12,6 +12,7 @@ al correo.
 """
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timedelta
 from statistics import median
 from typing import Any, Iterable
@@ -155,15 +156,24 @@ def _incidentes(correo: list[dict], desde: datetime) -> dict[str, int]:
             "incidentes_por_informar": por_informar}
 
 
+def _lab(nombre: Any) -> str:
+    """El laboratorio comparable: «ALS (Corthon)», «Als» y «ALS» son el mismo."""
+    return re.sub(r"[^A-Z0-9 ]+", " ", str(nombre or "").upper()).split(" ")[0] if str(nombre or "").strip() else ""
+
+
 def armar_panel(
     solicitudes: list[dict], correo: list[dict], cargadas: set[str], ahora: datetime, dias: int,
-    fechas_sistema: dict[str, datetime] | None = None,
+    fechas_sistema: dict[str, datetime] | None = None, laboratorios_filtro: Iterable[str] = (),
 ) -> dict[str, Any]:
     """KPIs, solicitudes y tendencia. `solicitudes`: salieron al laboratorio (con `enviada_en`);
     `correo`: filas de `correo_informe`; `cargadas`: OT con su informe ya en Converter o Report.
     `fechas_sistema`: OT → cuándo llegó su informe según lo que ya estaba en el sistema (fecha de envío anotada, «enviado al
     cliente»…): sirve para medir la demora de los informes que no llegaron por este correo. La del correo manda."""
     desde = ahora - timedelta(days=dias)
+    elegidos = {_lab(x) for x in laboratorios_filtro if x}
+    if elegidos:       # todo el panel (cifras, solicitudes y demora) se limita a esos laboratorios
+        solicitudes = [s for s in solicitudes if _lab(s.get("laboratorio")) in elegidos]
+        correo = [f for f in correo if _lab(f.get("laboratorio")) in elegidos]
     por_ot: dict[str, list[dict]] = {}
     for f in correo:
         if f.get("ot"):
@@ -274,7 +284,7 @@ def _fechas_del_sistema(cur) -> dict[str, datetime]:
     return fechas
 
 
-def leer_panel(dias: int = 60, ahora: datetime | None = None) -> dict[str, Any]:
+def leer_panel(dias: int = 60, ahora: datetime | None = None, laboratorios: Iterable[str] = ()) -> dict[str, Any]:
     ahora = ahora or datetime.now().astimezone()
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         solicitudes = _filas(
@@ -302,4 +312,4 @@ def leer_panel(dias: int = 60, ahora: datetime | None = None) -> dict[str, Any]:
             if f["ot"]
         }
         fechas = _fechas_del_sistema(cur)
-    return armar_panel(solicitudes, correo, cargadas, ahora, dias, fechas)
+    return armar_panel(solicitudes, correo, cargadas, ahora, dias, fechas, laboratorios)
