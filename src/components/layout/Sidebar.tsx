@@ -417,6 +417,15 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                 <span className={styles.etiqueta}>Notificaciones</span>
               </NavLink>
               <NavLink
+                to={ROUTES.vistaCliente}
+                title="Vista de cliente"
+                onClick={onCerrar}
+                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                <IconReports className={styles.navIcono} />
+                <span className={styles.etiqueta}>Vista de cliente</span>
+              </NavLink>
+              <NavLink
                 to={ROUTES.adminAdministracionGeneral}
                 title="Administración General"
                 onClick={onCerrar}

@@ -34,6 +34,9 @@ export const ROUTES = {
   adminLaboratorios: '/admin/laboratorios',
   adminNotificaciones: '/admin/notificaciones',
   adminAdministracionGeneral: '/admin/administracion-general',
+  vistaCliente: '/vista-cliente',
+  vistaClienteReport: '/vista-cliente/reportes',
+  vistaClienteStorage: '/vista-cliente/storage',
 } as const
 
 export function rutaTomaMuestrasDetalle(archivo: string): string {

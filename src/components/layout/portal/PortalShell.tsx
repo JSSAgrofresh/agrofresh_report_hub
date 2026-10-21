@@ -5,9 +5,10 @@ import agrofreshLogo from '@/assets/agrofresh-logo.png'
 import { useAuth } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
 import { cn } from '@/lib/cn'
-import { iniciales, modulosPermitidos, puedeVerTomaMuestras } from '@/features/usuarios'
+import { modulosPermitidos, puedeVerTomaMuestras } from '@/features/usuarios'
 import { ocultaPanelGeneral } from './inicio'
 import { PortalContext } from './PortalContext'
+import { MenuUsuario } from './MenuUsuario'
 import { IconLogout } from '@/components/ui/icons'
 import styles from './PortalShell.module.css'
 
@@ -51,7 +52,21 @@ function usePildora(contenedor: RefObject<HTMLDivElement | null>, pildora: RefOb
 }
 
 /** Marco visual del portal de clientes y comerciales: fondo vivo, navbar de vidrio fija arriba y el contenido de siempre. */
-export function PortalShell({ contenido, children }: { contenido?: RefObject<HTMLElement | null>; children: React.ReactNode }) {
+const ENLACES_VISTA_PREVIA: Enlace[] = [
+  { to: ROUTES.vistaClienteReport, etiqueta: 'Report' },
+  { to: ROUTES.vistaClienteStorage, etiqueta: 'Storage' },
+]
+
+export function PortalShell({
+  contenido,
+  vistaPrevia,
+  children,
+}: {
+  contenido?: RefObject<HTMLElement | null>
+  /** El administrador general mirando el portal de clientes con su propia cuenta. */
+  vistaPrevia?: boolean
+  children: React.ReactNode
+}) {
   const { user, logout } = useAuth()
   const { pathname } = useLocation()
   const [scroll, setScroll] = useState(false)
@@ -67,7 +82,7 @@ export function PortalShell({ contenido, children }: { contenido?: RefObject<HTM
   usePildora(items, pildora, pathname)
 
   if (!user) return null
-  const enlaces = enlacesDe(user)
+  const enlaces = vistaPrevia ? ENLACES_VISTA_PREVIA : enlacesDe(user)
 
   return (
     <PortalContext.Provider value={true}>
@@ -96,8 +111,7 @@ export function PortalShell({ contenido, children }: { contenido?: RefObject<HTM
           ))}
         </div>
         <div className={styles.usuario}>
-          <span className={styles.iniciales} aria-hidden="true">{iniciales(user.nombre)}</span>
-          <span className={styles.nombre}>{user.nombre}</span>
+          <MenuUsuario user={user} vistaPrevia={vistaPrevia} onSalir={() => logout()} />
           <button type="button" className={styles.salir} onClick={() => logout()} title="Cerrar sesión" aria-label="Cerrar sesión">
             <IconLogout />
           </button>
