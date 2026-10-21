@@ -5,6 +5,7 @@ import {
   ETIQUETA_ESTADO,
   hallazgoPrincipal,
   listarBandeja,
+  marcarInformado,
   pdfInformeCorreo,
   rechazarInforme,
   resolverSeguimiento,
@@ -160,12 +161,17 @@ function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () =
             {d.nota ? ` · «${d.nota}»` : ''}
           </p>
         )}
-        {d.resuelto_en && (
+        {d.informado && (
           <p className={styles.nota}>
-            Seguimiento resuelto por {d.resuelto_por ?? '—'} el {fechaHoraCorta(d.resuelto_en)}
-            {d.nota ? ` · «${d.nota}»` : ''}
+            Ya se informó al laboratorio{d.informado_por ? ` (${d.informado_por}` : ''}
+            {d.informado_en ? `, ${fechaHoraCorta(d.informado_en)}` : ''}
+            {d.informado_por ? ')' : ''}.
           </p>
         )}
+        {d.resuelto_en && (
+          <p className={styles.nota}>Seguimiento resuelto por {d.resuelto_por ?? '—'} el {fechaHoraCorta(d.resuelto_en)}.</p>
+        )}
+        {d.nota_incidente && <p className={styles.nota}>Nota del incidente: «{d.nota_incidente}»</p>}
 
         <div className={styles.acciones}>
           {d.tiene_pdf && (
@@ -183,7 +189,7 @@ function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () =
         {(d.decision === 'pendiente' || enSeguimiento) && (
           <div className={styles.decision}>
             <label className={styles.etiquetaNota}>
-              {enSeguimiento ? 'Qué se hizo (para cerrar el seguimiento) o motivo del rechazo' : 'Motivo del rechazo'}
+              {enSeguimiento ? 'Nota: a quién se avisó o qué se hizo (o el motivo del rechazo)' : 'Motivo del rechazo'}
               <textarea
                 value={nota}
                 onChange={(e) => setNota(e.target.value)}
@@ -201,6 +207,16 @@ function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () =
                   onClick={() => void actuar(() => rechazarInforme(id, nota))}
                 >
                   Rechazar este informe
+                </button>
+              )}
+              {enSeguimiento && !d.informado && (
+                <button
+                  type="button"
+                  className={styles.btnSecundario}
+                  disabled={ocupado || !nota.trim()}
+                  onClick={() => void actuar(() => marcarInformado(id, nota))}
+                >
+                  Ya informé al laboratorio
                 </button>
               )}
               {enSeguimiento && (
@@ -355,6 +371,11 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
                         {i.estado !== 'rojo' && i.tuvo_incidente && (
                           <span className={`${styles.marca} ${styles.marcaAceptado}`} title="Salió mal antes y un reenvío llegó a la lista correcta">
                             Corregido por reenvío
+                          </span>
+                        )}
+                        {i.estado === 'rojo' && i.informado && !i.resuelto_en && (
+                          <span className={styles.marca} title="Ya se le avisó al laboratorio: no se vuelve a alertar por este informe">
+                            Informado
                           </span>
                         )}
                         {i.envios > 1 && (

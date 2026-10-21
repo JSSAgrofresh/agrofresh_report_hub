@@ -4,18 +4,19 @@ import { BandejaCorreo } from './BandejaCorreo'
 import type { DetalleInformeCorreo } from '@/features/correoInformes'
 import { bandeja, INFORME_OK, INFORME_ROJO } from './fixturesIngreso'
 
-const { listarBandeja, detalleInformeCorreo, pdfInformeCorreo, rechazarInforme, volverAPendiente, resolverSeguimiento } = vi.hoisted(() => ({
+const { listarBandeja, detalleInformeCorreo, pdfInformeCorreo, rechazarInforme, volverAPendiente, resolverSeguimiento, marcarInformado } = vi.hoisted(() => ({
   listarBandeja: vi.fn(),
   detalleInformeCorreo: vi.fn(),
   pdfInformeCorreo: vi.fn(),
   rechazarInforme: vi.fn(),
   volverAPendiente: vi.fn(),
   resolverSeguimiento: vi.fn(),
+  marcarInformado: vi.fn(),
 }))
 
 vi.mock('@/features/correoInformes', async () => {
   const real = await vi.importActual<typeof import('@/features/correoInformes')>('@/features/correoInformes')
-  return { ...real, listarBandeja, detalleInformeCorreo, pdfInformeCorreo, rechazarInforme, volverAPendiente, resolverSeguimiento }
+  return { ...real, listarBandeja, detalleInformeCorreo, pdfInformeCorreo, rechazarInforme, volverAPendiente, resolverSeguimiento, marcarInformado }
 })
 
 const DETALLE: DetalleInformeCorreo = {
@@ -122,6 +123,31 @@ describe('BandejaCorreo', () => {
     fireEvent.change(screen.getByPlaceholderText('Escribe una nota…'), { target: { value: 'Quiteca reenvió bien' } })
     fireEvent.click(screen.getByRole('button', { name: 'Marcar seguimiento como resuelto' }))
     await waitFor(() => expect(resolverSeguimiento).toHaveBeenCalledWith(1, 'Quiteca reenvió bien'))
+  })
+
+  it('avisar al laboratorio anota «ya informado» y deja de ofrecer el aviso', async () => {
+    listarBandeja.mockResolvedValue(bandeja([INFORME_ROJO]))
+    detalleInformeCorreo.mockResolvedValue(DETALLE)
+    marcarInformado.mockResolvedValue({ ok: true })
+    render(<BandejaCorreo version={0} onCambio={() => {}} />)
+    fireEvent.click(await screen.findByText('Quiteca · OT-QUI0053'))
+    const boton = await screen.findByRole('button', { name: 'Ya informé al laboratorio' })
+    expect(boton).toBeDisabled()
+    fireEvent.change(screen.getByPlaceholderText('Escribe una nota…'), { target: { value: 'Avisé a Lucas por correo' } })
+    fireEvent.click(boton)
+    await waitFor(() => expect(marcarInformado).toHaveBeenCalledWith(1, 'Avisé a Lucas por correo'))
+  })
+
+  it('un informe ya informado lo dice y no vuelve a pedir el aviso', async () => {
+    const informado = { ...INFORME_ROJO, informado: true, informado_por: 'jorge', informado_en: '2026-10-21T14:00:00Z', nota_incidente: 'Avisé a Lucas' }
+    listarBandeja.mockResolvedValue(bandeja([informado]))
+    detalleInformeCorreo.mockResolvedValue({ ...DETALLE, ...informado })
+    render(<BandejaCorreo version={0} onCambio={() => {}} />)
+    expect(await screen.findByText('Informado', { selector: 'span' })).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Quiteca · OT-QUI0053'))
+    expect(await screen.findByText(/Ya se informó al laboratorio/)).toBeInTheDocument()
+    expect(screen.getByText(/Nota del incidente: «Avisé a Lucas»/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ya informé al laboratorio' })).not.toBeInTheDocument()
   })
 
   it('un rechazado se puede devolver a pendiente', async () => {

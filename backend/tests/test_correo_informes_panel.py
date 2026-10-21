@@ -69,6 +69,7 @@ def test_el_panel_cuenta_lo_que_falta_lo_aceptado_lo_rechazado_y_el_seguimiento(
     assert (k["recibidos"], k["pendientes"], k["aceptados"], k["rechazados"]) == (3, 2, 1, 0)
     # Las dos copias del I-3 en rojo son UN incidente (no dos alertas): sigue abierto porque su última copia sigue mal.
     assert (k["incidentes"], k["incidentes_abiertos"], k["incidentes_cerrados"]) == (1, 1, 0)
+    assert k["incidentes_por_informar"] == 1
     assert k["esperando"] == 1                                                # OT-5
     por_ot = {s["ot"]: s for s in r["solicitudes"]}
     assert por_ot["OT-5"]["estado"] == "esperando" and por_ot["OT-5"]["dias_esperando"] > 0
@@ -105,6 +106,16 @@ def test_dos_informes_mal_enviados_son_dos_incidentes_aunque_haya_tres_correos_e
     assert (k["incidentes"], k["incidentes_abiertos"], k["incidentes_cerrados"]) == (2, 1, 1)
 
 
+def test_un_incidente_ya_informado_al_laboratorio_deja_de_estar_por_informar_aunque_lo_sigan_mandando_mal():
+    """Se le avisó a Quiteca por la primera copia; la segunda copia mala no vuelve a pedir aviso."""
+    correo = [
+        {**_mail(1, "OT-B", "2026-1914-PC", _t(8), estado="rojo"), "informado_en": _t(9)},
+        _mail(2, "OT-B", "2026-1914-PC", _t(13), estado="rojo"),
+    ]
+    k = P.armar_panel([_sol("OT-B")], correo, set(), AHORA, 60)["kpis"]
+    assert (k["incidentes"], k["incidentes_abiertos"], k["incidentes_por_informar"]) == (1, 1, 0)
+
+
 def test_un_incidente_abierto_cuenta_aunque_sea_anterior_al_periodo():
     correo = [_mail(1, "OT-1", "I-1", _t(1, mes=7), estado="rojo")]
     k = P.armar_panel([_sol("OT-1")], correo, set(), AHORA, 30)["kpis"]
@@ -123,6 +134,7 @@ def test_los_endpoints_nuevos_son_solo_del_administrador_principal():
         assert c.get("/api/correo-informes/panel").status_code == 403
         assert c.post("/api/correo-informes/5/rechazar", json={"nota": "x"}).status_code == 403
         assert c.post("/api/correo-informes/5/resolver", json={}).status_code == 403
+        assert c.post("/api/correo-informes/5/informado", json={"nota": "x"}).status_code == 403
         assert c.post("/api/correo-informes/5/volver-a-pendiente").status_code == 403
     finally:
         app.dependency_overrides.clear()

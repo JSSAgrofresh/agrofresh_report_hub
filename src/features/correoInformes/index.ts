@@ -6,6 +6,7 @@ export {
   rechazarInforme,
   volverAPendiente,
   resolverSeguimiento,
+  marcarInformado,
   panelIngreso,
   ultimoSondeo,
 } from './lib/api'
