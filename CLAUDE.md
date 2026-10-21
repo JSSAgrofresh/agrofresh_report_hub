@@ -545,6 +545,10 @@ se guarda. **No leas la configuración de contactos dentro de un bucle por
 solicitud**: viene de R2 y el listado pasó a tardar 6 s; se lee una vez
 (`_calculador_sin_lista`).
 
+## Portal de clientes: marco visual nuevo (21-10-2026, solo diseño, sin migración)
+
+Las cuentas `cliente` y `comercial` ya no ven la barra lateral: `AppLayout` las pasa a `components/layout/portal/PortalShell.tsx` (fondo con manchas que derivan, **navbar flotante de vidrio** fija arriba con el logo, los mismos accesos de siempre y píldora verde que se desliza al enlace activo; ver `PortalShell.module.css`). El personal interno conserva su `Sidebar`. El encabezado del panel de un cliente es `views/dashboard/PortalHero.tsx` (reemplaza al `AreaHero` con foto en `ClienteDashboardView` y en el widget `cliente:encabezado`). **Las pantallas de adentro (Report, Storage, tablas, gráficos, filtros) no se tocaron**: solo heredan tokens más suaves (`--radius-lg`, `--shadow-md`, `--color-border`) puestos en `.shell`. Animaciones constantes, apagadas con `prefers-reduced-motion`. La app es solo tema claro. Un acceso nuevo para clientes sale solo de `modulosPermitidos`. Prueba: `PortalShell.test.tsx`. **Pendiente**: el dashboard de una sola página con secciones por análisis (tarea 8) y que los límites residuales se vean al cliente (decisión de negocio).
+
 ## Panel de inicio editable (Administración General → «Panel de inicio»)
 
 El admin general arma, como un tablero, qué widgets ve cada **tipo de cuenta** o cada **cuenta en particular** en su Panel general

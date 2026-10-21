@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { MobileTopbar } from './MobileTopbar'
 import { LoadingBar } from './LoadingBar'
+import { PortalShell } from './portal/PortalShell'
 import { avisarVisita } from '@/features/adminPanel'
 import { useAuth } from '@/features/auth'
 import { useApilarTablas } from '@/lib/apilarTablas'
@@ -22,6 +23,18 @@ export function AppLayout() {
     if (!user || esCliente) return
     avisarVisita(pathname).catch(() => undefined)
   }, [pathname, user, esCliente])
+
+  // Clientes y comerciales ven el mismo contenido con otro marco: navbar flotante y fondo vivo, sin barra lateral.
+  if (esCliente) {
+    return (
+      <>
+        <LoadingBar />
+        <PortalShell contenido={contenido}>
+          <Outlet />
+        </PortalShell>
+      </>
+    )
+  }
 
   return (
     <div className={styles.shell}>
