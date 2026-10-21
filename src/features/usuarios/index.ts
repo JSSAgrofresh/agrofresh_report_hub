@@ -13,6 +13,7 @@ export {
   puedeVerReporte,
   puedeVerTomaMuestras,
   puedeCrearReanalisis,
+  puedeEditarSolicitudes,
   puedeFirmarVerificaciones,
   vistaDeCliente,
   tieneFuncion,
