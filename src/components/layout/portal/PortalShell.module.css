@@ -47,7 +47,7 @@
   gap: 12px;
   padding: 12px 20px 12px 32px;
   border-radius: var(--radio);
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.9);
   box-shadow: 0 10px 30px rgba(40, 70, 20, 0.12);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
@@ -64,9 +64,9 @@
 /* Cuando los filtros del Report se pegan debajo, la burbuja y la barra quedan como una sola pieza de vidrio. */
 .shell:has([data-pegado='true']) .burbuja {
   border-radius: var(--radio) var(--radio) 0 0;
-  border-bottom-color: transparent;
+  border-bottom-width: 0;
   box-shadow: 0 -4px 30px rgba(40, 70, 20, 0.1);
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .marca { display: flex; align-items: center; flex: none; padding-right: 12px; text-decoration: none; }
@@ -130,8 +130,12 @@
 @media (max-width: 720px) {
   .nombre { display: none; }
   .burbuja { --radio: 28px; padding: 8px 10px 8px 16px; gap: 6px; }
-  .logo { height: 40px; }
-  .enlace { padding: 12px 20px; min-width: 0; font-size: 15px; }
+  .logo { height: 34px; }
+  .marca { padding-right: 4px; }
+  .enlace { padding: 11px 14px; min-width: 0; font-size: 14px; }
+  /* En el celular, cerrar sesión está en el menú del avatar: el botón suelto solo ocupaba lugar. */
+  .salir { display: none; }
+  .usuario { padding-left: 6px; margin-left: 0; }
   .contenido { padding-top: 104px; }
   .contenido { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 }
@@ -140,3 +144,29 @@
   .mancha, .burbuja, .contenido { animation: none; }
   .pildora { transition: none; }
 }
+
+/* ── Detalles de todo el portal ───────────────────────────────────────────────────────────────────────── */
+/* Barras de desplazamiento finas y del color de la marca (las nativas, con flechas, desentonaban). */
+.shell :global(*) { scrollbar-width: thin; scrollbar-color: #b6d49a transparent; }
+.shell :global(*::-webkit-scrollbar) { width: 9px; height: 9px; }
+.shell :global(*::-webkit-scrollbar-track) { background: transparent; }
+.shell :global(*::-webkit-scrollbar-thumb) { background: #b6d49a; border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
+.shell :global(*::-webkit-scrollbar-thumb:hover) { background: #8fbf63; background-clip: padding-box; border: 2px solid transparent; }
+.shell :global(*::-webkit-scrollbar-corner) { background: transparent; }
+
+/* Desplegables nativos con una flecha propia, más fina, en lugar de la negra del sistema. */
+.shell :global(select:not([multiple])) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%235f7152' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  background-size: 12px 8px;
+  cursor: pointer;
+}
+
+/* Un solo anillo de foco, suave y de la marca, en todo lo que se puede tocar. */
+.shell :global(:focus-visible) { outline: 2px solid #6dad3c; outline-offset: 2px; border-radius: inherit; }
+.shell :global(input:focus-visible), .shell :global(select:focus-visible) { outline-offset: 0; }
+.shell :global(::selection) { background: #cfe9b0; color: #18260f; }

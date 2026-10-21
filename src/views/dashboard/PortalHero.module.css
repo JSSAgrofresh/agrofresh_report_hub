@@ -78,7 +78,7 @@
   pointer-events: none;
 }
 @keyframes barrido { 0%, 55% { left: -45%; } 100% { left: 125%; } }
-.conFoto::before, .conFoto::after { opacity: 0.6; }
+.conFoto::before, .conFoto::after { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .foto, .fotoNueva, .brillo { animation: none; }

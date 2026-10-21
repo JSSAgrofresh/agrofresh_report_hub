@@ -61,3 +61,8 @@
 .ghost:not(:disabled):hover {
   color: var(--color-text);
 }
+
+/* Portal de clientes: botones en píldora, a juego con el resto. */
+:global([data-portal]) .button { border-radius: 999px; padding: 10px 20px; }
+:global([data-portal]) .secondary { border-color: #cfe0bf; background-color: #fff; }
+:global([data-portal]) .secondary:not(:disabled):hover { border-color: var(--color-primary); background-color: #f1f8e9; transform: translateY(-1px); }

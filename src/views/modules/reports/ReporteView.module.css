@@ -922,6 +922,9 @@
 /* ═══ Portal de clientes: solo cambia la apariencia (el contenido y los controles son los mismos) ═══ */
 :global([data-portal]) .wrap { gap: 20px; }
 
+:global([data-portal]) .accionesCabecera { gap: 12px; align-items: flex-start; }
+:global([data-portal]) .actualizarBloque { align-items: flex-end; gap: 6px; }
+:global([data-portal]) .horas { color: #5f7152; font-size: 11px; gap: 12px; }
 :global([data-portal]) .btnActualizar {
   border-radius: 999px;
   padding: 10px 20px;
@@ -993,7 +996,7 @@
   border-radius: 0 0 40px 40px;
   padding: 12px 32px 16px;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 18px 36px rgba(40, 70, 20, 0.16);
   animation: portalDesplegar 0.35s cubic-bezier(0.2, 0.9, 0.3, 1) both;
 }
@@ -1001,7 +1004,6 @@
 :global([data-portal]) .filtrosCard[data-pegado='true'] .filtrosCabecera { padding-right: 190px; min-height: 36px; }
 :global([data-portal]) .filtrosCard[data-pegado='true'][data-abierto='false'] .filtros,
 :global([data-portal]) .filtrosCard[data-pegado='true'][data-abierto='false'] .chips { display: none; }
-:global([data-portal]) .filtrosCard[data-pegado='true'][data-abierto='true'] { max-height: calc(100vh - 110px); overflow-y: auto; }
 
 /* Gráficos y paneles */
 :global([data-portal]) .panel { padding: 22px; }
@@ -1018,4 +1020,13 @@
 @media (max-width: 720px) {
   :global([data-portal]) .filtrosCard[data-pegado='true'] { border-radius: 0 0 28px 28px; padding: 10px 20px 14px; }
   :global([data-portal]) .filtrosCard[data-pegado='true'] .filtrosCabecera { padding-right: 150px; }
+}
+
+:global([data-portal]) .filtros { gap: 14px 16px; }
+:global([data-portal]) .filtro { gap: 6px; }
+:global([data-portal]) .filtro span { font-size: 10.5px; line-height: 14px; }
+
+@media (max-width: 720px) {
+  :global([data-portal]) .accionesCabecera { width: 100%; justify-content: flex-start; }
+  :global([data-portal]) .actualizarBloque { align-items: flex-start; }
 }
