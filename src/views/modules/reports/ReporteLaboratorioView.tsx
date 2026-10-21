@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AREAS } from '@/constants/areas'
 import { useAuth } from '@/features/auth'
 import { AreaHero, fondoParaEspecie } from '@/features/dashboard'
+import { PortalHero } from '@/views/dashboard/PortalHero'
 import { ReporteView } from './ReporteView'
 
 /** Report de laboratorio para admin: el mismo encabezado con foto que ve el
@@ -21,12 +22,11 @@ export function ReporteLaboratorioView() {
     const soldTo = user.clienteNombre ?? user.nombre
     return (
       <div>
-        <AreaHero
-          area={config}
-          titulo={user.plantaNombre ?? soldTo}
-          descripcion={`Portal de cliente · ${config.nombre}. Acceso exclusivo a tus datos.`}
+        <PortalHero
+          etiqueta={config.nombre}
+          titulo={`Hola, ${user.plantaNombre ?? soldTo}`}
+          descripcion="Portal de cliente. Estos son los resultados de tus muestras, siempre al día."
           fondo={fondo.imagen}
-          tinte={fondo.tinte}
         />
         <ReporteView clienteFijo={soldTo} plantaFija={user.plantaNombre} onCropChange={setEspecie} />
       </div>
@@ -37,12 +37,11 @@ export function ReporteLaboratorioView() {
   if (user?.tipoAcceso === 'comercial') {
     return (
       <div>
-        <AreaHero
-          area={config}
-          titulo={cliente || 'Tus plantas'}
+        <PortalHero
+          etiqueta={config.nombre}
+          titulo={cliente ? `Hola, ${cliente}` : 'Hola, estas son tus plantas'}
           descripcion={`Comercial · ${config.nombre}. Resultados de las plantas que tienes asignadas, solo lectura.`}
           fondo={fondo.imagen}
-          tinte={fondo.tinte}
         />
         <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} />
       </div>
