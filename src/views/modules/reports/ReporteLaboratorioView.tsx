@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useContext, useState } from 'react'
+import { PortalContext } from '@/components/layout/portal/PortalContext'
 import { AREAS } from '@/constants/areas'
 import { useAuth } from '@/features/auth'
 import { AreaHero, fondoParaEspecie } from '@/features/dashboard'
@@ -11,6 +12,7 @@ import { ReporteView } from './ReporteView'
  * Sold To elegido. */
 export function ReporteLaboratorioView() {
   const { user } = useAuth()
+  const enPortal = useContext(PortalContext)
   const config = AREAS.cromatografia
   const [especie, setEspecie] = useState('')
   const [cliente, setCliente] = useState('')
@@ -41,6 +43,21 @@ export function ReporteLaboratorioView() {
           etiqueta={config.nombre}
           titulo={cliente ? `Hola, ${cliente}` : 'Hola, estas son tus plantas'}
           descripcion={`Comercial · ${config.nombre}. Resultados de las plantas que tienes asignadas, solo lectura.`}
+          fondo={fondo.imagen}
+        />
+        <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} />
+      </div>
+    )
+  }
+
+  // El administrador mirando el portal de clientes (vista previa): mismo encabezado que ve un cliente.
+  if (enPortal) {
+    return (
+      <div>
+        <PortalHero
+          etiqueta={`Vista previa de cliente · ${config.nombre}`}
+          titulo={`Hola, ${cliente || 'todos los clientes'}`}
+          descripcion="Así se ve el portal para un cliente. Con tu cuenta de administración aparecen los datos de todos los clientes y sucursales."
           fondo={fondo.imagen}
         />
         <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} />
