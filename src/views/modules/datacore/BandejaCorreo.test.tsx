@@ -44,7 +44,7 @@ function bandeja(informes: InformeCorreo[]): Bandeja {
   return {
     conteos: { todos: informes.length, rojo: 1, amarillo: 0, ok: 1, ya_cargado: 1 },
     informes,
-    ultimo_sondeo: { iniciado_en: '2026-10-21T10:00:00Z', terminado_en: '2026-10-21T10:00:05Z', nuevos: 2, examinados: 5, error: null, dias: 14 },
+    ultimo_sondeo: { id: 1, iniciado_en: '2026-10-21T10:00:00Z', terminado_en: '2026-10-21T10:00:05Z', nuevos: 2, examinados: 5, error: null, dias: 14 },
   }
 }
 
@@ -92,24 +92,44 @@ describe('BandejaCorreo', () => {
     expect(screen.getByRole('button', { name: 'Ver el PDF' })).toBeInTheDocument()
   })
 
-  it('«Revisar ahora» lee el buzón con los días elegidos y recarga la bandeja', async () => {
-    listarBandeja.mockResolvedValue(bandeja([]))
-    revisarCorreoAhora.mockResolvedValue({ examinados: 3, nuevos: 2, dias: 30 })
-    render(<BandejaCorreo />)
+  it('«Revisar ahora» arranca la revisión, muestra el avance y al terminar recarga la bandeja', async () => {
+    const sondeo = (terminado: string | null, nuevos: number) => ({
+      id: 9, iniciado_en: '2026-10-21T15:00:00Z', terminado_en: terminado, nuevos, examinados: nuevos + 1, error: null, dias: 30,
+    })
+    listarBandeja
+      .mockResolvedValueOnce(bandeja([]))
+      .mockResolvedValueOnce({ ...bandeja([]), ultimo_sondeo: sondeo(null, 1) })
+      .mockResolvedValue({ ...bandeja([BASE]), ultimo_sondeo: sondeo('2026-10-21T15:02:00Z', 2) })
+    revisarCorreoAhora.mockResolvedValue({ id: 9, en_curso: true, ya_estaba_en_curso: false })
+    render(<BandejaCorreo intervaloMs={0} />)
     await screen.findByText(/Todavía no hay informes|Ningún informe/)
     fireEvent.change(screen.getByLabelText(/Últimos/), { target: { value: '30' } })
     fireEvent.click(screen.getByRole('button', { name: 'Revisar ahora' }))
     await waitFor(() => expect(revisarCorreoAhora).toHaveBeenCalledWith(30))
     expect(await screen.findByText(/3 correos nuevos revisados, 2 informes registrados/)).toBeInTheDocument()
-    expect(listarBandeja.mock.calls.length).toBeGreaterThan(1)
+    expect(await screen.findByText('2026-1914-PC')).toBeInTheDocument()
   })
 
   it('si el servidor no pudo leer el buzón, lo dice', async () => {
     listarBandeja.mockResolvedValue(bandeja([]))
-    revisarCorreoAhora.mockRejectedValue(new Error('Gmail rechazó el login IMAP'))
-    render(<BandejaCorreo />)
+    revisarCorreoAhora.mockRejectedValue(new Error('Faltan GMAIL_ACCOUNT y GMAIL_APP_PASSWORD en el .env del servidor.'))
+    render(<BandejaCorreo intervaloMs={0} />)
     await screen.findByText(/Todavía no hay informes|Ningún informe/)
     fireEvent.click(screen.getByRole('button', { name: 'Revisar ahora' }))
-    expect(await screen.findByText(/Gmail rechazó el login IMAP/)).toBeInTheDocument()
+    expect(await screen.findByText(/Faltan GMAIL_ACCOUNT/)).toBeInTheDocument()
+  })
+
+  it('si la revisión terminó con error del buzón, lo muestra', async () => {
+    listarBandeja
+      .mockResolvedValueOnce(bandeja([]))
+      .mockResolvedValue({
+        ...bandeja([]),
+        ultimo_sondeo: { id: 5, iniciado_en: '2026-10-21T15:00:00Z', terminado_en: '2026-10-21T15:00:03Z', nuevos: 0, examinados: 0, error: 'Gmail rechazó el login IMAP', dias: 14 },
+      })
+    revisarCorreoAhora.mockResolvedValue({ id: 5, en_curso: true, ya_estaba_en_curso: false })
+    render(<BandejaCorreo intervaloMs={0} />)
+    await screen.findByText(/Todavía no hay informes|Ningún informe/)
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar ahora' }))
+    expect((await screen.findAllByText(/Gmail rechazó el login IMAP/)).length).toBeGreaterThan(0)
   })
 })
