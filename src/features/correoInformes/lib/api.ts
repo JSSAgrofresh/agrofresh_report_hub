@@ -270,8 +270,10 @@ export interface PanelIngreso {
   solicitudes: SolicitudIngreso[]
 }
 
-export function panelIngreso(dias = 60) {
-  return httpClient.get<PanelIngreso>(`/correo-informes/panel?dias=${dias}`)
+export function panelIngreso(dias = 60, laboratorios: string[] = []) {
+  const consulta = new URLSearchParams({ dias: String(dias) })
+  for (const l of laboratorios) consulta.append('laboratorio', l)
+  return httpClient.get<PanelIngreso>(`/correo-informes/panel?${consulta.toString()}`)
 }
 
 export function ultimoSondeo() {

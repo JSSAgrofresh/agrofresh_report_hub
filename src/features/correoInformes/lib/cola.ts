@@ -25,3 +25,18 @@ export function agrupar(informes: InformeCorreo[]): Record<Bloque, InformeCorreo
   for (const i of informes) g[clasificar(i)].push(i)
   return g
 }
+
+/** Los laboratorios por los que se puede filtrar el tablero. */
+export const LABORATORIOS = ['AgroFresh', 'Quiteca', 'ALS', 'Diagnofruit'] as const
+
+/** «ALS (Corthon)», «Als» y «ALS» son el mismo laboratorio (misma regla del servidor). */
+export function claveLaboratorio(nombre: string | null | undefined): string {
+  return (nombre ?? '').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').trim().split(' ')[0] ?? ''
+}
+
+/** Sin laboratorios elegidos se ve todo. */
+export function enLaboratorios<T extends { laboratorio: string | null }>(items: T[], elegidos: string[]): T[] {
+  if (elegidos.length === 0) return items
+  const claves = new Set(elegidos.map(claveLaboratorio))
+  return items.filter((i) => claves.has(claveLaboratorio(i.laboratorio)))
+}

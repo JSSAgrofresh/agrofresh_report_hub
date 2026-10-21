@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { agrupar, deshacerAceptacion, dias, frasePendiente, listarBandeja } from '@/features/correoInformes'
+import { agrupar, deshacerAceptacion, dias, enLaboratorios, frasePendiente, LABORATORIOS, listarBandeja } from '@/features/correoInformes'
 import type { InformeCorreo, PanelIngreso } from '@/features/correoInformes'
 import { fechaHoraCorta } from '@/features/notificaciones'
 import { Detalle } from './BandejaCorreo'
@@ -18,6 +18,9 @@ interface Props {
   panel: PanelIngreso | null
   errorPanel: string | null
   version: number
+  /** Laboratorios elegidos (vacío = todos). */
+  laboratorios: string[]
+  onLaboratorios: (l: string[]) => void
   /** Se hizo algo (aceptar, rechazar…): hay que releer el panel entero. */
   onCambio: () => void
   /** Pasa a «Todos los informes» buscando ese N° de informe. */
@@ -44,7 +47,7 @@ function Widget({ titulo, cuenta, ancho, tono, children, pie }: { titulo: string
  * llegar, cuánto demoran los laboratorios y qué se aceptó hoy). Un informe se abre en una ventana encima del
  * tablero, sin cambiar de pantalla.
  */
-export function TableroIngreso({ panel, errorPanel, version, onCambio, onVerInforme }: Props) {
+export function TableroIngreso({ panel, errorPanel, version, laboratorios, onLaboratorios, onCambio, onVerInforme }: Props) {
   const [pendientes, setPendientes] = useState<InformeCorreo[] | null>(null)
   const [aceptados, setAceptados] = useState<InformeCorreo[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -94,7 +97,9 @@ export function TableroIngreso({ panel, errorPanel, version, onCambio, onVerInfo
     }
   }
 
-  const g = agrupar(pendientes ?? [])
+  const visibles = pendientes == null ? null : enLaboratorios(pendientes, laboratorios)
+  const recientes = aceptados == null ? null : enLaboratorios(aceptados, laboratorios)
+  const g = agrupar(visibles ?? [])
   const porAceptar = g.listo.length + g.homogeneizar.length
   const deEnvios = g.seguimiento.length + g.revisar.length + g.informado.length
   const k = panel?.kpis
@@ -102,13 +107,29 @@ export function TableroIngreso({ panel, errorPanel, version, onCambio, onVerInfo
 
   return (
     <div className={styles.tablero}>
+      <div className={`${styles.filtros} ${styles.c12}`} role="group" aria-label="Filtrar por laboratorio">
+        <span>Laboratorio</span>
+        <button type="button" aria-pressed={laboratorios.length === 0} onClick={() => onLaboratorios([])}>
+          Todos
+        </button>
+        {LABORATORIOS.map((l) => (
+          <button
+            key={l}
+            type="button"
+            aria-pressed={laboratorios.includes(l)}
+            onClick={() => onLaboratorios(laboratorios.includes(l) ? laboratorios.filter((x) => x !== l) : [...laboratorios, l])}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
       <div className={`${styles.kpis} ${styles.c12}`}>
         <div className={styles.kpi}>
-          <strong>{pendientes == null ? '…' : nf.format(porAceptar)}</strong>
+          <strong>{visibles == null ? '…' : nf.format(porAceptar)}</strong>
           <span>por aceptar</span>
         </div>
         <div className={`${styles.kpi} ${deEnvios > 0 ? styles.kpiAlerta : ''}`}>
-          <strong>{pendientes == null ? '…' : nf.format(deEnvios)}</strong>
+          <strong>{visibles == null ? '…' : nf.format(deEnvios)}</strong>
           <span>con el envío por revisar</span>
         </div>
         <div className={`${styles.kpi} ${(k?.esperando ?? 0) > 0 ? styles.kpiAviso : ''}`}>
@@ -127,7 +148,7 @@ export function TableroIngreso({ panel, errorPanel, version, onCambio, onVerInfo
 
       <Widget titulo="Por aceptar" cuenta={porAceptar} ancho="c7" tono="verde">
         <ColaDeTrabajo
-          informes={pendientes}
+          informes={visibles}
           error={error}
           grupos={['listo', 'homogeneizar']}
           onCambio={onCambio}
@@ -138,7 +159,7 @@ export function TableroIngreso({ panel, errorPanel, version, onCambio, onVerInfo
 
       <Widget titulo="Revisión de envíos" cuenta={deEnvios} ancho="c5" tono={g.seguimiento.length > 0 ? 'rojo' : undefined}>
         <ColaDeTrabajo
-          informes={pendientes}
+          informes={visibles}
           error={null}
           grupos={['seguimiento', 'revisar', 'informado']}
           onCambio={onCambio}
@@ -237,13 +258,13 @@ export function TableroIngreso({ panel, errorPanel, version, onCambio, onVerInfo
 
       <Widget titulo="Aceptados recientes" ancho="c12">
         {falla && <p className={styles.falla}>{falla}</p>}
-        {aceptados == null ? (
+        {recientes == null ? (
           <Skeleton style={{ height: 80 }} />
-        ) : aceptados.length === 0 ? (
+        ) : recientes.length === 0 ? (
           <p className={styles.vacio}>Todavía no se ha aceptado ningún informe del correo.</p>
         ) : (
           <ul className={styles.recientes}>
-            {aceptados.map((i) => (
+            {recientes.map((i) => (
               <li key={i.id}>
                 <strong>{i.nro_informe || i.pdf_nombre}</strong>
                 <span className={styles.tenue}>{[i.laboratorio, i.ot].filter(Boolean).join(' · ')}</span>

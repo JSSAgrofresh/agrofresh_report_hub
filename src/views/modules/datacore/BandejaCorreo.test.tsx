@@ -181,15 +181,25 @@ describe('BandejaCorreo', () => {
     expect(await screen.findByText(/No calza con Listados/)).toBeInTheDocument()
   })
 
-  it('«Aceptar seleccionados» manda lo marcado y el detalle ofrece Aceptar con sus avisos', async () => {
-    listarBandeja.mockResolvedValue(bandeja([INFORME_ROJO]))
-    detalleInformeCorreo.mockResolvedValue({ ...DETALLE, decision: 'pendiente' })
-    aceptarInforme.mockResolvedValue({ id: INFORME_ROJO.id, resultado: 'cargado', carga_id: 5, envio_al_cliente: 'salio_mal', avisos: ['NO se marcó como enviado al cliente'] })
+  it('el detalle de un informe que calza ofrece Aceptar con sus avisos', async () => {
+    const bueno = { ...INFORME_ROJO, estado: 'ok' as const, hallazgos: [] }
+    listarBandeja.mockResolvedValue(bandeja([bueno]))
+    detalleInformeCorreo.mockResolvedValue({ ...DETALLE, ...bueno, decision: 'pendiente' })
+    aceptarInforme.mockResolvedValue({ id: bueno.id, resultado: 'cargado', carga_id: 5, envio_al_cliente: 'marcado', avisos: ['El informe no está amarrado a una solicitud'] })
     render(<BandejaCorreo version={0} onCambio={() => {}} />)
     fireEvent.click(await screen.findByText('Quiteca · OT-QUI0053'))
-    fireEvent.click(await screen.findByRole('button', { name: /Cargar de todas formas/ }))
-    await waitFor(() => expect(aceptarInforme).toHaveBeenCalledWith(INFORME_ROJO.id))
-    expect(await screen.findByText(/NO se marcó como enviado/)).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /Aceptar y cargar a la base/ }))
+    await waitFor(() => expect(aceptarInforme).toHaveBeenCalledWith(bueno.id))
+    expect(await screen.findByText(/no está amarrado/)).toBeInTheDocument()
+  })
+
+  it('el detalle de un envío malo NO ofrece cargarlo', async () => {
+    listarBandeja.mockResolvedValue(bandeja([INFORME_ROJO]))
+    detalleInformeCorreo.mockResolvedValue({ ...DETALLE, decision: 'pendiente' })
+    render(<BandejaCorreo version={0} onCambio={() => {}} />)
+    fireEvent.click(await screen.findByText('Quiteca · OT-QUI0053'))
+    await screen.findByRole('button', { name: /Rechazar este informe/ })
+    expect(screen.queryByRole('button', { name: /Aceptar y cargar|Cargar de todas formas/ })).not.toBeInTheDocument()
   })
 
   it('un informe aceptado ofrece «Deshacer aceptación»', async () => {

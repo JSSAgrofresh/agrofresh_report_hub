@@ -66,10 +66,18 @@ describe('ColaDeTrabajo', () => {
     await waitFor(() => expect(marcarInformado).toHaveBeenCalledWith(33, 'Avisé a Quiteca'))
   })
 
-  it('aceptar un envío malo se llama «Cargar de todas formas» y un fallo sale bajo su fila', async () => {
-    aceptarInforme.mockRejectedValue(new Error('No calza con Listados'))
+  it('un envío malo no se puede cargar: solo se informa, se resuelve o se rechaza', () => {
     cola([MAL], ['seguimiento'])
-    fireEvent.click(screen.getByRole('button', { name: 'Cargar de todas formas' }))
+    expect(screen.queryByRole('button', { name: /Cargar de todas formas|Aceptar/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ya informé' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Resolver' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Rechazar' })).toBeInTheDocument()
+  })
+
+  it('un fallo al aceptar sale bajo su fila', async () => {
+    aceptarInforme.mockRejectedValue(new Error('No calza con Listados'))
+    cola([LISTO], ['listo'])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Aceptar' })[0])
     expect(await screen.findByText('No calza con Listados')).toBeInTheDocument()
   })
 })

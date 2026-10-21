@@ -189,3 +189,16 @@ def test_endpoint_de_homogeneizacion_trae_lo_leido_y_las_opciones(entorno):
     assert j["ok"] is True and j["campos"]["sold_to"] == CLIENTE
     assert CLIENTE in j["opciones"]["sold_to"] and CLIENTE in j["opciones"]["ship_to"][CLIENTE]
     assert "cereza" in j["opciones"]["especie"]
+
+
+def test_un_envio_malo_nunca_se_carga(entorno):
+    """Salió a quien no correspondía: no se acepta ni a la fuerza, hasta que se resuelva."""
+    i = _insertar(estado="rojo")
+    with pytest.raises(HTTPException) as e:
+        acc.aceptar(i, USUARIO)
+    assert e.value.status_code == 409 and "avisa al laboratorio" in e.value.detail
+    assert _estado(i)["decision"] == "pendiente"
+    assert acc.aceptar_varios([i], USUARIO)["errores"][0]["id"] == i
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("UPDATE correo_informe SET resuelto_en = now() WHERE id = %s", (i,))
+    assert acc.aceptar(i, USUARIO)["resultado"] == "cargado"      # resuelto: ya se puede aceptar
