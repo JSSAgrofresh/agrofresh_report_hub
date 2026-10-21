@@ -1,0 +1,5 @@
+.svg { width: 100%; height: auto; display: block; }
+.rejilla { stroke: var(--color-border); stroke-width: 1; }
+.eje { font-size: 11px; fill: var(--color-text-muted); }
+.etiqueta { font-size: 12px; font-weight: 700; fill: var(--color-text); }
+.vacio { color: var(--color-text-muted); text-align: center; margin: var(--space-4) 0; }

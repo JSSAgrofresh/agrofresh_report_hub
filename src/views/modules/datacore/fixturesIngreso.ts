@@ -71,6 +71,9 @@ export const PANEL: PanelIngreso = {
     pendiente_por_semana: 1,
     recta: [2, 3],
   },
+  cajas: [
+    { laboratorio: 'Quiteca', n: 5, minimo: 1, q1: 2, mediana: 2, q3: 3, maximo: 6, media: 2.8, bigote_bajo: 1, bigote_alto: 3, atipicos: [6], valores: [1, 2, 2, 3, 6] },
+  ],
   laboratorios: [
     { laboratorio: 'ALS', esperando: 1, recibidos: 2, demora_mediana: 4 },
     { laboratorio: 'Quiteca', esperando: 1, recibidos: 5, demora_mediana: 2 },
