@@ -51,6 +51,8 @@ describe('IngestaInicio (Ingreso de informes)', () => {
     pantalla()
 
     expect(screen.getByRole('heading', { name: 'Informes de laboratorio' })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: /Por hacer/ })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('tab', { name: 'Resumen' }))
     expect(await screen.findByText('Demora de los informes')).toBeInTheDocument()
 
     // Tocar «Incidentes de envío» abre los informes del correo ya filtrados en rojo.
@@ -69,8 +71,9 @@ describe('IngestaInicio (Ingreso de informes)', () => {
     useAuth.mockReturnValue({ user: PRINCIPAL })
     panelIngreso.mockResolvedValue(PANEL)
     ultimoSondeo.mockResolvedValue(null)
+    listarBandeja.mockResolvedValue(bandeja([]))
     pantalla()
-    const informes = await screen.findByRole('tab', { name: /Informes del correo/ })
+    const informes = await screen.findByRole('tab', { name: /Por hacer/ })
     await waitFor(() => expect(informes).toHaveTextContent('4'))
     expect(screen.getByRole('tab', { name: /Solicitudes/ })).toHaveTextContent('2')
   })
