@@ -141,6 +141,31 @@ export function volverAPendiente(id: number) {
   return httpClient.post<{ ok: boolean }>(`/correo-informes/${id}/volver-a-pendiente`, {})
 }
 
+export interface ResultadoAceptar {
+  id: number
+  resultado: 'cargado' | 'revisado'
+  carga_id: number | null
+  envio_al_cliente: string
+  avisos: string[]
+}
+
+export interface ResultadoLote {
+  aceptados: ResultadoAceptar[]
+  errores: { id: number; motivo: string }[]
+}
+
+export function aceptarInforme(id: number) {
+  return httpClient.post<ResultadoAceptar>(`/correo-informes/${id}/aceptar`, {})
+}
+
+export function aceptarVarios(ids: number[]) {
+  return httpClient.post<ResultadoLote>('/correo-informes/aceptar-lote', { ids })
+}
+
+export function deshacerAceptacion(id: number) {
+  return httpClient.post<{ id: number; carga_deshecha: number | null }>(`/correo-informes/${id}/deshacer-aceptacion`, {})
+}
+
 export function marcarInformado(id: number, nota: string) {
   return httpClient.post<{ ok: boolean }>(`/correo-informes/${id}/informado`, { nota })
 }

@@ -7,6 +7,9 @@ export {
   volverAPendiente,
   resolverSeguimiento,
   marcarInformado,
+  aceptarInforme,
+  aceptarVarios,
+  deshacerAceptacion,
   panelIngreso,
   ultimoSondeo,
 } from './lib/api'
@@ -26,6 +29,8 @@ export type {
   InformeCorreo,
   NivelHallazgo,
   UltimoSondeo,
+  ResultadoAceptar,
+  ResultadoLote,
 } from './lib/api'
 export { dias, semanaCorta, frasePendiente } from './lib/formato'
 export { ETIQUETA_ESTADO, resumenInforme, hallazgoPrincipal, compararDestinatarios, esCorreoInterno } from './lib/revision'

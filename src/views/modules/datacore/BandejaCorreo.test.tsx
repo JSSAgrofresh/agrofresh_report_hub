@@ -4,7 +4,7 @@ import { BandejaCorreo } from './BandejaCorreo'
 import type { DetalleInformeCorreo } from '@/features/correoInformes'
 import { bandeja, INFORME_OK, INFORME_ROJO } from './fixturesIngreso'
 
-const { listarBandeja, detalleInformeCorreo, pdfInformeCorreo, rechazarInforme, volverAPendiente, resolverSeguimiento, marcarInformado } = vi.hoisted(() => ({
+const { listarBandeja, detalleInformeCorreo, pdfInformeCorreo, rechazarInforme, volverAPendiente, resolverSeguimiento, marcarInformado, aceptarInforme, aceptarVarios, deshacerAceptacion } = vi.hoisted(() => ({
   listarBandeja: vi.fn(),
   detalleInformeCorreo: vi.fn(),
   pdfInformeCorreo: vi.fn(),
@@ -12,11 +12,14 @@ const { listarBandeja, detalleInformeCorreo, pdfInformeCorreo, rechazarInforme, 
   volverAPendiente: vi.fn(),
   resolverSeguimiento: vi.fn(),
   marcarInformado: vi.fn(),
+  aceptarInforme: vi.fn(),
+  aceptarVarios: vi.fn(),
+  deshacerAceptacion: vi.fn(),
 }))
 
 vi.mock('@/features/correoInformes', async () => {
   const real = await vi.importActual<typeof import('@/features/correoInformes')>('@/features/correoInformes')
-  return { ...real, listarBandeja, detalleInformeCorreo, pdfInformeCorreo, rechazarInforme, volverAPendiente, resolverSeguimiento, marcarInformado }
+  return { ...real, listarBandeja, detalleInformeCorreo, pdfInformeCorreo, rechazarInforme, volverAPendiente, resolverSeguimiento, marcarInformado, aceptarInforme, aceptarVarios, deshacerAceptacion }
 })
 
 const DETALLE: DetalleInformeCorreo = {
@@ -165,5 +168,37 @@ describe('BandejaCorreo', () => {
     listarBandeja.mockResolvedValue({ ...bandeja([]), conteos: { ...bandeja([]).conteos, todos: 0 } })
     render(<BandejaCorreo version={0} onCambio={() => {}} />)
     expect(await screen.findByText(/Revisar el correo ahora/)).toBeInTheDocument()
+  })
+
+  it('«Aceptar los listos» manda solo los pendientes que calzan y avisa los que no se pudieron', async () => {
+    const listo = { ...INFORME_OK, id: 21, decision: 'pendiente' as const, es_ultima_copia: true }
+    listarBandeja.mockResolvedValue(bandeja([INFORME_ROJO, listo]))
+    aceptarVarios.mockResolvedValue({ aceptados: [], errores: [{ id: 21, motivo: 'No calza con Listados' }] })
+    render(<BandejaCorreo version={0} onCambio={() => {}} />)
+    await screen.findByText('Quiteca · OT-QUI0053')
+    fireEvent.click(screen.getByRole('button', { name: /Aceptar los listos \(1\)/ }))
+    await waitFor(() => expect(aceptarVarios).toHaveBeenCalledWith([21]))
+    expect(await screen.findByText(/No calza con Listados/)).toBeInTheDocument()
+  })
+
+  it('«Aceptar seleccionados» manda lo marcado y el detalle ofrece Aceptar con sus avisos', async () => {
+    listarBandeja.mockResolvedValue(bandeja([INFORME_ROJO]))
+    detalleInformeCorreo.mockResolvedValue({ ...DETALLE, decision: 'pendiente' })
+    aceptarInforme.mockResolvedValue({ id: INFORME_ROJO.id, resultado: 'cargado', carga_id: 5, envio_al_cliente: 'salio_mal', avisos: ['NO se marcó como enviado al cliente'] })
+    render(<BandejaCorreo version={0} onCambio={() => {}} />)
+    fireEvent.click(await screen.findByText('Quiteca · OT-QUI0053'))
+    fireEvent.click(await screen.findByRole('button', { name: /Aceptar y cargar a la base/ }))
+    await waitFor(() => expect(aceptarInforme).toHaveBeenCalledWith(INFORME_ROJO.id))
+    expect(await screen.findByText(/NO se marcó como enviado/)).toBeInTheDocument()
+  })
+
+  it('un informe aceptado ofrece «Deshacer aceptación»', async () => {
+    listarBandeja.mockResolvedValue(bandeja([{ ...INFORME_ROJO, decision: 'aceptado' }]))
+    detalleInformeCorreo.mockResolvedValue({ ...DETALLE, decision: 'aceptado' })
+    deshacerAceptacion.mockResolvedValue({ id: INFORME_ROJO.id, carga_deshecha: 5 })
+    render(<BandejaCorreo version={0} onCambio={() => {}} />)
+    fireEvent.click(await screen.findByText('Quiteca · OT-QUI0053'))
+    fireEvent.click(await screen.findByRole('button', { name: /Deshacer aceptación/ }))
+    await waitFor(() => expect(deshacerAceptacion).toHaveBeenCalledWith(INFORME_ROJO.id))
   })
 })

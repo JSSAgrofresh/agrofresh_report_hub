@@ -1,0 +1,52 @@
+{
+  "datos": {
+    "Laboratorio": "Quiteca",
+    "N° Solicitud": "2026-1913-PC",
+    "Sold To": "SOC COMERCIAL SAFRUT LTDA",
+    "Ship To": "SAFRUT LTDA PLANTA LA CALERA",
+    "Especie": "mandarina",
+    "Línea Proceso": "Na",
+    "Posición Muestreo": "Trypack",
+    "Fecha Solicitud": "10-10-2026",
+    "Fecha Muestreo": "08-10-2026",
+    "Fecha entrada": "15-10-2026",
+    "Hora Muestreo": "18:50",
+    "Fecha Recepción": "15-10-2026",
+    "Hora Recepción": "14:00",
+    "Fecha Análisis": "15-10-2026",
+    "Fecha Informe": "16-10-2026",
+    "OT": "OT-QUI0052",
+    "Tipo Muestra": "Fruta",
+    "Tipo Aplicación": "Línea de proceso",
+    "Tipo de servicio": "Linea de Proceso",
+    "N° Muestra": "86043",
+    "Observación": "Gasto 800cc/ton · Cuenta: AGROFRESH CHILE COMERCIAL LIMITADA. · Informe Quiteca N° 2026-1913-PC · Muestra N° 86043"
+  },
+  "resultados": {
+    "FDL ppm": "ND"
+  },
+  "sueltos": [],
+  "avisos": [],
+  "fila": {
+    "Informe": "2026-1913-PC",
+    "Laboratorio": "Quiteca",
+    "Fecha \nSolicitud": "2026-10-10",
+    "Fecha de muestreo": "2026-10-08",
+    "Fecha entrada": "2026-10-15",
+    "Fecha Recepción": "2026-10-15",
+    "Hora Recepción": "14:00",
+    "Fecha Informe": "2026-10-16",
+    "Fecha Análisis": "2026-10-15",
+    "N° Solicitud": "OT-QUI0052",
+    "N° Muestra": "86043",
+    "SOLD TO": "SOC COMERCIAL SAFRUT LTDA",
+    "SHIP TO": "SAFRUT LTDA PLANTA LA CALERA",
+    "CROP": "mandarina",
+    "Tipo de servicio": "Linea de Proceso",
+    "Línea": "Na",
+    "Posición": "Trypack",
+    "Observaciones": "Gasto 800cc/ton · Cuenta: AGROFRESH CHILE COMERCIAL LIMITADA. · Informe Quiteca N° 2026-1913-PC · Muestra N° 86043",
+    "TIPO APP": "Línea de proceso",
+    "FDL ppm": "ND"
+  }
+}

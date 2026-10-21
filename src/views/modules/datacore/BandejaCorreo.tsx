@@ -1,6 +1,9 @@
 import { Fragment, useEffect, useState } from 'react'
 import {
+  aceptarInforme,
+  aceptarVarios,
   compararDestinatarios,
+  deshacerAceptacion,
   detalleInformeCorreo,
   ETIQUETA_ESTADO,
   hallazgoPrincipal,
@@ -41,6 +44,7 @@ function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () =
   const [error, setError] = useState<string | null>(null)
   const [nota, setNota] = useState('')
   const [ocupado, setOcupado] = useState(false)
+  const [avisos, setAvisos] = useState<string[]>([])
 
   useEffect(() => {
     let vigente = true
@@ -173,10 +177,34 @@ function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () =
         )}
         {d.nota_incidente && <p className={styles.nota}>Nota del incidente: «{d.nota_incidente}»</p>}
 
+        {avisos.map((a) => (
+          <p key={a} className={styles.nota}>{a}</p>
+        ))}
+        {error && <p className={styles.error}>{error}</p>}
         <div className={styles.acciones}>
           {d.tiene_pdf && (
             <button type="button" className={styles.btnSecundario} onClick={() => void verPdf()}>
               Ver el PDF
+            </button>
+          )}
+          {d.decision === 'pendiente' && (
+            <button
+              type="button"
+              className={styles.btnPrimario}
+              disabled={ocupado}
+              onClick={() =>
+                void actuar(async () => {
+                  const r = await aceptarInforme(id)
+                  setAvisos(r.avisos)
+                })
+              }
+            >
+              {d.ya_cargado ? 'Aceptar (solo marcar revisado)' : 'Aceptar y cargar a la base'}
+            </button>
+          )}
+          {d.decision === 'aceptado' && (
+            <button type="button" className={styles.btnSecundario} disabled={ocupado} onClick={() => void actuar(() => deshacerAceptacion(id))}>
+              Deshacer aceptación
             </button>
           )}
           {d.decision === 'rechazado' && (
@@ -261,6 +289,9 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
   const [abierto, setAbierto] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [recarga, setRecarga] = useState(0)
+  const [marcados, setMarcados] = useState<number[]>([])
+  const [lote, setLote] = useState<{ ok: number; errores: { id: number; motivo: string }[] } | null>(null)
+  const [aceptando, setAceptando] = useState(false)
 
   useEffect(() => {
     let vigente = true
@@ -279,6 +310,24 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
   }, [estado, q, decision, copias, version, recarga])
 
   const c = bandeja?.conteos
+  const pendientes = (bandeja?.informes ?? []).filter((i) => i.decision === 'pendiente' && i.es_ultima_copia)
+  const listos = pendientes.filter((i) => i.estado === 'ok')
+
+  async function aceptarLote(ids: number[]) {
+    setAceptando(true)
+    setLote(null)
+    try {
+      const r = await aceptarVarios(ids)
+      setLote({ ok: r.aceptados.length, errores: r.errores })
+      setMarcados([])
+      setRecarga((n) => n + 1)
+      onCambio()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo aceptar.')
+    } finally {
+      setAceptando(false)
+    }
+  }
 
   return (
     <section className={styles.bloque} aria-label="Informes que llegaron por correo">
@@ -325,6 +374,37 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
 
       {error && <p className={styles.error}>{error}</p>}
 
+      {pendientes.length > 0 && (
+        <div className={styles.acciones}>
+          <button
+            type="button"
+            className={styles.btnPrimario}
+            disabled={aceptando || marcados.length === 0}
+            onClick={() => void aceptarLote(marcados)}
+          >
+            Aceptar seleccionados ({marcados.length})
+          </button>
+          <button
+            type="button"
+            className={styles.btnSecundario}
+            disabled={aceptando || listos.length === 0}
+            onClick={() => void aceptarLote(listos.map((i) => i.id))}
+          >
+            Aceptar los listos ({listos.length})
+          </button>
+        </div>
+      )}
+      {lote && (
+        <div role="status" className={styles.nota}>
+          {lote.ok} informe(s) aceptado(s).
+          {lote.errores.map((e) => (
+            <p key={e.id} className={styles.error}>
+              Informe {e.id}: {e.motivo}
+            </p>
+          ))}
+        </div>
+      )}
+
       {bandeja && bandeja.informes.length === 0 ? (
         <p className={styles.vacio}>
           {bandeja.conteos.todos === 0
@@ -336,6 +416,7 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
           <table className={styles.tabla}>
             <thead>
               <tr>
+                <th aria-label="Seleccionar" />
                 <th>Llegada</th>
                 <th>Informe</th>
                 <th>Cliente / planta</th>
@@ -352,6 +433,16 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
                       className={`${styles.fila} ${abierto === i.id ? styles.filaAbierta : ''} ${i.es_ultima_copia ? '' : styles.reemplazada}`}
                       onClick={() => setAbierto(abierto === i.id ? null : i.id)}
                     >
+                      <td onClick={(e) => e.stopPropagation()}>
+                        {i.decision === 'pendiente' && i.es_ultima_copia && (
+                          <input
+                            type="checkbox"
+                            aria-label={`Seleccionar ${i.nro_informe || i.id}`}
+                            checked={marcados.includes(i.id)}
+                            onChange={(e) => setMarcados(e.target.checked ? [...marcados, i.id] : marcados.filter((x) => x !== i.id))}
+                          />
+                        )}
+                      </td>
                       <td className={styles.nowrap}>{fechaHoraCorta(i.llegada_en)}</td>
                       <td className={styles.celdaInforme}>
                         <strong>{i.nro_informe || 'Sin N° de informe'}</strong>
@@ -389,7 +480,7 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
                     </tr>
                     {abierto === i.id && (
                       <tr className={styles.filaDetalle}>
-                        <td colSpan={5}>
+                        <td colSpan={6}>
                           <Detalle
                             informe={i}
                             onCambio={() => {
