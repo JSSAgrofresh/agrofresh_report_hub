@@ -1497,7 +1497,7 @@ def generar_excel_con_muestra(filas: list[FilaConMuestraIn]) -> StreamingRespons
         solicitudes,
         _analitos_con_solicitados(_leer_analitos_lab(), [f.analitos_solicitados for f in filas]),
         laboratorios=("AGROFRESH",),
-        generales=columnas_base.GENERALES_BASE,
+        generales=[g for g in columnas_base.GENERALES_BASE if g[0] != "tipo_analisis"],
         titulo_hoja="BD",
     )
     buffer = io.BytesIO()

@@ -224,8 +224,9 @@ def test_excel_con_muestra_usa_formato_de_la_base_solo_con_analitos_agrofresh():
     valores = dict(zip(headers, [ws.cell(row=3, column=c).value for c in range(1, ws.max_column + 1)]))
 
     # Mismas columnas generales que la BD de Report (ver columnas_base.py).
-    assert headers[:4] == ["Tipo de Análisis", "N° Informe", "N° Solicitud", "N° Muestra"]
-    assert valores["Tipo de Análisis"] == "Análisis de residuos"
+    # «Tipo de Análisis» solo va en la BD de Report, no en la base del laboratorio.
+    assert headers[:3] == ["N° Informe", "N° Solicitud", "N° Muestra"]
+    assert "Tipo de Análisis" not in valores
     assert valores["N° Muestra"] == "AGF0001"
     assert valores["Fecha Recepción"] == datetime.datetime(2026, 9, 25)
     assert valores["Hora Recepción"] == "16:57"
@@ -282,7 +283,8 @@ def test_la_base_con_muestra_y_la_bd_de_report_tienen_las_mismas_columnas_genera
         ANALITOS_DEFECTO,
     )["BD"]
     esperadas = [etiqueta for _, etiqueta in GENERALES_BASE]
-    assert _generales(ws_muestra) == esperadas
+    # «Tipo de Análisis» solo va en la BD de Report: la base del laboratorio no la lleva.
+    assert _generales(ws_muestra) == [e for e in esperadas if e != "Tipo de Análisis"]
     # La BD de Report es la misma lista sin lo que solo tiene el laboratorio propio.
     solo_lab = {"Peso (Kg)", "Peso Muestra Extraída (g)"}
     assert _generales(bd) == [e for e in esperadas if e not in solo_lab]
