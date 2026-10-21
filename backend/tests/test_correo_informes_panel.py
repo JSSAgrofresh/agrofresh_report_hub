@@ -138,3 +138,28 @@ def test_los_endpoints_nuevos_son_solo_del_administrador_principal():
         assert c.post("/api/correo-informes/5/volver-a-pendiente").status_code == 403
     finally:
         app.dependency_overrides.clear()
+
+
+def test_cajas_de_demora_cuartiles_bigotes_y_atipicos():
+    cajas = P.cajas_de_demora([("Quiteca", d) for d in (1, 2, 3, 4, 5, 20)] + [("ALS", 2.0)])
+    q = next(c for c in cajas if c["laboratorio"] == "Quiteca")
+    assert (q["n"], q["minimo"], q["maximo"]) == (6, 1, 20)
+    assert q["q1"] == 2.25 and q["mediana"] == 3.5 and q["q3"] == 4.75
+    assert q["atipicos"] == [20] and q["bigote_alto"] == 5       # el 20 queda fuera del bigote
+    assert next(c for c in cajas if c["laboratorio"] == "ALS")["mediana"] == 2.0
+    assert P.cajas_de_demora([]) == []
+
+
+def test_un_informe_que_ya_estaba_en_el_sistema_tambien_cuenta_en_la_demora():
+    """Lo cargado antes de revisar el correo no llegó por correo, pero sí tiene fecha de envío en el sistema."""
+    sol = [_sol("OT-1", enviada=_t(5)), _sol("OT-2", enviada=_t(5))]
+    r = P.armar_panel(sol, [], {"OT-1", "OT-2"}, AHORA, 60, {"OT-1": _t(8)})
+    ot1 = next(f for f in r["solicitudes"] if f["ot"] == "OT-1")
+    assert ot1["origen_fecha"] == "sistema" and ot1["demora"] == pytest.approx(3.0, abs=0.1)
+    assert next(f for f in r["solicitudes"] if f["ot"] == "OT-2")["demora"] is None      # sin ninguna fecha, no se inventa
+    assert r["cajas"][0]["n"] == 1
+    # si además llegó por correo, manda la fecha del correo
+    correo = [{"id": 1, "ot": "OT-1", "nro_informe": "x", "laboratorio": "Quiteca", "llegada_en": _t(6), "decision": "pendiente",
+               "estado": "ok", "resuelto_en": None, "informado_en": None}]
+    r = P.armar_panel(sol[:1], correo, set(), AHORA, 60, {"OT-1": _t(8)})
+    assert r["solicitudes"][0]["origen_fecha"] == "correo"

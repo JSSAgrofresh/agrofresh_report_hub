@@ -224,6 +224,22 @@ export interface PuntoDemora {
   por_laboratorio: Record<string, number>
 }
 
+/** Diagrama de caja de la demora (días hábiles) de un laboratorio. */
+export interface CajaDemora {
+  laboratorio: string
+  n: number
+  minimo: number
+  q1: number
+  mediana: number
+  q3: number
+  maximo: number
+  media: number
+  bigote_bajo: number
+  bigote_alto: number
+  atipicos: number[]
+  valores: number[]
+}
+
 export interface PanelIngreso {
   dias: number
   kpis: {
@@ -249,6 +265,7 @@ export interface PanelIngreso {
     pendiente_por_semana: number | null
     recta: number[]
   }
+  cajas: CajaDemora[]
   laboratorios: { laboratorio: string; esperando: number; recibidos: number; demora_mediana: number | null }[]
   solicitudes: SolicitudIngreso[]
 }

@@ -91,6 +91,35 @@ def tendencia_de_demora(demoras: Iterable[tuple[datetime, str, float]]) -> dict[
     }
 
 
+def _cuantil(ordenados: list[float], q: float) -> float:
+    """Cuantil por interpolación lineal (el mismo de Excel/numpy)."""
+    pos = (len(ordenados) - 1) * q
+    i = int(pos)
+    resto = pos - i
+    return ordenados[i] if i + 1 >= len(ordenados) else ordenados[i] + (ordenados[i + 1] - ordenados[i]) * resto
+
+
+def cajas_de_demora(demoras: Iterable[tuple[str, float]]) -> list[dict[str, Any]]:
+    """Diagrama de caja de la demora por laboratorio: cuartiles, mediana, media, bigotes (el dato más lejano
+    dentro de 1,5 veces el rango intercuartil) y los atípicos que quedan fuera de ellos."""
+    por_lab: dict[str, list[float]] = {}
+    for lab, d in demoras:
+        por_lab.setdefault(lab or "Sin laboratorio", []).append(d)
+    cajas = []
+    for lab, valores in sorted(por_lab.items()):
+        v = sorted(valores)
+        q1, q3 = _cuantil(v, 0.25), _cuantil(v, 0.75)
+        rango = q3 - q1
+        dentro = [x for x in v if q1 - 1.5 * rango <= x <= q3 + 1.5 * rango]
+        cajas.append({
+            "laboratorio": lab, "n": len(v), "minimo": v[0], "maximo": v[-1],
+            "q1": round(q1, 2), "mediana": round(_cuantil(v, 0.5), 2), "q3": round(q3, 2), "media": round(sum(v) / len(v), 2),
+            "bigote_bajo": min(dentro), "bigote_alto": max(dentro),
+            "atipicos": [x for x in v if x not in dentro], "valores": v,
+        })
+    return cajas
+
+
 def estado_de_solicitud(ot: str, cargadas: set[str], correo: dict[str, list[dict]]) -> str:
     """`cargado` (su informe ya está en Converter/Report), `recibido` (llegó por correo, aún sin cargar),
     `rechazado` (solo llegaron copias que se rechazaron) o `esperando`."""
@@ -128,9 +157,12 @@ def _incidentes(correo: list[dict], desde: datetime) -> dict[str, int]:
 
 def armar_panel(
     solicitudes: list[dict], correo: list[dict], cargadas: set[str], ahora: datetime, dias: int,
+    fechas_sistema: dict[str, datetime] | None = None,
 ) -> dict[str, Any]:
     """KPIs, solicitudes y tendencia. `solicitudes`: salieron al laboratorio (con `enviada_en`);
-    `correo`: filas de `correo_informe`; `cargadas`: OT con su informe ya en Converter o Report."""
+    `correo`: filas de `correo_informe`; `cargadas`: OT con su informe ya en Converter o Report.
+    `fechas_sistema`: OT → cuándo llegó su informe según lo que ya estaba en el sistema (fecha de envío anotada, «enviado al
+    cliente»…): sirve para medir la demora de los informes que no llegaron por este correo. La del correo manda."""
     desde = ahora - timedelta(days=dias)
     por_ot: dict[str, list[dict]] = {}
     for f in correo:
@@ -143,7 +175,8 @@ def armar_panel(
         ot = (s["ot"] or "").strip().upper()
         estado = estado_de_solicitud(ot, cargadas, por_ot)
         llegadas = [f["llegada_en"] for f in por_ot.get(ot, []) if f["decision"] != "rechazado" and f["llegada_en"]]
-        llegada = min(llegadas) if llegadas else None
+        llegada = min(llegadas) if llegadas else (fechas_sistema or {}).get(ot)
+        origen = "correo" if llegadas else ("sistema" if llegada else None)
         demora = dias_habiles(s["enviada_en"], llegada) if llegada else None
         if llegada and demora is not None and llegada >= desde:
             demoras.append((llegada, s["laboratorio"], demora))
@@ -152,7 +185,7 @@ def armar_panel(
             "ot": ot, "laboratorio": s["laboratorio"], "sold_to": s["sold_to"], "ship_to": s["ship_to"],
             "especie": s.get("especie"), "enviada_en": s["enviada_en"], "estado": estado,
             "dias_esperando": dias_habiles(s["enviada_en"], ahora) if estado == "esperando" else None,
-            "llegada_en": llegada, "demora": demora,
+            "llegada_en": llegada, "demora": demora, "origen_fecha": origen,
             "informe_id": ultimo["id"] if ultimo else None, "nro_informe": ultimo["nro_informe"] if ultimo else None,
             "decision": ultimo["decision"] if ultimo else None,
         })
@@ -190,6 +223,7 @@ def armar_panel(
             "demora_maxima": round(max(medianas), 2) if medianas else None,
         },
         "tendencia": tendencia_de_demora(demoras),
+        "cajas": cajas_de_demora((lab, d) for _, lab, d in demoras),
         "laboratorios": [
             {"laboratorio": lab, "esperando": d["esperando"], "recibidos": d["recibidos"],
              "demora_mediana": round(median(d["demoras"]), 2) if d["demoras"] else None}
@@ -214,6 +248,30 @@ def _filas(cur, sql: str, params: tuple = ()) -> list[dict]:
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         cur.execute("ROLLBACK TO SAVEPOINT panel_informes")
         return []
+
+
+def _fechas_del_sistema(cur) -> dict[str, datetime]:
+    """OT → cuándo llegó su informe, para lo que no entró por este correo. Cada fuente se lee aparte y manda la
+    primera que exista: la fecha de envío del informe (Converter), la de «enviado al cliente», la anotada a mano
+    (informes propios), cuándo se subió el PDF y, por último, cuándo se cargó a Report."""
+    fuentes = (
+        "SELECT upper(btrim(numero_solicitud)) AS ot, min(fecha_envio) AS t FROM informe_auditoria"
+        " WHERE numero_solicitud IS NOT NULL AND fecha_envio IS NOT NULL GROUP BY 1",
+        "SELECT upper(btrim(sa.numero_solicitud)) AS ot, min(e.enviado_en) AS t FROM envio_cliente_manual e"
+        " JOIN solicitud_archivo sa ON sa.archivo = e.archivo WHERE sa.numero_solicitud IS NOT NULL GROUP BY 1",
+        "SELECT upper(btrim(sa.numero_solicitud)) AS ot, min(m.fecha_envio) AS t FROM informe_fecha_manual m"
+        " JOIN solicitud_archivo sa ON sa.archivo = m.archivo WHERE sa.numero_solicitud IS NOT NULL GROUP BY 1",
+        "SELECT upper(btrim(numero_solicitud)) AS ot, min(subido_en) AS t FROM informe_auditoria"
+        " WHERE numero_solicitud IS NOT NULL GROUP BY 1",
+        "SELECT upper(btrim(s.referencia)) AS ot, min(cd.creado_en) AS t FROM solicitud s JOIN carga_datos cd ON cd.id = s.carga_id"
+        " WHERE s.referencia ~* '^OT-' AND cd.deshecha_en IS NULL GROUP BY 1",
+    )
+    fechas: dict[str, datetime] = {}
+    for sql in fuentes:
+        for f in _filas(cur, sql):
+            if f["ot"] and f["t"] and f["ot"] not in fechas:
+                fechas[f["ot"]] = f["t"]
+    return fechas
 
 
 def leer_panel(dias: int = 60, ahora: datetime | None = None) -> dict[str, Any]:
@@ -243,4 +301,5 @@ def leer_panel(dias: int = 60, ahora: datetime | None = None) -> dict[str, Any]:
             )
             if f["ot"]
         }
-    return armar_panel(solicitudes, correo, cargadas, ahora, dias)
+        fechas = _fechas_del_sistema(cur)
+    return armar_panel(solicitudes, correo, cargadas, ahora, dias, fechas)
