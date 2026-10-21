@@ -113,7 +113,7 @@ const celda = (v: string) => `"${v.replace(/"/g, '""')}"`
  * La tabla como CSV para Excel en español: separador «;», comillas, y una marca al inicio para que se lean las tildes.
  * Los valores van como se ven en pantalla («4,66», «<1», «BLD»).
  */
-export function csvDeInformes(informes: InformeLinea[], analitos: AnalitoLinea[], columnaDetalle: string | null, estadoPendiente = false): string {
+export function csvDeInformes(informes: InformeLinea[], analitos: AnalitoLinea[], columnaDetalle: string | null): string {
   const encabezado = [
     'Fecha de muestreo',
     'N° de informe',
@@ -126,7 +126,7 @@ export function csvDeInformes(informes: InformeLinea[], analitos: AnalitoLinea[]
     i.nro,
     ...(columnaDetalle ? [i.detalle ?? ''] : []),
     ...analitos.map((a) => i.porAnalito[a.codigo]?.texto ?? ''),
-    estadoPendiente ? 'Pendiente' : detectadosDe(i) > 0 ? `Con detección (${detectadosDe(i)} de ${analitosDe(i)})` : 'Sin detección',
+    detectadosDe(i) > 0 ? `Con detección (${detectadosDe(i)} de ${analitosDe(i)})` : 'Sin detección',
   ])
   return '﻿' + [encabezado, ...filas].map((f) => f.map(celda).join(';')).join('\r\n')
 }
