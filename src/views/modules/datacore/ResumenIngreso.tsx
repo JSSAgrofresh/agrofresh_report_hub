@@ -43,10 +43,10 @@ export function ResumenIngreso({ panel, error, onIr }: Props) {
           onClick={() => onIr({ pestana: 'informes', decision: 'pendiente' })}
         />
         <Indicador
-          etiqueta="En seguimiento"
-          valor={nf.format(k.seguimiento)}
-          sub="salieron a quien no correspondía"
-          alerta={k.seguimiento > 0}
+          etiqueta="Incidentes de envío"
+          valor={nf.format(k.incidentes)}
+          sub={`${k.incidentes_abiertos} ${k.incidentes_abiertos === 1 ? 'abierto' : 'abiertos'} · ${k.incidentes_cerrados} ${k.incidentes_cerrados === 1 ? 'corregido' : 'corregidos'}`}
+          alerta={k.incidentes_abiertos > 0}
           onClick={() => onIr({ pestana: 'informes', estado: 'rojo' })}
         />
         <Indicador
