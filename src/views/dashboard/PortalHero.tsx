@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useState } from 'react'
 import styles from './PortalHero.module.css'
 
 interface PortalHeroProps {
@@ -11,10 +11,19 @@ interface PortalHeroProps {
 
 /** Encabezado del portal del cliente. Con `fondo` lleva la foto de la fruta; sin él, solo el degradado de la marca. */
 export function PortalHero({ etiqueta, titulo, descripcion, fondo }: PortalHeroProps) {
-  const estiloFoto: CSSProperties | undefined = fondo ? { backgroundImage: `url(${fondo})` } : undefined
+  // Al cambiar de fruta la foto nueva aparece despacio sobre la anterior (fundido lento), en vez de cambiar de golpe.
+  const [capas, setCapas] = useState<string[]>(fondo ? [fondo] : [])
+  if (fondo && fondo !== capas[capas.length - 1]) setCapas([...capas.slice(-1), fondo])
   return (
     <section className={`${styles.hero} ${fondo ? styles.conFoto : ''}`}>
-      {fondo && <div className={styles.foto} style={estiloFoto} aria-hidden="true" />}
+      {capas.map((src, i) => (
+        <div
+          key={src}
+          className={`${styles.foto} ${i > 0 ? styles.fotoNueva : ''}`}
+          style={{ backgroundImage: `url(${src})` }}
+          aria-hidden="true"
+        />
+      ))}
       {fondo && <div className={styles.velo} aria-hidden="true" />}
       <span className={styles.brillo} aria-hidden="true" />
       <div className={styles.texto}>

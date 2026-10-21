@@ -133,3 +133,15 @@
   color: var(--color-text-faint);
   font-variant-numeric: tabular-nums;
 }
+
+/* Portal de clientes: controles redondeados, igual que el resto de los filtros. */
+:global([data-portal]) .boton {
+  height: 40px;
+  border-radius: 14px;
+  border-color: #cfe0bf;
+  padding: 0 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+:global([data-portal]) .boton:hover { border-color: var(--color-primary); }
+:global([data-portal]) .lista { border-radius: 16px; box-shadow: 0 16px 40px rgba(40, 70, 20, 0.2); }
+:global([data-portal]) .etiqueta { letter-spacing: 0.06em; }
