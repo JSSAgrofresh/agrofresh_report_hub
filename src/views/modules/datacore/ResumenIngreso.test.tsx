@@ -27,7 +27,8 @@ describe('ResumenIngreso', () => {
     const cifra = (etiqueta: string) => screen.getByText(etiqueta).closest('button, div')?.textContent ?? ''
     expect(cifra('Esperando informe')).toContain('2')
     expect(cifra('Pendientes de aceptar')).toContain('4')
-    expect(cifra('En seguimiento')).toContain('2')
+    expect(cifra('Incidentes de envío')).toContain('3')
+    expect(screen.getByText('2 abiertos · 1 corregido')).toBeInTheDocument()
     expect(cifra('Aceptados')).toContain('3')
     expect(cifra('Rechazados')).toContain('1')
     expect(cifra('Informes recibidos')).toContain('9')
@@ -56,7 +57,7 @@ describe('ResumenIngreso', () => {
     render(<ResumenIngreso panel={PANEL} error={null} onIr={onIr} />)
     fireEvent.click(screen.getByRole('button', { name: /Esperando informe/ }))
     expect(onIr).toHaveBeenLastCalledWith({ pestana: 'solicitudes', estado: 'esperando' })
-    fireEvent.click(screen.getByRole('button', { name: /En seguimiento/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Incidentes de envío/ }))
     expect(onIr).toHaveBeenLastCalledWith({ pestana: 'informes', estado: 'rojo' })
     fireEvent.click(screen.getByRole('button', { name: /Rechazados/ }))
     expect(onIr).toHaveBeenLastCalledWith({ pestana: 'informes', decision: 'rechazado' })

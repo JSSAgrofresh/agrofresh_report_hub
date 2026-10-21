@@ -24,6 +24,8 @@ export const INFORME_ROJO: InformeCorreo = {
   resuelto_por: null,
   primera_llegada: '2026-10-16T18:03:00Z',
   es_ultima_copia: true,
+  envios: 2,
+  tuvo_incidente: true,
   hallazgos: [{ nivel: 'rojo', codigo: 'destinatarios_de_mas', texto: 'Salió a personas que NO están en la lista de la solicitud: patricio@unifrutti.com' }],
   pdf_nombre: '2026-1914-PC.pdf',
   tiene_pdf: true,
@@ -40,6 +42,8 @@ export const INFORME_OK: InformeCorreo = {
   ya_cargado: true,
   hallazgos: [],
   primera_llegada: null,
+  envios: 1,
+  tuvo_incidente: false,
 }
 
 export function bandeja(informes: InformeCorreo[]): Bandeja {
@@ -52,7 +56,7 @@ export function bandeja(informes: InformeCorreo[]): Bandeja {
 
 export const PANEL: PanelIngreso = {
   dias: 60,
-  kpis: { recibidos: 9, pendientes: 4, aceptados: 3, rechazados: 1, seguimiento: 2, esperando: 2, demora_mediana: 2.5, demora_maxima: 6 },
+  kpis: { recibidos: 9, pendientes: 4, aceptados: 3, rechazados: 1, incidentes: 3, incidentes_abiertos: 2, incidentes_cerrados: 1, esperando: 2, demora_mediana: 2.5, demora_maxima: 6 },
   tendencia: {
     puntos: [
       { semana: '2026-10-05', n: 3, mediana: 2, por_laboratorio: { Quiteca: 2 } },
