@@ -57,6 +57,10 @@ describe('IngestaInicio (Ingreso de informes)', () => {
     expect(screen.getByText('Faltan por llegar')).toBeInTheDocument()
     expect(await screen.findByText('Revisión de envíos')).toBeInTheDocument()
 
+    // El filtro por laboratorio vuelve a pedir el panel solo con ese laboratorio.
+    fireEvent.click(screen.getByRole('button', { name: 'Quiteca' }))
+    await waitFor(() => expect(panelIngreso).toHaveBeenLastCalledWith(60, ['Quiteca']))
+
     fireEvent.click(screen.getByRole('tab', { name: 'Todos los informes' }))
     await waitFor(() => expect(listarBandeja).toHaveBeenCalled())
 

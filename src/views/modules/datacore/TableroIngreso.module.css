@@ -45,3 +45,7 @@
 .conmutador button { font: inherit; font-size: 12px; padding: 5px 10px; background: var(--color-surface); border: 0; cursor: pointer; }
 .conmutador button[aria-pressed='true'] { background: #4f8a2b; color: #fff; font-weight: 600; }
 .leyenda { margin: var(--space-2) 0 0; font-size: 12px; color: var(--color-text-muted); }
+.filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.filtros span { font-size: 13px; color: var(--color-text-muted); margin-right: 4px; }
+.filtros button { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 99px; border: 1px solid var(--color-border-strong); background: var(--color-surface); cursor: pointer; }
+.filtros button[aria-pressed='true'] { background: #4f8a2b; border-color: #4f8a2b; color: #fff; font-weight: 600; }

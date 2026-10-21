@@ -37,7 +37,7 @@ export type {
   ResultadoLote,
 } from './lib/api'
 export { dias, semanaCorta, frasePendiente } from './lib/formato'
-export { agrupar, clasificar, CODIGO_NO_HOMOGENEO } from './lib/cola'
+export { agrupar, clasificar, claveLaboratorio, enLaboratorios, CODIGO_NO_HOMOGENEO, LABORATORIOS } from './lib/cola'
 export type { Bloque } from './lib/cola'
 export { ETIQUETA_ESTADO, resumenInforme, hallazgoPrincipal, compararDestinatarios, esCorreoInterno } from './lib/revision'
 export type { FilaDestinatario } from './lib/revision'

@@ -265,10 +265,10 @@ export function ColaDeTrabajo({ informes, error, grupos, onCambio, onAbrir, vaci
       {grupos.includes('seguimiento') &&
         bloque(
           'Salió mal: hay que avisar al laboratorio',
-          'El correo llegó a gente que no está en la lista de la solicitud. Avisa al laboratorio y anótalo. «Cargar de todas formas» sube los resultados, pero NO lo marca como enviado al cliente.',
+          'El correo llegó a gente que no está en la lista de la solicitud. Avisa al laboratorio y anótalo: no se carga hasta que llegue la copia correcta.',
           'rojo',
           seguimiento,
-          <ul className={styles.lista}>{seguimiento.map((i) => fila(i, { aceptar: 'Cargar de todas formas', informar: true, resolver: true }))}</ul>,
+          <ul className={styles.lista}>{seguimiento.map((i) => fila(i, { informar: true, resolver: true }))}</ul>,
         )}
 
       {grupos.includes('revisar') &&
@@ -286,7 +286,7 @@ export function ColaDeTrabajo({ informes, error, grupos, onCambio, onAbrir, vaci
           'No se vuelve a alertar. Cuando llegue la copia correcta se cierra solo; o márcalo como resuelto.',
           'gris',
           informados,
-          <ul className={styles.lista}>{informados.map((i) => fila(i, { aceptar: 'Cargar de todas formas', resolver: true }))}</ul>,
+          <ul className={styles.lista}>{informados.map((i) => fila(i, { resolver: true }))}</ul>,
         )}
     </div>
   )

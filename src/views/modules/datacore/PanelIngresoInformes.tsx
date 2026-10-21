@@ -20,6 +20,7 @@ const PERIODOS = [30, 60, 90]
 export function PanelIngresoInformes({ cargaManual }: { cargaManual: ReactNode }) {
   const [pestana, setPestana] = useState<Pestana>('tablero')
   const [dias, setDias] = useState(60)
+  const [laboratorios, setLaboratorios] = useState<string[]>([])
   const [panel, setPanel] = useState<PanelIngreso | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [ultimo, setUltimo] = useState<UltimoSondeo | null>(null)
@@ -28,7 +29,7 @@ export function PanelIngresoInformes({ cargaManual }: { cargaManual: ReactNode }
 
   useEffect(() => {
     let vigente = true
-    panelIngreso(dias)
+    panelIngreso(dias, laboratorios)
       .then((p) => {
         if (!vigente) return
         setPanel(p)
@@ -45,7 +46,7 @@ export function PanelIngresoInformes({ cargaManual }: { cargaManual: ReactNode }
     return () => {
       vigente = false
     }
-  }, [dias, version])
+  }, [dias, laboratorios, version])
 
   const leerUltimo = useCallback(async () => {
     const s = await ultimoSondeo()
@@ -109,7 +110,7 @@ export function PanelIngresoInformes({ cargaManual }: { cargaManual: ReactNode }
       </div>
 
       <div role="tabpanel" id={`panel-${pestana}`} aria-labelledby={`tab-${pestana}`}>
-        {pestana === 'tablero' && <TableroIngreso panel={panel} errorPanel={error} version={version} onCambio={recargar} onVerInforme={verInforme} />}
+        {pestana === 'tablero' && <TableroIngreso panel={panel} errorPanel={error} version={version} laboratorios={laboratorios} onLaboratorios={setLaboratorios} onCambio={recargar} onVerInforme={verInforme} />}
         {pestana === 'informes' && <BandejaCorreo key={busqueda.clave} version={version} inicial={busqueda.informes} onCambio={recargar} />}
         {pestana === 'carga' && cargaManual}
       </div>

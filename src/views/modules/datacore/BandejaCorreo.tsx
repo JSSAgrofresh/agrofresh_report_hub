@@ -200,7 +200,7 @@ export function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambi
               Ver el PDF
             </button>
           )}
-          {d.decision === 'pendiente' && !porHomogeneizar && (
+          {d.decision === 'pendiente' && !porHomogeneizar && !enSeguimiento && (
             <button
               type="button"
               className={styles.btnPrimario}
@@ -212,7 +212,7 @@ export function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambi
                 })
               }
             >
-              {d.ya_cargado ? 'Marcar como revisado' : d.estado === 'rojo' && !d.resuelto_en ? 'Cargar de todas formas' : 'Aceptar y cargar a la base'}
+              {d.ya_cargado ? 'Marcar como revisado' : 'Aceptar y cargar a la base'}
             </button>
           )}
           {d.decision === 'aceptado' && (
