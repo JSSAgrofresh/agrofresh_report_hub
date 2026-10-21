@@ -1,0 +1,58 @@
+ INFORME DE ANALISIS
+
+
+
+
+ Informe N° 2026-1914-PC
+ Identificación del Cliente :
+ Cliente AGROFRESH CHILE COMERCIAL LIMITADA. RUT : 76.411.711-5:
+ Dirección Manuel Montt, 4060 Bodega 54 y 55, Barrio Ind. KM90 Comuna : Rancagua:
+ Empacador FRUTAS AGROVIC LIMITADA:
+ Lugar de muestreo FRUTAS AGROVIC LIMITADA:
+
+ Identificación de la Muestra N°86044 Fecha de Recepción : 15-10-2026 14:00
+ N° Solicitud OT-QUI0053 Fecha de Muestreo : 14-10-2026 Hora : 15:45:
+ Muestreador : Barly Fuentes Fecha solicitud :15-10-2026
+ Especie cereza Variedad::
+ Tipo Aplicación Línea de proceso Cód. productor 3126354::
+ Línea 1 Kg procesados 800::
+ Lote 2 N° cámara::
+ Posición muestreo Producto terminado Análisis Específico::
+
+ Dosis : FDL : IMZ : PYR : TBZ : AZOX : DPA : TEBU :
+ 130cc/100lts 50cc/100lts
+
+ Producto : N° Orden :Código del Packing :
+
+
+ Obs.: Global Talsa Fresh
+ Traypack 301
+ Calibre:3J
+
+
+
+ Resultados de la Muestra N°86044 Fecha de Análisis 15-10-2026
+ Resultado Desv.Est L.D.
+ Método Activo mg/Kg mg/Kg mg/Kg
+ IT-08 Fludioxonil 1,01 0,00 0,02
+ IT-57 Tebuconazol 0,57 0,06 0,02
+ - - - - - - - - - - - -
+ - - - - - - - - - - - -
+ - - - - - - - - - - - -
+
+ Interpretación de Abreviaturas
+ Desv.Est : Desviación estándar de los duplicados
+ L.D. : Límite de Detección
+ N.D. : No Detectado
+ Los resultados se refieren solo a la muestra analizada, la cual ha sido proporcionada por el cliente.
+
+
+
+
+
+
+ Fecha Informe : 16 de octubre de 2026
+
+ Laboratorio Químico Quiteca Ltda.
+ Pedro Fontova 4756 - Conchali - Santiago Fono: +56 227390161 - www.quiteca.cl
+Fin del informe Página 1 de 1

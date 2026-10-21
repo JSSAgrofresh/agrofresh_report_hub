@@ -573,6 +573,31 @@ def _marcar(informe_id: int, sql: str, params: tuple, que: str) -> dict[str, Any
     return {"ok": True, "id": informe_id, "accion": que}
 
 
+class AceptarLoteIn(BaseModel):
+    ids: list[int] = Field(..., min_length=1, max_length=100)
+
+
+@router.post("/aceptar-lote")
+def aceptar_lote(body: AceptarLoteIn, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """Acepta varios informes; los que no se pueden vuelven con su motivo y los demás igual se aceptan."""
+    from . import correo_informes_aceptar
+    return correo_informes_aceptar.aceptar_varios(body.ids, usuario)
+
+
+@router.post("/{informe_id}/aceptar")
+def aceptar_informe(informe_id: int, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """Carga el informe a la base (como el Converter) o, si ya estaba, solo lo marca revisado."""
+    from . import correo_informes_aceptar
+    return correo_informes_aceptar.aceptar(informe_id, usuario)
+
+
+@router.post("/{informe_id}/deshacer-aceptacion")
+def deshacer_aceptacion(informe_id: int, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """Borra la carga que hizo «Aceptar» y devuelve el informe a pendiente."""
+    from . import correo_informes_aceptar
+    return correo_informes_aceptar.deshacer(informe_id, usuario)
+
+
 @router.post("/{informe_id}/rechazar")
 def rechazar(informe_id: int, body: DecisionIn, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
     """Descarta el informe (no se carga): queda en la bandeja como rechazado, con su motivo."""
