@@ -445,9 +445,9 @@ def correr_sondeo(sondeo_id: int, dias: int, maximo: int = MAXIMO_POR_REVISION, 
     return {"examinados": examinados, "nuevos": nuevos, "dias": dias}
 
 
-def sondear(dias: int = DIAS_POR_DEFECTO, maximo: int = MAXIMO_POR_REVISION, disparado_por: str = "") -> dict[str, Any]:
+def sondear(dias: int = DIAS_POR_DEFECTO, maximo: int = MAXIMO_POR_REVISION, disparado_por: str = "", forzar: bool = False) -> dict[str, Any]:
     """Una revisión del buzón, de principio a fin (la usa el script). Devuelve el resumen."""
-    sondeo_id, ya_en_curso = iniciar_sondeo(dias, disparado_por)
+    sondeo_id, ya_en_curso = iniciar_sondeo(dias, disparado_por, forzar)
     if ya_en_curso:
         raise RuntimeError("Ya hay una revisión del correo en curso.")
     return correr_sondeo(sondeo_id, dias, maximo)
