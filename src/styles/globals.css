@@ -165,3 +165,36 @@ button:active {
     flex: 1;
   }
 }
+
+/* Barras de desplazamiento finas y de la marca en toda la app (la nativa de
+   Windows es gruesa y gris). Solo estilo: no cambia el comportamiento. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #b6d49a transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #b6d49a;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #8fbd66;
+  background-clip: content-box;
+}
+
+/* El menú lateral no arrastra el scroll de la página al llegar a su final. */
+nav {
+  overscroll-behavior: contain;
+}
