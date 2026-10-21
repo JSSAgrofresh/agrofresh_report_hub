@@ -57,6 +57,7 @@ export interface ConteosBandeja {
 }
 
 export interface UltimoSondeo {
+  id: number
   iniciado_en: string
   terminado_en: string | null
   nuevos: number
@@ -86,7 +87,8 @@ export function detalleInformeCorreo(id: number) {
 }
 
 export function revisarCorreoAhora(dias: number) {
-  return httpClient.post<{ examinados: number; nuevos: number; dias: number }>('/correo-informes/sondear', { dias })
+  // Vuelve de inmediato: la revisión sigue en el servidor y su avance se lee en `ultimo_sondeo` de la bandeja.
+  return httpClient.post<{ id: number; en_curso: boolean; ya_estaba_en_curso: boolean }>('/correo-informes/sondear', { dias })
 }
 
 /** El PDF como blob, para verlo sin guardarlo en disco. */
