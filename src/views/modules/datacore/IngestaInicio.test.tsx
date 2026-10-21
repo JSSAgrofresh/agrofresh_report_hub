@@ -51,17 +51,14 @@ describe('IngestaInicio (Ingreso de informes)', () => {
     pantalla()
 
     expect(screen.getByRole('heading', { name: 'Informes de laboratorio' })).toBeInTheDocument()
-    expect(await screen.findByRole('tab', { name: /Por hacer/ })).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(screen.getByRole('tab', { name: 'Resumen' }))
+    expect(await screen.findByRole('tab', { name: /Tablero/ })).toHaveAttribute('aria-selected', 'true')
+    // Todo está en el mismo tablero: la demora, lo que falta por llegar y los envíos por revisar.
     expect(await screen.findByText('Demora de los informes')).toBeInTheDocument()
+    expect(screen.getByText('Faltan por llegar')).toBeInTheDocument()
+    expect(await screen.findByText('Revisión de envíos')).toBeInTheDocument()
 
-    // Tocar «Incidentes de envío» abre los informes del correo ya filtrados en rojo.
-    fireEvent.click(screen.getByRole('button', { name: /Incidentes de envío/ }))
-    await waitFor(() => expect(listarBandeja).toHaveBeenLastCalledWith('rojo', '', '', false))
-    expect(await screen.findByText('2026-1914-PC')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('tab', { name: /Solicitudes/ }))
-    expect(await screen.findByText('OT-ALS0019')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Todos los informes' }))
+    await waitFor(() => expect(listarBandeja).toHaveBeenCalled())
 
     fireEvent.click(screen.getByRole('tab', { name: 'Carga manual' }))
     expect(await screen.findByText('Excel de resultados')).toBeInTheDocument()
@@ -73,9 +70,8 @@ describe('IngestaInicio (Ingreso de informes)', () => {
     ultimoSondeo.mockResolvedValue(null)
     listarBandeja.mockResolvedValue(bandeja([]))
     pantalla()
-    const informes = await screen.findByRole('tab', { name: /Por hacer/ })
+    const informes = await screen.findByRole('tab', { name: /Tablero/ })
     await waitFor(() => expect(informes).toHaveTextContent('4'))
-    expect(screen.getByRole('tab', { name: /Solicitudes/ })).toHaveTextContent('2')
   })
 
   it('cualquier otra cuenta ve solo la carga manual de siempre', () => {

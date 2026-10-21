@@ -49,6 +49,7 @@ def entorno(monkeypatch):
     creados = {}
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("DELETE FROM correo_informe WHERE buzon = %s", (BUZON,))
+        cur.execute("DELETE FROM correccion_converter WHERE valor_crudo = 'AGROVIK'")
         cur.execute("SELECT id FROM cliente WHERE nombre = %s", (CLIENTE,))
         if not cur.fetchone():
             cur.execute("INSERT INTO cliente (nombre) VALUES (%s) RETURNING id", (CLIENTE,))
@@ -62,6 +63,7 @@ def entorno(monkeypatch):
     yield guardados
     with conexion() as conn, cursor_dict(conn) as cur:
         cur.execute("DELETE FROM correo_informe WHERE buzon = %s", (BUZON,))
+        cur.execute("DELETE FROM correccion_converter WHERE valor_crudo = 'AGROVIK'")
         cur.execute("SELECT id FROM carga_datos WHERE archivo LIKE '2026-1914-PC%%' AND origen = 'correo'")
         for c in cur.fetchall():
             try:
@@ -147,3 +149,43 @@ def test_endpoints_solo_para_el_principal(entorno):
         assert c.post("/api/correo-informes/1/deshacer-aceptacion").status_code == 403
     finally:
         app.dependency_overrides.clear()
+
+
+def test_corregir_a_mano_carga_y_recuerda(entorno, monkeypatch):
+    """Un Sold To mal escrito se corrige en la pantalla: el informe se carga con lo corregido y queda aprendido."""
+    monkeypatch.setattr("app.informe_lectura.texto_quiteca", lambda d: TEXTO.replace("FRUTAS AGROVIC LIMITADA", "AGROVIK"))
+    i = _insertar()
+    with pytest.raises(HTTPException) as e:
+        acc.aceptar(i, USUARIO)
+    assert "homogeneizar" in e.value.detail
+    r = acc.aceptar(i, USUARIO, {"sold_to": CLIENTE, "ship_to": CLIENTE})
+    assert r["resultado"] == "cargado"
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT valor_oficial FROM correccion_converter WHERE campo = 'sold_to' AND valor_crudo = 'AGROVIK'")
+        assert cur.fetchone()["valor_oficial"] == CLIENTE
+    # la próxima vez que llegue «AGROVIK» ya se corrige solo
+    from app import correo_informes_homogeneo as h
+    assert h.preparar(b"x")["ok"] is True
+
+
+def test_completar_fila_marca_lo_que_hay_que_homogeneizar(entorno, monkeypatch):
+    from app import correo_informes_homogeneo as h
+    monkeypatch.setattr("app.informe_lectura.texto_quiteca", lambda d: TEXTO.replace("FRUTAS AGROVIC LIMITADA", "NO EXISTE SA"))
+    fila = {"laboratorio": "Quiteca", "ya_cargado": False, "nro_informe": "x", "hallazgos": [], "estado": "ok"}
+    h.completar_fila(fila, b"x")
+    assert fila["homogeneo"] is False and fila["estado"] == "amarillo"
+    assert fila["hallazgos"][0]["codigo"] == "no_homogeneo"
+
+
+def test_endpoint_de_homogeneizacion_trae_lo_leido_y_las_opciones(entorno):
+    i = _insertar()
+    app.dependency_overrides[usuario_actual] = lambda: USUARIO
+    try:
+        r = TestClient(app).get(f"/api/correo-informes/{i}/homogeneizacion")
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 200
+    j = r.json()
+    assert j["ok"] is True and j["campos"]["sold_to"] == CLIENTE
+    assert CLIENTE in j["opciones"]["sold_to"] and CLIENTE in j["opciones"]["ship_to"][CLIENTE]
+    assert "cereza" in j["opciones"]["especie"]

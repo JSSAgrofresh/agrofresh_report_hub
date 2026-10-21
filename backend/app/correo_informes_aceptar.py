@@ -27,7 +27,7 @@ from typing import Any
 
 from fastapi import HTTPException, UploadFile
 
-from . import ingest, quiteca_lectura
+from . import correo_informes_homogeneo as homogeneo, ingest, quiteca_lectura
 from .auth import Usuario
 from .db import conexion, cursor_dict
 
@@ -86,8 +86,8 @@ def _guardar_pdf(datos: bytes, nombre: str, fila: dict, lectura: dict, usuario: 
     return asyncio.run(auditoria_interna.subir_informe(
         archivo=archivo,
         laboratorio=d.get("Laboratorio") or fila["laboratorio"] or "",
-        ship_to=fila.get("ship_to") or d.get("Ship To") or "",
-        sold_to=fila.get("sold_to") or d.get("Sold To") or "",
+        ship_to=d.get("Ship To") or fila.get("ship_to") or "",
+        sold_to=d.get("Sold To") or fila.get("sold_to") or "",
         nro_informe=d.get("N° Solicitud") or fila.get("nro_informe") or "",
         archivo_solicitud=fila.get("archivo_solicitud") or "",
         ot_informe=d.get("OT") or fila.get("ot") or "",
@@ -99,10 +99,9 @@ def _guardar_pdf(datos: bytes, nombre: str, fila: dict, lectura: dict, usuario: 
     ))
 
 
-def aceptar(informe_id: int, usuario: Usuario) -> dict[str, Any]:
+def aceptar(informe_id: int, usuario: Usuario, correcciones: dict[str, str] | None = None) -> dict[str, Any]:
     """Acepta un informe de la bandeja. Lanza 404/409 con el motivo si no se puede; si se pudo, devuelve el resumen."""
     from . import correo_informes, r2
-    from .informe_lectura import texto_quiteca
 
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         cur.execute(
@@ -133,25 +132,25 @@ def aceptar(informe_id: int, usuario: Usuario) -> dict[str, Any]:
         datos_pdf = r2.descargar(fila["r2_key"])
         if datos_pdf is None:
             raise _409("El PDF ya no está en el almacenamiento.")
-        lectura = quiteca_lectura.leer_quiteca(texto_quiteca(datos_pdf))
-        faltan = [a for a in lectura["avisos"] if a.startswith("Sin dato para") or a.startswith("No se encontró ningún resultado")]
+        listo = homogeneo.preparar(datos_pdf, correcciones)
+        lectura, faltan = listo["lectura"], [m for m in listo["motivos"] if m.startswith("Falta: ")]
         if faltan:
             raise _409("Al informe le falta información para cargarlo: " + "; ".join(faltan) + ". Cárgalo con el Converter.")
         if lectura["sueltos"]:
             nombres = ", ".join(n for n, _ in lectura["sueltos"])
             raise _409(f"El informe trae analitos que el sistema no conoce ({nombres}). Cárgalo con el Converter para decidir qué hacer con ellos.")
-        filas = [quiteca_lectura.fila_cruda(lectura)]
-        carga = ingest.CargaRequest(filas=filas, origen="correo", archivo=fila["pdf_nombre"])
-        previa = ingest.preview(carga)
-        if previa["resumen"].get("pendientes_revision"):
-            motivos = [m for d in previa["detalle"] for m in d.get("motivos", [])]
-            raise _409("El informe trae datos que no calzan con Listados, así que no se cargó: " + "; ".join(motivos[:4]))
+        if listo["motivos"]:
+            raise _409("Hay que homogeneizar el informe antes de cargarlo: " + "; ".join(listo["motivos"][:4]))
+        carga = ingest.CargaRequest(filas=[listo["fila"]], origen="correo", archivo=fila["pdf_nombre"])
+        previa = listo["previa"]
         if any(d.get("ya_existia") for d in previa["detalle"]):
             ya_cargado = True          # alguien lo cargó entre la llegada y ahora: solo se marca revisado
             resultado = "revisado"
         else:
             hecho = ingest.confirmar(carga, usuario)
             carga_id = hecho.get("carga_id")
+            if correcciones:
+                homogeneo.aprender(correcciones, listo["leidos"], listo["campos"], fila["pdf_nombre"], usuario)
             resultado = "cargado"
             avisos += [a for a in lectura["avisos"] if a not in faltan]
             try:
@@ -178,6 +177,11 @@ def aceptar(informe_id: int, usuario: Usuario) -> dict[str, Any]:
         cur.execute(
             "UPDATE correo_informe SET decision = 'aceptado', decidido_en = now(), decidido_por = %s, carga_id = %s,"
             " ya_cargado = TRUE WHERE id = %s", (usuario.email, carga_id, informe_id))
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute("UPDATE correo_informe SET homogeneo = TRUE WHERE id = %s", (informe_id,))
+    except Exception:  # noqa: BLE001 — falta la 0067: no es lo esencial
+        pass
     return {"id": informe_id, "resultado": resultado, "carga_id": carga_id, "envio_al_cliente": envio, "avisos": avisos}
 
 

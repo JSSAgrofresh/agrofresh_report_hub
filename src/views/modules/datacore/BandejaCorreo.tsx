@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import {
   aceptarInforme,
   aceptarVarios,
+  CODIGO_NO_HOMOGENEO,
   compararDestinatarios,
   deshacerAceptacion,
   detalleInformeCorreo,
@@ -16,6 +17,7 @@ import {
 } from '@/features/correoInformes'
 import type { Bandeja, DecisionInforme, DetalleInformeCorreo, FiltroBandeja, InformeCorreo } from '@/features/correoInformes'
 import { fechaHoraCorta } from '@/features/notificaciones'
+import { HomogeneizarInforme } from './HomogeneizarInforme'
 import styles from './BandejaCorreo.module.css'
 
 export interface FiltroInicialBandeja {
@@ -38,7 +40,7 @@ const ESTADOS: { clave: FiltroBandeja; etiqueta: string; conteo: keyof Bandeja['
   { clave: 'ya_cargado', etiqueta: 'Ya cargados', conteo: 'ya_cargado' },
 ]
 
-function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () => void }) {
+export function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () => void }) {
   const id = informe.id
   const [d, setD] = useState<DetalleInformeCorreo | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -89,6 +91,7 @@ function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () =
 
   const filas = compararDestinatarios(d.esperado, { para: d.para, cc: d.cc, bcc: d.bcc }, d.propios)
   const enSeguimiento = d.estado === 'rojo' && !d.resuelto_en
+  const porHomogeneizar = d.decision === 'pendiente' && !d.ya_cargado && d.hallazgos.some((h) => h.codigo === CODIGO_NO_HOMOGENEO)
   return (
     <div className={styles.detalle}>
       <div className={styles.detalleCol}>
@@ -177,6 +180,16 @@ function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () =
         )}
         {d.nota_incidente && <p className={styles.nota}>Nota del incidente: «{d.nota_incidente}»</p>}
 
+        {porHomogeneizar && (
+          <HomogeneizarInforme
+            id={id}
+            onAceptado={(a) => {
+              setAvisos(a)
+              onCambio()
+            }}
+          />
+        )}
+
         {avisos.map((a) => (
           <p key={a} className={styles.nota}>{a}</p>
         ))}
@@ -187,7 +200,7 @@ function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () =
               Ver el PDF
             </button>
           )}
-          {d.decision === 'pendiente' && (
+          {d.decision === 'pendiente' && !porHomogeneizar && (
             <button
               type="button"
               className={styles.btnPrimario}
@@ -199,7 +212,7 @@ function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () =
                 })
               }
             >
-              {d.ya_cargado ? 'Aceptar (solo marcar revisado)' : 'Aceptar y cargar a la base'}
+              {d.ya_cargado ? 'Marcar como revisado' : d.estado === 'rojo' && !d.resuelto_en ? 'Cargar de todas formas' : 'Aceptar y cargar a la base'}
             </button>
           )}
           {d.decision === 'aceptado' && (

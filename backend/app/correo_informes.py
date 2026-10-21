@@ -32,7 +32,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from psycopg2.extras import Json
 from pydantic import BaseModel, Field
 
-from . import config, correo_informes_lectura as lectura
+from . import config, correo_informes_homogeneo, correo_informes_lectura as lectura
 from .auth import Usuario, usuario_actual
 from .confirmar_clave import es_principal
 from .db import conexion, cursor_dict
@@ -234,7 +234,17 @@ def guardar_fila(cur, buzon: str, message_id: str, correo: dict[str, Any], fila:
          Json(fila["para"]), Json(fila["cc"]), Json(fila["bcc"]), Json(fila["esperado"]), Json(fila["hallazgos"]),
          *[fila[c] for c in _COLUMNAS]),
     )
-    return cur.rowcount > 0
+    nuevo = cur.rowcount > 0
+    if nuevo and fila.get("homogeneo") is not None:
+        try:
+            cur.execute("SAVEPOINT homogeneo")
+            cur.execute(
+                "UPDATE correo_informe SET homogeneo = %s, homogeneo_motivos = %s WHERE message_id = %s AND pdf_sha256 = %s",
+                (fila["homogeneo"], Json(fila.get("homogeneo_motivos") or []), message_id, fila["pdf_sha256"]))
+            cur.execute("RELEASE SAVEPOINT homogeneo")
+        except psycopg2.errors.UndefinedColumn:      # falta la 0067: se guarda igual, sin la revisión
+            cur.execute("ROLLBACK TO SAVEPOINT homogeneo")
+    return nuevo
 
 
 # ---------------------------------------------------------------------------
@@ -384,6 +394,8 @@ def correr_sondeo(sondeo_id: int, dias: int, maximo: int = MAXIMO_POR_REVISION, 
                 with conexion() as conn, cursor_dict(conn) as cur:
                     for fila in filas:
                         llave = None
+                        if fila["laboratorio"] == "Quiteca":
+                            correo_informes_homogeneo.completar_fila(fila, datos_pdf[fila["pdf_nombre"]])
                         if fila["laboratorio"] and fila["soportado"]:
                             sello = (llegada or datetime.now()).strftime("%Y/%m")
                             nombre = re.sub(r"[^\w.\- ]+", "_", fila["pdf_nombre"])[:120]
@@ -397,6 +409,7 @@ def correr_sondeo(sondeo_id: int, dias: int, maximo: int = MAXIMO_POR_REVISION, 
                     # El avance se ve en pantalla mientras corre.
                     cur.execute("UPDATE correo_informe_sondeo SET examinados = %s, nuevos = %s WHERE id = %s",
                                 (examinados, nuevos, sondeo_id))
+            correo_informes_homogeneo.completar_pendientes()
         finally:
             try:
                 imap.logout()
@@ -584,11 +597,40 @@ def aceptar_lote(body: AceptarLoteIn, usuario: Usuario = Depends(exigir_principa
     return correo_informes_aceptar.aceptar_varios(body.ids, usuario)
 
 
+class AceptarIn(BaseModel):
+    """Valores corregidos a mano (Sold To, Ship To, Especie, Variedad); lo que no venga se deja como se leyó."""
+    correcciones: dict[str, str] = Field(default_factory=dict)
+
+
 @router.post("/{informe_id}/aceptar")
-def aceptar_informe(informe_id: int, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+def aceptar_informe(informe_id: int, body: AceptarIn | None = None, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
     """Carga el informe a la base (como el Converter) o, si ya estaba, solo lo marca revisado."""
     from . import correo_informes_aceptar
-    return correo_informes_aceptar.aceptar(informe_id, usuario)
+    return correo_informes_aceptar.aceptar(informe_id, usuario, (body.correcciones if body else None) or None)
+
+
+@router.get("/{informe_id}/homogeneizacion")
+def homogeneizacion(informe_id: int, _: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """Lo que el informe trae (Sold To, Ship To, Especie, Variedad) y si calza con Listados, para corregirlo a mano."""
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT r2_key, laboratorio, ya_cargado FROM correo_informe WHERE id = %s", (informe_id,))
+        fila = cur.fetchone()
+    if not fila:
+        raise HTTPException(404, "Ese informe no está en la bandeja.")
+    if fila["laboratorio"] != "Quiteca":
+        raise HTTPException(409, "Por ahora solo se homogeneizan los informes de Quiteca.")
+    if fila["ya_cargado"]:
+        raise HTTPException(409, "Este informe ya está cargado en el sistema.")
+    from . import r2
+    datos = r2.descargar(fila["r2_key"]) if fila["r2_key"] else None
+    if datos is None:
+        raise HTTPException(409, "El PDF de este informe no está guardado: no se puede leer.")
+    r = correo_informes_homogeneo.preparar(datos)
+    from .servicios import clave_servicio
+
+    servicio = clave_servicio(r["lectura"]["datos"].get("Tipo Aplicación"))
+    return {"campos": r["campos"], "leidos": r["leidos"], "aprendidos": r["aprendidos"], "motivos": r["motivos"], "ok": r["ok"],
+            "opciones": correo_informes_homogeneo.opciones(servicio)}
 
 
 @router.post("/{informe_id}/deshacer-aceptacion")
