@@ -450,6 +450,11 @@ class SondearIn(BaseModel):
     dias: int = Field(DIAS_POR_DEFECTO, ge=1, le=90)
 
 
+# La última copia de cada informe (mismo laboratorio y N°): es la que vale; las anteriores son su historia.
+_VIGENTE = (
+    "NOT EXISTS (SELECT 1 FROM correo_informe x WHERE x.laboratorio = c.laboratorio AND x.nro_informe <> ''"
+    " AND upper(btrim(x.nro_informe)) = upper(btrim(c.nro_informe)) AND x.llegada_en > c.llegada_en)"
+)
 _CAMPOS_LISTA = (
     "c.id, c.laboratorio, c.soportado, c.nro_informe, c.ot,"
     " COALESCE(NULLIF(c.sold_to, ''), sa.sold_to) AS sold_to, COALESCE(NULLIF(c.ship_to, ''), sa.ship_to) AS ship_to,"
@@ -459,8 +464,12 @@ _CAMPOS_LISTA = (
     # Copias del mismo informe (mismo laboratorio y N°): desde cuándo llegó la primera y si esta es la última.
     " (SELECT MIN(x.llegada_en) FROM correo_informe x WHERE x.laboratorio = c.laboratorio AND x.nro_informe <> ''"
     "    AND upper(btrim(x.nro_informe)) = upper(btrim(c.nro_informe))) AS primera_llegada,"
-    " NOT EXISTS (SELECT 1 FROM correo_informe x WHERE x.laboratorio = c.laboratorio AND x.nro_informe <> ''"
-    "    AND upper(btrim(x.nro_informe)) = upper(btrim(c.nro_informe)) AND x.llegada_en > c.llegada_en) AS es_ultima_copia"
+    f" {_VIGENTE} AS es_ultima_copia,"
+    # Cuántas veces llegó este informe y si alguna de esas veces salió mal (un informe = un incidente, no un correo).
+    " (SELECT COUNT(*) FROM correo_informe x WHERE x.laboratorio = c.laboratorio AND x.nro_informe <> ''"
+    "    AND upper(btrim(x.nro_informe)) = upper(btrim(c.nro_informe))) AS envios,"
+    " EXISTS (SELECT 1 FROM correo_informe x WHERE x.laboratorio = c.laboratorio AND x.nro_informe <> ''"
+    "    AND upper(btrim(x.nro_informe)) = upper(btrim(c.nro_informe)) AND x.estado = 'rojo') AS tuvo_incidente"
 )
 _DESDE = "FROM correo_informe c LEFT JOIN solicitud_archivo sa ON sa.archivo = c.archivo_solicitud"
 
@@ -477,10 +486,12 @@ def listar(
     estado: str = Query("", description="rojo, amarillo, ok, ya_cargado o vacío para todos"),
     decision: str = Query("", description="pendiente, aceptado, rechazado o vacío para todas"),
     laboratorio: str = "", q: str = "", limite: int = Query(200, ge=1, le=500),
+    copias: bool = Query(False, description="incluir también los envíos anteriores de un mismo informe"),
     _: Usuario = Depends(exigir_principal),
 ) -> dict[str, Any]:
+    """Por defecto, una fila por informe (su última copia). Los reenvíos del mismo informe son SU historia, no más alertas."""
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        _tabla_o_503(cur, "SELECT estado, ya_cargado, decision, count(*) AS n FROM correo_informe GROUP BY estado, ya_cargado, decision")
+        _tabla_o_503(cur, f"SELECT c.estado, c.ya_cargado, c.decision, count(*) AS n FROM correo_informe c {'' if copias else 'WHERE ' + _VIGENTE} GROUP BY c.estado, c.ya_cargado, c.decision")
         conteos: dict[str, int] = {"todos": 0, "rojo": 0, "amarillo": 0, "ok": 0, "ya_cargado": 0,
                                    "pendiente": 0, "aceptado": 0, "rechazado": 0}
         for f in cur.fetchall():
@@ -489,7 +500,7 @@ def listar(
             conteos[f["decision"]] = conteos.get(f["decision"], 0) + f["n"]
             if f["ya_cargado"]:
                 conteos["ya_cargado"] += f["n"]
-        filtros, params = [], []
+        filtros, params = ([] if copias else [_VIGENTE]), []
         if estado == "ya_cargado":
             filtros.append("c.ya_cargado")
         elif estado:
@@ -588,6 +599,17 @@ def detalle(informe_id: int, _: Usuario = Depends(exigir_principal)) -> dict[str
     if not fila:
         raise HTTPException(404, "Ese informe no está en la bandeja.")
     fila.pop("r2_key", None)
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            "SELECT id, llegada_en, estado, para, cc, hallazgos FROM correo_informe c"
+            " WHERE %s <> '' AND c.laboratorio = %s AND upper(btrim(c.nro_informe)) = upper(btrim(%s)) ORDER BY c.llegada_en ASC, c.id ASC",
+            (fila.get("nro_informe") or "", fila.get("laboratorio"), fila.get("nro_informe") or ""),
+        )
+        fila["historial"] = [
+            {"id": f["id"], "llegada_en": f["llegada_en"], "estado": f["estado"], "para": f["para"], "cc": f["cc"],
+             "que_paso": next((h["texto"] for h in (f["hallazgos"] or []) if h.get("nivel") != "info"), "Todo calza con su solicitud.")}
+            for f in cur.fetchall()
+        ]
     fila["propios"] = sorted(_propios())     # nuestras cuentas: no cuentan como destinatarios de más
     return fila
 

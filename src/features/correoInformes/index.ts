@@ -14,6 +14,7 @@ export type {
   ConteosBandeja,
   DecisionInforme,
   DetalleInformeCorreo,
+  EnvioDeInforme,
   EstadoSolicitud,
   PanelIngreso,
   PuntoDemora,

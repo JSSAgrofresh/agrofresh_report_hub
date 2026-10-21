@@ -117,8 +117,26 @@ function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () =
         <p className={styles.nota}>
           Se mira solo Para y Copia. Llegó: {fechaHoraCorta(d.llegada_en)}
           {d.enviado_en ? ` · enviado: ${fechaHoraCorta(d.enviado_en)}` : ''}.
-          {d.primera_llegada && d.primera_llegada !== d.llegada_en ? ` Es un reenvío: la primera copia llegó ${fechaHoraCorta(d.primera_llegada)}.` : ''}
         </p>
+        {d.historial.length > 1 && (
+          <div className={styles.historial}>
+            <h3 className={styles.detalleTitulo}>Envíos de este informe ({d.historial.length})</h3>
+            <ol className={styles.envios}>
+              {d.historial.map((e) => (
+                <li key={e.id} className={e.id === d.id ? styles.envioActual : ''}>
+                  <span className={`${styles.estado} ${styles[`e_${e.estado}`]}`}>{ETIQUETA_ESTADO[e.estado]}</span>
+                  <span className={styles.envioFecha}>{fechaHoraCorta(e.llegada_en)}</span>
+                  <span className={styles.envioTexto}>
+                    a {[...e.para, ...e.cc].slice(0, 3).join(', ') || '—'}
+                    {e.para.length + e.cc.length > 3 ? ` y ${e.para.length + e.cc.length - 3} más` : ''}
+                    <em>{e.que_paso}</em>
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <p className={styles.nota}>Es un solo incidente: los reenvíos no cuentan como alertas nuevas.</p>
+          </div>
+        )}
       </div>
       <div className={styles.detalleCol}>
         <h3 className={styles.detalleTitulo}>Qué encontré</h3>
@@ -223,13 +241,14 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
   const [decision, setDecision] = useState<DecisionInforme | ''>(inicial?.decision ?? (inicial?.estado || inicial?.q ? '' : 'pendiente'))
   const [estado, setEstado] = useState<FiltroBandeja>(inicial?.estado ?? '')
   const [q, setQ] = useState(inicial?.q ?? '')
+  const [copias, setCopias] = useState(false)
   const [abierto, setAbierto] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [recarga, setRecarga] = useState(0)
 
   useEffect(() => {
     let vigente = true
-    listarBandeja(estado, q, decision)
+    listarBandeja(estado, q, decision, copias)
       .then((b) => {
         if (!vigente) return
         setBandeja(b)
@@ -241,7 +260,7 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
     return () => {
       vigente = false
     }
-  }, [estado, q, decision, version, recarga])
+  }, [estado, q, decision, copias, version, recarga])
 
   const c = bandeja?.conteos
 
@@ -282,6 +301,10 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
           onChange={(e) => setQ(e.target.value)}
           aria-label="Buscar en el correo de informes"
         />
+        <label className={styles.copias}>
+          <input type="checkbox" checked={copias} onChange={(e) => setCopias(e.target.checked)} />
+          Incluir envíos anteriores del mismo informe
+        </label>
       </div>
 
       {error && <p className={styles.error}>{error}</p>}
@@ -307,7 +330,6 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
             <tbody>
               {(bandeja?.informes ?? []).map((i: InformeCorreo) => {
                 const h = hallazgoPrincipal(i.hallazgos.filter((x) => x.nivel !== 'info'))
-                const reenvio = i.primera_llegada != null && i.primera_llegada !== i.llegada_en
                 return (
                   <Fragment key={i.id}>
                     <tr
@@ -330,7 +352,16 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
                           </span>
                         )}
                         {i.ya_cargado && <span className={styles.marca}>Ya cargado</span>}
-                        {reenvio && <span className={styles.marca} title={`La primera copia llegó ${fechaHoraCorta(i.primera_llegada)}`}>Reenvío</span>}
+                        {i.estado !== 'rojo' && i.tuvo_incidente && (
+                          <span className={`${styles.marca} ${styles.marcaAceptado}`} title="Salió mal antes y un reenvío llegó a la lista correcta">
+                            Corregido por reenvío
+                          </span>
+                        )}
+                        {i.envios > 1 && (
+                          <span className={styles.marca} title={`La primera copia llegó ${fechaHoraCorta(i.primera_llegada)}`}>
+                            {i.envios} envíos
+                          </span>
+                        )}
                         {!i.es_ultima_copia && <span className={styles.marca}>Reemplazado</span>}
                       </td>
                       <td className={styles.queHizo}>{h ? h.texto : 'Todo calza con su solicitud.'}</td>

@@ -53,9 +53,9 @@ describe('IngestaInicio (Ingreso de informes)', () => {
     expect(screen.getByRole('heading', { name: 'Informes de laboratorio' })).toBeInTheDocument()
     expect(await screen.findByText('Demora de los informes')).toBeInTheDocument()
 
-    // Tocar «En seguimiento» abre los informes del correo ya filtrados en rojo.
-    fireEvent.click(screen.getByRole('button', { name: /En seguimiento/ }))
-    await waitFor(() => expect(listarBandeja).toHaveBeenLastCalledWith('rojo', '', ''))
+    // Tocar «Incidentes de envío» abre los informes del correo ya filtrados en rojo.
+    fireEvent.click(screen.getByRole('button', { name: /Incidentes de envío/ }))
+    await waitFor(() => expect(listarBandeja).toHaveBeenLastCalledWith('rojo', '', '', false))
     expect(await screen.findByText('2026-1914-PC')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: /Solicitudes/ }))

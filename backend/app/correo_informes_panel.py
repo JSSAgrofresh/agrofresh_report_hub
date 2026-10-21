@@ -102,6 +102,26 @@ def estado_de_solicitud(ot: str, cargadas: set[str], correo: dict[str, list[dict
     return "rechazado" if all(f["decision"] == "rechazado" for f in filas) else "recibido"
 
 
+def _incidentes(correo: list[dict], desde: datetime) -> dict[str, int]:
+    """Incidentes de envío: UNO por informe (laboratorio y N°), no uno por correo. Un informe que Quiteca mandó mal,
+    reenvió y volvió a mandar es la misma historia. Está *abierto* si su última copia sigue en rojo y nadie lo resolvió;
+    si una copia posterior llegó bien (o se resolvió a mano) queda *cerrado*, pero sigue contando como incidente del período."""
+    grupos: dict[tuple[str, str], list[dict]] = {}
+    for f in sorted((x for x in correo if x.get("llegada_en")), key=lambda x: x["llegada_en"]):
+        grupos.setdefault((f.get("laboratorio") or "", (f.get("nro_informe") or f"#{f['id']}").strip().upper()), []).append(f)
+    incidentes = abiertos = 0
+    for filas in grupos.values():
+        rojas = [f for f in filas if f["estado"] == "rojo"]
+        if not rojas:
+            continue
+        ultima = filas[-1]
+        abierto = ultima["estado"] == "rojo" and not ultima.get("resuelto_en")
+        if abierto or rojas[0]["llegada_en"] >= desde:
+            incidentes += 1
+            abiertos += 1 if abierto else 0
+    return {"incidentes": incidentes, "incidentes_abiertos": abiertos, "incidentes_cerrados": incidentes - abiertos}
+
+
 def armar_panel(
     solicitudes: list[dict], correo: list[dict], cargadas: set[str], ahora: datetime, dias: int,
 ) -> dict[str, Any]:
@@ -160,7 +180,7 @@ def armar_panel(
             "pendientes": n("pendiente"),
             "aceptados": n("aceptado"),
             "rechazados": n("rechazado"),
-            "seguimiento": sum(1 for f in correo if f["estado"] == "rojo" and not f.get("resuelto_en")),
+            **_incidentes(correo, desde),
             "esperando": sum(1 for f in filas_solicitud if f["estado"] == "esperando"),
             "demora_mediana": round(median(medianas), 2) if medianas else None,
             "demora_maxima": round(max(medianas), 2) if medianas else None,

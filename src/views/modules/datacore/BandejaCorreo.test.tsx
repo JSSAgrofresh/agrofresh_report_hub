@@ -25,39 +25,62 @@ const DETALLE: DetalleInformeCorreo = {
   bcc: ['agrofreshreporthub@gmail.com'],
   esperado: { to: ['contacto@agrovic.cl'], cc: ['juan.labarca@agrofresh.com'], bcc: [] },
   propios: ['agrofreshreporthub@gmail.com'],
+  historial: [
+    { id: 7, llegada_en: '2026-10-16T18:03:00Z', estado: 'rojo', para: ['marcelo@elmoral.cl'], cc: [], que_paso: 'Salió a personas que NO están en la lista de la solicitud: marcelo@elmoral.cl' },
+    { id: 1, llegada_en: '2026-10-20T20:21:00Z', estado: 'rojo', para: ['patricio.caceres@unifrutti.com'], cc: ['juan.labarca@agrofresh.com'], que_paso: 'Salió a personas que NO están en la lista de la solicitud: patricio.caceres@unifrutti.com' },
+  ],
 }
 
 afterEach(() => vi.clearAllMocks())
 
 describe('BandejaCorreo', () => {
-  it('lista los informes con su estado, marca lo ya cargado y los reenvíos', async () => {
-    listarBandeja.mockResolvedValue(bandeja([INFORME_ROJO, INFORME_OK]))
+  it('lista una fila por informe: marca lo ya cargado, cuántas veces llegó y si un reenvío lo corrigió', async () => {
+    const corregido = { ...INFORME_OK, envios: 2, tuvo_incidente: true, ya_cargado: false }
+    listarBandeja.mockResolvedValue(bandeja([INFORME_ROJO, corregido]))
     render(<BandejaCorreo version={0} onCambio={() => {}} />)
     expect(await screen.findByText('Quiteca · OT-QUI0053')).toBeInTheDocument()
-    expect(screen.getByText('2026-1914-PC')).toBeInTheDocument()
     expect(screen.getByText('Seguimiento', { selector: 'span' })).toBeInTheDocument()
     expect(screen.getByText(/NO están en la lista/)).toBeInTheDocument()
-    expect(screen.getByText('Ya cargado')).toBeInTheDocument()
-    expect(screen.getByText('Reenvío')).toBeInTheDocument()
+    expect(screen.getAllByText('2 envíos', { selector: 'span' })).toHaveLength(2)
+    expect(screen.getByText('Corregido por reenvío')).toBeInTheDocument()
     expect(screen.getByText('Todo calza con su solicitud.')).toBeInTheDocument()
+  })
+
+  it('por defecto pide solo la última copia de cada informe; con la casilla pide también las anteriores', async () => {
+    listarBandeja.mockResolvedValue(bandeja([INFORME_ROJO]))
+    render(<BandejaCorreo version={0} onCambio={() => {}} />)
+    await screen.findByText('2026-1914-PC')
+    expect(listarBandeja).toHaveBeenLastCalledWith('', '', 'pendiente', false)
+    fireEvent.click(screen.getByLabelText(/Incluir envíos anteriores/))
+    await waitFor(() => expect(listarBandeja).toHaveBeenLastCalledWith('', '', 'pendiente', true))
+  })
+
+  it('al abrir un informe enviado varias veces muestra su historial como un solo incidente', async () => {
+    listarBandeja.mockResolvedValue(bandeja([INFORME_ROJO]))
+    detalleInformeCorreo.mockResolvedValue(DETALLE)
+    render(<BandejaCorreo version={0} onCambio={() => {}} />)
+    fireEvent.click(await screen.findByText('Quiteca · OT-QUI0053'))
+    expect(await screen.findByText('Envíos de este informe (2)')).toBeInTheDocument()
+    expect(screen.getByText(/Es un solo incidente/)).toBeInTheDocument()
+    expect(screen.getByText(/a marcelo@elmoral.cl/)).toBeInTheDocument()
   })
 
   it('parte en «Pendientes» y cambiar de decisión vuelve a pedir la lista con ese filtro', async () => {
     listarBandeja.mockResolvedValue(bandeja([INFORME_ROJO]))
     render(<BandejaCorreo version={0} onCambio={() => {}} />)
     await screen.findByText('2026-1914-PC')
-    expect(listarBandeja).toHaveBeenLastCalledWith('', '', 'pendiente')
+    expect(listarBandeja).toHaveBeenLastCalledWith('', '', 'pendiente', false)
     fireEvent.click(screen.getByRole('button', { name: /Rechazados/ }))
-    await waitFor(() => expect(listarBandeja).toHaveBeenLastCalledWith('', '', 'rechazado'))
+    await waitFor(() => expect(listarBandeja).toHaveBeenLastCalledWith('', '', 'rechazado', false))
     fireEvent.click(screen.getByRole('button', { name: /Seguimiento/ }))
-    await waitFor(() => expect(listarBandeja).toHaveBeenLastCalledWith('rojo', '', 'rechazado'))
+    await waitFor(() => expect(listarBandeja).toHaveBeenLastCalledWith('rojo', '', 'rechazado', false))
   })
 
   it('si se llegó desde una cifra del resumen, parte con ese filtro', async () => {
     listarBandeja.mockResolvedValue(bandeja([INFORME_ROJO]))
     render(<BandejaCorreo version={0} inicial={{ estado: 'rojo' }} onCambio={() => {}} />)
     await screen.findByText('2026-1914-PC')
-    expect(listarBandeja).toHaveBeenLastCalledWith('rojo', '', '')
+    expect(listarBandeja).toHaveBeenLastCalledWith('rojo', '', '', false)
   })
 
   it('al abrir un informe muestra a quién debía llegar contra a quién llegó', async () => {

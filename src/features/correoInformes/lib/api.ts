@@ -39,6 +39,10 @@ export interface InformeCorreo {
   primera_llegada: string | null
   /** false si después llegó otra copia del mismo informe (esta quedó reemplazada). */
   es_ultima_copia: boolean
+  /** Cuántas veces llegó este informe (un informe = un incidente, aunque se haya mandado varias veces). */
+  envios: number
+  /** Alguno de esos envíos salió mal. Con la última copia en rojo el incidente sigue abierto; si no, se corrigió. */
+  tuvo_incidente: boolean
   hallazgos: Hallazgo[]
   pdf_nombre: string
   tiene_pdf: boolean
@@ -50,7 +54,18 @@ export interface DestinatariosCorreo {
   bcc: string[]
 }
 
+export interface EnvioDeInforme {
+  id: number
+  llegada_en: string | null
+  estado: EstadoInforme
+  para: string[]
+  cc: string[]
+  que_paso: string
+}
+
 export interface DetalleInformeCorreo extends InformeCorreo {
+  /** Todos los envíos de este mismo informe, del primero al último. */
+  historial: EnvioDeInforme[]
   para: string[]
   cc: string[]
   bcc: string[]
@@ -88,8 +103,9 @@ export interface Bandeja {
 
 export type FiltroBandeja = '' | EstadoInforme | 'ya_cargado'
 
-export function listarBandeja(estado: FiltroBandeja = '', q = '', decision: DecisionInforme | '' = '') {
+export function listarBandeja(estado: FiltroBandeja = '', q = '', decision: DecisionInforme | '' = '', copias = false) {
   const params = new URLSearchParams()
+  if (copias) params.set('copias', 'true')
   if (estado) params.set('estado', estado)
   if (decision) params.set('decision', decision)
   if (q.trim()) params.set('q', q.trim())
@@ -159,7 +175,11 @@ export interface PanelIngreso {
     pendientes: number
     aceptados: number
     rechazados: number
-    seguimiento: number
+    /** Informes que salieron mal (uno por informe, no por correo). */
+    incidentes: number
+    incidentes_abiertos: number
+    /** Corregidos por un reenvío o resueltos a mano. */
+    incidentes_cerrados: number
     esperando: number
     demora_mediana: number | null
     demora_maxima: number | null

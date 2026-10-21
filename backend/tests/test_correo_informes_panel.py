@@ -67,7 +67,8 @@ def test_el_panel_cuenta_lo_que_falta_lo_aceptado_lo_rechazado_y_el_seguimiento(
     k = r["kpis"]
     # Un reenvío no cuenta dos veces: I-3 se cuenta una vez (su última copia, pendiente).
     assert (k["recibidos"], k["pendientes"], k["aceptados"], k["rechazados"]) == (3, 2, 1, 0)
-    assert k["seguimiento"] == 2                                              # las dos copias en rojo siguen abiertas
+    # Las dos copias del I-3 en rojo son UN incidente (no dos alertas): sigue abierto porque su última copia sigue mal.
+    assert (k["incidentes"], k["incidentes_abiertos"], k["incidentes_cerrados"]) == (1, 1, 0)
     assert k["esperando"] == 1                                                # OT-5
     por_ot = {s["ot"]: s for s in r["solicitudes"]}
     assert por_ot["OT-5"]["estado"] == "esperando" and por_ot["OT-5"]["dias_esperando"] > 0
@@ -81,9 +82,33 @@ def test_una_solicitud_cargada_no_cuenta_como_que_falta():
     assert r["kpis"]["esperando"] == 0 and r["solicitudes"][0]["estado"] == "cargado"
 
 
-def test_el_seguimiento_se_cierra_al_resolverlo():
+def test_el_incidente_se_cierra_al_resolverlo_a_mano():
     correo = [_mail(1, "OT-1", "I-1", _t(7), "pendiente", "rojo", resuelto=_t(9))]
-    assert P.armar_panel([_sol("OT-1")], correo, set(), AHORA, 60)["kpis"]["seguimiento"] == 0
+    k = P.armar_panel([_sol("OT-1")], correo, set(), AHORA, 60)["kpis"]
+    assert (k["incidentes"], k["incidentes_abiertos"], k["incidentes_cerrados"]) == (1, 0, 1)
+
+
+def test_un_informe_mal_enviado_y_corregido_por_un_reenvio_es_un_incidente_cerrado():
+    """El caso del 1912: salió a otra planta el 16 y Quiteca lo reenvió bien el 20."""
+    correo = [_mail(1, "OT-1", "2026-1912-PC", _t(8), estado="rojo"), _mail(2, "OT-1", "2026-1912-PC", _t(12), estado="ok")]
+    k = P.armar_panel([_sol("OT-1")], correo, set(), AHORA, 60)["kpis"]
+    assert (k["incidentes"], k["incidentes_abiertos"], k["incidentes_cerrados"]) == (1, 0, 1)
+
+
+def test_dos_informes_mal_enviados_son_dos_incidentes_aunque_haya_tres_correos_en_rojo():
+    """1912 (corregido) y 1914 (mandado dos veces mal): tres correos en rojo, dos incidentes, uno abierto."""
+    correo = [
+        _mail(1, "OT-A", "2026-1912-PC", _t(8), estado="rojo"), _mail(2, "OT-A", "2026-1912-PC", _t(12), estado="ok"),
+        _mail(3, "OT-B", "2026-1914-PC", _t(8), estado="rojo"), _mail(4, "OT-B", "2026-1914-PC", _t(13), estado="rojo"),
+    ]
+    k = P.armar_panel([_sol("OT-A"), _sol("OT-B")], correo, set(), AHORA, 60)["kpis"]
+    assert (k["incidentes"], k["incidentes_abiertos"], k["incidentes_cerrados"]) == (2, 1, 1)
+
+
+def test_un_incidente_abierto_cuenta_aunque_sea_anterior_al_periodo():
+    correo = [_mail(1, "OT-1", "I-1", _t(1, mes=7), estado="rojo")]
+    k = P.armar_panel([_sol("OT-1")], correo, set(), AHORA, 30)["kpis"]
+    assert k["incidentes_abiertos"] == 1
 
 
 def test_los_endpoints_nuevos_son_solo_del_administrador_principal():
