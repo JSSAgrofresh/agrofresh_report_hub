@@ -1,0 +1,127 @@
+/* Cáscara visual del portal de clientes y comerciales: solo cambia el marco (fondo, navbar flotante, hero).
+   Lo de adentro (tablas, gráficos, filtros) se ve igual; solo hereda tokens un poco más suaves. */
+.shell {
+  position: relative;
+  min-height: 100vh;
+  isolation: isolate;
+  background: #f1f6ea;
+  /* Las pantallas de adentro leen estos tokens: tarjetas más redondeadas y con sombra suave. */
+  --color-bg: transparent;
+  --color-border: #dde8d0;
+  --radius-lg: 20px;
+  --radius-md: 12px;
+  --shadow-md: 0 10px 30px rgba(40, 70, 20, 0.1);
+}
+
+.fondo {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mancha {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  will-change: transform;
+}
+.m1 { width: 46vw; height: 46vw; left: -10vw; top: -8vw; background: rgba(109, 173, 60, 0.38); animation: deriva1 22s ease-in-out infinite alternate; }
+.m2 { width: 38vw; height: 38vw; right: -8vw; top: 22vh; background: rgba(232, 195, 46, 0.3); animation: deriva2 26s ease-in-out infinite alternate; }
+.m3 { width: 34vw; height: 34vw; left: 30vw; bottom: -12vw; background: rgba(59, 130, 184, 0.16); animation: deriva1 30s ease-in-out infinite alternate-reverse; }
+
+@keyframes deriva1 { to { transform: translate(9vw, 7vh) scale(1.18); } }
+@keyframes deriva2 { to { transform: translate(-8vw, -9vh) scale(0.88); } }
+
+.burbuja {
+  position: fixed;
+  z-index: 50;
+  left: 50%;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  transform: translateX(-50%);
+  max-width: calc(100vw - 24px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 10px 30px rgba(40, 70, 20, 0.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+  animation: baja 0.8s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  transition: box-shadow 0.3s, background 0.3s;
+}
+.burbujaScroll {
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 14px 38px rgba(40, 70, 20, 0.2);
+}
+@keyframes baja { from { transform: translate(-50%, -30px); opacity: 0; } }
+
+.marca { display: flex; align-items: center; flex: none; padding-right: 8px; text-decoration: none; }
+.logo { height: 32px; width: auto; display: block; }
+
+.items { position: relative; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+.items::-webkit-scrollbar { display: none; }
+
+.enlace {
+  position: relative;
+  z-index: 1;
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: #5f7152;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.25s;
+}
+.enlace:hover { color: #18260f; }
+.enlaceActivo, .enlaceActivo:hover { color: #fff; }
+.enlace:focus-visible, .salir:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+.pildora {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #3f7a1a, #6dad3c);
+  box-shadow: 0 4px 14px rgba(109, 173, 60, 0.5);
+  transition: left 0.45s cubic-bezier(0.3, 1.3, 0.5, 1), width 0.45s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+
+.usuario { display: flex; align-items: center; gap: 8px; flex: none; padding-left: 8px; border-left: 1px solid rgba(95, 113, 82, 0.25); margin-left: 4px; }
+.iniciales {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: linear-gradient(135deg, #e8c32e, #6dad3c); color: #fff; font-size: 12px; font-weight: 700;
+}
+.nombre { font-size: 12.5px; font-weight: 600; color: #18260f; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.salir {
+  border: 0; background: transparent; color: #5f7152; width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center; flex: none; transition: background 0.2s, color 0.2s;
+}
+.salir:hover { background: #e3f1d3; color: #18260f; }
+.salir svg { width: 18px; height: 18px; }
+
+.contenido {
+  min-width: 0;
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 92px var(--space-6) var(--space-6);
+  animation: aparecer 0.35s ease;
+}
+@keyframes aparecer { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 720px) {
+  .nombre { display: none; }
+  .contenido { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mancha, .burbuja, .contenido { animation: none; }
+  .pildora { transition: none; }
+}

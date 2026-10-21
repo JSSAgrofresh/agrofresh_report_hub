@@ -1,11 +1,11 @@
 import type { AreaId } from '@/constants/areas'
 import { AREAS } from '@/constants/areas'
 import { EstadoModulo } from '@/components/ui/EstadoModulo'
-import { AreaHero, fondoParaEspecie } from '@/features/dashboard'
 import { vistaDeCliente } from '@/features/usuarios'
 import type { Usuario } from '@/features/usuarios'
 import { InformesAccutabCliente } from '@/views/modules/reports/InformesAccutabCliente'
 import { AccesosCliente } from './AccesosCliente'
+import { PortalHero } from './PortalHero'
 
 /** Un cliente no pertenece a un área: ve lo que el administrador le asignó (Report, Storage y/o informes Accu-Tab).
  * `area` solo da el encabezado y los colores. */
@@ -17,22 +17,16 @@ export function ClienteDashboardView({ area, usuario }: { area: AreaId; usuario:
   // encabezado muestra esa sucursal -ej. "Dole Codegua"- en vez del Sold To
   // completo, para que quede claro qué alcance tiene la cuenta.
   const titulo = usuario.plantaNombre ?? cliente
-  // Temporada de cereza: el fondo del encabezado es el de cereza. El Report ya NO se incrusta acá (tiene su
-  // propia entrada en el menú): el panel de un cliente lo arma el administrador (Panel de inicio).
-  const fondoHero = ve.report || area === 'cromatografia' ? fondoParaEspecie(null, config.fondo) : undefined
-
   return (
     <div>
-      <AreaHero
-        area={config}
+      <PortalHero
+        etiqueta={config.nombre}
         titulo={titulo}
         descripcion={
           usuario.tipoAcceso === 'comercial'
             ? `Comercial · ${config.nombre}. Solo lectura de las plantas que tienes asignadas.`
             : `Portal de cliente · ${config.nombre}. Acceso exclusivo a tus datos.`
         }
-        fondo={fondoHero?.imagen}
-        tinte={fondoHero?.tinte}
       />
 
       {(ve.report || ve.storage) && <AccesosCliente usuario={usuario} />}

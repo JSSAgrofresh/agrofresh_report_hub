@@ -1,0 +1,47 @@
+.hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 38px clamp(22px, 4vw, 48px);
+  margin-bottom: var(--space-5);
+  color: #fff;
+  background: linear-gradient(120deg, #2d5a17, #6dad3c, #a6d46a, #6dad3c);
+  background-size: 300% 300%;
+  animation: flujo 14s ease-in-out infinite;
+  box-shadow: 0 10px 30px rgba(40, 70, 20, 0.14);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+@keyframes flujo { 50% { background-position: 100% 50%; } }
+
+.hero::before,
+.hero::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  animation: flota 9s ease-in-out infinite alternate;
+}
+.hero::before { width: 260px; height: 260px; right: -60px; top: -90px; }
+.hero::after { width: 150px; height: 150px; left: 38%; bottom: -70px; animation-duration: 12s; animation-delay: -4s; }
+@keyframes flota { to { transform: translate(-24px, 22px) scale(1.12); } }
+
+.texto { position: relative; z-index: 1; min-width: 0; }
+.etiqueta {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 13px; opacity: 0.92;
+  text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;
+}
+.vivo { width: 8px; height: 8px; border-radius: 50%; background: #d6ff9e; animation: latido 1.8s ease-out infinite; }
+@keyframes latido {
+  0% { box-shadow: 0 0 0 0 rgba(214, 255, 158, 0.7); }
+  100% { box-shadow: 0 0 0 12px rgba(214, 255, 158, 0); }
+}
+.titulo { font-size: clamp(28px, 4.6vw, 46px); font-weight: 800; line-height: 1.08; margin: 8px 0 10px; text-wrap: balance; overflow-wrap: anywhere; }
+.descripcion { max-width: 52ch; opacity: 0.94; font-size: 15px; line-height: 1.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero, .hero::before, .hero::after, .vivo { animation: none; }
+}
