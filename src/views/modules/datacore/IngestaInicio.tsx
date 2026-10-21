@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ROUTES } from '@/constants/routes'
+import { useAuth } from '@/features/auth'
+import { CORREO_MAESTRO } from '@/features/usuarios'
+import { BandejaCorreo } from './BandejaCorreo'
 import { HistorialCargas } from './HistorialCargas'
 import { PendientesIngesta } from './PendientesIngesta'
 import styles from './IngestaInicio.module.css'
@@ -18,6 +21,9 @@ interface Props {
  */
 export function IngestaInicio({ cargando, error, onArchivo }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const { user } = useAuth()
+  // El correo de informes (etapa 1) lo ve solo el administrador principal.
+  const veCorreo = user?.tipoAcceso === 'admin_general' && user.email.toLowerCase() === CORREO_MAESTRO
   const [arrastrando, setArrastrando] = useState(false)
   // Pendientes e historial se releen entre sí: deshacer una carga borra sus
   // pendientes, y reintentar pendientes cambia los conteos de las cargas.
@@ -116,6 +122,8 @@ export function IngestaInicio({ cargando, error, onArchivo }: Props) {
           </Link>
         </section>
       </div>
+
+      {veCorreo && <BandejaCorreo />}
 
       <PendientesIngesta version={version} onCambio={refrescar} ocultarSiVacio />
       <HistorialCargas version={version} onCambio={refrescar} />

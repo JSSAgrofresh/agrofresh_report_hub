@@ -20,6 +20,7 @@ from .ficha_informe import router as ficha_informe_router
 from .informes_solicitud import router as informes_solicitud_router
 from .envio_cliente import router as envio_cliente_router
 from .correo import router as correo_router
+from .correo_informes import router as correo_informes_router
 from .envio_informes import router as envio_informes_router
 from .catalogo import router as catalogo_router
 from .emitir import router as emitir_router
@@ -165,6 +166,7 @@ for _router in (
     plan_carga_router,
     laboratorios_router,
     correo_router,
+    correo_informes_router,
     envio_informes_router,
     usuarios_router,
     homogenizar_router,

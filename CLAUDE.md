@@ -116,6 +116,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0055_solicitud_servicio.sql
 .venv\Scripts\python.exe scripts\migrar.py 0057_informe_visto.sql
 .venv\Scripts\python.exe scripts\migrar.py 0063_comercial_plantas.sql
+.venv\Scripts\python.exe scripts\migrar.py 0064_correo_informe.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -157,6 +158,7 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/cruce_plan_entregables.py` | Solo lee: cruza los clientes de los planes de entregables de los comerciales (`Entregables_*.xlsx`) con las plantas de la lista de distribución de Línea de proceso, buscando cada cliente solo entre las plantas de SU comercial; deja un Excel en `logs/` (cruce, plantas sin plan, comerciales). Acepta una carpeta o los archivos; `--comercial "R. TRAVERSO=rtraverso@agrofresh.com"` fija un comercial mal identificado |
 | `scripts/crear_comerciales.py` | Crea una cuenta «comercial» por cada correo con rol Comercial en la lista de distribución de Línea de proceso (`--servicio todas` suma Actimist, Ecofog y RYD), con las plantas donde figura, Report y Storage, solo lectura y clave temporal. El nombre sale del correo (se corrige en Usuarios → Editar). Salta los correos que ya tienen cuenta; `--excluir a@x,b@y` deja fuera a quien no sea comercial; `--aplicar` para escribir (las claves se muestran UNA vez). Necesita la 0063 |
 | `scripts/revisar_informes_correo.py` | SOLO LECTURA: por laboratorio, qué hay en el sistema (solicitudes, enviadas, informes, atrasadas) y qué informes llegaron al correo (Report Hub por defecto; `--cuenta`/`--host` para otro buzón, clave por `--clave-env` o teclado). Lee los PDF, deduce laboratorio, OT y N° de informe y marca cada correo NUEVO / YA CARGADO / OT DESCONOCIDA / SIN DATOS / SALIENTE. Abre el buzón `readonly` con `BODY.PEEK`: no marca, no mueve, no borra. Paso previo a la recepción automática de informes. `--solo-sistema`, `--solo-correo`, `--dias`, `--lab`, `--json` |
+| `scripts/recibir_informes_correo.py` | Revisa el buzón del Report Hub y deja los informes que llegaron en Ingesta de Datos → Correo (lo mismo que el botón «Revisar ahora»; `--dias`). Solo lee el buzón y no carga nada a Report. Necesita la 0064. Es lo que la tarea programada correrá cada 5 min cuando se encienda la revisión automática (etapa 3) |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
 Hay ~9 scripts en `backend/scripts/` que fueron migraciones de una sola vez
@@ -703,6 +705,30 @@ Pruebas: `tests/test_plan_carga.py`, `plan.test.ts`, `AnalisisPorCliente.test.ts
 - **Pendiente**: Salmonella (P/A) no la lee el Converter; límites/estados de ALS (no hay decisión del laboratorio); y probar todo con PDF reales.
 
 **Hoja «Para el informe» del Excel de Diagnofruit (20-10-2026, marca `hoja_informe_v1`, sin migración)**: Diagnofruit ahora entrega UN PDF por OT (un «folio» = el grupo de análisis del mismo Sold To y Ship To) de 2 hojas: el resultado y una hoja final «OBSERVACIONES ADICIONALES» donde ellos pegan lo que sale de esta hoja del Excel de la solicitud (`app/hoja_informe.py`, se agrega en `solicitud_excel.construir_workbook`): (1) la **cadena** de la solicitud con todos sus datos separados por « // » en posición fija (`CAMPOS_CADENA`: el ORDEN es el contrato con el futuro lector, agregar solo al final; un dato vacío conserva sus separadores; un « // » dentro de un dato se cambia por «/»), (2) «Sold To // Ship To» oficiales y (3) Para / CC / CCO en celdas aparte (misma lista que el PDF y el JSON: `_datos_pdf_con_destinatarios_resultados`). Al leer la cadena separar por `//` y recortar (`partes_de_cadena`), NO por « // » (dos vacíos seguidos comparten el espacio). Solo la llevan las solicitudes de Diagnofruit creadas desde ahora (`hoja_informe.marcar`, también en prueba y reanálisis; editar la conserva); las anteriores y los demás laboratorios salen igual. Pruebas: `tests/test_hoja_informe.py`. **Pendiente**: el lector del Converter (`leerDiagnofruit`) que tome la cadena de la hoja final (anclas del PDF: `Predio/planta:`, tabla `RESULTADOS`, `Análisis realizado:`, título `OBSERVACIONES ADICIONALES`; si dice «Sin observaciones adicionales» no hay cadena y cae al lector de siempre) y que mande la cadena sobre el Sold To / Ship To de la hoja 1; falta confirmar si la lista va también dentro de la cadena y si ALS usará lo mismo.
+
+## Ingesta de Datos → Correo: informes que llegan al buzón (21-10-2026, etapa 1, migración **0064**)
+
+**Plan completo (pedido del usuario):** Ingesta de Datos = carga AUTOMÁTICA y Converter = carga MANUAL (no se toca). Los informes que los laboratorios
+(Quiteca, ALS, Diagnofruit) y Paz (laboratorio AgroFresh, desde su Outlook) mandan al buzón `agrofreshreporthub@gmail.com` (el Report Hub y el usuario
+salen en copia) se leen, se cruzan con SU solicitud por la OT impresa y se dejan en una bandeja. Etapas: **1 leer y clasificar (hecha)** · 2 «Aceptar» (carga a la
+base por el mismo camino del Converter, con carga registrada y «Deshacer»; los «ya cargados» solo se marcan revisados) · 3 revisión automática cada 5 min +
+botón «Actualizar ahora» + «Resuelto» con nota para los rojos · 4 ALS (solo el PDF con `INF` en el nombre, el español; el otro es el inglés) y Diagnofruit
+(faltan correos reales de ambos). **La bandeja la ve solo el administrador principal** (`correo_informes.exigir_principal`, 403 al resto; en pantalla, `IngestaInicio`).
+
+**Etapa 1** (`app/correo_informes.py` buzón/base/API `/api/correo-informes`; `app/correo_informes_lectura.py` lectura y revisión, PURO; front `features/correoInformes/`
+y `views/modules/datacore/BandejaCorreo.tsx`; script `scripts/recibir_informes_correo.py`; botón «Revisar ahora» con 7/14/30/60 días):
+- **El buzón es SOLO LECTURA**: `select(readonly=True)` y `BODY.PEEK`; nada se marca, mueve ni borra. Lo ya examinado se anota en `correo_informe_visto` (base), no con etiquetas de Gmail.
+  Se buscan los correos con adjuntos (`X-GM-RAW has:attachment after:`), primero solo el encabezado; se ignoran respuestas/reenvíos (`RE:`/`FW:`, `In-Reply-To`), lo que manda el propio Hub e imágenes/banners.
+  Un correo con varios PDF da una fila por PDF (el de Paz con 3 informes). Cada PDF se copia a R2 (`correo_informes/AAAA/MM/`) para verlo y, en la etapa 2, cargarlo.
+- **Lectura** (`correo_informes_lectura`): el laboratorio con las mismas reglas de `detectar` del Converter (más el N° `AGFaaaa-n` + `OT-AGF`, porque `pypdf` separa el título del N°);
+  Quiteca con `informe_lectura.texto_quiteca` (Sold To = «Empacador», Ship To = «Lugar de muestreo», como `leerQuiteca`); AgroFresh con el texto normal (su Sold To/Ship To no se leen: el cruce
+  busca los nombres de la solicitud escritos en el PDF). ALS y Diagnofruit solo se registran (`sin_lector`, amarillo). **Aún no hay paridad total con el Converter**: solo se leen los datos del cruce, no los resultados.
+- **Revisión contra la solicitud** (OT del PDF → `indice_solicitudes.buscar_por_numero`; lista esperada = `envio_informes.plan_desde_solicitud`, la MISMA del PDF/JSON de la solicitud). Se mira SOLO Para y Copia
+  (la Copia oculta de terceros no se ve) y una persona cuenta como presente si está en Para o en Copia. **Rojo** (seguimiento): salió a gente de fuera de AgroFresh que la lista no trae (caso real: el informe
+  Quiteca 2026-1914-PC de OT-QUI0053/Agrovic salió a cuatro personas de unifrutti.com), OT que no existe, planta (Ship To) distinta, laboratorio distinto. **Amarillo** (revisar): falta alguien de la lista, copia interna de AgroFresh
+  de más, solicitud sin lista del cliente, sin OT en el PDF, Sold To / especie / fecha de muestreo distintos, laboratorio sin lector. `info`: «ya llegó antes». `ya_cargado` (N° de informe en Converter/Report o, en los propios, la OT en `referencia`) es aparte del estado.
+- **Pendiente de la etapa 1**: probar con el buzón real en el servidor (corrido en modo simulacro unos días contra lo que se hace a mano); los correos de prueba están en `backend/tests/fixtures/correos/` (reales, repo privado).
+- Pruebas: `tests/test_correo_informes.py` (con esos correos reales), `BandejaCorreo.test.tsx`, `revision.test.ts`.
 
 ## Post Venta: informes de Accu-Tab (Trace + correo)
 
