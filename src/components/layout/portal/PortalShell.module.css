@@ -46,13 +46,13 @@
   gap: 10px;
   padding: 10px 14px 10px 24px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.9);
   box-shadow: 0 10px 30px rgba(40, 70, 20, 0.12);
-  -webkit-backdrop-filter: blur(18px) saturate(1.5);
-  backdrop-filter: blur(18px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
   animation: baja 0.8s cubic-bezier(0.2, 0.9, 0.3, 1) both;
-  transition: box-shadow 0.3s, background 0.3s;
+  transition: box-shadow 0.3s, background 0.3s, border-radius 0.3s;
 }
 .burbujaScroll {
   background: rgba(255, 255, 255, 0.78);
@@ -60,10 +60,19 @@
 }
 @keyframes baja { from { transform: translate(-50%, -30px); opacity: 0; } }
 
+/* Cuando los filtros del Report se pegan debajo, la burbuja y la barra quedan como una sola pieza de vidrio. */
+.shell:has([data-pegado='true']) .burbuja {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-color: transparent;
+  box-shadow: 0 -4px 30px rgba(40, 70, 20, 0.1);
+  background: rgba(255, 255, 255, 0.86);
+}
+
 .marca { display: flex; align-items: center; flex: none; padding-right: 12px; text-decoration: none; }
 .logo { height: 42px; width: auto; display: block; }
 
-.items { position: relative; display: flex; justify-content: center; gap: 6px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
+.items { position: relative; display: flex; justify-content: center; gap: 6px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; min-width: 0; flex: 1; }
 .items::-webkit-scrollbar { display: none; }
 
 .enlace {

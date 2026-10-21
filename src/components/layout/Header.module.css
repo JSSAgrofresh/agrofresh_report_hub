@@ -46,3 +46,6 @@
   color: var(--color-text-muted);
   font-size: 0.94rem;
 }
+
+/* Portal de clientes: título más firme. */
+:global([data-portal]) .title { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em; }

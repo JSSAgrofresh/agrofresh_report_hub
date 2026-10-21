@@ -918,3 +918,99 @@
   gap: 6px;
   color: var(--color-text, #1c2420);
 }
+
+/* ═══ Portal de clientes: solo cambia la apariencia (el contenido y los controles son los mismos) ═══ */
+:global([data-portal]) .wrap { gap: 20px; }
+
+:global([data-portal]) .btnActualizar {
+  border-radius: 999px;
+  padding: 10px 20px;
+  background: linear-gradient(120deg, #3f7a1a, #6dad3c);
+  box-shadow: 0 6px 16px rgba(109, 173, 60, 0.35);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+:global([data-portal]) .btnActualizar:hover { opacity: 1; transform: translateY(-2px); box-shadow: 0 10px 22px rgba(109, 173, 60, 0.45); }
+
+:global([data-portal]) .stats,
+:global([data-portal]) .statsResiduales { gap: 16px; }
+
+:global([data-portal]) .statCard {
+  border-left-width: 0;
+  border-radius: 22px;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--kpi, var(--acento)) 12%, #fff), #fff 62%);
+  padding: 20px;
+}
+:global([data-portal]) .statCard::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 4px;
+  background: var(--kpi, var(--acento));
+}
+:global([data-portal]) .statNum { font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; }
+:global([data-portal]) .statLbl { letter-spacing: 0.06em; }
+:global([data-portal]) .kpiIcono { animation: portalLatido 3.6s ease-in-out infinite; }
+@keyframes portalLatido { 50% { transform: scale(1.1) rotate(-4deg); } }
+
+/* Filtros: una pieza de vidrio con controles redondeados. */
+:global([data-portal]) .filtrosCard {
+  background: rgba(255, 255, 255, 0.86);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  box-shadow: 0 10px 30px rgba(40, 70, 20, 0.1);
+  padding: 16px 22px 20px;
+  gap: 14px;
+}
+:global([data-portal]) .filtrosTitulo { font-size: 15px; }
+:global([data-portal]) .filtro span { letter-spacing: 0.06em; }
+:global([data-portal]) .filtro select,
+:global([data-portal]) .sigmaControl select {
+  height: 40px;
+  border-radius: 14px;
+  border-color: #cfe0bf;
+  padding: 0 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+:global([data-portal]) .filtro select:hover { border-color: var(--acento); }
+:global([data-portal]) .filtro select:focus-visible { outline: none; border-color: var(--acento); box-shadow: 0 0 0 4px color-mix(in srgb, var(--acento) 22%, transparent); }
+:global([data-portal]) .limpiar { height: 34px; border-radius: 999px; padding: 0 16px; background: #fff; border-color: #cfe0bf; }
+:global([data-portal]) .chips { border-top-color: #cfe0bf; }
+:global([data-portal]) .chip { border-radius: 999px; padding: 4px 12px; transition: transform 0.2s; }
+:global([data-portal]) .chip:hover { transform: translateY(-1px); }
+
+/* Filtros pegados a la burbuja (ver FiltrosPegajosos): barra delgada pegada debajo, del mismo ancho. */
+:global([data-portal]) .filtrosCard[data-pegado='true'] {
+  position: fixed;
+  z-index: 45;
+  margin: 0;
+  border-top: 0;
+  border-radius: 0 0 28px 28px;
+  padding: 10px 24px 12px;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 36px rgba(40, 70, 20, 0.16);
+  animation: portalDesplegar 0.35s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@keyframes portalDesplegar { from { opacity: 0; transform: translateY(-10px); } }
+:global([data-portal]) .filtrosCard[data-pegado='true'] .filtrosCabecera { padding-right: 160px; min-height: 32px; }
+:global([data-portal]) .filtrosCard[data-pegado='true'][data-abierto='false'] .filtros,
+:global([data-portal]) .filtrosCard[data-pegado='true'][data-abierto='false'] .chips { display: none; }
+:global([data-portal]) .filtrosCard[data-pegado='true'][data-abierto='true'] { max-height: calc(100vh - 110px); overflow-y: auto; }
+
+/* Gráficos y paneles */
+:global([data-portal]) .panel { padding: 22px; }
+:global([data-portal]) .panel h3 { color: var(--color-text); font-size: 15px; }
+:global([data-portal]) .hintClic { font-weight: 500; }
+:global([data-portal]) .chartboxGrande,
+:global([data-portal]) .chartbox,
+:global([data-portal]) .chartboxChico { border-radius: 16px; }
+:global([data-portal]) .soloFuera,
+:global([data-portal]) .toggleVista { border-radius: 999px; transition: background 0.2s, transform 0.2s; }
+:global([data-portal]) .nota { border-radius: 16px; }
+:global([data-portal]) .vacioCard { border-radius: 24px; }

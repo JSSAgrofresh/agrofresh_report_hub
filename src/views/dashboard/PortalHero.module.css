@@ -53,9 +53,11 @@
   inset: 0;
   background-size: cover;
   background-position: center;
-  transition: background-image 0.6s ease;
-  animation: zoom 24s ease-in-out infinite alternate;
+  animation: zoom 30s ease-in-out infinite alternate;
 }
+/* La foto que llega: se disuelve con calma, desde un poco más grande y borrosa. */
+.fotoNueva { animation: disolver 2.4s cubic-bezier(0.4, 0, 0.2, 1) both, zoom 30s ease-in-out infinite alternate; }
+@keyframes disolver { from { opacity: 0; filter: blur(10px) saturate(0.85); } to { opacity: 1; filter: blur(0) saturate(1); } }
 @keyframes zoom { to { transform: scale(1.08) translateX(-1.5%); } }
 .velo {
   position: absolute;
@@ -79,5 +81,5 @@
 .conFoto::before, .conFoto::after { opacity: 0.6; }
 
 @media (prefers-reduced-motion: reduce) {
-  .foto, .brillo { animation: none; }
+  .foto, .fotoNueva, .brillo { animation: none; }
 }

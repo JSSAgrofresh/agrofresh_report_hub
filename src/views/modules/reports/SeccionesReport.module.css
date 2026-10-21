@@ -128,3 +128,24 @@
   color: var(--color-text-faint);
   font-size: 13px;
 }
+
+/* Portal de clientes: cabecera de cada bloque de análisis. */
+:global([data-portal]) .cabecera {
+  border-left-width: 1px;
+  border-radius: 22px;
+  padding: 16px 22px;
+  background: linear-gradient(110deg, color-mix(in srgb, var(--acento, var(--color-primary)) 14%, #fff), rgba(255, 255, 255, 0.92) 55%);
+  box-shadow: 0 10px 30px rgba(40, 70, 20, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+:global([data-portal]) .cabecera::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: var(--acento, var(--color-primary));
+}
+:global([data-portal]) .titulo h2 { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.01em; }
