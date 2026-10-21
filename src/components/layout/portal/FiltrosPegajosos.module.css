@@ -3,16 +3,16 @@
 /* Al pegarse a la burbuja los filtros quedan en una barra delgada; este botón abre el detalle. */
 .alternar {
   position: absolute;
-  top: 9px;
-  right: 16px;
+  top: 12px;
+  right: 32px;
   z-index: 1;
-  height: 32px;
-  padding: 0 14px;
+  height: 38px;
+  padding: 0 20px;
   border: 1px solid rgba(79, 138, 38, 0.35);
   border-radius: 999px;
   background: linear-gradient(120deg, #3f7a1a, #6dad3c);
   color: #fff;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(109, 173, 60, 0.35);

@@ -1,4 +1,5 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { Navigate, createBrowserRouter } from 'react-router-dom'
+import { VistaClienteLayout } from '@/components/layout/portal/VistaClienteLayout'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RequireAdminGeneral, RequireAuth, RequireFuncion, RequireModulo, RequireNoComercial, RequireReanalisis, RequireReporte, RequireSeccionLab, RequireTomaMuestras } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
@@ -40,6 +41,20 @@ export const router = createBrowserRouter([
   {
     element: <RequireAuth />,
     children: [
+      {
+        // El administrador general puede mirar el portal de clientes con su propia cuenta (vista previa).
+        element: <RequireAdminGeneral />,
+        children: [
+          {
+            element: <VistaClienteLayout />,
+            children: [
+              { path: ROUTES.vistaCliente, element: <Navigate to={ROUTES.vistaClienteReport} replace /> },
+              { path: ROUTES.vistaClienteReport, element: <ReporteLaboratorioView /> },
+              { path: ROUTES.vistaClienteStorage, element: <StorageView /> },
+            ],
+          },
+        ],
+      },
       {
         element: <AppLayout />,
         children: [
