@@ -341,9 +341,16 @@ def _texto(contenido: bytes) -> str:
         return ""
 
 
-def iniciar_sondeo(dias: int, disparado_por: str = "") -> tuple[int, bool]:
-    """Anota que arranca una revisión. (id, ya_estaba): si hay una en curso (menos de 20 min), no se abre otra."""
+def iniciar_sondeo(dias: int, disparado_por: str = "", forzar: bool = False) -> tuple[int, bool]:
+    """Anota que arranca una revisión. (id, ya_estaba): si hay una en curso (menos de 20 min), no se abre otra, salvo
+    con `forzar`: da por cerrada la que quedó colgada (p. ej. porque se reinició el backend a mitad) y abre una nueva."""
     with conexion() as conn, cursor_dict(conn) as cur:
+        if forzar:
+            try:
+                cur.execute("UPDATE correo_informe_sondeo SET terminado_en = now(), error = COALESCE(error, 'Cancelada a mano: quedó colgada')"
+                            " WHERE terminado_en IS NULL")
+            except psycopg2.errors.UndefinedTable as exc:
+                raise SinTabla("Falta correr la migración 0064_correo_informe.sql en el servidor.") from exc
         try:
             cur.execute(
                 "SELECT id FROM correo_informe_sondeo WHERE terminado_en IS NULL"
@@ -453,12 +460,12 @@ def _hilo(sondeo_id: int, dias: int) -> None:
         pass
 
 
-def sondear_en_segundo_plano(dias: int, disparado_por: str = "") -> dict[str, Any]:
+def sondear_en_segundo_plano(dias: int, disparado_por: str = "", forzar: bool = False) -> dict[str, Any]:
     """Arranca la revisión y vuelve de inmediato: tarda más de lo que aguanta una petición (el túnel
     corta a los ~100 s). La pantalla ve el avance leyendo `ultimo_sondeo` de la bandeja."""
     if not (config.GMAIL_ACCOUNT and (config.GMAIL_APP_PASSWORD or "").replace(" ", "")):
         raise RuntimeError("Faltan GMAIL_ACCOUNT y GMAIL_APP_PASSWORD en el .env del servidor.")
-    sondeo_id, ya_en_curso = iniciar_sondeo(dias, disparado_por)
+    sondeo_id, ya_en_curso = iniciar_sondeo(dias, disparado_por, forzar)
     if not ya_en_curso:
         threading.Thread(target=_hilo, args=(sondeo_id, dias), name=f"correo-informes-{sondeo_id}", daemon=True).start()
     return {"id": sondeo_id, "en_curso": True, "ya_estaba_en_curso": ya_en_curso}
@@ -470,6 +477,8 @@ def sondear_en_segundo_plano(dias: int, disparado_por: str = "") -> dict[str, An
 
 class SondearIn(BaseModel):
     dias: int = Field(DIAS_POR_DEFECTO, ge=1, le=90)
+    # Empezar de nuevo aunque haya una revisión «en curso» (colgada).
+    forzar: bool = False
 
 
 # La última copia de cada informe (mismo laboratorio y N°): es la que vale; las anteriores son su historia.
@@ -742,7 +751,7 @@ def pdf(informe_id: int, _: Usuario = Depends(exigir_principal)) -> Response:
 @router.post("/sondear")
 def revisar_ahora(body: SondearIn, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
     try:
-        return sondear_en_segundo_plano(body.dias, disparado_por=usuario.email)
+        return sondear_en_segundo_plano(body.dias, disparado_por=usuario.email, forzar=body.forzar)
     except SinTabla as exc:
         raise HTTPException(503, str(exc)) from exc
     except RuntimeError as exc:

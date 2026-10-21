@@ -61,3 +61,4 @@
   opacity: 0.65;
   cursor: default;
 }
+.reiniciar { font: inherit; font-size: 13px; padding: 7px 12px; border-radius: var(--radius-md); background: var(--color-surface); color: #8a5a00; border: 1px solid #8a5a00; cursor: pointer; }

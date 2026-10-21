@@ -123,9 +123,10 @@ export function detalleInformeCorreo(id: number) {
   return httpClient.get<DetalleInformeCorreo>(`/correo-informes/${id}`)
 }
 
-export function revisarCorreoAhora(dias: number) {
+export function revisarCorreoAhora(dias: number, forzar = false) {
   // Vuelve de inmediato: la revisión sigue en el servidor y su avance se lee en `ultimo_sondeo` de la bandeja.
-  return httpClient.post<{ id: number; en_curso: boolean; ya_estaba_en_curso: boolean }>('/correo-informes/sondear', { dias })
+  // `forzar` da por cerrada una revisión que quedó colgada y empieza otra.
+  return httpClient.post<{ id: number; en_curso: boolean; ya_estaba_en_curso: boolean }>('/correo-informes/sondear', { dias, forzar })
 }
 
 /** El PDF como blob, para verlo sin guardarlo en disco. */

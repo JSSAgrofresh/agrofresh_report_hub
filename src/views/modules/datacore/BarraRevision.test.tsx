@@ -24,7 +24,7 @@ describe('BarraRevision', () => {
     render(<BarraRevision ultimo={null} leerUltimo={leerUltimo} onTerminada={onTerminada} intervaloMs={0} />)
     fireEvent.change(screen.getByLabelText(/Últimos/), { target: { value: '30' } })
     fireEvent.click(screen.getByRole('button', { name: 'Revisar el correo ahora' }))
-    await waitFor(() => expect(revisarCorreoAhora).toHaveBeenCalledWith(30))
+    await waitFor(() => expect(revisarCorreoAhora).toHaveBeenCalledWith(30, false))
     expect(await screen.findByText(/3 correos nuevos revisados, 2 informes registrados/)).toBeInTheDocument()
     expect(onTerminada).toHaveBeenCalled()
   })
@@ -47,9 +47,27 @@ describe('BarraRevision', () => {
   it('si ya hay una revisión en curso (otra pestaña) bloquea el botón y avisa al terminar', async () => {
     const leerUltimo = vi.fn().mockResolvedValue(sondeo('2026-10-21T15:02:00Z', 2))
     const onTerminada = vi.fn()
-    render(<BarraRevision ultimo={sondeo(null, 1)} leerUltimo={leerUltimo} onTerminada={onTerminada} intervaloMs={5} />)
+    const reciente = { ...sondeo(null, 1), iniciado_en: new Date().toISOString() }
+    render(<BarraRevision ultimo={reciente} leerUltimo={leerUltimo} onTerminada={onTerminada} intervaloMs={5} />)
     expect(screen.getByRole('button', { name: /Revisando el correo/ })).toBeDisabled()
     await waitFor(() => expect(onTerminada).toHaveBeenCalled())
+  })
+
+  it('una revisión que lleva horas «en curso» quedó colgada: el botón se habilita y arranca una nueva a la fuerza', async () => {
+    revisarCorreoAhora.mockResolvedValue({ id: 10, en_curso: true, ya_estaba_en_curso: false })
+    const leerUltimo = vi.fn().mockResolvedValue({ ...sondeo('2026-10-21T15:02:00Z', 0), id: 10 })
+    render(<BarraRevision ultimo={sondeo(null, 0)} leerUltimo={leerUltimo} onTerminada={() => {}} intervaloMs={0} />)
+    expect(screen.getByText(/quedó colgada/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar el correo ahora' }))
+    await waitFor(() => expect(revisarCorreoAhora).toHaveBeenCalledWith(14, true))
+  })
+
+  it('mientras una revisión corre se puede reiniciar si no avanza', async () => {
+    revisarCorreoAhora.mockResolvedValue({ id: 11, en_curso: true, ya_estaba_en_curso: false })
+    const reciente = { ...sondeo(null, 0), iniciado_en: new Date().toISOString() }
+    render(<BarraRevision ultimo={reciente} leerUltimo={vi.fn().mockResolvedValue(reciente)} onTerminada={() => {}} intervaloMs={1000} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Reiniciar la revisión' }))
+    await waitFor(() => expect(revisarCorreoAhora).toHaveBeenCalledWith(14, true))
   })
 
   it('sin revisiones previas lo dice', () => {

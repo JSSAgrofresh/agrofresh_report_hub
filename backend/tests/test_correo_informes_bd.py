@@ -121,3 +121,21 @@ def test_resolver_cierra_y_rechazar_pide_motivo(datos, principal):
     assert principal.get(f"/api/correo-informes/{fila['id']}").json()["decision"] == "rechazado"
     assert principal.post(f"/api/correo-informes/{fila['id']}/volver-a-pendiente").status_code == 200
     assert principal.get(f"/api/correo-informes/{fila['id']}").json()["decision"] == "pendiente"
+
+
+def test_una_revision_colgada_se_puede_reiniciar_a_la_fuerza():
+    """Si el servidor se reinició a mitad de una revisión, queda «en curso» para siempre: `forzar` la da por cerrada."""
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("DELETE FROM correo_informe_sondeo WHERE disparado_por = 'test-forzar'")
+    primero, ya = ci.iniciar_sondeo(7, "test-forzar")
+    assert not ya
+    segundo, ya = ci.iniciar_sondeo(7, "test-forzar")
+    assert ya and segundo == primero                      # sin forzar, no abre otra
+    tercero, ya = ci.iniciar_sondeo(7, "test-forzar", forzar=True)
+    assert not ya and tercero != primero
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute("SELECT terminado_en, error FROM correo_informe_sondeo WHERE id = %s", (primero,))
+        fila = cur.fetchone()
+    assert fila["terminado_en"] is not None and "colgada" in fila["error"]
+    with conexion() as conn, cursor_dict(conn) as cur:
+        cur.execute("DELETE FROM correo_informe_sondeo WHERE disparado_por = 'test-forzar'")
