@@ -625,6 +625,34 @@ def _exigir_acceso(usuario: Usuario, datos: dict) -> None:
         raise HTTPException(403, "Esta solicitud fue creada por otro muestreador: no puedes verla ni reenviarla.")
 
 
+def _tipo_aplicacion_de(datos: dict | None) -> str:
+    """El «Tipo Aplicación» de una solicitud (de sus campos de laboratorio), o vacío."""
+    datos = datos or {}
+    campos = datos.get("campos_laboratorio")
+    tipo = campos.get("Tipo Aplicación") if isinstance(campos, dict) else None
+    return str(tipo or datos.get("tipo_aplicacion") or "").strip()
+
+
+def _exigir_puede_editar(usuario: Usuario, datos_actuales: dict, body: SolicitudIn) -> None:
+    """Editar una solicitud ya guardada es una función suelta (`toma_editar`) que el administrador general da cuenta
+    por cuenta; él la tiene siempre. Y solo vale para los tipos de aplicación que NO se envían solos al guardar
+    (se guarda y luego se envía a mano): editar uno que se envía solo lo reenviaría de inmediato. Se mira el tipo
+    que tiene guardada y el que trae el formulario. Una solicitud de prueba nunca se envía sola."""
+    if usuario.tipoAcceso == "admin_general":
+        return
+    if not permisos_funciones.tiene(usuario, permisos_funciones.TOMA_EDITAR):
+        raise HTTPException(403, "Tu cuenta no tiene asignada la función de editar solicitudes.")
+    if datos_actuales.get("es_prueba"):
+        return
+    cfg = _config_envio_automatico()
+    for tipo in {_tipo_aplicacion_de(datos_actuales), _tipo_aplicacion_de(body.model_dump())}:
+        if cfg.por_tipo.get(tipo, cfg.activo):
+            raise HTTPException(
+                403,
+                "Las solicitudes de este tipo de aplicación se envían solas al guardarse, por eso no se pueden editar desde tu cuenta.",
+            )
+
+
 def _puede_crear_reanalisis(usuario: Usuario) -> bool:
     """Solo el admin_general y quien tenga la función suelta `toma_reanalisis`, que el administrador general
     asigna cuenta por cuenta (Usuarios → Toma de muestras → «Crear reanálisis»). Ningún tipo de cuenta la trae
@@ -1071,6 +1099,7 @@ def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends
     _validar_analitos(body)
     datos_actuales = _leer_datos_actuales(archivo)
     _exigir_acceso(usuario, datos_actuales)
+    _exigir_puede_editar(usuario, datos_actuales, body)
 
     nombre_archivo = os.path.basename(archivo)
     datos = body.model_dump()

@@ -20,7 +20,8 @@ from .lab_secciones import LAB_CRITERIOS
 
 VERIF_FIRMAR = "verif_firmar"
 TOMA_REANALISIS = "toma_reanalisis"
-FUNCIONES = (LAB_CRITERIOS, VERIF_FIRMAR, TOMA_REANALISIS)
+TOMA_EDITAR = "toma_editar"
+FUNCIONES = (LAB_CRITERIOS, VERIF_FIRMAR, TOMA_REANALISIS, TOMA_EDITAR)
 
 # Todo lo que puede viajar en `modulos`: módulos, puertas de AgroFresh Lab y mini funciones.
 MODULOS_VALIDOS = frozenset(

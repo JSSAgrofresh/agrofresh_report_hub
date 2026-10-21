@@ -273,7 +273,6 @@ export function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambi
             </div>
           </div>
         )}
-        {error && <p className={styles.error}>{error}</p>}
       </div>
     </div>
   )

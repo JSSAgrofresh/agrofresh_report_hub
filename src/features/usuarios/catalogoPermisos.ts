@@ -78,6 +78,10 @@ export const CATEGORIAS: Categoria[] = [
         id: 'toma_reanalisis', padre: 'toma_muestras', extra: true, nombre: 'Crear reanálisis',
         descripcion: 'Pedir un reanálisis de una muestra ya analizada. Se asigna cuenta por cuenta: ningún tipo de cuenta la trae sola.',
       },
+      {
+        id: 'toma_editar', padre: 'toma_muestras', extra: true, nombre: 'Editar solicitudes',
+        descripcion: 'Corregir una solicitud ya guardada y luego enviarla. Solo en los tipos de aplicación que se guardan y se envían a mano, nunca en los que se envían solos. Se asigna cuenta por cuenta.',
+      },
     ],
   },
   {

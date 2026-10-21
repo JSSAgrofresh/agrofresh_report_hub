@@ -85,7 +85,7 @@ def _guardar_pdf(datos: bytes, nombre: str, fila: dict, lectura: dict, usuario: 
     archivo = UploadFile(file=io.BytesIO(datos), filename=nombre)
     return asyncio.run(auditoria_interna.subir_informe(
         archivo=archivo,
-        laboratorio=d.get("Laboratorio") or fila["laboratorio"] or "",
+        laboratorio=fila["laboratorio"] or d.get("Laboratorio") or "",
         ship_to=d.get("Ship To") or fila.get("ship_to") or "",
         sold_to=d.get("Sold To") or fila.get("sold_to") or "",
         nro_informe=d.get("N° Solicitud") or fila.get("nro_informe") or "",
@@ -126,16 +126,17 @@ def aceptar(informe_id: int, usuario: Usuario, correcciones: dict[str, str] | No
     if ya_cargado:
         resultado = "revisado"
     else:
-        if fila["laboratorio"] != "Quiteca":
-            if fila["laboratorio"] == "AgroFresh":
-                raise _409("Este informe de AgroFresh no está cargado en el sistema: se carga desde Ingreso al laboratorio.")
+        if fila["laboratorio"] not in homogeneo.LABORATORIOS_CARGABLES:
             raise _409(f"Todavía no hay carga automática para {fila['laboratorio'] or 'este laboratorio'}: usa el Converter.")
         if not fila["r2_key"]:
             raise _409("El PDF de este informe no se guardó: no se puede leer.")
         datos_pdf = r2.descargar(fila["r2_key"])
         if datos_pdf is None:
             raise _409("El PDF ya no está en el almacenamiento.")
-        listo = homogeneo.preparar(datos_pdf, correcciones)
+        try:
+            listo = homogeneo.preparar(datos_pdf, correcciones, fila["laboratorio"])
+        except ValueError as exc:
+            raise _409(str(exc)) from exc
         lectura, faltan = listo["lectura"], [m for m in listo["motivos"] if m.startswith("Falta: ")]
         if faltan:
             raise _409("Al informe le falta información para cargarlo: " + "; ".join(faltan) + ". Cárgalo con el Converter.")

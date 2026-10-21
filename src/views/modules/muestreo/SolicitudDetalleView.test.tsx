@@ -3,16 +3,18 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { SolicitudDetalleView } from './SolicitudDetalleView'
 import type { AnalitoConfig, Solicitud } from '@/features/tomaMuestras'
+import { AuthContext } from '@/features/auth/context/AuthContext'
 
-const { obtenerSolicitud, listarAnalitosConfig, destinatariosDeSolicitud, listarFotosSolicitud, enviarSolicitudPorCorreo } = vi.hoisted(() => ({
+const { obtenerSolicitud, listarAnalitosConfig, destinatariosDeSolicitud, listarFotosSolicitud, enviarSolicitudPorCorreo, obtenerEnvioAutomatico } = vi.hoisted(() => ({
   obtenerSolicitud: vi.fn(),
   listarAnalitosConfig: vi.fn(),
   destinatariosDeSolicitud: vi.fn(),
   listarFotosSolicitud: vi.fn(),
   enviarSolicitudPorCorreo: vi.fn(),
+  obtenerEnvioAutomatico: vi.fn(),
 }))
 
-vi.mock('@/features/tomaMuestras', () => ({
+vi.mock('@/features/tomaMuestras', async () => ({
   obtenerSolicitud,
   listarAnalitosConfig,
   destinatariosDeSolicitud,
@@ -26,6 +28,9 @@ vi.mock('@/features/tomaMuestras', () => ({
   obtenerFotoSolicitud: vi.fn(),
   resultadosDeShipTo: vi.fn().mockResolvedValue([]),
   listarLaboratoriosConfig: vi.fn().mockResolvedValue([]),
+  obtenerEnvioAutomatico,
+  puedeEditarSegunEnvio: (await vi.importActual<typeof import('@/features/tomaMuestras/lib/envioAutomatico')>('@/features/tomaMuestras/lib/envioAutomatico'))
+    .puedeEditarSegunEnvio,
 }))
 
 const ANALITOS: AnalitoConfig[] = [
@@ -79,17 +84,24 @@ function solicitudBase(overrides: Partial<Solicitud> = {}): Solicitud {
   }
 }
 
-function montar(solicitud: Solicitud) {
+const ADMIN = { id: '1', nombre: 'Jorge', email: 'j@agrofresh.com', tipoAcceso: 'admin_general' }
+
+function montar(solicitud: Solicitud, user: Record<string, unknown> = ADMIN) {
   obtenerSolicitud.mockResolvedValue(solicitud)
+  // Línea de proceso se envía sola; Actimist se guarda y se envía a mano.
+  obtenerEnvioAutomatico.mockResolvedValue({ activo: true, por_tipo: { Actimist: false } })
   listarAnalitosConfig.mockResolvedValue(ANALITOS)
   destinatariosDeSolicitud.mockResolvedValue({ laboratorio: solicitud.laboratorio, destinatarios: [] })
   listarFotosSolicitud.mockResolvedValue([])
+  const valor = { user, login: async () => {}, logout: async () => {}, refrescar: async () => {}, sincronizando: false }
   return render(
-    <MemoryRouter initialEntries={[`/solicitud/${solicitud.archivo}`]}>
-      <Routes>
-        <Route path="/solicitud/:archivo" element={<SolicitudDetalleView />} />
-      </Routes>
-    </MemoryRouter>,
+    <AuthContext.Provider value={valor as never}>
+      <MemoryRouter initialEntries={[`/solicitud/${solicitud.archivo}`]}>
+        <Routes>
+          <Route path="/solicitud/:archivo" element={<SolicitudDetalleView />} />
+        </Routes>
+      </MemoryRouter>
+    </AuthContext.Provider>,
   )
 }
 
@@ -127,6 +139,31 @@ describe('SolicitudDetalleView — bloqueo tras enviar (CASO 5)', () => {
     expect(screen.getByText('Editar')).toBeTruthy()
     expect(screen.getByText('Reenviar por correo')).toBeTruthy()
     expect(screen.queryByText('Enviar por correo')).toBeNull()
+  })
+})
+
+describe('SolicitudDetalleView — quién puede editar', () => {
+  const area = (modulos: string[]) => ({ id: '2', nombre: 'Ana', email: 'a@agrofresh.com', tipoAcceso: 'admin_area', area: 'cromatografia', modulos })
+
+  it('sin la función «Editar solicitudes» no sale el botón Editar', async () => {
+    montar(solicitudBase(), area(['toma_muestras']))
+    await waitFor(() => expect(screen.getByText('Enviar por correo')).toBeTruthy())
+    expect(screen.queryByText('Editar')).toBeNull()
+  })
+
+  it('con la función y un tipo que se guarda y se envía a mano (Actimist), sale Editar', async () => {
+    montar(solicitudBase(), area(['toma_muestras', 'toma_editar']))
+    await waitFor(() => expect(screen.getByText('Editar')).toBeTruthy())
+  })
+
+  it('con la función pero un tipo que se envía solo (Línea de proceso), no sale Editar', async () => {
+    montar(
+      solicitudBase({ campos_laboratorio: { 'Fludioxonil (ppm)': '25', 'Tipo Aplicación': 'Línea de proceso' } }),
+      area(['toma_muestras', 'toma_editar']),
+    )
+    await waitFor(() => expect(obtenerEnvioAutomatico).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByText('Enviar por correo')).toBeTruthy())
+    expect(screen.queryByText('Editar')).toBeNull()
   })
 })
 

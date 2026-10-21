@@ -75,7 +75,11 @@ export function PanelIngresoInformes({ cargaManual }: { cargaManual: ReactNode }
         tono="azul"
       />
 
-      {pestana !== 'carga' && <BarraRevision ultimo={ultimo} leerUltimo={leerUltimo} onTerminada={recargar} />}
+      {pestana !== 'carga' && (
+        <div className={styles.barraFija}>
+          <BarraRevision ultimo={ultimo} leerUltimo={leerUltimo} onTerminada={recargar} />
+        </div>
+      )}
 
       <div className={styles.barra}>
         <div className={styles.pestanas} role="tablist" aria-label="Secciones de Ingreso de informes">
