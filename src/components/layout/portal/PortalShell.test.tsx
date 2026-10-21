@@ -22,8 +22,9 @@ describe('AppLayout según el tipo de cuenta', () => {
 
     expect(screen.getByRole('navigation', { name: 'Secciones' })).toBeInTheDocument()
     expect(screen.getByAltText('AgroFresh')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Panel general' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: /Report/i })).toBeInTheDocument()
+    // Lo primero que ve es el Report: el Panel general queda fuera del menú y Report abre directo en los gráficos.
+    expect(screen.queryByRole('link', { name: 'Panel general' })).toBeNull()
+    expect(screen.getByRole('link', { name: /Report/i })).toHaveAttribute('href', '/modulos/reportes/laboratorio')
     expect(screen.getByRole('link', { name: /Storage/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
     expect(screen.getByText('contenido de la pantalla')).toBeInTheDocument()

@@ -6,6 +6,7 @@ import { useAuth } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
 import { cn } from '@/lib/cn'
 import { iniciales, modulosPermitidos, puedeVerTomaMuestras } from '@/features/usuarios'
+import { ocultaPanelGeneral } from './inicio'
 import { IconLogout } from '@/components/ui/icons'
 import styles from './PortalShell.module.css'
 
@@ -17,9 +18,10 @@ interface Enlace {
 
 /** Los mismos accesos que hoy trae la barra lateral para una cuenta de cliente o comercial, en una burbuja arriba. */
 function enlacesDe(user: NonNullable<ReturnType<typeof useAuth>['user']>): Enlace[] {
-  const lista: Enlace[] = [{ to: ROUTES.dashboard, etiqueta: 'Panel general', fin: true }]
+  const lista: Enlace[] = ocultaPanelGeneral(user) ? [] : [{ to: ROUTES.dashboard, etiqueta: 'Panel general', fin: true }]
   for (const m of modulosPermitidos(user)) {
-    if (m.estado === 'disponible') lista.push({ to: m.ruta, etiqueta: m.nombre })
+    // El Report de un cliente abre directo en sus gráficos (su único reporte), sin pasar por el menú de reportes.
+    if (m.estado === 'disponible') lista.push({ to: m.id === 'reports' ? ROUTES.reportsLaboratorio : m.ruta, etiqueta: m.nombre })
   }
   if (puedeVerTomaMuestras(user)) {
     lista.push({ to: ROUTES.tomaMuestras, etiqueta: 'Solicitudes e informes', fin: true })

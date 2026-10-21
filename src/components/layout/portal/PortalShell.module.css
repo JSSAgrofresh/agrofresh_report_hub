@@ -40,11 +40,11 @@
   left: 50%;
   top: calc(14px + env(safe-area-inset-top, 0px));
   transform: translateX(-50%);
-  max-width: calc(100vw - 24px);
+  width: min(1120px, calc(100vw - 24px));
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px 6px 16px;
+  gap: 10px;
+  padding: 10px 14px 10px 24px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.62);
   border: 1px solid rgba(255, 255, 255, 0.8);
@@ -60,19 +60,19 @@
 }
 @keyframes baja { from { transform: translate(-50%, -30px); opacity: 0; } }
 
-.marca { display: flex; align-items: center; flex: none; padding-right: 8px; text-decoration: none; }
-.logo { height: 32px; width: auto; display: block; }
+.marca { display: flex; align-items: center; flex: none; padding-right: 12px; text-decoration: none; }
+.logo { height: 42px; width: auto; display: block; }
 
-.items { position: relative; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+.items { position: relative; display: flex; justify-content: center; gap: 6px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
 .items::-webkit-scrollbar { display: none; }
 
 .enlace {
   position: relative;
   z-index: 1;
-  padding: 8px 14px;
+  padding: 12px 28px;
   border-radius: 999px;
   color: #5f7152;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
@@ -95,29 +95,32 @@
 
 .usuario { display: flex; align-items: center; gap: 8px; flex: none; padding-left: 8px; border-left: 1px solid rgba(95, 113, 82, 0.25); margin-left: 4px; }
 .iniciales {
-  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none;
-  background: linear-gradient(135deg, #e8c32e, #6dad3c); color: #fff; font-size: 12px; font-weight: 700;
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: linear-gradient(135deg, #e8c32e, #6dad3c); color: #fff; font-size: 14px; font-weight: 700;
 }
-.nombre { font-size: 12.5px; font-weight: 600; color: #18260f; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nombre { font-size: 14px; font-weight: 600; color: #18260f; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .salir {
-  border: 0; background: transparent; color: #5f7152; width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+  border: 0; background: transparent; color: #5f7152; width: 40px; height: 40px; border-radius: 50%; cursor: pointer;
   display: grid; place-items: center; flex: none; transition: background 0.2s, color 0.2s;
 }
 .salir:hover { background: #e3f1d3; color: #18260f; }
-.salir svg { width: 18px; height: 18px; }
+.salir svg { width: 20px; height: 20px; }
 
 .contenido {
   min-width: 0;
   width: 100%;
   max-width: 1500px;
   margin: 0 auto;
-  padding: 92px var(--space-6) var(--space-6);
+  padding: 112px var(--space-6) var(--space-6);
   animation: aparecer 0.35s ease;
 }
 @keyframes aparecer { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (max-width: 720px) {
   .nombre { display: none; }
+  .burbuja { padding: 8px 10px 8px 16px; gap: 6px; }
+  .logo { height: 34px; }
+  .enlace { padding: 10px 16px; font-size: 15px; }
   .contenido { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 }
 

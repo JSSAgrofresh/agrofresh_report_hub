@@ -1,3 +1,5 @@
+import { Navigate } from 'react-router-dom'
+import { rutaDeInicioPortal } from '@/components/layout/portal/inicio'
 import { useAuth } from '@/features/auth'
 import { useMiDiseno } from '@/features/panelInicio'
 import { vistaDeCliente } from '@/features/usuarios'
@@ -11,7 +13,11 @@ export function DashboardView() {
   // El administrador puede armar el Panel general por tipo de cuenta o por cuenta (Administración General →
   // Panel de inicio). Sin diseño propio —o si no se puede leer— cada cuenta ve su panel de siempre.
   const { cargando, piezas } = useMiDiseno()
-  if (!user || cargando) return null
+  if (!user) return null
+  // Clientes y comerciales aterrizan en sus gráficos (Report) y no en el Panel general.
+  const inicioPortal = rutaDeInicioPortal(user)
+  if (inicioPortal) return <Navigate to={inicioPortal} replace />
+  if (cargando) return null
 
   if (piezas.length > 0) return <PanelPersonalizado usuario={user} piezas={piezas} />
 
