@@ -312,6 +312,7 @@
   resize: vertical;
 }
 
+.btnPrimario,
 .btnSecundario,
 .btnPeligro {
   align-self: flex-start;
@@ -335,6 +336,13 @@
   border: 1px solid #b0271f;
 }
 
+.btnPrimario {
+  background: #4f8a2b;
+  color: #fff;
+  border: 1px solid #4f8a2b;
+}
+
+.btnPrimario:disabled,
 .btnSecundario:disabled,
 .btnPeligro:disabled {
   opacity: 0.45;
