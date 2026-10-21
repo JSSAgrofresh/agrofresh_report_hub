@@ -13,7 +13,7 @@ from typing import Any
 
 from psycopg2.extras import Json
 
-from . import correcciones, ingest, quiteca_lectura
+from . import correcciones, homogenizar_converter, ingest, quiteca_lectura, servicios
 from .db import conexion, cursor_dict
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,14 @@ def preparar(contenido: bytes, correcciones_manuales: dict[str, str] | None = No
     d = lectura["datos"]
     leidos = {c: (d.get(n) or "").strip() for c, n in CAMPOS.items()}
     campos, aprendidos = _aprendido(leidos)
+    # Lo mismo que hace el Converter solo: nombre abreviado, sin tildes, alias conocidos («cereza» → «Cerezas»)
+    try:
+        servicio = servicios.clave_servicio(d.get("Tipo Aplicación"))
+        campos, automaticos = homogenizar_converter.homogenizar_campos(campos, opciones(servicio))
+    except Exception:  # noqa: BLE001 — sin listados legibles queda como antes (a mano)
+        logger.exception("No se pudo homogeneizar solo")
+        automaticos = []
+    aprendidos = aprendidos + automaticos
     for c, v in (correcciones_manuales or {}).items():
         if c in CAMPOS and v is not None:
             campos[c] = v.strip()
