@@ -1960,7 +1960,7 @@ async function llamarIngest(ruta, filas, archivo, actualizar){
   const resp = await fetch(API_BASE + "/ingest/" + ruta, {
     method: "POST",
     headers: {"Content-Type": "application/json", ...autorizacion()},
-    // el nombre de los PDF va al historial de cargas de Ingesta de Datos
+    // el nombre de los PDF va al historial de cargas de Ingreso de Informes
     body: JSON.stringify({filas, origen: "converter", archivo, actualizar_existentes: !!actualizar}),
   });
   if(!resp.ok){
@@ -2065,7 +2065,7 @@ $("btnSubir").onclick = async () => {
       r.resultados + " resultado(s), " + r.clientes_nuevos + " cliente(s) nuevo(s), " +
       r.plantas_nuevas + " sucursal(es) nueva(s)." +
       (r.pendientes_revision ? "\n\n⛔ " + r.pendientes_revision + " fila(s) traen un Sold To, Ship To, especie " +
-       "o variedad que no está en Listados: no se cargan, quedan en Ingesta de Datos → Pendientes " +
+       "o variedad que no está en Listados: no se cargan, quedan en Ingreso de Informes → Pendientes " +
        "para reintentarlas o descartarlas." : "") +
       (prev.advertencias.length ? "\n\nAdvertencias:\n" + prev.advertencias.slice(0,8).join("\n") +
        (prev.advertencias.length > 8 ? "\n… y " + (prev.advertencias.length - 8) + " más." : "") : "") +
@@ -2089,7 +2089,7 @@ $("btnSubir").onclick = async () => {
     const base = "✔ Cargado: " + c.solicitudes_nuevas + " solicitud(es) nueva(s), " +
       (actualizar ? c.solicitudes_actualizadas + " actualizada(s), " : c.solicitudes_existentes + " completada(s), ") +
       c.resultados + " resultado(s) en total." +
-      (c.pendientes_revision ? " ⛔ " + c.pendientes_revision + " quedaron en Ingesta de Datos → Pendientes." : "");
+      (c.pendientes_revision ? " ⛔ " + c.pendientes_revision + " quedaron en Ingreso de Informes → Pendientes." : "");
     const usos = ok.flatMap(i => i.usadas || []);
     if(usos.length)   // cuántas veces el sistema corrigió solo con lo que aprendió
       fetch(API_BASE + "/correcciones/usos", {method: "POST", headers: {"Content-Type": "application/json", ...autorizacion()}, body: JSON.stringify(usos)}).catch(() => {});

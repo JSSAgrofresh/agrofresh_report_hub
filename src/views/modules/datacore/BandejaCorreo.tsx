@@ -6,25 +6,40 @@ import {
   hallazgoPrincipal,
   listarBandeja,
   pdfInformeCorreo,
-  revisarCorreoAhora,
+  rechazarInforme,
+  resolverSeguimiento,
+  volverAPendiente,
 } from '@/features/correoInformes'
-import type { Bandeja, DetalleInformeCorreo, FiltroBandeja, InformeCorreo } from '@/features/correoInformes'
+import type { Bandeja, DecisionInforme, DetalleInformeCorreo, FiltroBandeja, InformeCorreo } from '@/features/correoInformes'
 import { fechaHoraCorta } from '@/features/notificaciones'
 import styles from './BandejaCorreo.module.css'
 
-const DIAS = [7, 14, 30, 60]
+export interface FiltroInicialBandeja {
+  estado?: FiltroBandeja
+  decision?: DecisionInforme
+  q?: string
+}
 
-const FILTROS: { clave: FiltroBandeja; etiqueta: string; conteo: keyof Bandeja['conteos'] }[] = [
+const DECISIONES: { clave: DecisionInforme | ''; etiqueta: string; conteo: keyof Bandeja['conteos'] }[] = [
+  { clave: 'pendiente', etiqueta: 'Pendientes', conteo: 'pendiente' },
+  { clave: 'aceptado', etiqueta: 'Aceptados', conteo: 'aceptado' },
+  { clave: 'rechazado', etiqueta: 'Rechazados', conteo: 'rechazado' },
   { clave: '', etiqueta: 'Todos', conteo: 'todos' },
+]
+
+const ESTADOS: { clave: FiltroBandeja; etiqueta: string; conteo: keyof Bandeja['conteos'] }[] = [
   { clave: 'rojo', etiqueta: 'Seguimiento', conteo: 'rojo' },
   { clave: 'amarillo', etiqueta: 'Revisar', conteo: 'amarillo' },
   { clave: 'ok', etiqueta: 'Listos', conteo: 'ok' },
   { clave: 'ya_cargado', etiqueta: 'Ya cargados', conteo: 'ya_cargado' },
 ]
 
-function Detalle({ id }: { id: number }) {
+function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambio: () => void }) {
+  const id = informe.id
   const [d, setD] = useState<DetalleInformeCorreo | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [nota, setNota] = useState('')
+  const [ocupado, setOcupado] = useState(false)
 
   useEffect(() => {
     let vigente = true
@@ -51,10 +66,24 @@ function Detalle({ id }: { id: number }) {
     }
   }
 
-  if (error) return <p className={styles.error}>{error}</p>
-  if (!d) return <p className={styles.vacio}>Leyendo detalle…</p>
+  async function actuar(accion: () => Promise<unknown>) {
+    setOcupado(true)
+    setError(null)
+    try {
+      await accion()
+      setNota('')
+      onCambio()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo guardar.')
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  if (!d) return error ? <p className={styles.error}>{error}</p> : <p className={styles.vacio}>Leyendo detalle…</p>
 
   const filas = compararDestinatarios(d.esperado, { para: d.para, cc: d.cc, bcc: d.bcc }, d.propios)
+  const enSeguimiento = d.estado === 'rojo' && !d.resuelto_en
   return (
     <div className={styles.detalle}>
       <div className={styles.detalleCol}>
@@ -88,6 +117,7 @@ function Detalle({ id }: { id: number }) {
         <p className={styles.nota}>
           Se mira solo Para y Copia. Llegó: {fechaHoraCorta(d.llegada_en)}
           {d.enviado_en ? ` · enviado: ${fechaHoraCorta(d.enviado_en)}` : ''}.
+          {d.primera_llegada && d.primera_llegada !== d.llegada_en ? ` Es un reenvío: la primera copia llegó ${fechaHoraCorta(d.primera_llegada)}.` : ''}
         </p>
       </div>
       <div className={styles.detalleCol}>
@@ -106,34 +136,100 @@ function Detalle({ id }: { id: number }) {
         <p className={styles.nota}>
           {[d.sold_to, d.ship_to, d.especie].filter(Boolean).join(' · ') || 'El informe no trae Sold To / Ship To legibles.'}
         </p>
-        {d.tiene_pdf && (
-          <button type="button" className={styles.btnSecundario} onClick={() => void verPdf()}>
-            Ver el PDF
-          </button>
+        {d.decision !== 'pendiente' && (
+          <p className={styles.nota}>
+            {d.decision === 'aceptado' ? 'Aceptado' : 'Rechazado'} por {d.decidido_por ?? '—'} el {fechaHoraCorta(d.decidido_en)}
+            {d.nota ? ` · «${d.nota}»` : ''}
+          </p>
         )}
+        {d.resuelto_en && (
+          <p className={styles.nota}>
+            Seguimiento resuelto por {d.resuelto_por ?? '—'} el {fechaHoraCorta(d.resuelto_en)}
+            {d.nota ? ` · «${d.nota}»` : ''}
+          </p>
+        )}
+
+        <div className={styles.acciones}>
+          {d.tiene_pdf && (
+            <button type="button" className={styles.btnSecundario} onClick={() => void verPdf()}>
+              Ver el PDF
+            </button>
+          )}
+          {d.decision === 'rechazado' && (
+            <button type="button" className={styles.btnSecundario} disabled={ocupado} onClick={() => void actuar(() => volverAPendiente(id))}>
+              Volver a pendiente
+            </button>
+          )}
+        </div>
+
+        {(d.decision === 'pendiente' || enSeguimiento) && (
+          <div className={styles.decision}>
+            <label className={styles.etiquetaNota}>
+              {enSeguimiento ? 'Qué se hizo (para cerrar el seguimiento) o motivo del rechazo' : 'Motivo del rechazo'}
+              <textarea
+                value={nota}
+                onChange={(e) => setNota(e.target.value)}
+                rows={2}
+                maxLength={1000}
+                placeholder="Escribe una nota…"
+              />
+            </label>
+            <div className={styles.acciones}>
+              {d.decision === 'pendiente' && (
+                <button
+                  type="button"
+                  className={styles.btnPeligro}
+                  disabled={ocupado || !nota.trim()}
+                  onClick={() => void actuar(() => rechazarInforme(id, nota))}
+                >
+                  Rechazar este informe
+                </button>
+              )}
+              {enSeguimiento && (
+                <button
+                  type="button"
+                  className={styles.btnSecundario}
+                  disabled={ocupado || !nota.trim()}
+                  onClick={() => void actuar(() => resolverSeguimiento(id, nota))}
+                >
+                  Marcar seguimiento como resuelto
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {error && <p className={styles.error}>{error}</p>}
       </div>
     </div>
   )
 }
 
+interface Props {
+  /** Cambia cuando el servidor trajo informes nuevos (hay que releer). */
+  version: number
+  inicial?: FiltroInicialBandeja
+  /** Una decisión cambió: el resto del panel (cifras, solicitudes) también tiene que releer. */
+  onCambio: () => void
+}
+
 /**
  * Los informes que los laboratorios (y Paz) mandaron al buzón del Report Hub, ya leídos y revisados
- * contra su solicitud. Etapa 1: solo se mira; nada se carga a Report desde acá. Solo la ve el
+ * contra su solicitud: se filtran por lo que se decidió (pendiente, aceptado, rechazado) y por lo que
+ * encontró la revisión. Al abrir uno se ve a quién debía llegar contra a quién llegó. Solo la ve el
  * administrador principal.
  */
-export function BandejaCorreo({ intervaloMs = 3000 }: { intervaloMs?: number }) {
+export function BandejaCorreo({ version, inicial, onCambio }: Props) {
   const [bandeja, setBandeja] = useState<Bandeja | null>(null)
-  const [filtro, setFiltro] = useState<FiltroBandeja>('')
-  const [q, setQ] = useState('')
-  const [dias, setDias] = useState(14)
+  const [decision, setDecision] = useState<DecisionInforme | ''>(inicial?.decision ?? (inicial?.estado || inicial?.q ? '' : 'pendiente'))
+  const [estado, setEstado] = useState<FiltroBandeja>(inicial?.estado ?? '')
+  const [q, setQ] = useState(inicial?.q ?? '')
   const [abierto, setAbierto] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [mensaje, setMensaje] = useState<string | null>(null)
-  const [revisando, setRevisando] = useState(false)
+  const [recarga, setRecarga] = useState(0)
 
   useEffect(() => {
     let vigente = true
-    listarBandeja(filtro, q)
+    listarBandeja(estado, q, decision)
       .then((b) => {
         if (!vigente) return
         setBandeja(b)
@@ -145,85 +241,39 @@ export function BandejaCorreo({ intervaloMs = 3000 }: { intervaloMs?: number }) 
     return () => {
       vigente = false
     }
-  }, [filtro, q])
+  }, [estado, q, decision, version, recarga])
 
-  async function revisarAhora() {
-    setRevisando(true)
-    setMensaje(null)
-    setError(null)
-    try {
-      const { id } = await revisarCorreoAhora(dias)
-      // La revisión corre en el servidor (puede tardar minutos): se lee su avance hasta que termine.
-      for (let vuelta = 0; vuelta < 400; vuelta++) {
-        await new Promise((r) => window.setTimeout(r, intervaloMs))
-        const b = await listarBandeja(filtro, q)
-        setBandeja(b)
-        const s = b.ultimo_sondeo
-        if (s && s.id === id && s.terminado_en) {
-          if (s.error) setError(s.error)
-          else setMensaje(`Listo: ${s.examinados} correos nuevos revisados, ${s.nuevos} informes registrados.`)
-          return
-        }
-      }
-      setError('La revisión sigue en curso. Vuelve a mirar en unos minutos.')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo revisar el correo.')
-    } finally {
-      setRevisando(false)
-    }
-  }
-
-  const ultimo = bandeja?.ultimo_sondeo
+  const c = bandeja?.conteos
 
   return (
-    <section className={styles.bloque} aria-labelledby="bandeja-correo">
-      <div className={styles.cabecera}>
-        <div>
-          <h2 id="bandeja-correo" className={styles.titulo}>
-            Correo de informes
-          </h2>
-          <p className={styles.sub}>
-            Lo que llegó al buzón del Report Hub, revisado contra su solicitud y su lista de distribución. Por ahora solo se
-            mira: nada se carga a Report desde acá.
-          </p>
-        </div>
-        <div className={styles.acciones}>
-          <label className={styles.etiqueta}>
-            Últimos
-            <select value={dias} onChange={(e) => setDias(Number(e.target.value))} disabled={revisando}>
-              {DIAS.map((d) => (
-                <option key={d} value={d}>
-                  {d} días
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="button" className={styles.btnPrimario} onClick={() => void revisarAhora()} disabled={revisando}>
-            {revisando ? `Revisando el correo… (${bandeja?.ultimo_sondeo?.nuevos ?? 0} informes hasta ahora)` : 'Revisar ahora'}
-          </button>
-        </div>
-      </div>
-
-      {ultimo && (
-        <p className={styles.nota}>
-          Última revisión: {fechaHoraCorta(ultimo.terminado_en ?? ultimo.iniciado_en)} · {ultimo.nuevos} informes nuevos
-          {ultimo.error ? ` · con error: ${ultimo.error}` : ''}
-        </p>
-      )}
-      {mensaje && <p className={styles.exito}>{mensaje}</p>}
-      {error && <p className={styles.error}>{error}</p>}
-
+    <section className={styles.bloque} aria-label="Informes que llegaron por correo">
       <div className={styles.filtros}>
-        {FILTROS.map((f) => (
-          <button
-            key={f.etiqueta}
-            type="button"
-            className={`${styles.chip} ${filtro === f.clave ? styles.chipActivo : ''} ${f.clave === 'rojo' ? styles.chipRojo : ''}`}
-            onClick={() => setFiltro(f.clave)}
-          >
-            {f.etiqueta} <strong>{bandeja?.conteos[f.conteo] ?? 0}</strong>
-          </button>
-        ))}
+        <div className={styles.grupo} role="group" aria-label="Decisión">
+          {DECISIONES.map((f) => (
+            <button
+              key={f.etiqueta}
+              type="button"
+              className={`${styles.chip} ${decision === f.clave ? styles.chipActivo : ''}`}
+              aria-pressed={decision === f.clave}
+              onClick={() => setDecision(f.clave)}
+            >
+              {f.etiqueta} <strong>{c?.[f.conteo] ?? 0}</strong>
+            </button>
+          ))}
+        </div>
+        <div className={styles.grupo} role="group" aria-label="Revisión">
+          {ESTADOS.map((f) => (
+            <button
+              key={f.etiqueta}
+              type="button"
+              className={`${styles.chip} ${estado === f.clave ? styles.chipActivo : ''} ${f.clave === 'rojo' ? styles.chipRojo : ''}`}
+              aria-pressed={estado === f.clave}
+              onClick={() => setEstado(estado === f.clave ? '' : f.clave)}
+            >
+              {f.etiqueta} <strong>{c?.[f.conteo] ?? 0}</strong>
+            </button>
+          ))}
+        </div>
         <input
           type="search"
           className={styles.buscar}
@@ -234,10 +284,12 @@ export function BandejaCorreo({ intervaloMs = 3000 }: { intervaloMs?: number }) 
         />
       </div>
 
+      {error && <p className={styles.error}>{error}</p>}
+
       {bandeja && bandeja.informes.length === 0 ? (
         <p className={styles.vacio}>
           {bandeja.conteos.todos === 0
-            ? 'Todavía no hay informes. Aprieta «Revisar ahora» para leer el buzón.'
+            ? 'Todavía no hay informes. Aprieta «Revisar el correo ahora» para leer el buzón.'
             : 'Ningún informe coincide con ese filtro.'}
         </p>
       ) : (
@@ -255,10 +307,11 @@ export function BandejaCorreo({ intervaloMs = 3000 }: { intervaloMs?: number }) 
             <tbody>
               {(bandeja?.informes ?? []).map((i: InformeCorreo) => {
                 const h = hallazgoPrincipal(i.hallazgos.filter((x) => x.nivel !== 'info'))
+                const reenvio = i.primera_llegada != null && i.primera_llegada !== i.llegada_en
                 return (
                   <Fragment key={i.id}>
                     <tr
-                      className={`${styles.fila} ${abierto === i.id ? styles.filaAbierta : ''}`}
+                      className={`${styles.fila} ${abierto === i.id ? styles.filaAbierta : ''} ${i.es_ultima_copia ? '' : styles.reemplazada}`}
                       onClick={() => setAbierto(abierto === i.id ? null : i.id)}
                     >
                       <td className={styles.nowrap}>{fechaHoraCorta(i.llegada_en)}</td>
@@ -268,15 +321,30 @@ export function BandejaCorreo({ intervaloMs = 3000 }: { intervaloMs?: number }) 
                       </td>
                       <td>{[i.sold_to, i.ship_to].filter(Boolean).join(' · ') || '—'}</td>
                       <td className={styles.nowrap}>
-                        <span className={`${styles.estado} ${styles[`e_${i.estado}`]}`}>{ETIQUETA_ESTADO[i.estado]}</span>
-                        {i.ya_cargado && <span className={styles.yaCargado}>Ya cargado</span>}
+                        <span className={`${styles.estado} ${styles[`e_${i.estado}`]}`}>
+                          {i.estado === 'rojo' && i.resuelto_en ? 'Resuelto' : ETIQUETA_ESTADO[i.estado]}
+                        </span>
+                        {i.decision !== 'pendiente' && (
+                          <span className={`${styles.marca} ${i.decision === 'rechazado' ? styles.marcaRechazado : styles.marcaAceptado}`}>
+                            {i.decision === 'aceptado' ? 'Aceptado' : 'Rechazado'}
+                          </span>
+                        )}
+                        {i.ya_cargado && <span className={styles.marca}>Ya cargado</span>}
+                        {reenvio && <span className={styles.marca} title={`La primera copia llegó ${fechaHoraCorta(i.primera_llegada)}`}>Reenvío</span>}
+                        {!i.es_ultima_copia && <span className={styles.marca}>Reemplazado</span>}
                       </td>
                       <td className={styles.queHizo}>{h ? h.texto : 'Todo calza con su solicitud.'}</td>
                     </tr>
                     {abierto === i.id && (
                       <tr className={styles.filaDetalle}>
                         <td colSpan={5}>
-                          <Detalle id={i.id} />
+                          <Detalle
+                            informe={i}
+                            onCambio={() => {
+                              setRecarga((n) => n + 1)
+                              onCambio()
+                            }}
+                          />
                         </td>
                       </tr>
                     )}

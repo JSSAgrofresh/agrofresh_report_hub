@@ -29,8 +29,8 @@ export const MODULO_AUDITORIA_INTERNA = 'auditoria_interna'
 export const MODULOS: ModuloInfo[] = [
   {
     id: 'ingesta',
-    nombre: 'Ingesta de Datos',
-    descripcion: 'Carga, homogeneización y confirmación de resultados de laboratorio en la base de datos.',
+    nombre: 'Ingreso de Informes',
+    descripcion: 'Informes de laboratorio que llegan por correo, su revisión contra la solicitud, y la carga manual de resultados a la base de datos.',
     ruta: ROUTES.ingesta,
     estado: 'disponible',
     grupo: GRUPO_DATACORE,

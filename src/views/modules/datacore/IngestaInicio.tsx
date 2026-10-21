@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/features/auth'
 import { CORREO_MAESTRO } from '@/features/usuarios'
-import { BandejaCorreo } from './BandejaCorreo'
+import { PanelIngresoInformes } from './PanelIngresoInformes'
 import { HistorialCargas } from './HistorialCargas'
 import { PendientesIngesta } from './PendientesIngesta'
 import styles from './IngestaInicio.module.css'
@@ -15,15 +15,11 @@ interface Props {
 }
 
 /**
- * La puerta de entrada de todo lo que llega a la base: las dos formas de
- * cargar (Excel y PDF por el Converter), lo que quedó pendiente, y el
- * historial de cargas con su botón para deshacer.
+ * La carga manual de siempre: las dos formas de cargar (Excel y PDF por el Converter), lo que quedó
+ * pendiente, y el historial de cargas con su botón para deshacer.
  */
-export function IngestaInicio({ cargando, error, onArchivo }: Props) {
+function CargaManual({ cargando, error, onArchivo }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const { user } = useAuth()
-  // El correo de informes (etapa 1) lo ve solo el administrador principal.
-  const veCorreo = user?.tipoAcceso === 'admin_general' && user.email.toLowerCase() === CORREO_MAESTRO
   const [arrastrando, setArrastrando] = useState(false)
   // Pendientes e historial se releen entre sí: deshacer una carga borra sus
   // pendientes, y reintentar pendientes cambia los conteos de las cargas.
@@ -31,16 +27,7 @@ export function IngestaInicio({ cargando, error, onArchivo }: Props) {
   const refrescar = () => setVersion((v) => v + 1)
 
   return (
-    <div className={styles.root}>
-      <header className={styles.cabecera}>
-        <div className={styles.eyebrow}>Ingesta de datos</div>
-        <h1 className={styles.titulo}>Carga de resultados</h1>
-        <p className={styles.intro}>
-          Todo lo que entra a la base pasa por acá. Cada informe se revisa contra Listados antes de
-          guardarse, y cada carga queda registrada para poder deshacerla.
-        </p>
-      </header>
-
+    <>
       <div className={styles.opciones}>
         <section className={styles.opcion} aria-labelledby="opcion-excel">
           <div className={styles.opcionCab}>
@@ -123,10 +110,34 @@ export function IngestaInicio({ cargando, error, onArchivo }: Props) {
         </section>
       </div>
 
-      {veCorreo && <BandejaCorreo />}
-
       <PendientesIngesta version={version} onCambio={refrescar} ocultarSiVacio />
       <HistorialCargas version={version} onCambio={refrescar} />
+    </>
+  )
+}
+
+/**
+ * La puerta de entrada de todo lo que llega a la base. El administrador principal ve el panel de Ingreso de
+ * informes (correo, solicitudes, cifras) con la carga manual en su última pestaña; el resto, la carga manual.
+ */
+export function IngestaInicio(props: Props) {
+  const { user } = useAuth()
+  const veCorreo = user?.tipoAcceso === 'admin_general' && user.email.toLowerCase() === CORREO_MAESTRO
+
+  if (veCorreo) return <PanelIngresoInformes cargaManual={<CargaManual {...props} />} />
+
+  return (
+    <div className={styles.root}>
+      <header className={styles.cabecera}>
+        <div className={styles.eyebrow}>Ingreso de informes</div>
+        <h1 className={styles.titulo}>Carga de resultados</h1>
+        <p className={styles.intro}>
+          Todo lo que entra a la base pasa por acá. Cada informe se revisa contra Listados antes de
+          guardarse, y cada carga queda registrada para poder deshacerla.
+        </p>
+      </header>
+
+      <CargaManual {...props} />
     </div>
   )
 }

@@ -57,7 +57,7 @@ export function CeldaInforme({ s, onAbrir }: { s: Solicitud; onAbrir: (s: Solici
       {!inf.en_report && (
         <span
           className={styles.chipSinReport}
-          title="El PDF del informe se subió, pero sus resultados no están en Report: revisa Ingesta de Datos → Filas pendientes (Sold To / Ship To que no calzó con Listados)."
+          title="El PDF del informe se subió, pero sus resultados no están en Report: revisa Ingreso de Informes → Filas pendientes (Sold To / Ship To que no calzó con Listados)."
         >
           Sin Report
         </span>

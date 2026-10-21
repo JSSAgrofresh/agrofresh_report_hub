@@ -146,8 +146,8 @@ def revisar_pdf(
         "soportado": soportado,
         "nro_informe": leido.get("nro_informe", ""),
         "ot": leido.get("ot", ""),
-        "sold_to": leido.get("sold_to", ""),
-        "ship_to": leido.get("ship_to", ""),
+        "sold_to": leido.get("sold_to") or (solicitud[1].get("sold_to") if solicitud else "") or "",
+        "ship_to": leido.get("ship_to") or (solicitud[1].get("ship_to") if solicitud else "") or "",
         "especie": leido.get("especie", ""),
         "fecha_muestreo": leido.get("fecha_muestreo") or None,
         "archivo_solicitud": solicitud[0] if solicitud else None,
@@ -219,19 +219,10 @@ _COLUMNAS = (
 
 
 def guardar_fila(cur, buzon: str, message_id: str, correo: dict[str, Any], fila: dict[str, Any], r2_key: str | None) -> bool:
-    """Inserta un informe de un correo. False si ya estaba (mismo correo y mismo PDF)."""
-    duplicado = None
-    if fila["nro_informe"] and fila["laboratorio"]:
-        cur.execute(
-            "SELECT llegada_en FROM correo_informe WHERE upper(btrim(nro_informe)) = upper(%s) AND laboratorio = %s"
-            " ORDER BY llegada_en ASC LIMIT 1", (fila["nro_informe"], fila["laboratorio"]),
-        )
-        previo = cur.fetchone()
-        duplicado = previo["llegada_en"] if previo else None
-    hallazgos = list(fila["hallazgos"])
-    if duplicado:
-        hallazgos.append({"nivel": lectura.INFO, "codigo": "ya_llego_antes",
-                          "texto": f"Este informe ya había llegado el {duplicado.astimezone().strftime('%d-%m-%Y %H:%M')}."})
+    """Inserta un informe de un correo. False si ya estaba (mismo correo y mismo PDF).
+
+    Un reenvío del mismo informe es otra fila (otro correo, otros destinatarios): cuál es la primera y cuál la
+    última copia se calcula al leer (`_COPIAS`), no al guardar, porque los correos se examinan del más nuevo al más viejo."""
     cur.execute(
         f"""
         INSERT INTO correo_informe (buzon, message_id, r2_key, asunto, remitente, llegada_en, enviado_en,
@@ -240,7 +231,7 @@ def guardar_fila(cur, buzon: str, message_id: str, correo: dict[str, Any], fila:
         ON CONFLICT (message_id, pdf_sha256) DO NOTHING
         """,
         (buzon, message_id, r2_key, correo["asunto"], correo["remitente"], correo["llegada_en"], correo["enviado_en"],
-         Json(fila["para"]), Json(fila["cc"]), Json(fila["bcc"]), Json(fila["esperado"]), Json(hallazgos),
+         Json(fila["para"]), Json(fila["cc"]), Json(fila["bcc"]), Json(fila["esperado"]), Json(fila["hallazgos"]),
          *[fila[c] for c in _COLUMNAS]),
     )
     return cur.rowcount > 0
@@ -460,9 +451,18 @@ class SondearIn(BaseModel):
 
 
 _CAMPOS_LISTA = (
-    "id, laboratorio, soportado, nro_informe, ot, sold_to, ship_to, especie, fecha_muestreo, asunto, remitente,"
-    " llegada_en, enviado_en, estado, ya_cargado, revisado_en, resuelto_en, hallazgos, pdf_nombre, (r2_key IS NOT NULL) AS tiene_pdf"
+    "c.id, c.laboratorio, c.soportado, c.nro_informe, c.ot,"
+    " COALESCE(NULLIF(c.sold_to, ''), sa.sold_to) AS sold_to, COALESCE(NULLIF(c.ship_to, ''), sa.ship_to) AS ship_to,"
+    " c.especie, c.fecha_muestreo, c.asunto, c.remitente, c.llegada_en, c.enviado_en, c.estado, c.ya_cargado,"
+    " c.decision, c.decidido_en, c.decidido_por, c.nota, c.resuelto_en, c.resuelto_por, c.hallazgos, c.pdf_nombre,"
+    " (c.r2_key IS NOT NULL) AS tiene_pdf,"
+    # Copias del mismo informe (mismo laboratorio y N°): desde cuándo llegó la primera y si esta es la última.
+    " (SELECT MIN(x.llegada_en) FROM correo_informe x WHERE x.laboratorio = c.laboratorio AND x.nro_informe <> ''"
+    "    AND upper(btrim(x.nro_informe)) = upper(btrim(c.nro_informe))) AS primera_llegada,"
+    " NOT EXISTS (SELECT 1 FROM correo_informe x WHERE x.laboratorio = c.laboratorio AND x.nro_informe <> ''"
+    "    AND upper(btrim(x.nro_informe)) = upper(btrim(c.nro_informe)) AND x.llegada_en > c.llegada_en) AS es_ultima_copia"
 )
+_DESDE = "FROM correo_informe c LEFT JOIN solicitud_archivo sa ON sa.archivo = c.archivo_solicitud"
 
 
 def _tabla_o_503(cur, sql: str, params: tuple = ()):
@@ -474,32 +474,38 @@ def _tabla_o_503(cur, sql: str, params: tuple = ()):
 
 @router.get("")
 def listar(
-    estado: str = Query("", description="rojo, amarillo, ok o vacío para todos"),
+    estado: str = Query("", description="rojo, amarillo, ok, ya_cargado o vacío para todos"),
+    decision: str = Query("", description="pendiente, aceptado, rechazado o vacío para todas"),
     laboratorio: str = "", q: str = "", limite: int = Query(200, ge=1, le=500),
     _: Usuario = Depends(exigir_principal),
 ) -> dict[str, Any]:
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        _tabla_o_503(cur, "SELECT estado, ya_cargado, count(*) AS n FROM correo_informe GROUP BY estado, ya_cargado")
-        conteos: dict[str, int] = {"todos": 0, "rojo": 0, "amarillo": 0, "ok": 0, "ya_cargado": 0}
+        _tabla_o_503(cur, "SELECT estado, ya_cargado, decision, count(*) AS n FROM correo_informe GROUP BY estado, ya_cargado, decision")
+        conteos: dict[str, int] = {"todos": 0, "rojo": 0, "amarillo": 0, "ok": 0, "ya_cargado": 0,
+                                   "pendiente": 0, "aceptado": 0, "rechazado": 0}
         for f in cur.fetchall():
             conteos["todos"] += f["n"]
             conteos[f["estado"]] = conteos.get(f["estado"], 0) + f["n"]
+            conteos[f["decision"]] = conteos.get(f["decision"], 0) + f["n"]
             if f["ya_cargado"]:
                 conteos["ya_cargado"] += f["n"]
         filtros, params = [], []
         if estado == "ya_cargado":
-            filtros.append("ya_cargado")
+            filtros.append("c.ya_cargado")
         elif estado:
-            filtros.append("estado = %s")
+            filtros.append("c.estado = %s")
             params.append(estado)
+        if decision:
+            filtros.append("c.decision = %s")
+            params.append(decision)
         if laboratorio:
-            filtros.append("laboratorio = %s")
+            filtros.append("c.laboratorio = %s")
             params.append(laboratorio)
         if q.strip():
-            filtros.append("(nro_informe ILIKE %s OR ot ILIKE %s OR asunto ILIKE %s OR ship_to ILIKE %s OR sold_to ILIKE %s)")
+            filtros.append("(c.nro_informe ILIKE %s OR c.ot ILIKE %s OR c.asunto ILIKE %s OR c.ship_to ILIKE %s OR c.sold_to ILIKE %s)")
             params += [f"%{q.strip()}%"] * 5
         donde = ("WHERE " + " AND ".join(filtros)) if filtros else ""
-        cur.execute(f"SELECT {_CAMPOS_LISTA} FROM correo_informe {donde} ORDER BY llegada_en DESC NULLS LAST, id DESC LIMIT %s",
+        cur.execute(f"SELECT {_CAMPOS_LISTA} {_DESDE} {donde} ORDER BY c.llegada_en DESC NULLS LAST, c.id DESC LIMIT %s",
                     (*params, limite))
         filas = cur.fetchall()
         cur.execute("SELECT id, iniciado_en, terminado_en, nuevos, examinados, error, dias FROM correo_informe_sondeo ORDER BY id DESC LIMIT 1")
@@ -507,10 +513,77 @@ def listar(
     return {"conteos": conteos, "informes": filas, "ultimo_sondeo": ultimo}
 
 
+@router.get("/sondeo")
+def ultimo_sondeo(_: Usuario = Depends(exigir_principal)) -> dict[str, Any] | None:
+    """La última revisión del buzón (liviano: la pantalla lo consulta mientras una revisión corre)."""
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        _tabla_o_503(cur, "SELECT id, iniciado_en, terminado_en, nuevos, examinados, error, dias FROM correo_informe_sondeo ORDER BY id DESC LIMIT 1")
+        return cur.fetchone()
+
+
+@router.get("/panel")
+def panel(dias: int = Query(60, ge=7, le=365), _: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """KPIs, solicitudes (lo que falta, lo recibido) y tendencia de la demora de los informes."""
+    from . import correo_informes_panel
+
+    try:
+        return correo_informes_panel.leer_panel(dias)
+    except psycopg2.errors.UndefinedTable as exc:
+        raise HTTPException(503, "Falta correr la migración 0064_correo_informe.sql en el servidor.") from exc
+
+
+class DecisionIn(BaseModel):
+    nota: str = Field("", max_length=1000)
+
+
+def _marcar(informe_id: int, sql: str, params: tuple, que: str) -> dict[str, Any]:
+    with conexion() as conn, cursor_dict(conn) as cur:
+        try:
+            cur.execute(sql, (*params, informe_id))
+        except psycopg2.errors.UndefinedColumn as exc:
+            raise HTTPException(503, "Falta correr la migración 0065_correo_informe_decision.sql en el servidor.") from exc
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Ese informe no está en la bandeja o ya no está en ese estado.")
+    return {"ok": True, "id": informe_id, "accion": que}
+
+
+@router.post("/{informe_id}/rechazar")
+def rechazar(informe_id: int, body: DecisionIn, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """Descarta el informe (no se carga): queda en la bandeja como rechazado, con su motivo."""
+    if not body.nota.strip():
+        raise HTTPException(400, "Escribe el motivo del rechazo.")
+    return _marcar(
+        informe_id,
+        "UPDATE correo_informe SET decision = 'rechazado', decidido_en = now(), decidido_por = %s, nota = %s WHERE id = %s",
+        (usuario.email, body.nota.strip()), "rechazado",
+    )
+
+
+@router.post("/{informe_id}/volver-a-pendiente")
+def volver_a_pendiente(informe_id: int, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """Deshace un rechazo: el informe vuelve a pendiente."""
+    return _marcar(
+        informe_id,
+        "UPDATE correo_informe SET decision = 'pendiente', decidido_en = NULL, decidido_por = NULL"
+        " WHERE decision = 'rechazado' AND id = %s",
+        (), "pendiente",
+    )
+
+
+@router.post("/{informe_id}/resolver")
+def resolver(informe_id: int, body: DecisionIn, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """Cierra el seguimiento de un informe en rojo (qué se hizo, en la nota)."""
+    return _marcar(
+        informe_id,
+        "UPDATE correo_informe SET resuelto_en = now(), resuelto_por = %s, nota = COALESCE(NULLIF(%s, ''), nota) WHERE id = %s",
+        (usuario.email, body.nota.strip()), "resuelto",
+    )
+
+
 @router.get("/{informe_id}")
 def detalle(informe_id: int, _: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-        _tabla_o_503(cur, "SELECT * FROM correo_informe WHERE id = %s", (informe_id,))
+        _tabla_o_503(cur, f"SELECT c.*, {_CAMPOS_LISTA} {_DESDE} WHERE c.id = %s", (informe_id,))
         fila = cur.fetchone()
     if not fila:
         raise HTTPException(404, "Ese informe no está en la bandeja.")

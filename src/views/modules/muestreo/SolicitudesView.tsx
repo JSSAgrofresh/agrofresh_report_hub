@@ -461,7 +461,7 @@ export function SolicitudesView() {
           <IconoAlerta width={16} height={16} />
           <span>
             <b>{plural(resumen.sin_report, 'informe tiene', 'informes tienen')}</b> PDF pero sus resultados no están en Report
-            (revisa Ingesta de Datos → Filas pendientes).
+            (revisa Ingreso de Informes → Filas pendientes).
           </span>
           <span className={styles.avisoAccion}>{vistaActiva === 'sin_report' ? 'Ver todas' : 'Ver cuáles'}</span>
         </button>

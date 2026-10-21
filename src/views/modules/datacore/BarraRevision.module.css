@@ -1,0 +1,63 @@
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 280px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.exito {
+  color: #226b53;
+  font-weight: 600;
+}
+
+.error {
+  color: #b0271f;
+  font-weight: 600;
+}
+
+.etiqueta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.etiqueta select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.boton {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-primary-hover);
+  background: var(--color-primary-hover);
+  color: var(--color-primary-contrast);
+  cursor: pointer;
+}
+
+.boton:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
