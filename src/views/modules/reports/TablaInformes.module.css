@@ -380,3 +380,13 @@
 .resumen b {
   color: var(--color-text);
 }
+
+/* Portal de clientes */
+:global([data-portal]) .tabla tbody td.grupo { border-bottom: 1px solid var(--color-border); }
+:global([data-portal]) .tabla tbody tr.finInforme td.grupo { border-bottom: 1px solid var(--color-border-strong); }
+:global([data-portal]) .caja { border-radius: 18px; border-color: #dde8d0; background: #fff; }
+:global([data-portal]) .buscador input { height: 40px; border-radius: 999px; border-color: #cfe0bf; padding-left: 38px; }
+:global([data-portal]) .lupa { left: 14px; }
+:global([data-portal]) .control select { height: 40px; border-radius: 999px; border-color: #cfe0bf; padding: 0 30px 0 14px; }
+:global([data-portal]) .paginas button { border-radius: 999px; height: 36px; border-color: #cfe0bf; padding: 0 16px; }
+:global([data-portal]) .informe { border-radius: 99px; padding: 3px 10px; }

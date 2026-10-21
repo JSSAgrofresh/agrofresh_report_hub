@@ -28,18 +28,23 @@ describe('tabla por informe', () => {
     const filas = filasDelCuerpo(container)
     expect(filas).toHaveLength(6)
     // Primera fila del informe 496563: fecha, informe, analito, resultado, unidad, estado. Coliformes primero aunque llegue al revés.
-    expect(celdas(filas[0])).toEqual(['30-10-2026viernes', '496563', 'Coliformes Totales', '<1', 'UFC/100 mL', 'Pendiente'])
+    expect(celdas(filas[0])).toEqual(['30-10-2026viernes', '496563', 'Coliformes Totales', '<1', 'UFC/100 mL', 'No detectó'])
     // La segunda fila solo trae lo suyo: el informe y la fecha se estiran hacia abajo.
-    expect(celdas(filas[1])).toEqual(['Escherichia coli', '<1', 'UFC/100 mL', 'Pendiente'])
+    expect(celdas(filas[1])).toEqual(['Escherichia coli', '<1', 'UFC/100 mL', 'No detectó'])
     expect(celdas(filas[2]).slice(1, 4)).toEqual(['496251', 'Coliformes Totales', '67'])
     expect(celdas(filas[3])[1]).toBe('50')
     expect((container.querySelector('tbody tr td') as HTMLTableCellElement).rowSpan).toBe(2)
   })
 
-  it('en ALS cada analito dice «Pendiente»', () => {
+  it('en ALS cada analito dice si detectó o no, igual que en Diagnofruit (un «<1» es «No detectó»)', () => {
     const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
-    const estados = filasDelCuerpo(container).map((f) => celdas(f).at(-1))
-    expect(estados).toEqual(Array(6).fill('Pendiente'))
+    const filas = filasDelCuerpo(container)
+    const estados = filas.map((f) => celdas(f).at(-1))
+    expect(estados.every((e) => e === 'Detectó' || e === 'No detectó')).toBe(true)
+    expect(estados).not.toContain('Pendiente')
+    // «<1» no se detectó; un recuento de 67 sí.
+    expect(celdas(filas[0]).at(-1)).toBe('No detectó')
+    expect(celdas(filas[2]).at(-1)).toBe('Detectó')
   })
 
   it('en Diagnofruit cada analito dice si detectó', () => {
