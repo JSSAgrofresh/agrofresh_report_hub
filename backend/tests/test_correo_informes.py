@@ -286,7 +286,7 @@ def test_la_cabecera_trae_el_id_la_llegada_y_el_tamano_sin_bajar_el_correo():
 
 def test_revisar_ahora_vuelve_de_inmediato_y_deja_el_trabajo_en_segundo_plano(monkeypatch):
     lanzados = []
-    monkeypatch.setattr(ci, "iniciar_sondeo", lambda dias, por="": (7, False))
+    monkeypatch.setattr(ci, "iniciar_sondeo", lambda dias, por="", forzar=False: (7, False))
     monkeypatch.setattr(ci, "_hilo", lambda sondeo_id, dias: lanzados.append((sondeo_id, dias)))
     monkeypatch.setattr(ci.config, "GMAIL_ACCOUNT", "agrofreshreporthub@gmail.com")
     monkeypatch.setattr(ci.config, "GMAIL_APP_PASSWORD", "clave")
@@ -302,7 +302,7 @@ def test_revisar_ahora_vuelve_de_inmediato_y_deja_el_trabajo_en_segundo_plano(mo
 
 def test_si_ya_hay_una_revision_en_curso_no_se_abre_otra(monkeypatch):
     lanzados = []
-    monkeypatch.setattr(ci, "iniciar_sondeo", lambda dias, por="": (7, True))
+    monkeypatch.setattr(ci, "iniciar_sondeo", lambda dias, por="", forzar=False: (7, True))
     monkeypatch.setattr(ci, "_hilo", lambda *a: lanzados.append(a))
     monkeypatch.setattr(ci.config, "GMAIL_ACCOUNT", "agrofreshreporthub@gmail.com")
     monkeypatch.setattr(ci.config, "GMAIL_APP_PASSWORD", "clave")
