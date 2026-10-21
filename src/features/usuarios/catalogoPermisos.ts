@@ -35,7 +35,7 @@ export const CATEGORIAS: Categoria[] = [
     nombre: 'Data Core',
     descripcion: 'Preparación y homogenización de los datos del sistema.',
     permisos: [
-      { id: 'ingesta', nombre: 'Ingesta de Datos', descripcion: 'Carga, homogeneización y confirmación de resultados en la base de datos.' },
+      { id: 'ingesta', nombre: 'Ingreso de Informes', descripcion: 'Informes que llegan por correo, carga, homogeneización y confirmación de resultados en la base de datos.' },
       { id: 'trace', nombre: 'Trace', descripcion: 'Trazabilidad de registros pH/ORP de equipos Accu-Tab e informes PDF.' },
       { id: 'converter', nombre: 'Converter', descripcion: 'Conversión y homogenización de informes de laboratorio contra el catálogo oficial.' },
     ],
