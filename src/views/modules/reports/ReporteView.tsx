@@ -1,3 +1,4 @@
+import { FiltrosPegajosos } from '@/components/layout/portal/FiltrosPegajosos'
 import FueraDeRango from './FueraDeRango'
 import { columnasPorLaboratorio, laboratoriosDeInformes } from '@/features/reportes/lib/graficoResiduales'
 import { DonaFueraDeRango } from './DonaFueraDeRango'
@@ -1322,7 +1323,7 @@ export function ReporteView({
             </div>
           )}
 
-          <section className={styles.filtrosCard} aria-label="Filtros">
+          <FiltrosPegajosos className={styles.filtrosCard}>
             <div className={styles.filtrosCabecera}>
               <span className={styles.filtrosTitulo}>
                 Filtros
@@ -1540,7 +1541,7 @@ export function ReporteView({
                 ))}
               </div>
             )}
-          </section>
+          </FiltrosPegajosos>
 
           {esTabular ? (
             <SeccionInformes

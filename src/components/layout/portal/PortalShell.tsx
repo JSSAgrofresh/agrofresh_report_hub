@@ -7,6 +7,7 @@ import { ROUTES } from '@/constants/routes'
 import { cn } from '@/lib/cn'
 import { iniciales, modulosPermitidos, puedeVerTomaMuestras } from '@/features/usuarios'
 import { ocultaPanelGeneral } from './inicio'
+import { PortalContext } from './PortalContext'
 import { IconLogout } from '@/components/ui/icons'
 import styles from './PortalShell.module.css'
 
@@ -69,7 +70,8 @@ export function PortalShell({ contenido, children }: { contenido?: RefObject<HTM
   const enlaces = enlacesDe(user)
 
   return (
-    <div className={styles.shell}>
+    <PortalContext.Provider value={true}>
+    <div className={styles.shell} data-portal="">
       <div className={styles.fondo} aria-hidden="true">
         <div className={cn(styles.mancha, styles.m1)} />
         <div className={cn(styles.mancha, styles.m2)} />
@@ -106,5 +108,6 @@ export function PortalShell({ contenido, children }: { contenido?: RefObject<HTM
         {children}
       </main>
     </div>
+    </PortalContext.Provider>
   )
 }
