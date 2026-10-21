@@ -131,9 +131,6 @@ export function BandejaCorreo({ intervaloMs = 3000 }: { intervaloMs?: number }) 
   const [mensaje, setMensaje] = useState<string | null>(null)
   const [revisando, setRevisando] = useState(false)
 
-  // Cambia cuando hay que releer la bandeja (después de revisar el buzón).
-  const [version, setVersion] = useState(0)
-
   useEffect(() => {
     let vigente = true
     listarBandeja(filtro, q)
@@ -148,7 +145,7 @@ export function BandejaCorreo({ intervaloMs = 3000 }: { intervaloMs?: number }) 
     return () => {
       vigente = false
     }
-  }, [filtro, q, version])
+  }, [filtro, q])
 
   async function revisarAhora() {
     setRevisando(true)
