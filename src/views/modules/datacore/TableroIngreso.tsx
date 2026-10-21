@@ -7,6 +7,7 @@ import type { InformeCorreo, PanelIngreso } from '@/features/correoInformes'
 import { fechaHoraCorta } from '@/features/notificaciones'
 import { Detalle } from './BandejaCorreo'
 import { ColaDeTrabajo } from './ColaDeTrabajo'
+import { GraficoCajas } from './GraficoCajas'
 import { GraficoDemora } from './GraficoDemora'
 import { SolicitudesIngreso } from './SolicitudesIngreso'
 import styles from './TableroIngreso.module.css'
@@ -51,6 +52,7 @@ export function TableroIngreso({ panel, errorPanel, version, onCambio, onVerInfo
   const [verSolicitudes, setVerSolicitudes] = useState(false)
   const [deshaciendo, setDeshaciendo] = useState<number | null>(null)
   const [falla, setFalla] = useState<string | null>(null)
+  const [vistaDemora, setVistaDemora] = useState<'cajas' | 'semanas'>('cajas')
 
   useEffect(() => {
     let vigente = true
@@ -175,15 +177,38 @@ export function TableroIngreso({ panel, errorPanel, version, onCambio, onVerInfo
         )}
       </Widget>
 
-      <Widget titulo="Demora de los informes" ancho="c7">
+      <Widget
+        titulo="Demora de los informes"
+        ancho="c7"
+        pie={
+          <div className={styles.conmutador} role="group" aria-label="Cómo ver la demora">
+            <button type="button" aria-pressed={vistaDemora === 'cajas'} onClick={() => setVistaDemora('cajas')}>
+              Por laboratorio
+            </button>
+            <button type="button" aria-pressed={vistaDemora === 'semanas'} onClick={() => setVistaDemora('semanas')}>
+              Semana a semana
+            </button>
+          </div>
+        }
+      >
         {!panel ? (
           <Skeleton style={{ height: 200 }} />
         ) : (
           <>
             <p className={styles.sub}>
-              Días hábiles desde que la solicitud sale al laboratorio hasta que su informe llega. <strong>{frasePendiente(panel.tendencia.pendiente_por_semana)}</strong>
+              Días hábiles desde que la solicitud sale al laboratorio hasta que llega su informe (por correo o, si ya estaba en el sistema, su fecha de envío).{' '}
+              {vistaDemora === 'semanas' && <strong>{frasePendiente(panel.tendencia.pendiente_por_semana)}</strong>}
             </p>
-            <GraficoDemora tendencia={panel.tendencia} />
+            {vistaDemora === 'cajas' ? (
+              <>
+                <GraficoCajas cajas={panel.cajas ?? []} />
+                <p className={styles.leyenda}>
+                  La caja es donde cae la mitad central de los informes; la línea gruesa, la mediana; la punteada, el promedio; los círculos vacíos, los que tardaron mucho más que el resto.
+                </p>
+              </>
+            ) : (
+              <GraficoDemora tendencia={panel.tendencia} />
+            )}
             {panel.laboratorios.length > 0 && (
               <table className={styles.mini}>
                 <thead>

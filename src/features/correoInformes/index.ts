@@ -31,6 +31,7 @@ export type {
   NivelHallazgo,
   UltimoSondeo,
   ResultadoAceptar,
+  CajaDemora,
   Homogeneizacion,
   CorreccionesHomogeneizacion,
   ResultadoLote,
