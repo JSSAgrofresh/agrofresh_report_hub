@@ -167,7 +167,7 @@ describe('BandejaCorreo', () => {
   it('sin informes explica cómo traerlos', async () => {
     listarBandeja.mockResolvedValue({ ...bandeja([]), conteos: { ...bandeja([]).conteos, todos: 0 } })
     render(<BandejaCorreo version={0} onCambio={() => {}} />)
-    expect(await screen.findByText(/Revisar el correo ahora/)).toBeInTheDocument()
+    expect(await screen.findByText(/Recibir informes ahora/)).toBeInTheDocument()
   })
 
   it('«Aceptar los listos» manda solo los pendientes que calzan y avisa los que no se pudieron', async () => {
