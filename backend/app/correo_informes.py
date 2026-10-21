@@ -639,15 +639,18 @@ def homogeneizacion(informe_id: int, _: Usuario = Depends(exigir_principal)) -> 
         fila = cur.fetchone()
     if not fila:
         raise HTTPException(404, "Ese informe no está en la bandeja.")
-    if fila["laboratorio"] != "Quiteca":
-        raise HTTPException(409, "Por ahora solo se homogeneizan los informes de Quiteca.")
+    if fila["laboratorio"] not in correo_informes_homogeneo.LABORATORIOS_CARGABLES:
+        raise HTTPException(409, "Por ahora solo se homogeneizan los informes de Quiteca y AgroFresh.")
     if fila["ya_cargado"]:
         raise HTTPException(409, "Este informe ya está cargado en el sistema.")
     from . import r2
     datos = r2.descargar(fila["r2_key"]) if fila["r2_key"] else None
     if datos is None:
         raise HTTPException(409, "El PDF de este informe no está guardado: no se puede leer.")
-    r = correo_informes_homogeneo.preparar(datos)
+    try:
+        r = correo_informes_homogeneo.preparar(datos, laboratorio=fila['laboratorio'])
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
     from .servicios import clave_servicio
 
     servicio = clave_servicio(r["lectura"]["datos"].get("Tipo Aplicación"))

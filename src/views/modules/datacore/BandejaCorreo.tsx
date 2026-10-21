@@ -92,8 +92,6 @@ export function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambi
   const filas = compararDestinatarios(d.esperado, { para: d.para, cc: d.cc, bcc: d.bcc }, d.propios)
   const enSeguimiento = d.estado === 'rojo' && !d.resuelto_en
   const porHomogeneizar = d.decision === 'pendiente' && !d.ya_cargado && d.hallazgos.some((h) => h.codigo === CODIGO_NO_HOMOGENEO)
-  // Los informes propios (Paz) no se cargan desde el correo: entran por «Ingreso al laboratorio».
-  const propioSinCargar = d.decision === 'pendiente' && !d.ya_cargado && /agrofresh/i.test(d.laboratorio ?? '')
   return (
     <div className={styles.detalle}>
       <div className={styles.detalleCol}>
@@ -195,11 +193,6 @@ export function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambi
         {avisos.map((a) => (
           <p key={a} className={styles.nota}>{a}</p>
         ))}
-        {propioSinCargar && (
-          <p className={styles.nota}>
-            Es un informe propio de AgroFresh: se carga desde «Ingreso al laboratorio», no desde el correo. Aquí solo se revisa que el envío haya salido bien.
-          </p>
-        )}
         {error && <p className={styles.error}>{error}</p>}
         <div className={styles.acciones}>
           {d.tiene_pdf && (
@@ -207,7 +200,7 @@ export function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambi
               Ver el PDF
             </button>
           )}
-          {d.decision === 'pendiente' && !porHomogeneizar && !enSeguimiento && !propioSinCargar && (
+          {d.decision === 'pendiente' && !porHomogeneizar && !enSeguimiento && (
             <button
               type="button"
               className={styles.btnPrimario}
