@@ -6,7 +6,7 @@
   isolation: isolate;
   background: #f1f6ea;
   /* Las pantallas de adentro leen estos tokens: tarjetas más redondeadas y con sombra suave. */
-  --color-bg: transparent;
+  --color-bg: #f4f8ee; /* sólido: los encabezados fijos de las tablas y otros fondos lo usan y no pueden ser transparentes */
   --color-border: #dde8d0;
   --radius-lg: 20px;
   --radius-md: 12px;
