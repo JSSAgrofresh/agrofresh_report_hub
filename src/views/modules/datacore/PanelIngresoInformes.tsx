@@ -6,12 +6,13 @@ import { AuditoriaHero } from '@/views/modules/auditoria-interna/AuditoriaHero'
 import { BandejaCorreo } from './BandejaCorreo'
 import type { FiltroInicialBandeja } from './BandejaCorreo'
 import { BarraRevision } from './BarraRevision'
+import { PorHacer } from './PorHacer'
 import { ResumenIngreso } from './ResumenIngreso'
 import type { DestinoIngreso } from './ResumenIngreso'
 import { SolicitudesIngreso } from './SolicitudesIngreso'
 import styles from './PanelIngresoInformes.module.css'
 
-type Pestana = 'resumen' | 'informes' | 'solicitudes' | 'carga'
+type Pestana = 'porhacer' | 'resumen' | 'informes' | 'solicitudes' | 'carga'
 
 const PERIODOS = [30, 60, 90]
 
@@ -20,7 +21,7 @@ const PERIODOS = [30, 60, 90]
  * llegaron al correo, las solicitudes que faltan y la carga manual de siempre.
  */
 export function PanelIngresoInformes({ cargaManual }: { cargaManual: ReactNode }) {
-  const [pestana, setPestana] = useState<Pestana>('resumen')
+  const [pestana, setPestana] = useState<Pestana>('porhacer')
   const [dias, setDias] = useState(60)
   const [panel, setPanel] = useState<PanelIngreso | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -72,8 +73,9 @@ export function PanelIngresoInformes({ cargaManual }: { cargaManual: ReactNode }
   }
 
   const pestanas: { id: Pestana; etiqueta: string; conteo?: number }[] = [
+    { id: 'porhacer', etiqueta: 'Por hacer', conteo: panel?.kpis.pendientes },
     { id: 'resumen', etiqueta: 'Resumen' },
-    { id: 'informes', etiqueta: 'Informes del correo', conteo: panel?.kpis.pendientes },
+    { id: 'informes', etiqueta: 'Todos los informes' },
     { id: 'solicitudes', etiqueta: 'Solicitudes', conteo: panel?.kpis.esperando },
     { id: 'carga', etiqueta: 'Carga manual' },
   ]
@@ -83,7 +85,7 @@ export function PanelIngresoInformes({ cargaManual }: { cargaManual: ReactNode }
       <AuditoriaHero
         etiqueta="Ingreso de informes"
         titulo="Informes de laboratorio"
-        descripcion="Lo que llegó al correo, lo que falta por llegar, lo que se aceptó y lo que se rechazó, y cuánto demoran los laboratorios."
+        descripcion="Acepta, rechaza y da seguimiento a los informes que llegan al correo; las cifras y la demora de los laboratorios están en Resumen."
         tono="azul"
       />
 
@@ -122,6 +124,7 @@ export function PanelIngresoInformes({ cargaManual }: { cargaManual: ReactNode }
       </div>
 
       <div role="tabpanel" id={`panel-${pestana}`} aria-labelledby={`tab-${pestana}`}>
+        {pestana === 'porhacer' && <PorHacer version={version} onCambio={recargar} onVerDetalle={verInforme} />}
         {pestana === 'resumen' && <ResumenIngreso panel={panel} error={error} onIr={ir} />}
         {pestana === 'informes' && <BandejaCorreo key={destino.clave} version={version} inicial={destino.informes} onCambio={recargar} />}
         {pestana === 'solicitudes' && (
