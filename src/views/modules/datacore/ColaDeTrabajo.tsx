@@ -1,24 +1,30 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   aceptarInforme,
   aceptarVarios,
-  listarBandeja,
   marcarInformado,
   pdfInformeCorreo,
   rechazarInforme,
   resolverSeguimiento,
 } from '@/features/correoInformes'
-import type { InformeCorreo } from '@/features/correoInformes'
+import { agrupar } from '@/features/correoInformes'
+import type { Bloque, InformeCorreo } from '@/features/correoInformes'
 import { fechaHoraCorta } from '@/features/notificaciones'
-import styles from './PorHacer.module.css'
+import styles from './ColaDeTrabajo.module.css'
 
 type Accion = { id: number; tipo: 'rechazar' | 'informado' | 'resolver'; nota: string }
 
 interface Props {
-  version: number
+  /** Informes pendientes (última copia de cada uno); null mientras se leen. */
+  informes: InformeCorreo[] | null
+  error: string | null
+  /** Qué bloques de trabajo muestra este widget. */
+  grupos: Bloque[]
+  /** Se hizo algo: hay que releer. */
   onCambio: () => void
-  /** Abre el informe completo (esperado contra llegó) en «Informes del correo». */
-  onVerDetalle: (nro: string) => void
+  /** Abre el informe completo (esperado contra llegó, homogeneizar) sin salir del tablero. */
+  onAbrir: (i: InformeCorreo) => void
+  vacio: string
 }
 
 function que(i: InformeCorreo): string {
@@ -27,47 +33,27 @@ function que(i: InformeCorreo): string {
 }
 
 /**
- * Panel de trabajo: lo que hay que hacer hoy con los informes que llegaron al correo, con los botones en la
- * misma fila (aceptar, rechazar, «ya informé») para no tener que abrir cada informe.
+ * Un widget de trabajo: los informes pendientes que caen en ciertos bloques, con los botones en la misma fila
+ * (aceptar, rechazar, «ya informé»…) para no tener que abrir cada informe.
  */
-export function PorHacer({ version, onCambio, onVerDetalle }: Props) {
-  const [informes, setInformes] = useState<InformeCorreo[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [recarga, setRecarga] = useState(0)
+export function ColaDeTrabajo({ informes, error, grupos, onCambio, onAbrir, vacio }: Props) {
   const [marcados, setMarcados] = useState<Set<number> | null>(null)
   const [ocupado, setOcupado] = useState<number | 'lote' | null>(null)
   const [accion, setAccion] = useState<Accion | null>(null)
   const [fallas, setFallas] = useState<Record<number, string>>({})
   const [aviso, setAviso] = useState<string | null>(null)
 
-  useEffect(() => {
-    let vigente = true
-    listarBandeja('', '', 'pendiente', false)
-      .then((b) => {
-        if (!vigente) return
-        setInformes(b.informes.filter((i) => i.es_ultima_copia))
-        setError(null)
-      })
-      .catch((e: unknown) => {
-        if (vigente) setError(e instanceof Error ? e.message : 'No se pudo leer el correo de informes.')
-      })
-    return () => {
-      vigente = false
-    }
-  }, [version, recarga])
-
-  const lista = informes ?? []
-  const listos = lista.filter((i) => i.estado === 'ok')
-  const seguimiento = lista.filter((i) => i.estado === 'rojo' && !i.resuelto_en && !i.informado)
-  const informados = lista.filter((i) => i.estado === 'rojo' && !i.resuelto_en && i.informado)
-  const revisar = lista.filter((i) => i.estado === 'amarillo' || (i.estado === 'rojo' && i.resuelto_en))
+  const g = agrupar(informes ?? [])
+  const listos = g.listo
+  const homogeneizar = g.homogeneizar
+  const seguimiento = g.seguimiento
+  const informados = g.informado
+  const revisar = g.revisar
   const elegidos = marcados ?? new Set(listos.map((i) => i.id))
   const aElegir = listos.filter((i) => elegidos.has(i.id))
+  const lista = grupos.flatMap((k) => g[k])
 
-  const refrescar = useCallback(() => {
-    setRecarga((n) => n + 1)
-    onCambio()
-  }, [onCambio])
+  const refrescar = useCallback(() => onCambio(), [onCambio])
 
   function alternar(id: number) {
     const s = new Set(elegidos)
@@ -87,7 +73,7 @@ export function PorHacer({ version, onCambio, onVerDetalle }: Props) {
       setMarcados(null)
       refrescar()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo aceptar.')
+      setAviso(e instanceof Error ? e.message : 'No se pudo aceptar.')
     } finally {
       setOcupado(null)
     }
@@ -139,7 +125,7 @@ export function PorHacer({ version, onCambio, onVerDetalle }: Props) {
     }
   }
 
-  function fila(i: InformeCorreo, opciones: { marcable?: boolean; aceptar: string; informar?: boolean; resolver?: boolean }) {
+  function fila(i: InformeCorreo, opciones: { marcable?: boolean; aceptar?: string; homogeneizar?: boolean; informar?: boolean; resolver?: boolean }) {
     const abierta = accion?.id === i.id
     const etiquetaNota = accion?.tipo === 'rechazar' ? 'Motivo del rechazo' : accion?.tipo === 'informado' ? 'A quién se avisó / qué se hizo' : 'Cómo se resolvió'
     return (
@@ -161,9 +147,16 @@ export function PorHacer({ version, onCambio, onVerDetalle }: Props) {
           </div>
           <div className={styles.botones}>
             {i.ya_cargado && <span className={styles.marca}>Ya cargado</span>}
-            <button type="button" className={styles.btnPrimario} disabled={ocupado !== null} onClick={() => void aceptarUno(i)}>
-              {opciones.aceptar}
-            </button>
+            {opciones.aceptar && (
+              <button type="button" className={styles.btnPrimario} disabled={ocupado !== null} onClick={() => void aceptarUno(i)}>
+                {opciones.aceptar}
+              </button>
+            )}
+            {opciones.homogeneizar && (
+              <button type="button" className={styles.btnPrimario} disabled={ocupado !== null} onClick={() => onAbrir(i)}>
+                Homogeneizar
+              </button>
+            )}
             {opciones.informar && (
               <button type="button" className={styles.btn} disabled={ocupado !== null} onClick={() => setAccion({ id: i.id, tipo: 'informado', nota: '' })}>
                 Ya informé
@@ -182,7 +175,7 @@ export function PorHacer({ version, onCambio, onVerDetalle }: Props) {
                 PDF
               </button>
             )}
-            <button type="button" className={styles.btnLink} onClick={() => onVerDetalle(i.nro_informe ?? '')}>
+            <button type="button" className={styles.btnLink} onClick={() => onAbrir(i)}>
               Detalle
             </button>
           </div>
@@ -239,49 +232,62 @@ export function PorHacer({ version, onCambio, onVerDetalle }: Props) {
         </p>
       )}
       {informes == null && !error && <p className={styles.vacio}>Leyendo la bandeja…</p>}
-      {nada && <p className={styles.vacio}>Nada pendiente: todo lo que llegó ya está resuelto. Usa «Revisar el correo ahora» para buscar informes nuevos.</p>}
+      {nada && <p className={styles.vacio}>{vacio}</p>}
 
-      {bloque(
-        'Listos para aceptar',
-        'Llegaron a la lista correcta y calzan con su solicitud. Desmarca los que no quieras.',
-        'verde',
-        listos,
-        <>
-          <div className={styles.barraLote}>
-            <button type="button" className={styles.btnGrande} disabled={ocupado !== null || aElegir.length === 0} onClick={() => void aceptarLote(aElegir.map((i) => i.id))}>
-              Aceptar {aElegir.length === listos.length ? 'todos' : 'los elegidos'} ({aElegir.length})
-            </button>
-            <button type="button" className={styles.btnLink} onClick={() => setMarcados(new Set(elegidos.size === listos.length ? [] : listos.map((i) => i.id)))}>
-              {elegidos.size === listos.length ? 'Desmarcar todos' : 'Marcar todos'}
-            </button>
-          </div>
-          <ul className={styles.lista}>{listos.map((i) => fila(i, { marcable: true, aceptar: i.ya_cargado ? 'Marcar revisado' : 'Aceptar' }))}</ul>
-        </>,
-      )}
+      {grupos.includes('listo') &&
+        bloque(
+          'Listos para aceptar',
+          'Llegaron a la lista correcta y todo calza con Listados. Desmarca los que no quieras.',
+          'verde',
+          listos,
+          <>
+            <div className={styles.barraLote}>
+              <button type="button" className={styles.btnGrande} disabled={ocupado !== null || aElegir.length === 0} onClick={() => void aceptarLote(aElegir.map((i) => i.id))}>
+                Aceptar {aElegir.length === listos.length ? 'todos' : 'los elegidos'} ({aElegir.length})
+              </button>
+              <button type="button" className={styles.btnLink} onClick={() => setMarcados(new Set(elegidos.size === listos.length ? [] : listos.map((i) => i.id)))}>
+                {elegidos.size === listos.length ? 'Desmarcar todos' : 'Marcar todos'}
+              </button>
+            </div>
+            <ul className={styles.lista}>{listos.map((i) => fila(i, { marcable: true, aceptar: i.ya_cargado ? 'Marcar revisado' : 'Aceptar' }))}</ul>
+          </>,
+        )}
 
-      {bloque(
-        'Salió mal: hay que avisar al laboratorio',
-        'El correo llegó a gente que no está en la lista de la solicitud. Avisa al laboratorio y anótalo.',
-        'rojo',
-        seguimiento,
-        <ul className={styles.lista}>{seguimiento.map((i) => fila(i, { aceptar: 'Aceptar igual', informar: true, resolver: true }))}</ul>,
-      )}
+      {grupos.includes('homogeneizar') &&
+        bloque(
+          'Por homogeneizar',
+          'El envío está bien, pero Sold To, Ship To, especie o variedad no calzan con Listados. Corrígelos y súbelo.',
+          'amarillo',
+          homogeneizar,
+          <ul className={styles.lista}>{homogeneizar.map((i) => fila(i, { homogeneizar: true }))}</ul>,
+        )}
 
-      {bloque(
-        'Revisar antes de aceptar',
-        'Algo no calza del todo (falta alguien, copia de más, sin lista…). Decide si se acepta o se rechaza.',
-        'amarillo',
-        revisar,
-        <ul className={styles.lista}>{revisar.map((i) => fila(i, { aceptar: 'Aceptar' }))}</ul>,
-      )}
+      {grupos.includes('seguimiento') &&
+        bloque(
+          'Salió mal: hay que avisar al laboratorio',
+          'El correo llegó a gente que no está en la lista de la solicitud. Avisa al laboratorio y anótalo. «Cargar de todas formas» sube los resultados, pero NO lo marca como enviado al cliente.',
+          'rojo',
+          seguimiento,
+          <ul className={styles.lista}>{seguimiento.map((i) => fila(i, { aceptar: 'Cargar de todas formas', informar: true, resolver: true }))}</ul>,
+        )}
 
-      {bloque(
-        'Ya informados: esperando que el laboratorio lo corrija',
-        'No se vuelve a alertar. Cuando llegue la copia correcta se cierra solo; o márcalo como resuelto.',
-        'gris',
-        informados,
-        <ul className={styles.lista}>{informados.map((i) => fila(i, { aceptar: 'Aceptar igual', resolver: true }))}</ul>,
-      )}
+      {grupos.includes('revisar') &&
+        bloque(
+          'Envío incompleto o raro',
+          'Falta alguien de la lista, hay copias de más o la solicitud no tiene lista. Decide si se acepta o se rechaza.',
+          'amarillo',
+          revisar,
+          <ul className={styles.lista}>{revisar.map((i) => fila(i, { aceptar: 'Aceptar' }))}</ul>,
+        )}
+
+      {grupos.includes('informado') &&
+        bloque(
+          'Ya informados: esperando al laboratorio',
+          'No se vuelve a alertar. Cuando llegue la copia correcta se cierra solo; o márcalo como resuelto.',
+          'gris',
+          informados,
+          <ul className={styles.lista}>{informados.map((i) => fila(i, { aceptar: 'Cargar de todas formas', resolver: true }))}</ul>,
+        )}
     </div>
   )
 }

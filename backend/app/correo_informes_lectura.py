@@ -239,6 +239,11 @@ def _mismo_nombre(a: str, b: str, texto_completo: str = "") -> bool:
     return bool(texto_completo) and f" {kb} " in f" {clave_nombre(texto_completo)} "
 
 
+def _singular(clave: str) -> str:
+    """«cerezas» y «cereza» son la misma especie: se compara sin la «s» final de cada palabra."""
+    return " ".join(p[:-1] if len(p) > 3 and p.endswith("S") else p for p in clave.split())
+
+
 def comparar_con_solicitud(leido: dict[str, str], datos: dict, texto: str = "") -> list[dict[str, str]]:
     """Lo que el informe trae distinto de SU solicitud."""
     hallazgos: list[dict[str, str]] = []
@@ -256,19 +261,19 @@ def comparar_con_solicitud(leido: dict[str, str], datos: dict, texto: str = "") 
         })
     if not _mismo_nombre(leido.get("sold_to", ""), datos.get("sold_to", ""), texto):
         hallazgos.append({
-            "nivel": AMARILLO, "codigo": "sold_to_distinto",
+            "nivel": INFO, "codigo": "sold_to_distinto",
             "texto": f"Cliente distinto: el informe dice «{leido.get('sold_to') or '—'}» y la solicitud «{datos.get('sold_to')}».",
         })
-    esp_i, esp_s = clave_nombre(leido.get("especie")), clave_nombre(datos.get("especie"))
+    esp_i, esp_s = _singular(clave_nombre(leido.get("especie"))), _singular(clave_nombre(datos.get("especie")))
     if esp_i and esp_s and esp_i != esp_s:
         hallazgos.append({
-            "nivel": AMARILLO, "codigo": "especie_distinta",
+            "nivel": INFO, "codigo": "especie_distinta",
             "texto": f"Especie distinta: el informe dice «{leido.get('especie')}» y la solicitud «{datos.get('especie')}».",
         })
     f_i, f_s = leido.get("fecha_muestreo", ""), fecha_iso(datos.get("fecha_muestreo"))
     if f_i and f_s and f_i != f_s:
         hallazgos.append({
-            "nivel": AMARILLO, "codigo": "fecha_muestreo_distinta",
+            "nivel": INFO, "codigo": "fecha_muestreo_distinta",
             "texto": f"Fecha de muestreo distinta: el informe dice {f_i} y la solicitud {f_s}.",
         })
     return hallazgos
