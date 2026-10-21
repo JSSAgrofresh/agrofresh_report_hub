@@ -18,8 +18,11 @@ import {
   eliminarFotoSolicitud,
   obtenerFotoSolicitud,
   resultadosDeShipTo,
+  obtenerEnvioAutomatico,
+  puedeEditarSegunEnvio,
 } from '@/features/tomaMuestras'
-import type { AnalitoConfig, ContactoResultado, LaboratorioConfig, Solicitud } from '@/features/tomaMuestras'
+import type { AnalitoConfig, ConfigEnvioAutomatico, ContactoResultado, LaboratorioConfig, Solicitud } from '@/features/tomaMuestras'
+import { useAuth } from '@/features/auth'
 import { ROUTES, rutaTomaMuestrasEditar } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
 import styles from './SolicitudDetalleView.module.css'
@@ -103,6 +106,8 @@ function dosisDeAnalito(campos: Record<string, string>, analito: AnalitoConfig):
 export function SolicitudDetalleView() {
   const { archivo } = useParams<{ archivo: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const [envioAutomatico, setEnvioAutomatico] = useState<ConfigEnvioAutomatico | null>(null)
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null)
   const [analitosLab, setAnalitosLab] = useState<AnalitoConfig[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -152,6 +157,9 @@ export function SolicitudDetalleView() {
           .catch(() => setLabConfig(null))
       })
       .catch(() => setError('No se pudo cargar la solicitud.'))
+    obtenerEnvioAutomatico()
+      .then(setEnvioAutomatico)
+      .catch(() => setEnvioAutomatico(null))
     listarFotosSolicitud(archivo)
       .then(setFotos)
       .catch(() => setFotos([]))
@@ -341,6 +349,13 @@ export function SolicitudDetalleView() {
   }
 
   const camposLab = Object.entries(solicitud.campos_laboratorio)
+  // «Editar» solo lo ve quien puede (administrador general o la función `toma_editar`) y, salvo el administrador, solo
+  // en tipos de aplicación que se guardan y se envían a mano. El servidor lo exige igual.
+  const puedeEditar =
+    !!user &&
+    (user.tipoAcceso === 'admin_general' ||
+      (!!envioAutomatico &&
+        puedeEditarSegunEnvio(user, envioAutomatico, solicitud.campos_laboratorio['Tipo Aplicación'] ?? '', !!solicitud.es_prueba)))
 
   return (
     <div>
@@ -352,12 +367,14 @@ export function SolicitudDetalleView() {
             <Button variant="secondary" onClick={() => navigate(ROUTES.tomaMuestras)}>
               Volver
             </Button>
-            <Button
-              variant="secondary"
-              onClick={() => navigate(rutaTomaMuestrasEditar(solicitud.archivo))}
-            >
-              Editar
-            </Button>
+            {puedeEditar && (
+              <Button
+                variant="secondary"
+                onClick={() => navigate(rutaTomaMuestrasEditar(solicitud.archivo))}
+              >
+                Editar
+              </Button>
+            )}
             <button
               type="button"
               className={styles.botonDescarga}

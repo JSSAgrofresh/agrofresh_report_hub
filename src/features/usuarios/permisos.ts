@@ -146,7 +146,7 @@ export function puedeVerTomaMuestras(usuario: Usuario): boolean {
 /** «Mini funciones» que el administrador general reparte a cuentas concretas (Usuarios → permisos). Sin
  * migración: viajan en `modulos`. Espejo de `app/permisos_funciones.py` (mismos casos en `permisos.test.ts` y
  * `tests/test_permisos_funciones.py`). El administrador general las tiene todas; gerencia y clientes ninguna. */
-export type FuncionId = 'lab_criterios' | 'verif_firmar' | 'toma_reanalisis'
+export type FuncionId = 'lab_criterios' | 'verif_firmar' | 'toma_reanalisis' | 'toma_editar'
 
 export function tieneFuncion(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>, funcion: FuncionId): boolean {
   if (usuario.tipoAcceso === 'admin_general') return true
@@ -167,6 +167,12 @@ export function puedeFirmarVerificaciones(usuario: Pick<Usuario, 'tipoAcceso' | 
  * asigna cuenta por cuenta. Ningún tipo de cuenta la trae por sí solo. */
 export function puedeCrearReanalisis(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
   return tieneFuncion(usuario, 'toma_reanalisis')
+}
+
+/** Editar solicitudes ya guardadas: el admin general y quien tenga la función `toma_editar`. Aun así solo vale para los
+ * tipos de aplicación que NO se envían solos (el servidor lo exige igual; ver `puedeEditarSolicitud`). */
+export function puedeEditarSolicitudes(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
+  return tieneFuncion(usuario, 'toma_editar')
 }
 
 /** Qué ve una cuenta de cliente. Un cliente no pertenece a un área: el administrador le asigna qué ve. Las cuentas

@@ -66,7 +66,7 @@ export {
   actualizarProductoConfig,
   eliminarProductoConfig,
 } from './lib/api'
-export { enviaSoloSegunTipo } from './lib/envioAutomatico'
+export { enviaSoloSegunTipo, puedeEditarSegunEnvio } from './lib/envioAutomatico'
 export type {
   Solicitud,
   InformeSolicitud,
