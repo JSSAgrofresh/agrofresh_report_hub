@@ -18,7 +18,7 @@ interface Props {
 }
 
 /**
- * «Revisar el correo ahora»: arranca la revisión del buzón en el servidor (puede tardar minutos, por eso corre
+ * «Recibir informes ahora»: arranca la revisión del buzón en el servidor (puede tardar minutos, por eso corre
  * de fondo) y sigue su avance hasta que termine.
  */
 export function BarraRevision({ ultimo, leerUltimo, onTerminada, intervaloMs = 3000 }: Props) {
@@ -26,13 +26,19 @@ export function BarraRevision({ ultimo, leerUltimo, onTerminada, intervaloMs = 3
   const [revisando, setRevisando] = useState(false)
   // Cada «Revisar» abre una vuelta nueva: si se reinicia la revisión, la vuelta anterior deja de mirar.
   const vuelta = useRef(0)
+  // La hora se mantiene en el estado (y se refresca) para que el render sea puro.
+  const [ahora, setAhora] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setAhora(Date.now()), 30_000)
+    return () => window.clearInterval(id)
+  }, [])
   const [progreso, setProgreso] = useState(0)
   const [mensaje, setMensaje] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Si al abrir la pantalla ya hay una revisión en curso (la lanzó otra pestaña), se sigue su avance.
   // Una revisión sin terminar hace más de 20 min quedó colgada (p. ej. se reinició el servidor): no cuenta como en curso.
-  const colgada = ultimo != null && ultimo.terminado_en == null && Date.now() - new Date(ultimo.iniciado_en).getTime() > MINUTOS_COLGADA * 60_000
+  const colgada = ultimo != null && ultimo.terminado_en == null && ahora - new Date(ultimo.iniciado_en).getTime() > MINUTOS_COLGADA * 60_000
   const enCurso = ultimo != null && ultimo.terminado_en == null && !colgada
   useEffect(() => {
     if (!enCurso || revisando) return
@@ -77,6 +83,8 @@ export function BarraRevision({ ultimo, leerUltimo, onTerminada, intervaloMs = 3
   }
 
   const ocupado = revisando || enCurso
+  // Con algo corriendo (o colgado) el botón NO se bloquea: reinicia la revisión de cero.
+  const hayAlgo = ocupado || colgada
   return (
     <div className={styles.barra}>
       <div className={styles.texto}>
@@ -94,7 +102,7 @@ export function BarraRevision({ ultimo, leerUltimo, onTerminada, intervaloMs = 3
       </div>
       <label className={styles.etiqueta}>
         Últimos
-        <select value={dias} onChange={(e) => setDias(Number(e.target.value))} disabled={ocupado}>
+        <select value={dias} onChange={(e) => setDias(Number(e.target.value))}>
           {DIAS.map((d) => (
             <option key={d} value={d}>
               {d} días
@@ -102,14 +110,22 @@ export function BarraRevision({ ultimo, leerUltimo, onTerminada, intervaloMs = 3
           ))}
         </select>
       </label>
-      {ocupado && (
-        <button type="button" className={styles.reiniciar} onClick={() => void revisar(true)} title="Si la revisión no avanza, empieza otra de cero">
-          Reiniciar la revisión
-        </button>
+      {hayAlgo && (
+        <span className={styles.estado}>
+          {colgada ? 'Quedó colgada' : `Revisando… ${progreso} informes hasta ahora`}
+        </span>
       )}
-      <button type="button" className={styles.boton} onClick={() => void revisar(colgada)} disabled={ocupado}>
-        {ocupado ? `Revisando el correo… (${progreso} informes hasta ahora)` : 'Revisar el correo ahora'}
+      <button
+        type="button"
+        className={styles.boton}
+        onClick={() => void revisar(hayAlgo)}
+        title={hayAlgo ? 'Ya hay una revisión corriendo: esto la reinicia de cero' : 'Lee el correo ahora, sin esperar'}
+      >
+        {hayAlgo ? 'Reiniciar y recibir ahora' : 'Recibir informes ahora'}
       </button>
+      <span className={styles.version} title="Versión de esta pantalla (si no cambia tras publicar, el navegador tiene la anterior)">
+        pantalla {__BUILD__}
+      </span>
     </div>
   )
 }

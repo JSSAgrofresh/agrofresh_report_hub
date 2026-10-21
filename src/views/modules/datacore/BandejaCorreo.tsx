@@ -421,7 +421,7 @@ export function BandejaCorreo({ version, inicial, onCambio }: Props) {
       {bandeja && bandeja.informes.length === 0 ? (
         <p className={styles.vacio}>
           {bandeja.conteos.todos === 0
-            ? 'Todavía no hay informes. Aprieta «Revisar el correo ahora» para leer el buzón.'
+            ? 'Todavía no hay informes. Aprieta «Recibir informes ahora» para leer el buzón.'
             : 'Ningún informe coincide con ese filtro.'}
         </p>
       ) : (

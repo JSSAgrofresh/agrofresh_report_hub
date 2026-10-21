@@ -153,7 +153,7 @@ export function TableroIngreso({ panel, errorPanel, version, laboratorios, onLab
           grupos={['listo', 'homogeneizar']}
           onCambio={onCambio}
           onAbrir={setAbierto}
-          vacio="Nada por aceptar. Usa «Revisar el correo ahora» para buscar informes nuevos."
+          vacio="Nada por aceptar. Usa «Recibir informes ahora» para buscar informes nuevos."
         />
       </Widget>
 
