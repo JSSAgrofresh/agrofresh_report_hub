@@ -45,3 +45,39 @@
 @media (prefers-reduced-motion: reduce) {
   .hero, .hero::before, .hero::after, .vivo { animation: none; }
 }
+
+/* Con foto: la fruta se ve a la derecha y se funde con el verde de la marca; se mueve muy despacio. */
+.conFoto { background: linear-gradient(120deg, #2d5a17, #4f8a26); animation: none; min-height: 210px; border: 1px solid rgba(255, 255, 255, 0.55); }
+.foto {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transition: background-image 0.6s ease;
+  animation: zoom 24s ease-in-out infinite alternate;
+}
+@keyframes zoom { to { transform: scale(1.08) translateX(-1.5%); } }
+.velo {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(100deg, rgba(36, 74, 18, 0.94) 0%, rgba(45, 90, 23, 0.78) 38%, rgba(79, 138, 38, 0.3) 72%, rgba(166, 212, 106, 0.12) 100%),
+    linear-gradient(0deg, rgba(241, 246, 234, 0.18), transparent 40%);
+}
+.brillo {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 38%;
+  left: -45%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+  transform: skewX(-18deg);
+  animation: barrido 7s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes barrido { 0%, 55% { left: -45%; } 100% { left: 125%; } }
+.conFoto::before, .conFoto::after { opacity: 0.6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .foto, .brillo { animation: none; }
+}
