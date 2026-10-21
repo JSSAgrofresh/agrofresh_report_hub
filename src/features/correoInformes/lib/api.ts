@@ -43,6 +43,12 @@ export interface InformeCorreo {
   envios: number
   /** Alguno de esos envíos salió mal. Con la última copia en rojo el incidente sigue abierto; si no, se corrigió. */
   tuvo_incidente: boolean
+  /** Ya se le avisó al laboratorio (en cualquier copia de este informe): no se vuelve a alertar por lo mismo. */
+  informado: boolean
+  informado_en: string | null
+  informado_por: string | null
+  /** Qué se hizo con el incidente (a quién se avisó, cómo se resolvió). */
+  nota_incidente: string | null
   hallazgos: Hallazgo[]
   pdf_nombre: string
   tiene_pdf: boolean
@@ -135,6 +141,10 @@ export function volverAPendiente(id: number) {
   return httpClient.post<{ ok: boolean }>(`/correo-informes/${id}/volver-a-pendiente`, {})
 }
 
+export function marcarInformado(id: number, nota: string) {
+  return httpClient.post<{ ok: boolean }>(`/correo-informes/${id}/informado`, { nota })
+}
+
 export function resolverSeguimiento(id: number, nota: string) {
   return httpClient.post<{ ok: boolean }>(`/correo-informes/${id}/resolver`, { nota })
 }
@@ -180,6 +190,8 @@ export interface PanelIngreso {
     incidentes_abiertos: number
     /** Corregidos por un reenvío o resueltos a mano. */
     incidentes_cerrados: number
+    /** Abiertos de los que todavía nadie ha avisado al laboratorio. */
+    incidentes_por_informar: number
     esperando: number
     demora_mediana: number | null
     demora_maxima: number | null

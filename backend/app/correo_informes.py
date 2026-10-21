@@ -455,6 +455,16 @@ _VIGENTE = (
     "NOT EXISTS (SELECT 1 FROM correo_informe x WHERE x.laboratorio = c.laboratorio AND x.nro_informe <> ''"
     " AND upper(btrim(x.nro_informe)) = upper(btrim(c.nro_informe)) AND x.llegada_en > c.llegada_en)"
 )
+# Alguna de las copias de este informe salió mal (un informe = un incidente, aunque la última copia ya esté bien).
+_TUVO_INCIDENTE = (
+    "EXISTS (SELECT 1 FROM correo_informe x WHERE x.laboratorio = c.laboratorio AND x.nro_informe <> ''"
+    " AND upper(btrim(x.nro_informe)) = upper(btrim(c.nro_informe)) AND x.estado = 'rojo')"
+)
+# Alguna de las copias ya se informó al laboratorio: no se vuelve a alertar por el mismo incidente.
+_INFORMADO = (
+    "EXISTS (SELECT 1 FROM correo_informe x WHERE x.laboratorio = c.laboratorio AND x.nro_informe <> ''"
+    " AND upper(btrim(x.nro_informe)) = upper(btrim(c.nro_informe)) AND x.informado_en IS NOT NULL)"
+)
 _CAMPOS_LISTA = (
     "c.id, c.laboratorio, c.soportado, c.nro_informe, c.ot,"
     " COALESCE(NULLIF(c.sold_to, ''), sa.sold_to) AS sold_to, COALESCE(NULLIF(c.ship_to, ''), sa.ship_to) AS ship_to,"
@@ -468,8 +478,8 @@ _CAMPOS_LISTA = (
     # Cuántas veces llegó este informe y si alguna de esas veces salió mal (un informe = un incidente, no un correo).
     " (SELECT COUNT(*) FROM correo_informe x WHERE x.laboratorio = c.laboratorio AND x.nro_informe <> ''"
     "    AND upper(btrim(x.nro_informe)) = upper(btrim(c.nro_informe))) AS envios,"
-    " EXISTS (SELECT 1 FROM correo_informe x WHERE x.laboratorio = c.laboratorio AND x.nro_informe <> ''"
-    "    AND upper(btrim(x.nro_informe)) = upper(btrim(c.nro_informe)) AND x.estado = 'rojo') AS tuvo_incidente"
+    f" {_TUVO_INCIDENTE} AS tuvo_incidente, {_INFORMADO} AS informado,"
+    " c.informado_en, c.informado_por, c.nota_incidente"
 )
 _DESDE = "FROM correo_informe c LEFT JOIN solicitud_archivo sa ON sa.archivo = c.archivo_solicitud"
 
@@ -500,9 +510,14 @@ def listar(
             conteos[f["decision"]] = conteos.get(f["decision"], 0) + f["n"]
             if f["ya_cargado"]:
                 conteos["ya_cargado"] += f["n"]
+        if not copias:
+            cur.execute(f"SELECT count(*) AS n FROM correo_informe c WHERE {_VIGENTE} AND {_TUVO_INCIDENTE}")
+            conteos["rojo"] = cur.fetchone()["n"]
         filtros, params = ([] if copias else [_VIGENTE]), []
         if estado == "ya_cargado":
             filtros.append("c.ya_cargado")
+        elif estado == "rojo" and not copias:
+            filtros.append(_TUVO_INCIDENTE)     # Seguimiento: los informes que salieron mal alguna vez, no solo si la última copia sigue mal
         elif estado:
             filtros.append("c.estado = %s")
             params.append(estado)
@@ -552,7 +567,7 @@ def _marcar(informe_id: int, sql: str, params: tuple, que: str) -> dict[str, Any
         try:
             cur.execute(sql, (*params, informe_id))
         except psycopg2.errors.UndefinedColumn as exc:
-            raise HTTPException(503, "Falta correr la migración 0065_correo_informe_decision.sql en el servidor.") from exc
+            raise HTTPException(503, "Falta correr las migraciones 0065 y 0066 (correo_informe_decision / correo_informe_informado) en el servidor.") from exc
         if cur.rowcount == 0:
             raise HTTPException(404, "Ese informe no está en la bandeja o ya no está en ese estado.")
     return {"ok": True, "id": informe_id, "accion": que}
@@ -581,12 +596,23 @@ def volver_a_pendiente(informe_id: int, usuario: Usuario = Depends(exigir_princi
     )
 
 
-@router.post("/{informe_id}/resolver")
-def resolver(informe_id: int, body: DecisionIn, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
-    """Cierra el seguimiento de un informe en rojo (qué se hizo, en la nota)."""
+@router.post("/{informe_id}/informado")
+def informado(informe_id: int, body: DecisionIn, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """Anota que el problema ya se le avisó al laboratorio (a quién y qué se pidió, en la nota): no se vuelve a
+    alertar por el mismo informe aunque el laboratorio lo siga mandando mal."""
     return _marcar(
         informe_id,
-        "UPDATE correo_informe SET resuelto_en = now(), resuelto_por = %s, nota = COALESCE(NULLIF(%s, ''), nota) WHERE id = %s",
+        "UPDATE correo_informe SET informado_en = now(), informado_por = %s, nota_incidente = COALESCE(NULLIF(%s, ''), nota_incidente) WHERE id = %s",
+        (usuario.email, body.nota.strip()), "informado",
+    )
+
+
+@router.post("/{informe_id}/resolver")
+def resolver(informe_id: int, body: DecisionIn, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """Cierra el seguimiento de un informe en rojo (qué se hizo, en la nota del incidente)."""
+    return _marcar(
+        informe_id,
+        "UPDATE correo_informe SET resuelto_en = now(), resuelto_por = %s, nota_incidente = COALESCE(NULLIF(%s, ''), nota_incidente) WHERE id = %s",
         (usuario.email, body.nota.strip()), "resuelto",
     )
 
