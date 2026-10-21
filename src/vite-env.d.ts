@@ -7,3 +7,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/** Versión de la pantalla publicada (commit en Vercel o fecha de compilación). */
+declare const __BUILD__: string
