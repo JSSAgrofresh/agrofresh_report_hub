@@ -21,6 +21,8 @@ import hashlib
 import imaplib
 import logging
 import re
+import threading
+import time
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 from typing import Any
@@ -42,6 +44,8 @@ CARPETA = "INBOX"
 DIAS_POR_DEFECTO = 14
 MAXIMO_POR_REVISION = 300
 MAX_PDF_BYTES = 15 * 1024 * 1024
+MAX_CORREO_BYTES = 25 * 1024 * 1024
+PRESUPUESTO_S = 900            # una revisión se corta a los 15 min; la siguiente sigue donde quedó
 PREFIJO_R2 = "correo_informes/"
 
 router = APIRouter(prefix="/api/correo-informes", tags=["correo-informes"])
@@ -261,23 +265,26 @@ def _conectar() -> imaplib.IMAP4_SSL:
 def _buscar_uids(imap: imaplib.IMAP4_SSL, dias: int) -> list[bytes]:
     """UIDs de los correos con adjuntos de los últimos `dias` (los más nuevos al final)."""
     desde = datetime.now() - timedelta(days=dias)
-    typ, data = imap.uid("SEARCH", "X-GM-RAW", f'"has:attachment after:{desde.strftime("%Y/%m/%d")}"')
+    # Solo correos con PDF: el buzón también recibe los correos de Accu-Tab (CSV y zip pesados) que no
+    # son informes y no hay que bajar.
+    typ, data = imap.uid("SEARCH", "X-GM-RAW", f'"has:attachment filename:pdf after:{desde.strftime("%Y/%m/%d")}"')
     if typ != "OK" or not data or not data[0]:
         return []
     return data[0].split()
 
 
-def _cabecera(imap: imaplib.IMAP4_SSL, uid: bytes) -> tuple[str, datetime | None]:
-    """(Message-ID, fecha de llegada) de un correo, bajando solo su encabezado."""
-    typ, data = imap.uid("FETCH", uid, "(INTERNALDATE BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
+def _cabecera(imap: imaplib.IMAP4_SSL, uid: bytes) -> tuple[str, datetime | None, int]:
+    """(Message-ID, fecha de llegada, tamaño en bytes) de un correo, bajando solo su encabezado."""
+    typ, data = imap.uid("FETCH", uid, "(INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
     if typ != "OK" or not data or not isinstance(data[0], tuple):
-        return "", None
+        return "", None, 0
     llegada = None
     tupla = imaplib.Internaldate2tuple(data[0][0])
     if tupla:
         llegada = datetime(*tupla[:6]).astimezone()  # noqa: DTZ001 — la tupla viene en hora local del servidor
     m = re.search(rb"Message-ID:\s*(<[^>\r\n]+>|\S+)", data[0][1], re.I)
-    return (m.group(1).decode("utf-8", "replace").strip() if m else ""), llegada
+    tam = re.search(rb"RFC822\.SIZE (\d+)", data[0][0])
+    return (m.group(1).decode("utf-8", "replace").strip() if m else ""), llegada, int(tam.group(1)) if tam else 0
 
 
 def _mensaje(imap: imaplib.IMAP4_SSL, uid: bytes) -> EmailMessage | None:
@@ -326,17 +333,30 @@ def _texto(contenido: bytes) -> str:
         return ""
 
 
-def sondear(dias: int = DIAS_POR_DEFECTO, maximo: int = MAXIMO_POR_REVISION, disparado_por: str = "") -> dict[str, Any]:
-    """Una revisión del buzón. Devuelve el resumen; deja anotada la revisión en `correo_informe_sondeo`."""
-    buzon = (config.GMAIL_ACCOUNT or "").lower()
+def iniciar_sondeo(dias: int, disparado_por: str = "") -> tuple[int, bool]:
+    """Anota que arranca una revisión. (id, ya_estaba): si hay una en curso (menos de 20 min), no se abre otra."""
     with conexion() as conn, cursor_dict(conn) as cur:
         try:
-            cur.execute("INSERT INTO correo_informe_sondeo (disparado_por, dias) VALUES (%s, %s) RETURNING id", (disparado_por, dias))
+            cur.execute(
+                "SELECT id FROM correo_informe_sondeo WHERE terminado_en IS NULL"
+                " AND iniciado_en > now() - interval '20 minutes' ORDER BY id DESC LIMIT 1"
+            )
         except psycopg2.errors.UndefinedTable as exc:
             raise SinTabla("Falta correr la migración 0064_correo_informe.sql en el servidor.") from exc
-        sondeo_id = cur.fetchone()["id"]
+        en_curso = cur.fetchone()
+        if en_curso:
+            return en_curso["id"], True
+        cur.execute("INSERT INTO correo_informe_sondeo (disparado_por, dias) VALUES (%s, %s) RETURNING id", (disparado_por, dias))
+        return cur.fetchone()["id"], False
+
+
+def correr_sondeo(sondeo_id: int, dias: int, maximo: int = MAXIMO_POR_REVISION, presupuesto_s: float = PRESUPUESTO_S) -> dict[str, Any]:
+    """Hace la revisión de un sondeo ya anotado. Lo que alcanza a registrar queda guardado aunque se corte:
+    la próxima revisión sigue desde donde quedó (lo ya examinado no se vuelve a bajar)."""
+    buzon = (config.GMAIL_ACCOUNT or "").lower()
     examinados = nuevos = 0
     error: str | None = None
+    inicio = time.monotonic()
     try:
         imap = _conectar()
         try:
@@ -350,18 +370,24 @@ def sondear(dias: int = DIAS_POR_DEFECTO, maximo: int = MAXIMO_POR_REVISION, dis
                 cur.execute("SELECT DISTINCT message_id FROM correo_informe WHERE buzon = %s", (buzon,))
                 conocidos |= {f["message_id"] for f in cur.fetchall()}
             for uid in reversed(uids):       # primero los más nuevos
-                message_id, llegada = _cabecera(imap, uid)
+                if time.monotonic() - inicio > presupuesto_s:
+                    logger.warning("La revisión del correo de informes se cortó por tiempo; la próxima sigue.")
+                    break
+                message_id, llegada, tamano = _cabecera(imap, uid)
                 if not message_id or message_id in conocidos:
                     continue
-                mensaje = _mensaje(imap, uid)
-                if mensaje is None:
-                    continue
                 examinados += 1
-                motivo, filas, elegidos = examinar_mensaje(mensaje)
+                if tamano > MAX_CORREO_BYTES:
+                    filas, motivo, elegidos, mensaje = [], "muy_grande", [], None
+                else:
+                    mensaje = _mensaje(imap, uid)
+                    if mensaje is None:
+                        continue
+                    motivo, filas, elegidos = examinar_mensaje(mensaje)
                 correo = {
-                    "asunto": str(mensaje.get("Subject", "") or "").replace("\r", " ").replace("\n", " ").strip()[:500],
-                    "remitente": (lectura.direcciones(mensaje.get("From")) or [""])[0],
-                    "llegada_en": llegada, "enviado_en": _fecha_del_correo(mensaje),
+                    "asunto": str(mensaje.get("Subject", "") or "").replace("\r", " ").replace("\n", " ").strip()[:500] if mensaje else "",
+                    "remitente": (lectura.direcciones(mensaje.get("From")) or [""])[0] if mensaje else "",
+                    "llegada_en": llegada, "enviado_en": _fecha_del_correo(mensaje) if mensaje else None,
                 }
                 datos_pdf = dict(elegidos)
                 with conexion() as conn, cursor_dict(conn) as cur:
@@ -377,6 +403,9 @@ def sondear(dias: int = DIAS_POR_DEFECTO, maximo: int = MAXIMO_POR_REVISION, dis
                         "INSERT INTO correo_informe_visto (buzon, message_id, motivo) VALUES (%s, %s, %s)"
                         " ON CONFLICT DO NOTHING", (buzon, message_id, motivo),
                     )
+                    # El avance se ve en pantalla mientras corre.
+                    cur.execute("UPDATE correo_informe_sondeo SET examinados = %s, nuevos = %s WHERE id = %s",
+                                (examinados, nuevos, sondeo_id))
         finally:
             try:
                 imap.logout()
@@ -394,6 +423,32 @@ def sondear(dias: int = DIAS_POR_DEFECTO, maximo: int = MAXIMO_POR_REVISION, dis
     if error:
         raise RuntimeError(error)
     return {"examinados": examinados, "nuevos": nuevos, "dias": dias}
+
+
+def sondear(dias: int = DIAS_POR_DEFECTO, maximo: int = MAXIMO_POR_REVISION, disparado_por: str = "") -> dict[str, Any]:
+    """Una revisión del buzón, de principio a fin (la usa el script). Devuelve el resumen."""
+    sondeo_id, ya_en_curso = iniciar_sondeo(dias, disparado_por)
+    if ya_en_curso:
+        raise RuntimeError("Ya hay una revisión del correo en curso.")
+    return correr_sondeo(sondeo_id, dias, maximo)
+
+
+def _hilo(sondeo_id: int, dias: int) -> None:
+    try:
+        correr_sondeo(sondeo_id, dias)
+    except Exception:  # noqa: BLE001 — el error ya quedó anotado en la revisión
+        pass
+
+
+def sondear_en_segundo_plano(dias: int, disparado_por: str = "") -> dict[str, Any]:
+    """Arranca la revisión y vuelve de inmediato: tarda más de lo que aguanta una petición (el túnel
+    corta a los ~100 s). La pantalla ve el avance leyendo `ultimo_sondeo` de la bandeja."""
+    if not (config.GMAIL_ACCOUNT and (config.GMAIL_APP_PASSWORD or "").replace(" ", "")):
+        raise RuntimeError("Faltan GMAIL_ACCOUNT y GMAIL_APP_PASSWORD en el .env del servidor.")
+    sondeo_id, ya_en_curso = iniciar_sondeo(dias, disparado_por)
+    if not ya_en_curso:
+        threading.Thread(target=_hilo, args=(sondeo_id, dias), name=f"correo-informes-{sondeo_id}", daemon=True).start()
+    return {"id": sondeo_id, "en_curso": True, "ya_estaba_en_curso": ya_en_curso}
 
 
 # ---------------------------------------------------------------------------
@@ -447,7 +502,7 @@ def listar(
         cur.execute(f"SELECT {_CAMPOS_LISTA} FROM correo_informe {donde} ORDER BY llegada_en DESC NULLS LAST, id DESC LIMIT %s",
                     (*params, limite))
         filas = cur.fetchall()
-        cur.execute("SELECT iniciado_en, terminado_en, nuevos, examinados, error, dias FROM correo_informe_sondeo ORDER BY id DESC LIMIT 1")
+        cur.execute("SELECT id, iniciado_en, terminado_en, nuevos, examinados, error, dias FROM correo_informe_sondeo ORDER BY id DESC LIMIT 1")
         ultimo = cur.fetchone()
     return {"conteos": conteos, "informes": filas, "ultimo_sondeo": ultimo}
 
@@ -486,7 +541,7 @@ def pdf(informe_id: int, _: Usuario = Depends(exigir_principal)) -> Response:
 @router.post("/sondear")
 def revisar_ahora(body: SondearIn, usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
     try:
-        return sondear(body.dias, disparado_por=usuario.email)
+        return sondear_en_segundo_plano(body.dias, disparado_por=usuario.email)
     except SinTabla as exc:
         raise HTTPException(503, str(exc)) from exc
     except RuntimeError as exc:

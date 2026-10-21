@@ -229,3 +229,65 @@ def test_los_endpoints_son_solo_del_administrador_principal():
         assert client.get("/api/correo-informes").status_code == 403
     finally:
         app.dependency_overrides.clear()
+
+
+# --- La revisión corre en segundo plano (el túnel corta las peticiones a los ~100 s) ----------
+
+class _ImapFalso:
+    def __init__(self):
+        self.pedidos = []
+
+    def uid(self, *args):
+        self.pedidos.append(args)
+        if args[0] == "SEARCH":
+            return "OK", [b"3 4 5"]
+        cabecera = (b'1 (UID 3 INTERNALDATE "20-Oct-2026 17:21:18 -0300" RFC822.SIZE 188637 BODY[HEADER.FIELDS (MESSAGE-ID)] {40}',
+                    b"Message-ID: <abc@mail.gmail.com>\r\n\r\n")
+        return "OK", [cabecera, b")"]
+
+
+def test_solo_se_buscan_los_correos_con_pdf_para_no_bajar_los_adjuntos_de_accutab():
+    imap = _ImapFalso()
+    assert ci._buscar_uids(imap, 14) == [b"3", b"4", b"5"]
+    consulta = imap.pedidos[0][2]
+    assert "filename:pdf" in consulta and "has:attachment" in consulta
+
+
+def test_la_cabecera_trae_el_id_la_llegada_y_el_tamano_sin_bajar_el_correo():
+    mid, llegada, tamano = ci._cabecera(_ImapFalso(), b"3")
+    assert mid == "<abc@mail.gmail.com>" and tamano == 188637
+    assert llegada is not None and llegada.year == 2026
+
+
+def test_revisar_ahora_vuelve_de_inmediato_y_deja_el_trabajo_en_segundo_plano(monkeypatch):
+    lanzados = []
+    monkeypatch.setattr(ci, "iniciar_sondeo", lambda dias, por="": (7, False))
+    monkeypatch.setattr(ci, "_hilo", lambda sondeo_id, dias: lanzados.append((sondeo_id, dias)))
+    monkeypatch.setattr(ci.config, "GMAIL_ACCOUNT", "agrofreshreporthub@gmail.com")
+    monkeypatch.setattr(ci.config, "GMAIL_APP_PASSWORD", "clave")
+    r = ci.sondear_en_segundo_plano(14, "jorge.sandoval@agrofresh.com")
+    assert r == {"id": 7, "en_curso": True, "ya_estaba_en_curso": False}
+    import time as _t
+    for _ in range(50):          # el hilo es de fondo: se espera a que arranque
+        if lanzados:
+            break
+        _t.sleep(0.02)
+    assert lanzados == [(7, 14)]
+
+
+def test_si_ya_hay_una_revision_en_curso_no_se_abre_otra(monkeypatch):
+    lanzados = []
+    monkeypatch.setattr(ci, "iniciar_sondeo", lambda dias, por="": (7, True))
+    monkeypatch.setattr(ci, "_hilo", lambda *a: lanzados.append(a))
+    monkeypatch.setattr(ci.config, "GMAIL_ACCOUNT", "agrofreshreporthub@gmail.com")
+    monkeypatch.setattr(ci.config, "GMAIL_APP_PASSWORD", "clave")
+    assert ci.sondear_en_segundo_plano(14)["ya_estaba_en_curso"] is True
+    import time as _t
+    _t.sleep(0.1)
+    assert lanzados == []
+
+
+def test_sin_clave_del_buzon_avisa_antes_de_arrancar(monkeypatch):
+    monkeypatch.setattr(ci.config, "GMAIL_APP_PASSWORD", "")
+    with pytest.raises(RuntimeError, match="GMAIL_APP_PASSWORD"):
+        ci.sondear_en_segundo_plano(14)

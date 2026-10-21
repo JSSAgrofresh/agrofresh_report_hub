@@ -121,7 +121,7 @@ function Detalle({ id }: { id: number }) {
  * contra su solicitud. Etapa 1: solo se mira; nada se carga a Report desde acá. Solo la ve el
  * administrador principal.
  */
-export function BandejaCorreo() {
+export function BandejaCorreo({ intervaloMs = 3000 }: { intervaloMs?: number }) {
   const [bandeja, setBandeja] = useState<Bandeja | null>(null)
   const [filtro, setFiltro] = useState<FiltroBandeja>('')
   const [q, setQ] = useState('')
@@ -130,9 +130,6 @@ export function BandejaCorreo() {
   const [error, setError] = useState<string | null>(null)
   const [mensaje, setMensaje] = useState<string | null>(null)
   const [revisando, setRevisando] = useState(false)
-
-  // Cambia cuando hay que releer la bandeja (después de revisar el buzón).
-  const [version, setVersion] = useState(0)
 
   useEffect(() => {
     let vigente = true
@@ -148,16 +145,27 @@ export function BandejaCorreo() {
     return () => {
       vigente = false
     }
-  }, [filtro, q, version])
+  }, [filtro, q])
 
   async function revisarAhora() {
     setRevisando(true)
     setMensaje(null)
     setError(null)
     try {
-      const r = await revisarCorreoAhora(dias)
-      setMensaje(`Listo: ${r.examinados} correos nuevos revisados, ${r.nuevos} informes registrados.`)
-      setVersion((v) => v + 1)
+      const { id } = await revisarCorreoAhora(dias)
+      // La revisión corre en el servidor (puede tardar minutos): se lee su avance hasta que termine.
+      for (let vuelta = 0; vuelta < 400; vuelta++) {
+        await new Promise((r) => window.setTimeout(r, intervaloMs))
+        const b = await listarBandeja(filtro, q)
+        setBandeja(b)
+        const s = b.ultimo_sondeo
+        if (s && s.id === id && s.terminado_en) {
+          if (s.error) setError(s.error)
+          else setMensaje(`Listo: ${s.examinados} correos nuevos revisados, ${s.nuevos} informes registrados.`)
+          return
+        }
+      }
+      setError('La revisión sigue en curso. Vuelve a mirar en unos minutos.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo revisar el correo.')
     } finally {
@@ -191,7 +199,7 @@ export function BandejaCorreo() {
             </select>
           </label>
           <button type="button" className={styles.btnPrimario} onClick={() => void revisarAhora()} disabled={revisando}>
-            {revisando ? 'Revisando el correo…' : 'Revisar ahora'}
+            {revisando ? `Revisando el correo… (${bandeja?.ultimo_sondeo?.nuevos ?? 0} informes hasta ahora)` : 'Revisar ahora'}
           </button>
         </div>
       </div>
