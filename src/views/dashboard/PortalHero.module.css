@@ -87,11 +87,11 @@
 /* Estilo sobrio: un encabezado blanco, sin foto, sin degradado y sin movimiento. */
 :global([data-tema='sobrio']) .hero,
 :global([data-tema='sobrio']) .conFoto {
-  background: #fff;
-  color: #1f1f1d;
-  border: 1px solid #e5e5e0;
-  border-radius: 12px;
-  box-shadow: none;
+  background: linear-gradient(115deg, #e4f0d6 0%, #f4f9ee 55%, #fff 100%);
+  color: #1d2b14;
+  border: 1px solid #dfe8d5;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(47, 74, 31, 0.07);
   animation: none;
   min-height: 0;
   padding: 18px 24px;
@@ -102,6 +102,6 @@
 :global([data-tema='sobrio']) .velo,
 :global([data-tema='sobrio']) .brillo { display: none; }
 :global([data-tema='sobrio']) .titulo { font-size: clamp(20px, 2.4vw, 26px); font-weight: 700; margin: 2px 0 4px; }
-:global([data-tema='sobrio']) .descripcion { color: #6b6b66; opacity: 1; font-size: 14px; }
-:global([data-tema='sobrio']) .etiqueta { color: #6b6b66; }
-:global([data-tema='sobrio']) .vivo { background: #2f4a1f; animation: none; }
+:global([data-tema='sobrio']) .descripcion { color: #647558; opacity: 1; font-size: 14px; }
+:global([data-tema='sobrio']) .etiqueta { color: #647558; }
+:global([data-tema='sobrio']) .vivo { background: #4f8a26; animation: none; }

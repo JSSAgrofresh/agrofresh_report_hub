@@ -147,6 +147,6 @@
 :global([data-portal]) .etiqueta { letter-spacing: 0.06em; line-height: 14px; }
 
 /* Estilo sobrio */
-:global([data-tema='sobrio']) .boton { height: 36px; border-radius: 8px; border-color: #d9d9d3; }
-:global([data-tema='sobrio']) .boton:hover { border-color: #2f4a1f; }
+:global([data-tema='sobrio']) .boton { height: 36px; border-radius: 8px; border-color: #cfe0bf; }
+:global([data-tema='sobrio']) .boton:hover { border-color: #4f8a26; }
 :global([data-tema='sobrio']) .lista { border-radius: 10px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1); }
