@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   filtrarBloque,
+  oscurecer,
   nivelDe,
   nivelesPorAnalito,
   presenciaPorAnalito,
@@ -86,5 +87,29 @@ describe('filtros propios del bloque', () => {
   it('por estado: detectado / no detectado', () => {
     expect(filtrarBloque(informes, { analitos: [], estado: 'detectado' }).map((i) => i.nro)).toEqual(['1'])
     expect(filtrarBloque(informes, { analitos: [], estado: 'no_detectado' }).map((i) => i.nro)).toEqual(['1', '2'])
+  })
+})
+
+describe('torta con el color de su analito (fitopatología)', () => {
+  const informes = [
+    inf('1', r('BOT', 'Botrytis', 2, 'BLD', null, false)),
+    inf('2', r('BOT', 'Botrytis', 2, '250', 250, true)),
+  ]
+  it('oscurece un color mezclándolo con negro', () => {
+    expect(oscurecer('#e8c32e', 0)).toBe('#e8c32e')
+    expect(oscurecer('#ffffff', 1)).toBe('#000000')
+    expect(oscurecer('#6dad3c', 0.5)).toBe('#37571e')
+  })
+  it('lo bueno lleva el color del analito y lo malo, ese color oscurecido', () => {
+    const [d] = presenciaPorAnalito(informes, { colorDelAnalito: true })
+    expect(d.tajadas[0].color).toBe('#e8c32e')
+    expect(d.tajadas[1].color).toBe(oscurecer('#e8c32e', 0.62))
+    // sin la opción siguen el verde y el rojo de siempre
+    const [normal] = presenciaPorAnalito(informes)
+    expect(normal.tajadas.map((t) => t.color)).toEqual(['#6dad3c', '#b0271f'])
+  })
+  it('los niveles también: óptimo = color, moderado y peligroso más oscuros', () => {
+    const [d] = nivelesPorAnalito(informes, { colorDelAnalito: true })
+    expect(d.tajadas.map((t) => t.color)).toEqual(['#e8c32e', oscurecer('#e8c32e', 0.3), oscurecer('#e8c32e', 0.62)])
   })
 })
