@@ -499,7 +499,12 @@ export function ReporteView({
   )
 
   // Los informes de ALS y de Diagnofruit con la forma de la tabla y los gráficos, y cuántos hay sin ningún filtro.
-  const informesAls = useMemo(() => construirInformes(filtradasTodas, 'als', analitosVista), [filtradasTodas, analitosVista])
+  // ALS no informa especie ni variedad: esos dos filtros no se le aplican (si no, elegir una Especie vaciaría FSMA).
+  const filtradasParaAls = useMemo(() => {
+    const base = aplicarFiltros(observaciones, { ...filtros, crop: '', variedad: '' })
+    return filtrosMultiples ? base.filter((o) => cumpleMulti(o, { ...multi, crop: [], variedad: [] })) : base
+  }, [observaciones, filtros, multi, filtrosMultiples])
+  const informesAls = useMemo(() => construirInformes(filtradasParaAls, 'als', analitosVista), [filtradasParaAls, analitosVista])
   const informesFito = useMemo(() => construirInformes(filtradasTodas, 'diagnofruit', analitosVista), [filtradasTodas, analitosVista])
   const informesSinFiltros = useMemo(() => {
     const ids = { als: new Set<number>(), diagnofruit: new Set<number>() }
@@ -1345,6 +1350,9 @@ export function ReporteView({
               )}
             </div>
 
+            <p className={styles.grupoFiltros}>
+              Generales <small>valen para todos los análisis</small>
+            </p>
             <div className={styles.filtros}>
               {/* Filtros principales primero: Laboratorio, Sold To, Ship To, Especie —
                   son los que definen qué tipo de reporte/límites corresponde mostrar. El resto va después.
@@ -1444,6 +1452,54 @@ export function ReporteView({
               {filtrosMultiples ? (
                 <>
                   <MultiSelectFiltro
+                    etiqueta="Semana"
+                    opciones={opciones.semanas.map((o) => o.valor)}
+                    valores={multi.semana}
+                    onChange={(v) => cambiarMulti('semana', v)}
+                    formatear={formatosMulti.semana}
+                  />
+                  <MultiSelectFiltro
+                    etiqueta="Mes"
+                    opciones={opciones.meses.map((o) => o.valor)}
+                    valores={multi.mes}
+                    onChange={(v) => cambiarMulti('mes', v)}
+                    formatear={formatosMulti.mes}
+                  />
+                </>
+              ) : (
+                <>
+                  <label className={styles.filtro}>
+                    <span>Semana</span>
+                    <select value={filtros.semana} onChange={(e) => actualizarSemana(e.target.value)} disabled={Boolean(filtros.rango)}>
+                      <option value="">Todas</option>
+                      {opciones.semanas.map((o) => (
+                        <option key={o.valor} value={o.valor}>{textoOpcion(o, (v) => `Semana ${v}`)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className={styles.filtro}>
+                    <span>Mes</span>
+                    <select value={filtros.mes} onChange={(e) => actualizarMes(e.target.value)} disabled={Boolean(filtros.rango)}>
+                      <option value="">Todos</option>
+                      {opciones.meses.map((o) => (
+                        <option key={o.valor} value={o.valor}>{textoOpcion(o, nombreMes)}</option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
+              <CalendarioRango etiqueta="Rango de fechas" valor={filtros.rango} onChange={aplicarRango} />
+            </div>
+
+            {/* Filtros que no valen para todos los análisis: Especie y Variedad no aplican a FSMA (ALS no las informa) e
+                Ingrediente Activo es solo de residuos. Cada análisis trae además sus propios filtros bajo su cabecera. */}
+            <p className={styles.grupoFiltros}>
+              Específicos <small>Especie y variedad: residuos y fitopatología · Ingrediente activo: solo residuos</small>
+            </p>
+            <div className={styles.filtros}>
+              {filtrosMultiples ? (
+                <>
+                  <MultiSelectFiltro
                     etiqueta="Especie"
                     opciones={opciones.crops.map((o) => o.valor)}
                     valores={multi.crop}
@@ -1486,46 +1542,6 @@ export function ReporteView({
                 onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v.length >= todosIngredientes.length ? [] : v }))}
                 colorDe={colorDeIngrediente}
               />
-              {filtrosMultiples ? (
-                <>
-                  <MultiSelectFiltro
-                    etiqueta="Semana"
-                    opciones={opciones.semanas.map((o) => o.valor)}
-                    valores={multi.semana}
-                    onChange={(v) => cambiarMulti('semana', v)}
-                    formatear={formatosMulti.semana}
-                  />
-                  <MultiSelectFiltro
-                    etiqueta="Mes"
-                    opciones={opciones.meses.map((o) => o.valor)}
-                    valores={multi.mes}
-                    onChange={(v) => cambiarMulti('mes', v)}
-                    formatear={formatosMulti.mes}
-                  />
-                </>
-              ) : (
-                <>
-                  <label className={styles.filtro}>
-                    <span>Semana</span>
-                    <select value={filtros.semana} onChange={(e) => actualizarSemana(e.target.value)} disabled={Boolean(filtros.rango)}>
-                      <option value="">Todas</option>
-                      {opciones.semanas.map((o) => (
-                        <option key={o.valor} value={o.valor}>{textoOpcion(o, (v) => `Semana ${v}`)}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className={styles.filtro}>
-                    <span>Mes</span>
-                    <select value={filtros.mes} onChange={(e) => actualizarMes(e.target.value)} disabled={Boolean(filtros.rango)}>
-                      <option value="">Todos</option>
-                      {opciones.meses.map((o) => (
-                        <option key={o.valor} value={o.valor}>{textoOpcion(o, nombreMes)}</option>
-                      ))}
-                    </select>
-                  </label>
-                </>
-              )}
-              <CalendarioRango etiqueta="Rango de fechas" valor={filtros.rango} onChange={aplicarRango} />
             </div>
 
             {nFiltros > 0 && (

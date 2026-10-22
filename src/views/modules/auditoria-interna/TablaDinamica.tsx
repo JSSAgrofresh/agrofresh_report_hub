@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { BotonExcel } from '@/components/ui/BotonExcel'
 import { LABS_PIVOTE, camposTituloTabla, contarFueraDeTabla, pivotePorMes, tipoCorto } from '@/features/auditoriaInterna'
 import type { CeldaLab, FilaPivote, FiltrosSolicitudes, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { colorDeTipo } from './coloresTipo'
@@ -88,6 +89,8 @@ export function TablaDinamica({
     ]),
   )
 
+  const tablaRef = useRef<HTMLDivElement>(null)
+
   return (
     <section className={styles.tarjeta} aria-label="Análisis por tipo de servicio y laboratorio">
       <header className={styles.cabecera}>
@@ -116,6 +119,7 @@ export function TablaDinamica({
           </p>
         </div>
         <div className={styles.lado}>
+          <BotonExcel archivo="Análisis por tipo de servicio y laboratorio" contenedor={tablaRef} disabled={filas.length === 0} />
           <ul className={styles.leyenda}>
             {LABS_PIVOTE.map((l) => (
               <li key={l.clave}><i className={l.clave === 'quiteca' ? styles.bq : styles.ba} />{l.texto}</li>
@@ -135,7 +139,7 @@ export function TablaDinamica({
       {filas.length === 0 ? (
         <p className={styles.vacio}>No hay solicitudes de Quiteca ni de Agrofresh con fecha, con los filtros actuales.</p>
       ) : (
-        <div className={styles.scroll}>
+        <div className={styles.scroll} ref={tablaRef}>
           <table className={styles.tabla}>
             <thead>
               <tr>

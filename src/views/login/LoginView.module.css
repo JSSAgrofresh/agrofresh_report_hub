@@ -97,7 +97,11 @@
 
 .logoMarca {
   height: 46px;
-  width: fit-content;
+  width: auto;
+  aspect-ratio: 5 / 2;
+  object-fit: contain;
+  max-width: none;
+  align-self: flex-start;
   position: relative;
 }
 
@@ -179,7 +183,11 @@
 .logoTarjeta {
   display: none;
   height: 38px;
-  width: fit-content;
+  width: auto;
+  aspect-ratio: 5 / 2;
+  object-fit: contain;
+  max-width: none;
+  align-self: flex-start;
 }
 
 .encabezado {
@@ -224,5 +232,12 @@
 
   .logoTarjeta {
     display: block;
+    height: 44px;
+    /* Centrado y a su tamaño natural, sin estirarse con la tarjeta. */
+    align-self: center;
+  }
+
+  .encabezado {
+    text-align: center;
   }
 }

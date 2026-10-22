@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { BotonExcel } from '@/components/ui/BotonExcel'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
@@ -48,6 +49,7 @@ export function InformesPorLaboratorio({ solicitudes }: { solicitudes: Solicitud
   const { user } = useAuth()
   const navegar = useNavigate()
   const [abierto, setAbierto] = useState<string | null>(null)
+  const listaRef = useRef<HTMLDivElement>(null)
   // El listado de pendientes parte plegado: solo se despliega si se pide.
   const [verLista, setVerLista] = useState(false)
   const filas = useMemo(
@@ -121,7 +123,10 @@ export function InformesPorLaboratorio({ solicitudes }: { solicitudes: Solicitud
         {!verLista ? null : visibles.length === 0 ? (
           <p className={styles.vacio}>No hay solicitudes pendientes de informe.</p>
         ) : (
-          <div className={styles.scroll}>
+          <div className={styles.scroll} ref={listaRef}>
+            <div className={styles.excelFila}>
+              <BotonExcel archivo="Pendientes de informe" contenedor={listaRef} />
+            </div>
             <table className={styles.tabla}>
               <thead>
                 <tr>

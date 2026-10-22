@@ -111,6 +111,7 @@
   height: 60px;
   width: auto;
   display: block;
+  aspect-ratio: 5 / 2; object-fit: contain; max-width: none; flex-shrink: 0;
   transition: height 0.26s ease;
 }
 

@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties, type ReactNode } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Card } from '@/components/ui/Card'
 import { IconAlerta, IconArchivoPlano, IconTrendingUp } from '@/components/ui/icons'
 import {
@@ -9,6 +9,17 @@ import {
   type LabResidual,
 } from '@/features/reportes/lib/bloquesAnalisis'
 import type { InformeVista } from '@/features/reportes/lib/lineaTiempoInformes'
+import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
+import {
+  FILTRO_BLOQUE_VACIO,
+  LIMITES_NIVEL,
+  filtrarBloque,
+  nivelesPorAnalito,
+  presenciaPorAnalito,
+  type EstadoFiltro,
+  type FiltroBloque,
+} from '@/features/reportes/lib/estadoPatogenos'
+import { DonasEstado } from './DonasEstado'
 import { Kpi } from './Kpi'
 import { ResultadosPorInforme } from './ResultadosPorInforme'
 import estilosReporte from './ReporteView.module.css'
@@ -100,9 +111,31 @@ const LAB_DE_BLOQUE = { fsma: 'als', fito: 'diagnofruit' } as const
  * El bloque de ALS (Análisis FSMA) o de Diagnofruit (Análisis de fitopatología): sus tres indicadores y su tabla por
  * informe, con los gráficos si el administrador principal los encendió.
  */
-export function SeccionInformes({ bloque, numero, informes, totalSinFiltros, conFiltros, conGraficos, acento }: PropsInformes) {
+export function SeccionInformes({ bloque, numero, informes: informesDelReporte, totalSinFiltros, conFiltros, conGraficos, acento }: PropsInformes) {
   const lab = LAB_DE_BLOQUE[bloque]
   const nombreLab = nombreLaboratorio(lab)
+  // Filtros propios de este análisis (los generales de arriba ya vienen aplicados).
+  const [filtroBloque, setFiltroBloque] = useState<FiltroBloque>(FILTRO_BLOQUE_VACIO)
+  const analitosDelBloque = useMemo(() => {
+    const porCodigo = new Map<string, { nombre: string; orden: number }>()
+    informesDelReporte.forEach((i) => i.resultados.forEach((r) => porCodigo.has(r.codigo) || porCodigo.set(r.codigo, { nombre: r.nombre, orden: r.orden })))
+    return [...porCodigo.entries()].sort((a, b) => a[1].orden - b[1].orden || a[1].nombre.localeCompare(b[1].nombre, 'es'))
+  }, [informesDelReporte])
+  const nombreDeCodigo = (codigo: string) => analitosDelBloque.find(([c]) => c === codigo)?.[1].nombre ?? codigo
+  const nombresDelBloque = [...new Set(analitosDelBloque.map(([, v]) => v.nombre))]
+  const nombresElegidos = filtroBloque.analitos.length ? [...new Set(filtroBloque.analitos.map(nombreDeCodigo))] : nombresDelBloque
+  // Un analito puede tener dos códigos (agua y alimento): elegir su nombre elige todos.
+  const alElegirAnalitos = (nombres: string[]) =>
+    setFiltroBloque((f) => ({
+      ...f,
+      analitos: nombres.length >= nombresDelBloque.length ? [] : analitosDelBloque.filter(([, v]) => nombres.includes(v.nombre)).map(([c]) => c),
+    }))
+  const filtrosActivos = filtroBloque.analitos.length > 0 || filtroBloque.estado !== 'todos'
+  const informes = useMemo(() => filtrarBloque(informesDelReporte, filtroBloque), [informesDelReporte, filtroBloque])
+  // Las tortas cuentan presencia y ausencia: el filtro «Estado» las dejaría en un solo color, así que solo les aplica el de analito.
+  const informesParaTortas = useMemo(() => filtrarBloque(informesDelReporte, { analitos: filtroBloque.analitos, estado: 'todos' }), [informesDelReporte, filtroBloque.analitos])
+  const tortasPresencia = useMemo(() => presenciaPorAnalito(informesParaTortas), [informesParaTortas])
+  const tortasNivel = useMemo(() => (bloque === 'fito' ? nivelesPorAnalito(informesParaTortas) : []), [bloque, informesParaTortas])
   const { analisis, detecciones } = useMemo(() => {
     const todos = informes.flatMap((i) => i.resultados)
     return { analisis: todos.length, detecciones: todos.filter((r) => r.detectado).length }
@@ -118,9 +151,32 @@ export function SeccionInformes({ bloque, numero, informes, totalSinFiltros, con
         </span>
       </CabeceraSeccion>
 
+      {informesDelReporte.length > 0 && (
+        <div className={styles.filtrosBloque} role="group" aria-label={`Filtros de ${NOMBRE_BLOQUE[bloque]}`}>
+          <span className={styles.filtrosTitulo}>Filtros de este análisis</span>
+          <MultiSelectFiltro etiqueta="Analito" opciones={nombresDelBloque} valores={nombresElegidos} onChange={alElegirAnalitos} />
+          <label className={styles.estadoFiltro}>
+            <span>Estado</span>
+            <select value={filtroBloque.estado} onChange={(e) => setFiltroBloque((f) => ({ ...f, estado: e.target.value as EstadoFiltro }))}>
+              <option value="todos">Todos</option>
+              <option value="detectado">Detectado</option>
+              <option value="no_detectado">No detectado</option>
+            </select>
+          </label>
+          {filtrosActivos && (
+            <button type="button" className={styles.limpiarBloque} onClick={() => setFiltroBloque(FILTRO_BLOQUE_VACIO)}>
+              Quitar filtros
+            </button>
+          )}
+          {bloque === 'fsma' && <span className={styles.nota}>Especie y variedad no se aplican aquí: ALS no las informa.</span>}
+        </div>
+      )}
+
       {informes.length === 0 ? (
         <Card>
-          <p className={styles.vacio}>No hay informes de {nombreLab} con estos filtros.</p>
+          <p className={styles.vacio}>
+            {informesDelReporte.length > 0 ? 'Ningún informe cumple los filtros de este análisis.' : `No hay informes de ${nombreLab} con estos filtros.`}
+          </p>
         </Card>
       ) : (
         <>
@@ -135,9 +191,66 @@ export function SeccionInformes({ bloque, numero, informes, totalSinFiltros, con
               <span className={estilosReporte.statNum}>{num(detecciones)}</span>
             </Kpi>
           </div>
+          <DonasEstado
+            titulo="Presencia y ausencia"
+            ayuda="Cuánto de lo analizado está bien. Detectado es malo; no detectado es bueno. El número del centro es el porcentaje no detectado."
+            centro="no detectado"
+            donas={tortasPresencia}
+          />
+          {tortasNivel.length > 0 && (
+            <DonasEstado
+              titulo="Nivel de contaminación"
+              ayuda="Cada informe se clasifica según la tabla de límites del laboratorio. El número del centro es el porcentaje en nivel óptimo."
+              centro="en nivel óptimo"
+              donas={tortasNivel}
+              pie={<LimitesNivelTabla />}
+            />
+          )}
           <ResultadosPorInforme informes={informes} laboratorio={lab} conGraficos={conGraficos} />
         </>
       )}
     </section>
+  )
+}
+
+/** La tabla de límites de Diagnofruit, plegada bajo las tortas de nivel: Óptimo, Moderado y Peligroso en con/mL. */
+function LimitesNivelTabla() {
+  const filas = Object.values(LIMITES_NIVEL)
+  return (
+    <details className={styles.limites}>
+      <summary>Ver la tabla de límites</summary>
+      <div className={styles.limitesScroll}>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Nivel de contaminación</th>
+              {filas.map((f) => (
+                <th key={f.nombre} scope="col">{f.nombre}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Óptimo</th>
+              {filas.map((f) => (
+                <td key={f.nombre}>&lt; {f.optimoMenorQue} con/mL</td>
+              ))}
+            </tr>
+            <tr>
+              <th scope="row">Moderado</th>
+              {filas.map((f) => (
+                <td key={f.nombre}>{f.optimoMenorQue} – {f.moderadoHasta} con/mL</td>
+              ))}
+            </tr>
+            <tr>
+              <th scope="row">Peligroso</th>
+              {filas.map((f) => (
+                <td key={f.nombre}>&gt; {f.moderadoHasta} con/mL</td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
   )
 }
