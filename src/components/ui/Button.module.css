@@ -66,3 +66,8 @@
 :global([data-portal]) .button { border-radius: 999px; padding: 10px 20px; }
 :global([data-portal]) .secondary { border-color: #cfe0bf; background-color: #fff; }
 :global([data-portal]) .secondary:not(:disabled):hover { border-color: var(--color-primary); background-color: #f1f8e9; transform: translateY(-1px); }
+
+/* Estilo sobrio: botones rectos y discretos. */
+:global([data-tema='sobrio']) .button { border-radius: 8px; padding: 8px 16px; }
+:global([data-tema='sobrio']) .secondary { border-color: #d9d9d3; background-color: #fff; }
+:global([data-tema='sobrio']) .secondary:not(:disabled):hover { border-color: #2f4a1f; background-color: #f7f7f5; transform: none; }
