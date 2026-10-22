@@ -10,15 +10,15 @@ interface DetalleObservacionesModalProps {
   titulo: string
   filas: Observacion[]
   onCerrar: () => void
-  /** Solo personal interno: abre la ficha completa con vista previa del PDF. */
-  fichaCompleta?: { analitos: Analito[]; limites: LimiteAnalito[]; graficos?: ReactNode }
+  /** Abre la ficha del informe con vista previa del PDF (el cliente la ve sin límites ni datos internos). */
+  fichaCompleta?: { analitos: Analito[]; limites: LimiteAnalito[]; graficos?: ReactNode; sinLimites?: boolean }
 }
 
 export function DetalleObservacionesModal({ titulo, filas, onCerrar, fichaCompleta }: DetalleObservacionesModalProps) {
   const ids = new Set(filas.map((o) => o.solicitudId))
   const [unico] = ids
   if (fichaCompleta && ids.size === 1 && unico != null && unico > 0) {
-    return <FichaInformeModal solicitudId={unico} titulo={titulo} analitos={fichaCompleta.analitos} limites={fichaCompleta.limites} onCerrar={onCerrar} graficos={fichaCompleta.graficos} />
+    return <FichaInformeModal solicitudId={unico} titulo={titulo} analitos={fichaCompleta.analitos} limites={fichaCompleta.limites} onCerrar={onCerrar} graficos={fichaCompleta.graficos} sinLimites={fichaCompleta.sinLimites} />
   }
 
   const conPpm = filas.filter((o): o is Observacion & { ppm: number } => o.ppm != null)

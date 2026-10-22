@@ -138,6 +138,8 @@ SOLO_AGROFRESH = [Depends(solo_interno)]
 app.include_router(reportes_router, dependencies=CON_SESION)
 app.include_router(postventa_cliente_router, dependencies=CON_SESION)
 app.include_router(informes_cliente_router, dependencies=CON_SESION)
+# La ficha de un informe (clic en un punto de Report): el cliente y el comercial la abren, acotada por dentro a su alcance.
+app.include_router(ficha_informe_router, dependencies=CON_SESION)
 # El diseño del Panel general lo lee cualquier cuenta (clientes incluidos: el servidor les filtra a lo suyo);
 # editarlo es solo del admin general y se exige adentro de cada endpoint.
 app.include_router(panel_inicio_router, dependencies=CON_SESION)
@@ -159,7 +161,6 @@ for _router in (
     monitoreo_router,
     correcciones_router,
     listas_distribucion_router,
-    ficha_informe_router,
     envio_cliente_router,
     catalogo_router,
     postventa_router,

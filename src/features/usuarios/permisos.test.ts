@@ -11,6 +11,7 @@ import {
   puedeVerTomaMuestras,
   seccionesLabPermitidas,
   tieneFuncion,
+  puedeVerVistaCliente,
   vistaDeCliente,
 } from './permisos'
 import type { Usuario } from './types'
@@ -139,6 +140,16 @@ describe('mini funciones asignables (espejo de test_permisos_funciones.py)', () 
       expect(tieneFuncion(u('gerencia', ['lab_criterios', 'verif_firmar', 'toma_reanalisis']), f)).toBe(false)
       expect(tieneFuncion(u('cliente', ['lab_criterios']), f)).toBe(false)
     }
+  })
+
+  it('«Vista de cliente» la tiene el administrador general y quien se la marcaron, gerencia incluida; clientes y comerciales no', () => {
+    expect(puedeVerVistaCliente(u('admin_general'))).toBe(true)
+    expect(puedeVerVistaCliente(u('gerencia', ['vista_cliente']))).toBe(true)
+    expect(puedeVerVistaCliente(u('gerencia', ['reports']))).toBe(false)
+    expect(puedeVerVistaCliente(u('analista', ['vista_cliente']))).toBe(true)
+    expect(puedeVerVistaCliente(u('analista', ['reports']))).toBe(false)
+    expect(puedeVerVistaCliente(u('cliente', ['vista_cliente']))).toBe(false)
+    expect(puedeVerVistaCliente(u('comercial', ['vista_cliente']))).toBe(false)
   })
 
   it('el resto solo tiene lo que se le marcó', () => {
