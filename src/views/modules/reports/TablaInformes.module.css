@@ -492,7 +492,7 @@
 :global([data-tema='sobrio']) .tabla th { background: #fff; border-bottom: 1px solid #e3e6eb; }
 :global([data-tema='sobrio']) .orden { color: #9ca3af; font-size: 10px; letter-spacing: 0.1em; padding: 14px var(--space-3); }
 :global([data-tema='sobrio']) .orden:hover { background: transparent; color: #16181d; }
-:global([data-tema='sobrio']) .tabla td { border-top: 1px solid #f0f1f4; padding: 12px var(--space-3); }
+:global([data-tema='sobrio']) .tabla td { border-top: 1px solid #eceef2; padding: 12px var(--space-3); }
 :global([data-tema='sobrio']) .tabla tbody tr:hover td { background: #fafbfc; }
 :global([data-tema='sobrio']) .tabla tbody td.grupo { background: #fff; border-right: 0; }
 :global([data-tema='sobrio']) .tabla tbody tr:hover td.grupo { background: #fff; }
@@ -515,7 +515,7 @@
 :global([data-tema='sobrio']) .tabla th,
 :global([data-tema='sobrio']) .tabla td { border-left: 1px solid #e3e6eb; }
 :global([data-tema='sobrio']) .tabla th:first-child,
-:global([data-tema='sobrio']) .tabla tbody tr > td.grupo:first-child,
+:global([data-tema='sobrio']) .tabla tbody tr > td.grupo.fecha:first-child,
 :global([data-tema='sobrio']) .tabla tfoot td { border-left: 0; }
 
 /* Estilo sobrio: la tabla crece con la página (sin caja con scroll propio), así ninguna fila queda cortada a medias. */
@@ -528,3 +528,17 @@
 :global([data-tema='sobrio']) .tabla tbody tr.finInforme:last-child td.grupo { border-bottom: 0; }
 :global([data-tema='sobrio']) .tabla th:last-child,
 :global([data-tema='sobrio']) .tabla td:last-child { padding-right: var(--space-4); }
+
+/* Estilo sobrio: la celda de fecha une varios informes y no tiene línea propia entre ellos; el informe que empieza
+   sin celda de fecha dibuja su línea de arriba hacia la izquierda para cruzar esa columna (el marco recorta lo que sobra). */
+:global([data-tema='sobrio']) .tabla tbody td.grupo { position: relative; background: transparent; }
+:global([data-tema='sobrio']) .tabla tbody tr:hover td.grupo { background: transparent; }
+:global([data-tema='sobrio']) .tabla tbody tr > td.grupo:first-child:not(.fecha)::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  right: 100%;
+  width: 3000px;
+  height: 1px;
+  background: var(--color-border-strong);
+}
