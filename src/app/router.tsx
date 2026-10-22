@@ -42,8 +42,8 @@ export const router = createBrowserRouter([
     element: <RequireAuth />,
     children: [
       {
-        // El administrador general puede mirar el portal de clientes con su propia cuenta (vista previa).
-        element: <RequireAdminGeneral />,
+        // El administrador general y quien tenga la función «Vista de cliente» miran el portal de clientes con su propia cuenta.
+        element: <RequireFuncion funcion="vista_cliente" redirigirA={ROUTES.dashboard} />,
         children: [
           {
             element: <VistaClienteLayout />,

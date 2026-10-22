@@ -14,8 +14,16 @@ def _u(tipo="analista", modulos=None, area="cromatografia"):
 def test_admin_general_tiene_todas_y_gerencia_y_cliente_ninguna():
     for f in pf.FUNCIONES:
         assert pf.tiene(_u("admin_general"), f)
-        assert not pf.tiene(_u("gerencia", modulos=list(pf.FUNCIONES)), f)
+        # Gerencia solo puede llevar «Vista de cliente» (mirar), nunca las de escritura.
+        assert pf.tiene(_u("gerencia", modulos=list(pf.FUNCIONES)), f) == (f == pf.VISTA_CLIENTE)
         assert not pf.tiene(_u("cliente", modulos=list(pf.FUNCIONES)), f)
+        assert not pf.tiene(_u("comercial", modulos=list(pf.FUNCIONES)), f)
+
+
+def test_vista_de_cliente_se_asigna_cuenta_por_cuenta():
+    assert pf.tiene(_u("analista", modulos=[pf.VISTA_CLIENTE]), pf.VISTA_CLIENTE)
+    assert not pf.tiene(_u("analista", modulos=["reports"]), pf.VISTA_CLIENTE)
+    assert pf.VISTA_CLIENTE in pf.MODULOS_VALIDOS
 
 
 def test_el_resto_solo_tiene_lo_que_se_le_marco():
