@@ -134,8 +134,8 @@ export function SeccionInformes({ bloque, numero, informes: informesDelReporte, 
   const informes = useMemo(() => filtrarBloque(informesDelReporte, filtroBloque), [informesDelReporte, filtroBloque])
   // Las tortas cuentan presencia y ausencia: el filtro «Estado» las dejaría en un solo color, así que solo les aplica el de analito.
   const informesParaTortas = useMemo(() => filtrarBloque(informesDelReporte, { analitos: filtroBloque.analitos, estado: 'todos' }), [informesDelReporte, filtroBloque.analitos])
-  const tortasPresencia = useMemo(() => presenciaPorAnalito(informesParaTortas), [informesParaTortas])
-  const tortasNivel = useMemo(() => (bloque === 'fito' ? nivelesPorAnalito(informesParaTortas) : []), [bloque, informesParaTortas])
+  const tortasPresencia = useMemo(() => presenciaPorAnalito(informesParaTortas, { colorDelAnalito: bloque === 'fito' }), [informesParaTortas, bloque])
+  const tortasNivel = useMemo(() => (bloque === 'fito' ? nivelesPorAnalito(informesParaTortas, { colorDelAnalito: true }) : []), [bloque, informesParaTortas])
   const { analisis, detecciones } = useMemo(() => {
     const todos = informes.flatMap((i) => i.resultados)
     return { analisis: todos.length, detecciones: todos.filter((r) => r.detectado).length }
