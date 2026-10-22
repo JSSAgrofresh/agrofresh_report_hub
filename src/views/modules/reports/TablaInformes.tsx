@@ -48,11 +48,11 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
   const [orden, setOrden] = useState<Orden>(ORDEN_INICIAL)
   const [texto, setTexto] = useState('')
   const [pagina, setPagina] = useState(1)
-  const [tamano, setTamano] = useState<number>(25)
+  const [tamano, setTamano] = useState<number>(10)
   // En un teléfono la tabla no cabe: cada informe pasa a ser una tarjeta.
   const angosto = useAnchoMaximo(640)
-  // En el estilo sobrio, la tabla de fitopatología no lleva el punto de color de cada analito.
-  const sinPuntos = esPaletaSobria() && /diagnofruit/i.test(archivo)
+  // En el estilo sobrio, las tablas de FSMA y fitopatología no llevan el punto de color de cada analito.
+  const sinPuntos = esPaletaSobria()
 
   const conDetalle = modelo.informes.some((i) => i.detalle)
   const filtrados = useMemo(() => filtrarInformes(modelo.informes, texto), [modelo.informes, texto])
