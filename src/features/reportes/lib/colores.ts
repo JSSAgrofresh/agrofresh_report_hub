@@ -28,8 +28,6 @@ const ORDEN_CONOCIDO = [
   'ALT', 'BOT', 'GEO', 'LEV', 'PEN',
 ]
 
-import { CATEGORICA_SOBRIA, esPaletaSobria } from '@/lib/paleta'
-
 function hashEstable(s: string): number {
   let h = 0
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
@@ -39,7 +37,7 @@ function hashEstable(s: string): number {
 /** Color estable para un ingrediente: usa la posición fija en el catálogo
  * conocido: cualquier código nuevo cae en un color determinístico por hash. */
 export function colorDeIngrediente(codigo: string): string {
-  const PALETA_CATEGORICA = esPaletaSobria() ? CATEGORICA_SOBRIA : PALETA_VIVA
+  const PALETA_CATEGORICA = PALETA_VIVA
   const idx = ORDEN_CONOCIDO.indexOf(codigo)
   if (idx !== -1) return PALETA_CATEGORICA[idx % PALETA_CATEGORICA.length]
   return PALETA_CATEGORICA[hashEstable(codigo) % PALETA_CATEGORICA.length]
@@ -51,5 +49,5 @@ export function colorDeIngrediente(codigo: string): string {
  * último color devuelve null: esa categoría va a "Otras", nunca a un tono
  * inventado. */
 export function colorCategorico(posicion: number): string | null {
-  return (esPaletaSobria() ? CATEGORICA_SOBRIA : PALETA_VIVA)[posicion] ?? null
+  return PALETA_VIVA[posicion] ?? null
 }
