@@ -1065,3 +1065,47 @@
     line-height: 1.25;
   }
 }
+
+/* ── Estilo sobrio ── */
+:global([data-tema='sobrio']) .btnActualizar { border-radius: 8px; padding: 8px 16px; background: #2f4a1f; box-shadow: none; }
+:global([data-tema='sobrio']) .btnActualizar:hover { transform: none; box-shadow: none; background: #3d5e29; }
+:global([data-tema='sobrio']) .horas { color: #6b6b66; }
+:global([data-tema='sobrio']) .stats,
+:global([data-tema='sobrio']) .statsResiduales { gap: 12px; }
+:global([data-tema='sobrio']) .statCard {
+  border-radius: 12px;
+  padding: 16px 18px;
+  background: #fff;
+}
+:global([data-tema='sobrio']) .statCard::before { display: none; }
+:global([data-tema='sobrio']) .statNum { font-size: 1.7rem; font-weight: 700; }
+:global([data-tema='sobrio']) .kpiIcono { animation: none; opacity: 0.55; }
+:global([data-tema='sobrio']) .filtrosCard {
+  background: #fff;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid #e5e5e0;
+  border-radius: 12px;
+  box-shadow: none;
+  padding: 14px 18px 16px;
+}
+:global([data-tema='sobrio']) .filtro select,
+:global([data-tema='sobrio']) .sigmaControl select { height: 36px; border-radius: 8px; border-color: #d9d9d3; }
+:global([data-tema='sobrio']) .filtro select:hover { border-color: #2f4a1f; }
+:global([data-tema='sobrio']) .filtro select:focus-visible { border-color: #2f4a1f; box-shadow: 0 0 0 3px rgba(47, 74, 31, 0.15); }
+:global([data-tema='sobrio']) .limpiar { border-radius: 8px; border-color: #d9d9d3; }
+:global([data-tema='sobrio']) .chips { border-top-color: #e5e5e0; }
+:global([data-tema='sobrio']) .chip { border-radius: 6px; }
+:global([data-tema='sobrio']) .chip:hover { transform: none; }
+:global([data-tema='sobrio']) .filtrosCard[data-pegado='true'] {
+  border-radius: 0 0 16px 16px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.06);
+  background: #fff;
+  animation: none;
+}
+:global([data-tema='sobrio']) .chartboxGrande,
+:global([data-tema='sobrio']) .chartbox,
+:global([data-tema='sobrio']) .chartboxChico { border-radius: 8px; }
+:global([data-tema='sobrio']) .soloFuera,
+:global([data-tema='sobrio']) .toggleVista { border-radius: 8px; }
+:global([data-tema='sobrio']) .vacioCard { border-radius: 12px; }

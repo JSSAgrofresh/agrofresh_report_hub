@@ -3,12 +3,17 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useAuth } from '@/features/auth'
-import { cambiarGraficosInformes, cambiarServicioReport, obtenerFunciones } from '@/features/funciones'
-import type { EstadoFunciones, ServicioReport } from '@/features/funciones'
+import { cambiarGraficosInformes, cambiarServicioReport, cambiarTemaCliente, obtenerFunciones } from '@/features/funciones'
+import type { EstadoFunciones, ServicioReport, TemaCliente } from '@/features/funciones'
 import { CORREO_MAESTRO } from '@/features/usuarios'
 import { HttpError } from '@/services/http/client'
 import { fechaHora } from '@/lib/fechaHoraChile'
 import styles from './FuncionesPanel.module.css'
+
+const TEMAS: { id: TemaCliente; nombre: string; detalle: string }[] = [
+  { id: 'basico', nombre: 'Básico', detalle: 'El de siempre: fondo con color, tarjetas de vidrio y encabezado con foto.' },
+  { id: 'sobrio', nombre: 'Sobrio', detalle: 'Minimalista: fondo liso, tarjetas blancas con borde fino y un solo color de acento.' },
+]
 
 const DETALLE: Record<ServicioReport['clave'], string> = {
   linea_proceso: 'Lo de siempre.',
@@ -32,6 +37,8 @@ export function FuncionesPanel() {
   const [elegido, setElegido] = useState<ServicioReport | null>(null)
   /** El valor al que se quiere pasar el interruptor de los gráficos; `null` = no se está cambiando. */
   const [cambioGraficos, setCambioGraficos] = useState<boolean | null>(null)
+  /** El estilo al que se quiere pasar el dashboard de clientes; `null` = no se está cambiando. */
+  const [cambioTema, setCambioTema] = useState<TemaCliente | null>(null)
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [trabajando, setTrabajando] = useState(false)
@@ -49,19 +56,22 @@ export function FuncionesPanel() {
   function cerrar() {
     setElegido(null)
     setCambioGraficos(null)
+    setCambioTema(null)
     setPassword('')
     setError(null)
   }
 
   async function confirmar() {
-    if (!elegido && cambioGraficos === null) return
+    if (!elegido && cambioGraficos === null && cambioTema === null) return
     setTrabajando(true)
     setError(null)
     try {
       setEstado(
         elegido
           ? await cambiarServicioReport(elegido.clave, !elegido.activo, password)
-          : await cambiarGraficosInformes(cambioGraficos as boolean, password),
+          : cambioTema !== null
+            ? await cambiarTemaCliente(cambioTema, password)
+            : await cambiarGraficosInformes(cambioGraficos as boolean, password),
       )
       cerrar()
     } catch (e) {
@@ -73,7 +83,13 @@ export function FuncionesPanel() {
 
   const graficos = estado?.graficos_informes
   // Lo que dice el cuadro de confirmación: un servicio o el interruptor de los gráficos.
-  const confirmacion = elegido
+  const confirmacion = cambioTema !== null
+    ? {
+        titulo: `Dejar el estilo ${TEMAS.find((t) => t.id === cambioTema)?.nombre} para los clientes`,
+        boton: 'Dejar como predeterminado',
+        texto: 'Los clientes y comerciales verán su dashboard con este estilo desde su próxima carga. Tú puedes ver ambos desde la Vista de cliente.',
+      }
+    : elegido
     ? {
         titulo: `${elegido.activo ? 'Ocultar' : 'Mostrar'} ${elegido.etiqueta} en Report`,
         boton: elegido.activo ? 'Ocultar' : 'Mostrar',
@@ -173,6 +189,44 @@ export function FuncionesPanel() {
           </ul>
           {graficos?.cambiado_por && graficos.cambiado_en && (
             <p className={styles.pie}>Último cambio: {graficos.cambiado_por}, {fechaHora(graficos.cambiado_en)}</p>
+          )}
+        </div>
+      )}
+
+      {estado && (
+        <div className={styles.tarjeta}>
+          <h2 className={styles.titulo}>Estilo del dashboard de clientes</h2>
+          <p className={styles.texto}>
+            Elige cómo ven su dashboard los clientes y comerciales. Quien tenga la función «Vista de cliente» puede
+            cambiar entre los dos estilos desde esa vista para compararlos, sin afectar a nadie.
+          </p>
+          <ul className={styles.lista}>
+            {TEMAS.map((t) => {
+              const activo = (estado.tema_cliente?.valor ?? 'basico') === t.id
+              return (
+                <li key={t.id} className={styles.fila}>
+                  <span className={styles.nombre}>
+                    {t.nombre}
+                    <small>{t.detalle}</small>
+                  </span>
+                  <span className={`${styles.estado} ${activo ? styles.encendido : styles.apagado}`}>
+                    {activo ? 'Lo ven los clientes' : 'Desactivado'}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    disabled={!esPrincipal || activo}
+                    title={esPrincipal ? undefined : 'Solo el administrador principal puede cambiarlo'}
+                    aria-label={`Dejar el estilo ${t.nombre} para los clientes`}
+                    onClick={() => setCambioTema(t.id)}
+                  >
+                    Dejar este
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+          {estado.tema_cliente?.cambiado_por && estado.tema_cliente.cambiado_en && (
+            <p className={styles.pie}>Último cambio: {estado.tema_cliente.cambiado_por}, {fechaHora(estado.tema_cliente.cambiado_en)}</p>
           )}
         </div>
       )}

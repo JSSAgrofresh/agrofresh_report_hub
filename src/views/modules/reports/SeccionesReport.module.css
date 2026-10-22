@@ -285,3 +285,16 @@
     padding: var(--space-3);
   }
 }
+
+/* Estilo sobrio: cabecera blanca con un filo de acento a la izquierda. */
+:global([data-tema='sobrio']) .cabecera {
+  border-radius: 12px;
+  padding: 12px 18px;
+  background: #fff;
+  box-shadow: none;
+  border-color: #e5e5e0;
+}
+:global([data-tema='sobrio']) .cabecera::before { width: 3px; }
+:global([data-tema='sobrio']) .titulo h2 { font-size: clamp(1.15rem, 1rem + 0.7vw, 1.4rem); font-weight: 700; }
+:global([data-tema='sobrio']) .cabecera:has(.numero) { padding-left: 50px; }
+:global([data-tema='sobrio']) .numero { top: 10px; left: 14px; }
