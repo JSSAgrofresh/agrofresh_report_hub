@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { BotonExcel } from '@/components/ui/BotonExcel'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { VISTAS_ENVIOS, contarVistas, filtrarEnvios, listarEnviosInformes } from '@/features/auditoriaInterna'
 import type { EnvioInforme, TipoEnvio, VistaEnvios } from '@/features/auditoriaInterna'
@@ -27,6 +28,7 @@ export function EnviosInformesView() {
   const [error, setError] = useState<string | null>(null)
   const [vista, setVista] = useState<VistaEnvios>('real')
   const [texto, setTexto] = useState('')
+  const tablaRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelado = false
@@ -78,12 +80,13 @@ export function EnviosInformesView() {
           value={texto}
           onChange={(ev) => setTexto(ev.target.value)}
         />
+        <BotonExcel archivo="Informes enviados a clientes" contenedor={tablaRef} disabled={visibles.length === 0} />
       </div>
 
       {envios === null && !error ? (
         <Skeleton style={{ height: 220 }} />
       ) : (
-        <div className={styles.tablaWrap}>
+        <div className={styles.tablaWrap} ref={tablaRef}>
           <table className={styles.tabla}>
             <thead>
               <tr>

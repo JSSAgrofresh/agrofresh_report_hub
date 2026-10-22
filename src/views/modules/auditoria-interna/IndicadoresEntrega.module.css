@@ -861,3 +861,13 @@
 
 .botonConfig:hover { background: rgba(109, 173, 60, 0.12); }
 .botonConfig:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+/* Bajo una tabla: «Ver las N» a la izquierda y «Excel» a la derecha. */
+.pieTabla {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}

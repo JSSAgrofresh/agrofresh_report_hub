@@ -15,11 +15,16 @@ import styles from './PortalShell.module.css'
 interface Enlace {
   to: string
   etiqueta: string
+  /** Cómo se escribe en un teléfono, donde el nombre completo no cabe en la barra. */
+  corta?: string
   fin?: boolean
 }
 
 /** Cómo se llaman, para un cliente, los accesos de siempre: el Report es su análisis de laboratorio y el Storage, sus informes. */
-const ETIQUETA_PORTAL: Record<string, string> = { reports: 'Análisis de Laboratorio', storage: 'Informes de Laboratorio' }
+const ETIQUETA_PORTAL: Record<string, { etiqueta: string; corta: string }> = {
+  reports: { etiqueta: 'Análisis de Laboratorio', corta: 'Análisis' },
+  storage: { etiqueta: 'Informes de Laboratorio', corta: 'Informes' },
+}
 
 /** Los mismos accesos que hoy trae la barra lateral para una cuenta de cliente o comercial, en una burbuja arriba.
  * Primero Análisis de Laboratorio (Report), Informes de Laboratorio (Storage) y Reportes Accutab; después lo demás. */
@@ -32,9 +37,9 @@ function enlacesDe(user: NonNullable<ReturnType<typeof useAuth>['user']>): Enlac
   for (const id of ['reports', 'storage']) {
     const m = disponibles.find((x) => x.id === id)
     // El Report de un cliente abre directo en sus gráficos (su único reporte), sin pasar por el menú de reportes.
-    if (m) lista.push({ to: id === 'reports' ? ROUTES.reportsLaboratorio : m.ruta, etiqueta: ETIQUETA_PORTAL[id] })
+    if (m) lista.push({ to: id === 'reports' ? ROUTES.reportsLaboratorio : m.ruta, ...ETIQUETA_PORTAL[id] })
   }
-  if (accutab) lista.push({ to: ROUTES.dashboard, etiqueta: 'Reportes Accutab', fin: true })
+  if (accutab) lista.push({ to: ROUTES.dashboard, etiqueta: 'Reportes Accutab', corta: 'Accutab', fin: true })
   for (const m of disponibles) {
     if (m.id !== 'reports' && m.id !== 'storage') lista.push({ to: m.ruta, etiqueta: m.nombre })
   }
@@ -66,8 +71,8 @@ function usePildora(contenedor: RefObject<HTMLDivElement | null>, pildora: RefOb
 
 /** Marco visual del portal de clientes y comerciales: fondo vivo, navbar de vidrio fija arriba y el contenido de siempre. */
 const ENLACES_VISTA_PREVIA: (Enlace & { modulo: string })[] = [
-  { to: ROUTES.vistaClienteReport, etiqueta: 'Análisis de Laboratorio', modulo: 'reports' },
-  { to: ROUTES.vistaClienteStorage, etiqueta: 'Informes de Laboratorio', modulo: 'storage' },
+  { to: ROUTES.vistaClienteReport, etiqueta: 'Análisis de Laboratorio', corta: 'Análisis', modulo: 'reports' },
+  { to: ROUTES.vistaClienteStorage, etiqueta: 'Informes de Laboratorio', corta: 'Informes', modulo: 'storage' },
 ]
 
 export function PortalShell({
@@ -120,8 +125,17 @@ export function PortalShell({
               to={e.to}
               end={e.fin}
               className={({ isActive }) => cn(styles.enlace, isActive && styles.enlaceActivo)}
+              aria-label={e.corta ? e.etiqueta : undefined}
+              title={e.corta ? e.etiqueta : undefined}
             >
-              {e.etiqueta}
+              {e.corta ? (
+                <>
+                  <span className={styles.largo}>{e.etiqueta}</span>
+                  <span className={styles.corto} aria-hidden="true">{e.corta}</span>
+                </>
+              ) : (
+                e.etiqueta
+              )}
             </NavLink>
           ))}
         </div>

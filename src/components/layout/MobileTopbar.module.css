@@ -19,6 +19,7 @@
 .logo {
   height: 30px;
   width: auto;
+  aspect-ratio: 5 / 2; object-fit: contain; max-width: none; flex-shrink: 0;
 }
 
 .hamburguesa {

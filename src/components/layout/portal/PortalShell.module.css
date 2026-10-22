@@ -70,8 +70,9 @@
 }
 
 .marca { display: flex; align-items: center; flex: none; padding-right: 12px; text-decoration: none; }
-.logo { height: 62px; width: auto; display: block; }
+.logo { height: 62px; width: auto; display: block; aspect-ratio: 5 / 2; object-fit: contain; max-width: none; flex-shrink: 0; }
 
+.corto { display: none; }
 .items { position: relative; display: flex; justify-content: center; gap: 6px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; min-width: 0; flex: 1; }
 .items::-webkit-scrollbar { display: none; }
 
@@ -132,7 +133,9 @@
   .burbuja { --radio: 28px; padding: 8px 10px 8px 16px; gap: 6px; }
   .logo { height: 34px; }
   .marca { padding-right: 4px; }
-  .enlace { padding: 11px 14px; min-width: 0; font-size: 14px; }
+  .enlace { padding: 11px 14px; min-width: 0; font-size: 14px; white-space: nowrap; }
+  .largo { display: none; }
+  .corto { display: inline; }
   /* En el celular, cerrar sesión está en el menú del avatar: el botón suelto solo ocupaba lugar. */
   .salir { display: none; }
   .usuario { padding-left: 6px; margin-left: 0; }
