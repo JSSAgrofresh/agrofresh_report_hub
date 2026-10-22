@@ -5,6 +5,7 @@ import { MobileTopbar } from './MobileTopbar'
 import { LoadingBar } from './LoadingBar'
 import { PortalShell } from './portal/PortalShell'
 import { avisarVisita } from '@/features/adminPanel'
+import { enviarLatido } from '@/features/monitoreo'
 import { useAuth } from '@/features/auth'
 import { useApilarTablas } from '@/lib/apilarTablas'
 import styles from './AppLayout.module.css'
@@ -23,6 +24,17 @@ export function AppLayout() {
     if (!user || esCliente) return
     avisarVisita(pathname).catch(() => undefined)
   }, [pathname, user, esCliente])
+
+  // «Sigo aquí»: un latido por minuto (y al cambiar de pantalla) mientras la pestaña está a la vista. Alimenta
+  // «Gente conectada» del Monitoreo. Si falla no pasa nada.
+  useEffect(() => {
+    if (!user) return
+    const latir = () => { if (!document.hidden) enviarLatido(pathname).catch(() => undefined) }
+    latir()
+    const cada = window.setInterval(latir, 60_000)
+    document.addEventListener('visibilitychange', latir)
+    return () => { window.clearInterval(cada); document.removeEventListener('visibilitychange', latir) }
+  }, [pathname, user])
 
   // Clientes y comerciales ven el mismo contenido con otro marco: navbar flotante y fondo vivo, sin barra lateral.
   if (esCliente) {

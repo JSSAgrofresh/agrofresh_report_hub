@@ -21,7 +21,8 @@ from .lab_secciones import LAB_CRITERIOS
 VERIF_FIRMAR = "verif_firmar"
 TOMA_REANALISIS = "toma_reanalisis"
 TOMA_EDITAR = "toma_editar"
-FUNCIONES = (LAB_CRITERIOS, VERIF_FIRMAR, TOMA_REANALISIS, TOMA_EDITAR)
+VISTA_CLIENTE = "vista_cliente"
+FUNCIONES = (LAB_CRITERIOS, VERIF_FIRMAR, TOMA_REANALISIS, TOMA_EDITAR, VISTA_CLIENTE)
 
 # Todo lo que puede viajar en `modulos`: módulos, puertas de AgroFresh Lab y mini funciones.
 MODULOS_VALIDOS = frozenset(
@@ -36,7 +37,10 @@ REPORTES_VALIDOS = ("laboratorio", "postventa")
 def tiene(usuario: Usuario, funcion: str) -> bool:
     if usuario.tipoAcceso == "admin_general":
         return True
-    if usuario.tipoAcceso in ("gerencia", "cliente", "comercial"):
+    if usuario.tipoAcceso in ("cliente", "comercial"):
+        return False
+    # Gerencia no lleva funciones de escritura, pero sí «Vista de cliente» (solo mirar): se le marca a propósito.
+    if usuario.tipoAcceso == "gerencia" and funcion != VISTA_CLIENTE:
         return False
     return funcion in (usuario.modulos or [])
 

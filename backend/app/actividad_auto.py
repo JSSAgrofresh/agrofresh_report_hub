@@ -49,7 +49,7 @@ def _r(metodo: str, patron: str, categoria: str, accion: str, texto: str, modulo
 OMITIR: list[re.Pattern] = [re.compile(f"^{p}/?$") for p in (
     # ya lo anota otra fuente o `actividad.registrar`
     r"/auth/(login|logout|verificar-clave)",
-    r"/actividad/visita",
+    r"/actividad/visita", r"/monitoreo/latido",
     r"/toma-muestras/solicitudes",                                   # creada: solicitud_archivo
     r"/toma-muestras/solicitudes-prueba",
     r"/toma-muestras/solicitudes/[^/]+/(enviar|cruce|cruzar-completo|muestra|peso-extraido|peso-hueso|quitar-informe)",

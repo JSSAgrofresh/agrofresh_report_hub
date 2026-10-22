@@ -48,6 +48,10 @@ export const CATEGORIAS: Categoria[] = [
       { id: 'reports', nombre: 'Report', descripcion: 'Control de residuos: límites residuales en tiempo real desde la base de datos.' },
       { id: ID_REPORTE('laboratorio'), padre: 'reports', nombre: 'Reporte de laboratorio', descripcion: 'Consulta y gráficos de Cromatografía.' },
       { id: ID_REPORTE('postventa'), padre: 'reports', nombre: 'Postventa', descripcion: 'Histórico e informes de Trace.' },
+      {
+        id: 'vista_cliente', extra: true, nombre: 'Vista de cliente',
+        descripcion: 'Ver el portal tal como lo ve un cliente (Análisis e Informes de Laboratorio), para auditar. Con su cuenta ve los datos de todos los clientes, solo mirar. Se asigna cuenta por cuenta.',
+      },
       { id: 'auditoria_interna', nombre: 'Panel de control interno', descripcion: 'Solicitudes emitidas vs. informes recibidos, carpetas de auditoría, límites de control e indicadores de entrega.' },
     ],
   },

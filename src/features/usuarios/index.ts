@@ -16,6 +16,7 @@ export {
   puedeEditarSolicitudes,
   puedeFirmarVerificaciones,
   vistaDeCliente,
+  puedeVerVistaCliente,
   tieneFuncion,
   modulosPredeterminados,
   reportesPredeterminados,

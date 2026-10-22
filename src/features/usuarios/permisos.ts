@@ -146,12 +146,20 @@ export function puedeVerTomaMuestras(usuario: Usuario): boolean {
 /** «Mini funciones» que el administrador general reparte a cuentas concretas (Usuarios → permisos). Sin
  * migración: viajan en `modulos`. Espejo de `app/permisos_funciones.py` (mismos casos en `permisos.test.ts` y
  * `tests/test_permisos_funciones.py`). El administrador general las tiene todas; gerencia y clientes ninguna. */
-export type FuncionId = 'lab_criterios' | 'verif_firmar' | 'toma_reanalisis' | 'toma_editar'
+export type FuncionId = 'lab_criterios' | 'verif_firmar' | 'toma_reanalisis' | 'toma_editar' | 'vista_cliente'
 
 export function tieneFuncion(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>, funcion: FuncionId): boolean {
   if (usuario.tipoAcceso === 'admin_general') return true
-  if (usuario.tipoAcceso === 'gerencia' || usuario.tipoAcceso === 'cliente' || usuario.tipoAcceso === 'comercial') return false
+  if (usuario.tipoAcceso === 'cliente' || usuario.tipoAcceso === 'comercial') return false
+  // Gerencia no lleva funciones de escritura, pero SÍ «Vista de cliente» (solo mirar): se le marca a propósito.
+  if (usuario.tipoAcceso === 'gerencia' && funcion !== 'vista_cliente') return false
   return (usuario.modulos ?? []).includes(funcion)
+}
+
+/** Ver el portal tal como lo ve un cliente (Análisis e Informes de Laboratorio), para auditar: el administrador
+ * general y quien tenga la función `vista_cliente`. Con su propia cuenta ve los datos de todos los clientes. */
+export function puedeVerVistaCliente(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
+  return tieneFuncion(usuario, 'vista_cliente')
 }
 
 /** Firmar la revisión de un día de verificaciones: admin general, admin de Cromatografía o quien tenga la función. */
