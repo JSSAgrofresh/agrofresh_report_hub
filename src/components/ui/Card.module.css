@@ -26,13 +26,13 @@
   :global([data-portal]) .card { animation: none; transition: none; }
 }
 
-/* Estilo sobrio: tarjeta blanca, borde fino, sin sombra ni movimiento. */
+/* Estilo sobrio: tarjeta blanca de borde fino, sin sombra ni movimiento. */
 :global([data-tema='sobrio']) .card {
   background-color: #fff;
-  border-color: #e8eaee;
-  border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(16, 24, 40, 0.06);
+  border-color: #eceef2;
+  border-radius: 14px;
+  box-shadow: none;
   animation: none;
-  transition: box-shadow 0.25s;
+  transition: none;
 }
-:global([data-tema='sobrio']) .card:not(:has(canvas)):hover { transform: none; box-shadow: 0 6px 20px rgba(16, 24, 40, 0.1); }
+:global([data-tema='sobrio']) .card:not(:has(canvas)):hover { transform: none; box-shadow: none; }

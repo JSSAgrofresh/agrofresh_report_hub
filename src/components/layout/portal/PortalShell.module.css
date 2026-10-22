@@ -202,7 +202,7 @@
   padding: 8px 16px 8px 20px;
   background: #fff;
   border: 1px solid #e8eaee;
-  box-shadow: 0 2px 14px rgba(16, 24, 40, 0.06);
+  box-shadow: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   animation: none;
@@ -213,7 +213,7 @@
 .shell[data-tema='sobrio'] .enlace { padding: 10px 22px; min-width: 0; font-size: 14.5px; font-weight: 600; color: #6b7280; }
 .shell[data-tema='sobrio'] .enlace:hover { color: #16181d; }
 .shell[data-tema='sobrio'] .enlaceActivo, .shell[data-tema='sobrio'] .enlaceActivo:hover { color: #fff; }
-.shell[data-tema='sobrio'] .pildora { background: linear-gradient(120deg, #3f7a1a, #5f9e32); box-shadow: 0 3px 10px rgba(79, 138, 38, 0.28); border-radius: 10px; }
+.shell[data-tema='sobrio'] .pildora { background: #16181d; box-shadow: none; border-radius: 10px; }
 .shell[data-tema='sobrio'] .enlace { border-radius: 10px; }
 .shell[data-tema='sobrio'] .usuario { border-left-color: #e8eaee; }
 .shell[data-tema='sobrio'] .nombre, .shell[data-tema='sobrio'] .salir:hover { color: #16181d; }
@@ -224,7 +224,7 @@
 .shell[data-tema='sobrio'] .temaActivo { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); }
 .shell[data-tema='sobrio'] :global(*) { scrollbar-color: #c9ced6 transparent; }
 .shell[data-tema='sobrio'] :global(*::-webkit-scrollbar-thumb) { background: #c9ced6; background-clip: padding-box; }
-.shell[data-tema='sobrio'] :global(:focus-visible) { outline-color: #4f8a26; }
+.shell[data-tema='sobrio'] :global(:focus-visible) { outline-color: #16181d; }
 .shell[data-tema='sobrio'] :global(::selection) { background: #dfe3ea; color: #16181d; }
 @media (max-width: 720px) {
   .shell[data-tema='sobrio'] .burbuja { padding: 6px 10px 6px 14px; }

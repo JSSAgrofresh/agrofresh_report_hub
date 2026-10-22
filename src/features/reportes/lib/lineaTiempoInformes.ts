@@ -1,4 +1,5 @@
 import { formatDateCL, formatDecimalCL } from '@/lib/locale'
+import { esPaletaSobria } from '@/lib/paleta'
 
 /**
  * Lógica pura de los gráficos de ALS y Diagnofruit en Report (línea de tiempo, serie de tiempo y tabla por informe).
@@ -67,8 +68,18 @@ const PALETA: ColorAnalito[] = [
 const SIN_COLOR: ColorAnalito = { fill: '#77837b', text: '#ffffff' }
 
 /** El color depende del analito (su `orden` fijo), no de qué otros vengan en pantalla: el mismo analito siempre se ve igual. */
+const PALETA_SOBRIA: ColorAnalito[] = [
+  { fill: '#3f6b52', text: '#ffffff' },
+  { fill: '#c9a66b', text: '#2b2110' },
+  { fill: '#5b7c99', text: '#ffffff' },
+  { fill: '#b97a6e', text: '#ffffff' },
+  { fill: '#7f8f86', text: '#ffffff' },
+  { fill: '#8aa4b8', text: '#10202c' },
+]
+
 export function colorDeAnalito(orden: number): ColorAnalito {
-  return orden >= 1 && orden <= PALETA.length ? PALETA[orden - 1] : SIN_COLOR
+  const paleta = esPaletaSobria() ? PALETA_SOBRIA : PALETA
+  return orden >= 1 && orden <= paleta.length ? paleta[orden - 1] : SIN_COLOR
 }
 
 /**
