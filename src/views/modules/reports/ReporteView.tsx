@@ -26,6 +26,7 @@ import type { ChartDataset, Plugin, TooltipItem } from 'chart.js'
 import { Header } from '@/components/layout/Header'
 import { ACENTO_SOBRIO, TINTA_SOBRIA, esPaletaSobria } from '@/lib/paleta'
 import { Card } from '@/components/ui/Card'
+import { useAnchoMaximo } from '@/hooks/useAnchoMaximo'
 import { InfoTip } from '@/components/ui/InfoTip'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -606,6 +607,8 @@ export function ReporteView({
   // ── gráficos ──
   const mainRef = useRef<HTMLCanvasElement>(null)
   const mainChart = useRef<Chart | null>(null)
+  // En el teléfono el gráfico grande lleva puntos más chicos y menos fechas en el eje.
+  const angostoGrafico = useAnchoMaximo(640)
   const analitoResaltado = useRef<string | null>(null)
 
   const colorDanger = cssVar('--color-danger', '#b0271f')
@@ -657,8 +660,8 @@ export function ReporteView({
         showLine: false,
         // Grandes y con un aro del color de la tarjeta: se leen bien aunque se
         // solapen, y se distingue a qué columna (fecha) pertenece cada uno.
-        pointRadius: esPaletaSobria() ? 5 : 7,
-        pointHoverRadius: esPaletaSobria() ? 8 : 10,
+        pointRadius: angostoGrafico ? 4 : esPaletaSobria() ? 5 : 7,
+        pointHoverRadius: angostoGrafico ? 7 : esPaletaSobria() ? 8 : 10,
         pointHitRadius: 10,
         pointBackgroundColor: color,
         // Fuera de su franja (solo en la Vista de límites con tabla): aro rojo.
@@ -881,7 +884,9 @@ export function ReporteView({
           // Fechas en vertical y TODAS (sin saltarse ninguna): una etiqueta por día.
           x: {
             ticks: {
-              autoSkip: false,
+              // Fechas en vertical y todas, salvo en el teléfono: con decenas de informes no caben y se pisan.
+              autoSkip: angostoGrafico,
+              maxTicksLimit: angostoGrafico ? 8 : undefined,
               font: { size: 10 },
               maxRotation: 90,
               minRotation: 90,
@@ -923,6 +928,7 @@ export function ReporteView({
     limitesActivos.central,
     limitesActivos.inferior,
     colorWarning,
+    angostoGrafico,
     colorMuted,
     colorBorder,
     colorSuperficie,
