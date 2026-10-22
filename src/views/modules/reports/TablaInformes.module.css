@@ -488,7 +488,7 @@
 }
 
 /* Estilo sobrio: sin cajas ni fondos; solo líneas finas, encabezado en gris pequeño y estados como un punto con texto. */
-:global([data-tema='sobrio']) .caja { border: 0; border-top: 1px solid #e3e6eb; border-radius: 0; }
+:global([data-tema='sobrio']) .caja { border: 1px solid #e3e6eb; border-radius: 12px; }
 :global([data-tema='sobrio']) .tabla th { background: #fff; border-bottom: 1px solid #e3e6eb; }
 :global([data-tema='sobrio']) .orden { color: #9ca3af; font-size: 10px; letter-spacing: 0.1em; padding: 14px var(--space-3); }
 :global([data-tema='sobrio']) .orden:hover { background: transparent; color: #16181d; }
@@ -522,3 +522,9 @@
 :global([data-tema='sobrio']) .caja { max-height: none; overflow-x: auto; }
 :global([data-tema='sobrio']) .tabla th,
 :global([data-tema='sobrio']) .tabla tfoot td { position: static; }
+
+/* Estilo sobrio: la tabla queda dentro de un marco completo; la última fila no repite línea y el pie se integra al marco. */
+:global([data-tema='sobrio']) .tabla tbody tr:last-child td { border-bottom: 0; }
+:global([data-tema='sobrio']) .tabla tbody tr.finInforme:last-child td.grupo { border-bottom: 0; }
+:global([data-tema='sobrio']) .tabla th:last-child,
+:global([data-tema='sobrio']) .tabla td:last-child { padding-right: var(--space-4); }

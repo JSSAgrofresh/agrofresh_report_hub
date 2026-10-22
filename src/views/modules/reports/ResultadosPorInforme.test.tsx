@@ -89,19 +89,19 @@ describe('tabla por informe', () => {
     expect((screen.getByRole('button', { name: 'Descargar CSV' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('pagina: 30 informes en páginas de 25', () => {
+  it('pagina: 30 informes en páginas de 10 (lo predeterminado)', () => {
     const muchos: InformeVista[] = Array.from({ length: 30 }, (_, i) => ({
       nro: String(500000 + i),
       fecha: '2026-10-01',
       resultados: [sin(COLT), sin(ECOLI)],
     }))
     const { container } = render(<ResultadosPorInforme informes={muchos} laboratorio="als" conGraficos={false} />)
-    expect(container.querySelectorAll('tbody [class*="informe"]')).toHaveLength(25)
-    expect(screen.getByText('Mostrando 1–25 de 30 informes')).toBeTruthy()
+    expect(container.querySelectorAll('tbody [class*="informe"]')).toHaveLength(10)
+    expect(screen.getByText('Mostrando 1–10 de 30 informes')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente →' }))
-    expect(container.querySelectorAll('tbody [class*="informe"]')).toHaveLength(5)
-    expect(screen.getByText('Mostrando 26–30 de 30 informes')).toBeTruthy()
-    expect(screen.getByText('Página 2 de 2')).toBeTruthy()
+    expect(container.querySelectorAll('tbody [class*="informe"]')).toHaveLength(10)
+    expect(screen.getByText('Mostrando 11–20 de 30 informes')).toBeTruthy()
+    expect(screen.getByText('Página 2 de 3')).toBeTruthy()
   })
 
   it('«Descargar CSV» baja lo que se ve, ordenado y filtrado', () => {
