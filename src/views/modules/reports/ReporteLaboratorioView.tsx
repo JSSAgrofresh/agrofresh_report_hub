@@ -25,7 +25,6 @@ export function ReporteLaboratorioView() {
     return (
       <div>
         <PortalHero
-          etiqueta={config.nombre}
           titulo={`Hola, ${user.plantaNombre ?? soldTo}`}
           descripcion="Portal de cliente. Estos son los resultados de tus muestras, siempre al día."
           fondo={fondo.imagen}
@@ -40,9 +39,8 @@ export function ReporteLaboratorioView() {
     return (
       <div>
         <PortalHero
-          etiqueta={config.nombre}
           titulo={cliente ? `Hola, ${cliente}` : 'Hola, estas son tus plantas'}
-          descripcion={`Comercial · ${config.nombre}. Resultados de las plantas que tienes asignadas, solo lectura.`}
+          descripcion={`Comercial. Resultados de las plantas que tienes asignadas, solo lectura.`}
           fondo={fondo.imagen}
         />
         <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} />
@@ -55,7 +53,7 @@ export function ReporteLaboratorioView() {
     return (
       <div>
         <PortalHero
-          etiqueta={`Vista previa de cliente · ${config.nombre}`}
+          etiqueta="Vista previa de cliente"
           titulo={`Hola, ${cliente || 'todos los clientes'}`}
           descripcion="Así se ve el portal para un cliente. Con tu cuenta de administración aparecen los datos de todos los clientes y sucursales."
           fondo={fondo.imagen}

@@ -5,7 +5,7 @@ import agrofreshLogo from '@/assets/agrofresh-logo.png'
 import { useAuth } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
 import { cn } from '@/lib/cn'
-import { modulosPermitidos, puedeVerTomaMuestras } from '@/features/usuarios'
+import { modulosPermitidos, puedeVerTomaMuestras, vistaDeCliente } from '@/features/usuarios'
 import { ocultaPanelGeneral } from './inicio'
 import { PortalContext } from './PortalContext'
 import { MenuUsuario } from './MenuUsuario'
@@ -18,12 +18,25 @@ interface Enlace {
   fin?: boolean
 }
 
-/** Los mismos accesos que hoy trae la barra lateral para una cuenta de cliente o comercial, en una burbuja arriba. */
+/** Cómo se llaman, para un cliente, los accesos de siempre: el Report es su análisis de laboratorio y el Storage, sus informes. */
+const ETIQUETA_PORTAL: Record<string, string> = { reports: 'Análisis de Laboratorio', storage: 'Informes de Laboratorio' }
+
+/** Los mismos accesos que hoy trae la barra lateral para una cuenta de cliente o comercial, en una burbuja arriba.
+ * Primero Análisis de Laboratorio (Report), Informes de Laboratorio (Storage) y Reportes Accutab; después lo demás. */
 function enlacesDe(user: NonNullable<ReturnType<typeof useAuth>['user']>): Enlace[] {
-  const lista: Enlace[] = ocultaPanelGeneral(user) ? [] : [{ to: ROUTES.dashboard, etiqueta: 'Panel general', fin: true }]
-  for (const m of modulosPermitidos(user)) {
+  const accutab = vistaDeCliente(user).accutab
+  const disponibles = modulosPermitidos(user).filter((m) => m.estado === 'disponible')
+  const lista: Enlace[] = []
+  // Sin nada más adónde aterrizar, queda el Panel general; con informes Accu-Tab, su acceso lo reemplaza.
+  if (!ocultaPanelGeneral(user) && !accutab) lista.push({ to: ROUTES.dashboard, etiqueta: 'Panel general', fin: true })
+  for (const id of ['reports', 'storage']) {
+    const m = disponibles.find((x) => x.id === id)
     // El Report de un cliente abre directo en sus gráficos (su único reporte), sin pasar por el menú de reportes.
-    if (m.estado === 'disponible') lista.push({ to: m.id === 'reports' ? ROUTES.reportsLaboratorio : m.ruta, etiqueta: m.nombre })
+    if (m) lista.push({ to: id === 'reports' ? ROUTES.reportsLaboratorio : m.ruta, etiqueta: ETIQUETA_PORTAL[id] })
+  }
+  if (accutab) lista.push({ to: ROUTES.dashboard, etiqueta: 'Reportes Accutab', fin: true })
+  for (const m of disponibles) {
+    if (m.id !== 'reports' && m.id !== 'storage') lista.push({ to: m.ruta, etiqueta: m.nombre })
   }
   if (puedeVerTomaMuestras(user)) {
     lista.push({ to: ROUTES.tomaMuestras, etiqueta: 'Solicitudes e informes', fin: true })
@@ -53,8 +66,8 @@ function usePildora(contenedor: RefObject<HTMLDivElement | null>, pildora: RefOb
 
 /** Marco visual del portal de clientes y comerciales: fondo vivo, navbar de vidrio fija arriba y el contenido de siempre. */
 const ENLACES_VISTA_PREVIA: Enlace[] = [
-  { to: ROUTES.vistaClienteReport, etiqueta: 'Report' },
-  { to: ROUTES.vistaClienteStorage, etiqueta: 'Storage' },
+  { to: ROUTES.vistaClienteReport, etiqueta: 'Análisis de Laboratorio' },
+  { to: ROUTES.vistaClienteStorage, etiqueta: 'Informes de Laboratorio' },
 ]
 
 export function PortalShell({
