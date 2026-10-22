@@ -1,4 +1,4 @@
-import type { InformeVista, ResultadoVista } from './lineaTiempoInformes'
+import { colorDeAnalito, type InformeVista, type ResultadoVista } from './lineaTiempoInformes'
 
 /**
  * Los gráficos de torta de FSMA (ALS) y fitopatología (Diagnofruit): qué parte de los informes está bien y cuál mal.
@@ -38,6 +38,24 @@ export interface DonaAnalito {
 export const TEXTO_BIEN_PRESENCIA = 'No detectado'
 export const TEXTO_MAL_PRESENCIA = 'Detectado'
 
+/** Mezcla un color `#rrggbb` con negro: `factor` 0 = el mismo, 1 = negro. */
+export function oscurecer(hex: string, factor: number): string {
+  const n = parseInt(hex.slice(1), 16)
+  const canal = (desplazamiento: number) => Math.round(((n >> desplazamiento) & 255) * (1 - factor))
+  return `#${[16, 8, 0].map((d) => canal(d).toString(16).padStart(2, '0')).join('')}`
+}
+
+/** Los colores de las tajadas cuando la torta toma el color de SU analito (fitopatología): lo bueno es el color del analito y lo peor, ese color oscurecido. */
+function coloresDelAnalito(orden: number) {
+  const base = colorDeAnalito(orden).fill
+  return { bien: base, atencion: oscurecer(base, 0.3), mal: oscurecer(base, 0.62) }
+}
+
+export interface OpcionesTorta {
+  /** Cada torta usa el color de su analito en vez de verde / amarillo / rojo. */
+  colorDelAnalito?: boolean
+}
+
 const porcentaje = (parte: number, total: number): number | null => (total > 0 ? Math.round((parte / total) * 100) : null)
 
 /** Agrupa los resultados por analito (por nombre: «Escherichia coli» de agua y de alimento es el mismo analito). */
@@ -54,20 +72,22 @@ function agrupar(informes: InformeVista[]): Map<string, ResultadoVista[]> {
 }
 
 /** Una torta por analito: cuántos informes lo detectaron (malo) y cuántos no (bueno). */
-export function presenciaPorAnalito(informes: InformeVista[]): DonaAnalito[] {
+export function presenciaPorAnalito(informes: InformeVista[], opciones: OpcionesTorta = {}): DonaAnalito[] {
   return [...agrupar(informes).entries()]
     .map(([nombre, rs]): DonaAnalito => {
       const detectados = rs.filter((r) => r.detectado).length
       const limpios = rs.length - detectados
+      const orden = Math.min(...rs.map((r) => r.orden))
+      const c = opciones.colorDelAnalito ? coloresDelAnalito(orden) : { bien: COLOR_BIEN, atencion: COLOR_ATENCION, mal: COLOR_MAL }
       return {
         codigo: rs[0].codigo,
         nombre,
         unidad: rs[0].unidad,
-        orden: Math.min(...rs.map((r) => r.orden)),
+        orden,
         total: rs.length,
         tajadas: [
-          { clave: 'bien', texto: TEXTO_BIEN_PRESENCIA, cantidad: limpios, color: COLOR_BIEN },
-          { clave: 'mal', texto: TEXTO_MAL_PRESENCIA, cantidad: detectados, color: COLOR_MAL },
+          { clave: 'bien', texto: TEXTO_BIEN_PRESENCIA, cantidad: limpios, color: c.bien },
+          { clave: 'mal', texto: TEXTO_MAL_PRESENCIA, cantidad: detectados, color: c.mal },
         ],
         porcentajeBien: porcentaje(limpios, rs.length),
       }
@@ -116,23 +136,25 @@ export function nivelDe(r: ResultadoVista): Nivel | null {
 }
 
 /** Una torta por hongo con tabla de límites: cuántos informes caen en Óptimo, Moderado y Peligroso. */
-export function nivelesPorAnalito(informes: InformeVista[]): DonaAnalito[] {
+export function nivelesPorAnalito(informes: InformeVista[], opciones: OpcionesTorta = {}): DonaAnalito[] {
   return [...agrupar(informes).entries()]
     .filter(([, rs]) => LIMITES_NIVEL[rs[0].codigo.trim().toUpperCase()])
     .map(([nombre, rs]): DonaAnalito => {
       const niveles = rs.map((r) => nivelDe(r) as Nivel)
       const cuenta = (n: Nivel) => niveles.filter((x) => x === n).length
+      const orden = Math.min(...rs.map((r) => r.orden))
+      const c = opciones.colorDelAnalito ? coloresDelAnalito(orden) : { bien: COLOR_BIEN, atencion: COLOR_ATENCION, mal: COLOR_MAL }
       const tajadas: Tajada[] = [
-        { clave: 'bien', texto: TEXTO_NIVEL.optimo, cantidad: cuenta('optimo'), color: COLOR_BIEN },
-        { clave: 'atencion', texto: TEXTO_NIVEL.moderado, cantidad: cuenta('moderado'), color: COLOR_ATENCION },
-        { clave: 'mal', texto: TEXTO_NIVEL.peligroso, cantidad: cuenta('peligroso'), color: COLOR_MAL },
+        { clave: 'bien', texto: TEXTO_NIVEL.optimo, cantidad: cuenta('optimo'), color: c.bien },
+        { clave: 'atencion', texto: TEXTO_NIVEL.moderado, cantidad: cuenta('moderado'), color: c.atencion },
+        { clave: 'mal', texto: TEXTO_NIVEL.peligroso, cantidad: cuenta('peligroso'), color: c.mal },
       ]
       if (cuenta('incierto') > 0) tajadas.push({ clave: 'neutro', texto: TEXTO_NIVEL.incierto, cantidad: cuenta('incierto'), color: COLOR_NEUTRO })
       return {
         codigo: rs[0].codigo,
         nombre,
         unidad: rs[0].unidad,
-        orden: Math.min(...rs.map((r) => r.orden)),
+        orden,
         total: rs.length,
         tajadas,
         porcentajeBien: porcentaje(cuenta('optimo'), rs.length),
