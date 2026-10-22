@@ -19,6 +19,7 @@ import {
   type EstadoFiltro,
   type FiltroBloque,
 } from '@/features/reportes/lib/estadoPatogenos'
+import { esPaletaSobria } from '@/lib/paleta'
 import { DonasEstado } from './DonasEstado'
 import { Kpi } from './Kpi'
 import { ResultadosPorInforme } from './ResultadosPorInforme'
@@ -195,9 +196,14 @@ export function SeccionInformes({ bloque, numero, informes: informesDelReporte, 
           <ResultadosPorInforme informes={informes} laboratorio={lab} conGraficos={conGraficos} />
           <DonasEstado
             titulo="Presencia y ausencia"
-            ayuda="Cuánto de lo analizado está bien. Detectado es malo; no detectado es bueno. El número del centro es el porcentaje no detectado."
+            ayuda={
+              esPaletaSobria()
+                ? 'Cuánto de lo analizado está bien. Azul: no detectado (ausencia). Rojo: detectado (presencia). Cada burbuja es el porcentaje de informes.'
+                : 'Cuánto de lo analizado está bien. Detectado es malo; no detectado es bueno. El número del centro es el porcentaje no detectado.'
+            }
             centro="no detectado"
             donas={tortasPresencia}
+            burbujas={esPaletaSobria()}
           />
           {tortasNivel.length > 0 && (
             <DonasEstado

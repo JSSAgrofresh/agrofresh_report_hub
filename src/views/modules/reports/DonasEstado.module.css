@@ -128,3 +128,7 @@
     gap: 5px;
   }
 }
+
+/* Burbujas con el porcentaje de cada trozo, sobre el anillo. */
+.burbuja circle { fill: #fff; filter: drop-shadow(0 0.6px 1.1px rgba(16, 24, 40, 0.28)); }
+.burbuja text { font-size: 3.3px; font-weight: 800; fill: #16181d; }

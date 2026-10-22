@@ -14,6 +14,7 @@ import {
 import type { ModeloLinea } from '@/features/reportes/lib/lineaTiempoInformes'
 import { InfoTip } from '@/components/ui/InfoTip'
 import { Button } from '@/components/ui/Button'
+import { esPaletaSobria } from '@/lib/paleta'
 import { useAnchoMaximo } from '@/hooks/useAnchoMaximo'
 import styles from './TablaInformes.module.css'
 
@@ -50,6 +51,8 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
   const [tamano, setTamano] = useState<number>(25)
   // En un teléfono la tabla no cabe: cada informe pasa a ser una tarjeta.
   const angosto = useAnchoMaximo(640)
+  // En el estilo sobrio, la tabla de fitopatología no lleva el punto de color de cada analito.
+  const sinPuntos = esPaletaSobria() && /diagnofruit/i.test(archivo)
 
   const conDetalle = modelo.informes.some((i) => i.detalle)
   const filtrados = useMemo(() => filtrarInformes(modelo.informes, texto), [modelo.informes, texto])
@@ -168,7 +171,7 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
                     return (
                       <li key={a.codigo}>
                         <span className={styles.nombreAnalito}>
-                          <i className={styles.punto} style={{ background: a.color.fill }} />
+                          {!sinPuntos && <i className={styles.punto} style={{ background: a.color.fill }} />}
                           {a.nombre}
                         </span>
                         <span className={styles.valorTarjeta}>
@@ -241,7 +244,7 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
                     <td>
                       {a ? (
                         <span className={styles.nombreAnalito}>
-                          <i className={styles.punto} style={{ background: a.color.fill }} />
+                          {!sinPuntos && <i className={styles.punto} style={{ background: a.color.fill }} />}
                           {a.nombre}
                         </span>
                       ) : (
@@ -283,7 +286,7 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
           <b>Informes con el analito detectado</b>
           {modelo.analitos.map((a, k) => (
             <span key={a.codigo}>
-              <i className={styles.punto} style={{ background: a.color.fill }} />
+              {!sinPuntos && <i className={styles.punto} style={{ background: a.color.fill }} />}
               {a.nombre} <b>{resumen[k].detectados}</b> de {resumen[k].total}
             </span>
           ))}
