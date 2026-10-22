@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import agrofreshLogo from '@/assets/agrofresh-logo.png'
@@ -10,6 +10,7 @@ import { ocultaPanelGeneral } from './inicio'
 import { PortalContext } from './PortalContext'
 import { MenuUsuario } from './MenuUsuario'
 import { IconLogout } from '@/components/ui/icons'
+import { setPaletaActiva } from '@/lib/paleta'
 import { guardarTema, temaGuardado, TEMAS_PORTAL, useTemaPredeterminado } from './tema'
 import type { TemaPortal } from './tema'
 import styles from './PortalShell.module.css'
@@ -103,6 +104,8 @@ export function PortalShell({
     return () => window.removeEventListener('scroll', alScroll)
   }, [])
 
+  // Los gráficos leen la paleta al dibujarse: se fija antes que sus hijos y, al cambiar de estilo, el contenido se remonta.
+  setPaletaActiva(tema)
   usePildora(items, pildora, `${pathname}|${tema}`)
 
   if (!user) return null
@@ -174,7 +177,7 @@ export function PortalShell({
       </nav>
 
       <main className={styles.contenido} ref={contenido as RefObject<HTMLElement>}>
-        {children}
+        <Fragment key={tema}>{children}</Fragment>
       </main>
     </div>
     </PortalContext.Provider>

@@ -286,15 +286,37 @@
   }
 }
 
-/* Estilo sobrio: cabecera blanca con un filo de acento a la izquierda. */
+/* Estilo sobrio: la cabecera es solo texto sobre una línea fina; los laboratorios, botones de contorno. */
 :global([data-tema='sobrio']) .cabecera {
-  border-radius: 16px;
-  padding: 12px 18px;
-  background: #fff;
-  box-shadow: 0 2px 12px rgba(16, 24, 40, 0.06);
-  border-color: #e8eaee;
+  border: 0;
+  border-bottom: 1px solid #e3e6eb;
+  border-radius: 0;
+  padding: 22px 0 14px;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
 }
-:global([data-tema='sobrio']) .cabecera::before { width: 4px; }
-:global([data-tema='sobrio']) .titulo h2 { font-size: clamp(1.15rem, 1rem + 0.7vw, 1.4rem); font-weight: 700; }
-:global([data-tema='sobrio']) .cabecera:has(.numero) { padding-left: 50px; }
-:global([data-tema='sobrio']) .numero { top: 10px; left: 14px; }
+:global([data-tema='sobrio']) .cabecera::before { display: none; }
+:global([data-tema='sobrio']) .titulo h2 { font-size: clamp(1.2rem, 1rem + 0.6vw, 1.5rem); font-weight: 600; letter-spacing: -0.015em; }
+:global([data-tema='sobrio']) .titulo span { font-size: 13px; color: #9ca3af; }
+:global([data-tema='sobrio']) .cabecera:has(.numero) { padding-left: 42px; }
+:global([data-tema='sobrio']) .numero {
+  top: 24px;
+  left: 0;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: 1px solid #16181d;
+  color: #16181d;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none;
+}
+:global([data-tema='sobrio']) .etiquetaBotones { color: #9ca3af; letter-spacing: 0.1em; }
+:global([data-tema='sobrio']) .boton,
+:global([data-tema='sobrio']) .laboratorio { height: 30px; border-color: #e0e3e8; background: transparent; color: #6b7280; font-weight: 500; font-size: 12.5px; border-radius: 8px; }
+:global([data-tema='sobrio']) .boton:hover { border-color: #16181d; color: #16181d; }
+:global([data-tema='sobrio']) .encendido { border-color: #16181d; background: #16181d; color: #fff; }
+:global([data-tema='sobrio']) .encendido .punto { background: #fff; }
+:global([data-tema='sobrio']) .laboratorio { border-color: #16181d; background: transparent; color: #16181d; }
+:global([data-tema='sobrio']) .gris { background: transparent; }

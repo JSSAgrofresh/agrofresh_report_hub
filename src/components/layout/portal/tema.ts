@@ -33,14 +33,37 @@ export function guardarTema(t: TemaPortal) {
   }
 }
 
+const CLAVE_PRED = 'agrofresh.temaPredeterminado'
+
+function predeterminadoGuardado(): TemaPortal | null {
+  try {
+    const v = localStorage.getItem(CLAVE_PRED)
+    return esTema(v) ? v : null
+  } catch {
+    return null
+  }
+}
+
+function guardarPredeterminado(t: TemaPortal) {
+  try {
+    localStorage.setItem(CLAVE_PRED, t)
+  } catch {
+    /* sin almacenamiento */
+  }
+}
+
 /** El estilo que el servidor tiene como predeterminado para los clientes (`basico` mientras no responda). */
 export function useTemaPredeterminado(): TemaPortal {
-  const [tema, setTema] = useState<TemaPortal>('basico')
+  // Parte con el último valor conocido para no repintar el contenido (remonta al cambiar de estilo) en cada visita.
+  const [tema, setTema] = useState<TemaPortal>(() => predeterminadoGuardado() ?? 'basico')
   useEffect(() => {
     let cancelado = false
     obtenerVistaReport()
       .then((v) => {
-        if (!cancelado && esTema(v.tema_cliente)) setTema(v.tema_cliente)
+        if (!cancelado && esTema(v.tema_cliente)) {
+          setTema(v.tema_cliente)
+          guardarPredeterminado(v.tema_cliente)
+        }
       })
       .catch(() => {})
     return () => {

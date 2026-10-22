@@ -1,3 +1,4 @@
+import { SEMAFORO_SOBRIO, esPaletaSobria } from '@/lib/paleta'
 import { colorDeAnalito, type InformeVista, type ResultadoVista } from './lineaTiempoInformes'
 
 /**
@@ -12,6 +13,13 @@ export const COLOR_BIEN = '#6dad3c'
 export const COLOR_ATENCION = '#e8c32e'
 export const COLOR_MAL = '#b0271f'
 export const COLOR_NEUTRO = '#9aa39a'
+
+/** Los colores de lo bueno, lo dudoso y lo malo según el estilo activo. */
+function semaforo() {
+  return esPaletaSobria()
+    ? SEMAFORO_SOBRIO
+    : { bien: COLOR_BIEN, atencion: COLOR_ATENCION, mal: COLOR_MAL, neutro: COLOR_NEUTRO }
+}
 
 export type ClaveTajada = 'bien' | 'atencion' | 'mal' | 'neutro'
 
@@ -78,7 +86,7 @@ export function presenciaPorAnalito(informes: InformeVista[], opciones: Opciones
       const detectados = rs.filter((r) => r.detectado).length
       const limpios = rs.length - detectados
       const orden = Math.min(...rs.map((r) => r.orden))
-      const c = opciones.colorDelAnalito ? coloresDelAnalito(orden) : { bien: COLOR_BIEN, atencion: COLOR_ATENCION, mal: COLOR_MAL }
+      const c = opciones.colorDelAnalito ? coloresDelAnalito(orden) : semaforo()
       return {
         codigo: rs[0].codigo,
         nombre,
@@ -143,13 +151,13 @@ export function nivelesPorAnalito(informes: InformeVista[], opciones: OpcionesTo
       const niveles = rs.map((r) => nivelDe(r) as Nivel)
       const cuenta = (n: Nivel) => niveles.filter((x) => x === n).length
       const orden = Math.min(...rs.map((r) => r.orden))
-      const c = opciones.colorDelAnalito ? coloresDelAnalito(orden) : { bien: COLOR_BIEN, atencion: COLOR_ATENCION, mal: COLOR_MAL }
+      const c = opciones.colorDelAnalito ? coloresDelAnalito(orden) : semaforo()
       const tajadas: Tajada[] = [
         { clave: 'bien', texto: TEXTO_NIVEL.optimo, cantidad: cuenta('optimo'), color: c.bien },
         { clave: 'atencion', texto: TEXTO_NIVEL.moderado, cantidad: cuenta('moderado'), color: c.atencion },
         { clave: 'mal', texto: TEXTO_NIVEL.peligroso, cantidad: cuenta('peligroso'), color: c.mal },
       ]
-      if (cuenta('incierto') > 0) tajadas.push({ clave: 'neutro', texto: TEXTO_NIVEL.incierto, cantidad: cuenta('incierto'), color: COLOR_NEUTRO })
+      if (cuenta('incierto') > 0) tajadas.push({ clave: 'neutro', texto: TEXTO_NIVEL.incierto, cantidad: cuenta('incierto'), color: semaforo().neutro })
       return {
         codigo: rs[0].codigo,
         nombre,

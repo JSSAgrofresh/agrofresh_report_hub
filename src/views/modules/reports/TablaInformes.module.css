@@ -487,9 +487,26 @@
   color: var(--color-text-faint);
 }
 
-/* Estilo sobrio */
-:global([data-tema='sobrio']) .caja { border-radius: 10px; border-color: #e8eaee; }
+/* Estilo sobrio: sin cajas ni fondos; solo líneas finas, encabezado en gris pequeño y estados como un punto con texto. */
+:global([data-tema='sobrio']) .caja { border: 0; border-top: 1px solid #e3e6eb; border-radius: 0; }
+:global([data-tema='sobrio']) .tabla th { background: #fff; border-bottom: 1px solid #e3e6eb; }
+:global([data-tema='sobrio']) .orden { color: #9ca3af; font-size: 10px; letter-spacing: 0.1em; padding: 14px var(--space-3); }
+:global([data-tema='sobrio']) .orden:hover { background: transparent; color: #16181d; }
+:global([data-tema='sobrio']) .tabla td { border-top: 1px solid #f0f1f4; padding: 12px var(--space-3); }
+:global([data-tema='sobrio']) .tabla tbody tr:hover td { background: #fafbfc; }
+:global([data-tema='sobrio']) .tabla tbody td.grupo { background: #fff; border-right: 0; }
+:global([data-tema='sobrio']) .tabla tbody tr:hover td.grupo { background: #fff; }
+:global([data-tema='sobrio']) .tabla tfoot td { background: #fff; border-top: 1px solid #e3e6eb; }
+:global([data-tema='sobrio']) .fecha { font-weight: 500; }
+:global([data-tema='sobrio']) .informe { background: transparent; color: #16181d; padding: 0; border-radius: 0; font-weight: 500; }
+:global([data-tema='sobrio']) .estadoSi,
+:global([data-tema='sobrio']) .estadoNo { border: 0; background: transparent; padding: 0; font-weight: 500; font-size: 12.5px; }
+:global([data-tema='sobrio']) .estadoSi { color: #b0594c; }
+:global([data-tema='sobrio']) .estadoNo { color: #3f6b52; }
+:global([data-tema='sobrio']) .estadoSi::before,
+:global([data-tema='sobrio']) .estadoNo::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: currentColor; vertical-align: middle; }
+:global([data-tema='sobrio']) .chipNo { background: transparent; color: #9ca3af; padding: 0; }
+:global([data-tema='sobrio']) .chipSi { border-color: #e0e3e8; background: transparent; font-weight: 600; }
 :global([data-tema='sobrio']) .buscador input,
-:global([data-tema='sobrio']) .control select { height: 36px; border-radius: 8px; border-color: #d7dae0; }
-:global([data-tema='sobrio']) .paginas button { border-radius: 8px; height: 32px; border-color: #d7dae0; }
-:global([data-tema='sobrio']) .informe { border-radius: 6px; }
+:global([data-tema='sobrio']) .control select { height: 36px; border-radius: 10px; border-color: #eceef2; background-color: #f7f8fa; }
+:global([data-tema='sobrio']) .paginas button { border-radius: 8px; height: 32px; border-color: #e0e3e8; }

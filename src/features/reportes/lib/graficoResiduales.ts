@@ -1,4 +1,5 @@
 import type { FiltrosReporte } from './filtros'
+import { esPaletaSobria } from '@/lib/paleta'
 import { nombreLaboratorio } from './bloquesAnalisis'
 import type { Observacion } from './tipos'
 
@@ -60,8 +61,10 @@ export function informesConPuntos(obs: Observacion[]): InformeConPuntos[] {
  * Pasada la última, esa especie va a «Otras» en gris. */
 const PALETA_ESPECIES = ['#4f8a26', '#e8c32e', '#6dad3c', '#c9a227', '#a3cf62', '#f2dc7a', '#2f6b1f']
 
+const PALETA_ESPECIES_SOBRIA = ['#3f6b52', '#8aa4b8', '#c9a66b', '#b97a6e', '#7f8f86', '#5b7c99', '#1f2937']
+
 export function colorEspecieMarca(posicion: number): string | null {
-  return PALETA_ESPECIES[posicion] ?? null
+  return (esPaletaSobria() ? PALETA_ESPECIES_SOBRIA : PALETA_ESPECIES)[posicion] ?? null
 }
 
 /** Laboratorio de un informe (nombre completo); un informe es de un solo laboratorio, así que basta su primer punto. */
