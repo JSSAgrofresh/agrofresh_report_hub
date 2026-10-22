@@ -34,6 +34,7 @@ import { UsuariosView } from '@/views/admin/UsuariosView'
 import { ListadosView } from '@/views/admin/ListadosView'
 import { LaboratoriosView } from '@/views/admin/laboratorios/LaboratoriosView'
 import { NotificacionesView } from '@/views/admin/NotificacionesView'
+import { MonitoreoView } from '@/views/monitoreo/MonitoreoView'
 import { NotFoundView } from '@/views/not-found/NotFoundView'
 
 export const router = createBrowserRouter([
@@ -41,6 +42,11 @@ export const router = createBrowserRouter([
   {
     element: <RequireAuth />,
     children: [
+      {
+        // Monitoreo: pantalla de bolsillo (teléfono en vertical) del administrador principal; la vista misma revisa que lo sea.
+        element: <RequireAdminGeneral />,
+        children: [{ path: ROUTES.monitoreo, element: <MonitoreoView /> }],
+      },
       {
         // El administrador general puede mirar el portal de clientes con su propia cuenta (vista previa).
         element: <RequireAdminGeneral />,

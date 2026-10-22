@@ -34,6 +34,7 @@ import {
   IconUsers,
 } from '@/components/ui/icons'
 import { BandejaNotificaciones, ToastNotificacion, useNotificaciones } from '@/features/notificaciones'
+import { CORREO_MAESTRO } from '@/features/usuarios'
 import styles from './Sidebar.module.css'
 
 /** Plegada, la barra deja solo los iconos. La elección se recuerda: quien
@@ -416,6 +417,19 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                 </svg>
                 <span className={styles.etiqueta}>Notificaciones</span>
               </NavLink>
+              {user?.email.toLowerCase() === CORREO_MAESTRO && (
+                <NavLink
+                  to={ROUTES.monitoreo}
+                  title="Monitoreo"
+                  onClick={onCerrar}
+                  className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+                >
+                  <svg className={styles.navIcono} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 10h3.5l2-5.5 3.5 11 2.5-8 1 2.5H18" />
+                  </svg>
+                  <span className={styles.etiqueta}>Monitoreo</span>
+                </NavLink>
+              )}
               <NavLink
                 to={ROUTES.vistaCliente}
                 title="Vista de cliente"
