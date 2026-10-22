@@ -81,6 +81,7 @@ import {
   listarLimites,
   mismoValor,
   obtenerDatosReporte,
+  obtenerVistaReport,
   opcionesDe,
   ingredienteAplica,
   pedidoBd,
@@ -273,9 +274,20 @@ export function ReporteView({
   // nunca pueden mezclarse con los reales-.
   const [simulacion, setSimulacion] = useState<DatosSimulados | null>(null)
   const cambiarCropRef = useRef<(v: string) => void>(() => {})
-  // Los gráficos de línea de tiempo y de evolución de FSMA y fitopatología se ven SIEMPRE, junto a las tortas de estado
-  // (22-10-2026, pedido del usuario: las tortas se agregan, no reemplazan). El interruptor de Funciones ya no los apaga.
-  const graficosInformes = true
+  // ¿Se muestran los gráficos de ALS y Diagnofruit? Lo enciende el administrador principal en Administración General →
+  // Funciones; hasta que se sepa (o si falla la lectura), apagados: queda solo la tabla.
+  const [graficosInformes, setGraficosInformes] = useState(false)
+  useEffect(() => {
+    let cancelado = false
+    obtenerVistaReport()
+      .then((v) => {
+        if (!cancelado) setGraficosInformes(v.graficos_informes === true)
+      })
+      .catch(() => {})
+    return () => {
+      cancelado = true
+    }
+  }, [])
 
   const obtenerTodo = useCallback(async () => {
     const [datos, catalogo, limitesCatalogo] = await Promise.all([
