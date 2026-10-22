@@ -5,12 +5,7 @@
   color: var(--color-text);
 }
 
-.ayuda {
-  margin: 4px 0 var(--space-4);
-  font-size: 13px;
-  color: var(--color-text-muted);
-  max-width: 70ch;
-}
+.titulo { margin-bottom: var(--space-4); }
 
 /* Cada torta tiene su tarjeta: se reparten el ancho y bajan de a una en pantallas chicas. */
 .rejilla {

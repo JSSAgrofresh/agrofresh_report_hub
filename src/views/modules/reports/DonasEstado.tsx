@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Card } from '@/components/ui/Card'
 import type { DonaAnalito } from '@/features/reportes/lib/estadoPatogenos'
+import { InfoTip } from '@/components/ui/InfoTip'
 import styles from './DonasEstado.module.css'
 
 const R = 15.9155 // circunferencia = 100: cada punto del trazo es un 1 %
@@ -61,8 +62,10 @@ export function DonasEstado({ titulo, ayuda, donas, pie, centro }: Props) {
   if (donas.length === 0) return null
   return (
     <Card>
-      <h3 className={styles.titulo}>{titulo}</h3>
-      <p className={styles.ayuda}>{ayuda}</p>
+      <h3 className={styles.titulo}>
+        {titulo}
+        <InfoTip>{ayuda}</InfoTip>
+      </h3>
       <div className={styles.rejilla}>
         {donas.map((d) => (
           <figure key={d.nombre} className={styles.dona}>

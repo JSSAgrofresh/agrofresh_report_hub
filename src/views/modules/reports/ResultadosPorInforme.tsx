@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Card } from '@/components/ui/Card'
+import { InfoTip } from '@/components/ui/InfoTip'
 import { IconFrasco } from '@/components/ui/icons'
 import {
   HUECO_CORTE,
@@ -56,8 +57,8 @@ function Titulo({ children, sub }: { children: string; sub: string }) {
       <h3 className={styles.titulo}>
         <IconFrasco className={styles.icono} />
         {children}
+        <InfoTip>{sub}</InfoTip>
       </h3>
-      <p className={styles.sub}>{sub}</p>
     </>
   )
 }
