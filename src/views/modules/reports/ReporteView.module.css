@@ -775,6 +775,14 @@
   grid-template-columns: minmax(180px, 1fr) minmax(0, 3fr) minmax(180px, 1fr);
 }
 
+/* Teléfono: los indicadores bajan uno bajo otro (la regla de 1100 px de arriba la pisaba esta, declarada después). */
+@media (max-width: 760px) {
+  .statsResiduales,
+  .statsResiduales.conLimites {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .promedios {
   list-style: none;
   margin: 4px 0 0;

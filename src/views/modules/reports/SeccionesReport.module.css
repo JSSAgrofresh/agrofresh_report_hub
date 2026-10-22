@@ -320,3 +320,20 @@
 :global([data-tema='sobrio']) .encendido .punto { background: #fff; }
 :global([data-tema='sobrio']) .laboratorio { border-color: #16181d; background: transparent; color: #16181d; }
 :global([data-tema='sobrio']) .gris { background: transparent; }
+
+/* Teléfono: la cabecera de cada bloque va compacta, sin la barra lateral que el borde redondeado cortaba. */
+@media (max-width: 640px) {
+  :global([data-portal]) .cabecera {
+    padding: 14px 16px 14px 52px;
+    border-radius: 18px;
+    gap: 10px;
+  }
+  :global([data-portal]) .cabecera::before { display: none; }
+  :global([data-portal]) .titulo h2 { font-size: 1.25rem; }
+  :global([data-portal]) .titulo span { font-size: 12.5px; }
+  :global([data-portal]) .numero { top: 14px; left: 14px; }
+  :global([data-portal]) .botones { gap: 6px; width: 100%; }
+  :global([data-portal]) .boton,
+  :global([data-portal]) .laboratorio { height: 30px; padding: 0 11px; font-size: 12px; }
+  :global([data-portal]) .etiquetaBotones { display: none; }
+}
