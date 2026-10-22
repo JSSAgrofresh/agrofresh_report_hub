@@ -58,6 +58,17 @@ describe('Report por bloques de análisis', () => {
     await waitFor(() => expect(titulosDeSeccion()).toEqual(['Análisis de residuos', 'Análisis FSMA', 'Análisis de fitopatología']))
   })
 
+  it('cada bloque lleva su número correlativo en un círculo, solo cuando se ven varios', async () => {
+    render(<ReporteView />)
+    await screen.findByRole('heading', { level: 2, name: 'Análisis FSMA' })
+    expect(screen.getByLabelText('Análisis 1').textContent).toBe('1')
+    expect(screen.getByLabelText('Análisis 2').textContent).toBe('2')
+    expect(screen.getByLabelText('Análisis 3').textContent).toBe('3')
+    fireEvent.change(screen.getByLabelText('Laboratorio'), { target: { value: 'Agrofresh' } })
+    await waitFor(() => expect(titulosDeSeccion()).toEqual(['Análisis de residuos']))
+    expect(screen.queryByLabelText('Análisis 1')).toBeNull()
+  })
+
   it('cada bloque lleva su laboratorio con el nombre completo', async () => {
     render(<ReporteView />)
     await screen.findByRole('heading', { level: 2, name: 'Análisis FSMA' })

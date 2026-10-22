@@ -2,7 +2,8 @@ import { useState } from 'react'
 import styles from './PortalHero.module.css'
 
 interface PortalHeroProps {
-  etiqueta: string
+  /** Rótulo chico sobre el título; sin él, no se dibuja. */
+  etiqueta?: string
   titulo: string
   descripcion: string
   /** Foto de la especie (Report): queda de fondo, bajo un velo verde de la marca para que combine con el entorno. */
@@ -27,10 +28,12 @@ export function PortalHero({ etiqueta, titulo, descripcion, fondo }: PortalHeroP
       {fondo && <div className={styles.velo} aria-hidden="true" />}
       <span className={styles.brillo} aria-hidden="true" />
       <div className={styles.texto}>
-        <span className={styles.etiqueta}>
-          <span className={styles.vivo} aria-hidden="true" />
-          {etiqueta}
-        </span>
+        {etiqueta && (
+          <span className={styles.etiqueta}>
+            <span className={styles.vivo} aria-hidden="true" />
+            {etiqueta}
+          </span>
+        )}
         <h1 className={styles.titulo}>{titulo}</h1>
         <p className={styles.descripcion}>{descripcion}</p>
       </div>

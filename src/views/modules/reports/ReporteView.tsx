@@ -454,6 +454,11 @@ export function ReporteView({
   // sigue siendo un solo gráfico de residuos, y ahí ALS y Diagnofruit solo se ven eligiéndolos (tabla).
   const modoBloques = !vistaControl && !limitesTabla
   const bloques = bloquesVisibles(filtros.laboratorio)
+  // Cada bloque lleva su número correlativo (1, 2, 3 hacia abajo) en la esquina de su cabecera.
+  const numeroDeBloque = (b: 'residuales' | 'fsma' | 'fito') => {
+    const visibles = (['residuales', 'fsma', 'fito'] as const).filter((x) => bloques[x])
+    return visibles.length > 1 ? visibles.indexOf(b) + 1 : undefined
+  }
   // Los botones «Laboratorio AgroFresh / Laboratorio Quiteca» del bloque de residuos.
   const [botonResidual, setBotonResidual] = useState<LabResidual | ''>('')
   const botonesResidual = estadoBotonesResidual(filtros.laboratorio, botonResidual)
@@ -1165,7 +1170,8 @@ export function ReporteView({
   // saca las columnas internas), nunca sobre datos simulados.
   const esCuentaCliente = Boolean(clienteFijo) || user.tipoAcceso === 'cliente' || user.tipoAcceso === 'comercial'
   const puedeBajarBd = !simulando
-  // Lo demás de la BD (ficha completa del informe, con PDF y datos internos) sigue siendo solo del personal.
+  // Los gráficos por analito de la ficha del informe (vista de límites) siguen siendo solo del personal; el cliente abre
+  // la misma ficha, con su PDF, pero sin límites ni datos internos (el servidor ya se los quita).
   const puedeDescargarBd = !esCuentaCliente && !simulando
 
   async function bajarBd(acotada: boolean) {
@@ -1555,7 +1561,7 @@ export function ReporteView({
           ) : (
             <>
               {modoBloques && bloques.residuales && (
-                <CabeceraSeccion bloque="residuales" acento={acento} laboratorios={`${nombreLaboratorio('agrofresh')} · ${nombreLaboratorio('quiteca')}`}>
+                <CabeceraSeccion bloque="residuales" numero={numeroDeBloque('residuales')} acento={acento} laboratorios={`${nombreLaboratorio('agrofresh')} · ${nombreLaboratorio('quiteca')}`}>
                   <BotonesLabResidual
                     efectivo={botonesResidual.efectivo}
                     fijadoPorFiltro={botonesResidual.fijadoPorFiltro}
@@ -1692,7 +1698,7 @@ export function ReporteView({
               <div className={styles.grid2Iguales}>
                 <Card className={styles.panel}>
                   <h3>
-                    Informes por especie
+                    Porcentaje de informes por especie
                     <span className={styles.hintClic}>clic para filtrar</span>
                   </h3>
                   {porEspecie.length === 0 ? (
@@ -1700,7 +1706,7 @@ export function ReporteView({
                   ) : (
                     <div className={styles.especieCaja}>
                       <div className={styles.donutChica}>
-                        <canvas ref={especieRef} aria-label="Informes por especie" role="img" />
+                        <canvas ref={especieRef} aria-label="Porcentaje de informes por especie" role="img" />
                         <div className={styles.donutCentro}>
                           <b>{porEspecie.filter((e) => !e.otras).length}</b>
                           <span>especie{porEspecie.filter((e) => !e.otras).length === 1 ? '' : 's'}</span>
@@ -1743,10 +1749,10 @@ export function ReporteView({
                 </>
               )}
               {modoBloques && bloques.fsma && (
-                <SeccionInformes bloque="fsma" informes={informesAls} totalSinFiltros={informesSinFiltros.als} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
+                <SeccionInformes bloque="fsma" numero={numeroDeBloque('fsma')} informes={informesAls} totalSinFiltros={informesSinFiltros.als} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
               )}
               {modoBloques && bloques.fito && (
-                <SeccionInformes bloque="fito" informes={informesFito} totalSinFiltros={informesSinFiltros.diagnofruit} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
+                <SeccionInformes bloque="fito" numero={numeroDeBloque('fito')} informes={informesFito} totalSinFiltros={informesSinFiltros.diagnofruit} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
               )}
             </>
           )}
@@ -1762,7 +1768,16 @@ export function ReporteView({
           titulo={detalle.titulo}
           filas={detalle.filas}
           onCerrar={() => setDetalle(null)}
-          fichaCompleta={puedeDescargarBd ? { analitos: analitosVista, limites: limitesVista, graficos: graficosDelDetalle() } : undefined}
+          fichaCompleta={
+            simulando
+              ? undefined
+              : {
+                  analitos: analitosVista,
+                  limites: limitesVista,
+                  graficos: puedeDescargarBd ? graficosDelDetalle() : undefined,
+                  sinLimites: esCuentaCliente,
+                }
+          }
         />
       )}
     </div>
