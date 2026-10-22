@@ -7,7 +7,7 @@ import styles from './DonasEstado.module.css'
 const R = 15.9155 // circunferencia = 100: cada punto del trazo es un 1 %
 
 /** Una torta (anillo) en SVG: los trozos parten arriba y siguen a la derecha; el centro dice cuánto está bien. */
-function Anillo({ dona }: { dona: DonaAnalito }) {
+function Anillo({ dona, burbujas }: { dona: DonaAnalito; burbujas?: boolean }) {
   const trozos = dona.tajadas.filter((t) => t.cantidad > 0)
   const parte = (cantidad: number) => (cantidad / dona.total) * 100
   return (
@@ -32,9 +32,26 @@ function Anillo({ dona }: { dona: DonaAnalito }) {
           </circle>
         )
       })}
+      {burbujas &&
+        trozos.map((t, i) => {
+          const largo = parte(t.cantidad)
+          if (largo < 4) return null
+          const inicio = trozos.slice(0, i).reduce((suma, x) => suma + parte(x.cantidad), 0)
+          const angulo = ((inicio + largo / 2) / 100) * 2 * Math.PI - Math.PI / 2
+          const x = 21 + R * Math.cos(angulo)
+          const y = 21 + R * Math.sin(angulo)
+          return (
+            <g key={`b-${t.clave}${t.texto}`} className={styles.burbuja}>
+              <circle cx={x} cy={y} r={largo >= 99.5 ? 5.8 : 4.6} />
+              <text x={x} y={y + 1.1} textAnchor="middle">{`${Math.round(largo)}%`}</text>
+            </g>
+          )
+        })}
+      {!burbujas && (
       <text className={`${styles.centro} ${dona.porcentajeBien === 100 ? styles.centroChico : ''}`} x="21" y="22.4" textAnchor="middle">
         {dona.porcentajeBien === null ? '—' : `${dona.porcentajeBien}%`}
       </text>
+      )}
     </svg>
   )
 }
@@ -52,13 +69,15 @@ interface Props {
   pie?: ReactNode
   /** Qué dice el número del centro (por ejemplo «sin detección» o «en nivel óptimo»). */
   centro: string
+  /** Cada trozo lleva su porcentaje en una burbuja blanca sobre el anillo, y el centro queda vacío. */
+  burbujas?: boolean
 }
 
 /**
  * Tortas de estado por analito: en cada una, qué porcentaje de los informes está bien (verde) y cuánto no. Siempre
  * visibles (no dependen del interruptor de los gráficos de línea de tiempo).
  */
-export function DonasEstado({ titulo, ayuda, donas, pie, centro }: Props) {
+export function DonasEstado({ titulo, ayuda, donas, pie, centro, burbujas }: Props) {
   if (donas.length === 0) return null
   return (
     <Card>
@@ -70,8 +89,8 @@ export function DonasEstado({ titulo, ayuda, donas, pie, centro }: Props) {
         {donas.map((d) => (
           <figure key={d.nombre} className={styles.dona}>
             <figcaption className={styles.nombre}>{d.nombre}</figcaption>
-            <Anillo dona={d} />
-            <span className={styles.centroTexto}>{centro}</span>
+            <Anillo dona={d} burbujas={burbujas} />
+            {!burbujas && <span className={styles.centroTexto}>{centro}</span>}
             <ul className={styles.leyenda}>
               {d.tajadas.map((t) => (
                 <li key={t.clave + t.texto}>

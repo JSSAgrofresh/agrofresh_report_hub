@@ -119,10 +119,10 @@ describe('estilo sobrio: presencia en verdes y nivel como semáforo', () => {
   afterEach(() => setPaletaActiva('basico'))
   const informes = [inf('1', r('BOT', 'Botrytis', 2, '250', 250, true)), inf('2', r('BOT', 'Botrytis', 2, '5', 5, true)), inf('3', r('BOT', 'Botrytis', 2, '60', 60, true))]
 
-  it('la presencia usa solo verdes, aunque pida el color del analito', () => {
+  it('la presencia va en azul (ausencia) y rojo (presencia), aunque pida el color del analito', () => {
     setPaletaActiva('sobrio')
     const [d] = presenciaPorAnalito(informes, { colorDelAnalito: true })
-    expect(d.tajadas.map((t) => t.color)).toEqual(['#7fb08f', '#1f4a35'])
+    expect(d.tajadas.map((t) => t.color)).toEqual(['#4a90d9', '#e5645b'])
   })
 
   it('el nivel va en verde, amarillo y rojo suaves, no en el color del analito', () => {
