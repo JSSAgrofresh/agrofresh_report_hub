@@ -1,4 +1,4 @@
-import { SEMAFORO_SOBRIO, esPaletaSobria } from '@/lib/paleta'
+import { SEMAFORO_SOBRIO, VERDES_SOBRIO, esPaletaSobria } from '@/lib/paleta'
 import { colorDeAnalito, type InformeVista, type ResultadoVista } from './lineaTiempoInformes'
 
 /**
@@ -86,7 +86,7 @@ export function presenciaPorAnalito(informes: InformeVista[], opciones: Opciones
       const detectados = rs.filter((r) => r.detectado).length
       const limpios = rs.length - detectados
       const orden = Math.min(...rs.map((r) => r.orden))
-      const c = opciones.colorDelAnalito ? coloresDelAnalito(orden) : semaforo()
+      const c = esPaletaSobria() ? VERDES_SOBRIO : opciones.colorDelAnalito ? coloresDelAnalito(orden) : semaforo()
       return {
         codigo: rs[0].codigo,
         nombre,
@@ -151,7 +151,7 @@ export function nivelesPorAnalito(informes: InformeVista[], opciones: OpcionesTo
       const niveles = rs.map((r) => nivelDe(r) as Nivel)
       const cuenta = (n: Nivel) => niveles.filter((x) => x === n).length
       const orden = Math.min(...rs.map((r) => r.orden))
-      const c = opciones.colorDelAnalito ? coloresDelAnalito(orden) : semaforo()
+      const c = !esPaletaSobria() && opciones.colorDelAnalito ? coloresDelAnalito(orden) : semaforo()
       const tajadas: Tajada[] = [
         { clave: 'bien', texto: TEXTO_NIVEL.optimo, cantidad: cuenta('optimo'), color: c.bien },
         { clave: 'atencion', texto: TEXTO_NIVEL.moderado, cantidad: cuenta('moderado'), color: c.atencion },

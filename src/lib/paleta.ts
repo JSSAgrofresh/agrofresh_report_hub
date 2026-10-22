@@ -23,4 +23,7 @@ export const TINTA_SOBRIA = '#1f2937'
 export const CATEGORICA_SOBRIA = ['#3f6b52', '#1f2937', '#8aa4b8', '#c9a66b', '#b97a6e', '#7f8f86', '#5b7c99', '#d3cdbf']
 
 /** Semáforo suave: bien, atención, mal, neutro. */
-export const SEMAFORO_SOBRIO = { bien: '#5f8f74', atencion: '#c9a66b', mal: '#b0594c', neutro: '#b7bdc4' }
+export const SEMAFORO_SOBRIO = { bien: '#5f9a76', atencion: '#d4ac4e', mal: '#b5524a', neutro: '#b7bdc4' }
+
+/** Presencia y ausencia en una sola gama: verde claro = no detectado, verde profundo = detectado. */
+export const VERDES_SOBRIO = { bien: '#7fb08f', atencion: '#4a7c61', mal: '#1f4a35' }
