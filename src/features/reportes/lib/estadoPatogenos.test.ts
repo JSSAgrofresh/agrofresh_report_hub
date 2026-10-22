@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { setPaletaActiva } from '@/lib/paleta'
 import {
   filtrarBloque,
   oscurecer,
@@ -111,5 +112,23 @@ describe('torta con el color de su analito (fitopatología)', () => {
   it('los niveles también: óptimo = color, moderado y peligroso más oscuros', () => {
     const [d] = nivelesPorAnalito(informes, { colorDelAnalito: true })
     expect(d.tajadas.map((t) => t.color)).toEqual(['#e8c32e', oscurecer('#e8c32e', 0.3), oscurecer('#e8c32e', 0.62)])
+  })
+})
+
+describe('estilo sobrio: presencia en verdes y nivel como semáforo', () => {
+  afterEach(() => setPaletaActiva('basico'))
+  const informes = [inf('1', r('BOT', 'Botrytis', 2, '250', 250, true)), inf('2', r('BOT', 'Botrytis', 2, '5', 5, true)), inf('3', r('BOT', 'Botrytis', 2, '60', 60, true))]
+
+  it('la presencia usa solo verdes, aunque pida el color del analito', () => {
+    setPaletaActiva('sobrio')
+    const [d] = presenciaPorAnalito(informes, { colorDelAnalito: true })
+    expect(d.tajadas.map((t) => t.color)).toEqual(['#7fb08f', '#1f4a35'])
+  })
+
+  it('el nivel va en verde, amarillo y rojo suaves, no en el color del analito', () => {
+    setPaletaActiva('sobrio')
+    const [d] = nivelesPorAnalito(informes, { colorDelAnalito: true })
+    expect(d.tajadas.map((t) => t.clave)).toEqual(['bien', 'atencion', 'mal'])
+    expect(d.tajadas.map((t) => t.color)).toEqual(['#5f9a76', '#d4ac4e', '#b5524a'])
   })
 })
