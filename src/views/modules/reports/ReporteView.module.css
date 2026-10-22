@@ -1069,14 +1069,14 @@
 /* ── Estilo sobrio ── */
 :global([data-tema='sobrio']) .btnActualizar { border-radius: 8px; padding: 8px 16px; background: #4f8a26; box-shadow: none; }
 :global([data-tema='sobrio']) .btnActualizar:hover { transform: none; box-shadow: none; background: #3f7a1a; }
-:global([data-tema='sobrio']) .horas { color: #647558; }
+:global([data-tema='sobrio']) .horas { color: #6b7280; }
 :global([data-tema='sobrio']) .stats,
 :global([data-tema='sobrio']) .statsResiduales { gap: 12px; }
 :global([data-tema='sobrio']) .statCard {
   border-radius: 16px;
   padding: 16px 18px;
-  background: linear-gradient(160deg, color-mix(in srgb, var(--kpi, var(--acento)) 9%, #fff), #fff 70%);
-  box-shadow: 0 2px 12px rgba(47, 74, 31, 0.07);
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(16, 24, 40, 0.06);
 }
 :global([data-tema='sobrio']) .statCard::before { height: 3px; }
 :global([data-tema='sobrio']) .statNum { font-size: 1.7rem; font-weight: 700; }
@@ -1085,17 +1085,17 @@
   background: #fff;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  border: 1px solid #dfe8d5;
+  border: 1px solid #e8eaee;
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(47, 74, 31, 0.07);
+  box-shadow: 0 2px 12px rgba(16, 24, 40, 0.06);
   padding: 14px 18px 16px;
 }
 :global([data-tema='sobrio']) .filtro select,
-:global([data-tema='sobrio']) .sigmaControl select { height: 36px; border-radius: 8px; border-color: #cfe0bf; }
+:global([data-tema='sobrio']) .sigmaControl select { height: 36px; border-radius: 8px; border-color: #d7dae0; }
 :global([data-tema='sobrio']) .filtro select:hover { border-color: #4f8a26; }
 :global([data-tema='sobrio']) .filtro select:focus-visible { border-color: #4f8a26; box-shadow: 0 0 0 3px rgba(47, 74, 31, 0.15); }
-:global([data-tema='sobrio']) .limpiar { border-radius: 8px; border-color: #cfe0bf; }
-:global([data-tema='sobrio']) .chips { border-top-color: #dfe8d5; }
+:global([data-tema='sobrio']) .limpiar { border-radius: 8px; border-color: #d7dae0; }
+:global([data-tema='sobrio']) .chips { border-top-color: #e8eaee; }
 :global([data-tema='sobrio']) .chip { border-radius: 6px; }
 :global([data-tema='sobrio']) .chip:hover { transform: none; }
 :global([data-tema='sobrio']) .filtrosCard[data-pegado='true'] {

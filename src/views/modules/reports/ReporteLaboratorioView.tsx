@@ -1,4 +1,4 @@
-import { useContext, useState } from 'react'
+import { useContext, useMemo, useState } from 'react'
 import { PortalContext } from '@/components/layout/portal/PortalContext'
 import { AREAS } from '@/constants/areas'
 import { useAuth } from '@/features/auth'
@@ -16,7 +16,13 @@ export function ReporteLaboratorioView() {
   const config = AREAS.cromatografia
   const [especie, setEspecie] = useState('')
   const [cliente, setCliente] = useState('')
+  const [especies, setEspecies] = useState<string[]>([])
   const fondo = fondoParaEspecie(especie, config.fondo)
+  // Sin una especie elegida, el encabezado rota las fotos de las especies que tiene la cuenta; con una, solo esa.
+  const fondos = useMemo(
+    () => (especie ? undefined : [...new Set(especies.map((e) => fondoParaEspecie(e, config.fondo).imagen))]),
+    [especie, especies, config.fondo],
+  )
 
   // Una cuenta de cliente entra por esta misma ruta: su encabezado lleva SU sucursal (o su Sold To) y los filtros de
   // Sold To / Ship To no salen, porque sus datos ya vienen acotados desde el servidor.
@@ -28,8 +34,9 @@ export function ReporteLaboratorioView() {
           titulo={`Hola, ${user.plantaNombre ?? soldTo}`}
           descripcion="Portal de cliente. Estos son los resultados de tus muestras, siempre al día."
           fondo={fondo.imagen}
+          fondos={fondos}
         />
-        <ReporteView clienteFijo={soldTo} plantaFija={user.plantaNombre} onCropChange={setEspecie} />
+        <ReporteView clienteFijo={soldTo} plantaFija={user.plantaNombre} onCropChange={setEspecie} onEspeciesChange={setEspecies} />
       </div>
     )
   }
@@ -42,8 +49,9 @@ export function ReporteLaboratorioView() {
           titulo={cliente ? `Hola, ${cliente}` : 'Hola, estas son tus plantas'}
           descripcion={`Comercial. Resultados de las plantas que tienes asignadas, solo lectura.`}
           fondo={fondo.imagen}
+          fondos={fondos}
         />
-        <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} />
+        <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} onEspeciesChange={setEspecies} />
       </div>
     )
   }
@@ -57,8 +65,9 @@ export function ReporteLaboratorioView() {
           titulo={`Hola, ${cliente || 'todos los clientes'}`}
           descripcion="Así se ve el portal para un cliente. Con tu cuenta de administración aparecen los datos de todos los clientes y sucursales."
           fondo={fondo.imagen}
+          fondos={fondos}
         />
-        <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} />
+        <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} onEspeciesChange={setEspecies} />
       </div>
     )
   }

@@ -323,6 +323,6 @@
 :global([data-portal]) .panel { border-radius: 20px; box-shadow: 0 22px 50px rgba(40, 70, 20, 0.25); z-index: 70; }
 
 /* Estilo sobrio */
-:global([data-tema='sobrio']) .boton { height: 36px; border-radius: 8px; border-color: #cfe0bf; }
+:global([data-tema='sobrio']) .boton { height: 36px; border-radius: 8px; border-color: #d7dae0; }
 :global([data-tema='sobrio']) .boton:hover { border-color: #4f8a26; }
 :global([data-tema='sobrio']) .panel { border-radius: 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12); }
