@@ -510,3 +510,10 @@
 :global([data-tema='sobrio']) .buscador input,
 :global([data-tema='sobrio']) .control select { height: 36px; border-radius: 10px; border-color: #eceef2; background-color: #f7f8fa; }
 :global([data-tema='sobrio']) .paginas button { border-radius: 8px; height: 32px; border-color: #e0e3e8; }
+
+/* Estilo sobrio: líneas verticales finas entre columnas para que cada dato se lea bajo su encabezado. */
+:global([data-tema='sobrio']) .tabla th,
+:global([data-tema='sobrio']) .tabla td { border-left: 1px solid #e3e6eb; }
+:global([data-tema='sobrio']) .tabla th:first-child,
+:global([data-tema='sobrio']) .tabla tbody tr > td.grupo:first-child,
+:global([data-tema='sobrio']) .tabla tfoot td { border-left: 0; }
