@@ -23,6 +23,7 @@ import { DonasEstado } from './DonasEstado'
 import { Kpi } from './Kpi'
 import { ResultadosPorInforme } from './ResultadosPorInforme'
 import estilosReporte from './ReporteView.module.css'
+import { InfoTip } from '@/components/ui/InfoTip'
 import styles from './SeccionesReport.module.css'
 
 /** La cabecera de un bloque: el nombre del análisis, qué laboratorios lo hacen y, a la derecha, lo que se pueda tocar. */
@@ -168,7 +169,7 @@ export function SeccionInformes({ bloque, numero, informes: informesDelReporte, 
               Quitar filtros
             </button>
           )}
-          {bloque === 'fsma' && <span className={styles.nota}>Especie y variedad no se aplican aquí: ALS no las informa.</span>}
+          {bloque === 'fsma' && <InfoTip>Especie y variedad no se aplican aquí: ALS no las informa.</InfoTip>}
         </div>
       )}
 

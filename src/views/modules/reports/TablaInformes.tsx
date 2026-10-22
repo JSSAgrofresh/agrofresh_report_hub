@@ -12,6 +12,7 @@ import {
   type Orden,
 } from '@/features/reportes/lib/tablaInformes'
 import type { ModeloLinea } from '@/features/reportes/lib/lineaTiempoInformes'
+import { InfoTip } from '@/components/ui/InfoTip'
 import { Button } from '@/components/ui/Button'
 import { useAnchoMaximo } from '@/hooks/useAnchoMaximo'
 import styles from './TablaInformes.module.css'
@@ -305,7 +306,9 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
           </span>
         )}
       </div>
-      <p className={styles.nota}>{nota}</p>
+      <p className={styles.nota}>
+        <InfoTip>{nota}</InfoTip>
+      </p>
     </>
   )
 }
