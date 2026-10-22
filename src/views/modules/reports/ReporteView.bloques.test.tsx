@@ -81,17 +81,17 @@ describe('Report por bloques de análisis', () => {
     expect(within(grupo).getByRole('button', { name: 'Laboratorio Quiteca' })).toBeTruthy()
   })
 
-  it('FSMA y fitopatología traen su tabla por informe (con los gráficos apagados de fábrica)', async () => {
+  it('FSMA y fitopatología traen sus gráficos de línea de tiempo Y las tortas, más su tabla por informe', async () => {
     render(<ReporteView />)
     const fsma = await screen.findByRole('region', { name: 'Análisis FSMA' })
-    expect(within(fsma).getByRole('table')).toBeTruthy()
-    expect(within(fsma).getByText('496251')).toBeTruthy()
-    // Sin el interruptor de gráficos solo hay las tortas de presencia/ausencia (nada de línea de tiempo).
-    const imagenes = within(fsma).getAllByRole('img')
-    expect(imagenes.length).toBeGreaterThan(0)
-    expect(imagenes.every((i) => /detectado/i.test(i.getAttribute('aria-label') ?? ''))).toBe(true)
+    const tabla = within(fsma).getByRole('table')
+    expect(within(tabla).getByText('496251')).toBeTruthy()
+    // Las tortas se agregan a lo que ya había: la línea de tiempo y la evolución siguen ahí.
+    expect(within(fsma).getByText('Evolución de los resultados')).toBeTruthy()
+    expect(within(fsma).getByText('Presencia y ausencia')).toBeTruthy()
     const fito = screen.getByRole('region', { name: 'Análisis de fitopatología' })
-    expect(within(fito).getByText('253521-DIAG0003')).toBeTruthy()
+    expect(within(within(fito).getByRole('table')).getByText('253521-DIAG0003')).toBeTruthy()
+    expect(within(fito).getByText('Evolución de los resultados')).toBeTruthy()
   })
 
   it('FSMA trae una torta por analito y fitopatología, además, una por nivel de contaminación', async () => {
@@ -110,9 +110,9 @@ describe('Report por bloques de análisis', () => {
     const fsma = await screen.findByRole('region', { name: 'Análisis FSMA' })
     fireEvent.change(within(fsma).getByLabelText('Estado'), { target: { value: 'no_detectado' } })
     expect(within(fsma).getByText('Ningún informe cumple los filtros de este análisis.')).toBeTruthy()
-    expect(within(screen.getByRole('region', { name: 'Análisis de fitopatología' })).getByText('253521-DIAG0003')).toBeTruthy()
+    expect(within(within(screen.getByRole('region', { name: 'Análisis de fitopatología' })).getByRole('table')).getByText('253521-DIAG0003')).toBeTruthy()
     fireEvent.change(within(fsma).getByLabelText('Estado'), { target: { value: 'detectado' } })
-    expect(within(fsma).getByText('496251')).toBeTruthy()
+    expect(within(within(fsma).getByRole('table')).getByText('496251')).toBeTruthy()
   })
 
   it('filtrar por Especie no vacía FSMA: ALS no informa especie, así que ese filtro no se le aplica', async () => {
@@ -120,10 +120,10 @@ describe('Report por bloques de análisis', () => {
     api.obtenerDatosReporte.mockResolvedValue({ filas: sinEspecie, total: sinEspecie.length, total_solicitudes: 4 })
     render(<ReporteView />)
     const fsma = await screen.findByRole('region', { name: 'Análisis FSMA' })
-    expect(within(fsma).getByText('496251')).toBeTruthy()
+    expect(within(within(fsma).getByRole('table')).getByText('496251')).toBeTruthy()
     fireEvent.change(screen.getByLabelText('Especie'), { target: { value: 'Manzana' } })
     await waitFor(() => expect(screen.getByLabelText('Especie')).toHaveProperty('value', 'Manzana'))
-    expect(within(screen.getByRole('region', { name: 'Análisis FSMA' })).getByText('496251')).toBeTruthy()
+    expect(within(within(screen.getByRole('region', { name: 'Análisis FSMA' })).getByRole('table')).getByText('496251')).toBeTruthy()
   })
 
   it('los dos botones de residuos parten encendidos; tocar uno deja solo ese y tocarlo otra vez los vuelve a encender', async () => {

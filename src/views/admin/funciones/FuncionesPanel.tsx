@@ -149,7 +149,7 @@ export function FuncionesPanel() {
           <h2 className={styles.titulo}>Report: gráficos de ALS y Diagnofruit</h2>
           <p className={styles.texto}>
             Con ALS o Diagnofruit elegido, Report puede mostrar una línea de tiempo y una serie de tiempo además de la tabla.
-            Apagados, no se ven y queda solo la tabla. Vale para todas las cuentas, clientes incluidos.
+            Desde el 22-10-2026 Report los muestra siempre, junto a las tortas de estado: este interruptor queda guardado pero ya no los oculta.
           </p>
           <ul className={styles.lista}>
             <li className={styles.fila}>
