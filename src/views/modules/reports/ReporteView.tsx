@@ -24,6 +24,7 @@ import {
 } from 'chart.js'
 import type { ChartDataset, Plugin, TooltipItem } from 'chart.js'
 import { Header } from '@/components/layout/Header'
+import { ACENTO_SOBRIO, TINTA_SOBRIA, esPaletaSobria } from '@/lib/paleta'
 import { Card } from '@/components/ui/Card'
 import { InfoTip } from '@/components/ui/InfoTip'
 import { Button } from '@/components/ui/Button'
@@ -246,7 +247,7 @@ export function ReporteView({
   onEspeciesChange?: (especies: string[]) => void
 } = {}) {
   const { user } = useAuth()
-  const acento = areaDeModulo('reports')?.colorPrimario ?? '#6dad3c'
+  const acento = esPaletaSobria() ? ACENTO_SOBRIO : (areaDeModulo('reports')?.colorPrimario ?? '#6dad3c')
   const wrapStyle = { '--acento': acento } as CSSProperties
 
   const [filas, setFilas] = useState<FilaReporte[] | null>(null)
@@ -656,8 +657,8 @@ export function ReporteView({
         showLine: false,
         // Grandes y con un aro del color de la tarjeta: se leen bien aunque se
         // solapen, y se distingue a qué columna (fecha) pertenece cada uno.
-        pointRadius: 7,
-        pointHoverRadius: 10,
+        pointRadius: esPaletaSobria() ? 5 : 7,
+        pointHoverRadius: esPaletaSobria() ? 8 : 10,
         pointHitRadius: 10,
         pointBackgroundColor: color,
         // Fuera de su franja (solo en la Vista de límites con tabla): aro rojo.
@@ -667,7 +668,7 @@ export function ReporteView({
         }),
         pointBorderWidth: informes.map((i) => {
           const p = i.puntos.find((x) => x.ingrediente === ingrediente)
-          return limitesTabla && p?.ppm != null && (posicionResidual(ingrediente, p.ppm, limitesDeEspecie(p.crop) ?? {}) ?? 'dentro') !== 'dentro' ? 3.5 : 2
+          return limitesTabla && p?.ppm != null && (posicionResidual(ingrediente, p.ppm, limitesDeEspecie(p.crop) ?? {}) ?? 'dentro') !== 'dentro' ? 3.5 : esPaletaSobria() ? 1.5 : 2
         }),
         pointHoverBackgroundColor: color,
         pointHoverBorderColor: colorSuperficie,
@@ -1633,7 +1634,7 @@ export function ReporteView({
                   <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
                 </Kpi>
                 <Kpi
-                  tono="#4a3aa7"
+                  tono={esPaletaSobria() ? TINTA_SOBRIA : '#4a3aa7'}
                   icono={<IconTrendingUp />}
                   etiqueta={
                     <>
