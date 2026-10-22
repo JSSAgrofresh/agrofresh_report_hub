@@ -517,3 +517,8 @@
 :global([data-tema='sobrio']) .tabla th:first-child,
 :global([data-tema='sobrio']) .tabla tbody tr > td.grupo:first-child,
 :global([data-tema='sobrio']) .tabla tfoot td { border-left: 0; }
+
+/* Estilo sobrio: la tabla crece con la página (sin caja con scroll propio), así ninguna fila queda cortada a medias. */
+:global([data-tema='sobrio']) .caja { max-height: none; overflow-x: auto; }
+:global([data-tema='sobrio']) .tabla th,
+:global([data-tema='sobrio']) .tabla tfoot td { position: static; }
