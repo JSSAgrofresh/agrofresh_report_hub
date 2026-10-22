@@ -191,6 +191,7 @@ export function SeccionInformes({ bloque, numero, informes: informesDelReporte, 
               <span className={estilosReporte.statNum}>{num(detecciones)}</span>
             </Kpi>
           </div>
+          <ResultadosPorInforme informes={informes} laboratorio={lab} conGraficos={conGraficos} />
           <DonasEstado
             titulo="Presencia y ausencia"
             ayuda="Cuánto de lo analizado está bien. Detectado es malo; no detectado es bueno. El número del centro es el porcentaje no detectado."
@@ -206,7 +207,6 @@ export function SeccionInformes({ bloque, numero, informes: informesDelReporte, 
               pie={<LimitesNivelTabla />}
             />
           )}
-          <ResultadosPorInforme informes={informes} laboratorio={lab} conGraficos={conGraficos} />
         </>
       )}
     </section>
