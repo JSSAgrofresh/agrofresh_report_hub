@@ -290,9 +290,9 @@
 :global([data-tema='sobrio']) .cabecera {
   border-radius: 16px;
   padding: 12px 18px;
-  background: linear-gradient(110deg, color-mix(in srgb, var(--acento, #4f8a26) 10%, #fff), #fff 60%);
-  box-shadow: 0 2px 12px rgba(47, 74, 31, 0.07);
-  border-color: #dfe8d5;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(16, 24, 40, 0.06);
+  border-color: #e8eaee;
 }
 :global([data-tema='sobrio']) .cabecera::before { width: 4px; }
 :global([data-tema='sobrio']) .titulo h2 { font-size: clamp(1.15rem, 1rem + 0.7vw, 1.4rem); font-weight: 700; }

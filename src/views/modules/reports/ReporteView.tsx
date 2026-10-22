@@ -227,6 +227,7 @@ export function ReporteView({
   selectorModo,
   sinEncabezado = false,
   onClienteChange,
+  onEspeciesChange,
 }: {
   clienteFijo?: string
   plantaFija?: string
@@ -241,6 +242,8 @@ export function ReporteView({
   /** La pantalla ya trae su propio encabezado: no se dibuja el título de Report. */
   sinEncabezado?: boolean
   onClienteChange?: (cliente: string) => void
+  /** Las especies que tienen datos (del Sold To filtrado, si hay uno), de la más frecuente a la menos: el encabezado las rota. */
+  onEspeciesChange?: (especies: string[]) => void
 } = {}) {
   const { user } = useAuth()
   const acento = areaDeModulo('reports')?.colorPrimario ?? '#6dad3c'
@@ -352,6 +355,7 @@ export function ReporteView({
     onClienteChange?.(filtros.cliente)
   }, [filtros.cliente, onClienteChange])
 
+
   useEffect(() => {
     listarEspeciesActivas()
       .then(setEspeciesOficiales)
@@ -384,6 +388,22 @@ export function ReporteView({
   // "ppm" queda en null cuando no hay valor numérico (sin resultado todavía, o
   // un resultado cualitativo como "ND"), pero la solicitud igual se cuenta y
   // se puede ver en el detalle.
+  // Las especies de la cuenta, para el carrusel del encabezado cuando no hay una elegida.
+  const especiesDeLaCuenta = useMemo(() => {
+    const cuentas = new Map<string, Set<number>>()
+    for (const o of filasVista ?? []) {
+      if (!o.especie || (filtros.cliente && o.cliente !== filtros.cliente)) continue
+      const ids = cuentas.get(o.especie) ?? new Set<number>()
+      ids.add(o.solicitud_id)
+      cuentas.set(o.especie, ids)
+    }
+    return [...cuentas.entries()].sort((a, b) => b[1].size - a[1].size).map(([e]) => e)
+  }, [filasVista, filtros.cliente])
+  const clavesEspecies = especiesDeLaCuenta.join('|')
+  useEffect(() => {
+    onEspeciesChange?.(clavesEspecies ? clavesEspecies.split('|') : [])
+  }, [clavesEspecies, onEspeciesChange])
+
   const observaciones = useMemo<Observacion[]>(() => {
     if (!filasVista) return []
     return filasVista.map((f) => {
