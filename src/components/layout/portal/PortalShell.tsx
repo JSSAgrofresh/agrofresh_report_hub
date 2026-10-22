@@ -65,9 +65,9 @@ function usePildora(contenedor: RefObject<HTMLDivElement | null>, pildora: RefOb
 }
 
 /** Marco visual del portal de clientes y comerciales: fondo vivo, navbar de vidrio fija arriba y el contenido de siempre. */
-const ENLACES_VISTA_PREVIA: Enlace[] = [
-  { to: ROUTES.vistaClienteReport, etiqueta: 'Análisis de Laboratorio' },
-  { to: ROUTES.vistaClienteStorage, etiqueta: 'Informes de Laboratorio' },
+const ENLACES_VISTA_PREVIA: (Enlace & { modulo: string })[] = [
+  { to: ROUTES.vistaClienteReport, etiqueta: 'Análisis de Laboratorio', modulo: 'reports' },
+  { to: ROUTES.vistaClienteStorage, etiqueta: 'Informes de Laboratorio', modulo: 'storage' },
 ]
 
 export function PortalShell({
@@ -95,7 +95,9 @@ export function PortalShell({
   usePildora(items, pildora, pathname)
 
   if (!user) return null
-  const enlaces = vistaPrevia ? ENLACES_VISTA_PREVIA : enlacesDe(user)
+  // En la vista previa, cada pestaña solo si la cuenta tiene ese módulo (el administrador general los tiene todos).
+  const modulosDeLaCuenta = modulosPermitidos(user).map((m) => m.id)
+  const enlaces = vistaPrevia ? ENLACES_VISTA_PREVIA.filter((e) => modulosDeLaCuenta.includes(e.modulo as never)) : enlacesDe(user)
 
   return (
     <PortalContext.Provider value={true}>

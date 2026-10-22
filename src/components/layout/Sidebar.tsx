@@ -15,6 +15,7 @@ import {
   puedeAdministrarUsuarios,
   puedeCrearReanalisis,
   puedeVerTomaMuestras,
+  puedeVerVistaCliente,
 } from '@/features/usuarios'
 import {
   IconConverter,
@@ -248,6 +249,7 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   const esAdmin = puedeAdministrarUsuarios(user)
   const veTomaMuestras = puedeVerTomaMuestras(user)
   const puedeReanalisis = puedeCrearReanalisis(user)
+  const veVistaCliente = puedeVerVistaCliente(user)
   const acento = user.area ? AREAS[user.area].colorPrimario : undefined
   const estiloSidebar = acento ? ({ '--acento-usuario': acento } as CSSProperties) : undefined
 
@@ -333,6 +335,21 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
             <>
               <p className={styles.seccion}>Funciones</p>
               {otrosModulos.map((m) => renderEnlaceModulo(m, onCerrar))}
+            </>
+          )}
+
+          {veVistaCliente && !esAdmin && (
+            <>
+              <p className={styles.seccion}>Auditoría</p>
+              <NavLink
+                to={ROUTES.vistaCliente}
+                title="Vista de cliente"
+                onClick={onCerrar}
+                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                <IconReports className={styles.navIcono} />
+                <span className={styles.etiqueta}>Vista de cliente</span>
+              </NavLink>
             </>
           )}
 
