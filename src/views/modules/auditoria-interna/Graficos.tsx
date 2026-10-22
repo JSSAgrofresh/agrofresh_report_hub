@@ -11,6 +11,7 @@ import {
   Tooltip,
 } from 'chart.js'
 import type { Plugin, ScriptableContext } from 'chart.js'
+import { BotonExcel } from '@/components/ui/BotonExcel'
 import { LABORATORIOS_GRAFICO, NOMBRE_LAB, nombreTipo, tituloDonaTipo } from '@/features/auditoriaInterna'
 import type { LaboratorioResumen, PanelAnalisis, Totales } from '@/features/auditoriaInterna'
 import { ESTADOS, ESTADOS_DONA, ORDEN_ESTADOS } from './estados'
@@ -393,6 +394,7 @@ export function TarjetaGrafico({
         </div>
         <div className={styles.acciones}>
           {controles}
+          <BotonExcel archivo={titulo} filas={[tabla.columnas, ...tabla.filas]} />
           <button type="button" className={styles.alternar} aria-pressed={verTabla} onClick={() => setVerTabla((v) => !v)}>
             {verTabla ? 'Ver gráfico' : 'Ver tabla'}
           </button>

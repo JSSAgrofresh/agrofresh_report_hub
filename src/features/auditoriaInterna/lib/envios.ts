@@ -35,7 +35,7 @@ export function filtrarEnvios(envios: EnvioInforme[], vista: VistaEnvios, texto:
     if (!cumpleVista(e, vista)) return false
     if (palabras.length === 0) return true
     const pajar = sinTildes(
-      [e.solicitud, e.informe, e.sold_to, e.ship_to, e.laboratorio, e.especie, e.enviado_por, e.origen, ...e.pedido_a, ...e.enviado_a]
+      [e.solicitud, e.informe, e.sold_to, e.ship_to, e.laboratorio, e.especie, e.enviado_por, e.origen, e.error, e.exitoso ? 'enviado' : 'fallo falló', ...e.pedido_a, ...e.enviado_a]
         .filter(Boolean)
         .join(' '),
     )

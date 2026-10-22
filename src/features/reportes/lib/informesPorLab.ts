@@ -37,7 +37,16 @@ export function construirInformes(filas: Observacion[], lab: LaboratorioTabular,
     if (!o.ingrediente || laboratorioBase(o.laboratorio) !== lab) return
     let informe = porSolicitud.get(o.solicitudId)
     if (!informe) {
-      informe = { nro: o.nroSolicitud, fecha: o.fecha ? o.fecha.slice(0, 10) : null, detalle: o.posicionMuestreo, resultados: [] }
+      informe = {
+        nro: o.nroSolicitud,
+        fecha: o.fecha ? o.fecha.slice(0, 10) : null,
+        detalle: o.posicionMuestreo,
+        cliente: o.cliente,
+        planta: o.planta,
+        especie: o.crop,
+        variedad: o.variedad,
+        resultados: [],
+      }
       porSolicitud.set(o.solicitudId, informe)
     }
     const delCatalogo = catalogo.find(

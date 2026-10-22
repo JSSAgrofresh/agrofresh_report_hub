@@ -754,3 +754,10 @@ button.nodo:focus-visible {
 .tabla th { background: #e9f0ec; color: #34443b; }
 .chipFiltro { border-color: #9fb0a6; color: #1d2a22; }
 .puntoNo { border-color: #8d9d94; }
+
+/* El botón «Excel» de una tabla, alineado a la derecha sobre ella. */
+.excelFila {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0 var(--space-2);
+}

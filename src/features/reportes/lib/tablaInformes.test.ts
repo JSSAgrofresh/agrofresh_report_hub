@@ -72,6 +72,25 @@ describe('filtrarInformes', () => {
   })
 })
 
+describe('el buscador mira todos los campos del informe', () => {
+  const informes: InformeVista[] = [
+    { ...inf('496252', '2026-09-30', si(COLT, 49), no(ECOLI)), cliente: 'DOLE', planta: 'DOLE LONTUE', especie: 'Cerezas', variedad: 'Bing' },
+    { ...inf('496561', '2026-09-30', no(COLT), no(ECOLI)), cliente: 'VERFRUT', planta: 'VERFRUT RAPEL', especie: 'Manzanas', variedad: 'Gala' },
+  ]
+  const m = modeloLinea(informes)
+  it('por sucursal, cliente, especie y variedad', () => {
+    expect(nros(filtrarInformes(m.informes, 'lontue'))).toEqual(['496252'])
+    expect(nros(filtrarInformes(m.informes, 'verfrut'))).toEqual(['496561'])
+    expect(nros(filtrarInformes(m.informes, 'manzanas gala'))).toEqual(['496561'])
+  })
+  it('por analito, unidad y estado', () => {
+    expect(nros(filtrarInformes(m.informes, 'coliformes'))).toHaveLength(2)
+    expect(nros(filtrarInformes(m.informes, 'ufc/100'))).toHaveLength(2)
+    expect(nros(filtrarInformes(m.informes, 'presente'))).toEqual(['496252'])
+    expect(nros(filtrarInformes(m.informes, 'coliformes presente'))).toEqual(['496252'])
+  })
+})
+
 describe('paginar', () => {
   const filas = Array.from({ length: 23 }, (_, i) => i + 1)
   it('parte en páginas y dice qué filas se ven', () => {
@@ -97,8 +116,8 @@ describe('resumenPorAnalito y csvDeInformes', () => {
     const lineas = csv.split('\r\n')
     expect(csv.startsWith('﻿')).toBe(true)
     expect(lineas[0]).toBe('﻿"Fecha de muestreo";"N° de informe";"Zona de muestreo";"Coliformes Totales (UFC/100 mL)";"Escherichia coli (UFC/100 mL)";"Estado"')
-    expect(lineas[1]).toBe('"30-10-2026";"496563";"Línea 2";"<1";"<1";"Sin detección"')
-    expect(lineas[2]).toBe('"01-10-2026";"496251";"pozo vaciado";"67";"50";"Con detección (2 de 2)"')
+    expect(lineas[1]).toBe('"30-10-2026";"496563";"Línea 2";"<1";"<1";"No detectado"')
+    expect(lineas[2]).toBe('"01-10-2026";"496251";"pozo vaciado";"67";"50";"Detectado (2 de 2)"')
   })
 
   it('las comillas del texto se duplican y sin columna de detalle no sale', () => {

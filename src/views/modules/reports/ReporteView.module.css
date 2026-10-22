@@ -1030,3 +1030,55 @@
   :global([data-portal]) .accionesCabecera { width: 100%; justify-content: flex-start; }
   :global([data-portal]) .actualizarBloque { align-items: flex-start; }
 }
+
+/* Rótulo de cada grupo de filtros: generales (todos los análisis) y específicos (solo algunos). */
+.grupoFiltros {
+  margin: var(--space-3) 0 var(--space-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.grupoFiltros small {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Teléfono: las tarjetas de dos columnas bajan una bajo otra para que ni la dona ni sus textos queden apretados. */
+@media (max-width: 760px) {
+  .grid2Iguales {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Teléfono: los indicadores pierden el ícono y achican letra y aire para entrar de a tres. */
+@media (max-width: 640px) {
+  .kpiIcono {
+    display: none;
+  }
+
+  .statCard {
+    padding: 10px 10px;
+    min-width: 0;
+  }
+
+  .statLbl {
+    font-size: 9.5px;
+    letter-spacing: 0;
+    line-height: 1.25;
+  }
+
+  .statNum {
+    font-size: 1.35rem;
+  }
+
+  .statSub {
+    font-size: 10.5px;
+    line-height: 1.25;
+  }
+}

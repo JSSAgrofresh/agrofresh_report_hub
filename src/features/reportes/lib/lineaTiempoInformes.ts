@@ -32,6 +32,11 @@ export interface InformeVista {
   fecha: string | null
   /** Un dato más del informe para la tabla (en Diagnofruit, la zona de muestreo); `null` si no hay. */
   detalle?: string | null
+  /** Dónde se tomó la muestra: sirven para buscar en la tabla. */
+  cliente?: string | null
+  planta?: string | null
+  especie?: string | null
+  variedad?: string | null
   resultados: ResultadoVista[]
 }
 
@@ -91,6 +96,10 @@ export interface InformeLinea {
   /** El rótulo corto bajo la columna (ver `etiquetaInforme`). */
   etiqueta: string
   detalle: string | null
+  cliente?: string | null
+  planta?: string | null
+  especie?: string | null
+  variedad?: string | null
   fecha: string | null
   /** `dd-mm-aaaa` o «Sin fecha». */
   fechaTxt: string
@@ -138,6 +147,10 @@ export function modeloLinea(informes: InformeVista[]): ModeloLinea {
     nro: i.nro || '—',
     etiqueta: etiquetaInforme(i.nro || '—'),
     detalle: i.detalle ?? null,
+    cliente: i.cliente ?? null,
+    planta: i.planta ?? null,
+    especie: i.especie ?? null,
+    variedad: i.variedad ?? null,
     fecha: i.fecha,
     fechaTxt: i.fecha ? formatDateCL(i.fecha) : 'Sin fecha',
     porAnalito: Object.fromEntries(i.resultados.map((r) => [r.codigo, r])),

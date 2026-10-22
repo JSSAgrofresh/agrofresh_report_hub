@@ -36,8 +36,8 @@ describe('AppLayout según el tipo de cuenta', () => {
 
     const nombres = within(screen.getByRole('navigation', { name: 'Secciones' }))
       .getAllByRole('link')
-      .map((a) => a.textContent)
-      .filter((t) => t)
+      .map((a) => a.getAttribute('aria-label') ?? a.textContent)
+      .filter((t) => t && !t.startsWith('AgroFresh'))
     expect(nombres).toEqual(['Análisis de Laboratorio', 'Informes de Laboratorio', 'Reportes Accutab'])
     expect(screen.queryByRole('link', { name: 'Panel general' })).toBeNull()
   })

@@ -217,3 +217,10 @@
 
 .plegable:hover .accionPlegable { background: rgba(109, 173, 60, 0.12); }
 .plegable:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; border-radius: 6px; }
+
+/* El botón «Excel» de una tabla, alineado a la derecha sobre ella. */
+.excelFila {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0 var(--space-2);
+}
