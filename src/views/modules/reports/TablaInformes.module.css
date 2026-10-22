@@ -486,3 +486,10 @@
   font-size: 11px;
   color: var(--color-text-faint);
 }
+
+/* Estilo sobrio */
+:global([data-tema='sobrio']) .caja { border-radius: 10px; border-color: #e5e5e0; }
+:global([data-tema='sobrio']) .buscador input,
+:global([data-tema='sobrio']) .control select { height: 36px; border-radius: 8px; border-color: #d9d9d3; }
+:global([data-tema='sobrio']) .paginas button { border-radius: 8px; height: 32px; border-color: #d9d9d3; }
+:global([data-tema='sobrio']) .informe { border-radius: 6px; }

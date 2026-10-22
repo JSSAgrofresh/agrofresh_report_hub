@@ -25,3 +25,14 @@
 @media (prefers-reduced-motion: reduce) {
   :global([data-portal]) .card { animation: none; transition: none; }
 }
+
+/* Estilo sobrio: tarjeta blanca, borde fino, sin sombra ni movimiento. */
+:global([data-tema='sobrio']) .card {
+  background-color: #fff;
+  border-color: #e5e5e0;
+  border-radius: 12px;
+  box-shadow: none;
+  animation: none;
+  transition: none;
+}
+:global([data-tema='sobrio']) .card:not(:has(canvas)):hover { transform: none; box-shadow: none; }

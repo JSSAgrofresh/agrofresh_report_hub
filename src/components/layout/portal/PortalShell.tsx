@@ -10,6 +10,8 @@ import { ocultaPanelGeneral } from './inicio'
 import { PortalContext } from './PortalContext'
 import { MenuUsuario } from './MenuUsuario'
 import { IconLogout } from '@/components/ui/icons'
+import { guardarTema, temaGuardado, TEMAS_PORTAL, useTemaPredeterminado } from './tema'
+import type { TemaPortal } from './tema'
 import styles from './PortalShell.module.css'
 
 interface Enlace {
@@ -90,6 +92,10 @@ export function PortalShell({
   const [scroll, setScroll] = useState(false)
   const items = useRef<HTMLDivElement>(null)
   const pildora = useRef<HTMLSpanElement>(null)
+  const predeterminado = useTemaPredeterminado()
+  const [elegido, setElegido] = useState<TemaPortal | null>(() => (vistaPrevia ? temaGuardado() : null))
+  // Los clientes ven siempre el predeterminado; quien mira la vista previa puede alternar entre los estilos.
+  const tema = vistaPrevia ? (elegido ?? predeterminado) : predeterminado
 
   useEffect(() => {
     const alScroll = () => setScroll(window.scrollY > 8)
@@ -97,7 +103,7 @@ export function PortalShell({
     return () => window.removeEventListener('scroll', alScroll)
   }, [])
 
-  usePildora(items, pildora, pathname)
+  usePildora(items, pildora, `${pathname}|${tema}`)
 
   if (!user) return null
   // En la vista previa, cada pestaña solo si la cuenta tiene ese módulo (el administrador general los tiene todos).
@@ -106,7 +112,7 @@ export function PortalShell({
 
   return (
     <PortalContext.Provider value={true}>
-    <div className={styles.shell} data-portal="">
+    <div className={styles.shell} data-portal="" data-tema={tema}>
       <div className={styles.fondo} aria-hidden="true">
         <div className={cn(styles.mancha, styles.m1)} />
         <div className={cn(styles.mancha, styles.m2)} />
@@ -139,6 +145,26 @@ export function PortalShell({
             </NavLink>
           ))}
         </div>
+        {vistaPrevia && (
+          <div className={styles.temas} role="group" aria-label="Estilo del dashboard">
+            {TEMAS_PORTAL.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={cn(styles.tema, tema === t.id && styles.temaActivo)}
+                aria-pressed={tema === t.id}
+                title={t.id === predeterminado ? 'El que ven hoy los clientes' : 'Desactivado para los clientes'}
+                onClick={() => {
+                  setElegido(t.id)
+                  guardarTema(t.id)
+                }}
+              >
+                {t.nombre}
+                {t.id === predeterminado && <span className={styles.punto} aria-label="activo para clientes" />}
+              </button>
+            ))}
+          </div>
+        )}
         <div className={styles.usuario}>
           <MenuUsuario user={user} vistaPrevia={vistaPrevia} onSalir={() => logout()} />
           <button type="button" className={styles.salir} onClick={() => logout()} title="Cerrar sesión" aria-label="Cerrar sesión">

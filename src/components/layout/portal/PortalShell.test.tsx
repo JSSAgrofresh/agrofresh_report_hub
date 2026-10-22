@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { AuthContext } from '@/features/auth/context/AuthContext'
 import { AppLayout } from '../AppLayout'
+import { VistaClienteLayout } from './VistaClienteLayout'
+
+vi.mock('@/features/reportes/lib/api', () => ({
+  obtenerVistaReport: () => Promise.resolve({ graficos_informes: false, tema_cliente: 'sobrio' }),
+}))
 
 function montar(user: Record<string, unknown>) {
   const valor = { user, login: async () => {}, logout: async () => {}, refrescar: async () => {}, sincronizando: false }
@@ -47,5 +52,29 @@ describe('AppLayout según el tipo de cuenta', () => {
 
     expect(document.querySelector('aside')).not.toBeNull()
     expect(screen.queryByRole('navigation', { name: 'Secciones' })).toBeNull()
+  })
+
+  it('un cliente ve el estilo que quedó como predeterminado y no puede cambiarlo', async () => {
+    montar({ id: '2', nombre: 'Planta Lontué', email: 'c@dole.com', tipoAcceso: 'cliente', area: 'cromatografia', modulos: ['reports', 'storage'], reportes: ['laboratorio'] })
+
+    await waitFor(() => expect(document.querySelector('[data-portal]')).toHaveAttribute('data-tema', 'sobrio'))
+    expect(screen.queryByRole('group', { name: 'Estilo del dashboard' })).toBeNull()
+  })
+
+  it('en la Vista de cliente se puede alternar entre los estilos', async () => {
+    const user = { id: '1', nombre: 'Jorge', email: 'j@agrofresh.com', tipoAcceso: 'admin_general' }
+    const valor = { user, login: async () => {}, logout: async () => {}, refrescar: async () => {}, sincronizando: false }
+    const router = createMemoryRouter([{ element: <VistaClienteLayout />, children: [{ path: '/', element: <p>x</p> }] }], { initialEntries: ['/'] })
+    render(
+      <AuthContext.Provider value={valor as never}>
+        <RouterProvider router={router} />
+      </AuthContext.Provider>,
+    )
+    await waitFor(() => expect(document.querySelector('[data-portal]')).toHaveAttribute('data-tema', 'sobrio'))
+    const grupo = screen.getByRole('group', { name: 'Estilo del dashboard' })
+    fireEvent.click(within(grupo).getByRole('button', { name: /Básico/ }))
+    expect(document.querySelector('[data-portal]')).toHaveAttribute('data-tema', 'basico')
+    fireEvent.click(within(grupo).getByRole('button', { name: /Sobrio/ }))
+    expect(document.querySelector('[data-portal]')).toHaveAttribute('data-tema', 'sobrio')
   })
 })

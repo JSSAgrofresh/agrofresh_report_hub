@@ -88,7 +88,7 @@ def test_cambiar_un_servicio_no_apaga_ni_enciende_los_graficos(config_en_disco, 
 
 def test_cualquier_cuenta_lee_como_se_muestra_report(config_en_disco, monkeypatch):
     """Los clientes también ven ALS y Diagnofruit: la lectura no es solo del administrador."""
-    assert reportes.vista(_usuario(email="cliente@empresa.cl", tipo="cliente")) == {"graficos_informes": False}
+    assert reportes.vista(_usuario(email="cliente@empresa.cl", tipo="cliente")) == {"graficos_informes": False, "tema_cliente": "basico"}
     monkeypatch.setattr(funciones, "_clave_correcta", lambda usuario, password: True)
     funciones.cambiar_graficos_informes(funciones.GraficosInformesIn(activo=True, password="x"), usuario=_usuario())
-    assert reportes.vista(_usuario(email="cliente@empresa.cl", tipo="cliente")) == {"graficos_informes": True}
+    assert reportes.vista(_usuario(email="cliente@empresa.cl", tipo="cliente")) == {"graficos_informes": True, "tema_cliente": "basico"}

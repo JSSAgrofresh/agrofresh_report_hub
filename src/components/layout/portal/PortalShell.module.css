@@ -173,3 +173,62 @@
 .shell :global(:focus-visible) { outline: 2px solid #6dad3c; outline-offset: 2px; border-radius: inherit; }
 .shell :global(input:focus-visible), .shell :global(select:focus-visible) { outline-offset: 0; }
 .shell :global(::selection) { background: #cfe9b0; color: #18260f; }
+
+/* ── Selector de estilo (solo en la Vista de cliente) ─────────────────────────────────────────────────── */
+.temas { display: flex; flex: none; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(95, 113, 82, 0.12); }
+.tema {
+  position: relative; border: 0; background: transparent; color: #5f7152; font: inherit; font-size: 12.5px; font-weight: 600;
+  padding: 6px 12px; border-radius: 999px; cursor: pointer; transition: background 0.2s, color 0.2s;
+}
+.tema:hover { color: #18260f; }
+.temaActivo, .temaActivo:hover { background: #fff; color: #18260f; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); }
+/* Un punto marca el estilo que hoy ven los clientes. */
+.punto { display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: #6dad3c; vertical-align: middle; }
+@media (max-width: 720px) { .temas { display: none; } }
+
+/* ── Estilo «sobrio»: fondo liso, bordes finos, un solo acento, sin movimiento ──────────────────────────── */
+.shell[data-tema='sobrio'] {
+  background: #f7f7f5;
+  --color-bg: #f7f7f5;
+  --color-border: #e5e5e0;
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --shadow-md: none;
+}
+.shell[data-tema='sobrio'] .fondo { display: none; }
+.shell[data-tema='sobrio'] .burbuja {
+  --radio: 16px;
+  top: 12px;
+  padding: 8px 16px 8px 20px;
+  background: #fff;
+  border: 1px solid #e5e5e0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  animation: none;
+}
+.shell[data-tema='sobrio'] .burbujaScroll { background: #fff; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06); }
+.shell[data-tema='sobrio']:has([data-pegado='true']) .burbuja { box-shadow: none; background: #fff; border-bottom-width: 0; }
+.shell[data-tema='sobrio'] .logo { height: 40px; }
+.shell[data-tema='sobrio'] .enlace { padding: 10px 22px; min-width: 0; font-size: 14.5px; font-weight: 500; color: #6b6b66; }
+.shell[data-tema='sobrio'] .enlace:hover { color: #1f1f1d; }
+.shell[data-tema='sobrio'] .enlaceActivo, .shell[data-tema='sobrio'] .enlaceActivo:hover { color: #fff; }
+.shell[data-tema='sobrio'] .pildora { background: #2f4a1f; box-shadow: none; border-radius: 10px; }
+.shell[data-tema='sobrio'] .enlace { border-radius: 10px; }
+.shell[data-tema='sobrio'] .usuario { border-left-color: #e5e5e0; }
+.shell[data-tema='sobrio'] .nombre, .shell[data-tema='sobrio'] .salir:hover { color: #1f1f1d; }
+.shell[data-tema='sobrio'] .salir { color: #6b6b66; }
+.shell[data-tema='sobrio'] .salir:hover { background: #efefea; }
+.shell[data-tema='sobrio'] .contenido { padding-top: 92px; animation: none; }
+.shell[data-tema='sobrio'] .temas { background: #efefea; }
+.shell[data-tema='sobrio'] .temaActivo { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); }
+.shell[data-tema='sobrio'] :global(*) { scrollbar-color: #cfcfc8 transparent; }
+.shell[data-tema='sobrio'] :global(*::-webkit-scrollbar-thumb) { background: #cfcfc8; background-clip: padding-box; }
+.shell[data-tema='sobrio'] :global(:focus-visible) { outline-color: #2f4a1f; }
+.shell[data-tema='sobrio'] :global(::selection) { background: #e3e3dc; color: #1f1f1d; }
+@media (max-width: 720px) {
+  .shell[data-tema='sobrio'] .burbuja { padding: 6px 10px 6px 14px; }
+  .shell[data-tema='sobrio'] .logo { height: 30px; }
+  .shell[data-tema='sobrio'] .enlace { padding: 9px 12px; }
+  .shell[data-tema='sobrio'] .contenido { padding-top: 76px; }
+}
