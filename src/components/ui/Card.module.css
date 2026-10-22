@@ -29,10 +29,10 @@
 /* Estilo sobrio: tarjeta blanca, borde fino, sin sombra ni movimiento. */
 :global([data-tema='sobrio']) .card {
   background-color: #fff;
-  border-color: #e5e5e0;
-  border-radius: 12px;
-  box-shadow: none;
+  border-color: #dfe8d5;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(47, 74, 31, 0.07);
   animation: none;
-  transition: none;
+  transition: box-shadow 0.25s;
 }
-:global([data-tema='sobrio']) .card:not(:has(canvas)):hover { transform: none; box-shadow: none; }
+:global([data-tema='sobrio']) .card:not(:has(canvas)):hover { transform: none; box-shadow: 0 6px 20px rgba(47, 74, 31, 0.12); }
