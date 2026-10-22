@@ -20,6 +20,8 @@ interface Props {
   onCerrar: () => void
   /** Vista de límites: gráficos por analito de este informe. Con ellos, el detalle (resultados y datos) va plegado debajo. */
   graficos?: ReactNode
+  /** Cuenta de cliente o comercial: sin las columnas de límite y estado ni el conteo «sobre el límite». */
+  sinLimites?: boolean
 }
 
 const ETIQUETA_ESTADO: Record<EstadoResultado, string> = {
@@ -86,7 +88,7 @@ function rangoLimite(l: LimiteResuelto): string {
   return l.max != null ? `≤ ${f(l.max)}` : `≥ ${f(l.min as number)}`
 }
 
-export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCerrar, graficos }: Props) {
+export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCerrar, graficos, sinLimites }: Props) {
   const [ficha, setFicha] = useState<FichaInforme | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [urlPdf, setUrlPdf] = useState<string | null>(null)
@@ -214,10 +216,12 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
                   <span>Promedio</span>
                   <strong>{promedio != null ? `${formatDecimalCL(promedio, 4)} ppm` : '—'}</strong>
                 </div>
-                <div className={`${styles.tarjeta} ${sobre ? styles.tarjetaAlerta : ''}`}>
-                  <span>Sobre el límite</span>
-                  <strong>{sobre}</strong>
-                </div>
+                {!sinLimites && (
+                  <div className={`${styles.tarjeta} ${sobre ? styles.tarjetaAlerta : ''}`}>
+                    <span>Sobre el límite</span>
+                    <strong>{sobre}</strong>
+                  </div>
+                )}
               </div>
 
               <section>
@@ -233,8 +237,8 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
                           <th className={styles.num}>Resultado</th>
                           <th>Producto</th>
                           <th className={styles.num}>Dosis</th>
-                          <th>Límite</th>
-                          <th>Estado</th>
+                          {!sinLimites && <th>Límite</th>}
+                          {!sinLimites && <th>Estado</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -255,10 +259,12 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
                             </td>
                             <td>{r.producto ?? '—'}</td>
                             <td className={styles.num}>{r.dosis != null ? String(r.dosis) : '—'}</td>
-                            <td>{rangoLimite(limite)}</td>
-                            <td>
-                              <span className={`${styles.estado} ${styles[`estado_${estado}`]}`}>{ETIQUETA_ESTADO[estado]}</span>
-                            </td>
+                            {!sinLimites && <td>{rangoLimite(limite)}</td>}
+                            {!sinLimites && (
+                              <td>
+                                <span className={`${styles.estado} ${styles[`estado_${estado}`]}`}>{ETIQUETA_ESTADO[estado]}</span>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -310,10 +316,12 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
                   <span>Promedio</span>
                   <strong>{promedio != null ? `${formatDecimalCL(promedio, 4)} ppm` : '—'}</strong>
                 </div>
-                <div className={`${styles.tarjeta} ${sobre ? styles.tarjetaAlerta : ''}`}>
-                  <span>Sobre el límite</span>
-                  <strong>{sobre}</strong>
-                </div>
+                {!sinLimites && (
+                  <div className={`${styles.tarjeta} ${sobre ? styles.tarjetaAlerta : ''}`}>
+                    <span>Sobre el límite</span>
+                    <strong>{sobre}</strong>
+                  </div>
+                )}
               </div>
 
               <section>
@@ -329,8 +337,8 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
                           <th className={styles.num}>Resultado</th>
                           <th>Producto</th>
                           <th className={styles.num}>Dosis</th>
-                          <th>Límite</th>
-                          <th>Estado</th>
+                          {!sinLimites && <th>Límite</th>}
+                          {!sinLimites && <th>Estado</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -351,10 +359,12 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
                             </td>
                             <td>{r.producto ?? '—'}</td>
                             <td className={styles.num}>{r.dosis != null ? String(r.dosis) : '—'}</td>
-                            <td>{rangoLimite(limite)}</td>
-                            <td>
-                              <span className={`${styles.estado} ${styles[`estado_${estado}`]}`}>{ETIQUETA_ESTADO[estado]}</span>
-                            </td>
+                            {!sinLimites && <td>{rangoLimite(limite)}</td>}
+                            {!sinLimites && (
+                              <td>
+                                <span className={`${styles.estado} ${styles[`estado_${estado}`]}`}>{ETIQUETA_ESTADO[estado]}</span>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>

@@ -36,6 +36,18 @@ describe('DetalleObservacionesModal con ficha', () => {
     expect(screen.queryByText('Ver informe')).toBeNull()
   })
 
+  it('para un cliente abre la misma ficha sin límites ni estado', async () => {
+    const analitos = [{ id: 1, codigo: 'FLUD', laboratorio: 'Agrofresh' }] as never
+    const limites = [{ id: 1, analito_id: 1, especie: '', tipo_servicio: '', limite_min: null, limite_central: null, limite_max: 3 }] as never
+    render(<DetalleObservacionesModal titulo="AGF0001 · 24-09" filas={[obs(7)]} onCerrar={() => {}} fichaCompleta={{ analitos, limites, sinLimites: true }} />)
+    await waitFor(() => expect(screen.getByText('Fludioxonil')).toBeTruthy())
+    expect(screen.queryByText('Límite')).toBeNull()
+    expect(screen.queryByText('Estado')).toBeNull()
+    expect(screen.queryByText('Sobre el límite')).toBeNull()
+    expect(screen.getByText('Resultado')).toBeTruthy()
+    expect(screen.getByText(/aún no tiene un PDF/)).toBeTruthy()
+  })
+
   it('con varias solicitudes o sin permiso usa la tabla simple', () => {
     const { unmount } = render(<DetalleObservacionesModal titulo="x" filas={[obs(7), obs(8)]} onCerrar={() => {}} fichaCompleta={{ analitos: [], limites: [] }} />)
     expect(screen.getByText('N° informe')).toBeTruthy()

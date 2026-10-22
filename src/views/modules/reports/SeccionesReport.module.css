@@ -6,6 +6,7 @@
 }
 
 .cabecera {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -149,3 +150,30 @@
   background: var(--acento, var(--color-primary));
 }
 :global([data-portal]) .titulo h2 { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.01em; }
+
+/* El número correlativo del bloque: un círculo en la esquina superior izquierda de la cabecera. */
+.numero {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--acento, var(--color-primary));
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0 0 3px #fff, 0 3px 8px rgba(40, 70, 20, 0.25);
+}
+/* La cabecera del portal recorta lo que sobresale: el círculo va adentro. */
+:global([data-portal]) .numero {
+  top: 8px;
+  left: 14px;
+}
+:global([data-portal]) .cabecera:has(.numero) {
+  padding-left: 54px;
+}

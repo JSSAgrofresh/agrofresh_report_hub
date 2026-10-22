@@ -4,8 +4,9 @@ Report: todos los datos de la solicitud, sus resultados con el producto y la
 dosis aplicados, de qué carga viene, lo que dice la solicitud de Toma de
 muestras y -si existe- el PDF del informe, para mostrarlo en pantalla.
 
-Solo personal interno: los PDF son de los laboratorios y de AgroFresh, y la
-cuenta de un cliente no tiene por qué verlos (ver `solo_interno`).
+Lo abre cualquier cuenta con sesión, pero un cliente o un comercial solo ve los
+informes de SU alcance (`reportes._filtro_alcance`, el mismo punto que acota Report)
+y una versión sin los datos internos (correos, quién la generó, OT, la carga).
 
 El PDF se busca en dos lugares, en este orden:
   1. `informe_auditoria`: el que se subió por Converter, que trae el N° de
@@ -32,14 +33,15 @@ from fastapi.responses import Response
 from . import informes_storage, r2
 from . import r2_auditoria as r2a
 from .auditoria_interna import errores_r2
-from .auth import solo_interno
+from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 from .pdf_permisos import sin_restricciones
+from .reportes import _filtro_alcance
 from .r2_auditoria import segmento_seguro
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/reportes/informe", tags=["reportes"], dependencies=[Depends(solo_interno)])
+router = APIRouter(prefix="/api/reportes/informe", tags=["reportes"], dependencies=[Depends(usuario_actual)])
 
 # Lo que se muestra de la solicitud, en el orden de la ficha.
 CAMPOS_SOLICITUD = (
@@ -69,6 +71,45 @@ def _limpio(valor: Any) -> Any:
     if isinstance(valor, str):
         return valor.strip() or None
     return valor
+
+
+# Lo que un cliente o comercial NO ve de la ficha: correos, quién la generó, la OT interna y de qué carga viene.
+CAMPOS_INTERNOS = (
+    "referencia", "referencia_proceso", "email_solicitante", "email_laboratorio", "generado_por", "solicitante",
+    "nombre_muestreador", "origen",
+)
+
+
+def para_cliente(ficha: dict) -> dict:
+    """La ficha sin los datos internos, para cuentas de cliente y comercial."""
+    return {
+        **ficha,
+        "solicitud": {k: v for k, v in ficha["solicitud"].items() if k not in CAMPOS_INTERNOS},
+        "carga": None,
+        "toma": None,
+    }
+
+
+def _es_de_cliente(usuario: Usuario) -> bool:
+    return usuario.tipoAcceso in ("cliente", "comercial")
+
+
+def _exigir_alcance(cur, usuario: Usuario, solicitud_id: int) -> None:
+    """404 si la solicitud no es de las que esta cuenta de cliente o comercial puede ver (no revela que existe)."""
+    if not _es_de_cliente(usuario):
+        return
+    filtro, params = _filtro_alcance(usuario, None, None)
+    cur.execute(
+        f"""
+        SELECT 1 FROM solicitud s
+          LEFT JOIN planta p ON p.id = s.planta_id
+          LEFT JOIN cliente c ON c.id = p.cliente_id
+         WHERE s.id = %(sid)s {filtro}
+        """,
+        {**params, "sid": solicitud_id},
+    )
+    if cur.fetchone() is None:
+        raise HTTPException(404, "Informe no encontrado.")
 
 
 def _lleno(valor: Any) -> bool:
@@ -238,8 +279,9 @@ def _disposicion_inline(nombre: str) -> str:
 # ---------------------------------------------------------------------------
 
 @router.get("/{solicitud_id}")
-def ficha(solicitud_id: int) -> dict:
+def ficha(solicitud_id: int, usuario: Usuario = Depends(usuario_actual)) -> dict:
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        _exigir_alcance(cur, usuario, solicitud_id)
         sol = _solicitud(cur, solicitud_id)
         if sol is None:
             raise HTTPException(404, "Informe no encontrado.")
@@ -249,12 +291,14 @@ def ficha(solicitud_id: int) -> dict:
         carga = _carga(cur, sol.get("carga_id"))
         toma = _toma(cur, sol.get("referencia"))
         pdf = _buscar_pdf(cur, sol)
-    return construir_ficha(sol, resultados, productos, carga, toma, pdf)
+    armada = construir_ficha(sol, resultados, productos, carga, toma, pdf)
+    return para_cliente(armada) if _es_de_cliente(usuario) else armada
 
 
 @router.get("/{solicitud_id}/pdf")
-def pdf_del_informe(solicitud_id: int) -> Response:
+def pdf_del_informe(solicitud_id: int, usuario: Usuario = Depends(usuario_actual)) -> Response:
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        _exigir_alcance(cur, usuario, solicitud_id)
         sol = _solicitud(cur, solicitud_id)
         if sol is None:
             raise HTTPException(404, "Informe no encontrado.")

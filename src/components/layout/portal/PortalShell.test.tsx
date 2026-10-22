@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { AuthContext } from '@/features/auth/context/AuthContext'
 import { AppLayout } from '../AppLayout'
@@ -24,11 +24,22 @@ describe('AppLayout según el tipo de cuenta', () => {
     expect(screen.getByAltText('AgroFresh')).toBeInTheDocument()
     // Lo primero que ve es el Report: el Panel general queda fuera del menú y Report abre directo en los gráficos.
     expect(screen.queryByRole('link', { name: 'Panel general' })).toBeNull()
-    expect(screen.getByRole('link', { name: /Report/i })).toHaveAttribute('href', '/modulos/reportes/laboratorio')
-    expect(screen.getByRole('link', { name: /Storage/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Análisis de Laboratorio' })).toHaveAttribute('href', '/modulos/reportes/laboratorio')
+    expect(screen.getByRole('link', { name: 'Informes de Laboratorio' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
     expect(screen.getByText('contenido de la pantalla')).toBeInTheDocument()
     expect(document.querySelector('aside')).toBeNull()
+  })
+
+  it('con informes Accu-Tab el menú va en orden: análisis, informes y Reportes Accutab', () => {
+    montar({ id: '3', nombre: 'Planta Lontué', email: 'c@dole.com', tipoAcceso: 'cliente', area: 'cromatografia', modulos: ['reports', 'storage'], reportes: ['laboratorio', 'postventa'] })
+
+    const nombres = within(screen.getByRole('navigation', { name: 'Secciones' }))
+      .getAllByRole('link')
+      .map((a) => a.textContent)
+      .filter((t) => t)
+    expect(nombres).toEqual(['Análisis de Laboratorio', 'Informes de Laboratorio', 'Reportes Accutab'])
+    expect(screen.queryByRole('link', { name: 'Panel general' })).toBeNull()
   })
 
   it('el personal interno sigue con la barra lateral de siempre', () => {

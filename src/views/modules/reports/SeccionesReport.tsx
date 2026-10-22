@@ -15,9 +15,27 @@ import estilosReporte from './ReporteView.module.css'
 import styles from './SeccionesReport.module.css'
 
 /** La cabecera de un bloque: el nombre del análisis, qué laboratorios lo hacen y, a la derecha, lo que se pueda tocar. */
-export function CabeceraSeccion({ bloque, acento, laboratorios, children }: { bloque: ClaveBloque; acento: string; laboratorios: string; children?: ReactNode }) {
+export function CabeceraSeccion({
+  bloque,
+  numero,
+  acento,
+  laboratorios,
+  children,
+}: {
+  bloque: ClaveBloque
+  /** Número correlativo del bloque, en un círculo en la esquina (solo cuando se ven varios bloques). */
+  numero?: number
+  acento: string
+  laboratorios: string
+  children?: ReactNode
+}) {
   return (
     <header className={styles.cabecera} style={{ '--acento': acento } as CSSProperties}>
+      {numero != null && (
+        <span className={styles.numero} aria-label={`Análisis ${numero}`}>
+          {numero}
+        </span>
+      )}
       <div className={styles.titulo}>
         <h2>{NOMBRE_BLOQUE[bloque]}</h2>
         <span>{laboratorios}</span>
@@ -67,6 +85,7 @@ export function BotonesLabResidual({
 
 interface PropsInformes {
   bloque: 'fsma' | 'fito'
+  numero?: number
   informes: InformeVista[]
   /** Informes de ese laboratorio sin ningún filtro, para «de N en total». */
   totalSinFiltros: number
@@ -81,7 +100,7 @@ const LAB_DE_BLOQUE = { fsma: 'als', fito: 'diagnofruit' } as const
  * El bloque de ALS (Análisis FSMA) o de Diagnofruit (Análisis de fitopatología): sus tres indicadores y su tabla por
  * informe, con los gráficos si el administrador principal los encendió.
  */
-export function SeccionInformes({ bloque, informes, totalSinFiltros, conFiltros, conGraficos, acento }: PropsInformes) {
+export function SeccionInformes({ bloque, numero, informes, totalSinFiltros, conFiltros, conGraficos, acento }: PropsInformes) {
   const lab = LAB_DE_BLOQUE[bloque]
   const nombreLab = nombreLaboratorio(lab)
   const { analisis, detecciones } = useMemo(() => {
@@ -92,7 +111,7 @@ export function SeccionInformes({ bloque, informes, totalSinFiltros, conFiltros,
 
   return (
     <section className={styles.seccion} aria-label={NOMBRE_BLOQUE[bloque]}>
-      <CabeceraSeccion bloque={bloque} acento={acento} laboratorios={nombreLab}>
+      <CabeceraSeccion bloque={bloque} numero={numero} acento={acento} laboratorios={nombreLab}>
         <span className={styles.laboratorio} style={{ '--acento': acento } as CSSProperties}>
           <i className={`${styles.punto} ${styles.encendido}`} aria-hidden="true" />
           {nombreLab}

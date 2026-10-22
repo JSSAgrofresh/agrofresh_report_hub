@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Header } from '@/components/layout/Header'
-import { AREAS } from '@/constants/areas'
 import type { AreaId } from '@/constants/areas'
 import { MODULOS } from '@/constants/modules'
 import { ModuloCard, useActividadDashboard, usePanelCliente, useSeriesDashboard } from '@/features/dashboard'
@@ -81,13 +80,10 @@ function dibujar(id: string, c: Contexto): ReactNode {
     case 'panel:verificaciones':
       return <VerificacionesPanel items={c.actividad?.verificaciones_recientes ?? []} cargando={c.cargando} />
     case 'cliente:encabezado': {
-      const area = c.usuario.area ?? 'cromatografia'
-      const config = AREAS[area]
       return (
         <PortalHero
-          etiqueta={config.nombre}
           titulo={c.usuario.plantaNombre ?? c.usuario.clienteNombre ?? c.usuario.nombre}
-          descripcion={`Portal de cliente · ${config.nombre}. Acceso exclusivo a tus datos.`}
+          descripcion="Portal de cliente. Acceso exclusivo a tus datos."
         />
       )
     }
