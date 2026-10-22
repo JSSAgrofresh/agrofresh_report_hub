@@ -25,6 +25,7 @@ import {
 import type { ChartDataset, Plugin, TooltipItem } from 'chart.js'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
+import { InfoTip } from '@/components/ui/InfoTip'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
@@ -1351,7 +1352,7 @@ export function ReporteView({
             </div>
 
             <p className={styles.grupoFiltros}>
-              Generales <small>valen para todos los análisis</small>
+              Generales <InfoTip>Valen para todos los análisis.</InfoTip>
             </p>
             <div className={styles.filtros}>
               {/* Filtros principales primero: Laboratorio, Sold To, Ship To, Especie —
@@ -1494,7 +1495,7 @@ export function ReporteView({
             {/* Filtros que no valen para todos los análisis: Especie y Variedad no aplican a FSMA (ALS no las informa) e
                 Ingrediente Activo es solo de residuos. Cada análisis trae además sus propios filtros bajo su cabecera. */}
             <p className={styles.grupoFiltros}>
-              Específicos <small>Especie y variedad: residuos y fitopatología · Ingrediente activo: solo residuos</small>
+              Específicos <InfoTip>Especie y variedad: residuos y fitopatología. Ingrediente activo: solo residuos.</InfoTip>
             </p>
             <div className={styles.filtros}>
               {filtrosMultiples ? (
@@ -1590,16 +1591,14 @@ export function ReporteView({
             <>
               {vistaControl && (
                 <p className={styles.nota}>
-                  <span className={styles.notaIcono} aria-hidden="true">i</span>
-                  {nota}
+                  <InfoTip>{nota}</InfoTip>
                 </p>
               )}
               {limitesTabla && (
                 <p className={styles.nota}>
-                  <span className={styles.notaIcono} aria-hidden="true">i</span>
-                  {limitesDeTabla
+                  <InfoTip>{limitesDeTabla
                     ? `Franjas fijas tomadas de la tabla de límites residuales para ${multi.crop[0]}. No se recalculan con los datos.`
-                    : 'Las franjas del gráfico se dibujan al elegir UNA especie. El recuadro «Informes fuera de rango» no la necesita: evalúa cada informe con los límites de su propia especie.'}
+                    : 'Las franjas del gráfico se dibujan al elegir UNA especie. El recuadro «Informes fuera de rango» no la necesita: evalúa cada informe con los límites de su propia especie.'}</InfoTip>
                 </p>
               )}
 
