@@ -1,0 +1,272 @@
+.pagina {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.error {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.vistas {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.vistas button {
+  padding: 7px 14px;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.vistas button[aria-pressed='true'] {
+  background: var(--color-text);
+  color: var(--color-surface);
+}
+
+.buscador,
+.campo select,
+.campo input {
+  padding: 7px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.buscador {
+  flex: 1 1 260px;
+  max-width: 340px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.campo select {
+  min-width: 190px;
+  max-width: 280px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.excel {
+  margin-left: auto;
+  padding: 7px 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.excel:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-faint);
+}
+
+.vistas button:focus-visible,
+.buscador:focus-visible,
+.campo select:focus-visible,
+.campo input:focus-visible,
+.excel:focus-visible {
+  outline: 2px solid var(--color-primary-hover);
+  outline-offset: 2px;
+}
+
+.tablaWrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla th,
+.tabla td {
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.tabla thead th {
+  background: var(--color-bg);
+  color: var(--color-text-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-align: right;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
+.tabla thead th.grupo {
+  color: var(--color-text);
+  font-size: 12px;
+  text-align: center;
+}
+
+.tabla thead th.sub {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-align: center;
+  text-transform: none;
+}
+
+.sep {
+  border-left: 1px solid var(--color-border);
+}
+
+.izq {
+  text-align: left;
+  padding-left: 16px;
+}
+
+.tabla thead th.izq {
+  vertical-align: bottom;
+  text-align: left;
+}
+
+/* La primera columna se queda al desplazar hacia el lado. */
+.fija {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--color-surface);
+  box-shadow: 1px 0 0 var(--color-border);
+}
+
+.tabla thead th.fija {
+  background: var(--color-bg);
+  z-index: 2;
+}
+
+.cliente {
+  display: table-cell;
+  font-weight: 400;
+  white-space: normal;
+  min-width: 240px;
+}
+
+.cliente b {
+  display: block;
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.cliente span {
+  display: block;
+  color: var(--color-text-faint);
+  font-size: 11.5px;
+}
+
+.n {
+  text-align: right;
+}
+
+.cero {
+  color: #b5bdb6;
+}
+
+.mal {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.total {
+  background: #fafbf8;
+}
+
+.pct {
+  font-weight: 700;
+}
+
+.general {
+  border-left: 1px solid var(--color-border);
+  background: #fafbf8;
+  font-size: 15px;
+  font-weight: 700;
+  padding-right: 14px;
+}
+
+.tabla tfoot th,
+.tabla tfoot td {
+  border-top: 2px solid var(--color-border);
+  border-bottom: 0;
+  font-weight: 700;
+  background: #fafbf8;
+}
+
+.tabla tfoot th.fija {
+  background: #fafbf8;
+}
+
+.vacio {
+  padding: 28px 16px;
+  color: var(--color-text-faint);
+  text-align: center;
+}
+
+.como {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.como summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.como ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aviso {
+  margin: 8px 0 0;
+  color: var(--color-text-faint);
+}
