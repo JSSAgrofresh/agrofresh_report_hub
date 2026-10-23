@@ -35,6 +35,13 @@ describe('agruparPorPlanta', () => {
     expect(p.bloques.fsma.total).toEqual({ cumple: 8, noCumple: 0 })
   })
 
+  it('Ecofog es su propia parte de Residuales y también suma al total', () => {
+    const [p] = agruparPorPlanta([f({ servicio: 'linea', cumple: 2 }), f({ servicio: 'ecofog', cumple: 1, no_cumple: 1 })])
+    expect(p.bloques.residuales.ecofog).toEqual({ cumple: 1, noCumple: 1 })
+    expect(p.bloques.residuales.linea).toEqual({ cumple: 2, noCumple: 0 })
+    expect(p.bloques.residuales.total).toEqual({ cumple: 3, noCumple: 1 })
+  })
+
   it('el general es el promedio simple del % No cumple de los tres análisis (cada uno pesa lo mismo)', () => {
     const [p] = agruparPorPlanta(codegua)
     // (33,3 + 0 + 33,3) / 3

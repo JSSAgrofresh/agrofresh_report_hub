@@ -55,8 +55,13 @@ function Celdas({ b, general }: { b: Bloques; general: number | null }) {
         const c: CeldaBloque = b[id]
         return (
           <Fragment key={id}>
-            <Par c={c.linea} />
-            <Par c={c.actimist} />
+            {id === 'residuales' && (
+              <>
+                <Par c={c.linea} />
+                <Par c={c.actimist} />
+                <Par c={c.ecofog} />
+              </>
+            )}
             <Total c={c.total} />
           </Fragment>
         )
@@ -71,14 +76,21 @@ function Encabezado({ primera, ancho }: { primera: string; ancho: number }) {
     <thead>
       <tr>
         <th rowSpan={3} className={`${styles.izq} ${styles.fija}`} style={{ minWidth: ancho }}>{primera}</th>
-        {BLOQUES.map((b) => <th key={b.id} colSpan={8} className={`${styles.grupo} ${styles.sep}`}>{b.titulo}</th>)}
+        {BLOQUES.map((b) => (
+          <th key={b.id} colSpan={b.id === 'residuales' ? 10 : 4} className={`${styles.grupo} ${styles.sep}`}>{b.titulo}</th>
+        ))}
         <th rowSpan={3} className={`${styles.grupo} ${styles.sep}`}>General<br />% No cumple</th>
       </tr>
       <tr>
         {BLOQUES.map((b) => (
           <Fragment key={b.id}>
-            <th colSpan={2} className={`${styles.sub} ${styles.sep}`}>Línea de proceso</th>
-            <th colSpan={2} className={`${styles.sub} ${styles.sep}`}>Actimist</th>
+            {b.id === 'residuales' && (
+              <>
+                <th colSpan={2} className={`${styles.sub} ${styles.sep}`}>Línea de proceso</th>
+                <th colSpan={2} className={`${styles.sub} ${styles.sep}`}>Actimist</th>
+                <th colSpan={2} className={`${styles.sub} ${styles.sep}`}>Ecofog</th>
+              </>
+            )}
             <th colSpan={4} className={`${styles.sub} ${styles.sep}`}>Total</th>
           </Fragment>
         ))}
@@ -86,8 +98,13 @@ function Encabezado({ primera, ancho }: { primera: string; ancho: number }) {
       <tr>
         {BLOQUES.map((b) => (
           <Fragment key={b.id}>
-            <th className={styles.sep}>Cumple</th><th>No cumple</th>
-            <th className={styles.sep}>Cumple</th><th>No cumple</th>
+            {b.id === 'residuales' && (
+              <>
+                <th className={styles.sep}>Cumple</th><th>No cumple</th>
+                <th className={styles.sep}>Cumple</th><th>No cumple</th>
+                <th className={styles.sep}>Cumple</th><th>No cumple</th>
+              </>
+            )}
             <th className={styles.sep}>Informes</th><th>Cumple</th><th>No cumple</th><th>% No cumple</th>
           </Fragment>
         ))}
@@ -100,16 +117,19 @@ function Encabezado({ primera, ancho }: { primera: string; ancho: number }) {
 async function descargarExcel(primera: string[], filas: { etiqueta: string[]; b: Bloques; general: number | null }[], nombre: string) {
   const XLSX = await import('xlsx')
   const cab = [...primera]
-  for (const { titulo } of BLOQUES)
-    for (const parte of ['Línea de proceso · Cumple', 'Línea de proceso · No cumple', 'Actimist · Cumple', 'Actimist · No cumple', 'Total · Informes', 'Total · Cumple', 'Total · No cumple', 'Total · % No cumple'])
-      cab.push(`${titulo} · ${parte}`)
+  for (const { id, titulo } of BLOQUES) {
+    const partes = ['Total · Informes', 'Total · Cumple', 'Total · No cumple', 'Total · % No cumple']
+    if (id === 'residuales') partes.unshift('Línea de proceso · Cumple', 'Línea de proceso · No cumple', 'Actimist · Cumple', 'Actimist · No cumple', 'Ecofog · Cumple', 'Ecofog · No cumple')
+    for (const parte of partes) cab.push(`${titulo} · ${parte}`)
+  }
   cab.push('General % No cumple')
   const datos = filas.map((f) => {
     const fila: (string | number)[] = [...f.etiqueta]
     for (const { id } of BLOQUES) {
       const c = f.b[id]
       const p = pctNoCumple(c.total)
-      fila.push(c.linea.cumple, c.linea.noCumple, c.actimist.cumple, c.actimist.noCumple, informesDe(c.total), c.total.cumple, c.total.noCumple, p === null ? '' : Math.round(p * 10) / 10)
+      if (id === 'residuales') fila.push(c.linea.cumple, c.linea.noCumple, c.actimist.cumple, c.actimist.noCumple, c.ecofog.cumple, c.ecofog.noCumple)
+      fila.push(informesDe(c.total), c.total.cumple, c.total.noCumple, p === null ? '' : Math.round(p * 10) / 10)
     }
     fila.push(f.general === null ? '' : Math.round(f.general * 10) / 10)
     return fila
@@ -261,7 +281,7 @@ export function RendimientoCalidadView() {
                   <Encabezado primera="Ship To · Sold To" ancho={240} />
                   <tbody>
                     {plantasFilas.length === 0 ? (
-                      <tr><td colSpan={26} className={styles.vacio}>{datos.filas.length === 0 ? 'Todavía no hay informes que juzgar.' : 'Ningún cliente coincide con lo que buscas en este período.'}</td></tr>
+                      <tr><td colSpan={20} className={styles.vacio}>{datos.filas.length === 0 ? 'Todavía no hay informes que juzgar.' : 'Ningún cliente coincide con lo que buscas en este período.'}</td></tr>
                     ) : (
                       plantasFilas.map((p) => (
                         <tr key={`${p.soldTo}|${p.shipTo}`}>
@@ -288,7 +308,7 @@ export function RendimientoCalidadView() {
                   <Encabezado primera="Semana" ancho={150} />
                   <tbody>
                     {semanasFilas.length === 0 ? (
-                      <tr><td colSpan={26} className={styles.vacio}>No hay informes de esa selección en este período.</td></tr>
+                      <tr><td colSpan={20} className={styles.vacio}>No hay informes de esa selección en este período.</td></tr>
                     ) : (
                       semanasFilas.map((s) => (
                         <tr key={s.semana}>
@@ -317,16 +337,15 @@ export function RendimientoCalidadView() {
           <details className={styles.como}>
             <summary>Cómo se juzga cada informe</summary>
             <ul>
-              <li><b>Residuales:</b> no cumple si algún analito queda sobre su máximo o bajo su mínimo (tabla por especie; Línea de proceso y Actimist tienen cada una la suya).</li>
+              <li><b>Residuales:</b> no cumple si algún analito queda sobre su máximo o bajo su mínimo (tabla por especie; Línea de proceso y Actimist tienen cada una la suya, y Ecofog usa la de Actimist). Es el único análisis que se desglosa por servicio.</li>
               <li><b>FSMA:</b> no cumple si detectó algo. «&lt;1» y ND cuentan como no detectado.</li>
               <li><b>FITO:</b> cumple solo si Botrytis, Alternaria, Geotrichum y Penicillium están en nivel Óptimo{datos.moderado_cumple ? ' o Moderado' : ' (Moderado y Peligroso no cumplen)'}.</li>
               <li><b>General:</b> promedio del % No cumple de los análisis que tuvieron informes; cada análisis pesa lo mismo. Se marca en rojo desde 40 %.</li>
-              <li>La semana es la de la fecha de muestreo. El total de Residuales suma Línea de proceso y Actimist.</li>
+              <li>La semana es la de la fecha de muestreo. El total de Residuales suma Línea de proceso, Actimist y Ecofog.</li>
             </ul>
-            {(sinCriterio > 0 || datos.fuera.ecofog > 0 || datos.fuera.sin_fecha > 0) && (
+            {(sinCriterio > 0 || datos.fuera.sin_fecha > 0) && (
               <p className={styles.aviso}>
                 No se cuentan: {sinCriterio} informes sin criterio para juzgarlos (especie sin tabla de límites o sin analitos con límite)
-                {datos.fuera.ecofog > 0 ? `, ${datos.fuera.ecofog} de Ecofog` : ''}
                 {datos.fuera.sin_fecha > 0 ? `, ${datos.fuera.sin_fecha} sin fecha` : ''}.
               </p>
             )}
