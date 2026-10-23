@@ -33,6 +33,7 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
   const seccion = useRef<HTMLElement>(null)
   const pegadoRef = useRef(false)
   const [pegado, setPegado] = useState(false)
+  // Los filtros parten plegados (ocupan mucho espacio): una barra delgada con «Mostrar filtros».
   const [abierto, setAbierto] = useState(false)
   const altoLibre = useRef(0)
   // Altura del hueco que deja la tarjeta al salirse de su lugar: al pegarse se encoge a 0 (lo de abajo sube con suavidad) y al despegarse vuelve a crecer.
@@ -59,18 +60,17 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
         setAnimando(true)
         setPegado(true)
         requestAnimationFrame(() => requestAnimationFrame(() => setHuecoH(0)))
-        window.setTimeout(() => setAnimando(false), 400)
+        window.setTimeout(() => setAnimando(false), 750)
       } else if (pegadoRef.current && arriba > r.bottom + SUELTA) {
         // Se suelta solo cuando su lugar queda más abajo que la barra pegada (su propia altura): así un título que quedó justo bajo ella no la hace parpadear.
         pegadoRef.current = false
         setPegado(false)
-        setAbierto(false)
         setAnimando(true)
         setHuecoH(altoLibre.current)
         window.setTimeout(() => {
           setHuecoH(null)
           setAnimando(false)
-        }, 400)
+        }, 750)
       }
       if (pegadoRef.current) {
         setGeo((g) => (g && g.top === r.bottom && g.left === r.left && g.width === r.width ? g : { top: r.bottom, left: r.left, width: r.width }))
@@ -135,7 +135,7 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
         style={estilo}
       >
         {children}
-        {pegado && (
+        {(
           <button type="button" className={styles.alternar} aria-expanded={abierto} onClick={() => setAbierto((v) => !v)}>
             {abierto ? 'Ocultar filtros ▴' : 'Mostrar filtros ▾'}
           </button>

@@ -1,4 +1,4 @@
-.marcador { position: relative; transition: height 0.35s cubic-bezier(0.3, 0.9, 0.3, 1); }
+.marcador { position: relative; transition: height 0.7s cubic-bezier(0.25, 0.8, 0.25, 1); }
 .animando { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .marcador { transition: none; } }
 
@@ -63,3 +63,6 @@
 }
 :global([data-tema='sobrio']) .hoja { background: #fff !important; }
 .fondoHoja { position: fixed; inset: 0; z-index: 54; background: rgba(20, 30, 12, 0.35); }
+
+/* Al desplegar los filtros el contenido aparece suave, no de golpe. */
+@keyframes aparecerFiltros { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }

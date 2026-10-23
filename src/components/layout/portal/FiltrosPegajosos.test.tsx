@@ -13,7 +13,7 @@ describe('FiltrosPegajosos', () => {
     expect(screen.getByText('controles')).toBeInTheDocument()
   })
 
-  it('dentro del portal arranca suelta (sin pegar) y con todos sus controles', () => {
+  it('dentro del portal arranca suelta (sin pegar) y plegada, con su botón para mostrar los controles', () => {
     render(
       <PortalContext.Provider value={true}>
         <FiltrosPegajosos className="x"><p>controles</p></FiltrosPegajosos>
@@ -21,7 +21,8 @@ describe('FiltrosPegajosos', () => {
     )
 
     expect(screen.getByRole('region', { name: 'Filtros' })).toHaveAttribute('data-pegado', 'false')
-    expect(screen.queryByRole('button', { name: /mostrar filtros/i })).toBeNull()
+    expect(screen.getByRole('region', { name: 'Filtros' })).toHaveAttribute('data-abierto', 'false')
+    expect(screen.getByRole('button', { name: /mostrar filtros/i })).toBeInTheDocument()
     expect(screen.getByText('controles')).toBeInTheDocument()
   })
 })
