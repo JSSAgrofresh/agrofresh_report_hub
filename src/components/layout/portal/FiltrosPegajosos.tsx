@@ -22,7 +22,10 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
   const pegadoRef = useRef(false)
   const [pegado, setPegado] = useState(false)
   const [abierto, setAbierto] = useState(false)
-  const [alto, setAlto] = useState(0)
+  const altoLibre = useRef(0)
+  // Altura del hueco que deja la tarjeta al salirse de su lugar: al pegarse se encoge a 0 (lo de abajo sube con suavidad) y al despegarse vuelve a crecer.
+  const [hueco_h, setHuecoH] = useState<number | null>(null)
+  const [animando, setAnimando] = useState(false)
   const [geo, setGeo] = useState<Geometria | null>(null)
 
   useEffect(() => {
@@ -48,12 +51,23 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
       const arriba = h.getBoundingClientRect().top
       if (!pegadoRef.current && arriba <= r.bottom + 2) {
         pegadoRef.current = true
-        setAlto(s.offsetHeight)
+        const h = s.offsetHeight
+        altoLibre.current = h
+        setHuecoH(h)
+        setAnimando(true)
         setPegado(true)
+        requestAnimationFrame(() => requestAnimationFrame(() => setHuecoH(0)))
+        window.setTimeout(() => setAnimando(false), 400)
       } else if (pegadoRef.current && arriba > r.bottom + 2) {
         pegadoRef.current = false
         setPegado(false)
         setAbierto(false)
+        setAnimando(true)
+        setHuecoH(altoLibre.current)
+        window.setTimeout(() => {
+          setHuecoH(null)
+          setAnimando(false)
+        }, 400)
       }
       if (pegadoRef.current) {
         setGeo((g) => (g && g.top === r.bottom && g.left === r.left && g.width === r.width ? g : { top: r.bottom, left: r.left, width: r.width }))
@@ -82,7 +96,11 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
 
   const estilo: CSSProperties | undefined = pegado && geo ? { top: geo.top, left: geo.left, width: geo.width } : undefined
   return (
-    <div ref={hueco} className={styles.marcador} style={pegado ? { height: alto } : undefined}>
+    <div
+      ref={hueco}
+      className={`${styles.marcador} ${animando ? styles.animando : ''}`}
+      style={hueco_h != null ? { height: hueco_h } : undefined}
+    >
       <section
         ref={seccion}
         className={className}

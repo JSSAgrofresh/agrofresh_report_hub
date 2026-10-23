@@ -1129,3 +1129,37 @@
 :global([data-tema='sobrio']) .soloFuera,
 :global([data-tema='sobrio']) .toggleVista { border-radius: 10px; }
 :global([data-tema='sobrio']) .vacioCard { border-radius: 14px; }
+
+/* ── Teléfono: el gráfico de residuos se desliza de lado y su ficha queda fija debajo ─────────────────────── */
+.chartDeslizable {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  margin-inline: -4px;
+  padding-bottom: 4px;
+}
+
+.fichaColumna {
+  margin-top: var(--space-3);
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+.fichaColumnaCab { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 8px; }
+.fichaColumnaCab b { font-size: 14px; overflow-wrap: anywhere; }
+.fichaColumnaCab span { font-size: 12px; color: var(--color-text-faint); }
+.fichaColumnaCab button {
+  margin-left: auto; border: 0; background: transparent; color: var(--color-primary); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; padding: 6px 0 6px 8px;
+}
+.fichaColumna ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.fichaColumna li { display: grid; grid-template-columns: 10px minmax(0, auto) auto 1fr; align-items: center; gap: 8px; font-size: 13px; }
+.fichaPunto { width: 10px; height: 10px; border-radius: 50%; }
+.fichaNombre { font-weight: 700; }
+.fichaValor { font-variant-numeric: tabular-nums; font-weight: 800; }
+.fichaSobre, .fichaBajo, .fichaDentro { justify-self: end; text-align: right; font-size: 12px; font-weight: 700; }
+.fichaSobre { color: var(--color-danger, #b0271f); }
+.fichaBajo { color: #2b6cb0; }
+.fichaDentro { color: #3f7a1a; }
