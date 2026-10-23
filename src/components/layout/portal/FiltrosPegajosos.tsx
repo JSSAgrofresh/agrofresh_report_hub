@@ -21,6 +21,8 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
   // Teléfono acostado: no hay barra a la que pegarse. Los filtros quedan en su lugar y un botón flotante los abre en una hoja con scroll.
   const compacto = useMediaQuery('(max-height: 540px) and (orientation: landscape)')
   const [hoja, setHoja] = useState(false)
+  // Altura que ocupa la tarjeta en su lugar mientras la hoja la saca de la página (se mide al abrir).
+  const [altoHoja, setAltoHoja] = useState(0)
   const hueco = useRef<HTMLDivElement>(null)
   const seccion = useRef<HTMLElement>(null)
   const pegadoRef = useRef(false)
@@ -80,14 +82,9 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
     }
   }, [portal, compacto])
 
-  // Al salir del modo compacto (o cambiar de pantalla) la hoja se cierra sola.
-  useEffect(() => {
-    if (!compacto) setHoja(false)
-  }, [compacto])
-
   if (portal && compacto) {
     return (
-      <div className={styles.marcador} style={hoja ? { height: seccion.current?.offsetHeight } : undefined}>
+      <div className={styles.marcador} style={hoja ? { height: altoHoja } : undefined}>
         <section
           ref={seccion}
           className={`${className} ${hoja ? styles.hoja : ''}`}
@@ -97,7 +94,10 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
           {children}
         </section>
         {hoja && <div className={styles.fondoHoja} onClick={() => setHoja(false)} aria-hidden="true" />}
-        <button type="button" className={styles.botonHoja} aria-expanded={hoja} onClick={() => setHoja((v) => !v)}>
+        <button type="button" className={styles.botonHoja} aria-expanded={hoja} onClick={() => {
+            setAltoHoja(seccion.current?.offsetHeight ?? 0)
+            setHoja((v) => !v)
+          }}>
           {hoja ? 'Cerrar filtros ✕' : 'Filtros ▾'}
         </button>
       </div>
