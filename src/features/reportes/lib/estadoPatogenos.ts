@@ -196,3 +196,14 @@ export function filtrarBloque(informes: InformeVista[], f: FiltroBloque): Inform
     }))
     .filter((i) => i.resultados.length > 0)
 }
+
+/** Los analitos que trae un conjunto de informes (código, nombre y orden), en el orden fijo del laboratorio. */
+export function analitosDeInformes(informes: InformeVista[]): [string, { nombre: string; orden: number }][] {
+  const porCodigo = new Map<string, { nombre: string; orden: number }>()
+  informes.forEach((i) => i.resultados.forEach((r) => porCodigo.has(r.codigo) || porCodigo.set(r.codigo, { nombre: r.nombre, orden: r.orden })))
+  return [...porCodigo.entries()].sort((a, b) => a[1].orden - b[1].orden || a[1].nombre.localeCompare(b[1].nombre, 'es'))
+}
+
+export function filtrosActivosBloque(f: FiltroBloque): boolean {
+  return f.analitos.length > 0 || f.estado !== 'todos'
+}

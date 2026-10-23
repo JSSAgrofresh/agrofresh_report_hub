@@ -26,13 +26,15 @@ export function TarjetasAnalisis({
     <nav className={styles.fila} aria-label="Ir a un análisis" style={{ '--acento': acento } as CSSProperties}>
       {TARJETAS.map(({ bloque, nombre, icono: Icono }) => (
         <button key={bloque} type="button" className={styles.tarjeta} onClick={() => onElegir(bloque)} aria-label={`${nombre}: ${totales[bloque]} informes. Ir al análisis`}>
+          <span className={styles.datos}>
+            <span className={styles.nombre}>{nombre}</span>
+            <span className={styles.total}>
+              <b>{totales[bloque].toLocaleString('es-CL')}</b>
+              <small>{totales[bloque] === 1 ? 'informe' : 'informes'}</small>
+            </span>
+          </span>
           <span className={styles.icono}>
             <Icono />
-          </span>
-          <span className={styles.nombre}>{nombre}</span>
-          <span className={styles.total}>
-            <b>{totales[bloque].toLocaleString('es-CL')}</b>
-            <small>{totales[bloque] === 1 ? 'informe' : 'informes'}</small>
           </span>
         </button>
       ))}

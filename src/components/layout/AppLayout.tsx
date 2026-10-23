@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar'
 import { MobileTopbar } from './MobileTopbar'
 import { LoadingBar } from './LoadingBar'
 import { PortalShell } from './portal/PortalShell'
+import { useTemaCuenta } from './portal/tema'
 import { avisarVisita } from '@/features/adminPanel'
 import { enviarLatido } from '@/features/monitoreo'
 import { useAuth } from '@/features/auth'
@@ -20,6 +21,9 @@ export function AppLayout() {
   const { pathname } = useLocation()
   const { user } = useAuth()
   const esCliente = user?.tipoAcceso === 'cliente' || user?.tipoAcceso === 'comercial' // sin acceso a la bitácora
+  // El administrador puede dejar a un comercial con el marco interno de siempre (barra lateral) en vez del portal.
+  const temaCuenta = useTemaCuenta(user?.id)
+  const conPortal = esCliente && !(user?.tipoAcceso === 'comercial' && temaCuenta === 'clasico')
   useEffect(() => {
     if (!user || esCliente) return
     avisarVisita(pathname).catch(() => undefined)
@@ -37,7 +41,7 @@ export function AppLayout() {
   }, [pathname, user])
 
   // Clientes y comerciales ven el mismo contenido con otro marco: navbar flotante y fondo vivo, sin barra lateral.
-  if (esCliente) {
+  if (conPortal) {
     return (
       <>
         <LoadingBar />

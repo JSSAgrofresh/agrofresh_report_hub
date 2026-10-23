@@ -339,3 +339,6 @@
   :global([data-portal]) .laboratorio { height: 30px; padding: 0 11px; font-size: 12px; }
   :global([data-portal]) .etiquetaBotones { display: none; }
 }
+
+.resumenFiltro { margin: 0; font-size: 13px; color: var(--color-text-faint); }
+.resumenFiltro .limpiarBloque { height: auto; padding: 0 4px; }

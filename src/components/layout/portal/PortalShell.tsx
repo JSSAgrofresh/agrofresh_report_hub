@@ -95,7 +95,7 @@ export function PortalShell({
   const [menuAbierto, setMenuAbierto] = useState(false)
   const items = useRef<HTMLDivElement>(null)
   const pildora = useRef<HTMLSpanElement>(null)
-  const predeterminado = useTemaPredeterminado()
+  const predeterminado = useTemaPredeterminado(user?.id)
   const [elegido, setElegido] = useState<TemaPortal | null>(() => (vistaPrevia ? temaGuardado() : null))
   // Los clientes ven siempre el predeterminado; quien mira la vista previa puede alternar entre los estilos.
   const tema = vistaPrevia ? (elegido ?? predeterminado) : predeterminado
