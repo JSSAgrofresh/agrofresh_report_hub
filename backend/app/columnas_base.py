@@ -39,6 +39,7 @@ GENERALES_BASE: list[tuple[str, str]] = [
     ("mes", "Mes"),
     ("temporada", "Temporada"),
     ("laboratorio", "Laboratorio"),
+    ("tipo_servicio", "Tipo de Servicio"),
     ("solicitante", "Solicitante"),
     ("sold_to", "Sold To"),
     ("ship_to", "Ship To"),
@@ -65,17 +66,8 @@ GENERALES_BASE: list[tuple[str, str]] = [
 ]
 
 def generales_ingreso_laboratorio() -> list[tuple[str, str]]:
-    """Las columnas generales de «Descargar base (Excel)» de Ingreso al laboratorio: las de la base común, sin
-    «Tipo de Análisis» y con «Tipo de Servicio» (su Tipo Aplicación) justo después de «Laboratorio», donde siempre
-    estuvo. La macro de los informes de Paz depende de esa posición. La BD de Report y la matriz de Solicitudes NO la llevan."""
-    columnas: list[tuple[str, str]] = []
-    for clave, etiqueta in GENERALES_BASE:
-        if clave == "tipo_analisis":
-            continue
-        columnas.append((clave, etiqueta))
-        if clave == "laboratorio":
-            columnas.append(("tipo_servicio", "Tipo de Servicio"))
-    return columnas
+    """Las columnas generales de «Descargar base (Excel)» de Ingreso al laboratorio: las de la base común sin «Tipo de Análisis»."""
+    return [g for g in GENERALES_BASE if g[0] != "tipo_analisis"]
 
 
 # Los tres tipos de análisis de Report (los mismos bloques de la pantalla), según el laboratorio.
