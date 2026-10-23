@@ -98,12 +98,12 @@ def _filtro_alcance(
 
 
 @router.get("/vista")
-def vista(_: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
+def vista(usuario: Usuario = Depends(usuario_actual)) -> dict[str, Any]:
     """Cómo muestra Report algunas cosas, según lo que el administrador principal encendió en Funciones.
     Lo lee cualquier cuenta (los clientes también ven ALS y Diagnofruit)."""
     return {
         "graficos_informes": funciones.graficos_informes_activos(),
-        "tema_cliente": funciones.tema_cliente_activo(),
+        "tema_cliente": funciones.tema_de_cuenta(usuario.id, usuario.tipoAcceso),
     }
 
 

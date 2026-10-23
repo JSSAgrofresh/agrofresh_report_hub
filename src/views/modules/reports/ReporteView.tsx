@@ -37,13 +37,15 @@ import {
   bloquesVisibles,
   estadoBotonesResidual,
   ID_BLOQUE,
+  NOMBRE_BLOQUE,
   labResidual,
   nombreLaboratorio,
   type ClaveBloque,
   type LabResidual,
 } from '@/features/reportes/lib/bloquesAnalisis'
 import { construirInformes } from '@/features/reportes/lib/informesPorLab'
-import { BotonesLabResidual, CabeceraSeccion, SeccionInformes } from './SeccionesReport'
+import { FILTRO_BLOQUE_VACIO, type FiltroBloque } from '@/features/reportes/lib/estadoPatogenos'
+import { BotonesLabResidual, CabeceraSeccion, FiltrosAnalisis, SeccionInformes } from './SeccionesReport'
 import { TarjetasAnalisis } from './TarjetasAnalisis'
 import { desvioResidual, limitesDeInforme } from '@/features/reportes/lib/limitesResiduales'
 import { Kpi } from './Kpi'
@@ -547,13 +549,73 @@ export function ReporteView({
   }, [observaciones])
   const esTabular = labTabular !== null
 
+  // Filtros propios de FSMA y de fitopatología (analito y estado): salen en «Específicos» cuando ese análisis es el que se mira.
+  const [filtroFsma, setFiltroFsma] = useState<FiltroBloque>(FILTRO_BLOQUE_VACIO)
+  const [filtroFito, setFiltroFito] = useState<FiltroBloque>(FILTRO_BLOQUE_VACIO)
+  // Análisis que la persona está mirando al bajar (el último cuyo título ya pasó la barra de arriba). Los filtros de
+  // «Específicos» se acomodan a él: residuos → ingrediente activo, FSMA → analito, fitopatología → microorganismo.
+  const [bloqueVisto, setBloqueVisto] = useState<ClaveBloque>('residuales')
+  const bloquesEnPantalla = (['residuales', 'fsma', 'fito'] as const).filter((b) => bloques[b])
+  const clavesEnPantalla = bloquesEnPantalla.join(',')
+  useEffect(() => {
+    if (!modoBloques) return
+    const ids = clavesEnPantalla ? (clavesEnPantalla.split(',') as ClaveBloque[]) : []
+    if (ids.length < 2) return
+    let cuadro = 0
+    const medir = () => {
+      cuadro = 0
+      const nav = document.querySelector('nav[aria-label="Secciones"]')
+      const pegada = document.querySelector('[data-pegado="true"]')
+      const linea = Math.max(nav?.getBoundingClientRect().bottom ?? 0, pegada?.getBoundingClientRect().bottom ?? 0) + 120
+      let actual = ids[0]
+      for (const b of ids) {
+        const el = document.getElementById(ID_BLOQUE[b])
+        if (el && el.getBoundingClientRect().top <= linea) actual = b
+      }
+      setBloqueVisto(actual)
+    }
+    const pedir = () => {
+      if (!cuadro) cuadro = requestAnimationFrame(medir)
+    }
+    window.addEventListener('scroll', pedir, { passive: true })
+    window.addEventListener('resize', pedir)
+    pedir()
+    return () => {
+      window.removeEventListener('scroll', pedir)
+      window.removeEventListener('resize', pedir)
+      if (cuadro) cancelAnimationFrame(cuadro)
+    }
+  }, [modoBloques, clavesEnPantalla])
+  const bloqueActivo: ClaveBloque = esTabular
+    ? labTabular === 'als'
+      ? 'fsma'
+      : 'fito'
+    : bloquesEnPantalla.includes(bloqueVisto)
+      ? bloqueVisto
+      : (bloquesEnPantalla[0] ?? 'residuales')
+
   // Las tarjetas de arriba llevan directo a un análisis; si el filtro de laboratorio lo dejó fuera, lo quitan primero.
   function irAlAnalisis(bloque: ClaveBloque) {
     const visible = bloques[bloque]
     if (!visible) actualizarFiltro('laboratorio', '')
-    const saltar = () => document.getElementById(ID_BLOQUE[bloque])?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    if (visible) saltar()
-    else window.setTimeout(saltar, 120)
+    // Al bajar, la tarjeta de filtros se pega a la barra y deja de ocupar su lugar: lo de abajo sube de golpe. Por eso el
+    // salto se corrige un par de veces hasta que el título del análisis queda justo bajo la barra.
+    const ajustar = (suave: boolean) => {
+      const el = document.getElementById(ID_BLOQUE[bloque])
+      if (!el) return
+      const nav = document.querySelector('nav[aria-label="Secciones"]')
+      const pegada = document.querySelector('[data-pegado="true"]')
+      const base = Math.max(nav?.getBoundingClientRect().bottom ?? 0, pegada?.getBoundingClientRect().bottom ?? 0)
+      const falta = el.getBoundingClientRect().top - (base + 14)
+      if (Math.abs(falta) > 6) window.scrollBy({ top: falta, behavior: suave ? 'smooth' : 'auto' })
+    }
+    const lanzar = () => {
+      ajustar(true)
+      window.setTimeout(() => ajustar(true), 520)
+      window.setTimeout(() => ajustar(false), 1100)
+    }
+    if (visible) lanzar()
+    else window.setTimeout(lanzar, 120)
   }
 
   function tocarBotonResidual(lab: LabResidual) {
@@ -1561,10 +1623,11 @@ export function ReporteView({
             {/* Filtros que no valen para todos los análisis: Especie y Variedad no aplican a FSMA (ALS no las informa) e
                 Ingrediente Activo es solo de residuos. Cada análisis trae además sus propios filtros bajo su cabecera. */}
             <p className={styles.grupoFiltros}>
-              Específicos <InfoTip>Especie y variedad: residuos y fitopatología. Ingrediente activo: solo residuos.</InfoTip>
+              Específicos{modoBloques && bloquesEnPantalla.length > 0 ? ` · ${NOMBRE_BLOQUE[bloqueActivo]}` : ''}{' '}
+              <InfoTip>Cambian según el análisis que estás mirando: residuos (especie, variedad, ingrediente activo), FSMA (analito) y fitopatología (especie, variedad, microorganismo).</InfoTip>
             </p>
             <div className={styles.filtros}>
-              {filtrosMultiples ? (
+              {!(modoBloques && bloqueActivo === 'fsma') && (filtrosMultiples ? (
                 <>
                   <MultiSelectFiltro
                     etiqueta="Especie"
@@ -1600,15 +1663,23 @@ export function ReporteView({
                     </select>
                   </label>
                 </>
-              )}
+              ))}
 
-              <MultiSelectFiltro
-                etiqueta="Ingrediente Activo"
-                opciones={opciones.ingredientes.map((o) => o.valor)}
-                valores={ingredientesActivos}
-                onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v.length >= todosIngredientes.length ? [] : v }))}
-                colorDe={colorDeIngrediente}
-              />
+              {(!modoBloques || bloqueActivo === 'residuales') && (
+                <MultiSelectFiltro
+                  etiqueta="Ingrediente Activo"
+                  opciones={opciones.ingredientes.map((o) => o.valor)}
+                  valores={ingredientesActivos}
+                  onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v.length >= todosIngredientes.length ? [] : v }))}
+                  colorDe={colorDeIngrediente}
+                />
+              )}
+              {modoBloques && bloqueActivo === 'fsma' && (
+                <FiltrosAnalisis bloque="fsma" informes={informesAls} valor={filtroFsma} onChange={setFiltroFsma} />
+              )}
+              {modoBloques && bloqueActivo === 'fito' && (
+                <FiltrosAnalisis bloque="fito" informes={informesFito} valor={filtroFito} onChange={setFiltroFito} />
+              )}
             </div>
 
             {nFiltros > 0 && (
@@ -1635,6 +1706,8 @@ export function ReporteView({
           {esTabular ? (
             <SeccionInformes
               bloque={labTabular === 'als' ? 'fsma' : 'fito'}
+              filtroBloque={labTabular === 'als' ? filtroFsma : filtroFito}
+              onQuitarFiltroBloque={() => (labTabular === 'als' ? setFiltroFsma : setFiltroFito)(FILTRO_BLOQUE_VACIO)}
               informes={labTabular === 'als' ? informesAls : informesFito}
               totalSinFiltros={labTabular === 'als' ? informesSinFiltros.als : informesSinFiltros.diagnofruit}
               conFiltros={nFiltros > 0}
@@ -1842,10 +1915,10 @@ export function ReporteView({
                 </>
               )}
               {modoBloques && bloques.fsma && (
-                <SeccionInformes bloque="fsma" numero={numeroDeBloque('fsma')} informes={informesAls} totalSinFiltros={informesSinFiltros.als} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
+                <SeccionInformes bloque="fsma" numero={numeroDeBloque('fsma')} filtroBloque={filtroFsma} onQuitarFiltroBloque={() => setFiltroFsma(FILTRO_BLOQUE_VACIO)} informes={informesAls} totalSinFiltros={informesSinFiltros.als} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
               )}
               {modoBloques && bloques.fito && (
-                <SeccionInformes bloque="fito" numero={numeroDeBloque('fito')} informes={informesFito} totalSinFiltros={informesSinFiltros.diagnofruit} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
+                <SeccionInformes bloque="fito" numero={numeroDeBloque('fito')} filtroBloque={filtroFito} onQuitarFiltroBloque={() => setFiltroFito(FILTRO_BLOQUE_VACIO)} informes={informesFito} totalSinFiltros={informesSinFiltros.diagnofruit} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
               )}
             </>
           )}

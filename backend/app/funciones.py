@@ -112,6 +112,34 @@ def tema_cliente_activo() -> str:
     return valor if valor in TEMAS_CLIENTE else "basico"
 
 
+# Estilo por cuenta (23-10-2026): además del predeterminado de arriba, el administrador principal puede dejar un
+# estilo por TIPO de cuenta (cliente, comercial) y excepciones por cuenta. «clasico» = el marco interno de siempre
+# (barra lateral); solo vale para comerciales.
+TEMAS_CUENTA = ("basico", "sobrio", "clasico")
+TIPOS_CON_PORTAL = ("cliente", "comercial")
+
+
+def _temas_cuenta_guardado() -> dict[str, dict[str, str]]:
+    t = _report_guardado().get("temas_cuenta")
+    t = t if isinstance(t, dict) else {}
+    tipos = t.get("tipos") if isinstance(t.get("tipos"), dict) else {}
+    usuarios = t.get("usuarios") if isinstance(t.get("usuarios"), dict) else {}
+    return {
+        "tipos": {k: v for k, v in tipos.items() if k in TIPOS_CON_PORTAL and v in TEMAS_CUENTA},
+        "usuarios": {str(k): v for k, v in usuarios.items() if v in TEMAS_CUENTA},
+    }
+
+
+def tema_de_cuenta(usuario_id: str | int | None, tipo_acceso: str | None) -> str:
+    """El estilo que ve ESTA cuenta: su excepción, si no el de su tipo, si no el predeterminado. «clasico» (marco
+    interno) solo lo puede tener un comercial; para cualquier otro cae al predeterminado."""
+    cfg = _temas_cuenta_guardado()
+    tema = cfg["usuarios"].get(str(usuario_id)) or cfg["tipos"].get(tipo_acceso or "") or tema_cliente_activo()
+    if tema == "clasico" and tipo_acceso != "comercial":
+        return tema_cliente_activo()
+    return tema
+
+
 def valores_visibles_en_report() -> list[str]:
     """Los valores de `solicitud.servicio` que Report puede mostrar ('' = Línea de proceso)."""
     encendidos = servicios_en_report()
@@ -167,6 +195,48 @@ def condicion_report(alias: str = "s") -> tuple[str, dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # API
 
+def _cuentas_con_portal() -> list[dict[str, Any]]:
+    """Las cuentas de cliente y comercial con el estilo que ve cada una hoy. Si la base no responde, lista vacía."""
+    try:
+        from .db import conexion, cursor_dict
+
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                "SELECT id, nombre, email, tipo_acceso, cliente_nombre, planta_nombre FROM usuario "
+                "WHERE tipo_acceso = ANY(%s) ORDER BY tipo_acceso, nombre",
+                (list(TIPOS_CON_PORTAL),),
+            )
+            filas = cur.fetchall()
+    except Exception:
+        return []
+    cfg = _temas_cuenta_guardado()
+    return [
+        {
+            "id": str(f["id"]),
+            "nombre": f["nombre"],
+            "email": f["email"],
+            "tipo": f["tipo_acceso"],
+            "cliente": f.get("cliente_nombre"),
+            "planta": f.get("planta_nombre"),
+            "tema": tema_de_cuenta(f["id"], f["tipo_acceso"]),
+            "propio": str(f["id"]) in cfg["usuarios"],
+        }
+        for f in filas
+    ]
+
+
+def _estado_temas_cuenta() -> dict[str, Any]:
+    guardado = _report_guardado().get("temas_cuenta")
+    guardado = guardado if isinstance(guardado, dict) else {}
+    cfg = _temas_cuenta_guardado()
+    return {
+        "tipos": {t: cfg["tipos"].get(t) for t in TIPOS_CON_PORTAL},
+        "cuentas": _cuentas_con_portal(),
+        "cambiado_por": guardado.get("cambiado_por"),
+        "cambiado_en": guardado.get("cambiado_en"),
+    }
+
+
 def _estado() -> dict[str, Any]:
     report = _report_guardado()
     graficos = report.get("graficos_informes") if isinstance(report.get("graficos_informes"), dict) else {}
@@ -177,6 +247,7 @@ def _estado() -> dict[str, Any]:
             "cambiado_por": tema.get("cambiado_por"),
             "cambiado_en": tema.get("cambiado_en"),
         },
+        "temas_cuenta": _estado_temas_cuenta(),
         "graficos_informes": {
             "activo": graficos_informes_activos(),
             "cambiado_por": graficos.get("cambiado_por"),
@@ -312,4 +383,71 @@ def cambiar_tema_cliente(body: TemaClienteIn, usuario: Usuario = Depends(solo_ad
             f"dejó el estilo «{body.tema}» como el dashboard de los clientes",
             sensible=True,
         )
+    return _estado()
+
+
+class TemaCuentaIn(BaseModel):
+    """Un estilo para un TIPO de cuenta (`tipo`) o para UNA cuenta (`usuario_id`). `tema` = null quita la regla."""
+
+    tipo: str | None = None
+    usuario_id: str | None = None
+    tema: str | None = None
+    password: str | None = None
+
+
+@router.put("/tema-cuenta")
+def cambiar_tema_cuenta(body: TemaCuentaIn, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
+    """Deja el estilo de un tipo de cuenta (cliente o comercial) o de una cuenta en particular. Solo el administrador
+    principal y con su contraseña (403, nunca 401)."""
+    if (body.tipo is None) == (body.usuario_id is None):
+        raise HTTPException(400, "Indica un tipo de cuenta o una cuenta, no los dos.")
+    if body.tema is not None and body.tema not in TEMAS_CUENTA:
+        raise HTTPException(400, f"Estilo desconocido: {body.tema or '(vacío)'}")
+    if body.tipo is not None and body.tipo not in TIPOS_CON_PORTAL:
+        raise HTTPException(400, f"Tipo de cuenta desconocido: {body.tipo}")
+    if body.tipo == "cliente" and body.tema == "clasico":
+        raise HTTPException(400, "El marco interno solo vale para comerciales.")
+    if not _es_principal(usuario):
+        raise HTTPException(403, "Solo el administrador principal puede cambiar estas funciones.")
+    if not _clave_correcta(usuario, body.password):
+        raise HTTPException(403, "Contraseña incorrecta.")
+    destino = f"el tipo «{body.tipo}»" if body.tipo else "una cuenta"
+    cfg = _temas_cuenta_guardado()
+    if body.usuario_id is not None:
+        try:
+            from .db import conexion, cursor_dict
+
+            with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+                cur.execute("SELECT nombre, tipo_acceso FROM usuario WHERE id = %s", (int(body.usuario_id),))
+                fila = cur.fetchone()
+        except (ValueError, TypeError):
+            fila = None
+        if not fila or fila["tipo_acceso"] not in TIPOS_CON_PORTAL:
+            raise HTTPException(404, "Esa cuenta no es de cliente ni de comercial.")
+        if body.tema == "clasico" and fila["tipo_acceso"] != "comercial":
+            raise HTTPException(400, "El marco interno solo vale para comerciales.")
+        destino = f"la cuenta {fila['nombre']}"
+        grupo, clave = "usuarios", str(body.usuario_id)
+    else:
+        grupo, clave = "tipos", str(body.tipo)
+    if body.tema is None:
+        cfg[grupo].pop(clave, None)
+    else:
+        cfg[grupo][clave] = body.tema
+    archivo = _leer_archivo()
+    archivo["report"] = {
+        **_report_guardado(),
+        "temas_cuenta": {
+            **cfg,
+            "cambiado_por": usuario.nombre,
+            "cambiado_en": datetime.now(timezone.utc).isoformat(),
+        },
+    }
+    config_store.escribir(ARCHIVO, archivo)  # type: ignore[arg-type]
+    invalidar()
+    actividad.registrar(
+        usuario.email, usuario.nombre, "sensible", "funciones_report",
+        f"dejó el estilo «{body.tema or 'predeterminado'}» para {destino}",
+        sensible=True,
+    )
     return _estado()

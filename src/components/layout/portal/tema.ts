@@ -33,42 +33,52 @@ export function guardarTema(t: TemaPortal) {
   }
 }
 
-const CLAVE_PRED = 'agrofresh.temaPredeterminado'
+/** El estilo del servidor para ESTA cuenta; «clasico» = el marco interno de siempre (solo comerciales). */
+export type TemaCuenta = TemaPortal | 'clasico'
 
-function predeterminadoGuardado(): TemaPortal | null {
+const claveCuenta = (id: string | undefined) => `agrofresh.temaCuenta.${id ?? ''}`
+
+function cuentaGuardada(id: string | undefined): TemaCuenta | null {
   try {
-    const v = localStorage.getItem(CLAVE_PRED)
-    return esTema(v) ? v : null
+    const v = localStorage.getItem(claveCuenta(id))
+    return esTema(v) || v === 'clasico' ? v : null
   } catch {
     return null
   }
 }
 
-function guardarPredeterminado(t: TemaPortal) {
+function guardarCuenta(id: string | undefined, t: TemaCuenta) {
   try {
-    localStorage.setItem(CLAVE_PRED, t)
+    localStorage.setItem(claveCuenta(id), t)
   } catch {
     /* sin almacenamiento */
   }
 }
 
-/** El estilo que el servidor tiene como predeterminado para los clientes (`basico` mientras no responda). */
-export function useTemaPredeterminado(): TemaPortal {
+/** El estilo que el servidor dejó para esta cuenta (su regla, la de su tipo o el predeterminado). `basico` mientras no responda. */
+export function useTemaCuenta(userId: string | undefined): TemaCuenta {
   // Parte con el último valor conocido para no repintar el contenido (remonta al cambiar de estilo) en cada visita.
-  const [tema, setTema] = useState<TemaPortal>(() => predeterminadoGuardado() ?? 'basico')
+  const [tema, setTema] = useState<TemaCuenta>(() => cuentaGuardada(userId) ?? 'basico')
   useEffect(() => {
     let cancelado = false
     obtenerVistaReport()
       .then((v) => {
-        if (!cancelado && esTema(v.tema_cliente)) {
-          setTema(v.tema_cliente)
-          guardarPredeterminado(v.tema_cliente)
+        const t = v.tema_cliente
+        if (!cancelado && (esTema(t) || t === 'clasico')) {
+          setTema(t)
+          guardarCuenta(userId, t)
         }
       })
       .catch(() => {})
     return () => {
       cancelado = true
     }
-  }, [])
+  }, [userId])
   return tema
+}
+
+/** Lo mismo, para el marco del portal: «clasico» (que no lo usa) se ve como Básico. */
+export function useTemaPredeterminado(userId?: string): TemaPortal {
+  const t = useTemaCuenta(userId)
+  return t === 'clasico' ? 'basico' : t
 }

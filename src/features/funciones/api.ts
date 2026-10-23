@@ -24,8 +24,34 @@ export interface EstadoTemaCliente {
   cambiado_en: string | null
 }
 
+/** Estilo de una cuenta: los dos del portal o el marco interno de siempre (barra lateral; solo comerciales). */
+export type TemaCuenta = 'basico' | 'sobrio' | 'clasico'
+export type TipoConPortal = 'cliente' | 'comercial'
+
+export interface CuentaConPortal {
+  id: string
+  nombre: string
+  email: string
+  tipo: TipoConPortal
+  cliente: string | null
+  planta: string | null
+  /** El estilo que ve hoy esta cuenta. */
+  tema: TemaCuenta
+  /** Tiene una regla propia (no hereda de su tipo ni del predeterminado). */
+  propio: boolean
+}
+
+export interface EstadoTemasCuenta {
+  /** El estilo dejado para cada tipo de cuenta; `null` = el predeterminado. */
+  tipos: Record<TipoConPortal, TemaCuenta | null>
+  cuentas: CuentaConPortal[]
+  cambiado_por: string | null
+  cambiado_en: string | null
+}
+
 export interface EstadoFunciones {
   tema_cliente?: EstadoTemaCliente
+  temas_cuenta?: EstadoTemasCuenta
   graficos_informes?: GraficosInformes
   report: {
     servicios: ServicioReport[]
@@ -53,4 +79,13 @@ export function cambiarGraficosInformes(activo: boolean, password: string) {
 /** El estilo del dashboard de clientes. Solo el administrador principal, con su contraseña. */
 export function cambiarTemaCliente(tema: TemaCliente, password: string) {
   return httpClient.put<EstadoFunciones>('/funciones/tema-cliente', { tema, password })
+}
+
+/** Un estilo para un TIPO de cuenta o para UNA cuenta; `tema: null` quita la regla. Solo el administrador principal, con su contraseña. */
+export function cambiarTemaCuenta(
+  destino: { tipo: TipoConPortal } | { usuario_id: string },
+  tema: TemaCuenta | null,
+  password: string,
+) {
+  return httpClient.put<EstadoFunciones>('/funciones/tema-cuenta', { ...destino, tema, password })
 }
