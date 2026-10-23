@@ -148,3 +148,22 @@ def test_con_un_pdf_real_de_agrofresh_lo_guardado_coincide_y_un_valor_cambiado_s
     assert [h["codigo"] for h in mal] == ["PDF_RESULTADO_DISTINTO"] and "0,85" in mal[0]["detalle"]
     cambiado = di.comparar_con_pdf(inf(laboratorio="Agrofresh", referencia="OT-AGF0102", fecha_muestreo=date(2026, 6, 10)), [res("TBZ", 0.85)], leido)
     assert "PDF_FECHA_DISTINTA" in [h["codigo"] for h in cambiado]
+
+
+class TestFechaEntradaCorregida:
+    """El Converter leyó «2026-10-02» como 26-10-2002: así se reconstruye la fecha buena."""
+
+    def test_las_del_diagnostico_real(self):
+        muestreo = date(2026, 9, 30)
+        assert di.fecha_entrada_corregida(date(2002, 10, 26), muestreo) == date(2026, 10, 2)
+        assert di.fecha_entrada_corregida(date(2001, 10, 26), date(2026, 10, 1)) == date(2026, 10, 1)
+        assert di.fecha_entrada_corregida(date(2005, 10, 26), date(2026, 10, 2)) == date(2026, 10, 5)
+
+    def test_una_fecha_buena_no_se_toca(self):
+        assert di.fecha_entrada_corregida(date(2026, 10, 2), date(2026, 9, 30)) is None
+
+    def test_si_lo_reconstruido_no_calza_con_el_muestreo_no_se_toca(self):
+        assert di.fecha_entrada_corregida(date(2002, 10, 26), date(2026, 1, 5)) is None     # 2 oct, 9 meses antes: no
+        assert di.fecha_entrada_corregida(date(2002, 10, 26), date(2026, 10, 20)) is None   # antes del muestreo
+        assert di.fecha_entrada_corregida(date(2031, 10, 26), date(2026, 9, 30)) is None    # un año futuro no es este daño
+        assert di.fecha_entrada_corregida(None, date(2026, 9, 30)) is None

@@ -64,6 +64,10 @@ def a_fecha(txt: Any, avisos: list[str] | None = None) -> str | None:
     """«15-10-2026» → «15-10-2026»; acepta «/» y años de dos cifras; si viene mes/día lo da vuelta y avisa."""
     if not txt:
         return None
+    iso = re.match(r"^\s*(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)", str(txt))
+    if iso:                         # «2026-10-02» ya viene año-mes-día (el patrón de abajo leería «26-10-02»); espejo del Converter
+        a, mm, dd = int(iso.group(1)), int(iso.group(2)), int(iso.group(3))
+        return None if not (1 <= mm <= 12 and 1 <= dd <= 31) else f"{dd:02d}-{mm:02d}-{a}"
     m = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", str(txt))
     if not m:
         return None
