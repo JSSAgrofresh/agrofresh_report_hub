@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout/Header'
 import { useAuth } from '@/features/auth'
 import { OpcionCard } from '@/components/ui/OpcionCard'
-import { IconAuditoria, IconCarpeta, IconCorreo, IconTrendingUp, IconVerificar } from '@/components/ui/icons'
+import { IconAuditoria, IconTrendingUp, IconVerificar } from '@/components/ui/icons'
 import { ROUTES } from '@/constants/routes'
 import tarjetas from '@/components/ui/OpcionCard.module.css'
 
@@ -9,8 +9,8 @@ import tarjetas from '@/components/ui/OpcionCard.module.css'
  * tarjetas, igual que el hub de AgroFresh Lab. */
 export function AuditoriaInternaHubView() {
   const { user } = useAuth()
-  // Las carpetas de auditoría, los envíos a clientes y el rendimiento de calidad no se acotan a plantas todavía: un comercial no los ve.
-  const veCarpetas = user?.tipoAcceso !== 'comercial'
+  // El rendimiento de calidad no se acota a plantas todavía: un comercial no lo ve.
+  const veRendimiento = user?.tipoAcceso !== 'comercial'
   return (
     <div>
       <Header
@@ -25,28 +25,12 @@ export function AuditoriaInternaHubView() {
           descripcion="Cuánto se ha concretado, y los análisis por mes y por semana de Quiteca y Agrofresh, con gráficos por tipo de servicio y por cliente."
           ruta={ROUTES.auditoriaInternaSolicitudes}
         />
-        {veCarpetas && (
-          <OpcionCard
-            icono={<IconCarpeta />}
-            titulo="Carpetas de auditoría"
-            descripcion="Los PDF de los informes, ordenados por laboratorio y ship to."
-            ruta={ROUTES.auditoriaInternaCarpetas}
-          />
-        )}
-        {veCarpetas && (
+        {veRendimiento && (
           <OpcionCard
             icono={<IconVerificar />}
             titulo="Rendimiento de calidad"
             descripcion="Cuántos informes cumplen y cuántos no, por cliente, planta y semana: residuales, FSMA y fitopatología."
             ruta={ROUTES.auditoriaInternaRendimiento}
-          />
-        )}
-        {veCarpetas && (
-          <OpcionCard
-            icono={<IconCorreo />}
-            titulo="Informes enviados a clientes"
-            descripcion="Qué informe salió, a quién, cuándo y quién lo envió, y si fue real, de prueba o marcado a mano."
-            ruta={ROUTES.auditoriaInternaEnvios}
           />
         )}
         <OpcionCard

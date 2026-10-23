@@ -21,9 +21,7 @@ import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { StorageView } from '@/views/modules/storage/StorageView'
 import { AuditoriaInternaHubView } from '@/views/modules/auditoria-interna/AuditoriaInternaHubView'
 import { SolicitudesInformesView } from '@/views/modules/auditoria-interna/SolicitudesInformesView'
-import { EnviosInformesView } from '@/views/modules/auditoria-interna/EnviosInformesView'
 import { RendimientoCalidadView } from '@/views/modules/auditoria-interna/RendimientoCalidadView'
-import { CarpetasView } from '@/views/modules/auditoria-interna/CarpetasView'
 import { LimiteControlView } from '@/views/modules/auditoria-interna/LimiteControlView'
 import { AdministracionGeneralView } from '@/views/admin/AdministracionGeneralView'
 import { SolicitudesView } from '@/views/modules/muestreo/SolicitudesView'
@@ -131,13 +129,9 @@ export const router = createBrowserRouter([
               { path: ROUTES.auditoriaInterna, element: <AuditoriaInternaHubView /> },
               { path: ROUTES.auditoriaInternaSolicitudes, element: <SolicitudesInformesView /> },
               {
-                // Las carpetas de auditoría y los envíos a clientes no se acotan a plantas todavía: un comercial no los abre.
+                // El rendimiento de calidad no se acota a plantas todavía: un comercial no lo abre.
                 element: <RequireNoComercial redirigirA={ROUTES.auditoriaInterna} />,
-                children: [
-                  { path: ROUTES.auditoriaInternaCarpetas, element: <CarpetasView /> },
-                  { path: ROUTES.auditoriaInternaEnvios, element: <EnviosInformesView /> },
-                  { path: ROUTES.auditoriaInternaRendimiento, element: <RendimientoCalidadView /> },
-                ],
+                children: [{ path: ROUTES.auditoriaInternaRendimiento, element: <RendimientoCalidadView /> }],
               },
               { path: ROUTES.auditoriaInternaLimiteControl, element: <LimiteControlView /> },
             ],

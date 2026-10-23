@@ -43,3 +43,7 @@ export { ETIQUETA_ESTADO, resumenInforme, hallazgoPrincipal, compararDestinatari
 export type { FilaDestinatario } from './lib/revision'
 export { filtrarSolicitudes } from './lib/solicitudes'
 export type { FiltroSolicitudes } from './lib/solicitudes'
+export {
+  leerRegistro, filtrarRegistro, contarFiltros, cumpleFiltro, estadoDe, problemasDe, ultimaFecha, FILTROS_REGISTRO, ETIQUETA_ORIGEN,
+} from './lib/registro'
+export type { FilaRegistro, FiltroRegistro, Origen, ProblemaRegistro, Situacion, Gravedad } from './lib/registro'
