@@ -18,21 +18,19 @@ PDF guardado Y sus resultados ya se ven en Report (`solicitud.nro_solicitud`).
 El amarre OT <-> informe lo confirma quien sube el informe en Converter: el PDF
 del laboratorio trae SU número de informe, no nuestro OT-xxxx.
 """
-import io
 import logging
 import unicodedata
-import zipfile
 from contextlib import contextmanager
 from datetime import datetime
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from . import auditoria_envios, informes_storage
+from . import informes_storage
 from . import r2_auditoria as r2a
 from .auth import Usuario, planta_permitida, solo_admin_general, usuario_actual
 from .db import conexion, cursor_dict
@@ -452,13 +450,6 @@ class FechaEnvioIn(BaseModel):
     fecha_envio: str | None = None
 
 
-@router.get("/envios-informes")
-def envios_de_informes(_: Usuario = Depends(puede_auditoria)) -> list[dict]:
-    """Auditoría de los informes que salieron hacia los clientes: reales, de prueba y marcados a mano. Un comercial no
-    entra (no está en la lista blanca de `auth.RUTAS_COMERCIAL`)."""
-    return auditoria_envios.listar_envios()
-
-
 @router.patch("/informes/{informe_id}/fecha-envio")
 def editar_fecha_envio(informe_id: int, body: FechaEnvioIn, _: Usuario = Depends(solo_admin_general)) -> dict:
     envio = parsear_fecha_envio(body.fecha_envio)
@@ -491,187 +482,3 @@ def descargar_informe(informe_id: int, usuario: Usuario = Depends(puede_auditori
     if datos is None:
         raise HTTPException(404, "El PDF ya no está en el bucket de auditoría.")
     return _respuesta_pdf(datos, fila["nombre_archivo"])
-
-
-# ── Carpetas ────────────────────────────────────────────────────────────
-
-def _ruta(ruta: str) -> str:
-    try:
-        return r2a.ruta_segura(ruta)
-    except ValueError:
-        raise HTTPException(400, "Ruta inválida.")
-
-
-@router.get("/carpetas")
-def listar_carpeta(ruta: str = Query(""), _: Usuario = Depends(puede_auditoria)) -> dict:
-    """Lo que hay en una carpeta (''= raíz). Las carpetas no existen hasta que
-    llega su primer informe."""
-    _exigir_r2()
-    ruta = _ruta(ruta)
-    with errores_r2():
-        carpetas, archivos = r2a.listar_nivel(ruta)
-    por_key: dict[str, dict] = {}
-    if archivos:
-        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
-            cur.execute(
-                "SELECT id, r2_key, numero_solicitud, nro_informe, fecha_envio, subido_en"
-                " FROM informe_auditoria WHERE r2_key = ANY(%s)",
-                ([a["key"] for a in archivos],),
-            )
-            por_key = {f["r2_key"]: f for f in cur.fetchall()}
-    return {
-        "ruta": ruta,
-        "carpetas": [{"nombre": c, "ruta": f"{ruta}/{c}" if ruta else c} for c in carpetas],
-        "archivos": [
-            {
-                "nombre": a["nombre"],
-                "ruta": a["key"],
-                "tamano_bytes": a["tamano_bytes"],
-                "modificado": a["modificado"],
-                "informe_id": por_key[a["key"]]["id"] if a["key"] in por_key else None,
-                "numero_solicitud": por_key[a["key"]]["numero_solicitud"] if a["key"] in por_key else None,
-                "nro_informe": por_key[a["key"]]["nro_informe"] if a["key"] in por_key else None,
-                "fecha_envio": _iso(por_key[a["key"]]["fecha_envio"]) if a["key"] in por_key else None,
-            }
-            for a in archivos
-        ],
-    }
-
-
-@router.get("/carpetas/archivo")
-def descargar_archivo(ruta: str = Query(...), _: Usuario = Depends(puede_auditoria)) -> Response:
-    _exigir_r2()
-    key = _ruta(ruta)
-    if not key:
-        raise HTTPException(400, "Falta la ruta del archivo.")
-    with errores_r2():
-        datos = r2a.descargar(key)
-    if datos is None:
-        raise HTTPException(404, "Archivo no encontrado.")
-    return _respuesta_pdf(datos, key.rsplit("/", 1)[-1])
-
-
-@router.delete("/carpetas/archivo")
-def eliminar_archivo(ruta: str = Query(...), _: Usuario = Depends(solo_admin_general)) -> dict:
-    _exigir_r2()
-    key = _ruta(ruta)
-    if not key or "/" not in key:
-        raise HTTPException(400, "Ruta inválida.")
-    with errores_r2():
-        r2a.eliminar(key)
-    with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute("DELETE FROM informe_auditoria WHERE r2_key = %s", (key,))
-    return {"ok": True}
-
-
-@router.delete("/carpetas/carpeta")
-def eliminar_carpeta(ruta: str = Query(...), _: Usuario = Depends(solo_admin_general)) -> dict:
-    """Borra lo que hay DENTRO de una carpeta. La raíz del bucket no se toca
-    nunca: sin ruta, este endpoint rechaza."""
-    _exigir_r2()
-    carpeta = _ruta(ruta)
-    if not carpeta:
-        raise HTTPException(400, "La carpeta raíz de auditoría no se puede borrar.")
-    with errores_r2():
-        keys = r2a.listar_recursivo(f"{carpeta}/")
-        for key in keys:
-            r2a.eliminar(key)
-    with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute("DELETE FROM informe_auditoria WHERE r2_key LIKE %s ESCAPE '\\'", (
-            carpeta.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "/%",
-        ))
-    return {"eliminados": len(keys)}
-
-
-MAX_ARCHIVOS_ZIP = 300
-MAX_BYTES_ZIP = 400 * 1024 * 1024
-
-
-class ZipIn(BaseModel):
-    rutas: list[str]
-    # nombre del .zip (sin extensión); si no viene, «informes_auditoria»
-    nombre: str | None = None
-
-
-@router.post("/carpetas/zip")
-def descargar_zip(body: ZipIn, _: Usuario = Depends(puede_auditoria)) -> Response:
-    """Varios informes en un solo .zip (uno, varios o todos los de una carpeta).
-
-    Dentro del zip los archivos van sin carpetas y, si dos se llaman igual, el
-    segundo lleva « (2)». Un archivo que ya no esté se omite; si no queda
-    ninguno, 404. Los topes existen para no armar un zip que agote la memoria.
-    """
-    _exigir_r2()
-    rutas: list[str] = []
-    for r in body.rutas:
-        key = _ruta(r)
-        if not key or "/" not in key:
-            raise HTTPException(400, "Ruta inválida.")
-        if key not in rutas:
-            rutas.append(key)
-    if not rutas:
-        raise HTTPException(400, "No hay informes seleccionados.")
-    if len(rutas) > MAX_ARCHIVOS_ZIP:
-        raise HTTPException(413, f"Son demasiados informes de una vez (máximo {MAX_ARCHIVOS_ZIP}).")
-
-    salida = io.BytesIO()
-    usados: set[str] = set()
-    total = 0
-    incluidos = 0
-    with errores_r2(), zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as z:
-        for key in rutas:
-            datos = r2a.descargar(key)
-            if datos is None:
-                continue
-            total += len(datos)
-            if total > MAX_BYTES_ZIP:
-                raise HTTPException(413, "Los informes pesan demasiado para un solo zip: descarga menos a la vez.")
-            nombre = key.rsplit("/", 1)[-1]
-            base, punto, ext = nombre.rpartition(".")
-            n = 2
-            while nombre.lower() in usados:
-                nombre = f"{base} ({n}){punto}{ext}"
-                n += 1
-            usados.add(nombre.lower())
-            z.writestr(nombre, datos)
-            incluidos += 1
-    if incluidos == 0:
-        raise HTTPException(404, "Ninguno de los informes elegidos está en la carpeta.")
-    nombre_zip = r2a.segmento_seguro(body.nombre, "informes_auditoria") + ".zip"
-    return Response(
-        content=salida.getvalue(),
-        media_type="application/zip",
-        headers={"Content-Disposition": _disposicion(nombre_zip)},
-    )
-
-
-class RenombrarIn(BaseModel):
-    ruta: str
-    nuevo_nombre: str
-
-
-@router.post("/carpetas/renombrar")
-def renombrar_archivo(body: RenombrarIn, _: Usuario = Depends(solo_admin_general)) -> dict:
-    _exigir_r2()
-    origen = _ruta(body.ruta)
-    if not origen or "/" not in origen:
-        raise HTTPException(400, "Ruta inválida.")
-    nombre = r2a.segmento_seguro(body.nuevo_nombre, "")
-    if not nombre:
-        raise HTTPException(400, "El nombre no puede quedar vacío.")
-    if not nombre.lower().endswith(".pdf"):
-        nombre += ".pdf"
-    destino = f"{origen.rsplit('/', 1)[0]}/{nombre}"
-    if destino == origen:
-        return {"ruta": origen}
-    with errores_r2():
-        if r2a.existe(destino):
-            raise HTTPException(409, "Ya existe un archivo con ese nombre en la carpeta.")
-        r2a.copiar(origen, destino)
-        r2a.eliminar(origen)
-    with conexion() as conn, cursor_dict(conn) as cur:
-        cur.execute(
-            "UPDATE informe_auditoria SET r2_key = %s, nombre_archivo = %s WHERE r2_key = %s",
-            (destino, nombre, origen),
-        )
-    return {"ruta": destino}

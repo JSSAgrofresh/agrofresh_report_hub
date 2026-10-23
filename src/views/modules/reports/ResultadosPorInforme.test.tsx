@@ -21,6 +21,17 @@ const filasDelCuerpo = (container: HTMLElement) => [...container.querySelectorAl
 const celdas = (fila: HTMLElement) => within(fila).getAllByRole('cell').map((c) => c.textContent)
 
 describe('tabla por informe', () => {
+  it('viene plegada: solo se ve el detalle quien lo abre', () => {
+    const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
+    const plegable = container.querySelector('details') as HTMLDetailsElement
+    expect(plegable).not.toBeNull()
+    expect(plegable.open).toBe(false)
+    expect(screen.getByText(/Ver el detalle por informe/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText(/Ver el detalle por informe/))
+    expect(plegable.open).toBe(true)
+  })
+
+
   it('muestra la fecha, el informe y debajo una fila por analito con su unidad (el más nuevo arriba)', () => {
     const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
     const columnas = within(screen.getByRole('table')).getAllByRole('columnheader').map((c) => c.textContent)

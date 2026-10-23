@@ -98,44 +98,11 @@ def como():
     app.dependency_overrides.clear()
 
 
-class TestBorrado:
-    def test_la_raiz_no_se_borra(self, r2_simulado, como):
-        como(cuenta("admin_general"))
-        for ruta in ("", "/", "."):
-            r = cliente.delete("/api/auditoria-interna/carpetas/carpeta", params={"ruta": ruta})
-            assert r.status_code == 400
-        assert r2_simulado == []
-
-    def test_solo_el_admin_general_borra(self, r2_simulado, como):
-        como(cuenta("admin_area", ["auditoria_interna"]))
-        r = cliente.delete("/api/auditoria-interna/carpetas/archivo", params={"ruta": "Quiteca/Dole/a.pdf"})
-        assert r.status_code == 403
-        r = cliente.delete("/api/auditoria-interna/carpetas/carpeta", params={"ruta": "Quiteca"})
-        assert r.status_code == 403
-        assert r2_simulado == []
-
-    def test_no_se_borra_un_archivo_suelto_en_la_raiz(self, r2_simulado, como):
-        como(cuenta("admin_general"))
-        r = cliente.delete("/api/auditoria-interna/carpetas/archivo", params={"ruta": "a.pdf"})
-        assert r.status_code == 400
-
-    def test_ruta_con_punto_punto_se_rechaza(self, r2_simulado, como):
-        como(cuenta("admin_general"))
-        r = cliente.delete("/api/auditoria-interna/carpetas/carpeta", params={"ruta": "../x"})
-        assert r.status_code == 400
-
-
 class TestEditar:
     def test_solo_el_admin_general_edita_la_fecha(self, como):
         como(cuenta("admin_area", ["auditoria_interna"]))
         r = cliente.patch("/api/auditoria-interna/informes/1/fecha-envio", json={"fecha_envio": None})
         assert r.status_code == 403
-
-    def test_solo_el_admin_general_renombra(self, r2_simulado, como):
-        como(cuenta("admin_area", ["auditoria_interna"]))
-        r = cliente.post("/api/auditoria-interna/carpetas/renombrar", json={"ruta": "a/b.pdf", "nuevo_nombre": "c"})
-        assert r.status_code == 403
-
 
 class TestSubida:
     def test_rechaza_lo_que_no_es_pdf(self, r2_simulado, como):
@@ -170,28 +137,6 @@ class TestSubida:
 class TestErroresDeR2:
     """Un 403 de Cloudflare (token sin permiso sobre el bucket) llegó como un
     500 sin explicación y nadie supo qué arreglar. Ahora es un 502 que lo dice."""
-
-    def _falla(self, monkeypatch, codigo):
-        from botocore.exceptions import ClientError
-
-        def boom(*a, **k):
-            raise ClientError({"Error": {"Code": codigo, "Message": "x"}}, "HeadObject")
-
-        monkeypatch.setattr(r2a, "disponible", lambda: True)
-        monkeypatch.setattr(r2a, "listar_nivel", boom)
-
-    def test_403_explica_el_permiso_del_token(self, monkeypatch, como):
-        self._falla(monkeypatch, "403")
-        como(cuenta("admin_general"))
-        r = cliente.get("/api/auditoria-interna/carpetas")
-        assert r.status_code == 502
-        assert "token de R2" in r.json()["detail"] and "auditoria" in r.json()["detail"]
-
-    def test_bucket_inexistente_lo_dice(self, monkeypatch, como):
-        self._falla(monkeypatch, "NoSuchBucket")
-        como(cuenta("admin_general"))
-        r = cliente.get("/api/auditoria-interna/carpetas")
-        assert r.status_code == 502 and "no existe" in r.json()["detail"]
 
     def test_la_subida_tambien_traduce_el_403(self, monkeypatch, como):
         from botocore.exceptions import ClientError
@@ -331,78 +276,6 @@ class TestPrefijoDeLaCarpeta:
         finally:
             monkeypatch.undo()
             importlib.reload(config)
-
-
-class TestZip:
-    """Descargar varios informes en un solo .zip."""
-
-    @pytest.fixture
-    def bucket(self, monkeypatch):
-        import app.auditoria_interna as ai
-        archivos = {
-            "Quiteca/Dole/a.pdf": b"%PDF-a",
-            "Quiteca/Dole/b.pdf": b"%PDF-b",
-            "Quiteca/Otra/a.pdf": b"%PDF-otra-a",
-        }
-        monkeypatch.setattr(r2a, "disponible", lambda: True)
-        monkeypatch.setattr(ai.r2a, "descargar", lambda k: archivos.get(k))
-        return archivos
-
-    def _zip(self, rutas, **extra):
-        return cliente.post("/api/auditoria-interna/carpetas/zip", json={"rutas": rutas, **extra})
-
-    def _nombres(self, r):
-        import io, zipfile
-        with zipfile.ZipFile(io.BytesIO(r.content)) as z:
-            return {n: z.read(n) for n in z.namelist()}
-
-    def test_uno_varios_o_todos(self, bucket, como):
-        como(cuenta("admin_area", ["auditoria_interna"]))
-        r = self._zip(["Quiteca/Dole/a.pdf", "Quiteca/Dole/b.pdf"], nombre="Dole")
-        assert r.status_code == 200 and r.headers["content-type"] == "application/zip"
-        assert 'filename="Dole.zip"' in r.headers["content-disposition"]
-        assert self._nombres(r) == {"a.pdf": b"%PDF-a", "b.pdf": b"%PDF-b"}
-
-    def test_dos_con_el_mismo_nombre_no_se_pisan(self, bucket, como):
-        como(cuenta("admin_general"))
-        r = self._zip(["Quiteca/Dole/a.pdf", "Quiteca/Otra/a.pdf"])
-        assert self._nombres(r) == {"a.pdf": b"%PDF-a", "a (2).pdf": b"%PDF-otra-a"}
-        assert "informes_auditoria.zip" in r.headers["content-disposition"]
-
-    def test_un_archivo_que_ya_no_esta_se_omite(self, bucket, como):
-        como(cuenta("admin_general"))
-        assert list(self._nombres(self._zip(["Quiteca/Dole/a.pdf", "Quiteca/Dole/fantasma.pdf"]))) == ["a.pdf"]
-
-    def test_si_no_queda_ninguno_es_404(self, bucket, como):
-        como(cuenta("admin_general"))
-        assert self._zip(["Quiteca/Dole/fantasma.pdf"]).status_code == 404
-
-    def test_rutas_invalidas_y_vacias(self, bucket, como):
-        como(cuenta("admin_general"))
-        assert self._zip([]).status_code == 400
-        assert self._zip(["suelto.pdf"]).status_code == 400
-        assert self._zip(["Quiteca/../x/a.pdf"]).status_code == 400
-
-    def test_tope_de_archivos(self, bucket, como):
-        como(cuenta("admin_general"))
-        assert self._zip([f"Q/D/{i}.pdf" for i in range(301)]).status_code == 413
-
-    def test_sin_el_modulo_no_descarga(self, bucket, como):
-        como(cuenta("admin_area", ["reports"]))
-        assert self._zip(["Quiteca/Dole/a.pdf"]).status_code == 403
-
-    def test_un_fallo_de_r2_explica_la_causa(self, monkeypatch, como):
-        from botocore.exceptions import ClientError
-        import app.auditoria_interna as ai
-
-        def boom(k):
-            raise ClientError({"Error": {"Code": "403"}}, "GetObject")
-
-        monkeypatch.setattr(r2a, "disponible", lambda: True)
-        monkeypatch.setattr(ai.r2a, "descargar", boom)
-        como(cuenta("admin_general"))
-        r = self._zip(["Quiteca/Dole/a.pdf"])
-        assert r.status_code == 502 and "token de R2" in r.json()["detail"]
 
 
 class TestOtDelInforme:

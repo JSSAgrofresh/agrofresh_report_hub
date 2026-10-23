@@ -36,12 +36,15 @@ import {
   alTocarBoton,
   bloquesVisibles,
   estadoBotonesResidual,
+  ID_BLOQUE,
   labResidual,
   nombreLaboratorio,
+  type ClaveBloque,
   type LabResidual,
 } from '@/features/reportes/lib/bloquesAnalisis'
 import { construirInformes } from '@/features/reportes/lib/informesPorLab'
 import { BotonesLabResidual, CabeceraSeccion, SeccionInformes } from './SeccionesReport'
+import { TarjetasAnalisis } from './TarjetasAnalisis'
 import { Kpi } from './Kpi'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
@@ -539,6 +542,15 @@ export function ReporteView({
     return { als: ids.als.size, diagnofruit: ids.diagnofruit.size }
   }, [observaciones])
   const esTabular = labTabular !== null
+
+  // Las tarjetas de arriba llevan directo a un análisis; si el filtro de laboratorio lo dejó fuera, lo quitan primero.
+  function irAlAnalisis(bloque: ClaveBloque) {
+    const visible = bloques[bloque]
+    if (!visible) actualizarFiltro('laboratorio', '')
+    const saltar = () => document.getElementById(ID_BLOQUE[bloque])?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (visible) saltar()
+    else window.setTimeout(saltar, 120)
+  }
 
   function tocarBotonResidual(lab: LabResidual) {
     const r = alTocarBoton(lab, filtros.laboratorio, botonResidual)
@@ -1363,6 +1375,14 @@ export function ReporteView({
             </div>
           )}
 
+          {modoBloques && (
+            <TarjetasAnalisis
+              totales={{ residuales: registrosFiltrados, fsma: informesAls.length, fito: informesFito.length }}
+              acento={acento}
+              onElegir={irAlAnalisis}
+            />
+          )}
+
           <FiltrosPegajosos className={styles.filtrosCard}>
             <div className={styles.filtrosCabecera}>
               <span className={styles.filtrosTitulo}>
@@ -1606,7 +1626,7 @@ export function ReporteView({
           ) : (
             <>
               {modoBloques && bloques.residuales && (
-                <CabeceraSeccion bloque="residuales" numero={numeroDeBloque('residuales')} acento={acento} laboratorios={`${nombreLaboratorio('agrofresh')} · ${nombreLaboratorio('quiteca')}`}>
+                <CabeceraSeccion id={ID_BLOQUE.residuales} bloque="residuales" numero={numeroDeBloque('residuales')} acento={acento} laboratorios={`${nombreLaboratorio('agrofresh')} · ${nombreLaboratorio('quiteca')}`}>
                   <BotonesLabResidual
                     efectivo={botonesResidual.efectivo}
                     fijadoPorFiltro={botonesResidual.fijadoPorFiltro}

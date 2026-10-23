@@ -91,6 +91,8 @@ export function PortalShell({
   const { user, logout } = useAuth()
   const { pathname } = useLocation()
   const [scroll, setScroll] = useState(false)
+  // Teléfono acostado: la barra no cabe, así que queda plegada tras un botón de tres rayitas arriba a la izquierda.
+  const [menuAbierto, setMenuAbierto] = useState(false)
   const items = useRef<HTMLDivElement>(null)
   const pildora = useRef<HTMLSpanElement>(null)
   const predeterminado = useTemaPredeterminado()
@@ -99,10 +101,22 @@ export function PortalShell({
   const tema = vistaPrevia ? (elegido ?? predeterminado) : predeterminado
 
   useEffect(() => {
-    const alScroll = () => setScroll(window.scrollY > 8)
+    let ultimo = window.scrollY
+    const alScroll = () => {
+      setScroll(window.scrollY > 8)
+      // Si la persona se mueve por la página, el menú desplegado vuelve a plegarse.
+      if (Math.abs(window.scrollY - ultimo) > 24) setMenuAbierto(false)
+      ultimo = window.scrollY
+    }
     window.addEventListener('scroll', alScroll, { passive: true })
     return () => window.removeEventListener('scroll', alScroll)
   }, [])
+
+  // Al cerrar o abrir el menú, los filtros pegados recalculan su lugar (miden la barra).
+  useEffect(() => {
+    window.dispatchEvent(new Event('resize'))
+  }, [menuAbierto])
+
 
   // Los gráficos leen la paleta al dibujarse: se fija antes que sus hijos y, al cambiar de estilo, el contenido se remonta.
   setPaletaActiva(tema)
@@ -122,7 +136,21 @@ export function PortalShell({
         <div className={cn(styles.mancha, styles.m3)} />
       </div>
 
-      <nav className={cn(styles.burbuja, scroll && styles.burbujaScroll)} aria-label="Secciones">
+      <button
+        type="button"
+        className={cn(styles.hamburguesa, menuAbierto && styles.hamburguesaAbierta)}
+        aria-label={menuAbierto ? 'Cerrar el menú' : 'Abrir el menú'}
+        aria-expanded={menuAbierto}
+        onClick={() => setMenuAbierto((v) => !v)}
+      >
+        <span aria-hidden="true" />
+      </button>
+
+      <nav
+        className={cn(styles.burbuja, scroll && styles.burbujaScroll, menuAbierto && styles.burbujaAbierta)}
+        aria-label="Secciones"
+        data-plegable={menuAbierto ? 'abierto' : 'cerrado'}
+      >
         <NavLink to={ROUTES.dashboard} className={styles.marca} aria-label="AgroFresh, ir al panel general">
           <img src={agrofreshLogo} alt="AgroFresh" className={styles.logo} />
         </NavLink>
@@ -133,6 +161,7 @@ export function PortalShell({
               key={e.to}
               to={e.to}
               end={e.fin}
+              onClick={() => setMenuAbierto(false)}
               className={({ isActive }) => cn(styles.enlace, isActive && styles.enlaceActivo)}
               aria-label={e.corta ? e.etiqueta : undefined}
               title={e.corta ? e.etiqueta : undefined}

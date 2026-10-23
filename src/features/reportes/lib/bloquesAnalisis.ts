@@ -11,6 +11,13 @@ import { laboratorioTabular, type LaboratorioTabular } from './laboratorios'
 
 export type ClaveBloque = 'residuales' | 'fsma' | 'fito'
 
+/** Ancla de cada bloque en la página: a ella saltan las tarjetas de análisis de arriba. */
+export const ID_BLOQUE: Record<ClaveBloque, string> = {
+  residuales: 'analisis-residuales',
+  fsma: 'analisis-fsma',
+  fito: 'analisis-fito',
+}
+
 export const NOMBRE_BLOQUE: Record<ClaveBloque, string> = {
   residuales: 'Análisis de residuos',
   fsma: 'Análisis FSMA',

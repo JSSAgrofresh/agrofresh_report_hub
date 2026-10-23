@@ -2,6 +2,7 @@ import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Card } from '@/components/ui/Card'
 import { IconAlerta, IconArchivoPlano, IconTrendingUp } from '@/components/ui/icons'
 import {
+  ID_BLOQUE,
   LABS_RESIDUALES,
   NOMBRE_BLOQUE,
   nombreLaboratorio,
@@ -29,12 +30,15 @@ import styles from './SeccionesReport.module.css'
 
 /** La cabecera de un bloque: el nombre del análisis, qué laboratorios lo hacen y, a la derecha, lo que se pueda tocar. */
 export function CabeceraSeccion({
+  id,
   bloque,
   numero,
   acento,
   laboratorios,
   children,
 }: {
+  /** Ancla a la que saltan las tarjetas de análisis de arriba. */
+  id?: string
   bloque: ClaveBloque
   /** Número correlativo del bloque, en un círculo en la esquina (solo cuando se ven varios bloques). */
   numero?: number
@@ -43,7 +47,7 @@ export function CabeceraSeccion({
   children?: ReactNode
 }) {
   return (
-    <header className={styles.cabecera} style={{ '--acento': acento } as CSSProperties}>
+    <header id={id} className={styles.cabecera} style={{ '--acento': acento } as CSSProperties}>
       {numero != null && (
         <span className={styles.numero} aria-label={`Análisis ${numero}`}>
           {numero}
@@ -145,7 +149,7 @@ export function SeccionInformes({ bloque, numero, informes: informesDelReporte, 
   const num = (n: number) => n.toLocaleString('es-CL')
 
   return (
-    <section className={styles.seccion} aria-label={NOMBRE_BLOQUE[bloque]}>
+    <section id={ID_BLOQUE[bloque]} className={styles.seccion} aria-label={NOMBRE_BLOQUE[bloque]}>
       <CabeceraSeccion bloque={bloque} numero={numero} acento={acento} laboratorios={nombreLab}>
         <span className={styles.laboratorio} style={{ '--acento': acento } as CSSProperties}>
           <i className={`${styles.punto} ${styles.encendido}`} aria-hidden="true" />
@@ -193,7 +197,6 @@ export function SeccionInformes({ bloque, numero, informes: informesDelReporte, 
               <span className={estilosReporte.statNum}>{num(detecciones)}</span>
             </Kpi>
           </div>
-          <ResultadosPorInforme informes={informes} laboratorio={lab} conGraficos={conGraficos} />
           <DonasEstado
             titulo="Presencia y ausencia"
             ayuda={
@@ -214,6 +217,8 @@ export function SeccionInformes({ bloque, numero, informes: informesDelReporte, 
               pie={<LimitesNivelTabla />}
             />
           )}
+          {/* Primero los gráficos; la tabla por informe va plegada, para quien quiera el detalle. */}
+          <ResultadosPorInforme informes={informes} laboratorio={lab} conGraficos={conGraficos} />
         </>
       )}
     </section>

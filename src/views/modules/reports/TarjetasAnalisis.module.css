@@ -1,0 +1,68 @@
+.fila {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.tarjeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+}
+.tarjeta:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--acento); }
+.tarjeta:active { transform: scale(0.98); }
+.tarjeta:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+.icono {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--acento) 12%, transparent);
+  color: var(--acento);
+  font-size: 30px;
+}
+
+.nombre { font-size: 15px; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+
+.total { display: flex; align-items: baseline; gap: 6px; color: var(--color-text-faint); }
+.total b { font-size: 26px; line-height: 1; font-weight: 800; color: var(--color-text); font-variant-numeric: tabular-nums; }
+.total small { font-size: 12px; }
+
+/* Teléfono: las tres caben en una fila, con el ícono arriba y el número debajo. */
+@media (max-width: 560px) {
+  .fila { gap: 8px; }
+  .tarjeta { align-items: center; text-align: center; gap: 4px; padding: 10px 6px 12px; border-radius: 16px; }
+  .icono { width: 40px; height: 40px; font-size: 26px; border-radius: 12px; }
+  .nombre { font-size: 12.5px; }
+  .total { flex-direction: column; align-items: center; gap: 0; }
+  .total b { font-size: 22px; }
+  .total small { font-size: 10.5px; }
+}
+
+/* Teléfono acostado: poco alto, así que ícono y datos van lado a lado. */
+@media (max-height: 540px) and (orientation: landscape) {
+  .tarjeta { flex-direction: row; align-items: center; gap: 12px; padding: 8px 14px; }
+  .icono { width: 38px; height: 38px; font-size: 24px; flex: none; }
+  .nombre { flex: 1; }
+  .total { flex-direction: column; align-items: flex-end; gap: 0; }
+  .total b { font-size: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta { transition: none; }
+  .tarjeta:hover, .tarjeta:active { transform: none; }
+}

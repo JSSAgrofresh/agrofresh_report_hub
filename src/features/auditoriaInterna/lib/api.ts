@@ -1,16 +1,11 @@
 import { httpClient } from '@/services/http/client'
 import type { Definicion, ReglasEntrega, RespuestaHitos } from './entrega'
-import type { ContenidoCarpeta, EnvioInforme, SolicitudAuditoria } from './tipos'
+import type { SolicitudAuditoria } from './tipos'
 
 const BASE = '/auditoria-interna'
 
 export function listarSolicitudesAuditoria() {
   return httpClient.get<SolicitudAuditoria[]>(`${BASE}/solicitudes`)
-}
-
-/** Auditoría de los informes que salieron hacia los clientes (reales, de prueba y marcados a mano). */
-export function listarEnviosInformes() {
-  return httpClient.get<EnvioInforme[]>(`${BASE}/envios-informes`)
 }
 
 /** Las fechas de cada hito de cada solicitud real (lead time y cumplimiento). */
@@ -34,31 +29,6 @@ export function editarFechaEnvio(informeId: number, fechaEnvio: string | null) {
   })
 }
 
-export function listarCarpeta(ruta: string) {
-  return httpClient.get<ContenidoCarpeta>(`${BASE}/carpetas?ruta=${encodeURIComponent(ruta)}`)
-}
-
 export function rutaPdfInforme(informeId: number) {
   return `${BASE}/informes/${informeId}/pdf`
-}
-
-export function rutaPdfArchivo(ruta: string) {
-  return `${BASE}/carpetas/archivo?ruta=${encodeURIComponent(ruta)}`
-}
-
-/** Varios informes en un solo .zip; devuelve el archivo y el nombre que puso el backend. */
-export function descargarZipInformes(rutas: string[], nombre?: string) {
-  return httpClient.postArchivoConNombre(`${BASE}/carpetas/zip`, { rutas, nombre })
-}
-
-export function eliminarArchivo(ruta: string) {
-  return httpClient.delete<{ ok: boolean }>(`${BASE}/carpetas/archivo?ruta=${encodeURIComponent(ruta)}`)
-}
-
-export function eliminarCarpeta(ruta: string) {
-  return httpClient.delete<{ eliminados: number }>(`${BASE}/carpetas/carpeta?ruta=${encodeURIComponent(ruta)}`)
-}
-
-export function renombrarArchivo(ruta: string, nuevoNombre: string) {
-  return httpClient.post<{ ruta: string }>(`${BASE}/carpetas/renombrar`, { ruta, nuevo_nombre: nuevoNombre })
 }

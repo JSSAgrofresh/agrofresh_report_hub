@@ -143,8 +143,70 @@
   .contenido { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 }
 
+/* ── Teléfono acostado (o cualquier pantalla muy baja): la barra se pliega tras un botón de tres rayitas ───── */
+.hamburguesa { display: none; }
+@media (max-height: 540px) and (orientation: landscape) {
+  .hamburguesa {
+    position: fixed;
+    z-index: 60;
+    left: max(10px, env(safe-area-inset-left, 0px));
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 6px 18px rgba(40, 70, 20, 0.2);
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+  .hamburguesa span,
+  .hamburguesa span::before,
+  .hamburguesa span::after {
+    content: '';
+    display: block;
+    width: 20px;
+    height: 2.4px;
+    border-radius: 2px;
+    background: #31491f;
+    transition: transform 0.25s, background 0.25s;
+  }
+  .hamburguesa span { position: relative; }
+  .hamburguesa span::before { position: absolute; top: -6.5px; left: 0; }
+  .hamburguesa span::after { position: absolute; top: 6.5px; left: 0; }
+  .hamburguesaAbierta span { background: transparent; }
+  .hamburguesaAbierta span::before { transform: translateY(6.5px) rotate(45deg); }
+  .hamburguesaAbierta span::after { transform: translateY(-6.5px) rotate(-45deg); }
+
+  /* Plegada: sale de la pantalla hacia arriba. Desplegada: baja justo a la derecha del botón. */
+  .burbuja {
+    --radio: 22px;
+    left: 62px;
+    transform: translateY(calc(-100% - 24px));
+    width: calc(100vw - 74px - env(safe-area-inset-left, 0px));
+    padding: 6px 10px 6px 14px;
+    top: calc(6px + env(safe-area-inset-top, 0px));
+    animation: none;
+    pointer-events: none;
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.2s;
+  }
+  .burbujaAbierta { transform: translateY(0); pointer-events: auto; opacity: 1; }
+  .logo { height: 30px; }
+  .enlace { padding: 8px 14px; min-width: 0; font-size: 13.5px; }
+  .largo { display: none; }
+  .corto { display: inline; }
+  .contenido { padding-top: 62px; }
+  .shell[data-tema='sobrio'] .contenido { padding-top: 62px; }
+  .shell[data-tema='sobrio'] .burbuja { top: calc(6px + env(safe-area-inset-top, 0px)); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mancha, .burbuja, .contenido { animation: none; }
+  .burbuja { transition: none; }
   .pildora { transition: none; }
 }
 

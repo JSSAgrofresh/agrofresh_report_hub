@@ -192,3 +192,17 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
+
+/* La tabla por informe, plegada bajo los gráficos. */
+.plegable { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
+.plegable > summary {
+  display: flex; align-items: center; gap: 8px; padding: 14px 18px; cursor: pointer; list-style: none;
+  font-size: 14.5px; font-weight: 700; color: var(--color-text); border-radius: inherit;
+}
+.plegable > summary::-webkit-details-marker { display: none; }
+.plegable > summary::after { content: '▾'; margin-left: auto; color: var(--color-text-faint); transition: transform 0.2s; }
+.plegable[open] > summary::after { transform: rotate(180deg); }
+.plegable > summary span { font-weight: 500; color: var(--color-text-faint); }
+.plegable[open] { padding-bottom: 12px; }
+.plegable[open] > summary { padding-bottom: 8px; }
+.plegable > :not(summary) { margin: 0 12px; }
