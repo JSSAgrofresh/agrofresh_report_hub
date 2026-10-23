@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Skeleton } from '@/components/ui/Skeleton'
 import {
   BLOQUES,
@@ -16,9 +16,11 @@ import {
   rangoPorDefecto,
   rangoSemana,
   sumarBloques,
+  sumarDias,
 } from '@/features/rendimientoCalidad'
 import type { Bloques, CeldaBloque, Conteo, RespuestaRendimiento } from '@/features/rendimientoCalidad'
 import { AuditoriaHero } from './AuditoriaHero'
+import { DetallePlantaModal } from './DetallePlantaModal'
 import styles from './RendimientoCalidadView.module.css'
 
 type Vista = 'cliente' | 'semana'
@@ -155,6 +157,7 @@ export function RendimientoCalidadView() {
   const [soloRiesgo, setSoloRiesgo] = useState(false)
   const [soldTo, setSoldTo] = useState('')
   const [shipTo, setShipTo] = useState('')
+  const [abierta, setAbierta] = useState<{ soldTo: string; shipTo: string; desde: string; hasta: string } | null>(null)
 
   useEffect(() => {
     let cancelado = false
@@ -193,6 +196,8 @@ export function RendimientoCalidadView() {
     [enFecha, soldTo, shipTo],
   )
   const totalSemanas = useMemo(() => sumarBloques(semanasFilas.map((s) => s.bloques)), [semanasFilas])
+
+  const cerrarDetalle = useCallback(() => setAbierta(null), [])
 
   function cambiarCliente(valor: string) {
     setSoldTo(valor)
@@ -284,10 +289,16 @@ export function RendimientoCalidadView() {
                       <tr><td colSpan={20} className={styles.vacio}>{datos.filas.length === 0 ? 'Todavía no hay informes que juzgar.' : 'Ningún cliente coincide con lo que buscas en este período.'}</td></tr>
                     ) : (
                       plantasFilas.map((p) => (
-                        <tr key={`${p.soldTo}|${p.shipTo}`}>
+                        <tr
+                          key={`${p.soldTo}|${p.shipTo}`}
+                          className={styles.clicable}
+                          onClick={() => setAbierta({ soldTo: p.soldTo, shipTo: p.shipTo, desde, hasta })}
+                        >
                           <th scope="row" className={`${styles.izq} ${styles.fija} ${styles.cliente}`}>
-                            <b>{p.shipTo || '—'}</b>
-                            <span>{p.soldTo || '—'}</span>
+                            <button type="button" className={styles.abrir} aria-label={`Ver el detalle de ${p.shipTo}`}>
+                              <b>{p.shipTo || '—'}</b>
+                              <span>{p.soldTo || '—'}</span>
+                            </button>
                           </th>
                           <Celdas b={p.bloques} general={p.general} />
                         </tr>
@@ -311,10 +322,23 @@ export function RendimientoCalidadView() {
                       <tr><td colSpan={20} className={styles.vacio}>No hay informes de esa selección en este período.</td></tr>
                     ) : (
                       semanasFilas.map((s) => (
-                        <tr key={s.semana}>
+                        <tr
+                          key={s.semana}
+                          className={shipTo && soldTo ? styles.clicable : undefined}
+                          onClick={shipTo && soldTo ? () => setAbierta({ soldTo, shipTo, desde: s.semana, hasta: sumarDias(s.semana, 6) }) : undefined}
+                        >
                           <th scope="row" className={`${styles.izq} ${styles.fija} ${styles.cliente}`}>
-                            <b>Sem {numeroSemana(s.semana)}</b>
-                            <span>{rangoSemana(s.semana)}</span>
+                            {shipTo && soldTo ? (
+                              <button type="button" className={styles.abrir} aria-label={`Ver el detalle de la semana ${numeroSemana(s.semana)}`}>
+                                <b>Sem {numeroSemana(s.semana)}</b>
+                                <span>{rangoSemana(s.semana)}</span>
+                              </button>
+                            ) : (
+                              <>
+                                <b>Sem {numeroSemana(s.semana)}</b>
+                                <span>{rangoSemana(s.semana)}</span>
+                              </>
+                            )}
                           </th>
                           <Celdas b={s.bloques} general={s.general} />
                         </tr>
@@ -333,6 +357,8 @@ export function RendimientoCalidadView() {
               )}
             </table>
           </div>
+
+          {abierta && <DetallePlantaModal {...abierta} onCerrar={cerrarDetalle} />}
 
           <details className={styles.como}>
             <summary>Cómo se juzga cada informe</summary>
