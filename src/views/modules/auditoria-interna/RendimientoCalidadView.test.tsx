@@ -21,7 +21,7 @@ const RESPUESTA = {
     fila({ sold_to: 'MULTIFRUTA SA', ship_to: 'GESEX PLANTA FATIMA', semana: '2026-10-19', cumple: 1, no_cumple: 3 }),
   ],
   sin_criterio: { residuales: 2, fsma: 0, fito: 0 },
-  fuera: { sin_fecha: 0, ecofog: 1, otro_laboratorio: 0 },
+  fuera: { sin_fecha: 0, otro_laboratorio: 0 },
   moderado_cumple: false,
 } as RespuestaRendimiento
 
@@ -65,11 +65,19 @@ describe('RendimientoCalidadView', () => {
     expect(screen.getByText('Total del período')).toBeTruthy()
   })
 
+  it('solo Residuales se desglosa por servicio: Línea de proceso, Actimist y Ecofog', async () => {
+    render(<RendimientoCalidadView />)
+    await screen.findByText('GESEX PLANTA FATIMA')
+    expect(screen.getAllByText('Línea de proceso')).toHaveLength(1)
+    expect(screen.getAllByText('Actimist')).toHaveLength(1)
+    expect(screen.getAllByText('Ecofog')).toHaveLength(1)
+    expect(screen.getAllByRole('columnheader', { name: 'Total' })).toHaveLength(3)
+  })
+
   it('avisa lo que no se pudo juzgar', async () => {
     render(<RendimientoCalidadView />)
     await screen.findByText('GESEX PLANTA FATIMA')
     expect(screen.getByText(/2 informes sin criterio/)).toBeTruthy()
-    expect(screen.getByText(/1 de Ecofog/)).toBeTruthy()
   })
 
   it('si el servidor falla, lo dice', async () => {

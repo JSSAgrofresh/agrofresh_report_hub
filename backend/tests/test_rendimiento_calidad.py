@@ -44,6 +44,10 @@ class TestResiduales:
         assert rc.juzgar_residuales("Manzana", "actimist", R(("FDL", 3.4))) is True
         assert rc.juzgar_residuales("Manzana", "linea", R(("FDL", 3.4))) is False
 
+    def test_ecofog_usa_la_tabla_de_actimist(self):
+        assert rc.juzgar_residuales("Manzana", "ecofog", R(("FDL", 3.4))) is True
+        assert rc.juzgar_residuales("Manzana", "ecofog", R(("FDL", 3.6))) is False
+
     def test_dpa_solo_existe_en_actimist(self):
         assert rc.juzgar_residuales("Pera", "actimist", R(("DPA", 2.0))) is False
         assert rc.juzgar_residuales("Pera", "linea", R(("DPA", 2.0))) is None   # sin límite: no se juzga
@@ -110,7 +114,7 @@ def test_bloque_y_servicio():
     assert rc.bloque_de("Agrofresh") == "residuales" and rc.bloque_de("Diagnofruit") == "fito"
     assert rc.bloque_de("Otro") is None
     assert rc.servicio_de(None) == "linea" and rc.servicio_de("ryd") == "linea"
-    assert rc.servicio_de("actimist") == "actimist" and rc.servicio_de("ecofog") is None
+    assert rc.servicio_de("actimist") == "actimist" and rc.servicio_de("ecofog") == "ecofog"
 
 
 def test_la_semana_empieza_el_lunes():
@@ -129,14 +133,14 @@ def test_calcular_suma_por_semana_y_separa_servicios():
         _fila(3, "Agrofresh", "Manzana", "actimist", date(2026, 10, 28), "FDL", 3.4),  # cumple (Actimist)
         _fila(4, "ALS (Corthon)", "Manzana", None, date(2026, 10, 29), "ECOLI", 0),    # cumple
         _fila(5, "Quiteca", "Uva", None, date(2026, 10, 29), "FDL", 9),                # sin criterio
-        _fila(6, "Quiteca", "Manzana", "ecofog", date(2026, 10, 29), "FDL", 9),        # ecofog: aparte
+        _fila(6, "Quiteca", "Manzana", "ecofog", date(2026, 10, 29), "FDL", 9),        # ecofog: no cumple
         _fila(7, "Quiteca", "Manzana", None, None, "FDL", 9),                          # sin fecha
     ]
     r = rc.calcular(filas)
     por = {(f["bloque"], f["servicio"]): (f["cumple"], f["no_cumple"]) for f in r["filas"]}
-    assert por == {("residuales", "linea"): (1, 1), ("residuales", "actimist"): (1, 0), ("fsma", "linea"): (1, 0)}
+    assert por == {("residuales", "linea"): (1, 1), ("residuales", "actimist"): (1, 0), ("residuales", "ecofog"): (0, 1), ("fsma", "linea"): (1, 0)}
     assert {f["semana"] for f in r["filas"]} == {"2026-10-26"}
-    assert r["sin_criterio"]["residuales"] == 1 and r["fuera"]["ecofog"] == 1 and r["fuera"]["sin_fecha"] == 1
+    assert r["sin_criterio"]["residuales"] == 1 and r["fuera"]["sin_fecha"] == 1
 
 
 def test_un_informe_con_varios_analitos_cuenta_una_vez():
