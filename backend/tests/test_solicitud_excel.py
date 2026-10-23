@@ -242,6 +242,17 @@ def test_excel_con_muestra_usa_formato_de_la_base_solo_con_analitos_agrofresh():
     assert "FDL" in headers
 
 
+def test_la_base_del_laboratorio_conserva_la_columna_tipo_de_servicio_con_el_tipo_aplicacion():
+    """La columna Q (después de Laboratorio) que usa la macro de Paz: la BD de Report no la lleva, esta base sí."""
+    from app.emitir import FilaConMuestraIn
+
+    ws = _endpoint_con_muestra([FilaConMuestraIn(campos={"Tipo Aplicación": "Actimist"}, analitos_solicitados=["FDL"])])
+    headers = [ws.cell(row=2, column=c).value for c in range(1, ws.max_column + 1)]
+    assert headers[headers.index("Laboratorio") + 1] == "Tipo de Servicio"
+    assert headers.index("Tipo de Servicio") + 1 == 17  # columna Q
+    assert ws.cell(row=3, column=headers.index("Tipo de Servicio") + 1).value == "Actimist"
+
+
 def test_ryd_con_varias_posiciones_sale_una_fila_por_posicion():
     datos = {
         **DATOS_BASE,
@@ -283,8 +294,11 @@ def test_la_base_con_muestra_y_la_bd_de_report_tienen_las_mismas_columnas_genera
         ANALITOS_DEFECTO,
     )["BD"]
     esperadas = [etiqueta for _, etiqueta in GENERALES_BASE]
-    # «Tipo de Análisis» solo va en la BD de Report: la base del laboratorio no la lleva.
-    assert _generales(ws_muestra) == [e for e in esperadas if e != "Tipo de Análisis"]
+    # «Tipo de Análisis» solo va en la BD de Report: la base del laboratorio no la lleva, y sí «Tipo de Servicio»
+    # justo después de «Laboratorio» (la macro de los informes de Paz depende de esa columna).
+    sin_tipo_analisis = [e for e in esperadas if e != "Tipo de Análisis"]
+    donde = sin_tipo_analisis.index("Laboratorio") + 1
+    assert _generales(ws_muestra) == sin_tipo_analisis[:donde] + ["Tipo de Servicio"] + sin_tipo_analisis[donde:]
     # La BD de Report es la misma lista sin lo que solo tiene el laboratorio propio.
     solo_lab = {"Peso (Kg)", "Peso Muestra Extraída (g)"}
     assert _generales(bd) == [e for e in esperadas if e not in solo_lab]
