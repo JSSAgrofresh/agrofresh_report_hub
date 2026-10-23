@@ -39,7 +39,6 @@ GENERALES_BASE: list[tuple[str, str]] = [
     ("mes", "Mes"),
     ("temporada", "Temporada"),
     ("laboratorio", "Laboratorio"),
-    ("tipo_servicio", "Tipo de Servicio"),
     ("solicitante", "Solicitante"),
     ("sold_to", "Sold To"),
     ("ship_to", "Ship To"),

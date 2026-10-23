@@ -87,6 +87,17 @@ def test_la_solicitud_aporta_el_solicitado_y_la_dosis_que_la_base_no_trae():
     assert valores["Tipo Aplicación"] == "Línea de proceso"
 
 
+def test_la_bd_no_trae_el_tipo_de_servicio_viejo_y_el_tipo_aplicacion_cae_al_servicio_guardado():
+    """«Tipo de Servicio» (Cromatografía / Línea de proceso) ya no es columna; el real es «Tipo Aplicación»."""
+    fila = _fila(servicio="ecofog", tipo_servicio="Linea de Proceso", resultados={"FDL": {"valor": 1.0, "nombre": "Fludioxonil"}})
+    analitos = [{"codigo": "FDL", "nombre": "Fludioxonil", "laboratorio": "QUITECA", "unidad": "ppm", "orden": 1}]
+    bd_excel.completar_solicitados([fila], analitos)
+    wb = bd_excel.construir_workbook_bd([fila], analitos)
+    columnas, _ = _encabezados(wb)
+    assert "Tipo de Servicio" not in columnas
+    assert dict(zip(columnas, [c.value for c in wb["BD"][3]]))["Tipo Aplicación"] == "Ecofog"
+
+
 def test_un_texto_como_menor_que_se_conserva():
     wb = bd_excel.construir_workbook_bd([AGUA_ALS], ANALITOS_DEFECTO)
     columnas, _ = _encabezados(wb)

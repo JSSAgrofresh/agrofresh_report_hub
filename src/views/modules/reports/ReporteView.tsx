@@ -420,7 +420,8 @@ export function ReporteView({
         cliente: f.cliente,
         planta: f.planta,
         tipoAplicacion: f.tipo_aplicacion,
-        tipoServicio: f.tipo_servicio,
+        // El tipo de servicio real (Línea de proceso, Actimist, Ecofog o RYD): el `tipo_servicio` viejo («Cromatografía») ya no se usa.
+        tipoServicio: servicioDeFila(f.servicio, f.tipo_aplicacion),
         servicio: servicioDeFila(f.servicio, f.tipo_aplicacion),
         nroLinea: (f.nro_linea ?? '').trim() || null,
         posicionMuestreo: f.posicion_muestreo,
