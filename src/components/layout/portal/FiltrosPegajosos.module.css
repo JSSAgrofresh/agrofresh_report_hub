@@ -71,3 +71,6 @@
 .alternar { transition: top 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), filter 0.2s; }
 :global([data-pegado='false'][data-abierto='false']) > .alternar { top: 50%; transform: translateY(-50%); }
 :global([data-pegado='false'][data-abierto='true']) > .alternar { top: 22px; }
+
+/* El botón se centra respecto de la tarjeta (no del hueco que la envuelve, que puede traer margen). */
+:global([data-pegado='false']) { position: relative; }
