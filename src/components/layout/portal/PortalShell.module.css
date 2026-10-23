@@ -294,3 +294,6 @@
   .shell[data-tema='sobrio'] .enlace { padding: 9px 12px; }
   .shell[data-tema='sobrio'] .contenido { padding-top: 76px; }
 }
+
+/* Teléfono acostado: el selector de estilo sobra en la barra (va después de su regla para ganarle). */
+@media (max-height: 540px) and (orientation: landscape) and (max-width: 1000px) { .temas { display: none; } }
