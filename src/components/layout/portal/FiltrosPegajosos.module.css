@@ -66,3 +66,8 @@
 
 /* Al desplegar los filtros el contenido aparece suave, no de golpe. */
 @keyframes aparecerFiltros { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* Sin pegar: el botón queda centrado en la barra plegada y arriba a la derecha cuando está abierta; se mueve con suavidad. */
+.alternar { transition: top 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), filter 0.2s; }
+:global([data-pegado='false'][data-abierto='false']) > .alternar { top: 50%; transform: translateY(-50%); }
+:global([data-pegado='false'][data-abierto='true']) > .alternar { top: 22px; }
