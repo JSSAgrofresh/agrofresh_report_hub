@@ -100,3 +100,15 @@
 :global([data-tema='sobrio']) .titulo { font-size: clamp(24px, 3.2vw, 34px); font-weight: 700; margin: 4px 0 6px; }
 :global([data-tema='sobrio']) .descripcion { font-size: 14px; }
 :global([data-tema='sobrio']) .vivo { animation: none; }
+
+/* Teléfono: el saludo ocupa lo justo para que los análisis queden a la vista sin bajar. */
+@media (max-width: 560px) {
+  .hero, .conFoto, :global([data-tema='sobrio']) .hero, :global([data-tema='sobrio']) .conFoto { min-height: 0; padding: 18px 18px 20px; }
+  .titulo, :global([data-tema='sobrio']) .titulo { font-size: 22px; margin: 2px 0 0; }
+  .descripcion, :global([data-tema='sobrio']) .descripcion { display: none; }
+}
+@media (max-height: 540px) and (orientation: landscape) {
+  .hero, .conFoto, :global([data-tema='sobrio']) .hero, :global([data-tema='sobrio']) .conFoto { min-height: 0; padding: 14px 24px 16px; }
+  .titulo, :global([data-tema='sobrio']) .titulo { font-size: 24px; margin: 2px 0 0; }
+  .descripcion, :global([data-tema='sobrio']) .descripcion { display: none; }
+}

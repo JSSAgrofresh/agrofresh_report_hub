@@ -35,6 +35,16 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
       const s = seccion.current
       if (!nav || !h || !s) return
       const r = nav.getBoundingClientRect()
+      // Con la barra plegada (teléfono acostado) no hay burbuja a la que pegarse: los filtros quedan en su lugar.
+      const plegada = nav.getAttribute('data-plegable') === 'cerrado' && window.matchMedia?.('(max-height: 540px) and (orientation: landscape)').matches
+      if (plegada) {
+        if (pegadoRef.current) {
+          pegadoRef.current = false
+          setPegado(false)
+          setAbierto(false)
+        }
+        return
+      }
       const arriba = h.getBoundingClientRect().top
       if (!pegadoRef.current && arriba <= r.bottom + 2) {
         pegadoRef.current = true
