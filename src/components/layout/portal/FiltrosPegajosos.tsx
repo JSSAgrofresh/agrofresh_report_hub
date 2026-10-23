@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
+import { useMediaQuery } from '@/hooks/useAnchoMaximo'
 import { PortalContext } from './PortalContext'
 import styles from './FiltrosPegajosos.module.css'
 
@@ -17,6 +18,11 @@ interface Geometria {
  */
 export function FiltrosPegajosos({ className, children }: { className: string; children: ReactNode }) {
   const portal = useContext(PortalContext)
+  // Teléfono acostado: no hay barra a la que pegarse. Los filtros quedan en su lugar y un botón flotante los abre en una hoja con scroll.
+  const compacto = useMediaQuery('(max-height: 540px) and (orientation: landscape)')
+  const [hoja, setHoja] = useState(false)
+  // Altura que ocupa la tarjeta en su lugar mientras la hoja la saca de la página (se mide al abrir).
+  const [altoHoja, setAltoHoja] = useState(0)
   const hueco = useRef<HTMLDivElement>(null)
   const seccion = useRef<HTMLElement>(null)
   const pegadoRef = useRef(false)
@@ -29,7 +35,7 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
   const [geo, setGeo] = useState<Geometria | null>(null)
 
   useEffect(() => {
-    if (!portal) return
+    if (!portal || compacto) return
     let cuadro = 0
     const medir = () => {
       cuadro = 0
@@ -38,16 +44,6 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
       const s = seccion.current
       if (!nav || !h || !s) return
       const r = nav.getBoundingClientRect()
-      // Con la barra plegada (teléfono acostado) no hay burbuja a la que pegarse: los filtros quedan en su lugar.
-      const plegada = nav.getAttribute('data-plegable') === 'cerrado' && window.matchMedia?.('(max-height: 540px) and (orientation: landscape)').matches
-      if (plegada) {
-        if (pegadoRef.current) {
-          pegadoRef.current = false
-          setPegado(false)
-          setAbierto(false)
-        }
-        return
-      }
       const arriba = h.getBoundingClientRect().top
       if (!pegadoRef.current && arriba <= r.bottom + 2) {
         pegadoRef.current = true
@@ -84,7 +80,29 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
       window.removeEventListener('resize', pedir)
       if (cuadro) cancelAnimationFrame(cuadro)
     }
-  }, [portal])
+  }, [portal, compacto])
+
+  if (portal && compacto) {
+    return (
+      <div className={styles.marcador} style={hoja ? { height: altoHoja } : undefined}>
+        <section
+          ref={seccion}
+          className={`${className} ${hoja ? styles.hoja : ''}`}
+          aria-label="Filtros"
+          data-hoja={hoja ? 'true' : 'false'}
+        >
+          {children}
+        </section>
+        {hoja && <div className={styles.fondoHoja} onClick={() => setHoja(false)} aria-hidden="true" />}
+        <button type="button" className={styles.botonHoja} aria-expanded={hoja} onClick={() => {
+            setAltoHoja(seccion.current?.offsetHeight ?? 0)
+            setHoja((v) => !v)
+          }}>
+          {hoja ? 'Cerrar filtros ✕' : 'Filtros ▾'}
+        </button>
+      </div>
+    )
+  }
 
   if (!portal) {
     return (
