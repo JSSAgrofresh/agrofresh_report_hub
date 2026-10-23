@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout/Header'
 import { useAuth } from '@/features/auth'
 import { OpcionCard } from '@/components/ui/OpcionCard'
-import { IconAuditoria, IconCarpeta, IconCorreo, IconTrendingUp } from '@/components/ui/icons'
+import { IconAuditoria, IconCarpeta, IconCorreo, IconTrendingUp, IconVerificar } from '@/components/ui/icons'
 import { ROUTES } from '@/constants/routes'
 import tarjetas from '@/components/ui/OpcionCard.module.css'
 
@@ -9,7 +9,7 @@ import tarjetas from '@/components/ui/OpcionCard.module.css'
  * tarjetas, igual que el hub de AgroFresh Lab. */
 export function AuditoriaInternaHubView() {
   const { user } = useAuth()
-  // Las carpetas de auditoría y los envíos a clientes no se acotan a plantas todavía: un comercial no los ve.
+  // Las carpetas de auditoría, los envíos a clientes y el rendimiento de calidad no se acotan a plantas todavía: un comercial no los ve.
   const veCarpetas = user?.tipoAcceso !== 'comercial'
   return (
     <div>
@@ -31,6 +31,14 @@ export function AuditoriaInternaHubView() {
             titulo="Carpetas de auditoría"
             descripcion="Los PDF de los informes, ordenados por laboratorio y ship to."
             ruta={ROUTES.auditoriaInternaCarpetas}
+          />
+        )}
+        {veCarpetas && (
+          <OpcionCard
+            icono={<IconVerificar />}
+            titulo="Rendimiento de calidad"
+            descripcion="Cuántos informes cumplen y cuántos no, por cliente, planta y semana: residuales, FSMA y fitopatología."
+            ruta={ROUTES.auditoriaInternaRendimiento}
           />
         )}
         {veCarpetas && (
