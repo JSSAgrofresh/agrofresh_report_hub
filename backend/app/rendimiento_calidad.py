@@ -108,22 +108,43 @@ def _numero(valor_num: Any, valor_texto: str | None) -> tuple[float | None, str]
 
 # ── Los tres juicios (puros) ────────────────────────────────────────────
 
-def juzgar_residuales(especie: str | None, servicio: str, resultados: list[tuple[str, Any, str | None]]) -> bool | None:
-    """True = cumple, False = no cumple, None = no se puede juzgar (sin límites para esa especie o sin analitos con límite)."""
+def analizar_residuales(especie: str | None, servicio: str, resultados: list[tuple[str, Any, str | None]]) -> list[dict[str, Any]] | None:
+    """El detalle de cada analito contra su límite: estado «dentro», «sobre» o «bajo» y cuánto se pasa (`desvio`, positivo sobre
+    el máximo y negativo bajo el mínimo). `None` si la especie no tiene tabla para ese servicio. Un analito sin límite, sin valor
+    o con «<x» sale como «sin_limite» / «sin_medida» y no se juzga."""
     limites = _POR_ESPECIE.get(servicio, {}).get(_clave_especie(especie))
     if not limites:
         return None
-    evaluados = 0
+    detalle: list[dict[str, Any]] = []
     for codigo, vnum, vtxt in resultados:
-        rango = limites.get(_codigo(codigo))
+        cod = _codigo(codigo)
+        rango = limites.get(cod)
         valor, signo = _numero(vnum, vtxt)
-        if not rango or valor is None or signo == "<":     # «<0,05» está bajo el límite de cuantificación: no es una medida
-            continue
-        evaluados += 1
-        minimo, maximo = rango
-        if valor > maximo or (valor < minimo and signo != ">"):
-            return False
-    return True if evaluados else None
+        fila: dict[str, Any] = {"codigo": cod, "valor": valor, "signo": signo, "min": None, "max": None, "estado": "sin_limite", "desvio": 0.0}
+        if rango:
+            fila["min"], fila["max"] = rango
+            minimo, maximo = rango
+            if valor is None or signo == "<":     # «<0,05» está bajo el límite de cuantificación: no es una medida
+                fila["estado"] = "sin_medida"
+            elif valor > maximo:
+                fila["estado"], fila["desvio"] = "sobre", round(valor - maximo, 4)
+            elif valor < minimo and signo != ">":
+                fila["estado"], fila["desvio"] = "bajo", round(valor - minimo, 4)
+            else:
+                fila["estado"] = "dentro"
+        detalle.append(fila)
+    return detalle
+
+
+def juzgar_residuales(especie: str | None, servicio: str, resultados: list[tuple[str, Any, str | None]]) -> bool | None:
+    """True = cumple, False = no cumple, None = no se puede juzgar (sin límites para esa especie o sin analitos con límite)."""
+    detalle = analizar_residuales(especie, servicio, resultados)
+    if not detalle:
+        return None
+    evaluados = [d["estado"] for d in detalle if d["estado"] in ("dentro", "sobre", "bajo")]
+    if not evaluados:
+        return None
+    return all(e == "dentro" for e in evaluados)
 
 
 def detecto(vnum: Any, vtxt: str | None) -> bool | None:
@@ -247,3 +268,95 @@ def rendimiento_calidad(_: Usuario = Depends(puede_auditoria)) -> dict[str, Any]
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         cur.execute(_SQL)
         return calcular(cur.fetchall())
+
+
+# ── Detalle de una planta: los informes y, por analito, el valor contra su límite ──────────────────────
+
+NOMBRES_FITO = {"BOT": "Botrytis", "ALT": "Alternaria", "GEO": "Geotrichum", "PEN": "Penicillium"}
+
+_SQL_DETALLE = """
+    SELECT s.id, s.nro_solicitud, to_jsonb(s) ->> 'referencia' AS referencia, s.laboratorio, s.especie, s.variedad,
+           to_jsonb(s) ->> 'servicio' AS servicio,
+           COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis) AS fecha,
+           COALESCE(a.codigo, r.analito_raw) AS analito, COALESCE(a.nombre, r.analito_raw) AS nombre, a.unidad,
+           r.valor_num, r.valor_texto
+    FROM solicitud s
+    LEFT JOIN planta p ON p.id = s.planta_id
+    LEFT JOIN cliente c ON c.id = p.cliente_id
+    LEFT JOIN resultado r ON r.solicitud_id = s.id
+    LEFT JOIN analito a ON a.id = r.analito_id
+    WHERE s.vigente
+      AND COALESCE(c.nombre, s.sold_to_raw) = %(sold_to)s
+      AND COALESCE(p.nombre, s.ship_to_raw) = %(ship_to)s
+    ORDER BY s.id
+"""
+
+
+def _detalle_fsma(resultados: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {"codigo": _codigo(r["analito"]), "nombre": r["nombre"], "unidad": r["unidad"], "valor": r["valor_texto"] if r["valor_num"] is None else float(r["valor_num"]),
+         "detecto": detecto(r["valor_num"], r["valor_texto"])}
+        for r in resultados
+    ]
+
+
+def _detalle_fito(resultados: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    salida = []
+    for r in resultados:
+        cod = _codigo(r["analito"])
+        if cod not in NIVELES_FITO:
+            continue
+        valor, signo = _numero(r["valor_num"], r["valor_texto"])
+        a, b = NIVELES_FITO[cod]
+        salida.append({"codigo": cod, "nombre": NOMBRES_FITO.get(cod, r["nombre"]), "unidad": r["unidad"], "valor": valor, "signo": signo,
+                       "optimo_hasta": a, "peligroso_desde": b, "nivel": nivel_fito(cod, 0.0 if valor is None else valor, signo)})
+    return salida
+
+
+def armar_detalle(filas_bd: list[dict[str, Any]], desde: date | None, hasta: date | None) -> dict[str, Any]:
+    """Los informes de una planta en el período, con el detalle de cada análisis. Los que no cumplen primero."""
+    informes: dict[int, dict[str, Any]] = {}
+    for f in filas_bd:
+        inf = informes.setdefault(f["id"], {**f, "filas": []})
+        if f["analito"] is not None:
+            inf["filas"].append(f)
+    piso = lunes(desde) if desde else None
+    salida: list[dict[str, Any]] = []
+    for inf in informes.values():
+        bloque = bloque_de(inf["laboratorio"])
+        fecha = inf["fecha"]
+        if bloque is None or fecha is None:
+            continue
+        if (piso and lunes(fecha) < piso) or (hasta and lunes(fecha) > hasta):
+            continue
+        servicio = servicio_de(inf["servicio"])
+        resultados = [(r["analito"], r["valor_num"], r["valor_texto"]) for r in inf["filas"]]
+        veredicto = juzgar(bloque, inf["especie"], servicio, resultados)
+        analitos: list[dict[str, Any]]
+        if bloque == "residuales":
+            analitos = []
+            for d in analizar_residuales(inf["especie"], servicio, resultados) or []:
+                orig = next((r for r in inf["filas"] if _codigo(r["analito"]) == d["codigo"]), None)
+                analitos.append({**d, "nombre": orig["nombre"] if orig else d["codigo"], "unidad": (orig or {}).get("unidad") or "ppm"})
+        elif bloque == "fsma":
+            analitos = _detalle_fsma(inf["filas"])
+        else:
+            analitos = _detalle_fito(inf["filas"])
+        salida.append({
+            "id": inf["id"], "informe": inf["nro_solicitud"], "ot": inf["referencia"], "laboratorio": inf["laboratorio"], "bloque": bloque, "servicio": servicio,
+            "especie": inf["especie"], "variedad": inf["variedad"], "fecha": fecha.isoformat(), "semana": lunes(fecha).isoformat(),
+            "cumple": veredicto, "analitos": analitos,
+        })
+    orden = {False: 0, None: 1, True: 2}
+    salida.sort(key=lambda i: i["fecha"], reverse=True)
+    salida.sort(key=lambda i: orden[i["cumple"]])
+    return {"informes": salida}
+
+
+@router.get("/rendimiento-calidad/detalle")
+def rendimiento_calidad_detalle(sold_to: str, ship_to: str, desde: date | None = None, hasta: date | None = None,
+                                _: Usuario = Depends(puede_auditoria)) -> dict[str, Any]:
+    """Los informes de una planta en el período (los de la fila que se abrió en la tabla), con cada analito contra su límite."""
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute(_SQL_DETALLE, {"sold_to": sold_to, "ship_to": ship_to})
+        return armar_detalle(cur.fetchall(), desde, hasta)

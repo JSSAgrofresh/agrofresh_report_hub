@@ -6,6 +6,7 @@ const { leer } = vi.hoisted(() => ({ leer: vi.fn() }))
 vi.mock('@/features/rendimientoCalidad', async (original) => ({
   ...(await original<typeof import('@/features/rendimientoCalidad')>()),
   leerRendimientoCalidad: leer,
+  leerDetallePlanta: vi.fn().mockResolvedValue({ informes: [] }),
 }))
 
 import { RendimientoCalidadView } from './RendimientoCalidadView'
@@ -72,6 +73,13 @@ describe('RendimientoCalidadView', () => {
     expect(screen.getAllByText('Actimist')).toHaveLength(1)
     expect(screen.getAllByText('Ecofog')).toHaveLength(1)
     expect(screen.getAllByRole('columnheader', { name: 'Total' })).toHaveLength(3)
+  })
+
+  it('un clic en la fila de una planta abre su detalle', async () => {
+    render(<RendimientoCalidadView />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Ver el detalle de DOLE PLANTA CODEGUA' }))
+    const modal = await screen.findByRole('dialog', { name: 'DOLE PLANTA CODEGUA' })
+    expect(within(modal).getByText(/DOLE CHILE S\.A\./)).toBeTruthy()
   })
 
   it('avisa lo que no se pudo juzgar', async () => {
