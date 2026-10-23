@@ -1,0 +1,19 @@
+.contenedor { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-2); padding-top: var(--space-4); border-top: 1px solid var(--color-border); }
+.sub { margin: 0; font-size: 0.95rem; font-weight: 700; display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.cuenta { font-size: 0.78rem; font-weight: 500; color: var(--color-text-faint, #77837b); }
+.lista { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.scroll { max-height: 420px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0 var(--space-3); }
+.fila { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--color-border); }
+.fila:first-child { border-top: 0; }
+.nombre { flex: 1 1 14rem; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.nombre small { display: block; font-weight: 400; color: var(--color-text-faint, #77837b); font-size: 0.8rem; }
+.select { min-width: 15rem; max-width: 100%; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); font: inherit; font-size: 0.88rem; }
+.barra { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.buscador { flex: 1 1 16rem; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); font: inherit; font-size: 0.9rem; background: var(--color-surface); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip, .chipOn { border: 1px solid var(--color-border); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.82rem; cursor: pointer; background: var(--color-surface); color: inherit; }
+.chipOn { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.propio, .hereda { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; }
+.propio { background: #e1f4ea; color: #17794a; }
+.hereda { background: #eef1f5; color: #5d6878; }
+.vacio { margin: 0; color: var(--color-text-faint, #77837b); font-size: 0.9rem; }

@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import { Card } from '@/components/ui/Card'
 import { IconAlerta, IconArchivoPlano, IconTrendingUp } from '@/components/ui/icons'
 import {
@@ -12,9 +12,10 @@ import {
 import type { InformeVista } from '@/features/reportes/lib/lineaTiempoInformes'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import {
-  FILTRO_BLOQUE_VACIO,
   LIMITES_NIVEL,
+  analitosDeInformes,
   filtrarBloque,
+  filtrosActivosBloque,
   nivelesPorAnalito,
   presenciaPorAnalito,
   type EstadoFiltro,
@@ -25,7 +26,6 @@ import { DonasEstado } from './DonasEstado'
 import { Kpi } from './Kpi'
 import { ResultadosPorInforme } from './ResultadosPorInforme'
 import estilosReporte from './ReporteView.module.css'
-import { InfoTip } from '@/components/ui/InfoTip'
 import styles from './SeccionesReport.module.css'
 
 /** La cabecera de un bloque: el nombre del análisis, qué laboratorios lo hacen y, a la derecha, lo que se pueda tocar. */
@@ -102,6 +102,9 @@ export function BotonesLabResidual({
 
 interface PropsInformes {
   bloque: 'fsma' | 'fito'
+  /** Filtros propios de este análisis (analito y estado); viven en «Específicos» de la tarjeta de filtros. */
+  filtroBloque: FiltroBloque
+  onQuitarFiltroBloque: () => void
   numero?: number
   informes: InformeVista[]
   /** Informes de ese laboratorio sin ningún filtro, para «de N en total». */
@@ -117,26 +120,9 @@ const LAB_DE_BLOQUE = { fsma: 'als', fito: 'diagnofruit' } as const
  * El bloque de ALS (Análisis FSMA) o de Diagnofruit (Análisis de fitopatología): sus tres indicadores y su tabla por
  * informe, con los gráficos si el administrador principal los encendió.
  */
-export function SeccionInformes({ bloque, numero, informes: informesDelReporte, totalSinFiltros, conFiltros, conGraficos, acento }: PropsInformes) {
+export function SeccionInformes({ bloque, numero, informes: informesDelReporte, totalSinFiltros, conFiltros, conGraficos, acento, filtroBloque, onQuitarFiltroBloque }: PropsInformes) {
   const lab = LAB_DE_BLOQUE[bloque]
   const nombreLab = nombreLaboratorio(lab)
-  // Filtros propios de este análisis (los generales de arriba ya vienen aplicados).
-  const [filtroBloque, setFiltroBloque] = useState<FiltroBloque>(FILTRO_BLOQUE_VACIO)
-  const analitosDelBloque = useMemo(() => {
-    const porCodigo = new Map<string, { nombre: string; orden: number }>()
-    informesDelReporte.forEach((i) => i.resultados.forEach((r) => porCodigo.has(r.codigo) || porCodigo.set(r.codigo, { nombre: r.nombre, orden: r.orden })))
-    return [...porCodigo.entries()].sort((a, b) => a[1].orden - b[1].orden || a[1].nombre.localeCompare(b[1].nombre, 'es'))
-  }, [informesDelReporte])
-  const nombreDeCodigo = (codigo: string) => analitosDelBloque.find(([c]) => c === codigo)?.[1].nombre ?? codigo
-  const nombresDelBloque = [...new Set(analitosDelBloque.map(([, v]) => v.nombre))]
-  const nombresElegidos = filtroBloque.analitos.length ? [...new Set(filtroBloque.analitos.map(nombreDeCodigo))] : nombresDelBloque
-  // Un analito puede tener dos códigos (agua y alimento): elegir su nombre elige todos.
-  const alElegirAnalitos = (nombres: string[]) =>
-    setFiltroBloque((f) => ({
-      ...f,
-      analitos: nombres.length >= nombresDelBloque.length ? [] : analitosDelBloque.filter(([, v]) => nombres.includes(v.nombre)).map(([c]) => c),
-    }))
-  const filtrosActivos = filtroBloque.analitos.length > 0 || filtroBloque.estado !== 'todos'
   const informes = useMemo(() => filtrarBloque(informesDelReporte, filtroBloque), [informesDelReporte, filtroBloque])
   // Las tortas cuentan presencia y ausencia: el filtro «Estado» las dejaría en un solo color, así que solo les aplica el de analito.
   const informesParaTortas = useMemo(() => filtrarBloque(informesDelReporte, { analitos: filtroBloque.analitos, estado: 'todos' }), [informesDelReporte, filtroBloque.analitos])
@@ -157,25 +143,13 @@ export function SeccionInformes({ bloque, numero, informes: informesDelReporte, 
         </span>
       </CabeceraSeccion>
 
-      {informesDelReporte.length > 0 && (
-        <div className={styles.filtrosBloque} role="group" aria-label={`Filtros de ${NOMBRE_BLOQUE[bloque]}`}>
-          <span className={styles.filtrosTitulo}>Filtros de este análisis</span>
-          <MultiSelectFiltro etiqueta="Analito" opciones={nombresDelBloque} valores={nombresElegidos} onChange={alElegirAnalitos} />
-          <label className={styles.estadoFiltro}>
-            <span>Estado</span>
-            <select value={filtroBloque.estado} onChange={(e) => setFiltroBloque((f) => ({ ...f, estado: e.target.value as EstadoFiltro }))}>
-              <option value="todos">Todos</option>
-              <option value="detectado">Detectado</option>
-              <option value="no_detectado">No detectado</option>
-            </select>
-          </label>
-          {filtrosActivos && (
-            <button type="button" className={styles.limpiarBloque} onClick={() => setFiltroBloque(FILTRO_BLOQUE_VACIO)}>
-              Quitar filtros
-            </button>
-          )}
-          {bloque === 'fsma' && <InfoTip>Especie y variedad no se aplican aquí: ALS no las informa.</InfoTip>}
-        </div>
+      {filtrosActivosBloque(filtroBloque) && informesDelReporte.length > 0 && (
+        <p className={styles.resumenFiltro}>
+          Filtrando este análisis por {textoFiltroBloque(filtroBloque)}.{' '}
+          <button type="button" className={styles.limpiarBloque} onClick={onQuitarFiltroBloque}>
+            Quitar
+          </button>
+        </p>
       )}
 
       {informes.length === 0 ? (
@@ -264,5 +238,53 @@ function LimitesNivelTabla() {
         </table>
       </div>
     </details>
+  )
+}
+
+
+function textoFiltroBloque(f: FiltroBloque): string {
+  const partes: string[] = []
+  if (f.analitos.length) partes.push(`${f.analitos.length} ${f.analitos.length === 1 ? 'analito' : 'analitos'}`)
+  if (f.estado !== 'todos') partes.push(f.estado === 'detectado' ? 'Detectado' : 'No detectado')
+  return partes.join(' y ')
+}
+
+/**
+ * Los filtros que solo valen para FSMA o fitopatología: el analito (coliformes / Escherichia coli en FSMA; levaduras y
+ * hongos en fitopatología) y si salió detectado. Se muestran en «Específicos» cuando ese análisis es el que se está mirando.
+ */
+export function FiltrosAnalisis({
+  bloque,
+  informes,
+  valor,
+  onChange,
+}: {
+  bloque: 'fsma' | 'fito'
+  informes: InformeVista[]
+  valor: FiltroBloque
+  onChange: (f: FiltroBloque) => void
+}) {
+  const analitos = useMemo(() => analitosDeInformes(informes), [informes])
+  const nombres = [...new Set(analitos.map(([, v]) => v.nombre))]
+  const nombreDeCodigo = (codigo: string) => analitos.find(([c]) => c === codigo)?.[1].nombre ?? codigo
+  const elegidos = valor.analitos.length ? [...new Set(valor.analitos.map(nombreDeCodigo))] : nombres
+  // Un analito puede tener dos códigos (agua y alimento): elegir su nombre elige todos.
+  const alElegir = (sel: string[]) =>
+    onChange({
+      ...valor,
+      analitos: sel.length >= nombres.length ? [] : analitos.filter(([, v]) => sel.includes(v.nombre)).map(([c]) => c),
+    })
+  return (
+    <>
+      <MultiSelectFiltro etiqueta={bloque === 'fsma' ? 'Analito' : 'Microorganismo'} opciones={nombres} valores={elegidos} onChange={alElegir} />
+      <label className={styles.estadoFiltro}>
+        <span>Estado</span>
+        <select value={valor.estado} onChange={(e) => onChange({ ...valor, estado: e.target.value as EstadoFiltro })}>
+          <option value="todos">Todos</option>
+          <option value="detectado">Detectado</option>
+          <option value="no_detectado">No detectado</option>
+        </select>
+      </label>
+    </>
   )
 }

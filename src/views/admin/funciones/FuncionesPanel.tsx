@@ -3,8 +3,11 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useAuth } from '@/features/auth'
-import { cambiarGraficosInformes, cambiarServicioReport, cambiarTemaCliente, obtenerFunciones } from '@/features/funciones'
-import type { EstadoFunciones, ServicioReport, TemaCliente } from '@/features/funciones'
+import { cambiarGraficosInformes, cambiarServicioReport, cambiarTemaCliente, cambiarTemaCuenta, obtenerFunciones } from '@/features/funciones'
+import type { EstadoFunciones, ServicioReport, TemaCliente, TemaCuenta } from '@/features/funciones'
+import { EstiloPorCuenta } from './EstiloPorCuenta'
+import { NOMBRE_TEMA } from './nombreTema'
+import type { DestinoTema } from './EstiloPorCuenta'
 import { CORREO_MAESTRO } from '@/features/usuarios'
 import { HttpError } from '@/services/http/client'
 import { fechaHora } from '@/lib/fechaHoraChile'
@@ -39,6 +42,8 @@ export function FuncionesPanel() {
   const [cambioGraficos, setCambioGraficos] = useState<boolean | null>(null)
   /** El estilo al que se quiere pasar el dashboard de clientes; `null` = no se está cambiando. */
   const [cambioTema, setCambioTema] = useState<TemaCliente | null>(null)
+  /** Un estilo para un tipo de cuenta o una cuenta; `tema: null` = quitar la regla. */
+  const [cambioCuenta, setCambioCuenta] = useState<{ destino: DestinoTema; tema: TemaCuenta | null; descripcion: string } | null>(null)
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [trabajando, setTrabajando] = useState(false)
@@ -57,17 +62,20 @@ export function FuncionesPanel() {
     setElegido(null)
     setCambioGraficos(null)
     setCambioTema(null)
+    setCambioCuenta(null)
     setPassword('')
     setError(null)
   }
 
   async function confirmar() {
-    if (!elegido && cambioGraficos === null && cambioTema === null) return
+    if (!elegido && cambioGraficos === null && cambioTema === null && !cambioCuenta) return
     setTrabajando(true)
     setError(null)
     try {
       setEstado(
-        elegido
+        cambioCuenta
+          ? await cambiarTemaCuenta(cambioCuenta.destino, cambioCuenta.tema, password)
+          : elegido
           ? await cambiarServicioReport(elegido.clave, !elegido.activo, password)
           : cambioTema !== null
             ? await cambiarTemaCliente(cambioTema, password)
@@ -83,7 +91,17 @@ export function FuncionesPanel() {
 
   const graficos = estado?.graficos_informes
   // Lo que dice el cuadro de confirmación: un servicio o el interruptor de los gráficos.
-  const confirmacion = cambioTema !== null
+  const confirmacion = cambioCuenta
+    ? {
+        titulo: cambioCuenta.tema
+          ? `Dejar el estilo «${NOMBRE_TEMA[cambioCuenta.tema]}» para ${cambioCuenta.descripcion}`
+          : `Quitar el estilo propio de ${cambioCuenta.descripcion}`,
+        boton: cambioCuenta.tema ? 'Dejar este estilo' : 'Quitar la regla',
+        texto: cambioCuenta.tema
+          ? 'Lo verán desde su próxima carga. Una regla por cuenta gana a la de su tipo, y esa al predeterminado.'
+          : 'Volverá a ver el estilo de su tipo de cuenta (o el predeterminado).',
+      }
+    : cambioTema !== null
     ? {
         titulo: `Dejar el estilo ${TEMAS.find((t) => t.id === cambioTema)?.nombre} para los clientes`,
         boton: 'Dejar como predeterminado',
@@ -195,9 +213,9 @@ export function FuncionesPanel() {
 
       {estado && (
         <div className={styles.tarjeta}>
-          <h2 className={styles.titulo}>Estilo del dashboard de clientes</h2>
+          <h2 className={styles.titulo}>Estilo del dashboard de clientes y comerciales</h2>
           <p className={styles.texto}>
-            Elige cómo ven su dashboard los clientes y comerciales. Quien tenga la función «Vista de cliente» puede
+            Elige el estilo predeterminado y, más abajo, déjale uno distinto a un tipo de cuenta o a una cuenta en particular (a un comercial incluso el marco interno de siempre). Quien tenga la función «Vista de cliente» puede
             cambiar entre los dos estilos desde esa vista para compararlos, sin afectar a nadie.
           </p>
           <ul className={styles.lista}>
@@ -225,6 +243,14 @@ export function FuncionesPanel() {
               )
             })}
           </ul>
+          {estado.temas_cuenta && (
+            <EstiloPorCuenta
+              temas={estado.temas_cuenta}
+              predeterminado={estado.tema_cliente?.valor ?? 'basico'}
+              puedeCambiar={esPrincipal}
+              onCambiar={(destino, tema, descripcion) => setCambioCuenta({ destino, tema, descripcion })}
+            />
+          )}
           {estado.tema_cliente?.cambiado_por && estado.tema_cliente.cambiado_en && (
             <p className={styles.pie}>Último cambio: {estado.tema_cliente.cambiado_por}, {fechaHora(estado.tema_cliente.cambiado_en)}</p>
           )}

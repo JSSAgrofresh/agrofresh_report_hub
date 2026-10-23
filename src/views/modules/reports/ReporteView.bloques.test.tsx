@@ -27,6 +27,7 @@ vi.mock('@/features/listados', () => ({ listarValores: vi.fn().mockResolvedValue
 vi.mock('@/features/auth', () => ({ useAuth: () => ({ user: { tipoAcceso: 'admin_general', email: 'jorge.sandoval@agrofresh.com', nombre: 'Jorge' } }) }))
 
 import { ReporteView } from './ReporteView'
+import { ID_BLOQUE } from '@/features/reportes/lib/bloquesAnalisis'
 
 const fila = (p: Partial<FilaReporte>): FilaReporte => ({
   solicitud_id: 1, nro_solicitud: 'X', laboratorio: 'Agrofresh', fecha_muestreo: '2026-10-01', fecha_entrada: '2026-10-01',
@@ -105,14 +106,26 @@ describe('Report por bloques de análisis', () => {
     expect(within(fito).queryByText('Nivel de contaminación')).toBeNull() // Levaduras no tiene tabla de límites
   })
 
-  it('los filtros propios de FSMA dejan un analito y el estado, sin tocar los otros bloques', async () => {
-    render(<ReporteView />)
-    const fsma = await screen.findByRole('region', { name: 'Análisis FSMA' })
-    fireEvent.change(within(fsma).getByLabelText('Estado'), { target: { value: 'no_detectado' } })
-    expect(within(fsma).getByText('Ningún informe cumple los filtros de este análisis.')).toBeTruthy()
-    expect(within(screen.getByRole('region', { name: 'Análisis de fitopatología' })).getByText('253521-DIAG0003')).toBeTruthy()
-    fireEvent.change(within(fsma).getByLabelText('Estado'), { target: { value: 'detectado' } })
-    expect(within(fsma).getByText('496251')).toBeTruthy()
+  it('los filtros propios de FSMA salen en «Específicos» al mirar ese análisis, sin tocar los otros bloques', async () => {
+    // jsdom no tiene diseño: se simula que la cabecera de FSMA ya pasó la barra y la de fitopatología aún no.
+    const original = Element.prototype.getBoundingClientRect
+    Element.prototype.getBoundingClientRect = function () {
+      const top = this.id === ID_BLOQUE.fito ? 5000 : 0
+      return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top, toJSON() {} } as DOMRect
+    }
+    try {
+      render(<ReporteView />)
+      const fsma = await screen.findByRole('region', { name: 'Análisis FSMA' })
+      const estado = await screen.findByLabelText('Estado')
+      expect(screen.queryByLabelText('Ingrediente Activo')).toBeNull()
+      fireEvent.change(estado, { target: { value: 'no_detectado' } })
+      expect(within(fsma).getByText('Ningún informe cumple los filtros de este análisis.')).toBeTruthy()
+      expect(within(screen.getByRole('region', { name: 'Análisis de fitopatología' })).getByText('253521-DIAG0003')).toBeTruthy()
+      fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'detectado' } })
+      expect(within(fsma).getByText('496251')).toBeTruthy()
+    } finally {
+      Element.prototype.getBoundingClientRect = original
+    }
   })
 
   it('filtrar por Especie no vacía FSMA: ALS no informa especie, así que ese filtro no se le aplica', async () => {
