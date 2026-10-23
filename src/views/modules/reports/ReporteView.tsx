@@ -1,6 +1,6 @@
 import { FiltrosPegajosos } from '@/components/layout/portal/FiltrosPegajosos'
 import FueraDeRango from './FueraDeRango'
-import { columnasPorLaboratorio, laboratoriosDeInformes } from '@/features/reportes/lib/graficoResiduales'
+import { columnasPorLaboratorio, laboratoriosDeInformes, type InformeConPuntos } from '@/features/reportes/lib/graficoResiduales'
 import { DonaFueraDeRango } from './DonaFueraDeRango'
 import { InformesFueraDeRango } from './InformesFueraDeRango'
 import { ResultadosPorCliente } from './ResultadosPorCliente'
@@ -45,6 +45,7 @@ import {
 import { construirInformes } from '@/features/reportes/lib/informesPorLab'
 import { BotonesLabResidual, CabeceraSeccion, SeccionInformes } from './SeccionesReport'
 import { TarjetasAnalisis } from './TarjetasAnalisis'
+import { desvioResidual, limitesDeInforme } from '@/features/reportes/lib/limitesResiduales'
 import { Kpi } from './Kpi'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
@@ -276,6 +277,9 @@ export function ReporteView({
   const [variedadesOficiales, setVariedadesOficiales] = useState<string[]>([])
   const [modalAnalitos, setModalAnalitos] = useState(false)
   const [detalle, setDetalle] = useState<{ titulo: string; filas: Observacion[] } | null>(null)
+  // Teléfono: el informe tocado en el gráfico se ve en una ficha fija bajo él (el modal queda para «Ver informe»).
+  const [fichaId, setFichaId] = useState<number | null>(null)
+  const scrollGrafico = useRef<HTMLDivElement>(null)
   const [avisoBd, setAvisoBd] = useState(false)
   const [descargandoBd, setDescargandoBd] = useState(false)
   // Datos de prueba (solo admin): viven en este estado y en ningún otro lado.
@@ -650,6 +654,13 @@ export function ReporteView({
     [informes],
   )
   const laboratoriosGraficados = useMemo(() => laboratoriosDeInformes(informes), [informes])
+  // La ficha del teléfono: el informe tocado o, sin tocar nada, el más reciente.
+  const fichaInforme = informes.find((i) => i.solicitudId === fichaId) ?? informes[informes.length - 1]
+  // En el teléfono el gráfico parte mostrando lo más reciente (a la derecha).
+  useEffect(() => {
+    const c = scrollGrafico.current
+    if (angostoGrafico && c) c.scrollLeft = c.scrollWidth
+  }, [angostoGrafico, informes.length])
   const tituloPrincipal = filtrosMultiples
     ? tituloLimites(vistaControl ? 'Límites de control' : 'Límites residuales', multi, filtros.ingredientes, nombreMes)
     : tituloGrafico(filtros, !clienteFijo, vistaControl ? 'Límites de control' : 'Residuales', analitosGraficados)
@@ -918,6 +929,13 @@ export function ReporteView({
           },
         },
         onClick: (evt, _elements, chart) => {
+          // Teléfono: tocar cualquier parte de una columna la elige y su ficha aparece bajo el gráfico.
+          if (angostoGrafico) {
+            const columna = chart.getElementsAtEventForMode(evt as unknown as Event, 'index', { intersect: false }, true)
+            const elegido = columna.length ? informes[columna[0].index] : undefined
+            if (elegido) setFichaId(elegido.solicitudId)
+            return
+          }
           // La interacción es por columna, pero el informe se abre solo al hacer clic sobre un punto.
           const sobrePunto = chart.getElementsAtEventForMode(evt as unknown as Event, 'nearest', { intersect: true }, true)
           if (!sobrePunto.length) return
@@ -1704,7 +1722,7 @@ export function ReporteView({
               <Card className={styles.panel}>
                 <h3>
                   <span className={styles.h3Izq}>{tituloPrincipal}</span>
-                  <span className={styles.hintClic}>clic en un punto para ver el informe</span>
+                  <span className={styles.hintClic}>{angostoGrafico ? 'toca una columna · desliza para ver más' : 'clic en un punto para ver el informe'}</span>
                   {limitesTabla && (
                     <button
                       type="button"
@@ -1716,9 +1734,21 @@ export function ReporteView({
                     </button>
                   )}
                 </h3>
-                <div className={styles.chartboxGrande}>
-                  <canvas ref={mainRef} />
+                <div ref={scrollGrafico} className={angostoGrafico ? styles.chartDeslizable : undefined}>
+                  <div
+                    className={styles.chartboxGrande}
+                    style={angostoGrafico ? { width: `max(100%, ${informes.length * 54 + 60}px)` } : undefined}
+                  >
+                    <canvas ref={mainRef} />
+                  </div>
                 </div>
+                {angostoGrafico && fichaInforme && (
+                  <FichaDelColumna
+                    informe={fichaInforme}
+                    conLimites={!esCuentaCliente && !simulando}
+                    onVer={() => setDetalle({ titulo: `${fichaInforme.nroSolicitud} · ${fichaInforme.fecha ? formatDateCL(fichaInforme.fecha) : 'Sin fecha'}`, filas: fichaInforme.puntos })}
+                  />
+                )}
                 {laboratoriosGraficados.length > 1 && (
                   <p className={styles.leyendaLabs} aria-label="Curvas por laboratorio">
                     Curvas por laboratorio:
@@ -1843,6 +1873,38 @@ export function ReporteView({
           }
         />
       )}
+    </div>
+  )
+}
+
+/** Teléfono: lo que mide el informe elegido en el gráfico, con su color, y si cada analito pasó su límite (solo personal interno). */
+function FichaDelColumna({ informe, conLimites, onVer }: { informe: InformeConPuntos; conLimites: boolean; onVer: () => void }) {
+  const limites = conLimites ? limitesDeInforme(informe) : null
+  return (
+    <div className={styles.fichaColumna} aria-live="polite">
+      <div className={styles.fichaColumnaCab}>
+        <b>{informe.nroSolicitud}</b>
+        <span>{informe.fecha ? formatDateCL(informe.fecha) : 'Sin fecha'}</span>
+        <button type="button" onClick={onVer}>Ver informe ›</button>
+      </div>
+      <ul>
+        {informe.puntos
+          .filter((p) => p.ingrediente && p.ppm != null)
+          .map((p) => {
+            const pos = limites ? posicionResidual(p.ingrediente as string, p.ppm as number, limites) : null
+            const desvio = limites && pos && pos !== 'dentro' ? desvioResidual(p.ingrediente as string, p.ppm as number, limites) : 0
+            return (
+              <li key={p.ingrediente}>
+                <span className={styles.fichaPunto} style={{ background: colorDeIngrediente(p.ingrediente as string) }} aria-hidden="true" />
+                <span className={styles.fichaNombre}>{p.ingrediente}</span>
+                <span className={styles.fichaValor}>{formatDecimalCL(p.ppm as number, 2)}</span>
+                {pos === 'sobre' && <span className={styles.fichaSobre}>▲ +{formatDecimalCL(desvio, 2)} sobre el máximo</span>}
+                {pos === 'bajo' && <span className={styles.fichaBajo}>▼ {formatDecimalCL(desvio, 2)} bajo el mínimo</span>}
+                {pos === 'dentro' && <span className={styles.fichaDentro}>dentro</span>}
+              </li>
+            )
+          })}
+      </ul>
     </div>
   )
 }

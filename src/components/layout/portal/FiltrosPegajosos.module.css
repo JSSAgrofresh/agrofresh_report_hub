@@ -1,4 +1,6 @@
-.marcador { position: relative; }
+.marcador { position: relative; transition: height 0.35s cubic-bezier(0.3, 0.9, 0.3, 1); }
+.animando { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .marcador { transition: none; } }
 
 /* Al pegarse a la burbuja los filtros quedan en una barra delgada; este botón abre el detalle. */
 .alternar {
