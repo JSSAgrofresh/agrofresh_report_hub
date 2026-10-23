@@ -4,6 +4,12 @@ import { useMediaQuery } from '@/hooks/useAnchoMaximo'
 import { PortalContext } from './PortalContext'
 import styles from './FiltrosPegajosos.module.css'
 
+/** Alto aproximado de la barra ya pegada. La tarjeta se pega un poco antes de tocar la burbuja y se suelta bastante después,
+ * así un título que queda justo bajo la barra no la hace parpadear (ni el salto desde las tarjetas de análisis se corrige dos veces). */
+export const ALTO_BARRA_PEGADA = 56
+const ENTRA = ALTO_BARRA_PEGADA + 18
+const SUELTA = ALTO_BARRA_PEGADA + 50
+
 interface Geometria {
   top: number
   left: number
@@ -45,7 +51,7 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
       if (!nav || !h || !s) return
       const r = nav.getBoundingClientRect()
       const arriba = h.getBoundingClientRect().top
-      if (!pegadoRef.current && arriba <= r.bottom + 2) {
+      if (!pegadoRef.current && arriba <= r.bottom + ENTRA) {
         pegadoRef.current = true
         const h = s.offsetHeight
         altoLibre.current = h
@@ -54,7 +60,8 @@ export function FiltrosPegajosos({ className, children }: { className: string; c
         setPegado(true)
         requestAnimationFrame(() => requestAnimationFrame(() => setHuecoH(0)))
         window.setTimeout(() => setAnimando(false), 400)
-      } else if (pegadoRef.current && arriba > r.bottom + 2) {
+      } else if (pegadoRef.current && arriba > r.bottom + SUELTA) {
+        // Se suelta solo cuando su lugar queda más abajo que la barra pegada (su propia altura): así un título que quedó justo bajo ella no la hace parpadear.
         pegadoRef.current = false
         setPegado(false)
         setAbierto(false)
