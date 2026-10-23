@@ -988,7 +988,7 @@
   gap: 8px;
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 12px 24px rgba(40, 70, 20, 0.12);
-  animation: portalDesplegar 0.35s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  animation: portalDesplegar 0.7s cubic-bezier(0.25, 0.8, 0.25, 1) both;
 }
 @keyframes portalDesplegar { from { opacity: 0; transform: translateY(-10px); } }
 :global([data-portal]) .filtrosCard[data-pegado='true'] .filtrosCabecera { padding-right: 170px; min-height: 30px; }
@@ -1163,3 +1163,14 @@
 .fichaSobre { color: var(--color-danger, #b0271f); }
 .fichaBajo { color: #2b6cb0; }
 .fichaDentro { color: #3f7a1a; }
+
+/* Filtros plegados desde el principio (también sin estar pegados a la burbuja). */
+:global([data-portal]) .filtrosCard[data-pegado='false'][data-abierto='false'] .filtros,
+:global([data-portal]) .filtrosCard[data-pegado='false'][data-abierto='false'] .grupoFiltros,
+:global([data-portal]) .filtrosCard[data-pegado='false'][data-abierto='false'] .chips { display: none; }
+:global([data-portal]) .filtrosCard[data-pegado='false'] .filtrosCabecera { padding-right: 170px; min-height: 30px; }
+:global([data-portal]) .filtrosCard[data-abierto='true'] .filtros,
+:global([data-portal]) .filtrosCard[data-abierto='true'] .grupoFiltros,
+:global([data-portal]) .filtrosCard[data-abierto='true'] .chips { animation: aparecerFiltros 0.45s cubic-bezier(0.25, 0.8, 0.25, 1) both; }
+:global([data-portal]) .filtrosCard { transition: padding 0.5s ease, border-radius 0.5s ease, box-shadow 0.5s ease; }
+@keyframes aparecerFiltros { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
