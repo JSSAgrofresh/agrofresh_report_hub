@@ -27,6 +27,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from .auditoria_interna import puede_auditoria
+from .clasificar_servicio import servicio_de_tipo
 from .auth import Usuario
 from .db import conexion, cursor_dict
 
@@ -197,9 +198,12 @@ def bloque_de(laboratorio: str | None) -> str | None:
     return {"agrofresh": "residuales", "quiteca": "residuales", "als": "fsma", "diagnofruit": "fito"}.get(lab)
 
 
-def servicio_de(servicio: str | None) -> str:
-    """Línea de proceso (y RYD) → «linea»; Actimist → «actimist»; Ecofog → «ecofog»."""
+def servicio_de(servicio: str | None, tipo_toma: str | None = None) -> str:
+    """Línea de proceso (y RYD) → «linea»; Actimist → «actimist»; Ecofog → «ecofog». Manda el servicio guardado al cargar el informe
+    (0055); en los cargados antes (sin servicio) se usa el «Tipo Aplicación» de su solicitud de Toma de muestras (`tipo_toma`)."""
     s = (servicio or "").strip().lower()
+    if not s and tipo_toma:
+        s = servicio_de_tipo(tipo_toma)
     return s if s in ("actimist", "ecofog") else "linea"
 
 
@@ -217,6 +221,9 @@ def juzgar(bloque: str, especie: str | None, servicio: str, resultados: list[tup
 
 _SQL = """
     SELECT s.id, s.laboratorio, s.especie, to_jsonb(s) ->> 'servicio' AS servicio,
+           (SELECT sa.datos->'campos_laboratorio'->>'Tipo Aplicación' FROM solicitud_archivo sa
+             WHERE upper(btrim(sa.numero_solicitud)) = upper(btrim(to_jsonb(s) ->> 'referencia'))
+               AND btrim(COALESCE(to_jsonb(s) ->> 'referencia', '')) <> '' LIMIT 1) AS tipo_toma,
            COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis) AS fecha,
            COALESCE(c.nombre, s.sold_to_raw) AS sold_to, COALESCE(p.nombre, s.ship_to_raw) AS ship_to,
            COALESCE(a.codigo, r.analito_raw) AS analito, r.valor_num, r.valor_texto
@@ -245,7 +252,7 @@ def calcular(filas_bd: list[dict[str, Any]]) -> dict[str, Any]:
         if bloque is None:
             fuera["otro_laboratorio"] += 1
             continue
-        servicio = servicio_de(inf["servicio"])
+        servicio = servicio_de(inf["servicio"], inf.get("tipo_toma"))
         if inf["fecha"] is None:
             fuera["sin_fecha"] += 1
             continue
@@ -277,6 +284,9 @@ NOMBRES_FITO = {"BOT": "Botrytis", "ALT": "Alternaria", "GEO": "Geotrichum", "PE
 _SQL_DETALLE = """
     SELECT s.id, s.nro_solicitud, to_jsonb(s) ->> 'referencia' AS referencia, s.laboratorio, s.especie, s.variedad,
            to_jsonb(s) ->> 'servicio' AS servicio,
+           (SELECT sa.datos->'campos_laboratorio'->>'Tipo Aplicación' FROM solicitud_archivo sa
+             WHERE upper(btrim(sa.numero_solicitud)) = upper(btrim(to_jsonb(s) ->> 'referencia'))
+               AND btrim(COALESCE(to_jsonb(s) ->> 'referencia', '')) <> '' LIMIT 1) AS tipo_toma,
            COALESCE(s.fecha_muestreo, s.fecha_entrada, s.fecha_informe, s.fecha_analisis) AS fecha,
            COALESCE(a.codigo, r.analito_raw) AS analito, COALESCE(a.nombre, r.analito_raw) AS nombre, a.unidad,
            r.valor_num, r.valor_texto
@@ -329,7 +339,7 @@ def armar_detalle(filas_bd: list[dict[str, Any]], desde: date | None, hasta: dat
             continue
         if (piso and lunes(fecha) < piso) or (hasta and lunes(fecha) > hasta):
             continue
-        servicio = servicio_de(inf["servicio"])
+        servicio = servicio_de(inf["servicio"], inf.get("tipo_toma"))
         resultados = [(r["analito"], r["valor_num"], r["valor_texto"]) for r in inf["filas"]]
         veredicto = juzgar(bloque, inf["especie"], servicio, resultados)
         analitos: list[dict[str, Any]]

@@ -117,3 +117,25 @@ class TestFichaParaCliente:
         from app.ficha_informe import router
         deps = [d.dependency for d in router.dependencies]
         assert usuario_actual in deps and solo_interno not in deps
+
+
+class TestTipoAplicacion:
+    """El servicio real del informe, y no el «tipo_servicio» viejo (que dejaba los Ecofog como Línea de proceso)."""
+
+    def _ficha(self, sol, toma=None, prod=None):
+        return construir_ficha({"id": 1, "nro_solicitud": "2026-1908-PC", **sol}, [], prod or [], None, toma, None)["solicitud"]
+
+    def test_manda_el_servicio_guardado_al_cargar(self):
+        assert self._ficha({"servicio": "ecofog", "tipo_servicio": "Linea de Proceso"})["tipo_aplicacion"] == "Ecofog"
+        assert self._ficha({"servicio": "actimist"})["tipo_aplicacion"] == "Actimist"
+        assert self._ficha({"servicio": "ryd"})["tipo_aplicacion"] == "RYD"
+
+    def test_un_informe_antiguo_se_deduce_de_su_solicitud(self):
+        toma = {"campos_laboratorio": {"Tipo Aplicación": "Ecofog"}}
+        assert self._ficha({"servicio": None, "tipo_servicio": "Linea de Proceso"}, toma)["tipo_aplicacion"] == "Ecofog"
+
+    def test_si_no_hay_dato_es_linea_de_proceso(self):
+        assert self._ficha({"servicio": None})["tipo_aplicacion"] == "Línea de proceso"
+
+    def test_ya_no_se_muestra_el_tipo_de_servicio_viejo(self):
+        assert "tipo_servicio" not in self._ficha({"servicio": "ecofog", "tipo_servicio": "Cromatografía"})

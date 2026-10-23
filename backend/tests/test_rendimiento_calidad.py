@@ -201,3 +201,18 @@ class TestDetalle:
         filas = [_d(1, "Quiteca", "Manzana", None, date(2026, 10, 12), "FDL", 2.0)]
         assert len(rc.armar_detalle(filas, date(2026, 10, 14), None)["informes"]) == 1   # el 14 está en la semana del 12
         assert len(rc.armar_detalle(filas, date(2026, 10, 19), None)["informes"]) == 0
+
+
+def test_un_informe_antiguo_sin_servicio_toma_el_de_su_solicitud():
+    """Los cargados antes de la 0055 no traen servicio: manda el «Tipo Aplicación» de su solicitud (así un Ecofog no cuenta como Línea de proceso)."""
+    assert rc.servicio_de(None, "Ecofog") == "ecofog"
+    assert rc.servicio_de("", "FOGGER") == "actimist"
+    assert rc.servicio_de(None, "Línea de proceso") == "linea" and rc.servicio_de(None, None) == "linea"
+    assert rc.servicio_de("actimist", "Ecofog") == "actimist"          # lo guardado al cargar manda
+
+
+def test_calcular_usa_la_solicitud_cuando_falta_el_servicio():
+    f = _fila(1, "Quiteca", "Manzana", None, date(2026, 10, 27), "FDL", 2.0)
+    f["tipo_toma"] = "Ecofog"
+    (c,) = rc.calcular([f])["filas"]
+    assert c["servicio"] == "ecofog"

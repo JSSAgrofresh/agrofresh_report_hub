@@ -35,7 +35,7 @@ const ETIQUETA_ESTADO: Record<EstadoResultado, string> = {
 /** Campos de «Datos del informe», en orden. [clave en solicitud, etiqueta, es fecha] */
 const DATOS: [string, string, boolean?][] = [
   ['laboratorio', 'Laboratorio'],
-  ['tipo_servicio', 'Tipo de servicio'],
+  ['tipo_aplicacion', 'Tipo de aplicación'],
   ['especie', 'Especie'],
   ['variedad', 'Variedad'],
   ['fecha_muestreo', 'Fecha de muestreo', true],
@@ -145,7 +145,7 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
         r.codigo,
         sol.laboratorio as string | null,
         sol.especie as string | null,
-        sol.tipo_servicio as string | null,
+        sol.tipo_aplicacion as string | null,
       )
       return { r, limite, estado: estadoResultado(r.valor_num, limite) }
     })
@@ -175,7 +175,7 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
             <h3>{sol?.nro_solicitud ? String(sol.nro_solicitud) : titulo}</h3>
             <div className={styles.chips}>
               {sol?.laboratorio && <span className={styles.chip}>{String(sol.laboratorio)}</span>}
-              {sol?.tipo_servicio && <span className={styles.chip}>{String(sol.tipo_servicio)}</span>}
+              {sol?.tipo_aplicacion && <span className={styles.chip}>{String(sol.tipo_aplicacion)}</span>}
               {sol?.fecha_muestreo && <span className={styles.chip}>Muestreo {formatDateCL(String(sol.fecha_muestreo))}</span>}
               {sol?.especie && (
                 <span className={styles.chip}>
