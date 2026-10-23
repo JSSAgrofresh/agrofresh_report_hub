@@ -50,3 +50,63 @@ export interface FilaSemana {
   bloques: Bloques
   general: number | null
 }
+
+// ── Detalle de una planta (el modal que se abre al hacer clic en una fila) ──
+export type EstadoAnalito = 'dentro' | 'sobre' | 'bajo' | 'sin_limite' | 'sin_medida'
+export type NivelFito = 'optimo' | 'moderado' | 'peligroso'
+
+export interface AnalitoResidual {
+  codigo: string
+  nombre: string
+  unidad: string
+  valor: number | null
+  /** «<» o «>» cuando el laboratorio dio un límite y no un valor. */
+  signo: string
+  min: number | null
+  max: number | null
+  estado: EstadoAnalito
+  /** Cuánto se pasa: positivo sobre el máximo, negativo bajo el mínimo, 0 dentro. */
+  desvio: number
+}
+
+export interface AnalitoFsma {
+  codigo: string
+  nombre: string
+  unidad: string | null
+  valor: number | string | null
+  detecto: boolean | null
+}
+
+export interface AnalitoFito {
+  codigo: string
+  nombre: string
+  unidad: string | null
+  valor: number | null
+  signo: string
+  optimo_hasta: number
+  peligroso_desde: number
+  nivel: NivelFito | null
+}
+
+interface InformeBase {
+  id: number
+  informe: string | null
+  ot: string | null
+  laboratorio: string
+  servicio: Servicio
+  especie: string | null
+  variedad: string | null
+  fecha: string
+  semana: string
+  /** `null` = no se pudo juzgar. */
+  cumple: boolean | null
+}
+
+export type InformeDetalle =
+  | (InformeBase & { bloque: 'residuales'; analitos: AnalitoResidual[] })
+  | (InformeBase & { bloque: 'fsma'; analitos: AnalitoFsma[] })
+  | (InformeBase & { bloque: 'fito'; analitos: AnalitoFito[] })
+
+export interface RespuestaDetalle {
+  informes: InformeDetalle[]
+}

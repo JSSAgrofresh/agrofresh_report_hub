@@ -147,3 +147,57 @@ def test_un_informe_con_varios_analitos_cuenta_una_vez():
     filas = [_fila(1, "Quiteca", "Manzana", None, date(2026, 10, 27), a, v) for a, v in (("FDL", 9), ("PYR", 9), ("TBZ", 2))]
     r = rc.calcular(filas)
     assert [(f["cumple"], f["no_cumple"]) for f in r["filas"]] == [(0, 1)]
+
+
+def _d(i, lab, esp, serv, fecha, codigo, valor, texto=None, nombre=None):
+    return {"id": i, "nro_solicitud": f"INF-{i}", "referencia": f"OT-{i}", "laboratorio": lab, "especie": esp, "variedad": None, "servicio": serv,
+            "fecha": fecha, "analito": codigo, "nombre": nombre or codigo, "unidad": "ppm", "valor_num": valor, "valor_texto": texto}
+
+
+class TestDetalle:
+    def test_residuales_dice_cuanto_se_pasa_sobre_y_bajo_el_limite(self):
+        filas = [
+            _d(1, "Quiteca", "Manzana", None, date(2026, 10, 27), "FDL", 3.4),     # sobre (máx 3): +0,4
+            _d(1, "Quiteca", "Manzana", None, date(2026, 10, 27), "PYR", 0.6),     # bajo (mín 1): −0,4
+            _d(1, "Quiteca", "Manzana", None, date(2026, 10, 27), "TBZ", 2.0),     # dentro
+            _d(1, "Quiteca", "Manzana", None, date(2026, 10, 27), "DPA", 5.0),     # sin límite en Línea de proceso
+        ]
+        (inf,) = rc.armar_detalle(filas, None, None)["informes"]
+        por = {a["codigo"]: a for a in inf["analitos"]}
+        assert inf["cumple"] is False and inf["bloque"] == "residuales" and inf["servicio"] == "linea"
+        assert (por["FDL"]["estado"], por["FDL"]["desvio"], por["FDL"]["max"]) == ("sobre", 0.4, 3)
+        assert (por["PYR"]["estado"], por["PYR"]["desvio"], por["PYR"]["min"]) == ("bajo", -0.4, 1)
+        assert por["TBZ"]["estado"] == "dentro" and por["TBZ"]["desvio"] == 0
+        assert por["DPA"]["estado"] == "sin_limite"
+
+    def test_el_limite_depende_del_servicio(self):
+        filas = [_d(1, "Quiteca", "Manzana", "actimist", date(2026, 10, 27), "FDL", 3.4)]
+        (inf,) = rc.armar_detalle(filas, None, None)["informes"]
+        assert inf["servicio"] == "actimist" and inf["analitos"][0]["max"] == 3.5 and inf["cumple"] is True
+
+    def test_fsma_y_fito(self):
+        filas = [
+            _d(2, "ALS (Corthon)", "Manzana", None, date(2026, 10, 27), "ECOLI", None, "<1", "Escherichia coli"),
+            _d(3, "Diagnofruit", "Manzana", None, date(2026, 10, 27), "BOT", 250),
+            _d(3, "Diagnofruit", "Manzana", None, date(2026, 10, 27), "LEV", 9999),
+        ]
+        inf = {i["bloque"]: i for i in rc.armar_detalle(filas, None, None)["informes"]}
+        assert inf["fsma"]["cumple"] is True and inf["fsma"]["analitos"][0]["detecto"] is False
+        assert inf["fito"]["cumple"] is False
+        assert [a["codigo"] for a in inf["fito"]["analitos"]] == ["BOT"]            # las levaduras no se juzgan
+        assert (inf["fito"]["analitos"][0]["nivel"], inf["fito"]["analitos"][0]["peligroso_desde"]) == ("peligroso", 200)
+
+    def test_filtra_por_semana_y_pone_primero_lo_que_no_cumple(self):
+        filas = [
+            _d(1, "Quiteca", "Manzana", None, date(2026, 10, 12), "FDL", 2.0),     # semana del 12: cumple
+            _d(2, "Quiteca", "Manzana", None, date(2026, 10, 27), "FDL", 2.0),     # semana del 26: cumple
+            _d(3, "Quiteca", "Manzana", None, date(2026, 10, 28), "FDL", 9.0),     # semana del 26: no cumple
+            _d(4, "Quiteca", "Manzana", None, date(2026, 10, 5), "FDL", 2.0),      # fuera del período
+        ]
+        r = rc.armar_detalle(filas, date(2026, 10, 20), date(2026, 11, 1))["informes"]
+        assert [i["id"] for i in r] == [3, 2]                                      # no cumple primero; los de antes del período no entran
+
+    def test_el_rango_incluye_la_semana_de_desde(self):
+        filas = [_d(1, "Quiteca", "Manzana", None, date(2026, 10, 12), "FDL", 2.0)]
+        assert len(rc.armar_detalle(filas, date(2026, 10, 14), None)["informes"]) == 1   # el 14 está en la semana del 12
+        assert len(rc.armar_detalle(filas, date(2026, 10, 19), None)["informes"]) == 0

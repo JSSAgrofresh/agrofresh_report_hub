@@ -1,0 +1,84 @@
+.contenido { padding: 4px 22px 22px; }
+.error { color: var(--color-danger); font-weight: 600; }
+.vacio { color: var(--color-text-faint); text-align: center; padding: 24px 8px; margin: 0; }
+.rojo { color: var(--color-danger); font-weight: 700; }
+.tenue { color: var(--color-text-faint); }
+
+.resumen { margin: 0 0 12px; font-size: 14px; color: var(--color-text-muted); }
+
+.pestanas { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--color-border); margin-bottom: 12px; }
+.pestana {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; margin-bottom: -1px;
+  border: 0; border-bottom: 3px solid transparent; background: none; color: var(--color-text-muted);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.pestana[aria-selected='true'] { color: var(--color-text); border-bottom-color: var(--color-primary); }
+.pestana:focus-visible { outline: 2px solid var(--color-primary-hover); outline-offset: -2px; border-radius: var(--radius-md); }
+.conteo { font-variant-numeric: tabular-nums; font-size: 12px; background: var(--color-bg); border-radius: 999px; padding: 1px 8px; color: var(--color-text-muted); }
+.conteoMalo { font-size: 11.5px; color: var(--color-danger); font-weight: 700; }
+
+.leyenda { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 12px; font-size: 12px; color: var(--color-text-muted); }
+.leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.lBanda { display: inline-block; width: 22px; height: 10px; border-radius: 3px; background: #dcefd0; border: 1px solid #b9dba3; }
+.lPunto { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px currentColor; }
+
+.tarjetas { display: flex; flex-direction: column; gap: 12px; }
+.tarjeta { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); overflow: hidden; }
+.tarjetaMala { border-color: #e7bdb9; }
+.cab { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; background: var(--color-bg); border-bottom: 1px solid var(--color-border); }
+.tarjetaMala .cab { background: #fbf1f0; }
+.ident { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ident b { font-size: 14px; }
+.ident span { font-size: 12px; color: var(--color-text-faint); }
+.etiquetas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.especie, .servicio, .veredicto { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.especie { background: #fff; border: 1px solid var(--color-border-strong); color: var(--color-text-muted); }
+.servicio { background: #eef0ec; color: var(--color-text-muted); }
+.s_actimist { background: #e4eefa; color: #1b5a99; }
+.s_ecofog { background: #e6f3ee; color: #1d6b4d; }
+.cumple { background: #e3f1da; color: #2f6b17; }
+.noCumple { background: #f8e1de; color: #8e1f18; }
+.sinCriterio { background: #eef0ec; color: var(--color-text-faint); }
+
+.lista { list-style: none; margin: 0; padding: 4px 16px 8px; }
+.analito, .analitoFito, .analitoSimple {
+  display: grid; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--color-border);
+  grid-template-columns: minmax(130px, 1.1fr) minmax(130px, 1fr) minmax(190px, 2fr) 84px minmax(130px, 1fr);
+}
+.analitoSimple { grid-template-columns: minmax(150px, 2fr) 120px minmax(120px, 1fr); }
+.analito:last-child, .analitoFito:last-child, .analitoSimple:last-child { border-bottom: 0; }
+.nombre { display: flex; flex-direction: column; min-width: 0; }
+.nombre b { font-size: 13.5px; }
+.nombre span { font-size: 11.5px; color: var(--color-text-faint); font-family: var(--font-mono); }
+.limite { display: flex; flex-direction: column; font-size: 12.5px; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.limite small { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-faint); }
+.valor { text-align: right; font-variant-numeric: tabular-nums; }
+.valor b { display: block; font-size: 15px; }
+.valor span { font-size: 11px; color: var(--color-text-faint); }
+.variacion { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.arriba { color: var(--color-danger); }
+.abajo { color: #1f6fb2; }
+.dentro { color: #2f7d32; font-weight: 600; }
+.moderado { color: #a87400; }
+
+/* La barra: la banda verde es lo permitido y el punto es lo que midió el laboratorio. */
+.barra { position: relative; height: 26px; }
+.barraVacia { height: 26px; }
+.pista { position: absolute; left: 0; right: 0; top: 11px; height: 4px; border-radius: 99px; background: #e8ece3; }
+.banda { position: absolute; top: 6px; height: 14px; border-radius: 4px; background: #dcefd0; border: 1px solid #b9dba3; box-sizing: border-box; }
+.corte { position: absolute; top: 3px; width: 2px; height: 20px; margin-left: -1px; background: #7fb15c; border-radius: 2px; }
+.punto { position: absolute; top: 6px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); box-sizing: border-box; }
+.p_sobre { background: var(--color-danger); color: var(--color-danger); }
+.p_bajo { background: #1f6fb2; color: #1f6fb2; }
+.p_dentro { background: #3f8f2a; color: #3f8f2a; }
+.p_moderado { background: #d6a100; color: #d6a100; }
+.p_sin_medida, .p_sin_limite { background: #9aa39c; }
+.tramo { position: absolute; top: 8px; height: 10px; }
+.tOptimo { background: #cfe8c0; border-radius: 99px 0 0 99px; }
+.tModerado { background: #f3e2a2; }
+.tPeligroso { background: #efc3be; border-radius: 0 99px 99px 0; }
+
+@media (max-width: 760px) {
+  .analito, .analitoFito { grid-template-columns: 1fr 1fr; }
+  .analito .barra, .analitoFito .barra { grid-column: 1 / -1; }
+}
