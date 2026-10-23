@@ -413,7 +413,16 @@ export function ResultadosPorInforme({ informes, laboratorio, columnaDetalle = '
       <TablaInformes modelo={modelo} nota={textos.nota} columnaDetalle={columnaDetalle} archivo={laboratorio} />
     </Card>
   )
-  if (!conGraficos) return <div className={styles.bloque}>{tabla}</div>
+  // La tabla va plegada: se abre solo para quien quiere el detalle de cada informe.
+  const plegada = (
+    <details className={styles.plegable}>
+      <summary>
+        Ver el detalle por informe <span>({n.toLocaleString('es-CL')})</span>
+      </summary>
+      {tabla}
+    </details>
+  )
+  if (!conGraficos) return <div className={styles.bloque}>{plegada}</div>
   return (
     <div className={styles.bloque}>
       <Card>
@@ -445,7 +454,7 @@ export function ResultadosPorInforme({ informes, laboratorio, columnaDetalle = '
           <SerieDeUnidad key={u || 'sin-unidad'} modelo={modelo} unidad={u} conLeyenda={k === modelo.unidades.length - 1} />
         ))}
       </Card>
-      {tabla}
+      {plegada}
     </div>
   )
 }

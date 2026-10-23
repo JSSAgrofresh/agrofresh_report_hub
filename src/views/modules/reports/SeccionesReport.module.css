@@ -1,11 +1,13 @@
 /* Un bloque de Report por tipo de análisis: su cabecera, los botones de laboratorio y lo que muestra. */
 .seccion {
+  scroll-margin-top: 150px;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
 
 .cabecera {
+  scroll-margin-top: 150px;
   position: relative;
   display: flex;
   flex-wrap: wrap;
