@@ -236,6 +236,14 @@ def completar_solicitados(filas: list[dict[str, Any]], analitos: list[dict]) -> 
         fila["dosis"] = dosis
         if _vacio(fila.get("tipo_aplicacion")) and not _vacio(campos.get("Tipo Aplicación")):
             fila["tipo_aplicacion"] = campos["Tipo Aplicación"]
+    # Sin Tipo Aplicación en la base ni en la solicitud: el servicio que quedó guardado al cargar el informe (0055).
+    for fila in filas:
+        etiqueta = _SERVICIO_A_TIPO.get(str(fila.get("servicio") or "").strip().lower())
+        if _vacio(fila.get("tipo_aplicacion")) and etiqueta:
+            fila["tipo_aplicacion"] = etiqueta
+
+
+_SERVICIO_A_TIPO = {"actimist": "Actimist", "ecofog": "Ecofog", "ryd": "RYD"}
 
 
 def codigo_de_formato(codigo: str | None) -> str:

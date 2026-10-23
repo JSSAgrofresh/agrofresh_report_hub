@@ -48,7 +48,7 @@ CAMPOS_SOLICITUD = (
     "nro_solicitud", "laboratorio", "referencia", "referencia_proceso", "codigo_ensayo", "nro_ensayo", "nro_orden",
     "fecha_solicitud", "fecha_muestreo", "hora_muestreo", "fecha_entrada", "fecha_recepcion", "fecha_analisis", "fecha_informe",
     "semana_muestreo", "semana_entrada", "mes", "temporada",
-    "especie", "variedad", "tipo_servicio", "tipo_muestra", "posicion_muestreo",
+    "especie", "variedad", "tipo_muestra", "posicion_muestreo",
     "lote", "nro_camara", "nro_linea", "kg_procesados", "csg",
     "nombre_muestreador", "solicitante", "generado_por", "email_solicitante", "email_laboratorio",
     "producto_utilizado", "observacion", "observacion_2", "sold_to_raw", "ship_to_raw", "origen",
@@ -60,6 +60,25 @@ CAMPOS_TOMA = (
     "csg_productor", "csg_packing", "lote", "numero_orden", "hora_muestreo", "posicion_muestreo", "observacion",
     "email_solicitante", "generado_por", "fecha_solicitud",
 )
+
+
+NOMBRE_SERVICIO = {"actimist": "Actimist", "ecofog": "Ecofog", "ryd": "RYD"}
+
+
+def tipo_aplicacion_de(sol: dict, toma: dict | None, productos: list[dict]) -> str:
+    """El tipo de servicio REAL del informe, escrito para mostrar: Línea de proceso, Actimist, Ecofog o RYD.
+
+    Manda lo que quedó guardado al cargarlo (`solicitud.servicio`, migración 0055); si el informe es anterior, se deduce del
+    «Tipo Aplicación» de su solicitud de Toma de muestras y, si no, del de sus productos. El `tipo_servicio` viejo
+    («Cromatografía» / «Línea de proceso») nunca decía el servicio y ya no se usa."""
+    from .clasificar_servicio import clasificar
+
+    servicio = str(sol.get("servicio") or "").strip().lower()
+    if not servicio:
+        campos = (toma or {}).get("campos_laboratorio") or {}
+        tipo_toma = campos.get("Tipo Aplicación") if isinstance(campos, dict) else None
+        servicio, _ = clasificar(tipo_toma, [p.get("tipo_aplicacion") for p in productos], None)
+    return NOMBRE_SERVICIO.get(servicio, "Línea de proceso")
 
 
 def _limpio(valor: Any) -> Any:
@@ -174,6 +193,7 @@ def construir_ficha(
         "solicitud": {
             "id": sol.get("id"),
             **{c: _limpio(sol.get(c)) for c in CAMPOS_SOLICITUD},
+            "tipo_aplicacion": tipo_aplicacion_de(sol, toma, productos),
             "cliente": _limpio(sol.get("cliente")),
             "planta": _limpio(sol.get("planta")),
         },

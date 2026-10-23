@@ -56,7 +56,7 @@ export function DetalleObservacionesModal({ titulo, filas, onCerrar, fichaComple
                   <th>ppm</th>
                   <th>Cliente</th>
                   <th>Sucursal</th>
-                  <th>Tipo servicio</th>
+                  <th>Tipo de aplicación</th>
                 </tr>
               </thead>
               <tbody>
