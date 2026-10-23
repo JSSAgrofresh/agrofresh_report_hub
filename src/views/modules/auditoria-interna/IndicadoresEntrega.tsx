@@ -11,7 +11,6 @@ import {
 import type { Definicion, EvaluadaEntrega, PuntoMes, SolicitudAuditoria, Veredicto } from '@/features/auditoriaInterna'
 import { formatDateCL } from '@/lib/locale'
 import { ConfiguracionEntrega } from './ConfiguracionEntrega'
-import { CumplimientoEntregable } from './CumplimientoEntregable'
 import { FlujogramaLeadTime } from './FlujogramaLeadTime'
 import styles from './IndicadoresEntrega.module.css'
 
@@ -132,7 +131,6 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
     () => (hitos ? evaluarTodas(solicitudes, hitos, definicion, plazos, ahora) : []),
     [solicitudes, hitos, definicion, plazos, ahora],
   )
-  const hayPlazos = Object.keys(plazos).length > 0
 
   const lead = useMemo(() => resumenLeadTime(ev), [ev])
   const evFlujo = useMemo(() => (labElegido ? ev.filter((e) => claveLaboratorio(e.sol.laboratorio) === labElegido) : ev), [ev, labElegido])
@@ -201,7 +199,15 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
             <span className={styles.sobre}>Indicador</span>
             <h3 id="ie-lead">Lead time: de la recepción estimada a lo entregado</h3>
           </div>
+          {puedeEditar && (
+            <button type="button" className={styles.botonConfig} onClick={() => setConfigAbierta(true)}>
+              ⚙ Pasos de la entrega
+            </button>
+          )}
         </header>
+        {puedeEditar && configAbierta && (
+          <ConfiguracionEntrega reglas={reglas} labs={labs} analisisPorLab={analisisPorLab} guardar={guardar} onCerrar={cerrarConfig} />
+        )}
 
         {lead.entregadas === 0 ? (
           <p className={styles.vacio}>Todavía no hay informes entregados con estos filtros ({nf.format(lead.abiertas)} siguen pendientes).</p>
@@ -269,36 +275,6 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
             {tabla(filasLead, colsLead, verTodasLead, () => setVerTodasLead((v) => !v))}
           </div>
         </details>
-      </section>
-
-      {/* ───────── Cumplimiento ───────── */}
-      <section className={styles.tarjeta} aria-labelledby="ie-cum">
-        <header className={styles.cabecera}>
-          <div>
-            <span className={styles.sobre}>Indicador</span>
-            <h3 id="ie-cum">Cumplimiento del entregable</h3>
-          </div>
-          <div className={styles.cabAcciones}>
-            <small>qué parte llegó dentro del plazo prometido, dónde falla y cómo evoluciona</small>
-            {puedeEditar && (
-              <button type="button" className={styles.botonConfig} onClick={() => setConfigAbierta(true)}>
-                ⚙ Pasos de la entrega
-              </button>
-            )}
-          </div>
-        </header>
-        {puedeEditar && configAbierta && (
-          <ConfiguracionEntrega reglas={reglas} labs={labs} analisisPorLab={analisisPorLab} guardar={guardar} onCerrar={cerrarConfig} />
-        )}
-
-        {!hayPlazos ? (
-          <p className={styles.vacio}>
-            Para calcular el cumplimiento hace falta el plazo de cada laboratorio o análisis. Pídele al administrador general que los cargue.
-            {' '}No se asume ninguno.
-          </p>
-        ) : (
-          <CumplimientoEntregable ev={ev} serie={serie} textoFin={textoFin} />
-        )}
       </section>
     </div>
   )

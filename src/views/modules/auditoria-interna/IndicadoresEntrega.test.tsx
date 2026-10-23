@@ -103,22 +103,6 @@ describe('IndicadoresEntrega', () => {
     expect(screen.getAllByText('1 solicitud llegó').length).toBeGreaterThan(0)
   })
 
-  it('el cumplimiento está a la vista y responde sus preguntas en orden', () => {
-    render(<IndicadoresEntrega solicitudes={solicitudes} />)
-    const sec = within(screen.getByRole('region', { name: 'Cumplimiento del entregable' }))
-    expect(sec.getByText('¿Entregamos dentro del plazo prometido?')).toBeTruthy()
-    expect(sec.getByText('Atraso mediano')).toBeTruthy()
-    expect(sec.getByText('¿Dónde se incumple?')).toBeTruthy()
-    expect(sec.getByText('¿Mejora o empeora?')).toBeTruthy()
-    expect(sec.getByText('Las más pasadas de su plazo')).toBeTruthy()
-  })
-
-  it('el cumplimiento se puede ver por análisis', () => {
-    render(<IndicadoresEntrega solicitudes={solicitudes} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Análisis' }))
-    expect(screen.getAllByText(/QUITECA · FDL/).length).toBeGreaterThan(0)
-  })
-
   it('el botón «Pasos de la entrega» es solo del administrador y abre los plazos', () => {
     const { unmount } = render(<IndicadoresEntrega solicitudes={solicitudes} />)
     expect(screen.queryByRole('button', { name: /Pasos de la entrega/ })).toBeNull()

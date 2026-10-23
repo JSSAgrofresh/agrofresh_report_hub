@@ -22,6 +22,7 @@ import { StorageView } from '@/views/modules/storage/StorageView'
 import { AuditoriaInternaHubView } from '@/views/modules/auditoria-interna/AuditoriaInternaHubView'
 import { SolicitudesInformesView } from '@/views/modules/auditoria-interna/SolicitudesInformesView'
 import { EnviosInformesView } from '@/views/modules/auditoria-interna/EnviosInformesView'
+import { RendimientoCalidadView } from '@/views/modules/auditoria-interna/RendimientoCalidadView'
 import { CarpetasView } from '@/views/modules/auditoria-interna/CarpetasView'
 import { LimiteControlView } from '@/views/modules/auditoria-interna/LimiteControlView'
 import { AdministracionGeneralView } from '@/views/admin/AdministracionGeneralView'
@@ -135,6 +136,7 @@ export const router = createBrowserRouter([
                 children: [
                   { path: ROUTES.auditoriaInternaCarpetas, element: <CarpetasView /> },
                   { path: ROUTES.auditoriaInternaEnvios, element: <EnviosInformesView /> },
+                  { path: ROUTES.auditoriaInternaRendimiento, element: <RendimientoCalidadView /> },
                 ],
               },
               { path: ROUTES.auditoriaInternaLimiteControl, element: <LimiteControlView /> },

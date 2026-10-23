@@ -36,6 +36,7 @@ from .postventa import router as postventa_router
 from .postventa import router_cliente as postventa_cliente_router
 from .informes_cliente import router as informes_cliente_router
 from .entrega_indicadores import router as entrega_indicadores_router
+from .rendimiento_calidad import router as rendimiento_calidad_router
 from .reportes import router as reportes_router
 from .storage import router as storage_router
 from .toma_muestras import router as toma_muestras_router
@@ -187,6 +188,7 @@ for _router in (
 for _router in (
     auditoria_interna_router,
     entrega_indicadores_router,
+    rendimiento_calidad_router,
     informes_solicitud_router,
     toma_muestras_router,
 ):
