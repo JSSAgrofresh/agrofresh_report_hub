@@ -10,7 +10,7 @@ export const BLOQUES: { id: Bloque; titulo: string }[] = [
 export const UMBRAL_RIESGO = 40
 
 const conteoVacio = (): Conteo => ({ cumple: 0, noCumple: 0 })
-const celdaVacia = (): CeldaBloque => ({ linea: conteoVacio(), actimist: conteoVacio(), total: conteoVacio() })
+const celdaVacia = (): CeldaBloque => ({ linea: conteoVacio(), actimist: conteoVacio(), ecofog: conteoVacio(), total: conteoVacio() })
 export const bloquesVacios = (): Bloques => ({ residuales: celdaVacia(), fsma: celdaVacia(), fito: celdaVacia() })
 
 export const informesDe = (c: Conteo) => c.cumple + c.noCumple
@@ -25,7 +25,7 @@ export function porcentajeGeneral(b: Bloques): number | null {
 
 function sumarEn(b: Bloques, f: FilaRendimiento) {
   const celda = b[f.bloque]
-  const parte = f.servicio === 'actimist' ? celda.actimist : celda.linea
+  const parte = f.servicio === 'actimist' ? celda.actimist : f.servicio === 'ecofog' ? celda.ecofog : celda.linea
   parte.cumple += f.cumple
   parte.noCumple += f.no_cumple
   celda.total.cumple += f.cumple
@@ -36,7 +36,7 @@ export function sumarBloques(lista: Bloques[]): Bloques {
   const t = bloquesVacios()
   for (const b of lista)
     for (const k of ['residuales', 'fsma', 'fito'] as const)
-      for (const p of ['linea', 'actimist', 'total'] as const) {
+      for (const p of ['linea', 'actimist', 'ecofog', 'total'] as const) {
         t[k][p].cumple += b[k][p].cumple
         t[k][p].noCumple += b[k][p].noCumple
       }

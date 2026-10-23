@@ -2,9 +2,11 @@
 Rendimiento de calidad (Panel de control interno): de los informes que llegaron, cuántos CUMPLEN y cuántos NO cumplen,
 por cliente, planta y semana, para cada análisis:
 
-  Residuales (AgroFresh y Quiteca)  contra los límites por especie y analito. Línea de proceso y Actimist tienen cada uno
-                                    su tabla (`LIMITES_LINEA`, `LIMITES_ACTIMIST`). Un informe NO cumple si algún analito
-                                    queda sobre su máximo o bajo su mínimo.
+  Residuales (AgroFresh y Quiteca)  contra los límites por especie y analito, y se desglosan en Línea de proceso, Actimist y
+                                    Ecofog (FSMA y FITO no se desglosan). Línea de proceso y Actimist tienen cada uno su tabla
+                                    (`LIMITES_LINEA`, `LIMITES_ACTIMIST`); Ecofog, que es una copia de Actimist, usa la de
+                                    Actimist (`LIMITES_ECOFOG`, por confirmar). Un informe NO cumple si algún analito queda sobre
+                                    su máximo o bajo su mínimo.
   FSMA (ALS)                        «hay / no hay»: un informe NO cumple si detectó algo (un «<1» o ND es no detectado).
   FITO (Diagnofruit)                por nivel de Botrytis, Alternaria, Geotrichum y Penicillium (tabla única para todas las
                                     frutas): el informe cumple si todos están en Óptimo (`MODERADO_CUMPLE` decide Moderado).
@@ -12,7 +14,7 @@ por cliente, planta y semana, para cada análisis:
 La unidad es el INFORME (una solicitud de Report). Un informe que no se puede juzgar (especie sin tabla, sin analitos con
 límite) no entra a la cuenta y se informa aparte (`sin_criterio`): nunca se asume que cumple. La semana es la de la fecha
 de muestreo (lunes de esa semana). Solo lectura. `LIMITES_LINEA` espeja `features/reportes/lib/limitesResiduales.ts`
-(`tests/test_rendimiento_calidad.py` los compara).
+(`tests/test_rendimiento_calidad.py` los compara). Solo Residuales se desglosa por servicio en la pantalla; el servidor igual manda el servicio de cada celda.
 """
 from __future__ import annotations
 
@@ -62,6 +64,9 @@ LIMITES_ACTIMIST: dict[str, dict[str, Rango]] = {
     "Uva": {"FDL": (0.7, 2)},
 }
 
+# Ecofog es una copia de Actimist en todo el sistema: mientras el laboratorio no entregue su propia tabla, usa la de Actimist.
+LIMITES_ECOFOG = LIMITES_ACTIMIST
+
 # Diagnofruit: (óptimo si < a, peligroso si > b; entre a y b, moderado).
 NIVELES_FITO: dict[str, tuple[float, float]] = {
     "BOT": (20, 200), "ALT": (50, 300), "GEO": (10, 50), "PEN": (50, 300),
@@ -81,7 +86,7 @@ def _indexar(tabla: dict[str, dict[str, Rango]]) -> dict[str, dict[str, Rango]]:
     return {_clave_especie(e): l for e, l in tabla.items()}
 
 
-_POR_ESPECIE = {"linea": _indexar(LIMITES_LINEA), "actimist": _indexar(LIMITES_ACTIMIST)}
+_POR_ESPECIE = {"linea": _indexar(LIMITES_LINEA), "actimist": _indexar(LIMITES_ACTIMIST), "ecofog": _indexar(LIMITES_ECOFOG)}
 
 
 def _codigo(analito: str | None) -> str:
@@ -171,10 +176,10 @@ def bloque_de(laboratorio: str | None) -> str | None:
     return {"agrofresh": "residuales", "quiteca": "residuales", "als": "fsma", "diagnofruit": "fito"}.get(lab)
 
 
-def servicio_de(servicio: str | None) -> str | None:
-    """Línea de proceso (y RYD) → «linea»; Actimist → «actimist»; Ecofog no tiene columna → None."""
+def servicio_de(servicio: str | None) -> str:
+    """Línea de proceso (y RYD) → «linea»; Actimist → «actimist»; Ecofog → «ecofog»."""
     s = (servicio or "").strip().lower()
-    return "actimist" if s == "actimist" else None if s == "ecofog" else "linea"
+    return s if s in ("actimist", "ecofog") else "linea"
 
 
 def lunes(f: date) -> date:
@@ -213,16 +218,13 @@ def calcular(filas_bd: list[dict[str, Any]]) -> dict[str, Any]:
             inf["resultados"].append((f["analito"], f["valor_num"], f["valor_texto"]))
     suma: dict[tuple, list[int]] = {}
     sin_criterio = {b: 0 for b in BLOQUES}
-    fuera = {"sin_fecha": 0, "ecofog": 0, "otro_laboratorio": 0}
+    fuera = {"sin_fecha": 0, "otro_laboratorio": 0}
     for inf in informes.values():
         bloque = bloque_de(inf["laboratorio"])
         if bloque is None:
             fuera["otro_laboratorio"] += 1
             continue
         servicio = servicio_de(inf["servicio"])
-        if servicio is None:
-            fuera["ecofog"] += 1
-            continue
         if inf["fecha"] is None:
             fuera["sin_fecha"] += 1
             continue

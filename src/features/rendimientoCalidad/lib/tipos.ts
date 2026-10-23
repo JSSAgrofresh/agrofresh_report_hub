@@ -1,5 +1,5 @@
 export type Bloque = 'residuales' | 'fsma' | 'fito'
-export type Servicio = 'linea' | 'actimist'
+export type Servicio = 'linea' | 'actimist' | 'ecofog'
 
 /** Una celda ya sumada por el servidor: informes de ese cliente, planta, semana (lunes), análisis y servicio. */
 export interface FilaRendimiento {
@@ -17,7 +17,7 @@ export interface RespuestaRendimiento {
   filas: FilaRendimiento[]
   /** Informes que no se pudieron juzgar (especie sin tabla de límites, sin analitos con límite…), por análisis. */
   sin_criterio: Record<Bloque, number>
-  fuera: { sin_fecha: number; ecofog: number; otro_laboratorio: number }
+  fuera: { sin_fecha: number; otro_laboratorio: number }
   moderado_cumple: boolean
 }
 
@@ -26,10 +26,11 @@ export interface Conteo {
   noCumple: number
 }
 
-/** Un análisis: Línea de proceso, Actimist y el total de los dos. */
+/** Un análisis: el total y, para Residuales (la pantalla solo lo desglosa ahí), Línea de proceso, Actimist y Ecofog. */
 export interface CeldaBloque {
   linea: Conteo
   actimist: Conteo
+  ecofog: Conteo
   total: Conteo
 }
 
