@@ -37,6 +37,7 @@ from .postventa import router_cliente as postventa_cliente_router
 from .informes_cliente import router as informes_cliente_router
 from .entrega_indicadores import router as entrega_indicadores_router
 from .rendimiento_calidad import router as rendimiento_calidad_router
+from .registro_informes import router as registro_informes_router
 from .reportes import router as reportes_router
 from .storage import router as storage_router
 from .toma_muestras import router as toma_muestras_router
@@ -180,6 +181,7 @@ for _router in (
     dashboard_router,
     homogenizador_ingesta_router,
     notificaciones_router,
+    registro_informes_router,
 ):
     app.include_router(_router, dependencies=SOLO_AGROFRESH)
 

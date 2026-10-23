@@ -3,8 +3,8 @@ import type { ReactNode } from 'react'
 import { panelIngreso, ultimoSondeo } from '@/features/correoInformes'
 import type { PanelIngreso, UltimoSondeo } from '@/features/correoInformes'
 import { AuditoriaHero } from '@/views/modules/auditoria-interna/AuditoriaHero'
-import { BandejaCorreo } from './BandejaCorreo'
-import type { FiltroInicialBandeja } from './BandejaCorreo'
+import { RegistroInformes } from './RegistroInformes'
+import type { InicialRegistro } from './RegistroInformes'
 import { BarraRevision } from './BarraRevision'
 import { TableroIngreso } from './TableroIngreso'
 import styles from './PanelIngresoInformes.module.css'
@@ -25,7 +25,7 @@ export function PanelIngresoInformes({ cargaManual }: { cargaManual: ReactNode }
   const [error, setError] = useState<string | null>(null)
   const [ultimo, setUltimo] = useState<UltimoSondeo | null>(null)
   const [version, setVersion] = useState(0)
-  const [busqueda, setBusqueda] = useState<{ clave: number; informes: FiltroInicialBandeja }>({ clave: 0, informes: {} })
+  const [busqueda, setBusqueda] = useState<{ clave: number; informes: InicialRegistro }>({ clave: 0, informes: {} })
 
   useEffect(() => {
     let vigente = true
@@ -115,7 +115,7 @@ export function PanelIngresoInformes({ cargaManual }: { cargaManual: ReactNode }
 
       <div role="tabpanel" id={`panel-${pestana}`} aria-labelledby={`tab-${pestana}`}>
         {pestana === 'tablero' && <TableroIngreso panel={panel} errorPanel={error} version={version} laboratorios={laboratorios} onLaboratorios={setLaboratorios} onCambio={recargar} onVerInforme={verInforme} />}
-        {pestana === 'informes' && <BandejaCorreo key={busqueda.clave} version={version} inicial={busqueda.informes} onCambio={recargar} />}
+        {pestana === 'informes' && <RegistroInformes key={busqueda.clave} version={version} inicial={busqueda.informes} />}
         {pestana === 'carga' && cargaManual}
       </div>
     </div>
