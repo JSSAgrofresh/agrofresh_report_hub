@@ -45,6 +45,7 @@ import {
 } from '@/features/reportes/lib/bloquesAnalisis'
 import { construirInformes } from '@/features/reportes/lib/informesPorLab'
 import { FILTRO_BLOQUE_VACIO, type FiltroBloque } from '@/features/reportes/lib/estadoPatogenos'
+import { ALTO_BARRA_PEGADA } from '@/components/layout/portal/FiltrosPegajosos'
 import { BotonesLabResidual, CabeceraSeccion, FiltrosAnalisis, SeccionInformes } from './SeccionesReport'
 import { TarjetasAnalisis } from './TarjetasAnalisis'
 import { desvioResidual, limitesDeInforme } from '@/features/reportes/lib/limitesResiduales'
@@ -598,21 +599,41 @@ export function ReporteView({
   function irAlAnalisis(bloque: ClaveBloque) {
     const visible = bloques[bloque]
     if (!visible) actualizarFiltro('laboratorio', '')
-    // Al bajar, la tarjeta de filtros se pega a la barra y deja de ocupar su lugar: lo de abajo sube de golpe. Por eso el
-    // salto se corrige un par de veces hasta que el título del análisis queda justo bajo la barra.
-    const ajustar = (suave: boolean) => {
+    // Al bajar, la tarjeta de filtros se pega a la barra y deja de ocupar su lugar, así que lo de abajo sube. Se calcula
+    // desde el principio dónde quedará el título (con los filtros ya pegados) y se va ahí de UN solo movimiento suave;
+    // recién cuando la página dejó de moverse se afina lo que falte, sin saltos intermedios.
+    const nav = document.querySelector('nav[aria-label="Secciones"]')
+    const base0 = nav?.getBoundingClientRect().bottom ?? 0
+    const lanzar = () => {
       const el = document.getElementById(ID_BLOQUE[bloque])
       if (!el) return
-      const nav = document.querySelector('nav[aria-label="Secciones"]')
-      const pegada = document.querySelector('[data-pegado="true"]')
-      const base = Math.max(nav?.getBoundingClientRect().bottom ?? 0, pegada?.getBoundingClientRect().bottom ?? 0)
-      const falta = el.getBoundingClientRect().top - (base + 14)
-      if (Math.abs(falta) > 6) window.scrollBy({ top: falta, behavior: suave ? 'smooth' : 'auto' })
-    }
-    const lanzar = () => {
-      ajustar(true)
-      window.setTimeout(() => ajustar(true), 520)
-      window.setTimeout(() => ajustar(false), 1100)
+      const pegada = document.querySelector<HTMLElement>('[data-pegado="true"]')
+      const tarjeta = document.querySelector<HTMLElement>('section[aria-label="Filtros"]')
+      const barra = ALTO_BARRA_PEGADA
+      const sinColapso = window.scrollY + el.getBoundingClientRect().top - (base0 + barra + 12)
+      // La tarjeta solo se pega (y libera su lugar) si, ya en el destino, su sitio queda por encima de la barra.
+      const hueco = tarjeta?.parentElement
+      const huecoY = hueco ? window.scrollY + hueco.getBoundingClientRect().top : Infinity
+      const seVaAPegar = !pegada && huecoY - sinColapso <= base0 + barra + 18
+      const destino = seVaAPegar ? sinColapso - (tarjeta?.offsetHeight ?? 0) : sinColapso
+      window.scrollTo({ top: Math.max(0, destino), behavior: 'smooth' })
+      // Afinado: cuando la página lleva 360 ms quieta (y los filtros ya terminaron de pegarse), si el título no quedó bajo la barra se corrige una sola vez.
+      let ultimo = window.scrollY
+      let quieto = 0
+      let transcurrido = 0
+      const vigilar = window.setInterval(() => {
+        transcurrido += 40
+        quieto = Math.abs(window.scrollY - ultimo) < 1 ? quieto + 40 : 0
+        ultimo = window.scrollY
+        if (quieto < 360 || transcurrido < 800) return
+        window.clearInterval(vigilar)
+        const e2 = document.getElementById(ID_BLOQUE[bloque])
+        const p2 = document.querySelector('[data-pegado="true"]')
+        const base = Math.max(nav?.getBoundingClientRect().bottom ?? 0, p2?.getBoundingClientRect().bottom ?? 0)
+        const falta = (e2?.getBoundingClientRect().top ?? 0) - (base + 16)
+        if (e2 && (falta < -8 || falta > 40)) window.scrollBy({ top: falta, behavior: 'smooth' })
+      }, 40)
+      window.setTimeout(() => window.clearInterval(vigilar), 3000)
     }
     if (visible) lanzar()
     else window.setTimeout(lanzar, 120)
