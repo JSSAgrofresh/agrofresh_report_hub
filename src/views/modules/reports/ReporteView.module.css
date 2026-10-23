@@ -1174,3 +1174,6 @@
 :global([data-portal]) .filtrosCard[data-abierto='true'] .chips { animation: aparecerFiltros 0.45s cubic-bezier(0.25, 0.8, 0.25, 1) both; }
 :global([data-portal]) .filtrosCard { transition: padding 0.5s ease, border-radius 0.5s ease, box-shadow 0.5s ease; }
 @keyframes aparecerFiltros { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* Apertura y cierre más fluidos: el contenido se desvanece y la tarjeta cambia de tamaño con la misma curva. */
+:global([data-portal]) .filtrosCard { transition: padding 0.6s cubic-bezier(0.25, 0.8, 0.25, 1), border-radius 0.6s ease, box-shadow 0.6s ease, background-color 0.4s ease; }
