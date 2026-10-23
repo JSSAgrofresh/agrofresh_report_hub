@@ -55,3 +55,14 @@ def test_conversion_de_numeros_y_fechas_como_en_el_converter():
     assert Q.a_fecha("5/10/26") == "05-10-2026" and Q.a_fecha("10/13/2026") == "13-10-2026" and Q.a_fecha("sin fecha") is None
     assert Q.a_fecha_larga("25 de septiembre de 2026") == "25-09-2026" and Q.a_fecha_larga("16 de octubre de 2026") == "16-10-2026"
     assert Q.a_hora("14:00") == "14:00" and Q.a_hora("25:00") is None
+
+
+def test_a_fecha_lee_entera_una_fecha_ano_mes_dia():
+    """Espejo de `converterFechaIso.test.ts`: «2026-10-02» no puede leerse como 26-10-2002."""
+    from app.quiteca_lectura import a_fecha
+
+    assert a_fecha("2026-10-02") == "02-10-2026"
+    assert a_fecha("2026-09-30T14:00:00") == "30-09-2026"
+    assert a_fecha("02-10-2026") == "02-10-2026" and a_fecha("2/10/26") == "02-10-2026"
+    assert a_fecha("10-26-2026") == "26-10-2026"          # mes/día invertido
+    assert a_fecha("2026-13-02") is None

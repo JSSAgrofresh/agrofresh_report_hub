@@ -15,7 +15,7 @@ Gravedad: «alto» = el dato está mal o falta algo que cambia lo que ve el clie
 from __future__ import annotations
 
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from .clasificar_servicio import servicio_de_tipo
@@ -226,3 +226,18 @@ def revisar(inf: dict, resultados: list[dict], toma: dict | None, leido_pdf: dic
         hallazgos += comparar_con_pdf(inf, resultados, leido_pdf)
     orden = {ALTO: 0, MEDIO: 1, INFO: 2}
     return sorted(hallazgos, key=lambda h: orden[h["gravedad"]])
+
+
+def fecha_entrada_corregida(entrada: date | None, muestreo: date | None) -> date | None:
+    """Repara el daño del Converter con la fecha de recepción de la solicitud («2026-10-02» leída como 26-10-2002).
+
+    El patrón día-mes-año tomó «26-10-02» de «2026-10-02»: quedó día = 26 (los dos últimos dígitos del año), el mes bueno y año =
+    2000 + el día real. Al revés: año real = 2000 + el día guardado, día real = el año guardado − 2000. Solo se acepta si es una
+    fecha válida entre el muestreo y 60 días después; si no, devuelve None y no se toca."""
+    if not entrada or not muestreo or entrada.year >= ANIO_MIN or entrada.year < 2000:
+        return None
+    try:
+        real = date(2000 + entrada.day, entrada.month, entrada.year - 2000)
+    except ValueError:
+        return None
+    return real if muestreo <= real <= muestreo + timedelta(days=60) else None

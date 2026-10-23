@@ -482,6 +482,14 @@ function plano(s){
 
 function aFecha(txt, avisos){
   if(!txt) return null;
+  // «2026-10-02» ya viene año-mes-día (así llega la fecha de recepción de la solicitud). Sin esto, el patrón de abajo
+  // leía «26-10-02» (día 26, mes 10, año 2002): 26 informes propios quedaron con fecha de entrada de 2001 a 2005.
+  const iso = String(txt).match(/^\s*(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)/);
+  if(iso){
+    const a = +iso[1], mm = +iso[2], dd = +iso[3];
+    if(mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+    return String(dd).padStart(2,"0") + "-" + String(mm).padStart(2,"0") + "-" + a;
+  }
   const m = String(txt).match(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
   if(!m) return null;
   let d = +m[1], mes = +m[2], y = +m[3];
