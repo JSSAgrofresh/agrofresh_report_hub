@@ -6,6 +6,7 @@
 }
 
 .cabecera {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -28,14 +29,15 @@
 
 .titulo h2 {
   margin: 0;
-  font-size: 1.08rem;
+  font-size: clamp(1.3rem, 1rem + 1.2vw, 1.7rem);
+  line-height: 1.2;
   font-weight: 700;
   letter-spacing: -0.005em;
   color: var(--color-text);
 }
 
 .titulo span {
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--color-text-faint);
 }
 
@@ -127,4 +129,211 @@
   text-align: center;
   color: var(--color-text-faint);
   font-size: 13px;
+}
+
+/* Portal de clientes: cabecera de cada bloque de análisis. */
+:global([data-portal]) .cabecera {
+  border-left-width: 1px;
+  border-radius: 22px;
+  padding: 16px 22px;
+  background: linear-gradient(110deg, color-mix(in srgb, var(--acento, var(--color-primary)) 14%, #fff), rgba(255, 255, 255, 0.92) 55%);
+  box-shadow: 0 10px 30px rgba(40, 70, 20, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+:global([data-portal]) .cabecera::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: var(--acento, var(--color-primary));
+}
+:global([data-portal]) .titulo h2 { font-size: clamp(1.45rem, 1.1rem + 1.4vw, 1.95rem); font-weight: 800; letter-spacing: -0.01em; }
+
+/* El número correlativo del bloque: un círculo en la esquina superior izquierda de la cabecera. */
+.numero {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--acento, var(--color-primary));
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0 0 3px #fff, 0 3px 8px rgba(40, 70, 20, 0.25);
+}
+/* La cabecera del portal recorta lo que sobresale: el círculo va adentro. */
+:global([data-portal]) .numero {
+  top: 8px;
+  left: 14px;
+}
+:global([data-portal]) .cabecera:has(.numero) {
+  padding-left: 54px;
+}
+
+/* Filtros propios de un análisis (FSMA o fitopatología): una fila bajo su cabecera. */
+.filtrosBloque {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.filtrosTitulo {
+  flex: 1 0 100%;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.estadoFiltro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.estadoFiltro select {
+  height: 36px;
+  min-width: 140px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.limpiarBloque {
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.nota {
+  font-size: 12px;
+  color: var(--color-text-faint);
+  align-self: center;
+}
+
+/* La tabla de límites del laboratorio, plegada. */
+.limites {
+  margin-top: var(--space-4);
+  font-size: 13px;
+}
+
+.limites summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.limitesScroll {
+  margin-top: var(--space-3);
+  overflow-x: auto;
+}
+
+.limitesScroll table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+}
+
+.limitesScroll th,
+.limitesScroll td {
+  padding: 8px 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.limitesScroll th:first-child {
+  text-align: left;
+}
+
+/* Teléfono: los tres indicadores del análisis caben en una fila. */
+@media (max-width: 640px) {
+  .tarjetas {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .cabecera {
+    padding: var(--space-3);
+  }
+}
+
+/* Estilo sobrio: la cabecera es solo texto sobre una línea fina; los laboratorios, botones de contorno. */
+:global([data-tema='sobrio']) .cabecera {
+  border: 0;
+  border-bottom: 1px solid #e3e6eb;
+  border-radius: 0;
+  padding: 22px 0 14px;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+:global([data-tema='sobrio']) .cabecera::before { display: none; }
+:global([data-tema='sobrio']) .titulo h2 { font-size: clamp(1.2rem, 1rem + 0.6vw, 1.5rem); font-weight: 600; letter-spacing: -0.015em; }
+:global([data-tema='sobrio']) .titulo span { font-size: 13px; color: #9ca3af; }
+:global([data-tema='sobrio']) .cabecera:has(.numero) { padding-left: 42px; }
+:global([data-tema='sobrio']) .numero {
+  top: 24px;
+  left: 0;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: 1px solid #16181d;
+  color: #16181d;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none;
+}
+:global([data-tema='sobrio']) .etiquetaBotones { color: #9ca3af; letter-spacing: 0.1em; }
+:global([data-tema='sobrio']) .boton,
+:global([data-tema='sobrio']) .laboratorio { height: 30px; border-color: #e0e3e8; background: transparent; color: #6b7280; font-weight: 500; font-size: 12.5px; border-radius: 8px; }
+:global([data-tema='sobrio']) .boton:hover { border-color: #16181d; color: #16181d; }
+:global([data-tema='sobrio']) .encendido { border-color: #16181d; background: #16181d; color: #fff; }
+:global([data-tema='sobrio']) .encendido .punto { background: #fff; }
+:global([data-tema='sobrio']) .laboratorio { border-color: #16181d; background: transparent; color: #16181d; }
+:global([data-tema='sobrio']) .gris { background: transparent; }
+
+/* Teléfono: la cabecera de cada bloque va compacta, sin la barra lateral que el borde redondeado cortaba. */
+@media (max-width: 640px) {
+  :global([data-portal]) .cabecera {
+    padding: 14px 16px 14px 52px;
+    border-radius: 18px;
+    gap: 10px;
+  }
+  :global([data-portal]) .cabecera::before { display: none; }
+  :global([data-portal]) .titulo h2 { font-size: 1.25rem; }
+  :global([data-portal]) .titulo span { font-size: 12.5px; }
+  :global([data-portal]) .numero { top: 14px; left: 14px; }
+  :global([data-portal]) .botones { gap: 6px; width: 100%; }
+  :global([data-portal]) .boton,
+  :global([data-portal]) .laboratorio { height: 30px; padding: 0 11px; font-size: 12px; }
+  :global([data-portal]) .etiquetaBotones { display: none; }
 }

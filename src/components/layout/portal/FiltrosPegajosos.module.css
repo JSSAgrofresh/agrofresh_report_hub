@@ -1,0 +1,23 @@
+.marcador { position: relative; }
+
+/* Al pegarse a la burbuja los filtros quedan en una barra delgada; este botón abre el detalle. */
+.alternar {
+  position: absolute;
+  top: 4px;
+  right: 28px;
+  z-index: 1;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid rgba(79, 138, 38, 0.35);
+  border-radius: 999px;
+  background: linear-gradient(120deg, #3f7a1a, #6dad3c);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(109, 173, 60, 0.28);
+}
+.alternar:hover { filter: brightness(1.06); }
+.alternar:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+:global([data-tema='sobrio']) .alternar { border-radius: 8px; background: #16181d; border-color: #16181d; box-shadow: none; }

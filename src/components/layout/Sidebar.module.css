@@ -20,6 +20,9 @@
   height: 100dvh;
   overflow: hidden;
   background: linear-gradient(165deg, #24391a 0%, #345424 50%, #45681f 100%);
+  /* Si la ventana queda más alta que el menú (zoom, barras del navegador), el
+     verde sigue hacia abajo en vez de dejar una franja en blanco. */
+  box-shadow: 0 100vh 0 0 #45681f;
   padding: var(--space-5) var(--space-4);
   transition:
     transform 0.2s ease,
@@ -108,6 +111,7 @@
   height: 60px;
   width: auto;
   display: block;
+  aspect-ratio: 5 / 2; object-fit: contain; max-width: none; flex-shrink: 0;
   transition: height 0.26s ease;
 }
 

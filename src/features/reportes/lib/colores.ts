@@ -5,7 +5,7 @@
  * del orden en que el usuario lo seleccionó — así un analito siempre tiene
  * el mismo color, sin importar qué otros estén activos junto a él.
  */
-const PALETA_CATEGORICA = [
+const PALETA_VIVA = [
   '#2a78d6', // azul
   '#eb6834', // naranjo
   '#1baf7a', // aqua
@@ -37,6 +37,7 @@ function hashEstable(s: string): number {
 /** Color estable para un ingrediente: usa la posición fija en el catálogo
  * conocido: cualquier código nuevo cae en un color determinístico por hash. */
 export function colorDeIngrediente(codigo: string): string {
+  const PALETA_CATEGORICA = PALETA_VIVA
   const idx = ORDEN_CONOCIDO.indexOf(codigo)
   if (idx !== -1) return PALETA_CATEGORICA[idx % PALETA_CATEGORICA.length]
   return PALETA_CATEGORICA[hashEstable(codigo) % PALETA_CATEGORICA.length]
@@ -48,5 +49,5 @@ export function colorDeIngrediente(codigo: string): string {
  * último color devuelve null: esa categoría va a "Otras", nunca a un tono
  * inventado. */
 export function colorCategorico(posicion: number): string | null {
-  return PALETA_CATEGORICA[posicion] ?? null
+  return PALETA_VIVA[posicion] ?? null
 }

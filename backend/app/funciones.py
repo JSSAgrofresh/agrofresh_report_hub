@@ -101,6 +101,17 @@ def graficos_informes_activos() -> bool:
     return bool(isinstance(g, dict) and g.get("activo") is True)
 
 
+TEMAS_CLIENTE = ("basico", "sobrio")
+
+
+def tema_cliente_activo() -> str:
+    """Estilo del dashboard que ven los clientes y comerciales. De fábrica «basico» (el de siempre); un archivo
+    ausente, dañado o con un valor raro deja «basico»."""
+    t = _report_guardado().get("tema_cliente")
+    valor = t.get("valor") if isinstance(t, dict) else None
+    return valor if valor in TEMAS_CLIENTE else "basico"
+
+
 def valores_visibles_en_report() -> list[str]:
     """Los valores de `solicitud.servicio` que Report puede mostrar ('' = Línea de proceso)."""
     encendidos = servicios_en_report()
@@ -159,7 +170,13 @@ def condicion_report(alias: str = "s") -> tuple[str, dict[str, Any]]:
 def _estado() -> dict[str, Any]:
     report = _report_guardado()
     graficos = report.get("graficos_informes") if isinstance(report.get("graficos_informes"), dict) else {}
+    tema = report.get("tema_cliente") if isinstance(report.get("tema_cliente"), dict) else {}
     return {
+        "tema_cliente": {
+            "valor": tema_cliente_activo(),
+            "cambiado_por": tema.get("cambiado_por"),
+            "cambiado_en": tema.get("cambiado_en"),
+        },
         "graficos_informes": {
             "activo": graficos_informes_activos(),
             "cambiado_por": graficos.get("cambiado_por"),
@@ -257,6 +274,42 @@ def cambiar_graficos_informes(body: GraficosInformesIn, usuario: Usuario = Depen
         actividad.registrar(
             usuario.email, usuario.nombre, "sensible", "funciones_report",
             f"{'encendió' if body.activo else 'apagó'} los gráficos de ALS y Diagnofruit en Report",
+            sensible=True,
+        )
+    return _estado()
+
+
+class TemaClienteIn(BaseModel):
+    tema: str
+    password: str | None = None
+
+
+@router.put("/tema-cliente")
+def cambiar_tema_cliente(body: TemaClienteIn, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
+    """Deja como predeterminado el estilo del dashboard de clientes (basico o sobrio). Solo el administrador
+    principal y siempre con su contraseña. El administrador general puede ver ambos desde la Vista de cliente."""
+    if body.tema not in TEMAS_CLIENTE:
+        raise HTTPException(400, f"Estilo desconocido: {body.tema or '(vacío)'}")
+    if not _es_principal(usuario):
+        raise HTTPException(403, "Solo el administrador principal puede cambiar estas funciones.")
+    if not _clave_correcta(usuario, body.password):
+        # 403 y no 401: un 401 cierra la sesión de quien solo se equivocó al escribir la clave.
+        raise HTTPException(403, "Contraseña incorrecta.")
+    if tema_cliente_activo() != body.tema:
+        cfg = _leer_archivo()
+        cfg["report"] = {
+            **_report_guardado(),
+            "tema_cliente": {
+                "valor": body.tema,
+                "cambiado_por": usuario.nombre,
+                "cambiado_en": datetime.now(timezone.utc).isoformat(),
+            },
+        }
+        config_store.escribir(ARCHIVO, cfg)  # type: ignore[arg-type]
+        invalidar()
+        actividad.registrar(
+            usuario.email, usuario.nombre, "sensible", "funciones_report",
+            f"dejó el estilo «{body.tema}» como el dashboard de los clientes",
             sensible=True,
         )
     return _estado()

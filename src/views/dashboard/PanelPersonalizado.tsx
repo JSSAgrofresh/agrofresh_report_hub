@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Header } from '@/components/layout/Header'
-import { AREAS } from '@/constants/areas'
 import type { AreaId } from '@/constants/areas'
 import { MODULOS } from '@/constants/modules'
-import { AreaHero, ModuloCard, fondoParaEspecie, useActividadDashboard, usePanelCliente, useSeriesDashboard } from '@/features/dashboard'
+import { ModuloCard, useActividadDashboard, usePanelCliente, useSeriesDashboard } from '@/features/dashboard'
 import type { ActividadDashboard, PanelCliente, SeriesDashboard } from '@/features/dashboard'
 import { widgetPorId } from '@/features/panelInicio'
 import type { Pieza } from '@/features/panelInicio'
@@ -12,6 +11,7 @@ import { modulosPermitidos } from '@/features/usuarios'
 import type { Usuario } from '@/features/usuarios'
 import { InformesAccutabCliente } from '@/views/modules/reports/InformesAccutabCliente'
 import { ReporteView } from '@/views/modules/reports/ReporteView'
+import { PortalHero } from './PortalHero'
 import { AccesosCliente } from './AccesosCliente'
 import { InformesPorMes, SaludoCliente, UltimoInformeCliente } from './graficosCliente'
 import { CarruselNovedades, GraficoActividad, GraficoBarras, GraficoDona, HeroBienvenida, TiraVerificaciones, TituloArea } from './graficos'
@@ -80,16 +80,10 @@ function dibujar(id: string, c: Contexto): ReactNode {
     case 'panel:verificaciones':
       return <VerificacionesPanel items={c.actividad?.verificaciones_recientes ?? []} cargando={c.cargando} />
     case 'cliente:encabezado': {
-      const area = c.usuario.area ?? 'cromatografia'
-      const config = AREAS[area]
-      const fondo = area === 'cromatografia' ? fondoParaEspecie(c.especie, config.fondo) : undefined
       return (
-        <AreaHero
-          area={config}
+        <PortalHero
           titulo={c.usuario.plantaNombre ?? c.usuario.clienteNombre ?? c.usuario.nombre}
-          descripcion={`Portal de cliente · ${config.nombre}. Acceso exclusivo a tus datos.`}
-          fondo={fondo?.imagen}
-          tinte={fondo?.tinte}
+          descripcion="Portal de cliente. Acceso exclusivo a tus datos."
         />
       )
     }

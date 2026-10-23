@@ -1,4 +1,5 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { Navigate, createBrowserRouter } from 'react-router-dom'
+import { VistaClienteLayout } from '@/components/layout/portal/VistaClienteLayout'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RequireAdminGeneral, RequireAuth, RequireFuncion, RequireModulo, RequireNoComercial, RequireReanalisis, RequireReporte, RequireSeccionLab, RequireTomaMuestras } from '@/features/auth'
 import { ROUTES } from '@/constants/routes'
@@ -34,6 +35,7 @@ import { UsuariosView } from '@/views/admin/UsuariosView'
 import { ListadosView } from '@/views/admin/ListadosView'
 import { LaboratoriosView } from '@/views/admin/laboratorios/LaboratoriosView'
 import { NotificacionesView } from '@/views/admin/NotificacionesView'
+import { MonitoreoView } from '@/views/monitoreo/MonitoreoView'
 import { NotFoundView } from '@/views/not-found/NotFoundView'
 
 export const router = createBrowserRouter([
@@ -41,6 +43,25 @@ export const router = createBrowserRouter([
   {
     element: <RequireAuth />,
     children: [
+      {
+        // Monitoreo: pantalla de bolsillo (teléfono en vertical) del administrador principal; la vista misma revisa que lo sea.
+        element: <RequireAdminGeneral />,
+        children: [{ path: ROUTES.monitoreo, element: <MonitoreoView /> }],
+      },
+      {
+        // El administrador general y quien tenga la función «Vista de cliente» miran el portal de clientes con su propia cuenta.
+        element: <RequireFuncion funcion="vista_cliente" redirigirA={ROUTES.dashboard} />,
+        children: [
+          {
+            element: <VistaClienteLayout />,
+            children: [
+              { path: ROUTES.vistaCliente, element: <Navigate to={ROUTES.vistaClienteReport} replace /> },
+              { path: ROUTES.vistaClienteReport, element: <ReporteLaboratorioView /> },
+              { path: ROUTES.vistaClienteStorage, element: <StorageView /> },
+            ],
+          },
+        ],
+      },
       {
         element: <AppLayout />,
         children: [
@@ -136,7 +157,10 @@ export const router = createBrowserRouter([
                 children: [
                   { path: ROUTES.tomaMuestrasNueva, element: <NuevaSolicitudView /> },
                   { path: ROUTES.tomaMuestrasNuevaPrueba, element: <NuevaSolicitudView modo="prueba" /> },
-                  { path: ROUTES.tomaMuestrasEditar, element: <NuevaSolicitudView modo="editar" /> },
+                  {
+                    element: <RequireFuncion funcion="toma_editar" redirigirA={ROUTES.tomaMuestras} />,
+                    children: [{ path: ROUTES.tomaMuestrasEditar, element: <NuevaSolicitudView modo="editar" /> }],
+                  },
                   { path: ROUTES.tomaMuestrasDetalle, element: <SolicitudDetalleView /> },
                 ],
               },

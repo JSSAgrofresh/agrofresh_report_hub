@@ -15,6 +15,7 @@ import {
   puedeAdministrarUsuarios,
   puedeCrearReanalisis,
   puedeVerTomaMuestras,
+  puedeVerVistaCliente,
 } from '@/features/usuarios'
 import {
   IconConverter,
@@ -34,6 +35,7 @@ import {
   IconUsers,
 } from '@/components/ui/icons'
 import { BandejaNotificaciones, ToastNotificacion, useNotificaciones } from '@/features/notificaciones'
+import { CORREO_MAESTRO } from '@/features/usuarios'
 import styles from './Sidebar.module.css'
 
 /** Plegada, la barra deja solo los iconos. La elección se recuerda: quien
@@ -248,6 +250,7 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   const esAdmin = puedeAdministrarUsuarios(user)
   const veTomaMuestras = puedeVerTomaMuestras(user)
   const puedeReanalisis = puedeCrearReanalisis(user)
+  const veVistaCliente = puedeVerVistaCliente(user)
   const acento = user.area ? AREAS[user.area].colorPrimario : undefined
   const estiloSidebar = acento ? ({ '--acento-usuario': acento } as CSSProperties) : undefined
 
@@ -336,6 +339,21 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
             </>
           )}
 
+          {veVistaCliente && !esAdmin && (
+            <>
+              <p className={styles.seccion}>Auditoría</p>
+              <NavLink
+                to={ROUTES.vistaCliente}
+                title="Vista de cliente"
+                onClick={onCerrar}
+                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                <IconReports className={styles.navIcono} />
+                <span className={styles.etiqueta}>Vista de cliente</span>
+              </NavLink>
+            </>
+          )}
+
           {veTomaMuestras && (
             <>
               <p className={styles.seccion}>Toma de muestras</p>
@@ -415,6 +433,28 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
                   <path d="M8.5 17a1.5 1.5 0 0 0 3 0"/>
                 </svg>
                 <span className={styles.etiqueta}>Notificaciones</span>
+              </NavLink>
+              {user?.email.toLowerCase() === CORREO_MAESTRO && (
+                <NavLink
+                  to={ROUTES.monitoreo}
+                  title="Monitoreo"
+                  onClick={onCerrar}
+                  className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+                >
+                  <svg className={styles.navIcono} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 10h3.5l2-5.5 3.5 11 2.5-8 1 2.5H18" />
+                  </svg>
+                  <span className={styles.etiqueta}>Monitoreo</span>
+                </NavLink>
+              )}
+              <NavLink
+                to={ROUTES.vistaCliente}
+                title="Vista de cliente"
+                onClick={onCerrar}
+                className={({ isActive }) => cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                <IconReports className={styles.navIcono} />
+                <span className={styles.etiqueta}>Vista de cliente</span>
               </NavLink>
               <NavLink
                 to={ROUTES.adminAdministracionGeneral}

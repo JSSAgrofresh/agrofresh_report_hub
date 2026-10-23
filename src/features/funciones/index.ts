@@ -1,2 +1,2 @@
-export { cambiarGraficosInformes, cambiarServicioReport, obtenerFunciones } from './api'
-export type { ClaveServicioReport, EstadoFunciones, GraficosInformes, ServicioReport } from './api'
+export { cambiarGraficosInformes, cambiarServicioReport, cambiarTemaCliente, obtenerFunciones } from './api'
+export type { ClaveServicioReport, EstadoFunciones, GraficosInformes, ServicioReport, TemaCliente } from './api'

@@ -6,8 +6,8 @@ import { useAuth } from '../hooks/useAuth'
 
 /** Una «mini función» asignable (p. ej. editar los Criterios de las verificaciones): además del módulo, la cuenta
  * tiene que tenerla asignada. Si no, vuelve al hub de AgroFresh Lab. */
-export function RequireFuncion({ funcion }: { funcion: FuncionId }) {
+export function RequireFuncion({ funcion, redirigirA = ROUTES.agrofreshLab }: { funcion: FuncionId; redirigirA?: string }) {
   const { user } = useAuth()
-  if (!user || !tieneFuncion(user, funcion)) return <Navigate to={ROUTES.agrofreshLab} replace />
+  if (!user || !tieneFuncion(user, funcion)) return <Navigate to={redirigirA} replace />
   return <Outlet />
 }

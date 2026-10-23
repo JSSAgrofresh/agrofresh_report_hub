@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { BotonExcel } from '@/components/ui/BotonExcel'
 import { RECEPCION_ESTIMADA_DIAS, alcanzados, claveLaboratorio, nodoActual, resumenFlujo } from '@/features/auditoriaInterna'
 import type { EvaluadaEntrega, NodoFlujo } from '@/features/auditoriaInterna'
 import { formatDateCL } from '@/lib/locale'
@@ -72,10 +73,26 @@ interface Props {
  * Informe enviado al cliente e informe cargado al sistema van al mismo nivel. «Reporte
  * observado» se enciende cuando el informe ya está en Report (y anota qué clientes lo abrieron).
  */
+const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+
+/** Todo lo que se puede buscar de una solicitud: OT, informe, laboratorio, cliente, planta, especie, variedad, tipo, analitos, análisis y fechas. */
+function textoBuscable(e: EvaluadaEntrega): string {
+  const s = e.sol
+  return sinTildes(
+    [
+      etiquetaSolicitud(e), s.numero_solicitud, s.informe?.nro_informe, s.laboratorio, s.sold_to, s.ship_to, s.especie, s.variedad,
+      s.tipo_servicio, ...(s.analitos ?? []), ...(s.analisis ?? []), s.fecha_solicitud, s.fecha_muestreo,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  )
+}
+
 export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
   const [elegida, setElegida] = useState('')
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('todas')
   const [busca, setBusca] = useState('')
+  const tablaRef = useRef<HTMLDivElement>(null)
 
   const delLab = useMemo(
     () => (lab ? ev.filter((e) => claveLaboratorio(e.sol.laboratorio) === lab) : ev),
@@ -159,10 +176,11 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
   )
   const filasEstado = useMemo(() => {
     const cumple = FILTROS_ESTADO.find((f) => f.clave === filtroEstado)!.cumple
-    const q = busca.trim().toLowerCase()
+    // Se busca en todo lo que la solicitud y su informe dicen, sin tildes ni mayúsculas y con varias palabras a la vez.
+    const palabras = sinTildes(busca).split(/\s+/).filter(Boolean)
     return validas
       .filter(cumple)
-      .filter((e) => !q || [etiquetaSolicitud(e), e.sol.laboratorio, e.sol.sold_to, e.sol.ship_to].join(' ').toLowerCase().includes(q))
+      .filter((e) => palabras.length === 0 || palabras.every((p) => textoBuscable(e).includes(p)))
       .sort((a, b) => b.edad - a.edad)
   }, [validas, filtroEstado, busca])
 
@@ -259,7 +277,10 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
             ))}
           </div>
         </div>
-        <div className={styles.tablaScroll}>
+        <div className={styles.excelFila}>
+          <BotonExcel archivo="Informe de cada OT" contenedor={tablaRef} />
+        </div>
+        <div className={styles.tablaScroll} ref={tablaRef}>
           <table className={styles.tabla}>
             <thead>
               <tr>

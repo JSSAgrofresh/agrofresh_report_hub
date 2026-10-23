@@ -53,3 +53,67 @@ class TestConstruirFicha:
         assert f["pdf"] == {"disponible": True, "nombre": "x.pdf", "origen": "informes"}
         assert "clave" not in f["pdf"]
         assert f["toma"] == {"lote": "L1"} and f["carga"] == {"archivo": "a.xlsx"}
+
+
+class TestFichaParaCliente:
+    """La ficha del informe la abre también un cliente o un comercial, acotada a lo suyo y sin datos internos."""
+
+    def _cursor(self, hay_fila: bool):
+        class Cur:
+            consultas: list = []
+
+            def execute(self, sql, params=None):
+                self.consultas.append((sql, params))
+
+            def fetchone(self):
+                return {"?column?": 1} if hay_fila else None
+
+        Cur.consultas = []
+        return Cur()
+
+    def _cliente(self):
+        from app.auth import Usuario
+        return Usuario(id="5", email="c@x.cl", nombre="C", tipoAcceso="cliente", clienteNombre="DOLE", plantaNombre="DOLE LONTUE")
+
+    def test_quita_lo_interno(self):
+        from app.ficha_informe import para_cliente
+        sol = {"id": 1, "nro_solicitud": "AGF0001", "email_solicitante": "a@b.cl", "generado_por": "x", "referencia": "OT-1", "solicitante": "S", "nombre_muestreador": "M", "especie": "Manzana"}
+        f = construir_ficha(sol, [], [], {"archivo": "a.xlsx"}, {"lote": "L1"}, None)
+        c = para_cliente(f)
+        assert c["solicitud"]["nro_solicitud"] == "AGF0001" and c["solicitud"]["especie"] == "Manzana"
+        for campo in ("email_solicitante", "generado_por", "referencia", "solicitante", "nombre_muestreador"):
+            assert campo not in c["solicitud"]
+        assert c["carga"] is None and c["toma"] is None
+
+    def test_un_cliente_solo_ve_su_planta(self):
+        import pytest
+        from fastapi import HTTPException
+        from app.ficha_informe import _exigir_alcance
+        cur = self._cursor(hay_fila=True)
+        _exigir_alcance(cur, self._cliente(), 7)
+        sql, params = cur.consultas[0]
+        assert params["sid"] == 7 and params["cliente"] == "DOLE" and params["planta"] == "DOLE LONTUE"
+        with pytest.raises(HTTPException) as e:
+            _exigir_alcance(self._cursor(hay_fila=False), self._cliente(), 8)
+        assert e.value.status_code == 404
+
+    def test_un_comercial_sin_plantas_no_ve_nada_y_el_interno_pasa_sin_consulta(self):
+        import pytest
+        from fastapi import HTTPException
+        from app.auth import Usuario
+        from app.ficha_informe import _exigir_alcance
+        com = Usuario(id="9", email="c@a.com", nombre="C", tipoAcceso="comercial", plantasAsignadas=[])
+        cur = self._cursor(hay_fila=False)
+        with pytest.raises(HTTPException):
+            _exigir_alcance(cur, com, 1)
+        assert "FALSE" in cur.consultas[0][0]
+        interno = Usuario(id="1", email="j@a.com", nombre="J", tipoAcceso="admin_general")
+        cur = self._cursor(hay_fila=False)
+        _exigir_alcance(cur, interno, 1)
+        assert cur.consultas == []
+
+    def test_el_router_ya_no_exige_ser_interno_pero_si_sesion(self):
+        from app.auth import usuario_actual, solo_interno
+        from app.ficha_informe import router
+        deps = [d.dependency for d in router.dependencies]
+        assert usuario_actual in deps and solo_interno not in deps

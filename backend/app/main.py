@@ -14,6 +14,7 @@ from .auditoria import reparar_tablas_omitidas_post_promocion, router as auditor
 from .auditoria_interna import router as auditoria_interna_router
 from .actividad import router as actividad_router
 from .admin_panel import router as admin_panel_router
+from .monitoreo import router as monitoreo_router, router_latido as monitoreo_latido_router
 from .correcciones import router as correcciones_router
 from .listas_distribucion import router as listas_distribucion_router
 from .ficha_informe import router as ficha_informe_router
@@ -138,9 +139,13 @@ SOLO_AGROFRESH = [Depends(solo_interno)]
 app.include_router(reportes_router, dependencies=CON_SESION)
 app.include_router(postventa_cliente_router, dependencies=CON_SESION)
 app.include_router(informes_cliente_router, dependencies=CON_SESION)
+# La ficha de un informe (clic en un punto de Report): el cliente y el comercial la abren, acotada por dentro a su alcance.
+app.include_router(ficha_informe_router, dependencies=CON_SESION)
 # El diseño del Panel general lo lee cualquier cuenta (clientes incluidos: el servidor les filtra a lo suyo);
 # editarlo es solo del admin general y se exige adentro de cada endpoint.
 app.include_router(panel_inicio_router, dependencies=CON_SESION)
+# El latido de presencia lo manda cualquier cuenta con sesión; el monitoreo en sí lo exige solo al administrador principal.
+app.include_router(monitoreo_latido_router, dependencies=CON_SESION)
 
 # Los listados de especie y variedad son la excepción: una cuenta de cliente
 # necesita leerlos para que los desplegables de Especie y Variedad de su
@@ -154,9 +159,9 @@ for _router in (
     auditoria_router,
     actividad_router,
     admin_panel_router,
+    monitoreo_router,
     correcciones_router,
     listas_distribucion_router,
-    ficha_informe_router,
     envio_cliente_router,
     catalogo_router,
     postventa_router,

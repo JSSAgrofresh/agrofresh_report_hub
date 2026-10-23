@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { BotonExcel } from '@/components/ui/BotonExcel'
 import {
   claveLaboratorio,
   RECEPCION_ESTIMADA_DIAS,
@@ -179,9 +180,13 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
           </tbody>
         </table>
       </div>
-      {filas.length > 10 && (
-        <button type="button" className={styles.mini} onClick={alternar}>{ver ? 'Mostrar menos' : `Ver las ${nf.format(filas.length)}`}</button>
-      )}
+      <div className={styles.pieTabla}>
+        {filas.length > 10 && (
+          <button type="button" className={styles.mini} onClick={alternar}>{ver ? 'Mostrar menos' : `Ver las ${nf.format(filas.length)}`}</button>
+        )}
+        {/* El Excel lleva TODAS las filas, no solo las 10 que se ven. */}
+        <BotonExcel archivo="Lead time" disabled={filas.length === 0} filas={[cols.map(([t]) => t), ...filas.map((e) => cols.map(([, f]) => String(f(e))))]} />
+      </div>
     </>
   )
 

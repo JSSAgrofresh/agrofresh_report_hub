@@ -28,33 +28,38 @@ describe('tabla por informe', () => {
     const filas = filasDelCuerpo(container)
     expect(filas).toHaveLength(6)
     // Primera fila del informe 496563: fecha, informe, analito, resultado, unidad, estado. Coliformes primero aunque llegue al revés.
-    expect(celdas(filas[0])).toEqual(['30-10-2026viernes', '496563', 'Coliformes Totales', '<1', 'UFC/100 mL', 'Pendiente'])
+    expect(celdas(filas[0])).toEqual(['30-10-2026viernes', '496563', 'Coliformes Totales', '<1', 'UFC/100 mL', 'No detectado'])
     // La segunda fila solo trae lo suyo: el informe y la fecha se estiran hacia abajo.
-    expect(celdas(filas[1])).toEqual(['Escherichia coli', '<1', 'UFC/100 mL', 'Pendiente'])
+    expect(celdas(filas[1])).toEqual(['Escherichia coli', '<1', 'UFC/100 mL', 'No detectado'])
     expect(celdas(filas[2]).slice(1, 4)).toEqual(['496251', 'Coliformes Totales', '67'])
     expect(celdas(filas[3])[1]).toBe('50')
     expect((container.querySelector('tbody tr td') as HTMLTableCellElement).rowSpan).toBe(2)
   })
 
-  it('en ALS cada analito dice «Pendiente»', () => {
+  it('en ALS cada analito dice si detectó o no, igual que en Diagnofruit (un «<1» es «No detectado»)', () => {
     const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
-    const estados = filasDelCuerpo(container).map((f) => celdas(f).at(-1))
-    expect(estados).toEqual(Array(6).fill('Pendiente'))
+    const filas = filasDelCuerpo(container)
+    const estados = filas.map((f) => celdas(f).at(-1))
+    expect(estados.every((e) => e === 'Detectado' || e === 'No detectado')).toBe(true)
+    expect(estados).not.toContain('Pendiente')
+    // «<1» no se detectó; un recuento de 67 sí.
+    expect(celdas(filas[0]).at(-1)).toBe('No detectado')
+    expect(celdas(filas[2]).at(-1)).toBe('Detectado')
   })
 
   it('en Diagnofruit cada analito dice si detectó', () => {
     const { container } = render(<ResultadosPorInforme informes={INFORMES} laboratorio="diagnofruit" conGraficos={false} />)
     const filas = filasDelCuerpo(container)
-    expect(celdas(filas[0]).at(-1)).toBe('No detectó')
-    expect(celdas(filas[2]).at(-1)).toBe('Detectó')
+    expect(celdas(filas[0]).at(-1)).toBe('No detectado')
+    expect(celdas(filas[2]).at(-1)).toBe('Detectado')
   })
 
   it('el resumen dice en cuántos informes se detectó cada analito', () => {
     render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} />)
-    const resumen = screen.getByText('Informes con detección por analito').parentElement!
+    const resumen = screen.getByText('Informes con el analito detectado').parentElement!
     expect(resumen.textContent).toContain('Coliformes Totales 2 de 3')
     expect(resumen.textContent).toContain('Escherichia coli 2 de 3')
-    expect(resumen.textContent).toContain('Con alguna detección 2 de 3')
+    expect(resumen.textContent).toContain('Con algún analito detectado 2 de 3')
   })
 
   it('el día de la semana va bajo la fecha', () => {
@@ -84,19 +89,19 @@ describe('tabla por informe', () => {
     expect((screen.getByRole('button', { name: 'Descargar CSV' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('pagina: 30 informes en páginas de 25', () => {
+  it('pagina: 30 informes en páginas de 10 (lo predeterminado)', () => {
     const muchos: InformeVista[] = Array.from({ length: 30 }, (_, i) => ({
       nro: String(500000 + i),
       fecha: '2026-10-01',
       resultados: [sin(COLT), sin(ECOLI)],
     }))
     const { container } = render(<ResultadosPorInforme informes={muchos} laboratorio="als" conGraficos={false} />)
-    expect(container.querySelectorAll('tbody [class*="informe"]')).toHaveLength(25)
-    expect(screen.getByText('Mostrando 1–25 de 30 informes')).toBeTruthy()
+    expect(container.querySelectorAll('tbody [class*="informe"]')).toHaveLength(10)
+    expect(screen.getByText('Mostrando 1–10 de 30 informes')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente →' }))
-    expect(container.querySelectorAll('tbody [class*="informe"]')).toHaveLength(5)
-    expect(screen.getByText('Mostrando 26–30 de 30 informes')).toBeTruthy()
-    expect(screen.getByText('Página 2 de 2')).toBeTruthy()
+    expect(container.querySelectorAll('tbody [class*="informe"]')).toHaveLength(10)
+    expect(screen.getByText('Mostrando 11–20 de 30 informes')).toBeTruthy()
+    expect(screen.getByText('Página 2 de 3')).toBeTruthy()
   })
 
   it('«Descargar CSV» baja lo que se ve, ordenado y filtrado', () => {
@@ -179,9 +184,9 @@ describe('con Diagnofruit', () => {
     const filas = filasDelCuerpo(container)
     expect(filas).toHaveLength(6)
     // Los dos informes son del mismo día: la fecha se estira por las seis filas y el más nuevo (por N°) va arriba.
-    expect(celdas(filas[0])).toEqual(['01-10-2026jueves', '253522-DIAG0007', 'Pozo vaciado', 'Levaduras', 'BLD', 'UFC/mL', 'No detectó'])
+    expect(celdas(filas[0])).toEqual(['01-10-2026jueves', '253522-DIAG0007', 'Pozo vaciado', 'Levaduras', 'BLD', 'UFC/mL', 'No detectado'])
     expect((container.querySelector('tbody tr td') as HTMLTableCellElement).rowSpan).toBe(6)
-    expect(celdas(filas[1])).toEqual(['Botrytis', '5,2', 'conidia/mL', 'Detectó'])
+    expect(celdas(filas[1])).toEqual(['Botrytis', '5,2', 'conidia/mL', 'Detectado'])
     // el otro informe no trae zona: queda en «—»
     expect(celdas(filas[3]).slice(0, 4)).toEqual(['253521-DIAG0003', '—', 'Levaduras', '>100'])
     expect(celdas(filas[5]).slice(0, 2)).toEqual(['Geotrichum', '49,91'])

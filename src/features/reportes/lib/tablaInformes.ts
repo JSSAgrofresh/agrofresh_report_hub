@@ -65,12 +65,25 @@ export function alternarOrden(actual: Orden, col: string): Orden {
   return { col, dir: actual.dir === 'asc' ? 'desc' : 'asc' }
 }
 
-/** Los informes que calzan con lo escrito en el buscador (N°, zona o fecha), sin importar mayúsculas ni tildes. */
+/**
+ * Todo lo que se puede buscar de un informe: N°, fecha, zona, cliente, sucursal, especie, variedad y, de cada analito,
+ * su nombre, código, unidad, lo medido y si se detectó o no.
+ */
+export function textoBuscable(i: InformeLinea): string {
+  const analitos = Object.values(i.porAnalito)
+    .map((r) => `${r.nombre} ${r.codigo} ${r.unidad} ${r.texto} ${r.detectado ? 'detectado presente' : 'no detectado ausente'}`)
+    .join(' ')
+  return sinTildes(
+    [i.nro, i.etiqueta, i.fechaTxt, i.fecha ?? '', i.detalle ?? '', i.cliente ?? '', i.planta ?? '', i.especie ?? '', i.variedad ?? '', analitos].join(' '),
+  )
+}
+
+/** Los informes que calzan con lo escrito en el buscador (cualquier dato de `textoBuscable`), sin importar mayúsculas ni tildes. */
 export function filtrarInformes(informes: InformeLinea[], texto: string): InformeLinea[] {
   const palabras = sinTildes(texto).split(/\s+/).filter(Boolean)
   if (!palabras.length) return informes
   return informes.filter((i) => {
-    const heno = sinTildes(`${i.nro} ${i.etiqueta} ${i.detalle ?? ''} ${i.fechaTxt}`)
+    const heno = textoBuscable(i)
     return palabras.every((p) => heno.includes(p))
   })
 }
@@ -113,7 +126,7 @@ const celda = (v: string) => `"${v.replace(/"/g, '""')}"`
  * La tabla como CSV para Excel en español: separador «;», comillas, y una marca al inicio para que se lean las tildes.
  * Los valores van como se ven en pantalla («4,66», «<1», «BLD»).
  */
-export function csvDeInformes(informes: InformeLinea[], analitos: AnalitoLinea[], columnaDetalle: string | null, estadoPendiente = false): string {
+export function csvDeInformes(informes: InformeLinea[], analitos: AnalitoLinea[], columnaDetalle: string | null): string {
   const encabezado = [
     'Fecha de muestreo',
     'N° de informe',
@@ -126,7 +139,7 @@ export function csvDeInformes(informes: InformeLinea[], analitos: AnalitoLinea[]
     i.nro,
     ...(columnaDetalle ? [i.detalle ?? ''] : []),
     ...analitos.map((a) => i.porAnalito[a.codigo]?.texto ?? ''),
-    estadoPendiente ? 'Pendiente' : detectadosDe(i) > 0 ? `Con detección (${detectadosDe(i)} de ${analitosDe(i)})` : 'Sin detección',
+    detectadosDe(i) > 0 ? `Detectado (${detectadosDe(i)} de ${analitosDe(i)})` : 'No detectado',
   ])
   return '﻿' + [encabezado, ...filas].map((f) => f.map(celda).join(';')).join('\r\n')
 }

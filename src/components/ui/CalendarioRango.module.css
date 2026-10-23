@@ -309,3 +309,20 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Portal de clientes: mismo alto, borde y etiqueta que los demás filtros (antes quedaba más bajo y más chico). */
+:global([data-portal]) .etiqueta { letter-spacing: 0.06em; line-height: 14px; }
+:global([data-portal]) .boton {
+  height: 40px;
+  border-radius: 14px;
+  border-color: #cfe0bf;
+  padding: 0 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+:global([data-portal]) .boton:hover { border-color: var(--acento, var(--color-primary)); }
+:global([data-portal]) .panel { border-radius: 20px; box-shadow: 0 22px 50px rgba(40, 70, 20, 0.25); z-index: 70; }
+
+/* Estilo sobrio */
+:global([data-tema='sobrio']) .boton { height: 36px; border-radius: 8px; border-color: #d7dae0; }
+:global([data-tema='sobrio']) .boton:hover { border-color: #4f8a26; }
+:global([data-tema='sobrio']) .panel { border-radius: 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12); }

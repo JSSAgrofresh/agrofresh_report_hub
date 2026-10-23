@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useContext, useMemo, useState } from 'react'
+import { PortalContext } from '@/components/layout/portal/PortalContext'
 import { AREAS } from '@/constants/areas'
 import { useAuth } from '@/features/auth'
 import { AreaHero, fondoParaEspecie } from '@/features/dashboard'
+import { PortalHero } from '@/views/dashboard/PortalHero'
 import { ReporteView } from './ReporteView'
 
 /** Report de laboratorio para admin: el mismo encabezado con foto que ve el
@@ -10,10 +12,17 @@ import { ReporteView } from './ReporteView'
  * Sold To elegido. */
 export function ReporteLaboratorioView() {
   const { user } = useAuth()
+  const enPortal = useContext(PortalContext)
   const config = AREAS.cromatografia
   const [especie, setEspecie] = useState('')
   const [cliente, setCliente] = useState('')
+  const [especies, setEspecies] = useState<string[]>([])
   const fondo = fondoParaEspecie(especie, config.fondo)
+  // Sin una especie elegida, el encabezado rota las fotos de las especies que tiene la cuenta; con una, solo esa.
+  const fondos = useMemo(
+    () => (especie ? undefined : [...new Set(especies.map((e) => fondoParaEspecie(e, config.fondo).imagen))]),
+    [especie, especies, config.fondo],
+  )
 
   // Una cuenta de cliente entra por esta misma ruta: su encabezado lleva SU sucursal (o su Sold To) y los filtros de
   // Sold To / Ship To no salen, porque sus datos ya vienen acotados desde el servidor.
@@ -21,14 +30,13 @@ export function ReporteLaboratorioView() {
     const soldTo = user.clienteNombre ?? user.nombre
     return (
       <div>
-        <AreaHero
-          area={config}
-          titulo={user.plantaNombre ?? soldTo}
-          descripcion={`Portal de cliente · ${config.nombre}. Acceso exclusivo a tus datos.`}
+        <PortalHero
+          titulo={`Hola, ${user.plantaNombre ?? soldTo}`}
+          descripcion="Portal de cliente. Estos son los resultados de tus muestras, siempre al día."
           fondo={fondo.imagen}
-          tinte={fondo.tinte}
+          fondos={fondos}
         />
-        <ReporteView clienteFijo={soldTo} plantaFija={user.plantaNombre} onCropChange={setEspecie} />
+        <ReporteView clienteFijo={soldTo} plantaFija={user.plantaNombre} onCropChange={setEspecie} onEspeciesChange={setEspecies} />
       </div>
     )
   }
@@ -37,14 +45,29 @@ export function ReporteLaboratorioView() {
   if (user?.tipoAcceso === 'comercial') {
     return (
       <div>
-        <AreaHero
-          area={config}
-          titulo={cliente || 'Tus plantas'}
-          descripcion={`Comercial · ${config.nombre}. Resultados de las plantas que tienes asignadas, solo lectura.`}
+        <PortalHero
+          titulo={cliente ? `Hola, ${cliente}` : 'Hola, estas son tus plantas'}
+          descripcion={`Comercial. Resultados de las plantas que tienes asignadas, solo lectura.`}
           fondo={fondo.imagen}
-          tinte={fondo.tinte}
+          fondos={fondos}
         />
-        <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} />
+        <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} onEspeciesChange={setEspecies} />
+      </div>
+    )
+  }
+
+  // El administrador mirando el portal de clientes (vista previa): mismo encabezado que ve un cliente.
+  if (enPortal) {
+    return (
+      <div>
+        <PortalHero
+          etiqueta="Vista previa de cliente"
+          titulo={`Hola, ${cliente || 'todos los clientes'}`}
+          descripcion="Así se ve el portal para un cliente. Con tu cuenta de administración aparecen los datos de todos los clientes y sucursales."
+          fondo={fondo.imagen}
+          fondos={fondos}
+        />
+        <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} onEspeciesChange={setEspecies} />
       </div>
     )
   }

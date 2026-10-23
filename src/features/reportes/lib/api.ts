@@ -24,7 +24,7 @@ export function descargarDatosExcel(cliente?: string, planta?: string) {
 
 /** Cómo muestra Report algunas cosas según Administración General → Funciones. Lo lee cualquier cuenta. */
 export function obtenerVistaReport() {
-  return httpClient.get<{ graficos_informes: boolean }>('/reportes/vista')
+  return httpClient.get<{ graficos_informes: boolean; tema_cliente?: 'basico' | 'sobrio' }>('/reportes/vista')
 }
 
 export function obtenerResumenReporte() {

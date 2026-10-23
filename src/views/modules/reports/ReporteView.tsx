@@ -1,3 +1,4 @@
+import { FiltrosPegajosos } from '@/components/layout/portal/FiltrosPegajosos'
 import FueraDeRango from './FueraDeRango'
 import { columnasPorLaboratorio, laboratoriosDeInformes } from '@/features/reportes/lib/graficoResiduales'
 import { DonaFueraDeRango } from './DonaFueraDeRango'
@@ -23,7 +24,10 @@ import {
 } from 'chart.js'
 import type { ChartDataset, Plugin, TooltipItem } from 'chart.js'
 import { Header } from '@/components/layout/Header'
+import { ACENTO_SOBRIO, TINTA_SOBRIA, esPaletaSobria } from '@/lib/paleta'
 import { Card } from '@/components/ui/Card'
+import { useAnchoMaximo } from '@/hooks/useAnchoMaximo'
+import { InfoTip } from '@/components/ui/InfoTip'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BuscableSelect } from '@/components/ui/BuscableSelect'
@@ -225,6 +229,7 @@ export function ReporteView({
   selectorModo,
   sinEncabezado = false,
   onClienteChange,
+  onEspeciesChange,
 }: {
   clienteFijo?: string
   plantaFija?: string
@@ -239,9 +244,11 @@ export function ReporteView({
   /** La pantalla ya trae su propio encabezado: no se dibuja el título de Report. */
   sinEncabezado?: boolean
   onClienteChange?: (cliente: string) => void
+  /** Las especies que tienen datos (del Sold To filtrado, si hay uno), de la más frecuente a la menos: el encabezado las rota. */
+  onEspeciesChange?: (especies: string[]) => void
 } = {}) {
   const { user } = useAuth()
-  const acento = areaDeModulo('reports')?.colorPrimario ?? '#6dad3c'
+  const acento = esPaletaSobria() ? ACENTO_SOBRIO : (areaDeModulo('reports')?.colorPrimario ?? '#6dad3c')
   const wrapStyle = { '--acento': acento } as CSSProperties
 
   const [filas, setFilas] = useState<FilaReporte[] | null>(null)
@@ -350,6 +357,7 @@ export function ReporteView({
     onClienteChange?.(filtros.cliente)
   }, [filtros.cliente, onClienteChange])
 
+
   useEffect(() => {
     listarEspeciesActivas()
       .then(setEspeciesOficiales)
@@ -382,6 +390,22 @@ export function ReporteView({
   // "ppm" queda en null cuando no hay valor numérico (sin resultado todavía, o
   // un resultado cualitativo como "ND"), pero la solicitud igual se cuenta y
   // se puede ver en el detalle.
+  // Las especies de la cuenta, para el carrusel del encabezado cuando no hay una elegida.
+  const especiesDeLaCuenta = useMemo(() => {
+    const cuentas = new Map<string, Set<number>>()
+    for (const o of filasVista ?? []) {
+      if (!o.especie || (filtros.cliente && o.cliente !== filtros.cliente)) continue
+      const ids = cuentas.get(o.especie) ?? new Set<number>()
+      ids.add(o.solicitud_id)
+      cuentas.set(o.especie, ids)
+    }
+    return [...cuentas.entries()].sort((a, b) => b[1].size - a[1].size).map(([e]) => e)
+  }, [filasVista, filtros.cliente])
+  const clavesEspecies = especiesDeLaCuenta.join('|')
+  useEffect(() => {
+    onEspeciesChange?.(clavesEspecies ? clavesEspecies.split('|') : [])
+  }, [clavesEspecies, onEspeciesChange])
+
   const observaciones = useMemo<Observacion[]>(() => {
     if (!filasVista) return []
     return filasVista.map((f) => {
@@ -453,6 +477,11 @@ export function ReporteView({
   // sigue siendo un solo gráfico de residuos, y ahí ALS y Diagnofruit solo se ven eligiéndolos (tabla).
   const modoBloques = !vistaControl && !limitesTabla
   const bloques = bloquesVisibles(filtros.laboratorio)
+  // Cada bloque lleva su número correlativo (1, 2, 3 hacia abajo) en la esquina de su cabecera.
+  const numeroDeBloque = (b: 'residuales' | 'fsma' | 'fito') => {
+    const visibles = (['residuales', 'fsma', 'fito'] as const).filter((x) => bloques[x])
+    return visibles.length > 1 ? visibles.indexOf(b) + 1 : undefined
+  }
   // Los botones «Laboratorio AgroFresh / Laboratorio Quiteca» del bloque de residuos.
   const [botonResidual, setBotonResidual] = useState<LabResidual | ''>('')
   const botonesResidual = estadoBotonesResidual(filtros.laboratorio, botonResidual)
@@ -493,7 +522,12 @@ export function ReporteView({
   )
 
   // Los informes de ALS y de Diagnofruit con la forma de la tabla y los gráficos, y cuántos hay sin ningún filtro.
-  const informesAls = useMemo(() => construirInformes(filtradasTodas, 'als', analitosVista), [filtradasTodas, analitosVista])
+  // ALS no informa especie ni variedad: esos dos filtros no se le aplican (si no, elegir una Especie vaciaría FSMA).
+  const filtradasParaAls = useMemo(() => {
+    const base = aplicarFiltros(observaciones, { ...filtros, crop: '', variedad: '' })
+    return filtrosMultiples ? base.filter((o) => cumpleMulti(o, { ...multi, crop: [], variedad: [] })) : base
+  }, [observaciones, filtros, multi, filtrosMultiples])
+  const informesAls = useMemo(() => construirInformes(filtradasParaAls, 'als', analitosVista), [filtradasParaAls, analitosVista])
   const informesFito = useMemo(() => construirInformes(filtradasTodas, 'diagnofruit', analitosVista), [filtradasTodas, analitosVista])
   const informesSinFiltros = useMemo(() => {
     const ids = { als: new Set<number>(), diagnofruit: new Set<number>() }
@@ -573,6 +607,8 @@ export function ReporteView({
   // ── gráficos ──
   const mainRef = useRef<HTMLCanvasElement>(null)
   const mainChart = useRef<Chart | null>(null)
+  // En el teléfono el gráfico grande lleva puntos más chicos y menos fechas en el eje.
+  const angostoGrafico = useAnchoMaximo(640)
   const analitoResaltado = useRef<string | null>(null)
 
   const colorDanger = cssVar('--color-danger', '#b0271f')
@@ -624,8 +660,8 @@ export function ReporteView({
         showLine: false,
         // Grandes y con un aro del color de la tarjeta: se leen bien aunque se
         // solapen, y se distingue a qué columna (fecha) pertenece cada uno.
-        pointRadius: 7,
-        pointHoverRadius: 10,
+        pointRadius: angostoGrafico ? 4 : esPaletaSobria() ? 5 : 7,
+        pointHoverRadius: angostoGrafico ? 7 : esPaletaSobria() ? 8 : 10,
         pointHitRadius: 10,
         pointBackgroundColor: color,
         // Fuera de su franja (solo en la Vista de límites con tabla): aro rojo.
@@ -635,7 +671,7 @@ export function ReporteView({
         }),
         pointBorderWidth: informes.map((i) => {
           const p = i.puntos.find((x) => x.ingrediente === ingrediente)
-          return limitesTabla && p?.ppm != null && (posicionResidual(ingrediente, p.ppm, limitesDeEspecie(p.crop) ?? {}) ?? 'dentro') !== 'dentro' ? 3.5 : 2
+          return limitesTabla && p?.ppm != null && (posicionResidual(ingrediente, p.ppm, limitesDeEspecie(p.crop) ?? {}) ?? 'dentro') !== 'dentro' ? 3.5 : esPaletaSobria() ? 1.5 : 2
         }),
         pointHoverBackgroundColor: color,
         pointHoverBorderColor: colorSuperficie,
@@ -848,7 +884,9 @@ export function ReporteView({
           // Fechas en vertical y TODAS (sin saltarse ninguna): una etiqueta por día.
           x: {
             ticks: {
-              autoSkip: false,
+              // Fechas en vertical y todas, salvo en el teléfono: con decenas de informes no caben y se pisan.
+              autoSkip: angostoGrafico,
+              maxTicksLimit: angostoGrafico ? 8 : undefined,
               font: { size: 10 },
               maxRotation: 90,
               minRotation: 90,
@@ -890,6 +928,7 @@ export function ReporteView({
     limitesActivos.central,
     limitesActivos.inferior,
     colorWarning,
+    angostoGrafico,
     colorMuted,
     colorBorder,
     colorSuperficie,
@@ -1164,7 +1203,8 @@ export function ReporteView({
   // saca las columnas internas), nunca sobre datos simulados.
   const esCuentaCliente = Boolean(clienteFijo) || user.tipoAcceso === 'cliente' || user.tipoAcceso === 'comercial'
   const puedeBajarBd = !simulando
-  // Lo demás de la BD (ficha completa del informe, con PDF y datos internos) sigue siendo solo del personal.
+  // Los gráficos por analito de la ficha del informe (vista de límites) siguen siendo solo del personal; el cliente abre
+  // la misma ficha, con su PDF, pero sin límites ni datos internos (el servidor ya se los quita).
   const puedeDescargarBd = !esCuentaCliente && !simulando
 
   async function bajarBd(acotada: boolean) {
@@ -1322,7 +1362,7 @@ export function ReporteView({
             </div>
           )}
 
-          <section className={styles.filtrosCard} aria-label="Filtros">
+          <FiltrosPegajosos className={styles.filtrosCard}>
             <div className={styles.filtrosCabecera}>
               <span className={styles.filtrosTitulo}>
                 Filtros
@@ -1338,6 +1378,9 @@ export function ReporteView({
               )}
             </div>
 
+            <p className={styles.grupoFiltros}>
+              Generales <InfoTip>Valen para todos los análisis.</InfoTip>
+            </p>
             <div className={styles.filtros}>
               {/* Filtros principales primero: Laboratorio, Sold To, Ship To, Especie —
                   son los que definen qué tipo de reporte/límites corresponde mostrar. El resto va después.
@@ -1437,6 +1480,54 @@ export function ReporteView({
               {filtrosMultiples ? (
                 <>
                   <MultiSelectFiltro
+                    etiqueta="Semana"
+                    opciones={opciones.semanas.map((o) => o.valor)}
+                    valores={multi.semana}
+                    onChange={(v) => cambiarMulti('semana', v)}
+                    formatear={formatosMulti.semana}
+                  />
+                  <MultiSelectFiltro
+                    etiqueta="Mes"
+                    opciones={opciones.meses.map((o) => o.valor)}
+                    valores={multi.mes}
+                    onChange={(v) => cambiarMulti('mes', v)}
+                    formatear={formatosMulti.mes}
+                  />
+                </>
+              ) : (
+                <>
+                  <label className={styles.filtro}>
+                    <span>Semana</span>
+                    <select value={filtros.semana} onChange={(e) => actualizarSemana(e.target.value)} disabled={Boolean(filtros.rango)}>
+                      <option value="">Todas</option>
+                      {opciones.semanas.map((o) => (
+                        <option key={o.valor} value={o.valor}>{textoOpcion(o, (v) => `Semana ${v}`)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className={styles.filtro}>
+                    <span>Mes</span>
+                    <select value={filtros.mes} onChange={(e) => actualizarMes(e.target.value)} disabled={Boolean(filtros.rango)}>
+                      <option value="">Todos</option>
+                      {opciones.meses.map((o) => (
+                        <option key={o.valor} value={o.valor}>{textoOpcion(o, nombreMes)}</option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
+              <CalendarioRango etiqueta="Rango de fechas" valor={filtros.rango} onChange={aplicarRango} />
+            </div>
+
+            {/* Filtros que no valen para todos los análisis: Especie y Variedad no aplican a FSMA (ALS no las informa) e
+                Ingrediente Activo es solo de residuos. Cada análisis trae además sus propios filtros bajo su cabecera. */}
+            <p className={styles.grupoFiltros}>
+              Específicos <InfoTip>Especie y variedad: residuos y fitopatología. Ingrediente activo: solo residuos.</InfoTip>
+            </p>
+            <div className={styles.filtros}>
+              {filtrosMultiples ? (
+                <>
+                  <MultiSelectFiltro
                     etiqueta="Especie"
                     opciones={opciones.crops.map((o) => o.valor)}
                     valores={multi.crop}
@@ -1479,46 +1570,6 @@ export function ReporteView({
                 onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v.length >= todosIngredientes.length ? [] : v }))}
                 colorDe={colorDeIngrediente}
               />
-              {filtrosMultiples ? (
-                <>
-                  <MultiSelectFiltro
-                    etiqueta="Semana"
-                    opciones={opciones.semanas.map((o) => o.valor)}
-                    valores={multi.semana}
-                    onChange={(v) => cambiarMulti('semana', v)}
-                    formatear={formatosMulti.semana}
-                  />
-                  <MultiSelectFiltro
-                    etiqueta="Mes"
-                    opciones={opciones.meses.map((o) => o.valor)}
-                    valores={multi.mes}
-                    onChange={(v) => cambiarMulti('mes', v)}
-                    formatear={formatosMulti.mes}
-                  />
-                </>
-              ) : (
-                <>
-                  <label className={styles.filtro}>
-                    <span>Semana</span>
-                    <select value={filtros.semana} onChange={(e) => actualizarSemana(e.target.value)} disabled={Boolean(filtros.rango)}>
-                      <option value="">Todas</option>
-                      {opciones.semanas.map((o) => (
-                        <option key={o.valor} value={o.valor}>{textoOpcion(o, (v) => `Semana ${v}`)}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className={styles.filtro}>
-                    <span>Mes</span>
-                    <select value={filtros.mes} onChange={(e) => actualizarMes(e.target.value)} disabled={Boolean(filtros.rango)}>
-                      <option value="">Todos</option>
-                      {opciones.meses.map((o) => (
-                        <option key={o.valor} value={o.valor}>{textoOpcion(o, nombreMes)}</option>
-                      ))}
-                    </select>
-                  </label>
-                </>
-              )}
-              <CalendarioRango etiqueta="Rango de fechas" valor={filtros.rango} onChange={aplicarRango} />
             </div>
 
             {nFiltros > 0 && (
@@ -1540,7 +1591,7 @@ export function ReporteView({
                 ))}
               </div>
             )}
-          </section>
+          </FiltrosPegajosos>
 
           {esTabular ? (
             <SeccionInformes
@@ -1554,7 +1605,7 @@ export function ReporteView({
           ) : (
             <>
               {modoBloques && bloques.residuales && (
-                <CabeceraSeccion bloque="residuales" acento={acento} laboratorios={`${nombreLaboratorio('agrofresh')} · ${nombreLaboratorio('quiteca')}`}>
+                <CabeceraSeccion bloque="residuales" numero={numeroDeBloque('residuales')} acento={acento} laboratorios={`${nombreLaboratorio('agrofresh')} · ${nombreLaboratorio('quiteca')}`}>
                   <BotonesLabResidual
                     efectivo={botonesResidual.efectivo}
                     fijadoPorFiltro={botonesResidual.fijadoPorFiltro}
@@ -1567,16 +1618,14 @@ export function ReporteView({
             <>
               {vistaControl && (
                 <p className={styles.nota}>
-                  <span className={styles.notaIcono} aria-hidden="true">i</span>
-                  {nota}
+                  <InfoTip>{nota}</InfoTip>
                 </p>
               )}
               {limitesTabla && (
                 <p className={styles.nota}>
-                  <span className={styles.notaIcono} aria-hidden="true">i</span>
-                  {limitesDeTabla
+                  <InfoTip>{limitesDeTabla
                     ? `Franjas fijas tomadas de la tabla de límites residuales para ${multi.crop[0]}. No se recalculan con los datos.`
-                    : 'Las franjas del gráfico se dibujan al elegir UNA especie. El recuadro «Informes fuera de rango» no la necesita: evalúa cada informe con los límites de su propia especie.'}
+                    : 'Las franjas del gráfico se dibujan al elegir UNA especie. El recuadro «Informes fuera de rango» no la necesita: evalúa cada informe con los límites de su propia especie.'}</InfoTip>
                 </p>
               )}
 
@@ -1591,7 +1640,7 @@ export function ReporteView({
                   <span className={styles.statNum}>{registrosFiltrados.toLocaleString('es-CL')}</span>
                 </Kpi>
                 <Kpi
-                  tono="#4a3aa7"
+                  tono={esPaletaSobria() ? TINTA_SOBRIA : '#4a3aa7'}
                   icono={<IconTrendingUp />}
                   etiqueta={
                     <>
@@ -1691,7 +1740,7 @@ export function ReporteView({
               <div className={styles.grid2Iguales}>
                 <Card className={styles.panel}>
                   <h3>
-                    Informes por especie
+                    Porcentaje de informes por especie
                     <span className={styles.hintClic}>clic para filtrar</span>
                   </h3>
                   {porEspecie.length === 0 ? (
@@ -1699,7 +1748,7 @@ export function ReporteView({
                   ) : (
                     <div className={styles.especieCaja}>
                       <div className={styles.donutChica}>
-                        <canvas ref={especieRef} aria-label="Informes por especie" role="img" />
+                        <canvas ref={especieRef} aria-label="Porcentaje de informes por especie" role="img" />
                         <div className={styles.donutCentro}>
                           <b>{porEspecie.filter((e) => !e.otras).length}</b>
                           <span>especie{porEspecie.filter((e) => !e.otras).length === 1 ? '' : 's'}</span>
@@ -1742,10 +1791,10 @@ export function ReporteView({
                 </>
               )}
               {modoBloques && bloques.fsma && (
-                <SeccionInformes bloque="fsma" informes={informesAls} totalSinFiltros={informesSinFiltros.als} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
+                <SeccionInformes bloque="fsma" numero={numeroDeBloque('fsma')} informes={informesAls} totalSinFiltros={informesSinFiltros.als} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
               )}
               {modoBloques && bloques.fito && (
-                <SeccionInformes bloque="fito" informes={informesFito} totalSinFiltros={informesSinFiltros.diagnofruit} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
+                <SeccionInformes bloque="fito" numero={numeroDeBloque('fito')} informes={informesFito} totalSinFiltros={informesSinFiltros.diagnofruit} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
               )}
             </>
           )}
@@ -1761,7 +1810,16 @@ export function ReporteView({
           titulo={detalle.titulo}
           filas={detalle.filas}
           onCerrar={() => setDetalle(null)}
-          fichaCompleta={puedeDescargarBd ? { analitos: analitosVista, limites: limitesVista, graficos: graficosDelDetalle() } : undefined}
+          fichaCompleta={
+            simulando
+              ? undefined
+              : {
+                  analitos: analitosVista,
+                  limites: limitesVista,
+                  graficos: puedeDescargarBd ? graficosDelDetalle() : undefined,
+                  sinLimites: esCuentaCliente,
+                }
+          }
         />
       )}
     </div>

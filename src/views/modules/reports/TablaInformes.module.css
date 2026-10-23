@@ -241,15 +241,15 @@
 }
 
 .estadoSi {
-  border: 1px solid color-mix(in srgb, var(--color-accent) 70%, var(--color-surface));
-  background: color-mix(in srgb, var(--color-accent) 24%, var(--color-surface));
-  color: #4a3a00;
+  border: 1px solid color-mix(in srgb, #b0271f 55%, var(--color-surface));
+  background: color-mix(in srgb, #b0271f 14%, var(--color-surface));
+  color: #7d1a14;
 }
 
 .estadoNo {
-  border: 1px solid var(--color-border);
-  background: var(--color-bg);
-  color: var(--color-text-faint);
+  border: 1px solid color-mix(in srgb, #6dad3c 60%, var(--color-surface));
+  background: color-mix(in srgb, #6dad3c 16%, var(--color-surface));
+  color: #2f5a14;
 }
 
 .tabla tfoot td {
@@ -379,4 +379,166 @@
 
 .resumen b {
   color: var(--color-text);
+}
+
+/* Portal de clientes */
+:global([data-portal]) .tabla tbody td.grupo { border-bottom: 1px solid var(--color-border); }
+:global([data-portal]) .tabla tbody tr.finInforme td.grupo { border-bottom: 1px solid var(--color-border-strong); }
+:global([data-portal]) .caja { border-radius: 18px; border-color: #dde8d0; background: #fff; }
+:global([data-portal]) .buscador input { height: 40px; border-radius: 999px; border-color: #cfe0bf; padding-left: 38px; }
+:global([data-portal]) .lupa { left: 14px; }
+:global([data-portal]) .control select { height: 40px; border-radius: 999px; border-color: #cfe0bf; padding: 0 30px 0 14px; }
+:global([data-portal]) .paginas button { border-radius: 999px; height: 36px; border-color: #cfe0bf; padding: 0 16px; }
+:global([data-portal]) .informe { border-radius: 99px; padding: 3px 10px; }
+
+/* Tablet: la tabla cabe entera, con menos aire entre columnas. */
+@media (max-width: 900px) {
+  .tabla td {
+    padding: 8px 8px;
+  }
+
+  .orden,
+  .cabSimple {
+    padding: 10px 8px;
+  }
+
+  .tabla {
+    font-size: 12.5px;
+  }
+}
+
+/* Teléfono: cada informe es una tarjeta con sus analitos en filas. */
+.tarjetas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.vacioTarjetas {
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 13px;
+}
+
+.tarjetaInforme {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.tarjetaInforme header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.detalleTarjeta {
+  margin: var(--space-2) 0 0;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.tarjetaInforme ul {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tarjetaInforme li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px var(--space-2);
+  padding: 6px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.tarjetaInforme li:first-child {
+  border-top: 0;
+}
+
+/* El nombre del analito ocupa su propia línea; abajo, lo medido a la izquierda y el estado a la derecha. */
+.tarjetaInforme .nombreAnalito {
+  grid-column: 1 / -1;
+  font-size: 13.5px;
+}
+
+.tarjetaInforme .fecha {
+  font-size: 15px;
+}
+
+.valorTarjeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.valorTarjeta small {
+  font-size: 11px;
+  color: var(--color-text-faint);
+}
+
+/* Estilo sobrio: sin cajas ni fondos; solo líneas finas, encabezado en gris pequeño y estados como un punto con texto. */
+:global([data-tema='sobrio']) .caja { border: 1px solid #e3e6eb; border-radius: 12px; }
+:global([data-tema='sobrio']) .tabla th { background: #fff; border-bottom: 1px solid #e3e6eb; }
+:global([data-tema='sobrio']) .orden { color: #9ca3af; font-size: 10px; letter-spacing: 0.1em; padding: 14px var(--space-3); }
+:global([data-tema='sobrio']) .orden:hover { background: transparent; color: #16181d; }
+:global([data-tema='sobrio']) .tabla td { border-top: 1px solid #eceef2; padding: 12px var(--space-3); }
+:global([data-tema='sobrio']) .tabla tbody tr:hover td { background: #fafbfc; }
+:global([data-tema='sobrio']) .tabla tbody td.grupo { background: #fff; border-right: 0; }
+:global([data-tema='sobrio']) .tabla tbody tr:hover td.grupo { background: #fff; }
+:global([data-tema='sobrio']) .tabla tfoot td { background: #fff; border-top: 1px solid #e3e6eb; }
+:global([data-tema='sobrio']) .fecha { font-weight: 500; }
+:global([data-tema='sobrio']) .informe { background: transparent; color: #16181d; padding: 0; border-radius: 0; font-weight: 500; }
+:global([data-tema='sobrio']) .estadoSi,
+:global([data-tema='sobrio']) .estadoNo { border: 0; background: transparent; padding: 0; font-weight: 500; font-size: 12.5px; }
+:global([data-tema='sobrio']) .estadoSi { color: #b0594c; }
+:global([data-tema='sobrio']) .estadoNo { color: #3f6b52; }
+:global([data-tema='sobrio']) .estadoSi::before,
+:global([data-tema='sobrio']) .estadoNo::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: currentColor; vertical-align: middle; }
+:global([data-tema='sobrio']) .chipNo { background: transparent; color: #9ca3af; padding: 0; }
+:global([data-tema='sobrio']) .chipSi { border-color: #e0e3e8; background: transparent; font-weight: 600; }
+:global([data-tema='sobrio']) .buscador input,
+:global([data-tema='sobrio']) .control select { height: 36px; border-radius: 10px; border-color: #eceef2; background-color: #f7f8fa; }
+:global([data-tema='sobrio']) .paginas button { border-radius: 8px; height: 32px; border-color: #e0e3e8; }
+
+/* Estilo sobrio: líneas verticales finas entre columnas para que cada dato se lea bajo su encabezado. */
+:global([data-tema='sobrio']) .tabla th,
+:global([data-tema='sobrio']) .tabla td { border-left: 1px solid #e3e6eb; }
+:global([data-tema='sobrio']) .tabla th:first-child,
+:global([data-tema='sobrio']) .tabla tbody tr > td.grupo.fecha:first-child,
+:global([data-tema='sobrio']) .tabla tfoot td { border-left: 0; }
+
+/* Estilo sobrio: la tabla crece con la página (sin caja con scroll propio), así ninguna fila queda cortada a medias. */
+:global([data-tema='sobrio']) .caja { max-height: none; overflow-x: auto; }
+:global([data-tema='sobrio']) .tabla th,
+:global([data-tema='sobrio']) .tabla tfoot td { position: static; }
+
+/* Estilo sobrio: la tabla queda dentro de un marco completo; la última fila no repite línea y el pie se integra al marco. */
+:global([data-tema='sobrio']) .tabla tbody tr:last-child td { border-bottom: 0; }
+:global([data-tema='sobrio']) .tabla tbody tr.finInforme:last-child td.grupo { border-bottom: 0; }
+:global([data-tema='sobrio']) .tabla th:last-child,
+:global([data-tema='sobrio']) .tabla td:last-child { padding-right: var(--space-4); }
+
+/* Estilo sobrio: la celda de fecha une varios informes y no tiene línea propia entre ellos; el informe que empieza
+   sin celda de fecha dibuja su línea de arriba hacia la izquierda para cruzar esa columna (el marco recorta lo que sobra). */
+:global([data-tema='sobrio']) .tabla tbody td.grupo { position: relative; background: transparent; }
+:global([data-tema='sobrio']) .tabla tbody tr:hover td.grupo { background: transparent; }
+:global([data-tema='sobrio']) .tabla tbody tr > td.grupo:first-child:not(.fecha)::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  right: 100%;
+  width: 3000px;
+  height: 1px;
+  background: var(--color-border-strong);
 }

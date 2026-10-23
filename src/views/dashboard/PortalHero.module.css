@@ -1,0 +1,102 @@
+.hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 38px clamp(22px, 4vw, 48px);
+  margin-bottom: var(--space-5);
+  color: #fff;
+  background: linear-gradient(120deg, #2d5a17, #6dad3c, #a6d46a, #6dad3c);
+  background-size: 300% 300%;
+  animation: flujo 14s ease-in-out infinite;
+  box-shadow: 0 10px 30px rgba(40, 70, 20, 0.14);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+@keyframes flujo { 50% { background-position: 100% 50%; } }
+
+.hero::before,
+.hero::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  animation: flota 9s ease-in-out infinite alternate;
+}
+.hero::before { width: 260px; height: 260px; right: -60px; top: -90px; }
+.hero::after { width: 150px; height: 150px; left: 38%; bottom: -70px; animation-duration: 12s; animation-delay: -4s; }
+@keyframes flota { to { transform: translate(-24px, 22px) scale(1.12); } }
+
+.texto { position: relative; z-index: 1; min-width: 0; }
+.etiqueta {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 13px; opacity: 0.92;
+  text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;
+}
+.vivo { width: 8px; height: 8px; border-radius: 50%; background: #d6ff9e; animation: latido 1.8s ease-out infinite; }
+@keyframes latido {
+  0% { box-shadow: 0 0 0 0 rgba(214, 255, 158, 0.7); }
+  100% { box-shadow: 0 0 0 12px rgba(214, 255, 158, 0); }
+}
+.titulo { font-size: clamp(28px, 4.6vw, 46px); font-weight: 800; line-height: 1.08; margin: 8px 0 10px; text-wrap: balance; overflow-wrap: anywhere; }
+.descripcion { max-width: 52ch; opacity: 0.94; font-size: 15px; line-height: 1.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero, .hero::before, .hero::after, .vivo { animation: none; }
+}
+
+/* Con foto: la fruta se ve a la derecha y se funde con el verde de la marca; se mueve muy despacio. */
+.conFoto { background: linear-gradient(120deg, #2d5a17, #4f8a26); animation: none; min-height: 210px; border: 1px solid rgba(255, 255, 255, 0.55); }
+.foto {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  animation: zoom 30s ease-in-out infinite alternate;
+}
+/* La foto que llega: se disuelve con calma, desde un poco más grande y borrosa. */
+.fotoNueva { animation: disolver 2.4s cubic-bezier(0.4, 0, 0.2, 1) both, zoom 30s ease-in-out infinite alternate; }
+@keyframes disolver { from { opacity: 0; filter: blur(10px) saturate(0.85); } to { opacity: 1; filter: blur(0) saturate(1); } }
+@keyframes zoom { to { transform: scale(1.08) translateX(-1.5%); } }
+.velo {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(100deg, rgba(36, 74, 18, 0.94) 0%, rgba(45, 90, 23, 0.78) 38%, rgba(79, 138, 38, 0.3) 72%, rgba(166, 212, 106, 0.12) 100%),
+    linear-gradient(0deg, rgba(241, 246, 234, 0.18), transparent 40%);
+}
+.brillo {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 38%;
+  left: -45%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+  transform: skewX(-18deg);
+  animation: barrido 7s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes barrido { 0%, 55% { left: -45%; } 100% { left: 125%; } }
+.conFoto::before, .conFoto::after { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .foto, .fotoNueva, .brillo { animation: none; }
+}
+
+/* Estilo sobrio: la misma foto de la especie (con su carrusel), pero más quieta: sin brillo que cruza ni zoom. */
+:global([data-tema='sobrio']) .hero,
+:global([data-tema='sobrio']) .conFoto {
+  border: 0;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 10px 28px rgba(16, 24, 40, 0.1);
+  animation: none;
+  min-height: 160px;
+  padding: 26px clamp(22px, 4vw, 44px);
+}
+:global([data-tema='sobrio']) .foto { animation: none; }
+:global([data-tema='sobrio']) .fotoNueva { animation: disolver 1.6s ease both; }
+:global([data-tema='sobrio']) .brillo { display: none; }
+:global([data-tema='sobrio']) .titulo { font-size: clamp(24px, 3.2vw, 34px); font-weight: 700; margin: 4px 0 6px; }
+:global([data-tema='sobrio']) .descripcion { font-size: 14px; }
+:global([data-tema='sobrio']) .vivo { animation: none; }

@@ -12,7 +12,10 @@ import {
   type Orden,
 } from '@/features/reportes/lib/tablaInformes'
 import type { ModeloLinea } from '@/features/reportes/lib/lineaTiempoInformes'
+import { InfoTip } from '@/components/ui/InfoTip'
 import { Button } from '@/components/ui/Button'
+import { esPaletaSobria } from '@/lib/paleta'
+import { useAnchoMaximo } from '@/hooks/useAnchoMaximo'
 import styles from './TablaInformes.module.css'
 
 interface Props {
@@ -42,12 +45,14 @@ function descargarCsv(nombre: string, contenido: string) {
  * en CSV (lo que se ve, ordenado y filtrado, no solo la página).
  */
 export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) {
-  // ALS no tiene límites por informe: su estado queda pendiente en todas las filas.
-  const estadoPendiente = archivo === 'als'
   const [orden, setOrden] = useState<Orden>(ORDEN_INICIAL)
   const [texto, setTexto] = useState('')
   const [pagina, setPagina] = useState(1)
-  const [tamano, setTamano] = useState<number>(25)
+  const [tamano, setTamano] = useState<number>(10)
+  // En un teléfono la tabla no cabe: cada informe pasa a ser una tarjeta.
+  const angosto = useAnchoMaximo(640)
+  // En el estilo sobrio, las tablas de FSMA y fitopatología no llevan el punto de color de cada analito.
+  const sinPuntos = esPaletaSobria()
 
   const conDetalle = modelo.informes.some((i) => i.detalle)
   const filtrados = useMemo(() => filtrarInformes(modelo.informes, texto), [modelo.informes, texto])
@@ -86,7 +91,7 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
           <input
             type="search"
             value={texto}
-            placeholder="Buscar por N° de informe, zona o fecha"
+            placeholder="Buscar informe, sucursal, analito…"
             aria-label="Buscar informe"
             onChange={(e) => {
               setTexto(e.target.value)
@@ -95,6 +100,24 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
           />
         </label>
         <span className={styles.espacio} />
+        {angosto && (
+          <label className={styles.control}>
+            Ordenar por
+            <select
+              value={`${orden.col}|${orden.dir}`}
+              onChange={(e) => {
+                const [col, dir] = e.target.value.split('|')
+                setOrden({ col, dir: dir as Orden['dir'] })
+                setPagina(1)
+              }}
+            >
+              <option value="fecha|desc">Fecha: más reciente</option>
+              <option value="fecha|asc">Fecha: más antigua</option>
+              <option value="nro|asc">N° de informe</option>
+              <option value="estado|desc">Más detectados</option>
+            </select>
+          </label>
+        )}
         <label className={styles.control}>
           Filas por página
           <select
@@ -115,7 +138,7 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
           onClick={() =>
             descargarCsv(
               `informes-${archivo}-${new Date().toISOString().slice(0, 10)}.csv`,
-              csvDeInformes(ordenados, modelo.analitos, conDetalle ? columnaDetalle : null, estadoPendiente),
+              csvDeInformes(ordenados, modelo.analitos, conDetalle ? columnaDetalle : null),
             )
           }
         >
@@ -123,6 +146,52 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
         </Button>
       </div>
 
+      {angosto ? (
+        <div className={styles.tarjetas}>
+          {pag.filas.length === 0 && <p className={styles.vacioTarjetas}>Ningún informe calza con la búsqueda.</p>}
+          {pag.filas.map((inf, i) => {
+            const lineas = modelo.analitos.filter((a) => inf.porAnalito[a.codigo])
+            return (
+              <article key={`${inf.nro}-${i}`} className={styles.tarjetaInforme}>
+                <header>
+                  <span className={styles.fecha}>
+                    {inf.fechaTxt}
+                    {inf.fecha && <small>{modelo.dias.find((d) => d.fecha === inf.fecha)?.diaSemana}</small>}
+                  </span>
+                  <span className={styles.informe}>{inf.nro}</span>
+                </header>
+                {conDetalle && inf.detalle && (
+                  <p className={styles.detalleTarjeta}>
+                    {columnaDetalle}: <b>{inf.detalle}</b>
+                  </p>
+                )}
+                <ul>
+                  {lineas.map((a) => {
+                    const r = inf.porAnalito[a.codigo]
+                    return (
+                      <li key={a.codigo}>
+                        <span className={styles.nombreAnalito}>
+                          {!sinPuntos && <i className={styles.punto} style={{ background: a.color.fill }} />}
+                          {a.nombre}
+                        </span>
+                        <span className={styles.valorTarjeta}>
+                          {r.detectado ? (
+                            <span className={styles.chipSi} style={{ '--c': a.color.fill } as CSSProperties}>{r.texto}</span>
+                          ) : (
+                            <span className={styles.chipNo}>{r.texto}</span>
+                          )}
+                          <small>{a.unidad}</small>
+                        </span>
+                        {r.detectado ? <span className={styles.estadoSi}>Detectado</span> : <span className={styles.estadoNo}>No detectado</span>}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </article>
+            )
+          })}
+        </div>
+      ) : (
       <div className={styles.caja}>
         <table className={styles.tabla}>
           <thead>
@@ -175,7 +244,7 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
                     <td>
                       {a ? (
                         <span className={styles.nombreAnalito}>
-                          <i className={styles.punto} style={{ background: a.color.fill }} />
+                          {!sinPuntos && <i className={styles.punto} style={{ background: a.color.fill }} />}
                           {a.nombre}
                         </span>
                       ) : (
@@ -197,12 +266,10 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
                     <td>
                       {!r ? (
                         '—'
-                      ) : estadoPendiente ? (
-                        <span className={styles.estadoNo} title="El estado depende de límites que este laboratorio aún no tiene definidos">Pendiente</span>
                       ) : r.detectado ? (
-                        <span className={styles.estadoSi}>Detectó</span>
+                        <span className={styles.estadoSi}>Detectado</span>
                       ) : (
-                        <span className={styles.estadoNo}>No detectó</span>
+                        <span className={styles.estadoNo}>No detectado</span>
                       )}
                     </td>
                   </tr>
@@ -212,18 +279,19 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
           </tbody>
         </table>
       </div>
+      )}
 
       {filtrados.length > 0 && (
         <div className={styles.resumen}>
-          <b>Informes con detección por analito</b>
+          <b>Informes con el analito detectado</b>
           {modelo.analitos.map((a, k) => (
             <span key={a.codigo}>
-              <i className={styles.punto} style={{ background: a.color.fill }} />
+              {!sinPuntos && <i className={styles.punto} style={{ background: a.color.fill }} />}
               {a.nombre} <b>{resumen[k].detectados}</b> de {resumen[k].total}
             </span>
           ))}
           <span>
-            Con alguna detección <b>{conDeteccion}</b> de {filtrados.length}
+            Con algún analito detectado <b>{conDeteccion}</b> de {filtrados.length}
           </span>
         </div>
       )}
@@ -241,7 +309,9 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
           </span>
         )}
       </div>
-      <p className={styles.nota}>{nota}</p>
+      <p className={styles.nota}>
+        <InfoTip>{nota}</InfoTip>
+      </p>
     </>
   )
 }
