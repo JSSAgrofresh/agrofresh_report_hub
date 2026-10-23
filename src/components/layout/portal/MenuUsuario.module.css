@@ -46,3 +46,8 @@
   .iniciales { width: 42px; height: 42px; font-size: 15px; }
 }
 @media (prefers-reduced-motion: reduce) { .panel { animation: none; } }
+
+/* Teléfono acostado: solo el avatar, para que la barra desplegada quepa. */
+@media (max-height: 540px) and (orientation: landscape) and (max-width: 1000px) {
+  .nombre, .flecha { display: none; }
+}
