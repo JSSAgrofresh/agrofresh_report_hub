@@ -95,3 +95,66 @@ def comparar(visto: set[tuple[str, str, str]], esperado: set[tuple[str, str, str
     de_mas = sorted(visto - esperado)
     falta = sorted(esperado - visto)
     return {"estado": "sin traspaso" if not de_mas and not falta else "con traspaso", "ve_de_mas": de_mas, "le_falta": falta}
+
+
+# ── Correos mal escritos en la lista (pegados, con nombres, separados por «/» o «:») ──────────────
+
+_TLD_PEGADO = re.compile(r"(\.(?:com|cl|net|org))(?=@?[A-Za-z0-9._+-]+@)", re.I)
+_SEPARADORES = re.compile(r"[\s/:;,<>()\[\]]+")
+
+
+def separar_correos(texto: str) -> list[str]:
+    """Los correos legibles de un texto mal escrito, sin repetir y en el orden en que aparecen. Parte por espacios,
+    «/», «:», «;» y «,» y, si dos correos vienen pegados sin separador («…@dole.commarcela@dole.com»), corta donde
+    termina un dominio conocido (.com, .cl, .net, .org). Lo que no es un correo (nombres, palabras sueltas) se descarta."""
+    salida: list[str] = []
+    for trozo in _SEPARADORES.split(texto or ""):
+        for parte in _TLD_PEGADO.sub(r"\1 ", trozo).split():
+            parte = parte.strip("@.-_ ")
+            if _PAT_EMAIL.match(parte) and parte.casefold() not in {c.casefold() for c in salida}:
+                salida.append(parte)
+    return salida
+
+
+def corregir_contactos(contactos: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
+    """(contactos corregidos, cambios [{antes, despues, contacto}], contactos sin arreglo).
+
+    Un contacto cuyo correo no es UN correo válido se reemplaza por uno por cada correo que se le pueda leer (mismos
+    datos, otro correo). No agrega a nadie que ya figure igual en esa planta y especie, y los que no tienen ningún
+    correo legible se dejan como están y se informan."""
+    def llave(c: dict, correo: str) -> tuple:
+        return (c.get("servicio") or "", c.get("tipo"), plano(c.get("sold_to")), plano(c.get("ship_to")),
+                plano(c.get("especie")), correo.casefold())
+
+    existentes = {llave(c, str(c.get("email") or "").strip()) for c in contactos if _PAT_EMAIL.match(str(c.get("email") or "").strip())}
+    sig_id = max((c.get("id", 0) for c in contactos if isinstance(c.get("id", 0), int)), default=0) + 1
+    nuevos: list[dict] = []
+    cambios: list[dict] = []
+    sin_arreglo: list[dict] = []
+    for c in contactos:
+        texto = str(c.get("email") or "").strip()
+        if not texto or _PAT_EMAIL.match(texto):
+            nuevos.append(c)
+            continue
+        correos = separar_correos(texto)
+        if not correos:
+            nuevos.append(c)
+            sin_arreglo.append(c)
+            continue
+        agregados: list[str] = []
+        for correo in correos:
+            k = llave(c, correo)
+            if k in existentes:
+                continue
+            existentes.add(k)
+            copia = dict(c)
+            copia["email"] = correo
+            if str(c.get("nombre") or "").strip() in ("", texto):
+                copia["nombre"] = correo
+            if agregados:
+                copia["id"] = sig_id
+                sig_id += 1
+            nuevos.append(copia)
+            agregados.append(correo)
+        cambios.append({"antes": texto, "despues": agregados or correos, "contacto": c})
+    return nuevos, cambios, sin_arreglo

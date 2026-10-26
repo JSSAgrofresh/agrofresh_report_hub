@@ -153,3 +153,69 @@ def test_la_prueba_de_traspaso_detecta_una_cuenta_mal_creada(datos):
     assert set(r["ve_de_mas"]) == {("ZZT DOLE", "ZZT LONTUE", "Manzana"), ("ZZT DOLE", "ZZT LONTUE", "Kiwi")}
     bien = _cuenta(lista)
     assert ac.comparar(_vista(bien), ac.triples_esperados(lista, universo))["estado"] == "sin traspaso"
+
+
+# ── Correos mal escritos en la lista ─────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("texto,esperado", [
+    ("cibarra@grupoara.cl cibarra@grupoara.cl", ["cibarra@grupoara.cl"]),
+    ("gsalazar@auroraa.cl / eespina@auroraa.cl", ["gsalazar@auroraa.cl", "eespina@auroraa.cl"]),
+    ("eduardo quiero mejias equieromejias@camarico.cl / francisca atala sagcamarico@camarico.cl",
+     ["equieromejias@camarico.cl", "sagcamarico@camarico.cl"]),
+    ("pamela.donoso@dole.commarcela.lecannelier@dole.com", ["pamela.donoso@dole.com", "marcela.lecannelier@dole.com"]),
+    ("matias.barrera@manio.cl:juan.lorca@manio.cl", ["matias.barrera@manio.cl", "juan.lorca@manio.cl"]),
+    ("clagos@exser.cl@pchamorro@exser.cl", ["clagos@exser.cl", "pchamorro@exser.cl"]),
+    ("julio salgado frio@fruitservice.cl", ["frio@fruitservice.cl"]),
+    ("juan@empresa.com.cl", ["juan@empresa.com.cl"]),   # un dominio con .com adentro no se parte
+    ("sin correo aquí", []),
+])
+def test_separar_correos_lee_los_que_hay_y_descarta_el_resto(texto, esperado):
+    assert ac.separar_correos(texto) == esperado
+
+
+def test_corregir_contactos_reemplaza_sin_duplicar_ni_tocar_lo_bueno():
+    malo = _c("DOLE", "DOLE LONTUE", "ana@dole.cl / luis@dole.cl", "Cereza")
+    malo.update(id=5, nombre="ana@dole.cl / luis@dole.cl")
+    bueno = _c("DOLE", "DOLE LONTUE", "luis@dole.cl", "Cereza")
+    bueno["id"] = 6
+    otro = _c("DOLE", "DOLE LONTUE", "ok@dole.cl", "Cereza")
+    otro["id"] = 7
+    ilegible = _c("DOLE", "DOLE LONTUE", "llamar a Juan", "Cereza")
+    ilegible["id"] = 8
+    nuevos, cambios, sin_arreglo = ac.corregir_contactos([malo, bueno, otro, ilegible])
+    correos = [c["email"] for c in nuevos]
+    assert correos == ["ana@dole.cl", "luis@dole.cl", "ok@dole.cl", "llamar a Juan"]   # luis ya estaba: no se repite
+    assert nuevos[0]["id"] == 5 and nuevos[0]["nombre"] == "ana@dole.cl"
+    assert [c["email"] for c in sin_arreglo] == ["llamar a Juan"]
+    assert len(cambios) == 1 and cambios[0]["despues"] == ["ana@dole.cl"]
+
+
+def test_corregir_contactos_da_un_id_nuevo_a_cada_correo_extra():
+    malo = _c("DOLE", "DOLE LONTUE", "a@x.cl / b@x.cl / c@x.cl", "Cereza")
+    malo["id"] = 1
+    nuevos, _, _ = ac.corregir_contactos([malo, {**_c("VERFRUT", "VERFRUT RAPEL", "z@v.cl"), "id": 9}])
+    assert [c["email"] for c in nuevos[:3]] == ["a@x.cl", "b@x.cl", "c@x.cl"]
+    assert len({c["id"] for c in nuevos}) == 4 and nuevos[0]["id"] == 1 and nuevos[1]["id"] == 10
+
+
+def test_el_script_mira_primero_y_aplica_con_respaldo(tmp_path, monkeypatch, capsys):
+    import json
+
+    from app import config, config_store
+
+    monkeypatch.setattr(config, "STORAGE_DIR", str(tmp_path))
+    contactos = [{**_c("DOLE", "DOLE LONTUE", "a@x.cl / b@x.cl", "Cereza"), "id": 1}]
+    config_store.escribir("contactos_laboratorio.json", contactos)
+    mod = _cargar("corregir_correos_lista")
+
+    monkeypatch.setattr("sys.argv", ["corregir_correos_lista.py"])
+    mod.main()
+    assert "No se escribió nada" in capsys.readouterr().out
+    assert config_store.leer("contactos_laboratorio.json", []) == contactos
+
+    monkeypatch.setattr("sys.argv", ["corregir_correos_lista.py", "--aplicar"])
+    mod.main()
+    carpeta = tmp_path / "solicitudes" / "_config"
+    assert [c["email"] for c in config_store.leer("contactos_laboratorio.json", [])] == ["a@x.cl", "b@x.cl"]
+    respaldos = [f for f in os.listdir(carpeta) if f.startswith("contactos_laboratorio_respaldo_")]
+    assert len(respaldos) == 1 and json.load(open(carpeta / respaldos[0], encoding="utf-8")) == contactos
