@@ -45,8 +45,8 @@ def test_un_comercial_no_recibe_funciones_sueltas():
 def test_el_filtro_de_report_deja_solo_sus_plantas():
     filtro, params = reportes._filtro_alcance(_com(PLANTAS), None, None)
     assert "OR" in filtro
-    assert params["com_c0"] == "DOLE" and params["com_p0"] == "DOLE LONTUE"
-    assert params["com_c1"] == "VERFRUT" and "com_p1" not in params  # sin planta = todo ese Sold To
+    assert params["com_c0"] == "dole" and params["com_p0"] == "dole lontue"
+    assert params["com_c1"] == "verfrut" and "com_p1" not in params  # sin planta = todo ese Sold To
 
 
 def test_el_filtro_de_report_sin_plantas_no_deja_pasar_nada():
