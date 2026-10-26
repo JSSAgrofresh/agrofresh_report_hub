@@ -141,3 +141,51 @@ class TestPresenciaDetallada:
         v = lambda m, mod: _ev(m, "a@x.cl", categoria="visita", accion="visita", modulo=mod)  # noqa: E731
         r = monitoreo.recorrido_con_tiempos([v(5, "Report"), v(20, "Report"), v(40, "Storage")], AHORA)
         assert [(x["modulo"], x["minutos"]) for x in r] == [("Storage", 20), ("Report", 20)]
+
+
+class TestSesiones:
+    def _s(self, email, ini_min, fin_min, activos=0, tipo="cliente", nombre="GREENEX"):
+        return {"email": email, "nombre": nombre, "tipo_acceso": tipo, "cliente": "GARATE", "planta": "CODEGUA",
+                "dispositivo": "Móvil · Chrome", "inicio": AHORA - timedelta(minutes=ini_min),
+                "ultimo_latido": AHORA - timedelta(minutes=fin_min), "segundos_activos": activos * 60}
+
+    def test_suma_visitas_y_tiempo_conectado_de_una_cuenta(self):
+        r = monitoreo.agrupar_sesiones([self._s("a@x.cl", 120, 90, 20), self._s("a@x.cl", 40, 10, 25)], AHORA)
+        assert len(r) == 1
+        assert r[0]["sesiones"] == 2 and r[0]["segundos_conectado"] == 60 * 60 and r[0]["segundos_activo"] == 45 * 60
+        assert r[0]["en_linea"] is False and r[0]["primera"] == monitoreo._iso(AHORA - timedelta(minutes=120))
+
+    def test_el_tiempo_activo_nunca_supera_al_conectado(self):
+        r = monitoreo.agrupar_sesiones([self._s("a@x.cl", 10, 5, activos=300)], AHORA)
+        assert r[0]["segundos_activo"] == 5 * 60
+
+    def test_en_linea_primero_y_luego_el_mas_reciente(self):
+        r = monitoreo.agrupar_sesiones(
+            [self._s("viejo@x.cl", 300, 200), self._s("vivo@x.cl", 20, 1), self._s("medio@x.cl", 100, 50)], AHORA)
+        assert [c["email"] for c in r] == ["vivo@x.cl", "medio@x.cl", "viejo@x.cl"] and r[0]["en_linea"] is True
+
+    def test_una_visita_de_un_solo_latido_dura_cero(self):
+        assert monitoreo.agrupar_sesiones([self._s("a@x.cl", 5, 5)], AHORA)[0]["segundos_conectado"] == 0
+
+
+class TestPertenencia:
+    def test_cliente_con_lista_agrupa_por_sold_to_y_ship_to_y_junta_las_especies(self):
+        fila = {"tipo_acceso": "cliente", "area": None, "cliente_nombre": "VIEJO", "planta_nombre": "VIEJA", "plantas_asignadas": [
+            {"clienteNombre": "DOLE CHILE S.A.", "plantaNombre": "DOLE PLANTA CODEGUA", "especie": "Cerezas"},
+            {"clienteNombre": "DOLE CHILE S.A.", "plantaNombre": "DOLE PLANTA CODEGUA", "especie": "Paltas"},
+            {"clienteNombre": "DOLE CHILE S.A.", "plantaNombre": "DOLE PLANTA CODEGUA", "especie": "Cerezas"},
+            {"clienteNombre": "DOLE CHILE S.A.", "plantaNombre": "DOLE PLANTA SAN FERNANDO"}]}
+        r = monitoreo.pertenencia_de_cuenta(fila)
+        assert r["accesos"] == [
+            {"sold_to": "DOLE CHILE S.A.", "ship_to": "DOLE PLANTA CODEGUA", "especies": ["Cerezas", "Paltas"]},
+            {"sold_to": "DOLE CHILE S.A.", "ship_to": "DOLE PLANTA SAN FERNANDO", "especies": []}]
+
+    def test_cuenta_antigua_sin_lista_usa_su_cliente_y_sucursal(self):
+        r = monitoreo.pertenencia_de_cuenta({"tipo_acceso": "cliente", "cliente_nombre": "GARATE", "planta_nombre": "CODEGUA", "plantas_asignadas": None})
+        assert r["accesos"] == [{"sold_to": "GARATE", "ship_to": "CODEGUA", "especies": []}]
+
+    def test_sold_to_sin_planta_es_todo_el_sold_to_y_el_personal_interno_no_tiene_accesos(self):
+        r = monitoreo.pertenencia_de_cuenta({"tipo_acceso": "comercial", "plantas_asignadas": [{"clienteNombre": "DOLE CHILE S.A."}]})
+        assert r["accesos"] == [{"sold_to": "DOLE CHILE S.A.", "ship_to": None, "especies": []}]
+        assert monitoreo.pertenencia_de_cuenta({"tipo_acceso": "analista", "area": "cromatografia", "plantas_asignadas": None})["accesos"] == []
+        assert monitoreo.pertenencia_de_cuenta(None) is None

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { COLOR_CATEGORIA, ETIQUETA_CATEGORIA, iniciales, type CategoriaActividad } from '@/features/adminPanel'
 import {
-  duracion, ETIQUETA_ACTIVIDAD, horaChile, obtenerDetalleUsuario, TEXTO_ORIGEN_DESDE, textoInactividad, tonoDe,
+  duracion, duracionSeg, ETIQUETA_ACTIVIDAD, ETIQUETA_TIPO, horaChile, obtenerDetalleUsuario, TEXTO_ORIGEN_DESDE, textoInactividad, tonoDe,
   type DetalleUsuario,
 } from '@/features/monitoreo'
 import styles from './MonitoreoView.module.css'
@@ -71,6 +71,34 @@ export function DetalleSheet({ email, nombre, onCerrar }: Props) {
 
         {d && (
           <div className={styles.hojaCuerpo}>
+            {d.cuenta && (
+              <section className={styles.pertenece} aria-label="A qué pertenece">
+                <h3 className={styles.subtitulo}>
+                  {ETIQUETA_TIPO[d.cuenta.tipo ?? ''] ?? 'Cuenta'}
+                  {d.cuenta.accesos.length > 0 ? ` · ${d.cuenta.accesos.length} ${d.cuenta.accesos.length === 1 ? 'planta' : 'plantas'}` : ''}
+                </h3>
+                {d.cuenta.accesos.length === 0 ? (
+                  <p className={styles.sinAcceso}>
+                    {d.cuenta.tipo === 'cliente' || d.cuenta.tipo === 'comercial'
+                      ? 'Esta cuenta no tiene Sold To ni Ship To asignados.'
+                      : `Personal de AgroFresh${d.cuenta.area ? ` · área ${d.cuenta.area}` : ''}: ve todos los clientes según sus módulos.`}
+                  </p>
+                ) : (
+                  <ul className={styles.accesos}>
+                    {d.cuenta.accesos.map((a) => (
+                      <li key={`${a.sold_to}|${a.ship_to ?? ''}`}>
+                        <small>Sold To</small><b>{a.sold_to}</b>
+                        <small>Ship To</small><b>{a.ship_to ?? 'Todas las plantas'}</b>
+                        {a.especies.length > 0 && (
+                          <span className={styles.especies}>{a.especies.map((e) => <i key={e}>{e}</i>)}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
+
             <div className={styles.estadoHoja}>
               <div className={`${styles.dato} ${d.en_linea ? (d.actividad === 'pausa' ? styles.eAmbar : d.actividad === 'segundo_plano' ? styles.eAzul : styles.eVerde) : styles.eGris}`}>
                 <small>Estado</small>
@@ -102,6 +130,20 @@ export function DetalleSheet({ email, nombre, onCerrar }: Props) {
                 </span>
               ))}
             </div>
+
+            {d.sesiones.length > 0 && (
+              <>
+                <h3 className={styles.subtitulo}>Conexiones recientes</h3>
+                <ul className={styles.tiempos}>
+                  {d.sesiones.map((s, i) => (
+                    <li key={`${s.inicio}-${i}`}>
+                      <span>{new Date(s.inicio).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', timeZone: 'America/Santiago' })} · {horaChile(s.inicio)} a {horaChile(s.fin)}</span>
+                      <em>{duracionSeg(s.segundos)}{s.dispositivo ? ` · ${s.dispositivo}` : ''}</em>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
 
             {d.recorrido_tiempos.length > 0 && (
               <>
