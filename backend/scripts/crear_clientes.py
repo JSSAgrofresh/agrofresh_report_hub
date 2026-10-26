@@ -12,6 +12,7 @@ terminar). Las claves solo existen ahí.
 
 Uso (ya dentro de backend, después de subir la lista corregida en Administración General → Listas de distribución):
     .venv\\Scripts\\python.exe scripts\\crear_clientes.py
+    .venv\\Scripts\\python.exe scripts\\crear_clientes.py --lista                  (una línea por cuenta, para elegir un piloto)
     .venv\\Scripts\\python.exe scripts\\crear_clientes.py --aplicar
     .venv\\Scripts\\python.exe scripts\\crear_clientes.py --solo a@x.cl,b@y.cl --aplicar     (un piloto de pocas cuentas)
     .venv\\Scripts\\python.exe scripts\\crear_clientes.py --sin-storage --aplicar
@@ -66,6 +67,20 @@ def planificar(
     return crear, saltados
 
 
+def lineas_de_cuentas(crear: list[UsuarioIn]) -> list[str]:
+    """Una línea por cuenta, agrupadas por tipo: «Tipo 3 · correo · 2 plantas, 5 accesos»."""
+    filas = []
+    for c in crear:
+        lista = c.plantasAsignadas or []
+        t = tipo_de_cuenta(lista)
+        plantas = len({(a["clienteNombre"], a.get("plantaNombre")) for a in lista})
+        filas.append((t, c.email, plantas, len(lista)))
+    return [
+        f"  Tipo {t} · {correo:<42} {plantas} {'planta' if plantas == 1 else 'plantas'}, {accesos} {'acceso' if accesos == 1 else 'accesos'}"
+        for t, correo, plantas, accesos in sorted(filas)
+    ]
+
+
 def escribir_excel(ruta: str, filas: list[dict]) -> None:
     import openpyxl
     from openpyxl.styles import Font
@@ -88,6 +103,7 @@ def main() -> None:
     p.add_argument("--servicio", choices=sorted(SERVICIOS), default="linea", help="Qué listas leer (por defecto, Línea de proceso).")
     p.add_argument("--solo", default="", help="Crear solo estos correos (separados por coma): para un piloto.")
     p.add_argument("--sin-storage", action="store_true", help="Cuentas solo con Report (sin Storage).")
+    p.add_argument("--lista", action="store_true", help="Mostrar una línea por cuenta (correo, tipo y cuántas plantas) para elegir el piloto.")
     p.add_argument("--aplicar", action="store_true", help="Escribir en la base. Sin esto solo muestra lo que haría.")
     args = p.parse_args()
 
@@ -104,6 +120,8 @@ def main() -> None:
         print(f"\nCorreos de cliente en las listas: {len(accesos)}. Se crearían {len(crear)} cuentas:")
         for t in (1, 2, 3):
             print(f"  Tipo {t} ({NOMBRE_TIPO[t]}): {por_tipo[t]}")
+        if args.lista:
+            print("\nCuentas:\n" + "\n".join(lineas_de_cuentas(crear)))
         if saltados:
             print(f"\nSe saltan {len(saltados)} (ya tienen cuenta o no están en --solo).")
         if invalidos:

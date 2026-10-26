@@ -219,3 +219,13 @@ def test_el_script_mira_primero_y_aplica_con_respaldo(tmp_path, monkeypatch, cap
     assert [c["email"] for c in config_store.leer("contactos_laboratorio.json", [])] == ["a@x.cl", "b@x.cl"]
     respaldos = [f for f in os.listdir(carpeta) if f.startswith("contactos_laboratorio_respaldo_")]
     assert len(respaldos) == 1 and json.load(open(carpeta / respaldos[0], encoding="utf-8")) == contactos
+
+
+def test_crear_clientes_lista_una_linea_por_cuenta_ordenada_por_tipo():
+    mod = _cargar("crear_clientes")
+    accesos, _ = ac.accesos_por_correo(CONTACTOS)
+    crear, _ = mod.planificar(accesos, set(), set(), True)
+    lineas = mod.lineas_de_cuentas(crear)
+    assert [l.split("·")[0].strip() for l in lineas] == ["Tipo 1", "Tipo 2", "Tipo 3"]
+    assert "ana@dole.cl" in lineas[2] and "2 plantas, 3 accesos" in lineas[2]
+    assert "eva@verfrut.cl" in lineas[0] and "1 planta, 1 acceso" in lineas[0]
