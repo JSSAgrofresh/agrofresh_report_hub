@@ -6,6 +6,8 @@ export {
   esComercial,
   esSoloLectura,
   MODULOS_COMERCIAL,
+  MODULO_TODAS_LAS_PLANTAS,
+  veTodasLasPlantas,
   etiquetaAcceso,
   modulosPermitidos,
   puedeAdministrarUsuarios,

@@ -132,6 +132,16 @@ def es_comercial(usuario: Usuario) -> bool:
     return usuario.tipoAcceso == "comercial"
 
 
+# Marca (viaja en `modulos`, sin migración) que el administrador general le da a ALGUNOS comerciales al crearlos o
+# editarlos: ven las plantas de TODOS los clientes en vez de una lista. Sigue siendo solo lectura y solo los módulos
+# que se le marquen. Solo vale en un comercial: en cualquier otro tipo de cuenta no hace nada.
+MODULO_TODAS_LAS_PLANTAS = "todas_las_plantas"
+
+
+def ve_todas_las_plantas(usuario: Usuario) -> bool:
+    return usuario.tipoAcceso == "comercial" and MODULO_TODAS_LAS_PLANTAS in (usuario.modulos or [])
+
+
 def plantas_de_comercial(usuario: Usuario) -> list[tuple[str, str | None]]:
     """(Sold To, Ship To o None) que esta cuenta (comercial o cliente con lista de accesos) puede ver. None en el
     Ship To = todo ese Sold To. Vacío = no ve nada (una cuenta sin plantas asignadas nunca ve todo). Sin repetir."""
@@ -155,10 +165,10 @@ def accesos_de_cuenta(usuario: Usuario) -> list[tuple[str, str | None, str | Non
 
 
 def con_lista_de_accesos(usuario: Usuario) -> bool:
-    """Un comercial siempre se acota por su lista (vacía = nada). Un cliente solo si tiene una lista guardada; sin
+    """Un comercial se acota por su lista (vacía = nada), salvo el que tiene la marca «todas las plantas». Un cliente solo si tiene una lista guardada; sin
     ella manda su cliente y su sucursal de siempre (las cuentas antiguas siguen igual)."""
     if usuario.tipoAcceso == "comercial":
-        return True
+        return not ve_todas_las_plantas(usuario)
     return usuario.tipoAcceso == "cliente" and bool(accesos_de_cuenta(usuario))
 
 

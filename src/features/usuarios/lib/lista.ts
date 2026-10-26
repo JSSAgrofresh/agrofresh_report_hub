@@ -1,5 +1,5 @@
 import { CATEGORIAS, seleccionDesdeCuenta } from '../catalogoPermisos'
-import { modulosPredeterminados, reportesPredeterminados, vistaDeCliente } from '../permisos'
+import { modulosPredeterminados, reportesPredeterminados, veTodasLasPlantas, vistaDeCliente } from '../permisos'
 import type { TipoAcceso, Usuario } from '../types'
 
 /** Los filtros de la lista de usuarios: «Todos» y un grupo por tipo de cuenta. */
@@ -49,6 +49,7 @@ export function resumenAccesos(u: Usuario): string[] {
   if (u.tipoAcceso === 'gerencia' && u.modulos == null) return ['Todo, solo lectura']
   if (u.tipoAcceso === 'comercial') {
     const ve = (u.modulos ?? []).map((m) => (m === 'reports' ? 'Report' : m === 'storage' ? 'Storage' : '')).filter(Boolean)
+    if (veTodasLasPlantas(u)) return [...ve, 'Todas las plantas']
     const n = u.plantasAsignadas?.length ?? 0
     return [...ve, `${n} ${n === 1 ? 'planta' : 'plantas'}`]
   }

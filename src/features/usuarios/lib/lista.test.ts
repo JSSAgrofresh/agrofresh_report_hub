@@ -62,3 +62,10 @@ describe('comerciales en la lista', () => {
     expect(resumenAccesos(lista.find((x) => x.id === '7') as Usuario)).toEqual(['Report', 'Storage', '2 plantas'])
   })
 })
+
+describe('comercial con «todas las plantas»', () => {
+  it('el resumen de accesos dice «Todas las plantas» en vez de contar plantas', () => {
+    const u = { id: '1', email: 'c@x.cl', nombre: 'C', tipoAcceso: 'comercial', modulos: ['reports', 'todas_las_plantas'], plantasAsignadas: [] } as Usuario
+    expect(resumenAccesos(u)).toEqual(['Report', 'Todas las plantas'])
+  })
+})

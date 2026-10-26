@@ -9,7 +9,7 @@ import type { Planta } from '@/features/catalogo'
 import { listarEspeciesActivas } from '@/features/listados'
 import { CORREO_MAESTRO, buscarPlantasDeComercial } from '../api/usuariosStore'
 import { cuentaDesdeSeleccion, seleccionDesdeCuenta, seleccionTotal, validarSeleccion } from '../catalogoPermisos'
-import { modulosPredeterminados, reportesPredeterminados, vistaDeCliente } from '../permisos'
+import { MODULO_TODAS_LAS_PLANTAS, modulosPredeterminados, reportesPredeterminados, veTodasLasPlantas, vistaDeCliente } from '../permisos'
 import type { VistaCliente } from '../permisos'
 import type { Permiso } from '../catalogoPermisos'
 import type { PlantaAsignada, TipoAcceso, Usuario } from '../types'
@@ -62,6 +62,8 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   )
   // Comercial: de qué plantas.
   const [plantasAsignadas, setPlantasAsignadas] = useState<PlantaAsignada[]>(usuario?.plantasAsignadas ?? [])
+  // Comercial que ve las plantas de TODOS los clientes (sin lista).
+  const [todasLasPlantas, setTodasLasPlantas] = useState(usuario ? veTodasLasPlantas(usuario) : false)
   const [comercialCliente, setComercialCliente] = useState('')
   const [comercialPlanta, setComercialPlanta] = useState('')
   const [comercialEspecies, setComercialEspecies] = useState<string[]>([])
@@ -155,8 +157,8 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       setError('Agrega al menos una planta a la lista de accesos del cliente, o desmarca «varias plantas o especies».')
       return
     }
-    if (esComercial && plantasAsignadas.length === 0) {
-      setError('Asigna al menos una planta al comercial.')
+    if (esComercial && !todasLasPlantas && plantasAsignadas.length === 0) {
+      setError('Asigna al menos una planta al comercial, o marca «Puede ver las plantas de todos los clientes».')
       return
     }
     const falla = configuraPermisos ? validarSeleccion(seleccion) : null
@@ -181,11 +183,13 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       plantaNombre: esCliente && !clienteVarios && plantaNombre.trim() ? plantaNombre.trim() : undefined,
       modulos: esCliente
         ? [clienteVe.report && 'reports', clienteVe.storage && 'storage'].filter((m): m is string => !!m)
-        : permisos?.modulos,
+        : esComercial && todasLasPlantas
+          ? [...(permisos?.modulos ?? []), MODULO_TODAS_LAS_PLANTAS]
+          : permisos?.modulos,
       reportes: esCliente
         ? [clienteVe.report && 'laboratorio', clienteVe.accutab && 'postventa'].filter((r): r is 'laboratorio' | 'postventa' => !!r)
         : permisos?.reportes,
-      plantasAsignadas: conLista ? plantasAsignadas : undefined,
+      plantasAsignadas: conLista ? (esComercial && todasLasPlantas ? [] : plantasAsignadas) : undefined,
     })
   }
 
@@ -403,7 +407,17 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
             Un comercial solo mira: no puede crear, editar, subir ni borrar nada. Puede descargar. Abajo eliges a qué módulos entra.
           </p>
 
-          {constructorDeAccesos}
+          <label className={styles.permisoOpcion}>
+            <input type="checkbox" checked={todasLasPlantas} onChange={(e) => setTodasLasPlantas(e.target.checked)} />
+            <span>
+              <strong>Puede ver las plantas de todos los clientes</strong>
+              <small>
+                Verá los resultados, informes y solicitudes de todos los Sold To y Ship To, sin lista de plantas. Sigue siendo
+                solo lectura y solo abre los módulos que marques abajo.
+              </small>
+            </span>
+          </label>
+          {!todasLasPlantas && constructorDeAccesos}
         </section>
       )}
 

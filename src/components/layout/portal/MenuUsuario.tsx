@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ROUTES } from '@/constants/routes'
-import { etiquetaAcceso, iniciales } from '@/features/usuarios'
+import { etiquetaAcceso, iniciales, veTodasLasPlantas } from '@/features/usuarios'
 import type { Usuario } from '@/features/usuarios'
 import styles from './MenuUsuario.module.css'
 
@@ -28,6 +28,7 @@ export function MenuUsuario({ user, vistaPrevia, onSalir }: { user: Usuario; vis
 
   const comercial = user.tipoAcceso === 'comercial'
   const plantas = user.plantasAsignadas ?? []
+  const todasLasPlantas = veTodasLasPlantas(user)
   return (
     <div className={styles.zona} ref={zona}>
       <button type="button" className={styles.disparador} aria-expanded={abierto} aria-haspopup="dialog" onClick={() => setAbierto((v) => !v)} title="Ver los datos de tu cuenta">
@@ -52,7 +53,9 @@ export function MenuUsuario({ user, vistaPrevia, onSalir }: { user: Usuario; vis
               <dl className={styles.dato}>
                 <dt>Tus plantas</dt>
                 <dd>
-                  {plantas.length === 0 ? (
+                  {todasLasPlantas ? (
+                    'Todas las plantas de todos los clientes'
+                  ) : plantas.length === 0 ? (
                     'Sin plantas asignadas'
                   ) : (
                     <ul className={styles.lista}>

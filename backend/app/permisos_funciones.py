@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from fastapi import Depends, HTTPException
 
-from .auth import Usuario, usuario_actual
+from .auth import MODULO_TODAS_LAS_PLANTAS, Usuario, usuario_actual
 from .lab_secciones import LAB_CRITERIOS
 
 VERIF_FIRMAR = "verif_firmar"
@@ -98,6 +98,9 @@ def normalizar_cuenta(
             raise HTTPException(400, "Elige qué abre el comercial: Report, Storage, Panel de control interno y/o Solicitudes e informes.")
         # Con Report puede llevar el de laboratorio y/o los informes Accu-Tab (`postventa`); sin elegir, el de laboratorio.
         reps_com = [r for r in ("laboratorio", "postventa") if r in (reportes or [])]
+        # «Ve todas las plantas»: marca opcional de cada comercial (se guarda en `modulos`); sin ella, solo su lista.
+        if MODULO_TODAS_LAS_PLANTAS in (modulos or []):
+            mods = [*mods, MODULO_TODAS_LAS_PLANTAS]
         return None, mods, ((reps_com or ["laboratorio"]) if "reports" in mods else [])
     if tipo == "admin_general":
         return None, None, None
