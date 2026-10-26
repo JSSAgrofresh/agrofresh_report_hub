@@ -1,6 +1,10 @@
 import { httpClient } from '@/services/http/client'
 
 export type EstadoConexion = 'en_linea' | 'reciente'
+/** Con la pestaña abierta: tocó algo hace poco (`activa`), lleva más de 3 min sin tocar nada (`pausa`) o la pestaña está oculta. */
+export type ActividadConexion = 'activa' | 'pausa' | 'segundo_plano'
+/** Minutos sin tocar nada para pasar a «en pausa» (el mismo corte del servidor: SEGUNDOS_PAUSA). */
+export const SEGUNDOS_PAUSA = 180
 
 export interface Conectado {
   email: string
@@ -9,10 +13,19 @@ export interface Conectado {
   area: string | null
   modulo: string | null
   ruta: string | null
+  /** Dónde está, en palabras: «Inicio (Panel general)», «Toma de muestras › Solicitudes». */
+  pantalla: string
+  en_inicio: boolean
+  en_pantalla_desde: string | null
   desde: string | null
   ultimo: string | null
   segundos: number
   estado: EstadoConexion
+  actividad: ActividadConexion | null
+  ultima_interaccion: string | null
+  inactivo_segundos: number | null
+  dispositivo: string | null
+  version: string | null
   /** `latido`: la pestaña avisó; `actividad`: se deduce de lo último que hizo. */
   origen: 'latido' | 'actividad'
   yo: boolean
@@ -59,11 +72,34 @@ export interface EnvioFallido {
   error: string
 }
 
+export interface ModuloConGente {
+  modulo: string
+  personas: number
+  activas: number
+  nombres: string[]
+}
+
+export interface EventoReciente {
+  t: string
+  email: string
+  nombre: string
+  categoria: string
+  texto: string
+  modulo: string | null
+}
+
 export interface ResumenMonitoreo {
   ahora: string
   conectados: Conectado[]
   en_linea: number
+  activos: number
+  en_pausa: number
+  clientes_en_linea: number
+  por_modulo: ModuloConGente[]
+  actividad_reciente: EventoReciente[]
   kpis: {
+    acciones_ultima_hora: number
+    acciones_hora_anterior: number
     informes_hoy: number
     solicitudes_creadas_hoy: number
     solicitudes_enviadas_hoy: number
@@ -91,6 +127,15 @@ export interface DetalleUsuario {
   origen_desde: 'conexion' | 'ingreso' | 'hoy'
   ahora: string
   en_linea: boolean
+  actividad: ActividadConexion | null
+  inactivo_segundos: number | null
+  ultimo_latido: string | null
+  pantalla: string | null
+  en_pantalla_desde: string | null
+  dispositivo: string | null
+  version: string | null
+  tipo: string | null
+  recorrido_tiempos: { modulo: string; desde: string; minutos: number }[]
   modulo_actual: string | null
   total: number
   acciones: number
@@ -103,7 +148,14 @@ export const obtenerResumen = () => httpClient.get<ResumenMonitoreo>('/monitoreo
 export const obtenerDetalleUsuario = (email: string) =>
   httpClient.get<DetalleUsuario>(`/monitoreo/usuario?email=${encodeURIComponent(email)}`)
 /** Cada pestaña abierta avisa que sigue ahí (alimenta «conectados» en el monitoreo). Si falla no importa. */
-export const enviarLatido = (ruta: string) => httpClient.post<{ ok: boolean }>('/monitoreo/latido', { ruta })
+export interface DatosLatido {
+  ruta: string
+  inactivo_segundos: number
+  visible: boolean
+  dispositivo: string
+  version: string
+}
+export const enviarLatido = (datos: DatosLatido) => httpClient.post<{ ok: boolean }>('/monitoreo/latido', datos)
 
 // ── Presentación (puro) ────────────────────────────────────────────────
 
@@ -173,4 +225,35 @@ export const TEXTO_ORIGEN_DESDE: Record<DetalleUsuario['origen_desde'], string> 
   conexion: 'desde que se conectó',
   ingreso: 'desde su último ingreso',
   hoy: 'desde el inicio del día',
+}
+
+/** «Móvil · Chrome · app», «Escritorio · Edge». Solo para que el administrador sepa desde qué aparato mira cada quien. */
+export function dispositivoDe(userAgent: string, anchoPantalla: number, instalada: boolean): string {
+  const ua = userAgent || ''
+  const tipo = /iPad|Tablet/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua))
+    ? 'Tablet'
+    : /Mobi|iPhone|Android/i.test(ua) || anchoPantalla < 600 ? 'Móvil' : 'Escritorio'
+  const navegador = /Edg\//.test(ua) ? 'Edge' : /OPR\/|Opera/.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox'
+    : /Chrome\/|CriOS/.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Navegador'
+  return [tipo, navegador, instalada ? 'app' : null].filter(Boolean).join(' · ')
+}
+
+/** Cuánto lleva sin tocar nada: «hace 40 s», «hace 4 min». */
+export function textoInactividad(seg: number | null): string {
+  if (seg === null) return ''
+  if (seg < 60) return `hace ${Math.max(5, Math.round(seg / 5) * 5)} s`
+  return `hace ${Math.round(seg / 60)} min`
+}
+
+export const ETIQUETA_ACTIVIDAD: Record<ActividadConexion, string> = {
+  activa: 'Activo',
+  pausa: 'En pausa',
+  segundo_plano: 'Pestaña en segundo plano',
+}
+
+/** «+3 que hace una hora», «igual que hace una hora»: para el ritmo de trabajo. */
+export function tendencia(ahora: number, antes: number): { texto: string; sube: boolean | null } {
+  if (ahora === antes) return { texto: 'igual que la hora anterior', sube: null }
+  const d = ahora - antes
+  return { texto: `${d > 0 ? '+' : ''}${d} que la hora anterior`, sube: d > 0 }
 }

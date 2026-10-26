@@ -90,3 +90,54 @@ class TestAcceso:
             with pytest.raises(HTTPException) as e:
                 monitoreo.exigir_principal(self._usuario(email, tipo))
             assert e.value.status_code == 403
+
+
+class TestPresenciaDetallada:
+    """Activo / en pausa / segundo plano, pantalla actual, dónde está la gente y el recorrido con tiempos."""
+
+    def _p(self, email="a@x.cl", inactivo=None, visible=True, ruta="/modulos/toma-muestras/solicitudes", seg=20, **extra):
+        p = _pres(email, seg)
+        p.update({"ruta": ruta, "visible": visible, "ruta_desde": AHORA - timedelta(minutes=12),
+                  "ultima_interaccion": None if inactivo is None else AHORA - timedelta(seconds=inactivo),
+                  "dispositivo": "Móvil · Chrome · app", "version": "abc1234"})
+        p.update(extra)
+        return p
+
+    def test_activa_si_toco_algo_hace_poco_y_en_pausa_pasados_3_min(self):
+        activa = monitoreo.armar_conectados([self._p(inactivo=30)], [], AHORA)[0]
+        pausa = monitoreo.armar_conectados([self._p(inactivo=monitoreo.SEGUNDOS_PAUSA + 5)], [], AHORA)[0]
+        assert activa["actividad"] == "activa" and pausa["actividad"] == "pausa"
+        assert pausa["inactivo_segundos"] == monitoreo.SEGUNDOS_PAUSA + 5
+
+    def test_pestana_oculta_es_segundo_plano_aunque_haya_tocado_algo(self):
+        c = monitoreo.armar_conectados([self._p(inactivo=5, visible=False)], [], AHORA)[0]
+        assert c["actividad"] == "segundo_plano"
+
+    def test_sin_dato_de_interaccion_se_da_por_activa_y_sin_latido_no_tiene_actividad(self):
+        assert monitoreo.armar_conectados([self._p(inactivo=None)], [], AHORA)[0]["actividad"] == "activa"
+        reciente = monitoreo.armar_conectados([self._p(seg=600, inactivo=1)], [], AHORA)[0]
+        assert reciente["estado"] == "reciente" and reciente["actividad"] is None
+
+    def test_pantalla_en_palabras_e_inicio(self):
+        assert monitoreo.pantalla_de_ruta("/") == "Inicio (Panel general)"
+        assert monitoreo.pantalla_de_ruta("/modulos/toma-muestras/solicitudes", "Toma de muestras") == "Toma de muestras › Solicitudes"
+        assert monitoreo.pantalla_de_ruta("/modulos/reportes") == "Report"
+        inicio = monitoreo.armar_conectados([self._p(ruta="/")], [], AHORA)[0]
+        assert inicio["en_inicio"] is True and inicio["pantalla"] == "Inicio (Panel general)"
+
+    def test_donde_esta_la_gente_cuenta_solo_a_los_en_linea(self):
+        lista = monitoreo.armar_conectados(
+            [self._p("a@x.cl", inactivo=10), self._p("b@x.cl", inactivo=999), self._p("c@x.cl", seg=900)], [], AHORA)
+        r = monitoreo.por_modulo(lista)
+        assert r == [{"modulo": "Toma de muestras", "personas": 2, "activas": 1, "nombres": ["a", "b"]}]
+
+    def test_actividad_reciente_va_de_lo_nuevo_a_lo_viejo_y_sin_ingresos_fallidos(self):
+        evs = [_ev(30, "a@x.cl", texto="viejo"), _ev(2, "b@x.cl", texto="nuevo"),
+               _ev(1, "c@x.cl", categoria="acceso", accion="login_fallido", texto="falló")]
+        r = monitoreo.actividad_reciente(evs)
+        assert [x["texto"] for x in r] == ["nuevo", "viejo"]
+
+    def test_recorrido_con_tiempos_une_visitas_seguidas_al_mismo_modulo(self):
+        v = lambda m, mod: _ev(m, "a@x.cl", categoria="visita", accion="visita", modulo=mod)  # noqa: E731
+        r = monitoreo.recorrido_con_tiempos([v(5, "Report"), v(20, "Report"), v(40, "Storage")], AHORA)
+        assert [(x["modulo"], x["minutos"]) for x in r] == [("Storage", 20), ("Report", 20)]

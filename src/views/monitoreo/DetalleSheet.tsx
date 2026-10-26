@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { COLOR_CATEGORIA, ETIQUETA_CATEGORIA, iniciales, type CategoriaActividad } from '@/features/adminPanel'
 import {
-  duracion, horaChile, obtenerDetalleUsuario, TEXTO_ORIGEN_DESDE, tonoDe,
+  duracion, ETIQUETA_ACTIVIDAD, horaChile, obtenerDetalleUsuario, TEXTO_ORIGEN_DESDE, textoInactividad, tonoDe,
   type DetalleUsuario,
 } from '@/features/monitoreo'
 import styles from './MonitoreoView.module.css'
@@ -59,8 +59,8 @@ export function DetalleSheet({ email, nombre, onCerrar }: Props) {
           <div className={styles.hojaTitulo}>
             <h2>{nombre}</h2>
             <p>
-              {d?.en_linea ? <b className={styles.enLinea}>En línea</b> : <span>Sin conexión ahora</span>}
-              {d?.modulo_actual && <> · {d.modulo_actual}</>}
+              {d?.en_linea ? <b className={styles.enLinea}>{d.actividad ? ETIQUETA_ACTIVIDAD[d.actividad] : 'En línea'}</b> : <span>Sin conexión ahora</span>}
+              {d?.pantalla && <> · {d.pantalla}</>}
             </p>
           </div>
           <button type="button" className={styles.cerrar} onClick={onCerrar} aria-label="Cerrar">✕</button>
@@ -71,6 +71,23 @@ export function DetalleSheet({ email, nombre, onCerrar }: Props) {
 
         {d && (
           <div className={styles.hojaCuerpo}>
+            <div className={styles.estadoHoja}>
+              <div className={`${styles.dato} ${d.en_linea ? (d.actividad === 'pausa' ? styles.eAmbar : d.actividad === 'segundo_plano' ? styles.eAzul : styles.eVerde) : styles.eGris}`}>
+                <small>Estado</small>
+                <b>{d.en_linea ? (d.actividad ? ETIQUETA_ACTIVIDAD[d.actividad] : 'En línea') : 'Sin conexión'}</b>
+              </div>
+              <div className={styles.dato}>
+                <small>Sin tocar nada</small>
+                <b>{d.en_linea && d.inactivo_segundos !== null ? (d.inactivo_segundos < 20 ? 'está usándolo' : textoInactividad(d.inactivo_segundos)) : '—'}</b>
+              </div>
+              <div className={`${styles.dato} ${styles.datoAncho}`}>
+                <small>Dónde está ahora</small>
+                <b>{d.pantalla ?? '—'}{d.en_pantalla_desde ? ` · desde las ${horaChile(d.en_pantalla_desde)} (${duracion(d.en_pantalla_desde, d.ahora)})` : ''}</b>
+              </div>
+              <div className={styles.dato}><small>Aparato</small><b>{d.dispositivo ?? '—'}</b></div>
+              <div className={styles.dato}><small>Versión</small><b>{d.version ?? '—'}</b></div>
+            </div>
+
             <p className={styles.desde}>
               Mostrando lo que hizo <b>{TEXTO_ORIGEN_DESDE[d.origen_desde]}</b> ({horaChile(d.desde)}
               {' · '}{duracion(d.desde, d.ahora)})
@@ -85,6 +102,24 @@ export function DetalleSheet({ email, nombre, onCerrar }: Props) {
                 </span>
               ))}
             </div>
+
+            {d.recorrido_tiempos.length > 0 && (
+              <>
+                <h3 className={styles.subtitulo}>Tiempo por módulo (aprox.)</h3>
+                <ul className={styles.tiempos}>
+                  {d.recorrido_tiempos.map((r, i) => {
+                    const max = Math.max(1, ...d.recorrido_tiempos.map((x) => x.minutos))
+                    return (
+                      <li key={`${r.modulo}-${i}`}>
+                        <span>{r.modulo}</span>
+                        <em>{horaChile(r.desde)} · {r.minutos < 1 ? '<1' : r.minutos} min</em>
+                        <span className={styles.tbarra}><i style={{ width: `${Math.max(4, (r.minutos / max) * 100)}%` }} /></span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
+            )}
 
             {d.recorrido.length > 0 && (
               <div className={styles.recorrido} aria-label="Recorrido por módulos">
