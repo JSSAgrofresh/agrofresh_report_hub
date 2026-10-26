@@ -14,6 +14,10 @@ vi.mock('@/features/catalogo', () => ({
   listarPlantas: vi.fn().mockResolvedValue([]),
 }))
 
+vi.mock('@/features/listados', () => ({
+  listarEspeciesActivas: vi.fn().mockResolvedValue([{ valor: 'Cerezas' }, { valor: 'Manzana' }]),
+}))
+
 const cuenta: Usuario = {
   id: '9', email: 'toma@agrofresh.com', nombre: 'Toma', tipoAcceso: 'admin_area', area: 'cromatografia',
 }
@@ -223,5 +227,51 @@ describe('UsuarioForm: cuenta de comercial', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Quitar todo DOLE' }))
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
     expect((onGuardar.mock.calls[0][0] as Usuario).plantasAsignadas).toEqual([{ clienteNombre: 'VERFRUT', plantaNombre: 'VERFRUT RAPEL' }])
+  })
+})
+
+describe('UsuarioForm: cliente con varias plantas y especies', () => {
+  const base: Usuario = {
+    id: '11', email: 'a@dole.com', nombre: 'A', tipoAcceso: 'cliente', modulos: ['reports'], reportes: ['laboratorio'],
+  }
+  const conLista: Usuario = {
+    ...base,
+    clienteNombre: 'DOLE',
+    plantaNombre: 'DOLE LONTUE',
+    plantasAsignadas: [
+      { clienteNombre: 'DOLE', plantaNombre: 'DOLE LONTUE', especie: 'Cerezas' },
+      { clienteNombre: 'DOLE', plantaNombre: 'DOLE LONTUE', especie: 'Manzana' },
+    ],
+  }
+
+  it('un cliente con lista la guarda entera y deja el cliente suelto al servidor', () => {
+    const onGuardar = guardar(conLista)
+    const datos = onGuardar.mock.calls[0][0] as Usuario
+    expect(datos.plantasAsignadas).toEqual(conLista.plantasAsignadas)
+    expect(datos.clienteNombre).toBeUndefined()
+    expect(datos.modulos).toEqual(['reports'])
+  })
+
+  it('muestra cada acceso con su especie', () => {
+    render(<UsuarioForm usuario={conLista} onGuardar={() => {}} onCancelar={() => {}} />)
+    expect(screen.getByText('DOLE LONTUE · Cerezas')).toBeTruthy()
+    expect(screen.getByText('DOLE LONTUE · Manzana')).toBeTruthy()
+    expect(screen.getByText('1 planta en 1 cliente')).toBeTruthy()
+  })
+
+  it('un cliente de siempre (sin lista) sigue guardando su Sold To y sucursal', () => {
+    const onGuardar = guardar({ ...base, clienteNombre: 'DOLE', plantaNombre: 'DOLE LONTUE' })
+    const datos = onGuardar.mock.calls[0][0] as Usuario
+    expect(datos.clienteNombre).toBe('DOLE')
+    expect(datos.plantaNombre).toBe('DOLE LONTUE')
+    expect(datos.plantasAsignadas).toBeUndefined()
+  })
+
+  it('marcar «varias plantas o especies» sin agregar ninguna no deja guardar', () => {
+    const onGuardar = guardar({ ...base, clienteNombre: 'DOLE' }, () =>
+      fireEvent.click(screen.getByRole('checkbox', { name: /Ve varias plantas o varias especies/ })),
+    )
+    expect(onGuardar).not.toHaveBeenCalled()
+    expect(screen.getByText(/Agrega al menos una planta/)).toBeTruthy()
   })
 })

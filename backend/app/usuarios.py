@@ -71,25 +71,37 @@ def _normalizar_email(email: str) -> str:
 def _validar(body: UsuarioIn) -> None:
     if body.tipoAcceso not in TIPOS_ACCESO:
         raise HTTPException(400, f"Tipo de acceso desconocido: {body.tipoAcceso!r}")
-    # Una cuenta de cliente sin cliente asignado no vería nada -o, si el
-    # filtro se tomara del navegador, lo vería todo-. No puede existir.
-    if body.tipoAcceso == "cliente" and not (body.clienteNombre or "").strip():
-        raise HTTPException(400, "Una cuenta de tipo cliente necesita un cliente asignado.")
-    # Un comercial sin plantas no vería nada: se pide al menos una (puede ser todo un Sold To).
-    if body.tipoAcceso == "comercial":
-        limpias: list[dict[str, str | None]] = []
-        vistas: set[tuple[str, str]] = set()
+    # Lista de accesos (Sold To, Ship To y especie): la llevan el comercial (obligatoria) y el cliente (opcional; si no
+    # la trae, manda su cliente y sucursal de siempre). Una fila por especie; sin Ship To = todo el Sold To; sin
+    # especie = todas las especies.
+    limpias: list[dict[str, str | None]] = []
+    vistas: set[tuple[str, str, str]] = set()
+    if body.tipoAcceso in ("comercial", "cliente"):
         for p in body.plantasAsignadas or []:
             cliente = str(p.get("clienteNombre") or "").strip()
             planta = str(p.get("plantaNombre") or "").strip()
-            if cliente and (cliente.casefold(), planta.casefold()) not in vistas:
-                vistas.add((cliente.casefold(), planta.casefold()))
-                limpias.append({"clienteNombre": cliente, "plantaNombre": planta or None})
-        if not limpias:
-            raise HTTPException(400, "Una cuenta de comercial necesita al menos una planta asignada.")
-        body.plantasAsignadas = limpias
-    else:
-        body.plantasAsignadas = None
+            especie = str(p.get("especie") or "").strip()
+            clave = (cliente.casefold(), planta.casefold(), especie.casefold())
+            if cliente and clave not in vistas:
+                vistas.add(clave)
+                fila: dict[str, str | None] = {"clienteNombre": cliente, "plantaNombre": planta or None}
+                if especie:
+                    fila["especie"] = especie
+                limpias.append(fila)
+    # Un comercial sin plantas no vería nada: se pide al menos una (puede ser todo un Sold To).
+    if body.tipoAcceso == "comercial" and not limpias:
+        raise HTTPException(400, "Una cuenta de comercial necesita al menos una planta asignada.")
+    if body.tipoAcceso == "cliente":
+        if limpias:
+            # Se conserva el primer acceso en cliente_nombre / planta_nombre (informes vistos, listados de cuentas,
+            # cuentas antiguas): nunca más amplio que la lista, que es la que manda.
+            body.clienteNombre = str(limpias[0]["clienteNombre"])
+            body.plantaNombre = limpias[0]["plantaNombre"]
+        # Una cuenta de cliente sin cliente asignado no vería nada -o, si el filtro se tomara del navegador, lo
+        # vería todo-. No puede existir.
+        elif not (body.clienteNombre or "").strip():
+            raise HTTPException(400, "Una cuenta de tipo cliente necesita un cliente asignado.")
+    body.plantasAsignadas = limpias or None
     # Coherencia entre el tipo de cuenta y lo que se le reparte (un cliente no tiene área ni módulos
     # internos; nadie recibe permisos que no existen o que son solo del administrador general).
     body.area, body.modulos, body.reportes = permisos_funciones.normalizar_cuenta(

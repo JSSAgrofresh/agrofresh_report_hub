@@ -6,6 +6,7 @@ import { LISTA_AREAS } from '@/constants/areas'
 import type { AreaId } from '@/constants/areas'
 import { listarClientes, listarPlantas } from '@/features/catalogo'
 import type { Planta } from '@/features/catalogo'
+import { listarEspeciesActivas } from '@/features/listados'
 import { CORREO_MAESTRO, buscarPlantasDeComercial } from '../api/usuariosStore'
 import { cuentaDesdeSeleccion, seleccionDesdeCuenta, seleccionTotal, validarSeleccion } from '../catalogoPermisos'
 import { modulosPredeterminados, reportesPredeterminados, vistaDeCliente } from '../permisos'
@@ -44,6 +45,8 @@ const DISPONIBLE_PARA_COMERCIAL = new Set(['reports', 'reporte:laboratorio', 're
 const sinPlantasAcotadas = (p: Permiso): string | null =>
   DISPONIBLE_PARA_COMERCIAL.has(p.id) ? null : 'Falta acotarlo a las plantas del comercial.'
 
+const esClienteConLista = (u?: Usuario) => u?.tipoAcceso === 'cliente' && (u.plantasAsignadas?.length ?? 0) > 0
+
 const tipoEtiqueta = (t: TipoAcceso) => TIPOS.find((x) => x.valor === t)?.etiqueta ?? t
 
 export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps) {
@@ -61,6 +64,10 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [plantasAsignadas, setPlantasAsignadas] = useState<PlantaAsignada[]>(usuario?.plantasAsignadas ?? [])
   const [comercialCliente, setComercialCliente] = useState('')
   const [comercialPlanta, setComercialPlanta] = useState('')
+  const [comercialEspecies, setComercialEspecies] = useState<string[]>([])
+  const [especiesDisponibles, setEspeciesDisponibles] = useState<string[]>([])
+  // Cliente con varias plantas o especies (si no, su Sold To y sucursal de siempre).
+  const [clienteVarios, setClienteVarios] = useState(esClienteConLista(usuario))
   const [buscandoListas, setBuscandoListas] = useState(false)
   const [avisoListas, setAvisoListas] = useState<string | null>(null)
   // Una sola lista con todo lo que la cuenta puede hacer (módulos, secciones y funciones sueltas).
@@ -71,6 +78,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
 
   const esCliente = tipoAcceso === 'cliente'
   const esComercial = tipoAcceso === 'comercial'
+  const conLista = esComercial || (esCliente && clienteVarios)
   const veTodo = tipoAcceso === 'admin_general'
   const requiereArea = tipoAcceso === 'admin_area' || tipoAcceso === 'analista'
   const configuraPermisos = !esCliente && !veTodo && !esMaestro
@@ -83,15 +91,27 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
     listarPlantas()
       .then(setPlantasDisponibles)
       .catch(() => setPlantasDisponibles([]))
+    listarEspeciesActivas()
+      .then((v) => setEspeciesDisponibles([...new Set(v.map((x) => x.valor))].sort((a, b) => a.localeCompare(b, 'es'))))
+      .catch(() => setEspeciesDisponibles([]))
   }, [esCliente, esComercial])
 
-  const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === (esComercial ? comercialCliente : clienteNombre))
+  const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === (conLista ? comercialCliente : clienteNombre))
 
   function agregarPlantaComercial() {
     if (!comercialCliente) return
-    const nueva: PlantaAsignada = { clienteNombre: comercialCliente, plantaNombre: comercialPlanta || null }
-    setPlantasAsignadas((actuales) => (actuales.some((p) => claveDePlanta(p) === claveDePlanta(nueva)) ? actuales : [...actuales, nueva]))
+    // Una fila por especie elegida; sin ninguna, todas las especies de esa planta.
+    const nuevas: PlantaAsignada[] = (comercialEspecies.length ? comercialEspecies : [null]).map((especie) => ({
+      clienteNombre: comercialCliente,
+      plantaNombre: comercialPlanta || null,
+      ...(especie ? { especie } : {}),
+    }))
+    setPlantasAsignadas((actuales) => {
+      const vistas = new Set(actuales.map(claveDePlanta))
+      return [...actuales, ...nuevas.filter((n) => !vistas.has(claveDePlanta(n)))]
+    })
     setComercialPlanta('')
+    setComercialEspecies([])
   }
 
   async function traerDeLasListas() {
@@ -123,12 +143,16 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       setError('Selecciona un área.')
       return
     }
-    if (esCliente && !clienteNombre.trim()) {
+    if (esCliente && !clienteVarios && !clienteNombre.trim()) {
       setError('Ingresa el nombre del cliente.')
       return
     }
     if (esCliente && !clienteVe.report && !clienteVe.storage && !clienteVe.accutab) {
       setError('Elige qué ve el cliente: Report, Storage y/o informes Accu-Tab.')
+      return
+    }
+    if (esCliente && clienteVarios && plantasAsignadas.length === 0) {
+      setError('Agrega al menos una planta a la lista de accesos del cliente, o desmarca «varias plantas o especies».')
       return
     }
     if (esComercial && plantasAsignadas.length === 0) {
@@ -152,15 +176,16 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       tipoAcceso,
       // Un cliente no pertenece a un área: el servidor deduce la que guarda de lo que ve.
       area: requiereArea ? (area as AreaId) : undefined,
-      clienteNombre: esCliente ? clienteNombre.trim() : undefined,
-      plantaNombre: esCliente && plantaNombre.trim() ? plantaNombre.trim() : undefined,
+      // Con lista de accesos el servidor deja en su fila el primer acceso.
+      clienteNombre: esCliente && !clienteVarios ? clienteNombre.trim() : undefined,
+      plantaNombre: esCliente && !clienteVarios && plantaNombre.trim() ? plantaNombre.trim() : undefined,
       modulos: esCliente
         ? [clienteVe.report && 'reports', clienteVe.storage && 'storage'].filter((m): m is string => !!m)
         : permisos?.modulos,
       reportes: esCliente
         ? [clienteVe.report && 'laboratorio', clienteVe.accutab && 'postventa'].filter((r): r is 'laboratorio' | 'postventa' => !!r)
         : permisos?.reportes,
-      plantasAsignadas: esComercial ? plantasAsignadas : undefined,
+      plantasAsignadas: conLista ? plantasAsignadas : undefined,
     })
   }
 
@@ -182,6 +207,71 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
     setClienteNombre(v)
     setPlantaNombre('')
   }
+
+  const constructorDeAccesos = (
+    <>
+          <div className={styles.campo}>
+            <BuscableSelect
+              etiqueta="Sold To (cliente)"
+              opciones={clientesDisponibles}
+              valor={comercialCliente}
+              onChange={(v) => {
+                setComercialCliente(v)
+                setComercialPlanta('')
+              }}
+              placeholderTodos="— elegir cliente —"
+            />
+          </div>
+          {comercialCliente && (
+            <div className={styles.campo}>
+              <BuscableSelect
+                etiqueta="Planta (Ship To) — opcional"
+                opciones={plantasDelCliente.map((p) => p.nombre)}
+                valor={comercialPlanta}
+                onChange={setComercialPlanta}
+                placeholderTodos="— todas las plantas de este Sold To —"
+              />
+            </div>
+          )}
+          {comercialCliente && especiesDisponibles.length > 0 && (
+            <fieldset className={styles.permisos}>
+              <legend>Especies (opcional)</legend>
+              <p className={styles.notaChica}>
+                Marca las especies que ve en esa planta: se agrega un acceso por cada una. Sin marcar ninguna, ve todas.
+              </p>
+              <div className={styles.permisosGrid}>
+                {especiesDisponibles.map((e) => (
+                  <label className={styles.permisoOpcion} key={e}>
+                    <input
+                      type="checkbox"
+                      checked={comercialEspecies.includes(e)}
+                      onChange={() =>
+                        setComercialEspecies((a) => (a.includes(e) ? a.filter((x) => x !== e) : [...a, e]))
+                      }
+                    />
+                    <span>
+                      <strong>{e}</strong>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <div className={styles.filaPlantas}>
+            <button type="button" onClick={agregarPlantaComercial} disabled={!comercialCliente}>
+              Agregar planta
+            </button>
+            {esComercial && (
+              <button type="button" onClick={traerDeLasListas} disabled={buscandoListas || !email.trim()}>
+                {buscandoListas ? 'Buscando…' : 'Traer sus plantas de las listas de distribución'}
+              </button>
+            )}
+          </div>
+          {avisoListas && <p className={styles.notaChica}>{avisoListas}</p>}
+
+          <PlantasAsignadas plantas={plantasAsignadas} onChange={setPlantasAsignadas} />
+    </>
+  )
 
   return (
     <form className={styles.form} onSubmit={onSubmit}>
@@ -232,6 +322,26 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       {esCliente && !esMaestro && (
         <section className={styles.bloque}>
           <h3 className={styles.titulo}><b>3</b> Qué cliente es y qué ve</h3>
+          <label className={styles.permisoOpcion}>
+            <input type="checkbox" checked={clienteVarios} onChange={(e) => setClienteVarios(e.target.checked)} />
+            <span>
+              <strong>Ve varias plantas o varias especies</strong>
+              <small>
+                Para los contactos con acceso a más de una planta, o a ciertas especies de una planta. Cada acceso es un Sold To,
+                una planta y, si lo limitas, una especie.
+              </small>
+            </span>
+          </label>
+          {clienteVarios ? (
+            <>
+              <p className={styles.notaChica}>
+                Solo verá lo que agregues abajo. Las especies limitan el Report; el Storage (carpetas por planta) solo se abre en
+                las plantas donde no limitas la especie.
+              </p>
+              {constructorDeAccesos}
+            </>
+          ) : (
+            <>
           <div className={styles.campo}>
             <BuscableSelect
               etiqueta="Sold To (cliente)"
@@ -263,6 +373,8 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
               </p>
             </div>
           )}
+            </>
+          )}
 
           <fieldset className={styles.permisos}>
             <legend>Qué ve este cliente</legend>
@@ -291,40 +403,7 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
             Un comercial solo mira: no puede crear, editar, subir ni borrar nada. Puede descargar. Abajo eliges a qué módulos entra.
           </p>
 
-          <div className={styles.campo}>
-            <BuscableSelect
-              etiqueta="Sold To (cliente)"
-              opciones={clientesDisponibles}
-              valor={comercialCliente}
-              onChange={(v) => {
-                setComercialCliente(v)
-                setComercialPlanta('')
-              }}
-              placeholderTodos="— elegir cliente —"
-            />
-          </div>
-          {comercialCliente && (
-            <div className={styles.campo}>
-              <BuscableSelect
-                etiqueta="Planta (Ship To) — opcional"
-                opciones={plantasDelCliente.map((p) => p.nombre)}
-                valor={comercialPlanta}
-                onChange={setComercialPlanta}
-                placeholderTodos="— todas las plantas de este Sold To —"
-              />
-            </div>
-          )}
-          <div className={styles.filaPlantas}>
-            <button type="button" onClick={agregarPlantaComercial} disabled={!comercialCliente}>
-              Agregar planta
-            </button>
-            <button type="button" onClick={traerDeLasListas} disabled={buscandoListas || !email.trim()}>
-              {buscandoListas ? 'Buscando…' : 'Traer sus plantas de las listas de distribución'}
-            </button>
-          </div>
-          {avisoListas && <p className={styles.notaChica}>{avisoListas}</p>}
-
-          <PlantasAsignadas plantas={plantasAsignadas} onChange={setPlantasAsignadas} />
+          {constructorDeAccesos}
         </section>
       )}
 

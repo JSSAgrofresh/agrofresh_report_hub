@@ -5,6 +5,8 @@ export type TipoAcceso = 'admin_general' | 'admin_area' | 'analista' | 'cliente'
 export interface PlantaAsignada {
   clienteNombre: string
   plantaNombre?: string | null
+  /** Solo ve esta especie de la planta; sin especie = todas. Una fila por especie. */
+  especie?: string | null
 }
 
 export interface Usuario {
@@ -25,7 +27,7 @@ export interface Usuario {
   modulos?: string[]
   /** Secciones habilitadas dentro del módulo Report. */
   reportes?: Array<'laboratorio' | 'postventa'>
-  /** Solo cuentas «comercial»: las plantas que ve (solo lectura). Sin plantaNombre = todas las de ese Sold To. */
+  /** Comercial (obligatoria) o cliente con varios accesos: las plantas y especies que ve. Sin plantaNombre = todas las de ese Sold To. */
   plantasAsignadas?: PlantaAsignada[]
   /** La contraseña actual se la puso un administrador: hay que cambiarla
    * antes de poder usar el sistema. */

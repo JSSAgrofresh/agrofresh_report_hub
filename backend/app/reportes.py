@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from .auth import Usuario, alcance_de_datos, es_comercial, plantas_de_comercial, solo_interno, usuario_actual
+from .auth import Usuario, accesos_de_cuenta, alcance_de_datos, con_lista_de_accesos, es_comercial, solo_interno, usuario_actual
 from . import funciones, informe_visto
 from .db import conexion, cursor_dict
 
@@ -69,6 +69,9 @@ def _filtro_alcance(
     decide, y por eso los cuatro endpoints que muestran datos pasan por él.
     """
     cliente, planta = alcance_de_datos(usuario, cliente, planta)
+    if usuario.tipoAcceso == "cliente" and con_lista_de_accesos(usuario):
+        # Con lista de accesos manda la lista (más abajo), no el cliente y la sucursal sueltos de su fila.
+        cliente = planta = None
     condiciones = []
     params: dict[str, Any] = {}
     # Report muestra solo los tipos de servicio encendidos en Administración
@@ -83,15 +86,19 @@ def _filtro_alcance(
     if planta:
         condiciones.append("COALESCE(p.nombre, s.ship_to_raw) = %(planta)s")
         params["planta"] = planta
-    if es_comercial(usuario):
-        # Un comercial ve SOLO sus plantas (lo decide la sesión, nunca el navegador). Sin plantas asignadas: nada.
+    if con_lista_de_accesos(usuario):
+        # Un comercial o un cliente con varios accesos ve SOLO lo de su lista (cliente, planta y especie; lo decide la
+        # sesión, nunca el navegador). Sin accesos: nada.
         alternativas = []
-        for i, (cli, pla) in enumerate(plantas_de_comercial(usuario)):
+        for i, (cli, pla, esp) in enumerate(accesos_de_cuenta(usuario)):
             parte = f"COALESCE(c.nombre, s.sold_to_raw) = %(com_c{i})s"
             params[f"com_c{i}"] = cli
             if pla:
                 parte += f" AND COALESCE(p.nombre, s.ship_to_raw) = %(com_p{i})s"
                 params[f"com_p{i}"] = pla
+            if esp:
+                parte += f" AND lower(btrim(COALESCE(s.especie, ''))) = lower(btrim(%(com_e{i})s))"
+                params[f"com_e{i}"] = esp
             alternativas.append(f"({parte})")
         condiciones.append("(" + " OR ".join(alternativas) + ")" if alternativas else "FALSE")
     return ("AND " + " AND ".join(condiciones)) if condiciones else "", params
@@ -584,7 +591,7 @@ def _respuesta_bd(
     es_cliente = usuario.tipoAcceso in ("cliente", "comercial")
     if usuario.tipoAcceso == "cliente" and not any(alcance_de_datos(usuario, None, None)):
         raise HTTPException(403, "Tu cuenta no tiene un cliente o sucursal asignados.")
-    if es_comercial(usuario) and not plantas_de_comercial(usuario):
+    if es_comercial(usuario) and not accesos_de_cuenta(usuario):
         raise HTTPException(403, "Tu cuenta de comercial no tiene plantas asignadas.")
     filtro_alcance, params = _filtro_alcance(usuario, cliente, planta)
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
