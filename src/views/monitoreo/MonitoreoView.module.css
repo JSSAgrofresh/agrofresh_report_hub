@@ -285,3 +285,12 @@
 .subtitulo { margin: 14px 0 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tenue); }
 
 @media (prefers-reduced-motion: reduce) { .moduloFila { animation: none; } .barra2 i { transition: none; } }
+
+/* Clientes que se conectaron */
+.periodos { display: inline-flex; gap: 4px; padding: 3px; border-radius: 99px; background: var(--vidrio); border: 1px solid var(--borde); margin-bottom: 10px; }
+.periodos button { border: 0; background: transparent; color: var(--tenue); font: 650 12px/1 inherit; padding: 7px 12px; border-radius: 99px; cursor: pointer; }
+.periodos button.periodoOn { background: color-mix(in srgb, #4fd1c5 25%, transparent); color: #7ee8dd; }
+.resumenClientes { margin: 0 0 6px; font-size: 13px; color: var(--tenue); }
+.resumenClientes b { color: var(--texto); }
+.eVerdeTxt { color: var(--verde); font-weight: 650; }
+.filaLado b.tiempo { font-size: 14px; color: #7ee8dd; white-space: nowrap; }

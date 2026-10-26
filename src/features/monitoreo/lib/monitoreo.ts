@@ -120,6 +120,38 @@ export interface EventoLinea {
   modulo: string | null
 }
 
+export interface SesionConexion {
+  inicio: string
+  fin: string
+  segundos: number
+  segundos_activo: number
+  dispositivo: string | null
+}
+
+export interface ClienteConectado {
+  email: string
+  nombre: string
+  tipo: string | null
+  cliente: string | null
+  planta: string | null
+  sesiones: number
+  segundos_conectado: number
+  segundos_activo: number
+  primera: string
+  ultima: string
+  segundos_desde_ultima: number
+  en_linea: boolean
+  dispositivo: string | null
+}
+
+export interface ClientesPeriodo {
+  disponible: boolean
+  dias: number
+  cuentas: ClienteConectado[]
+  en_linea?: number
+  segundos_total?: number
+}
+
 export interface DetalleUsuario {
   email: string
   nombre: string
@@ -136,6 +168,7 @@ export interface DetalleUsuario {
   version: string | null
   tipo: string | null
   recorrido_tiempos: { modulo: string; desde: string; minutos: number }[]
+  sesiones: SesionConexion[]
   modulo_actual: string | null
   total: number
   acciones: number
@@ -145,6 +178,7 @@ export interface DetalleUsuario {
 }
 
 export const obtenerResumen = () => httpClient.get<ResumenMonitoreo>('/monitoreo/resumen')
+export const obtenerClientes = (dias: number) => httpClient.get<ClientesPeriodo>(`/monitoreo/clientes?dias=${dias}`)
 export const obtenerDetalleUsuario = (email: string) =>
   httpClient.get<DetalleUsuario>(`/monitoreo/usuario?email=${encodeURIComponent(email)}`)
 /** Cada pestaña abierta avisa que sigue ahí (alimenta «conectados» en el monitoreo). Si falla no importa. */
@@ -257,3 +291,19 @@ export function tendencia(ahora: number, antes: number): { texto: string; sube: 
   const d = ahora - antes
   return { texto: `${d > 0 ? '+' : ''}${d} que la hora anterior`, sube: d > 0 }
 }
+
+/** «42 min», «1 h 12 min», «menos de 1 min». Para tiempos en segundos (sesiones). */
+export function duracionSeg(seg: number): string {
+  const min = Math.round(seg / 60)
+  if (min < 1) return 'menos de 1 min'
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60)
+  const r = min % 60
+  return r ? `${h} h ${r} min` : `${h} h`
+}
+
+export const PERIODOS_CLIENTES = [
+  { dias: 1, etiqueta: 'Hoy' },
+  { dias: 7, etiqueta: '7 días' },
+  { dias: 30, etiqueta: '30 días' },
+] as const

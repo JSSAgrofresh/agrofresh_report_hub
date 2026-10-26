@@ -141,3 +141,28 @@ class TestPresenciaDetallada:
         v = lambda m, mod: _ev(m, "a@x.cl", categoria="visita", accion="visita", modulo=mod)  # noqa: E731
         r = monitoreo.recorrido_con_tiempos([v(5, "Report"), v(20, "Report"), v(40, "Storage")], AHORA)
         assert [(x["modulo"], x["minutos"]) for x in r] == [("Storage", 20), ("Report", 20)]
+
+
+class TestSesiones:
+    def _s(self, email, ini_min, fin_min, activos=0, tipo="cliente", nombre="GREENEX"):
+        return {"email": email, "nombre": nombre, "tipo_acceso": tipo, "cliente": "GARATE", "planta": "CODEGUA",
+                "dispositivo": "Móvil · Chrome", "inicio": AHORA - timedelta(minutes=ini_min),
+                "ultimo_latido": AHORA - timedelta(minutes=fin_min), "segundos_activos": activos * 60}
+
+    def test_suma_visitas_y_tiempo_conectado_de_una_cuenta(self):
+        r = monitoreo.agrupar_sesiones([self._s("a@x.cl", 120, 90, 20), self._s("a@x.cl", 40, 10, 25)], AHORA)
+        assert len(r) == 1
+        assert r[0]["sesiones"] == 2 and r[0]["segundos_conectado"] == 60 * 60 and r[0]["segundos_activo"] == 45 * 60
+        assert r[0]["en_linea"] is False and r[0]["primera"] == monitoreo._iso(AHORA - timedelta(minutes=120))
+
+    def test_el_tiempo_activo_nunca_supera_al_conectado(self):
+        r = monitoreo.agrupar_sesiones([self._s("a@x.cl", 10, 5, activos=300)], AHORA)
+        assert r[0]["segundos_activo"] == 5 * 60
+
+    def test_en_linea_primero_y_luego_el_mas_reciente(self):
+        r = monitoreo.agrupar_sesiones(
+            [self._s("viejo@x.cl", 300, 200), self._s("vivo@x.cl", 20, 1), self._s("medio@x.cl", 100, 50)], AHORA)
+        assert [c["email"] for c in r] == ["vivo@x.cl", "medio@x.cl", "viejo@x.cl"] and r[0]["en_linea"] is True
+
+    def test_una_visita_de_un_solo_latido_dura_cero(self):
+        assert monitoreo.agrupar_sesiones([self._s("a@x.cl", 5, 5)], AHORA)[0]["segundos_conectado"] == 0

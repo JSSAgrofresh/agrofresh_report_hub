@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { COLOR_CATEGORIA, ETIQUETA_CATEGORIA, iniciales, type CategoriaActividad } from '@/features/adminPanel'
 import {
-  duracion, ETIQUETA_ACTIVIDAD, horaChile, obtenerDetalleUsuario, TEXTO_ORIGEN_DESDE, textoInactividad, tonoDe,
+  duracion, duracionSeg, ETIQUETA_ACTIVIDAD, horaChile, obtenerDetalleUsuario, TEXTO_ORIGEN_DESDE, textoInactividad, tonoDe,
   type DetalleUsuario,
 } from '@/features/monitoreo'
 import styles from './MonitoreoView.module.css'
@@ -102,6 +102,20 @@ export function DetalleSheet({ email, nombre, onCerrar }: Props) {
                 </span>
               ))}
             </div>
+
+            {d.sesiones.length > 0 && (
+              <>
+                <h3 className={styles.subtitulo}>Conexiones recientes</h3>
+                <ul className={styles.tiempos}>
+                  {d.sesiones.map((s, i) => (
+                    <li key={`${s.inicio}-${i}`}>
+                      <span>{new Date(s.inicio).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', timeZone: 'America/Santiago' })} · {horaChile(s.inicio)} a {horaChile(s.fin)}</span>
+                      <em>{duracionSeg(s.segundos)}{s.dispositivo ? ` · ${s.dispositivo}` : ''}</em>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
 
             {d.recorrido_tiempos.length > 0 && (
               <>

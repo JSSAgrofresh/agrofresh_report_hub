@@ -219,6 +219,36 @@ def recorrido_con_tiempos(eventos_nuevos_primero: list[dict], hasta: datetime) -
     return [{"modulo": s["modulo"], "desde": _iso(s["desde"]), "minutos": s["minutos"]} for s in salida]
 
 
+def agrupar_sesiones(sesiones: list[dict], ahora: datetime) -> list[dict]:
+    """Una fila por cuenta con lo que estuvo conectada en el período: visitas, tiempo conectada y tiempo usando el sistema.
+
+    Cada sesión trae `inicio`, `ultimo_latido` y `segundos_activos`. Una visita de un solo latido dura 0: se muestra
+    como «menos de 1 min». Primero van los que están en línea, luego quien se conectó más recién."""
+    por_cuenta: dict[str, dict] = {}
+    for s in sesiones:
+        email = (s["email"] or "").lower()
+        f = por_cuenta.setdefault(email, {
+            "email": email, "nombre": s["nombre"] or email, "tipo": s.get("tipo_acceso"), "cliente": s.get("cliente"),
+            "planta": s.get("planta"), "sesiones": 0, "segundos_conectado": 0, "segundos_activo": 0,
+            "primera": s["inicio"], "ultima": s["ultimo_latido"], "dispositivo": s.get("dispositivo"),
+        })
+        f["sesiones"] += 1
+        f["segundos_conectado"] += max(0, int((s["ultimo_latido"] - s["inicio"]).total_seconds()))
+        dur = max(0, int((s["ultimo_latido"] - s["inicio"]).total_seconds()))
+        f["segundos_activo"] += min(max(0, int(s.get("segundos_activos") or 0)), dur)  # nunca más que lo conectado
+        f["primera"] = min(f["primera"], s["inicio"])
+        if s["ultimo_latido"] >= f["ultima"]:
+            f["ultima"], f["dispositivo"] = s["ultimo_latido"], s.get("dispositivo") or f["dispositivo"]
+            f["nombre"] = s["nombre"] or f["nombre"]
+            f["cliente"], f["planta"] = s.get("cliente") or f["cliente"], s.get("planta") or f["planta"]
+    salida = []
+    for f in por_cuenta.values():
+        seg = (ahora - f["ultima"]).total_seconds()
+        salida.append({**f, "primera": _iso(f["primera"]), "ultima": _iso(f["ultima"]), "segundos_desde_ultima": int(seg),
+                       "en_linea": seg <= SEGUNDOS_EN_LINEA})
+    return sorted(salida, key=lambda f: (not f["en_linea"], f["segundos_desde_ultima"]))
+
+
 def desde_de_conexion(presencia: dict | None, eventos: list[dict], email: str, ahora: datetime) -> tuple[datetime, str]:
     """Desde cuándo contar lo que hizo: su conexión actual, si no su último ingreso de hoy, si no el inicio del día."""
     if presencia and (ahora - presencia["ultimo_latido"]).total_seconds() <= SEGUNDOS_RECIENTE:
@@ -257,6 +287,20 @@ def _solicitudes_recientes(limite: int = 12) -> list[dict]:
     return [{"id": f["id"], "t": _iso(f["creado_en"]), "numero": f["numero_solicitud"], "laboratorio": f["laboratorio"],
              "enviado_por": f["usuario_nombre"], "exitoso": f["exitoso"], "error": (f["error"] or "")[:160] or None,
              "ship_to": f["ship_to"]} for f in filas]
+
+
+def _sesiones_de(email: str, limite: int = 15) -> list[dict]:
+    """Sus últimas conexiones (migración 0070): cuándo empezó, cuánto duró y cuánto lo usó de verdad."""
+    filas = _filas("SELECT inicio, ultimo_latido, segundos_activos, dispositivo FROM presencia_sesion "
+                   "WHERE email = %s ORDER BY ultimo_latido DESC LIMIT %s", (email, limite))
+    return [{"inicio": _iso(f["inicio"]), "fin": _iso(f["ultimo_latido"]),
+             "segundos": max(0, int((f["ultimo_latido"] - f["inicio"]).total_seconds())),
+             "segundos_activo": int(f["segundos_activos"] or 0), "dispositivo": f["dispositivo"]} for f in filas]
+
+
+def _hay_tabla(nombre: str) -> bool:
+    filas = _filas("SELECT to_regclass(%s) IS NOT NULL AS hay", (nombre,))
+    return bool(filas and filas[0]["hay"])
 
 
 def _contar(sql: str, params: tuple = ()) -> int:
@@ -310,14 +354,42 @@ def latido(body: LatidoIn, usuario: Usuario = Depends(usuario_actual)) -> dict[s
             desde = CASE WHEN {reinicia} THEN now() ELSE presencia.desde END,
             ultimo_latido = now()
         """
+    ok = False
     for sql, params in ((con_detalle, detalle), (sin_detalle, base)):
         try:
             with conexion() as conn, cursor_dict(conn) as cur:
                 cur.execute(sql, params)
-            return {"ok": True}
+            ok = True
+            break
         except Exception:
             logger.warning("No se pudo anotar el latido.", exc_info=True)
-    return {"ok": False}
+    _anotar_sesion({**detalle, "c": usuario.clienteNombre, "p": usuario.plantaNombre})
+    return {"ok": ok}
+
+
+def _anotar_sesion(p: dict) -> None:
+    """Historial de conexiones (migración 0070): sigue la visita en curso o abre una nueva. Nunca lanza."""
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                """
+                UPDATE presencia_sesion SET
+                    segundos_activos = segundos_activos + CASE
+                        WHEN %(v)s AND (%(i)s::int IS NULL OR %(i)s::int < %(pausa)s)
+                        THEN LEAST(GREATEST(extract(epoch FROM now() - ultimo_latido), 0), 90)::int ELSE 0 END,
+                    ultimo_latido = now(), dispositivo = COALESCE(%(d)s, dispositivo), version = COALESCE(%(ver)s, version),
+                    nombre = %(n)s, cliente = %(c)s, planta = %(p)s
+                WHERE id = (SELECT id FROM presencia_sesion WHERE email = %(e)s
+                            AND ultimo_latido > now() - make_interval(secs => %(s)s)
+                            ORDER BY ultimo_latido DESC LIMIT 1)
+                RETURNING id
+                """, {**p, "pausa": SEGUNDOS_PAUSA, "p": p["p"]})
+            if cur.fetchone() is None:
+                cur.execute(
+                    """INSERT INTO presencia_sesion (email, nombre, tipo_acceso, cliente, planta, dispositivo, version)
+                       VALUES (%(e)s, %(n)s, %(t)s, %(c)s, %(p)s, %(d)s, %(ver)s)""", p)
+    except Exception:
+        logger.warning("No se pudo anotar la sesión.", exc_info=True)
 
 
 @router.get("/resumen")
@@ -361,6 +433,23 @@ def resumen(usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
     }
 
 
+@router.get("/clientes")
+def clientes_conectados(dias: int = Query(1, ge=1, le=90), _: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """Las cuentas de cliente y comercial que se conectaron en el período, con cuánto tiempo estuvieron.
+    `dias=1` es «hoy» (desde la medianoche de Chile). Sin la migración 0070 responde `disponible: false`."""
+    ahora = datetime.now(timezone.utc)
+    desde = inicio_del_dia(ahora) if dias == 1 else ahora - timedelta(days=dias)
+    if not _hay_tabla("presencia_sesion"):
+        return {"disponible": False, "cuentas": [], "dias": dias}
+    filas = _filas(
+        """SELECT email, nombre, tipo_acceso, cliente, planta, dispositivo, inicio, ultimo_latido, segundos_activos
+           FROM presencia_sesion WHERE ultimo_latido >= %s AND tipo_acceso = ANY(%s)""", (desde, list(TIPOS_CLIENTE)))
+    cuentas = agrupar_sesiones(filas, ahora)
+    return {"disponible": True, "dias": dias, "ahora": _iso(ahora), "cuentas": cuentas,
+            "en_linea": sum(1 for c in cuentas if c["en_linea"]),
+            "segundos_total": sum(c["segundos_conectado"] for c in cuentas)}
+
+
 @router.get("/usuario")
 def detalle_usuario(email: str = Query(..., min_length=3), _: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
     """Todo lo que hizo una persona desde que se conectó."""
@@ -387,6 +476,7 @@ def detalle_usuario(email: str = Query(..., min_length=3), _: Usuario = Depends(
         "en_pantalla_desde": _iso(pres.get("ruta_desde")) if pres else None,
         "dispositivo": (pres or {}).get("dispositivo"), "version": (pres or {}).get("version"),
         "tipo": (pres or {}).get("tipo_acceso"),
+        "sesiones": _sesiones_de(email),
         "recorrido_tiempos": recorrido_con_tiempos([e for e in eventos if e["email"] == email and e["t"] >= desde], ahora),
         "modulo_actual": (pres or {}).get("modulo"),
         "total": len(lineas),
