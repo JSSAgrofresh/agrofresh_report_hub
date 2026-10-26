@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from . import r2
 from .pdf_permisos import sin_restricciones
-from .auth import Usuario, plantas_de_comercial, usuario_actual
+from .auth import Usuario, accesos_de_cuenta, con_lista_de_accesos, usuario_actual
 from .db import conexion, cursor_dict
 from .informes_storage import RAIZ, carpeta_planta
 
@@ -51,9 +51,13 @@ def _plantas_del_cliente(sold_to: str) -> list[str]:
 
 def carpetas_permitidas(usuario: Usuario) -> set[str]:
     """Nombres de carpeta (en minúsculas) de `informes/` que esta cuenta puede ver. Vacío = nada."""
-    if usuario.tipoAcceso == "comercial":
+    if usuario.tipoAcceso == "comercial" or con_lista_de_accesos(usuario):
         carpetas: set[str] = set()
-        for cliente, planta in plantas_de_comercial(usuario):
+        # Las carpetas se arman por planta y fecha, sin especie: un acceso limitado a ciertas especies NO abre la
+        # carpeta (mostraría informes de otras especies de esa planta). Solo la abre un acceso a toda la planta.
+        for cliente, planta, especie in accesos_de_cuenta(usuario):
+            if especie:
+                continue
             try:
                 plantas = [planta] if planta else _plantas_del_cliente(cliente)
             except Exception:

@@ -31,7 +31,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import accutab_informe, config
-from .auth import Usuario, alcance_de_datos, planta_permitida, usuario_actual
+from .auth import Usuario, alcance_de_datos, con_lista_de_accesos, planta_permitida, usuario_actual
 
 router = APIRouter(prefix="/api/postventa", tags=["postventa"])
 # Lo que ve una cuenta de CLIENTE: solo los informes con PDF de su Sold To (y su
@@ -346,7 +346,9 @@ def eliminar_varios(datos: EliminarVariosIn) -> dict[str, Any]:
 
 def _informes_de(usuario: Usuario, cliente: str | None, planta: str | None) -> list[dict[str, Any]]:
     cliente, planta = alcance_de_datos(usuario, cliente, planta)
-    if usuario.tipoAcceso == "cliente" and not cliente:
+    if usuario.tipoAcceso == "cliente" and con_lista_de_accesos(usuario):
+        cliente = planta = None  # manda su lista de accesos (más abajo), no el cliente suelto de su fila
+    elif usuario.tipoAcceso == "cliente" and not cliente:
         return []  # una cuenta de cliente sin cliente asignado no ve nada, nunca «todo»
     salida = []
     for r in listar_registros():
@@ -356,8 +358,8 @@ def _informes_de(usuario: Usuario, cliente: str | None, planta: str | None) -> l
             continue
         if planta and _clave(r["planta"]) != _clave(planta):
             continue
-        # Un comercial solo ve los informes de las plantas que se le asignaron (lo que pida por parámetro solo acota más).
-        if usuario.tipoAcceso == "comercial" and not planta_permitida(usuario, r["cliente"], r["planta"]):
+        # Un comercial (o un cliente con lista de accesos) solo ve los informes de las plantas que se le asignaron (lo que pida por parámetro solo acota más).
+        if con_lista_de_accesos(usuario) and not planta_permitida(usuario, r["cliente"], r["planta"]):
             continue
         salida.append(r)
     return salida
