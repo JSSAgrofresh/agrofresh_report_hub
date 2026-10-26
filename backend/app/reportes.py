@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from .auth import Usuario, accesos_de_cuenta, alcance_de_datos, con_lista_de_accesos, es_comercial, solo_interno, usuario_actual
+from .auth import Usuario, accesos_de_cuenta, alcance_de_datos, con_lista_de_accesos, es_comercial, solo_interno, usuario_actual, ve_todas_las_plantas
 from . import funciones, informe_visto
 from .db import conexion, cursor_dict
 
@@ -599,7 +599,7 @@ def _respuesta_bd(
     es_cliente = usuario.tipoAcceso in ("cliente", "comercial")
     if usuario.tipoAcceso == "cliente" and not any(alcance_de_datos(usuario, None, None)):
         raise HTTPException(403, "Tu cuenta no tiene un cliente o sucursal asignados.")
-    if es_comercial(usuario) and not accesos_de_cuenta(usuario):
+    if es_comercial(usuario) and not accesos_de_cuenta(usuario) and not ve_todas_las_plantas(usuario):
         raise HTTPException(403, "Tu cuenta de comercial no tiene plantas asignadas.")
     filtro_alcance, params = _filtro_alcance(usuario, cliente, planta)
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:

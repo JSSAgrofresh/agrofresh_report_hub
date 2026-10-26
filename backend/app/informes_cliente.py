@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from . import r2
 from .pdf_permisos import sin_restricciones
-from .auth import Usuario, accesos_de_cuenta, con_lista_de_accesos, usuario_actual
+from .auth import Usuario, accesos_de_cuenta, con_lista_de_accesos, usuario_actual, ve_todas_las_plantas
 from .db import conexion, cursor_dict
 from .informes_storage import RAIZ, carpeta_planta
 
@@ -91,7 +91,8 @@ def _partes(ruta: str) -> list[str]:
 def _exigir_alcance(partes: list[str], usuario: Usuario) -> None:
     if usuario.tipoAcceso not in ("cliente", "comercial"):
         raise HTTPException(403, "Esta sección es del portal de cliente.")
-    if partes and partes[0].casefold() not in carpetas_permitidas(usuario):
+    # El comercial con «todas las plantas» ve las carpetas de todos los clientes (solo lectura, como siempre).
+    if partes and not ve_todas_las_plantas(usuario) and partes[0].casefold() not in carpetas_permitidas(usuario):
         raise HTTPException(404, "No encontrado.")
 
 
@@ -101,7 +102,8 @@ def listar(ruta: str = "", usuario: Usuario = Depends(usuario_actual)) -> Listad
     _exigir_alcance(partes, usuario)
     if not r2.disponible():
         raise HTTPException(503, "El almacenamiento no está disponible en este momento.")
-    permitidas = carpetas_permitidas(usuario)
+    todas = ve_todas_las_plantas(usuario)
+    permitidas = set() if todas else carpetas_permitidas(usuario)
     prefijo = "/".join([RAIZ, *partes]) + "/"
     carpetas: list[EntradaInforme] = []
     archivos: list[EntradaInforme] = []
@@ -111,7 +113,7 @@ def listar(ruta: str = "", usuario: Usuario = Depends(usuario_actual)) -> Listad
         ):
             for cp in pagina.get("CommonPrefixes", []):
                 nombre = cp["Prefix"].rstrip("/").split("/")[-1]
-                if not partes and nombre.casefold() not in permitidas:
+                if not partes and not todas and nombre.casefold() not in permitidas:
                     continue  # en la raíz solo SU carpeta
                 carpetas.append(EntradaInforme(nombre=nombre, ruta="/".join([*partes, nombre]), tipo="carpeta"))
             for obj in pagina.get("Contents", []):

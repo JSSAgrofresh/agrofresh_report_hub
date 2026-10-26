@@ -275,3 +275,37 @@ describe('UsuarioForm: cliente con varias plantas y especies', () => {
     expect(screen.getByText(/Agrega al menos una planta/)).toBeTruthy()
   })
 })
+
+describe('UsuarioForm: comercial con «todas las plantas»', () => {
+  const comercial: Usuario = {
+    id: '7', email: 'com@agrofresh.com', nombre: 'Com', tipoAcceso: 'comercial',
+    modulos: ['reports', 'storage'], reportes: ['laboratorio'], plantasAsignadas: [],
+  }
+  const marca = () => screen.getByRole('checkbox', { name: /Puede ver las plantas de todos los clientes/ })
+
+  it('con la marca se guarda sin lista de plantas y la marca viaja en los módulos', () => {
+    const onGuardar = guardar(comercial, () => fireEvent.click(marca()))
+    expect(onGuardar).toHaveBeenCalledTimes(1)
+    const datos = onGuardar.mock.calls[0][0] as Usuario
+    expect(datos.modulos).toEqual(['reports', 'storage', 'todas_las_plantas'])
+    expect(datos.plantasAsignadas).toEqual([])
+  })
+
+  it('sin la marca y sin plantas sigue sin dejar guardar, y la marca no viaja', () => {
+    const onGuardar = guardar(comercial)
+    expect(onGuardar).not.toHaveBeenCalled()
+    expect(screen.getAllByText(/al menos una planta/).length).toBeGreaterThan(0)
+  })
+
+  it('una cuenta que ya la tenía la muestra marcada, y quitarla la deja acotada a su lista', () => {
+    render(<UsuarioForm usuario={{ ...comercial, modulos: ['reports', 'todas_las_plantas'] }} onGuardar={() => {}} onCancelar={() => {}} />)
+    expect((marca() as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(marca())
+    expect((marca() as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('la marca no aparece en otros tipos de cuenta', () => {
+    render(<UsuarioForm usuario={cuenta} onGuardar={() => {}} onCancelar={() => {}} />)
+    expect(screen.queryByRole('checkbox', { name: /Puede ver las plantas de todos los clientes/ })).toBeNull()
+  })
+})

@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from . import actividad, permisos_funciones, seguridad
 from .auth import (
+    MODULO_TODAS_LAS_PLANTAS,
     TIPOS_ACCESO,
     Usuario,
     cerrar_sesiones_de,
@@ -89,8 +90,9 @@ def _validar(body: UsuarioIn) -> None:
                     fila["especie"] = especie
                 limpias.append(fila)
     # Un comercial sin plantas no vería nada: se pide al menos una (puede ser todo un Sold To).
-    if body.tipoAcceso == "comercial" and not limpias:
-        raise HTTPException(400, "Una cuenta de comercial necesita al menos una planta asignada.")
+    # (salvo que tenga la marca «todas las plantas»: ve las de todos los clientes y no lleva lista).
+    if body.tipoAcceso == "comercial" and not limpias and MODULO_TODAS_LAS_PLANTAS not in (body.modulos or []):
+        raise HTTPException(400, "Una cuenta de comercial necesita al menos una planta asignada o la opción «todas las plantas».")
     if body.tipoAcceso == "cliente":
         if limpias:
             # Se conserva el primer acceso en cliente_nombre / planta_nombre (informes vistos, listados de cuentas,
