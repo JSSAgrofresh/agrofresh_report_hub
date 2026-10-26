@@ -90,12 +90,20 @@ def _filtro_alcance(
         # Un comercial o un cliente con varios accesos ve SOLO lo de su lista (cliente, planta y especie; lo decide la
         # sesión, nunca el navegador). Sin accesos: nada.
         alternativas = []
+        # Los nombres se comparan sin mayúsculas ni espacios de más (como `planta_permitida`): en Listados hay nombres
+        # con doble espacio («PLANTA  ROMERAL») y una cuenta guardada con uno solo no vería esa planta.
+        def _norm(col: str, param: str) -> str:
+            return f"lower(btrim(regexp_replace({col}, '[[:space:]]+', ' ', 'g'))) = %({param})s"
+
+        def _plano(texto: str) -> str:
+            return " ".join(texto.split()).lower()
+
         for i, (cli, pla, esp) in enumerate(accesos_de_cuenta(usuario)):
-            parte = f"COALESCE(c.nombre, s.sold_to_raw) = %(com_c{i})s"
-            params[f"com_c{i}"] = cli
+            parte = _norm("COALESCE(c.nombre, s.sold_to_raw, '')", f"com_c{i}")
+            params[f"com_c{i}"] = _plano(cli)
             if pla:
-                parte += f" AND COALESCE(p.nombre, s.ship_to_raw) = %(com_p{i})s"
-                params[f"com_p{i}"] = pla
+                parte += " AND " + _norm("COALESCE(p.nombre, s.ship_to_raw, '')", f"com_p{i}")
+                params[f"com_p{i}"] = _plano(pla)
             if esp:
                 parte += f" AND lower(btrim(COALESCE(s.especie, ''))) = lower(btrim(%(com_e{i})s))"
                 params[f"com_e{i}"] = esp

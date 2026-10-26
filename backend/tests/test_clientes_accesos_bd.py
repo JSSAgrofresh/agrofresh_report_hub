@@ -93,7 +93,7 @@ def datos():
     """Dos clientes con plantas y solicitudes de varias especies; se borran al terminar."""
     from app.db import conexion, cursor_dict
 
-    filas = [("ZZT DOLE", "ZZT LONTUE", "Cereza"), ("ZZT DOLE", "ZZT LONTUE", "Manzana"), ("ZZT DOLE", "ZZT LONTUE", "Kiwi"),
+    filas = [("ZZT DOLE", "ZZT  DOBLE ESPACIO", "Cereza"), ("ZZT DOLE", "ZZT LONTUE", "Cereza"), ("ZZT DOLE", "ZZT LONTUE", "Manzana"), ("ZZT DOLE", "ZZT LONTUE", "Kiwi"),
              ("ZZT DOLE", "ZZT CODEGUA", "Cereza"), ("ZZT DOLE", "ZZT CODEGUA", "Manzana"), ("ZZT VERFRUT", "ZZT RAPEL", "Kiwi")]
     with conexion() as conn, cursor_dict(conn) as cur:
         ids_c, ids_p = {}, {}
@@ -139,7 +139,7 @@ def test_el_filtro_real_deja_a_cada_tipo_de_cuenta_ver_exactamente_lo_suyo(datos
         ("ZZT DOLE", "ZZT LONTUE", "Manzana"), ("ZZT VERFRUT", "ZZT RAPEL", "Kiwi"), ("ZZT DOLE", "ZZT CODEGUA", "Cereza")}
     # Sin especie = todas las de esa planta; sin planta = todo el Sold To.
     assert _vista(_cuenta([A("ZZT DOLE", "ZZT CODEGUA")])) == {("ZZT DOLE", "ZZT CODEGUA", "Cereza"), ("ZZT DOLE", "ZZT CODEGUA", "Manzana")}
-    assert len(_vista(_cuenta([A("ZZT DOLE", None)]))) == 5
+    assert len(_vista(_cuenta([A("ZZT DOLE", None)]))) == 6
 
 
 @pytest.mark.skipif(not hay_base("solicitud"), reason="sin Postgres con el esquema aplicado")
@@ -229,3 +229,9 @@ def test_crear_clientes_lista_una_linea_por_cuenta_ordenada_por_tipo():
     assert [l.split("·")[0].strip() for l in lineas] == ["Tipo 1", "Tipo 2", "Tipo 3"]
     assert "ana@dole.cl" in lineas[2] and "2 plantas, 3 accesos" in lineas[2]
     assert "eva@verfrut.cl" in lineas[0] and "1 planta, 1 acceso" in lineas[0]
+
+
+@pytest.mark.skipif(not hay_base("solicitud"), reason="sin Postgres con el esquema aplicado")
+def test_una_cuenta_con_un_espacio_ve_la_planta_que_en_listados_tiene_dos(datos):
+    ve = _vista(_cuenta([{"clienteNombre": "zzt dole", "plantaNombre": "ZZT DOBLE ESPACIO"}]))
+    assert ve == {("ZZT DOLE", "ZZT  DOBLE ESPACIO", "Cereza")}
