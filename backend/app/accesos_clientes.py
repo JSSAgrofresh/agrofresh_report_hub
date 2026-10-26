@@ -97,22 +97,19 @@ def comparar(visto: set[tuple[str, str, str]], esperado: set[tuple[str, str, str
     return {"estado": "sin traspaso" if not de_mas and not falta else "con traspaso", "ve_de_mas": de_mas, "le_falta": falta}
 
 
-# ── Correos mal escritos en la lista (pegados, con nombres, separados por «/» o «:») ──────────────
+# ── Correos mal escritos en la lista (con nombres, separados por «/» o «:», repetidos) ──────────────
 
-_TLD_PEGADO = re.compile(r"(\.(?:com|cl|net|org))(?=@?[A-Za-z0-9._+-]+@)", re.I)
 _SEPARADORES = re.compile(r"[\s/:;,<>()\[\]]+")
 
 
 def separar_correos(texto: str) -> list[str]:
-    """Los correos legibles de un texto mal escrito, sin repetir y en el orden en que aparecen. Parte por espacios,
-    «/», «:», «;» y «,» y, si dos correos vienen pegados sin separador («…@dole.commarcela@dole.com»), corta donde
-    termina un dominio conocido (.com, .cl, .net, .org). Lo que no es un correo (nombres, palabras sueltas) se descarta."""
+    """Los correos COMPLETOS que hay en un texto, sin repetir y en el orden en que aparecen. Solo separa por espacios,
+    «/», «:», «;» y «,»: no corrige ni adivina nada de lo escrito (ni dominios ni letras). Lo que no es un correo
+    (nombres, palabras sueltas) se descarta; dos correos pegados sin separador no se tocan (no son un correo válido)."""
     salida: list[str] = []
-    for trozo in _SEPARADORES.split(texto or ""):
-        for parte in _TLD_PEGADO.sub(r"\1 ", trozo).split():
-            parte = parte.strip("@.-_ ")
-            if _PAT_EMAIL.match(parte) and parte.casefold() not in {c.casefold() for c in salida}:
-                salida.append(parte)
+    for parte in _SEPARADORES.split(texto or ""):
+        if _PAT_EMAIL.match(parte) and parte.casefold() not in {c.casefold() for c in salida}:
+            salida.append(parte)
     return salida
 
 
