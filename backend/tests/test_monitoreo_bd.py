@@ -56,3 +56,68 @@ def test_pestana_antigua_sin_detalle_igual_late_y_queda_sin_dato_de_interaccion(
     assert f["ultima_interaccion"] is None and f["modulo"] == "Panel general"
     c = next(x for x in monitoreo.armar_conectados(monitoreo._presencias(), [], f["ahora"], EMAIL) if x["email"] == EMAIL)
     assert c["actividad"] == "activa" and c["en_inicio"] is True
+
+
+def _sesiones():
+    with conexion() as c, cursor_dict(c) as cur:
+        cur.execute("SELECT * FROM presencia_sesion WHERE email = %s ORDER BY inicio", (EMAIL,))
+        return cur.fetchall()
+
+
+def _cliente():
+    return Usuario(id="9", email=EMAIL, nombre="Cliente Prueba", tipoAcceso="cliente", clienteNombre="GARATE",
+                   plantaNombre="CODEGUA", modulos=[])
+
+
+@pytest.fixture
+def limpiar_sesiones():
+    def borrar():
+        with conexion() as c, cursor_dict(c) as cur:
+            cur.execute("DELETE FROM presencia_sesion WHERE email = %s", (EMAIL,))
+    borrar()
+    yield
+    borrar()
+
+
+@pytest.mark.skipif(not hay_base("presencia_sesion"), reason="sin la migración 0070")
+def test_las_senales_seguidas_son_una_sola_visita_y_acumulan_tiempo_activo(limpiar_sesiones):
+    monitoreo.latido(monitoreo.LatidoIn(ruta="/modulos/reportes", inactivo_segundos=0, dispositivo="Móvil · Chrome"), _cliente())
+    with conexion() as c, cursor_dict(c) as cur:  # el latido anterior fue hace 60 s
+        cur.execute("UPDATE presencia_sesion SET inicio = now() - interval '60 seconds', "
+                    "ultimo_latido = now() - interval '60 seconds' WHERE email = %s", (EMAIL,))
+    monitoreo.latido(monitoreo.LatidoIn(ruta="/modulos/reportes", inactivo_segundos=5), _cliente())
+    s = _sesiones()
+    assert len(s) == 1 and s[0]["cliente"] == "GARATE" and s[0]["planta"] == "CODEGUA"
+    assert 55 <= s[0]["segundos_activos"] <= 65
+    assert 55 <= (s[0]["ultimo_latido"] - s[0]["inicio"]).total_seconds() <= 65
+
+
+@pytest.mark.skipif(not hay_base("presencia_sesion"), reason="sin la migración 0070")
+def test_pasados_10_minutos_sin_senal_abre_una_visita_nueva_y_la_pausa_no_suma(limpiar_sesiones):
+    monitoreo.latido(monitoreo.LatidoIn(ruta="/"), _cliente())
+    with conexion() as c, cursor_dict(c) as cur:
+        cur.execute("UPDATE presencia_sesion SET ultimo_latido = now() - interval '11 minutes', "
+                    "inicio = now() - interval '12 minutes' WHERE email = %s", (EMAIL,))
+    monitoreo.latido(monitoreo.LatidoIn(ruta="/"), _cliente())
+    assert len(_sesiones()) == 2
+    # en pausa (sin tocar nada hace 5 min): el tiempo pasa pero no cuenta como activo
+    with conexion() as c, cursor_dict(c) as cur:
+        cur.execute("UPDATE presencia_sesion SET ultimo_latido = now() - interval '60 seconds' WHERE email = %s "
+                    "AND id = (SELECT max(id) FROM presencia_sesion WHERE email = %s)", (EMAIL, EMAIL))
+    monitoreo.latido(monitoreo.LatidoIn(ruta="/", inactivo_segundos=300), _cliente())
+    assert _sesiones()[-1]["segundos_activos"] == 0
+
+
+@pytest.mark.skipif(not hay_base("presencia_sesion"), reason="sin la migración 0070")
+def test_el_endpoint_de_clientes_lista_solo_clientes_y_comerciales(limpiar_sesiones):
+    monitoreo.latido(monitoreo.LatidoIn(ruta="/"), _cliente())
+    interno = Usuario(id="8", email="test-interno@prueba.cl", tipoAcceso="analista", nombre="Interno", modulos=[])
+    monitoreo.latido(monitoreo.LatidoIn(ruta="/"), interno)
+    try:
+        r = monitoreo.clientes_conectados(dias=1, _=_cliente())
+        correos = [c["email"] for c in r["cuentas"]]
+        assert EMAIL in correos and "test-interno@prueba.cl" not in correos and r["disponible"] is True
+    finally:
+        with conexion() as c, cursor_dict(c) as cur:
+            cur.execute("DELETE FROM presencia_sesion WHERE email = 'test-interno@prueba.cl'")
+            cur.execute("DELETE FROM presencia WHERE email = 'test-interno@prueba.cl'")

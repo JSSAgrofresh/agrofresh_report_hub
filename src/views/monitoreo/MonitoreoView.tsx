@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { iniciales } from '@/features/adminPanel'
 import { useAuth } from '@/features/auth'
 import {
-  ETIQUETA_ACTIVIDAD, hace, horaChile, SEGUNDOS_REFRESCO, tendencia, textoInactividad, tonoDe, trazoPulso, useContador,
+  duracionSeg, ETIQUETA_ACTIVIDAD, hace, horaChile, PERIODOS_CLIENTES, useClientes, SEGUNDOS_REFRESCO, tendencia, textoInactividad, tonoDe, trazoPulso, useContador,
   useInstalarApp, useMonitoreo,
   type BloquePulso, type Conectado, type EventoReciente, type InformeLlegado, type ModuloConGente, type ResumenMonitoreo,
   type SolicitudEnviada,
@@ -189,6 +189,53 @@ function EnVivo({ eventos, ahoraMs, onAbrir }: { eventos: EventoReciente[]; ahor
   )
 }
 
+function ClientesConectados({ ahoraMs, onAbrir }: { ahoraMs: number; onAbrir: (c: { email: string; nombre: string }) => void }) {
+  const [dias, setDias] = useState<number>(1)
+  const { datos, error } = useClientes(dias)
+  const cuentas = datos?.cuentas ?? []
+  return (
+    <Tarjeta titulo="Clientes que se conectaron" cuenta={datos?.disponible ? `${cuentas.length} ${cuentas.length === 1 ? 'cuenta' : 'cuentas'}` : undefined} acento="#4fd1c5">
+      <div className={styles.periodos} role="group" aria-label="Período">
+        {PERIODOS_CLIENTES.map((p) => (
+          <button key={p.dias} type="button" className={p.dias === dias ? styles.periodoOn : ''} aria-pressed={p.dias === dias} onClick={() => setDias(p.dias)}>{p.etiqueta}</button>
+        ))}
+      </div>
+      {error && !datos ? <p className={styles.vacio}>{error}</p>
+        : !datos ? <p className={styles.vacio}>Cargando…</p>
+        : !datos.disponible ? <p className={styles.vacio}>Falta correr la migración 0070 en el servidor para guardar las conexiones.</p>
+        : cuentas.length === 0 ? <p className={styles.vacio}>Ningún cliente se conectó en este período.</p> : (
+        <>
+          <p className={styles.resumenClientes}>
+            <b>{duracionSeg(datos.segundos_total ?? 0)}</b> conectados en total{datos.en_linea ? <> · <span className={styles.eVerdeTxt}>{datos.en_linea} en línea ahora</span></> : null}
+          </p>
+          <ul className={styles.lista}>
+            {cuentas.map((c, i) => (
+              <li key={c.email} style={estiloI(i)}>
+                <button type="button" className={styles.fila} onClick={() => onAbrir(c)}>
+                  <Avatar nombre={c.nombre} email={c.email} c={{ estado: c.en_linea ? 'en_linea' : 'reciente', actividad: c.en_linea ? 'activa' : null }} />
+                  <span className={styles.filaCuerpo}>
+                    <b>{c.nombre}{c.tipo === 'comercial' && <em> · comercial</em>}</b>
+                    <small>{[c.cliente, c.planta].filter(Boolean).join(' · ') || (c.tipo === 'comercial' ? 'Cuenta comercial' : '—')}</small>
+                    <small className={`${styles.estado} ${c.en_linea ? styles.eVerde : styles.eGris}`}>
+                      <i />{c.en_linea ? 'En línea ahora' : `Última vez ${hace(c.ultima, ahoraMs)}`}
+                    </small>
+                    <small>{c.sesiones} {c.sesiones === 1 ? 'visita' : 'visitas'} · usó el sistema {c.segundos_activo < 60 ? '<1 min' : duracionSeg(c.segundos_activo)}</small>
+                    {c.dispositivo && <small>{c.dispositivo}</small>}
+                  </span>
+                  <span className={styles.filaLado}>
+                    <b className={styles.tiempo}>{c.segundos_conectado < 60 ? '<1 min' : duracionSeg(c.segundos_conectado)}</b>
+                    <small>conectado</small>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Tarjeta>
+  )
+}
+
 function pastillaInforme(i: InformeLlegado): { texto: string; clase: string } {
   if (i.decision === 'rechazado') return { texto: 'Rechazado', clase: styles.pGris }
   if (i.decision === 'aceptado') return { texto: 'Aceptado', clase: styles.pVerde }
@@ -337,6 +384,7 @@ function Monitoreo() {
                 <Conectados datos={datos} ahoraMs={ahoraMs} nuevos={nuevos.conectados} onAbrir={(c) => setAbierto({ email: c.email, nombre: c.nombre })} />
               </div>
               <div className={styles.columna}>
+                <ClientesConectados ahoraMs={ahoraMs} onAbrir={setAbierto} />
                 <DondeEsta modulos={datos.por_modulo} />
                 <Informes informes={datos.informes} ahoraMs={ahoraMs} nuevos={nuevos.informes} />
               </div>

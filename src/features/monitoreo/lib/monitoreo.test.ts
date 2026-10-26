@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { claveNuevas, dispositivoDe, duracion, hace, tendencia, textoInactividad, tonoDe, trazoPulso } from './monitoreo'
+import { claveNuevas, dispositivoDe, duracion, duracionSeg, hace, tendencia, textoInactividad, tonoDe, trazoPulso } from './monitoreo'
 
 const AHORA = new Date('2026-10-22T15:00:00Z').getTime()
 const antes = (seg: number) => new Date(AHORA - seg * 1000).toISOString()
@@ -87,5 +87,14 @@ describe('textoInactividad y tendencia', () => {
     expect(tendencia(7, 4)).toEqual({ texto: '+3 que la hora anterior', sube: true })
     expect(tendencia(2, 5)).toEqual({ texto: '-3 que la hora anterior', sube: false })
     expect(tendencia(3, 3).sube).toBeNull()
+  })
+})
+
+describe('duracionSeg', () => {
+  it('menos de un minuto, minutos y horas', () => {
+    expect(duracionSeg(20)).toBe('menos de 1 min')
+    expect(duracionSeg(42 * 60)).toBe('42 min')
+    expect(duracionSeg(72 * 60)).toBe('1 h 12 min')
+    expect(duracionSeg(2 * 3600)).toBe('2 h')
   })
 })
