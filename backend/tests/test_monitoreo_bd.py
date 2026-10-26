@@ -121,3 +121,22 @@ def test_el_endpoint_de_clientes_lista_solo_clientes_y_comerciales(limpiar_sesio
         with conexion() as c, cursor_dict(c) as cur:
             cur.execute("DELETE FROM presencia_sesion WHERE email = 'test-interno@prueba.cl'")
             cur.execute("DELETE FROM presencia WHERE email = 'test-interno@prueba.cl'")
+
+
+@pytest.mark.skipif(not hay_base("usuario"), reason="sin la tabla de usuarios")
+def test_el_detalle_de_una_cuenta_dice_a_que_sold_to_y_ship_to_pertenece():
+    import json
+    correo = "test-pertenencia@prueba.cl"
+    with conexion() as c, cursor_dict(c) as cur:
+        cur.execute("DELETE FROM usuario WHERE email = %s", (correo,))
+        cur.execute(
+            "INSERT INTO usuario (email, nombre, tipo_acceso, area, password_hash, plantas_asignadas) "
+            "VALUES (%s, 'Prueba', 'cliente', NULL, 'x', %s::jsonb)",
+            (correo, json.dumps([{"clienteNombre": "DOLE CHILE S.A.", "plantaNombre": "DOLE PLANTA CODEGUA", "especie": "Cerezas"}])))
+    try:
+        d = monitoreo.detalle_usuario(email=correo, _=_usuario())
+        assert d["cuenta"]["tipo"] == "cliente"
+        assert d["cuenta"]["accesos"] == [{"sold_to": "DOLE CHILE S.A.", "ship_to": "DOLE PLANTA CODEGUA", "especies": ["Cerezas"]}]
+    finally:
+        with conexion() as c, cursor_dict(c) as cur:
+            cur.execute("DELETE FROM usuario WHERE email = %s", (correo,))
