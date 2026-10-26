@@ -40,21 +40,21 @@ def test_sin_lista_el_cliente_sigue_acotado_por_su_cliente_y_sucursal_de_siempre
 
 def test_tipo_1_una_planta_y_una_especie():
     sql, params = reportes._filtro_alcance(_cli(TIPO1), None, None)
-    assert params["com_c0"] == "DOLE" and params["com_p0"] == "DOLE LONTUE" and params["com_e0"] == "Cerezas"
+    assert params["com_c0"] == "dole" and params["com_p0"] == "dole lontue" and params["com_e0"] == "Cerezas"
     assert "s.especie" in sql and "cliente" not in params  # manda la lista, no el cliente suelto
 
 
 def test_tipo_2_una_planta_y_varias_especies_son_alternativas_de_la_misma_planta():
     sql, params = reportes._filtro_alcance(_cli(TIPO2), None, None)
     assert [params[f"com_e{i}"] for i in range(2)] == ["Cerezas", "Manzana"]
-    assert params["com_p0"] == params["com_p1"] == "DOLE LONTUE" and " OR " in sql
+    assert params["com_p0"] == params["com_p1"] == "dole lontue" and " OR " in sql
 
 
 def test_tipo_3_varias_plantas_y_varias_especies():
     _, params = reportes._filtro_alcance(_cli(TIPO3), None, None)
     assert {(params[f"com_c{i}"], params[f"com_p{i}"], params[f"com_e{i}"]) for i in range(4)} == {
-        ("DOLE", "DOLE LONTUE", "Cerezas"), ("DOLE", "DOLE LONTUE", "Manzana"),
-        ("VERFRUT", "VERFRUT RAPEL", "Cerezas"), ("VERFRUT", "VERFRUT RAPEL", "Kiwi"),
+        ("dole", "dole lontue", "Cerezas"), ("dole", "dole lontue", "Manzana"),
+        ("verfrut", "verfrut rapel", "Cerezas"), ("verfrut", "verfrut rapel", "Kiwi"),
     }
 
 
@@ -126,3 +126,11 @@ def test_cliente_sin_lista_ni_cliente_se_rechaza_y_con_cliente_sigue_igual():
     c = _cuenta(None, "DOLE")
     usuarios._validar(c)
     assert c.plantasAsignadas is None and c.clienteNombre == "DOLE"
+
+
+def test_los_nombres_se_comparan_sin_mayusculas_ni_espacios_de_mas():
+    """En Listados hay nombres con doble espacio («PLANTA  ROMERAL»): una cuenta guardada con uno solo debe verlos."""
+    cuenta = _cli([{"clienteNombre": "  copefrut   sa ", "plantaNombre": "Copefrfut Planta Romeral"}])
+    sql, params = reportes._filtro_alcance(cuenta, None, None)
+    assert params["com_c0"] == "copefrut sa" and params["com_p0"] == "copefrfut planta romeral"
+    assert "regexp_replace" in sql
