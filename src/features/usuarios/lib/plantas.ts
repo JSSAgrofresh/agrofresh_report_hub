@@ -1,6 +1,10 @@
 import type { PlantaAsignada } from '../types'
 
-export const claveDePlanta = (p: PlantaAsignada) => `${p.clienteNombre}\u0000${p.plantaNombre ?? ''}`.toLowerCase()
+export const claveDePlanta = (p: PlantaAsignada) => `${p.clienteNombre}\u0000${p.plantaNombre ?? ''}\u0000${p.especie ?? ''}`.toLowerCase()
+
+/** Cómo se lee un acceso: la planta (o «todas las plantas») y, si la limita, su especie. */
+export const etiquetaDeAcceso = (p: PlantaAsignada) =>
+  `${p.plantaNombre ?? 'Todas las plantas de este Sold To'}${p.especie ? ` · ${p.especie}` : ''}`
 
 export interface Grupo {
   cliente: string
@@ -19,6 +23,9 @@ export function agruparPlantas(plantas: PlantaAsignada[]): Grupo[] {
     .sort((a, b) => a.cliente.localeCompare(b.cliente, 'es'))
     .map((g) => ({
       ...g,
-      plantas: [...g.plantas].sort((a, b) => (a.plantaNombre ?? '').localeCompare(b.plantaNombre ?? '', 'es')),
+      plantas: [...g.plantas].sort(
+        (a, b) =>
+          (a.plantaNombre ?? '').localeCompare(b.plantaNombre ?? '', 'es') || (a.especie ?? '').localeCompare(b.especie ?? '', 'es'),
+      ),
     }))
 }

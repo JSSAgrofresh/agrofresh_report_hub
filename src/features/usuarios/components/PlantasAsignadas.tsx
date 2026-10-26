@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { PlantaAsignada } from '../types'
-import { agruparPlantas, claveDePlanta } from '../lib/plantas'
+import { agruparPlantas, claveDePlanta, etiquetaDeAcceso } from '../lib/plantas'
 import styles from './PlantasAsignadas.module.css'
 
 const plano = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -15,11 +15,12 @@ interface Props {
 export function PlantasAsignadas({ plantas, onChange }: Props) {
   const [texto, setTexto] = useState('')
   const grupos = useMemo(() => agruparPlantas(plantas), [plantas])
+  const nPlantas = new Set(plantas.map((p) => `${p.clienteNombre}\u0000${p.plantaNombre ?? ''}`.toLowerCase())).size
   const palabras = plano(texto).split(/\s+/).filter(Boolean)
   const visibles = grupos
     .map((g) => ({
       ...g,
-      plantas: g.plantas.filter((p) => palabras.every((w) => plano(`${g.cliente} ${p.plantaNombre ?? ''}`).includes(w))),
+      plantas: g.plantas.filter((p) => palabras.every((w) => plano(`${g.cliente} ${p.plantaNombre ?? ''} ${p.especie ?? ''}`).includes(w))),
     }))
     .filter((g) => g.plantas.length > 0)
 
@@ -36,12 +37,12 @@ export function PlantasAsignadas({ plantas, onChange }: Props) {
     <div className={styles.caja}>
       <div className={styles.encabezado}>
         <strong>
-          {plantas.length} {plantas.length === 1 ? 'planta' : 'plantas'} en {grupos.length} {grupos.length === 1 ? 'cliente' : 'clientes'}
+          {nPlantas} {nPlantas === 1 ? 'planta' : 'plantas'} en {grupos.length} {grupos.length === 1 ? 'cliente' : 'clientes'}
         </strong>
         <input
           type="search"
           className={styles.buscador}
-          placeholder="Buscar una planta o un cliente…"
+          placeholder="Buscar una planta, una especie o un cliente…"
           aria-label="Buscar entre las plantas asignadas"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
@@ -61,7 +62,7 @@ export function PlantasAsignadas({ plantas, onChange }: Props) {
               <div className={styles.cuerpo}>
                 <ul className={styles.plantas}>
                   {g.plantas.map((p) => {
-                    const nombre = p.plantaNombre ?? 'Todas las plantas de este Sold To'
+                    const nombre = etiquetaDeAcceso(p)
                     return (
                       <li key={claveDePlanta(p)}>
                         <span>{nombre}</span>

@@ -66,7 +66,8 @@ class Usuario(BaseModel):
     plantaNombre: str | None = None
     modulos: list[str] | None = None
     reportes: list[str] | None = None
-    # Solo cuentas «comercial»: [{clienteNombre, plantaNombre?}]. Sin plantaNombre = todo ese Sold To.
+    # Cuentas «comercial» y «cliente» con varios accesos: [{clienteNombre, plantaNombre?, especie?}]. Sin plantaNombre =
+    # todo ese Sold To; sin especie = todas las especies. Una especie por entrada (varias especies = varias entradas).
     plantasAsignadas: list[dict[str, str | None]] | None = None
     debeCambiarPassword: bool = False
 
@@ -115,9 +116,10 @@ def _plano(valor: str | None) -> str:
 
 def planta_permitida(usuario: Usuario, sold_to: str | None, ship_to: str | None) -> bool:
     """¿Esta cuenta puede ver una fila de ESTE Sold To / Ship To? Los demás tipos de cuenta: sí (su alcance lo decide
-    cada módulo). Un comercial solo si la planta (o todo su Sold To) está entre las que se le asignaron; sin plantas
-    asignadas, nunca. Se compara sin mayúsculas ni espacios de más."""
-    if usuario.tipoAcceso != "comercial":
+    cada módulo). Un comercial, o un cliente con lista de accesos, solo si la planta (o todo su Sold To) está entre las
+    que se le asignaron; sin plantas asignadas, nunca. Se compara sin mayúsculas ni espacios de más. (La especie no
+    cuenta acá: lo que no trae especie —carpetas, informes Accu-Tab— se abre por planta.)"""
+    if not con_lista_de_accesos(usuario):
         return True
     cli, pla = _plano(sold_to), _plano(ship_to)
     for cliente, planta in plantas_de_comercial(usuario):
@@ -131,15 +133,33 @@ def es_comercial(usuario: Usuario) -> bool:
 
 
 def plantas_de_comercial(usuario: Usuario) -> list[tuple[str, str | None]]:
-    """(Sold To, Ship To o None) que esta cuenta comercial puede ver. None en el Ship To = todo ese Sold To.
-    Vacío = no ve nada (una cuenta sin plantas asignadas nunca ve todo)."""
+    """(Sold To, Ship To o None) que esta cuenta (comercial o cliente con lista de accesos) puede ver. None en el
+    Ship To = todo ese Sold To. Vacío = no ve nada (una cuenta sin plantas asignadas nunca ve todo). Sin repetir."""
     salida: list[tuple[str, str | None]] = []
+    for cliente, planta, _especie in accesos_de_cuenta(usuario):
+        if (cliente, planta) not in salida:
+            salida.append((cliente, planta))
+    return salida
+
+
+def accesos_de_cuenta(usuario: Usuario) -> list[tuple[str, str | None, str | None]]:
+    """(Sold To, Ship To o None, Especie o None) de la lista de accesos de la cuenta. None = todo ese nivel."""
+    salida: list[tuple[str, str | None, str | None]] = []
     for p in usuario.plantasAsignadas or []:
         cliente = str(p.get("clienteNombre") or "").strip()
         planta = str(p.get("plantaNombre") or "").strip() or None
-        if cliente:
-            salida.append((cliente, planta))
+        especie = str(p.get("especie") or "").strip() or None
+        if cliente and (cliente, planta, especie) not in salida:
+            salida.append((cliente, planta, especie))
     return salida
+
+
+def con_lista_de_accesos(usuario: Usuario) -> bool:
+    """Un comercial siempre se acota por su lista (vacía = nada). Un cliente solo si tiene una lista guardada; sin
+    ella manda su cliente y su sucursal de siempre (las cuentas antiguas siguen igual)."""
+    if usuario.tipoAcceso == "comercial":
+        return True
+    return usuario.tipoAcceso == "cliente" and bool(accesos_de_cuenta(usuario))
 
 
 # ── Freno de fuerza bruta ───────────────────────────────────────────────
