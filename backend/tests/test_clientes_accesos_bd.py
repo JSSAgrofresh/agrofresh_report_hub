@@ -162,11 +162,11 @@ def test_la_prueba_de_traspaso_detecta_una_cuenta_mal_creada(datos):
     ("gsalazar@auroraa.cl / eespina@auroraa.cl", ["gsalazar@auroraa.cl", "eespina@auroraa.cl"]),
     ("eduardo quiero mejias equieromejias@camarico.cl / francisca atala sagcamarico@camarico.cl",
      ["equieromejias@camarico.cl", "sagcamarico@camarico.cl"]),
-    ("pamela.donoso@dole.commarcela.lecannelier@dole.com", ["pamela.donoso@dole.com", "marcela.lecannelier@dole.com"]),
+    ("pamela.donoso@dole.commarcela.lecannelier@dole.com", []),   # pegados: no se adivina, queda para arreglar a mano
     ("matias.barrera@manio.cl:juan.lorca@manio.cl", ["matias.barrera@manio.cl", "juan.lorca@manio.cl"]),
-    ("clagos@exser.cl@pchamorro@exser.cl", ["clagos@exser.cl", "pchamorro@exser.cl"]),
+    ("clagos@exser.cl@pchamorro@exser.cl", []),
     ("julio salgado frio@fruitservice.cl", ["frio@fruitservice.cl"]),
-    ("juan@empresa.com.cl", ["juan@empresa.com.cl"]),   # un dominio con .com adentro no se parte
+    ("juan@empresa.com.cl", ["juan@empresa.com.cl"]),   # lo escrito no se toca
     ("sin correo aquí", []),
 ])
 def test_separar_correos_lee_los_que_hay_y_descarta_el_resto(texto, esperado):
