@@ -28,6 +28,14 @@ export function esSoloLectura(usuario: Usuario): boolean {
 /** Lo único que se le puede dar a un comercial: lo que la API acota a sus plantas. Espejo de `MODULOS_COMERCIAL`. */
 export const MODULOS_COMERCIAL = ['reports', 'storage', 'auditoria_interna', 'toma_muestras'] as const
 
+/** Marca (viaja en `modulos`, sin migración) que el administrador general le da a ALGUNOS comerciales: ven las plantas
+ * de TODOS los clientes en vez de una lista. Espejo de `auth.MODULO_TODAS_LAS_PLANTAS`. Solo vale en un comercial. */
+export const MODULO_TODAS_LAS_PLANTAS = 'todas_las_plantas'
+
+export function veTodasLasPlantas(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
+  return usuario.tipoAcceso === 'comercial' && (usuario.modulos ?? []).includes(MODULO_TODAS_LAS_PLANTAS)
+}
+
 export function puedeAdministrarUsuarios(usuario: Usuario): boolean {
   return esAdminGeneral(usuario)
 }

@@ -306,3 +306,57 @@ def test_el_personal_interno_sigue_viendo_todo_en_accutab(monkeypatch):
 def test_el_comercial_puede_llevar_postventa_junto_al_report():
     _, mods, reps = pf.normalizar_cuenta("comercial", None, ["reports"], ["laboratorio", "postventa"])
     assert mods == ["reports"] and reps == ["laboratorio", "postventa"]
+
+
+# ── Comercial con «todas las plantas» (marca opcional, sin migración) ──────────────────────────────────────────────
+
+def _todas(modulos=("reports", "storage", "todas_las_plantas")):
+    return _com(None, modulos)
+
+
+def test_la_marca_se_guarda_solo_en_un_comercial_y_no_cuenta_como_modulo():
+    _, mods, _ = pf.normalizar_cuenta("comercial", None, ["storage", "todas_las_plantas"], None)
+    assert mods == ["storage", "todas_las_plantas"]
+    with pytest.raises(HTTPException):  # sola no abre nada: sigue pidiendo algún módulo
+        pf.normalizar_cuenta("comercial", None, ["todas_las_plantas"], None)
+    _, mods, _ = pf.normalizar_cuenta("comercial", None, ["storage"], None)
+    assert "todas_las_plantas" not in mods  # sin pedirla no se agrega
+    _, mods, _ = pf.normalizar_cuenta("analista", "cromatografia", ["reports", "todas_las_plantas"], None)
+    assert "todas_las_plantas" not in mods  # en otro tipo de cuenta no existe
+
+
+def test_un_comercial_con_la_marca_puede_crearse_sin_lista_de_plantas():
+    c = usuarios.UsuarioIn(email="a@b.cl", nombre="A", tipoAcceso="comercial", modulos=["reports", "todas_las_plantas"], plantasAsignadas=[])
+    usuarios._validar(c)  # no lanza
+    with pytest.raises(HTTPException) as e:
+        usuarios._validar(_cuenta("comercial", []))  # sin marca y sin plantas, como siempre
+    assert e.value.status_code == 400
+
+
+def test_el_comercial_con_la_marca_ve_todas_las_plantas_y_sin_ella_sigue_acotado():
+    from app.auth import con_lista_de_accesos, planta_permitida, ve_todas_las_plantas
+    t = _todas()
+    assert ve_todas_las_plantas(t) and not con_lista_de_accesos(t)
+    assert planta_permitida(t, "CUALQUIER SOLD TO", "CUALQUIER PLANTA")
+    sin = _com(None)
+    assert not ve_todas_las_plantas(sin) and con_lista_de_accesos(sin)
+    assert not planta_permitida(sin, "CUALQUIER SOLD TO", "CUALQUIER PLANTA")
+    # la marca puesta en un cliente no hace nada
+    cli = Usuario(id="1", email="c@x.cl", nombre="C", tipoAcceso="cliente", modulos=["todas_las_plantas"], clienteNombre="DOLE")
+    assert not ve_todas_las_plantas(cli)
+
+
+def test_el_filtro_de_report_del_comercial_con_la_marca_no_acota_por_plantas():
+    filtro, params = reportes._filtro_alcance(_todas(), None, None)
+    assert "com_c0" not in params and "FALSE" not in filtro
+    # lo que pida el navegador solo acota más, igual que para el personal interno
+    filtro, params = reportes._filtro_alcance(_todas(), "DOLE", None)
+    assert params["cliente"] == "DOLE"
+    # sin la marca y sin plantas, nada (como siempre)
+    assert "FALSE" in reportes._filtro_alcance(_com([]), None, None)[0]
+
+
+def test_las_carpetas_de_informes_del_comercial_con_la_marca_se_abren_todas():
+    informes_cliente._exigir_alcance([carpeta_planta("OTRA PLANTA", "OTRO")], _todas())  # no lanza
+    with pytest.raises(HTTPException):
+        informes_cliente._exigir_alcance([carpeta_planta("OTRA PLANTA", "OTRO")], _com(None))
