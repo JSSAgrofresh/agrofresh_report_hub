@@ -120,6 +120,19 @@ export interface EventoLinea {
   modulo: string | null
 }
 
+/** A qué Sold To y Ship To pertenece una cuenta (`ship_to` null = todas las plantas de ese Sold To; `especies` vacío = todas). */
+export interface AccesoCuenta {
+  sold_to: string
+  ship_to: string | null
+  especies: string[]
+}
+
+export interface CuentaPertenencia {
+  tipo: string | null
+  area: string | null
+  accesos: AccesoCuenta[]
+}
+
 export interface SesionConexion {
   inicio: string
   fin: string
@@ -169,6 +182,7 @@ export interface DetalleUsuario {
   tipo: string | null
   recorrido_tiempos: { modulo: string; desde: string; minutos: number }[]
   sesiones: SesionConexion[]
+  cuenta: CuentaPertenencia | null
   modulo_actual: string | null
   total: number
   acciones: number
@@ -307,3 +321,8 @@ export const PERIODOS_CLIENTES = [
   { dias: 7, etiqueta: '7 días' },
   { dias: 30, etiqueta: '30 días' },
 ] as const
+
+export const ETIQUETA_TIPO: Record<string, string> = {
+  admin_general: 'Administrador general', gerencia: 'Gerencia', admin_area: 'Administrador de área',
+  analista: 'Analista', muestreador: 'Muestreador', cliente: 'Cliente', comercial: 'Comercial',
+}

@@ -249,6 +249,29 @@ def agrupar_sesiones(sesiones: list[dict], ahora: datetime) -> list[dict]:
     return sorted(salida, key=lambda f: (not f["en_linea"], f["segundos_desde_ultima"]))
 
 
+def pertenencia_de_cuenta(fila: dict | None) -> dict | None:
+    """A qué Sold To y Ship To pertenece una cuenta (y con qué especies), en una forma que la pantalla pinta tal cual.
+
+    Una cuenta con lista de accesos (cliente con varias plantas o especies, comercial) agrupa por Sold To y Ship To;
+    una cuenta antigua usa su cliente y su sucursal de siempre; el personal interno no tiene: solo su área."""
+    if not fila:
+        return None
+    grupos: dict[tuple[str, str | None], list[str]] = {}
+    for p in fila.get("plantas_asignadas") or []:
+        cli = str(p.get("clienteNombre") or "").strip()
+        if not cli:
+            continue
+        pla = str(p.get("plantaNombre") or "").strip() or None
+        esp = str(p.get("especie") or "").strip()
+        esps = grupos.setdefault((cli, pla), [])
+        if esp and esp not in esps:
+            esps.append(esp)
+    if not grupos and (fila.get("cliente_nombre") or fila.get("planta_nombre")):
+        grupos[(str(fila.get("cliente_nombre") or "").strip(), str(fila.get("planta_nombre") or "").strip() or None)] = []
+    accesos = [{"sold_to": c, "ship_to": pl, "especies": e} for (c, pl), e in sorted(grupos.items(), key=lambda x: (x[0][0], x[0][1] or ""))]
+    return {"tipo": fila.get("tipo_acceso"), "area": fila.get("area"), "accesos": accesos}
+
+
 def desde_de_conexion(presencia: dict | None, eventos: list[dict], email: str, ahora: datetime) -> tuple[datetime, str]:
     """Desde cuándo contar lo que hizo: su conexión actual, si no su último ingreso de hoy, si no el inicio del día."""
     if presencia and (ahora - presencia["ultimo_latido"]).total_seconds() <= SEGUNDOS_RECIENTE:
@@ -476,6 +499,9 @@ def detalle_usuario(email: str = Query(..., min_length=3), _: Usuario = Depends(
         "en_pantalla_desde": _iso(pres.get("ruta_desde")) if pres else None,
         "dispositivo": (pres or {}).get("dispositivo"), "version": (pres or {}).get("version"),
         "tipo": (pres or {}).get("tipo_acceso"),
+        "cuenta": pertenencia_de_cuenta(next(iter(_filas(
+            "SELECT tipo_acceso, area, cliente_nombre, planta_nombre, plantas_asignadas FROM usuario "
+            "WHERE lower(email) = %s", (email,))), None)),
         "sesiones": _sesiones_de(email),
         "recorrido_tiempos": recorrido_con_tiempos([e for e in eventos if e["email"] == email and e["t"] >= desde], ahora),
         "modulo_actual": (pres or {}).get("modulo"),
