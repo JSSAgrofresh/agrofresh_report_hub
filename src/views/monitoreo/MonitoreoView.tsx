@@ -3,9 +3,12 @@ import { Link } from 'react-router-dom'
 import { iniciales } from '@/features/adminPanel'
 import { useAuth } from '@/features/auth'
 import {
-  hace, horaChile, SEGUNDOS_REFRESCO, tonoDe, trazoPulso, useContador, useMonitoreo,
-  type BloquePulso, type Conectado, type InformeLlegado, type ResumenMonitoreo, type SolicitudEnviada,
+  ETIQUETA_ACTIVIDAD, hace, horaChile, SEGUNDOS_REFRESCO, tendencia, textoInactividad, tonoDe, trazoPulso, useContador,
+  useInstalarApp, useMonitoreo,
+  type BloquePulso, type Conectado, type EventoReciente, type InformeLlegado, type ModuloConGente, type ResumenMonitoreo,
+  type SolicitudEnviada,
 } from '@/features/monitoreo'
+import { COLOR_CATEGORIA } from '@/features/adminPanel'
 import { CORREO_MAESTRO } from '@/features/usuarios'
 import { ROUTES } from '@/constants/routes'
 import { DetalleSheet } from './DetalleSheet'
@@ -25,7 +28,7 @@ function Tarjeta({ titulo, cuenta, children, acento }: { titulo: string; cuenta?
   )
 }
 
-function Kpi({ etiqueta, valor, pie, tono }: { etiqueta: string; valor: number; pie?: string; tono?: 'verde' | 'azul' | 'ambar' | 'rojo' }) {
+function Kpi({ etiqueta, valor, pie, tono }: { etiqueta: string; valor: number; pie?: string; tono?: 'verde' | 'azul' | 'ambar' | 'rojo' | 'violeta' | 'turquesa' }) {
   const v = useContador(valor)
   return (
     <div className={`${styles.kpi} ${styles[`kpi_${tono ?? 'verde'}`]}`}>
@@ -91,18 +94,27 @@ function Pulso({ pulso }: { pulso: BloquePulso[] }) {
   )
 }
 
-function Avatar({ nombre, email, enLinea }: { nombre: string; email: string; enLinea: boolean }) {
+function Avatar({ nombre, email, c }: { nombre: string; email: string; c: Pick<Conectado, 'estado' | 'actividad'> }) {
+  const clase = c.estado !== 'en_linea' ? '' : c.actividad === 'pausa' ? styles.avatarPausa : c.actividad === 'segundo_plano' ? styles.avatarSegundo : styles.avatarVivo
   return (
-    <span className={`${styles.avatar} ${enLinea ? styles.avatarVivo : ''}`} style={{ '--tono': tonoDe(email) } as CSSProperties}>
+    <span className={`${styles.avatar} ${clase}`} style={{ '--tono': tonoDe(email) } as CSSProperties}>
       {iniciales(nombre)}
     </span>
   )
 }
 
+/** La línea de estado de una persona: «Activo», «En pausa · sin tocar nada hace 5 min» o «Estuvo hace 12 min». */
+function estadoTexto(c: Conectado, ahoraMs: number): { texto: string; clase: string } {
+  if (c.estado !== 'en_linea') return { texto: `Estuvo ${hace(c.ultimo, ahoraMs)}`, clase: styles.eGris }
+  if (c.actividad === 'pausa') return { texto: `En pausa · sin tocar nada ${textoInactividad(c.inactivo_segundos)}`, clase: styles.eAmbar }
+  if (c.actividad === 'segundo_plano') return { texto: ETIQUETA_ACTIVIDAD.segundo_plano, clase: styles.eAzul }
+  return { texto: ETIQUETA_ACTIVIDAD.activa, clase: styles.eVerde }
+}
+
 function Conectados({ datos, ahoraMs, nuevos, onAbrir }: { datos: ResumenMonitoreo; ahoraMs: number; nuevos: Set<string>; onAbrir: (c: Conectado) => void }) {
   const lista = datos.conectados
   return (
-    <Tarjeta titulo="Gente conectada" cuenta={`${datos.en_linea} en línea`} acento="#8be04a">
+    <Tarjeta titulo="Gente conectada" cuenta={`${datos.activos} activos · ${datos.en_pausa} en pausa`} acento="#8be04a">
       {lista.length === 0 ? (
         <p className={styles.vacio}>Nadie conectado en este momento.</p>
       ) : (
@@ -110,18 +122,64 @@ function Conectados({ datos, ahoraMs, nuevos, onAbrir }: { datos: ResumenMonitor
           {lista.map((c, i) => (
             <li key={c.email} style={estiloI(i)}>
               <button type="button" className={`${styles.fila} ${nuevos.has(c.email) ? styles.nuevo : ''}`} onClick={() => onAbrir(c)}>
-                <Avatar nombre={c.nombre} email={c.email} enLinea={c.estado === 'en_linea'} />
+                <Avatar nombre={c.nombre} email={c.email} c={c} />
                 <span className={styles.filaCuerpo}>
                   <b>{c.nombre}{c.yo && <em> · tú</em>}</b>
-                  <small>
-                    {c.estado === 'en_linea' ? (c.modulo ?? 'Conectado') : `Estuvo ${hace(c.ultimo, ahoraMs)}${c.modulo ? ` · ${c.modulo}` : ''}`}
+                  <small className={`${styles.estado} ${estadoTexto(c, ahoraMs).clase}`}><i />{estadoTexto(c, ahoraMs).texto}</small>
+                  <small className={styles.pantalla}>
+                    {c.estado === 'en_linea' ? 'Está en' : 'Estaba en'} <b>{c.pantalla}</b>
+                    {c.en_inicio && <span className={styles.etiquetaInicio}>inicio</span>}
                   </small>
+                  {c.estado === 'en_linea' && c.en_pantalla_desde && <small>en esta pantalla {hace(c.en_pantalla_desde, ahoraMs)}</small>}
+                  {c.dispositivo && <small>{c.dispositivo}</small>}
                   {c.ultima_accion && <small className={styles.accion}>↳ {c.ultima_accion}</small>}
                 </span>
                 <span className={styles.filaLado}>
                   <b>{c.acciones_hoy}</b>
                   <small>hoy</small>
                 </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Tarjeta>
+  )
+}
+
+function DondeEsta({ modulos }: { modulos: ModuloConGente[] }) {
+  const max = Math.max(1, ...modulos.map((m) => m.personas))
+  return (
+    <Tarjeta titulo="Dónde está la gente" cuenta="ahora" acento="#8be04a">
+      {modulos.length === 0 ? <p className={styles.vacio}>Nadie conectado en este momento.</p> : (
+        <ul className={styles.lista}>
+          {modulos.map((m, k) => (
+            <li key={m.modulo} style={estiloI(k)} className={styles.moduloFila}>
+              <span className={styles.moduloCab}><b>{m.modulo}</b><small>{m.personas} {m.personas === 1 ? 'persona' : 'personas'}</small></span>
+              <span className={styles.barra2}><i style={{ width: `${(m.personas / max) * 100}%` }} /></span>
+              <small className={styles.moduloNombres}>{m.nombres.join(' · ')}</small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Tarjeta>
+  )
+}
+
+function EnVivo({ eventos, ahoraMs, onAbrir }: { eventos: EventoReciente[]; ahoraMs: number; onAbrir: (e: EventoReciente) => void }) {
+  return (
+    <Tarjeta titulo="En vivo" cuenta="lo último que se hizo" acento="#b48cf0">
+      {eventos.length === 0 ? <p className={styles.vacio}>Todavía no hay actividad.</p> : (
+        <ul className={styles.lista}>
+          {eventos.map((e, k) => (
+            <li key={`${e.t}-${e.email}-${k}`} style={estiloI(k)}>
+              <button type="button" className={`${styles.fila} ${styles.filaVivo}`} onClick={() => onAbrir(e)}>
+                <i className={styles.puntoCat} style={{ background: COLOR_CATEGORIA[e.categoria] ?? '#9aa59e' }} />
+                <span className={styles.filaCuerpo}>
+                  <b>{e.nombre}</b>
+                  <small className={styles.textoLibre}>{e.texto}</small>
+                </span>
+                <span className={styles.filaLado}><small>{hace(e.t, ahoraMs)}</small></span>
               </button>
             </li>
           ))}
@@ -229,6 +287,7 @@ export function MonitoreoView() {
 function Monitoreo() {
   const { datos, error, nuevos, refrescando, refrescar, ahoraMs, ultimaVuelta, segundosDesdeVuelta } = useMonitoreo()
   const [abierto, setAbierto] = useState<{ email: string; nombre: string } | null>(null)
+  const app = useInstalarApp()
 
   const alertas = datos ? datos.alertas.envios_fallidos.length + datos.alertas.informes_en_rojo : 0
 
@@ -244,6 +303,7 @@ function Monitoreo() {
             {datos && !error && <span> · hace {segundosDesdeVuelta} s</span>}
           </p>
         </div>
+        {app.puede && <button type="button" className={styles.instalar} onClick={() => void app.instalar()}>Instalar app</button>}
         <button type="button" className={`${styles.refrescar} ${refrescando ? styles.girando : ''}`} onClick={() => void refrescar()} aria-label="Actualizar ahora">
           <svg viewBox="0 0 36 36" aria-hidden="true">
             <circle className={styles.anilloFondo} cx="18" cy="18" r="15" />
@@ -261,9 +321,12 @@ function Monitoreo() {
         {datos && (
           <>
             <div className={styles.kpis}>
-              <Kpi etiqueta="En línea ahora" valor={datos.en_linea} pie={`${datos.kpis.personas_hoy} personas hoy`} />
+              <Kpi etiqueta="En línea ahora" valor={datos.en_linea} pie={`${datos.activos} activos · ${datos.en_pausa} en pausa`} />
+              <Kpi etiqueta="Acciones última hora" valor={datos.kpis.acciones_ultima_hora}
+                pie={tendencia(datos.kpis.acciones_ultima_hora, datos.kpis.acciones_hora_anterior).texto} tono="violeta" />
               <Kpi etiqueta="Informes hoy" valor={datos.kpis.informes_hoy} pie="llegaron al correo" tono="azul" />
               <Kpi etiqueta="Solicitudes hoy" valor={datos.kpis.solicitudes_creadas_hoy} pie={`${datos.kpis.solicitudes_enviadas_hoy} enviadas`} tono="ambar" />
+              <Kpi etiqueta="Clientes en línea" valor={datos.clientes_en_linea} pie={`${datos.kpis.personas_hoy} personas con trabajo hoy`} tono="turquesa" />
               <Kpi etiqueta="Atención" valor={alertas} pie={alertas ? 'por revisar' : 'todo en orden'} tono={alertas ? 'rojo' : 'verde'} />
             </div>
 
@@ -273,8 +336,14 @@ function Monitoreo() {
                 <Alertas datos={datos} ahoraMs={ahoraMs} />
                 <Conectados datos={datos} ahoraMs={ahoraMs} nuevos={nuevos.conectados} onAbrir={(c) => setAbierto({ email: c.email, nombre: c.nombre })} />
               </div>
-              <div className={styles.columna}><Informes informes={datos.informes} ahoraMs={ahoraMs} nuevos={nuevos.informes} /></div>
-              <div className={styles.columna}><Solicitudes solicitudes={datos.solicitudes} ahoraMs={ahoraMs} nuevos={nuevos.solicitudes} /></div>
+              <div className={styles.columna}>
+                <DondeEsta modulos={datos.por_modulo} />
+                <Informes informes={datos.informes} ahoraMs={ahoraMs} nuevos={nuevos.informes} />
+              </div>
+              <div className={styles.columna}>
+                <EnVivo eventos={datos.actividad_reciente} ahoraMs={ahoraMs} onAbrir={(e) => setAbierto({ email: e.email, nombre: e.nombre })} />
+                <Solicitudes solicitudes={datos.solicitudes} ahoraMs={ahoraMs} nuevos={nuevos.solicitudes} />
+              </div>
             </div>
             <p className={styles.pie}>Se actualiza sola cada {SEGUNDOS_REFRESCO} s · hora de Chile</p>
           </>
