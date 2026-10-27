@@ -37,6 +37,7 @@ export const ROUTES = {
   vistaCliente: '/vista-cliente',
   vistaClienteReport: '/vista-cliente/reportes',
   vistaClienteStorage: '/vista-cliente/storage',
+  vistaClienteAccutab: '/vista-cliente/accutab',
 } as const
 
 export function rutaTomaMuestrasDetalle(archivo: string): string {

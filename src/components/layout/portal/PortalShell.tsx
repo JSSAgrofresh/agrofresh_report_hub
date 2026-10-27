@@ -76,6 +76,7 @@ function usePildora(contenedor: RefObject<HTMLDivElement | null>, pildora: RefOb
 const ENLACES_VISTA_PREVIA: (Enlace & { modulo: string })[] = [
   { to: ROUTES.vistaClienteReport, etiqueta: 'Análisis de Laboratorio', corta: 'Análisis', modulo: 'reports' },
   { to: ROUTES.vistaClienteStorage, etiqueta: 'Informes de Laboratorio', corta: 'Informes', modulo: 'storage' },
+  { to: ROUTES.vistaClienteAccutab, etiqueta: 'Reportes Accutab', corta: 'Accutab', modulo: 'trace' },
 ]
 
 export function PortalShell({
