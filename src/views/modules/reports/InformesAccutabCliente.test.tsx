@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { activarSimulacion, desactivarSimulacion } from '@/features/simulacion'
 import type { CargaTrace, ResumenCargaTrace } from '@/features/postventa'
 
 const resumen = (carpeta: string, planta: string, ph: number): ResumenCargaTrace => ({
@@ -28,11 +29,15 @@ vi.mock('@/features/postventa', async (original) => ({
   verPdfCliente: vi.fn(),
   descargarPdfCliente: vi.fn(),
 }))
+const sesion = { user: { tipoAcceso: 'cliente' } }
+vi.mock('@/features/auth', () => ({ useAuth: () => ({ user: sesion.user }) }))
 vi.mock('./GraficoMedicion', () => ({ GraficoMedicion: ({ titulo }: { titulo: string }) => <div>grafico {titulo}</div> }))
 
 import { InformesAccutabCliente } from './InformesAccutabCliente'
 
 beforeEach(() => {
+  desactivarSimulacion()
+  sesion.user = { tipoAcceso: 'cliente' }
   verInforme.mockReset()
   verInforme.mockImplementation((carpeta: string) =>
     Promise.resolve({
@@ -62,5 +67,24 @@ describe('InformesAccutabCliente', () => {
     await waitFor(() => expect(verInforme).toHaveBeenCalledWith('2026-10-01_10-00-00'))
     fireEvent.change(screen.getByLabelText('Ship To'), { target: { value: 'DOLE LONTUE' } })
     expect(screen.queryByRole('button', { name: /01-10-2026 10:00/ })).not.toBeInTheDocument()
+  })
+
+  it('con la simulación prendida el administrador ve 30 informes simulados sin pedirlos al servidor ni PDF; un cliente nunca', async () => {
+    activarSimulacion()
+    sesion.user = { tipoAcceso: 'cliente' }
+    const { unmount } = render(<InformesAccutabCliente />)
+    expect(await screen.findByText('grafico pH')).toBeInTheDocument()
+    expect(screen.queryByText(/Informes simulados/)).not.toBeInTheDocument()
+    expect(verInforme).toHaveBeenCalledWith('2026-10-02_10-00-00')
+    unmount()
+
+    verInforme.mockClear()
+    sesion.user = { tipoAcceso: 'admin_general' }
+    render(<InformesAccutabCliente />)
+    expect(await screen.findByText(/Informes simulados/)).toBeInTheDocument()
+    expect(screen.getByText('Informe simulado · sin PDF')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ver informe' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /\d{2}-\d{2}-\d{4} \d{2}:\d{2}/ })).toHaveLength(30)
+    expect(verInforme).not.toHaveBeenCalled()
   })
 })
