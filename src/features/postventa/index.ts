@@ -6,6 +6,7 @@ export {
   generarInformeCarga,
   descargarPdfCarga,
   listarInformesCliente,
+  verInformeCliente,
   verPdfCliente,
   descargarPdfCliente,
   descargarOriginalCarga,

@@ -375,6 +375,39 @@ def informes_del_cliente(
     return _informes_de(usuario, cliente, planta)
 
 
+@router_cliente.get("/informes/{carpeta}")
+def detalle_del_cliente(
+    carpeta: str,
+    usuario: Usuario = Depends(usuario_actual),
+) -> dict[str, Any]:
+    """Las mediciones de UN informe del cliente (para sus gráficos). Solo si el informe es de su alcance; sin
+    archivos originales, responsable ni claves internas."""
+    resumen = next((r for r in _informes_de(usuario, None, None) if r["carpeta"] == carpeta), None)
+    if resumen is None:
+        raise HTTPException(404, "Ese informe no existe.")
+    ruta = os.path.join(_carpeta_registro(carpeta), ARCHIVO_REGISTRO)
+    if not os.path.isfile(ruta):
+        raise HTTPException(404, "Ese informe no tiene datos guardados.")
+    with open(ruta, encoding="utf-8") as f:
+        registro = json.load(f)
+    return {
+        "carpeta": carpeta,
+        "guardado_en": resumen.get("guardado_en"),
+        "cliente": resumen.get("cliente"),
+        "planta": resumen.get("planta"),
+        "ubicacion": resumen.get("ubicacion"),
+        "equipo": resumen.get("equipo"),
+        "n_registros": resumen.get("n_registros"),
+        "ph_promedio": resumen.get("ph_promedio"),
+        "mv_promedio": resumen.get("mv_promedio"),
+        "tiene_pdf": True,
+        "origen": resumen.get("origen") or "manual",
+        "limites": registro.get("limites"),
+        "estadisticas": registro.get("estadisticas"),
+        "filas": registro.get("filas") or [],
+    }
+
+
 @router_cliente.get("/informes/{carpeta}/pdf")
 def pdf_del_cliente(
     carpeta: str,
