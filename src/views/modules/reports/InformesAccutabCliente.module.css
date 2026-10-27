@@ -424,3 +424,23 @@
     padding: 14px;
   }
 }
+
+.simulado {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #fff7e0;
+  color: #8a6400;
+  border: 1px solid #f0dca0;
+}
+
+.bannerSim {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 13px;
+  border-radius: 10px;
+  background: #fff7e0;
+  color: #8a6400;
+  border: 1px solid #f0dca0;
+}

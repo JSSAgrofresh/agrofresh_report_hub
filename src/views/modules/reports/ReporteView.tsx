@@ -51,6 +51,7 @@ import { TarjetasAnalisis } from './TarjetasAnalisis'
 import { desvioResidual, limitesDeInforme } from '@/features/reportes/lib/limitesResiduales'
 import { Kpi } from './Kpi'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
+import { RESULTADOS_SIMULADOS, activarSimulacion, desactivarSimulacion, useSimulacion } from '@/features/simulacion'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import type { RangoFechas } from '@/components/ui/CalendarioRango'
 import { areaDeModulo } from '@/constants/areas'
@@ -73,7 +74,6 @@ import {
   contarFiltrosActivos,
   descargarBdExcel,
   describirFiltros,
-  generarDatosSimulados,
   informesConPuntos,
   CAMPOS_MULTI,
   MULTI_VACIOS,
@@ -103,7 +103,6 @@ import type {
   CampoMulti,
   FiltrosMulti,
   Analito,
-  DatosSimulados,
   FilaReporte,
   FiltrosReporte,
   LimiteAnalito,
@@ -284,10 +283,9 @@ export function ReporteView({
   const scrollGrafico = useRef<HTMLDivElement>(null)
   const [avisoBd, setAvisoBd] = useState(false)
   const [descargandoBd, setDescargandoBd] = useState(false)
-  // Datos de prueba (solo admin): viven en este estado y en ningún otro lado.
-  // Se pierden al salir de Report, al recargar y al actualizar -a propósito:
-  // nunca pueden mezclarse con los reales-.
-  const [simulacion, setSimulacion] = useState<DatosSimulados | null>(null)
+  // Datos de prueba (solo admin): viven en memoria (`features/simulacion`), compartidos con los informes Accu-Tab.
+  // Se pierden al recargar la página -a propósito: nunca pueden mezclarse con los reales-.
+  const { reporte: simulacion } = useSimulacion()
   const cambiarCropRef = useRef<(v: string) => void>(() => {})
   // ¿Se muestran los gráficos de ALS y Diagnofruit? Lo enciende el administrador principal en Administración General →
   // Funciones; hasta que se sepa (o si falla la lectura), apagados: queda solo la tabla.
@@ -314,7 +312,6 @@ export function ReporteView({
   }, [clienteFijo, plantaFija])
 
   function aplicarExito(r: { filas: FilaReporte[]; totalSolicitudes: number; analitos: Analito[]; limites: LimiteAnalito[] }) {
-    setSimulacion(null)
     setFilas(r.filas)
     setTotalSolicitudes(r.totalSolicitudes)
     setAnalitos(r.analitos)
@@ -384,7 +381,10 @@ export function ReporteView({
   const esGestor = (user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area') && !comoCliente
   // Nunca en el portal de cliente: un cliente no puede ver datos inventados.
   const puedeSimular = esGestor && !clienteFijo
-  const simulando = puedeSimular && simulacion != null
+  // Los datos simulados también se ven desde «Vista de cliente» (el administrador mira cómo queda), pero solo los
+  // prende y apaga quien está en Report con sus herramientas.
+  const esAdminCuenta = user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area'
+  const simulando = esAdminCuenta && !clienteFijo && simulacion != null
   // Lo que se muestra: los datos simulados mientras la simulación está activa,
   // los reales el resto del tiempo. Todo lo de abajo lee de acá.
   const filasVista = simulando ? simulacion.filas : filas
@@ -1307,7 +1307,8 @@ export function ReporteView({
     // revés): se parte limpio en los dos sentidos.
     limpiarTodosLosFiltros()
     setDetalle(null)
-    setSimulacion(simulando ? null : generarDatosSimulados(1000, Math.floor(Math.random() * 1e9)))
+    if (simulando) desactivarSimulacion()
+    else activarSimulacion()
   }
 
   // La BD en Excel: personal interno y cuentas de cliente (el servidor acota la del cliente a su Sold To / Ship To y le
@@ -1384,9 +1385,9 @@ export function ReporteView({
               variant="secondary"
               onClick={alternarSimulacion}
               aria-pressed={simulando}
-              title="Muestra 1.000 resultados inventados para probar cómo se ve el reporte. No se guarda nada."
+              title={`Muestra ${RESULTADOS_SIMULADOS} resultados inventados de residuos, FSMA y fitopatología, y también informes Accu-Tab, para probar cómo se ve todo. No se guarda nada.`}
             >
-              {simulando ? '✕ Salir de la simulación' : '🧪 Simular 1.000 datos'}
+              {simulando ? '✕ Salir de la simulación' : `🧪 Simular ${RESULTADOS_SIMULADOS} datos`}
             </Button>
           )}
           {esGestor && (
@@ -1415,8 +1416,9 @@ export function ReporteView({
           <div>
             <b>Datos simulados — no son reales.</b>{' '}
             {simulacion.filas.length.toLocaleString('es-CL')} resultados de{' '}
-            {simulacion.totalSolicitudes.toLocaleString('es-CL')} solicitudes inventadas, con clientes y límites
-            ficticios. No se guardan en ningún lado: desaparecen al salir de Report, al recargar o al actualizar.
+            {simulacion.totalSolicitudes.toLocaleString('es-CL')} solicitudes inventadas (residuos, FSMA y
+            fitopatología) y 30 informes Accu-Tab, con clientes y límites ficticios. No se guardan en ningún lado:
+            desaparecen al recargar la página.
           </div>
           <button type="button" className={styles.bannerSimBoton} onClick={alternarSimulacion}>
             Volver a los datos reales
