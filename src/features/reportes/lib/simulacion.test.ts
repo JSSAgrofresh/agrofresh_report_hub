@@ -44,12 +44,13 @@ describe('generarDatosSimulados', () => {
   })
 
   it('cada ingrediente tiene su límite ficticio y la mayoría de los valores cae dentro', () => {
-    const { filas, analitos, limites } = generarDatosSimulados(1000, 9, HOY)
+    const { filas: todas, analitos, limites } = generarDatosSimulados(1000, 9, HOY)
+    const filas = todas.filter((f) => f.laboratorio === 'Agrofresh')
     expect(analitos.every((a) => a.nombre.includes('simulado'))).toBe(true)
-    analitos.forEach((a) => expect(limites.some((l) => l.analito_id === a.id)).toBe(true))
+    analitos.filter((a) => a.laboratorio === 'Agrofresh').forEach((a) => expect(limites.some((l) => l.analito_id === a.id)).toBe(true))
     const conValor = filas.filter((f) => f.valor_num != null)
     const dentro = conValor.filter((f) => {
-      const a = analitos.find((x) => x.codigo === f.ingrediente)!
+      const a = analitos.find((x) => x.codigo === f.ingrediente && x.laboratorio === 'Agrofresh')!
       const l = limites.find((x) => x.analito_id === a.id)!
       return (
         Number(f.valor_num) >= Number(l.limite_min) && Number(f.valor_num) <= Number(l.limite_max)
@@ -68,5 +69,32 @@ describe('analitos simulados', () => {
     const { filas, analitos } = generarDatosSimulados(1000, 9, HOY)
     expect(analitos.map((a) => a.codigo)).toEqual(expect.arrayContaining(['IMZ', 'FDL', 'PYR', 'TBZ', 'DPA', 'AZOX', 'TEBU']))
     expect(new Set(filas.map((f) => f.ingrediente))).toContain('TEBU')
+  })
+})
+
+describe('simulación completa', () => {
+  it('por defecto son 300 resultados repartidos entre residuos, FSMA y fitopatología', () => {
+    const { filas } = generarDatosSimulados(undefined, 4, HOY)
+    expect(filas).toHaveLength(300)
+    const por = (lab: string) => filas.filter((f) => f.laboratorio === lab)
+    expect(por('Agrofresh')).toHaveLength(180)
+    expect(por('ALS (Corthon)')).toHaveLength(60)
+    expect(por('Diagnofruit')).toHaveLength(60)
+  })
+
+  it('FSMA y fitopatología traen sus analitos, con no detectados («<1», «ND») y detectados', () => {
+    const { filas, analitos } = generarDatosSimulados(300, 4, HOY)
+    const als = filas.filter((f) => f.laboratorio === 'ALS (Corthon)')
+    const fito = filas.filter((f) => f.laboratorio === 'Diagnofruit')
+    expect(new Set(als.map((f) => f.ingrediente))).toEqual(new Set(['COLIF100', 'ECOLI100']))
+    expect(new Set(fito.map((f) => f.ingrediente))).toEqual(new Set(['LEV', 'BOT', 'ALT', 'GEO', 'PEN']))
+    expect(als.some((f) => f.valor_texto === '<1')).toBe(true)
+    expect(als.some((f) => f.valor_num != null)).toBe(true)
+    expect(fito.some((f) => f.valor_texto === 'ND')).toBe(true)
+    expect(fito.some((f) => f.valor_num != null)).toBe(true)
+    // ALS no informa especie; Diagnofruit sí.
+    expect(als.every((f) => f.especie == null)).toBe(true)
+    expect(fito.every((f) => f.especie != null)).toBe(true)
+    ;[...als, ...fito].forEach((f) => expect(analitos.some((a) => a.codigo === f.ingrediente)).toBe(true))
   })
 })

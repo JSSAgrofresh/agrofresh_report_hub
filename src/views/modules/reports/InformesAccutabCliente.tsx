@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/features/auth'
+import { useSimulacion } from '@/features/simulacion'
+import type { AccutabSimulado } from '@/features/postventa/lib/simulacion'
 import { EstadoModulo } from '@/components/ui/EstadoModulo'
 import { Skeleton } from '@/components/ui/Skeleton'
 import {
@@ -81,12 +84,16 @@ function titulo(c: Pick<ResumenCargaTrace, 'equipo' | 'planta' | 'cliente'>): st
 }
 
 /** Detalle de UN informe: lo que dice su PDF, pero a la vista (cifras, gráficos de pH y ORP y la tabla de mediciones). */
-function DetalleInforme({ resumen }: { resumen: ResumenCargaTrace }) {
+function DetalleInforme({ resumen, simulado }: { resumen: ResumenCargaTrace; simulado: AccutabSimulado | null }) {
   const [carga, setCarga] = useState<CargaTrace | null>(null)
   const [fallo, setFallo] = useState(false)
   const [verTodas, setVerTodas] = useState(false)
 
+  // Un informe simulado trae sus mediciones de memoria; uno real las pide al servidor.
+  const simulada = useMemo(() => simulado?.detalle(resumen.carpeta) ?? null, [simulado, resumen.carpeta])
+
   useEffect(() => {
+    if (simulado) return
     let vigente = true
     verInformeCliente(resumen.carpeta)
       .then((c) => vigente && setCarga(c))
@@ -94,9 +101,9 @@ function DetalleInforme({ resumen }: { resumen: ResumenCargaTrace }) {
     return () => {
       vigente = false
     }
-  }, [resumen.carpeta])
+  }, [resumen.carpeta, simulado])
 
-  const vigente = carga?.carpeta === resumen.carpeta ? carga : null
+  const vigente = simulada ?? (carga?.carpeta === resumen.carpeta ? carga : null)
   const serie = useMemo(() => {
     const filas = vigente?.filas ?? []
     const unDia = new Set(filas.map((f) => f.fecha)).size <= 1
@@ -120,12 +127,18 @@ function DetalleInforme({ resumen }: { resumen: ResumenCargaTrace }) {
           </p>
         </div>
         <div className={styles.acciones}>
-          <button type="button" className={styles.ver} onClick={() => void verPdfCliente(resumen.carpeta)}>
-            Ver informe
-          </button>
-          <button type="button" className={styles.bajar} onClick={() => void descargarPdfCliente(resumen.carpeta)}>
-            Descargar PDF
-          </button>
+          {simulado ? (
+            <span className={styles.simulado}>Informe simulado · sin PDF</span>
+          ) : (
+            <>
+              <button type="button" className={styles.ver} onClick={() => void verPdfCliente(resumen.carpeta)}>
+                Ver informe
+              </button>
+              <button type="button" className={styles.bajar} onClick={() => void descargarPdfCliente(resumen.carpeta)}>
+                Descargar PDF
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -225,7 +238,12 @@ function DetalleInforme({ resumen }: { resumen: ResumenCargaTrace }) {
  * El servidor ya entrega solo lo de esta cuenta; acá solo se filtra y se ordena.
  */
 export function InformesAccutabCliente() {
-  const [informes, setInformes] = useState<ResumenCargaTrace[] | null>(null)
+  const { user } = useAuth()
+  const { accutab: simulacion } = useSimulacion()
+  // Solo el administrador ve informes simulados (los prende desde Report); un cliente nunca.
+  const simulado = user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area' ? simulacion : null
+  const [reales, setInformes] = useState<ResumenCargaTrace[] | null>(null)
+  const informes = simulado ? simulado.informes : reales
   const [error, setError] = useState<string | null>(null)
   const [filtro, setFiltro] = useState<FiltroCargas>(FILTRO_CARGAS_VACIO)
   const [elegida, setElegida] = useState<string | null>(null)
@@ -260,7 +278,13 @@ export function InformesAccutabCliente() {
         <p className={styles.nota}>Cada informe resume las mediciones de pH y ORP de tu equipo. Ábrelo para verlo o descárgalo en PDF.</p>
       </div>
 
-      {error && <p className={styles.error}>{error}</p>}
+      {simulado && (
+        <p className={styles.bannerSim} role="status">
+          🧪 Informes simulados: no son reales y no existen en el servidor. Se apagan al volver a los datos reales en Report o al recargar.
+        </p>
+      )}
+
+      {error && !simulado && <p className={styles.error}>{error}</p>}
 
       {todas.length === 0 && !error ? (
         <EstadoModulo
@@ -332,7 +356,7 @@ export function InformesAccutabCliente() {
                   ))}
                 </ul>
               </aside>
-              {actual && <DetalleInforme key={actual.carpeta} resumen={actual} />}
+              {actual && <DetalleInforme key={actual.carpeta} resumen={actual} simulado={simulado} />}
             </div>
           )}
         </>

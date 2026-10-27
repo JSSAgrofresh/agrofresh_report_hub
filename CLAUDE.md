@@ -1094,10 +1094,14 @@ tocas una, toca la otra.
   `informe_auditoria` (N° de informe + laboratorio) y, si no, en `informes/<planta>/`
   de Storage por nombre (`elegir_clave`). Sin PDF guardado muestra el aviso. Con varias
   solicitudes (Diagnofruit) queda la tabla simple de antes.
-- **«Simular 1.000 datos»** (solo admin, nunca en el portal de cliente):
-  `features/reportes/lib/simulacion.ts`. Clientes «(Sim.)», ids negativos,
-  límites ficticios. Vive solo en el estado de la pantalla: se pierde al
-  salir, recargar o actualizar. Nunca va al backend.
+- **«Simular 300 datos» (27-10-2026, pedido del usuario)** (solo admin, nunca en el portal de cliente; botón en Report interno, oculto en «Vista de cliente»):
+  simula TODO a la vez: 300 resultados repartidos 60/20/20 entre residuos (AgroFresh), FSMA (ALS, «<1» / recuentos / «>2400», sin especie) y
+  fitopatología (Diagnofruit, «ND» / conteos / «>100»), más 30 informes Accu-Tab con ~120 lecturas de pH y ORP cada uno
+  (`features/reportes/lib/simulacion.ts`, `features/postventa/lib/simulacion.ts`, azar con semilla en `lib/azar.ts`). Clientes «(Sim.)», ids negativos,
+  límites ficticios solo en residuos. **Estado compartido en memoria** (`features/simulacion`: `useSimulacion`, `activarSimulacion`): lo prende y apaga
+  quien está en Report, y se ve también en «Vista de cliente» (solo datos, sin botones) y en `InformesAccutabCliente` solo para cuentas admin (sin PDF:
+  «Informe simulado · sin PDF»). Se pierde al recargar la página; ya no se apaga al «actualizar» (ese botón no existe). Nunca va al backend.
+  La pantalla interna de Post Venta (`PostVentaView`) NO usa la simulación. Pruebas: `simulacion.test.ts` (reportes y postventa), `InformesAccutabCliente.test.tsx`.
 - Post Venta (Accu-Tab) tiene arriba del detalle una vista general con filtros
   (cliente, equipo, período) e indicadores (`PostVentaResumen.tsx` +
   `features/postventa/lib/resumen.ts`). Los 4 gráficos que tuvo (pH, ORP,

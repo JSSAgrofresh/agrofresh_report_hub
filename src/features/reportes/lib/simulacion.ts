@@ -1,10 +1,12 @@
+import { crearAzar } from '@/lib/azar'
 import type { Analito, FilaReporte, LimiteAnalito } from './tipos'
 
 /**
  * Datos de prueba para ver Report con volumen de verdad (hoy la base tiene
- * pocas solicitudes). Todo vive en memoria de la pantalla: nunca se manda al
- * backend, nunca se guarda, y desaparece al salir de Report, al recargar o al
- * apretar «Actualizar».
+ * pocas solicitudes). Todo vive en memoria: nunca se manda al backend, nunca se
+ * guarda, y desaparece al recargar la página (o al volver a los datos reales).
+ * Simula los tres análisis de Report: residuos (AgroFresh), FSMA (ALS) y
+ * fitopatología (Diagnofruit).
  *
  * Los clientes, sucursales y límites son INVENTADOS a propósito y se nota en
  * el nombre: nada de esto puede confundirse con un dato real. En particular
@@ -18,26 +20,6 @@ export interface DatosSimulados {
   analitos: Analito[]
   limites: LimiteAnalito[]
   totalSolicitudes: number
-}
-
-/** Generador pseudoaleatorio con semilla (mulberry32): la misma semilla da
- * siempre los mismos datos, así los tests son estables. */
-function crearAzar(semilla: number) {
-  let a = semilla >>> 0
-  const siguiente = () => {
-    a = (a + 0x6d2b79f5) >>> 0
-    let t = a
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-  const elegir = <T>(lista: readonly T[]): T => lista[Math.floor(siguiente() * lista.length)]
-  /** Normal estándar (Box-Muller). */
-  const normal = () => {
-    const u = Math.max(siguiente(), 1e-9)
-    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * siguiente())
-  }
-  return { siguiente, elegir, normal }
 }
 
 // Rango objetivo ficticio de cada ingrediente (ppm). Los códigos son los del
@@ -107,14 +89,27 @@ function iso(fecha: Date): string {
   return fecha.toISOString().slice(0, 10)
 }
 
+const CODIGOS_ALS = [
+  { codigo: 'COLIF100', nombre: 'Coliformes Totales (simulado)', unidad: 'UFC/100 mL' },
+  { codigo: 'ECOLI100', nombre: 'Escherichia coli (simulado)', unidad: 'UFC/100 mL' },
+] as const
+
+const CODIGOS_FITO = [
+  { codigo: 'LEV', nombre: 'Levaduras (simulado)', unidad: 'UFC/mL' },
+  { codigo: 'BOT', nombre: 'Botrytis (simulado)', unidad: 'conidia/mL' },
+  { codigo: 'ALT', nombre: 'Alternaria (simulado)', unidad: 'conidia/mL' },
+  { codigo: 'GEO', nombre: 'Geotrichum (simulado)', unidad: 'esporas/mL' },
+  { codigo: 'PEN', nombre: 'Penicillium (simulado)', unidad: 'conidia/mL' },
+] as const
+
 /**
- * `resultados` filas de resultado (cada solicitud trae 1 a 3 ingredientes), con
- * fechas repartidas en los 12 meses anteriores a `hoy`. Un ~8 % cae fuera del
- * rango objetivo y un ~4 % viene como "ND" (sin valor numérico), igual que en
- * los datos reales.
+ * `resultados` filas de resultado en total, repartidas entre los tres análisis: 60 % residuos, 20 % FSMA (ALS) y 20 %
+ * fitopatología (Diagnofruit). Fechas repartidas en los 12 meses anteriores a `hoy`. En residuos, un ~8 % cae fuera del
+ * rango objetivo y un ~4 % viene como "ND"; en FSMA la mayoría es «<1» (no detectado) con algunos recuentos y «>2400»;
+ * en fitopatología la mayoría es «ND» con algunos conteos y «>100», igual que en los datos reales.
  */
 export function generarDatosSimulados(
-  resultados = 1000,
+  resultados = 300,
   semilla = 20260928,
   hoy = new Date(),
 ): DatosSimulados {
@@ -123,25 +118,30 @@ export function generarDatosSimulados(
   const finUtc = Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate())
   const DIAS = 365
   let solicitud = 0
+  const nResiduos = Math.round(resultados * 0.6)
+  const nFsma = Math.round(resultados * 0.2)
+  const topeResiduos = nResiduos
+  const topeFsma = nResiduos + nFsma
+  const topeFito = resultados
 
-  while (filas.length < resultados) {
+  /** Una solicitud nueva: cliente, fecha (más muestras en temporada, nov-mar) y su numeración. */
+  function nuevaBase(laboratorio: string, conEspecie: boolean) {
     solicitud += 1
     const cliente = elegirPonderado(CLIENTES, azar.siguiente())
     const especie = elegirPonderado(ESPECIES, azar.siguiente())
-    // Más muestras en temporada (nov-mar): se nota la estacionalidad en el gráfico.
     let fecha: Date
     do {
       fecha = new Date(finUtc - Math.floor(azar.siguiente() * DIAS) * 86400000)
     } while ([3, 4, 5, 6, 7, 8].includes(fecha.getUTCMonth()) && azar.siguiente() < 0.55)
-
-    const base = {
+    return {
       solicitud_id: -solicitud,
       nro_solicitud: `SIM-${String(solicitud).padStart(4, '0')}`,
-      laboratorio: 'Agrofresh',
+      laboratorio,
       fecha_muestreo: iso(fecha),
       fecha_entrada: iso(fecha),
-      especie: especie.especie,
-      variedad: azar.elegir(especie.variedades),
+      // ALS no informa especie ni variedad.
+      especie: conEspecie ? especie.especie : null,
+      variedad: conEspecie ? azar.elegir(especie.variedades) : null,
       semana_muestreo: semanaIso(fecha),
       mes: fecha.getUTCMonth() + 1,
       temporada: fecha.getUTCMonth() >= 6 ? fecha.getUTCFullYear() + 1 : fecha.getUTCFullYear(),
@@ -151,10 +151,14 @@ export function generarDatosSimulados(
       planta: azar.elegir(cliente.plantas),
       tipo_aplicacion: azar.elegir(TIPOS_APLICACION),
     }
+  }
 
+  // Residuos (AgroFresh).
+  while (filas.length < topeResiduos) {
+    const base = nuevaBase('Agrofresh', true)
     const cuantos = 1 + Math.floor(azar.siguiente() * 3)
     const usados = new Set<string>()
-    for (let i = 0; i < cuantos && filas.length < resultados; i++) {
+    for (let i = 0; i < cuantos && filas.length < topeResiduos; i++) {
       const ing = azar.elegir(INGREDIENTES)
       if (usados.has(ing.codigo)) continue
       usados.add(ing.codigo)
@@ -175,13 +179,37 @@ export function generarDatosSimulados(
     }
   }
 
-  const analitos: Analito[] = INGREDIENTES.map((ing, i) => ({
+  // FSMA (ALS): cada informe trae Coliformes Totales y E. coli.
+  while (filas.length < topeFsma) {
+    const base = nuevaBase('ALS (Corthon)', false)
+    for (const a of CODIGOS_ALS) {
+      if (filas.length >= topeFsma) break
+      const u = azar.siguiente()
+      if (u < 0.78) filas.push({ ...base, ingrediente: a.codigo, valor_num: null, valor_texto: '<1' })
+      else if (u < 0.95) filas.push({ ...base, ingrediente: a.codigo, valor_num: 1 + Math.floor(azar.siguiente() * 300), valor_texto: null })
+      else filas.push({ ...base, ingrediente: a.codigo, valor_num: null, valor_texto: '>2400' })
+    }
+  }
+
+  // Fitopatología (Diagnofruit): cada informe trae los cinco patógenos.
+  while (filas.length < topeFito) {
+    const base = nuevaBase('Diagnofruit', true)
+    for (const a of CODIGOS_FITO) {
+      if (filas.length >= topeFito) break
+      const u = azar.siguiente()
+      if (u < 0.55) filas.push({ ...base, ingrediente: a.codigo, valor_num: null, valor_texto: 'ND' })
+      else if (u < 0.93) filas.push({ ...base, ingrediente: a.codigo, valor_num: 1 + Math.floor(azar.siguiente() * 250), valor_texto: null })
+      else filas.push({ ...base, ingrediente: a.codigo, valor_num: null, valor_texto: '>100' })
+    }
+  }
+
+  const analitos: Analito[] = [
+    ...INGREDIENTES.map((ing) => ({ codigo: ing.codigo, nombre: ing.nombre, categoria: 'Fungicida', laboratorio: 'Agrofresh', unidad: 'ppm' })),
+    ...CODIGOS_ALS.map((a) => ({ codigo: a.codigo, nombre: a.nombre, categoria: 'Microbiología', laboratorio: 'Als', unidad: a.unidad })),
+    ...CODIGOS_FITO.map((a) => ({ codigo: a.codigo, nombre: a.nombre, categoria: 'Fitopatología', laboratorio: 'Diagnofruit', unidad: a.unidad })),
+  ].map((a, i) => ({
     id: -(i + 1),
-    codigo: ing.codigo,
-    nombre: ing.nombre,
-    categoria: 'Fungicida',
-    laboratorio: 'Agrofresh',
-    unidad: 'ppm',
+    ...a,
     limite_deteccion: null,
     limite_cuantificacion: null,
     matriz: null,
@@ -191,6 +219,7 @@ export function generarDatosSimulados(
     limite_max: null,
   }))
 
+  // Límites ficticios: solo residuos (ALS y Diagnofruit no tienen franja).
   const limites: LimiteAnalito[] = INGREDIENTES.map((ing, i) => ({
     id: -(i + 1),
     analito_id: -(i + 1),
