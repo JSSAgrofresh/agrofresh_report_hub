@@ -187,7 +187,7 @@ export function CalendarioRango({ etiqueta, valor, onChange }: CalendarioRangoPr
   const anios = anosDisponibles()
 
   return (
-    <div className={styles.contenedor} ref={contenedorRef}>
+    <div className={cn(styles.contenedor, abierto && styles.contenedorAbierto)} ref={contenedorRef}>
       <span className={styles.etiqueta}>{etiqueta}</span>
       <button
         type="button"

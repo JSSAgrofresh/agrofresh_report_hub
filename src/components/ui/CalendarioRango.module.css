@@ -5,6 +5,11 @@
   position: relative;
 }
 
+/* Abierto, el calendario pasa por encima de los filtros vecinos (Especie, Variedad, Ingrediente activo…). */
+.contenedorAbierto {
+  z-index: 100;
+}
+
 .etiqueta {
   font-size: 10.5px;
   color: var(--color-text-faint);
