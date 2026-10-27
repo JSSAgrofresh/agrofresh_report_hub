@@ -1171,7 +1171,7 @@
 :global([data-portal]) .filtrosCard[data-pegado='false'] .filtrosCabecera { padding-right: 170px; min-height: 30px; }
 :global([data-portal]) .filtrosCard[data-abierto='true'] .filtros,
 :global([data-portal]) .filtrosCard[data-abierto='true'] .grupoFiltros,
-:global([data-portal]) .filtrosCard[data-abierto='true'] .chips { animation: aparecerFiltros 0.45s cubic-bezier(0.25, 0.8, 0.25, 1) both; }
+:global([data-portal]) .filtrosCard[data-abierto='true'] .chips { animation: aparecerFiltros 0.45s cubic-bezier(0.25, 0.8, 0.25, 1) backwards; }
 :global([data-portal]) .filtrosCard { transition: padding 0.5s ease, border-radius 0.5s ease, box-shadow 0.5s ease; }
 @keyframes aparecerFiltros { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 

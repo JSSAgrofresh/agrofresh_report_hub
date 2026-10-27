@@ -1,4 +1,4 @@
-.marcador { position: relative; transition: height 0.7s cubic-bezier(0.25, 0.8, 0.25, 1); }
+.marcador { position: relative; z-index: 2; transition: height 0.7s cubic-bezier(0.25, 0.8, 0.25, 1); }
 .animando { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .marcador { transition: none; } }
 
