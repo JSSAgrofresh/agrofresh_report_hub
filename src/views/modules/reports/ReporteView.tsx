@@ -96,7 +96,6 @@ import {
   ingredienteAplica,
   pedidoBd,
   informeFueraDeRango,
-  proximaHoraProgramada,
   tituloGrafico,
   useActualizacionProgramada,
 } from '@/features/reportes'
@@ -213,7 +212,6 @@ function chipsDeFiltros(f: Filtros, clienteFijo: boolean): { campo: keyof Filtro
   return chips
 }
 
-const FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit' })
 
 /** `clienteFijo`: usado por el portal de cliente — cuando viene seteado, los
  * datos ya llegan filtrados por el backend (nunca se filtran solo en el
@@ -237,6 +235,7 @@ export function ReporteView({
   sinEncabezado = false,
   onClienteChange,
   onEspeciesChange,
+  comoCliente = false,
 }: {
   clienteFijo?: string
   plantaFija?: string
@@ -253,6 +252,8 @@ export function ReporteView({
   onClienteChange?: (cliente: string) => void
   /** Las especies que tienen datos (del Sold To filtrado, si hay uno), de la más frecuente a la menos: el encabezado las rota. */
   onEspeciesChange?: (especies: string[]) => void
+  /** El administrador mirando la vista previa de cliente: sin Simular datos ni Gestionar analitos, como lo ve un cliente. */
+  comoCliente?: boolean
 } = {}) {
   const { user } = useAuth()
   const acento = esPaletaSobria() ? ACENTO_SOBRIO : (areaDeModulo('reports')?.colorPrimario ?? '#6dad3c')
@@ -265,8 +266,6 @@ export function ReporteView({
   const [limites, setLimites] = useState<LimiteAnalito[]>([])
   const [estado, setEstado] = useState<Estado>('cargando')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [ultimaActualizacion, setUltimaActualizacion] = useState<Date | null>(null)
-  const [proximaAuto, setProximaAuto] = useState<Date>(() => proximaHoraProgramada(new Date()))
   const vista: Vista = vistaControl ? 'control' : 'residual'
   const [sigma, setSigma] = useState(2)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS)
@@ -321,8 +320,6 @@ export function ReporteView({
     setAnalitos(r.analitos)
     setLimites(r.limites)
     setEstado('ok')
-    setUltimaActualizacion(new Date())
-    setProximaAuto(proximaHoraProgramada(new Date()))
   }
 
   function aplicarError(err: unknown) {
@@ -384,7 +381,7 @@ export function ReporteView({
       .catch(() => setVariedadesOficiales([]))
   }, [])
 
-  const esGestor = user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area'
+  const esGestor = (user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area') && !comoCliente
   // Nunca en el portal de cliente: un cliente no puede ver datos inventados.
   const puedeSimular = esGestor && !clienteFijo
   const simulando = puedeSimular && simulacion != null
@@ -1397,15 +1394,6 @@ export function ReporteView({
               ⚙ Gestionar analitos
             </Button>
           )}
-          <div className={styles.actualizarBloque}>
-            <button className={styles.btnActualizar} onClick={() => void cargar()} disabled={estado === 'cargando'}>
-              {estado === 'cargando' ? '⏳ Actualizando…' : '🔄 Actualizar'}
-            </button>
-            <div className={styles.horas}>
-              {ultimaActualizacion && <span>Última: {FMT_HORA.format(ultimaActualizacion)}</span>}
-              <span>Próxima auto: {FMT_HORA.format(proximaAuto)}</span>
-            </div>
-          </div>
         </div>
       </div>
 

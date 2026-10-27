@@ -67,7 +67,7 @@ export function ReporteLaboratorioView() {
           fondo={fondo.imagen}
           fondos={fondos}
         />
-        <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} onEspeciesChange={setEspecies} />
+        <ReporteView onCropChange={setEspecie} onClienteChange={setCliente} onEspeciesChange={setEspecies} comoCliente />
       </div>
     )
   }
