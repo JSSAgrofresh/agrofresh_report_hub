@@ -71,6 +71,16 @@ export function quitarInformeDeSolicitud(archivo: string, password: string) {
   )
 }
 
+/** Descarta el aviso «OT por revisar» de un informe ya revisado (solo el administrador general). */
+export function descartarRevisionOt(archivo: string, nota: string) {
+  return httpClient.post<{ ok: boolean }>(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/descartar-revision`, { nota })
+}
+
+/** Vuelve a abrir un aviso «OT por revisar» descartado. */
+export function reabrirRevisionOt(archivo: string) {
+  return httpClient.delete<{ ok: boolean }>(`/toma-muestras/solicitudes/${encodeURIComponent(archivo)}/descartar-revision`)
+}
+
 /** Marca solicitudes como «informe enviado al cliente». `fecha` (ISO, opcional): cuándo salió de verdad; sin ella, hoy. */
 export function marcarEnviadoCliente(archivos: string[], fecha?: string) {
   return httpClient.post<{ marcadas: number }>('/envio-cliente/marcar', { archivos, fecha: fecha || null })

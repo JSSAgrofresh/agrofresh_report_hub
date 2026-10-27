@@ -77,8 +77,10 @@ export interface InformeSolicitud {
 }
 
 export interface VerificacionOt {
-  estado: 'confirmada' | 'revisar' | 'sin_confirmar'
+  /** «descartada» = el administrador general la revisó y dejó de ser un problema (sigue a la vista; se puede reabrir). */
+  estado: 'confirmada' | 'revisar' | 'sin_confirmar' | 'descartada'
   motivos: string[]
+  descartada?: { por: string | null; en: string | null; nota: string }
 }
 
 /** Envío automático al guardar: regla general + una propia por tipo de aplicación. */

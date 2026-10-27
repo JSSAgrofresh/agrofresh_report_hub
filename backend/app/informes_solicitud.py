@@ -31,10 +31,10 @@ from fastapi.responses import Response
 
 from pydantic import BaseModel
 
-from . import actividad, confirmar_clave, informes_storage, r2
+from . import actividad, confirmar_clave, informes_storage, r2, revision_ot
 from . import r2_auditoria as r2a
 from .auditoria_interna import _exigir_r2, errores_r2
-from .auth import Usuario, interno_o_comercial, solo_interno
+from .auth import Usuario, interno_o_comercial, solo_admin_general, solo_interno
 from .db import conexion, cursor_dict
 from .pdf_permisos import sin_restricciones
 from .ficha_informe import _buscar_pdf, _disposicion_inline, _solicitud, elegir_clave
@@ -214,10 +214,8 @@ def _solicitudes_visibles(usuario: Usuario) -> list[tuple[str, str]]:
     return [(a, n) for a, n, _ in _solicitudes_visibles_datos(usuario)]
 
 
-@router.get("/solicitudes-informes")
-def informes_de_solicitudes(usuario: Usuario = Depends(interno_o_comercial)) -> dict[str, dict]:
-    """{archivo: {nro_informe, numeros, pdf_guardado, en_report, verificacion}}
-    de las solicitudes visibles que ya tienen informe."""
+def _informes_con_verificacion(usuario: Usuario, con_descartes: bool = True) -> dict[str, dict]:
+    """Lo de `/solicitudes-informes`; con `con_descartes=False` la verificación sale tal cual, sin aplicar los descartes."""
     visibles = _solicitudes_visibles_datos(usuario)
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         auditoria = _filas(cur, _SQL_AUDITORIA)
@@ -230,11 +228,41 @@ def informes_de_solicitudes(usuario: Usuario = Depends(interno_o_comercial)) -> 
     por_nro: dict[str, list[dict]] = {}
     for f in detalle:
         por_nro.setdefault(_limpio(f.get("nro_solicitud")).upper(), []).append(f)
+    descartes = revision_ot.descartadas() if con_descartes else {}
     for archivo, numero, datos in visibles:
         if archivo in salida:
             salida[archivo]["envio_cliente"] = manuales[archivo].isoformat() if archivo in manuales else None
-            salida[archivo]["verificacion"] = verificar(numero, datos, salida[archivo]["numeros"], por_nro)
+            v = verificar(numero, datos, salida[archivo]["numeros"], por_nro)
+            salida[archivo]["verificacion"] = revision_ot.aplicar(v, descartes.get(archivo))
     return salida
+
+
+@router.get("/solicitudes-informes")
+def informes_de_solicitudes(usuario: Usuario = Depends(interno_o_comercial)) -> dict[str, dict]:
+    """{archivo: {nro_informe, numeros, pdf_guardado, en_report, verificacion}}
+    de las solicitudes visibles que ya tienen informe."""
+    return _informes_con_verificacion(usuario)
+
+
+class DescartarRevisionIn(BaseModel):
+    nota: str = ""
+
+
+@router.post("/solicitudes/{archivo}/descartar-revision")
+def descartar_revision(archivo: str, body: DescartarRevisionIn, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
+    """Descarta el aviso «OT por revisar» de un informe que ya se revisó (solo el administrador general). Vale para los motivos que
+    tiene hoy: si el aviso cambia después, vuelve a salir."""
+    v = (_informes_con_verificacion(usuario, con_descartes=False).get(archivo) or {}).get("verificacion")
+    if not v or v.get("estado") not in ("revisar", "sin_confirmar"):
+        raise HTTPException(409, "Ese informe no tiene un aviso de OT por revisar.")
+    revision_ot.descartar(archivo, v.get("motivos") or [], usuario.email, body.nota)
+    return {"ok": True}
+
+
+@router.delete("/solicitudes/{archivo}/descartar-revision")
+def reabrir_revision(archivo: str, usuario: Usuario = Depends(solo_admin_general)) -> dict[str, Any]:
+    """Vuelve a abrir un aviso descartado."""
+    return {"ok": revision_ot.reabrir(archivo)}
 
 
 def _ubicar_pdf(cur, archivo: str, numero: str, auditoria: list[dict], report: list[dict]) -> dict | None:

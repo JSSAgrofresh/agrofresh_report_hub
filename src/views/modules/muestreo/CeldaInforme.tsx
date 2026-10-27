@@ -10,7 +10,18 @@ import styles from './SolicitudesView.module.css'
  * misma OT y calzan planta, especie y fecha de muestreo; «OT por revisar»
  * (rojo) si algo no calza, y «OT sin confirmar» (gris) si el informe ya está en
  * Report pero no trae la OT para comprobarla. */
-export function CeldaInforme({ s, onAbrir }: { s: Solicitud; onAbrir: (s: Solicitud) => void }) {
+export function CeldaInforme({
+  s,
+  onAbrir,
+  onDescartarOt,
+  onReabrirOt,
+}: {
+  s: Solicitud
+  onAbrir: (s: Solicitud) => void
+  /** Solo el administrador general: descarta el aviso «OT por revisar» (con una nota). */
+  onDescartarOt?: (s: Solicitud) => void
+  onReabrirOt?: (s: Solicitud) => void
+}) {
   const inf = s.informe
   if (!inf) return <span className={styles.sinInforme}>{s.enviada ? 'Esperando' : '—'}</span>
   const numero = inf.nro_informe ?? 'Ver informe'
@@ -40,6 +51,38 @@ export function CeldaInforme({ s, onAbrir }: { s: Solicitud; onAbrir: (s: Solici
           title={v.motivos.join(' · ')}
         >
           {v.estado === 'revisar' ? 'OT por revisar' : 'OT sin confirmar'}
+        </span>
+      )}
+      {porRevisar && onDescartarOt && (
+        <button
+          type="button"
+          className={styles.botonDescartarOt}
+          title="Ya lo revisé y está bien: descartar este aviso (queda a la vista como «OT revisada» y se puede reabrir)"
+          onClick={() => onDescartarOt(s)}
+        >
+          Descartar
+        </button>
+      )}
+      {v?.estado === 'descartada' && (
+        <span
+          className={styles.chipOtRevisada}
+          title={[
+            `Aviso descartado${v.descartada?.por ? ` por ${v.descartada.por}` : ''}${v.descartada?.en ? ` el ${new Date(v.descartada.en).toLocaleDateString('es-CL')}` : ''}`,
+            v.descartada?.nota ? `Nota: ${v.descartada.nota}` : '',
+            `Antes decía: ${v.motivos.join(' · ')}`,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        >
+          OT revisada
+          {onReabrirOt && (
+            <>
+              {' '}
+              <button type="button" className={styles.botonDescartarOt} onClick={() => onReabrirOt(s)} title="Volver a abrir este aviso">
+                reabrir
+              </button>
+            </>
+          )}
         </span>
       )}
       {inf.envio_cliente ? (
