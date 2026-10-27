@@ -1353,16 +1353,13 @@ export function ReporteView({
   return (
     <div className={styles.wrap} style={wrapStyle}>
       <div className={styles.cabecera}>
-        {!sinEncabezado && <Header
-          title={vistaControl ? 'Vista por límite de control' : clienteFijo ? `Report · ${clienteFijo}` : 'Report'}
-          description={
-            vistaControl
-              ? 'Límites dinámicos de control (promedio ± N desviaciones estándar) sobre los resultados de la base de datos.'
-              : clienteFijo
-                ? `Control de residuos de ${clienteFijo}: límites residuales desde la base de datos.`
-                : 'Control de residuos: límites residuales desde la base de datos.'
-          }
-        />}
+        {/* Report normal ya no lleva título ni descripción (pedido del usuario, 27-10-2026): el saludo de arriba hace de encabezado. */}
+        {!sinEncabezado && vistaControl && (
+          <Header
+            title="Vista por límite de control"
+            description="Límites dinámicos de control (promedio ± N desviaciones estándar) sobre los resultados de la base de datos."
+          />
+        )}
         <div className={styles.accionesCabecera}>
           {puedeBajarBd && (
             <Button
