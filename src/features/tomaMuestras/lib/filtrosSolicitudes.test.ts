@@ -147,7 +147,7 @@ describe('vistas rápidas de Solicitudes e informes', () => {
 
 describe('OT por revisar', () => {
   const inf = { nro_informe: 'X', numeros: ['X'], pdf_guardado: true, en_report: true }
-  const ver = (estado: 'confirmada' | 'revisar' | 'sin_confirmar', en_report = true) =>
+  const ver = (estado: 'confirmada' | 'revisar' | 'sin_confirmar' | 'descartada', en_report = true) =>
     ({ ...inf, en_report, verificacion: { estado, motivos: [] } })
   const datos = [
     sol('OK', { enviada: true, informe: ver('confirmada') }),
@@ -163,6 +163,12 @@ describe('OT por revisar', () => {
     expect(resumenVistas(datos).ot_revisar).toBe(2)
     expect(filtrarSolicitudes(datos, f({ estado: ['ot_revisar'] })).map((s) => s.numero_solicitud)).toEqual(['MAL', 'SIN_OT'])
     expect(vistaDeEstados(['ot_revisar'])).toBe('ot_revisar')
+  })
+
+  it('un aviso descartado a mano ya no cuenta como problema', () => {
+    const descartada = sol('REVISADA', { enviada: true, informe: ver('descartada') })
+    expect(otPorRevisar(descartada)).toBe(false)
+    expect(resumenVistas([...datos, descartada]).ot_revisar).toBe(2)
   })
 })
 

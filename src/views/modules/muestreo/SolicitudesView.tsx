@@ -25,6 +25,8 @@ import { formatDateCL } from '@/lib/locale'
 import {
   eliminarSolicitud,
   quitarInformeDeSolicitud,
+  descartarRevisionOt,
+  reabrirRevisionOt,
   listarSolicitudes,
   descargarTodasLasSolicitudes,
   obtenerEnvioAutomatico,
@@ -233,6 +235,31 @@ export function SolicitudesView() {
         (r.pdf_no_borrados ? `. ${r.pdf_no_borrados} PDF no se pudo borrar del almacenamiento: avisa a sistemas.` : '. Ya puedes subirlo de nuevo.'),
     )
     await refrescar()
+  }
+
+  /** Descartar el aviso «OT por revisar» de un informe que ya se revisó (solo el administrador general). */
+  async function onDescartarOt(solicitud: Solicitud) {
+    const motivos = solicitud.informe?.verificacion?.motivos.join(' · ') ?? ''
+    const nota = window.prompt(
+      `${solicitud.numero_solicitud}: ${motivos}\n\n¿Por qué ya está bien? (nota opcional). Aceptar descarta el aviso; Cancelar lo deja como está.`,
+      '',
+    )
+    if (nota === null) return
+    try {
+      await descartarRevisionOt(solicitud.archivo, nota)
+      await refrescar()
+    } catch {
+      window.alert('No se pudo descartar el aviso.')
+    }
+  }
+
+  async function onReabrirOt(solicitud: Solicitud) {
+    try {
+      await reabrirRevisionOt(solicitud.archivo)
+      await refrescar()
+    } catch {
+      window.alert('No se pudo reabrir el aviso.')
+    }
   }
 
   /** La confirmación con contraseña la pide `EliminarConClave`; si esto falla, el diálogo lo avisa. */
@@ -753,11 +780,11 @@ export function SolicitudesView() {
                           <EstadoSolicitud s={s} />
                           {/* En pantallas medianas el informe va acá, bajo el envío. */}
                           <span className={styles.soloAngosto}>
-                            <CeldaInforme s={s} onAbrir={setInformeAbierto} />
+                            <CeldaInforme s={s} onAbrir={setInformeAbierto} onDescartarOt={esAdmin ? onDescartarOt : undefined} onReabrirOt={esAdmin ? onReabrirOt : undefined} />
                           </span>
                         </div>
                       </td>
-                      <td className={styles.colInforme}><CeldaInforme s={s} onAbrir={setInformeAbierto} /></td>
+                      <td className={styles.colInforme}><CeldaInforme s={s} onAbrir={setInformeAbierto} onDescartarOt={esAdmin ? onDescartarOt : undefined} onReabrirOt={esAdmin ? onReabrirOt : undefined} /></td>
                       <td className={styles.colAcciones}>
                         <div className={styles.acciones}>
                           <button type="button" className={styles.botonIcono} title="Ver solicitud" aria-label={`Ver ${s.numero_solicitud}`} onClick={() => verSolicitud(s)}>
@@ -821,7 +848,7 @@ export function SolicitudesView() {
                   </span>
                   <div className={styles.tarjetaEstados}>
                     <EstadoSolicitud s={s} />
-                    <CeldaInforme s={s} onAbrir={setInformeAbierto} />
+                    <CeldaInforme s={s} onAbrir={setInformeAbierto} onDescartarOt={esAdmin ? onDescartarOt : undefined} onReabrirOt={esAdmin ? onReabrirOt : undefined} />
                   </div>
                   <div className={styles.tarjetaPie}>
                     <button type="button" className={styles.botonTarjeta} onClick={() => verSolicitud(s)}>
