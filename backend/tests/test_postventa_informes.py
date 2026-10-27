@@ -120,3 +120,14 @@ def test_las_cargas_del_correo_se_reconocen_por_el_asunto(storage):
     (d / "registro.json").write_text('{"origen":"email","equipo":"AGROFRESH_DEMO (12)","filas":[{}],"tiene_pdf":true}')
     r = postventa.informes_del_cliente(None, None, _cuenta(cliente="Agrofresh Demo"))
     assert [x["cliente"] for x in r] == ["AGROFRESH_DEMO"]
+
+
+def test_cliente_abre_las_mediciones_de_su_informe_y_no_las_de_otro(storage):
+    a = _guardar()["carpeta"]
+    otro = postventa.guardar_registro(postventa.RegistroIn(cliente="AGRICOM", planta="X", filas=FILAS, estadisticas=EST))["carpeta"]
+    d = postventa.detalle_del_cliente(a, _cuenta(cliente="Dole"))
+    assert d["carpeta"] == a and len(d["filas"]) == 30 and d["estadisticas"]["n"] == 30
+    assert "archivos" not in d and "responsable" not in d
+    with pytest.raises(HTTPException) as e:
+        postventa.detalle_del_cliente(otro, _cuenta(cliente="Dole"))
+    assert e.value.status_code == 404

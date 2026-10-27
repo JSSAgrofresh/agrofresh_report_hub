@@ -83,6 +83,11 @@ export function listarInformesCliente() {
   return httpClient.get<ResumenCargaTrace[]>('/postventa/cliente/informes')
 }
 
+/** Portal de cliente: las mediciones de UN informe suyo (para sus gráficos). */
+export function verInformeCliente(carpeta: string) {
+  return httpClient.get<CargaTrace>(`/postventa/cliente/informes/${encodeURIComponent(carpeta)}`)
+}
+
 /** Abre el PDF en una pestaña nueva (lleva el token, por eso no es un enlace directo). */
 export async function verPdfCliente(carpeta: string): Promise<void> {
   const { blob } = await httpClient.getArchivoConNombre(`/postventa/cliente/informes/${encodeURIComponent(carpeta)}/pdf`)
