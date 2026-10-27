@@ -9,6 +9,7 @@ const resumen = (carpeta: string, planta: string, ph: number): ResumenCargaTrace
   planta,
   ubicacion: 'Línea 2',
   equipo: 'EQUIPO_1',
+  responsable: null,
   n_registros: 100,
   ph_promedio: ph,
   mv_promedio: 650,
