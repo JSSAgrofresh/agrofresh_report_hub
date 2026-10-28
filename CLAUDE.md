@@ -1098,8 +1098,8 @@ tocas una, toca la otra.
 - **«Simular 300 datos» (27-10-2026; 28-10-2026: AHORA SOLO el administrador principal y SOLO en «Vista de cliente»)** (`puedeSimular` en `features/simulacion`; el Report interno ya no lo trae ni lo muestra; al hacer clic en un informe simulado se abre la MISMA ficha que ve un cliente, armada en memoria por `fichaSimulada`, con sus datos del informe y «Informe simulado · sin PDF»; sin límites, como el cliente):
   simula TODO a la vez: 300 resultados repartidos 60/20/20 entre residuos (AgroFresh), FSMA (ALS, «<1» / recuentos / «>2400», sin especie) y
   fitopatología (Diagnofruit, «ND» / conteos / «>100»), más 30 informes Accu-Tab con ~120 lecturas de pH y ORP cada uno
-  (`features/reportes/lib/simulacion.ts`, `features/postventa/lib/simulacion.ts`, azar con semilla en `lib/azar.ts`). Clientes «(Sim.)», ids negativos,
-  límites ficticios solo en residuos. **Estado compartido en memoria** (`features/simulacion`: `useSimulacion`, `activarSimulacion`): lo prende y apaga
+  (`features/reportes/lib/simulacion.ts`, `features/postventa/lib/simulacion.ts`, azar con semilla en `lib/azar.ts`). Clientes «(Sim.)», ids negativos.
+  **Los residuos usan los límites REALES de `LIMITES_RESIDUALES` por especie** (solo especies de la tabla y solo los analitos que ella evalúa; ~96 % dentro del rango, ~4 % se escapa; 28-10-2026); FSMA y fitopatología no tienen límites. **Estado compartido en memoria** (`features/simulacion`: `useSimulacion`, `activarSimulacion`): lo prende y apaga
   quien está en Report, y se ve también en «Vista de cliente» (solo datos, sin botones) y en `InformesAccutabCliente` solo para cuentas admin (sin PDF:
   «Informe simulado · sin PDF»). Se pierde al recargar la página; ya no se apaga al «actualizar» (ese botón no existe). Nunca va al backend.
   La pantalla interna de Post Venta (`PostVentaView`) NO usa la simulación. Pruebas: `simulacion.test.ts` (reportes y postventa), `InformesAccutabCliente.test.tsx`.

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { limitesDeEspecie } from './limitesResiduales'
 import { fichaSimulada, generarDatosSimulados } from './simulacion'
 import type { Observacion } from './tipos'
 
@@ -44,24 +45,32 @@ describe('generarDatosSimulados', () => {
     })
   })
 
-  it('cada ingrediente tiene su límite ficticio y la mayoría de los valores cae dentro', () => {
-    const { filas: todas, analitos, limites } = generarDatosSimulados(1000, 9, HOY)
+  it('los residuos usan los límites REALES de su especie: solo sus analitos y casi todo dentro del rango', () => {
+    const { filas: todas } = generarDatosSimulados(1000, 9, HOY)
     const filas = todas.filter((f) => f.laboratorio === 'Agrofresh')
-    expect(analitos.every((a) => a.nombre.includes('simulado'))).toBe(true)
-    analitos.filter((a) => a.laboratorio === 'Agrofresh').forEach((a) => expect(limites.some((l) => l.analito_id === a.id)).toBe(true))
     const conValor = filas.filter((f) => f.valor_num != null)
-    const dentro = conValor.filter((f) => {
-      const a = analitos.find((x) => x.codigo === f.ingrediente && x.laboratorio === 'Agrofresh')!
-      const l = limites.find((x) => x.analito_id === a.id)!
-      return (
-        Number(f.valor_num) >= Number(l.limite_min) && Number(f.valor_num) <= Number(l.limite_max)
-      )
-    })
-    const pct = dentro.length / conValor.length
-    expect(pct).toBeGreaterThan(0.75)
-    expect(pct).toBeLessThan(0.99)
+    let dentro = 0
+    for (const f of conValor) {
+      const rangos = limitesDeEspecie(f.especie)
+      // Nunca una especie sin tabla ni un analito que la tabla no evalúa para ella.
+      expect(rangos).not.toBeNull()
+      const r = rangos![f.ingrediente as string]
+      expect(r).toBeDefined()
+      const v = Number(f.valor_num)
+      if (v >= r.min && v <= r.max) dentro++
+    }
+    const pct = dentro / conValor.length
+    expect(pct).toBeGreaterThan(0.92)
+    expect(pct).toBeLessThan(1)
     // Hay resultados "ND", sin valor numérico, como en los datos reales.
     expect(filas.some((f) => f.valor_num == null && f.valor_texto === 'ND')).toBe(true)
+  })
+
+  it('los límites que acompañan a los datos son los de la tabla, por especie', () => {
+    const { analitos, limites } = generarDatosSimulados(300, 9, HOY)
+    const fdl = analitos.find((a) => a.codigo === 'FDL' && a.laboratorio === 'Agrofresh')!
+    const cerezas = limites.find((l) => l.analito_id === fdl.id && l.especie === 'Cerezas')!
+    expect([cerezas.limite_min, cerezas.limite_max]).toEqual([0.7, 5])
   })
 })
 
