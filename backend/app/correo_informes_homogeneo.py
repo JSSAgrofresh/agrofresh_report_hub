@@ -44,19 +44,40 @@ def _aprendido(campos: dict[str, str]) -> tuple[dict[str, str], list[dict[str, s
     return final, aplicadas
 
 
-LABORATORIOS_CARGABLES = ("Quiteca", "AgroFresh")
+LABORATORIOS_CARGABLES = ("Quiteca", "AgroFresh", "Diagnofruit")
 
 
 def leer(contenido: bytes, laboratorio: str) -> dict[str, Any]:
     """El mismo lector del Converter, según el laboratorio. Lanza ValueError si ese formato aún no se carga solo."""
-    from .informe_lectura import texto_quiteca
+    from .informe_lectura import texto_de_pdf, texto_quiteca
 
+    if laboratorio == "Diagnofruit":
+        return _leer_diagnofruit(texto_de_pdf(contenido))
     texto = texto_quiteca(contenido)
     if laboratorio == "AgroFresh":
         if not agrofresh_lectura.es_informe_nuevo(texto):
             raise ValueError("Este informe de AgroFresh es del formato antiguo: cárgalo con el Converter.")
         return agrofresh_lectura.leer_agrofresh(texto)
     return quiteca_lectura.leer_quiteca(texto)
+
+
+def _leer_diagnofruit(texto: str) -> dict[str, Any]:
+    """El informe de Diagnofruit: su encabezado trae la cadena de la solicitud (formato nuevo); si la solicitud existe,
+    su dato manda (como en el Converter) y, en el formato anterior, de ahí sale todo lo que el informe no trae."""
+    from . import diagnofruit_lectura as dl, indice_solicitudes
+
+    if dl.muestras(texto) > 1:
+        raise ValueError("Este PDF de Diagnofruit trae varias muestras (un informe por cada una): cárgalo con el Converter.")
+    inf = dl.leer_diagnofruit(texto)
+    ot = inf["datos"].get("OT")
+    if ot:
+        try:
+            encontrada = indice_solicitudes.buscar_por_numero(ot)
+        except Exception:  # noqa: BLE001 — sin base queda con lo que trae el informe
+            encontrada = None
+        if encontrada:
+            dl.completar_desde_solicitud(inf, encontrada[1])
+    return inf
 
 
 def preparar(contenido: bytes, correcciones_manuales: dict[str, str] | None = None, laboratorio: str = "Quiteca") -> dict[str, Any]:
@@ -145,7 +166,7 @@ def completar_pendientes(limite: int = 15) -> int:
     try:
         with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
             cur.execute(
-                "SELECT id, r2_key, hallazgos, laboratorio FROM correo_informe WHERE decision = 'pendiente' AND laboratorio IN ('Quiteca', 'AgroFresh')"
+                "SELECT id, r2_key, hallazgos, laboratorio FROM correo_informe WHERE decision = 'pendiente' AND laboratorio IN ('Quiteca', 'AgroFresh', 'Diagnofruit')"
                 " AND NOT ya_cargado AND homogeneo IS NULL AND r2_key IS NOT NULL ORDER BY llegada_en DESC LIMIT %s", (limite,))
             filas = cur.fetchall()
     except Exception:  # noqa: BLE001 — falta la 0067
