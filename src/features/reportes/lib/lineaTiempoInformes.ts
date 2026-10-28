@@ -27,6 +27,8 @@ export interface ResultadoVista {
 }
 
 export interface InformeVista {
+  /** La solicitud de Report de este informe: con ella se abre su ficha (vista previa y descarga del PDF). */
+  solicitudId?: number
   nro: string
   /** Fecha de muestreo, `aaaa-mm-dd`. */
   fecha: string | null
@@ -92,6 +94,7 @@ export interface AnalitoLinea {
 }
 
 export interface InformeLinea {
+  solicitudId?: number
   nro: string
   /** El rótulo corto bajo la columna (ver `etiquetaInforme`). */
   etiqueta: string
@@ -144,6 +147,7 @@ export function modeloLinea(informes: InformeVista[]): ModeloLinea {
   })
 
   const lineas: InformeLinea[] = ordenados.map((i) => ({
+    solicitudId: i.solicitudId,
     nro: i.nro || '—',
     etiqueta: etiquetaInforme(i.nro || '—'),
     detalle: i.detalle ?? null,
