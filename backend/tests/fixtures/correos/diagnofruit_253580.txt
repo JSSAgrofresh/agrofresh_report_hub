@@ -1,0 +1,51 @@
+       
+  REPORTE DE RESULTADOS
+LABORATORIOS DIAGNOFRUIT - CHILE
+Sede SUCRE #1521, ÑUÑOA, SANTIAGO
+Reporte número: 253580 Fecha de Informe: 28/10/2026
+Cliente: Agrofresh
+Fecha de muestreo: 23/10/2026
+Fecha de recepción: 10/26/2026
+Tipo de muestra: AGUA Fecha de ejecución: 27/10/2026
+Predio/planta: THOMSEN CHILE SA // THOMSEN CHILE SA LOS NICHES
+Nombre de muestra: M1 - OT -DIAG0009 // Línea de proceso // 23-10-2026 // 22-10-2026 // // Manzana // // 1 // // // // // // // // // Agua // Barbara farias // 
+bfarias.agro@gmail.com // //
+Especie: AGUA Variedad: No Aplica
+Localidad: N/I U. prod: N/A
+Análisis realizado: CUANTIFICACIÓN DE MICROORGANISMOS
+RESULTADOS
+Cuantificación de microorganismos
+Patógeno Resultado Unidad Limite de Detección
+Levaduras BLD UFC/mL 1 UFC/mL
+Botrytis BLD conidia/mL 1 conidia/mL
+Alternaria BLD conidia/mL 0,8 conidia/mL
+Geotrichum 2.94 esporas/mL 1 esporas/mL
+Penicillium BLD conidia/mL 1 conidia/mL
+Umbrales de riesgo para cerezas (conidia/mL) Umbrales de riesgo para otras especies (conidia/mL)
+Nivel Botrytis Alternaria Geotrichum Penicillium
+Sin umbrales de riesgo determinadosOptimo < 20 < 50 < 10 < 50
+Moderado 20 - 200 50-300 10 -50 50-300
+Peligroso >200 >300 >50 >300
+Metodología: Amplificación de fragmentos de DNA específicos por qPCR. Técnica desarrollada por DIAGNOFRUIT. Para levaduras, detección y cuantificación mediante CompactDry
+Límite de detección (BLD): Indicado para cada patógeno.
+correo: info@diagnofruit.cl
+web: www.diagnofruit.cl Página 1 de 2
+
+       
+  REPORTE DE RESULTADOS
+LABORATORIOS DIAGNOFRUIT - CHILE
+Sede SUCRE #1521, ÑUÑOA, SANTIAGO
+Reporte número: 253580 Fecha de Informe: 28/10/2026
+Cliente: Agrofresh
+Fecha de muestreo: 23/10/2026
+Fecha de recepción: 26/10/2026
+Tipo de muestra: AGUA Fecha de ejecución: 27/10/2026
+Predio/planta: THOMSEN CHILE SA // THOMSEN CHILE SA LOS NICHES
+Nombre de muestra: ------------------
+Especie: AGUA Variedad: No Aplica
+Localidad: N/I U. prod: N/A
+Análisis realizado: CUANTIFICACIÓN DE MICROORGANISMOS
+OBSERVACIONES ADICIONALES
+Sin observaciones adicionales
+correo: info@diagnofruit.cl
+web: www.diagnofruit.cl Página 2 de 2
