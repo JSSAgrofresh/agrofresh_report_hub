@@ -821,7 +821,7 @@ cuenta es de sucursal), sin tildes ni mayúsculas ni `_`; lo que pida por parám
 (`alcance_de_datos`); un cliente sin cliente asignado no ve nada. Las cargas del correo se reconocen por
 el asunto (`_cliente_de`). El resto de `/api/postventa` sigue cerrado a clientes.
 
-**PDF sin el aviso «Este archivo tiene permisos limitados» (14-10-2026)**: es del visor de Chrome y sale con los PDF que traen restricciones (Quiteca). Todo endpoint que sirve un informe (`ficha_informe`, `informes_solicitud`, `informes_cliente`, `auditoria_interna`, descarga de R2 en `storage`) pasa los bytes por `pdf_permisos.sin_restricciones` (pypdf: si está cifrado y abre con clave vacía, lo reescribe sin cifrado; si no, lo entrega igual). El original en R2 no se toca. Un endpoint nuevo que sirva PDF de laboratorios debe hacer lo mismo. Prueba: `tests/test_pdf_permisos.py`.
+**PDF sin el aviso «Este archivo tiene permisos limitados» (14-10-2026)**: es del visor de Chrome y sale con los PDF que traen restricciones (Quiteca). Todo endpoint que sirve un informe (`ficha_informe`, `informes_solicitud`, `informes_cliente`, `auditoria_interna`, descarga de R2 en `storage`) pasa los bytes por `pdf_permisos.sin_restricciones` (pypdf: si está cifrado y abre con clave vacía, lo reescribe sin cifrado; si no, lo entrega igual). El original en R2 no se toca. **También quita los campos de firma digital (28-10-2026)**: los PDF firmados de ALS mostraban sobre la hoja «Este documento está firmado digitalmente. No se pudieron comprobar algunas firmas» (el recuadro de la firma); la copia que se entrega sale sin ese campo (`_quitar_firmas`). Un endpoint nuevo que sirva PDF de laboratorios debe hacer lo mismo. Prueba: `tests/test_pdf_permisos.py`.
 
 ## Storage: explorador y permisos por carpeta
 
