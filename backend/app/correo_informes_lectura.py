@@ -25,8 +25,8 @@ from datetime import date, datetime
 from email.utils import getaddresses
 from typing import Any, Iterable
 
-# Laboratorios con lector de este módulo (etapa 1). ALS y Diagnofruit se registran, pero sin leer.
-LABORATORIOS_CON_LECTOR = ("Quiteca", "AgroFresh")
+# Laboratorios con lector de este módulo. ALS se registra, pero sin leer (hay que cargarlo con el Converter).
+LABORATORIOS_CON_LECTOR = ("Quiteca", "AgroFresh", "Diagnofruit")
 DOMINIOS_INTERNOS = ("agrofresh.com",)
 
 ROJO, AMARILLO, INFO = "rojo", "amarillo", "info"
@@ -150,12 +150,15 @@ def leer_agrofresh(texto: str) -> dict[str, str]:
 
 
 def leer_informe(laboratorio: str | None, texto_normal: str, texto_quiteca: str = "") -> dict[str, str]:
-    """Los datos del informe según su laboratorio. Los de ALS y Diagnofruit solo traen la OT
-    (su lector llega en la etapa 4)."""
+    """Los datos del informe según su laboratorio. Los de ALS solo traen la OT (su lector llega en la etapa 4)."""
     if laboratorio == "Quiteca":
         return leer_quiteca(texto_quiteca or texto_normal)
     if laboratorio == "AgroFresh":
         return leer_agrofresh(texto_normal)
+    if laboratorio == "Diagnofruit":
+        from . import diagnofruit_lectura
+
+        return diagnofruit_lectura.datos_para_cruce(diagnofruit_lectura.leer_diagnofruit(texto_normal))
     ots = extraer_ots(texto_normal)
     return {"laboratorio": laboratorio or "", "nro_informe": "", "ot": ots[0] if ots else "", "sold_to": "",
             "ship_to": "", "especie": "", "fecha_muestreo": "", "fecha_recepcion": "", "tipo_aplicacion": ""}
