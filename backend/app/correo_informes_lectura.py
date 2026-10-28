@@ -182,6 +182,18 @@ def _es_interno(correo: str) -> bool:
     return correo.rsplit("@", 1)[-1] in DOMINIOS_INTERNOS
 
 
+CORREOS_GENERICOS = ("gmail.com", "hotmail.com", "outlook.com", "yahoo.com", "live.com", "icloud.com")
+
+
+def personal_del_laboratorio(real: dict[str, list[str]], remitente: Iterable[str]) -> set[str]:
+    """Los destinatarios que son del PROPIO laboratorio que manda el informe: comparten el dominio del remitente
+    («hgarcia@diagnofruit.cl» en un correo que manda «info@diagnofruit.cl»). Se copian a sí mismos: no son un envío
+    a quien no correspondía. Un correo genérico (gmail, hotmail…) no es un dominio de empresa y no cuenta."""
+    dominios = {r.rsplit("@", 1)[-1] for r in remitente if "@" in r} - set(CORREOS_GENERICOS) - set(DOMINIOS_INTERNOS)
+    todos = [c for c in [*real.get("to", []), *real.get("cc", []), *real.get("bcc", [])]]
+    return {c.lower() for c in todos if c.rsplit("@", 1)[-1].lower() in dominios}
+
+
 def comparar_destinatarios(
     esperado: dict[str, list[str]], real: dict[str, list[str]], propios: Iterable[str] = (),
 ) -> list[dict[str, str]]:

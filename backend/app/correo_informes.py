@@ -142,7 +142,9 @@ def revisar_pdf(
         solicitud = buscar_solicitud(ot) if ot else None
         if solicitud is not None:
             esperado = plan_de(solicitud[1])
-        hallazgos += lectura.revisar_informe(leido, texto, solicitud, esperado, real, _propios())
+        # El personal del propio laboratorio (mismo dominio que quien manda el informe) se copia a sí mismo: no cuenta.
+        propios = _propios() | lectura.personal_del_laboratorio(real, lectura.direcciones(mensaje.get("From")))
+        hallazgos += lectura.revisar_informe(leido, texto, solicitud, esperado, real, propios)
     return {
         "pdf_nombre": nombre,
         "pdf_sha256": hashlib.sha256(contenido).hexdigest(),
@@ -366,23 +368,24 @@ def iniciar_sondeo(dias: int, disparado_por: str = "", forzar: bool = False) -> 
 
 
 def reabrir_diagnofruit_sin_lector(dias: int) -> int:
-    """Los informes de Diagnofruit que llegaron ANTES de que existiera su lector (28-10-2026) quedaron registrados sin
-    leer y sin su PDF guardado. Los que siguen pendientes y están dentro de la ventana de esta revisión se sacan de la
-    bandeja (y de lo ya examinado) para que ESTA revisión los lea otra vez con el lector. Lo ya aceptado o rechazado no se toca."""
+    """Hay informes de Diagnofruit que quedaron registrados con una lectura vieja (28-10-2026): los que llegaron ANTES de
+    que existiera su lector (sin leer y sin PDF guardado) y los que quedaron en rojo por copiar al propio personal del
+    laboratorio. Los que siguen pendientes, sin resolver y dentro de la ventana de esta revisión se sacan de la bandeja
+    (y de lo ya examinado) para que ESTA revisión los lea otra vez. Lo aceptado, rechazado o resuelto no se toca."""
+    donde = ("laboratorio = 'Diagnofruit' AND decision = 'pendiente' AND resuelto_en IS NULL"
+             " AND ((NOT soportado AND r2_key IS NULL) OR hallazgos::text LIKE '%%destinatarios_de_mas%%')")
     try:
         with conexion() as conn, cursor_dict(conn) as cur:
-            cur.execute(
-                "SELECT DISTINCT message_id FROM correo_informe WHERE laboratorio = 'Diagnofruit' AND NOT soportado"
-                " AND decision = 'pendiente' AND r2_key IS NULL AND llegada_en > now() - make_interval(days => %s)", (dias,))
+            cur.execute(f"SELECT DISTINCT message_id FROM correo_informe WHERE {donde}"
+                        " AND llegada_en > now() - make_interval(days => %s)", (dias,))
             ids = [f["message_id"] for f in cur.fetchall()]
             if not ids:
                 return 0
-            cur.execute("DELETE FROM correo_informe WHERE message_id = ANY(%s) AND laboratorio = 'Diagnofruit' AND NOT soportado"
-                        " AND decision = 'pendiente' AND r2_key IS NULL", (ids,))
+            cur.execute(f"DELETE FROM correo_informe WHERE message_id = ANY(%s) AND {donde}", (ids,))
             cur.execute("DELETE FROM correo_informe_visto WHERE message_id = ANY(%s)", (ids,))
             return len(ids)
     except Exception:  # noqa: BLE001 — falta una migración o una columna: la revisión sigue como siempre
-        logger.exception("No se pudieron reabrir los informes de Diagnofruit sin lector")
+        logger.exception("No se pudieron reabrir los informes de Diagnofruit")
         return 0
 
 
