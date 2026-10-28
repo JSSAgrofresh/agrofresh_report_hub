@@ -1,5 +1,5 @@
 import { crearAzar } from '@/lib/azar'
-import type { Analito, FilaReporte, LimiteAnalito } from './tipos'
+import type { Analito, FichaInforme, FilaReporte, LimiteAnalito, Observacion } from './tipos'
 
 /**
  * Datos de prueba para ver Report con volumen de verdad (hoy la base tiene
@@ -235,5 +235,72 @@ export function generarDatosSimulados(
     analitos,
     limites,
     totalSolicitudes: new Set(filas.map((f) => f.solicitud_id)).size,
+  }
+}
+
+const MUESTREADORES = ['Claudia Guerrero', 'Melissa Molina', 'Barly Fuentes', 'Carlos Rojas']
+
+function sumarDias(fecha: string, dias: number): string {
+  const d = new Date(`${fecha.slice(0, 10)}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + dias)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * La ficha de un informe simulado, con la misma forma que `GET /reportes/informe/{id}`: resultados, datos del informe
+ * (laboratorio, fechas, línea, lote, muestreador…) y sin PDF. Se arma con las filas del informe y datos de apoyo que se
+ * derivan de su número, así el mismo informe siempre muestra lo mismo. Nada viaja al servidor.
+ */
+export function fichaSimulada(filas: Observacion[], analitos: Analito[]): FichaInforme {
+  const base = filas[0]
+  const n = Math.abs(base.solicitudId)
+  const fecha = base.fecha ?? '2026-01-01'
+  const porCodigo = new Map(analitos.map((a) => [a.codigo, a]))
+  const esAls = (base.laboratorio ?? '').toLowerCase().startsWith('als')
+  return {
+    solicitud: {
+      id: base.solicitudId,
+      nro_solicitud: base.nroSolicitud,
+      cliente: base.cliente,
+      planta: base.planta,
+      laboratorio: base.laboratorio,
+      tipo_aplicacion: base.tipoAplicacion,
+      especie: base.crop,
+      variedad: base.variedad,
+      fecha_muestreo: fecha,
+      hora_muestreo: `${String(8 + (n % 9)).padStart(2, '0')}:${String((n * 7) % 60).padStart(2, '0')}`,
+      fecha_recepcion: sumarDias(fecha, 1),
+      fecha_entrada: sumarDias(fecha, 1),
+      fecha_analisis: sumarDias(fecha, 2),
+      fecha_informe: sumarDias(fecha, 3),
+      semana_muestreo: base.semana,
+      posicion_muestreo: base.posicionMuestreo,
+      tipo_muestra: esAls ? 'Agua' : 'Fruta',
+      nro_linea: String(1 + (n % 4)),
+      lote: String(1000 + ((n * 37) % 9000)),
+      kg_procesados: base.laboratorio === 'Agrofresh' ? String(2 + (n % 3)) : null,
+      nombre_muestreador: MUESTREADORES[n % MUESTREADORES.length],
+      solicitante: 'AGROFRESH',
+      referencia: `OT-SIM${String(n).padStart(4, '0')}`,
+    },
+    resultados: filas.map((f) => {
+      const a = f.ingrediente ? porCodigo.get(f.ingrediente) : undefined
+      return {
+        codigo: f.ingrediente,
+        nombre: a?.nombre ?? f.ingrediente,
+        categoria: a?.categoria ?? null,
+        unidad: a?.unidad ?? 'ppm',
+        valor_num: f.ppm,
+        valor_texto: f.valorTexto,
+        producto: null,
+        dosis: null,
+        gasto: null,
+        tipo_aplicacion: f.tipoAplicacion,
+        linea_proceso: null,
+      }
+    }),
+    carga: null,
+    toma: null,
+    pdf: { disponible: false },
   }
 }
