@@ -1300,6 +1300,14 @@ export function ReporteView({
     else setFiltros((prev) => ({ ...prev, [campo]: FILTROS_VACIOS[campo] }))
   }
 
+  /** Tocar el N° de un informe en las tablas de FSMA y fitopatología abre su ficha, igual que un punto del gráfico de residuos. */
+  function verInformeDeTabla(solicitudId: number, nro: string, fecha: string | null) {
+    setDetalle({
+      titulo: `${nro} · ${fecha ? formatDateCL(fecha) : 'Sin fecha'}`,
+      filas: observaciones.filter((o) => o.solicitudId === solicitudId),
+    })
+  }
+
   function alternarSimulacion() {
     // Los filtros de los datos reales no sirven para los simulados (y al
     // revés): se parte limpio en los dos sentidos.
@@ -1719,6 +1727,7 @@ export function ReporteView({
               conFiltros={nFiltros > 0}
               conGraficos={graficosInformes}
               acento={acento}
+              onVerInforme={verInformeDeTabla}
             />
           ) : (
             <>
@@ -1921,10 +1930,10 @@ export function ReporteView({
                 </>
               )}
               {modoBloques && bloques.fsma && (
-                <SeccionInformes bloque="fsma" numero={numeroDeBloque('fsma')} filtroBloque={filtroFsma} onQuitarFiltroBloque={() => setFiltroFsma(FILTRO_BLOQUE_VACIO)} informes={informesAls} totalSinFiltros={informesSinFiltros.als} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
+                <SeccionInformes bloque="fsma" numero={numeroDeBloque('fsma')} filtroBloque={filtroFsma} onQuitarFiltroBloque={() => setFiltroFsma(FILTRO_BLOQUE_VACIO)} informes={informesAls} totalSinFiltros={informesSinFiltros.als} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} onVerInforme={verInformeDeTabla} />
               )}
               {modoBloques && bloques.fito && (
-                <SeccionInformes bloque="fito" numero={numeroDeBloque('fito')} filtroBloque={filtroFito} onQuitarFiltroBloque={() => setFiltroFito(FILTRO_BLOQUE_VACIO)} informes={informesFito} totalSinFiltros={informesSinFiltros.diagnofruit} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} />
+                <SeccionInformes bloque="fito" numero={numeroDeBloque('fito')} filtroBloque={filtroFito} onQuitarFiltroBloque={() => setFiltroFito(FILTRO_BLOQUE_VACIO)} informes={informesFito} totalSinFiltros={informesSinFiltros.diagnofruit} conFiltros={nFiltros > 0} conGraficos={graficosInformes} acento={acento} onVerInforme={verInformeDeTabla} />
               )}
             </>
           )}

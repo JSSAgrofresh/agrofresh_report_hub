@@ -192,6 +192,13 @@
   font-weight: 500;
 }
 
+.informeBoton {
+  border: 0;
+  cursor: pointer;
+}
+.informeBoton:hover { text-decoration: underline; filter: brightness(0.95); }
+.informeBoton:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
 .informe {
   display: inline-block;
   padding: 3px 8px;

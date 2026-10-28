@@ -1,4 +1,5 @@
 import { crearAzar } from '@/lib/azar'
+import { limitesDeEspecie } from './limitesResiduales'
 import type { Analito, FichaInforme, FilaReporte, LimiteAnalito, Observacion } from './tipos'
 
 /**
@@ -22,20 +23,21 @@ export interface DatosSimulados {
   totalSolicitudes: number
 }
 
-// Rango objetivo ficticio de cada ingrediente (ppm). Los códigos son los del
-// catálogo real para que cada uno salga con su color de siempre.
+// Ingredientes de residuos. Los códigos son los del catálogo real para que cada uno salga con su color de siempre. Los
+// rangos NO son inventados: cada especie usa los límites residuales reales (`LIMITES_RESIDUALES`), y solo aparecen los
+// analitos que esa tabla evalúa para ella.
 const INGREDIENTES = [
-  { codigo: 'IMZ', nombre: 'Imazalil (simulado)', min: 1.0, central: 2.0, max: 3.0 },
-  { codigo: 'FDL', nombre: 'Fludioxonil (simulado)', min: 0.8, central: 1.6, max: 2.5 },
-  { codigo: 'PYR', nombre: 'Pirimetanil (simulado)', min: 1.2, central: 2.4, max: 3.5 },
-  { codigo: 'TBZ', nombre: 'Tiabendazol (simulado)', min: 1.5, central: 3.0, max: 4.5 },
-  { codigo: 'DPA', nombre: 'Difenilamina (simulado)', min: 2.0, central: 3.5, max: 5.0 },
-  { codigo: 'AZOX', nombre: 'Azoxistrobina (simulado)', min: 0.5, central: 1.1, max: 1.8 },
-  { codigo: 'TEBU', nombre: 'Tebuconazol (simulado)', min: 0.4, central: 0.9, max: 1.6 },
+  { codigo: 'IMZ', nombre: 'Imazalil (simulado)' },
+  { codigo: 'FDL', nombre: 'Fludioxonil (simulado)' },
+  { codigo: 'PYR', nombre: 'Pirimetanil (simulado)' },
+  { codigo: 'TBZ', nombre: 'Tiabendazol (simulado)' },
+  { codigo: 'DPA', nombre: 'Difenilamina (simulado)' },
+  { codigo: 'AZOX', nombre: 'Azoxistrobina (simulado)' },
+  { codigo: 'TEBU', nombre: 'Tebuconazol (simulado)' },
 ] as const
 
 const ESPECIES: { especie: string; variedades: string[]; peso: number }[] = [
-  { especie: 'Cereza', variedades: ['Lapins', 'Santina', 'Regina', 'Sweetheart'], peso: 5 },
+  { especie: 'Cerezas', variedades: ['Lapins', 'Santina', 'Regina', 'Sweetheart'], peso: 5 },
   { especie: 'Manzana', variedades: ['Gala', 'Fuji', 'Granny Smith', 'Pink Lady'], peso: 4 },
   { especie: 'Pera', variedades: ['Packham', 'Abate Fetel', 'Forelle'], peso: 2 },
   { especie: 'Arándano', variedades: ['Duke', 'Legacy', 'Brigitta'], peso: 2 },
@@ -125,10 +127,13 @@ export function generarDatosSimulados(
   const topeFito = resultados
 
   /** Una solicitud nueva: cliente, fecha (más muestras en temporada, nov-mar) y su numeración. */
-  function nuevaBase(laboratorio: string, conEspecie: boolean) {
+  function nuevaBase(laboratorio: string, conEspecie: boolean, soloConLimites = false) {
     solicitud += 1
     const cliente = elegirPonderado(CLIENTES, azar.siguiente())
-    const especie = elegirPonderado(ESPECIES, azar.siguiente())
+    const especie = elegirPonderado(
+      soloConLimites ? ESPECIES.filter((e) => limitesDeEspecie(e.especie) != null) : ESPECIES,
+      azar.siguiente(),
+    )
     let fecha: Date
     do {
       fecha = new Date(finUtc - Math.floor(azar.siguiente() * DIAS) * 86400000)
@@ -155,27 +160,26 @@ export function generarDatosSimulados(
 
   // Residuos (AgroFresh).
   while (filas.length < topeResiduos) {
-    const base = nuevaBase('Agrofresh', true)
-    const cuantos = 1 + Math.floor(azar.siguiente() * 3)
+    const base = nuevaBase('Agrofresh', true, true)
+    // Solo los analitos que la tabla de límites evalúa para la especie de este informe.
+    const rangos = limitesDeEspecie(base.especie) ?? {}
+    const codigos = Object.keys(rangos)
+    const cuantos = Math.min(codigos.length, 1 + Math.floor(azar.siguiente() * 3))
     const usados = new Set<string>()
     for (let i = 0; i < cuantos && filas.length < topeResiduos; i++) {
-      const ing = azar.elegir(INGREDIENTES)
-      if (usados.has(ing.codigo)) continue
-      usados.add(ing.codigo)
+      const codigo = azar.elegir(codigos)
+      if (usados.has(codigo)) continue
+      usados.add(codigo)
       if (azar.siguiente() < 0.04) {
-        filas.push({ ...base, ingrediente: ing.codigo, valor_num: null, valor_texto: 'ND' })
+        filas.push({ ...base, ingrediente: codigo, valor_num: null, valor_texto: 'ND' })
         continue
       }
-      // Casi todo dentro del rango, con una cola a ambos lados.
-      const ancho = (ing.max - ing.min) / 2
-      let valor = ing.central + azar.normal() * ancho * 0.45
-      if (azar.siguiente() < 0.08)
-        valor =
-          azar.siguiente() < 0.5
-            ? ing.min * (0.3 + azar.siguiente() * 0.6)
-            : ing.max * (1.05 + azar.siguiente() * 0.5)
+      // Dentro del rango de su especie (la franja del medio, sin pegarse a los bordes); solo ~4 % se escapa, a un lado u otro.
+      const { min, max } = rangos[codigo]
+      let valor = min + (max - min) * (0.2 + azar.siguiente() * 0.6)
+      if (azar.siguiente() < 0.04) valor = azar.siguiente() < 0.5 ? min * (0.6 + azar.siguiente() * 0.35) : max * (1.05 + azar.siguiente() * 0.3)
       valor = Math.max(0.01, Math.round(valor * 1000) / 1000)
-      filas.push({ ...base, ingrediente: ing.codigo, valor_num: valor, valor_texto: null })
+      filas.push({ ...base, ingrediente: codigo, valor_num: valor, valor_texto: null })
     }
   }
 
@@ -219,16 +223,25 @@ export function generarDatosSimulados(
     limite_max: null,
   }))
 
-  // Límites ficticios: solo residuos (ALS y Diagnofruit no tienen franja).
-  const limites: LimiteAnalito[] = INGREDIENTES.map((ing, i) => ({
-    id: -(i + 1),
-    analito_id: -(i + 1),
-    especie: '',
-    tipo_servicio: '',
-    limite_min: ing.min,
-    limite_central: ing.central,
-    limite_max: ing.max,
-  }))
+  // Límites: los reales de la tabla del laboratorio, por especie (solo residuos; ALS y Diagnofruit no tienen franja).
+  const limites: LimiteAnalito[] = []
+  for (const e of ESPECIES) {
+    const rangos = limitesDeEspecie(e.especie)
+    if (!rangos) continue
+    for (const [codigo, r] of Object.entries(rangos)) {
+      const analito = analitos.find((x) => x.codigo === codigo && x.laboratorio === 'Agrofresh')
+      if (!analito) continue
+      limites.push({
+        id: -(limites.length + 1),
+        analito_id: analito.id,
+        especie: e.especie,
+        tipo_servicio: '',
+        limite_min: r.min,
+        limite_central: (r.min + r.max) / 2,
+        limite_max: r.max,
+      })
+    }
+  }
 
   return {
     filas,

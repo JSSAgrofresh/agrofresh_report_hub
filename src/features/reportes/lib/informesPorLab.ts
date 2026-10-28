@@ -38,6 +38,7 @@ export function construirInformes(filas: Observacion[], lab: LaboratorioTabular,
     let informe = porSolicitud.get(o.solicitudId)
     if (!informe) {
       informe = {
+        solicitudId: o.solicitudId,
         nro: o.nroSolicitud,
         fecha: o.fecha ? o.fecha.slice(0, 10) : null,
         detalle: o.posicionMuestreo,

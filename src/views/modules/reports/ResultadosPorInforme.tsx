@@ -393,6 +393,7 @@ interface Props {
    * queda solo la tabla.
    */
   conGraficos: boolean
+  onVerInforme?: (solicitudId: number, nro: string, fecha: string | null) => void
 }
 
 /**
@@ -400,7 +401,7 @@ interface Props {
  * encendió, una línea de tiempo y una serie de tiempo (ambos responden «hay / no hay» y, si hay, cuánto) sobre ella. Los
  * tres usan los mismos nombres, unidades, orden y colores.
  */
-export function ResultadosPorInforme({ informes, laboratorio, columnaDetalle = 'Zona de muestreo', conGraficos }: Props) {
+export function ResultadosPorInforme({ informes, laboratorio, columnaDetalle = 'Zona de muestreo', conGraficos, onVerInforme }: Props) {
   const textos = TEXTOS[laboratorio]
   const modelo = useMemo(() => modeloLinea(informes), [informes])
   const n = modelo.informes.length
@@ -410,7 +411,7 @@ export function ResultadosPorInforme({ informes, laboratorio, columnaDetalle = '
       <Titulo sub="Un informe por fila. Toca un encabezado para ordenar; la búsqueda y la descarga respetan lo que ves.">
         {conGraficos ? 'Detalle por informe' : 'Resultados por informe'}
       </Titulo>
-      <TablaInformes modelo={modelo} nota={textos.nota} columnaDetalle={columnaDetalle} archivo={laboratorio} />
+      <TablaInformes modelo={modelo} nota={textos.nota} columnaDetalle={columnaDetalle} archivo={laboratorio} onVerInforme={onVerInforme} />
     </Card>
   )
   // La tabla va plegada: se abre solo para quien quiere el detalle de cada informe.

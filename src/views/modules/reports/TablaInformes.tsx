@@ -26,6 +26,8 @@ interface Props {
   columnaDetalle: string
   /** Para el nombre del archivo que se descarga («als», «diagnofruit»). */
   archivo: string
+  /** Al tocar el N° de un informe: abre su ficha con la vista previa del PDF y su descarga. */
+  onVerInforme?: (solicitudId: number, nro: string, fecha: string | null) => void
 }
 
 function descargarCsv(nombre: string, contenido: string) {
@@ -44,7 +46,7 @@ function descargarCsv(nombre: string, contenido: string) {
  * cualquier columna, se busca por N°, zona o fecha, se pagina, resume cuántos informes tuvieron detección y se descarga
  * en CSV (lo que se ve, ordenado y filtrado, no solo la página).
  */
-export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) {
+export function TablaInformes({ modelo, nota, columnaDetalle, archivo, onVerInforme }: Props) {
   const [orden, setOrden] = useState<Orden>(ORDEN_INICIAL)
   const [texto, setTexto] = useState('')
   const [pagina, setPagina] = useState(1)
@@ -53,6 +55,21 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
   const angosto = useAnchoMaximo(640)
   // En el estilo sobrio, las tablas de FSMA y fitopatología no llevan el punto de color de cada analito.
   const sinPuntos = esPaletaSobria()
+
+  /** El N° del informe: un botón que abre su ficha cuando se sabe de qué solicitud es. */
+  const numeroDe = (inf: (typeof modelo.informes)[number]) =>
+    onVerInforme && inf.solicitudId != null ? (
+      <button
+        type="button"
+        className={`${styles.informe} ${styles.informeBoton}`}
+        title="Ver el informe (vista previa y descarga)"
+        onClick={() => onVerInforme(inf.solicitudId as number, inf.nro, inf.fecha)}
+      >
+        {inf.nro}
+      </button>
+    ) : (
+      <span className={styles.informe}>{inf.nro}</span>
+    )
 
   const conDetalle = modelo.informes.some((i) => i.detalle)
   const filtrados = useMemo(() => filtrarInformes(modelo.informes, texto), [modelo.informes, texto])
@@ -158,7 +175,7 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
                     {inf.fechaTxt}
                     {inf.fecha && <small>{modelo.dias.find((d) => d.fecha === inf.fecha)?.diaSemana}</small>}
                   </span>
-                  <span className={styles.informe}>{inf.nro}</span>
+                  {numeroDe(inf)}
                 </header>
                 {conDetalle && inf.detalle && (
                   <p className={styles.detalleTarjeta}>
@@ -235,7 +252,7 @@ export function TablaInformes({ modelo, nota, columnaDetalle, archivo }: Props) 
                     )}
                     {k === 0 && (
                       <td className={styles.grupo} rowSpan={filas.length}>
-                        <span className={styles.informe}>{inf.nro}</span>
+                        {numeroDe(inf)}
                       </td>
                     )}
                     {conDetalle && k === 0 && (
