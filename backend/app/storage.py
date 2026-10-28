@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from . import config
 from . import storage_permisos as permisos
 from . import storage_r2 as sr2
-from .auth import Usuario, solo_admin_general, solo_escribiente, usuario_actual
+from .auth import Usuario, solo_admin_general, solo_escribiente, solo_interno, usuario_actual
 from .db import conexion, cursor_dict
 
 router = APIRouter(prefix="/api/storage", tags=["storage"])
@@ -599,3 +599,35 @@ def buscar(
     else:
         raise HTTPException(400, "Espacio inválido.")
     return _visibles(resultado, reglas, usuario)[:limite]
+
+
+@router.get("/informes/plantas")
+def plantas_de_informes(usuario: Usuario = Depends(solo_interno)) -> list[dict]:
+    """Cada carpeta de planta del espacio Informes con su Sold To y su Ship To.
+
+    La carpeta se nombra igual que al guardar el informe (`carpeta_planta`), así el
+    explorador puede filtrar sus carpetas por Sold To y Ship To sin adivinar.
+    """
+    from . import informes_storage as inf
+
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            """
+            SELECT p.nombre AS ship_to, c.nombre AS sold_to
+            FROM planta p JOIN cliente c ON c.id = p.cliente_id
+            ORDER BY c.nombre, p.nombre
+            """
+        )
+        filas = cur.fetchall()
+    repetidos: dict[str, set[str]] = {}
+    for f in filas:
+        repetidos.setdefault((f["ship_to"] or "").strip().lower(), set()).add(f["sold_to"])
+    salida = []
+    for f in filas:
+        ship = (f["ship_to"] or "").strip()
+        if not ship:
+            continue
+        sold = (f["sold_to"] or "").strip()
+        nombre = f"{ship} ({sold})" if len(repetidos[ship.lower()]) > 1 else ship
+        salida.append({"carpeta": inf.segmento_seguro(nombre, "Sin planta"), "sold_to": sold, "ship_to": ship})
+    return salida

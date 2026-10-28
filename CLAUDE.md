@@ -870,6 +870,8 @@ toca el otro). La aplicación es dueña de parte del bucket, por eso:
 Accutab, **Laboratorio AgroFresh** (una carpeta del disco con entrada propia,
 `CARPETA_LABORATORIO` en `explorador.ts`) e **Informes** (R2, prefijo `informes/`).
 
+**Filtros Sold To / Ship To en Informes (28-10-2026, sin migración)**: en la lista de plantas del espacio Informes (interno y Vista de cliente) hay dos desplegables, Sold To y Ship To (el Ship To se acota al Sold To elegido). `GET /api/storage/informes/plantas` (`storage.plantas_de_informes`, `solo_interno`) devuelve cada carpeta con su Sold To y Ship To, nombrada igual que `carpeta_planta` (con el cliente entre paréntesis si el Ship To se repite). Lógica pura: `filtrarPorPlanta`/`opcionesDePlantas` (`explorador.ts`, probadas en `explorador.test.ts`). El portal de cliente no los trae.
+
 **Informes** (`app/informes_storage.py`): cada PDF que se sube por Converter
 (`POST /auditoria-interna/informes`, que ahora también recibe `fecha` y
 `analisis`) y cada informe propio de cromatografía (`emitir._archivar_informe`)
