@@ -22,6 +22,8 @@ interface Props {
   graficos?: ReactNode
   /** Cuenta de cliente o comercial: sin las columnas de límite y estado ni el conteo «sobre el límite». */
   sinLimites?: boolean
+  /** Datos simulados: la ficha ya armada en memoria; no se pide al servidor ni hay PDF. */
+  fichaLocal?: FichaInforme
 }
 
 const ETIQUETA_ESTADO: Record<EstadoResultado, string> = {
@@ -88,8 +90,8 @@ function rangoLimite(l: LimiteResuelto): string {
   return l.max != null ? `≤ ${f(l.max)}` : `≥ ${f(l.min as number)}`
 }
 
-export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCerrar, graficos, sinLimites }: Props) {
-  const [ficha, setFicha] = useState<FichaInforme | null>(null)
+export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCerrar, graficos, sinLimites, fichaLocal }: Props) {
+  const [ficha, setFicha] = useState<FichaInforme | null>(fichaLocal ?? null)
   const [error, setError] = useState<string | null>(null)
   const [urlPdf, setUrlPdf] = useState<string | null>(null)
   const [errorPdf, setErrorPdf] = useState<string | null>(null)
@@ -97,6 +99,7 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
   const [visorAbierto, setVisorAbierto] = useState(false)
 
   useEffect(() => {
+    if (fichaLocal) return
     let cancelado = false
     obtenerFichaInforme(solicitudId)
       .then((f) => !cancelado && setFicha(f))
@@ -104,7 +107,7 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
     return () => {
       cancelado = true
     }
-  }, [solicitudId])
+  }, [solicitudId, fichaLocal])
 
   const hayPdf = ficha?.pdf.disponible === true
   useEffect(() => {
@@ -419,7 +422,7 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
                   </>
                 ) : (
                   <div className={styles.sinPdf}>
-                    {errorPdf ? errorPdf : hayPdf ? 'Cargando vista previa…' : 'Este informe aún no tiene un PDF guardado.'}
+                    {errorPdf ? errorPdf : hayPdf ? 'Cargando vista previa…' : fichaLocal ? 'Informe simulado · sin PDF' : 'Este informe aún no tiene un PDF guardado.'}
                   </div>
                 )}
               </div>

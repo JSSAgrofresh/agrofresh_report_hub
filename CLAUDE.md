@@ -1095,7 +1095,7 @@ tocas una, toca la otra.
   `informe_auditoria` (N° de informe + laboratorio) y, si no, en `informes/<planta>/`
   de Storage por nombre (`elegir_clave`). Sin PDF guardado muestra el aviso. Con varias
   solicitudes (Diagnofruit) queda la tabla simple de antes.
-- **«Simular 300 datos» (27-10-2026, pedido del usuario)** (solo admin, nunca en el portal de cliente; botón en Report interno, oculto en «Vista de cliente»):
+- **«Simular 300 datos» (27-10-2026; 28-10-2026: AHORA SOLO el administrador principal y SOLO en «Vista de cliente»)** (`puedeSimular` en `features/simulacion`; el Report interno ya no lo trae ni lo muestra; al hacer clic en un informe simulado se abre la MISMA ficha que ve un cliente, armada en memoria por `fichaSimulada`, con sus datos del informe y «Informe simulado · sin PDF»; sin límites, como el cliente):
   simula TODO a la vez: 300 resultados repartidos 60/20/20 entre residuos (AgroFresh), FSMA (ALS, «<1» / recuentos / «>2400», sin especie) y
   fitopatología (Diagnofruit, «ND» / conteos / «>100»), más 30 informes Accu-Tab con ~120 lecturas de pH y ORP cada uno
   (`features/reportes/lib/simulacion.ts`, `features/postventa/lib/simulacion.ts`, azar con semilla en `lib/azar.ts`). Clientes «(Sim.)», ids negativos,
