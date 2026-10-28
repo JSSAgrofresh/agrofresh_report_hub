@@ -51,7 +51,7 @@ import { TarjetasAnalisis } from './TarjetasAnalisis'
 import { desvioResidual, limitesDeInforme } from '@/features/reportes/lib/limitesResiduales'
 import { Kpi } from './Kpi'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
-import { RESULTADOS_SIMULADOS, activarSimulacion, desactivarSimulacion, useSimulacion } from '@/features/simulacion'
+import { RESULTADOS_SIMULADOS, activarSimulacion, desactivarSimulacion, puedeSimular as esQuienSimula, useSimulacion } from '@/features/simulacion'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import type { RangoFechas } from '@/components/ui/CalendarioRango'
 import { areaDeModulo } from '@/constants/areas'
@@ -379,12 +379,10 @@ export function ReporteView({
   }, [])
 
   const esGestor = (user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area') && !comoCliente
-  // Nunca en el portal de cliente: un cliente no puede ver datos inventados.
-  const puedeSimular = esGestor && !clienteFijo
-  // Los datos simulados también se ven desde «Vista de cliente» (el administrador mira cómo queda), pero solo los
-  // prende y apaga quien está en Report con sus herramientas.
-  const esAdminCuenta = user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area'
-  const simulando = esAdminCuenta && !clienteFijo && simulacion != null
+  // Los datos simulados son solo del administrador principal y solo en «Vista de cliente» (comoCliente): nunca en el
+  // Report interno ni en el portal de un cliente real.
+  const puedeSimular = esQuienSimula(user) && comoCliente && !clienteFijo
+  const simulando = puedeSimular && simulacion != null
   // Lo que se muestra: los datos simulados mientras la simulación está activa,
   // los reales el resto del tiempo. Todo lo de abajo lee de acá.
   const filasVista = simulando ? simulacion.filas : filas
@@ -1944,7 +1942,7 @@ export function ReporteView({
           onCerrar={() => setDetalle(null)}
           fichaCompleta={
             simulando
-              ? undefined
+              ? { analitos: analitosVista, limites: limitesVista, sinLimites: true, simulada: true }
               : {
                   analitos: analitosVista,
                   limites: limitesVista,

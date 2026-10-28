@@ -29,6 +29,11 @@ export function activarSimulacion() {
   avisar()
 }
 
+/** Solo el administrador principal prueba con datos simulados, y solo desde «Vista de cliente» (pedido del usuario, 28-10-2026). */
+export function puedeSimular(user: { tipoAcceso?: string; email?: string } | null | undefined): boolean {
+  return user?.tipoAcceso === 'admin_general' && (user.email ?? '').toLowerCase() === 'jorge.sandoval@agrofresh.com'
+}
+
 export function desactivarSimulacion() {
   estado = { reporte: null, accutab: null }
   avisar()

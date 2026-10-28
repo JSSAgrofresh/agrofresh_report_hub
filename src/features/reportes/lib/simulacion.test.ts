@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { generarDatosSimulados } from './simulacion'
+import { fichaSimulada, generarDatosSimulados } from './simulacion'
+import type { Observacion } from './tipos'
 
 const HOY = new Date(Date.UTC(2026, 8, 28))
 
@@ -96,5 +97,43 @@ describe('simulación completa', () => {
     expect(als.every((f) => f.especie == null)).toBe(true)
     expect(fito.every((f) => f.especie != null)).toBe(true)
     ;[...als, ...fito].forEach((f) => expect(analitos.some((a) => a.codigo === f.ingrediente)).toBe(true))
+  })
+})
+
+describe('fichaSimulada', () => {
+  const { filas, analitos } = generarDatosSimulados(300, 7)
+  const observaciones = (id: number): Observacion[] =>
+    filas
+      .filter((f) => f.solicitud_id === id)
+      .map((f) => ({
+        solicitudId: f.solicitud_id,
+        nroSolicitud: f.nro_solicitud ?? '',
+        ingrediente: f.ingrediente,
+        ppm: f.valor_num == null ? null : Number(f.valor_num),
+        valorTexto: f.valor_texto,
+        fecha: f.fecha_muestreo,
+        cliente: f.cliente,
+        planta: f.planta,
+        tipoAplicacion: f.tipo_aplicacion,
+        tipoServicio: f.tipo_servicio,
+        posicionMuestreo: f.posicion_muestreo,
+        laboratorio: f.laboratorio,
+        crop: f.especie,
+        variedad: f.variedad,
+        semana: f.semana_muestreo,
+        mes: f.mes,
+      }))
+
+  it('arma la misma forma que la ficha real: resultados con unidad, datos del informe y sin PDF', () => {
+    const f = fichaSimulada(observaciones(-1), analitos)
+    expect(f.solicitud.nro_solicitud).toBe('SIM-0001')
+    expect(f.resultados.length).toBeGreaterThan(0)
+    expect(f.resultados.every((r) => r.unidad !== '')).toBe(true)
+    expect(f.solicitud.fecha_informe).not.toBeNull()
+    expect(f.pdf.disponible).toBe(false)
+  })
+
+  it('el mismo informe siempre muestra lo mismo', () => {
+    expect(fichaSimulada(observaciones(-3), analitos)).toEqual(fichaSimulada(observaciones(-3), analitos))
   })
 })

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/features/auth'
-import { useSimulacion } from '@/features/simulacion'
+import { puedeSimular, useSimulacion } from '@/features/simulacion'
 import type { AccutabSimulado } from '@/features/postventa/lib/simulacion'
 import { EstadoModulo } from '@/components/ui/EstadoModulo'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -241,7 +241,7 @@ export function InformesAccutabCliente() {
   const { user } = useAuth()
   const { accutab: simulacion } = useSimulacion()
   // Solo el administrador ve informes simulados (los prende desde Report); un cliente nunca.
-  const simulado = user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area' ? simulacion : null
+  const simulado = puedeSimular(user) ? simulacion : null
   const [reales, setInformes] = useState<ResumenCargaTrace[] | null>(null)
   const informes = simulado ? simulado.informes : reales
   const [error, setError] = useState<string | null>(null)
