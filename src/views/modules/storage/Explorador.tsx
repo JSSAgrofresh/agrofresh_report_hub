@@ -9,16 +9,19 @@ import {
   carpetaDe,
   estaDentro,
   filtrarEntradas,
+  filtrarPorPlanta,
   formatoTamano,
   leerArrastre,
   migasDe,
   nombreVisible,
   operaciones,
   ordenarEntradas,
+  opcionesDePlantas,
   organizarSolicitudesR2,
+  plantasDeInformes,
   puede,
 } from '@/features/storage'
-import type { CampoOrden, EntradaStorage, Espacio, Operacion, Orden } from '@/features/storage'
+import type { CampoOrden, EntradaStorage, Espacio, Operacion, Orden, PlantaInforme } from '@/features/storage'
 import { ArbolCarpetas } from './ArbolCarpetas'
 import { Dialogo } from './Dialogo'
 import { IconoArchivo, IconoCarpeta } from './IconoArchivo'
@@ -85,6 +88,11 @@ export function Explorador({
   const [errorLista, setErrorLista] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [busqueda, setBusqueda] = useState('')
+  const [plantas, setPlantas] = useState<PlantaInforme[]>([])
+  const [soldTo, setSoldTo] = useState('')
+  const [shipTo, setShipTo] = useState('')
+  // Sold To / Ship To: solo en la lista de plantas del espacio Informes (sus carpetas son por planta).
+  const conFiltroPlanta = espacio.id === 'informes' && ruta === espacio.raiz
   const [orden, setOrden] = useState<Orden>({ campo: 'nombre', descendente: false })
   const [vista, setVista] = useState<Vista>(vistaGuardada)
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
@@ -122,10 +130,25 @@ export function Explorador({
     }
   }, [ops, ruta, version])
 
-  const visibles = useMemo(
-    () => ordenarEntradas(filtrarEntradas(entradas ?? [], busqueda), orden),
-    [entradas, busqueda, orden],
+  useEffect(() => {
+    if (!conFiltroPlanta) return
+    let vigente = true
+    plantasDeInformes()
+      .then((r) => vigente && setPlantas(r))
+      .catch(() => vigente && setPlantas([]))
+    return () => {
+      vigente = false
+    }
+  }, [conFiltroPlanta])
+
+  const opcionesPlanta = useMemo(
+    () => opcionesDePlantas(entradas ?? [], plantas, soldTo),
+    [entradas, plantas, soldTo],
   )
+  const visibles = useMemo(() => {
+    const porPlanta = conFiltroPlanta ? filtrarPorPlanta(entradas ?? [], plantas, { soldTo, shipTo }) : (entradas ?? [])
+    return ordenarEntradas(filtrarEntradas(porPlanta, busqueda), orden)
+  }, [entradas, plantas, conFiltroPlanta, soldTo, shipTo, busqueda, orden])
   const seleccionadas = visibles.filter((e) => seleccion.has(e.ruta))
   const todasMarcadas = visibles.length > 0 && seleccionadas.length === visibles.length
   const nCarpetas = (entradas ?? []).filter((e) => e.tipo === 'carpeta').length
@@ -414,6 +437,39 @@ export function Explorador({
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
         />
+        {conFiltroPlanta && opcionesPlanta.soldTos.length > 0 && (
+          <>
+            <select
+              className={styles.selectOrden}
+              aria-label="Filtrar por Sold To"
+              value={soldTo}
+              onChange={(e) => {
+                setSoldTo(e.target.value)
+                setShipTo('')
+              }}
+            >
+              <option value="">Todos los Sold To</option>
+              {opcionesPlanta.soldTos.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <select
+              className={styles.selectOrden}
+              aria-label="Filtrar por Ship To"
+              value={shipTo}
+              onChange={(e) => setShipTo(e.target.value)}
+            >
+              <option value="">Todos los Ship To</option>
+              {opcionesPlanta.shipTos.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
         <div className={styles.vistas} role="group" aria-label="Vista">
           <button type="button" className={cn(styles.vistaBoton, vista === 'lista' && styles.vistaActiva)} aria-pressed={vista === 'lista'} onClick={() => cambiarVista('lista')} title="Lista">
             <svg viewBox="0 0 20 20" aria-hidden><path d="M3 5h14M3 10h14M3 15h14" /></svg>

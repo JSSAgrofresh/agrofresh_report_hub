@@ -145,3 +145,14 @@ export async function verInformeCliente(ruta: string): Promise<void> {
   window.open(url, '_blank', 'noopener')
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
+
+/** Cada carpeta de planta del espacio Informes con su Sold To y Ship To (solo personal interno). */
+export interface PlantaInforme {
+  carpeta: string
+  sold_to: string
+  ship_to: string
+}
+
+export function plantasDeInformes() {
+  return httpClient.get<PlantaInforme[]>('/storage/informes/plantas')
+}
