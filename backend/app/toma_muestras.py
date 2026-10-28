@@ -2213,6 +2213,20 @@ def _nombre_clave(valor: object) -> str:
     return re.sub(r"\s+", " ", str(valor or "")).strip().casefold()
 
 
+def _clave_especie_contacto(especie: object) -> str:
+    """Especie para COMPARAR con la de un contacto: «Cereza», «Cerezas» y «CEREZA» son la misma
+    (la lista de distribución guarda «Cereza» y el formulario dice «Cerezas»; sin esto la solicitud
+    no encontraba a los contactos del cliente). Sin la «s» final de cada palabra, «ones» = «on»."""
+    palabras = []
+    for w in _clave_esp(str(especie or "")).split():
+        if w.endswith("ones"):
+            w = w[:-4] + "on"
+        elif w.endswith("s") and len(w) > 3:
+            w = w[:-1]
+        palabras.append(w)
+    return " ".join(palabras)
+
+
 def _contactos_resultado_nivel(
     sold_to: str, ship_to: str, especie: str, contactos: list[dict] | None = None
 ) -> list[dict]:
@@ -2232,10 +2246,10 @@ def _contactos_resultado_nivel(
     sh_n = _nombre_clave(ship_to)
     # Especie: comparación normalizada (sin mayúsculas, tildes ni variantes
     # ortográficas) para que "Cereza"/"CEREZA"/"Cerezas" no rompan el lookup.
-    es_n = _clave_esp(especie or "")
+    es_n = _clave_especie_contacto(especie)
 
     def _esp_cfg(c: dict) -> str:
-        return _clave_esp(c.get("especie") or "")
+        return _clave_especie_contacto(c.get("especie"))
 
     # 1. Exacto (sold_to + ship_to + especie normalizada)
     exactos = [
