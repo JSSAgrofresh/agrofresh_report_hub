@@ -6,7 +6,7 @@ Cada vez que se genera un informe propio de AgroFresh (Ingreso al laboratorio) e
 informes que nunca existieron para el cliente. Un PDF se CONSERVA si su nombre corresponde al N° de informe de algun
 informe que esta en Report (`solicitud.nro_solicitud`, lo mismo que usa la ficha del informe para encontrar su PDF):
 el N° es el nombre completo («AGF2026-26.pdf») o aparece en el nombre sin pegarse a otras letras o numeros
-(«2026-1885-PC Copefrut.pdf»; «AGF2026-2» NO calza con «AGF2026-26»). Todo lo demas es sobrante.
+(«2026-1885-PC Copefrut.pdf»; «AGF2026-2» NO calza con «AGF2026-26»). Todo lo demas es sobrante, SALVO lo de Diagnofruit: sus PDF (carpeta `Diagnofruit`) no se juzgan y siempre se conservan.
 
 Seguro por defecto:
   * mira primero: sin `--aplicar` solo cuenta y deja la lista completa (conserva / sobra) en logs/;
@@ -51,7 +51,10 @@ def calza(nombre: str, nro: str) -> bool:
 
 def clasificar(claves: list[str], numeros: set[str]) -> tuple[list[tuple[str, str]], list[str], list[str]]:
     """(conservar [(clave, N° que calza)], sobrantes, no_pdf). Solo los PDF se juzgan; lo demas no se toca."""
-    nros = sorted({n.strip().casefold() for n in numeros if n and n.strip()}, key=lambda n: (-len(n), n))
+    base = {n.strip().casefold() for n in numeros if n and n.strip()}
+    # Diagnofruit guarda «253522-DIAG0007» pero nombra su PDF «253522 - Agrofresh.pdf»: vale también el N° de su informe.
+    alias = {m.group(1) for n in base if (m := re.match(r"^(\d{5,})-[a-z]+\d+$", n))}
+    nros = sorted(base | alias, key=lambda n: (-len(n), n))
     conservar: list[tuple[str, str]] = []
     sobran: list[str] = []
     otros: list[str] = []
@@ -60,6 +63,9 @@ def clasificar(claves: list[str], numeros: set[str]) -> tuple[list[tuple[str, st
             continue
         if not clave.lower().endswith(".pdf"):
             otros.append(clave)
+            continue
+        if "diagnofruit" in {parte.strip().casefold() for parte in clave.split("/")[:-1]}:
+            conservar.append((clave, "Diagnofruit: no se toca"))
             continue
         nombre = _nombre(clave)
         hallado = next((n for n in nros if calza(nombre, n)), None)
