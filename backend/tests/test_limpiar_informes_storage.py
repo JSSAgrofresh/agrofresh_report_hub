@@ -35,3 +35,9 @@ def test_diagnofruit_se_conserva_por_el_numero_de_su_informe():
     otra = clave.replace("253522", "253599")
     conservar, sobran, _ = mod.clasificar([clave, otra], {"253522-DIAG0007"})
     assert [c for c, _ in conservar] == [clave] and sobran == [otra]
+
+
+def test_diagnofruit_nunca_se_toca():
+    clave = "informes/GREENEX PLANTA CODEGUA/2026-10-01/Linea de Proceso/Diagnofruit/loquesea.pdf"
+    conservar, sobran, _ = mod.clasificar([clave], {"AGF2026-26"})
+    assert [c for c, _ in conservar] == [clave] and sobran == []
