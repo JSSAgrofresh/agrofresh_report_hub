@@ -9,6 +9,7 @@ import {
 } from '@/features/postventa'
 import type { CargaTrace, ResumenCargaTrace } from '@/features/postventa'
 import styles from './ReporteAccutab.module.css'
+import botones from './SeccionesReport.module.css'
 
 const ICONO = (
   <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -55,14 +56,14 @@ export function DescargasAccutab({
   const ocupado = avance !== null
   return (
     <div className={styles.descargas}>
-      <div className={styles.descargasBotones}>
-        <button type="button" className={styles.botonExcel} disabled={ocupado || filtradas.length === 0} onClick={() => void bajarRegistros()}>
+      <div className={`${botones.botones} ${styles.descargasBotones}`}>
+        <button type="button" className={`${botones.boton} ${botones.encendido}`} disabled={ocupado || filtradas.length === 0} onClick={() => void bajarRegistros()}>
           {ICONO}
           {avance ? `Reuniendo ${avance.hechas}/${avance.total}…` : 'BD de registros'}
         </button>
         <button
           type="button"
-          className={styles.botonExcel}
+          className={`${botones.boton} ${botones.encendido}`}
           disabled={ocupado || filtradas.length === 0}
           onClick={() => descargarExcelDeFilas('accutab-informes', 'Informes', filasBdInformes(filtradas))}
         >
