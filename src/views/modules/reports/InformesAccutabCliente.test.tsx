@@ -76,10 +76,10 @@ describe('InformesAccutabCliente', () => {
     expect(screen.getByRole('button', { name: /02-10-2026 10:00/ })).toBeInTheDocument()
   })
 
-  it('lleva la tarjeta «Accutab» con el total de mediciones y la cabecera numerada, como los análisis de Report', async () => {
+  it('lleva la tarjeta «Accutab» con el total de informes y la cabecera numerada, como los análisis de Report', async () => {
     render(<InformesAccutabCliente />)
     await screen.findByText('grafico pH')
-    expect(screen.getByRole('button', { name: /Accutab: 200 mediciones/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Accutab: 2 informes/ })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Accutab', level: 2 })).toBeInTheDocument()
     expect(screen.getByLabelText('Análisis 1')).toBeInTheDocument()
   })
