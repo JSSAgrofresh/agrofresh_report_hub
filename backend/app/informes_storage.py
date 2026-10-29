@@ -1,15 +1,16 @@
 """
 Informes en Storage: una copia de cada informe PDF, ordenada para encontrarla.
 
-    informes/<PLANTA>/<FECHA>/<ANÁLISIS>/<LABORATORIO>/<archivo>.pdf
+    informes/<PLANTA>/<LABORATORIO>/<FECHA>/<archivo>.pdf
 
 - PLANTA: el Ship To. Si dos clientes tienen un Ship To con el mismo nombre
   («CHILLAN», «REQUINOA»…) se le agrega el cliente -«CHILLAN (EXPORTADORA
   PRIZE S.A)»- para no mezclar informes de clientes distintos: esta carpeta es
   la que algún día se le muestra a cada cliente.
-- FECHA: la de muestreo, en ISO (AAAA-MM-DD); Storage la muestra como DD-MM-AAAA.
-- ANÁLISIS: el tipo de servicio (Actimist, Línea de proceso…).
-- LABORATORIO: quien emitió el informe.
+- LABORATORIO: quien emitió el informe. Solo existe la carpeta de los laboratorios
+  que tienen informes en esa planta.
+- FECHA: la del INFORME (no la de emisión de la solicitud ni la de muestreo), en ISO
+  (AAAA-MM-DD); Storage la muestra como DD-MM-AAAA.
 
 El PDF se sube con su nombre: volver a pasar un informe ya guardado lo
 reemplaza en su sitio, no lo duplica (se vuelven a pasar todos por Converter).
@@ -75,16 +76,13 @@ def carpeta_planta(ship_to: str | None, sold_to: str | None) -> str:
     return segmento_seguro(planta, "Sin planta")
 
 
-def ruta_informe(
-    planta: str, fecha: str | None, analisis: str | None, laboratorio: str | None, nombre: str
-) -> str:
+def ruta_informe(planta: str, laboratorio: str | None, fecha: str | None, nombre: str) -> str:
     """Clave en R2. `planta` es el nombre de carpeta ya resuelto (`carpeta_planta`)."""
     partes = [
         RAIZ,
         segmento_seguro(planta, "Sin planta"),
-        fecha_iso(fecha) or "Sin fecha",
-        segmento_seguro(analisis, "Sin tipo de análisis"),
         segmento_seguro(laboratorio_visible(laboratorio), "Sin laboratorio"),
+        fecha_iso(fecha) or "Sin fecha",
         segmento_seguro(nombre, "informe.pdf"),
     ]
     return "/".join(partes)
@@ -97,7 +95,6 @@ def guardar(
     ship_to: str | None,
     sold_to: str | None,
     fecha: str | None,
-    analisis: str | None,
     laboratorio: str | None,
 ) -> str | None:
     """Sube el PDF a su carpeta y devuelve la clave, o None si R2 no está
@@ -105,6 +102,6 @@ def guardar(
     algo al usuario."""
     if not r2.disponible():
         return None
-    key = ruta_informe(carpeta_planta(ship_to, sold_to), fecha, analisis, laboratorio, nombre)
+    key = ruta_informe(carpeta_planta(ship_to, sold_to), laboratorio, fecha, nombre)
     r2.subir(key, pdf, "application/pdf")
     return key

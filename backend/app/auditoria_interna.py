@@ -181,8 +181,8 @@ async def subir_informe(
     """Guarda el PDF en <laboratorio>/<ship to>/ (la carpeta se crea sola con el
     primer archivo) y lo registra. Volver a subir el mismo informe lo reemplaza.
 
-    Aparte, deja una copia en Storage → Informes, por planta / fecha de muestreo
-    / tipo de análisis / laboratorio (`informes_storage`). Esa copia no depende
+    Aparte, deja una copia en Storage → Informes, por planta / laboratorio
+    / fecha del informe (`informes_storage`). Esa copia no depende
     de Auditoría: se guarda primero y, si falla, el informe igual sigue su curso."""
     datos = await archivo.read()
     if not (archivo.filename or "").lower().endswith(".pdf") or not datos.startswith(b"%PDF"):
@@ -196,7 +196,7 @@ async def subir_informe(
     try:
         ruta_informes = informes_storage.guardar(
             datos, archivo.filename or "informe.pdf",
-            ship_to=ship_to, sold_to=sold_to, fecha=fecha, analisis=analisis, laboratorio=laboratorio,
+            ship_to=ship_to, sold_to=sold_to, fecha=fecha, laboratorio=laboratorio,
         )
     except Exception:
         logger.exception("No se pudo guardar %s en Storage → Informes", archivo.filename)
