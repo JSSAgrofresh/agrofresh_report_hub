@@ -41,3 +41,11 @@ def test_diagnofruit_nunca_se_toca():
     clave = "informes/GREENEX PLANTA CODEGUA/2026-10-01/Linea de Proceso/Diagnofruit/loquesea.pdf"
     conservar, sobran, _ = mod.clasificar([clave], {"AGF2026-26"})
     assert [c for c, _ in conservar] == [clave] and sobran == []
+
+
+def test_repetidos_encuentra_los_numeros_con_mas_de_un_pdf():
+    a = "informes/PLANTA A/2026-09-15/Linea/AgroFresh/AGF2026-10.pdf"
+    b = "informes/PLANTA B/2026-08-27/Actimist/AgroFresh/AGF2026-10.pdf"
+    c = "informes/PLANTA A/2026-09-15/Linea/AgroFresh/AGF2026-11.pdf"
+    conservar, _, _ = mod.clasificar([a, b, c], {"AGF2026-10", "AGF2026-11"})
+    assert mod.repetidos(conservar) == {"agf2026-10": sorted([a, b])}

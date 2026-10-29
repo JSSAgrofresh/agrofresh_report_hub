@@ -88,6 +88,51 @@ def _numeros_en_report() -> set[str]:
         return {str(f["n"]) for f in cur.fetchall()}
 
 
+def repetidos(conservar: list[tuple[str, str]]) -> dict[str, list[str]]:
+    """{N° de informe: [PDF...]} para los N° que tienen mas de un PDF en Storage (copias en otras carpetas)."""
+    por_numero: dict[str, list[str]] = {}
+    for clave, nro in conservar:
+        if nro.endswith("no se toca"):
+            continue
+        por_numero.setdefault(nro, []).append(clave)
+    return {n: sorted(cs) for n, cs in sorted(por_numero.items()) if len(cs) > 1}
+
+
+def _ver(numero: str, claves: list[str]) -> None:
+    """Que dice Report de UN informe y que PDF tiene en Storage (para entender un caso raro)."""
+    from app.db import conexion, cursor_dict
+
+    nro = numero.strip()
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            """SELECT s.id, s.nro_solicitud, s.referencia, s.laboratorio, s.fecha_muestreo, s.servicio,
+                      COALESCE(p.nombre, s.ship_to_raw) AS planta, COALESCE(c.nombre, s.sold_to_raw) AS cliente,
+                      (SELECT sa.numero_solicitud FROM solicitud_archivo sa
+                        WHERE upper(btrim(sa.numero_solicitud)) = upper(btrim(s.referencia)) LIMIT 1) AS ot_existente
+                 FROM solicitud s LEFT JOIN planta p ON p.id = s.planta_id LEFT JOIN cliente c ON c.id = p.cliente_id
+                WHERE upper(btrim(s.nro_solicitud)) = upper(%s)""",
+            (nro,),
+        )
+        filas = cur.fetchall()
+        cur.execute(
+            "SELECT laboratorio, nro_informe, archivo_solicitud, numero_solicitud, r2_key FROM informe_auditoria WHERE upper(btrim(nro_informe)) = upper(%s)",
+            (nro,),
+        )
+        auditoria = cur.fetchall()
+    print(f"\nInforme {nro}")
+    print(f"  En Report ({len(filas)}):")
+    for f in filas:
+        print(f"    id {f['id']} · {f['laboratorio']} · {f['cliente']} / {f['planta']} · muestreo {f['fecha_muestreo']} · servicio {f['servicio']}")
+        print(f"      referencia (OT): {f['referencia'] or '—'}  ->  OT que existe: {f['ot_existente'] or 'NINGUNA'}")
+    print(f"  Informe subido por el Converter ({len(auditoria)}):")
+    for a in auditoria:
+        print(f"    amarrado a: {a['numero_solicitud'] or a['archivo_solicitud'] or 'ninguna solicitud'} · {a['r2_key']}")
+    pdfs = [c for c in claves if calza(_nombre(c), nro.casefold())]
+    print(f"  PDF en Storage ({len(pdfs)}):")
+    for c in pdfs:
+        print(f"    {c}")
+
+
 def _numeros_con_ot() -> set[str]:
     """N° de informe de Report que estan cruzados con una OT."""
     from app.db import conexion, cursor_dict
@@ -114,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--aplicar", action="store_true", help="Mover los sobrantes a la papelera. Sin esto solo muestra.")
     ap.add_argument("--incluir-sin-ot", action="store_true", help="Conservar tambien los informes de Report que no tienen OT.")
+    ap.add_argument("--ver", metavar="N°", help="Muestra que dice Report y que PDF hay en Storage de UN informe (ej. AGF2026-10).")
     ap.add_argument("--definitivo", action="store_true", help="Con --aplicar: borrarlos de verdad en vez de moverlos.")
     args = ap.parse_args(argv)
 
@@ -122,6 +168,9 @@ def main(argv: list[str] | None = None) -> int:
     if not r2.disponible():
         print("R2 no esta configurado en este equipo: nada que revisar.")
         return 1
+    if args.ver:
+        _ver(args.ver, r2.listar_keys(RAIZ))
+        return 0
     en_report = _numeros_en_report()
     if not en_report:
         print("En Report no hay ningun informe con N° de informe: me detengo para no marcar todo como sobrante.")
@@ -143,6 +192,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"      en Report pero SIN OT:  {len(sin_ot)}")
     print(f"      que no estan en Report: {len(no_en_report)}")
     print(f"  Otros archivos (no se tocan): {len(otros)}")
+    copias = repetidos(conservar)
+    print(f"  N° con MAS DE UN PDF (copias en otras carpetas): {len(copias)}")
+    for n, cs in list(copias.items())[:10]:
+        print(f"    {n}: {len(cs)} PDF")
+        for c in cs:
+            print(f"        {c}")
+    if len(copias) > 10:
+        print(f"    ... y {len(copias) - 10} más (están en la lista)")
 
     marca = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     logs = _BACKEND / "logs"
@@ -154,6 +211,7 @@ def main(argv: list[str] | None = None) -> int:
         w.writerows([["CONSERVAR", c, n] for c, n in conservar])
         w.writerows([["SOBRA", c, "en Report pero sin OT" if c in sin_ot else "no está en Report"] for c in sobran])
         w.writerows([["NO SE TOCA", c, ""] for c in otros])
+        w.writerows([["COPIA REPETIDA", c, n] for n, cs in copias.items() for c in cs])
     print(f"  Lista completa: {ruta}")
     for c in sobran[:15]:
         print(f"    sobra: {c}")
