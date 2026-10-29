@@ -69,7 +69,39 @@ def _leer(carpeta: str) -> dict[str, Any]:
     if not os.path.isfile(ruta):
         raise HTTPException(404, "Ese informe no tiene datos guardados.")
     with open(ruta, encoding="utf-8") as f:
-        return json.load(f)
+        return _al_dia(json.load(f))
+
+
+def _al_dia(r: dict[str, Any]) -> dict[str, Any]:
+    """Un informe guardado antes de que se registraran los valores de cierre del día se recalcula con sus propias
+    lecturas (el CSV original queda guardado en el informe): así no hay que volver a subirlo."""
+    dias = (r.get("resumen") or {}).get("dias") or []
+    if dias and "kg_cierre" not in dias[0] and r.get("lecturas"):
+        try:
+            r["resumen"] = costo_kilo.resumen_diario(r["lecturas"])
+        except Exception:  # noqa: BLE001
+            log.exception("No se pudo recalcular el resumen diario de un informe de costo por kilo")
+    return r
+
+
+def _rehacer_si_es_viejo(carpeta: str) -> None:
+    """Si el informe se guardó antes de los valores de cierre, deja al día su registro y rehace su PDF (una sola vez)."""
+    ruta = os.path.join(_carpeta(carpeta), ARCHIVO_REGISTRO)
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            crudo = json.load(f)
+        dias = (crudo.get("resumen") or {}).get("dias") or []
+        if not dias or "kg_cierre" in dias[0] or not crudo.get("lecturas"):
+            return
+        r = _al_dia(crudo)
+        pdf = costo_kilo_informe.generar_pdf(r)
+        with open(os.path.join(os.path.dirname(ruta), ARCHIVO_PDF), "wb") as f:
+            f.write(pdf)
+        r["tiene_pdf"] = True
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump(r, f, ensure_ascii=False)
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo rehacer el informe de costo por kilo %s", carpeta)
 
 
 def _resumen(carpeta: str, r: dict[str, Any]) -> dict[str, Any]:
@@ -287,7 +319,7 @@ def listar() -> list[dict[str, Any]]:
             continue
         try:
             with open(ruta, encoding="utf-8") as f:
-                salida.append(_resumen(nombre, json.load(f)))
+                salida.append(_resumen(nombre, _al_dia(json.load(f))))
         except (OSError, json.JSONDecodeError, KeyError):
             continue  # una carpeta corrupta no tumba la lista
     salida.sort(key=lambda r: r["carpeta"], reverse=True)
@@ -306,6 +338,7 @@ def ver_registro(carpeta: str) -> dict[str, Any]:
 
 @router.get("/registros/{carpeta}/pdf")
 def pdf_registro(carpeta: str) -> FileResponse:
+    _rehacer_si_es_viejo(carpeta)
     ruta = os.path.join(_carpeta(carpeta), ARCHIVO_PDF)
     if not os.path.isfile(ruta):
         raise HTTPException(404, "Ese informe no tiene PDF.")
@@ -385,6 +418,7 @@ def detalle_del_cliente(carpeta: str, usuario: Usuario = Depends(usuario_actual)
 @router_cliente.get("/informes/{carpeta}/pdf")
 def pdf_del_cliente(carpeta: str, usuario: Usuario = Depends(usuario_actual)) -> FileResponse:
     _del_alcance(carpeta, usuario)
+    _rehacer_si_es_viejo(carpeta)
     ruta = os.path.join(_carpeta(carpeta), ARCHIVO_PDF)
     if not os.path.isfile(ruta):
         raise HTTPException(404, "Ese informe no tiene PDF.")
