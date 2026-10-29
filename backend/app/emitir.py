@@ -1379,7 +1379,7 @@ def _archivar_informe(campos: dict[str, str], folio: str, pdf_bytes: bytes) -> N
     """Guarda una copia del informe en R2, en el mismo orden que los informes de
     los otros laboratorios (Storage → Informes):
 
-        informes/<PLANTA>/<FECHA DE MUESTREO>/<TIPO DE ANÁLISIS>/AgroFresh/<folio>.pdf
+        informes/<PLANTA>/AgroFresh/<FECHA DEL INFORME>/<folio>.pdf
 
     El archivado no puede costarle la descarga al usuario: si R2 no está
     configurado o falla, se registra y el informe se entrega igual.
@@ -1391,8 +1391,7 @@ def _archivar_informe(campos: dict[str, str], folio: str, pdf_bytes: bytes) -> N
             pdf_bytes, f"{folio}.pdf",
             ship_to=campos.get("Ship To (Nombre)") or campos.get("Ship To"),
             sold_to=campos.get("Sold To (Nombre)") or campos.get("Sold To"),
-            fecha=campos.get("Fecha Muestreo") or date.today().isoformat(),
-            analisis=campos.get("Tipo Aplicación"),
+            fecha=date.today().isoformat(),
             laboratorio="AgroFresh",
         )
     except Exception:

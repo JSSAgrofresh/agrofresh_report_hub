@@ -2359,8 +2359,8 @@ async function subirPdfs(ok){
     fd.append("archivo_solicitud", inf.ot || "");
     // El OT impreso en el PDF: el servidor lo prefiere sobre la elección de arriba.
     fd.append("ot_informe", inf.datos["OT"] || "");
-    // Para Storage → Informes: planta / fecha de muestreo / tipo de análisis / laboratorio.
-    fd.append("fecha", aISO(inf.datos["Fecha Muestreo"]) || inf.datos["Fecha Muestreo"] || "");
+    // Para Storage → Informes: planta / laboratorio / fecha del informe.
+    fd.append("fecha", aISO(inf.datos["Fecha Informe"]) || aISO(inf.datos["Fecha entrada"]) || aISO(inf.datos["Fecha Muestreo"]) || "");
     fd.append("analisis", inf.datos["Tipo de servicio"] || "");
     fd.append("fecha_envio", inf.envio ? new Date(inf.envio).toISOString() : "");
     fd.append("enviado_cliente", inf.enviado ? "1" : "");
