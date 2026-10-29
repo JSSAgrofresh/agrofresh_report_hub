@@ -30,8 +30,8 @@ def test_mayusculas_y_solo_se_juzgan_los_pdf():
     assert sobran == [] and otros == [BASE + "nota.txt"]
 
 
-def test_diagnofruit_se_conserva_por_el_numero_de_su_informe():
-    clave = "informes/GREENEX PLANTA CODEGUA/2026-10-01/Linea de Proceso/Diagnofruit/253522 - Agrofresh.pdf"
+def test_el_alias_de_diagnofruit_conserva_por_el_numero_en_otras_carpetas():
+    clave = "informes/GREENEX/2026-10-01/Linea de Proceso/Otro Lab/253522 - Agrofresh.pdf"
     otra = clave.replace("253522", "253599")
     conservar, sobran, _ = mod.clasificar([clave, otra], {"253522-DIAG0007"})
     assert [c for c, _ in conservar] == [clave] and sobran == [otra]
