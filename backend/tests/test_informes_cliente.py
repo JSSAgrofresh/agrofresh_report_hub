@@ -62,3 +62,11 @@ def test_descargar_exige_un_pdf_dentro_de_su_carpeta():
     with pytest.raises(HTTPException) as e:
         ic.descargar("OTRA PLANTA/2026-10-01/x.pdf", _cliente())
     assert e.value.status_code == 404
+
+
+def test_la_subcarpeta_solicitudes_no_es_para_clientes():
+    ic._exigir_alcance(["DOLE CODEGUA", "Quiteca", "Informes", "2026-10-01"], _cliente())  # no lanza
+    for ruta in (["DOLE CODEGUA", "Quiteca", "Solicitudes"], ["DOLE CODEGUA", "Quiteca", "solicitudes", "2026-10-01", "OT-1.pdf"]):
+        with pytest.raises(HTTPException) as e:
+            ic._exigir_alcance(ruta, _cliente())
+        assert e.value.status_code == 404
