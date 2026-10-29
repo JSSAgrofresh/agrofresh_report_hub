@@ -1,3 +1,4 @@
+import { AREAS } from '@/constants/areas'
 import type { AreaId } from '@/constants/areas'
 import { EstadoModulo } from '@/components/ui/EstadoModulo'
 import { vistaDeCliente } from '@/features/usuarios'
@@ -24,6 +25,8 @@ export function ClienteDashboardView({ usuario }: { area: AreaId; usuario: Usuar
             ? 'Comercial. Solo lectura de las plantas que tienes asignadas.'
             : 'Portal de cliente. Acceso exclusivo a tus datos.'
         }
+        // Quien ve Accu-Tab lleva la foto de agua de Accu-Tab en el encabezado, como Report lleva la de la especie.
+        fondo={ve.accutab ? AREAS.postventa.fondo : undefined}
       />
 
       {(ve.report || ve.storage) && <AccesosCliente usuario={usuario} />}

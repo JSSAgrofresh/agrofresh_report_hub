@@ -79,3 +79,21 @@ export function IconManzanaGusano(props: SVGProps<SVGSVGElement>) {
     </Base>
   )
 }
+
+/** Accutab: una tina de agua de la línea de proceso de la fruta (la que lava y enfría), con su agua, una gota y la fruta flotando. */
+export function IconPozoAgua(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Base {...props}>
+      <path {...SUAVE} d="M7 25h34l-2.4 14.2a3 3 0 0 1-3 2.5H12.4a3 3 0 0 1-3-2.5z" />
+      <path d="M6 18h36M9 18l3.4 21.2a3 3 0 0 0 3 2.5h17.2a3 3 0 0 0 3-2.5L39 18" />
+      <path d="M9 28c3-2.4 5-2.4 7.5 0s4.5 2.4 7.5 0 5-2.4 7.5 0 4.5 2.4 7.5 0" />
+      <path d="M12.5 35c2.6-2 4.4-2 6.7 0s4 2 6.6 0 4.4-2 6.7 0" opacity={0.55} />
+      <circle {...MEDIO} cx="18" cy="21.4" r="3.9" />
+      <circle cx="18" cy="21.4" r="3.9" />
+      <circle {...MEDIO} cx="29.5" cy="22" r="3.4" />
+      <circle cx="29.5" cy="22" r="3.4" />
+      <path d="M18 17.5v-1.6M29.5 18.6V17" />
+      <path d="M24 4.5c-2.4 3.3-3.6 5.2-3.6 7a3.6 3.6 0 0 0 7.2 0c0-1.8-1.2-3.7-3.6-7z" />
+    </Base>
+  )
+}
