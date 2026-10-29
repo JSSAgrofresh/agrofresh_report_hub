@@ -13,6 +13,10 @@ export interface DiaCostoKilo {
   /** Litros de producto comercial del día, por código de ingrediente activo (FDL, TEBU, PYR…). */
   activos: Record<string, number>
   /** Primer o último día, o con menos de 24 lecturas: no es un día completo. */
+  /** Lo que marcaba el equipo en la última lectura del día (lo que grafica la plantilla). Faltan en informes antiguos. */
+  kg_cierre?: number
+  sm_inicial?: number
+  activos_cierre?: Record<string, number>
   parcial: boolean
   ml_por_kg: Record<string, number | null>
 }

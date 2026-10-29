@@ -67,6 +67,20 @@ def activos_con_consumo(registro: dict[str, Any]) -> list[str]:
     return con or list(r["codigos"])
 
 
+def kg_cierre(d: dict[str, Any]) -> float:
+    """Lo que marcaba el contador de kg al cierre del día (la plantilla del cliente grafica esto). Informes guardados
+    antes de que se registrara el cierre caen al valor del día."""
+    return d.get("kg_cierre", d["kg"])
+
+
+def activo_cierre(d: dict[str, Any], c: str) -> float:
+    return (d.get("activos_cierre") or d["activos"]).get(c, 0.0)
+
+
+def carga_inicial(d: dict[str, Any]) -> float:
+    return d.get("sm_inicial", 0.0)
+
+
 def _escala(maximo: float) -> tuple[float, list[float]]:
     """Un tope «redondo» y las marcas del eje para un máximo cualquiera."""
     if maximo <= 0:
@@ -83,7 +97,8 @@ def _escala(maximo: float) -> tuple[float, list[float]]:
 
 
 def _grafico(titulo: str, etiquetas: list[str], barras: list[float], etiqueta_barras: str,
-             lineas: list[tuple[str, list[float], str]], unidad_lineas: str, ancho: float, alto: float) -> Drawing:
+             lineas: list[tuple[str, list[float], str]], unidad_lineas: str, ancho: float, alto: float,
+             punteadas: bool = False) -> Drawing:
     """Barras (eje izquierdo) y líneas (eje derecho), con la leyenda abajo."""
     d = Drawing(ancho, alto)
     ml, mr, mt, mb = 46, 40, 24, 56
@@ -120,8 +135,10 @@ def _grafico(titulo: str, etiquetas: list[str], barras: list[float], etiqueta_ba
         for i, v in enumerate(valores):
             pts += [centros[i], yl(v)]
         if len(pts) >= 4:
-            d.add(PolyLine(pts, strokeColor=colors.HexColor(color), strokeWidth=1.6))
+            d.add(PolyLine(pts, strokeColor=colors.HexColor(color), strokeWidth=1.8 if punteadas else 1.6, strokeDashArray=[1.5, 3] if punteadas else None))
         for i, v in enumerate(valores):
+            if punteadas:
+                continue
             d.add(Rect(centros[i] - 1.8, yl(v) - 1.8, 3.6, 3.6, fillColor=colors.HexColor(color), strokeColor=colors.white, strokeWidth=0.4))
     # Leyenda (barras primero), en una o dos filas.
     items = [(etiqueta_barras, COLOR_BARRAS, True)] + [(nombre, color, False) for nombre, _, color in lineas]
@@ -158,16 +175,12 @@ def _series(registro: dict[str, Any]) -> dict[str, Any]:
     usados: list[str] = []
     lineas_act = []
     for c in codigos:
-        lineas_act.append((f"{c} litros ({registro['nombres'].get(c, c)})", [d["activos"].get(c, 0.0) for d in dias], color_de(c, usados)))
+        lineas_act.append((f"{c} litros ({registro['nombres'].get(c, c)})", [activo_cierre(d, c) for d in dias], color_de(c, usados)))
         usados.append(c)
     return {
         "etiquetas": [_dia(d["fecha"]) for d in dias],
-        "kg": [d["kg"] for d in dias],
-        "sm": [
-            ("Solución madre: lámina", [d["sm_lamina"] for d in dias], COLOR_SM["sm_lamina"]),
-            ("Solución madre: mantención", [d["sm_mant"] for d in dias], COLOR_SM["sm_mant"]),
-            ("Solución madre: total", [d["sm_total"] for d in dias], COLOR_SM["sm_total"]),
-        ],
+        "kg": [kg_cierre(d) for d in dias],
+        "sm": [("PRODUCTO CARGA INICIAL (Solución Madre / Inicial)", [carga_inicial(d) for d in dias], COLOR_SM["sm_total"])],
         "activos": lineas_act,
         "codigos": codigos,
     }
@@ -220,15 +233,15 @@ def generar_pdf(registro: dict[str, Any]) -> bytes:
                                ("RIGHTPADDING", (0, 0), (-1, -1), 4), ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
         return t
 
-    g1 = _grafico("Kg de fruta por día y solución madre del día", s["etiquetas"], s["kg"], "Kg de fruta por día", s["sm"],
-                  "litros de solución madre", ancho - 8, 190)
-    g2 = _grafico("Litros de producto comercial por día según ingrediente activo", s["etiquetas"], s["kg"], "Kg de fruta por día",
+    g1 = _grafico("Kg de fruta proceso y carga inicial de solución madre", s["etiquetas"], s["kg"], "KG FRUTA PROCESO", s["sm"],
+                  "litros de solución madre", ancho - 8, 190, punteadas=True)
+    g2 = _grafico("Litros de producto comercial según activo", s["etiquetas"], s["kg"], "KG FRUTA PROCESO",
                   s["activos"], "litros de producto comercial", ancho - 8, 190)
 
     # Tabla diaria: día, kg, litros y ml/kg de cada activo.
     est = ParagraphStyle("t", fontName="Helvetica", fontSize=8, leading=10)
     estb = ParagraphStyle("tb", fontName="Helvetica-Bold", fontSize=8, leading=10, textColor=colors.white)
-    cabecera = [Paragraph("Día", estb), Paragraph("Kg de fruta", estb)]
+    cabecera = [Paragraph("Consumo del día", estb), Paragraph("Kg de fruta", estb)]
     for c in s["codigos"]:
         cabecera += [Paragraph(f"{c} litros", estb), Paragraph(f"{c} ml/kg", estb)]
     filas = [cabecera]
@@ -297,6 +310,10 @@ def generar_excel(registro: dict[str, Any]) -> bytes:
     for c in cods:
         cab += [f"{c} LTS PRODUCTO COMERCIAL ({nombres.get(c, c)})", f"{c} ML POR KG"]
     cab += ["DÍA PARCIAL"]
+    # Lo que grafica la plantilla del cliente: lo que marcaba el equipo al cerrar cada día.
+    col_cierre = len(cab) + 1
+    cab += ["KG FRUTA PROCESO (cierre del día)", "PRODUCTO CARGA INICIAL (Solución Madre / Inicial)"]
+    cab += [f"{c} LTS PC (cierre del día)" for c in cods]
     hoja["A1"] = f"RESUMEN DIARIO · {registro.get('cliente') or ''} · {registro.get('planta') or ''} · Línea {registro.get('linea') or ''}".strip(" ·")
     hoja["A1"].font = Font(bold=True, size=12)
     for j, t in enumerate(cab, start=1):
@@ -308,14 +325,14 @@ def generar_excel(registro: dict[str, Any]) -> bytes:
         fila = [datetime.fromisoformat(d["fecha"]), d["kg"], d["sm_lamina"], d["sm_mant"], d["sm_total"]]
         for c in cods:
             fila += [d["activos"].get(c, 0.0), d["ml_por_kg"].get(c)]
-        fila += ["Sí" if d["parcial"] else "No"]
+        fila += ["Sí" if d["parcial"] else "No", kg_cierre(d), carga_inicial(d)] + [activo_cierre(d, c) for c in cods]
         for j, v in enumerate(fila, start=1):
             cel = hoja.cell(row=i, column=j, value=v)
             cel.border = borde
             if j == 1:
                 cel.number_format = "dd-mm-yyyy"
             elif isinstance(v, float) or isinstance(v, int):
-                cel.number_format = "#,##0.000" if cab[j - 1].endswith("ML POR KG") else ("#,##0" if j == 2 else "#,##0.00")
+                cel.number_format = "#,##0.000" if cab[j - 1].endswith("ML POR KG") else ("#,##0" if j in (2, col_cierre) else "#,##0.00")
     ultima = 2 + len(r["dias"])
     t = ultima + 1
     hoja.cell(row=t, column=1, value="TOTAL").font = Font(bold=True)
@@ -364,12 +381,12 @@ def generar_excel(registro: dict[str, Any]) -> bytes:
     n = len(r["dias"])
     fechas = Reference(hoja, min_col=1, min_row=3, max_row=2 + n)
 
-    def combinado(titulo: str, y_barras: str, y_lineas: str, columnas: list[int], ancla: str) -> None:
+    def combinado(titulo: str, y_barras: str, y_lineas: str, columnas: list[int], ancla: str, punteada: bool = False) -> None:
         barras = BarChart()
         barras.type = "col"
         barras.title = titulo
         barras.y_axis.title = y_barras
-        barras.add_data(Reference(hoja, min_col=2, min_row=2, max_row=2 + n), titles_from_data=True)
+        barras.add_data(Reference(hoja, min_col=col_cierre, min_row=2, max_row=2 + n), titles_from_data=True)
         barras.set_categories(fechas)
         barras.series[0].graphicalProperties.solidFill = "7A7573"
         barras.dataLabels = DataLabelList()
@@ -389,15 +406,21 @@ def generar_excel(registro: dict[str, Any]) -> bytes:
         lineas.y_axis.crosses = "max"
         lineas.y_axis.delete = False
         for k, ser in enumerate(lineas.series):
-            ser.marker.symbol = "circle"
             ser.smooth = False
+            if punteada:
+                ser.marker.symbol = "none"
+                ser.graphicalProperties.line.dashStyle = "sysDot"
+                ser.graphicalProperties.line.solidFill = "C0392B"
+                ser.graphicalProperties.line.width = 28000
+            else:
+                ser.marker.symbol = "circle"
         barras += lineas
         barras.height, barras.width = 11, 30
         barras.legend.position = "b"
         g.add_chart(barras, ancla)
 
-    combinado("KG FRUTA PROCESO DIA y LTS SOLUCIÓN MADRE", "KG FRUTA PROCESO DIA", "LTS SOLUCIÓN MADRE", [3, 4, 5], "B10")
-    cols_act = [6 + 2 * i for i in range(len(cods))]
+    combinado("KG FRUTA PROCESO y PRODUCTO CARGA INICIAL (Solución Madre)", "KG FRUTA PROCESO DIA", "LTS SS MADRE (Inicial)", [col_cierre + 1], "B10", punteada=True)
+    cols_act = [col_cierre + 2 + i for i in range(len(cods))]
     combinado("Litros de producto comercial según activo", "KG FRUTA PROCESO DIA", "LTS PRODUCTO COMERCIAL", cols_act, "B34")
 
     # LECTURAS: la base completa, numérica.

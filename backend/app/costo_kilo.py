@@ -221,6 +221,10 @@ def resumen_diario(lecturas: list[dict[str, Any]]) -> dict[str, Any]:
         })
         d["lecturas"] += 1
         d["ultima"] = l["hora"]
+        # Lo que marcaba el equipo en la última lectura del día: es lo que grafica la plantilla del cliente.
+        d["kg_cierre"] = l["kg_proceso"] or 0.0
+        d["sm_inicial"] = l["sm_inicial"] or 0.0
+        d["activos_cierre"] = {c: (l["activos"].get(c) or 0.0) for c in codigos}
         d["kg"] += series["kg_proceso"][n]
         for c in ("sm_lamina", "sm_mant", "sm_total"):
             d[c] += series[c][n]

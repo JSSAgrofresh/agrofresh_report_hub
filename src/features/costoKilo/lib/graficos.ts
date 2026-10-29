@@ -11,9 +11,7 @@ export function colorDeActivo(codigo: string, ya: string[] = []): string {
 }
 
 export const COLOR_KG = '#8c8c8c'
-export const COLOR_LAMINA = '#1f77a8'
-export const COLOR_MANT = '#5aa02c'
-export const COLOR_TOTAL = '#c0392b'
+export const COLOR_INICIAL = '#c0392b'
 
 /** «2025-12-05» → «5-dic» (el eje del gráfico). */
 export function etiquetaDia(fecha: string): string {
@@ -25,11 +23,11 @@ export function etiquetaDia(fecha: string): string {
 
 export interface SerieDia {
   etiquetas: string[]
+  /** Kg de fruta proceso que marcaba el contador al cierre de cada día. */
   kg: number[]
-  lamina: number[]
-  mantencion: number[]
-  total: number[]
-  /** Litros de producto comercial por día, por código. */
+  /** Producto de carga inicial (solución madre) de cada día. */
+  inicial: number[]
+  /** Litros de producto comercial al cierre de cada día, por código. */
   activos: Record<string, number[]>
   parciales: boolean[]
 }
@@ -37,11 +35,9 @@ export interface SerieDia {
 export function seriesDeDias(dias: DiaCostoKilo[], codigos: string[]): SerieDia {
   return {
     etiquetas: dias.map((d) => etiquetaDia(d.fecha)),
-    kg: dias.map((d) => d.kg),
-    lamina: dias.map((d) => d.sm_lamina),
-    mantencion: dias.map((d) => d.sm_mant),
-    total: dias.map((d) => d.sm_total),
-    activos: Object.fromEntries(codigos.map((c) => [c, dias.map((d) => d.activos[c] ?? 0)])),
+    kg: dias.map((d) => d.kg_cierre ?? d.kg),
+    inicial: dias.map((d) => d.sm_inicial ?? d.sm_total),
+    activos: Object.fromEntries(codigos.map((c) => [c, dias.map((d) => (d.activos_cierre ?? d.activos)[c] ?? 0)])),
     parciales: dias.map((d) => d.parcial),
   }
 }
