@@ -115,3 +115,12 @@ def test_el_informe_pdf_y_excel_se_generan(cliente_http):
     reg = costo_kilo_api._leer(costo_kilo_api.listar()[0]["carpeta"])
     assert costo_kilo_informe.generar_pdf(reg)[:4] == b"%PDF"
     assert costo_kilo_informe.generar_excel(reg)[:2] == b"PK"
+
+
+def test_un_informe_guardado_sin_valores_de_cierre_se_recalcula_con_sus_lecturas():
+    lecturas = costo_kilo.leer_csv(_leer("cm500_original.csv"))
+    nuevo = costo_kilo.resumen_diario(lecturas)
+    viejo = {**nuevo, "dias": [{k: v for k, v in d.items() if k not in ("kg_cierre", "sm_inicial", "activos_cierre")} for d in nuevo["dias"]]}
+    r = costo_kilo_api._al_dia({"resumen": viejo, "lecturas": lecturas})
+    assert r["resumen"]["dias"][0]["kg_cierre"] == 642804.0
+    assert r["resumen"]["dias"][0]["sm_inicial"] == 413.0
