@@ -51,7 +51,7 @@ export function GraficoCostoKilo({
             type: 'bar',
             label: 'KG FRUTA PROCESO',
             data: kg,
-            backgroundColor: parciales.map((p) => (p ? `${COLOR_KG}88` : COLOR_KG)),
+            backgroundColor: parciales.map((p) => (p ? `${COLOR_KG}a6` : COLOR_KG)),
             borderRadius: 4,
             yAxisID: 'y',
             order: 2,
@@ -86,7 +86,7 @@ export function GraficoCostoKilo({
               font: { size: 12 },
               // El cuadrito de la leyenda lleva el borde de la línea: con la línea punteada se veía como un manchón.
               generateLabels: (chart) =>
-                Chart.defaults.plugins.legend.labels.generateLabels(chart).map((item) => ({ ...item, lineDash: [], lineWidth: 0, strokeStyle: 'transparent' })),
+                Chart.defaults.plugins.legend.labels.generateLabels(chart).map((item) => ({ ...item, lineDash: [], lineWidth: 0, strokeStyle: 'transparent', ...(item.datasetIndex === 0 ? { fillStyle: COLOR_KG } : {}) })),
             },
           },
           tooltip: {

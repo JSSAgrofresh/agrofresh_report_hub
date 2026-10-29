@@ -10,7 +10,8 @@ export function colorDeActivo(codigo: string, ya: string[] = []): string {
   return RESTO[(n < 0 ? 0 : n) % RESTO.length]
 }
 
-export const COLOR_KG = '#8c8c8c'
+/** Las barras de kg van en el azul de Accu-Tab (igual que el pH de arriba); el PDF y el Excel conservan el gris de la plantilla. */
+export const COLOR_KG = '#1C7FA6'
 export const COLOR_INICIAL = '#c0392b'
 
 /** «2025-12-05» → «5-dic» (el eje del gráfico). */
