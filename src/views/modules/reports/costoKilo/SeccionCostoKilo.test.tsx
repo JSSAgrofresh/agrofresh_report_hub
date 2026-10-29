@@ -42,8 +42,8 @@ beforeEach(() => {
 describe('SeccionCostoKilo', () => {
   it('muestra sus dos gráficos solo con los ingredientes que gastaron producto, y baja el PDF y el Excel del informe', async () => {
     render(<SeccionCostoKilo informes={LISTA} modo="cliente" numero={2} acento="#2a6f97" />)
-    expect(await screen.findByText(/grafico Kg de fruta por día y solución madre del día/)).toBeInTheDocument()
-    const g2 = screen.getByText(/grafico Litros de producto comercial por día/)
+    expect(await screen.findByText(/grafico Kg de fruta proceso y carga inicial de solución madre/)).toBeInTheDocument()
+    const g2 = screen.getByText(/grafico Litros de producto comercial según activo/)
     expect(g2.textContent).toContain('FDL (Fludioxonil) (litros)')
     expect(g2.textContent).not.toContain('PYR')
     expect(ver).toHaveBeenCalledWith('cliente', '2026-11-02_09-00-00')
