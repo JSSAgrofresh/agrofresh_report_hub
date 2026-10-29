@@ -13,6 +13,7 @@ import {
 } from '@/features/postventa'
 import type { CargaTrace, ResumenCargaTrace } from '@/features/postventa'
 import { HttpError } from '@/services/http/client'
+import { useInformesCostoKilo } from '@/features/costoKilo'
 import { ReporteAccutab } from './ReporteAccutab'
 import { TablaInformesAccutab } from './TablaInformesAccutab'
 import styles from './ReporteAccutab.module.css'
@@ -23,6 +24,7 @@ const mensaje = (err: unknown, alterno: string) =>
 /** Reportes de Post Venta (Accu-Tab) para el equipo: el mismo reporte que ve el cliente, más lo que solo hace el equipo (generar y eliminar informes). */
 export function PostVentaView() {
   const [cargas, setCargas] = useState<ResumenCargaTrace[] | null>(() => cacheListaCargas.leer('equipo') ?? null)
+  const { informes: costoKilo } = useInformesCostoKilo('equipo')
   const [error, setError] = useState<string | null>(null)
   const [generando, setGenerando] = useState<string | null>(null)
   // El informe que se abre desde la tabla de abajo: se le pasa al reporte como el primero de su lista.
@@ -113,6 +115,7 @@ export function PostVentaView() {
           verCarga={verCargaTrace}
           accionesDe={accionesDe}
           mostrarOrigen
+          costoKilo={{ informes: costoKilo, modo: 'equipo' }}
           error={error}
           pedida={pedida}
           vacio={{

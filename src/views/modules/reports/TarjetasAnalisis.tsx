@@ -42,36 +42,41 @@ export function TarjetasAnalisis({
   )
 }
 
-/** La misma tarjeta, sola: Accu-Tab tiene un único «análisis», con su total (aquí, de mediciones) y un ícono propio. */
-export function TarjetaUnica({
-  nombre,
-  total,
-  unidad,
-  icono: Icono,
-  acento,
-  onElegir,
-}: {
+export interface TarjetaSuelta {
   nombre: string
   total: number
   unidad: { uno: string; varios: string }
   icono: typeof IconMatraz
-  acento: string
   onElegir: () => void
-}) {
+}
+
+/** Las mismas tarjetas, pero de las secciones del reporte de Accu-Tab (Accutab, Costo por kilo…): cada una con su total e ícono. */
+export function TarjetasSueltas({ tarjetas, acento }: { tarjetas: TarjetaSuelta[]; acento: string }) {
   return (
-    <nav className={`${styles.fila} ${styles.filaUna}`} aria-label={`Ir a ${nombre}`} style={{ '--acento': acento } as CSSProperties}>
-      <button type="button" className={styles.tarjeta} onClick={onElegir} aria-label={`${nombre}: ${total} ${unidad.varios}. Ir al reporte`}>
-        <span className={styles.datos}>
-          <span className={styles.nombre}>{nombre}</span>
-          <span className={styles.total}>
-            <b>{total.toLocaleString('es-CL')}</b>
-            <small>{total === 1 ? unidad.uno : unidad.varios}</small>
+    <nav
+      className={`${styles.fila} ${tarjetas.length === 1 ? styles.filaUna : ''}`}
+      aria-label={tarjetas.length === 1 ? `Ir a ${tarjetas[0].nombre}` : 'Ir a una sección'}
+      style={{ '--acento': acento } as CSSProperties}
+    >
+      {tarjetas.map(({ nombre, total, unidad, icono: Icono, onElegir }) => (
+        <button key={nombre} type="button" className={styles.tarjeta} onClick={onElegir} aria-label={`${nombre}: ${total} ${unidad.varios}. Ir al reporte`}>
+          <span className={styles.datos}>
+            <span className={styles.nombre}>{nombre}</span>
+            <span className={styles.total}>
+              <b>{total.toLocaleString('es-CL')}</b>
+              <small>{total === 1 ? unidad.uno : unidad.varios}</small>
+            </span>
           </span>
-        </span>
-        <span className={styles.icono}>
-          <Icono />
-        </span>
-      </button>
+          <span className={styles.icono}>
+            <Icono />
+          </span>
+        </button>
+      ))}
     </nav>
   )
+}
+
+/** La misma tarjeta, sola: Accu-Tab tiene un único «análisis», con su total y un ícono propio. */
+export function TarjetaUnica({ acento, ...tarjeta }: TarjetaSuelta & { acento: string }) {
+  return <TarjetasSueltas tarjetas={[tarjeta]} acento={acento} />
 }
