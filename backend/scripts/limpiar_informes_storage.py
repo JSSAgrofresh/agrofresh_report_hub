@@ -98,6 +98,51 @@ def repetidos(conservar: list[tuple[str, str]]) -> dict[str, list[str]]:
     return {n: sorted(cs) for n, cs in sorted(por_numero.items()) if len(cs) > 1}
 
 
+def formato_antiguo(clave: str) -> bool:
+    """`informes/<PLANTA>/<FECHA>/<archivo>.pdf`: el orden viejo (sin carpetas de analisis ni de laboratorio), el que
+    dejaba `emitir._archivar_informe` al generar un informe propio."""
+    return len(clave.split("/")) == 4
+
+
+def copias_sobrantes(copias: dict[str, list[str]], plantas_de_report: dict[str, set[str]] | None = None) -> dict[str, str]:
+    """De los N° con mas de un PDF, cuales copias sobran ({clave: motivo}):
+      1. la del formato antiguo, si existe otra en el orden nuevo;
+      2. si quedan varias, las que estan en una carpeta de planta distinta a la que Report indica (solo si al menos
+         una copia calza con la planta de Report: nunca se decide a ciegas)."""
+    sacar: dict[str, str] = {}
+    for nro, cs in copias.items():
+        nuevas = [c for c in cs if not formato_antiguo(c)]
+        antiguas = [c for c in cs if formato_antiguo(c)]
+        if nuevas and antiguas:
+            sacar.update({c: "copia del formato antiguo (hay otra en el orden nuevo)" for c in antiguas})
+        quedan = nuevas if (nuevas and antiguas) else cs
+        esperadas = {e.casefold() for e in (plantas_de_report or {}).get(nro, set())}
+        if len(quedan) > 1 and esperadas:
+            calzan = [c for c in quedan if c.split("/")[1].casefold() in esperadas]
+            if calzan and len(calzan) < len(quedan):
+                sacar.update({c: "carpeta de otra planta distinta a la de Report" for c in quedan if c not in calzan})
+    return sacar
+
+
+def _plantas_de_report() -> dict[str, set[str]]:
+    """{N° de informe (en minusculas): carpetas de planta que le corresponden segun Report}."""
+    from app import informes_storage
+    from app.db import conexion, cursor_dict
+
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute(
+            """SELECT DISTINCT btrim(s.nro_solicitud) AS n, COALESCE(p.nombre, s.ship_to_raw) AS planta,
+                      COALESCE(c.nombre, s.sold_to_raw) AS cliente
+                 FROM solicitud s LEFT JOIN planta p ON p.id = s.planta_id LEFT JOIN cliente c ON c.id = p.cliente_id
+                WHERE s.nro_solicitud IS NOT NULL AND btrim(s.nro_solicitud) <> ''"""
+        )
+        filas = cur.fetchall()
+    salida: dict[str, set[str]] = {}
+    for f in filas:
+        salida.setdefault(str(f["n"]).casefold(), set()).add(informes_storage.carpeta_planta(f["planta"], f["cliente"]))
+    return salida
+
+
 def _ver(numero: str, claves: list[str]) -> None:
     """Que dice Report de UN informe y que PDF tiene en Storage (para entender un caso raro)."""
     from app.db import conexion, cursor_dict
@@ -193,7 +238,15 @@ def main(argv: list[str] | None = None) -> int:
     print(f"      que no estan en Report: {len(no_en_report)}")
     print(f"  Otros archivos (no se tocan): {len(otros)}")
     copias = repetidos(conservar)
-    print(f"  N° con MAS DE UN PDF (copias en otras carpetas): {len(copias)}")
+    de_copias = copias_sobrantes(copias, _plantas_de_report())
+    if de_copias:
+        conservar = [(c, n) for c, n in conservar if c not in de_copias]
+        sobran = sorted(sobran + list(de_copias))
+        copias = repetidos(conservar)
+    print(f"  Copias repetidas que sobran: {len(de_copias)}")
+    for c, motivo in list(de_copias.items())[:8]:
+        print(f"    sobra: {c}   ({motivo})")
+    print(f"  N° que siguen con MAS DE UN PDF: {len(copias)}")
     for n, cs in list(copias.items())[:10]:
         print(f"    {n}: {len(cs)} PDF")
         for c in cs:
@@ -209,7 +262,7 @@ def main(argv: list[str] | None = None) -> int:
         w = csv.writer(f, delimiter=";")
         w.writerow(["decision", "clave", "calza con el N° / motivo"])
         w.writerows([["CONSERVAR", c, n] for c, n in conservar])
-        w.writerows([["SOBRA", c, "en Report pero sin OT" if c in sin_ot else "no está en Report"] for c in sobran])
+        w.writerows([["SOBRA", c, de_copias.get(c) or ("en Report pero sin OT" if c in sin_ot else "no está en Report")] for c in sobran])
         w.writerows([["NO SE TOCA", c, ""] for c in otros])
         w.writerows([["COPIA REPETIDA", c, n] for n, cs in copias.items() for c in cs])
     print(f"  Lista completa: {ruta}")
