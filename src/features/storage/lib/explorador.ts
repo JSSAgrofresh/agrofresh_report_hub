@@ -111,6 +111,48 @@ export function filtrarEntradas(entradas: EntradaStorage[], busqueda: string): E
   })
 }
 
+/** Sold To y Ship To elegidos para filtrar las carpetas de planta del espacio Informes ('' = todos). */
+export interface FiltroPlanta {
+  soldTo: string
+  shipTo: string
+}
+
+interface PlantaCarpeta {
+  carpeta: string
+  sold_to: string
+  ship_to: string
+}
+
+/** Deja las carpetas cuya planta calza con el Sold To / Ship To elegidos; los archivos no se tocan. */
+export function filtrarPorPlanta(
+  entradas: EntradaStorage[],
+  plantas: PlantaCarpeta[],
+  filtro: FiltroPlanta,
+): EntradaStorage[] {
+  if (!filtro.soldTo && !filtro.shipTo) return entradas
+  const buenas = new Set(
+    plantas
+      .filter((p) => (!filtro.soldTo || p.sold_to === filtro.soldTo) && (!filtro.shipTo || p.ship_to === filtro.shipTo))
+      .map((p) => p.carpeta),
+  )
+  return entradas.filter((e) => e.tipo !== 'carpeta' || buenas.has(e.nombre))
+}
+
+/** Lo que ofrecen los desplegables: los Sold To con carpeta y, acotados por el Sold To elegido, los Ship To. */
+export function opcionesDePlantas(
+  entradas: EntradaStorage[],
+  plantas: PlantaCarpeta[],
+  soldTo: string,
+): { soldTos: string[]; shipTos: string[] } {
+  const hay = new Set(entradas.filter((e) => e.tipo === 'carpeta').map((e) => e.nombre))
+  const conCarpeta = plantas.filter((p) => hay.has(p.carpeta))
+  const unicos = (v: string[]) => [...new Set(v)].sort((a, b) => a.localeCompare(b, 'es'))
+  return {
+    soldTos: unicos(conCarpeta.map((p) => p.sold_to)),
+    shipTos: unicos(conCarpeta.filter((p) => !soldTo || p.sold_to === soldTo).map((p) => p.ship_to)),
+  }
+}
+
 /** Las carpetas siempre van primero, como en cualquier explorador. */
 export function ordenarEntradas(entradas: EntradaStorage[], orden: Orden): EntradaStorage[] {
   const signo = orden.descendente ? -1 : 1

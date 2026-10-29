@@ -7,6 +7,7 @@ export {
   eliminar,
   descargar,
   listarR2,
+  plantasDeInformes,
   descargarR2,
   organizarSolicitudesR2,
   verPermisos,
@@ -18,6 +19,7 @@ export {
   verInformeCliente,
   abrirInformeCliente,
 } from './lib/api'
+export type { PlantaInforme } from './lib/api'
 export type {
   EntradaStorage,
   EspacioPermisos,
@@ -40,6 +42,8 @@ export {
   tipoDeArchivo,
   estaDentro,
   filtrarEntradas,
+  filtrarPorPlanta,
+  opcionesDePlantas,
   formatoTamano,
   migasDe,
   nombreDe,
@@ -50,6 +54,7 @@ export type {
   Arrastre,
   CampoOrden,
   Espacio,
+  FiltroPlanta,
   Miga,
   Operacion,
   Orden,
