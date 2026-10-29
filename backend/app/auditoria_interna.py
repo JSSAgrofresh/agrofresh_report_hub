@@ -207,7 +207,7 @@ async def subir_informe(
     ot = archivo_solicitud.strip() or None
     lab = laboratorio.strip()
 
-    carpeta = f"{r2a.segmento_seguro(lab, 'Sin laboratorio')}/{r2a.segmento_seguro(ship_to, 'Sin ship to')}"
+    carpeta = f"{r2a.segmento_seguro(informes_storage.laboratorio_visible(lab), 'Sin laboratorio')}/{r2a.segmento_seguro(ship_to, 'Sin ship to')}"
     nombre = r2a.segmento_seguro(archivo.filename, "informe.pdf")
 
     with conexion() as conn, cursor_dict(conn) as cur:

@@ -38,6 +38,9 @@ CONOCIDAS = {
     "auditoria": "Copia de los PDF que sube el Converter (la lee la ficha del informe).",
     "correo_informes": "PDF que llegaron al buzón de informes.",
     "costo_kilo": "Costo por kilo (C&M-500): informes y CSV originales.",
+    "respaldos": "Respaldos de la base de datos (`respaldos/base/`, los borra solo a los 90 días).",
+    "respaldos_bd": "Respaldos de esquemas de la base (`respaldar_schemas.py`).",
+    "cruces": "Fotos de las muestras cruzadas en Ingreso al laboratorio (`cruces/<fecha>/<folio>/`).",
 }
 
 
