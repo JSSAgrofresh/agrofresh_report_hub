@@ -473,6 +473,24 @@ def es_ensayo(sold_to: str | None, ship_to: str | None) -> bool:
     return _sin_tildes(sold_to) == "agrofresh" and _sin_tildes(ship_to).startswith("ensayo")
 
 
+# Muestra interna: solicitud de AgroFresh para analizar pulpa propia. Su Sold To / Ship To son fijos y su
+# lista de distribución de resultados también (no depende de contactos_laboratorio.json). La marca
+# `muestra_interna` se guarda en los datos al crear: lo emitido antes no la tiene y no cambia.
+MUESTRA_INTERNA_SOLD_TO = "AGROFRESH"
+MUESTRA_INTERNA_SHIP_TO = "MUESTRA INTERNA"
+MUESTRA_INTERNA_TIPO_MUESTRA = "Pulpa"
+MUESTRA_INTERNA_CORREOS = [
+    "rgarrido@agrofresh.com",
+    "psalazar@agrofresh.com",
+    "jorge.sandoval@agrofresh.com",
+]
+
+
+def es_muestra_interna(sold_to: str | None, ship_to: str | None) -> bool:
+    """Sold To AGROFRESH y Ship To MUESTRA INTERNA (sin importar mayúsculas, tildes ni espacios de más)."""
+    return _sin_tildes(sold_to) == "agrofresh" and _sin_tildes(ship_to) == "muestra interna"
+
+
 def tope_observacion(sold_to: str | None, ship_to: str | None) -> int:
     return OBSERVACION_MAX_ENSAYO if es_ensayo(sold_to, ship_to) else OBSERVACION_MAX
 
@@ -574,6 +592,9 @@ class Solicitud(SolicitudIn):
     # asunto y no aparece en el Ingreso al laboratorio ni en reanálisis. Vive
     # en `datos` (Excel `_data` + jsonb del índice): no necesita migración.
     es_prueba: bool = False
+    # Muestra interna (pulpa propia de AgroFresh): Ship To MUESTRA INTERNA, sin Tipo Aplicación, lista de
+    # resultados fija y nunca se envía sola. Solo las creadas desde ese cambio; vive en `datos`.
+    muestra_interna: bool = False
     # Con 2 o más productos dice «MIXTO» (solicitudes creadas desde ese
     # cambio). Sin la marca, la regla de antes: MIXTO desde 3. Ver
     # `normalizar_productos`.
@@ -642,7 +663,7 @@ def _exigir_puede_editar(usuario: Usuario, datos_actuales: dict, body: Solicitud
         return
     if not permisos_funciones.tiene(usuario, permisos_funciones.TOMA_EDITAR):
         raise HTTPException(403, "Tu cuenta no tiene asignada la función de editar solicitudes.")
-    if datos_actuales.get("es_prueba"):
+    if datos_actuales.get("es_prueba") or datos_actuales.get("muestra_interna"):
         return
     cfg = _config_envio_automatico()
     for tipo in {_tipo_aplicacion_de(datos_actuales), _tipo_aplicacion_de(body.model_dump())}:
@@ -1091,6 +1112,25 @@ def crear_solicitud_prueba(body: SolicitudIn, usuario: Usuario = Depends(usuario
     return _guardar_solicitud_nueva(body, usuario, _siguiente_numero_prueba(body.laboratorio), es_prueba=True)
 
 
+@router.get("/solicitudes-interna/estado")
+def estado_solicitud_interna(usuario: Usuario = Depends(usuario_actual)) -> dict:
+    """Si la cuenta puede crear muestras internas (solo ella ve el botón)."""
+    return {"permitido": permisos_funciones.tiene(usuario, permisos_funciones.TOMA_MUESTRA_INTERNA)}
+
+
+@router.post("/solicitudes-interna")
+def crear_solicitud_interna(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
+    """Muestra interna: solicitud de pulpa propia de AgroFresh. Folio normal del laboratorio, Sold To AGROFRESH y
+    Ship To MUESTRA INTERNA fijos (el servidor los impone), tipo de muestra Pulpa, sin Tipo Aplicación, y la marca
+    `muestra_interna`. Nunca se envía sola: el envío es a mano desde el detalle. Solo con la función
+    `toma_muestra_interna`."""
+    if not permisos_funciones.tiene(usuario, permisos_funciones.TOMA_MUESTRA_INTERNA):
+        raise HTTPException(403, "Tu cuenta no tiene asignada la función de crear muestras internas.")
+    _validar_analitos(body)
+    _exigir_lab_activo(body.laboratorio)
+    return _guardar_solicitud_nueva(body, usuario, _siguiente_numero(body.laboratorio), muestra_interna=True)
+
+
 @router.put("/solicitudes/{archivo}")
 def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends(usuario_actual)) -> Solicitud:
     """Actualiza una solicitud existente -mismo folio, mismo archivo-, nunca
@@ -1126,6 +1166,12 @@ def editar_solicitud(archivo: str, body: SolicitudIn, usuario: Usuario = Depends
     if datos_actuales.get("es_prueba"):
         # Editar no le quita la marca: sigue siendo de prueba.
         datos["es_prueba"] = True
+    if datos_actuales.get("muestra_interna"):
+        # Tampoco a una muestra interna: conserva su marca, su Ship To y su tipo de muestra.
+        datos["muestra_interna"] = True
+        datos["sold_to"] = MUESTRA_INTERNA_SOLD_TO
+        datos["ship_to"] = MUESTRA_INTERNA_SHIP_TO
+        datos["tipo_muestra"] = MUESTRA_INTERNA_TIPO_MUESTRA
     _regrabar_datos_solicitud(archivo, datos)
     return Solicitud(archivo=nombre_archivo, **datos)
 
@@ -1143,7 +1189,7 @@ def crear_solicitud(body: SolicitudIn, usuario: Usuario = Depends(usuario_actual
 
 
 def _guardar_solicitud_nueva(
-    body: SolicitudIn, usuario: Usuario, numero: str, *, es_prueba: bool = False,
+    body: SolicitudIn, usuario: Usuario, numero: str, *, es_prueba: bool = False, muestra_interna: bool = False,
 ) -> Solicitud:
     ahora = datetime.now(timezone.utc)
     datos = body.model_dump()
@@ -1175,6 +1221,11 @@ def _guardar_solicitud_nueva(
     _aplicar_regla_mixto(datos)
     if es_prueba:
         datos["es_prueba"] = True
+    if muestra_interna:
+        datos["muestra_interna"] = True
+        datos["sold_to"] = MUESTRA_INTERNA_SOLD_TO
+        datos["ship_to"] = MUESTRA_INTERNA_SHIP_TO
+        datos["tipo_muestra"] = MUESTRA_INTERNA_TIPO_MUESTRA
     nombre_archivo = f"{numero}.xlsx"
     fecha = datos["fecha_solicitud"]
     analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
@@ -1183,7 +1234,7 @@ def _guardar_solicitud_nueva(
     if r2.disponible():
         buf = io.BytesIO()
         wb.save(buf)
-        r2_key = _r2_key_sol_nueva(body.sold_to, body.ship_to, fecha, nombre_archivo)
+        r2_key = _r2_key_sol_nueva(datos["sold_to"], datos["ship_to"], fecha, nombre_archivo)
         r2.subir(
             r2_key,
             buf.getvalue(),
@@ -1195,8 +1246,8 @@ def _guardar_solicitud_nueva(
         _carpeta_laboratorio(body.laboratorio)
         carpeta = os.path.join(
             _carpeta_raiz(),
-            carpeta_de_cliente(body.sold_to),
-            carpeta_de_sucursal(body.ship_to),
+            carpeta_de_cliente(datos["sold_to"]),
+            carpeta_de_sucursal(datos["ship_to"]),
             fecha,
             numero,
         )
@@ -1212,12 +1263,12 @@ def _guardar_solicitud_nueva(
         # Una prueba no avisa a nadie: solo existe en Solicitudes.
         return Solicitud(archivo=nombre_archivo, **datos)
     nombre_quien = usuario.nombre or usuario.email
-    ship_to = body.ship_to or "—"
+    ship_to = datos.get("ship_to") or "—"
     notificar(
-        titulo=f"📋 Nueva solicitud N.º {numero} · {body.sold_to or '—'}",
+        titulo=f"📋 Nueva solicitud N.º {numero} · {datos.get('sold_to') or '—'}",
         resumen=(
             f"{nombre_quien} creó una solicitud de análisis. "
-            f"Solicitud: {numero} · Cliente: {body.sold_to or '—'} · Planta: {ship_to}."
+            f"Solicitud: {numero} · Cliente: {datos.get('sold_to') or '—'} · Planta: {ship_to}."
         ),
         creado_por=nombre_quien,
         audiencia="todos",
@@ -1665,6 +1716,8 @@ def crear_reanalisis(
 
     if datos_original.get("es_prueba"):
         raise HTTPException(400, "Una solicitud de prueba no admite reanálisis.")
+    if datos_original.get("muestra_interna"):
+        raise HTTPException(400, "Una muestra interna no admite reanálisis.")
 
     if not datos_original.get("enviada"):
         raise HTTPException(
@@ -2287,6 +2340,12 @@ def _contactos_resultado(
     `servicio: actimist`; Línea de proceso (`servicio` vacío, el valor por
     defecto) ve los de siempre. Nunca se cruzan, tampoco en los respaldos.
     """
+    if es_muestra_interna(sold_to, ship_to):
+        # Lista fija de la muestra interna (Romina, Paz y Jorge): no depende de la configuración guardada.
+        return [
+            {"tipo": "resultado_cliente", "email": e, "activo": True, "orden": i, "sold_to": sold_to, "ship_to": ship_to}
+            for i, e in enumerate(MUESTRA_INTERNA_CORREOS)
+        ]
     if contactos is None:
         contactos = _leer_config("contactos_laboratorio.json", [])
     contactos = [c for c in contactos if es_del_servicio(c, servicio)]

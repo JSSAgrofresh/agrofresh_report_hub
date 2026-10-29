@@ -154,6 +154,10 @@ export const router = createBrowserRouter([
                   { path: ROUTES.tomaMuestrasNueva, element: <NuevaSolicitudView /> },
                   { path: ROUTES.tomaMuestrasNuevaPrueba, element: <NuevaSolicitudView modo="prueba" /> },
                   {
+                    element: <RequireFuncion funcion="toma_muestra_interna" redirigirA={ROUTES.tomaMuestras} />,
+                    children: [{ path: ROUTES.tomaMuestrasNuevaInterna, element: <NuevaSolicitudView modo="interna" /> }],
+                  },
+                  {
                     element: <RequireFuncion funcion="toma_editar" redirigirA={ROUTES.tomaMuestras} />,
                     children: [{ path: ROUTES.tomaMuestrasEditar, element: <NuevaSolicitudView modo="editar" /> }],
                   },
