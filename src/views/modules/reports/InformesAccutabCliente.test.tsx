@@ -76,12 +76,21 @@ describe('InformesAccutabCliente', () => {
     expect(screen.getByRole('button', { name: /02-10-2026 10:00/ })).toBeInTheDocument()
   })
 
-  it('lleva la tarjeta «Accutab» con el total de mediciones y la cabecera numerada, como los análisis de Report', async () => {
+  it('lleva la tarjeta «Accutab» con el total de informes y la cabecera numerada, como los análisis de Report', async () => {
     render(<InformesAccutabCliente />)
     await screen.findByText('grafico pH')
-    expect(screen.getByRole('button', { name: /Accutab: 200 mediciones/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Accutab: 2 informes/ })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Accutab', level: 2 })).toBeInTheDocument()
     expect(screen.getByLabelText('Análisis 1')).toBeInTheDocument()
+  })
+
+  it('al volver a la pantalla dibuja de inmediato los informes que ya se habían visto, sin pasar por «cargando»', async () => {
+    const primera = render(<InformesAccutabCliente />)
+    await screen.findByText('grafico pH')
+    primera.unmount()
+    render(<InformesAccutabCliente />)
+    // Sin esperar a nada: la lista ya está (se actualiza por detrás).
+    expect(screen.getByRole('button', { name: /02-10-2026 10:00/ })).toBeInTheDocument()
   })
 
   it('ofrece solo los filtros con algo que elegir (Ship To sí; Sold To, posición, equipo y semana, con un solo valor, no) más el rango, y no el período viejo', async () => {

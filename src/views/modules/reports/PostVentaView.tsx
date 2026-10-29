@@ -3,6 +3,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { AREAS } from '@/constants/areas'
 import { AreaHero } from '@/features/dashboard'
 import {
+  cacheListaCargas,
   descargarOriginalCarga,
   descargarPdfCarga,
   eliminarCargasTrace,
@@ -21,7 +22,7 @@ const mensaje = (err: unknown, alterno: string) =>
 
 /** Reportes de Post Venta (Accu-Tab) para el equipo: el mismo reporte que ve el cliente, más lo que solo hace el equipo (generar y eliminar informes). */
 export function PostVentaView() {
-  const [cargas, setCargas] = useState<ResumenCargaTrace[] | null>(null)
+  const [cargas, setCargas] = useState<ResumenCargaTrace[] | null>(() => cacheListaCargas.leer('equipo') ?? null)
   const [error, setError] = useState<string | null>(null)
   const [generando, setGenerando] = useState<string | null>(null)
   // El informe que se abre desde la tabla de abajo: se le pasa al reporte como el primero de su lista.
@@ -29,7 +30,9 @@ export function PostVentaView() {
 
   const recargar = useCallback(async () => {
     try {
-      setCargas(await listarCargasTrace())
+      const lista = await listarCargasTrace()
+      cacheListaCargas.guardar('equipo', lista)
+      setCargas(lista)
     } catch (err) {
       setCargas((previas) => previas ?? [])
       setError(mensaje(err, 'No se pudo conectar con el backend. Revisa que esté corriendo.'))

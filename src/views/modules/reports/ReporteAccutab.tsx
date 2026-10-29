@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
+import { irASeccion } from '@/components/layout/portal/irASeccion'
 import { Card } from '@/components/ui/Card'
 import { EstadoModulo } from '@/components/ui/EstadoModulo'
 import { IconArchivoPlano, IconClock, IconDatabase, IconTrace } from '@/components/ui/icons'
@@ -218,11 +219,11 @@ export function ReporteAccutab({ cargas, verCarga, accionesDe, mostrarOrigen = f
         <>
           <TarjetaUnica
             nombre="Accutab"
-            total={kpis.mediciones}
-            unidad={{ uno: 'medición', varios: 'mediciones' }}
+            total={kpis.cargas}
+            unidad={{ uno: 'informe', varios: 'informes' }}
             icono={IconPozoAgua}
             acento={ACENTO}
-            onElegir={() => document.getElementById(ID_SECCION)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            onElegir={() => irASeccion(ID_SECCION)}
           />
 
           <FiltrosAccutab todas={cargas} filtradas={filtradas} filtro={filtro} onFiltro={(f) => { setFiltro(f); setVisibles(VISIBLES) }} />
@@ -251,34 +252,36 @@ export function ReporteAccutab({ cargas, verCarga, accionesDe, mostrarOrigen = f
           ) : (
             <div className={styles.cuerpo}>
               <Card className={styles.panelLista}>
-                <h3 className={styles.listaTitulo}>
-                  Informes <span>{filtradas.length.toLocaleString('es-CL')}</span>
-                </h3>
-                <ul className={styles.lista}>
-                  {filtradas.slice(0, visibles).map((c) => (
-                    <li key={c.carpeta}>
-                      <button
-                        type="button"
-                        className={`${styles.item} ${c.carpeta === actual?.carpeta ? styles.itemActivo : ''}`}
-                        aria-current={c.carpeta === actual?.carpeta ? 'true' : undefined}
-                        onClick={() => setElegida(c.carpeta)}
-                      >
-                        <span className={styles.itemFila}>
-                          <span className={styles.itemFecha}>{fechaDeCarpeta(c.carpeta)}</span>
-                          {mostrarOrigen && <span className={c.origen === 'email' ? styles.origenCorreo : styles.origenManual}>{c.origen === 'email' ? 'Correo' : 'Manual'}</span>}
-                        </span>
-                        <span className={styles.itemNombre}>{tituloDeCarga(c)}</span>
-                        <span className={styles.itemDonde}>{[c.cliente, c.planta, c.ubicacion].filter(Boolean).join(' · ')}</span>
-                        <span className={styles.itemCifras}>{c.n_registros.toLocaleString('es-CL')} lecturas</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {filtradas.length > visibles && (
-                  <button type="button" className={styles.verMas} onClick={() => setVisibles((v) => v + VISIBLES)}>
-                    Mostrar más ({(filtradas.length - visibles).toLocaleString('es-CL')} restantes)
-                  </button>
-                )}
+                <div className={styles.panelListaInterior}>
+                  <h3 className={styles.listaTitulo}>
+                    Informes <span>{filtradas.length.toLocaleString('es-CL')}</span>
+                  </h3>
+                  <ul className={styles.lista}>
+                    {filtradas.slice(0, visibles).map((c) => (
+                      <li key={c.carpeta}>
+                        <button
+                          type="button"
+                          className={`${styles.item} ${c.carpeta === actual?.carpeta ? styles.itemActivo : ''}`}
+                          aria-current={c.carpeta === actual?.carpeta ? 'true' : undefined}
+                          onClick={() => setElegida(c.carpeta)}
+                        >
+                          <span className={styles.itemFila}>
+                            <span className={styles.itemFecha}>{fechaDeCarpeta(c.carpeta)}</span>
+                            {mostrarOrigen && <span className={c.origen === 'email' ? styles.origenCorreo : styles.origenManual}>{c.origen === 'email' ? 'Correo' : 'Manual'}</span>}
+                          </span>
+                          <span className={styles.itemNombre}>{tituloDeCarga(c)}</span>
+                          <span className={styles.itemDonde}>{[c.cliente, c.planta, c.ubicacion].filter(Boolean).join(' · ')}</span>
+                          <span className={styles.itemCifras}>{c.n_registros.toLocaleString('es-CL')} lecturas</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {filtradas.length > visibles && (
+                    <button type="button" className={styles.verMas} onClick={() => setVisibles((v) => v + VISIBLES)}>
+                      Mostrar más ({(filtradas.length - visibles).toLocaleString('es-CL')} restantes)
+                    </button>
+                  )}
+                </div>
               </Card>
               {actual && (
                 <DetalleCarga key={actual.carpeta} resumen={actual} verCarga={verCarga} mostrarOrigen={mostrarOrigen} acciones={(carga) => accionesDe(actual, carga)} />

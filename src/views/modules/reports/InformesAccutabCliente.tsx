@@ -3,7 +3,7 @@ import { AREAS } from '@/constants/areas'
 import { useAuth } from '@/features/auth'
 import { puedeSimular, useSimulacion } from '@/features/simulacion'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { descargarPdfCliente, listarInformesCliente, verInformeCliente, verPdfCliente } from '@/features/postventa'
+import { cacheListaCargas, descargarPdfCliente, listarInformesCliente, verInformeCliente, verPdfCliente } from '@/features/postventa'
 import type { CargaTrace, ResumenCargaTrace } from '@/features/postventa'
 import { PortalHero } from '@/views/dashboard/PortalHero'
 import { ReporteAccutab } from './ReporteAccutab'
@@ -18,22 +18,29 @@ export function InformesAccutabCliente() {
   const { accutab: simulacion } = useSimulacion()
   // Solo quien puede simular ve informes simulados (los prende desde Report); un cliente nunca.
   const simulado = puedeSimular(user) ? simulacion : null
-  const [reales, setInformes] = useState<ResumenCargaTrace[] | null>(null)
+  // Lo de la vez anterior se dibuja de inmediato y se actualiza por detrás.
+  const [previo] = useState(() => cacheListaCargas.leer('cliente'))
+  const [reales, setInformes] = useState<ResumenCargaTrace[] | null>(previo ?? null)
   const informes = simulado ? simulado.informes : reales
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let vigente = true
     listarInformesCliente()
-      .then((l) => vigente && setInformes(l))
+      .then((l) => {
+        cacheListaCargas.guardar('cliente', l)
+        if (vigente) setInformes(l)
+      })
       .catch(() => {
-        if (!vigente) return
+        if (!vigente || previo) return
         setInformes([])
         setError('No pudimos cargar tus informes. Intenta de nuevo en unos minutos.')
       })
     return () => {
       vigente = false
     }
+    // `previo` solo se lee al montar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Un informe simulado trae sus mediciones de memoria; uno real las pide al servidor.

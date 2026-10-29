@@ -45,7 +45,8 @@ import {
 } from '@/features/reportes/lib/bloquesAnalisis'
 import { construirInformes } from '@/features/reportes/lib/informesPorLab'
 import { FILTRO_BLOQUE_VACIO, type FiltroBloque } from '@/features/reportes/lib/estadoPatogenos'
-import { ALTO_BARRA_PEGADA } from '@/components/layout/portal/FiltrosPegajosos'
+import { irASeccion } from '@/components/layout/portal/irASeccion'
+import { crearCacheDeSesion } from '@/lib/cacheDeSesion'
 import { BotonesLabResidual, CabeceraSeccion, FiltrosAnalisis, SeccionInformes } from './SeccionesReport'
 import { TarjetasAnalisis } from './TarjetasAnalisis'
 import { desvioResidual, limitesDeInforme } from '@/features/reportes/lib/limitesResiduales'
@@ -223,6 +224,17 @@ function chipsDeFiltros(f: Filtros, clienteFijo: boolean): { campo: keyof Filtro
  * `vistaControl`: la vista por límite de control es un gráfico INTERNO y vive
  * solo en el Panel de control interno, que monta este componente con esta bandera. Sin
  * ella -Report y portal de cliente- solo existe la vista por límite residual. */
+interface DatosReporte {
+  filas: FilaReporte[]
+  totalSolicitudes: number
+  analitos: Analito[]
+  limites: LimiteAnalito[]
+}
+
+/** Lo último que trajo el servidor para cada cuenta y alcance: cambiar de pantalla y volver no vuelve a mostrar «cargando». */
+const cacheDatos = crearCacheDeSesion<DatosReporte>()
+const claveDatos = (cliente?: string, planta?: string) => `${cliente ?? ''}|${planta ?? ''}`
+
 export function ReporteView({
   clienteFijo,
   plantaFija,
@@ -258,12 +270,14 @@ export function ReporteView({
   const acento = esPaletaSobria() ? ACENTO_SOBRIO : (areaDeModulo('reports')?.colorPrimario ?? '#6dad3c')
   const wrapStyle = { '--acento': acento } as CSSProperties
 
-  const [filas, setFilas] = useState<FilaReporte[] | null>(null)
+  // Lo que se vio la última vez (si se vio): se dibuja de inmediato y se actualiza por detrás, en vez de volver a «cargando».
+  const [previo] = useState(() => cacheDatos.leer(claveDatos(clienteFijo, plantaFija)))
+  const [filas, setFilas] = useState<FilaReporte[] | null>(previo?.filas ?? null)
   const [soloFuera, setSoloFuera] = useState(false)
-  const [totalSolicitudes, setTotalSolicitudes] = useState(0)
-  const [analitos, setAnalitos] = useState<Analito[]>([])
-  const [limites, setLimites] = useState<LimiteAnalito[]>([])
-  const [estado, setEstado] = useState<Estado>('cargando')
+  const [totalSolicitudes, setTotalSolicitudes] = useState(previo?.totalSolicitudes ?? 0)
+  const [analitos, setAnalitos] = useState<Analito[]>(previo?.analitos ?? [])
+  const [limites, setLimites] = useState<LimiteAnalito[]>(previo?.limites ?? [])
+  const [estado, setEstado] = useState<Estado>(previo ? 'ok' : 'cargando')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const vista: Vista = vistaControl ? 'control' : 'residual'
   const [sigma, setSigma] = useState(2)
@@ -311,7 +325,8 @@ export function ReporteView({
     return { filas: datos.filas, totalSolicitudes: datos.total_solicitudes, analitos: catalogo, limites: limitesCatalogo }
   }, [clienteFijo, plantaFija])
 
-  function aplicarExito(r: { filas: FilaReporte[]; totalSolicitudes: number; analitos: Analito[]; limites: LimiteAnalito[] }) {
+  function aplicarExito(r: DatosReporte) {
+    cacheDatos.guardar(claveDatos(clienteFijo, plantaFija), r)
     setFilas(r.filas)
     setTotalSolicitudes(r.totalSolicitudes)
     setAnalitos(r.analitos)
@@ -345,11 +360,14 @@ export function ReporteView({
         if (!cancelado) aplicarExito(r)
       })
       .catch((err: unknown) => {
-        if (!cancelado) aplicarError(err)
+        // Si ya se estaban mostrando los datos de la vez anterior, un fallo de la actualización no los tapa con un error.
+        if (!cancelado && !previo) aplicarError(err)
       })
     return () => {
       cancelado = true
     }
+    // `previo` solo se lee al montar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [obtenerTodo])
   useActualizacionProgramada(() => void cargar())
 
@@ -594,42 +612,7 @@ export function ReporteView({
   function irAlAnalisis(bloque: ClaveBloque) {
     const visible = bloques[bloque]
     if (!visible) actualizarFiltro('laboratorio', '')
-    // Al bajar, la tarjeta de filtros se pega a la barra y deja de ocupar su lugar, así que lo de abajo sube. Se calcula
-    // desde el principio dónde quedará el título (con los filtros ya pegados) y se va ahí de UN solo movimiento suave;
-    // recién cuando la página dejó de moverse se afina lo que falte, sin saltos intermedios.
-    const nav = document.querySelector('nav[aria-label="Secciones"]')
-    const base0 = nav?.getBoundingClientRect().bottom ?? 0
-    const lanzar = () => {
-      const el = document.getElementById(ID_BLOQUE[bloque])
-      if (!el) return
-      const pegada = document.querySelector<HTMLElement>('[data-pegado="true"]')
-      const tarjeta = document.querySelector<HTMLElement>('section[aria-label="Filtros"]')
-      const barra = ALTO_BARRA_PEGADA
-      const sinColapso = window.scrollY + el.getBoundingClientRect().top - (base0 + barra + 12)
-      // La tarjeta solo se pega (y libera su lugar) si, ya en el destino, su sitio queda por encima de la barra.
-      const hueco = tarjeta?.parentElement
-      const huecoY = hueco ? window.scrollY + hueco.getBoundingClientRect().top : Infinity
-      const seVaAPegar = !pegada && huecoY - sinColapso <= base0 + barra + 18
-      const destino = seVaAPegar ? sinColapso - (tarjeta?.offsetHeight ?? 0) : sinColapso
-      window.scrollTo({ top: Math.max(0, destino), behavior: 'smooth' })
-      // Afinado: cuando la página lleva 360 ms quieta (y los filtros ya terminaron de pegarse), si el título no quedó bajo la barra se corrige una sola vez.
-      let ultimo = window.scrollY
-      let quieto = 0
-      let transcurrido = 0
-      const vigilar = window.setInterval(() => {
-        transcurrido += 40
-        quieto = Math.abs(window.scrollY - ultimo) < 1 ? quieto + 40 : 0
-        ultimo = window.scrollY
-        if (quieto < 360 || transcurrido < 800) return
-        window.clearInterval(vigilar)
-        const e2 = document.getElementById(ID_BLOQUE[bloque])
-        const p2 = document.querySelector('[data-pegado="true"]')
-        const base = Math.max(nav?.getBoundingClientRect().bottom ?? 0, p2?.getBoundingClientRect().bottom ?? 0)
-        const falta = (e2?.getBoundingClientRect().top ?? 0) - (base + 16)
-        if (e2 && (falta < -8 || falta > 40)) window.scrollBy({ top: falta, behavior: 'smooth' })
-      }, 40)
-      window.setTimeout(() => window.clearInterval(vigilar), 3000)
-    }
+    const lanzar = () => irASeccion(ID_BLOQUE[bloque])
     if (visible) lanzar()
     else window.setTimeout(lanzar, 120)
   }
