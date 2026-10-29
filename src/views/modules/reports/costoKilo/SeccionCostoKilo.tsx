@@ -3,9 +3,7 @@ import type { CSSProperties } from 'react'
 import { Card } from '@/components/ui/Card'
 import { IconArchivoPlano, IconClock, IconDatabase } from '@/components/ui/icons'
 import {
-  COLOR_LAMINA,
-  COLOR_MANT,
-  COLOR_TOTAL,
+  COLOR_INICIAL,
   activosConConsumo,
   colorDeActivo,
   descargarExcelCostoKilo,
@@ -168,22 +166,18 @@ export function SeccionCostoKilo({
           <div className={styles.graficos}>
             <Card className={styles.grafico}>
               <GraficoCostoKilo
-                titulo="Kg de fruta por día y solución madre del día"
+                titulo="Kg de fruta proceso y carga inicial de solución madre"
                 etiquetas={series.etiquetas}
                 kg={series.kg}
                 parciales={series.parciales}
-                unidadLineas="litros de solución madre"
-                lineas={[
-                  { nombre: 'Solución madre: lámina', valores: series.lamina, color: COLOR_LAMINA },
-                  { nombre: 'Solución madre: mantención', valores: series.mantencion, color: COLOR_MANT },
-                  { nombre: 'Solución madre: total', valores: series.total, color: COLOR_TOTAL },
-                ]}
+                unidadLineas="litros de solución madre (inicial)"
+                lineas={[{ nombre: 'PRODUCTO CARGA INICIAL (Solución Madre / Inicial)', valores: series.inicial, color: COLOR_INICIAL, punteada: true }]}
               />
             </Card>
             {activos.length > 0 && (
               <Card className={styles.grafico}>
                 <GraficoCostoKilo
-                  titulo="Litros de producto comercial por día, según ingrediente activo"
+                  titulo="Litros de producto comercial según activo"
                   etiquetas={series.etiquetas}
                   kg={series.kg}
                   parciales={series.parciales}
@@ -195,8 +189,8 @@ export function SeccionCostoKilo({
             )}
           </div>
           <p className={styles.aviso}>
-            Cada punto es lo que se usó ese día (lo que subió el contador del equipo), no el acumulado. Los días con barra tenue son parciales: el primero, el último o
-            los que tienen menos de 24 lecturas.
+            Cada barra y cada punto es lo que marcaba el equipo al cerrar el día. Los días con barra más clara son parciales: el primero, el último o los que tienen menos
+            de 24 lecturas. Los litros y ml/kg de arriba son el consumo del período.
           </p>
         </>
       )}

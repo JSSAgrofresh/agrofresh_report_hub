@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { BarController, BarElement, CategoryScale, Chart, Legend, LinearScale, LineController, LineElement, PointElement, Tooltip } from 'chart.js'
-import type { ChartConfiguration } from 'chart.js'
+import type { ChartConfiguration, Plugin } from 'chart.js'
 import { COLOR_KG, fmt } from '@/features/costoKilo'
 import styles from './SeccionCostoKilo.module.css'
 
@@ -13,6 +13,8 @@ export interface LineaCostoKilo {
   nombre: string
   valores: number[]
   color: string
+  /** Línea punteada, sin puntos (la carga inicial de solución madre). */
+  punteada?: boolean
 }
 
 /**
@@ -47,9 +49,9 @@ export function GraficoCostoKilo({
         datasets: [
           {
             type: 'bar',
-            label: 'Kg de fruta por día',
+            label: 'KG FRUTA PROCESO',
             data: kg,
-            backgroundColor: parciales.map((p) => (p ? `${COLOR_KG}55` : `${COLOR_KG}99`)),
+            backgroundColor: parciales.map((p) => (p ? `${COLOR_KG}88` : COLOR_KG)),
             borderRadius: 4,
             yAxisID: 'y',
             order: 2,
@@ -60,10 +62,11 @@ export function GraficoCostoKilo({
             data: l.valores,
             borderColor: l.color,
             backgroundColor: l.color,
-            borderWidth: 2,
-            pointRadius: 3,
+            borderWidth: l.punteada ? 2.5 : 2,
+            borderDash: l.punteada ? [2, 5] : undefined,
+            pointRadius: l.punteada ? 0 : 3,
             pointHoverRadius: 5,
-            tension: 0.25,
+            tension: 0,
             yAxisID: 'y1',
             order: 1,
           })),
@@ -77,7 +80,7 @@ export function GraficoCostoKilo({
           legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, color: '#4b5563', font: { size: 12 } } },
           tooltip: {
             callbacks: {
-              label: (c) => (c.datasetIndex === 0 ? `Fruta: ${fmt(c.parsed.y, 0)} kg` : `${c.dataset.label}: ${fmt(c.parsed.y, decimales)} ${unidadLineas}`),
+              label: (c) => (c.datasetIndex === 0 ? `Fruta proceso: ${fmt(c.parsed.y, 0)} kg` : `${c.dataset.label}: ${fmt(c.parsed.y, decimales)} ${unidadLineas}`),
               afterBody: (items) => (parciales[items[0]?.dataIndex ?? -1] ? ['Día parcial: no tiene las 24 horas de lecturas'] : []),
             },
           },
@@ -89,7 +92,26 @@ export function GraficoCostoKilo({
         },
       },
     }
-    const grafico = new Chart(lienzo.current, config)
+    // El valor de cada barra, dentro de ella y en blanco, como la plantilla del cliente.
+    const valoresEnBarras: Plugin = {
+      id: 'valoresEnBarras',
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart
+        const meta = chart.getDatasetMeta(0)
+        ctx.save()
+        ctx.fillStyle = '#fff'
+        ctx.font = '600 11px system-ui, sans-serif'
+        ctx.textAlign = 'center'
+        meta.data.forEach((elemento, i) => {
+          const barra = (elemento as BarElement).getProps(['x', 'base', 'y', 'width'], true)
+          if (barra.x == null || barra.y == null || barra.base == null) return
+          if (barra.base - barra.y < 22 || (barra.width ?? 0) < 38) return
+          ctx.fillText(fmt(kg[i], 0), barra.x, barra.base - 6)
+        })
+        ctx.restore()
+      },
+    }
+    const grafico = new Chart(lienzo.current, { ...config, plugins: [valoresEnBarras] })
     return () => grafico.destroy()
   }, [etiquetas, kg, parciales, lineas, unidadLineas, decimales])
 
