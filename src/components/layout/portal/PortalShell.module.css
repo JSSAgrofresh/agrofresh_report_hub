@@ -24,12 +24,13 @@
 .mancha {
   position: absolute;
   border-radius: 50%;
-  filter: blur(70px);
+  /* Un degradado radial en vez de `filter: blur()`: se ve igual de difuso, pero no obliga a la tarjeta gráfica a volver a
+     desenfocar una mancha enorme en cada cuadro mientras deriva (con el desenfoque, desplazarse bajaba a ~20 cuadros/s). */
   will-change: transform;
 }
-.m1 { width: 46vw; height: 46vw; left: -10vw; top: -8vw; background: rgba(109, 173, 60, 0.38); animation: deriva1 22s ease-in-out infinite alternate; }
-.m2 { width: 38vw; height: 38vw; right: -8vw; top: 22vh; background: rgba(232, 195, 46, 0.3); animation: deriva2 26s ease-in-out infinite alternate; }
-.m3 { width: 34vw; height: 34vw; left: 30vw; bottom: -12vw; background: rgba(59, 130, 184, 0.16); animation: deriva1 30s ease-in-out infinite alternate-reverse; }
+.m1 { width: 58vw; height: 58vw; left: -16vw; top: -14vw; background: radial-gradient(closest-side, rgba(109, 173, 60, 0.4), rgba(109, 173, 60, 0.18) 55%, rgba(109, 173, 60, 0)); animation: deriva1 22s ease-in-out infinite alternate; }
+.m2 { width: 48vw; height: 48vw; right: -13vw; top: 17vh; background: radial-gradient(closest-side, rgba(232, 195, 46, 0.32), rgba(232, 195, 46, 0.14) 55%, rgba(232, 195, 46, 0)); animation: deriva2 26s ease-in-out infinite alternate; }
+.m3 { width: 44vw; height: 44vw; left: 25vw; bottom: -17vw; background: radial-gradient(closest-side, rgba(59, 130, 184, 0.18), rgba(59, 130, 184, 0.08) 55%, rgba(59, 130, 184, 0)); animation: deriva1 30s ease-in-out infinite alternate-reverse; }
 
 @keyframes deriva1 { to { transform: translate(9vw, 7vh) scale(1.18); } }
 @keyframes deriva2 { to { transform: translate(-8vw, -9vh) scale(0.88); } }

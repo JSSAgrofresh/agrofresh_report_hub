@@ -46,6 +46,7 @@ import {
 import { construirInformes } from '@/features/reportes/lib/informesPorLab'
 import { FILTRO_BLOQUE_VACIO, type FiltroBloque } from '@/features/reportes/lib/estadoPatogenos'
 import { irASeccion } from '@/components/layout/portal/irASeccion'
+import { crearCacheDeSesion } from '@/lib/cacheDeSesion'
 import { BotonesLabResidual, CabeceraSeccion, FiltrosAnalisis, SeccionInformes } from './SeccionesReport'
 import { TarjetasAnalisis } from './TarjetasAnalisis'
 import { desvioResidual, limitesDeInforme } from '@/features/reportes/lib/limitesResiduales'
@@ -223,6 +224,17 @@ function chipsDeFiltros(f: Filtros, clienteFijo: boolean): { campo: keyof Filtro
  * `vistaControl`: la vista por límite de control es un gráfico INTERNO y vive
  * solo en el Panel de control interno, que monta este componente con esta bandera. Sin
  * ella -Report y portal de cliente- solo existe la vista por límite residual. */
+interface DatosReporte {
+  filas: FilaReporte[]
+  totalSolicitudes: number
+  analitos: Analito[]
+  limites: LimiteAnalito[]
+}
+
+/** Lo último que trajo el servidor para cada cuenta y alcance: cambiar de pantalla y volver no vuelve a mostrar «cargando». */
+const cacheDatos = crearCacheDeSesion<DatosReporte>()
+const claveDatos = (cliente?: string, planta?: string) => `${cliente ?? ''}|${planta ?? ''}`
+
 export function ReporteView({
   clienteFijo,
   plantaFija,
@@ -258,12 +270,14 @@ export function ReporteView({
   const acento = esPaletaSobria() ? ACENTO_SOBRIO : (areaDeModulo('reports')?.colorPrimario ?? '#6dad3c')
   const wrapStyle = { '--acento': acento } as CSSProperties
 
-  const [filas, setFilas] = useState<FilaReporte[] | null>(null)
+  // Lo que se vio la última vez (si se vio): se dibuja de inmediato y se actualiza por detrás, en vez de volver a «cargando».
+  const [previo] = useState(() => cacheDatos.leer(claveDatos(clienteFijo, plantaFija)))
+  const [filas, setFilas] = useState<FilaReporte[] | null>(previo?.filas ?? null)
   const [soloFuera, setSoloFuera] = useState(false)
-  const [totalSolicitudes, setTotalSolicitudes] = useState(0)
-  const [analitos, setAnalitos] = useState<Analito[]>([])
-  const [limites, setLimites] = useState<LimiteAnalito[]>([])
-  const [estado, setEstado] = useState<Estado>('cargando')
+  const [totalSolicitudes, setTotalSolicitudes] = useState(previo?.totalSolicitudes ?? 0)
+  const [analitos, setAnalitos] = useState<Analito[]>(previo?.analitos ?? [])
+  const [limites, setLimites] = useState<LimiteAnalito[]>(previo?.limites ?? [])
+  const [estado, setEstado] = useState<Estado>(previo ? 'ok' : 'cargando')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const vista: Vista = vistaControl ? 'control' : 'residual'
   const [sigma, setSigma] = useState(2)
@@ -311,7 +325,8 @@ export function ReporteView({
     return { filas: datos.filas, totalSolicitudes: datos.total_solicitudes, analitos: catalogo, limites: limitesCatalogo }
   }, [clienteFijo, plantaFija])
 
-  function aplicarExito(r: { filas: FilaReporte[]; totalSolicitudes: number; analitos: Analito[]; limites: LimiteAnalito[] }) {
+  function aplicarExito(r: DatosReporte) {
+    cacheDatos.guardar(claveDatos(clienteFijo, plantaFija), r)
     setFilas(r.filas)
     setTotalSolicitudes(r.totalSolicitudes)
     setAnalitos(r.analitos)
@@ -345,11 +360,14 @@ export function ReporteView({
         if (!cancelado) aplicarExito(r)
       })
       .catch((err: unknown) => {
-        if (!cancelado) aplicarError(err)
+        // Si ya se estaban mostrando los datos de la vez anterior, un fallo de la actualización no los tapa con un error.
+        if (!cancelado && !previo) aplicarError(err)
       })
     return () => {
       cancelado = true
     }
+    // `previo` solo se lee al montar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [obtenerTodo])
   useActualizacionProgramada(() => void cargar())
 

@@ -1,4 +1,5 @@
 export {
+  cacheListaCargas,
   listarCargasTrace,
   verCargaTrace,
   eliminarCargaTrace,
