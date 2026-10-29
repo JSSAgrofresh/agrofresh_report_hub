@@ -1,5 +1,9 @@
 """
-Limpia Storage -> Informes (R2, prefijo `informes/`): deja SOLO los PDF de informes que estan en Report.
+Limpia Storage -> Informes (R2, prefijo `informes/`): deja SOLO los PDF de informes que estan en Report Y cruzados con
+una OT (solicitud de Toma de muestras). Un informe que esta en Report pero no tiene OT (p. ej. los de prueba que dicen
+«N° SOLICITUD —») sobra en Storage; con `--incluir-sin-ot` se vuelve a la regla anterior (basta con estar en Report).
+«Cruzado con una OT» = su registro de Report trae una `referencia` que es una OT existente, o su PDF subido por el
+Converter quedo amarrado a una solicitud (`informe_auditoria`).
 
 Cada vez que se genera un informe propio de AgroFresh (Ingreso al laboratorio) el sistema deja una copia en
 `informes/<PLANTA>/<FECHA>/<ANALISIS>/AgroFresh/<folio>.pdf`, este o no cargado en Report; con el tiempo se juntan
@@ -84,9 +88,32 @@ def _numeros_en_report() -> set[str]:
         return {str(f["n"]) for f in cur.fetchall()}
 
 
+def _numeros_con_ot() -> set[str]:
+    """N° de informe de Report que estan cruzados con una OT."""
+    from app.db import conexion, cursor_dict
+
+    sql = """
+        SELECT DISTINCT btrim(s.nro_solicitud) AS n
+          FROM solicitud s
+         WHERE s.nro_solicitud IS NOT NULL AND btrim(s.nro_solicitud) <> ''
+           AND (
+                EXISTS (SELECT 1 FROM solicitud_archivo sa
+                         WHERE s.referencia IS NOT NULL AND btrim(s.referencia) <> ''
+                           AND upper(btrim(sa.numero_solicitud)) = upper(btrim(s.referencia)))
+             OR EXISTS (SELECT 1 FROM informe_auditoria ia
+                         WHERE btrim(ia.nro_informe) = btrim(s.nro_solicitud)
+                           AND (ia.archivo_solicitud IS NOT NULL OR ia.numero_solicitud IS NOT NULL))
+           )
+    """
+    with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+        cur.execute(sql)
+        return {str(f["n"]) for f in cur.fetchall()}
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--aplicar", action="store_true", help="Mover los sobrantes a la papelera. Sin esto solo muestra.")
+    ap.add_argument("--incluir-sin-ot", action="store_true", help="Conservar tambien los informes de Report que no tienen OT.")
     ap.add_argument("--definitivo", action="store_true", help="Con --aplicar: borrarlos de verdad en vez de moverlos.")
     args = ap.parse_args(argv)
 
@@ -95,16 +122,26 @@ def main(argv: list[str] | None = None) -> int:
     if not r2.disponible():
         print("R2 no esta configurado en este equipo: nada que revisar.")
         return 1
-    numeros = _numeros_en_report()
-    if not numeros:
+    en_report = _numeros_en_report()
+    if not en_report:
         print("En Report no hay ningun informe con N° de informe: me detengo para no marcar todo como sobrante.")
         return 1
+    con_ot = en_report if args.incluir_sin_ot else _numeros_con_ot()
+    if not con_ot:
+        print("Ningun informe de Report esta cruzado con una OT: me detengo para no marcar todo como sobrante.")
+        return 1
+    numeros = con_ot
     claves = r2.listar_keys(RAIZ)
     conservar, sobran, otros = clasificar(claves, numeros)
+    _, sobran_en_report, _ = clasificar(sobran, en_report)  # los que NO calzan ni con Report
+    no_en_report = set(sobran_en_report)
+    sin_ot = [c for c in sobran if c not in no_en_report]
     print(f"\nStorage -> Informes ({RAIZ})")
-    print(f"  Informes en Report con N°:  {len(numeros)}")
+    print(f"  Informes en Report con N°:  {len(en_report)}  (cruzados con una OT: {len(con_ot)})")
     print(f"  PDF que SE CONSERVAN:       {len(conservar)}")
     print(f"  PDF SOBRANTES:              {len(sobran)}")
+    print(f"      en Report pero SIN OT:  {len(sin_ot)}")
+    print(f"      que no estan en Report: {len(no_en_report)}")
     print(f"  Otros archivos (no se tocan): {len(otros)}")
 
     marca = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -113,9 +150,9 @@ def main(argv: list[str] | None = None) -> int:
     ruta = logs / f"limpiar_informes_storage_{marca}.csv"
     with open(ruta, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f, delimiter=";")
-        w.writerow(["decision", "clave", "calza con el N°"])
+        w.writerow(["decision", "clave", "calza con el N° / motivo"])
         w.writerows([["CONSERVAR", c, n] for c, n in conservar])
-        w.writerows([["SOBRA", c, ""] for c in sobran])
+        w.writerows([["SOBRA", c, "en Report pero sin OT" if c in sin_ot else "no está en Report"] for c in sobran])
         w.writerows([["NO SE TOCA", c, ""] for c in otros])
     print(f"  Lista completa: {ruta}")
     for c in sobran[:15]:
