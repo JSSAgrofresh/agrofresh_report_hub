@@ -77,7 +77,18 @@ export function GraficoCostoKilo({
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, color: '#4b5563', font: { size: 12 } } },
+          legend: {
+            position: 'bottom',
+            labels: {
+              boxWidth: 12,
+              boxHeight: 12,
+              color: '#4b5563',
+              font: { size: 12 },
+              // El cuadrito de la leyenda lleva el borde de la línea: con la línea punteada se veía como un manchón.
+              generateLabels: (chart) =>
+                Chart.defaults.plugins.legend.labels.generateLabels(chart).map((item) => ({ ...item, lineDash: [], lineWidth: 0, strokeStyle: 'transparent' })),
+            },
+          },
           tooltip: {
             callbacks: {
               label: (c) => (c.datasetIndex === 0 ? `Fruta proceso: ${fmt(c.parsed.y, 0)} kg` : `${c.dataset.label}: ${fmt(c.parsed.y, decimales)} ${unidadLineas}`),
