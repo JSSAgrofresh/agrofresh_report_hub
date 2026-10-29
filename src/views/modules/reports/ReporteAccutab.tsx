@@ -15,16 +15,18 @@ import {
   filtrarAccutab,
   nombreEquipo,
 } from '@/features/postventa'
+import type { ModoCostoKilo, ResumenCostoKilo } from '@/features/costoKilo'
 import type { CargaTrace, FiltroAccutab, ResumenCargaTrace } from '@/features/postventa'
 import { formatDateCL } from '@/lib/locale'
 import { DescargasAccutab } from './DescargasAccutab'
 import { FiltrosAccutab } from './FiltrosAccutab'
 import { GraficoMedicion } from './GraficoMedicion'
-import { IconPozoAgua } from './IconosAnalisis'
+import { IconKg, IconPozoAgua } from './IconosAnalisis'
 import { Kpi } from './Kpi'
 import estilosReporte from './ReporteView.module.css'
 import { CabeceraSeccion } from './SeccionesReport'
-import { TarjetaUnica } from './TarjetasAnalisis'
+import { TarjetasSueltas } from './TarjetasAnalisis'
+import { ID_COSTO_KILO, SeccionCostoKilo } from './costoKilo/SeccionCostoKilo'
 import styles from './ReporteAccutab.module.css'
 
 const ACENTO = AREAS.postventa.colorPrimario
@@ -180,6 +182,8 @@ export interface ReporteAccutabProps {
   /** Un aviso sobre la sección (p. ej. «datos simulados»). */
   aviso?: ReactNode
   error?: string | null
+  /** Los informes de costo por kilo de la cuenta: si hay alguno, aparece su tarjeta y su sección (la 2). */
+  costoKilo?: { informes: ResumenCostoKilo[]; modo: ModoCostoKilo }
   /** Qué decir cuando todavía no hay ningún informe. */
   vacio?: { titulo: string; descripcion: string }
 }
@@ -189,7 +193,7 @@ export interface ReporteAccutabProps {
  * filtros arriba, cabecera de la sección con sus dos Excel, indicadores, la lista de informes y, del elegido, sus
  * cifras y gráficos de pH y ORP.
  */
-export function ReporteAccutab({ cargas, verCarga, accionesDe, mostrarOrigen = false, pedida = null, pie, aviso, error, vacio }: ReporteAccutabProps) {
+export function ReporteAccutab({ cargas, verCarga, accionesDe, mostrarOrigen = false, pedida = null, pie, aviso, error, costoKilo, vacio }: ReporteAccutabProps) {
   const [filtro, setFiltro] = useState<FiltroAccutab>(FILTRO_ACCUTAB_VACIO)
   const [elegida, setElegida] = useState<string | null>(null)
   const [visibles, setVisibles] = useState(VISIBLES)
@@ -209,7 +213,7 @@ export function ReporteAccutab({ cargas, verCarga, accionesDe, mostrarOrigen = f
       {aviso}
       {error && <p className={styles.error}>{error}</p>}
 
-      {cargas.length === 0 ? (
+      {cargas.length === 0 && !(costoKilo && costoKilo.informes.length > 0) ? (
         <EstadoModulo
           etiqueta="Sin informes todavía"
           titulo={vacio?.titulo ?? 'Aún no hay informes disponibles'}
@@ -217,15 +221,20 @@ export function ReporteAccutab({ cargas, verCarga, accionesDe, mostrarOrigen = f
         />
       ) : (
         <>
-          <TarjetaUnica
-            nombre="Accutab"
-            total={kpis.cargas}
-            unidad={{ uno: 'informe', varios: 'informes' }}
-            icono={IconPozoAgua}
+          <TarjetasSueltas
             acento={ACENTO}
-            onElegir={() => irASeccion(ID_SECCION)}
+            tarjetas={[
+              ...(cargas.length > 0
+                ? [{ nombre: 'Accutab', total: kpis.cargas, unidad: { uno: 'informe', varios: 'informes' }, icono: IconPozoAgua, onElegir: () => irASeccion(ID_SECCION) }]
+                : []),
+              ...(costoKilo && costoKilo.informes.length > 0
+                ? [{ nombre: 'Costo por kilo', total: costoKilo.informes.length, unidad: { uno: 'informe', varios: 'informes' }, icono: IconKg, onElegir: () => irASeccion(ID_COSTO_KILO) }]
+                : []),
+            ]}
           />
 
+          {cargas.length > 0 && (
+            <>
           <FiltrosAccutab todas={cargas} filtradas={filtradas} filtro={filtro} onFiltro={(f) => { setFiltro(f); setVisibles(VISIBLES) }} />
 
           <CabeceraSeccion id={ID_SECCION} titulo="Accutab" numero={1} acento={ACENTO} laboratorios="Equipos Accu-Tab · pH y ORP">
@@ -290,6 +299,12 @@ export function ReporteAccutab({ cargas, verCarga, accionesDe, mostrarOrigen = f
           )}
 
           {pie?.(filtradas)}
+            </>
+          )}
+
+          {costoKilo && costoKilo.informes.length > 0 && (
+            <SeccionCostoKilo informes={costoKilo.informes} modo={costoKilo.modo} numero={cargas.length > 0 ? 2 : 1} acento={ACENTO} />
+          )}
         </>
       )}
     </section>

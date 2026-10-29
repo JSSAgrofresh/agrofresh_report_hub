@@ -74,6 +74,7 @@ if str(_BACKEND) not in sys.path:
 
 from app import accutab_informe  # noqa: E402
 from app import config  # noqa: E402  (importacion post-sys.path)
+from app import costo_kilo, costo_kilo_api  # noqa: E402
 from app import r2 as _r2  # noqa: E402
 from app.accutab_parser import calcular_estadisticas, parsear_archivos_csv  # noqa: E402
 
@@ -408,6 +409,19 @@ def _procesar_email(
         carpeta_r2 = f"{R2_PREFIX}{carpeta}/"
 
         adjuntos = _adjuntos(mensaje)
+
+        # Un CSV del equipo C&M-500 (costo por kilo) NO es un pH/ORP de Accu-Tab: no pasa por esta ruta. Queda a la
+        # espera de la matriz de asuntos (ver costo_kilo_api.recibir_por_correo) y se saca de pendientes igual.
+        if costo_kilo.hay_costo_kilo(adjuntos):
+            shutil.rmtree(destino, ignore_errors=True)
+            estado = costo_kilo_api.recibir_por_correo(asunto, adjuntos, marca)
+            _anotar_procesado(procesados, ident, asunto, f"costo_kilo/{marca}")
+            _marcar_procesado(imap, uid)
+            resultado["ok"] = True
+            resultado["carpeta"] = f"costo_kilo/{marca}"
+            resultado["reporte"] = estado["estado"] == "informe_generado"
+            log.info("C&M [%s] costo por kilo: %s", asunto[:60], estado["estado"].replace("_", " "))
+            return resultado
 
         if not adjuntos:
             log.warning("[%s] Sin adjuntos — carpeta vacia en R2.", asunto[:60])

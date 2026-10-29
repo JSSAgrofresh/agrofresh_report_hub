@@ -166,7 +166,7 @@ _POR_PREFIJO: list[tuple[str, str, str]] = [
     ("ingest", "cargas", "Ingesta de datos"), ("homogeniz", "cargas", "Ingesta de datos"), ("datacore", "cargas", "Data Core"),
     ("auditoria", "cargas", "Data Core"), ("emitir", "laboratorio", "AgroFresh Lab"), ("fortificados", "laboratorio", "AgroFresh Lab"),
     ("verificaciones", "verificaciones", "Verificaciones"), ("envio-informes", "informes", "Envío de informes"),
-    ("envio-cliente", "informes", "Panel de control interno"), ("reportes", "report", "Report"), ("postventa", "postventa", "Post Venta"),
+    ("envio-cliente", "informes", "Panel de control interno"), ("reportes", "report", "Report"), ("postventa", "postventa", "Post Venta"), ("costo-kilo", "postventa", "Costo por kilo"),
     ("storage", "storage", "Storage"), ("informes-cliente", "storage", "Storage"),
     ("listados", "administracion", "Listados"), ("catalogo", "administracion", "Listados"),
     ("laboratorios", "administracion", "Laboratorios"), ("notificaciones", "administracion", "Notificaciones"),

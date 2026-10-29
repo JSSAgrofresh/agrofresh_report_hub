@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { cacheListaCargas, descargarPdfCliente, listarInformesCliente, verInformeCliente, verPdfCliente } from '@/features/postventa'
 import type { CargaTrace, ResumenCargaTrace } from '@/features/postventa'
 import { PortalHero } from '@/views/dashboard/PortalHero'
+import { useInformesCostoKilo } from '@/features/costoKilo'
 import { ReporteAccutab } from './ReporteAccutab'
 import styles from './ReporteAccutab.module.css'
 
@@ -23,6 +24,7 @@ export function InformesAccutabCliente() {
   const [reales, setInformes] = useState<ResumenCargaTrace[] | null>(previo ?? null)
   const informes = simulado ? simulado.informes : reales
   const [error, setError] = useState<string | null>(null)
+  const { informes: costoKilo } = useInformesCostoKilo('cliente', !simulado)
 
   useEffect(() => {
     let vigente = true
@@ -77,6 +79,7 @@ export function InformesAccutabCliente() {
       cargas={todas}
       verCarga={verCarga}
       accionesDe={accionesDe}
+      costoKilo={{ informes: costoKilo, modo: 'cliente' }}
       error={simulado ? null : error}
       aviso={
         simulado ? (
