@@ -69,11 +69,13 @@ def destino(clave: str, fecha_informe: str | None) -> str | None:
     return "/".join(["informes", planta, lab, fecha_informe or fecha, archivo])
 
 
-def plan(claves: list[str], fechas: dict[str, str]) -> tuple[list[tuple[str, str, bool]], list[str], list[str]]:
-    """([(origen, destino, con_fecha_de_report)], conflictos, sin_reconocer). `fechas` = {N° de informe en minusculas: ISO}."""
+def plan(
+    claves: list[str], fechas: dict[str, str]
+) -> tuple[list[tuple[str, str, bool]], list[tuple[str, str]], list[str]]:
+    """([(origen, destino, con_fecha_de_report)], conflictos [(origen, destino)], sin_reconocer). `fechas` = {N° de informe en minusculas: ISO}."""
     existentes = set(claves)
     mover: list[tuple[str, str, bool]] = []
-    conflictos: list[str] = []
+    conflictos: list[tuple[str, str]] = []
     otros: list[str] = []
     usados: set[str] = set()
     for clave in sorted(claves):
@@ -94,7 +96,7 @@ def plan(claves: list[str], fechas: dict[str, str]) -> tuple[list[tuple[str, str
         if nueva is None:
             continue
         if nueva in existentes or nueva in usados:
-            conflictos.append(clave)
+            conflictos.append((clave, nueva))
             continue
         usados.add(nueva)
         mover.append((clave, nueva, hallada is not None))
@@ -134,7 +136,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Rutas que no se reconocen (no se tocan):      {len(otros)}")
     for o, d, _ in mover[:8]:
         print(f"    {o}\n      -> {d}")
-    for c in conflictos[:10]:
+    for c, _ in conflictos[:10]:
         print(f"    conflicto: {c}")
     for c in otros[:10]:
         print(f"    no reconocida: {c}")
@@ -149,12 +151,28 @@ def main(argv: list[str] | None = None) -> int:
         w.writerows((o, d, "si" if f else "no") for o, d, f in mover)
     print(f"\nLista completa: {lista}")
 
-    if not mover:
+    if not mover and not conflictos:
         print("\nNada que reordenar.")
         return 0
     if not args.aplicar:
         print("\nSolo miré. Si está bien, repite con --aplicar.")
         return 0
+
+    # Conflicto: si el destino es EXACTAMENTE el mismo PDF, el original sobra (una corrida cortada deja copias); si
+    # es distinto, no se toca ninguno y se avisa.
+    iguales = 0
+    for origen, nueva in conflictos:
+        try:
+            a, b = r2.descargar(origen), r2.descargar(nueva)
+            if a is not None and a == b:
+                r2.eliminar(origen)
+                iguales += 1
+            else:
+                print(f"  {origen}: el destino ya existe y es DISTINTO; no se toca ninguno, revísalos a mano.")
+        except Exception as exc:  # noqa: BLE001
+            print(f"  No se pudo revisar {origen}: {exc}")
+    if conflictos:
+        print(f"\n{iguales} de {len(conflictos)} conflictos eran copias idénticas: se borró el original repetido.")
 
     hechos = 0
     for origen, nueva, _ in mover:

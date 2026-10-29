@@ -36,7 +36,7 @@ def test_el_formato_de_cuatro_niveles_es_agrofresh():
 def test_no_pisa_un_destino_que_ya_existe_ni_toca_lo_nuevo():
     claves = ["informes/P/Quiteca/2026-10-02/a.pdf", "informes/P/2026-10-02/Actimist/Quiteca/a.pdf"]
     mover, conflictos, _ = sc.plan(claves, {})
-    assert mover == [] and conflictos == ["informes/P/2026-10-02/Actimist/Quiteca/a.pdf"]
+    assert mover == [] and conflictos == [("informes/P/2026-10-02/Actimist/Quiteca/a.pdf", "informes/P/Quiteca/2026-10-02/a.pdf")]
 
 
 def test_el_n_de_informe_no_calza_por_parecido():
