@@ -1394,6 +1394,10 @@ def _archivar_informe(campos: dict[str, str], folio: str, pdf_bytes: bytes) -> N
             fecha=date.today().isoformat(),
             laboratorio="AgroFresh",
         )
+        informes_storage.guardar_solicitud(
+            campos.get("N° Solicitud"), ship_to=campos.get("Ship To (Nombre)") or campos.get("Ship To"),
+            sold_to=campos.get("Sold To (Nombre)") or campos.get("Sold To"), fecha=date.today().isoformat(), laboratorio="AgroFresh",
+        )
     except Exception:
         logging.getLogger(__name__).exception("No se pudo archivar el informe %s en R2", folio)
 

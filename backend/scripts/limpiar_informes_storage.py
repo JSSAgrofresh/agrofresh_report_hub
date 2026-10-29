@@ -68,6 +68,9 @@ def clasificar(claves: list[str], numeros: set[str]) -> tuple[list[tuple[str, st
         if not clave.lower().endswith(".pdf"):
             otros.append(clave)
             continue
+        if len(clave.split("/")) > 4 and clave.split("/")[3] == "Solicitudes":  # = informes_storage.es_solicitud
+            conservar.append((clave, "Solicitud: no se toca"))
+            continue
         if "diagnofruit" in {parte.strip().casefold() for parte in clave.split("/")[:-1]}:
             conservar.append((clave, "Diagnofruit: no se toca"))
             continue
@@ -92,7 +95,7 @@ def repetidos(conservar: list[tuple[str, str]]) -> dict[str, list[str]]:
     """{N° de informe: [PDF...]} para los N° que tienen mas de un PDF en Storage (copias en otras carpetas)."""
     por_numero: dict[str, list[str]] = {}
     for clave, nro in conservar:
-        if nro.endswith("no se toca"):
+        if nro.endswith("no se toca"):  # Diagnofruit y Solicitudes
             continue
         por_numero.setdefault(nro, []).append(clave)
     return {n: sorted(cs) for n, cs in sorted(por_numero.items()) if len(cs) > 1}

@@ -1,7 +1,9 @@
 """
 Reordena Storage -> Informes (R2 `informes/`) al orden nuevo:
 
-    informes/<PLANTA>/<LABORATORIO>/<FECHA DEL INFORME>/<archivo>.pdf
+    informes/<PLANTA>/<LABORATORIO>/Informes/<FECHA DEL INFORME>/<archivo>.pdf
+
+(y, al lado, `<LABORATORIO>/Solicitudes/<FECHA>/<OT>.pdf`, que deja `completar_solicitudes_storage.py`.)
 
 Antes era `<PLANTA>/<FECHA DE MUESTREO>/<TIPO DE SERVICIO>/<LABORATORIO>/<archivo>.pdf` (y, los que dejaba el informe propio
 al generarse, `<PLANTA>/<FECHA>/<archivo>.pdf`). Ya no hay carpeta de «Cromatografia» / «Linea de proceso» y la fecha es la
@@ -41,32 +43,37 @@ def _es_fecha(texto: str) -> bool:
 
 
 def formato(clave: str) -> str:
-    """`nuevo` (planta/lab/fecha/archivo), `antiguo6` (planta/fecha/analisis/lab/archivo), `antiguo4` (planta/fecha/archivo)
-    u `otro` (no se reconoce: no se toca)."""
-    partes = clave.split("/")
-    if partes[0] != "informes":
+    """`nuevo` (planta/lab/Informes|Solicitudes/fecha/archivo), `intermedio` (planta/lab/fecha/archivo: sin la subcarpeta),
+    `antiguo6` (planta/fecha/analisis/lab/archivo), `antiguo4` (planta/fecha/archivo) u `otro` (no se toca)."""
+    p = clave.split("/")
+    if p[0] != "informes":
         return "otro"
-    if len(partes) == 5 and _es_fecha(partes[3]) and not _es_fecha(partes[2]):
+    if len(p) == 6 and p[3] in ("Informes", "Solicitudes") and _es_fecha(p[4]):
         return "nuevo"
-    if len(partes) == 6 and _es_fecha(partes[2]):
+    if len(p) == 6 and _es_fecha(p[2]):
         return "antiguo6"
-    if len(partes) == 4 and _es_fecha(partes[2]):
+    if len(p) == 5 and _es_fecha(p[3]) and not _es_fecha(p[2]):
+        return "intermedio"
+    if len(p) == 4 and _es_fecha(p[2]):
         return "antiguo4"
     return "otro"
 
 
 def destino(clave: str, fecha_informe: str | None) -> str | None:
-    """Clave nueva de un PDF en el orden viejo, o None si ya esta bien o no se reconoce."""
-    partes = clave.split("/")
+    """Clave nueva de un PDF en un orden viejo, o None si ya esta bien o no se reconoce."""
+    p = clave.split("/")
     f = formato(clave)
     if f == "antiguo6":
-        _, planta, fecha, _analisis, lab, archivo = partes
+        _, planta, fecha, _analisis, lab, archivo = p
     elif f == "antiguo4":
-        _, planta, fecha, archivo = partes
+        _, planta, fecha, archivo = p
         lab = "AgroFresh"
+    elif f == "intermedio":
+        _, planta, lab, fecha, archivo = p
+        return "/".join(["informes", planta, lab, "Informes", fecha, archivo])  # la fecha ya es la del informe
     else:
         return None
-    return "/".join(["informes", planta, lab, fecha_informe or fecha, archivo])
+    return "/".join(["informes", planta, lab, "Informes", fecha_informe or fecha, archivo])
 
 
 def plan(
@@ -81,7 +88,7 @@ def plan(
     for clave in sorted(claves):
         if clave.endswith("/") or not clave.lower().endswith(".pdf"):
             continue
-        if formato(clave) in ("nuevo",):
+        if formato(clave) == "nuevo":
             continue
         if formato(clave) == "otro":
             otros.append(clave)
