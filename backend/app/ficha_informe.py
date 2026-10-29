@@ -145,7 +145,7 @@ def elegir_clave(claves: list[str], nro: str | None) -> str | None:
     numero = (nro or "").strip().casefold()
     if not numero:
         return None
-    pdfs = [k for k in claves if k.lower().endswith(".pdf")]
+    pdfs = [k for k in claves if k.lower().endswith(".pdf") and not informes_storage.es_solicitud(k)]
 
     def nombre(k: str) -> str:
         return k.rsplit("/", 1)[-1].rsplit(".", 1)[0].strip().casefold()

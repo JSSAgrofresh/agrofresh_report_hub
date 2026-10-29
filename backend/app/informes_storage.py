@@ -1,7 +1,8 @@
 """
 Informes en Storage: una copia de cada informe PDF, ordenada para encontrarla.
 
-    informes/<PLANTA>/<LABORATORIO>/<FECHA>/<archivo>.pdf
+    informes/<PLANTA>/<LABORATORIO>/Informes/<FECHA>/<archivo>.pdf
+    informes/<PLANTA>/<LABORATORIO>/Solicitudes/<FECHA>/<OT>.pdf
 
 - PLANTA: el Ship To. Si dos clientes tienen un Ship To con el mismo nombre
   («CHILLAN», «REQUINOA»…) se le agrega el cliente -«CHILLAN (EXPORTADORA
@@ -9,6 +10,9 @@ Informes en Storage: una copia de cada informe PDF, ordenada para encontrarla.
   la que algún día se le muestra a cada cliente.
 - LABORATORIO: quien emitió el informe. Solo existe la carpeta de los laboratorios
   que tienen informes en esa planta.
+- Informes / Solicitudes: dos subcarpetas por laboratorio. «Solicitudes» guarda el PDF de la solicitud (OT) de
+  cada informe, en la fecha de ese informe, para completar la información de la planta. Lleva la lista de
+  distribución y datos internos: **el portal de cliente nunca la ve** (`informes_cliente`).
 - FECHA: la del INFORME (no la de emisión de la solicitud ni la de muestreo), en ISO
   (AAAA-MM-DD); Storage la muestra como DD-MM-AAAA.
 
@@ -29,6 +33,8 @@ from .r2_auditoria import segmento_seguro
 logger = logging.getLogger(__name__)
 
 RAIZ = "informes"
+SUB_INFORMES = "Informes"
+SUB_SOLICITUDES = "Solicitudes"
 
 _FECHA_ISO = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
 _FECHA_CL = re.compile(r"^(\d{1,2})[-/](\d{1,2})[-/](\d{4})")
@@ -82,10 +88,47 @@ def ruta_informe(planta: str, laboratorio: str | None, fecha: str | None, nombre
         RAIZ,
         segmento_seguro(planta, "Sin planta"),
         segmento_seguro(laboratorio_visible(laboratorio), "Sin laboratorio"),
+        SUB_INFORMES,
         fecha_iso(fecha) or "Sin fecha",
         segmento_seguro(nombre, "informe.pdf"),
     ]
     return "/".join(partes)
+
+
+def ruta_solicitud(planta: str, laboratorio: str | None, fecha: str | None, numero_ot: str) -> str:
+    """Clave en R2 del PDF de la solicitud, junto a los informes del mismo laboratorio y fecha."""
+    return "/".join([
+        RAIZ,
+        segmento_seguro(planta, "Sin planta"),
+        segmento_seguro(laboratorio_visible(laboratorio), "Sin laboratorio"),
+        SUB_SOLICITUDES,
+        fecha_iso(fecha) or "Sin fecha",
+        segmento_seguro(f"{(numero_ot or 'solicitud').strip()}.pdf", "solicitud.pdf"),
+    ])
+
+
+def es_solicitud(clave: str) -> bool:
+    """¿Es el PDF de una solicitud (y no un informe)? Mira la subcarpeta del laboratorio."""
+    partes = clave.split("/")
+    return len(partes) > 4 and partes[3] == SUB_SOLICITUDES
+
+
+def guardar_solicitud(
+    numero_ot: str | None, *, ship_to: str | None, sold_to: str | None, fecha: str | None, laboratorio: str | None
+) -> str | None:
+    """Deja el PDF de la solicitud `numero_ot` en la carpeta de su informe. None si R2 no está, si no hay OT o si la
+    solicitud no existe. Los errores se propagan (quien llama decide)."""
+    numero = (numero_ot or "").strip()
+    if not numero or not r2.disponible():
+        return None
+    from . import indice_solicitudes, toma_muestras
+
+    par = indice_solicitudes.buscar_por_numero(numero)
+    if par is None:
+        return None
+    key = ruta_solicitud(carpeta_planta(ship_to, sold_to), laboratorio, fecha, numero)
+    r2.subir(key, toma_muestras.pdf_de_datos(par[1]), "application/pdf")
+    return key
 
 
 def guardar(

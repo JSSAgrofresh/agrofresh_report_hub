@@ -19,7 +19,7 @@ from . import r2
 from .pdf_permisos import sin_restricciones
 from .auth import Usuario, accesos_de_cuenta, con_lista_de_accesos, usuario_actual, ve_todas_las_plantas
 from .db import conexion, cursor_dict
-from .informes_storage import RAIZ, carpeta_planta
+from .informes_storage import RAIZ, SUB_SOLICITUDES, carpeta_planta
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +91,9 @@ def _partes(ruta: str) -> list[str]:
 def _exigir_alcance(partes: list[str], usuario: Usuario) -> None:
     if usuario.tipoAcceso not in ("cliente", "comercial"):
         raise HTTPException(403, "Esta sección es del portal de cliente.")
+    # «Solicitudes» (el PDF con la lista de distribución y datos internos) es solo del personal.
+    if len(partes) > 2 and partes[2].casefold() == SUB_SOLICITUDES.casefold():
+        raise HTTPException(404, "No encontrado.")
     # El comercial con «todas las plantas» ve las carpetas de todos los clientes (solo lectura, como siempre).
     if partes and not ve_todas_las_plantas(usuario) and partes[0].casefold() not in carpetas_permitidas(usuario):
         raise HTTPException(404, "No encontrado.")
@@ -115,6 +118,8 @@ def listar(ruta: str = "", usuario: Usuario = Depends(usuario_actual)) -> Listad
                 nombre = cp["Prefix"].rstrip("/").split("/")[-1]
                 if not partes and not todas and nombre.casefold() not in permitidas:
                     continue  # en la raíz solo SU carpeta
+                if len(partes) == 2 and nombre.casefold() == SUB_SOLICITUDES.casefold():
+                    continue  # la subcarpeta de solicitudes no es para clientes
                 carpetas.append(EntradaInforme(nombre=nombre, ruta="/".join([*partes, nombre]), tipo="carpeta"))
             for obj in pagina.get("Contents", []):
                 key: str = obj["Key"]

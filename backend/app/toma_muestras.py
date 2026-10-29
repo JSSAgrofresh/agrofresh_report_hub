@@ -1969,6 +1969,14 @@ def descargar_solicitud_json(archivo: str, usuario: Usuario = Depends(usuario_ac
     )
 
 
+def pdf_de_datos(datos: dict) -> bytes:
+    """El PDF de una solicitud, igual al que baja el endpoint (con su lista de distribución). Sin sesión: lo usa
+    Storage → Informes para guardar la solicitud de cada informe."""
+    analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
+    analisis_config = _leer_config("analisis_laboratorio.json", [])
+    return generar_pdf_solicitud(_datos_pdf_con_destinatarios_resultados(datos), analitos_config, analisis_config)
+
+
 @router.get("/solicitudes/{archivo}/pdf")
 def descargar_solicitud_pdf(archivo: str, usuario: Usuario = Depends(usuario_actual)) -> Response:
     if r2.disponible():
@@ -1980,10 +1988,7 @@ def descargar_solicitud_pdf(archivo: str, usuario: Usuario = Depends(usuario_act
         numero = os.path.splitext(os.path.basename(ruta))[0]
         datos = _leer_solicitud_archivo(ruta)
     _exigir_acceso(usuario, datos)
-    analitos_config = _leer_config("analitos.json", ANALITOS_DEFECTO)
-    analisis_config = _leer_config("analisis_laboratorio.json", [])
-    datos_pdf = _datos_pdf_con_destinatarios_resultados(datos)
-    pdf_bytes = generar_pdf_solicitud(datos_pdf, analitos_config, analisis_config)
+    pdf_bytes = pdf_de_datos(datos)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

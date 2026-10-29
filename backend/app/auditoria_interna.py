@@ -282,6 +282,10 @@ async def subir_informe(
             r2a.eliminar(previo["r2_key"])
         except Exception:
             logger.exception("No se pudo borrar el PDF anterior %s", previo["r2_key"])
+    try:
+        informes_storage.guardar_solicitud(numero_ot, ship_to=ship_to, sold_to=sold_to, fecha=fecha, laboratorio=laboratorio)
+    except Exception:
+        logger.exception("No se pudo guardar la solicitud %s en Storage → Informes", numero_ot)
     marcado = False
     if ot and enviado_cliente.strip().lower() in ("1", "true", "si", "sí"):
         try:

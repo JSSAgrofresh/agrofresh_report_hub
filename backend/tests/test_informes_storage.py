@@ -16,7 +16,7 @@ PDF = b"%PDF-1.4 informe"
 
 def test_la_ruta_sigue_planta_laboratorio_fecha():
     ruta = inf.ruta_informe("PLANTA GARCES MALLOA", "Quiteca", "2026-09-30", "2026-1885-PC.pdf")
-    assert ruta == "informes/PLANTA GARCES MALLOA/Quiteca/2026-09-30/2026-1885-PC.pdf"
+    assert ruta == "informes/PLANTA GARCES MALLOA/Quiteca/Informes/2026-09-30/2026-1885-PC.pdf"
 
 
 def test_fecha_en_formato_chileno_o_con_hora_va_en_iso():
@@ -28,7 +28,7 @@ def test_fecha_en_formato_chileno_o_con_hora_va_en_iso():
 
 def test_lo_que_falta_cae_en_una_carpeta_con_nombre_no_en_la_raiz():
     ruta = inf.ruta_informe("Sin planta", "", None, "x.pdf")
-    assert ruta == "informes/Sin planta/Sin laboratorio/Sin fecha/x.pdf"
+    assert ruta == "informes/Sin planta/Sin laboratorio/Informes/Sin fecha/x.pdf"
 
 
 def test_el_laboratorio_propio_es_una_sola_carpeta():
@@ -38,7 +38,7 @@ def test_el_laboratorio_propio_es_una_sola_carpeta():
 
 def test_nada_se_escapa_de_su_carpeta():
     ruta = inf.ruta_informe("../x", "q:u", "2026-09-30", "../../c.pdf")
-    assert ".." not in ruta.split("/") and ruta.count("/") == 4
+    assert ".." not in ruta.split("/") and ruta.count("/") == 5
 
 
 def test_planta_repetida_entre_clientes_lleva_el_cliente(monkeypatch):
@@ -71,7 +71,7 @@ def test_guardar_sube_el_pdf_y_volver_a_pasarlo_lo_reemplaza(monkeypatch):
     kw = dict(ship_to="P", sold_to="S", fecha="30-09-2026", laboratorio="Quiteca")
     k1 = inf.guardar(PDF, "a.pdf", **kw)
     k2 = inf.guardar(PDF + b"v2", "a.pdf", **kw)
-    assert k1 == k2 == "informes/P/Quiteca/2026-09-30/a.pdf"
+    assert k1 == k2 == "informes/P/Quiteca/Informes/2026-09-30/a.pdf"
     assert list(b.objs) == [k1] and b.objs[k1].endswith(b"v2")
 
 
@@ -100,7 +100,7 @@ def test_converter_sube_el_pdf_tambien_a_informes_antes_de_lo_de_auditoria(monke
             files={"archivo": ("a.pdf", PDF, "application/pdf")},
         )
         assert r.status_code == 500
-        assert list(b.objs) == ["informes/P/Quiteca/2026-09-30/a.pdf"]
+        assert list(b.objs) == ["informes/P/Quiteca/Informes/2026-09-30/a.pdf"]
     finally:
         app.dependency_overrides.pop(usuario_actual, None)
 
@@ -119,3 +119,31 @@ def test_un_pdf_invalido_no_se_guarda_en_informes(monkeypatch):
         assert r.status_code == 400 and b.objs == {}
     finally:
         app.dependency_overrides.pop(usuario_actual, None)
+
+
+def test_la_solicitud_va_en_su_subcarpeta_y_no_se_confunde_con_un_informe():
+    k = inf.ruta_solicitud("P", "Agrofresh", "30-09-2026", "OT-AGF0050")
+    assert k == "informes/P/AgroFresh/Solicitudes/2026-09-30/OT-AGF0050.pdf"
+    assert inf.es_solicitud(k)
+    assert not inf.es_solicitud(inf.ruta_informe("P", "Quiteca", "2026-09-30", "a.pdf"))
+
+
+def test_elegir_clave_ignora_las_solicitudes():
+    from app.ficha_informe import elegir_clave
+    claves = ["informes/P/Q/Solicitudes/2026-09-30/2026-1.pdf", "informes/P/Q/Informes/2026-09-30/2026-1 x.pdf"]
+    assert elegir_clave(claves, "2026-1") == claves[1]
+
+
+def test_guardar_solicitud_sube_el_pdf_de_la_ot(monkeypatch):
+    from app import indice_solicitudes, toma_muestras
+    b = Bucket()
+    monkeypatch.setattr(r2, "disponible", lambda: True)
+    monkeypatch.setattr(r2, "subir", b.subir)
+    monkeypatch.setattr(inf, "_clientes_con_planta", lambda _: 1)
+    monkeypatch.setattr(indice_solicitudes, "buscar_por_numero", lambda n: ("a.xlsx", {"x": 1}))
+    monkeypatch.setattr(toma_muestras, "pdf_de_datos", lambda d: PDF)
+    k = inf.guardar_solicitud("OT-QUI0053", ship_to="P", sold_to="S", fecha="2026-10-02", laboratorio="Quiteca")
+    assert k == "informes/P/Quiteca/Solicitudes/2026-10-02/OT-QUI0053.pdf" and b.objs[k] == PDF
+    assert inf.guardar_solicitud("", ship_to="P", sold_to="S", fecha=None, laboratorio="Q") is None
+    monkeypatch.setattr(indice_solicitudes, "buscar_por_numero", lambda n: None)
+    assert inf.guardar_solicitud("OT-X", ship_to="P", sold_to="S", fecha=None, laboratorio="Q") is None
