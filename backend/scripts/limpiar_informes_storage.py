@@ -51,7 +51,10 @@ def calza(nombre: str, nro: str) -> bool:
 
 def clasificar(claves: list[str], numeros: set[str]) -> tuple[list[tuple[str, str]], list[str], list[str]]:
     """(conservar [(clave, N° que calza)], sobrantes, no_pdf). Solo los PDF se juzgan; lo demas no se toca."""
-    nros = sorted({n.strip().casefold() for n in numeros if n and n.strip()}, key=lambda n: (-len(n), n))
+    base = {n.strip().casefold() for n in numeros if n and n.strip()}
+    # Diagnofruit guarda «253522-DIAG0007» pero nombra su PDF «253522 - Agrofresh.pdf»: vale también el N° de su informe.
+    alias = {m.group(1) for n in base if (m := re.match(r"^(\d{5,})-[a-z]+\d+$", n))}
+    nros = sorted(base | alias, key=lambda n: (-len(n), n))
     conservar: list[tuple[str, str]] = []
     sobran: list[str] = []
     otros: list[str] = []
