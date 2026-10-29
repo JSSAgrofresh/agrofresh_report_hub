@@ -19,15 +19,18 @@ import { formatDateCL } from '@/lib/locale'
 import { DescargasAccutab } from './DescargasAccutab'
 import { FiltrosAccutab } from './FiltrosAccutab'
 import { GraficoMedicion } from './GraficoMedicion'
+import { IconPozoAgua } from './IconosAnalisis'
 import { Kpi } from './Kpi'
 import estilosReporte from './ReporteView.module.css'
-import estilosSeccion from './SeccionesReport.module.css'
+import { CabeceraSeccion } from './SeccionesReport'
+import { TarjetaUnica } from './TarjetasAnalisis'
 import styles from './ReporteAccutab.module.css'
 
 const ACENTO = AREAS.postventa.colorPrimario
 const COLOR_PH = '#1C7FA6'
 const COLOR_MV = '#eb6834'
 const VISIBLES = 60
+const ID_SECCION = 'accutab'
 
 function num(v: number | null | undefined, dec: number): string {
   if (v == null || Number.isNaN(v)) return '—'
@@ -213,15 +216,20 @@ export function ReporteAccutab({ cargas, verCarga, accionesDe, mostrarOrigen = f
         />
       ) : (
         <>
+          <TarjetaUnica
+            nombre="Accutab"
+            total={kpis.mediciones}
+            unidad={{ uno: 'medición', varios: 'mediciones' }}
+            icono={IconPozoAgua}
+            acento={ACENTO}
+            onElegir={() => document.getElementById(ID_SECCION)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          />
+
           <FiltrosAccutab todas={cargas} filtradas={filtradas} filtro={filtro} onFiltro={(f) => { setFiltro(f); setVisibles(VISIBLES) }} />
 
-          <header className={estilosSeccion.cabecera} style={{ '--acento': ACENTO } as CSSProperties}>
-            <div className={estilosSeccion.titulo}>
-              <h2>Reporte Accu-Tab</h2>
-              <span>Equipos Accu-Tab · pH y ORP</span>
-            </div>
+          <CabeceraSeccion id={ID_SECCION} titulo="Accutab" numero={1} acento={ACENTO} laboratorios="Equipos Accu-Tab · pH y ORP">
             <DescargasAccutab filtradas={filtradas} verCarga={verCarga} />
-          </header>
+          </CabeceraSeccion>
 
           <div className={estilosReporte.stats}>
             <Kpi icono={<IconArchivoPlano />} etiqueta="Informes" destacado tono={ACENTO} sub={nFiltros > 0 ? `de ${cargas.length.toLocaleString('es-CL')} en total` : 'sin filtros'}>

@@ -1,5 +1,5 @@
 import { Navigate, createBrowserRouter } from 'react-router-dom'
-import { InformesAccutabCliente } from '@/views/modules/reports/InformesAccutabCliente'
+import { VistaClienteAccutab } from '@/views/modules/reports/InformesAccutabCliente'
 import { VistaClienteLayout } from '@/components/layout/portal/VistaClienteLayout'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RequireAdminGeneral, RequireAuth, RequireFuncion, RequireModulo, RequireNoComercial, RequireReanalisis, RequireReporte, RequireSeccionLab, RequireTomaMuestras } from '@/features/auth'
@@ -57,7 +57,7 @@ export const router = createBrowserRouter([
               { path: ROUTES.vistaCliente, element: <Navigate to={ROUTES.vistaClienteReport} replace /> },
               { path: ROUTES.vistaClienteReport, element: <ReporteLaboratorioView /> },
               { path: ROUTES.vistaClienteStorage, element: <StorageView /> },
-              { path: ROUTES.vistaClienteAccutab, element: <InformesAccutabCliente /> },
+              { path: ROUTES.vistaClienteAccutab, element: <VistaClienteAccutab /> },
             ],
           },
         ],
