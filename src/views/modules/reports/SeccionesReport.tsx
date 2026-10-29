@@ -32,6 +32,7 @@ import styles from './SeccionesReport.module.css'
 export function CabeceraSeccion({
   id,
   bloque,
+  titulo,
   numero,
   acento,
   laboratorios,
@@ -39,7 +40,9 @@ export function CabeceraSeccion({
 }: {
   /** Ancla a la que saltan las tarjetas de análisis de arriba. */
   id?: string
-  bloque: ClaveBloque
+  bloque?: ClaveBloque
+  /** Un título propio, para una sección que no es uno de los tres análisis (Accu-Tab). */
+  titulo?: string
   /** Número correlativo del bloque, en un círculo en la esquina (solo cuando se ven varios bloques). */
   numero?: number
   acento: string
@@ -54,7 +57,7 @@ export function CabeceraSeccion({
         </span>
       )}
       <div className={styles.titulo}>
-        <h2>{NOMBRE_BLOQUE[bloque]}</h2>
+        <h2>{titulo ?? (bloque ? NOMBRE_BLOQUE[bloque] : '')}</h2>
         <span>{laboratorios}</span>
       </div>
       {children}

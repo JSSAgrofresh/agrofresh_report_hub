@@ -41,3 +41,37 @@ export function TarjetasAnalisis({
     </nav>
   )
 }
+
+/** La misma tarjeta, sola: Accu-Tab tiene un único «análisis», con su total (aquí, de mediciones) y un ícono propio. */
+export function TarjetaUnica({
+  nombre,
+  total,
+  unidad,
+  icono: Icono,
+  acento,
+  onElegir,
+}: {
+  nombre: string
+  total: number
+  unidad: { uno: string; varios: string }
+  icono: typeof IconMatraz
+  acento: string
+  onElegir: () => void
+}) {
+  return (
+    <nav className={`${styles.fila} ${styles.filaUna}`} aria-label={`Ir a ${nombre}`} style={{ '--acento': acento } as CSSProperties}>
+      <button type="button" className={styles.tarjeta} onClick={onElegir} aria-label={`${nombre}: ${total} ${unidad.varios}. Ir al reporte`}>
+        <span className={styles.datos}>
+          <span className={styles.nombre}>{nombre}</span>
+          <span className={styles.total}>
+            <b>{total.toLocaleString('es-CL')}</b>
+            <small>{total === 1 ? unidad.uno : unidad.varios}</small>
+          </span>
+        </span>
+        <span className={styles.icono}>
+          <Icono />
+        </span>
+      </button>
+    </nav>
+  )
+}

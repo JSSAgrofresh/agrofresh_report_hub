@@ -75,8 +75,8 @@
 }
 
 /* Una fecha no es una cifra: más chica y en una sola línea para que quepa en el teléfono. */
-.cifraFecha {
-  font-size: clamp(1.05rem, 0.8rem + 1.2vw, 1.55rem);
+.wrap .cifraFecha.cifraFecha {
+  font-size: clamp(0.95rem, 0.6rem + 1.4vw, 1.55rem);
   white-space: nowrap;
 }
 

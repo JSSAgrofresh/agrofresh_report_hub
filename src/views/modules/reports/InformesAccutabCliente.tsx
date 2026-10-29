@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AREAS } from '@/constants/areas'
 import { useAuth } from '@/features/auth'
 import { puedeSimular, useSimulacion } from '@/features/simulacion'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { descargarPdfCliente, listarInformesCliente, verInformeCliente, verPdfCliente } from '@/features/postventa'
 import type { CargaTrace, ResumenCargaTrace } from '@/features/postventa'
+import { PortalHero } from '@/views/dashboard/PortalHero'
 import { ReporteAccutab } from './ReporteAccutab'
 import styles from './ReporteAccutab.module.css'
 
@@ -77,5 +79,20 @@ export function InformesAccutabCliente() {
         ) : undefined
       }
     />
+  )
+}
+
+/** Accu-Tab dentro de la «Vista de cliente»: el mismo encabezado con la foto de Accu-Tab que ve el cliente, y debajo su reporte. */
+export function VistaClienteAccutab() {
+  return (
+    <div>
+      <PortalHero
+        etiqueta="Vista previa de cliente"
+        titulo="Hola, todos los clientes"
+        descripcion="Así se ven los informes Accu-Tab en el portal. Con tu cuenta de administración aparecen los de todos los clientes y sucursales."
+        fondo={AREAS.postventa.fondo}
+      />
+      <InformesAccutabCliente />
+    </div>
   )
 }
