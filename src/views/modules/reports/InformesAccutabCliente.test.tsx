@@ -29,7 +29,7 @@ vi.mock('@/features/postventa', async (original) => ({
   verPdfCliente: vi.fn(),
   descargarPdfCliente: vi.fn(),
 }))
-const sesion = { user: { tipoAcceso: 'cliente' } }
+const sesion: { user: { tipoAcceso: string; email?: string } } = { user: { tipoAcceso: 'cliente' } }
 vi.mock('@/features/auth', () => ({ useAuth: () => ({ user: sesion.user }) }))
 const excel = vi.fn()
 vi.mock('@/lib/excel', () => ({ descargarExcelDeFilas: (...a: unknown[]) => excel(...a) }))
@@ -110,7 +110,7 @@ describe('InformesAccutabCliente', () => {
     unmount()
 
     verInforme.mockClear()
-    sesion.user = { tipoAcceso: 'admin_general' }
+    sesion.user = { tipoAcceso: 'admin_general', email: 'jorge.sandoval@agrofresh.com' }
     render(<InformesAccutabCliente />)
     expect(await screen.findByText(/Informes simulados/)).toBeInTheDocument()
     expect(screen.getByText('Informe simulado · sin PDF')).toBeInTheDocument()

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { formatDateCL, formatDecimalCL } from '@/lib/locale'
 import type { Analito, LimiteAnalito, Observacion } from '@/features/reportes'
+import { fichaSimulada } from '@/features/reportes/lib/simulacion'
 import { FichaInformeModal } from './FichaInformeModal'
 import styles from './DetalleObservacionesModal.module.css'
 
@@ -11,12 +12,16 @@ interface DetalleObservacionesModalProps {
   filas: Observacion[]
   onCerrar: () => void
   /** Abre la ficha del informe con vista previa del PDF (el cliente la ve sin límites ni datos internos). */
-  fichaCompleta?: { analitos: Analito[]; limites: LimiteAnalito[]; graficos?: ReactNode; sinLimites?: boolean }
+  fichaCompleta?: { analitos: Analito[]; limites: LimiteAnalito[]; graficos?: ReactNode; sinLimites?: boolean; simulada?: boolean }
 }
 
 export function DetalleObservacionesModal({ titulo, filas, onCerrar, fichaCompleta }: DetalleObservacionesModalProps) {
   const ids = new Set(filas.map((o) => o.solicitudId))
   const [unico] = ids
+  if (fichaCompleta?.simulada && ids.size === 1 && unico != null) {
+    // Datos simulados: la misma ficha que ve un cliente, armada con las filas en memoria (sin servidor ni PDF).
+    return <FichaInformeModal solicitudId={unico} titulo={titulo} analitos={fichaCompleta.analitos} limites={fichaCompleta.limites} onCerrar={onCerrar} sinLimites fichaLocal={fichaSimulada(filas, fichaCompleta.analitos)} />
+  }
   if (fichaCompleta && ids.size === 1 && unico != null && unico > 0) {
     return <FichaInformeModal solicitudId={unico} titulo={titulo} analitos={fichaCompleta.analitos} limites={fichaCompleta.limites} onCerrar={onCerrar} graficos={fichaCompleta.graficos} sinLimites={fichaCompleta.sinLimites} />
   }

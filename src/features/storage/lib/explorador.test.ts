@@ -9,6 +9,8 @@ import {
   tipoDeArchivo,
   estaDentro,
   filtrarEntradas,
+  filtrarPorPlanta,
+  opcionesDePlantas,
   formatoTamano,
   migasDe,
   nombreVisible,
@@ -203,5 +205,31 @@ describe('leerArrastre', () => {
     expect(leerArrastre('no es json')).toBeNull()
     expect(leerArrastre('[]')).toBeNull()
     expect(leerArrastre('')).toBeNull()
+  })
+})
+
+describe('filtrar carpetas de planta por Sold To y Ship To', () => {
+  const carpeta = (nombre: string) => ({ nombre, ruta: `informes/${nombre}`, tipo: 'carpeta' }) as EntradaStorage
+  const entradas = [carpeta('PLANTA A'), carpeta('PLANTA B'), carpeta('CHILLAN (X)'), carpeta('CHILLAN (Y)')]
+  const plantas = [
+    { carpeta: 'PLANTA A', sold_to: 'DOLE', ship_to: 'PLANTA A' },
+    { carpeta: 'PLANTA B', sold_to: 'VERFRUT', ship_to: 'PLANTA B' },
+    { carpeta: 'CHILLAN (X)', sold_to: 'X', ship_to: 'CHILLAN' },
+    { carpeta: 'CHILLAN (Y)', sold_to: 'Y', ship_to: 'CHILLAN' },
+  ]
+
+  it('sin filtro deja todo', () => {
+    expect(filtrarPorPlanta(entradas, plantas, { soldTo: '', shipTo: '' })).toHaveLength(4)
+  })
+  it('por Sold To deja solo sus plantas', () => {
+    expect(filtrarPorPlanta(entradas, plantas, { soldTo: 'DOLE', shipTo: '' }).map((e) => e.nombre)).toEqual(['PLANTA A'])
+  })
+  it('un Ship To repetido entre clientes se separa por su Sold To', () => {
+    expect(filtrarPorPlanta(entradas, plantas, { soldTo: 'Y', shipTo: 'CHILLAN' }).map((e) => e.nombre)).toEqual(['CHILLAN (Y)'])
+    expect(filtrarPorPlanta(entradas, plantas, { soldTo: '', shipTo: 'CHILLAN' })).toHaveLength(2)
+  })
+  it('las opciones se acotan al Sold To elegido', () => {
+    expect(opcionesDePlantas(entradas, plantas, '').soldTos).toEqual(['DOLE', 'VERFRUT', 'X', 'Y'])
+    expect(opcionesDePlantas(entradas, plantas, 'DOLE').shipTos).toEqual(['PLANTA A'])
   })
 })

@@ -142,7 +142,9 @@ def revisar_pdf(
         solicitud = buscar_solicitud(ot) if ot else None
         if solicitud is not None:
             esperado = plan_de(solicitud[1])
-        hallazgos += lectura.revisar_informe(leido, texto, solicitud, esperado, real, _propios())
+        # El personal del propio laboratorio (mismo dominio que quien manda el informe) se copia a sí mismo: no cuenta.
+        propios = _propios() | lectura.personal_del_laboratorio(real, lectura.direcciones(mensaje.get("From")))
+        hallazgos += lectura.revisar_informe(leido, texto, solicitud, esperado, real, propios)
     return {
         "pdf_nombre": nombre,
         "pdf_sha256": hashlib.sha256(contenido).hexdigest(),
@@ -365,6 +367,28 @@ def iniciar_sondeo(dias: int, disparado_por: str = "", forzar: bool = False) -> 
         return cur.fetchone()["id"], False
 
 
+def reabrir_diagnofruit_sin_lector(dias: int) -> int:
+    """Hay informes de Diagnofruit que quedaron registrados con una lectura vieja (28-10-2026): los que llegaron ANTES de
+    que existiera su lector (sin leer y sin PDF guardado) y los que quedaron en rojo por copiar al propio personal del
+    laboratorio. Los que siguen pendientes, sin resolver y dentro de la ventana de esta revisión se sacan de la bandeja
+    (y de lo ya examinado) para que ESTA revisión los lea otra vez. Lo aceptado, rechazado o resuelto no se toca."""
+    donde = ("laboratorio = 'Diagnofruit' AND decision = 'pendiente' AND resuelto_en IS NULL"
+             " AND ((NOT soportado AND r2_key IS NULL) OR hallazgos::text LIKE '%%destinatarios_de_mas%%')")
+    try:
+        with conexion() as conn, cursor_dict(conn) as cur:
+            cur.execute(f"SELECT DISTINCT message_id FROM correo_informe WHERE {donde}"
+                        " AND llegada_en > now() - make_interval(days => %s)", (dias,))
+            ids = [f["message_id"] for f in cur.fetchall()]
+            if not ids:
+                return 0
+            cur.execute(f"DELETE FROM correo_informe WHERE message_id = ANY(%s) AND {donde}", (ids,))
+            cur.execute("DELETE FROM correo_informe_visto WHERE message_id = ANY(%s)", (ids,))
+            return len(ids)
+    except Exception:  # noqa: BLE001 — falta una migración o una columna: la revisión sigue como siempre
+        logger.exception("No se pudieron reabrir los informes de Diagnofruit")
+        return 0
+
+
 def correr_sondeo(sondeo_id: int, dias: int, maximo: int = MAXIMO_POR_REVISION, presupuesto_s: float = PRESUPUESTO_S) -> dict[str, Any]:
     """Hace la revisión de un sondeo ya anotado. Lo que alcanza a registrar queda guardado aunque se corte:
     la próxima revisión sigue desde donde quedó (lo ya examinado no se vuelve a bajar)."""
@@ -379,6 +403,7 @@ def correr_sondeo(sondeo_id: int, dias: int, maximo: int = MAXIMO_POR_REVISION, 
             if typ != "OK":
                 raise RuntimeError(f"No se pudo abrir la carpeta {CARPETA} del buzón.")
             uids = _buscar_uids(imap, dias)[-maximo:]
+            reabrir_diagnofruit_sin_lector(dias)
             with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
                 # Lo que antes se descartó como «respuesta o reenvío» se vuelve a mirar UNA vez (puede ser el informe
                 # corregido que el laboratorio mandó contestando el hilo); queda anotado con su motivo nuevo.
@@ -410,7 +435,7 @@ def correr_sondeo(sondeo_id: int, dias: int, maximo: int = MAXIMO_POR_REVISION, 
                 with conexion() as conn, cursor_dict(conn) as cur:
                     for fila in filas:
                         llave = None
-                        if fila["laboratorio"] == "Quiteca":
+                        if fila["laboratorio"] in ("Quiteca", "Diagnofruit"):
                             correo_informes_homogeneo.completar_fila(fila, datos_pdf[fila["pdf_nombre"]])
                         if fila["laboratorio"] and fila["soportado"]:
                             sello = (llegada or datetime.now()).strftime("%Y/%m")
@@ -640,7 +665,7 @@ def homogeneizacion(informe_id: int, _: Usuario = Depends(exigir_principal)) -> 
     if not fila:
         raise HTTPException(404, "Ese informe no está en la bandeja.")
     if fila["laboratorio"] not in correo_informes_homogeneo.LABORATORIOS_CARGABLES:
-        raise HTTPException(409, "Por ahora solo se homogeneizan los informes de Quiteca y AgroFresh.")
+        raise HTTPException(409, "Por ahora solo se homogeneizan los informes de Quiteca, AgroFresh y Diagnofruit.")
     if fila["ya_cargado"]:
         raise HTTPException(409, "Este informe ya está cargado en el sistema.")
     from . import r2

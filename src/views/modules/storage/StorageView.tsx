@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
+import { PortalContext } from '@/components/layout/portal/PortalContext'
 import { Card } from '@/components/ui/Card'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { ESPACIOS, operaciones, puede, useAvisos, useFavoritos } from '@/features/storage'
@@ -17,9 +18,14 @@ interface PermisosAbiertos {
   ruta: string
 }
 
-function ExploradorStorage() {
+/**
+ * `soloInformes`: «Informes de Laboratorio» en la Vista de cliente. Solo muestra el espacio Informes (las carpetas de los
+ * informes y de los clientes), sin los archivos del servidor, solicitudes ni Accutab, y solo para mirar.
+ */
+function ExploradorStorage({ soloInformes = false }: { soloInformes?: boolean }) {
   const { user } = useAuth()
-  const [espacioId, setEspacioId] = useState<Espacio['id']>('local')
+  const espaciosVisibles = soloInformes ? ESPACIOS.filter((e) => e.id === 'informes') : ESPACIOS
+  const [espacioId, setEspacioId] = useState<Espacio['id']>(soloInformes ? 'informes' : 'local')
   const [ruta, setRuta] = useState('')
   // Sube cuando algo cambió (crear, mover, borrar, permisos): relee árbol y listado.
   const [version, setVersion] = useState(0)
@@ -31,7 +37,7 @@ function ExploradorStorage() {
 
   const esAdmin = user?.tipoAcceso === 'admin_general'
   // Gerencia mira todo, pero no modifica nada.
-  const puedeEscribir = user?.tipoAcceso !== 'gerencia'
+  const puedeEscribir = user?.tipoAcceso !== 'gerencia' && !soloInformes
   const espacio = ESPACIOS.find((e) => e.id === espacioId) ?? ESPACIOS[0]
   const espacioPermisos = ESPACIOS.find((e) => e.id === permisos?.espacioId)
   const rutaActual = ruta || espacio.raiz
@@ -78,16 +84,16 @@ function ExploradorStorage() {
     <div>
       <header className={styles.hero} style={{ '--acento': espacio.acento } as React.CSSProperties}>
         <div className={styles.heroTexto}>
-          <h1 className={styles.heroTitulo}>Storage</h1>
+          <h1 className={styles.heroTitulo}>{soloInformes ? 'Informes de Laboratorio' : 'Storage'}</h1>
           <p className={styles.heroDescripcion}>{espacio.descripcion}</p>
         </div>
-        <BusquedaGlobal onAbrir={(id, r, destacar) => ir(id, r, destacar)} />
+        {!soloInformes && <BusquedaGlobal onAbrir={(id, r, destacar) => ir(id, r, destacar)} />}
       </header>
 
       <Card>
         <div className={styles.pagina} data-con-panel={permisos && esAdmin ? 'si' : 'no'}>
           <nav className={styles.lateral} aria-label="Carpetas">
-            {favoritos.length > 0 && (
+            {!soloInformes && favoritos.length > 0 && (
               <div className={styles.lateralGrupo}>
                 <p className={styles.lateralTitulo}>★ Favoritos</p>
                 {favoritos.map((f) => {
@@ -111,7 +117,7 @@ function ExploradorStorage() {
                 })}
               </div>
             )}
-            {ESPACIOS.map((e) => (
+            {espaciosVisibles.map((e) => (
               <div key={e.id} className={styles.lateralGrupo}>
                 <ArbolCarpetas
                   espacio={e}
@@ -163,5 +169,7 @@ function ExploradorStorage() {
 /** La ruta de Storage: una cuenta de cliente ve solo los informes de su Ship To; el resto, el explorador de siempre. */
 export function StorageView() {
   const { user } = useAuth()
-  return user?.tipoAcceso === 'cliente' || user?.tipoAcceso === 'comercial' ? <InformesClienteView /> : <ExploradorStorage />
+  // En la Vista de cliente («Informes de Laboratorio») el administrador ve solo lo que ve un cliente: la carpeta Informes.
+  const enVistaCliente = useContext(PortalContext)
+  return user?.tipoAcceso === 'cliente' || user?.tipoAcceso === 'comercial' ? <InformesClienteView /> : <ExploradorStorage soloInformes={enVistaCliente} />
 }

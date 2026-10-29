@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/features/auth'
-import { useSimulacion } from '@/features/simulacion'
+import { puedeSimular, useSimulacion } from '@/features/simulacion'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { descargarPdfCliente, listarInformesCliente, verInformeCliente, verPdfCliente } from '@/features/postventa'
 import type { CargaTrace, ResumenCargaTrace } from '@/features/postventa'
@@ -14,8 +14,8 @@ import styles from './ReporteAccutab.module.css'
 export function InformesAccutabCliente() {
   const { user } = useAuth()
   const { accutab: simulacion } = useSimulacion()
-  // Solo el administrador ve informes simulados (los prende desde Report); un cliente nunca.
-  const simulado = user?.tipoAcceso === 'admin_general' || user?.tipoAcceso === 'admin_area' ? simulacion : null
+  // Solo quien puede simular ve informes simulados (los prende desde Report); un cliente nunca.
+  const simulado = puedeSimular(user) ? simulacion : null
   const [reales, setInformes] = useState<ResumenCargaTrace[] | null>(null)
   const informes = simulado ? simulado.informes : reales
   const [error, setError] = useState<string | null>(null)
