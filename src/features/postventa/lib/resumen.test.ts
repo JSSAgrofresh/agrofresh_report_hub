@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { ResumenCargaTrace } from './api'
 import {
-  FILTRO_CARGAS_VACIO,
   calcularKpis,
   cargasPorMes,
   cronologico,
   fechaDeCarga,
-  filtrarCargas,
   opcionesDeCampo,
   resumenPorEquipo,
 } from './resumen'
@@ -28,8 +26,6 @@ function carga(p: Partial<ResumenCargaTrace> & { carpeta: string }): ResumenCarg
   }
 }
 
-const HOY = new Date(Date.UTC(2026, 8, 28))
-
 describe('fechaDeCarga', () => {
   it('sale del nombre de la carpeta, y si no calza, del ISO', () => {
     expect(fechaDeCarga(carga({ carpeta: '2026-08-24_14-32-07' }))).toBe('2026-08-24')
@@ -37,48 +33,6 @@ describe('fechaDeCarga', () => {
       '2026-07-01',
     )
     expect(fechaDeCarga(carga({ carpeta: 'otra' }))).toBeNull()
-  })
-})
-
-describe('filtrarCargas', () => {
-  const cargas = [
-    carga({ carpeta: '2026-09-20_10-00-00', cliente: 'Cliente A', equipo: 'EQUIPO_1' }),
-    carga({ carpeta: '2026-07-01_10-00-00', cliente: 'cliente a', equipo: 'EQUIPO_2' }),
-    carga({ carpeta: '2025-01-01_10-00-00', cliente: 'Cliente B', equipo: 'EQUIPO_1' }),
-  ]
-
-  it('sin filtros devuelve todo', () => {
-    expect(filtrarCargas(cargas, FILTRO_CARGAS_VACIO, HOY)).toHaveLength(3)
-  })
-
-  it('Ship To y posición de muestreo se filtran igual que el cliente', () => {
-    const lista = [
-      carga({ carpeta: '2026-09-20_10-00-00', planta: 'LONTUE', ubicacion: 'Línea 1' }),
-      carga({ carpeta: '2026-09-19_10-00-00', planta: 'Lontue', ubicacion: 'Línea 2' }),
-      carga({ carpeta: '2026-09-18_10-00-00', planta: 'Molina', ubicacion: 'Línea 1' }),
-    ]
-    expect(filtrarCargas(lista, { ...FILTRO_CARGAS_VACIO, planta: 'lontue' }, HOY)).toHaveLength(2)
-    expect(filtrarCargas(lista, { ...FILTRO_CARGAS_VACIO, ubicacion: 'línea 1' }, HOY)).toHaveLength(2)
-    expect(
-      filtrarCargas(lista, { ...FILTRO_CARGAS_VACIO, planta: 'Lontue', ubicacion: 'Línea 2' }, HOY),
-    ).toHaveLength(1)
-  })
-
-  it('cliente y equipo sin importar mayúsculas', () => {
-    expect(
-      filtrarCargas(cargas, { ...FILTRO_CARGAS_VACIO, cliente: 'CLIENTE A' }, HOY),
-    ).toHaveLength(2)
-    expect(filtrarCargas(cargas, { ...FILTRO_CARGAS_VACIO, equipo: 'equipo_1' }, HOY)).toHaveLength(
-      2,
-    )
-  })
-
-  it('el período cuenta hacia atrás desde hoy', () => {
-    expect(
-      filtrarCargas(cargas, { ...FILTRO_CARGAS_VACIO, periodo: '30' }, HOY).map((c) => c.carpeta),
-    ).toEqual(['2026-09-20_10-00-00'])
-    expect(filtrarCargas(cargas, { ...FILTRO_CARGAS_VACIO, periodo: '90' }, HOY)).toHaveLength(2)
-    expect(filtrarCargas(cargas, { ...FILTRO_CARGAS_VACIO, periodo: '365' }, HOY)).toHaveLength(2)
   })
 })
 

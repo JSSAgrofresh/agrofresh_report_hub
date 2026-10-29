@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { CategoryScale, Chart, Filler, LinearScale, LineController, LineElement, PointElement, Tooltip } from 'chart.js'
 import type { ChartConfiguration } from 'chart.js'
-import styles from './InformesAccutabCliente.module.css'
+import styles from './ReporteAccutab.module.css'
 
 Chart.register(CategoryScale, LinearScale, LineController, LineElement, PointElement, Filler, Tooltip)
 
@@ -81,7 +81,7 @@ export function GraficoMedicion({
           },
         },
         scales: {
-          x: { grid: { display: false }, border: { display: false }, ticks: { color: COLOR_EJE, maxTicksLimit: 6, autoSkip: true } },
+          x: { grid: { display: false }, border: { display: false }, ticks: { color: COLOR_EJE, maxTicksLimit: 6, autoSkip: true, maxRotation: 0 } },
           y: { grid: { color: COLOR_GRILLA }, border: { display: false }, ticks: { color: COLOR_EJE } },
         },
       },
