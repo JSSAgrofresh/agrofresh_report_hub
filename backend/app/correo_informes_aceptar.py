@@ -92,7 +92,7 @@ def _guardar_pdf(datos: bytes, nombre: str, fila: dict, lectura: dict, usuario: 
         archivo_solicitud=fila.get("archivo_solicitud") or "",
         ot_informe=d.get("OT") or fila.get("ot") or "",
         fecha_envio=llegada.isoformat() if llegada else "",
-        fecha=quiteca_lectura.a_iso(d.get("Fecha Muestreo")) or "",
+        fecha=quiteca_lectura.a_iso(d.get("Fecha Informe") or d.get("Fecha entrada") or d.get("Fecha Muestreo")) or "",
         analisis=d.get("Tipo de servicio") or "",
         enviado_cliente="1" if enviado_cliente else "",
         usuario=usuario,
