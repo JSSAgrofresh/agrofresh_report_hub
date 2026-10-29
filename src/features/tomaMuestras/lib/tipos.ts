@@ -47,6 +47,9 @@ export interface Solicitud {
   /** Solicitud de prueba: folio de su propia serie (OTP-DIAG0001), nunca se
    * envía sola y su correo dice "(PRUEBA)". Ausente = false. */
   es_prueba?: boolean
+  /** Muestra interna (pulpa propia de AgroFresh, Ship To MUESTRA INTERNA): sin Tipo Aplicación, nunca se
+   * envía sola. Ausente = false. */
+  muestra_interna?: boolean
   /** Creada con la regla nueva: dice MIXTO desde 2 productos. Ausente = la regla
    * de antes (MIXTO desde 3); lo ya emitido no se reescribe. */
   mixto_desde_2?: boolean
@@ -138,6 +141,7 @@ export type SolicitudInput = Omit<
   | 'solicitud_original_archivo'
   | 'motivo_reanalisis'
   | 'es_prueba'
+  | 'muestra_interna'
   | 'mixto_desde_2'
 >
 

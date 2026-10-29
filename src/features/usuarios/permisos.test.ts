@@ -4,6 +4,7 @@ import {
   etiquetaAcceso,
   modulosPermitidos,
   puedeCrearReanalisis,
+  puedeCrearMuestraInterna,
   puedeEditarCriteriosLab,
   puedeFirmarVerificaciones,
   puedeVerReporte,
@@ -215,5 +216,18 @@ describe('cuenta de comercial', () => {
     expect(puedeVerTomaMuestras({ ...comercial, modulos: ['toma_muestras'] })).toBe(true) // Solicitudes e informes
     expect(puedeCrearReanalisis({ ...comercial, modulos: ['toma_muestras', 'toma_reanalisis'] })).toBe(false)
     expect(etiquetaAcceso(comercial)).toBe('Comercial')
+  })
+})
+
+describe('muestra interna', () => {
+  const u = (tipoAcceso: Usuario['tipoAcceso'], modulos?: string[]) => ({ tipoAcceso, modulos }) as Pick<Usuario, 'tipoAcceso' | 'modulos'>
+  it('solo el admin general y quien tenga la función la pueden crear', () => {
+    expect(puedeCrearMuestraInterna(u('admin_general'))).toBe(true)
+    expect(puedeCrearMuestraInterna(u('admin_area', ['toma_muestras']))).toBe(false)
+    expect(puedeCrearMuestraInterna(u('admin_area', ['toma_muestras', 'toma_muestra_interna']))).toBe(true)
+    expect(puedeCrearMuestraInterna(u('muestreador', ['toma_muestra_interna']))).toBe(true)
+    expect(puedeCrearMuestraInterna(u('gerencia', ['toma_muestra_interna']))).toBe(false)
+    expect(puedeCrearMuestraInterna(u('cliente', ['toma_muestra_interna']))).toBe(false)
+    expect(puedeCrearMuestraInterna(u('comercial', ['toma_muestra_interna']))).toBe(false)
   })
 })

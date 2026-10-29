@@ -16,6 +16,7 @@ export {
   puedeVerTomaMuestras,
   puedeCrearReanalisis,
   puedeEditarSolicitudes,
+  puedeCrearMuestraInterna,
   puedeFirmarVerificaciones,
   vistaDeCliente,
   puedeVerVistaCliente,

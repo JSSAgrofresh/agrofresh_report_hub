@@ -20,6 +20,7 @@ const {
   obtenerEnvioAutomatico,
   enviarSolicitudPorCorreo,
   crearSolicitudPrueba,
+  crearSolicitudInterna,
 } = vi.hoisted(() => ({
   crearSolicitud: vi.fn(),
   actualizarSolicitud: vi.fn(),
@@ -35,6 +36,7 @@ const {
   obtenerEnvioAutomatico: vi.fn().mockResolvedValue({ activo: false }),
   enviarSolicitudPorCorreo: vi.fn().mockResolvedValue({}),
   crearSolicitudPrueba: vi.fn(),
+  crearSolicitudInterna: vi.fn(),
 }))
 
 vi.mock('@/features/tomaMuestras', async () => {
@@ -52,8 +54,10 @@ vi.mock('@/features/tomaMuestras', async () => {
   obtenerEnvioAutomatico,
   enviarSolicitudPorCorreo,
   crearSolicitudPrueba,
+  crearSolicitudInterna,
   enviaSoloSegunTipo,
   destinatariosParaLaboratorio: vi.fn().mockResolvedValue({ destinatarios: [] }),
+  resultadosDeShipTo: vi.fn().mockResolvedValue([]),
   }
 })
 
@@ -584,6 +588,109 @@ describe('NuevaSolicitudView — solicitudes de prueba', () => {
     await waitFor(() => expect(screen.getByDisplayValue('OTP-… (se asigna al guardar)')).toBeTruthy())
     expect(screen.getByText('Guardar prueba')).not.toBeDisabled()
     expect(screen.queryByText(/quedan/)).toBeNull()
+  })
+})
+
+describe('NuevaSolicitudView — muestra interna', () => {
+  function renderInterna() {
+    render(
+      <MemoryRouter initialEntries={['/interna']}>
+        <Routes>
+          <Route path="/interna" element={<NuevaSolicitudView modo="interna" />} />
+          <Route path="/modulos/toma-muestras/detalle/:archivo" element={<div>detalle</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('esconde el Tipo de Aplicación, fija Ship To y Pulpa, y deja los campos libres', async () => {
+    mockConfigComun()
+    listarCamposConfig.mockResolvedValue([
+      ...CAMPOS_CONFIG,
+      { clave: 'ship_to', etiqueta: 'Ship To', tipo: 'select', requerido: true, activo: true, orden: 1.5 },
+    ])
+    renderInterna()
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+
+    expect(screen.queryByLabelText(/Tipo de Aplicación/)).toBeNull()
+    expect(screen.getByDisplayValue('MUESTRA INTERNA')).toBeDisabled()
+    expect(screen.getByDisplayValue('Pulpa')).toBeDisabled()
+    expect(screen.getByText('Guardar muestra interna')).toBeTruthy()
+    // Sin tipo de aplicación igual salen los analitos del laboratorio.
+    await waitFor(() => expect(screen.getByText('FDL')).toBeTruthy())
+    // Especie, Tipo Muestra y Fecha Muestreo dejan de ser obligatorios.
+    expect(screen.getByLabelText(/Fecha Muestreo/).getAttribute('required')).toBeNull()
+  })
+
+  it('guarda con el Ship To fijo, Pulpa y el Tipo Aplicación vacío, y NUNCA se envía sola', async () => {
+    mockConfigComun()
+    obtenerEnvioAutomatico.mockResolvedValue({ activo: true })
+    enviarSolicitudPorCorreo.mockClear()
+    crearSolicitudInterna.mockReset()
+    crearSolicitudInterna.mockResolvedValue({ archivo: 'OT-AGF0900.xlsx' })
+    renderInterna()
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText(/Laboratorio/), { target: { value: 'AGROFRESH' } })
+    await waitFor(() => expect(screen.getByText('FDL')).toBeTruthy())
+    const tarjeta = screen.getByTestId('analito-card-1')
+    fireEvent.click(within(tarjeta).getByRole('checkbox'))
+    fireEvent.click(within(tarjeta).getByRole('button', { name: 'No indicar dosis' }))
+
+    fireEvent.click(screen.getByText('Guardar muestra interna'))
+    await waitFor(() => expect(crearSolicitudInterna).toHaveBeenCalledTimes(1))
+    const enviado = crearSolicitudInterna.mock.calls[0][0]
+    expect(enviado.sold_to).toBe('AGROFRESH')
+    expect(enviado.ship_to).toBe('MUESTRA INTERNA')
+    expect(enviado.tipo_muestra).toBe('Pulpa')
+    expect(enviado.campos_laboratorio['Tipo Aplicación']).toBe('')
+    expect(enviado.analitos_solicitados).toEqual(['FDL'])
+    expect(enviarSolicitudPorCorreo).not.toHaveBeenCalled()
+    obtenerEnvioAutomatico.mockResolvedValue({ activo: false })
+  })
+
+  it('editar una muestra interna tampoco la envía sola, aunque el envío automático esté prendido', async () => {
+    mockConfigComun()
+    obtenerEnvioAutomatico.mockResolvedValue({ activo: true })
+    enviarSolicitudPorCorreo.mockClear()
+    actualizarSolicitud.mockClear()
+    const interna = solicitudBase({
+      muestra_interna: true, sold_to: 'AGROFRESH', ship_to: 'MUESTRA INTERNA', tipo_muestra: 'Pulpa',
+      numero_solicitud: 'OT-AGF0900', archivo: 'OT-AGF0900.xlsx',
+      campos_laboratorio: { 'Fludioxonil (ppm)': '25', 'Tipo Aplicación': '' },
+      analitos_solicitados: ['FDL'],
+    })
+    obtenerSolicitud.mockResolvedValue(interna)
+    actualizarSolicitud.mockResolvedValue(interna)
+    render(
+      <MemoryRouter initialEntries={['/editar/OT-AGF0900.xlsx']}>
+        <Routes>
+          <Route path="/editar/:archivo" element={<NuevaSolicitudView modo="editar" />} />
+          <Route path="/modulos/toma-muestras/detalle/:archivo" element={<div>detalle</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(screen.getByDisplayValue('OT-AGF0900')).toBeTruthy())
+    await waitFor(() => expect(screen.getByDisplayValue('25')).toBeTruthy())
+    fireEvent.click(screen.getByText('Guardar'))
+    
+    await waitFor(() => expect(actualizarSolicitud).toHaveBeenCalledTimes(1))
+    expect(enviarSolicitudPorCorreo).not.toHaveBeenCalled()
+    obtenerEnvioAutomatico.mockResolvedValue({ activo: false })
+  })
+
+  it('una solicitud normal sigue pidiendo el Tipo de Aplicación', async () => {
+    mockConfigComun()
+    render(
+      <MemoryRouter initialEntries={['/nueva']}>
+        <Routes>
+          <Route path="/nueva" element={<NuevaSolicitudView />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(screen.getByText('AgroFresh')).toBeTruthy())
+    expect(screen.getByLabelText(/Tipo de Aplicación/)).toBeTruthy()
+    expect(screen.queryByText('Guardar muestra interna')).toBeNull()
   })
 })
 
