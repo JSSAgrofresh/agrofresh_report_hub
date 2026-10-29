@@ -1,5 +1,6 @@
 import { httpClient } from '@/services/http/client'
 import { descargarArchivo } from '@/services/http/descargar'
+import { crearCacheDeSesion } from '@/lib/cacheDeSesion'
 
 /** Una medición ya normalizada y unificada pH+ORP, tal como la deja Trace. */
 export interface FilaTrace {
@@ -56,12 +57,28 @@ export interface CargaTrace extends ResumenCargaTrace {
   archivos: string[]
 }
 
+/**
+ * Lo último que se vio, por sesión: cambiar de pantalla y volver dibuja de inmediato lo que ya se tenía y lo actualiza por
+ * detrás. Una carga guardada no cambia (un informe nuevo es una carga nueva), así que sus mediciones se piden una vez.
+ */
+export const cacheListaCargas = crearCacheDeSesion<ResumenCargaTrace[]>(2)
+const cacheMediciones = crearCacheDeSesion<CargaTrace>(6)
+
+/** Las mediciones de una carga; las que ya se pidieron en esta sesión no vuelven a bajar (pueden ser miles de filas). */
+export async function conMedicionesEnMemoria(carpeta: string, pedir: () => Promise<CargaTrace>): Promise<CargaTrace> {
+  const guardada = cacheMediciones.leer(carpeta)
+  if (guardada) return guardada
+  const carga = await pedir()
+  cacheMediciones.guardar(carpeta, carga)
+  return carga
+}
+
 export function listarCargasTrace() {
   return httpClient.get<ResumenCargaTrace[]>('/postventa/registros')
 }
 
 export function verCargaTrace(carpeta: string) {
-  return httpClient.get<CargaTrace>(`/postventa/registros/${encodeURIComponent(carpeta)}`)
+  return conMedicionesEnMemoria(`equipo|${carpeta}`, () => httpClient.get<CargaTrace>(`/postventa/registros/${encodeURIComponent(carpeta)}`))
 }
 
 export function eliminarCargaTrace(carpeta: string) {
@@ -85,7 +102,7 @@ export function listarInformesCliente() {
 
 /** Portal de cliente: las mediciones de UN informe suyo (para sus gráficos). */
 export function verInformeCliente(carpeta: string) {
-  return httpClient.get<CargaTrace>(`/postventa/cliente/informes/${encodeURIComponent(carpeta)}`)
+  return conMedicionesEnMemoria(`cliente|${carpeta}`, () => httpClient.get<CargaTrace>(`/postventa/cliente/informes/${encodeURIComponent(carpeta)}`))
 }
 
 /** Abre el PDF en una pestaña nueva (lleva el token, por eso no es un enlace directo). */

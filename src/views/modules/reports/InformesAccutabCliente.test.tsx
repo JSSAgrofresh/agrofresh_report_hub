@@ -84,6 +84,15 @@ describe('InformesAccutabCliente', () => {
     expect(screen.getByLabelText('Análisis 1')).toBeInTheDocument()
   })
 
+  it('al volver a la pantalla dibuja de inmediato los informes que ya se habían visto, sin pasar por «cargando»', async () => {
+    const primera = render(<InformesAccutabCliente />)
+    await screen.findByText('grafico pH')
+    primera.unmount()
+    render(<InformesAccutabCliente />)
+    // Sin esperar a nada: la lista ya está (se actualiza por detrás).
+    expect(screen.getByRole('button', { name: /02-10-2026 10:00/ })).toBeInTheDocument()
+  })
+
   it('ofrece solo los filtros con algo que elegir (Ship To sí; Sold To, posición, equipo y semana, con un solo valor, no) más el rango, y no el período viejo', async () => {
     render(<InformesAccutabCliente />)
     await screen.findByText('grafico pH')
