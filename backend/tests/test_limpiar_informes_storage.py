@@ -49,3 +49,25 @@ def test_repetidos_encuentra_los_numeros_con_mas_de_un_pdf():
     c = "informes/PLANTA A/2026-09-15/Linea/AgroFresh/AGF2026-11.pdf"
     conservar, _, _ = mod.clasificar([a, b, c], {"AGF2026-10", "AGF2026-11"})
     assert mod.repetidos(conservar) == {"agf2026-10": sorted([a, b])}
+
+
+NUEVA = "informes/LABORATORIO DE POSTCOSECHA/2026-09-30/Cromatografía/AgroFresh/AGF2026-10 AGROFRESH LABORATORIO DE POSTCOSECHA.pdf"
+ANTIGUA = "informes/A.G. SERVICIOS SPA/2026-08-27/AGF2026-10.pdf"
+
+
+def test_la_copia_del_formato_antiguo_sobra_si_hay_otra_en_el_orden_nuevo():
+    assert mod.formato_antiguo(ANTIGUA) and not mod.formato_antiguo(NUEVA)
+    assert mod.copias_sobrantes({"agf2026-10": [ANTIGUA, NUEVA]}) == {ANTIGUA: "copia del formato antiguo (hay otra en el orden nuevo)"}
+
+
+def test_una_copia_antigua_sola_no_se_toca():
+    assert mod.copias_sobrantes({"agf2026-10": [ANTIGUA, ANTIGUA.replace("2026-08-27", "2026-08-28")]}) == {}
+
+
+def test_entre_dos_copias_nuevas_se_queda_la_de_la_planta_de_report():
+    a = "informes/EXPORTADORA ERFRUT LTDA/2026-10-02/Linea de Proceso/Quiteca/2026-1907-PC.pdf"
+    b = "informes/FRIGORIFICO CHIMBARONGO/2026-10-02/Linea de Proceso/Quiteca/2026-1907-PC.pdf"
+    r = mod.copias_sobrantes({"2026-1907-pc": [a, b]}, {"2026-1907-pc": {"FRIGORIFICO CHIMBARONGO"}})
+    assert list(r) == [a]
+    assert mod.copias_sobrantes({"2026-1907-pc": [a, b]}, {"2026-1907-pc": {"OTRA PLANTA"}}) == {}
+    assert mod.copias_sobrantes({"2026-1907-pc": [a, b]}) == {}
