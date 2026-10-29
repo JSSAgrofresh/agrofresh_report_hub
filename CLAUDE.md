@@ -1012,6 +1012,16 @@ AGROFRESH con Ship To ENSAYO en el listado de cada servicio. El tope solo rige a
 (`Solicitud`) no se exige, así lo ya emitido no cambia ni sale del listado. El PDF la dibuja con `Paragraph` (envuelve y
 sigue en una página). Pruebas: `tests/test_observacion_ensayo.py`, `observacion.test.ts`, `NuevaSolicitudView.test.tsx`.
 
+## Muestra interna (29-10-2026, migración **0071**)
+
+Solicitud de **pulpa propia de AgroFresh**, para analizar en cualquier laboratorio. Botón «+ Muestra interna» en Toma de muestras → Solicitudes, ruta `/modulos/toma-muestras/interna/nueva` (`NuevaSolicitudView modo="interna"`).
+- **Permiso**: función suelta `toma_muestra_interna` (Usuarios → Toma de muestras → «Muestra interna»; se asigna cuenta por cuenta, hoy solo Paz; admin general la tiene). Backend `POST /api/toma-muestras/solicitudes-interna` (403 sin ella, `GET .../solicitudes-interna/estado`); front `puedeCrearMuestraInterna`, `RequireFuncion` en la ruta. Pruebas: `tests/test_muestra_interna.py`, `permisos.test.ts`, `NuevaSolicitudView.test.tsx`.
+- **Qué cambia respecto de una solicitud normal**: el Sold To / Ship To son fijos (`AGROFRESH` / `MUESTRA INTERNA`, los impone el servidor), el tipo de muestra es **Pulpa**, el «Tipo de Aplicación» se esconde (el campo viaja en `campos_laboratorio` pero vacío) y **ningún campo es obligatorio** (salvo laboratorio, «Generado por» y al menos un analito). Sin tipo de aplicación la solicitud cuenta como Línea de proceso para listados y destinatarios; los analitos del laboratorio salen todos (sin filtrar por tipo de aplicación). Folio normal del laboratorio (no tiene serie propia). **Se guarda y nunca se envía sola** (ni al crear ni al editar; se envía a mano desde el detalle). No admite reanálisis.
+- **Marca** `muestra_interna` en `datos` (se pone al crear; editar la conserva y re-impone Ship To y Pulpa): lo emitido antes no la tiene y no cambia. En el listado lleva la etiqueta «Interna».
+- **Lista de resultados fija** (`toma_muestras.MUESTRA_INTERNA_CORREOS`: rgarrido@, psalazar@ y jorge.sandoval@agrofresh.com, todos en Para): `_contactos_resultado` la devuelve para el par AGROFRESH + MUESTRA INTERNA, así que vale en el PDF, JSON, correo, «Sin lista» y Envío de informes sin tocar `contactos_laboratorio.json`. El correo de la solicitud al laboratorio sigue con los contactos del laboratorio.
+- **Migración 0071**: crea el Ship To `MUESTRA INTERNA` bajo el Sold To `AGROFRESH` en Listados (Línea de proceso); idempotente.
+- **Pendiente (por decidir)**: las reglas de Tipo de muestra del formulario normal (Agua solo en FSMA y Fito, Fruta en residuales, Pulpa reservada a la muestra interna) NO se aplicaron: hoy el desplegable sigue ofreciendo Fruta / Agua / Pulpa.
+
 ## Solicitudes de prueba
 
 Las pruebas llevan **su propia serie de folios**, `OTP-<prefijo><NNNN>` (OTP-DIAG0001,

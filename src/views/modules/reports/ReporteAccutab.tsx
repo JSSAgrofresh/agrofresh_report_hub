@@ -207,13 +207,15 @@ export function ReporteAccutab({ cargas, verCarga, accionesDe, mostrarOrigen = f
   // Si el informe elegido queda fuera de los filtros (o aún no se elige uno), se muestra el primero de la lista.
   const actual = filtradas.find((c) => c.carpeta === elegida) ?? filtradas[0] ?? null
   const nFiltros = contarFiltros(filtro)
+  // El equipo ve siempre la sección (vacía le dice dónde subir el primero); el cliente solo cuando ya tiene informes.
+  const hayCosto = !!costoKilo && (costoKilo.informes.length > 0 || costoKilo.modo === 'equipo')
 
   return (
     <section className={styles.wrap} style={{ '--acento': ACENTO } as CSSProperties} aria-label="Reporte Accu-Tab">
       {aviso}
       {error && <p className={styles.error}>{error}</p>}
 
-      {cargas.length === 0 && !(costoKilo && costoKilo.informes.length > 0) ? (
+      {cargas.length === 0 && !hayCosto ? (
         <EstadoModulo
           etiqueta="Sin informes todavía"
           titulo={vacio?.titulo ?? 'Aún no hay informes disponibles'}
@@ -227,7 +229,7 @@ export function ReporteAccutab({ cargas, verCarga, accionesDe, mostrarOrigen = f
               ...(cargas.length > 0
                 ? [{ nombre: 'Accutab', total: kpis.cargas, unidad: { uno: 'informe', varios: 'informes' }, icono: IconPozoAgua, onElegir: () => irASeccion(ID_SECCION) }]
                 : []),
-              ...(costoKilo && costoKilo.informes.length > 0
+              ...(costoKilo && hayCosto
                 ? [{ nombre: 'Costo por kilo', total: costoKilo.informes.length, unidad: { uno: 'informe', varios: 'informes' }, icono: IconKg, onElegir: () => irASeccion(ID_COSTO_KILO) }]
                 : []),
             ]}
@@ -302,7 +304,7 @@ export function ReporteAccutab({ cargas, verCarga, accionesDe, mostrarOrigen = f
             </>
           )}
 
-          {costoKilo && costoKilo.informes.length > 0 && (
+          {costoKilo && hayCosto && (
             <SeccionCostoKilo informes={costoKilo.informes} modo={costoKilo.modo} numero={cargas.length > 0 ? 2 : 1} acento={ACENTO} />
           )}
         </>

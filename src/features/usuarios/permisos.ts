@@ -154,7 +154,13 @@ export function puedeVerTomaMuestras(usuario: Usuario): boolean {
 /** «Mini funciones» que el administrador general reparte a cuentas concretas (Usuarios → permisos). Sin
  * migración: viajan en `modulos`. Espejo de `app/permisos_funciones.py` (mismos casos en `permisos.test.ts` y
  * `tests/test_permisos_funciones.py`). El administrador general las tiene todas; gerencia y clientes ninguna. */
-export type FuncionId = 'lab_criterios' | 'verif_firmar' | 'toma_reanalisis' | 'toma_editar' | 'vista_cliente'
+export type FuncionId =
+  | 'lab_criterios'
+  | 'verif_firmar'
+  | 'toma_reanalisis'
+  | 'toma_editar'
+  | 'toma_muestra_interna'
+  | 'vista_cliente'
 
 export function tieneFuncion(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>, funcion: FuncionId): boolean {
   if (usuario.tipoAcceso === 'admin_general') return true
@@ -189,6 +195,12 @@ export function puedeCrearReanalisis(usuario: Pick<Usuario, 'tipoAcceso' | 'modu
  * tipos de aplicación que NO se envían solos (el servidor lo exige igual; ver `puedeEditarSolicitud`). */
 export function puedeEditarSolicitudes(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
   return tieneFuncion(usuario, 'toma_editar')
+}
+
+/** Crear muestras internas (pulpa propia de AgroFresh, Ship To MUESTRA INTERNA): el admin general y quien tenga la función
+ * `toma_muestra_interna`, que se asigna cuenta por cuenta (hoy, Paz). */
+export function puedeCrearMuestraInterna(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
+  return tieneFuncion(usuario, 'toma_muestra_interna')
 }
 
 /** Qué ve una cuenta de cliente. Un cliente no pertenece a un área: el administrador le asigna qué ve. Las cuentas

@@ -19,7 +19,7 @@ import {
   IconoPdf,
 } from '@/components/ui/iconosAccion'
 import { useAuth } from '@/features/auth'
-import { esAdminGeneral } from '@/features/usuarios'
+import { esAdminGeneral, puedeCrearMuestraInterna } from '@/features/usuarios'
 import { ROUTES, rutaTomaMuestrasDetalle } from '@/constants/routes'
 import { formatDateCL } from '@/lib/locale'
 import {
@@ -425,6 +425,11 @@ export function SolicitudesView() {
                 + Prueba
               </Button>
             )}
+            {!esComercial && user && puedeCrearMuestraInterna(user) && (
+              <Button variant="secondary" onClick={() => navigate(ROUTES.tomaMuestrasNuevaInterna)}>
+                + Muestra interna
+              </Button>
+            )}
             {!esComercial && <Button onClick={() => navigate(ROUTES.tomaMuestrasNueva)}>+ Nueva solicitud</Button>}
           </>
         }
@@ -765,6 +770,7 @@ export function SolicitudesView() {
                         <span className={styles.numero}>
                           {s.numero_solicitud}
                           {s.es_prueba && <span className={styles.etiquetaPrueba}>Prueba</span>}
+                          {s.muestra_interna && <span className={styles.etiquetaPrueba}>Interna</span>}
                         </span>
                         <span className={styles.secundario}>
                           {formatDateCL(s.fecha_solicitud)} · <span className={styles.laboratorio}>{s.laboratorio}</span>

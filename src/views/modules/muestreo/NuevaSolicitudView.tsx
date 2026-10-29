@@ -28,6 +28,7 @@ import {
   actualizarSolicitud,
   crearSolicitud,
   crearSolicitudPrueba,
+  crearSolicitudInterna,
   crearSolicitudReanalisis,
   destinatariosParaLaboratorio,
   enviarSolicitudPorCorreo,
@@ -60,6 +61,10 @@ import { HttpError } from '@/services/http/client'
 import styles from './NuevaSolicitudView.module.css'
 
 const SOLICITANTE_FIJO = 'AGROFRESH'
+/** Muestra interna: Sold To / Ship To y tipo de muestra fijos (el servidor los impone igual). */
+const SOLD_TO_INTERNA = 'AGROFRESH'
+const SHIP_TO_INTERNA = 'MUESTRA INTERNA'
+const TIPO_MUESTRA_INTERNA = 'Pulpa'
 
 const TIPO_LINEA_PROCESO = 'Línea de proceso'
 const TIPO_ACTIMIST = 'Actimist'
@@ -148,8 +153,11 @@ interface NuevaSolicitudViewProps {
    * 'reanalisis' crea una solicitud derivada de la original (URL param
    * `archivo`), con laboratorio bloqueado y campo de motivo obligatorio.
    * 'prueba' crea una solicitud de prueba (solo la cuenta autorizada): folio
-   * con folio de su propia serie (OTP-…) y nunca se envía sola. */
-  modo?: 'crear' | 'editar' | 'reanalisis' | 'prueba'
+   * con folio de su propia serie (OTP-…) y nunca se envía sola.
+   * 'interna' crea una muestra interna (pulpa propia de AgroFresh): Ship To fijo
+   * MUESTRA INTERNA, sin Tipo de Aplicación, campos libres y sin envío automático
+   * (solo la cuenta con la función `toma_muestra_interna`). */
+  modo?: 'crear' | 'editar' | 'reanalisis' | 'prueba' | 'interna'
 }
 
 export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) {
@@ -185,8 +193,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   const [posiciones, setPosiciones] = useState<string[]>([''])
   const [codigoEnsayo, setCodigoEnsayo] = useState('')
   const [nroEnsayo, setNroEnsayo] = useState('')
-  const [soldTo, setSoldTo] = useState('')
-  const [shipTo, setShipTo] = useState('')
+  const [soldTo, setSoldTo] = useState(() => (modo === 'interna' ? SOLD_TO_INTERNA : ''))
+  const [shipTo, setShipTo] = useState(() => (modo === 'interna' ? SHIP_TO_INTERNA : ''))
   const [lineaProceso, setLineaProceso] = useState('')
   // Una aplicación puede llevar más de un producto, así que la selección es
   // múltiple. Se guarda como lista y se envía unida por coma para no cambiar
@@ -239,7 +247,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   // es como si para ella el envío automático estuviera apagado.
   const esPrueba = modo === 'prueba' || (modo === 'editar' && !!solicitudOriginal?.es_prueba)
   // La regla depende del tipo de aplicación elegido (Actimist, Línea de proceso…).
-  const enviaSolo = enviaSoloSegunTipo(envioAutomatico, tipoAplicacionSel) && !esPrueba
+  // Una muestra interna (pulpa propia, Ship To MUESTRA INTERNA) tampoco se envía sola: se guarda y se envía a mano.
+  const esInterna = modo === 'interna' || (modo === 'editar' && !!solicitudOriginal?.muestra_interna)
+  const enviaSolo = enviaSoloSegunTipo(envioAutomatico, tipoAplicacionSel) && !esPrueba && !esInterna
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const prellenadoGeneralRef = useRef(false)
   const prellenadoAnalitosRef = useRef(false)
@@ -527,9 +537,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
         (p) =>
           p.laboratorio === laboratorio &&
           p.activo &&
-          (!p.tipo_aplicacion || p.tipo_aplicacion === tipoAplicacionSel),
+          (esInterna || !p.tipo_aplicacion || p.tipo_aplicacion === tipoAplicacionSel),
       ),
-    [productosTodos, laboratorio, tipoAplicacionSel],
+    [productosTodos, laboratorio, tipoAplicacionSel, esInterna],
   )
   /** Análisis (paneles) activos del laboratorio elegido, en su orden de
    * mantenedor. Un mismo analito puede estar en más de uno -por eso el
@@ -577,14 +587,14 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           (a) =>
             a.laboratorio === laboratorio &&
             a.activo &&
-            (!a.tipo_aplicacion || a.tipo_aplicacion === tipoAplicacionSel),
+            (esInterna || !a.tipo_aplicacion || a.tipo_aplicacion === tipoAplicacionSel),
         )
         .sort((a, b) => {
           const ordenA = analisisPorAnalito.get(a.id)?.orden ?? Number.MAX_SAFE_INTEGER
           const ordenB = analisisPorAnalito.get(b.id)?.orden ?? Number.MAX_SAFE_INTEGER
           return ordenA - ordenB || grupoDe(a).localeCompare(grupoDe(b)) || a.orden - b.orden
         }),
-    [analitosTodos, laboratorio, tipoAplicacionSel, analisisPorAnalito],
+    [analitosTodos, laboratorio, tipoAplicacionSel, analisisPorAnalito, esInterna],
   )
 
   // Los analitos de un Análisis "Panel completo" vienen marcados de entrada
@@ -813,6 +823,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
   /** Obligatoriedad efectiva de un campo: las reglas por Tipo de Aplicación
    * mandan sobre el sí/no configurado en el mantenedor. */
   function esRequerido(campo: CampoConfig): boolean {
+    // Muestra interna: todos los campos libres, sin obligatoriedad.
+    if (esInterna) return false
     if (NUNCA_REQUERIDO.has(campo.clave)) return false
     if (SIEMPRE_REQUERIDO.has(campo.clave)) return true
     return campo.requerido
@@ -866,7 +878,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       setError('Selecciona un laboratorio.')
       return
     }
-    if (!tipoAplicacionSel) {
+    if (!tipoAplicacionSel && !esInterna) {
       setError('Selecciona un Tipo de Aplicación.')
       return
     }
@@ -882,7 +894,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     }
 
     const codigosAnalitosSolicitados: string[] = []
-    const camposLabFinal: Record<string, string> = { 'Tipo Aplicación': tipoAplicacionSel }
+    // La muestra interna lleva el campo «Tipo Aplicación», pero vacío.
+    const camposLabFinal: Record<string, string> = { 'Tipo Aplicación': esInterna ? '' : tipoAplicacionSel }
     for (const analito of analitosLab) {
       if (!seleccionAnalitos[analito.id]) continue
       const valor = valoresAnalitos[analito.id]?.trim()
@@ -915,8 +928,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     const payload = {
       laboratorio,
       solicitante: SOLICITANTE_FIJO,
-      sold_to: esRYD ? '' : soldTo.trim(),
-      ship_to: esRYD ? null : shipTo.trim() || null,
+      sold_to: esInterna ? SOLD_TO_INTERNA : esRYD ? '' : soldTo.trim(),
+      ship_to: esInterna ? SHIP_TO_INTERNA : esRYD ? null : shipTo.trim() || null,
       especie: general.especie?.trim() || null,
       variedad: general.variedad?.trim() || null,
       linea_proceso: (esLineaProceso || esRYD) ? lineaProceso || null : null,
@@ -939,7 +952,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       // aparte la lista completa (las solicitudes anteriores: desde 3).
       producto_utilizado: productosSeleccionados.join(', ') || null,
       productos_lista: productosSeleccionados,
-      tipo_muestra: general.tipo_muestra?.trim() || null,
+      tipo_muestra: esInterna ? TIPO_MUESTRA_INTERNA : general.tipo_muestra?.trim() || null,
       fecha_muestreo: general.fecha_muestreo || null,
       hora_muestreo: general.hora_muestreo || null,
       nombre_muestreador: general.nombre_muestreador?.trim() || null,
@@ -971,6 +984,10 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       } else if (modo === 'prueba') {
         const prueba = await crearSolicitudPrueba(payload)
         navigate(rutaTomaMuestrasDetalle(prueba.archivo))
+      } else if (modo === 'interna') {
+        // Nunca se envía sola: se guarda y se envía a mano desde su detalle.
+        const interna = await crearSolicitudInterna(payload)
+        navigate(rutaTomaMuestrasDetalle(interna.archivo))
       } else {
         const solicitudCreada = await crearSolicitud(payload)
         if (enviaSolo) {
@@ -1016,6 +1033,15 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           {etiqueta}
           <input value={emailCuenta} readOnly disabled />
           <small className={styles.ayudaCampo}>Es el correo de tu cuenta.</small>
+        </label>
+      )
+    }
+    if (esInterna && (campo.clave === 'sold_to' || campo.clave === 'ship_to' || campo.clave === 'tipo_muestra')) {
+      const fijo = campo.clave === 'sold_to' ? SOLD_TO_INTERNA : campo.clave === 'ship_to' ? SHIP_TO_INTERNA : TIPO_MUESTRA_INTERNA
+      return (
+        <label className={styles.campo} key={campo.clave}>
+          {etiqueta}
+          <input value={fijo} readOnly disabled />
         </label>
       )
     }
@@ -1296,6 +1322,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
     modo === 'editar' ? 'Editar solicitud'
     : modo === 'reanalisis' ? 'Nueva solicitud de reanálisis'
     : modo === 'prueba' ? 'Nueva solicitud de prueba'
+    : esInterna ? (modo === 'interna' ? 'Nueva muestra interna' : 'Editar muestra interna')
     : 'Nueva solicitud'
 
   if (errorCarga) {
@@ -1328,7 +1355,9 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
       <Header
         title={tituloVista}
         description={
-          modo === 'prueba'
+          modo === 'interna'
+            ? 'Muestra interna (pulpa propia de AgroFresh): Ship To MUESTRA INTERNA, sin Tipo de Aplicación y con los campos libres. No se envía sola: revísala y envíala a mano desde su detalle. Los resultados van a Romina, Paz y Jorge.'
+            : modo === 'prueba'
             ? 'Solicitud de prueba: lleva su propio correlativo (OTP-…), no avisa a nadie y no se envía sola. Revísala y envíala a mano desde su detalle; el asunto del correo dirá (PRUEBA).'
             : modo === 'editar'
             ? `Modifica la solicitud ${solicitudOriginal?.numero_solicitud ?? ''} — ${enviaSolo ? 'Al guardar se enviará de inmediato por correo.' : 'Al guardar no se envía: envíala a mano desde su detalle.'}`
@@ -1412,6 +1441,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                 </select>
               )}
             </label>
+            {!esInterna && (
             <label className={styles.campo}>
               <span>
                 Tipo de Aplicación<span className={styles.marcaRequerido} data-obligatorio=""> *</span>
@@ -1429,6 +1459,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
                 ))}
               </select>
             </label>
+            )}
             <label className={styles.campo}>
               <span>Solicitante</span>
               <input value={SOLICITANTE_FIJO} disabled />
@@ -1468,7 +1499,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
             <span className={styles.numero}>2</span>
             Información de la muestra
           </h2>
-          {tipoAplicacionSel ? (
+          {tipoAplicacionSel || esInterna ? (
             <div className={styles.fila}>
               {camposMuestraVisibles.map(renderCampo)}
               {/* Los campos propios del Tipo de Aplicación (Gasto en Actimist)
@@ -1497,7 +1528,7 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
           )}
         </Card>
 
-        {laboratorio && tipoAplicacionSel && (
+        {laboratorio && (tipoAplicacionSel || esInterna) && (
           <Card>
             <h2 className={styles.tituloSeccionLab}>
               <span className={styles.numero}>3</span>
@@ -1767,6 +1798,8 @@ export function NuevaSolicitudView({ modo = 'crear' }: NuevaSolicitudViewProps) 
               ? (enviaSolo ? 'Guardando y enviando…' : 'Guardando…')
               : modo === 'prueba'
                 ? 'Guardar prueba'
+                : modo === 'interna'
+                ? 'Guardar muestra interna'
                 : modo === 'reanalisis'
                 ? (enviaSolo ? 'Crear reanálisis y enviar' : 'Crear reanálisis')
                 : (enviaSolo ? 'Guardar y enviar' : 'Guardar')}

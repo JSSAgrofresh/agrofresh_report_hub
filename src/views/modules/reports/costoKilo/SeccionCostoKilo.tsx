@@ -91,7 +91,17 @@ export function SeccionCostoKilo({
     }
   }
 
-  if (!actual) return null
+  if (!actual) {
+    if (modo !== 'equipo') return null
+    return (
+      <section className={styles.seccion} style={{ '--acento': acento } as CSSProperties} aria-label="Costo por kilo">
+        <CabeceraSeccion id={ID_COSTO_KILO} titulo="Costo por kilo" numero={numero} acento={acento} laboratorios="Equipo C&M-500 · producto usado por día" />
+        <Card className={styles.grafico}>
+          <p className={styles.aviso}>Aún no hay informes de costo por kilo. Sube el primero en Trace → pestaña «Costo por kilo» y aparecerá aquí.</p>
+        </Card>
+      </section>
+    )
+  }
   const tot = datos?.resumen.totales
 
   return (

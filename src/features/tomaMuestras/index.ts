@@ -28,6 +28,7 @@ export {
   crearSolicitudReanalisis,
   estadoSolicitudesPrueba,
   crearSolicitudPrueba,
+  crearSolicitudInterna,
   marcarEnviadoCliente,
   desmarcarEnviadoCliente,
 } from './lib/api'

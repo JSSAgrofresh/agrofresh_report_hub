@@ -23,6 +23,7 @@ export const ROUTES = {
   tomaMuestras: '/modulos/toma-muestras',
   tomaMuestrasNueva: '/modulos/toma-muestras/nueva',
   tomaMuestrasNuevaPrueba: '/modulos/toma-muestras/prueba/nueva',
+  tomaMuestrasNuevaInterna: '/modulos/toma-muestras/interna/nueva',
   tomaMuestrasConfig: '/modulos/toma-muestras/configuracion',
   tomaMuestrasDetalle: '/modulos/toma-muestras/detalle/:archivo',
   tomaMuestrasEditar: '/modulos/toma-muestras/editar/:archivo',

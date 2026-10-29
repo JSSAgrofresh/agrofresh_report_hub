@@ -86,6 +86,10 @@ export const CATEGORIAS: Categoria[] = [
         id: 'toma_editar', padre: 'toma_muestras', extra: true, nombre: 'Editar solicitudes',
         descripcion: 'Corregir una solicitud ya guardada y luego enviarla. Solo en los tipos de aplicación que se guardan y se envían a mano, nunca en los que se envían solos. Se asigna cuenta por cuenta.',
       },
+      {
+        id: 'toma_muestra_interna', padre: 'toma_muestras', extra: true, nombre: 'Muestra interna',
+        descripcion: 'Crear solicitudes de muestra interna (pulpa propia de AgroFresh): Ship To MUESTRA INTERNA, sin tipo de aplicación y con campos libres. Se guarda y se envía a mano. Se asigna cuenta por cuenta.',
+      },
     ],
   },
   {
