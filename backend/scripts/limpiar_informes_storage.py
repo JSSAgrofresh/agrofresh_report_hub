@@ -6,7 +6,7 @@ Cada vez que se genera un informe propio de AgroFresh (Ingreso al laboratorio) e
 informes que nunca existieron para el cliente. Un PDF se CONSERVA si su nombre corresponde al N° de informe de algun
 informe que esta en Report (`solicitud.nro_solicitud`, lo mismo que usa la ficha del informe para encontrar su PDF):
 el N° es el nombre completo («AGF2026-26.pdf») o aparece en el nombre sin pegarse a otras letras o numeros
-(«2026-1885-PC Copefrut.pdf»; «AGF2026-2» NO calza con «AGF2026-26»). Todo lo demas es sobrante.
+(«2026-1885-PC Copefrut.pdf»; «AGF2026-2» NO calza con «AGF2026-26»). Todo lo demas es sobrante, SALVO lo de Diagnofruit: sus PDF (carpeta `Diagnofruit`) no se juzgan y siempre se conservan.
 
 Seguro por defecto:
   * mira primero: sin `--aplicar` solo cuenta y deja la lista completa (conserva / sobra) en logs/;
@@ -63,6 +63,9 @@ def clasificar(claves: list[str], numeros: set[str]) -> tuple[list[tuple[str, st
             continue
         if not clave.lower().endswith(".pdf"):
             otros.append(clave)
+            continue
+        if "diagnofruit" in {parte.strip().casefold() for parte in clave.split("/")[:-1]}:
+            conservar.append((clave, "Diagnofruit: no se toca"))
             continue
         nombre = _nombre(clave)
         hallado = next((n for n in nros if calza(nombre, n)), None)
