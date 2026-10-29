@@ -101,6 +101,12 @@ export function crearSolicitudPrueba(datos: SolicitudInput) {
   return httpClient.post<Solicitud>('/toma-muestras/solicitudes-prueba', datos)
 }
 
+/** Muestra interna (pulpa propia de AgroFresh): Ship To MUESTRA INTERNA, sin Tipo Aplicación, lista de resultados fija.
+ * No se envía sola. Solo con la función `toma_muestra_interna`. */
+export function crearSolicitudInterna(datos: SolicitudInput) {
+  return httpClient.post<Solicitud>('/toma-muestras/solicitudes-interna', datos)
+}
+
 export function listarSolicitudesElegiblesReanalisis() {
   return httpClient.get<Solicitud[]>('/toma-muestras/solicitudes-elegibles-reanalisis')
 }
