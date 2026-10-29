@@ -34,6 +34,8 @@ from .laboratorios import router as laboratorios_router
 from .listados import router as listados_router
 from .postventa import router as postventa_router
 from .postventa import router_cliente as postventa_cliente_router
+from .costo_kilo_api import router as costo_kilo_router
+from .costo_kilo_api import router_cliente as costo_kilo_cliente_router
 from .informes_cliente import router as informes_cliente_router
 from .entrega_indicadores import router as entrega_indicadores_router
 from .rendimiento_calidad import router as rendimiento_calidad_router
@@ -139,6 +141,8 @@ SOLO_AGROFRESH = [Depends(solo_interno)]
 
 app.include_router(reportes_router, dependencies=CON_SESION)
 app.include_router(postventa_cliente_router, dependencies=CON_SESION)
+# Costo por kilo (C&M-500): lo que ve el cliente y el comercial se acota POR DENTRO a su Sold To / Ship To, igual que Accu-Tab.
+app.include_router(costo_kilo_cliente_router, dependencies=CON_SESION)
 app.include_router(informes_cliente_router, dependencies=CON_SESION)
 # La ficha de un informe (clic en un punto de Report): el cliente y el comercial la abren, acotada por dentro a su alcance.
 app.include_router(ficha_informe_router, dependencies=CON_SESION)
@@ -166,6 +170,7 @@ for _router in (
     envio_cliente_router,
     catalogo_router,
     postventa_router,
+    costo_kilo_router,
     storage_router,
     emitir_router,
     fortificados_router,

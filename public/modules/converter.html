@@ -712,17 +712,49 @@ function leerDiagnofruit(texto, inf){
   const obs = [];
   let m = texto.match(/Reporte n[úu]mero:\s*(\S+)/);
   if(m){ obs.push("Reporte Diagnofruit N° " + m[1]); d["N° Solicitud"] = m[1]; }
-  m = texto.match(/Nombre de muestra:\s*(.+)/);
-  const nombreMuestra = (m && !/^[-\s]+$/.test(m[1])) ? m[1].trim() : "";
-  if(nombreMuestra) obs.push("Muestra: " + nombreMuestra);
+  /* «Nombre de muestra» puede venir en varias líneas (la cadena de la solicitud es larga): se lee hasta la etiqueta
+     siguiente. Formato nuevo (28-10-2026): trae la CADENA de la solicitud separada por « // » en posición fija
+     (hoja «Para el informe» del Excel; `CAMPOS_CADENA` del backend: OT, tipo de servicio, fecha solicitud, fecha
+     muestreo, hora, especie, variedad, línea, CSG productor, CSG packing, lote, posición, cámara, orden, kilos,
+     producto, tipo de muestra, muestreador, email, gasto, observación) y «Predio/planta» = «Sold To // Ship To». */
+  m = texto.match(/Nombre de muestra:\s*([\s\S]*?)\s*(?:\n\s*(?:Especie|Localidad|An[áa]lisis realizado):|$)/);
+  const nombreCompleto = m ? m[1].replace(/\s+/g, " ").trim() : "";
+  const nombreMuestra = /^[-\s]*$/.test(nombreCompleto) ? "" : nombreCompleto;
+  const cadena = nombreMuestra.split("//").length - 1 >= 6 ? nombreMuestra.split("//").map(x => x.trim()) : null;
+  if(nombreMuestra && !cadena) obs.push("Muestra: " + nombreMuestra);
   // La OT es lo único que se necesita para traer el resto: «M1 - DIAG0007» → OT-DIAG0007. Normalmente va en el
   // nombre de la muestra; si no, se busca en cualquier parte de la página.
-  const cod = (nombreMuestra.match(/\b(DIAG\d+)\b/i) || texto.match(/\b(?:OT-?\s*)?(DIAG\d+)\b/i) || [])[1];
+  const cod = ((cadena ? cadena[0] : nombreMuestra).match(/\b(DIAG\d+)\b/i) || texto.match(/\b(?:OT-?\s*)?(DIAG\d+)\b/i) || [])[1];
   if(cod) d["OT"] = "OT-" + cod.toUpperCase();
   const planta = campo(texto, "Predio/planta:");
-  if(planta && !plano(planta).startsWith("no ")) obs.push("Planta según Diagnofruit: " + planta);
-  const loc = campo(texto, "Localidad:", "U\\. prod");
-  if(loc && !plano(loc).startsWith("no ")) obs.push("Localidad: " + loc);
+  if(cadena){
+    if(planta && planta.includes("//")){
+      const i = planta.indexOf("//");
+      d["Sold To"] = limpio(planta.slice(0, i)); d["Ship To"] = limpio(planta.slice(i + 2));
+    }
+    const g = n => limpio(cadena[n] || "");
+    d["Tipo Aplicación"] = g(1);
+    if(g(1)) d["Tipo de servicio"] = /actimist|fogger/.test(plano(g(1))) ? "Actimist" : "Linea de Proceso";
+    d["Fecha Solicitud"] = aFecha(g(2), inf.avisos);
+    const fSol = aFecha(g(3), inf.avisos);
+    if(fSol){
+      if(d["Fecha Muestreo"] && d["Fecha Muestreo"] !== fSol)
+        inf.avisos.push("Diagnofruit anota el muestreo el " + d["Fecha Muestreo"] + " y la solicitud el " + fSol + ": se usó el de la solicitud");
+      d["Fecha Muestreo"] = fSol;
+    }
+    d["Hora Muestreo"] = aHora(g(4));
+    d["Especie"] = g(5); d["Variedad"] = g(6); d["Línea Proceso"] = g(7); d["CSG"] = g(8); d["Lote"] = g(10);
+    d["Posición Muestreo"] = g(11); d["N° Cámara"] = g(12); d["N° Orden"] = g(13);
+    d["Kilos Procesados (KG)"] = aNumero(g(14)); d["Producto Utilizado"] = g(15);
+    if(g(16)) d["Tipo Muestra"] = g(16);
+    d["Nombre Muestreador"] = g(17); d["Email Solicitante"] = g(18); d["Gasto"] = aNumero(g(19));
+    if(d["OT"]) obs.push("Solicitud " + d["OT"]);
+    if(g(20)) obs.push(g(20));
+  }else{
+    if(planta && !plano(planta).startsWith("no ")) obs.push("Planta según Diagnofruit: " + planta);
+    const loc = campo(texto, "Localidad:", "U\\. prod");
+    if(loc && !plano(loc).startsWith("no ")) obs.push("Localidad: " + loc);
+  }
   d["Observación"] = obs.join(" · ") || null;
 
   let dentro = false;

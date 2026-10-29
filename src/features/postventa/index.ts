@@ -1,4 +1,5 @@
 export {
+  cacheListaCargas,
   listarCargasTrace,
   verCargaTrace,
   eliminarCargaTrace,
@@ -20,14 +21,29 @@ export type {
   EstadisticaSerie,
 } from './lib/api'
 export {
-  FILTRO_CARGAS_VACIO,
   calcularKpis,
   cargasPorMes,
   cronologico,
   fechaDeCarga,
-  filtrarCargas,
   nombreEquipo,
   opcionesDeCampo,
   resumenPorEquipo,
 } from './lib/resumen'
-export type { FiltroCargas, Kpis, Periodo } from './lib/resumen'
+export type { Kpis } from './lib/resumen'
+export {
+  FILTRO_ACCUTAB_VACIO,
+  contarFiltros,
+  etiquetaSemana,
+  filtrarAccutab,
+  opcionesAccutab,
+  semanaIso,
+} from './lib/filtros'
+export type { CampoAccutab, FiltroAccutab } from './lib/filtros'
+export {
+  LIMITE_FILAS_EXCEL,
+  estadisticaDeFilas,
+  filasBdInformes,
+  filasBdRegistros,
+  reunirDetalles,
+  totalMediciones,
+} from './lib/exportar'

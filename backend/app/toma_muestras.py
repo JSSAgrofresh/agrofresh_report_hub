@@ -2260,6 +2260,26 @@ def contactos_de_solicitud(laboratorio: str) -> list[str]:
     return contactos_de_solicitud_por_envio(laboratorio)["to"]
 
 
+def _nombre_clave(valor: object) -> str:
+    """Nombre de Sold To / Ship To para COMPARAR: sin mayúsculas ni espacios de más
+    («EL PORVENIR ( VERFRUT)  PLANTA» = «el porvenir ( verfrut) planta»), igual que la lista de distribución."""
+    return re.sub(r"\s+", " ", str(valor or "")).strip().casefold()
+
+
+def _clave_especie_contacto(especie: object) -> str:
+    """Especie para COMPARAR con la de un contacto: «Cereza», «Cerezas» y «CEREZA» son la misma
+    (la lista de distribución guarda «Cereza» y el formulario dice «Cerezas»; sin esto la solicitud
+    no encontraba a los contactos del cliente). Sin la «s» final de cada palabra, «ones» = «on»."""
+    palabras = []
+    for w in _clave_esp(str(especie or "")).split():
+        if w.endswith("ones"):
+            w = w[:-4] + "on"
+        elif w.endswith("s") and len(w) > 3:
+            w = w[:-1]
+        palabras.append(w)
+    return " ".join(palabras)
+
+
 def _contactos_resultado_nivel(
     sold_to: str, ship_to: str, especie: str, contactos: list[dict] | None = None
 ) -> list[dict]:
@@ -2275,20 +2295,20 @@ def _contactos_resultado_nivel(
         c for c in contactos
         if c.get("tipo") in {"resultado_cliente", "resultado_interno"}
     ]
-    st_n = (sold_to or "").strip()
-    sh_n = (ship_to or "").strip()
+    st_n = _nombre_clave(sold_to)
+    sh_n = _nombre_clave(ship_to)
     # Especie: comparación normalizada (sin mayúsculas, tildes ni variantes
     # ortográficas) para que "Cereza"/"CEREZA"/"Cerezas" no rompan el lookup.
-    es_n = _clave_esp(especie or "")
+    es_n = _clave_especie_contacto(especie)
 
     def _esp_cfg(c: dict) -> str:
-        return _clave_esp(c.get("especie") or "")
+        return _clave_especie_contacto(c.get("especie"))
 
     # 1. Exacto (sold_to + ship_to + especie normalizada)
     exactos = [
         c for c in pool
-        if (c.get("sold_to") or "").strip() == st_n
-        and (c.get("ship_to") or "").strip() == sh_n
+        if _nombre_clave(c.get("sold_to")) == st_n
+        and _nombre_clave(c.get("ship_to")) == sh_n
         and _esp_cfg(c) == es_n
     ]
     if exactos:
@@ -2298,8 +2318,8 @@ def _contactos_resultado_nivel(
     if st_n or sh_n:
         sin_esp = [
             c for c in pool
-            if (c.get("sold_to") or "").strip() == st_n
-            and (c.get("ship_to") or "").strip() == sh_n
+            if _nombre_clave(c.get("sold_to")) == st_n
+            and _nombre_clave(c.get("ship_to")) == sh_n
             and not _esp_cfg(c)
         ]
         if sin_esp:
@@ -2310,7 +2330,7 @@ def _contactos_resultado_nivel(
         solo_ship = [
             c for c in pool
             if not (c.get("sold_to") or "").strip()
-            and (c.get("ship_to") or "").strip() == sh_n
+            and _nombre_clave(c.get("ship_to")) == sh_n
             and not _esp_cfg(c)
         ]
         if solo_ship:
@@ -2355,19 +2375,19 @@ def _contactos_resultado(
         for c in base
         if c.get("tipo") == "resultado_interno" and c.get("activo", True)
     }
-    st_n, sh_n = (sold_to or "").strip(), (ship_to or "").strip()
+    st_n, sh_n = _nombre_clave(sold_to), _nombre_clave(ship_to)
     internos = [
         c for c in contactos
         if c.get("tipo") == "resultado_interno"
-        and (c.get("sold_to") or "").strip() == st_n
-        and (c.get("ship_to") or "").strip() == sh_n
+        and _nombre_clave(c.get("sold_to")) == st_n
+        and _nombre_clave(c.get("ship_to")) == sh_n
     ]
     if not internos and sh_n:
         internos = [
             c for c in contactos
             if c.get("tipo") == "resultado_interno"
             and not (c.get("sold_to") or "").strip()
-            and (c.get("ship_to") or "").strip() == sh_n
+            and _nombre_clave(c.get("ship_to")) == sh_n
         ]
     extra: list[dict] = []
     for c in sorted(internos, key=lambda c: c.get("orden", 0)):

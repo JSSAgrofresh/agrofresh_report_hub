@@ -32,6 +32,7 @@ import styles from './SeccionesReport.module.css'
 export function CabeceraSeccion({
   id,
   bloque,
+  titulo,
   numero,
   acento,
   laboratorios,
@@ -39,7 +40,9 @@ export function CabeceraSeccion({
 }: {
   /** Ancla a la que saltan las tarjetas de análisis de arriba. */
   id?: string
-  bloque: ClaveBloque
+  bloque?: ClaveBloque
+  /** Un título propio, para una sección que no es uno de los tres análisis (Accu-Tab). */
+  titulo?: string
   /** Número correlativo del bloque, en un círculo en la esquina (solo cuando se ven varios bloques). */
   numero?: number
   acento: string
@@ -54,7 +57,7 @@ export function CabeceraSeccion({
         </span>
       )}
       <div className={styles.titulo}>
-        <h2>{NOMBRE_BLOQUE[bloque]}</h2>
+        <h2>{titulo ?? (bloque ? NOMBRE_BLOQUE[bloque] : '')}</h2>
         <span>{laboratorios}</span>
       </div>
       {children}
@@ -112,6 +115,7 @@ interface PropsInformes {
   conFiltros: boolean
   conGraficos: boolean
   acento: string
+  onVerInforme?: (solicitudId: number, nro: string, fecha: string | null) => void
 }
 
 const LAB_DE_BLOQUE = { fsma: 'als', fito: 'diagnofruit' } as const
@@ -120,7 +124,7 @@ const LAB_DE_BLOQUE = { fsma: 'als', fito: 'diagnofruit' } as const
  * El bloque de ALS (Análisis FSMA) o de Diagnofruit (Análisis de fitopatología): sus tres indicadores y su tabla por
  * informe, con los gráficos si el administrador principal los encendió.
  */
-export function SeccionInformes({ bloque, numero, informes: informesDelReporte, totalSinFiltros, conFiltros, conGraficos, acento, filtroBloque, onQuitarFiltroBloque }: PropsInformes) {
+export function SeccionInformes({ bloque, numero, informes: informesDelReporte, totalSinFiltros, conFiltros, conGraficos, acento, filtroBloque, onQuitarFiltroBloque, onVerInforme }: PropsInformes) {
   const lab = LAB_DE_BLOQUE[bloque]
   const nombreLab = nombreLaboratorio(lab)
   const informes = useMemo(() => filtrarBloque(informesDelReporte, filtroBloque), [informesDelReporte, filtroBloque])
@@ -192,7 +196,7 @@ export function SeccionInformes({ bloque, numero, informes: informesDelReporte, 
             />
           )}
           {/* Primero los gráficos; la tabla por informe va plegada, para quien quiera el detalle. */}
-          <ResultadosPorInforme informes={informes} laboratorio={lab} conGraficos={conGraficos} />
+          <ResultadosPorInforme informes={informes} laboratorio={lab} conGraficos={conGraficos} onVerInforme={onVerInforme} />
         </>
       )}
     </section>

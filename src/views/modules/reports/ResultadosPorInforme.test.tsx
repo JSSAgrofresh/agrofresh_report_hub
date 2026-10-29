@@ -220,3 +220,22 @@ describe('con Diagnofruit', () => {
     expect(rotulos).toContain('>100')
   })
 })
+
+describe('tocar el N° de un informe', () => {
+  const CON_ID: InformeVista[] = INFORMES.map((i, n) => ({ ...i, solicitudId: 100 + n }))
+
+  it('avisa qué informe se quiere ver (para abrir su ficha con vista previa y descarga)', () => {
+    const alVer = vi.fn()
+    render(<ResultadosPorInforme informes={CON_ID} laboratorio="als" conGraficos={false} onVerInforme={alVer} />)
+    fireEvent.click(screen.getByText(/Ver el detalle por informe/))
+    fireEvent.click(screen.getByRole('button', { name: '496563' }))
+    expect(alVer).toHaveBeenCalledWith(100, '496563', '2026-10-30')
+  })
+
+  it('sin con qué abrirlo (informe sin solicitud o sin callback) el N° queda como texto', () => {
+    render(<ResultadosPorInforme informes={INFORMES} laboratorio="als" conGraficos={false} onVerInforme={vi.fn()} />)
+    fireEvent.click(screen.getByText(/Ver el detalle por informe/))
+    expect(screen.queryByRole('button', { name: '496563' })).toBeNull()
+    expect(screen.getByText('496563')).toBeInTheDocument()
+  })
+})

@@ -1,0 +1,53 @@
+.wrap { display: flex; flex-direction: column; gap: var(--space-4); max-width: 980px; }
+.titulo { margin: 0; font-size: 17px; font-weight: 700; }
+.ayuda { margin: 4px 0 0; font-size: 13px; color: var(--color-text-muted); }
+.zona {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: var(--space-4);
+  border: 1.5px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg, 16px);
+  background: var(--color-surface);
+}
+.zona input[type='file'] { font-size: 13px; max-width: 100%; }
+.nombre { font-size: 13px; color: var(--color-text-muted); word-break: break-all; }
+.error { margin: 0; color: var(--color-danger); font-size: 13px; }
+.ok { margin: 0; color: var(--color-success, #1d7a46); font-size: 13px; font-weight: 600; }
+.cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.cifras li { padding: 10px 14px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); }
+.cifras span { display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-faint); }
+.cifras b { font-size: 18px; }
+.campos { align-items: end; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--color-text-muted); }
+.campo input {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 400;
+}
+.acciones { display: flex; gap: 10px; flex-wrap: wrap; }
+.lista { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  font-size: 13px;
+}
+.fila b { font-weight: 700; }
+.fila small { color: var(--color-text-muted); }
+.quitar { border: 0; background: none; color: var(--color-danger); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.pestanas { display: inline-flex; gap: 6px; padding: 4px; margin-bottom: var(--space-4); border: 1px solid var(--color-border); border-radius: 99px; background: var(--color-surface); }
+.pestana { height: 34px; padding: 0 18px; border: 0; border-radius: 99px; background: none; font: inherit; font-size: 13px; font-weight: 600; color: var(--color-text-muted); cursor: pointer; }
+.pestanaActiva { background: var(--color-primary, #3f7d20); color: #fff; }

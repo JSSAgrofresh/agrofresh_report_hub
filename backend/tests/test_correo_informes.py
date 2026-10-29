@@ -316,3 +316,23 @@ def test_sin_clave_del_buzon_avisa_antes_de_arrancar(monkeypatch):
     monkeypatch.setattr(ci.config, "GMAIL_APP_PASSWORD", "")
     with pytest.raises(RuntimeError, match="GMAIL_APP_PASSWORD"):
         ci.sondear_en_segundo_plano(14)
+
+
+def test_el_personal_del_propio_laboratorio_copiado_no_es_un_envio_equivocado():
+    """Diagnofruit se copia a sí mismo (hgarcia@, harce@… diagnofruit.cl): no es gente a quien no correspondía."""
+    real = {"to": ["christian.mery@thomsen.cl", "hgarcia@diagnofruit.cl"], "cc": ["rodrigo.suarez@agrofresh.com", "harce@diagnofruit.cl"],
+            "bcc": ["mtoledo@diagnofruit.cl", "vrojas@diagnofruit.cl"]}
+    esperado = {"to": ["christian.mery@thomsen.cl"], "cc": ["rodrigo.suarez@agrofresh.com"], "bcc": []}
+    propios = L.personal_del_laboratorio(real, ["info@diagnofruit.cl"])
+    assert propios == {"hgarcia@diagnofruit.cl", "harce@diagnofruit.cl", "mtoledo@diagnofruit.cl", "vrojas@diagnofruit.cl"}
+    assert L.comparar_destinatarios(esperado, real, propios) == []
+    # Sin esa regla, era un rojo.
+    assert [h["codigo"] for h in L.comparar_destinatarios(esperado, real, [])] == ["destinatarios_de_mas"]
+
+
+def test_alguien_de_otra_empresa_sigue_siendo_rojo_y_un_remitente_gmail_no_cuenta_como_laboratorio():
+    real = {"to": ["christian.mery@thomsen.cl", "gente@otraempresa.cl"], "cc": [], "bcc": []}
+    esperado = {"to": ["christian.mery@thomsen.cl"], "cc": [], "bcc": []}
+    assert L.personal_del_laboratorio(real, ["info@diagnofruit.cl"]) == set()
+    assert [h["codigo"] for h in L.comparar_destinatarios(esperado, real, L.personal_del_laboratorio(real, ["info@diagnofruit.cl"]))] == ["destinatarios_de_mas"]
+    assert L.personal_del_laboratorio({"to": ["a@gmail.com", "b@gmail.com"], "cc": [], "bcc": []}, ["a@gmail.com"]) == set()

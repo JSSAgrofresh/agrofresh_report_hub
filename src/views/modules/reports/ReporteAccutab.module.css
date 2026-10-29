@@ -1,0 +1,528 @@
+/* Reporte de Accu-Tab: usa las tarjetas, los filtros y los indicadores de Report; acá solo lo que es propio de Accu-Tab. */
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
+.vacio {
+  text-align: center;
+  color: var(--color-text-faint);
+  padding: var(--space-6);
+}
+
+/* ── Los dos Excel, a la derecha de la cabecera de la sección ── */
+.descargas {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.descargasBotones {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.botonExcel {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 99px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.botonExcel:hover:not(:disabled) {
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.descargasBotones button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.botonExcel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.botonExcel:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+.avisoDescarga {
+  margin: 0;
+  max-width: 46ch;
+  text-align: right;
+  font-size: 12px;
+  color: var(--color-danger);
+}
+
+/* Una fecha no es una cifra: más chica y en una sola línea para que quepa en el teléfono. */
+.wrap .cifraFecha.cifraFecha {
+  font-size: clamp(0.95rem, 0.6rem + 1.4vw, 1.55rem);
+  white-space: nowrap;
+}
+
+/* ── Lista de informes + detalle ── */
+.cuerpo {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+/* La lista de informes mide lo mismo que el detalle (sus gráficos): no lo estira, se recorta a su alto y se desplaza por dentro. */
+.panelLista {
+  position: relative;
+  min-width: 0;
+  min-height: 320px;
+  padding: 0;
+}
+
+.panelListaInterior {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  min-height: 0;
+}
+
+.listaTitulo {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.listaTitulo span {
+  min-width: 22px;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--acento) 14%, var(--color-surface));
+  color: var(--acento);
+  text-align: center;
+  letter-spacing: 0;
+}
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0 2px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  text-align: left;
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.item:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-bg);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+.itemActivo,
+.itemActivo:hover {
+  border-left-color: var(--acento);
+  background: color-mix(in srgb, var(--acento) 8%, var(--color-surface));
+}
+
+.itemFila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.itemFecha {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.itemNombre {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.itemDonde,
+.itemCifras {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemCifras {
+  color: var(--color-text-faint);
+}
+
+.verMas {
+  align-self: center;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 99px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.verMas:hover {
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.origenCorreo,
+.origenManual {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.origenCorreo {
+  background: color-mix(in srgb, #1c7fa6 14%, var(--color-surface));
+  color: #145f7c;
+}
+
+.origenManual {
+  background: color-mix(in srgb, #7b5ea7 14%, var(--color-surface));
+  color: #5d4685;
+}
+
+/* ── Detalle de un informe ── */
+.detalle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.detalleCabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.detalleTitulos {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.detalleTitulo {
+  margin: 0;
+  font-size: clamp(1.15rem, 1rem + 0.7vw, 1.45rem);
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.detalleSub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acciones > button,
+.accion {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 99px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.acciones > button:hover:not(:disabled),
+.accion:hover:not(:disabled) {
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.acciones > button:disabled,
+.accion:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.accionPrincipal {
+  background: var(--acento) !important;
+  border-color: var(--acento) !important;
+  color: #fff !important;
+}
+
+.accionPeligro:hover:not(:disabled) {
+  border-color: var(--color-danger) !important;
+  color: var(--color-danger) !important;
+}
+
+.simulado {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+}
+
+.datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.dato {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--acento) 4%, var(--color-surface));
+  min-width: 0;
+}
+
+.datoEtiqueta {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.datoValor {
+  font-size: 1.2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.datoDetalle {
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+}
+
+.graficos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.grafico {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.graficoTitulo {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.graficoTitulo span {
+  font-weight: 500;
+  color: var(--color-text-faint);
+}
+
+.lienzo {
+  position: relative;
+  height: 240px;
+}
+
+.nota {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-faint);
+}
+
+/* ── Tabla de informes del equipo (debajo de todo) ── */
+.tablaCabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tablaTitulo {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.tablaNota {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+}
+
+.tablaEnvoltorio {
+  overflow-x: auto;
+  margin-top: var(--space-3);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tabla th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.tabla tbody tr:hover {
+  background: var(--color-bg);
+}
+
+.enlace {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--acento);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.enlace:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.enlace:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.paginador {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 1000px) {
+  .cuerpo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .panelLista {
+    min-height: 0;
+  }
+  .panelListaInterior {
+    position: static;
+  }
+  .lista {
+    flex: none;
+    max-height: 300px;
+  }
+}
+
+@media (max-width: 760px) {
+  .graficos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .descargas,
+  .descargasBotones {
+    align-items: stretch;
+    justify-content: flex-start;
+    width: 100%;
+  }
+  .avisoDescarga {
+    text-align: left;
+  }
+}
