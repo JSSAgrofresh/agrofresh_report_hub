@@ -97,3 +97,18 @@ export function IconPozoAgua(props: SVGProps<SVGSVGElement>) {
     </Base>
   )
 }
+
+/** Costo por kilo: una pesa de platillo con su «kg» y una gota de producto. */
+export function IconKg(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Base {...props}>
+      <path {...SUAVE} d="M12 18h24l5 21a3 3 0 0 1-2.9 3.7H9.9A3 3 0 0 1 7 39z" />
+      <path d="M12 18h24l5 21a3 3 0 0 1-2.9 3.7H9.9A3 3 0 0 1 7 39z" />
+      <circle cx="24" cy="12" r="5" />
+      <path d="M19.4 14.2 18 18M28.6 14.2 30 18" />
+      <text x="24" y="37" textAnchor="middle" fontSize="13" fontWeight="800" fill="currentColor" stroke="none" fontFamily="system-ui, sans-serif">
+        kg
+      </text>
+    </Base>
+  )
+}
