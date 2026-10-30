@@ -24,3 +24,6 @@
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font: inherit; font-size: 12px; padding: 4px 10px; border: 1px solid var(--color-border-strong); border-radius: 999px; background: var(--color-surface); color: var(--color-text); cursor: pointer; }
 .on { background: #3f7a1f; border-color: #3f7a1f; color: #fff; font-weight: 600; }
+
+.conAcceso { background: #e8f2dc; border-color: #b9d79c; }
+.sel.conAcceso { border-color: #3f7a1f; }
