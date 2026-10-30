@@ -29,28 +29,39 @@ export function EditorAccesos({ clientes, plantas, especies, accesos, onChange }
     }
     return [...clientes].sort((a, b) => Number(con(b)) - Number(con(a)) || a.localeCompare(b, 'es'))
   }, [clientes, accesos])
-  const visibles = useMemo(() => {
-    const palabras = plano(texto).split(/\s+/).filter(Boolean)
-    return ordenados.filter((c) => palabras.every((w) => plano(c).includes(w)))
-  }, [ordenados, texto])
+  // La búsqueda mira el Sold To y también los Ship To (plantas) de cada cliente.
+  const palabras = useMemo(() => plano(texto).split(/\s+/).filter(Boolean), [texto])
+  const nombresDePlantas = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of plantas) m.set(p.cliente_nombre, `${m.get(p.cliente_nombre) ?? ''} ${plano(p.nombre)}`)
+    return m
+  }, [plantas])
+  const visibles = useMemo(
+    () => ordenados.filter((c) => palabras.every((w) => `${plano(c)} ${nombresDePlantas.get(c) ?? ''}`.includes(w))),
+    [ordenados, palabras, nombresDePlantas],
+  )
   // Si nadie eligió uno todavía, se abre el primero que ya tiene acceso.
-  const cliente =
+  const base =
     elegido ||
     ordenados.find((c) => {
       const r = resumenDeCliente(accesos, c)
       return r.todo || r.plantas > 0
     }) ||
     ''
+  // Buscando, si el cliente abierto ya no coincide se pasa al primero que sí.
+  const cliente = palabras.length > 0 && !visibles.includes(base) ? (visibles[0] ?? '') : base
   const delCliente = useMemo(
     () =>
       plantas
         .filter((p) => p.cliente_nombre === cliente)
+        // Buscando por Ship To (y no por el nombre del cliente), solo se ven las plantas que coinciden.
+        .filter((p) => palabras.length === 0 || palabras.every((w) => plano(cliente).includes(w)) || palabras.every((w) => plano(p.nombre).includes(w)))
         .sort(
           (a, b) =>
             Number(especiesDe(accesos, cliente, b.nombre).tiene) - Number(especiesDe(accesos, cliente, a.nombre).tiene) ||
             a.nombre.localeCompare(b.nombre, 'es'),
         ),
-    [plantas, cliente, accesos],
+    [plantas, cliente, accesos, palabras],
   )
   const todoElSoldTo = cliente ? especiesDe(accesos, cliente, null) : null
   const conAcceso = delCliente.filter((p) => especiesDe(accesos, cliente, p.nombre).tiene).map((p) => p.nombre)
@@ -116,8 +127,8 @@ export function EditorAccesos({ clientes, plantas, especies, accesos, onChange }
         <input
           type="search"
           className={styles.buscador}
-          placeholder="Buscar cliente…"
-          aria-label="Buscar cliente"
+          placeholder="Buscar Sold To o Ship To…"
+          aria-label="Buscar Sold To o Ship To"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
         />
@@ -134,7 +145,7 @@ export function EditorAccesos({ clientes, plantas, especies, accesos, onChange }
               </li>
             )
           })}
-          {visibles.length === 0 && <li className={styles.vacio}>Ningún cliente coincide.</li>}
+          {visibles.length === 0 && <li className={styles.vacio}>Ningún Sold To ni Ship To coincide.</li>}
         </ul>
       </div>
 
