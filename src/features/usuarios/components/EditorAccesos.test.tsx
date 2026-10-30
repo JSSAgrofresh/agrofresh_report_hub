@@ -52,4 +52,17 @@ describe('editor de accesos', () => {
     const nombres = Array.from(screen.getByRole('list', { name: 'Plantas' }).querySelectorAll('b')).map((b) => b.textContent)
     expect(nombres).toEqual(['UNI ROMERAL', 'UNI SAN FERNANDO'])
   })
+
+  it('el buscador encuentra por Sold To y también por Ship To', () => {
+    render(<EditorAccesos clientes={['DOLE', 'UNIFRUTTI']} plantas={plantas} especies={['Cerezas', 'Uva']} accesos={[]} onChange={() => {}} />)
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'lontue' } })
+    const lista = screen.getByRole('list', { name: 'Clientes' })
+    expect(lista.textContent).toContain('DOLE')
+    expect(lista.textContent).not.toContain('UNIFRUTTI')
+    // Se abre el cliente que coincide y solo se ve la planta buscada.
+    expect(screen.getByText('DOLE LONTUE')).toBeTruthy()
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'romeral' } })
+    expect(screen.getByText('UNI ROMERAL')).toBeTruthy()
+    expect(screen.queryByText('UNI SAN FERNANDO')).toBeNull()
+  })
 })
