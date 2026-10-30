@@ -29,3 +29,15 @@ export function agruparPlantas(plantas: PlantaAsignada[]): Grupo[] {
       ),
     }))
 }
+
+/** Una fila por planta (o «todo el Sold To»), con sus accesos: las especies de una misma planta van juntas. */
+export function porPlanta(accesos: PlantaAsignada[]): { planta: string | null; accesos: PlantaAsignada[] }[] {
+  const mapa = new Map<string, { planta: string | null; accesos: PlantaAsignada[] }>()
+  for (const a of accesos) {
+    const k = (a.plantaNombre ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+    const fila = mapa.get(k) ?? { planta: a.plantaNombre ?? null, accesos: [] }
+    fila.accesos.push(a)
+    mapa.set(k, fila)
+  }
+  return [...mapa.values()]
+}

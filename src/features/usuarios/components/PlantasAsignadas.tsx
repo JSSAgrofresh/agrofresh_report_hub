@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { PlantaAsignada } from '../types'
-import { agruparPlantas, claveDePlanta, etiquetaDeAcceso } from '../lib/plantas'
+import { agruparPlantas, claveDePlanta, porPlanta } from '../lib/plantas'
 import styles from './PlantasAsignadas.module.css'
 
 const plano = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -61,12 +61,28 @@ export function PlantasAsignadas({ plantas, onChange }: Props) {
               </summary>
               <div className={styles.cuerpo}>
                 <ul className={styles.plantas}>
-                  {g.plantas.map((p) => {
-                    const nombre = etiquetaDeAcceso(p)
+                  {porPlanta(g.plantas).map((fila) => {
+                    const nombre = fila.planta ?? 'Todas las plantas de este Sold To'
                     return (
-                      <li key={claveDePlanta(p)}>
-                        <span>{nombre}</span>
-                        <button type="button" aria-label={`Quitar ${g.cliente} · ${nombre}`} onClick={() => quitar([p])}>
+                      <li key={fila.planta ?? ''}>
+                        <span className={styles.nombrePlanta}>{nombre}</span>
+                        <span className={styles.especies}>
+                          {fila.accesos.map((p) =>
+                            p.especie ? (
+                              <span className={styles.etiqueta} key={claveDePlanta(p)}>
+                                {p.especie}
+                                <button type="button" aria-label={`Quitar ${g.cliente} · ${nombre} · ${p.especie}`} onClick={() => quitar([p])}>
+                                  ×
+                                </button>
+                              </span>
+                            ) : (
+                              <span className={`${styles.etiqueta} ${styles.todas}`} key={claveDePlanta(p)}>
+                                Todas las especies
+                              </span>
+                            ),
+                          )}
+                        </span>
+                        <button type="button" className={styles.quitarFila} aria-label={`Quitar ${g.cliente} · ${nombre}`} onClick={() => quitar(fila.accesos)}>
                           ×
                         </button>
                       </li>

@@ -254,8 +254,10 @@ describe('UsuarioForm: cliente con varias plantas y especies', () => {
 
   it('muestra cada acceso con su especie', () => {
     render(<UsuarioForm usuario={conLista} onGuardar={() => {}} onCancelar={() => {}} />)
-    expect(screen.getByText('DOLE LONTUE · Cerezas')).toBeTruthy()
-    expect(screen.getByText('DOLE LONTUE · Manzana')).toBeTruthy()
+    // Una fila por planta, con sus especies como etiquetas.
+    expect(screen.getByRole('button', { name: 'Quitar DOLE · DOLE LONTUE · Cerezas' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Quitar DOLE · DOLE LONTUE · Manzana' })).toBeTruthy()
+    expect(screen.getAllByText('DOLE LONTUE')).toHaveLength(1)
     expect(screen.getByText('1 planta en 1 cliente')).toBeTruthy()
   })
 
