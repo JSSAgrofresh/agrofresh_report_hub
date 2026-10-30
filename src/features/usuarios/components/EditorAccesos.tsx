@@ -19,7 +19,6 @@ interface Props {
 export function EditorAccesos({ clientes, plantas, especies, accesos, onChange }: Props) {
   const [elegido, setElegido] = useState('')
   const [texto, setTexto] = useState('')
-  const [marcadas, setMarcadas] = useState<string[]>([])
   const [loteEspecies, setLoteEspecies] = useState<string[]>([])
 
   // Los clientes con acceso van primero (y en verde); el resto, en orden alfabético.
@@ -54,22 +53,32 @@ export function EditorAccesos({ clientes, plantas, especies, accesos, onChange }
     [plantas, cliente, accesos],
   )
   const todoElSoldTo = cliente ? especiesDe(accesos, cliente, null) : null
-  const marcadasDelCliente = marcadas.filter((m) => delCliente.some((p) => p.nombre === m))
+  const conAcceso = delCliente.filter((p) => especiesDe(accesos, cliente, p.nombre).tiene).map((p) => p.nombre)
 
   const elegirCliente = (c: string) => {
     setElegido(c)
-    setMarcadas([])
     setLoteEspecies([])
   }
-  const alternarMarca = (nombre: string) => setMarcadas((a) => (a.includes(nombre) ? a.filter((x) => x !== nombre) : [...a, nombre]))
+  // La casilla ES el acceso: marcarla da todas las especies de esa planta, desmarcarla lo quita.
+  const alternarAcceso = (nombre: string) =>
+    onChange(fijarEspecies(accesos, cliente, [nombre], conAcceso.includes(nombre) ? [] : 'todas'))
   const alternarLote = (e: string) => setLoteEspecies((a) => (a.includes(e) ? a.filter((x) => x !== e) : [...a, e]))
 
   const aplicarLote = (valor: string[] | 'todas') => {
-    onChange(fijarEspecies(accesos, cliente, marcadasDelCliente, valor))
-    setMarcadas([])
+    onChange(fijarEspecies(accesos, cliente, conAcceso, valor))
     setLoteEspecies([])
   }
-  const marcarTodas = () => setMarcadas(marcadasDelCliente.length === delCliente.length ? [] : delCliente.map((p) => p.nombre))
+  const marcarTodas = () => {
+    const todasConAcceso = conAcceso.length === delCliente.length
+    onChange(
+      fijarEspecies(
+        accesos,
+        cliente,
+        todasConAcceso ? delCliente.map((p) => p.nombre) : delCliente.map((p) => p.nombre).filter((n) => !conAcceso.includes(n)),
+        todasConAcceso ? [] : 'todas',
+      ),
+    )
+  }
 
   const chips = (planta: string | null) => {
     const e = especiesDe(accesos, cliente, planta)
@@ -147,7 +156,7 @@ export function EditorAccesos({ clientes, plantas, especies, accesos, onChange }
                       Todo el Sold To
                     </button>
                     <button type="button" onClick={marcarTodas} disabled={delCliente.length === 0}>
-                      {marcadasDelCliente.length === delCliente.length && delCliente.length > 0 ? 'Desmarcar plantas' : 'Marcar todas las plantas'}
+                      {conAcceso.length === delCliente.length && delCliente.length > 0 ? 'Quitar todas las plantas' : 'Marcar todas las plantas'}
                     </button>
                   </>
                 )}
@@ -161,12 +170,12 @@ export function EditorAccesos({ clientes, plantas, especies, accesos, onChange }
               </div>
             ) : (
               <>
-                {marcadasDelCliente.length > 0 && (
+                {conAcceso.length > 1 && (
                   <div className={styles.lote}>
                     <b>
-                      {marcadasDelCliente.length} {marcadasDelCliente.length === 1 ? 'planta marcada' : 'plantas marcadas'}
+                      {conAcceso.length} plantas con acceso
                     </b>
-                    <span>Elige las especies y aplícalas a todas:</span>
+                    <span>Para dejarles las mismas especies a todas, elígelas y aplica:</span>
                     <div className={styles.chips}>
                       {especies.map((esp) => (
                         <button
@@ -182,13 +191,10 @@ export function EditorAccesos({ clientes, plantas, especies, accesos, onChange }
                     </div>
                     <div className={styles.acciones}>
                       <button type="button" className={styles.primario} disabled={loteEspecies.length === 0} onClick={() => aplicarLote(loteEspecies)}>
-                        Aplicar a las marcadas
+                        Aplicar a las {conAcceso.length}
                       </button>
                       <button type="button" onClick={() => aplicarLote('todas')}>
                         Todas las especies
-                      </button>
-                      <button type="button" onClick={() => aplicarLote([])}>
-                        Quitar acceso
                       </button>
                     </div>
                   </div>
@@ -197,12 +203,11 @@ export function EditorAccesos({ clientes, plantas, especies, accesos, onChange }
                 <ul className={styles.plantas} aria-label="Plantas">
                   {delCliente.map((p) => {
                     const e = especiesDe(accesos, cliente, p.nombre)
-                    const marcada = marcadas.includes(p.nombre)
                     return (
-                      <li key={p.nombre} className={`${styles.planta} ${e.tiene ? styles.conAcceso : ''} ${marcada ? styles.marcada : ''}`}>
+                      <li key={p.nombre} className={`${styles.planta} ${e.tiene ? styles.conAcceso : ''} `}>
                         <div className={styles.plantaTop}>
                           <label>
-                            <input type="checkbox" checked={marcada} onChange={() => alternarMarca(p.nombre)} />
+                            <input type="checkbox" checked={e.tiene} onChange={() => alternarAcceso(p.nombre)} />
                             <b>{p.nombre}</b>
                           </label>
                           <span className={e.tiene ? styles.cuenta : styles.sin}>
