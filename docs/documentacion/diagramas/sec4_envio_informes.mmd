@@ -1,0 +1,21 @@
+sequenceDiagram
+    actor analista as Analista
+    participant front as Frontend
+    participant api as API Envío de informes
+    participant datos as PostgreSQL
+    participant mail as Gmail y cliente
+    analista->>front: Sube los PDF
+    front->>api: POST /analizar
+    api->>api: Lee Sold To, Ship To y OT
+    api->>datos: Busca la solicitud
+    api->>api: Arma Para, CC y CCO
+    api-->>front: Propuesta y vista previa
+    analista->>front: Revisa y envía
+    front->>api: POST /enviar
+    alt Sistema en prueba
+        api->>mail: Solo a destinatarios de prueba
+    else Sistema en producción
+        api->>mail: A la lista del cliente
+    end
+    api->>datos: Anota el envío
+    api-->>front: Enviado o reintentar

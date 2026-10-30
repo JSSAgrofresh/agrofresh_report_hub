@@ -1,0 +1,27 @@
+erDiagram
+    SOLICITUD_ARCHIVO ||..o{ INFORME_AUDITORIA : recibe
+    SOLICITUD_ARCHIVO ||..o| INFORME_FECHA_MANUAL : fecha_manual
+    SOLICITUD_ARCHIVO { int id PK
+ string archivo UK
+ string numero_solicitud
+ string laboratorio }
+    INFORME_AUDITORIA { int id PK
+ string archivo_solicitud FK
+ string nro_informe
+ string laboratorio
+ string r2_key
+ datetime fecha_envio
+ string subido_por_email }
+    INFORME_FECHA_MANUAL { string archivo PK
+ datetime fecha_envio
+ string nota
+ datetime creado_en }
+    ENVIO_INFORME_LOG { int id PK
+ string modo
+ string laboratorio
+ string sold_to
+ string ship_to
+ json para
+ json cc
+ json bcc
+ bool exitoso }

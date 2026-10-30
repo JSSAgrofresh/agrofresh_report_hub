@@ -1,0 +1,25 @@
+erDiagram
+    USUARIO ||--o{ SESION : inicia
+    USUARIO ||--o{ STORAGE_PERMISO : tiene_acceso
+    USUARIO { int id PK
+ string email
+ string nombre
+ string tipo_acceso
+ string area
+ string cliente_nombre
+ string planta_nombre
+ array modulos
+ array reportes
+ json plantas_asignadas
+ string password_hash
+ bool debe_cambiar }
+    SESION { string token_hash PK
+ int usuario_id FK
+ datetime creada_en
+ datetime expira_en
+ datetime ultimo_uso }
+    STORAGE_PERMISO { int id PK
+ string espacio
+ string ruta
+ int usuario_id FK
+ string creado_por }

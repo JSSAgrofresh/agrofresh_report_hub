@@ -1,0 +1,41 @@
+erDiagram
+    SOLICITUD_ARCHIVO ||..o{ ENVIO_SOLICITUD_LOG : se_envia
+    SOLICITUD_ARCHIVO ||..o{ CRUCE_FOTO : tiene_foto
+    SOLICITUD_ARCHIVO ||..o{ LAB_ACTIVIDAD : registra
+    SOLICITUD_ARCHIVO { int id PK
+ string archivo UK
+ string numero_solicitud
+ string laboratorio
+ string sold_to
+ string ship_to
+ string especie
+ date fecha_muestreo
+ json datos }
+    ENVIO_SOLICITUD_LOG { int id PK
+ string archivo FK
+ string usuario_email
+ json destinatarios_to
+ json destinatarios_cc
+ json destinatarios_bcc
+ bool exitoso
+ string error
+ datetime creado_en }
+    CRUCE_FOTO { int id PK
+ string archivo FK
+ string r2_key
+ string usuario_email
+ bool activa
+ datetime subida_en }
+    LAB_ACTIVIDAD { int id PK
+ string accion
+ string archivo FK
+ string codigo_muestra
+ decimal peso_muestra
+ string usuario_email
+ json detalle
+ datetime creado_en }
+    FORTIFICADO { int id PK
+ string numero UK
+ decimal peso_extraido
+ datetime ingresado_en
+ string ingresado_por }

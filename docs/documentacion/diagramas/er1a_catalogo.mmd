@@ -1,0 +1,35 @@
+erDiagram
+    direction LR
+    CLIENTE ||--o{ PLANTA : tiene
+    PLANTA ||--o{ SOLICITUD : origina
+    CARGA_DATOS ||--o{ SOLICITUD : registra_carga
+    CLIENTE { int id PK
+ string nombre UK
+ string codigo_sap
+ string rut
+ bool activo }
+    PLANTA { int id PK
+ int cliente_id FK
+ string nombre
+ string codigo_sap
+ string ciudad
+ bool activo }
+    SOLICITUD { int id PK
+ string nro_solicitud
+ string laboratorio
+ date fecha_muestreo
+ date fecha_entrada
+ string especie
+ string variedad
+ string servicio
+ int planta_id FK
+ int carga_id FK
+ string referencia
+ bool vigente }
+    CARGA_DATOS { int id PK
+ string origen
+ string archivo
+ int filas
+ string creado_por
+ datetime creado_en
+ datetime deshecha_en }

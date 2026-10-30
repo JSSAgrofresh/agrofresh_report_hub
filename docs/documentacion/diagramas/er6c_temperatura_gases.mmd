@@ -1,0 +1,26 @@
+erDiagram
+    VERIF_REGISTRO ||--o{ VERIF_TEMPERATURA_MEDICION : incluye
+    VERIF_REGISTRO ||--o{ VERIF_GAS_MEDICION : incluye
+    VERIF_PUNTO_TEMPERATURA ||--o{ VERIF_TEMPERATURA_MEDICION : se_mide_en
+    VERIF_GAS ||--o{ VERIF_GAS_MEDICION : se_mide_en
+    VERIF_REGISTRO { int id PK
+ date fecha UK
+ string resultado }
+    VERIF_PUNTO_TEMPERATURA { int id PK
+ string nombre UK
+ decimal minimo
+ decimal maximo }
+    VERIF_TEMPERATURA_MEDICION { int id PK
+ int registro_id FK
+ int punto_id FK
+ decimal lectura
+ string resultado }
+    VERIF_GAS { int id PK
+ string nombre UK }
+    VERIF_GAS_MEDICION { int id PK
+ int registro_id FK
+ int gas_id FK
+ string codigo_cilindro
+ decimal presion_contenido
+ decimal presion_trabajo
+ string resultado }

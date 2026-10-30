@@ -1,0 +1,21 @@
+sequenceDiagram
+    actor muestreador as Muestreador
+    participant front as Frontend
+    participant api as API Toma de muestras
+    participant datos as PostgreSQL y R2
+    participant mail as Gmail
+    muestreador->>front: Completa el formulario
+    front->>api: POST /solicitudes
+    api->>datos: Reserva el folio OT
+    api->>api: Genera Excel, PDF y JSON
+    api->>datos: Guarda el Excel e indexa
+    api-->>front: Solicitud creada con su OT
+    opt Envío automático encendido
+        front->>api: POST /solicitudes/archivo/enviar
+        api->>api: Arma Para, CC y CCO
+        api->>mail: Correo con PDF, Excel y JSON
+        mail-->>mail: Entrega al laboratorio
+        api->>datos: Anota el envío
+        api-->>front: Enviada
+    end
+    front-->>muestreador: Enviada o Pendiente

@@ -1,0 +1,19 @@
+erDiagram
+    VERIF_REGISTRO ||--o{ VERIF_MICROPIPETA_MEDICION : incluye
+    VERIF_MICROPIPETA ||--o{ VERIF_MICROPIPETA_MEDICION : se_mide_en
+    VERIF_REGISTRO { int id PK
+ date fecha UK
+ string resultado
+ string revisado_por }
+    VERIF_MICROPIPETA { int id PK
+ string nombre
+ decimal volumen_nominal
+ decimal tolerancia }
+    VERIF_MICROPIPETA_MEDICION { int id PK
+ int registro_id FK
+ int micropipeta_id FK
+ decimal peso_1
+ decimal peso_2
+ decimal peso_3
+ decimal error_pct
+ string resultado }

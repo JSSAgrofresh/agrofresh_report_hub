@@ -1,0 +1,22 @@
+erDiagram
+    USUARIO ||--o{ NOTIFICACION_LEIDA : marca
+    NOTIFICACION ||--o{ NOTIFICACION_LEIDA : leida_por
+    USUARIO ||--o| NOTIFICACION_SUSCRIPCION : se_suscribe
+    USUARIO { int id PK
+ string email
+ string nombre
+ string tipo_acceso }
+    NOTIFICACION { int id PK
+ string titulo
+ string resumen
+ string cuerpo
+ string categoria
+ string audiencia
+ bool publicado
+ string creado_por }
+    NOTIFICACION_LEIDA { int notificacion_id PK
+ int usuario_id PK
+ datetime leida_en }
+    NOTIFICACION_SUSCRIPCION { int usuario_id PK
+ array tipos
+ string actualizado_por }
