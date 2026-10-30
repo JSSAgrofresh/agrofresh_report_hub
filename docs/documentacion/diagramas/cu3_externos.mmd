@@ -1,0 +1,25 @@
+flowchart LR
+    comercial([Comercial])
+    cliente([Cliente])
+    subgraph portal ["Portal de clientes y comerciales"]
+        report[Consultar Report de sus plantas]
+        descarga[Descargar la base en Excel]
+        storage[Consultar Storage de sus informes]
+        accutab[Ver informes Accu-Tab]
+    end
+    subgraph interno ["Solo comercial"]
+        solInf[Solicitudes e informes de sus plantas]
+        panel[Panel de control interno de sus plantas]
+    end
+    comercial --> report
+    comercial --> descarga
+    comercial --> storage
+    comercial --> accutab
+    comercial --> solInf
+    comercial --> panel
+    cliente --> report
+    cliente --> descarga
+    cliente --> storage
+    cliente --> accutab
+    style portal fill:#e3f3e0,stroke:#43b049
+    style interno fill:#e0eefb,stroke:#3b8fd6

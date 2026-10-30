@@ -1,0 +1,13 @@
+stateDiagram-v2
+    [*] --> Pendiente : Se crea la solicitud con su OT
+    Pendiente --> Enviada : Se envía al laboratorio
+    Enviada --> MuestraCruzada : Ingreso al laboratorio cruza la muestra
+    MuestraCruzada --> Enviada : Se quita la muestra
+    MuestraCruzada --> EsperandoInforme : Muestra en análisis
+    EsperandoInforme --> InformeRecibido : Llega el PDF por correo o Converter
+    InformeRecibido --> CargadoAReport : Aceptar y cargar
+    InformeRecibido --> Rechazado : Rechazar con motivo
+    Rechazado --> InformeRecibido : Volver a pendiente
+    CargadoAReport --> EnviadoAlCliente : Envío de informes
+    EnviadoAlCliente --> Observado : El cliente abre sus resultados
+    Observado --> [*]

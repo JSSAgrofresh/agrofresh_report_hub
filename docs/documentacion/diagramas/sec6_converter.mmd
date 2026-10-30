@@ -1,0 +1,22 @@
+sequenceDiagram
+    actor analista as Analista
+    participant conv as Converter (navegador)
+    participant api as API Ingesta
+    participant bd as PostgreSQL
+    participant r2 as Cloudflare R2
+    analista->>conv: Sube los PDF de los laboratorios
+    conv->>conv: Lee cada informe y homogeniza con Listados
+    conv->>api: POST /ingest/preview
+    api-->>conv: Informes que ya existen y valores fuera de catálogo
+    opt Algún informe ya existe
+        conv-->>analista: Pregunta: actualizar, sacar de la tanda o cancelar
+    end
+    analista->>conv: Subir a la base de datos
+    conv->>api: POST /ingest/confirmar
+    api->>bd: Inserta solicitud, resultados y productos con su carga_id
+    api->>bd: Deja en pendiente_revision lo que no calza con Listados
+    api->>bd: Registra la carga en carga_datos
+    conv->>api: POST /auditoria-interna/informes con cada PDF
+    api->>r2: Guarda el PDF
+    api->>bd: Registra el informe en informe_auditoria
+    api-->>conv: Carga lista, con opción Deshacer

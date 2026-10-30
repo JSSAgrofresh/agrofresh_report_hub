@@ -1,0 +1,26 @@
+flowchart LR
+    muestreador([Muestreador])
+    analista([Analista de laboratorio])
+    subgraph muestras ["Toma de muestras"]
+        nuevaSol[Crear y enviar solicitud]
+        verSol[Ver solicitudes e informes]
+    end
+    subgraph labo ["AgroFresh Lab"]
+        ingresoLab[Ingreso al laboratorio]
+        verif[Verificaciones diarias]
+        envioInf[Envío de informes]
+    end
+    subgraph datos ["Carga de datos"]
+        converter[Cargar informes con el Converter]
+        excel[Cargar Excel y revisar filas pendientes]
+    end
+    muestreador --> nuevaSol
+    muestreador --> verSol
+    analista --> ingresoLab
+    analista --> verif
+    analista --> envioInf
+    analista --> converter
+    analista --> excel
+    style muestras fill:#e3f3e0,stroke:#43b049
+    style labo fill:#e0eefb,stroke:#3b8fd6
+    style datos fill:#fdf3cf,stroke:#f0c419

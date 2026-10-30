@@ -1,0 +1,28 @@
+flowchart LR
+    admin([Administrador general])
+    gerencia([Gerencia])
+    subgraph adminZona ["Administración"]
+        usuarios[Gestionar usuarios y permisos]
+        listados[Listados y listas de distribución]
+        funciones[Funciones, avisos y plan de entregables]
+        monitoreo[Monitoreo]
+    end
+    subgraph datos ["Datos e informes"]
+        correoInf[Ingreso de informes por correo]
+        panel[Panel de control interno]
+        report[Consultar Report]
+        storage[Consultar Storage]
+    end
+    admin --> usuarios
+    admin --> listados
+    admin --> funciones
+    admin --> monitoreo
+    admin --> correoInf
+    admin --> panel
+    admin --> report
+    admin --> storage
+    gerencia --> report
+    gerencia --> panel
+    gerencia --> storage
+    style adminZona fill:#e7e0f7,stroke:#7a55d6
+    style datos fill:#fdf3cf,stroke:#f0c419

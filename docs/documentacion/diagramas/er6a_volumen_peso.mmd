@@ -1,0 +1,39 @@
+erDiagram
+    VERIF_REGISTRO ||--o{ VERIF_MICROPIPETA_MEDICION : incluye
+    VERIF_REGISTRO ||--o{ VERIF_BALANZA_MEDICION : incluye
+    VERIF_MICROPIPETA ||--o{ VERIF_MICROPIPETA_MEDICION : se_mide_en
+    VERIF_PESA_PATRON ||--o{ VERIF_BALANZA_MEDICION : se_mide_en
+    VERIF_REGISTRO ||..o{ VERIF_SECCION_LOCK : bloquea_por_fecha
+    VERIF_REGISTRO { int id PK
+ date fecha UK
+ decimal temperatura_agua
+ decimal factor_z
+ string resultado
+ string revisado_por
+ string creado_por }
+    VERIF_MICROPIPETA { int id PK
+ string nombre
+ decimal volumen_nominal
+ decimal tolerancia }
+    VERIF_MICROPIPETA_MEDICION { int id PK
+ int registro_id FK
+ int micropipeta_id FK
+ decimal peso_1
+ decimal peso_2
+ decimal peso_3
+ decimal error_pct
+ string resultado }
+    VERIF_PESA_PATRON { int id PK
+ string nombre UK
+ decimal valor_nominal
+ decimal tolerancia }
+    VERIF_BALANZA_MEDICION { int id PK
+ int registro_id FK
+ int pesa_id FK
+ decimal lectura_1
+ decimal promedio
+ string resultado }
+    VERIF_SECCION_LOCK { date fecha PK
+ string seccion PK
+ string analista
+ string email }

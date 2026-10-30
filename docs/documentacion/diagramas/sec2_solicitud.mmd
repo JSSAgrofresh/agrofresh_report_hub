@@ -1,0 +1,24 @@
+sequenceDiagram
+    actor muestreador as Muestreador
+    participant front as Frontend
+    participant api as API Toma de muestras
+    participant r2 as Cloudflare R2
+    participant bd as PostgreSQL
+    participant mail as Correo (Gmail)
+    actor lab as Laboratorio
+    muestreador->>front: Completa el formulario de solicitud
+    front->>api: POST /api/toma-muestras/solicitudes
+    api->>bd: Reserva el folio OT del laboratorio
+    api->>api: Genera Excel, PDF y JSON
+    api->>r2: Guarda el Excel de la solicitud
+    api->>bd: Indexa la solicitud
+    api-->>front: Solicitud creada con su OT
+    opt Envío automático encendido para ese tipo
+        front->>api: POST /solicitudes/{archivo}/enviar
+        api->>bd: Arma destinatarios (Para, CC y CCO)
+        api->>mail: Envía correo con PDF, Excel y JSON
+        mail-->>lab: Solicitud de análisis
+        api->>bd: Anota el envío en envio_solicitud_log
+        api-->>front: Enviada
+    end
+    front-->>muestreador: Muestra la solicitud como Enviada o Pendiente

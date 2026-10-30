@@ -1,0 +1,28 @@
+sequenceDiagram
+    actor lab as Laboratorio
+    participant buzon as Buzón Report Hub (solo lectura)
+    participant api as API Correo de informes
+    participant r2 as Cloudflare R2
+    participant bd as PostgreSQL
+    actor admin as Administrador principal
+    lab->>buzon: Envía el informe PDF
+    api->>buzon: Revisa correos con PDF (solo lectura)
+    api->>api: Lee el PDF y deduce laboratorio y OT
+    api->>bd: Busca la solicitud por la OT
+    api->>api: Compara destinatarios, planta y laboratorio
+    api->>r2: Copia el PDF
+    api->>bd: Guarda el informe como pendiente
+    admin->>api: Abre la bandeja y revisa el detalle
+    alt Todo calza con Listados
+        admin->>api: POST /correo-informes/{id}/aceptar
+        api->>bd: Previsualiza y confirma la carga
+        api->>bd: Registra la carga (carga_datos)
+        api-->>admin: Informe cargado a Report
+    else Algo no calza
+        admin->>api: Homogeneiza a mano y acepta
+        api->>bd: Aprende la corrección
+        api-->>admin: Cargado con los valores corregidos
+    else Envío en rojo
+        admin->>api: Rechaza o marca ya informado
+        api->>bd: Guarda la decisión y la nota
+    end
