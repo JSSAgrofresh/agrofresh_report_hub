@@ -39,4 +39,13 @@ describe('editor de accesos', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Todo el Sold To' }))
     expect(salida.v).toEqual([{ clienteNombre: 'DOLE', plantaNombre: null }])
   })
+
+  it('abre solo el primer cliente con acceso y pone sus plantas con acceso primero', () => {
+    const accesos: PlantaAsignada[] = [{ clienteNombre: 'UNIFRUTTI', plantaNombre: 'UNI ROMERAL', especie: 'Uva' }]
+    render(<EditorAccesos clientes={['DOLE', 'UNIFRUTTI']} plantas={plantas} especies={['Cerezas', 'Uva']} accesos={accesos} onChange={() => {}} />)
+    const clientesLista = screen.getByRole('list', { name: 'Clientes' })
+    expect(clientesLista.querySelector('li')?.textContent).toContain('UNIFRUTTI')
+    const nombres = Array.from(screen.getByRole('list', { name: 'Plantas' }).querySelectorAll('b')).map((b) => b.textContent)
+    expect(nombres).toEqual(['UNI ROMERAL', 'UNI SAN FERNANDO'])
+  })
 })
