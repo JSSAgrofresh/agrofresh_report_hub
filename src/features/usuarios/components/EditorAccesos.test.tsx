@@ -20,16 +20,20 @@ function Caja({ alCambiar }: { alCambiar: (n: PlantaAsignada[]) => void }) {
 }
 
 describe('editor de accesos', () => {
-  it('marca dos plantas y les aplica las mismas especies de una vez', () => {
+  it('la casilla da o quita el acceso y el lote deja las mismas especies en las plantas con acceso', () => {
     const salida = { v: [] as PlantaAsignada[] }
     render(<Caja alCambiar={(n) => (salida.v = n)} />)
     fireEvent.click(screen.getByRole('button', { name: /^UNIFRUTTI/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Marcar todas las plantas' }))
-    const lote = screen.getByText('2 plantas marcadas').parentElement as HTMLElement
+    expect(salida.v).toHaveLength(2)
+    expect(salida.v.every((x) => !x.especie)).toBe(true)
+    const lote = screen.getByText('2 plantas con acceso').parentElement as HTMLElement
     fireEvent.click(lote.querySelector('button[aria-pressed]') as HTMLElement) // Cerezas
-    fireEvent.click(screen.getByRole('button', { name: 'Aplicar a las marcadas' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar a las 2' }))
     expect(salida.v).toHaveLength(2)
     expect(salida.v.every((x) => x.especie === 'Cerezas')).toBe(true)
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    expect(salida.v).toHaveLength(1)
   })
 
   it('«Todo el Sold To» guarda una sola fila sin planta', () => {
