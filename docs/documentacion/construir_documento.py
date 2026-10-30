@@ -24,6 +24,7 @@ import contenido_b as B
 import contenido_c as C
 import contenido_d as D
 import contenido_e as E
+import contenido_f as F
 import lib_docx as L
 
 AQUI = Path(__file__).parent
@@ -31,7 +32,7 @@ RAIZ = AQUI.parent.parent
 SALIDA = AQUI / "Documentacion_AgroFresh_Report_Hub.docx"
 TMP = AQUI / "_tmp"
 ENCABEZADO = "Documentación del sistema · AgroFresh Report Hub"
-VERSION = "Versión 0.4 · borrador · 30 de octubre de 2026"
+VERSION = "Versión 0.5 · borrador · 30 de octubre de 2026"
 
 SEMANAS = [
     ("1-2", "11 al 24 ago", 5, "Estructura React, Vite y TypeScript"),
@@ -157,7 +158,7 @@ def construir(ruta: Path, cache: dict | None) -> dict:
     _titulo_sin_numero(doc, "Control del documento", salto=False)
     L.tabla(doc, ["Campo", "Detalle"], [
         ("Documento", "Documentación del sistema AgroFresh Report Hub"),
-        ("Versión", "0.4 (borrador en construcción)"),
+        ("Versión", "0.5 (borrador en construcción)"),
         ("Fecha", "30 de octubre de 2026"),
         ("Autor", "Jorge Sandoval"),
         ("Metodología", "Scrum++ (Scrum y modelo de vistas 4+1)"),
@@ -172,6 +173,7 @@ def construir(ruta: Path, cache: dict | None) -> dict:
         ("0.2", "30-10-2026", "Estructura completa: introducción, marco teórico, requerimientos, vistas 4+1, módulos, pruebas y anexos."),
         ("0.3", "30-10-2026", "Capítulo de módulos ampliado (flujos, reglas, API), Product Backlog con historias de usuario, 18 casos de uso especificados, módulos nuevos (Costo por kilo, Muestra interna) y catálogo de endpoints."),
         ("0.4", "30-10-2026", "Todo el documento en vertical; explicación escrita de cada diagrama; capítulos nuevos de decisiones de diseño y de operación; citas en el texto y bibliografía ampliada."),
+        ("0.5", "30-10-2026", "Manual de usuario por tipo de cuenta con capturas del sistema en un entorno de demostración."),
     ], [2.0, 3.0, 11.0], "Historial de versiones")
 
     # ---- Mensaje inicial (se escribe a mano)
@@ -203,6 +205,7 @@ def construir(ruta: Path, cache: dict | None) -> dict:
     D.capitulo_9(doc, datos)
     E.capitulo_decisiones(doc, datos)
     E.capitulo_operacion(doc, datos)
+    F.capitulo_manual(doc, datos)
     B.capitulo_8(doc, datos)
     B.capitulo_9(doc, datos)
     B.capitulo_10(doc, datos)

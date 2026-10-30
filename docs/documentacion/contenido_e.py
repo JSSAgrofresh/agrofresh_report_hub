@@ -89,8 +89,9 @@ def capitulo_1(doc, datos):
       "El documento sigue el enfoque Scrum++ definido en la memoria de título del autor. El capítulo 2 explica los marcos y herramientas; el 3 "
       "describe a AgroFresh y sus servicios; el 4 recoge los requerimientos; el 5 narra el desarrollo semana a semana; el 6 es el corazón "
       "técnico, con las cuatro vistas del modelo 4+1 y la vista de escenarios; el 7 describe cada módulo en detalle; los capítulos 8 y 9 "
-      "especifican las historias de usuario y los casos de uso; el 10 explica las decisiones de diseño y el 11 cómo se opera y mantiene el "
-      "sistema; el 12 trata las pruebas, el 13 la retrospectiva y el 14 las conclusiones. Al final están la bibliografía y cuatro anexos.")
+      "especifican las historias de usuario y los casos de uso; el 10 explica las decisiones de diseño, el 11 cómo se opera y mantiene el "
+      "sistema y el 12 es el manual de usuario, con capturas de pantalla; el 13 trata las pruebas, el 14 la retrospectiva y el 15 las conclusiones. "
+      "Al final están la bibliografía y cuatro anexos.")
 
 
 # =====================================================================================================
@@ -560,7 +561,7 @@ def capitulo_operacion(doc, datos):
 
 # =====================================================================================================
 def bibliografia(doc, datos):
-    titulo(doc, "15. Bibliografía", 1)
+    titulo(doc, "16. Bibliografía", 1)
     P(doc, "Las referencias siguen el formato APA y se citan en el texto con el apellido del autor y el año.")
     refs = [
         "Bass, L., Clements, P., y Kazman, R. (2003). Software Architecture in Practice (2.ª ed.). Addison-Wesley.",
