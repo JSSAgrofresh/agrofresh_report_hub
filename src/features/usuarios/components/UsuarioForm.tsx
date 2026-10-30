@@ -213,7 +213,12 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
           </div>
           {avisoListas && <p className={styles.notaChica}>{avisoListas}</p>}
 
-          <PlantasAsignadas plantas={plantasAsignadas} onChange={setPlantasAsignadas} />
+          {plantasAsignadas.length > 0 && (
+            <details className={styles.resumenAccesos}>
+              <summary>Ver el resumen de todo lo asignado</summary>
+              <PlantasAsignadas plantas={plantasAsignadas} onChange={setPlantasAsignadas} />
+            </details>
+          )}
     </>
   )
 

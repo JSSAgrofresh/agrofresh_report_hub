@@ -17,24 +17,47 @@ interface Props {
 /** Configura qué ve una cuenta: se elige un Sold To a la izquierda y a la derecha cada planta es una tarjeta con sus
  * especies como botones. Marcando varias plantas se les aplican las mismas especies de una vez. */
 export function EditorAccesos({ clientes, plantas, especies, accesos, onChange }: Props) {
-  const [cliente, setCliente] = useState('')
+  const [elegido, setElegido] = useState('')
   const [texto, setTexto] = useState('')
   const [marcadas, setMarcadas] = useState<string[]>([])
   const [loteEspecies, setLoteEspecies] = useState<string[]>([])
 
+  // Los clientes con acceso van primero (y en verde); el resto, en orden alfabético.
+  const ordenados = useMemo(() => {
+    const con = (c: string) => {
+      const r = resumenDeCliente(accesos, c)
+      return r.todo || r.plantas > 0
+    }
+    return [...clientes].sort((a, b) => Number(con(b)) - Number(con(a)) || a.localeCompare(b, 'es'))
+  }, [clientes, accesos])
   const visibles = useMemo(() => {
     const palabras = plano(texto).split(/\s+/).filter(Boolean)
-    return clientes.filter((c) => palabras.every((w) => plano(c).includes(w)))
-  }, [clientes, texto])
+    return ordenados.filter((c) => palabras.every((w) => plano(c).includes(w)))
+  }, [ordenados, texto])
+  // Si nadie eligió uno todavía, se abre el primero que ya tiene acceso.
+  const cliente =
+    elegido ||
+    ordenados.find((c) => {
+      const r = resumenDeCliente(accesos, c)
+      return r.todo || r.plantas > 0
+    }) ||
+    ''
   const delCliente = useMemo(
-    () => plantas.filter((p) => p.cliente_nombre === cliente).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
-    [plantas, cliente],
+    () =>
+      plantas
+        .filter((p) => p.cliente_nombre === cliente)
+        .sort(
+          (a, b) =>
+            Number(especiesDe(accesos, cliente, b.nombre).tiene) - Number(especiesDe(accesos, cliente, a.nombre).tiene) ||
+            a.nombre.localeCompare(b.nombre, 'es'),
+        ),
+    [plantas, cliente, accesos],
   )
   const todoElSoldTo = cliente ? especiesDe(accesos, cliente, null) : null
   const marcadasDelCliente = marcadas.filter((m) => delCliente.some((p) => p.nombre === m))
 
   const elegirCliente = (c: string) => {
-    setCliente(c)
+    setElegido(c)
     setMarcadas([])
     setLoteEspecies([])
   }
@@ -95,7 +118,7 @@ export function EditorAccesos({ clientes, plantas, especies, accesos, onChange }
             const cuenta = r.todo ? 'Todas' : r.plantas
             return (
               <li key={c}>
-                <button type="button" className={`${styles.cliente} ${c === cliente ? styles.sel : ''}`} onClick={() => elegirCliente(c)}>
+                <button type="button" className={`${styles.cliente} ${cuenta !== 0 ? styles.conAcceso : ''} ${c === cliente ? styles.sel : ''}`} onClick={() => elegirCliente(c)}>
                   <span>{c}</span>
                   {cuenta !== 0 && <span className={styles.cuenta}>{cuenta}</span>}
                 </button>
@@ -176,7 +199,7 @@ export function EditorAccesos({ clientes, plantas, especies, accesos, onChange }
                     const e = especiesDe(accesos, cliente, p.nombre)
                     const marcada = marcadas.includes(p.nombre)
                     return (
-                      <li key={p.nombre} className={`${styles.planta} ${marcada ? styles.marcada : ''}`}>
+                      <li key={p.nombre} className={`${styles.planta} ${e.tiene ? styles.conAcceso : ''} ${marcada ? styles.marcada : ''}`}>
                         <div className={styles.plantaTop}>
                           <label>
                             <input type="checkbox" checked={marcada} onChange={() => alternarMarca(p.nombre)} />
