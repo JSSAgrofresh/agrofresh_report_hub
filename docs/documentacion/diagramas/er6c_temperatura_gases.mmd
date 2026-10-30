@@ -1,14 +1,11 @@
 erDiagram
     VERIF_REGISTRO ||--o{ VERIF_TEMPERATURA_MEDICION : incluye
     VERIF_REGISTRO ||--o{ VERIF_GAS_MEDICION : incluye
-    VERIF_REGISTRO ||--o| VERIF_INYECTOR : revisa
-    VERIF_REGISTRO ||--o| VERIF_DETECTOR : revisa
     VERIF_PUNTO_TEMPERATURA ||--o{ VERIF_TEMPERATURA_MEDICION : se_mide_en
     VERIF_GAS ||--o{ VERIF_GAS_MEDICION : se_mide_en
     VERIF_REGISTRO { int id PK
  date fecha UK
- string resultado
- string revisado_por }
+ string resultado }
     VERIF_PUNTO_TEMPERATURA { int id PK
  string nombre UK
  decimal minimo
@@ -26,13 +23,4 @@ erDiagram
  string codigo_cilindro
  decimal presion_contenido
  decimal presion_trabajo
- string resultado }
-    VERIF_INYECTOR { int registro_id PK
- string limpieza_aguja
- string cambio_septa
- string resultado }
-    VERIF_DETECTOR { int registro_id PK
- decimal voltaje_perla
- string metodo_correcto
- decimal output_detector
  string resultado }

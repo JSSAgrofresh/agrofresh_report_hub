@@ -8,12 +8,12 @@ from lib_docx import bloque_codigo, nota, parrafo, tabla, titulo, viñetas
 
 
 def capitulo_8(doc, datos):
-    titulo(doc, "10. Pruebas y calidad", 1)
+    titulo(doc, "12. Pruebas y calidad", 1)
     parrafo(doc, (
         f"El proyecto tiene {datos['tests_back']} archivos de prueba en el backend y {datos['tests_front']} en el "
         "frontend. Las pruebas del backend nunca tocan servicios reales: el archivo conftest vacía R2, Gmail y "
         "Resend y apaga la base, incluso si el .env apunta a producción."))
-    titulo(doc, "10.1 Estrategia de pruebas", 2, False)
+    titulo(doc, "12.1 Estrategia de pruebas", 2, False)
     tabla(doc, ["Nivel", "Herramienta", "Qué cubre"], [
         ("Unitarias backend", "pytest", "Reglas de negocio, lectores de PDF, cálculos y permisos."),
         ("Con base de datos", "pytest con una base aparte", "Consultas reales: cargas, correo, monitoreo, alcance de cuentas."),
@@ -21,7 +21,7 @@ def capitulo_8(doc, datos):
         ("Tipos y estilo", "tsc -b y ESLint", "Contrato de tipos (incluye los archivos de prueba) y calidad de código."),
         ("Visual", "Playwright con Chromium", "Cambios de diseño en navegador real y en varios tamaños de pantalla."),
     ], [3.5, 4.5, 8.0], "Niveles de prueba")
-    titulo(doc, "10.2 Cómo se ejecutan", 2, False)
+    titulo(doc, "12.2 Cómo se ejecutan", 2, False)
     bloque_codigo(doc, [
         "# Backend",
         "cd backend",
@@ -35,7 +35,7 @@ def capitulo_8(doc, datos):
     ])
     nota(doc, "El lint tiene 12 errores de línea base preexistentes. Si salen 12 está bien; si salen 13, algo nuevo lo rompió. "
               "npx tsc --noEmit no sirve: no revisa los archivos de prueba.", "Ojo")
-    titulo(doc, "10.3 Prácticas acordadas", 2, False)
+    titulo(doc, "12.3 Prácticas acordadas", 2, False)
     viñetas(doc, [
         "Al escribir una prueba para un error, se rompe el arreglo a propósito para confirmar que la prueba falla.",
         "Los cálculos que existen en frontend y backend se prueban con los mismos casos.",
@@ -45,21 +45,21 @@ def capitulo_8(doc, datos):
 
 
 def capitulo_9(doc, datos):
-    titulo(doc, "11. Retrospectiva del proyecto", 1)
-    titulo(doc, "11.1 Evaluación de esfuerzo", 2, False)
+    titulo(doc, "13. Retrospectiva del proyecto", 1)
+    titulo(doc, "13.1 Evaluación de esfuerzo", 2, False)
     parrafo(doc, (
         f"En 11 semanas el repositorio acumuló {datos['prs']} pull requests. El ritmo creció de forma "
         "sostenida: las dos primeras semanas fueron de andamiaje y desde la tercera el promedio supera los 50 "
         "pull requests por semana, con picos en las semanas 8, 10 y 11, cuando se construyeron la Auditoría "
         "interna, los indicadores de entrega y el portal de clientes."))
-    titulo(doc, "11.2 Qué funcionó", 2, False)
+    titulo(doc, "13.2 Qué funcionó", 2, False)
     viñetas(doc, [
         "Publicar cada cambio de a poco, con pull request y despliegue sencillo, mantuvo la rama estable siempre lista.",
         "Los scripts que miran primero y escriben solo con --aplicar evitaron errores al corregir datos reales.",
         "Las pruebas automáticas que no tocan servicios reales permitieron cambiar con seguridad.",
         "Registrar quién hizo qué desde el comienzo hizo posibles el Monitoreo y los indicadores de uso.",
     ])
-    titulo(doc, "11.3 Qué mejorar", 2, False)
+    titulo(doc, "13.3 Qué mejorar", 2, False)
     viñetas(doc, [
         "Cerrar los pendientes que dependen del laboratorio (límites residuales, regla de FSMA, nivel Moderado).",
         "Probar los lectores de ALS y Diagnofruit con más informes reales.",
@@ -70,14 +70,14 @@ def capitulo_9(doc, datos):
 
 
 def capitulo_10(doc, datos):
-    titulo(doc, "12. Conclusiones", 1)
+    titulo(doc, "14. Conclusiones", 1)
     nota(doc, "Las conclusiones finales sobre los objetivos, la metodología y el beneficio obtenido se redactan una vez "
               "que el equipo revise el documento.", "Por completar")
-    titulo(doc, "12.1 Respecto a los objetivos", 2, False)
+    titulo(doc, "14.1 Respecto a los objetivos", 2, False)
     parrafo(doc, "[Por completar]")
-    titulo(doc, "12.2 Respecto a la metodología", 2, False)
+    titulo(doc, "14.2 Respecto a la metodología", 2, False)
     parrafo(doc, "[Por completar]")
-    titulo(doc, "12.3 Respecto al beneficio obtenido", 2, False)
+    titulo(doc, "14.3 Respecto al beneficio obtenido", 2, False)
     parrafo(doc, "[Por completar]")
 
 

@@ -1,23 +1,21 @@
 sequenceDiagram
-    actor paz as Analista de laboratorio
-    participant front as Frontend Envío de informes
-    participant api as API /api/envio-informes
-    participant bd as PostgreSQL
-    participant mail as Correo (Gmail)
-    actor cliente as Cliente
-    paz->>front: Sube uno o varios PDF
+    actor analista as Analista
+    participant front as Frontend
+    participant api as API Envío de informes
+    participant datos as PostgreSQL
+    participant mail as Gmail y cliente
+    analista->>front: Sube los PDF
     front->>api: POST /analizar
-    api->>api: Lee Sold To, Ship To, especie y N° de solicitud
-    api->>bd: Busca la solicitud por su OT
-    api->>api: Arma Para, CC y CCO desde la solicitud más copias internas
-    api-->>front: Propuesta con vista previa del correo
-    paz->>front: Revisa y presiona Enviar
+    api->>api: Lee Sold To, Ship To y OT
+    api->>datos: Busca la solicitud
+    api->>api: Arma Para, CC y CCO
+    api-->>front: Propuesta y vista previa
+    analista->>front: Revisa y envía
     front->>api: POST /enviar
     alt Sistema en prueba
-        api->>mail: Correo con (PRUEBA) solo a destinatarios de prueba
+        api->>mail: Solo a destinatarios de prueba
     else Sistema en producción
-        api->>mail: Correo a la lista del cliente con copias ocultas
-        mail-->>cliente: Informe de ensayo adjunto
+        api->>mail: A la lista del cliente
     end
-    api->>bd: Anota el envío en envio_informe_log
-    api-->>front: Enviado o error para reintentar
+    api->>datos: Anota el envío
+    api-->>front: Enviado o reintentar

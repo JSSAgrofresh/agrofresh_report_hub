@@ -46,6 +46,27 @@ def _pruebas(doc, texto):
     parrafo(doc, texto)
 
 
+INTERNO = {
+    "tm": "El backend de Toma de muestras vive en toma_muestras.py, el router más grande del sistema, y se apoya en módulos de lógica pura: solicitud_excel.py construye el libro de cada solicitud, toma_muestras_pdf.py dibuja el PDF, json_als.py y hoja_informe.py arman los formatos específicos de ALS y Diagnofruit, e indice_solicitudes.py mantiene en PostgreSQL el índice que permite listar sin abrir cada Excel. La configuración (analitos, campos por laboratorio, tipos de aplicación, productos y categorías) se guarda como JSON en R2 mediante config_store. En el frontend, features/tomaMuestras agrupa la lógica pura (filtros acumulables, tope de la observación, permisos de edición) y las pantallas NuevaSolicitudView y SolicitudesView la usan.",
+    "ingreso_lab": "El cruce de la muestra lo resuelve emitir.py junto con indice_solicitudes.py (cruzar y editar_cruce), y los fortificados viven en fortificados.py. En el frontend, views/modules/lab contiene el escáner (EscanerCamara con el detector nativo y un lector de respaldo en WebAssembly), la ficha escaneada, los modales de cruce y de edición y el componente FotoCruce, que descarga las fotos con el token de sesión.",
+    "verif": "verificaciones.py concentra el cálculo y la persistencia; verificaciones_excel.py y verificaciones_pdf.py generan los documentos del día y lab_secciones.py aplica los permisos por sección. En el frontend, features/verificaciones/lib/calculos.ts replica el cálculo para pintar el veredicto al escribir. Ambos lados se prueban contra los mismos casos, que son la garantía de que no discrepen.",
+    "envio": "envio_informes.py arma el plan de destinatarios con plan_desde_solicitud, la misma función que usa el PDF de la solicitud; informe_lectura.py lee el PDF con pypdf; mail_templates.py comparte con las solicitudes el marco del correo, y mail_aviso.py maneja las siete plantillas del aviso, cuyas imágenes están generadas y versionadas en correo_assets. La vista previa que ve el analista se arma con el mismo código del envío.",
+    "ingreso": "ingest.py es el corazón de la carga: su función _procesar_filas la usan tanto la carga por Excel como el Converter y el correo. El Converter es un módulo de navegador (public/modules/converter.html, con lectores por laboratorio en JavaScript) y su espejo en Python (quiteca_lectura.py y agrofresh_lectura.py) se compara contra casos dorados. El correo se divide en correo_informes.py (buzón y base), correo_informes_lectura.py (lectura y revisión, pura), correo_informes_homogeneo.py, correo_informes_aceptar.py y correo_informes_panel.py (cálculo del tablero). En el frontend, features/ingest y features/correoInformes contienen la lógica pura y los componentes del tablero.",
+    "report": "reportes.py expone los datos y arma el alcance con _filtro_alcance; bd_excel.py y columnas_base.py generan la BD en Excel con las mismas columnas que la base de Ingreso al laboratorio; ficha_informe.py devuelve la ficha de un informe y su PDF. En el frontend, features/reportes/lib contiene la lógica pura (filtros, bloques de análisis, tabla por informe, estados de patógenos, curva suave y límites residuales) y ReporteView orquesta la pantalla.",
+    "panel": "entrega_indicadores.py entrega los hitos de cada solicitud; auditoria_interna.py lista solicitudes e informes; rendimiento_calidad.py contiene los límites y las reglas de cumplimiento; plan_carga.py, plan_entregables.py y plan_cruce.py manejan el plan de los comerciales. En el frontend, features/auditoriaInterna/lib/entrega.ts calcula los tiempos en días hábiles y features/rendimientoCalidad/lib/agregar.ts agrupa y filtra las celdas que devuelve el servidor.",
+    "postventa": "postventa.py y accutab_parser.py leen y guardan las cargas; accutab_informe.py dibuja el informe PDF igual al de Trace; costo_kilo.py (lógica pura) interpreta el CSV del equipo, costo_kilo_informe.py genera el PDF y el Excel y costo_kilo_api.py expone la API para el personal y para el cliente. El correo lo procesa scripts/accutab_mail_ingest.py. En el frontend, features/postventa contiene la lógica del reporte y views/modules/trace la subida a mano.",
+    "storage": "storage.py maneja el disco del servidor; storage_r2.py decide qué se puede modificar en R2 (permitir) y storage_permisos.py aplica los permisos por carpeta. informes_storage.py construye la ruta de cada informe y de cada solicitud, e informes_cliente.py entrega al cliente solo su carpeta. En el frontend, features/storage/lib/explorador.ts espeja las reglas y ambos se prueban con los mismos casos.",
+    "admin": "usuarios.py y permisos_funciones.py normalizan y guardan las cuentas; auth.py contiene la sesión, el control de acceso y la lista blanca de comerciales; listas_distribucion.py, listados.py y servicios.py resuelven contactos y listados por servicio; funciones.py guarda qué muestra Report; panel_inicio.py valida la grilla; admin_panel.py, actividad.py y actividad_auto.py forman la bitácora y los paneles de uso; notificaciones.py maneja avisos y suscripciones. La grilla del panel de inicio tiene sus reglas en un solo lugar puro, features/panelInicio/lib/grilla.ts, espejo de validar_piezas del backend.",
+    "portal": "components/layout/portal contiene PortalShell (el marco), FiltrosPegajosos, PortalHero y las tarjetas de análisis; lib/cacheDeSesion.ts guarda en memoria lo último traído por sesión y lib/paleta.ts fija los colores de los gráficos según el estilo. El marco aplica sus estilos solo a las cuentas externas gracias al atributo data-portal, de modo que las pantallas internas no se ven afectadas.",
+    "monitoreo": "monitoreo.py contiene la lógica pura (armar_conectados, pulso_por_hora, linea_de_tiempo) y la lectura de las tablas; en el frontend, el hook usePresencia manda el latido con la pantalla, el aparato y la versión, y features/monitoreo contiene la lógica pura de la hoja de cada persona. El manifiesto y el service worker mínimo viven en public/.",
+}
+
+
+def _interno(doc, clave):
+    _sub(doc, "Cómo funciona por dentro", 4)
+    parrafo(doc, INTERNO[clave])
+
+
 # =====================================================================================================
 def capitulo_7(doc, datos):
     titulo(doc, "7. Descripción de los módulos", 1)
@@ -69,15 +90,24 @@ def capitulo_7(doc, datos):
         ("Seguridad y permisos", "7.12", "Cómo se acota lo que ve cada cuenta"),
     ], [5.2, 1.8, 9.0], "Mapa de módulos")
     _toma_muestras(doc)
+    _interno(doc, "tm")
     _lab(doc)
     _ingreso(doc)
+    _interno(doc, "ingreso")
     _report(doc)
+    _interno(doc, "report")
     _panel(doc)
+    _interno(doc, "panel")
     _postventa(doc)
+    _interno(doc, "postventa")
     _storage(doc)
+    _interno(doc, "storage")
     _admin(doc)
+    _interno(doc, "admin")
     _portal(doc)
+    _interno(doc, "portal")
     _monitoreo(doc)
+    _interno(doc, "monitoreo")
     _servicios(doc)
     _seguridad(doc)
 
@@ -171,6 +201,7 @@ def _lab(doc):
         ("Fotos", "Se descargan con el token de sesión (componente FotoCruce); un enlace directo a la imagen daría 401."),
         ("Pruebas fuera", "Las solicitudes de prueba no aparecen en el Ingreso al laboratorio."),
     ])
+    _interno(doc, "ingreso_lab")
     # ---------------- Verificaciones
     titulo(doc, "7.2.2 Verificaciones diarias (REG-03)", 3, False)
     _ficha(doc, "/modulos/agrofresh-lab/verificaciones", "Analistas, administrador de Cromatografía y administrador general.",
@@ -197,6 +228,7 @@ def _lab(doc):
         ("Permisos", "Modificar criterios es la función «lab_criterios»; firmar el día es «verif_firmar», además del administrador general y el de Cromatografía."),
         ("Secciones por cuenta", "En Usuarios se puede limitar qué puertas de AgroFresh Lab ve cada cuenta (lab_ingreso, lab_verificaciones, lab_envio)."),
     ])
+    _interno(doc, "verif")
     _sub(doc, "API", 4)
     _api(doc, ["verificaciones.py"], 12, "Endpoints principales de Verificaciones")
     # ---------------- Envío de informes
@@ -228,6 +260,7 @@ def _lab(doc):
         ("Historial", "Solo el administrador principal borra registros, de a uno y con su clave; queda como cambio sensible en Actividad."),
         ("Aviso a clientes", "El aviso «ahora los informes salen por el Report Hub» vive en Administración General; es editable, con siete plantillas, y se puede probar enviándolo solo a Paz y Jorge. El envío masivo a clientes aún no existe."),
     ])
+    _interno(doc, "envio")
     _sub(doc, "API", 4)
     _api(doc, ["envio_informes.py"], 12, "Endpoints principales de Envío de informes")
 

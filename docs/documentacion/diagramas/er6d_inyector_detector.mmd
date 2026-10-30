@@ -1,0 +1,15 @@
+erDiagram
+    VERIF_REGISTRO ||--o| VERIF_INYECTOR : revisa
+    VERIF_REGISTRO ||--o| VERIF_DETECTOR : revisa
+    VERIF_REGISTRO { int id PK
+ date fecha UK
+ string resultado }
+    VERIF_INYECTOR { int registro_id PK
+ string limpieza_aguja
+ string cambio_septa
+ string resultado }
+    VERIF_DETECTOR { int registro_id PK
+ decimal voltaje_perla
+ string metodo_correcto
+ decimal output_detector
+ string resultado }

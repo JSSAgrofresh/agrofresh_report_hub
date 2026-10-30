@@ -25,43 +25,47 @@ FILAS = [
 COLORES = {"Fundación": "#9aa59c", "Backend y datos": "#3b8fd6", "Solicitudes y listados": "#43b049",
            "Plataforma": "#7a55d6", "Post venta e indicadores": "#e98a1c", "Portal y correo": "#2f5f3a"}
 
-W = 2000
-fila_h = 66
-top = 185
-H = top + fila_h * len(FILAS) + 110
+W = 1200
+fila_h = 78
+top = 170
+H = top + fila_h * len(FILAS) + 140
 im = Image.new("RGB", (W, H), "white")
 d = ImageDraw.Draw(im)
 inicio, fin = date(2026, 8, 10), date(2026, 11, 2)
-x0, x1 = 760, W - 60
+x0, x1 = 500, W - 90
 dias = (fin - inicio).days
 px = lambda dt: x0 + (x1 - x0) * (dt - inicio).days / dias
 
-d.text((40, 30), "AgroFresh Report Hub · Cronograma de desarrollo", font=F(NEG, 38), fill="#2f5f3a")
-d.text((40, 82), "11 de agosto al 30 de octubre de 2026 · una barra por semana de trabajo · PR = pull requests abiertos",
-       font=F(REG, 24), fill="#555f58")
+d.text((30, 24), "Cronograma de desarrollo", font=F(NEG, 34), fill="#2f5f3a")
+d.text((30, 72), "11 de agosto al 30 de octubre de 2026 · una barra por semana · PR = pull requests", font=F(REG, 20), fill="#555f58")
 # semanas (lunes)
 lunes = date(2026, 8, 10)
 k = 0
 while lunes < fin:
     x = px(lunes)
     d.line([(x, top - 18), (x, top + fila_h * len(FILAS))], fill="#e3e8e3", width=2)
-    d.text((x + 4, top - 44), lunes.strftime("%d-%m"), font=F(REG, 20), fill="#555f58")
+    if k % 2 == 0:
+        d.text((x + 3, top - 40), lunes.strftime("%d-%m"), font=F(REG, 19), fill="#555f58")
+    k += 1
     lunes = date.fromordinal(lunes.toordinal() + 7)
 for i, (sem, foco, a, b, prs, sec) in enumerate(FILAS):
     y = top + i * fila_h
     if i % 2 == 0:
         d.rectangle([20, y, W - 20, y + fila_h], fill="#f4f6f4")
-    d.text((40, y + 8), sem, font=F(NEG, 24), fill="#2f5f3a")
-    d.text((40, y + 36), foco if len(foco) < 62 else foco[:60] + "…", font=F(REG, 19), fill="#555f58")
+    d.text((30, y + 8), sem, font=F(NEG, 24), fill="#2f5f3a")
+    d.text((30, y + 42), foco if len(foco) < 36 else foco[:34] + "…", font=F(REG, 18), fill="#555f58")
     xa, xb = px(a), px(date.fromordinal(b.toordinal() + 1))
     d.rounded_rectangle([xa, y + 12, xb, y + fila_h - 12], radius=8, fill=COLORES[sec])
-    d.text((xb + 12, y + fila_h / 2), f"{prs} PR", font=F(NEG, 22), fill="#2f5f3a", anchor="lm")
+    d.text((xb + 12, y + fila_h / 2), f"{prs} PR", font=F(NEG, 21), fill="#2f5f3a", anchor="lm")
 # leyenda
-x = 40
-y = top + fila_h * len(FILAS) + 36
+x = 30
+y = top + fila_h * len(FILAS) + 34
 for nombre, col in COLORES.items():
-    d.rounded_rectangle([x, y, x + 28, y + 28], radius=6, fill=col)
-    d.text((x + 38, y + 14), nombre, font=F(REG, 22), fill="#333", anchor="lm")
-    x += 62 + int(d.textlength(nombre, font=F(REG, 22))) + 22
+    if x + 60 + d.textlength(nombre, font=F(REG, 19)) > W - 20:
+        x = 30
+        y += 38
+    d.rounded_rectangle([x, y, x + 24, y + 24], radius=6, fill=col)
+    d.text((x + 32, y + 12), nombre, font=F(REG, 19), fill="#333", anchor="lm")
+    x += 56 + int(d.textlength(nombre, font=F(REG, 19))) + 18
 im.save(AQUI / "png" / "gantt.png")
 print(im.size)

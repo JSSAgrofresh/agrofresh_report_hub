@@ -1,18 +1,18 @@
 sequenceDiagram
     actor analista as Analista
-    participant front as Frontend Verificaciones
-    participant api as API /api/verificaciones
-    participant bd as PostgreSQL
+    participant front as Frontend
+    participant api as API Verificaciones
+    participant datos as PostgreSQL
     actor jefe as Administrador de Cromatografía
-    analista->>front: Abre el día y completa una sección
-    front->>front: Calcula el veredicto mientras escribe (calculos.ts)
+    analista->>front: Completa una sección
+    front->>front: Calcula el veredicto al escribir
     analista->>front: Guarda la sección
-    front->>api: PUT de la sección del día
-    api->>api: Recalcula el veredicto (verificaciones.py)
-    api->>bd: Guarda mediciones y congela los criterios del día
-    api->>bd: Marca la sección como guardada (verif_seccion_lock)
+    front->>api: PUT de la sección
+    api->>api: Recalcula el veredicto
+    api->>datos: Guarda y congela los criterios
+    api->>datos: Marca la sección guardada
     api-->>front: Resultado de la sección
-    jefe->>front: Revisa el día completo
-    front->>api: Firma la revisión del día
-    api->>bd: Guarda revisado_por y anota la notificación
-    api-->>jefe: Día aprobado o con observaciones
+    jefe->>front: Revisa el día
+    front->>api: Firma la revisión
+    api->>datos: Guarda revisado_por y notifica
+    api-->>jefe: Día aprobado

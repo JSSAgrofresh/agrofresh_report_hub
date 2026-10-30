@@ -143,44 +143,40 @@ def _ancla_de_pagina(run, ancho_cm, alto_cm):
 
 
 def portada(doc, imagen_fondo: Path, titulo, subtitulo, linea_version, notas):
+    """Portada vertical: imagen de marca a página completa y el texto sobre su zona blanca."""
     s = doc.sections[0]
-    s.orientation = WD_ORIENT.LANDSCAPE
-    s.page_width, s.page_height = Cm(29.7), Cm(21.0)
-    s.left_margin, s.right_margin = Cm(2.4), Cm(6.0)
+    s.orientation = WD_ORIENT.PORTRAIT
+    s.page_width, s.page_height = Cm(21.0), Cm(29.7)
+    s.left_margin, s.right_margin = Cm(2.3), Cm(6.0)
     s.top_margin, s.bottom_margin = Cm(1.5), Cm(1.5)
     p = doc.paragraphs[0] if doc.paragraphs else doc.add_paragraph()
     r = p.add_run()
-    r.add_picture(str(imagen_fondo), width=Cm(29.7))
-    _ancla_de_pagina(r, 29.7, 29.7 * 1125 / 2000)
+    r.add_picture(str(imagen_fondo), width=Cm(21.0))
+    _ancla_de_pagina(r, 21.0, 29.7)
     p.paragraph_format.space_after = Pt(0)
 
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(190)
-    p.paragraph_format.space_after = Pt(4)
-    r = p.add_run("DOCUMENTACIÓN DEL SISTEMA")
-    r.font.size, r.font.bold, r.font.color.rgb = Pt(13), True, VERDE
-    r.font.name = FUENTE
-    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(300)
     p.paragraph_format.space_after = Pt(6)
-    r = p.add_run(titulo)
-    r.font.size, r.font.bold, r.font.color.rgb = Pt(36), True, VERDE_OSCURO
-    r.font.name = FUENTE
+    r = p.add_run("DOCUMENTACIÓN DEL SISTEMA")
+    r.font.size, r.font.bold, r.font.color.rgb, r.font.name = Pt(12), True, VERDE, FUENTE
     p = doc.add_paragraph()
-    p.paragraph_format.space_after = Pt(18)
+    p.paragraph_format.space_after = Pt(8)
+    r = p.add_run(titulo)
+    r.font.size, r.font.bold, r.font.color.rgb, r.font.name = Pt(32), True, VERDE_OSCURO, FUENTE
+    p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(22)
     r = p.add_run(subtitulo)
-    r.font.size, r.font.color.rgb = Pt(15), GRIS
-    r.font.name = FUENTE
+    r.font.size, r.font.color.rgb, r.font.name = Pt(14), GRIS, FUENTE
     for texto in notas:
         p = doc.add_paragraph()
-        p.paragraph_format.space_after = Pt(2)
+        p.paragraph_format.space_after = Pt(3)
         r = p.add_run(texto)
-        r.font.size, r.font.color.rgb = Pt(11), GRIS
-        r.font.name = FUENTE
+        r.font.size, r.font.color.rgb, r.font.name = Pt(10.5), GRIS, FUENTE
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(10)
+    p.paragraph_format.space_before = Pt(14)
     r = p.add_run(linea_version)
-    r.font.size, r.font.bold, r.font.color.rgb = Pt(11), True, VERDE_OSCURO
-    r.font.name = FUENTE
+    r.font.size, r.font.bold, r.font.color.rgb, r.font.name = Pt(11), True, VERDE_OSCURO, FUENTE
 
 
 # ---------------------------------------------------------------------------

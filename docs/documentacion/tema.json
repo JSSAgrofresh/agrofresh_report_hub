@@ -22,9 +22,14 @@
  },
  "sequence": {
   "useMaxWidth": false,
-  "actorMargin": 40,
-  "messageMargin": 32,
-  "boxMargin": 8
+  "actorMargin": 24,
+  "messageMargin": 30,
+  "boxMargin": 6,
+  "wrap": true,
+  "width": 130,
+  "noteMargin": 6,
+  "messageFontSize": 15,
+  "actorFontSize": 15
  },
  "flowchart": {
   "useMaxWidth": false,

@@ -8,6 +8,7 @@ from lib_docx import (
 )
 
 PNG = Path(__file__).parent / "png"
+from explicaciones import EXPLICACIONES  # noqa: E402
 
 
 def capitulo_1(doc, datos):
@@ -273,15 +274,13 @@ def pagina_con_figura(doc, datos, tit, arch, leyenda_txt, desc, nivel=3, horizon
     from lib_docx import nueva_seccion
 
     w, h = _dimensiones(arch)
-    cm_vert = min(16.4 / w, 20.0 / h)
-    cm_horiz = min(25.8 / w, 12.6 / h)
-    if horizontal is None:
-        horizontal = cm_horiz > cm_vert * 1.08
-    k = min(cm_horiz if horizontal else cm_vert, 0.0265 * 1.4)
-    nueva_seccion(doc, horizontal, datos["logo"], datos["encabezado"])
+    k = min(16.4 / w, 17.0 / h, 0.0265 * 1.4)
+    nueva_seccion(doc, False, datos["logo"], datos["encabezado"])
     titulo(doc, tit, nivel, False)
     parrafo(doc, desc)
-    figura(doc, PNG / f"{arch}.png", leyenda_txt, ancho_cm=w * k, alto_max_cm=(12.6 if horizontal else 20.0))
+    figura(doc, PNG / f"{arch}.png", leyenda_txt, ancho_cm=w * k, alto_max_cm=17.0)
+    for texto in EXPLICACIONES.get(arch, []):
+        parrafo(doc, texto)
 
 
 def capitulo_6(doc, datos):
@@ -298,7 +297,7 @@ def capitulo_6(doc, datos):
     titulo(doc, "6.1 Vista lógica", 2, False)
     parrafo(doc, (
         f"La base de datos PostgreSQL tiene {datos['tablas']} tablas, creadas con {datos['migraciones']} "
-        "migraciones numeradas. Se documentan en nueve diagramas entidad-relación agrupados por dominio. Las "
+        "migraciones numeradas. Se documentan en doce diagramas entidad-relación agrupados por dominio. Las "
         "líneas punteadas son relaciones lógicas: varias tablas del laboratorio se unen por el nombre del "
         "archivo de la solicitud y no por una llave foránea."))
     tabla(doc, ["Diagrama", "Dominio", "Tablas principales"], [
@@ -307,9 +306,9 @@ def capitulo_6(doc, datos):
         ("6.1.3", "Solicitudes de toma de muestras", "solicitud_archivo, envio_solicitud_log, cruce_foto, lab_actividad, fortificado"),
         ("6.1.4", "Informes y envío al cliente", "informe_auditoria, informe_fecha_manual, envio_informe_log"),
         ("6.1.5", "Informes por correo", "correo_informe, correo_informe_visto, correo_informe_sondeo"),
-        ("6.1.6", "Usuarios y notificaciones", "usuario, sesion, storage_permiso, notificacion"),
-        ("6.1.7", "Monitoreo y actividad", "presencia, presencia_sesion, actividad_usuario"),
-        ("6.1.8 y 6.1.9", "Verificaciones diarias", "verif_registro y las mediciones de cada equipo"),
+        ("6.1.6 y 6.1.7", "Usuarios y notificaciones", "usuario, sesion, storage_permiso, notificacion"),
+        ("6.1.8", "Monitoreo y actividad", "presencia, presencia_sesion, actividad_usuario"),
+        ("6.1.9 a 6.1.12", "Verificaciones diarias", "verif_registro y las mediciones de cada equipo"),
     ], [2.6, 5.0, 8.4], "Diagramas entidad-relación por dominio")
     logicas = [
         ("6.1.1 Catálogo y cargas", "er1a_catalogo", "Modelo entidad-relación del catálogo, las solicitudes y las cargas",
@@ -322,14 +321,20 @@ def capitulo_6(doc, datos):
          "Los PDF de los laboratorios, la fecha de envío anotada a mano para informes propios y el historial de envíos al cliente."),
         ("6.1.5 Ingreso de informes por correo", "er3_correo", "Modelo entidad-relación del ingreso de informes por correo",
          "Informes que llegan al buzón, correos ya examinados, revisiones del buzón y correcciones aprendidas."),
-        ("6.1.6 Usuarios, permisos y notificaciones", "er4_usuarios", "Modelo entidad-relación de usuarios y notificaciones",
-         "Cuentas, sesiones, permisos por carpeta de Storage y notificaciones."),
-        ("6.1.7 Monitoreo y actividad", "er5_monitoreo", "Modelo entidad-relación de monitoreo y actividad",
+        ("6.1.6 Cuentas, sesiones y permisos de carpeta", "er4a_cuentas", "Modelo entidad-relación de cuentas, sesiones y permisos de Storage",
+         "El usuario, sus sesiones y los permisos por carpeta de Storage."),
+        ("6.1.7 Notificaciones", "er4b_notificaciones", "Modelo entidad-relación de las notificaciones",
+         "Avisos, su lectura por usuario y la suscripción a tipos de aviso."),
+        ("6.1.8 Monitoreo y actividad", "er5_monitoreo", "Modelo entidad-relación de monitoreo y actividad",
          "Presencia en línea, visitas de conexión y bitácora de actividad."),
-        ("6.1.8 Verificaciones: volumen y peso", "er6a_volumen_peso", "Modelo entidad-relación de las verificaciones de micropipetas y balanza",
-         "Registro del día con las mediciones de micropipetas y balanza, y el bloqueo por sección."),
-        ("6.1.9 Verificaciones: equipos", "er6b_equipos", "Modelo entidad-relación de las verificaciones de temperatura, gases, inyector y detector",
-         "El mismo registro del día con las mediciones de temperatura, gases, inyector y detector."),
+        ("6.1.9 Verificaciones: micropipetas", "er6a_micropipetas", "Modelo entidad-relación de las verificaciones de micropipetas",
+         "El registro del día y las mediciones de micropipetas."),
+        ("6.1.10 Verificaciones: balanza y bloqueo", "er6b_balanza", "Modelo entidad-relación de las verificaciones de balanza",
+         "Pesas patrón, mediciones de balanza y bloqueo por sección."),
+        ("6.1.11 Verificaciones: temperatura y gases", "er6c_temperatura_gases", "Modelo entidad-relación de las verificaciones de temperatura y gases",
+         "Puntos de temperatura y gases con sus mediciones."),
+        ("6.1.12 Verificaciones: inyector y detector", "er6d_inyector_detector", "Modelo entidad-relación de las verificaciones de inyector y detector",
+         "Las revisiones uno a uno del inyector y el detector."),
     ]
     for tit, arch, leyenda_txt, desc in logicas:
         pagina_con_figura(doc, datos, tit, arch, leyenda_txt, desc)

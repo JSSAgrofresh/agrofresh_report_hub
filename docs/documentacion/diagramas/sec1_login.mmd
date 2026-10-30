@@ -1,20 +1,19 @@
 sequenceDiagram
     actor usuario as Usuario
-    participant front as Frontend (Vercel)
-    participant api as API /auth/login
+    participant front as Frontend
+    participant api as API de acceso
     participant bd as PostgreSQL
-    usuario->>front: Ingresa correo y contraseña
-    front->>api: POST /api/auth/login
-    api->>bd: Busca usuario por correo
+    usuario->>front: Correo y contraseña
+    front->>api: POST /auth/login
+    api->>bd: Busca la cuenta
     bd-->>api: Cuenta y hash de clave
     api->>api: Verifica la clave
     alt Clave correcta
-        api->>bd: Crea sesión (hash del token)
-        api-->>front: 200 token y datos de la cuenta
-        front->>front: Guarda la sesión y elige el panel de inicio
-        front-->>usuario: Muestra su pantalla de inicio
+        api->>bd: Crea la sesión
+        api-->>front: Token y datos de la cuenta
+        front-->>usuario: Su pantalla de inicio
     else Clave incorrecta
         api->>bd: Anota el ingreso fallido
         api-->>front: Error de credenciales
-        front-->>usuario: Muestra el mensaje de error
+        front-->>usuario: Mensaje de error
     end

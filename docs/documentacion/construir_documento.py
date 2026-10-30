@@ -23,6 +23,7 @@ import contenido_a as A
 import contenido_b as B
 import contenido_c as C
 import contenido_d as D
+import contenido_e as E
 import lib_docx as L
 
 AQUI = Path(__file__).parent
@@ -30,7 +31,7 @@ RAIZ = AQUI.parent.parent
 SALIDA = AQUI / "Documentacion_AgroFresh_Report_Hub.docx"
 TMP = AQUI / "_tmp"
 ENCABEZADO = "Documentación del sistema · AgroFresh Report Hub"
-VERSION = "Versión 0.3 · borrador · 30 de octubre de 2026"
+VERSION = "Versión 0.4 · borrador · 30 de octubre de 2026"
 
 SEMANAS = [
     ("1-2", "11 al 24 ago", 5, "Estructura React, Vite y TypeScript"),
@@ -144,7 +145,7 @@ def construir(ruta: Path, cache: dict | None) -> dict:
     doc = L.nuevo_documento()
     L.portada(
         doc,
-        AQUI / "recursos" / "portada_marca.png",
+        AQUI / "recursos" / "portada_vertical.png",
         "AgroFresh Report Hub",
         "Plataforma de gestión del ciclo de análisis de laboratorio: solicitudes, informes, resultados y portal de clientes",
         VERSION,
@@ -156,7 +157,7 @@ def construir(ruta: Path, cache: dict | None) -> dict:
     _titulo_sin_numero(doc, "Control del documento", salto=False)
     L.tabla(doc, ["Campo", "Detalle"], [
         ("Documento", "Documentación del sistema AgroFresh Report Hub"),
-        ("Versión", "0.3 (borrador en construcción)"),
+        ("Versión", "0.4 (borrador en construcción)"),
         ("Fecha", "30 de octubre de 2026"),
         ("Autor", "Jorge Sandoval"),
         ("Metodología", "Scrum++ (Scrum y modelo de vistas 4+1)"),
@@ -170,6 +171,7 @@ def construir(ruta: Path, cache: dict | None) -> dict:
         ("0.1", "30-10-2026", "Primeros diagramas entidad-relación, de secuencia, de estados y de procesos."),
         ("0.2", "30-10-2026", "Estructura completa: introducción, marco teórico, requerimientos, vistas 4+1, módulos, pruebas y anexos."),
         ("0.3", "30-10-2026", "Capítulo de módulos ampliado (flujos, reglas, API), Product Backlog con historias de usuario, 18 casos de uso especificados, módulos nuevos (Costo por kilo, Muestra interna) y catálogo de endpoints."),
+        ("0.4", "30-10-2026", "Todo el documento en vertical; explicación escrita de cada diagrama; capítulos nuevos de decisiones de diseño y de operación; citas en el texto y bibliografía ampliada."),
     ], [2.0, 3.0, 11.0], "Historial de versiones")
 
     # ---- Mensaje inicial (se escribe a mano)
@@ -190,19 +192,21 @@ def construir(ruta: Path, cache: dict | None) -> dict:
     _indice(doc, cache["tablas"] if cache else None, ancho, 'TOC \\h \\z \\c "Tabla"', indentar=False)
 
     # ---- Capítulos
-    A.capitulo_1(doc, datos)
-    A.capitulo_2(doc, datos)
-    A.capitulo_3(doc, datos)
-    A.capitulo_4(doc, datos)
-    A.capitulo_5(doc, datos)
+    E.capitulo_1(doc, datos)
+    E.capitulo_2(doc, datos)
+    E.capitulo_3(doc, datos)
+    E.capitulo_4(doc, datos)
+    E.capitulo_5(doc, datos)
     A.capitulo_6(doc, datos)
     C.capitulo_7(doc, datos)
     D.capitulo_8(doc, datos)
     D.capitulo_9(doc, datos)
+    E.capitulo_decisiones(doc, datos)
+    E.capitulo_operacion(doc, datos)
     B.capitulo_8(doc, datos)
     B.capitulo_9(doc, datos)
     B.capitulo_10(doc, datos)
-    B.bibliografia(doc, datos)
+    E.bibliografia(doc, datos)
     B.anexos(doc, datos)
     B.anexo_d(doc, datos)
 
