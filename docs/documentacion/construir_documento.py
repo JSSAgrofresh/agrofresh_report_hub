@@ -21,6 +21,8 @@ from docx.shared import Cm, Pt
 
 import contenido_a as A
 import contenido_b as B
+import contenido_c as C
+import contenido_d as D
 import lib_docx as L
 
 AQUI = Path(__file__).parent
@@ -28,7 +30,7 @@ RAIZ = AQUI.parent.parent
 SALIDA = AQUI / "Documentacion_AgroFresh_Report_Hub.docx"
 TMP = AQUI / "_tmp"
 ENCABEZADO = "Documentación del sistema · AgroFresh Report Hub"
-VERSION = "Versión 0.2 · borrador · 30 de octubre de 2026"
+VERSION = "Versión 0.3 · borrador · 30 de octubre de 2026"
 
 SEMANAS = [
     ("1-2", "11 al 24 ago", 5, "Estructura React, Vite y TypeScript"),
@@ -154,7 +156,7 @@ def construir(ruta: Path, cache: dict | None) -> dict:
     _titulo_sin_numero(doc, "Control del documento", salto=False)
     L.tabla(doc, ["Campo", "Detalle"], [
         ("Documento", "Documentación del sistema AgroFresh Report Hub"),
-        ("Versión", "0.2 (borrador en construcción)"),
+        ("Versión", "0.3 (borrador en construcción)"),
         ("Fecha", "30 de octubre de 2026"),
         ("Autor", "Jorge Sandoval"),
         ("Metodología", "Scrum++ (Scrum y modelo de vistas 4+1)"),
@@ -167,6 +169,7 @@ def construir(ruta: Path, cache: dict | None) -> dict:
     L.tabla(doc, ["Versión", "Fecha", "Cambios"], [
         ("0.1", "30-10-2026", "Primeros diagramas entidad-relación, de secuencia, de estados y de procesos."),
         ("0.2", "30-10-2026", "Estructura completa: introducción, marco teórico, requerimientos, vistas 4+1, módulos, pruebas y anexos."),
+        ("0.3", "30-10-2026", "Capítulo de módulos ampliado (flujos, reglas, API), Product Backlog con historias de usuario, 18 casos de uso especificados, módulos nuevos (Costo por kilo, Muestra interna) y catálogo de endpoints."),
     ], [2.0, 3.0, 11.0], "Historial de versiones")
 
     # ---- Mensaje inicial (se escribe a mano)
@@ -193,12 +196,15 @@ def construir(ruta: Path, cache: dict | None) -> dict:
     A.capitulo_4(doc, datos)
     A.capitulo_5(doc, datos)
     A.capitulo_6(doc, datos)
-    B.capitulo_7(doc, datos)
+    C.capitulo_7(doc, datos)
+    D.capitulo_8(doc, datos)
+    D.capitulo_9(doc, datos)
     B.capitulo_8(doc, datos)
     B.capitulo_9(doc, datos)
     B.capitulo_10(doc, datos)
     B.bibliografia(doc, datos)
     B.anexos(doc, datos)
+    B.anexo_d(doc, datos)
 
     cp = doc.core_properties
     cp.title = "Documentación del sistema AgroFresh Report Hub"

@@ -277,8 +277,19 @@ def parrafo(doc, texto, negrita_inicial=None, cursiva=False, alineado=True):
 
 
 def viñetas(doc, items, estilo="List Bullet"):
-    for it in items:
-        p = doc.add_paragraph(style=estilo)
+    """Viñetas o lista numerada. La numerada se escribe a mano para que cada lista parta en 1."""
+    for n, it in enumerate(items, 1):
+        if estilo == "List Number":
+            p = doc.add_paragraph()
+            pf = p.paragraph_format
+            pf.left_indent, pf.first_line_indent = Cm(0.9), Cm(-0.9)
+            pf.space_after = Pt(3)
+            pf.tab_stops.add_tab_stop(Cm(0.9))
+            r = p.add_run(f"{n}.\t")
+            r.bold = True
+            r.font.color.rgb = VERDE_OSCURO
+        else:
+            p = doc.add_paragraph(style=estilo)
         if isinstance(it, tuple):
             r = p.add_run(it[0])
             r.bold = True

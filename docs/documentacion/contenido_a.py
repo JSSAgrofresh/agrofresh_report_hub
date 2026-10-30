@@ -274,14 +274,14 @@ def pagina_con_figura(doc, datos, tit, arch, leyenda_txt, desc, nivel=3, horizon
 
     w, h = _dimensiones(arch)
     cm_vert = min(16.4 / w, 20.0 / h)
-    cm_horiz = min(25.8 / w, 13.6 / h)
+    cm_horiz = min(25.8 / w, 12.6 / h)
     if horizontal is None:
         horizontal = cm_horiz > cm_vert * 1.08
     k = min(cm_horiz if horizontal else cm_vert, 0.0265 * 1.4)
     nueva_seccion(doc, horizontal, datos["logo"], datos["encabezado"])
     titulo(doc, tit, nivel, False)
     parrafo(doc, desc)
-    figura(doc, PNG / f"{arch}.png", leyenda_txt, ancho_cm=w * k, alto_max_cm=(13.6 if horizontal else 20.0))
+    figura(doc, PNG / f"{arch}.png", leyenda_txt, ancho_cm=w * k, alto_max_cm=(12.6 if horizontal else 20.0))
 
 
 def capitulo_6(doc, datos):
