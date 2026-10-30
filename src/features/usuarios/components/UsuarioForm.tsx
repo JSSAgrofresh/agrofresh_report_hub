@@ -14,6 +14,7 @@ import type { VistaCliente } from '../permisos'
 import type { Permiso } from '../catalogoPermisos'
 import type { PlantaAsignada, TipoAcceso, Usuario } from '../types'
 import { claveDePlanta } from '../lib/plantas'
+import { EditorAccesos } from './EditorAccesos'
 import { PlantasAsignadas } from './PlantasAsignadas'
 import { SelectorPermisos } from './SelectorPermisos'
 import styles from './UsuarioForm.module.css'
@@ -64,9 +65,6 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
   const [plantasAsignadas, setPlantasAsignadas] = useState<PlantaAsignada[]>(usuario?.plantasAsignadas ?? [])
   // Comercial que ve las plantas de TODOS los clientes (sin lista).
   const [todasLasPlantas, setTodasLasPlantas] = useState(usuario ? veTodasLasPlantas(usuario) : false)
-  const [comercialCliente, setComercialCliente] = useState('')
-  const [comercialPlanta, setComercialPlanta] = useState('')
-  const [comercialEspecies, setComercialEspecies] = useState<string[]>([])
   const [especiesDisponibles, setEspeciesDisponibles] = useState<string[]>([])
   // Cliente con varias plantas o especies (si no, su Sold To y sucursal de siempre).
   const [clienteVarios, setClienteVarios] = useState(esClienteConLista(usuario))
@@ -98,23 +96,8 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
       .catch(() => setEspeciesDisponibles([]))
   }, [esCliente, esComercial])
 
-  const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === (conLista ? comercialCliente : clienteNombre))
 
-  function agregarPlantaComercial() {
-    if (!comercialCliente) return
-    // Una fila por especie elegida; sin ninguna, todas las especies de esa planta.
-    const nuevas: PlantaAsignada[] = (comercialEspecies.length ? comercialEspecies : [null]).map((especie) => ({
-      clienteNombre: comercialCliente,
-      plantaNombre: comercialPlanta || null,
-      ...(especie ? { especie } : {}),
-    }))
-    setPlantasAsignadas((actuales) => {
-      const vistas = new Set(actuales.map(claveDePlanta))
-      return [...actuales, ...nuevas.filter((n) => !vistas.has(claveDePlanta(n)))]
-    })
-    setComercialPlanta('')
-    setComercialEspecies([])
-  }
+  const plantasDelCliente = plantasDisponibles.filter((p) => p.cliente_nombre === clienteNombre)
 
   async function traerDeLasListas() {
     setAvisoListas(null)
@@ -214,57 +197,14 @@ export function UsuarioForm({ usuario, onGuardar, onCancelar }: UsuarioFormProps
 
   const constructorDeAccesos = (
     <>
-          <div className={styles.campo}>
-            <BuscableSelect
-              etiqueta="Sold To (cliente)"
-              opciones={clientesDisponibles}
-              valor={comercialCliente}
-              onChange={(v) => {
-                setComercialCliente(v)
-                setComercialPlanta('')
-              }}
-              placeholderTodos="— elegir cliente —"
-            />
-          </div>
-          {comercialCliente && (
-            <div className={styles.campo}>
-              <BuscableSelect
-                etiqueta="Planta (Ship To) — opcional"
-                opciones={plantasDelCliente.map((p) => p.nombre)}
-                valor={comercialPlanta}
-                onChange={setComercialPlanta}
-                placeholderTodos="— todas las plantas de este Sold To —"
-              />
-            </div>
-          )}
-          {comercialCliente && especiesDisponibles.length > 0 && (
-            <fieldset className={styles.permisos}>
-              <legend>Especies (opcional)</legend>
-              <p className={styles.notaChica}>
-                Marca las especies que ve en esa planta: se agrega un acceso por cada una. Sin marcar ninguna, ve todas.
-              </p>
-              <div className={styles.permisosGrid}>
-                {especiesDisponibles.map((e) => (
-                  <label className={styles.permisoOpcion} key={e}>
-                    <input
-                      type="checkbox"
-                      checked={comercialEspecies.includes(e)}
-                      onChange={() =>
-                        setComercialEspecies((a) => (a.includes(e) ? a.filter((x) => x !== e) : [...a, e]))
-                      }
-                    />
-                    <span>
-                      <strong>{e}</strong>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          )}
+          <EditorAccesos
+            clientes={clientesDisponibles}
+            plantas={plantasDisponibles}
+            especies={especiesDisponibles}
+            accesos={plantasAsignadas}
+            onChange={setPlantasAsignadas}
+          />
           <div className={styles.filaPlantas}>
-            <button type="button" onClick={agregarPlantaComercial} disabled={!comercialCliente}>
-              Agregar planta
-            </button>
             {esComercial && (
               <button type="button" onClick={traerDeLasListas} disabled={buscandoListas || !email.trim()}>
                 {buscandoListas ? 'Buscando…' : 'Traer sus plantas de las listas de distribución'}

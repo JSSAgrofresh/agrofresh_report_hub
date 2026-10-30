@@ -1,0 +1,18 @@
+sequenceDiagram
+    actor analista as Analista
+    participant front as Frontend
+    participant api as API Verificaciones
+    participant datos as PostgreSQL
+    actor jefe as Administrador de Cromatografía
+    analista->>front: Completa una sección
+    front->>front: Calcula el veredicto al escribir
+    analista->>front: Guarda la sección
+    front->>api: PUT de la sección
+    api->>api: Recalcula el veredicto
+    api->>datos: Guarda y congela los criterios
+    api->>datos: Marca la sección guardada
+    api-->>front: Resultado de la sección
+    jefe->>front: Revisa el día
+    front->>api: Firma la revisión
+    api->>datos: Guarda revisado_por y notifica
+    api-->>jefe: Día aprobado

@@ -1,0 +1,19 @@
+sequenceDiagram
+    actor usuario as Usuario
+    participant front as Frontend
+    participant api as API de acceso
+    participant bd as PostgreSQL
+    usuario->>front: Correo y contraseña
+    front->>api: POST /auth/login
+    api->>bd: Busca la cuenta
+    bd-->>api: Cuenta y hash de clave
+    api->>api: Verifica la clave
+    alt Clave correcta
+        api->>bd: Crea la sesión
+        api-->>front: Token y datos de la cuenta
+        front-->>usuario: Su pantalla de inicio
+    else Clave incorrecta
+        api->>bd: Anota el ingreso fallido
+        api-->>front: Error de credenciales
+        front-->>usuario: Mensaje de error
+    end

@@ -1,0 +1,50 @@
+erDiagram
+    direction LR
+    CORREO_INFORME_SONDEO ||..o{ CORREO_INFORME : revisa
+    CORREO_INFORME_VISTO ||..o{ CORREO_INFORME : examina
+    CORREO_INFORME }o..o| SOLICITUD_ARCHIVO : se_cruza_por_OT
+    CORREO_INFORME }o..o| CARGA_DATOS : se_acepta_como
+    CORREO_INFORME { int id PK
+ string buzon
+ string message_id
+ string pdf_nombre
+ string pdf_sha256
+ string laboratorio
+ string nro_informe
+ string ot
+ json para
+ json cc
+ json hallazgos
+ string estado
+ bool ya_cargado
+ string decision
+ bool homogeneo
+ int carga_id }
+    CORREO_INFORME_VISTO { string buzon PK
+ string message_id PK
+ string motivo
+ datetime visto_en }
+    CORREO_INFORME_SONDEO { int id PK
+ datetime iniciado_en
+ datetime terminado_en
+ string disparado_por
+ int dias
+ int examinados
+ int nuevos
+ string error }
+    SOLICITUD_ARCHIVO { int id PK
+ string numero_solicitud
+ string laboratorio }
+    CARGA_DATOS { int id PK
+ string origen
+ string archivo
+ int filas
+ string creado_por
+ datetime deshecha_en }
+    CORRECCION_CONVERTER { int id PK
+ string campo
+ string contexto
+ string valor_crudo
+ string valor_oficial
+ int usos
+ datetime ultimo_uso }

@@ -1,0 +1,24 @@
+sequenceDiagram
+    actor lab as Laboratorio
+    participant buzon as Buzón (solo lectura)
+    participant api as API Correo de informes
+    participant datos as PostgreSQL y R2
+    actor admin as Administrador principal
+    lab->>buzon: Envía el informe PDF
+    api->>buzon: Revisa correos con PDF
+    api->>api: Lee el PDF: laboratorio y OT
+    api->>datos: Busca la solicitud por OT
+    api->>api: Compara destinatarios y planta
+    api->>datos: Copia el PDF y deja el informe pendiente
+    admin->>api: Abre el tablero y el detalle
+    alt Todo calza con Listados
+        admin->>api: Aceptar
+        api->>datos: Carga con su carga_id
+        api-->>admin: Informe cargado a Report
+    else Algo no calza
+        admin->>api: Homogeneiza y acepta
+        api->>datos: Aprende la corrección
+    else Envío en rojo
+        admin->>api: Rechaza o marca ya informado
+        api->>datos: Guarda decisión y nota
+    end

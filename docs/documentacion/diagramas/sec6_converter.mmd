@@ -1,0 +1,19 @@
+sequenceDiagram
+    actor analista as Analista
+    participant conv as Converter
+    participant api as API de Ingesta
+    participant datos as PostgreSQL y R2
+    analista->>conv: Sube los PDF
+    conv->>conv: Lee y homogeniza con Listados
+    conv->>api: POST /ingest/preview
+    api-->>conv: Los que ya existen y los fuera de catálogo
+    opt Algún informe ya existe
+        conv-->>analista: Actualizar, sacar o cancelar
+    end
+    analista->>conv: Subir a la base
+    conv->>api: POST /ingest/confirmar
+    api->>datos: Inserta con su carga_id
+    api->>datos: Deja pendiente lo que no calza
+    conv->>api: Sube cada PDF a Auditoría
+    api->>datos: Guarda el PDF y el registro
+    api-->>conv: Carga lista, con Deshacer

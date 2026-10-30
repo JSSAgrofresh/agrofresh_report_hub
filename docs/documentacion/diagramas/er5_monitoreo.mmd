@@ -1,0 +1,31 @@
+erDiagram
+    USUARIO ||..o| PRESENCIA : late_cada_minuto
+    USUARIO ||..o{ PRESENCIA_SESION : abre_visitas
+    USUARIO ||..o{ ACTIVIDAD_USUARIO : genera
+    USUARIO { int id PK
+ string email
+ string tipo_acceso }
+    PRESENCIA { string email PK
+ string nombre
+ string tipo_acceso
+ string ruta
+ string modulo
+ datetime desde
+ datetime ultimo_latido }
+    PRESENCIA_SESION { int id PK
+ string email
+ string cliente
+ string planta
+ string dispositivo
+ string version
+ datetime inicio
+ datetime ultimo_latido
+ int segundos_activos }
+    ACTIVIDAD_USUARIO { int id PK
+ string email
+ string categoria
+ string accion
+ string modulo
+ string detalle
+ bool sensible
+ datetime creado_en }

@@ -1,0 +1,15 @@
+flowchart TB
+    subgraph muestreo ["Muestreo (Toma de muestras)"]
+        inicio([Inicio: se necesita un análisis])
+        crear[Crear solicitud con su OT]
+        enviar[Enviar solicitud al laboratorio]
+    end
+    subgraph lab ["Laboratorio"]
+        ingreso[Ingreso al laboratorio: cruzar la muestra con su solicitud]
+        analizar[Analizar la muestra]
+        informe[Emitir informe PDF]
+        correo([Fin: informe enviado al buzón del Report Hub])
+    end
+    inicio --> crear --> enviar --> ingreso --> analizar --> informe --> correo
+    style muestreo fill:#e3f3e0,stroke:#43b049
+    style lab fill:#e0eefb,stroke:#3b8fd6

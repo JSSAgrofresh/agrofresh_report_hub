@@ -1,0 +1,2138 @@
+{
+ "actividad.py": [
+  {
+   "m": "POST",
+   "r": "/api/actividad/visita",
+   "d": "El navegador avisa que abrió una pantalla. Se anota por módulo, sin",
+   "doc": true
+  }
+ ],
+ "admin_panel.py": [
+  {
+   "m": "GET",
+   "r": "/api/admin-panel/actividad",
+   "d": "Lo que pasó, de más nuevo a más viejo. Con `email`, la ficha de esa persona.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/admin-panel/resumen",
+   "d": "Resumen",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/admin-panel/seguimiento",
+   "d": "Seguimiento del equipo: cómo viene cada persona, cuándo se usa el sistema y",
+   "doc": true
+  }
+ ],
+ "auditoria.py": [
+  {
+   "m": "GET",
+   "r": "/api/auditoria/columna/{tabla}/{campo}",
+   "d": "Valores columna",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/auditoria/corregir",
+   "d": "Reescribe todas las variantes de un grupo de inconsistencia al valor",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/auditoria/corregir-valores",
+   "d": "Igual que /corregir, pero para la auditoría manual por columna: unifica",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/auditoria/deshacer",
+   "d": "Revierte una corrección puntual: restaura el valor anterior fila por",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/auditoria/exportar",
+   "d": "Exportar",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/auditoria/inconsistencias",
+   "d": "Primera pasada de auditoría: variantes de un mismo valor por mayúsculas",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/auditoria/inconsistencias-listados",
+   "d": "El \"chequeo de integridad\" contra Listados: Sold To, Ship To, Especie y",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/auditoria/promover",
+   "d": "Reemplaza la base en vivo por la copia de trabajo: requiere que la copia",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/auditoria/staging/crear",
+   "d": "(Re)crea lab_staging como una copia completa de lab. Si ya existía una",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/auditoria/staging/descartar",
+   "d": "Descartar staging",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/auditoria/staging/estado",
+   "d": "Estado staging",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/auditoria/staging/historial",
+   "d": "Historial staging",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/auditoria/tabla/{nombre}",
+   "d": "Ver tabla",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/auditoria/tablas",
+   "d": "Listar tablas",
+   "doc": false
+  }
+ ],
+ "auditoria_interna.py": [
+  {
+   "m": "POST",
+   "r": "/api/auditoria-interna/informes",
+   "d": "Guarda el PDF en <laboratorio>/<ship to>/ (la carpeta se crea sola con el",
+   "doc": true
+  },
+  {
+   "m": "PATCH",
+   "r": "/api/auditoria-interna/informes/{informe_id}/fecha-envio",
+   "d": "Editar fecha envio",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/auditoria-interna/informes/{informe_id}/pdf",
+   "d": "Descargar informe",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/auditoria-interna/solicitudes",
+   "d": "Las solicitudes emitidas por el sistema, con su informe (si tiene) y si",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/auditoria-interna/solicitudes-abiertas",
+   "d": "OT emitidas que todavía no tienen informe: las candidatas del desplegable",
+   "doc": true
+  }
+ ],
+ "auth.py": [
+  {
+   "m": "POST",
+   "r": "/api/auth/cambiar-password",
+   "d": "Cambiar password",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/auth/login",
+   "d": "Login",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/auth/logout",
+   "d": "Cierra ESTA sesión. Otras sesiones de la misma persona -el teléfono, el",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/auth/verificar-clave",
+   "d": "Comprueba que la contraseña corresponde al usuario autenticado.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/auth/yo",
+   "d": "La cuenta vigente. El frontend la consulta al arrancar para no seguir",
+   "doc": true
+  }
+ ],
+ "catalogo.py": [
+  {
+   "m": "GET",
+   "r": "/api/catalogo/clientes",
+   "d": "Listar clientes",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/catalogo/clientes",
+   "d": "Crear cliente",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/catalogo/clientes/{cliente_id}",
+   "d": "Editar cliente",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/catalogo/plantas",
+   "d": "Listar plantas",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/catalogo/plantas",
+   "d": "Crear planta",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/catalogo/plantas/{planta_id}",
+   "d": "Editar planta",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/catalogo/{servicio}/clientes",
+   "d": "Listar clientes actimist",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/catalogo/{servicio}/clientes",
+   "d": "Crear cliente actimist",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/catalogo/{servicio}/clientes/{cliente_id}",
+   "d": "Editar cliente actimist",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/catalogo/{servicio}/eliminar-lote",
+   "d": "Borra Sold To (con sus Ship To) o Ship To del listado de Actimist. Nada",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/catalogo/{servicio}/importar",
+   "d": "Carga Sold To / Ship To de Actimist desde la dinámica del Planner.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/catalogo/{servicio}/plantas",
+   "d": "Listar plantas actimist",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/catalogo/{servicio}/plantas",
+   "d": "Crear planta actimist",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/catalogo/{servicio}/plantas/{planta_id}",
+   "d": "Editar planta actimist",
+   "doc": false
+  }
+ ],
+ "correcciones.py": [
+  {
+   "m": "GET",
+   "r": "/api/correcciones",
+   "d": "El historial completo, lo más reciente primero.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/correcciones",
+   "d": "Guardar correccion",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/correcciones/alias",
+   "d": "Todas las asociaciones guardadas, en lo mínimo que el Converter necesita.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/correcciones/usos",
+   "d": "El Converter avisa cuántas veces aplicó solo una asociación (al subir).",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/correcciones/{correccion_id}",
+   "d": "Olvidar",
+   "doc": false
+  }
+ ],
+ "correo.py": [
+  {
+   "m": "GET",
+   "r": "/api/correo/estado",
+   "d": "Informa que proveedor de correo esta activo sin exponer credenciales.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/correo/prueba",
+   "d": "Envia un correo de prueba al destinatario indicado.",
+   "doc": true
+  }
+ ],
+ "correo_informes.py": [
+  {
+   "m": "GET",
+   "r": "/api/correo-informes",
+   "d": "Por defecto, una fila por informe (su última copia). Los reenvíos del mismo informe son SU historia, no más alertas.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/correo-informes/aceptar-lote",
+   "d": "Acepta varios informes; los que no se pueden vuelven con su motivo y los demás igual se aceptan.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/correo-informes/panel",
+   "d": "KPIs, solicitudes (lo que falta, lo recibido) y tendencia de la demora de los informes.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/correo-informes/sondear",
+   "d": "Revisar ahora",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/correo-informes/sondeo",
+   "d": "La última revisión del buzón (liviano: la pantalla lo consulta mientras una revisión corre).",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/correo-informes/{informe_id}",
+   "d": "Detalle",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/correo-informes/{informe_id}/aceptar",
+   "d": "Carga el informe a la base (como el Converter) o, si ya estaba, solo lo marca revisado.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/correo-informes/{informe_id}/deshacer-aceptacion",
+   "d": "Borra la carga que hizo «Aceptar» y devuelve el informe a pendiente.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/correo-informes/{informe_id}/homogeneizacion",
+   "d": "Lo que el informe trae (Sold To, Ship To, Especie, Variedad) y si calza con Listados, para corregirlo a mano.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/correo-informes/{informe_id}/informado",
+   "d": "Anota que el problema ya se le avisó al laboratorio (a quién y qué se pidió, en la nota): no se vuelve a",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/correo-informes/{informe_id}/pdf",
+   "d": "Pdf",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/correo-informes/{informe_id}/rechazar",
+   "d": "Descarta el informe (no se carga): queda en la bandeja como rechazado, con su motivo.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/correo-informes/{informe_id}/resolver",
+   "d": "Cierra el seguimiento de un informe en rojo (qué se hizo, en la nota del incidente).",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/correo-informes/{informe_id}/volver-a-pendiente",
+   "d": "Deshace un rechazo: el informe vuelve a pendiente.",
+   "doc": true
+  }
+ ],
+ "costo_kilo_api.py": [
+  {
+   "m": "GET",
+   "r": "/api/costo-kilo/cliente/informes",
+   "d": "Informes del cliente",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/costo-kilo/cliente/informes/{carpeta}",
+   "d": "Detalle del cliente",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/costo-kilo/cliente/informes/{carpeta}/excel",
+   "d": "Excel del cliente",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/costo-kilo/cliente/informes/{carpeta}/pdf",
+   "d": "Pdf del cliente",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/costo-kilo/previsualizar",
+   "d": "Lee el CSV y devuelve el valor diario, sin guardar nada (para ver el informe antes de «Guardar»).",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/costo-kilo/registros",
+   "d": "Listar registros",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/costo-kilo/registros",
+   "d": "Guardar",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/costo-kilo/registros/{carpeta}",
+   "d": "Eliminar",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/costo-kilo/registros/{carpeta}",
+   "d": "Ver registro",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/costo-kilo/registros/{carpeta}/excel",
+   "d": "Excel registro",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/costo-kilo/registros/{carpeta}/pdf",
+   "d": "Pdf registro",
+   "doc": false
+  }
+ ],
+ "dashboard.py": [
+  {
+   "m": "GET",
+   "r": "/api/dashboard/actividad",
+   "d": "Snapshot analítico del sistema para el panel del administrador.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/dashboard/actividad-area",
+   "d": "Snapshot de actividad específico para el panel de un admin de área.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/dashboard/series",
+   "d": "Series para los gráficos del Panel general: solicitudes por día, por laboratorio y por especie, y los",
+   "doc": true
+  }
+ ],
+ "datacore.py": [
+  {
+   "m": "POST",
+   "r": "/api/datacore/confirmar-mapeo",
+   "d": "Guarda el alias confirmado por el usuario en mapeo_confirmado para que",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/datacore/validar",
+   "d": "Valida las filas del Excel contra los catálogos. Devuelve el estado por",
+   "doc": true
+  }
+ ],
+ "emitir.py": [
+  {
+   "m": "GET",
+   "r": "/api/emitir/cromatografia/config-informe",
+   "d": "Obtener config informe",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/emitir/cromatografia/config-informe",
+   "d": "Guardar config informe",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/emitir/cromatografia/detalle-gc/excel",
+   "d": "Generar excel detalle gc",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/emitir/cromatografia/excel",
+   "d": "Generar excel",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/emitir/cromatografia/excel-con-muestra",
+   "d": "Base de Ingreso al laboratorio, en una sola hoja «BD»: las solicitudes de",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/emitir/cromatografia/informes-pdf",
+   "d": "Generar informes pdf",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/emitir/cromatografia/parsear-gc/completo",
+   "d": "El archivo del GC entero: muestras de cliente, curvas, blancos y",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/emitir/cromatografia/solicitud-ot/{numero}",
+   "d": "La solicitud con ese N° (OT-ALS0012, OT-DIAG0007...) de CUALQUIER laboratorio.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/emitir/cromatografia/solicitud/{numero}",
+   "d": "Una solicitud de AgroFresh por su N° (ej. \"OT-AGF0050\").",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/emitir/cromatografia/solicitudes",
+   "d": "Listar solicitudes",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/emitir/cromatografia/subir-bd",
+   "d": "Subir bd",
+   "doc": false
+  }
+ ],
+ "entrega_indicadores.py": [
+  {
+   "m": "GET",
+   "r": "/api/auditoria-interna/hitos",
+   "d": "Los hitos de cada solicitud real (sin pruebas), para medir lead time y cumplimiento.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/auditoria-interna/plazos",
+   "d": "Obtener reglas",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/auditoria-interna/plazos",
+   "d": "Guardar reglas",
+   "doc": false
+  }
+ ],
+ "envio_cliente.py": [
+  {
+   "m": "GET",
+   "r": "/api/envio-cliente/contexto",
+   "d": "Servicio y lista de distribución de la solicitud con ese N° de OT (o archivo).",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/envio-cliente/desmarcar",
+   "d": "Desmarcar enviados",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/envio-cliente/marcar",
+   "d": "Marcar enviados",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/envio-cliente/marcas",
+   "d": "{archivo: fecha} de las solicitudes marcadas como enviadas al cliente.",
+   "doc": true
+  }
+ ],
+ "envio_informes.py": [
+  {
+   "m": "POST",
+   "r": "/api/envio-informes/analizar",
+   "d": "Lee cada PDF (Sold To, Ship To, especie, tipo de aplicación) y propone su",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/envio-informes/aviso",
+   "d": "Vuelve al texto original.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/envio-informes/aviso",
+   "d": "El aviso de bienvenida tal como lo vería un cliente. Solo lee: no envía nada.",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/envio-informes/aviso",
+   "d": "Guardar aviso",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/envio-informes/aviso/enviar-prueba",
+   "d": "Manda el aviso SOLO a Paz y Jorge, con «(PRUEBA)» en el asunto, estando el sistema en",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/envio-informes/aviso/vista-previa",
+   "d": "Cómo se vería lo que se está escribiendo, sin guardarlo.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/envio-informes/desbloquear",
+   "d": "Habilita, solo en la pantalla de quien lo pide, el laboratorio y los datos",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/envio-informes/encabezado",
+   "d": "Título (arriba, en mayúsculas) y subtítulo (debajo) del encabezado del correo.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/envio-informes/enviar",
+   "d": "Enviar informe",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/envio-informes/estado",
+   "d": "Estado",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/envio-informes/historial",
+   "d": "Los últimos envíos. Sin la migración 0052 devuelve `disponible: false`.",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/envio-informes/historial/{registro_id}",
+   "d": "Borra UN registro del historial. Solo el administrador principal (en la",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/envio-informes/internos",
+   "d": "Las copias internas que se proponen en cada envío (por ahora, copia oculta).",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/envio-informes/lista",
+   "d": "Lo que se propone para esta planta, especie y servicio. Solo lee.",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/envio-informes/modo",
+   "d": "Pasar a PRODUCCIÓN pide la contraseña de quien lo hace: desde ahí los",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/envio-informes/prueba",
+   "d": "A quién llega TODO lo que se envía en modo prueba (informes y la prueba del aviso).",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/envio-informes/template/{clave}",
+   "d": "La plantilla del correo. Hoy hay una sola para todos, la «predeterminado»;",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/envio-informes/template/{clave}",
+   "d": "Guardar template",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/envio-informes/vista-previa",
+   "d": "El correo tal como saldría, con la plantilla y lo que Paz lleva corregido.",
+   "doc": true
+  }
+ ],
+ "ficha_informe.py": [
+  {
+   "m": "GET",
+   "r": "/api/reportes/informe/{solicitud_id}",
+   "d": "Ficha",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/reportes/informe/{solicitud_id}/pdf",
+   "d": "Pdf del informe",
+   "doc": false
+  }
+ ],
+ "fortificados.py": [
+  {
+   "m": "GET",
+   "r": "/api/fortificados",
+   "d": "Listar",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/fortificados",
+   "d": "Crear",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/fortificados/{fortificado_id}",
+   "d": "Borrar",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/fortificados/{fortificado_id}",
+   "d": "Corrige el N° o el peso. La fecha y hora de ingreso no cambian.",
+   "doc": true
+  }
+ ],
+ "funciones.py": [
+  {
+   "m": "GET",
+   "r": "/api/funciones",
+   "d": "Obtener",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/funciones/graficos-informes",
+   "d": "Enciende o apaga los gráficos de ALS y Diagnofruit en Report (apagados, queda solo la tabla).",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/funciones/report",
+   "d": "Enciende o apaga un servicio en Report. Solo el administrador principal y",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/funciones/tema-cliente",
+   "d": "Deja como predeterminado el estilo del dashboard de clientes (basico o sobrio). Solo el administrador",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/funciones/tema-cuenta",
+   "d": "Deja el estilo de un tipo de cuenta (cliente o comercial) o de una cuenta en particular. Solo el administrador",
+   "doc": true
+  }
+ ],
+ "homogenizador_ingesta.py": [
+  {
+   "m": "POST",
+   "r": "/api/homogenizador-ingesta/analizar",
+   "d": "Sube el Excel y devuelve los valores únicos de las 4 columnas con sus",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/homogenizador-ingesta/cancelar/{token}",
+   "d": "Cancelar",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/homogenizador-ingesta/confirmar",
+   "d": "Aplica los mapeos a todas las filas del Excel y las ingesta (o hace",
+   "doc": true
+  }
+ ],
+ "homogenizar_datos.py": [
+  {
+   "m": "GET",
+   "r": "/api/homogenizar/campos",
+   "d": "Listar campos",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/homogenizar/{campo}",
+   "d": "Valores distintos del campo con cuántas solicitudes usa cada uno.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/homogenizar/{campo}",
+   "d": "Deja todas las solicitudes que hoy muestran cualquiera de `valores`",
+   "doc": true
+  }
+ ],
+ "informes_cliente.py": [
+  {
+   "m": "GET",
+   "r": "/api/informes-cliente/descargar",
+   "d": "Descargar",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/informes-cliente/listar",
+   "d": "Listar",
+   "doc": false
+  }
+ ],
+ "informes_solicitud.py": [
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes-informes",
+   "d": "{archivo: {nro_informe, numeros, pdf_guardado, en_report, verificacion}}",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/descartar-revision",
+   "d": "Vuelve a abrir un aviso descartado.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/descartar-revision",
+   "d": "Descarta el aviso «OT por revisar» de un informe que ya se revisó (solo el administrador general). Vale para los motivos que",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/informe/pdf",
+   "d": "Pdf informe de solicitud",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/quitar-informe",
+   "d": "Quita el informe de una solicitud y todo lo que trajo (Report, pendientes y PDF), para poder",
+   "doc": true
+  }
+ ],
+ "ingest.py": [
+  {
+   "m": "GET",
+   "r": "/api/ingest/auditoria-staging",
+   "d": "Agrupa por campo y similitud básica. Los valores aislados también se",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/auditoria-staging/aplicar-catalogos",
+   "d": "Consolida decisiones y alias en Listados sin insertar solicitudes.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/auditoria-staging/asignar",
+   "d": "Asignar grupo",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/auditoria-staging/descartar",
+   "d": "Descartar copia ingest",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/auditoria-staging/descartar-sin-catalogo",
+   "d": "Elimina del staging todas las filas cuyo Sold To o Ship To no esté",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/ingest/auditoria-staging/historial",
+   "d": "Decisiones manuales de la copia activa, agrupadas para poder",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/auditoria-staging/historial/editar",
+   "d": "Editar decision",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/auditoria-staging/promover",
+   "d": "Promover staging",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/ingest/cargas",
+   "d": "Las últimas cargas, con lo que cada una tiene HOY en la base: los",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/cargas/{carga_id}/deshacer",
+   "d": "Borra exactamente lo que trajo una carga: sus solicitudes (con sus",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/confirmar",
+   "d": "Carga real -la usa el Converter-: inserta en la base lo que calza con",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/ingest/pendientes",
+   "d": "Listar pendientes",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/pendientes/aprobar-lote",
+   "d": "Aprueba muchos pendientes de una sola vez (típico después de una carga",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/pendientes/descartar-lote",
+   "d": "Descartar lote",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/pendientes/reintentar",
+   "d": "Vuelve a evaluar pendientes ya existentes contra el catálogo/Listados",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/pendientes/{pendiente_id}/aprobar",
+   "d": "Inserta la fila ya revisada -tal cual quedó guardada, o con las",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/pendientes/{pendiente_id}/descartar",
+   "d": "Descartar pendiente",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/preview",
+   "d": "Solo lecturas: nunca escribe en la base, sin importar lo que pase.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/ingest/validar-estructura",
+   "d": "Paso 1 de Cargar Datos: valida los encabezados de la plantilla oficial",
+   "doc": true
+  }
+ ],
+ "laboratorios.py": [
+  {
+   "m": "GET",
+   "r": "/api/laboratorios/resumen",
+   "d": "Resumen laboratorios",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/laboratorios/{laboratorio}/template-mail",
+   "d": "Obtener template mail",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/laboratorios/{laboratorio}/template-mail",
+   "d": "Guardar template mail",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/laboratorios/{laboratorio}/template-mail-reanalisis",
+   "d": "Obtener template mail reanalisis",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/laboratorios/{laboratorio}/template-mail-reanalisis",
+   "d": "Guardar template mail reanalisis",
+   "doc": false
+  }
+ ],
+ "listados.py": [
+  {
+   "m": "POST",
+   "r": "/api/listados/eliminar-lote",
+   "d": "Eliminar lote",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/listados/exportar",
+   "d": "Un único Excel con las 4 listas -Sold To, Ship To, Especie, Variedad-,",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/listados/importar-maestro",
+   "d": "Importa en una sola operación el Excel maestro de Listados.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/listados/importar/{tipo}",
+   "d": "Importar listado",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/listados/{tipo}",
+   "d": "Listar valores",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/listados/{tipo}",
+   "d": "Crear valor",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/listados/{tipo}/estandares",
+   "d": "Cada variedad estándar con los valores crudos que un administrador le",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/listados/{tipo}/estandares",
+   "d": "Crea una variedad estándar con nombre completamente libre -no tiene",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/listados/{tipo}/estandares/{estandar_id}",
+   "d": "Elimina la variedad estándar y libera a todos los valores crudos que",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/listados/{tipo}/estandares/{estandar_id}",
+   "d": "Editar estandar",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/listados/{tipo}/homogenizar",
+   "d": "Agrupa valores activos que probablemente son el mismo dato repetido.",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/listados/{tipo}/{valor_id}",
+   "d": "Borrado FÍSICO y definitivo -a propósito, se reserva para variedades",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/listados/{tipo}/{valor_id}",
+   "d": "Editar valor",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/listados/{tipo}/{valor_id}/asignar",
+   "d": "Asigna (o desasigna, con estandar_id=null) un valor crudo a una",
+   "doc": true
+  }
+ ],
+ "listas_distribucion.py": [
+  {
+   "m": "POST",
+   "r": "/api/listas-distribucion/aplicar",
+   "d": "Aplicar cambios",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/listas-distribucion/comparar",
+   "d": "Comparar excel",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/listas-distribucion/estado",
+   "d": "Lo que el sistema tiene hoy, una fila por planta: la base de la tabla dinámica.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/listas-distribucion/excel",
+   "d": "Exportar",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/listas-distribucion/fijos",
+   "d": "Vuelve a los destinatarios fijos que trae el sistema.",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/listas-distribucion/fijos",
+   "d": "Cambia a quién va SIEMPRE el correo de esa lista (Para y Copia), tenga o no la planta lista",
+   "doc": true
+  }
+ ],
+ "monitoreo.py": [
+  {
+   "m": "GET",
+   "r": "/api/monitoreo/clientes",
+   "d": "Las cuentas de cliente y comercial que se conectaron en el período, con cuánto tiempo estuvieron.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/monitoreo/latido",
+   "d": "Cada pestaña abierta avisa que sigue ahí. Nunca falla: es un adorno que no puede tumbar nada.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/monitoreo/resumen",
+   "d": "Resumen",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/monitoreo/usuario",
+   "d": "Todo lo que hizo una persona desde que se conectó.",
+   "doc": true
+  }
+ ],
+ "notificaciones.py": [
+  {
+   "m": "GET",
+   "r": "/api/notificaciones",
+   "d": "Notificaciones visibles para el usuario actual (según los tipos que recibe).",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/notificaciones",
+   "d": "Crear",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/notificaciones/admin/suscripciones",
+   "d": "Catálogo de tipos y, por cada usuario, qué tipos recibe.",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/notificaciones/admin/suscripciones/{usuario_id}",
+   "d": "Vuelve el usuario a lo predeterminado para su perfil.",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/notificaciones/admin/suscripciones/{usuario_id}",
+   "d": "Admin guardar suscripcion",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/notificaciones/admin/todas",
+   "d": "Admin listar",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/notificaciones/leer-todas",
+   "d": "Marcar todas",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/notificaciones/mis-tipos",
+   "d": "Qué tipos recibe el usuario actual. Vacío = no tiene el módulo (sin campana).",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/notificaciones/no-leidas",
+   "d": "No leidas",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/notificaciones/prueba",
+   "d": "Manda la notificación SOLO a quien aprieta el botón, para ver cómo queda.",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/notificaciones/{notif_id}",
+   "d": "Eliminar",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/notificaciones/{notif_id}",
+   "d": "Editar",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/notificaciones/{notif_id}/leer",
+   "d": "Marcar leida",
+   "doc": false
+  }
+ ],
+ "panel_inicio.py": [
+  {
+   "m": "DELETE",
+   "r": "/api/panel-inicio/config",
+   "d": "Vuelve al panel de siempre para esa clave.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/panel-inicio/config",
+   "d": "Todos los disenos",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/panel-inicio/config",
+   "d": "Guardar diseno",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/panel-inicio/mio",
+   "d": "El diseño del Panel general de quien pregunta (cualquier cuenta, clientes incluidos).",
+   "doc": true
+  }
+ ],
+ "plan_carga.py": [
+  {
+   "m": "POST",
+   "r": "/api/plan-entregables/analizar",
+   "d": "Solo lee y cuenta: no escribe nada.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/plan-entregables/confirmar",
+   "d": "Reemplaza el plan de la temporada por lo que trae el Excel (solo las filas válidas).",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/plan-entregables/resumen",
+   "d": "Lo prometido por Sold To. Sin la tabla (falta la 0062) devuelve vacío y lo avisa.",
+   "doc": true
+  }
+ ],
+ "postventa.py": [
+  {
+   "m": "GET",
+   "r": "/api/postventa/cliente/informes",
+   "d": "Los informes con PDF del cliente de la sesión, del más nuevo al más antiguo.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/postventa/cliente/informes/{carpeta}",
+   "d": "Las mediciones de UN informe del cliente (para sus gráficos). Solo si el informe es de su alcance; sin",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/postventa/cliente/informes/{carpeta}/pdf",
+   "d": "Pdf del cliente",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/postventa/registros",
+   "d": "Todas las cargas guardadas, de la más reciente a la más antigua.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/postventa/registros",
+   "d": "Guarda una carga de Trace en su propia carpeta, nombrada con la fecha y",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/postventa/registros/eliminar",
+   "d": "Borra varias cargas de una vez. Cada una se valida aparte: una que ya no",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/postventa/registros/{carpeta}",
+   "d": "Eliminar registro",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/postventa/registros/{carpeta}",
+   "d": "Ver registro",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/postventa/registros/{carpeta}/informe",
+   "d": "Genera (o vuelve a generar) el informe PDF de una carga ya guardada, en el",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/postventa/registros/{carpeta}/originales/{nombre}",
+   "d": "Descargar original",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/postventa/registros/{carpeta}/pdf",
+   "d": "Descargar pdf",
+   "doc": false
+  }
+ ],
+ "registro_informes.py": [
+  {
+   "m": "GET",
+   "r": "/api/registro-informes",
+   "d": "Todos los informes con su solicitud, cómo se cargaron, sus fechas y lo que salió mal.",
+   "doc": true
+  }
+ ],
+ "rendimiento_calidad.py": [
+  {
+   "m": "GET",
+   "r": "/api/auditoria-interna/rendimiento-calidad",
+   "d": "Cuántos informes cumplen y cuántos no, por cliente, planta, semana y análisis (se agrupa y filtra en la pantalla).",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/auditoria-interna/rendimiento-calidad/detalle",
+   "d": "Los informes de una planta en el período (los de la fila que se abrió en la tabla), con cada analito contra su límite.",
+   "doc": true
+  }
+ ],
+ "reportes.py": [
+  {
+   "m": "GET",
+   "r": "/api/reportes/analitos",
+   "d": "Listar analitos",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/reportes/analitos",
+   "d": "Crear analito",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/reportes/analitos/{analito_id}",
+   "d": "Eliminar analito",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/reportes/analitos/{analito_id}",
+   "d": "Actualizar analito",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/reportes/bd/excel",
+   "d": "Descarga la BD de resultados. Sin `solicitud_ids` baja TODO; con ellos,",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/reportes/clientes",
+   "d": "Nombres de cliente que ya tienen datos cargados — mismo criterio (COALESCE)",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/reportes/datos",
+   "d": "Datos",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/reportes/datos/excel",
+   "d": "Ruta antigua del botón «Descargar mi historial». Ya no existe ese Excel plano: baja la MISMA BD que",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/reportes/limites",
+   "d": "Listar limites",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/reportes/limites",
+   "d": "Crear limite",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/reportes/limites/{limite_id}",
+   "d": "Eliminar limite",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/reportes/limites/{limite_id}",
+   "d": "Actualizar limite",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/reportes/panel-cliente",
+   "d": "Cifras del Panel general de un cliente: SOLO de su planta (o de su Sold To, según su cuenta).",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/reportes/resumen",
+   "d": "Versión liviana para tarjetas de panel (no trae el detalle largo de /datos).",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/reportes/vista",
+   "d": "Cómo muestra Report algunas cosas, según lo que el administrador principal encendió en Funciones.",
+   "doc": true
+  }
+ ],
+ "storage.py": [
+  {
+   "m": "GET",
+   "r": "/api/storage/buscar",
+   "d": "Archivos y carpetas cuyo nombre contiene TODAS las palabras de `q`",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/storage/carpetas",
+   "d": "Crear carpeta",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/storage/descargar",
+   "d": "Descargar archivo",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/storage/eliminar",
+   "d": "Eliminar",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/storage/informes/plantas",
+   "d": "Cada carpeta de planta del espacio Informes con su Sold To y su Ship To.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/storage/listar",
+   "d": "Listar",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/storage/mover",
+   "d": "Mover",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/storage/permisos",
+   "d": "Ver permisos",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/storage/permisos",
+   "d": "Guardar permisos",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/storage/permisos/resumen",
+   "d": "Todas las carpetas restringidas y quién entra a cada una.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/storage/r2/carpetas",
+   "d": "R2 crear carpeta",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/storage/r2/descargar",
+   "d": "Descarga un archivo de R2 directamente (proxy streaming).",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/storage/r2/eliminar",
+   "d": "R2 eliminar",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/storage/r2/listar",
+   "d": "Lista el contenido de R2 como si fuera un explorador de carpetas.",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/storage/r2/mover",
+   "d": "R2 mover",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/storage/r2/renombrar",
+   "d": "R2 renombrar",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/storage/r2/subir",
+   "d": "R2 subir",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/storage/renombrar",
+   "d": "Renombrar",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/storage/subir",
+   "d": "Subir archivos",
+   "doc": false
+  }
+ ],
+ "toma_muestras.py": [
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/actividad",
+   "d": "Historial de actividad del módulo de ingreso al laboratorio.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/config/analitos",
+   "d": "Listar analitos config",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/config/analitos",
+   "d": "Crear analito config",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/toma-muestras/config/analitos/{item_id}",
+   "d": "Eliminar analito config",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/toma-muestras/config/analitos/{item_id}",
+   "d": "Editar analito config",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/config/campos",
+   "d": "Listar campos config",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/toma-muestras/config/campos",
+   "d": "Guardar campos config",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/config/campos-tipo-aplicacion",
+   "d": "Listar campos tipo aplicacion",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/config/campos-tipo-aplicacion",
+   "d": "Crear campo tipo aplicacion",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/toma-muestras/config/campos-tipo-aplicacion/{item_id}",
+   "d": "Eliminar campo tipo aplicacion",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/toma-muestras/config/campos-tipo-aplicacion/{item_id}",
+   "d": "Editar campo tipo aplicacion",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/config/categorias-analiticas",
+   "d": "Listar categorias analiticas",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/config/categorias-analiticas",
+   "d": "Crear categoria analitica",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/toma-muestras/config/categorias-analiticas/{item_id}",
+   "d": "Eliminar categoria analitica",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/toma-muestras/config/categorias-analiticas/{item_id}",
+   "d": "Editar categoria analitica",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/config/destinatarios-solicitud",
+   "d": "Contactos configurados para recibir solicitudes de un laboratorio.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/config/envio-automatico",
+   "d": "Si las solicitudes se envían por correo automáticamente al guardar:",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/toma-muestras/config/envio-automatico",
+   "d": "Cambia el modo de envío. Solo admin_general, requiere contraseña.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/config/laboratorios",
+   "d": "Listar laboratorios config",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/config/laboratorios",
+   "d": "Crear laboratorio config",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/toma-muestras/config/laboratorios/{item_id}",
+   "d": "Eliminar laboratorio config",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/toma-muestras/config/laboratorios/{item_id}",
+   "d": "Editar laboratorio config",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/config/productos",
+   "d": "Listar productos config",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/config/productos",
+   "d": "Crear producto config",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/toma-muestras/config/productos/{item_id}",
+   "d": "Eliminar producto config",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/toma-muestras/config/productos/{item_id}",
+   "d": "Editar producto config",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/config/resultados-ship-to",
+   "d": "Configuración de \"Resultado a clientes\" vigente para una combinación",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes",
+   "d": "Listar solicitudes",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes",
+   "d": "Crear solicitud",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes-elegibles-reanalisis",
+   "d": "Solicitudes convencionales enviadas que aún no tienen reanálisis.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes-interna",
+   "d": "Muestra interna: solicitud de pulpa propia de AgroFresh. Folio normal del laboratorio, Sold To AGROFRESH y",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes-interna/estado",
+   "d": "Si la cuenta puede crear muestras internas (solo ella ve el botón).",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes-prueba",
+   "d": "Como `crear_solicitud`, pero con folio de la serie de pruebas (OTP-…), la",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes-prueba/estado",
+   "d": "Si la cuenta puede crear solicitudes de prueba (solo ella ve el botón).",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes/excel-zip",
+   "d": "El Excel de cada solicitud seleccionada en un solo .zip: el mismo que viaja adjunto",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes/exportar-todo",
+   "d": "Un único Excel \"ancho\" (una fila por solicitud) con toda la",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes/json-zip",
+   "d": "El JSON de varias solicitudes en un solo .zip: el mismo que viaja adjunto al",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes/organizar-r2",
+   "d": "Migra solicitudes de los layouts antiguos (por laboratorio, o por",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes/pdf-zip",
+   "d": "Los PDF de varias solicitudes en un solo .zip. Respeta el acceso de cada",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/toma-muestras/solicitudes/{archivo}",
+   "d": "Eliminar solicitud",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes/{archivo}",
+   "d": "Obtener solicitud",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/toma-muestras/solicitudes/{archivo}",
+   "d": "Actualiza una solicitud existente -mismo folio, mismo archivo-, nunca",
+   "doc": true
+  },
+  {
+   "m": "PATCH",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/cruce",
+   "d": "Corrige un cruce ya hecho: N° de muestra, peso y (opcional) la foto.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/cruce-foto",
+   "d": "Descarga la foto del cruce (la tomada al momento de cruzar la muestra).",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/cruzar-completo",
+   "d": "Cruce completo con foto y peso obligatorios.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/destinatarios",
+   "d": "A quién se le enviaría esta solicitud. El frontend lo muestra antes de",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/enviar",
+   "d": "Genera el PDF y Excel de la solicitud y los envía como adjuntos.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/excel",
+   "d": "Regenera el documento visible con el formato vigente.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/fotos",
+   "d": "Nombres de las fotos de la muestra ya subidas para esta solicitud.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/fotos",
+   "d": "Sube una foto de la muestra tomada con la cámara. Devuelve el listado",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/fotos/{nombre}",
+   "d": "Eliminar foto solicitud",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/fotos/{nombre}",
+   "d": "Descargar foto solicitud",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/json",
+   "d": "JSON adjunto de la solicitud (mismo que se envía por correo al laboratorio).",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/muestra",
+   "d": "Cruza o descruza una solicitud con el número de la muestra.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/pdf",
+   "d": "Descargar solicitud pdf",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/peso-extraido",
+   "d": "Anota el segundo peso (muestra extraída, en gramos) de una solicitud ya",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/peso-hueso",
+   "d": "Anota el peso hueso (en gramos) de una solicitud ya cruzada. Se puede",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/toma-muestras/solicitudes/{archivo}/reanalisis",
+   "d": "Crea una solicitud de reanálisis a partir de la original.",
+   "doc": true
+  }
+ ],
+ "usuarios.py": [
+  {
+   "m": "GET",
+   "r": "/api/usuarios",
+   "d": "Listar usuarios",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/usuarios",
+   "d": "Crear usuario",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/usuarios/plantas-de-comercial",
+   "d": "Las plantas donde este correo figura como Comercial en las listas de distribución (las cuatro). Solo",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/usuarios/{usuario_id}",
+   "d": "Eliminar usuario",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/usuarios/{usuario_id}",
+   "d": "Editar usuario",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/usuarios/{usuario_id}/password-temporal",
+   "d": "Para cuando alguien olvidó su contrasena. Devuelve una temporal que su",
+   "doc": true
+  }
+ ],
+ "verificaciones.py": [
+  {
+   "m": "DELETE",
+   "r": "/api/verificaciones",
+   "d": "Eliminar",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/verificaciones",
+   "d": "Listar",
+   "doc": false
+  },
+  {
+   "m": "POST",
+   "r": "/api/verificaciones",
+   "d": "Crear",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/verificaciones",
+   "d": "Actualizar",
+   "doc": false
+  },
+  {
+   "m": "GET",
+   "r": "/api/verificaciones/config",
+   "d": "Obtener config",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/verificaciones/config/columnas/{seccion}/{clave}",
+   "d": "Sobreescribe la etiqueta, la unidad o la visibilidad de una columna de",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/verificaciones/config/parametros",
+   "d": "Crear parametro",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/verificaciones/config/parametros/{clave}",
+   "d": "Eliminar parametro",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/verificaciones/config/parametros/{clave}",
+   "d": "Actualiza valor y, opcionalmente, descripción y unidad del parámetro.",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/verificaciones/config/tabla-z",
+   "d": "Crear factor z",
+   "doc": false
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/verificaciones/config/tabla-z/{temperatura}",
+   "d": "Eliminar factor z",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/verificaciones/config/tabla-z/{temperatura}",
+   "d": "Actualiza el factor Z para una temperatura dada.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/verificaciones/excel",
+   "d": "El libro completo: resumen diario más una hoja por sección, como las",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/verificaciones/historico",
+   "d": "Los días completos de un rango, del más antiguo al más nuevo.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/verificaciones/registros",
+   "d": "El Resumen_Diario: un día por fila, con el veredicto de cada sección.",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/verificaciones/registros/{fecha}",
+   "d": "Borrar un día es borrar un registro de calidad: queda solo para el",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/verificaciones/registros/{fecha}",
+   "d": "Obtener registro",
+   "doc": false
+  },
+  {
+   "m": "PUT",
+   "r": "/api/verificaciones/registros/{fecha}",
+   "d": "Guarda el día entero de una vez.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/verificaciones/registros/{fecha}/excel",
+   "d": "El formulario del día, para imprimir y firmar. Es el reemplazo directo",
+   "doc": true
+  },
+  {
+   "m": "POST",
+   "r": "/api/verificaciones/registros/{fecha}/firmar",
+   "d": "Registra la firma de revisión del día. Solo admin general o admin de cromatografía.",
+   "doc": true
+  },
+  {
+   "m": "GET",
+   "r": "/api/verificaciones/registros/{fecha}/pdf",
+   "d": "El formulario del día en PDF, listo para imprimir y firmar.",
+   "doc": true
+  },
+  {
+   "m": "PUT",
+   "r": "/api/verificaciones/registros/{fecha}/seccion/{seccion}",
+   "d": "Guarda una sola sección del día y registra el bloqueo de autoría.",
+   "doc": true
+  },
+  {
+   "m": "DELETE",
+   "r": "/api/verificaciones/registros/{fecha}/secciones/{seccion}",
+   "d": "Borra los datos de una sección y libera su bloqueo de autoría.",
+   "doc": true
+  }
+ ]
+}

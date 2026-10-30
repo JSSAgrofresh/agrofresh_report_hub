@@ -1,0 +1,41 @@
+erDiagram
+    SOLICITUD ||--o{ RESULTADO : contiene
+    SOLICITUD ||--o{ PRODUCTO_APLICADO : registra
+    ANALITO ||--o{ RESULTADO : mide
+    ANALITO ||--o{ PRODUCTO_APLICADO : refiere
+    ANALITO ||--o{ ANALITO_LIMITE : define
+    SOLICITUD { int id PK
+ string nro_solicitud
+ string laboratorio
+ date fecha_muestreo
+ string especie
+ string servicio
+ int planta_id FK
+ int carga_id FK }
+    RESULTADO { int id PK
+ int solicitud_id FK
+ int analito_id FK
+ decimal valor_num
+ string valor_texto
+ int carga_id FK }
+    PRODUCTO_APLICADO { int id PK
+ int solicitud_id FK
+ int analito_id FK
+ string producto_raw
+ decimal dosis
+ decimal gasto
+ string tipo_aplicacion
+ int carga_id FK }
+    ANALITO { int id PK
+ string codigo UK
+ string nombre
+ string laboratorio UK
+ string unidad
+ string categoria
+ bool activo }
+    ANALITO_LIMITE { int id PK
+ int analito_id FK
+ string especie
+ string tipo_servicio
+ decimal limite_min
+ decimal limite_max }

@@ -1,0 +1,57 @@
+flowchart LR
+    subgraph front ["Frontend (src/features y src/views)"]
+        fMuestras[tomaMuestras]
+        fLab[emitir y verificaciones]
+        fEnvio[envioInformes]
+        fIngreso[ingest, correoInformes y homogenizador]
+        fReport[reportes y rendimientoCalidad]
+        fAudit[auditoriaInterna]
+        fPost[postventa]
+        fStorage[storage]
+        fAdmin[usuarios, listasDistribucion y funciones]
+        fMonit[monitoreo y adminPanel]
+    end
+    subgraph back ["Backend (backend/app)"]
+        bMuestras[toma_muestras e indice_solicitudes]
+        bLab[emitir y verificaciones]
+        bEnvio[envio_informes y mail_templates]
+        bIngreso[ingest, correo_informes y homogenizar_converter]
+        bReport[reportes y rendimiento_calidad]
+        bAudit[auditoria_interna y entrega_indicadores]
+        bPost[postventa y accutab_informe]
+        bStorage[storage, storage_r2 y storage_permisos]
+        bAdmin[usuarios, auth, listas_distribucion y funciones]
+        bMonit[monitoreo, actividad y admin_panel]
+    end
+    subgraph comun ["Servicios comunes"]
+        db[(db.py: PostgreSQL)]
+        r2[(r2.py: Cloudflare R2)]
+        correo[correo.py: Gmail y Resend]
+    end
+    fMuestras --> bMuestras
+    fLab --> bLab
+    fEnvio --> bEnvio
+    fIngreso --> bIngreso
+    fReport --> bReport
+    fAudit --> bAudit
+    fPost --> bPost
+    fStorage --> bStorage
+    fAdmin --> bAdmin
+    fMonit --> bMonit
+    bMuestras --> db
+    bLab --> db
+    bIngreso --> db
+    bReport --> db
+    bAudit --> db
+    bAdmin --> db
+    bMonit --> db
+    bMuestras --> r2
+    bPost --> r2
+    bStorage --> r2
+    bIngreso --> r2
+    bMuestras --> correo
+    bEnvio --> correo
+    bIngreso --> correo
+    style front fill:#e3f3e0,stroke:#43b049
+    style back fill:#e0eefb,stroke:#3b8fd6
+    style comun fill:#fdf3cf,stroke:#f0c419

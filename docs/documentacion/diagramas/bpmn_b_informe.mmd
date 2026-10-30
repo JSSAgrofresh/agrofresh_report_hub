@@ -1,0 +1,25 @@
+flowchart TB
+    subgraph hub ["Report Hub (Ingreso de informes)"]
+        entra([Inicio: llega el informe al buzón])
+        leer[Leer el PDF y cruzar con su OT]
+        revisar{¿Envío y datos correctos?}
+        homog[Homogeneizar a mano con Listados]
+        rechazar[Rechazar o pedir reenvío]
+        aceptar[Aceptar y cargar a la base]
+    end
+    subgraph entrega ["Entrega al cliente"]
+        report[Informe visible en Report y Storage]
+        enviocli[Envío de informes a la lista del cliente]
+        fin([Fin: cliente con su informe])
+    end
+    entra --> leer --> revisar
+    revisar -->|Sí| aceptar
+    revisar -->|Falta homogeneizar| homog --> aceptar
+    revisar -->|Envío en rojo| rechazar
+    rechazar -.->|Reenvío del laboratorio| entra
+    aceptar --> report --> fin
+    aceptar --> enviocli --> fin
+    style hub fill:#fdf3cf,stroke:#f0c419
+    style entrega fill:#e7e0f7,stroke:#7a55d6
+    style revisar fill:#fde6cc,stroke:#e98a1c
+    style rechazar fill:#fcd9d3,stroke:#d9492e

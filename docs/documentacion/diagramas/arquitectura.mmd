@@ -1,0 +1,36 @@
+flowchart TB
+    subgraph usuarios ["Usuarios"]
+        browser[Navegador o app instalada]
+    end
+    subgraph entrada ["Entrada"]
+        vercel[Vercel]
+        tunnel[Túnel Cloudflare]
+    end
+    subgraph app ["Servidor de la oficina"]
+        backend[Backend FastAPI]
+        mailJob[Revisión del buzón]
+    end
+    subgraph datos ["Datos"]
+        postgres[(PostgreSQL)]
+        r2[(Cloudflare R2)]
+        disk[(Disco Storage)]
+    end
+    subgraph externos ["Correo"]
+        gmail[Gmail]
+        resend[Resend]
+    end
+    browser -->|Carga la app| vercel
+    browser -->|Llama a la API| tunnel
+    tunnel --> backend
+    backend --> postgres
+    backend --> r2
+    backend --> disk
+    backend --> mailJob
+    backend -.-> gmail
+    mailJob -.-> gmail
+    backend -.-> resend
+    style usuarios fill:#e3f3e0,stroke:#43b049
+    style entrada fill:#fdf3cf,stroke:#f0c419
+    style app fill:#e0eefb,stroke:#3b8fd6
+    style datos fill:#e7e0f7,stroke:#7a55d6
+    style externos fill:#eeeeee,stroke:#999999
