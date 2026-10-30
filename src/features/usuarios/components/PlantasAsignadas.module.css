@@ -131,3 +131,44 @@
   font-size: 12.5px;
   color: var(--color-text-faint);
 }
+
+.nombrePlanta {
+  flex: 0 1 300px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.especies {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.etiqueta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 4px 1px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  font-size: 11.5px;
+}
+
+.etiqueta button {
+  font-size: 13px;
+  padding: 0 4px;
+}
+
+.todas {
+  padding-right: 9px;
+  background: #e8f2dc;
+  border-color: #b9d79c;
+}
+
+.quitarFila {
+  flex-shrink: 0;
+}
