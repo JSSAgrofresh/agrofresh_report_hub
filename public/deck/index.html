@@ -66,7 +66,7 @@ code,.mono{font-family:var(--f-mono)}
 .wipe .ttl{position:absolute;inset:0;display:grid;place-items:center;color:#fff;opacity:0;text-align:center;overflow:hidden}
 .wipe .ttl>svg#wsvg{position:absolute;inset:0;width:100%;height:100%}
 .wipe .ttlin{position:relative;z-index:2;display:grid;justify-items:center;gap:10px}
-.wipe .wlogo{width:clamp(70px,11vh,120px);height:clamp(70px,11vh,120px);display:block;filter:drop-shadow(0 12px 40px rgba(241,195,24,.35))}
+.wipe .wlogo{width:clamp(70px,11vh,120px);height:clamp(70px,11vh,120px);display:block;filter:drop-shadow(0 8px 24px rgba(241,195,24,.18))}
 .wipe .wlogo rect.bar{transform-box:fill-box;transform-origin:bottom}
 .wipe small{font:500 clamp(12px,1.8vh,16px) var(--f-mono);letter-spacing:.3em;text-transform:uppercase;color:#f1c318}
 .wipe b{display:block;position:relative;font:800 clamp(52px,12vh,140px)/.95 var(--f-title);text-transform:uppercase;letter-spacing:.01em}
@@ -478,7 +478,7 @@ html,body{margin:0}img{max-width:100%}
   <div class="main">
     <div class="kick rv"><i></i>Cierre de proyecto · Noviembre 2026</div>
     <h1 class="rv" style="margin-top:8px">Report Hub<em>por dentro</em></h1>
-    <p class="sub rv">Cómo funciona el sistema que hoy usan los clientes de AgroFresh, explicado para todos.</p>
+    <p class="sub rv">Así funciona el sistema que hoy usamos en AgroFresh y que usan nuestros clientes, explicado para que cualquiera lo entienda.</p>
     <div class="by rv"><svg><use href="#rh"/></svg><div>Presenta<br>Jorge Sandoval</div></div>
     <button class="cta rv" data-go="indice">Comenzar <span aria-hidden="true">→</span></button>
     <div class="ecohint rv"><i></i>Toca el logo de AgroFresh, en cualquier momento, para ver el ecosistema en vivo.</div>
@@ -1233,7 +1233,7 @@ function titleCard(id){
   /* ondas desde el centro */
   [0,260,520,780].forEach(function(d,i){ var c=mk('circle',{cx:800,cy:450,r:70,fill:'none',stroke:i%2?'#40af49':'#f1c318','stroke-width':big?5:3},svg); c.style.transformBox='fill-box'; c.style.transformOrigin='center'; c.animate([{transform:'scale(.2)',opacity:.9},{transform:'scale('+(big?16:11)+')',opacity:0}],{duration:2300,delay:d,easing:'cubic-bezier(.15,.7,.2,1)',fill:'both'}); });
   /* logo: las barras crecen una a una */
-  $$('rect.bar',logo).forEach(function(b,i){ b.animate([{transform:'scaleY(0)'},{transform:'scaleY(1.18)',offset:.7},{transform:'scaleY(1)'}],{duration:900,delay:200+i*140,easing:'cubic-bezier(.2,.9,.3,1)',fill:'both'}); });
+  $$('rect.bar',logo).forEach(function(b,i){ b.animate([{transform:'scaleY(0)'},{transform:'scaleY(1.18)',offset:.7},{transform:'scaleY(1)'}],{duration:1500,delay:300+i*240,easing:'cubic-bezier(.2,.9,.3,1)',fill:'both'}); });
   logo.animate([{transform:'scale(.3) rotate(-30deg)',opacity:0},{transform:'scale(1.15) rotate(5deg)',opacity:1,offset:.6},{transform:'none',opacity:1}],{duration:1200,easing:'cubic-bezier(.2,.8,.2,1)',fill:'both'});
   sm.animate([{opacity:0,letterSpacing:'.8em'},{opacity:1,letterSpacing:'.3em'}],{duration:1100,delay:250,easing:'cubic-bezier(.2,.8,.2,1)',fill:'both'});
   /* título: letras que golpean */
@@ -1261,7 +1261,7 @@ async function show(id,first){
   outs.forEach(function(a){ a.cancel(); });
   titleCard(id);
   ttl.style.opacity=1; ttl.animate([{opacity:0},{opacity:1}],{duration:400,fill:'forwards'});
-  await waitRaw(big?3000:2100);
+  await waitRaw(big?3600:2900);
   ttl.animate([{opacity:1},{opacity:0}],{duration:450,fill:'forwards'});
   /* 4. se abren los paneles y el contenido nuevo entra mientras tanto */
   void sl.offsetWidth; sl.classList.add('enter');
@@ -1295,7 +1295,7 @@ var SISTEMAS=[
  {k:'cloudflare',n:'Cloudflare',b:'#f6821f',bt:'#ffffff',b2:'#fff1e3',para:'Dos trabajos: el túnel que conecta internet con el servidor de la oficina sin abrir puertas peligrosas, y R2, el archivador de la nube.',apo:'Seguridad para la oficina y un lugar donde los PDF y los respaldos nunca se pierden.',
   logo:'<path d="M14 36a8 8 0 0 1-1.2-15.9A11 11 0 0 1 34 17.5 9 9 0 0 1 35 36Z" fill="currentColor"/>',
   cuenta:[['Tipo de cuenta','Gratuita, con un dominio agregado (el túnel lo necesita)'],['Qué vive ahí','El túnel (cloudflared, servicio de Windows) y el bucket «agrofresh-storage» (R2).']]},
- {k:'gmail',n:'Gmail',b:'#ea4335',bt:'#ffffff',b2:'#fdeceb',para:'Es el correo del sistema: manda las solicitudes y los informes, y recibe los informes de los laboratorios.',apo:'Los laboratorios siguen trabajando por correo, como siempre, sin aprender nada nuevo.',
+ {k:'gmail',n:'Gmail',b:'#ea4335',bt:'#ffffff',b2:'#fdeceb',para:'Es el correo del sistema: manda las solicitudes y recibe los informes de los laboratorios.',apo:'Los laboratorios siguen trabajando por correo, como siempre, sin aprender nada nuevo.',
   logo:'<rect x="5" y="10" width="38" height="28" rx="4" fill="none" stroke="currentColor" stroke-width="3.5"/><path d="M6 14l18 14 18-14" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round"/>',
   cuenta:[['Tipo de cuenta','Cuenta Gmail común, con verificación en 2 pasos y contraseña de aplicación'],['Qué vive ahí','El buzón. El sistema lo lee en solo lectura: no marca, mueve ni borra nada.']]},
  {k:'github',n:'GitHub',b:'#24292f',bt:'#ffffff',b2:'#eceef1',para:'Guarda todo el código con la historia de cada cambio: quién lo hizo, cuándo y por qué.',apo:'El trabajo nunca se pierde y cualquier cambio se puede deshacer.',
