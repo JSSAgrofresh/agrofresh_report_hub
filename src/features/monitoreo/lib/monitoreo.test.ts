@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { claveNuevas, dispositivoDe, duracion, duracionSeg, hace, tendencia, textoInactividad, tonoDe, trazoPulso } from './monitoreo'
+import {
+  barrasDeSerie, claveNuevas, dispositivoDe, duracion, duracionAcumulada, duracionSeg, fechaCorta, hace, indicesDeEje, PERIODOS_CLIENTES,
+  porcentajeDe, tendencia, textoInactividad, tonoDe, trazoPulso,
+} from './monitoreo'
 
 const AHORA = new Date('2026-10-22T15:00:00Z').getTime()
 const antes = (seg: number) => new Date(AHORA - seg * 1000).toISOString()
@@ -96,5 +99,76 @@ describe('duracionSeg', () => {
     expect(duracionSeg(42 * 60)).toBe('42 min')
     expect(duracionSeg(72 * 60)).toBe('1 h 12 min')
     expect(duracionSeg(2 * 3600)).toBe('2 h')
+  })
+})
+
+describe('duracionAcumulada', () => {
+  it('minutos, horas con minutos y, desde 100 h, solo horas', () => {
+    expect(duracionAcumulada(0)).toBe('0 min')
+    expect(duracionAcumulada(20)).toBe('0 min')
+    expect(duracionAcumulada(42 * 60)).toBe('42 min')
+    expect(duracionAcumulada(9 * 3600 + 48 * 60)).toBe('9 h 48 min')
+    expect(duracionAcumulada(3 * 3600)).toBe('3 h')
+    expect(duracionAcumulada(126 * 3600 + 20 * 60)).toBe('126 h')
+    expect(duracionAcumulada(-5)).toBe('0 min')
+  })
+})
+
+describe('fechaCorta', () => {
+  it('arma «28 oct» sin depender de la zona horaria', () => {
+    expect(fechaCorta('2026-10-28')).toBe('28 oct')
+    expect(fechaCorta('2026-01-05')).toBe('5 ene')
+    expect(fechaCorta('2026-12-31')).toBe('31 dic')
+  })
+  it('un texto que no es fecha se devuelve tal cual', () => {
+    expect(fechaCorta('hoy')).toBe('hoy')
+  })
+})
+
+describe('porcentajeDe', () => {
+  it('es proporcional al máximo y deja ver lo pequeño', () => {
+    expect(porcentajeDe(50, 100)).toBe(50)
+    expect(porcentajeDe(100, 100)).toBe(100)
+    expect(porcentajeDe(1, 1000)).toBe(3)
+  })
+  it('cero o sin máximo no dibuja nada', () => {
+    expect(porcentajeDe(0, 100)).toBe(0)
+    expect(porcentajeDe(5, 0)).toBe(0)
+  })
+})
+
+describe('barrasDeSerie', () => {
+  it('una barra por valor, la mayor llena el alto y el cero no tiene alto', () => {
+    const b = barrasDeSerie([0, 5, 10], 90, 100, 4)
+    expect(b).toHaveLength(3)
+    expect(b[0].alto).toBe(0)
+    expect(b[2].alto).toBe(96)
+    expect(b[1].alto).toBeCloseTo(48, 5)
+    expect(b[2].y).toBe(4)
+  })
+  it('las barras no se pisan y caben en el lienzo', () => {
+    const b = barrasDeSerie([1, 1, 1, 1], 100, 50)
+    for (let i = 1; i < b.length; i++) expect(b[i].x).toBeGreaterThan(b[i - 1].x + b[i - 1].ancho)
+    expect(b[3].x + b[3].ancho).toBeLessThanOrEqual(100)
+  })
+  it('un valor chico igual se ve (mínimo 3) y una serie vacía no dibuja', () => {
+    expect(barrasDeSerie([1, 1000], 20, 100)[0].alto).toBe(3)
+    expect(barrasDeSerie([], 100, 50)).toEqual([])
+  })
+})
+
+describe('indicesDeEje', () => {
+  it('el primero, el último y los de en medio sin repetir', () => {
+    expect(indicesDeEje(30)).toEqual([0, 7, 15, 22, 29])
+    expect(indicesDeEje(3)).toEqual([0, 1, 2])
+    expect(indicesDeEje(1)).toEqual([0])
+    expect(indicesDeEje(0)).toEqual([])
+  })
+})
+
+describe('períodos de clientes', () => {
+  it('incluyen «Todo» como el historial completo (dias 0)', () => {
+    expect(PERIODOS_CLIENTES.map((p) => p.dias)).toEqual([1, 7, 30, 0])
+    expect(PERIODOS_CLIENTES[3].etiqueta).toBe('Todo')
   })
 })

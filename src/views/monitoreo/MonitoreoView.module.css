@@ -289,7 +289,8 @@
 /* Clientes que se conectaron */
 .periodos { display: inline-flex; gap: 4px; padding: 3px; border-radius: 99px; background: var(--vidrio); border: 1px solid var(--borde); margin-bottom: 10px; }
 .periodos button { border: 0; background: transparent; color: var(--tenue); font: 650 12px/1 inherit; padding: 7px 12px; border-radius: 99px; cursor: pointer; }
-.periodos button.periodoOn { background: color-mix(in srgb, #4fd1c5 25%, transparent); color: #7ee8dd; }
+.periodos button.periodoOn { background: color-mix(in srgb, var(--acento, #4fd1c5) 25%, transparent); color: color-mix(in srgb, var(--acento, #4fd1c5) 70%, white); }
+.periodos { margin-right: 8px; }
 .resumenClientes { margin: 0 0 6px; font-size: 13px; color: var(--tenue); }
 .resumenClientes b { color: var(--texto); }
 .eVerdeTxt { color: var(--verde); font-weight: 650; }
@@ -305,3 +306,41 @@
 .especies { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
 .especies i { font-style: normal; font-size: 11px; padding: 2px 9px; border-radius: 99px; background: color-mix(in srgb, var(--verde) 16%, transparent); color: var(--verde); }
 .sinAcceso { margin: 0; font-size: 13px; color: var(--tenue); }
+
+/* ── Conexiones de 30 días, tiempo acumulado de clientes y top de acciones (02-11-2026) ───────── */
+.fila2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-bottom: 14px; }
+@media (min-width: 900px) { .fila2 { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); align-items: start; } }
+.barrasDia { position: relative; height: 130px; margin: 4px 0 0; touch-action: pan-y; cursor: crosshair; }
+.barrasDia svg { width: 100%; height: 100%; overflow: visible; }
+.bdia { fill: var(--verde); opacity: 0.78; transform-box: fill-box; transform-origin: bottom; animation: crece 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 18ms); transition: opacity 0.15s; }
+.bdiaAprox { opacity: 0.32; }
+.bdiaSel { opacity: 1; filter: drop-shadow(0 0 6px rgba(139, 224, 74, 0.7)); }
+.bdiaAprox.bdiaSel { opacity: 0.7; }
+@keyframes crece { from { transform: scaleY(0); opacity: 0; } }
+.lineaPersonas { fill: none; stroke: var(--azul); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: 0.85; }
+.aprox { font-style: normal; color: var(--ambar); font-size: 11px; }
+.estadisticas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 6px; }
+@media (min-width: 560px) { .estadisticas { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.nota { margin: 6px 6px 4px; font-size: 11.5px; color: var(--tenue); line-height: 1.4; }
+.leyendaBarra, .leyendaLinea { display: inline-block; vertical-align: middle; margin-right: 2px; }
+.leyendaBarra { width: 10px; height: 10px; border-radius: 3px; background: var(--verde); }
+.leyendaLinea { width: 14px; height: 3px; border-radius: 3px; background: var(--azul); }
+.tiempoGrande { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: flex-end; margin: 6px 6px 2px; }
+.tiempoGrande div { display: flex; flex-direction: column; gap: 2px; }
+.tiempoGrande strong { font-size: 34px; line-height: 1.05; font-weight: 800; color: #7ee8dd; }
+.tiempoGrande strong.tiempoUso { color: var(--verde); }
+.tiempoGrande span { font-size: 12px; color: var(--tenue); }
+.barrasMini { height: 60px; margin: 2px 6px 0; }
+.barrasMini svg { width: 100%; height: 100%; overflow: visible; }
+.bdiaTurquesa { fill: #4fd1c5; opacity: 0.8; }
+.bdiaTurquesa:hover { opacity: 1; }
+.puesto { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; background: var(--vidrio-fuerte); color: var(--tenue); }
+.puesto1 { background: linear-gradient(145deg, #f6dc7a, #c79a1a); color: #2a1f00; box-shadow: 0 0 12px rgba(232, 195, 46, 0.45); }
+.puesto2 { background: linear-gradient(145deg, #e3e8ec, #98a2ab); color: #1b2227; }
+.puesto3 { background: linear-gradient(145deg, #e0a878, #9a5f2f); color: #2b1707; }
+.barraTiempo { display: block; height: 5px; border-radius: 99px; background: var(--vidrio-fuerte); overflow: hidden; margin: 3px 0 1px; }
+.barraTiempo i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #2da69b, #7ee8dd); transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.barraVioleta i { background: linear-gradient(90deg, #7a55d6, #b48cf0); box-shadow: 0 0 12px rgba(180, 140, 240, 0.5); }
+.verMas { display: block; width: calc(100% - 12px); margin: 8px 6px 6px; padding: 9px; border-radius: 12px; border: 1px solid var(--borde); background: var(--vidrio); color: var(--tenue); font: 650 12px/1 inherit; cursor: pointer; }
+.verMas:hover { background: var(--vidrio-fuerte); color: var(--texto); }
+@media (prefers-reduced-motion: reduce) { .bdia { animation: none; } .barraTiempo i { transition: none; } }

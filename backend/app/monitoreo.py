@@ -13,15 +13,16 @@ Solo el administrador principal (`confirmar_clave.es_principal`).
 from __future__ import annotations
 
 import logging
+import re
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from . import actividad, dashboard
+from . import actividad, actividad_auto, dashboard
 from .admin_panel import CATEGORIAS_TRABAJO, ETIQUETA_CATEGORIA, _filas, _iso, leer_eventos
 from .auth import Usuario, usuario_actual
 from .confirmar_clave import es_principal
@@ -219,11 +220,12 @@ def recorrido_con_tiempos(eventos_nuevos_primero: list[dict], hasta: datetime) -
     return [{"modulo": s["modulo"], "desde": _iso(s["desde"]), "minutos": s["minutos"]} for s in salida]
 
 
-def agrupar_sesiones(sesiones: list[dict], ahora: datetime) -> list[dict]:
+def agrupar_sesiones(sesiones: list[dict], ahora: datetime, orden: str = "reciente") -> list[dict]:
     """Una fila por cuenta con lo que estuvo conectada en el período: visitas, tiempo conectada y tiempo usando el sistema.
 
     Cada sesión trae `inicio`, `ultimo_latido` y `segundos_activos`. Una visita de un solo latido dura 0: se muestra
-    como «menos de 1 min». Primero van los que están en línea, luego quien se conectó más recién."""
+    como «menos de 1 min». Con `orden="reciente"` primero van los que están en línea, luego quien se conectó más recién;
+    con `orden="tiempo"` va primero quien estuvo conectado más tiempo (el ranking), y a igual tiempo, quien lo usó más."""
     por_cuenta: dict[str, dict] = {}
     for s in sesiones:
         email = (s["email"] or "").lower()
@@ -246,7 +248,164 @@ def agrupar_sesiones(sesiones: list[dict], ahora: datetime) -> list[dict]:
         seg = (ahora - f["ultima"]).total_seconds()
         salida.append({**f, "primera": _iso(f["primera"]), "ultima": _iso(f["ultima"]), "segundos_desde_ultima": int(seg),
                        "en_linea": seg <= SEGUNDOS_EN_LINEA})
+    if orden == "tiempo":
+        return sorted(salida, key=lambda f: (-f["segundos_conectado"], -f["segundos_activo"], f["segundos_desde_ultima"]))
     return sorted(salida, key=lambda f: (not f["en_linea"], f["segundos_desde_ultima"]))
+
+
+# ── Acciones, conexiones por día y tiempo acumulado (pedido del 02-11-2026) ──────────
+
+# Cómo se llama cada acción en un ranking, en pasado como los textos de la actividad. Las que tienen regla propia en
+# `actividad_auto.REGLAS` se leen de ahí; el resto cae en una frase armada con su nombre.
+ETIQUETAS_FIJAS = {
+    "solicitud_creada": "Creó una solicitud",
+    "solicitud_enviada": "Envió una solicitud a un laboratorio",
+    "envio_fallido": "Intentó enviar una solicitud (falló)",
+    "carga": "Cargó datos (Excel o Converter)",
+    "carga_deshecha": "Deshizo una carga",
+    "seccion_guardada": "Guardó una sección de verificaciones",
+    "correccion_converter": "Corrigió un valor en el Converter",
+    "informe_subido": "Subió un informe (Converter)",
+    "informe_enviado": "Envió un informe al cliente",
+    "informe_envio_fallido": "Intentó enviar un informe (falló)",
+    "descarga": "Descargó o abrió un archivo",
+}
+_VERBO_API = {"api_post": "Ejecutó acciones", "api_put": "Modificó datos", "api_patch": "Modificó datos", "api_delete": "Eliminó datos"}
+
+
+def _texto_de_regla(accion: str) -> str | None:
+    for r in actividad_auto.REGLAS:
+        if r.accion == accion:
+            return re.sub(r"\s*\{\w+\}", "", r.texto).strip()
+    return None
+
+
+def etiqueta_de_accion(accion: str | None, modulo: str | None = None) -> str:
+    """El nombre de una acción para el ranking: «Creó una solicitud», «Descargó o abrió un archivo»…"""
+    accion = (accion or "").strip()
+    if accion in ETIQUETAS_FIJAS:
+        return ETIQUETAS_FIJAS[accion]
+    if accion in _VERBO_API:
+        return f"{_VERBO_API[accion]} en {modulo}" if modulo else _VERBO_API[accion]
+    texto = _texto_de_regla(accion) or accion.replace("_", " ").strip() or "Otra acción"
+    return texto[:1].upper() + texto[1:]
+
+
+def _es_accion(e: dict) -> bool:
+    """Lo que cuenta como «algo que hizo»: no las visitas, los ingresos ni los intentos fallidos de entrar."""
+    return bool(e["t"]) and e["categoria"] not in ("visita", "acceso") and e["accion"] not in ("login", "login_fallido")
+
+
+def filtrar_quien(eventos: list[dict], tipos: dict[str, str], quien: str) -> list[dict]:
+    """`internos` = personal de AgroFresh; `clientes` = cuentas cliente y comercial; `todos` = sin filtrar."""
+    if quien == "todos":
+        return eventos
+    clientes = quien == "clientes"
+    return [e for e in eventos if e["email"] and ((tipos.get(e["email"]) in TIPOS_CLIENTE) == clientes)]
+
+
+def top_acciones(eventos: list[dict], limite: int = 10) -> list[dict]:
+    """Las acciones que más se repitieron: cuántas veces, cuántas personas distintas y cuándo fue la última."""
+    cuenta: dict[str, dict] = {}
+    for e in eventos:
+        if not _es_accion(e):
+            continue
+        etiqueta = etiqueta_de_accion(e["accion"], e["modulo"])
+        f = cuenta.setdefault(etiqueta, {"etiqueta": etiqueta, "accion": e["accion"], "categoria": e["categoria"],
+                                         "modulo": e["modulo"], "total": 0, "personas": set(), "ultima": e["t"]})
+        f["total"] += 1
+        if e["email"]:
+            f["personas"].add(e["email"])
+        f["ultima"] = max(f["ultima"], e["t"])
+    filas = sorted(cuenta.values(), key=lambda f: (-f["total"], f["etiqueta"]))[:limite]
+    return [{"etiqueta": f["etiqueta"], "accion": f["accion"], "categoria": f["categoria"], "modulo": f["modulo"],
+             "total": f["total"], "personas": len(f["personas"]), "ultima": _iso(f["ultima"])} for f in filas]
+
+
+def top_personas(eventos: list[dict], tipos: dict[str, str], limite: int = 8) -> list[dict]:
+    """Quién hizo más cosas, con la acción que más repite."""
+    por: dict[str, dict] = {}
+    for e in eventos:
+        if not _es_accion(e) or not e["email"]:
+            continue
+        f = por.setdefault(e["email"], {"email": e["email"], "nombre": e["nombre"] or e["email"], "tipo": tipos.get(e["email"]),
+                                        "total": 0, "acciones": Counter(), "ultima": e["t"]})
+        f["total"] += 1
+        f["acciones"][etiqueta_de_accion(e["accion"], e["modulo"])] += 1
+        if e["t"] >= f["ultima"]:
+            f["ultima"], f["nombre"] = e["t"], e["nombre"] or f["nombre"]
+    filas = sorted(por.values(), key=lambda f: (-f["total"], f["nombre"]))[:limite]
+    return [{"email": f["email"], "nombre": f["nombre"], "tipo": f["tipo"], "total": f["total"],
+             "principal": f["acciones"].most_common(1)[0][0], "ultima": _iso(f["ultima"])} for f in filas]
+
+
+def top_pantallas(eventos: list[dict], limite: int = 8) -> list[dict]:
+    """Las pantallas (módulos) que más se abrieron. Solo las abre el personal: el servidor no anota las visitas de clientes."""
+    por: dict[str, dict] = {}
+    for e in eventos:
+        if e["categoria"] != "visita" or not e["modulo"] or not e["t"]:
+            continue
+        f = por.setdefault(e["modulo"], {"modulo": e["modulo"], "total": 0, "personas": set()})
+        f["total"] += 1
+        if e["email"]:
+            f["personas"].add(e["email"])
+    filas = sorted(por.values(), key=lambda f: (-f["total"], f["modulo"]))[:limite]
+    return [{"modulo": f["modulo"], "total": f["total"], "personas": len(f["personas"])} for f in filas]
+
+
+def armar_historial(sesiones: list[dict], ingresos: list[dict], hoy: date, dias: int = 30) -> dict[str, Any]:
+    """Las conexiones de los últimos `dias` días, una fila por día (hora de Chile), de la más vieja a la de hoy.
+
+    `sesiones` (tabla `presencia_sesion`, migración 0070) trae por visita: `dia`, `email`, `tipo_acceso`, `seg` (lo que duró)
+    y `act` (lo que la usó de verdad). Esa tabla solo existe desde que se instaló: los días anteriores se aproximan con los
+    ingresos al sistema (`ingresos`: `dia` y `email` de cada inicio de sesión), marcados `aproximado`. Un día sin ninguna de
+    las dos fuentes queda en cero."""
+    lista = [hoy - timedelta(days=k) for k in range(dias - 1, -1, -1)]
+    base = {d: {"dia": d.isoformat(), "conexiones": 0, "personas": set(), "aproximado": False, "clientes_conexiones": 0,
+                "clientes_personas": set(), "clientes_segundos": 0, "clientes_uso": 0} for d in lista}
+    for s in sesiones:
+        f = base.get(s["dia"])
+        if f is None:
+            continue
+        email = (s["email"] or "").lower()
+        f["conexiones"] += 1
+        f["personas"].add(email)
+        if s.get("tipo_acceso") in TIPOS_CLIENTE:
+            f["clientes_conexiones"] += 1
+            f["clientes_personas"].add(email)
+            f["clientes_segundos"] += max(0, int(s.get("seg") or 0))
+            f["clientes_uso"] += max(0, min(int(s.get("act") or 0), int(s.get("seg") or 0)))
+    con_visitas = {s["dia"] for s in sesiones}
+    for i in ingresos:
+        f = base.get(i["dia"])
+        if f is None or i["dia"] in con_visitas:
+            continue  # donde hay visitas medidas, mandan ellas
+        f["aproximado"] = True
+        f["conexiones"] += 1
+        f["personas"].add((i["email"] or "").lower())
+    por_dia = [{**f, "personas": len(f["personas"]), "clientes_personas": len(f["clientes_personas"])} for f in (base[d] for d in lista)]
+    todas = set().union(*(base[d]["personas"] for d in lista)) if lista else set()
+    pico = max(por_dia, key=lambda f: f["conexiones"]) if por_dia else None
+    total = sum(f["conexiones"] for f in por_dia)
+    return {"por_dia": por_dia, "totales": {
+        "conexiones": total, "personas": len(todas), "promedio_dia": round(total / dias, 1) if dias else 0,
+        "pico": {"dia": pico["dia"], "conexiones": pico["conexiones"]} if pico and pico["conexiones"] else None,
+        "dias_con_conexion": sum(1 for f in por_dia if f["conexiones"]),
+        "clientes_segundos": sum(f["clientes_segundos"] for f in por_dia),
+        "clientes_uso": sum(f["clientes_uso"] for f in por_dia),
+    }}
+
+
+def armar_acumulado(fila: dict | None) -> dict[str, Any]:
+    """El tiempo que los clientes han visto el sistema en un período, con sus promedios. `fila` viene de la base."""
+    fila = fila or {}
+    visitas = int(fila.get("visitas") or 0)
+    cuentas = int(fila.get("cuentas") or 0)
+    conectado = int(fila.get("conectado") or 0)
+    uso = min(int(fila.get("uso") or 0), conectado)
+    return {"visitas": visitas, "cuentas": cuentas, "segundos_conectado": conectado, "segundos_activo": uso,
+            "promedio_visita": conectado // visitas if visitas else 0, "promedio_cuenta": conectado // cuentas if cuentas else 0,
+            "primera": _iso(fila.get("primera"))}
 
 
 def pertenencia_de_cuenta(fila: dict | None) -> dict | None:
@@ -329,6 +488,38 @@ def _hay_tabla(nombre: str) -> bool:
 def _contar(sql: str, params: tuple = ()) -> int:
     filas = _filas(sql, params)
     return int(filas[0]["n"]) if filas else 0
+
+
+def _sesiones_por_dia(desde: datetime) -> list[dict]:
+    return _filas(
+        """SELECT (inicio AT TIME ZONE 'America/Santiago')::date AS dia, lower(email) AS email, tipo_acceso,
+                  GREATEST(EXTRACT(EPOCH FROM (ultimo_latido - inicio)), 0)::int AS seg,
+                  LEAST(COALESCE(segundos_activos, 0), GREATEST(EXTRACT(EPOCH FROM (ultimo_latido - inicio)), 0))::int AS act
+           FROM presencia_sesion WHERE inicio >= %s""", (desde,))
+
+
+def _ingresos_por_dia(desde: datetime) -> list[dict]:
+    return _filas(
+        """SELECT (creado_en AT TIME ZONE 'America/Santiago')::date AS dia, lower(email) AS email
+           FROM actividad_usuario WHERE accion = 'login' AND creado_en >= %s AND email IS NOT NULL""", (desde,))
+
+
+def _acumulado_clientes(desde: datetime | None) -> dict[str, Any]:
+    """Lo que han visto el sistema las cuentas cliente y comercial desde `desde` (None = desde siempre)."""
+    filas = _filas(
+        """WITH s AS (
+               SELECT email, inicio, ultimo_latido,
+                      GREATEST(EXTRACT(EPOCH FROM (ultimo_latido - inicio)), 0) AS seg,
+                      LEAST(COALESCE(segundos_activos, 0), GREATEST(EXTRACT(EPOCH FROM (ultimo_latido - inicio)), 0)) AS act
+               FROM presencia_sesion
+               WHERE tipo_acceso = ANY(%s) AND (%s::timestamptz IS NULL OR ultimo_latido >= %s::timestamptz))
+           SELECT count(*) AS visitas, count(DISTINCT email) AS cuentas, COALESCE(sum(seg), 0)::bigint AS conectado,
+                  COALESCE(sum(act), 0)::bigint AS uso, min(inicio) AS primera FROM s""", (list(TIPOS_CLIENTE), desde, desde))
+    return armar_acumulado(filas[0] if filas else None)
+
+
+def _tipos_de_cuenta() -> dict[str, str]:
+    return {f["email"]: f["tipo_acceso"] for f in _filas("SELECT lower(email) AS email, tipo_acceso FROM usuario")}
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────
@@ -457,20 +648,55 @@ def resumen(usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
 
 
 @router.get("/clientes")
-def clientes_conectados(dias: int = Query(1, ge=1, le=90), _: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+def clientes_conectados(dias: int = Query(1, ge=0, le=3650), orden: str = Query("reciente", pattern="^(reciente|tiempo)$"),
+                        _: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
     """Las cuentas de cliente y comercial que se conectaron en el período, con cuánto tiempo estuvieron.
-    `dias=1` es «hoy» (desde la medianoche de Chile). Sin la migración 0070 responde `disponible: false`."""
+    `dias=1` es «hoy» (desde la medianoche de Chile) y `dias=0`, desde que existe el registro. `orden=tiempo` arma el
+    ranking de quienes más tiempo estuvieron conectados. Sin la migración 0070 responde `disponible: false`."""
     ahora = datetime.now(timezone.utc)
-    desde = inicio_del_dia(ahora) if dias == 1 else ahora - timedelta(days=dias)
+    desde = datetime(2000, 1, 1, tzinfo=timezone.utc) if dias == 0 else inicio_del_dia(ahora) if dias == 1 else ahora - timedelta(days=dias)
     if not _hay_tabla("presencia_sesion"):
         return {"disponible": False, "cuentas": [], "dias": dias}
     filas = _filas(
         """SELECT email, nombre, tipo_acceso, cliente, planta, dispositivo, inicio, ultimo_latido, segundos_activos
            FROM presencia_sesion WHERE ultimo_latido >= %s AND tipo_acceso = ANY(%s)""", (desde, list(TIPOS_CLIENTE)))
-    cuentas = agrupar_sesiones(filas, ahora)
-    return {"disponible": True, "dias": dias, "ahora": _iso(ahora), "cuentas": cuentas,
+    cuentas = agrupar_sesiones(filas, ahora, orden)
+    return {"disponible": True, "dias": dias, "orden": orden, "ahora": _iso(ahora), "cuentas": cuentas,
             "en_linea": sum(1 for c in cuentas if c["en_linea"]),
-            "segundos_total": sum(c["segundos_conectado"] for c in cuentas)}
+            "segundos_total": sum(c["segundos_conectado"] for c in cuentas),
+            "segundos_activo_total": sum(c["segundos_activo"] for c in cuentas),
+            "visitas_total": sum(c["sesiones"] for c in cuentas)}
+
+
+@router.get("/historial")
+def historial(dias: int = Query(30, ge=7, le=90), _: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """Las conexiones de los últimos `dias` días (una barra por día) y el tiempo acumulado que los clientes han visto el sistema
+    (hoy, 7 días, 30 días y desde siempre). Los días anteriores al registro de visitas (migración 0070) se aproximan con los ingresos."""
+    ahora = datetime.now(timezone.utc)
+    hoy = ahora.astimezone(ZONA).date()
+    desde = datetime.combine(hoy - timedelta(days=dias - 1), time.min, tzinfo=ZONA).astimezone(timezone.utc)
+    hay_visitas = _hay_tabla("presencia_sesion")
+    datos = armar_historial(_sesiones_por_dia(desde) if hay_visitas else [], _ingresos_por_dia(desde), hoy, dias)
+    acumulado = {}
+    if hay_visitas:
+        acumulado = {"hoy": _acumulado_clientes(inicio_del_dia(ahora)), "7": _acumulado_clientes(ahora - timedelta(days=7)),
+                     "30": _acumulado_clientes(ahora - timedelta(days=30)), "todo": _acumulado_clientes(None)}
+    return {"disponible": hay_visitas, "ahora": _iso(ahora), "dias": dias, **datos, "acumulado_clientes": acumulado}
+
+
+@router.get("/top")
+def top(dias: int = Query(7, ge=1, le=90), quien: str = Query("todos", pattern="^(todos|internos|clientes)$"),
+        _: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
+    """Lo que más se hizo en el período: las acciones que más se repitieron, quién hizo más y qué pantallas se abrieron más.
+    `dias=1` es «hoy». `quien` filtra por personal de AgroFresh o por cuentas cliente y comercial."""
+    ahora = datetime.now(timezone.utc)
+    desde = inicio_del_dia(ahora) if dias == 1 else ahora - timedelta(days=dias)
+    tipos = _tipos_de_cuenta()
+    eventos = filtrar_quien([e for e in leer_eventos(desde) if e["t"]], tipos, quien)
+    hechas = [e for e in eventos if _es_accion(e)]
+    return {"dias": dias, "quien": quien, "ahora": _iso(ahora), "total_acciones": len(hechas),
+            "personas_activas": len({e["email"] for e in hechas if e["email"]}),
+            "acciones": top_acciones(eventos, 10), "personas": top_personas(eventos, tipos, 8), "pantallas": top_pantallas(eventos, 8)}
 
 
 @router.get("/usuario")

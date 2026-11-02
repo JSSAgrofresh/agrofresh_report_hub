@@ -3,3 +3,5 @@ export { SEGUNDOS_REFRESCO, useContador, useMonitoreo } from './hooks/useMonitor
 export { usePresencia } from './hooks/usePresencia'
 export { useInstalarApp } from './hooks/useInstalarApp'
 export { useClientes } from './hooks/useClientes'
+export { useHistorial } from './hooks/useHistorial'
+export { useTop } from './hooks/useTop'

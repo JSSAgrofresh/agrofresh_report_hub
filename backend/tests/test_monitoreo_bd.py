@@ -140,3 +140,76 @@ def test_el_detalle_de_una_cuenta_dice_a_que_sold_to_y_ship_to_pertenece():
     finally:
         with conexion() as c, cursor_dict(c) as cur:
             cur.execute("DELETE FROM usuario WHERE email = %s", (correo,))
+
+
+# ── Historial de 30 días, ranking de clientes y top de acciones (02-11-2026) ─────────
+
+CORREOS_NUEVOS = ("test-cli-a@prueba.cl", "test-cli-b@prueba.cl", "test-top@prueba.cl")
+
+
+@pytest.fixture
+def limpiar_nuevos():
+    def borrar():
+        with conexion() as c, cursor_dict(c) as cur:
+            cur.execute("DELETE FROM presencia_sesion WHERE email = ANY(%s)", (list(CORREOS_NUEVOS),))
+            cur.execute("DELETE FROM actividad_usuario WHERE email = ANY(%s)", (list(CORREOS_NUEVOS),))
+    borrar()
+    yield
+    borrar()
+
+
+def _poner_sesion(email, tipo, hace_dias, minutos, activo_seg):
+    with conexion() as c, cursor_dict(c) as cur:
+        cur.execute(
+            """INSERT INTO presencia_sesion (email, nombre, tipo_acceso, cliente, planta, inicio, ultimo_latido, segundos_activos)
+               VALUES (%s, %s, %s, 'GARATE', 'CODEGUA', now() - make_interval(days => %s) - make_interval(mins => %s),
+                       now() - make_interval(days => %s), %s)""", (email, email, tipo, hace_dias, minutos, hace_dias, activo_seg))
+
+
+@pytest.mark.skipif(not hay_base("presencia_sesion"), reason="sin la migración 0070")
+def test_el_historial_cuenta_visitas_por_dia_y_suma_el_tiempo_de_los_clientes(limpiar_nuevos):
+    _poner_sesion("test-cli-a@prueba.cl", "cliente", 0, 30, 600)
+    _poner_sesion("test-cli-a@prueba.cl", "cliente", 3, 10, 120)
+    _poner_sesion("test-cli-b@prueba.cl", "comercial", 3, 20, 300)
+    h = monitoreo.historial(dias=30, _=_usuario())
+    assert h["disponible"] is True and len(h["por_dia"]) == 30
+    por = {f["dia"]: f for f in h["por_dia"]}
+    hace3 = por[sorted(por)[-4]]
+    assert hace3["clientes_conexiones"] == 2 and hace3["clientes_personas"] == 2
+    assert hace3["clientes_segundos"] >= 29 * 60 and hace3["clientes_uso"] == 420
+    assert h["acumulado_clientes"]["30"]["visitas"] >= 3
+    assert h["acumulado_clientes"]["todo"]["segundos_conectado"] >= h["acumulado_clientes"]["hoy"]["segundos_conectado"]
+
+
+@pytest.mark.skipif(not hay_base("presencia_sesion"), reason="sin la migración 0070")
+def test_el_ranking_de_clientes_pone_primero_al_que_mas_tiempo_estuvo_y_acepta_todo_el_historial(limpiar_nuevos):
+    _poner_sesion("test-cli-a@prueba.cl", "cliente", 40, 10, 60)    # hace 40 días: solo entra en «todo»
+    _poner_sesion("test-cli-b@prueba.cl", "cliente", 5, 120, 3000)  # el que más estuvo, pero hace 5 días
+    _poner_sesion("test-cli-a@prueba.cl", "cliente", 1, 15, 300)    # el más reciente, pero poco tiempo
+    sem = monitoreo.clientes_conectados(dias=7, orden="tiempo", _=_usuario())
+    mios = [c["email"] for c in sem["cuentas"] if c["email"] in CORREOS_NUEVOS]
+    assert mios == ["test-cli-b@prueba.cl", "test-cli-a@prueba.cl"]
+    assert sem["visitas_total"] >= 2 and sem["segundos_activo_total"] >= 3300
+    todo = monitoreo.clientes_conectados(dias=0, orden="tiempo", _=_usuario())
+    a = next(c for c in todo["cuentas"] if c["email"] == "test-cli-a@prueba.cl")
+    assert a["sesiones"] == 2
+
+
+@pytest.mark.skipif(not hay_base("actividad_usuario"), reason="sin la migración 0047")
+def test_el_top_cuenta_acciones_personas_y_pantallas_y_filtra_por_quien(limpiar_nuevos):
+    with conexion() as c, cursor_dict(c) as cur:
+        for _ in range(3):
+            cur.execute("INSERT INTO actividad_usuario (email, nombre, categoria, accion, modulo, detalle) "
+                        "VALUES ('test-top@prueba.cl', 'Top', 'report', 'descarga', 'Report', 'descargó un archivo')")
+        cur.execute("INSERT INTO actividad_usuario (email, nombre, categoria, accion, modulo) "
+                    "VALUES ('test-top@prueba.cl', 'Top', 'visita', 'visita', 'Storage')")
+        cur.execute("INSERT INTO actividad_usuario (email, nombre, categoria, accion) VALUES ('test-top@prueba.cl', 'Top', 'acceso', 'login')")
+    r = monitoreo.top(dias=7, quien="todos", _=_usuario())
+    mia = next(f for f in r["acciones"] if f["etiqueta"] == "Descargó o abrió un archivo")
+    assert mia["total"] >= 3 and not any(f["accion"] in ("login", "visita") for f in r["acciones"])
+    assert any(p["email"] == "test-top@prueba.cl" and p["total"] >= 3 for p in r["personas"])
+    assert any(p["modulo"] == "Storage" for p in r["pantallas"])
+    # la cuenta de prueba no existe en `usuario`: cuenta como personal, no como cliente
+    assert any(f["etiqueta"] == "Descargó o abrió un archivo" for f in monitoreo.top(dias=7, quien="internos", _=_usuario())["acciones"])
+    assert all(f["etiqueta"] != "Descargó o abrió un archivo" or f["total"] < 3
+               for f in monitoreo.top(dias=7, quien="clientes", _=_usuario())["acciones"])

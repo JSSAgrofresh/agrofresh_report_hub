@@ -189,3 +189,160 @@ class TestPertenencia:
         assert r["accesos"] == [{"sold_to": "DOLE CHILE S.A.", "ship_to": None, "especies": []}]
         assert monitoreo.pertenencia_de_cuenta({"tipo_acceso": "analista", "area": "cromatografia", "plantas_asignadas": None})["accesos"] == []
         assert monitoreo.pertenencia_de_cuenta(None) is None
+
+
+# ── Top de acciones, conexiones por día y tiempo acumulado (02-11-2026) ──────────────
+
+from datetime import date  # noqa: E402
+
+TIPOS = {"jefe@agrofresh.com": "admin_general", "paz@agrofresh.com": "analista",
+         "cli@fruta.cl": "cliente", "com@agrofresh.com": "comercial"}
+
+
+class TestEtiquetasDeAccion:
+    def test_las_acciones_conocidas_tienen_su_nombre(self):
+        assert monitoreo.etiqueta_de_accion("solicitud_creada") == "Creó una solicitud"
+        assert monitoreo.etiqueta_de_accion("descarga") == "Descargó o abrió un archivo"
+
+    def test_las_que_tienen_regla_propia_se_leen_de_ella_sin_el_numero(self):
+        assert monitoreo.etiqueta_de_accion("solicitud_editada") == "Editó la solicitud"
+
+    def test_las_genericas_nombran_el_modulo(self):
+        assert monitoreo.etiqueta_de_accion("api_post", "Report") == "Ejecutó acciones en Report"
+        assert monitoreo.etiqueta_de_accion("api_delete", None) == "Eliminó datos"
+
+    def test_una_desconocida_se_arma_con_su_nombre(self):
+        assert monitoreo.etiqueta_de_accion("foto_rara_subida") == "Foto rara subida"
+        assert monitoreo.etiqueta_de_accion("") == "Otra acción"
+
+
+class TestTopAcciones:
+    def _eventos(self):
+        return [
+            _ev(5, "paz@agrofresh.com", accion="solicitud_creada"), _ev(9, "paz@agrofresh.com", accion="solicitud_creada"),
+            _ev(12, "jefe@agrofresh.com", accion="solicitud_creada"),
+            _ev(20, "cli@fruta.cl", categoria="report", accion="descarga", modulo="Report"),
+            _ev(30, "cli@fruta.cl", categoria="report", accion="descarga", modulo="Report"),
+            _ev(40, "paz@agrofresh.com", categoria="visita", accion="visita", modulo="Report"),
+            _ev(41, "paz@agrofresh.com", categoria="acceso", accion="login"),
+            _ev(42, "paz@agrofresh.com", categoria="acceso", accion="login_fallido"),
+        ]
+
+    def test_cuenta_las_repetidas_y_deja_fuera_visitas_ingresos_y_fallidos(self):
+        r = monitoreo.top_acciones(self._eventos())
+        assert [(f["etiqueta"], f["total"]) for f in r] == [("Creó una solicitud", 3), ("Descargó o abrió un archivo", 2)]
+
+    def test_dice_cuantas_personas_distintas_y_la_ultima_vez(self):
+        r = monitoreo.top_acciones(self._eventos())
+        assert r[0]["personas"] == 2 and r[1]["personas"] == 1
+        assert r[0]["ultima"] == (AHORA - timedelta(minutes=5)).isoformat()
+
+    def test_respeta_el_limite_y_desempata_por_nombre(self):
+        evs = [_ev(1, "a@x.cl", accion="carga"), _ev(2, "a@x.cl", accion="solicitud_creada")]
+        assert [f["accion"] for f in monitoreo.top_acciones(evs)] == ["carga", "solicitud_creada"]
+        assert len(monitoreo.top_acciones(evs, limite=1)) == 1
+
+    def test_sin_eventos_no_hay_ranking(self):
+        assert monitoreo.top_acciones([]) == []
+
+
+class TestQuien:
+    def test_filtra_por_personal_o_por_clientes(self):
+        evs = [_ev(1, "paz@agrofresh.com"), _ev(2, "cli@fruta.cl"), _ev(3, "com@agrofresh.com"), _ev(4, None)]
+        assert [e["email"] for e in monitoreo.filtrar_quien(evs, TIPOS, "internos")] == ["paz@agrofresh.com"]
+        assert [e["email"] for e in monitoreo.filtrar_quien(evs, TIPOS, "clientes")] == ["cli@fruta.cl", "com@agrofresh.com"]
+        assert len(monitoreo.filtrar_quien(evs, TIPOS, "todos")) == 4
+
+    def test_una_cuenta_que_no_se_conoce_cuenta_como_personal(self):
+        evs = [_ev(1, "nueva@x.cl")]
+        assert monitoreo.filtrar_quien(evs, TIPOS, "internos") == evs and monitoreo.filtrar_quien(evs, TIPOS, "clientes") == []
+
+
+class TestTopPersonasYPantallas:
+    def test_ordena_por_acciones_y_dice_lo_que_mas_repite(self):
+        evs = [_ev(1, "paz@agrofresh.com", accion="carga"), _ev(2, "paz@agrofresh.com", accion="carga"),
+               _ev(3, "paz@agrofresh.com", accion="solicitud_creada"), _ev(4, "jefe@agrofresh.com", accion="carga", nombre="Jefe"),
+               _ev(5, None, accion="carga")]
+        r = monitoreo.top_personas(evs, TIPOS)
+        assert [(f["email"], f["total"]) for f in r] == [("paz@agrofresh.com", 3), ("jefe@agrofresh.com", 1)]
+        assert r[0]["principal"] == "Cargó datos (Excel o Converter)" and r[0]["tipo"] == "analista"
+
+    def test_las_pantallas_solo_cuentan_visitas_con_modulo(self):
+        evs = [_ev(1, "a@x.cl", categoria="visita", accion="visita", modulo="Report"),
+               _ev(2, "b@x.cl", categoria="visita", accion="visita", modulo="Report"),
+               _ev(3, "a@x.cl", categoria="visita", accion="visita", modulo="Storage"),
+               _ev(4, "a@x.cl", categoria="visita", accion="visita", modulo=None), _ev(5, "a@x.cl")]
+        assert monitoreo.top_pantallas(evs) == [{"modulo": "Report", "total": 2, "personas": 2}, {"modulo": "Storage", "total": 1, "personas": 1}]
+
+
+HOY = date(2026, 11, 2)
+
+
+def _ses(dia, email, tipo="cliente", seg=600, act=300):
+    return {"dia": dia, "email": email, "tipo_acceso": tipo, "seg": seg, "act": act}
+
+
+class TestHistorial:
+    def test_siempre_trae_un_dia_por_cada_uno_de_los_ultimos_30_y_el_ultimo_es_hoy(self):
+        h = monitoreo.armar_historial([], [], HOY, 30)
+        assert len(h["por_dia"]) == 30 and h["por_dia"][-1]["dia"] == "2026-11-02" and h["por_dia"][0]["dia"] == "2026-10-04"
+        assert h["totales"]["conexiones"] == 0 and h["totales"]["pico"] is None
+
+    def test_cuenta_visitas_y_personas_distintas_por_dia(self):
+        ses = [_ses(HOY, "a@x.cl", "analista"), _ses(HOY, "a@x.cl", "analista"), _ses(HOY, "b@x.cl", "cliente"),
+               _ses(date(2026, 11, 1), "b@x.cl", "cliente")]
+        h = monitoreo.armar_historial(ses, [], HOY, 30)
+        hoy, ayer = h["por_dia"][-1], h["por_dia"][-2]
+        assert (hoy["conexiones"], hoy["personas"], ayer["conexiones"], ayer["personas"]) == (3, 2, 1, 1)
+        assert h["totales"]["conexiones"] == 4 and h["totales"]["personas"] == 2
+        assert h["totales"]["pico"] == {"dia": "2026-11-02", "conexiones": 3}
+
+    def test_separa_el_tiempo_de_los_clientes_y_nunca_cuenta_mas_uso_que_conexion(self):
+        ses = [_ses(HOY, "c@x.cl", "cliente", seg=600, act=900), _ses(HOY, "com@x.cl", "comercial", seg=300, act=100),
+               _ses(HOY, "p@x.cl", "analista", seg=7200, act=7000)]
+        f = monitoreo.armar_historial(ses, [], HOY, 7)["por_dia"][-1]
+        assert f["clientes_conexiones"] == 2 and f["clientes_personas"] == 2
+        assert f["clientes_segundos"] == 900 and f["clientes_uso"] == 700  # 600 (tope) + 100; el analista no entra
+
+    def test_antes_de_las_visitas_se_aproxima_con_los_ingresos_y_se_marca(self):
+        ing = [{"dia": date(2026, 10, 20), "email": "a@x.cl"}, {"dia": date(2026, 10, 20), "email": "b@x.cl"}]
+        f = [f for f in monitoreo.armar_historial([], ing, HOY, 30)["por_dia"] if f["dia"] == "2026-10-20"][0]
+        assert f["conexiones"] == 2 and f["personas"] == 2 and f["aproximado"] is True
+
+    def test_donde_hay_visitas_los_ingresos_no_se_suman(self):
+        h = monitoreo.armar_historial([_ses(HOY, "a@x.cl", "analista")], [{"dia": HOY, "email": "a@x.cl"}, {"dia": HOY, "email": "b@x.cl"}], HOY, 30)
+        assert h["por_dia"][-1]["conexiones"] == 1 and h["por_dia"][-1]["aproximado"] is False
+
+    def test_lo_que_cae_fuera_de_la_ventana_se_ignora(self):
+        h = monitoreo.armar_historial([_ses(date(2026, 9, 1), "a@x.cl")], [{"dia": date(2026, 9, 1), "email": "a@x.cl"}], HOY, 30)
+        assert h["totales"]["conexiones"] == 0
+
+    def test_el_promedio_es_por_dia_de_la_ventana(self):
+        h = monitoreo.armar_historial([_ses(HOY, "a@x.cl")] * 3, [], HOY, 30)
+        assert h["totales"]["promedio_dia"] == 0.1 and h["totales"]["dias_con_conexion"] == 1
+
+
+class TestAcumulado:
+    def test_promedios_por_visita_y_por_cuenta(self):
+        a = monitoreo.armar_acumulado({"visitas": 4, "cuentas": 2, "conectado": 4000, "uso": 1000, "primera": AHORA})
+        assert a["promedio_visita"] == 1000 and a["promedio_cuenta"] == 2000 and a["segundos_activo"] == 1000
+
+    def test_el_uso_nunca_pasa_de_lo_conectado_y_sin_datos_todo_es_cero(self):
+        assert monitoreo.armar_acumulado({"visitas": 1, "cuentas": 1, "conectado": 60, "uso": 500})["segundos_activo"] == 60
+        vacio = monitoreo.armar_acumulado(None)
+        assert vacio["visitas"] == 0 and vacio["promedio_visita"] == 0 and vacio["primera"] is None
+
+
+class TestRankingDeClientes:
+    def _s(self, email, ini, fin, act):
+        return {"email": email, "nombre": email, "tipo_acceso": "cliente", "cliente": "C", "planta": "P", "dispositivo": None,
+                "inicio": AHORA - timedelta(minutes=ini), "ultimo_latido": AHORA - timedelta(minutes=fin), "segundos_activos": act}
+
+    def test_con_orden_por_tiempo_va_primero_quien_estuvo_mas_conectado(self):
+        ses = [self._s("poco@x.cl", 10, 0, 60), self._s("mucho@x.cl", 300, 100, 3000), self._s("medio@x.cl", 90, 30, 600)]
+        r = monitoreo.agrupar_sesiones(ses, AHORA, "tiempo")
+        assert [c["email"] for c in r] == ["mucho@x.cl", "medio@x.cl", "poco@x.cl"]
+
+    def test_el_orden_de_siempre_pone_primero_a_los_que_estan_en_linea(self):
+        ses = [self._s("viejo@x.cl", 500, 400, 60), self._s("vivo@x.cl", 5, 0, 60)]
+        assert [c["email"] for c in monitoreo.agrupar_sesiones(ses, AHORA)] == ["vivo@x.cl", "viejo@x.cl"]

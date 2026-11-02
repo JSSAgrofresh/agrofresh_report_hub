@@ -157,12 +157,96 @@ export interface ClienteConectado {
   dispositivo: string | null
 }
 
+export type OrdenClientes = 'tiempo' | 'reciente'
+
 export interface ClientesPeriodo {
   disponible: boolean
   dias: number
+  orden?: OrdenClientes
   cuentas: ClienteConectado[]
   en_linea?: number
   segundos_total?: number
+  segundos_activo_total?: number
+  visitas_total?: number
+}
+
+/** Un día de conexiones (hora de Chile). `aproximado` = antes del registro de visitas: se cuenta con los ingresos al sistema. */
+export interface DiaConexion {
+  dia: string
+  conexiones: number
+  personas: number
+  aproximado: boolean
+  clientes_conexiones: number
+  clientes_personas: number
+  clientes_segundos: number
+  clientes_uso: number
+}
+
+/** El tiempo que las cuentas cliente y comercial han visto el sistema en un período. */
+export interface AcumuladoClientes {
+  visitas: number
+  cuentas: number
+  segundos_conectado: number
+  segundos_activo: number
+  promedio_visita: number
+  promedio_cuenta: number
+  primera: string | null
+}
+
+export type PeriodoAcumulado = 'hoy' | '7' | '30' | 'todo'
+
+export interface HistorialMonitoreo {
+  disponible: boolean
+  ahora: string
+  dias: number
+  por_dia: DiaConexion[]
+  totales: {
+    conexiones: number
+    personas: number
+    promedio_dia: number
+    pico: { dia: string; conexiones: number } | null
+    dias_con_conexion: number
+    clientes_segundos: number
+    clientes_uso: number
+  }
+  acumulado_clientes: Partial<Record<PeriodoAcumulado, AcumuladoClientes>>
+}
+
+export interface AccionTop {
+  etiqueta: string
+  accion: string
+  categoria: string
+  modulo: string | null
+  total: number
+  personas: number
+  ultima: string | null
+}
+
+export interface PersonaTop {
+  email: string
+  nombre: string
+  tipo: string | null
+  total: number
+  principal: string
+  ultima: string | null
+}
+
+export interface PantallaTop {
+  modulo: string
+  total: number
+  personas: number
+}
+
+export type QuienTop = 'todos' | 'internos' | 'clientes'
+
+export interface TopMonitoreo {
+  dias: number
+  quien: QuienTop
+  total_acciones: number
+  personas_activas: number
+  acciones: AccionTop[]
+  personas: PersonaTop[]
+  pantallas: PantallaTop[]
 }
 
 export interface DetalleUsuario {
@@ -192,7 +276,10 @@ export interface DetalleUsuario {
 }
 
 export const obtenerResumen = () => httpClient.get<ResumenMonitoreo>('/monitoreo/resumen')
-export const obtenerClientes = (dias: number) => httpClient.get<ClientesPeriodo>(`/monitoreo/clientes?dias=${dias}`)
+export const obtenerClientes = (dias: number, orden: OrdenClientes = 'tiempo') =>
+  httpClient.get<ClientesPeriodo>(`/monitoreo/clientes?dias=${dias}&orden=${orden}`)
+export const obtenerHistorial = (dias = 30) => httpClient.get<HistorialMonitoreo>(`/monitoreo/historial?dias=${dias}`)
+export const obtenerTop = (dias: number, quien: QuienTop) => httpClient.get<TopMonitoreo>(`/monitoreo/top?dias=${dias}&quien=${quien}`)
 export const obtenerDetalleUsuario = (email: string) =>
   httpClient.get<DetalleUsuario>(`/monitoreo/usuario?email=${encodeURIComponent(email)}`)
 /** Cada pestaña abierta avisa que sigue ahí (alimenta «conectados» en el monitoreo). Si falla no importa. */
@@ -316,11 +403,87 @@ export function duracionSeg(seg: number): string {
   return r ? `${h} h ${r} min` : `${h} h`
 }
 
+/** `dias: 0` = desde que existe el registro (todo el historial). */
 export const PERIODOS_CLIENTES = [
   { dias: 1, etiqueta: 'Hoy' },
   { dias: 7, etiqueta: '7 días' },
   { dias: 30, etiqueta: '30 días' },
+  { dias: 0, etiqueta: 'Todo' },
 ] as const
+
+export const PERIODOS_TOP = [
+  { dias: 1, etiqueta: 'Hoy' },
+  { dias: 7, etiqueta: '7 días' },
+  { dias: 30, etiqueta: '30 días' },
+] as const
+
+export const OPCIONES_QUIEN: { valor: QuienTop; etiqueta: string }[] = [
+  { valor: 'todos', etiqueta: 'Todos' },
+  { valor: 'internos', etiqueta: 'Personal' },
+  { valor: 'clientes', etiqueta: 'Clientes' },
+]
+
+export const PERIODOS_ACUMULADO: { clave: PeriodoAcumulado; etiqueta: string }[] = [
+  { clave: 'hoy', etiqueta: 'Hoy' },
+  { clave: '7', etiqueta: '7 días' },
+  { clave: '30', etiqueta: '30 días' },
+  { clave: 'todo', etiqueta: 'Todo' },
+]
+
+/** Para tiempos acumulados, que pueden ser muchas horas: «0 min», «42 min», «9 h 48 min», «126 h» (desde 100 h sin minutos). */
+export function duracionAcumulada(seg: number): string {
+  const min = Math.round(Math.max(0, seg) / 60)
+  if (min < 1) return '0 min'
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60)
+  if (h >= 100) return `${Math.round(min / 60)} h`
+  const r = min % 60
+  return r ? `${h} h ${r} min` : `${h} h`
+}
+
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+/** «2026-10-28» → «28 oct». Se arma a mano para no depender de la zona horaria del aparato. */
+export function fechaCorta(dia: string): string {
+  const [, m, d] = dia.split('-').map(Number)
+  return m >= 1 && m <= 12 && d ? `${d} ${MESES[m - 1]}` : dia
+}
+
+/** El ancho de una barra respecto de la mayor, de 0 a 100 (con un mínimo visible si el valor no es cero). */
+export function porcentajeDe(valor: number, maximo: number, minimoVisible = 3): number {
+  if (maximo <= 0 || valor <= 0) return 0
+  return Math.max(minimoVisible, Math.min(100, (valor / maximo) * 100))
+}
+
+export interface BarraDia {
+  x: number
+  y: number
+  ancho: number
+  alto: number
+  valor: number
+}
+
+/** Las barras de una serie en un lienzo de `ancho` × `alto`: una por valor, con un hueco entre ellas. El cero no dibuja alto. */
+export function barrasDeSerie(serie: number[], ancho: number, alto: number, margen = 4, hueco = 0.28): BarraDia[] {
+  const n = serie.length
+  if (n === 0) return []
+  const max = Math.max(1, ...serie)
+  const paso = ancho / n
+  const w = paso * (1 - hueco)
+  const util = alto - margen
+  return serie.map((valor, i) => {
+    const h = valor > 0 ? Math.max(3, (valor / max) * util) : 0
+    return { x: i * paso + (paso - w) / 2, y: alto - h, ancho: w, alto: h, valor }
+  })
+}
+
+/** Los índices del eje de fechas de una serie de `n` días: el primero, algunos intermedios y el último. */
+export function indicesDeEje(n: number, cuantos = 5): number[] {
+  if (n <= 1) return n === 1 ? [0] : []
+  const salida = new Set<number>()
+  for (let k = 0; k < cuantos; k++) salida.add(Math.round((k * (n - 1)) / (cuantos - 1)))
+  return [...salida].sort((a, b) => a - b)
+}
 
 export const ETIQUETA_TIPO: Record<string, string> = {
   admin_general: 'Administrador general', gerencia: 'Gerencia', admin_area: 'Administrador de área',
