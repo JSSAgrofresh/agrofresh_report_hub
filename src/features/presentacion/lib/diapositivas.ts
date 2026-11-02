@@ -40,7 +40,7 @@ export function anteriorDe(id: string | undefined): Diapositiva | undefined {
 
 /** Los ocho pasos de la simulación de «Report Hub». */
 export const PASOS_SIMULACION = [
-  'Los técnicos emiten una solicitud',
+  'Los técnicos digitan una solicitud',
   'El laboratorio externo analiza y responde',
   'Tú decides: aceptar o rechazar',
   'Llega una muestra al laboratorio AgroFresh',
@@ -53,18 +53,19 @@ export const PASOS_SIMULACION = [
 /** Los íconos del mapa, en el orden de la presentación (clave = id del nodo dentro del mundo). */
 export const NODOS = [
   { k: 'T', nombre: 'Técnicos' },
-  { k: 'M', nombre: 'Muestras' },
   { k: 'N', nombre: 'Analistas de cromatografía' },
   { k: 'J', nombre: 'Jefa de cromatografía' },
   { k: 'V', nombre: 'Verificaciones' },
   { k: 'U', nombre: 'Equipo AgroFresh' },
-  { k: 'C', nombre: 'Correo' },
-  { k: 'X', nombre: 'Laboratorios' },
   { k: 'G', nombre: 'Administrador general' },
   { k: 'B', nombre: 'Backend' },
+  { k: 'C', nombre: 'Correo' },
   { k: 'D', nombre: 'Base de datos' },
   { k: 'F', nombre: 'Archivos' },
   { k: 'P', nombre: 'Pantalla' },
+  { k: 'Q', nombre: 'Quiteca' },
+  { k: 'L', nombre: 'ALS' },
+  { k: 'H', nombre: 'Diagnofruit' },
   { k: 'K', nombre: 'Clientes' },
 ] as const
 

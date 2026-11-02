@@ -369,3 +369,29 @@
     transform: none;
   }
 }
+
+/* Decisión pendiente del administrador (paso «Tú decides»): se responde desde el teléfono. */
+.decision {
+  padding: 0.9rem;
+  border: 2px solid var(--verde);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(64, 175, 73, 0.18);
+}
+
+.decision h2 {
+  margin: 0 0 0.3rem;
+  color: var(--oscuro);
+  font-size: 1.15rem;
+  text-transform: uppercase;
+}
+
+.decision p {
+  margin: 0 0 0.7rem;
+}
+
+.rechazar {
+  border-color: #d9483b;
+  color: #d9483b;
+  background: #fff;
+}

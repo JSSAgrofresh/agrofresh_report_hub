@@ -40,7 +40,7 @@ router = APIRouter(prefix="/api/presentacion", tags=["presentacion"])
 #: Diapositivas, en orden. Espejo de `DIAPOSITIVAS` en `src/features/presentacion/lib/diapositivas.ts`.
 DIAPOSITIVAS = ("portada", "indice", "viaje", "sistemas", "motor", "historia", "publicar", "aporte")
 #: Órdenes que el teléfono puede mandar y que datos lleva cada una.
-COMANDOS = ("ir", "siguiente", "anterior", "simular", "paso", "eco", "pausa_eco", "pestana", "nodo", "engranaje")
+COMANDOS = ("ir", "siguiente", "anterior", "simular", "paso", "eco", "pausa_eco", "pestana", "nodo", "engranaje", "decidir")
 
 SEGUNDOS_ACTIVO = 8          # sin señal del computador por más de esto, la presentación está cerrada
 MAX_COMANDOS = 40
@@ -86,6 +86,11 @@ def validar_comando(tipo: str, datos: dict[str, Any] | None) -> dict[str, Any]:
         if t not in ("ico", "tok"):
             raise ValueError("Esa pestaña no existe.")
         return {"t": t}
+    if tipo == "decidir":
+        v = str(datos.get("v", ""))
+        if v not in ("accept", "reject"):
+            raise ValueError("La decisión tiene que ser aceptar o rechazar.")
+        return {"v": v}
     if tipo in ("nodo", "engranaje"):
         clave = str(datos.get("k") or datos.get("id") or "")[:20]
         if not clave or not clave.replace("_", "").isalnum():

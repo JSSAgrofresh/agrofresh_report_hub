@@ -107,6 +107,21 @@ export function PresentacionControlView() {
 
       {aviso && <p className={styles.error} role="alert">{aviso}</p>}
 
+      {activa && estado.decision && (
+        <section className={styles.decision} aria-label="Decisión pendiente" aria-live="assertive">
+          <h2>¿Aceptar este informe?</h2>
+          <p>
+            <strong>{estado.decision.lab}</strong> · {estado.decision.cli}
+            <br />
+            <small>Informe {estado.decision.num}</small>
+          </p>
+          <div className={styles.fila}>
+            <button type="button" className={`${styles.boton} ${styles.principal}`} onClick={() => void mandar('decidir', { v: 'accept' })}>Aceptar</button>
+            <button type="button" className={`${styles.boton} ${styles.rechazar}`} onClick={() => void mandar('decidir', { v: 'reject' })}>Rechazar</button>
+          </div>
+        </section>
+      )}
+
       <section className={styles.actual} aria-label="Diapositiva actual">
         <span className={styles.contador}>{n + 1} / {DIAPOSITIVAS.length}</span>
         <h2>{actual?.nombre ?? '—'}</h2>
