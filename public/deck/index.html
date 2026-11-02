@@ -352,7 +352,7 @@ details.dt .bd{padding:9px 12px;font-size:14px}
 .pchips button{border:1.5px solid var(--line);background:var(--paper);border-radius:99px;padding:3px 11px;font:700 14px var(--f-title);text-transform:uppercase;letter-spacing:.02em;color:var(--muted);transition:.25s}
 .pchips button.cur{background:var(--d);border-color:var(--d);color:#fff}
 .pchips button.done{border-color:var(--g);color:var(--d)}
-.pbody{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,26%);gap:clamp(8px,1.4vw,18px);align-items:stretch}
+.pbody{display:grid;grid-template-columns:minmax(0,1fr);gap:clamp(8px,1.4vw,18px);align-items:stretch}
 @media(min-width:1000px){.pubcap{height:clamp(190px,27vh,250px)}}
 @media(max-width:999px){.pbody{grid-template-columns:minmax(0,1fr)}}
 .ptx h3{font-size:clamp(20px,3.4vh,28px);color:var(--d)}
@@ -572,7 +572,7 @@ html,body{margin:0}img{max-width:100%}
       <div class="pchips" id="pchips"></div>
       <div class="pbody">
         <div class="ptx"><h3 id="ptt"></h3><p id="ppx"></p><div class="pcm" id="pcm"></div></div>
-        <div class="ptu"><b>Lo que hago yo</b><p id="ptu"></p></div>
+        
       </div>
       <div class="ctl"><button class="btn" id="pprev" aria-label="Paso anterior">←</button><button class="btn pri" id="pplay">⏸ Pausar</button><button class="btn" id="pnext" aria-label="Paso siguiente">→</button></div>
     </div>
@@ -1383,7 +1383,7 @@ function initPub(){
   function pinta(i){
     var p=PUBPASOS[i];
     $$('#pchips button').forEach(function(b,j){ b.className=j<i?'done':(j===i?'cur':''); });
-    $('#ptt').textContent=p.t; $('#ppx').textContent=p.p; $('#ptu').textContent=p.tu;
+    $('#ptt').textContent=p.t; $('#ppx').textContent=p.p;
     var cm=$('#pcm'); cm.innerHTML='';
     if(p.cmds) p.cmds.forEach(function(c){ var b=document.createElement('button'); b.className='btn'; b.type='button'; b.setAttribute('data-copy',c[1]); b.textContent='Copiar · '+c[0]; cm.appendChild(b); });
   }
