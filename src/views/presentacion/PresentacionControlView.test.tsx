@@ -98,6 +98,16 @@ describe('PresentacionControlView (el control remoto del teléfono)', () => {
     expect(screen.getByRole('button', { name: /Pausar/ })).toBeTruthy()
   })
 
+  it('cuando un informe espera decisión, el teléfono deja aceptarlo o rechazarlo', () => {
+    api.estado = { datos: activa({ slide: 'viaje', decision: { lab: 'Quiteca', cli: 'DOLE CHILE', num: '2026-1900-PC' } }), error: null }
+    render(<PresentacionControlView />)
+    expect(screen.getByText('¿Aceptar este informe?')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Rechazar' }))
+    expect(api.enviarComando).toHaveBeenCalledWith('decidir', { v: 'reject' })
+    fireEvent.click(screen.getByRole('button', { name: 'Aceptar' }))
+    expect(api.enviarComando).toHaveBeenCalledWith('decidir', { v: 'accept' })
+  })
+
   it('en «Por dentro» se activan los engranajes', () => {
     api.estado = { datos: activa({ slide: 'motor' }), error: null }
     render(<PresentacionControlView />)

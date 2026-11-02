@@ -9,6 +9,8 @@ export interface EstadoPresentacion {
   tab?: 'ico' | 'tok'
   nodo?: string | null
   engranaje?: string | null
+  /** Un informe espera que lo aceptes o lo rechaces (paso «Tú decides»). */
+  decision?: { lab: string; cli: string; num: string } | null
 }
 
 export type TipoComando =
@@ -22,6 +24,7 @@ export type TipoComando =
   | 'pestana'
   | 'nodo'
   | 'engranaje'
+  | 'decidir'
 
 export interface Comando {
   seq: number

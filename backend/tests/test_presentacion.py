@@ -101,3 +101,12 @@ def test_todas_las_rutas_son_solo_del_administrador_general():
     for r in rutas:
         llamadas = [d.call for d in r.dependant.dependencies]
         assert solo_admin_general in llamadas, f"{r.path} no exige administrador general"
+
+
+def test_decidir_solo_acepta_aceptar_o_rechazar():
+    assert presentacion.validar_comando("decidir", {"v": "accept", "x": 1}) == {"v": "accept"}
+    assert presentacion.validar_comando("decidir", {"v": "reject"}) == {"v": "reject"}
+    with pytest.raises(ValueError):
+        presentacion.validar_comando("decidir", {"v": "quizas"})
+    with pytest.raises(ValueError):
+        presentacion.validar_comando("decidir", None)
