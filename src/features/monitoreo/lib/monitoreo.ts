@@ -182,7 +182,7 @@ export interface DiaConexion {
   clientes_uso: number
 }
 
-/** El tiempo que las cuentas cliente y comercial han visto el sistema en un período. */
+/** El tiempo que las cuentas cliente han visto el sistema en un período. */
 export interface AcumuladoClientes {
   visitas: number
   cuentas: number

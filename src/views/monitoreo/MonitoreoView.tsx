@@ -183,7 +183,7 @@ function Conexiones({ pulso, historial }: { pulso: BloquePulso[]; historial: Ret
   )
 }
 
-/** Cuánto tiempo han visto el sistema los clientes (y comerciales), acumulado, y las horas de cada uno de los últimos 30 días. */
+/** Cuánto tiempo han visto el sistema los clientes, acumulado, y las horas de cada uno de los últimos 30 días. */
 function TiempoClientes({ historial }: { historial: ReturnType<typeof useHistorial> }) {
   const [periodo, setPeriodo] = useState<PeriodoAcumulado>('30')
   const dias = useMemo(() => historial.datos?.por_dia ?? [], [historial.datos])

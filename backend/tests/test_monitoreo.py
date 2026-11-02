@@ -250,7 +250,7 @@ class TestQuien:
     def test_filtra_por_personal_o_por_clientes(self):
         evs = [_ev(1, "paz@agrofresh.com"), _ev(2, "cli@fruta.cl"), _ev(3, "com@agrofresh.com"), _ev(4, None)]
         assert [e["email"] for e in monitoreo.filtrar_quien(evs, TIPOS, "internos")] == ["paz@agrofresh.com"]
-        assert [e["email"] for e in monitoreo.filtrar_quien(evs, TIPOS, "clientes")] == ["cli@fruta.cl", "com@agrofresh.com"]
+        assert [e["email"] for e in monitoreo.filtrar_quien(evs, TIPOS, "clientes")] == ["cli@fruta.cl"]  # el comercial no es cliente ni personal
         assert len(monitoreo.filtrar_quien(evs, TIPOS, "todos")) == 4
 
     def test_una_cuenta_que_no_se_conoce_cuenta_como_personal(self):
@@ -301,8 +301,8 @@ class TestHistorial:
         ses = [_ses(HOY, "c@x.cl", "cliente", seg=600, act=900), _ses(HOY, "com@x.cl", "comercial", seg=300, act=100),
                _ses(HOY, "p@x.cl", "analista", seg=7200, act=7000)]
         f = monitoreo.armar_historial(ses, [], HOY, 7)["por_dia"][-1]
-        assert f["clientes_conexiones"] == 2 and f["clientes_personas"] == 2
-        assert f["clientes_segundos"] == 900 and f["clientes_uso"] == 700  # 600 (tope) + 100; el analista no entra
+        assert f["clientes_conexiones"] == 1 and f["clientes_personas"] == 1
+        assert f["clientes_segundos"] == 600 and f["clientes_uso"] == 600  # uso topado a la conexión; ni el comercial ni el analista entran
 
     def test_antes_de_las_visitas_se_aproxima_con_los_ingresos_y_se_marca(self):
         ing = [{"dia": date(2026, 10, 20), "email": "a@x.cl"}, {"dia": date(2026, 10, 20), "email": "b@x.cl"}]

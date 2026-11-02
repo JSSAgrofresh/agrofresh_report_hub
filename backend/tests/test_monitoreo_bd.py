@@ -109,7 +109,7 @@ def test_pasados_10_minutos_sin_senal_abre_una_visita_nueva_y_la_pausa_no_suma(l
 
 
 @pytest.mark.skipif(not hay_base("presencia_sesion"), reason="sin la migración 0070")
-def test_el_endpoint_de_clientes_lista_solo_clientes_y_comerciales(limpiar_sesiones):
+def test_el_endpoint_de_clientes_lista_solo_clientes(limpiar_sesiones):
     monitoreo.latido(monitoreo.LatidoIn(ruta="/"), _cliente())
     interno = Usuario(id="8", email="test-interno@prueba.cl", tipoAcceso="analista", nombre="Interno", modulos=[])
     monitoreo.latido(monitoreo.LatidoIn(ruta="/"), interno)
@@ -170,13 +170,13 @@ def _poner_sesion(email, tipo, hace_dias, minutos, activo_seg):
 def test_el_historial_cuenta_visitas_por_dia_y_suma_el_tiempo_de_los_clientes(limpiar_nuevos):
     _poner_sesion("test-cli-a@prueba.cl", "cliente", 0, 30, 600)
     _poner_sesion("test-cli-a@prueba.cl", "cliente", 3, 10, 120)
-    _poner_sesion("test-cli-b@prueba.cl", "comercial", 3, 20, 300)
+    _poner_sesion("test-cli-b@prueba.cl", "comercial", 3, 20, 300)  # no cuenta como cliente
     h = monitoreo.historial(dias=30, _=_usuario())
     assert h["disponible"] is True and len(h["por_dia"]) == 30
     por = {f["dia"]: f for f in h["por_dia"]}
     hace3 = por[sorted(por)[-4]]
-    assert hace3["clientes_conexiones"] == 2 and hace3["clientes_personas"] == 2
-    assert hace3["clientes_segundos"] >= 29 * 60 and hace3["clientes_uso"] == 420
+    assert hace3["clientes_conexiones"] == 1 and hace3["clientes_personas"] == 1
+    assert hace3["clientes_segundos"] >= 9 * 60 and hace3["clientes_uso"] == 120
     assert h["acumulado_clientes"]["30"]["visitas"] >= 3
     assert h["acumulado_clientes"]["todo"]["segundos_conectado"] >= h["acumulado_clientes"]["hoy"]["segundos_conectado"]
 
