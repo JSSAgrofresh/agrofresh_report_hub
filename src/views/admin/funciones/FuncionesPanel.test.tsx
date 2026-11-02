@@ -31,6 +31,14 @@ describe('FuncionesPanel', () => {
     api.obtenerFunciones.mockResolvedValue(estado())
   })
 
+  it('ofrece abrir la presentación del sistema y su control remoto', async () => {
+    render(<FuncionesPanel />)
+    const abrir = await screen.findByRole('link', { name: 'Abrir la presentación' })
+    expect(abrir.getAttribute('href')).toBe('/presentacion')
+    expect(abrir.getAttribute('target')).toBe('_blank')
+    expect(screen.getByRole('link', { name: /Abrir el control remoto/ }).getAttribute('href')).toBe('/presentacion/control')
+  })
+
   it('de fábrica solo Línea de proceso se muestra en Report', async () => {
     render(<FuncionesPanel />)
     expect(await screen.findByText('Línea de proceso')).toBeTruthy()

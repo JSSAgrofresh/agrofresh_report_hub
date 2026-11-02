@@ -1,0 +1,1270 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Report Hub por dentro</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Concepto: plantilla AgroFresh (blanco, verde, amarillo, verde oscuro, tipografía condensada) con cortes diagonales de marca entre diapositivas y un ecosistema vivo que se abre desde el logo. */
+:root{
+  --paper:#ffffff; --soft:#f3f8ee; --soft2:#e8f2de; --line:#d6e5cb;
+  --ink:#1c2b1f; --muted:#56685a;
+  --g:#40af49; --y:#f1c318; --d:#315f38; --dd:#143019;
+  --f-title:'Barlow Condensed','Arial Narrow',sans-serif;
+  --f-body:'Barlow','Segoe UI',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono','Cascadia Mono',Consolas,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:400 17px/1.55 var(--f-body);padding-bottom:84px;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--paper);z-index:70}
+h1,h2,h3,h4{font-family:var(--f-title);text-transform:uppercase;line-height:.98;margin:0;letter-spacing:.005em;text-wrap:balance}
+p{margin:0}
+button{font:inherit;color:inherit;cursor:pointer}
+code,.mono{font-family:var(--f-mono)}
+:focus-visible{outline:3px solid var(--y);outline-offset:3px;border-radius:6px}
+[hidden]{display:none!important}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.slide{padding-block:22px 34px}
+.in{max-width:1220px;margin:0 auto;padding-right:clamp(0px,5vw,64px)}
+.stripe{position:fixed;right:0;top:0;bottom:0;width:clamp(14px,3.4vw,46px);z-index:5;pointer-events:none}
+.stripe svg{width:100%;height:100%;display:block}
+
+/* entrada coreografiada de cada diapositiva */
+.slide.enter .rv{animation:rise 1.5s var(--ease) both;animation-delay:calc(var(--i,0) * 140ms + 250ms)}
+@keyframes rise{from{opacity:0;transform:translateY(34px) scale(.985);filter:blur(7px)}to{opacity:1;transform:none;filter:none}}
+.wd{display:inline-block;overflow:hidden;vertical-align:top;padding:.04em .02em .1em}
+.wd i{display:inline-block;font-style:normal}
+.slide.enter h2 .wd i{animation:wordUp 1.5s var(--ease) both;animation-delay:calc(var(--w,0) * 140ms + 350ms)}
+@keyframes wordUp{from{transform:translateY(118%) rotate(5deg);opacity:.2}to{transform:none;opacity:1}}
+.swap{animation:swapIn .9s var(--ease) both}
+@keyframes swapIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.slide.enter .sh .kick i{animation:grow .9s var(--ease) both;transform-origin:left}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* corte diagonal de marca */
+.wipe{position:fixed;inset:0;z-index:90;pointer-events:none;overflow:hidden}
+.wipe .wp{position:absolute;top:-5%;bottom:-5%;left:-35%;width:170%;transform:translateX(-135%) skewX(-16deg)}
+.wipe .wp.a{background:#f1c318}.wipe .wp.b{background:#40af49}.wipe .wp.c{background:#143019}
+.wipe .ttl{position:absolute;inset:0;display:grid;place-items:center;color:#fff;opacity:0;text-align:center}
+.wipe .ttl svg{width:72px;height:72px;display:block;margin:0 auto 14px}
+.wipe .ttl b{display:block;font:800 clamp(44px,8vw,96px)/1 var(--f-title);text-transform:uppercase;letter-spacing:.01em}
+.wipe .ttl b span{display:inline-block}
+.wipe .ttl small{font:500 14px var(--f-mono);letter-spacing:.2em;text-transform:uppercase;color:#f1c318}
+
+.sh{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+.logo-btn{background:none;border:0;padding:0;position:relative;display:block;border-radius:8px;transition:transform .3s var(--ease)}
+.logo-btn:hover{transform:scale(1.06)}
+.logo-btn img{height:36px;width:auto;display:block}
+.logo-btn .live{position:absolute;right:-10px;top:-4px;width:12px;height:12px;border-radius:50%;background:#40af49;border:2px solid #fff}
+.logo-btn .live::after{content:"";position:absolute;inset:-2px;border-radius:50%;border:2px solid #40af49;animation:ping 2.2s ease-out infinite}
+@keyframes ping{from{transform:scale(1);opacity:.9}to{transform:scale(2.2);opacity:0}}
+.kick{font:500 12.5px var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--d);display:flex;align-items:center;gap:10px}
+.kick i{display:block;width:30px;height:3px;background:var(--y);border-radius:2px}
+.slide h2{font-size:clamp(40px,6.4vw,76px);font-weight:800;color:var(--d)}
+.slide h2 em{font-style:normal;color:var(--g)}
+.lead{max-width:66ch;color:var(--muted);font-size:19px;margin-top:10px}
+.lead b{color:var(--ink);font-weight:600}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px}
+.card.soft{background:var(--soft)}
+.tag{display:inline-block;font:500 11.5px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--d);background:var(--y);border-radius:4px;padding:2px 8px;margin-bottom:8px}
+.cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px;margin-top:22px;align-items:start}
+@media(max-width:960px){.cols{grid-template-columns:minmax(0,1fr)}}
+.kv{display:grid;gap:10px;margin:12px 0 0}
+.kv div{border-top:1px dashed var(--line);padding-top:9px}
+.kv dt{font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--g);margin-bottom:2px}
+.kv dd{margin:0}
+.tech{font:400 12.5px/1.5 var(--f-mono);color:var(--d);background:var(--soft);border-radius:8px;padding:8px 10px;margin-top:8px;word-break:break-word}
+details.dt{margin-top:12px;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+details.dt summary{cursor:pointer;padding:9px 12px;font:600 14px var(--f-body);color:var(--d);list-style:none;display:flex;align-items:center;gap:8px}
+details.dt summary::before{content:"</>";font:500 12px var(--f-mono);color:var(--g)}
+details.dt[open] summary{border-bottom:1px solid var(--line)}
+details.dt .bd{padding:10px 12px;font-size:14.5px}
+.files{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.files li{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:baseline;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.files code{color:var(--d);font-size:12.5px;word-break:break-all}
+.files span{font:400 12px var(--f-mono);color:var(--muted)}
+.files em{grid-column:1/-1;font-style:normal;font-size:13.5px;color:var(--ink)}
+.btn{background:var(--paper);border:1.5px solid var(--d);color:var(--d);border-radius:999px;padding:8px 18px;font:600 15px var(--f-body);transition:.25s}
+.btn:hover{background:var(--d);color:#fff}
+.btn.pri{background:var(--g);border-color:var(--g);color:#fff}
+.btn.pri:hover{background:var(--d);border-color:var(--d)}
+.btn[disabled]{opacity:.4;cursor:default;background:var(--paper);color:var(--d)}
+.hint{font:400 13px var(--f-mono);color:var(--muted);margin-top:10px}
+.swipe{display:none}
+@media(max-width:760px){.swipe{display:block}}
+
+/* barra inferior */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:60;background:rgba(255,255,255,.96);border-top:1px solid var(--line);backdrop-filter:blur(6px);padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.bar .in{display:flex;align-items:center;gap:12px;padding-right:0}
+.home{display:flex;align-items:center;gap:8px;background:var(--y);color:#2a2200;border:0;border-radius:999px;padding:9px 18px;font:700 15px var(--f-body);flex:none}
+.home svg{width:18px;height:18px}
+.home:hover{filter:brightness(.95)}
+.dots{display:flex;gap:7px;flex:1;justify-content:center;flex-wrap:wrap}
+.dots button{width:11px;height:11px;border-radius:50%;border:2px solid var(--g);background:transparent;padding:0;transition:.3s var(--ease)}
+.dots button[aria-current="true"]{background:var(--g);transform:scale(1.3)}
+.nav{display:flex;gap:8px;flex:none}
+.nav .btn{padding:8px 14px}
+@media(max-width:700px){.home span{display:none}.home{padding:10px 12px}.dots{display:none}.nav{margin-left:auto}}
+
+/* portada */
+.cover{min-height:calc(100vh - 84px);position:relative;display:grid;align-content:space-between;padding-block:30px 38px;overflow:hidden}
+.cover .art{position:absolute;right:0;top:0;height:100%;width:min(46vw,640px);pointer-events:none}
+.cover .art svg{height:100%;width:100%;display:block}
+.cover .art polygon{transform-box:fill-box}
+.cover.enter .art .p1{animation:slidein 1.1s var(--ease) both}
+.cover.enter .art .p2{animation:slidein 1.1s var(--ease) .12s both}
+.cover.enter .art .p3{animation:slidein 1.1s var(--ease) .24s both}
+@keyframes slidein{from{transform:translate(40%,-8%);opacity:0}to{transform:none;opacity:1}}
+.cover .top .logo-btn img{height:clamp(48px,7vw,78px)}
+.tagl{margin-top:14px;font:800 clamp(28px,4vw,44px)/.95 var(--f-title);text-transform:uppercase}
+.tagl span{display:block}
+.tagl .a{color:var(--d)}.tagl .b{color:var(--y)}.tagl .c{color:var(--g)}
+.cover .main{position:relative;max-width:min(760px,100%);margin-top:26px}
+.cover .main h1{font-size:clamp(50px,8.4vw,112px);font-weight:800;color:var(--d)}
+.cover .main h1 em{font-style:normal;color:var(--g);display:block}
+.cover .main p.sub{font-size:clamp(18px,2.2vw,23px);color:var(--muted);margin-top:16px;max-width:36ch}
+.cover .by{display:flex;align-items:center;gap:14px;margin-top:22px;flex-wrap:wrap}
+.cover .by svg{width:54px;height:54px;flex:none}
+.cover .by div{font:500 13px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--d);line-height:1.5}
+.cta{margin-top:22px;display:inline-flex;align-items:center;gap:10px;background:var(--g);color:#fff;border:0;border-radius:999px;padding:14px 26px;font:700 18px var(--f-body);transition:.3s var(--ease)}
+.cta:hover{background:var(--d);transform:translateX(4px)}
+.ecohint{margin-top:16px;display:flex;align-items:center;gap:10px;font:500 13px var(--f-mono);color:var(--muted)}
+.ecohint i{width:10px;height:10px;border-radius:50%;background:#40af49;display:block;animation:blink 1.6s ease-in-out infinite}
+@keyframes blink{50%{opacity:.25}}
+
+/* índice */
+.idx{list-style:none;margin:26px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.idx button{display:grid;grid-template-columns:62px 1fr;gap:14px;align-items:center;width:100%;text-align:left;background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:16px;transition:.3s var(--ease)}
+.idx button:hover{background:var(--soft2);border-color:var(--g);transform:translateY(-3px)}
+.idx .n{width:62px;height:62px;border-radius:50%;background:var(--g);color:#fff;display:grid;place-items:center;font:800 32px var(--f-title)}
+.idx li:nth-child(3n+2) .n{background:var(--y);color:#2a2200}
+.idx li:nth-child(3n+3) .n{background:var(--d)}
+.idx strong{display:block;font:800 25px/1 var(--f-title);text-transform:uppercase;color:var(--d)}
+.idx small{color:var(--muted);font-size:14.5px;line-height:1.35;display:block;margin-top:3px}
+
+/* ===== el mundo (diagrama vivo) ===== */
+.world{--w-zone:#f1f8ea;--w-zline:#c9e0bd;--w-edge:#bfd8b4;--w-on:#40af49;--w-onw:6;--w-tile:#fff;--w-tline:#c3dbb8;--w-ic:#315f38;--w-t:#315f38;--w-s:#56685a;--w-halo:#f7fbf3;--w-cap:#fff;--w-capl:#b7d4ab;--w-capt:#1c2b1f;--w-focus:#f1c318;--w-tk:#fff;--w-tkl:#c9e0bd;--w-tkm:#56685a;--w-tkv:#315f38;--w-card:#fff;--w-cardl:#40af49;--w-cardt:#1c2b1f}
+.world.dark{--w-zone:rgba(64,175,73,.07);--w-zline:rgba(255,255,255,.14);--w-edge:#2e5a3a;--w-on:#f1c318;--w-tile:rgba(255,255,255,.07);--w-tline:rgba(255,255,255,.22);--w-ic:#d6ecd2;--w-t:#f1f8ee;--w-s:#9fbfa4;--w-halo:#0b1c11;--w-cap:#183a24;--w-capl:#2f6a42;--w-capt:#eaf5e6;--w-focus:#f1c318;--w-tk:rgba(255,255,255,.06);--w-tkl:rgba(255,255,255,.18);--w-tkm:#9fbfa4;--w-tkv:#ffffff;--w-card:#122b19;--w-cardl:#f1c318;--w-cardt:#eaf5e6}
+.world svg{width:100%;height:auto;display:block}
+.world text{font-family:var(--f-body)}
+.world .zone{fill:var(--w-zone);stroke:var(--w-zline);stroke-width:2}
+.world .zl{font:800 34px var(--f-title);text-transform:uppercase;fill:var(--w-t)}
+.world .zs{font:500 14px var(--f-mono);letter-spacing:.12em;fill:var(--w-on);text-transform:uppercase}
+.world.dark .zs{fill:#7fc98a}
+.world .ed{fill:none;stroke:var(--w-edge);stroke-width:3.5;stroke-linecap:round;transition:stroke .9s,stroke-width .9s}
+.world .ed.on{stroke:var(--w-on);stroke-width:6}
+.world .nd{cursor:pointer;transition:opacity 1s ease}
+.world .nd.in{animation:nodeIn 1.6s var(--ease) backwards;animation-delay:calc(var(--d,0) * 130ms);transform-box:fill-box;transform-origin:center}
+@keyframes nodeIn{from{opacity:0;transform:scale(.4) translateY(26px) rotate(-6deg)}to{opacity:1;transform:none}}
+.world .nd .ic{transform-box:fill-box;transform-origin:center;animation:bob 7s ease-in-out infinite;animation-delay:calc(var(--d,0) * -1.1s)}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.world .nd.pulse .tile{animation:tilePulse 1.8s ease-out}
+@keyframes tilePulse{0%{stroke-width:2.5}28%{stroke:var(--w-on);stroke-width:10;fill-opacity:1}100%{stroke-width:2.5}}
+.world .fl{fill:none;stroke:var(--w-on);stroke-width:3.5;stroke-linecap:round;stroke-dasharray:.1 20;opacity:.5;animation:flowd 14s linear infinite;pointer-events:none}
+.world.dark .fl{stroke:#7fc98a;opacity:.6}
+@keyframes flowd{to{stroke-dashoffset:-440}}
+.world .spore{fill:var(--w-on);opacity:0;transform-box:fill-box;animation:drift var(--t,26s) linear infinite;animation-delay:var(--dl,0s);pointer-events:none}
+.world.dark .spore{fill:#cfe9c7}
+@keyframes drift{0%{transform:translate(0,0);opacity:0}15%{opacity:.5}85%{opacity:.45}100%{transform:translate(var(--dx,40px),-380px);opacity:0}}
+.world .par{transition:transform 1.6s cubic-bezier(.2,.7,.2,1)}
+.world.dark .ed.on{filter:drop-shadow(0 0 6px rgba(241,195,24,.75))}
+.world .tile{fill:var(--w-tile);stroke:var(--w-tline);stroke-width:2.5;transition:.3s}
+.world .nd .ic{color:var(--w-ic)}
+.world .nd:hover .tile{stroke:var(--w-on)}
+.world .nd.focus .tile{stroke:var(--w-focus);stroke-width:5}
+.world .nd.sel .tile{stroke:var(--w-on);stroke-width:4.5}
+.world .nd.dim{opacity:.4}
+.world .nl{font:800 27px var(--f-title);text-transform:uppercase;fill:var(--w-t);text-anchor:middle;paint-order:stroke;stroke:var(--w-halo);stroke-width:8px;stroke-linejoin:round}
+.world .ns{font:500 17px var(--f-body);fill:var(--w-s);text-anchor:middle;paint-order:stroke;stroke:var(--w-halo);stroke-width:7px;stroke-linejoin:round}
+.world .spin{animation:spin 16s linear infinite}
+.world .spin.fast{animation-duration:1.3s}
+@keyframes spin{to{transform:rotate(360deg)}}
+.world .ring{fill:none;stroke:var(--w-on);stroke-width:2;transform-box:fill-box;transform-origin:center;animation:radar 3.6s ease-out infinite;opacity:0}
+@keyframes radar{0%{transform:scale(.9);opacity:.55}100%{transform:scale(2.1);opacity:0}}
+.world .bub{transform-box:fill-box;opacity:0}
+.world .bub.on{animation:rise2 1.5s ease-in infinite}
+@keyframes rise2{0%{transform:translateY(0);opacity:0}25%{opacity:.9}100%{transform:translateY(-34px);opacity:0}}
+.world .capi{transform-box:fill-box;transform-origin:center;animation:capIn 1.2s var(--ease) both}
+.world .capi.out{animation:capOut .9s ease-in both}
+@keyframes capIn{from{opacity:0;transform:translateY(16px) scale(.6)}60%{opacity:1;transform:translateY(-3px) scale(1.04)}to{opacity:1;transform:none}}
+@keyframes capOut{to{opacity:0;transform:translateY(-10px) scale(.85)}}
+.world .cap rect{fill:var(--w-cap);stroke:var(--w-capl);stroke-width:2}
+.world .cap text{font:600 21px var(--f-body);fill:var(--w-capt)}
+.world .tok text{font:700 15px var(--f-mono);fill:#fff;text-anchor:middle}
+.world .tpop{animation:pop .9s cubic-bezier(.2,1.4,.4,1) both;transform-box:fill-box;transform-origin:center}
+@keyframes pop{from{transform:scale(.2);opacity:0}to{transform:scale(1);opacity:1}}
+.world .cbtn{cursor:pointer}
+.world .cbtn rect{transition:.2s}
+.world .cbtn:hover rect{filter:brightness(1.1)}
+.world .cardg{transition:opacity .9s var(--ease)}
+.world .tkr rect.bg{fill:var(--w-tk);stroke:var(--w-tkl);stroke-width:2}
+.world .tkr .ml{font:500 14px var(--f-mono);fill:var(--w-tkm);letter-spacing:.06em;text-transform:uppercase}
+.world .tkr .mv{font:800 34px var(--f-title);fill:var(--w-tkv);font-variant-numeric:tabular-nums}
+.world .tkr .mv.fl{animation:flash 1.8s ease-out}
+@keyframes flash{0%{fill:#f1c318}100%{fill:var(--w-tkv)}}
+.world .tkr .lv{font:500 14px var(--f-mono);letter-spacing:.1em;fill:var(--w-on);text-transform:uppercase}
+.world.dark .tkr .lv{fill:#f1c318}
+.world .toast rect{fill:var(--w-card);stroke:var(--w-cardl);stroke-width:2.5}
+.world .toast text{font:600 18px var(--f-body);fill:var(--w-cardt)}
+.world .flash{fill:#fff;opacity:0;pointer-events:none}
+
+/* diapositiva Report Hub (viaje guiado) */
+.stage{background:linear-gradient(180deg,#fbfdf9,var(--soft));border:1px solid var(--line);border-radius:18px;margin-top:18px;overflow:hidden}
+.scrollx{overflow-x:auto}
+.stage .world svg{min-width:860px}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.pr{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.pr button{width:30px;height:8px;border-radius:5px;border:0;background:var(--line);padding:0;transition:.3s var(--ease)}
+.pr button.done{background:var(--g)}
+.pr button.cur{background:var(--y);width:52px}
+.step h3{font-size:32px;color:var(--d);margin-top:2px}
+.step p.t{margin-top:8px;font-size:18px}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{flex:1;background:var(--paper);border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font:700 17px var(--f-title);text-transform:uppercase;color:var(--muted);transition:.25s}
+.tabs button[aria-selected="true"]{background:var(--d);border-color:var(--d);color:#fff}
+.legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.legend button{display:grid;grid-template-columns:34px 1fr;gap:8px;align-items:center;text-align:left;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:7px 9px;transition:.25s}
+.legend button:hover{border-color:var(--g);transform:translateY(-2px)}
+.legend button[aria-pressed="true"]{background:var(--soft2);border-color:var(--g)}
+.legend svg{width:34px;height:34px;color:var(--d)}
+.legend b{font:700 15px/1.1 var(--f-body);display:block}
+.legend small{font-size:12.5px;color:var(--muted);line-height:1.2;display:block}
+.ndet{margin-top:12px}
+.ndet h4{font:800 28px var(--f-title);text-transform:uppercase;color:var(--d);margin:0 0 4px}
+.toks{display:grid;gap:10px}
+.tk{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:start;border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--paper)}
+.tk .chipt{border-radius:8px;color:#fff;font:700 14px var(--f-mono);text-align:center;padding:10px 0}
+.tk b{font:800 20px var(--f-title);text-transform:uppercase;color:var(--d);display:block}
+.tk p{font-size:15px}
+.tk small{display:block;color:var(--muted);font-size:13px;margin-top:3px}
+
+/* ecosistema (pantalla completa) */
+.eco{position:fixed;inset:0;z-index:95;background:radial-gradient(ellipse at 50% 30%,#14391f 0%,#0a1c10 70%);color:#eaf5e6;display:grid;grid-template-rows:auto minmax(0,1fr) auto}
+.eco .eh{display:flex;align-items:center;gap:14px;padding:12px max(18px,env(safe-area-inset-right,0px)) 8px max(18px,env(safe-area-inset-left,0px));padding-top:calc(12px + env(safe-area-inset-top,0px))}
+.eco .eh .logo-btn img{height:34px}
+.eco .eh h3{font-size:30px;color:#fff}
+.eco .pill{font:500 12px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:#f1c318;border:1px solid rgba(241,195,24,.45);border-radius:999px;padding:3px 12px}
+.eco .live2{display:flex;align-items:center;gap:8px;font:500 12px var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:#7fc98a}
+.eco .live2 i{width:9px;height:9px;border-radius:50%;background:#40af49;animation:blink 1.4s ease-in-out infinite}
+.eco .sp{flex:1}
+.eco .btn{background:transparent;border-color:rgba(255,255,255,.35);color:#eaf5e6;padding:6px 14px}
+.eco .btn:hover{background:#f1c318;border-color:#f1c318;color:#221b00}
+.eco .ecow{min-height:0;display:grid;place-items:center;padding:0 max(10px,env(safe-area-inset-left,0px))}
+.eco .ecow .world{width:100%;max-height:100%;display:grid;place-items:center}
+.eco .ecow .world svg{width:100%;height:100%;max-height:calc(100vh - 150px);min-width:0}
+.eco .leg{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;padding:6px 14px calc(12px + env(safe-area-inset-bottom,0px));font:500 12.5px var(--f-mono);color:#9fbfa4}
+.eco .leg span{display:flex;align-items:center;gap:7px}
+.eco .leg i{display:block;width:34px;height:16px;border-radius:5px}
+
+/* motor */
+.gr{cursor:pointer}
+.gr .gp{fill:#fff;stroke:var(--g);stroke-width:3;transition:.25s}
+.gr:hover .gp{fill:var(--soft2)}
+.gr.sel .gp{fill:#fff3b8;stroke:var(--d);stroke-width:4}
+.gr .gs{stroke:#b9d6ae;stroke-width:3}
+.glab{font:800 17px var(--f-title);text-transform:uppercase;fill:var(--d);text-anchor:middle;pointer-events:none}
+#gear-svg{width:100%;height:auto;display:block;max-height:620px;min-width:480px}
+.flow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.flow span{font:500 12px var(--f-mono);color:var(--d);border:1px solid var(--line);border-radius:6px;padding:3px 8px;background:var(--soft)}
+
+/* sistemas */
+.sys{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:22px}
+.sy{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:20px;position:relative;overflow:hidden;transition:.35s var(--ease)}
+.sy:hover{transform:translateY(-4px);border-color:var(--g);box-shadow:0 14px 30px -18px rgba(49,95,56,.45)}
+.sy::before{content:"";position:absolute;right:-30px;top:-30px;width:110px;height:110px;background:var(--soft);border-radius:50%;z-index:0}
+.sy>*{position:relative}
+.sy .hd{display:flex;align-items:center;gap:14px}
+.sy .hd svg{width:52px;height:52px;border-radius:14px;padding:10px;background:var(--g);color:#fff;flex:none}
+.sy:nth-child(3n+2) .hd svg{background:var(--y);color:#2a2200}
+.sy:nth-child(3n+3) .hd svg{background:var(--d)}
+.sy h3{font-size:36px;color:var(--d)}
+.sy .for{margin-top:12px;font-size:17px}
+.sy .cta2{margin-top:8px;color:var(--muted);font-size:15.5px}
+.acc{margin-top:14px;border-top:2px dashed var(--line);padding-top:12px;display:grid;gap:7px}
+.acc div{display:grid;grid-template-columns:minmax(0,1fr);gap:1px;font-size:15px}
+.acc dt{font:500 10.5px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--g)}
+.acc dd{margin:0;word-break:break-word}
+.todo{display:inline-block;background:#fff4c8;border:1px dashed #d7b100;color:#7a5f00;border-radius:6px;padding:0 8px;font:500 13px var(--f-mono)}
+.vive{margin-top:10px;font:400 12.5px/1.5 var(--f-mono);color:var(--d);background:var(--soft);border-radius:8px;padding:8px 10px}
+
+/* historia / publicar / aporte */
+.tl{list-style:none;margin:0;padding:0 8px 0 24px;position:relative;max-height:560px;overflow-y:auto}
+.tl::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:3px;background:var(--line);border-radius:2px}
+.tl li{position:relative;padding:0 0 14px 12px}
+.tl li::before{content:"";position:absolute;left:-26px;top:5px;width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid var(--g)}
+.tl time{font:500 12px var(--f-mono);color:var(--d);background:var(--y);border-radius:4px;padding:1px 6px;display:inline-block}
+.tl b{display:block;font:700 18px var(--f-body);margin-top:3px}
+.tl span{color:var(--muted);font-size:15px;display:block}
+.nums{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.num{border-left:5px solid var(--g);padding:2px 0 2px 12px;background:var(--soft);border-radius:0 10px 10px 0}
+.num:nth-child(2n){border-color:var(--y)}
+.num b{display:block;font:800 clamp(34px,5vw,50px)/1 var(--f-title);color:var(--d);font-variant-numeric:tabular-nums}
+.num span{font-size:14px;color:var(--muted);line-height:1.25;display:block}
+.ship{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:30px}
+@media(max-width:860px){.ship{grid-template-columns:minmax(0,1fr)}}
+.ship .s{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:16px;position:relative}
+.ship .s::before{content:attr(data-n);position:absolute;top:-16px;left:14px;width:36px;height:36px;border-radius:50%;background:var(--g);color:#fff;display:grid;place-items:center;font:800 22px var(--f-title)}
+.ship .s:nth-child(2)::before{background:var(--y);color:#2a2200}.ship .s:nth-child(3)::before{background:var(--d)}
+.ship b{display:block;font:800 25px/1 var(--f-title);text-transform:uppercase;color:var(--d);margin:8px 0 6px}
+.ship p{font-size:15.5px}
+.cmd{display:flex;gap:8px;margin-top:8px}
+.cmd code{flex:1;min-width:0;background:#13261a;color:#d4e8c8;border-radius:8px;padding:8px 12px;font-size:12.5px;overflow-x:auto;white-space:pre}
+.cmd .btn{padding:5px 12px;font-size:13px}
+.pil{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-top:22px}
+.pil .p{border-radius:16px;padding:18px;background:var(--soft);border:1px solid var(--line)}
+.pil .p:nth-child(2){background:#fff8d8;border-color:#efdc8a}
+.pil .p h3{font-size:28px;color:var(--d);margin-bottom:6px}
+.pil .p b{display:block;font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--g);margin-top:8px}
+.thanks{margin-top:24px;border-radius:18px;padding:24px;background:var(--d);color:#fff;display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center}
+@media(max-width:640px){.thanks{grid-template-columns:minmax(0,1fr)}}
+.thanks svg{width:84px;height:84px}
+.thanks h3{font-size:clamp(30px,4.4vw,48px);color:#fff}
+.thanks p{color:#d6ebd2;margin-top:6px;max-width:62ch}
+.thanks b{color:var(--y)}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.world .bub{display:none}}
+html,body{margin:0}
+img{max-width:100%}
+</style>
+
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="rh" viewBox="0 0 32 32">
+      <rect width="32" height="32" rx="7" fill="#2a4a1c"/>
+      <rect x="3" y="18" width="5" height="11" rx="1.5" fill="#5a9430"/>
+      <rect x="10" y="12" width="5" height="17" rx="1.5" fill="#6dad3c"/>
+      <rect x="17" y="7" width="5" height="22" rx="1.5" fill="#8dc85a"/>
+      <rect x="24" y="14" width="5" height="15" rx="1.5" fill="#e8c32e"/>
+    </symbol>
+    <symbol id="casa" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5M5.5 10v10h4.5v-6h4v6h4.5V10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-person" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="15" r="8"/><path d="M8 42c0-9 7-15 16-15s16 6 16 15"/></g></symbol>
+    <symbol id="i-admin" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="22" cy="17" r="8"/><path d="M6 43c0-9 7-15 16-15 5 0 9 2 12 5"/><path d="M38 24l3 6 6.500.8-4.800 4.500 1.200 6.500L38 38.500 32.100 41.800l1.200-6.500-4.800-4.500L35 30Z"/></g></symbol>
+    <symbol id="i-mail" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="38" height="28" rx="5"/><path d="M6 14l18 14 18-14"/></g></symbol>
+    <symbol id="i-flask" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 5h12M20 5v14L8 38a4 4 0 0 0 3.5 6h25A4 4 0 0 0 40 38L28 19V5"/><path d="M13 32h22"/></g></symbol>
+    <symbol id="i-gear" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path id="gearp" d=""/><circle cx="24" cy="24" r="6"/></g></symbol>
+    <symbol id="i-db" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="24" cy="11" rx="15" ry="6"/><path d="M9 11v26c0 3.300 6.700 6 15 6s15-2.700 15-6V11"/><path d="M9 24c0 3.300 6.700 6 15 6s15-2.700 15-6"/></g></symbol>
+    <symbol id="i-folder" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13a3 3 0 0 1 3-3h11l4 5h17a3 3 0 0 1 3 3v19a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3Z"/></g></symbol>
+    <symbol id="i-shield" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M24 5l15 6v12c0 9-6.500 16-15 20C15.500 39 9 32 9 23V11Z"/><path d="M17 24l5 5 9-10"/></g></symbol>
+    <symbol id="i-monitor" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="7" width="38" height="26" rx="4"/><path d="M17 42h14M24 33v9"/><path d="M12 26l6-7 5 4 7-9"/></g></symbol>
+    <symbol id="i-code" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3.400" stroke-linecap="round" stroke-linejoin="round"><path d="M17 13L6 24l11 11M31 13l11 11-11 11M27 9l-6 30"/></g></symbol>
+    <symbol id="i-building" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 43V9h20v34M29 21h10v22M5 43h38M15 16h3M15 24h3M15 32h3"/></g></symbol>
+    <symbol id="i-bag" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17h24l3 26H9Z"/><path d="M18 17a6 6 0 0 1 12 0"/><circle cx="20" cy="29" r="4"/><circle cx="29" cy="32" r="3.500"/></g></symbol>
+    <symbol id="i-check" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="8" width="30" height="35" rx="4"/><path d="M17 8V5h14v3"/><path d="M16 26l6 6 10-12"/></g></symbol>
+    <symbol id="i-eye" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 24s8-13 20-13 20 13 20 13-8 13-20 13S4 24 4 24Z"/><circle cx="24" cy="24" r="6"/></g></symbol>
+    <symbol id="i-cloud" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 36a9 9 0 0 1-1-17.900A12 12 0 0 1 36 16a10 10 0 0 1 0 20Z"/></g></symbol>
+    <symbol id="i-cam" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="14" width="38" height="26" rx="5"/><circle cx="24" cy="27" r="7"/><path d="M16 14l3-6h10l3 6"/></g></symbol>
+  </defs>
+</svg>
+
+<div class="stripe" id="stripe" aria-hidden="true"><svg viewBox="1685 0 315 1125" preserveAspectRatio="none"><polygon points="1780,0 2000,0 2000,285 1942,436" fill="#f1c318"/><polygon points="2000,285 2000,1125 1685,1125 1942,436" fill="#40af49"/><polygon points="2000,875 2000,1125 1907,1125" fill="#315f38"/></svg></div>
+
+<div class="wipe" id="wipe" aria-hidden="true"><div class="wp a"></div><div class="wp b"></div><div class="wp c"></div><div class="ttl" id="wttl"><div><svg><use href="#rh"/></svg><small id="wsm"></small><b id="wtx"></b></div></div></div>
+
+<main class="wrap">
+
+<!-- PORTADA -->
+<section class="slide cover" id="c-portada" data-k="portada">
+  <div class="art" aria-hidden="true"><svg viewBox="1100 0 900 1125" preserveAspectRatio="xMaxYMid slice"><polygon class="p1" points="1780,0 2000,0 2000,285 1942,436" fill="#f1c318"/><polygon class="p2" points="2000,285 2000,1125 1685,1125 1942,436" fill="#40af49"/><polygon class="p3" points="2000,875 2000,1125 1907,1125" fill="#315f38"/></svg></div>
+  <div class="top rv">
+    <button class="logo-btn" data-eco aria-label="Abrir el ecosistema en vivo" title="Ecosistema en vivo"><img src="agrofresh-logo.png" alt="AgroFresh"><span class="live"></span></button>
+    <div class="tagl"><span class="a">Science.</span><span class="b">Solutions.</span><span class="c">Sustainability.</span></div>
+  </div>
+  <div class="main">
+    <div class="kick rv"><i></i>Cierre de proyecto · Noviembre 2026</div>
+    <h1 class="rv" style="margin-top:12px">Report Hub<em>por dentro</em></h1>
+    <p class="sub rv">Cómo funciona el sistema que hoy usan los clientes de AgroFresh, explicado para todos.</p>
+    <div class="by rv"><svg><use href="#rh"/></svg><div>Presenta<br>Jorge Sandoval</div></div>
+    <button class="cta rv" data-go="indice">Comenzar <span aria-hidden="true">→</span></button>
+    <div class="ecohint rv"><i></i>Toca el logo de AgroFresh, en cualquier momento, para ver el ecosistema en vivo.</div>
+  </div>
+</section>
+
+<!-- ÍNDICE -->
+<section class="slide" id="c-indice" data-k="indice" hidden><div class="in">
+  <div class="sh"><button class="logo-btn" data-eco aria-label="Abrir el ecosistema en vivo" title="Ecosistema en vivo"><img src="agrofresh-logo.png" alt="AgroFresh"><span class="live"></span></button><div class="kick"><i></i>Contenido</div></div>
+  <h2>Qué vamos a <em>recorrer</em></h2>
+  <p class="lead rv">Seis paradas, de lo más simple a lo más técnico. Puedes saltar a cualquiera y volver aquí con el botón amarillo.</p>
+  <ol class="idx rv" id="idx"></ol>
+</div></section>
+
+<!-- 1 REPORT HUB -->
+<section class="slide" id="c-viaje" data-k="viaje" hidden><div class="in">
+  <div class="sh"><button class="logo-btn" data-eco aria-label="Abrir el ecosistema en vivo" title="Ecosistema en vivo"><img src="agrofresh-logo.png" alt="AgroFresh"><span class="live"></span></button><div class="kick"><i></i>1 · Report Hub</div></div>
+  <h2>El viaje de <em>un análisis</em></h2>
+  <p class="lead rv">Así se conecta todo, de la fruta al cliente. <b>Dale a «Simular»</b>, mira qué viaja y <b>toma tú la decisión</b> cuando llegue un informe. Toca cualquier ícono para saber qué es.</p>
+  <div class="stage rv"><div class="scrollx"><div id="world-host"></div></div></div>
+  <p class="hint swipe">En el teléfono, desliza el diagrama hacia los lados para verlo completo.</p>
+  <div class="cols">
+    <div class="card soft step rv" aria-live="polite">
+      <div class="tag" id="stag">Paso</div>
+      <h3 id="sti">Pulsa «Simular»</h3>
+      <p class="t" id="stx">Verás cómo se pide un análisis, cómo responde el laboratorio, cómo tú decides y cómo cada cliente ve solo lo suyo.</p>
+      <details class="dt"><summary>Detalle técnico</summary><div class="bd" id="stt">Cada paso explica aquí qué módulo y qué tecnología trabaja.</div></details>
+      <div class="ctl">
+        <button class="btn" id="vprev" aria-label="Paso anterior">←</button>
+        <button class="btn pri" id="vplay">▶ Simular</button>
+        <button class="btn" id="vnext" aria-label="Paso siguiente">→</button>
+        <div class="pr" id="vpr"></div>
+      </div>
+      <div class="ctl"><button class="btn" data-eco>Abrir el ecosistema completo en vivo ↗</button></div>
+    </div>
+    <div class="card rv">
+      <div class="tabs" id="vtabs" role="tablist"><button data-t="ico" aria-selected="true">Los íconos</button><button data-t="tok" aria-selected="false">Qué viaja</button></div>
+      <div id="vico"><div class="legend" id="legend"></div><div class="ndet" id="ndet"></div></div>
+      <div id="vtok" hidden><div class="toks" id="toks"></div></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- 2 SISTEMAS -->
+<section class="slide" id="c-sistemas" data-k="sistemas" hidden><div class="in">
+  <div class="sh"><button class="logo-btn" data-eco aria-label="Abrir el ecosistema en vivo" title="Ecosistema en vivo"><img src="agrofresh-logo.png" alt="AgroFresh"><span class="live"></span></button><div class="kick"><i></i>2 · Los sistemas que usamos</div></div>
+  <h2>Cuatro servicios, <em>cada uno con su trabajo</em></h2>
+  <p class="lead rv">Report Hub no vive en un solo lugar. Usa servicios externos para cosas concretas, y cada uno tiene su propia cuenta. Esto es <b>para qué sirve cada uno y a nombre de quién está</b>.</p>
+  <div class="sys rv" id="sys"></div>
+  <p class="hint rv">Los recuadros amarillos son datos que falta completar en esta presentación.</p>
+</div></section>
+
+<!-- 3 MOTOR -->
+<section class="slide" id="c-motor" data-k="motor" hidden><div class="in">
+  <div class="sh"><button class="logo-btn" data-eco aria-label="Abrir el ecosistema en vivo" title="Ecosistema en vivo"><img src="agrofresh-logo.png" alt="AgroFresh"><span class="live"></span></button><div class="kick"><i></i>3 · Por dentro</div></div>
+  <h2>Lo que hace <em>el cerebro</em></h2>
+  <p class="lead rv">El backend trabaja con <b>ocho engranajes</b>. Cada uno es una tarea del sistema y <b>lo que mueve uno, mueve al siguiente</b>. Toca un engranaje.</p>
+  <div class="cols">
+    <div class="card rv"><div class="scrollx"><svg id="gear-svg" role="img" aria-label="Engranajes del sistema"></svg></div>
+      <div class="ctl"><button class="btn" id="gpause">⏸ Pausar</button><span class="hint" style="margin:0">Cada engranaje gira al revés del que tiene al lado.</span></div></div>
+    <div class="card soft rv" id="gear-det" aria-live="polite"></div>
+  </div>
+</div></section>
+
+<!-- 4 HISTORIA -->
+<section class="slide" id="c-historia" data-k="historia" hidden><div class="in">
+  <div class="sh"><button class="logo-btn" data-eco aria-label="Abrir el ecosistema en vivo" title="Ecosistema en vivo"><img src="agrofresh-logo.png" alt="AgroFresh"><span class="live"></span></button><div class="kick"><i></i>4 · Cómo se construyó</div></div>
+  <h2>Doce semanas, <em>de cero a producción</em></h2>
+  <p class="lead rv">Del primer cambio el <b>11 de agosto de 2026</b> a clientes reales dentro del sistema. Las fechas salen del historial del repositorio y de las migraciones de la base.</p>
+  <div class="cols">
+    <div class="card rv"><h3 style="font-size:30px;color:var(--d);margin-bottom:10px">Hitos</h3><ul class="tl" id="tl" tabindex="0"></ul></div>
+    <div>
+      <div class="card soft rv"><h3 style="font-size:30px;color:var(--d);margin-bottom:12px">En números</h3><div class="nums" id="nums"></div></div>
+      <div class="card rv" style="margin-top:16px"><h3 style="font-size:30px;color:var(--d)">Hoy</h3>
+        <dl class="kv"><div><dt>Presentación</dt><dd>AgroFresh Xperience: unos 80 clientes en la sala y varias felicitaciones.</dd></div>
+        <div><dt>Uso</dt><dd>Más de 45 clientes dentro del sistema desde que salieron los correos de acceso, con horas de visualización acumuladas.</dd></div><div><dt>Cobertura</dt><dd>198 plantas de 120 clientes en las listas de distribución (1 de noviembre de 2026).</dd></div></dl></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- 5 PUBLICAR -->
+<section class="slide" id="c-publicar" data-k="publicar" hidden><div class="in">
+  <div class="sh"><button class="logo-btn" data-eco aria-label="Abrir el ecosistema en vivo" title="Ecosistema en vivo"><img src="agrofresh-logo.png" alt="AgroFresh"><span class="live"></span></button><div class="kick"><i></i>5 · Cómo se actualiza</div></div>
+  <h2>De la idea a <em>producción</em></h2>
+  <p class="lead rv">Un cambio nunca se prueba en producción. Primero se escribe y se revisa aparte, y recién después llega a los clientes.</p>
+  <div class="ship rv">
+    <div class="s" data-n="1"><b>Se programa</b><p>El cambio se escribe en una rama aparte, sin tocar lo que usan los clientes. Cada avance genera una vista previa para probar.</p></div>
+    <div class="s" data-n="2"><b>Se aprueba</b><p>Cuando está listo se fusiona con la versión estable, llamada <b>main</b>. Queda registrado quién y cuándo.</p></div>
+    <div class="s" data-n="3"><b>Se publica la pantalla</b><p>Vercel toma la versión estable y publica solo la pantalla nueva. Nadie tiene que hacer nada.</p></div>
+    <div class="s" data-n="4"><b>Se actualiza el servidor</b><p>En el computador de la oficina se trae la versión nueva, se actualiza la base si hace falta y se reinicia el cerebro.</p></div>
+  </div>
+  <details class="dt rv" style="margin-top:20px"><summary>Detalle técnico: los comandos del servidor (PowerShell)</summary><div class="bd">
+    <p>Se repiten en cada actualización:</p>
+    <div class="cmd"><code>git checkout main; git pull origin main</code><button class="btn" data-copy="git checkout main; git pull origin main">Copiar</button></div>
+    <div class="cmd"><code>.venv\Scripts\python.exe scripts\migrar.py 0071_muestra_interna.sql</code><button class="btn" data-copy=".venv\Scripts\python.exe scripts\migrar.py 0071_muestra_interna.sql">Copiar</button></div>
+    <div class="cmd"><code>Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"; Start-Sleep 3; Start-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"</code><button class="btn" data-copy='Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"; Start-Sleep 3; Start-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"'>Copiar</button></div>
+    <p class="hint">El segundo comando es un ejemplo: solo se corre cuando el cambio trae una migración de la base.</p></div></details>
+</div></section>
+
+<!-- 6 APORTE -->
+<section class="slide" id="c-aporte" data-k="aporte" hidden><div class="in">
+  <div class="sh"><button class="logo-btn" data-eco aria-label="Abrir el ecosistema en vivo" title="Ecosistema en vivo"><img src="agrofresh-logo.png" alt="AgroFresh"><span class="live"></span></button><div class="kick"><i></i>6 · Qué nos aporta</div></div>
+  <h2>Lo que <em>cambia</em> para AgroFresh</h2>
+  <p class="lead rv">Cuatro cosas que el sistema hace mejor que el trabajo a mano.</p>
+  <div class="pil rv">
+    <div class="p"><h3>Eficiencia</h3><p>El informe llega al correo, el sistema lo lee solo y queda listo para aceptarse. Nadie vuelve a escribir los resultados.</p><b>Dónde se ve</b><p>Bandeja de informes del correo.</p></div>
+    <div class="p"><h3>Trazabilidad</h3><p>Cada solicitud tiene su número único y cada carga de datos queda con quién y cuándo. Si algo salió mal, se puede deshacer.</p><b>Dónde se ve</b><p>Número OT y botón «Deshacer».</p></div>
+    <div class="p"><h3>Comunicación con el cliente</h3><p>Cada cliente ve sus resultados y descarga sus informes cuando quiere, en su propia pantalla, y solo los suyos.</p><b>Dónde se ve</b><p>Portal de clientes.</p></div>
+    <div class="p"><h3>Calidad del dato</h3><p>Los nombres se ordenan contra un listado oficial. Lo dudoso se revisa antes de entrar, y por eso los datos se pueden comparar.</p><b>Dónde se ve</b><p>Homogeneización y filas pendientes.</p></div>
+  </div>
+  <div class="thanks rv">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><use href="#rh"/></svg>
+    <div><h3>Gracias a todos los que lo hicieron posible</h3><p>Al equipo de AgroFresh, a los laboratorios y a los clientes que probaron, corrigieron y confiaron. Desarrollo asistido con <b>Claude</b> (Anthropic).</p></div>
+  </div>
+</div></section>
+
+</main>
+
+<div class="bar"><div class="in">
+  <button class="home" data-go="indice" aria-label="Ir al índice"><svg><use href="#casa"/></svg><span>Índice</span></button>
+  <div class="dots" id="dots" aria-label="Diapositivas"></div>
+  <div class="nav"><button class="btn" id="pv">← <span class="t"></span></button><button class="btn pri" id="nx"><span class="t"></span> →</button></div>
+</div></div>
+
+<!-- ECOSISTEMA EN VIVO -->
+<div class="eco" id="eco" hidden role="dialog" aria-modal="true" aria-label="Ecosistema en vivo">
+  <div class="eh">
+    <button class="logo-btn" id="eco-logo" aria-label="Cerrar el ecosistema"><img src="agrofresh-logo.png" alt="AgroFresh"></button>
+    <h3>Ecosistema en vivo</h3><span class="live2"><i></i>En loop</span><span class="pill">Datos de ejemplo</span>
+    <span class="sp"></span>
+    <button class="btn" id="eco-pause">⏸ Pausar</button><button class="btn" id="eco-close">✕ Cerrar</button>
+  </div>
+  <div class="ecow" id="eco-host"></div>
+  <div class="leg"><span><i style="background:#d9483b"></i>PDF: documento</span><span><i style="background:#1e7b45"></i>XLS: tabla</span><span><i style="background:#b97d00"></i>JSON: para máquinas</span><span><i style="background:#315f38;border:1px solid #fff4"></i>DATOS: resultados</span><span><i style="background:#4a6fa5"></i>FOTO: de la muestra</span><span><i style="background:#c26a1d"></i>MUESTRA: la fruta</span><span><i style="background:#7a4fa8"></i>AVISO: correo al laboratorio</span></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+var $ = function(s,r){ return (r||document).querySelector(s); };
+var $$ = function(s,r){ return Array.prototype.slice.call((r||document).querySelectorAll(s)); };
+var fmt = function(n){ return Number(n).toLocaleString('es-CL'); };
+var esc = function(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+var NS='http://www.w3.org/2000/svg';
+function mk(tag,attrs,parent){ var e=document.createElementNS(NS,tag); for(var k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e; }
+function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+var T=1.7;
+function wait(ms){ return new Promise(function(r){ setTimeout(r,reduce?30:ms*T); }); }
+function waitRaw(ms){ return new Promise(function(r){ setTimeout(r,reduce?30:ms); }); }
+
+/* ====== datos de ejemplo editables (nombres reales tomados del repositorio) ====== */
+var TECNICOS = ['C. Cornejo','P. Gamboa','M. Alegria','B. Fuentes'];
+var LAB_EQUIPO = ['Equipo lab'];
+var CLIENTES = ['DOLE CHILE','UNIFRUTTI TRADERS','CYD INTERNACIONAL','FRUTERA SAN FERNANDO','AGRICOLA SAN CLEMENTE','GLOBAL GROWERS','HORTIFRUT CHILE','TUNICHE FRUITS','GARCES FRUIT','EXPORTADORA AGUA SANTA','MAGNA TRADING','PACIFIC NUT COMPANY','MULTIFRUTA','GIDDINGS CERASUS'];
+var LABS = ['Quiteca','ALS','Diagnofruit'];
+var MOTIVOS = ['El informe llegó a personas que no corresponden','La planta no coincide con la solicitud','Falta la fecha de muestreo'];
+
+/* ====== engranaje: forma y icono ====== */
+function gearD(N,ri,ro,cx,cy){
+  var p=2*Math.PI/N, hr=0.28*p, ht=0.15*p, pts=[];
+  for(var k=0;k<N;k++){ var a=k*p;
+    [[ri,a-hr],[ro,a-ht],[ro,a+ht],[ri,a+hr]].forEach(function(q){ pts.push(((cx||0)+q[0]*Math.cos(q[1])).toFixed(1)+','+((cy||0)+q[0]*Math.sin(q[1])).toFixed(1)); });
+  }
+  return 'M'+pts.join('L')+'Z';
+}
+$('#gearp').setAttribute('d', gearD(8,13,19,24,24));
+
+/* =====================================================================
+   EL MUNDO: diagrama vivo reutilizado por la diapositiva (guiado) y por
+   el ecosistema (loop)
+   ===================================================================== */
+var TOK = {PDF:{c:'#d9483b',w:62},XLS:{c:'#1e7b45',w:62},JSON:{c:'#b97d00',w:70},DATOS:{c:'#315f38',w:82},FOTO:{c:'#4a6fa5',w:70},MUESTRA:{c:'#c26a1d',w:104},AVISO:{c:'#7a4fa8',w:78}};
+var NDEF = [
+ {id:'T',x:110,y:200,ic:'i-person',t:['Técnicos'],s:'Piden los análisis'},
+ {id:'V',x:350,y:200,ic:'i-check',t:['Verificaciones'],s:'Control diario'},
+ {id:'M',x:110,y:450,ic:'i-bag',t:['Muestras'],s:'Llegan en bolsa'},
+ {id:'L',x:350,y:450,ic:'i-flask',t:['Lab AgroFresh'],s:'Cruce y foto'},
+ {id:'G',x:350,y:690,ic:'i-gear',t:['Equipo GC'],s:'Procesa muestras'},
+ {id:'C',x:640,y:300,ic:'i-mail',t:['Correo'],s:'Lleva y trae'},
+ {id:'X',x:640,y:728,ic:'flask',t:['Laboratorios'],s:'Quiteca · ALS · Diagnofruit'},
+ {id:'B',x:900,y:400,ic:'i-gear',t:['Backend'],s:'El cerebro'},
+ {id:'D',x:820,y:650,ic:'i-db',t:['Base de datos'],s:'La memoria'},
+ {id:'F',x:1030,y:650,ic:'i-folder',t:['Archivos'],s:'El archivador'},
+ {id:'A',x:1082,y:215,ic:'i-admin',t:['Administrador','general'],s:'Decide y audita'},
+ {id:'P',x:1260,y:400,ic:'i-monitor',t:['Pantalla'],s:'Lo que ven'},
+ {id:'U',x:1260,y:690,ic:'i-eye',t:['Equipo AgroFresh'],s:'Mira el panel en vivo'}
+];
+var EDEF = {
+ t_b:'M146,232 C250,330 600,350 858,388',
+ v_b:'M392,190 C520,170 740,230 862,372',
+ m_l:'M152,452 C205,418 255,486 308,448',
+ l_g:'M352,492 C316,545 388,596 350,648',
+ l_b:'M392,440 C560,440 700,420 858,414',
+ g_b:'M392,672 C560,600 740,470 862,432',
+ b_c:'M866,368 C800,340 740,310 684,300',
+ c_x:'M640,342 C596,430 690,498 640,562 C596,612 686,644 640,684',
+ x_cl:'M684,736 C1000,830 1290,800 1326,500',
+ b_d:'M862,442 C818,492 858,556 828,608',
+ b_f:'M918,442 C966,486 984,552 1010,608',
+ b_p:'M942,402 C1010,360 1090,446 1218,400',
+ a_b:'M1052,252 C1010,300 960,340 928,366',
+ p_u:'M1262,442 C1220,500 1304,584 1260,646',
+ p_s0:'M1302,388 C1318,330 1322,240 1332,214',
+ p_s1:'M1302,396 C1318,370 1322,310 1332,304',
+ p_s2:'M1302,404 C1318,404 1322,394 1332,394',
+ p_s3:'M1302,414 C1318,440 1322,470 1332,484'
+};
+var SLOTS=[214,304,394,484];
+var FEEDS = {T:{x:30,ys:[332],al:'start'},V:{x:350,ys:[384],al:'middle'},L:{x:350,ys:[582],al:'middle'},X:{x:640,ys:[648],al:'middle'}};
+var METRICS = [['sol','Solicitudes',128],['inf','Informes recibidos',94],['acc','Aceptados',89],['rej','Rechazados',5],['ver','Verificaciones hoy',12],['cli','Clientes en línea',3]];
+var NODEINFO = {
+ T:{t:'Técnicos',q:'Las personas de AgroFresh que piden los análisis y toman las muestras en terreno.',a:'Piden en minutos y cada pedido queda con número y responsable.',tec:'Módulo Toma de muestras: formulario, folio OT y «Generado por» en cada solicitud.'},
+ V:{t:'Verificaciones',q:'El control diario de los equipos del laboratorio, que hacen las personas del equipo de laboratorio.',a:'Cada día queda registrado y firmado, y se juzga con las reglas de ese día.',tec:'Módulo Verificaciones diarias (REG-03). Criterios congelados por día.'},
+ M:{t:'Muestras',q:'La bolsa de fruta que llega al laboratorio de AgroFresh.',a:'Cada muestra queda ligada a su solicitud, sin confusiones.',tec:'Cruce en «Ingreso al laboratorio»: N° de muestra, peso y foto.'},
+ L:{t:'Laboratorio AgroFresh',q:'El laboratorio propio. Recibe la bolsa, la cruza con su solicitud y le saca una foto.',a:'Queda la evidencia de qué se recibió y cuándo.',tec:'AgroFresh Lab → Ingreso al laboratorio: cruce, peso extraído y foto de la muestra.'},
+ G:{t:'Equipo GC',q:'El equipo de cromatografía de gases que mide la muestra.',a:'El resultado se obtiene y se sube sin digitarlo.',tec:'Resultados del GC en Ingreso al laboratorio; el informe propio lleva N° AGF.'},
+ C:{t:'Correo',q:'El cartero del sistema. Manda las solicitudes a los laboratorios y recibe sus informes.',a:'Los laboratorios no cambian su forma de trabajar.',tec:'Cuenta Gmail del Report Hub. Envío SMTP; el buzón se lee en solo lectura (IMAP).'},
+ X:{t:'Laboratorios',q:'Donde se mide cuánto residuo hay en la fruta: Quiteca, ALS y Diagnofruit.',a:'Entregan la evidencia: el informe oficial de cada muestra.',tec:'Cada laboratorio responde con su PDF y su propio formato.'},
+ B:{t:'Backend',q:'El programa que sabe hacer todo: revisar quién eres, leer un PDF, calcular y decidir qué puede ver cada persona.',a:'Las reglas viven en un solo lugar y evitan errores de copiar y pegar.',tec:'FastAPI (Python). 332 rutas y 95 módulos, en el servidor de la oficina.'},
+ D:{t:'Base de datos',q:'Donde queda guardado cada resultado, con su fecha, cliente y planta.',a:'Se puede buscar, comparar y graficar todo el historial.',tec:'PostgreSQL. 73 archivos de migración describen su estructura.'},
+ F:{t:'Archivos',q:'Un archivador en la nube con cada PDF original y los respaldos.',a:'Siempre queda el documento original del laboratorio.',tec:'Cloudflare R2 (bucket agrofresh-storage). No es base de datos.'},
+ A:{t:'Administrador general',q:'La persona que revisa cada informe que llega y decide si se acepta o se rechaza.',a:'Nada entra a la base sin revisión; un envío mal hecho nunca se carga.',tec:'Bandeja de Ingreso de Informes: Aceptar, Rechazar con motivo y Deshacer. Solo el administrador principal.'},
+ P:{t:'Pantalla',q:'Lo que la persona ve y toca: gráficos, filtros y tablas, en el computador o el teléfono.',a:'Los clientes revisan y descargan sus resultados sin pedir informes por correo.',tec:'React + TypeScript publicado en Vercel; llega al servidor por el túnel de Cloudflare.'},
+ U:{t:'Equipo AgroFresh',q:'Gerencia y el equipo que miran el panel de control interno.',a:'Ven en vivo qué se pide, qué llegó y qué se atrasa.',tec:'Panel de control interno y Monitoreo en vivo.'},
+ K:{t:'Clientes',q:'Las empresas dueñas de la fruta analizada, cada una con su cuenta.',a:'Consultan cuando quieren y solo ven lo suyo.',tec:'Cuentas «cliente» acotadas a Sold To, Ship To y especie; el servidor aplica el filtro.'}
+};
+
+function createWorld(host,o){
+  o=o||{};
+  var dark=!!o.dark, gen=0, procN=0, decN=0, seq=420, alive0=true, online=0, cardQ=Promise.resolve();
+  host.classList.add('world'); if(dark) host.classList.add('dark');
+  var svg=mk('svg',{viewBox:'0 0 1600 900',role:'img','aria-label':'Ecosistema de Report Hub'},host);
+  var E={},N={},edgeN={},slotsBusy=[false,false,false,false],feedBusy={T:[],V:[],L:[],X:[]},cells={},vals={};
+  function txt(p,cls,x,y,s,at){ var e=mk('text',{class:cls,x:x,y:y},p); if(at) for(var k in at) e.setAttribute(k,at[k]); e.textContent=s; return e; }
+  /* esporas flotantes y zonas (con paralaje) */
+  var gsp=mk('g',{class:'par'},svg);
+  for(var q=0;q<30;q++){ var sp=mk('circle',{class:'spore',cx:(Math.random()*1600).toFixed(0),cy:(160+Math.random()*740).toFixed(0),r:(1.6+Math.random()*2.2).toFixed(1),style:'--t:'+(20+Math.random()*22).toFixed(0)+'s;--dl:-'+(Math.random()*30).toFixed(0)+'s;--dx:'+((Math.random()-.5)*160).toFixed(0)+'px'},gsp); }
+  var gzp=mk('g',{class:'par'},svg);
+  var gz=mk('g',{},gzp);
+  mk('rect',{class:'zone',x:20,y:80,width:540,height:740,rx:28},gz);
+  txt(gz,'zl',44,124,'AgroFresh'); txt(gz,'zs',44,148,'Equipo y laboratorio');
+  mk('rect',{class:'zone',x:730,y:80,width:440,height:740,rx:28},gz);
+  mk('use',{href:'#rh',x:752,y:98,width:46,height:46},gz); txt(gz,'zl',810,128,'Report Hub'); txt(gz,'zs',810,150,'El sistema · servidor de la oficina');
+  mk('rect',{class:'zone',x:1320,y:80,width:270,height:740,rx:28},gz);
+  var kz=mk('g',{},gz); mk('use',{href:'#i-building',x:1340,y:98,width:42,height:42,style:'color:var(--w-ic)'},kz); txt(kz,'zl',1392,130,'Clientes'); txt(kz,'zs',1342,160,'Miran y descargan');
+  /* aristas */
+  Object.keys(EDEF).forEach(function(k){ E[k]=mk('path',{class:'ed',d:EDEF[k]},svg); edgeN[k]=0; });
+  Object.keys(EDEF).forEach(function(k){ mk('path',{class:'fl',d:EDEF[k]},svg); });
+  function edgeOn(k,d){ edgeN[k]+=d; E[k].classList.toggle('on',edgeN[k]>0); }
+  /* nodos */
+  var gl={bub:[]}, liquid, chro, chroLen=600, camG, gcG, bgear, gtimer=null;
+  NDEF.forEach(function(n,i){
+    var g=mk('g',{class:'nd in',id:'w'+n.id,'data-k':n.id,tabindex:0,role:'button','aria-label':n.t.join(' '),style:'--d:'+i},svg);
+    mk('rect',{class:'tile',x:n.x-44,y:n.y-44,width:88,height:88,rx:20},g);
+    var ic=mk('g',{class:'ic'},g);
+    if(n.ic==='flask'){
+      var cid='fc'+(createWorld.n=(createWorld.n||0)+1), cp=mk('clipPath',{id:cid},ic);
+      mk('path',{d:'M20 5h8v14l12 19a4 4 0 0 1-3.5 6H11.5A4 4 0 0 1 8 38l12-19Z',transform:'translate('+(n.x-26)+' '+(n.y-26)+') scale(1.083)'},cp);
+      liquid=mk('rect',{x:n.x-26,y:n.y+22,width:52,height:0,fill:'#f1c318','clip-path':'url(#'+cid+')'},ic);
+      mk('use',{href:'#i-flask',x:n.x-26,y:n.y-26,width:52,height:52},ic);
+      for(var b=0;b<3;b++) gl.bub.push(mk('circle',{class:'bub',cx:n.x-8+b*8,cy:n.y+14,r:2.8+b*0.5,fill:'#fff',stroke:'#315f38','stroke-width':1.2,style:'animation-delay:'+(b*0.5)+'s'},ic));
+    } else if(n.id==='B'||n.id==='G'){
+      var rg=mk('g',{class:'spin',style:'transform-origin:'+n.x+'px '+n.y+'px'},ic); mk('use',{href:'#'+n.ic,x:n.x-26,y:n.y-26,width:52,height:52},rg);
+      if(n.id==='B') bgear=rg; else gcG=rg;
+    } else mk('use',{href:'#'+n.ic,x:n.x-26,y:n.y-26,width:52,height:52},ic);
+    n.t.forEach(function(l,j){ txt(g,'nl',n.x,n.y+72+j*28,l); });
+    txt(g,'ns',n.x,n.y+72+(n.t.length-1)*28+24,n.s);
+    N[n.id]=g;
+    if(n.id==='B') mk('circle',{class:'ring',cx:n.x,cy:n.y,r:48},g);
+  });
+  /* panel de picos junto al equipo GC */
+  var chG=mk('g',{opacity:0,style:'transition:opacity .4s'},svg);
+  mk('rect',{x:128,y:650,width:170,height:84,rx:12,fill:'#13261a'},chG);
+  txt(chG,'',140,670,'EQUIPO GC',{style:'font:500 12px var(--f-mono);fill:#8fb280;letter-spacing:.1em'});
+  var pts=[],NP=160; for(var i=0;i<=NP;i++){ var yy=0; [[.16,.5,.012],[.32,.85,.010],[.48,1,.009],[.64,.55,.011],[.8,.75,.010]].forEach(function(p){ yy+=p[1]*Math.exp(-Math.pow(i/NP-p[0],2)/(2*p[2]*p[2])); }); pts.push((140+i/NP*146).toFixed(1)+','+(722-Math.min(yy,1)*38).toFixed(1)); }
+  chro=mk('polyline',{points:pts.join(' '),fill:'none',stroke:'#f1c318','stroke-width':2.6,'stroke-linejoin':'round'},chG);
+  mk('line',{x1:140,x2:286,y1:722,y2:722,stroke:'#4a6b45','stroke-width':1},chG);
+  try{ chroLen=chro.getTotalLength(); }catch(e){}
+  chro.style.strokeDasharray=chroLen; chro.style.strokeDashoffset=chroLen;
+  /* cámara (flash de foto) */
+  camG=mk('g',{opacity:0},svg); mk('circle',{cx:350,cy:450,r:46,class:'flash'},camG);
+  var cc=mk('g',{style:'color:#4a6fa5'},camG); mk('use',{href:'#i-cam',x:326,y:372,width:48,height:48},cc);
+  /* capas */
+  var capL=mk('g',{},svg), trL=mk('g',{style:'pointer-events:none'},svg), tokL=mk('g',{},svg), tstL=mk('g',{},svg);
+  /* tarjeta de decisión del administrador */
+  var card=mk('g',{class:'cardg',opacity:0,style:'pointer-events:none'},svg);
+  var cx0=744,cy0=168,cw=232;
+  mk('rect',{x:cx0,y:cy0,width:cw,height:150,rx:18,fill:'var(--w-card)',stroke:'var(--w-cardl)','stroke-width':3},card);
+  var cT=txt(card,'',cx0+16,cy0+30,'¿Aceptar este informe?',{style:'font:800 22px var(--f-title);text-transform:uppercase;fill:var(--w-cardt)'});
+  var cL1=txt(card,'',cx0+16,cy0+54,'',{style:'font:600 16px var(--f-body);fill:var(--w-cardt)'});
+  var cL2=txt(card,'',cx0+16,cy0+74,'',{style:'font:500 13px var(--f-mono);fill:var(--w-s)'});
+  var cRes=txt(card,'',cx0+116,cy0+124,'',{style:'font:800 34px var(--f-title);text-transform:uppercase',',text-anchor':'middle'}); cRes.setAttribute('text-anchor','middle'); cRes.setAttribute('opacity',0);
+  var bA=mk('g',{class:'cbtn'},card); mk('rect',{x:cx0+14,y:cy0+98,width:100,height:40,rx:20,fill:'#40af49'},bA); var bAt=txt(bA,'',cx0+64,cy0+124,'Aceptar',{style:'font:700 17px var(--f-body);fill:#fff','text-anchor':'middle'});
+  var bR=mk('g',{class:'cbtn'},card); mk('rect',{x:cx0+122,y:cy0+98,width:100,height:40,rx:20,fill:'none',stroke:'#d9483b','stroke-width':2.5},bR); var bRt=txt(bR,'',cx0+172,cy0+124,'Rechazar',{style:'font:700 17px var(--f-body);fill:#d9483b','text-anchor':'middle'});
+  var cur=mk('g',{opacity:0,style:'pointer-events:none'},svg); mk('path',{d:'M0,0 L0,26 L7,20 L12,31 L17,29 L12,19 L21,19 Z',fill:'#fff',stroke:'#1c2b1f','stroke-width':2,'stroke-linejoin':'round'},cur);
+  /* tablero de lectura en vivo */
+  var tk=mk('g',{class:'tkr',transform:'translate(20 836)'},svg);
+  mk('rect',{class:'bg',x:0,y:0,width:1560,height:56,rx:16},tk);
+  mk('circle',{cx:26,cy:28,r:6,fill:'#40af49'},tk).style.animation='blink 1.4s ease-in-out infinite';
+  txt(tk,'lv',44,24,'Panel de control interno');
+  txt(tk,'ml',44,44,'En vivo · datos de ejemplo');
+  METRICS.forEach(function(m,i){ var x=330+i*204; vals[m[0]]=m[2]; txt(tk,'ml',x,22,m[1]); cells[m[0]]=txt(tk,'mv',x,50,String(m[2])); });
+  function bump(k,delta){ vals[k]+=(delta===undefined?1:delta); var c=cells[k]; c.textContent=String(vals[k]); c.classList.remove('fl'); void c.getBBox(); c.classList.add('fl'); }
+  function setCell(k,v){ vals[k]=v; var c=cells[k]; c.textContent=String(v); c.classList.remove('fl'); void c.getBBox(); c.classList.add('fl'); }
+  /* utilidades */
+  function ok(g){ return alive0 && g===gen; }
+  function sleep(ms,g){ return new Promise(function(r){ setTimeout(r,reduce?30:ms*T); }); }
+  function mkTok(type){
+    var T=TOK[type], g=mk('g',{class:'tok'},tokL);
+    mk('rect',{x:-T.w/2,y:-17,width:T.w,height:34,rx:9,fill:T.c,stroke:'#fff','stroke-width':2.5},g);
+    txt(g,'',0,5,type); return g;
+  }
+  var AMP={PDF:8,XLS:11,JSON:14,DATOS:6,FOTO:10,MUESTRA:7,AVISO:16};
+  var ENDS={t_b:['T','B'],v_b:['V','B'],m_l:['M','L'],l_g:['L','G'],l_b:['L','B'],g_b:['G','B'],b_c:['B','C'],c_x:['C','X'],x_cl:['X',null],b_d:['B','D'],b_f:['B','F'],b_p:['B','P'],a_b:['A','B'],p_u:['P','U'],p_s0:['P',null],p_s1:['P',null],p_s2:['P',null],p_s3:['P',null]};
+  function pulse(id){ var n=N[id]; if(!n) return; n.classList.remove('pulse'); void n.getBoundingClientRect(); n.classList.add('pulse'); setTimeout(function(){ n.classList.remove('pulse'); },1900); }
+  function ripple(x,y,col,big){
+    if(reduce) return;
+    var c=mk('circle',{cx:x,cy:y,r:10,fill:'none',stroke:col,'stroke-width':3.5},trL); c.style.transformBox='fill-box'; c.style.transformOrigin='center';
+    var a=c.animate([{opacity:.95,transform:'scale(.3)'},{opacity:0,transform:'scale('+(big?7:5)+')'}],{duration:2000,easing:'cubic-bezier(.15,.7,.2,1)'}); a.onfinish=function(){ c.remove(); };
+  }
+  function trail(type,x,y){
+    if(reduce) return;
+    var c=TOK[type].c, e;
+    if(type==='JSON') e=txt(trL,'',x,y,Math.random()<.5?'{':'}',{style:'font:700 18px var(--f-mono);fill:'+c});
+    else if(type==='XLS'||type==='PDF') e=mk('rect',{x:x-3,y:y-4,width:type==='PDF'?6:8,height:type==='PDF'?9:8,rx:1.6,fill:c},trL);
+    else e=mk('circle',{cx:x,cy:y,r:type==='DATOS'?3.4:4.2,fill:c},trL);
+    e.style.transformBox='fill-box'; e.style.transformOrigin='center';
+    var dx=(Math.random()-.5)*44, dy=(Math.random()-.5)*44;
+    var a=e.animate([{opacity:.8,transform:'translate(0,0) scale(1) rotate(0deg)'},{opacity:0,transform:'translate('+dx+'px,'+dy+'px) scale(.15) rotate('+((Math.random()-.5)*160)+'deg)'}],{duration:1900,easing:'ease-out'}); a.onfinish=function(){ e.remove(); };
+  }
+  function fly(type,route,dur,delay,g){
+    return new Promise(function(res){
+      setTimeout(function(){
+        if(!ok(g)) return res();
+        var tok=mkTok(type), amp=AMP[type]||8, ph=Math.random()*Math.PI*2, fq=1.4+Math.random()*.9;
+        var segs=route.map(function(id){ var rev=id.charAt(id.length-1)==='!'; var k=id.replace('!',''); edgeOn(k,1); return {k:k,el:E[k],len:E[k].getTotalLength(),rev:rev}; });
+        var total=segs.reduce(function(a,s){return a+s.len;},0), D=dur*T, t0=performance.now(), done=false, lastTr=0, endPt=null;
+        var f0=segs[0], n0=ENDS[f0.k]&&ENDS[f0.k][f0.rev?1:0], fl=segs[segs.length-1], n1=ENDS[fl.k]&&ENDS[fl.k][fl.rev?0:1];
+        if(n0) pulse(n0);
+        var p0=f0.el.getPointAtLength(f0.rev?f0.len:0); ripple(p0.x,p0.y,TOK[type].c,false);
+        function end(){ if(done) return; done=true; tok.remove(); segs.forEach(function(s){ edgeOn(s.k,-1); }); if(endPt){ ripple(endPt.x,endPt.y,TOK[type].c,true); } if(n1&&ok(g)) pulse(n1); res(); }
+        if(reduce){ end(); return; }
+        (function f(t){
+          if(!ok(g)||done){ return end(); }
+          var k=Math.max(0,Math.min(1,(t-t0)/D)), ke=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;
+          var d=ke*total,i=0; while(i<segs.length-1 && d>segs[i].len){ d-=segs[i].len; i++; }
+          var sg=segs[i], pos=sg.rev?sg.len-Math.min(d,sg.len):Math.min(d,sg.len);
+          var p=sg.el.getPointAtLength(pos), q=sg.el.getPointAtLength(Math.max(0,Math.min(sg.len,pos+(sg.rev?-2:2))));
+          var ang=Math.atan2(q.y-p.y,q.x-p.x), nx=-Math.sin(ang), ny=Math.cos(ang), env=Math.sin(Math.PI*ke);
+          var sway=Math.sin(ke*Math.PI*2*fq+ph)*amp*env, tilt=Math.cos(ke*Math.PI*2*fq+ph)*10*env;
+          var sc=1+0.07*Math.sin(ke*Math.PI*5+ph)+(k<.12?(1-k/.12)*.3:0)+(k>.9?-(k-.9)*1.2:0);
+          var x=p.x+nx*sway, y=p.y+ny*sway;
+          tok.setAttribute('transform','translate('+x.toFixed(1)+' '+y.toFixed(1)+') rotate('+tilt.toFixed(1)+') scale('+sc.toFixed(3)+')');
+          tok.setAttribute('opacity',Math.min(1,k*14).toFixed(2));
+          endPt={x:p.x,y:p.y};
+          if(t-lastTr>(type==='DATOS'?60:105)){ lastTr=t; trail(type,x,y); if(type==='DATOS') trail(type,x+nx*6,y+ny*6); }
+          if(k<1) requestAnimationFrame(f); else end();
+        })(t0);
+      },(delay||0)*T);
+    });
+  }
+  function capsule(x,y,text,col,al,opt){
+    opt=opt||{}; var sub=opt.sub, w=opt.w||Math.max(100,text.length*11.5+54), h=sub?58:44;
+    var og=mk('g',{transform:'translate('+x+' '+y+')'},capL), g=mk('g',{class:'cap capi'},og), ox=al==='middle'?-w/2:0;
+    var r=mk('rect',{x:ox,y:-h/2,width:w,height:h,rx:22},g);
+    mk('circle',{cx:ox+22,cy:0,r:7,fill:col||'#40af49'},g);
+    var t=txt(g,'',ox+38,sub?-3:7,text); if(opt.w && text.length*10.8>w-52){ t.setAttribute('textLength',w-56); t.setAttribute('lengthAdjust','spacingAndGlyphs'); }
+    var st=null; if(sub){ st=txt(g,'',ox+38,18,sub,{style:'font:500 14px var(--f-mono);fill:var(--w-s)'}); }
+    return {og:og,g:g,rect:r,text:t,sub:st,w:w,ox:ox,set:function(v){ if(st) st.textContent=v; else t.textContent=v; }};
+  }
+  function feed(anchor,text,opt){
+    opt=opt||{}; var F=FEEDS[anchor], busy=feedBusy[anchor], i=0; while(i<F.ys.length && busy[i]) i++;
+    if(i>=F.ys.length) return null; busy[i]=true;
+    var c=capsule(F.x+(F.al==='start'?0:0),F.ys[i],text,opt.dot,F.al);
+    if(F.al==='start') c.og.setAttribute('transform','translate('+F.x+' '+F.ys[i]+')');
+    setTimeout(function(){ c.g.classList.add('out'); setTimeout(function(){ c.og.remove(); busy[i]=false; },950); }, (opt.life||3400)*T);
+    return c;
+  }
+  function gearFast(ms){ procN++; bgear.classList.add('fast'); setTimeout(function(){ procN--; if(procN<=0) bgear.classList.remove('fast'); },ms*T); }
+  function flask(on,g,ms){
+    var y0=750; gl.bub.forEach(function(b){ b.classList.toggle('on',on); });
+    if(!on){ liquid.setAttribute('height',0); liquid.setAttribute('y',y0); return; }
+    var t0=performance.now(); ms=ms*T;
+    (function f(t){ if(!ok(g)){ return; } var k=Math.max(0,Math.min(1,(t-t0)/ms)), h=k*24; liquid.setAttribute('y',y0-h); liquid.setAttribute('height',h); if(k<1) requestAnimationFrame(f); else gl.bub.forEach(function(b){ b.classList.remove('on'); }); })(t0);
+  }
+  function gc(ms,g){
+    gcG.classList.add('fast'); chG.setAttribute('opacity',1); ms=ms*T;
+    var t0=performance.now();
+    return new Promise(function(res){ (function f(t){ if(!ok(g)){ res(); return; } var k=Math.max(0,Math.min(1,(t-t0)/ms)); chro.style.strokeDashoffset=chroLen*(1-k); if(k<1) requestAnimationFrame(f); else { setTimeout(function(){ gcG.classList.remove('fast'); chG.setAttribute('opacity',0); chro.style.strokeDashoffset=chroLen; },1400); res(); } })(t0); });
+  }
+  function camFlash(){
+    camG.setAttribute('opacity',1);
+    var f=camG.querySelector('.flash'); f.animate([{opacity:.0,transform:'scale(.2)'},{opacity:.9,transform:'scale(1.3)'},{opacity:0,transform:'scale(1.9)'}],{duration:1300,easing:'ease-out'});
+    setTimeout(function(){ camG.setAttribute('opacity',0); },2200);
+  }
+  function toast(text,x,y,ms){
+    var w=Math.min(620,text.length*10+44), g=mk('g',{class:'toast',transform:'translate('+(x-w/2)+' '+y+')'},tstL);
+    mk('rect',{width:w,height:46,rx:23},g); txt(g,'',22,30,text);
+    g.animate([{opacity:0,transform:'translate('+(x-w/2)+'px,'+(y+14)+'px)'},{opacity:1,transform:'translate('+(x-w/2)+'px,'+y+'px)'}],{duration:900,easing:'ease-out',fill:'both'});
+    setTimeout(function(){ g.animate([{opacity:1},{opacity:0}],{duration:800,fill:'forwards'}); setTimeout(function(){ g.remove(); },820); },(ms||3600)*T);
+  }
+  /* decisión del administrador */
+  function setCard(info,hint){
+    cL1.textContent=info.lab+' · '+info.cli; cL2.textContent='Informe '+info.num;
+    cRes.setAttribute('opacity',0); bA.style.display=''; bR.style.display='';
+    cT.textContent=hint||'¿Aceptar este informe?';
+  }
+  function decide(info,opt,g){
+    return new Promise(function(res){
+      var done=false, autoT=null;
+      setCard(info,opt.hint); card.setAttribute('opacity',1); card.style.pointerEvents='auto';
+      N.A.classList.add('focus');
+      function finish(v,byUser){
+        if(done) return; done=true; clearTimeout(autoT);
+        card.style.pointerEvents='none'; cur.setAttribute('opacity',0);
+        bA.style.display='none'; bR.style.display='none';
+        cRes.textContent = v==='accept' ? 'Aceptado' : 'Rechazado'; cRes.setAttribute('fill', v==='accept'?'#40af49':'#d9483b'); cRes.setAttribute('opacity',1);
+        setTimeout(function(){ card.setAttribute('opacity',0); N.A.classList.remove('focus'); res(v); },1800);
+      }
+      bA.onclick=function(){ finish('accept',true); }; bR.onclick=function(){ finish('reject',true); };
+      var wt = opt.waitUser ? 16000 : 4600;
+      autoT=setTimeout(function(){
+        if(!ok(g)){ done=true; card.setAttribute('opacity',0); card.style.pointerEvents='none'; N.A.classList.remove('focus'); return res('cancel'); }
+        var rej = opt.forceReject || (!opt.waitUser && (++decN % 7 === 0)), tgt = rej ? bR : bA;
+        var tx=cx0+(rej?172:64)-6, ty=cy0+114;
+        cur.setAttribute('opacity',1);
+        if(!reduce) cur.animate([{transform:'translate(1082px,244px)'},{transform:'translate('+tx+'px,'+ty+'px)'}],{duration:1700,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});
+        else cur.style.transform='translate('+tx+'px,'+ty+'px)';
+        setTimeout(function(){ if(ok(g)||!done) finish(rej?'reject':'accept',false); },reduce?30:1900);
+      },reduce?30:wt);
+    });
+  }
+  var cardLockP=Promise.resolve();
+  function withCard(fn){ var p=cardLockP.then(fn,fn); cardLockP=p.catch(function(){}); return p; }
+  async function revisar(info,opt){
+    opt=opt||{}; var g=gen;
+    return withCard(async function(){
+      if(!ok(g)) return 'cancel';
+      var v=await decide(info,opt,g); if(!ok(g)||v==='cancel') return 'cancel';
+      if(v==='accept'){
+        bump('acc'); await Promise.all([fly('DATOS',['b_d'],1800,0,g),fly('PDF',['b_f'],1800,250,g)]);
+      } else {
+        bump('rej'); var mot=pick(MOTIVOS);
+        toast('Correo enviado a '+info.lab+': «'+mot+'»',640,630,4200);
+        await fly('AVISO',['b_c','c_x'],3000,0,g);
+      }
+      return v;
+    });
+  }
+  /* clientes (cápsulas que entran y salen) */
+  function slotAlloc(){ for(var i=0;i<SLOTS.length;i++) if(!slotsBusy[i]){ slotsBusy[i]=true; return i; } return -1; }
+  async function clientEnter(cli,opt,g){
+    opt=opt||{}; var s=slotAlloc(); if(s<0) return -1;
+    var y=SLOTS[s], c=capsule(1600,y,cli,'#f1c318','start',{w:252,sub:opt.receive?'recibe su informe':'entra al sistema'});
+    c.og.setAttribute('transform','translate(1600 '+y+')');
+    if(!reduce) c.og.animate([{transform:'translate(1600px,'+(y+34)+'px)',offset:0},{transform:'translate(1470px,'+(y-22)+'px)',offset:.55},{transform:'translate(1336px,'+y+'px)',offset:1}],{duration:2000,easing:'cubic-bezier(.25,.6,.3,1)',fill:'forwards'}); else c.og.setAttribute('transform','translate(1336 '+y+')');
+    ripple(1330,y,'#f1c318',false);
+    online++; setCell('cli',vals.cli+1);
+    await sleep(1200,g);
+    if(opt.receive){ await sleep(opt.hold||1800,g); }
+    else {
+      if(!ok(g)){ cleanup(); return s; }
+      await fly('DATOS',['b_p'],1300,0,g); if(!ok(g)){ cleanup(); return s; }
+      c.set('descarga PDF y Excel');
+      await Promise.all([fly('PDF',['p_s'+s],1700,0,g),fly('XLS',['p_s'+s],1700,320,g)]);
+      await sleep(opt.hold||1200,g);
+    }
+    cleanup(); return s;
+    function cleanup(){
+      if(!reduce) c.og.animate([{transform:'translate(1336px,'+y+'px)',offset:0},{transform:'translate(1440px,'+(y-26)+'px)',offset:.45},{transform:'translate(1650px,'+(y+40)+'px)',offset:1}],{duration:1900,easing:'cubic-bezier(.5,0,.7,.4)',fill:'forwards'});
+      setTimeout(function(){ c.og.remove(); slotsBusy[s]=false; online--; setCell('cli',Math.max(0,vals.cli-1)); },reduce?30:1920);
+    }
+  }
+  /* ===== escenas ===== */
+  var S={};
+  function nextOT(lab){ seq++; return 'OT-'+lab.slice(0,3).toUpperCase()+String(seq).padStart(4,'0'); }
+  function nextInf(){ seq++; return '2026-'+(1900+(seq%97))+'-PC'; }
+  S.solicitud=async function(o){
+    o=o||{}; var g=gen, who=o.who||pick(TECNICOS), lab=o.lab||pick(LABS), ot=o.ot||nextOT(lab);
+    feed('T',who+' · '+ot,{dot:'#40af49'}); if(o.focusLab) {}
+    await sleep(600,g); if(!ok(g)) return;
+    await Promise.all(['PDF','XLS','JSON'].map(function(t,i){ return fly(t,['t_b'],2600,i*320,g); }));
+    if(!ok(g)) return; bump('sol'); gearFast(1400); await sleep(1500,g); if(!ok(g)) return;
+    await Promise.all(['PDF','XLS','JSON'].map(function(t,i){ return fly(t,['b_c','c_x'],3300,i*280,g); }));
+    return {who:who,lab:lab,ot:ot};
+  };
+  S.analisis=async function(o){
+    o=o||{}; var g=gen, lab=o.lab||pick(LABS);
+    feed('X',lab+' · midiendo',{dot:'#f1c318',life:4200}); flask(true,g,3600); await sleep(3700,g); if(!ok(g)) return;
+    flask(false,g,0);
+  };
+  S.informe=async function(o){
+    o=o||{}; var g=gen, lab=o.lab||pick(LABS), cli=o.cli||pick(CLIENTES), num=o.num||nextInf();
+    if(!o.sinAnalisis){ feed('X',lab+' · midiendo',{dot:'#f1c318',life:4000}); flask(true,g,3500); await sleep(3600,g); if(!ok(g)) return; flask(false,g,0); }
+    var pa=fly('PDF',['x_cl'],3600,0,g), pb=fly('PDF',['c_x!','b_c!'],3800,500,g);
+    pa.then(function(){ if(ok(g)) clientEnter(cli,{receive:true,hold:2200},g); });
+    await pb; if(!ok(g)) return;
+    bump('inf'); gearFast(1400); await sleep(1200,g); if(!ok(g)) return;
+    var info={lab:lab,cli:cli,num:num};
+    if(o.sinDecidir) return info;
+    var v=await revisar(info,o); return {info:info,v:v};
+  };
+  S.revisar=function(info,opt){ return revisar(info||{lab:pick(LABS),cli:pick(CLIENTES),num:nextInf()},opt); };
+  S.muestra=async function(o){
+    o=o||{}; var g=gen, who=o.who||pick(LAB_EQUIPO), cli=o.cli||pick(CLIENTES);
+    await fly('MUESTRA',['m_l'],1900,0,g); if(!ok(g)) return;
+    feed('L',who+' · cruce de muestra',{dot:'#4a6fa5',life:4200}); await sleep(500,g); if(!ok(g)) return;
+    camFlash(); await sleep(350,g);
+    var subida=Promise.all([fly('FOTO',['l_b'],2400,0,g),fly('DATOS',['l_b'],2400,350,g)]);
+    await sleep(500,g);
+    await fly('MUESTRA',['l_g'],1700,0,g); if(!ok(g)) return;
+    await Promise.all([gc(3400,g),subida]); if(!ok(g)) return;
+    var pb=fly('PDF',['g_b'],2600,0,g); pb.then(function(){ if(ok(g)) clientEnter(cli,{receive:true,hold:2000},g); });
+    await pb; if(!ok(g)) return; bump('inf'); gearFast(1300); await sleep(1100,g);
+    var info={lab:'AgroFresh',cli:cli,num:'AGF2026-'+(seq%40+2)};
+    if(o.sinDecidir) return info;
+    var v=await revisar(info,{hint:'Audita este informe',waitUser:false}); return {info:info,v:v};
+  };
+  S.verificacion=async function(o){
+    o=o||{}; var g=gen, who=o.who||pick(LAB_EQUIPO);
+    feed('V',who+' · verificación',{dot:'#40af49',life:4000}); await sleep(900,g); if(!ok(g)) return;
+    N.V.classList.add('focus'); setTimeout(function(){ N.V.classList.remove('focus'); },1500);
+    await fly('DATOS',['v_b'],2400,0,g); if(!ok(g)) return; bump('ver'); gearFast(900);
+  };
+  S.cliente=async function(o){ o=o||{}; var g=gen; return clientEnter(o.cli||pick(CLIENTES),{hold:o.hold},g); };
+
+  /* ===== control del mundo ===== */
+  var W={svg:svg,scenes:S,nodes:N,bump:bump,vals:vals};
+  W.cancel=function(){ gen++; if(bgear) bgear.classList.remove('fast'); gcG.classList.remove('fast'); chG.setAttribute('opacity',0); chro.style.strokeDashoffset=chroLen; gl.bub.forEach(function(b){b.classList.remove('on');}); liquid.setAttribute('height',0);
+    $$('.tok',svg).forEach(function(x){ x.remove(); }); $$('.cap',svg).forEach(function(x){ if(x.parentNode) x.parentNode.remove(); });
+    Object.keys(feedBusy).forEach(function(k){ feedBusy[k]=[]; }); slotsBusy=[false,false,false,false];
+    Object.keys(edgeN).forEach(function(k){ edgeN[k]=0; E[k].classList.remove('on'); }); card.setAttribute('opacity',0); card.style.pointerEvents='none'; cur.setAttribute('opacity',0);
+    $$('.toast',svg).forEach(function(x){ x.remove(); }); setCell('cli',3); online=0; cardLockP=Promise.resolve(); };
+  W.focus=function(list){ Object.keys(N).forEach(function(k){ var on=list.indexOf(k)>=0; N[k].classList.toggle('focus',on); N[k].classList.toggle('dim',list.length>0&&!on); }); };
+  W.sel=function(k){ Object.keys(N).forEach(function(x){ N[x].classList.toggle('sel',x===k); }); };
+  W.destroy=function(){ alive0=false; gen++; host.innerHTML=''; };
+  W.intro=function(){
+    if(reduce) return;
+    Object.keys(E).forEach(function(k,i){ var len=E[k].getTotalLength(); E[k].style.strokeDasharray=len; E[k].animate([{strokeDashoffset:len},{strokeDashoffset:0}],{duration:2600,delay:700+i*150,easing:'cubic-bezier(.4,0,.2,1)',fill:'backwards'}).onfinish=function(){ E[k].style.strokeDasharray=''; }; });
+  };
+  /* bucle del ecosistema */
+  var loopOn=false, paused=false, running=0;
+  async function track(p){ running++; try{ await p; }catch(e){} running--; }
+  W.loop=function(){
+    if(loopOn) return; loopOn=true;
+    var g0=gen;
+    (async function tick(){
+      var n=0;
+      while(loopOn && alive0){
+        if(!paused && running<4){
+          var r=n++%10;
+          if(r===0||r===5){ track((async function(){ var s=await S.solicitud(); if(!s||!loopOn) return; await wait(2500+Math.random()*2500); await S.informe({lab:s.lab,sinAnalisis:false}); })()); }
+          else if(r===1||r===6){ track(S.muestra()); }
+          else if(r===2||r===7){ track(S.verificacion()); }
+          else if(r===3||r===8||r===4||r===9){ track(S.cliente()); }
+        }
+        await wait(1700+Math.random()*1300);
+      }
+    })();
+  };
+  W.pause=function(p){ paused=p; };
+  W.stopLoop=function(){ loopOn=false; };
+  host.addEventListener('pointermove',function(e){ var r=host.getBoundingClientRect(), nx=((e.clientX-r.left)/r.width-.5)*2, ny=((e.clientY-r.top)/r.height-.5)*2; gsp.style.transform='translate('+(nx*-18).toFixed(1)+'px,'+(ny*-12).toFixed(1)+'px)'; gzp.style.transform='translate('+(nx*8).toFixed(1)+'px,'+(ny*6).toFixed(1)+'px)'; });
+  /* clic en nodos */
+  svg.addEventListener('click',function(e){ var g=e.target.closest('.nd'); if(g&&o.onNode) o.onNode(g.dataset.k); });
+  svg.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ var g=e.target.closest('.nd'); if(g&&o.onNode){ e.preventDefault(); o.onNode(g.dataset.k); } } });
+  return W;
+}
+
+/* ====== viaje guiado en la diapositiva ====== */
+var world=null, wcur=-1, playing=false, wgen=0;
+var GSTEPS = [
+ {t:'Un técnico pide un análisis',f:['T','B','C','X'],
+  p:'Una persona del equipo completa un formulario: qué fruta, de qué cliente y planta, y qué medir. El sistema le da un número único (la OT) y arma tres documentos con la misma información: un PDF, un Excel y un JSON. Los tres viajan al sistema, que los procesa, y después salen por correo hacia el laboratorio.',
+  tec:'Módulo Toma de muestras: folio OT, PDF, Excel y JSON con la misma lista de destinatarios. Cada envío queda registrado.',
+  run:function(w){ return w.scenes.solicitud(); }},
+ {t:'El laboratorio analiza y responde',f:['X','C','B','P'],
+  p:'En el laboratorio miden cuánto residuo hay en la muestra. Cuando terminan, mandan el informe en PDF por dos caminos a la vez: directo al cliente y también al correo del sistema, para que quede todo ordenado en un solo lugar.',
+  tec:'Quiteca, ALS y Diagnofruit responden con su informe en PDF y su formato propio. El buzón se lee en solo lectura (IMAP) y se cruza con la solicitud por la OT impresa.',
+  run:function(w){ return w.scenes.informe({sinDecidir:true}).then(function(i){ world._pend=i; return i; }); }},
+ {t:'Tú decides: aceptar o rechazar',f:['A','B','C','X'],
+  p:'Aparece una pregunta para el administrador general. Casi siempre se acepta: el dato entra a la base y el PDF queda en el archivador. Muy de vez en cuando se rechaza, y entonces el sistema le manda un correo al laboratorio con el motivo. Prueba tú: toca «Aceptar» o «Rechazar».',
+  tec:'Bandeja de Ingreso de Informes: Aceptar, Rechazar con motivo, Deshacer. Un envío mal hecho nunca se carga. Solo el administrador principal.',
+  run:function(w){ return w.scenes.revisar(world._pend||null,{waitUser:true,hint:'¿Aceptar este informe?'}); }},
+ {t:'Llega una muestra de AgroFresh',f:['M','L','G','B','A'],
+  p:'La bolsa de fruta llega al laboratorio propio. El equipo la cruza con su solicitud, le saca una foto y sube esos datos al sistema. Luego la muestra pasa por el equipo que la mide, sale el informe y el administrador lo audita.',
+  tec:'AgroFresh Lab → Ingreso al laboratorio: cruce, peso y foto; resultados del GC; informe propio con N° AGF.',
+  run:function(w){ return w.scenes.muestra(); }},
+ {t:'Las verificaciones del laboratorio',f:['V','B','D'],
+  p:'Cada día, el equipo del laboratorio revisa sus equipos y anota el resultado. Antes era un Excel con macros; ahora queda guardado, firmado y se juzga con las reglas de ese día.',
+  tec:'Módulo Verificaciones diarias (REG-03): los criterios de cada día quedan congelados, y modificarlos es un permiso aparte.',
+  run:function(w){ return Promise.all([w.scenes.verificacion(),wait(900).then(function(){ return w.scenes.verificacion(); })]); }},
+ {t:'Los clientes entran y descargan',f:['B','P','K'],
+  p:'Cada cliente entra a su pantalla desde cualquier dispositivo, ve sus gráficos y descarga su Excel y sus PDF. Cada cuenta ve únicamente su planta: eso lo decide el cerebro, no el navegador.',
+  tec:'Pantalla en Vercel → túnel de Cloudflare → backend. Filtro de alcance por cuenta: Sold To, Ship To y especie.',
+  run:function(w){ return Promise.all([w.scenes.cliente(),wait(1200).then(function(){ return w.scenes.cliente(); })]); }},
+ {t:'Todos miran el panel en vivo',f:['U','B','P'],
+  p:'El resto del equipo de AgroFresh puede mirar el panel de control interno: cuántas solicitudes hay, qué informes llegaron, cuántos se aceptaron y cuántos clientes están conectados. Se actualiza solo, a medida que pasan las cosas.',
+  tec:'Panel de control interno y Monitoreo en vivo, con presencia por latidos cada 60 segundos.',
+  run:function(w){ w.scenes.verificacion(); w.scenes.cliente(); return wait(5200); }}
+];
+function narrate(i){
+  var s=GSTEPS[i];
+  $('#stag').textContent='Paso '+(i+1)+' de '+GSTEPS.length; $('#sti').textContent=s.t; $('#stx').textContent=s.p; $('#stt').textContent=s.tec;
+  ['#sti','#stx'].forEach(function(q){ var e=$(q); e.classList.remove('swap'); void e.offsetWidth; e.classList.add('swap'); });
+  $$('#vpr button').forEach(function(b,j){ b.className=j<i?'done':(j===i?'cur':''); });
+  $('#vprev').disabled=i<=0; $('#vnext').disabled=i>=GSTEPS.length-1;
+}
+function goStep(i){
+  world.cancel(); wcur=i; emit(); world.focus(GSTEPS[i].f); narrate(i);
+  var my=++wgen; return Promise.resolve(GSTEPS[i].run(world)).then(function(){ return my; });
+}
+function vStop(){ playing=false; emit(); var b=$('#vplay'); if(b) b.textContent=wcur<0?'▶ Simular':'▶ Seguir'; }
+async function autoRun(from){
+  playing=true; emit(); $('#vplay').textContent='⏸ Pausar';
+  for(var i=from;i<GSTEPS.length;i++){
+    if(!playing) return;
+    var my=await goStep(i);
+    if(!playing||my!==wgen) return;
+    await wait(reduce?100:1100);
+  }
+  playing=false; $('#vplay').textContent='↻ Repetir'; wcur=GSTEPS.length; emit();
+}
+function selectNode(k){
+  var n=NODEINFO[k]; if(!n) return;
+  selNodo=k; emit();
+  if(world) world.sel(k);
+  $$('#legend button').forEach(function(b){ b.setAttribute('aria-pressed',String(b.dataset.k===k)); });
+  $('#ndet').innerHTML='<div class="card soft"><h4>'+esc(n.t)+'</h4><dl class="kv"><div><dt>Qué es</dt><dd>'+esc(n.q)+'</dd></div><div><dt>Qué nos aporta</dt><dd>'+esc(n.a)+'</dd></div></dl><div class="tech">'+esc(n.tec)+'</div></div>';
+  setTab('ico');
+}
+function setTab(t){ tabAct=t; emit(); $$('#vtabs button').forEach(function(b){ b.setAttribute('aria-selected',String(b.dataset.t===t)); }); $('#vico').hidden=(t!=='ico'); $('#vtok').hidden=(t!=='tok'); }
+function initViaje(){
+  var ics={T:'i-person',V:'i-check',M:'i-bag',L:'i-flask',G:'i-gear',C:'i-mail',X:'i-flask',B:'i-gear',D:'i-db',F:'i-folder',A:'i-admin',P:'i-monitor',U:'i-eye',K:'i-building'};
+  var subs={T:'Piden análisis',V:'Control diario',M:'Llegan en bolsa',L:'Cruce y foto',G:'Procesa muestras',C:'Lleva y trae',X:'Analizan',B:'El cerebro',D:'La memoria',F:'El archivador',A:'Decide y audita',P:'Lo que ven',U:'Miran el panel',K:'Ven solo lo suyo'};
+  $('#legend').innerHTML=['T','M','L','G','V','C','X','B','D','F','A','P','U','K'].map(function(k){ return '<button data-k="'+k+'" aria-pressed="false"><svg><use href="#'+ics[k]+'"/></svg><span><b>'+esc(NODEINFO[k].t)+'</b><small>'+esc(subs[k])+'</small></span></button>'; }).join('');
+  $('#legend').addEventListener('click',function(e){ var b=e.target.closest('[data-k]'); if(b) selectNode(b.dataset.k); });
+  $('#toks').innerHTML=[
+    ['PDF','El documento que se lee','Como una hoja impresa: es la solicitud o el informe oficial.','Va con la solicitud al laboratorio y vuelve como informe de resultados.','#d9483b'],
+    ['XLS','La misma información, en tabla','Sirve para ordenar, filtrar y calcular. También es lo que descargan los clientes.','Viaja con la solicitud y sale hacia el cliente.','#1e7b45'],
+    ['JSON','Lo mismo, para las máquinas','Información escrita para que los programas la entiendan sin interpretar nada.','Viaja con la solicitud para que se pueda leer automáticamente.','#b97d00'],
+    ['DATOS','Los números ya ordenados','Es lo que el cerebro saca del informe: cada resultado con su fecha, planta y analito.','Va a la base de datos y a la pantalla del cliente.','#315f38'],
+    ['FOTO','La foto de la muestra','La que se saca al cruzar la bolsa con su solicitud.','Sube al sistema como evidencia.','#4a6fa5'],
+    ['MUESTRA','La fruta','La bolsa de fruta física que llega al laboratorio.','Pasa del cruce al equipo que la mide.','#c26a1d'],
+    ['AVISO','Correo de rechazo','Se envía al laboratorio cuando un informe se rechaza, con el motivo.','Sale del backend por el correo.','#7a4fa8']
+  ].map(function(t){ return '<div class="tk"><div class="chipt" style="background:'+t[4]+'">'+t[0]+'</div><div><b>'+esc(t[1])+'</b><p>'+esc(t[2])+'</p><small>'+esc(t[3])+'</small></div></div>'; }).join('');
+  $('#vtabs').addEventListener('click',function(e){ var b=e.target.closest('[data-t]'); if(b) setTab(b.dataset.t); });
+  $('#vpr').innerHTML=GSTEPS.map(function(s,i){ return '<button aria-label="Paso '+(i+1)+'" data-i="'+i+'"></button>'; }).join('');
+  $('#vpr').addEventListener('click',function(e){ var b=e.target.closest('[data-i]'); if(b){ vStop(); goStep(+b.dataset.i); } });
+  $('#vplay').addEventListener('click',function(){ if(playing){ vStop(); return; } autoRun(wcur>=GSTEPS.length?0:Math.max(wcur,0)); });
+  $('#vprev').addEventListener('click',function(){ vStop(); if(wcur>0) goStep(wcur-1); });
+  $('#vnext').addEventListener('click',function(){ vStop(); if(wcur<GSTEPS.length-1) goStep(wcur+1); });
+}
+function ensureWorld(){
+  if(world) return;
+  world=createWorld($('#world-host'),{dark:false,onNode:function(k){ if(k==='P'||NODEINFO[k]) selectNode(k); }});
+  world.intro(); selectNode('B');
+}
+
+/* ====== ecosistema en vivo ====== */
+var ecoW=null, ecoOpen=false;
+function openEco(fromEl){
+  if(ecoOpen) return; ecoOpen=true; vStop(); if(world) world.cancel();
+  var eco=$('#eco'); eco.hidden=false;
+  var r=fromEl?fromEl.getBoundingClientRect():{left:innerWidth/2,top:innerHeight/2,width:0,height:0}, cx=r.left+r.width/2, cy=r.top+r.height/2;
+  if(!ecoW){ ecoW=createWorld($('#eco-host'),{dark:true,onNode:function(){}}); }
+  ecoW.intro();
+  document.body.style.overflow='hidden';
+  if(!reduce) eco.animate([{clipPath:'circle(0px at '+cx+'px '+cy+'px)'},{clipPath:'circle('+Math.hypot(innerWidth,innerHeight)+'px at '+cx+'px '+cy+'px)'}],{duration:900,easing:'cubic-bezier(.7,0,.2,1)'});
+  setTimeout(function(){ if(ecoOpen) ecoW.loop(); },reduce?0:1500);
+  $('#eco-close').focus({preventScroll:true});
+  emit();
+}
+function closeEco(){
+  if(!ecoOpen) return; ecoOpen=false; emit();
+  var eco=$('#eco'), r=$('#eco-logo').getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
+  ecoW.stopLoop(); ecoW.cancel();
+  document.body.style.overflow='';
+  if(reduce){ eco.hidden=true; return; }
+  var a=eco.animate([{clipPath:'circle('+Math.hypot(innerWidth,innerHeight)+'px at '+cx+'px '+cy+'px)'},{clipPath:'circle(0px at '+cx+'px '+cy+'px)'}],{duration:650,easing:'cubic-bezier(.7,0,.2,1)'});
+  a.onfinish=function(){ eco.hidden=true; };
+}
+
+/* ====== navegación con cortes diagonales ====== */
+var ORDER=['portada','indice','viaje','sistemas','motor','historia','publicar','aporte'];
+var NAMES={portada:'Portada',indice:'Índice',viaje:'Report Hub',sistemas:'Los sistemas',motor:'Por dentro',historia:'Cómo se construyó',publicar:'Cómo se actualiza',aporte:'Qué nos aporta'};
+var DESC={viaje:'El viaje de un análisis, del laboratorio al cliente',sistemas:'Cloudflare, Vercel, Gmail y GitHub: para qué y a nombre de quién',motor:'Las ocho tareas del cerebro, como engranajes',historia:'Doce semanas, hitos y cifras',publicar:'Cómo llega un cambio a producción',aporte:'Lo que mejora para AgroFresh'};
+var current='portada', busy=false, queued=null, destino=null;
+var gearsOn=false;
+function buildIndex(){
+  $('#idx').innerHTML=ORDER.slice(2).map(function(k,i){ return '<li><button data-go="'+k+'"><span class="n">'+(i+1)+'</span><span><strong>'+esc(NAMES[k])+'</strong><small>'+esc(DESC[k])+'</small></span></button></li>'; }).join('');
+  $('#dots').innerHTML=ORDER.map(function(k){ return '<button data-go="'+k+'" aria-label="'+esc(NAMES[k])+'" title="'+esc(NAMES[k])+'"></button>'; }).join('');
+}
+function swap(id,noEnter){
+  current=id; if(destino===id) destino=null;
+  $$('section.slide').forEach(function(s){ s.hidden=(s.dataset.k!==id); s.classList.remove('enter'); });
+  var sl=$('section.slide[data-k="'+id+'"]');
+  $$('.rv',sl).forEach(function(e,i){ e.style.setProperty('--i',i); });
+  $$('#dots button').forEach(function(b){ b.setAttribute('aria-current',String(b.dataset.go===id)); });
+  var i=ORDER.indexOf(id), p=ORDER[i-1], n=ORDER[i+1], pv=$('#pv'), nx=$('#nx');
+  pv.hidden=!p; nx.hidden=!n; if(p){ pv.dataset.go=p; $('.t',pv).textContent=NAMES[p]; } if(n){ nx.dataset.go=n; $('.t',nx).textContent=NAMES[n]; }
+  $('#stripe').hidden=(id==='portada');
+  if(location.hash!=='#'+id){ try{ history.replaceState(null,'','#'+id); }catch(e){ location.hash=id; } }
+  window.scrollTo(0,0);
+  if(!noEnter){ void sl.offsetWidth; sl.classList.add('enter'); }
+  gearsOn=(id==='motor'); if(gearsOn) startGears();
+  if(id!=='viaje'){ vStop(); if(world) world.cancel(); } else { ensureWorld(); }
+  if(id==='historia') setTimeout(countNums,noEnter?1500:300);
+  emit();
+  return sl;
+}
+async function show(id,first){
+  if(ORDER.indexOf(id)<0) id='portada';
+  if(first||reduce){ swap(id); return; }
+  if(busy){ queued=id; destino=id; emit(); return; }
+  if(id===current) return;
+  busy=true; destino=id; emit(); // el teléfono ve a dónde va aunque el corte tarde en terminar
+  var idx=ORDER.indexOf(id), ws=$$('#wipe .wp'), ttl=$('#wttl'), wp=$('#wipe');
+  $('#wsm').textContent=(idx>=2?'Parada '+(idx-1):'AgroFresh Report Hub');
+  $('#wtx').innerHTML=Array.prototype.map.call(NAMES[id],function(ch){ return '<span>'+(ch===' '?'&nbsp;':esc(ch))+'</span>'; }).join('');
+  /* 1. el contenido actual se despide en cascada */
+  var curEl=$('section.slide[data-k="'+current+'"]'), outs=[];
+  $$('.rv, h2, .sh',curEl).slice(0,16).forEach(function(e,i){ outs.push(e.animate([{opacity:1,transform:'none',filter:'blur(0)'},{opacity:0,transform:'translateY(-34px) scale(.985)',filter:'blur(9px)'}],{duration:900,delay:i*70,easing:'cubic-bezier(.5,0,.75,.4)',fill:'forwards'})); });
+  await waitRaw(500);
+  /* 2. los paneles de marca cruzan la pantalla */
+  wp.style.visibility='visible';
+  var cover=ws.map(function(w,i){ return w.animate([{transform:'translateX(-135%) skewX(-16deg)'},{transform:'translateX(0%) skewX(-16deg)'}],{duration:1200,delay:i*200,easing:'cubic-bezier(.76,0,.24,1)',fill:'forwards'}).finished; });
+  await Promise.all(cover);
+  /* 3. tarjeta de título con el logo y letras que suben */
+  var sl=swap(id,true);
+  outs.forEach(function(a){ a.cancel(); });
+  ttl.style.opacity=1; ttl.animate([{opacity:0},{opacity:1}],{duration:500,fill:'forwards'});
+  var lg=$('svg',ttl); lg.animate([{transform:'scale(.2) rotate(-25deg)',opacity:0},{transform:'scale(1.12) rotate(4deg)',opacity:1,offset:.65},{transform:'none',opacity:1}],{duration:1300,easing:'cubic-bezier(.2,.8,.2,1)',fill:'both'});
+  $$('#wtx span').forEach(function(sp,i){ sp.animate([{transform:'translateY(70px)',opacity:0},{transform:'none',opacity:1}],{duration:1100,delay:350+i*55,easing:'cubic-bezier(.2,.8,.2,1)',fill:'both'}); });
+  await waitRaw(2100);
+  ttl.animate([{opacity:1},{opacity:0}],{duration:500,fill:'forwards'});
+  /* 4. se abren los paneles y el contenido nuevo entra mientras tanto */
+  void sl.offsetWidth; sl.classList.add('enter');
+  var out=ws.slice().reverse().map(function(w,i){ return w.animate([{transform:'translateX(0%) skewX(-16deg)'},{transform:'translateX(135%) skewX(-16deg)'}],{duration:1400,delay:i*210,easing:'cubic-bezier(.76,0,.24,1)',fill:'forwards'}).finished; });
+  await Promise.all(out); wp.style.visibility='hidden';
+  ws.forEach(function(w){ w.getAnimations().forEach(function(a){ a.cancel(); }); }); ttl.getAnimations().forEach(function(a){ a.cancel(); }); ttl.style.opacity=0;
+  busy=false; if(queued){ var q=queued; queued=null; show(q); }
+}
+document.addEventListener('click',function(e){
+  var ec=e.target.closest('[data-eco]'); if(ec){ openEco(ec); return; }
+  var g=e.target.closest('[data-go]'); if(g){ show(g.dataset.go); return; }
+  var c=e.target.closest('[data-copy]'); if(c){ try{ navigator.clipboard.writeText(c.dataset.copy).then(function(){ var t=c.textContent; c.textContent='Copiado'; setTimeout(function(){ c.textContent=t; },1400); },function(){}); }catch(err){} }
+});
+window.addEventListener('hashchange',function(){ var h=location.hash.replace('#',''); if(h!==current) show(h); });
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&ecoOpen){ closeEco(); return; }
+  if(ecoOpen||/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  var i=ORDER.indexOf(current);
+  if(e.key==='ArrowRight'&&i<ORDER.length-1) show(ORDER[i+1]);
+  if(e.key==='ArrowLeft'&&i>0) show(ORDER[i-1]);
+});
+$('#wipe').style.visibility='hidden'; $('#wttl').style.opacity=0;
+$('#eco-logo').addEventListener('click',closeEco); $('#eco-close').addEventListener('click',closeEco);
+$('#eco-pause').addEventListener('click',function(){ var p=this.textContent.indexOf('Pausar')>=0; if(ecoW) ecoW.pause(p); ecoPausa=p; this.textContent=p?'▶ Seguir':'⏸ Pausar'; emit(); });
+
+/* ====== sistemas que usamos ====== */
+var SISTEMAS=[
+ {ic:'i-monitor',n:'Vercel',para:'Publica la pantalla del sistema en internet y la entrega rápido desde cualquier lugar.',apo:'Cada cambio aprobado sale solo, y hay vistas previas para probar antes de que lo vea un cliente.',
+  cuenta:[['Tipo de cuenta','Plan gratuito'],['Creada con el correo',null],['Qué vive ahí','La pantalla (React). Producción sale de la rama main; las vistas previas, de la rama de desarrollo.']]},
+ {ic:'i-cloud',n:'Cloudflare',para:'Dos trabajos distintos: el túnel que conecta internet con el servidor de la oficina sin abrir puertas peligrosas, y R2, el archivador de la nube.',apo:'Seguridad para la oficina y un lugar donde los PDF y los respaldos nunca se pierden.',
+  cuenta:[['Tipo de cuenta','Gratuita, con un dominio agregado (el túnel lo necesita)'],['Creada con el correo',null],['Qué vive ahí','El túnel (cloudflared, servicio de Windows) y el bucket de archivos «agrofresh-storage» (R2).']]},
+ {ic:'i-mail',n:'Gmail',para:'Es el correo del sistema: manda las solicitudes y los informes, y recibe los informes de los laboratorios.',apo:'Los laboratorios siguen trabajando por correo, como siempre, sin aprender nada nuevo.',
+  cuenta:[['Tipo de cuenta','Cuenta Gmail común, con verificación en 2 pasos y contraseña de aplicación'],['Creada con el correo','agrofreshreporthub@gmail.com'],['Qué vive ahí','El buzón. El sistema lo lee en solo lectura: no marca, mueve ni borra nada.']]},
+ {ic:'i-code',n:'GitHub',para:'Guarda todo el código con la historia de cada cambio: quién lo hizo, cuándo y por qué.',apo:'El trabajo nunca se pierde y cualquier cambio se puede deshacer.',
+  cuenta:[['Tipo de cuenta','Cuenta personal «JSSAgrofresh» (no es una organización), con repositorio privado'],['Creada','11 de agosto de 2026, el mismo día del primer cambio del proyecto'],['Creada con el correo',null],['Qué vive ahí','El repositorio agrofresh_report_hub: 2.009 cambios y 630 fusiones.']]}
+];
+function initSistemas(){
+  $('#sys').innerHTML=SISTEMAS.map(function(s){
+    var acc=s.cuenta.map(function(r){ return '<div><dt>'+esc(r[0])+'</dt><dd>'+(r[1]===null?'<span class="todo">Por completar: correo de la cuenta</span>':esc(r[1]))+'</dd></div>'; }).join('');
+    return '<article class="sy"><div class="hd"><svg><use href="#'+s.ic+'"/></svg><h3>'+esc(s.n)+'</h3></div><p class="for"><b>Para qué lo usamos.</b> '+esc(s.para)+'</p><p class="cta2"><b>Qué nos aporta.</b> '+esc(s.apo)+'</p><dl class="acc">'+acc+'</dl></article>';
+  }).join('');
+}
+
+/* ====== engranajes ====== */
+var M=8;
+var GEARS=[
+ {id:'ingesta',lab:['Cargar los','resultados'],N:22,parent:null,q:'Toma los resultados de los laboratorios y los pone en la base, revisando que cada dato calce con el listado oficial. Lo que no calza espera a que una persona lo corrija.',a:'Datos limpios y comparables, sin digitar nada a mano.',files:[['ingest.py',1888,'Valida y carga a la base; cada carga queda registrada y se puede deshacer'],['quiteca_lectura.py',285,'Lee el PDF de Quiteca'],['homogenizador_ingesta.py',null,'Prepara los Excel antes de cargarlos']],front:'src/features/ingest · converter.html',recibe:'Correo y Pedir análisis',entrega:'Mostrar resultados'},
+ {id:'homog',lab:['Ordenar los','nombres'],N:14,parent:'ingesta',ang:100,q:'Hace que «cereza» y «Cerezas» sean lo mismo. Compara contra el listado oficial de clientes, plantas y frutas, y aprende de cada corrección a mano.',a:'Un solo nombre por cliente, planta y fruta: se puede comparar todo.',files:[['homogenizador.py',283,'Reglas de coincidencia: nombre oficial, alias, sin espacios, abreviado'],['homogenizar_converter.py',null,'Las mismas reglas del Converter'],['listados.py',null,'Los listados oficiales']],front:'src/features/homogenizar · listados',recibe:'Cargar resultados',entrega:'Cargar resultados'},
+ {id:'correo',lab:['Enviar y','recibir'],N:16,parent:'ingesta',ang:200,q:'Manda las solicitudes a los laboratorios y recibe sus informes. Revisa que el correo haya llegado a las personas correctas.',a:'Los laboratorios no cambian su forma de trabajar.',files:[['correo.py',361,'Envío de correos'],['correo_informes.py',787,'Bandeja: revisar buzón, aceptar o rechazar'],['correo_informes_lectura.py',325,'Reconoce laboratorio, OT e informe en cada PDF'],['mail_templates.py',448,'Plantillas de los correos']],front:'src/features/correoInformes',recibe:'Pedir análisis',entrega:'Cargar resultados'},
+ {id:'toma',lab:['Pedir un','análisis'],N:18,parent:'correo',ang:190,q:'Donde nace todo: el formulario de la solicitud. Genera el número único (OT), el PDF, el Excel y el JSON, y los manda al laboratorio.',a:'Pedidos rápidos, ordenados y siempre rastreables.',files:[['toma_muestras.py',3645,'El módulo más grande: formulario, reglas y listas de distribución'],['toma_muestras_pdf.py',477,'El PDF de la solicitud'],['solicitud_excel.py',448,'El Excel de la solicitud'],['indice_solicitudes.py',807,'Índice rápido de todas las solicitudes']],front:'src/features/tomaMuestras',recibe:'Nadie: es el inicio',entrega:'Enviar y recibir'},
+ {id:'verif',lab:['Verificar','equipos'],N:12,parent:'toma',ang:245,q:'Registro diario del estado de los equipos del laboratorio. Reemplaza un Excel con macros y juzga cada día con las reglas que regían ese día.',a:'Control confiable de los equipos, con firma de cada jornada.',files:[['verificaciones.py',1814,'Cálculo y reglas de cada verificación'],['verificaciones_excel.py',253,'Exporta el registro a Excel']],front:'src/features/verificaciones',recibe:'Nadie: trabaja aparte',entrega:'El laboratorio'},
+ {id:'report',lab:['Mostrar','resultados'],N:20,parent:'ingesta',ang:-20,q:'Lo que ven los clientes y el equipo: gráficos, filtros, fichas de cada informe y descarga de la base en Excel. Cada cuenta ve solo lo suyo.',a:'Los clientes consultan solos; el equipo ahorra horas de armar informes.',files:[['reportes.py',876,'Datos, resumen y filtro de alcance por cuenta'],['bd_excel.py',456,'La base completa en Excel'],['ficha_informe.py',336,'Ficha de cada informe con su PDF']],front:'src/features/reportes',recibe:'Cargar resultados',entrega:'Clientes y panel de control'},
+ {id:'panel',lab:['Controlar la','gestión'],N:14,parent:'report',ang:-60,q:'Muestra cuántas solicitudes están esperando informe, cuánto demora cada laboratorio y cuántos informes cumplen los límites.',a:'Decisiones con datos: se ve dónde se atrasa el proceso.',files:[['auditoria_interna.py',488,'Solicitudes e informes'],['entrega_indicadores.py',251,'Tiempos y plazos de entrega'],['rendimiento_calidad.py',372,'Cumple y no cumple, por cliente y semana']],front:'src/features/auditoriaInterna · rendimientoCalidad',recibe:'Mostrar resultados',entrega:'Gerencia'},
+ {id:'usuarios',lab:['Cuentas y','permisos'],N:12,parent:'report',ang:60,q:'Define quién entra y qué puede ver o hacer. También mide quién está conectado en cada momento.',a:'Seguridad y orden: cada persona accede solo a lo que le corresponde.',files:[['auth.py',450,'Sesiones y reglas de acceso'],['permisos_funciones.py',110,'Qué funciones tiene cada tipo de cuenta'],['usuarios.py',284,'Alta y edición de cuentas'],['monitoreo.py',513,'Quién está conectado, en vivo']],front:'src/features/usuarios · monitoreo',recibe:'Nadie',entrega:'Todos los módulos'}
+];
+var gearRaf=null,gearPaused=false,gearAngle=0,glast=0,GBY=null;
+function initGears(){
+  var by={};
+  GEARS.forEach(function(g){ g.r=g.N*M/2; if(!g.parent){ g.x=0; g.y=0; g.th=0; } else { var p=by[g.parent], th=g.ang*Math.PI/180; g.th=th; g.x=p.x+(p.r+g.r)*Math.cos(th); g.y=p.y+(p.r+g.r)*Math.sin(th); } by[g.id]=g; });
+  GBY=by; var minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  GEARS.forEach(function(g){ var ro=g.r+M; minx=Math.min(minx,g.x-ro); maxx=Math.max(maxx,g.x+ro); miny=Math.min(miny,g.y-ro); maxy=Math.max(maxy,g.y+ro); });
+  var pad=12, sv=$('#gear-svg');
+  sv.setAttribute('viewBox',[minx-pad,miny-pad,maxx-minx+2*pad,maxy-miny+2*pad].map(function(v){return v.toFixed(0);}).join(' '));
+  var s='';
+  GEARS.forEach(function(g){
+    var ri=g.r-M*0.95, sp='';
+    for(var k=0;k<3;k++){ var a=k*Math.PI*2/3; sp+='<line class="gs" x1="'+(ri*0.55*Math.cos(a)).toFixed(1)+'" y1="'+(ri*0.55*Math.sin(a)).toFixed(1)+'" x2="'+(ri*0.97*Math.cos(a)).toFixed(1)+'" y2="'+(ri*0.97*Math.sin(a)).toFixed(1)+'"/>'; }
+    var lines=g.lab.map(function(t,j){ var dy=(j-(g.lab.length-1)/2)*18+6; return '<text class="glab" x="0" y="'+dy+'">'+esc(t)+'</text>'; }).join('');
+    s+='<g class="gr" data-g="'+g.id+'" id="g-'+g.id+'" tabindex="0" role="button" aria-label="'+esc(g.lab.join(' '))+'" transform="translate('+g.x.toFixed(1)+' '+g.y.toFixed(1)+')"><g class="rot"><path class="gp" d="'+gearD(g.N,g.r-M*0.95,g.r+M*0.85)+'"/>'+sp+'</g>'+lines+'</g>';
+  });
+  sv.innerHTML=s;
+  sv.addEventListener('click',function(e){ var g=e.target.closest('[data-g]'); if(g) gearDetail(g.dataset.g); });
+  sv.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ var g=e.target.closest('[data-g]'); if(g){ e.preventDefault(); gearDetail(g.dataset.g); } } });
+  applyGears(0); gearDetail('ingesta');
+  $('#gpause').addEventListener('click',function(){ gearPaused=!gearPaused; this.textContent=gearPaused?'▶ Girar':'⏸ Pausar'; });
+}
+function applyGears(t){ var ph={}; GEARS.forEach(function(g){ var phi=!g.parent?t:g.th+Math.PI+(GBY[g.parent].N*(g.th-ph[g.parent])-Math.PI)/g.N; ph[g.id]=phi; var el=$('#g-'+g.id+' .rot'); if(el) el.setAttribute('transform','rotate('+(phi*180/Math.PI).toFixed(2)+')'); }); }
+function gearLoop(ts){ if(!gearsOn){ gearRaf=null; return; } if(!glast) glast=ts; var dt=(ts-glast)/1000; glast=ts; if(!gearPaused&&!reduce){ gearAngle+=dt*(Math.PI/180)*14; applyGears(gearAngle); } gearRaf=requestAnimationFrame(gearLoop); }
+function startGears(){ glast=0; if(!gearRaf) gearRaf=requestAnimationFrame(gearLoop); }
+function gearDetail(id){
+  selGear=id; emit();
+  var g=GBY[id]; $$('#gear-svg .gr').forEach(function(x){ x.classList.toggle('sel',x.dataset.g===id); });
+  var files=g.files.map(function(f){ return '<li><code>'+esc(f[0])+'</code><span>'+(f[1]?fmt(f[1])+' líneas':'')+'</span><em>'+esc(f[2])+'</em></li>'; }).join('');
+  $('#gear-det').innerHTML='<span class="tag">Engranaje</span><h3 style="font-size:36px;color:var(--d)">'+esc(g.lab.join(' ').replace('- ',''))+'</h3><dl class="kv"><div><dt>Qué hace</dt><dd>'+esc(g.q)+'</dd></div><div><dt>Qué nos aporta</dt><dd>'+esc(g.a)+'</dd></div></dl><div class="flow"><span>recibe de: '+esc(g.recibe)+'</span><span>entrega a: '+esc(g.entrega)+'</span></div><details class="dt"><summary>Detalle técnico: dónde vive en el código</summary><div class="bd"><ul class="files">'+files+'</ul><div class="tech">Pantalla: '+esc(g.front)+'</div></div></details>';
+}
+
+/* ====== historia ====== */
+var HITOS=[
+ ['11 ago','Nace el proyecto','Primer cambio guardado: una pantalla vacía lista para crecer.'],['17 ago','Primeras tablas de datos','Analitos, límites y clientes con sucursales.'],['19 ago','El listado oficial','Catálogo de clientes y plantas contra el que se valida todo.'],['31 ago','Cuentas reales y solicitudes','Usuarios con sesión real y el índice de solicitudes.'],['9 sep','Verificaciones diarias','Reemplazan el Excel con macros del control de equipos.'],['16 sep','Notificaciones','Cada persona recibe lo que le corresponde.'],['25 sep','Cargas con «Deshacer»','Cada carga de datos queda registrada y se puede revertir.'],['29 sep','Permisos de archivos','Carpetas con acceso por cuenta; el Converter aprende de las correcciones.'],['2 oct','Tres tipos de servicio','Línea de proceso, Actimist y Ecofog, cada uno con su listado.'],['19 oct','Cuentas de comerciales','Solo lectura y solo de sus plantas.'],['21 oct','Bandeja de correo de informes','Los informes que llegan al buzón se leen y esperan su aceptación.'],['22 oct','Monitoreo en vivo','Quién está conectado y qué hace, desde el teléfono.'],['26 oct','Portal de clientes','Clientes con varias plantas y especies.'],['29 oct','Muestra interna y costo por kilo','Y el reporte de Accu-Tab rediseñado.'],['30 oct','Documentación y accesos','142 páginas de documentación técnica; salen los correos de acceso a clientes.']
+];
+var NUMS=[[961,'cambios guardados por el equipo'],[630,'cambios revisados y fusionados'],[332,'acciones que el sistema sabe hacer'],[100053,'líneas de código escritas'],[73,'cambios en la estructura de la base'],[282,'archivos de prueba que vigilan que nada se rompa']];
+function initHistoria(){
+  $('#tl').innerHTML=HITOS.map(function(h){ return '<li><time>'+esc(h[0])+' 2026</time><b>'+esc(h[1])+'</b><span>'+esc(h[2])+'</span></li>'; }).join('');
+  $('#nums').innerHTML=NUMS.map(function(n){ return '<div class="num"><b data-v="'+n[0]+'">'+fmt(n[0])+'</b><span>'+esc(n[1])+'</span></div>'; }).join('');
+}
+function countNums(){ if(reduce) return; $$('#nums b').forEach(function(b){ var v=+b.dataset.v,t0=performance.now(),d=1200; (function f(t){ var k=Math.min(1,(t-t0)/d); b.textContent=fmt(Math.round(v*(1-Math.pow(1-k,3)))); if(k<1) requestAnimationFrame(f); })(t0); }); }
+
+/* ===== títulos que se revelan palabra por palabra ===== */
+function splitWords(){
+  $$('section.slide h2').forEach(function(h){
+    var n=0;
+    (function walk(node){
+      Array.prototype.slice.call(node.childNodes).forEach(function(c){
+        if(c.nodeType===3){
+          var frag=document.createDocumentFragment();
+          c.textContent.split(/(\s+)/).forEach(function(p){ if(!p) return;
+            if(/^\s+$/.test(p)) frag.appendChild(document.createTextNode(' '));
+            else { var w=document.createElement('span'); w.className='wd'; var i=document.createElement('i'); i.textContent=p; i.style.setProperty('--w',n++); w.appendChild(i); frag.appendChild(w); } });
+          c.parentNode.replaceChild(frag,c);
+        } else if(c.nodeType===1) walk(c);
+      });
+    })(h);
+  });
+}
+/* ===== puente con el sistema: control remoto desde el teléfono =====
+   Dentro de Report Hub la presentación vive en un iframe (/presentacion). Avisa su estado al marco
+   y ejecuta las órdenes que le llegan. Fuera del sistema (el artifact) no hay marco y no hace nada. */
+var selNodo=null, selGear='ingesta', tabAct='ico', ecoPausa=false;
+var embebido=(window.parent!==window);
+function estadoDeck(){ return {slide:destino||current,eco:ecoOpen,pausaEco:ecoPausa,sim:{playing:playing,paso:wcur,total:GSTEPS.length},tab:tabAct,nodo:selNodo,engranaje:selGear}; }
+function emit(){ if(!embebido) return; try{ window.parent.postMessage({tipo:'estado',estado:estadoDeck()},location.origin); }catch(e){} }
+function ejecutar(c,d){
+  d=d||{}; var i=ORDER.indexOf(current);
+  if(c==='ir'){ if(ORDER.indexOf(d.slide)>=0) show(d.slide); }
+  else if(c==='siguiente'){ if(i<ORDER.length-1) show(ORDER[i+1]); }
+  else if(c==='anterior'){ if(i>0) show(ORDER[i-1]); }
+  else if(c==='simular'){ if(current==='viaje'){ if(playing) vStop(); else autoRun(wcur>=GSTEPS.length?0:Math.max(wcur,0)); } }
+  else if(c==='paso'){ if(current==='viaje'){ vStop(); goStep(Math.max(0,Math.min(+d.n||0,GSTEPS.length-1))); } }
+  else if(c==='eco'){ if(d.abierto) openEco($('.slide:not([hidden]) .logo-btn')||document.body); else closeEco(); }
+  else if(c==='pausa_eco'){ if(ecoW){ ecoPausa=!!d.pausa; ecoW.pause(ecoPausa); $('#eco-pause').textContent=ecoPausa?'▶ Seguir':'⏸ Pausar'; } }
+  else if(c==='pestana'){ if(current==='viaje'&&(d.t==='ico'||d.t==='tok')) setTab(d.t); }
+  else if(c==='nodo'){ if(current==='viaje') selectNode(d.k); }
+  else if(c==='engranaje'){ if(current==='motor'&&GBY[d.k]) gearDetail(d.k); }
+  setTimeout(emit,120);
+}
+if(embebido){
+  window.addEventListener('message',function(e){
+    if(e.origin!==location.origin||e.source!==window.parent) return;
+    var m=e.data; if(m&&m.tipo==='cmd') ejecutar(m.cmd,m.datos);
+  });
+  setInterval(emit,1500);
+}
+
+/* ===== arranque ===== */
+splitWords(); buildIndex(); initViaje(); initSistemas(); initGears(); initHistoria();
+show((location.hash||'').replace('#','')||'portada', true);
+try{ if(!location.hash) history.replaceState(null,'','#portada'); }catch(e){}
+})();
+</script>
+
+</body>
+</html>

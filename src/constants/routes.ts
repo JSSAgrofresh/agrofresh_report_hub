@@ -35,6 +35,8 @@ export const ROUTES = {
   adminNotificaciones: '/admin/notificaciones',
   adminAdministracionGeneral: '/admin/administracion-general',
   monitoreo: '/monitoreo',
+  presentacion: '/presentacion',
+  presentacionControl: '/presentacion/control',
   vistaCliente: '/vista-cliente',
   vistaClienteReport: '/vista-cliente/reportes',
   vistaClienteStorage: '/vista-cliente/storage',
