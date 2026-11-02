@@ -46,7 +46,8 @@ SEGUNDOS_CONEXION_NUEVA = 10 * 60
 HORAS_PULSO = 24
 TOPE_LINEA_DE_TIEMPO = 250
 TOPE_ACTIVIDAD_RECIENTE = 14
-TIPOS_CLIENTE = ("cliente", "comercial")
+TIPOS_CLIENTE = ("cliente",)  # solo clientes: los comerciales son del equipo comercial y no cuentan aquí
+TIPOS_EXTERNOS = ("cliente", "comercial")
 
 
 def exigir_principal(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
@@ -297,11 +298,12 @@ def _es_accion(e: dict) -> bool:
 
 
 def filtrar_quien(eventos: list[dict], tipos: dict[str, str], quien: str) -> list[dict]:
-    """`internos` = personal de AgroFresh; `clientes` = cuentas cliente y comercial; `todos` = sin filtrar."""
+    """`internos` = personal de AgroFresh; `clientes` = solo cuentas cliente (los comerciales no entran en ninguno); `todos` = sin filtrar."""
     if quien == "todos":
         return eventos
-    clientes = quien == "clientes"
-    return [e for e in eventos if e["email"] and ((tipos.get(e["email"]) in TIPOS_CLIENTE) == clientes)]
+    if quien == "clientes":
+        return [e for e in eventos if e["email"] and tipos.get(e["email"]) in TIPOS_CLIENTE]
+    return [e for e in eventos if e["email"] and tipos.get(e["email"]) not in TIPOS_EXTERNOS]
 
 
 def top_acciones(eventos: list[dict], limite: int = 10) -> list[dict]:
@@ -505,7 +507,7 @@ def _ingresos_por_dia(desde: datetime) -> list[dict]:
 
 
 def _acumulado_clientes(desde: datetime | None) -> dict[str, Any]:
-    """Lo que han visto el sistema las cuentas cliente y comercial desde `desde` (None = desde siempre)."""
+    """Lo que han visto el sistema las cuentas cliente desde `desde` (None = desde siempre)."""
     filas = _filas(
         """WITH s AS (
                SELECT email, inicio, ultimo_latido,
@@ -650,7 +652,7 @@ def resumen(usuario: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
 @router.get("/clientes")
 def clientes_conectados(dias: int = Query(1, ge=0, le=3650), orden: str = Query("reciente", pattern="^(reciente|tiempo)$"),
                         _: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
-    """Las cuentas de cliente y comercial que se conectaron en el período, con cuánto tiempo estuvieron.
+    """Las cuentas de cliente que se conectaron en el período, con cuánto tiempo estuvieron.
     `dias=1` es «hoy» (desde la medianoche de Chile) y `dias=0`, desde que existe el registro. `orden=tiempo` arma el
     ranking de quienes más tiempo estuvieron conectados. Sin la migración 0070 responde `disponible: false`."""
     ahora = datetime.now(timezone.utc)
@@ -688,7 +690,7 @@ def historial(dias: int = Query(30, ge=7, le=90), _: Usuario = Depends(exigir_pr
 def top(dias: int = Query(7, ge=1, le=90), quien: str = Query("todos", pattern="^(todos|internos|clientes)$"),
         _: Usuario = Depends(exigir_principal)) -> dict[str, Any]:
     """Lo que más se hizo en el período: las acciones que más se repitieron, quién hizo más y qué pantallas se abrieron más.
-    `dias=1` es «hoy». `quien` filtra por personal de AgroFresh o por cuentas cliente y comercial."""
+    `dias=1` es «hoy». `quien` filtra por personal de AgroFresh o por cuentas cliente."""
     ahora = datetime.now(timezone.utc)
     desde = inicio_del_dia(ahora) if dias == 1 else ahora - timedelta(days=dias)
     tipos = _tipos_de_cuenta()
