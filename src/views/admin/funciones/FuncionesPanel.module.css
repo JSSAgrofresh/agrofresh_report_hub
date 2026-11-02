@@ -114,3 +114,37 @@
   border-radius: var(--radius-md);
   font: inherit;
 }
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.enlaceBoton,
+.enlaceSecundario {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.4rem;
+  padding: 0 1rem;
+  border: 1.5px solid var(--color-primary, #40af49);
+  border-radius: var(--radius-md, 10px);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.enlaceBoton {
+  background: var(--color-primary, #40af49);
+  color: #fff;
+}
+
+.enlaceSecundario {
+  background: transparent;
+  color: var(--color-primary, #40af49);
+}
+
+.enlaceBoton:hover,
+.enlaceSecundario:hover {
+  filter: brightness(0.92);
+}

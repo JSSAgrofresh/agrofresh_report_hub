@@ -1,0 +1,82 @@
+.aviso {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  z-index: 80;
+  display: flex;
+  align-items: stretch;
+  width: min(92vw, 420px);
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: #315f38;
+  color: #fff;
+  box-shadow: 0 10px 28px -8px rgba(20, 48, 25, 0.55);
+  animation: entra 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes entra {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 24px) scale(0.92);
+  }
+}
+
+.enlace {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.7rem 0.6rem 0.7rem 1.1rem;
+  color: inherit;
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.enlace span {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.enlace i {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #f1c318;
+  animation: latido 1.6s ease-in-out infinite;
+}
+
+@keyframes latido {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.enlace b {
+  flex: none;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: #f1c318;
+  color: #2a2200;
+  font-size: 0.8rem;
+}
+
+.cerrar {
+  flex: none;
+  width: 2.6rem;
+  border: 0;
+  border-radius: 0 999px 999px 0;
+  background: transparent;
+  color: #d6ebd2;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aviso,
+  .enlace i {
+    animation: none;
+  }
+}

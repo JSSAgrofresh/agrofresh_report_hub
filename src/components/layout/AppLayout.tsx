@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { MobileTopbar } from './MobileTopbar'
 import { LoadingBar } from './LoadingBar'
+import { AvisoPresentacion } from './AvisoPresentacion'
 import { PortalShell } from './portal/PortalShell'
 import { useTemaCuenta } from './portal/tema'
 import { avisarVisita } from '@/features/adminPanel'
@@ -47,6 +48,7 @@ export function AppLayout() {
   return (
     <div className={styles.shell}>
       <LoadingBar />
+      <AvisoPresentacion />
       <MobileTopbar onAbrirMenu={() => setMenuAbierto(true)} />
       <div className={styles.cuerpo}>
         <Sidebar abierto={menuAbierto} onCerrar={() => setMenuAbierto(false)} />

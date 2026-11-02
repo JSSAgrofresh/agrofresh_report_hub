@@ -35,6 +35,8 @@ import { ListadosView } from '@/views/admin/ListadosView'
 import { LaboratoriosView } from '@/views/admin/laboratorios/LaboratoriosView'
 import { NotificacionesView } from '@/views/admin/NotificacionesView'
 import { MonitoreoView } from '@/views/monitoreo/MonitoreoView'
+import { PresentacionControlView } from '@/views/presentacion/PresentacionControlView'
+import { PresentacionView } from '@/views/presentacion/PresentacionView'
 import { NotFoundView } from '@/views/not-found/NotFoundView'
 
 export const router = createBrowserRouter([
@@ -45,7 +47,12 @@ export const router = createBrowserRouter([
       {
         // Monitoreo: pantalla de bolsillo (teléfono en vertical) del administrador principal; la vista misma revisa que lo sea.
         element: <RequireAdminGeneral />,
-        children: [{ path: ROUTES.monitoreo, element: <MonitoreoView /> }],
+        children: [
+          { path: ROUTES.monitoreo, element: <MonitoreoView /> },
+          // La presentación del sistema (computador) y su control remoto (teléfono): solo el administrador general.
+          { path: ROUTES.presentacion, element: <PresentacionView /> },
+          { path: ROUTES.presentacionControl, element: <PresentacionControlView /> },
+        ],
       },
       {
         // El administrador general y quien tenga la función «Vista de cliente» miran el portal de clientes con su propia cuenta.

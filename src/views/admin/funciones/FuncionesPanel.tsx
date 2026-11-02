@@ -11,6 +11,7 @@ import type { DestinoTema } from './EstiloPorCuenta'
 import { CORREO_MAESTRO } from '@/features/usuarios'
 import { HttpError } from '@/services/http/client'
 import { fechaHora } from '@/lib/fechaHoraChile'
+import { ROUTES } from '@/constants/routes'
 import styles from './FuncionesPanel.module.css'
 
 const TEMAS: { id: TemaCliente; nombre: string; detalle: string }[] = [
@@ -256,6 +257,22 @@ export function FuncionesPanel() {
           )}
         </div>
       )}
+
+      <div className={styles.tarjeta}>
+        <h2 className={styles.titulo}>Presentación del sistema</h2>
+        <p className={styles.texto}>
+          El recorrido por dentro de Report Hub, explicado para cualquier público: el viaje de un análisis, los sistemas que usamos y el
+          ecosistema en vivo. Se abre a pantalla completa en este computador y, con tu misma cuenta, la manejas desde el teléfono: avanzar y
+          retroceder, simular, activar paneles y leer notas que solo ves tú.
+        </p>
+        <div className={styles.acciones}>
+          <a className={styles.enlaceBoton} href={ROUTES.presentacion} target="_blank" rel="noopener">Abrir la presentación</a>
+          <a className={styles.enlaceSecundario} href={ROUTES.presentacionControl}>Abrir el control remoto (teléfono)</a>
+        </div>
+        <p className={styles.pie}>
+          Cuando abras la presentación aquí, en tu teléfono sale un aviso para manejarla. Solo cuentas de administrador general.
+        </p>
+      </div>
 
       {confirmacion && (
         <Modal

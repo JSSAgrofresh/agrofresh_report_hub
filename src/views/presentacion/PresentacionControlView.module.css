@@ -1,0 +1,371 @@
+/* Control remoto: teléfono en vertical, con los colores de la plantilla de AgroFresh. */
+.control {
+  --verde: #40af49;
+  --oscuro: #315f38;
+  --amarillo: #f1c318;
+  --suave: #f3f8ee;
+  --borde: #d6e5cb;
+  min-height: 100dvh;
+  padding: calc(0.8rem + env(safe-area-inset-top, 0px)) max(0.9rem, env(safe-area-inset-right, 0px))
+    calc(1.5rem + env(safe-area-inset-bottom, 0px)) max(0.9rem, env(safe-area-inset-left, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  max-width: 560px;
+  margin: 0 auto;
+  background: #fff;
+  color: #1c2b1f;
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.salir {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  background: var(--suave);
+  color: var(--oscuro);
+  font-size: 1.2rem;
+  text-decoration: none;
+}
+
+.titulo {
+  flex: 1;
+  margin: 0;
+  color: var(--oscuro);
+  font-size: 1.5rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+.enLinea,
+.sinLinea {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.enLinea {
+  background: #dff3de;
+  color: #1e5c25;
+}
+
+.sinLinea {
+  background: #fff4c8;
+  color: #7a5f00;
+}
+
+.enLinea i,
+.sinLinea i {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.enLinea i {
+  animation: latido 1.6s ease-in-out infinite;
+}
+
+@keyframes latido {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.espera {
+  padding: 1rem;
+  border: 2px dashed var(--amarillo);
+  border-radius: 16px;
+  background: #fffbe6;
+}
+
+.espera h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+}
+
+.espera p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.error {
+  margin: 0.5rem 0 0;
+  padding: 0.55rem 0.8rem;
+  border-radius: 10px;
+  background: #fde8e6;
+  color: #8a2a21;
+  font-size: 0.85rem;
+}
+
+.actual {
+  padding: 1rem;
+  border-radius: 18px;
+  background: var(--oscuro);
+  color: #fff;
+}
+
+.actual h2 {
+  margin: 0.15rem 0 0;
+  font-size: 2rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.actual p {
+  margin: 0.3rem 0 0;
+  color: #d6ebd2;
+  font-size: 0.9rem;
+}
+
+.contador {
+  display: inline-block;
+  padding: 0.05rem 0.55rem;
+  border-radius: 6px;
+  background: var(--amarillo);
+  color: #2a2200;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.flechas {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+
+.flecha {
+  min-height: 3.6rem;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 16px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 1.15rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.flecha.principal {
+  border-color: var(--verde);
+  background: var(--verde);
+}
+
+.flecha:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.flecha:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.luego {
+  font-size: 0.82rem !important;
+}
+
+.notas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.9rem;
+  border: 1px solid #efdc8a;
+  border-radius: 16px;
+  background: #fffbe6;
+}
+
+.notas label {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.notas label small {
+  font-weight: 400;
+  color: #7a5f00;
+}
+
+.notas textarea {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #e2cf74;
+  border-radius: 10px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.estadoNota {
+  min-height: 1em;
+  color: #7a5f00;
+  font-size: 0.75rem;
+}
+
+.notaSiguiente {
+  margin: 0;
+  padding-top: 0.4rem;
+  border-top: 1px dashed #e2cf74;
+  font-size: 0.82rem;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem;
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+  background: var(--suave);
+}
+
+.panel h3 {
+  margin: 0;
+  color: var(--oscuro);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.fila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.boton {
+  flex: 1 1 auto;
+  min-height: 3rem;
+  padding: 0 1rem;
+  border: 2px solid var(--oscuro);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--oscuro);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.boton.principal {
+  border-color: var(--verde);
+  background: var(--verde);
+  color: #fff;
+}
+
+.boton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pasos,
+.saltos {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saltos {
+  grid-template-columns: 1fr 1fr;
+}
+
+.paso,
+.pasoActual {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 2.8rem;
+  padding: 0.4rem 0.7rem;
+  border: 1.5px solid var(--borde);
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pasoActual {
+  border-color: var(--oscuro);
+  background: var(--amarillo);
+  font-weight: 700;
+}
+
+.paso b,
+.pasoActual b {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--verde);
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.pasoActual b {
+  background: var(--oscuro);
+}
+
+.paso:disabled,
+.pasoActual:disabled,
+.chip:disabled,
+.chipOn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip,
+.chipOn {
+  min-height: 2.4rem;
+  padding: 0 0.8rem;
+  border: 1.5px solid var(--borde);
+  border-radius: 999px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chipOn {
+  border-color: var(--oscuro);
+  background: var(--oscuro);
+  color: #fff;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enLinea i {
+    animation: none;
+  }
+  .flecha:active:not(:disabled) {
+    transform: none;
+  }
+}

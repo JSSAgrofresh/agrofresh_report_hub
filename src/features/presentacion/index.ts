@@ -1,0 +1,6 @@
+export { usePresentacionPC } from './hooks/usePresentacionPC'
+export { useEstadoPresentacion } from './hooks/useEstadoPresentacion'
+export { enviarComando, guardarNotaPresentacion } from './api'
+export type { Comando, EstadoPresentacion, RespuestaEstado, TipoComando } from './api'
+export { DIAPOSITIVAS, ENGRANAJES, NODOS, PASOS_SIMULACION, anteriorDe, diapositivaDe, indiceDe, siguienteDe } from './lib/diapositivas'
+export type { Diapositiva } from './lib/diapositivas'
