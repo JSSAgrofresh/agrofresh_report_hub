@@ -80,20 +80,20 @@ describe('PresentacionControlView (el control remoto del teléfono)', () => {
     const { unmount } = render(<PresentacionControlView />)
     expect(screen.queryByRole('region', { name: 'Simulación' })).toBeNull()
     unmount()
-    api.estado = { datos: activa({ slide: 'viaje', sim: { playing: false, paso: 1, total: 7 }, nodo: 'B' }), error: null }
+    api.estado = { datos: activa({ slide: 'viaje', sim: { playing: false, paso: 1, total: 8 }, nodo: 'B' }), error: null }
     render(<PresentacionControlView />)
     fireEvent.click(screen.getByRole('button', { name: /Simular/ }))
     expect(api.enviarComando).toHaveBeenCalledWith('simular', undefined)
     fireEvent.click(screen.getByRole('button', { name: /Paso →/ }))
     expect(api.enviarComando).toHaveBeenCalledWith('paso', { n: 2 })
-    fireEvent.click(screen.getByRole('button', { name: 'Administrador' }))
-    expect(api.enviarComando).toHaveBeenCalledWith('nodo', { k: 'A' })
+    fireEvent.click(screen.getByRole('button', { name: 'Administrador general' }))
+    expect(api.enviarComando).toHaveBeenCalledWith('nodo', { k: 'G' })
     fireEvent.click(screen.getByRole('button', { name: 'Qué viaja' }))
     expect(api.enviarComando).toHaveBeenCalledWith('pestana', { t: 'tok' })
   })
 
   it('mientras simula, el botón dice Pausar', () => {
-    api.estado = { datos: activa({ slide: 'viaje', sim: { playing: true, paso: 0, total: 7 } }), error: null }
+    api.estado = { datos: activa({ slide: 'viaje', sim: { playing: true, paso: 0, total: 8 } }), error: null }
     render(<PresentacionControlView />)
     expect(screen.getByRole('button', { name: /Pausar/ })).toBeTruthy()
   })

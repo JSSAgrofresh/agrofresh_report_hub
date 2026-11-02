@@ -22,7 +22,7 @@ describe('diapositivas', () => {
   })
 
   it('los paneles que se activan desde el teléfono coinciden con los de la presentación', () => {
-    expect(PASOS_SIMULACION).toHaveLength(7)
+    expect(PASOS_SIMULACION).toHaveLength(8)
     expect(NODOS).toHaveLength(14)
     expect(ENGRANAJES.map((g) => g.k)).toEqual(['ingesta', 'homog', 'correo', 'toma', 'verif', 'report', 'panel', 'usuarios'])
   })

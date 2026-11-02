@@ -38,32 +38,33 @@ export function anteriorDe(id: string | undefined): Diapositiva | undefined {
   return i > 0 ? DIAPOSITIVAS[i - 1] : undefined
 }
 
-/** Los siete pasos de la simulación de «Report Hub». */
+/** Los ocho pasos de la simulación de «Report Hub». */
 export const PASOS_SIMULACION = [
-  'Un técnico pide un análisis',
-  'El laboratorio analiza y responde',
+  'Los técnicos emiten una solicitud',
+  'El laboratorio externo analiza y responde',
   'Tú decides: aceptar o rechazar',
-  'Llega una muestra de AgroFresh',
+  'Llega una muestra al laboratorio AgroFresh',
+  'La jefa de cromatografía envía el informe',
   'Las verificaciones del laboratorio',
   'Los clientes entran y descargan',
-  'Todos miran el panel en vivo',
+  'Todo el equipo mira el panel en vivo',
 ] as const
 
 /** Los íconos del mapa, en el orden de la presentación (clave = id del nodo dentro del mundo). */
 export const NODOS = [
   { k: 'T', nombre: 'Técnicos' },
   { k: 'M', nombre: 'Muestras' },
-  { k: 'L', nombre: 'Lab AgroFresh' },
-  { k: 'G', nombre: 'Equipo GC' },
+  { k: 'N', nombre: 'Analistas de cromatografía' },
+  { k: 'J', nombre: 'Jefa de cromatografía' },
   { k: 'V', nombre: 'Verificaciones' },
+  { k: 'U', nombre: 'Equipo AgroFresh' },
   { k: 'C', nombre: 'Correo' },
   { k: 'X', nombre: 'Laboratorios' },
+  { k: 'G', nombre: 'Administrador general' },
   { k: 'B', nombre: 'Backend' },
   { k: 'D', nombre: 'Base de datos' },
   { k: 'F', nombre: 'Archivos' },
-  { k: 'A', nombre: 'Administrador' },
   { k: 'P', nombre: 'Pantalla' },
-  { k: 'U', nombre: 'Equipo AgroFresh' },
   { k: 'K', nombre: 'Clientes' },
 ] as const
 
