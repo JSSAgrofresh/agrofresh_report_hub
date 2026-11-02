@@ -317,23 +317,49 @@ details.dt .bd{padding:9px 12px;font-size:14px}
 /* sistemas */
 .sys{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(8px,1.2vw,14px);margin-top:clamp(6px,1.4vh,16px);min-height:0}
 @media(max-width:999px){.sys{grid-template-columns:minmax(0,1fr)}}
-.sy{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:clamp(10px,1.8vh,16px);position:relative;overflow:auto;transition:.35s var(--ease);min-height:0}
-.sy:hover{transform:translateY(-3px);border-color:var(--g);box-shadow:0 14px 30px -18px rgba(49,95,56,.45)}
-.sy::before{content:"";position:absolute;right:-30px;top:-30px;width:100px;height:100px;background:var(--soft);border-radius:50%;z-index:0}
-.sy>*{position:relative}
-.sy .hd{display:flex;align-items:center;gap:10px}
-.sy .hd svg{width:clamp(38px,6vh,48px);height:clamp(38px,6vh,48px);border-radius:12px;padding:9px;background:var(--g);color:#fff;flex:none}
-.sy:nth-child(3n+2) .hd svg{background:var(--y);color:#2a2200}
-.sy:nth-child(3n+3) .hd svg{background:var(--d)}
-.sy h3{font-size:clamp(26px,4.4vh,34px);color:var(--d)}
-.sy .for{margin-top:clamp(4px,1vh,10px);font-size:clamp(12.5px,1.9vh,15px);line-height:1.4}
-.sy .cta2{margin-top:6px;color:var(--muted);font-size:clamp(12px,1.8vh,14px);line-height:1.4}
-.acc{margin-top:clamp(6px,1.2vh,12px);border-top:2px dashed var(--line);padding-top:clamp(6px,1vh,10px);display:grid;gap:clamp(3px,.8vh,7px)}
+.sy{--b:var(--g);--bt:#fff;--b2:var(--soft);background:var(--paper);border:1.5px solid var(--b);border-radius:18px;padding:0;position:relative;overflow:hidden;transition:.35s var(--ease);min-height:0;display:flex;flex-direction:column}
+.sy:hover{transform:translateY(-3px);box-shadow:0 16px 32px -18px var(--b)}
+.sy .hd{display:flex;align-items:center;gap:12px;background:var(--b);color:var(--bt);padding:clamp(8px,1.5vh,13px) clamp(10px,1.6vh,16px);flex:none}
+.sy .hd svg{width:clamp(34px,5.4vh,46px);height:clamp(34px,5.4vh,46px);flex:none}
+.sy h3{font-size:clamp(26px,4.4vh,36px);color:var(--bt);letter-spacing:.01em}
+.sy .bd{padding:clamp(8px,1.4vh,14px) clamp(10px,1.6vh,16px) 0;flex:none}
+.sy .for{font-size:clamp(12.5px,1.9vh,15px);line-height:1.4}
+.sy .cta2{margin-top:5px;color:var(--muted);font-size:clamp(12px,1.8vh,14px);line-height:1.4}
+.sy .an{flex:1;min-height:0;margin:clamp(6px,1vh,10px) clamp(10px,1.6vh,16px) clamp(10px,1.6vh,16px);border-radius:12px;background:var(--b2);overflow:hidden;display:grid;place-items:center;min-height:clamp(52px,9vh,150px)}
+.sy .an svg{width:100%;height:100%;display:block}
+.sy .an text{font-family:var(--f-mono);font-size:11px;fill:#444}
+.acc{margin-top:clamp(6px,1vh,10px);border-top:2px dashed var(--line);padding-top:clamp(5px,.9vh,9px);display:grid;gap:clamp(2px,.6vh,5px)}
 .acc div{display:grid;grid-template-columns:minmax(0,1fr);gap:0;font-size:clamp(12px,1.8vh,13.5px);line-height:1.3}
-.acc dt{font:500 10px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--g)}
+.acc dt{font:500 10px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--b)}
 .acc dd{margin:0;word-break:break-word}
 .todo{display:inline-block;background:#fff4c8;border:1px dashed #d7b100;color:#7a5f00;border-radius:6px;padding:0 7px;font:500 12px var(--f-mono)}
 
+/* ===== diapositiva «Cómo se actualiza»: diagrama activo ===== */
+#c-sistemas>.in{max-width:none;padding-right:clamp(10px,3.2vw,56px)}
+#c-sistemas h2{font-size:clamp(22px,4.4vh,42px)}
+#c-sistemas .sh{margin-bottom:0}
+#c-sistemas .lead{font-size:clamp(12.5px,1.9vh,16px);margin-top:2px}
+#c-publicar>.in{max-width:none;padding-right:clamp(10px,3.2vw,56px)}
+#c-publicar h2{font-size:clamp(22px,4.4vh,42px)}
+#c-publicar .sh{margin-bottom:0}
+.pubgrid{display:flex;flex-direction:column;gap:clamp(6px,1.2vh,12px);margin-top:clamp(2px,.6vh,8px);min-height:0}
+.pubgrid .stage{flex:1;min-height:clamp(180px,34vh,400px);position:relative}
+@media(min-width:1000px){#pub-host{position:absolute;inset:0}}
+@media(max-width:999px){#pub-host{min-width:760px;aspect-ratio:1600/490}.pubgrid .stage{overflow-x:auto}}
+.pubcap{flex:none;background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:clamp(8px,1.4vh,14px) clamp(10px,1.6vw,18px);display:grid;gap:clamp(5px,1vh,10px)}
+.pchips{display:flex;gap:6px;flex-wrap:wrap}
+.pchips button{border:1.5px solid var(--line);background:var(--paper);border-radius:99px;padding:3px 11px;font:700 14px var(--f-title);text-transform:uppercase;letter-spacing:.02em;color:var(--muted);transition:.25s}
+.pchips button.cur{background:var(--d);border-color:var(--d);color:#fff}
+.pchips button.done{border-color:var(--g);color:var(--d)}
+.pbody{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,26%);gap:clamp(8px,1.4vw,18px);align-items:stretch}
+@media(max-width:999px){.pbody{grid-template-columns:minmax(0,1fr)}}
+.ptx h3{font-size:clamp(20px,3.4vh,28px);color:var(--d)}
+.ptx p{font-size:clamp(12.5px,2vh,15.5px);line-height:1.4;margin-top:3px}
+.ptu{background:#fff8d6;border:1.5px solid #ecd35a;border-radius:12px;padding:8px 12px}
+.ptu b{font:700 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:#7a5f00;display:block}
+.ptu p{font-size:clamp(13px,2vh,16px);font-weight:600;color:#3d3000;margin-top:2px;line-height:1.3}
+.pcm{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.pcm .btn{font:500 12px var(--f-mono);padding:4px 9px}
 /* historia / publicar / aporte */
 .hist{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(0,1fr);gap:clamp(8px,1.4vw,16px);margin-top:clamp(6px,1.4vh,16px);min-height:0}
 @media(max-width:999px){.hist{grid-template-columns:minmax(0,1fr)}}
@@ -413,6 +439,10 @@ html,body{margin:0}img{max-width:100%}
     <symbol id="i-check" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="8" width="30" height="35" rx="4"/><path d="M17 8V5h14v3"/><path d="M16 26l6 6 10-12"/></g></symbol>
     <symbol id="i-eye" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 24s8-13 20-13 20 13 20 13-8 13-20 13S4 24 4 24Z"/><circle cx="24" cy="24" r="6"/></g></symbol>
     <symbol id="i-cloud" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 36a9 9 0 0 1-1-17.900A12 12 0 0 1 36 16a10 10 0 0 1 0 20Z"/></g></symbol>
+    <symbol id="i-list" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 12h22M18 24h22M18 36h22"/><path d="M8 12h.01M8 24h.01M8 36h.01" stroke-width="6"/></g></symbol>
+    <symbol id="i-spark" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"><path d="M24 5v38M5 24h38M11 11l26 26M37 11L11 37"/></g></symbol>
+    <symbol id="i-card" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="6" width="30" height="36" rx="5"/><path d="M16 17h16M16 25h16M16 33h9"/></g></symbol>
+    <symbol id="i-server" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="9" width="34" height="13" rx="3"/><rect x="7" y="26" width="34" height="13" rx="3"/><path d="M13 15.5h.01M13 32.5h.01" stroke-width="6"/></g></symbol>
     <symbol id="i-cam" viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="14" width="38" height="26" rx="5"/><circle cx="24" cy="27" r="7"/><path d="M16 14l3-6h10l3 6"/></g></symbol>
   </defs>
 </svg>
@@ -532,19 +562,17 @@ html,body{margin:0}img{max-width:100%}
 <section class="slide" id="c-publicar" data-k="publicar" hidden><div class="in">
   <div class="sh"><button class="logo-btn" data-eco aria-label="Abrir el ecosistema en vivo" title="Ecosistema en vivo"><img src="agrofresh-logo.png" alt="AgroFresh"><span class="live"></span></button><div class="kick"><i></i>5 · Cómo se actualiza</div></div>
   <h2>De la idea a <em>producción</em></h2>
-  <p class="lead rv">Un cambio nunca se prueba en producción: primero se escribe y se revisa aparte, y recién después llega a los clientes.</p>
-  <div class="ship rv">
-    <div class="s" data-n="1"><b>Se programa</b><p>El cambio se escribe en una rama aparte, sin tocar lo que usan los clientes. Cada avance genera una vista previa para probar.</p></div>
-    <div class="s" data-n="2"><b>Se aprueba</b><p>Cuando está listo se fusiona con la versión estable, llamada <b>main</b>. Queda registrado quién y cuándo.</p></div>
-    <div class="s" data-n="3"><b>Se publica la pantalla</b><p>Vercel toma la versión estable y publica solo la pantalla nueva. Nadie tiene que hacer nada.</p></div>
-    <div class="s" data-n="4"><b>Se actualiza el servidor</b><p>En el computador de la oficina se trae la versión nueva, se actualiza la base si hace falta y se reinicia el cerebro.</p></div>
+  <div class="pubgrid fill">
+    <div class="stage rv"><div id="pub-host"></div></div>
+    <div class="pubcap rv" aria-live="polite">
+      <div class="pchips" id="pchips"></div>
+      <div class="pbody">
+        <div class="ptx"><h3 id="ptt"></h3><p id="ppx"></p><div class="pcm" id="pcm"></div></div>
+        <div class="ptu"><b>Lo que hago yo</b><p id="ptu"></p></div>
+      </div>
+      <div class="ctl"><button class="btn" id="pprev" aria-label="Paso anterior">←</button><button class="btn pri" id="pplay">⏸ Pausar</button><button class="btn" id="pnext" aria-label="Paso siguiente">→</button></div>
+    </div>
   </div>
-  <div class="cmdbox rv"><details class="dt"><summary>Detalle técnico: los comandos del servidor (PowerShell)</summary><div class="bd">
-    <p>Se repiten en cada actualización:</p>
-    <div class="cmd"><code>git checkout main; git pull origin main</code><button class="btn" data-copy="git checkout main; git pull origin main">Copiar</button></div>
-    <div class="cmd"><code>.venv\Scripts\python.exe scripts\migrar.py 0072_presentacion_remota.sql</code><button class="btn" data-copy=".venv\Scripts\python.exe scripts\migrar.py 0072_presentacion_remota.sql">Copiar</button></div>
-    <div class="cmd"><code>Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"; Start-Sleep 3; Start-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"</code><button class="btn" data-copy='Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"; Start-Sleep 3; Start-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"'>Copiar</button></div>
-    <p class="hint">El segundo comando es un ejemplo: solo se corre cuando el cambio trae una migración de la base.</p></div></details></div>
 </div></section>
 
 <!-- 6 APORTE -->
@@ -560,7 +588,7 @@ html,body{margin:0}img{max-width:100%}
   </div>
   <div class="thanks rv">
     <svg viewBox="0 0 32 32" aria-hidden="true"><use href="#rh"/></svg>
-    <div><h3>Gracias a todos los que lo hicieron posible</h3><p>Al equipo de AgroFresh, a los laboratorios y a los clientes que probaron, corrigieron y confiaron. Desarrollo asistido con <b>Claude</b> (Anthropic).</p></div>
+    <div><h3>Gracias a todos los que lo hicieron posible</h3><p>Al equipo de AgroFresh, a los laboratorios y a los clientes que probaron, corrigieron y confiaron.</p></div>
   </div>
 </div></section>
 
@@ -1175,6 +1203,7 @@ function swap(id,noEnter){
   window.scrollTo(0,0);
   if(!noEnter){ void sl.offsetWidth; sl.classList.add('enter'); }
   gearsOn=(id==='motor'); if(gearsOn) startGears();
+  pubOn(id==='publicar');
   if(id!=='viaje'){ vStop(); if(world) world.cancel(); } else { ensureWorld(); }
   if(id==='historia') setTimeout(countNums,noEnter?1500:300);
   emit();
@@ -1256,21 +1285,121 @@ $('#eco-pause').addEventListener('click',function(){ var p=this.textContent.inde
 
 /* ====== sistemas que usamos ====== */
 var SISTEMAS=[
- {ic:'i-monitor',n:'Vercel',para:'Publica la pantalla del sistema en internet y la entrega rápido desde cualquier lugar.',apo:'Cada cambio aprobado sale solo, y hay vistas previas para probar antes de que lo vea un cliente.',
-  cuenta:[['Tipo de cuenta','Plan gratuito'],['Creada con el correo',null],['Qué vive ahí','La pantalla (React). Producción sale de la rama main; las vistas previas, de la rama de desarrollo.']]},
- {ic:'i-cloud',n:'Cloudflare',para:'Dos trabajos: el túnel que conecta internet con el servidor de la oficina sin abrir puertas peligrosas, y R2, el archivador de la nube.',apo:'Seguridad para la oficina y un lugar donde los PDF y los respaldos nunca se pierden.',
+ {k:'vercel',n:'Vercel',b:'#111111',bt:'#ffffff',b2:'#f1f1f2',para:'Publica la pantalla del sistema en internet y la entrega rápido desde cualquier lugar.',apo:'Cada cambio aprobado sale solo, y hay vistas previas para probar antes de que lo vea un cliente.',
+  logo:'<path d="M24 6 44 40H4Z" fill="currentColor"/>',
+  cuenta:[['Tipo de cuenta','Plan gratuito'],['Creada con el correo',null],['Qué vive ahí','La pantalla (React). Producción sale de main; las vistas previas, de la rama de desarrollo.']]},
+ {k:'cloudflare',n:'Cloudflare',b:'#f6821f',bt:'#ffffff',b2:'#fff1e3',para:'Dos trabajos: el túnel que conecta internet con el servidor de la oficina sin abrir puertas peligrosas, y R2, el archivador de la nube.',apo:'Seguridad para la oficina y un lugar donde los PDF y los respaldos nunca se pierden.',
+  logo:'<path d="M14 36a8 8 0 0 1-1.2-15.9A11 11 0 0 1 34 17.5 9 9 0 0 1 35 36Z" fill="currentColor"/>',
   cuenta:[['Tipo de cuenta','Gratuita, con un dominio agregado (el túnel lo necesita)'],['Creada con el correo',null],['Qué vive ahí','El túnel (cloudflared, servicio de Windows) y el bucket «agrofresh-storage» (R2).']]},
- {ic:'i-mail',n:'Gmail',para:'Es el correo del sistema: manda las solicitudes y los informes, y recibe los informes de los laboratorios.',apo:'Los laboratorios siguen trabajando por correo, como siempre, sin aprender nada nuevo.',
+ {k:'gmail',n:'Gmail',b:'#ea4335',bt:'#ffffff',b2:'#fdeceb',para:'Es el correo del sistema: manda las solicitudes y los informes, y recibe los informes de los laboratorios.',apo:'Los laboratorios siguen trabajando por correo, como siempre, sin aprender nada nuevo.',
+  logo:'<rect x="5" y="10" width="38" height="28" rx="4" fill="none" stroke="currentColor" stroke-width="3.5"/><path d="M6 14l18 14 18-14" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round"/>',
   cuenta:[['Tipo de cuenta','Cuenta Gmail común, con verificación en 2 pasos y contraseña de aplicación'],['Creada con el correo','agrofreshreporthub@gmail.com'],['Qué vive ahí','El buzón. El sistema lo lee en solo lectura: no marca, mueve ni borra nada.']]},
- {ic:'i-code',n:'GitHub',para:'Guarda todo el código con la historia de cada cambio: quién lo hizo, cuándo y por qué.',apo:'El trabajo nunca se pierde y cualquier cambio se puede deshacer.',
+ {k:'github',n:'GitHub',b:'#24292f',bt:'#ffffff',b2:'#eceef1',para:'Guarda todo el código con la historia de cada cambio: quién lo hizo, cuándo y por qué.',apo:'El trabajo nunca se pierde y cualquier cambio se puede deshacer.',
+  logo:'<path transform="scale(3)" fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>',
   cuenta:[['Tipo de cuenta','Cuenta personal «JSSAgrofresh» (no es una organización), con repositorio privado'],['Creada','11 de agosto de 2026, el mismo día del primer cambio'],['Creada con el correo',null],['Qué vive ahí','El repositorio agrofresh_report_hub: 2.009 cambios y 630 fusiones.']]}
 ];
+/* mini-escenas animadas (llenan el espacio de cada tarjeta) */
+var ESCENA={
+ vercel:'<svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMid meet"><rect x="12" y="44" width="84" height="36" rx="9" fill="#111"/><text x="54" y="67" text-anchor="middle" style="fill:#fff;font-size:15px">main</text><text x="54" y="34" text-anchor="middle">versión estable</text><path d="M100 62H150" stroke="#999" stroke-width="2" stroke-dasharray="4 5"/><circle r="5" fill="#111"><animateMotion path="M100 62H150" dur="2.4s" repeatCount="indefinite"/></circle><rect x="152" y="30" width="116" height="64" rx="10" fill="#fff" stroke="#111" stroke-width="2"/><path d="M178 50l8 14h-16z" fill="#111"/><text x="196" y="60" style="font-size:12px">build</text><rect x="166" y="76" width="88" height="8" rx="4" fill="#ddd"/><rect x="166" y="76" height="8" rx="4" fill="#111"><animate attributeName="width" values="0;88;88;0" keyTimes="0;.6;.9;1" dur="4s" repeatCount="indefinite"/></rect><path d="M270 62H300" stroke="#999" stroke-width="2" stroke-dasharray="4 5"/><rect x="300" y="22" width="88" height="80" rx="9" fill="#fff" stroke="#111" stroke-width="2"/><path d="M300 38H388" stroke="#111" stroke-width="2"/><circle cx="310" cy="30" r="2.5" fill="#999"/><circle cx="319" cy="30" r="2.5" fill="#999"/><rect x="312" y="74" width="12" height="20" fill="#40af49"><animate attributeName="height" values="6;20;20;6" keyTimes="0;.5;.9;1" dur="4s" repeatCount="indefinite"/><animate attributeName="y" values="88;74;74;88" keyTimes="0;.5;.9;1" dur="4s" repeatCount="indefinite"/></rect><rect x="332" y="62" width="12" height="32" fill="#f1c318"/><rect x="352" y="52" width="12" height="42" fill="#315f38"/><g><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;.55;.65;.92;1" dur="4s" repeatCount="indefinite"/><circle cx="376" cy="40" r="9" fill="#40af49"/><path d="M371 40l4 4 6-8" fill="none" stroke="#fff" stroke-width="2.4"/></g><text x="200" y="128" text-anchor="middle">cada cambio aprobado sale solo</text></svg>',
+ cloudflare:'<svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMid meet"><rect x="12" y="24" width="56" height="38" rx="6" fill="#fff" stroke="#f6821f" stroke-width="2.5"/><path d="M30 72h20M40 62v10" stroke="#f6821f" stroke-width="2.5"/><text x="40" y="92" text-anchor="middle">oficina</text><path d="M68 43H176" stroke="#f6821f" stroke-width="7" stroke-linecap="round" stroke-dasharray="3 12"><animate attributeName="stroke-dashoffset" from="30" to="0" dur="1.2s" repeatCount="indefinite"/></path><path d="M178 56a14 14 0 0 1 2-27 20 20 0 0 1 38-6 16 16 0 0 1 8 33z" fill="#f6821f"/><text x="200" y="14" text-anchor="middle">túnel</text><path d="M232 43H322" stroke="#f6821f" stroke-width="7" stroke-linecap="round" stroke-dasharray="3 12"><animate attributeName="stroke-dashoffset" from="30" to="0" dur="1.2s" repeatCount="indefinite"/></path><circle cx="352" cy="43" r="22" fill="#fff" stroke="#f6821f" stroke-width="2.5"/><path d="M330 43h44M352 21c-10 12-10 32 0 44M352 21c10 12 10 32 0 44" fill="none" stroke="#f6821f" stroke-width="1.8"/><circle cx="352" cy="43" r="22" fill="none" stroke="#f6821f" stroke-width="2"><animate attributeName="r" values="22;34" dur="2.4s" repeatCount="indefinite"/><animate attributeName="opacity" values=".7;0" dur="2.4s" repeatCount="indefinite"/></circle><text x="352" y="82" text-anchor="middle">internet</text><ellipse cx="200" cy="124" rx="40" ry="9" fill="#fff" stroke="#f6821f" stroke-width="2.5"/><path d="M160 124v14a40 9 0 0 0 80 0v-14" fill="#ffe2c4" stroke="#f6821f" stroke-width="2.5"/><rect x="190" y="96" width="20" height="14" rx="2" fill="#fff" stroke="#c0601a" stroke-width="1.8"><animate attributeName="y" values="86;118" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.2;.8;1" dur="2s" repeatCount="indefinite"/></rect><text x="262" y="132">R2 · archivador</text></svg>',
+ gmail:'<svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMid meet"><rect x="14" y="40" width="64" height="48" rx="9" fill="#fff" stroke="#ea4335" stroke-width="2.5"/><text x="46" y="68" text-anchor="middle" style="font-size:12px;fill:#ea4335">sistema</text><path d="M326 90V50l12-14 12 14v40z" fill="none"/><path d="M350 38v26l22 26H328l22-26" fill="#fff" stroke="#ea4335" stroke-width="2.5" stroke-linejoin="round"/><text x="350" y="112" text-anchor="middle" style="font-size:12px;fill:#ea4335">laboratorio</text><path d="M84 50H318" stroke="#f3b6b1" stroke-width="2" stroke-dasharray="4 5"/><path d="M318 80H84" stroke="#f3b6b1" stroke-width="2" stroke-dasharray="4 5"/><g><animateMotion path="M84 50H300" dur="3.6s" repeatCount="indefinite"/><rect x="-13" y="-9" width="26" height="18" rx="3" fill="#ea4335"/><path d="M-12 -8l12 9 12-9" fill="none" stroke="#fff" stroke-width="1.8"/></g><g><animateMotion path="M300 80H100" dur="3.6s" begin="1.8s" repeatCount="indefinite"/><rect x="-10" y="-12" width="20" height="24" rx="3" fill="#fff" stroke="#d9483b" stroke-width="2"/><text x="0" y="4" text-anchor="middle" style="font-size:9px;fill:#d9483b">PDF</text></g><text x="200" y="40" text-anchor="middle">solicitud ➜</text><text x="200" y="104" text-anchor="middle">➜ informe</text></svg>',
+ github:'<svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMid meet"><text x="14" y="22">rama de desarrollo</text><path d="M20 38H250" stroke="#40af49" stroke-width="3"/><text x="14" y="128">main (versión estable)</text><path d="M20 108H388" stroke="#24292f" stroke-width="3"/><g fill="#40af49"><circle cx="50" cy="38" r="0"><animate attributeName="r" values="0;8;8;0" keyTimes="0;.1;.9;1" dur="6s" repeatCount="indefinite"/></circle><circle cx="110" cy="38" r="0"><animate attributeName="r" values="0;0;8;8;0" keyTimes="0;.15;.25;.9;1" dur="6s" repeatCount="indefinite"/></circle><circle cx="170" cy="38" r="0"><animate attributeName="r" values="0;0;8;8;0" keyTimes="0;.3;.4;.9;1" dur="6s" repeatCount="indefinite"/></circle><circle cx="230" cy="38" r="0"><animate attributeName="r" values="0;0;8;8;0" keyTimes="0;.45;.55;.9;1" dur="6s" repeatCount="indefinite"/></circle></g><path d="M230 38C262 38 262 108 296 108" fill="none" stroke="#f1c318" stroke-width="3.5" stroke-dasharray="120" stroke-dashoffset="120"><animate attributeName="stroke-dashoffset" values="120;120;0;0;120" keyTimes="0;.55;.7;.92;1" dur="6s" repeatCount="indefinite"/></path><circle cx="296" cy="108" r="0" fill="#24292f"><animate attributeName="r" values="0;0;9;9;0" keyTimes="0;.65;.72;.92;1" dur="6s" repeatCount="indefinite"/></circle><circle cx="296" cy="108" r="9" fill="none" stroke="#f1c318" stroke-width="2.5"><animate attributeName="r" values="9;24" dur="6s" begin="3.9s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;.8;0" keyTimes="0;.1;1" dur="6s" begin="3.9s" repeatCount="indefinite"/></circle><text x="330" y="94">fusión</text></svg>'
+};
 function initSistemas(){
   $('#sys').innerHTML=SISTEMAS.map(function(s){
     var acc=s.cuenta.map(function(r){ return '<div><dt>'+esc(r[0])+'</dt><dd>'+(r[1]===null?'<span class="todo">Por completar: correo de la cuenta</span>':esc(r[1]))+'</dd></div>'; }).join('');
-    return '<article class="sy"><div class="hd"><svg><use href="#'+s.ic+'"/></svg><h3>'+esc(s.n)+'</h3></div><p class="for"><b>Para qué lo usamos.</b> '+esc(s.para)+'</p><p class="cta2"><b>Qué nos aporta.</b> '+esc(s.apo)+'</p><dl class="acc">'+acc+'</dl></article>';
+    return '<article class="sy" style="--b:'+s.b+';--bt:'+s.bt+';--b2:'+s.b2+'"><div class="hd"><svg viewBox="0 0 48 48" aria-hidden="true">'+s.logo+'</svg><h3>'+esc(s.n)+'</h3></div><div class="bd"><p class="for"><b>Para qué lo usamos.</b> '+esc(s.para)+'</p><p class="cta2"><b>Qué nos aporta.</b> '+esc(s.apo)+'</p><dl class="acc">'+acc+'</dl></div><div class="an" aria-hidden="true">'+ESCENA[s.k]+'</div></article>';
   }).join('');
+  if(reduce) $$('#sys svg').forEach(function(v){ try{ v.pauseAnimations(); }catch(e){} });
 }
+
+/* ====== «Cómo se actualiza»: diagrama activo ====== */
+var PUB=null;
+var PUBPASOS=[
+ {c:'Tarea',t:'Hay una tarea',p:'Mis tareas viven en un listado: el artifact «Tareas Report Hub». Están ordenadas de la más difícil a la más fácil y repartidas por día (6 horas diarias; el resto queda libre para investigar). Después de cada reunión se agregan ahí.',tu:'Elijo la tarea que toca hoy.',f:['T','J'],run:function(P){ return P.fly('e_tj','TAREA','#c26a1d'); }},
+ {c:'Claude',t:'Abro un chat con Claude',p:'Cada chat parte con la palabra «start»: Claude abre el aviso de despliegue y el listado de tareas, y me dice qué quedó pendiente en el servidor. Con eso sabe dónde quedamos, sin que le explique todo de nuevo.',tu:'Escribo start y le pido la tarea.',f:['J','C','T'],run:function(P){ return P.fly('e_jc','START','#315f38'); }},
+ {c:'Programa',t:'Claude programa y prueba',p:'Claude escribe el cambio en una rama aparte de GitHub, corre las pruebas y lo mira en un navegador real. Cada avance genera una vista previa en Vercel: lo que ven los clientes no se mueve mientras tanto.',tu:'Miro la vista previa y pido ajustes.',f:['C','G','V'],run:function(P){ return P.fly('e_cg','</>','#4a6fa5').then(function(){ return P.fly('e_gv','VISTA PREVIA','#7a4fa8'); }); }},
+ {c:'Revisión',t:'Revisión de código diaria',p:'Cada día reviso el código que se escribió: qué cambió, si hay riesgos y si las pruebas pasan. Es el control de calidad antes de publicar nada a los clientes.',tu:'Reviso y apruebo (o pido corregir).',f:['J','R','G'],run:function(P){ return P.fly('e_jr','REVISO','#1e7b45'); }},
+ {c:'Publica',t:'Se fusiona y se publica la pantalla',p:'Claude abre el cambio hacia main, la versión estable, y lo fusiona: queda registrado quién y cuándo. Vercel toma main y publica la pantalla nueva sin que nadie haga nada; los clientes la ven al recargar.',tu:'Nada: la pantalla sale sola.',f:['G','V','K'],run:function(P){ return P.fly('e_gv','MAIN','#24292f').then(function(){ return P.fly('e_vk','PANTALLA NUEVA','#40af49'); }); }},
+ {c:'Aviso',t:'Claude deja el aviso de despliegue',p:'Al terminar, Claude actualiza SIEMPRE el mismo artifact, «Listo para publicar»: lleva el número de la actualización, un color que cambia en cada versión y solo los pasos de ese cambio (pull, migración si hay, reinicio).',tu:'Abro la tarjeta del aviso.',f:['C','A','J'],run:function(P){ return P.fly('e_ca','AVISO','#f1c318','#2a2200').then(function(){ return P.fly('e_aj','AVISO','#f1c318','#2a2200'); }); }},
+ {c:'Servidor',t:'Actualizo el servidor de la oficina',p:'Copio los comandos de la tarjeta, cada uno en su consola de PowerShell, en este orden. El servidor queda con el código nuevo, el túnel de Cloudflare lo entrega a internet y los clientes ya lo usan.',tu:'Pego 3 comandos y listo.',f:['J','A','S','F','K'],cmds:[['1 · Pull','git checkout main; git pull origin main'],['2 · Migración (solo si hay)','.venv\\Scripts\\python.exe scripts\\migrar.py NNNN_nombre.sql'],['3 · Reiniciar el backend','Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"; Start-Sleep 3; Start-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"']],run:function(P){ return P.fly('e_as','COMANDOS','#40af49').then(function(){ return P.fly('e_sf','TÚNEL','#f6821f'); }).then(function(){ return P.fly('e_fk','LISTO','#40af49'); }); }}
+];
+var PNODOS=[
+ {id:'T',x:130,y:150,ic:'i-list',t:['Tareas'],s:'Listado de tareas'},
+ {id:'J',x:420,y:150,ic:'i-person',t:['Jorge'],s:'Yo'},
+ {id:'C',x:710,y:150,ic:'i-spark',t:['Claude'],s:'Asistente de código'},
+ {id:'G',x:1010,y:150,ic:'i-code',t:['GitHub'],s:'Desarrollo y main'},
+ {id:'V',x:1310,y:150,ic:'i-monitor',t:['Vercel'],s:'Publica la pantalla'},
+ {id:'R',x:420,y:388,ic:'i-eye',t:['Revisión','de código'],s:'Todos los días'},
+ {id:'A',x:710,y:388,ic:'i-card',t:['Aviso de','despliegue'],s:'Listo para publicar'},
+ {id:'S',x:1010,y:388,ic:'i-server',t:['Servidor','de la oficina'],s:'Cerebro y base'},
+ {id:'F',x:1230,y:388,ic:'i-cloud',t:['Cloudflare'],s:'Túnel y archivador'},
+ {id:'K',x:1460,y:388,ic:'i-building',t:['Clientes'],s:'Ven lo nuevo'}
+];
+var PEDGES={e_tj:'M172,150H378',e_jc:'M462,150H668',e_cg:'M752,150H968',e_gv:'M1052,150H1268',e_jr:'M420,252V346',e_ca:'M710,236V346',e_aj:'M668,388C570,388 520,290 462,194',e_as:'M752,388H968',e_sf:'M1052,388H1188',e_fk:'M1272,388H1418',e_vk:'M1352,150H1540V388H1502'};
+function initPub(){
+  var host=$('#pub-host'); host.classList.add('world');
+  var svg=mk('svg',{viewBox:'0 40 1600 480',preserveAspectRatio:'xMidYMid meet',role:'img','aria-label':'De la idea a producción'},host);
+  function txt(p,cls,x,y,s,at){ var e=mk('text',{class:cls,x:x,y:y},p); if(at) for(var k in at) e.setAttribute(k,at[k]); e.textContent=s; return e; }
+  var zg=mk('g',{},svg);
+  function zona(x,y,w,h,t,sb){ mk('rect',{class:'zone',x:x,y:y,width:w,height:h,rx:26},zg); txt(zg,'zl',x+24,y+32,t); var z=txt(zg,'zs',x+w-24,y+30,sb); z.setAttribute('text-anchor','end'); }
+  zona(20,64,900,452,'Mi día de trabajo','Jorge y Claude');
+  zona(940,64,640,220,'En la nube','');
+  zona(940,296,640,220,'Oficina e internet','');
+  var E={},FL={},N={};
+  Object.keys(PEDGES).forEach(function(k){ E[k]=mk('path',{class:'ed',d:PEDGES[k]},svg); });
+  Object.keys(PEDGES).forEach(function(k){ mk('path',{class:'fl',d:PEDGES[k]},svg); });
+  PNODOS.forEach(function(n,i){
+    var g=mk('g',{class:'nd in',id:'pn'+n.id,style:'--d:'+i},svg);
+    mk('rect',{class:'tile',x:n.x-42,y:n.y-42,width:84,height:84,rx:19},g);
+    mk('use',{href:'#'+n.ic,x:n.x-26,y:n.y-26,width:52,height:52,class:'ic'},g);
+    n.t.forEach(function(l,j){ txt(g,'nl',n.x,n.y+64+j*25,l); });
+    txt(g,'ns',n.x,n.y+64+(n.t.length-1)*25+23,n.s);
+    N[n.id]=g;
+  });
+  var tokL=mk('g',{style:'pointer-events:none'},svg);
+  var gen=0, cur=-1, timer=null, playing=true, active=false;
+  function focus(list){ Object.keys(N).forEach(function(k){ var on=list.indexOf(k)>=0; N[k].classList.toggle('focus',on); N[k].classList.toggle('dim',list.length>0&&!on); }); }
+  function fly(key,label,col,fg){
+    return new Promise(function(res){
+      var el=E[key], len=el.getTotalLength(), g=mk('g',{class:'tok'},tokL), w=Math.max(54,label.length*10+22);
+      mk('rect',{x:-w/2,y:-17,width:w,height:34,rx:9,fill:col,stroke:'#fff','stroke-width':2.5},g);
+      var t=mk('text',{x:0,y:5,style:'fill:'+(fg||'#fff')},g); t.textContent=label;
+      el.classList.add('on'); var my=gen, t0=performance.now(), D=reduce?30:2600;
+      (function f(now){
+        if(my!==gen){ g.remove(); el.classList.remove('on'); return res(); }
+        var k=Math.min(1,(now-t0)/D), ke=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2, p=el.getPointAtLength(ke*len);
+        g.setAttribute('transform','translate('+p.x.toFixed(1)+' '+p.y.toFixed(1)+')'); g.setAttribute('opacity',Math.min(1,k*10).toFixed(2));
+        if(k<1) requestAnimationFrame(f); else { g.remove(); setTimeout(function(){ el.classList.remove('on'); },500); res(); }
+      })(t0);
+    });
+  }
+  var chips=$('#pchips');
+  chips.innerHTML=PUBPASOS.map(function(p,i){ return '<button data-i="'+i+'">'+(i+1)+' · '+esc(p.c)+'</button>'; }).join('');
+  function pinta(i){
+    var p=PUBPASOS[i];
+    $$('#pchips button').forEach(function(b,j){ b.className=j<i?'done':(j===i?'cur':''); });
+    $('#ptt').textContent=p.t; $('#ppx').textContent=p.p; $('#ptu').textContent=p.tu;
+    var cm=$('#pcm'); cm.innerHTML='';
+    if(p.cmds) p.cmds.forEach(function(c){ var b=document.createElement('button'); b.className='btn'; b.type='button'; b.setAttribute('data-copy',c[1]); b.textContent='Copiar · '+c[0]; cm.appendChild(b); });
+  }
+  function go(i){
+    gen++; cur=(i+PUBPASOS.length)%PUBPASOS.length; clearTimeout(timer); var my=gen, p=PUBPASOS[cur];
+    $$('.tok',svg).forEach(function(x){ x.remove(); }); Object.keys(E).forEach(function(k){ E[k].classList.remove('on'); });
+    pinta(cur); focus(p.f);
+    Promise.resolve(p.run({fly:fly})).then(function(){
+      if(my!==gen||!playing||!active) return;
+      timer=setTimeout(function(){ if(my===gen&&playing&&active) go(cur+1); },reduce?400:4200);
+    });
+  }
+  chips.addEventListener('click',function(e){ var b=e.target.closest('[data-i]'); if(b){ go(+b.dataset.i); } });
+  $('#pprev').addEventListener('click',function(){ go(cur-1); });
+  $('#pnext').addEventListener('click',function(){ go(cur+1); });
+  $('#pplay').addEventListener('click',function(){ playing=!playing; $('#pplay').textContent=playing?'⏸ Pausar':'▶ Seguir'; if(playing) go(cur+1); else clearTimeout(timer); });
+  pinta(0); focus([]);
+  return {start:function(){ if(active) return; active=true; go(0); },stop:function(){ active=false; gen++; clearTimeout(timer); $$('.tok',svg).forEach(function(x){ x.remove(); }); Object.keys(E).forEach(function(k){ E[k].classList.remove('on'); }); }};
+}
+function pubOn(on){ if(!PUB) return; if(on) PUB.start(); else PUB.stop(); }
 
 /* ====== engranajes ====== */
 var M=8;
@@ -1374,7 +1503,7 @@ function splitWords(){
   });
 }
 /* ===== arranque ===== */
-splitWords(); buildIndex(); initViaje(); initSistemas(); initGears(); initHistoria();
+splitWords(); buildIndex(); initViaje(); initSistemas(); PUB=initPub(); initGears(); initHistoria();
 show((location.hash||'').replace('#','')||'portada', true);
 try{ if(!location.hash) history.replaceState(null,'','#portada'); }catch(e){}
 })();
