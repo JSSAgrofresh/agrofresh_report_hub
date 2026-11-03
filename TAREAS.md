@@ -45,3 +45,4 @@ Orden: lo más difícil primero (9 h estimadas; ver si algo pasa a mañana).
 | 21 | Renombrar «Costo por kilo» a «C&M 500» (Reportes Accutab) | Hecha (03-11) |
 | 22 | Panel de control interno: Ecofog con su propia dona y su grupo en la tabla (aparte de Actimist) y donas más chicas para que todo quepa | Hecha (03-11) |
 | 23 | C&M 500: el subtítulo de la sección dice «Carga y mantenimiento - Producto usado por día» | Hecha (03-11) |
+| 24 | Cargar el plan final de entregables (Entregables_cerezas_26-27): reemplaza al anterior y guarda y muestra Original y Propuesta | Hecha en código (03-11, migración 0073); falta correr la 0073 y subir el Excel en Administración General → Plan de entregables |

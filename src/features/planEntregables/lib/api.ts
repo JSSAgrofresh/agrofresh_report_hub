@@ -1,17 +1,27 @@
 import { httpClient } from '@/services/http/client'
 
+/** Las dos versiones del entregable que trae el plan: lo que había entregado el comercial (original) y la propuesta. */
+export type VersionPlan = 'original' | 'propuesta'
+
 export interface PlantaPlan {
   planta: string
   servicio: 'residuales' | 'fsma' | 'fito' | 'otro'
-  cantidad: number
+  original: number
+  propuesta: number
 }
 
-/** Lo prometido a un Sold To en la temporada, por fila del gráfico. */
-export interface ClientePlan {
-  sold_to: string
+export interface CantidadesPlan {
   residuales: number
   fsma: number
   fito: number
+}
+
+/** Lo prometido a un Sold To en la temporada, por fila del gráfico, en sus dos versiones (original y propuesta). */
+export interface ClientePlan {
+  sold_to: string
+  comercial?: string | null
+  original: CantidadesPlan
+  propuesta: CantidadesPlan
   plantas: PlantaPlan[]
 }
 
@@ -27,8 +37,13 @@ export interface ResumenCargaPlan {
   temporada: string
   filas_leidas: number
   filas_validas: number
+  /** Filas repetidas que se fusionaron (no cuentan doble). */
+  filas_fusionadas?: number
+  /** Filas sin Original ni Propuesta: se saltan. */
+  filas_sin_cantidad?: number
   clientes: number
-  por_servicio: Record<string, number>
+  plantas?: number
+  por_servicio: Record<string, { original: number; propuesta: number }>
   descartados: { sold_to: string; motivo: string; filas: number }[]
 }
 

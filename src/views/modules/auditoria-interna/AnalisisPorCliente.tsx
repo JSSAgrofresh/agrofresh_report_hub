@@ -37,9 +37,31 @@ function CeldasLab({ nombre, c, total, color }: { nombre: string; c: CeldaClient
   )
 }
 
-/** Las celdas de una línea: análisis, reparto por laboratorio (residuales, en la misma línea), total y entregables. */
-function CeldasLinea({ l, entregable }: { l: Linea; entregable?: { cant: number | null; hechos: number } | false }) {
-  const avance = entregable ? avancePlan(entregable.hechos, entregable.cant) : null
+/** Lo prometido en las dos versiones del plan (original y propuesta) y lo que llevamos hecho. */
+type Entregable = { original: number | null; propuesta: number | null; hechosOriginal: number; hechosPropuesta: number }
+
+/** Cantidad prometida y % de avance de UNA versión del entregable. */
+function CeldasEntregable({ cant, hechos, version }: { cant: number | null; hechos: number; version: 'original' | 'propuesta' }) {
+  const nombre = version === 'original' ? 'Entregable original' : 'Entregable propuesto'
+  const avance = avancePlan(hechos, cant)
+  return (
+    <>
+      {cant === null ? (
+        <td className={styles.pendienteDato} title={`${nombre}: el plan no trae este análisis para este cliente`}>—</td>
+      ) : (
+        <td className={styles.valor} title={`${nombre}: análisis prometidos en la temporada`}><b className={styles.cifra}>{nf.format(cant)}</b></td>
+      )}
+      {avance === null ? (
+        <td className={styles.pendienteDato}>—</td>
+      ) : (
+        <td className={styles.pct} title={`${nf.format(hechos)} de ${nf.format(cant ?? 0)} (${nombre.toLowerCase()})`}>{pct(avance)}</td>
+      )}
+    </>
+  )
+}
+
+/** Las celdas de una línea: análisis, reparto por laboratorio (residuales, en la misma línea), total y entregables (original y propuesto). */
+function CeldasLinea({ l, entregable }: { l: Linea; entregable?: Entregable | false }) {
   return (
     <>
       <th scope="row" className={styles.lineaGrupo} style={{ color: l.color }}>
@@ -58,16 +80,8 @@ function CeldasLinea({ l, entregable }: { l: Linea; entregable?: { cant: number 
       </td>
       {entregable !== undefined && entregable !== false && (
         <>
-          {entregable.cant === null ? (
-            <td className={styles.pendienteDato} title="El plan de entregables no trae este análisis para este cliente">—</td>
-          ) : (
-            <td className={styles.valor} title="Análisis prometidos en la temporada (plan de entregables)"><b className={styles.cifra}>{nf.format(entregable.cant)}</b></td>
-          )}
-          {avance === null ? (
-            <td className={styles.pendienteDato}>—</td>
-          ) : (
-            <td className={styles.pct} title={`${nf.format(entregable.hechos)} de ${nf.format(entregable.cant ?? 0)} prometidos`}>{pct(avance)}</td>
-          )}
+          <CeldasEntregable cant={entregable.original} hechos={entregable.hechosOriginal} version="original" />
+          <CeldasEntregable cant={entregable.propuesta} hechos={entregable.hechosPropuesta} version="propuesta" />
         </>
       )}
     </>
@@ -77,7 +91,7 @@ function CeldasLinea({ l, entregable }: { l: Linea; entregable?: { cant: number 
 /**
  * El cuerpo del gráfico «Análisis por cliente»: cada cliente hacia abajo, el que más
  * análisis lleva primero, con el detalle: una fila por análisis (Residuales con su reparto por laboratorio en columnas, cantidad y % del total de residuales, FSMA y FITO),
- * con su total, los entregables y el %. Los clientes del listado que todavía no tienen ningún análisis salen al final,
+ * con su total, los dos entregables (original y propuesto) y el % de cada uno. Los clientes del listado que todavía no tienen ningún análisis salen al final,
  * apagados (solo cuando se agrupa por Sold To).
  * «Entregables» = lo que cada comercial concretó de cada análisis para cada planta: ese dato
  * se carga aparte (plan de entregables), por ahora queda en blanco.
@@ -129,21 +143,28 @@ export function AnalisisPorCliente({
   const nFito = suma((x) => x.fito)
   const nTotal = filas.reduce((n, x) => n + x.total, 0)
   /** Entregables de una fila del gráfico: lo prometido y lo hecho, contando solo los clientes que el plan trae. */
-  const entregableDe = (f: (typeof filas)[number], l: Linea) => {
-    const cant = l.plan ? cantidadPlan(planDe(f.cliente), l.plan) : null
-    return { cant, hechos: l.c.n }
-  }
-  const entregableTotal = (l: Linea) => {
-    let cant = 0
-    let hechos = 0
-    for (const f of filas) {
-      const c = l.plan ? cantidadPlan(planDe(f.cliente), l.plan) : null
-      if (c === null) continue
-      cant += c
-      const x = l.plan === 'residuales' ? f.agrofresh.n + f.quiteca.n : l.plan === 'fsma' ? f.fsma.n : f.fito.n
-      hechos += x
+  const entregableDe = (f: (typeof filas)[number], l: Linea): Entregable => ({
+    original: l.plan ? cantidadPlan(planDe(f.cliente), l.plan, 'original') : null,
+    propuesta: l.plan ? cantidadPlan(planDe(f.cliente), l.plan, 'propuesta') : null,
+    hechosOriginal: l.c.n,
+    hechosPropuesta: l.c.n,
+  })
+  /** Total de una fila del gráfico: cada versión suma solo los clientes que ESA versión trae, y lo hecho cuenta solo esos mismos. */
+  const entregableTotal = (l: Linea): Entregable => {
+    const sumar = (version: 'original' | 'propuesta') => {
+      let cant = 0
+      let hechos = 0
+      for (const f of filas) {
+        const c = l.plan ? cantidadPlan(planDe(f.cliente), l.plan, version) : null
+        if (c === null) continue
+        cant += c
+        hechos += l.plan === 'residuales' ? f.agrofresh.n + f.quiteca.n : l.plan === 'fsma' ? f.fsma.n : f.fito.n
+      }
+      return { cant: cant > 0 ? cant : null, hechos }
     }
-    return { cant: cant > 0 ? cant : null, hechos }
+    const o = sumar('original')
+    const p = sumar('propuesta')
+    return { original: o.cant, propuesta: p.cant, hechosOriginal: o.hechos, hechosPropuesta: p.hechos }
   }
 
   return (
@@ -156,7 +177,7 @@ export function AnalisisPorCliente({
             <col style={{ width: '10%' }} /><col style={{ width: '5%' }} /><col style={{ width: '6%' }} />
             <col style={{ width: '10%' }} /><col style={{ width: '5%' }} /><col style={{ width: '6%' }} />
             <col style={{ width: '9%' }} />
-            {conPlan && <><col style={{ width: '8%' }} /><col style={{ width: '8%' }} /></>}
+            {conPlan && <><col style={{ width: '6%' }} /><col style={{ width: '5%' }} /><col style={{ width: '6%' }} /><col style={{ width: '5%' }} /></>}
           </colgroup>
           <thead>
             <tr className={styles.grupos}>
@@ -164,13 +185,16 @@ export function AnalisisPorCliente({
               <th rowSpan={2} className={styles.colAnalisis}>Análisis</th>
               <th colSpan={6} className={styles.gResiduales}>Laboratorio · cantidad y % del total de residuales</th>
               <th rowSpan={2} className={styles.gTotal}>Total</th>
-              {conPlan && <th colSpan={2} className={styles.gEntregable}>Entregables</th>}
+              {conPlan && <th colSpan={2} className={styles.gEntregable} title="Lo que había entregado el comercial (archivo de entregables, columna Original)">Entregable original</th>}
+              {conPlan && <th colSpan={2} className={styles.gEntregable} title="La propuesta del plan de entregables (columna Propuesta)">Entregable propuesto</th>}
             </tr>
             <tr className={styles.subs}>
               <th>Lab.</th><th>Cant.</th><th>%</th>
               <th>Lab.</th><th>Cant.</th><th>%</th>
-              {conPlan && <th className={styles.gEntregable} title="Análisis prometidos en la temporada, según el plan de entregables de los comerciales">Cant.</th>}
-              {conPlan && <th className={styles.gEntregable} title="Lo que llevamos ÷ lo prometido">%</th>}
+              {conPlan && <th className={styles.gEntregable} title="Análisis del entregable original">Cant.</th>}
+              {conPlan && <th className={styles.gEntregable} title="Lo que llevamos ÷ el entregable original">%</th>}
+              {conPlan && <th className={styles.gEntregable} title="Análisis del entregable propuesto">Cant.</th>}
+              {conPlan && <th className={styles.gEntregable} title="Lo que llevamos ÷ el entregable propuesto">%</th>}
             </tr>
           </thead>
           {filas.map((f, i) => {
@@ -196,10 +220,10 @@ export function AnalisisPorCliente({
                 ))}
                 {conPlan && abiertos.has(f.cliente) && (
                   <tr className={styles.filaPlantas}>
-                    <td colSpan={10}>
-                      <span className={styles.plantasTitulo}>Prometido por planta del plan</span>
+                    <td colSpan={12}>
+                      <span className={styles.plantasTitulo}>Por planta del plan (original / propuesto)</span>
                       {planDe(f.cliente)?.plantas.map((p, k) => (
-                        <span key={k} className={styles.planta}>{p.planta} · {p.servicio === 'residuales' ? 'Residuales' : p.servicio === 'fsma' ? 'FSMA' : p.servicio === 'fito' ? 'FITO' : 'Otro'} <b>{nf.format(p.cantidad)}</b></span>
+                        <span key={k} className={styles.planta}>{p.planta} · {p.servicio === 'residuales' ? 'Residuales' : p.servicio === 'fsma' ? 'FSMA' : p.servicio === 'fito' ? 'FITO' : 'Otro'} <b>{nf.format(p.original)} / {nf.format(p.propuesta)}</b></span>
                       ))}
                     </td>
                   </tr>
@@ -212,7 +236,7 @@ export function AnalisisPorCliente({
               {apagados.map((nombre) => (
                 <tr key={nombre} className={styles.apagado}>
                   <th scope="row" className={styles.cliente}><em>·</em><span title={nombre}>{nombre}</span></th>
-                  <td colSpan={conPlan ? 10 : 8}><span className={styles.cero}>Sin análisis</span></td>
+                  <td colSpan={conPlan ? 12 : 8}><span className={styles.cero}>Sin análisis</span></td>
                 </tr>
               ))}
             </tbody>
