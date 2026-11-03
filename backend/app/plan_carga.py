@@ -291,6 +291,31 @@ def resumen_por_cliente(filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(por.values(), key=lambda c: c["sold_to"])
 
 
+def _semanas_por_cliente() -> dict[str, list[dict[str, Any]]]:
+    """Lo prometido por Sold To × planta × servicio × semana (Original y Propuesta). Sin la 0073 (sin columna `semana`) o sin la
+    tabla, devuelve vacío: el resto del resumen no depende de esto."""
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            cur.execute(
+                "SELECT sold_to, planta_plan, servicio, semana, COALESCE(SUM(original), 0) AS original,"
+                " COALESCE(SUM(propuesta), 0) AS propuesta FROM plan_entregable"
+                " WHERE temporada = %s AND semana IS NOT NULL GROUP BY sold_to, planta_plan, servicio, semana",
+                (TEMPORADA,),
+            )
+            filas = cur.fetchall()
+    except (psycopg2.errors.UndefinedColumn, psycopg2.errors.UndefinedTable):
+        return {}
+    por: dict[str, list[dict[str, Any]]] = {}
+    for f in filas:
+        if f["servicio"] not in ("residuales", "fsma", "fito"):
+            continue
+        por.setdefault(f["sold_to"], []).append({
+            "planta": f["planta_plan"] or f["sold_to"], "servicio": f["servicio"], "semana": f["semana"],
+            "original": int(f["original"]), "propuesta": int(f["propuesta"]),
+        })
+    return por
+
+
 @router.get("/resumen", dependencies=[Depends(solo_interno)])
 def resumen() -> dict[str, Any]:
     """Lo prometido por Sold To (Original y Propuesta). Sin la tabla (falta la 0062) devuelve vacío y lo avisa."""
@@ -318,9 +343,14 @@ def resumen() -> dict[str, Any]:
     except psycopg2.errors.UndefinedTable:
         return {"temporada": TEMPORADA, "clientes": [], "cargado_en": None, "migracion_pendiente": True}
     cargado = max((f["cargado_en"] for f in filas), default=None)
+    clientes = resumen_por_cliente([dict(f) for f in filas])
+    # Semana a semana (solo existe con la 0073): sirve para comparar lo hecho contra lo que tocaba cada semana.
+    semanas = _semanas_por_cliente()
+    for c in clientes:
+        c["semanas"] = semanas.get(c["sold_to"], [])
     return {
         "temporada": TEMPORADA,
-        "clientes": resumen_por_cliente([dict(f) for f in filas]),
+        "clientes": clientes,
         "cargado_en": cargado.isoformat() if cargado else None,
         "migracion_pendiente": False,
     }

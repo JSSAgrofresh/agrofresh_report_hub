@@ -1,4 +1,5 @@
 export * from './lib/api'
 export * from './lib/plan'
 export * from './lib/detalle'
+export * from './lib/avanceSemanal'
 export * from './hooks'

@@ -1,0 +1,40 @@
+.cuerpo { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+
+.barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: 12.5px; }
+.grupo { display: flex; align-items: center; gap: 8px; color: var(--color-text-muted); }
+.grupo select {
+  height: 30px; padding: 0 10px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; font: inherit; color: var(--color-text);
+}
+.seg { display: inline-flex; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: #fff; }
+.seg button { border: 0; background: transparent; padding: 6px 12px; font: inherit; cursor: pointer; color: var(--color-text-muted); }
+.seg button[aria-pressed='true'] { background: #26352c; color: #fff; }
+
+.caja { border: 1px solid var(--color-border); border-radius: 12px; overflow: auto; background: #fff; }
+.tabla { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.tabla th, .tabla td { padding: 5px 10px; text-align: center; border-bottom: 1px solid #e9eee7; white-space: nowrap; }
+
+.grupos th {
+  position: sticky; top: 0; z-index: 2; padding: 8px 10px 6px; font-size: 12px; font-weight: 700;
+  border-top: 3px solid var(--c, #9aa5a0); background: #f6f8f4; color: var(--c, #3a4a40);
+}
+.grupos small { margin-left: 6px; font-size: 10.5px; font-weight: 500; color: var(--color-text-muted); }
+.subs th { position: sticky; top: 33px; z-index: 2; padding: 3px 10px 5px; font-size: 10.5px; font-weight: 600; color: var(--color-text-muted); background: #fff; }
+.colCliente { text-align: left !important; min-width: 220px; }
+
+.cliente { text-align: left !important; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.cliente span { overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.plantas { border: 0; background: transparent; color: #4d7c0f; font: inherit; font-size: 11px; cursor: pointer; text-decoration: underline; padding: 0; }
+.sinPlan { font-size: 10.5px; font-weight: 500; color: var(--color-text-muted); }
+.planta { text-align: left !important; padding-left: 26px !important; font-weight: 500; color: #4a5a50; }
+.filaPlanta td { background: #fafbf9; }
+.filaPlanta th { background: #fafbf9; }
+.filaTotal th, .filaTotal td { background: #e8ede6; font-weight: 700; border-top: 2px solid #c9d3c6; }
+
+.hecho { font-weight: 700; }
+.debia { color: var(--color-text-muted); }
+.pct { font-weight: 700; }
+.cumple { color: #2f7d32; }
+.falta { color: #b45309; }
+.nada { color: #9aa5a0; }
+
+.vacio { margin: 0; padding: 14px; font-size: 12.5px; color: var(--color-text-muted); }
