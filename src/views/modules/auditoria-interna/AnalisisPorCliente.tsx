@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { listarClientes } from '@/features/catalogo'
-import { ANALISIS_VISIBLES, clientesSinAnalisis, porClienteResiduosFsmaFito, soloAnalisis } from '@/features/auditoriaInterna'
+import { ANALISIS_VISIBLES, claveLabGrafico, clientesSinAnalisis, porClienteResiduosFsmaFito, soloAnalisis } from '@/features/auditoriaInterna'
 import type { AnalisisVisible, CeldaCliente, DimensionGrafico, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import { avancePlan, cantidadPlan, normalizarNombre } from '@/features/planEntregables'
 import type { ClientePlan, FilaPlan } from '@/features/planEntregables'
@@ -30,43 +30,41 @@ const CERO: CeldaCliente = { n: 0, informes: 0 }
 
 const pct = (v: number) => `${Math.round(v * 100)}%`
 
-/** Un laboratorio en la misma línea de Residuales: su nombre, la cantidad y el % del total de residuales, sobre un fondo de su color. */
+/** Un laboratorio en la misma línea de Residuales: la cantidad y el % del total de residuales, sobre un fondo de su color (el nombre va en el encabezado). */
 function CeldasLab({ nombre, c, total, color }: { nombre: string; c: CeldaCliente; total: number; color: string }) {
   const fondo = { background: `${color}1f` }
   const vacio = c.n === 0
   return (
     <>
-      <td className={styles.labNombre} style={{ ...fondo, color }}>{nombre}</td>
-      <td className={styles.labCant} style={fondo} >{vacio ? '–' : nf.format(c.n)}</td>
-      <td className={styles.labPct} style={fondo}>{vacio ? '–' : pct(c.n / total)}</td>
+      <td className={styles.labCant} style={fondo} title={`${nombre}: análisis de residuales`}>{vacio ? '–' : nf.format(c.n)}</td>
+      <td className={styles.labPct} style={fondo} title={`${nombre}: % del total de residuales`}>{vacio ? '–' : pct(c.n / total)}</td>
     </>
   )
 }
 
-/** Lo prometido en las dos versiones del plan (original y propuesta) y lo que llevamos hecho. */
-type Entregable = { original: number | null; propuesta: number | null; hechosOriginal: number; hechosPropuesta: number }
+/** Lo prometido (entregable propuesto) y lo que llevamos hecho. */
+type Entregable = { propuesta: number | null; hechos: number }
 
-/** Cantidad prometida y % de avance de UNA versión del entregable. */
-function CeldasEntregable({ cant, hechos, version }: { cant: number | null; hechos: number; version: 'original' | 'propuesta' }) {
-  const nombre = version === 'original' ? 'Entregable original' : 'Entregable propuesto'
+/** Cantidad prometida y % de avance del entregable propuesto. */
+function CeldasEntregable({ cant, hechos }: { cant: number | null; hechos: number }) {
   const avance = avancePlan(hechos, cant)
   return (
     <>
       {cant === null ? (
-        <td className={styles.pendienteDato} title={`${nombre}: el plan no trae este análisis para este cliente`}>—</td>
+        <td className={styles.pendienteDato} title="Entregable propuesto: el plan no trae este análisis para este cliente">—</td>
       ) : (
-        <td className={styles.valor} title={`${nombre}: análisis prometidos en la temporada`}><b className={styles.cifra}>{nf.format(cant)}</b></td>
+        <td className={styles.valor} title="Entregable propuesto: análisis prometidos en la temporada"><b className={styles.cifra}>{nf.format(cant)}</b></td>
       )}
       {avance === null ? (
         <td className={styles.pendienteDato}>—</td>
       ) : (
-        <td className={styles.pct} title={`${nf.format(hechos)} de ${nf.format(cant ?? 0)} (${nombre.toLowerCase()})`}>{pct(avance)}</td>
+        <td className={styles.pct} title={`${nf.format(hechos)} de ${nf.format(cant ?? 0)} (entregable propuesto)`}>{pct(avance)}</td>
       )}
     </>
   )
 }
 
-/** Las celdas de una línea: análisis, reparto por laboratorio (residuales, en la misma línea), total y entregables (original y propuesto). */
+/** Las celdas de una línea: análisis, reparto por laboratorio (residuales, en la misma línea), total y entregable propuesto. */
 function CeldasLinea({ l, entregable }: { l: Linea; entregable?: Entregable | false }) {
   return (
     <>
@@ -75,20 +73,17 @@ function CeldasLinea({ l, entregable }: { l: Linea; entregable?: Entregable | fa
       </th>
       {l.labs ? (
         <>
-          <CeldasLab nombre="AGROFRESH" c={l.labs.agf} total={l.c.n} color={COLOR_LAB.AGROFRESH} />
-          <CeldasLab nombre="QUITECA" c={l.labs.qui} total={l.c.n} color={COLOR_LAB.QUITECA} />
+          <CeldasLab nombre="AgroFresh" c={l.labs.agf} total={l.c.n} color={COLOR_LAB.AGROFRESH} />
+          <CeldasLab nombre="Quiteca" c={l.labs.qui} total={l.c.n} color={COLOR_LAB.QUITECA} />
         </>
       ) : (
-        <td colSpan={6} className={styles.cero}>{l.sub}</td>
+        <td colSpan={4} className={styles.cero}>{l.sub}</td>
       )}
       <td className={styles.valor} >
         <b className={styles.cifra}>{nf.format(l.c.n)}</b>
       </td>
       {entregable !== undefined && entregable !== false && (
-        <>
-          <CeldasEntregable cant={entregable.original} hechos={entregable.hechosOriginal} version="original" />
-          <CeldasEntregable cant={entregable.propuesta} hechos={entregable.hechosPropuesta} version="propuesta" />
-        </>
+        <CeldasEntregable cant={entregable.propuesta} hechos={entregable.hechos} />
       )}
     </>
   )
@@ -97,7 +92,7 @@ function CeldasLinea({ l, entregable }: { l: Linea; entregable?: Entregable | fa
 /**
  * El cuerpo del gráfico «Análisis por cliente»: cada cliente hacia abajo, el que más
  * análisis lleva primero, con el detalle: una fila por análisis (Residuales con su reparto por laboratorio en columnas, cantidad y % del total de residuales, FSMA y FITO),
- * con su total, los dos entregables (original y propuesto) y el % de cada uno. Los clientes del listado que todavía no tienen ningún análisis salen al final,
+ * con su total, el entregable propuesto y su %. Cada cliente se abre en sus plantas, como una tabla dinámica. Los clientes del listado que todavía no tienen ningún análisis salen al final,
  * apagados (solo cuando se agrupa por Sold To).
  * «Entregables» = lo que cada comercial concretó de cada análisis para cada planta: ese dato
  * se carga aparte (plan de entregables), por ahora queda en blanco.
@@ -134,7 +129,7 @@ export function AnalisisPorCliente({
   const visible = (fila: FilaPlan) => analisis.includes(fila)
   /** Cuánto se le promete a un cliente de un análisis (en cualquiera de las dos versiones). */
   const prometidoA = (cliente: string, fila: FilaPlan) =>
-    visible(fila) && ((cantidadPlan(planDe(cliente), fila, 'original') ?? 0) > 0 || (cantidadPlan(planDe(cliente), fila, 'propuesta') ?? 0) > 0)
+    visible(fila) && (cantidadPlan(planDe(cliente), fila, 'propuesta') ?? 0) > 0
   // Con plan, también cuentan los clientes que el plan trae y todavía no tienen ningún análisis (con sus análisis hechos en 0):
   // así el total refleja TODO lo cargado, no solo lo de quienes ya tienen informes.
   const todasConPlan = useMemo(() => {
@@ -177,29 +172,60 @@ export function AnalisisPorCliente({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [filas, plan, analisis],
   )
-  /** Entregables de una fila del gráfico: lo prometido y lo hecho, contando solo los clientes que el plan trae. */
+  /** Entregable de una fila del gráfico: lo prometido (propuesto) y lo hecho. */
   const entregableDe = (f: (typeof filas)[number], l: Linea): Entregable => ({
-    original: l.plan ? cantidadPlan(planDe(f.cliente), l.plan, 'original') : null,
     propuesta: l.plan ? cantidadPlan(planDe(f.cliente), l.plan, 'propuesta') : null,
-    hechosOriginal: l.c.n,
-    hechosPropuesta: l.c.n,
+    hechos: l.c.n,
   })
-  /** Total de una fila del gráfico: cada versión suma solo los clientes que ESA versión trae, y lo hecho cuenta solo esos mismos. */
+  /** Total de una fila del gráfico: suma solo los clientes que el plan trae, y lo hecho cuenta solo esos mismos. */
   const entregableTotal = (l: Linea): Entregable => {
-    const sumar = (version: 'original' | 'propuesta') => {
-      let cant = 0
-      let hechos = 0
-      for (const f of todasConPlan) {
-        const c = l.plan && visible(l.plan) ? cantidadPlan(planDe(f.cliente), l.plan, version) : null
-        if (c === null) continue
-        cant += c
-        hechos += l.plan === 'residuales' ? f.agrofresh.n + f.quiteca.n : l.plan === 'fsma' ? f.fsma.n : f.fito.n
-      }
-      return { cant: cant > 0 ? cant : null, hechos }
+    let cant = 0
+    let hechos = 0
+    for (const f of todasConPlan) {
+      const c = l.plan && visible(l.plan) ? cantidadPlan(planDe(f.cliente), l.plan, 'propuesta') : null
+      if (c === null) continue
+      cant += c
+      hechos += l.plan === 'residuales' ? f.agrofresh.n + f.quiteca.n : l.plan === 'fsma' ? f.fsma.n : f.fito.n
     }
-    const o = sumar('original')
-    const p = sumar('propuesta')
-    return { original: o.cant, propuesta: p.cant, hechosOriginal: o.hechos, hechosPropuesta: p.hechos }
+    return { propuesta: cant > 0 ? cant : null, hechos }
+  }
+
+  /** Las plantas de un cliente: las del plan y las que salen en sus solicitudes (por Ship To), cada una con lo hecho y lo prometido. */
+  const plantasDe = (cliente: string): { nombre: string; x: Cuatro; promesa: (fila: FilaPlan) => number }[] => {
+    const k = normalizarNombre(cliente)
+    const por = new Map<string, { nombre: string; x: Cuatro }>()
+    const ocultar = (c: CeldaCliente, ver: boolean) => (ver ? c : CERO)
+    for (const sol of solicitudes) {
+      const lab = claveLabGrafico(sol)
+      if (!lab || normalizarNombre(sol.sold_to ?? '') !== k) continue
+      const ship = (sol.ship_to ?? '').trim() || 'Sin Ship To'
+      const kk = normalizarNombre(ship)
+      const g = por.get(kk) ?? { nombre: ship, x: { agrofresh: { ...CERO }, quiteca: { ...CERO }, fsma: { ...CERO }, fito: { ...CERO } } }
+      const c = lab === 'AGROFRESH' ? g.x.agrofresh : lab === 'QUITECA' ? g.x.quiteca : lab === 'ALS' ? g.x.fsma : g.x.fito
+      c.n++
+      if (sol.concretada) c.informes++
+      por.set(kk, g)
+    }
+    const prom = new Map<string, number>()
+    for (const pl of planDe(cliente)?.plantas ?? []) {
+      if (pl.servicio === 'otro') continue
+      const kk = normalizarNombre(pl.planta)
+      if (!por.has(kk)) por.set(kk, { nombre: pl.planta, x: { agrofresh: { ...CERO }, quiteca: { ...CERO }, fsma: { ...CERO }, fito: { ...CERO } } })
+      prom.set(`${kk}|${pl.servicio}`, (prom.get(`${kk}|${pl.servicio}`) ?? 0) + pl.propuesta)
+    }
+    return [...por.entries()]
+      .map(([kk, g]) => ({
+        nombre: g.nombre,
+        x: {
+          agrofresh: ocultar(g.x.agrofresh, visible('residuales')),
+          quiteca: ocultar(g.x.quiteca, visible('residuales')),
+          fsma: ocultar(g.x.fsma, visible('fsma')),
+          fito: ocultar(g.x.fito, visible('fito')),
+        },
+        promesa: (fila: FilaPlan) => (visible(fila) && conPlan ? (prom.get(`${kk}|${fila}`) ?? 0) : 0),
+      }))
+      .filter((p) => lineasDe(p.x, (fila) => p.promesa(fila) > 0).length > 0)
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
   }
 
   return (
@@ -207,27 +233,25 @@ export function AnalisisPorCliente({
       <div className={styles.caja}>
         <table className={styles.tabla}>
           <colgroup>
-            <col style={{ width: '22%' }} />
-            <col style={{ width: '11%' }} />
-            <col style={{ width: '10%' }} /><col style={{ width: '5%' }} /><col style={{ width: '6%' }} />
-            <col style={{ width: '10%' }} /><col style={{ width: '5%' }} /><col style={{ width: '6%' }} />
-            <col style={{ width: '9%' }} />
-            {conPlan && <><col style={{ width: '6%' }} /><col style={{ width: '5%' }} /><col style={{ width: '6%' }} /><col style={{ width: '5%' }} /></>}
+            <col style={{ width: '27%' }} />
+            <col style={{ width: '10%' }} />
+            <col style={{ width: '7%' }} /><col style={{ width: '6%' }} />
+            <col style={{ width: '7%' }} /><col style={{ width: '6%' }} />
+            <col style={{ width: '8%' }} />
+            {conPlan && <><col style={{ width: '8%' }} /><col style={{ width: '6%' }} /></>}
           </colgroup>
           <thead>
             <tr className={styles.grupos}>
               <th rowSpan={2} className={styles.colCliente}>{dimension === 'cliente' ? 'Cliente' : 'Grupo'}</th>
               <th rowSpan={2} className={styles.colAnalisis}>Análisis</th>
-              <th colSpan={6} className={styles.gResiduales}>Laboratorio · cantidad y % del total de residuales</th>
+              <th colSpan={2} className={styles.gResiduales}>AgroFresh</th>
+              <th colSpan={2} className={styles.gQuiteca}>Quiteca</th>
               <th rowSpan={2} className={styles.gTotal}>Total</th>
-              {conPlan && <th colSpan={2} className={styles.gEntregable} title="Lo que había entregado el comercial (archivo de entregables, columna Original)">Entregable original</th>}
               {conPlan && <th colSpan={2} className={styles.gEntregable} title="La propuesta del plan de entregables (columna Propuesta)">Entregable propuesto</th>}
             </tr>
             <tr className={styles.subs}>
-              <th>Lab.</th><th>Cant.</th><th>%</th>
-              <th>Lab.</th><th>Cant.</th><th>%</th>
-              {conPlan && <th className={styles.gEntregable} title="Análisis del entregable original">Cant.</th>}
-              {conPlan && <th className={styles.gEntregable} title="Lo que llevamos ÷ el entregable original">%</th>}
+              <th>Cant.</th><th>%</th>
+              <th>Cant.</th><th>%</th>
               {conPlan && <th className={styles.gEntregable} title="Análisis del entregable propuesto">Cant.</th>}
               {conPlan && <th className={styles.gEntregable} title="Lo que llevamos ÷ el entregable propuesto">%</th>}
             </tr>
@@ -243,9 +267,9 @@ export function AnalisisPorCliente({
                         <em className={i < 3 ? styles.podio : undefined} data-puesto={i < 3 ? i + 1 : undefined}>{i + 1}</em>
                         <span title={f.cliente}>{f.cliente}</span>
                         <small className={styles.totalCliente}>{nf.format(f.total)} análisis</small>
-                        {conPlan && (planDe(f.cliente)?.plantas.length ?? 0) > 0 && (
+                        {dimension === 'cliente' && plantasDe(f.cliente).length > 0 && (
                           <button type="button" className={styles.verPlantas} aria-expanded={abiertos.has(f.cliente)} onClick={() => alternarPlantas(f.cliente)}>
-                            {abiertos.has(f.cliente) ? 'Ocultar' : 'Ver'} las {planDe(f.cliente)?.plantas.length} del plan
+                            {abiertos.has(f.cliente) ? 'Ocultar' : 'Ver'} {plantasDe(f.cliente).length} {plantasDe(f.cliente).length === 1 ? 'planta' : 'plantas'}
                           </button>
                         )}
                       </th>
@@ -253,16 +277,20 @@ export function AnalisisPorCliente({
                     <CeldasLinea l={l} entregable={conPlan && entregableDe(f, l)} />
                   </tr>
                 ))}
-                {conPlan && abiertos.has(f.cliente) && (
-                  <tr className={styles.filaPlantas}>
-                    <td colSpan={12}>
-                      <span className={styles.plantasTitulo}>Por planta del plan (original / propuesto)</span>
-                      {planDe(f.cliente)?.plantas.map((p, k) => (
-                        <span key={k} className={styles.planta}>{p.planta} · {p.servicio === 'residuales' ? 'Residuales' : p.servicio === 'fsma' ? 'FSMA' : p.servicio === 'fito' ? 'FITO' : 'Otro'} <b>{nf.format(p.original)} / {nf.format(p.propuesta)}</b></span>
-                      ))}
-                    </td>
-                  </tr>
-                )}
+                {abiertos.has(f.cliente) && plantasDe(f.cliente).map((p) => {
+                  const pls = lineasDe(p.x, (fila) => p.promesa(fila) > 0)
+                  return pls.map((l, j) => (
+                    <tr key={`${p.nombre}-${l.clave}`} className={styles.filaPlantaDe}>
+                      {j === 0 && (
+                        <th scope="rowgroup" rowSpan={pls.length} className={styles.plantaNombre}>
+                          <span title={p.nombre}>{p.nombre}</span>
+                          <small className={styles.totalCliente}>{nf.format(pls.reduce((n, x) => n + x.c.n, 0))} análisis</small>
+                        </th>
+                      )}
+                      <CeldasLinea l={l} entregable={conPlan && { propuesta: l.plan && p.promesa(l.plan) > 0 ? p.promesa(l.plan) : null, hechos: l.c.n }} />
+                    </tr>
+                  ))
+                })}
               </tbody>
             )
           })}
@@ -271,7 +299,7 @@ export function AnalisisPorCliente({
               {apagados.map((nombre) => (
                 <tr key={nombre} className={styles.apagado}>
                   <th scope="row" className={styles.cliente}><em>·</em><span title={nombre}>{nombre}</span></th>
-                  <td colSpan={conPlan ? 12 : 8}><span className={styles.cero}>Sin análisis</span></td>
+                  <td colSpan={conPlan ? 8 : 6}><span className={styles.cero}>Sin análisis</span></td>
                 </tr>
               ))}
             </tbody>

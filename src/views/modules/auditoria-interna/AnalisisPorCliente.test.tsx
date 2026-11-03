@@ -62,73 +62,73 @@ describe('AnalisisPorCliente', () => {
     expect(await screen.findByRole('button', { name: /Mostrar los 2 clientes sin análisis/ })).toBeTruthy()
   })
 
-  describe('Entregables (plan de los comerciales)', () => {
-    const plan = new Map([
-      [
-        'DOLE CHILE SA',
-        {
-          sold_to: 'DOLE CHILE S.A.',
-          original: { residuales: 4, fsma: 0, fito: 0 },
-          propuesta: { residuales: 8, fsma: 0, fito: 0 },
-          plantas: [{ planta: 'DOLE LONTUE', servicio: 'residuales' as const, original: 4, propuesta: 8 }],
-        },
-      ],
-    ])
+  describe('Entregable propuesto (plan de los comerciales)', () => {
+    const cant = { residuales: 0, fsma: 0, fito: 0 }
+    const prop = (sold: string, p: Partial<typeof cant>, plantas: { planta: string; servicio: 'residuales' | 'fsma' | 'fito'; original: number; propuesta: number }[] = []) =>
+      [sold.replace(/\./g, '').toUpperCase(), { sold_to: sold, original: { ...cant }, propuesta: { ...cant, ...p }, plantas }] as const
+    const plan = new Map([prop('DOLE CHILE S.A.', { residuales: 8 }, [
+      { planta: 'DOLE LONTUE', servicio: 'residuales', original: 4, propuesta: 5 },
+      { planta: 'DOLE CODEGUA', servicio: 'residuales', original: 2, propuesta: 3 },
+    ])])
+    const titulo = 'Entregable propuesto: análisis prometidos en la temporada'
 
-    it('por Sold To: muestra el entregable original y el propuesto, cada uno con su cantidad y su % (lo llevado ÷ lo prometido)', () => {
+    it('por Sold To: muestra solo el entregable propuesto, con su cantidad y su % (lo llevado ÷ lo prometido)', () => {
       render(<AnalisisPorCliente solicitudes={lista} plan={plan} />)
-      expect(screen.getByText('Entregable original')).toBeTruthy()
       expect(screen.getByText('Entregable propuesto')).toBeTruthy()
+      expect(screen.queryByText('Entregable original')).toBeNull()
       const dole = screen.getAllByRole('row').slice(2)[0]
-      // DOLE lleva 2 residuales (AgroFresh 1 + Quiteca 1): de 4 originales = 50% y de 8 propuestos = 25%
-      expect(within(dole).getByTitle('Entregable original: análisis prometidos en la temporada').textContent).toBe('4')
-      expect(within(dole).getByTitle('Entregable propuesto: análisis prometidos en la temporada').textContent).toBe('8')
-      expect(within(dole).getByTitle('2 de 4 (entregable original)').textContent).toBe('50%')
+      // DOLE lleva 2 residuales (AgroFresh 1 + Quiteca 1) de 8 propuestos = 25%
+      expect(within(dole).getByTitle(titulo).textContent).toBe('8')
       expect(within(dole).getByTitle('2 de 8 (entregable propuesto)').textContent).toBe('25%')
-      // FSMA no está en ninguna de las dos versiones: queda en guion (cantidad y % de cada una)
+      // FSMA no está en el plan: queda en guion (cantidad y %)
       const fsma = screen.getAllByRole('row').slice(2)[1]
-      expect(within(fsma).getAllByText('—').length).toBe(4)
+      expect(within(fsma).getAllByText('—').length).toBe(2)
     })
 
-    it('muestra las plantas del plan, con las dos cantidades, al abrir el detalle', () => {
-      render(<AnalisisPorCliente solicitudes={lista} plan={plan} />)
-      expect(screen.queryByText(/DOLE LONTUE/)).toBeNull()
-      fireEvent.click(screen.getByRole('button', { name: /Ver las 1 del plan/ }))
-      expect(screen.getByText(/DOLE LONTUE/)).toBeTruthy()
-      expect(screen.getByText('4 / 8')).toBeTruthy()
+    it('cada cliente se abre en sus plantas, como filas: las del plan y las de sus solicitudes, con lo hecho y lo prometido', () => {
+      const conShip = [
+        { ...sol('AGROFRESH', 'DOLE CHILE S.A.', true), ship_to: 'DOLE LONTUE' },
+        { ...sol('QUITECA', 'DOLE CHILE S.A.'), ship_to: 'Dole Lontué' },
+        { ...sol('ALS', 'DOLE CHILE S.A.'), ship_to: 'OTRA PLANTA' },
+      ]
+      render(<AnalisisPorCliente solicitudes={conShip} plan={plan} />)
+      expect(screen.queryByText('DOLE LONTUE')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: /Ver 3 plantas/ }))
+      const lontue = screen.getByText('DOLE LONTUE').closest('tr') as HTMLElement
+      // 2 residuales hechos (uno en cada laboratorio) de 5 prometidos a esa planta
+      expect(within(lontue).getByTitle(titulo).textContent).toBe('5')
+      expect(within(lontue).getByTitle('2 de 5 (entregable propuesto)').textContent).toBe('40%')
+      // una planta del plan sin ningún análisis también sale, con lo prometido
+      const codegua = screen.getByText('DOLE CODEGUA').closest('tr') as HTMLElement
+      expect(within(codegua).getByTitle(titulo).textContent).toBe('3')
+      // y una de las solicitudes que el plan no trae, sin prometido
+      expect(screen.getByText('OTRA PLANTA')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: /Ocultar 3 plantas/ }))
+      expect(screen.queryByText('DOLE CODEGUA')).toBeNull()
     })
 
     it('un análisis prometido por el plan sale como línea aunque no tenga ninguno hecho, y un cliente del plan sin análisis también', () => {
-      const plan2 = new Map([
-        ['DOLE CHILE SA', { sold_to: 'DOLE CHILE S.A.', original: { residuales: 4, fsma: 0, fito: 0 }, propuesta: { residuales: 8, fsma: 0, fito: 0 }, plantas: [] }],
-        ['MULTIFRUTA', { sold_to: 'MULTIFRUTA', original: { residuales: 0, fsma: 0, fito: 6 }, propuesta: { residuales: 0, fsma: 0, fito: 10 }, plantas: [] }],
-        ['SIN ANALISIS', { sold_to: 'SIN ANALISIS', original: { residuales: 5, fsma: 0, fito: 0 }, propuesta: { residuales: 7, fsma: 0, fito: 0 }, plantas: [] }],
-      ])
+      const plan2 = new Map([prop('DOLE CHILE S.A.', { residuales: 8 }), prop('MULTIFRUTA', { fito: 10 }), prop('SIN ANALISIS', { residuales: 7 })])
       render(<AnalisisPorCliente solicitudes={lista} plan={plan2} />)
       expect(screen.getByText('SIN ANALISIS')).toBeTruthy()
       // MULTIFRUTA no tiene FITO hecho, pero el plan se lo promete: aparece su línea
       expect(screen.getAllByText('FITO').length).toBeGreaterThanOrEqual(2)
-      // Total de todos los clientes: residuales 4+5 / 8+7, FITO 6 / 10
+      // Total de todos los clientes: residuales 8+7, FITO 10
       const tfoot = document.querySelector('tfoot') as HTMLElement
-      const orig = within(tfoot).getAllByTitle('Entregable original: análisis prometidos en la temporada').map((e) => e.textContent)
-      const prop = within(tfoot).getAllByTitle('Entregable propuesto: análisis prometidos en la temporada').map((e) => e.textContent)
-      expect(orig).toEqual(['9', '6'])
-      expect(prop).toEqual(['15', '10'])
+      expect(within(tfoot).getAllByTitle(titulo).map((e) => e.textContent)).toEqual(['15', '10'])
     })
 
     it('el Total no depende del Top N', () => {
-      const plan2 = new Map([
-        ['SIN ANALISIS', { sold_to: 'SIN ANALISIS', original: { residuales: 5, fsma: 0, fito: 0 }, propuesta: { residuales: 7, fsma: 0, fito: 0 }, plantas: [] }],
-      ])
+      const plan2 = new Map([prop('SIN ANALISIS', { residuales: 7 })])
       render(<AnalisisPorCliente solicitudes={lista} plan={plan2} limite={1} />)
       const tfoot = document.querySelector('tfoot') as HTMLElement
-      expect(within(tfoot).getAllByTitle('Entregable original: análisis prometidos en la temporada').map((e) => e.textContent)).toEqual(['5'])
+      expect(within(tfoot).getAllByTitle(titulo).map((e) => e.textContent)).toEqual(['7'])
     })
 
     it('por Ship To, especie o tipo el cálculo se esconde', () => {
       render(<AnalisisPorCliente solicitudes={lista} plan={plan} dimension="planta" />)
-      expect(screen.queryByText('Entregable original')).toBeNull()
       expect(screen.queryByText('Entregable propuesto')).toBeNull()
+      expect(screen.queryByRole('button', { name: /plantas?$/ })).toBeNull()
     })
   })
 })
