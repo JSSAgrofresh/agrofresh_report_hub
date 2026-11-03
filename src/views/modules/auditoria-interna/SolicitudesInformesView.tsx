@@ -231,6 +231,7 @@ export function SolicitudesInformesView() {
                         <option value={10}>Top 10</option>
                         <option value={20}>Top 20</option>
                         <option value={0}>Todos</option>
+                        <option value={0}>Todos</option>
                       </select>
                     </div>
                     <span className={styles.separadorBarra} aria-hidden="true" />

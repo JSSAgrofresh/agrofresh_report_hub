@@ -12,15 +12,21 @@ const nf = new Intl.NumberFormat('es-CL')
 type Linea = { clave: string; plan?: FilaPlan; nombre: string; sub?: string; c: CeldaCliente; color: string; labs?: { agf: CeldaCliente; qui: CeldaCliente } }
 type Cuatro = { agrofresh: CeldaCliente; quiteca: CeldaCliente; fsma: CeldaCliente; fito: CeldaCliente }
 
-/** Las líneas de un cliente (o del total): Residuales (con su reparto entre AgroFresh y Quiteca), FSMA y FITO. Solo lo que tiene análisis. */
-function lineasDe(x: Cuatro): Linea[] {
+/**
+ * Las líneas de un cliente (o del total): Residuales (con su reparto entre AgroFresh y Quiteca), FSMA y FITO.
+ * Sale una línea si tiene análisis O si el plan de entregables le promete algo de ese análisis (`prometido`): así lo prometido
+ * se ve aunque todavía no se haya hecho ninguno (entonces los análisis hechos quedan en 0).
+ */
+function lineasDe(x: Cuatro, prometido: (fila: FilaPlan) => boolean = () => false): Linea[] {
   const res: CeldaCliente = { n: x.agrofresh.n + x.quiteca.n, informes: x.agrofresh.informes + x.quiteca.informes }
   const out: Linea[] = []
-  if (res.n > 0) out.push({ clave: 'res', nombre: 'Residuales', c: res, color: '#4d7c0f', plan: 'residuales', labs: { agf: x.agrofresh, qui: x.quiteca } })
-  if (x.fsma.n > 0) out.push({ clave: 'fsma', nombre: 'FSMA', sub: 'ALS', c: x.fsma, color: COLOR_LAB.ALS, plan: 'fsma' })
-  if (x.fito.n > 0) out.push({ clave: 'fito', nombre: 'FITO', sub: 'Diagnofruit', c: x.fito, color: COLOR_LAB.DIAGNOFRUIT, plan: 'fito' })
+  if (res.n > 0 || prometido('residuales')) out.push({ clave: 'res', nombre: 'Residuales', c: res, color: '#4d7c0f', plan: 'residuales', labs: { agf: x.agrofresh, qui: x.quiteca } })
+  if (x.fsma.n > 0 || prometido('fsma')) out.push({ clave: 'fsma', nombre: 'FSMA', sub: 'ALS', c: x.fsma, color: COLOR_LAB.ALS, plan: 'fsma' })
+  if (x.fito.n > 0 || prometido('fito')) out.push({ clave: 'fito', nombre: 'FITO', sub: 'Diagnofruit', c: x.fito, color: COLOR_LAB.DIAGNOFRUIT, plan: 'fito' })
   return out
 }
+
+const CERO: CeldaCliente = { n: 0, informes: 0 }
 
 const pct = (v: number) => `${Math.round(v * 100)}%`
 
@@ -124,7 +130,25 @@ export function AnalisisPorCliente({
   // Sin filtrar por análisis: sirve para saber qué clientes del listado no tienen NINGÚN análisis.
   const crudas = useMemo(() => porClienteResiduosFsmaFito(solicitudes, dimension), [solicitudes, dimension])
   const todas = useMemo(() => soloAnalisis(crudas, analisis), [crudas, analisis])
-  const filas = useMemo(() => (limite > 0 ? todas.slice(0, limite) : todas), [todas, limite])
+  /** Qué análisis se están viendo: lo prometido de un análisis oculto no se muestra ni se suma. */
+  const visible = (fila: FilaPlan) => analisis.includes(fila)
+  /** Cuánto se le promete a un cliente de un análisis (en cualquiera de las dos versiones). */
+  const prometidoA = (cliente: string, fila: FilaPlan) =>
+    visible(fila) && ((cantidadPlan(planDe(cliente), fila, 'original') ?? 0) > 0 || (cantidadPlan(planDe(cliente), fila, 'propuesta') ?? 0) > 0)
+  // Con plan, también cuentan los clientes que el plan trae y todavía no tienen ningún análisis (con sus análisis hechos en 0):
+  // así el total refleja TODO lo cargado, no solo lo de quienes ya tienen informes.
+  const todasConPlan = useMemo(() => {
+    if (!conPlan || !plan) return todas
+    const presentes = new Set(todas.map((f) => normalizarNombre(f.cliente)))
+    const sinAnalisis = [...plan.values()]
+      .filter((c) => !presentes.has(normalizarNombre(c.sold_to)))
+      .filter((c) => (['residuales', 'fsma', 'fito'] as const).some((fila) => prometidoA(c.sold_to, fila)))
+      .map((c) => ({ cliente: c.sold_to, total: 0, informes: 0, agrofresh: CERO, quiteca: CERO, fsma: CERO, fito: CERO }))
+      .sort((a, b) => a.cliente.localeCompare(b.cliente, 'es'))
+    return [...todas, ...sinAnalisis]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todas, conPlan, plan, analisis])
+  const filas = useMemo(() => (limite > 0 ? todasConPlan.slice(0, limite) : todasConPlan), [todasConPlan, limite])
   const [listado, setListado] = useState<string[]>([])
   const [verApagados, setVerApagados] = useState(false)
 
@@ -136,12 +160,23 @@ export function AnalisisPorCliente({
       .catch(() => undefined)
     return () => { cancelado = true }
   }, [])
-  const apagados = useMemo(() => (dimension === 'cliente' ? clientesSinAnalisis(listado, crudas) : []), [listado, crudas, dimension])
+  const apagados = useMemo(() => {
+    if (dimension !== 'cliente') return []
+    const sinAnalisis = clientesSinAnalisis(listado, crudas)
+    // Los que el plan trae ya salen arriba como filas normales.
+    return conPlan && plan ? sinAnalisis.filter((n) => !plan.has(normalizarNombre(n))) : sinAnalisis
+  }, [listado, crudas, dimension, conPlan, plan])
 
-  const suma = (f: (x: (typeof filas)[number]) => CeldaCliente) => filas.reduce((n, x) => n + f(x).n, 0)
+  // El Total suma TODOS los clientes (no solo los del «Top N» que se ven), para que refleje el plan completo.
+  const suma = (f: (x: (typeof filas)[number]) => CeldaCliente) => todasConPlan.reduce((n, x) => n + f(x).n, 0)
   const nFsma = suma((x) => x.fsma)
   const nFito = suma((x) => x.fito)
-  const nTotal = filas.reduce((n, x) => n + x.total, 0)
+  const nTotal = todasConPlan.reduce((n, x) => n + x.total, 0)
+  const filasConLineas = useMemo(
+    () => filas.filter((f) => lineasDe(f, (fila) => prometidoA(f.cliente, fila)).length > 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filas, plan, analisis],
+  )
   /** Entregables de una fila del gráfico: lo prometido y lo hecho, contando solo los clientes que el plan trae. */
   const entregableDe = (f: (typeof filas)[number], l: Linea): Entregable => ({
     original: l.plan ? cantidadPlan(planDe(f.cliente), l.plan, 'original') : null,
@@ -154,8 +189,8 @@ export function AnalisisPorCliente({
     const sumar = (version: 'original' | 'propuesta') => {
       let cant = 0
       let hechos = 0
-      for (const f of filas) {
-        const c = l.plan ? cantidadPlan(planDe(f.cliente), l.plan, version) : null
+      for (const f of todasConPlan) {
+        const c = l.plan && visible(l.plan) ? cantidadPlan(planDe(f.cliente), l.plan, version) : null
         if (c === null) continue
         cant += c
         hechos += l.plan === 'residuales' ? f.agrofresh.n + f.quiteca.n : l.plan === 'fsma' ? f.fsma.n : f.fito.n
@@ -197,8 +232,8 @@ export function AnalisisPorCliente({
               {conPlan && <th className={styles.gEntregable} title="Lo que llevamos ÷ el entregable propuesto">%</th>}
             </tr>
           </thead>
-          {filas.map((f, i) => {
-            const ls = lineasDe(f)
+          {filasConLineas.map((f, i) => {
+            const ls = lineasDe(f, (fila) => prometidoA(f.cliente, fila))
             return (
               <tbody key={f.cliente} className={styles.bloque}>
                 {ls.map((l, j) => (
@@ -241,18 +276,26 @@ export function AnalisisPorCliente({
               ))}
             </tbody>
           )}
-          {filas.length > 0 && (
+          {filasConLineas.length > 0 && (
             <tfoot>
               {(() => {
-                const tot = lineasDe({
-                  agrofresh: { n: suma((x) => x.agrofresh), informes: filas.reduce((n, x) => n + x.agrofresh.informes, 0) },
-                  quiteca: { n: suma((x) => x.quiteca), informes: filas.reduce((n, x) => n + x.quiteca.informes, 0) },
-                  fsma: { n: nFsma, informes: filas.reduce((n, x) => n + x.fsma.informes, 0) },
-                  fito: { n: nFito, informes: filas.reduce((n, x) => n + x.fito.informes, 0) },
-                })
+                const tot = lineasDe(
+                  {
+                    agrofresh: { n: suma((x) => x.agrofresh), informes: todasConPlan.reduce((n, x) => n + x.agrofresh.informes, 0) },
+                    quiteca: { n: suma((x) => x.quiteca), informes: todasConPlan.reduce((n, x) => n + x.quiteca.informes, 0) },
+                    fsma: { n: nFsma, informes: todasConPlan.reduce((n, x) => n + x.fsma.informes, 0) },
+                    fito: { n: nFito, informes: todasConPlan.reduce((n, x) => n + x.fito.informes, 0) },
+                  },
+                  (fila) => conPlan && todasConPlan.some((f) => prometidoA(f.cliente, fila)),
+                )
                 return tot.map((l, j) => (
                   <tr key={l.clave} className={styles.filaGrupo}>
-                    {j === 0 && <th scope="rowgroup" rowSpan={tot.length} className={styles.cliente}>Total<small className={styles.totalCliente}>{nf.format(nTotal)} análisis</small></th>}
+                    {j === 0 && <th scope="rowgroup" rowSpan={tot.length} className={styles.cliente}>
+                      Total
+                      <small className={styles.totalCliente}>
+                        {nf.format(nTotal)} análisis{todasConPlan.length > filasConLineas.length ? ` · ${nf.format(todasConPlan.length)} clientes` : ''}
+                      </small>
+                    </th>}
                     <CeldasLinea l={l} entregable={conPlan && entregableTotal(l)} />
                   </tr>
                 ))
@@ -260,7 +303,7 @@ export function AnalisisPorCliente({
             </tfoot>
           )}
         </table>
-        {filas.length === 0 && <p className={styles.vacio}>Todavía no hay datos con estos filtros.</p>}
+        {filasConLineas.length === 0 && <p className={styles.vacio}>Todavía no hay datos con estos filtros.</p>}
       </div>
 
       {apagados.length > 0 && (
