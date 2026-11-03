@@ -77,6 +77,7 @@ export function pendientesDeInforme(solicitudes: SolicitudAuditoria[]): Solicitu
 
 export const TIPO_ACTIMIST = 'Actimist'
 export const TIPO_LINEA = 'Línea de proceso'
+export const TIPO_ECOFOG = 'Ecofog'
 export const TIPO_RYD = 'RYD'
 export const SIN_TIPO = 'Sin tipo'
 
@@ -103,12 +104,13 @@ export function tipoServicioDe(s: SolicitudAuditoria): string {
   const t = plano(s.tipo_servicio)
   if (!t) return SIN_TIPO
   if (t.includes('actimist')) return TIPO_ACTIMIST
+  if (t.includes('ecofog')) return TIPO_ECOFOG
   if (t.includes('linea')) return TIPO_LINEA
   if (t === 'ryd' || t.startsWith('ryd ')) return TIPO_RYD
   return (s.tipo_servicio ?? '').trim()
 }
 
-/** Cómo van las solicitudes de UN tipo de servicio (Actimist, Línea de proceso o RYD). */
+/** Cómo van las solicitudes de UN tipo de servicio (Actimist, Ecofog, Línea de proceso o RYD). */
 export function resumenPorTipo(solicitudes: SolicitudAuditoria[], tipo: string): Totales {
   return totales(solicitudes.filter((s) => tipoServicioDe(s) === tipo))
 }

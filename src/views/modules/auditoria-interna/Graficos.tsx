@@ -105,15 +105,16 @@ export function DonaTipoServicio({ tipo, resumen }: { tipo: string; resumen: Tot
         <p className={styles.donaVacia}>Sin solicitudes de este tipo con los filtros actuales.</p>
       ) : (
         <>
+          <div className={styles.donaFila}>
           <div className={styles.donaLienzo}>
             <canvas ref={ref} role="img" aria-label={`${nombreTipo(tipo)}: ${Math.round(resumen.porcentajeConcretado)}% informes recibidos`} />
             <div className={styles.donaCentro} aria-hidden="true">
               <b style={{ color: colorDeTipo(tipo) }}>{Math.round(resumen.porcentajeConcretado)}<small>%</small></b>
-              <span>informes recibidos</span>
             </div>
           </div>
+          <div className={styles.donaCuerpo}>
           <p className={styles.donaTotalTexto}>
-            <b>{nf.format(resumen.concretadas)}</b> de {nf.format(resumen.emitidas)} solicitudes
+            <b>{nf.format(resumen.concretadas)}</b> de {nf.format(resumen.emitidas)} solicitudes con informe
           </p>
           <ul className={styles.donaLeyenda}>
             <li>
@@ -132,6 +133,8 @@ export function DonaTipoServicio({ tipo, resumen }: { tipo: string; resumen: Tot
               <b>{nf.format(enviadas)}</b>
             </li>
           </ul>
+          </div>
+          </div>
         </>
       )}
     </section>
