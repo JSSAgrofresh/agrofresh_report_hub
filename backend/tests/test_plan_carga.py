@@ -144,3 +144,11 @@ def test_el_resumen_trae_las_dos_cantidades_por_servicio():
     r = _resumen(validas, [], 9, fusionadas=1, sin_cantidad=2)
     assert r["por_servicio"] == {"residuales": {"original": 3, "propuesta": 5}, "fito": {"original": 0, "propuesta": 2}}
     assert (r["filas_fusionadas"], r["filas_sin_cantidad"], r["clientes"], r["plantas"]) == (1, 2, 1, 1)
+
+
+def test_el_detalle_del_plan_exige_sesion_de_administrador():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    assert TestClient(app).get("/api/plan-entregables/detalle").status_code in (401, 403)
