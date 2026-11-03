@@ -232,3 +232,13 @@
 .plantasTitulo { margin-right: 10px; font-weight: 700; color: var(--color-text-muted); }
 .planta { display: inline-block; margin: 2px 8px 2px 0; padding: 1px 8px; background: #fff; border: 1px solid var(--color-border); border-radius: 999px; }
 .planta b { margin-left: 4px; }
+
+/* Plantas de un cliente, como filas desplegadas de una tabla dinámica */
+.filaPlantaDe th, .filaPlantaDe td { background: #fafbf9; font-size: 12px; }
+.plantaNombre { text-align: left !important; vertical-align: top; padding-left: 34px !important; font-weight: 500; color: #4a5a50; border-right: 1px solid #e9eee7; white-space: normal !important; }
+.plantaNombre span { display: inline-block; max-width: calc(100% - 4px); }
+.verPlantas { display: block; margin: 3px 0 0 28px; padding: 0; border: 0; background: transparent; font: inherit; font-size: 11px; color: #4d7c0f; cursor: pointer; text-decoration: underline dotted; }
+
+/* Más compacto: celdas de laboratorio sin nombre propio (va en el encabezado) y menos relleno */
+.tabla th, .tabla td { padding: 3px 6px; }
+.labCant, .labPct { text-align: center !important; }

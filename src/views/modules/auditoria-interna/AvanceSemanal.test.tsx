@@ -40,14 +40,6 @@ describe('AvanceSemanal', () => {
     expect(within(fila).getAllByTitle('Análisis hechos')[0].textContent).toBe('2')
   })
 
-  it('cambia a la versión original del entregable', () => {
-    render(<AvanceSemanal solicitudes={lista} plan={plan} />)
-    fireEvent.change(screen.getByLabelText('Semana'), { target: { value: 'W46' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Original' }))
-    const fila = screen.getByText('DOLE CHILE S.A.').closest('tr') as HTMLElement
-    expect(within(fila).getAllByTitle('Lo que tocaba según el plan')[0].textContent).toBe('2')
-  })
-
   it('sin detalle por semana (falta la 0073) lo avisa', () => {
     const sin = new Map([['DOLE CHILE SA', { ...plan.get('DOLE CHILE SA')!, semanas: [] }]])
     render(<AvanceSemanal solicitudes={lista} plan={sin} />)

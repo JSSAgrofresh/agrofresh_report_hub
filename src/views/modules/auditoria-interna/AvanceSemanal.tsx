@@ -55,7 +55,8 @@ export function AvanceSemanal({
   analisis?: AnalisisVisible[]
   limite?: number
 }) {
-  const [version, setVersion] = useState<VersionPlan>('propuesta')
+  // Solo cuenta el entregable propuesto (el original ya no se considera).
+  const version: VersionPlan = 'propuesta'
   const [modo, setModo] = useState<'semana' | 'acumulado'>('semana')
   const [hasta, setHasta] = useState<string>(() => semanaActual())
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
@@ -63,7 +64,7 @@ export function AvanceSemanal({
 
   const todos = useMemo(
     () => avanceSemanal(solicitudes, plan, { version, hasta, modo, analisis }),
-    [solicitudes, plan, version, hasta, modo, analisis],
+    [solicitudes, plan, hasta, modo, analisis],
   )
   const filas = limite > 0 ? todos.slice(0, limite) : todos
   const total = useMemo(() => sumarAvance(todos), [todos])
@@ -92,13 +93,6 @@ export function AvanceSemanal({
             {SEMANAS_PLAN.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
-        <div className={styles.grupo}>
-          <span>Entregable</span>
-          <div className={styles.seg} role="group" aria-label="Versión del entregable">
-            <button type="button" aria-pressed={version === 'original'} onClick={() => setVersion('original')}>Original</button>
-            <button type="button" aria-pressed={version === 'propuesta'} onClick={() => setVersion('propuesta')}>Propuesto</button>
-          </div>
-        </div>
       </div>
 
       {!hayDetalle ? (

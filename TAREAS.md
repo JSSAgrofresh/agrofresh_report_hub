@@ -49,3 +49,4 @@ Orden: lo más difícil primero (9 h estimadas; ver si algo pasa a mañana).
 | 25 | Tabla literal con TODO el detalle del plan cargado (Administración General → Plan de entregables → «Todo lo cargado») para revisar que se leyó bien | Hecha (03-11) |
 | 26 | «Análisis por cliente» (Panel de control interno) refleja el plan de entregables completo: líneas FSMA/FITO según lo prometido aunque no haya análisis hechos, clientes del plan sin análisis como filas, Total de TODOS los clientes (no solo el Top N) y opción «Todos» en el selector | Hecha (03-11) |
 | 27 | «Análisis por cliente» vista «Por semana»: por cliente y planta, lo hecho por laboratorio contra lo que tocaba según el plan, por semana o acumulado (Original / Propuesto) | Hecha (03-11) |
+| 28 | «Análisis por cliente»: plantas desplegables bajo cada cliente (como tabla dinámica), parte de laboratorio más compacta y solo entregable propuesto (sin el original) | Hecha (03-11) |
