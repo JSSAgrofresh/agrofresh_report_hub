@@ -18,14 +18,14 @@ describe('ReporteAccutab con costo por kilo', () => {
 
   it('con informes de costo por kilo aparece su tarjeta y su sección; sin informes de Accu-Tab es la número 1', () => {
     render(<ReporteAccutab {...props} costoKilo={{ informes: [ck], modo: 'cliente' }} />)
-    expect(screen.getByRole('button', { name: /Costo por kilo: 1 informes/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /C&M 500: 1 informes/ })).toBeInTheDocument()
     expect(screen.getByText('seccion costo 1')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Accutab/ })).not.toBeInTheDocument()
   })
 
   it('el equipo ve la sección aunque esté vacía (y la tarjeta); el cliente no', () => {
     const { unmount } = render(<ReporteAccutab {...props} costoKilo={{ informes: [], modo: 'equipo' }} />)
-    expect(screen.getByRole('button', { name: /Costo por kilo: 0 informes/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /C&M 500: 0 informes/ })).toBeInTheDocument()
     expect(screen.getByText('seccion costo 1')).toBeInTheDocument()
     unmount()
     render(<ReporteAccutab {...props} costoKilo={{ informes: [], modo: 'cliente' }} />)

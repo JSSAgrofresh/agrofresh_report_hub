@@ -43,6 +43,16 @@ const FILAS: FilaReporte[] = [
   fila({ solicitud_id: 4, nro_solicitud: '253521-DIAG0003', laboratorio: 'Diagnofruit', ingrediente: 'LEV', valor_num: null, valor_texto: 'BLD' }),
 ]
 
+/** Los filtros son checks de varios valores: abre el desplegable de `etiqueta` y devuelve su caja. */
+async function abrir(etiqueta: string) {
+  const caja = (await screen.findByText(etiqueta, { selector: 'span' })).parentElement as HTMLElement
+  fireEvent.click(within(caja).getByRole('button', { name: /▼|▲|Todos|seleccionados/ }))
+  return caja
+}
+/** Marca o desmarca una opción de un desplegable ya abierto. */
+const marcar = (caja: HTMLElement, texto: string) => fireEvent.click(within(caja).getByLabelText(texto))
+const textoDelBoton = (caja: HTMLElement) => within(caja).getAllByRole('button')[0].textContent ?? ''
+
 const titulosDeSeccion = () => screen.queryAllByRole('heading', { level: 2 }).map((h) => h.textContent)
 
 beforeEach(() => {
@@ -65,7 +75,7 @@ describe('Report por bloques de análisis', () => {
     expect(screen.getByLabelText('Análisis 1').textContent).toBe('1')
     expect(screen.getByLabelText('Análisis 2').textContent).toBe('2')
     expect(screen.getByLabelText('Análisis 3').textContent).toBe('3')
-    fireEvent.change(screen.getByLabelText('Laboratorio'), { target: { value: 'Agrofresh' } })
+    marcar(await abrir('Laboratorio'), 'Laboratorio AgroFresh')
     await waitFor(() => expect(titulosDeSeccion()).toEqual(['Análisis de residuos']))
     expect(screen.queryByLabelText('Análisis 1')).toBeNull()
   })
@@ -128,15 +138,69 @@ describe('Report por bloques de análisis', () => {
     }
   })
 
-  it('filtrar por Especie no vacía FSMA: ALS no informa especie, así que ese filtro no se le aplica', async () => {
-    const sinEspecie = FILAS.map((f) => ((f.laboratorio ?? '').startsWith('ALS') ? { ...f, especie: null as never } : f))
-    api.obtenerDatosReporte.mockResolvedValue({ filas: sinEspecie, total: sinEspecie.length, total_solicitudes: 4 })
+  it('FSMA se filtra por Especie: salen los informes de otra especie', async () => {
+    const filas = [
+      ...FILAS.filter((f) => !(f.laboratorio ?? '').startsWith('ALS')),
+      fila({ solicitud_id: 3, nro_solicitud: '496251', laboratorio: 'ALS (Corthon)', ingrediente: 'ECOLI', valor_num: 50, especie: 'Pera' }),
+      fila({ solicitud_id: 5, nro_solicitud: '496252', laboratorio: 'ALS (Corthon)', ingrediente: 'ECOLI', valor_num: 1, especie: 'Manzana' }),
+    ]
+    api.obtenerDatosReporte.mockResolvedValue({ filas, total: filas.length, total_solicitudes: 5 })
     render(<ReporteView />)
     const fsma = await screen.findByRole('region', { name: 'Análisis FSMA' })
     expect(within(fsma).getByText('496251')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Especie'), { target: { value: 'Manzana' } })
-    await waitFor(() => expect(screen.getByLabelText('Especie')).toHaveProperty('value', 'Manzana'))
-    expect(within(screen.getByRole('region', { name: 'Análisis FSMA' })).getByText('496251')).toBeTruthy()
+    marcar(await abrir('Especie'), 'Manzana')
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Análisis FSMA' })).queryByText('496251')).toBeNull())
+    expect(within(screen.getByRole('region', { name: 'Análisis FSMA' })).getByText('496252')).toBeTruthy()
+  })
+
+  it('con FSMA a la vista el filtro de Especie sigue ahí (y el de Variedad no)', async () => {
+    const original = Element.prototype.getBoundingClientRect
+    Element.prototype.getBoundingClientRect = function () {
+      const top = this.id === ID_BLOQUE.fito ? 5000 : 0
+      return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top, toJSON() {} } as DOMRect
+    }
+    try {
+      render(<ReporteView />)
+      await screen.findByLabelText('Estado')
+      expect(screen.queryByText('Especie', { selector: 'span' })).not.toBeNull()
+      expect(screen.queryByText('Variedad', { selector: 'span' })).toBeNull()
+    } finally {
+      Element.prototype.getBoundingClientRect = original
+    }
+  })
+
+  it('los filtros de Report son checks: se pueden marcar dos especies a la vez', async () => {
+    const filas = [
+      fila({ solicitud_id: 1, nro_solicitud: 'OT-AGF0001', especie: 'Manzana' }),
+      fila({ solicitud_id: 2, nro_solicitud: 'OT-AGF0002', especie: 'Pera' }),
+      fila({ solicitud_id: 3, nro_solicitud: 'OT-AGF0003', especie: 'Kiwi' }),
+    ]
+    api.obtenerDatosReporte.mockResolvedValue({ filas, total: 3, total_solicitudes: 3 })
+    render(<ReporteView />)
+    const caja = await abrir('Especie')
+    marcar(caja, 'Manzana')
+    marcar(caja, 'Pera')
+    await waitFor(() => expect(screen.getByText(/2 de 3 solicitudes/)).toBeTruthy())
+    expect(textoDelBoton(caja)).toContain('2 seleccionados')
+  })
+
+  it('Ingrediente Activo parte con todos marcados; tocar uno deja solo ese, se suman más y Limpiar vuelve a marcar todos', async () => {
+    const filas = [
+      fila({ solicitud_id: 1, nro_solicitud: 'OT-AGF0001', ingrediente: 'FDL' }),
+      fila({ solicitud_id: 2, nro_solicitud: 'OT-AGF0002', ingrediente: 'IMZ' }),
+      fila({ solicitud_id: 3, nro_solicitud: 'OT-AGF0003', ingrediente: 'TEBU' }),
+    ]
+    api.obtenerDatosReporte.mockResolvedValue({ filas, total: 3, total_solicitudes: 3 })
+    render(<ReporteView />)
+    const caja = await abrir('Ingrediente Activo')
+    const marcado = (t: string) => (within(caja).getByLabelText(t) as HTMLInputElement).checked
+    expect(['FDL', 'IMZ', 'TEBU'].every(marcado)).toBe(true)
+    marcar(caja, 'IMZ')
+    expect([marcado('FDL'), marcado('IMZ'), marcado('TEBU')]).toEqual([false, true, false])
+    marcar(caja, 'TEBU')
+    expect([marcado('FDL'), marcado('IMZ'), marcado('TEBU')]).toEqual([false, true, true])
+    fireEvent.click(within(caja).getByRole('button', { name: 'Limpiar' }))
+    expect(['FDL', 'IMZ', 'TEBU'].every(marcado)).toBe(true)
   })
 
   it('los dos botones de residuos parten encendidos; tocar uno deja solo ese y tocarlo otra vez los vuelve a encender', async () => {
@@ -151,16 +215,15 @@ describe('Report por bloques de análisis', () => {
     expect(quiteca.getAttribute('aria-pressed')).toBe('true')
     // tocar un botón no cambia los otros bloques ni el filtro de arriba
     expect(titulosDeSeccion()).toEqual(['Análisis de residuos', 'Análisis FSMA', 'Análisis de fitopatología'])
-    expect((screen.getByLabelText('Laboratorio') as HTMLSelectElement).value).toBe('')
+    expect(textoDelBoton((await screen.findByText('Laboratorio', { selector: 'span' })).parentElement as HTMLElement)).toContain('Todos')
     fireEvent.click(quiteca)
     expect(agro.getAttribute('aria-pressed')).toBe('true')
   })
 
   it('el desplegable de Laboratorio usa los nombres completos', async () => {
     render(<ReporteView />)
-    const select = (await screen.findByLabelText('Laboratorio')) as HTMLSelectElement
-    const textos = [...select.options].map((o) => o.textContent ?? '')
-    expect(textos[0]).toBe('Todos')
+    const caja = await abrir('Laboratorio')
+    const textos = within(caja).getAllByRole('checkbox').map((c) => c.closest('label')?.textContent ?? '')
     expect(textos.some((t) => t.startsWith('Laboratorio AgroFresh'))).toBe(true)
     expect(textos.some((t) => t.startsWith('Laboratorio Quiteca'))).toBe(true)
     expect(textos.some((t) => t.startsWith('Laboratorio ALS Global'))).toBe(true)
@@ -169,8 +232,7 @@ describe('Report por bloques de análisis', () => {
 
   it('filtrando por AgroFresh queda solo el bloque de residuos, con Quiteca en gris', async () => {
     render(<ReporteView />)
-    const select = (await screen.findByLabelText('Laboratorio')) as HTMLSelectElement
-    fireEvent.change(select, { target: { value: 'Agrofresh' } })
+    marcar(await abrir('Laboratorio'), 'Laboratorio AgroFresh')
     await waitFor(() => expect(titulosDeSeccion()).toEqual(['Análisis de residuos']))
     const grupo = screen.getByRole('group', { name: 'Laboratorio del análisis de residuos' })
     expect(within(grupo).getByRole('button', { name: 'Laboratorio AgroFresh' }).getAttribute('aria-pressed')).toBe('true')
@@ -181,12 +243,11 @@ describe('Report por bloques de análisis', () => {
 
   it('con AgroFresh filtrado, tocar Quiteca quita el filtro de laboratorio y vuelven todos los análisis', async () => {
     render(<ReporteView />)
-    const select = (await screen.findByLabelText('Laboratorio')) as HTMLSelectElement
-    fireEvent.change(select, { target: { value: 'Agrofresh' } })
+    marcar(await abrir('Laboratorio'), 'Laboratorio AgroFresh')
     await waitFor(() => expect(titulosDeSeccion()).toEqual(['Análisis de residuos']))
     fireEvent.click(screen.getByRole('button', { name: 'Laboratorio Quiteca' }))
     await waitFor(() => expect(titulosDeSeccion()).toEqual(['Análisis de residuos', 'Análisis FSMA', 'Análisis de fitopatología']))
-    expect((screen.getByLabelText('Laboratorio') as HTMLSelectElement).value).toBe('')
+    expect(textoDelBoton((await screen.findByText('Laboratorio', { selector: 'span' })).parentElement as HTMLElement)).toContain('Todos')
     const grupo = screen.getByRole('group', { name: 'Laboratorio del análisis de residuos' })
     expect(within(grupo).getByRole('button', { name: 'Laboratorio Quiteca' }).getAttribute('aria-pressed')).toBe('true')
     expect(within(grupo).getByRole('button', { name: 'Laboratorio AgroFresh' }).getAttribute('aria-pressed')).toBe('false')
@@ -194,12 +255,15 @@ describe('Report por bloques de análisis', () => {
 
   it('filtrando por ALS queda solo el bloque FSMA, y por Diagnofruit solo el de fitopatología', async () => {
     render(<ReporteView />)
-    const select = (await screen.findByLabelText('Laboratorio')) as HTMLSelectElement
-    const valores = [...select.options].map((o) => o.value)
-    fireEvent.change(select, { target: { value: valores.find((v) => /als/i.test(v))! } })
+    const caja = await abrir('Laboratorio')
+    marcar(caja, 'Laboratorio ALS Global')
     await waitFor(() => expect(titulosDeSeccion()).toEqual(['Análisis FSMA']))
-    fireEvent.change(select, { target: { value: valores.find((v) => /diagno/i.test(v))! } })
+    marcar(caja, 'Laboratorio ALS Global')
+    marcar(caja, 'Laboratorio Diagnofruit')
     await waitFor(() => expect(titulosDeSeccion()).toEqual(['Análisis de fitopatología']))
+    // con dos laboratorios marcados se ven los bloques de los dos
+    marcar(caja, 'Laboratorio ALS Global')
+    await waitFor(() => expect(titulosDeSeccion()).toEqual(['Análisis FSMA', 'Análisis de fitopatología']))
   })
 
   it('con los gráficos encendidos en Funciones, FSMA y fitopatología los muestran', async () => {
@@ -219,9 +283,9 @@ describe('Report por bloques de análisis', () => {
       total_solicitudes: 2,
     })
     render(<ReporteView />)
-    const select = (await screen.findByText('Tipo de servicio', { selector: 'span' })).parentElement!.querySelector('select')!
-    expect([...select.options].map((o) => o.textContent)).toEqual(['Todos', 'Actimist', 'Línea de proceso'])
-    fireEvent.change(select, { target: { value: 'Actimist' } })
+    const caja = await abrir('Tipo de servicio')
+    expect(within(caja).getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)).toEqual(['Actimist', 'Línea de proceso'])
+    marcar(caja, 'Actimist')
     await waitFor(() => expect(screen.getByText(/1 de 2 solicitudes/)).toBeTruthy())
   })
 
@@ -236,9 +300,9 @@ describe('Report por bloques de análisis', () => {
       total_solicitudes: 3,
     })
     render(<ReporteView />)
-    const select = (await screen.findByText('N° de línea', { selector: 'span' })).parentElement!.querySelector('select')!
-    expect([...select.options].map((o) => o.textContent)).toEqual(['Todas', '2', '10'])
-    fireEvent.change(select, { target: { value: '10' } })
+    const caja = await abrir('N° de línea')
+    expect(within(caja).getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)).toEqual(['2', '10'])
+    marcar(caja, '10')
     await waitFor(() => expect(screen.getByText(/1 de 3 solicitudes/)).toBeTruthy())
   })
 })

@@ -60,8 +60,12 @@ def _filtro_alcance(
     usuario: Usuario,
     cliente: str | None,
     planta: str | None,
+    limitar_servicios: bool = True,
 ) -> tuple[str, dict[str, Any]]:
     """El `AND ...` que acota una consulta a lo que esta sesión puede ver.
+
+    `limitar_servicios=False` (solo el personal interno, desde el Panel de control interno) deja ver todos los tipos
+    de servicio: los botones de Administración General → Funciones valen SOLO para Report.
 
     El filtro se arma SIEMPRE acá y nunca a partir del parámetro crudo: para
     una cuenta de cliente, `alcance_de_datos` descarta lo que pidió el
@@ -76,10 +80,11 @@ def _filtro_alcance(
     params: dict[str, Any] = {}
     # Report muestra solo los tipos de servicio encendidos en Administración
     # General → Funciones (de fábrica, solo Línea de proceso). Vale para todos.
-    condicion_servicio, params_servicio = funciones.condicion_report("s")
-    if condicion_servicio:
-        condiciones.append(condicion_servicio[len("AND "):])
-        params.update(params_servicio)
+    if limitar_servicios or usuario.tipoAcceso in ("cliente", "comercial"):
+        condicion_servicio, params_servicio = funciones.condicion_report("s")
+        if condicion_servicio:
+            condiciones.append(condicion_servicio[len("AND "):])
+            params.update(params_servicio)
     if cliente:
         condiciones.append("COALESCE(c.nombre, s.sold_to_raw) = %(cliente)s")
         params["cliente"] = cliente
@@ -291,12 +296,17 @@ def datos(
         description="Si se pasa (junto con cliente), acota además a esta sucursal — cuentas "
         "de cliente creadas por Ship To, en vez de por Sold To completo.",
     ),
+    ambito: str | None = Query(
+        None,
+        description="'control' = Panel de control interno: el personal interno ve todos los tipos de servicio "
+        "(los botones de Funciones valen solo para Report). Para clientes y comerciales no cambia nada.",
+    ),
     usuario: Usuario = Depends(usuario_actual),
 ) -> dict[str, Any]:
     # El filtro se aplica siempre en el SQL, nunca en el navegador. Y para una
     # cuenta de cliente sale de su sesión, no de estos parámetros: antes bastaba
     # con editar `?cliente=` en la barra de direcciones para ver a otro cliente.
-    filtro_cliente, params = _filtro_alcance(usuario, cliente, planta)
+    filtro_cliente, params = _filtro_alcance(usuario, cliente, planta, limitar_servicios=ambito != "control")
     with conexion(escribir=False) as conn:
         with cursor_dict(conn) as cur:
             cur.execute(DATOS_QUERY.format(filtro_cliente=filtro_cliente), params)
@@ -649,19 +659,18 @@ def clientes(_: Usuario = Depends(solo_interno)) -> list[str]:
 
     Cerrado a las cuentas de cliente: la lista completa revela quiénes son
     clientes de AgroFresh, que no es asunto de ninguno de ellos."""
-    condicion_servicio, params_servicio = funciones.condicion_report("s")
+    # Lo usa el selector de Usuarios (no es Report): lista todos los clientes, sin el filtro de Funciones.
     with conexion(escribir=False) as conn:
         with cursor_dict(conn) as cur:
             cur.execute(
-                f"""
+                """
                 SELECT DISTINCT COALESCE(c.nombre, s.sold_to_raw) AS cliente
                 FROM solicitud s
                 LEFT JOIN planta p ON p.id = s.planta_id
                 LEFT JOIN cliente c ON c.id = p.cliente_id
-                WHERE s.vigente AND COALESCE(c.nombre, s.sold_to_raw) IS NOT NULL {condicion_servicio}
+                WHERE s.vigente AND COALESCE(c.nombre, s.sold_to_raw) IS NOT NULL
                 ORDER BY 1
-                """,
-                params_servicio,
+                """
             )
             return [fila["cliente"] for fila in cur.fetchall()]
 

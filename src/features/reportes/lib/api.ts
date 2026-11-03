@@ -2,10 +2,12 @@ import { httpClient } from '@/services/http/client'
 import type { PedidoBd } from './descargaBd'
 import type { Analito, AnalitoInput, FichaInforme, FilaReporte, LimiteAnalito, LimiteAnalitoInput } from './tipos'
 
-export function obtenerDatosReporte(cliente?: string, planta?: string) {
+/** `control`: Panel de control interno; el servidor muestra todos los tipos de servicio (los de Funciones valen solo para Report). */
+export function obtenerDatosReporte(cliente?: string, planta?: string, control = false) {
   const params = new URLSearchParams()
   if (cliente) params.set('cliente', cliente)
   if (planta) params.set('planta', planta)
+  if (control) params.set('ambito', 'control')
   const query = params.toString() ? `?${params.toString()}` : ''
   return httpClient.get<{ filas: FilaReporte[]; total: number; total_solicitudes: number }>(
     `/reportes/datos${query}`,

@@ -31,3 +31,15 @@ Plan: martes 20 → 10, 9, 4; miércoles 21 → 8, 7. Los puntos 5 y 6 esperan a
 | 14 | Avisar cuando falla el envío automático | Hecha (20-10): widget «Envíos que fallaron» en el Panel de inicio, solo para el administrador general |
 | 15 | Determinar la causa exacta del corte con Google (log de envíos, otra red, aviso de Cloud) | Pendiente |
 | 16 | Correr en el servidor la migración 0047 (la 0063 y las cuentas de comerciales ya están) | Pendiente |
+
+## Lote 03-11-2026 (tareas de hoy; el usuario las da por partes, faltan más)
+
+Orden: lo más difícil primero (9 h estimadas; ver si algo pasa a mañana).
+
+| N° | Tarea | Estado |
+|---|---|---|
+| 17 | Los botones de Administración General → Funciones limitan SOLO Report (hoy también recortan el Panel de control interno y otras pantallas; todo lo demás debe ver todo). Importante | Hecha (03-11) |
+| 18 | Todos los filtros de Report como checks (varios valores), en vista estándar y de cliente | Hecha (03-11) |
+| 19 | Ingrediente activo: todos marcados; un clic deja solo ese y se suman más; «Limpiar» vuelve a marcar todos | Hecha (03-11) |
+| 20 | Filtro de Especie en FSMA (Report) | Hecha (03-11) |
+| 21 | Renombrar «Costo por kilo» a «C&M 500» (Reportes Accutab) | Hecha (03-11) |

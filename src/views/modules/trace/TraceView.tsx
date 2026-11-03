@@ -26,7 +26,7 @@ export function TraceView() {
           Accu-Tab · pH y ORP
         </button>
         <button type="button" role="tab" aria-selected={pestana === 'costo'} className={`${styles.pestana} ${pestana === 'costo' ? styles.pestanaActiva : ''}`} onClick={() => setPestana('costo')}>
-          Costo por kilo
+          C&M 500
         </button>
       </div>
       {pestana === 'accutab' ? <IframeModule src={SRC_TRACE} titulo="Trace" /> : <SubirCostoKilo />}

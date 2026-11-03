@@ -92,10 +92,10 @@ export function SeccionCostoKilo({
   if (!actual) {
     if (modo !== 'equipo') return null
     return (
-      <section className={styles.seccion} style={{ '--acento': acento } as CSSProperties} aria-label="Costo por kilo">
-        <CabeceraSeccion id={ID_COSTO_KILO} titulo="Costo por kilo" numero={numero} acento={acento} laboratorios="Equipo C&M-500 · producto usado por día" />
+      <section className={styles.seccion} style={{ '--acento': acento } as CSSProperties} aria-label="C&M 500">
+        <CabeceraSeccion id={ID_COSTO_KILO} titulo="C&M 500" numero={numero} acento={acento} laboratorios="Producto usado por día" />
         <Card className={styles.grafico}>
-          <p className={styles.aviso}>Aún no hay informes de costo por kilo. Sube el primero en Trace → pestaña «Costo por kilo» y aparecerá aquí.</p>
+          <p className={styles.aviso}>Aún no hay informes de C&M 500. Sube el primero en Trace → pestaña «C&M 500» y aparecerá aquí.</p>
         </Card>
       </section>
     )
@@ -103,8 +103,8 @@ export function SeccionCostoKilo({
   const tot = datos?.resumen.totales
 
   return (
-    <section className={styles.seccion} style={{ '--acento': acento } as CSSProperties} aria-label="Costo por kilo">
-      <CabeceraSeccion id={ID_COSTO_KILO} titulo="Costo por kilo" numero={numero} acento={acento} laboratorios="Equipo C&M-500 · producto usado por día">
+    <section className={styles.seccion} style={{ '--acento': acento } as CSSProperties} aria-label="C&M 500">
+      <CabeceraSeccion id={ID_COSTO_KILO} titulo="C&M 500" numero={numero} acento={acento} laboratorios="Producto usado por día">
         <div className={`${botones.botones} ${styles.descargas}`}>
           <button type="button" className={`${botones.boton} ${botones.encendido}`} disabled={bajando !== null || !datos} onClick={() => void bajar('pdf')}>
             {ICONO_BAJAR}
