@@ -23,13 +23,14 @@ import logging
 
 from fastapi import APIRouter, Depends, Query
 
-from . import config, funciones
+from . import config
 from .auth import Usuario, usuario_actual
 from .db import conexion, cursor_dict
 
 def _cs(alias: str) -> tuple[str, dict[str, Any]]:
-    """Solo los tipos de servicio que Report muestra (Administración General → Funciones)."""
-    return funciones.condicion_report(alias)
+    """Sin filtro: los botones de Administración General → Funciones valen SOLO para Report; el panel de inicio
+    (Panel general, gráficos, actividad) ve todos los tipos de servicio."""
+    return "", {}
 
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])

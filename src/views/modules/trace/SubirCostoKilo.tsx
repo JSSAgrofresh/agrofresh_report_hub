@@ -21,7 +21,7 @@ import styles from './SubirCostoKilo.module.css'
 const mensaje = (e: unknown, alterno: string) => (e instanceof HttpError ? (e.message && e.status === 422 ? e.message : `El servidor respondió con un error (${e.status}).`) : alterno)
 
 /**
- * Trace → Costo por kilo: se sube a mano el CSV original del C&M-500 (tal cual lo manda el equipo, sin tabularlo). El
+ * Trace → C&M 500: se sube a mano el CSV original del C&M-500 (tal cual lo manda el equipo, sin tabularlo). El
  * servidor calcula el valor diario, genera el informe PDF y, al guardar, aparece solo en Reportes Accutab → «Costo por
  * kilo». Es solo del personal de AgroFresh: un cliente nunca llega a Trace.
  */
@@ -93,7 +93,7 @@ export function SubirCostoKilo() {
         linea: linea || null,
         equipo: equipo || null,
       })
-      setOk(`Informe guardado (${fechaDeCarpeta(r.carpeta)}). Ya aparece en Reportes Accutab → Costo por kilo.`)
+      setOk(`Informe guardado (${fechaDeCarpeta(r.carpeta)}). Ya aparece en Reportes Accutab → C&M 500.`)
       setArchivo(null)
       setPrevia(null)
       await recargar()
@@ -119,7 +119,7 @@ export function SubirCostoKilo() {
   return (
     <div className={styles.wrap}>
       <div>
-        <h2 className={styles.titulo}>Costo por kilo · equipo C&M-500</h2>
+        <h2 className={styles.titulo}>C&M 500 · equipo C&M-500</h2>
         <p className={styles.ayuda}>
           Sube el CSV original tal como lo entrega el equipo (no hace falta tabularlo). El sistema calcula cuánto producto se usó cada día, arma el informe y lo deja
           en Reportes Accutab. Los correos que lleguen al buzón del sistema se procesarán igual cuando esté definida la matriz de asuntos.

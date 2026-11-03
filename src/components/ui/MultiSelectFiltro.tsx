@@ -12,42 +12,96 @@ interface MultiSelectFiltroProps {
   conteoDe?: (opcion: string) => number | undefined
   /** Opcional: cómo se escribe cada opción (el valor guardado no cambia; ej. 9 → «Septiembre»). */
   formatear?: (opcion: string) => string
+  /**
+   * El estado normal es «todo marcado»: al tocar una opción cuando están todas marcadas queda SOLO esa (y se pueden ir
+   * marcando más), y «Limpiar» vuelve a marcar todas. Sin esto, el estado normal es «nada marcado = todos».
+   */
+  todosPorDefecto?: boolean
 }
 
-export function MultiSelectFiltro({ etiqueta, opciones, valores, onChange, colorDe, conteoDe, formatear = (v) => v }: MultiSelectFiltroProps) {
+/** Sin tildes ni mayúsculas, para buscar. */
+const plano = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+/** Desde cuántas opciones aparece el cuadro de búsqueda. */
+const OPCIONES_PARA_BUSCAR = 8
+
+export function MultiSelectFiltro({ etiqueta, opciones, valores, onChange, colorDe, conteoDe, formatear = (v) => v, todosPorDefecto = false }: MultiSelectFiltroProps) {
   const [abierto, setAbierto] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
+
+  const todosMarcados = todosPorDefecto && opciones.length > 0 && opciones.every((o) => valores.includes(o))
 
   function alternar(o: string) {
+    if (todosMarcados) {
+      onChange([o])
+      return
+    }
     onChange(valores.includes(o) ? valores.filter((v) => v !== o) : [...valores, o])
   }
 
-  const textoBoton =
-    valores.length === 0 ? 'Todos' : valores.length === 1 ? formatear(valores[0]) : `${valores.length} seleccionados`
+  function limpiar() {
+    onChange(todosPorDefecto ? [...opciones] : [])
+  }
+
+  const hayAlgoQueLimpiar = todosPorDefecto ? !todosMarcados : valores.length > 0
+  const conBuscador = opciones.length > OPCIONES_PARA_BUSCAR
+  const visibles = busqueda.trim() ? opciones.filter((o) => plano(formatear(o)).includes(plano(busqueda.trim()))) : opciones
+
+  const textoBoton = todosMarcados
+    ? 'Todos'
+    : valores.length === 0
+      ? 'Todos'
+      : valores.length === 1
+        ? formatear(valores[0])
+        : `${valores.length} seleccionados`
 
   return (
     <div className={styles.contenedor}>
       <span className={styles.etiqueta}>{etiqueta}</span>
-      <button type="button" className={styles.boton} onClick={() => setAbierto((v) => !v)}>
-        <span className={cn(styles.botonTexto, valores.length === 0 && styles.botonTextoVacio)}>{textoBoton}</span>
+      <button
+        type="button"
+        className={styles.boton}
+        onClick={() => {
+          setAbierto((v) => !v)
+          setBusqueda('')
+        }}
+      >
+        <span className={cn(styles.botonTexto, (valores.length === 0 || todosMarcados) && styles.botonTextoVacio)}>{textoBoton}</span>
         <span className={styles.flecha}>{abierto ? '▲' : '▼'}</span>
       </button>
 
       {abierto && (
         <>
-          <div className={styles.fondo} onClick={() => setAbierto(false)} />
+          <div
+            className={styles.fondo}
+            onClick={() => {
+              setAbierto(false)
+              setBusqueda('')
+            }}
+          />
           <div className={styles.lista}>
             <div className={styles.listaCabecera}>
               <span>{valores.length} de {opciones.length} seleccionados</span>
-              {valores.length > 0 && (
-                <button type="button" className={styles.limpiar} onClick={() => onChange([])}>
+              {hayAlgoQueLimpiar && (
+                <button type="button" className={styles.limpiar} onClick={limpiar}>
                   Limpiar
                 </button>
               )}
             </div>
-            {opciones.length === 0 ? (
+            {conBuscador && (
+              <input
+                type="search"
+                className={styles.buscador}
+                placeholder="Buscar…"
+                aria-label={`Buscar en ${etiqueta}`}
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+              />
+            )}
+            {opciones.length === 0 || visibles.length === 0 ? (
               <p className={styles.sinResultados}>Sin opciones</p>
             ) : (
-              opciones.map((o) => (
+              visibles.map((o) => (
                 <label key={o} className={styles.opcion}>
                   <input type="checkbox" checked={valores.includes(o)} onChange={() => alternar(o)} />
                   {colorDe && <span className={styles.puntoColor} style={{ background: colorDe(o) }} />}

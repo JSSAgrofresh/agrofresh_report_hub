@@ -230,7 +230,7 @@ export function ReporteAccutab({ cargas, verCarga, accionesDe, mostrarOrigen = f
                 ? [{ nombre: 'Accutab', total: kpis.cargas, unidad: { uno: 'informe', varios: 'informes' }, icono: IconPozoAgua, onElegir: () => irASeccion(ID_SECCION) }]
                 : []),
               ...(costoKilo && hayCosto
-                ? [{ nombre: 'Costo por kilo', total: costoKilo.informes.length, unidad: { uno: 'informe', varios: 'informes' }, icono: IconKg, onElegir: () => irASeccion(ID_COSTO_KILO) }]
+                ? [{ nombre: 'C&M 500', total: costoKilo.informes.length, unidad: { uno: 'informe', varios: 'informes' }, icono: IconKg, onElegir: () => irASeccion(ID_COSTO_KILO) }]
                 : []),
             ]}
           />

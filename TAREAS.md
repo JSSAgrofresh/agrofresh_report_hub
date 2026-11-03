@@ -38,8 +38,8 @@ Orden: lo más difícil primero (9 h estimadas; ver si algo pasa a mañana).
 
 | N° | Tarea | Estado |
 |---|---|---|
-| 17 | Los botones de Administración General → Funciones limitan SOLO Report (hoy también recortan el Panel de control interno y otras pantallas; todo lo demás debe ver todo). Importante | Pendiente |
-| 18 | Todos los filtros de Report como checks (varios valores), en vista estándar y de cliente | Pendiente |
-| 19 | Ingrediente activo: todos marcados; un clic deja solo ese y se suman más; «Limpiar» vuelve a marcar todos | Pendiente |
-| 20 | Filtro de Especie en FSMA (Report) | Pendiente |
-| 21 | Renombrar «Costo por kilo» a «C&M 500» (Reportes Accutab) | Pendiente |
+| 17 | Los botones de Administración General → Funciones limitan SOLO Report (hoy también recortan el Panel de control interno y otras pantallas; todo lo demás debe ver todo). Importante | Hecha (03-11) |
+| 18 | Todos los filtros de Report como checks (varios valores), en vista estándar y de cliente | Hecha (03-11) |
+| 19 | Ingrediente activo: todos marcados; un clic deja solo ese y se suman más; «Limpiar» vuelve a marcar todos | Hecha (03-11) |
+| 20 | Filtro de Especie en FSMA (Report) | Hecha (03-11) |
+| 21 | Renombrar «Costo por kilo» a «C&M 500» (Reportes Accutab) | Hecha (03-11) |

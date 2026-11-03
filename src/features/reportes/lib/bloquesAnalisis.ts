@@ -54,11 +54,14 @@ export function bloqueDeLaboratorio(laboratorio: string | null | undefined): Cla
 
 export type BloquesVisibles = Record<ClaveBloque, boolean>
 
-/** Qué bloques se ven según el laboratorio elegido en el filtro (vacío = todos). */
-export function bloquesVisibles(laboratorioElegido: string | null | undefined): BloquesVisibles {
-  if (!String(laboratorioElegido ?? '').trim()) return { residuales: true, fsma: true, fito: true }
-  const b = bloqueDeLaboratorio(laboratorioElegido)
-  return { residuales: b === 'residuales', fsma: b === 'fsma', fito: b === 'fito' }
+/** Qué bloques se ven según los laboratorios elegidos en el filtro (uno o varios; vacío = todos). */
+export function bloquesVisibles(laboratoriosElegidos: string | string[] | null | undefined): BloquesVisibles {
+  const elegidos = (Array.isArray(laboratoriosElegidos) ? laboratoriosElegidos : [laboratoriosElegidos]).filter(
+    (l) => String(l ?? '').trim() !== '',
+  )
+  if (elegidos.length === 0) return { residuales: true, fsma: true, fito: true }
+  const bloques = new Set(elegidos.map((l) => bloqueDeLaboratorio(l)))
+  return { residuales: bloques.has('residuales'), fsma: bloques.has('fsma'), fito: bloques.has('fito') }
 }
 
 /** `'agrofresh'` / `'quiteca'` si el laboratorio es uno de residuos con nombre conocido; `''` si no. */
@@ -71,13 +74,16 @@ export function labResidual(laboratorio: string | null | undefined): LabResidual
  * Lo que dicen los botones de laboratorio del bloque de residuos. Si el filtro de arriba ya eligió un laboratorio de
  * residuos, ese manda y el otro botón queda en gris; si no, manda lo que se tocó en el propio bloque (`''` = los dos).
  */
-export function estadoBotonesResidual(laboratorioFiltro: string, botonElegido: LabResidual | ''): {
+export function estadoBotonesResidual(laboratorioFiltro: string | string[], botonElegido: LabResidual | ''): {
   efectivo: LabResidual | ''
   /** El filtro de arriba fijó el laboratorio: tocar el otro botón lo quita. */
   fijadoPorFiltro: boolean
 } {
-  const delFiltro = labResidual(laboratorioFiltro)
-  return delFiltro ? { efectivo: delFiltro, fijadoPorFiltro: true } : { efectivo: botonElegido, fijadoPorFiltro: false }
+  // Con varios laboratorios elegidos arriba, el filtro fija el de residuos solo si entre ellos hay UNO de los dos.
+  const delFiltro = [...new Set((Array.isArray(laboratorioFiltro) ? laboratorioFiltro : [laboratorioFiltro]).map(labResidual).filter(Boolean))]
+  return delFiltro.length === 1
+    ? { efectivo: delFiltro[0] as LabResidual, fijadoPorFiltro: true }
+    : { efectivo: botonElegido, fijadoPorFiltro: false }
 }
 
 /**
@@ -88,7 +94,7 @@ export function estadoBotonesResidual(laboratorioFiltro: string, botonElegido: L
  */
 export function alTocarBoton(
   tocado: LabResidual,
-  laboratorioFiltro: string,
+  laboratorioFiltro: string | string[],
   botonElegido: LabResidual | '',
 ): { botonElegido: LabResidual | ''; quitarFiltroLaboratorio: boolean } {
   const { efectivo, fijadoPorFiltro } = estadoBotonesResidual(laboratorioFiltro, botonElegido)

@@ -233,7 +233,7 @@ interface DatosReporte {
 
 /** Lo último que trajo el servidor para cada cuenta y alcance: cambiar de pantalla y volver no vuelve a mostrar «cargando». */
 const cacheDatos = crearCacheDeSesion<DatosReporte>()
-const claveDatos = (cliente?: string, planta?: string) => `${cliente ?? ''}|${planta ?? ''}`
+const claveDatos = (cliente?: string, planta?: string, control = false) => `${cliente ?? ''}|${planta ?? ''}|${control ? 'control' : ''}`
 
 export function ReporteView({
   clienteFijo,
@@ -241,7 +241,7 @@ export function ReporteView({
   onCropChange,
   vistaControl = false,
   limitesTabla = false,
-  filtrosMultiples = false,
+  filtrosMultiples = true,
   selectorModo,
   sinEncabezado = false,
   onClienteChange,
@@ -254,7 +254,7 @@ export function ReporteView({
   vistaControl?: boolean
   /** «Vista de límites» en modo Límites residuales: franjas FIJAS (tabla del laboratorio, por especie) y el recuadro de informes fuera de rango. */
   limitesTabla?: boolean
-  /** Vista de límites: Laboratorio, Sold To, Ship To, Especie, Variedad, Semana y Mes admiten varios valores a la vez. */
+  /** Laboratorio, Sold To, Ship To, Tipo de servicio, Línea, Especie, Variedad, Semana y Mes admiten varios valores a la vez (checks). */
   filtrosMultiples?: boolean
   /** El selector «Límites residuales / Límites de control»; va arriba de los filtros, a la izquierda. */
   selectorModo?: ReactNode
@@ -271,7 +271,7 @@ export function ReporteView({
   const wrapStyle = { '--acento': acento } as CSSProperties
 
   // Lo que se vio la última vez (si se vio): se dibuja de inmediato y se actualiza por detrás, en vez de volver a «cargando».
-  const [previo] = useState(() => cacheDatos.leer(claveDatos(clienteFijo, plantaFija)))
+  const [previo] = useState(() => cacheDatos.leer(claveDatos(clienteFijo, plantaFija, vistaControl || limitesTabla)))
   const [filas, setFilas] = useState<FilaReporte[] | null>(previo?.filas ?? null)
   const [soloFuera, setSoloFuera] = useState(false)
   const [totalSolicitudes, setTotalSolicitudes] = useState(previo?.totalSolicitudes ?? 0)
@@ -318,15 +318,16 @@ export function ReporteView({
 
   const obtenerTodo = useCallback(async () => {
     const [datos, catalogo, limitesCatalogo] = await Promise.all([
-      obtenerDatosReporte(clienteFijo, plantaFija),
+      // En el Panel de control interno (límites) se ven todos los tipos de servicio: los botones de Funciones valen solo para Report.
+      obtenerDatosReporte(clienteFijo, plantaFija, vistaControl || limitesTabla),
       listarAnalitos(),
       listarLimites(),
     ])
     return { filas: datos.filas, totalSolicitudes: datos.total_solicitudes, analitos: catalogo, limites: limitesCatalogo }
-  }, [clienteFijo, plantaFija])
+  }, [clienteFijo, plantaFija, vistaControl, limitesTabla])
 
   function aplicarExito(r: DatosReporte) {
-    cacheDatos.guardar(claveDatos(clienteFijo, plantaFija), r)
+    cacheDatos.guardar(claveDatos(clienteFijo, plantaFija, vistaControl || limitesTabla), r)
     setFilas(r.filas)
     setTotalSolicitudes(r.totalSolicitudes)
     setAnalitos(r.analitos)
@@ -371,13 +372,17 @@ export function ReporteView({
   }, [obtenerTodo])
   useActualizacionProgramada(() => void cargar())
 
+  // Lo que los encabezados de arriba muestran: el valor, solo si hay UNO elegido.
+  const cropEscalar = filtrosMultiples ? (multi.crop.length === 1 ? multi.crop[0] : '') : filtros.crop
+  const clienteEscalar = filtrosMultiples ? (multi.cliente.length === 1 ? multi.cliente[0] : '') : filtros.cliente
+  const laboratorioEscalar = filtrosMultiples ? (multi.laboratorio.length === 1 ? multi.laboratorio[0] : '') : filtros.laboratorio
   useEffect(() => {
-    onCropChange?.(filtros.crop)
-  }, [filtros.crop, onCropChange])
+    onCropChange?.(cropEscalar)
+  }, [cropEscalar, onCropChange])
 
   useEffect(() => {
-    onClienteChange?.(filtros.cliente)
-  }, [filtros.cliente, onClienteChange])
+    onClienteChange?.(clienteEscalar)
+  }, [clienteEscalar, onClienteChange])
 
 
   useEffect(() => {
@@ -417,13 +422,14 @@ export function ReporteView({
   const especiesDeLaCuenta = useMemo(() => {
     const cuentas = new Map<string, Set<number>>()
     for (const o of filasVista ?? []) {
-      if (!o.especie || (filtros.cliente && o.cliente !== filtros.cliente)) continue
+      if (!o.especie) continue
+      if (filtrosMultiples ? multi.cliente.length > 0 && !multi.cliente.includes(o.cliente ?? '') : filtros.cliente && o.cliente !== filtros.cliente) continue
       const ids = cuentas.get(o.especie) ?? new Set<number>()
       ids.add(o.solicitud_id)
       cuentas.set(o.especie, ids)
     }
     return [...cuentas.entries()].sort((a, b) => b[1].size - a[1].size).map(([e]) => e)
-  }, [filasVista, filtros.cliente])
+  }, [filasVista, filtros.cliente, filtrosMultiples, multi.cliente])
   const clavesEspecies = especiesDeLaCuenta.join('|')
   useEffect(() => {
     onEspeciesChange?.(clavesEspecies ? clavesEspecies.split('|') : [])
@@ -500,7 +506,7 @@ export function ReporteView({
   // se ven los tres; eligiendo uno, solo el suyo. La «Vista de límites» del Panel de control interno (vistaControl / limitesTabla)
   // sigue siendo un solo gráfico de residuos, y ahí ALS y Diagnofruit solo se ven eligiéndolos (tabla).
   const modoBloques = !vistaControl && !limitesTabla
-  const bloques = bloquesVisibles(filtros.laboratorio)
+  const bloques = bloquesVisibles(filtrosMultiples ? multi.laboratorio : filtros.laboratorio)
   // Cada bloque lleva su número correlativo (1, 2, 3 hacia abajo) en la esquina de su cabecera.
   const numeroDeBloque = (b: 'residuales' | 'fsma' | 'fito') => {
     const visibles = (['residuales', 'fsma', 'fito'] as const).filter((x) => bloques[x])
@@ -508,7 +514,7 @@ export function ReporteView({
   }
   // Los botones «Laboratorio AgroFresh / Laboratorio Quiteca» del bloque de residuos.
   const [botonResidual, setBotonResidual] = useState<LabResidual | ''>('')
-  const botonesResidual = estadoBotonesResidual(filtros.laboratorio, botonResidual)
+  const botonesResidual = estadoBotonesResidual(filtrosMultiples ? multi.laboratorio : filtros.laboratorio, botonResidual)
 
   // Modo de la vista de límites: ALS o Diagnofruit se ven en tabla solo si es el único laboratorio elegido.
   const labTabular = useMemo(() => {
@@ -546,10 +552,11 @@ export function ReporteView({
   )
 
   // Los informes de ALS y de Diagnofruit con la forma de la tabla y los gráficos, y cuántos hay sin ningún filtro.
-  // ALS no informa especie ni variedad: esos dos filtros no se le aplican (si no, elegir una Especie vaciaría FSMA).
+  // FSMA se filtra por Especie (sale de la solicitud del informe), pero ALS no informa variedad: ese filtro no se le
+  // aplica (si no, elegir una Variedad vaciaría FSMA).
   const filtradasParaAls = useMemo(() => {
-    const base = aplicarFiltros(observaciones, { ...filtros, crop: '', variedad: '' })
-    return filtrosMultiples ? base.filter((o) => cumpleMulti(o, { ...multi, crop: [], variedad: [] })) : base
+    const base = aplicarFiltros(observaciones, { ...filtros, variedad: '' })
+    return filtrosMultiples ? base.filter((o) => cumpleMulti(o, { ...multi, variedad: [] })) : base
   }, [observaciones, filtros, multi, filtrosMultiples])
   const informesAls = useMemo(() => construirInformes(filtradasParaAls, 'als', analitosVista), [filtradasParaAls, analitosVista])
   const informesFito = useMemo(() => construirInformes(filtradasTodas, 'diagnofruit', analitosVista), [filtradasTodas, analitosVista])
@@ -611,16 +618,22 @@ export function ReporteView({
   // Las tarjetas de arriba llevan directo a un análisis; si el filtro de laboratorio lo dejó fuera, lo quitan primero.
   function irAlAnalisis(bloque: ClaveBloque) {
     const visible = bloques[bloque]
-    if (!visible) actualizarFiltro('laboratorio', '')
+    if (!visible) {
+      if (filtrosMultiples) cambiarMulti('laboratorio', [])
+      else actualizarFiltro('laboratorio', '')
+    }
     const lanzar = () => irASeccion(ID_BLOQUE[bloque])
     if (visible) lanzar()
     else window.setTimeout(lanzar, 120)
   }
 
   function tocarBotonResidual(lab: LabResidual) {
-    const r = alTocarBoton(lab, filtros.laboratorio, botonResidual)
+    const r = alTocarBoton(lab, filtrosMultiples ? multi.laboratorio : filtros.laboratorio, botonResidual)
     setBotonResidual(r.botonElegido)
-    if (r.quitarFiltroLaboratorio) actualizarFiltro('laboratorio', '')
+    if (r.quitarFiltroLaboratorio) {
+      if (filtrosMultiples) cambiarMulti('laboratorio', [])
+      else actualizarFiltro('laboratorio', '')
+    }
   }
 
   // Solo las filas con un ppm numérico entran a las estadísticas y los gráficos
@@ -645,8 +658,8 @@ export function ReporteView({
     const codigo = ingredientesActivos[0]
     const candidatos = analitosVista.filter((a) => a.codigo === codigo)
     if (candidatos.length <= 1) return candidatos[0] ?? null
-    return candidatos.find((a) => mismoValor(a.laboratorio, filtros.laboratorio)) ?? candidatos[0]
-  }, [analitosVista, ingredientesActivos, filtros.laboratorio])
+    return candidatos.find((a) => mismoValor(a.laboratorio, laboratorioEscalar)) ?? candidatos[0]
+  }, [analitosVista, ingredientesActivos, laboratorioEscalar])
 
   // El límite correcto depende de especie y tipo de servicio, no solo del analito:
   // se busca primero la combinación exacta, y si no existe se va relajando hacia
@@ -654,7 +667,7 @@ export function ReporteView({
   const limiteResidual = useMemo(() => {
     if (!analitoSeleccionado) return { inferior: null, central: null, superior: null }
     const propios = limitesVista.filter((l) => l.analito_id === analitoSeleccionado.id)
-    const especie = filtros.crop
+    const especie = cropEscalar
     const servicio = filtros.tipoServicio
     const candidatos = [
       propios.find((l) => mismoValor(l.especie, especie) && mismoValor(l.tipo_servicio, servicio)),
@@ -668,7 +681,7 @@ export function ReporteView({
       central: encontrado?.limite_central != null ? Number(encontrado.limite_central) : null,
       superior: encontrado?.limite_max != null ? Number(encontrado.limite_max) : null,
     }
-  }, [analitoSeleccionado, limitesVista, filtros.crop, filtros.tipoServicio])
+  }, [analitoSeleccionado, limitesVista, cropEscalar, filtros.tipoServicio])
 
   const limitesActivos = vista === 'residual' ? limiteResidual : limitesControl
   // Modo «Límites residuales» de la Vista de límites: las franjas salen de la tabla fija, según la especie elegida.
@@ -723,7 +736,7 @@ export function ReporteView({
     if (angostoGrafico && c) c.scrollLeft = c.scrollWidth
   }, [angostoGrafico, informes.length])
   const tituloPrincipal = filtrosMultiples
-    ? tituloLimites(vistaControl ? 'Límites de control' : 'Límites residuales', multi, filtros.ingredientes, nombreMes)
+    ? tituloLimites(vistaControl ? 'Límites de control' : limitesTabla ? 'Límites residuales' : 'Residuales', multi, filtros.ingredientes, nombreMes)
     : tituloGrafico(filtros, !clienteFijo, vistaControl ? 'Límites de control' : 'Residuales', analitosGraficados)
 
   useEffect(() => {
@@ -1489,6 +1502,7 @@ export function ReporteView({
                   opciones={opciones.laboratorios.map((o) => o.valor)}
                   valores={multi.laboratorio}
                   onChange={(v) => cambiarMulti('laboratorio', v)}
+                  formatear={nombreLaboratorio}
                 />
               ) : (
                 <label className={styles.filtro}>
@@ -1624,7 +1638,7 @@ export function ReporteView({
               <InfoTip>Cambian según el análisis que estás mirando: residuos (especie, variedad, ingrediente activo), FSMA (analito) y fitopatología (especie, variedad, microorganismo).</InfoTip>
             </p>
             <div className={styles.filtros}>
-              {!(modoBloques && bloqueActivo === 'fsma') && (filtrosMultiples ? (
+              {(filtrosMultiples ? (
                 <>
                   <MultiSelectFiltro
                     etiqueta="Especie"
@@ -1632,12 +1646,14 @@ export function ReporteView({
                     valores={multi.crop}
                     onChange={(v) => cambiarMulti('crop', v)}
                   />
-                  <MultiSelectFiltro
-                    etiqueta="Variedad"
-                    opciones={opciones.variedades.map((o) => o.valor)}
-                    valores={multi.variedad}
-                    onChange={(v) => cambiarMulti('variedad', v)}
-                  />
+                  {!(modoBloques && bloqueActivo === 'fsma') && (
+                    <MultiSelectFiltro
+                      etiqueta="Variedad"
+                      opciones={opciones.variedades.map((o) => o.valor)}
+                      valores={multi.variedad}
+                      onChange={(v) => cambiarMulti('variedad', v)}
+                    />
+                  )}
                 </>
               ) : (
                 <>
@@ -1669,6 +1685,7 @@ export function ReporteView({
                   valores={ingredientesActivos}
                   onChange={(v) => setFiltros((prev) => ({ ...prev, ingredientes: v.length >= todosIngredientes.length ? [] : v }))}
                   colorDe={colorDeIngrediente}
+                  todosPorDefecto
                 />
               )}
               {modoBloques && bloqueActivo === 'fsma' && (
