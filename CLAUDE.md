@@ -403,8 +403,7 @@ listado (`cliente_ecofog`/`planta_ecofog`, migración **0050**, que arranca como
 listado de Actimist) y su propia lista de distribución (`servicio: "ecofog"`). Todo lo que
 es «Actimist y Ecofog» se pregunta con `es_servicio_con_listado` (`servicios.py`, espejo
 `tieneListadoPropio` en `src/lib/servicio.ts`); las rutas del listado son
-`/api/catalogo/{actimist|ecofog}/...`. **Falta**: Panel de control interno cuenta Ecofog como Línea de
-proceso (no tiene dona propia); Ingesta, Converter y Report no lo leen (igual que Actimist).
+`/api/catalogo/{actimist|ecofog}/...`. **Panel de control interno (03-11-2026)**: Ecofog tiene su propia dona y su propio grupo en la tabla dinámica (`TIPO_ECOFOG` en `features/auditoriaInterna/lib/resumen.ts`, dentro del área Operaciones junto a Línea de proceso y Actimist; color turquesa `#0f8a73`); las donas son compactas (anillo de 92 px con sus números al lado) para que las cuatro quepan sin bajar. Ingesta, Converter y Report ya lo leen (ver «Carga de datos»).
 Para que aparezca en el formulario hay que tener «Ecofog» en Tipos de aplicación (el
 mantenedor lo guarda en R2; el valor por defecto ya lo trae, pero si ya hay un archivo
 guardado se agrega a mano).

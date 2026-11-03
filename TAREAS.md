@@ -43,3 +43,5 @@ Orden: lo más difícil primero (9 h estimadas; ver si algo pasa a mañana).
 | 19 | Ingrediente activo: todos marcados; un clic deja solo ese y se suman más; «Limpiar» vuelve a marcar todos | Hecha (03-11) |
 | 20 | Filtro de Especie en FSMA (Report) | Hecha (03-11) |
 | 21 | Renombrar «Costo por kilo» a «C&M 500» (Reportes Accutab) | Hecha (03-11) |
+| 22 | Panel de control interno: Ecofog con su propia dona y su grupo en la tabla (aparte de Actimist) y donas más chicas para que todo quepa | Hecha (03-11) |
+| 23 | C&M 500: el subtítulo de la sección dice «Carga y mantenimiento - Producto usado por día» | Hecha (03-11) |

@@ -93,9 +93,19 @@ describe('simularSolicitudes', () => {
 })
 
 describe('áreas de la tabla', () => {
-  it('Operaciones separa Línea de proceso y Actimist; R&D es solo RYD', async () => {
+  it('Ecofog es su propio grupo de la tabla, aparte de Actimist', () => {
+    const p = pivotePorMes([
+      sol({ laboratorio: 'Quiteca', tipo_servicio: 'Ecofog' }),
+      sol({ laboratorio: 'Agrofresh', tipo_servicio: 'Ecofog' }),
+      sol({ laboratorio: 'Quiteca', tipo_servicio: 'Actimist' }),
+    ])
+    expect(p.meses[0].tipos['Ecofog']).toMatchObject({ quiteca: 1, agrofresh: 1, total: 2 })
+    expect(p.meses[0].tipos['Actimist']).toMatchObject({ quiteca: 1, agrofresh: 0, total: 1 })
+  })
+
+  it('Operaciones separa Línea de proceso, Actimist y Ecofog; R&D es solo RYD', async () => {
     const { TIPOS_DE_AREA } = await import('./pivote')
-    expect(TIPOS_DE_AREA.operaciones).toEqual(['Línea de proceso', 'Actimist'])
+    expect(TIPOS_DE_AREA.operaciones).toEqual(['Línea de proceso', 'Actimist', 'Ecofog'])
     expect(TIPOS_DE_AREA.rd).toEqual(['RYD'])
   })
 })

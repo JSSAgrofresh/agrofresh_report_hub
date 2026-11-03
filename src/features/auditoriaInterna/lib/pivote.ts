@@ -1,4 +1,4 @@
-import { TIPO_ACTIMIST, TIPO_LINEA, TIPO_RYD, tipoServicioDe } from './resumen'
+import { TIPO_ACTIMIST, TIPO_ECOFOG, TIPO_LINEA, TIPO_RYD, tipoServicioDe } from './resumen'
 import type { SolicitudAuditoria } from './tipos'
 
 /** Los dos laboratorios de la tabla dinámica. */
@@ -8,17 +8,17 @@ export const LABS_PIVOTE: { clave: ClaveLab; texto: string }[] = [
   { clave: 'agrofresh', texto: 'Agrofresh' },
 ]
 
-/** Orden de los grupos de la tabla: primero Línea de proceso, luego Actimist y RYD. */
-export const TIPOS_PIVOTE = [TIPO_LINEA, TIPO_ACTIMIST, TIPO_RYD] as const
+/** Orden de los grupos de la tabla: primero Línea de proceso, luego Actimist, Ecofog y RYD. */
+export const TIPOS_PIVOTE = [TIPO_LINEA, TIPO_ACTIMIST, TIPO_ECOFOG, TIPO_RYD] as const
 
-/** Las dos áreas de la tabla: Operaciones (Línea de proceso y Actimist, cada
+/** Las dos áreas de la tabla: Operaciones (Línea de proceso, Actimist y Ecofog, cada
  * uno aparte) y R&D (solo lo suyo, sin esa separación). */
 export type AreaPivote = 'operaciones' | 'rd'
 export const TIPOS_DE_AREA: Record<AreaPivote, readonly string[]> = {
-  operaciones: [TIPO_LINEA, TIPO_ACTIMIST],
+  operaciones: [TIPO_LINEA, TIPO_ACTIMIST, TIPO_ECOFOG],
   rd: [TIPO_RYD],
 }
-/** Sin área elegida («ver todo») se muestran los tres tipos. */
+/** Sin área elegida («ver todo») se muestran todos los tipos. */
 export const tiposDeArea = (area: AreaPivote | null): readonly string[] => (area ? TIPOS_DE_AREA[area] : TIPOS_PIVOTE)
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']

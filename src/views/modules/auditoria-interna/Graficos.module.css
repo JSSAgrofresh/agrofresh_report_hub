@@ -135,11 +135,27 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
+}
+
+/* La dona y sus números van lado a lado, para que las cuatro tarjetas quepan en la pantalla sin bajar. */
+.donaFila {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.donaCuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .dona h3 {
@@ -154,9 +170,9 @@
 
 .donaLienzo {
   position: relative;
-  width: 100%;
-  max-width: 176px;
-  height: 176px;
+  flex: none;
+  width: 92px;
+  height: 92px;
 }
 
 .donaCentro {
@@ -171,7 +187,7 @@
 
 /* La cifra del centro: proporcional (no tabular) y en la misma tipografía. */
 .donaCentro b {
-  font-size: 32px;
+  font-size: 21px;
   line-height: 1;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -180,7 +196,7 @@
 
 .donaCentro small {
   margin-left: 1px;
-  font-size: 16px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--color-text-faint);
 }
@@ -192,7 +208,8 @@
 }
 
 .donaTotalTexto {
-  font-size: 12.5px;
+  font-size: 12px;
+  line-height: 1.3;
   color: var(--color-text-muted);
 }
 
@@ -203,13 +220,13 @@
 .donaLeyenda {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   width: 100%;
   margin: 0;
-  padding: var(--space-2) 0 0;
+  padding: var(--space-1) 0 0;
   list-style: none;
   border-top: 1px solid var(--color-border);
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--color-text-muted);
 }
 
@@ -232,7 +249,7 @@
 }
 
 .donaVacia {
-  padding: var(--space-6) var(--space-3);
+  padding: var(--space-2) var(--space-1);
   text-align: center;
   color: var(--color-text-faint);
   font-size: 12.5px;

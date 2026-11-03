@@ -7,6 +7,7 @@ import { IconoActualizar, IconoAlerta, IconoBuscar } from '@/components/ui/icono
 import {
   FILTROS_VACIOS,
   TIPO_ACTIMIST,
+  TIPO_ECOFOG,
   TIPO_LINEA,
   TIPO_RYD,
   contarFiltros,
@@ -85,6 +86,7 @@ export function SolicitudesInformesView() {
   const alcance = useMemo(() => filtrarSolicitudes(todas ?? [], filtros, { estado: true }), [todas, filtros])
   const tot = useMemo(() => totales(alcance), [alcance])
   const actimist = useMemo(() => resumenPorTipo(alcance, TIPO_ACTIMIST), [alcance])
+  const ecofog = useMemo(() => resumenPorTipo(alcance, TIPO_ECOFOG), [alcance])
   const lineaProceso = useMemo(() => resumenPorTipo(alcance, TIPO_LINEA), [alcance])
   const ryd = useMemo(() => resumenPorTipo(alcance, TIPO_RYD), [alcance])
   const filtrosGrafico = useMemo(() => ({ ...FILTROS_VACIOS, ...filtroGrafico }), [filtroGrafico])
@@ -172,6 +174,7 @@ export function SolicitudesInformesView() {
                 <div className={styles.lateral}>
                   {area !== 'rd' && <DonaTipoServicio tipo={TIPO_LINEA} resumen={lineaProceso} />}
                   {area !== 'rd' && <DonaTipoServicio tipo={TIPO_ACTIMIST} resumen={actimist} />}
+                  {area !== 'rd' && <DonaTipoServicio tipo={TIPO_ECOFOG} resumen={ecofog} />}
                   {(area === 'rd' || (area === null && ryd.emitidas > 0)) && <DonaTipoServicio tipo={TIPO_RYD} resumen={ryd} />}
                 </div>
                 <TablaDinamica solicitudes={alcance} filtros={filtros} tipos={tiposDeArea(area)} />

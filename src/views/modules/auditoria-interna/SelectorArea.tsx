@@ -19,7 +19,7 @@ export function SelectorArea({ area, onChange }: { area: AreaPivote | null; onCh
         onClick={() => alternar('operaciones')}
       >
         <span className={styles.nombre}>Operaciones</span>
-        <small>Línea de proceso · Actimist</small>
+        <small>Línea de proceso · Actimist · Ecofog</small>
       </button>
       <button
         type="button"
