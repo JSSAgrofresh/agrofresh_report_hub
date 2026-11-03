@@ -1,4 +1,4 @@
-import type { ClientePlan } from './api'
+import type { ClientePlan, VersionPlan } from './api'
 
 /** Mismo criterio que el servidor (`plan_cruce.normalizar`): sin tildes, mayúsculas, sin puntos ni signos. */
 export function normalizarNombre(texto: string): string {
@@ -20,9 +20,9 @@ export function indexarPlan(clientes: ClientePlan[]): Map<string, ClientePlan> {
   return new Map(clientes.map((c) => [normalizarNombre(c.sold_to), c]))
 }
 
-/** Lo prometido para una fila del gráfico; `null` si el plan no trae nada (no se juzga). */
-export function cantidadPlan(plan: ClientePlan | undefined, fila: FilaPlan): number | null {
-  const n = plan?.[fila] ?? 0
+/** Lo prometido para una fila del gráfico en una de las dos versiones; `null` si el plan no trae nada (no se juzga). */
+export function cantidadPlan(plan: ClientePlan | undefined, fila: FilaPlan, version: VersionPlan = 'propuesta'): number | null {
+  const n = plan?.[version]?.[fila] ?? 0
   return n > 0 ? n : null
 }
 

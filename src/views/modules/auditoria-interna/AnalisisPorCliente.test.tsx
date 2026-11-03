@@ -63,30 +63,45 @@ describe('AnalisisPorCliente', () => {
   })
 
   describe('Entregables (plan de los comerciales)', () => {
-    const plan = new Map([['DOLE CHILE SA', { sold_to: 'DOLE CHILE S.A.', residuales: 8, fsma: 0, fito: 0, plantas: [{ planta: 'DOLE LONTUE', servicio: 'residuales' as const, cantidad: 8 }] }]])
+    const plan = new Map([
+      [
+        'DOLE CHILE SA',
+        {
+          sold_to: 'DOLE CHILE S.A.',
+          original: { residuales: 4, fsma: 0, fito: 0 },
+          propuesta: { residuales: 8, fsma: 0, fito: 0 },
+          plantas: [{ planta: 'DOLE LONTUE', servicio: 'residuales' as const, original: 4, propuesta: 8 }],
+        },
+      ],
+    ])
 
-    it('por Sold To: Cant. es lo prometido y % es lo llevado ÷ lo prometido (solo en la fila que el plan trae)', () => {
+    it('por Sold To: muestra el entregable original y el propuesto, cada uno con su cantidad y su % (lo llevado ÷ lo prometido)', () => {
       render(<AnalisisPorCliente solicitudes={lista} plan={plan} />)
-      expect(screen.getByText('Entregables')).toBeTruthy()
+      expect(screen.getByText('Entregable original')).toBeTruthy()
+      expect(screen.getByText('Entregable propuesto')).toBeTruthy()
       const dole = screen.getAllByRole('row').slice(2)[0]
-      // DOLE lleva 2 residuales (AgroFresh 1 + Quiteca 1) de 8 prometidos = 25%
-      expect(within(dole).getByTitle('Análisis prometidos en la temporada (plan de entregables)').textContent).toBe('8')
-      expect(within(dole).getByText('25%', { selector: 'td' })).toBeTruthy()
-      // FSMA no está en el plan: queda en guion
+      // DOLE lleva 2 residuales (AgroFresh 1 + Quiteca 1): de 4 originales = 50% y de 8 propuestos = 25%
+      expect(within(dole).getByTitle('Entregable original: análisis prometidos en la temporada').textContent).toBe('4')
+      expect(within(dole).getByTitle('Entregable propuesto: análisis prometidos en la temporada').textContent).toBe('8')
+      expect(within(dole).getByTitle('2 de 4 (entregable original)').textContent).toBe('50%')
+      expect(within(dole).getByTitle('2 de 8 (entregable propuesto)').textContent).toBe('25%')
+      // FSMA no está en ninguna de las dos versiones: queda en guion (cantidad y % de cada una)
       const fsma = screen.getAllByRole('row').slice(2)[1]
-      expect(within(fsma).getAllByText('—').length).toBe(2)
+      expect(within(fsma).getAllByText('—').length).toBe(4)
     })
 
-    it('muestra las plantas del plan al abrir el detalle', () => {
+    it('muestra las plantas del plan, con las dos cantidades, al abrir el detalle', () => {
       render(<AnalisisPorCliente solicitudes={lista} plan={plan} />)
       expect(screen.queryByText(/DOLE LONTUE/)).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: /Ver las 1 del plan/ }))
       expect(screen.getByText(/DOLE LONTUE/)).toBeTruthy()
+      expect(screen.getByText('4 / 8')).toBeTruthy()
     })
 
     it('por Ship To, especie o tipo el cálculo se esconde', () => {
       render(<AnalisisPorCliente solicitudes={lista} plan={plan} dimension="planta" />)
-      expect(screen.queryByText('Entregables')).toBeNull()
+      expect(screen.queryByText('Entregable original')).toBeNull()
+      expect(screen.queryByText('Entregable propuesto')).toBeNull()
     })
   })
 })

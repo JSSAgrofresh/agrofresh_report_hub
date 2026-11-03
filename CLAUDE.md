@@ -124,6 +124,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0069_presencia_detalle.sql
 .venv\Scripts\python.exe scripts\migrar.py 0070_presencia_sesion.sql
 .venv\Scripts\python.exe scripts\migrar.py 0072_presentacion_remota.sql
+.venv\Scripts\python.exe scripts\migrar.py 0073_plan_entregable_detalle.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -753,7 +754,8 @@ Microbiología/FSMA → FSMA, «Entrega de registros» se guarda como «otro» y
 interna) **Cant. = suma de lo prometido del Sold To en esa fila y % = lo que llevamos ÷ lo prometido** (puede pasar de 100%); un botón
 «Ver las N del plan» abre lo prometido por planta. **Las dos columnas se esconden** al agrupar por Ship To, Especie o Tipo y cuando el filtro
 del gráfico trae planta, especie o tipo. Sin plan cargado (o sin la 0062) no salen. El Total de abajo suma solo los clientes que el plan trae.
-Pruebas: `tests/test_plan_carga.py`, `plan.test.ts`, `AnalisisPorCliente.test.tsx`. **Pendiente**: 9 clientes del plan sin Sold To oficial
+Pruebas: `tests/test_plan_carga.py`, `plan.test.ts`, `AnalisisPorCliente.test.tsx`. **Plan final con Original y Propuesta (03-11-2026, migración 0073)**: el comercial entregó `Entregables_cerezas_26-27.xlsx` (hoja `Base`: una fila por Sold To con su CÓDIGO SAP × planta (`Cliente`) × servicio (`Servicio Real`: Residuales / Fitopatología / Microbiología) × línea × semana W41–W02, con `Original` y `Propuesta`; 51 Sold To, 77 plantas, 4 comerciales en `Fuente`). **Reemplaza al plan anterior** y las DOS cantidades se guardan y se muestran como dato de cuantificación: en «Análisis por cliente» van los grupos «Entregable original» y «Entregable propuesto», cada uno con Cant. y %. `plan_carga.leer_excel` acepta ese formato (busca la hoja que tenga las columnas) y el anterior (su TOTAL entra como Propuesta); el Sold To se busca por `cliente.codigo_sap` (exacto) y, si no, por nombre; `fusionar_repetidas` junta las filas repetidas (la mayor cantidad no vacía de cada columna: «2 y 2» = 2) y las filas sin Original ni Propuesta se saltan (en el archivo, 574 de 2.760); un cero escrito sí cuenta. Se guardan además `linea`, `semana`, `tipo_cliente`, `tipo_servicio` (Costo por Litro / Costo por Kilo = el equipo C&M 500) y `peak`; `Observaciones`, `Competencia` y `Tamaño Línea` NO se guardan (el usuario no los pidió). `GET /api/plan-entregables/resumen` devuelve `original` y `propuesta` por Sold To y por planta; sin la 0073 devuelve solo `cantidad` como propuesta. **Pendiente (el usuario no lo definió)**: medir semana a semana y línea a línea contra los informes concretados, y las 37 filas donde la línea del nombre del servicio no coincide con la columna `Línea` (hoy manda la columna). Pruebas: `tests/test_plan_carga.py` (con una hoja `Base` armada), `plan.test.ts`, `AnalisisPorCliente.test.tsx`.
+**Pendiente (plan anterior)**: 9 clientes del plan sin Sold To oficial
 (Copefrut Central, DDC, Exportadora Yucay, Mace, Merex, Neptuno, San Lus de Trapiche, Victoria, Zur Grup): entran cuando se corrija su nombre y se vuelva a subir.
 
 ## ALS y Diagnofruit (FSMA y Fito): lectura, BD y Report (14-10-2026)
