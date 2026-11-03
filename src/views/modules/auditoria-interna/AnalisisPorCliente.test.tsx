@@ -98,6 +98,33 @@ describe('AnalisisPorCliente', () => {
       expect(screen.getByText('4 / 8')).toBeTruthy()
     })
 
+    it('un análisis prometido por el plan sale como línea aunque no tenga ninguno hecho, y un cliente del plan sin análisis también', () => {
+      const plan2 = new Map([
+        ['DOLE CHILE SA', { sold_to: 'DOLE CHILE S.A.', original: { residuales: 4, fsma: 0, fito: 0 }, propuesta: { residuales: 8, fsma: 0, fito: 0 }, plantas: [] }],
+        ['MULTIFRUTA', { sold_to: 'MULTIFRUTA', original: { residuales: 0, fsma: 0, fito: 6 }, propuesta: { residuales: 0, fsma: 0, fito: 10 }, plantas: [] }],
+        ['SIN ANALISIS', { sold_to: 'SIN ANALISIS', original: { residuales: 5, fsma: 0, fito: 0 }, propuesta: { residuales: 7, fsma: 0, fito: 0 }, plantas: [] }],
+      ])
+      render(<AnalisisPorCliente solicitudes={lista} plan={plan2} />)
+      expect(screen.getByText('SIN ANALISIS')).toBeTruthy()
+      // MULTIFRUTA no tiene FITO hecho, pero el plan se lo promete: aparece su línea
+      expect(screen.getAllByText('FITO').length).toBeGreaterThanOrEqual(2)
+      // Total de todos los clientes: residuales 4+5 / 8+7, FITO 6 / 10
+      const tfoot = document.querySelector('tfoot') as HTMLElement
+      const orig = within(tfoot).getAllByTitle('Entregable original: análisis prometidos en la temporada').map((e) => e.textContent)
+      const prop = within(tfoot).getAllByTitle('Entregable propuesto: análisis prometidos en la temporada').map((e) => e.textContent)
+      expect(orig).toEqual(['9', '6'])
+      expect(prop).toEqual(['15', '10'])
+    })
+
+    it('el Total no depende del Top N', () => {
+      const plan2 = new Map([
+        ['SIN ANALISIS', { sold_to: 'SIN ANALISIS', original: { residuales: 5, fsma: 0, fito: 0 }, propuesta: { residuales: 7, fsma: 0, fito: 0 }, plantas: [] }],
+      ])
+      render(<AnalisisPorCliente solicitudes={lista} plan={plan2} limite={1} />)
+      const tfoot = document.querySelector('tfoot') as HTMLElement
+      expect(within(tfoot).getAllByTitle('Entregable original: análisis prometidos en la temporada').map((e) => e.textContent)).toEqual(['5'])
+    })
+
     it('por Ship To, especie o tipo el cálculo se esconde', () => {
       render(<AnalisisPorCliente solicitudes={lista} plan={plan} dimension="planta" />)
       expect(screen.queryByText('Entregable original')).toBeNull()

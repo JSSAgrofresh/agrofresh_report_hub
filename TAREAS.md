@@ -47,3 +47,4 @@ Orden: lo más difícil primero (9 h estimadas; ver si algo pasa a mañana).
 | 23 | C&M 500: el subtítulo de la sección dice «Carga y mantenimiento - Producto usado por día» | Hecha (03-11) |
 | 24 | Cargar el plan final de entregables (Entregables_cerezas_26-27): reemplaza al anterior y guarda y muestra Original y Propuesta | Hecha en código (03-11, migración 0073); falta correr la 0073 y subir el Excel en Administración General → Plan de entregables |
 | 25 | Tabla literal con TODO el detalle del plan cargado (Administración General → Plan de entregables → «Todo lo cargado») para revisar que se leyó bien | Hecha (03-11) |
+| 26 | «Análisis por cliente» (Panel de control interno) refleja el plan de entregables completo: líneas FSMA/FITO según lo prometido aunque no haya análisis hechos, clientes del plan sin análisis como filas, Total de TODOS los clientes (no solo el Top N) y opción «Todos» en el selector | Hecha (03-11) |
