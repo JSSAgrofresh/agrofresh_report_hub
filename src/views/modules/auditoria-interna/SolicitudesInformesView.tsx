@@ -32,6 +32,7 @@ import { ResumenConcretadas } from './ResumenConcretadas'
 import { InformesPorLaboratorio } from './InformesPorLaboratorio'
 import { usePlanEntregables } from '@/features/planEntregables'
 import { AnalisisPorCliente } from './AnalisisPorCliente'
+import { AvanceSemanal } from './AvanceSemanal'
 import { COLOR_LAB } from './coloresTipo'
 import { TablaDinamica } from './TablaDinamica'
 import styles from './SolicitudesInformesView.module.css'
@@ -72,6 +73,8 @@ export function SolicitudesInformesView() {
   // Filtros propios del gráfico por grupo, encima de los del panel.
   const [filtroGrafico, setFiltroGrafico] = useState({ cliente: '', planta: '', especie: '', tipo: '' })
   const [topClientes, setTopClientes] = useState(10)
+  // «Totales» (la tabla de siempre) o «Por semana» (lo hecho contra lo que tocaba cada semana, con el plan).
+  const [vistaPlan, setVistaPlan] = useState<'total' | 'semana'>('total')
   const plan = usePlanEntregables()
   // El plan es por Sold To: con un Ship To, especie o tipo elegidos el avance no se puede calcular y se esconde.
   const hayFiltroPlanta = filtroGrafico.planta !== '' || filtroGrafico.especie !== '' || filtroGrafico.tipo !== ''
@@ -231,9 +234,20 @@ export function SolicitudesInformesView() {
                         <option value={10}>Top 10</option>
                         <option value={20}>Top 20</option>
                         <option value={0}>Todos</option>
-                        <option value={0}>Todos</option>
                       </select>
                     </div>
+                    {dimension === 'cliente' && plan && !hayFiltroPlanta && (
+                      <>
+                        <span className={styles.separadorBarra} aria-hidden="true" />
+                        <div className={styles.grupoBarra}>
+                          <span>Vista</span>
+                          <div className={styles.segmentadoChico} role="group" aria-label="Vista del plan">
+                            <button type="button" aria-pressed={vistaPlan === 'total'} className={vistaPlan === 'total' ? styles.segActivo : ''} onClick={() => setVistaPlan('total')}>Totales</button>
+                            <button type="button" aria-pressed={vistaPlan === 'semana'} className={vistaPlan === 'semana' ? styles.segActivo : ''} onClick={() => setVistaPlan('semana')}>Por semana</button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                     <span className={styles.separadorBarra} aria-hidden="true" />
                     <div className={styles.grupoBarra}>
                       <span>Análisis</span>
@@ -263,7 +277,9 @@ export function SolicitudesInformesView() {
                   filas: filasTabla.map((f) => [f.cliente, f.agrofresh.n, f.quiteca.n, f.fsma.n, f.fito.n, f.total, f.informes]),
                 }}
               >
-                {filasTabla.length > 0 ? (
+                {dimension === 'cliente' && plan && !hayFiltroPlanta && vistaPlan === 'semana' ? (
+                  <AvanceSemanal solicitudes={alcanceGrafico} plan={plan} analisis={analisisVisibles} limite={topClientes} />
+                ) : filasTabla.length > 0 ? (
                   <AnalisisPorCliente solicitudes={alcanceGrafico} dimension={dimension} limite={topClientes} analisis={analisisVisibles} plan={hayFiltroPlanta ? null : plan} />
                 ) : (
                   <p className={styles.sinDatosGrafico}>No hay solicitudes con los filtros actuales.</p>

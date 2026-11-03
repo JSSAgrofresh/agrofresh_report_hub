@@ -10,6 +10,15 @@ export interface PlantaPlan {
   propuesta: number
 }
 
+/** Lo prometido a una planta del plan en una semana de la temporada (W41…W52, W01, W02). */
+export interface SemanaPlan {
+  planta: string
+  servicio: 'residuales' | 'fsma' | 'fito'
+  semana: string
+  original: number
+  propuesta: number
+}
+
 export interface CantidadesPlan {
   residuales: number
   fsma: number
@@ -23,6 +32,8 @@ export interface ClientePlan {
   original: CantidadesPlan
   propuesta: CantidadesPlan
   plantas: PlantaPlan[]
+  /** Lo prometido semana a semana (solo con la migración 0073; sin ella viene vacío). */
+  semanas?: SemanaPlan[]
 }
 
 export interface RespuestaPlan {
