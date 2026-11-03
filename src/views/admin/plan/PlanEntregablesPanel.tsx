@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/Button'
 import { analizarPlanEntregables, confirmarPlanEntregables, leerPlanEntregables } from '@/features/planEntregables'
 import type { ResumenCargaPlan, RespuestaPlan } from '@/features/planEntregables'
 import { fechaHora } from '@/lib/fechaHoraChile'
+import { DetallePlan } from './DetallePlan'
 import styles from './PlanEntregablesPanel.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
@@ -143,6 +144,7 @@ export function PlanEntregablesPanel() {
           </>
         )}
       </div>
+      <DetallePlan recargar={hecho} />
     </section>
   )
 }

@@ -324,3 +324,49 @@ def resumen() -> dict[str, Any]:
         "cargado_en": cargado.isoformat() if cargado else None,
         "migracion_pendiente": False,
     }
+
+
+# Semanas de la temporada en orden: W41…W52 y después W01, W02 (las de un código raro quedan al final).
+_ORDEN_SEMANA = (
+    "CASE WHEN semana ~ '^W[0-9]+$' THEN (CASE WHEN substring(semana from 2)::int >= 40 THEN 0 ELSE 1 END) END NULLS LAST,"
+    " CASE WHEN semana ~ '^W[0-9]+$' THEN substring(semana from 2)::int END NULLS LAST"
+)
+
+
+@router.get("/detalle", dependencies=[Depends(solo_admin_general)])
+def detalle() -> dict[str, Any]:
+    """TODAS las filas del plan tal como quedaron guardadas (una por Sold To × planta × servicio × línea × semana), para
+    revisar que la carga leyó bien el Excel. Sin la 0073 trae solo lo que existía antes (Sold To, planta, servicio y cantidad)."""
+    try:
+        with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
+            try:
+                cur.execute(
+                    "SELECT sold_to, sold_to_sap, planta_plan, comercial, tipo_cliente, tipo_servicio, servicio, linea, semana, peak,"
+                    " original, propuesta, cargado_en FROM plan_entregable WHERE temporada = %s"
+                    f" ORDER BY comercial NULLS LAST, sold_to, planta_plan NULLS LAST, servicio, linea NULLS LAST,"
+                    f" {_ORDEN_SEMANA}, id",
+                    (TEMPORADA,),
+                )
+                detalle_completo = True
+            except psycopg2.errors.UndefinedColumn:
+                conn.rollback()
+                cur.execute(
+                    "SELECT sold_to, NULL AS sold_to_sap, planta_plan, comercial, NULL AS tipo_cliente, NULL AS tipo_servicio, servicio,"
+                    " NULL AS linea, NULL AS semana, NULL AS peak, NULL AS original, cantidad AS propuesta, cargado_en"
+                    " FROM plan_entregable WHERE temporada = %s ORDER BY comercial NULLS LAST, sold_to, planta_plan NULLS LAST, servicio, id",
+                    (TEMPORADA,),
+                )
+                detalle_completo = False
+            filas = [dict(f) for f in cur.fetchall()]
+    except psycopg2.errors.UndefinedTable:
+        return {"temporada": TEMPORADA, "filas": [], "cargado_en": None, "migracion_pendiente": True, "detalle_completo": False}
+    cargado = max((f["cargado_en"] for f in filas), default=None)
+    for f in filas:
+        f.pop("cargado_en", None)
+    return {
+        "temporada": TEMPORADA,
+        "filas": filas,
+        "cargado_en": cargado.isoformat() if cargado else None,
+        "migracion_pendiente": False,
+        "detalle_completo": detalle_completo,
+    }

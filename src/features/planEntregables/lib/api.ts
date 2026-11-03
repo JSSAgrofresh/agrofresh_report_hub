@@ -66,3 +66,33 @@ export function analizarPlanEntregables(archivo: File) {
 export function confirmarPlanEntregables(archivo: File) {
   return httpClient.upload<ResumenCargaPlan>('/plan-entregables/confirmar', formulario(archivo))
 }
+
+/** Una fila del plan tal como quedó guardada: Sold To × planta × servicio × línea × semana, con sus dos cantidades. */
+export interface FilaDetallePlan {
+  sold_to: string
+  sold_to_sap: string | null
+  planta_plan: string | null
+  comercial: string | null
+  tipo_cliente: string | null
+  tipo_servicio: string | null
+  servicio: 'residuales' | 'fsma' | 'fito' | 'otro'
+  linea: number | null
+  semana: string | null
+  peak: string | null
+  original: number | null
+  propuesta: number | null
+}
+
+export interface RespuestaDetallePlan {
+  temporada: string
+  filas: FilaDetallePlan[]
+  cargado_en: string | null
+  migracion_pendiente: boolean
+  /** Falta correr la migración 0073: solo se ven Sold To, planta, servicio y la cantidad antigua. */
+  detalle_completo: boolean
+}
+
+/** TODAS las filas del plan cargado (solo admin general), para revisar que se leyó bien el Excel. */
+export function leerDetallePlanEntregables() {
+  return httpClient.get<RespuestaDetallePlan>('/plan-entregables/detalle')
+}
