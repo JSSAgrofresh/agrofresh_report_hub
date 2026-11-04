@@ -32,7 +32,8 @@ import { ResumenConcretadas } from './ResumenConcretadas'
 import { InformesPorLaboratorio } from './InformesPorLaboratorio'
 import { usePlanEntregables } from '@/features/planEntregables'
 import { AnalisisPorCliente } from './AnalisisPorCliente'
-import { AvanceSemanal } from './AvanceSemanal'
+import { DinamicaPlan } from './DinamicaPlan'
+import { GraficosPlan } from './GraficosPlan'
 import { COLOR_LAB } from './coloresTipo'
 import { TablaDinamica } from './TablaDinamica'
 import styles from './SolicitudesInformesView.module.css'
@@ -278,11 +279,14 @@ export function SolicitudesInformesView() {
                 }}
               >
                 {dimension === 'cliente' && plan && !hayFiltroPlanta && vistaPlan === 'semana' ? (
-                  <AvanceSemanal solicitudes={alcanceGrafico} plan={plan} analisis={analisisVisibles} limite={topClientes} />
+                  <DinamicaPlan solicitudes={alcanceGrafico} plan={plan} analisis={analisisVisibles} />
                 ) : filasTabla.length > 0 ? (
                   <AnalisisPorCliente solicitudes={alcanceGrafico} dimension={dimension} limite={topClientes} analisis={analisisVisibles} plan={hayFiltroPlanta ? null : plan} />
                 ) : (
                   <p className={styles.sinDatosGrafico}>No hay solicitudes con los filtros actuales.</p>
+                )}
+                {dimension === 'cliente' && !hayFiltroPlanta && (
+                  <GraficosPlan solicitudes={alcanceGrafico} plan={plan} analisis={analisisVisibles} />
                 )}
               </TarjetaGrafico>
 
