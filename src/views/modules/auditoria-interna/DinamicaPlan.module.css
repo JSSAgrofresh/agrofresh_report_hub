@@ -1,0 +1,51 @@
+.cuerpo { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+
+.barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: 12.5px; }
+.grupo { display: flex; align-items: center; gap: 8px; color: var(--color-text-muted); }
+.seg { display: inline-flex; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: #fff; }
+.seg button { border: 0; background: transparent; padding: 6px 12px; font: inherit; cursor: pointer; color: var(--color-text-muted); }
+.seg button[aria-pressed='true'] { background: #26352c; color: #fff; }
+.boton { font: inherit; font-size: 12px; padding: 5px 12px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-text-muted); cursor: pointer; }
+.boton:hover { background: #f1f4ef; }
+.leyenda { margin-left: auto; color: var(--color-text-muted); font-size: 11.5px; display: inline-flex; align-items: center; gap: 6px; }
+.puntoOk, .puntoFalta { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.puntoOk { background: #2f7d32; }
+.puntoFalta { background: #d9822b; margin-left: 8px; }
+
+.caja { border: 1px solid var(--color-border); border-radius: 12px; overflow: auto; background: #fff; max-height: 70vh; }
+.tabla { border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; width: max-content; min-width: 100%; }
+.tabla th, .tabla td { padding: 4px 6px; border-bottom: 1px solid #edf1ea; white-space: nowrap; text-align: center; }
+
+.tabla thead th { position: sticky; top: 0; z-index: 3; background: #f4f7f1; font-size: 11px; font-weight: 700; color: #3a4a40; border-bottom: 2px solid #d5ddd1; }
+.colNombre { left: 0; z-index: 4 !important; text-align: left !important; min-width: 280px; }
+.colAnalisis { min-width: 74px; }
+.colSemana { min-width: 54px; }
+.colTotal { min-width: 70px; background: #e8ede6 !important; }
+.peak { background: #fbe9d3 !important; color: #b45309 !important; }
+.hoy { box-shadow: inset 0 -3px 0 #4d7c0f; }
+
+.nombre { position: sticky; left: 0; z-index: 2; background: #fff; text-align: left !important; font-weight: 500; min-width: 280px; max-width: 340px; border-right: 1px solid #e3e8e1; vertical-align: top; }
+.nombre > .texto, .nombre .texto { display: inline-block; max-width: 250px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.n_comercial { font-weight: 800; font-size: 13px; }
+.n_tipo { font-weight: 700; color: #3a4a40; }
+.n_cliente { font-weight: 600; }
+.n_planta { color: #4a5a50; font-weight: 500; }
+.flecha { border: 0; background: transparent; width: 18px; padding: 0; margin-right: 2px; cursor: pointer; color: #4d7c0f; font-size: 12px; vertical-align: middle; }
+.sinFlecha { display: inline-block; width: 20px; }
+.fuera { margin-left: 6px; font-size: 10.5px; color: var(--color-text-muted); font-weight: 500; }
+
+.f_comercial th, .f_comercial td { background: #eef3ea; border-top: 1px solid #d5ddd1; }
+.f_tipo th, .f_tipo td { background: #f6f9f3; }
+.f_planta th, .f_planta td { background: #fcfdfb; font-size: 11.5px; }
+.fila:hover td { background: rgba(109, 173, 60, 0.09); }
+
+.analisis { font-weight: 700; font-size: 11.5px; text-align: left !important; }
+.celda { font-weight: 600; color: #26352c; }
+.vacia { color: #c3ccc4; }
+.cumple { background: #e5f3e3 !important; color: #2f7d32; }
+.falta { background: #fdf0df !important; color: #b45309; }
+
+.filaTotal th, .filaTotal td { background: #e8ede6; font-weight: 800; border-top: 2px solid #c9d3c6; position: sticky; bottom: 0; z-index: 2; }
+.filaTotal .nombre { z-index: 3; }
+
+.vacio { margin: 0; padding: 14px; font-size: 12.5px; color: var(--color-text-muted); }

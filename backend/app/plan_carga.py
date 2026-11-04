@@ -292,13 +292,13 @@ def resumen_por_cliente(filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _semanas_por_cliente() -> dict[str, list[dict[str, Any]]]:
-    """Lo prometido por Sold To × planta × servicio × semana (Original y Propuesta). Sin la 0073 (sin columna `semana`) o sin la
-    tabla, devuelve vacío: el resto del resumen no depende de esto."""
+    """Lo prometido por Sold To × planta × servicio × semana (Original y Propuesta), con el comercial y el tipo de cliente de cada fila.
+    Sin la 0073 (sin columna `semana`) o sin la tabla, devuelve vacío: el resto del resumen no depende de esto."""
     try:
         with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
             cur.execute(
-                "SELECT sold_to, planta_plan, servicio, semana, COALESCE(SUM(original), 0) AS original,"
-                " COALESCE(SUM(propuesta), 0) AS propuesta FROM plan_entregable"
+                "SELECT sold_to, planta_plan, servicio, semana, MIN(comercial) AS comercial, MIN(tipo_cliente) AS tipo_cliente,"
+                " COALESCE(SUM(original), 0) AS original, COALESCE(SUM(propuesta), 0) AS propuesta FROM plan_entregable"
                 " WHERE temporada = %s AND semana IS NOT NULL GROUP BY sold_to, planta_plan, servicio, semana",
                 (TEMPORADA,),
             )
@@ -311,6 +311,7 @@ def _semanas_por_cliente() -> dict[str, list[dict[str, Any]]]:
             continue
         por.setdefault(f["sold_to"], []).append({
             "planta": f["planta_plan"] or f["sold_to"], "servicio": f["servicio"], "semana": f["semana"],
+            "comercial": f["comercial"], "tipo_cliente": f["tipo_cliente"],
             "original": int(f["original"]), "propuesta": int(f["propuesta"]),
         })
     return por

@@ -15,6 +15,9 @@ export interface SemanaPlan {
   planta: string
   servicio: 'residuales' | 'fsma' | 'fito'
   semana: string
+  /** Quién lleva el cliente y qué tipo de cliente es (Estratégico, Preferente, Estándar), como vienen en el Excel. */
+  comercial?: string | null
+  tipo_cliente?: string | null
   original: number
   propuesta: number
 }
