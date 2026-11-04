@@ -52,3 +52,4 @@ Orden: lo más difícil primero (9 h estimadas; ver si algo pasa a mañana).
 | 28 | «Análisis por cliente»: plantas desplegables bajo cada cliente (como tabla dinámica), parte de laboratorio más compacta y solo entregable propuesto (sin el original) | Hecha (03-11) |
 | 29 | «Análisis por cliente» → vista «Por semana» como tabla dinámica del Excel de José (comercial → tipo → cliente → planta × semanas, hecho/propuesto) y gráficos plegables «Cuándo se concentra el trabajo» + «Los 10 clientes con más análisis» (dividido por laboratorio) | Hecha (04-11) |
 | 30 | Panel de control interno: dinámica por Sold To (comercial y tipo en columnas), gráficos «Lo que llevamos» + «Cuándo se concentra el trabajo» + top 10 con detalle por clic, filtros con checks y búsqueda por escritura, y rediseño sobrio y responsive | Hecha (04-11) |
+| 31 | Dinámica «Por semana»: la columna de la semana actual (hoy W45) se marca de arriba abajo para que resalte | Hecha (04-11) |

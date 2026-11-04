@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { SolicitudAuditoria } from '@/features/auditoriaInterna'
 import type { ClientePlan } from '@/features/planEntregables'
@@ -47,6 +47,28 @@ describe('DinamicaPlan', () => {
   it('sin detalle por semana (falta la 0073) lo avisa', () => {
     render(<DinamicaPlan solicitudes={lista} plan={new Map([['DOLE CHILE SA', { ...plan.get('DOLE CHILE SA')!, semanas: [] }]])} />)
     expect(screen.getByText(/no trae el detalle por semana/)).toBeTruthy()
+  })
+})
+
+describe('semana actual', () => {
+  it('marca la columna de la semana en la que estamos, de arriba abajo, y nada más', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-04T12:00:00'))
+    try {
+      render(<DinamicaPlan solicitudes={lista} plan={plan} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Abrir DOLE CHILE S.A.' }))
+      const encabezado = screen.getByText('W45').closest('th') as HTMLElement
+      expect(encabezado.textContent).toContain('hoy')
+      expect(screen.getByText('W46').closest('th')?.textContent).not.toContain('hoy')
+      const planta = screen.getByText('DOLE LONTUE').closest('tr') as HTMLElement
+      const celdas = within(planta).getAllByRole('cell')
+      const marcadas = celdas.filter((td) => /hoyCol/.test(td.className))
+      // una celda por línea de análisis y la del Total no se marca: solo la de W45
+      expect(marcadas).toHaveLength(1)
+      expect(marcadas[0].textContent).toBe('2/3')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
