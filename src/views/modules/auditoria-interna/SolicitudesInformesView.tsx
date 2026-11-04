@@ -31,7 +31,6 @@ import { IndicadoresEntrega } from './IndicadoresEntrega'
 import { ResumenConcretadas } from './ResumenConcretadas'
 import { InformesPorLaboratorio } from './InformesPorLaboratorio'
 import { usePlanEntregables } from '@/features/planEntregables'
-import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { AnalisisPorCliente } from './AnalisisPorCliente'
 import { DinamicaPlan } from './DinamicaPlan'
 import { GraficosPlan } from './GraficosPlan'
@@ -72,14 +71,12 @@ export function SolicitudesInformesView() {
   // null = ver todo (lo predeterminado)
   const [area, setArea] = useState<AreaPivote | null>(null)
   const [dimension, setDimension] = useState<DimensionGrafico>('cliente')
-  // Filtros propios del gráfico por grupo, encima de los del panel.
-  const [filtroGrafico, setFiltroGrafico] = useState<{ cliente: string[]; planta: string[]; especie: string[]; tipo: string[] }>({ cliente: [], planta: [], especie: [], tipo: [] })
   const [topClientes, setTopClientes] = useState(10)
   // «Totales» (la tabla de siempre) o «Por semana» (lo hecho contra lo que tocaba cada semana, con el plan).
   const [vistaPlan, setVistaPlan] = useState<'total' | 'semana'>('total')
   const plan = usePlanEntregables()
   // El plan es por Sold To: con un Ship To, especie o tipo elegidos el avance no se puede calcular y se esconde.
-  const hayFiltroPlanta = filtroGrafico.planta.length > 0 || filtroGrafico.especie.length > 0 || filtroGrafico.tipo.length > 0
+  const hayFiltroPlanta = filtros.planta.length > 0 || filtros.especie.length > 0 || filtros.tipo.length > 0
   const [analisisVisibles, setAnalisisVisibles] = useState<AnalisisVisible[]>(['residuales', 'fsma', 'fito'])
   // Siempre queda al menos uno prendido: sin ninguno no habría nada que mirar.
   const alternarAnalisis = (a: AnalisisVisible) =>
@@ -94,20 +91,17 @@ export function SolicitudesInformesView() {
   const ecofog = useMemo(() => resumenPorTipo(alcance, TIPO_ECOFOG), [alcance])
   const lineaProceso = useMemo(() => resumenPorTipo(alcance, TIPO_LINEA), [alcance])
   const ryd = useMemo(() => resumenPorTipo(alcance, TIPO_RYD), [alcance])
-  const filtrosGrafico = useMemo(() => ({ ...FILTROS_VACIOS, ...filtroGrafico }), [filtroGrafico])
   // Este gráfico no lleva RYD (es de AgroFresh, va aparte) ni solicitudes sin Sold To.
   const alcanceCliente = useMemo(
     () => alcance.filter((s) => tipoServicioDe(s) !== TIPO_RYD && (s.sold_to ?? '').trim() !== ''),
     [alcance],
   )
-  const opcionesGrafico = useMemo(() => opcionesDeFiltros(alcanceCliente, filtrosGrafico), [alcanceCliente, filtrosGrafico])
-  const alcanceGrafico = useMemo(() => filtrarSolicitudes(alcanceCliente, filtrosGrafico, { estado: true }), [alcanceCliente, filtrosGrafico])
+  // Los filtros generales de arriba ya acotaron todo: el gráfico solo decide cómo agrupar y cuánto mostrar.
+  const alcanceGrafico = alcanceCliente
   const filasTabla = useMemo(
     () => soloAnalisis(porClienteResiduosFsmaFito(alcanceGrafico, dimension), analisisVisibles).slice(0, topClientes > 0 ? topClientes : undefined),
     [alcanceGrafico, dimension, topClientes, analisisVisibles],
   )
-  const cambiarFiltroGrafico = (clave: keyof typeof filtroGrafico, valor: string[]) =>
-    setFiltroGrafico((f) => ({ ...f, [clave]: valor, ...(clave === 'cliente' ? { planta: [] } : {}) }))
   const nombreDimension = DIMENSIONES.find((d) => d.valor === dimension)!
 
   const hayFiltros = contarFiltros(filtros) > 0
@@ -163,7 +157,7 @@ export function SolicitudesInformesView() {
 
       {todas && (
         <div className={cargando && !simulando ? styles.recargando : styles.contenido}>
-          <PanelFiltros filtros={filtros} onChange={(f) => setFiltros(f)} opciones={opciones} datos={todas} />
+          <PanelFiltros filtros={filtros} onChange={(f) => setFiltros(f)} opciones={opciones} datos={todas} coinciden={alcance.length} />
           <ResumenConcretadas totales={tot} />
           <InformesPorLaboratorio solicitudes={alcance} />
 
@@ -191,13 +185,7 @@ export function SolicitudesInformesView() {
                 titulo={`Análisis por ${nombreDimension.por}`}
                 leyenda={
                   <div className={styles.barraGrafico}>
-                    <div className={styles.filtrosGrafico}>
-                      <MultiSelectFiltro etiqueta="Sold To" opciones={opcionesGrafico.clientes} valores={filtroGrafico.cliente} onChange={(v) => cambiarFiltroGrafico('cliente', v)} />
-                      <MultiSelectFiltro etiqueta="Ship To" opciones={opcionesGrafico.plantas} valores={filtroGrafico.planta} onChange={(v) => cambiarFiltroGrafico('planta', v)} />
-                      <MultiSelectFiltro etiqueta="Especie" opciones={opcionesGrafico.especies} valores={filtroGrafico.especie} onChange={(v) => cambiarFiltroGrafico('especie', v)} />
-                      <MultiSelectFiltro etiqueta="Tipo de servicio" opciones={opcionesGrafico.tipos} valores={filtroGrafico.tipo} onChange={(v) => cambiarFiltroGrafico('tipo', v)} />
-                    </div>
-                    <span className={styles.separadorBarra} aria-hidden="true" />
+                    <span className={styles.soloEsteGrafico}>Controles solo de este gráfico</span>
                     <div className={styles.grupoBarra}>
                       <span>Agrupar por</span>
                       <div className={styles.segmentadoChico} role="group" aria-label="Agrupar por">

@@ -666,3 +666,16 @@ th.colAnalitos {
 /* Sobrio: menos relieve, bordes finos y radios parejos. */
 .tablaCard { box-shadow: none; border-radius: 12px; }
 .avisoSim { border-radius: 10px; }
+
+.soloEsteGrafico {
+  align-self: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px dashed var(--color-border-strong);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}

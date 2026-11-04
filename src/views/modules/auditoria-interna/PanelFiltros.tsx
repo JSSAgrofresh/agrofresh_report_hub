@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { IconoBuscar, IconoCerrar } from '@/components/ui/iconosAccion'
@@ -7,6 +7,9 @@ import type { FiltrosSolicitudes, OpcionesFiltros, SolicitudAuditoria } from '@/
 import { tipoServicioDe } from '@/features/auditoriaInterna'
 import { colorDeIngrediente } from '@/features/reportes'
 import styles from './PanelFiltros.module.css'
+
+/** A cuántos px del borde de arriba se pega la barra al bajar. */
+const TOPE_PEGADO = 8
 
 const CLAVE_VISIBLE = 'agrofresh.auditoria.filtros.visibles'
 
@@ -47,14 +50,63 @@ export function PanelFiltros({
   onChange,
   opciones,
   datos,
+  coinciden,
 }: {
   filtros: FiltrosSolicitudes
   onChange: (f: FiltrosSolicitudes) => void
   opciones: OpcionesFiltros
   /** todas las solicitudes, para los números junto a cada opción */
   datos: SolicitudAuditoria[]
+  /** cuántas solicitudes dejan pasar los filtros */
+  coinciden: number
 }) {
   const [visible, setVisible] = useState(leerVisible)
+  // Al bajar, la tarjeta se pega arriba como una barra delgada que acompaña todo el recorrido; «Mostrar filtros» la despliega encima.
+  const hueco = useRef<HTMLDivElement>(null)
+  const panel = useRef<HTMLElement>(null)
+  const pegadoRef = useRef(false)
+  const [pegado, setPegado] = useState(false)
+  const [abiertoPegado, setAbiertoPegado] = useState(false)
+  const [alto, setAlto] = useState<number | undefined>()
+  const [geo, setGeo] = useState<{ left: number; width: number } | null>(null)
+
+  useEffect(() => {
+    let cuadro = 0
+    const medir = () => {
+      cuadro = 0
+      const h = hueco.current
+      const p = panel.current
+      if (!h || !p) return
+      const r = h.getBoundingClientRect()
+      // En la parte de arriba de la página (scrollY 0) nunca se pega.
+      const debePegar = window.scrollY > 0 && r.top <= TOPE_PEGADO
+      if (!pegadoRef.current && debePegar) {
+        pegadoRef.current = true
+        setAlto(p.offsetHeight)
+        setPegado(true)
+      } else if (pegadoRef.current && !debePegar) {
+        pegadoRef.current = false
+        setPegado(false)
+        setAbiertoPegado(false)
+        setAlto(undefined)
+      }
+      if (pegadoRef.current) setGeo((g) => (g && g.left === r.left && g.width === r.width ? g : { left: r.left, width: r.width }))
+    }
+    const pedir = () => {
+      if (!cuadro) cuadro = requestAnimationFrame(medir)
+    }
+    window.addEventListener('scroll', pedir, { passive: true })
+    window.addEventListener('resize', pedir)
+    pedir()
+    return () => {
+      window.removeEventListener('scroll', pedir)
+      window.removeEventListener('resize', pedir)
+      if (cuadro) cancelAnimationFrame(cuadro)
+    }
+  }, [])
+
+  const cuerpoAbierto = pegado ? abiertoPegado : visible
+  const estiloFijo = pegado && geo ? { top: TOPE_PEGADO, left: geo.left, width: geo.width } : undefined
   const activos = contarFiltros(filtros)
   const chips = chipsDeFiltros(filtros)
   const conteoAnalito = (a: string) => datos.filter((s) => s.analitos.includes(a)).length
@@ -67,11 +119,13 @@ export function PanelFiltros({
   }
 
   return (
-    <section className={styles.panel} aria-label="Filtros">
+    <div ref={hueco} className={styles.hueco} style={pegado && alto ? { height: alto } : undefined}>
+    <section ref={panel} className={`${styles.panel} ${pegado ? styles.fijo : ''}`} style={estiloFijo} aria-label="Filtros" data-pegado={pegado ? 'true' : 'false'}>
       <header className={styles.cabecera}>
         <h2>
           Filtros
           {activos > 0 && <span className={styles.contador} aria-label={`${activos} filtros activos`}>{activos}</span>}
+          <span className={styles.cuenta}>{coinciden.toLocaleString('es-CL')} de {datos.length.toLocaleString('es-CL')} solicitudes</span>
         </h2>
         <div className={styles.acciones}>
           {activos > 0 && (
@@ -82,18 +136,24 @@ export function PanelFiltros({
           <button
             type="button"
             className={styles.alternar}
-            aria-expanded={visible}
+            aria-expanded={cuerpoAbierto}
             onClick={() => {
+              if (pegado) {
+                setAbiertoPegado((v) => !v)
+                return
+              }
               setVisible(!visible)
               guardarVisible(!visible)
             }}
           >
-            {visible ? 'Ocultar filtros' : 'Mostrar filtros'}
+            {cuerpoAbierto ? 'Ocultar filtros ▴' : 'Mostrar filtros ▾'}
           </button>
         </div>
       </header>
 
-      {visible && (
+      {cuerpoAbierto && (
+        <>
+        <p className={styles.grupo}>Generales <span>· valen para todo el panel; cada gráfico tiene sus propios controles</span></p>
         <div className={styles.cuerpo}>
           <label className={styles.buscar}>
             <span className={styles.etiqueta}>Buscar</span>
@@ -131,9 +191,10 @@ export function PanelFiltros({
             Solo informes sin fecha de envío
           </button>
         </div>
+        </>
       )}
 
-      {chips.length > 0 && (
+      {chips.length > 0 && (!pegado || abiertoPegado) && (
         <ul className={styles.chips} aria-label="Filtros aplicados">
           {chips.map((c) => (
             <li key={c.clave}>
@@ -152,5 +213,6 @@ export function PanelFiltros({
         </ul>
       )}
     </section>
+    </div>
   )
 }
