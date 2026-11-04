@@ -19,6 +19,7 @@ import {
   sumarDias,
 } from '@/features/rendimientoCalidad'
 import type { Bloques, CeldaBloque, Conteo, RespuestaRendimiento } from '@/features/rendimientoCalidad'
+import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { AuditoriaHero } from './AuditoriaHero'
 import { DetallePlantaModal } from './DetallePlantaModal'
 import styles from './RendimientoCalidadView.module.css'
@@ -244,20 +245,8 @@ export function RendimientoCalidadView() {
               />
             ) : (
               <>
-                <label className={styles.campo}>
-                  Cliente
-                  <select value={soldTo} onChange={(e) => cambiarCliente(e.target.value)}>
-                    <option value="">Todos</option>
-                    {clientes.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </label>
-                <label className={styles.campo}>
-                  Planta
-                  <select value={shipTo} onChange={(e) => setShipTo(e.target.value)}>
-                    <option value="">Todas</option>
-                    {plantas.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </label>
+                <BuscableSelect etiqueta="Cliente" opciones={clientes} valor={soldTo} onChange={cambiarCliente} placeholderTodos="Todos" />
+                <BuscableSelect etiqueta="Planta" opciones={plantas} valor={shipTo} onChange={setShipTo} placeholderTodos="Todas" />
               </>
             )}
 

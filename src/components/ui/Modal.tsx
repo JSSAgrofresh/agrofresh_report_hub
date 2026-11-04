@@ -11,7 +11,7 @@ interface ModalProps {
   children: ReactNode
   /** botones del pie */
   pie?: ReactNode
-  ancho?: 'normal' | 'grande'
+  ancho?: 'normal' | 'medio' | 'grande'
 }
 
 /** Diálogo accesible: Esc cierra, el foco entra al diálogo y vuelve a quien lo
@@ -44,7 +44,7 @@ export function Modal({ titulo, subtitulo, onCerrar, children, pie, ancho = 'nor
         role="dialog"
         aria-modal="true"
         aria-label={titulo}
-        className={`${styles.modal} ${ancho === 'grande' ? styles.grande : ''}`}
+        className={`${styles.modal} ${ancho === 'grande' ? styles.grande : ancho === 'medio' ? styles.medio : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
         <header className={styles.cabecera}>

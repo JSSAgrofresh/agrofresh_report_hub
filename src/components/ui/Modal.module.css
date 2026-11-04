@@ -29,6 +29,10 @@
   height: calc(100dvh - 48px);
 }
 
+.medio {
+  max-width: min(960px, 100%);
+}
+
 .cabecera {
   display: flex;
   align-items: flex-start;

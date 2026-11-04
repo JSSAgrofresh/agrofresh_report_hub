@@ -31,6 +31,7 @@ import { IndicadoresEntrega } from './IndicadoresEntrega'
 import { ResumenConcretadas } from './ResumenConcretadas'
 import { InformesPorLaboratorio } from './InformesPorLaboratorio'
 import { usePlanEntregables } from '@/features/planEntregables'
+import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { AnalisisPorCliente } from './AnalisisPorCliente'
 import { DinamicaPlan } from './DinamicaPlan'
 import { GraficosPlan } from './GraficosPlan'
@@ -72,13 +73,13 @@ export function SolicitudesInformesView() {
   const [area, setArea] = useState<AreaPivote | null>(null)
   const [dimension, setDimension] = useState<DimensionGrafico>('cliente')
   // Filtros propios del gráfico por grupo, encima de los del panel.
-  const [filtroGrafico, setFiltroGrafico] = useState({ cliente: '', planta: '', especie: '', tipo: '' })
+  const [filtroGrafico, setFiltroGrafico] = useState<{ cliente: string[]; planta: string[]; especie: string[]; tipo: string[] }>({ cliente: [], planta: [], especie: [], tipo: [] })
   const [topClientes, setTopClientes] = useState(10)
   // «Totales» (la tabla de siempre) o «Por semana» (lo hecho contra lo que tocaba cada semana, con el plan).
   const [vistaPlan, setVistaPlan] = useState<'total' | 'semana'>('total')
   const plan = usePlanEntregables()
   // El plan es por Sold To: con un Ship To, especie o tipo elegidos el avance no se puede calcular y se esconde.
-  const hayFiltroPlanta = filtroGrafico.planta !== '' || filtroGrafico.especie !== '' || filtroGrafico.tipo !== ''
+  const hayFiltroPlanta = filtroGrafico.planta.length > 0 || filtroGrafico.especie.length > 0 || filtroGrafico.tipo.length > 0
   const [analisisVisibles, setAnalisisVisibles] = useState<AnalisisVisible[]>(['residuales', 'fsma', 'fito'])
   // Siempre queda al menos uno prendido: sin ninguno no habría nada que mirar.
   const alternarAnalisis = (a: AnalisisVisible) =>
@@ -105,8 +106,8 @@ export function SolicitudesInformesView() {
     () => soloAnalisis(porClienteResiduosFsmaFito(alcanceGrafico, dimension), analisisVisibles).slice(0, topClientes > 0 ? topClientes : undefined),
     [alcanceGrafico, dimension, topClientes, analisisVisibles],
   )
-  const cambiarFiltroGrafico = (clave: keyof typeof filtroGrafico, valor: string) =>
-    setFiltroGrafico((f) => ({ ...f, [clave]: valor, ...(clave === 'cliente' ? { planta: '' } : {}) }))
+  const cambiarFiltroGrafico = (clave: keyof typeof filtroGrafico, valor: string[]) =>
+    setFiltroGrafico((f) => ({ ...f, [clave]: valor, ...(clave === 'cliente' ? { planta: [] } : {}) }))
   const nombreDimension = DIMENSIONES.find((d) => d.valor === dimension)!
 
   const hayFiltros = contarFiltros(filtros) > 0
@@ -118,23 +119,25 @@ export function SolicitudesInformesView() {
         etiqueta="Control de solicitudes e informes"
         titulo="Panel de control interno"
         descripcion="Lo que pedimos a los laboratorios y los informes que vuelven: cuáles ya están concretados, con su PDF guardado y sus resultados en Report."
+        acciones={
+          <>
+            {puedeSimular && (
+              <Button
+                variant="secondary"
+                onClick={() => setSimulacion(simulando ? null : simularSolicitudes(1000))}
+                aria-pressed={simulando}
+                title="Muestra 1.000 solicitudes inventadas para probar cómo se ve el panel. No se guarda nada."
+              >
+                {simulando ? '✕ Salir de la simulación' : '🧪 Simular 1.000 datos'}
+              </Button>
+            )}
+            <Button variant="secondary" onClick={refrescar} disabled={cargando} className={styles.botonActualizar}>
+              <IconoActualizar className={cargando ? styles.girando : undefined} width={16} height={16} />
+              {cargando ? 'Actualizando…' : 'Actualizar'}
+            </Button>
+          </>
+        }
       />
-      <div className={styles.acciones}>
-        {puedeSimular && (
-          <Button
-            variant="secondary"
-            onClick={() => setSimulacion(simulando ? null : simularSolicitudes(1000))}
-            aria-pressed={simulando}
-            title="Muestra 1.000 solicitudes inventadas para probar cómo se ve el panel. No se guarda nada."
-          >
-            {simulando ? '✕ Salir de la simulación' : '🧪 Simular 1.000 datos'}
-          </Button>
-        )}
-        <Button variant="secondary" onClick={refrescar} disabled={cargando} className={styles.botonActualizar}>
-          <IconoActualizar className={cargando ? styles.girando : undefined} width={16} height={16} />
-          {cargando ? 'Actualizando…' : 'Actualizar'}
-        </Button>
-      </div>
 
       {simulando && (
         <div className={styles.avisoSim} role="status">
@@ -189,34 +192,10 @@ export function SolicitudesInformesView() {
                 leyenda={
                   <div className={styles.barraGrafico}>
                     <div className={styles.filtrosGrafico}>
-                      <label>
-                        Sold To
-                        <select className={styles.selectChico} value={filtroGrafico.cliente} onChange={(e) => cambiarFiltroGrafico('cliente', e.target.value)}>
-                          <option value="">Todos</option>
-                          {opcionesGrafico.clientes.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      </label>
-                      <label>
-                        Ship To
-                        <select className={styles.selectChico} value={filtroGrafico.planta} onChange={(e) => cambiarFiltroGrafico('planta', e.target.value)}>
-                          <option value="">Todos</option>
-                          {opcionesGrafico.plantas.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      </label>
-                      <label>
-                        Especie
-                        <select className={styles.selectChico} value={filtroGrafico.especie} onChange={(e) => cambiarFiltroGrafico('especie', e.target.value)}>
-                          <option value="">Todas</option>
-                          {opcionesGrafico.especies.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      </label>
-                      <label>
-                        Tipo de servicio
-                        <select className={styles.selectChico} value={filtroGrafico.tipo} onChange={(e) => cambiarFiltroGrafico('tipo', e.target.value)}>
-                          <option value="">Todos</option>
-                          {opcionesGrafico.tipos.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      </label>
+                      <MultiSelectFiltro etiqueta="Sold To" opciones={opcionesGrafico.clientes} valores={filtroGrafico.cliente} onChange={(v) => cambiarFiltroGrafico('cliente', v)} />
+                      <MultiSelectFiltro etiqueta="Ship To" opciones={opcionesGrafico.plantas} valores={filtroGrafico.planta} onChange={(v) => cambiarFiltroGrafico('planta', v)} />
+                      <MultiSelectFiltro etiqueta="Especie" opciones={opcionesGrafico.especies} valores={filtroGrafico.especie} onChange={(v) => cambiarFiltroGrafico('especie', v)} />
+                      <MultiSelectFiltro etiqueta="Tipo de servicio" opciones={opcionesGrafico.tipos} valores={filtroGrafico.tipo} onChange={(v) => cambiarFiltroGrafico('tipo', v)} />
                     </div>
                     <span className={styles.separadorBarra} aria-hidden="true" />
                     <div className={styles.grupoBarra}>

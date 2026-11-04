@@ -1,32 +1,26 @@
+/* Encabezado sobrio: franja plana, sin degradados ni ilustración. */
 .hero {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--radius-lg);
-  padding: var(--space-4) var(--space-6);
-  min-height: 112px;
+  --acento: #2f6b4f;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--acento);
+  border-radius: 12px;
+}
+
+.azul { --acento: #1d5a80; }
+
+.texto {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-  color: #fff;
-  background: linear-gradient(110deg, #0f2f2b 0%, #14524a 55%, #1b7f5c 100%);
-  box-shadow: var(--shadow-md);
-}
-
-.azul { background: linear-gradient(110deg, #0c2f4a 0%, #14577a 55%, #1b8a94 100%); }
-
-.arte {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.etiqueta,
-.titulo,
-.descripcion {
-  position: relative;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 320px;
 }
 
 .etiqueta {
@@ -34,24 +28,34 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--acento);
 }
 
 .titulo {
-  font-size: 1.35rem;
+  margin: 0;
+  font-size: 1.3rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+  color: var(--color-text);
 }
 
 .descripcion {
+  margin: 0;
+  max-width: 640px;
   font-size: 12.5px;
   line-height: 1.5;
-  color: rgba(255, 255, 255, 0.85);
-  max-width: 460px;
+  color: var(--color-text-muted);
 }
 
-@media (max-width: 720px) {
-  .arte {
-    opacity: 0.45;
-  }
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+@media (max-width: 640px) {
+  .hero { padding: var(--space-3) var(--space-4); }
+  .acciones { width: 100%; }
+  .acciones > * { flex: 1 1 auto; }
 }

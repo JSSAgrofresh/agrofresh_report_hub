@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react'
 import { ANALISIS_VISIBLES } from '@/features/auditoriaInterna'
 import type { AnalisisVisible, SolicitudAuditoria } from '@/features/auditoriaInterna'
 import {
-  SEMANAS_PEAK, SEMANAS_PLAN, aplanarDinamica, clavesConHijos, construirDinamica, ordenSemana, semanaActual, totalDe,
+  SEMANAS_PEAK, SEMANAS_PLAN, aplanarDinamica, clavesConHijos, conDatos, construirDinamica, ordenSemana, semanaActual, totalDe,
 } from '@/features/planEntregables'
 import type { CeldaDinamica, ClientePlan, FilaPlan, NodoDinamica } from '@/features/planEntregables'
+import { normalizarNombre } from '@/features/planEntregables'
 import { COLOR_LAB } from './coloresTipo'
 import styles from './DinamicaPlan.module.css'
 
@@ -34,8 +35,9 @@ function Valor({ c, valor, semana, actual }: { c: CeldaDinamica; valor: Valor; s
 }
 
 /**
- * «Análisis por cliente» semana a semana, como una tabla dinámica: Comercial → Tipo de cliente → Cliente → Planta, con las semanas de la
- * temporada en columnas y, en cada cliente y planta, una línea por análisis. Cada celda dice lo hecho y lo propuesto por el plan.
+ * «Análisis por cliente» semana a semana, como una tabla dinámica: cada cliente (Sold To) se abre en sus plantas (Ship To); el comercial y el
+ * tipo de cliente van en columnas, con las semanas de la temporada y, en cada renglón, una línea por análisis. Cada celda dice lo hecho y lo
+ * propuesto por el plan.
  */
 export function DinamicaPlan({
   solicitudes,
@@ -71,8 +73,9 @@ export function DinamicaPlan({
     return <Valor c={c} valor={valor} semana={null} actual={actual} />
   }
 
-  const celdaNombre = (n: NodoDinamica, nivel: number, filasAlto?: number) => (
-    <th scope={filasAlto ? 'rowgroup' : 'row'} rowSpan={filasAlto} className={`${styles.nombre} ${styles[`n_${n.nivel}`]}`} style={{ paddingLeft: 8 + nivel * 18 }}>
+  const cuantas = (n: NodoDinamica) => n.hijos.filter((h) => conDatos(h, analisis)).length
+  const celdaNombre = (n: NodoDinamica, nivel: number, filasAlto: number) => (
+    <th scope="rowgroup" rowSpan={filasAlto} className={`${styles.nombre} ${styles[`n_${n.nivel}`]}`} style={{ paddingLeft: 8 + nivel * 20 }}>
       {n.hijos.length > 0 ? (
         <button type="button" className={styles.flecha} aria-expanded={abiertos.has(n.clave)} aria-label={`${abiertos.has(n.clave) ? 'Cerrar' : 'Abrir'} ${n.nombre}`} onClick={() => alternar(n.clave)}>
           {abiertos.has(n.clave) ? '▾' : '▸'}
@@ -80,25 +83,17 @@ export function DinamicaPlan({
       ) : <span className={styles.sinFlecha} />}
       <span className={styles.texto} title={n.nombre}>{n.nombre}</span>
       {n.fueraDelPlan && n.nivel === 'cliente' && <small className={styles.fuera}>fuera del plan</small>}
+      {n.nivel === 'cliente' && n.hijos.length > 0 && !abiertos.has(n.clave) && <small className={styles.cuantas}>{cuantas(n)} {cuantas(n) === 1 ? 'planta' : 'plantas'}</small>}
     </th>
   )
 
   const fila = (n: NodoDinamica, nivel: number) => {
-    // Comercial y tipo: una sola línea con todo junto. Cliente y planta: una línea por análisis, como la tabla de siempre.
-    if (n.nivel === 'comercial' || n.nivel === 'tipo') {
-      return (
-        <tr key={n.clave} className={`${styles.fila} ${styles[`f_${n.nivel}`]}`}>
-          {celdaNombre(n, nivel)}
-          <td className={styles.analisis}>Todos</td>
-          {semanas(n, null)}
-          {total(n, null)}
-        </tr>
-      )
-    }
     const ls = lineas.filter((l) => { const t = totalDe(n.datos, l.clave); return t.hecho > 0 || t.prop > 0 })
     return ls.map((l, j) => (
-      <tr key={`${n.clave}-${l.clave}`} className={`${styles.fila} ${styles[`f_${n.nivel}`]}`}>
+      <tr key={`${n.clave}-${l.clave}`} className={`${styles.fila} ${styles[`f_${n.nivel}`]} ${j === 0 ? styles.primera : ''}`}>
         {j === 0 && celdaNombre(n, nivel, ls.length)}
+        {j === 0 && <td rowSpan={ls.length} className={styles.comercial} title={n.comercial}>{n.comercial ?? ''}</td>}
+        {j === 0 && <td rowSpan={ls.length} className={`${styles.tipo} ${n.tipo ? styles[`t_${normalizarNombre(n.tipo).toLowerCase()}`] ?? '' : ''}`}>{n.tipo ? <span>{n.tipo}</span> : null}</td>}
         <td className={styles.analisis} style={{ color: l.color }} title={l.sub}>{l.nombre}</td>
         {semanas(n, l.clave)}
         {total(n, l.clave)}
@@ -107,7 +102,7 @@ export function DinamicaPlan({
   }
 
   const granTotal: NodoDinamica = useMemo(() => {
-    const t: NodoDinamica = { clave: 'total', nombre: 'Total', nivel: 'comercial', datos: { residuales: {}, fsma: {}, fito: {} }, hijos: [] }
+    const t: NodoDinamica = { clave: 'total', nombre: 'Total', nivel: 'cliente', datos: { residuales: {}, fsma: {}, fito: {} }, hijos: [] }
     for (const r of arbol) for (const k of ['residuales', 'fsma', 'fito'] as FilaPlan[]) for (const [s, c] of Object.entries(r.datos[k])) {
       t.datos[k][s] = mas(t.datos[k][s] ?? vacia(), c)
     }
@@ -139,7 +134,9 @@ export function DinamicaPlan({
           <table className={styles.tabla}>
             <thead>
               <tr>
-                <th className={styles.colNombre}>Comercial · tipo · cliente · planta</th>
+                <th className={styles.colNombre}>Cliente (Sold To) · planta (Ship To)</th>
+                <th className={styles.colComercial}>Comercial</th>
+                <th className={styles.colTipo}>Tipo</th>
                 <th className={styles.colAnalisis}>Análisis</th>
                 {SEMANAS_PLAN.map((s) => (
                   <th key={s} className={`${styles.colSemana} ${SEMANAS_PEAK.includes(s) ? styles.peak : ''} ${ordenSemana(s) === actual ? styles.hoy : ''}`} title={SEMANAS_PEAK.includes(s) ? 'Semana peak' : ordenSemana(s) === actual ? 'Esta semana' : undefined}>
@@ -155,7 +152,8 @@ export function DinamicaPlan({
             {filas.length > 0 && (
               <tfoot>
                 <tr className={styles.filaTotal}>
-                  <th scope="row" className={styles.nombre}><span className={styles.sinFlecha} />Total</th>
+                  <th scope="row" className={styles.nombre}><span className={styles.sinFlecha} />Total · {nf.format(arbol.filter((n) => conDatos(n, analisis)).length)} clientes</th>
+                  <td /><td />
                   <td className={styles.analisis}>Todos</td>
                   {semanas(granTotal, null)}
                   {total(granTotal, null)}
