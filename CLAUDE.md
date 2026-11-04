@@ -56,6 +56,10 @@ El usuario lleva sus tareas en el Artifact **«Tareas Report Hub»**: **https://
 
 ---
 
+## Mejoras visuales: rama aparte y tema oscuro (04-11-2026, pedido del usuario)
+
+**Todo lo visual nuevo se trabaja en la rama `mejoras-visuales` y NO se fusiona a `main` hasta que el usuario lo pida** (esta rama es la excepción a «publica de una»: sin PR, sin aviso de despliegue). Se va mejorando ahí y, cuando esté bien, se presenta y se fusiona. Primer paso hecho: el marco interno (barra lateral) con el estilo de la vista de cliente —barra lateral flotante, encabezado con foto, indicadores con color, tarjetas suaves— y **tema oscuro**. Cómo está armado: `src/styles/mejoras-visuales.css` (capa de estilo; sus selectores `[class*="_x_"]` buscan el nombre de la clase de cada CSS Module, así que si se renombra una hay que revisarla), `src/lib/temaVisual.ts` (claro/oscuro en `localStorage`, `data-tema` en `<html>`, `useTemaVisual`), botón sol/luna en el pie de `Sidebar.tsx` y `AppLayout`, que pone `html[data-mejoras]` SOLO en el marco interno (el portal de clientes y comerciales no se toca). Los gráficos Chart.js se adaptan al oscuro con un filtro CSS sobre el `canvas`; **pendiente**: que lean sus colores de la paleta oscura. Pendiente también: Monitoreo (ya es oscuro y no usa esta capa), el portal de clientes en oscuro y pasar los estilos «parche» a cada CSS Module. Prueba: `temaVisual.test.ts`.
+
 ## Dónde corre el sistema
 
 | Pieza | Dónde |

@@ -9,6 +9,7 @@ import { GRUPO_DATACORE } from '@/constants/modules'
 import type { ModuloInfo } from '@/constants/modules'
 import { ROUTES } from '@/constants/routes'
 import { cn } from '@/lib/cn'
+import { useTemaVisual } from '@/lib/temaVisual'
 import {
   etiquetaAcceso,
   modulosPermitidos,
@@ -37,6 +38,25 @@ import {
 import { BandejaNotificaciones, ToastNotificacion, useNotificaciones } from '@/features/notificaciones'
 import { CORREO_MAESTRO } from '@/features/usuarios'
 import styles from './Sidebar.module.css'
+
+const trazo = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const
+
+function IconLuna() {
+  return (
+    <svg {...trazo}>
+      <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+    </svg>
+  )
+}
+
+function IconSol() {
+  return (
+    <svg {...trazo}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  )
+}
 
 /** Plegada, la barra deja solo los iconos. La elección se recuerda: quien
  *  trabaja todo el día en el laboratorio no quiere volver a plegarla en cada
@@ -198,6 +218,7 @@ interface SidebarProps {
 
 export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   const { user, logout } = useAuth()
+  const { tema, alternar: alternarTema } = useTemaVisual()
   const [colapsada, setColapsada] = useState(leerColapso)
   const [avatarId, setAvatarId] = useState<AvatarId>(leerAvatar)
   const [selectorAbierto, setSelectorAbierto] = useState(false)
@@ -526,6 +547,15 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
               <span className={styles.usuarioNombre}>{user.nombre}</span>
               <span className={styles.usuarioRol}>{etiquetaAcceso(user)}</span>
             </div>
+            <button
+              type="button"
+              className={styles.salir}
+              onClick={alternarTema}
+              title={tema === 'oscuro' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+              aria-label={tema === 'oscuro' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+            >
+              {tema === 'oscuro' ? <IconSol /> : <IconLuna />}
+            </button>
             <button className={styles.salir} onClick={() => logout()} title="Cerrar sesión">
               <IconLogout />
             </button>

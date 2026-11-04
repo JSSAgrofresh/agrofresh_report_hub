@@ -33,6 +33,14 @@ export function AppLayout() {
   // «Sigo aquí», con detalle (pantalla, si toca algo, aparato, versión). Alimenta el Monitoreo. Si falla no pasa nada.
   usePresencia(pathname, !!user)
 
+  // Las mejoras visuales (barra lateral flotante, banners, tema oscuro) solo valen para el marco interno;
+  // el portal de clientes y comerciales conserva su propio estilo.
+  useEffect(() => {
+    if (conPortal) return
+    document.documentElement.dataset.mejoras = 'interno'
+    return () => { delete document.documentElement.dataset.mejoras }
+  }, [conPortal])
+
   // Clientes y comerciales ven el mismo contenido con otro marco: navbar flotante y fondo vivo, sin barra lateral.
   if (conPortal) {
     return (
