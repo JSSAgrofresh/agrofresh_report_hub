@@ -580,7 +580,7 @@ th.colAnalitos {
   margin-bottom: var(--space-3);
 }
 
-.filtrosGrafico label {
+.filtrosGrafico > label {
   display: flex;
   flex-direction: column;
   gap: 3px;
