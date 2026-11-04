@@ -95,3 +95,15 @@ def test_ya_no_se_marca_ninguna_solicitud():
 def test_crear_als_ya_no_lleva_la_marca(limpio):  # noqa: F811
     creada = tm.crear_solicitud(cuerpo(laboratorio="ALS"), usuario=ADMIN)
     assert "json_als_v2" not in tm._leer_datos_actuales(creada.archivo)
+
+
+def test_als_agrega_la_cabecera_del_informe_sin_tocar_las_claves_originales():
+    s = _json(OT7)
+    assert s["cabecera_informe"] == json_als.construir(OT7)
+    assert s["cabecera_informe"]["Identificación Muestra (NI)"].startswith("OT-ALS0007 // Pozo vaciado // 01-10-2026")
+    assert s["sold_to"] == OT7["sold_to"] and s["numero_solicitud"] == "OT-ALS0007"
+    assert list(s)[-1] == "correos" and list(s)[-2] == "cabecera_informe"
+
+
+def test_otro_laboratorio_no_lleva_cabecera_informe():
+    assert "cabecera_informe" not in _json({**OT7, "laboratorio": "Quiteca"})

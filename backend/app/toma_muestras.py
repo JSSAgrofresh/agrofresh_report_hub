@@ -2605,12 +2605,15 @@ def _generar_json_solicitud(datos: dict) -> bytes:
         for k, v in datos.items()
         if k not in _CAMPOS_INTERNOS
     }
-    # Siempre el formato estructurado original (también para las ALS que ya llevan la marca
-    # `json_als_v2`): es el que ALS usó para construir su recepción.
+    # Formato estructurado original (el que ALS usó para construir su recepción), intacto, y solo
+    # para ALS se AGREGA `cabecera_informe`: los campos de la cabecera de su informe, listos para
+    # copiar (`json_als.construir`). Nunca reemplaza ni renombra una clave original.
+    es_als = lab.strip().casefold() == "als"
     cuerpo = {
         **datos_limpios,
         # Solo ALS: es quien lo copia a «Sample Identification (IN)» de su informe.
-        **({"sample_identification": _sample_identification(datos)} if lab.strip().casefold() == "als" else {}),
+        **({"sample_identification": _sample_identification(datos)} if es_als else {}),
+        **({"cabecera_informe": json_als.construir(datos)} if es_als else {}),
     }
     salida = {
         **cuerpo,
