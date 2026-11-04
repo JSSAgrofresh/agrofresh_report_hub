@@ -10,12 +10,13 @@ export interface RangoDias {
 /** Todos los filtros del panel. Vacío = no filtra. */
 export interface FiltrosSolicitudes {
   texto: string
-  laboratorio: string
-  cliente: string
-  planta: string
-  tipo: string
-  especie: string
-  variedad: string
+  /** Cada uno de estos filtros admite varios valores a la vez (checks): vacío = todos; con varios pasa quien cumpla CUALQUIERA. */
+  laboratorio: string[]
+  cliente: string[]
+  planta: string[]
+  tipo: string[]
+  especie: string[]
+  variedad: string[]
   /** una solicitud pasa si pidió AL MENOS UNO de estos analitos */
   analitos: string[]
   estado: EstadoSolicitud | ''
@@ -26,12 +27,12 @@ export interface FiltrosSolicitudes {
 
 export const FILTROS_VACIOS: FiltrosSolicitudes = {
   texto: '',
-  laboratorio: '',
-  cliente: '',
-  planta: '',
-  tipo: '',
-  especie: '',
-  variedad: '',
+  laboratorio: [],
+  cliente: [],
+  planta: [],
+  tipo: [],
+  especie: [],
+  variedad: [],
   analitos: [],
   estado: '',
   rango: null,
@@ -43,6 +44,8 @@ function plano(s: string | null | undefined): string {
 }
 
 const igual = (a: string | null | undefined, b: string) => plano(a) === plano(b)
+/** ¿El valor es uno de los elegidos? (sin tildes ni mayúsculas) */
+const esUno = (v: string | null | undefined, elegidos: string[]) => elegidos.some((e) => igual(v, e))
 
 /** El día (YYYY-MM-DD) en que se emitió; se compara como texto, sin zonas. */
 export function diaDeEmision(s: SolicitudAuditoria): string | null {
@@ -59,12 +62,12 @@ export function filtrarSolicitudes(
 ): SolicitudAuditoria[] {
   const q = plano(f.texto)
   return lista.filter((s) => {
-    if (f.laboratorio && !igual(s.laboratorio, f.laboratorio)) return false
-    if (f.cliente && !igual(s.sold_to, f.cliente)) return false
-    if (f.planta && !igual(s.ship_to, f.planta)) return false
-    if (f.tipo && tipoServicioDe(s) !== f.tipo) return false
-    if (f.especie && !igual(s.especie, f.especie)) return false
-    if (f.variedad && !igual(s.variedad, f.variedad)) return false
+    if (f.laboratorio.length && !esUno(s.laboratorio, f.laboratorio)) return false
+    if (f.cliente.length && !esUno(s.sold_to, f.cliente)) return false
+    if (f.planta.length && !esUno(s.ship_to, f.planta)) return false
+    if (f.tipo.length && !f.tipo.includes(tipoServicioDe(s))) return false
+    if (f.especie.length && !esUno(s.especie, f.especie)) return false
+    if (f.variedad.length && !esUno(s.variedad, f.variedad)) return false
     if (f.analitos.length && !f.analitos.some((a) => s.analitos.includes(a))) return false
     if (!ignorar.estado && f.estado && estadoDe(s) !== f.estado) return false
     if (f.sinEnvio && !(s.informe && !s.informe.fecha_envio)) return false
@@ -83,7 +86,7 @@ export function filtrarSolicitudes(
 /** Cuántos filtros hay puestos (para el número junto al botón «Filtros»). */
 export function contarFiltros(f: FiltrosSolicitudes): number {
   return [
-    f.texto.trim(), f.laboratorio, f.cliente, f.planta, f.tipo, f.especie, f.variedad,
+    f.texto.trim(), f.laboratorio.length, f.cliente.length, f.planta.length, f.tipo.length, f.especie.length, f.variedad.length,
     f.analitos.length ? 'a' : '', f.estado, f.rango ? 'r' : '', f.sinEnvio ? 's' : '',
   ].filter(Boolean).length
 }
@@ -111,10 +114,10 @@ export function opcionesDeFiltros(lista: SolicitudAuditoria[], f: FiltrosSolicit
   return {
     laboratorios: unicos(lista.map((s) => s.laboratorio)),
     clientes: unicos(lista.map((s) => s.sold_to)),
-    plantas: unicos(lista.filter((s) => !f.cliente || igual(s.sold_to, f.cliente)).map((s) => s.ship_to)),
+    plantas: unicos(lista.filter((s) => !f.cliente.length || esUno(s.sold_to, f.cliente)).map((s) => s.ship_to)),
     tipos: unicos(lista.filter((s) => s.tipo_servicio).map(tipoServicioDe)),
     especies: unicos(lista.map((s) => s.especie)),
-    variedades: unicos(lista.filter((s) => !f.especie || igual(s.especie, f.especie)).map((s) => s.variedad)),
+    variedades: unicos(lista.filter((s) => !f.especie.length || esUno(s.especie, f.especie)).map((s) => s.variedad)),
     analitos: unicos(lista.flatMap((s) => s.analitos)),
   }
 }
@@ -130,16 +133,19 @@ const ETIQUETA_ESTADO: Record<EstadoSolicitud, string> = {
   pendiente: 'Pendientes',
 }
 
+/** Hasta 2 valores se nombran; con más, se cuentan. */
+const resumir = (v: string[]) => (v.length <= 2 ? v.join(', ') : `${v.length} seleccionados`)
+
 /** Un chip por filtro puesto, para poder quitarlo de a uno. */
 export function chipsDeFiltros(f: FiltrosSolicitudes): ChipFiltro[] {
   const chips: ChipFiltro[] = []
   if (f.texto.trim()) chips.push({ clave: 'texto', texto: `Búsqueda: ${f.texto.trim()}` })
-  if (f.laboratorio) chips.push({ clave: 'laboratorio', texto: `Laboratorio: ${f.laboratorio}` })
-  if (f.cliente) chips.push({ clave: 'cliente', texto: `Cliente: ${f.cliente}` })
-  if (f.planta) chips.push({ clave: 'planta', texto: `Planta: ${f.planta}` })
-  if (f.tipo) chips.push({ clave: 'tipo', texto: `Tipo: ${f.tipo}` })
-  if (f.especie) chips.push({ clave: 'especie', texto: `Especie: ${f.especie}` })
-  if (f.variedad) chips.push({ clave: 'variedad', texto: `Variedad: ${f.variedad}` })
+  if (f.laboratorio.length) chips.push({ clave: 'laboratorio', texto: `Laboratorio: ${resumir(f.laboratorio)}` })
+  if (f.cliente.length) chips.push({ clave: 'cliente', texto: `Cliente: ${resumir(f.cliente)}` })
+  if (f.planta.length) chips.push({ clave: 'planta', texto: `Planta: ${resumir(f.planta)}` })
+  if (f.tipo.length) chips.push({ clave: 'tipo', texto: `Tipo: ${resumir(f.tipo)}` })
+  if (f.especie.length) chips.push({ clave: 'especie', texto: `Especie: ${resumir(f.especie)}` })
+  if (f.variedad.length) chips.push({ clave: 'variedad', texto: `Variedad: ${resumir(f.variedad)}` })
   if (f.analitos.length) chips.push({ clave: 'analitos', texto: `Analitos: ${f.analitos.join(', ')}` })
   if (f.estado) chips.push({ clave: 'estado', texto: `Estado: ${ETIQUETA_ESTADO[f.estado]}` })
   if (f.rango) chips.push({ clave: 'rango', texto: `Emitidas: ${f.rango.desde} al ${f.rango.hasta}` })
@@ -155,13 +161,13 @@ export function chipsDeFiltros(f: FiltrosSolicitudes): ChipFiltro[] {
  */
 export function camposTituloTabla(f: FiltrosSolicitudes): string[] {
   return [
-    f.cliente || 'Todos los clientes',
-    f.planta || 'Todas las sucursales',
-    f.laboratorio || 'Todos los laboratorios',
-    f.tipo || 'Todos los tipos de servicio',
+    f.cliente.length ? resumir(f.cliente) : 'Todos los clientes',
+    f.planta.length ? resumir(f.planta) : 'Todas las sucursales',
+    f.laboratorio.length ? resumir(f.laboratorio) : 'Todos los laboratorios',
+    f.tipo.length ? resumir(f.tipo) : 'Todos los tipos de servicio',
     f.rango ? `Emitidas del ${f.rango.desde} al ${f.rango.hasta}` : 'Todas las fechas',
-    f.especie || 'Todas las especies',
-    f.variedad || 'Todas las variedades',
+    f.especie.length ? resumir(f.especie) : 'Todas las especies',
+    f.variedad.length ? resumir(f.variedad) : 'Todas las variedades',
     f.analitos.length ? f.analitos.join(', ') : 'Todos los analitos',
   ]
 }

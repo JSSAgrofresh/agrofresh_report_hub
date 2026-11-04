@@ -18,6 +18,8 @@
 
 .tabla thead th { position: sticky; top: 0; z-index: 3; background: #f4f7f1; font-size: 11px; font-weight: 700; color: #3a4a40; border-bottom: 2px solid #d5ddd1; }
 .colNombre { left: 0; z-index: 4 !important; text-align: left !important; min-width: 280px; }
+.colComercial { min-width: 120px; text-align: left !important; }
+.colTipo { min-width: 96px; }
 .colAnalisis { min-width: 74px; }
 .colSemana { min-width: 54px; }
 .colTotal { min-width: 70px; background: #e8ede6 !important; }
@@ -26,16 +28,14 @@
 
 .nombre { position: sticky; left: 0; z-index: 2; background: #fff; text-align: left !important; font-weight: 500; min-width: 280px; max-width: 340px; border-right: 1px solid #e3e8e1; vertical-align: top; }
 .nombre > .texto, .nombre .texto { display: inline-block; max-width: 250px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
-.n_comercial { font-weight: 800; font-size: 13px; }
-.n_tipo { font-weight: 700; color: #3a4a40; }
-.n_cliente { font-weight: 600; }
+.n_cliente { font-weight: 700; }
 .n_planta { color: #4a5a50; font-weight: 500; }
 .flecha { border: 0; background: transparent; width: 18px; padding: 0; margin-right: 2px; cursor: pointer; color: #4d7c0f; font-size: 12px; vertical-align: middle; }
 .sinFlecha { display: inline-block; width: 20px; }
 .fuera { margin-left: 6px; font-size: 10.5px; color: var(--color-text-muted); font-weight: 500; }
 
-.f_comercial th, .f_comercial td { background: #eef3ea; border-top: 1px solid #d5ddd1; }
-.f_tipo th, .f_tipo td { background: #f6f9f3; }
+.f_cliente th, .f_cliente td { background: #fff; }
+.f_cliente.primera th, .f_cliente.primera td { border-top: 1px solid #d5ddd1; }
 .f_planta th, .f_planta td { background: #fcfdfb; font-size: 11.5px; }
 .fila:hover td { background: rgba(109, 173, 60, 0.09); }
 
@@ -49,3 +49,12 @@
 .filaTotal .nombre { z-index: 3; }
 
 .vacio { margin: 0; padding: 14px; font-size: 12.5px; color: var(--color-text-muted); }
+
+.cuantas { margin-left: 8px; font-size: 10.5px; font-weight: 500; color: var(--color-text-muted); }
+.comercial { text-align: left !important; font-size: 11.5px; font-weight: 600; color: #3a4a40; vertical-align: top; white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.tipo { vertical-align: top; font-size: 11px; }
+.tipo span { display: inline-block; padding: 2px 8px; border-radius: 999px; font-weight: 700; background: #eef1ee; color: #46544b; }
+.t_estrategico span { background: #e3ede0; color: #2f5d1a; }
+.t_preferente span { background: #e4eef5; color: #1d5a80; }
+.t_estandar span { background: #f1ece0; color: #7a5a1a; }
+.f_planta .comercial, .f_planta .tipo { background: #fcfdfb; }

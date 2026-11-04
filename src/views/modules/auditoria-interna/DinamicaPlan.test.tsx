@@ -18,12 +18,13 @@ const plan = new Map<string, ClientePlan>([
 const lista = [sol('AGROFRESH', 'DOLE LONTUE', '2026-11-04'), sol('QUITECA', 'DOLE LONTUE', '2026-11-04')]
 
 describe('DinamicaPlan', () => {
-  it('abre comercial → tipo → cliente → planta, con las semanas en columnas y lo hecho sobre lo propuesto', () => {
+  it('un renglón por cliente (con comercial y tipo en columnas) que se abre en sus plantas, con las semanas y lo hecho sobre lo propuesto', () => {
     render(<DinamicaPlan solicitudes={lista} plan={plan} />)
-    expect(screen.getByText('JC LABARCA')).toBeTruthy()
+    const cliente = screen.getByText('DOLE CHILE S.A.').closest('tr') as HTMLElement
+    expect(within(cliente).getByText('JC LABARCA')).toBeTruthy()
+    expect(within(cliente).getByText('Estratégico')).toBeTruthy()
     expect(screen.queryByText('DOLE LONTUE')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir todo' }))
-    expect(screen.getByText('Estrategico')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir DOLE CHILE S.A.' }))
     const planta = screen.getByText('DOLE LONTUE').closest('tr') as HTMLElement
     // W45: 2 hechos de 3 propuestos; W46: nada hecho de 4
     expect(within(planta).getByTitle(/Hecho 2 de 3 propuestos · AgroFresh 1 · Quiteca 1/).textContent).toBe('2/3')
@@ -50,10 +51,12 @@ describe('DinamicaPlan', () => {
 })
 
 describe('GraficosPlan', () => {
-  it('parte plegado y se despliega con «Ver gráficos»: semanas y top 10 uno al lado del otro', () => {
-    render(<GraficosPlan solicitudes={lista} plan={plan} analisis={['residuales', 'fsma', 'fito']} />)
+  const todos = ['residuales', 'fsma', 'fito'] as const
+  it('parte plegado y se despliega con «Ver gráficos»: lo que llevamos y lo esperado a la izquierda, el top 10 a la derecha', () => {
+    render(<GraficosPlan solicitudes={lista} plan={plan} analisis={[...todos]} />)
     expect(screen.queryByText('Cuándo se concentra el trabajo')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Ver gráficos/ }))
+    expect(screen.getByText('Lo que llevamos')).toBeTruthy()
     expect(screen.getByText('Cuándo se concentra el trabajo')).toBeTruthy()
     expect(screen.getByText('Los 10 clientes con más análisis')).toBeTruthy()
     // el top divide la barra por laboratorio
@@ -61,8 +64,24 @@ describe('GraficosPlan', () => {
     expect(screen.getByText('Residuales · Quiteca')).toBeTruthy()
     expect(screen.getByText('FSMA · ALS')).toBeTruthy()
     expect(screen.getByText('FITO · Diagnofruit')).toBeTruthy()
-    expect(screen.getByText('DOLE CHILE S.A.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /Ocultar gráficos/ }))
     expect(screen.queryByText('Los 10 clientes con más análisis')).toBeNull()
+  })
+
+  it('un clic en la barra de un cliente abre su detalle por sucursal, con lo hecho por laboratorio y lo propuesto', () => {
+    const conPlantas = [...lista, { ...sol('ALS', 'OTRA PLANTA', '2026-11-04') }]
+    render(<GraficosPlan solicitudes={conPlantas} plan={plan} analisis={[...todos]} abiertoInicial />)
+    fireEvent.click(screen.getByRole('button', { name: 'Ver el detalle de DOLE CHILE S.A.' }))
+    const dialogo = screen.getByRole('dialog')
+    expect(within(dialogo).getByText('DOLE CHILE S.A.')).toBeTruthy()
+    expect(within(dialogo).getByText('JC LABARCA · Estratégico')).toBeTruthy()
+    const lontue = within(dialogo).getByText('DOLE LONTUE').closest('tr') as HTMLElement
+    // 2 hechos (AgroFresh y Quiteca) de 7 propuestos a esa planta
+    expect(within(lontue).getByText('7')).toBeTruthy()
+    expect(within(lontue).getByText('29%')).toBeTruthy()
+    // una planta que el plan no trae también sale, sin plan
+    expect(within(dialogo).getByText('OTRA PLANTA')).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

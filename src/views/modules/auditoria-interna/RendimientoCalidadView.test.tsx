@@ -60,7 +60,11 @@ describe('RendimientoCalidadView', () => {
     render(<RendimientoCalidadView />)
     await screen.findByText('GESEX PLANTA FATIMA')
     fireEvent.click(screen.getByRole('button', { name: 'Por semana' }))
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'MULTIFRUTA SA' } })
+    // el cliente se busca escribiendo: «multi» deja solo MULTIFRUTA SA
+    const cliente = screen.getByPlaceholderText('Todos')
+    fireEvent.focus(cliente)
+    fireEvent.change(cliente, { target: { value: 'multi' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'MULTIFRUTA SA' }))
     await waitFor(() => expect(screen.getByText('Sem 43')).toBeTruthy())
     expect(screen.queryByText('Sem 44')).toBeNull()
     expect(screen.getByText('Total del período')).toBeTruthy()

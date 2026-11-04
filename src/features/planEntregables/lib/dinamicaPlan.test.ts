@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { SolicitudAuditoria } from '@/features/auditoriaInterna'
 import type { ClientePlan } from './api'
 import { semanaDeFecha } from './avanceSemanal'
-import { aplanarDinamica, clavesConHijos, construirDinamica, totalDe, FUERA_DEL_PLAN } from './dinamicaPlan'
+import { aplanarDinamica, clavesConHijos, construirDinamica, totalDe } from './dinamicaPlan'
 import { propuestoYHechoPorSemana, topClientes } from './graficosPlan'
 
 const sol = (lab: string, sold: string, ship: string, fecha: string) =>
@@ -32,18 +32,17 @@ const lista = [
 
 describe('construirDinamica', () => {
   const arbol = construirDinamica(lista, plan)
-  const comercial = (n: string) => arbol.find((x) => x.nombre.toLowerCase() === n.toLowerCase())!
+  const cliente = (n: string) => arbol.find((x) => x.nombre === n)!
 
-  it('agrupa por comercial, tipo de cliente, cliente y planta', () => {
-    expect(arbol.map((n) => n.nombre)).toEqual(['LABARCA', 'TRAVERSO', FUERA_DEL_PLAN])
-    const dole = comercial('Labarca').hijos[0].hijos[0]
-    expect(dole.nombre).toBe('DOLE CHILE S.A.')
-    expect(dole.hijos.map((p) => p.nombre)).toEqual(['DOLE LONTUE', 'DOLE CODEGUA', 'Sin cruzar con una planta del plan'])
-    expect(comercial('Traverso').hijos[0].nombre).toBe('Preferente')
+  it('un renglón por cliente (Sold To), con su comercial y su tipo; cada cliente se abre en sus plantas', () => {
+    expect(arbol.map((n) => n.nombre)).toEqual(['DOLE CHILE S.A.', 'MACE SA', 'CLIENTE NUEVO'])
+    expect(cliente('DOLE CHILE S.A.')).toMatchObject({ nivel: 'cliente', comercial: 'LABARCA', tipo: 'Estratégico' })
+    expect(cliente('MACE SA')).toMatchObject({ comercial: 'TRAVERSO', tipo: 'Preferente' })
+    expect(cliente('DOLE CHILE S.A.').hijos.map((p) => p.nombre)).toEqual(['DOLE LONTUE', 'DOLE CODEGUA', 'Sin cruzar con una planta del plan'])
   })
 
   it('cada celda lleva lo propuesto y lo hecho de su semana', () => {
-    const dole = comercial('Labarca').hijos[0].hijos[0]
+    const dole = cliente('DOLE CHILE S.A.')
     expect(dole.datos.residuales.W45).toMatchObject({ prop: 2, hecho: 1, agrofresh: 1, quiteca: 0 })
     expect(dole.datos.residuales.W46).toMatchObject({ prop: 3, hecho: 1, agrofresh: 0, quiteca: 1 })
     expect(dole.datos.fito.W46).toMatchObject({ prop: 1, hecho: 0 })
@@ -53,27 +52,26 @@ describe('construirDinamica', () => {
   })
 
   it('lo hecho en una planta que el plan no trae queda «sin cruzar», y lo de fuera de temporada no cuenta', () => {
-    const dole = comercial('Labarca').hijos[0].hijos[0]
+    const dole = cliente('DOLE CHILE S.A.')
     const sinCruzar = dole.hijos.find((p) => p.sinCruzar)!
     expect(totalDe(sinCruzar.datos, 'fsma').hecho).toBe(1)
     expect(totalDe(dole.datos, 'residuales').hecho).toBe(2) // el de septiembre no entra
   })
 
-  it('un cliente que el plan no trae va al final, bajo «Fuera del plan»', () => {
-    const fuera = comercial(FUERA_DEL_PLAN)
+  it('un cliente que el plan no trae va al final, marcado «fuera del plan», con su Ship To como planta', () => {
+    const fuera = cliente('CLIENTE NUEVO')
     expect(fuera.fueraDelPlan).toBe(true)
-    expect(fuera.hijos[0].hijos[0].nombre).toBe('CLIENTE NUEVO')
+    expect(fuera.hijos[0].nombre).toBe('X')
     expect(totalDe(fuera.datos, 'residuales').hecho).toBe(1)
   })
 
-  it('aplanar solo baja a los hijos de lo abierto y salta lo que no tiene nada en los análisis visibles', () => {
+  it('aplanar solo baja a las plantas de lo abierto y salta lo que no tiene nada en los análisis visibles', () => {
     const todos = ['residuales', 'fsma', 'fito'] as const
-    expect(aplanarDinamica(arbol, new Set(), [...todos]).map((f) => f.nodo.nombre)).toEqual(['LABARCA', 'TRAVERSO', FUERA_DEL_PLAN])
+    expect(aplanarDinamica(arbol, new Set(), [...todos]).map((f) => f.nodo.nombre)).toEqual(['DOLE CHILE S.A.', 'MACE SA', 'CLIENTE NUEVO'])
     const abierto = aplanarDinamica(arbol, new Set(clavesConHijos(arbol)), [...todos])
-    expect(abierto.length).toBeGreaterThan(10)
-    // sin FSMA ni FITO, «Fuera del plan» (solo residuales: AgroFresh) sigue; con solo FSMA solo queda lo que tenga FSMA
-    const soloFsma = aplanarDinamica(arbol, new Set(), ['fsma']).map((f) => f.nodo.nombre)
-    expect(soloFsma).toEqual(['LABARCA'])
+    expect(abierto.map((f) => f.nivel)).toContain(1)
+    expect(abierto.length).toBeGreaterThan(6)
+    expect(aplanarDinamica(arbol, new Set(), ['fsma']).map((f) => f.nodo.nombre)).toEqual(['DOLE CHILE S.A.'])
   })
 })
 

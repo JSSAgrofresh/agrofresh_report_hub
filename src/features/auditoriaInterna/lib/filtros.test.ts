@@ -24,13 +24,19 @@ const ids = (l: SolicitudAuditoria[]) => l.map((s) => s.archivo)
 describe('filtrarSolicitudes', () => {
   it('sin filtros devuelve todo', () => expect(ids(filtrarSolicitudes(lista, FILTROS_VACIOS))).toEqual(['1', '2', '3']))
 
+  it('varios valores en un filtro: pasa quien cumpla cualquiera', () => {
+    expect(ids(filtrarSolicitudes(lista, f({ cliente: ['Agricom', 'Dole Chile S.A.'] })))).toEqual(['1', '2', '3'])
+    expect(ids(filtrarSolicitudes(lista, f({ planta: ['agricom sur', 'DOLE CODEGUA'] })))).toEqual(['1', '2', '3'])
+    expect(ids(filtrarSolicitudes(lista, f({ laboratorio: ['Quiteca', 'Diagnofruit'] })))).toEqual(['1', '2', '3'])
+  })
+
   it('cada filtro por su cuenta', () => {
-    expect(ids(filtrarSolicitudes(lista, f({ laboratorio: 'diagnofruit' })))).toEqual(['2'])
-    expect(ids(filtrarSolicitudes(lista, f({ cliente: 'AGRICOM' })))).toEqual(['2'])
-    expect(ids(filtrarSolicitudes(lista, f({ planta: 'Dole Codegua' })))).toEqual(['1', '3'])
-    expect(ids(filtrarSolicitudes(lista, f({ tipo: 'Línea de proceso' })))).toEqual(['2'])
-    expect(ids(filtrarSolicitudes(lista, f({ especie: 'uvas' })))).toEqual(['2'])
-    expect(ids(filtrarSolicitudes(lista, f({ variedad: 'Thompson' })))).toEqual(['2'])
+    expect(ids(filtrarSolicitudes(lista, f({ laboratorio: ['diagnofruit'] })))).toEqual(['2'])
+    expect(ids(filtrarSolicitudes(lista, f({ cliente: ['AGRICOM'] })))).toEqual(['2'])
+    expect(ids(filtrarSolicitudes(lista, f({ planta: ['Dole Codegua'] })))).toEqual(['1', '3'])
+    expect(ids(filtrarSolicitudes(lista, f({ tipo: ['Línea de proceso'] })))).toEqual(['2'])
+    expect(ids(filtrarSolicitudes(lista, f({ especie: ['uvas'] })))).toEqual(['2'])
+    expect(ids(filtrarSolicitudes(lista, f({ variedad: ['Thompson'] })))).toEqual(['2'])
   })
 
   it('analitos: pasa si pidió al menos uno', () => {
@@ -67,18 +73,18 @@ describe('filtrarSolicitudes', () => {
   })
 
   it('los filtros se combinan (Y)', () => {
-    expect(ids(filtrarSolicitudes(lista, f({ planta: 'Dole Codegua', estado: 'pendiente' })))).toEqual(['1'])
-    expect(filtrarSolicitudes(lista, f({ laboratorio: 'Quiteca', cliente: 'Agricom' }))).toEqual([])
+    expect(ids(filtrarSolicitudes(lista, f({ planta: ['Dole Codegua'], estado: 'pendiente' })))).toEqual(['1'])
+    expect(filtrarSolicitudes(lista, f({ laboratorio: ['Quiteca'], cliente: ['Agricom'] }))).toEqual([])
   })
 })
 
 describe('contarFiltros y chips', () => {
   it('cuenta los puestos', () => {
     expect(contarFiltros(FILTROS_VACIOS)).toBe(0)
-    expect(contarFiltros(f({ texto: '  ', laboratorio: 'Quiteca', analitos: ['A', 'B'], sinEnvio: true }))).toBe(3)
+    expect(contarFiltros(f({ texto: '  ', laboratorio: ['Quiteca'], analitos: ['A', 'B'], sinEnvio: true }))).toBe(3)
   })
   it('un chip por filtro puesto', () => {
-    const chips = chipsDeFiltros(f({ cliente: 'Dole', estado: 'sin_report', rango: { desde: '2026-09-01', hasta: '2026-09-30' } }))
+    const chips = chipsDeFiltros(f({ cliente: ['Dole'], estado: 'sin_report', rango: { desde: '2026-09-01', hasta: '2026-09-30' } }))
     expect(chips.map((c) => c.clave)).toEqual(['cliente', 'estado', 'rango'])
     expect(chips[1].texto).toBe('Estado: PDF sin Report')
   })
@@ -92,7 +98,7 @@ describe('opcionesDeFiltros', () => {
     expect(o.analitos).toEqual(['ALT', 'BOT', 'FDL'])
   })
   it('las plantas se acotan al cliente elegido y las variedades a la especie', () => {
-    const o = opcionesDeFiltros(lista, f({ cliente: 'Agricom', especie: 'Uvas' }))
+    const o = opcionesDeFiltros(lista, f({ cliente: ['Agricom'], especie: ['Uvas'] }))
     expect(o.plantas).toEqual(['Agricom Sur'])
     expect(o.variedades).toEqual(['Thompson'])
     expect(opcionesDeFiltros(lista, FILTROS_VACIOS).plantas).toEqual(['Agricom Sur', 'Dole Codegua'])
@@ -109,10 +115,11 @@ describe('camposTituloTabla', () => {
 
   it('con filtros, cada campo muestra lo elegido y el resto sigue en «Todos»', () => {
     const campos = camposTituloTabla({
-      ...FILTROS_VACIOS, cliente: 'Dole', laboratorio: 'ALS', analitos: ['FDL', 'PYR'],
+      ...FILTROS_VACIOS, cliente: ['Dole'], laboratorio: ['ALS'], analitos: ['FDL', 'PYR'],
       rango: { desde: '2026-09-01', hasta: '2026-09-30' },
     })
     expect(campos[0]).toBe('Dole')
+    expect(camposTituloTabla({ ...FILTROS_VACIOS, cliente: ['A', 'B', 'C'] })[0]).toBe('3 seleccionados')
     expect(campos[1]).toBe('Todas las sucursales')
     expect(campos[2]).toBe('ALS')
     expect(campos[4]).toBe('Emitidas del 2026-09-01 al 2026-09-30')

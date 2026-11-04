@@ -336,14 +336,12 @@
 /* ── podio: las tres primeras tarjetas resaltan ── */
 .podio {
   border-color: rgba(27, 127, 92, 0.45);
-  background: linear-gradient(180deg, #f1faf5, #fff 55%);
-  box-shadow: 0 2px 8px rgba(20, 70, 50, 0.1);
+  background: #f6fbf8;
 }
 
 .podio[data-puesto='1'] {
   border-color: #c9962b;
-  background: linear-gradient(180deg, #fff8e6, #fff 55%);
-  box-shadow: 0 4px 14px rgba(180, 130, 20, 0.2);
+  background: #fffaf0;
 }
 
 .podio[data-puesto='1'] header strong { font-size: 14.5px; }
@@ -375,7 +373,7 @@
 [data-puesto='3'] .medalla, .filaPodio:nth-child(3) .medalla { background: #a8693a; }
 
 .grupo { transition: box-shadow 0.2s, transform 0.2s; }
-.grupo:hover { box-shadow: 0 4px 12px rgba(20, 70, 50, 0.12); }
+.grupo:hover { border-color: #c3cec8; }
 
 /* ── vista de tabla del gráfico por grupo ── */
 .tablaGrupo {

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { BuscableSelect } from '@/components/ui/BuscableSelect'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { IconoBuscar, IconoCerrar } from '@/components/ui/iconosAccion'
@@ -62,8 +61,8 @@ export function PanelFiltros({
   const cambiar = <K extends keyof FiltrosSolicitudes>(clave: K, valor: FiltrosSolicitudes[K]) => {
     const siguiente = { ...filtros, [clave]: valor }
     // Al cambiar el cliente, la planta elegida puede dejar de ser de él; igual con especie y variedad.
-    if (clave === 'cliente') siguiente.planta = ''
-    if (clave === 'especie') siguiente.variedad = ''
+    if (clave === 'cliente') siguiente.planta = []
+    if (clave === 'especie') siguiente.variedad = []
     onChange(siguiente)
   }
 
@@ -108,13 +107,13 @@ export function PanelFiltros({
               />
             </span>
           </label>
-          <BuscableSelect etiqueta="Cliente (Sold To)" opciones={opciones.clientes} valor={filtros.cliente} onChange={(v) => cambiar('cliente', v)} conteoDe={conteo(datos, (s) => s.sold_to)} />
-          <BuscableSelect etiqueta="Sucursal (Ship To)" opciones={opciones.plantas} valor={filtros.planta} onChange={(v) => cambiar('planta', v)} conteoDe={conteo(datos, (s) => s.ship_to)} />
-          <BuscableSelect etiqueta="Laboratorio" opciones={opciones.laboratorios} valor={filtros.laboratorio} onChange={(v) => cambiar('laboratorio', v)} conteoDe={conteo(datos, (s) => s.laboratorio)} />
-          <BuscableSelect etiqueta="Tipo de servicio" opciones={opciones.tipos} valor={filtros.tipo} onChange={(v) => cambiar('tipo', v)} conteoDe={conteo(datos, (s) => (s.tipo_servicio ? tipoServicioDe(s) : ''))} />
+          <MultiSelectFiltro etiqueta="Cliente (Sold To)" opciones={opciones.clientes} valores={filtros.cliente} onChange={(v) => cambiar('cliente', v)} conteoDe={conteo(datos, (s) => s.sold_to)} />
+          <MultiSelectFiltro etiqueta="Sucursal (Ship To)" opciones={opciones.plantas} valores={filtros.planta} onChange={(v) => cambiar('planta', v)} conteoDe={conteo(datos, (s) => s.ship_to)} />
+          <MultiSelectFiltro etiqueta="Laboratorio" opciones={opciones.laboratorios} valores={filtros.laboratorio} onChange={(v) => cambiar('laboratorio', v)} conteoDe={conteo(datos, (s) => s.laboratorio)} />
+          <MultiSelectFiltro etiqueta="Tipo de servicio" opciones={opciones.tipos} valores={filtros.tipo} onChange={(v) => cambiar('tipo', v)} conteoDe={conteo(datos, (s) => (s.tipo_servicio ? tipoServicioDe(s) : ''))} />
           <CalendarioRango etiqueta="Fecha de emisión" valor={filtros.rango} onChange={(r) => cambiar('rango', r)} />
-          <BuscableSelect etiqueta="Especie" opciones={opciones.especies} valor={filtros.especie} onChange={(v) => cambiar('especie', v)} conteoDe={conteo(datos, (s) => s.especie)} />
-          <BuscableSelect etiqueta="Variedad" opciones={opciones.variedades} valor={filtros.variedad} onChange={(v) => cambiar('variedad', v)} conteoDe={conteo(datos, (s) => s.variedad)} />
+          <MultiSelectFiltro etiqueta="Especie" opciones={opciones.especies} valores={filtros.especie} onChange={(v) => cambiar('especie', v)} conteoDe={conteo(datos, (s) => s.especie)} />
+          <MultiSelectFiltro etiqueta="Variedad" opciones={opciones.variedades} valores={filtros.variedad} onChange={(v) => cambiar('variedad', v)} conteoDe={conteo(datos, (s) => s.variedad)} />
           <MultiSelectFiltro
             etiqueta="Analitos pedidos"
             opciones={opciones.analitos}

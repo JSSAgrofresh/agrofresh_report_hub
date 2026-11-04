@@ -1,7 +1,7 @@
 .pagina {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
   animation: entrar 0.25s ease-out;
 }
 
@@ -662,3 +662,7 @@ th.colAnalitos {
     display: none;
   }
 }
+
+/* Sobrio: menos relieve, bordes finos y radios parejos. */
+.tablaCard { box-shadow: none; border-radius: 12px; }
+.avisoSim { border-radius: 10px; }
