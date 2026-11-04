@@ -25,13 +25,15 @@ function mas(a: CeldaDinamica, b: CeldaDinamica): CeldaDinamica {
 
 /** Lo que se ve en una celda según lo que se quiere mirar (hecho / propuesto, o los dos). */
 function Valor({ c, valor, semana, actual }: { c: CeldaDinamica; valor: Valor; semana: string | null; actual: number }) {
-  if (c.hecho === 0 && c.prop === 0) return <td className={styles.vacia}>·</td>
+  // La columna de la semana en la que estamos se marca de arriba abajo para encontrarla de un vistazo.
+  const hoy = semana !== null && ordenSemana(semana) === actual ? styles.hoyCol : ''
+  if (c.hecho === 0 && c.prop === 0) return <td className={`${styles.vacia} ${hoy}`}>·</td>
   // Una semana que aún no llega no se juzga: lo prometido todavía se puede cumplir.
   const pasada = semana === null || ordenSemana(semana) <= actual
   const estado = valor !== 'ambos' || c.prop === 0 || !pasada ? '' : c.hecho >= c.prop ? styles.cumple : styles.falta
   const texto = valor === 'propuesto' ? nf.format(c.prop) : valor === 'hecho' ? nf.format(c.hecho) : `${nf.format(c.hecho)}/${nf.format(c.prop)}`
   const detalle = `Hecho ${c.hecho} de ${c.prop} propuestos${c.agrofresh + c.quiteca > 0 ? ` · AgroFresh ${c.agrofresh} · Quiteca ${c.quiteca}` : ''}`
-  return <td className={`${styles.celda} ${estado}`} title={detalle}>{texto}</td>
+  return <td className={`${styles.celda} ${estado} ${hoy}`} title={detalle}>{texto}</td>
 }
 
 /**
@@ -140,7 +142,7 @@ export function DinamicaPlan({
                 <th className={styles.colAnalisis}>Análisis</th>
                 {SEMANAS_PLAN.map((s) => (
                   <th key={s} className={`${styles.colSemana} ${SEMANAS_PEAK.includes(s) ? styles.peak : ''} ${ordenSemana(s) === actual ? styles.hoy : ''}`} title={SEMANAS_PEAK.includes(s) ? 'Semana peak' : ordenSemana(s) === actual ? 'Esta semana' : undefined}>
-                    {s}
+                    {s}{ordenSemana(s) === actual && <small className={styles.hoyEtiqueta}>hoy</small>}
                   </th>
                 ))}
                 <th className={styles.colTotal}>Total</th>
