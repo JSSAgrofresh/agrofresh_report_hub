@@ -59,10 +59,7 @@ function textoPlazo(e: EvaluadaEntrega) {
 
 interface Props {
   ev: EvaluadaEntrega[]
-  /** laboratorios para el filtro (en mayúsculas) */
-  laboratorios: string[]
   lab: string
-  onLab: (lab: string) => void
 }
 
 /**
@@ -88,7 +85,7 @@ function textoBuscable(e: EvaluadaEntrega): string {
   )
 }
 
-export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
+export function FlujogramaLeadTime({ ev, lab }: Props) {
   const [elegida, setElegida] = useState('')
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('todas')
   const [busca, setBusca] = useState('')
@@ -189,13 +186,6 @@ export function FlujogramaLeadTime({ ev, laboratorios, lab, onLab }: Props) {
       <div className={styles.cabecera}>
         <span className={styles.sobre}>Flujo del lead time</span>
         <div className={styles.filtros}>
-          <label className={styles.selector}>
-            <span>Laboratorio</span>
-            <select value={lab} onChange={(e) => { onLab(e.target.value); setElegida('') }} aria-label="Laboratorio del flujo">
-              <option value="">Todos</option>
-              {laboratorios.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
-          </label>
           <label className={styles.selector}>
             <span>Ver</span>
             <select value={elegida} onChange={(e) => setElegida(e.target.value)} aria-label="Ver una solicitud">

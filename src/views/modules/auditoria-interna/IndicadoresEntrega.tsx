@@ -93,12 +93,12 @@ const dia = (iso: string | null | undefined) => (iso ? formatDateCL(iso) : '—'
  * de solicitudes que hay detrás. Las dos únicas reglas que se discuten (qué es
  * «entregado» y el plazo de cada laboratorio) están arriba, a la vista.
  */
-export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solicitudes: SolicitudAuditoria[]; puedeEditar?: boolean }) {
+export function IndicadoresEntrega({ solicitudes, puedeEditar = false, laboratorio = '' }: { solicitudes: SolicitudAuditoria[]; puedeEditar?: boolean; /** el laboratorio del flujo, elegido en la barra de filtros de la página */ laboratorio?: string }) {
   const { hitos, reglas, error, guardar } = useEntrega()
   const [configAbierta, setConfigAbierta] = useState(false)
   const cerrarConfig = useCallback(() => setConfigAbierta(false), [])
   const [ahora] = useState(() => Date.now())
-  const [labElegido, setLabElegido] = useState('')
+  const labElegido = laboratorio
   const [verTodasLead, setVerTodasLead] = useState(false)
 
   const labs = useMemo(() => {
@@ -242,9 +242,7 @@ export function IndicadoresEntrega({ solicitudes, puedeEditar = false }: { solic
 
             <FlujogramaLeadTime
               ev={evFlujo}
-              laboratorios={labs}
               lab={labElegido}
-              onLab={setLabElegido}
             />
           </>
         )}

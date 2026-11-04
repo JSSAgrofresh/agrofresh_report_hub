@@ -667,6 +667,7 @@ th.colAnalitos {
 .tablaCard { box-shadow: none; border-radius: 12px; }
 .avisoSim { border-radius: 10px; }
 
+.seccionPagina { display: flex; flex-direction: column; gap: var(--space-4, 16px); scroll-margin-top: 140px; }
 .soloEsteGrafico {
   align-self: center;
   padding: 3px 10px;

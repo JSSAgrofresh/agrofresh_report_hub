@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { CalendarioRango } from '@/components/ui/CalendarioRango'
 import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { IconoBuscar, IconoCerrar } from '@/components/ui/iconosAccion'
@@ -51,6 +52,8 @@ export function PanelFiltros({
   opciones,
   datos,
   coinciden,
+  especificos,
+  tituloEspecificos,
 }: {
   filtros: FiltrosSolicitudes
   onChange: (f: FiltrosSolicitudes) => void
@@ -59,6 +62,9 @@ export function PanelFiltros({
   datos: SolicitudAuditoria[]
   /** cuántas solicitudes dejan pasar los filtros */
   coinciden: number
+  /** controles de la sección que se está mirando (cambian al bajar por la página); sin nada, el apartado no sale */
+  especificos?: ReactNode
+  tituloEspecificos?: string
 }) {
   const [visible, setVisible] = useState(leerVisible)
   // Al bajar, la tarjeta se pega arriba como una barra delgada que acompaña todo el recorrido; «Mostrar filtros» la despliega encima.
@@ -192,6 +198,13 @@ export function PanelFiltros({
           </button>
         </div>
         </>
+      )}
+
+      {especificos && (
+        <div className={styles.especificos}>
+          <p className={styles.grupo}>Específicos <span>· {tituloEspecificos}</span></p>
+          {especificos}
+        </div>
       )}
 
       {chips.length > 0 && (!pegado || abiertoPegado) && (
