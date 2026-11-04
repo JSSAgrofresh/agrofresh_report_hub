@@ -2574,9 +2574,10 @@ _CAMPOS_INTERNOS = {
 
 
 def _marcar_json_als(datos: dict) -> None:
-    """Solo las solicitudes de ALS creadas desde ahora llevan el JSON con los campos de su informe."""
-    if json_als.es_als(datos.get("laboratorio")):
-        datos[json_als.MARCA_JSON_ALS] = True
+    """Ya no marca nada (04-11-2026): ALS pidió volver al JSON estructurado de los ejemplos
+    iniciales, con `numero_solicitud` y `analitos_solicitados`. Se conserva la función para no
+    tocar sus llamadas; el formato de `json_als.construir` queda sin uso."""
+    return None
 
 
 def _sample_identification(datos: dict) -> str:
@@ -2604,15 +2605,13 @@ def _generar_json_solicitud(datos: dict) -> bytes:
         for k, v in datos.items()
         if k not in _CAMPOS_INTERNOS
     }
-    if json_als.es_als(lab) and datos.get(json_als.MARCA_JSON_ALS):
-        # Formato nuevo: los campos de la cabecera del informe de ALS, y los correos al final.
-        cuerpo = json_als.construir(datos)
-    else:
-        cuerpo = {
-            **datos_limpios,
-            # Solo ALS: es quien lo copia a «Sample Identification (IN)» de su informe.
-            **({"sample_identification": _sample_identification(datos)} if lab.strip().casefold() == "als" else {}),
-        }
+    # Siempre el formato estructurado original (también para las ALS que ya llevan la marca
+    # `json_als_v2`): es el que ALS usó para construir su recepción.
+    cuerpo = {
+        **datos_limpios,
+        # Solo ALS: es quien lo copia a «Sample Identification (IN)» de su informe.
+        **({"sample_identification": _sample_identification(datos)} if lab.strip().casefold() == "als" else {}),
+    }
     salida = {
         **cuerpo,
         "correos": {
