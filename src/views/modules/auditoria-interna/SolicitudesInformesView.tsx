@@ -89,8 +89,6 @@ export function SolicitudesInformesView() {
   // «Totales» (la tabla de siempre) o «Por semana» (lo hecho contra lo que tocaba cada semana, con el plan).
   const [vistaPlan, setVistaPlan] = useState<'total' | 'semana'>('total')
   const plan = usePlanEntregables()
-  // El plan es por Sold To: con un Ship To, especie o tipo elegidos el avance no se puede calcular y se esconde.
-  const hayFiltroPlanta = filtros.planta.length > 0 || filtros.especie.length > 0 || filtros.tipo.length > 0
   const [analisisVisibles, setAnalisisVisibles] = useState<AnalisisVisible[]>(['residuales', 'fsma', 'fito'])
   // Siempre queda al menos uno prendido: sin ninguno no habría nada que mirar.
   const alternarAnalisis = (a: AnalisisVisible) =>
@@ -174,7 +172,7 @@ export function SolicitudesInformesView() {
           <option value={0}>Todos</option>
         </select>
       </div>
-      {dimension === 'cliente' && plan && !hayFiltroPlanta && (
+      {dimension === 'cliente' && plan && (
         <>
           <span className={styles.separadorBarra} aria-hidden="true" />
           <div className={styles.grupoBarra}>
@@ -321,14 +319,14 @@ export function SolicitudesInformesView() {
                   filas: filasTabla.map((f) => [f.cliente, f.agrofresh.n, f.quiteca.n, f.fsma.n, f.fito.n, f.total, f.informes]),
                 }}
               >
-                {dimension === 'cliente' && plan && !hayFiltroPlanta && vistaPlan === 'semana' ? (
+                {dimension === 'cliente' && plan && vistaPlan === 'semana' ? (
                   <DinamicaPlan solicitudes={alcanceGrafico} plan={plan} analisis={analisisVisibles} />
                 ) : filasTabla.length > 0 ? (
-                  <AnalisisPorCliente solicitudes={alcanceGrafico} dimension={dimension} limite={topClientes} analisis={analisisVisibles} plan={hayFiltroPlanta ? null : plan} />
+                  <AnalisisPorCliente solicitudes={alcanceGrafico} dimension={dimension} limite={topClientes} analisis={analisisVisibles} plan={plan} />
                 ) : (
                   <p className={styles.sinDatosGrafico}>No hay solicitudes con los filtros actuales.</p>
                 )}
-                {dimension === 'cliente' && !hayFiltroPlanta && (
+                {dimension === 'cliente' && (
                   <GraficosPlan solicitudes={alcanceGrafico} plan={plan} analisis={analisisVisibles} />
                 )}
               </TarjetaGrafico>
