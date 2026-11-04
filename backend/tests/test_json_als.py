@@ -66,19 +66,18 @@ def _json(datos):
     return json.loads(tm._generar_json_solicitud(datos))
 
 
-def test_con_la_marca_el_json_es_el_nuevo_y_los_correos_van_al_final():
+def test_los_correos_van_al_final_del_json_original():
     s = _json(OT7)
     assert list(s)[-1] == "correos"
-    assert "Identificación Muestra (NI)" in s
-    assert not {"sold_to", "sample_identification", "observacion", "json_als_v2"} & set(s)
+    assert "Identificación Muestra (NI)" not in s and "json_als_v2" not in s
     assert s["correos"]["solicitante_bcc"] == {"bcc": ["bfuentes@agrofresh.com"]}
 
 
-def test_sin_la_marca_una_als_antigua_no_cambia():
-    antigua = {k: v for k, v in OT7.items() if k != "json_als_v2"}
-    s = _json(antigua)
+def test_als_siempre_sale_en_el_formato_estructurado_original_aunque_traiga_la_marca():
+    s = _json(OT7)
     assert s["sample_identification"] == "OT-ALS0007 - Pozo vaciado - 01-10-2026"
     assert s["sold_to"] == OT7["sold_to"] and "Solicitante" not in s
+    assert s["numero_solicitud"] == "OT-ALS0007"
 
 
 def test_otro_laboratorio_no_cambia_aunque_traiga_la_marca():
@@ -86,26 +85,13 @@ def test_otro_laboratorio_no_cambia_aunque_traiga_la_marca():
     assert "Solicitante" not in s and "sample_identification" not in s and s["sold_to"] == OT7["sold_to"]
 
 
-def test_la_marca_solo_se_pone_a_als():
-    a, q = {"laboratorio": "ALS"}, {"laboratorio": "Quiteca"}
+def test_ya_no_se_marca_ninguna_solicitud():
+    a = {"laboratorio": "ALS"}
     tm._marcar_json_als(a)
-    tm._marcar_json_als(q)
-    assert a.get("json_als_v2") is True and "json_als_v2" not in q
+    assert "json_als_v2" not in a
 
 
 @_necesita_base
-def test_crear_als_lleva_la_marca_y_editar_la_conserva(limpio):  # noqa: F811
+def test_crear_als_ya_no_lleva_la_marca(limpio):  # noqa: F811
     creada = tm.crear_solicitud(cuerpo(laboratorio="ALS"), usuario=ADMIN)
-    assert tm._leer_datos_actuales(creada.archivo).get("json_als_v2") is True
-    tm.editar_solicitud(creada.archivo, cuerpo(laboratorio="ALS"), usuario=ADMIN)
-    assert tm._leer_datos_actuales(creada.archivo).get("json_als_v2") is True
-
-
-@_necesita_base
-def test_editar_una_als_antigua_no_le_pone_la_marca(limpio):  # noqa: F811
-    creada = tm.crear_solicitud(cuerpo(laboratorio="ALS"), usuario=ADMIN)
-    datos = tm._leer_datos_actuales(creada.archivo)
-    datos.pop("json_als_v2", None)
-    tm._regrabar_datos_solicitud(creada.archivo, datos)
-    tm.editar_solicitud(creada.archivo, cuerpo(laboratorio="ALS"), usuario=ADMIN)
     assert "json_als_v2" not in tm._leer_datos_actuales(creada.archivo)
