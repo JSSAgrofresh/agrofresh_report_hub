@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 LAB_INVENTARIO = "lab_inventario"
 AVISO_MIGRACION = "Falta correr la migración 0074_inventario_lab.sql en el servidor."
 CATEGORIAS = ("Estándar certificado", "Estándar analítico", "Insumo")
-DIAS_POR_VENCER = 60  # «próximo a vencer»
+DIAS_POR_VENCER = 90  # «próximo a vencer» (valor de la maqueta del laboratorio)
 
 usuario_inventario = permisos_funciones.exigir(LAB_INVENTARIO, "Tu cuenta no tiene permiso para usar el inventario del laboratorio.")
 router = APIRouter(prefix="/api/inventario-lab", tags=["inventario-lab"], dependencies=[Depends(usuario_inventario)])
@@ -42,7 +42,7 @@ def hoy() -> date:
 
 
 def estado_vencimiento(vencimiento: date | None, referencia: date | None = None) -> str:
-    """vencido / por_vencer (≤ 60 días) / vigente / sin_fecha."""
+    """vencido / por_vencer (≤ 90 días) / vigente / sin_fecha."""
     if vencimiento is None:
         return "sin_fecha"
     ref = referencia or hoy()

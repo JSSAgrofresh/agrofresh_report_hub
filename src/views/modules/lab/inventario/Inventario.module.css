@@ -1,17 +1,5 @@
 .pagina { display: flex; flex-direction: column; gap: var(--space-4); }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); }
-.kpi { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md, 12px); background: var(--color-surface); cursor: pointer; text-align: left; }
-.kpi strong { font-size: 1.7rem; line-height: 1; }
-.kpi span { font-size: 0.8rem; color: var(--color-text-muted); }
-.kpiActivo { border-color: var(--color-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 25%, transparent); }
-.kpi_aviso strong { color: var(--color-warning); }
-.kpi_malo strong { color: var(--color-danger); }
-.kpi_gris strong { color: var(--color-text-faint); }
-
-.escaner { border: 2px dashed var(--color-primary); border-radius: var(--radius-md, 12px); background: var(--color-surface); padding: var(--space-3) var(--space-4); }
-.escaner form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.barras { color: var(--color-primary); letter-spacing: -1px; font-size: 1.3rem; }
-.entradaCodigo { flex: 1 1 260px; min-width: 0; height: 44px; padding: 0 var(--space-3); font-size: 1.1rem; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); }
 
 .resultado { border: 1px solid var(--color-border); border-radius: var(--radius-md, 12px); padding: var(--space-4); background: var(--color-bg); }
 .resultadoCabecera { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-3); }
@@ -75,3 +63,70 @@
 .mov_salida { background: #f9dcd9; color: var(--color-danger); }
 .mov_ajuste { background: #fdf0c9; color: #8a6400; }
 @media (max-width: 560px) { .formulario { grid-template-columns: 1fr; } .paso { width: 72px; height: 72px; } }
+
+/* Rediseño según la maqueta del laboratorio (paleta de la marca) */
+.panel, .grafTarjeta { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: var(--space-4); min-width: 0; }
+.panel h2, .grafTarjeta h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+.grafNota { margin: 4px 0 var(--space-3); font-size: 0.78rem; color: var(--color-text-faint); line-height: 1.45; }
+.escanerFila { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: stretch; }
+.escanerFila > * { min-width: 0; }
+.escaner { flex: 2 1 26rem; display: flex; flex-direction: column; }
+.ultimos { flex: 1 1 17rem; }
+.escanerForm { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
+.escanerForm label { flex: 1 0 100%; font-size: 0.78rem; color: var(--color-text-faint); }
+.entradaCodigo { flex: 1 1 14rem; min-width: 0; height: 44px; padding: 0 var(--space-3); font: 600 1.05rem ui-monospace, 'Cascadia Mono', Consolas, monospace; letter-spacing: 0.04em; text-transform: uppercase; background: var(--color-bg); border: 1.5px solid var(--color-border-strong); border-radius: 8px; }
+.entradaCodigo:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; border-color: var(--color-primary); }
+.vista { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; }
+.vistaInfo { flex: 1 1 14rem; min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.vistaNombre { font-size: 1.15rem; line-height: 1.25; font-weight: 600; overflow-wrap: anywhere; }
+.datosCorridos { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: 0.88rem; }
+.datosCorridos dt { color: var(--color-text-faint); }
+.datosCorridos dd { margin: 0; font-variant-numeric: tabular-nums; }
+.veredicto { align-self: flex-start; display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.2rem 0.7rem; border-radius: 99px; border: 1px solid currentColor; font-weight: 700; font-size: 0.82rem; color: var(--color-text-faint); }
+.veredicto::before { content: ''; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
+.ver_vigente, .ver_sin_fecha { color: var(--color-ok); }
+.ver_por_vencer { color: #8a6400; }
+.ver_vencido, .ver_nada { color: var(--color-danger); }
+
+.etiqueta { position: relative; overflow: hidden; flex: 0 1 19rem; min-width: 0; background: #fff; color: #111; border-radius: 6px; padding: 14px 14px 10px; border: 1px solid var(--color-border); }
+.etiqueta svg { display: block; width: 100%; height: 64px; }
+.etiquetaTexto { margin-top: 6px; text-align: center; font: 700 0.95rem ui-monospace, 'Cascadia Mono', Consolas, monospace; letter-spacing: 0.12em; }
+.laser { position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: #ff3b30; box-shadow: 0 0 10px 2px rgba(255, 59, 48, 0.55); opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) { .laserOn { animation: barrido 0.65s ease-out; } }
+@keyframes barrido { 0% { left: 0; opacity: 1; } 100% { left: 100%; opacity: 0; } }
+
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.log li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--color-border); font-size: 0.86rem; }
+.log li:first-child { border-top: 0; padding-top: 0; }
+.logHora { color: var(--color-text-faint); font: 0.75rem ui-monospace, Consolas, monospace; }
+.logCodigo { all: unset; cursor: pointer; font: 700 0.88rem ui-monospace, Consolas, monospace; color: var(--color-primary-hover); }
+.logEstado { grid-row: 1; grid-column: 3; font-size: 0.75rem; font-weight: 700; }
+.logDesc { grid-column: 2 / 4; color: var(--color-text-faint); font-size: 0.76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.grafGrilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: var(--space-4); }
+.leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: var(--space-3); font-size: 0.76rem; color: var(--color-text-muted); }
+.leyenda i { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.barrasH { display: flex; flex-direction: column; gap: 8px; }
+.filaBarra { display: grid; grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr) 3.2rem; gap: var(--space-2); align-items: center; font-size: 0.82rem; }
+.filaEtiqueta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-muted); }
+.filaEtiqueta b { color: var(--color-text); }
+.pista { display: flex; height: 18px; border-radius: 4px; overflow: hidden; background: var(--color-bg); }
+.pista > span { display: block; height: 100%; min-width: 2px; }
+.filaValor { text-align: right; font-variant-numeric: tabular-nums; }
+.columnas { display: flex; align-items: flex-end; gap: var(--space-3); height: 15rem; padding-top: var(--space-2); }
+.columna { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 0.78rem; }
+.columna > b { font-variant-numeric: tabular-nums; }
+.columna > span { color: var(--color-text-faint); }
+.pilar { flex: 1; width: 100%; max-width: 3.5rem; display: flex; align-items: flex-end; }
+.pilar > div { width: 100%; display: flex; flex-direction: column; border-radius: 4px 4px 0 0; overflow: hidden; }
+.malo { color: var(--color-danger); font-weight: 700; }
+.aviso { color: #8a6400; font-weight: 700; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chipFiltro { font: 600 0.8rem inherit; padding: 0.3rem 0.75rem; border-radius: 99px; border: 1px solid var(--color-border-strong); background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.chipOn { background: var(--color-text); color: var(--color-surface); border-color: var(--color-text); }
+.thBtn { all: unset; cursor: pointer; }
+.thBtn:hover { color: var(--color-text); }
+.thBtn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.panel .pestanas { margin-bottom: var(--space-3); }
+@media (max-width: 560px) { .filaBarra { grid-template-columns: minmax(5rem, 8rem) minmax(0, 1fr) 2.6rem; } }
+.tabla td:first-child { white-space: nowrap; }
