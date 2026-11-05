@@ -15,6 +15,7 @@ export const ROUTES = {
   agrofreshLabVerificacionesHistorico: '/modulos/agrofresh-lab/verificaciones/historico',
   agrofreshLabVerificacionesCriterios: '/modulos/agrofresh-lab/verificaciones/criterios',
   agrofreshLabEnvioInformes: '/modulos/agrofresh-lab/envio-informes',
+  agrofreshLabInventario: '/modulos/agrofresh-lab/inventario',
   storage: '/modulos/storage',
   auditoriaInterna: '/modulos/auditoria-interna',
   auditoriaInternaSolicitudes: '/modulos/auditoria-interna/solicitudes',

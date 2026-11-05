@@ -69,6 +69,10 @@ export const CATEGORIAS: Categoria[] = [
         incluidoPor: (tipo, area) => tipo === 'admin_area' && area === 'cromatografia',
       },
       { id: 'lab_criterios', padre: 'lab_verificaciones', extra: true, nombre: 'Modificar los criterios', descripcion: 'Cambiar tolerancias, parámetros, equipos y catálogos en la pantalla Criterios del control diario. Sin esto solo los ve.' },
+      {
+        id: 'lab_inventario', padre: 'agrofresh_lab', extra: true, nombre: 'Inventario del laboratorio',
+        descripcion: 'Ver el inventario (insumos y estándares), registrar ingresos y salidas con la pistola de códigos y revisar los vencimientos. Se asigna cuenta por cuenta.',
+      },
       { id: 'lab_envio', padre: 'agrofresh_lab', nombre: 'Envío de informes', descripcion: 'Enviar los PDF del laboratorio a la lista de distribución del cliente.' },
     ],
   },

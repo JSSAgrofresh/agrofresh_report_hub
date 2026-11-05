@@ -20,6 +20,7 @@ export {
   puedeFirmarVerificaciones,
   vistaDeCliente,
   puedeVerVistaCliente,
+  puedeUsarInventarioLab,
   tieneFuncion,
   modulosPredeterminados,
   reportesPredeterminados,

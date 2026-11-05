@@ -161,6 +161,7 @@ export type FuncionId =
   | 'toma_editar'
   | 'toma_muestra_interna'
   | 'vista_cliente'
+  | 'lab_inventario'
 
 export function tieneFuncion(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>, funcion: FuncionId): boolean {
   if (usuario.tipoAcceso === 'admin_general') return true
@@ -174,6 +175,12 @@ export function tieneFuncion(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>, f
  * general y quien tenga la función `vista_cliente`. Con su propia cuenta ve los datos de todos los clientes. */
 export function puedeVerVistaCliente(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
   return tieneFuncion(usuario, 'vista_cliente')
+}
+
+/** Inventario del laboratorio (AgroFresh Lab → Inventario): el admin general y quien tenga la función `lab_inventario`.
+ * No es una puerta de AgroFresh Lab (esas se muestran a todos por defecto): se asigna cuenta por cuenta. */
+export function puedeUsarInventarioLab(usuario: Pick<Usuario, 'tipoAcceso' | 'modulos'>): boolean {
+  return tieneFuncion(usuario, 'lab_inventario')
 }
 
 /** Firmar la revisión de un día de verificaciones: admin general, admin de Cromatografía o quien tenga la función. */
