@@ -195,7 +195,9 @@
 
 .fijo {
   position: fixed;
-  z-index: 60;
+  /* Sobre la hoja (sus encabezados fijos llegan a 3) y bajo todo lo demás: bandeja de notificaciones (44-45),
+     menú lateral del celular (20-30) y diálogos (80). Con 60 tapaba hasta las notificaciones. */
+  z-index: 15;
   box-shadow: var(--shadow-md);
   padding-block: var(--space-2);
   gap: var(--space-2);
