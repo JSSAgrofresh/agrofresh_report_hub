@@ -13,8 +13,8 @@ def test_estado_vencimiento():
     assert inv.estado_vencimiento(None, hoy) == "sin_fecha"
     assert inv.estado_vencimiento(date(2026, 11, 4), hoy) == "vencido"
     assert inv.estado_vencimiento(date(2026, 11, 5), hoy) == "por_vencer"
-    assert inv.estado_vencimiento(date(2027, 1, 4), hoy) == "por_vencer"  # 60 días justos
-    assert inv.estado_vencimiento(date(2027, 1, 5), hoy) == "vigente"
+    assert inv.estado_vencimiento(date(2027, 2, 3), hoy) == "por_vencer"  # 90 días justos
+    assert inv.estado_vencimiento(date(2027, 2, 4), hoy) == "vigente"
 
 
 def test_movimientos_de_stock():
