@@ -23,7 +23,8 @@ TOMA_REANALISIS = "toma_reanalisis"
 TOMA_EDITAR = "toma_editar"
 TOMA_MUESTRA_INTERNA = "toma_muestra_interna"
 VISTA_CLIENTE = "vista_cliente"
-FUNCIONES = (LAB_CRITERIOS, VERIF_FIRMAR, TOMA_REANALISIS, TOMA_EDITAR, TOMA_MUESTRA_INTERNA, VISTA_CLIENTE)
+LAB_INVENTARIO = "lab_inventario"
+FUNCIONES = (LAB_CRITERIOS, VERIF_FIRMAR, TOMA_REANALISIS, TOMA_EDITAR, TOMA_MUESTRA_INTERNA, VISTA_CLIENTE, LAB_INVENTARIO)
 
 # Todo lo que puede viajar en `modulos`: módulos, puertas de AgroFresh Lab y mini funciones.
 MODULOS_VALIDOS = frozenset(

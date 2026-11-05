@@ -9,6 +9,7 @@ import {
   puedeFirmarVerificaciones,
   puedeVerReporte,
   puedeVerSeccionLab,
+  puedeUsarInventarioLab,
   puedeVerTomaMuestras,
   seccionesLabPermitidas,
   tieneFuncion,
@@ -229,5 +230,16 @@ describe('muestra interna', () => {
     expect(puedeCrearMuestraInterna(u('gerencia', ['toma_muestra_interna']))).toBe(false)
     expect(puedeCrearMuestraInterna(u('cliente', ['toma_muestra_interna']))).toBe(false)
     expect(puedeCrearMuestraInterna(u('comercial', ['toma_muestra_interna']))).toBe(false)
+  })
+})
+
+describe('inventario del laboratorio: función suelta', () => {
+  const u = (tipoAcceso: Usuario['tipoAcceso'], modulos?: string[]): Usuario => ({ id: '1', email: 'a@agrofresh.com', nombre: 'A', tipoAcceso, modulos })
+  it('solo el admin general o quien lo tenga marcado; AgroFresh Lab a secas no lo da', () => {
+    expect(puedeUsarInventarioLab(u('admin_general'))).toBe(true)
+    expect(puedeUsarInventarioLab(u('admin_area', ['agrofresh_lab']))).toBe(false)
+    expect(puedeUsarInventarioLab(u('admin_area', ['agrofresh_lab', 'lab_inventario']))).toBe(true)
+    expect(puedeUsarInventarioLab(u('gerencia', ['lab_inventario']))).toBe(false)
+    expect(puedeUsarInventarioLab(u('cliente', ['lab_inventario']))).toBe(false)
   })
 })
