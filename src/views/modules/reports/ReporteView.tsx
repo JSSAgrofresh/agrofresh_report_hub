@@ -25,6 +25,7 @@ import {
 import type { ChartDataset, Plugin, TooltipItem } from 'chart.js'
 import { Header } from '@/components/layout/Header'
 import { ACENTO_SOBRIO, TINTA_SOBRIA, esPaletaSobria } from '@/lib/paleta'
+import { useTemaVisual } from '@/lib/temaVisual'
 import { Card } from '@/components/ui/Card'
 import { useAnchoMaximo } from '@/hooks/useAnchoMaximo'
 import { InfoTip } from '@/components/ui/InfoTip'
@@ -700,6 +701,8 @@ export function ReporteView({
   const mainChart = useRef<Chart | null>(null)
   // En el teléfono el gráfico grande lleva puntos más chicos y menos fechas en el eje.
   const angostoGrafico = useAnchoMaximo(640)
+  // Los colores del gráfico salen de las variables del tema (cssVar): al cambiar de tema hay que volver a calcularlos.
+  useTemaVisual()
   const analitoResaltado = useRef<string | null>(null)
 
   const colorDanger = cssVar('--color-danger', '#b0271f')

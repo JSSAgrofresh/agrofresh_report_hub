@@ -29,7 +29,7 @@ html[data-mejoras] section[class*="_tablaCard_"] button[class*="_botonFiltros_"]
 html[data-mejoras] section[class*="_tablaCard_"] button[class*="_botonSecundario_"] {border-radius:30px!important}
 html[data-mejoras] table[class*="_tabla_"] th {font-size:10.5px!important;letter-spacing:.12em;color:#7d8a70!important;background:#fafcf7!important}
 html[data-mejoras] table[class*="_tabla_"] tbody tr:hover td {background:#f6faf0}
-html[data-mejoras] aside[class*="_sidebar_"] nav[class*="_nav_"] {overflow-y:auto;min-height:0;scrollbar-width:none}
+html[data-mejoras] aside[class*="_sidebar_"] nav[class*="_nav_"] {overflow-y:auto;min-height:0;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.28) transparent}
 html[data-mejoras] [class*="_card_"],
 html[data-mejoras] [class*="_tarjeta_"]:not(li),
 html[data-mejoras] [class*="_modulo"] {border-radius:22px!important;box-shadow:0 8px 24px rgba(52,84,36,.08)!important;border-color:#e3ead9!important}
@@ -185,7 +185,6 @@ html[data-mejoras][data-tema="oscuro"] [class*="_filtrosBloque_"] {background:#1
 html[data-mejoras][data-tema="oscuro"] [class*="_numero_"] {color:#fff!important}
 html[data-mejoras][data-tema="oscuro"] [class*="_modulo"]:after,
 html[data-mejoras][data-tema="oscuro"] [class*="_kpi_"]:after {background:rgba(124,194,67,.10)}
-html[data-mejoras][data-tema="oscuro"] canvas {filter:invert(1) hue-rotate(180deg) saturate(1.3) brightness(1.15)}
 html[data-mejoras][data-tema="oscuro"] svg text {fill:#c4d3c2}
 html[data-mejoras][data-tema="oscuro"] [class*="_pie_"] {background:rgba(0,0,0,.28)!important}
 html[data-mejoras][data-tema="oscuro"] section[class*="_indicadores_"] button[class*="_indicador_"] {background:linear-gradient(180deg,#162419,#122018)!important;border:1px solid #25382b!important;color:#e6eee3!important}
@@ -198,7 +197,6 @@ html[data-mejoras][data-tema="oscuro"] section[class*="_tablaCard_"] {background
 html[data-mejoras][data-tema="oscuro"] [class*="_contenedor_"] [class*="_boton_"] {background:#101b14!important;color:#e6eee3!important;border:1px solid #2a4231!important}
 html[data-mejoras][data-tema="oscuro"] [class*="_botonTextoVacio_"] {color:#7f957f!important}
 html[data-mejoras][data-tema="oscuro"] [class*="_lista_"] {background:#142019!important;color:#e6eee3!important;border-color:#2a4231!important}
-html[data-mejoras][data-tema="oscuro"] canvas {filter:invert(1) hue-rotate(180deg) saturate(1.3) brightness(1.15)}
 html[data-mejoras][data-tema="oscuro"] [class*="_tarjeta_"]:not(li),
 html[data-mejoras][data-tema="oscuro"] [class*="_panel_"],
 html[data-mejoras][data-tema="oscuro"] [class*="_widget_"],
@@ -282,3 +280,22 @@ html[data-mejoras][data-tema="oscuro"] button[class*="_botonIcono_"]:hover {back
   html[data-mejoras] [class*="_hero_"] {border-radius:22px!important;padding:20px 18px!important;margin-bottom:14px}
   html[data-mejoras] header[class*="_header_"] h1 {font-size:26px!important}
 }
+
+/* ===== Tema oscuro: piezas que seguían claras (selectores segmentados, opciones activas, botones chicos, buscador de Storage) ===== */
+html[data-mejoras][data-tema="oscuro"] button[class*="_opcion_"][class*="_activa_"] {background-color:#1f3626!important;color:#e6eee3!important;border-color:#4f8a26!important}
+html[data-mejoras][data-tema="oscuro"] div[class*="_selector_"] {background-color:#101b14!important}
+html[data-mejoras][data-tema="oscuro"] div[class*="_selector_"] button {background-color:transparent!important;color:#b3c3b1!important}
+html[data-mejoras][data-tema="oscuro"] div[class*="_selector_"] button[class*="_activo"],
+html[data-mejoras][data-tema="oscuro"] div[class*="_selector_"] button[aria-pressed="true"],
+html[data-mejoras][data-tema="oscuro"] div[class*="_selector_"] button[aria-selected="true"] {background-color:#3d7a22!important;color:#fff!important}
+html[data-mejoras][data-tema="oscuro"] p[class*="_error_"] {background-color:#37191a!important;color:#ffb3aa!important;border-color:#5a2a2a!important}
+html[data-mejoras][data-tema="oscuro"] button[class*="_botonChico_"],
+html[data-mejoras][data-tema="oscuro"] button[class*="_filtroActivo_"],
+html[data-mejoras][data-tema="oscuro"] button[class*="_botonVerdeSuave_"] {background-color:#1b2b20!important;color:#e6eee3!important;border-color:#2f4a37!important}
+html[data-mejoras][data-tema="oscuro"] div[class*="_campo_"] {background-color:rgba(16,27,20,.92)!important;color:#e6eee3!important}
+html[data-mejoras][data-tema="oscuro"] div[class*="_campo_"] input {background-color:transparent!important;color:#e6eee3!important;border:0!important}
+html[data-mejoras][data-tema="oscuro"] kbd[class*="_atajo_"] {background-color:#1b2b20!important;color:#b3c3b1!important;border-color:#2f4a37!important}
+html[data-mejoras][data-tema="oscuro"] div[class*="_fila_"][class*="_actual_"] {background-color:#1f3626!important}
+html[data-mejoras][data-tema="oscuro"] div[class*="_vistas_"] {background-color:#101b14!important;border-color:#2a4231!important}
+html[data-mejoras][data-tema="oscuro"] button[class*="_vistaBoton_"] {background-color:transparent!important;color:#b3c3b1!important}
+html[data-mejoras][data-tema="oscuro"] button[class*="_vistaActiva_"] {background-color:#1f3626!important;color:#9be05a!important}
