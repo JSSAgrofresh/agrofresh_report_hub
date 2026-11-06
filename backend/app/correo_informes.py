@@ -372,8 +372,11 @@ def reabrir_diagnofruit_sin_lector(dias: int) -> int:
     que existiera su lector (sin leer y sin PDF guardado) y los que quedaron en rojo por copiar al propio personal del
     laboratorio. Los que siguen pendientes, sin resolver y dentro de la ventana de esta revisión se sacan de la bandeja
     (y de lo ya examinado) para que ESTA revisión los lea otra vez. Lo aceptado, rechazado o resuelto no se toca."""
-    donde = ("laboratorio = 'Diagnofruit' AND decision = 'pendiente' AND resuelto_en IS NULL"
-             " AND ((NOT soportado AND r2_key IS NULL) OR hallazgos::text LIKE '%%destinatarios_de_mas%%')")
+    # «Gente de más» ya no es rojo (06-11-2026): los pendientes de CUALQUIER laboratorio que quedaron en rojo por eso se
+    # vuelven a leer UNA vez para que salgan como aviso amarillo y dejen de bloquearse.
+    donde = ("decision = 'pendiente' AND resuelto_en IS NULL"
+             " AND ((laboratorio = 'Diagnofruit' AND NOT soportado AND r2_key IS NULL)"
+             " OR jsonb_path_exists(hallazgos::jsonb, '$[*] ? (@.codigo == \"destinatarios_de_mas\" && @.nivel == \"rojo\")'))")
     try:
         with conexion() as conn, cursor_dict(conn) as cur:
             cur.execute(f"SELECT DISTINCT message_id FROM correo_informe WHERE {donde}"
@@ -753,7 +756,9 @@ def detalle(informe_id: int, _: Usuario = Depends(exigir_principal)) -> dict[str
              "que_paso": next((h["texto"] for h in (f["hallazgos"] or []) if h.get("nivel") != "info"), "Todo calza con su solicitud.")}
             for f in cur.fetchall()
         ]
-    fila["propios"] = sorted(_propios())     # nuestras cuentas: no cuentan como destinatarios de más
+    # Nuestras cuentas y el personal del laboratorio que manda el informe (mismo dominio): no cuentan como «de más».
+    real = {"to": fila.get("para") or [], "cc": fila.get("cc") or [], "bcc": fila.get("bcc") or []}
+    fila["propios"] = sorted(_propios() | lectura.personal_del_laboratorio(real, [fila.get("remitente") or ""]))
     return fila
 
 
