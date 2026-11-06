@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from psycopg2.extras import Json
 from pydantic import BaseModel
 
-from . import diagnostico_informes as di, integridad as it
+from . import diagnostico_informes as di, informe_campos as ic, integridad as it
 from .auth import Usuario
 from .correo_informes import exigir_principal
 from .db import conexion, cursor_dict
@@ -62,27 +62,30 @@ def _leer(cur, sql: str, params: tuple = (), opcional: bool = False) -> list[dic
 
 
 def _pdf_leido(r2_key: str | None, laboratorio: str, catalogo: list[dict] | None = None):
-    """(lectura, dosis): lo que lee el Converter del PDF ({datos, resultados}, o None si no se pudo) y la tabla de dosis del informe."""
+    """(lectura, campos): lo que lee el Converter del PDF ({datos, resultados}, o None si no se pudo) y la lectura COMPLETA de sus campos (AgroFresh)."""
     from . import correo_informes_homogeneo as hom, r2_auditoria as r2a
     from .informe_lectura import texto_quiteca
 
     nombre = LABS_PDF.get(di.lab_base(laboratorio))
     if not r2_key or not nombre or not r2a.disponible():
-        return None, {}
+        return None, None
     try:
         datos = r2a.descargar(r2_key)
     except Exception:  # noqa: BLE001
-        return None, {}
+        return None, None
     if not datos:
-        return None, {}
+        return None, None
+    campos = None
+    if di.lab_base(laboratorio) == "agrofresh":
+        try:
+            nombres = [a["nombre"] for a in (catalogo or []) if a.get("nombre")]
+            campos = ic.leer_completo(texto_quiteca(datos), nombres)
+        except Exception:  # noqa: BLE001 — un PDF raro no frena el análisis
+            campos = None
     try:
-        dosis = it.dosis_de_texto(texto_quiteca(datos), catalogo or []) if di.lab_base(laboratorio) in it.LABS_CON_DOSIS else {}
-    except Exception:  # noqa: BLE001 — un PDF raro no frena el análisis
-        dosis = {}
-    try:
-        return hom.leer(datos, nombre), dosis
+        return hom.leer(datos, nombre), campos
     except Exception:  # noqa: BLE001
-        return None, dosis
+        return None, campos
 
 
 def correr_analisis(con_pdf: bool, avanzar=lambda texto: None) -> dict[str, Any]:
@@ -109,18 +112,18 @@ def correr_analisis(con_pdf: bool, avanzar=lambda texto: None) -> dict[str, Any]
     ot_de_informe = {(f["lab"].split("(", 1)[0].strip(), f["nro"]): f["ot"] for f in auditoria if f.get("ot") and f.get("nro")}
 
     leidos: dict[int, dict | None] | None = None
-    dosis_pdf: dict[int, dict[str, float]] | None = None
+    campos_pdf: dict[int, dict] | None = None
     if con_pdf:
         claves = {(f["lab"].split("(", 1)[0].strip(), f["nro"]): f["r2_key"] for f in auditoria if f.get("r2_key")}
         leidos = {}
-        dosis_pdf = {}
+        campos_pdf = {}
         pendientes = [i for i in informes if di.lab_base(i.get("laboratorio")) in LABS_PDF]
         for n, inf in enumerate(pendientes, 1):
-            leidos[inf["id"]], dosis_pdf[inf["id"]] = _pdf_leido(claves.get((di.lab_base(inf["laboratorio"]), str(inf.get("nro_solicitud") or "").strip())), inf["laboratorio"], catalogo)
+            leidos[inf["id"]], campos_pdf[inf["id"]] = _pdf_leido(claves.get((di.lab_base(inf["laboratorio"]), str(inf.get("nro_solicitud") or "").strip())), inf["laboratorio"], catalogo)
             if n % 25 == 0:
                 avanzar(f"Leyendo PDF: {n} de {len(pendientes)}…")
     avanzar("Comparando solicitudes con informes…")
-    return it.analizar(tomas, informes, resultados, productos, catalogo, leer_reglas()["plazos"], hoy=date.today(), ot_de_informe=ot_de_informe, leidos_pdf=leidos, dosis_pdf=dosis_pdf)
+    return it.analizar(tomas, informes, resultados, productos, catalogo, leer_reglas()["plazos"], hoy=date.today(), ot_de_informe=ot_de_informe, leidos_pdf=leidos, campos_pdf=campos_pdf)
 
 
 # ── Guardado y ejecución en segundo plano ────────────────────────────────────

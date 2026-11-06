@@ -1,0 +1,76 @@
+ INFORME DE ANÁLISIS N° AGF2026-57
+ Laboratorio de Cromatografía Emisión: 29-10-2026
+ Página 1 de 1
+
+
+1. IDENTIFICACIÓN DE LA SOLICITUD Y DEL CLIENTE
+N° SOLICITUD OT-AGF0113 FECHA SOLICITUD 27-10-2026
+LABORATORIO AGROFRESH SOLICITANTE AGROFRESH
+GENERADO POR Michael Alegria EMAIL SOLICITANTE malegria@agrofresh.com
+SOLD TO FRUTICOLA DOSAL LTDA
+SHIP TO FRUTICOLA DOSAL LTDA
+
+2. DATOS DE LA MUESTRA
+ESPECIE Cerezas VARIEDAD —
+TIPO MUESTRA Fruta TIPO APLICACIÓN Línea de proceso
+LÍNEA PROCESO Línea 4 POSICIÓN MUESTREO Pozo Fungicida
+PRODUCTO UTILIZADO SCHOLAR GASTO —
+KILOS PROCESADOS — LOTE 2
+N° CÁMARA — N° ORDEN —
+CÓDIGO PRODUCTOR 3142832 CÓDIGO PACKING 95790
+CÓDIGO DE ENSAYO — N° ENSAYO —
+FECHA MUESTREO 23-10-2026 HORA MUESTREO 21:26
+MUESTREADOR Michael Alegria
+
+OBSERVACIONES Muestra inicial
+
+ANALITO SOLICITADO DOSIS ANALITO SOLICITADO DOSIS
+Fludioxonil 150
+
+
+
+
+3. RECEPCIÓN Y ANÁLISIS
+CÓD. INTERNO MUESTRA AGF0057 FECHA ANÁLISIS 28-10-2026
+FECHA RECEPCIÓN 27-10-2026
+OBSERVACIONES Sin observaciones.
+
+
+4. MÉTODO DE ENSAYO
+MÉTODO Determinación de fungicidas de postcosecha en fruta
+TÉCNICA Cromatografía gaseosa con detector de nitrógeno-fósforo (GC-NPD)
+
+5. RESULTADOS
+Analito Resultado (mg/kg)
+Fludioxonil 3,65
+
+
+
+
+
+
+
+
+
+
+
+Resultados expresados en mg/kg (equivalente a ppm). Se informan solo los analitos solicitados. ND: no detectado.
+
+
+
+
+DECLARACIONES
+La muestra fue tomada y entregada al laboratorio por el cliente. Los resultados son válidos solo para la muestra analizada, tal como fue recibida.
+Todos los ensayos fueron realizados en el Laboratorio de Cromatografía de AgroFresh, en la dirección indicada al pie de página.
+Este informe no puede ser reproducido total o parcialmente sin autorización escrita del laboratorio.
+
+
+
+
+
+
+ Paz Salazar R.
+ Jefe de Laboratorio – Aprueba
+
+
+ AgroFresh Chile Comercial Limitada · Laboratorio de Cromatografía · Manuel Montt 4060, Parque Industrial km 90, Rancagua, Chile

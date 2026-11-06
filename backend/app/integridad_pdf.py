@@ -9,7 +9,7 @@ from typing import Any
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
@@ -47,9 +47,9 @@ def generar_pdf(laboratorio: str, resultado: dict[str, Any], hallazgos: list[dic
 
     lab = next((l for l in resultado.get("laboratorios", []) if it.di.lab_base(l["laboratorio"]) == it.di.lab_base(laboratorio)), None) or {}
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=1.4 * cm, rightMargin=1.4 * cm, topMargin=1.3 * cm, bottomMargin=1.4 * cm,
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=1.5 * cm, rightMargin=1.5 * cm, topMargin=1.4 * cm, bottomMargin=1.5 * cm,
                             title=f"Informe de errores - {laboratorio}", author="AgroFresh Report Hub")
-    ancho = landscape(A4)[0] - 2.8 * cm
+    ancho = A4[0] - 3.0 * cm
     historia: list[Any] = []
 
     logo = Image(_RUTA_LOGO, width=75, height=30) if os.path.isfile(_RUTA_LOGO) else ""
@@ -65,10 +65,14 @@ def generar_pdf(laboratorio: str, resultado: dict[str, Any], hallazgos: list[dic
     medios = [h for h in hallazgos if h["gravedad"] == it.MEDIO]
     revisados, mal = lab.get("informes_revisados", 0), lab.get("informes_con_problema", 0)
     cifras = [["Solicitudes enviadas", lab.get("enviadas", 0)], ["Con informe", lab.get("con_informe", 0)], ["Sin informe", lab.get("sin_informe", 0)],
-              ["Informes revisados", revisados], ["Informes con errores", mal], ["Hallazgos graves", len(graves)], ["Hallazgos a revisar", len(medios)]]
-    t = Table([[_p(k, chico) for k, _ in cifras], [Paragraph(f"<b>{v}</b>", ParagraphStyle("v", parent=base, fontSize=15, leading=18)) for _, v in cifras]], colWidths=[ancho / len(cifras)] * len(cifras))
+              ["Informes revisados", revisados], ["Informes con errores", mal], ["Errores graves", len(graves)], ["A revisar", len(medios)]]
+    cifras.append(["Informes sin errores", max(revisados - mal, 0)])
+    valor = ParagraphStyle("v", parent=base, fontSize=15, leading=18)
+    celdas = [[_p(k, chico) for k, _ in cifras[i:i + 4]] for i in (0, 4)]
+    nums = [[Paragraph(f"<b>{v}</b>", valor) for _, v in cifras[i:i + 4]] for i in (0, 4)]
+    t = Table([celdas[0], nums[0], celdas[1], nums[1]], colWidths=[ancho / 4] * 4)
     t.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#c8d1dc")), ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e3e7ee")),
-                           ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f7fa")), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+                           ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f7fa")), ("BACKGROUND", (0, 2), (-1, 2), colors.HexColor("#f5f7fa")), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
     historia += [t, Spacer(1, 6)]
 
     if not hallazgos:
@@ -98,13 +102,15 @@ def generar_pdf(laboratorio: str, resultado: dict[str, Any], hallazgos: list[dic
         if casos[0].get("sugerencia"):
             bloque.append(_p(f"Qué se solicita: {casos[0]['sugerencia']}", chico))
             bloque.append(Spacer(1, 3))
-        filas = [[_p(x, negrita) for x in ("OT", "N° informe", "Cliente / planta", "Especie", "Muestreo", "Detalle")]]
+        filas = [[_p(x, negrita) for x in ("OT / informe", "Cliente / planta", "Detalle")]]
         for h in casos[:MAX_FILAS_POR_TIPO]:
-            filas.append([_p(h.get("ot"), base), _p(h.get("informe"), base), _p(f"{h.get('sold_to') or '—'} / {h.get('ship_to') or '—'}", base),
-                          _p(h.get("especie"), base), _p(_fecha(h.get("fecha_muestreo")), base), _p(h.get("detalle"), base)])
+            fecha = f" · muestreo {_fecha(h.get('fecha_muestreo'))}" if h.get("fecha_muestreo") else ""
+            filas.append([Paragraph(f"<b>{escape(str(h.get('ot') or '—'))}</b><br/>{escape(str(h.get('informe') or 'sin informe'))}", base),
+                          Paragraph(f"{escape(str(h.get('sold_to') or '—'))}<br/><font color='#5d6878'>{escape(str(h.get('ship_to') or '—'))} · {escape(str(h.get('especie') or '—'))}{fecha}</font>", base),
+                          _p(h.get("detalle"), base)])
         if len(casos) > MAX_FILAS_POR_TIPO:
-            filas.append([_p(f"… y {len(casos) - MAX_FILAS_POR_TIPO} casos más (están en el Excel).", chico), "", "", "", "", ""])
-        anchos = [2.4 * cm, 2.8 * cm, 5.6 * cm, 2.4 * cm, 2.2 * cm, ancho - 15.4 * cm]
+            filas.append([_p(f"… y {len(casos) - MAX_FILAS_POR_TIPO} casos más (están en el Excel).", chico), "", ""])
+        anchos = [3.1 * cm, 5.3 * cm, ancho - 8.4 * cm]
         tabla = Table(filas, colWidths=anchos, repeatRows=1)
         tabla.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eef2f7")), ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#d5dce5")),
                                    ("LINEBEFORE", (0, 1), (0, -1), 2, COLOR_GRAVEDAD[g]), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
@@ -116,8 +122,8 @@ def generar_pdf(laboratorio: str, resultado: dict[str, Any], hallazgos: list[dic
         canvas.saveState()
         canvas.setFont("Helvetica", 7)
         canvas.setFillColor(GRIS)
-        canvas.drawString(1.4 * cm, 0.8 * cm, f"AgroFresh Report Hub · Integridad de datos · {laboratorio}")
-        canvas.drawRightString(landscape(A4)[0] - 1.4 * cm, 0.8 * cm, f"Página {documento.page}")
+        canvas.drawString(1.5 * cm, 0.8 * cm, f"AgroFresh Report Hub · Integridad de datos · {laboratorio}")
+        canvas.drawRightString(A4[0] - 1.5 * cm, 0.8 * cm, f"Página {documento.page}")
         canvas.restoreState()
 
     doc.build(historia, onFirstPage=_pie, onLaterPages=_pie)
