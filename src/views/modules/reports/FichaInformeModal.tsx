@@ -154,8 +154,6 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
     })
   }, [ficha, sol, analitos, limites])
 
-  const numericos = filas.filter((f) => f.r.valor_num != null)
-  const promedio = numericos.length ? numericos.reduce((a, f) => a + (f.r.valor_num as number), 0) / numericos.length : null
   const sobre = filas.filter((f) => f.estado === 'sobre').length
 
   const datos = sol ? DATOS.filter(([c]) => sol[c] != null && sol[c] !== '') : []
@@ -210,25 +208,18 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
                 <details className={styles.detallePlegado}>
                   <summary>Detalle del informe <small>resultados y datos</small></summary>
                   <div className={styles.detalleCuerpo}>
-              <div className={styles.tarjetas}>
-                <div className={styles.tarjeta}>
-                  <span>Analitos</span>
-                  <strong>{filas.length}</strong>
-                </div>
-                <div className={styles.tarjeta}>
-                  <span>Promedio</span>
-                  <strong>{promedio != null ? `${formatDecimalCL(promedio, 4)} ppm` : '—'}</strong>
-                </div>
-                {!sinLimites && (
-                  <div className={`${styles.tarjeta} ${sobre ? styles.tarjetaAlerta : ''}`}>
-                    <span>Sobre el límite</span>
-                    <strong>{sobre}</strong>
-                  </div>
-                )}
-              </div>
-
               <section>
-                <h4 className={styles.seccion}>Resultados</h4>
+                <div className={styles.encabezadoResultados}>
+                  <h4 className={styles.seccion}>Resultados</h4>
+                  <span className={styles.cuenta}>
+                    {filas.length} {filas.length === 1 ? 'analito' : 'analitos'}
+                  </span>
+                  {!sinLimites && sobre > 0 && (
+                    <span className={styles.avisoSobre}>
+                      {sobre} {sobre === 1 ? 'resultado' : 'resultados'} sobre el límite
+                    </span>
+                  )}
+                </div>
                 {filas.length === 0 ? (
                   <p className={styles.vacio}>Este informe no tiene resultados cargados.</p>
                 ) : (
@@ -310,25 +301,18 @@ export function FichaInformeModal({ solicitudId, titulo, analitos, limites, onCe
                 </details>
               ) : (
                 <>
-              <div className={styles.tarjetas}>
-                <div className={styles.tarjeta}>
-                  <span>Analitos</span>
-                  <strong>{filas.length}</strong>
-                </div>
-                <div className={styles.tarjeta}>
-                  <span>Promedio</span>
-                  <strong>{promedio != null ? `${formatDecimalCL(promedio, 4)} ppm` : '—'}</strong>
-                </div>
-                {!sinLimites && (
-                  <div className={`${styles.tarjeta} ${sobre ? styles.tarjetaAlerta : ''}`}>
-                    <span>Sobre el límite</span>
-                    <strong>{sobre}</strong>
-                  </div>
-                )}
-              </div>
-
               <section>
-                <h4 className={styles.seccion}>Resultados</h4>
+                <div className={styles.encabezadoResultados}>
+                  <h4 className={styles.seccion}>Resultados</h4>
+                  <span className={styles.cuenta}>
+                    {filas.length} {filas.length === 1 ? 'analito' : 'analitos'}
+                  </span>
+                  {!sinLimites && sobre > 0 && (
+                    <span className={styles.avisoSobre}>
+                      {sobre} {sobre === 1 ? 'resultado' : 'resultados'} sobre el límite
+                    </span>
+                  )}
+                </div>
                 {filas.length === 0 ? (
                   <p className={styles.vacio}>Este informe no tiene resultados cargados.</p>
                 ) : (

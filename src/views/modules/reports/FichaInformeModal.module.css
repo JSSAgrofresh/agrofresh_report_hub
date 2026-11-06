@@ -125,38 +125,32 @@
   margin-bottom: var(--space-2);
 }
 
-.tarjetas {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-.tarjeta {
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
+.encabezadoResultados {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
 }
 
-.tarjeta span {
+.encabezadoResultados .seccion {
+  margin-bottom: 0;
+}
+
+.cuenta {
   font-size: 11.5px;
   color: var(--color-text-muted);
 }
 
-.tarjeta strong {
-  font-size: 1.2rem;
-}
-
-.tarjetaAlerta {
-  background: #fdecea;
-  border-color: #f0b8b0;
-}
-
-.tarjetaAlerta strong {
+.avisoSobre {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 700;
   color: #9b2c1f;
+  background: #fdecea;
+  border: 1px solid #f0b8b0;
+  border-radius: 999px;
+  padding: 2px 10px;
 }
 
 .tablaScroll {
