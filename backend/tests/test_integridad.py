@@ -177,40 +177,108 @@ def test_todas_las_rutas_de_integridad_exigen_al_principal():
         assert "exigir_principal" in dependencias, ruta.path
 
 
-# ── Dosis que viene en el PDF del informe (caso OT-AGF0113 / AGF2026-57) ─────
+# ── Lectura completa del PDF de AgroFresh y comparación contra la solicitud (informes REALES) ───────────
 
-TEXTO_AGF = """ANALITO SOLICITADO DOSIS ANALITO SOLICITADO DOSIS
-Fludioxonil 150
+import email
+import email.policy
+from pathlib import Path
 
+from app import informe_campos as ic
+from app.informe_lectura import texto_quiteca
 
-
-
-3. RECEPCIÓN Y ANÁLISIS
-CÓD. INTERNO MUESTRA AGF0057"""
+FIX = Path(__file__).parent / "fixtures" / "correos"
+NOMBRES = ["Fludioxonil", "Imazalil", "Tiabendazol", "Pirimetanil"]
 CATALOGO = [{"codigo": "FDL", "nombre": "Fludioxonil", "unidad": "ppm", "laboratorio": "AGROFRESH", "activo": True, "orden": 1},
-            {"codigo": "PYR", "nombre": "Pirimetanil", "unidad": "ppm", "laboratorio": "AGROFRESH", "activo": True, "orden": 2}]
+            {"codigo": "IMZ", "nombre": "Imazalil", "unidad": "ppm", "laboratorio": "AGROFRESH", "activo": True, "orden": 2},
+            {"codigo": "TBZ", "nombre": "Tiabendazol", "unidad": "ppm", "laboratorio": "AGROFRESH", "activo": True, "orden": 3}]
 
 
-def test_la_dosis_del_pdf_se_lee_de_la_tabla_de_dos_columnas():
-    assert it.dosis_de_texto(TEXTO_AGF, CATALOGO) == {"FDL": 150.0}
-    dos = TEXTO_AGF.replace("Fludioxonil 150", "Fludioxonil 150   Pirimetanil 22,5")
-    assert it.dosis_de_texto(dos, CATALOGO) == {"FDL": 150.0, "PYR": 22.5}
-    assert it.dosis_de_texto("sin tabla", CATALOGO) == {}
+def _pdf_eml(nombre_eml, empieza):
+    m = email.message_from_binary_file(open(FIX / nombre_eml, "rb"), policy=email.policy.default)
+    for p in m.walk():
+        if (p.get_filename() or "").startswith(empieza):
+            return texto_quiteca(p.get_payload(decode=True))
+    raise AssertionError(empieza)
 
 
-def _caso_agf(dosis_pdf, productos=None):
-    toma = _toma(ot="OT-AGF0113", lab="Agrofresh", datos={"analitos_solicitados": ["FDL"], "campos_laboratorio": {"Fludioxonil (ppm)": "150"}, "lote": None, "numero_orden": None})
-    inf = _inf(ot="OT-AGF0113", lab="Agrofresh", lote=None, nro_orden=None)
-    return it.analizar([toma], [inf], {1: _res("FDL")}, productos or {}, CATALOGO, {}, hoy=HOY, dosis_pdf=dosis_pdf)
+def test_el_lector_completo_saca_cada_dato_del_pdf_de_agrofresh():
+    r = ic.leer_completo((FIX / "agrofresh_57.txt").read_text(), NOMBRES)
+    m = r["muestra"]
+    assert r["identificacion"]["ot"] == "OT-AGF0113" and r["identificacion"]["sold_to"] == "FRUTICOLA DOSAL LTDA"
+    assert (m["lote"], m["codigo_productor"], m["codigo_packing"], m["producto_utilizado"], m["posicion_muestreo"]) == ("2", "3142832", "95790", "SCHOLAR", "Pozo Fungicida")
+    assert m["variedad"] is None and m["numero_orden"] is None and m["kilos_procesados"] is None      # «—» = sin dato
+    assert r["dosis"] == {"Fludioxonil": "150"} and r["resultados"] == {"Fludioxonil": "3,65"}
+    assert r["recepcion"]["fecha_analisis"] == "28-10-2026"
 
 
-def test_si_el_pdf_trae_la_dosis_no_se_reclama_aunque_report_no_la_guardo():
-    r = _caso_agf({1: {"FDL": 150.0}})
-    assert "DOSIS_FALTA" not in _codigos(r)
-    h = [h for h in r["hallazgos"] if h["codigo"] == "DOSIS_NO_CARGADA"]
-    assert h and h[0]["gravedad"] == it.INFO
+def test_las_dosis_de_texto_libre_y_los_analitos_sin_dosis_de_otros_informes_reales():
+    assert ic.leer_completo(_pdf_eml("agrofresh_47.eml", "AGF2026-47"), NOMBRES)["dosis"] == {"Tiabendazol": "6cc/l"}
+    assert ic.leer_completo(_pdf_eml("agrofresh_48.eml", "AGF2026-48"), NOMBRES)["dosis"] == {"Fludioxonil": "4cc/l agua"}
+    varios = ic.leer_completo(_pdf_eml("agrofresh_varios.eml", "AGF2026-2 "), NOMBRES)
+    assert varios["dosis"] == {} and varios["muestra"]["producto_utilizado"] == "FUNGAZIL 500 EC, SCHOLAR"      # «Fludioxonil — Imazalil —»
 
 
-def test_sin_dosis_ni_en_el_pdf_ni_en_report_si_se_reclama_y_si_el_pdf_difiere_tambien():
-    assert "DOSIS_FALTA" in _codigos(_caso_agf({1: {}}))
-    assert "DOSIS_DISTINTA" in _codigos(_caso_agf({1: {"FDL": 100.0}}))
+def _caso_agf(campos, report=None, datos_extra=None, productos=None):
+    datos = {"analitos_solicitados": ["FDL"], "campos_laboratorio": {"Fludioxonil (ppm)": "150"}, "lote": "2", "csg_productor": "3142832", "csg_packing": "95790",
+             "posicion_muestreo": "Pozo Fungicida", "producto_utilizado": "SCHOLAR", **(datos_extra or {})}
+    toma = {**_toma(ot="OT-AGF0113", lab="Agrofresh", datos=datos), "sold_to": "FRUTICOLA DOSAL LTDA", "ship_to": "FRUTICOLA DOSAL LTDA", "especie": "Cerezas",
+            "fecha_muestreo": date(2026, 10, 23)}
+    toma["datos"] = datos
+    inf = _inf(ot="OT-AGF0113", lab="Agrofresh", **{"lote": None, "nro_orden": None, "sold_to": "FRUTICOLA DOSAL LTDA", "ship_to": "FRUTICOLA DOSAL LTDA",
+                                                    "especie": "Cerezas", "fecha_muestreo": date(2026, 10, 23), **(report or {})})
+    return it.analizar([toma], [inf], {1: _res("FDL")}, productos or {}, CATALOGO, {}, hoy=HOY, campos_pdf={1: campos} if campos else None)
+
+
+def _campos_57():
+    return ic.leer_completo((FIX / "agrofresh_57.txt").read_text(), NOMBRES)
+
+
+def test_caso_agf2026_57_el_pdf_trae_todo_lo_pedido_asi_que_no_hay_reclamo():
+    r = _caso_agf(_campos_57())
+    graves = [h for h in r["hallazgos"] if h["gravedad"] != it.INFO]
+    assert graves == [], graves
+    cod = _codigos(r)
+    assert "DOSIS_NO_CARGADA" in cod and "ROTULACION_NO_CARGADA" in cod        # Report no lo guardó: es de la carga, informativo
+
+
+def test_si_el_pdf_trae_otra_dosis_o_no_la_trae_se_reclama():
+    mal = _campos_57()
+    mal["dosis"] = {"Fludioxonil": "100"}
+    assert "DOSIS_DISTINTA" in _codigos(_caso_agf(mal))
+    sin = _campos_57()
+    sin["dosis"] = {}
+    assert "DOSIS_FALTA" in _codigos(_caso_agf(sin))
+
+
+def test_dosis_de_texto_libre_se_compara_como_texto():
+    campos = _campos_57()
+    campos["dosis"] = {"Fludioxonil": "4 cc/l agua"}
+    r = _caso_agf(campos, datos_extra={"campos_laboratorio": {"Fludioxonil (ppm)": "4cc/l agua"}})
+    assert "DOSIS_DISTINTA" not in _codigos(r) and "DOSIS_FALTA" not in _codigos(r)
+
+
+def test_rotulacion_del_pdf_distinta_o_ausente_es_reclamo_del_laboratorio():
+    mal = _campos_57()
+    mal["muestra"] = {**mal["muestra"], "lote": "9", "codigo_packing": None}
+    h = {(x["codigo"], x["detalle"][:12]) for x in _caso_agf(mal)["hallazgos"]}
+    assert ("ROTULACION_DISTINTA", "Lote: la sol") in h and ("ROTULACION_FALTA", "Código packi") in h
+
+
+def test_producto_mixto_se_compara_con_la_lista_real():
+    campos = _campos_57()
+    campos["muestra"] = {**campos["muestra"], "producto_utilizado": "FUNGAZIL 500 EC, SCHOLAR"}
+    r = _caso_agf(campos, datos_extra={"producto_utilizado": "MIXTO", "productos_lista": ["SCHOLAR", "FUNGAZIL 500 EC"]})
+    assert not [h for h in r["hallazgos"] if "Producto" in h["detalle"]]
+
+
+def test_identificacion_del_pdf_contra_la_solicitud():
+    campos = _campos_57()
+    campos["identificacion"] = {**campos["identificacion"], "sold_to": "OTRO CLIENTE"}
+    campos["muestra"] = {**campos["muestra"], "fecha_muestreo": "24-10-2026"}
+    det = " ".join(h["detalle"] for h in _caso_agf(campos)["hallazgos"] if h["codigo"] == "PDF_DATO_DISTINTO")
+    assert "Sold To" in det and "Fecha de muestreo" in det
+
+
+def test_sin_pdf_se_compara_con_lo_que_guardo_report():
+    r = _caso_agf(None, report={"lote": "7"})
+    assert any(h["codigo"] == "ROTULACION_DISTINTA" and "Lote" in h["detalle"] for h in r["hallazgos"])
