@@ -92,7 +92,7 @@ function moda(valores: (string | null | undefined)[], defecto: string): string {
  * el tipo de cliente (Estratégico, Preferente, Estándar) acompañan a cada cliente como columnas. Cada celda lleva lo HECHO (solicitudes por
  * laboratorio, en la semana de su muestreo) y lo PROPUESTO por el plan.
  * Lo hecho por clientes que el plan no trae va al final, marcado «fuera del plan». Una solicitud se cruza con una planta del plan solo si su
- * Ship To se llama igual (sin tildes ni mayúsculas); si no, queda en «Sin cruzar con una planta del plan».
+ * Ship To se llama igual (sin tildes ni mayúsculas); si no, queda en una fila con solo «-».
  */
 export function construirDinamica(solicitudes: SolicitudAuditoria[], plan: Map<string, ClientePlan> | null): NodoDinamica[] {
   const clientes = new Map<string, NodoDinamica>()
@@ -100,7 +100,7 @@ export function construirDinamica(solicitudes: SolicitudAuditoria[], plan: Map<s
     const id = nombre === null ? '·sin cruzar·' : normalizarNombre(nombre)
     let p = c.hijos.find((h) => h.clave === `${c.clave}|${id}`)
     if (!p) {
-      p = { clave: `${c.clave}|${id}`, nombre: nombre ?? 'Sin cruzar con una planta del plan', nivel: 'planta', datos: vacio(), hijos: [], ...(nombre === null ? { sinCruzar: true } : {}) }
+      p = { clave: `${c.clave}|${id}`, nombre: nombre ?? '-', nivel: 'planta', datos: vacio(), hijos: [], ...(nombre === null ? { sinCruzar: true } : {}) }
       c.hijos.push(p)
     }
     return p
