@@ -11,34 +11,11 @@
 
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: var(--space-6);
-  padding: var(--space-6) clamp(var(--space-6), 8vw, 96px);
+  padding: clamp(28px, 5vh, 56px) clamp(var(--space-6), 7vw, 88px);
   background: #24391a;
   color: #fff;
   position: relative;
   overflow: hidden;
-}
-
-.cintaEsquina {
-  position: absolute;
-  top: -14%;
-  right: -14%;
-  width: 48%;
-  height: 64%;
-  clip-path: polygon(100% 0, 100% 88%, 36% 0);
-  background: repeating-linear-gradient(
-    115deg,
-    var(--verde-profundo) 0 34px,
-    var(--verde-medio) 34px 60px,
-    var(--color-primary) 60px 78px,
-    transparent 78px 86px,
-    var(--lima) 86px 98px,
-    transparent 98px 260px
-  );
-  opacity: 0.9;
-  pointer-events: none;
-  z-index: 1;
 }
 
 .carrusel {
@@ -66,16 +43,55 @@
   inset: 0;
   background:
     radial-gradient(circle at 82% 12%, rgba(232, 195, 46, 0.22), transparent 42%),
-    linear-gradient(155deg, rgba(36, 57, 26, 0.93) 0%, rgba(52, 84, 36, 0.87) 46%, rgba(79, 122, 38, 0.8) 100%);
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 28px),
+    linear-gradient(160deg, rgba(22, 36, 15, 0.95) 0%, rgba(36, 60, 26, 0.9) 55%, rgba(52, 84, 36, 0.84) 100%);
   pointer-events: none;
 }
 
 .contenido {
   position: relative;
   z-index: 1;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: var(--space-6);
+}
+
+.centro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.sobretitulo {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.sobretitulo::before {
+  content: '';
+  width: 28px;
+  height: 2px;
+  background: var(--color-accent);
+}
+
+.pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .carruselDots {
@@ -96,7 +112,7 @@
 }
 
 .logoMarca {
-  height: 46px;
+  height: 56px;
   width: auto;
   aspect-ratio: 5 / 2;
   object-fit: contain;
@@ -144,28 +160,47 @@
 }
 
 .marcaLista li::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  background: var(--color-accent);
+  content: '✓';
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(195, 224, 74, 0.18);
+  color: var(--lima);
+  font-size: 11px;
+  font-weight: 800;
   flex-shrink: 0;
 }
 
 .panelForm {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
   align-items: center;
   justify-content: center;
   background: var(--color-bg);
   padding: var(--space-5);
 }
 
+.legal {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 .tarjeta {
   width: 100%;
-  max-width: 360px;
+  max-width: 420px;
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  padding: 40px 36px;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(20, 40, 20, 0.04), 0 18px 40px -18px rgba(20, 40, 20, 0.22);
   animation: entrar 0.35s ease;
 }
 
@@ -197,7 +232,8 @@
 }
 
 .encabezado h2 {
-  font-size: 1.35rem;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
   font-weight: 700;
 }
 
@@ -216,7 +252,8 @@
     gap: var(--space-4);
   }
 
-  .marcaLista {
+  .marcaLista,
+  .pie {
     display: none;
   }
 
@@ -228,6 +265,10 @@
 @media (max-width: 620px) {
   .marca {
     display: none;
+  }
+
+  .tarjeta {
+    padding: 28px 22px;
   }
 
   .logoTarjeta {

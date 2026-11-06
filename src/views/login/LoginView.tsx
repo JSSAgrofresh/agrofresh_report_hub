@@ -31,24 +31,29 @@ export function LoginView() {
           <div className={styles.carruselDegradado} />
         </div>
 
-        <div className={styles.cintaEsquina} aria-hidden="true" />
-
         <div className={styles.contenido}>
           <img src={agrofreshLogo} alt="AgroFresh" className={styles.logoMarca} />
-          <div className={styles.marcaTexto}>
-            <h1>Report Hub</h1>
-            <p>Plataforma interna de trazabilidad y análisis de residuos de pesticidas en fruta.</p>
-          </div>
-          <ul className={styles.marcaLista}>
-            <li>Trazabilidad de registros pH/ORP</li>
-            <li>Homogenización de informes de laboratorio</li>
-            <li>Cola de aprobación para cargas de datos</li>
-          </ul>
 
-          <div className={styles.carruselDots}>
-            {CARRUSEL.map((src, i) => (
-              <span key={src} className={cn(styles.dot, i === indice && styles.dotActivo)} />
-            ))}
+          <div className={styles.centro}>
+            <p className={styles.sobretitulo}>Plataforma interna</p>
+            <div className={styles.marcaTexto}>
+              <h1>Report Hub</h1>
+              <p>Trazabilidad y análisis de residuos de pesticidas en fruta, en un solo lugar.</p>
+            </div>
+            <ul className={styles.marcaLista}>
+              <li>Trazabilidad de registros pH/ORP</li>
+              <li>Homogenización de informes de laboratorio</li>
+              <li>Cola de aprobación para cargas de datos</li>
+            </ul>
+          </div>
+
+          <div className={styles.pie}>
+            <span>© {new Date().getFullYear()} AgroFresh · Uso interno</span>
+            <div className={styles.carruselDots}>
+              {CARRUSEL.map((src, i) => (
+                <span key={src} className={cn(styles.dot, i === indice && styles.dotActivo)} />
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -57,11 +62,12 @@ export function LoginView() {
         <div className={styles.tarjeta}>
           <img src={agrofreshLogo} alt="AgroFresh" className={styles.logoTarjeta} />
           <div className={styles.encabezado}>
-            <h2>Ingresa a tu cuenta</h2>
-            <p>Usa tu correo corporativo de AgroFresh.</p>
+            <h2>Bienvenido</h2>
+            <p>Ingresa con tu correo corporativo de AgroFresh.</p>
           </div>
           <LoginForm onSuccess={() => navigate(ROUTES.dashboard, { replace: true })} />
         </div>
+        <p className={styles.legal}>Acceso restringido a personal y clientes autorizados.</p>
       </div>
     </div>
   )
