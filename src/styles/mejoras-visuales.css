@@ -82,14 +82,14 @@ html[data-mejoras] aside[class*="_sidebar_"] div[class*="_usuario_"] {gap:8px}
 html[data-mejoras] aside[class*="_sidebar_"] span[class*="_usuarioNombre_"] {white-space:nowrap;font-size:12.5px}
 html[data-mejoras] aside[class*="_sidebar_"] span[class*="_usuarioRol_"] {white-space:nowrap;font-size:9.5px}
 html[data-mejoras] aside[class*="_sidebar_"] div[class*="_usuarioAvatar_"] {width:34px;height:34px}
-html[data-mejoras] [class*="_hero_"][class*="_"]:not([class*="PortalHero"]) {position:relative;overflow:hidden}
-html[data-mejoras] [class*="_hero_"] {border-radius:28px!important;color:#fff!important;border:0!important;background:var(--arte-banner)!important;box-shadow:0 14px 34px rgba(36,57,26,.25)!important;padding:28px 34px!important}
-html[data-mejoras] [class*="_hero_"] [class*="_titulo_"],
-html[data-mejoras] div[class*="_hero_"] h1,
-html[data-mejoras] div[class*="_hero_"] h2 {color:#fff!important}
-html[data-mejoras] [class*="_hero_"] [class*="_etiqueta_"] {color:#e8c32e!important}
-html[data-mejoras] [class*="_hero_"] [class*="_descripcion_"] {color:rgba(255,255,255,.86)!important}
-html[data-mejoras] [class*="_hero_"] button {background:rgba(255,255,255,.14)!important;color:#fff!important;border:1px solid rgba(255,255,255,.35)!important;border-radius:30px!important}
+html[data-mejoras] header[class*="_hero_"][class*="_"]:not([class*="PortalHero"]) {position:relative;overflow:hidden}
+html[data-mejoras] header[class*="_hero_"] {border-radius:28px!important;color:#fff!important;border:0!important;background:var(--arte-banner)!important;box-shadow:0 14px 34px rgba(36,57,26,.25)!important;padding:28px 34px!important}
+html[data-mejoras] header[class*="_hero_"] [class*="_titulo_"],
+html[data-mejoras] header[class*="_hero_"] h1,
+html[data-mejoras] header[class*="_hero_"] h2 {color:#fff!important}
+html[data-mejoras] header[class*="_hero_"] [class*="_etiqueta_"] {color:#e8c32e!important}
+html[data-mejoras] header[class*="_hero_"] [class*="_descripcion_"] {color:rgba(255,255,255,.86)!important}
+html[data-mejoras] header[class*="_hero_"] button {background:rgba(255,255,255,.14)!important;color:#fff!important;border:1px solid rgba(255,255,255,.35)!important;border-radius:30px!important}
 
 /* ===== Tema oscuro ===== */
 html[data-mejoras][data-tema="oscuro"] {color-scheme:dark;--color-bg:#0c140e;--color-surface:#142019;--color-border:#25382b;--color-border-strong:#34503d;--color-text:#e6eee3;--color-text-muted:#b3c3b1;--color-text-faint:#819783;--color-primary:#7cc243;--color-primary-hover:#93d45a;--color-ok:#6fd07a;--color-danger:#ff7a6e;--color-warning:#f0a35e}
@@ -109,7 +109,7 @@ html[data-mejoras][data-tema="oscuro"] section,
 html[data-mejoras][data-tema="oscuro"] [class*="_panel"] {background:#142019!important;border-color:#25382b!important;color:#e6eee3}
 html[data-mejoras][data-tema="oscuro"] [class*="_kpi_"],
 html[data-mejoras][data-tema="oscuro"] [class*="_modulo"] {background:var(--arte-banner)!important}
-html[data-mejoras][data-tema="oscuro"] [class*="_hero_"] {background:var(--arte-banner)!important}
+html[data-mejoras][data-tema="oscuro"] header[class*="_hero_"] {background:var(--arte-banner)!important}
 html[data-mejoras][data-tema="oscuro"] [class*="_kpiValor_"],
 html[data-mejoras][data-tema="oscuro"] section[class*="_indicadores_"] strong[class*="_indicadorCifra_"] {color:var(--c,#9be05a)!important}
 html[data-mejoras][data-tema="oscuro"] [class*="_tono_neutro_"] {--c:#8fd45a}
@@ -134,7 +134,7 @@ html[data-mejoras][data-tema="oscuro"] button[class*="_secondary_"] {background:
 html[data-mejoras][data-tema="oscuro"] select:focus,
 html[data-mejoras][data-tema="oscuro"] input:focus {border-color:#7cc243!important;box-shadow:0 0 0 4px rgba(124,194,67,.22)!important}
 html[data-mejoras][data-tema="oscuro"] header[class*="_header_"] button[class*="_secondary_"] {background:rgba(255,255,255,.12)!important;color:#fff!important;border-color:rgba(255,255,255,.3)!important}
-html[data-mejoras][data-tema="oscuro"] [class*="_hero_"] button {background:rgba(255,255,255,.12)!important;color:#fff!important}
+html[data-mejoras][data-tema="oscuro"] header[class*="_hero_"] button {background:rgba(255,255,255,.12)!important;color:#fff!important}
 html[data-mejoras][data-tema="oscuro"] [class*="_chip"],
 html[data-mejoras][data-tema="oscuro"] [class*="_badge"] {filter:none}
 html[data-mejoras][data-tema="oscuro"] [class*="_chipEnviada_"],
@@ -203,10 +203,10 @@ html[data-mejoras][data-tema="oscuro"] [class*="_cuenta_"] {background-color:#22
 html[data-mejoras][data-tema="oscuro"] [class*="_icono_"],
 html[data-mejoras][data-tema="oscuro"] [class*="_avatar_"] {background-color:#1f3626!important;color:#9be05a!important}
 html[data-mejoras][data-tema="oscuro"] [class*="_barraUso_"] {background-color:#25382b!important}
-html[data-mejoras][data-tema="oscuro"] [class*="_hero_"] button,
+html[data-mejoras][data-tema="oscuro"] header[class*="_hero_"] button,
 html[data-mejoras][data-tema="oscuro"] header[class*="_header_"] button {background-color:rgba(255,255,255,.14)!important;color:#fff!important;border:1px solid rgba(255,255,255,.32)!important}
 html[data-mejoras][data-tema="oscuro"] header[class*="_header_"] button[class*="_primary_"] {background:#e8c32e!important;color:#2a2300!important;border:0!important}
-html[data-mejoras][data-tema="oscuro"] [class*="_hero_"] {background-color:transparent!important}
+html[data-mejoras][data-tema="oscuro"] header[class*="_hero_"] {background-color:transparent!important}
 html[data-mejoras][data-tema="oscuro"] [class*="_operaciones"],
 html[data-mejoras][data-tema="oscuro"] [class*="_grupoOp"],
 html[data-mejoras][data-tema="oscuro"] [class*="OPERACIONES"] {background:#142a21!important}
@@ -247,7 +247,7 @@ html[data-mejoras][data-tema="oscuro"] button[class*="_botonIcono_"]:hover {back
 @media (max-width: 880px) {
   html[data-mejoras] main[class*="_content_"] {padding:14px 14px 32px!important}
   html[data-mejoras] header[class*="_header_"],
-  html[data-mejoras] [class*="_hero_"] {border-radius:22px!important;padding:20px 18px!important;margin-bottom:14px}
+  html[data-mejoras] header[class*="_hero_"] {border-radius:22px!important;padding:20px 18px!important;margin-bottom:14px}
   html[data-mejoras] header[class*="_header_"] h1 {font-size:26px!important}
 }
 
@@ -270,12 +270,43 @@ html[data-mejoras][data-tema="oscuro"] div[class*="_vistas_"] {background-color:
 html[data-mejoras][data-tema="oscuro"] button[class*="_vistaBoton_"] {background-color:transparent!important;color:#b3c3b1!important}
 html[data-mejoras][data-tema="oscuro"] button[class*="_vistaActiva_"] {background-color:#1f3626!important;color:#9be05a!important}
 
-/* ===== Banners: marca de agua con el logo de AgroFresh ===== */
+/* ===== Banners: el logo de AgroFresh a la derecha ===== */
+/* Solo los encabezados de pantalla (header). El saludo del Panel general (section) y los banners con foto de la especie (div) conservan su diseño. */
 html[data-mejoras] header[class*="_header_"]::before,
-html[data-mejoras] [class*="_hero_"]::before {content:"";position:absolute;right:28px;top:50%;width:300px;height:120px;transform:translateY(-50%);background:url(../assets/agrofresh-logo.png) center/contain no-repeat;opacity:.14;pointer-events:none}
+html[data-mejoras] header[class*="_hero_"]::before {content:"";position:absolute;right:36px;top:50%;width:190px;height:76px;transform:translateY(-50%);background:url(../assets/agrofresh-logo.png) center/contain no-repeat;filter:drop-shadow(0 2px 10px rgba(0,0,0,.35));pointer-events:none}
 html[data-mejoras] header[class*="_header_"] > *,
-html[data-mejoras] [class*="_hero_"] > * {position:relative;z-index:1}
+html[data-mejoras] header[class*="_hero_"] > * {position:relative;z-index:1}
+html[data-mejoras] header[class*="_header_"],
+html[data-mejoras] header[class*="_hero_"] {padding-right:260px!important}
+/* En pantallas medianas no cabe junto a los botones: queda de marca de agua tenue detrás. */
+@media (max-width: 1440px) {
+  html[data-mejoras] header[class*="_header_"]::before,
+  html[data-mejoras] header[class*="_hero_"]::before {opacity:.14;filter:none}
+  html[data-mejoras] header[class*="_header_"],
+  html[data-mejoras] header[class*="_hero_"] {padding-right:36px!important}
+}
 @media (max-width: 880px) {
   html[data-mejoras] header[class*="_header_"]::before,
-  html[data-mejoras] [class*="_hero_"]::before {width:170px;height:70px;right:10px;opacity:.1}
+  html[data-mejoras] header[class*="_hero_"]::before {width:150px;height:60px;right:10px;opacity:.12}
+  html[data-mejoras] header[class*="_header_"],
+  html[data-mejoras] header[class*="_hero_"] {padding-right:18px!important}
 }
+/* Saludo y banners con foto: solo esquinas y sombra, como el resto. */
+html[data-mejoras] section[class*="_hero_"],
+html[data-mejoras] div[class*="_hero_"] {border-radius:28px;box-shadow:0 14px 34px rgba(36,57,26,.22)}
+
+/* ===== Barra lateral plegada (escritorio) ===== */
+@media (min-width: 881px) {
+  /* Con overflow:hidden el selector de avatar (más ancho que la barra plegada) quedaba cortado. */
+  html[data-mejoras] aside[class*="_sidebar_"][class*="_colapsada_"] {overflow:visible!important}
+  /* El botón de tema y el de salir van uno bajo otro; antes el de tema desaparecía al plegar. */
+  html[data-mejoras] aside[class*="_sidebar_"][class*="_colapsada_"] div[class*="_usuario_"] {flex-direction:column;gap:8px;padding:8px 0}
+  html[data-mejoras] aside[class*="_sidebar_"][class*="_colapsada_"] button[aria-label^="Cambiar a tema"],
+  html[data-mejoras] aside[class*="_sidebar_"][class*="_colapsada_"] button[title="Cerrar sesión"] {display:inline-flex!important}
+}
+html[data-mejoras] aside[class*="_sidebar_"] div[class*="_avatarPopover_"] {background:#2f5d0f;border-color:rgba(255,255,255,.2)}
+html[data-mejoras][data-tema="oscuro"] aside[class*="_sidebar_"] div[class*="_avatarPopover_"] {background:#16281a;border-color:rgba(255,255,255,.14)}
+
+/* El marco de la página sigue transparente en oscuro (el fondo lo pone el degradado de <body>). */
+html[data-mejoras][data-tema="oscuro"] [class*="_shell_"],
+html[data-mejoras][data-tema="oscuro"] [class*="_cuerpo_"] {background-color:transparent!important}
