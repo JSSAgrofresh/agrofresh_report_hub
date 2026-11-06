@@ -19,6 +19,8 @@ import { Modal } from '@/components/ui/Modal'
 import { AvisoClientes } from './avisos/AvisoClientes'
 import { FuncionesPanel } from './funciones/FuncionesPanel'
 import { PlanEntregablesPanel } from './plan/PlanEntregablesPanel'
+import { IntegridadPanel } from './integridad/IntegridadPanel'
+import { CORREO_MAESTRO } from '@/features/usuarios'
 import { ListasPanel } from './listas/ListasPanel'
 import { PanelInicioEditor } from './panelInicio/PanelInicioEditor'
 import { SelectorServicio } from '@/components/ui/SelectorServicio'
@@ -32,7 +34,7 @@ import styles from './AdministracionGeneralView.module.css'
 
 const nf = new Intl.NumberFormat('es-CL')
 
-type Pestana = 'resumen' | 'actividad' | 'seguimiento' | 'correcciones' | 'listas' | 'avisos' | 'funciones' | 'panelInicio' | 'plan'
+type Pestana = 'resumen' | 'actividad' | 'seguimiento' | 'correcciones' | 'listas' | 'avisos' | 'funciones' | 'panelInicio' | 'plan' | 'integridad'
 
 /**
  * Administración General: lo que solo ve y toca el admin general.
@@ -48,6 +50,7 @@ type Pestana = 'resumen' | 'actividad' | 'seguimiento' | 'correcciones' | 'lista
 export function AdministracionGeneralView() {
   const { user } = useAuth()
   const puedeEditar = user ? esAdminGeneral(user) : false
+  const esPrincipal = user?.tipoAcceso === 'admin_general' && user.email.toLowerCase() === CORREO_MAESTRO
 
   const [datos, setDatos] = useState<CorreccionConverter[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -130,6 +133,8 @@ export function AdministracionGeneralView() {
             ? 'Funciones: interruptores del sistema que solo mueve el administrador principal, con su contraseña. Hoy: qué tipos de servicio muestra Report.'
             : pestana === 'panelInicio'
             ? 'Panel de inicio: arma, como un tablero, qué widgets ve cada tipo de cuenta o cada cuenta en su pantalla de inicio. Arrastra, suelta y guarda.'
+            : pestana === 'integridad'
+            ? 'Integridad de datos: cada solicitud enviada contra el informe del laboratorio. Qué falta, qué no coincide y el informe de errores para reclamar.'
             : pestana === 'plan'
             ? 'Plan de entregables: sube el Excel con los análisis prometidos por cliente en la temporada. Alimenta las columnas «Entregables» del Panel de control interno.'
             : pestana === 'avisos'
@@ -165,6 +170,11 @@ export function AdministracionGeneralView() {
         <button type="button" role="tab" aria-selected={pestana === 'panelInicio'} className={pestana === 'panelInicio' ? styles.pestanaActiva : ''} onClick={() => setPestana('panelInicio')}>
           Panel de inicio
         </button>
+        {esPrincipal && (
+          <button type="button" role="tab" aria-selected={pestana === 'integridad'} className={pestana === 'integridad' ? styles.pestanaActiva : ''} onClick={() => setPestana('integridad')}>
+            Integridad de datos
+          </button>
+        )}
         <button type="button" role="tab" aria-selected={pestana === 'plan'} className={pestana === 'plan' ? styles.pestanaActiva : ''} onClick={() => setPestana('plan')}>
           Plan de entregables
         </button>
@@ -212,6 +222,8 @@ export function AdministracionGeneralView() {
       {pestana === 'funciones' && <FuncionesPanel />}
 
       {pestana === 'plan' && <PlanEntregablesPanel />}
+
+      {pestana === 'integridad' && esPrincipal && <IntegridadPanel />}
 
       {pestana === 'panelInicio' && <PanelInicioEditor />}
 
