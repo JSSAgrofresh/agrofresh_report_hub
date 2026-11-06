@@ -71,9 +71,10 @@ def dosis_de(bloque: str, nombres: list[str]) -> dict[str, str]:
     return out
 
 
-def formato_de(recepcion: dict[str, Any], dosis: dict[str, str]) -> int:
-    """2 = el informe con fecha de recepción y dosis (AGF2026-47 en adelante); 1 = el primero (AGF2026-2 al ~28), que no trae ni recepción ni dosis."""
-    return 2 if (recepcion.get("fecha_recepcion") or dosis) else 1
+def formato_de(secciones: dict[str, str]) -> int:
+    """2 = el informe con secciones numeradas («1. IDENTIFICACIÓN…», AGF2026-2 en adelante); 1 = el primero (AGF0001…), sin secciones: ahí la
+    solicitud va en una línea de texto libre y no se puede leer dato por dato, así que Integridad de datos no lo revisa."""
+    return 2 if "1" in secciones and "2" in secciones else 1
 
 
 def leer_completo(texto: str, nombres_analitos: list[str] | None = None) -> dict[str, Any]:
@@ -88,13 +89,11 @@ def leer_completo(texto: str, nombres_analitos: list[str] | None = None) -> dict
         m = re.match(r"^\s*([A-Za-zÁÉÍÓÚáéíóúñÑ][\w .\-/()]*?)\s+((?:[<>]\s*)?\d[\d.,]*|ND)\s*$", linea)
         if m:
             resultados[m.group(1).strip()] = m.group(2).replace(" ", "")
-    dosis = dosis_de(muestra, nombres_analitos or [])
-    recepcion = _pares(sec.get("3", ""), _RECEPCION)
     return {
         "identificacion": _pares(sec.get("1", ""), _IDENTIFICACION),
         "muestra": _pares(lineas_muestra, _MUESTRA),
-        "dosis": dosis,
-        "recepcion": recepcion,
+        "dosis": dosis_de(muestra, nombres_analitos or []),
+        "recepcion": _pares(sec.get("3", ""), _RECEPCION),
         "resultados": resultados,
-        "formato": formato_de(recepcion, dosis),
+        "formato": formato_de(sec),
     }
