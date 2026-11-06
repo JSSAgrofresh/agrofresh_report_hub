@@ -71,13 +71,16 @@ def test_posicion_con_varias_posiciones_acepta_una_de_ellas():
     assert "ROTULACION_DISTINTA" not in _codigos(r)
 
 
-def test_dosis_distinta_y_falta():
+def test_dosis_sin_lectura_del_pdf_no_se_reclama_pero_si_report_la_contradice():
     catalogo = [{"codigo": "FDL", "nombre": "Fludioxonil", "unidad": "ppm", "laboratorio": "QUITECA", "activo": True, "orden": 1},
                 {"codigo": "PYR", "nombre": "Pirimetanil", "unidad": "ppm", "laboratorio": "QUITECA", "activo": True, "orden": 2}]
     toma = _toma(datos={"campos_laboratorio": {"Fludioxonil (ppm)": "300", "Pirimetanil (ppm)": "200"}})
     prods = {1: [{"codigo": "FDL", "analito_raw": "FDL", "dosis": 250}]}
     r = it.analizar([toma], [_inf()], {1: _res("FDL", "PYR")}, prods, catalogo, {}, hoy=HOY)
-    assert {"DOSIS_DISTINTA", "DOSIS_FALTA"} <= _codigos(r)
+    assert "DOSIS_DISTINTA" in _codigos(r)                       # Report guardó 250 y la solicitud dice 300: contradicción real
+    sin = [h for h in r["hallazgos"] if h["codigo"] == "DOSIS_SIN_VERIFICAR"]
+    assert sin and sin[0]["gravedad"] == it.INFO and "PYR" in sin[0]["detalle"]     # sin dosis en Report ni PDF leído: no es reclamo
+    assert "DOSIS_FALTA" not in _codigos(r)
 
 
 def test_sin_informe_dentro_y_fuera_de_plazo():

@@ -105,6 +105,7 @@ TITULOS = {
     "DOSIS_DISTINTA": "Dosis distinta a la de la solicitud",
     "DOSIS_FALTA": "Dosis de la solicitud ausente en el informe",
     "DOSIS_NO_CARGADA": "Dosis del informe no guardada en Report",
+    "DOSIS_SIN_VERIFICAR": "Dosis que no se pudo comprobar (falta leer el PDF)",
     "ROTULACION_NO_CARGADA": "Dato del informe no guardado igual en Report",
     "PDF_DATO_DISTINTO": "Dato del PDF distinto al de la solicitud",
     "ROTULACION_DISTINTA": "Dato de rotulación distinto al de la solicitud",
@@ -232,11 +233,14 @@ def _dosis(toma: dict, informes: list[dict], productos: dict[int, list[dict]], l
                 out.append(_h("DOSIS_DISTINTA", ALTO, f"{cod}: la solicitud dice dosis «{dosis}» y el PDF del informe «{del_pdf[cod]}».", "Reclamar la corrección del informe."))
             elif cod not in en_report or (_num(del_pdf[cod]) is not None and abs(en_report[cod] - _num(del_pdf[cod])) > 0.01):
                 out.append(_h("DOSIS_NO_CARGADA", INFO, f"{cod}: el PDF trae la dosis «{del_pdf[cod]}» (coincide con la solicitud) pero Report no la guardó igual.", "Es de la carga a Report, no del laboratorio."))
-        elif _num(dosis) is not None:
-            if cod not in en_report:
-                out.append(_h("DOSIS_FALTA", MEDIO, f"{cod}: la solicitud anotó dosis {dosis} y Report no tiene dosis para el informe (el PDF no se releyó).", "Releer los PDF para confirmar."))
-            elif abs(en_report[cod] - _num(dosis)) > max(0.0005, abs(_num(dosis)) * 0.001):
+        elif cod in en_report and _num(dosis) is not None:
+            if abs(en_report[cod] - _num(dosis)) > max(0.0005, abs(_num(dosis)) * 0.001):
                 out.append(_h("DOSIS_DISTINTA", ALTO, f"{cod}: la solicitud dice dosis {dosis} y el informe {en_report[cod]:g}.", "Reclamar la corrección del informe."))
+        else:
+            # Sin lectura completa del PDF no se puede saber si el informe trae la dosis: que Report no la tenga NO es un error del laboratorio.
+            motivo = ("el PDF no se releyó en este análisis: vuelve a analizar con «Releer los PDF»" if lab == "agrofresh"
+                      else "todavía no se lee la dosis del PDF de este laboratorio (solo la de AgroFresh)")
+            out.append(_h("DOSIS_SIN_VERIFICAR", INFO, f"{cod}: la solicitud anotó dosis «{dosis}»; no se pudo comprobar contra el informe porque {motivo}.", "No es un reclamo: falta leer la dosis del PDF."))
     return out
 
 
