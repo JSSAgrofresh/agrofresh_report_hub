@@ -58,7 +58,7 @@ export function LoginView() {
         </div>
       </div>
 
-      <div className={styles.panelForm}>
+      <div className={styles.panelForm} style={{ ['--foto-movil' as string]: `url(${CARRUSEL[indice]})` }}>
         <div className={styles.tarjeta}>
           <img src={agrofreshLogo} alt="AgroFresh" className={styles.logoTarjeta} />
           <div className={styles.encabezado}>

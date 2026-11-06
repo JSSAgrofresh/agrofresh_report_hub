@@ -267,8 +267,25 @@
     display: none;
   }
 
+  /* En el teléfono no hay panel de marca: el fondo es la foto de fruta bajo un velo verde de la marca,
+     con la tarjeta flotando encima. */
+  .panelForm {
+    background:
+      radial-gradient(circle at 85% 8%, rgba(232, 195, 46, 0.3), transparent 42%),
+      linear-gradient(160deg, rgba(22, 36, 15, 0.9) 0%, rgba(44, 76, 30, 0.82) 55%, rgba(79, 122, 38, 0.7) 100%),
+      var(--foto-movil) center / cover no-repeat,
+      #24391a;
+    padding: var(--space-5) var(--space-4);
+  }
+
   .tarjeta {
     padding: 28px 22px;
+    box-shadow: 0 24px 50px -16px rgba(0, 0, 0, 0.55);
+    border-color: rgba(255, 255, 255, 0.25);
+  }
+
+  .legal {
+    color: rgba(255, 255, 255, 0.78);
   }
 
   .logoTarjeta {
