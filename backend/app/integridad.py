@@ -1,10 +1,10 @@
 """
 Integridad de datos: cada SOLICITUD que salió a un laboratorio contra el INFORME que ese laboratorio devolvió.
 
-Es la auditoría que el administrador usa para reclamar a los laboratorios. Para cada solicitud enviada (Toma de muestras)
-busca su informe (por la OT) y revisa, por laboratorio:
+Es la auditoría que el administrador usa para reclamar a los laboratorios. Lee cada solicitud (Toma de muestras) y su informe
+(por la OT) y comprueba que lo que llegó está bien, por laboratorio. NO mide plazos ni «solicitudes sin informe»: eso ya vive en
+Panel de control interno → Solicitudes e informes. Revisa:
 
-  · que EXISTA el informe y que haya llegado dentro del plazo del laboratorio (`SIN_INFORME` / `INFORME_ATRASADO`);
   · la IDENTIFICACIÓN: OT, Sold To, Ship To, especie, fecha de muestreo, servicio y laboratorio (`diagnostico_informes`);
   · los ANALITOS: los que se pidieron y no vinieron (`ANALITO_FALTA`) y los que vinieron sin pedirse (`ANALITO_DE_MAS`);
   · las DOSIS: la dosis que se anotó en la solicitud contra la que trae el informe (`DOSIS_DISTINTA`, `DOSIS_FALTA`);
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any
 
 from . import diagnostico_informes as di
@@ -26,9 +26,6 @@ from .homogenizar_converter import compacto
 from .mapeo import ALIAS_CODIGO_CATALOGO
 
 ALTO, MEDIO, INFO = di.ALTO, di.MEDIO, di.INFO
-
-# Días hábiles sin informe a partir de los cuales se avisa aunque el laboratorio no tenga plazo cargado.
-DIAS_SIN_PLAZO = 7
 
 # Datos de rotulación que el informe repite de la solicitud: (clave del informe en Report, clave de la solicitud, nombre visible).
 ROTULACION = (
@@ -59,18 +56,6 @@ def _fecha(v: Any) -> date | None:
     return None
 
 
-def dias_habiles(desde: date, hasta: date) -> int:
-    """Lunes a viernes entre dos fechas (sin feriados), como en el resto del sistema."""
-    if hasta <= desde:
-        return 0
-    n, d = 0, desde
-    while d < hasta:
-        d += timedelta(days=1)
-        if d.weekday() < 5:
-            n += 1
-    return n
-
-
 def _norm_codigo(codigo: Any) -> str:
     """El código del analito sin «ppm» y con su equivalente de catálogo (ECOLI = ECOLI100…)."""
     c = di._codigo(codigo)
@@ -98,8 +83,6 @@ def _h(codigo: str, gravedad: str, detalle: str, sugerencia: str = "", **extra: 
 
 # Texto de cada hallazgo para el reclamo (el PDF y la pantalla los agrupan por esto).
 TITULOS = {
-    "SIN_INFORME": "Solicitud enviada sin informe",
-    "INFORME_ATRASADO": "Informe fuera de plazo",
     "ANALITO_FALTA": "Analito pedido que el informe no trae",
     "ANALITO_DE_MAS": "Analito en el informe que no se pidió",
     "DOSIS_DISTINTA": "Dosis distinta a la de la solicitud",
@@ -141,14 +124,24 @@ def titulo_de(codigo: str) -> str:
 
 # ── Reglas nuevas ────────────────────────────────────────────────────────────
 
-def _analitos(toma: dict, informes: list[dict], resultados: dict[int, list[dict]], lab: str) -> list[dict]:
-    """Analitos pedidos contra los que trajeron los informes de esta OT (todos juntos: una OT puede tener varios informes)."""
+def _analitos(toma: dict, informes: list[dict], resultados: dict[int, list[dict]], lab: str, catalogo: list[dict] | None = None,
+              campos_pdf: dict[int, dict] | None = None) -> list[dict]:
+    """Analitos pedidos contra los que trajeron los informes de esta OT (todos juntos: una OT puede tener varios informes).
+
+    Con el PDF leído manda el PDF (los analitos de su tabla de resultados); sin él, lo que Report guardó."""
     pedidos_crudos = (toma.get("datos") or {}).get("analitos_solicitados") or []
     if not pedidos_crudos:
         return []
     pedidos = {_norm_codigo(c): c for c in pedidos_crudos if str(c).strip()}
     hay: dict[str, str] = {}
+    por_nombre = _codigos_por_nombre(catalogo or [])
     for inf in informes:
+        campos = (campos_pdf or {}).get(inf["id"])
+        if campos is not None and campos.get("resultados"):
+            for nombre in campos["resultados"]:
+                cod = por_nombre.get(_txt(nombre))
+                hay[cod or _norm_codigo(nombre)] = nombre
+            continue
         for r in resultados.get(inf["id"], []):
             cod = _norm_codigo(r.get("codigo") or r.get("analito_raw"))
             if cod:
@@ -331,32 +324,6 @@ def _identificacion_pdf(toma: dict, campos_pdf: dict[int, dict] | None, informes
     return out
 
 
-def _plazo_de(laboratorio: str, plazos: dict[str, int]) -> int | None:
-    """El plazo general del laboratorio; si solo hay por análisis, el más largo (no se reclama antes de tiempo)."""
-    lab = (laboratorio or "").split("(", 1)[0].strip().upper()
-    if lab in plazos:
-        return plazos[lab]
-    por_analisis = [d for k, d in plazos.items() if k.split("|", 1)[0].split("(", 1)[0].strip() == lab]
-    return max(por_analisis) if por_analisis else None
-
-
-def _sin_informe(toma: dict, hoy: date, plazos: dict[str, int]) -> list[dict]:
-    enviada = _fecha(toma.get("enviado_en"))
-    if enviada is None:
-        return []
-    dias = dias_habiles(enviada, hoy)
-    plazo = _plazo_de(toma.get("laboratorio") or "", plazos)
-    if plazo is not None:
-        if dias > plazo:
-            return [_h("INFORME_ATRASADO", ALTO, f"Salió al laboratorio el {enviada:%d-%m-%Y}; lleva {dias} días hábiles sin informe (plazo {plazo}).",
-                       "Reclamar el informe al laboratorio.", dias_habiles=dias, plazo=plazo)]
-        return []
-    if dias > DIAS_SIN_PLAZO:
-        return [_h("SIN_INFORME", MEDIO, f"Salió al laboratorio el {enviada:%d-%m-%Y}; lleva {dias} días hábiles sin informe y el laboratorio no tiene plazo cargado.",
-                   "Cargar el plazo del laboratorio o reclamar el informe.", dias_habiles=dias, plazo=None)]
-    return []
-
-
 # ── Análisis completo ────────────────────────────────────────────────────────
 
 def analizar(
@@ -365,15 +332,14 @@ def analizar(
     resultados: dict[int, list[dict]],
     productos: dict[int, list[dict]],
     catalogo: list[dict],
-    plazos: dict[str, int],
     hoy: date | None = None,
     ot_de_informe: dict[tuple[str, str], str] | None = None,
     leidos_pdf: dict[int, dict | None] | None = None,
     campos_pdf: dict[int, dict] | None = None,
 ) -> dict[str, Any]:
-    """Cruza cada solicitud enviada con sus informes. Devuelve {resumen, laboratorios, hallazgos, filas}.
+    """Cruza cada solicitud con sus informes y revisa lo que llegó. Devuelve {resumen, laboratorios, hallazgos}.
 
-    · `tomas`: solicitudes de Toma de muestras (ot, laboratorio, sold_to, ship_to, especie, fecha_muestreo, enviado_en, datos, es_prueba).
+    · `tomas`: solicitudes de Toma de muestras (ot, laboratorio, sold_to, ship_to, especie, fecha_muestreo, datos, es_prueba).
     · `informes`: filas de Report (`solicitud`) con su `referencia` (OT), laboratorio, nro_solicitud y rotulación.
     · `ot_de_informe`: {(laboratorio base, N° informe): OT} cuando el informe no guardó la OT (Quiteca) pero su PDF quedó amarrado a una.
     · `leidos_pdf`: {id del informe: {datos, resultados} leído del PDF, o None si no se pudo}; ausente = no se revisó el PDF.
@@ -407,7 +373,6 @@ def analizar(
             "ship_to": toma.get("ship_to"),
             "especie": toma.get("especie"),
             "fecha_muestreo": _fecha(toma.get("fecha_muestreo")).isoformat() if _fecha(toma.get("fecha_muestreo")) else None,
-            "enviada_en": _fecha(toma.get("enviado_en")).isoformat() if _fecha(toma.get("enviado_en")) else None,
         }
         hallazgos.append(fila)
         codigos_lab[lab][h["codigo"]] += 1
@@ -424,22 +389,12 @@ def analizar(
         lab = di.lab_base(lab_nombre)
         etiqueta = lab_nombre
         ot = str(toma.get("ot") or "").strip().upper()
-        enviada = _fecha(toma.get("enviado_en")) is not None
-        if not enviada:
-            por_lab[etiqueta]["sin_enviar"] += 1
-            continue
-        por_lab[etiqueta]["enviadas"] += 1
         infs = por_ot.get(ot, [])
         if not infs:
-            por_lab[etiqueta]["sin_informe"] += 1
-            for h in _sin_informe(toma, hoy, plazos):
-                if h["codigo"] == "INFORME_ATRASADO":
-                    por_lab[etiqueta]["atrasadas"] += 1
-                _agregar(h, toma, None, etiqueta)
-            continue
+            continue                      # sin informe: no es de este apartado (plazos y pendientes viven en Solicitudes e informes)
         por_lab[etiqueta]["con_informe"] += 1
         # Reglas de la solicitud contra el conjunto de sus informes.
-        for h in _analitos(toma, infs, resultados, lab) + _dosis(toma, infs, productos, lab, catalogo, campos_pdf) + _rotulacion(toma, infs, lab, campos_pdf) + _identificacion_pdf(toma, campos_pdf, infs):
+        for h in _analitos(toma, infs, resultados, lab, catalogo, campos_pdf) + _dosis(toma, infs, productos, lab, catalogo, campos_pdf) + _rotulacion(toma, infs, lab, campos_pdf) + _identificacion_pdf(toma, campos_pdf, infs):
             _agregar(h, toma, infs[0], etiqueta)
             informes_con_problema[etiqueta].update(i["id"] for i in infs)
         # Reglas de cada informe (identificación, coherencia interna y, si se pidió, su PDF).
@@ -472,8 +427,7 @@ def analizar(
         graves = [h for h in hallazgos if h["laboratorio"] == etiqueta and h["gravedad"] == ALTO]
         laboratorios.append({
             "laboratorio": etiqueta,
-            "enviadas": c["enviadas"], "sin_enviar": c["sin_enviar"],
-            "con_informe": c["con_informe"], "sin_informe": c["sin_informe"], "atrasadas": c["atrasadas"],
+            "solicitudes_revisadas": c["con_informe"],
             "informes_revisados": len(informes_revisados[etiqueta]),
             "informes_con_problema": len(informes_con_problema[etiqueta]),
             "solicitudes_con_problema": len(solicitudes_con_problema[etiqueta]),
@@ -485,10 +439,7 @@ def analizar(
     total_mal = sum(l["informes_con_problema"] for l in laboratorios)
     resumen = {
         "hoy": hoy.isoformat(),
-        "solicitudes_enviadas": sum(l["enviadas"] for l in laboratorios),
-        "con_informe": sum(l["con_informe"] for l in laboratorios),
-        "sin_informe": sum(l["sin_informe"] for l in laboratorios),
-        "atrasadas": sum(l["atrasadas"] for l in laboratorios),
+        "solicitudes_revisadas": sum(l["solicitudes_revisadas"] for l in laboratorios),
         "informes_revisados": total_rev,
         "informes_con_problema": total_mal,
         "informes_limpios": max(total_rev - total_mal, 0),

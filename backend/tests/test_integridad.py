@@ -9,7 +9,7 @@ HOY = date(2026, 11, 6)
 def _toma(ot="OT-QUI0001", lab="Quiteca", **extra):
     datos = {"analitos_solicitados": ["FDL", "PYR"], "campos_laboratorio": {}, "lote": "L7", "numero_orden": "55", **extra.pop("datos", {})}
     return {"ot": ot, "laboratorio": lab, "sold_to": "DOLE", "ship_to": "DOLE LONTUE", "especie": "Manzana",
-            "fecha_muestreo": date(2026, 10, 20), "enviado_en": date(2026, 10, 21), "datos": datos, **extra}
+            "fecha_muestreo": date(2026, 10, 20), "datos": datos, **extra}
 
 
 def _inf(id=1, ot="OT-QUI0001", lab="Quiteca", **extra):
@@ -24,8 +24,8 @@ def _res(*codigos):
     return [{"codigo": c, "analito_raw": c, "analito_id": 1, "valor_num": 0.1, "valor_texto": None} for c in codigos]
 
 
-def _correr(tomas, informes, resultados=None, productos=None, plazos=None):
-    return it.analizar(tomas, informes, resultados or {}, productos or {}, [], plazos or {}, hoy=HOY)
+def _correr(tomas, informes, resultados=None, productos=None):
+    return it.analizar(tomas, informes, resultados or {}, productos or {}, [], hoy=HOY)
 
 
 def _codigos(r):
@@ -35,7 +35,7 @@ def _codigos(r):
 def test_informe_completo_no_da_hallazgos():
     r = _correr([_toma()], [_inf()], {1: _res("FDL", "PYR")})
     assert r["hallazgos"] == []
-    assert r["resumen"]["con_informe"] == 1 and r["resumen"]["informes_limpios"] == 1
+    assert r["resumen"]["solicitudes_revisadas"] == 1 and r["resumen"]["informes_limpios"] == 1
 
 
 def test_analito_pedido_que_no_viene_es_alto():
@@ -76,28 +76,16 @@ def test_dosis_sin_lectura_del_pdf_no_se_reclama_pero_si_report_la_contradice():
                 {"codigo": "PYR", "nombre": "Pirimetanil", "unidad": "ppm", "laboratorio": "QUITECA", "activo": True, "orden": 2}]
     toma = _toma(datos={"campos_laboratorio": {"Fludioxonil (ppm)": "300", "Pirimetanil (ppm)": "200"}})
     prods = {1: [{"codigo": "FDL", "analito_raw": "FDL", "dosis": 250}]}
-    r = it.analizar([toma], [_inf()], {1: _res("FDL", "PYR")}, prods, catalogo, {}, hoy=HOY)
+    r = it.analizar([toma], [_inf()], {1: _res("FDL", "PYR")}, prods, catalogo, hoy=HOY)
     assert "DOSIS_DISTINTA" in _codigos(r)                       # Report guardó 250 y la solicitud dice 300: contradicción real
     sin = [h for h in r["hallazgos"] if h["codigo"] == "DOSIS_SIN_VERIFICAR"]
     assert sin and sin[0]["gravedad"] == it.INFO and "PYR" in sin[0]["detalle"]     # sin dosis en Report ni PDF leído: no es reclamo
     assert "DOSIS_FALTA" not in _codigos(r)
 
 
-def test_sin_informe_dentro_y_fuera_de_plazo():
-    dentro = _correr([_toma()], [], plazos={"QUITECA": 20})
-    fuera = _correr([_toma()], [], plazos={"QUITECA": 5})
-    assert dentro["hallazgos"] == [] and dentro["resumen"]["sin_informe"] == 1
-    assert [h["codigo"] for h in fuera["hallazgos"]] == ["INFORME_ATRASADO"] and fuera["resumen"]["atrasadas"] == 1
-
-
-def test_sin_plazo_cargado_avisa_pasados_los_dias_base():
-    r = _correr([_toma()], [])
-    assert _codigos(r) == {"SIN_INFORME"}
-
-
-def test_pruebas_y_no_enviadas_se_ignoran():
-    r = _correr([_toma(datos={"es_prueba": True}), _toma(ot="OT-QUI0002", enviado_en=None)], [])
-    assert r["hallazgos"] == [] and r["resumen"]["solicitudes_enviadas"] == 0
+def test_solicitud_sin_informe_y_pruebas_no_son_de_este_apartado():
+    r = _correr([_toma(), _toma(ot="OT-QUI0002", datos={"es_prueba": True})], [])
+    assert r["hallazgos"] == [] and r["resumen"]["solicitudes_revisadas"] == 0 and r["laboratorios"] == []
 
 
 def test_informe_con_ot_inexistente():
@@ -107,8 +95,8 @@ def test_informe_con_ot_inexistente():
 
 def test_ot_por_pdf_amarrado_cuando_el_informe_no_la_guardo():
     inf = _inf(referencia=None)
-    r = it.analizar([_toma()], [inf], {1: _res("FDL", "PYR")}, {}, [], {}, hoy=HOY, ot_de_informe={("quiteca", "2026-1900-PC"): "OT-QUI0001"})
-    assert r["resumen"]["con_informe"] == 1
+    r = it.analizar([_toma()], [inf], {1: _res("FDL", "PYR")}, {}, [], hoy=HOY, ot_de_informe={("quiteca", "2026-1900-PC"): "OT-QUI0001"})
+    assert r["resumen"]["solicitudes_revisadas"] == 1
 
 
 def test_resumen_por_laboratorio_y_filtro():
@@ -116,20 +104,14 @@ def test_resumen_por_laboratorio_y_filtro():
     infs = [_inf(), _inf(2, ot="OT-ALS0001", lab="ALS", nro_solicitud="INF-9")]
     r = _correr(tomas, infs, {1: _res("FDL"), 2: _res("ECOLI100")})
     por = {l["laboratorio"]: l for l in r["laboratorios"]}
-    assert por["Quiteca"]["altos"] >= 1 and por["ALS"]["con_informe"] == 1
+    assert por["Quiteca"]["altos"] >= 1 and por["ALS"]["solicitudes_revisadas"] == 1
     assert all(h["laboratorio"] == "Quiteca" for h in it.hallazgos_de(r, "quiteca"))
-
-
-def test_dias_habiles_no_cuenta_fines_de_semana():
-    assert it.dias_habiles(date(2026, 11, 6), date(2026, 11, 9)) == 1     # viernes → lunes
-    assert it.dias_habiles(date(2026, 11, 9), date(2026, 11, 6)) == 0
 
 
 # ── PDF, Excel y acceso ──────────────────────────────────────────────────────
 
 def _resultado_con_errores():
-    tomas = [_toma(), _toma(ot="OT-QUI0002", enviado_en=date(2026, 10, 1))]
-    return _correr(tomas, [_inf(lote="L9")], {1: _res("FDL")}, plazos={"QUITECA": 5})
+    return _correr([_toma()], [_inf(lote="L9")], {1: _res("FDL")})
 
 
 def test_pdf_por_laboratorio_sale_valido_y_sin_errores_tambien():
@@ -229,7 +211,7 @@ def _caso_agf(campos, report=None, datos_extra=None, productos=None):
     toma["datos"] = datos
     inf = _inf(ot="OT-AGF0113", lab="Agrofresh", **{"lote": None, "nro_orden": None, "sold_to": "FRUTICOLA DOSAL LTDA", "ship_to": "FRUTICOLA DOSAL LTDA",
                                                     "especie": "Cerezas", "fecha_muestreo": date(2026, 10, 23), **(report or {})})
-    return it.analizar([toma], [inf], {1: _res("FDL")}, productos or {}, CATALOGO, {}, hoy=HOY, campos_pdf={1: campos} if campos else None)
+    return it.analizar([toma], [inf], {1: _res("FDL")}, productos or {}, CATALOGO, hoy=HOY, campos_pdf={1: campos} if campos else None)
 
 
 def _campos_57():
@@ -285,3 +267,20 @@ def test_identificacion_del_pdf_contra_la_solicitud():
 def test_sin_pdf_se_compara_con_lo_que_guardo_report():
     r = _caso_agf(None, report={"lote": "7"})
     assert any(h["codigo"] == "ROTULACION_DISTINTA" and "Lote" in h["detalle"] for h in r["hallazgos"])
+
+
+def test_con_el_pdf_leido_los_analitos_informados_salen_del_pdf_no_de_report():
+    campos = _campos_57()                       # el PDF trae Fludioxonil
+    r = it.analizar([_caso_toma_agf()], [_caso_inf_agf()], {1: []}, {}, CATALOGO, hoy=HOY, campos_pdf={1: campos})   # Report sin resultados guardados
+    assert "ANALITO_FALTA" not in _codigos(r)
+    sin_pdf = it.analizar([_caso_toma_agf()], [_caso_inf_agf()], {1: []}, {}, CATALOGO, hoy=HOY)
+    assert "ANALITO_FALTA" in _codigos(sin_pdf)
+
+
+def _caso_toma_agf():
+    return {**_toma(ot="OT-AGF0113", lab="Agrofresh", datos={"analitos_solicitados": ["FDL"], "campos_laboratorio": {}}),
+            "sold_to": "FRUTICOLA DOSAL LTDA", "ship_to": "FRUTICOLA DOSAL LTDA", "especie": "Cerezas", "fecha_muestreo": date(2026, 10, 23)}
+
+
+def _caso_inf_agf():
+    return _inf(ot="OT-AGF0113", lab="Agrofresh", lote=None, nro_orden=None, sold_to="FRUTICOLA DOSAL LTDA", ship_to="FRUTICOLA DOSAL LTDA", especie="Cerezas", fecha_muestreo=date(2026, 10, 23))

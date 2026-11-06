@@ -34,7 +34,6 @@ _SQL_TOMAS = """
     FROM solicitud_archivo
     WHERE btrim(COALESCE(numero_solicitud, '')) <> '' AND COALESCE(datos->>'es_prueba', '') <> 'true'
 """
-_SQL_ENVIOS = "SELECT archivo, min(creado_en) AS t FROM envio_solicitud_log WHERE exitoso GROUP BY archivo"
 _SQL_INFORMES = """
     SELECT s.*, COALESCE(c.nombre, s.sold_to_raw) AS sold_to, COALESCE(p.nombre, s.ship_to_raw) AS ship_to
     FROM solicitud s
@@ -90,12 +89,9 @@ def _pdf_leido(r2_key: str | None, laboratorio: str, catalogo: list[dict] | None
 
 def correr_analisis(con_pdf: bool, avanzar=lambda texto: None) -> dict[str, Any]:
     """Lee todas las fuentes y devuelve el resultado de `integridad.analizar`."""
-    from .entrega_indicadores import leer_reglas
-
     avanzar("Leyendo solicitudes e informes…")
     with conexion(escribir=False) as conn, cursor_dict(conn) as cur:
         tomas = _leer(cur, _SQL_TOMAS)
-        envios = {f["archivo"]: f["t"] for f in _leer(cur, _SQL_ENVIOS, opcional=True)}
         informes = _leer(cur, _SQL_INFORMES)
         resultados: dict[int, list[dict]] = defaultdict(list)
         for r in _leer(cur, _SQL_RESULTADOS):
@@ -106,9 +102,6 @@ def correr_analisis(con_pdf: bool, avanzar=lambda texto: None) -> dict[str, Any]
         catalogo = [dict(a) for a in _leer(cur, _SQL_CATALOGO, opcional=True)]
         auditoria = _leer(cur, _SQL_PDF, opcional=True)
 
-    for t in tomas:
-        d = t.get("datos") or {}
-        t["enviado_en"] = envios.get(t["archivo"]) or d.get("enviado_en")
     ot_de_informe = {(f["lab"].split("(", 1)[0].strip(), f["nro"]): f["ot"] for f in auditoria if f.get("ot") and f.get("nro")}
 
     leidos: dict[int, dict | None] | None = None
@@ -123,7 +116,7 @@ def correr_analisis(con_pdf: bool, avanzar=lambda texto: None) -> dict[str, Any]
             if n % 25 == 0:
                 avanzar(f"Leyendo PDF: {n} de {len(pendientes)}…")
     avanzar("Comparando solicitudes con informes…")
-    return it.analizar(tomas, informes, resultados, productos, catalogo, leer_reglas()["plazos"], hoy=date.today(), ot_de_informe=ot_de_informe, leidos_pdf=leidos, campos_pdf=campos_pdf)
+    return it.analizar(tomas, informes, resultados, productos, catalogo, hoy=date.today(), ot_de_informe=ot_de_informe, leidos_pdf=leidos, campos_pdf=campos_pdf)
 
 
 # ── Guardado y ejecución en segundo plano ────────────────────────────────────

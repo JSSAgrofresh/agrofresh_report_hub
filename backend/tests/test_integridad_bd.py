@@ -54,9 +54,9 @@ def test_el_analisis_completo_encuentra_lo_que_falta_y_lo_distinto():
     codigos = {(h["ot"], h["codigo"]) for h in mios}
     assert (OT, "ANALITO_FALTA") in codigos          # se pidió PYR y el informe trae solo FDL
     assert (OT, "ROTULACION_DISTINTA") in codigos    # lote L7 contra L9
-    assert (OT_SIN, "SIN_INFORME") in codigos        # enviada hace 39 días sin informe
+    assert not [c for c in codigos if c[0] == OT_SIN]    # la solicitud sin informe no es de este apartado
     quiteca = next(l for l in r["laboratorios"] if l["laboratorio"] == "Quiteca")
-    assert quiteca["con_informe"] >= 1 and quiteca["sin_informe"] >= 1
+    assert quiteca["solicitudes_revisadas"] >= 1
 
 
 def test_se_guarda_y_se_lee_con_filtros():
@@ -65,7 +65,7 @@ def test_se_guarda_y_se_lee_con_filtros():
     api.ejecutar(aid, False)
     with conexion(escribir=False) as c, cursor_dict(c) as cur:
         a = api._ultimo(cur, con_hallazgos=True, analisis_id=aid)
-    assert a["estado"] == "listo" and a["resumen"]["solicitudes_enviadas"] >= 2
+    assert a["estado"] == "listo" and a["resumen"]["solicitudes_revisadas"] >= 1
     assert any(h["codigo"] == "ANALITO_FALTA" for h in a["hallazgos"])
     # una segunda petición mientras hay uno en curso no abre otro
     aid2, _ = api._iniciar(False, "manual", "zztest")
