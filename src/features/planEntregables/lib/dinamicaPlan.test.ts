@@ -38,7 +38,7 @@ describe('construirDinamica', () => {
     expect(arbol.map((n) => n.nombre)).toEqual(['DOLE CHILE S.A.', 'MACE SA', 'CLIENTE NUEVO'])
     expect(cliente('DOLE CHILE S.A.')).toMatchObject({ nivel: 'cliente', comercial: 'LABARCA', tipo: 'Estratégico' })
     expect(cliente('MACE SA')).toMatchObject({ comercial: 'TRAVERSO', tipo: 'Preferente' })
-    expect(cliente('DOLE CHILE S.A.').hijos.map((p) => p.nombre)).toEqual(['DOLE LONTUE', 'DOLE CODEGUA', 'Sin cruzar con una planta del plan'])
+    expect(cliente('DOLE CHILE S.A.').hijos.map((p) => p.nombre)).toEqual(['DOLE LONTUE', 'DOLE CODEGUA', '-'])
   })
 
   it('cada celda lleva lo propuesto y lo hecho de su semana', () => {
