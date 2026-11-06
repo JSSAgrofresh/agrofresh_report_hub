@@ -310,3 +310,16 @@ html[data-mejoras][data-tema="oscuro"] aside[class*="_sidebar_"] div[class*="_av
 /* El marco de la página sigue transparente en oscuro (el fondo lo pone el degradado de <body>). */
 html[data-mejoras][data-tema="oscuro"] [class*="_shell_"],
 html[data-mejoras][data-tema="oscuro"] [class*="_cuerpo_"] {background-color:transparent!important}
+
+/* La etiqueta del banner con foto (AreaHero) comparte nombre con otras `_etiqueta_` y el tema oscuro generado
+   le ponía una franja negra detrás de «POST VENTA»: es solo texto sobre la foto. */
+html[data-mejoras][data-tema="oscuro"] div[class*="_hero_"] > span[class*="_etiqueta_"] {
+  background-color: transparent !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Trace y Converter son páginas estáticas claras dentro de un iframe: en oscuro se invierten (con el tono
+   devuelto) para no quedar como una lámina blanca. Las fotos no se usan ahí. */
+html[data-mejoras][data-tema="oscuro"] iframe[class*="_iframe_"] {
+  filter: invert(0.9) hue-rotate(180deg);
+}
