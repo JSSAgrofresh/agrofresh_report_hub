@@ -1,7 +1,7 @@
 """
 Análisis de integridad de datos (solicitudes contra informes de los laboratorios), pensado para correr cada noche.
 
-Hace lo mismo que el botón «Analizar ahora» de Administración General → Integridad de datos: compara cada solicitud enviada con su
+Hace lo mismo que el botón «Analizar ahora» de Administración General → Integridad de datos: compara cada solicitud con su
 informe, relee los PDF de AgroFresh, Quiteca y Diagnofruit y guarda el resultado (migración 0075) para verlo en la pantalla y emitir el
 informe de errores por laboratorio. SOLO LEE: no cambia solicitudes ni informes.
 
@@ -41,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"El análisis falló: {(fila or {}).get('error')}")
         return 1
     r = fila["resumen"]
-    print(f"Listo. Solicitudes enviadas: {r['solicitudes_enviadas']} · con informe: {r['con_informe']} · sin informe: {r['sin_informe']} · "
+    print(f"Listo. Solicitudes revisadas: {r['solicitudes_revisadas']} · "
           f"informes con errores: {r['informes_con_problema']} de {r['informes_revisados']} · graves: {r['hallazgos_altos']} · a revisar: {r['hallazgos_medios']}")
     return 0
 

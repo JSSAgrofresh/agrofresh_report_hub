@@ -53,7 +53,7 @@ def generar_pdf(laboratorio: str, resultado: dict[str, Any], hallazgos: list[dic
     historia: list[Any] = []
 
     logo = Image(_RUTA_LOGO, width=75, height=30) if os.path.isfile(_RUTA_LOGO) else ""
-    cab = Table([[logo, [_p("Informe de errores de integridad de datos", titulo), _p(f"Laboratorio {laboratorio} · solicitudes de AgroFresh contra los informes entregados", sub)]]],
+    cab = Table([[logo, [_p("Informe de errores de integridad de datos", titulo), _p(f"Laboratorio {laboratorio} · solicitudes de AgroFresh contra los informes recibidos", sub)]]],
                 colWidths=[3 * cm, ancho - 3 * cm])
     cab.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LINEBELOW", (0, 0), (-1, 0), 1.2, VERDE), ("BOTTOMPADDING", (0, 0), (-1, 0), 6)]))
     historia += [cab, Spacer(1, 6)]
@@ -64,13 +64,12 @@ def generar_pdf(laboratorio: str, resultado: dict[str, Any], hallazgos: list[dic
     graves = [h for h in hallazgos if h["gravedad"] == it.ALTO]
     medios = [h for h in hallazgos if h["gravedad"] == it.MEDIO]
     revisados, mal = lab.get("informes_revisados", 0), lab.get("informes_con_problema", 0)
-    cifras = [["Solicitudes enviadas", lab.get("enviadas", 0)], ["Con informe", lab.get("con_informe", 0)], ["Sin informe", lab.get("sin_informe", 0)],
-              ["Informes revisados", revisados], ["Informes con errores", mal], ["Errores graves", len(graves)], ["A revisar", len(medios)]]
-    cifras.append(["Informes sin errores", max(revisados - mal, 0)])
+    cifras = [["Solicitudes revisadas", lab.get("solicitudes_revisadas", 0)], ["Informes revisados", revisados], ["Informes con errores", mal],
+              ["Informes sin errores", max(revisados - mal, 0)], ["Errores graves", len(graves)], ["A revisar", len(medios)]]
     valor = ParagraphStyle("v", parent=base, fontSize=15, leading=18)
-    celdas = [[_p(k, chico) for k, _ in cifras[i:i + 4]] for i in (0, 4)]
-    nums = [[Paragraph(f"<b>{v}</b>", valor) for _, v in cifras[i:i + 4]] for i in (0, 4)]
-    t = Table([celdas[0], nums[0], celdas[1], nums[1]], colWidths=[ancho / 4] * 4)
+    celdas = [[_p(k, chico) for k, _ in cifras[i:i + 3]] for i in (0, 3)]
+    nums = [[Paragraph(f"<b>{v}</b>", valor) for _, v in cifras[i:i + 3]] for i in (0, 3)]
+    t = Table([celdas[0], nums[0], celdas[1], nums[1]], colWidths=[ancho / 3] * 3)
     t.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#c8d1dc")), ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e3e7ee")),
                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f7fa")), ("BACKGROUND", (0, 2), (-1, 2), colors.HexColor("#f5f7fa")), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
     historia += [t, Spacer(1, 6)]
@@ -138,24 +137,24 @@ def generar_excel(laboratorio: str | None, resultado: dict[str, Any], hallazgos:
     wb = Workbook()
     ws = wb.active
     ws.title = "Resumen"
-    ws.append(["Laboratorio", "Enviadas", "Con informe", "Sin informe", "Atrasadas", "Informes revisados", "Informes con errores", "Graves", "A revisar"])
+    ws.append(["Laboratorio", "Solicitudes revisadas", "Informes revisados", "Informes con errores", "Graves", "A revisar"])
     for l in resultado.get("laboratorios", []):
         if laboratorio and it.di.lab_base(l["laboratorio"]) != it.di.lab_base(laboratorio):
             continue
-        ws.append([l["laboratorio"], l["enviadas"], l["con_informe"], l["sin_informe"], l["atrasadas"], l["informes_revisados"], l["informes_con_problema"], l["altos"], l["medios"]])
+        ws.append([l["laboratorio"], l["solicitudes_revisadas"], l["informes_revisados"], l["informes_con_problema"], l["altos"], l["medios"]])
     ws2 = wb.create_sheet("Hallazgos")
-    ws2.append(["Gravedad", "Tipo de error", "Laboratorio", "OT", "N° informe", "Sold To", "Ship To", "Especie", "Muestreo", "Enviada al lab.", "Detalle", "Qué se solicita"])
+    ws2.append(["Gravedad", "Tipo de error", "Laboratorio", "OT", "N° informe", "Sold To", "Ship To", "Especie", "Muestreo", "Detalle", "Qué se solicita"])
     for h in hallazgos:
         ws2.append([NOMBRE_GRAVEDAD[h["gravedad"]], it.titulo_de(h["codigo"]), h["laboratorio"], h.get("ot"), h.get("informe"), h.get("sold_to"), h.get("ship_to"),
-                    h.get("especie"), h.get("fecha_muestreo"), h.get("enviada_en"), h.get("detalle"), h.get("sugerencia")])
+                    h.get("especie"), h.get("fecha_muestreo"), h.get("detalle"), h.get("sugerencia")])
     for hoja in (ws, ws2):
         for c in hoja[1]:
             c.font = Font(bold=True, color="FFFFFF")
             c.fill = PatternFill("solid", fgColor="3F6B2A")
         for i in range(1, hoja.max_column + 1):
             hoja.column_dimensions[get_column_letter(i)].width = 22
-    ws2.column_dimensions["K"].width = 90
-    ws2.column_dimensions["L"].width = 50
+    ws2.column_dimensions["J"].width = 90
+    ws2.column_dimensions["K"].width = 50
     ws2.auto_filter.ref = ws2.dimensions
     ws2.freeze_panes = "A2"
     buf = io.BytesIO()

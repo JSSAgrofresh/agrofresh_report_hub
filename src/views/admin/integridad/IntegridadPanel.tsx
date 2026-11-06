@@ -127,8 +127,9 @@ export function IntegridadPanel() {
       <section className={styles.tarjeta} aria-label="Integridad de datos">
         <h2 className={styles.titulo}>Integridad de datos: solicitudes contra informes</h2>
         <p className={styles.texto}>
-          Cada solicitud que salió a un laboratorio se compara con su informe: que exista y llegue dentro del plazo, que traiga los analitos y las dosis pedidos,
-          que repita la rotulación de la muestra (lote, cámara, orden, posición…) y que Sold To, Ship To, especie y fecha coincidan. Con esto se emite el informe de errores por laboratorio.
+          Lee cada solicitud y el informe que llegó de su laboratorio y comprueba que lo que llegó está bien: que traiga los analitos y las dosis pedidos, que repita los datos
+          de la muestra (lote, cámara, orden, posición, productor, packing, producto…) y que Sold To, Ship To, especie y fecha coincidan. Con esto se emite el informe de errores por
+          laboratorio. Los plazos y las solicitudes pendientes se ven en Panel de control interno → Solicitudes e informes.
         </p>
         <div className={styles.barra}>
           <Button onClick={() => analizar(false)} disabled={lanzando || enCurso}>{enCurso ? 'Analizando…' : 'Analizar ahora'}</Button>
@@ -151,10 +152,9 @@ export function IntegridadPanel() {
       {r && (
         <>
           <ul className={styles.cifras} aria-label="Resumen">
-            <li><b>{nf.format(r.solicitudes_enviadas)}</b><span>Solicitudes enviadas</span></li>
-            <li><b>{nf.format(r.con_informe)}</b><span>Con informe</span></li>
-            <li className={r.sin_informe ? styles.media : undefined}><b>{nf.format(r.sin_informe)}</b><span>Sin informe ({nf.format(r.atrasadas)} fuera de plazo)</span></li>
+            <li><b>{nf.format(r.solicitudes_revisadas)}</b><span>Solicitudes revisadas</span></li>
             <li><b>{nf.format(r.informes_revisados)}</b><span>Informes revisados</span></li>
+            <li><b>{nf.format(r.informes_limpios)}</b><span>Informes sin errores</span></li>
             <li className={r.informes_con_problema ? styles.alta : undefined}><b>{nf.format(r.informes_con_problema)}</b><span>Informes con errores</span></li>
             <li className={`${styles.tocable} ${r.hallazgos_altos ? styles.alta : ''}`}><button type="button" onClick={() => verErrores('', 'alto')}><b>{nf.format(r.hallazgos_altos)}</b><span>Errores graves · ver</span></button></li>
             <li className={`${styles.tocable} ${r.hallazgos_medios ? styles.media : ''}`}><button type="button" onClick={() => verErrores('', 'medio')}><b>{nf.format(r.hallazgos_medios)}</b><span>A revisar · ver</span></button></li>
@@ -166,18 +166,16 @@ export function IntegridadPanel() {
               <table className={styles.tabla}>
                 <thead>
                   <tr>
-                    <th>Laboratorio</th><th className={styles.num}>Enviadas</th><th className={styles.num}>Con informe</th><th className={styles.num}>Sin informe</th>
-                    <th className={styles.num}>Revisados</th><th className={styles.num}>Con errores</th><th className={styles.num}>Graves</th><th className={styles.num}>A revisar</th><th>Informe de errores</th>
+                    <th>Laboratorio</th><th className={styles.num}>Solicitudes</th>
+                    <th className={styles.num}>Informes</th><th className={styles.num}>Con errores</th><th className={styles.num}>Graves</th><th className={styles.num}>A revisar</th><th>Informe de errores</th>
                   </tr>
                 </thead>
                 <tbody>
                   {labs.map((l) => (
                     <tr key={l.laboratorio}>
                       <td className={styles.lab} data-label="Laboratorio">{l.laboratorio}</td>
-                      <td className={styles.num} data-label="Enviadas">{nf.format(l.enviadas)}</td>
-                      <td className={styles.num} data-label="Con informe">{nf.format(l.con_informe)}</td>
-                      <td className={styles.num} data-label="Sin informe">{nf.format(l.sin_informe)}{l.atrasadas ? ` (${l.atrasadas} atrasadas)` : ''}</td>
-                      <td className={styles.num} data-label="Revisados">{nf.format(l.informes_revisados)}</td>
+                      <td className={styles.num} data-label="Solicitudes">{nf.format(l.solicitudes_revisadas)}</td>
+                      <td className={styles.num} data-label="Informes">{nf.format(l.informes_revisados)}</td>
                       <td className={styles.num} data-label="Con errores">{nf.format(l.informes_con_problema)} · {porcentajeConErrores(l)} %</td>
                       <td className={styles.num} data-label="Graves">{nf.format(l.altos)}</td>
                       <td className={styles.num} data-label="A revisar">{nf.format(l.medios)}</td>

@@ -5,11 +5,7 @@ export type Gravedad = 'alto' | 'medio' | 'info'
 
 export interface ResumenLaboratorio {
   laboratorio: string
-  enviadas: number
-  sin_enviar: number
-  con_informe: number
-  sin_informe: number
-  atrasadas: number
+  solicitudes_revisadas: number
   informes_revisados: number
   informes_con_problema: number
   solicitudes_con_problema: number
@@ -20,10 +16,7 @@ export interface ResumenLaboratorio {
 
 export interface ResumenGeneral {
   hoy: string
-  solicitudes_enviadas: number
-  con_informe: number
-  sin_informe: number
-  atrasadas: number
+  solicitudes_revisadas: number
   informes_revisados: number
   informes_con_problema: number
   informes_limpios: number
@@ -65,7 +58,6 @@ export interface HallazgoIntegridad {
   ship_to: string | null
   especie: string | null
   fecha_muestreo: string | null
-  enviada_en: string | null
 }
 
 export interface TipoHallazgo {

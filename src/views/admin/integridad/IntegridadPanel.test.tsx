@@ -12,12 +12,12 @@ const api = vi.hoisted(() => ({
 vi.mock('@/features/integridad', async (original) => ({ ...(await original<object>()), ...api }))
 
 const lab = (laboratorio: string, altos: number) => ({
-  laboratorio, enviadas: 10, sin_enviar: 0, con_informe: 8, sin_informe: 2, atrasadas: 1, informes_revisados: 8,
+  laboratorio, solicitudes_revisadas: 8, informes_revisados: 8,
   informes_con_problema: 3, solicitudes_con_problema: 3, altos, medios: 2, por_codigo: {},
 })
-const resumen = { hoy: '2026-11-06', solicitudes_enviadas: 20, con_informe: 16, sin_informe: 4, atrasadas: 2, informes_revisados: 16, informes_con_problema: 5, informes_limpios: 11, hallazgos_altos: 7, hallazgos_medios: 3, pdf_revisado: true }
+const resumen = { hoy: '2026-11-06', solicitudes_revisadas: 16, informes_revisados: 16, informes_con_problema: 5, informes_limpios: 11, hallazgos_altos: 7, hallazgos_medios: 3, pdf_revisado: true }
 const ultimo = { id: 1, iniciado_en: '2026-11-06T03:00:00Z', terminado_en: '2026-11-06T03:05:00Z', origen: 'nocturno', usuario: null, con_pdf: true, estado: 'listo', avance: 'Listo', resumen, laboratorios: [lab('Quiteca', 4), lab('ALS', 1)] }
-const hallazgo = { codigo: 'ANALITO_FALTA', titulo: 'Analito pedido que el informe no trae', gravedad: 'alto', detalle: 'Se pidió y el informe no trae: PYR.', sugerencia: 'Reclamar', laboratorio: 'Quiteca', ot: 'OT-QUI0053', informe: '2026-1914-PC', sold_to: 'AGROVIC', ship_to: 'PLANTA 1', especie: 'Cereza', fecha_muestreo: '2026-10-20', enviada_en: '2026-10-21' }
+const hallazgo = { codigo: 'ANALITO_FALTA', titulo: 'Analito pedido que el informe no trae', gravedad: 'alto', detalle: 'Se pidió y el informe no trae: PYR.', sugerencia: 'Reclamar', laboratorio: 'Quiteca', ot: 'OT-QUI0053', informe: '2026-1914-PC', sold_to: 'AGROVIC', ship_to: 'PLANTA 1', especie: 'Cereza', fecha_muestreo: '2026-10-20' }
 
 beforeEach(() => {
   Object.values(api).forEach((f) => f.mockReset())

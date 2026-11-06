@@ -3,7 +3,7 @@ import type { ResumenLaboratorio } from './api'
 import { ordenarLaboratorios, porcentajeConErrores } from './formato'
 
 const lab = (laboratorio: string, altos: number, con: number, rev = 10): ResumenLaboratorio => ({
-  laboratorio, enviadas: 0, sin_enviar: 0, con_informe: 0, sin_informe: 0, atrasadas: 0,
+  laboratorio, solicitudes_revisadas: 0,
   informes_revisados: rev, informes_con_problema: con, solicitudes_con_problema: 0, altos, medios: 0, por_codigo: {},
 })
 
