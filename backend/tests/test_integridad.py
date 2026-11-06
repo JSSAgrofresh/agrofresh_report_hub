@@ -175,3 +175,42 @@ def test_todas_las_rutas_de_integridad_exigen_al_principal():
     for ruta in router.routes:
         dependencias = [d.call.__name__ for d in ruta.dependant.dependencies]
         assert "exigir_principal" in dependencias, ruta.path
+
+
+# ── Dosis que viene en el PDF del informe (caso OT-AGF0113 / AGF2026-57) ─────
+
+TEXTO_AGF = """ANALITO SOLICITADO DOSIS ANALITO SOLICITADO DOSIS
+Fludioxonil 150
+
+
+
+
+3. RECEPCIÓN Y ANÁLISIS
+CÓD. INTERNO MUESTRA AGF0057"""
+CATALOGO = [{"codigo": "FDL", "nombre": "Fludioxonil", "unidad": "ppm", "laboratorio": "AGROFRESH", "activo": True, "orden": 1},
+            {"codigo": "PYR", "nombre": "Pirimetanil", "unidad": "ppm", "laboratorio": "AGROFRESH", "activo": True, "orden": 2}]
+
+
+def test_la_dosis_del_pdf_se_lee_de_la_tabla_de_dos_columnas():
+    assert it.dosis_de_texto(TEXTO_AGF, CATALOGO) == {"FDL": 150.0}
+    dos = TEXTO_AGF.replace("Fludioxonil 150", "Fludioxonil 150   Pirimetanil 22,5")
+    assert it.dosis_de_texto(dos, CATALOGO) == {"FDL": 150.0, "PYR": 22.5}
+    assert it.dosis_de_texto("sin tabla", CATALOGO) == {}
+
+
+def _caso_agf(dosis_pdf, productos=None):
+    toma = _toma(ot="OT-AGF0113", lab="Agrofresh", datos={"analitos_solicitados": ["FDL"], "campos_laboratorio": {"Fludioxonil (ppm)": "150"}, "lote": None, "numero_orden": None})
+    inf = _inf(ot="OT-AGF0113", lab="Agrofresh", lote=None, nro_orden=None)
+    return it.analizar([toma], [inf], {1: _res("FDL")}, productos or {}, CATALOGO, {}, hoy=HOY, dosis_pdf=dosis_pdf)
+
+
+def test_si_el_pdf_trae_la_dosis_no_se_reclama_aunque_report_no_la_guardo():
+    r = _caso_agf({1: {"FDL": 150.0}})
+    assert "DOSIS_FALTA" not in _codigos(r)
+    h = [h for h in r["hallazgos"] if h["codigo"] == "DOSIS_NO_CARGADA"]
+    assert h and h[0]["gravedad"] == it.INFO
+
+
+def test_sin_dosis_ni_en_el_pdf_ni_en_report_si_se_reclama_y_si_el_pdf_difiere_tambien():
+    assert "DOSIS_FALTA" in _codigos(_caso_agf({1: {}}))
+    assert "DOSIS_DISTINTA" in _codigos(_caso_agf({1: {"FDL": 100.0}}))

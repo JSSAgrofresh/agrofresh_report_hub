@@ -61,18 +61,28 @@ def _leer(cur, sql: str, params: tuple = (), opcional: bool = False) -> list[dic
         return []
 
 
-def _pdf_leido(r2_key: str | None, laboratorio: str):
-    """{datos, resultados} del PDF con el lector del Converter, o None si no se pudo."""
+def _pdf_leido(r2_key: str | None, laboratorio: str, catalogo: list[dict] | None = None):
+    """(lectura, dosis): lo que lee el Converter del PDF ({datos, resultados}, o None si no se pudo) y la tabla de dosis del informe."""
     from . import correo_informes_homogeneo as hom, r2_auditoria as r2a
+    from .informe_lectura import texto_quiteca
 
     nombre = LABS_PDF.get(di.lab_base(laboratorio))
     if not r2_key or not nombre or not r2a.disponible():
-        return None
+        return None, {}
     try:
         datos = r2a.descargar(r2_key)
-        return hom.leer(datos, nombre) if datos else None
+    except Exception:  # noqa: BLE001
+        return None, {}
+    if not datos:
+        return None, {}
+    try:
+        dosis = it.dosis_de_texto(texto_quiteca(datos), catalogo or []) if di.lab_base(laboratorio) in it.LABS_CON_DOSIS else {}
     except Exception:  # noqa: BLE001 — un PDF raro no frena el análisis
-        return None
+        dosis = {}
+    try:
+        return hom.leer(datos, nombre), dosis
+    except Exception:  # noqa: BLE001
+        return None, dosis
 
 
 def correr_analisis(con_pdf: bool, avanzar=lambda texto: None) -> dict[str, Any]:
@@ -99,16 +109,18 @@ def correr_analisis(con_pdf: bool, avanzar=lambda texto: None) -> dict[str, Any]
     ot_de_informe = {(f["lab"].split("(", 1)[0].strip(), f["nro"]): f["ot"] for f in auditoria if f.get("ot") and f.get("nro")}
 
     leidos: dict[int, dict | None] | None = None
+    dosis_pdf: dict[int, dict[str, float]] | None = None
     if con_pdf:
         claves = {(f["lab"].split("(", 1)[0].strip(), f["nro"]): f["r2_key"] for f in auditoria if f.get("r2_key")}
         leidos = {}
+        dosis_pdf = {}
         pendientes = [i for i in informes if di.lab_base(i.get("laboratorio")) in LABS_PDF]
         for n, inf in enumerate(pendientes, 1):
-            leidos[inf["id"]] = _pdf_leido(claves.get((di.lab_base(inf["laboratorio"]), str(inf.get("nro_solicitud") or "").strip())), inf["laboratorio"])
+            leidos[inf["id"]], dosis_pdf[inf["id"]] = _pdf_leido(claves.get((di.lab_base(inf["laboratorio"]), str(inf.get("nro_solicitud") or "").strip())), inf["laboratorio"], catalogo)
             if n % 25 == 0:
                 avanzar(f"Leyendo PDF: {n} de {len(pendientes)}…")
     avanzar("Comparando solicitudes con informes…")
-    return it.analizar(tomas, informes, resultados, productos, catalogo, leer_reglas()["plazos"], hoy=date.today(), ot_de_informe=ot_de_informe, leidos_pdf=leidos)
+    return it.analizar(tomas, informes, resultados, productos, catalogo, leer_reglas()["plazos"], hoy=date.today(), ot_de_informe=ot_de_informe, leidos_pdf=leidos, dosis_pdf=dosis_pdf)
 
 
 # ── Guardado y ejecución en segundo plano ────────────────────────────────────
