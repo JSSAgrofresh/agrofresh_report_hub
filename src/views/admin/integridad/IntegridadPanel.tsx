@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import {
   analizarIntegridad,
@@ -40,6 +40,7 @@ export function IntegridadPanel() {
   const [tipos, setTipos] = useState<TipoHallazgo[]>([])
   const [total, setTotal] = useState(0)
   const [cargandoLista, setCargandoLista] = useState(false)
+  const listaRef = useRef<HTMLElement>(null)
 
   const leerEstado = useCallback(async () => {
     try {
@@ -104,6 +105,14 @@ export function IntegridadPanel() {
     }
   }
 
+  /** Filtra la lista de errores y lleva la pantalla hasta ella (en el teléfono queda varias pantallas más abajo). */
+  function verErrores(laboratorio: string, g: Gravedad | '' = '') {
+    setFiltroLab(laboratorio)
+    setGravedad(g)
+    setCodigo('')
+    requestAnimationFrame(() => listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+
   async function bajar(accion: () => Promise<void>) {
     setError(null)
     try { await accion() } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo descargar.') }
@@ -147,8 +156,8 @@ export function IntegridadPanel() {
             <li className={r.sin_informe ? styles.media : undefined}><b>{nf.format(r.sin_informe)}</b><span>Sin informe ({nf.format(r.atrasadas)} fuera de plazo)</span></li>
             <li><b>{nf.format(r.informes_revisados)}</b><span>Informes revisados</span></li>
             <li className={r.informes_con_problema ? styles.alta : undefined}><b>{nf.format(r.informes_con_problema)}</b><span>Informes con errores</span></li>
-            <li className={r.hallazgos_altos ? styles.alta : undefined}><b>{nf.format(r.hallazgos_altos)}</b><span>Errores graves</span></li>
-            <li className={r.hallazgos_medios ? styles.media : undefined}><b>{nf.format(r.hallazgos_medios)}</b><span>A revisar</span></li>
+            <li className={`${styles.tocable} ${r.hallazgos_altos ? styles.alta : ''}`}><button type="button" onClick={() => verErrores('', 'alto')}><b>{nf.format(r.hallazgos_altos)}</b><span>Errores graves · ver</span></button></li>
+            <li className={`${styles.tocable} ${r.hallazgos_medios ? styles.media : ''}`}><button type="button" onClick={() => verErrores('', 'medio')}><b>{nf.format(r.hallazgos_medios)}</b><span>A revisar · ver</span></button></li>
           </ul>
 
           <section className={styles.tarjeta} aria-label="Por laboratorio">
@@ -164,17 +173,17 @@ export function IntegridadPanel() {
                 <tbody>
                   {labs.map((l) => (
                     <tr key={l.laboratorio}>
-                      <td className={styles.lab}>{l.laboratorio}</td>
-                      <td className={styles.num}>{nf.format(l.enviadas)}</td>
-                      <td className={styles.num}>{nf.format(l.con_informe)}</td>
-                      <td className={styles.num}>{nf.format(l.sin_informe)}{l.atrasadas ? ` (${l.atrasadas} atrasadas)` : ''}</td>
-                      <td className={styles.num}>{nf.format(l.informes_revisados)}</td>
-                      <td className={styles.num}>{nf.format(l.informes_con_problema)} · {porcentajeConErrores(l)} %</td>
-                      <td className={styles.num}>{nf.format(l.altos)}</td>
-                      <td className={styles.num}>{nf.format(l.medios)}</td>
-                      <td>
+                      <td className={styles.lab} data-label="Laboratorio">{l.laboratorio}</td>
+                      <td className={styles.num} data-label="Enviadas">{nf.format(l.enviadas)}</td>
+                      <td className={styles.num} data-label="Con informe">{nf.format(l.con_informe)}</td>
+                      <td className={styles.num} data-label="Sin informe">{nf.format(l.sin_informe)}{l.atrasadas ? ` (${l.atrasadas} atrasadas)` : ''}</td>
+                      <td className={styles.num} data-label="Revisados">{nf.format(l.informes_revisados)}</td>
+                      <td className={styles.num} data-label="Con errores">{nf.format(l.informes_con_problema)} · {porcentajeConErrores(l)} %</td>
+                      <td className={styles.num} data-label="Graves">{nf.format(l.altos)}</td>
+                      <td className={styles.num} data-label="A revisar">{nf.format(l.medios)}</td>
+                      <td className={styles.accionesCelda}>
                         <div className={styles.acciones}>
-                          <Button variant="secondary" onClick={() => setFiltroLab(l.laboratorio)}>Ver errores</Button>
+                          <Button onClick={() => verErrores(l.laboratorio)}>Ver errores</Button>
                           <Button variant="secondary" onClick={() => bajar(() => descargarPdfIntegridad(l.laboratorio))}>PDF</Button>
                           <Button variant="secondary" onClick={() => bajar(() => descargarExcelIntegridad(l.laboratorio))}>Excel</Button>
                         </div>
@@ -186,7 +195,7 @@ export function IntegridadPanel() {
             </div>
           </section>
 
-          <section className={styles.tarjeta} aria-label="Errores encontrados">
+          <section className={styles.tarjeta} aria-label="Errores encontrados" ref={listaRef}>
             <h2 className={styles.titulo}>Errores encontrados ({nf.format(total)})</h2>
             <div className={styles.filtros}>
               <label>Laboratorio
@@ -225,14 +234,14 @@ export function IntegridadPanel() {
                   <tbody>
                     {lista.map((h, i) => (
                       <tr key={`${h.ot}-${h.informe}-${h.codigo}-${i}`}>
-                        <td><span className={`${styles.pildora} ${CLASE_GRAVEDAD[h.gravedad]}`}>{NOMBRE_GRAVEDAD[h.gravedad]}</span></td>
-                        <td>{h.titulo}</td>
-                        <td>{h.laboratorio}</td>
-                        <td>{h.ot ?? '—'}</td>
-                        <td>{h.informe ?? '—'}</td>
-                        <td>{h.sold_to ?? '—'}<span className={styles.sub}>{h.ship_to ?? ''}</span></td>
-                        <td>{h.especie ?? '—'}</td>
-                        <td className={styles.detalle}>{h.detalle}{h.sugerencia ? <span className={styles.sub}>{h.sugerencia}</span> : null}</td>
+                        <td data-label="Gravedad"><span className={`${styles.pildora} ${CLASE_GRAVEDAD[h.gravedad]}`}>{NOMBRE_GRAVEDAD[h.gravedad]}</span></td>
+                        <td data-label="Tipo">{h.titulo}</td>
+                        <td data-label="Laboratorio">{h.laboratorio}</td>
+                        <td data-label="OT">{h.ot ?? '—'}</td>
+                        <td data-label="Informe">{h.informe ?? '—'}</td>
+                        <td data-label="Cliente / planta">{h.sold_to ?? '—'}<span className={styles.sub}>{h.ship_to ?? ''}</span></td>
+                        <td data-label="Especie">{h.especie ?? '—'}</td>
+                        <td className={styles.detalle} data-label="Detalle">{h.detalle}{h.sugerencia ? <span className={styles.sub}>{h.sugerencia}</span> : null}</td>
                       </tr>
                     ))}
                   </tbody>
