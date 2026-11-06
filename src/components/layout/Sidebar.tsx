@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import type { ComponentType, CSSProperties, SVGProps } from 'react'
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import agrofreshLogo from '@/assets/agrofresh-logo.png'
 import { useAuth } from '@/features/auth'
 import { AREAS } from '@/constants/areas'
 import { GRUPO_DATACORE } from '@/constants/modules'
@@ -285,15 +284,12 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
         style={estiloSidebar}
       >
         <div className={styles.brand}>
-          <svg className={styles.iconoGrafico} viewBox="0 0 28 20" fill="none" aria-hidden="true">
+          <svg className={styles.iconoGrafico} viewBox="0 0 28 20" fill="none" role="img" aria-label="AgroFresh">
             <rect x="0"  y="10" width="5" height="10" rx="1.5" fill="#5a9430"/>
             <rect x="7"  y="5"  width="5" height="15" rx="1.5" fill="#6dad3c"/>
             <rect x="14" y="1"  width="5" height="19" rx="1.5" fill="#8dc85a"/>
             <rect x="21" y="7"  width="5" height="13" rx="1.5" fill="#e8c32e"/>
           </svg>
-          <span className={styles.marco}>
-            <img src={agrofreshLogo} alt="AgroFresh" className={styles.logo} />
-          </span>
           <button
             type="button"
             className={styles.plegar}
