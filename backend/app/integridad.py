@@ -391,16 +391,15 @@ def analizar(
         etiqueta = lab_nombre
         ot = str(toma.get("ot") or "").strip().upper()
         infs = por_ot.get(ot, [])
+        # El primer formato de AgroFresh (AGF0001…, sin secciones numeradas) no se audita: la auditoría parte del segundo formato.
+        viejos = [i for i in infs if ((campos_pdf or {}).get(i["id"]) or {}).get("formato", 2) == 1]
+        informes_formato_anterior += len(viejos)
+        infs = [i for i in infs if i not in viejos]
         if not infs:
             continue                      # sin informe: no es de este apartado (plazos y pendientes viven en Solicitudes e informes)
         por_lab[etiqueta]["con_informe"] += 1
         # Reglas de la solicitud contra el conjunto de sus informes.
-        # Los informes del primer formato de AgroFresh no traen dosis ni recepción ni los datos de la muestra completos: no se les reclama eso.
-        nuevos = [i for i in infs if ((campos_pdf or {}).get(i["id"]) or {}).get("formato", 2) != 1]
-        fmt1 = len(infs) - len(nuevos)
-        informes_formato_anterior += fmt1
-        revisables = (_dosis(toma, nuevos, productos, lab, catalogo, campos_pdf) + _rotulacion(toma, nuevos, lab, campos_pdf)) if nuevos else []
-        for h in _analitos(toma, infs, resultados, lab, catalogo, campos_pdf) + revisables + _identificacion_pdf(toma, campos_pdf, infs):
+        for h in _analitos(toma, infs, resultados, lab, catalogo, campos_pdf) + _dosis(toma, infs, productos, lab, catalogo, campos_pdf) + _rotulacion(toma, infs, lab, campos_pdf) + _identificacion_pdf(toma, campos_pdf, infs):
             _agregar(h, toma, infs[0], etiqueta)
             informes_con_problema[etiqueta].update(i["id"] for i in infs)
         # Reglas de cada informe (identificación, coherencia interna y, si se pidió, su PDF).
