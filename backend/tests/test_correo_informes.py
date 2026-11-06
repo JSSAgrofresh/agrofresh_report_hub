@@ -58,13 +58,14 @@ def test_quiteca_1913_a_su_lista_queda_ok():
     assert filas[0]["estado"] == "ok"
 
 
-def test_el_1914_que_salio_a_otro_cliente_queda_en_rojo():
-    """El caso real: el informe de Agrovic (OT-QUI0053) salió a cuatro personas de unifrutti.com."""
+def test_el_1914_que_salio_a_otro_cliente_avisa_pero_no_bloquea():
+    """El caso real: el informe de Agrovic (OT-QUI0053) salió a cuatro personas de unifrutti.com.
+    Desde 06-11-2026 la gente de más es un aviso amarillo, no un bloqueo."""
     _, filas, _ = _examinar("quiteca_1914.eml", {"OT-QUI0053": ("c.xlsx", AGROVIC)}, {"OT-QUI0053": PLAN_AGROVIC})
     f = filas[0]
-    assert f["estado"] == "rojo" and f["ot"] == "OT-QUI0053"
+    assert f["estado"] == "amarillo" and f["ot"] == "OT-QUI0053"
     codigos = {h["codigo"]: h for h in f["hallazgos"]}
-    assert codigos["destinatarios_de_mas"]["nivel"] == "rojo"
+    assert codigos["destinatarios_de_mas"]["nivel"] == "amarillo"
     assert "patricio.caceres@unifrutti.com" in codigos["destinatarios_de_mas"]["texto"]
     assert codigos["faltan_destinatarios"]["nivel"] == "amarillo"
     assert "contacto@agrovic.cl" in codigos["faltan_destinatarios"]["texto"]
