@@ -104,6 +104,7 @@ TITULOS = {
     "ANALITO_DE_MAS": "Analito en el informe que no se pidió",
     "DOSIS_DISTINTA": "Dosis distinta a la de la solicitud",
     "DOSIS_FALTA": "Dosis de la solicitud ausente en el informe",
+    "DOSIS_NO_CARGADA": "Dosis del informe no guardada en Report",
     "ROTULACION_DISTINTA": "Dato de rotulación distinto al de la solicitud",
     "ROTULACION_FALTA": "Dato de rotulación que el informe no trae",
     "SIN_OT": "Informe sin OT",
@@ -161,6 +162,25 @@ def _analitos(toma: dict, informes: list[dict], resultados: dict[int, list[dict]
     return out
 
 
+def dosis_de_texto(texto: str, catalogo: list[dict]) -> dict[str, float]:
+    """{código normalizado: dosis} de la tabla «ANALITO SOLICITADO / DOSIS» del PDF de un informe (AgroFresh la repite de la solicitud).
+
+    La tabla va en dos columnas («Fludioxonil 150   Pirimetanil 200»); se lee en orden y cada nombre se une a su código por el catálogo.
+    Un «Solicitado» sin cifra no es una dosis y se ignora."""
+    m = re.search(r"ANALITO\s+SOLICITADO(.*?)(?:\n\s*3\.\s*RECEPCI|\Z)", texto or "", flags=re.S | re.I)
+    if not m:
+        return {}
+    cuerpo = re.sub(r"ANALITO\s+SOLICITADO|DOSIS", " ", m.group(1), flags=re.I)
+    por_nombre = {_txt(a.get("nombre")): _norm_codigo(a.get("codigo")) for a in catalogo if a.get("nombre") and a.get("codigo")}
+    out: dict[str, float] = {}
+    for nombre, cifra in re.findall(r"([^\d\n]+?)\s+(\d+(?:[.,]\d+)?)(?=\s|$)", cuerpo):
+        cod = por_nombre.get(_txt(nombre))
+        n = _num(cifra)
+        if cod and n is not None:
+            out.setdefault(cod, n)
+    return out
+
+
 def _dosis_pedidas(toma: dict, catalogo: list[dict]) -> dict[str, float]:
     """{código normalizado: dosis} que se anotó en la solicitud (solo los analitos pedidos con una dosis numérica)."""
     from .solicitud_excel import _valor_guardado
@@ -182,7 +202,7 @@ def _dosis_pedidas(toma: dict, catalogo: list[dict]) -> dict[str, float]:
     return out
 
 
-def _dosis(toma: dict, informes: list[dict], productos: dict[int, list[dict]], lab: str, catalogo: list[dict]) -> list[dict]:
+def _dosis(toma: dict, informes: list[dict], productos: dict[int, list[dict]], lab: str, catalogo: list[dict], dosis_pdf: dict[int, dict[str, float]] | None = None) -> list[dict]:
     if lab not in LABS_CON_DOSIS:
         return []
     pedidas = _dosis_pedidas(toma, catalogo)
@@ -194,8 +214,18 @@ def _dosis(toma: dict, informes: list[dict], productos: dict[int, list[dict]], l
             cod = _norm_codigo(p.get("codigo") or p.get("analito_raw"))
             if cod and p.get("dosis") is not None:
                 en_informe[cod] = float(p["dosis"])
+    # Lo que dice el PDF del informe es lo reclamable; Report puede no haber guardado la dosis aunque el informe la traiga.
+    del_pdf: dict[str, float] = {}
+    for inf in informes:
+        del_pdf.update((dosis_pdf or {}).get(inf["id"], {}))
     out: list[dict] = []
     for cod, dosis in sorted(pedidas.items()):
+        if cod in del_pdf:
+            if abs(del_pdf[cod] - dosis) > max(0.0005, abs(dosis) * 0.001):
+                out.append(_h("DOSIS_DISTINTA", ALTO, f"{cod}: la solicitud dice dosis {dosis:g} y el PDF del informe {del_pdf[cod]:g}.", "Reclamar la corrección del informe."))
+            elif cod not in en_informe:
+                out.append(_h("DOSIS_NO_CARGADA", INFO, f"{cod}: el informe trae la dosis {dosis:g} (coincide con la solicitud) pero Report no la guardó.", "Es de la carga a Report, no del laboratorio."))
+            continue
         if cod not in en_informe:
             out.append(_h("DOSIS_FALTA", MEDIO, f"{cod}: la solicitud anotó dosis {dosis:g} y el informe no la trae.", "Pedir que el informe incluya la dosis aplicada."))
         elif abs(en_informe[cod] - dosis) > max(0.0005, abs(dosis) * 0.001):
@@ -266,6 +296,7 @@ def analizar(
     hoy: date | None = None,
     ot_de_informe: dict[tuple[str, str], str] | None = None,
     leidos_pdf: dict[int, dict | None] | None = None,
+    dosis_pdf: dict[int, dict[str, float]] | None = None,
 ) -> dict[str, Any]:
     """Cruza cada solicitud enviada con sus informes. Devuelve {resumen, laboratorios, hallazgos, filas}.
 
@@ -334,7 +365,7 @@ def analizar(
             continue
         por_lab[etiqueta]["con_informe"] += 1
         # Reglas de la solicitud contra el conjunto de sus informes.
-        for h in _analitos(toma, infs, resultados, lab) + _dosis(toma, infs, productos, lab, catalogo) + _rotulacion(toma, infs, lab):
+        for h in _analitos(toma, infs, resultados, lab) + _dosis(toma, infs, productos, lab, catalogo, dosis_pdf) + _rotulacion(toma, infs, lab):
             _agregar(h, toma, infs[0], etiqueta)
             informes_con_problema[etiqueta].update(i["id"] for i in infs)
         # Reglas de cada informe (identificación, coherencia interna y, si se pidió, su PDF).
