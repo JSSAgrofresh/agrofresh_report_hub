@@ -580,7 +580,7 @@ th.colAnalitos {
   margin-bottom: var(--space-3);
 }
 
-.filtrosGrafico label {
+.filtrosGrafico > label {
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -666,3 +666,17 @@ th.colAnalitos {
 /* Sobrio: menos relieve, bordes finos y radios parejos. */
 .tablaCard { box-shadow: none; border-radius: 12px; }
 .avisoSim { border-radius: 10px; }
+
+.seccionPagina { display: flex; flex-direction: column; gap: var(--space-4, 16px); scroll-margin-top: 140px; }
+.soloEsteGrafico {
+  align-self: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px dashed var(--color-border-strong);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}

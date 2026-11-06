@@ -108,15 +108,13 @@ export function Detalle({ informe, onCambio }: { informe: InformeCorreo; onCambi
                     ? styles.destOk
                     : f.tipo === 'falta'
                       ? styles.destFalta
-                      : f.interno
-                        ? styles.destInterno
-                        : styles.destDemas
+                      : styles.destInterno
                 }
               >
-                <span aria-hidden="true">{f.tipo === 'esperado' ? '✓' : f.tipo === 'falta' ? '!' : '✕'}</span>
+                <span aria-hidden="true">{f.tipo === 'esperado' ? '✓' : '!'}</span>
                 {f.correo}
                 <em>
-                  {f.tipo === 'esperado' ? 'llegó' : f.tipo === 'falta' ? 'no llegó' : f.interno ? 'copia interna de más' : 'no está en la lista'}
+                  {f.tipo === 'esperado' ? 'llegó' : f.tipo === 'falta' ? 'no llegó' : f.interno ? 'copia interna de más' : 'además de la lista'}
                 </em>
               </li>
             ))}

@@ -95,11 +95,9 @@ describe('IndicadoresEntrega', () => {
     expect(screen.queryByText(/solicitudes llegaron/)).toBeNull()
   })
 
-  it('el flujo se puede filtrar por laboratorio', () => {
-    render(<IndicadoresEntrega solicitudes={[...solicitudes, sol('4', { laboratorio: 'ALS' })]} />)
-    const select = screen.getByLabelText('Laboratorio del flujo') as HTMLSelectElement
-    expect(Array.from(select.options).map((o) => o.value)).toEqual(['', 'ALS', 'QUITECA'])
-    fireEvent.change(select, { target: { value: 'ALS' } })
+  it('el flujo se filtra por el laboratorio que llega desde la barra de filtros de la página', () => {
+    render(<IndicadoresEntrega solicitudes={[...solicitudes, sol('4', { laboratorio: 'ALS' })]} laboratorio="ALS" />)
+    expect(screen.queryByLabelText('Laboratorio del flujo')).toBeNull()
     expect(screen.getAllByText('1 solicitud llegó').length).toBeGreaterThan(0)
   })
 

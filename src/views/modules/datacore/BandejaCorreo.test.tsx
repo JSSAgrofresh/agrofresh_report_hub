@@ -95,7 +95,7 @@ describe('BandejaCorreo', () => {
     expect(await screen.findByText('contacto@agrovic.cl')).toBeInTheDocument()
     expect(screen.getByText('no llegó')).toBeInTheDocument()
     expect(screen.getByText('patricio.caceres@unifrutti.com')).toBeInTheDocument()
-    expect(screen.getByText('no está en la lista')).toBeInTheDocument()
+    expect(screen.getByText('además de la lista')).toBeInTheDocument()
     expect(screen.queryByText('agrofreshreporthub@gmail.com')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ver el PDF' })).toBeInTheDocument()
   })

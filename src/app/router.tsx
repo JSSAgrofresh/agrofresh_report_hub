@@ -17,6 +17,7 @@ import { AgrofreshLabHubView } from '@/views/modules/lab/AgrofreshLabHubView'
 import { VerificacionesView } from '@/views/modules/lab/verificaciones/VerificacionesView'
 import { VerificacionesHistoricoView } from '@/views/modules/lab/verificaciones/VerificacionesHistoricoView'
 import { CriteriosView } from '@/views/modules/lab/verificaciones/CriteriosView'
+import { InventarioView } from '@/views/modules/lab/inventario/InventarioView'
 import { EnvioInformesView } from '@/views/modules/lab/envioInformes/EnvioInformesView'
 import { DataCoreView } from '@/views/modules/datacore/DataCoreView'
 import { StorageView } from '@/views/modules/storage/StorageView'
@@ -125,6 +126,11 @@ export const router = createBrowserRouter([
                     children: [{ path: ROUTES.agrofreshLabVerificacionesCriterios, element: <CriteriosView /> }],
                   },
                 ],
+              },
+              // El inventario es una función suelta: la asigna el administrador general cuenta por cuenta.
+              {
+                element: <RequireFuncion funcion="lab_inventario" />,
+                children: [{ path: ROUTES.agrofreshLabInventario, element: <InventarioView /> }],
               },
               {
                 element: <RequireSeccionLab seccion="lab_envio" />,

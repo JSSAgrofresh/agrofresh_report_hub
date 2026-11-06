@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/features/auth'
 import { esAdminGeneral } from '@/features/usuarios'
 import { Button } from '@/components/ui/Button'
@@ -10,6 +10,7 @@ import {
   TIPO_ECOFOG,
   TIPO_LINEA,
   TIPO_RYD,
+  claveLaboratorio,
   contarFiltros,
   filtrarSolicitudes,
   opcionesDeFiltros,
@@ -26,12 +27,10 @@ import type { AnalisisVisible, AreaPivote, DimensionGrafico, FiltrosSolicitudes,
 import { DonaTipoServicio, TarjetaGrafico } from './Graficos'
 import { AuditoriaHero } from './AuditoriaHero'
 import { PanelFiltros } from './PanelFiltros'
-import { SelectorArea } from './SelectorArea'
 import { IndicadoresEntrega } from './IndicadoresEntrega'
 import { ResumenConcretadas } from './ResumenConcretadas'
 import { InformesPorLaboratorio } from './InformesPorLaboratorio'
 import { usePlanEntregables } from '@/features/planEntregables'
-import { MultiSelectFiltro } from '@/components/ui/MultiSelectFiltro'
 import { AnalisisPorCliente } from './AnalisisPorCliente'
 import { DinamicaPlan } from './DinamicaPlan'
 import { GraficosPlan } from './GraficosPlan'
@@ -46,6 +45,17 @@ const ANALISIS_BOTONES: { clave: AnalisisVisible; texto: string; color: string; 
   { clave: 'fsma', texto: 'FSMA', color: COLOR_LAB.ALS, ayuda: 'ALS' },
   { clave: 'fito', texto: 'FITO', color: COLOR_LAB.DIAGNOFRUIT, ayuda: 'Diagnofruit' },
 ]
+
+/** Las secciones de la página: la barra de filtros muestra los controles de la que se está mirando. */
+type Seccion = 'resumen' | 'servicio' | 'cliente' | 'lead'
+const ID_SECCION: Record<Seccion, string> = { resumen: 'sec-resumen', servicio: 'sec-servicio', cliente: 'sec-cliente', lead: 'sec-lead' }
+const ORDEN_SECCIONES: Seccion[] = ['resumen', 'servicio', 'cliente', 'lead']
+const TITULO_SECCION: Record<Seccion, string> = {
+  resumen: '',
+  servicio: 'Tipo de servicio y laboratorio',
+  cliente: 'Análisis por cliente',
+  lead: 'Lead time',
+}
 
 const DIMENSIONES: { valor: DimensionGrafico; texto: string; por: string; corto?: string }[] = [
   { valor: 'cliente', texto: 'Sold To', por: 'cliente' },
@@ -72,14 +82,13 @@ export function SolicitudesInformesView() {
   // null = ver todo (lo predeterminado)
   const [area, setArea] = useState<AreaPivote | null>(null)
   const [dimension, setDimension] = useState<DimensionGrafico>('cliente')
-  // Filtros propios del gráfico por grupo, encima de los del panel.
-  const [filtroGrafico, setFiltroGrafico] = useState<{ cliente: string[]; planta: string[]; especie: string[]; tipo: string[] }>({ cliente: [], planta: [], especie: [], tipo: [] })
   const [topClientes, setTopClientes] = useState(10)
+  // Laboratorio del flujo del lead time (se elige en la barra de filtros cuando se mira esa sección).
+  const [labLead, setLabLead] = useState('')
+  const [seccionVista, setSeccionVista] = useState<Seccion>('resumen')
   // «Totales» (la tabla de siempre) o «Por semana» (lo hecho contra lo que tocaba cada semana, con el plan).
   const [vistaPlan, setVistaPlan] = useState<'total' | 'semana'>('total')
   const plan = usePlanEntregables()
-  // El plan es por Sold To: con un Ship To, especie o tipo elegidos el avance no se puede calcular y se esconde.
-  const hayFiltroPlanta = filtroGrafico.planta.length > 0 || filtroGrafico.especie.length > 0 || filtroGrafico.tipo.length > 0
   const [analisisVisibles, setAnalisisVisibles] = useState<AnalisisVisible[]>(['residuales', 'fsma', 'fito'])
   // Siempre queda al menos uno prendido: sin ninguno no habría nada que mirar.
   const alternarAnalisis = (a: AnalisisVisible) =>
@@ -94,21 +103,135 @@ export function SolicitudesInformesView() {
   const ecofog = useMemo(() => resumenPorTipo(alcance, TIPO_ECOFOG), [alcance])
   const lineaProceso = useMemo(() => resumenPorTipo(alcance, TIPO_LINEA), [alcance])
   const ryd = useMemo(() => resumenPorTipo(alcance, TIPO_RYD), [alcance])
-  const filtrosGrafico = useMemo(() => ({ ...FILTROS_VACIOS, ...filtroGrafico }), [filtroGrafico])
   // Este gráfico no lleva RYD (es de AgroFresh, va aparte) ni solicitudes sin Sold To.
   const alcanceCliente = useMemo(
     () => alcance.filter((s) => tipoServicioDe(s) !== TIPO_RYD && (s.sold_to ?? '').trim() !== ''),
     [alcance],
   )
-  const opcionesGrafico = useMemo(() => opcionesDeFiltros(alcanceCliente, filtrosGrafico), [alcanceCliente, filtrosGrafico])
-  const alcanceGrafico = useMemo(() => filtrarSolicitudes(alcanceCliente, filtrosGrafico, { estado: true }), [alcanceCliente, filtrosGrafico])
+  // Los filtros generales de arriba ya acotaron todo: el gráfico solo decide cómo agrupar y cuánto mostrar.
+  const alcanceGrafico = alcanceCliente
   const filasTabla = useMemo(
     () => soloAnalisis(porClienteResiduosFsmaFito(alcanceGrafico, dimension), analisisVisibles).slice(0, topClientes > 0 ? topClientes : undefined),
     [alcanceGrafico, dimension, topClientes, analisisVisibles],
   )
-  const cambiarFiltroGrafico = (clave: keyof typeof filtroGrafico, valor: string[]) =>
-    setFiltroGrafico((f) => ({ ...f, [clave]: valor, ...(clave === 'cliente' ? { planta: [] } : {}) }))
   const nombreDimension = DIMENSIONES.find((d) => d.valor === dimension)!
+
+  const labsLead = useMemo(() => {
+    const set = new Set<string>()
+    alcance.forEach((x) => { const l = claveLaboratorio(x.laboratorio); if (l) set.add(l) })
+    return [...set].sort()
+  }, [alcance])
+
+  const hayContenido = tot.emitidas > 0
+  useEffect(() => {
+    if (!hayContenido) return
+    let cuadro = 0
+    const medir = () => {
+      cuadro = 0
+      const barra = document.querySelector('[data-pegado="true"]')
+      const linea = (barra?.getBoundingClientRect().bottom ?? 0) + 140
+      let actual: Seccion = 'resumen'
+      for (const c of ORDEN_SECCIONES) {
+        const el = document.getElementById(ID_SECCION[c])
+        if (el && el.getBoundingClientRect().top <= linea) actual = c
+      }
+      setSeccionVista(actual)
+    }
+    const pedir = () => {
+      if (!cuadro) cuadro = requestAnimationFrame(medir)
+    }
+    window.addEventListener('scroll', pedir, { passive: true })
+    window.addEventListener('resize', pedir)
+    pedir()
+    return () => {
+      window.removeEventListener('scroll', pedir)
+      window.removeEventListener('resize', pedir)
+      if (cuadro) cancelAnimationFrame(cuadro)
+    }
+  }, [hayContenido])
+
+
+  // Los controles propios de cada sección viven en la barra de filtros (apartado «Específicos») y cambian según la sección que se mira.
+  const controlesCliente = (
+      <div className={styles.barraGrafico}>
+      <div className={styles.grupoBarra}>
+        <span>Agrupar por</span>
+        <div className={styles.segmentadoChico} role="group" aria-label="Agrupar por">
+          {DIMENSIONES.map((d) => (
+            <button key={d.valor} type="button" aria-pressed={dimension === d.valor} className={dimension === d.valor ? styles.segActivo : ''} onClick={() => setDimension(d.valor)}>
+              {d.corto ?? d.texto}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className={styles.grupoBarra}>
+        <span>Mostrar</span>
+        <select className={styles.selectChico} aria-label="Cuántos mostrar" value={topClientes} onChange={(e) => setTopClientes(Number(e.target.value))}>
+          <option value={10}>Top 10</option>
+          <option value={20}>Top 20</option>
+          <option value={0}>Todos</option>
+        </select>
+      </div>
+      {dimension === 'cliente' && plan && (
+        <>
+          <span className={styles.separadorBarra} aria-hidden="true" />
+          <div className={styles.grupoBarra}>
+            <span>Vista</span>
+            <div className={styles.segmentadoChico} role="group" aria-label="Vista del plan">
+              <button type="button" aria-pressed={vistaPlan === 'total'} className={vistaPlan === 'total' ? styles.segActivo : ''} onClick={() => setVistaPlan('total')}>Totales</button>
+              <button type="button" aria-pressed={vistaPlan === 'semana'} className={vistaPlan === 'semana' ? styles.segActivo : ''} onClick={() => setVistaPlan('semana')}>Por semana</button>
+            </div>
+          </div>
+        </>
+      )}
+      <span className={styles.separadorBarra} aria-hidden="true" />
+      <div className={styles.grupoBarra}>
+        <span>Análisis</span>
+        <div className={styles.chipsAnalisis} role="group" aria-label="Análisis a mostrar">
+          {ANALISIS_BOTONES.map((a) => {
+            const activo = analisisVisibles.includes(a.clave)
+            return (
+              <button
+                key={a.clave}
+                type="button"
+                aria-pressed={activo}
+                title={activo ? `Ocultar ${a.texto} (${a.ayuda})` : `Mostrar ${a.texto} (${a.ayuda})`}
+                className={`${styles.chipAnalisis} ${activo ? styles.chipAnalisisOn : ''}`}
+                style={{ '--tono': a.color } as React.CSSProperties}
+                onClick={() => alternarAnalisis(a.clave)}
+              >
+                {a.texto}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+  const controlesArea = (
+    <div className={styles.barraGrafico}>
+      <div className={styles.grupoBarra}>
+        <span>Área</span>
+        <div className={styles.segmentadoChico} role="group" aria-label="Área">
+          {([[null, 'Todas'], ['operaciones', 'Operaciones'], ['rd', 'R&D']] as [AreaPivote | null, string][]).map(([v, t]) => (
+            <button key={t} type="button" aria-pressed={area === v} className={area === v ? styles.segActivo : ''} onClick={() => setArea(v)}>{t}</button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+  const controlesLead = (
+    <div className={styles.barraGrafico}>
+      <div className={styles.grupoBarra}>
+        <span>Laboratorio del flujo</span>
+        <select className={styles.selectChico} aria-label="Laboratorio del flujo" value={labLead} onChange={(e) => setLabLead(e.target.value)}>
+          <option value="">Todos</option>
+          {labsLead.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+      </div>
+    </div>
+  )
+  const especificos = tot.emitidas === 0 ? null : seccionVista === 'servicio' ? controlesArea : seccionVista === 'cliente' ? controlesCliente : seccionVista === 'lead' && !simulando ? controlesLead : null
 
   const hayFiltros = contarFiltros(filtros) > 0
   const primeraCarga = !todas && !error
@@ -163,9 +286,11 @@ export function SolicitudesInformesView() {
 
       {todas && (
         <div className={cargando && !simulando ? styles.recargando : styles.contenido}>
-          <PanelFiltros filtros={filtros} onChange={(f) => setFiltros(f)} opciones={opciones} datos={todas} />
-          <ResumenConcretadas totales={tot} />
-          <InformesPorLaboratorio solicitudes={alcance} />
+          <PanelFiltros filtros={filtros} onChange={(f) => setFiltros(f)} opciones={opciones} datos={todas} coinciden={alcance.length} especificos={especificos} tituloEspecificos={TITULO_SECCION[seccionVista]} />
+          <div id={ID_SECCION.resumen} className={styles.seccionPagina}>
+            <ResumenConcretadas totales={tot} />
+            <InformesPorLaboratorio solicitudes={alcance} />
+          </div>
 
           {tot.emitidas === 0 ? (
             <div className={styles.vacio}>
@@ -176,8 +301,7 @@ export function SolicitudesInformesView() {
             </div>
           ) : (
             <>
-              <SelectorArea area={area} onChange={setArea} />
-              <div className={styles.panel}>
+              <div id={ID_SECCION.servicio} className={styles.panel}>
                 <div className={styles.lateral}>
                   {area !== 'rd' && <DonaTipoServicio tipo={TIPO_LINEA} resumen={lineaProceso} />}
                   {area !== 'rd' && <DonaTipoServicio tipo={TIPO_ACTIMIST} resumen={actimist} />}
@@ -187,90 +311,33 @@ export function SolicitudesInformesView() {
                 <TablaDinamica solicitudes={alcance} filtros={filtros} tipos={tiposDeArea(area)} />
               </div>
 
+              <div id={ID_SECCION.cliente} className={styles.seccionPagina}>
               <TarjetaGrafico
                 titulo={`Análisis por ${nombreDimension.por}`}
-                leyenda={
-                  <div className={styles.barraGrafico}>
-                    <div className={styles.filtrosGrafico}>
-                      <MultiSelectFiltro etiqueta="Sold To" opciones={opcionesGrafico.clientes} valores={filtroGrafico.cliente} onChange={(v) => cambiarFiltroGrafico('cliente', v)} />
-                      <MultiSelectFiltro etiqueta="Ship To" opciones={opcionesGrafico.plantas} valores={filtroGrafico.planta} onChange={(v) => cambiarFiltroGrafico('planta', v)} />
-                      <MultiSelectFiltro etiqueta="Especie" opciones={opcionesGrafico.especies} valores={filtroGrafico.especie} onChange={(v) => cambiarFiltroGrafico('especie', v)} />
-                      <MultiSelectFiltro etiqueta="Tipo de servicio" opciones={opcionesGrafico.tipos} valores={filtroGrafico.tipo} onChange={(v) => cambiarFiltroGrafico('tipo', v)} />
-                    </div>
-                    <span className={styles.separadorBarra} aria-hidden="true" />
-                    <div className={styles.grupoBarra}>
-                      <span>Agrupar por</span>
-                      <div className={styles.segmentadoChico} role="group" aria-label="Agrupar por">
-                        {DIMENSIONES.map((d) => (
-                          <button key={d.valor} type="button" aria-pressed={dimension === d.valor} className={dimension === d.valor ? styles.segActivo : ''} onClick={() => setDimension(d.valor)}>
-                            {d.corto ?? d.texto}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className={styles.grupoBarra}>
-                      <span>Mostrar</span>
-                      <select className={styles.selectChico} aria-label="Cuántos mostrar" value={topClientes} onChange={(e) => setTopClientes(Number(e.target.value))}>
-                        <option value={10}>Top 10</option>
-                        <option value={20}>Top 20</option>
-                        <option value={0}>Todos</option>
-                      </select>
-                    </div>
-                    {dimension === 'cliente' && plan && !hayFiltroPlanta && (
-                      <>
-                        <span className={styles.separadorBarra} aria-hidden="true" />
-                        <div className={styles.grupoBarra}>
-                          <span>Vista</span>
-                          <div className={styles.segmentadoChico} role="group" aria-label="Vista del plan">
-                            <button type="button" aria-pressed={vistaPlan === 'total'} className={vistaPlan === 'total' ? styles.segActivo : ''} onClick={() => setVistaPlan('total')}>Totales</button>
-                            <button type="button" aria-pressed={vistaPlan === 'semana'} className={vistaPlan === 'semana' ? styles.segActivo : ''} onClick={() => setVistaPlan('semana')}>Por semana</button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                    <span className={styles.separadorBarra} aria-hidden="true" />
-                    <div className={styles.grupoBarra}>
-                      <span>Análisis</span>
-                      <div className={styles.chipsAnalisis} role="group" aria-label="Análisis a mostrar">
-                        {ANALISIS_BOTONES.map((a) => {
-                          const activo = analisisVisibles.includes(a.clave)
-                          return (
-                            <button
-                              key={a.clave}
-                              type="button"
-                              aria-pressed={activo}
-                              title={activo ? `Ocultar ${a.texto} (${a.ayuda})` : `Mostrar ${a.texto} (${a.ayuda})`}
-                              className={`${styles.chipAnalisis} ${activo ? styles.chipAnalisisOn : ''}`}
-                              style={{ '--tono': a.color } as React.CSSProperties}
-                              onClick={() => alternarAnalisis(a.clave)}
-                            >
-                              {a.texto}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                }
                 tabla={{
                   columnas: [nombreDimension.texto, 'AgroFresh', 'Quiteca', 'FSMA', 'FITO', 'Total', 'Con informe'],
                   filas: filasTabla.map((f) => [f.cliente, f.agrofresh.n, f.quiteca.n, f.fsma.n, f.fito.n, f.total, f.informes]),
                 }}
               >
-                {dimension === 'cliente' && plan && !hayFiltroPlanta && vistaPlan === 'semana' ? (
+                {dimension === 'cliente' && plan && vistaPlan === 'semana' ? (
                   <DinamicaPlan solicitudes={alcanceGrafico} plan={plan} analisis={analisisVisibles} />
                 ) : filasTabla.length > 0 ? (
-                  <AnalisisPorCliente solicitudes={alcanceGrafico} dimension={dimension} limite={topClientes} analisis={analisisVisibles} plan={hayFiltroPlanta ? null : plan} />
+                  <AnalisisPorCliente solicitudes={alcanceGrafico} dimension={dimension} limite={topClientes} analisis={analisisVisibles} plan={plan} />
                 ) : (
                   <p className={styles.sinDatosGrafico}>No hay solicitudes con los filtros actuales.</p>
                 )}
-                {dimension === 'cliente' && !hayFiltroPlanta && (
+                {dimension === 'cliente' && (
                   <GraficosPlan solicitudes={alcanceGrafico} plan={plan} analisis={analisisVisibles} />
                 )}
               </TarjetaGrafico>
+              </div>
 
               {/* Los hitos son de solicitudes reales: con datos simulados no hay nada que medir. */}
-              {!simulando && <IndicadoresEntrega solicitudes={alcance} puedeEditar={puedeSimular} />}
+              {!simulando && (
+                <div id={ID_SECCION.lead} className={styles.seccionPagina}>
+                  <IndicadoresEntrega solicitudes={alcance} puedeEditar={puedeSimular} laboratorio={labLead} />
+                </div>
+              )}
             </>
           )}
         </div>

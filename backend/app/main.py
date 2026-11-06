@@ -26,6 +26,7 @@ from .envio_informes import router as envio_informes_router
 from .catalogo import router as catalogo_router
 from .emitir import router as emitir_router
 from .fortificados import router as fortificados_router
+from .inventario_lab import router as inventario_lab_router
 from .funciones import router as funciones_router
 from .presentacion import router as presentacion_router
 from .plan_carga import router as plan_carga_router
@@ -205,6 +206,7 @@ for _router in (
 
 # Verificaciones diarias es una sección de AgroFresh Lab que el administrador puede ocultar a
 # una cuenta (`lab_secciones`): además de ser de AgroFresh, la cuenta tiene que tener la sección.
+app.include_router(inventario_lab_router, dependencies=SOLO_AGROFRESH)
 app.include_router(verificaciones_router, dependencies=[*SOLO_AGROFRESH, lab_secciones.exigir(lab_secciones.LAB_VERIFICACIONES)])
 
 

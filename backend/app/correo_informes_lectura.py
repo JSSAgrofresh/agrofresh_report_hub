@@ -228,9 +228,11 @@ def comparar_destinatarios(
     externos = [c for c in sobran if not _es_interno(c)]
     internos = [c for c in sobran if _es_interno(c)]
     if externos:
+        # Regla del usuario (06-11-2026): gente de más NO bloquea el informe. Es un aviso para revisar (amarillo): el
+        # caso típico es un error de tipeo en la lista (agussanta.cl / aguasanta.cl) y el correo llegó a quien debía.
         hallazgos.append({
-            "nivel": ROJO, "codigo": "destinatarios_de_mas",
-            "texto": "Salió a personas que NO están en la lista de la solicitud: " + ", ".join(externos),
+            "nivel": AMARILLO, "codigo": "destinatarios_de_mas",
+            "texto": "Además de la lista de la solicitud, el correo salió a: " + ", ".join(externos),
         })
     if internos:
         hallazgos.append({

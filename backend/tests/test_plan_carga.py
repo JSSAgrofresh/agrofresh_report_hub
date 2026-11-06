@@ -136,6 +136,19 @@ def test_las_filas_repetidas_se_fusionan_y_no_cuentan_doble():
     assert fito["propuesta"] == 2  # 2 y 2 es 2, no 4
 
 
+def test_dos_lineas_con_la_misma_columna_linea_no_se_juntan_si_el_nombre_dice_L1_y_L2():
+    # Caso real (Agua Santa / Andinexia): la columna Línea repite el 2, pero el servicio dice «Residuales L1» y «Residuales L2».
+    filas = leer_excel(_base([
+        _fila(servicio="Residuales L1", linea=2, semana="W01", original=2, propuesta=2),
+        _fila(servicio="Residuales L2", linea=2, semana="W01", original=2, propuesta=2),
+        _fila(servicio="Residuales ", linea=4, semana="W01", original=2, propuesta=2),  # sin L en el nombre: manda la columna
+    ]))
+    assert [f["linea"] for f in filas] == [1, 2, 4]
+    validas, _ = clasificar(filas, {}, {"10018610": "ROSARIO"})
+    unicas, fusionadas = fusionar_repetidas(validas)
+    assert fusionadas == 0 and sum(u["propuesta"] for u in unicas) == 6
+
+
 def test_el_resumen_trae_las_dos_cantidades_por_servicio():
     validas = [
         {"sold_to": "A", "planta_plan": "P", "clave": "residuales", "original": 3, "propuesta": 5},

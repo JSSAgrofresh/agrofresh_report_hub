@@ -380,7 +380,7 @@ export function TarjetaGrafico({
   /** Sin `alto`, el contenido manda (listas); con él, el lienzo de un gráfico. */
   alto?: number
   tabla: { columnas: string[]; filas: (string | number)[][] }
-  leyenda: ReactNode
+  leyenda?: ReactNode
   /** botones propios del gráfico (por ejemplo, el tipo de servicio) */
   controles?: ReactNode
   /** Si viene, reemplaza la tabla genérica al pulsar «Ver tabla». */

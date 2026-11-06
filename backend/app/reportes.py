@@ -16,6 +16,14 @@ from .db import conexion, cursor_dict
 router = APIRouter(prefix="/api/reportes", tags=["reportes"])
 
 
+def solo_gestor_analitos(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
+    """Crear, editar o borrar analitos y límites: solo el administrador general y los administradores de área (los mismos
+    a quienes la pantalla les muestra «Gestionar analitos»). Antes bastaba tener sesión: un cliente podía borrarlos."""
+    if usuario.tipoAcceso not in ("admin_general", "admin_area"):
+        raise HTTPException(403, "Tu cuenta no puede modificar analitos ni límites.")
+    return usuario
+
+
 # ---------------------------------------------------------------------------
 # Datos para los gráficos: formato largo, una fila por analito medido.
 # ---------------------------------------------------------------------------
@@ -735,7 +743,7 @@ RETURNING_COLS = (
 
 
 @router.post("/analitos")
-def crear_analito(payload: AnalitoIn) -> dict[str, Any]:
+def crear_analito(payload: AnalitoIn, _: Usuario = Depends(solo_gestor_analitos)) -> dict[str, Any]:
     datos = payload.model_dump()
     columnas = list(datos.keys())
     placeholders = ", ".join(["%s"] * len(columnas))
@@ -754,7 +762,7 @@ def crear_analito(payload: AnalitoIn) -> dict[str, Any]:
 
 
 @router.put("/analitos/{analito_id}")
-def actualizar_analito(analito_id: int, payload: AnalitoUpdate) -> dict[str, Any]:
+def actualizar_analito(analito_id: int, payload: AnalitoUpdate, _: Usuario = Depends(solo_gestor_analitos)) -> dict[str, Any]:
     cambios = payload.model_dump(exclude_unset=True)
     if not cambios:
         raise HTTPException(400, "No se enviaron campos para actualizar.")
@@ -775,7 +783,7 @@ def actualizar_analito(analito_id: int, payload: AnalitoUpdate) -> dict[str, Any
 
 
 @router.delete("/analitos/{analito_id}")
-def eliminar_analito(analito_id: int) -> dict[str, Any]:
+def eliminar_analito(analito_id: int, _: Usuario = Depends(solo_gestor_analitos)) -> dict[str, Any]:
     with conexion(escribir=True) as conn:
         with cursor_dict(conn) as cur:
             try:
@@ -831,7 +839,7 @@ def listar_limites() -> list[dict[str, Any]]:
 
 
 @router.post("/limites")
-def crear_limite(payload: LimiteAnalitoIn) -> dict[str, Any]:
+def crear_limite(payload: LimiteAnalitoIn, _: Usuario = Depends(solo_gestor_analitos)) -> dict[str, Any]:
     with conexion(escribir=True) as conn:
         with cursor_dict(conn) as cur:
             try:
@@ -852,7 +860,7 @@ def crear_limite(payload: LimiteAnalitoIn) -> dict[str, Any]:
 
 
 @router.put("/limites/{limite_id}")
-def actualizar_limite(limite_id: int, payload: LimiteAnalitoUpdate) -> dict[str, Any]:
+def actualizar_limite(limite_id: int, payload: LimiteAnalitoUpdate, _: Usuario = Depends(solo_gestor_analitos)) -> dict[str, Any]:
     cambios = payload.model_dump(exclude_unset=True)
     if not cambios:
         raise HTTPException(400, "No se enviaron campos para actualizar.")
@@ -875,7 +883,7 @@ def actualizar_limite(limite_id: int, payload: LimiteAnalitoUpdate) -> dict[str,
 
 
 @router.delete("/limites/{limite_id}")
-def eliminar_limite(limite_id: int) -> dict[str, Any]:
+def eliminar_limite(limite_id: int, _: Usuario = Depends(solo_gestor_analitos)) -> dict[str, Any]:
     with conexion(escribir=True) as conn:
         with cursor_dict(conn) as cur:
             cur.execute("DELETE FROM analito_limite WHERE id = %s RETURNING id", (limite_id,))

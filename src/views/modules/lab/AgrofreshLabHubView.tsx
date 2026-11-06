@@ -1,8 +1,8 @@
 import { Header } from '@/components/layout/Header'
 import { useAuth } from '@/features/auth'
-import { puedeVerSeccionLab } from '@/features/usuarios'
+import { puedeUsarInventarioLab, puedeVerSeccionLab } from '@/features/usuarios'
 import { OpcionCard } from '@/components/ui/OpcionCard'
-import { IconCorreo, IconFrasco, IconVerificar } from '@/components/ui/icons'
+import { IconCaja, IconCorreo, IconFrasco, IconVerificar } from '@/components/ui/icons'
 import { ROUTES } from '@/constants/routes'
 import styles from '@/components/ui/OpcionCard.module.css'
 
@@ -52,6 +52,14 @@ export function AgrofreshLabHubView() {
             titulo="Envío de informes"
             descripcion="Sube el PDF del laboratorio, elige Sold To y Ship To y envíalo a la lista de distribución del cliente."
             ruta={ROUTES.agrofreshLabEnvioInformes}
+          />
+        )}
+        {user && puedeUsarInventarioLab(user) && (
+          <OpcionCard
+            icono={<IconCaja />}
+            titulo="Inventario"
+            descripcion="Insumos y estándares del laboratorio: escanea el código, registra ingresos y salidas y revisa los vencimientos."
+            ruta={ROUTES.agrofreshLabInventario}
           />
         )}
       </div>
