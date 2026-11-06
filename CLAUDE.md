@@ -56,6 +56,10 @@ El usuario lleva sus tareas en el Artifact **«Tareas Report Hub»**: **https://
 
 ---
 
+## Mejoras visuales: rama aparte y tema oscuro (04-11-2026, pedido del usuario)
+
+**Fusionado a `main` el 06-11-2026 (Actualización #306), a pedido del usuario.** Si el resultado no gusta o algo se estropea se vuelve al estado anterior con la rama `respaldo-main-antes-mejoras-visuales` (es `main` tal como estaba justo antes, 813ebce): `git revert -m 1 <merge>` del PR de mejoras visuales, o `git reset --hard` a esa rama en una rama aparte y PR. Los cambios visuales siguientes pueden seguir en `mejoras-visuales` (para probar antes en el preview) y fusionarse cuando el usuario lo pida. Primer paso hecho: el marco interno (barra lateral) con el estilo de la vista de cliente —barra lateral flotante, encabezado con foto, indicadores con color, tarjetas suaves— y **tema oscuro**. Cómo está armado: `src/styles/mejoras-visuales.css` (capa de estilo; sus selectores `[class*="_x_"]` buscan el nombre de la clase de cada CSS Module, así que si se renombra una hay que revisarla), `src/lib/temaVisual.ts` (claro/oscuro en `localStorage`, `data-tema` en `<html>`, `useTemaVisual`), botón sol/luna en el pie de `Sidebar.tsx` y `AppLayout`, que pone `html[data-mejoras]` SOLO en el marco interno (el portal de clientes y comerciales no se toca). **Gráficos (05-11-2026)**: `aplicarTema` fija `Chart.defaults.color/borderColor` según el tema (`COLORES_GRAFICO`) y redibuja los gráficos ya abiertos; los que leen variables CSS (`cssVar` en `ReporteView`, que llama a `useTemaVisual()` para recalcular al cambiar de tema) toman la paleta oscura sola. **Un gráfico nuevo con colores fijos claros se verá mal en oscuro: usa `cssVar` o los defaults.** **Celular**: la barra lateral flotante y sus márgenes viven dentro de `@media (min-width: 881px)` (el corte del marco); sin eso el contenido se apretaba en una columna angosta. Probar siempre a 412, 860 y 1600 px. Pendiente: Monitoreo (ya es oscuro y no usa esta capa), el portal de clientes en oscuro y pasar los estilos «parche» a cada CSS Module. Prueba: `temaVisual.test.ts`.
+
 ## Dónde corre el sistema
 
 | Pieza | Dónde |
