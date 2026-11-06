@@ -130,6 +130,7 @@ cd backend
 .venv\Scripts\python.exe scripts\migrar.py 0072_presentacion_remota.sql
 .venv\Scripts\python.exe scripts\migrar.py 0073_plan_entregable_detalle.sql
 .venv\Scripts\python.exe scripts\migrar.py 0074_inventario_lab.sql
+.venv\Scripts\python.exe scripts\migrar.py 0075_integridad_analisis.sql
 
 # Reiniciar el backend (después de cada git pull: el código nuevo NO entra solo)
 Stop-ScheduledTask -TaskName "AgroFresh Report Hub - Backend"
@@ -187,6 +188,7 @@ Los scripts que **escriben** en la base miran primero y solo aplican con
 | `scripts/recibir_informes_correo.py` | Revisa el buzón del Report Hub y deja los informes que llegaron en Ingesta de Datos → Correo (lo mismo que el botón «Revisar ahora»; `--dias`). Solo lee el buzón y no carga nada a Report. Necesita la 0064. Es lo que la tarea programada correrá cada 5 min cuando se encienda la revisión automática (etapa 3) |
 | `scripts/auditar_lista_en_solicitudes.py` | SOLO LECTURA: busca huecos entre la tabla de Listas de distribución y lo que la solicitud encuentra (caso OT-QUI0061: «Cereza» en la lista, «Cerezas» en el formulario → «Sin lista de distribución»). A) cada planta con correos de cliente × cada especie activa; B) solicitudes ya emitidas que salieron «Sin lista» teniendo lista (hay que avisar al laboratorio). `--solo-a`. La comparación de especie es `toma_muestras._clave_especie_contacto` (sin la «s» final) |
 | `scripts/cargar_inventario_lab.py` | Carga el Excel de inventario de Romina (hoja «Borrador códigos») a AgroFresh Lab → Inventario: una fila = un producto (los códigos repetidos NO se fusionan). Mira primero; `--aplicar` escribe y solo si el inventario está vacío (`--forzar` lo salta). Necesita la 0074 |
+| `scripts/integridad_nocturna.py` | SOLO LEE: compara cada solicitud enviada con el informe del laboratorio (existencia y plazo, analitos, dosis, rotulación, identificación y, sin `--sin-pdf`, el PDF) y guarda el análisis (migración 0075) para Administración General → Integridad de datos. Lo corre la tarea nocturna `registrar-tarea-integridad.ps1` |
 | `deploy/windows/respaldar.ps1` | Respaldo manual de la base |
 
 Hay ~9 scripts en `backend/scripts/` que fueron migraciones de una sola vez
@@ -744,6 +746,18 @@ Pruebas: `filtrosMultiples.test.ts`, `limitesResiduales.test.ts`, `InformesFuera
 solo en la Vista por límite de control: criterio «Límite del analito» (límite residual; sin límite ≠ dentro)
 o «Límite de control» (promedio ± σ, mín. 3 por analito); parte en el primero si hay límites cargados.
 % = (sobre+bajo) ÷ evaluados; «Ver por» Analito / Cliente / Laboratorio / Servicio.
+
+## Integridad de datos: solicitudes contra informes (06-11-2026, migración **0075**)
+
+Administración General → pestaña **«Integridad de datos»** (solo el administrador principal: `correo_informes.exigir_principal`, 403 al resto). Es la auditoría con la que se
+reclama a los laboratorios: cada **solicitud enviada** (Toma de muestras, sin pruebas) se cruza con su informe por la OT y se revisa, por laboratorio:
+**existencia y plazo** (`SIN_INFORME`, `INFORME_ATRASADO`: días hábiles desde el primer envío exitoso contra el plazo de `plazos_entrega.json`; sin plazo cargado avisa a los 7 días hábiles), **identificación** (reglas de `diagnostico_informes`: OT, Sold To, Ship To, especie, fecha, servicio, laboratorio),
+**analitos** (`ANALITO_FALTA` grave, `ANALITO_DE_MAS`; se suman todos los informes de la misma OT y se comparan con `mapeo.ALIAS_CODIGO_CATALOGO`), **dosis** (`DOSIS_DISTINTA`/`DOSIS_FALTA`, solo AgroFresh y Quiteca: la dosis de `campos_laboratorio` contra `producto_aplicado.dosis`),
+**rotulación** (lote, N° cámara, N° orden, posición, kilos, CSG: `ROTULACION_DISTINTA`/`ROTULACION_FALTA`; Diagnofruit no repite la rotulación y no se le reclama) y la **coherencia interna** del informe. Con «Releer los PDF» además compara el PDF (AgroFresh, Quiteca y Diagnofruit con los lectores de `correo_informes_homogeneo.leer`).
+**Pendiente: el lector de PDF de ALS en Python** (hoy de ALS solo se compara lo guardado en Report; el lector está en el Converter, `leerAlsMicro`) y los **destinatarios del envío** (`correo_informe`: a quién llegó) dentro de este análisis; hoy se ven en Ingreso de Informes.
+- **Código**: `app/integridad.py` (PURO: `analizar`, `hallazgos_de`, `TITULOS`; pruebas `tests/test_integridad.py`), `app/integridad_api.py` (lee las fuentes, corre en HILO porque releer PDF tarda, guarda en `integridad_analisis`; un solo análisis a la vez, el colgado se cierra a los 45 min; `tests/test_integridad_bd.py` con Postgres), `app/integridad_pdf.py` (PDF formal por laboratorio y Excel), API `/api/integridad` (`estado`, `analizar`, `hallazgos` con filtros, `historial`, `pdf?laboratorio=`, `excel`).
+- **Cada noche**: `scripts/integridad_nocturna.py` (`--sin-pdf` para el rápido) con la tarea `deploy/windows/registrar-tarea-integridad.ps1` (02:30; log en `logs/integridad_*.log`). El botón «Analizar ahora» hace lo mismo a mano.
+- Front: `features/integridad/`, `views/admin/integridad/IntegridadPanel.tsx` (cifras, tabla por laboratorio con «Ver errores / PDF / Excel», listado filtrable por laboratorio, gravedad, tipo y texto). **Solo lee: nunca cambia solicitudes ni informes.** Un tipo de error nuevo se agrega en `integridad.analizar` y su título en `TITULOS`.
 
 ## Plan de entregables de los comerciales (en construcción)
 
